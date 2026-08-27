@@ -1,23 +1,24 @@
 type target = Native | Headless | Web
 type t
-type web_configuration = { interface:string; port:int; title:string; resizable:bool;
+type web_configuration = Runtime_next_web.web_configuration = { interface:string; port:int; title:string; resizable:bool;
   max_events:int; max_clients:int; max_connections:int; max_message_bytes:int;
   max_queued_event_bytes:int; max_frame_pool_bytes:int; compress_frames:bool }
 val default_web_configuration : web_configuration
 type configuration = { target:target; logical_width:int; logical_height:int;
-  drawable_width:int; drawable_height:int; wap_config:Wap.config option }
+  drawable_width:int; drawable_height:int;
+  web_configuration:web_configuration option }
 type facts = { title:string; logical_width:int; logical_height:int;
   drawable_width:int; drawable_height:int; position:(int*int) option;
   pixel_density:float; display_scale:float; refresh_rate:float option; vsync:bool }
 type pacing = { frames:int64; presented:int64; last_presented:bool }
-type text_input_region = { x:int; y:int; width:int; height:int; focused:bool }
-type mouse_button = Left | Middle | Right | X1 | X2
-type web_event = Pointer_moved of int*int | Pointer_pressed of mouse_button*int*int
+type text_input_region = Runtime_next_web.text_input_region = { x:int; y:int; width:int; height:int; focused:bool }
+type mouse_button = Runtime_next_web.mouse_button = Left | Middle | Right | X1 | X2
+type web_event = Runtime_next_web.web_event = Pointer_moved of int*int | Pointer_pressed of mouse_button*int*int
   | Pointer_released of mouse_button*int*int | Pointer_cancelled of mouse_button
   | Wheel of int*int | Key_pressed of string | Key_released of string
   | Text_input of string | Text_editing of {text:string;start:int;length:int}
   | Resized of int*int | Focus_lost | File_uploaded of {name:string;contents:bytes}
-type audio_command = Audio_master_volume of float | Audio_stop_all
+type audio_command = Runtime_next_web.audio_command = Audio_master_volume of float | Audio_stop_all
   | Audio_sample_play of {asset:string;channel:int;loops:int;volume:float}
   | Audio_sample_volume of {asset:string;volume:float}
   | Audio_sample_stop of int | Audio_sample_pause of int | Audio_sample_resume of int

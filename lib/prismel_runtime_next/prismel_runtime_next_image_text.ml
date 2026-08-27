@@ -62,7 +62,7 @@ let test()=
     stencil_load=Ogpu.Render_pass.Clear;stencil_clear=0}}in
   let configuration:Loop.configuration={target=Runtime_next_orchestrator.Headless;
     logical_width=4;logical_height=4;drawable_width=8;drawable_height=8;
-    frames=600;dt=1./.60.;wap_config=None}in
+    frames=600;dt=1./.60.;web_configuration=None}in
   let result=Loop.run_state~configuration~init:(fun _->())~update:(fun() _->())
     ~view:(fun()_->[Scene.clear Color.black])~prepare:(fun frame _->
       if frame.Frame.count=2 then failed_reload image;

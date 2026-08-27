@@ -54,7 +54,7 @@ let test () =
     stencil_state=None;stencil_load=Ogpu.Render_pass.Clear;stencil_clear=0}}in
   let configuration:Loop.configuration={target=Runtime_next_orchestrator.Headless;
     logical_width=4;logical_height=4;drawable_width=4;drawable_height=4;
-    frames=600;dt=1./.60.;wap_config=None}in
+    frames=600;dt=1./.60.;web_configuration=None}in
   let result=Loop.run_state~configuration~init:(fun _->())
     ~update:(fun() _->())~view:(fun() _->[Scene.clear Color.black])
     ~prepare:(fun frame _->

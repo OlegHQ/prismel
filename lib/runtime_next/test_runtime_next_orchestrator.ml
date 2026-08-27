@@ -38,9 +38,9 @@ let draw extent =
       transform_uniforms = None; stencil_state = None;
       stencil_load = Ogpu.Render_pass.Clear; stencil_clear = 0 } }
 
-let configuration ?wap_config target extent =
+let configuration ?web_configuration target extent =
   { Orchestrator.target; logical_width = extent; logical_height = extent;
-    drawable_width = extent; drawable_height = extent; wap_config }
+    drawable_width = extent; drawable_height = extent; web_configuration }
 
 let exercise runtime extent =
   for frame = 1 to 600 do
@@ -132,12 +132,12 @@ let () =
   (match Orchestrator.facts headless with
    | Error error when error.Ogpu.Error.kind = Ogpu.Error.Stale_handle -> ()
    | Ok _ | Error _ -> failwith "destroyed headless facts remained accessible");
-  let wap_config =
-    { Wap.default_config with interface = "127.0.0.1"; port = 0;
+  let web_configuration =
+    { Orchestrator.default_web_configuration with interface = "127.0.0.1"; port = 0;
       compress_frames = false }
   in
   let web =
-    get (Orchestrator.create (configuration ~wap_config Orchestrator.Web 4))
+    get (Orchestrator.create (configuration ~web_configuration Orchestrator.Web 4))
   in
   if not (Orchestrator.is_web web) || not (Orchestrator.is_displayless web)
       || get (Orchestrator.web_client_count web) <> 0

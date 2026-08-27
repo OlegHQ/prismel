@@ -10,7 +10,7 @@ type configuration = {
   drawable_height : int;
   frames : int;
   dt : float;
-  wap_config : Wap.config option;
+  web_configuration : Orchestrator.web_configuration option;
 }
 
 type 'model result = {
@@ -69,7 +69,7 @@ let run_state ~configuration ~init ~update ~view ~prepare ?regions ?after_frame
           logical_height = configuration.logical_height;
           drawable_width = configuration.drawable_width;
           drawable_height = configuration.drawable_height;
-          wap_config = configuration.wap_config;
+          web_configuration = configuration.web_configuration;
         }
       in
       match Orchestrator.create runtime_configuration with
@@ -139,7 +139,7 @@ let run_state ~configuration ~init ~update ~view ~prepare ?regions ?after_frame
             run
 
 let run_selected ~logical_width ~logical_height ~drawable_width
-    ~drawable_height ~frames ~dt ?wap_config ~init ~update ~view ~prepare
+    ~drawable_height ~frames ~dt ?web_configuration ~init ~update ~view ~prepare
     ?regions ?after_frame ?on_stop () =
   match Orchestrator.selected () with
   | Error message ->
@@ -149,7 +149,7 @@ let run_selected ~logical_width ~logical_height ~drawable_width
   | Ok target ->
       run_state
         ~configuration:{ target; logical_width; logical_height; drawable_width;
-          drawable_height; frames; dt; wap_config }
+          drawable_height; frames; dt; web_configuration }
         ~init ~update ~view ~prepare ?regions ?after_frame ?on_stop ()
 
 let test () =
@@ -179,7 +179,7 @@ let test () =
   let configuration =
     { target = Orchestrator.Headless; logical_width = 4; logical_height = 4;
       drawable_width = 4; drawable_height = 4; frames = 600;
-      dt = 1. /. 60.; wap_config = None }
+      dt = 1. /. 60.; web_configuration = None }
   in
   let result =
     match run_state ~configuration ~init:(fun frame -> frame.count)

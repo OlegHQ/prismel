@@ -65,7 +65,7 @@ let run fixture extent =
     { target = Orchestrator.Headless; logical_width = extent;
       logical_height = extent; drawable_width = extent;
       drawable_height = extent; frames = 600; dt = 1. /. 60.;
-      wap_config = None }
+      web_configuration = None }
   in
   let result =
     match Loop.run_state ~configuration ~init:(fun _ -> 0)

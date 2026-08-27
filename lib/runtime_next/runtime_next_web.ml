@@ -1,4 +1,25 @@
 module Presenter = Runtime_wap_raster2_presenter.Wap_raster2_presenter
+type web_configuration={interface:string;port:int;title:string;resizable:bool;
+  max_events:int;max_clients:int;max_connections:int;max_message_bytes:int;
+  max_queued_event_bytes:int;max_frame_pool_bytes:int;compress_frames:bool}
+let default_web_configuration=let x=Wap.default_config in {interface=x.interface;port=x.port;
+  title=x.title;resizable=x.resizable;max_events=x.max_events;max_clients=x.max_clients;
+  max_connections=x.max_connections;max_message_bytes=x.max_message_bytes;
+  max_queued_event_bytes=x.max_queued_event_bytes;max_frame_pool_bytes=x.max_frame_pool_bytes;
+  compress_frames=x.compress_frames}
+type text_input_region={x:int;y:int;width:int;height:int;focused:bool}
+type mouse_button=Left|Middle|Right|X1|X2
+type web_event=Pointer_moved of int*int|Pointer_pressed of mouse_button*int*int
+  |Pointer_released of mouse_button*int*int|Pointer_cancelled of mouse_button|Wheel of int*int
+  |Key_pressed of string|Key_released of string|Text_input of string
+  |Text_editing of{text:string;start:int;length:int}|Resized of int*int|Focus_lost
+  |File_uploaded of{name:string;contents:bytes}
+type audio_command=Audio_master_volume of float|Audio_stop_all
+  |Audio_sample_play of{asset:string;channel:int;loops:int;volume:float}
+  |Audio_sample_volume of{asset:string;volume:float}|Audio_sample_stop of int
+  |Audio_sample_pause of int|Audio_sample_resume of int
+  |Audio_music_play of{asset:string;loops:int;fade_ms:int}|Audio_music_volume of float
+  |Audio_music_pause|Audio_music_resume|Audio_music_stop of int|Audio_asset_remove of string
 
 type t = {
   presenter : Presenter.t;
@@ -73,6 +94,15 @@ let create ?wap_config ~logical_width ~logical_height ~drawable_width
                 drawable_height;
                 dead = false;
               }
+
+let create_configured ?configuration ~logical_width ~logical_height
+    ~drawable_width ~drawable_height () =
+  let wap_config=Option.map(fun(x:web_configuration)->({Wap.interface=x.interface;
+    port=x.port;title=x.title;resizable=x.resizable;max_events=x.max_events;
+    max_clients=x.max_clients;max_connections=x.max_connections;
+    max_message_bytes=x.max_message_bytes;max_queued_event_bytes=x.max_queued_event_bytes;
+    max_frame_pool_bytes=x.max_frame_pool_bytes;compress_frames=x.compress_frames}:Wap.config))configuration in
+  create?wap_config~logical_width~logical_height~drawable_width~drawable_height()
 
 let ensure_live operation value =
   if value.dead then error operation Ogpu.Error.Stale_handle "runtime is destroyed"
@@ -190,6 +220,27 @@ let download_frame value ~filename =
       Result.map_error
         (fun message -> Ogpu.Error.make operation Ogpu.Error.Invalid_state message)
         (Presenter.download_frame value.presenter ~filename)
+let button=function Wap.Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2
+let typed_event=function Wap.Pointer_moved(x,y)->Pointer_moved(x,y)
+  |Pointer_pressed(b,x,y)->Pointer_pressed(button b,x,y)
+  |Pointer_released(b,x,y)->Pointer_released(button b,x,y)
+  |Pointer_cancelled b->Pointer_cancelled(button b)|Wheel(x,y)->Wheel(x,y)
+  |Key_pressed x->Key_pressed x|Key_released x->Key_released x|Text_input x->Text_input x
+  |Text_editing{text;start;length}->Text_editing{text;start;length}|Resized(w,h)->Resized(w,h)
+  |Focus_lost->Focus_lost|File_uploaded{name;contents}->File_uploaded{name;contents}
+let drain_events_typed value=Result.map(List.map typed_event)(drain_events_ordered value)
+let wap_audio=function Audio_master_volume x->Wap.Audio_master_volume x|Audio_stop_all->Audio_stop_all
+  |Audio_sample_play{asset;channel;loops;volume}->Wap.Audio_sample_play{asset;channel;loops;volume}
+  |Audio_sample_volume{asset;volume}->Wap.Audio_sample_volume{asset;volume}
+  |Audio_sample_stop x->Audio_sample_stop x|Audio_sample_pause x->Audio_sample_pause x
+  |Audio_sample_resume x->Audio_sample_resume x
+  |Audio_music_play{asset;loops;fade_ms}->Wap.Audio_music_play{asset;loops;fade_ms}
+  |Audio_music_volume x->Audio_music_volume x|Audio_music_pause->Audio_music_pause
+  |Audio_music_resume->Audio_music_resume|Audio_music_stop x->Audio_music_stop x
+  |Audio_asset_remove x->Audio_asset_remove x
+let send_audio_typed value command=send_audio value(wap_audio command)
+let set_regions value regions=set_text_input_regions value(List.map(fun(x:text_input_region)->
+  ({Wap.x=x.x;y=x.y;width=x.width;height=x.height;focused=x.focused}:Wap.text_input_region))regions)
 let read_pixels value ~bytes_per_row =
   match ensure_live "Runtime_next_web.read_pixels" value with
   | Error _ as error_value -> error_value

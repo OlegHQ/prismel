@@ -1,28 +1,24 @@
 type target = Native | Headless | Web
 type implementation = Native_runtime of Runtime_next.t
   | Headless_runtime of Runtime_next_headless.t | Web_runtime of Runtime_next_web.t
-type web_configuration = { interface:string; port:int; title:string; resizable:bool;
+type web_configuration=Runtime_next_web.web_configuration={interface:string;port:int;title:string;resizable:bool;
   max_events:int; max_clients:int; max_connections:int; max_message_bytes:int;
   max_queued_event_bytes:int; max_frame_pool_bytes:int; compress_frames:bool }
-let default_web_configuration = let value=Wap.default_config in {interface=value.interface;
-  port=value.port;title=value.title;resizable=value.resizable;max_events=value.max_events;
-  max_clients=value.max_clients;max_connections=value.max_connections;
-  max_message_bytes=value.max_message_bytes;max_queued_event_bytes=value.max_queued_event_bytes;
-  max_frame_pool_bytes=value.max_frame_pool_bytes;compress_frames=value.compress_frames}
+let default_web_configuration=Runtime_next_web.default_web_configuration
 type configuration = { target:target;logical_width:int;logical_height:int;
-  drawable_width:int;drawable_height:int;wap_config:Wap.config option }
+  drawable_width:int;drawable_height:int;web_configuration:web_configuration option }
 type facts = { title:string;logical_width:int;logical_height:int;drawable_width:int;
   drawable_height:int;position:(int*int)option;pixel_density:float;display_scale:float;
   refresh_rate:float option;vsync:bool }
 type pacing = {frames:int64;presented:int64;last_presented:bool}
-type text_input_region={x:int;y:int;width:int;height:int;focused:bool}
-type mouse_button=Left|Middle|Right|X1|X2
-type web_event=Pointer_moved of int*int|Pointer_pressed of mouse_button*int*int
+type text_input_region=Runtime_next_web.text_input_region={x:int;y:int;width:int;height:int;focused:bool}
+type mouse_button=Runtime_next_web.mouse_button=Left|Middle|Right|X1|X2
+type web_event=Runtime_next_web.web_event=Pointer_moved of int*int|Pointer_pressed of mouse_button*int*int
   |Pointer_released of mouse_button*int*int|Pointer_cancelled of mouse_button
   |Wheel of int*int|Key_pressed of string|Key_released of string|Text_input of string
   |Text_editing of{text:string;start:int;length:int}|Resized of int*int|Focus_lost
   |File_uploaded of{name:string;contents:bytes}
-type audio_command=Audio_master_volume of float|Audio_stop_all
+type audio_command=Runtime_next_web.audio_command=Audio_master_volume of float|Audio_stop_all
   |Audio_sample_play of{asset:string;channel:int;loops:int;volume:float}
   |Audio_sample_volume of{asset:string;volume:float}|Audio_sample_stop of int
   |Audio_sample_pause of int|Audio_sample_resume of int
@@ -62,10 +58,10 @@ let create (c:configuration)=let op="Runtime_next_orchestrator.create"in
       facts=initial_facts c;pacing={frames=0L;presented=0L;last_presented=false};dead=false})
       (Runtime_next_headless.create~logical_width:c.logical_width~logical_height:c.logical_height
         ~drawable_width:c.drawable_width~drawable_height:c.drawable_height)
-  |Web->let wap_config=c.wap_config in
+  |Web->let configuration=c.web_configuration in
     Result.map(fun runtime->{target=Web;implementation=Web_runtime runtime;facts=initial_facts c;
       pacing={frames=0L;presented=0L;last_presented=false};dead=false})
-      (Runtime_next_web.create?wap_config~logical_width:c.logical_width~logical_height:c.logical_height
+      (Runtime_next_web.create_configured?configuration~logical_width:c.logical_width~logical_height:c.logical_height
         ~drawable_width:c.drawable_width~drawable_height:c.drawable_height())
 let ensure operation value=if value.dead then error operation Ogpu.Error.Stale_handle"runtime is destroyed"else Ok()
 let target value=value.target
@@ -111,27 +107,11 @@ let web_call operation value call=match ensure operation value with Error _ as e
   |Web_runtime runtime->call runtime|Native_runtime _|Headless_runtime _->unsupported operation value.target
 let web_url value=web_call"Runtime_next_orchestrator.web_url"value Runtime_next_web.url
 let web_client_count value=web_call"Runtime_next_orchestrator.web_client_count"value Runtime_next_web.client_count
-let button=function Wap.Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2
-let event=function Wap.Pointer_moved(x,y)->Pointer_moved(x,y)|Pointer_pressed(b,x,y)->Pointer_pressed(button b,x,y)
-  |Pointer_released(b,x,y)->Pointer_released(button b,x,y)|Pointer_cancelled b->Pointer_cancelled(button b)
-  |Wheel(x,y)->Wheel(x,y)|Key_pressed x->Key_pressed x|Key_released x->Key_released x|Text_input x->Text_input x
-  |Text_editing{text;start;length}->Text_editing{text;start;length}|Resized(w,h)->Resized(w,h)
-  |Focus_lost->Focus_lost|File_uploaded{name;contents}->File_uploaded{name;contents}
-let drain_web_events value=web_call"Runtime_next_orchestrator.drain_web_events"value(fun r->Result.map(List.map event)(Runtime_next_web.drain_events_ordered r))
+let drain_web_events value=web_call"Runtime_next_orchestrator.drain_web_events"value Runtime_next_web.drain_events_typed
 let register_web_bytes value?content_type bytes=web_call"Runtime_next_orchestrator.register_web_bytes"value(fun r->Runtime_next_web.register_asset_bytes r?content_type bytes)
 let remove_web_asset value id=web_call"Runtime_next_orchestrator.remove_web_asset"value(fun r->Runtime_next_web.remove_asset_checked r id)
-let audio=function Audio_master_volume x->Wap.Audio_master_volume x|Audio_stop_all->Audio_stop_all
-  |Audio_sample_play{asset;channel;loops;volume}->Wap.Audio_sample_play{asset;channel;loops;volume}
-  |Audio_sample_volume{asset;volume}->Wap.Audio_sample_volume{asset;volume}
-  |Audio_sample_stop x->Audio_sample_stop x|Audio_sample_pause x->Audio_sample_pause x
-  |Audio_sample_resume x->Audio_sample_resume x
-  |Audio_music_play{asset;loops;fade_ms}->Wap.Audio_music_play{asset;loops;fade_ms}
-  |Audio_music_volume x->Audio_music_volume x|Audio_music_pause->Audio_music_pause
-  |Audio_music_resume->Audio_music_resume|Audio_music_stop x->Audio_music_stop x
-  |Audio_asset_remove x->Audio_asset_remove x
-let send_web_audio value command=web_call"Runtime_next_orchestrator.send_web_audio"value(fun r->Runtime_next_web.send_audio r(audio command))
+let send_web_audio value command=web_call"Runtime_next_orchestrator.send_web_audio"value(fun r->Runtime_next_web.send_audio_typed r command)
 let download_web_frame value~filename=web_call"Runtime_next_orchestrator.download_web_frame"value(fun r->Runtime_next_web.download_frame r~filename)
-let set_text_input_regions value regions=web_call"Runtime_next_orchestrator.set_text_input_regions"value(fun r->
-  Runtime_next_web.set_text_input_regions r(List.map(fun(x:text_input_region)->({Wap.x=x.x;y=x.y;width=x.width;height=x.height;focused=x.focused}:Wap.text_input_region))regions))
+let set_text_input_regions value regions=web_call"Runtime_next_orchestrator.set_text_input_regions"value(fun r->Runtime_next_web.set_regions r regions)
 let destroy value=if value.dead then Ok()else(value.dead<-true;match value.implementation with Native_runtime x->Runtime_next.destroy x
   |Headless_runtime x->Runtime_next_headless.destroy x|Web_runtime x->Runtime_next_web.destroy x)

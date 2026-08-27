@@ -89,7 +89,7 @@ let test () =
   let configuration : Loop.configuration =
     { target = Runtime_next_orchestrator.Headless; logical_width = 4;
       logical_height = 4; drawable_width = 4; drawable_height = 4;
-      frames = 600; dt = 1. /. 60.; wap_config = None }
+      frames = 600; dt = 1. /. 60.; web_configuration = None }
   in
   let vertices = Bytes.make 48 '\000' in
   let set index x y =

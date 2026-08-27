@@ -21,7 +21,7 @@
  (public_name prismel.runtime_next_orchestrator)
  (modules runtime_next_orchestrator)
  (libraries ogpu scene_execution runtime_next runtime_next_headless
-  runtime_next_web wap))
+  runtime_next_web))
 
 (library
  (name runtime_next_input)
