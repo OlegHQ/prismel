@@ -21,6 +21,11 @@
  (libraries procedural prismel pdk))
 
 (test
+ (name test_terminal_boolean_normals)
+ (modules test_terminal_boolean_normals)
+ (libraries procedural prismel pdk))
+
+(test
  (name test_motion_sop)
  (modules test_motion_sop)
  (libraries procedural prismel pdk))

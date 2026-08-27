@@ -49,5 +49,27 @@ let self_test()=let get=function Ok x->x|Error _->failwith"OGPU renderer fixture
  (match render_with_scene3 renderer owned_callbacks shadowed with Error Unsupported_shadow->()|_->failwith"native shadow fallback was silent");
  Scene3_raster2_resources.destroy owned;
  if upload_bytes renderer<>first then failwith"rejected native resources mutated uploads";
+ let reversed_mesh=Mesh.create_exn~normals:[Vec3.neg Vec3.unit_z;Vec3.neg Vec3.unit_z;Vec3.neg Vec3.unit_z]
+   [Vec3.create(-0.5)(-0.5)0.;Vec3.create 0. 0.5 0.;Vec3.create 0.5(-0.5)0.]in
+ let reversed_value=Scene3.create[Scene3.mesh~material:(Material.unlit Color.white)
+   ~cull:Scene3.Cull_none reversed_mesh]in
+ let reversed_node=Scene_description.View3d(camera,reversed_value,Some(0,0,16,16))in
+ let reversed_prepared=match Scene3_raster2_lowering.lower_view3d
+   ~resources:default_scene3_resources~default_viewport:(0,0,16,16)reversed_node with
+   |Ok value->value|Error _->failwith"reversed normal lowering"in
+ let packed=vertex3_bytes reversed_prepared.draws.(0).vertices in
+ for vertex=0 to 2 do
+   let offset=vertex*68 in
+   if Int64.float_of_bits(Bytes.get_int64_le packed(offset+24))<>0.||
+      Int64.float_of_bits(Bytes.get_int64_le packed(offset+32))<>0.||
+      Int64.float_of_bits(Bytes.get_int64_le packed(offset+40))<>(-1.)then
+     failwith"orientation-aware normal changed in OGPU vertex bytes"
+ done;
+ let before_reversed=upload_bytes renderer in
+ ignore(get(render renderer[reversed_node]));let reversed_upload=upload_bytes renderer in
+ if reversed_upload<=before_reversed then failwith"reversed terminal mesh was not uploaded";
+ List.iter(fun _frame->ignore(get(render renderer[reversed_node]));
+   if upload_bytes renderer<>reversed_upload then failwith"reversed mesh reuploaded")
+   [1;2;60;600];
  get(destroy renderer);if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then failwith"renderer leaked"
 let()=match Sys.getenv_opt"PRISMEL_TEST_SCENE_OGPU_RENDERER"with Some"1"->self_test()|_->()
