@@ -41,6 +41,17 @@
  (libraries prismel_next_api))
 
 (test
+ (name test_preview_sketch_lifecycle)
+ (modules test_preview_sketch_lifecycle)
+ (libraries prismel_next_api)
+ (deps ../prismel/preview.mli preview.mli ../prismel/sketch.mli sketch.mli)
+ (action
+  (setenv PRISMEL_RENDER_TARGET headless
+   (setenv SDL_VIDEODRIVER dummy
+    (run %{test} %{dep:../prismel/preview.mli} %{dep:preview.mli}
+     %{dep:../prismel/sketch.mli} %{dep:sketch.mli})))))
+
+(test
  (name test_scene_image_transforms)
  (modules test_scene_image_transforms)
  (libraries prismel_next_api prismel_next_resources raster2))
@@ -48,7 +59,8 @@
 (test
  (name test_canvas_runtime)
  (modules test_canvas_runtime)
- (libraries prismel_next_api))
+ (libraries prismel_next_api)
+ (action(setenv PRISMEL_RENDER_TARGET headless(run %{test}))))
 
 (test
  (name test_prismel_next_api_batch_e)
