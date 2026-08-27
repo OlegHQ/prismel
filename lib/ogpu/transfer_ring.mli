@@ -12,4 +12,5 @@ val snapshot : reservation -> (snapshot,Error.t) result
 val payload : reservation -> (bytes option,Error.t) result
 val live_slots : t -> int
 val reservations : t -> snapshot list
+val validate : Handle.device -> t -> (unit,Error.t) result
 val destroy : t -> unit
