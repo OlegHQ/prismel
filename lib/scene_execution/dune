@@ -1,0 +1,9 @@
+(library
+ (name scene_execution)
+ (modules scene_execution)
+ (libraries raster2 ogpu))
+
+(test
+ (name test_scene_execution)
+ (modules test_scene_execution)
+ (libraries scene_execution ogpu raster2))

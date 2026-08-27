@@ -8,12 +8,14 @@
 
 (rule
  (alias native-next-link-gate)
- (deps ../lib/prismel/dune ../lib/runtime/dune ../lib/ogpu_metal/dune)
+ (deps ../lib/prismel/dune ../lib/runtime/dune ../lib/ogpu_metal/dune
+  ../lib/scene_execution/dune)
  (action
   (run %{exe:native_next_link_gate.exe}
    %{dep:../lib/prismel/dune}
    %{dep:../lib/runtime/dune}
-   %{dep:../lib/ogpu_metal/dune})))
+   %{dep:../lib/ogpu_metal/dune}
+   %{dep:../lib/scene_execution/dune})))
 
 (executable
  (name bench_geom)

@@ -30,16 +30,21 @@ let expect_accepted libraries =
 
 let () =
   match Array.to_list Sys.argv with
-  | [_; prismel_path; runtime_path; metal_path] ->
+  | [_; prismel_path; runtime_path; metal_path; scene_path] ->
       let prismel = read prismel_path
       and runtime = read runtime_path
-      and metal = read metal_path in
+      and metal = read metal_path
+      and scene = read scene_path in
       require prismel_path prismel "Scene_ogpu_renderer";
       require prismel_path prismel "tsdl";
       require prismel_path prismel "runtime";
       require runtime_path runtime "runtime_sdl3_raster2_presenter";
       require runtime_path runtime "(libraries sdl3)";
       require metal_path metal "(libraries ogpu metal)";
+      require scene_path scene "(libraries raster2 ogpu)";
+      List.iter (fun forbidden -> if contains scene forbidden then
+        fail "%s: neutral scene execution acquired forbidden dependency %s"
+          scene_path forbidden) ["tsdl"; "sdl3"; "runtime"; "prismel"; "metal"];
       if contains metal "sdl3" || contains metal "tsdl" then
         fail "%s: ogpu_metal acquired an SDL dependency" metal_path;
       expect_rejected ["prismel"; "runtime_sdl3_raster2_presenter"; "ogpu_metal"];
@@ -48,4 +53,4 @@ let () =
       expect_accepted ["runtime_sdl3_raster2_presenter"; "sdl3"];
       print_endline
         "native-next link gate: unsafe Prismel(SDL2)+SDL3 composition rejected; isolated foundations accepted"
-  | _ -> fail "usage: native_next_link_gate PRISMEL_DUNE RUNTIME_DUNE OGPU_METAL_DUNE"
+  | _ -> fail "usage: native_next_link_gate PRISMEL_DUNE RUNTIME_DUNE OGPU_METAL_DUNE SCENE_EXECUTION_DUNE"
