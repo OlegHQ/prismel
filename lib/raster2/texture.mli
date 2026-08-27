@@ -13,8 +13,9 @@ val level : t -> int -> (Surface.t,error) result
 val sample : t -> address_u:address -> address_v:address -> filter:filter -> u:float -> v:float -> lod:float -> (int32,error) result
 module Private : sig
   (** Allocation-free sampling for audited raster hot paths. [coordinates]
-      is caller-owned reusable storage containing finite [u], [v], and [lod]
-      at indices 0, 1, and 2; [lod] must be non-negative. *)
+      is caller-owned reusable storage of at least six floats, containing
+      finite [u], [v], and [lod] at indices 0, 1, and 2; indices 3 through 5
+      are scratch and may be overwritten. [lod] must be non-negative. *)
   val sample_int_unchecked : t -> address_u:address -> address_v:address ->
     filter:filter -> float array -> int
   (* Integer texel lookup with address-mode application. The caller must prove

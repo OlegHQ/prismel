@@ -25,14 +25,25 @@ let[@inline always] address mode x=match mode with Clamp->max 0.(min 1. x)|Repea
 let[@inline always] chi c n=(c lsr n)land 255
 let[@inline always] rgbai r g b a=(r lsl 24)lor(g lsl 16)lor(b lsl 8)lor a
 let[@inline always] index mode size value=match mode with Clamp->max 0(min(size-1)value)|Repeat->let value=value mod size in if value<0 then value+size else value|Mirror->let period=size*2 in let value=value mod period in let value=if value<0 then value+period else value in if value<size then value else period-1-value
-let[@inline always] blend_int color_space a b t=let f n=let av=chi a n and bv=chi b n in if color_space=Srgb&&n<>0 then srgb_of_linear((1.-.t)*.linear_of_srgb av+.t*.linear_of_srgb bv)else int_of_float((1.-.t)*.float av+.t*.float bv+.0.5)in rgbai(f 24)(f 16)(f 8)(f 0)
+let[@inline always] blend_int color_space a b scratch weight=
+ let t=Array.unsafe_get scratch weight in
+ let inverse=1.-.t in match color_space with
+ |Linear->
+  rgbai(int_of_float(inverse*.float(chi a 24)+.t*.float(chi b 24)+.0.5))
+   (int_of_float(inverse*.float(chi a 16)+.t*.float(chi b 16)+.0.5))
+   (int_of_float(inverse*.float(chi a 8)+.t*.float(chi b 8)+.0.5))
+   (int_of_float(inverse*.float(chi a 0)+.t*.float(chi b 0)+.0.5))
+ |Srgb->
+  rgbai(srgb_of_linear(inverse*.linear_of_srgb(chi a 24)+.t*.linear_of_srgb(chi b 24)))
+   (srgb_of_linear(inverse*.linear_of_srgb(chi a 16)+.t*.linear_of_srgb(chi b 16)))
+   (srgb_of_linear(inverse*.linear_of_srgb(chi a 8)+.t*.linear_of_srgb(chi b 8)))
+   (int_of_float(inverse*.float(chi a 0)+.t*.float(chi b 0)+.0.5))
 let[@inline always] texel_int_unchecked t ~level ~address_u ~address_v ~x ~y=let surface=t.levels.(level)in Surface.Private.get_rgba_int_unchecked surface~x:(index address_u(Surface.width surface)x)~y:(index address_v(Surface.height surface)y)
-let[@inline always] sample_level_int t level ~address_u ~address_v ~filter u v=let surface=t.levels.(level)in let u=address address_u u and v=address address_v v and w=Surface.width surface and h=Surface.height surface in let get x y=texel_int_unchecked t~level~address_u~address_v~x~y in match filter with Nearest->get(int_of_float(floor(u*.float w)))(int_of_float(floor(v*.float h)))|Bilinear|Trilinear->let x=u*.float w-.0.5 and y=v*.float h-.0.5 in let x0=int_of_float(floor x)and y0=int_of_float(floor y)in let a=blend_int t.color_space(get x0 y0)(get(x0+1)y0)(x-.floor x)and b=blend_int t.color_space(get x0(y0+1))(get(x0+1)(y0+1))(x-.floor x)in blend_int t.color_space a b(y-.floor y)
-let[@inline always] sample_int_unchecked t ~address_u ~address_v ~filter ~u ~v ~lod=let maximum=Array.length t.levels-1 in let low=min maximum(int_of_float(floor lod))in match filter with Trilinear->let high=min maximum(low+1)in blend_int t.color_space(sample_level_int t low~address_u~address_v~filter:Bilinear u v)(sample_level_int t high~address_u~address_v~filter:Bilinear u v)(lod-.floor lod)|Nearest|Bilinear->sample_level_int t low~address_u~address_v~filter u v
-let sample t ~address_u ~address_v ~filter ~u ~v ~lod=if not(Float.is_finite u&&Float.is_finite v)then Error Invalid_coordinate else if not(Float.is_finite lod)||lod<0. then Error(Invalid_lod lod)else Ok(Int32.of_int(sample_int_unchecked t~address_u~address_v~filter~u~v~lod))
+let[@inline always] sample_level_int t level ~address_u ~address_v ~filter scratch=let surface=t.levels.(level)in let u=address address_u(Array.unsafe_get scratch 0)and v=address address_v(Array.unsafe_get scratch 1)and w=Surface.width surface and h=Surface.height surface in match filter with Nearest->texel_int_unchecked t~level~address_u~address_v~x:(int_of_float(floor(u*.float w)))~y:(int_of_float(floor(v*.float h)))|Bilinear|Trilinear->let x=u*.float w-.0.5 and y=v*.float h-.0.5 in let x0=int_of_float(floor x)and y0=int_of_float(floor y)in Array.unsafe_set scratch 3(x-.floor x);Array.unsafe_set scratch 4(y-.floor y);let a=blend_int t.color_space(texel_int_unchecked t~level~address_u~address_v~x:x0~y:y0)(texel_int_unchecked t~level~address_u~address_v~x:(x0+1)~y:y0)scratch 3 and b=blend_int t.color_space(texel_int_unchecked t~level~address_u~address_v~x:x0~y:(y0+1))(texel_int_unchecked t~level~address_u~address_v~x:(x0+1)~y:(y0+1))scratch 3 in blend_int t.color_space a b scratch 4
+let[@inline always] sample_int_unchecked t ~address_u ~address_v ~filter scratch=let lod=Array.unsafe_get scratch 2 in let maximum=Array.length t.levels-1 in let low=min maximum(int_of_float(floor lod))in match filter with Trilinear->let high=min maximum(low+1)in let a=sample_level_int t low~address_u~address_v~filter:Bilinear scratch and b=sample_level_int t high~address_u~address_v~filter:Bilinear scratch in Array.unsafe_set scratch 5(lod-.floor lod);blend_int t.color_space a b scratch 5|Nearest|Bilinear->sample_level_int t low~address_u~address_v~filter scratch
+let sample t ~address_u ~address_v ~filter ~u ~v ~lod=if not(Float.is_finite u&&Float.is_finite v)then Error Invalid_coordinate else if not(Float.is_finite lod)||lod<0. then Error(Invalid_lod lod)else let scratch=[|u;v;lod;0.;0.;0.|]in Ok(Int32.of_int(sample_int_unchecked t~address_u~address_v~filter scratch))
 module Private=struct
   let sample_int_unchecked t ~address_u ~address_v ~filter coordinates=
-    sample_int_unchecked t~address_u~address_v~filter
-      ~u:coordinates.(0)~v:coordinates.(1)~lod:coordinates.(2)
+    sample_int_unchecked t~address_u~address_v~filter coordinates
   let texel_int_unchecked=texel_int_unchecked
 end

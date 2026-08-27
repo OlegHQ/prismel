@@ -91,7 +91,7 @@ let draw_hdr ~hdr ~surface ~depth ~depth_state ~blend ~cull ~clip ~texture
   let rejected=area=0.||match cull with Triangle.Back->area<=0.|Front->area>=0.|Cull_none->false in
   if not rejected then begin
     let a,b,area=if area<0. then b,a,-.area else a,b,area in
-    let texture_coordinates=match texture with None->None|Some _->Some[|0.;0.;0.|]in
+    let texture_coordinates=match texture with None->None|Some _->Some[|0.;0.;0.;0.;0.;0.|]in
     let xmin=max clip.Triangle.x(max 0(int_of_float(floor(min a.x(min b.x c.x)))))
     and ymin=max clip.y(max 0(int_of_float(floor(min a.y(min b.y c.y)))))
     and xmax=min(clip.x+clip.width-1)(min(Surface.width surface-1)(int_of_float(ceil(max a.x(max b.x c.x)))))

@@ -71,7 +71,7 @@ let draw_textured_solid ~color ~depth ~depth_state ~blend ~cull ~clip (texture:t
     let tw=float(Texture.width texture.texture)and th=float(Texture.height texture.texture)in
     let rho=max(sqrt((dudx*.tw)**2.+.(dvdx*.th)**2.))(sqrt((dudy*.tw)**2.+.(dvdy*.th)**2.))in
     let lod=if rho<=1. then 0. else log rho/.log 2. in
-    let coordinates=[|0.;0.;lod|]in
+    let coordinates=[|0.;0.;lod;0.;0.;0.|]in
     let tint=Int32.to_int a.color in
     let tr=(tint lsr 24)land 255 and tg=(tint lsr 16)land 255
     and tb=(tint lsr 8)land 255 and ta=tint land 255 in
