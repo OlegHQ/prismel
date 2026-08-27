@@ -33,6 +33,13 @@ extern "C" CAMLprim value caml_prismel_metal_binary_archive5_configured_descript
       MTLFunctionDescriptor *function = [MTLFunctionDescriptor functionDescriptor];
       function.name = first.name; descriptor = function;
       handle_kind = Handle_kind::Function_descriptor;
+    } else if (kind == 2) {
+      MTLMeshRenderPipelineDescriptor *mesh = [MTLMeshRenderPipelineDescriptor new];
+      mesh.meshFunction = first;
+      if (Is_block(second_raw)) mesh.fragmentFunction = object_of_handle(
+        Field(second_raw, 0), Handle_kind::Function);
+      mesh.colorAttachments[0].pixelFormat = (MTLPixelFormat)Int64_val(format_raw);
+      descriptor = mesh; handle_kind = Handle_kind::Mesh_pipeline_descriptor;
     } else if (kind == 3) {
       if (Is_none(second_raw)) CAMLreturn(result_error_text("render archive descriptor requires a fragment function"));
       id<MTLFunction> second = object_of_handle(Field(second_raw, 0), Handle_kind::Function);
@@ -40,6 +47,12 @@ extern "C" CAMLprim value caml_prismel_metal_binary_archive5_configured_descript
       render.vertexFunction = first; render.fragmentFunction = second;
       render.colorAttachments[0].pixelFormat = (MTLPixelFormat)Int64_val(format_raw);
       descriptor = render; handle_kind = Handle_kind::Render_pipeline_descriptor;
+    } else if (kind == 4) {
+      if (Is_block(second_raw)) CAMLreturn(result_error_text("tile archive descriptor has an unexpected second function"));
+      MTLTileRenderPipelineDescriptor *tile = [MTLTileRenderPipelineDescriptor new];
+      tile.tileFunction = first;
+      tile.colorAttachments[0].pixelFormat = (MTLPixelFormat)Int64_val(format_raw);
+      descriptor = tile; handle_kind = Handle_kind::Tile_pipeline_descriptor;
     } else CAMLreturn(result_error_text("binary archive descriptor kind is not configured by this safe path"));
     handle = allocate_handle(descriptor, handle_kind); result = result_ok(handle); CAMLreturn(result);
   } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
