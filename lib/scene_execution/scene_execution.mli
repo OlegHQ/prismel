@@ -14,7 +14,11 @@ type draw = { mesh : mesh; state : state }
 
 val create : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
   (t, Ogpu.Error.t) result
+val create_with_pipeline : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
+  (Ogpu.Backend.device -> (Ogpu.Pipeline.t, Ogpu.Error.t) result) ->
+  (t, Ogpu.Error.t) result
 val render : t -> draw list -> (bool, Ogpu.Error.t) result
 val resize : t -> Ogpu.Surface.configuration -> (unit, Ogpu.Error.t) result
 val upload_bytes : t -> int64
+val read_pixels : t -> bytes_per_row:int -> (bytes, Ogpu.Error.t) result
 val destroy : t -> (unit, Ogpu.Error.t) result
