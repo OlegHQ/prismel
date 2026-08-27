@@ -67,6 +67,10 @@ module Audio : sig
   val load_file :
     Mixer.t -> path:string -> ?predecode:bool -> unit -> (t, error) result
   val load_bytes : Mixer.t -> bytes -> (t, error) result
+  (* Decode replacement bytes against the same mixer. The original remains
+      live and unchanged on both success and failure, so callers can swap
+      immutable snapshots transactionally. *)
+  val reload_bytes : t -> bytes -> (t, error) result
   val create_sine :
     Mixer.t -> frequency:int -> amplitude:float -> duration_ms:int ->
     (t, error) result
@@ -78,6 +82,7 @@ end
 
 module Track : sig
   type t
+  type status = Stopped | Playing | Paused
 
   val create : Mixer.t -> (t, error) result
   val generation : t -> int
@@ -93,6 +98,51 @@ module Track : sig
   val resume : t -> (unit, error) result
   val playing : t -> (bool, error) result
   val paused : t -> (bool, error) result
+  val status : t -> (status, error) result
+  val destroy : t -> (unit, error) result
+end
+
+(** Bounded SDL_mixer-2-style channel allocation implemented with owned
+    SDL3_mixer tracks. Channel and group numbers are stable array indices;
+    no callback or global mutable mixer state is exposed. *)
+module Channels : sig
+  type t
+  type channel = int
+
+  val create : Mixer.t -> count:int -> (t, error) result
+  val count : t -> int
+  val allocate : t -> (channel, error) result
+  val play :
+    t -> ?channel:channel -> ?loops:int -> ?fade_in_ms:int -> Audio.t ->
+    (channel, error) result
+  val set_volume : t -> channel -> float -> (unit, error) result
+  val volume : t -> channel -> (float, error) result
+  val set_group : t -> channel -> int option -> (unit, error) result
+  val set_group_volume : t -> group:int -> float -> (unit, error) result
+  val pause : t -> channel -> (unit, error) result
+  val resume : t -> channel -> (unit, error) result
+  val stop : t -> channel -> ?fade_out_ms:int -> unit -> (unit, error) result
+  val playing : t -> channel -> (bool, error) result
+  val paused : t -> channel -> (bool, error) result
+  val destroy : t -> (unit, error) result
+end
+
+(** One music-style track with the same explicit ownership and fade/loop
+    semantics as [Track]. *)
+module Music : sig
+  type t
+  type status = Track.status = Stopped | Playing | Paused
+  val create : Mixer.t -> (t, error) result
+  val set_audio : t -> Audio.t -> (unit, error) result
+  val set_volume : t -> float -> (unit, error) result
+  val volume : t -> (float, error) result
+  val play : t -> ?loops:int -> ?fade_in_ms:int -> unit -> (unit, error) result
+  val pause : t -> (unit, error) result
+  val resume : t -> (unit, error) result
+  val stop : t -> ?fade_out_ms:int -> unit -> (unit, error) result
+  val playing : t -> (bool, error) result
+  val paused : t -> (bool, error) result
+  val status : t -> (status, error) result
   val destroy : t -> (unit, error) result
 end
 

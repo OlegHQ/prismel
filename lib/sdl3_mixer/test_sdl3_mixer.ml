@@ -107,6 +107,17 @@ let () =
    | Error { kind = Mixer_error; message; _ } when message <> "" -> ()
    | Ok audio -> ignore (Audio.destroy audio); fail "malformed audio loaded"
    | Error _ -> fail "malformed audio returned the wrong error");
+  let retained_generation = Audio.generation memory_audio in
+  (match Audio.reload_bytes memory_audio (Bytes.of_string "bad reload") with
+   | Error { kind = Mixer_error; _ }
+     when Audio.generation memory_audio = retained_generation
+          && not (Audio.destroyed memory_audio) -> ()
+   | Ok audio -> ignore (Audio.destroy audio); fail "malformed reload succeeded"
+   | Error _ -> fail "malformed reload was not failure-atomic");
+  let reloaded_audio = get (Audio.reload_bytes memory_audio (tiny_wav ())) in
+  if Audio.generation reloaded_audio = retained_generation
+     || get (Audio.duration_frames reloaded_audio) <= 0L then
+    fail "encoded reload did not create an owned replacement";
 
   let sine = get (Audio.create_sine mixer ~frequency:440 ~amplitude:0.25
       ~duration_ms:100) in
@@ -141,6 +152,62 @@ let () =
   if get (Track.loops track) <> 0 then fail "live loop update changed";
   get (Track.stop track ~fade_out_ms:2 ());
 
+  let channels = get (Channels.create mixer ~count:32) in
+  if Channels.count channels <> 32 || get (Channels.allocate channels) <> 0 then
+    fail "bounded channel allocation changed";
+  (match Domain.spawn (fun () -> Channels.allocate channels) |> Domain.join with
+   | Error { kind = Wrong_domain; _ } -> ()
+   | Ok _ | Error _ -> fail "concurrent channel misuse was not rejected");
+  let selected = get (Channels.play channels ~loops:1 ~fade_in_ms:1 sine) in
+  get (Channels.set_volume channels selected 0.4);
+  get (Channels.set_group channels selected (Some 7));
+  get (Channels.set_group_volume channels ~group:7 0.25);
+  if get (Channels.volume channels selected) <> 0.25
+     || not (get (Channels.playing channels selected)) then
+    fail "channel/group gain or playback state changed";
+  get (Channels.pause channels selected);
+  if not (get (Channels.paused channels selected)) then fail "channel pause changed";
+  get (Channels.resume channels selected);
+  get (Channels.stop channels selected ~fade_out_ms:1 ());
+  (match Channels.playing channels 32 with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok _ | Error _ -> fail "out-of-range channel was accepted");
+  (match Channels.set_volume channels 0 nan with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok () | Error _ -> fail "NaN channel volume was accepted");
+  for index = 0 to 31 do
+    ignore (get (Channels.play channels ~channel:index ~loops:(index land 1) sine))
+  done;
+  (match Channels.allocate channels with
+   | Error { kind = Mixer_error; _ } -> ()
+   | Ok _ | Error _ -> fail "full channel bank did not reject allocation");
+  for index = 0 to 31 do get (Channels.stop channels index ()) done;
+  get (Channels.destroy channels);
+  get (Channels.destroy channels);
+
+  let music = get (Music.create mixer) in
+  get (Music.set_audio music file_audio);
+  get (Music.set_volume music 0.6);
+  get (Music.play music ~loops:1 ~fade_in_ms:1 ());
+  if abs_float (get (Music.volume music) -. 0.6) > 1e-6
+     || not (get (Music.playing music)) then
+    fail "music-style track state changed";
+  get (Music.pause music); get (Music.resume music);
+  get (Music.stop music ~fade_out_ms:1 ());
+  get (Music.destroy music);
+
+  for _cycle = 1 to 10_000 do
+    let transient = get (Track.create mixer) in
+    get (Track.destroy transient)
+  done;
+
+  let other = get (Mixer.create_memory ~sample_rate:48_000 ~channels:2) in
+  let foreign = get (Track.create other) in
+  (match Track.set_audio foreign sine with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok () | Error _ -> fail "cross-mixer audio attachment was accepted");
+  get (Track.destroy foreign); get (Mixer.destroy other);
+
   (match Mixer.destroy mixer with
    | Error { kind = Parent_has_dependents; _ } -> ()
    | Ok () | Error _ -> fail "mixer teardown ignored child handles");
@@ -152,6 +219,7 @@ let () =
   get (Track.destroy track);
   get (Audio.destroy sine);
   get (Audio.destroy memory_audio);
+  get (Audio.destroy reloaded_audio);
   get (Audio.destroy file_audio);
   (match Track.playing track with
    | Error { kind = Destroyed; _ } -> ()

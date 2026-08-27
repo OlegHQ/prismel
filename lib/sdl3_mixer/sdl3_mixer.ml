@@ -399,6 +399,12 @@ module Audio = struct
       error operation Invalid_argument "encoded audio buffer must be non-empty"
     else with_mixer operation mixer (fun raw -> raw_load_bytes raw bytes)
 
+  let reload_bytes (value : t) bytes =
+    let operation = "SDL3_mixer.Audio.reload_bytes" in
+    match live operation value (fun _ -> Ok ()) with
+    | Error _ as failure -> failure
+    | Ok () -> load_bytes value.mixer (Bytes.copy bytes)
+
   let create_sine mixer ~frequency ~amplitude ~duration_ms =
     let operation = "SDL3_mixer.Audio.create_sine" in
     if frequency <= 0 || frequency > 200_000 then
@@ -426,6 +432,7 @@ end
 
 module Track = struct
   type t = track_handle
+  type status = Stopped | Playing | Paused
 
   let generation (value : t) = value.generation
   let destroyed (value : t) = value.destroyed
@@ -469,6 +476,8 @@ module Track = struct
   let set_audio (value : t) (audio : Audio.t) =
     let operation = "SDL3_mixer.Track.set_audio" in
     if audio.destroyed then error operation Destroyed "audio handle is destroyed"
+    else if value.mixer != audio.mixer then
+      error operation Invalid_argument "track and audio belong to different mixers"
     else mutate operation value (fun raw -> raw_set_track_audio raw audio.raw)
 
   let set_gain (value : t) gain =
@@ -515,6 +524,11 @@ module Track = struct
   let paused (value : t) = live "SDL3_mixer.Track.paused" value (fun raw ->
     Ok (raw_track_paused raw))
 
+  let status (value : t) = live "SDL3_mixer.Track.status" value (fun raw ->
+    if raw_track_paused raw then Ok Paused
+    else if raw_track_playing raw then Ok Playing
+    else Ok Stopped)
+
   let destroy (value : t) = on_main "SDL3_mixer.Track.destroy" (fun () ->
     if value.destroyed then Ok ()
     else begin
@@ -524,4 +538,140 @@ module Track = struct
       raw_destroy_track value.raw;
       Ok ()
     end)
+end
+
+module Channels = struct
+  type channel = int
+  type slot = { track : Track.t; mutable volume : float; mutable group : int option }
+  type t = { mixer : Mixer.t; slots : slot array; mutable destroyed : bool }
+
+  let operation name = "SDL3_mixer.Channels." ^ name
+  let valid_volume value = Float.is_finite value && value >= 0.
+
+  let live name value callback =
+    let op = operation name in
+    if value.destroyed then error op Destroyed "channel pool is destroyed"
+    else if value.mixer.destroyed then error op Destroyed "channel pool mixer is destroyed"
+    else on_main op callback
+
+  let slot name value channel callback = live name value (fun () ->
+    if channel < 0 || channel >= Array.length value.slots then
+      error (operation name) Invalid_argument "channel index is out of range"
+    else callback value.slots.(channel))
+
+  let create mixer ~count =
+    let op = operation "create" in
+    if count <= 0 || count > 4096 then
+      error op Invalid_argument "channel count must be in 1..4096"
+    else Mixer.live op mixer (fun _ ->
+      let made = ref [] in
+      let rec build remaining =
+        if remaining = 0 then
+          Ok { mixer; slots = Array.of_list (List.rev !made); destroyed = false }
+        else match Track.create mixer with
+          | Error _ as failure ->
+              List.iter (fun slot -> ignore (Track.destroy slot.track)) !made;
+              failure
+          | Ok track ->
+              made := { track; volume = 1.; group = None } :: !made;
+              build (remaining - 1)
+      in
+      build count)
+
+  let count value = Array.length value.slots
+
+  let allocate value = live "allocate" value (fun () ->
+    let rec find index =
+      if index = Array.length value.slots then
+        error (operation "allocate") Mixer_error "no free channel"
+      else match Track.playing value.slots.(index).track with
+        | Ok false -> Ok index
+        | Ok true -> find (index + 1)
+        | Error _ as failure -> failure
+    in
+    find 0)
+
+  let play value ?channel ?(loops = 0) ?(fade_in_ms = 0) audio =
+    let selected = match channel with Some channel -> Ok channel | None -> allocate value in
+    match selected with
+    | Error _ as failure -> failure
+    | Ok channel -> slot "play" value channel (fun selected ->
+        match Track.set_audio selected.track audio with
+        | Error _ as failure -> failure
+        | Ok () ->
+            (match Track.set_gain selected.track selected.volume with
+             | Error _ as failure -> failure
+             | Ok () ->
+                 Result.map (fun () -> channel)
+                   (Track.play selected.track ~loops ~fade_in_ms ())))
+
+  let set_volume value channel volume =
+    if not (valid_volume volume) then
+      error (operation "set_volume") Invalid_argument
+        "channel volume must be finite and non-negative"
+    else slot "set_volume" value channel (fun selected ->
+      match Track.set_gain selected.track volume with
+      | Error _ as failure -> failure
+      | Ok () -> selected.volume <- volume; Ok ())
+
+  let volume value channel = slot "volume" value channel (fun selected ->
+    Ok selected.volume)
+
+  let set_group value channel group = slot "set_group" value channel
+      (fun selected -> selected.group <- group; Ok ())
+
+  let set_group_volume value ~group volume =
+    if not (valid_volume volume) then
+      error (operation "set_group_volume") Invalid_argument
+        "group volume must be finite and non-negative"
+    else live "set_group_volume" value (fun () ->
+      let rec apply index =
+        if index = Array.length value.slots then Ok ()
+        else let selected = value.slots.(index) in
+          if selected.group <> Some group then apply (index + 1)
+          else match Track.set_gain selected.track volume with
+            | Error _ as failure -> failure
+            | Ok () -> selected.volume <- volume; apply (index + 1)
+      in apply 0)
+
+  let pause value channel = slot "pause" value channel (fun selected ->
+    Track.pause selected.track)
+  let resume value channel = slot "resume" value channel (fun selected ->
+    Track.resume selected.track)
+  let stop value channel ?(fade_out_ms = 0) () =
+    slot "stop" value channel (fun selected ->
+      Track.stop selected.track ~fade_out_ms ())
+  let playing value channel = slot "playing" value channel (fun selected ->
+    Track.playing selected.track)
+  let paused value channel = slot "paused" value channel (fun selected ->
+    Track.paused selected.track)
+
+  let destroy value = on_main (operation "destroy") (fun () ->
+    if value.destroyed then Ok ()
+    else begin
+      let failure = ref None in
+      Array.iter (fun selected -> match Track.destroy selected.track with
+        | Ok () -> () | Error error -> if !failure = None then failure := Some error)
+        value.slots;
+      match !failure with
+      | Some error -> Error error
+      | None -> value.destroyed <- true; Ok ()
+    end)
+end
+
+module Music = struct
+  type t = Track.t
+  type status = Track.status = Stopped | Playing | Paused
+  let create = Track.create
+  let set_audio = Track.set_audio
+  let set_volume = Track.set_gain
+  let volume = Track.gain
+  let play = Track.play
+  let pause = Track.pause
+  let resume = Track.resume
+  let stop = Track.stop
+  let playing = Track.playing
+  let paused = Track.paused
+  let status = Track.status
+  let destroy = Track.destroy
 end
