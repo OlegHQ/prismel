@@ -1,7 +1,7 @@
 (library
  (name raster2)
  (public_name prismel.raster2)
- (modules Surface Composite Path Primitive Image Depth_stencil Scratch Render_ir Triangle Consumer Resource_cache Offscreen Readback Atlas Multisample Path_consumer Scene3 Shadow_map Scene3_lighting Scene3_consumer Texture Text))
+ (modules Surface Composite Path Primitive Image Depth_stencil Scratch Render_ir Triangle Consumer Resource_cache Offscreen Readback Atlas Multisample Path_consumer Scene3 Shadow_map Scene3_lighting Scene3_consumer Texture Text Scene3_mesh_cache))
 
 (test
  (name test_raster2_surface)
@@ -121,4 +121,9 @@
 (test
  (name test_raster2_text)
  (modules test_raster2_text)
+ (libraries raster2))
+
+(test
+ (name test_raster2_scene3_mesh_cache)
+ (modules test_raster2_scene3_mesh_cache)
  (libraries raster2))
