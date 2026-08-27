@@ -97,6 +97,14 @@ let replacement_reuse () =
   ignore(get(Scene_execution.render renderer[{mesh=make '\001';state};{mesh=make '\002';state=other}]));
   let creates=Ogpu.Backend_mock.trace control|>List.filter(String.starts_with~prefix:"create-buffer:")in
   if List.length creates<>1 then failwith"same-submission replacement aliased a reserved buffer";
+  let small byte=List.init 8(fun index->{Scene_execution.mesh={key=Printf.sprintf"selective-%d"index;vertices=Bytes.make 48(if index=3 then byte else '\000');vertex_count=3;indices;index_count=3};state})in
+  ignore(get(Scene_execution.render renderer(small '\000')));
+  let selective=Scene_execution.upload_bytes renderer in
+  ignore(get(Scene_execution.render renderer(small '\001')));
+  if Scene_execution.upload_bytes renderer<>Int64.add selective 60L then failwith"small stable run reuploaded unchanged neighbours";
+  let selective_changed=Scene_execution.upload_bytes renderer in
+  ignore(get(Scene_execution.render renderer(small '\001')));
+  if Scene_execution.upload_bytes renderer<>selective_changed then failwith"stable small run reuploaded";
   get(Scene_execution.destroy renderer);
   if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then failwith"replacement reuse leaked objects";
   let driver,control=Ogpu.Backend_mock.create()in

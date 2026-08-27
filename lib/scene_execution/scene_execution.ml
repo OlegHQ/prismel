@@ -223,14 +223,14 @@ let coalesce_draws draws =
     same_optional_resource texture next_texture &&
     same_optional_resource auxiliary next_auxiliary
   in
-  let rec take first packed_bytes meshes = function
+  let rec take first packed_bytes entries = function
     | next :: rest when compatible first next ->
         let _, _, _, _, (draw : draw) = next in
         let bytes=Bytes.length draw.mesh.vertices+Bytes.length draw.mesh.indices in
         if packed_bytes <= cache_byte_capacity - bytes then
-          take first (packed_bytes + bytes) (draw.mesh :: meshes) rest
-        else List.rev meshes, next :: rest
-    | rest -> List.rev meshes, rest
+          take first (packed_bytes + bytes) (next :: entries) rest
+        else List.rev entries, next :: rest
+    | rest -> List.rev entries, rest
   in
   let rec loop result = function
     | [] -> Ok (List.rev result)
@@ -239,10 +239,15 @@ let coalesce_draws draws =
         if first_bytes > cache_byte_capacity then
           error "Scene_execution.coalesce" Ogpu.Error.Capacity "one mesh exceeds the batch byte capacity"
         else
-        let meshes, rest = take first first_bytes [draw.mesh] rest in
-        match meshes with
-        | [mesh] -> loop ((family, blend, texture, auxiliary, {draw with mesh}) :: result) rest
-        | _ -> match combine_meshes meshes with
+        let entries, rest = take first first_bytes [first] rest in
+        match entries with
+        | [_] -> loop (first :: result) rest
+        (* Small runs retain their independent stable identities. Coalescing a
+           changing member into a shared buffer otherwise reuploads every
+           unchanged neighbour. Large runs still coalesce to bound caches and
+           draw payloads. *)
+        | _ when List.length entries<=64->loop(List.rev_append entries result)rest
+        | _ -> let meshes=List.map(fun(_,_,_,_,(entry:draw))->entry.mesh)entries in match combine_meshes meshes with
           | Error _ as result -> result
           | Ok mesh -> loop ((family, blend, texture, auxiliary, {draw with mesh}) :: result) rest
   in
