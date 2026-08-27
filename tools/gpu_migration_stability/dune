@@ -1,0 +1,14 @@
+(library
+ (name gpu_migration_stability_support)
+ (modules gpu_migration_stability_support)
+ (libraries raster2 scene_execution ogpu runtime_wap_raster2_presenter unix yojson))
+
+(executable
+ (name gpu_migration_stability)
+ (modules gpu_migration_stability)
+ (libraries gpu_migration_stability_support))
+
+(test
+ (name test_gpu_migration_stability)
+ (modules test_gpu_migration_stability)
+ (libraries gpu_migration_stability_support))
