@@ -1,7 +1,7 @@
 (library
  (name ogpu)
  (public_name prismel.ogpu)
- (modules Error Handle Capabilities Types Command))
+ (modules Error Handle Capabilities Types Command Mock Submission))
 
 (test
  (name test_ogpu_foundation)
@@ -11,4 +11,14 @@
 (test
  (name test_ogpu_command)
  (modules test_ogpu_command)
+ (libraries ogpu))
+
+(test
+ (name test_ogpu_mock)
+ (modules test_ogpu_mock)
+ (libraries ogpu))
+
+(test
+ (name test_ogpu_submission)
+ (modules test_ogpu_submission)
  (libraries ogpu))
