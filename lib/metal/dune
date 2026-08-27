@@ -1528,3 +1528,8 @@
  (name test_metal_device_final4_safe)
  (modules test_metal_device_final4_safe)
  (libraries metal))
+
+(executable
+ (name test_metal_device_async9_safe)
+ (modules test_metal_device_async9_safe)
+ (libraries metal))
