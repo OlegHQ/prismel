@@ -166,7 +166,9 @@ let verify_negative_test graph =
           failwith "dependency checker rejected the wrong injected edge"
   in
   check "sdl3" "prismel";
-  check "metal" "sdl3"
+  check "metal" "sdl3";
+  check "ogpu" "metal";
+  check "ogpu_metal" "runtime"
 
 let require_current_foundations graph =
   [ "sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "runtime"
