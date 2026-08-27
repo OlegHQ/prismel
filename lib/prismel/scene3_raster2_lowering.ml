@@ -11,6 +11,8 @@ let color (value:Color.t)={Raster2.Scene3_lighting.r=float value.r/.255.;g=float
 let vec (value:Vec3.t)={Raster2.Scene3_lighting.x=value.x;y=value.y;z=value.z}
 let attenuation (value:Light.attenuation)={Raster2.Scene3_lighting.constant=value.constant;linear=value.linear;quadratic=value.quadratic}
 let blend=function Scene3.Replace->Raster2.Composite.Copy|Alpha->Source_over|Add->Add|Multiply->Multiply|Screen->Screen|Subtract->Subtract
+let texture_filter=function Texture.Nearest->Raster2.Texture.Nearest|Bilinear->Bilinear|Trilinear->Trilinear
+let texture_address=function Texture.Clamp->Raster2.Texture.Clamp|Repeat->Repeat|Mirror->Mirror
 let cull=function Scene3.Cull_none->Raster2.Triangle.Cull_none|Cull_back->Back|Cull_front->Front
 let mode=function Scene3.Faces->Raster2.Scene3_consumer.Faces|Wireframe->Wireframe|Vertices->Vertices
 let comparison=function Scene3.Never->Raster2.Depth_stencil.Never|Less->Less|Equal->Equal|Less_equal->Less_equal|Greater->Greater|Not_equal->Not_equal|Greater_equal->Greater_equal|Always->Always
@@ -69,7 +71,7 @@ let prepare ~resources ~camera ~viewport scene =
         if mesh.colors<>None then failure:=Some Invalid_mesh else
         let normals=match mesh.normals with Some values->values|None->(Mesh.Private.view(Mesh.recalculate_normals drawing.mesh)).normals|>Option.value~default:[||]in
         if Array.length normals<>Array.length mesh.vertices then failure:=Some Invalid_mesh else
-        let texture=match drawing.texture with None->Ok None|Some value->Result.map Option.some(resources.texture value)in
+        let texture=match drawing.texture with None->Ok None|Some value->Result.map(fun resolved->Some{resolved with Raster2.Triangle.filter=texture_filter value.filter;address_u=texture_address value.wrap_u;address_v=texture_address value.wrap_v})(resources.texture value)in
         match texture with Error error->failure:=Some error|Ok texture->
         let vertices=Array.mapi(fun i(position:Vec3.t)->let normal=normals.(i)and uv=match mesh.tex_coords with Some values when i<Array.length values->values.(i)|_->Vec2.zero in
           {Raster2.Scene3_consumer.position=vec position;normal=vec normal;color=0xffffffffl;u=uv.x;v=uv.y})mesh.vertices in
@@ -97,7 +99,8 @@ let self_test () =
     ~direction:(Vec3.create 0. 0.(-1.))~cutoff:0.75~concentration:7.()in
   let scene=Scene3.create~lights:[directional;spot][node]in
   let surface=match Raster2.Surface.create~width:1~height:1()with Ok value->value|Error _->failwith"surface"in
-  let resources={texture=(fun _->Ok{Raster2.Triangle.surface;filter=Raster2.Image.Nearest});shadow=(fun _->Error Shadow_error)}in
+  let raster_texture=match Raster2.Texture.create~color_space:Linear~hard_capacity:4 surface with Ok value->value|Error _->failwith"texture"in
+  let resources={texture=(fun _->Ok{Raster2.Triangle.texture=raster_texture;filter=Raster2.Texture.Nearest;address_u=Clamp;address_v=Clamp});shadow=(fun _->Error Shadow_error)}in
   let prepare _frame=lower_view3d~resources~default_viewport:(0,0,16,16)(Scene_description.View3d(camera,scene,Some(0,0,16,16)))|>function Ok value->Marshal.to_bytes value[]|Error _->Bytes.empty in
   let expected=prepare 1 in if expected=Bytes.empty then failwith"colored Scene3 lowering";
   for frame=1 to 600 do if prepare frame<>expected then failwith"Scene3 frame drift"done;
@@ -272,8 +275,60 @@ let self_test () =
   begin match Raster2.Scene3_consumer.render~target:{color=target;depth=None;multisample=None}~clear:0x000000ffl~clear_depth:prepared.clear_depth~clear_stencil:prepared.clear_stencil~draws:prepared.draws with Ok()->()|Error _->failwith"Scene3 consumer callback"end;
   let changed=ref false in for y=0 to 15 do for x=0 to 15 do match Raster2.Surface.get_rgba target~x~y with Ok value when value<>0x000000ffl->changed:=true|_->()done done;
   if not !changed then failwith"Scene3 framebuffer unchanged";
-  let textured=Scene3.create[Scene3.mesh~material~cull:Scene3.Cull_none~texture:(Scene3.textured(Obj.magic 0))mesh]in
-  begin match lower_view3d~resources~default_viewport:(0,0,16,16)(View3d(camera,textured,None))with Ok value when Array.length value.draws=1&&value.draws.(0).texture<>None->()|_->failwith"textured Scene3 callback"end;
+  let public_texture =
+    Texture.init ~width:3 ~height:5 (fun ~x ~y ->
+        Color.rgb (x * 80) (y * 40) 127)
+    |> Texture.generate_mipmaps
+  in
+  let texture_states =
+    [
+      (Texture.Nearest, Texture.Clamp, Texture.Repeat);
+      (Texture.Bilinear, Texture.Repeat, Texture.Mirror);
+      (Texture.Trilinear, Texture.Mirror, Texture.Clamp);
+    ]
+  in
+  let textured =
+    Scene3.create
+      (List.map
+         (fun (filter, wrap_u, wrap_v) ->
+           Scene3.mesh ~material ~cull:Scene3.Cull_none
+             ~texture:(Scene3.textured ~filter ~wrap_u ~wrap_v public_texture)
+             mesh)
+         texture_states)
+  in
+  let textured_prepared =
+    match
+      lower_view3d ~resources ~default_viewport:(0, 0, 16, 16)
+        (View3d (camera, textured, None))
+    with
+    | Ok value -> value
+    | Error _ -> failwith "textured Scene3 callback"
+  in
+  let expected_texture_states =
+    [
+      (Raster2.Texture.Nearest, Raster2.Texture.Clamp, Raster2.Texture.Repeat);
+      (Raster2.Texture.Bilinear, Raster2.Texture.Repeat, Raster2.Texture.Mirror);
+      (Raster2.Texture.Trilinear, Raster2.Texture.Mirror, Raster2.Texture.Clamp);
+    ]
+  in
+  List.iteri
+    (fun index (filter, address_u, address_v) ->
+      match textured_prepared.draws.(index).texture with
+      | Some value
+        when value.texture == raster_texture && value.filter = filter
+             && value.address_u = address_u && value.address_v = address_v -> ()
+      | _ -> failwith "texture sampling state/identity lost")
+    expected_texture_states;
+  let textured_snapshot () = Marshal.to_bytes textured_prepared [] in
+  let expected_textured = textured_snapshot () in
+  for _frame = 1 to 600 do
+    if textured_snapshot () <> expected_textured then failwith "texture state frame drift"
+  done;
+  let texture_workers = Array.init 4 (fun _ -> Domain.spawn textured_snapshot) in
+  Array.iter
+    (fun worker ->
+      if Domain.join worker <> expected_textured then failwith "texture state domain drift")
+    texture_workers;
   let rejecting={resources with texture=(fun _->Error Texture_error)}in
   begin match lower_view3d~resources:rejecting~default_viewport:(0,0,16,16)(View3d(camera,textured,None))with Error Texture_error->()|_->failwith"SDL texture not rejected atomically"end;
   let shader=Scene3.create[Scene3.mesh~material~cull:Scene3.Cull_none~shader:(Obj.magic 0)mesh]in

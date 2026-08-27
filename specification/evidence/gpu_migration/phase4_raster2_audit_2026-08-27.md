@@ -109,8 +109,8 @@ fields are ignored or not integrated and therefore cannot count as parity.
 | Linear fog | I/T | Deterministic linear fog (`51128b0`, `e813369`). |
 | Exponential fog modes | R/U | Explicit `Unsupported_fog`; no focused lowerer fixture. |
 | Shadows Hard/PCF3/PCF5 | I/T | Typed prepared-shadow callback and exact PCF/bias/edge fixtures (`787e72c`, `2efa392`); live resource integration missing. |
-| Texture filter | I/T | Nearest/bilinear callback plus textured portable resource (`e813369`, `d199322`). |
-| Texture wrap U/V | M | Wrap values are not carried into `Raster2.Triangle.texture`. |
+| Texture filter | I/T | Public nearest, bilinear and trilinear state maps to the retained Raster2 texture. Triangle derivatives choose deterministic mip LOD; odd-size mip levels, out-of-range UVs, frame 600 and one/four-domain output are exact. |
+| Texture wrap U/V | I/T | Public clamp, repeat and mirror map independently for U/V without replacing the resolved texture identity. Exact outside-range UV fixtures cover every address mode through the triangle consumer. |
 | Functional `Shader3` | R/T | Explicit `Unsupported_shader` (`e813369`, `d199322`). |
 | Cull none/back/front | I/T | Raster2 mapping and ordered portable state (`e813369`, `d199322`). |
 | Smooth/flat shading | I/T | Copied into consumer draws; Smooth authored-normal test direct. Dedicated Flat pixel golden missing. |
@@ -125,5 +125,7 @@ fields are ignored or not integrated and therefore cannot count as parity.
 
 The smallest local gaps are dedicated fixtures for already-mapped convenience
 constructors. They do not repair the material missing semantics above.
-Texture wrapping and sample integration require typed representation
-changes and must not be marked complete by expectation-only tests.
+The public Scene3 sampling surface is fully represented. Explicit user-selected
+LOD and anisotropic filtering are not public `Scene3.texture` controls and are
+therefore not parity gaps; mip LOD is derived deterministically from triangle
+UV screen gradients.
