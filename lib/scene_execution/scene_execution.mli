@@ -12,6 +12,12 @@ type state = {
 }
 type draw = { mesh : mesh; state : state }
 type pipeline_family = Scene2 | Scene3 | Scene3_textured
+type texture_level = { width:int; height:int; bytes:bytes }
+type sampled_texture = {
+  key:string;
+  levels:texture_level array;
+  sampler:Ogpu.Types.sampler_descriptor;
+}
 
 val create : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
   (t, Ogpu.Error.t) result
@@ -32,6 +38,9 @@ val render_blended : ?clear:(float * float * float * float) -> t ->
   (Ogpu.Pipeline.blend * draw) list -> (bool, Ogpu.Error.t) result
 val render_family : ?clear:(float * float * float * float) -> t ->
   (pipeline_family * Ogpu.Pipeline.blend * draw) list ->
+  (bool, Ogpu.Error.t) result
+val render_textured : ?clear:(float * float * float * float) -> t ->
+  (pipeline_family * Ogpu.Pipeline.blend * sampled_texture option * draw) list ->
   (bool, Ogpu.Error.t) result
 val resize : t -> Ogpu.Surface.configuration -> (unit, Ogpu.Error.t) result
 val upload_bytes : t -> int64

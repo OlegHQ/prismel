@@ -32,6 +32,7 @@ let transfer_texture (value:texture)=Transfer_pass.texture~device:value.resource
 let binding_buffer (value:buffer)=Binding.buffer value.resource.handle
 let binding_texture (value:texture)=Binding.texture value.resource.handle
 let buffer_id (value:buffer)=Handle.id value.resource.handle
+let texture_id (value:texture)=Handle.id value.resource.handle
 let render_texture (value:texture) ~format ~usage={Render_pass.id=Handle.id value.resource.handle;handle=value.resource.handle;format;samples=value.texture_descriptor.sample_count;width=value.texture_descriptor.width;height=value.texture_descriptor.height;usage=[usage]}
 let write_buffer (value:buffer) ~offset bytes=if value.resource.dead then error"Backend.write_buffer"Error.Stale_handle"buffer is destroyed"else value.resource.raw.write offset bytes
 let read_buffer (value:buffer) ~offset ~length=if value.resource.dead then error"Backend.read_buffer"Error.Stale_handle"buffer is destroyed"else value.resource.raw.read offset length

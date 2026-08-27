@@ -50,6 +50,7 @@ val transfer_texture : texture -> Transfer_pass.texture
 val binding_buffer : buffer -> Binding.resource
 val binding_texture : texture -> Binding.resource
 val buffer_id : buffer -> int64
+val texture_id : texture -> int64
 val render_texture : texture -> format:Render_pass.format -> usage:Render_pass.usage -> Render_pass.texture
 val write_buffer : buffer -> offset:int64 -> bytes -> (unit,Error.t) result
 val read_buffer : buffer -> offset:int64 -> length:int -> (bytes,Error.t) result
