@@ -51,6 +51,6 @@ No stringly selector dispatch or public raw escape hatch was found.
 ## Audit outcome
 
 No new ownership, ABI, or availability defect was found in this pass. The
-repository-wide Metal runtest remained queued behind concurrent Dune validation
-when this evidence was recorded; focused inventory and final Device fixtures
-were rerun independently.
+inventory check, final Device constructor/async/capability fixtures, and the
+full `lib/metal/test_metal.exe` conformance executable passed after concurrent
+Dune validation released the build lock.
