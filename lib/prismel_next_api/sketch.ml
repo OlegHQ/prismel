@@ -12,8 +12,24 @@ let run_state ?(config=default_config)~init~update~view ?(on_stop=fun _->())()=
   let configuration={Prismel_next_execution.default_configuration with target;logical_width=config.width;logical_height=config.height;drawable_width=config.width;drawable_height=config.height;title=config.title;timing}in
   let get=function Ok x->x|Error e->failwith(Format.asprintf"%a"Prismel_next_execution.pp_error e)in
   let coordinator=get(Prismel_next_execution.create configuration)in
+  let capture ()=Prismel_next_execution.capture coordinator
+    |>Result.map(fun bytes->config.width,config.height,bytes)
+    |>Result.map_error(fun error->Format.asprintf"%a"Prismel_next_execution.pp_error error)in
+  let save filename=match target with
+    |Prismel_next_execution.Web->Prismel_next_execution.download_frame coordinator~filename
+        |>Result.map_error(fun error->Format.asprintf"%a"Prismel_next_execution.pp_error error)
+    |Native|Headless->Result.bind(capture())(fun(width,height,bytes)->
+        match Prismel_next_resources.Canvas.create~width~height with
+        |Error error->Error(Format.asprintf"%a"Prismel_next_resources.pp_error error)
+        |Ok canvas->Fun.protect~finally:(fun()->ignore(Prismel_next_resources.Canvas.destroy canvas))(fun()->
+            for y=0 to height-1 do for x=0 to width-1 do let o=(y*width+x)*4 in
+              let packed=Int32.logor(Int32.shift_left(Int32.of_int(Char.code(Bytes.get bytes o)))24)(Int32.logor(Int32.shift_left(Int32.of_int(Char.code(Bytes.get bytes(o+1))))16)(Int32.logor(Int32.shift_left(Int32.of_int(Char.code(Bytes.get bytes(o+2))))8)(Int32.of_int(Char.code(Bytes.get bytes(o+3))))))in
+              Prismel_next_resources.Canvas.set_pixel canvas~x~y packed|>Result.get_ok done done;
+            Prismel_next_resources.Canvas.save_png canvas filename
+            |>Result.map_error(fun error->Format.asprintf"%a"Prismel_next_resources.pp_error error)))in
+  Canvas_runtime.install~capture~save;
   let latest=ref None and last_scene=ref None in Scene.Private.install_renderer(fun scene->last_scene:=Some scene;let ir,resources=Result.get_ok(Scene.Private.stage~width:config.width~height:config.height scene)in latest:=Some(get(Prismel_next_execution.lower_scene2 coordinator~density:1~resource:(fun id->List.assoc_opt id resources)ir)));
-  Fun.protect~finally:(fun()->on_stop!model;Option.iter Scene.Private.release !last_scene;ignore(Prismel_next_execution.destroy coordinator))(fun()->
+  Fun.protect~finally:(fun()->on_stop!model;Canvas_runtime.clear();Option.iter Scene.Private.release !last_scene;ignore(Prismel_next_execution.destroy coordinator))(fun()->
     let finite=is_headless()||is_web()in let count=ref 0 in while not !stopped&&(not finite|| !count<1)do
       Time.update();let events=Event.poll_events()in incr count;let dt=match config.clock with Realtime->Time.get_delta_time()|Fixed value->value in
       let facts=frame config !count(match config.clock with Realtime->Time.now()|Fixed _->float !count*.dt)dt events in model:=update !model facts;Scene.render(view !model facts);ignore(get(Prismel_next_execution.step coordinator(Option.value!latest~default:[])));Time.limit_frame_rate()done;!model)

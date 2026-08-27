@@ -127,11 +127,8 @@ module Private=struct
        let x, y, view_width, view_height =
          Option.value node.viewport ~default:(0, 0, width, height)
        in
-       let framebuffer =
-         Framebuffer3.render ~width:view_width ~height:view_height
-           ~camera:node.camera node.scene
-       in
-       let image = Result.get_ok (Framebuffer3.to_image framebuffer) in
+       let image = Scene3_image.render ~width:view_width ~height:view_height
+           ~camera:node.camera node.scene in
        node.rendered3d <- Some image;
        ignore (x, y);
        image

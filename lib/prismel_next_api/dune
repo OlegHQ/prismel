@@ -3,8 +3,8 @@
  (public_name prismel.prismel_next_api)
  (modules vec2 vec3 color math mat3 mat4 quat rand noise fog3 light material
   node3 path parallel texture shader3 compute3 input event frame time image
-  canvas font audio assets mesh camera easy_camera transform_feedback3 shadow3
-  scene3 scene3_raster2_lowering scene3_raster2_resources framebuffer3 render3
+  canvas canvas_runtime font audio assets mesh camera easy_camera transform_feedback3 shadow3
+  scene3 scene3_raster2_lowering scene3_raster2_resources scene3_image framebuffer3 render3
   scene preview sketch easy_camera2 render2 low)
  (libraries domainslib prismel_next_resources runtime_next_input raster2 unix
   prismel_next_execution runtime_next_compat prismel_next_low
@@ -44,6 +44,11 @@
  (name test_scene_image_transforms)
  (modules test_scene_image_transforms)
  (libraries prismel_next_api prismel_next_resources raster2))
+
+(test
+ (name test_canvas_runtime)
+ (modules test_canvas_runtime)
+ (libraries prismel_next_api))
 
 (test
  (name test_prismel_next_api_batch_e)

@@ -9,7 +9,6 @@ let height value=snd(size value)
 let packed color=Int32.logor(Int32.shift_left(Int32.of_int color.Color.r)24)
   (Int32.logor(Int32.shift_left(Int32.of_int color.g)16)
     (Int32.logor(Int32.shift_left(Int32.of_int color.b)8)(Int32.of_int color.a)))
-let clear value color=ignore(Prismel_next_resources.Canvas.clear value.resource(packed color))
 let snapshot value=match Prismel_next_resources.Canvas.capture value.resource with
   |Error error->failwith(message"Canvas.capture"error)|Ok image->
     let bytes=match Prismel_next_resources.Image.pixels image with Ok value->value|Error error->failwith(message"Canvas.pixels"error)in
@@ -27,4 +26,13 @@ let apply_mask ~source ~mask=let sw,sh=size source and mw,mh=size mask in if(sw,
   |Some src,Some m->set_pixel source ~x ~y(Color.with_alpha src(src.a*m.a/255))|_->()done done
 let to_image value=match Prismel_next_resources.Canvas.capture value.resource with Ok image->Ok image|Error error->Error(message"Canvas.to_image"error)
 let save_png value path=match Prismel_next_resources.Canvas.save_png value.resource path with Ok()->Ok()|Error error->Error(message"Canvas.save_png"error)
+let write_bytes value bytes=let w,h=size value in if Bytes.length bytes<>w*h*4 then invalid_arg"Canvas.write_bytes";
+ for y=0 to h-1 do for x=0 to w-1 do let o=(y*w+x)*4 in set_pixel value~x~y(Color.rgba(Char.code(Bytes.get bytes o))(Char.code(Bytes.get bytes(o+1)))(Char.code(Bytes.get bytes(o+2)))(Char.code(Bytes.get bytes(o+3))))done done
+let consumer_resource=function
+ |Prismel_next_execution.Image image->let w,h=Prismel_next_resources.Image.size image|>Result.get_ok and bytes=Prismel_next_resources.Image.pixels image|>Result.get_ok in Some(Raster2.Consumer.Image(Raster2.Surface.of_bytes~width:w~height:h~pitch:(w*4)bytes|>Result.get_ok))
+ |Text text->let w,h=Prismel_next_resources.Text.size text|>Result.get_ok and bytes=Prismel_next_resources.Text.pixels text|>Result.get_ok in Some(Raster2.Consumer.Image(Raster2.Surface.of_bytes~width:w~height:h~pitch:(w*4)bytes|>Result.get_ok))
+ |Canvas canvas->let image=Prismel_next_resources.Canvas.capture canvas|>Result.get_ok in let w,h=Prismel_next_resources.Image.size image|>Result.get_ok and bytes=Prismel_next_resources.Image.pixels image|>Result.get_ok in ignore(Prismel_next_resources.Image.destroy image);Some(Raster2.Consumer.Image(Raster2.Surface.of_bytes~width:w~height:h~pitch:(w*4)bytes|>Result.get_ok))
+let render value scene=let width,height=size value in let ir,resources=Scene.Private.stage~width~height scene|>Result.get_ok in let table=Hashtbl.create(List.length resources)in List.iter(fun(id,resource)->Option.iter(Hashtbl.replace table id)(consumer_resource resource))resources;let target=Raster2.Offscreen.create~width~height()|>Result.get_ok in Fun.protect~finally:(fun()->ignore(Raster2.Offscreen.destroy target))(fun()->let view=Raster2.Offscreen.view target|>Result.get_ok in Fun.protect~finally:(fun()->ignore(Raster2.Offscreen.release_view view))(fun()->Raster2.Offscreen.render view~lookup:(Hashtbl.find_opt table)ir|>Result.get_ok;write_bytes value (Raster2.Offscreen.capture view|>Result.get_ok).pixels))
+let capture()=match Canvas_runtime.capture()with Error _ as error->error|Ok(w,h,bytes)->let value=create_exn~width:w~height:h in(try write_bytes value bytes;Ok value with exn->ignore(Prismel_next_resources.Canvas.destroy value.resource);Error(Printexc.to_string exn))
+let save_screen_png=Canvas_runtime.save
 let destroy value=if not value.destroyed then(ignore(Prismel_next_resources.Canvas.destroy value.resource);value.destroyed<-true)
