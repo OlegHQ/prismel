@@ -23,6 +23,7 @@ type driver_device =
   { device_token:token; device_handle:Handle.device; capabilities:Capabilities.t
   ; create_buffer:Types.buffer_descriptor -> (driver_resource,Error.t) result
   ; create_texture:Types.texture_descriptor -> (driver_resource,Error.t) result
+  ; create_depth_texture:Types.texture_descriptor -> (driver_resource,Error.t) result
   ; create_pipeline:Pipeline.t -> (driver_pipeline,Error.t) result
   ; create_queue:unit -> (driver_queue,Error.t) result
   ; create_surface:Surface.configuration -> (driver_surface,Error.t) result
@@ -42,6 +43,7 @@ val capabilities : device -> Capabilities.t
 val device_handle : device -> Handle.device
 val create_buffer : device -> Types.buffer_descriptor -> (buffer,Error.t) result
 val create_texture : device -> Types.texture_descriptor -> (texture,Error.t) result
+val create_depth_texture : device -> Types.texture_descriptor -> (texture,Error.t) result
 val adopt_pipeline : device -> Pipeline.t -> (pipeline,Error.t) result
 val create_queue : device -> (queue,Error.t) result
 val create_surface : device -> Surface.configuration -> (surface,Error.t) result
