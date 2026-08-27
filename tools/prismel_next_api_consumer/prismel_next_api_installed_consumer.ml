@@ -17,6 +17,24 @@ let contains text fragment =
 
 let check_dependencies filename =
   let resolved = read_file filename in
+  let public_modules =
+    [ "Assets"; "Audio"; "Camera"; "Canvas"; "Color"; "Compute3";
+      "Easy_camera"; "Easy_camera2"; "Event"; "Fog3"; "Font"; "Frame";
+      "Framebuffer3"; "Image"; "Input"; "Light"; "Mat3"; "Mat4";
+      "Material"; "Math"; "Mesh"; "Node3"; "Noise"; "Parallel"; "Path";
+      "Preview"; "Quat"; "Rand"; "Render2"; "Render3"; "Scene"; "Scene3";
+      "Shader3"; "Shadow3"; "Sketch"; "Texture"; "Time";
+      "Transform_feedback3"; "Vec2"; "Vec3" ]
+  in
+  require (List.length public_modules = 40) "public module manifest cardinality";
+  List.iter
+    (fun name ->
+      require
+        (contains resolved ("Name: Prismel_next_api__" ^ name ^ "\n"))
+        ("installed facade module missing: " ^ name))
+    public_modules;
+  require (contains resolved "Name: Prismel_next_api__Low\n")
+    "installed Low facade missing";
   List.iter
     (fun required ->
       require (contains resolved required)
@@ -26,8 +44,8 @@ let check_dependencies filename =
     (fun forbidden ->
       require (not (contains resolved forbidden))
         ("legacy dependency escaped into installed consumer: " ^ forbidden))
-    [ "Unit name: Prismel"; "Unit name: Runtime"; "Unit name: Tsdl";
-      "Unit name: Tsdl_gfx" ]
+    [ "Name: Prismel\n"; "Name: Runtime\n"; "Name: Tsdl\n";
+      "Name: Tsdl_gfx\n"; "libSDL2" ]
 
 let representative_values () =
   let v2 = Vec2.create 3. 4. and v3 = Vec3.create 1. 2. 3. in
@@ -62,6 +80,7 @@ let representative_values () =
       ~target:Vec3.zero ()
   in
   ignore (Easy_camera.create ());
+  ignore (Easy_camera2.create ());
   let feedback =
     Transform_feedback3.capture ~viewport:(0, 0, 8, 8) ~camera ~shader mesh
   in
@@ -75,7 +94,43 @@ let representative_values () =
   let framebuffer = Framebuffer3.render ~width:8 ~height:8 ~camera scene in
   require (Framebuffer3.size framebuffer = (8, 8)) "Framebuffer3";
   ignore (Render3.save_png : width:int -> height:int -> ?background:Color.t ->
-          camera:Camera.t -> Scene3.t -> string -> (unit, string) result)
+          camera:Camera.t -> Scene3.t -> string -> (unit, string) result);
+  let scene2 = [ Scene.clear Color.black;
+    Scene.rect ~at:(1, 1) ~w:4 ~h:4 ~fill:Color.red () ] in
+  ignore (Result.get_ok (Scene.Private.to_ir scene2));
+  Preview.start ~width:8 ~height:8 ();
+  Preview.show scene2;
+  require (Preview.is_open ()) "Preview";
+  Preview.stop ();
+  let sketch_config =
+    { Sketch.default_config with width=8; height=8; clock=Fixed (1. /. 60.) }
+  in
+  let model =
+    Sketch.run_state ~config:sketch_config ~init:(fun _ -> 0)
+      ~update:(fun value _ -> value + 1)
+      ~view:(fun _ _ -> scene2) ()
+  in
+  require (model = 1) "Sketch headless frame";
+  let png = Filename.temp_file "prismel-next-consumer" ".png" in
+  Fun.protect ~finally:(fun () -> Sys.remove png) (fun () ->
+    let camera2 = Easy_camera2.create () in
+    Result.get_ok
+      (Render2.save_png ~logical_width:8 ~logical_height:8 ~factor:1
+         ~camera:camera2 scene2 png);
+    require ((Unix.stat png).st_size > 32) "Render2 installed PNG");
+  let low_window =
+    Result.get_ok
+      (Low.Backend.start ~width:8 ~height:8 ~title:"consumer-low"
+         ~resizable:false)
+  in
+  Low.Graphics.init low_window;
+  Low.Graphics.clear Color.black;
+  Low.Graphics.point ~x:2 ~y:2 ~color:Color.white ();
+  Result.get_ok
+    (Low.Backend.present low_window ~logical_width:8 ~logical_height:8);
+  require (Low.Window.exists ()) "Low installed session";
+  Low.Backend.stop ();
+  require (not (Low.Window.exists ())) "Low installed teardown"
 
 let () =
   if Array.length Sys.argv <> 2 then failwith "expected resolved dependency file";
