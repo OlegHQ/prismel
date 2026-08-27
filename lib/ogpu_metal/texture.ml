@@ -1,4 +1,4 @@
-type format = R8_unorm | Rgba8_unorm | Bgra8_unorm | Rgba16_float | Depth32_float
+type format = R8_unorm | Rgba8_unorm | Bgra8_unorm | Rgba16_float | Depth32_float | Stencil8
 type memory = Device_local | Shared
 type t =
   { metal : Metal.Texture.t; handle : unit Ogpu.Handle.t; device : Device.t
@@ -7,10 +7,10 @@ type t =
     mutable submission_uses:int;mutable destroy_requested:bool }
 
 let error operation kind message = Error (Ogpu.Error.make operation kind message)
-let metal_format = function R8_unorm->Metal.Texture.R8_unorm|Rgba8_unorm->Metal.Texture.Rgba8_unorm|Bgra8_unorm->Metal.Texture.Bgra8_unorm|Rgba16_float->Metal.Texture.Rgba16_float|Depth32_float->Metal.Texture.Depth32_float
-let bytes_per_pixel = function R8_unorm->1|Rgba8_unorm|Bgra8_unorm|Depth32_float->4|Rgba16_float->8
+let metal_format = function R8_unorm->Metal.Texture.R8_unorm|Rgba8_unorm->Metal.Texture.Rgba8_unorm|Bgra8_unorm->Metal.Texture.Bgra8_unorm|Rgba16_float->Metal.Texture.Rgba16_float|Depth32_float->Metal.Texture.Depth32_float|Stencil8->Metal.Texture.Stencil8
+let bytes_per_pixel = function R8_unorm|Stencil8->1|Rgba8_unorm|Bgra8_unorm|Depth32_float->4|Rgba16_float->8
 let add_unique x xs = if List.mem x xs then xs else x :: xs
-let validation_format=function R8_unorm->Ogpu.Validation.R8_unorm|Rgba8_unorm->Rgba8_unorm|Bgra8_unorm->Bgra8_unorm|Rgba16_float->Rgba16_float|Depth32_float->Depth32_float
+let validation_format=function R8_unorm|Stencil8->Ogpu.Validation.R8_unorm|Rgba8_unorm->Rgba8_unorm|Bgra8_unorm->Bgra8_unorm|Rgba16_float->Rgba16_float|Depth32_float->Depth32_float
 let validation_storage=function Device_local->Ogpu.Validation.Device_local|Shared->Shared
 let validation_usage=function Ogpu.Types.Texture_binding->Ogpu.Validation.Binding|Render_attachment->Attachment|Texture_copy_src->Copy_src|Texture_copy_dst->Copy_dst
 
@@ -20,7 +20,7 @@ let validate_descriptor (value : Ogpu.Types.texture_descriptor) format =
   if value.mip_levels > max_mips then error operation Ogpu.Error.Invalid_argument "mip count exceeds texture extent"
   else if not (List.mem value.sample_count [1;4;9;16]) then error operation Ogpu.Error.Invalid_argument "sample count must be 1, 4, 9, or 16"
   else if value.sample_count > 1 && (value.depth <> 1 || value.mip_levels <> 1) then error operation Ogpu.Error.Invalid_argument "multisample textures are 2D and single-mip"
-  else if format=Depth32_float && List.mem Ogpu.Types.Texture_binding value.usage then error operation Ogpu.Error.Invalid_argument "depth sampling is not exposed by this foundation"
+  else if (format=Depth32_float||format=Stencil8) && List.mem Ogpu.Types.Texture_binding value.usage then error operation Ogpu.Error.Invalid_argument "depth/stencil sampling is not exposed by this foundation"
   else Ok ()
 
 let usage values =

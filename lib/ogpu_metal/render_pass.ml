@@ -19,7 +19,7 @@ let metal_operation=function
   |Increment_clamp->Increment_clamp|Decrement_clamp->Decrement_clamp|Invert->Invert
   |Increment_wrap->Increment_wrap|Decrement_wrap->Decrement_wrap
 let metal_face(face:Ogpu.Render_pass.stencil_face)=Metal.Depth_stencil.face~compare:(metal_compare face.compare)~stencil_fail:(metal_operation face.stencil_fail)~depth_fail:(metal_operation face.depth_fail)~pass:(metal_operation face.pass)~read_mask:face.read_mask~write_mask:face.write_mask()
-let format=function Texture.Rgba8_unorm->Some Ogpu.Render_pass.Rgba8|Bgra8_unorm->Some Bgra8|Depth32_float->Some Depth32|R8_unorm|Rgba16_float->None
+let format=function Texture.Rgba8_unorm->Some Ogpu.Render_pass.Rgba8|Bgra8_unorm->Some Bgra8|Depth32_float->Some Depth32|Stencil8->Some Stencil8|R8_unorm|Rgba16_float->None
 let attachment device texture ~usage=let op="Ogpu_metal.Render_pass.attachment"in match Texture.descriptor device texture,Texture.format device texture with
   |Error e,_->Error e|_,Error e->Error e
   |Ok d,Ok f->match format f with None->error op Ogpu.Error.Unsupported"texture format is not a portable render attachment"|Some format->Ok({id=Texture.id texture;handle=Texture.Private.resource_handle texture;format;samples=d.sample_count;width=d.width;height=d.height;usage=[usage]}:Ogpu.Render_pass.texture)
