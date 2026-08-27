@@ -1,8 +1,7 @@
 type memory = Device_local | Shared | Upload | Readback
-type buffer_kind
 type t =
   { metal : Metal.Buffer.t
-  ; handle : buffer_kind Ogpu.Handle.t
+  ; handle : unit Ogpu.Handle.t
   ; device : Device.t
   ; descriptor : Ogpu.Types.buffer_descriptor
   ; memory : memory
@@ -80,4 +79,5 @@ let destroy value =
 
 module Private = struct
   let metal value=value.metal
+  let resource_handle value=value.handle
 end

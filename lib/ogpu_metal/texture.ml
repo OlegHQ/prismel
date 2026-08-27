@@ -1,8 +1,7 @@
 type format = R8_unorm | Rgba8_unorm | Bgra8_unorm | Rgba16_float | Depth32_float
 type memory = Device_local | Shared
-type texture_kind
 type t =
-  { metal : Metal.Texture.t; handle : texture_kind Ogpu.Handle.t; device : Device.t
+  { metal : Metal.Texture.t; handle : unit Ogpu.Handle.t; device : Device.t
   ; descriptor : Ogpu.Types.texture_descriptor; format : format
   ; view_formats : format list; parent : t option; mutable live_views : int }
 
@@ -81,4 +80,4 @@ let destroy value =
   let operation="Ogpu_metal.Texture.destroy"in if destroyed value then Ok()else if value.live_views<>0 then error operation Ogpu.Error.Invalid_state "texture still owns live views"else
   match Metal.Texture.destroy value.metal with Error e->Error(Adapter.error~operation e)|Ok()->Ogpu.Handle.destroy value.handle;Option.iter(fun parent->parent.live_views<-parent.live_views-1)value.parent;Device.Private.detach_resource value.device;Ok()
 
-module Private=struct let metal value=value.metal end
+module Private=struct let metal value=value.metal let resource_handle value=value.handle end
