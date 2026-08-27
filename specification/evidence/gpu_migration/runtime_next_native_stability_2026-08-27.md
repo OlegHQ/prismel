@@ -67,3 +67,40 @@ waived as harmless.
 
 The run does not qualify MSAA, software-only public Shader3, a host-provided 2×
 Retina display, or the separate headless/web targets.
+
+## Controlled diagnosis and repair
+
+Schema 3 (`8289fdf`, `a926db6`, `5d94462`) adds independent payload, resize,
+and capture switches plus settled OCaml heap/live-word, Metal created/released,
+live/pending, and resident-byte observations. Two-minute release A/B runs
+isolated payload replacement without resize or capture:
+
+| Case | Settled RSS first→last | Range | Metal created/released | Live/pending |
+|---|---:|---:|---:|---:|
+| Stable payload | 86,224→87,280 KiB | 86,224–87,280 | +66,000/+66,000 | 102/0 |
+| Changing payload, before repair | 87,328→103,536 KiB | 87,328–103,536 | +79,200/+79,200 | 165/0 |
+
+Thus resize and capture were not necessary to reproduce the growth. A changing
+single draw lost its logical key during one-mesh coalescing, then allocated and
+destroyed one extra shared Metal buffer every frame. Commit `275b3bf` preserves
+single-mesh keys, reuses a same-sized completed buffer in place, reserves every
+buffer already referenced by the current submission, and acquires before cache
+mutation so device loss remains atomic. Commit `20ce803` makes the bounded
+64-entry cache repurpose a same-sized evicted buffer when cycling 80 keys.
+Focused mock coverage proves duplicate-key/different-payload isolation,
+device-loss non-mutation, exact upload cardinality, and zero live objects; the
+real Metal pixel/resize fixture is exact with zero teardown delta.
+
+After repair, a three-minute payload-only run rendered 21,568 frames. RSS was
+76,432–87,296 KiB and ended 9,920 KiB below its first sample; live handles were
+constant 165, pending releases 0, and created/released deltas were exactly
++102,000/+102,000 (five handles per sampled frame interval, equal to the stable
+baseline rather than the former six).
+
+The unchanged full payload + resize + capture discriminator then ran five
+minutes/35,921 frames with hash `93e0aa1c2f881d96`. Settled RSS was
+80,144–83,776 KiB and ended 83,328→80,352 KiB. All 59 observations held mesh
+cache 64, pipeline cache 48, Metal live handles 165, and pending releases 0;
+created/released deltas matched at +174,232, and teardown returned caches and
+Metal live handles to zero. This short combined run qualifies a fresh
+30-minute attempt; it does not itself close R12.
