@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5058,
+    "bound": 5069,
     "scope-excluded": 37,
-    "unreviewed": 190
+    "unreviewed": 179
   },
-  "classification_source_sha256": "54d7e00d77edd5815cbc822805be0b74a6d0cd87eaeb0fed4de6fc46f6749164",
+  "classification_source_sha256": "0525145b25b20c33ef8fd01e4f7ded3e3619092973b30332d7f5915502c29eb6",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -54867,7 +54867,7 @@
           "line": 1259
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice accelerationStructureSizesWithDescriptor:]",
       "kind": "method",
@@ -54875,7 +54875,7 @@
       "macos_introduced": "11.0",
       "name": "accelerationStructureSizesWithDescriptor:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by existing owned Device constructor/query paths with exact selector evidence, same-device retention, capability rejection, and focused native/public conformance.",
       "signature": "instance (MTLAccelerationStructureDescriptor * _Nonnull __strong) -> MTLAccelerationStructureSizes"
     },
     {
@@ -55217,7 +55217,7 @@
           "line": 1277
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice heapAccelerationStructureSizeAndAlignWithDescriptor:]",
       "kind": "method",
@@ -55225,7 +55225,7 @@
       "macos_introduced": "13.0",
       "name": "heapAccelerationStructureSizeAndAlignWithDescriptor:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by existing owned Device constructor/query paths with exact selector evidence, same-device retention, capability rejection, and focused native/public conformance.",
       "signature": "instance (MTLAccelerationStructureDescriptor * _Nonnull __strong) -> MTLSizeAndAlign"
     },
     {
@@ -55242,7 +55242,7 @@
           "line": 1270
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice heapAccelerationStructureSizeAndAlignWithSize:]",
       "kind": "method",
@@ -55250,7 +55250,7 @@
       "macos_introduced": "13.0",
       "name": "heapAccelerationStructureSizeAndAlignWithSize:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by existing owned Device constructor/query paths with exact selector evidence, same-device retention, capability rejection, and focused native/public conformance.",
       "signature": "instance (NSUInteger) -> MTLSizeAndAlign"
     },
     {
@@ -55687,7 +55687,7 @@
           "line": 1262
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newAccelerationStructureWithDescriptor:]",
       "kind": "method",
@@ -55695,7 +55695,7 @@
       "macos_introduced": "11.0",
       "name": "newAccelerationStructureWithDescriptor:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by existing owned Device constructor/query paths with exact selector evidence, same-device retention, capability rejection, and focused native/public conformance.",
       "signature": "instance (MTLAccelerationStructureDescriptor * _Nonnull __strong) -> id<MTLAccelerationStructure> _Nullable"
     },
     {
@@ -55713,7 +55713,7 @@
           "line": 1261
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newAccelerationStructureWithSize:]",
       "kind": "method",
@@ -55721,7 +55721,7 @@
       "macos_introduced": "11.0",
       "name": "newAccelerationStructureWithSize:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by existing owned Device constructor/query paths with exact selector evidence, same-device retention, capability rejection, and focused native/public conformance.",
       "signature": "instance (NSUInteger) -> id<MTLAccelerationStructure> _Nullable"
     },
     {
@@ -56261,7 +56261,7 @@
           "line": 1494
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newCounterHeapWithDescriptor:error:]",
       "kind": "method",
@@ -56269,7 +56269,7 @@
       "macos_introduced": "26.0",
       "name": "newCounterHeapWithDescriptor:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by existing owned Device constructor/query paths with exact selector evidence, same-device retention, capability rejection, and focused native/public conformance.",
       "signature": "instance (MTL4CounterHeapDescriptor * _Nonnull __strong, NSError * _Nullable __autoreleasing * _Nullable) -> id<MTL4CounterHeap> _Nullable"
     },
     {
@@ -56287,7 +56287,7 @@
           "line": 1170
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newCounterSampleBufferWithDescriptor:error:]",
       "kind": "method",
@@ -56295,7 +56295,7 @@
       "macos_introduced": "10.15",
       "name": "newCounterSampleBufferWithDescriptor:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by existing owned Device constructor/query paths with exact selector evidence, same-device retention, capability rejection, and focused native/public conformance.",
       "signature": "instance (MTLCounterSampleBufferDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLCounterSampleBuffer> _Nullable"
     },
     {
@@ -56459,7 +56459,7 @@
           "line": 870
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newFence]",
       "kind": "method",
@@ -56467,7 +56467,7 @@
       "macos_introduced": "10.13",
       "name": "newFence",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by existing owned Device constructor/query paths with exact selector evidence, same-device retention, capability rejection, and focused native/public conformance.",
       "signature": "instance () -> id<MTLFence> _Nullable"
     },
     {
@@ -56537,7 +56537,7 @@
           "line": 1092
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newIOFileHandleWithURL:compressionMethod:error:]",
       "kind": "method",
@@ -56545,7 +56545,7 @@
       "macos_introduced": "14.0",
       "name": "newIOFileHandleWithURL:compressionMethod:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by existing owned Device constructor/query paths with exact selector evidence, same-device retention, capability rejection, and focused native/public conformance.",
       "signature": "instance (NSURL * _Nonnull __strong, MTLIOCompressionMethod, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLIOFileHandle> _Nullable"
     },
     {
@@ -56831,7 +56831,7 @@
           "line": 636
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newLogStateWithDescriptor:error:]",
       "kind": "method",
@@ -56839,7 +56839,7 @@
       "macos_introduced": "15.0",
       "name": "newLogStateWithDescriptor:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by existing owned Device constructor/query paths with exact selector evidence, same-device retention, capability rejection, and focused native/public conformance.",
       "signature": "instance (MTLLogStateDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLLogState> _Nullable"
     },
     {
@@ -56935,7 +56935,7 @@
           "line": 985
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newRasterizationRateMapWithDescriptor:]",
       "kind": "method",
@@ -56943,7 +56943,7 @@
       "macos_introduced": "10.15.4",
       "name": "newRasterizationRateMapWithDescriptor:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by existing owned Device constructor/query paths with exact selector evidence, same-device retention, capability rejection, and focused native/public conformance.",
       "signature": "instance (MTLRasterizationRateMapDescriptor * _Nonnull __strong) -> id<MTLRasterizationRateMap> _Nullable"
     },
     {

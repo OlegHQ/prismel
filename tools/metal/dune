@@ -130,6 +130,8 @@
   binding_acceleration_operations_codegen
   binding_acceleration_operations_evidence
   binding_acceleration_operations_adapter
+  binding_device_residual_safe_package
+  binding_device_residual11_evidence
   binding_availability
   binding_availability_ast
   binding_receiver_catalog
@@ -983,6 +985,24 @@
  (name test_binding_metal4_argument_table_safe_package)
  (modules test_binding_metal4_argument_table_safe_package)
  (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_device_residual_safe_package)
+ (modules test_binding_device_residual_safe_package)
+ (libraries metal_inventory_classification)
+ (deps ../../lib/metal/generated_api_inventory.json))
+
+(test
+ (name test_binding_device_residual11_evidence)
+ (modules test_binding_device_residual11_evidence)
+ (libraries metal_inventory_classification)
+ (deps ../../lib/metal/test_metal_acceleration_safe.ml
+       ../../lib/metal/test_metal_resource100_safe.ml
+       ../../lib/metal/test_metal4_callable_safe.ml
+       ../../lib/metal/test_metal_io_safe.ml
+       ../../lib/metal/test_metal_fence6_safe.ml
+       ../../lib/metal/test_metal_log_state7_safe.ml
+       ../../lib/metal/test_metal4_render_pass7_safe.ml))
 
 (test
  (name test_binding_metal4_compute_pipeline_safe_package)
