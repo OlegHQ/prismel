@@ -1,4 +1,4 @@
-let sample ~target ~scenario =
+let sample ?(wall=1.) ?(rate=100.) ?(frames=100) ~target ~scenario () =
   `Assoc
     [ "target", `String target
     ; "scenario", `String scenario
@@ -6,21 +6,21 @@ let sample ~target ~scenario =
     ; "resolution", `Assoc [ "logical_width", `Int 64; "logical_height", `Int 64 ]
     ; "timing",
       `Assoc
-        [ "wall_seconds", `Float 1.
+        [ "wall_seconds", `Float wall
         ; "cpu_seconds", `Float 0.5
         ; "median_frame_seconds", `Float 0.01
         ; "p95_frame_seconds", `Float 0.011
         ; "p99_frame_seconds", `Float 0.012
         ]
     ; "pacing", `Assoc ["scheduling",`String"fixed-rate";
-        "scheduled_frame_rate",`Float 100.]
+        "scheduled_frame_rate",`Float rate]
     ; "memory",
       `Assoc
         [ "allocated_bytes_per_frame", `Float 12.
         ; "promoted_bytes_per_frame", `Float 4.
         ; "peak_rss_kib", `Int 1024
         ]
-    ; "work", `Assoc [ "frame_count", `Int 100; "work_units", `Int 42 ]
+    ; "work", `Assoc [ "frame_count", `Int frames; "work_units", `Int 42 ]
     ; "equivalence",
       `Assoc
         [ "workload_signature", `String (scenario ^ "-work")
@@ -35,15 +35,17 @@ let baseline target scenario =
   let metric median p95 = `Assoc ["median", `Float median; "p95", `Float p95] in
   `Assoc ["target", `String target; "scenario", `String scenario;
     "authority", `String ("phase0/" ^ target ^ "/" ^ scenario ^ "/performance");
+    "profile", `String "release"; "width", `Int 64; "height", `Int 64;
     "metrics", `Assoc ["wall", metric 1. 1.; "frame", metric 0.01 0.011;
       "CPU", metric 0.5 0.5; "promoted", metric 4. 4.; "RSS", metric 1024. 1024.]]
 
-let report ?(sample_count=1) samples =
+let report ?(sample_count=1) ?(sample_seconds=1.) ?(smoke=false) samples =
   `Assoc
     [ "protocol",
       `Assoc
         [ "samples", `Int sample_count; "profile", `String "release"
-        ; "width", `Int 64; "height", `Int 64; "sample_seconds",`Float 1.
+        ; "width", `Int 64; "height", `Int 64;
+          "sample_seconds",`Float sample_seconds; "smoke", `Bool smoke
         ]
     ; "samples", `List samples
     ; "performance_baselines", `List (List.concat_map (fun target ->
@@ -82,7 +84,7 @@ let () =
   let targets = [ "runtime-next-native"; "headless"; "web"; "legacy" ]
   and scenarios = [ "basic"; "pxui"; "canvas"; "scene3" ] in
   let samples = List.concat_map (fun target ->
-    List.map (fun scenario -> sample ~target ~scenario) scenarios) targets in
+    List.map (fun scenario -> sample ~target ~scenario ()) scenarios) targets in
   let valid = Filename.temp_file "r10-equivalent-" ".json"
   and invalid = Filename.temp_file "r10-inequivalent-" ".json" in
   Fun.protect
@@ -196,5 +198,25 @@ let () =
       write invalid missing_baselines;
       if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
         failwith"missing target-specific Phase0 baseline accepted";
+      let wrong_baseline field value = match report samples with
+        | `Assoc fields ->
+            let baselines = match List.assoc "performance_baselines" fields with
+              | `List (first :: rest) -> `List (replace_field field value
+                  (match first with `Assoc values -> values | _ -> assert false) :: rest)
+              | _ -> assert false in
+            replace_field "performance_baselines" baselines fields
+        | _ -> assert false in
+      write invalid (wrong_baseline "profile" (`String "dev"));
+      if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
+        failwith"mismatched Phase0 baseline profile accepted";
+      write invalid (wrong_baseline "width" (`Int 640));
+      if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
+        failwith"mismatched Phase0 baseline resolution accepted";
+      let smoke_samples = List.concat_map (fun target ->
+        List.map (fun scenario -> sample ~wall:0.0556 ~rate:60. ~frames:3
+          ~target ~scenario ()) scenarios) targets in
+      write valid (report ~sample_seconds:0.05 ~smoke:true smoke_samples);
+      if run Sys.argv.(1) valid <> Unix.WEXITED 0 then
+        failwith"one-frame smoke wall quantization rejected";
       print_endline
         "R10 equivalence validator rejects mismatched work including Scene3")

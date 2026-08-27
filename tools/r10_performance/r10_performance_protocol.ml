@@ -259,7 +259,57 @@ let percentile fraction values =
       let index = max 0 (min (count - 1) (int_of_float (ceil (fraction *. float count)) - 1)) in
       List.nth sorted index
 
-let enforce_performance samples baselines scenario =
+let import_performance_baselines ~path ~profile ~width ~height =
+  let document = read_json path in
+  let groups = document |> member "groups" |> to_list in
+  let metric runs field derive =
+    let values = List.map (fun run -> derive run field) runs in
+    `Assoc ["median", `Float (percentile 0.5 values);
+      "p95", `Float (percentile 0.95 values)]
+  in
+  let number run field = match numeric_float (member_opt field run) with
+    | Some value when Float.is_finite value && value >= 0. -> value
+    | _ -> fail "Phase0 baseline %s lacks finite non-negative %s"
+        (run |> member "scenario" |> to_string) field in
+  let per_frame run field =
+    let frames = number run "frames" in
+    if frames <= 0. then fail "Phase0 baseline has non-positive frame count";
+    number run field /. frames
+  in
+  let target_name = function
+    | "headless" -> Some "headless" | "web" -> Some "web" | _ -> None in
+  List.filter_map (fun group ->
+    match String.split_on_char ':' (group |> member "key" |> to_string) with
+    | ["renderer"; baseline_target; scenario] ->
+        Option.map (fun target ->
+          let runs = group |> member "runs" |> to_list in
+          if List.length runs <> 5 then
+            fail "Phase0 baseline %s/%s has %d runs, expected 5"
+              target scenario (List.length runs);
+          List.iter (fun run ->
+            if member "profile" run <> `String profile then
+              fail "Phase0 baseline %s/%s profile does not match %s" target scenario profile;
+            if member "width" run <> `Int width || member "height" run <> `Int height then
+              fail "Phase0 baseline %s/%s is not %dx%d" target scenario width height)
+            runs;
+          let ordinary field = metric runs field number in
+          let frame = `Assoc ["median", `Float (percentile 0.5
+              (List.map (fun run -> number run "median_frame_seconds") runs));
+            "p95", `Float (percentile 0.5
+              (List.map (fun run -> number run "p95_frame_seconds") runs))] in
+          `Assoc ["target", `String target; "scenario", `String scenario;
+            "authority", `String (Printf.sprintf "%s#%s" path
+              (group |> member "key" |> to_string));
+            "profile", `String profile; "width", `Int width; "height", `Int height;
+            "metrics", `Assoc ["wall", ordinary "wall_seconds"; "frame", frame;
+              "CPU", metric runs "cpu_seconds" (fun run _ ->
+                number run "user_seconds" +. number run "system_seconds");
+              "promoted", metric runs "promoted_bytes" per_frame;
+              "RSS", ordinary "peak_sampled_rss_kib"]])
+          (target_name baseline_target)
+    | _ -> None) groups
+
+let enforce_performance ~profile ~width ~height samples baselines scenario =
   let for_target target =
     List.filter (fun sample ->
       member "target" sample = `String target
@@ -292,6 +342,10 @@ let enforce_performance samples baselines scenario =
       && member "scenario" value = `String scenario) baselines in
     match matches with
     | [value] ->
+        if member "profile" value <> `String profile then
+          fail "%s/%s performance baseline profile mismatch" target scenario;
+        if member "width" value <> `Int width || member "height" value <> `Int height then
+          fail "%s/%s performance baseline resolution mismatch" target scenario;
         (match member "authority" value with `String text when text <> "" -> ()
          | _ -> fail "%s/%s performance baseline lacks authority" target scenario);
         let metric = member "metrics" value |> member label in
@@ -336,6 +390,7 @@ let validate_report report =
   and width = protocol |> member "width" |> to_int
   and height = protocol |> member "height" |> to_int
   and sample_seconds = protocol |> member "sample_seconds" |> to_float in
+  let smoke = member "smoke" protocol = `Bool true in
   let samples = report |> member "samples" |> to_list in
   let baselines = match member "performance_baselines" report with
     | `List values -> values | `Null -> []
@@ -365,12 +420,13 @@ let validate_report report =
       and frames=sample|>member "work"|>member "frame_count"|>to_int
       and wall=timing|>member "wall_seconds"|>to_float in
       if abs(frames-expected)>1 then fail "%s/%s emitted %d frames, expected %d (+/-1)"target scenario frames expected;
-      if wall<sample_seconds*.0.90||wall>sample_seconds*.1.10 then
+      let upper = sample_seconds *. 1.10 +. (if smoke then 1. /. rate else 0.) in
+      if wall < sample_seconds *. 0.90 || wall > upper then
         fail "%s/%s wall interval %.3fs differs from requested %.3fs by more than 10%%"target scenario wall sample_seconds
     ) found
   ) required_scenarios) required_targets;
   List.iter (require_equivalent_work samples) required_scenarios;
-  List.iter (enforce_performance samples baselines) required_scenarios;
+  List.iter (enforce_performance ~profile ~width ~height samples baselines) required_scenarios;
   print_endline "R10 validation passed"
 
 let () =
@@ -390,6 +446,11 @@ let () =
       let profile = manifest |> member "profile" |> to_string
       and width = manifest |> member "width" |> to_int
       and height = manifest |> member "height" |> to_int in
+      let baseline_path = match member "performance_baseline" manifest with
+        | `String path when path <> "" -> path
+        | _ -> fail "manifest lacks performance_baseline artifact path" in
+      let performance_baselines =
+        import_performance_baselines ~path:baseline_path ~profile ~width ~height in
       let seconds = if !smoke then 0.05 else manifest |> member "sample_seconds" |> to_float
       and warmup = if !smoke then 0.02 else manifest |> member "warmup_seconds" |> to_float in
       let runs = if !smoke then 1 else configured_samples in
@@ -419,6 +480,7 @@ let () =
             "git_dirty", `Bool (command_output "/usr/bin/git" ["status"; "--porcelain"] <> "");
             "machine", machine_facts (); "display", member "display" manifest];
           "samples", `List (List.rev !collected);
+          "performance_baselines", `List performance_baselines;
           "failures", `List (List.rev !failures)] in
         let output = Option.get !output_path in write_json output report;
         if !failures <> [] then begin
