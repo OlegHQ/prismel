@@ -5,6 +5,8 @@ type t =
   ; device : Device.t
   ; descriptor : Ogpu.Types.buffer_descriptor
   ; memory : memory
+  ; mutable submission_uses : int
+  ; mutable destroy_requested : bool
   }
 
 let validate_memory (descriptor : Ogpu.Types.buffer_descriptor) memory =
@@ -38,7 +40,7 @@ let create device ~memory descriptor =
             | Error metal -> Error (Adapter.error ~operation metal)
             | Ok metal ->
                 let value = { metal; handle = Ogpu.Handle.create ~device:(Device.Private.handle device);
-                  device; descriptor; memory } in
+                  device; descriptor; memory;submission_uses=0;destroy_requested=false } in
                 Device.Private.attach_resource device;
                 Ok value
 
@@ -69,6 +71,7 @@ let read_bytes device value ~offset ~length =
 let destroy value =
   let operation = "Ogpu_metal.Buffer.destroy" in
   if destroyed value then Ok ()
+  else if value.submission_uses>0 then(Ogpu.Handle.destroy value.handle;value.destroy_requested<-true;Ok())
   else
     match Metal.Buffer.destroy value.metal with
     | Error metal -> Error (Adapter.error ~operation metal)
@@ -80,4 +83,6 @@ let destroy value =
 module Private = struct
   let metal value=value.metal
   let resource_handle value=value.handle
+  let retain_submission value=if destroyed value then Error(Ogpu.Error.make"Ogpu_metal.Buffer.retain_submission"Ogpu.Error.Stale_handle"buffer is destroyed")else(value.submission_uses<-value.submission_uses+1;Ok())
+  let release_submission value=value.submission_uses<-value.submission_uses-1;if value.submission_uses=0&&value.destroy_requested then(match Metal.Buffer.destroy value.metal with Ok()->Device.Private.detach_resource value.device|Error _->())
 end

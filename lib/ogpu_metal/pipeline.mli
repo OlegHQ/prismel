@@ -18,4 +18,6 @@ val destroy : t -> (unit,Ogpu.Error.t) result
 module Private : sig
   type native = Compute of Metal.Compute_pipeline.t | Render of Metal.Render_pipeline.t
   val native : t -> native
+  val retain_submission : t -> (unit,Ogpu.Error.t) result
+  val release_submission : t -> unit
 end

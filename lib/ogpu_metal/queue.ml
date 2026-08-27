@@ -18,6 +18,18 @@ let validate_operation device=function
   |Command.Private.Clear(t,_)->validate_texture device t
   |Command.Private.Draw_triangle(p,t)->(match Pipeline.validate device p with Error _ as e->e|Ok()->validate_texture device t)
 let rec validate_all device=function []->Ok()|x::xs->match validate_operation device x with Error _ as e->e|Ok()->validate_all device xs
+let retain_all operations=
+  let retained=ref[]in let keep retain release=match retain()with Error _ as failure->failure|Ok()->retained:=release::!retained;Ok()in
+  let rec loop=function
+    |[]->Ok(List.rev!retained)
+    |operation::rest->let resources=match operation with
+      |Command.Private.Copy(a,_,b,_,_)->[(fun()->keep(fun()->Buffer.Private.retain_submission a)(fun()->Buffer.Private.release_submission a));(fun()->keep(fun()->Buffer.Private.retain_submission b)(fun()->Buffer.Private.release_submission b))]
+      |Compute(_,_,b,_)->[(fun()->keep(fun()->Buffer.Private.retain_submission b)(fun()->Buffer.Private.release_submission b))]
+      |Dispatch(p,b,_)->[(fun()->keep(fun()->Pipeline.Private.retain_submission p)(fun()->Pipeline.Private.release_submission p));(fun()->keep(fun()->Buffer.Private.retain_submission b)(fun()->Buffer.Private.release_submission b))]
+      |Clear(t,_)->[(fun()->keep(fun()->Texture.Private.retain_submission t)(fun()->Texture.Private.release_submission t))]
+      |Draw_triangle(p,t)->[(fun()->keep(fun()->Pipeline.Private.retain_submission p)(fun()->Pipeline.Private.release_submission p));(fun()->keep(fun()->Texture.Private.retain_submission t)(fun()->Texture.Private.release_submission t))]in
+      let rec each=function []->loop rest|retain::tail->match retain()with Ok()->each tail|Error _ as failure->failure in each resources in
+  match loop operations with Ok _ as success->success|Error _ as failure->List.iter(fun release->release())!retained;failure
 let encode command operations =
   let op="Ogpu_metal.Queue.submit"in
   let cleanup=ref[]in let add f=cleanup:=f::!cleanup in
@@ -30,7 +42,9 @@ let encode command operations =
     |Command.Private.Draw_triangle(pipeline,texture)::rest->(match Pipeline.Private.native pipeline with Compute _->error op Ogpu.Error.Invalid_argument"compute pipeline used for render draw"|Render pipeline->match Metal.Render_encoder.create command~target:(Texture.Private.metal texture)~clear:(0.,0.,0.,1.)()with Error e->Error(Adapter.error~operation:op e)|Ok encoder->match Metal.Render_encoder.set_pipeline encoder pipeline with Error e->Error(Adapter.error~operation:op e)|Ok()->match Metal.Render_encoder.draw_triangles encoder~first:0~count:3()with Error e->Error(Adapter.error~operation:op e)|Ok()->match Metal.Render_encoder.end_encoding encoder with Error e->Error(Adapter.error~operation:op e)|Ok()->loop rest)
   in loop operations
 let submit value command =let op="Ogpu_metal.Queue.submit"in if value.dead then error op Ogpu.Error.Stale_handle"queue is destroyed"else if value.fail_next then(value.fail_next<-false;error op Ogpu.Error.Device_lost"injected submission failure")else let operations=Command.Private.operations command in
-  match validate_all value.device operations with Error _ as e->e|Ok()->match Ogpu.Submission.submit value.submission(Command.Private.portable command)~resources:[]with Error _ as e->e|Ok receipt->match Metal.Command_buffer.create value.metal()with Error e->Error(Adapter.error~operation:op e)|Ok native->match encode native operations with Error e->ignore(Metal.Command_buffer.destroy native);Error e|Ok cleanup->match Metal.Command_buffer.commit native with Error e->ignore(Metal.Command_buffer.destroy native);Error(Adapter.error~operation:op e)|Ok()->value.pending<-value.pending@[{epoch=receipt.id;command=native;cleanup}];Ok{epoch=receipt.id}
+  match validate_all value.device operations with Error _ as e->e|Ok()->match retain_all operations with Error _ as e->e|Ok retained->
+  let rollback failure=List.iter(fun release->release())retained;failure in
+  match Ogpu.Submission.submit value.submission(Command.Private.portable command)~resources:[]with Error _ as e->rollback e|Ok receipt->match Metal.Command_buffer.create value.metal()with Error e->rollback(Error(Adapter.error~operation:op e))|Ok native->match encode native operations with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error e)|Ok cleanup->match Metal.Command_buffer.commit native with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error(Adapter.error~operation:op e))|Ok()->value.pending<-value.pending@[{epoch=receipt.id;command=native;cleanup=retained@cleanup}];Ok{epoch=receipt.id}
 let wait_through value epoch=let op="Ogpu_metal.Queue.wait_through"in if epoch<=completed_epoch value||epoch>Int64.of_int(max_int)then error op Ogpu.Error.Invalid_argument"completion epoch is invalid"else
   let ready,later=List.partition(fun (p:pending)->p.epoch<=epoch)value.pending in
   if ready=[] then error op Ogpu.Error.Invalid_argument"epoch was not submitted"else

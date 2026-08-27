@@ -3,7 +3,8 @@ type memory = Device_local | Shared
 type t =
   { metal : Metal.Texture.t; handle : unit Ogpu.Handle.t; device : Device.t
   ; descriptor : Ogpu.Types.texture_descriptor; format : format
-  ; view_formats : format list; parent : t option; mutable live_views : int }
+  ; view_formats : format list; parent : t option; mutable live_views : int;
+    mutable submission_uses:int;mutable destroy_requested:bool }
 
 let error operation kind message = Error (Ogpu.Error.make operation kind message)
 let metal_format = function R8_unorm->Metal.Texture.R8_unorm|Rgba8_unorm->Metal.Texture.Rgba8_unorm|Bgra8_unorm->Metal.Texture.Bgra8_unorm|Rgba16_float->Metal.Texture.Rgba16_float|Depth32_float->Metal.Texture.Depth32_float
@@ -42,7 +43,7 @@ let create device ~memory ~format ?(view_formats=[]) descriptor =
     let base=Metal.Texture.descriptor_2d ~storage ~usage:native_usage ?label:descriptor.label ~format:(metal_format format) ~width:descriptor.width ~height:descriptor.height () in
     let native={base with kind=(if descriptor.sample_count>1 then Metal.Texture.Texture_2d_multisample else if descriptor.depth>1 then Texture_3d else Texture_2d);depth=descriptor.depth;mip_levels=descriptor.mip_levels;sample_count=descriptor.sample_count} in
     match Metal.Texture.create ~device:(Device.Private.metal device) native with Error e->Error(Adapter.error~operation e)|Ok metal->
-      let value={metal;handle=Ogpu.Handle.create~device:(Device.Private.handle device);device;descriptor;format;view_formats;parent=None;live_views=0}in
+      let value={metal;handle=Ogpu.Handle.create~device:(Device.Private.handle device);device;descriptor;format;view_formats;parent=None;live_views=0;submission_uses=0;destroy_requested=false}in
       Device.Private.attach_resource device;Ok value
 
 let validate operation device value=Ogpu.Handle.validate_for~operation(Device.Private.handle device)value.handle
@@ -62,7 +63,7 @@ let create_view device parent ~format ~base_mip ~mip_count ~base_slice ~slice_co
   else match Metal.Texture.create_view parent.metal~format:(metal_format format)~base_mip~mip_count~base_slice~slice_count()with Error e->Error(Adapter.error~operation e)|Ok metal->
     let extent shift x=max 1(x lsr shift)in
     let descriptor={parent.descriptor with width=extent base_mip parent.descriptor.width;height=extent base_mip parent.descriptor.height;depth=extent base_mip parent.descriptor.depth;mip_levels=mip_count;sample_count=parent.descriptor.sample_count}in
-    let value={metal;handle=Ogpu.Handle.create~device:(Device.Private.handle device);device;descriptor;format;view_formats=[];parent=Some parent;live_views=0}in
+    let value={metal;handle=Ogpu.Handle.create~device:(Device.Private.handle device);device;descriptor;format;view_formats=[];parent=Some parent;live_views=0;submission_uses=0;destroy_requested=false}in
     parent.live_views<-parent.live_views+1;Device.Private.attach_resource device;Ok value
 
 let read_bytes device value ~mip_level ~bytes_per_row =
@@ -85,6 +86,11 @@ let write_bytes device value ~mip_level ~bytes_per_row bytes =
 
 let destroy value =
   let operation="Ogpu_metal.Texture.destroy"in if destroyed value then Ok()else if value.live_views<>0 then error operation Ogpu.Error.Invalid_state "texture still owns live views"else
+  if value.submission_uses>0 then(Ogpu.Handle.destroy value.handle;value.destroy_requested<-true;Ok())else
   match Metal.Texture.destroy value.metal with Error e->Error(Adapter.error~operation e)|Ok()->Ogpu.Handle.destroy value.handle;Option.iter(fun parent->parent.live_views<-parent.live_views-1)value.parent;Device.Private.detach_resource value.device;Ok()
 
-module Private=struct let metal value=value.metal let resource_handle value=value.handle end
+module Private=struct
+  let metal value=value.metal let resource_handle value=value.handle
+  let retain_submission value=if destroyed value then Error(Ogpu.Error.make"Ogpu_metal.Texture.retain_submission"Ogpu.Error.Stale_handle"texture is destroyed")else(value.submission_uses<-value.submission_uses+1;Ok())
+  let release_submission value=value.submission_uses<-value.submission_uses-1;if value.submission_uses=0&&value.destroy_requested then(match Metal.Texture.destroy value.metal with Ok()->Option.iter(fun parent->parent.live_views<-parent.live_views-1)value.parent;Device.Private.detach_resource value.device|Error _->())
+end

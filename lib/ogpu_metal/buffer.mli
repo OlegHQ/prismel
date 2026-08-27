@@ -16,4 +16,6 @@ val destroy : t -> (unit, Ogpu.Error.t) result
 module Private : sig
   val metal : t -> Metal.Buffer.t
   val resource_handle : t -> unit Ogpu.Handle.t
+  val retain_submission : t -> (unit,Ogpu.Error.t) result
+  val release_submission : t -> unit
 end

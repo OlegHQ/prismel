@@ -28,6 +28,11 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal submi
   let foreign=get(Buffer.create other~memory:Buffer.Shared buffer_descriptor)in let wrong=ended(fun c->Command.copy_buffer c~source:foreign~source_offset:0L~destination~destination_offset:0L~length:4L)in expect Ogpu.Error.Cross_device(Queue.submit queue wrong);
   let stale=get(Buffer.create device~memory:Buffer.Shared buffer_descriptor)in let stale_command=ended(fun c->Command.copy_buffer c~source:stale~source_offset:0L~destination~destination_offset:0L~length:4L)in get(Buffer.destroy stale);expect Ogpu.Error.Stale_handle(Queue.submit queue stale_command);
   let injected=ended(fun _->Ok())in Queue.inject_next_error queue;expect Ogpu.Error.Device_lost(Queue.submit queue injected);
+  let deferred_source=get(Buffer.create device~memory:Buffer.Shared buffer_descriptor)and deferred_destination=get(Buffer.create device~memory:Buffer.Shared buffer_descriptor)in
+  let deferred=ended(fun c->Command.copy_buffer c~source:deferred_source~source_offset:0L~destination:deferred_destination~destination_offset:0L~length:16L)in
+  let deferred_receipt=get(Queue.submit queue deferred)in get(Buffer.destroy deferred_source);get(Buffer.destroy deferred_destination);
+  if not(Buffer.destroyed deferred_source&&Buffer.destroyed deferred_destination)then failwith"submitted destroy did not stale handles";
+  expect Ogpu.Error.Invalid_state(Device.destroy device);get(Queue.wait_through queue deferred_receipt.epoch);
   get(Buffer.destroy foreign);get(Texture.destroy target);get(Buffer.destroy destination);get(Buffer.destroy source);get(Queue.destroy queue);get(Device.destroy device);get(Device.destroy other);ignore(get_metal(Metal.Release_queue.drain()));
   let after=get_metal(Metal.Release_queue.stats())in if after.live_handles<>before.live_handles-2 then failwith"submission live-handle delta";
   print_endline"ogpu_metal submission: copy/compute/clear, ordered max3, zero live-handle delta"
