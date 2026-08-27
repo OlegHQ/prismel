@@ -8,6 +8,8 @@ type light =
       concentration : float; color : color; intensity : float; attenuation : attenuation }
 type material = { ambient : color; diffuse : color; specular : color; emissive : color; shininess : float }
 type fog = No_fog | Linear of { color : color; near : float; far : float }
+  | Exponential of { color : color; density : float }
+  | Exponential_squared of { color : color; density : float }
 type descriptor = { ambient : color; lights : light array; material : material; fog : fog;
   separate_specular : bool; two_sided : bool }
 type prepared

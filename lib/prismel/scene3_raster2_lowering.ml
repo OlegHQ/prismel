@@ -34,7 +34,8 @@ let lights values =
   match !failure with Some error->Error error|None->Ok({Raster2.Scene3_lighting.r=min 1. !ar;g=min 1. !ag;b=min 1. !ab;a=1.},Array.of_list(List.rev !output))
 let fog=function None->Ok Raster2.Scene3_lighting.No_fog|Some value->match value.Fog3.mode with
   | Linear{start;end_}->Ok(Linear{color=color value.color;near=start;far=end_})
-  | Exponential _|Exponential_squared _->Error Unsupported_fog
+  | Exponential{density}->Ok(Exponential{color=color value.color;density})
+  | Exponential_squared{density}->Ok(Exponential_squared{color=color value.color;density})
 let topology=function Mesh.Points->Ok Raster2.Scene3.Point_list|Lines->Ok Line_list|Line_strip->Ok Line_strip|Line_loop->Ok Line_loop|Triangles->Ok Triangle_list|Triangle_strip->Ok Triangle_strip|Triangle_fan->Ok Triangle_fan
 let matrix_array value=Array.init 16(fun index->Mat4.get value~row:(index/4)~column:(index mod 4))
 let depth_zero_to_one=Mat4.of_rows(1.,0.,0.,0.)(0.,1.,0.,0.)(0.,0.,0.5,0.5)(0.,0.,0.,1.)
@@ -106,6 +107,26 @@ let self_test () =
   for frame=1 to 600 do if prepare frame<>expected then failwith"Scene3 frame drift"done;
   let workers=Array.init 4(fun _->Domain.spawn(fun()->prepare 1))in Array.iter(fun worker->if Domain.join worker<>expected then failwith"Scene3 domain drift")workers;
   let prepared=match lower_view3d~resources~default_viewport:(0,0,16,16)(View3d(camera,scene,None))with Ok value->value|Error _->failwith"prepared Scene3"in
+  let fog_scenes =
+    [
+      ( Fog3.exponential ~color:Color.blue ~density:0.25,
+        Raster2.Scene3_lighting.Exponential
+          { color = color Color.blue; density = 0.25 } );
+      ( Fog3.exponential_squared ~color:Color.green ~density:0.5,
+        Raster2.Scene3_lighting.Exponential_squared
+          { color = color Color.green; density = 0.5 } );
+    ]
+  in
+  List.iter
+    (fun (public_fog, expected_fog) ->
+      let fog_scene = Scene3.create ~fog:public_fog [ node ] in
+      match
+        lower_view3d ~resources ~default_viewport:(0, 0, 16, 16)
+          (View3d (camera, fog_scene, None))
+      with
+      | Ok value when value.draws.(0).lighting.fog = expected_fog -> ()
+      | _ -> failwith "public exponential fog lowering")
+    fog_scenes;
   if prepared.draws.(0).vertices.(0).normal.z<>1. then failwith"authored normal lost";
   let draw=prepared.draws.(0)in
   begin match draw.lighting.lights.(1)with

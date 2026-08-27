@@ -8,6 +8,8 @@ type light =
       concentration : float; color : color; intensity : float; attenuation : attenuation }
 type material = { ambient : color; diffuse : color; specular : color; emissive : color; shininess : float }
 type fog = No_fog | Linear of { color : color; near : float; far : float }
+  | Exponential of { color : color; density : float }
+  | Exponential_squared of { color : color; density : float }
 type descriptor = { ambient : color; lights : light array; material : material; fog : fog;
   separate_specular : bool; two_sided : bool }
 type prepared = { descriptor : descriptor; shadows : Shadow_map.prepared option array }
@@ -55,6 +57,10 @@ let validate descriptor =
     match !error with Some e -> Error e | None ->
       match descriptor.fog with
       | Linear f when not (valid_color f.color && finite f.near && finite f.far && f.near >= 0. && f.far > f.near) -> Error Invalid_fog
+      | Exponential f when
+          not (valid_color f.color && finite f.density && f.density >= 0.) -> Error Invalid_fog
+      | Exponential_squared f when
+          not (valid_color f.color && finite f.density && f.density >= 0.) -> Error Invalid_fog
       | _ -> Ok ()
   end
 
@@ -137,5 +143,11 @@ let shade prepared ~position ~normal ~view ~front_facing ~texture ~fog_distance 
     else ((!primary_r+. !spec_r)*.tr,(!primary_g+. !spec_g)*.tg,(!primary_b+. !spec_b)*.tb) in
   let r,g,b = match descriptor.fog with No_fog -> (r,g,b) | Linear f ->
     let amount = clamp ((fog_distance -. f.near) /. (f.far -. f.near)) in
-    (r*.(1.-.amount)+.f.color.r*.amount,g*.(1.-.amount)+.f.color.g*.amount,b*.(1.-.amount)+.f.color.b*.amount) in
+    (r*.(1.-.amount)+.f.color.r*.amount,g*.(1.-.amount)+.f.color.g*.amount,b*.(1.-.amount)+.f.color.b*.amount)
+  | Exponential f ->
+    let visibility=clamp(exp(-.(f.density*.max 0. fog_distance)))in
+    (r*.visibility+.f.color.r*.(1.-.visibility),g*.visibility+.f.color.g*.(1.-.visibility),b*.visibility+.f.color.b*.(1.-.visibility))
+  | Exponential_squared f ->
+    let scaled=f.density*.max 0. fog_distance in let visibility=clamp(exp(-.(scaled*.scaled)))in
+    (r*.visibility+.f.color.r*.(1.-.visibility),g*.visibility+.f.color.g*.(1.-.visibility),b*.visibility+.f.color.b*.(1.-.visibility)) in
   pack r g b (material.diffuse.a *. ta)

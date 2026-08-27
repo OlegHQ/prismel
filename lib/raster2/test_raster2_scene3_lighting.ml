@@ -25,6 +25,16 @@ let ()=
   if render prepared 2<>lit then failwith"reversed authored normal";
   let fogged=ok(prepare{descriptor with fog=Linear{color={r=1.;g=0.;b=0.;a=1.};near=0.;far=1.}})in
   if shade fogged~position:(v 0. 0. 0.)~normal:(v 0. 0. 1.)~view:(v 0. 0. 1.)~front_facing:true~texture:None~fog_distance:1.<>0xff0000ffl then failwith"fog";
+  let fog_color={r=1.;g=0.;b=0.;a=1.}in
+  let exponential=ok(prepare{descriptor with fog=Exponential{color=fog_color;density=0.5}})
+  and exponential_squared=ok(prepare{descriptor with fog=Exponential_squared{color=fog_color;density=0.5}})
+  and zero_density=ok(prepare{descriptor with fog=Exponential{color=fog_color;density=0.}})in
+  let shade_fog prepared distance=shade prepared~position:(v 0. 0. 0.)~normal:(v 0. 0. 1.)~view:(v 0. 0. 1.)~front_facing:true~texture:None~fog_distance:distance in
+  if shade_fog zero_density 100.<>shade_fog prepared 100. then failwith"zero exponential fog";
+  if red(shade_fog exponential_squared 4.)<=red(shade_fog exponential 4.)then failwith"exponential squared policy";
+  if shade_fog exponential 1e6<>0xff0000ffl||shade_fog exponential_squared 1e6<>0xff0000ffl then failwith"exponential fog limit";
+  begin match prepare{descriptor with fog=Exponential{color=fog_color;density=nan}}with Error Invalid_fog->()|_->failwith"nonfinite exponential fog"end;
+  begin match prepare{descriptor with fog=Exponential_squared{color=fog_color;density=(-1.)}}with Error Invalid_fog->()|_->failwith"negative exponential fog"end;
   let separate=lit and combined=shade(ok(prepare{descriptor with separate_specular=false}))~position:(v 0. 0. 0.)~normal:(v 0. 0. 1.)~view:(v 0. 0. 1.)~front_facing:true~texture:(Some 0x808080ffl)~fog_distance:0. in
   if separate=combined then failwith"separate specular";
   begin match prepare{descriptor with material={material with shininess=nan}}with Error Invalid_shininess->()|_->failwith"nonfinite"end;
@@ -50,4 +60,7 @@ let ()=
     Array.init 600(fun _->shade_spot exponent32 sample)))in
   Array.iter(fun worker->if Domain.join worker<>spot_expected then
     failwith"spot domain drift")spot_workers;
+  let fog_expected=Array.init 600(fun i->shade_fog exponential_squared(float(i+1)/.10.))in
+  let fog_workers=Array.init 4(fun _->Domain.spawn(fun()->Array.init 600(fun i->shade_fog exponential_squared(float(i+1)/.10.))))in
+  Array.iter(fun worker->if Domain.join worker<>fog_expected then failwith"fog domain drift")fog_workers;
   print_endline"Raster2 deterministic Scene3 lighting passed"
