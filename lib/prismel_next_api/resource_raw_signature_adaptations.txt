@@ -1,0 +1,7 @@
+# Frozen raw SDL2 signatures adapted to opaque next tokens; names are preserved.
+Image.Private.current_renderer : renderer option ref
+Image.Private.set_renderer : renderer -> unit
+Image.Private.get_renderer : unit -> (renderer,string) result
+Image.Private.get_texture : Image.t -> texture
+Image.Private.from_texture : texture -> int -> int -> Image.t
+Font.release_renderer : Image.Private.renderer -> unit
