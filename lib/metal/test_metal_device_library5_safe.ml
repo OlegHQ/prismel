@@ -20,9 +20,21 @@ let () =
        | Error error -> failwith (Format.asprintf "%a" pp_error error));
       reject Invalid_argument (Library.default_in_bundle ~device "relative.bundle");
       reject Invalid_argument (Library.load_data ~device "");
+      reject Native_error
+        (Library.default_in_bundle ~device "/prismel/does/not/exist.bundle");
+      reject Native_error (Library.load_data ~device "not-a-metallib");
       reject Invalid_argument (Library.load_file_legacy ~device "relative.metallib");
       reject Native_error
         (Library.load_file_legacy ~device "/prismel/does/not/exist.metallib");
+      let stitched =
+        match Stitched_library_descriptor.create ~functions:[] ~graphs:[] () with
+        | Ok descriptor -> descriptor
+        | Error error -> failwith (Format.asprintf "%a" pp_error error)
+      in
+      reject Native_error (Stitched_library_descriptor.compile stitched ~device);
+      (match Stitched_library_descriptor.destroy stitched with
+       | Ok () -> ()
+       | Error error -> failwith (Format.asprintf "%a" pp_error error));
       (match Device.destroy device with Ok () -> () | Error error ->
         failwith (Format.asprintf "%a" pp_error error));
       print_endline "Device library5: ownership/path/data rejection passed"

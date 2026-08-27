@@ -1890,6 +1890,16 @@ external library_function_reflection : handle -> string -> (((pipeline_binding_i
 external library_function_async : handle -> string -> int -> ((handle,string) result -> unit) -> (nativeint,string) result = "caml_prismel_metal_library_function_async"
 external library_callback_cancel : nativeint -> unit = "caml_prismel_metal_library_callback_cancel"
 external library_intersection_function : handle -> string -> (handle,string) result = "caml_prismel_metal_library_intersection_function"
+external device_default_library : handle -> (handle,string) result =
+  "caml_prismel_metal_device_default_library"
+external device_default_library_bundle : handle -> string -> (handle,string) result =
+  "caml_prismel_metal_device_default_library_bundle"
+external device_library_data : handle -> string -> (handle,string) result =
+  "caml_prismel_metal_device_library_data"
+external device_library_file : handle -> string -> (handle,string) result =
+  "caml_prismel_metal_device_library_file"
+external device_library_stitched : handle -> handle -> (handle,string) result =
+  "caml_prismel_metal_device_library_stitched"
 
 (** Exact callable subset of the prepared authoritative Metal4 shards. *)
 external metal4_command_buffer_begin :

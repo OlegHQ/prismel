@@ -1362,6 +1362,13 @@ module Library : sig
     ?label:string -> device:Device.t -> install_name:string -> string ->
     (t, error) result
 
+  val default : device:Device.t -> (t, error) result
+  val default_in_bundle : device:Device.t -> string -> (t, error) result
+  val load_data : device:Device.t -> string -> (t, error) result
+  (* Calls the deprecated path-based SDK constructor exactly. New code should
+     prefer [load_file], which uses the URL-based constructor. *)
+  val load_file_legacy : device:Device.t -> string -> (t, error) result
+
   (** Loads a compiled [.metallib]. The path must be absolute. *)
   val load_file :
     ?label:string -> device:Device.t -> string -> (t, error) result
@@ -1609,6 +1616,7 @@ module Stitched_library_descriptor : sig
   val options : t -> int64
   val set : t -> functions:Function.t list -> graphs:Function_stitching_graph.t list -> ?archives:binary_archive list -> ?options:int64 -> unit -> (unit,error) result
   val checked : t -> (unit,error) result
+  val compile : t -> device:Device.t -> (Library.t,error) result
   val destroyed : t -> bool
   val destroy : t -> (unit,error) result
 end
@@ -1896,10 +1904,16 @@ end
 
 module Intersection_function_table : sig
   type t
+  type opaque_shape = Triangle | Curve
   val create : pipeline:Compute_pipeline.t -> capacity:int -> (t, error) result
   val set_function : t -> index:int -> Function_handle.t option -> (unit, error) result
   val set_buffer : t -> index:int -> ?offset:int64 -> Buffer.t option -> (unit, error) result
   val set_visible_table : t -> buffer_index:int -> Visible_function_table.t option -> (unit, error) result
+  val set_buffers : t -> start:int -> (Buffer.t * int64) option list -> (unit,error) result
+  val set_functions : t -> start:int -> Function_handle.t option list -> (unit,error) result
+  val set_visible_tables : t -> start:int -> Visible_function_table.t option list -> (unit,error) result
+  val set_opaque_signature : t -> shape:opaque_shape -> start:int -> length:int ->
+    Enum.Mtl_intersection_function_signature.t list -> (unit,error) result
   val device : t -> Device.t
   val capacity : t -> int
   val resource_id : t -> int64

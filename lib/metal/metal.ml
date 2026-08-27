@@ -8736,6 +8736,40 @@ module Library = struct
     attach_finalizer value value.lifetime device.lifetime;
     value
 
+  let native_constructor operation (device : Device.t) native =
+    on_main operation (fun () ->
+      match ensure_live operation device.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match native device.raw with
+           | Error message -> native_error operation message
+           | Ok raw -> Ok (make device raw)))
+
+  let default ~(device : Device.t) =
+    native_constructor "Metal.Library.default" device
+      Metal_raw.device_default_library
+
+  let default_in_bundle ~(device : Device.t) path =
+    let operation = "Metal.Library.default_in_bundle" in
+    match validate_absolute_path operation path with
+    | Error _ as failure -> failure
+    | Ok () -> native_constructor operation device (fun raw ->
+        Metal_raw.device_default_library_bundle raw path)
+
+  let load_data ~(device : Device.t) bytes =
+    let operation = "Metal.Library.load_data" in
+    if bytes = "" then
+      error operation Invalid_argument "compiled library data is empty"
+    else native_constructor operation device (fun raw ->
+      Metal_raw.device_library_data raw (Bytes.to_string (Bytes.of_string bytes)))
+
+  let load_file_legacy ~(device : Device.t) path =
+    let operation = "Metal.Library.load_file_legacy" in
+    match validate_absolute_path operation path with
+    | Error _ as failure -> failure
+    | Ok () -> native_constructor operation device (fun raw ->
+        Metal_raw.device_library_file raw path)
+
   let validate_source operation source label =
     if source = "" then
       error operation Invalid_argument "shader source is empty"
@@ -9565,6 +9599,7 @@ module Stitched_library_descriptor = struct
   let functions t=t.descriptor_functions and graphs t=t.descriptor_graphs and archives t=t.descriptor_archives and options t=t.descriptor_options
   let set (value:t) ~functions ~graphs ?(archives=[]) ?(options=0L)()=let op="Metal.Stitched_library_descriptor.set"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()->match validate op~functions~graphs~archives~options with Error _ as e->e|Ok()->match native op functions graphs archives options with Error _ as e->e|Ok raw->retain functions graphs archives;let old_raw=value.raw and old_functions=value.descriptor_functions and old_graphs=value.descriptor_graphs and old_archives=value.descriptor_archives in value.raw<-raw;value.descriptor_functions<-functions;value.descriptor_graphs<-graphs;value.descriptor_archives<-archives;value.descriptor_options<-options;ignore(Metal_raw.destroy old_raw);release old_functions old_graphs old_archives;Ok())
   let checked(value:t)=let op="Metal.Stitched_library_descriptor.checked"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()->match Metal_raw.stitched_descriptor_snapshot value.raw with Error m->native_error op m|Ok(functions,graphs,archives,options)->Array.iter(fun raw->ignore(Metal_raw.destroy raw))functions;Array.iter(fun raw->ignore(Metal_raw.destroy raw))graphs;Array.iter(fun raw->ignore(Metal_raw.destroy raw))archives;if Array.length functions<>List.length value.descriptor_functions||Array.length graphs<>List.length value.descriptor_graphs||Array.length archives<>List.length value.descriptor_archives||options<>value.descriptor_options then native_error op "native stitched descriptor disagrees"else Ok())
+  let compile (value:t) ~(device:Device.t)=let op="Metal.Stitched_library_descriptor.compile"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()->match ensure_live op device.lifetime with Error _ as e->e|Ok()->let owned_devices=List.map(fun(x:function_handle)->x.library.device)value.descriptor_functions@List.map(fun(x:binary_archive)->x.device)value.descriptor_archives in if not(List.for_all(same_device device)owned_devices)then error op Device_mismatch "stitched descriptor belongs to another device"else match Metal_raw.device_library_stitched device.raw value.raw with Error m->native_error op m|Ok raw->Ok(Library.make device raw))
   let destroyed(value:t)=is_destroyed value.lifetime
   let destroy(value:t)=destroy_parent "Metal.Stitched_library_descriptor.destroy" value.lifetime value.raw(fun()->release value.descriptor_functions value.descriptor_graphs value.descriptor_archives)
 end
@@ -10337,6 +10372,7 @@ end
 
 module Intersection_function_table = struct
   type t = intersection_function_table
+  type opaque_shape = Triangle | Curve
 
   let create ~(pipeline : compute_pipeline) ~capacity =
     let operation = "Metal.Intersection_function_table.create" in
@@ -10415,6 +10451,30 @@ module Intersection_function_table = struct
                           (Option.map (fun (item : visible_function_table) -> item.raw) table) buffer_index with
              | Error message -> native_error operation message
              | Ok () -> replace value.visible_tables buffer_index (fun item -> item.lifetime) table; Ok ()))
+
+  let validate_range (value:t) operation ~start ~length =
+    match ensure_live operation value.lifetime with Error _ as e->e
+    | Ok() when length<=0||start<0||start>value.capacity-length->
+        error operation Invalid_argument "function-table range is empty or out of bounds"
+    | Ok()->Ok()
+  let set_buffers (value:t) ~start items =
+    let operation="Metal.Intersection_function_table.set_buffers" and length=List.length items in
+    on_main operation(fun()->Result.bind(validate_range value operation ~start ~length)(fun()->
+    let rec valid=function []->Ok()|None::xs->valid xs|Some((b:Buffer.t),offset)::xs->Result.bind(ensure_buffer_usable operation b)(fun()->if offset<0L||offset>b.length then error operation Invalid_argument "intersection buffer offset is out of bounds" else Result.bind(ensure_same_device operation value.pipeline.device b.device)(fun()->valid xs))in
+    Result.bind(valid items)(fun()->let objects=Array.of_list(List.map(Option.map(fun((b:Buffer.t),_)->b.raw))items)and offsets=Array.of_list(List.map(function None->0L|Some(_,offset)->offset)items)in
+    match Metal_raw.intersection_table_array value.raw 0 objects offsets[||](Int64.of_int start,Int64.of_int length)(Int64.of_int value.capacity)value.pipeline.device.registry_id with Error m->native_error operation m|Ok()->List.iteri(fun i item->replace value.buffers(start+i)(fun(b:buffer)->b.lifetime)(Option.map fst item))items;Ok()))
+  let set_functions (value:t) ~start items =
+    let operation="Metal.Intersection_function_table.set_functions" and length=List.length items in on_main operation(fun()->Result.bind(validate_range value operation ~start ~length)(fun()->
+    let rec valid=function []->Ok()|None::xs->valid xs|Some(h:linked_function_handle)::xs->Result.bind(ensure_live operation h.lifetime)(fun()->Result.bind(ensure_same_device operation value.pipeline.device h.pipeline.device)(fun()->valid xs))in Result.bind(valid items)(fun()->
+    match Metal_raw.intersection_table_array value.raw 1(Array.of_list(List.map(Option.map(fun(h:linked_function_handle)->h.raw))items)[||](Array.of_list(List.map(function None->0L|Some(h:linked_function_handle)->h.pipeline.device.registry_id)items))(Int64.of_int start,Int64.of_int length)(Int64.of_int value.capacity)value.pipeline.device.registry_id with Error m->native_error operation m|Ok()->List.iteri(fun i item->replace value.functions(start+i)(fun(h:linked_function_handle)->h.lifetime)item)items;Ok()))
+  let set_visible_tables (value:t) ~start items =
+    let operation="Metal.Intersection_function_table.set_visible_tables" and length=List.length items in on_main operation(fun()->Result.bind(validate_range value operation ~start ~length)(fun()->
+    let rec valid=function []->Ok()|None::xs->valid xs|Some(t:visible_function_table)::xs->Result.bind(ensure_live operation t.lifetime)(fun()->Result.bind(ensure_same_device operation value.pipeline.device t.pipeline.device)(fun()->valid xs))in Result.bind(valid items)(fun()->
+    match Metal_raw.intersection_table_array value.raw 2(Array.of_list(List.map(Option.map(fun(t:visible_function_table)->t.raw))items)[||][||](Int64.of_int start,Int64.of_int length)(Int64.of_int value.capacity)value.pipeline.device.registry_id with Error m->native_error operation m|Ok()->List.iteri(fun i item->replace value.visible_tables(start+i)(fun(t:visible_function_table)->t.lifetime)item)items;Ok()))
+  let set_opaque_signature (value:t) ~shape ~start ~length signatures =
+    let operation="Metal.Intersection_function_table.set_opaque_signature" in on_main operation(fun()->Result.bind(validate_range value operation ~start ~length)(fun()->
+    let bits=List.fold_left(fun bits signature->Int64.logor bits(Enum.Mtl_intersection_function_signature.to_int64 signature))0L signatures in
+    match Metal_raw.intersection_table_signature value.raw(match shape with Triangle->0|Curve->1)bits(Int64.of_int start,Int64.of_int length)(Int64.of_int value.capacity)with Error m->native_error operation m|Ok()->Ok()))
 
   let device (value : t) = value.pipeline.device
   let capacity (value : t) = value.capacity
