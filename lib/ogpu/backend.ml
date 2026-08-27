@@ -1,5 +1,5 @@
 type token=int64
-type command=Transfer of Transfer_pass.description array|Compute of Compute_pass.description|Render of Render_pass.descriptor
+type command=Transfer of Transfer_pass.description array|Compute of Compute_pass.description|Render of Render_pass.submission
 type receipt={epoch:int64}
 type driver_resource={token:token;write:int64->bytes->(unit,Error.t)result;read:int64->int->(bytes,Error.t)result;destroy:unit->(unit,Error.t)result}
 type driver_pipeline={pipeline_token:token;destroy_pipeline:unit->(unit,Error.t)result}
@@ -38,7 +38,7 @@ let read_buffer (value:buffer) ~offset ~length=if value.resource.dead then error
 let read_texture (value:texture) ~bytes_per_row=if value.resource.dead then error"Backend.read_texture"Error.Stale_handle"texture is destroyed"else if bytes_per_row<=0||value.texture_descriptor.height>max_int/bytes_per_row then error"Backend.read_texture"Error.Invalid_argument"row pitch is invalid"else value.resource.raw.read 0L(bytes_per_row*value.texture_descriptor.height)
 let transfer pass=Result.map(fun x->Transfer x)(Transfer_pass.finish pass)
 let compute pass=Compute(Compute_pass.describe pass)
-let render pass=Render(Render_pass.descriptor pass)
+let render pass draws=Result.map(fun submission->Render submission)(Render_pass.submit pass draws)
 let resource_pair=function `Buffer(b:buffer)->Handle.id b.resource.handle,b.resource|`Texture(t:texture)->Handle.id t.resource.handle,t.resource
 let submit (queue:queue) command ~resources ~pipelines=let op="Backend.submit"in match live op queue.device with Error _ as e->e|Ok()when queue.dead->error op Error.Stale_handle"queue is destroyed"|Ok()->let pairs=List.map resource_pair resources in if List.exists(fun(_,r:token*resource)->r.dead)pairs||List.exists(fun(p:pipeline)->p.dead)pipelines then error op Error.Stale_handle"submitted graph contains a destroyed object"else if List.exists(fun(_,r:token*resource)->r.device!=queue.device)pairs||List.exists(fun(p:pipeline)->p.device!=queue.device)pipelines then error op Error.Cross_device"submitted graph contains a foreign object"else queue.raw.submit command~resources:(List.map(fun(id,(r:resource))->id,r.raw.token)pairs)~pipelines:(List.map(fun(p:pipeline)->p.pipeline_driver.pipeline_token)pipelines)
 let complete_through (queue:queue) epoch=if queue.dead then error"Backend.complete_through"Error.Stale_handle"queue is destroyed"else queue.raw.complete_through epoch

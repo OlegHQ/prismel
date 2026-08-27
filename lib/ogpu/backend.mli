@@ -2,7 +2,7 @@ type token = int64
 type command =
   | Transfer of Transfer_pass.description array
   | Compute of Compute_pass.description
-  | Render of Render_pass.descriptor
+  | Render of Render_pass.submission
 type receipt = { epoch:int64 }
 type driver_resource = { token:token; write:int64 -> bytes -> (unit,Error.t) result; read:int64 -> int -> (bytes,Error.t) result; destroy:unit -> (unit,Error.t) result }
 type driver_pipeline = { pipeline_token:token; destroy_pipeline:unit -> (unit,Error.t) result }
@@ -56,7 +56,7 @@ val read_buffer : buffer -> offset:int64 -> length:int -> (bytes,Error.t) result
 val read_texture : texture -> bytes_per_row:int -> (bytes,Error.t) result
 val transfer : Transfer_pass.t -> (command,Error.t) result
 val compute : Compute_pass.t -> command
-val render : Render_pass.t -> command
+val render : Render_pass.t -> Render_pass.draw list -> (command,Error.t) result
 val submit : queue -> command -> resources:[ `Buffer of buffer | `Texture of texture ] list -> pipelines:pipeline list -> (receipt,Error.t) result
 val complete_through : queue -> int64 -> (unit,Error.t) result
 val configure : surface -> Surface.configuration -> (unit,Error.t) result

@@ -9,6 +9,12 @@ type stencil={texture:texture;load:load;store:store;clear:int}
 type rect={x:int;y:int;width:int;height:int}
 type descriptor={colors:color option array;depth:depth option;stencil:stencil option;viewport:rect;scissor:rect}
 type t={descriptor:descriptor;resources:(int64*Command.access)array}
+type primitive=Triangle_list|Triangle_strip
+type index_type=Uint16|Uint32
+type buffer_binding={stage:Command.stage;index:int;buffer_id:int64;offset:int64}
+type texture_binding={stage:Command.stage;index:int;texture_id:int64}
+type draw={pipeline_key:string;buffers:buffer_binding list;textures:texture_binding list;primitive:primitive;vertex_start:int;vertex_count:int;index:(index_type*int64*int64*int)option}
+type submission={pass:t;draws:draw list}
 let invalid text=Error(Error.make"Ogpu.Render_pass.create"Error.Invalid_argument text)
 let color_format=function Rgba8|Bgra8->true|_->false
 let depth_format=function Depth32|Depth32_stencil8->true|_->false
@@ -24,3 +30,62 @@ let create device descriptor=
   match!failure,!extent with Some e,_->Error e|None,None->invalid"render pass has no attachments"|None,Some(width,height)->let bounds={x=0;y=0;width;height}in if not(valid_rect bounds descriptor.viewport&&valid_rect bounds descriptor.scissor)then invalid"viewport/scissor is outside attachment extent"else Ok{descriptor={descriptor with colors=Array.copy descriptor.colors};resources=Array.of_list(List.rev!resources)}
 let descriptor value={value.descriptor with colors=Array.copy value.descriptor.colors}
 let encode value command=Result.bind(Command.begin_pass command Command.Render)(fun()->let declared=Array.fold_left(fun result(id,access)->Result.bind result(fun()->Command.declare_resource command ~resource_id:id ~access ~stages:[Command.Fragment]))(Ok())value.resources in Result.bind declared(fun()->Command.end_pass command))
+let submit pass draws =
+  let invalid text =
+    Error (Error.make "Ogpu.Render_pass.submit" Error.Invalid_argument text)
+  in
+  if draws = [] then invalid "render submission has no draws"
+  else
+    let seen = Hashtbl.create 16 in
+    let valid_stage = function Command.Vertex | Fragment -> true | _ -> false in
+    let rec bindings = function
+      | [] -> Ok ()
+      | (`Buffer (b : buffer_binding)) :: _
+        when (not (valid_stage b.stage)) || b.index < 0 || b.index > 30
+             || b.buffer_id <= 0L || b.offset < 0L ->
+          invalid "buffer binding is invalid"
+      | `Texture (t : texture_binding) :: _
+        when (not (valid_stage t.stage)) || t.index < 0 || t.index > 30
+             || t.texture_id <= 0L ->
+          invalid "texture binding is invalid"
+      | `Buffer b :: xs ->
+          let key = (b.stage, b.index) in
+          if Hashtbl.mem seen key then invalid "binding stage/index is duplicated"
+          else (
+            Hashtbl.add seen key ();
+            bindings xs)
+      | `Texture t :: xs ->
+          let key = (t.stage, t.index) in
+          if Hashtbl.mem seen key then invalid "binding stage/index is duplicated"
+          else (
+            Hashtbl.add seen key ();
+            bindings xs)
+    in
+    let rec loop = function
+      | [] -> Ok { pass; draws }
+      | d :: _ when d.pipeline_key = "" || d.vertex_start < 0 || d.vertex_count <= 0 ->
+          invalid "draw pipeline/range is invalid"
+      | d :: _
+        when d.primitive = Triangle_list && Option.is_none d.index
+             && d.vertex_count mod 3 <> 0 ->
+          invalid "triangle-list count is not divisible by three"
+      | d :: _ when d.primitive = Triangle_strip && d.vertex_count < 3 ->
+          invalid "triangle strip requires three vertices"
+      | d :: ds ->
+          Hashtbl.clear seen;
+          (match
+             bindings
+               (List.map (fun x -> `Buffer x) d.buffers
+               @ List.map (fun x -> `Texture x) d.textures)
+           with
+          | Error _ as e -> e
+          | Ok () -> (
+              match d.index with
+              | Some (_, id, offset, count)
+                when id <= 0L || offset < 0L || count <= 0 ->
+                  invalid "index draw is invalid"
+              | _ -> loop ds))
+    in
+    loop draws
+let submission_pass value=value.pass
+let submission_draws value=value.draws
