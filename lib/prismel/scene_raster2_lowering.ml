@@ -1,5 +1,12 @@
-type unsupported = Text | Image | View3d | Metadata
-type error = Unsupported of unsupported | Invalid_path of Raster2.Path.error | Invalid_ir of Raster2.Render_ir.error
+type unsupported = Text | Image | View3d | Metadata | Image_transform
+type error = Unsupported of unsupported | Resource_failure | Invalid_path of Raster2.Path.error | Invalid_ir of Raster2.Render_ir.error
+type image_snapshot={resource_id:int;generation:int64;surface:Raster2.Surface.t}
+type text_snapshot={resource_id:int;generation:int64;density:int;atlas:Raster2.Consumer.glyph_atlas;glyphs:Raster2.Render_ir.glyph array}
+type resources={image:Image.t->(image_snapshot,error)result;font_text:Font.t->string->int option->Font.alignment option->(text_snapshot,error)result;system_text:int->string->(text_snapshot,error)result;debug_text:string->(text_snapshot,error)result}
+type identity=Image_identity of int64|Text_identity of{generation:int64;density:int}
+type resource_entry={id:int;identity:identity;value:Raster2.Consumer.resource}
+type plan={ir:Raster2.Render_ir.t;resources:resource_entry array}
+type resolved=Resolved_image of image_snapshot|Resolved_text of text_snapshot
 
 let packed (color : Color.t) =
   Int32.(logor (shift_left (of_int color.r) 24)
@@ -39,7 +46,7 @@ let rounded_rect_path x y w h radius =
     @circle_points~cx:(x+r)~cy:(y+r)~rx:r~ry:r~start:Float.pi~finish:(Float.pi*.1.5)in
   path_of_points~close:true points
 
-let lower scene =
+let lower_internal ~resource_handler scene =
   let commands=ref[]and failure=ref None in
   let emit value=commands:=value::!commands and reject value=if !failure=None then failure:=Some(Unsupported value)in
   let path_error value=if !failure=None then failure:=Some(Invalid_path value)in
@@ -80,10 +87,48 @@ let lower scene =
     | Scale(x,y,children)->emit(Push_transform{xx=x;xy=0.;yx=0.;yy=y;tx=0.;ty=0.});nodes active_blend children;emit Pop_transform
     | Clip((x,y),w,h,children)->emit(Push_clip{x=float x;y=float y;width=float w;height=float h});nodes active_blend children;emit Pop_clip
     | Blend(value,children)->let nested=blend value in emit(Set_blend nested);nodes nested children;emit(Set_blend active_blend)
-    | Text _|Debug_text _|Font_text _->reject Text|Image _->reject Image|View3d _->reject View3d
+    | (Text _|Debug_text _|Font_text _|Image _)as value->resource_handler emit reject value
+    | View3d _->reject View3d
     | Text_input_region _->reject Metadata
   in nodes Raster2.Composite.Source_over scene;match !failure with Some error->Error error|None->
   match Raster2.Render_ir.create(Array.of_list(List.rev !commands))with Ok value->Ok value|Error error->Error(Invalid_ir error)
+
+let lower scene=lower_internal~resource_handler:(fun _ reject->function Image _->reject Image|_->reject Text)scene
+
+let lower_with_resources callbacks scene =
+  let resolved=ref[]and failure=ref None in
+  let add result=match result with Ok value->resolved:=value::!resolved|Error error->if !failure=None then failure:=Some error in
+  let rec preflight values=if !failure<>None then()else match values with
+    | []->()
+    | Scene_description.Image(value,_,_,angle,center,flip)::rest->
+        if Option.value angle~default:0.<>0.||center<>None||Option.value flip~default:false then failure:=Some(Unsupported Image_transform)
+        else add(Result.map(fun value->Resolved_image value)(callbacks.image value));preflight rest
+    | Text(_,value,_,size)::rest->if value<>""then add(Result.map(fun value->Resolved_text value)(callbacks.system_text size value));preflight rest
+    | Debug_text(_,value,_)::rest->if value<>""then add(Result.map(fun value->Resolved_text value)(callbacks.debug_text value));preflight rest
+    | Font_text(font,_,value,_,wrap,align)::rest->if value<>""then add(Result.map(fun value->Resolved_text value)(callbacks.font_text font value wrap align));preflight rest
+    | Group children::rest|Translate(_,_,children)::rest|Rotate(_,children)::rest|Scale(_,_,children)::rest|Clip(_,_,_,children)::rest|Blend(_,children)::rest->preflight children;preflight rest
+    | _::rest->preflight rest in
+  preflight scene;match !failure with Some error->Error error|None->
+  let pending=ref(List.rev !resolved)and entries=ref[]in
+  let register entry=match List.find_opt(fun value->value.id=entry.id)!entries with None->entries:=entry::!entries|Some value->if value.identity<>entry.identity then failure:=Some Resource_failure in
+  let take()=match !pending with value::rest->pending:=rest;Some value|[]->None in
+  let handler emit reject=function
+    | Scene_description.Image(_, (x,y),scale,_,_,_)->begin match take()with Some(Resolved_image value)->
+        let width=Raster2.Surface.width value.surface and height=Raster2.Surface.height value.surface and scale=Option.value scale~default:1. in
+        register{id=value.resource_id;identity=Image_identity value.generation;value=Raster2.Consumer.Image value.surface};
+        emit(Raster2.Render_ir.Image{resource_id=value.resource_id;source={x=0.;y=0.;width=float width;height=float height};destination={x=float x;y=float y;width=float width*.scale;height=float height*.scale}})
+      |_->failure:=Some Resource_failure end
+    | Scene_description.Text((x,y),value,color_opt,_)|Scene_description.Debug_text((x,y),value,color_opt)->if value<>""then begin match take()with Some(Resolved_text snapshot)->
+        register{id=snapshot.resource_id;identity=Text_identity{generation=snapshot.generation;density=snapshot.density};value=Glyph_atlas snapshot.atlas};
+        emit(Glyphs{resource_id=snapshot.resource_id;color=color color_opt;glyphs=Array.map(fun(g:Raster2.Render_ir.glyph)->{g with x=g.x+.float x;y=g.y+.float y})snapshot.glyphs})
+      |_->failure:=Some Resource_failure end
+    | Scene_description.Font_text(_, (x,y),value,color_opt,_,_)->if value<>""then begin match take()with Some(Resolved_text snapshot)->
+        register{id=snapshot.resource_id;identity=Text_identity{generation=snapshot.generation;density=snapshot.density};value=Glyph_atlas snapshot.atlas};
+        emit(Glyphs{resource_id=snapshot.resource_id;color=color color_opt;glyphs=Array.map(fun(g:Raster2.Render_ir.glyph)->{g with x=g.x+.float x;y=g.y+.float y})snapshot.glyphs})
+      |_->failure:=Some Resource_failure end
+    | _->reject Metadata in
+  match lower_internal~resource_handler:handler scene with Error error->Error error|Ok ir->
+  match !failure with Some error->Error error|None->Ok{ir;resources=Array.of_list(List.rev !entries)}
 
 let self_test () =
   let red=Color.rgba 255 0 0 255 and white=Color.white in
@@ -112,6 +157,33 @@ let self_test () =
   for frame=1 to 600 do if framed frame<>expected then failwith"frame drift"done;
   let workers=Array.init 4(fun _->Domain.spawn(fun()->framed 1))in
   Array.iter(fun worker->if Domain.join worker<>expected then failwith"path domain drift")workers;
-  match lower[Text((0,0),"resource",Some red,12)]with Error(Unsupported Text)->()|_->failwith"resource node silently lowered"
+  begin match lower[Text((0,0),"resource",Some red,12)]with Error(Unsupported Text)->()|_->failwith"resource node silently lowered"end;
+  let image_surface=match Raster2.Surface.create~width:2~height:2()with Ok value->Raster2.Surface.clear value 0x00ff00ffl;value|Error _->failwith"image fixture"in
+  let generation=ref 1L and calls=ref 0 in
+  let atlas={Raster2.Consumer.width=1;height=1;pitch=1;bytes=Bytes.of_string"\255";cell_width=1;cell_height=1}in
+  let text_snapshot()={resource_id=2;generation=3L;density=2;atlas;glyphs=[|{Raster2.Render_ir.glyph_id=0;x=0.;y=0.}|]}in
+  let callbacks={image=(fun _->incr calls;Ok{resource_id=1;generation = !generation;surface=image_surface});
+    font_text=(fun _ _ _ _->incr calls;Ok(text_snapshot()));system_text=(fun _ _->incr calls;Ok(text_snapshot()));debug_text=(fun _->incr calls;Ok(text_snapshot()))}in
+  let resource_scene:Scene_description.node list=[Translate(1,2,[Image(Obj.magic 0,(2,3),Some 2.,None,None,None);
+    Text((4,5),"A",Some red,12);Debug_text((5,6),"",None);Font_text(Obj.magic 0,(6,7),"B",Some white,None,None)])]in
+  let first=match lower_with_resources callbacks resource_scene with Ok value->value|Error _->failwith"resource lowering"in
+  if !calls<>3||Array.length first.resources<>2 then failwith"resource callback cardinality";
+  let encode value=(Raster2.Render_ir.serialize value.ir,Array.map(fun entry->entry.id,entry.identity)value.resources)in
+  let fixed_callbacks={image=(fun _->Ok{resource_id=1;generation=1L;surface=image_surface});
+    font_text=(fun _ _ _ _->Ok(text_snapshot()));system_text=(fun _ _->Ok(text_snapshot()));
+    debug_text=(fun _->Ok(text_snapshot()))}in
+  let stable=encode first in
+  for _frame=1 to 600 do match lower_with_resources fixed_callbacks resource_scene with Ok value when encode value=stable->()|_->failwith"resource frame drift"done;
+  let domains=Array.init 4(fun _->Domain.spawn(fun()->match lower_with_resources fixed_callbacks resource_scene with Ok value->encode value|Error _->Bytes.empty,[||]))in
+  Array.iter(fun worker->if Domain.join worker<>stable then failwith"resource domain drift")domains;
+  let commands=Raster2.Render_ir.commands first.ir in if Array.length commands<>5 then failwith"resource command ordering";
+  let target=match Raster2.Surface.create~width:16~height:16()with Ok value->value|Error _->failwith"resource target"in
+  let lookup id=Array.find_opt(fun value->value.id=id)first.resources|>Option.map(fun value->value.value)in
+  begin match Raster2.Consumer.execute~lookup~target first.ir with Ok()->()|Error _->failwith"resource consumer"end;
+  generation:=2L;let second=match lower_with_resources callbacks resource_scene with Ok value->value|Error _->failwith"reload"in
+  if first.resources.(0).identity=second.resources.(0).identity then failwith"watched generation lost";
+  let before = !calls in ignore(match lower_with_resources callbacks[Text((0,0),"",None,12)]with Ok _->()|Error _->failwith"empty text");if !calls<>before then failwith"empty text callback";
+  let rejecting={callbacks with image=(fun _->Error Resource_failure)}in
+  match lower_with_resources rejecting resource_scene with Error Resource_failure->()|_->failwith"SDL resource not rejected atomically"
 
 let () = match Sys.getenv_opt "PRISMEL_TEST_SCENE_RASTER2_LOWERING" with Some "1"->self_test()|_->()
