@@ -1,0 +1,13 @@
+(library
+ (name prismel_next_execution)
+ (public_name prismel.prismel_next_execution)
+ (modules prismel_next_execution)
+ (libraries ogpu raster2 scene_execution runtime_next_orchestrator
+  runtime_next_input prismel_next_resources unix))
+
+(test
+ (name test_prismel_next_execution)
+ (modules test_prismel_next_execution)
+ (libraries prismel_next_execution raster2)
+ (action
+  (setenv SDL_VIDEODRIVER dummy (run %{test}))))

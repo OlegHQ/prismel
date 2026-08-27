@@ -1,0 +1,189 @@
+type target = Native | Headless | Web
+type error_kind = Invalid_argument | Unsupported | Backend | Resource | Destroyed
+type error = { operation:string; kind:error_kind; message:string }
+let pp_error formatter value =
+  Format.fprintf formatter "%s: %s" value.operation value.message
+let fail operation kind message = Error { operation; kind; message }
+let backend operation value =
+  Error { operation; kind=Backend; message=Ogpu.Error.to_string value }
+let resource operation value =
+  Error { operation; kind=Resource; message=Format.asprintf "%a" Prismel_next_resources.pp_error value }
+
+type timing = Fixed of float | Variable
+type configuration = { target:target; logical_width:int; logical_height:int;
+  drawable_width:int; drawable_height:int; title:string; timing:timing;
+  max_events:int; max_file_bytes:int }
+let default_configuration = { target=Headless; logical_width=640; logical_height=480;
+  drawable_width=640; drawable_height=480; title="Prismel"; timing=Fixed (1. /. 60.);
+  max_events=4096; max_file_bytes=16*1024*1024 }
+
+type mouse_button = Left | Middle | Right | X1 | X2
+type modifier = Shift | Control | Alt | Meta | Num_lock | Caps_lock | Scroll_lock
+type key = { name:string; modifiers:modifier list; repeat:bool }
+type event = Pointer_moved of float*float | Pointer_pressed of mouse_button*float*float
+  | Pointer_released of mouse_button*float*float | Pointer_cancelled of mouse_button
+  | Wheel of float*float | Key_pressed of key | Key_released of key
+  | Text_input of string | Text_editing of {text:string;start:int;length:int}
+  | Focus_lost | Focus_gained | Visibility_changed of bool | Quit
+  | Resized of int*int | File_dropped of {name:string;contents:bytes option}
+type facts = { frame:int64; time:float; dt:float; logical_width:int; logical_height:int;
+  drawable_width:int; drawable_height:int; pixel_scale:float; events:event list;
+  pointer:float*float; mouse_delta:float*float; wheel_delta:float*float;
+  dropped_events:int }
+type text_region = {x:int;y:int;width:int;height:int;focused:bool}
+type audio_intent = Prismel_next_resources.Audio.intent
+type family = Scene2 | Scene3 | Scene3_textured | Scene3_shadow
+type draw = { family:family; value:Scene_execution.draw }
+let prepared_draw ~family value = {family;value}
+
+let default_state viewport scissor = { Scene_execution.viewport; scissor;
+  cull=Ogpu.Render_pass.Cull_none; depth_compare=Ogpu.Render_pass.Always;
+  depth_write=false; depth_load=Ogpu.Render_pass.Load; depth_clear=1.;
+  transform_uniforms=None; stencil_state=None; stencil_load=Ogpu.Render_pass.Load;
+  stencil_clear=0 }
+let finite value = Float.is_finite value
+let put_float bytes offset value = Bytes.set_int64_le bytes offset (Int64.bits_of_float value)
+let mesh_of_geometry number transform clip (geometry:Raster2.Render_ir.geometry) =
+  let count=Array.length geometry.vertices/2 in
+  let vertices=Bytes.create(count*16) in
+  for index=0 to count-1 do
+    let x=geometry.vertices.(index*2) and y=geometry.vertices.(index*2+1) in
+    let tx=transform.Raster2.Render_ir.xx*.x+.transform.yx*.y+.transform.tx
+    and ty=transform.xy*.x+.transform.yy*.y+.transform.ty in
+    put_float vertices(index*16)tx; put_float vertices(index*16+8)ty
+  done;
+  let indices=Bytes.create(Array.length geometry.indices*4) in
+  Array.iteri(fun index value->Bytes.set_int32_le indices(index*4)(Int32.of_int value))geometry.indices;
+  let x,y,width,height=clip in
+  { family=Scene2; value={Scene_execution.mesh={key=Printf.sprintf "ir-%Ld-%d" 0L number;
+      vertices;vertex_count=count;indices;index_count=Array.length geometry.indices};
+      state=default_state (x,y,width,height) (x,y,width,height)} }
+let compose (a:Raster2.Render_ir.transform) (b:Raster2.Render_ir.transform) = { Raster2.Render_ir.xx=a.Raster2.Render_ir.xx*.b.xx+.a.yx*.b.xy;
+  xy=a.xy*.b.xx+.a.yy*.b.xy; yx=a.xx*.b.yx+.a.yx*.b.yy;
+  yy=a.xy*.b.yx+.a.yy*.b.yy; tx=a.xx*.b.tx+.a.yx*.b.ty+.a.tx;
+  ty=a.xy*.b.tx+.a.yy*.b.ty+.a.ty }
+let scene2_ir ir =
+  let identity={Raster2.Render_ir.xx=1.;xy=0.;yx=0.;yy=1.;tx=0.;ty=0.} in
+  let transforms=ref[identity] and clips=ref[(0,0,-1,-1)]
+  and draws=ref[] and number=ref 0 and failure=ref None in
+  Array.iter(fun command->if !failure=None then match command with
+    |Raster2.Render_ir.Clear _|Set_blend _->()
+    |Push_transform value->transforms:=compose(List.hd!transforms)value::!transforms
+    |Pop_transform->(match !transforms with _::(_::_ as rest)->transforms:=rest|_->())
+    |Push_clip rect->
+        if not(List.for_all finite[rect.x;rect.y;rect.width;rect.height])then failure:=Some"non-finite clip"
+        else let x=int_of_float(floor rect.x)and y=int_of_float(floor rect.y)
+          and w=max 0(int_of_float(ceil rect.width))and h=max 0(int_of_float(ceil rect.height))in
+          clips:=(x,y,w,h)::!clips
+    |Pop_clip->(match !clips with _::(_::_ as rest)->clips:=rest|_->())
+    |Geometry geometry->draws:=mesh_of_geometry !number(List.hd!transforms)(List.hd!clips)geometry::!draws;incr number
+    |Image _|Glyphs _->failure:=Some"image/glyph resource binding is not available")
+    (Raster2.Render_ir.commands ir);
+  match !failure with Some message->fail"Prismel_next_execution.scene2_ir"Unsupported message
+  |None->Ok(List.rev!draws)
+
+type t = { runtime:Runtime_next_orchestrator.t; input:Runtime_next_input.t;
+  assets:Prismel_next_resources.Assets.t; timing:timing; mutable frame:int64;
+  mutable elapsed:float; mutable last_clock:float; mutable dead:bool }
+let runtime_target=function Native->Runtime_next_orchestrator.Native
+  |Headless->Headless|Web->Web
+let create (configuration:configuration) =
+  let operation="Prismel_next_execution.create" in
+  let positive x=x>0 in
+  if not(List.for_all positive[configuration.logical_width;configuration.logical_height;
+      configuration.drawable_width;configuration.drawable_height;configuration.max_events;
+      configuration.max_file_bytes])then fail operation Invalid_argument"dimensions and bounds must be positive"
+  else(match configuration.timing with Fixed dt when not(finite dt&&dt>0.)->
+      fail operation Invalid_argument"fixed dt must be finite and positive"|_->
+    let config:Runtime_next_orchestrator.configuration={target=runtime_target configuration.target;
+      logical_width=configuration.logical_width;logical_height=configuration.logical_height;
+      drawable_width=configuration.drawable_width;drawable_height=configuration.drawable_height;
+      web_configuration=None}in
+    match Runtime_next_orchestrator.create config with Error e->backend operation e|Ok runtime->
+      match Runtime_next_input.create~max_events:configuration.max_events
+        ~max_file_bytes:configuration.max_file_bytes~logical_width:configuration.logical_width
+        ~logical_height:configuration.logical_height with
+      |Error message->ignore(Runtime_next_orchestrator.destroy runtime);fail operation Backend message
+      |Ok input->Ok{runtime;input;assets=Prismel_next_resources.Assets.create();timing=configuration.timing;
+          frame=0L;elapsed=0.;last_clock=Unix.gettimeofday();dead=false})
+let target value=match Runtime_next_orchestrator.target value.runtime with Native->Native|Headless->Headless|Web->Web
+let assets value=value.assets
+let ensure operation value=if value.dead then fail operation Destroyed"coordinator is destroyed"else Ok()
+let mb_to_input=function Left->Runtime_next_input.Left|Middle->Middle|Right->Right|X1->X1|X2->X2
+let mb_of_web=function Runtime_next_orchestrator.Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2
+let mod_to_input=function Shift->Runtime_next_input.Shift|Control->Control|Alt->Alt|Meta->Meta|Num_lock->Num_lock|Caps_lock->Caps_lock|Scroll_lock->Scroll_lock
+let to_input=function Pointer_moved(x,y)->Runtime_next_input.Pointer_moved(x,y)
+  |Pointer_pressed(b,x,y)->Pointer_pressed(mb_to_input b,x,y)|Pointer_released(b,x,y)->Pointer_released(mb_to_input b,x,y)
+  |Pointer_cancelled b->Pointer_cancelled(mb_to_input b)|Wheel(x,y)->Wheel(x,y)
+  |Key_pressed k->Key_pressed{Runtime_next_input.key=k.name;modifiers=List.map mod_to_input k.modifiers;repeat=k.repeat}
+  |Key_released k->Key_released{Runtime_next_input.key=k.name;modifiers=List.map mod_to_input k.modifiers;repeat=k.repeat}
+  |Text_input s->Text_input s|Text_editing{text;start;length}->Text_editing{text;start;length}|Focus_lost->Focus_lost|Focus_gained->Focus_gained
+  |Visibility_changed x->Visibility_changed x|Quit->Quit|Resized(x,y)->Resized(x,y)|File_dropped{name;contents}->File_dropped{name;contents}
+let push_event value event=match ensure"Prismel_next_execution.push_event"value with Error _ as e->e|Ok()->
+  (match Runtime_next_input.push value.input(to_input event)with Ok()->Ok()|Error message->fail"Prismel_next_execution.push_event"Backend message)
+let resize value ~logical_width ~logical_height ~drawable_width ~drawable_height =
+  match ensure"Prismel_next_execution.resize"value with Error _ as e->e|Ok()->
+  match Runtime_next_orchestrator.resize value.runtime~logical_width~logical_height~drawable_width~drawable_height with
+  |Ok()->push_event value(Resized(logical_width,logical_height))|Error e->backend"Prismel_next_execution.resize"e
+let set_text_regions value regions=match ensure"Prismel_next_execution.set_text_regions"value with Error _ as e->e|Ok()->
+  let regions=List.map(fun r->{Runtime_next_orchestrator.x=r.x;y=r.y;width=r.width;height=r.height;focused=r.focused})regions in
+  match Runtime_next_orchestrator.set_text_input_regions value.runtime regions with Ok()->Ok()|Error e->backend"Prismel_next_execution.set_text_regions"e
+let register_asset value ?content_type bytes=match ensure"Prismel_next_execution.register_asset"value with Error _ as e->e|Ok()->
+  match Runtime_next_orchestrator.register_web_bytes value.runtime?content_type bytes with Ok x->Ok x|Error e->backend"Prismel_next_execution.register_asset"e
+let remove_asset value asset=match ensure"Prismel_next_execution.remove_asset"value with Error _ as e->e|Ok()->
+  match Runtime_next_orchestrator.remove_web_asset value.runtime asset with Ok x->Ok x|Error e->backend"Prismel_next_execution.remove_asset"e
+let audio_command=function Prismel_next_resources.Audio.Master_volume x->Runtime_next_orchestrator.Audio_master_volume x
+  |Stop_all->Audio_stop_all|Sample_play{asset;channel;loops;volume}->Audio_sample_play{asset;channel;loops;volume}|Sample_stop x->Audio_sample_stop x
+  |Sample_pause x->Audio_sample_pause x|Sample_resume x->Audio_sample_resume x
+  |Music_play{asset;loops;fade_ms}->Audio_music_play{asset;loops;fade_ms}|Music_volume x->Audio_music_volume x|Music_pause->Audio_music_pause
+  |Music_resume->Audio_music_resume|Music_stop x->Audio_music_stop x|Asset_remove x->Audio_asset_remove x
+let send_audio value intent=match ensure"Prismel_next_execution.send_audio"value with Error _ as e->e|Ok()->
+  match Runtime_next_orchestrator.send_web_audio value.runtime(audio_command intent)with Ok()->Ok()|Error e->backend"Prismel_next_execution.send_audio"e
+let download_frame value ~filename=match ensure"Prismel_next_execution.download_frame"value with Error _ as e->e|Ok()->
+  match Runtime_next_orchestrator.download_web_frame value.runtime~filename with Ok()->Ok()|Error e->backend"Prismel_next_execution.download_frame"e
+let mod_of_input=function Runtime_next_input.Shift->Shift|Control->Control|Alt->Alt|Meta->Meta|Num_lock->Num_lock|Caps_lock->Caps_lock|Scroll_lock->Scroll_lock
+let event_of_input=function Runtime_next_input.Pointer_moved(x,y)->Pointer_moved(x,y)|Pointer_pressed(b,x,y)->Pointer_pressed((match b with Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2),x,y)
+  |Pointer_released(b,x,y)->Pointer_released((match b with Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2),x,y)
+  |Pointer_cancelled b->Pointer_cancelled(match b with Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2)
+  |Wheel(x,y)->Wheel(x,y)|Key_pressed k->Key_pressed{name=k.key;modifiers=List.map mod_of_input k.modifiers;repeat=k.repeat}|Key_released k->Key_released{name=k.key;modifiers=List.map mod_of_input k.modifiers;repeat=k.repeat}
+  |Text_input s->Text_input s|Text_editing{text;start;length}->Text_editing{text;start;length}|Focus_lost->Focus_lost|Focus_gained->Focus_gained
+  |Visibility_changed x->Visibility_changed x|Quit->Quit|Resized(x,y)->Resized(x,y)|File_dropped{name;contents}->File_dropped{name;contents}
+let push_web value =
+  if target value<>Web then Ok()else match Runtime_next_orchestrator.drain_web_events value.runtime with Error e->backend"Prismel_next_execution.step"e|Ok events->
+    let convert=function Runtime_next_orchestrator.Pointer_moved(x,y)->Pointer_moved(float x,float y)
+      |Pointer_pressed(b,x,y)->Pointer_pressed(mb_of_web b,float x,float y)|Pointer_released(b,x,y)->Pointer_released(mb_of_web b,float x,float y)
+      |Pointer_cancelled b->Pointer_cancelled(mb_of_web b)|Wheel(x,y)->Wheel(float x,float y)
+      |Key_pressed name->Key_pressed{name;modifiers=[];repeat=false}|Key_released name->Key_released{name;modifiers=[];repeat=false}
+      |Text_input s->Text_input s|Text_editing{text;start;length}->Text_editing{text;start;length}|Resized(x,y)->Resized(x,y)|Focus_lost->Focus_lost
+      |File_uploaded{name;contents}->File_dropped{name;contents=Some contents}in
+    let rec all=function []->Ok()|x::xs->match push_event value(convert x)with Ok()->all xs|Error _ as e->e in all events
+let step value draws=match ensure"Prismel_next_execution.step"value with Error _ as e->e|Ok()->
+  Runtime_next_input.begin_frame value.input;
+  match push_web value with Error _ as e->e|Ok()->
+  if List.exists(fun draw->draw.family<>Scene2)draws then fail"Prismel_next_execution.step"Unsupported"family-aware submission is not exposed by Runtime_next_orchestrator"
+  else match Runtime_next_orchestrator.facts value.runtime with Error e->backend"Prismel_next_execution.step"e|Ok f->
+    let draws=List.map(fun x->let draw=x.value in let state=draw.Scene_execution.state in
+      let viewport=match state.viewport with _,_,w,h when w<0||h<0->0,0,f.logical_width,f.logical_height|x->x in
+      let scissor=match state.scissor with _,_,w,h when w<0||h<0->0,0,f.logical_width,f.logical_height|x->x in
+      {draw with Scene_execution.state={state with viewport;scissor}})draws in
+    match Runtime_next_orchestrator.render value.runtime draws with Error e->backend"Prismel_next_execution.step"e|Ok _->
+      let now=Unix.gettimeofday()in let dt=match value.timing with Fixed dt->dt|Variable->max 0.(now-.value.last_clock)in
+      value.last_clock<-now;value.elapsed<-value.elapsed+.dt;value.frame<-Int64.succ value.frame;
+      let events=List.map event_of_input(Runtime_next_input.drain value.input)and input=Runtime_next_input.snapshot value.input in
+      Ok{frame=value.frame;time=value.elapsed;dt;logical_width=f.logical_width;logical_height=f.logical_height;
+        drawable_width=f.drawable_width;drawable_height=f.drawable_height;pixel_scale=f.pixel_density;
+        events;pointer=input.pointer;mouse_delta=input.mouse_delta;wheel_delta=input.wheel_delta;dropped_events=input.dropped_events}
+let capture value=match ensure"Prismel_next_execution.capture"value with Error _ as e->e|Ok()->
+  match Runtime_next_orchestrator.facts value.runtime with Error e->backend"Prismel_next_execution.capture"e|Ok facts->
+  match Runtime_next_orchestrator.capture value.runtime~bytes_per_row:(facts.drawable_width*4)with Ok x->Ok x|Error e->backend"Prismel_next_execution.capture"e
+let destroy value=if value.dead then Ok()else(
+  match Prismel_next_resources.Assets.destroy value.assets with Error e->resource"Prismel_next_execution.destroy"e|Ok()->
+    value.dead<-true;match Runtime_next_orchestrator.destroy value.runtime with Ok()->Ok()|Error e->backend"Prismel_next_execution.destroy"e)
+let run configuration body ~on_stop = match create configuration with Error _ as e->e|Ok value->
+  let outcome=try body value with exn->fail"Prismel_next_execution.run"Backend(Printexc.to_string exn)in
+  let stopped=try on_stop value with exn->fail"Prismel_next_execution.on_stop"Backend(Printexc.to_string exn)in
+  let closed=destroy value in match outcome,stopped,closed with
+  |(Error _ as e),_,_->e
+  |Ok _,(Error _ as e),_->e
+  |Ok _,Ok(),(Error _ as e)->e
+  |Ok x,Ok(),Ok()->Ok x

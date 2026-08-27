@@ -1,0 +1,87 @@
+(** Isolated frame coordinator for the SDL3/OGPU staging stack.  The public
+    values deliberately contain no SDL, Wap, Metal, or native handles. *)
+
+type target = Native | Headless | Web
+type error_kind = Invalid_argument | Unsupported | Backend | Resource | Destroyed
+type error = private { operation : string; kind : error_kind; message : string }
+val pp_error : Format.formatter -> error -> unit
+
+type timing = Fixed of float | Variable
+type configuration = {
+  target : target;
+  logical_width : int;
+  logical_height : int;
+  drawable_width : int;
+  drawable_height : int;
+  title : string;
+  timing : timing;
+  max_events : int;
+  max_file_bytes : int;
+}
+val default_configuration : configuration
+
+type mouse_button = Left | Middle | Right | X1 | X2
+type modifier = Shift | Control | Alt | Meta | Num_lock | Caps_lock | Scroll_lock
+type key = { name : string; modifiers : modifier list; repeat : bool }
+type event =
+  | Pointer_moved of float * float
+  | Pointer_pressed of mouse_button * float * float
+  | Pointer_released of mouse_button * float * float
+  | Pointer_cancelled of mouse_button
+  | Wheel of float * float
+  | Key_pressed of key | Key_released of key
+  | Text_input of string
+  | Text_editing of { text : string; start : int; length : int }
+  | Focus_lost | Focus_gained | Visibility_changed of bool | Quit
+  | Resized of int * int
+  | File_dropped of { name : string; contents : bytes option }
+
+type facts = {
+  frame : int64;
+  time : float;
+  dt : float;
+  logical_width : int;
+  logical_height : int;
+  drawable_width : int;
+  drawable_height : int;
+  pixel_scale : float;
+  events : event list;
+  pointer : float * float;
+  mouse_delta : float * float;
+  wheel_delta : float * float;
+  dropped_events : int;
+}
+
+type text_region = { x:int; y:int; width:int; height:int; focused:bool }
+type audio_intent = Prismel_next_resources.Audio.intent
+type family = Scene2 | Scene3 | Scene3_textured | Scene3_shadow
+type draw
+
+(** Lower target-neutral geometry commands. Image and glyph commands require
+    resource binding and are rejected atomically in this first staging slice. *)
+val scene2_ir : Raster2.Render_ir.t -> (draw list, error) result
+
+(** Adopt an already prepared draw without exposing it again. Scene3 values are
+    retained as a distinct family and never misrouted through a Scene2 pipeline. *)
+val prepared_draw : family:family -> Scene_execution.draw -> draw
+
+type t
+val create : configuration -> (t,error) result
+val target : t -> target
+val assets : t -> Prismel_next_resources.Assets.t
+val push_event : t -> event -> (unit,error) result
+val resize : t -> logical_width:int -> logical_height:int ->
+  drawable_width:int -> drawable_height:int -> (unit,error) result
+val set_text_regions : t -> text_region list -> (unit,error) result
+val register_asset : t -> ?content_type:string -> bytes -> (string,error) result
+val remove_asset : t -> string -> (bool,error) result
+val send_audio : t -> audio_intent -> (unit,error) result
+val download_frame : t -> filename:string -> (unit,error) result
+val step : t -> draw list -> (facts,error) result
+val capture : t -> (bytes,error) result
+val destroy : t -> (unit,error) result
+
+(** Always destroys in resources -> coordinator -> target/extensions order.
+    [on_stop] runs while resources and the target are still alive. *)
+val run : configuration -> (t -> ('a,error) result) ->
+  on_stop:(t -> (unit,error) result) -> ('a,error) result
