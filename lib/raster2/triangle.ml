@@ -17,10 +17,14 @@ let draw_solid ~color ~blend ~cull ~clip (a:vertex)(b:vertex)(c:vertex)=
     and ymin=max clip.y(max 0(int_of_float(floor(min a.y(min b.y c.y)))))
     and xmax=min(clip.x+clip.width-1)(min(Surface.width color-1)(int_of_float(ceil(max a.x(max b.x c.x)))))
     and ymax=min(clip.y+clip.height-1)(min(Surface.height color-1)(int_of_float(ceil(max a.y(max b.y c.y)))))in
-    let packed=Int32.to_int a.color in
+    let packed=Int32.to_int a.color
+    and e0x=c.y-.b.y and e0y=b.x-.c.x and e0c=b.y*.c.x-.b.x*.c.y
+    and e1x=a.y-.c.y and e1y=c.x-.a.x and e1c=c.y*.a.x-.c.x*.a.y
+    and e2x=b.y-.a.y and e2y=a.x-.b.x and e2c=a.y*.b.x-.a.x*.b.y in
     for y=ymin to ymax do for x=xmin to xmax do
       let px=float x+.0.5 and py=float y+.0.5 in
-      let w0=edge b c px py and w1=edge c a px py and w2=edge a b px py in
+      let w0=e0x*.px+.e0y*.py+.e0c and w1=e1x*.px+.e1y*.py+.e1c
+      and w2=e2x*.px+.e2y*.py+.e2c in
       if(w0>0.||w0=0.&&top b c)&&(w1>0.||w1=0.&&top c a)&&(w2>0.||w2=0.&&top a b)
       then Composite.pixel_int color~blend~x~y packed
     done done
@@ -53,7 +57,7 @@ let draw_depth_solid ~color ~depth ~depth_state ~blend ~cull ~clip
       end
     done done
   end
-let draw_textured_solid ~color ~blend ~cull ~clip (texture:texture)
+let draw_textured_solid ~color ~depth ~depth_state ~blend ~cull ~clip (texture:texture)
     (a:vertex) (b:vertex) (c:vertex)=
   let area=edge a b c.x c.y in
   let rejected=area=0.||match cull with Back->area<=0.|Front->area>=0.|Cull_none->false in
@@ -82,6 +86,16 @@ let draw_textured_solid ~color ~blend ~cull ~clip (texture:texture)
       and w2=(px-.a.x)*.(b.y-.a.y)-.(py-.a.y)*.(b.x-.a.x)in
       if(w0>0.||w0=0.&&top b c)&&(w1>0.||w1=0.&&top c a)&&(w2>0.||w2=0.&&top a b)then begin
         let w0=w0/.area and w1=w1/.area and w2=w2/.area in
+        let pass=match depth with
+        |None->true
+        |Some depth->
+          let z=w0*.a.depth+.w1*.b.depth+.w2*.c.depth in
+          (match depth_state with
+          |{Depth_stencil.depth_compare=Always;depth_write=false;stencil=None}->
+            Float.is_finite z&&z>=0.&&z<=1.
+          |_->Float.is_finite z&&z>=0.&&z<=1.&&
+            Depth_stencil.Private.test_and_update_unchecked depth depth_state~x~y~depth:z)in
+        if pass then begin
         let u=w0*.a.u+.w1*.b.u+.w2*.c.u
         and v=w0*.a.v+.w1*.b.v+.w2*.c.v in
         let qi=match texture.filter with
@@ -105,6 +119,7 @@ let draw_textured_solid ~color ~blend ~cull ~clip (texture:texture)
           lor((tg*((qi lsr 16)land 255)/255)lsl 16)
           lor((tb*((qi lsr 8)land 255)/255)lsl 8)
           lor(ta*(qi land 255)/255)))
+        end
       end
     done done
   end
@@ -113,7 +128,8 @@ let draw ~color ~depth ~depth_state ~blend ~cull ~clip ~texture a b c=
   |None,None when a.color=b.color&&a.color=c.color->draw_solid~color~blend~cull~clip a b c
   |Some depth,None when a.color=b.color&&a.color=c.color->
     draw_depth_solid~color~depth~depth_state~blend~cull~clip a b c
-  |None,Some texture when a.color=b.color&&a.color=c.color->draw_textured_solid~color~blend~cull~clip texture a b c
+  |None,Some texture when a.color=b.color&&a.color=c.color->draw_textured_solid~color~depth:None~depth_state~blend~cull~clip texture a b c
+  |Some depth,Some texture when a.color=b.color&&a.color=c.color->draw_textured_solid~color~depth:(Some depth)~depth_state~blend~cull~clip texture a b c
   |_->draw_general~color~depth~depth_state~blend~cull~clip~texture a b c
 let interpolate_vertex (a:vertex) (b:vertex) t=let f n=int_of_float(float(ch a.color n)+.t*.float(ch b.color n-ch a.color n)+.0.5)in{x=a.x+.t*.(b.x-.a.x);y=a.y+.t*.(b.y-.a.y);depth=a.depth+.t*.(b.depth-.a.depth);color=rgba(f 24)(f 16)(f 8)(f 0);u=a.u+.t*.(b.u-.a.u);v=a.v+.t*.(b.v-.a.v)}
 let fragment ~color ~depth ~depth_state ~blend ~texture ~x ~y (v:vertex)=let pass=match depth with None->true|Some d->(match Depth_stencil.test_and_update d depth_state~x~y~depth:v.depth with Ok p->p|_->false)in if pass then let out=match texture with None->v.color|Some t->let q=sample t v.u v.v in rgba(ch v.color 24*ch q 24/255)(ch v.color 16*ch q 16/255)(ch v.color 8*ch q 8/255)(ch v.color 0*ch q 0/255)in Composite.pixel color~blend~x~y out

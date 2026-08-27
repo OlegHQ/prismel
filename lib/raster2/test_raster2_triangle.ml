@@ -29,6 +29,22 @@ let render_depth_uniform ~reference ~blend ~cull ~state =
     (v 1.3 2.7 0.2)(v 29.1 3.2 0.6)(v 4.4 22.8 0.4);
   Bytes.cat(Bytes.copy(Raster2.Surface.bytes surface))(Bytes.copy(Raster2.Depth_stencil.bytes depth))
 
+let render_depth_textured_uniform ~reference ~filter ~address_u ~address_v
+    ~blend ~cull ~state =
+  let surface=ok(Raster2.Surface.create~width:32~height:24())
+  and depth=ok(Raster2.Depth_stencil.create~width:32~height:24())
+  and source=ok(Raster2.Surface.create~width:1~height:1())in
+  Raster2.Surface.clear surface 0x19324b9fl;Raster2.Surface.clear source 0x00000000l;
+  ignore(ok(Raster2.Depth_stencil.clear depth~depth:0.75~stencil:3));
+  let texture=ok(Raster2.Texture.create~color_space:Linear~hard_capacity:4 source)in
+  let v ?(color=0xb0d090c3l)x y z u v={Raster2.Triangle.x=x;y;depth=z;color;u;v}in
+  let a=v 1.3 2.7 0.2 (-0.4)0.2 and b=v 29.1 3.2 0.6 1.7(-0.3)
+  and c=v~color:(if reference then 0xb0d090c2l else 0xb0d090c3l)4.4 22.8 0.4 0.1 1.8 in
+  Raster2.Triangle.draw~color:surface~depth:(Some depth)~depth_state:state~blend~cull
+    ~clip:{x=2;y=1;width=27;height=21}
+    ~texture:(Some{Raster2.Triangle.texture;filter;address_u;address_v})a b c;
+  Bytes.cat(Bytes.copy(Raster2.Surface.bytes surface))(Bytes.copy(Raster2.Depth_stencil.bytes depth))
+
 let render_textured ~general ~filter ~address_u ~address_v ~blend =
   let texture=textured_fixture()and surface=ok(Raster2.Surface.create~width:32~height:24())in
   Raster2.Surface.clear surface 0x19324b9fl;
@@ -59,22 +75,29 @@ let () =
     let optimized=render_depth_uniform~reference:false~blend~cull~state
     and reference=render_depth_uniform~reference:true~blend~cull~state in
     if optimized<>reference then failwith"depth solid specialization pixel/depth/stencil drift")blends)culls)states;
+  List.iter(fun state->List.iter(fun cull->List.iter(fun filter->
+    List.iter(fun address_u->List.iter(fun address_v->List.iter(fun blend->
+      let optimized=render_depth_textured_uniform~reference:false~filter~address_u~address_v~blend~cull~state
+      and reference=render_depth_textured_uniform~reference:true~filter~address_u~address_v~blend~cull~state in
+      if optimized<>reference then failwith"depth textured specialization pixel/depth/stencil drift")blends)addresses)addresses)filters)culls)states;
   let texture=textured_fixture()and surface=ok(Raster2.Surface.create~width:32~height:24())in
   let state={Raster2.Depth_stencil.depth_compare=Raster2.Depth_stencil.Always;depth_write=false;stencil=None}
   and clip={Raster2.Triangle.x=0;y=0;width=32;height=24}in
-  let v x y u v={Raster2.Triangle.x=x;y;depth=0.;color=0xffffffffl;u;v}in
+  let v ?(color=0xffffffffl)x y u v={Raster2.Triangle.x=x;y;depth=0.;color;u;v}in
   let a=v 1. 1. 0. 0. and b=v 31. 1. 1. 0. and c=v 1. 23. 0. 1. in
   let texture=Some{Raster2.Triangle.texture;filter=Raster2.Texture.Nearest;address_u=Clamp;address_v=Clamp}in
-  let measure depth=
+  let measure depth c=
   Gc.full_major();let before=Gc.allocated_bytes()in
   for _=1 to 100 do Raster2.Triangle.draw~color:surface~depth~depth_state:state
     ~blend:Raster2.Composite.Copy~cull:Raster2.Triangle.Cull_none~clip~texture a b c done;
   (Gc.allocated_bytes()-.before)/.100. in
-  let optimized=measure None in
+  let optimized=measure None c in
   let depth=ok(Raster2.Depth_stencil.create~width:32~height:24())in
-  let reference=measure(Some depth)in
+  let reference=measure(Some depth)(v~color:0xfffffffel 1. 23. 0. 1.)in
+  let depth_textured=measure(Some depth)c in
   Printf.printf"Raster2 textured allocation: general %.0f, solid %.0f bytes/draw\n"reference optimized;
-  if optimized>256.||optimized*.100.>=reference then failwith"textured solid allocation regression";
+  Printf.printf"Raster2 depth textured solid allocation: %.0f bytes/draw\n"depth_textured;
+  if optimized>256.||depth_textured>256.||optimized*.100.>=reference then failwith"textured solid allocation regression";
   let uniform_vertex x y z={Raster2.Triangle.x=x;y;depth=z;color=0xb0d090c3l;u=0.;v=0.}in
   let uniform_a=uniform_vertex 1. 1. 0.2 and uniform_b=uniform_vertex 31. 1. 0.6
   and uniform_c=uniform_vertex 1. 23. 0.4 in
@@ -85,4 +108,11 @@ let () =
     uniform_a uniform_b uniform_c done;
   let depth_solid=(Gc.allocated_bytes()-.before)/.100. in
   Printf.printf"Raster2 depth solid allocation: %.0f bytes/draw\n"depth_solid;
-  if depth_solid>256. then failwith"depth solid allocation regression"
+  if depth_solid>256. then failwith"depth solid allocation regression";
+  Gc.full_major();let before=Gc.allocated_bytes()in
+  for _=1 to 100 do Raster2.Triangle.draw~color:surface~depth:None~depth_state:state
+    ~blend:Raster2.Composite.Copy~cull:Raster2.Triangle.Cull_none~clip~texture:None
+    uniform_a uniform_b uniform_c done;
+  let solid=(Gc.allocated_bytes()-.before)/.100. in
+  Printf.printf"Raster2 coefficient solid allocation: %.0f bytes/draw\n"solid;
+  if solid>256. then failwith"coefficient solid allocation regression"
