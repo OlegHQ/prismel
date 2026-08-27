@@ -24,4 +24,4 @@ let () =
       | None -> fail (id ^ " is absent from the pinned Device inventory"))
     Binding_device_residual_safe_package.ids;
   Printf.printf
-    "MTLDevice residual88: synchronous owned slice25 = already-safe15 + missing-safe10; callbacks and observers remain isolated\n"
+    "MTLDevice residual88: synchronous owned slice25 = exact-selector-safe11 + missing-safe14; callbacks and observers remain isolated\n"

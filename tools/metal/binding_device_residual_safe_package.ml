@@ -29,12 +29,11 @@ let ids =
   ; "method:-[MTLDevice newLogStateWithDescriptor:error:]"
   ; "method:-[MTLDevice newMTL4CommandQueue]"
   ; "method:-[MTLDevice newRasterizationRateMapWithDescriptor:]"
-  ; "method:-[MTLDevice newRenderPipelineStateWithDescriptor:error:]" ]
+  ; "method:-[MTLDevice newRenderPipelineStateWithDescriptor:error:]"
+  ]
 
 let already_safe_ids =
   [ "method:-[MTLDevice accelerationStructureSizesWithDescriptor:]"
-  ; "method:-[MTLDevice functionHandleWithBinaryFunction:]"
-  ; "method:-[MTLDevice functionHandleWithFunction:]"
   ; "method:-[MTLDevice heapAccelerationStructureSizeAndAlignWithDescriptor:]"
   ; "method:-[MTLDevice heapAccelerationStructureSizeAndAlignWithSize:]"
   ; "method:-[MTLDevice newAccelerationStructureWithDescriptor:]"
@@ -44,12 +43,13 @@ let already_safe_ids =
   ; "method:-[MTLDevice newFence]"
   ; "method:-[MTLDevice newIOFileHandleWithURL:compressionMethod:error:]"
   ; "method:-[MTLDevice newLogStateWithDescriptor:error:]"
-  ; "method:-[MTLDevice newMTL4CommandQueue]"
   ; "method:-[MTLDevice newRasterizationRateMapWithDescriptor:]"
-  ; "method:-[MTLDevice newRenderPipelineStateWithDescriptor:error:]" ]
+  ]
 
 let missing_safe_ids =
   [ "method:-[MTLDevice newArgumentEncoderWithArguments:]"
+  ; "method:-[MTLDevice functionHandleWithBinaryFunction:]"
+  ; "method:-[MTLDevice functionHandleWithFunction:]"
   ; "method:-[MTLDevice newCommandQueueWithDescriptor:]"
   ; "method:-[MTLDevice newCommandQueueWithMaxCommandBufferCount:]"
   ; "method:-[MTLDevice newDefaultLibrary]"
@@ -59,6 +59,18 @@ let missing_safe_ids =
   ; "method:-[MTLDevice newLibraryWithData:error:]"
   ; "method:-[MTLDevice newLibraryWithFile:error:]"
   ; "method:-[MTLDevice newLibraryWithStitchedDescriptor:error:]" ]
+  @ [ "method:-[MTLDevice newMTL4CommandQueue]"
+    ; "method:-[MTLDevice newRenderPipelineStateWithDescriptor:error:]" ]
+
+let lookalike_but_not_exact_ids =
+  [ "method:-[MTLDevice functionHandleWithBinaryFunction:]",
+      "public function-handle paths call MTLRenderPipelineState/MTLComputePipelineState selectors"
+  ; "method:-[MTLDevice functionHandleWithFunction:]",
+      "public function-handle paths call pipeline-state selectors"
+  ; "method:-[MTLDevice newMTL4CommandQueue]",
+      "public Metal 4 queue creation calls the descriptor/error selector"
+  ; "method:-[MTLDevice newRenderPipelineStateWithDescriptor:error:]",
+      "public render compilation calls the options/reflection/error selector" ]
 
 type ownership =
   | Immutable_value
@@ -101,8 +113,12 @@ let validate () =
     invalid_arg "Device residual safe slice contains an unowned callback constructor";
   if List.map (fun item -> item.id) obligations <> ids then
     invalid_arg "Device residual obligation order drift";
-  if List.length already_safe_ids <> 15 || List.length missing_safe_ids <> 10 then
+  if List.length already_safe_ids <> 11 || List.length missing_safe_ids <> 14 then
     invalid_arg "Device residual safe/missing partition drift";
   if List.sort String.compare (already_safe_ids @ missing_safe_ids)
      <> List.sort String.compare ids
-  then invalid_arg "Device residual safe/missing set equality drift"
+  then invalid_arg "Device residual safe/missing set equality drift";
+  if
+    List.map fst lookalike_but_not_exact_ids
+    |> List.exists (fun id -> List.mem id already_safe_ids)
+  then invalid_arg "Device lookalike selector was incorrectly treated as exact"
