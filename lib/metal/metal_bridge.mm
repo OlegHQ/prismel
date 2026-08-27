@@ -14892,6 +14892,7 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal4_argument_table_resource_bridge.inc"
 #include "../../tools/metal/metal4_command_encoder_wait_fence_bridge.inc"
 #include "../../tools/metal/metal_device_residual_library5_bridge.inc"
+#include "../../tools/metal/metal_device_residual_queues3_bridge.inc"
 #pragma clang diagnostic pop
 
 #pragma clang diagnostic push

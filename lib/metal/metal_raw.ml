@@ -1923,6 +1923,12 @@ external device_library_file : handle -> string -> (handle,string) result =
   "caml_prismel_metal_device_library_file"
 external device_library_stitched : handle -> handle -> (handle,string) result =
   "caml_prismel_metal_device_library_stitched"
+external device_queue_descriptor : handle -> handle -> (handle,string) result =
+  "caml_prismel_metal_device_queue_descriptor"
+external device_queue_maximum : handle -> int64 -> (handle,string) result =
+  "caml_prismel_metal_device_queue_maximum"
+external device_queue4_default : handle -> (handle,string) result =
+  "caml_prismel_metal_device_queue4_default"
 
 (** Authoritative Metal4 lifecycle190 prepared CAML subset. The resource and
     compute-owner shards currently contain typed native helpers only, not OCaml
