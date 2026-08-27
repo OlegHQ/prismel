@@ -1,0 +1,20 @@
+(executable
+ (name r12_final_facade_stability)
+ (libraries prismel_next_api unix yojson))
+
+(executable
+ (name validate_r12_final_facade_stability)
+ (libraries yojson))
+
+(rule
+ (alias runtest)
+ (action
+  (progn
+   (run %{exe:r12_final_facade_stability.exe} --target headless --scenario all
+    --frames 600 --sample-every 0.01 --report r12-headless-smoke.json)
+   (run %{exe:validate_r12_final_facade_stability.exe} --allow-smoke
+    r12-headless-smoke.json)
+   (run %{exe:r12_final_facade_stability.exe} --target web --scenario all
+    --frames 600 --sample-every 0.01 --report r12-web-smoke.json)
+   (run %{exe:validate_r12_final_facade_stability.exe} --allow-smoke
+    --compare r12-headless-smoke.json r12-web-smoke.json))))
