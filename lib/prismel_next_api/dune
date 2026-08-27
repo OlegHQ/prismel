@@ -3,7 +3,7 @@
  (public_name prismel.prismel_next_api)
  (modules vec2 vec3 color math mat3 mat4 quat rand noise fog3 light material
   node3 path parallel texture shader3 compute3 input event frame time image
-  canvas font audio assets)
+  canvas font audio assets mesh camera easy_camera)
  (libraries domainslib prismel_next_resources runtime_next_input unix))
 
 (test
