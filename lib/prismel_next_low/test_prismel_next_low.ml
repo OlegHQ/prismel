@@ -82,6 +82,31 @@ let () =
   end;
   G.destroy recorder; G.destroy replay;
   let window = expect "window create" (Prismel_next_low.Window.create ()) in
+  let rgba r g b=Bytes.init 16(fun index->match index mod 4 with 0->Char.chr r|1->Char.chr g|2->Char.chr b|_->'\255')in
+  let session_image=match Prismel_next_resources.Image.create~width:2~height:2~rgba:(rgba 255 0 0)with Ok x->x|Error _->failwith"session image"in
+  ignore(expect"register image"(Prismel_next_low.Window.register_image window session_image));
+  let resource_recorder=ok(G.create~capacity:16())in
+  ok(G.draw_image resource_recorder session_image~pos:(0,0));
+  let resource_frame=ok(G.flush resource_recorder)in
+  List.iter(fun _->ignore(expect"resource present"(Prismel_next_low.Window.present window resource_frame)))[1;2;60;600];
+  let resource_pixels=expect"resource capture"(Prismel_next_low.Window.capture window)in
+  if Char.code(Bytes.get resource_pixels 0)<>255 then failwith"persistent image pixel";
+  begin match Prismel_next_resources.Image.replace session_image~width:2~height:2~rgba:(rgba 0 255 0)with Ok()->()|Error _->failwith"image reload"end;
+  ignore(expect"resource reload present"(Prismel_next_low.Window.present window resource_frame));
+  if Char.code(Bytes.get(expect"reload capture"(Prismel_next_low.Window.capture window))1)<>255 then failwith"image generation pixel";
+  let canvas=match Prismel_next_resources.Canvas.create~width:2~height:2 with Ok x->x|Error _->failwith"canvas"in
+  ignore(Prismel_next_resources.Canvas.clear canvas 0x0000ffffl);
+  expect"register canvas"(Prismel_next_low.Window.register_canvas window~id:700 canvas);
+  ok(G.draw_canvas resource_recorder~resource_id:700 canvas~pos:(0,0));
+  let canvas_frame=ok(G.flush resource_recorder)in ignore(expect"canvas present"(Prismel_next_low.Window.present window canvas_frame));
+  if Char.code(Bytes.get(expect"canvas capture"(Prismel_next_low.Window.capture window))2)<>255 then failwith"canvas dependency pixel";
+  let font=match Prismel_next_resources.Font.open_system~size:12. with Ok x->x|Error _->failwith"font"in
+  let text=match Prismel_next_resources.Font.render font~density:1~color:(255,255,255,255)"A"with Ok(Some x)->x|_->failwith"text"in
+  expect"register text"(Prismel_next_low.Window.register_text window~id:701 text);
+  ok(G.draw_text_snapshot resource_recorder~resource_id:701 text~pos:(0,0));
+  let text_frame=ok(G.flush resource_recorder)in ignore(expect"text present"(Prismel_next_low.Window.present window text_frame));
+  if not(Bytes.exists((<>)'\000')(expect"text capture"(Prismel_next_low.Window.capture window)))then failwith"text pixels";
+  G.destroy resource_recorder;
   let frame_recorder = ok (G.create ~capacity:8 ()) in
   ok (G.clear frame_recorder 0x102030ffl);
   ok (G.rect frame_recorder ~pos:(1,1) ~w:4 ~h:3
@@ -105,5 +130,7 @@ let () =
     failwith "post-resize capture dimensions";
   G.destroy frame_recorder;
   expect "window destroy" (Prismel_next_low.Window.destroy window);
+  ignore(Prismel_next_resources.Image.destroy session_image);ignore(Prismel_next_resources.Canvas.destroy canvas);
+  ignore(Prismel_next_resources.Text.destroy text);ignore(Prismel_next_resources.Font.destroy font);
   if Prismel_next_low.Window.exists window then failwith "window teardown";
   print_endline "Prismel_next_low recorder/window passed"

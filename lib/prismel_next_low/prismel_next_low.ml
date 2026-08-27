@@ -10,7 +10,7 @@ module Window = struct
   type t = { target:Runtime_next_orchestrator.t; config:config;
     execution:Prismel_next_execution.t; mutable title:string;
     mutable fullscreen:bool; mutable width:int; mutable height:int;
-    mutable destroyed:bool }
+    mutable destroyed:bool; resources:(int,Prismel_next_execution.resource)Hashtbl.t }
   let default_config = { width=800; height=600; title="Prismel";
     resizable=true; fullscreen=false; x=None; y=None; vsync=true; highdpi=true;
     multisampling=None }
@@ -40,7 +40,7 @@ module Window = struct
                 Prismel_next_execution.pp_error error))
           | Ok execution -> Ok { target; execution; config; title=config.title;
               fullscreen=config.fullscreen; width=config.width;
-              height=config.height; destroyed=false }
+              height=config.height; destroyed=false;resources=Hashtbl.create 32 }
   let width value = value.width
   let height value = value.height
   let size value = value.width, value.height
@@ -84,9 +84,18 @@ module Window = struct
     | Ok bytes -> Ok bytes
     | Error e -> Error (Backend (Format.asprintf "Window.capture: %a"
         Prismel_next_execution.pp_error e))
+  let register_image value image=if value.destroyed then Error(Unavailable"Window.register_image: destroyed")else
+    let id=Prismel_next_resources.Image.identity image in Hashtbl.replace value.resources id(Prismel_next_execution.Image image);Ok id
+  let valid_id operation id=if id<=0 then Error(Invalid_argument(operation^": resource id must be positive"))else Ok()
+  let register_text value ~id text=match valid_id"Window.register_text"id with Error _ as e->e|Ok()->
+    if value.destroyed then Error(Unavailable"Window.register_text: destroyed")else(Hashtbl.replace value.resources id(Prismel_next_execution.Text text);Ok())
+  let register_canvas value ~id canvas=match valid_id"Window.register_canvas"id with Error _ as e->e|Ok()->
+    if value.destroyed then Error(Unavailable"Window.register_canvas: destroyed")else(Hashtbl.replace value.resources id(Prismel_next_execution.Canvas canvas);Ok())
+  let remove_resource value id=Hashtbl.remove value.resources id
   let present value ir =
     if value.destroyed then Error (Unavailable "Window.present: destroyed") else
-    match Prismel_next_execution.scene2_ir ir with
+    match Prismel_next_execution.lower_scene2 value.execution~density:(max 1(int_of_float(fst(pixel_scale value)+.0.5)))
+      ~resource:(Hashtbl.find_opt value.resources)ir with
     | Error e -> Error (Backend (Format.asprintf "%a" Prismel_next_execution.pp_error e))
     | Ok draws -> match Prismel_next_execution.step value.execution draws with
       | Ok _ -> Ok true
@@ -98,7 +107,7 @@ module Window = struct
         Prismel_next_execution.pp_error e))
     | Ok () -> match Runtime_next_orchestrator.destroy value.target with
       | Error e -> Error (backend "Window.destroy" e)
-      | Ok () -> value.destroyed <- true; Ok ()
+      | Ok () -> Hashtbl.clear value.resources;value.destroyed <- true; Ok ()
   let exists value = not value.destroyed
 end
 
@@ -277,6 +286,12 @@ module Graphics = struct
           destination={x=0.;y=0.;width=float w;height=float h}})) (fun () ->
         add t Pop_transform))
   let draw_text t font ~pos:(x,y) ~text ?color () = if text="" then Ok() else let glyphs=Array.init(String.length text)(fun i->{Raster2.Render_ir.glyph_id=Char.code text.[i];x=float(x+i*8);y=float y}) in add t(Glyphs{resource_id=Prismel_next_resources.Font.generation font;color=get_color t ?color ();glyphs})
+  let draw_text_snapshot t ~resource_id text ~pos:(x,y) =
+    match Prismel_next_resources.Text.size text with Error _->Error(Unavailable"Graphics.draw_text_snapshot")|Ok _->
+    add t(Glyphs{resource_id;color=Int32.minus_one;glyphs=[|{glyph_id=0;x=float x;y=float y}|]})
+  let draw_canvas t ~resource_id canvas ~pos:(x,y) =
+    match Prismel_next_resources.Canvas.size canvas with Error _->Error(Unavailable"Graphics.draw_canvas")|Ok(w,h)->
+    add t(Image{resource_id;source={x=0.;y=0.;width=float w;height=float h};destination={x=float x;y=float y;width=float w;height=float h}})
   let set_gfx_font_rotation t value = if value<0||value>3 then Error(Invalid_argument "Graphics.set_gfx_font_rotation") else (t.rotation<-value;Ok())
   let draw_gfx_text t ~pos:(x,y) ~text ?color () = let glyphs=Array.init(String.length text)(fun i->{Raster2.Render_ir.glyph_id=Char.code text.[i];x=float(x+i*8);y=float y}) in add t(Glyphs{resource_id=1+t.rotation;color=get_color t ?color ();glyphs})
   let flush t = if t.stack<>[] then Error(Invalid_argument "Graphics.flush: unbalanced matrix") else match Raster2.Render_ir.create(Array.of_list(List.rev t.commands)) with Error _->Error(Invalid_argument "Graphics.flush: invalid stream")|Ok ir->t.commands<-[];t.count<-0;Ok ir

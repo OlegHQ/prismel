@@ -30,6 +30,10 @@ module Window : sig
   val maximize : t -> (unit,error) result
   val restore : t -> (unit,error) result
   val capture : t -> (bytes,error) result
+  val register_image : t -> Prismel_next_resources.Image.t -> (int,error) result
+  val register_text : t -> id:int -> Prismel_next_resources.Text.t -> (unit,error) result
+  val register_canvas : t -> id:int -> Prismel_next_resources.Canvas.t -> (unit,error) result
+  val remove_resource : t -> int -> unit
   val present : t -> Raster2.Render_ir.t -> (bool,error) result
   val destroy : t -> (unit,error) result
   val exists : t -> bool
@@ -71,6 +75,10 @@ module Graphics : sig
   val draw_sub_image : t -> Prismel_next_resources.Image.t -> src_rect:int*int*int*int -> dst_rect:int*int*int*int -> (unit,error) result
   val draw_image_ex : t -> Prismel_next_resources.Image.t -> pos:int*int -> ?scale:float -> ?angle:float -> ?center:int*int -> ?flip:bool -> unit -> (unit,error) result
   val draw_text : t -> Prismel_next_resources.Font.t -> pos:int*int -> text:string -> ?color:color -> unit -> (unit,error) result
+  val draw_text_snapshot : t -> resource_id:int -> Prismel_next_resources.Text.t ->
+    pos:int*int -> (unit,error) result
+  val draw_canvas : t -> resource_id:int -> Prismel_next_resources.Canvas.t ->
+    pos:int*int -> (unit,error) result
   val set_gfx_font_rotation : t -> int -> (unit,error) result
   val draw_gfx_text : t -> pos:int*int -> text:string -> ?color:color -> unit -> (unit,error) result
   val flush : t -> (Raster2.Render_ir.t,error) result
