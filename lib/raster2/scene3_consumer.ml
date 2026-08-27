@@ -6,6 +6,7 @@ type target={color:Surface.t;depth:Depth_stencil.t option;multisample:Multisampl
 type error=Invalid_target|Invalid_vertex|Lighting_error of Scene3_lighting.error|Geometry_error of Scene3.error
 type prepared={geometry:Scene3.prepared;texture:Triangle.texture option;cull:Triangle.cull;blend:Composite.blend;depth_stencil:Depth_stencil.state;mode:mode;line_width:float;point_size:float}
 let finite x=Float.is_finite x
+let modulate a b=let channel value shift=Int32.(to_int(logand(shift_right_logical value shift)0xffl))in let part shift=Int32.shift_left(Int32.of_int((channel a shift*channel b shift+127)/255))shift in Int32.logor(part 24)(Int32.logor(part 16)(Int32.logor(part 8)(part 0)))
 let render ~target ~clear ~clear_depth ~clear_stencil ~draws=
  let width=Surface.width target.color and height=Surface.height target.color in
  let valid_depth=match target.depth with None->true|Some d->Depth_stencil.width d=width&&Depth_stencil.height d=height in
@@ -25,7 +26,7 @@ let render ~target ~clear ~clear_depth ~clear_stencil ~draws=
     for i=0 to count-1 do let a,b,c=match topology with Triangle_list->draw.indices.(3*i),draw.indices.(3*i+1),draw.indices.(3*i+2)|Triangle_strip->if i land 1=0 then draw.indices.(i),draw.indices.(i+1),draw.indices.(i+2)else draw.indices.(i+1),draw.indices.(i),draw.indices.(i+2)|Triangle_fan->draw.indices.(0),draw.indices.(i+1),draw.indices.(i+2)|_->assert false in let normal=flat_normal a b c in vertices.(3*i)<-{draw.vertices.(a)with normal};vertices.(3*i+1)<-{draw.vertices.(b)with normal};vertices.(3*i+2)<-{draw.vertices.(c)with normal}done;
     vertices,Array.init(count*3)(fun i->i),Scene3.Triangle_list
   | _->draw.vertices,draw.indices,draw.topology in
-  let vertices=Array.map(fun v->let color=Scene3_lighting.shade lighting~position:v.position~normal:v.normal~view:{Scene3_lighting.x=0.;y=0.;z=1.}~front_facing:true~texture:None~fog_distance:(abs_float v.position.z)in{Scene3.x=v.position.x;y=v.position.y;z=v.position.z;color;u=v.u;v=v.v})source_vertices in
+  let vertices=Array.map(fun v->let color=Scene3_lighting.shade lighting~position:v.position~normal:v.normal~view:{Scene3_lighting.x=0.;y=0.;z=1.}~front_facing:true~texture:None~fog_distance:(abs_float v.position.z)|>fun shaded->modulate shaded v.color in{Scene3.x=v.position.x;y=v.position.y;z=v.position.z;color;u=v.u;v=v.v})source_vertices in
   match Scene3.prepare~matrix:draw.matrix~viewport:draw.viewport~scissor:draw.scissor~topology:source_topology~vertices~indices:source_indices with Error e->fail(Geometry_error e)|Ok geometry->prepared:={geometry;texture=draw.texture;cull=draw.cull;blend=draw.blend;depth_stencil=draw.depth_stencil;mode=draw.mode;line_width=draw.line_width;point_size=draw.point_size}::!prepared)draws;
  match !failure with Some e->Error e|None->
  let color_bytes=Bytes.copy(Surface.bytes target.color)in match Surface.of_bytes~width~height~pitch:(Surface.pitch target.color)color_bytes with Error _->Error Invalid_target|Ok color->

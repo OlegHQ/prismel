@@ -8,6 +8,7 @@ type resources = {
 type prepared = { draws : Raster2.Scene3_consumer.draw array; clear_depth : float; clear_stencil : int; samples : int }
 
 let color (value:Color.t)={Raster2.Scene3_lighting.r=float value.r/.255.;g=float value.g/.255.;b=float value.b/.255.;a=float value.a/.255.}
+let packed_color(value:Color.t)=Int32.of_int((value.r lsl 24)lor(value.g lsl 16)lor(value.b lsl 8)lor value.a)
 let vec (value:Vec3.t)={Raster2.Scene3_lighting.x=value.x;y=value.y;z=value.z}
 let attenuation (value:Light.attenuation)={Raster2.Scene3_lighting.constant=value.constant;linear=value.linear;quadratic=value.quadratic}
 let blend=function Scene3.Replace->Raster2.Composite.Copy|Alpha->Source_over|Add->Add|Multiply->Multiply|Screen->Screen|Subtract->Subtract
@@ -53,7 +54,7 @@ let prepare ~resources ~camera ~viewport scene =
       match Mesh.mode drawing.mesh with
       | Mesh.Points|Lines|Line_strip|Line_loop|Triangles|Triangle_strip|Triangle_fan->
           let mesh=Mesh.Private.view drawing.mesh in
-          if mesh.colors<>None then Some Invalid_mesh else None)descriptions in
+          match mesh.colors with Some colors when Array.length colors<>Array.length mesh.vertices->Some Invalid_mesh|Some _|None->None)descriptions in
     match preflight with Some error->Error error|None->
     let shadows=Scene3.Private.shadows scene in
     let shadow_values=Array.make(Array.length lights)None and shadow_failure=ref None in
@@ -69,13 +70,13 @@ let prepare ~resources ~camera ~viewport scene =
       | Error _->failure:=Some Unsupported_mode
       | Ok topology->
         let mesh=Mesh.Private.view drawing.mesh in
-        if mesh.colors<>None then failure:=Some Invalid_mesh else
+        if(match mesh.colors with Some colors->Array.length colors<>Array.length mesh.vertices|None->false)then failure:=Some Invalid_mesh else
         let normals=match mesh.normals with Some values->values|None->(Mesh.Private.view(Mesh.recalculate_normals drawing.mesh)).normals|>Option.value~default:[||]in
         if Array.length normals<>Array.length mesh.vertices then failure:=Some Invalid_mesh else
         let texture=match drawing.texture with None->Ok None|Some value->Result.map(fun resolved->Some{resolved with Raster2.Triangle.filter=texture_filter value.filter;address_u=texture_address value.wrap_u;address_v=texture_address value.wrap_v})(resources.texture value)in
         match texture with Error error->failure:=Some error|Ok texture->
-        let vertices=Array.mapi(fun i(position:Vec3.t)->let normal=normals.(i)and uv=match mesh.tex_coords with Some values when i<Array.length values->values.(i)|_->Vec2.zero in
-          {Raster2.Scene3_consumer.position=vec position;normal=vec normal;color=0xffffffffl;u=uv.x;v=uv.y})mesh.vertices in
+        let vertices=Array.mapi(fun i(position:Vec3.t)->let normal=normals.(i)and uv=match mesh.tex_coords with Some values when i<Array.length values->values.(i)|_->Vec2.zero and vertex_color=match mesh.colors with Some values->packed_color values.(i)|None->0xffffffffl in
+          {Raster2.Scene3_consumer.position=vec position;normal=vec normal;color=vertex_color;u=uv.x;v=uv.y})mesh.vertices in
         let material=drawing.material in
         let lighting={Raster2.Scene3_lighting.ambient=global_ambient;lights;material={ambient=color material.ambient;diffuse=color material.diffuse;specular=color material.specular;emissive=color material.emissive;shininess=material.shininess};fog;separate_specular=Scene3.Private.separate_specular scene;two_sided=drawing.cull=Scene3.Cull_none}in
         begin match Raster2.Scene3_lighting.prepare_with_shadows lighting shadow_values with Error error->failure:=Some(Lighting_error error)|Ok _->
@@ -91,7 +92,8 @@ let lower_view3d ~resources ~default_viewport = function
   | _->Error Invalid_viewport
 
 let self_test () =
-  let mesh=Mesh.create_exn~normals:[Vec3.unit_z;Vec3.unit_z;Vec3.unit_z][Vec3.create(-0.5)(-0.5)0.;Vec3.create 0.5(-0.5)0.;Vec3.create 0. 0.5 0.]in
+  let positions=[Vec3.create(-0.5)(-0.5)0.;Vec3.create 0.5(-0.5)0.;Vec3.create 0. 0.5 0.]in
+  let mesh=Mesh.create_exn~normals:[Vec3.unit_z;Vec3.unit_z;Vec3.unit_z]~colors:[Color.red;Color.green;Color.blue]positions in
   let camera=Camera.orthographic~height:2.~at:(Vec3.create 0. 0. 2.)~target:Vec3.zero()in
   let material=Material.unlit Color.red in
   let node=Scene3.mesh~material~cull:Scene3.Cull_none mesh in
@@ -107,6 +109,13 @@ let self_test () =
   for frame=1 to 600 do if prepare frame<>expected then failwith"Scene3 frame drift"done;
   let workers=Array.init 4(fun _->Domain.spawn(fun()->prepare 1))in Array.iter(fun worker->if Domain.join worker<>expected then failwith"Scene3 domain drift")workers;
   let prepared=match lower_view3d~resources~default_viewport:(0,0,16,16)(View3d(camera,scene,None))with Ok value->value|Error _->failwith"prepared Scene3"in
+  let authored=Array.map(fun(v:Raster2.Scene3_consumer.vertex)->v.color)prepared.draws.(0).vertices in
+  if authored<>[|packed_color Color.red;packed_color Color.green;packed_color Color.blue|]then failwith"Scene3 vertex colors lost during lowering";
+  (match Mesh.Private.create_owned~normals:[|Vec3.unit_z;Vec3.unit_z;Vec3.unit_z|]~colors:[|Color.red|](Array.of_list positions)with Error _->()|Ok _->failwith"malformed color cardinality accepted");
+  let render_colors()=let surface=match Raster2.Surface.create~width:16~height:16()with Ok value->value|Error _->failwith"color surface"in let target={Raster2.Scene3_consumer.color=surface;depth=None;multisample=None}in(match Raster2.Scene3_consumer.render~target~clear:0x000000ffl~clear_depth:prepared.clear_depth~clear_stencil:prepared.clear_stencil~draws:prepared.draws with Ok()->Bytes.copy(Raster2.Surface.bytes surface)|Error _->failwith"colored consumer render")in
+  let colored=render_colors()and red_levels=Hashtbl.create 16 in for pixel=0 to Bytes.length colored/4-1 do let offset=pixel*4 in let red=Char.code(Bytes.get colored offset)and green=Char.code(Bytes.get colored(offset+1))and blue=Char.code(Bytes.get colored(offset+2))in if green<>0||blue<>0 then failwith"vertex color escaped red material modulation";if red>0 then Hashtbl.replace red_levels red()done;if Hashtbl.length red_levels<2 then failwith"per-vertex color interpolation was flattened";
+  for frame=1 to 600 do if List.mem frame[1;2;60;600]&&render_colors()<>colored then failwith"colored Scene3 frame drift"done;
+  let color_workers=Array.init 4(fun _->Domain.spawn render_colors)in Array.iter(fun worker->if Domain.join worker<>colored then failwith"colored Scene3 domain drift")color_workers;
   let fog_scenes =
     [
       ( Fog3.exponential ~color:Color.blue ~density:0.25,
