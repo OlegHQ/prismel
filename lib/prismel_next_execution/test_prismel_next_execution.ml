@@ -53,6 +53,12 @@ let () =
   get(destroy coordinator);get(destroy coordinator);
   check(match step coordinator draws with Error e->e.kind=Destroyed|Ok _->false)"stale rejection";
   let resource_runtime=get(create configuration)in
+  let batched_ir=Result.get_ok(Raster2.Render_ir.create[|geometry;geometry|])in
+  let batched=get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)batched_ir)in
+  check(List.length batched=1)"adjacent compatible Scene2 draws were not batched";
+  ignore(get(step resource_runtime batched));
+  check(Bytes.exists((<>)'\000')(get(capture resource_runtime)))
+    "batched Scene2 topology produced no pixels";
   ignore(get(step resource_runtime[textured_draw]));
   ignore(get(step resource_runtime[shadow_draw]));
   let shadow_pixels=get(capture resource_runtime)in

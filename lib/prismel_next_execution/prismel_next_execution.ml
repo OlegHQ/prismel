@@ -135,6 +135,52 @@ let scene2_ir ir =
   match !failure with Some message->fail"Prismel_next_execution.scene2_ir"Unsupported message
   |None->Ok(List.rev!draws)
 
+let batch_scene2_draws draws =
+  let compatible (left : draw) (right : draw) =
+    left.family = Scene2 && right.family = Scene2
+    && left.blend = right.blend && left.texture = None && right.texture = None
+    && left.auxiliary = None && right.auxiliary = None
+    && left.samples = right.samples && left.value.state = right.value.state
+  in
+  let merge reversed =
+    match List.rev reversed with
+    | [] -> assert false
+    | [draw] -> draw
+    | first :: _ as group ->
+        let vertex_count = List.fold_left
+            (fun count draw -> count + draw.value.mesh.vertex_count) 0 group
+        and index_count = List.fold_left
+            (fun count draw -> count + draw.value.mesh.index_count) 0 group in
+        let vertices = Bytes.create (vertex_count * 16)
+        and indices = Bytes.create (index_count * 4) in
+        let vertex_offset = ref 0 and index_offset = ref 0 in
+        List.iter (fun draw ->
+          let mesh = draw.value.mesh in
+          Bytes.blit mesh.vertices 0 vertices (!vertex_offset * 16)
+            (mesh.vertex_count * 16);
+          for index = 0 to mesh.index_count - 1 do
+            let source = Int32.to_int (Bytes.get_int32_le mesh.indices (index * 4)) in
+            Bytes.set_int32_le indices ((!index_offset + index) * 4)
+              (Int32.of_int (source + !vertex_offset))
+          done;
+          vertex_offset := !vertex_offset + mesh.vertex_count;
+          index_offset := !index_offset + mesh.index_count) group;
+        let mesh : Scene_execution.mesh = {
+          key=Printf.sprintf "%s+%d" first.value.mesh.key (List.length group);
+          vertices; vertex_count; indices; index_count } in
+        { first with value={first.value with mesh} }
+  in
+  let rec loop output current = function
+    | [] -> List.rev (match current with [] -> output | _ -> merge current :: output)
+    | draw :: rest ->
+        (match current with
+         | previous :: _ when compatible previous draw ->
+             loop output (draw :: current) rest
+         | [] -> loop output [draw] rest
+         | _ -> loop (merge current :: output) [draw] rest)
+  in
+  loop [] [] draws
+
 type t = { runtime:Runtime_next_orchestrator.t; input:Runtime_next_input.t;
   assets:Prismel_next_resources.Assets.t; timing:timing; mutable frame:int64;
   mutable elapsed:float; mutable last_clock:float; mutable dead:bool;
@@ -254,7 +300,8 @@ let lower_scene2 value ~density ~resource:resolve ir =
         match snapshot value~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
           Array.iter(fun(glyph:Raster2.Render_ir.glyph)->let destination={Raster2.Render_ir.x=glyph.x;y=glyph.y;width=float width;height=float height}in draws:=quad texture destination::!draws;incr number)glyphs.glyphs)
     (Raster2.Render_ir.commands ir);
-  match!failure with Some message->fail"Prismel_next_execution.lower_scene2"Resource message|None->Ok(List.rev!draws)
+  match!failure with Some message->fail"Prismel_next_execution.lower_scene2"Resource message
+  |None->Ok(batch_scene2_draws(List.rev!draws))
 let mb_to_input=function Left->Runtime_next_input.Left|Middle->Middle|Right->Right|X1->X1|X2->X2
 let mb_of_web=function Runtime_next_orchestrator.Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2
 let mod_to_input=function Shift->Runtime_next_input.Shift|Control->Control|Alt->Alt|Meta->Meta|Num_lock->Num_lock|Caps_lock->Caps_lock|Scroll_lock->Scroll_lock
