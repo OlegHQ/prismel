@@ -166,6 +166,15 @@
    (setenv PRISMEL_TEST_CANVAS_RASTER2_SNAPSHOT 1 (run %{test})))))
 
 (test
+ (name audio_snapshot)
+ (modules audio_snapshot)
+ (libraries prismel)
+ (link_flags -linkall)
+ (action
+  (setenv SDL_AUDIODRIVER dummy
+   (setenv PRISMEL_TEST_AUDIO_SNAPSHOT 1 (run %{test})))))
+
+(test
  (name sdl3_platform_harness)
  (modules sdl3_platform_harness)
  (libraries prismel prismel.sdl3))

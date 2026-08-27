@@ -43,6 +43,13 @@ let volume value =
 
 let normalized_volume value = max 0. (min 1. value)
 
+let read_file path =
+  try
+    let channel = open_in_bin path in
+    Ok (Fun.protect ~finally:(fun () -> close_in channel) (fun () ->
+      really_input_string channel (in_channel_length channel) |> Bytes.of_string))
+  with Sys_error message -> Error message
+
 let set_master_volume value =
   require_main_domain ();
   ignore (Mix.volume (-1) (volume value));
@@ -89,12 +96,16 @@ module Sample = struct
     | Ok () ->
         (match message (Printf.sprintf "sample %S" path) (Mix.load_wav path) with
          | Error _ as error -> error
-         | Ok chunk -> Ok {
+         | Ok chunk ->
+           match read_file path with
+           | Error detail -> Mix.free_chunk chunk; Error ("sample snapshot: "^detail)
+           | Ok encoded ->
+             let value = {
              chunk;
              destroyed = false;
              web_asset = Backend.register_web_file path;
              web_volume = 1.;
-           })
+             } in Audio_snapshot.register(Obj.repr value)~kind:Sample encoded;Ok value)
 
   let load_exn path =
     match load path with Ok sample -> sample | Error detail -> failwith detail
@@ -161,6 +172,7 @@ module Sample = struct
             (match result with
              | Error _ -> ()
              | Ok sample ->
+                 Audio_snapshot.update (Obj.repr sample) bytes;
                  Option.iter Backend.remove_web_asset sample.web_asset;
                  sample.web_asset <-
                    Backend.register_web_bytes ~content_type:"audio/wav" bytes);
@@ -216,6 +228,7 @@ module Sample = struct
         Backend.remove_web_asset id) sample.web_asset;
       sample.web_asset <- None;
       Mix.free_chunk sample.chunk;
+      Audio_snapshot.remove (Obj.repr sample);
       sample.destroyed <- true
     end
 end
@@ -238,11 +251,14 @@ module Music = struct
     | Ok () ->
         (match message (Printf.sprintf "music %S" path) (Mix.load_mus path) with
          | Error _ as error -> error
-         | Ok music -> Ok {
+         | Ok music ->
+           match read_file path with
+           | Error detail -> Mix.free_music music;Error("music snapshot: "^detail)
+           | Ok encoded -> let value={
              music;
              destroyed = false;
              web_asset = Backend.register_web_file path;
-           })
+           }in Audio_snapshot.register(Obj.repr value)~kind:Music encoded;Ok value)
 
   let load_exn path =
     match load path with Ok music -> music | Error detail -> failwith detail
@@ -293,6 +309,7 @@ module Music = struct
         Backend.remove_web_asset id) music.web_asset;
       music.web_asset <- None;
       Mix.free_music music.music;
+      Audio_snapshot.remove (Obj.repr music);
       music.destroyed <- true
     end
 end
