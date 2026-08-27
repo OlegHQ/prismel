@@ -59,6 +59,11 @@ let oversized_frame () =
   let prepared_upload=Scene_execution.upload_bytes renderer in
   ignore(get(Scene_execution.render_prepared_sampled_resources~identity:"exact-18278"~version:1L renderer []));
   if Scene_execution.upload_bytes renderer<>prepared_upload then failwith"prepared identity hit reuploaded";
+  Gc.full_major();
+  let allocated_before=Gc.allocated_bytes()in
+  for _=1 to 100 do ignore(get(Scene_execution.render_prepared_sampled_resources~identity:"exact-18278"~version:1L renderer []))done;
+  let allocated_per_frame=(Gc.allocated_bytes()-.allocated_before)/.100. in
+  if allocated_per_frame>100_000. then failwith(Printf.sprintf"prepared warm allocation %.0f bytes/frame"allocated_per_frame);
   let changed=match draws 18_278 with []->assert false|first::rest->{first with mesh={first.mesh with vertices=Bytes.make 48 '\001'}}::rest in
   ignore(get(Scene_execution.render_prepared_sampled_resources~identity:"exact-18278"~version:2L renderer(sampled changed)));
   if Scene_execution.upload_bytes renderer<=prepared_upload then failwith"prepared version change did not invalidate";
