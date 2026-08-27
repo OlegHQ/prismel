@@ -1,7 +1,7 @@
 type mesh={key:string;vertices:bytes;vertex_count:int;indices:bytes;index_count:int}
 type state={viewport:int*int*int*int;scissor:int*int*int*int}
 type draw={mesh:mesh;state:state}
-type pipeline_family=Scene2|Scene3|Scene3_textured
+type pipeline_family=Scene2|Scene3|Scene3_textured|Scene3_shadow
 type texture_level={width:int;height:int;bytes:bytes}
 type sampled_texture={key:string;levels:texture_level array;sampler:Ogpu.Types.sampler_descriptor}
 type shadow_resource={texture:sampled_texture;parameters:bytes}
@@ -37,13 +37,13 @@ let get_cleanup result cleanup=match result with Ok value->Ok value|Error _ as e
 let shader stage ~entry artifact=Ogpu.Shader.create{backend="mock";label=Some artifact;bytes=Bytes.of_string artifact;entry_points=[{Ogpu.Shader.name=entry;stage}];bindings=[]}
 let pipeline device family blend=let capabilities=Ogpu.Backend.capabilities device in let open Result in
   bind(Ogpu.Binding.create_pipeline_layout~device:(Ogpu.Backend.device_handle device)~capabilities[])(fun layout->
-  let suffix=match family with Scene2->"scene2"|Scene3->"scene3"|Scene3_textured->"scene3-textured"in
+  let suffix=match family with Scene2->"scene2"|Scene3->"scene3"|Scene3_textured->"scene3-textured"|Scene3_shadow->"scene3-shadow"in
   bind(shader Ogpu.Shader.Vertex~entry:"scene_vertex"("scene_vertex-"^suffix))(fun vertex->bind(shader Fragment~entry:"scene_fragment"("scene_fragment-"^suffix))(fun fragment->
   bind(Ogpu.Pipeline.create_render~blend capabilities{backend="mock";label=Some"scene-execution";layout;vertex;vertex_entry="scene_vertex";fragment=Some fragment;fragment_entry=Some"scene_fragment";color_format=Rgba8_unorm;depth_format=No_depth;sample_count=1})(fun portable->
   map(fun value->value,Ogpu.Pipeline.cache_key portable)(Ogpu.Backend.adopt_pipeline device portable)))))
 let texture_descriptor configuration:Ogpu.Types.texture_descriptor={label=Some"scene-execution-target";width=configuration.Ogpu.Surface.physical_width;height=configuration.physical_height;depth=1;mip_levels=1;sample_count=1;usage=[Render_attachment;Texture_copy_src]}
 let blends=[Ogpu.Pipeline.Replace;Alpha;Add;Multiply;Screen;Subtract]
-let families=[Scene2;Scene3;Scene3_textured]
+let families=[Scene2;Scene3;Scene3_textured;Scene3_shadow]
 let create_common driver configuration before_device_destroy families_to_make variants_to_make supplied=match Ogpu.Backend.create_device driver with Error _ as e->e|Ok device->
   let cleanup()=ignore(Ogpu.Backend.destroy_device device)in
   get_cleanup(match Ogpu.Backend.create_queue device with Error _ as e->e|Ok queue->

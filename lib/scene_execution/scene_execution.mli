@@ -11,7 +11,7 @@ type state = {
   scissor : int * int * int * int;
 }
 type draw = { mesh : mesh; state : state }
-type pipeline_family = Scene2 | Scene3 | Scene3_textured
+type pipeline_family = Scene2 | Scene3 | Scene3_textured | Scene3_shadow
 type texture_level = { width:int; height:int; bytes:bytes }
 type sampled_texture = {
   key:string;
