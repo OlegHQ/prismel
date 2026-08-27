@@ -130,6 +130,7 @@ can change the denominator explicitly rather than being hidden.
 | `4cfee19` | 2026-08-27 10:35:01 +02:00 | 5,149 | 5,249 | 98.0949% | 3 | 0.038 | 78.8 | 1.50 |
 | `daaf52c` | 2026-08-27 10:41:25 +02:00 | 5,174 | 5,249 | 98.5712% | 25 | 0.107 | 234.4 | 4.47 |
 | `a931f53` | 2026-08-27 10:43:23 +02:00 | 5,202 | 5,249 | 99.1046% | 28 | 0.033 | 854.2 | 16.27 |
+| `78a4724` | 2026-08-27 10:49:33 +02:00 | 5,205 | 5,249 | 99.1617% | 3 | 0.103 | 29.2 | 0.56 |
 
 ## Current measured rate
 
@@ -308,6 +309,12 @@ selectors from the earlier residual-six partition, moving bound coverage from
 5,174 to 5,178. Typed function handles, immutable argument descriptors, and
 the direct render-pipeline constructor retain their source/device graphs and
 pass exact-package plus real public Metal conformance.
+
+The `78a4724` interval closes the three BinaryArchive descriptor additions for
+stitched libraries, mesh pipelines, and tile pipelines. The public path checks
+live function kinds and device graphs before typed native mutation, propagates
+NSError failures, retains only successful descriptor/function/library edges,
+and is covered by real archive addition, serialization, and reopen conformance.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
