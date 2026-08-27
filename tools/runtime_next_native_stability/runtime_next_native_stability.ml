@@ -25,7 +25,13 @@ let () =
       let pixels=get(Runtime_next.read_pixels runtime~bytes_per_row:(facts.drawable_width*4))in
       rolling:=Int64.logxor(Int64.mul !rolling 1099511628211L)(Int64.of_int(Hashtbl.hash pixels));
       let now=Unix.gettimeofday()in
-      if now-. !last_sample>=1. then begin last_sample:=now;let stats=Runtime_next.stats runtime in samples.(!observations mod 256)<-Some(`Assoc["elapsed",`Float(now-.started);"frame",`Int !frame;"rss_kib",`Int(rss_kib());"mesh_cache",`Int stats.mesh_cache_entries;"pipeline_cache",`Int stats.pipeline_cache_entries]);incr observations end
+      if now-. !last_sample>=1. then begin
+        last_sample:=now;
+        Gc.full_major();
+        ignore(metal(Metal.Release_queue.drain()));
+        let stats=Runtime_next.stats runtime and handles=metal(Metal.Release_queue.stats())in
+        samples.(!observations mod 256)<-Some(`Assoc["elapsed",`Float(now-.started);"frame",`Int !frame;"rss_kib",`Int(rss_kib());"mesh_cache",`Int stats.mesh_cache_entries;"pipeline_cache",`Int stats.pipeline_cache_entries;"metal_live",`Int handles.live_handles;"metal_pending",`Int handles.pending]);incr observations
+      end
     end
   done;
   let live=Runtime_next.stats runtime in if live.mesh_cache_entries>64||live.pipeline_cache_entries<>6 then failwith"native cache bound";
@@ -34,5 +40,11 @@ let () =
   if dead.mesh_cache_entries<>0||dead.pipeline_cache_entries<>0||after.live_handles<>before.live_handles then failwith(Printf.sprintf"native teardown delta mesh=%d pipeline=%d handles=%d->%d"dead.mesh_cache_entries dead.pipeline_cache_entries before.live_handles after.live_handles);
   let length=min !observations 256 and start=if !observations<=256 then 0 else !observations mod 256 in
   let retained=List.init length(fun offset->match samples.((start+offset)mod 256)with Some value->value|None->assert false)in
-  let json=`Assoc["schema",`Int 1;"minutes",`Float !minutes;"frames",`Int !frame;"hash",`String(Printf.sprintf"%016Lx" !rolling);"observations",`Int !observations;"retained",`Int length;"samples",`List retained;"live_mesh_cache_peak_bound",`Int 64;"pipeline_cache_live_expected",`Int 6;"live_mesh_cache_final",`Int dead.mesh_cache_entries;"pipeline_cache_final",`Int dead.pipeline_cache_entries;"metal_live_before",`Int before.live_handles;"metal_live_after",`Int after.live_handles]in
+  let rss sample=match sample with `Assoc fields->(match List.assoc_opt"rss_kib"fields with Some(`Int value)->value|_->assert false)|_->assert false in
+  let first_half,second_half=let half=length/2 in List.filteri(fun i _->i<half)retained,List.filteri(fun i _->i>=half)retained in
+  let maximum values=List.fold_left(fun high sample->max high(rss sample))0 values in
+  let first_high=maximum first_half and second_high=maximum second_half in
+  let plateau_slack_kib=8192 in
+  if length=256&&second_high>first_high+plateau_slack_kib then failwith(Printf.sprintf"native settled RSS high-water grew: %d -> %d KiB"first_high second_high);
+  let json=`Assoc["schema",`Int 2;"minutes",`Float !minutes;"frames",`Int !frame;"hash",`String(Printf.sprintf"%016Lx" !rolling);"observations",`Int !observations;"retained",`Int length;"samples",`List retained;"settled_rss_first_half_high_kib",`Int first_high;"settled_rss_second_half_high_kib",`Int second_high;"settled_rss_plateau_slack_kib",`Int plateau_slack_kib;"live_mesh_cache_peak_bound",`Int 64;"pipeline_cache_live_expected",`Int 6;"live_mesh_cache_final",`Int dead.mesh_cache_entries;"pipeline_cache_final",`Int dead.pipeline_cache_entries;"metal_live_before",`Int before.live_handles;"metal_live_after",`Int after.live_handles]in
   let text=Yojson.Safe.pretty_to_string json^"\n"in match !report with None->print_string text|Some path->let channel=open_out_bin path in output_string channel text;close_out channel
