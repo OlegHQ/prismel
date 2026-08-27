@@ -114,6 +114,7 @@ can change the denominator explicitly rather than being hidden.
 | `110c501` | 2026-08-24 07:31:37 +02:00 | 4,995 | 5,249 | 95.1610% | 14 | 0.169 | 82.8 | 1.58 |
 | `b3cee1e` | 2026-08-27 09:58:21 +02:00 | 4,998 | 5,249 | 95.2181% | 3 | 74.446 | 0.0 | 0.00 |
 | `71f26eb` | 2026-08-27 09:59:13 +02:00 | 5,000 | 5,249 | 95.2562% | 2 | 0.014 | 138.5 | 2.64 |
+| `23a449c` | 2026-08-27 10:08:39 +02:00 | 5,034 | 5,249 | 95.9040% | 34 | 0.157 | 216.3 | 4.12 |
 
 ## Current measured rate
 
@@ -194,6 +195,15 @@ values are immutable diagnostics copied while their completed command and real
 log container remain alive; guarded typed enumeration rejects incompatible
 entries without assuming runtime protocol conformance, and preserves nullable
 function, location, URL, name, and encoder-label fields.
+
+The `23a449c` interval intentionally combines RenderCommandEncoder33 with one
+already-proven Fence declaration. Render33 contributes exactly 33 IDs: thirty
+typed draw/binding/counter selectors plus the encoder protocol and two indirect
+argument layouts. Owned buffers, samplers, and counter samples remain retained
+through completion; ranges, strides, devices, command state, and capability
+requirements are checked, with exact package/native gates and a real
+framebuffer fixture. The remaining declaration belongs to the independently
+validated Fence lane.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
