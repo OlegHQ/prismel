@@ -1,0 +1,12 @@
+(executable
+ (name phase5_link_audit)
+ (modules phase5_link_audit)
+ (libraries unix yojson))
+
+(test
+ (name test_phase5_link_audit)
+ (modules test_phase5_link_audit)
+ (libraries unix yojson)
+ (deps phase5_link_audit.exe fixtures/clean.deps fixtures/clean.otool fixtures/legacy.deps fixtures/legacy.otool)
+ (action (run %{test} %{exe:phase5_link_audit.exe} %{dep:fixtures/clean.deps}
+  %{dep:fixtures/clean.otool} %{dep:fixtures/legacy.deps} %{dep:fixtures/legacy.otool})))
