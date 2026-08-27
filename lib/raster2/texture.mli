@@ -4,6 +4,7 @@ type address=Clamp|Repeat|Mirror
 type filter=Nearest|Bilinear|Trilinear
 type error=Invalid_size|Invalid_capacity|Capacity_exceeded|Invalid_lod of float|Invalid_coordinate
 val create : color_space:color_space -> hard_capacity:int -> Surface.t -> (t,error) result
+val create_levels : color_space:color_space -> hard_capacity:int -> Surface.t array -> (t,error) result
 val width : t -> int
 val height : t -> int
 val levels : t -> int
