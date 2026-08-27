@@ -82,10 +82,9 @@ let width = integer_environment "PRISMEL_RENDERER_BENCH_WIDTH" 640
 let height = integer_environment "PRISMEL_RENDERER_BENCH_HEIGHT" 480
 let warmup_seconds = float_environment "PRISMEL_RENDERER_BENCH_WARMUP" 3.
 let measure_seconds = float_environment "PRISMEL_RENDERER_BENCH_SECONDS" 30.
-let scheduled_frame_rate = 60.
-let measured_frames = max 1 (int_of_float (Float.round
-    (measure_seconds *. scheduled_frame_rate)))
 let domains = integer_environment "PRISMEL_BENCH_DOMAINS" 1
+let monotonic_seconds()=Int64.to_float(Tsdl.Sdl.get_performance_counter())/.
+  Int64.to_float(Tsdl.Sdl.get_performance_frequency())
 
 let scenario =
   if Array.length Sys.argv <> 2 then
@@ -269,7 +268,7 @@ let update_canvas resources frame =
   resources.image <- next
 
 let init frame =
-  let now = Unix.gettimeofday () in
+  let now = monotonic_seconds () in
   {
     resources = make_resources scenario;
     launched_at = now;
@@ -322,29 +321,25 @@ let finish model now =
   { model with result = Some result }
 
 let update model (frame : Frame.t) =
-  let now = Unix.gettimeofday () in
+  let now = monotonic_seconds () in
   if not model.measuring && now -. model.launched_at >= warmup_seconds then begin
     Gc.full_major ();
-    let rss = resident_kib () and started_times=Unix.times()
-    and started_gc=gc_snapshot()in
-    (match model.resources with Canvas_resources resources->update_canvas resources frame|_->());
-    model.frame_times.(0)<-1./.scheduled_frame_rate;
+    let rss = resident_kib () in
     {
       model with
       measuring = true;
       started_at = now;
-      started_times = Some started_times;
-      started_gc = Some started_gc;
+      started_times = Some (Unix.times ());
+      started_gc = Some (gc_snapshot ());
       started_rss_kib = rss;
       sampled_peak_rss_kib = rss;
       next_rss_sample_at = now +. 1.;
       last_frame_at = now;
-      frame_count = 1;
+      frame_count = 0;
     }
-  end else if model.measuring && model.frame_count >= measured_frames then
-    let deadline=model.started_at+.measure_seconds in let remaining=deadline-.Unix.gettimeofday()in if remaining>0. then Unix.sleepf remaining;finish model(Unix.gettimeofday())
+  end else if model.measuring && now -. model.started_at >= measure_seconds then
+    finish model now
   else begin
-    let now=if model.measuring then(let deadline=model.started_at+.(float model.frame_count/.scheduled_frame_rate)in let remaining=deadline-.Unix.gettimeofday()in if remaining>0. then Unix.sleepf remaining;Unix.gettimeofday())else now in
     (match model.resources with
      | Canvas_resources resources -> update_canvas resources frame
      | Basic_resources _ | Pxui_resources _ | Scene3_resources _ -> ());
@@ -409,7 +404,7 @@ let print_result model result =
       (Sys.getenv_opt "PRISMEL_BENCH_PROFILE") in
   let descriptor=descriptor model.resources in
   Printf.printf
-    "{\"schema\":1,\"benchmark\":\"renderer\",\"scenario\":\"%s\",\"target\":\"%s\",\"profile\":\"%s\",\"width\":%d,\"height\":%d,\"drawable_width\":%d,\"drawable_height\":%d,\"pixel_scale\":[%.6f,%.6f],\"domains\":%d,\"warmup_seconds\":%.6f,\"requested_measure_seconds\":%.6f,\"scheduling\":\"fixed-rate\",\"scheduled_frame_rate\":60.0,\"frames\":%d,\"wall_seconds\":%.9f,\"frames_per_second\":%.6f,\"median_frame_seconds\":%.9f,\"p95_frame_seconds\":%.9f,\"p99_frame_seconds\":%.9f,\"user_seconds\":%.9f,\"system_seconds\":%.9f,\"cpu_percent\":%.6f,\"allocated_bytes\":%.0f,\"allocated_bytes_per_frame\":%.6f,\"minor_bytes\":%.0f,\"promoted_bytes\":%.0f,\"promoted_bytes_per_frame\":%.6f,\"major_bytes\":%.0f,\"major_collections\":%d,\"ending_heap_bytes\":%d,\"peak_heap_bytes\":%d,\"starting_rss_kib\":%s,\"ending_rss_kib\":%s,\"peak_sampled_rss_kib\":%s,\"workload_signature\":\"%s\",\"work_units\":%d,\"semantics_supported\":true,\"pixel_authority\":\"phase0/legacy/%s\",\"pixel_tolerance\":0,\"framebuffer_hash\":\"%s\",\"legacy_gpu_duration_seconds\":null,\"legacy_gpu_utilization_percent\":null,\"legacy_draw_count\":null,\"legacy_upload_bytes\":null}\n%!"
+    "{\"schema\":1,\"benchmark\":\"renderer\",\"scenario\":\"%s\",\"target\":\"%s\",\"profile\":\"%s\",\"width\":%d,\"height\":%d,\"drawable_width\":%d,\"drawable_height\":%d,\"pixel_scale\":[%.6f,%.6f],\"domains\":%d,\"warmup_seconds\":%.6f,\"requested_measure_seconds\":%.6f,\"scheduling\":\"duration-bounded\",\"scheduled_frame_rate\":null,\"frames\":%d,\"wall_seconds\":%.9f,\"frames_per_second\":%.6f,\"median_frame_seconds\":%.9f,\"p95_frame_seconds\":%.9f,\"p99_frame_seconds\":%.9f,\"user_seconds\":%.9f,\"system_seconds\":%.9f,\"cpu_percent\":%.6f,\"allocated_bytes\":%.0f,\"allocated_bytes_per_frame\":%.6f,\"minor_bytes\":%.0f,\"promoted_bytes\":%.0f,\"promoted_bytes_per_frame\":%.6f,\"major_bytes\":%.0f,\"major_collections\":%d,\"ending_heap_bytes\":%d,\"peak_heap_bytes\":%d,\"starting_rss_kib\":%s,\"ending_rss_kib\":%s,\"peak_sampled_rss_kib\":%s,\"workload_signature\":\"%s\",\"work_units\":%d,\"semantics_supported\":true,\"pixel_authority\":\"phase0/legacy/%s\",\"pixel_tolerance\":0,\"framebuffer_hash\":\"%s\",\"legacy_gpu_duration_seconds\":null,\"legacy_gpu_utilization_percent\":null,\"legacy_draw_count\":null,\"legacy_upload_bytes\":null}\n%!"
     (scenario_name scenario) (target_name ()) profile width height
     model.drawable_width model.drawable_height model.pixel_scale_x
     model.pixel_scale_y domains warmup_seconds measure_seconds result.frames
