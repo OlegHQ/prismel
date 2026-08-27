@@ -7,4 +7,19 @@ let sample s x y=match Surface.get_rgba s~x~y with Ok c->c|Error _->0l
 let lerp a b w=((a*(65536-w))+(b*w)+32768)lsr 16
 let bilinear s fx fy=let x=fx asr 16 and y=fy asr 16 and wx=fx land 65535 and wy=fy land 65535 in let x1=min(Surface.width s-1)(x+1)and y1=min(Surface.height s-1)(y+1)in let a=sample s x y and b=sample s x1 y and c=sample s x y1 and d=sample s x1 y1 in let f n=lerp(lerp(ch a n)(ch b n)wx)(lerp(ch c n)(ch d n)wx)wy in color(f 24)(f 16)(f 8)(f 0)
 let blit_scaled_blend ~blend ~src ~src_rect:s ~dst ~dst_rect:d ~filter=if s.width<=0||s.height<=0||d.width<=0||d.height<=0 then Error Invalid_extent else let x0=max 0 d.x and y0=max 0 d.y and x1=min(Surface.width dst)(d.x+d.width)and y1=min(Surface.height dst)(d.y+d.height)in for y=y0 to y1-1 do for x=x0 to x1-1 do let rx=x-d.x and ry=y-d.y in let fx=(s.x lsl 16)+((rx*s.width lsl 16)/d.width)and fy=(s.y lsl 16)+((ry*s.height lsl 16)/d.height)in let c=match filter with Nearest->sample src(fx asr 16)(fy asr 16)|Bilinear->bilinear src fx fy in Composite.pixel dst~blend~x~y c done done;Ok()
+let blit_affine_blend ~blend ~src ~src_rect:s ~dst ~dst_rect:d ~xx ~xy ~yx ~yy ~tx ~ty ~filter=
+ if s.width<=0||s.height<=0||d.width<=0||d.height<=0 then Error Invalid_extent else
+ let determinant=xx*.yy-.xy*.yx in if not(Float.is_finite determinant)||abs_float determinant<1e-15 then Error Invalid_extent else
+ let corner x y=(xx*.x+.xy*.y+.tx,yx*.x+.yy*.y+.ty)in
+ let corners=[corner(float d.x)(float d.y);corner(float(d.x+d.width))(float d.y);corner(float d.x)(float(d.y+d.height));corner(float(d.x+d.width))(float(d.y+d.height))]in
+ let min_x=List.fold_left(fun v(x,_)->min v x)infinity corners and max_x=List.fold_left(fun v(x,_)->max v x)neg_infinity corners and min_y=List.fold_left(fun v(_,y)->min v y)infinity corners and max_y=List.fold_left(fun v(_,y)->max v y)neg_infinity corners in
+ let x0=max 0(int_of_float(floor min_x))and y0=max 0(int_of_float(floor min_y))and x1=min(Surface.width dst)(int_of_float(ceil max_x))and y1=min(Surface.height dst)(int_of_float(ceil max_y))in
+ for y=y0 to y1-1 do for x=x0 to x1-1 do
+  let px=float x+.0.5-.tx and py=float y+.0.5-.ty in
+  let local_x=(yy*.px-.xy*.py)/.determinant and local_y=(-.yx*.px+.xx*.py)/.determinant in
+  if local_x>=float d.x&&local_x<float(d.x+d.width)&&local_y>=float d.y&&local_y<float(d.y+d.height)then
+   let rx=local_x-.float d.x and ry=local_y-.float d.y in
+   let fx=(s.x lsl 16)+int_of_float(rx*.float s.width/.float d.width*.65536.)and fy=(s.y lsl 16)+int_of_float(ry*.float s.height/.float d.height*.65536.)in
+   let c=match filter with Nearest->sample src(fx asr 16)(fy asr 16)|Bilinear->bilinear src fx fy in Composite.pixel dst~blend~x~y c
+ done done;Ok()
 let blit_scaled ~src ~src_rect ~dst ~dst_rect ~filter=blit_scaled_blend~blend:Composite.Copy~src~src_rect~dst~dst_rect~filter

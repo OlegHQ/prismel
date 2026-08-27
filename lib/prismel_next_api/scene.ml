@@ -2,7 +2,8 @@ type blend=Replace|Alpha|Add|Multiply
 type primitive={points:(int*int)list;closed:bool;fill:Color.t option;stroke:Color.t option}
 type text_node={x:int;y:int;value:string;color:Color.t;size:int;wrap:int option;align:Font.alignment;provided_font:Font.t option;mutable owned_font:Font.t option;mutable rendered:Image.t option}
 and view3d_node={viewport:(int*int*int*int)option;camera:Camera.t;scene:Scene3.t;mutable rendered3d:Image.t option}
-and node=Group of t|Clear of Color.t|Primitive of primitive|Geometry of Raster2.Render_ir.geometry|Text of text_node|Image of Image.t*(int*int)
+and image_node={image:Image.t;x:int;y:int;scale:float;angle:float;center:(int*int)option;flip_x:bool}
+and node=Group of t|Clear of Color.t|Primitive of primitive|Geometry of Raster2.Render_ir.geometry|Text of text_node|Image of image_node
  |View3d of view3d_node|Region of int*int*int*int*bool
  |Translate of int*int*t|Rotate of float*t|Scale of float*float*t|Clip of int*int*int*int*t|Blend of blend*t
 and t=node list
@@ -65,7 +66,9 @@ let path ?(steps=20)?(fill_rule=Path.Non_zero)?fill?stroke value=ignore fill_rul
 let text ~at:(x,y) ?(color=default_color) ?(size=16) value=Text{x;y;value;color;size;wrap=None;align=Font.Left;provided_font=None;owned_font=None;rendered=None}
 let debug_text ~at ?color value=text~at?color~size:8 value
 let font_text font ~at:(x,y) ?(color=default_color) ?wrap ?(align=Font.Left) value=Text{x;y;value;color;size=Font.get_size font;wrap;align;provided_font=Some font;owned_font=None;rendered=None}
-let image image ~at ?scale ?angle ?center ?flip_x()=ignore(scale,angle,center,flip_x);Image(image,at)
+let image image ~at:(x,y) ?(scale=1.) ?(angle=0.) ?center ?(flip_x=false)()=
+  if not(Float.is_finite scale&&Float.is_finite angle)||scale<=0. then invalid_arg"Scene.image: invalid transform";
+  Image{image;x;y;scale;angle;center;flip_x}
 let view3d ?viewport ~camera scene=View3d{viewport;camera;scene;rendered3d=None}
 let text_input_region ~at:(x,y)~w~h ?(focused=false)()=Region(x,y,w,h,focused)
 let translate x y nodes=Translate(x,y,nodes)let rotate a nodes=Rotate(a,nodes)let scale x y nodes=Scale(x,y,nodes)
@@ -81,11 +84,20 @@ module Private=struct
   |Rotate(a,g)::xs->let c=cos a and s=sin a in commands(Raster2.Render_ir.Pop_transform::commands(Raster2.Render_ir.Push_transform{xx=c;xy=s;yx=(-.s);yy=c;tx=0.;ty=0.}::acc)g)xs
   |Clip(x,y,w,h,g)::xs->commands(Raster2.Render_ir.Pop_clip::commands(Raster2.Render_ir.Push_clip{x=float x;y=float y;width=float w;height=float h}::acc)g)xs
   |Blend(mode,g)::xs->let mode=match mode with Replace->Raster2.Composite.Replace|Alpha->Alpha|Add->Add|Multiply->Multiply in commands(commands(Raster2.Render_ir.Set_blend mode::acc)g)xs
-  |Image(image,(x,y))::xs->let width,height=Image.get_size image in let rect={Raster2.Render_ir.x=0.;y=0.;width=float width;height=float height}in
-    let destination={rect with Raster2.Render_ir.x=float x;y=float y}in commands(Raster2.Render_ir.Image{resource_id=Image.identity image;source=rect;destination}::acc)xs
+  |Image node::xs->let width,height=Image.get_size node.image in let rect={Raster2.Render_ir.x=0.;y=0.;width=float width;height=float height}in
+    let destination={Raster2.Render_ir.x=float node.x;y=float node.y;width=float width*.node.scale;height=float height*.node.scale}in
+    let command=Raster2.Render_ir.Image{resource_id=Image.identity node.image;source=rect;destination}in
+    let transformed=node.angle<>0.||node.flip_x||node.center<>None in
+    let acc=if transformed then
+      let cx,cy=match node.center with None->destination.width*.0.5,destination.height*.0.5|Some(cx,cy)->float cx,float cy in
+      let px=destination.x+.cx and py=destination.y+.cy and c=cos node.angle and s=sin node.angle and sx=if node.flip_x then -.1. else 1. in
+      let xx=c*.sx and xy=(-.s)and yx=s*.sx and yy=c in
+      Raster2.Render_ir.Pop_transform::command::Raster2.Render_ir.Push_transform{xx;xy;yx;yy;tx=px-.xx*.px-.xy*.py;ty=py-.yx*.px-.yy*.py}::acc
+    else command::acc in
+    commands acc xs
   |(Text _|View3d _|Region _)::xs->commands acc xs
  let rec text_regions scene=List.concat_map(function Region(x,y,w,h,f)->[x,y,w,h,f]|Group g|Translate(_,_,g)|Rotate(_,g)|Scale(_,_,g)|Clip(_,_,_,_,g)|Blend(_,g)->text_regions g|_->[])scene
- let rec image_resources scene=List.concat_map(function Image(image,_)->[Image.identity image,Prismel_next_execution.Image image]|Group g|Translate(_,_,g)|Rotate(_,g)|Scale(_,_,g)|Clip(_,_,_,_,g)|Blend(_,g)->image_resources g|_->[])scene
+ let rec image_resources scene=List.concat_map(function Image node->[Image.identity node.image,Prismel_next_execution.Image node.image]|Group g|Translate(_,_,g)|Rotate(_,g)|Scale(_,_,g)|Clip(_,_,_,_,g)|Blend(_,g)->image_resources g|_->[])scene
 
  let text_image (node : text_node) =
    match node.rendered with
@@ -127,13 +139,13 @@ module Private=struct
  let rec materialize ~width ~height = function
    | [] -> []
    | Text node :: rest ->
-       Image (text_image node, (node.x, node.y))
+       Image {image=text_image node;x=node.x;y=node.y;scale=1.;angle=0.;center=None;flip_x=false}
        :: materialize ~width ~height rest
    | View3d node :: rest ->
        let x, y, _, _ =
          Option.value node.viewport ~default:(0, 0, width, height)
        in
-       Image (view_image ~width ~height node, (x, y))
+       Image {image=view_image ~width ~height node;x;y;scale=1.;angle=0.;center=None;flip_x=false}
        :: materialize ~width ~height rest
    | Group nodes :: rest ->
        Group (materialize ~width ~height nodes)

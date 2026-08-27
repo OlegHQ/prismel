@@ -111,8 +111,9 @@ let execute ?depth ~lookup ~target ir =
                     { Image.x=int_of_float (Float.round r.x); y=int_of_float (Float.round r.y);
                       width=int_of_float (Float.round r.width); height=int_of_float (Float.round r.height) }
                   in
-                  draw (fun () -> match Image.blit_scaled_blend ~blend:!active_blend ~src:source ~src_rect:(convert image.source)
-                    ~dst:working ~dst_rect:(convert image.destination) ~filter:Image.Bilinear with
+                  let transform=Stack.top transforms in
+                  draw (fun () -> match Image.blit_affine_blend ~blend:!active_blend ~src:source ~src_rect:(convert image.source)
+                    ~dst:working ~dst_rect:(convert image.destination) ~xx:transform.xx ~xy:transform.xy ~yx:transform.yx ~yy:transform.yy ~tx:transform.tx ~ty:transform.ty ~filter:Image.Bilinear with
                     | Ok () -> () | Error _ -> fail Surface_error)
               | Glyphs glyphs ->
                   let atlas = match Hashtbl.find resources glyphs.resource_id with Glyph_atlas value -> value | _ -> assert false in
