@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5069,
+    "bound": 5083,
     "scope-excluded": 37,
-    "unreviewed": 179
+    "unreviewed": 165
   },
-  "classification_source_sha256": "0525145b25b20c33ef8fd01e4f7ded3e3619092973b30332d7f5915502c29eb6",
+  "classification_source_sha256": "4084b5999ca458e1fc4f098d4594d33ff40a430049e1e40a3b60739607cc6d5a",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -62655,7 +62655,7 @@
           "line": 94
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectComputeCommand setKernelBuffer:offset:attributeStride:atIndex:]",
       "kind": "method",
@@ -62663,7 +62663,7 @@
       "macos_introduced": "14.0",
       "name": "setKernelBuffer:offset:attributeStride:atIndex:",
       "owner": "MTLIndirectComputeCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned indirect compute/render commands with descriptor-capacity and capability gates, checked device/range/stride/index/topology validation, retained pipelines and buffers, reset teardown, and real indirect-command conformance.",
       "signature": "instance (id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -63349,7 +63349,7 @@
           "line": 48
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand drawIndexedPatches:patchStart:patchCount:patchIndexBuffer:patchIndexBufferOffset:controlPointIndexBuffer:controlPointIndexBufferOffset:instanceCount:baseInstance:tessellationFactorBuffer:tessellationFactorBufferOffset:tessellationFactorBufferInstanceStride:]",
       "kind": "method",
@@ -63357,7 +63357,7 @@
       "macos_introduced": "10.14",
       "name": "drawIndexedPatches:patchStart:patchCount:patchIndexBuffer:patchIndexBufferOffset:controlPointIndexBuffer:controlPointIndexBufferOffset:instanceCount:baseInstance:tessellationFactorBuffer:tessellationFactorBufferOffset:tessellationFactorBufferInstanceStride:",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned indirect compute/render commands with descriptor-capacity and capability gates, checked device/range/stride/index/topology validation, retained pipelines and buffers, reset teardown, and real indirect-command conformance.",
       "signature": "instance (NSUInteger, NSUInteger, NSUInteger, id<MTLBuffer>  _Nullable __strong, NSUInteger, id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger, NSUInteger, id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -63368,7 +63368,7 @@
           "line": 18
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferOffset:instanceCount:baseVertex:baseInstance:]",
       "kind": "method",
@@ -63376,7 +63376,7 @@
       "macos_introduced": "10.14",
       "name": "drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferOffset:instanceCount:baseVertex:baseInstance:",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned indirect compute/render commands with descriptor-capacity and capability gates, checked device/range/stride/index/topology validation, retained pipelines and buffers, reset teardown, and real indirect-command conformance.",
       "signature": "instance (MTLPrimitiveType, NSUInteger, MTLIndexType, id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger, NSInteger, NSUInteger) -> void"
     },
     {
@@ -63443,7 +63443,7 @@
           "line": 40
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand drawPatches:patchStart:patchCount:patchIndexBuffer:patchIndexBufferOffset:instanceCount:baseInstance:tessellationFactorBuffer:tessellationFactorBufferOffset:tessellationFactorBufferInstanceStride:]",
       "kind": "method",
@@ -63451,7 +63451,7 @@
       "macos_introduced": "10.14",
       "name": "drawPatches:patchStart:patchCount:patchIndexBuffer:patchIndexBufferOffset:instanceCount:baseInstance:tessellationFactorBuffer:tessellationFactorBufferOffset:tessellationFactorBufferInstanceStride:",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned indirect compute/render commands with descriptor-capacity and capability gates, checked device/range/stride/index/topology validation, retained pipelines and buffers, reset teardown, and real indirect-command conformance.",
       "signature": "instance (NSUInteger, NSUInteger, NSUInteger, id<MTLBuffer>  _Nullable __strong, NSUInteger, NSUInteger, NSUInteger, id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -63462,7 +63462,7 @@
           "line": 18
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand drawPrimitives:vertexStart:vertexCount:instanceCount:baseInstance:]",
       "kind": "method",
@@ -63470,7 +63470,7 @@
       "macos_introduced": "10.14",
       "name": "drawPrimitives:vertexStart:vertexCount:instanceCount:baseInstance:",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned indirect compute/render commands with descriptor-capacity and capability gates, checked device/range/stride/index/topology validation, retained pipelines and buffers, reset teardown, and real indirect-command conformance.",
       "signature": "instance (MTLPrimitiveType, NSUInteger, NSUInteger, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -63481,7 +63481,7 @@
           "line": 18
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand reset]",
       "kind": "method",
@@ -63489,7 +63489,7 @@
       "macos_introduced": "10.14",
       "name": "reset",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned indirect compute/render commands with descriptor-capacity and capability gates, checked device/range/stride/index/topology validation, retained pipelines and buffers, reset teardown, and real indirect-command conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -63625,7 +63625,7 @@
           "line": 18
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand setFragmentBuffer:offset:atIndex:]",
       "kind": "method",
@@ -63633,7 +63633,7 @@
       "macos_introduced": "10.14",
       "name": "setFragmentBuffer:offset:atIndex:",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned indirect compute/render commands with descriptor-capacity and capability gates, checked device/range/stride/index/topology validation, retained pipelines and buffers, reset teardown, and real indirect-command conformance.",
       "signature": "instance (id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -63675,7 +63675,7 @@
           "line": 55
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand setMeshBuffer:offset:atIndex:]",
       "kind": "method",
@@ -63683,7 +63683,7 @@
       "macos_introduced": "14.0",
       "name": "setMeshBuffer:offset:atIndex:",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned indirect compute/render commands with descriptor-capacity and capability gates, checked device/range/stride/index/topology validation, retained pipelines and buffers, reset teardown, and real indirect-command conformance.",
       "signature": "instance (id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -63700,7 +63700,7 @@
           "line": 54
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand setObjectBuffer:offset:atIndex:]",
       "kind": "method",
@@ -63708,7 +63708,7 @@
       "macos_introduced": "14.0",
       "name": "setObjectBuffer:offset:atIndex:",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned indirect compute/render commands with descriptor-capacity and capability gates, checked device/range/stride/index/topology validation, retained pipelines and buffers, reset teardown, and real indirect-command conformance.",
       "signature": "instance (id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -63750,7 +63750,7 @@
           "line": 20
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand setRenderPipelineState:]",
       "kind": "method",
@@ -63758,7 +63758,7 @@
       "macos_introduced": "10.14",
       "name": "setRenderPipelineState:",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned indirect compute/render commands with descriptor-capacity and capability gates, checked device/range/stride/index/topology validation, retained pipelines and buffers, reset teardown, and real indirect-command conformance.",
       "signature": "instance (id<MTLRenderPipelineState>  _Nonnull __strong) -> void"
     },
     {
@@ -63794,7 +63794,7 @@
           "line": 18
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand setVertexBuffer:offset:atIndex:]",
       "kind": "method",
@@ -63802,7 +63802,7 @@
       "macos_introduced": "10.14",
       "name": "setVertexBuffer:offset:atIndex:",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned indirect compute/render commands with descriptor-capacity and capability gates, checked device/range/stride/index/topology validation, retained pipelines and buffers, reset teardown, and real indirect-command conformance.",
       "signature": "instance (id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -63819,7 +63819,7 @@
           "line": 35
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand setVertexBuffer:offset:attributeStride:atIndex:]",
       "kind": "method",
@@ -63827,7 +63827,7 @@
       "macos_introduced": "14.0",
       "name": "setVertexBuffer:offset:attributeStride:atIndex:",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned indirect compute/render commands with descriptor-capacity and capability gates, checked device/range/stride/index/topology validation, retained pipelines and buffers, reset teardown, and real indirect-command conformance.",
       "signature": "instance (id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -105380,7 +105380,7 @@
           "line": 78
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "protocol:MTLIndirectComputeCommand",
       "kind": "protocol",
@@ -105388,7 +105388,7 @@
       "macos_introduced": "11.0",
       "name": "MTLIndirectComputeCommand",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned indirect compute/render commands with descriptor-capacity and capability gates, checked device/range/stride/index/topology validation, retained pipelines and buffers, reset teardown, and real indirect-command conformance.",
       "signature": ""
     },
     {
@@ -105415,7 +105415,7 @@
           "line": 18
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "protocol:MTLIndirectRenderCommand",
       "kind": "protocol",
@@ -105423,7 +105423,7 @@
       "macos_introduced": "10.14",
       "name": "MTLIndirectRenderCommand",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned indirect compute/render commands with descriptor-capacity and capability gates, checked device/range/stride/index/topology validation, retained pipelines and buffers, reset teardown, and real indirect-command conformance.",
       "signature": ""
     },
     {

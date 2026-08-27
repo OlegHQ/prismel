@@ -1874,6 +1874,7 @@ let argument_safe8 = Binding_argument8_safe_package.ids
 let library_safe8 = Binding_library8_safe_package.ids
 let metal4_counters_safe2 = Binding_metal4_counters2_safe_package.ids
 let render_encoder_safe33 = Binding_render_encoder33_safe_package.ids
+let indirect_command_safe14 = Binding_indirect_command14_safe_package.ids
 let metal4_argument_table_safe1 =
   Binding_metal4_argument_table_safe_package.callable_ids
 let metal4_render_pipeline_reset_safe2 =
@@ -2064,6 +2065,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier render_encoder_safe33 then
     Bound,
       "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance."
+  else if List.mem identifier indirect_command_safe14 then
+    Bound,
+      "Implemented by owned indirect compute/render commands with descriptor-capacity and capability gates, checked device/range/stride/index/topology validation, retained pipelines and buffers, reset teardown, and real indirect-command conformance."
   else if List.mem identifier Binding_render_pass24_safe_closure.promotable_ids then
     Bound,
       "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance."

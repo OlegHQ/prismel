@@ -112,6 +112,10 @@
   binding_command_queue_tail_handoff
   binding_command_buffer19_safe_closure
   binding_indirect_command_tail_handoff
+  binding_indirect_command14_native_closure
+  binding_indirect_command14_safe_plan
+  binding_indirect_command14_safe_contract
+  binding_indirect_command14_safe_package
   binding_capture_scope_tail_handoff
   binding_event_tail_handoff
   binding_acceleration_value_tail_handoff
@@ -794,6 +798,11 @@
 (test
  (name test_binding_indirect_command_safe_package)
  (modules test_binding_indirect_command_safe_package binding_indirect_command_safe_package)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_indirect_command14_safe_package)
+ (modules test_binding_indirect_command14_safe_package)
  (libraries metal_inventory_classification))
 
 (test
