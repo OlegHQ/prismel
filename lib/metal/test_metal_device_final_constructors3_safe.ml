@@ -12,7 +12,8 @@ let ()=match Device.system_default()with
   let library=get(Library.compile_source~device source)in
   let function_=get(Function.find~library "constructors3")in
   let encoder=get(Shader_argument_encoder.of_buffer_binding device function_~index:0L)in
-  if Shader_argument_encoder.encoded_length encoder<=0L then failwith"empty reflected encoder";
+  if Shader_argument_encoder.buffer_index encoder<>0L then failwith"reflected encoder index drift";
+  if Device.registry_id(Shader_argument_encoder.device encoder)<>Device.registry_id device then failwith"reflected encoder device drift";
   let pipeline=get(Device_async.compute_reflection device function_)in
   let event=get(Device.new_shared_event device)in
   get(Shared_event.set_signaled_value event 3L);
