@@ -38,7 +38,7 @@ let oversized_frame () =
   let configuration:Ogpu.Surface.configuration={logical_width=8;logical_height=8;physical_width=8;physical_height=8;format=Rgba8_unorm;present_mode=Fifo;max_acquired=2}in
   let renderer=get(Scene_execution.create driver configuration)in
   let vertices=Bytes.make 48 '\000'and indices=Bytes.make 12 '\000'in
-  let state:Scene_execution.state={viewport=(0,0,8,8);scissor=(0,0,8,8);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;transform_uniforms=None}in
+  let state:Scene_execution.state={viewport=(0,0,8,8);scissor=(0,0,8,8);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;transform_uniforms=None;stencil_state=None;stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}in
   let draws count=List.init count(fun index->{Scene_execution.mesh={key=Printf.sprintf"oversized-%05d"index;vertices;vertex_count=3;indices;index_count=3};state})in
   ignore(get(Scene_execution.render renderer(draws 65)));
   if Scene_execution.cache_entries renderer<>1 then failwith">64 frame was not coalesced";
@@ -75,7 +75,7 @@ let replacement_reuse () =
   let driver,control=Ogpu.Backend_mock.create()in
   let configuration:Ogpu.Surface.configuration={logical_width=8;logical_height=8;physical_width=8;physical_height=8;format=Rgba8_unorm;present_mode=Fifo;max_acquired=2}in
   let renderer=get(Scene_execution.create driver configuration)in
-  let indices=Bytes.make 12 '\000'and state:Scene_execution.state={viewport=(0,0,8,8);scissor=(0,0,8,8);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;transform_uniforms=None}in
+  let indices=Bytes.make 12 '\000'and state:Scene_execution.state={viewport=(0,0,8,8);scissor=(0,0,8,8);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;transform_uniforms=None;stencil_state=None;stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}in
   let make byte={Scene_execution.key="mutable";vertices=Bytes.make 48 byte;vertex_count=3;indices;index_count=3}in
   ignore(get(Scene_execution.render renderer[{mesh=make '\000';state}]));
   let before=Scene_execution.upload_bytes renderer in Ogpu.Backend_mock.clear_trace control;
@@ -101,7 +101,7 @@ let coalesced_signature () =
   let driver,control=Ogpu.Backend_mock.create()in
   let configuration:Ogpu.Surface.configuration={logical_width=8;logical_height=8;physical_width=8;physical_height=8;format=Rgba8_unorm;present_mode=Fifo;max_acquired=2}in
   let renderer=get(Scene_execution.create driver configuration)in
-  let state:Scene_execution.state={viewport=(0,0,8,8);scissor=(0,0,8,8);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;transform_uniforms=None}in
+  let state:Scene_execution.state={viewport=(0,0,8,8);scissor=(0,0,8,8);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;transform_uniforms=None;stencil_state=None;stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}in
   let vertices=Bytes.make 48 '\000'and indices=Bytes.make 12 '\000'in
   let draws=List.init 18_278(fun index->{Scene_execution.mesh={key=Printf.sprintf"domain-%05d"index;vertices;vertex_count=3;indices;index_count=3};state})in
   ignore(get(Scene_execution.render renderer draws));
@@ -117,7 +117,7 @@ let domain_coalescing () =
 let depth_target_lifecycle () =
   let configuration:Ogpu.Surface.configuration={logical_width=8;logical_height=8;physical_width=8;physical_height=8;format=Rgba8_unorm;present_mode=Fifo;max_acquired=2}in
   let mesh:Scene_execution.mesh={key="depth-lifecycle";vertices=Bytes.make 48 '\000';vertex_count=3;indices=Bytes.make 12 '\000';index_count=3}in
-  let state:Scene_execution.state={viewport=(0,0,8,8);scissor=(0,0,8,8);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;transform_uniforms=None}in
+  let state:Scene_execution.state={viewport=(0,0,8,8);scissor=(0,0,8,8);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;transform_uniforms=None;stencil_state=None;stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}in
   let draw={Scene_execution.mesh;state}in
   let driver,control=Ogpu.Backend_mock.create()in
   let renderer=get(Scene_execution.create_variants driver configuration)in
@@ -158,7 +158,7 @@ let depth_target_lifecycle () =
   Ogpu.Backend_mock.fail_depth_allocation_after control 1;
   begin match Scene_execution.create_variants driver configuration with Error _->()|Ok renderer->ignore(Scene_execution.destroy renderer);failwith"partial depth allocation unexpectedly succeeded"end;
   if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then failwith"partial depth allocation leaked objects"
-let ()=let driver,control=Ogpu.Backend_mock.create()in let configuration:Ogpu.Surface.configuration={logical_width=8;logical_height=8;physical_width=8;physical_height=8;format=Rgba8_unorm;present_mode=Fifo;max_acquired=2}in let renderer=get(Scene_execution.create driver configuration)in let mesh:Scene_execution.mesh={key="triangle";vertices=Bytes.make 48 '\000';vertex_count=3;indices=Bytes.make 12 '\000';index_count=3}and state:Scene_execution.state={viewport=(0,0,8,8);scissor=(0,0,8,8);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;transform_uniforms=None}in for _=1 to 1000 do ignore(get(Scene_execution.render renderer[{mesh;state}]))done;
+let ()=let driver,control=Ogpu.Backend_mock.create()in let configuration:Ogpu.Surface.configuration={logical_width=8;logical_height=8;physical_width=8;physical_height=8;format=Rgba8_unorm;present_mode=Fifo;max_acquired=2}in let renderer=get(Scene_execution.create driver configuration)in let mesh:Scene_execution.mesh={key="triangle";vertices=Bytes.make 48 '\000';vertex_count=3;indices=Bytes.make 12 '\000';index_count=3}and state:Scene_execution.state={viewport=(0,0,8,8);scissor=(0,0,8,8);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;transform_uniforms=None;stencil_state=None;stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}in for _=1 to 1000 do ignore(get(Scene_execution.render renderer[{mesh;state}]))done;
   shadow_payload();
   List.iter(fun blend->List.iter(fun _frame->ignore(get(Scene_execution.render_blended renderer[blend,{mesh;state}])))[1;2;60;600])
     [Ogpu.Pipeline.Replace;Alpha;Add;Multiply;Screen;Subtract];

@@ -1,7 +1,7 @@
 type mesh={key:string;vertices:bytes;vertex_count:int;indices:bytes;index_count:int}
-type state={viewport:int*int*int*int;scissor:int*int*int*int;cull:Ogpu.Render_pass.cull;depth_compare:Ogpu.Render_pass.comparison;depth_write:bool;depth_load:Ogpu.Render_pass.load;depth_clear:float;transform_uniforms:bytes option}
+type state={viewport:int*int*int*int;scissor:int*int*int*int;cull:Ogpu.Render_pass.cull;depth_compare:Ogpu.Render_pass.comparison;depth_write:bool;depth_load:Ogpu.Render_pass.load;depth_clear:float;transform_uniforms:bytes option;stencil_state:Ogpu.Render_pass.stencil_state option;stencil_load:Ogpu.Render_pass.load;stencil_clear:int}
 type draw={mesh:mesh;state:state}
-type pipeline_family=Scene2|Scene3|Scene3_textured|Scene3_shadow
+type pipeline_family=Scene2|Scene3|Scene3_textured|Scene3_shadow|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil
 type texture_level={width:int;height:int;bytes:bytes}
 type sampled_texture={key:string;levels:texture_level array;sampler:Ogpu.Types.sampler_descriptor}
 type shadow_resource={texture:sampled_texture;parameters:bytes}
@@ -37,14 +37,14 @@ let shadow_resource ~key (source:Raster2.Shadow_map.snapshot) =
 let shader stage ~entry artifact=Ogpu.Shader.create{backend="mock";label=Some artifact;bytes=Bytes.of_string artifact;entry_points=[{Ogpu.Shader.name=entry;stage}];bindings=[]}
 let pipeline device family blend samples=let capabilities=Ogpu.Backend.capabilities device in let open Result in
   bind(Ogpu.Binding.create_pipeline_layout~device:(Ogpu.Backend.device_handle device)~capabilities[])(fun layout->
-  let suffix=match family with Scene2->"scene2"|Scene3->"scene3"|Scene3_textured->"scene3-textured"|Scene3_shadow->"scene3-shadow"in
+  let suffix=match family with Scene2->"scene2"|Scene3->"scene3"|Scene3_textured->"scene3-textured"|Scene3_shadow->"scene3-shadow"|Scene3_stencil->"scene3-stencil"|Scene3_textured_stencil->"scene3-textured-stencil"|Scene3_shadow_stencil->"scene3-shadow-stencil"in
   bind(shader Ogpu.Shader.Vertex~entry:"scene_vertex"("scene_vertex-"^suffix))(fun vertex->bind(shader Fragment~entry:"scene_fragment"("scene_fragment-"^suffix))(fun fragment->
-  let depth_format=match family with Scene2->Ogpu.Pipeline.No_depth|Scene3|Scene3_textured|Scene3_shadow->Depth32_float in
+  let depth_format=match family with Scene2->Ogpu.Pipeline.No_depth|Scene3|Scene3_textured|Scene3_shadow->Depth32_float|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->Depth32_float_stencil8 in
   bind(Ogpu.Pipeline.create_render~blend capabilities{backend="mock";label=Some"scene-execution";layout;vertex;vertex_entry="scene_vertex";fragment=Some fragment;fragment_entry=Some"scene_fragment";color_format=Rgba8_unorm;depth_format;sample_count=samples})(fun portable->
   map(fun value->value,Ogpu.Pipeline.cache_key portable)(Ogpu.Backend.adopt_pipeline device portable)))))
 let texture_descriptor configuration:Ogpu.Types.texture_descriptor={label=Some"scene-execution-target";width=configuration.Ogpu.Surface.physical_width;height=configuration.physical_height;depth=1;mip_levels=1;sample_count=1;usage=[Render_attachment;Texture_copy_src]}
 let blends=[Ogpu.Pipeline.Replace;Alpha;Add;Multiply;Screen;Subtract]
-let families=[Scene2;Scene3;Scene3_textured;Scene3_shadow]
+let families=[Scene2;Scene3;Scene3_textured;Scene3_shadow;Scene3_stencil;Scene3_textured_stencil;Scene3_shadow_stencil]
 let sample_counts device=List.filter(fun samples->samples<=(Ogpu.Backend.capabilities device).Ogpu.Capabilities.limits.max_sample_count)[1;4;9;16]
 let multisample_descriptor configuration samples:Ogpu.Types.texture_descriptor={label=Some("scene-execution-msaa-"^string_of_int samples);width=configuration.Ogpu.Surface.physical_width;height=configuration.physical_height;depth=1;mip_levels=1;sample_count=samples;usage=[Render_attachment]}
 let depth_descriptor configuration samples:Ogpu.Types.texture_descriptor={label=Some("scene-execution-depth-"^string_of_int samples);width=configuration.Ogpu.Surface.physical_width;height=configuration.physical_height;depth=1;mip_levels=1;sample_count=samples;usage=[Render_attachment]}
@@ -261,10 +261,11 @@ let pass value family samples state load clear=
   match target with None->error"Scene_execution.pass"Ogpu.Error.Unsupported"multisample target is unavailable"|Some target->
   let texture=Ogpu.Backend.render_texture target~format:Ogpu.Render_pass.Rgba8~usage:Render_target in
   let resolve=if samples=1 then None else Some(Ogpu.Backend.render_texture value.target~format:Ogpu.Render_pass.Rgba8~usage:Resolve_target)in
-  let depth=match family with Scene2->None|Scene3|Scene3_textured|Scene3_shadow->Option.map(fun target->let texture=Ogpu.Backend.render_texture target~format:Ogpu.Render_pass.Depth32~usage:Render_target in ({Ogpu.Render_pass.texture;load=state.depth_load;store=Store;clear=state.depth_clear}:Ogpu.Render_pass.depth)) (List.assoc_opt samples value.depth_targets)in
+  let depth=match family with Scene2->None|Scene3|Scene3_textured|Scene3_shadow|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->Option.map(fun target->let texture=Ogpu.Backend.render_texture target~format:Ogpu.Render_pass.Depth32~usage:Render_target in ({Ogpu.Render_pass.texture;load=state.depth_load;store=Store;clear=state.depth_clear}:Ogpu.Render_pass.depth)) (List.assoc_opt samples value.depth_targets)in
+  let stencil=match family with Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->Option.map(fun target->let texture=Ogpu.Backend.render_texture target~format:Ogpu.Render_pass.Stencil8~usage:Render_target in ({Ogpu.Render_pass.texture;load=state.stencil_load;store=Store;clear=state.stencil_clear}:Ogpu.Render_pass.stencil))(List.assoc_opt samples value.stencil_targets)|Scene2|Scene3|Scene3_textured|Scene3_shadow->None in
   let x,y,width,height=state.viewport and sx,sy,sw,sh=state.scissor in
   if family<>Scene2&&depth=None then error"Scene_execution.pass"Ogpu.Error.Unsupported"depth target is unavailable"else
-  Ogpu.Render_pass.create~raster_state:{cull=state.cull;depth_compare=state.depth_compare;depth_write=state.depth_write}(Ogpu.Backend.device_handle value.device){colors=[|Some{texture;resolve;load;store=(if samples=1 then Store else Resolve);clear}|];depth;stencil=None;viewport={x;y;width;height};scissor={x=sx;y=sy;width=sw;height=sh}}
+  Ogpu.Render_pass.create~raster_state:{cull=state.cull;depth_compare=state.depth_compare;depth_write=state.depth_write}?stencil_state:state.stencil_state(Ogpu.Backend.device_handle value.device){colors=[|Some{texture;resolve;load;store=(if samples=1 then Store else Resolve);clear}|];depth;stencil;viewport={x;y;width;height};scissor={x=sx;y=sy;width=sw;height=sh}}
 let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws=if value.dead then error"Scene_execution.render"Ogpu.Error.Stale_handle"renderer is destroyed"else
   match resolve_prepared value prepared draws with Error _ as result -> result | Ok(draws,trusted_key) ->
   let valid_mesh(mesh:mesh)=mesh.key<>""&&mesh.vertex_count>0&&mesh.index_count>0&&Bytes.length mesh.vertices+Bytes.length mesh.indices>0 in
@@ -276,7 +277,7 @@ let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws
   let rec prepare_all acc=function []->Ok(List.rev acc)|(family,blend,texture,auxiliary,samples,(draw:draw))::rest->let reserved=List.map(fun(_,_,_,_,_,_,item)->item)acc in match prepare value~defer~trusted_key~reserved~uniforms:draw.state.transform_uniforms draw.mesh with Error _ as e->e|Ok mesh->match texture with Some source->(match prepare_texture value~defer source with Error _ as e->e|Ok texture->prepare_aux family blend auxiliary samples draw mesh (Some(source,texture)) acc rest)|None->prepare_aux family blend auxiliary samples draw mesh None acc rest
   and prepare_aux family blend auxiliary samples draw mesh texture acc rest=match auxiliary with None->prepare_all((family,blend,samples,draw.state,texture,None,mesh)::acc)rest|Some source->match prepare_auxiliary value~defer source with Error _ as e->e|Ok buffer->match prepare_texture value~defer source.texture with Error _ as e->e|Ok texture2->prepare_all((family,blend,samples,draw.state,texture,Some(source,buffer,texture2),mesh)::acc)rest in
   match Ogpu.Backend.acquire value.surface with Error _ as e->finish e|Ok(`Timeout|`Occluded)->finish(Ok false)|Ok`Device_lost->finish(error"Scene_execution.render"Device_lost"device lost")|Ok(`Acquired frame)->match prepare_all[]draws with Error _ as e->ignore(Ogpu.Backend.discard frame);finish e|Ok prepared->
-    let resources=`Texture value.target::List.map(fun(_,texture)->`Texture texture)(value.multisample_targets@value.depth_targets)@List.concat_map(fun(_,_,_,_,texture,auxiliary,item)->`Buffer item.buffer::(match texture with None->[]|Some(_,cached)->[`Texture cached.texture])@(match auxiliary with None->[]|Some(_,buffer,texture)->[`Buffer buffer.auxiliary_buffer;`Texture texture.texture]))prepared in
+    let resources=`Texture value.target::List.map(fun(_,texture)->`Texture texture)(value.multisample_targets@value.depth_targets@value.stencil_targets)@List.concat_map(fun(_,_,_,_,texture,auxiliary,item)->`Buffer item.buffer::(match texture with None->[]|Some(_,cached)->[`Texture cached.texture])@(match auxiliary with None->[]|Some(_,buffer,texture)->[`Buffer buffer.auxiliary_buffer;`Texture texture.texture]))prepared in
     let same_texture a b=match a,b with None,None->true|Some(_,x),Some(_,y)->x==y|_->false in
     let same_auxiliary a b=match a,b with None,None->true|Some(_,ab,at),Some(_,bb,bt)->ab==bb&&at==bt|_->false in
     let rec take family blend samples state texture auxiliary count acc=function (next_family,next_blend,next_samples,next,next_texture,next_auxiliary,item)::rest when count<65_536&&next_family=family&&next_blend=blend&&next_samples=samples&&next=state&&same_texture next_texture texture&&same_auxiliary next_auxiliary auxiliary->take family blend samples state texture auxiliary(count+1)((next_family,next_blend,next_samples,next,next_texture,next_auxiliary,item)::acc)rest|rest->List.rev acc,rest in

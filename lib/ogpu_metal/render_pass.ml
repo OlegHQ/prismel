@@ -29,7 +29,6 @@ let create device pass ~attachments draw=let op="Ogpu_metal.Render_pass.create"i
   let colors=Array.to_list descriptor.colors|>List.filter_map Fun.id in
   if List.length colors<>1 then error op Ogpu.Error.Unsupported"classic Metal execution requires exactly one color attachment"else
   let color=List.hd colors in
-  if color.load<>Clear then error op Ogpu.Error.Unsupported"classic Metal execution requires clear color passes"else
   if (color.texture.samples=1&&(color.store<>Store||Option.is_some color.resolve))||(color.texture.samples>1&&(color.store<>Resolve||Option.is_none color.resolve))then error op Ogpu.Error.Invalid_argument"color store/resolve state differs from its sample count"else
   let find id texture = if Texture.id texture=id then Some texture else None in
   let candidates=List.map(fun(b:buffer_binding)->b.buffer)draw.buffers in ignore candidates;
@@ -75,7 +74,7 @@ let retain_one retained retain release=match retain()with Error _ as e->e|Ok()->
 module Private=struct
   let requires_command4 value=
     let descriptor=Ogpu.Render_pass.descriptor value.pass in
-    Option.is_some descriptor.stencil||
+    Array.exists(fun color->Option.fold~none:false~some:(fun(color:Ogpu.Render_pass.color)->color.load<>Clear)color)descriptor.colors||Option.is_some descriptor.stencil||
     Option.fold~none:false~some:(fun(d:Ogpu.Render_pass.depth)->d.load<>Clear||d.store<>Store||d.clear<>1.)descriptor.depth
   let encode_portable value command=Ogpu.Render_pass.encode value.pass command
   let retain value=let retained=ref[]and seen=Hashtbl.create 32 in let keep retain release=retain_one retained retain release in let once key f=if Hashtbl.mem seen key then(fun()->Ok())else(Hashtbl.add seen key();f)in

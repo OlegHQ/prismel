@@ -15,9 +15,13 @@ type state = {
   depth_load : Ogpu.Render_pass.load;
   depth_clear : float;
   transform_uniforms : bytes option;
+  stencil_state : Ogpu.Render_pass.stencil_state option;
+  stencil_load : Ogpu.Render_pass.load;
+  stencil_clear : int;
 }
 type draw = { mesh : mesh; state : state }
-type pipeline_family = Scene2 | Scene3 | Scene3_textured | Scene3_shadow
+type pipeline_family = Scene2 | Scene3 | Scene3_textured | Scene3_shadow |
+  Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil
 type texture_level = { width:int; height:int; bytes:bytes }
 type sampled_texture = {
   key:string;
