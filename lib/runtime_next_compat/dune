@@ -1,0 +1,11 @@
+(library
+ (name runtime_next_compat)
+ (public_name prismel.runtime_next_compat)
+ (modules runtime_next_compat)
+ (libraries runtime_next_orchestrator scene_execution ogpu))
+
+(test
+ (name test_runtime_next_compat)
+ (modules test_runtime_next_compat)
+ (libraries runtime_next_compat scene_execution)
+ (action (setenv SDL_VIDEODRIVER dummy (run %{test}))))
