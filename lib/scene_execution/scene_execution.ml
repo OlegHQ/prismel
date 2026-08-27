@@ -6,7 +6,7 @@ type texture_level={width:int;height:int;bytes:bytes}
 type sampled_texture={key:string;levels:texture_level array;sampler:Ogpu.Types.sampler_descriptor}
 type shadow_resource={texture:sampled_texture;parameters:bytes}
 type auxiliary_resource={key:string;buffer:bytes;texture:sampled_texture}
-type cached={key:string;payload_hash:string;buffer:Ogpu.Backend.buffer;index_offset:int64;vertex_count:int;index_count:int}
+type cached={key:string;payload_hash:string;buffer:Ogpu.Backend.buffer;index_offset:int64;vertex_count:int;index_count:int;bytes:int}
 type cached_auxiliary={auxiliary_key:string;auxiliary_hash:string;auxiliary_buffer:Ogpu.Backend.buffer}
 type cached_texture={texture_key:string;texture_hash:string;texture:Ogpu.Backend.texture}
 type pipeline_variant={family:pipeline_family;blend:Ogpu.Pipeline.blend;pipeline:Ogpu.Backend.pipeline;key:string}
@@ -60,12 +60,21 @@ let create_with_pipeline_variants driver configuration ?(before_device_destroy=f
 let create_with_pipeline driver configuration ?(before_device_destroy=fun()->Ok()) make=
   create_common driver configuration before_device_destroy[Scene2][Ogpu.Pipeline.Replace]
     (Some(fun device _family _blend->make device))
+let cache_byte_capacity=256*1024*1024
+let trim_cache cache =
+  let rec loop entries bytes keep evict = function
+    | [] -> List.rev keep, List.rev evict
+    | item :: rest when entries < 64 && bytes <= cache_byte_capacity - item.bytes ->
+        loop (entries + 1) (bytes + item.bytes) (item :: keep) evict rest
+    | item :: rest -> loop entries bytes keep (item :: evict) rest
+  in
+  loop 0 0 [] [] cache
 let prepare value ~defer (mesh:mesh)=let payload_hash=Digest.to_hex(Digest.string(Bytes.to_string mesh.vertices^Bytes.to_string mesh.indices))in match List.find_opt(fun(x:cached)->x.key=mesh.key&&x.payload_hash=payload_hash)value.cache with Some item->Ok item|None->
   let total=Bytes.length mesh.vertices+Bytes.length mesh.indices in
   if mesh.key=""||mesh.vertex_count<=0||mesh.index_count<=0||total=0 then error"Scene_execution.prepare"Ogpu.Error.Invalid_argument"mesh payload is empty"else
   let descriptor:Ogpu.Types.buffer_descriptor={label=Some("scene-mesh-"^mesh.key);size=Int64.of_int total;usage=[Vertex;Index;Copy_dst]}in
   match Ogpu.Backend.create_buffer value.device descriptor with Error _ as e->e|Ok buffer->
-    let offset=Int64.of_int(Bytes.length mesh.vertices)in match Ogpu.Backend.write_buffer buffer~offset:0L mesh.vertices with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->match Ogpu.Backend.write_buffer buffer~offset mesh.indices with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->let item={key=mesh.key;payload_hash;buffer;index_offset=offset;vertex_count=mesh.vertex_count;index_count=mesh.index_count}in let replaced,others=List.partition(fun(x:cached)->x.key=mesh.key)value.cache in List.iter(fun x->defer(fun()->ignore(Ogpu.Backend.destroy_buffer x.buffer)))replaced;let cache=item::others in let keep,evict=List.mapi(fun i x->i,x)cache|>List.partition(fun(i,_)->i<64)in List.iter(fun(_,x)->defer(fun()->ignore(Ogpu.Backend.destroy_buffer x.buffer)))evict;value.cache<-List.map snd keep;value.uploaded<-Int64.add value.uploaded(Int64.of_int total);Ok item
+    let offset=Int64.of_int(Bytes.length mesh.vertices)in match Ogpu.Backend.write_buffer buffer~offset:0L mesh.vertices with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->match Ogpu.Backend.write_buffer buffer~offset mesh.indices with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->let item={key=mesh.key;payload_hash;buffer;index_offset=offset;vertex_count=mesh.vertex_count;index_count=mesh.index_count;bytes=total}in let replaced,others=List.partition(fun(x:cached)->x.key=mesh.key)value.cache in List.iter(fun x->defer(fun()->ignore(Ogpu.Backend.destroy_buffer x.buffer)))replaced;let keep,evict=trim_cache(item::others)in List.iter(fun x->defer(fun()->ignore(Ogpu.Backend.destroy_buffer x.buffer)))evict;value.cache<-keep;value.uploaded<-Int64.add value.uploaded(Int64.of_int total);Ok item
 let align256 value=(value+255)land(lnot 255)
 let valid_texture(source:sampled_texture)=
   source.key<>""&&Array.length source.levels>0&&
@@ -106,6 +115,96 @@ let prepare_auxiliary value ~defer(source:auxiliary_resource)=
     let cache=item::others in let keep,evict=List.mapi(fun i x->i,x)cache|>List.partition(fun(i,_)->i<64)in
     List.iter(fun(_,old)->defer(fun()->ignore(Ogpu.Backend.destroy_buffer old.auxiliary_buffer)))evict;
     value.auxiliary_cache<-List.map snd keep;value.uploaded<-Int64.add value.uploaded(Int64.of_int(Bytes.length source.buffer));Ok item
+let u32_le bytes offset =
+  Int32.logor (Int32.of_int (Char.code (Bytes.get bytes offset)))
+    (Int32.logor
+       (Int32.shift_left (Int32.of_int (Char.code (Bytes.get bytes (offset + 1)))) 8)
+       (Int32.logor
+          (Int32.shift_left (Int32.of_int (Char.code (Bytes.get bytes (offset + 2)))) 16)
+          (Int32.shift_left (Int32.of_int (Char.code (Bytes.get bytes (offset + 3)))) 24)))
+let mesh_identity (mesh : mesh) =
+  mesh.key ^ ":" ^ Digest.to_hex (Digest.bytes mesh.vertices) ^ ":" ^
+  Digest.to_hex (Digest.bytes mesh.indices)
+let combine_meshes meshes =
+  let operation = "Scene_execution.combine_meshes" in
+  let valid_indices (mesh : mesh) =
+    let valid = ref true in
+    for index = 0 to mesh.index_count - 1 do
+      let value = Int32.to_int (u32_le mesh.indices (index * 4)) in
+      if value < 0 || value >= mesh.vertex_count then valid := false
+    done;
+    !valid
+  in
+  let rec plan vertex_bytes vertex_count index_count identities = function
+    | [] -> Ok (vertex_bytes, vertex_count, index_count, List.rev identities)
+    | (mesh : mesh) :: rest ->
+        if mesh.vertex_count <= 0 || Bytes.length mesh.vertices mod mesh.vertex_count <> 0 ||
+           Bytes.length mesh.indices <> mesh.index_count * 4 || not (valid_indices mesh) then
+          error operation Ogpu.Error.Invalid_argument "packed mesh cardinality is inconsistent"
+        else if vertex_bytes > Sys.max_string_length - Bytes.length mesh.vertices ||
+                vertex_count > Int32.to_int Int32.max_int - mesh.vertex_count ||
+                index_count > (Sys.max_string_length / 4) - mesh.index_count then
+          error operation Ogpu.Error.Capacity "combined mesh exceeds packed representation limits"
+        else
+          plan (vertex_bytes + Bytes.length mesh.vertices)
+            (vertex_count + mesh.vertex_count) (index_count + mesh.index_count)
+            (mesh_identity mesh :: identities) rest
+  in
+  match plan 0 0 0 [] meshes with
+  | Error _ as result -> result
+  | Ok (vertex_bytes, vertex_count, index_count, identities) ->
+      let vertices = Bytes.create vertex_bytes in
+      let indices = Bytes.create (index_count * 4) in
+      let rec copy vertex_offset vertex_base index_offset = function
+        | [] -> ()
+        | (mesh : mesh) :: rest ->
+            Bytes.blit mesh.vertices 0 vertices vertex_offset (Bytes.length mesh.vertices);
+            for index = 0 to mesh.index_count - 1 do
+              let source = Int32.to_int (u32_le mesh.indices (index * 4)) in
+              set_u32_le indices (index_offset + (index * 4))
+                (Int32.of_int (source + vertex_base))
+            done;
+            copy (vertex_offset + Bytes.length mesh.vertices)
+              (vertex_base + mesh.vertex_count) (index_offset + (mesh.index_count * 4)) rest
+      in
+      copy 0 0 0 meshes;
+      let identity = Digest.to_hex (Digest.string (String.concat "|" identities)) in
+      Ok { key = "batch:" ^ identity; vertices; vertex_count; indices; index_count }
+let same_optional_resource a b =
+  match a, b with None, None -> true | Some a, Some b -> a == b | _ -> false
+let coalesce_draws draws =
+  let stride (mesh : mesh) =
+    if mesh.vertex_count = 0 then 0 else Bytes.length mesh.vertices / mesh.vertex_count
+  in
+  let compatible (family, blend, texture, auxiliary, (draw : draw))
+      (next_family, next_blend, next_texture, next_auxiliary, (next_draw : draw)) =
+    family = next_family && blend = next_blend && draw.state = next_draw.state &&
+    stride draw.mesh = stride next_draw.mesh &&
+    same_optional_resource texture next_texture &&
+    same_optional_resource auxiliary next_auxiliary
+  in
+  let rec take first packed_bytes meshes = function
+    | next :: rest when compatible first next ->
+        let _, _, _, _, (draw : draw) = next in
+        let bytes=Bytes.length draw.mesh.vertices+Bytes.length draw.mesh.indices in
+        if packed_bytes <= cache_byte_capacity - bytes then
+          take first (packed_bytes + bytes) (draw.mesh :: meshes) rest
+        else List.rev meshes, next :: rest
+    | rest -> List.rev meshes, rest
+  in
+  let rec loop result = function
+    | [] -> Ok (List.rev result)
+    | ((family, blend, texture, auxiliary, (draw : draw)) as first) :: rest ->
+        let first_bytes=Bytes.length draw.mesh.vertices+Bytes.length draw.mesh.indices in
+        if first_bytes > cache_byte_capacity then
+          error "Scene_execution.coalesce" Ogpu.Error.Capacity "one mesh exceeds the batch byte capacity"
+        else
+        let meshes, rest = take first first_bytes [draw.mesh] rest in
+        match combine_meshes meshes with
+        | Error _ as result -> result
+        | Ok mesh -> loop ((family, blend, texture, auxiliary, {draw with mesh}) :: result) rest
+  in
+  loop [] draws
 let pass value state load clear=let texture=Ogpu.Backend.render_texture value.target~format:Ogpu.Render_pass.Rgba8~usage:Render_target in let x,y,width,height=state.viewport and sx,sy,sw,sh=state.scissor in Ogpu.Render_pass.create(Ogpu.Backend.device_handle value.device){colors=[|Some{texture;resolve=None;load;store=Store;clear}|];depth=None;stencil=None;viewport={x;y;width;height};scissor={x=sx;y=sy;width=sw;height=sh}}
 let render_resources ?(clear=(0.,0.,0.,0.)) value draws=if value.dead then error"Scene_execution.render"Ogpu.Error.Stale_handle"renderer is destroyed"else
   let valid_mesh(mesh:mesh)=mesh.key<>""&&mesh.vertex_count>0&&mesh.index_count>0&&Bytes.length mesh.vertices+Bytes.length mesh.indices>0 in
@@ -113,6 +212,7 @@ let render_resources ?(clear=(0.,0.,0.,0.)) value draws=if value.dead then error
   let valid=List.for_all(fun(_,_,texture,auxiliary,(draw:draw))->valid_mesh draw.mesh&&Option.fold~none:true~some:valid_texture texture&&Option.fold~none:true~some:(fun(source:auxiliary_resource)->source.key<>""&&Bytes.length source.buffer>0&&valid_texture source.texture)auxiliary)draws in
   if not supported then error"Scene_execution.render"Ogpu.Error.Unsupported"pipeline family/blend variant is unavailable"else
   if not valid then error"Scene_execution.render"Ogpu.Error.Invalid_argument"draw resource preflight failed"else
+  match coalesce_draws draws with Error _ as result -> result | Ok draws ->
   let deferred=ref[]in let defer release=deferred:=release::!deferred in let finish result=List.iter(fun release->release())!deferred;result in
   let rec prepare_all acc=function []->Ok(List.rev acc)|(family,blend,texture,auxiliary,(draw:draw))::rest->match prepare value~defer draw.mesh with Error _ as e->e|Ok mesh->match texture with Some source->(match prepare_texture value~defer source with Error _ as e->e|Ok texture->prepare_aux family blend auxiliary draw mesh (Some(source,texture)) acc rest)|None->prepare_aux family blend auxiliary draw mesh None acc rest
   and prepare_aux family blend auxiliary draw mesh texture acc rest=match auxiliary with None->prepare_all((family,blend,draw.state,texture,None,mesh)::acc)rest|Some source->match prepare_auxiliary value~defer source with Error _ as e->e|Ok buffer->match prepare_texture value~defer source.texture with Error _ as e->e|Ok texture2->prepare_all((family,blend,draw.state,texture,Some(source,buffer,texture2),mesh)::acc)rest in
