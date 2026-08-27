@@ -31,6 +31,35 @@ let ids =
   ; "method:-[MTLDevice newRasterizationRateMapWithDescriptor:]"
   ; "method:-[MTLDevice newRenderPipelineStateWithDescriptor:error:]" ]
 
+let already_safe_ids =
+  [ "method:-[MTLDevice accelerationStructureSizesWithDescriptor:]"
+  ; "method:-[MTLDevice functionHandleWithBinaryFunction:]"
+  ; "method:-[MTLDevice functionHandleWithFunction:]"
+  ; "method:-[MTLDevice heapAccelerationStructureSizeAndAlignWithDescriptor:]"
+  ; "method:-[MTLDevice heapAccelerationStructureSizeAndAlignWithSize:]"
+  ; "method:-[MTLDevice newAccelerationStructureWithDescriptor:]"
+  ; "method:-[MTLDevice newAccelerationStructureWithSize:]"
+  ; "method:-[MTLDevice newCounterHeapWithDescriptor:error:]"
+  ; "method:-[MTLDevice newCounterSampleBufferWithDescriptor:error:]"
+  ; "method:-[MTLDevice newFence]"
+  ; "method:-[MTLDevice newIOFileHandleWithURL:compressionMethod:error:]"
+  ; "method:-[MTLDevice newLogStateWithDescriptor:error:]"
+  ; "method:-[MTLDevice newMTL4CommandQueue]"
+  ; "method:-[MTLDevice newRasterizationRateMapWithDescriptor:]"
+  ; "method:-[MTLDevice newRenderPipelineStateWithDescriptor:error:]" ]
+
+let missing_safe_ids =
+  [ "method:-[MTLDevice newArgumentEncoderWithArguments:]"
+  ; "method:-[MTLDevice newCommandQueueWithDescriptor:]"
+  ; "method:-[MTLDevice newCommandQueueWithMaxCommandBufferCount:]"
+  ; "method:-[MTLDevice newDefaultLibrary]"
+  ; "method:-[MTLDevice newDefaultLibraryWithBundle:error:]"
+  ; "method:-[MTLDevice newIOHandleWithURL:compressionMethod:error:]"
+  ; "method:-[MTLDevice newIOHandleWithURL:error:]"
+  ; "method:-[MTLDevice newLibraryWithData:error:]"
+  ; "method:-[MTLDevice newLibraryWithFile:error:]"
+  ; "method:-[MTLDevice newLibraryWithStitchedDescriptor:error:]" ]
+
 type ownership =
   | Immutable_value
   | Owned_child
@@ -71,4 +100,9 @@ let validate () =
   if List.exists (fun id -> String.ends_with ~suffix:"completionHandler:]" id) ids then
     invalid_arg "Device residual safe slice contains an unowned callback constructor";
   if List.map (fun item -> item.id) obligations <> ids then
-    invalid_arg "Device residual obligation order drift"
+    invalid_arg "Device residual obligation order drift";
+  if List.length already_safe_ids <> 15 || List.length missing_safe_ids <> 10 then
+    invalid_arg "Device residual safe/missing partition drift";
+  if List.sort String.compare (already_safe_ids @ missing_safe_ids)
+     <> List.sort String.compare ids
+  then invalid_arg "Device residual safe/missing set equality drift"
