@@ -150,8 +150,7 @@ let normalize ~protocol ~case ~sample_index raw =
       "median_frame_seconds", seconds_metric raw ["median_frame_seconds"] ["median_ms"];
       "p95_frame_seconds", seconds_metric raw ["p95_frame_seconds"] ["p95_ms"];
       "p99_frame_seconds", seconds_metric raw ["p99_frame_seconds"] ["p99_ms"]];
-    "pacing", `Assoc ["scheduling", `String (if member "smoke" protocol = `Bool true
-        then "fixed-count" else "duration-bounded");
+    "pacing", `Assoc ["scheduling", string_or_null (first ["scheduling"] raw);
       "scheduled_frame_rate", number_or_null (first ["scheduled_frame_rate"] raw)];
     "memory", `Assoc ["allocated_bytes", metric raw ["allocated_bytes"; "allocated"];
       "promoted_bytes", metric raw ["promoted_bytes"; "promoted"];
@@ -404,14 +403,18 @@ let validate_report report =
       ;
       let pacing=member "pacing" sample in
       let scheduling=match pacing with `Assoc _->member "scheduling"pacing|_->`Null in
-      let expected_scheduling = if smoke then "fixed-count" else "duration-bounded" in
-      if scheduling<>`String expected_scheduling then
-        fail "%s/%s does not report %s scheduling"target scenario expected_scheduling;
+      if not smoke && scheduling<>`String"duration-bounded"then
+        fail "%s/%s does not report duration-bounded scheduling"target scenario;
       let frames=sample|>member "work"|>member "frame_count"|>to_int
       and wall=timing|>member "wall_seconds"|>to_float in
       if frames <= 0 then fail "%s/%s emitted no measured frames" target scenario;
-      if smoke && frames <> 3 then
-        fail "%s/%s smoke emitted %d frames, expected exactly 3" target scenario frames;
+      if smoke then begin
+        List.iter (fun field -> ignore (required_number ~target ~scenario "timing" field sample))
+          ["wall_seconds"; "cpu_seconds"; "median_frame_seconds";
+           "p95_frame_seconds"; "p99_frame_seconds"];
+        List.iter (fun field -> ignore (required_number ~target ~scenario "memory" field sample))
+          ["allocated_bytes_per_frame"; "promoted_bytes_per_frame"; "peak_rss_kib"]
+      end;
       if not smoke &&
          (wall < sample_seconds *. 0.90 || wall > sample_seconds *. 1.10) then
         fail "%s/%s wall interval %.3fs differs from requested %.3fs by more than 10%%"target scenario wall sample_seconds

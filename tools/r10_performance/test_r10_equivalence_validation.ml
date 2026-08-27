@@ -218,11 +218,14 @@ let () =
       if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
         failwith"mismatched Phase0 baseline resolution accepted";
       let smoke_samples = List.concat_map (fun target ->
-        List.map (fun scenario -> sample ~wall:0.0556 ~frames:3 ~scheduling:"fixed-count"
+        let scheduling, frames =
+          if target = "runtime-next-native" || target = "legacy"
+          then "duration-bounded", 7 else "fixed-count", 3 in
+        List.map (fun scenario -> sample ~wall:0.0556 ~frames ~scheduling
           ~target ~scenario ()) scenarios) targets in
       write valid (report ~sample_seconds:0.05 ~smoke:true smoke_samples);
       if run Sys.argv.(1) valid <> Unix.WEXITED 0 then
-        failwith"one-frame smoke wall quantization rejected";
+        failwith"mixed-scheduling positive-frame smoke rejected";
       let noisy_smoke = replace_cell ~target:"web" ~scenario:"scene3"
         (replace_field "timing" (`Assoc ["wall_seconds",`Float 0.0556;
           "cpu_seconds",`Float 99.; "median_frame_seconds",`Float 99.;
