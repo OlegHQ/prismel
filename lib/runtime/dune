@@ -23,6 +23,17 @@
  (modules sdl3_raster2_presenter)
  (libraries sdl3))
 
+(library
+ (name runtime_wap_raster2_presenter)
+ (public_name prismel.runtime.wap_raster2_presenter)
+ (modules wap_raster2_presenter)
+ (libraries wap))
+
+(test
+ (name test_wap_raster2_presenter)
+ (modules test_wap_raster2_presenter)
+ (libraries runtime_wap_raster2_presenter wap))
+
 (test
  (name test_sdl3_raster2_presenter)
  (modules test_sdl3_raster2_presenter)
