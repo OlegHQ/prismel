@@ -123,6 +123,8 @@ can change the denominator explicitly rather than being hidden.
 | `0dfc9ce` | 2026-08-27 10:24:40 +02:00 | 5,108 | 5,249 | 97.3138% | 3 | 0.030 | 100.9 | 1.92 |
 | `813e1da` | 2026-08-27 10:25:05 +02:00 | 5,115 | 5,249 | 97.4471% | 7 | 0.007 | 1,008.0 | 19.20 |
 | `544c2c2` | 2026-08-27 10:25:50 +02:00 | 5,120 | 5,249 | 97.5424% | 5 | 0.013 | 400.0 | 7.62 |
+| `ea48261` | 2026-08-27 10:28:05 +02:00 | 5,122 | 5,249 | 97.5805% | 2 | 0.038 | 53.3 | 1.02 |
+| `6ef8001` | 2026-08-27 10:30:12 +02:00 | 5,128 | 5,249 | 97.6948% | 6 | 0.035 | 170.1 | 3.24 |
 
 ## Current measured rate
 
@@ -257,6 +259,11 @@ They map to the existing owned layer, descriptor, sample-array snapshot, and
 map abstractions; a real Metal fixture proves both one- and two-layer graph
 construction, device identity, physical-size queries, and explicit capability
 rejection.
+
+The `ea48261` interval closes the two exact legacy Device IO constructors.
+The `6ef8001` interval then promotes the six residual StageInputOutput and
+ComputePass descriptor/array classes already represented by their checked,
+owned safe descriptor graphs and native conformance fixtures.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
