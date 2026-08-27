@@ -23,21 +23,25 @@ the SHA-256 of each raw result file.
 
 After the lifetime fix in `57a0ffd`, `6353a8e` deterministically coalesces
 compatible consecutive meshes, rebases their packed indices, and caches the
-combined upload. Three measured frames produced:
+combined upload. `998d3bb` then adds an explicit stable identity/version lookup
+before traversal, digesting, concatenation, or index rebasing. One hundred
+measured warm frames produced:
 
 | Median | p95 / p99 | FPS | CPU | Allocated | RSS | Upload after warmup | Draws / passes / backend calls |
 |---:|---:|---:|---:|---:|---:|---:|---:|
-| 49.115 ms | 51.866 / 51.866 ms | 20.30 | 98.68% | 288.22 MB | 157,456 KiB | 0 B | 3 / 3 / 3 |
+| 13.396 ms | 14.186 / 14.702 ms | 75.67 | 94.82% | 1.416 GB | 191,120 KiB | 0 B | 100 / 100 / 100 |
 
 The 18,278 source pieces become one 7,069,128-byte cached packed batch and one
 indexed draw per frame. The persistent cache remains bounded at 64 entries and
 256 MiB; current-frame resources remain retained through completion/present.
 All measured frames hit the combined cache and perform zero replacement upload.
-Median latency improved by about 70.7x versus the non-coalesced correctness
-checkpoint, while RSS fell from 290,864 to 157,456 KiB. This closes the specific
-buffer/encoder-call structural defect, but remains diagnostic rather than a
-full R11 pass: CPU use and OCaml preparation allocation are still material, and
-the frozen longer benchmark/legacy comparison protocol is not represented.
+Median latency improved by about 3.67x over the content-digest fallback and
+259x over the original non-coalesced correctness checkpoint. OCaml allocation
+fell from about 96.1 MB to 14.2 MB per warm frame. The remaining allocation and
+CPU time are downstream command/native presentation costs rather than repeat
+7 MB mesh materialization. This closes the specific buffer/encoder-call and
+warm materialization defects, but remains diagnostic rather than a full R11
+pass: the frozen longer benchmark/legacy comparison protocol is not represented.
 
 ## Reproduction and limits
 
@@ -47,8 +51,8 @@ opam exec -- dune build --profile release \
 _build/default/tools/runtime_next_native_benchmark/runtime_next_native_benchmark.exe \
   basic --warmup 3 --samples 20 --report _build/native-basic.json
 _build/default/tools/runtime_next_native_benchmark/runtime_next_native_benchmark.exe \
-  shattered --warmup 1 --samples 3 \
-  --report _build/native-bench-results/shattered-fixed.json
+  shattered --warmup 1 --samples 100 \
+  --report _build/native-bench-results/shattered-prepared.json
 ```
 
 Host: Macmini9,1, Apple M1, 16 GiB, macOS 26.4.1 (25E253), OCaml 5.3.0.
