@@ -23,7 +23,10 @@ let prepare t ~key ~topology ~vertices ~indices =
   if not (Array.for_all (fun (v:Scene3.vertex) -> finite v.x && finite v.y && finite v.z && finite v.u && finite v.v) vertices)
   || Array.exists (fun index -> index < 0 || index >= Array.length vertices) indices then Error Invalid_mesh else
   let cardinality_ok = match topology with Scene3.Triangle_list -> Array.length indices mod 3 = 0
-    | Triangle_strip | Triangle_fan -> Array.length indices = 0 || Array.length indices >= 3 in
+    | Triangle_strip | Triangle_fan -> Array.length indices = 0 || Array.length indices >= 3
+    | Point_list -> true
+    | Line_list -> Array.length indices mod 2 = 0
+    | Line_strip | Line_loop -> true in
   if not cardinality_ok then Error Invalid_mesh else
   let bytes = mesh_bytes vertices indices in
   let mesh = { topology; vertices=Array.copy vertices; indices=Array.copy indices } in

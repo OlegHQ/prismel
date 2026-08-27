@@ -33,7 +33,7 @@ let lights values =
 let fog=function None->Ok Raster2.Scene3_lighting.No_fog|Some value->match value.Fog3.mode with
   | Linear{start;end_}->Ok(Linear{color=color value.color;near=start;far=end_})
   | Exponential _|Exponential_squared _->Error Unsupported_fog
-let topology=function Mesh.Triangles->Ok Raster2.Scene3.Triangle_list|Triangle_strip->Ok Triangle_strip|Triangle_fan->Ok Triangle_fan|_->Error Unsupported_mode
+let topology=function Mesh.Points->Ok Raster2.Scene3.Point_list|Lines->Ok Line_list|Line_strip->Ok Line_strip|Line_loop->Ok Line_loop|Triangles->Ok Triangle_list|Triangle_strip->Ok Triangle_strip|Triangle_fan->Ok Triangle_fan
 let matrix_array value=Array.init 16(fun index->Mat4.get value~row:(index/4)~column:(index mod 4))
 let depth_zero_to_one=Mat4.of_rows(1.,0.,0.,0.)(0.,1.,0.,0.)(0.,0.,0.5,0.5)(0.,0.,0.,1.)
 
@@ -48,8 +48,7 @@ let prepare ~resources ~camera ~viewport scene =
     let preflight=List.find_map(fun(drawing:Scene3.Private.drawing)->
       if drawing.shader<>None then Some Unsupported_shader else
       match Mesh.mode drawing.mesh with
-      | Mesh.Points|Lines|Line_strip|Line_loop->Some Unsupported_mode
-      | Triangles|Triangle_strip|Triangle_fan->
+      | Mesh.Points|Lines|Line_strip|Line_loop|Triangles|Triangle_strip|Triangle_fan->
           let mesh=Mesh.Private.view drawing.mesh in
           if mesh.colors<>None then Some Invalid_mesh else None)descriptions in
     match preflight with Some error->Error error|None->
@@ -196,6 +195,69 @@ let self_test () =
       if Domain.join worker <> expected_topology then
         failwith "strip/fan lowering domain drift")
     topology_workers;
+  let source_mesh mode indices =
+    Mesh.create_exn ~mode ~indices ~normals:quad_normals quad_vertices
+  in
+  let source_topologies =
+    [
+      (Mesh.Points, [ 0; 1; 2; 3 ], Raster2.Scene3.Point_list);
+      (Mesh.Lines, [ 0; 1; 1; 3; 3; 2 ], Raster2.Scene3.Line_list);
+      (Mesh.Line_strip, [ 0; 1; 3; 2 ], Raster2.Scene3.Line_strip);
+      (Mesh.Line_loop, [ 0; 1; 3; 2 ], Raster2.Scene3.Line_loop);
+    ]
+  in
+  let source_nodes =
+    List.concat_map
+      (fun (source_mode, indices, _) ->
+        let source = source_mesh source_mode indices in
+        [
+          Scene3.with_raster custom_raster
+            [ Scene3.mesh ~material ~mode:Faces source ];
+          Scene3.with_raster custom_raster
+            [ Scene3.mesh ~material ~mode:Wireframe source ];
+          Scene3.with_raster custom_raster
+            [ Scene3.mesh ~material ~mode:Vertices source ];
+        ])
+      source_topologies
+  in
+  let source_scene = Scene3.create source_nodes in
+  let source_prepared =
+    match
+      lower_view3d ~resources ~default_viewport:(0, 0, 16, 16)
+        (View3d (camera, source_scene, None))
+    with
+    | Ok value -> value
+    | Error _ -> failwith "point/line topology lowering"
+  in
+  if Array.length source_prepared.draws <> 12 then
+    failwith "point/line draw cardinality";
+  List.iteri
+    (fun source_index (_, _, expected_topology) ->
+      List.iteri
+        (fun mode_index expected_mode ->
+          let draw = source_prepared.draws.((source_index * 3) + mode_index) in
+          if draw.topology <> expected_topology || draw.mode <> expected_mode then
+            failwith "public point/line mode lost";
+          if draw.line_width <> 3. || draw.point_size <> 5. then
+            failwith "public point/line raster size lost")
+        [
+          Raster2.Scene3_consumer.Faces;
+          Raster2.Scene3_consumer.Wireframe;
+          Raster2.Scene3_consumer.Vertices;
+        ])
+    source_topologies;
+  let source_snapshot () = Marshal.to_bytes source_prepared [] in
+  let expected_source = source_snapshot () in
+  for _frame = 1 to 600 do
+    if source_snapshot () <> expected_source then
+      failwith "point/line lowering frame drift"
+  done;
+  let source_workers = Array.init 4 (fun _ -> Domain.spawn source_snapshot) in
+  Array.iter
+    (fun worker ->
+      if Domain.join worker <> expected_source then
+        failwith "point/line lowering domain drift")
+    source_workers;
   let state_snapshot()=match lower_view3d~resources~default_viewport:(0,0,16,16)
     (View3d(camera,state_scene,None))with
     | Ok value->Marshal.to_bytes value[]|Error _->Bytes.empty in

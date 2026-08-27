@@ -142,8 +142,71 @@ let test_case (topology, indices, expanded, name) =
   in
   if front = back then failwith (name ^ " winding/cull state ignored")
 
+let non_triangle_cases =
+  [
+    (Scene3.Point_list, [| 0; 1; 2; 3 |], None, "points");
+    (Scene3.Line_list, [| 0; 1; 1; 3; 3; 2 |], None, "line list");
+    ( Scene3.Line_strip,
+      [| 0; 1; 3; 2 |],
+      Some [| 0; 1; 1; 3; 3; 2 |],
+      "line strip" );
+    ( Scene3.Line_loop,
+      [| 0; 1; 3; 2 |],
+      Some [| 0; 1; 1; 3; 3; 2; 2; 0 |],
+      "line loop" );
+  ]
+
+let test_non_triangle (topology, indices, expanded, name) =
+  let snapshots =
+    List.map
+      (fun mode ->
+        let expected = render_case topology indices mode ~line_width:3. ~point_size:4. in
+        for _frame = 1 to 600 do
+          if render_case topology indices mode ~line_width:3. ~point_size:4. <> expected then
+            failwith (name ^ " frame drift")
+        done;
+        let workers =
+          Array.init 4 (fun _ ->
+              Domain.spawn (fun () ->
+                  render_case topology indices mode ~line_width:3. ~point_size:4.))
+        in
+        Array.iter
+          (fun worker ->
+            if Domain.join worker <> expected then failwith (name ^ " domain drift"))
+          workers;
+        expected)
+      [ Scene3_consumer.Faces; Wireframe; Vertices ]
+  in
+  begin
+    match snapshots with
+    | faces :: wireframe :: vertices :: [] ->
+        if faces <> wireframe then failwith (name ^ " Faces/Wireframe semantics drift");
+        if topology = Scene3.Point_list && wireframe <> vertices then
+          failwith "point mode semantics drift"
+    | _ -> assert false
+  end;
+  begin
+    match expanded with
+    | None -> ()
+    | Some line_list ->
+        List.iter
+          (fun mode ->
+            let source = render_case topology indices mode ~line_width:3. ~point_size:4. in
+            let canonical =
+              render_case Scene3.Line_list line_list mode ~line_width:3. ~point_size:4.
+            in
+            if source <> canonical then failwith (name ^ " stable line expansion drift"))
+          [ Scene3_consumer.Faces; Wireframe; Vertices ]
+  end;
+  let thin = render_case topology indices Faces ~line_width:1. ~point_size:1. in
+  let thick = render_case topology indices Faces ~line_width:5. ~point_size:5. in
+  if changed_pixels thick <= changed_pixels thin then
+    failwith (name ^ " source width/size ignored");
+  if not (changed_depth thin) then failwith (name ^ " source depth state ignored")
+
 let () =
   List.iter test_case cases;
+  List.iter test_non_triangle non_triangle_cases;
   let target = ok (Surface.create ~width:2 ~height:2 ()) in
   let before = Bytes.copy (Surface.bytes target) in
   ok
