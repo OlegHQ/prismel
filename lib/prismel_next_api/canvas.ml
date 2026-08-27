@@ -24,7 +24,9 @@ let map_pixels value operation=let w,h=size value in for y=0 to h-1 do for x=0 t
 let apply_mask ~source ~mask=let sw,sh=size source and mw,mh=size mask in if(sw,sh)<>(mw,mh)then invalid_arg"Canvas.apply_mask";
   for y=0 to sh-1 do for x=0 to sw-1 do match pixel source ~x ~y,pixel mask ~x ~y with
   |Some src,Some m->set_pixel source ~x ~y(Color.with_alpha src(src.a*m.a/255))|_->()done done
-let to_image value=match Prismel_next_resources.Canvas.capture value.resource with Ok image->Ok image|Error error->Error(message"Canvas.to_image"error)
+let to_image value=match Prismel_next_resources.Canvas.capture value.resource with
+  |Ok image->Ok(Image.Private.of_resource image)
+  |Error error->Error(message"Canvas.to_image"error)
 let save_png value path=match Prismel_next_resources.Canvas.save_png value.resource path with Ok()->Ok()|Error error->Error(message"Canvas.save_png"error)
 let write_bytes value bytes=let w,h=size value in if Bytes.length bytes<>w*h*4 then invalid_arg"Canvas.write_bytes";
  for y=0 to h-1 do for x=0 to w-1 do let o=(y*w+x)*4 in set_pixel value~x~y(Color.rgba(Char.code(Bytes.get bytes o))(Char.code(Bytes.get bytes(o+1)))(Char.code(Bytes.get bytes(o+2)))(Char.code(Bytes.get bytes(o+3))))done done

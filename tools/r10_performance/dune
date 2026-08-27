@@ -12,7 +12,7 @@
   r10_scene2_candidate
   r10_scene3_legacy_equivalent r10_scene3_equivalence_bridge)
  (libraries runtime_next_headless runtime_next_web prismel_next_api
-  scene_execution ogpu wap unix yojson))
+  pxui_next scene_execution ogpu wap unix yojson))
 
 (test
  (name test_r10_scene2_legacy_equivalent)

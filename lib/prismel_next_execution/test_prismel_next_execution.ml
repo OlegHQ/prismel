@@ -85,6 +85,11 @@ let () =
   for index=1 to 300 do let temporary=Result.get_ok(Prismel_next_resources.Image.create~width:1~height:1~rgba:(Bytes.make 4(Char.chr(index land 255))))in
     ignore(get(lower_scene2 resource_runtime~density:1~resource:(fun _->Some(Image temporary))image_ir));ignore(Prismel_next_resources.Image.destroy temporary)done;
   check(snapshot_cache_entries resource_runtime<=256)"snapshot LRU bound";
+  let outside=Result.get_ok(Raster2.Render_ir.create[|
+    Push_clip{x=100.;y=100.;width=20.;height=20.};geometry;Pop_clip|])in
+  let outside_draws=get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)outside)in
+  check(outside_draws=[])"fully clipped Scene2 draw must be elided";
+  ignore(get(step resource_runtime outside_draws));
   ignore(Prismel_next_resources.Image.destroy image);ignore(Prismel_next_resources.Canvas.destroy canvas);
   get(destroy resource_runtime);
   let bounded=get(create{configuration with max_events=64})in

@@ -14,4 +14,5 @@ let render ~width ~height ~camera scene =
       ~clear_depth:prepared.clear_depth~clear_stencil:prepared.clear_stencil
       ~draws:prepared.draws|>Result.get_ok;
     let rgba=Bytes.copy(Raster2.Surface.bytes color)in
-    Prismel_next_resources.Image.create~width~height~rgba|>Result.get_ok)
+    Prismel_next_resources.Image.create~width~height~rgba|>Result.get_ok
+    |>Image.Private.of_resource)

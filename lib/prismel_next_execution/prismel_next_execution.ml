@@ -146,9 +146,11 @@ let snapshot value ~density source =
 let lower_scene2 value ~density ~resource:resolve ir =
   match ensure"Prismel_next_execution.lower_scene2"value with Error _ as e->e|Ok()->
   let identity={Raster2.Render_ir.xx=1.;xy=0.;yx=0.;yy=1.;tx=0.;ty=0.}in
-  let transforms=ref[identity]and clips=ref[(0,0,-1,-1)]and draws=ref[]and number=ref 0 and failure=ref None in
+  let facts=Runtime_next_orchestrator.facts value.runtime|>Result.get_ok in
+  let transforms=ref[identity]and clips=ref[(0,0,facts.drawable_width,facts.drawable_height)]and draws=ref[]and number=ref 0 and failure=ref None in
   let point transform x y=transform.Raster2.Render_ir.xx*.x+.transform.yx*.y+.transform.tx,
     transform.xy*.x+.transform.yy*.y+.transform.ty in
+  let clip_live()=let _,_,width,height=List.hd!clips in width>0&&height>0 in
   let quad texture (destination:Raster2.Render_ir.rect) =
     let transform=List.hd!transforms in
     let x0,y0=point transform destination.Raster2.Render_ir.x destination.y
@@ -176,11 +178,16 @@ let lower_scene2 value ~density ~resource:resolve ir =
     |Raster2.Render_ir.Clear _|Set_blend _->()
     |Push_transform transform->transforms:=compose(List.hd!transforms)transform::!transforms
     |Pop_transform->(match!transforms with _::(_::_ as rest)->transforms:=rest|_->())
-    |Push_clip rect->clips:=(int_of_float(floor rect.x),int_of_float(floor rect.y),max 0(int_of_float(ceil rect.width)),max 0(int_of_float(ceil rect.height)))::!clips
+    |Push_clip rect->let px,py,pw,ph=List.hd!clips and x=int_of_float(floor rect.x)
+      and y=int_of_float(floor rect.y)and right=int_of_float(ceil(rect.x+.rect.width))
+      and bottom=int_of_float(ceil(rect.y+.rect.height))in
+      let x=min(px+pw)(max px x)and y=min(py+ph)(max py y)in
+      let right=min(px+pw)right and bottom=min(py+ph)bottom in
+      clips:=(x,y,max 0(right-x),max 0(bottom-y))::!clips
     |Pop_clip->(match!clips with _::(_::_ as rest)->clips:=rest|_->())
-    |Geometry geometry->draws:=mesh_of_geometry!number(List.hd!transforms)(List.hd!clips)geometry::!draws;incr number
-    |Image command->image command
-    |Glyphs glyphs->if Array.length glyphs.glyphs>0 then match resolve glyphs.resource_id with None->failure:=Some"glyph resource id is unbound"|Some source->
+    |Geometry geometry->if clip_live()then(draws:=mesh_of_geometry!number(List.hd!transforms)(List.hd!clips)geometry::!draws;incr number)
+    |Image command->if clip_live()then image command
+    |Glyphs glyphs->if clip_live()&&Array.length glyphs.glyphs>0 then match resolve glyphs.resource_id with None->failure:=Some"glyph resource id is unbound"|Some source->
         match snapshot value~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
           Array.iter(fun(glyph:Raster2.Render_ir.glyph)->let destination={Raster2.Render_ir.x=glyph.x;y=glyph.y;width=float width;height=float height}in draws:=quad texture destination::!draws;incr number)glyphs.glyphs)
     (Raster2.Render_ir.commands ir);

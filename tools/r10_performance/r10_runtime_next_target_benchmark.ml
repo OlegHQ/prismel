@@ -13,10 +13,6 @@ let artifact scenario width height =
       let scenario = match value with "basic" -> R10_scene2_legacy_equivalent.Basic
         | "pxui" -> Pxui | _ -> Canvas in
       let descriptor=R10_scene2_legacy_equivalent.describe scenario ~width ~height in
-      if scenario=R10_scene2_legacy_equivalent.Pxui then
-        invalid_arg(Printf.sprintf
-          "R10 candidate %s interpreter incomplete for %s (features: %s)" value
-          descriptor.semantic_signature (String.concat "," descriptor.required_features));
       {draws=[];workload_signature=descriptor.semantic_signature;
         work_units=descriptor.work_units}
   | "scene3" ->
@@ -57,6 +53,7 @@ let () =
   let candidate = match !scenario with
     |"basic"->Some(Result.get_ok(R10_scene2_candidate.create ~target:(match!target with Headless->`Headless|Web->`Web)~width:!width~height:!height Basic))
     |"canvas"->Some(Result.get_ok(R10_scene2_candidate.create ~target:(match!target with Headless->`Headless|Web->`Web)~width:!width~height:!height Canvas))
+    |"pxui"->Some(Result.get_ok(R10_scene2_candidate.create ~target:(match!target with Headless->`Headless|Web->`Web)~width:!width~height:!height Pxui))
     |_->None in
   let sampled_scene3 =
     List.map
