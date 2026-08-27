@@ -17,17 +17,9 @@ let compare_group (left : group_entry) (right : group_entry) = Int.compare left.
 
 let create_layout entries =
   let entries = List.sort compare_layout entries in
-  let rec validate previous (remaining : layout_entry list) = match remaining with
-    | [] -> Ok entries
-    | value :: _ when value.binding < 0 -> invalid "Ogpu.Binding.create_layout" "binding is negative"
-    | value :: _ when value.visibility = [] -> invalid "Ogpu.Binding.create_layout" "visibility is empty"
-    | value :: _ when List.sort_uniq compare value.visibility <> value.visibility ->
-        invalid "Ogpu.Binding.create_layout" "visibility must be sorted and unique"
-    | value :: _ when previous = Some value.binding ->
-        invalid "Ogpu.Binding.create_layout" "duplicate binding"
-    | value :: rest -> validate (Some value.binding) rest
-  in
-  validate None entries
+  let stage=function Vertex->0|Fragment->1|Compute->2 in
+  Result.map(fun()->entries)(Validation.validate_layout~operation:"Ogpu.Binding.create_layout"
+    (List.map(fun(value:layout_entry)->value.binding,List.map stage value.visibility)entries))
 
 let layout_entries value = value
 
@@ -35,16 +27,8 @@ let create_pipeline_layout ~device ~capabilities groups =
   if Handle.device_destroyed device then stale "Ogpu.Binding.create_pipeline_layout" "device is destroyed"
   else
     let groups = List.sort (fun (left, _) (right, _) -> Int.compare left right) groups in
-    if List.length groups > capabilities.Capabilities.limits.max_bind_groups then
-      Error (Error.make "Ogpu.Binding.create_pipeline_layout" Error.Capacity "bind-group limit exceeded")
-    else
-      let rec validate expected = function
-        | [] -> Ok { device; capabilities; groups }
-        | (group, _) :: _ when group <> expected ->
-            invalid "Ogpu.Binding.create_pipeline_layout" "groups must be contiguous from zero"
-        | _ :: rest -> validate (expected + 1) rest
-      in
-      validate 0 groups
+    Result.map(fun()->{device;capabilities;groups})(Validation.validate_groups
+      ~operation:"Ogpu.Binding.create_pipeline_layout"~max_groups:capabilities.Capabilities.limits.max_bind_groups(List.map fst groups))
 
 let pipeline_layouts value = List.map (fun (group, layout) -> group, layout) value.groups
 let buffer handle = Resource (Buffer, handle)

@@ -9,6 +9,9 @@ let error operation kind message = Error (Ogpu.Error.make operation kind message
 let metal_format = function R8_unorm->Metal.Texture.R8_unorm|Rgba8_unorm->Metal.Texture.Rgba8_unorm|Bgra8_unorm->Metal.Texture.Bgra8_unorm|Rgba16_float->Metal.Texture.Rgba16_float|Depth32_float->Metal.Texture.Depth32_float
 let bytes_per_pixel = function R8_unorm->1|Rgba8_unorm|Bgra8_unorm|Depth32_float->4|Rgba16_float->8
 let add_unique x xs = if List.mem x xs then xs else x :: xs
+let validation_format=function R8_unorm->Ogpu.Validation.R8_unorm|Rgba8_unorm->Rgba8_unorm|Bgra8_unorm->Bgra8_unorm|Rgba16_float->Rgba16_float|Depth32_float->Depth32_float
+let validation_storage=function Device_local->Ogpu.Validation.Device_local|Shared->Shared
+let validation_usage=function Ogpu.Types.Texture_binding->Ogpu.Validation.Binding|Render_attachment->Attachment|Texture_copy_src->Copy_src|Texture_copy_dst->Copy_dst
 
 let validate_descriptor (value : Ogpu.Types.texture_descriptor) format =
   let operation="Ogpu_metal.Texture.create" in
@@ -29,6 +32,10 @@ let create device ~memory ~format ?(view_formats=[]) descriptor =
   let operation="Ogpu_metal.Texture.create" in
   if Device.destroyed device then error operation Ogpu.Error.Stale_handle "device is destroyed"
   else match Ogpu.Types.validate_texture (Device.capabilities device) descriptor with Error _ as e->e|Ok()->
+    let profile:Ogpu.Validation.texture_profile={format=validation_format format;storage=validation_storage memory;
+      width=descriptor.width;height=descriptor.height;depth=descriptor.depth;mip_levels=descriptor.mip_levels;
+      sample_count=descriptor.sample_count;usage=List.map validation_usage descriptor.usage}in
+    match Ogpu.Validation.validate_texture_profile(Device.capabilities device)profile with Error _ as e->e|Ok()->
     match validate_descriptor descriptor format with Error _ as e->e|Ok()->
     let storage=match memory with Device_local->Metal.Buffer.Private|Shared->Metal.Buffer.Shared in
     let native_usage=usage descriptor.usage |> fun values -> if view_formats=[] then values else add_unique Metal.Texture.Pixel_format_view values in
