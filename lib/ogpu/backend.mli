@@ -4,7 +4,7 @@ type command =
   | Compute of Compute_pass.description
   | Render of Render_pass.descriptor
 type receipt = { epoch:int64 }
-type driver_resource = { token:token; destroy:unit -> (unit,Error.t) result }
+type driver_resource = { token:token; write:int64 -> bytes -> (unit,Error.t) result; read:int64 -> int -> (bytes,Error.t) result; destroy:unit -> (unit,Error.t) result }
 type driver_pipeline = { pipeline_token:token; destroy_pipeline:unit -> (unit,Error.t) result }
 type driver_frame = { frame_token:token }
 type driver_surface =
@@ -20,7 +20,7 @@ type driver_queue =
   ; complete_through:int64 -> (unit,Error.t) result
   ; destroy_queue:unit -> (unit,Error.t) result }
 type driver_device =
-  { device_token:token; capabilities:Capabilities.t
+  { device_token:token; device_handle:Handle.device; capabilities:Capabilities.t
   ; create_buffer:Types.buffer_descriptor -> (driver_resource,Error.t) result
   ; create_texture:Types.texture_descriptor -> (driver_resource,Error.t) result
   ; create_pipeline:Pipeline.t -> (driver_pipeline,Error.t) result
@@ -49,6 +49,11 @@ val transfer_buffer : buffer -> Transfer_pass.buffer
 val transfer_texture : texture -> Transfer_pass.texture
 val binding_buffer : buffer -> Binding.resource
 val binding_texture : texture -> Binding.resource
+val buffer_id : buffer -> int64
+val render_texture : texture -> format:Render_pass.format -> usage:Render_pass.usage -> Render_pass.texture
+val write_buffer : buffer -> offset:int64 -> bytes -> (unit,Error.t) result
+val read_buffer : buffer -> offset:int64 -> length:int -> (bytes,Error.t) result
+val read_texture : texture -> bytes_per_row:int -> (bytes,Error.t) result
 val transfer : Transfer_pass.t -> (command,Error.t) result
 val compute : Compute_pass.t -> command
 val render : Render_pass.t -> command

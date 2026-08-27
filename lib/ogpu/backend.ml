@@ -1,12 +1,12 @@
 type token=int64
 type command=Transfer of Transfer_pass.description array|Compute of Compute_pass.description|Render of Render_pass.descriptor
 type receipt={epoch:int64}
-type driver_resource={token:token;destroy:unit->(unit,Error.t)result}
+type driver_resource={token:token;write:int64->bytes->(unit,Error.t)result;read:int64->int->(bytes,Error.t)result;destroy:unit->(unit,Error.t)result}
 type driver_pipeline={pipeline_token:token;destroy_pipeline:unit->(unit,Error.t)result}
 type driver_frame={frame_token:token}
 type driver_surface={surface_token:token;configure:Surface.configuration->(unit,Error.t)result;acquire:unit->([`Acquired of driver_frame|`Timeout|`Occluded|`Device_lost],Error.t)result;present:driver_frame->(unit,Error.t)result;discard:driver_frame->(unit,Error.t)result;destroy_surface:unit->(unit,Error.t)result}
 type driver_queue={queue_token:token;submit:command->resources:(int64*token)list->pipelines:token list->(receipt,Error.t)result;complete_through:int64->(unit,Error.t)result;destroy_queue:unit->(unit,Error.t)result}
-type driver_device={device_token:token;capabilities:Capabilities.t;create_buffer:Types.buffer_descriptor->(driver_resource,Error.t)result;create_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_pipeline:Pipeline.t->(driver_pipeline,Error.t)result;create_queue:unit->(driver_queue,Error.t)result;create_surface:Surface.configuration->(driver_surface,Error.t)result;destroy_device:unit->(unit,Error.t)result}
+type driver_device={device_token:token;device_handle:Handle.device;capabilities:Capabilities.t;create_buffer:Types.buffer_descriptor->(driver_resource,Error.t)result;create_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_pipeline:Pipeline.t->(driver_pipeline,Error.t)result;create_queue:unit->(driver_queue,Error.t)result;create_surface:Surface.configuration->(driver_surface,Error.t)result;destroy_device:unit->(unit,Error.t)result}
 type driver={create_device:unit->(driver_device,Error.t)result}
 type device={raw:driver_device;handle:Handle.device;mutable children:int;mutable dead:bool}
 type resource={raw:driver_resource;handle:unit Handle.t;device:device;mutable dead:bool}
@@ -17,7 +17,7 @@ type queue={raw:driver_queue;device:device;mutable dead:bool}
 type surface={raw:driver_surface;device:device;mutable dead:bool;mutable frames:int}
 type frame={raw:driver_frame;surface:surface;mutable consumed:bool}
 let error op kind text=Error(Error.make op kind text)
-let create_device driver=match driver.create_device()with Error _ as e->e|Ok raw->match Capabilities.validate raw.capabilities with Error _ as e->e|Ok()->Ok{raw;handle=Handle.create_device();children=0;dead=false}
+let create_device driver=match driver.create_device()with Error _ as e->e|Ok raw->match Capabilities.validate raw.capabilities with Error _ as e->e|Ok()->Ok{raw;handle=raw.device_handle;children=0;dead=false}
 let capabilities (value:device)=value.raw.capabilities
 let device_handle (value:device)=value.handle
 let live op (device:device)=if device.dead then error op Error.Stale_handle"device is destroyed"else Ok()
@@ -31,6 +31,11 @@ let transfer_buffer (value:buffer)=Transfer_pass.buffer~device:value.resource.de
 let transfer_texture (value:texture)=Transfer_pass.texture~device:value.resource.device.handle value.resource.handle value.texture_descriptor
 let binding_buffer (value:buffer)=Binding.buffer value.resource.handle
 let binding_texture (value:texture)=Binding.texture value.resource.handle
+let buffer_id (value:buffer)=Handle.id value.resource.handle
+let render_texture (value:texture) ~format ~usage={Render_pass.id=Handle.id value.resource.handle;handle=value.resource.handle;format;samples=value.texture_descriptor.sample_count;width=value.texture_descriptor.width;height=value.texture_descriptor.height;usage=[usage]}
+let write_buffer (value:buffer) ~offset bytes=if value.resource.dead then error"Backend.write_buffer"Error.Stale_handle"buffer is destroyed"else value.resource.raw.write offset bytes
+let read_buffer (value:buffer) ~offset ~length=if value.resource.dead then error"Backend.read_buffer"Error.Stale_handle"buffer is destroyed"else value.resource.raw.read offset length
+let read_texture (value:texture) ~bytes_per_row=if value.resource.dead then error"Backend.read_texture"Error.Stale_handle"texture is destroyed"else if bytes_per_row<=0||value.texture_descriptor.height>max_int/bytes_per_row then error"Backend.read_texture"Error.Invalid_argument"row pitch is invalid"else value.resource.raw.read 0L(bytes_per_row*value.texture_descriptor.height)
 let transfer pass=Result.map(fun x->Transfer x)(Transfer_pass.finish pass)
 let compute pass=Compute(Compute_pass.describe pass)
 let render pass=Render(Render_pass.descriptor pass)
@@ -48,4 +53,4 @@ let destroy_texture (value:texture)=destroy_resource value.resource
 let destroy_pipeline (value:pipeline)=if value.dead then Ok()else match value.pipeline_driver.destroy_pipeline()with Error _ as e->e|Ok()->value.dead<-true;value.device.children<-value.device.children-1;Ok()
 let destroy_queue (value:queue)=if value.dead then Ok()else match value.raw.destroy_queue()with Error _ as e->e|Ok()->value.dead<-true;value.device.children<-value.device.children-1;Ok()
 let destroy_surface (value:surface)=if value.dead then Ok()else if value.frames<>0 then error"Backend.destroy_surface"Error.Invalid_state"surface has acquired frames"else match value.raw.destroy_surface()with Error _ as e->e|Ok()->value.dead<-true;value.device.children<-value.device.children-1;Ok()
-let destroy_device (value:device)=if value.dead then Ok()else if value.children<>0 then error"Backend.destroy_device"Error.Invalid_state"device has live children"else match value.raw.destroy_device()with Error _ as e->e|Ok()->value.dead<-true;Handle.destroy_device value.handle;Ok()
+let destroy_device (value:device)=if value.dead then Ok()else if value.children<>0 then error"Backend.destroy_device"Error.Invalid_state"device has live children"else match value.raw.destroy_device()with Error _ as e->e|Ok()->value.dead<-true;Ok()
