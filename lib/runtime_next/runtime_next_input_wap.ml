@@ -15,8 +15,8 @@ let translate = function
       Some (Pointer_released (button value, float x, float y))
   | Pointer_cancelled value -> Some (Pointer_cancelled (button value))
   | Wheel (x, y) -> Some (Wheel (float x, float y))
-  | Key_pressed key -> Some (Key_pressed key)
-  | Key_released key -> Some (Key_released key)
+  | Key_pressed key -> Some (Key_pressed {key;modifiers=[];repeat=false})
+  | Key_released key -> Some (Key_released {key;modifiers=[];repeat=false})
   | Text_input text -> Some (Text_input text)
   | Text_editing { text; start; length } ->
       Some (Text_editing { text; start; length })

@@ -31,7 +31,7 @@ let sdl_fixture iteration =
 let wap_fixture =
   [ Wap.Pointer_moved (7, 11); Pointer_pressed (Left, 7, 11);
     Pointer_moved (9, 14); Pointer_released (Left, 9, 14);
-    Wheel (1, -2); Key_pressed "65"; Key_released "65"; Text_input "a";
+    Wheel (1, -2); Key_pressed "a"; Key_released "a"; Text_input "a";
     Text_editing { text = "ab"; start = 1; length = 1 };
     Resized (20, 10); Focus_lost ]
 
@@ -77,6 +77,42 @@ let () =
       when Bytes.to_string copy = "payload" -> ()
     | _ -> failwith "file-drop bytes were not copied into bounded ownership"
   end;
+  let timestamp_ns=0L and window_id=1L and which=1L in
+  let named=[40,"Enter";41,"Escape";42,"Backspace";43,"Tab";44,"Space";
+    58,"F1";59,"F2";60,"F3";61,"F4";62,"F5";63,"F6";64,"F7";
+    65,"F8";66,"F9";67,"F10";68,"F11";69,"F12";73,"Insert";
+    74,"Home";75,"PageUp";76,"Delete";77,"End";78,"PageDown";
+    79,"ArrowRight";80,"ArrowLeft";81,"ArrowDown";82,"ArrowUp";
+    224,"Control";225,"Shift";226,"Alt";227,"Meta"]in
+  List.iter(fun(scancode,key)->
+    let event=Sdl3.Event.Key{timestamp_ns;window_id;which;scancode;
+      keycode=1 lsl 30 lor scancode;modifiers=0;raw_scancode=scancode;
+      down=true;repeat=false}in
+    match Runtime_next_input_sdl3.translate event with
+    |Some(Key_pressed fact)when fact.key=key->()
+    |_->failwith("named SDL key drift: "^key))named;
+  let modified=Sdl3.Event.Key{timestamp_ns;window_id;which;scancode=4;keycode=65;
+    modifiers=0xBBC3;raw_scancode=4;down=true;repeat=true}in
+  (match Runtime_next_input_sdl3.translate modified with
+   |Some(Key_pressed{key="a";modifiers=[Shift;Control;Alt;Meta;Num_lock;Caps_lock;Scroll_lock];repeat=true})->()
+   |_->failwith"SDL key modifier/repeat mapping drift");
+  List.iter(fun(change,expected)->
+    let event=Sdl3.Event.Window{timestamp_ns;window_id;change}in
+    if Runtime_next_input_sdl3.translate event<>Some expected then
+      failwith"window authority mapping drift")
+    [Sdl3.Event.Shown,Visibility_changed true;Hidden,Visibility_changed false;
+     Focus_gained,Runtime_next_input.Focus_gained];
+  if Runtime_next_input_sdl3.translate(Sdl3.Event.Quit{timestamp_ns})<>Some Quit then
+    failwith"quit mapping drift";
+  let drop=Filename.temp_file"runtime-next-drop-"".bin"in
+  let output=open_out_bin drop in output_string output"native-drop";close_out output;
+  Fun.protect~finally:(fun()->Sys.remove drop)(fun()->
+    get(Runtime_next_input_sdl3.push native(Sdl3.Event.Drop{timestamp_ns;
+      window_id;change=File drop;x=0.;y=0.;source=None}));
+    match Input.drain native with
+    |[File_dropped{name;contents=Some bytes}]
+      when name=Filename.basename drop&&Bytes.to_string bytes="native-drop"->()
+    |_->failwith"native file drop ownership/order drift");
   begin
     match Runtime_next_input_wap.push native
         (Wap.File_uploaded { name = "large"; contents = Bytes.make 17 'x' }) with
@@ -86,7 +122,11 @@ let () =
   let bounded = get (Input.create ~max_events:8 ~max_file_bytes:0
       ~logical_width:1 ~logical_height:1) in
   for index = 1 to 100_000 do
-    get (Input.push bounded (Pointer_moved (float index, 0.)))
+    if index land 1=0 then
+      get(Runtime_next_input_wap.push bounded(Wap.Pointer_moved(index,0)))
+    else get(Runtime_next_input_sdl3.push bounded(Sdl3.Event.Mouse_motion{
+      timestamp_ns=Int64.of_int index;window_id=1L;which=1L;buttons=0L;
+      x=float index;y=0.;dx=1.;dy=0.}))
   done;
   if Input.queued_count bounded <> 8
      || (Input.snapshot bounded).dropped_events <> 99_992 then

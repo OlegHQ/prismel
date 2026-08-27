@@ -1,4 +1,6 @@
 type mouse_button = Left | Middle | Right | X1 | X2
+type modifier = Shift | Control | Alt | Meta | Num_lock | Caps_lock | Scroll_lock
+type key_event = { key:string; modifiers:modifier list; repeat:bool }
 
 type event =
   | Pointer_moved of float * float
@@ -6,11 +8,14 @@ type event =
   | Pointer_released of mouse_button * float * float
   | Pointer_cancelled of mouse_button
   | Wheel of float * float
-  | Key_pressed of string
-  | Key_released of string
+  | Key_pressed of key_event
+  | Key_released of key_event
   | Text_input of string
   | Text_editing of { text : string; start : int; length : int }
   | Focus_lost
+  | Focus_gained
+  | Visibility_changed of bool
+  | Quit
   | Resized of int * int
   | File_dropped of { name : string; contents : bytes option }
 
@@ -89,13 +94,14 @@ let apply value = function
   | Wheel (x, y) ->
       let old_x, old_y = value.wheel_delta in
       value.wheel_delta <- (old_x +. x, old_y +. y)
-  | Key_pressed key -> value.keys <- add_unique key value.keys
-  | Key_released key -> value.keys <- remove key value.keys
+  | Key_pressed event -> value.keys <- add_unique event.key value.keys
+  | Key_released event -> value.keys <- remove event.key value.keys
   | Focus_lost -> value.keys <- []
   | Resized (width, height) ->
       value.logical_width <- width;
       value.logical_height <- height
-  | Text_input _ | Text_editing _ | File_dropped _ -> ()
+  | Text_input _ | Text_editing _ | File_dropped _ | Focus_gained
+  | Visibility_changed _ | Quit -> ()
 
 let push value event =
   match event with
@@ -130,3 +136,17 @@ let snapshot value =
     dropped_events = value.dropped_events }
 
 let queued_count value = Queue.length value.events
+
+let push_file_path value path =
+  if path="" || String.contains path '\000' then Error"file-drop path is malformed"
+  else
+    try
+      let input=open_in_bin path in
+      Fun.protect~finally:(fun()->close_in_noerr input)(fun()->
+        let length=in_channel_length input in
+        if length>value.max_file_bytes then Error"file drop exceeds max_file_bytes"
+        else
+          let contents=Bytes.create length in
+          really_input input contents 0 length;
+          push value(File_dropped{name=Filename.basename path;contents=Some contents}))
+    with Sys_error message->Error("file drop: "^message)

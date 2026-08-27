@@ -77,42 +77,44 @@ let convert value event =
   | Runtime_next_input.Pointer_moved (x, y) ->
       let position = integer x, integer y in
       Input.update_mouse_pos (fst position) (snd position);
-      Event.MouseMoved position
+      Some(Event.MouseMoved position)
   | Pointer_pressed (raw_button, x, y) ->
       let input_button = button raw_button in
       let position = integer x, integer y in
       Input.update_mouse_pos (fst position) (snd position);
       Input.press_mouse_button input_button;
-      MousePressed (input_button, position)
+      Some(MousePressed (input_button, position))
   | Pointer_released (raw_button, x, y) ->
       let input_button = button raw_button in
       let position = integer x, integer y in
       Input.update_mouse_pos (fst position) (snd position);
       Input.release_mouse_button input_button;
-      MouseReleased (input_button, position)
+      Some(MouseReleased (input_button, position))
   | Pointer_cancelled raw_button ->
       let input_button = button raw_button in
       Input.release_mouse_button input_button;
-      PointerCancelled input_button
-  | Wheel (x, y) -> MouseScrolled (integer x, integer y)
+      Some(PointerCancelled input_button)
+  | Wheel (x, y) -> Some(MouseScrolled (integer x, integer y))
   | Key_pressed raw_key ->
-      let input_key = key raw_key in
+      let input_key = key raw_key.key in
       Input.press_key input_key;
-      KeyPressed input_key
+      Some(KeyPressed input_key)
   | Key_released raw_key ->
-      let input_key = key raw_key in
+      let input_key = key raw_key.key in
       Input.release_key input_key;
-      KeyReleased input_key
-  | Text_input text -> TextInput text
+      Some(KeyReleased input_key)
+  | Text_input text -> Some(TextInput text)
   | Text_editing { text; start; length } ->
-      TextEditing { text; start; length }
+      Some(TextEditing { text; start; length })
   | Focus_lost ->
       Input.clear_all_input ();
-      WindowFocusLost
-  | Resized (width, height) -> WindowResized (width, height)
-  | File_dropped { name; contents = None } -> FileDropped name
+      Some WindowFocusLost
+  | Focus_gained | Visibility_changed _ -> None
+  | Quit -> Some WindowClosed
+  | Resized (width, height) -> Some(WindowResized (width, height))
+  | File_dropped { name; contents = None } -> Some(FileDropped name)
   | File_dropped { name; contents = Some contents } ->
-      FileDropped (materialize value name contents)
+      Some(FileDropped (materialize value name contents))
 
 let frame value ~facts ~events ~drawable_width ~drawable_height ~time ~dt ~fps
     ~count =
@@ -121,7 +123,7 @@ let frame value ~facts ~events ~drawable_width ~drawable_height ~time ~dt ~fps
     invalid_arg "Prismel runtime-next drawable dimensions must be positive";
   release_frame_files value;
   Input.begin_frame ();
-  let events = List.map (convert value) events in
+  let events = List.filter_map (convert value) events in
   let width = facts.Runtime_next_input.logical_width
   and height = facts.logical_height in
   {
@@ -162,7 +164,8 @@ let test () =
     [ Runtime_next_input.Pointer_moved (7., 11.);
       Pointer_pressed (Left, 7., 11.); Pointer_moved (9., 14.);
       Pointer_released (Left, 9., 14.); Wheel (1., -2.);
-      Key_pressed "a"; Key_released "a"; Text_input "a";
+      Key_pressed {key="a";modifiers=[];repeat=false};
+      Key_released {key="a";modifiers=[];repeat=false}; Text_input "a";
       Text_editing { text = "ab"; start = 1; length = 1 };
       Resized (20, 10); Focus_lost ]
   in
