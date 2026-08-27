@@ -67,3 +67,14 @@
    (run %{test} %{dep:low.mli} %{dep:../prismel/app.mli}
     %{dep:../prismel/backend.mli} %{dep:../prismel/graphics.mli}
     %{dep:../prismel/window.mli}))))
+
+(test
+ (name test_core_interface_preservation)
+ (modules test_core_interface_preservation)
+ (libraries prismel_next_api)
+ (deps ../prismel/event.mli ../prismel/input.mli ../prismel/frame.mli
+  ../prismel/time.mli event.mli input.mli frame.mli time.mli)
+ (action
+  (run %{test} %{dep:../prismel/event.mli} %{dep:../prismel/input.mli}
+   %{dep:../prismel/frame.mli} %{dep:../prismel/time.mli}
+   %{dep:event.mli} %{dep:input.mli} %{dep:frame.mli} %{dep:time.mli})))
