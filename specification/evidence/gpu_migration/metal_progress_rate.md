@@ -112,6 +112,7 @@ can change the denominator explicitly rather than being hidden.
 | `0f05773` | 2026-08-24 07:18:24 +02:00 | 4,973 | 5,249 | 94.7419% | 4 | 0.048 | 82.8 | 1.58 |
 | `203d6ef` | 2026-08-24 07:21:30 +02:00 | 4,981 | 5,249 | 94.8943% | 8 | 0.052 | 154.8 | 2.95 |
 | `110c501` | 2026-08-24 07:31:37 +02:00 | 4,995 | 5,249 | 95.1610% | 14 | 0.169 | 82.8 | 1.58 |
+| `b3cee1e` | 2026-08-27 09:58:21 +02:00 | 4,998 | 5,249 | 95.2181% | 3 | 74.446 | 0.0 | 0.00 |
 
 ## Current measured rate
 
@@ -179,6 +180,13 @@ descriptor class/array operations. Library8 exposes copied immutable attribute a
 function-reflection snapshots while keeping autoreleasing typedef conventions
 private; bounded exactly-once cancellable tasks capture exceptions, and real
 safe plus native compute/render fixtures prove callback and owner lifetimes.
+
+The `b3cee1e` inventory snapshot includes three declarations beyond the prior
+ledger row; exactly two are attributable to MTL4Counters2: the public immutable
+counter-heap descriptor class and owned counter-heap protocol. Copied labels,
+checked ranges, invalidation/resolution, retained device lifetime, and a real
+timestamp-heap fixture prove the closure. The remaining declaration belongs to
+an intervening independently promoted closure and is not attributed here.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
