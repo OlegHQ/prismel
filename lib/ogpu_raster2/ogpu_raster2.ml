@@ -1,9 +1,16 @@
 type texture = { levels : Raster2.Surface.t array; depth : Raster2.Depth_stencil.t }
-type storage = Buffer of bytes | Texture of texture * Ogpu.Types.texture_descriptor
+type buffer = { bytes:bytes; mutable version:int }
+type storage = Buffer of buffer | Texture of texture * Ogpu.Types.texture_descriptor
+type decoded_key = int64 * int * bool * int64 * int
+type decoded_entry = decoded_key * Raster2.Triangle.vertex array
+type index_key = int64 * int * int * int64 * int
+type index_entry = index_key * int array
 type control = {
   mutable next : int64; mutable epoch : int64; mutable complete : int64;
   mutable lost : bool; log : string Queue.t; mutable dropped_log_entries:int;
   objects : (int64, storage) Hashtbl.t;
+  mutable decoded:decoded_entry list; mutable decoded_indices:index_entry list;
+  mutable decode_misses:int;
   mutable buffers : int; mutable textures : int; mutable pipelines : int;
   mutable queues : int; mutable surfaces : int;
 }
@@ -26,7 +33,8 @@ let rgba (r,g,b,a) =
 
 let create () =
   let control={next=1L;epoch=0L;complete=0L;lost=false;log=Queue.create();dropped_log_entries=0;
-    objects=Hashtbl.create 64;buffers=0;textures=0;pipelines=0;queues=0;surfaces=0}in
+    objects=Hashtbl.create 64;decoded=[];decoded_indices=[];decode_misses=0;
+    buffers=0;textures=0;pipelines=0;queues=0;surfaces=0}in
   let create_device () =
     let device_token=next control and device_handle=Ogpu.Handle.create_device()in
     let resource label storage =
@@ -35,17 +43,21 @@ let create () =
        |Texture _->control.textures<-control.textures+1);
       record control(label^":"^Int64.to_string token);
       let write offset source = match Hashtbl.find_opt control.objects token with
-        |Some(Buffer bytes)when valid_range bytes offset(Bytes.length source)->
-            Bytes.blit source 0 bytes(Int64.to_int offset)(Bytes.length source);Ok()
+        |Some(Buffer buffer)when valid_range buffer.bytes offset(Bytes.length source)->
+            Bytes.blit source 0 buffer.bytes(Int64.to_int offset)(Bytes.length source);
+            buffer.version<-buffer.version+1;Ok()
         |Some(Texture({levels;_},_))when offset=0L&&Bytes.length source=Bytes.length(Raster2.Surface.bytes levels.(0))->
             Bytes.blit source 0(Raster2.Surface.bytes levels.(0))0(Bytes.length source);Ok()
         |_->error"Ogpu_raster2.write"Invalid_argument"range is invalid"in
       let read offset length = match Hashtbl.find_opt control.objects token with
-        |Some(Buffer bytes)when valid_range bytes offset length->Ok(Bytes.sub bytes(Int64.to_int offset)length)
+        |Some(Buffer buffer)when valid_range buffer.bytes offset length->Ok(Bytes.sub buffer.bytes(Int64.to_int offset)length)
         |Some(Texture({levels;_},_))when offset=0L&&length<=Bytes.length(Raster2.Surface.bytes levels.(0))->Ok(Bytes.sub(Raster2.Surface.bytes levels.(0))0 length)
         |_->error"Ogpu_raster2.read"Invalid_argument"range is invalid"in
       let destroy () = match Hashtbl.find_opt control.objects token with
-        |None->Ok()|Some(Buffer _)->Hashtbl.remove control.objects token;control.buffers<-control.buffers-1;Ok()
+        |None->Ok()|Some(Buffer _)->Hashtbl.remove control.objects token;
+            control.decoded<-List.filter(fun((cached,_,_,_,_),_)->cached<>token)control.decoded;
+            control.decoded_indices<-List.filter(fun((cached,_,_,_,_),_)->cached<>token)control.decoded_indices;
+            control.buffers<-control.buffers-1;Ok()
         |Some(Texture _)->Hashtbl.remove control.objects token;control.textures<-control.textures-1;Ok()in
       Ok{Ogpu.Backend.token;write;read;destroy}
     in
@@ -79,12 +91,24 @@ let create () =
               let draw(d:Ogpu.Render_pass.draw)=match List.find_opt(fun(b:Ogpu.Render_pass.buffer_binding)->b.stage=Ogpu.Command.Vertex&&b.index=0)d.buffers with
                 |None->error"Ogpu_raster2.render"Invalid_argument"vertex buffer zero is absent"
                 |Some binding->match find binding.buffer_id with
-                  |Some(Buffer vertices)->(let sampled=Option.bind(sampled_pairs d)(function pair::_->Some pair|[]->None)in let texture=match sampled with None->Ok None|Some(binding,sampler)->match find binding.texture_id with Some(Texture({levels;_},_))->let first=match sampler.sampler.mip_filter with No_mip->0|Nearest_mip|Linear_mip->min(Array.length levels-1)(int_of_float(floor sampler.sampler.lod_min))in let sampled_levels=Array.sub levels first(Array.length levels-first)in let capacity=Array.fold_left(fun n surface->n+Bytes.length(Raster2.Surface.bytes surface))0 sampled_levels in(match Raster2.Texture.create_levels~color_space:Raster2.Texture.Linear~hard_capacity:capacity sampled_levels with Ok texture->let filter=match sampler.sampler.mip_filter,sampler.sampler.min_filter with Linear_mip,_->Raster2.Texture.Trilinear|_,Linear->Bilinear|_,Nearest->Nearest and address=function Ogpu.Types.Clamp_to_edge->Raster2.Texture.Clamp|Repeat->Repeat|Mirror_repeat->Mirror in Ok(Some{Raster2.Triangle.texture;filter;address_u=address sampler.sampler.address_u;address_v=address sampler.sampler.address_v})|Error _->error"Ogpu_raster2.render"Invalid_argument"fragment texture is invalid")|_->error"Ogpu_raster2.render"Invalid_argument"fragment texture is absent"in match texture with Error _ as e->e|Ok texture->let textured=Option.is_some texture in let indices=match d.index with
+                  |Some(Buffer vertex_buffer)->(let vertices=vertex_buffer.bytes in let sampled=Option.bind(sampled_pairs d)(function pair::_->Some pair|[]->None)in let texture=match sampled with None->Ok None|Some(binding,sampler)->match find binding.texture_id with Some(Texture({levels;_},_))->let first=match sampler.sampler.mip_filter with No_mip->0|Nearest_mip|Linear_mip->min(Array.length levels-1)(int_of_float(floor sampler.sampler.lod_min))in let sampled_levels=Array.sub levels first(Array.length levels-first)in let capacity=Array.fold_left(fun n surface->n+Bytes.length(Raster2.Surface.bytes surface))0 sampled_levels in(match Raster2.Texture.create_levels~color_space:Raster2.Texture.Linear~hard_capacity:capacity sampled_levels with Ok texture->let filter=match sampler.sampler.mip_filter,sampler.sampler.min_filter with Linear_mip,_->Raster2.Texture.Trilinear|_,Linear->Bilinear|_,Nearest->Nearest and address=function Ogpu.Types.Clamp_to_edge->Raster2.Texture.Clamp|Repeat->Repeat|Mirror_repeat->Mirror in Ok(Some{Raster2.Triangle.texture;filter;address_u=address sampler.sampler.address_u;address_v=address sampler.sampler.address_v})|Error _->error"Ogpu_raster2.render"Invalid_argument"fragment texture is invalid")|_->error"Ogpu_raster2.render"Invalid_argument"fragment texture is absent"in match texture with Error _ as e->e|Ok texture->let textured=Option.is_some texture in let indices=match d.index with
                     |None->if d.vertex_count<0||d.vertex_start<0 then None else Some(Array.init d.vertex_count(fun i->d.vertex_start+i))
                     |Some(kind,id,offset,count)->match find id with
-                      |Some(Buffer bytes)->let width=match kind with Uint16->2|Uint32->4 in
+                      |Some(Buffer buffer)->let bytes=buffer.bytes and width=match kind with Uint16->2|Uint32->4 in
                           if count<0||count>max_int/width||not(valid_range bytes offset(count*width))then None
-                          else Some(Array.init count(fun i->if width=2 then Bytes.get_uint16_le bytes(Int64.to_int offset+i*width)else Int32.to_int(Bytes.get_int32_le bytes(Int64.to_int offset+i*width))))
+                          else let token=match List.assoc_opt id resources with Some token->token|None->assert false in
+                            let key=(token,buffer.version,width,offset,count)in
+                            (match List.assoc_opt key control.decoded_indices with
+                             |Some indices->
+                                 control.decoded_indices<-(key,indices)::List.remove_assoc key control.decoded_indices;
+                                 Some indices
+                             |None->
+                                 let indices=Array.init count(fun i->if width=2 then Bytes.get_uint16_le bytes(Int64.to_int offset+i*width)else Int32.to_int(Bytes.get_int32_le bytes(Int64.to_int offset+i*width)))in
+                                 control.decode_misses<-control.decode_misses+1;
+                                 control.decoded_indices<-(key,indices)::control.decoded_indices;
+                                 if List.length control.decoded_indices>32 then
+                                   control.decoded_indices<-List.rev(List.tl(List.rev control.decoded_indices));
+                                 Some indices)
                       |_->None in
                     match indices with None->error"Ogpu_raster2.render"Invalid_argument"index range is invalid"|Some indices->
                     let maximum=Array.fold_left max(-1)indices and stride=if textured then 68 else 16 in
@@ -92,15 +116,28 @@ let create () =
                        ||not(valid_range vertices binding.offset((maximum+1)*stride))
                     then error"Ogpu_raster2.render"Invalid_argument"vertex or index range is invalid"
                     else
-                      let base=Int64.to_int binding.offset in
-                      let decoded=Array.init(maximum+1)(fun index->
-                        let offset=base+index*stride in
-                        {Raster2.Triangle.x=Int64.float_of_bits(Bytes.get_int64_le vertices offset);
-                          y=Int64.float_of_bits(Bytes.get_int64_le vertices(offset+8));
-                          depth=(if textured then Int64.float_of_bits(Bytes.get_int64_le vertices(offset+16))else 0.);
-                          color=(if textured then Bytes.get_int32_le vertices(offset+48)else 0x4080BFFFl);
-                          u=(if textured then Int64.float_of_bits(Bytes.get_int64_le vertices(offset+52))else 0.);
-                          v=(if textured then Int64.float_of_bits(Bytes.get_int64_le vertices(offset+60))else 0.)})in
+                      let buffer_token=match List.assoc_opt binding.buffer_id resources with
+                        |Some token->token|None->assert false in
+                      let key=(buffer_token,vertex_buffer.version,textured,binding.offset,maximum+1)in
+                      let decoded=match List.assoc_opt key control.decoded with
+                        |Some decoded->
+                            control.decoded<-(key,decoded)::List.remove_assoc key control.decoded;
+                            decoded
+                        |None->
+                            let base=Int64.to_int binding.offset in
+                            let decoded=Array.init(maximum+1)(fun index->
+                              let offset=base+index*stride in
+                              {Raster2.Triangle.x=Int64.float_of_bits(Bytes.get_int64_le vertices offset);
+                                y=Int64.float_of_bits(Bytes.get_int64_le vertices(offset+8));
+                                depth=(if textured then Int64.float_of_bits(Bytes.get_int64_le vertices(offset+16))else 0.);
+                                color=(if textured then Bytes.get_int32_le vertices(offset+48)else 0x4080BFFFl);
+                                u=(if textured then Int64.float_of_bits(Bytes.get_int64_le vertices(offset+52))else 0.);
+                                v=(if textured then Int64.float_of_bits(Bytes.get_int64_le vertices(offset+60))else 0.)})in
+                            control.decode_misses<-control.decode_misses+1;
+                            control.decoded<-(key,decoded)::control.decoded;
+                            if List.length control.decoded>32 then
+                              control.decoded<-List.rev(List.tl(List.rev control.decoded));
+                            decoded in
                       let depth=Option.map(fun _->depth)descriptor.depth in
                       let triangle a b c=Raster2.Triangle.draw~color~depth~depth_state
                           ~blend:Raster2.Composite.Copy~cull:Cull_none~clip~texture
@@ -125,9 +162,11 @@ let create () =
               let rec all=function []->resolve();Ok()|x::xs->match draw x with Error _ as e->e|Ok()->all xs in all draws
           |_->error"Ogpu_raster2.render"Invalid_argument"color attachment is absent"in
         let transfer operations =
-          let snapshots=List.filter_map(fun(_,token)->match Hashtbl.find_opt control.objects token with Some(Buffer bytes)->Some(token,[|Bytes.copy bytes|])|Some(Texture({levels;_},_))->Some(token,Array.map(fun surface->Bytes.copy(Raster2.Surface.bytes surface))levels)|None->None)resources in
-          let restore()=List.iter(fun(token,copies)->match Hashtbl.find_opt control.objects token with Some(Buffer bytes)->Bytes.blit copies.(0)0 bytes 0(Bytes.length copies.(0))|Some(Texture({levels;_},_))->Array.iteri(fun i copy->Bytes.blit copy 0(Raster2.Surface.bytes levels.(i))0(Bytes.length copy))copies|None->())snapshots in
-          let buffer id=match find id with Some(Buffer bytes)->Some bytes|_->None and texture id mip=match find id with Some(Texture({levels;_},_))when mip>=0&&mip<Array.length levels->Some levels.(mip)|_->None in
+          let snapshots=List.filter_map(fun(_,token)->match Hashtbl.find_opt control.objects token with Some(Buffer buffer)->Some(token,[|Bytes.copy buffer.bytes|])|Some(Texture({levels;_},_))->Some(token,Array.map(fun surface->Bytes.copy(Raster2.Surface.bytes surface))levels)|None->None)resources in
+          let restore()=List.iter(fun(token,copies)->match Hashtbl.find_opt control.objects token with Some(Buffer buffer)->Bytes.blit copies.(0)0 buffer.bytes 0(Bytes.length copies.(0))|Some(Texture({levels;_},_))->Array.iteri(fun i copy->Bytes.blit copy 0(Raster2.Surface.bytes levels.(i))0(Bytes.length copy))copies|None->())snapshots in
+          let buffer id=match find id with Some(Buffer buffer)->Some buffer.bytes|_->None and texture id mip=match find id with Some(Texture({levels;_},_))when mip>=0&&mip<Array.length levels->Some levels.(mip)|_->None in
+          List.iter(fun(_,token)->match Hashtbl.find_opt control.objects token with
+            |Some(Buffer buffer)->buffer.version<-buffer.version+1|_->())resources;
           let copy_rows ~src ~src_offset ~src_row ~dst ~dst_offset ~dst_row width height=for row=0 to height-1 do Bytes.blit src(src_offset+row*src_row)dst(dst_offset+row*dst_row)width done in
           let execute=function
             |Ogpu.Transfer_pass.Copy_buffer(src,so,dst,do_,length)->(match buffer src,buffer dst with Some a,Some b when valid_range a so(Int64.to_int length)&&valid_range b do_(Int64.to_int length)->Bytes.blit a(Int64.to_int so)b(Int64.to_int do_)(Int64.to_int length);Ok()|_->error"Ogpu_raster2.transfer"Invalid_argument"buffer copy range")
@@ -141,7 +180,7 @@ let create () =
       Ok{Ogpu.Backend.queue_token;submit;complete_through=(fun epoch->if epoch<=control.complete||epoch>control.epoch then error"Ogpu_raster2.complete"Invalid_argument"epoch is invalid"else(control.complete<-epoch;Ok()));destroy_queue=(fun()->control.queues<-control.queues-1;Ok())}
     in
     Ok{Ogpu.Backend.device_token;device_handle;capabilities=Ogpu.Capabilities.minimum_m1;
-      create_buffer=(fun d->resource"buffer"(Buffer(Bytes.make(Int64.to_int d.Ogpu.Types.size)'\000')));
+      create_buffer=(fun d->resource"buffer"(Buffer{bytes=Bytes.make(Int64.to_int d.Ogpu.Types.size)'\000';version=0}));
       create_texture=(fun d->let levels=Array.init d.mip_levels(fun mip->Raster2.Surface.create~width:(mip_extent d.width mip)~height:(mip_extent d.height mip)())in if Array.exists Result.is_error levels then error"Ogpu_raster2.texture"Invalid_argument"texture mip extent is invalid"else match Raster2.Depth_stencil.create~width:d.width~height:d.height()with Ok depth->resource"texture"(Texture({levels=Array.map Result.get_ok levels;depth},d))|Error _->error"Ogpu_raster2.texture"Invalid_argument"texture extent is invalid");
       create_depth_texture=(fun d->match Raster2.Surface.create~width:d.width~height:d.height(),Raster2.Depth_stencil.create~width:d.width~height:d.height()with Ok surface,Ok depth->resource"texture"(Texture({levels=[|surface|];depth},d))|_->error"Ogpu_raster2.depth_texture"Invalid_argument"depth texture extent is invalid");
       create_stencil_texture=(fun d->match Raster2.Surface.create~width:d.width~height:d.height(),Raster2.Depth_stencil.create~width:d.width~height:d.height()with Ok surface,Ok depth->resource"texture"(Texture({levels=[|surface|];depth},d))|_->error"Ogpu_raster2.stencil_texture"Invalid_argument"stencil texture extent is invalid");
@@ -149,7 +188,9 @@ let create () =
       create_surface=(fun _->let surface_token=next control and frame=ref 0L in control.surfaces<-control.surfaces+1;Ok{Ogpu.Backend.surface_token;configure=(fun _->Ok());acquire=(fun()->if control.lost then Ok`Device_lost else(frame:=Int64.succ!frame;Ok(`Acquired{Ogpu.Backend.frame_token= !frame})));present=(fun _->Ok());discard=(fun _->Ok());destroy_surface=(fun()->control.surfaces<-control.surfaces-1;Ok())});
       destroy_device=(fun()->Ogpu.Handle.destroy_device device_handle;Ok())}
   in {Ogpu.Backend.create_device},control
-let inject_device_loss control=control.lost<-true
+let inject_device_loss control=control.lost<-true;control.decoded<-[];control.decoded_indices<-[]
 let trace control=List.of_seq(Queue.to_seq control.log)
 let trace_stats control=Queue.length control.log,control.dropped_log_entries
+let decode_cache_stats control=
+  List.length control.decoded+List.length control.decoded_indices,control.decode_misses
 let live_counts control=control.buffers,control.textures,control.pipelines,control.queues,control.surfaces

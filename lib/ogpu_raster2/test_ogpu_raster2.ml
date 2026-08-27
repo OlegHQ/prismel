@@ -17,6 +17,9 @@ let run frames =
     ignore(get(Scene_execution.render renderer(if frame=2 then [draw;draw2] else [draw])));
     if List.mem frame [1;2;60;600] then let bytes=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in if Bytes.get_int32_be bytes 0<>0x4080BFFFl then failwith"software exact pixel"else if frame=2&&Bytes.get_int32_be bytes 60<>0x4080BFFFl then failwith"software second indexed draw"else if frame<>2&&Bytes.get_int32_be bytes 60<>0l then failwith"software off-triangle pixel"
   done;
+  let _,stable_decode_misses=Ogpu_raster2.decode_cache_stats control in
+  if stable_decode_misses<>4 then
+    failwith(Printf.sprintf"stable frame decoded %d vertex/index buffers"stable_decode_misses);
   (* A densely indexed mesh deliberately reuses three degenerate vertices.
      The software adapter must decode those vertices once, not construct three
      boxed records for every triangle. *)
@@ -30,15 +33,37 @@ let run frames =
     indices=shared_indices;index_count=triangle_count*3}in
   let shared_draw={Scene_execution.mesh=shared_mesh;state}in
   ignore(get(Scene_execution.render renderer[shared_draw]));
+  let _,shared_misses=Ogpu_raster2.decode_cache_stats control in
   Gc.compact();
   let before=Gc.allocated_bytes()in
   ignore(get(Scene_execution.render renderer[shared_draw]));
   let allocated=Gc.allocated_bytes()-.before in
   if allocated>750_000. then
     failwith(Printf.sprintf"shared-index render allocated %.0f bytes"allocated);
+  let entries,unchanged_misses=Ogpu_raster2.decode_cache_stats control in
+  if unchanged_misses<>shared_misses||entries>64 then
+    failwith"stable shared-index draw missed or decode cache exceeded capacity";
+  let changed_vertices=Bytes.copy vertices in
+  Bytes.set_int64_le changed_vertices 0(Int64.bits_of_float 1.);
+  let changed_mesh:Scene_execution.mesh={shared_mesh with vertices=changed_vertices}in
+  ignore(get(Scene_execution.render renderer[{shared_draw with mesh=changed_mesh}]));
+  let _,changed_misses=Ogpu_raster2.decode_cache_stats control in
+  if changed_misses<=unchanged_misses then
+    failwith"changed vertex buffer did not invalidate decoded vertices";
+  for version=0 to 79 do
+    let changing=Bytes.copy vertices in
+    Bytes.set_int64_le changing 0(Int64.bits_of_float(float version));
+    let changing_mesh:Scene_execution.mesh={mesh with key="decode-lru-"^string_of_int version;
+      vertices=changing}in
+    ignore(get(Scene_execution.render renderer[{draw with mesh=changing_mesh}]))
+  done;
+  let cache_entries,_=Ogpu_raster2.decode_cache_stats control in
+  if cache_entries>64 then failwith"decoded vertex cache did not remain bounded";
   get(Scene_execution.resize renderer {config with physical_width=8;physical_height=8});
   ignore(get(Scene_execution.render renderer [{draw with state={state with viewport=(0,0,8,8);scissor=(0,0,8,8)}}]));
   Ogpu_raster2.inject_device_loss control;
+  if Ogpu_raster2.decode_cache_stats control|>fst<>0 then
+    failwith"device loss retained decoded vertices";
   (match Scene_execution.render renderer [draw] with Error e when e.Ogpu.Error.kind=Device_lost->()|_->failwith"software device loss");
   let trace=Ogpu_raster2.trace control in get(Scene_execution.destroy renderer);
   if Ogpu_raster2.live_counts control<>(0,0,0,0,0)then failwith"software live delta";
