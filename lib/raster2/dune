@@ -1,7 +1,7 @@
 (library
  (name raster2)
  (public_name prismel.raster2)
- (modules Surface Composite Path Primitive Image Depth_stencil Scratch Render_ir Triangle Consumer Resource_cache))
+ (modules Surface Composite Path Primitive Image Depth_stencil Scratch Render_ir Triangle Consumer Resource_cache Offscreen))
 
 (test
  (name test_raster2_surface)
@@ -61,4 +61,9 @@
 (test
  (name test_raster2_resource_cache)
  (modules test_raster2_resource_cache)
+ (libraries raster2))
+
+(test
+ (name test_raster2_offscreen)
+ (modules test_raster2_offscreen)
  (libraries raster2))
