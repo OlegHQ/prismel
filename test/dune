@@ -393,6 +393,14 @@
    (setenv PRISMEL_WEB_PORT 0
     (run %{test})))))
 
+(test
+ (name scene_ogpu_renderer)
+ (modules scene_ogpu_renderer)
+ (libraries prismel)
+ (action
+  (setenv PRISMEL_TEST_SCENE_OGPU_RENDERER 1
+   (run %{test}))))
+
 (rule
  (alias runtest)
  (deps
