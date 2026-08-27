@@ -118,6 +118,7 @@ can change the denominator explicitly rather than being hidden.
 | `18b6566` | 2026-08-27 10:11:20 +02:00 | 5,069 | 5,249 | 96.5708% | 11 | 0.045 | 246.0 | 4.69 |
 | `75f55a1` | 2026-08-27 10:16:49 +02:00 | 5,083 | 5,249 | 96.8375% | 14 | 0.091 | 153.2 | 2.92 |
 | `be44eaf` | 2026-08-27 10:20:55 +02:00 | 5,088 | 5,249 | 96.9327% | 5 | 0.068 | 73.2 | 1.39 |
+| `7ca877f` | 2026-08-27 10:21:52 +02:00 | 5,095 | 5,249 | 97.0661% | 7 | 0.016 | 442.1 | 8.42 |
 
 ## Current measured rate
 
@@ -224,6 +225,13 @@ constructors. The safe API owns returned libraries through their device,
 copies compiled bytes, validates absolute bundle/file paths, checks stitched
 descriptor device graphs, and covers success-or-diagnostic behavior without
 promoting callback overloads or selector lookalikes.
+
+The `7ca877f` interval moves exactly seven IntersectionFunctionTable selectors.
+Nullable buffer/function/visible-table arrays are validated atomically for
+capacity, offsets, device identity, and live ownership before replacement;
+opaque triangle and curve signatures share an exact range-checked capability
+path. The public function-table lifecycle fixture and typed native ray-table
+fixture prove retention, reset, and execute-or-capability-reject behavior.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
