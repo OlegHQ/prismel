@@ -3192,6 +3192,7 @@ module Indirect_command_buffer : sig
   module Render_command : sig
     type t
     type primitive = Point | Line | Line_strip | Triangle | Triangle_strip
+    type index_type = Uint16 | Uint32
     type cull_mode=No_cull|Cull_front|Cull_back
     type depth_clip_mode=Clip|Clamp
     type winding=Clockwise|Counter_clockwise
@@ -3213,6 +3214,19 @@ module Indirect_command_buffer : sig
     val set_pipeline : t -> Render_pipeline.t -> (unit, error) result
     val set_vertex_buffer : t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
     val set_fragment_buffer : t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
+    val set_object_buffer : t -> index:int -> offset:int64 -> Buffer.t -> (unit,error) result
+    val set_mesh_buffer : t -> index:int -> offset:int64 -> Buffer.t -> (unit,error) result
+    val set_vertex_buffer_stride : t -> index:int -> offset:int64 -> stride:int64 -> Buffer.t -> (unit,error) result
+    val draw_indexed : t -> primitive:primitive -> index_type:index_type ->
+      index_buffer:Buffer.t -> index_offset:int64 -> index_count:int64 ->
+      ?instance_count:int64 -> ?base_vertex:int64 -> ?base_instance:int64 ->
+      unit -> (unit,error) result
+    val draw_patches : t -> control_points:int64 -> patch_start:int64 ->
+      patch_count:int64 -> ?patch_index_buffer:Buffer.t ->
+      ?patch_index_offset:int64 -> control_point_buffer:Buffer.t ->
+      control_point_offset:int64 -> tessellation_buffer:Buffer.t ->
+      tessellation_offset:int64 -> tessellation_stride:int64 ->
+      ?instance_count:int64 -> ?base_instance:int64 -> unit -> (unit,error) result
     val draw_primitives : t -> primitive:primitive -> vertex_start:int ->
       vertex_count:int -> ?instance_count:int -> ?base_instance:int -> unit ->
       (unit, error) result
@@ -3233,6 +3247,7 @@ module Indirect_command_buffer : sig
     val concurrent_dispatch_threadgroups:t->threadgroups:(int64*int64*int64)->threads_per_threadgroup:(int64*int64*int64)->(unit,error)result
     val set_pipeline : t -> Compute_pipeline.t -> (unit, error) result
     val set_kernel_buffer : t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
+    val set_kernel_buffer_stride : t -> index:int -> offset:int64 -> stride:int64 -> Buffer.t -> (unit,error) result
     val dispatch_threads : t -> threads:(int * int * int) ->
       threadgroup:(int * int * int) -> (unit, error) result
     val destroy : t -> (unit, error) result
