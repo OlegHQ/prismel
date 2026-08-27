@@ -1,0 +1,9 @@
+(library
+ (name prismel_next_api)
+ (public_name prismel.prismel_next_api)
+ (modules vec2 vec3))
+
+(test
+ (name test_prismel_next_api)
+ (modules test_prismel_next_api)
+ (libraries prismel_next_api))
