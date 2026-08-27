@@ -115,6 +115,8 @@ can change the denominator explicitly rather than being hidden.
 | `b3cee1e` | 2026-08-27 09:58:21 +02:00 | 4,998 | 5,249 | 95.2181% | 3 | 74.446 | 0.0 | 0.00 |
 | `71f26eb` | 2026-08-27 09:59:13 +02:00 | 5,000 | 5,249 | 95.2562% | 2 | 0.014 | 138.5 | 2.64 |
 | `23a449c` | 2026-08-27 10:08:39 +02:00 | 5,058 | 5,249 | 96.3612% | 58 | 0.157 | 369.4 | 7.04 |
+| `18b6566` | 2026-08-27 10:11:20 +02:00 | 5,069 | 5,249 | 96.5708% | 11 | 0.045 | 246.0 | 4.69 |
+| `75f55a1` | 2026-08-27 10:16:49 +02:00 | 5,083 | 5,249 | 96.8375% | 14 | 0.091 | 153.2 | 2.92 |
 
 ## Current measured rate
 
@@ -208,6 +210,13 @@ IDs: three classes, fifteen methods, and six property declarations covering
 copied color/sample descriptors, nullable resolve textures and sample buffers,
 checked device/range/default reset semantics, completion retention, and real
 render/resolve conformance.
+
+The `75f55a1` interval moves the exact IndirectCommandEncoder14 closure: twelve
+typed compute/render command selectors and two owned command protocols.
+Descriptor capacities and dynamic-stride capability are enforced before native
+mutation; device identity, overflow-safe ranges, topology cardinality, buffer
+retention, reset teardown, and mesh/patch capability paths are covered by the
+safe contract, real ICB fixture, and ARC/`-Werror` native fixture.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
