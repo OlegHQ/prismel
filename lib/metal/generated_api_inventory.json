@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5210,
+    "bound": 5213,
     "scope-excluded": 37,
-    "unreviewed": 38
+    "unreviewed": 35
   },
-  "classification_source_sha256": "c36b3f1a6c1074b79c1f4d1c50770e84adcf69e6a97d6fdbb8e876b15107b794",
+  "classification_source_sha256": "400aa456104c9cb0b0d8b7c48df86691739b05f6e2e8d542771f03bdab6be316",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -1412,7 +1412,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4StitchedFunctionDescriptor.h",
       "id": "class:MTL4StitchedFunctionDescriptor",
       "kind": "class",
@@ -1420,7 +1420,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4StitchedFunctionDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Metal 4 stitched-function descriptor graph with atomic paired replacement, exact native round trips, checked devices/cardinality/lifetimes, nullable reset, and macOS 26 conformance.",
       "signature": ""
     },
     {
@@ -42168,7 +42168,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4StitchedFunctionDescriptor.h",
       "id": "method:-[MTL4StitchedFunctionDescriptor setFunctionGraph:]",
       "kind": "method",
@@ -42176,7 +42176,7 @@
       "macos_introduced": "26.0",
       "name": "setFunctionGraph:",
       "owner": "MTL4StitchedFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Metal 4 stitched-function descriptor graph with atomic paired replacement, exact native round trips, checked devices/cardinality/lifetimes, nullable reset, and macOS 26 conformance.",
       "signature": "instance (MTLFunctionStitchingGraph * _Nullable) -> void"
     },
     {
@@ -87354,7 +87354,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4StitchedFunctionDescriptor.h",
       "id": "property:MTL4StitchedFunctionDescriptor:functionGraph",
       "kind": "property",
@@ -87362,7 +87362,7 @@
       "macos_introduced": "26.0",
       "name": "functionGraph",
       "owner": "MTL4StitchedFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Metal 4 stitched-function descriptor graph with atomic paired replacement, exact native round trips, checked devices/cardinality/lifetimes, nullable reset, and macOS 26 conformance.",
       "signature": "MTLFunctionStitchingGraph * _Nullable"
     },
     {

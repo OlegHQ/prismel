@@ -79,6 +79,7 @@
   binding_rasterization_rate5_safe_closure
   binding_stage_compute_type6_safe_closure
   binding_mtl4_tail14_safe_closure
+  binding_metal4_stitched3_safe_closure
   binding_tensor_safe_handoff
   binding_tensor3_safe_closure
   binding_binary_archive3_safe_closure
@@ -592,6 +593,11 @@
 (test
  (name test_binding_mtl4_tail14_safe_closure)
  (modules test_binding_mtl4_tail14_safe_closure)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_metal4_stitched3_safe_closure)
+ (modules test_binding_metal4_stitched3_safe_closure)
  (libraries metal_inventory_classification))
 
 (test
