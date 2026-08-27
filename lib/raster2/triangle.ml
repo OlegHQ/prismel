@@ -25,6 +25,34 @@ let draw_solid ~color ~blend ~cull ~clip (a:vertex)(b:vertex)(c:vertex)=
       then Composite.pixel_int color~blend~x~y packed
     done done
   end
+let draw_depth_solid ~color ~depth ~depth_state ~blend ~cull ~clip
+    (a:vertex)(b:vertex)(c:vertex)=
+  let area=edge a b c.x c.y in
+  let rejected=area=0.||match cull with Back->area<=0.|Front->area>=0.|Cull_none->false in
+  if not rejected then begin
+    let a,b,area=if area<0. then b,a,-.area else a,b,area in
+    let xmin=max clip.x(max 0(int_of_float(floor(min a.x(min b.x c.x)))))
+    and ymin=max clip.y(max 0(int_of_float(floor(min a.y(min b.y c.y)))))
+    and xmax=min(clip.x+clip.width-1)(min(Surface.width color-1)(int_of_float(ceil(max a.x(max b.x c.x)))))
+    and ymax=min(clip.y+clip.height-1)(min(Surface.height color-1)(int_of_float(ceil(max a.y(max b.y c.y)))))in
+    let packed=Int32.to_int a.color in
+    for y=ymin to ymax do for x=xmin to xmax do
+      let px=float x+.0.5 and py=float y+.0.5 in
+      let w0=(px-.b.x)*.(c.y-.b.y)-.(py-.b.y)*.(c.x-.b.x)
+      and w1=(px-.c.x)*.(a.y-.c.y)-.(py-.c.y)*.(a.x-.c.x)
+      and w2=(px-.a.x)*.(b.y-.a.y)-.(py-.a.y)*.(b.x-.a.x)in
+      if(w0>0.||w0=0.&&top b c)&&(w1>0.||w1=0.&&top c a)&&(w2>0.||w2=0.&&top a b)then begin
+        let z=(w0*.a.depth+.w1*.b.depth+.w2*.c.depth)/.area in
+        let pass=match depth_state with
+        |{Depth_stencil.depth_compare=Always;depth_write=false;stencil=None}->
+          Float.is_finite z&&z>=0.&&z<=1.
+        |_->Float.is_finite z&&z>=0.&&z<=1.&&
+          Depth_stencil.Private.test_and_update_unchecked depth depth_state~x~y~depth:z in
+        if pass
+        then Composite.pixel_int color~blend~x~y packed
+      end
+    done done
+  end
 let draw_textured_solid ~color ~blend ~cull ~clip (texture:texture)
     (a:vertex) (b:vertex) (c:vertex)=
   let area=edge a b c.x c.y in
@@ -83,6 +111,8 @@ let draw_textured_solid ~color ~blend ~cull ~clip (texture:texture)
 let draw ~color ~depth ~depth_state ~blend ~cull ~clip ~texture a b c=
   match depth,texture with
   |None,None when a.color=b.color&&a.color=c.color->draw_solid~color~blend~cull~clip a b c
+  |Some depth,None when a.color=b.color&&a.color=c.color->
+    draw_depth_solid~color~depth~depth_state~blend~cull~clip a b c
   |None,Some texture when a.color=b.color&&a.color=c.color->draw_textured_solid~color~blend~cull~clip texture a b c
   |_->draw_general~color~depth~depth_state~blend~cull~clip~texture a b c
 let interpolate_vertex (a:vertex) (b:vertex) t=let f n=int_of_float(float(ch a.color n)+.t*.float(ch b.color n-ch a.color n)+.0.5)in{x=a.x+.t*.(b.x-.a.x);y=a.y+.t*.(b.y-.a.y);depth=a.depth+.t*.(b.depth-.a.depth);color=rgba(f 24)(f 16)(f 8)(f 0);u=a.u+.t*.(b.u-.a.u);v=a.v+.t*.(b.v-.a.v)}

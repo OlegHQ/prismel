@@ -11,6 +11,24 @@ let textured_fixture () =
   done done;
   ok(Raster2.Texture.create~color_space:Raster2.Texture.Linear~hard_capacity:128 source)
 
+let white_texture () =
+  let source=ok(Raster2.Surface.create~width:1~height:1())in
+  Raster2.Surface.clear source 0xffffffffl;
+  ok(Raster2.Texture.create~color_space:Raster2.Texture.Linear~hard_capacity:4 source)
+
+let render_depth_uniform ~reference ~blend ~cull ~state =
+  let surface=ok(Raster2.Surface.create~width:32~height:24())
+  and depth=ok(Raster2.Depth_stencil.create~width:32~height:24())in
+  Raster2.Surface.clear surface 0x19324b9fl;
+  ignore(ok(Raster2.Depth_stencil.clear depth~depth:0.75~stencil:3));
+  let v x y z={Raster2.Triangle.x=x;y;depth=z;color=0xb0d090c3l;u=0.;v=0.}in
+  let texture=if reference then Some{Raster2.Triangle.texture=white_texture();filter=Nearest;
+    address_u=Clamp;address_v=Clamp}else None in
+  Raster2.Triangle.draw~color:surface~depth:(Some depth)~depth_state:state~blend~cull
+    ~clip:{x=2;y=1;width=27;height=21}~texture
+    (v 1.3 2.7 0.2)(v 29.1 3.2 0.6)(v 4.4 22.8 0.4);
+  Bytes.cat(Bytes.copy(Raster2.Surface.bytes surface))(Bytes.copy(Raster2.Depth_stencil.bytes depth))
+
 let render_textured ~general ~filter ~address_u ~address_v ~blend =
   let texture=textured_fixture()and surface=ok(Raster2.Surface.create~width:32~height:24())in
   Raster2.Surface.clear surface 0x19324b9fl;
@@ -31,6 +49,16 @@ let () =
     let optimized=render_textured~general:false~filter~address_u~address_v~blend
     and reference=render_textured~general:true~filter~address_u~address_v~blend in
     if optimized<>reference then failwith"textured solid specialization pixel drift")blends)addresses)addresses)filters;
+  let stencil={Raster2.Depth_stencil.compare=Always;fail=Keep;depth_fail=Increment_clamp;
+    pass=Replace;read_mask=0xff;write_mask=0xff;reference=7}in
+  let states=[{Raster2.Depth_stencil.depth_compare=Less;depth_write=true;stencil=None};
+    {depth_compare=Always;depth_write=false;stencil=Some stencil};
+    {depth_compare=Greater;depth_write=true;stencil=Some stencil}]
+  and culls=[Raster2.Triangle.Cull_none;Back;Front]in
+  List.iter(fun state->List.iter(fun cull->List.iter(fun blend->
+    let optimized=render_depth_uniform~reference:false~blend~cull~state
+    and reference=render_depth_uniform~reference:true~blend~cull~state in
+    if optimized<>reference then failwith"depth solid specialization pixel/depth/stencil drift")blends)culls)states;
   let texture=textured_fixture()and surface=ok(Raster2.Surface.create~width:32~height:24())in
   let state={Raster2.Depth_stencil.depth_compare=Raster2.Depth_stencil.Always;depth_write=false;stencil=None}
   and clip={Raster2.Triangle.x=0;y=0;width=32;height=24}in
@@ -46,4 +74,15 @@ let () =
   let depth=ok(Raster2.Depth_stencil.create~width:32~height:24())in
   let reference=measure(Some depth)in
   Printf.printf"Raster2 textured allocation: general %.0f, solid %.0f bytes/draw\n"reference optimized;
-  if optimized>256.||optimized*.100.>=reference then failwith"textured solid allocation regression"
+  if optimized>256.||optimized*.100.>=reference then failwith"textured solid allocation regression";
+  let uniform_vertex x y z={Raster2.Triangle.x=x;y;depth=z;color=0xb0d090c3l;u=0.;v=0.}in
+  let uniform_a=uniform_vertex 1. 1. 0.2 and uniform_b=uniform_vertex 31. 1. 0.6
+  and uniform_c=uniform_vertex 1. 23. 0.4 in
+  ignore(ok(Raster2.Depth_stencil.clear depth~depth:1.~stencil:0));Gc.full_major();
+  let before=Gc.allocated_bytes()in
+  for _=1 to 100 do Raster2.Triangle.draw~color:surface~depth:(Some depth)~depth_state:state
+    ~blend:Raster2.Composite.Copy~cull:Raster2.Triangle.Cull_none~clip~texture:None
+    uniform_a uniform_b uniform_c done;
+  let depth_solid=(Gc.allocated_bytes()-.before)/.100. in
+  Printf.printf"Raster2 depth solid allocation: %.0f bytes/draw\n"depth_solid;
+  if depth_solid>256. then failwith"depth solid allocation regression"
