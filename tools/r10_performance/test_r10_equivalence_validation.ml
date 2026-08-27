@@ -7,6 +7,7 @@ let sample ~target ~scenario =
     ; "timing",
       `Assoc
         [ "wall_seconds", `Float 1.
+        ; "cpu_seconds", `Float 0.5
         ; "median_frame_seconds", `Float 0.01
         ; "p95_frame_seconds", `Float 0.011
         ; "p99_frame_seconds", `Float 0.012
@@ -16,7 +17,8 @@ let sample ~target ~scenario =
     ; "memory",
       `Assoc
         [ "allocated_bytes_per_frame", `Float 12.
-        ; "promoted_bytes_per_frame", `Float 0.
+        ; "promoted_bytes_per_frame", `Float 4.
+        ; "peak_rss_kib", `Int 1024
         ]
     ; "work", `Assoc [ "frame_count", `Int 100; "work_units", `Int 42 ]
     ; "equivalence",
@@ -29,14 +31,24 @@ let sample ~target ~scenario =
         ]
     ]
 
-let report samples =
+let baseline target scenario =
+  let metric median p95 = `Assoc ["median", `Float median; "p95", `Float p95] in
+  `Assoc ["target", `String target; "scenario", `String scenario;
+    "authority", `String ("phase0/" ^ target ^ "/" ^ scenario ^ "/performance");
+    "metrics", `Assoc ["wall", metric 1. 1.; "frame", metric 0.01 0.011;
+      "CPU", metric 0.5 0.5; "promoted", metric 4. 4.; "RSS", metric 1024. 1024.]]
+
+let report ?(sample_count=1) samples =
   `Assoc
     [ "protocol",
       `Assoc
-        [ "samples", `Int 1; "profile", `String "release"
+        [ "samples", `Int sample_count; "profile", `String "release"
         ; "width", `Int 64; "height", `Int 64; "sample_seconds",`Float 1.
         ]
     ; "samples", `List samples
+    ; "performance_baselines", `List (List.concat_map (fun target ->
+        List.map (baseline target) ["basic";"pxui";"canvas";"scene3"])
+        ["headless";"web"])
     ]
 
 let write path json =
@@ -140,7 +152,7 @@ let () =
       let scene3_memory = replace_cell ~target:"headless" ~scenario:"scene3"
         (replace_field "memory"
            (`Assoc [ "allocated_bytes_per_frame", `Null;
-             "promoted_bytes_per_frame", `Float 0. ])) samples in
+             "promoted_bytes_per_frame", `Float 4.; "peak_rss_kib", `Int 1024 ])) samples in
       write invalid (report scene3_memory);
       if run Sys.argv.(1) invalid = Unix.WEXITED 0 then
         failwith "Scene3 normalized allocation bypassed equivalence validation";
@@ -151,10 +163,38 @@ let () =
         failwith"mismatched fixed-rate frame collection accepted";
       let bad_wall=replace_cell~target:"runtime-next-native"~scenario:"basic"
         (replace_field "timing"(`Assoc["wall_seconds",`Float 0.7;
+          "cpu_seconds",`Float 0.5;
           "median_frame_seconds",`Float 0.01;"p95_frame_seconds",`Float 0.011;
           "p99_frame_seconds",`Float 0.012]))samples in
       write invalid(report bad_wall);
       if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
         failwith"render-only wall interval accepted as paced wall time";
+      let regressed_frame=replace_cell~target:"runtime-next-native"~scenario:"scene3"
+        (replace_field "timing" (`Assoc ["wall_seconds",`Float 1.;
+          "cpu_seconds",`Float 0.5; "median_frame_seconds",`Float 0.0106;
+          "p95_frame_seconds",`Float 0.011; "p99_frame_seconds",`Float 0.012])) samples in
+      write invalid(report regressed_frame);
+      if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
+        failwith"per-scenario 5% median regression accepted";
+      let regressed_rss=replace_cell~target:"web"~scenario:"canvas"
+        (replace_field "memory" (`Assoc ["allocated_bytes_per_frame",`Float 12.;
+          "promoted_bytes_per_frame",`Float 4.; "peak_rss_kib",`Int 1127])) samples in
+      write invalid(report ~sample_count:5
+        (List.concat [samples; samples; samples; samples; regressed_rss]));
+      if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
+        failwith"per-scenario 10% p95 RSS regression accepted";
+      let missing_cpu=replace_cell~target:"headless"~scenario:"basic"
+        (replace_field "timing" (`Assoc ["wall_seconds",`Float 1.;
+          "median_frame_seconds",`Float 0.01; "p95_frame_seconds",`Float 0.011;
+          "p99_frame_seconds",`Float 0.012])) samples in
+      write invalid(report missing_cpu);
+      if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
+        failwith"missing comparable CPU metric accepted";
+      let missing_baselines = match report samples with
+        | `Assoc fields -> replace_field "performance_baselines" (`List []) fields
+        | _ -> assert false in
+      write invalid missing_baselines;
+      if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
+        failwith"missing target-specific Phase0 baseline accepted";
       print_endline
         "R10 equivalence validator rejects mismatched work including Scene3")

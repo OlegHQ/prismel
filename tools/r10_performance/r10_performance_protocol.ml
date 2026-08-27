@@ -244,6 +244,91 @@ let require_equivalent_work samples scenario =
       ["allocated_bytes_per_frame"; "promoted_bytes_per_frame"])
     matching
 
+let required_number ~target ~scenario section field sample =
+  let container = member section sample in
+  match numeric_float (member_opt field container) with
+  | Some value when Float.is_finite value && value >= 0. -> value
+  | _ -> fail "%s/%s missing finite non-negative %s.%s"
+      target scenario section field
+
+let percentile fraction values =
+  match List.sort Float.compare values with
+  | [] -> invalid_arg "R10 percentile of empty samples"
+  | sorted ->
+      let count = List.length sorted in
+      let index = max 0 (min (count - 1) (int_of_float (ceil (fraction *. float count)) - 1)) in
+      List.nth sorted index
+
+let enforce_performance samples baselines scenario =
+  let for_target target =
+    List.filter (fun sample ->
+      member "target" sample = `String target
+      && member "scenario" sample = `String scenario) samples
+  in
+  let metric section field target =
+    List.map (required_number ~target ~scenario section field) (for_target target)
+  in
+  let checks =
+    [ "wall", "timing", "wall_seconds", None
+    ; "frame", "timing", "median_frame_seconds", Some "p95_frame_seconds"
+    ; "CPU", "timing", "cpu_seconds", None
+    ; "promoted", "memory", "promoted_bytes_per_frame", None
+    ; "RSS", "memory", "peak_rss_kib", None
+    ]
+  in
+  let summary target label section median_field p95_field =
+    let values = metric section median_field target in
+    let median = percentile 0.5 values in
+    let p95 = match p95_field with
+      | None -> percentile 0.95 values
+      (* Frame p95 is already a within-run percentile.  Aggregate the five
+         independent runs by their median rather than taking a p95-of-p95. *)
+      | Some field -> percentile 0.5 (metric section field target) in
+    label, median, p95
+  in
+  let artifact target label =
+    let matches = List.filter (fun value ->
+      member "target" value = `String target
+      && member "scenario" value = `String scenario) baselines in
+    match matches with
+    | [value] ->
+        (match member "authority" value with `String text when text <> "" -> ()
+         | _ -> fail "%s/%s performance baseline lacks authority" target scenario);
+        let metric = member "metrics" value |> member label in
+        let number field = match numeric_float (member_opt field metric) with
+          | Some value when Float.is_finite value && value >= 0. -> value
+          | _ -> fail "%s/%s performance baseline lacks %s.%s"
+              target scenario label field in
+        number "median", number "p95"
+    | [] -> fail "%s/%s has no matching authoritative Phase0 performance baseline"
+        target scenario
+    | _ -> fail "%s/%s has duplicate Phase0 performance baselines" target scenario
+  in
+  List.iter (fun target ->
+    if target <> "legacy" then
+      List.iter (fun (label, section, median_field, p95_field) ->
+        let _, candidate_median, candidate_p95 =
+          summary target label section median_field p95_field in
+        let baseline_median, baseline_p95 =
+          if target = "runtime-next-native" then
+            let _, median, p95 = summary "legacy" label section median_field p95_field in
+            median, p95
+          else artifact target label in
+        let ratio value baseline =
+          if baseline = 0. then if value = 0. then 1. else infinity
+          else value /. baseline
+        in
+        let median_ratio = ratio candidate_median baseline_median
+        and p95_ratio = ratio candidate_p95 baseline_p95 in
+        if median_ratio > 1.05 then
+          fail "%s/%s %s median regressed %.3fx (maximum 1.05x)"
+            target scenario label median_ratio;
+        if p95_ratio > 1.10 then
+          fail "%s/%s %s p95 regressed %.3fx (maximum 1.10x)"
+            target scenario label p95_ratio)
+        checks)
+    required_targets
+
 let validate_report report =
   let protocol = member "protocol" report in
   let expected = protocol |> member "samples" |> to_int
@@ -252,6 +337,9 @@ let validate_report report =
   and height = protocol |> member "height" |> to_int
   and sample_seconds = protocol |> member "sample_seconds" |> to_float in
   let samples = report |> member "samples" |> to_list in
+  let baselines = match member "performance_baselines" report with
+    | `List values -> values | `Null -> []
+    | _ -> fail "performance_baselines must be a list" in
   let count target scenario = List.filter (fun sample ->
     member "target" sample = `String target && member "scenario" sample = `String scenario) samples in
   List.iter (fun target -> List.iter (fun scenario ->
@@ -282,6 +370,7 @@ let validate_report report =
     ) found
   ) required_scenarios) required_targets;
   List.iter (require_equivalent_work samples) required_scenarios;
+  List.iter (enforce_performance samples baselines) required_scenarios;
   print_endline "R10 validation passed"
 
 let () =
