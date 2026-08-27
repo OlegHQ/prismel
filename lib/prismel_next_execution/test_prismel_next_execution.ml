@@ -106,6 +106,7 @@ let () =
   let outside_draws=get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)outside)in
   check(outside_draws=[])"fully clipped Scene2 draw must be elided";
   ignore(get(step resource_runtime outside_draws));
+  ignore(get(step resource_runtime draws));
   let before=get(stats resource_runtime)in
   ignore(get(step resource_runtime draws));
   let after=get(stats resource_runtime)in
