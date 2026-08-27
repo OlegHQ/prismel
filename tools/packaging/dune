@@ -19,6 +19,17 @@
  (modules check_sdl3_memory)
  (libraries unix))
 
+(test
+ (name check_runtime_next_licenses)
+ (modules check_runtime_next_licenses)
+ (libraries unix yojson)
+ (deps ../../LICENSE ../../specification/licenses.md ../../specification/backend.md
+  ../../specification/evidence/gpu_migration/runtime_next_license_manifest.json
+  (source_tree ../../lib/runtime_next_compat) (source_tree ../../lib/runtime_next)
+  (source_tree ../../lib/sdl3) (source_tree ../../lib/sdl3_image)
+  (source_tree ../../lib/sdl3_ttf) (source_tree ../../lib/sdl3_mixer))
+ (action (run %{test} --root %{workspace_root})))
+
 (alias
  (name sdl3-memory-tests)
  (deps

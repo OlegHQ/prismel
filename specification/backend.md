@@ -96,7 +96,8 @@ The side-by-side packages are installed from the single `prismel.opam` package
 as `prismel.sdl3`, `prismel.sdl3_image`, `prismel.sdl3_ttf`,
 `prismel.sdl3_mixer`, `prismel.metal`, `prismel.ogpu`,
 `prismel.ogpu_metal`, `prismel.raster2`, `prismel.ogpu_raster2`,
-`prismel.scene_execution`, and the four `prismel.runtime_next*` libraries.
+`prismel.scene_execution`, the four `prismel.runtime_next*` libraries, and the
+SDL2-free staging facade `prismel.runtime_next_compat`.
 These install names are qualification surfaces, not separate opam projects and
 not a claim that the public/default renderer has switched. The four
 `packaging/conf-sdl3*` packages are ordinary system-dependency probes used by
