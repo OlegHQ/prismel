@@ -17,15 +17,25 @@ let write_json path json =
 let capture argv =
   if Array.length argv = 0 then fail "empty child argv";
   let output = Filename.temp_file "prismel-r10-" ".json" in
+  let errors = Filename.temp_file "prismel-r10-" ".stderr" in
   let fd = Unix.openfile output [Unix.O_WRONLY; Unix.O_TRUNC] 0o600 in
-  let pid = Unix.create_process argv.(0) argv Unix.stdin fd Unix.stderr in
-  Unix.close fd;
+  let error_fd = Unix.openfile errors [Unix.O_WRONLY; Unix.O_TRUNC] 0o600 in
+  let pid = Unix.create_process argv.(0) argv Unix.stdin fd error_fd in
+  Unix.close fd; Unix.close error_fd;
+  let read_text path =
+    let input = open_in_bin path in
+    Fun.protect ~finally:(fun () -> close_in input) (fun () ->
+      really_input_string input (in_channel_length input) |> String.trim) in
+  let cleanup () = Sys.remove output; Sys.remove errors in
   match snd (Unix.waitpid [] pid) with
   | Unix.WEXITED 0 ->
-      Fun.protect ~finally:(fun () -> Sys.remove output) (fun () -> read_json output)
-  | Unix.WEXITED code -> Sys.remove output; fail "child %s exited %d" argv.(0) code
+      Ok (Fun.protect ~finally:cleanup (fun () -> read_json output))
+  | Unix.WEXITED code ->
+      let detail = read_text errors in cleanup ();
+      Error (Printf.sprintf "child %s exited %d: %s" argv.(0) code detail)
   | Unix.WSIGNALED signal | Unix.WSTOPPED signal ->
-      Sys.remove output; fail "child %s received signal %d" argv.(0) signal
+      let detail = read_text errors in cleanup ();
+      Error (Printf.sprintf "child %s received signal %d: %s" argv.(0) signal detail)
 
 let command_output program arguments =
   let argv = Array.of_list (program :: arguments) in
@@ -58,9 +68,11 @@ let replace token value text =
   in
   let result = Buffer.create (String.length text) in loop 0 result; Buffer.contents result
 
-let interpolate ~seconds ~warmup value =
+let interpolate ~seconds ~warmup ~profile ~width ~height value =
   value |> replace "{seconds}" (Printf.sprintf "%.6g" seconds)
   |> replace "{warmup}" (Printf.sprintf "%.6g" warmup)
+  |> replace "{profile}" profile |> replace "{width}" (string_of_int width)
+  |> replace "{height}" (string_of_int height)
 
 let uname flag = command_output "/usr/bin/uname" [flag]
 let sysctl name = optional_command_output "/usr/sbin/sysctl" ["-n"; name]
@@ -97,7 +109,8 @@ let normalize ~protocol ~case ~sample_index raw =
    | _ -> ());
   let raw_window = match member "window" raw with `Assoc _ as value -> value | _ -> `Null in
   let direct_or_window name = match first [name] raw with
-    | Some value -> Some value | None -> member_opt name raw_window in
+    | Some value -> Some value
+    | None -> (match raw_window with `Assoc _ -> member_opt name raw_window | _ -> None) in
   let measured_logical dimension drawable =
     match numeric_int (first [dimension] raw) with
     | Some value -> value
@@ -187,6 +200,9 @@ let () =
   | None ->
       let manifest = read_json (Option.get !manifest_path) in
       let configured_samples = manifest |> member "samples" |> to_int in
+      let profile = manifest |> member "profile" |> to_string
+      and width = manifest |> member "width" |> to_int
+      and height = manifest |> member "height" |> to_int in
       let seconds = if !smoke then 0.05 else manifest |> member "sample_seconds" |> to_float
       and warmup = if !smoke then 0.02 else manifest |> member "warmup_seconds" |> to_float in
       let runs = if !smoke then 1 else configured_samples in
@@ -195,14 +211,19 @@ let () =
         "width", member "width" manifest; "height", member "height" manifest;
         "samples", `Int runs; "sample_seconds", `Float seconds; "warmup_seconds", `Float warmup;
         "smoke", `Bool !smoke] in
-      let collected = ref [] in
+      let collected = ref [] and failures = ref [] in
       (* Round-major ordering interleaves targets/scenarios and limits thermal/order bias. *)
       for sample_index = 1 to runs do List.iter (fun case ->
         let command = case |> member "command" |> to_list |> List.map to_string
-          |> List.map (interpolate ~seconds ~warmup) in
+          |> List.map (interpolate ~seconds ~warmup ~profile ~width ~height) in
         Printf.printf "[%d/%d] %s\n%!" sample_index runs (String.concat " " command);
-        if not !dry_run then
-          collected := normalize ~protocol ~case ~sample_index (capture (Array.of_list command)) :: !collected
+        if not !dry_run then match capture (Array.of_list command) with
+          | Ok raw -> collected := normalize ~protocol ~case ~sample_index raw :: !collected
+          | Error message ->
+              prerr_endline ("R10: " ^ message);
+              failures := `Assoc ["sample_index", `Int sample_index;
+                "engine", member "engine" case; "target", member "target" case;
+                "scenario", member "scenario" case; "message", `String message] :: !failures
       ) cases done;
       if not !dry_run then begin
         let report = `Assoc ["schema", `String "prismel-r10-suite/v1";
@@ -210,6 +231,11 @@ let () =
           "provenance", `Assoc ["git_commit", `String (command_output "/usr/bin/git" ["rev-parse"; "HEAD"]);
             "git_dirty", `Bool (command_output "/usr/bin/git" ["status"; "--porcelain"] <> "");
             "machine", machine_facts (); "display", member "display" manifest];
-          "samples", `List (List.rev !collected)] in
-        let output = Option.get !output_path in write_json output report; validate_report report
+          "samples", `List (List.rev !collected);
+          "failures", `List (List.rev !failures)] in
+        let output = Option.get !output_path in write_json output report;
+        if !failures <> [] then begin
+          Printf.eprintf "R10: %d child cell(s) failed; partial report: %s\n%!"
+            (List.length !failures) output; exit 2
+        end else validate_report report
       end

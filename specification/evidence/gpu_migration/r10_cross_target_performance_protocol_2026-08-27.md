@@ -1,7 +1,8 @@
 # R10 reproducible cross-target performance protocol — 2026-08-27
 
-Status: harness-ready; no full qualification run has been performed. Smoke
-results, if produced, are plumbing checks and are not performance evidence.
+Status: harness-ready and 16-cell smoke attempted; full qualification is
+blocked on legacy SDL2 initialization. Smoke results are plumbing checks and
+are not performance evidence. See `r10_cross_target_smoke_2026-08-27.md`.
 
 ## Matrix and process isolation
 
@@ -57,8 +58,9 @@ _build/default/tools/r10_performance/r10_performance_protocol.exe \
   --validate _build/r10-smoke.json
 ```
 
-Copy the example manifest and expand it to all 16 cells before smoke or full
-collection. Dry-run performs no child execution. Smoke uses one 0.05-second
+The checked `tools/r10_performance/r10_manifest.json` contains all 16 cells;
+the example remains a minimal adapter illustration. Dry-run performs no child
+execution. Smoke uses one 0.05-second
 sample after a 0.02-second warmup and marks `protocol.smoke=true`. A full run
 omits `--smoke`; archive its manifest and normalized report together. Never
 merge smoke output with qualification evidence.

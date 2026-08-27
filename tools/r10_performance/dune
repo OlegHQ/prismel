@@ -1,3 +1,12 @@
 (executable
  (name r10_performance_protocol)
  (libraries unix yojson))
+
+(executable
+ (name r10_existing_adapter)
+ (libraries unix))
+
+(executable
+ (name r10_runtime_next_target_benchmark)
+ (libraries runtime_next_headless runtime_next_web scene_execution ogpu wap unix
+  yojson))
