@@ -5,13 +5,16 @@ type resources = {
   texture : Scene3.texture -> (Raster2.Triangle.texture, error) result;
   shadow : Shadow3.t -> (Raster2.Shadow_map.prepared, error) result;
 }
-type prepared = { draws : Raster2.Scene3_consumer.draw array; clear_depth : float; samples : int }
+type prepared = { draws : Raster2.Scene3_consumer.draw array; clear_depth : float; clear_stencil : int; samples : int }
 
 let color (value:Color.t)={Raster2.Scene3_lighting.r=float value.r/.255.;g=float value.g/.255.;b=float value.b/.255.;a=float value.a/.255.}
 let vec (value:Vec3.t)={Raster2.Scene3_lighting.x=value.x;y=value.y;z=value.z}
 let attenuation (value:Light.attenuation)={Raster2.Scene3_lighting.constant=value.constant;linear=value.linear;quadratic=value.quadratic}
 let blend=function Scene3.Replace->Raster2.Composite.Copy|Alpha->Source_over|Add->Add|Multiply->Multiply|Screen->Screen|Subtract->Subtract
 let cull=function Scene3.Cull_none->Raster2.Triangle.Cull_none|Cull_back->Back|Cull_front->Front
+let comparison=function Scene3.Never->Raster2.Depth_stencil.Never|Less->Less|Equal->Equal|Less_equal->Less_equal|Greater->Greater|Not_equal->Not_equal|Greater_equal->Greater_equal|Always->Always
+let stencil_op=function Scene3.Keep->Raster2.Depth_stencil.Keep|Zero->Zero|Replace->Replace|Increment->Increment_clamp|Decrement->Decrement_clamp|Increment_wrap->Increment_wrap|Decrement_wrap->Decrement_wrap|Invert->Invert
+let depth_stencil (drawing:Scene3.Private.drawing)={Raster2.Depth_stencil.depth_compare=comparison drawing.depth.comparison;depth_write=drawing.depth.write;stencil=Some{compare=comparison drawing.stencil.comparison;fail=stencil_op drawing.stencil.on_stencil_fail;depth_fail=stencil_op drawing.stencil.on_depth_fail;pass=stencil_op drawing.stencil.on_pass;read_mask=drawing.stencil.read_mask;write_mask=drawing.stencil.write_mask;reference=drawing.stencil.reference}}
 let shading=function Scene3.Smooth->Raster2.Scene3_consumer.Smooth|Flat->Flat
 let lights values =
   let ar=ref 0. and ag=ref 0. and ab=ref 0. and failure=ref None and output=ref[]in
@@ -75,9 +78,9 @@ let prepare ~resources ~camera ~viewport scene =
         begin match Raster2.Scene3_lighting.prepare_with_shadows lighting shadow_values with Error error->failure:=Some(Lighting_error error)|Ok _->
           let camera_matrix=Mat4.mul depth_zero_to_one(Camera.view_projection_matrix~viewport camera)in
           let matrix=matrix_array(Mat4.mul camera_matrix drawing.transform)in
-          draws:={Raster2.Scene3_consumer.matrix;viewport={x=float vx;y=float vy;width=float vw;height=float vh;min_depth=0.;max_depth=1.};scissor={x=vx;y=vy;width=vw;height=vh};topology;vertices;indices=mesh.indices;lighting;shadows=Array.copy shadow_values;shading=shading drawing.shading;texture;cull=cull drawing.cull;blend=blend drawing.blend}::!draws
+          draws:={Raster2.Scene3_consumer.matrix;viewport={x=float vx;y=float vy;width=float vw;height=float vh;min_depth=0.;max_depth=1.};scissor={x=vx;y=vy;width=vw;height=vh};topology;vertices;indices=mesh.indices;lighting;shadows=Array.copy shadow_values;shading=shading drawing.shading;texture;cull=cull drawing.cull;blend=blend drawing.blend;depth_stencil=depth_stencil drawing}::!draws
         end)descriptions;
-    match !failure with Some error->Error error|None->Ok{draws=Array.of_list(List.rev !draws);clear_depth=Scene3.Private.depth_clear scene;samples=Scene3.Private.samples scene}
+    match !failure with Some error->Error error|None->Ok{draws=Array.of_list(List.rev !draws);clear_depth=Scene3.Private.depth_clear scene;clear_stencil=Scene3.Private.stencil_clear scene;samples=Scene3.Private.samples scene}
 
 let lower_view3d ~resources ~default_viewport = function
   | Scene_description.View3d(camera,scene,None)->prepare~resources~camera~viewport:default_viewport scene
@@ -106,9 +109,38 @@ let self_test () =
   | Raster2.Scene3_lighting.Spot value when value.concentration=7.->()
   | _->failwith"spot concentration lost"
   end;
+  let custom_depth=Scene3.depth_state~comparison:Greater_equal~write:false()in
+  let custom_stencil=Scene3.stencil_state~comparison:Equal~reference:7
+    ~read_mask:0x0f~write_mask:0xf0~on_stencil_fail:Replace
+    ~on_depth_fail:Increment~on_pass:Invert()in
+  let nested=Scene3.with_depth custom_depth[Scene3.with_stencil custom_stencil
+    [Scene3.with_blend Add[Scene3.mesh~material~cull:Cull_front mesh]]]in
+  let state_scene=Scene3.create~stencil_clear:11[nested;node]in
+  let state_prepared=match lower_view3d~resources~default_viewport:(0,0,16,16)
+    (View3d(camera,state_scene,None))with Ok value->value|Error _->failwith"state lowering"in
+  let first=state_prepared.draws.(0)and restored=state_prepared.draws.(1)in
+  begin match first.depth_stencil with
+  | {depth_compare=Raster2.Depth_stencil.Greater_equal;depth_write=false;
+      stencil=Some{compare=Equal;fail=Replace;depth_fail=Increment_clamp;
+        pass=Invert;read_mask=0x0f;write_mask=0xf0;reference=7}}->()
+  | _->failwith"nested depth/stencil state lost"
+  end;
+  if first.cull<>Raster2.Triangle.Front||first.blend<>Raster2.Composite.Add||
+    restored.depth_stencil.depth_compare<>Raster2.Depth_stencil.Less||
+    not restored.depth_stencil.depth_write||state_prepared.clear_stencil<>11 then
+    failwith"nested raster/blend state did not restore";
+  let state_snapshot()=match lower_view3d~resources~default_viewport:(0,0,16,16)
+    (View3d(camera,state_scene,None))with
+    | Ok value->Marshal.to_bytes value[]|Error _->Bytes.empty in
+  let expected_state=state_snapshot()in
+  for _frame=1 to 600 do if state_snapshot()<>expected_state then
+    failwith"nested state frame drift"done;
+  let state_workers=Array.init 4(fun _->Domain.spawn state_snapshot)in
+  Array.iter(fun worker->if Domain.join worker<>expected_state then
+    failwith"nested state domain drift")state_workers;
   begin match Raster2.Scene3.prepare~matrix:draw.matrix~viewport:draw.viewport~scissor:draw.scissor~topology:draw.topology~vertices:(Array.map(fun(v:Raster2.Scene3_consumer.vertex)->{Raster2.Scene3.x=v.position.x;y=v.position.y;z=v.position.z;color=v.color;u=v.u;v=v.v})draw.vertices)~indices:draw.indices with Ok value when Array.length value.triangles>0->()|_->failwith"Scene3 projection produced no triangles"end;
   let target=match Raster2.Surface.create~width:16~height:16()with Ok value->value|Error _->failwith"target"in
-  begin match Raster2.Scene3_consumer.render~target:{color=target;depth=None;multisample=None}~clear:0x000000ffl~clear_depth:prepared.clear_depth~draws:prepared.draws with Ok()->()|Error _->failwith"Scene3 consumer callback"end;
+  begin match Raster2.Scene3_consumer.render~target:{color=target;depth=None;multisample=None}~clear:0x000000ffl~clear_depth:prepared.clear_depth~clear_stencil:prepared.clear_stencil~draws:prepared.draws with Ok()->()|Error _->failwith"Scene3 consumer callback"end;
   let changed=ref false in for y=0 to 15 do for x=0 to 15 do match Raster2.Surface.get_rgba target~x~y with Ok value when value<>0x000000ffl->changed:=true|_->()done done;
   if not !changed then failwith"Scene3 framebuffer unchanged";
   let textured=Scene3.create[Scene3.mesh~material~cull:Scene3.Cull_none~texture:(Scene3.textured(Obj.magic 0))mesh]in

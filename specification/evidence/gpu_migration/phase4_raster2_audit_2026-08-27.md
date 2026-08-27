@@ -116,14 +116,14 @@ fields are ignored or not integrated and therefore cannot count as parity.
 | Smooth/flat shading | I/T | Copied into consumer draws; Smooth authored-normal test direct. Dedicated Flat pixel golden missing. |
 | Blend Replace/Alpha/Add/Multiply/Screen/Subtract | I/T | Complete Raster2 mapping; Alpha checked in ordered state (`e813369`, `d199322`). Per-mode pixels incomplete. |
 | `depth_clear` | I/T | Scene3 consumer plus private OGPU draw state (`ba92d55`, `d199322`). |
-| `with_depth` comparison/write | M | Flattened but ignored by Scene3 lowering/consumer and OGPU state. |
-| `stencil_clear`, `with_stencil` | M | Comparison, masks and operations are not carried into prepared draws. |
-| `with_raster` line width/point size | M | Flattened state is ignored; unsupported wire/vertex modes cannot provide parity. |
+| `with_depth` comparison/write | I/T | Every comparison and write flag maps to per-draw packed Depth_stencil state. Nested override/restore plus pass/fail behavior, frame 600 and four-domain snapshots are exercised. |
+| `stencil_clear`, `with_stencil` | I/T | Clear value, comparison, reference/masks and all fail/depth-fail/pass operations map to packed Depth_stencil state; nested restoration and packed pass/fail fixtures are exact. |
+| `with_raster` line width/point size | Partial | Faces preserve winding/cull/scissor and do not consume line/point sizes. Wireframe/Vertices remain explicitly rejected as unsupported polygon modes rather than silently ignoring their raster widths. |
 | Samples 1/4/9/16 | Partial | Samples reach preparation and standalone MSAA is tested (`090ffae`), but private consumer/OGPU target integration does not apply every count. |
 | Viewport/scissor | I/T | Default/explicit validation, matrix conversion and ordered state (`e813369`, `d199322`); nested Scene2 clips now intersect View3d viewport/scissor and are exercised through frame 600/four domains. |
 | Private portable draw submission | I/T | Prepared 2D/Scene3 vertex and index bytes are written once, then submitted as exact Backend render bindings. Consecutive pass-compatible draws batch in order; only incompatible pass-level state splits. A 1,000-primitive fixture proves one render submission per frame, zero replacement uploads through frame 600, exact payload order/cardinality, bounded teardown, and one/four-domain equality. Runtime selection and real Metal pixel parity remain missing. |
 
 The smallest local gaps are dedicated fixtures for already-mapped convenience
 constructors. They do not repair the material missing semantics above.
-Depth/stencil/raster, texture wrapping and sample integration require typed representation
+Texture wrapping, wire/point rasterization and sample integration require typed representation
 changes and must not be marked complete by expectation-only tests.

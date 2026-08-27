@@ -197,7 +197,8 @@ let render_scene3 value callbacks node =
         color = value.color3; depth = Some value.depth3; multisample = None;
       } in
       begin match Raster2.Scene3_consumer.render ~target ~clear:0x00000000l
-          ~clear_depth:prepared.clear_depth ~draws:prepared.draws with
+          ~clear_depth:prepared.clear_depth ~clear_stencil:prepared.clear_stencil
+          ~draws:prepared.draws with
       | Error error -> Error (Scene3_render error)
       | Ok () ->
           let resource_id = 1 in
