@@ -1,0 +1,38 @@
+let get = function Ok value -> value | Error error -> failwith (Ogpu.Error.to_string error)
+let metal = function Ok value -> value | Error error -> failwith (Format.asprintf "%a" Metal.pp_error error)
+let rss_kib () = let argv=[|"/bin/ps";"-o";"rss=";"-p";string_of_int(Unix.getpid())|]in let input=Unix.open_process_args_in argv.(0)argv in Fun.protect~finally:(fun()->ignore(Unix.close_process_in input))(fun()->int_of_string(String.trim(input_line input)))
+let mesh frame =
+  let vertices=Bytes.make 48 '\000'and indices=Bytes.make 12 '\000'in
+  Bytes.set_int32_le indices 4 1l;Bytes.set_int32_le indices 8 2l;
+  let shift=float(frame mod 17)/.128. and color=Int32.logor 0x000000FFl(Int32.shift_left(Int32.of_int(frame land 255))24)in
+  List.iteri(fun index(x,y)->let offset=index*16 in Bytes.set_int32_le vertices offset(Int32.bits_of_float(x+.shift));Bytes.set_int32_le vertices(offset+4)(Int32.bits_of_float y);Bytes.set_int32_le vertices(offset+8)color)[-1.,1.;1.,1.;-1.,-1.];
+  {Scene_execution.key=Printf.sprintf"churn-%02d"(frame mod 80);vertices;vertex_count=3;indices;index_count=3}
+let draw frame width height=let inset=frame mod 3 in{Scene_execution.mesh=mesh frame;state={viewport=(0,0,width,height);scissor=(inset,inset,width-inset,height-inset)}}
+let () =
+  let minutes=ref 30. and report=ref None in
+  Arg.parse["--minutes",Arg.Set_float minutes,"duration";"--report",Arg.String(fun value->report:=Some value),"JSON report"](fun value->raise(Arg.Bad value))"runtime_next_native_stability";
+  if not(Float.is_finite !minutes)|| !minutes<=0. then invalid_arg"minutes";
+  let before=metal(Metal.Release_queue.stats())and started=Unix.gettimeofday()in
+  let width=ref 64 and height=ref 48 and frame=ref 0 and rolling=ref 0L in
+  let runtime=get(Runtime_next.create~width:!width~height:!height)in
+  let samples=Array.make 256 None and observations=ref 0 and last_sample=ref(started-.1.)in
+  while Unix.gettimeofday()-.started < !minutes*.60. do
+    incr frame;
+    if !frame mod 300=0 then begin width:=if !width=64 then 80 else 64;height:=if !height=48 then 60 else 48;get(Runtime_next.resize runtime~width:!width~height:!height)end;
+    ignore(get(Runtime_next.render~clear:(0.,0.,0.,1.)runtime[draw !frame !width !height]));
+    if !frame mod 600=0 then begin
+      let facts=Runtime_next.frame_facts runtime in
+      let pixels=get(Runtime_next.read_pixels runtime~bytes_per_row:(facts.drawable_width*4))in
+      rolling:=Int64.logxor(Int64.mul !rolling 1099511628211L)(Int64.of_int(Hashtbl.hash pixels));
+      let now=Unix.gettimeofday()in
+      if now-. !last_sample>=1. then begin last_sample:=now;let stats=Runtime_next.stats runtime in samples.(!observations mod 256)<-Some(`Assoc["elapsed",`Float(now-.started);"frame",`Int !frame;"rss_kib",`Int(rss_kib());"mesh_cache",`Int stats.mesh_cache_entries;"pipeline_cache",`Int stats.pipeline_cache_entries]);incr observations end
+    end
+  done;
+  let live=Runtime_next.stats runtime in if live.mesh_cache_entries>64||live.pipeline_cache_entries<>1 then failwith"native cache bound";
+  get(Runtime_next.destroy runtime);ignore(metal(Metal.Release_queue.drain()));
+  let dead=Runtime_next.stats runtime and after=metal(Metal.Release_queue.stats())in
+  if dead.mesh_cache_entries<>0||dead.pipeline_cache_entries<>0||after.live_handles<>before.live_handles then failwith(Printf.sprintf"native teardown delta mesh=%d pipeline=%d handles=%d->%d"dead.mesh_cache_entries dead.pipeline_cache_entries before.live_handles after.live_handles);
+  let length=min !observations 256 and start=if !observations<=256 then 0 else !observations mod 256 in
+  let retained=List.init length(fun offset->match samples.((start+offset)mod 256)with Some value->value|None->assert false)in
+  let json=`Assoc["schema",`Int 1;"minutes",`Float !minutes;"frames",`Int !frame;"hash",`String(Printf.sprintf"%016Lx" !rolling);"observations",`Int !observations;"retained",`Int length;"samples",`List retained;"live_mesh_cache_peak_bound",`Int 64;"live_mesh_cache_final",`Int dead.mesh_cache_entries;"pipeline_cache_final",`Int dead.pipeline_cache_entries;"metal_live_before",`Int before.live_handles;"metal_live_after",`Int after.live_handles]in
+  let text=Yojson.Safe.pretty_to_string json^"\n"in match !report with None->print_string text|Some path->let channel=open_out_bin path in output_string channel text;close_out channel

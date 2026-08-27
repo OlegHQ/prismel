@@ -1,7 +1,7 @@
 type mesh={key:string;vertices:bytes;vertex_count:int;indices:bytes;index_count:int}
 type state={viewport:int*int*int*int;scissor:int*int*int*int}
 type draw={mesh:mesh;state:state}
-type cached={key:string;buffer:Ogpu.Backend.buffer;index_offset:int64;vertex_count:int;index_count:int}
+type cached={key:string;payload_hash:string;buffer:Ogpu.Backend.buffer;index_offset:int64;vertex_count:int;index_count:int}
 type t={device:Ogpu.Backend.device;queue:Ogpu.Backend.queue;surface:Ogpu.Backend.surface;mutable target:Ogpu.Backend.texture;pipeline:Ogpu.Backend.pipeline;pipeline_key:string;mutable cache:cached list;mutable uploaded:int64;mutable dead:bool;before_device_destroy:unit->(unit,Ogpu.Error.t)result}
 let error op kind text=Error(Ogpu.Error.make op kind text)
 let get_cleanup result cleanup=match result with Ok value->Ok value|Error _ as e->cleanup();e
@@ -21,12 +21,12 @@ let create_common driver configuration before_device_destroy supplied=match Ogpu
       |Error e,_|_,Error e->Error e)(fun()->ignore(Ogpu.Backend.destroy_surface surface)))(fun()->ignore(Ogpu.Backend.destroy_queue queue)))cleanup
 let create driver configuration=create_common driver configuration(fun()->Ok())None
 let create_with_pipeline driver configuration ?(before_device_destroy=fun()->Ok()) pipeline=create_common driver configuration before_device_destroy(Some pipeline)
-let prepare value (mesh:mesh)=match List.find_opt(fun x->x.key=mesh.key)value.cache with Some item->Ok item|None->
+let prepare value (mesh:mesh)=let payload_hash=Digest.to_hex(Digest.string(Bytes.to_string mesh.vertices^Bytes.to_string mesh.indices))in match List.find_opt(fun x->x.key=mesh.key&&x.payload_hash=payload_hash)value.cache with Some item->Ok item|None->
   let total=Bytes.length mesh.vertices+Bytes.length mesh.indices in
   if mesh.key=""||mesh.vertex_count<=0||mesh.index_count<=0||total=0 then error"Scene_execution.prepare"Ogpu.Error.Invalid_argument"mesh payload is empty"else
   let descriptor:Ogpu.Types.buffer_descriptor={label=Some("scene-mesh-"^mesh.key);size=Int64.of_int total;usage=[Vertex;Index;Copy_dst]}in
   match Ogpu.Backend.create_buffer value.device descriptor with Error _ as e->e|Ok buffer->
-    let offset=Int64.of_int(Bytes.length mesh.vertices)in match Ogpu.Backend.write_buffer buffer~offset:0L mesh.vertices with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->match Ogpu.Backend.write_buffer buffer~offset mesh.indices with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->let item={key=mesh.key;buffer;index_offset=offset;vertex_count=mesh.vertex_count;index_count=mesh.index_count}in value.cache<-item::value.cache;value.uploaded<-Int64.add value.uploaded(Int64.of_int total);Ok item
+    let offset=Int64.of_int(Bytes.length mesh.vertices)in match Ogpu.Backend.write_buffer buffer~offset:0L mesh.vertices with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->match Ogpu.Backend.write_buffer buffer~offset mesh.indices with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->let item={key=mesh.key;payload_hash;buffer;index_offset=offset;vertex_count=mesh.vertex_count;index_count=mesh.index_count}in let replaced,others=List.partition(fun x->x.key=mesh.key)value.cache in List.iter(fun x->ignore(Ogpu.Backend.destroy_buffer x.buffer))replaced;let cache=item::others in let keep,evict=List.mapi(fun i x->i,x)cache|>List.partition(fun(i,_)->i<64)in List.iter(fun(_,x)->ignore(Ogpu.Backend.destroy_buffer x.buffer))evict;value.cache<-List.map snd keep;value.uploaded<-Int64.add value.uploaded(Int64.of_int total);Ok item
 let pass value state load clear=let texture=Ogpu.Backend.render_texture value.target~format:Ogpu.Render_pass.Rgba8~usage:Render_target in let x,y,width,height=state.viewport and sx,sy,sw,sh=state.scissor in Ogpu.Render_pass.create(Ogpu.Backend.device_handle value.device){colors=[|Some{texture;resolve=None;load;store=Store;clear}|];depth=None;stencil=None;viewport={x;y;width;height};scissor={x=sx;y=sy;width=sw;height=sh}}
 let render ?(clear=(0.,0.,0.,0.)) value draws=if value.dead then error"Scene_execution.render"Ogpu.Error.Stale_handle"renderer is destroyed"else
   let rec prepare_all acc=function []->Ok(List.rev acc)|(draw:draw)::rest->match prepare value draw.mesh with Error _ as e->e|Ok mesh->prepare_all((draw.state,mesh)::acc)rest in
@@ -37,5 +37,6 @@ let render ?(clear=(0.,0.,0.,0.)) value draws=if value.dead then error"Scene_exe
     (match batches true prepared with Error e->ignore(Ogpu.Backend.discard frame);Error e|Ok()->Result.map(fun()->true)(Ogpu.Backend.present frame))
 let resize value configuration=match Ogpu.Backend.create_texture value.device(texture_descriptor configuration)with Error _ as e->e|Ok target->match Ogpu.Backend.configure value.surface configuration with Error e->ignore(Ogpu.Backend.destroy_texture target);Error e|Ok()->let old=value.target in value.target<-target;Ogpu.Backend.destroy_texture old
 let upload_bytes value=value.uploaded
+let cache_entries value=List.length value.cache
 let read_pixels value ~bytes_per_row=Ogpu.Backend.read_texture value.target~bytes_per_row
-let destroy value=if value.dead then Ok()else(value.dead<-true;List.iter(fun item->ignore(Ogpu.Backend.destroy_buffer item.buffer))value.cache;ignore(Ogpu.Backend.destroy_texture value.target);ignore(Ogpu.Backend.destroy_pipeline value.pipeline);ignore(Ogpu.Backend.destroy_surface value.surface);ignore(Ogpu.Backend.destroy_queue value.queue);match value.before_device_destroy()with Error _ as e->e|Ok()->Ogpu.Backend.destroy_device value.device)
+let destroy value=if value.dead then Ok()else(value.dead<-true;List.iter(fun item->ignore(Ogpu.Backend.destroy_buffer item.buffer))value.cache;value.cache<-[];ignore(Ogpu.Backend.destroy_texture value.target);ignore(Ogpu.Backend.destroy_pipeline value.pipeline);ignore(Ogpu.Backend.destroy_surface value.surface);ignore(Ogpu.Backend.destroy_queue value.queue);match value.before_device_destroy()with Error _ as e->e|Ok()->Ogpu.Backend.destroy_device value.device)

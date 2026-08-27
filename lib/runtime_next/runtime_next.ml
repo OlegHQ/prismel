@@ -1,4 +1,4 @@
-type stats={pipeline_cache_entries:int;uploaded_bytes:int64}
+type stats={pipeline_cache_entries:int;mesh_cache_entries:int;uploaded_bytes:int64}
 type frame_facts={logical_width:int;logical_height:int;drawable_width:int;drawable_height:int;pixel_scale_x:float;pixel_scale_y:float}
 type t={window:Sdl3.Window.t;view:Sdl3.Metal_view.t;renderer:Scene_execution.t;cache:Ogpu_metal.Pipeline.cache;mutable facts:frame_facts;mutable dead:bool}
 let error op text=Error(Ogpu.Error.make op Ogpu.Error.Invalid_state text)
@@ -20,7 +20,7 @@ let render ?clear value draws=if value.dead then Error(Ogpu.Error.make"Runtime_n
 let apply_facts value facts=let configuration:Ogpu.Surface.configuration={logical_width=facts.logical_width;logical_height=facts.logical_height;physical_width=facts.drawable_width;physical_height=facts.drawable_height;format=Bgra8_unorm;present_mode=Fifo;max_acquired=2}in match Scene_execution.resize value.renderer configuration with Error _ as e->e|Ok()->value.facts<-facts;Ok()
 let resize value ~width ~height=if value.dead then Error(Ogpu.Error.make"Runtime_next.resize"Stale_handle"runtime is destroyed")else match sdl"Runtime_next.resize"(Sdl3.Window.set_size value.window~width~height)with Error _ as e->e|Ok()->Result.bind(facts value.window)(apply_facts value)
 let read_pixels value=Scene_execution.read_pixels value.renderer
-let stats value={pipeline_cache_entries=Ogpu_metal.Pipeline.cache_length value.cache;uploaded_bytes=Scene_execution.upload_bytes value.renderer}
+let stats value={pipeline_cache_entries=Ogpu_metal.Pipeline.cache_length value.cache;mesh_cache_entries=Scene_execution.cache_entries value.renderer;uploaded_bytes=Scene_execution.upload_bytes value.renderer}
 let frame_facts value=value.facts
 let handle_window_event value=function Sdl3.Event.Window{change=Resized _;_}->Result.map(fun()->true)(Result.bind(facts value.window)(apply_facts value))|_->Ok false
 let destroy value=if value.dead then Ok()else(value.dead<-true;match Scene_execution.destroy value.renderer with Error _ as e->e|Ok()->match sdl"Runtime_next.destroy"(Sdl3.Metal_view.destroy value.view)with Error _ as e->e|Ok()->match sdl"Runtime_next.destroy"(Sdl3.Window.destroy value.window)with Error _ as e->e|Ok()->sdl"Runtime_next.destroy"(Sdl3.Init.quit_subsystems[Sdl3.Init.Video]))

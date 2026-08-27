@@ -1,0 +1,3 @@
+(executable
+ (name runtime_next_native_stability)
+ (libraries runtime_next scene_execution metal ogpu unix yojson))
