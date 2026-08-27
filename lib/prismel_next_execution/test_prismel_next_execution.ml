@@ -56,6 +56,26 @@ let () =
   let batched_ir=Result.get_ok(Raster2.Render_ir.create[|geometry;geometry|])in
   let batched=get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)batched_ir)in
   check(List.length batched=1)"adjacent compatible Scene2 draws were not batched";
+  let owned_vertices=[|2.;2.;30.;2.;2.;30.|]and owned_indices=[|0;1;2|]in
+  let owned_ir=Result.get_ok(Raster2.Render_ir.Private.create_owned[|Geometry{vertices=owned_vertices;indices=owned_indices;color=0x4080BFFFl}|])in
+  let cached0,candidates0=scene2_geometry_cache_entries resource_runtime in
+  ignore(get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)owned_ir));
+  check(scene2_geometry_cache_entries resource_runtime=(cached0,candidates0+1))"first-seen geometry was retained strongly";
+  ignore(get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)owned_ir));
+  check(scene2_geometry_cache_entries resource_runtime=(cached0+1,candidates0))"stable geometry was not admitted on second sight";
+  Gc.full_major();let geometry_allocated0=Gc.allocated_bytes()and geometry_gc0=Gc.quick_stat()in
+  for _=1 to 1_000 do ignore(get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)owned_ir))done;
+  let geometry_gc1=Gc.quick_stat()in
+  let geometry_allocated=(Gc.allocated_bytes()-.geometry_allocated0)/.1_000.
+  and geometry_promoted=(geometry_gc1.promoted_words-.geometry_gc0.promoted_words)*.float(Sys.word_size/8)in
+  check(geometry_allocated<10_000.)"stable owned geometry allocation regression";
+  check(geometry_promoted<100_000.)"stable owned geometry promotion regression";
+  for index=1 to 300 do
+    let transient=Result.get_ok(Raster2.Render_ir.Private.create_owned[|Geometry{vertices=[|float index;0.;1.;0.;0.;1.|];indices=[|0;1;2|];color=Int32.of_int index}|])in
+    ignore(get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)transient))
+  done;
+  let cached,candidates=scene2_geometry_cache_entries resource_runtime in
+  check(cached<=256&&candidates<=256)"owned geometry caches exceeded capacity";
   ignore(get(step resource_runtime batched));
   check(Bytes.exists((<>)'\000')(get(capture resource_runtime)))
     "batched Scene2 topology produced no pixels";

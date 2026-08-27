@@ -16,7 +16,7 @@ let copy_string value=Bytes.to_string(Bytes.of_string value)
 let copy_command=function Clear c->Clear c|Set_blend b->Set_blend b|Push_clip r->Push_clip r|Pop_clip->Pop_clip|Push_transform t->Push_transform t|Pop_transform->Pop_transform|Geometry g->Geometry{g with vertices=Array.copy g.vertices;indices=Array.copy g.indices}|Image i->Image i|Glyphs g->Glyphs{g with glyphs=Array.copy g.glyphs}|Debug_text d->Debug_text{d with text=copy_string d.text}
 let kind=function Clear _|Set_blend _|Push_clip _|Pop_clip|Push_transform _|Pop_transform->State|Geometry g->Geometry_batch g.color|Image i->Image_batch i.resource_id|Glyphs g->Glyph_batch g.resource_id|Debug_text d->Debug_text_batch d.color
 let same_kind a b=match a,b with State,State->false|Geometry_batch x,Geometry_batch y->x=y|Image_batch x,Image_batch y->x=y|Glyph_batch x,Glyph_batch y->x=y|Debug_text_batch x,Debug_text_batch y->x=y|_->false
-let create input=
+let create_internal ~copy input=
   if Array.length input>1_048_576 then Error Complexity_limit else
   let clip=ref 0 and transform=ref 0 and failure=ref None in
   let fail e=if !failure=None then failure:=Some e in
@@ -33,13 +33,15 @@ let create input=
   if !failure=None&& !clip<>0 then failure:=Some Unbalanced_clip;
   if !failure=None&& !transform<>0 then failure:=Some Unbalanced_transform;
   match !failure with Some e->Error e|None->
-    let commands=Array.map copy_command input in
+    let commands=if copy then Array.map copy_command input else input in
     let built=ref[]in Array.iteri(fun index command->let k=kind command in match !built with {first;count;kind=old}::rest when same_kind old k->built:={first;count=count+1;kind=old}::rest|_->built:={first=index;count=1;kind=k}::!built)commands;
     Ok{commands;batches=Array.of_list(List.rev !built)}
+let create input=create_internal~copy:true input
 let commands t=Array.map copy_command t.commands
 let batches t=Array.copy t.batches
 module Private=struct
   let commands_readonly t=t.commands
+  let create_owned input=create_internal~copy:false input
 end
 module Encoder=struct
  type t={mutable bytes:bytes;mutable length:int}

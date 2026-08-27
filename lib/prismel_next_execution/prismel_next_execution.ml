@@ -37,6 +37,11 @@ type family = Scene2 | Scene2_textured | Scene3 | Scene3_textured | Scene3_shado
 type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
 type draw = { family:family; blend:blend; texture:Scene_execution.sampled_texture option;
   auxiliary:Scene_execution.auxiliary_resource option;samples:int;value:Scene_execution.draw }
+type cached_scene2_geometry={vertices:float array Weak.t;indices:int array Weak.t;color:int32;
+  transform:Raster2.Render_ir.transform;clip:int*int*int*int;draw:draw}
+type scene2_geometry_candidate={candidate_vertices:float array Weak.t;
+  candidate_indices:int array Weak.t;candidate_color:int32;
+  candidate_transform:Raster2.Render_ir.transform;candidate_clip:int*int*int*int}
 type resource=Image of Prismel_next_resources.Image.t|Text of Prismel_next_resources.Text.t
   |Canvas of Prismel_next_resources.Canvas.t
 let prepared_draw ~family ?(blend=Replace) ?texture ?auxiliary ?(samples=1) value =
@@ -185,6 +190,8 @@ type t = { runtime:Runtime_next_orchestrator.t; input:Runtime_next_input.t;
   assets:Prismel_next_resources.Assets.t; timing:timing; mutable frame:int64;
   mutable elapsed:float; mutable last_clock:float; mutable dead:bool;
   mutable snapshots:(string*int*int*Scene_execution.sampled_texture)list;
+  mutable scene2_geometry_cache:cached_scene2_geometry list;
+  mutable scene2_geometry_candidates:scene2_geometry_candidate list;
   mutable canvas_keys:(Prismel_next_resources.Canvas.t*string)list;mutable next_canvas_key:int }
 let runtime_target=function Native->Runtime_next_orchestrator.Native
   |Headless->Headless|Web->Web
@@ -206,11 +213,13 @@ let create (configuration:configuration) =
         ~logical_height:configuration.logical_height with
       |Error message->ignore(Runtime_next_orchestrator.destroy runtime);fail operation Backend message
       |Ok input->Ok{runtime;input;assets=Prismel_next_resources.Assets.create();timing=configuration.timing;
-          frame=0L;elapsed=0.;last_clock=Unix.gettimeofday();dead=false;snapshots=[];
+          frame=0L;elapsed=0.;last_clock=Unix.gettimeofday();dead=false;snapshots=[];scene2_geometry_cache=[];scene2_geometry_candidates=[];
           canvas_keys=[];next_canvas_key=0})
 let target value=match Runtime_next_orchestrator.target value.runtime with Native->Native|Headless->Headless|Web->Web
 let assets value=value.assets
 let snapshot_cache_entries value=List.length value.snapshots
+let scene2_geometry_cache_entries value=
+  List.length value.scene2_geometry_cache,List.length value.scene2_geometry_candidates
 let ensure operation value=if value.dead then fail operation Destroyed"coordinator is destroyed"else Ok()
 type stats=Runtime_next_orchestrator.stats={frames:int64;presented:int64;logical_draws:int64;
   logical_passes:int64;logical_submissions:int64;uploaded_bytes:int64;cache_entries:int}
@@ -254,6 +263,28 @@ let lower_scene2 value ~density ~resource:resolve ir =
   let point transform x y=transform.Raster2.Render_ir.xx*.x+.transform.yx*.y+.transform.tx,
     transform.xy*.x+.transform.yy*.y+.transform.ty in
   let clip_live()=let _,_,width,height=List.hd!clips in width>0&&height>0 in
+  let geometry_draw number transform clip (geometry:Raster2.Render_ir.geometry)=
+    let weak_same weak target=match Weak.get weak 0 with Some value->value==target|None->false in
+    let same vertices indices color cached_transform cached_clip=
+      weak_same vertices geometry.vertices&&weak_same indices geometry.indices&&
+      color=geometry.color&&cached_transform=transform&&cached_clip=clip in
+    value.scene2_geometry_cache<-List.filter(fun cached->Weak.check cached.vertices 0&&Weak.check cached.indices 0)value.scene2_geometry_cache;
+    match List.find_opt(fun cached->same cached.vertices cached.indices cached.color cached.transform cached.clip)value.scene2_geometry_cache with
+    |Some cached->cached.draw
+    |None->
+        let draw=mesh_of_geometry number transform clip geometry in
+        value.scene2_geometry_candidates<-List.filter(fun candidate->Weak.check candidate.candidate_vertices 0&&Weak.check candidate.candidate_indices 0)value.scene2_geometry_candidates;
+        match List.find_opt(fun candidate->same candidate.candidate_vertices candidate.candidate_indices candidate.candidate_color candidate.candidate_transform candidate.candidate_clip)value.scene2_geometry_candidates with
+        |None->
+            let vertices=Weak.create 1 and indices=Weak.create 1 in Weak.set vertices 0(Some geometry.vertices);Weak.set indices 0(Some geometry.indices);
+            value.scene2_geometry_candidates<-{candidate_vertices=vertices;candidate_indices=indices;candidate_color=geometry.color;candidate_transform=transform;candidate_clip=clip}::value.scene2_geometry_candidates;
+            if List.length value.scene2_geometry_candidates>256 then value.scene2_geometry_candidates<-List.rev(List.tl(List.rev value.scene2_geometry_candidates));draw
+        |Some candidate->
+            value.scene2_geometry_candidates<-List.filter((!=)candidate)value.scene2_geometry_candidates;
+            let cached={vertices=candidate.candidate_vertices;indices=candidate.candidate_indices;color=geometry.color;transform;clip;draw}in
+            value.scene2_geometry_cache<-cached::value.scene2_geometry_cache;
+            if List.length value.scene2_geometry_cache>256 then value.scene2_geometry_cache<-List.rev(List.tl(List.rev value.scene2_geometry_cache));draw
+    in
   let quad texture (destination:Raster2.Render_ir.rect) =
     let transform=List.hd!transforms in
     let x0,y0=point transform destination.Raster2.Render_ir.x destination.y
@@ -288,7 +319,7 @@ let lower_scene2 value ~density ~resource:resolve ir =
       let right=min(px+pw)right and bottom=min(py+ph)bottom in
       clips:=(x,y,max 0(right-x),max 0(bottom-y))::!clips
     |Pop_clip->(match!clips with _::(_::_ as rest)->clips:=rest|_->())
-    |Geometry geometry->if clip_live()then(draws:=mesh_of_geometry!number(List.hd!transforms)(List.hd!clips)geometry::!draws;incr number)
+    |Geometry geometry->if clip_live()then(draws:=geometry_draw!number(List.hd!transforms)(List.hd!clips)geometry::!draws;incr number)
     |Debug_text debug->if clip_live()then
         let geometry=debug_text_geometry(List.hd!transforms)debug in
         if Array.length geometry.indices>0 then begin

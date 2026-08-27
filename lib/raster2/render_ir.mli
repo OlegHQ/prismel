@@ -18,6 +18,9 @@ module Private : sig
   (** Borrowed validated command storage for audited consumers. The array and
       every nested payload must be treated as read-only. *)
   val commands_readonly : t -> command array
+  (* Validates and takes ownership of a freshly allocated command graph. The
+     caller must retain no mutable aliases to arrays nested in [input]. *)
+  val create_owned : command array -> (t,error) result
 end
 (* Stable, explicitly little-endian, versioned encoding. *)
 val serialize : t -> bytes

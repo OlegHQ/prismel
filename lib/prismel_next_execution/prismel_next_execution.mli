@@ -79,6 +79,7 @@ val assets : t -> Prismel_next_resources.Assets.t
 val lower_scene2 : t -> density:int -> resource:(int -> resource option) ->
   Raster2.Render_ir.t -> (draw list,error) result
 val snapshot_cache_entries : t -> int
+val scene2_geometry_cache_entries : t -> int * int
 type stats = Runtime_next_orchestrator.stats = { frames:int64; presented:int64;
   logical_draws:int64; logical_passes:int64; logical_submissions:int64;
   uploaded_bytes:int64; cache_entries:int }

@@ -179,7 +179,7 @@ module Private=struct
    else
      try
        let scene = materialize ~width ~height scene in
-       match Raster2.Render_ir.create (Array.of_list (List.rev (commands [] scene))) with
+       match Raster2.Render_ir.Private.create_owned (Array.of_list (List.rev (commands [] scene))) with
        | Error _ -> Error "invalid scene description"
        | Ok ir -> Ok (ir, image_resources scene)
      with
