@@ -157,6 +157,15 @@
    (setenv PRISMEL_TEST_FONT_RASTER2_SNAPSHOT 1 (run %{test})))))
 
 (test
+ (name canvas_raster2_snapshot)
+ (modules canvas_raster2_snapshot)
+ (libraries prismel unix)
+ (link_flags -linkall)
+ (action
+  (setenv SDL_VIDEODRIVER dummy
+   (setenv PRISMEL_TEST_CANVAS_RASTER2_SNAPSHOT 1 (run %{test})))))
+
+(test
  (name sdl3_platform_harness)
  (modules sdl3_platform_harness)
  (libraries prismel prismel.sdl3))

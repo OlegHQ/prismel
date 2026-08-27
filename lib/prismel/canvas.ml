@@ -6,6 +6,8 @@ type t = {
   width : int;
   height : int;
   mutable destroyed : bool;
+  mutable mutation : int64;
+  mutable snapshot : (int * int * bytes * int64) option;
 }
 
 let require_main_domain () =
@@ -37,7 +39,8 @@ let create ~width ~height =
              ignore (Sdl.set_render_draw_blend_mode renderer Sdl.Blend.mode_blend);
              ignore (Sdl.set_render_draw_color renderer 0 0 0 0);
              ignore (Sdl.render_clear renderer);
-             Ok { surface; renderer; width; height; destroyed = false })
+             Ok { surface; renderer; width; height; destroyed = false;
+               mutation = 1L; snapshot = None })
 
 let create_exn ~width ~height =
   match create ~width ~height with
@@ -77,7 +80,8 @@ let render canvas scene =
         previous.renderer)
     (fun () ->
       Scene.render scene;
-      Sdl.render_present canvas.renderer)
+      Sdl.render_present canvas.renderer;
+      canvas.mutation <- Int64.succ canvas.mutation)
 
 let with_pixels canvas operation =
   ensure canvas;
@@ -128,7 +132,8 @@ let set_pixel canvas ~x ~y color =
     invalid_arg "Canvas.set_pixel: coordinate outside canvas";
   with_format (fun format ->
     with_pixels canvas (fun values stride ->
-      values.{(y * stride) + x} <- pixel_of_color format color))
+      values.{(y * stride) + x} <- pixel_of_color format color));
+  canvas.mutation <- Int64.succ canvas.mutation
 
 let map_pixels canvas transform =
   with_format (fun format ->
@@ -140,7 +145,8 @@ let map_pixels canvas transform =
             pixel_of_color format
               (transform ~x ~y (color_of_pixel format values.{index}))
         done
-      done))
+      done));
+  canvas.mutation <- Int64.succ canvas.mutation
 
 let apply_mask ~source ~mask =
   ensure source;
@@ -166,16 +172,40 @@ let apply_mask ~source ~mask =
                   a = (source_color.a * mask_alpha + 127) / 255;
                 }
           done
-        done)))
+        done)));
+  source.mutation <- Int64.succ source.mutation
+
+let synchronize_snapshot canvas =
+  match canvas.snapshot with
+  | Some (_, _, _, generation) when generation = canvas.mutation ->
+      Ok (Option.get canvas.snapshot)
+  | _ ->
+      match Image_snapshot.rgba_of_surface canvas.surface with
+      | Error message ->
+          begin match canvas.snapshot with
+          | Some snapshot -> Ok snapshot
+          | None -> Error ("Canvas snapshot failed: " ^ message)
+          end
+      | Ok (width, height, rgba) ->
+          let snapshot = width, height, rgba, canvas.mutation in
+          canvas.snapshot <- Some snapshot;
+          Ok snapshot
 
 let to_image canvas =
   ensure canvas;
   match Image.Private.get_renderer () with
   | Error message -> Error message
   | Ok renderer ->
-      (match Sdl.create_texture_from_surface renderer canvas.surface with
+      (match synchronize_snapshot canvas with
+       | Error _ as error -> error
+       | Ok (width, height, rgba, generation) ->
+       match Sdl.create_texture_from_surface renderer canvas.surface with
        | Error (`Msg message) -> Error ("Canvas texture upload failed: " ^ message)
-       | Ok texture -> Ok (Image.Private.from_texture texture canvas.width canvas.height))
+       | Ok texture ->
+           let image = Image.Private.from_texture texture canvas.width canvas.height in
+           Image_snapshot.register_generation (Obj.repr image) ~generation
+             ~width ~height rgba;
+           Ok image)
 
 let save_png canvas filename =
   ensure canvas;
@@ -233,5 +263,6 @@ let destroy canvas =
     Font.release_renderer canvas.renderer;
     Sdl.destroy_renderer canvas.renderer;
     Sdl.free_surface canvas.surface;
+    canvas.snapshot <- None;
     canvas.destroyed <- true
   end

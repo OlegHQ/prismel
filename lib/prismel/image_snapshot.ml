@@ -23,6 +23,14 @@ let register key ~width ~height rgba =
   entries := { key; snapshot } ::
     List.filter (fun entry -> entry.key != key) !entries
 
+let register_generation key ~generation ~width ~height rgba =
+  let snapshot = {
+    id = Atomic.fetch_and_add next_id 1;
+    generation; width; height; rgba = Bytes.copy rgba;
+  } in
+  entries := { key; snapshot } ::
+    List.filter (fun entry -> entry.key != key) !entries
+
 let replace ~target ~replacement =
   match find replacement with
   | None -> ()
