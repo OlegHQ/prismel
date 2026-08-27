@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5108,
+    "bound": 5115,
     "scope-excluded": 37,
-    "unreviewed": 140
+    "unreviewed": 133
   },
-  "classification_source_sha256": "275324aa29ec7fe2ad5dccb3b99fbf4525bc63880d4e73ac3853a70ac2c6fdeb",
+  "classification_source_sha256": "734f55f79db7b0e3d58e31f4739bb11935e9b8a7b97a0ec7db143605e400a6ec",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -2350,7 +2350,7 @@
           "line": 54
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "class:MTLFunctionStitchingAttributeAlwaysInline",
       "kind": "class",
@@ -2358,7 +2358,7 @@
       "macos_introduced": "12.0",
       "name": "MTLFunctionStitchingAttributeAlwaysInline",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied owned stitching input/function/graph/attribute/descriptor values with checked names, argument indices, graph membership/cycles, same-device lifetimes, and real stitched-library compilation conformance.",
       "signature": ""
     },
     {
@@ -2372,7 +2372,7 @@
           "line": 80
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "class:MTLFunctionStitchingFunctionNode",
       "kind": "class",
@@ -2380,7 +2380,7 @@
       "macos_introduced": "12.0",
       "name": "MTLFunctionStitchingFunctionNode",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied owned stitching input/function/graph/attribute/descriptor values with checked names, argument indices, graph membership/cycles, same-device lifetimes, and real stitched-library compilation conformance.",
       "signature": ""
     },
     {
@@ -2394,7 +2394,7 @@
           "line": 95
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "class:MTLFunctionStitchingGraph",
       "kind": "class",
@@ -2402,7 +2402,7 @@
       "macos_introduced": "12.0",
       "name": "MTLFunctionStitchingGraph",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied owned stitching input/function/graph/attribute/descriptor values with checked names, argument indices, graph membership/cycles, same-device lifetimes, and real stitched-library compilation conformance.",
       "signature": ""
     },
     {
@@ -2416,7 +2416,7 @@
           "line": 70
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "class:MTLFunctionStitchingInputNode",
       "kind": "class",
@@ -2424,7 +2424,7 @@
       "macos_introduced": "12.0",
       "name": "MTLFunctionStitchingInputNode",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied owned stitching input/function/graph/attribute/descriptor values with checked names, argument indices, graph membership/cycles, same-device lifetimes, and real stitched-library compilation conformance.",
       "signature": ""
     },
     {
@@ -3405,7 +3405,7 @@
           "line": 111
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "class:MTLStitchedLibraryDescriptor",
       "kind": "class",
@@ -3413,7 +3413,7 @@
       "macos_introduced": "12.0",
       "name": "MTLStitchedLibraryDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied owned stitching input/function/graph/attribute/descriptor values with checked names, argument indices, graph membership/cycles, same-device lifetimes, and real stitched-library compilation conformance.",
       "signature": ""
     },
     {
@@ -105190,7 +105190,7 @@
           "line": 46
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "protocol:MTLFunctionStitchingAttribute",
       "kind": "protocol",
@@ -105198,7 +105198,7 @@
       "macos_introduced": "12.0",
       "name": "MTLFunctionStitchingAttribute",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied owned stitching input/function/graph/attribute/descriptor values with checked names, argument indices, graph membership/cycles, same-device lifetimes, and real stitched-library compilation conformance.",
       "signature": ""
     },
     {
@@ -105211,7 +105211,7 @@
           "line": 62
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "protocol:MTLFunctionStitchingNode",
       "kind": "protocol",
@@ -105219,7 +105219,7 @@
       "macos_introduced": "12.0",
       "name": "MTLFunctionStitchingNode",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied owned stitching input/function/graph/attribute/descriptor values with checked names, argument indices, graph membership/cycles, same-device lifetimes, and real stitched-library compilation conformance.",
       "signature": ""
     },
     {
