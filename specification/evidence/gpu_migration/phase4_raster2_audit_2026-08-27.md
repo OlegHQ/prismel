@@ -78,7 +78,7 @@ fixture; **M** means missing. These are not legacy pixel-parity claims.
 | `path` rules/contours/fill/stroke | I/T | Separate contours, transparent holes, ordering, frame-600 and four-domain fixtures (`59ae442`, `3d1c2c1`). |
 | `text`, `debug_text`, `font_text` | I/T | Typed glyph snapshots; generation+density identity, empty no-op, failure, consumer, frame-600/four-domain (`132892f`). Live SDL font adapters remain missing. |
 | `image` position/scale | I/T | Typed surface snapshot and watched-generation identity (`132892f`). Live SDL adapter and failed-reload retention remain missing. |
-| `image` angle/center/flip | R/U | Atomic `Unsupported Image_transform`; no dedicated rejection fixture. This is a parity gap (`132892f`). |
+| `image` angle/center/flip | I/T | Private lowering emits one pivoted affine transform around the image command; rotation, scale, explicit center and flip are exact through frame 600/four domains. Live legacy pixel comparison remains open. |
 | `view3d` default/explicit viewport | I/T | Typed Scene3 lowering and private OGPU resource/state fixture (`e813369`, `d199322`); see R3 gaps. |
 | `text_input_region` | R/U | Explicit `Unsupported Metadata`; no focused rejection fixture, and the Runtime/Wap metadata side channel remains missing. |
 | `translate`, `rotate`, `scale` | I/T | Balanced transform stack/order; resource children retain transforms (`b9f9f28`, `132892f`). |
@@ -103,7 +103,7 @@ fields are ignored or not integrated and therefore cannot count as parity.
 | `group`, `transform`, `translate`, `rotate`, `scale`, `at_node` | I/T | Flattened matrices; camera-only frames 2–600 produce zero replacement upload bytes (`e813369`, `d199322`). Convenience-specific pixels remain open. |
 | `box`, `plane`, `sphere`, `icosphere`, `cylinder`, `cone` | I/U | Convenience constructors produce ordinary Mesh values. No per-primitive lowering pixel matrix. |
 | Material ambient/diffuse/specular/emissive/shininess | I/T | Copied into prepared lighting (`51128b0`, `e813369`). |
-| Ambient/directional/point/spot lights | I/T | Lighting fixtures and lowering mapping (`51128b0`, `e813369`); spot `concentration` is not represented, so spot parity is partial. |
+| Ambient/directional/point/spot lights | Partial | Ambient/directional/point and zero-concentration spot map exactly (`51128b0`, `e813369`). Non-zero spot concentration is now explicitly rejected and tested because Raster2 has no exponent field; it is no longer silently approximated. |
 | Area lights | R/U | Explicit `Unsupported_area_light`; no focused lowerer fixture. |
 | Scene ambient and separate specular | I/T | Immutable lighting preparation (`51128b0`, `e813369`). |
 | Linear fog | I/T | Deterministic linear fog (`51128b0`, `e813369`). |
@@ -120,11 +120,10 @@ fields are ignored or not integrated and therefore cannot count as parity.
 | `stencil_clear`, `with_stencil` | M | Comparison, masks and operations are not carried into prepared draws. |
 | `with_raster` line width/point size | M | Flattened state is ignored; unsupported wire/vertex modes cannot provide parity. |
 | Samples 1/4/9/16 | Partial | Samples reach preparation and standalone MSAA is tested (`090ffae`), but private consumer/OGPU target integration does not apply every count. |
-| Viewport/scissor | I/T | Default/explicit validation, matrix conversion, ordered state (`e813369`, `d199322`). Nested Scene2 clip does not constrain View3d scissor. |
+| Viewport/scissor | I/T | Default/explicit validation, matrix conversion and ordered state (`e813369`, `d199322`); nested Scene2 clips now intersect View3d viewport/scissor and are exercised through frame 600/four domains. |
 | Public Runtime/Metal execution | M | No atomic target selection or Metal draw-command payload; Backend currently proves resource/lifecycle submission only. |
 
 The smallest local gaps are dedicated fixtures for already-mapped convenience
 constructors. They do not repair the material missing semantics above.
-Depth/stencil/raster, texture wrapping, spot concentration, nested View3d clip,
-sample integration and portable draw commands require typed representation
+Depth/stencil/raster, texture wrapping, non-zero spot concentration, sample integration and portable draw commands require typed representation
 changes and must not be marked complete by expectation-only tests.

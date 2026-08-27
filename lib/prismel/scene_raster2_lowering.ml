@@ -100,8 +100,10 @@ let lower_with_resources callbacks scene =
   let add result=match result with Ok value->resolved:=value::!resolved|Error error->if !failure=None then failure:=Some error in
   let rec preflight values=if !failure<>None then()else match values with
     | []->()
-    | Scene_description.Image(value,_,_,angle,center,flip)::rest->
-        if Option.value angle~default:0.<>0.||center<>None||Option.value flip~default:false then failure:=Some(Unsupported Image_transform)
+    | Scene_description.Image(value,_,scale,angle,_,_)::rest->
+        if not (Float.is_finite (Option.value scale ~default:1.) &&
+            Float.is_finite (Option.value angle ~default:0.)) then
+          failure:=Some(Unsupported Image_transform)
         else add(Result.map(fun value->Resolved_image value)(callbacks.image value));preflight rest
     | Text(_,value,_,size)::rest->if value<>""then add(Result.map(fun value->Resolved_text value)(callbacks.system_text size value));preflight rest
     | Debug_text(_,value,_)::rest->if value<>""then add(Result.map(fun value->Resolved_text value)(callbacks.debug_text value));preflight rest
@@ -113,10 +115,27 @@ let lower_with_resources callbacks scene =
   let register entry=match List.find_opt(fun value->value.id=entry.id)!entries with None->entries:=entry::!entries|Some value->if value.identity<>entry.identity then failure:=Some Resource_failure in
   let take()=match !pending with value::rest->pending:=rest;Some value|[]->None in
   let handler emit reject=function
-    | Scene_description.Image(_, (x,y),scale,_,_,_)->begin match take()with Some(Resolved_image value)->
+    | Scene_description.Image(_, (x,y),scale,angle,center,flip)->begin match take()with Some(Resolved_image value)->
         let width=Raster2.Surface.width value.surface and height=Raster2.Surface.height value.surface and scale=Option.value scale~default:1. in
         register{id=value.resource_id;identity=Image_identity value.generation;value=Raster2.Consumer.Image value.surface};
-        emit(Raster2.Render_ir.Image{resource_id=value.resource_id;source={x=0.;y=0.;width=float width;height=float height};destination={x=float x;y=float y;width=float width*.scale;height=float height*.scale}})
+        let destination={Raster2.Render_ir.x=float x;y=float y;
+          width=float width*.scale;height=float height*.scale}in
+        let angle=(Option.value angle~default:0.)*.Float.pi/.180. in
+        let flipped=Option.value flip~default:false in
+        if angle<>0.||flipped||center<>None then begin
+          let cx,cy=match center with
+            | None->destination.width*.0.5,destination.height*.0.5
+            | Some(cx,cy)->float cx*.scale,float cy*.scale in
+          let px=destination.x+.cx and py=destination.y+.cy in
+          let cosine=cos angle and sine=sin angle
+          and sx=if flipped then -.1. else 1. in
+          let xx=cosine*.sx and xy=(-.sine)and yx=sine*.sx and yy=cosine in
+          emit(Raster2.Render_ir.Push_transform{xx;xy;yx;yy;
+            tx=px-.xx*.px-.xy*.py;ty=py-.yx*.px-.yy*.py})
+        end;
+        emit(Raster2.Render_ir.Image{resource_id=value.resource_id;
+          source={x=0.;y=0.;width=float width;height=float height};destination});
+        if angle<>0.||flipped||center<>None then emit Raster2.Render_ir.Pop_transform
       |_->failure:=Some Resource_failure end
     | Scene_description.Text((x,y),value,color_opt,_)|Scene_description.Debug_text((x,y),value,color_opt)->if value<>""then begin match take()with Some(Resolved_text snapshot)->
         register{id=snapshot.resource_id;identity=Text_identity{generation=snapshot.generation;density=snapshot.density};value=Glyph_atlas snapshot.atlas};
@@ -164,7 +183,7 @@ let self_test () =
   let text_snapshot()={resource_id=2;generation=3L;density=2;atlas;glyphs=[|{Raster2.Render_ir.glyph_id=0;x=0.;y=0.}|]}in
   let callbacks={image=(fun _->incr calls;Ok{resource_id=1;generation = !generation;surface=image_surface});
     font_text=(fun _ _ _ _->incr calls;Ok(text_snapshot()));system_text=(fun _ _->incr calls;Ok(text_snapshot()));debug_text=(fun _->incr calls;Ok(text_snapshot()))}in
-  let resource_scene:Scene_description.node list=[Translate(1,2,[Image(Obj.magic 0,(2,3),Some 2.,None,None,None);
+  let resource_scene:Scene_description.node list=[Translate(1,2,[Image(Obj.magic 0,(2,3),Some 2.,Some 90.,Some(1,1),Some true);
     Text((4,5),"A",Some red,12);Debug_text((5,6),"",None);Font_text(Obj.magic 0,(6,7),"B",Some white,None,None)])]in
   let first=match lower_with_resources callbacks resource_scene with Ok value->value|Error _->failwith"resource lowering"in
   if !calls<>3||Array.length first.resources<>2 then failwith"resource callback cardinality";
@@ -176,7 +195,16 @@ let self_test () =
   for _frame=1 to 600 do match lower_with_resources fixed_callbacks resource_scene with Ok value when encode value=stable->()|_->failwith"resource frame drift"done;
   let domains=Array.init 4(fun _->Domain.spawn(fun()->match lower_with_resources fixed_callbacks resource_scene with Ok value->encode value|Error _->Bytes.empty,[||]))in
   Array.iter(fun worker->if Domain.join worker<>stable then failwith"resource domain drift")domains;
-  let commands=Raster2.Render_ir.commands first.ir in if Array.length commands<>5 then failwith"resource command ordering";
+  let commands=Raster2.Render_ir.commands first.ir in
+  if Array.length commands<>7 then failwith"resource command ordering";
+  begin match commands.(1),commands.(2),commands.(3)with
+  | Raster2.Render_ir.Push_transform matrix,Raster2.Render_ir.Image image,
+      Raster2.Render_ir.Pop_transform
+      when abs_float matrix.xx < 1e-12 && matrix.xy = -1. &&
+        matrix.yx = -1. && abs_float matrix.yy < 1e-12 &&
+        image.destination.width = 4. && image.destination.height = 4. -> ()
+  | _ -> failwith "image affine transform drift"
+  end;
   let target=match Raster2.Surface.create~width:16~height:16()with Ok value->value|Error _->failwith"resource target"in
   let lookup id=Array.find_opt(fun value->value.id=id)first.resources|>Option.map(fun value->value.value)in
   begin match Raster2.Consumer.execute~lookup~target first.ir with Ok()->()|Error _->failwith"resource consumer"end;

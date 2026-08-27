@@ -219,10 +219,58 @@ let prepare_scene3 value resources node =
       match !failure with Some error -> Error error | None ->
         Ok (List.rev !buffers, List.rev !textures, List.rev !states)
 
+let intersect_clip (x,y,w,h) (a,b,c,d) =
+  let left = max x a and top = max y b
+  and right = min (x + w) (a + c)
+  and bottom = min (y + h) (b + d) in
+  left, top, max 0 (right - left), max 0 (bottom - top)
+
+let split_scene value scene =
+  let views = ref [] in
+  let bounds = (0, 0, value.configuration.physical_width,
+    value.configuration.physical_height) in
+  let rec nodes clip values = List.filter_map (node clip) values
+  and node clip = function
+    | Scene_description.View3d (camera, scene, viewport) ->
+        let viewport = Option.value viewport ~default:bounds in
+        let viewport = match clip with
+          | None -> viewport
+          | Some active -> intersect_clip active viewport
+        in
+        views := Scene_description.View3d (camera, scene, Some viewport) :: !views;
+        None
+    | Group children ->
+        let children = nodes clip children in
+        if children = [] then None else Some (Scene_description.Group children)
+    | Translate (x, y, children) ->
+        let children = nodes clip children in
+        if children = [] then None else Some (Scene_description.Translate (x, y, children))
+    | Rotate (angle, children) ->
+        let children = nodes clip children in
+        if children = [] then None else Some (Scene_description.Rotate (angle, children))
+    | Scale (x, y, children) ->
+        let children = nodes clip children in
+        if children = [] then None else Some (Scene_description.Scale (x, y, children))
+    | Clip ((x, y), width, height, children) ->
+        let own = x, y, width, height in
+        let active = match clip with
+          | None -> own | Some value -> intersect_clip value own
+        in
+        let children = nodes (Some active) children in
+        if children = [] then None
+        else Some (Scene_description.Clip ((x, y), width, height, children))
+    | Blend (mode, children) ->
+        let children = nodes clip children in
+        if children = [] then None
+        else Some (Scene_description.Blend (mode, children))
+    | value -> Some value
+  in
+  let scene2 = nodes None scene in
+  scene2, List.rev !views
+
 let render_with_scene3 value scene3_resources scene =
   if value.destroyed then Error Destroyed else
-  let scene2 = List.filter (function Scene_description.View3d _ -> false | _ -> true) scene
-  and scene3 = List.filter (function Scene_description.View3d _ -> true | _ -> false) scene in
+  let scene2,scene3=split_scene value scene in
   match Scene_raster2_lowering.lower scene2 with
   | Error (Unsupported _) -> Error Unsupported_resource
   | Error error -> Error (Scene error)
@@ -322,8 +370,9 @@ let self_test () =
       let colored = Scene3.mesh ~material ~cull:Scene3.Cull_back mesh in
       let textured = Scene3.with_blend Scene3.Alpha
         [Scene3.mesh ~material ~texture:(Scene3.textured (Obj.magic 0)) mesh] in
-      [Scene_description.View3d (camera, Scene3.create [colored; textured],
-        Some (1, 2, 12, 10))]
+      [Scene_description.Clip ((3, 4), 5, 4,
+        [Scene_description.View3d (camera, Scene3.create [colored; textured],
+          Some (1, 2, 12, 10))])]
     in
     ignore (get (render_with_scene3 renderer resources (scene3 1)));
     let scene3_first = upload_bytes renderer in
@@ -335,7 +384,8 @@ let self_test () =
       failwith "camera-only Scene3 frame replaced mesh buffers";
     if Array.length renderer.draw_states <> 2 ||
         not renderer.draw_states.(1).textured ||
-        renderer.draw_states.(0).viewport <> (1, 2, 12, 10) then
+        renderer.draw_states.(0).viewport <> (3, 4, 5, 4) ||
+        renderer.draw_states.(0).scissor <> (3, 4, 5, 4) then
       failwith "Scene3 portable state/order drift";
     let camera = Camera.orthographic ~height:2. ~at:(Vec3.create 0. 0. 2.)
       ~target:Vec3.zero () in
