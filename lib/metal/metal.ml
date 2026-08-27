@@ -1218,7 +1218,8 @@ type metal4_specialized_descriptor =
   ; mutable specialized_constants : metal4_function_constants option }
 type metal4_stitched_descriptor =
   { raw : Metal_raw.handle; lifetime : lifetime
-  ; mutable stitched_functions : metal4_function_descriptor list }
+  ; mutable stitched_functions : metal4_function_descriptor list
+  ; mutable stitched_graph : stitching_graph option }
 type machine_learning_descriptor =
   { raw:Metal_raw.handle; lifetime:lifetime; library:library; function_name:string
   ; mutable ml_label:string option; ml_inputs:(int64,int64 array option) Hashtbl.t }
@@ -2373,10 +2374,40 @@ module Function_specialization = struct
   module Stitched = struct
     type t=metal4_stitched_descriptor
     let validate operation functions=let rec loop seen=function []->Ok()|(x:metal4_function_descriptor)::xs->if List.exists(fun(y:metal4_function_descriptor)->y.lifetime==x.lifetime)seen then error operation Invalid_argument "duplicate function descriptor"else Result.bind(ensure_live operation x.lifetime)(fun()->loop(x::seen)xs)in loop[]functions
-    let create functions=let operation="Metal.Function_specialization.Stitched.create"in on_main operation(fun()->Result.bind(validate operation functions)(fun()->match Metal_raw.metal4_stitched_descriptor(Array.of_list(List.map(fun(x:metal4_function_descriptor)->x.raw)functions))with Error m->native_error operation m|Ok raw->List.iter(fun(x:metal4_function_descriptor)->attach x.lifetime)functions;let value:t={raw;lifetime=lifetime();stitched_functions=functions}in Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then(List.iter(fun(x:metal4_function_descriptor)->detach x.lifetime)value.stitched_functions;ignore(Metal_raw.destroy value.raw)))value;Ok value))
+    let create functions=let operation="Metal.Function_specialization.Stitched.create"in on_main operation(fun()->Result.bind(validate operation functions)(fun()->match Metal_raw.metal4_stitched_descriptor(Array.of_list(List.map(fun(x:metal4_function_descriptor)->x.raw)functions))with Error m->native_error operation m|Ok raw->List.iter(fun(x:metal4_function_descriptor)->attach x.lifetime)functions;let value:t={raw;lifetime=lifetime();stitched_functions=functions;stitched_graph=None}in Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then(List.iter(fun(x:metal4_function_descriptor)->detach x.lifetime)value.stitched_functions;Option.iter(fun(graph:stitching_graph)->detach graph.lifetime)value.stitched_graph;ignore(Metal_raw.destroy value.raw)))value;Ok value))
     let set (value:t) functions=let operation="Metal.Function_specialization.Stitched.set"in on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->Result.bind(validate operation functions)(fun()->match Metal_raw.metal4_stitched_set value.raw(Array.of_list(List.map(fun(x:metal4_function_descriptor)->x.raw)functions))with Error m->native_error operation m|Ok()->List.iter(fun(x:metal4_function_descriptor)->detach x.lifetime)value.stitched_functions;List.iter(fun(x:metal4_function_descriptor)->attach x.lifetime)functions;value.stitched_functions<-functions;Ok())))
     let get (value:t)=let operation="Metal.Function_specialization.Stitched.get"in on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->match Metal_raw.metal4_stitched_get value.raw with Error m->native_error operation m|Ok handles->let count=Array.length handles in Array.iter(fun raw->ignore(Metal_raw.destroy raw))handles;if count<>List.length value.stitched_functions then native_error operation "stitched descriptor length changed"else Ok value.stitched_functions))
-    let destroy (value:t)=destroy_leaf "Metal.Function_specialization.Stitched.destroy" value.lifetime value.raw(fun()->List.iter(fun(x:metal4_function_descriptor)->detach x.lifetime)value.stitched_functions)
+    let set_graph (value:t) functions (graph:stitching_graph option)=
+      let operation="Metal.Function_specialization.Stitched.set_graph"in
+      on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->
+        Result.bind(validate operation functions)(fun()->
+          match graph with
+          |Some graph when is_destroyed graph.lifetime->error operation Destroyed "stitching graph is destroyed"
+          |None when functions<>[]->error operation Invalid_argument "a nonempty stitched descriptor requires a graph"
+          |Some _ when functions=[]->error operation Invalid_argument "a stitching graph requires function descriptors"
+          |_->let devices=List.map(fun(x:metal4_function_descriptor)->x.function_.library.device.registry_id)functions in
+            let expected=match devices with []->0L|first::rest->if List.for_all((=)first)rest then first else -1L in
+            if expected<0L then error operation Device_mismatch "stitched functions belong to different devices"
+            else match Metal_raw.metal4_stitched_graph_pair value.raw
+              (if functions=[]then None else Some(Array.of_list(List.map(fun(x:metal4_function_descriptor)->x.raw)functions)))
+              (Option.map(fun(graph:stitching_graph)->graph.raw)graph)(Array.of_list devices)
+              (Option.map(fun _->expected)graph)expected true with
+            |Error m->native_error operation m
+            |Ok()->(match Metal_raw.metal4_stitched_graph_snapshot value.raw with
+              |Error m->native_error operation m
+              |Ok(handles,native_graph)->Array.iter(fun raw->ignore(Metal_raw.destroy raw))handles;
+                Option.iter(fun raw->ignore(Metal_raw.destroy raw))native_graph;
+                if Array.length handles<>List.length functions||Option.is_some native_graph<>Option.is_some graph
+                then native_error operation "Metal changed stitched graph ownership"
+                else begin
+                  List.iter(fun(x:metal4_function_descriptor)->attach x.lifetime)functions;
+                  Option.iter(fun(graph:stitching_graph)->attach graph.lifetime)graph;
+                  List.iter(fun(x:metal4_function_descriptor)->detach x.lifetime)value.stitched_functions;
+                  Option.iter(fun(graph:stitching_graph)->detach graph.lifetime)value.stitched_graph;
+                  value.stitched_functions<-functions;value.stitched_graph<-graph;Ok()
+                end))))
+    let graph (value:t)=value.stitched_graph
+    let destroy (value:t)=destroy_leaf "Metal.Function_specialization.Stitched.destroy" value.lifetime value.raw(fun()->List.iter(fun(x:metal4_function_descriptor)->detach x.lifetime)value.stitched_functions;Option.iter(fun(graph:stitching_graph)->detach graph.lifetime)value.stitched_graph)
   end
 
 end

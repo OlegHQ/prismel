@@ -29,6 +29,9 @@ let ()=match Device.system_default()with
   let stitched=get(Function_specialization.Stitched.create[])in
   if get(Function_specialization.Stitched.get stitched)<>[]then failwith"stitched descriptor drift";
   get(Function_specialization.Stitched.set stitched[]);
+  get(Function_specialization.Stitched.set_graph stitched [] None);
+  if Function_specialization.Stitched.graph stitched <> None then
+    failwith "stitched graph nil reset drift";
   let binary_descriptor=get(Binary_function.Descriptor.create())in
   get(Binary_function.Descriptor.set binary_descriptor Binary_function.Descriptor.Vertex []);
   if get(Binary_function.Descriptor.get binary_descriptor Binary_function.Descriptor.Vertex)<>[]then failwith"binary descriptor reset drift";

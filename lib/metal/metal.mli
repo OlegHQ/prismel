@@ -2249,6 +2249,10 @@ module Function_specialization : sig
     val create : Function_descriptor.t list -> (t,error) result
     val set : t -> Function_descriptor.t list -> (unit,error) result
     val get : t -> (Function_descriptor.t list,error) result
+    val set_graph :
+      t -> Function_descriptor.t list -> Function_stitching_graph.t option ->
+      (unit,error) result
+    val graph : t -> Function_stitching_graph.t option
     val destroy : t -> (unit,error) result
   end
 end

@@ -15,6 +15,9 @@ extern "C" CAMLprim value caml_prismel_metal4_stitched_graph_pair(
       CAMLreturn(result_error_text("stitched function descriptors and graph must be paired"));
     NSArray<MTL4FunctionDescriptor *> *descriptors = nil;
     MTLFunctionStitchingGraph *graph = nil;
+    MTL4StitchedFunctionDescriptor *owner = nil;
+    NSArray<MTL4FunctionDescriptor *> *old_descriptors = nil;
+    MTLFunctionStitchingGraph *old_graph = nil;
     @try {
       if (!none) {
         value items = Field(descriptors_raw, 0);
@@ -37,11 +40,23 @@ extern "C" CAMLprim value caml_prismel_metal4_stitched_graph_pair(
       } else if (Wosize_val(descriptor_devices_raw) != 0 || !Is_none(graph_device_raw)) {
         CAMLreturn(result_error_text("nil stitched graph has unexpected device metadata"));
       }
-      MTL4StitchedFunctionDescriptor *owner = object_of_handle(raw,
-        Handle_kind::Stitched_function_descriptor4);
-      owner.functionDescriptors = descriptors; owner.functionGraph = graph;
+      owner = object_of_handle(raw, Handle_kind::Stitched_function_descriptor4);
+      old_descriptors = owner.functionDescriptors;
+      old_graph = owner.functionGraph;
+      owner.functionDescriptors = descriptors;
+      owner.functionGraph = graph;
+      if (owner.functionDescriptors.count != descriptors.count
+          || owner.functionGraph != graph) {
+        owner.functionDescriptors = old_descriptors;
+        owner.functionGraph = old_graph;
+        CAMLreturn(result_error_text("Metal changed stitched graph assignment"));
+      }
       CAMLreturn(result_unit());
-    } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
+    } @catch (NSException *exception) {
+      if (owner != nil) { @try { owner.functionDescriptors = old_descriptors;
+        owner.functionGraph = old_graph; } @catch (NSException *) {} }
+      CAMLreturn(result_error(exception.reason));
+    }
   }
   CAMLreturn(result_error_text("Metal4 stitched functions require macOS 26"));
 }
