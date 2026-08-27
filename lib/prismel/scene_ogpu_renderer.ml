@@ -51,7 +51,132 @@ let split_scene value scene=let views=ref[]and bounds=(0,0,value.configuration.p
 |Clip((x,y),w,h,children)->let own=x,y,w,h in let active=match clip with None->own|Some v->intersect v own in let children=nodes(Some active)children in if children=[]then None else Some(Scene_description.Clip((x,y),w,h,children))
 |Blend(mode,children)->let children=nodes clip children in if children=[]then None else Some(Scene_description.Blend(mode,children))
 |x->Some x in nodes None scene,List.rev!views
-let draw3(draw:Raster2.Scene3_consumer.draw)=let key=Digest.to_hex(Digest.string(Marshal.to_string(Array.map(fun(v:Raster2.Scene3_consumer.vertex)->v.position,v.normal,v.color,v.u,v.v)draw.vertices,draw.indices)[]))in let mesh:Scene_execution.mesh={key;vertices=vertex3_bytes draw.vertices;vertex_count=Array.length draw.vertices;indices=index_bytes draw.indices;index_count=Array.length draw.indices}and state:Scene_execution.state={viewport=(int_of_float draw.viewport.x,int_of_float draw.viewport.y,int_of_float draw.viewport.width,int_of_float draw.viewport.height);scissor=(draw.scissor.x,draw.scissor.y,draw.scissor.width,draw.scissor.height);cull=pipeline_cull draw.cull;depth_compare=pipeline_comparison draw.depth_stencil.depth_compare;depth_write=draw.depth_stencil.depth_write;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;transform_uniforms=Some(transform_uniforms draw);stencil_state=pipeline_stencil draw.depth_stencil.stencil;stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}in{Scene_execution.mesh;state},{viewport=state.viewport;scissor=state.scissor;cull=draw.cull;blend=draw.blend;texture=draw.texture;depth_clear=1.}
+let native_triangles(draw:Raster2.Scene3_consumer.draw)=
+  let source = draw.indices in
+  let triangles = match draw.topology with
+  |Raster2.Scene3.Triangle_list->Array.init(Array.length source/3)(fun i->source.(3*i),source.(3*i+1),source.(3*i+2))
+  |Triangle_strip->Array.init(max 0(Array.length source-2))(fun i->if i land 1=0 then source.(i),source.(i+1),source.(i+2)else source.(i+1),source.(i),source.(i+2))
+  |Triangle_fan->Array.init(max 0(Array.length source-2))(fun i->source.(0),source.(i+1),source.(i+2))
+  |Point_list|Line_list|Line_strip|Line_loop->[||]in
+  match draw.mode,draw.topology with
+  |Raster2.Scene3_consumer.Faces,(Raster2.Scene3.Triangle_list|Triangle_strip|Triangle_fan)->
+    let indices = Array.make (Array.length triangles * 3) 0 in
+    Array.iteri
+      (fun i (a, b, c) ->
+        indices.(3 * i) <- a;
+        indices.(3 * i + 1) <- b;
+        indices.(3 * i + 2) <- c)
+      triangles;
+    { draw with topology = Raster2.Scene3.Triangle_list; indices }
+  |_->
+    let points=ref[]and lines=ref[]in
+    let add_point i=points:=i::!points and add_line a b=lines:=(a,b)::!lines in
+    (match draw.mode with
+    |Vertices->Array.iter(fun(a,b,c)->add_point a;add_point b;add_point c)triangles
+    |Wireframe->Array.iter(fun(a,b,c)->add_line a b;add_line b c;add_line c a)triangles
+    |Faces->());
+    (match draw.topology with
+    |Point_list->Array.iter add_point source
+    |Line_list->for i=0 to Array.length source/2-1 do add_line source.(2*i)source.(2*i+1)done
+    |Line_strip->for i=0 to Array.length source-2 do add_line source.(i)source.(i+1)done
+    |Line_loop when Array.length source>1->for i=0 to Array.length source-1 do add_line source.(i)source.((i+1)mod Array.length source)done
+    |Line_loop|Triangle_list|Triangle_strip|Triangle_fan->());
+    let unique values key=let seen=Hashtbl.create 32 in List.filter(fun value->let key=key value in if Hashtbl.mem seen key then false else(Hashtbl.add seen key();true))values in
+    let points=unique(List.rev!points)Fun.id and lines=unique(List.rev!lines)(fun(a,b)->if a<=b then a,b else b,a)in
+    let matrix values=Mat4.of_rows(values.(0),values.(1),values.(2),values.(3))(values.(4),values.(5),values.(6),values.(7))(values.(8),values.(9),values.(10),values.(11))(values.(12),values.(13),values.(14),values.(15))in
+    let transform=matrix draw.matrix in match Mat4.inverse transform with None->draw|Some inverse->
+    let transform4 matrix (x, y, z, w) =
+      let component row =
+        (Mat4.get matrix ~row ~column:0 *. x)
+        +. (Mat4.get matrix ~row ~column:1 *. y)
+        +. (Mat4.get matrix ~row ~column:2 *. z)
+        +. (Mat4.get matrix ~row ~column:3 *. w)
+      in
+      (component 0, component 1, component 2, component 3)
+    in
+    let clip position =
+      transform4 transform
+        ( position.Raster2.Scene3_lighting.x,
+          position.y,
+          position.z,
+          1. )
+    in
+    let moved vertex dx dy =
+      let cx, cy, cz, cw =
+        clip vertex.Raster2.Scene3_consumer.position
+      in
+      let clip_position =
+        ( cx +. (2. *. dx /. draw.viewport.width *. cw),
+          cy -. (2. *. dy /. draw.viewport.height *. cw),
+          cz,
+          cw )
+      in
+      let px, py, pz, pw = transform4 inverse clip_position in
+      let reciprocal = if pw = 0. then 1. else 1. /. pw in
+      {
+        vertex with
+        position =
+          {
+            Raster2.Scene3_lighting.x = px *. reciprocal;
+            y = py *. reciprocal;
+            z = pz *. reciprocal;
+          };
+      }
+    in
+    let vertices=ref[]and indices=ref[]in let emit values=let base=List.length!vertices in vertices:=!vertices@values;indices:=!indices@[base;base+1;base+2;base;base+2;base+3]in
+    List.iter(fun index->let v=draw.vertices.(index)and h=draw.point_size/.2. in emit[moved v(-.h)(-.h);moved v h(-.h);moved v h h;moved v(-.h)h])points;
+    List.iter(fun(a,b)->let va=draw.vertices.(a)and vb=draw.vertices.(b)in let cax,cay,_,caw=clip va.position and cbx,cby,_,cbw=clip vb.position in let ax=cax/.caw and ay=cay/.caw and bx=cbx/.cbw and by=cby/.cbw in let dx=(bx-.ax)*.draw.viewport.width/.2. and dy=(ay-.by)*.draw.viewport.height/.2. in let length=sqrt(dx*.dx+.dy*.dy)in if length>0. then let h=draw.line_width/.2. and nx=(-.dy)/.length and ny=dx/.length in emit[moved va(nx*.h)(ny*.h);moved vb(nx*.h)(ny*.h);moved vb(-.nx*.h)(-.ny*.h);moved va(-.nx*.h)(-.ny*.h)])lines;
+    {draw with topology=Raster2.Scene3.Triangle_list;vertices=Array.of_list!vertices;indices=Array.of_list!indices;mode=Raster2.Scene3_consumer.Faces}
+let draw3 (source : Raster2.Scene3_consumer.draw) =
+  let draw = native_triangles source in
+  let key =
+    Digest.to_hex
+      (Digest.string
+         (Marshal.to_string
+            ( Array.map
+                (fun (v : Raster2.Scene3_consumer.vertex) ->
+                  (v.position, v.normal, v.color, v.u, v.v))
+                draw.vertices,
+              draw.indices )
+            []))
+  in
+  let mesh : Scene_execution.mesh =
+    {
+      key;
+      vertices = vertex3_bytes draw.vertices;
+      vertex_count = Array.length draw.vertices;
+      indices = index_bytes draw.indices;
+      index_count = Array.length draw.indices;
+    }
+  and state : Scene_execution.state =
+    {
+      viewport =
+        ( int_of_float draw.viewport.x,
+          int_of_float draw.viewport.y,
+          int_of_float draw.viewport.width,
+          int_of_float draw.viewport.height );
+      scissor =
+        (draw.scissor.x, draw.scissor.y, draw.scissor.width, draw.scissor.height);
+      cull = pipeline_cull draw.cull;
+      depth_compare = pipeline_comparison draw.depth_stencil.depth_compare;
+      depth_write = draw.depth_stencil.depth_write;
+      depth_load = Ogpu.Render_pass.Load;
+      depth_clear = 1.;
+      transform_uniforms = Some (transform_uniforms draw);
+      stencil_state = pipeline_stencil draw.depth_stencil.stencil;
+      stencil_load = Ogpu.Render_pass.Load;
+      stencil_clear = 0;
+    }
+  in
+  ( { Scene_execution.mesh; state },
+    {
+      viewport = state.viewport;
+      scissor = state.scissor;
+      cull = draw.cull;
+      blend = draw.blend;
+      texture = draw.texture;
+      depth_clear = 1.;
+    } )
 let auxiliary_shadow_atlas shadows =
   let indexed=Array.to_list shadows|>List.mapi(fun index value->Option.map(fun prepared->index,Raster2.Shadow_map.snapshot prepared)value)|>List.filter_map Fun.id in
   match indexed with []->Ok None|[0,snapshot]when Array.length shadows=1->Scene_execution.shadow_resource~key:(Digest.to_hex(Digest.string(Marshal.to_string snapshot[])))snapshot|>Result.map_error(fun error->Backend error)|>Result.map(fun(resource:Scene_execution.shadow_resource)->Some({Scene_execution.key=resource.texture.key;buffer=resource.parameters;texture=resource.texture}:Scene_execution.auxiliary_resource))|_ when Array.length shadows>64->Error Unsupported_resource|_->
