@@ -31,6 +31,36 @@ let verify_direct_source ~root ~name ~target =
     require (dependencies = []) "%s direct source has legacy dependencies in %s: [%s]"
       name path (String.concat "," dependencies))
 
+let semantic_fixture = function
+  | "Assets" | "Audio" | "Canvas" | "Font" | "Image" ->
+      Some "lib/prismel_next_api/test_prismel_next_api_batch_e.ml"
+  | "Easy_camera2" | "Framebuffer3" | "Render2" | "Render3" | "Scene3"
+  | "Shadow3" | "Transform_feedback3" ->
+      Some "lib/prismel_next_api/test_prismel_next_api_batch_f.ml"
+  | "Event" | "Frame" | "Input" | "Preview" | "Sketch" | "Time" ->
+      Some "lib/prismel_next_api/test_prismel_next_api_batch_c.ml"
+  | "Scene" ->
+      Some "lib/prismel_next_api/test_prismel_next_api_batch_c_scene_parity.ml"
+  | "Texture" -> Some "lib/prismel_next_api/test_prismel_next_api_batch_d.ml"
+  | _ -> None
+
+let verify_implemented ~root ~name ~target =
+  require (String.starts_with ~prefix:"lib/prismel_next_api/" target)
+    "%s implemented target must be a public next facade: %s" name target;
+  let source = implementation_path (Filename.concat root target) in
+  require (Sys.file_exists source) "%s implementation missing: %s" name source;
+  let fixture = semantic_fixture name in
+  require (Option.is_some fixture) "%s has no exact semantic fixture mapping" name;
+  let fixture = Option.get fixture in
+  require (Sys.file_exists (Filename.concat root fixture))
+    "%s semantic fixture missing: %s" name fixture;
+  [ Filename.concat root target; source ]
+  |> List.iter (fun path ->
+    let dependencies = legacy_dependencies (read_file path) in
+    require (dependencies = [])
+      "%s implemented source has legacy dependencies in %s: [%s]" name path
+      (String.concat "," dependencies))
+
 let () =
   require (legacy_dependencies "open Vec3\nlet x = 1" = [])
     "legacy dependency scanner rejected target-neutral source";
@@ -73,9 +103,18 @@ let () =
           "%s direct interface is not byte-identical" name;
         verify_direct_source ~root ~name ~target
     | "adapted" -> incr adapted
-    | "implemented" -> incr implemented
+    | "implemented" ->
+        incr implemented;
+        verify_implemented ~root ~name ~target
     | "raw_only" -> incr raw
     | value -> fail "%s has unknown status %s" name value)rows;
+  require (!adapted = 0) "pending adapted modules remain: %d" !adapted;
+  require (!raw = 0) "high-level raw-only modules remain: %d" !raw;
+  let adaptations=mapping|>member "low_typed_adaptations"|>to_list|>List.map to_string in
+  require(adaptations=[
+    "Prismel.Low.App.get_renderer";
+    "Prismel.Low.Backend.present"])
+    "Low typed-adaptation allowlist drift";
   let omissions=mapping|>member "raw_only_omissions"|>to_list|>List.map to_string in
   require(List.length omissions=Strings.cardinal(set omissions))
     "duplicate raw-only omission";
@@ -91,5 +130,6 @@ let () =
     "Prismel.Low.Window.t.renderer_context"])
     "raw-only omission allowlist drift";
   Printf.printf
-    "Phase5 Prismel API map passed: %d baseline modules = %d direct + %d implemented-adapted + %d pending-adapted + %d raw-only; %d exact Low omissions\n"
-    (List.length rows)!direct !implemented !adapted !raw (List.length omissions)
+    "Phase5 Prismel API map passed: %d/%d facade modules complete = %d direct + %d implemented; 0 pending-adapted + 0 high-level raw-only; %d exact Low omissions + %d typed adaptations\n"
+    (List.length rows)(List.length rows)!direct !implemented
+    (List.length omissions)(List.length adaptations)

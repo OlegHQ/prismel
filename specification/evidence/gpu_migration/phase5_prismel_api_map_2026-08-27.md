@@ -6,16 +6,17 @@ gate joins it to the 40 `library=prismel` modules in the frozen
 status values, missing target files, empty explanations, direct interfaces that
 are not byte-identical, and any change to the exact raw-only omission list.
 
-Current result: **40 = 2 direct + 38 adapted + 0 high-level raw-only**.
-`Vec2` and `Vec3` are the first direct SDL2-free facade modules and retain
-byte-identical interfaces; their implementation has deterministic arithmetic
-and a 100,000-cycle fixture. “Adapted” is deliberately not “complete”: each row
-names the concrete next-stack boundary and an exact reason, including pure
-modules that still require extraction from the monolithic Prismel library.
+Current result: **40/40 = 20 direct + 20 implemented**, with **zero pending
+adapted** and **zero high-level raw-only** modules. Direct modules retain
+byte-identical interfaces. Every implemented module maps to a compiled public
+`prismel_next_api` interface and an explicit semantic fixture checked by the
+machine gate.
 
 Raw-only omissions are tracked separately because they are not members of the
 40 stable high-level modules. The nine exact Low omissions are raw renderer,
-window, flag, graphics-context, and native record-field escape hatches. No
+window, flag, graphics-context, and native record-field escape hatches. The two
+reviewed target-neutral adaptations are `Low.App.get_renderer` and
+`Low.Backend.present`. No
 ordinary Scene, resource, math, input, application, or rendering module is
 classified as raw-only.
 
@@ -28,6 +29,6 @@ _build/default/lib/prismel_next_api/test_prismel_next_api.exe
 _build/default/tools/gpu_migration/phase5_prismel_api_map.exe --root .
 ```
 
-This staging evidence neither changes `lib/prismel` nor promotes R1/D1/D7.
-The 38 adapted rows must become exact direct facades or receive an explicit
-reviewed semantic compatibility fixture before the atomic switch.
+This staging evidence neither changes `lib/prismel` nor performs the atomic
+owner switch. It proves the facade preservation prerequisite: 100% of the 40
+frozen high-level modules are direct or implemented with semantic fixtures.

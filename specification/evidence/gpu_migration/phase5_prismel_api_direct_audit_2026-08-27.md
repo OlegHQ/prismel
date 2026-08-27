@@ -8,8 +8,8 @@ their already-landed prerequisites).
 
 - Baseline public modules: 40.
 - Direct, byte-identical staged interfaces: 20.
-- Implemented/adapted staged interfaces: 9.
-- Pending adapted modules: 11.
+- Implemented staged interfaces with exact fixture mappings: 20.
+- Pending adapted modules: 0.
 - Reviewed raw-only Low omissions: 9.
 
 The direct set is:
@@ -41,7 +41,7 @@ _build/default/tools/gpu_migration/phase5_prismel_api_map.exe --root .
 Observed output:
 
 ```text
-Phase5 Prismel API map passed: 40 baseline modules = 20 direct + 9 implemented-adapted + 11 pending-adapted + 0 raw-only; 9 exact Low omissions
+Phase5 Prismel API map passed: 40/40 facade modules complete = 20 direct + 20 implemented; 0 pending-adapted + 0 high-level raw-only; 9 exact Low omissions + 2 typed adaptations
 ```
 
 This is preservation evidence for the staged facade only. It does not claim
