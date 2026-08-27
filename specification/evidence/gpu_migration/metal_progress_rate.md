@@ -127,6 +127,7 @@ can change the denominator explicitly rather than being hidden.
 | `6ef8001` | 2026-08-27 10:30:12 +02:00 | 5,128 | 5,249 | 97.6948% | 6 | 0.035 | 170.1 | 3.24 |
 | `ef44024` | 2026-08-27 10:31:03 +02:00 | 5,142 | 5,249 | 97.9615% | 14 | 0.014 | 988.2 | 18.83 |
 | `94307e9` | 2026-08-27 10:32:44 +02:00 | 5,146 | 5,249 | 98.0377% | 4 | 0.028 | 142.6 | 2.72 |
+| `4cfee19` | 2026-08-27 10:35:01 +02:00 | 5,149 | 5,249 | 98.0949% | 3 | 0.038 | 78.8 | 1.50 |
 
 ## Current measured rate
 
@@ -280,6 +281,11 @@ event handle and listener classes, the notification block typedef, and opaque
 private handle storage. These map to the existing exported-handle ownership and
 bounded exactly-once listener callback API, backed by the Event14 native and
 callback-stress fixtures.
+
+The `4cfee19` interval closes the Tensor3 residual type declarations. Public
+descriptor and extents values plus the tensor resource protocol are backed by
+the existing Tensor47 owned graph, exact native ABI checks, byte-slice range
+and lifetime validation, and real M1 conformance.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
