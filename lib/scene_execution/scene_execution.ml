@@ -6,7 +6,7 @@ type texture_level={width:int;height:int;bytes:bytes}
 type sampled_texture={key:string;levels:texture_level array;sampler:Ogpu.Types.sampler_descriptor}
 type shadow_resource={texture:sampled_texture;parameters:bytes}
 type auxiliary_resource={key:string;buffer:bytes;texture:sampled_texture}
-type cached={key:string;mutable payload_hash:string;buffer:Ogpu.Backend.buffer;mutable index_offset:int64;mutable vertex_count:int;mutable index_count:int;bytes:int}
+type cached={mutable key:string;mutable payload_hash:string;buffer:Ogpu.Backend.buffer;mutable index_offset:int64;mutable vertex_count:int;mutable index_count:int;bytes:int}
 type cached_auxiliary={auxiliary_key:string;auxiliary_hash:string;auxiliary_buffer:Ogpu.Backend.buffer}
 type cached_texture={texture_key:string;texture_hash:string;texture:Ogpu.Backend.texture}
 type prepared_run={prepared_identity:string;prepared_version:int64;prepared_draws:(pipeline_family*Ogpu.Pipeline.blend*sampled_texture option*auxiliary_resource option*int*draw)list;prepared_bytes:int}
@@ -82,10 +82,11 @@ let prepare value ~defer ~trusted_key ~reserved (mesh:mesh)=
   let payload_hash=Digest.to_hex(Digest.string(Bytes.to_string mesh.vertices^Bytes.to_string mesh.indices))in match List.find_opt(fun(x:cached)->x.key=mesh.key&&x.payload_hash=payload_hash)value.cache with Some item->Ok item|None->
   let total=Bytes.length mesh.vertices+Bytes.length mesh.indices in
   if mesh.key=""||mesh.vertex_count<=0||mesh.index_count<=0||total=0 then error"Scene_execution.prepare"Ogpu.Error.Invalid_argument"mesh payload is empty"else
-  match List.find_opt(fun(x:cached)->x.key=mesh.key&&x.bytes=total&&not(List.exists((==)x)reserved))value.cache with
+  let at_capacity=List.length value.cache>=64 in
+  match List.find_opt(fun(x:cached)->x.bytes=total&&not(List.exists((==)x)reserved)&&(x.key=mesh.key||at_capacity))value.cache with
   |Some item->
     let packed=Bytes.cat mesh.vertices mesh.indices in
-    (match Ogpu.Backend.write_buffer item.buffer~offset:0L packed with Error _ as e->e|Ok()->item.payload_hash<-payload_hash;item.index_offset<-Int64.of_int(Bytes.length mesh.vertices);item.vertex_count<-mesh.vertex_count;item.index_count<-mesh.index_count;value.uploaded<-Int64.add value.uploaded(Int64.of_int total);Ok item)
+    (match Ogpu.Backend.write_buffer item.buffer~offset:0L packed with Error _ as e->e|Ok()->item.key<-mesh.key;item.payload_hash<-payload_hash;item.index_offset<-Int64.of_int(Bytes.length mesh.vertices);item.vertex_count<-mesh.vertex_count;item.index_count<-mesh.index_count;value.cache<-item::List.filter(fun old->old!=item)value.cache;value.uploaded<-Int64.add value.uploaded(Int64.of_int total);Ok item)
   |None->
   let descriptor:Ogpu.Types.buffer_descriptor={label=Some("scene-mesh-"^mesh.key);size=Int64.of_int total;usage=[Vertex;Index;Copy_dst]}in
   match Ogpu.Backend.create_buffer value.device descriptor with Error _ as e->e|Ok buffer->
