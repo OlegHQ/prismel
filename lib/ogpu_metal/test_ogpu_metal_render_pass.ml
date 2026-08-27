@@ -39,6 +39,27 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal rende
   run Render_pass.Triangle_list None;
   let indices=get(Buffer.create device~memory:Buffer.Shared{label=Some"indices";size=6L;usage=[Index;Copy_dst]})in let bytes=Bytes.make 6 '\000'in Bytes.set_int16_le bytes 0 0;Bytes.set_int16_le bytes 2 1;Bytes.set_int16_le bytes 4 2;get(Buffer.write_bytes device indices~dst_offset:0L bytes);
   for _=1 to 3 do run Triangle_strip(Some(Uint16,indices,0L,3))done;
+  let stencil_pipeline_result=Pipeline.create_render cache device{descriptor with label=Some"typed-stencil";depth_format=Stencil8}in
+  (match stencil_pipeline_result with
+  |Error error when error.Ogpu.Error.kind=Ogpu.Error.Unsupported->print_endline"ogpu_metal stencil pixels: skipped (typed Command4 unavailable)"
+  |Error error->failwith(Ogpu.Error.to_string error)
+  |Ok stencil_pipeline->
+    let stencil_descriptor={texture_descriptor with label=Some"stencil";usage=[Render_attachment]}in
+    let stencil_texture=get(Texture.create device~memory:Texture.Device_local~format:Texture.Stencil8 stencil_descriptor)in
+    let color_texture=get(Render_pass.attachment device target~usage:Ogpu.Render_pass.Render_target)
+    and stencil_texture_portable=get(Render_pass.attachment device stencil_texture~usage:Ogpu.Render_pass.Render_target)in
+    let stencil_attachment:Ogpu.Render_pass.stencil={texture=stencil_texture_portable;load=Clear;store=Store;clear=0}in
+    let face:Ogpu.Render_pass.stencil_face={compare=Always;stencil_fail=Keep;depth_fail=Keep;pass=Replace;read_mask=Int32.minus_one;write_mask=Int32.minus_one}in
+    let stencil_state:Ogpu.Render_pass.stencil_state={front=face;back=face;front_reference=1l;back_reference=1l}in
+    let stencil_draw={Render_pass.pipeline=stencil_pipeline;buffers=[];textures=[];samplers=[];primitive=Triangle_list;vertex_start=0;vertex_count=3;index=None}in
+    for frame=1 to 600 do
+      let pass=get(Ogpu.Render_pass.create~stencil_state(Device.Private.handle device){colors=[|Some{texture=color_texture;resolve=None;load=Clear;store=Store;clear=(1.,0.,0.,1.)}|];depth=None;stencil=Some stencil_attachment;viewport={x=0;y=0;width=4;height=4};scissor={x=0;y=0;width=4;height=4}})in
+      let encoded=get(Render_pass.create device pass~attachments:[target;stencil_texture]stencil_draw)in
+      let receipt=get(Queue.submit_render_pass queue encoded)in
+      get(Queue.wait_through queue receipt.epoch);
+      if List.mem frame[1;2;60;600]then let pixels=get(Texture.read_bytes device target~mip_level:0~bytes_per_row:16)in if byte pixels 0 0 1<>255 then failwith"Command4 stencil pass pixel mismatch"
+    done;
+    get(Texture.destroy stencil_texture));
   let limits=(Device.capabilities device).Ogpu.Capabilities.limits in
   let unsupported={descriptor with sample_count=2;vertex_entry="msaa_vertex"}in expect Ogpu.Error.Invalid_argument(Pipeline.create_render cache device unsupported);
   let msaa_resources=ref[]in
