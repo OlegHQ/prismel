@@ -1,7 +1,7 @@
 (library
  (name ogpu)
  (public_name prismel.ogpu)
- (modules Error Handle Capabilities Validation Types Command Mock Submission Shader Surface Binding Sync Pipeline Acceleration Cache Native_pass Instance Memory Frame_graph Transfer_ring Render_pass Diagnostics Compute_pass Acceleration_pass Transfer_pass Query_pass Descriptor_arena))
+ (modules Error Handle Capabilities Validation Types Command Mock Submission Shader Surface Binding Sync Pipeline Acceleration Cache Native_pass Instance Memory Frame_graph Transfer_ring Render_pass Diagnostics Compute_pass Acceleration_pass Transfer_pass Query_pass Descriptor_arena Device_lifecycle))
 
 (test
  (name test_ogpu_foundation)
@@ -121,4 +121,9 @@
 (test
  (name test_ogpu_validation)
  (modules test_ogpu_validation)
+ (libraries ogpu))
+
+(test
+ (name test_ogpu_device_lifecycle)
+ (modules test_ogpu_device_lifecycle)
  (libraries ogpu))
