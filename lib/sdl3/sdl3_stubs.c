@@ -12,6 +12,7 @@
 #include <SDL3/SDL_metal.h>
 
 #include "generated_abi.h"
+#include "../native_layer_token/native_layer_token.h"
 
 static SDL_Window *window_of_value(value raw)
 {
@@ -626,12 +627,10 @@ CAMLprim value caml_sdl3_destroy_metal_view(value raw_view)
   return Val_unit;
 }
 
-CAMLprim value caml_sdl3_metal_layer_is_nonnull(value raw_view)
-{
-  void *layer = SDL_Metal_GetLayer(
-      (SDL_MetalView)(intnat)Nativeint_val(raw_view));
-  return Val_bool(layer != NULL);
-}
+CAMLprim value caml_sdl3_metal_layer_token(value raw_view,value owner,value generation)
+{ CAMLparam3(raw_view,owner,generation);void*layer=SDL_Metal_GetLayer((SDL_MetalView)(intnat)Nativeint_val(raw_view));CAMLreturn(prismel_native_layer_token_create(layer,Int64_val(owner),Int64_val(generation))); }
+CAMLprim value caml_sdl3_invalidate_metal_layer_token(value token)
+{ prismel_native_layer_token_invalidate(token);return Val_unit; }
 
 /* Keep this order synchronized with Private_raw.raw_event.  The union remains
    private and is immediately converted while pointer payloads are valid. */

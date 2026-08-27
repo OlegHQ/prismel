@@ -505,7 +505,7 @@ module Rgba_presenter = struct
 end
 
 module Metal_view : sig
-  type layer
+  type layer = Native_layer_token.t
   type t
   val create : Window.t -> (t, error) result
   val generation : t -> int
@@ -513,11 +513,12 @@ module Metal_view : sig
   val layer : t -> (layer, error) result
   val destroy : t -> (unit, error) result
 end = struct
-  type layer = Layer of int
+  type layer = Native_layer_token.t
   type t = {
     raw : nativeint;
     generation : int;
     window : Window.t;
+    mutable layer_token : layer option;
     mutable destroyed : bool;
   }
 
@@ -536,11 +537,12 @@ end = struct
         Atomic.incr window.metal_views;
         let value = {
           raw; generation = Atomic.fetch_and_add next_generation 1;
-          window; destroyed = false;
+          window; layer_token = None; destroyed = false;
         } in
         Gc.finalise (fun value ->
           if not value.destroyed then begin
             value.destroyed <- true;
+            Option.iter Private_raw.invalidate_metal_layer_token value.layer_token;
             Atomic.decr value.window.metal_views;
             Release_queue.metal_view value.raw
           end) value;
@@ -553,14 +555,19 @@ end = struct
       error "SDL3.Metal_view.layer" Destroyed "Metal view is destroyed"
     else if value.window.destroyed then
       error "SDL3.Metal_view.layer" Destroyed "parent window is destroyed"
-    else if Private_raw.metal_layer_is_nonnull value.raw then
-      Ok (Layer value.generation)
-    else sdl_error "SDL3.Metal_view.layer")
+    else match value.layer_token with
+    | Some token when Native_layer_token.alive token -> Ok token
+    | _ ->
+        let token=Private_raw.metal_layer_token value.raw
+          (Private_raw.window_id value.window.raw)(Int64.of_int value.generation)in
+        if Native_layer_token.alive token then(value.layer_token<-Some token;Ok token)
+        else sdl_error "SDL3.Metal_view.layer")
 
   let destroy value = on_main "SDL3.Metal_view.destroy" (fun () ->
     if value.destroyed then Ok ()
     else begin
       value.destroyed <- true;
+      Option.iter Private_raw.invalidate_metal_layer_token value.layer_token;
       Atomic.decr value.window.metal_views;
       Private_raw.destroy_metal_view value.raw;
       Ok ()

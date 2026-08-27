@@ -17,7 +17,7 @@
   (names sdl3_stubs)
   (flags (:include c_flags.sexp)))
  (c_library_flags (:include c_library_flags.sexp))
- (libraries threads))
+ (libraries threads native_layer_token))
 
 (test
  (name test_sdl3)

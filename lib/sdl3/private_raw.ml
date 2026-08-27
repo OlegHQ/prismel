@@ -60,8 +60,10 @@ external text_input_area : nativeint -> ((int * int * int * int) * int) option
 
 external create_metal_view : nativeint -> nativeint = "caml_sdl3_create_metal_view"
 external destroy_metal_view : nativeint -> unit = "caml_sdl3_destroy_metal_view"
-external metal_layer_is_nonnull : nativeint -> bool
-  = "caml_sdl3_metal_layer_is_nonnull"
+external metal_layer_token : nativeint -> int64 -> int64 -> Native_layer_token.t
+  = "caml_sdl3_metal_layer_token"
+external invalidate_metal_layer_token : Native_layer_token.t -> unit
+  = "caml_sdl3_invalidate_metal_layer_token"
 
 external create_rgba_presenter : nativeint -> nativeint
   = "caml_sdl3_create_rgba_presenter"

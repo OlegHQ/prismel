@@ -466,7 +466,7 @@ end
 
 module Metal_view : sig
   type t
-  type layer
+  type layer = Native_layer_token.t
 
   val create : Window.t -> (t, error) result
   val generation : t -> int
