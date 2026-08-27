@@ -63,4 +63,5 @@ val send_audio_typed : t -> audio_command -> (unit,Ogpu.Error.t) result
 val read_pixels : t -> bytes_per_row:int -> (bytes, Ogpu.Error.t) result
 val backend_live_counts : t -> int * int * int * int * int
 val backend_trace_stats : t -> int * int
+val resource_stats : t -> int64 * int
 val destroy : t -> (unit, Ogpu.Error.t) result

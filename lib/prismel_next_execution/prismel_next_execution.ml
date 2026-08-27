@@ -117,6 +117,11 @@ let target value=match Runtime_next_orchestrator.target value.runtime with Nativ
 let assets value=value.assets
 let snapshot_cache_entries value=List.length value.snapshots
 let ensure operation value=if value.dead then fail operation Destroyed"coordinator is destroyed"else Ok()
+type stats=Runtime_next_orchestrator.stats={frames:int64;presented:int64;logical_draws:int64;
+  logical_passes:int64;logical_submissions:int64;uploaded_bytes:int64;cache_entries:int}
+let stats value=match ensure"Prismel_next_execution.stats"value with Error _ as e->e|Ok()->
+  Result.map_error(fun error->{operation="Prismel_next_execution.stats";kind=Backend;
+    message=Ogpu.Error.to_string error})(Runtime_next_orchestrator.stats value.runtime)
 let snapshot value ~density source =
   let operation="Prismel_next_execution.lower_scene2"in
   if density<=0 then fail operation Invalid_argument"density must be positive"else

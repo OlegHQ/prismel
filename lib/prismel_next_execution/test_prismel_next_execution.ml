@@ -90,8 +90,14 @@ let () =
   let outside_draws=get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)outside)in
   check(outside_draws=[])"fully clipped Scene2 draw must be elided";
   ignore(get(step resource_runtime outside_draws));
+  let before=get(stats resource_runtime)in
+  ignore(get(step resource_runtime draws));
+  let after=get(stats resource_runtime)in
+  check(after.frames=Int64.succ before.frames&&after.logical_draws=Int64.add before.logical_draws(Int64.of_int(List.length draws)))"execution stats accounting";
+  check(after.uploaded_bytes=before.uploaded_bytes)"stable draws must not re-upload";
   ignore(Prismel_next_resources.Image.destroy image);ignore(Prismel_next_resources.Canvas.destroy canvas);
   get(destroy resource_runtime);
+  check(Result.is_error(stats resource_runtime))"destroyed stats stale";
   let bounded=get(create{configuration with max_events=64})in
   for index=1 to 100_000 do get(push_event bounded(Pointer_moved(float index,0.)))done;
   let bounded_facts=get(step bounded draws)in

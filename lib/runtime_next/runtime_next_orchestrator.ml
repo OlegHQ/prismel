@@ -11,6 +11,8 @@ type facts = { title:string;logical_width:int;logical_height:int;drawable_width:
   drawable_height:int;position:(int*int)option;pixel_density:float;display_scale:float;
   refresh_rate:float option;vsync:bool }
 type pacing = {frames:int64;presented:int64;last_presented:bool}
+type stats={frames:int64;presented:int64;logical_draws:int64;logical_passes:int64;
+  logical_submissions:int64;uploaded_bytes:int64;cache_entries:int}
 type family=Scene2|Scene3|Scene3_textured|Scene3_shadow|Scene3_stencil
   |Scene3_textured_stencil|Scene3_shadow_stencil
 type blend=Replace|Alpha|Add|Multiply|Screen|Subtract
@@ -30,7 +32,8 @@ type audio_command=Runtime_next_web.audio_command=Audio_master_volume of float|A
   |Audio_music_play of{asset:string;loops:int;fade_ms:int}|Audio_music_volume of float
   |Audio_music_pause|Audio_music_resume|Audio_music_stop of int|Audio_asset_remove of string
 type t={target:target;implementation:implementation;mutable facts:facts;
-  mutable pacing:pacing;mutable dead:bool}
+  mutable pacing:pacing;mutable logical_draws:int64;mutable logical_passes:int64;
+  mutable logical_submissions:int64;mutable dead:bool}
 let target_of_string value=match String.lowercase_ascii(String.trim value)with
   |"native"->Ok Native|"headless"->Ok Headless|"web"->Ok Web
   |invalid->Error(Printf.sprintf"unknown render target %S (expected native, headless, or web)"invalid)
@@ -51,7 +54,7 @@ let initial_facts (c:configuration)={title="Prismel runtime-next";logical_width=
 let create (c:configuration)=let op="Runtime_next_orchestrator.create"in
   if c.logical_width<=0||c.logical_height<=0||c.drawable_width<=0||c.drawable_height<=0
   then invalid op"dimensions must be positive"else let finish implementation facts=
-    Ok{target=c.target;implementation;facts;pacing={frames=0L;presented=0L;last_presented=false};dead=false}in
+    Ok{target=c.target;implementation;facts;pacing={frames=0L;presented=0L;last_presented=false};logical_draws=0L;logical_passes=0L;logical_submissions=0L;dead=false}in
   match c.target with
   |Native->(match Runtime_next.create~width:c.logical_width~height:c.logical_height with Error _ as e->e|Ok runtime->
       (match Runtime_next.set_title runtime "Prismel runtime-next",Runtime_next.set_resizable runtime true with
@@ -60,12 +63,12 @@ let create (c:configuration)=let op="Runtime_next_orchestrator.create"in
           |Error e->ignore(Runtime_next.destroy runtime);Error e)
        |Error e,_|_,Error e->ignore(Runtime_next.destroy runtime);Error e))
   |Headless->Result.map(fun runtime->{target=Headless;implementation=Headless_runtime runtime;
-      facts=initial_facts c;pacing={frames=0L;presented=0L;last_presented=false};dead=false})
+      facts=initial_facts c;pacing={frames=0L;presented=0L;last_presented=false};logical_draws=0L;logical_passes=0L;logical_submissions=0L;dead=false})
       (Runtime_next_headless.create~logical_width:c.logical_width~logical_height:c.logical_height
         ~drawable_width:c.drawable_width~drawable_height:c.drawable_height)
   |Web->let configuration=c.web_configuration in
     Result.map(fun runtime->{target=Web;implementation=Web_runtime runtime;facts=initial_facts c;
-      pacing={frames=0L;presented=0L;last_presented=false};dead=false})
+      pacing={frames=0L;presented=0L;last_presented=false};logical_draws=0L;logical_passes=0L;logical_submissions=0L;dead=false})
       (Runtime_next_web.create_configured?configuration~logical_width:c.logical_width~logical_height:c.logical_height
         ~drawable_width:c.drawable_width~drawable_height:c.drawable_height())
 let ensure operation value=if value.dead then error operation Ogpu.Error.Stale_handle"runtime is destroyed"else Ok()
@@ -76,12 +79,17 @@ let is_web value=value.target=Web
 let is_displayless value=value.target<>Native
 let facts value=Result.map(fun()->value.facts)(ensure"Runtime_next_orchestrator.facts"value)
 let pacing value=Result.map(fun()->value.pacing)(ensure"Runtime_next_orchestrator.pacing"value)
-let account value result =
+let stats value=match ensure"Runtime_next_orchestrator.stats"value with Error _ as e->e|Ok()->
+  let uploaded_bytes,cache_entries=match value.implementation with Native_runtime runtime->let s=Runtime_next.stats runtime in s.uploaded_bytes,s.mesh_cache_entries|Headless_runtime runtime->Runtime_next_headless.resource_stats runtime|Web_runtime runtime->Runtime_next_web.resource_stats runtime in
+  Ok{frames=value.pacing.frames;presented=value.pacing.presented;logical_draws=value.logical_draws;
+    logical_passes=value.logical_passes;logical_submissions=value.logical_submissions;uploaded_bytes;cache_entries}
+let account value draw_count result =
   (match result with Ok presented->value.pacing<-{frames=Int64.succ value.pacing.frames;
     presented=(if presented then Int64.succ value.pacing.presented else value.pacing.presented);
-    last_presented=presented}|Error _->());result
+    last_presented=presented};value.logical_draws<-Int64.add value.logical_draws(Int64.of_int draw_count);
+    value.logical_passes<-Int64.succ value.logical_passes;value.logical_submissions<-Int64.succ value.logical_submissions|Error _->());result
 let render value draws=match ensure"Runtime_next_orchestrator.render"value with Error _ as e->e|Ok()->
-  account value(match value.implementation with Native_runtime x->Runtime_next.render x draws
+  account value(List.length draws)(match value.implementation with Native_runtime x->Runtime_next.render x draws
     |Headless_runtime x->Runtime_next_headless.render x draws|Web_runtime x->Runtime_next_web.render x draws)
 let scene_family=function Scene2->Scene_execution.Scene2|Scene3->Scene3
   |Scene3_textured->Scene3_textured|Scene3_shadow->Scene3_shadow
@@ -91,7 +99,7 @@ let pipeline_blend=function Replace->Ogpu.Pipeline.Replace|Alpha->Alpha|Add->Add
   |Multiply->Multiply|Screen->Screen|Subtract->Subtract
 let render_prepared value draws=match ensure"Runtime_next_orchestrator.render_prepared"value with Error _ as e->e|Ok()->
   let draws=List.map(fun x->scene_family x.family,pipeline_blend x.blend,x.texture,x.auxiliary,x.samples,x.draw)draws in
-  account value(match value.implementation with
+  account value(List.length draws)(match value.implementation with
     |Native_runtime x->Runtime_next.render_sampled_resources x draws
     |Headless_runtime x->Runtime_next_headless.render_sampled_resources x draws
     |Web_runtime x->Runtime_next_web.render_sampled_resources x draws)

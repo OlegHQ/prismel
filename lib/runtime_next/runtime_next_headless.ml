@@ -95,6 +95,7 @@ let presented_pixels value =
 
 let backend_live_counts value=Ogpu_raster2.live_counts value.control
 let backend_trace_stats value = Ogpu_raster2.trace_stats value.control
+let resource_stats value=Scene_execution.upload_bytes value.renderer,Scene_execution.cache_entries value.renderer
 
 let destroy value =
   if value.dead then Ok ()

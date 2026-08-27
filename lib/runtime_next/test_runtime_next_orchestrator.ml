@@ -59,6 +59,13 @@ let exercise runtime extent =
     end
   done
 
+let check_stats runtime =
+  let stats=get(Orchestrator.stats runtime)in
+  if stats.frames<>600L||stats.presented<>600L||stats.logical_passes<>600L
+    ||stats.logical_submissions<>600L||stats.logical_draws<=600L
+    ||stats.uploaded_bytes<=0L||stats.cache_entries<=0 then
+    failwith"orchestrator typed stats mismatch"
+
 let exercise_native runtime extent =
   let vertices=Bytes.make 48 '\000'and indices=Bytes.make 12 '\000'in
   Bytes.set_int32_le indices 4 1l;Bytes.set_int32_le indices 8 2l;
@@ -157,8 +164,9 @@ let () =
   get (Orchestrator.send_web_audio web Orchestrator.Audio_stop_all);
   get (Orchestrator.set_text_input_regions web
     [{Orchestrator.x=1;y=2;width=3;height=4;focused=true}]);
-  exercise web 4;
+  exercise web 4;check_stats web;
   get (Orchestrator.destroy web);
+  (match Orchestrator.stats web with Error e when e.kind=Ogpu.Error.Stale_handle->()|_->failwith"destroyed stats not stale");
   begin
     match Orchestrator.create (configuration Orchestrator.Native 4) with
     | Error _ -> print_endline "runtime_next selector: native smoke skipped"

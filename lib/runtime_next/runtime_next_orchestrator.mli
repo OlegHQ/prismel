@@ -11,6 +11,9 @@ type facts = { title:string; logical_width:int; logical_height:int;
   drawable_width:int; drawable_height:int; position:(int*int) option;
   pixel_density:float; display_scale:float; refresh_rate:float option; vsync:bool }
 type pacing = { frames:int64; presented:int64; last_presented:bool }
+type stats = { frames:int64; presented:int64; logical_draws:int64;
+  logical_passes:int64; logical_submissions:int64; uploaded_bytes:int64;
+  cache_entries:int }
 type family = Scene2 | Scene3 | Scene3_textured | Scene3_shadow |
   Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil
 type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
@@ -47,6 +50,7 @@ val is_web : t -> bool
 val is_displayless : t -> bool
 val facts : t -> (facts,Ogpu.Error.t) result
 val pacing : t -> (pacing,Ogpu.Error.t) result
+val stats : t -> (stats,Ogpu.Error.t) result
 val render : t -> Scene_execution.draw list -> (bool,Ogpu.Error.t) result
 val render_prepared : t -> prepared list -> (bool,Ogpu.Error.t) result
 val resize : t -> logical_width:int -> logical_height:int -> drawable_width:int ->
