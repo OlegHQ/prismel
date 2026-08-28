@@ -108,6 +108,23 @@ let ()=
   let auxiliary:Scene_execution.auxiliary_resource={key="shadow-four";buffer=Bytes.make 84 '\000';texture=green}in
   let draw={Scene_execution.mesh;state}and stable=ref None in
   List.iter(fun _->ignore(get(Scene_execution.render_sampled_resources renderer[Scene3_textured,Ogpu.Pipeline.Replace,Some red,None,1,draw]));let pixels=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in if Char.code(Bytes.get pixels 0)<>255 then failwith"texture1/sampler2 exact pixel";ignore(get(Scene_execution.render_sampled_resources renderer[Scene3_shadow,Ogpu.Pipeline.Replace,None,Some auxiliary,1,draw]));let pixels=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in if Char.code(Bytes.get pixels 1)<>255 then failwith"shadow texture4/sampler5 exact pixel";let uploaded=Scene_execution.upload_bytes renderer in match!stable with None->stable:=Some uploaded|Some old when old=uploaded->()|Some _->failwith"sampled resources reuploaded")[1;2;60;600];
+  Gc.full_major();let sampled_before=Gc.allocated_bytes()in
+  for _=1 to 100 do
+    ignore(get(Scene_execution.render_sampled_resources renderer
+      [Scene3_textured,Ogpu.Pipeline.Replace,Some red,None,1,draw]))
+  done;
+  let sampled_allocation=(Gc.allocated_bytes()-.sampled_before)/.100. in
+  if sampled_allocation>100_000. then
+    failwith(Printf.sprintf"sampled wrapper cache allocated %.0f bytes/frame"sampled_allocation);
+  for index=0 to 39 do
+    let transient=texture("sampled-cap-"^string_of_int index)
+      (String.init 4(fun channel->if channel=3 then '\255'else Char.chr index))in
+    ignore(get(Scene_execution.render_sampled_resources renderer
+      [Scene3_textured,Ogpu.Pipeline.Replace,Some transient,None,1,draw]))
+  done;
+  if Ogpu_raster2.sampled_cache_entries control>32 then
+    failwith"sampled wrapper cache exceeded capacity";
+  Printf.printf"Ogpu_raster2 sampled allocation: %.0f bytes/frame\n"sampled_allocation;
   let quad_vertices=Bytes.make(68*4)'\000'and quad_indices=Bytes.create 24 in
   List.iteri(fun index(x,y,u,v)->let offset=index*68 in Bytes.set_int64_le quad_vertices offset(Int64.bits_of_float x);Bytes.set_int64_le quad_vertices(offset+8)(Int64.bits_of_float y);Bytes.set_int64_le quad_vertices(offset+40)(Int64.bits_of_float 1.);Bytes.set_int32_le quad_vertices(offset+48)0xffffffffl;Bytes.set_int64_le quad_vertices(offset+52)(Int64.bits_of_float u);Bytes.set_int64_le quad_vertices(offset+60)(Int64.bits_of_float v))[0.,0.,0.,0.;4.,0.,1.,0.;4.,4.,1.,1.;0.,4.,0.,1.];
   List.iteri(fun index value->Bytes.set_int32_le quad_indices(index*4)(Int32.of_int value))[0;1;2;0;2;3];
@@ -125,4 +142,6 @@ let ()=
   let fallback_pixels=get(Scene_execution.read_pixels renderer~bytes_per_row:16)and fast2,fallback2=Ogpu_raster2.rectangle_path_stats control in
   if fallback_pixels<>fast_pixels||fast2<>fast1||fallback2<>fallback1+1 then failwith"rectangle topology fallback drift";
   get(Scene_execution.destroy renderer);if Ogpu_raster2.live_counts control<>(0,0,0,0,0)then failwith"sampled resources live delta";
+  if Ogpu_raster2.sampled_cache_entries control<>0 then
+    failwith"destroyed textures retained sampled wrappers";
   print_endline"ogpu_raster2: frames1/2/60/600+resize, 4-domain, 100k zero delta"

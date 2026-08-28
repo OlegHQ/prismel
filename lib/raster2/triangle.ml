@@ -1,4 +1,8 @@
 type vertex={x:float;y:float;depth:float;color:int32;u:float;v:float} type cull=Cull_none|Back|Front type texture={texture:Texture.t;filter:Texture.filter;address_u:Texture.address;address_v:Texture.address} type clip={x:int;y:int;width:int;height:int}
+(* Raster calls are synchronous within a domain. Keep the six-float texture
+   sampler scratch domain-local so concurrent software renderers remain exact
+   without allocating it once per triangle. *)
+let texture_scratch=Domain.DLS.new_key(fun()->Float.Array.create 6)
 let ch c n=Int32.(to_int(logand(shift_right_logical c n)0xffl))
 let rgba r g b a=Int32.(logor(shift_left(of_int r)24)(logor(shift_left(of_int g)16)(logor(shift_left(of_int b)8)(of_int a))))
 let sample ?(lod=0.) t u v=match Texture.sample t.texture~address_u:t.address_u~address_v:t.address_v~filter:t.filter~u~v~lod with Ok value->value|Error _->0xffffffffl
@@ -71,7 +75,8 @@ let draw_textured_solid ~color ~depth ~depth_state ~blend ~cull ~clip (texture:t
     let tw=float(Texture.width texture.texture)and th=float(Texture.height texture.texture)in
     let rho=max(sqrt((dudx*.tw)**2.+.(dvdx*.th)**2.))(sqrt((dudy*.tw)**2.+.(dvdy*.th)**2.))in
     let lod=if rho<=1. then 0. else log rho/.log 2. in
-    let coordinates=Float.Array.of_list[0.;0.;lod;0.;0.;0.]in
+    let coordinates=Domain.DLS.get texture_scratch in
+    Float.Array.unsafe_set coordinates 2 lod;
     let tint=Int32.to_int a.color in
     let tr=(tint lsr 24)land 255 and tg=(tint lsr 16)land 255
     and tb=(tint lsr 8)land 255 and ta=tint land 255 in
