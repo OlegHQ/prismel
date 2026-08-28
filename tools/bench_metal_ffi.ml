@@ -38,6 +38,10 @@ let command_output program arguments =
    | Unix.WSTOPPED signal -> fail "%s was stopped by signal %d" program signal);
   String.trim (Stdlib.Buffer.contents output)
 
+let canonical_commit value =
+  String.length value = 40 && String.for_all (function
+    | '0'..'9' | 'a'..'f' -> true | _ -> false) value
+
 type sample =
   { wall_seconds : float
   ; allocated_bytes : float
@@ -190,6 +194,16 @@ let write_json output value =
 
 let () =
   let arguments = parse_arguments () in
+  let source_commit,source_dirty =
+    match arguments.output with
+    |None->"",false
+    |Some _->
+        let commit=command_output "git" ["rev-parse";"HEAD"]in
+        if not(canonical_commit commit)then
+          fail"Metal FFI evidence requires a canonical Git commit, got %S"commit;
+        let dirty=command_output "git" ["status";"--porcelain"]<>""in
+        if dirty then fail"Metal FFI evidence refuses a dirty worktree";
+        commit,dirty in
   if not (benchmark_initialize ()) then fail "Metal has no system default device";
   Fun.protect
     ~finally:benchmark_shutdown
@@ -242,8 +256,9 @@ let () =
             `Assoc
               [ "schema", `Int 1
               ; "benchmark", `String "metal_ffi"
-              ; "source_commit",
-                `String (command_output "git" [ "rev-parse"; "HEAD" ])
+              ; "source_commit", `String(if source_commit=""then
+                    command_output"git"["rev-parse";"HEAD"]else source_commit)
+              ; "source_dirty", `Bool source_dirty
               ; "profile", `String arguments.profile
               ; "ocaml_version", `String Sys.ocaml_version
               ; "word_size", `Int Sys.word_size
