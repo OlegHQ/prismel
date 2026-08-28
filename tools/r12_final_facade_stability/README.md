@@ -5,6 +5,9 @@ target cycles Basic, PXUI-like, Canvas/image, and Scene3 scenes, records exact
 frames 1/2/60/600, and then continues for 30 minutes. Samples use a fixed
 256-entry ring. The validator requires zero facade resource/window/cache/release
 counters after teardown and at most 5% RSS range in the final sample quarter.
+It also proves that retained samples are the final fixed-ring window (rather
+than an earlier flat interval), enforces the frozen 10-second sampling period,
+checks live-resource/sample facts, and rejects policy or canonical-hash drift.
 
 Run the three release lanes separately:
 
