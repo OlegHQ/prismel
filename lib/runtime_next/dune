@@ -47,6 +47,11 @@
  (libraries runtime_next metal))
 
 (test
+ (name test_runtime_next_scene2_argument)
+ (modules test_runtime_next_scene2_argument)
+ (libraries runtime_next scene_execution metal ogpu))
+
+(test
  (name test_runtime_next_headless)
  (modules test_runtime_next_headless)
  (libraries runtime_next_headless scene_execution ogpu)
