@@ -17,22 +17,20 @@ let () =
               Scene.view3d ~viewport:(8, 4, 16, 12) ~camera scene3 ] ];
       Scene.rect ~at:(1, 1) ~w:3 ~h:2 ~fill:Color.red () ]
   in
-  let first_ir, first_resources =
-    Result.get_ok (Scene.Private.stage ~width:32 ~height:24 scene)
-  in
+  let first=Result.get_ok(Scene.Private.stage_native~width:32~height:24 scene)in
+  let first_ir,first_resources=first.scene2,first.resources in
   let first_commands = Scene_command.Render_ir.commands first_ir in
   let automatic_text_id=ref None in
-  require (Array.length first_commands = 7) "complete ordered lowering";
+  require (Array.length first_commands = 6) "complete ordered lowering";
+  require(List.length first.scene3=1)"View3d native staging";
   (match Array.to_list first_commands with
   | [ Scene_command.Render_ir.Clear _;
       Push_clip _;
       Set_blend Scene_command.Render_ir.Alpha;
       Image text;
-      Image view;
       Pop_clip;
       Geometry _ ] ->
       automatic_text_id:=Some text.resource_id;
-      require (text.resource_id <> view.resource_id) "distinct staged resources"
   | commands ->
       let tag = function
         | Scene_command.Render_ir.Clear _ -> "clear"
@@ -49,18 +47,19 @@ let () =
       failwith
         ("text/View3d ordering or state scope: "
         ^ String.concat "," (List.map tag commands)));
-  require (List.length first_resources = 2) "text and view resources";
+  require (List.length first_resources = 1) "text resource";
   List.iter
     (fun frame ->
-      let ir, resources =
-        Result.get_ok (Scene.Private.stage ~width:32 ~height:24 scene)
-      in
+      let staged=Result.get_ok(Scene.Private.stage_native~width:32~height:24 scene)in
+      let ir,resources=staged.scene2,staged.resources in
       require
         (Scene_command.Render_ir.serialize ir = Scene_command.Render_ir.serialize first_ir)
         (Printf.sprintf "frame %d deterministic IR" frame);
       require
         (resource_ids resources = resource_ids first_resources)
-        (Printf.sprintf "frame %d must not re-upload" frame))
+        (Printf.sprintf "frame %d must not re-upload" frame);
+      require(List.length staged.scene3=1)
+        (Printf.sprintf"frame %d native View3d drift"frame))
     [ 2; 60; 600 ];
   let diagnostic=Scene.[debug_text~at:(5,7)~color:(Color.rgba 1 2 3 4)"fixed"]in
   let diagnostic_encoding=ref None in

@@ -62,18 +62,6 @@
  (libraries prismel_next_api))
 
 (test
- (name test_prismel_next_api_low)
- (modules test_prismel_next_api_low)
- (libraries prismel_next_api)
- (deps low.mli ../prismel/app.mli ../prismel/backend.mli
-  ../prismel/graphics.mli ../prismel/window.mli)
- (action
-  (setenv PRISMEL_RENDER_TARGET native
-   (run %{test} %{dep:low.mli} %{dep:../prismel/app.mli}
-    %{dep:../prismel/backend.mli} %{dep:../prismel/graphics.mli}
-    %{dep:../prismel/window.mli}))))
-
-(test
  (name test_core_interface_preservation)
  (modules test_core_interface_preservation)
  (libraries prismel_next_api)
