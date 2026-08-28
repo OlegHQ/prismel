@@ -1,0 +1,5 @@
+(library
+ (name scene_command)
+ (public_name prismel.scene_command)
+ (modules path))
+
