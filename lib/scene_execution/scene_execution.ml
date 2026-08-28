@@ -20,6 +20,11 @@ module Scene2_command = struct
     |Debug_text of debug_text
 end
 type auxiliary_resource={key:string;buffer:bytes;texture:sampled_texture}
+type scene3_entry={family:pipeline_family;blend:Ogpu.Pipeline.blend;
+  texture:sampled_texture option;auxiliary:auxiliary_resource option;
+  samples:int;draw:draw}
+type prepared_scene3={clear:float*float*float*float;clear_depth:float;
+  clear_stencil:int;entries:scene3_entry array}
 type cached={mutable key:string;mutable payload_hash:string;uniform_bytes:bytes option;buffer:Ogpu.Backend.buffer;mutable index_offset:int64;mutable uniform_offset:int64 option;mutable vertex_count:int;mutable index_count:int;bytes:int}
 type cached_auxiliary={auxiliary_key:string;auxiliary_hash:string;auxiliary_buffer:Ogpu.Backend.buffer}
 type cached_texture={texture_key:string;texture_hash:string;texture_shape:string;
@@ -46,6 +51,30 @@ type automatic_submission={automatic_clear:float*float*float*float;
 type pipeline_variant={family:pipeline_family;blend:Ogpu.Pipeline.blend;samples:int;pipeline:Ogpu.Backend.pipeline;key:string}
 type t={device:Ogpu.Backend.device;queue:Ogpu.Backend.queue;surface:Ogpu.Backend.surface;mutable target:Ogpu.Backend.texture;mutable attachments:Scene_attachment_pool.t;pipelines:pipeline_variant list;canonical_scene2_argument:bool;mutable cache:cached list;mutable uniform_cache:cached list;mutable prepared_cache:prepared_run list;mutable prepared_submission:prepared_submission option;mutable automatic_submission:automatic_submission option;mutable auxiliary_cache:cached_auxiliary list;mutable texture_cache:cached_texture list;mutable uploaded:int64;mutable dead:bool;before_device_destroy:unit->(unit,Ogpu.Error.t)result}
 let error op kind text=Error(Ogpu.Error.make op kind text)
+let prepare_scene3 ~clear ~clear_depth ~clear_stencil entries =
+  let finite=Float.is_finite in
+  let r,g,b,a=clear in
+  let valid_extent(_,_,width,height)=width>0&&height>0 in
+  let valid_family (entry:scene3_entry)=match entry.family,entry.texture,entry.auxiliary with
+    |Scene3,None,None|Scene3_stencil,None,None->true
+    |Scene3_textured,Some _,None|Scene3_textured_stencil,Some _,None->true
+    |Scene3_shadow,_,Some _|Scene3_shadow_stencil,_,Some _->true
+    |_->false in
+  let valid_entry (entry:scene3_entry)=
+    entry.samples>0&&List.mem entry.samples[1;4;9;16]&&valid_family entry&&
+    entry.draw.mesh.key<>""&&entry.draw.mesh.vertex_count>=0&&
+    entry.draw.mesh.index_count>=0&&
+    Bytes.length entry.draw.mesh.indices=entry.draw.mesh.index_count*4&&
+    valid_extent entry.draw.state.viewport&&valid_extent entry.draw.state.scissor&&
+    finite entry.draw.state.depth_clear in
+  if not(List.for_all finite[r;g;b;a;clear_depth])||clear_depth<0.||clear_depth>1.
+     ||clear_stencil<0||clear_stencil>255 then
+    error"Scene_execution.prepare_scene3"Ogpu.Error.Invalid_argument
+      "clear state is malformed"
+  else if not(Array.for_all valid_entry entries)then
+    error"Scene_execution.prepare_scene3"Ogpu.Error.Invalid_argument
+      "draw family, resources, samples, mesh, or extent is malformed"
+  else Ok{clear;clear_depth;clear_stencil;entries=Array.copy entries}
 let set_u32_le bytes offset value =
   let open Int32 in
   Bytes.set bytes offset (Char.chr (to_int (logand value 0xffl)));

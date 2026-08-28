@@ -74,6 +74,27 @@ type auxiliary_resource = {
   texture : sampled_texture;
 }
 
+type scene3_entry = {
+  family : pipeline_family;
+  blend : Ogpu.Pipeline.blend;
+  texture : sampled_texture option;
+  auxiliary : auxiliary_resource option;
+  samples : int;
+  draw : draw;
+}
+type prepared_scene3 = {
+  clear : float * float * float * float;
+  clear_depth : float;
+  clear_stencil : int;
+  entries : scene3_entry array;
+}
+
+(** Validates and copies a native Scene3 submission description. Nested byte
+    resources remain borrowed and must be retained by the staging owner. *)
+val prepare_scene3 : clear:(float * float * float * float) ->
+  clear_depth:float -> clear_stencil:int -> scene3_entry array ->
+  (prepared_scene3, Ogpu.Error.t) result
+
 (** Packs a renderer-neutral shadow snapshot into a deterministic RGBA8 depth texture
     and a copied float32 parameter block. No backend allocation occurs here. *)
 val shadow_resource : key:string -> shadow_snapshot ->

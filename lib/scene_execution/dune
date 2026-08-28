@@ -4,3 +4,8 @@
  (modules scene_execution scene_attachment_pool)
  (private_modules scene_attachment_pool)
  (libraries ogpu))
+
+(test
+ (name test_prepared_scene3)
+ (modules test_prepared_scene3)
+ (libraries scene_execution ogpu))
