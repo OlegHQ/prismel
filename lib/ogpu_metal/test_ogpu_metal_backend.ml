@@ -51,6 +51,18 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal backe
   let draw : Ogpu.Render_pass.draw={pipeline_key=Pipeline.key native_render;buffers=[];textures=[];samplers=[];primitive=Triangle_list;vertex_start=0;vertex_count=3;index=None}in
   let bad={draw with buffers=[{stage=Ogpu.Command.Vertex;index=0;buffer_id=Ogpu.Backend.buffer_id a;offset=0L};{stage=Ogpu.Command.Vertex;index=0;buffer_id=Ogpu.Backend.buffer_id b;offset=0L}]}in(match Ogpu.Backend.render rp[bad]with Error e when e.Ogpu.Error.kind=Ogpu.Error.Invalid_argument->()|_->failwith"backend render atomic validation");
   let rr=get(Ogpu.Backend.submit queue(get(Ogpu.Backend.render rp[draw]))~resources:[`Texture target]~pipelines:[render_pipeline])in get(Ogpu.Backend.complete_through queue rr.epoch);let pixels=get(Ogpu.Backend.read_texture target~bytes_per_row:16)in if Char.code(Bytes.get pixels 0)<>64||Char.code(Bytes.get pixels 1)<>128||Char.code(Bytes.get pixels 2)<>191 then failwith"backend nonindexed render mismatch";
+  let stable_classic=get(Ogpu.Backend.render rp[draw])in
+  List.iter(fun _frame->let receipt=get(Ogpu.Backend.submit queue stable_classic
+    ~resources:[`Texture target]~pipelines:[render_pipeline])in
+    get(Ogpu.Backend.complete_through queue receipt.epoch))[1;2;60;600];
+  let stable_pixels=get(Ogpu.Backend.read_texture target~bytes_per_row:16)in
+  if stable_pixels<>pixels then failwith"stable classic descriptor reuse pixels";
+  let changed_resources=get(Ogpu.Backend.submit queue stable_classic
+    ~resources:[`Texture target;`Buffer a]~pipelines:[render_pipeline])in
+  get(Ogpu.Backend.complete_through queue changed_resources.epoch);
+  let changed_resource_pixels=get(Ogpu.Backend.read_texture target~bytes_per_row:16)in
+  if changed_resource_pixels<>pixels then
+    failwith"classic descriptor differing-resource rebuild pixels";
   (* varying_viewport_scissor_classic_fallback: encoder-only state is retained by
      the classic pass and cannot be reused through an incompatible retained plan. *)
   let clipped=get(Ogpu.Render_pass.create(Ogpu.Backend.device_handle device){colors=[|Some color|];depth=None;stencil=None;viewport={x=0;y=0;width=4;height=4};scissor={x=1;y=1;width=2;height=2}})in
