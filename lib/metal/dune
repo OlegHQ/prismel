@@ -377,6 +377,11 @@
  (libraries metal))
 
 (test
+ (name test_metal_resource_bounds)
+ (modules test_metal_resource_bounds)
+ (libraries metal))
+
+(test
  (name test_metal_tensor47_safe)
  (modules test_metal_tensor47_safe)
  (libraries metal))
