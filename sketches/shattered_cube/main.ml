@@ -30,7 +30,7 @@ let r11_delegate graph =
     if (artifact.pieces,artifact.triangles,artifact.render_vertices)<>
        (18_278,278_368,835_104) then
       failwith"shattered_cube R11 artifact cardinality drift";
-    let cooked_pieces,cooked_triangles,cooked_vertices,cooked_render_hash =
+    let cooked_pieces,cooked_triangles,cooked_vertices,cooked_render_hash,cooked_mesh =
       Parallel.run ~domains:1 (fun () ->
         let node=graph() in
         let get=function Ok value->value|Error message->failwith message in
@@ -48,17 +48,20 @@ let r11_delegate graph =
           Mesh.Private.triangle_count mesh,Mesh.vertex_count mesh,
           Digest.to_hex(Digest.string(Marshal.to_string
             (view.mode,view.vertices,view.indices,view.normals,view.colors,
-             view.tex_coords)[])))) in
+             view.tex_coords)[])),mesh)) in
     if (cooked_pieces,cooked_triangles,cooked_vertices)<>
        (artifact.pieces,artifact.triangles,artifact.render_vertices) ||
        cooked_render_hash<>artifact.render_hash then
       failwith"shattered_cube R11 artifact does not match the sketch graph";
-    Unix.putenv "PRISMEL_R11_SKETCH_EXECUTABLE" Sys.executable_name;
-    Unix.putenv "PRISMEL_R11_ARTIFACT" artifact_path;
-    let arguments=[|renderer;"shattered";"--acceptance-artifact";artifact_path;
-      "--visibility";visibility;"--warmup";"5";"--sample-seconds";seconds;
-      "--report";report|] in
-    Unix.execv renderer arguments
+    ignore renderer;
+    R11_native.run ~visibility ~seconds:(float_of_string seconds) ~report
+      ~metadata:{pieces=artifact.pieces;triangles=artifact.triangles;
+        render_vertices=artifact.render_vertices;cook_seconds=artifact.cook_seconds;
+        cook_seconds_four=artifact.cook_seconds_four;pack_seconds=artifact.pack_seconds;
+        topology_hash=artifact.topology_hash;attribute_hash=artifact.attribute_hash;
+        order_hash=artifact.order_hash;render_hash=artifact.render_hash;
+        artifact=artifact_path} cooked_mesh;
+    exit 0
   end
 
 let graph () =

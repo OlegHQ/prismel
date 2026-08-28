@@ -1,16 +1,19 @@
 # Runtime-next native benchmark evidence
 
-The R11 protocol invokes `sketches/shattered_cube/main.exe` first. Its R11-only
-entrypoint cooks the sketch's own graph and validates the 18,278-piece artifact
-cardinality and render hash, then delegates measurement with `execv` to
-`runtime_next_native_benchmark.exe`.
+The R11 protocol invokes and measures `sketches/shattered_cube/main.exe` itself.
+Its R11-only entrypoint cooks the sketch's own graph, validates the 18,278-piece
+artifact cardinality and render hash, packs that freshly cooked terminal mesh,
+and renders it through the next native execution path at the frozen 1200×760
+extent without replacing the process.
 
-Reports from this path must identify the sketch as `invoked_executable`, the
-benchmark as `measured_executable`, and carry
-`status: graph-validated-renderer-delegated`, `evidence_class: precursor`, and
-`frozen_r11_closure: false`. The protocol executable validates those fields for
-every run.
+Reports identify the sketch as both `invoked_executable` and
+`measured_executable`, carry `status: actual-sketch-cooked-and-rendered`, and
+remain `evidence_class: candidate` with `frozen_r11_closure: false`. The
+protocol also validates the frozen cardinality and dimensions, zero replacement
+upload, one draw/pass/submission per frame, one resident cache entry, and either
+measured GPU counters or an explicit unsupported/null result.
 
-This is precursor evidence only. Because the delegated renderer, rather than
-the sketch executable's own rendering loop, is measured, these reports cannot
-close frozen gate R11.
+This removes the delegated-renderer blocker but does not by itself close R11.
+Visible-window execution, comparable R10 envelope evidence, clean full-length
+runs, RSS plateau evidence, and any unavailable GPU counters remain honest
+qualification requirements.
