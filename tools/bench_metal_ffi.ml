@@ -192,18 +192,45 @@ let write_json output value =
           Yojson.Safe.pretty_to_channel channel value;
           output_char channel '\n')
 
+let check_source ~expected_commit =
+  let commit = command_output "git" [ "rev-parse"; "HEAD" ] in
+  if not (canonical_commit commit) then
+    fail "Metal FFI evidence requires a canonical Git commit, got %S" commit;
+  if commit <> expected_commit then
+    fail
+      "Metal FFI evidence source changed during measurement (%s -> %s)"
+      expected_commit commit;
+  if command_output "git" [ "status"; "--porcelain" ] <> "" then
+    fail "Metal FFI evidence refuses a dirty worktree";
+  commit
+
+let write_evidence_atomic ~path ~expected_commit value =
+  let directory = Filename.dirname path in
+  let prefix = Filename.basename path ^ ".tmp-" in
+  let temporary, channel =
+    Filename.open_temp_file ~temp_dir:directory prefix ".json"
+  in
+  Fun.protect
+    ~finally:(fun () ->
+      close_out_noerr channel;
+      if Sys.file_exists temporary then Sys.remove temporary)
+    (fun () ->
+      Yojson.Safe.pretty_to_channel channel value;
+      output_char channel '\n';
+      flush channel;
+      close_out channel;
+      ignore (check_source ~expected_commit);
+      Sys.rename temporary path)
+
 let () =
   let arguments = parse_arguments () in
-  let source_commit,source_dirty =
-    match arguments.output with
-    |None->"",false
-    |Some _->
-        let commit=command_output "git" ["rev-parse";"HEAD"]in
-        if not(canonical_commit commit)then
-          fail"Metal FFI evidence requires a canonical Git commit, got %S"commit;
-        let dirty=command_output "git" ["status";"--porcelain"]<>""in
-        if dirty then fail"Metal FFI evidence refuses a dirty worktree";
-        commit,dirty in
+  let source_commit, source_dirty =
+    if arguments.check then "", false
+    else
+        let commit = command_output "git" [ "rev-parse"; "HEAD" ] in
+        ignore (check_source ~expected_commit:commit);
+        commit, false
+  in
   if not (benchmark_initialize ()) then fail "Metal has no system default device";
   Fun.protect
     ~finally:benchmark_shutdown
@@ -254,11 +281,12 @@ let () =
           in
           let output =
             `Assoc
-              [ "schema", `Int 1
+              [ "schema", `Int 2
               ; "benchmark", `String "metal_ffi"
-              ; "source_commit", `String(if source_commit=""then
-                    command_output"git"["rev-parse";"HEAD"]else source_commit)
+              ; "source_commit", `String source_commit
               ; "source_dirty", `Bool source_dirty
+              ; "source_commit_after", `String source_commit
+              ; "source_dirty_after", `Bool false
               ; "profile", `String arguments.profile
               ; "ocaml_version", `String Sys.ocaml_version
               ; "word_size", `Int Sys.word_size
@@ -291,4 +319,9 @@ let () =
             Printf.printf
               "Metal FFI batching passed: %.4fx native median (limit 1.05x)\n%!"
               overhead_ratio
-          else write_json arguments.output output))
+          else
+            match arguments.output with
+            | None ->
+                ignore (check_source ~expected_commit:source_commit);
+                write_json None output
+            | Some path -> write_evidence_atomic ~path ~expected_commit:source_commit output))

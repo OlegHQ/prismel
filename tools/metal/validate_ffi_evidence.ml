@@ -42,8 +42,8 @@ let validate_measurement ~iterations ~samples ~ffi_calls value =
 
 let validate root evidence_path =
   let evidence = Yojson.Safe.from_file evidence_path in
-  require (evidence |> member "schema" |> to_int = 1)
-    "Metal FFI evidence schema changed";
+  let schema = evidence |> member "schema" |> to_int in
+  require (schema = 1 || schema = 2) "Metal FFI evidence schema changed";
   require (evidence |> member "benchmark" |> to_string = "metal_ffi")
     "unexpected benchmark kind";
   require (evidence |> member "profile" |> to_string = "release")
@@ -54,6 +54,16 @@ let validate root evidence_path =
     "Metal FFI evidence SDK version changed";
   let commit = evidence |> member "source_commit" |> to_string in
   validate_commit root commit;
+  if schema >= 2 then begin
+    require (not (evidence |> member "source_dirty" |> to_bool))
+      "Metal FFI evidence source was dirty before measurement";
+    let commit_after = evidence |> member "source_commit_after" |> to_string in
+    validate_commit root commit_after;
+    require (commit_after = commit)
+      "Metal FFI evidence source commit changed during measurement";
+    require (not (evidence |> member "source_dirty_after" |> to_bool))
+      "Metal FFI evidence source was dirty after measurement"
+  end;
   let iterations = evidence |> member "iterations" |> to_int in
   let samples = evidence |> member "sample_count" |> to_int in
   require (iterations >= 1_000_000)

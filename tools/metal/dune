@@ -1378,6 +1378,19 @@
  (modules validate_ffi_evidence)
  (libraries gpu_migration_support unix yojson))
 
+(test
+ (name test_validate_ffi_evidence)
+ (modules test_validate_ffi_evidence)
+ (libraries unix yojson)
+ (deps
+  validate_ffi_evidence.exe
+  ../../specification/evidence/gpu_migration/phase2_metal_ffi_baseline.json)
+ (action
+  (run %{test}
+   %{exe:validate_ffi_evidence.exe}
+   %{workspace_root}
+   %{workspace_root}/specification/evidence/gpu_migration/phase2_metal_ffi_baseline.json)))
+
 (rule
  (alias runtest)
  (deps
