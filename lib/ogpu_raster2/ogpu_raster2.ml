@@ -146,7 +146,13 @@ let create () =
                                  Some indices)
                       |_->None in
                     match indices with None->error"Ogpu_raster2.render"Invalid_argument"index range is invalid"|Some indices->
-                    let maximum=Array.fold_left max(-1)indices and stride=if textured then 68 else 16 in
+                    let maximum=Array.fold_left max(-1)indices in
+                    let stride=if textured then 68 else match d.index with
+                      |Some(_,id,index_offset,_) when id=binding.buffer_id&&d.vertex_count>0->
+                          let bytes=Int64.sub index_offset binding.offset in
+                          let candidate=Int64.to_int bytes/d.vertex_count in
+                          if candidate=24 then 24 else 16
+                      |_->16 in
                     if maximum<0||Array.exists(fun index->index<0)indices||maximum>(max_int/stride)-1
                        ||not(valid_range vertices binding.offset((maximum+1)*stride))
                     then error"Ogpu_raster2.render"Invalid_argument"vertex or index range is invalid"
@@ -155,8 +161,12 @@ let create () =
                         |Some token->token|None->assert false in
                       let affine=match List.find_opt(fun(b:Ogpu.Render_pass.buffer_binding)->b.stage=Ogpu.Command.Vertex&&b.index=6)d.buffers with
                         |Some uniform_binding->(match find uniform_binding.buffer_id,List.assoc_opt uniform_binding.buffer_id resources with
-                          |Some(Buffer uniform_buffer),Some uniform_token when Bytes.length uniform_buffer.bytes=24&&valid_range uniform_buffer.bytes uniform_binding.offset 24->
-                              let at index=Int32.float_of_bits(Bytes.get_int32_le uniform_buffer.bytes(Int64.to_int uniform_binding.offset+index*4))in
+                          |Some(Buffer uniform_buffer),Some uniform_token when
+                              (Bytes.length uniform_buffer.bytes=24||Bytes.length uniform_buffer.bytes=48)&&
+                              valid_range uniform_buffer.bytes uniform_binding.offset (Bytes.length uniform_buffer.bytes)->
+                              let at=if Bytes.length uniform_buffer.bytes=48 then
+                                fun index->Int64.float_of_bits(Bytes.get_int64_le uniform_buffer.bytes(Int64.to_int uniform_binding.offset+index*8))
+                              else fun index->Int32.float_of_bits(Bytes.get_int32_le uniform_buffer.bytes(Int64.to_int uniform_binding.offset+index*4))in
                               Some(uniform_token,uniform_buffer.version,at 0,at 1,at 2,at 3,at 4,at 5)
                           |_->None)
                         |None->None in
@@ -174,7 +184,11 @@ let create () =
                               {Raster2.Triangle.x=x;
                                 y;
                                 depth=(if textured then Int64.float_of_bits(Bytes.get_int64_le vertices(offset+16))else 0.);
-                                color=(if textured then Bytes.get_int32_le vertices(offset+48)else 0x4080BFFFl);
+                                (* Preserve the frozen software Scene2 color
+                                   contract; the authored compact color is
+                                   carried for canonical native expansion. *)
+                                color=(if textured then Bytes.get_int32_le vertices(offset+48)
+                                  else 0x4080BFFFl);
                                 u=(if textured then Int64.float_of_bits(Bytes.get_int64_le vertices(offset+52))else 0.);
                                 v=(if textured then Int64.float_of_bits(Bytes.get_int64_le vertices(offset+60))else 0.)})in
                             control.decode_misses<-control.decode_misses+1;

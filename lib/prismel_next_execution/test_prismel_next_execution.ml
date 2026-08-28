@@ -74,7 +74,7 @@ let () =
     ignore(get(step resource_runtime equivalent))
   done;
   let upload1=(get(stats resource_runtime)).uploaded_bytes in
-  check(upload1=Int64.add upload0 60L)
+  check(upload1=Int64.add upload0 84L)
     "content-identical fresh Scene2 geometry was repeatedly uploaded";
   let transform tx={Raster2.Render_ir.xx=1.;xy=0.;yx=0.;yy=1.;tx;ty=0.}in
   let transformed_ir tx=Result.get_ok(Raster2.Render_ir.Private.create_owned[|

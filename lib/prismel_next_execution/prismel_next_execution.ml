@@ -65,25 +65,31 @@ let default_state viewport scissor = { Scene_execution.viewport; scissor;
   stencil_clear=0 }
 let finite value = Float.is_finite value
 let put_float bytes offset value = Bytes.set_int64_le bytes offset (Int64.bits_of_float value)
-let identity_affine_uniforms=let bytes=Bytes.make 24 '\000'in
-  Bytes.set_int32_le bytes 0(Int32.bits_of_float 1.);
-  Bytes.set_int32_le bytes 16(Int32.bits_of_float 1.);bytes
+(* Scene2 keeps affine coefficients as f64 so deterministic software targets
+   perform the same arithmetic as the original CPU-baked lowering.  The native
+   execution boundary narrows these values to the six-f32 Metal ABI. *)
+let identity_affine_uniforms=let bytes=Bytes.make 48 '\000'in
+  Bytes.set_int64_le bytes 0(Int64.bits_of_float 1.);
+  Bytes.set_int64_le bytes 32(Int64.bits_of_float 1.);bytes
 let affine_uniforms (transform:Raster2.Render_ir.transform)=
   if transform.xx=1.&&transform.xy=0.&&transform.yx=0.&&transform.yy=1.&&
     transform.tx=0.&&transform.ty=0. then identity_affine_uniforms else
-  let bytes=Bytes.make 24 '\000'in
-  let put index value=Bytes.set_int32_le bytes(index*4)(Int32.bits_of_float value)in
+  let bytes=Bytes.make 48 '\000'in
+  let put index value=Bytes.set_int64_le bytes(index*8)(Int64.bits_of_float value)in
   put 0 transform.xx;put 1 transform.yx;put 2 transform.tx;
   put 3 transform.xy;put 4 transform.yy;put 5 transform.ty;bytes
 let identity_transform (transform:Raster2.Render_ir.transform)=
   transform.xx=1.&&transform.xy=0.&&transform.yx=0.&&transform.yy=1.&&
   transform.tx=0.&&transform.ty=0.
+let scene2_vertex_stride=24
 let mesh_of_geometry number transform clip (geometry:Raster2.Render_ir.geometry) =
   let count=Array.length geometry.vertices/2 in
-  let vertices=Bytes.create(count*16) in
+  let vertices=Bytes.create(count*scene2_vertex_stride) in
   for index=0 to count-1 do
     let x=geometry.vertices.(index*2) and y=geometry.vertices.(index*2+1) in
-    put_float vertices(index*16)x; put_float vertices(index*16+8)y
+    let offset=index*scene2_vertex_stride in
+    put_float vertices offset x;put_float vertices(offset+8)y;
+    Bytes.set_int32_le vertices(offset+16)geometry.color
   done;
   let indices=Bytes.create(Array.length geometry.indices*4) in
   Array.iteri(fun index value->Bytes.set_int32_le indices(index*4)(Int32.of_int value))geometry.indices;
@@ -192,7 +198,7 @@ let batch_matches sources (cached:cached_scene2_batch) =
     List.iter (fun (draw:draw) ->
       if !matches then begin
         let mesh=draw.value.mesh in
-        let vertex_bytes=mesh.vertex_count*16 in
+        let vertex_bytes=mesh.vertex_count*scene2_vertex_stride in
         if not(bytes_segment_equal merged.vertices !vertex_offset mesh.vertices)
         then matches:=false
         else begin
@@ -200,7 +206,7 @@ let batch_matches sources (cached:cached_scene2_batch) =
             let actual=Int32.to_int(Bytes.get_int32_le merged.indices
               (!index_offset+index*4))
             and expected=Int32.to_int(Bytes.get_int32_le mesh.indices(index*4))+
-              (!vertex_offset/16) in
+              (!vertex_offset/scene2_vertex_stride) in
             if actual<>expected then matches:=false
           done;
           vertex_offset:=!vertex_offset+vertex_bytes;
@@ -247,13 +253,13 @@ let batch_scene2_draws ~cache ~set_cache draws =
             (fun count draw -> count + draw.value.mesh.vertex_count) 0 group
         and index_count = List.fold_left
             (fun count draw -> count + draw.value.mesh.index_count) 0 group in
-        let vertices = Bytes.create (vertex_count * 16)
+        let vertices = Bytes.create (vertex_count * scene2_vertex_stride)
         and indices = Bytes.create (index_count * 4) in
         let vertex_offset = ref 0 and index_offset = ref 0 in
         List.iter (fun draw ->
           let mesh = draw.value.mesh in
-          Bytes.blit mesh.vertices 0 vertices (!vertex_offset * 16)
-            (mesh.vertex_count * 16);
+          Bytes.blit mesh.vertices 0 vertices (!vertex_offset * scene2_vertex_stride)
+            (mesh.vertex_count * scene2_vertex_stride);
           for index = 0 to mesh.index_count - 1 do
             let source = Int32.to_int (Bytes.get_int32_le mesh.indices (index * 4)) in
             Bytes.set_int32_le indices ((!index_offset + index) * 4)
@@ -404,6 +410,12 @@ let lower_scene2 value ~density ~resource:resolve ir =
     loop value.pending_image_leases;value.pending_image_leases<-leases_before in
   let identity={Raster2.Render_ir.xx=1.;xy=0.;yx=0.;yy=1.;tx=0.;ty=0.}in
   let facts=Runtime_next_orchestrator.facts value.runtime|>Result.get_ok in
+  let native_projection=match target value with
+    |Native->Some{Raster2.Render_ir.xx=2./.float facts.logical_width;xy=0.;yx=0.;
+        yy=(-2.)/.float facts.logical_height;tx=(-1.);ty=1.}
+    |Headless|Web->None in
+  let render_transform transform=match native_projection with
+    |None->transform|Some projection->compose projection transform in
   let transforms=ref[identity]and clips=ref[(0,0,facts.drawable_width,facts.drawable_height)]and draws=ref[]and number=ref 0 and failure=ref None in
   let point transform x y=transform.Raster2.Render_ir.xx*.x+.transform.yx*.y+.transform.tx,
     transform.xy*.x+.transform.yy*.y+.transform.ty in
@@ -462,7 +474,7 @@ let lower_scene2 value ~density ~resource:resolve ir =
     in
   let quad (texture:Scene_execution.sampled_texture)
       (destination:Raster2.Render_ir.rect) (u0,v0,u1,v1 as uv) =
-    let transform=List.hd!transforms in
+    let transform=render_transform(List.hd!transforms)in
     let clip=List.hd!clips in
     let borrowed=String.starts_with~prefix:"image:"texture.Scene_execution.key in
     match if borrowed then None else List.find_opt(fun cached->cached.quad_texture==texture&&
@@ -517,9 +529,9 @@ let lower_scene2 value ~density ~resource:resolve ir =
       let right=min(px+pw)right and bottom=min(py+ph)bottom in
       clips:=(x,y,max 0(right-x),max 0(bottom-y))::!clips
     |Pop_clip->(match!clips with _::(_::_ as rest)->clips:=rest|_->())
-    |Geometry geometry->if clip_live()then(draws:=geometry_draw!number(List.hd!transforms)(List.hd!clips)geometry::!draws;incr number)
+    |Geometry geometry->if clip_live()then(draws:=geometry_draw!number(render_transform(List.hd!transforms))(List.hd!clips)geometry::!draws;incr number)
     |Debug_text debug->if clip_live()then
-        let transform=List.hd!transforms and clip=List.hd!clips in
+        let transform=render_transform(List.hd!transforms)and clip=List.hd!clips in
         let draw=match List.find_opt(fun cached->cached.debug_source=debug&&
           cached.debug_transform=transform&&cached.debug_clip=clip)
           value.scene2_debug_cache with

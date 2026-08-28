@@ -102,7 +102,12 @@ let trim_cache cache =
   loop 0 0 [] [] cache
 let prepare value ~defer ~trusted_key ~reserved ~uniforms ~nonindexed ~canonical_plain (mesh:mesh)=
   let uniform_bytes=Option.value uniforms~default:Bytes.empty in
-  let valid_uniforms=Option.fold~none:true~some:(fun bytes->(Bytes.length bytes=24||Bytes.length bytes=208||Bytes.length bytes=5456)&&let valid=ref true in for index=0 to Bytes.length bytes/4-1 do if not(Float.is_finite(Int32.float_of_bits(Bytes.get_int32_le bytes(index*4))))then valid:=false done;let lights=if Bytes.length bytes=5456 then Int32.float_of_bits(Bytes.get_int32_le bytes(73*4))else 0. in !valid&&lights>=0.&&lights<=64.&&Float.is_integer lights)uniforms in
+  let valid_uniforms=Option.fold~none:true~some:(fun bytes->
+    if Bytes.length bytes=48 then
+      let valid=ref true in for index=0 to 5 do
+        if not(Float.is_finite(Int64.float_of_bits(Bytes.get_int64_le bytes(index*8))))then valid:=false
+      done;!valid
+    else (Bytes.length bytes=24||Bytes.length bytes=208||Bytes.length bytes=5456)&&let valid=ref true in for index=0 to Bytes.length bytes/4-1 do if not(Float.is_finite(Int32.float_of_bits(Bytes.get_int32_le bytes(index*4))))then valid:=false done;let lights=if Bytes.length bytes=5456 then Int32.float_of_bits(Bytes.get_int32_le bytes(73*4))else 0. in !valid&&lights>=0.&&lights<=64.&&Float.is_integer lights)uniforms in
   let key=mesh.key^(if canonical_plain then ":canonical-scene2" else if nonindexed then ":nonindexed" else "")^(if Bytes.length uniform_bytes=0 then""else":"^Digest.to_hex(Digest.bytes uniform_bytes))in
   let trusted=if trusted_key then List.find_opt(fun(x:cached)->x.key=key)value.cache else None in
   match trusted with Some item->Ok item|None->
@@ -122,11 +127,23 @@ let prepare value ~defer ~trusted_key ~reserved ~uniforms ~nonindexed ~canonical
       let expanded=Bytes.create(mesh.index_count*68)in
       for index=0 to mesh.index_count-1 do
         let source=index_at index and target=index*68 in
-        Bytes.set_int64_le expanded target
-          (Int64.bits_of_float(Int32.float_of_bits(Bytes.get_int32_le mesh.vertices(source*vertex_stride))));
-        Bytes.set_int64_le expanded(target+8)
-          (Int64.bits_of_float(Int32.float_of_bits(Bytes.get_int32_le mesh.vertices(source*vertex_stride+4))));
-        Bytes.set_int32_le expanded(target+48)(Bytes.get_int32_le mesh.vertices(source*vertex_stride+8));
+        if vertex_stride>=24 then begin
+          Bytes.set_int64_le expanded target
+            (Bytes.get_int64_le mesh.vertices(source*vertex_stride));
+          Bytes.set_int64_le expanded(target+8)
+            (Bytes.get_int64_le mesh.vertices(source*vertex_stride+8))
+        end else begin
+          Bytes.set_int64_le expanded target
+            (Int64.bits_of_float(Int32.float_of_bits
+              (Bytes.get_int32_le mesh.vertices(source*vertex_stride))));
+          Bytes.set_int64_le expanded(target+8)
+            (Int64.bits_of_float(Int32.float_of_bits
+              (Bytes.get_int32_le mesh.vertices(source*vertex_stride+4))))
+        end;
+        Bytes.set_int32_le expanded(target+48)
+          (if vertex_stride>=24 then
+             Bytes.get_int32_le mesh.vertices(source*vertex_stride+16)
+           else Bytes.get_int32_le mesh.vertices(source*vertex_stride+8));
         Bytes.set_int64_le expanded(target+52)(Int64.bits_of_float 0.5);
         Bytes.set_int64_le expanded(target+60)(Int64.bits_of_float 0.5)
       done;
@@ -151,6 +168,13 @@ let uniform_cache_capacity=65_536
 let scene2_identity_affine=let bytes=Bytes.make 24 '\000'in
   Bytes.set_int32_le bytes 0(Int32.bits_of_float 1.);
   Bytes.set_int32_le bytes 16(Int32.bits_of_float 1.);bytes
+let scene2_native_affine bytes=
+  if Bytes.length bytes=24 then bytes else
+  let native=Bytes.make 24 '\000'in
+  for index=0 to 5 do
+    Bytes.set_int32_le native(index*4)
+      (Int32.bits_of_float(Int64.float_of_bits(Bytes.get_int64_le bytes(index*8))))
+  done;native
 let prepare_uniform value ~defer ~reserved bytes=
   match List.find_opt(fun(item:cached)->Option.fold~none:false~some:(Bytes.equal bytes)item.uniform_bytes)value.uniform_cache with
   |Some item->Ok item
@@ -443,7 +467,7 @@ let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws
   if not supported then error"Scene_execution.render"Ogpu.Error.Unsupported"pipeline family/blend variant is unavailable"else
   if not valid then error"Scene_execution.render"Ogpu.Error.Invalid_argument"draw resource preflight failed"else
   let deferred=ref[]in let defer release=deferred:=release::!deferred in let finish result=List.iter(fun release->release())!deferred;result in
-  let rec prepare_all acc=function []->Ok(List.rev acc)|(family,blend,texture,auxiliary,samples,(draw:draw))::rest->let reserved()=List.map(fun(_,_,_,_,_,_,item,_)->item)acc and reserved_uniforms()=List.filter_map(fun(_,_,_,_,_,_,_,uniform)->uniform)acc in let scene2=family=Scene2||family=Scene2_textured in let canonical_scene2=value.canonical_scene2_argument&&scene2 in let canonical_plain=value.canonical_scene2_argument&&family=Scene2 in let affine=scene2&&Option.fold~none:false~some:(fun bytes->Bytes.length bytes=24)draw.state.transform_uniforms in match prepare value~defer~trusted_key~reserved~uniforms:(if canonical_scene2||affine then None else draw.state.transform_uniforms)~nonindexed:(family=Scene2_textured||canonical_scene2)~canonical_plain draw.mesh with Error _ as e->e|Ok mesh->let uniform_bytes=if canonical_scene2 then Some(Option.value draw.state.transform_uniforms~default:scene2_identity_affine)else if affine then draw.state.transform_uniforms else None in let uniform=match uniform_bytes with None->Ok None|Some bytes->Result.map Option.some(prepare_uniform value~defer~reserved:reserved_uniforms bytes)in match uniform with Error _ as e->e|Ok uniform->let texture=match family,texture with Scene2,None when canonical_scene2->Some scene2_white_texture|_->texture in match texture with Some source->(match prepare_texture value~defer source with Error _ as e->e|Ok texture->prepare_aux family blend auxiliary samples draw mesh uniform (Some(source,texture)) acc rest)|None->prepare_aux family blend auxiliary samples draw mesh uniform None acc rest
+  let rec prepare_all acc=function []->Ok(List.rev acc)|(family,blend,texture,auxiliary,samples,(draw:draw))::rest->let reserved()=List.map(fun(_,_,_,_,_,_,item,_)->item)acc and reserved_uniforms()=List.filter_map(fun(_,_,_,_,_,_,_,uniform)->uniform)acc in let scene2=family=Scene2||family=Scene2_textured in let canonical_scene2=value.canonical_scene2_argument&&scene2 in let canonical_plain=value.canonical_scene2_argument&&family=Scene2 in let affine=scene2&&Option.fold~none:false~some:(fun bytes->Bytes.length bytes=24||Bytes.length bytes=48)draw.state.transform_uniforms in match prepare value~defer~trusted_key~reserved~uniforms:(if canonical_scene2||affine then None else draw.state.transform_uniforms)~nonindexed:(family=Scene2_textured||canonical_scene2)~canonical_plain draw.mesh with Error _ as e->e|Ok mesh->let uniform_bytes=if canonical_scene2 then Some(match draw.state.transform_uniforms with None->scene2_identity_affine|Some bytes->scene2_native_affine bytes)else if affine then draw.state.transform_uniforms else None in let uniform=match uniform_bytes with None->Ok None|Some bytes->Result.map Option.some(prepare_uniform value~defer~reserved:reserved_uniforms bytes)in match uniform with Error _ as e->e|Ok uniform->let texture=match family,texture with Scene2,None when canonical_scene2->Some scene2_white_texture|_->texture in match texture with Some source->(match prepare_texture value~defer source with Error _ as e->e|Ok texture->prepare_aux family blend auxiliary samples draw mesh uniform (Some(source,texture)) acc rest)|None->prepare_aux family blend auxiliary samples draw mesh uniform None acc rest
   and prepare_aux family blend auxiliary samples draw mesh uniform texture acc rest=match auxiliary with None->prepare_all((family,blend,samples,draw.state,texture,None,mesh,uniform)::acc)rest|Some source->match prepare_auxiliary value~defer source with Error _ as e->e|Ok buffer->match prepare_texture value~defer source.texture with Error _ as e->e|Ok texture2->prepare_all((family,blend,samples,draw.state,texture,Some(source,buffer,texture2),mesh,uniform)::acc)rest in
   match Ogpu.Backend.acquire value.surface with Error _ as e->finish e|Ok(`Timeout|`Occluded)->finish(Ok false)|Ok`Device_lost->finish(error"Scene_execution.render"Device_lost"device lost")|Ok(`Acquired frame)->match prepare_all[]draws with Error _ as e->ignore(Ogpu.Backend.discard frame);finish e|Ok prepared->
     match value.automatic_submission with
@@ -490,8 +514,9 @@ let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws
       match Ogpu.Backend.present frame with Error _ as e->e|Ok()->
       (match prepared_key with Some(identity,version)->value.prepared_submission<-Some{submission_identity=identity;submission_version=version;submission_clear=clear;submission_commands=commands}|None->());
       let changing_affine=List.exists(fun(_,_,_,state,_,_,_,_)->
-        Option.fold~none:false~some:(fun bytes->Bytes.length bytes=24&&
-          not(Bytes.equal bytes scene2_identity_affine))state.transform_uniforms)prepared in
+        Option.fold~none:false~some:(fun bytes->
+          (Bytes.length bytes=24&&not(Bytes.equal bytes scene2_identity_affine))||
+          Bytes.length bytes=48)state.transform_uniforms)prepared in
       value.automatic_submission<-(if changing_affine then None else Some{
         automatic_clear=clear;automatic_signatures=List.map automatic_signature prepared;
         automatic_commands=commands});
