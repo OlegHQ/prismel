@@ -177,6 +177,9 @@ let normalize ~protocol ~case ~sample_index raw =
     | Some (`Float u), Some (`Float s) -> `Float (u +. s)
     | Some (`Int u), Some (`Int s) -> `Int (u + s)
     | _ -> number_or_null (first ["cpu_seconds"; "cpu"] raw) in
+  let cpu_seconds_per_frame=match numeric_float(Some cpu_seconds),frame_count with
+    |Some seconds,Some frames when frames>0->`Float(seconds/.float frames)
+    |_->`Null in
   `Assoc [
     "schema", `String "prismel-r10-performance/v1";
     "protocol", protocol; "sample_index", `Int sample_index;
@@ -190,7 +193,8 @@ let normalize ~protocol ~case ~sample_index raw =
         | None -> (match direct_or_window "pixel_density" with Some value -> value | None -> `Null))];
     "timing", `Assoc ["wall_seconds", metric raw ["wall_seconds"; "wall"];
       "user_seconds", metric raw ["user_seconds"]; "system_seconds", metric raw ["system_seconds"];
-      "cpu_seconds", cpu_seconds; "cpu_percent", metric raw ["cpu_percent"];
+      "cpu_seconds", cpu_seconds; "cpu_seconds_per_frame",cpu_seconds_per_frame;
+      "cpu_percent", metric raw ["cpu_percent"];
       "median_frame_seconds", seconds_metric raw ["median_frame_seconds"] ["median_ms"];
       "p95_frame_seconds", seconds_metric raw ["p95_frame_seconds"] ["p95_ms"];
       "p99_frame_seconds", seconds_metric raw ["p99_frame_seconds"] ["p99_ms"]];
@@ -346,8 +350,8 @@ let import_performance_baselines ~path ~profile ~width ~height =
               (group |> member "key" |> to_string));
             "profile", `String profile; "width", `Int width; "height", `Int height;
             "metrics", `Assoc ["wall", ordinary "wall_seconds"; "frame", frame;
-              "CPU", metric runs "cpu_seconds" (fun run _ ->
-                number run "user_seconds" +. number run "system_seconds");
+              "CPU", metric runs "cpu_seconds_per_frame" (fun run _ ->
+                per_frame run "user_seconds"+.per_frame run "system_seconds");
               "promoted", metric runs "promoted_bytes" per_frame;
               "RSS", ordinary "peak_sampled_rss_kib"]])
           (target_name baseline_target)
@@ -365,7 +369,7 @@ let enforce_performance ~profile ~width ~height samples baselines scenario =
   let checks =
     [ "wall", "timing", "wall_seconds", None
     ; "frame", "timing", "median_frame_seconds", Some "p95_frame_seconds"
-    ; "CPU", "timing", "cpu_seconds", None
+    ; "CPU", "timing", "cpu_seconds_per_frame", None
     ; "promoted", "memory", "promoted_bytes_per_frame", None
     ; "RSS", "memory", "peak_rss_kib", None
     ]
@@ -490,7 +494,7 @@ let validate_report report =
       if frames <= 0 then fail "%s/%s emitted no measured frames" target scenario;
       if smoke then begin
         List.iter (fun field -> ignore (required_number ~target ~scenario "timing" field sample))
-          ["wall_seconds"; "cpu_seconds"; "median_frame_seconds";
+          ["wall_seconds"; "cpu_seconds"; "cpu_seconds_per_frame"; "median_frame_seconds";
            "p95_frame_seconds"; "p99_frame_seconds"];
         List.iter (fun field -> ignore (required_number ~target ~scenario "memory" field sample))
           ["allocated_bytes_per_frame"; "promoted_bytes_per_frame"; "peak_rss_kib"]

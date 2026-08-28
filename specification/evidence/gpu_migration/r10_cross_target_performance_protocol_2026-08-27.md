@@ -41,6 +41,15 @@ pixel scale, and the manifest's display facts. GPU duration/utilization/counters
 and thermal/power state are explicit JSON `null` when trustworthy typed sources
 are unavailable; absence is never encoded as zero.
 
+CPU acceptance uses CPU seconds per measured rendered frame. Raw user, system,
+total CPU seconds, and CPU percent remain diagnostic. The frozen SDL runs
+include presentation waits while the target harness is unpaced, so equal
+wall-duration samples can render different frame counts even when the target
+uses less CPU per equivalent frame. Missing or non-positive frame counts and
+work-unit cardinalities are rejected. The existing 1.05x median and 1.10x p95
+limits apply unchanged to normalized CPU/frame; this normalization does not
+relax the performance gate.
+
 The validator derives measured logical size from the child's explicit size or
 its drawable-size/density facts; it does not trust the manifest's claim. It
 rejects missing target/scenario baselines, sample counts other than the declared

@@ -8,6 +8,7 @@ let sample ?(wall=1.) ?(frames=100) ?(scheduling="duration-bounded") ~target ~sc
       `Assoc
         [ "wall_seconds", `Float wall
         ; "cpu_seconds", `Float 0.5
+        ; "cpu_seconds_per_frame", `Float (0.5 /. float frames)
         ; "median_frame_seconds", `Float 0.01
         ; "p95_frame_seconds", `Float 0.011
         ; "p99_frame_seconds", `Float 0.012
@@ -43,7 +44,7 @@ let baseline target scenario =
     "authority", `String ("phase0/" ^ target ^ "/" ^ scenario ^ "/performance");
     "profile", `String "release"; "width", `Int 64; "height", `Int 64;
     "metrics", `Assoc ["wall", metric 1. 1.; "frame", metric 0.01 0.011;
-      "CPU", metric 0.5 0.5; "promoted", metric 4. 4.; "RSS", metric 1024. 1024.]]
+      "CPU", metric 0.005 0.005; "promoted", metric 4. 4.; "RSS", metric 1024. 1024.]]
 
 let report ?(sample_count=1) ?(sample_seconds=1.) ?(smoke=false)
     ?(dirty=false)?(commit="0123456789abcdef0123456789abcdef01234567")
@@ -143,6 +144,26 @@ let () =
       write valid (report different_counts);
       if run Sys.argv.(1) valid <> Unix.WEXITED 0 then
         failwith "duration-bounded target-specific frame counts rejected";
+      let scaled_cpu=replace_cell~target:"headless"~scenario:"basic"
+        (fun (fields:(string*Yojson.Safe.t)list)->
+          `Assoc(List.map(fun(name,value)->match name with
+            |"work"->name,`Assoc["frame_count",`Int 200;"work_units",`Int 42]
+            |"timing"->name,`Assoc["wall_seconds",`Float 1.;
+              "cpu_seconds",`Float 1.;"cpu_seconds_per_frame",`Float 0.005;
+              "median_frame_seconds",`Float 0.01;"p95_frame_seconds",`Float 0.011;
+              "p99_frame_seconds",`Float 0.012]
+            |_->name,value)fields))samples in
+      write valid(report scaled_cpu);
+      if run Sys.argv.(1) valid<>Unix.WEXITED 0 then
+        failwith"CPU/frame scale-invariant evidence rejected";
+      let expensive_cpu=replace_cell~target:"headless"~scenario:"basic"
+        (fun fields->match List.assoc"timing"fields with
+        |`Assoc timing->replace_field"timing"(replace_field
+            "cpu_seconds_per_frame"(`Float 0.0053)timing)fields
+        |_->assert false)samples in
+      write invalid(report expensive_cpu);
+      if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
+        failwith"higher CPU cost per rendered frame accepted";
       let unsupported = List.map (function
         | `Assoc fields when List.assoc_opt "target" fields=Some(`String "web")
           && List.assoc_opt "scenario" fields=Some(`String "pxui")->
@@ -266,7 +287,8 @@ let () =
         failwith"mixed-scheduling positive-frame smoke rejected";
       let noisy_smoke = replace_cell ~target:"web" ~scenario:"scene3"
         (replace_field "timing" (`Assoc ["wall_seconds",`Float 0.0556;
-          "cpu_seconds",`Float 99.; "median_frame_seconds",`Float 99.;
+          "cpu_seconds",`Float 99.;"cpu_seconds_per_frame",`Float 14.142857;
+          "median_frame_seconds",`Float 99.;
           "p95_frame_seconds",`Float 99.; "p99_frame_seconds",`Float 99.])) smoke_samples in
       write valid (report ~sample_seconds:0.05 ~smoke:true noisy_smoke);
       if run Sys.argv.(1) valid <> Unix.WEXITED 0 then
