@@ -95,8 +95,9 @@ let retain_one retained retain release=match retain()with Error _ as e->e|Ok()->
 module Private=struct
   let requires_command4 value=
     let descriptor=Ogpu.Render_pass.descriptor value.pass in
-    Array.exists(fun color->Option.fold~none:false~some:(fun(color:Ogpu.Render_pass.color)->color.load<>Clear)color)descriptor.colors||Option.is_some descriptor.stencil||
-    Option.fold~none:false~some:(fun(d:Ogpu.Render_pass.depth)->d.load<>Clear||d.store<>Store||d.clear<>1.)descriptor.depth
+    Option.is_none value.indirect&&
+    (Array.exists(fun color->Option.fold~none:false~some:(fun(color:Ogpu.Render_pass.color)->color.load<>Clear)color)descriptor.colors||Option.is_some descriptor.stencil||
+    Option.fold~none:false~some:(fun(d:Ogpu.Render_pass.depth)->d.load<>Clear||d.store<>Store||d.clear<>1.)descriptor.depth)
   let encode_portable value command=Ogpu.Render_pass.encode value.pass command
   let retain value=let retained=ref[]and seen=Hashtbl.create 32 in let keep retain release=retain_one retained retain release in let once key f=if Hashtbl.mem seen key then(fun()->Ok())else(Hashtbl.add seen key();f)in
     let texture t=once("t:"^Int64.to_string(Texture.id t))(fun()->keep(fun()->Texture.Private.retain_submission t)(fun()->Texture.Private.release_submission t))and buffer b=once("b:"^Int64.to_string(Buffer.id b))(fun()->keep(fun()->Buffer.Private.retain_submission b)(fun()->Buffer.Private.release_submission b))and pipeline p=once("p:"^Pipeline.key p)(fun()->keep(fun()->Pipeline.Private.retain_submission p)(fun()->Pipeline.Private.release_submission p))in
