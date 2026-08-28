@@ -6,6 +6,19 @@ Prismel is an OCaml creative-coding framework. Keep its public API small,
 functional where practical, and suitable for both interactive desktop programs
 and deterministic headless execution.
 
+## Native Metal-only migration override
+
+Prismel now ships native Apple-Silicon Metal only.  The former headless,
+software-raster, browser/web, and Wap targets are being deleted; do not add,
+preserve, repair, or introduce a fallback for them.  `raster2`, `ogpu_raster2`,
+Wap, Web/Headless Runtime providers and target selection are legacy deletion
+work, not supported compatibility surfaces.  Preserve the high-level Scene,
+Canvas, Image, Font, Audio, and input APIs by lowering them to Metal/OGPU; a
+renderer-neutral command/value type extraction is acceptable, but a new CPU
+rasterizer is not.  Native Metal unavailability must fail with a typed startup
+error.  Follow `NEW_GPU_STUFF.md` as the current authority where it conflicts
+with older multi-target guidance below.
+
 ## Repository layout
 
 - `lib/prismel/` is the main `prismel` library.
