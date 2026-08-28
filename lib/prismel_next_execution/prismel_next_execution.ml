@@ -42,6 +42,14 @@ type cached_scene2_geometry={vertices:float array;indices:int array;fingerprint:
 type scene2_geometry_candidate={candidate_vertices:float array;
   candidate_indices:int array;candidate_fingerprint:int;candidate_source_bytes:int;candidate_color:int32;
   candidate_transform:Raster2.Render_ir.transform;candidate_clip:int*int*int*int}
+type cached_scene2_batch={batch_fingerprint:int;batch_draw_count:int;
+  batch_source_bytes:int;batch_draw:draw}
+type cached_scene2_quad={quad_texture:Scene_execution.sampled_texture;
+  quad_destination:Raster2.Render_ir.rect;quad_transform:Raster2.Render_ir.transform;
+  quad_clip:int*int*int*int;quad_uv:float*float*float*float;quad_draw:draw}
+type cached_scene2_debug={debug_source:Raster2.Render_ir.debug_text;
+  debug_transform:Raster2.Render_ir.transform;debug_clip:int*int*int*int;
+  debug_draw:draw option}
 type resource=Image of Prismel_next_resources.Image.t|Text of Prismel_next_resources.Text.t
   |Canvas of Prismel_next_resources.Canvas.t
 let prepared_draw ~family ?(blend=Replace) ?texture ?auxiliary ?(samples=1) value =
@@ -140,7 +148,65 @@ let scene2_ir ir =
   match !failure with Some message->fail"Prismel_next_execution.scene2_ir"Unsupported message
   |None->Ok(List.rev!draws)
 
-let batch_scene2_draws draws =
+let batch_fingerprint draws =
+  List.fold_left (fun fingerprint (draw:draw) ->
+    let mesh=draw.value.mesh in
+    Hashtbl.seeded_hash fingerprint
+      (mesh.key,mesh.vertex_count,mesh.index_count,mesh.vertices,mesh.indices,
+       draw.value.state)) 0 draws
+
+let bytes_segment_equal left left_offset right =
+  let length=Bytes.length right in
+  if left_offset<0 || left_offset+length>Bytes.length left then false
+  else
+    let equal=ref true and index=ref 0 in
+    while !equal && !index<length do
+      if Bytes.get left(left_offset+ !index)<>Bytes.get right !index then equal:=false;
+      incr index
+    done;
+    !equal
+
+let batch_matches sources (cached:cached_scene2_batch) =
+  if List.length sources<>cached.batch_draw_count ||
+     batch_fingerprint sources<>cached.batch_fingerprint ||
+     (match sources with []->true|first::_->
+       first.value.state<>cached.batch_draw.value.state) then false
+  else
+    let merged=cached.batch_draw.value.mesh in
+    let vertex_offset=ref 0 and index_offset=ref 0 and matches=ref true in
+    List.iter (fun (draw:draw) ->
+      if !matches then begin
+        let mesh=draw.value.mesh in
+        let vertex_bytes=mesh.vertex_count*16 in
+        if not(bytes_segment_equal merged.vertices !vertex_offset mesh.vertices)
+        then matches:=false
+        else begin
+          for index=0 to mesh.index_count-1 do
+            let actual=Int32.to_int(Bytes.get_int32_le merged.indices
+              (!index_offset+index*4))
+            and expected=Int32.to_int(Bytes.get_int32_le mesh.indices(index*4))+
+              (!vertex_offset/16) in
+            if actual<>expected then matches:=false
+          done;
+          vertex_offset:=!vertex_offset+vertex_bytes;
+          index_offset:=!index_offset+mesh.index_count*4
+        end
+      end) sources;
+    !matches && !vertex_offset=Bytes.length merged.vertices &&
+    !index_offset=Bytes.length merged.indices
+
+let scene2_geometry_byte_capacity=64*1024*1024
+let trim_scene2_entries bytes entries =
+  let rec loop count total kept = function
+    | [] -> List.rev kept
+    | entry::rest ->
+        let size=bytes entry in
+        if count<256&&size<=scene2_geometry_byte_capacity-total then
+          loop(count+1)(total+size)(entry::kept)rest
+        else loop count total kept rest
+  in loop 0 0 [] entries
+
+let batch_scene2_draws ~cache ~set_cache draws =
   let preserve_independent = List.length draws <= 64 in
   let compatible (left : draw) (right : draw) =
     left.family = Scene2 && right.family = Scene2
@@ -158,6 +224,10 @@ let batch_scene2_draws draws =
        cardinality bounded. *)
     | group when preserve_independent -> group
     | first :: _ as group ->
+        let fingerprint=batch_fingerprint group in
+        (match List.find_opt (batch_matches group) cache with
+         |Some cached-> [cached.batch_draw]
+         |None->
         let vertex_count = List.fold_left
             (fun count draw -> count + draw.value.mesh.vertex_count) 0 group
         and index_count = List.fold_left
@@ -179,7 +249,14 @@ let batch_scene2_draws draws =
         let mesh : Scene_execution.mesh = {
           key=Printf.sprintf "%s+%d" first.value.mesh.key (List.length group);
           vertices; vertex_count; indices; index_count } in
-        [{ first with value={first.value with mesh} }]
+        let draw={ first with value={first.value with mesh} } in
+        let cached={batch_fingerprint=fingerprint;
+          batch_draw_count=List.length group;
+          batch_source_bytes=Bytes.length vertices+Bytes.length indices;
+          batch_draw=draw} in
+        set_cache(trim_scene2_entries (fun cached->cached.batch_source_bytes)
+          (cached::cache));
+        [draw])
   in
   let flush output current = List.rev_append (merge current) output in
   let rec loop output current = function
@@ -193,23 +270,15 @@ let batch_scene2_draws draws =
   in
   loop [] [] draws
 
-let scene2_geometry_byte_capacity=64*1024*1024
-let trim_scene2_entries bytes entries =
-  let rec loop count total kept = function
-    | [] -> List.rev kept
-    | entry::rest ->
-        let size=bytes entry in
-        if count<256&&size<=scene2_geometry_byte_capacity-total then
-          loop(count+1)(total+size)(entry::kept)rest
-        else loop count total kept rest
-  in loop 0 0 [] entries
-
 type t = { runtime:Runtime_next_orchestrator.t; input:Runtime_next_input.t;
   assets:Prismel_next_resources.Assets.t; timing:timing; mutable frame:int64;
   mutable elapsed:float; mutable last_clock:float; mutable dead:bool;
   mutable snapshots:(string*int*int*Scene_execution.sampled_texture)list;
   mutable scene2_geometry_cache:cached_scene2_geometry list;
   mutable scene2_geometry_candidates:scene2_geometry_candidate list;
+  mutable scene2_batch_cache:cached_scene2_batch list;
+  mutable scene2_quad_cache:cached_scene2_quad list;
+  mutable scene2_debug_cache:cached_scene2_debug list;
   mutable canvas_keys:(Prismel_next_resources.Canvas.t*string)list;mutable next_canvas_key:int }
 let runtime_target=function Native->Runtime_next_orchestrator.Native
   |Headless->Headless|Web->Web
@@ -231,7 +300,7 @@ let create (configuration:configuration) =
         ~logical_height:configuration.logical_height with
       |Error message->ignore(Runtime_next_orchestrator.destroy runtime);fail operation Backend message
       |Ok input->Ok{runtime;input;assets=Prismel_next_resources.Assets.create();timing=configuration.timing;
-          frame=0L;elapsed=0.;last_clock=Unix.gettimeofday();dead=false;snapshots=[];scene2_geometry_cache=[];scene2_geometry_candidates=[];
+          frame=0L;elapsed=0.;last_clock=Unix.gettimeofday();dead=false;snapshots=[];scene2_geometry_cache=[];scene2_geometry_candidates=[];scene2_batch_cache=[];scene2_quad_cache=[];scene2_debug_cache=[];
           canvas_keys=[];next_canvas_key=0})
 let target value=match Runtime_next_orchestrator.target value.runtime with Native->Native|Headless->Headless|Web->Web
 let assets value=value.assets
@@ -258,7 +327,9 @@ let diagnostics value=
    resource_count=Prismel_next_resources.Assets.count value.assets;
    cache_entries=runtime.cache_entries+List.length value.snapshots+
      List.length value.scene2_geometry_cache+
-     List.length value.scene2_geometry_candidates+List.length value.canvas_keys;
+     List.length value.scene2_geometry_candidates+List.length value.scene2_batch_cache+
+     List.length value.scene2_quad_cache+List.length value.scene2_debug_cache+
+     List.length value.canvas_keys;
    release_queue_pending=runtime.release_queue_pending;
    release_queue_live_handles=runtime.release_queue_live_handles;
    release_queue_total_created=runtime.release_queue_total_created;
@@ -323,8 +394,8 @@ let lower_scene2 value ~density ~resource:resolve ir =
         let draw=mesh_of_geometry number transform clip geometry in
         match List.find_opt(fun candidate->same candidate.candidate_vertices candidate.candidate_indices candidate.candidate_fingerprint candidate.candidate_color candidate.candidate_transform candidate.candidate_clip)value.scene2_geometry_candidates with
         |None->
-            value.scene2_geometry_candidates<-{candidate_vertices=geometry.vertices;
-              candidate_indices=geometry.indices;candidate_fingerprint=fingerprint;
+            value.scene2_geometry_candidates<-{candidate_vertices=Array.copy geometry.vertices;
+              candidate_indices=Array.copy geometry.indices;candidate_fingerprint=fingerprint;
               candidate_source_bytes=source_bytes;
               candidate_color=geometry.color;candidate_transform=transform;
               candidate_clip=clip}::value.scene2_geometry_candidates;
@@ -339,29 +410,37 @@ let lower_scene2 value ~density ~resource:resolve ir =
             value.scene2_geometry_cache<-trim_scene2_entries
               (fun cached->cached.source_bytes)value.scene2_geometry_cache;draw
     in
-  let quad texture (destination:Raster2.Render_ir.rect) =
+  let quad texture (destination:Raster2.Render_ir.rect) (u0,v0,u1,v1 as uv) =
     let transform=List.hd!transforms in
+    let clip=List.hd!clips in
+    match List.find_opt(fun cached->cached.quad_texture==texture&&
+      cached.quad_destination=destination&&cached.quad_transform=transform&&
+      cached.quad_clip=clip&&cached.quad_uv=uv)value.scene2_quad_cache with
+    |Some cached->cached.quad_draw
+    |None->
     let x0,y0=point transform destination.Raster2.Render_ir.x destination.y
     and x1,y0'=point transform(destination.x+.destination.width)destination.y
     and x1',y1=point transform(destination.x+.destination.width)(destination.y+.destination.height)
     and x0',y1'=point transform destination.x(destination.y+.destination.height)in
     let vertices=Bytes.make(68*4)'\000'in
-    let source=match texture with _->destination in ignore source;
     let put index x y u v=let offset=index*68 in put_float vertices offset x;put_float vertices(offset+8)y;
       put_float vertices(offset+40)1.;Bytes.set_int32_le vertices(offset+48)0xffffffffl;put_float vertices(offset+52)u;put_float vertices(offset+60)v in
-    put 0 x0 y0 0. 0.;put 1 x1 y0' 1. 0.;put 2 x1' y1 1. 1.;put 3 x0' y1' 0. 1.;
+    put 0 x0 y0 u0 v0;put 1 x1 y0' u1 v0;put 2 x1' y1 u1 v1;put 3 x0' y1' u0 v1;
     let indices=Bytes.create 24 in List.iteri(fun i n->Bytes.set_int32_le indices(i*4)(Int32.of_int n))[0;1;2;0;2;3];
-    let x,y,w,h=List.hd!clips in
-    {family=Scene2_textured;blend=Alpha;texture=Some texture;auxiliary=None;samples=1;
+    let x,y,w,h=clip in
+    let draw={family=Scene2_textured;blend=Alpha;texture=Some texture;auxiliary=None;samples=1;
       value={Scene_execution.mesh={key=Printf.sprintf"snapshot-%d"!number;vertices;vertex_count=4;indices;index_count=6};state=default_state(x,y,w,h)(x,y,w,h)}}in
+    let cached={quad_texture=texture;quad_destination=destination;
+      quad_transform=transform;quad_clip=clip;quad_uv=uv;quad_draw=draw}in
+    value.scene2_quad_cache<-cached::value.scene2_quad_cache;
+    if List.length value.scene2_quad_cache>1024 then
+      value.scene2_quad_cache<-List.rev(List.tl(List.rev value.scene2_quad_cache));
+    draw in
   let image (command:Raster2.Render_ir.image) = match resolve command.Raster2.Render_ir.resource_id with None->failure:=Some"resource id is unbound"|Some source->
     match snapshot value~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
       let s=command.source in if width<=0||height<=0 then failure:=Some"resource extent is invalid"else
-      let draw=quad texture command.destination in
-      let vertices=Bytes.copy draw.value.mesh.vertices in
       let u0=s.x/.float width and v0=s.y/.float height and u1=(s.x+.s.width)/.float width and v1=(s.y+.s.height)/.float height in
-      List.iteri(fun index(u,v)->put_float vertices(index*68+52)u;put_float vertices(index*68+60)v)[u0,v0;u1,v0;u1,v1;u0,v1];
-      draws:={draw with value={draw.value with mesh={draw.value.mesh with vertices}}}::!draws;incr number in
+      draws:=quad texture command.destination(u0,v0,u1,v1)::!draws;incr number in
   Array.iter(fun command->if!failure=None then match command with
     |Raster2.Render_ir.Clear _|Set_blend _->()
     |Push_transform transform->transforms:=compose(List.hd!transforms)transform::!transforms
@@ -375,18 +454,29 @@ let lower_scene2 value ~density ~resource:resolve ir =
     |Pop_clip->(match!clips with _::(_::_ as rest)->clips:=rest|_->())
     |Geometry geometry->if clip_live()then(draws:=geometry_draw!number(List.hd!transforms)(List.hd!clips)geometry::!draws;incr number)
     |Debug_text debug->if clip_live()then
-        let geometry=debug_text_geometry(List.hd!transforms)debug in
-        if Array.length geometry.indices>0 then begin
-          draws:=mesh_of_geometry!number identity(List.hd!clips)geometry::!draws;
-          incr number
-        end
+        let transform=List.hd!transforms and clip=List.hd!clips in
+        let draw=match List.find_opt(fun cached->cached.debug_source=debug&&
+          cached.debug_transform=transform&&cached.debug_clip=clip)
+          value.scene2_debug_cache with
+        |Some cached->cached.debug_draw
+        |None->
+            let geometry=debug_text_geometry transform debug in
+            let draw=if Array.length geometry.indices=0 then None else
+              Some(mesh_of_geometry!number identity clip geometry)in
+            value.scene2_debug_cache<-{debug_source=debug;debug_transform=transform;
+              debug_clip=clip;debug_draw=draw}::value.scene2_debug_cache;
+            if List.length value.scene2_debug_cache>256 then
+              value.scene2_debug_cache<-List.rev(List.tl(List.rev value.scene2_debug_cache));
+            draw in
+        Option.iter(fun draw->draws:=draw::!draws;incr number)draw
     |Image command->if clip_live()then image command
     |Glyphs glyphs->if clip_live()&&Array.length glyphs.glyphs>0 then match resolve glyphs.resource_id with None->failure:=Some"glyph resource id is unbound"|Some source->
         match snapshot value~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
-          Array.iter(fun(glyph:Raster2.Render_ir.glyph)->let destination={Raster2.Render_ir.x=glyph.x;y=glyph.y;width=float width;height=float height}in draws:=quad texture destination::!draws;incr number)glyphs.glyphs)
+          Array.iter(fun(glyph:Raster2.Render_ir.glyph)->let destination={Raster2.Render_ir.x=glyph.x;y=glyph.y;width=float width;height=float height}in draws:=quad texture destination(0.,0.,1.,1.)::!draws;incr number)glyphs.glyphs)
     (Raster2.Render_ir.Private.commands_readonly ir);
   match!failure with Some message->fail"Prismel_next_execution.lower_scene2"Resource message
-  |None->Ok(batch_scene2_draws(List.rev!draws))
+  |None->Ok(batch_scene2_draws ~cache:value.scene2_batch_cache
+      ~set_cache:(fun cache->value.scene2_batch_cache<-cache)(List.rev!draws))
 let mb_to_input=function Left->Runtime_next_input.Left|Middle->Middle|Right->Right|X1->X1|X2->X2
 let mb_of_web=function Runtime_next_orchestrator.Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2
 let mod_to_input=function Shift->Runtime_next_input.Shift|Control->Control|Alt->Alt|Meta->Meta|Num_lock->Num_lock|Caps_lock->Caps_lock|Scroll_lock->Scroll_lock
@@ -447,8 +537,10 @@ let step value draws=match ensure"Prismel_next_execution.step"value with Error _
     let draws=List.map(fun x->let draw=x.value in let state=draw.Scene_execution.state in
       let viewport=match state.viewport with _,_,w,h when w<0||h<0->0,0,f.logical_width,f.logical_height|x->x in
       let scissor=match state.scissor with _,_,w,h when w<0||h<0->0,0,f.logical_width,f.logical_height|x->x in
+      let draw=if viewport=state.viewport&&scissor=state.scissor then draw else
+        {draw with Scene_execution.state={state with viewport;scissor}}in
       {Runtime_next_orchestrator.family=family x.family;blend=blend x.blend;texture=x.texture;
-        auxiliary=x.auxiliary;samples=x.samples;draw={draw with Scene_execution.state={state with viewport;scissor}}})draws in
+        auxiliary=x.auxiliary;samples=x.samples;draw})draws in
     match Runtime_next_orchestrator.render_prepared value.runtime draws with Error e->backend"Prismel_next_execution.step"e|Ok _->
       let now=Unix.gettimeofday()in let dt=match value.timing with Fixed dt->dt|Variable->max 0.(now-.value.last_clock)in
       value.last_clock<-now;value.elapsed<-value.elapsed+.dt;value.frame<-Int64.succ value.frame;
@@ -461,7 +553,9 @@ let capture value=match ensure"Prismel_next_execution.capture"value with Error _
   match Runtime_next_orchestrator.capture value.runtime~bytes_per_row:(facts.drawable_width*4)with Ok x->Ok x|Error e->backend"Prismel_next_execution.capture"e
 let destroy value=if value.dead then Ok()else(
   match Prismel_next_resources.Assets.destroy value.assets with Error e->resource"Prismel_next_execution.destroy"e|Ok()->
-    value.snapshots<-[];value.scene2_geometry_cache<-[];
+    value.snapshots<-[];value.scene2_geometry_cache<-[];value.scene2_batch_cache<-[];
+    value.scene2_quad_cache<-[];
+    value.scene2_debug_cache<-[];
     value.scene2_geometry_candidates<-[];value.canvas_keys<-[];value.dead<-true;
     match Runtime_next_orchestrator.destroy value.runtime with Ok()->Ok()|Error e->backend"Prismel_next_execution.destroy"e)
 let run configuration body ~on_stop = match create configuration with Error _ as e->e|Ok value->

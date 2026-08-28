@@ -91,6 +91,38 @@ let () =
   and geometry_promoted=(geometry_gc1.promoted_words-.geometry_gc0.promoted_words)*.float(Sys.word_size/8)in
   check(geometry_allocated<10_000.)"stable owned geometry allocation regression";
   check(geometry_promoted<100_000.)"stable owned geometry promotion regression";
+  (* Cache validation owns its comparison snapshots.  A caller changing an
+     array after a prior lowering must produce new prepared bytes, never make
+     the retained snapshot compare equal to itself. *)
+  let mutable_vertices=[|4.;4.;20.;4.;4.;20.|] in
+  let mutable_ir=Result.get_ok(Raster2.Render_ir.Private.create_owned[|
+    Geometry{vertices=mutable_vertices;indices=Array.copy owned_indices;
+      color=0x102030ffl}|])in
+  let before_mutation=get(lower_scene2 resource_runtime~density:1
+    ~resource:(fun _->None)mutable_ir)in
+  ignore(get(step resource_runtime before_mutation));
+  let before_mutation_pixels=get(capture resource_runtime)in
+  mutable_vertices.(0)<-9.;
+  let after_mutation=get(lower_scene2 resource_runtime~density:1
+    ~resource:(fun _->None)mutable_ir)in
+  ignore(get(step resource_runtime after_mutation));
+  let after_mutation_pixels=get(capture resource_runtime)in
+  check(before_mutation_pixels<>after_mutation_pixels)
+    "mutated fresh Scene2 array reused stale prepared bytes";
+  let batch_commands=Array.init 65(fun index->
+    let x=float(index mod 8)in Raster2.Render_ir.Geometry{vertices=[|x;0.;x+.1.;0.;x;1.|];
+      indices=[|0;1;2|];color=0x506070ffl})in
+  let batch_ir=Result.get_ok(Raster2.Render_ir.Private.create_owned batch_commands)in
+  ignore(get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)batch_ir));
+  ignore(get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)batch_ir));
+  ignore(get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)batch_ir));
+  Gc.full_major();let batch_allocated0=Gc.allocated_bytes()in
+  for _=1 to 100 do
+    ignore(get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)batch_ir))
+  done;
+  let batch_allocated=(Gc.allocated_bytes()-.batch_allocated0)/.100. in
+  check(batch_allocated<100_000.)
+    "stable large Scene2 batch rebuilt merged buffers";
   for index=1 to 300 do
     let transient=Result.get_ok(Raster2.Render_ir.Private.create_owned[|Geometry{vertices=[|float index;0.;1.;0.;0.;1.|];indices=[|0;1;2|];color=Int32.of_int index}|])in
     ignore(get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)transient))
