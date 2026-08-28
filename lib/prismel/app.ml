@@ -77,7 +77,7 @@ let process_frame window user_state update_fn draw_fn after_draw_fn event_fn =
     draw_fn updated_state;
     Option.iter (fun after_draw -> after_draw updated_state) after_draw_fn;
     
-    (* Present through the selected native, headless, or web target. *)
+    (* Present through the native Metal target. *)
     let logical_width, logical_height = Window.size () in
     (match Renderer3d.present_gpu_if_pending () with
      | Error message ->

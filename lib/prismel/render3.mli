@@ -8,6 +8,5 @@ val save_png :
   Scene3.t ->
   string ->
   (unit, string) result
-(** Render at the requested pixel dimensions and save a PNG. Native supported
-    scenes use the GPU; headless and unsupported native scenes use the
-    deterministic software renderer. *)
+(** Renders at the requested pixel dimensions and saves a PNG through the
+    native Metal renderer. *)

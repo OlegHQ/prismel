@@ -1,8 +1,8 @@
 (** Deterministic programmable vertex, geometry, and fragment stages for
     [Scene3].
 
-    Shader functions run on the CPU in both desktop and headless rendering.
-    They should be pure and must not access SDL resources. *)
+    Shader functions are compiled for native Metal execution. They should be
+    pure and must not access SDL resources. *)
 
 type uniform =
   | Float of float

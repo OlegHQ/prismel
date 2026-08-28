@@ -1,4 +1,4 @@
-(** SDL_mixer audio with headless dummy-device support.
+(** SDL_mixer audio for native sketches.
 
     All operations are initial-domain-only. Volume values use 0..1. *)
 
