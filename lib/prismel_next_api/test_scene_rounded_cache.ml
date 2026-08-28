@@ -52,4 +52,12 @@ let () =
     (Gc.allocated_bytes () -. primitive_before) /. 1_000. in
   require (primitive_per_stage < 4_000.)
     "stable primitive staging allocation regression";
+  let curve () = Scene.[bezier [8, 9; 31, 70; 85, 11; 120, 64]
+    ~steps:32 ~color:(Color.rgba 20 40 80 220) ()] in
+  let curve_first=first_geometry(curve()) and curve_second=first_geometry(curve())in
+  require(curve_first.vertices==curve_second.vertices&&curve_first.indices==curve_second.indices)
+    "structurally identical bezier rebuilt tessellated geometry";
+  let curve_baseline=serialize(curve())in
+  for index=0 to 299 do ignore(Scene.bezier[index,0;index+2,5;index+7,1]~steps:9())done;
+  require(curve_baseline=serialize(curve()))"bounded bezier cache eviction changed IR";
   Printf.printf "rounded cache deterministic/bounded, %.0f bytes/hit\n" per_call

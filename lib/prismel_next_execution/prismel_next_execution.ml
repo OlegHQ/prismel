@@ -47,6 +47,9 @@ type cached_scene2_batch={batch_fingerprint:int;batch_draw_count:int;
 type cached_scene2_quad={quad_texture:Scene_execution.sampled_texture;
   quad_destination:Raster2.Render_ir.rect;quad_transform:Raster2.Render_ir.transform;
   quad_clip:int*int*int*int;quad_uv:float*float*float*float;quad_draw:draw}
+type cached_scene2_quad_payload={payload_destination:Raster2.Render_ir.rect;
+  payload_transform:Raster2.Render_ir.transform;payload_clip:int*int*int*int;
+  payload_uv:float*float*float*float;payload_vertices:bytes;payload_indices:bytes}
 type cached_scene2_debug={debug_source:Raster2.Render_ir.debug_text;
   debug_transform:Raster2.Render_ir.transform;debug_clip:int*int*int*int;
   debug_draw:draw option}
@@ -278,6 +281,7 @@ type t = { runtime:Runtime_next_orchestrator.t; input:Runtime_next_input.t;
   mutable scene2_geometry_candidates:scene2_geometry_candidate list;
   mutable scene2_batch_cache:cached_scene2_batch list;
   mutable scene2_quad_cache:cached_scene2_quad list;
+  mutable scene2_quad_payload_cache:cached_scene2_quad_payload list;
   mutable scene2_debug_cache:cached_scene2_debug list;
   mutable pending_image_leases:Prismel_next_resources.Image.Private.lease list;
   mutable canvas_keys:(Prismel_next_resources.Canvas.t*string)list;mutable next_canvas_key:int }
@@ -301,7 +305,7 @@ let create (configuration:configuration) =
         ~logical_height:configuration.logical_height with
       |Error message->ignore(Runtime_next_orchestrator.destroy runtime);fail operation Backend message
       |Ok input->Ok{runtime;input;assets=Prismel_next_resources.Assets.create();timing=configuration.timing;
-          frame=0L;elapsed=0.;last_clock=Unix.gettimeofday();dead=false;snapshots=[];scene2_geometry_cache=[];scene2_geometry_candidates=[];scene2_batch_cache=[];scene2_quad_cache=[];scene2_debug_cache=[];
+          frame=0L;elapsed=0.;last_clock=Unix.gettimeofday();dead=false;snapshots=[];scene2_geometry_cache=[];scene2_geometry_candidates=[];scene2_batch_cache=[];scene2_quad_cache=[];scene2_quad_payload_cache=[];scene2_debug_cache=[];
           pending_image_leases=[];canvas_keys=[];next_canvas_key=0})
 let target value=match Runtime_next_orchestrator.target value.runtime with Native->Native|Headless->Headless|Web->Web
 let assets value=value.assets
@@ -448,6 +452,11 @@ let lower_scene2 value ~density ~resource:resolve ir =
       cached.quad_clip=clip&&cached.quad_uv=uv)value.scene2_quad_cache with
     |Some cached->cached.quad_draw
     |None->
+    let vertices,indices=match List.find_opt(fun cached->
+      cached.payload_destination=destination&&cached.payload_transform=transform&&
+      cached.payload_clip=clip&&cached.payload_uv=uv)value.scene2_quad_payload_cache with
+    |Some cached->cached.payload_vertices,cached.payload_indices
+    |None->
     let x0,y0=point transform destination.Raster2.Render_ir.x destination.y
     and x1,y0'=point transform(destination.x+.destination.width)destination.y
     and x1',y1=point transform(destination.x+.destination.width)(destination.y+.destination.height)
@@ -457,6 +466,12 @@ let lower_scene2 value ~density ~resource:resolve ir =
       put_float vertices(offset+40)1.;Bytes.set_int32_le vertices(offset+48)0xffffffffl;put_float vertices(offset+52)u;put_float vertices(offset+60)v in
     put 0 x0 y0 u0 v0;put 1 x1 y0' u1 v0;put 2 x1' y1 u1 v1;put 3 x0' y1' u0 v1;
     let indices=Bytes.create 24 in List.iteri(fun i n->Bytes.set_int32_le indices(i*4)(Int32.of_int n))[0;1;2;0;2;3];
+    let cached={payload_destination=destination;payload_transform=transform;
+      payload_clip=clip;payload_uv=uv;payload_vertices=vertices;payload_indices=indices}in
+    value.scene2_quad_payload_cache<-cached::value.scene2_quad_payload_cache;
+    if List.length value.scene2_quad_payload_cache>256 then
+      value.scene2_quad_payload_cache<-List.rev(List.tl(List.rev value.scene2_quad_payload_cache));
+    vertices,indices in
     let x,y,w,h=clip in
     let draw={family=Scene2_textured;blend=Alpha;texture=Some texture;auxiliary=None;samples=1;
       value={Scene_execution.mesh={key=Printf.sprintf"snapshot-%d"!number;vertices;vertex_count=4;indices;index_count=6};state=default_state(x,y,w,h)(x,y,w,h)}}in
@@ -593,6 +608,7 @@ let destroy value=if value.dead then Ok()else(
   match Prismel_next_resources.Assets.destroy value.assets with Error e->resource"Prismel_next_execution.destroy"e|Ok()->
     value.snapshots<-[];value.scene2_geometry_cache<-[];value.scene2_batch_cache<-[];
     value.scene2_quad_cache<-[];
+    value.scene2_quad_payload_cache<-[];
     value.scene2_debug_cache<-[];
     value.scene2_geometry_candidates<-[];value.canvas_keys<-[];value.dead<-true;
     match Runtime_next_orchestrator.destroy value.runtime with Ok()->Ok()|Error e->backend"Prismel_next_execution.destroy"e)

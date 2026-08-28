@@ -67,11 +67,28 @@ let triangle a b c ?fill ?stroke()=polygon[a;b;c]?fill?stroke()
 let quad a b c d ?fill ?stroke()=polygon[a;b;c;d]?fill?stroke()
 let arc ~at:(cx,cy)~radius~from_~to_ ?(color=default_color)()=let points=List.init 33(fun i->let a=from_+.(to_-.from_)*.float i/.32. in cx+int_of_float(float radius*.cos a),cy+int_of_float(float radius*.sin a))in polyline points~color()
 let pie ~at ~radius ~from_ ~to_ ?fill ?stroke()=match arc~at~radius~from_~to_()with Primitive p->polygon(at::p.points)?fill?stroke()|_->assert false
+type bezier_cache={table:(((int*int)list*int*int32),node)Hashtbl.t;
+  mutable order:((int*int)list*int*int32)list}
+let bezier_cache_capacity=256
+let bezier_caches=Domain.DLS.new_key(fun()->
+  {table=Hashtbl.create bezier_cache_capacity;order=[]})
+let bezier_cached key make=
+  let cache=Domain.DLS.get bezier_caches in
+  match Hashtbl.find_opt cache.table key with
+  |Some value->value
+  |None->
+      let value=make()in
+      (if Hashtbl.length cache.table>=bezier_cache_capacity then
+        match List.rev cache.order with
+        |[]->()
+        |oldest::rest->Hashtbl.remove cache.table oldest;cache.order<-List.rev rest);
+      Hashtbl.replace cache.table key value;cache.order<-key::cache.order;value
 let bezier points ?(steps=20)?(color=default_color)()=
   let steps=max 1 steps in
   match points with
   |[]->Group[]|[p0]->point~at:p0~color()
   |first::rest->
+      bezier_cached(points,steps,rgba color)(fun()->
       let controls=Array.of_list points in
       let sampled=List.init(steps+1)(fun sample->let t=float sample/.float steps in
         let values=Array.map(fun(x,y)->float x,float y)controls in
@@ -80,7 +97,7 @@ let bezier points ?(steps=20)?(color=default_color)()=
           values.(index)<-(x0+.t*.(x1-.x0),y0+.t*.(y1-.y0))done done;
         let x,y=values.(0)in {Raster2.Path.x;y})in
       let commands=Array.of_list(Raster2.Path.Move_to(point2 first)::List.map(fun p->Raster2.Path.Line_to p)(List.tl sampled))in
-      ignore rest;stroke_path color(Raster2.Path.of_commands commands)
+      ignore rest;stroke_path color(Raster2.Path.of_commands commands))
 let path ?(steps=20)?(fill_rule=Path.Non_zero)?fill?stroke value=ignore fill_rule;Primitive{points=Path.points~steps value;closed=Path.is_closed value;fill;stroke}
 let text ~at:(x,y) ?(color=default_color) ?(size=16) value=Text{x;y;value;color;size;wrap=None;align=Font.Left;provided_font=None;automatic=None;rendered=None}
 let debug_text ~at:(x,y) ?(color=default_color) value=Debug_text{x;y;value;color}
