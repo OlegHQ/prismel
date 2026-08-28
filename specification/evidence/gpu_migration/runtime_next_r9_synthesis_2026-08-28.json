@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "gate": "R9",
+  "source_commit": "042bc4e8ef18bf98bc1e557457db6907239a1286",
+  "frames": 600,
+  "measurement_upload_bytes": "0",
+  "passes_per_frame": 1,
+  "backend_calls_per_frame": 1,
+  "native_cache_max": 64,
+  "mesh_cache_max": 256,
+  "image_cache_max": 256,
+  "glyph_cache_max": 256,
+  "proofs": [
+    "native-camera-zero-upload",
+    "scene-material-clip-batching",
+    "automatic-text-lru",
+    "explicit-font-lru",
+    "raster-decoded-image-lru"
+  ]
+}
