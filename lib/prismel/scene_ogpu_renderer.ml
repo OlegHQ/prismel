@@ -255,7 +255,13 @@ let draw3 (source : Raster2.Scene3_consumer.draw) =
     } )
 let auxiliary_shadow_atlas shadows =
   let indexed=Array.to_list shadows|>List.mapi(fun index value->Option.map(fun prepared->index,Raster2.Shadow_map.snapshot prepared)value)|>List.filter_map Fun.id in
-  match indexed with []->Ok None|[0,snapshot]when Array.length shadows=1->Scene_execution.shadow_resource~key:(Digest.to_hex(Digest.string(Marshal.to_string snapshot[])))snapshot|>Result.map_error(fun error->Backend error)|>Result.map(fun(resource:Scene_execution.shadow_resource)->Some({Scene_execution.key=resource.texture.key;buffer=resource.parameters;texture=resource.texture}:Scene_execution.auxiliary_resource))|_ when Array.length shadows>64->Error Unsupported_resource|_->
+  match indexed with []->Ok None|[0,snapshot]when Array.length shadows=1->
+    let source:Scene_execution.shadow_snapshot={width=snapshot.width;height=snapshot.height;
+      depths=snapshot.depths;matrix=snapshot.matrix;
+      bias={constant=snapshot.bias.constant;slope=snapshot.bias.slope};
+      kernel=(match snapshot.kernel with Tap1->Tap1|Tap4->Tap4|Tap9->Tap9|Tap25->Tap25);
+      strength=snapshot.strength}in
+    Scene_execution.shadow_resource~key:(Digest.to_hex(Digest.string(Marshal.to_string snapshot[])))source|>Result.map_error(fun error->Backend error)|>Result.map(fun(resource:Scene_execution.shadow_resource)->Some({Scene_execution.key=resource.texture.key;buffer=resource.parameters;texture=resource.texture}:Scene_execution.auxiliary_resource))|_ when Array.length shadows>64->Error Unsupported_resource|_->
   let width=List.fold_left(fun total(_,snapshot)->max total snapshot.Raster2.Shadow_map.width)1 indexed and height=List.fold_left(fun total(_,snapshot)->total+snapshot.Raster2.Shadow_map.height)0 indexed in
   if width<=0||height<=0||width>16384||height>16384||Int64.mul(Int64.of_int width)(Int64.of_int height)>16_777_216L then Error Unsupported_resource else
   let pixels=Bytes.make(width*height*4)'\255'and parameters=Bytes.make((4+64*25)*4)'\000'in

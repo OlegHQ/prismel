@@ -111,16 +111,16 @@ let duplicate_key_affine_retention () =
   get(Scene_execution.destroy renderer);
   if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then
     failwith"duplicate-key affine retention leaked objects"
-let shadow=function Ok x->x|Error _->failwith"shadow map error"
 let shadow_payload () =
-  let open Raster2.Shadow_map in
-  let map=shadow(create~width:2~height:2)in shadow(clear map~depth:1.);shadow(write map~x:1~y:0~depth:0.25);
-  let prepared=shadow(prepare map~light_kind:Directional~matrix:[|1.;0.;0.;0.;0.;1.;0.;0.;0.;0.;1.;0.;0.;0.;0.;1.|]~bias:{constant=0.01;slope=0.02}~kernel:Tap9)in
-  let resource=get(Scene_execution.shadow_resource~key:"light-0"(snapshot prepared))in
+  let snapshot:Scene_execution.shadow_snapshot={width=2;height=2;
+    depths=[|1.;0.25;1.;1.|];
+    matrix=[|1.;0.;0.;0.;0.;1.;0.;0.;0.;0.;1.;0.;0.;0.;0.;1.|];
+    bias={constant=0.01;slope=0.02};kernel=Tap9;strength=1.}in
+  let resource=get(Scene_execution.shadow_resource~key:"light-0"snapshot)in
   let pixels=resource.texture.levels.(0).bytes in
   if Bytes.length pixels<>16||Char.code(Bytes.get pixels 4)<>64||Char.code(Bytes.get pixels 5)<>0||Char.code(Bytes.get pixels 6)<>0 then failwith"shadow depth packing";
   if Bytes.length resource.parameters<>84 then failwith"shadow parameter block";
-  let malformed=snapshot prepared in malformed.depths.(0)<-nan;
+  let malformed={snapshot with depths=Array.copy snapshot.depths}in malformed.depths.(0)<-nan;
   begin match Scene_execution.shadow_resource~key:"invalid"malformed with Error _->()|Ok _->failwith"non-finite shadow accepted"end
 let auxiliary_lifecycle renderer control mesh state =
   let sampler:Ogpu.Types.sampler_descriptor={label=Some"auxiliary-test";min_filter=Nearest;mag_filter=Nearest;mip_filter=No_mip;address_u=Clamp_to_edge;address_v=Clamp_to_edge;lod_min=0.;lod_max=0.;max_anisotropy=1}in

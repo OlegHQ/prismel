@@ -36,15 +36,26 @@ type shadow_resource = {
   texture : sampled_texture;
   parameters : bytes;
 }
+type shadow_kernel = Tap1 | Tap4 | Tap9 | Tap25
+type shadow_bias = { constant : float; slope : float }
+type shadow_snapshot = {
+  width : int;
+  height : int;
+  depths : float array;
+  matrix : float array;
+  bias : shadow_bias;
+  kernel : shadow_kernel;
+  strength : float;
+}
 type auxiliary_resource = {
   key : string;
   buffer : bytes;
   texture : sampled_texture;
 }
 
-(** Packs a software shadow snapshot into a deterministic RGBA8 depth texture
+(** Packs a renderer-neutral shadow snapshot into a deterministic RGBA8 depth texture
     and a copied float32 parameter block. No backend allocation occurs here. *)
-val shadow_resource : key:string -> Raster2.Shadow_map.snapshot ->
+val shadow_resource : key:string -> shadow_snapshot ->
   (shadow_resource, Ogpu.Error.t) result
 
 val create : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->

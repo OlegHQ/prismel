@@ -5,8 +5,12 @@ type pipeline_family=Scene2|Scene2_textured|Scene3|Scene3_textured|Scene3_shadow
 type texture_level={width:int;height:int;bytes:bytes}
 type sampled_texture={key:string;levels:texture_level array;sampler:Ogpu.Types.sampler_descriptor}
 type shadow_resource={texture:sampled_texture;parameters:bytes}
+type shadow_kernel=Tap1|Tap4|Tap9|Tap25
+type shadow_bias={constant:float;slope:float}
+type shadow_snapshot={width:int;height:int;depths:float array;matrix:float array;
+  bias:shadow_bias;kernel:shadow_kernel;strength:float}
 type auxiliary_resource={key:string;buffer:bytes;texture:sampled_texture}
-type cached={mutable key:string;mutable payload_hash:string;mutable uniform_bytes:bytes option;buffer:Ogpu.Backend.buffer;mutable index_offset:int64;mutable uniform_offset:int64 option;mutable vertex_count:int;mutable index_count:int;bytes:int}
+type cached={mutable key:string;mutable payload_hash:string;uniform_bytes:bytes option;buffer:Ogpu.Backend.buffer;mutable index_offset:int64;mutable uniform_offset:int64 option;mutable vertex_count:int;mutable index_count:int;bytes:int}
 type cached_auxiliary={auxiliary_key:string;auxiliary_hash:string;auxiliary_buffer:Ogpu.Backend.buffer}
 type cached_texture={texture_key:string;texture_hash:string;texture_shape:string;
   texture:Ogpu.Backend.texture;staging:Ogpu.Backend.buffer;staging_bytes:int;
@@ -17,9 +21,6 @@ type prepared_submission={submission_identity:string;submission_version:int64;
   submission_commands:(Ogpu.Backend.command*
     [ `Buffer of Ogpu.Backend.buffer | `Texture of Ogpu.Backend.texture ] list*
     Ogpu.Backend.pipeline list)list}
-type prepared_entry=pipeline_family*Ogpu.Pipeline.blend*int*state*
-  (sampled_texture*cached_texture)option*
-  (auxiliary_resource*cached_auxiliary*cached_texture)option*cached*cached option
 type automatic_signature={signature_family:pipeline_family;
   signature_blend:Ogpu.Pipeline.blend;signature_samples:int;
   signature_state:state;signature_texture:(int64*Ogpu.Types.sampler_descriptor)option;
@@ -42,7 +43,7 @@ let set_u32_le bytes offset value =
   Bytes.set bytes (offset + 2) (Char.chr (to_int (logand (shift_right_logical value 16) 0xffl)));
   Bytes.set bytes (offset + 3) (Char.chr (to_int (shift_right_logical value 24)))
 let set_f32_le bytes offset value = set_u32_le bytes offset (Int32.bits_of_float value)
-let shadow_resource ~key (source:Raster2.Shadow_map.snapshot) =
+let shadow_resource ~key (source:shadow_snapshot) =
   let finite=Float.is_finite in
   if key=""||source.width<=0||source.height<=0||Array.length source.depths<>source.width*source.height||Array.length source.matrix<>16 then
     error"Scene_execution.shadow_resource"Ogpu.Error.Invalid_argument"shadow extent or matrix is malformed"
@@ -179,7 +180,7 @@ let scene2_native_affine bytes=
     Bytes.set_int32_le native(index*4)
       (Int32.bits_of_float(Int64.float_of_bits(Bytes.get_int64_le bytes(index*8))))
   done;native
-let prepare_uniform value ~defer ~reserved bytes=
+let prepare_uniform value ~defer:_ ~reserved bytes=
   match List.find_opt(fun(item:cached)->Option.fold~none:false~some:(Bytes.equal bytes)item.uniform_bytes)value.uniform_cache with
   |Some item->Ok item
   |None->
@@ -218,7 +219,7 @@ let trim_texture_cache cache =
 let valid_texture(source:sampled_texture)=
   source.key<>""&&Array.length source.levels>0&&
   (match Ogpu.Types.validate_sampler source.sampler with Error _->false|Ok()->true)&&
-  (Array.mapi(fun index level->level.width=max 1(source.levels.(0).width lsr index)&&level.height=max 1(source.levels.(0).height lsr index)&&Bytes.length level.bytes=level.width*level.height*4)source.levels|>Array.for_all Fun.id)
+  (Array.mapi(fun index (level:texture_level)->level.width=max 1(source.levels.(0).width lsr index)&&level.height=max 1(source.levels.(0).height lsr index)&&Bytes.length level.bytes=level.width*level.height*4)source.levels|>Array.for_all Fun.id)
 let scene2_white_texture:sampled_texture={
   key="scene2:canonical-white";
   levels=[|{width=1;height=1;bytes=Bytes.of_string "\255\255\255\255"}|];
@@ -226,12 +227,12 @@ let scene2_white_texture:sampled_texture={
     mip_filter=No_mip;address_u=Clamp_to_edge;address_v=Clamp_to_edge;
     lod_min=0.;lod_max=0.;max_anisotropy=1}}
 let prepare_texture value ~defer(source:sampled_texture)=
-  let hash=Digest.to_hex(Digest.string(Array.to_list source.levels|>List.map(fun level->Printf.sprintf"%dx%d:%s"level.width level.height(Digest.to_hex(Digest.bytes level.bytes)))|>String.concat"|"))in
+  let hash=Digest.to_hex(Digest.string(Array.to_list source.levels|>List.map(fun (level:texture_level)->Printf.sprintf"%dx%d:%s"level.width level.height(Digest.to_hex(Digest.bytes level.bytes)))|>String.concat"|"))in
   match List.find_opt(fun item->item.texture_key=source.key&&item.texture_hash=hash)value.texture_cache with
   |Some item->Ok item
   |None->
     if not(valid_texture source)then error"Scene_execution.prepare_texture"Ogpu.Error.Invalid_argument"texture or sampler is malformed"else
-    let shape=Array.to_list source.levels|>List.map(fun level->Printf.sprintf"%dx%d"level.width level.height)|>String.concat"/"in
+    let shape=Array.to_list source.levels|>List.map(fun (level:texture_level)->Printf.sprintf"%dx%d"level.width level.height)|>String.concat"/"in
     (* Canvas and managed-image identities are unique and lower to one
        authoritative generation per staged frame, so their same-shape storage
        can be updated safely between completed submissions.
@@ -242,7 +243,7 @@ let prepare_texture value ~defer(source:sampled_texture)=
       List.find_opt(fun item->item.texture_key=source.key&&item.texture_shape=shape)value.texture_cache
       else None in
     let descriptor:Ogpu.Types.texture_descriptor={label=Some("scene-texture-"^source.key);width=source.levels.(0).width;height=source.levels.(0).height;depth=1;mip_levels=Array.length source.levels;sample_count=1;usage=[Texture_binding;Texture_copy_dst]}in
-    let rows=Array.map(fun level->align256(level.width*4))source.levels in
+    let rows=Array.map(fun (level:texture_level)->align256(level.width*4))source.levels in
     let offsets=Array.make(Array.length source.levels)0 in
     for index=1 to Array.length offsets-1 do offsets.(index)<-offsets.(index-1)+rows.(index-1)*source.levels.(index-1).height done;
     let total=offsets.(Array.length offsets-1)+rows.(Array.length rows-1)*source.levels.(Array.length rows-1).height in
@@ -255,11 +256,11 @@ let prepare_texture value ~defer(source:sampled_texture)=
       |_->Result.map(fun(texture,staging,created)->
         texture,staging,Bytes.make total '\000',created)(create_handles()))with
     |Error _ as e->e|Ok(texture,staging,packed,created)->
-    Array.iteri(fun level_index level->for row=0 to level.height-1 do Bytes.blit level.bytes(row*level.width*4)packed(offsets.(level_index)+row*rows.(level_index))(level.width*4)done)source.levels;
+    Array.iteri(fun level_index (level:texture_level)->for row=0 to level.height-1 do Bytes.blit level.bytes(row*level.width*4)packed(offsets.(level_index)+row*rows.(level_index))(level.width*4)done)source.levels;
     match Ogpu.Backend.write_buffer staging~offset:0L packed with Error e->if created then(ignore(Ogpu.Backend.destroy_buffer staging);ignore(Ogpu.Backend.destroy_texture texture));Error e|Ok()->
     let pass=Ogpu.Transfer_pass.create(Ogpu.Backend.device_handle value.device)in
     let src=Ogpu.Backend.transfer_buffer staging and dst=Ogpu.Backend.transfer_texture texture in
-    let failure=ref None in Array.iteri(fun index level->if !failure=None then match Ogpu.Transfer_pass.buffer_to_texture pass~src~offset:(Int64.of_int offsets.(index))~bytes_per_row:(Int64.of_int rows.(index))~bytes_per_image:(Int64.of_int(rows.(index)*level.height))~dst~mip:index~origin:{x=0;y=0;z=0}~extent:{width=level.width;height=level.height;depth=1}with Ok()->()|Error e->failure:=Some e)source.levels;
+    let failure=ref None in Array.iteri(fun index (level:texture_level)->if !failure=None then match Ogpu.Transfer_pass.buffer_to_texture pass~src~offset:(Int64.of_int offsets.(index))~bytes_per_row:(Int64.of_int rows.(index))~bytes_per_image:(Int64.of_int(rows.(index)*level.height))~dst~mip:index~origin:{x=0;y=0;z=0}~extent:{width=level.width;height=level.height;depth=1}with Ok()->()|Error e->failure:=Some e)source.levels;
     let finish result=match result with Error e->if created then(ignore(Ogpu.Backend.destroy_buffer staging);ignore(Ogpu.Backend.destroy_texture texture));Error e|Ok()->let item={texture_key=source.key;texture_hash=hash;texture_shape=shape;texture;staging;staging_bytes=total;staging_packed=packed}in value.uploaded<-Int64.add value.uploaded(Int64.of_int total);if not cacheable then begin defer(fun()->ignore(Ogpu.Backend.destroy_texture texture));defer(fun()->ignore(Ogpu.Backend.destroy_buffer staging));Ok item end else let replaced,others=List.partition(fun old->old.texture_key=source.key)value.texture_cache in List.iter(fun old->if old.texture!=texture then defer(fun()->ignore(Ogpu.Backend.destroy_texture old.texture));if old.staging!=staging then defer(fun()->ignore(Ogpu.Backend.destroy_buffer old.staging)))replaced;let keep,evict=trim_texture_cache(item::others)in value.texture_cache<-keep;List.iter(fun old->defer(fun()->ignore(Ogpu.Backend.destroy_texture old.texture));defer(fun()->ignore(Ogpu.Backend.destroy_buffer old.staging)))evict;Ok item in
     match !failure with Some e->finish(Error e)|None->match Ogpu.Backend.transfer pass with Error e->finish(Error e)|Ok command->match Ogpu.Backend.submit value.queue command~resources:[`Buffer staging;`Texture texture]~pipelines:[]with Error e->finish(Error e)|Ok receipt->finish(Ogpu.Backend.complete_through value.queue receipt.epoch)
 let prepare_auxiliary value ~defer(source:auxiliary_resource)=
