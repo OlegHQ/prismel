@@ -1568,3 +1568,8 @@
  (name test_metal_device_spatial_timestamp6_safe)
  (modules test_metal_device_spatial_timestamp6_safe)
  (libraries metal))
+
+(executable
+ (name test_metal_retained_render_plan)
+ (modules test_metal_retained_render_plan)
+ (libraries metal))
