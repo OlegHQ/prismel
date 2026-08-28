@@ -16,7 +16,7 @@ module Private : sig
       sampling. The caller retains every surface through the sampling call. *)
   val create_levels_borrowed : color_space:color_space -> Surface.t array ->
     (t,error) result
-  (** Allocation-free sampling for audited raster hot paths. [coordinates]
+  (* Allocation-free sampling for audited raster hot paths. [coordinates]
       is caller-owned reusable storage of at least six floats, containing
       finite [u], [v], and [lod] at indices 0, 1, and 2; indices 3 through 5
       are scratch and may be overwritten. [lod] must be non-negative. *)

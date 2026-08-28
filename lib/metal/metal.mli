@@ -3355,7 +3355,7 @@ end
 
 module Retained_render_plan : sig
   type t
-  (** Retained plans are populated by the OCaml [build] callback and therefore
+  (* Retained plans are populated by the OCaml [build] callback and therefore
       allocate shared-storage indirect command buffers. *)
   val create : device:Device.t -> ?capacity:int -> ?enabled:bool ->
     ?on_evict:(key:string -> generation:int64 -> Indirect_command_buffer.t -> unit) ->
