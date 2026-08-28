@@ -71,11 +71,12 @@ module Png=struct
 end
 
 module Canvas=struct
-  type t={mutable generation:int;mutable surface:Raster2.Surface.t;mutable dead:bool}
+  type t={mutable generation:int;mutable surface:Raster2.Surface.t;
+    workspace:Raster2.Consumer.Workspace.t;mutable dead:bool}
   let generation x=x.generation and destroyed x=x.dead
   let live op x f=main op(fun()->if x.dead then error op Destroyed"canvas is destroyed"else f())
   let surface operation width height=match Raster2.Surface.create~width~height()with Ok x->Ok x|Error _->error operation Invalid_argument"invalid canvas extent"
-  let create ~width ~height=main"Canvas.create"(fun()->Result.map(fun surface->{generation=1;surface;dead=false})(surface"Canvas.create"width height))
+  let create ~width ~height=main"Canvas.create"(fun()->Result.map(fun surface->{generation=1;surface;workspace=Raster2.Consumer.Workspace.create();dead=false})(surface"Canvas.create"width height))
   let size x=live"Canvas.size"x(fun()->Ok(Raster2.Surface.width x.surface,Raster2.Surface.height x.surface))
   let clear x color=live"Canvas.clear"x(fun()->Raster2.Surface.clear x.surface color;x.generation<-x.generation+1;Ok())
   let set_pixel x ~x:px ~y color=live"Canvas.set_pixel"x(fun()->match Raster2.Surface.set_rgba x.surface~x:px~y color with
@@ -103,7 +104,7 @@ module Canvas=struct
     Ok(Raster2.Surface.width x.surface,Raster2.Surface.height x.surface,
       x.generation,Bytes.copy(Raster2.Surface.bytes x.surface)))
   let render_ir x ~lookup ir=live"Canvas.render_ir"x(fun()->
-    match Raster2.Consumer.execute~lookup~target:x.surface ir with
+    match Raster2.Consumer.execute~workspace:x.workspace~lookup~target:x.surface ir with
     |Error _->error"Canvas.render_ir"Invalid_argument"invalid render command stream"
     |Ok()->x.generation<-x.generation+1;Ok())
   let draw_image x image ~x:px ~y=live"Canvas.draw_image"x(fun()->match Image.size image,Image.pixels image with

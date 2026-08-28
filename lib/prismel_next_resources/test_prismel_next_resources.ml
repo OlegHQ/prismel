@@ -62,6 +62,32 @@ let ()=
   if Canvas.generation canvas<>before_generation||get(Image.pixels after_rejection)<>before_pixels
   then failwith"canvas rejected render was not atomic";
   get(Image.destroy after_rejection);get(Image.destroy before);
+  (* A full-size Canvas owns one transaction workspace. After its first use,
+     successful renders reuse it; a later rejection must still preserve the
+     last complete frame and generation. *)
+  let hot=get(Canvas.create~width:640~height:480)in
+  let hot_ir=Result.get_ok(Raster2.Render_ir.create[|
+    Raster2.Render_ir.Clear 0x102030ffl;
+    Push_clip{x=0.;y=0.;width=640.;height=480.};
+    Geometry{vertices=[|0.;0.;640.;0.;640.;480.;0.;480.|];
+      indices=[|0;1;2;0;2;3|];color=0x334455ffl};
+    Pop_clip|])in
+  get(Canvas.render_ir hot~lookup:(fun _->None)hot_ir);
+  Gc.compact();
+  let hot_before=Gc.allocated_bytes()in
+  for _=1 to 8 do get(Canvas.render_ir hot~lookup:(fun _->None)hot_ir)done;
+  let hot_per_frame=(Gc.allocated_bytes()-.hot_before)/.8. in
+  if hot_per_frame>50_000. then
+    failwith(Printf.sprintf"canvas workspace allocated %.0f bytes/frame"hot_per_frame);
+  Printf.printf"Canvas reusable workspace allocation: %.0f bytes/frame\n"hot_per_frame;
+  let hot_generation=Canvas.generation hot in
+  let _,_,_,hot_pixels=get(Canvas.snapshot hot)in
+  (match Canvas.render_ir hot~lookup:(fun _->None)missing with
+   |Error{kind=Invalid_argument;_}->()|_->failwith"hot canvas accepted missing resource");
+  let _,_,_,hot_after=get(Canvas.snapshot hot)in
+  if Canvas.generation hot<>hot_generation||hot_after<>hot_pixels then
+    failwith"reused canvas workspace broke rollback";
+  get(Canvas.destroy hot);
   List.iter(fun frame->if List.mem frame[1;2;60;600]then let capture=get(Canvas.capture canvas)in if get(Image.size capture)<>(4,4)then failwith"capture";get(Image.destroy capture)) [1;2;60;600];
   get(Canvas.resize canvas~width:8~height:8);if get(Canvas.size canvas)<>(8,8)then failwith"resize";
   let png=Filename.temp_file"prismel-next-"".png"in get(Canvas.save_png canvas png);let input=open_in_bin png in let signature=really_input_string input 8 in close_in input;Sys.remove png;if signature<>"\x89PNG\r\n\x1a\n"then failwith"PNG";

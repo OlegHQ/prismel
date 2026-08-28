@@ -92,9 +92,36 @@ let view3d ?viewport ~camera scene=View3d{viewport;camera;scene;rendered3d=None}
 let text_input_region ~at:(x,y)~w~h ?(focused=false)()=Region(x,y,w,h,focused)
 let translate x y nodes=Translate(x,y,nodes)let rotate a nodes=Rotate(a,nodes)let scale x y nodes=Scale(x,y,nodes)
 let clip ~at:(x,y)~w~h nodes=Clip(x,y,w,h,nodes)let blend mode nodes=Blend(mode,nodes)
-let geometry p=let vertices=Array.of_list(List.concat_map(fun(x,y)->[float x;float y])p.points)in let n=List.length p.points in
+let geometry_uncached p=
+ let n=List.length p.points in
+ let vertices=Array.make(n*2)0. in
+ let rec fill index=function
+  |[]->()
+  |(x,y)::rest->vertices.(index)<-float x;vertices.(index+1)<-float y;
+      fill(index+2)rest in
+ fill 0 p.points;
  let indices=if p.closed&&n>=3 then Array.init((n-2)*3)(fun i->let t=i/3 and k=i mod 3 in if k=0 then 0 else t+k)else if n=1 then[|0|]else Array.init(max 0((n-1)*2))(fun i->if i mod 2=0 then i/2 else i/2+1)in
  Raster2.Render_ir.Geometry{vertices;indices;color=rgba(Option.value p.fill~default:(Option.value p.stroke~default:default_color))}
+type primitive_cache={primitive_table:(primitive,Raster2.Render_ir.command)Hashtbl.t;
+  mutable primitive_order:primitive list}
+let primitive_cache_capacity=256
+let primitive_caches=Domain.DLS.new_key(fun()->
+  {primitive_table=Hashtbl.create primitive_cache_capacity;primitive_order=[]})
+let geometry p=
+  let cache=Domain.DLS.get primitive_caches in
+  match Hashtbl.find_opt cache.primitive_table p with
+  |Some command->command
+  |None->
+      let command=geometry_uncached p in
+      (if Hashtbl.length cache.primitive_table>=primitive_cache_capacity then
+        match List.rev cache.primitive_order with
+        |[]->()
+        |oldest::rest->
+            Hashtbl.remove cache.primitive_table oldest;
+            cache.primitive_order<-List.rev rest);
+      Hashtbl.replace cache.primitive_table p command;
+      cache.primitive_order<-p::cache.primitive_order;
+      command
 module Private=struct
  let renderer=ref(fun(_ : t)->())let install_renderer value=renderer:=value
  let rec commands acc=function []->acc|Clear c::xs->commands(Raster2.Render_ir.Clear(rgba c)::acc)xs|Primitive p::xs->commands(geometry p::acc)xs|Geometry g::xs->commands(Raster2.Render_ir.Geometry g::acc)xs|Group g::xs->commands(commands acc g)xs

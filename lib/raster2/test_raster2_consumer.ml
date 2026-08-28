@@ -59,6 +59,22 @@ let () =
   let rectangle_allocation=Gc.allocated_bytes()-.rectangle_before in
   if rectangle_allocation>1_300_000. then
     failwith(Printf.sprintf"rectangle fast path allocation %.0f"rectangle_allocation);
+  let workspace=Consumer.Workspace.create()in
+  ok(Consumer.execute~workspace~lookup:(fun _->None)~target:fast_target fast);
+  Gc.compact();
+  let reusable_before=Gc.allocated_bytes()in
+  for _=1 to 8 do
+    ok(Consumer.execute~workspace~lookup:(fun _->None)~target:fast_target fast)
+  done;
+  let reusable_per_render=(Gc.allocated_bytes()-.reusable_before)/.8. in
+  if reusable_per_render>50_000. then
+    failwith(Printf.sprintf"reusable workspace allocation %.0f bytes/render"reusable_per_render);
+  Printf.printf"Raster2 reusable workspace allocation: %.0f bytes/render\n"reusable_per_render;
+  let reusable_pixels=Bytes.copy(Surface.bytes fast_target)in
+  (match Consumer.execute~workspace~lookup:(fun _->None)~target:fast_target missing with
+   |Error(Consumer.Missing_resource 99)->()|_->failwith"workspace missing resource accepted");
+  if Surface.bytes fast_target<>reusable_pixels then
+    failwith"reusable workspace rejection mutated target";
   let shared_vertices = Array.init 160 (fun index ->
     let vertex = index / 2 in
     if index land 1 = 0 then float (vertex mod 8) else float (vertex / 8)) in

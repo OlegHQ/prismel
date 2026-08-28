@@ -17,8 +17,16 @@ type error =
   | Surface_error
   | Scratch_limit
 
+module Workspace : sig
+  type t
+  (** Bounded, resize-on-demand transaction storage. A workspace must not be
+      used by overlapping [execute] calls. *)
+  val create : unit -> t
+end
+
 val execute :
   ?depth:depth ->
+  ?workspace:Workspace.t ->
   lookup:(int -> resource option) ->
   target:Surface.t ->
   Render_ir.t ->

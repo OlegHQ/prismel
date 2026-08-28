@@ -11,7 +11,17 @@ type resource = Image of Surface.t | Glyph_atlas of glyph_atlas
 type depth={attachment:Depth_stencil.t;state:Depth_stencil.state;value:float;clear:float;clear_stencil:int}
 type error = Missing_resource of int | Wrong_resource_kind of int | Invalid_resource of int | Surface_error | Scratch_limit
 
-let execute ?depth ~lookup ~target ir =
+module Workspace = struct
+  type t = { mutable color : bytes; mutable clip : bytes; mutable depth : bytes }
+  let create () = { color=Bytes.empty; clip=Bytes.empty; depth=Bytes.empty }
+  let storage bytes length =
+    if Bytes.length bytes = length then bytes else Bytes.create length
+  let color t length = let bytes=storage t.color length in t.color<-bytes;bytes
+  let clip t length = let bytes=storage t.clip length in t.clip<-bytes;bytes
+  let depth t length = let bytes=storage t.depth length in t.depth<-bytes;bytes
+end
+
+let execute ?depth ?workspace ~lookup ~target ir =
   let commands = Render_ir.commands ir in
   let resources = Hashtbl.create 16 and failure = ref None in
   let fail error = if !failure = None then failure := Some error in
@@ -40,13 +50,18 @@ let execute ?depth ~lookup ~target ir =
   | Some error -> Error error
   | None when Bytes.length (Surface.bytes target) > 268_435_456 -> Error Scratch_limit
   | None ->
+      (* A workspace is exclusively borrowed for this synchronous execution.
+         Its buffers are only staging storage: the authoritative attachments
+         are updated together after every command has succeeded. *)
+      let workspace = Option.value workspace ~default:(Workspace.create ()) in
       let target_bytes = Surface.bytes target in
-      let working_bytes = Bytes.copy target_bytes in
+      let working_bytes = Workspace.color workspace (Bytes.length target_bytes) in
+      Bytes.blit target_bytes 0 working_bytes 0 (Bytes.length target_bytes);
       match Surface.of_bytes ~width:(Surface.width target) ~height:(Surface.height target)
               ~pitch:(Surface.pitch target) working_bytes with
       | Error _ -> Error Surface_error
       | Ok working ->
-          let depth_copy=match depth with None->None|Some d->let bytes=Bytes.copy(Depth_stencil.bytes d.attachment)in(match Depth_stencil.of_bytes~width:(Depth_stencil.width d.attachment)~height:(Depth_stencil.height d.attachment)~pitch:(Depth_stencil.pitch d.attachment)bytes with Ok attachment->Some(d,attachment)|Error _->fail Surface_error;None)in
+          let depth_copy=match depth with None->None|Some d->let source=Depth_stencil.bytes d.attachment in let bytes=Workspace.depth workspace(Bytes.length source)in Bytes.blit source 0 bytes 0(Bytes.length source);(match Depth_stencil.of_bytes~width:(Depth_stencil.width d.attachment)~height:(Depth_stencil.height d.attachment)~pitch:(Depth_stencil.pitch d.attachment)bytes with Ok attachment->Some(d,attachment)|Error _->fail Surface_error;None)in
           let clips = Stack.create () and transforms = Stack.create () in
           let identity = { Render_ir.xx=1.; xy=0.; yx=0.; yy=1.; tx=0.; ty=0. } in
           Stack.push identity transforms;
@@ -78,7 +93,8 @@ let execute ?depth ~lookup ~target ir =
             match !active_clip with
             | None -> action ()
             | Some _ ->
-                let before = Bytes.copy working_bytes in
+                let before = Workspace.clip workspace (Bytes.length working_bytes) in
+                Bytes.blit working_bytes 0 before 0 (Bytes.length working_bytes);
                 action ();
                 for y = 0 to Surface.height working - 1 do
                   for x = 0 to Surface.width working - 1 do
