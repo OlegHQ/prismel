@@ -6,6 +6,11 @@
  (libraries sdl3 metal ogpu ogpu_metal scene_execution))
 
 (library
+ (name runtime_next_provider)
+ (public_name prismel.runtime_next_provider)
+ (modules runtime_next_provider))
+
+(library
  (name runtime_next_headless)
  (public_name prismel.runtime_next_headless)
  (modules runtime_next_headless)
@@ -90,3 +95,8 @@
  (name test_runtime_next_input)
  (modules test_runtime_next_input)
  (libraries runtime_next_input sdl3 wap))
+
+(test
+ (name test_runtime_next_provider)
+ (modules test_runtime_next_provider)
+ (libraries runtime_next_provider))
