@@ -36,7 +36,7 @@ let init _frame =
       ~behaviors:[Verlet2.gravity (Vec2.create 0. 650.)]
       ~constraints:[Verlet2.inside_bounds bounds]
       particles !springs |> function Ok value -> value | Error message -> failwith message in
-  { world; frames_left = if Sketch.is_headless () then Some 3 else None }
+  { world; frames_left = None }
 
 let update model (frame : Frame.t) =
   let frames_left = match model.frames_left with

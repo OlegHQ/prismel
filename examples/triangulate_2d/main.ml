@@ -51,7 +51,7 @@ let init frame =
     | Ok output -> output.geometry
     | Error error -> failwith (Diagnostic.error_to_string error) in
   {session;geometry;
-   frames_left=if Sketch.is_headless () then Some 2 else None}
+   frames_left=None}
 
 let update model _ =
   let frames_left = match model.frames_left with

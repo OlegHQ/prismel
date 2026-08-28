@@ -1,4 +1,3 @@
-val is_headless : unit -> bool
 val is_displayless : unit -> bool
 val start :
   width:int -> height:int -> title:string -> resizable:bool ->

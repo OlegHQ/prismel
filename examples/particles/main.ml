@@ -24,7 +24,7 @@ let make_particle index =
 let init _frame =
   {
     particles = List.init 10_000 make_particle;
-    frames_left = if Sketch.is_headless () then Some 3 else None;
+    frames_left = None;
   }
 
 let step frame particle =

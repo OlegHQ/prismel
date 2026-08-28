@@ -36,7 +36,7 @@ let init frame =
     mesh = cook session frame;
     camera = Easy_camera.create ~target:Vec3.zero ~distance:5.5
         ~azimuth:0.65 ~elevation:0.38 ();
-    frames_left = if Sketch.is_headless () then Some 2 else None;
+    frames_left = None;
   }
 
 let update model frame =

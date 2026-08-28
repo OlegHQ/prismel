@@ -686,7 +686,7 @@ let init frame =
     meshes = List.map (cook session frame) (graphs ());
     camera = Easy_camera.create ~target:(Vec3.create 0. 0.5 0.)
         ~distance:9. ~azimuth:0.7 ~elevation:0.45 ();
-    frames_left = if Sketch.is_headless () then Some 2 else None; }
+    frames_left = None; }
 
 let update model frame =
   let frames_left = match model.frames_left with

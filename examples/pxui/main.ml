@@ -33,7 +33,6 @@ let update model (frame : Frame.t) =
   let ui, changes = Pxui.update_frame model.ui frame in
   if List.exists (function Pxui.Clicked "quit" -> true | _ -> false) changes
   then Sketch.quit ();
-  if Sketch.is_headless () && frame.count >= 3 then Sketch.quit ();
   let angle =
     match Pxui.toggle_value ui "animate" with
     | Some true -> model.angle +. frame.dt

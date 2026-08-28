@@ -36,7 +36,7 @@ let init frame =
   and by_point = source |> Sop.graph_color
       ~connectivity:Pdk.Ops.Graph_primitives_by_point |> cook session frame in
   {session;by_edge;by_point;
-   frames_left=if Sketch.is_headless () then Some 2 else None}
+   frames_left=None}
 
 let update model _ =
   let frames_left = match model.frames_left with

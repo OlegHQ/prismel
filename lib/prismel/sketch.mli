@@ -4,7 +4,7 @@ type clock =
   | Realtime
   | Fixed of float
 
-type render_target = Native | Headless
+type render_target = Native
 
 type config = {
   width : int;
@@ -79,5 +79,4 @@ val export_state :
 val quit : unit -> unit
 val resize : width:int -> height:int -> unit
 (** Resize the active sketch through its selected runtime target. *)
-val is_headless : unit -> bool
 val render_target : unit -> render_target

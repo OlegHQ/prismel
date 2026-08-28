@@ -40,7 +40,7 @@ let init frame =
   let cotan = cook session context Pdk.Ops.Laplacian_cotan source
   and uniform = cook session context Pdk.Ops.Laplacian_uniform source in
   {session;cotan;uniform;
-   frames_left=if Sketch.is_headless () then Some 2 else None}
+   frames_left=None}
 
 let update model _ =
   let frames_left = match model.frames_left with

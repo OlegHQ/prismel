@@ -17,12 +17,10 @@ let make_note frequency =
 
 let init _frame =
   let notes = Array.map make_note frequencies in
-  if Sketch.is_headless () then
-    ignore (Audio.Sample.play ~volume:0. notes.(0));
   {
     notes;
     active = None;
-    frames_left = if Sketch.is_headless () then Some 3 else None;
+    frames_left = None;
   }
 
 let pressed_note (frame : Frame.t) =

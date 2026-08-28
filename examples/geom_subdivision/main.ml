@@ -20,7 +20,7 @@ let init _frame =
       "Doo-Sabin", "#a78bfa", Mesh3.doo_sabin source |> result_or_fail;
     ];
     camera = Easy_camera.create ~target:Vec3.zero ~distance:11.8 ~elevation:0.12 ();
-    phase = 0.; frames_left = if Sketch.is_headless () then Some 3 else None;
+    phase = 0.; frames_left = None;
   }
 
 let update model (frame : Frame.t) =

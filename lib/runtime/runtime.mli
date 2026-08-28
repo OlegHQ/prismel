@@ -1,4 +1,4 @@
-type target = Target.t = Native | Headless
+type target = Target.t = Native
 
 type t
 
@@ -8,18 +8,12 @@ val start :
   title:string ->
   resizable:bool ->
   (t, string) result
-(** Configure and initialize SDL_image/SDL_ttf plus the selected presentation
-    target. The web target binds its HTTP/WebSocket server to [0.0.0.0].
-    [PRISMEL_WEB_MAX_FPS] defaults to 60, [PRISMEL_WEB_MAX_MBIT] defaults to
-    a 2 Mbit/s encoded-frame target, and [PRISMEL_WEB_MAX_PIXELS] defaults to
-    921600 backing pixels; [PRISMAL_] aliases are accepted. Web viewports are
-    authoritative regardless of native resize opt-in. *)
+(** Configure and initialize SDL_image/SDL_ttf for native presentation. *)
 
 val stop : t -> unit
 val target : t -> target
 val selected_target : unit -> target
 val target_of_string : string -> (target, string) result
-val is_headless : unit -> bool
 val is_displayless : unit -> bool
 
 val present :

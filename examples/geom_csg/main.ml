@@ -22,7 +22,7 @@ let init _frame =
     difference = Csg3.difference sphere cutter |> result_or_fail;
     camera = Easy_camera.create ~target:Vec3.zero ~distance:10.2 ~elevation:0.18 ();
     phase = 0.;
-    frames_left = if Sketch.is_headless () then Some 3 else None;
+    frames_left = None;
   }
 
 let update model (frame : Frame.t) =

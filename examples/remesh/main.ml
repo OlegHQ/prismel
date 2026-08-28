@@ -37,7 +37,7 @@ let init frame =
     remeshed = cook session frame remeshed_graph;
     camera = Easy_camera.create ~target:Vec3.zero ~distance:5.2
         ~azimuth:0.55 ~elevation:0.32 ();
-    frames_left = if Sketch.is_headless () then Some 2 else None;
+    frames_left = None;
   }
 
 let update model frame =

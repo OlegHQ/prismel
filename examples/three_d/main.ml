@@ -76,7 +76,7 @@ let init _frame =
     camera =
       Easy_camera.create ~target:(Vec3.create 0. 0.2 0.)
         ~distance:8.2 ~elevation:0.22 ();
-    frames_left = if Sketch.is_headless () then Some headless_frame_limit else None;
+    frames_left = None;
   }
 
 let update model (frame : Frame.t) =

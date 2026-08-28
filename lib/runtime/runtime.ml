@@ -1,9 +1,9 @@
 open Tsdl
 open Tsdl_ttf
-type target=Target.t=Native|Headless
+type target=Target.t=Native
 type t={target:target;sdl_environment:(string*string option)list;image_initialized:bool;ttf_initialized:bool;mutable stopped:bool}
 let selected_target()=Target.get() let target_of_string=Target.of_string
-let is_headless=Target.is_headless let is_displayless=Target.is_displayless
+let is_displayless=Target.is_displayless
 let target value=value.target
 let sdl_environment_names=["SDL_VIDEODRIVER";"SDL_RENDER_DRIVER";"SDL_AUDIODRIVER"]
 external unset_environment:string->unit="prismel_runtime_unsetenv"

@@ -61,7 +61,7 @@ let init frame =
     fitted = cook session frame circles;
     camera = Easy_camera.create ~target:Vec3.zero ~distance:8.
       ~azimuth:0.1 ~elevation:0.35 ();
-    frames_left = if Sketch.is_headless () then Some 2 else None }
+    frames_left = None }
 
 let update model frame =
   let frames_left = match model.frames_left with

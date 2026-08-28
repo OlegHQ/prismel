@@ -1,6 +1,5 @@
 let current : Runtime.t option ref = ref None
 
-let is_headless = Runtime.is_headless
 let is_displayless = Runtime.is_displayless
 
 let start ~width ~height ~title ~resizable =

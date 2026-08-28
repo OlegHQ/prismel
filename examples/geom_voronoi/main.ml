@@ -18,7 +18,7 @@ let init _frame =
   {
     sites = random_sites 64 (Rand.seed 0x6e6f6465) [];
     phase = 0.;
-    frames_left = if Sketch.is_headless () then Some 3 else None;
+    frames_left = None;
   }
 
 let update model (frame : Frame.t) =

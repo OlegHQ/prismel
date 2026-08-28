@@ -1,4 +1,4 @@
-type clock=Realtime|Fixed of float type render_target=Native|Headless|Web
+type clock=Realtime|Fixed of float type render_target=Native
 type config={width:int;height:int;title:string;fps:int option;domains:int option;clock:clock;resizable:bool;fullscreen:bool}
 let default_config={width=800;height=600;title="Prismel sketch";fps=Some 60;domains=None;clock=Realtime;resizable=true;fullscreen=false}
 let stopped=ref false let quit()=stopped:=true
@@ -9,7 +9,6 @@ let resize ~width ~height =
   |None->invalid_arg"Sketch.resize: no sketch is running"
   |Some resize->resize~width~height
 let render_target()=match Runtime_next_compat.selected_target()with Ok Runtime_next_compat.Native->Native|Error message->invalid_arg message
-let is_headless()=render_target()=Headless let is_web()=render_target()=Web
 let frame config count time dt events={Frame.width=config.width;height=config.height;size=(config.width,config.height);drawable_width=config.width;drawable_height=config.height;drawable_size=(config.width,config.height);pixel_scale=(1.,1.);time;dt;fps=(if dt > 0. then 1. /. dt else 0.);count;mouse=Input.mouse_pos();mouse_delta=Input.mouse_delta();keys=Input.keys_down();mouse_buttons=Input.mouse_buttons_down();events}
 let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _ _->())~init~update~view ?(on_stop=fun _->())()=
   if config.width<=0||config.height<=0 then invalid_arg"Sketch: dimensions must be positive";
@@ -17,7 +16,7 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
   Option.iter(fun fps->if fps<=0 then invalid_arg"Sketch: fps must be positive")config.fps;
   Option.iter(fun domains->if domains<=0 then invalid_arg"Sketch: domains must be positive")config.domains;
   stopped:=false;Time.init();let first=frame config 0 0. 0.[]in let model=ref(init first)in
-  let target=match render_target()with Native->Prismel_next_execution.Native|Headless->Headless|Web->Web in
+  let target=Prismel_next_execution.Native in
   let timing=match config.clock with Realtime->Prismel_next_execution.Variable|Fixed dt when Float.is_finite dt&&dt>0.->Fixed dt|Fixed _->invalid_arg"fixed dt must be finite and positive"in
   let configuration={Prismel_next_execution.default_configuration with target;logical_width=config.width;logical_height=config.height;drawable_width=config.width;drawable_height=config.height;title=config.title;timing}in
   let get=function Ok x->x|Error e->failwith(Format.asprintf"%a"Prismel_next_execution.pp_error e)in
@@ -27,10 +26,7 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
   let capture ()=Prismel_next_execution.capture coordinator
     |>Result.map(fun bytes-> !logical_width,!logical_height,bytes)
     |>Result.map_error(fun error->Format.asprintf"%a"Prismel_next_execution.pp_error error)in
-  let save filename=match target with
-    |Prismel_next_execution.Web->Prismel_next_execution.download_frame coordinator~filename
-        |>Result.map_error(fun error->Format.asprintf"%a"Prismel_next_execution.pp_error error)
-    |Native|Headless->Result.bind(capture())(fun(width,height,bytes)->
+  let save filename=Result.bind(capture())(fun(width,height,bytes)->
         match Prismel_next_resources.Canvas.create~width~height with
         |Error error->Error(Format.asprintf"%a"Prismel_next_resources.pp_error error)
         |Ok canvas->Fun.protect~finally:(fun()->ignore(Prismel_next_resources.Canvas.destroy canvas))(fun()->
@@ -38,7 +34,7 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
               let packed=Int32.logor(Int32.shift_left(Int32.of_int(Char.code(Bytes.get bytes o)))24)(Int32.logor(Int32.shift_left(Int32.of_int(Char.code(Bytes.get bytes(o+1))))16)(Int32.logor(Int32.shift_left(Int32.of_int(Char.code(Bytes.get bytes(o+2))))8)(Int32.of_int(Char.code(Bytes.get bytes(o+3))))))in
               Prismel_next_resources.Canvas.set_pixel canvas~x~y packed|>Result.get_ok done done;
             Prismel_next_resources.Canvas.save_png canvas filename
-            |>Result.map_error(fun error->Format.asprintf"%a"Prismel_next_resources.pp_error error)))in
+            |>Result.map_error(fun error->Format.asprintf"%a"Prismel_next_resources.pp_error error))in
   Canvas_runtime.install~capture~save;
   resize_current:=Some(fun~width~height->
     get(Prismel_next_execution.resize coordinator~logical_width:width

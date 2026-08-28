@@ -41,7 +41,7 @@ let init _frame =
   {
     canvas;
     texture;
-    frames_left = if Sketch.is_headless () then Some 3 else None;
+    frames_left = None;
     status = "Press S to save prismel-capture.png";
   }
 

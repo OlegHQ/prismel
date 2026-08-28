@@ -13,7 +13,7 @@ let palette =
 let init _frame =
   {
     phase = 0.;
-    frames_left = if Sketch.is_headless () then Some 3 else None;
+    frames_left = None;
   }
 
 let update model (frame : Frame.t) =

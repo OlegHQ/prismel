@@ -153,7 +153,7 @@ let init _frame = {
   color_index = 0;
   brush_width = 10;
   status = "Drag to draw";
-  frames_left = if Sketch.is_headless () then Some 3 else None;
+  frames_left = None;
 }
 
 let update model (frame : Frame.t) =

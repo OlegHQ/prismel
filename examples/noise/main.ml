@@ -14,7 +14,7 @@ let init _frame =
   {
     noise = Noise.create 2026;
     phase = 0.;
-    frames_left = if Sketch.is_headless () then Some 3 else None;
+    frames_left = None;
   }
 
 let update model (frame : Frame.t) =
