@@ -15,7 +15,7 @@
   (language c)
   (names runtime_stubs))
  (c_library_flags (:include c_library_flags.sexp))
- (libraries unix tsdl tsdl-image tsdl-ttf wap))
+ (libraries unix tsdl tsdl-image tsdl-ttf))
 
 (library
  (name runtime_wap_raster2_presenter)

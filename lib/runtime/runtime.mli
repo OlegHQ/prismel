@@ -1,6 +1,6 @@
-type target = Target.t = Native | Headless | Web
+type target = Target.t = Native | Headless
 
-type web_mouse_button = Wap.mouse_button = Left | Middle | Right | X1 | X2
+type web_mouse_button = Left | Middle | Right | X1 | X2
 
 type web_event =
   | Pointer_moved of int * int
@@ -24,7 +24,7 @@ type text_input_region = {
   focused : bool;
 }
 
-type web_audio_command = Wap.audio_command =
+type web_audio_command =
   | Audio_master_volume of float
   | Audio_stop_all
   | Audio_sample_play of {

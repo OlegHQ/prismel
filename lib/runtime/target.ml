@@ -1,4 +1,4 @@
-type t = Native | Headless | Web
+type t = Native | Headless
 
 let enabled_value value =
   match String.lowercase_ascii (String.trim value) with
@@ -9,11 +9,11 @@ let of_string value =
   match String.lowercase_ascii (String.trim value) with
   | "native" | "desktop" | "sdl" | "opengl" -> Ok Native
   | "headless" | "software" -> Ok Headless
-  | "web" | "browser" | "webgl" -> Ok Web
+  | "web" | "browser" | "webgl" -> Error "web render target has been removed"
   | value ->
       Error
         (Printf.sprintf
-           "unknown render target %S (expected native, headless, or web)" value)
+           "unknown render target %S (expected native or headless)" value)
 
 let first_environment getenv names =
   List.find_map (fun name -> Option.map (fun value -> name, value)
@@ -28,7 +28,7 @@ let select_with getenv =
         (of_string value)
   | None ->
       (match first_environment getenv ["PRISMEL_WEB"; "PRISMAL_WEB"] with
-       | Some (_, value) when enabled_value value -> Ok Web
+       | Some (_, value) when enabled_value value -> Error "web render target has been removed"
        | _ ->
            match first_environment getenv
                ["PRISMEL_HEADLESS"; "PRISMAL_HEADLESS"; "HEADLESS"] with
@@ -43,12 +43,12 @@ let get () =
   | Error message -> invalid_arg ("Prismel runtime target: " ^ message)
 
 let is_headless () = get () = Headless
-let is_web () = get () = Web
-let is_displayless () = match get () with Native -> false | Headless | Web -> true
+let is_web () = false
+let is_displayless () = match get () with Native -> false | Headless -> true
 
 let configure_sdl_environment = function
   | Native -> ()
-  | Headless | Web ->
+  | Headless ->
       Unix.putenv "SDL_VIDEODRIVER" "dummy";
       Unix.putenv "SDL_RENDER_DRIVER" "software";
       Unix.putenv "SDL_AUDIODRIVER" "dummy"

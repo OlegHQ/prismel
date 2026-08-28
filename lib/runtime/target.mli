@@ -1,4 +1,4 @@
-type t = Native | Headless | Web
+type t = Native | Headless
 
 val of_string : string -> (t, string) result
 val selected : unit -> (t, string) result
