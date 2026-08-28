@@ -41,6 +41,19 @@
   pxui_next r10_scene2_candidate_lib r10_scene3_candidate_lib
   r10_workload_descriptor scene_execution ogpu wap unix yojson))
 
+(executable
+ (name r10_native_scene2_correctness)
+ (modules r10_native_scene2_correctness)
+ (libraries r10_scene2_candidate_lib r10_workload_descriptor
+  prismel_next_execution prismel_next_api unix yojson))
+
+(test
+ (name test_r10_native_scene2_correctness)
+ (modules test_r10_native_scene2_correctness)
+ (libraries unix yojson)
+ (deps r10_native_scene2_correctness.exe)
+ (action (run %{test} %{exe:./r10_native_scene2_correctness.exe})))
+
 (test
  (name test_r10_scene2_legacy_equivalent)
  (modules test_r10_scene2_legacy_equivalent)
