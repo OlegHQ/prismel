@@ -91,7 +91,13 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64) ()=
           let portable_pass=Ogpu.Render_pass.submission_pass submission in
           let native_draws=List.map Result.get_ok draws in
           let argument_pipeline(draw:Render_pass.draw)=Option.is_some(Pipeline.Private.argument_function draw.pipeline)in
-          let exact_argument_abi(draw:Render_pass.draw)=match draw.index,draw.buffers,draw.textures,draw.samplers,Pipeline.Private.argument_function draw.pipeline with None,[{stage=Render_pass.Vertex;index=0;_}],[{stage=Render_pass.Fragment;index=0;_}],[{stage=Render_pass.Fragment;index=1;_}],Some _->true|_->false in
+          let exact_argument_abi(draw:Render_pass.draw)=
+            let vertex index=List.filter(fun(binding:Render_pass.buffer_binding)->binding.stage=Render_pass.Vertex&&binding.index=index)draw.buffers in
+            match draw.index,draw.textures,draw.samplers,Pipeline.Private.argument_function draw.pipeline with
+            |None,[{stage=Render_pass.Fragment;index=0;_}],[{stage=Render_pass.Fragment;index=1;_}],Some _->
+                List.length(vertex 0)=1&&List.length(vertex 6)<=1&&
+                List.length draw.buffers=1+List.length(vertex 6)
+            |_->false in
           let maybe_indirect encoded=
             let eligible draw=retained_plans_enabled&&exact_argument_abi draw in
             match c.plan_cache with None when List.exists argument_pipeline native_draws->error"Ogpu_metal.Backend.render"Ogpu.Error.Unsupported"retained plan cache is unavailable"|None->Ok(encoded,None)|Some _ when not(List.for_all eligible native_draws)->Ok(encoded,None)|Some cache->
@@ -100,7 +106,7 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64) ()=
             let identity=Marshal.to_string(Ogpu.Render_pass.submission_draws submission,pipeline_identities)[]in
             let key=Printf.sprintf"render:%Ld:%s"queue_token(Digest.to_hex(Digest.string identity))in
             let made=ref None in
-            let icb_descriptor=Metal.Indirect_command_buffer.descriptor~inherit_buffers:false~inherit_pipeline_state:false~max_vertex_buffer_bind_count:1~max_fragment_buffer_bind_count:2~command_types:[Metal.Indirect_command_buffer.Indirect_draw]()in
+            let icb_descriptor=Metal.Indirect_command_buffer.descriptor~inherit_buffers:false~inherit_pipeline_state:false~max_vertex_buffer_bind_count:7~max_fragment_buffer_bind_count:2~command_types:[Metal.Indirect_command_buffer.Indirect_draw]()in
             let dependencies=resources|>List.map snd|>List.sort_uniq Int64.compare and pipeline_keys=List.map(fun(draw:Render_pass.draw)->Pipeline.key draw.pipeline)native_draws|>List.sort_uniq String.compare in
             let build icb =
               let commands=ref[] and encoders=ref[] and buffers=ref[] and samplers=ref[] in
@@ -108,13 +114,13 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64) ()=
               let configure command (draw:Render_pass.draw) argument_buffer =
                 let pipeline=match Pipeline.Private.native draw.pipeline with Render pipeline->pipeline|Compute _->assert false in
                 match Metal.Indirect_command_buffer.Render_command.set_pipeline command pipeline with Error _ as e->e|Ok()->
-                let binding:Render_pass.buffer_binding=List.hd draw.buffers in
-                match Metal.Indirect_command_buffer.Render_command.set_vertex_buffer command~index:binding.index~offset:binding.offset(Buffer.Private.metal binding.buffer)with Error _ as e->e|Ok()->
+                let rec bind_vertices=function []->Ok()|(binding:Render_pass.buffer_binding)::rest->match Metal.Indirect_command_buffer.Render_command.set_vertex_buffer command~index:binding.index~offset:binding.offset(Buffer.Private.metal binding.buffer)with Error _ as e->e|Ok()->bind_vertices rest in
+                match bind_vertices draw.buffers with Error _ as e->e|Ok()->
                 match Metal.Indirect_command_buffer.Render_command.set_fragment_buffer command~index:1~offset:0L argument_buffer with Error _ as e->e|Ok()->
                 Metal.Indirect_command_buffer.Render_command.draw_primitives command~primitive:(match draw.primitive with Triangle_list->Metal.Triangle|Triangle_strip->Metal.Triangle_strip)~vertex_start:draw.vertex_start~vertex_count:draw.vertex_count()
               in
               let rec loop i=function
-                |[]->let buffers=List.rev!buffers in let unique id values=List.fold_left(fun kept value->if List.exists(fun old->id old=id value)kept then kept else value::kept)[]values|>List.rev in let vertex_buffers=native_draws|>List.map(fun(draw:Render_pass.draw)->(List.hd draw.buffers).buffer)|>unique Buffer.id|>List.map Buffer.Private.metal and textures=native_draws|>List.map(fun(draw:Render_pass.draw)->(List.hd draw.textures).texture)|>unique Texture.id|>List.map Texture.Private.metal in let encoded=Render_pass.with_indirect encoded icb~vertex_buffers~fragment_buffers:buffers~textures in let owner={queue_token;last_epoch=0L;dependencies;pipeline_keys;commands=List.rev!commands;samplers=List.rev!samplers;encoders=List.rev!encoders;buffers;encoded}in made:=Some owner;Ok()
+                |[]->let buffers=List.rev!buffers in let unique id values=List.fold_left(fun kept value->if List.exists(fun old->id old=id value)kept then kept else value::kept)[]values|>List.rev in let vertex_buffers=native_draws|>List.concat_map(fun(draw:Render_pass.draw)->List.map(fun(binding:Render_pass.buffer_binding)->binding.buffer)draw.buffers)|>unique Buffer.id|>List.map Buffer.Private.metal and textures=native_draws|>List.map(fun(draw:Render_pass.draw)->(List.hd draw.textures).texture)|>unique Texture.id|>List.map Texture.Private.metal in let encoded=Render_pass.with_indirect encoded icb~vertex_buffers~fragment_buffers:buffers~textures in let owner={queue_token;last_epoch=0L;dependencies;pipeline_keys;commands=List.rev!commands;samplers=List.rev!samplers;encoders=List.rev!encoders;buffers;encoded}in made:=Some owner;Ok()
                 |(draw:Render_pass.draw)::rest->
                   let function_=Option.get(Pipeline.Private.argument_function draw.pipeline)in
                   match Metal.Function.argument_encoder function_~buffer_index:1L with Error e->fail e|Ok encoder->

@@ -1,7 +1,7 @@
 type texture = { levels : Raster2.Surface.t array; depth : Raster2.Depth_stencil.t }
 type buffer = { bytes:bytes; mutable version:int }
 type storage = Buffer of buffer | Texture of texture * Ogpu.Types.texture_descriptor
-type decoded_key = int64 * int * bool * int64 * int
+type decoded_key = int64 * int * int64 * int * bool * int64 * int
 type decoded_entry = decoded_key * Raster2.Triangle.vertex array
 type index_key = int64 * int * int * int64 * int
 type index_entry = index_key * int array
@@ -80,7 +80,7 @@ let create () =
         |_->error"Ogpu_raster2.read_into"Invalid_argument"range is invalid"in
       let destroy () = match Hashtbl.find_opt control.objects token with
         |None->Ok()|Some(Buffer _)->Hashtbl.remove control.objects token;
-            control.decoded<-List.filter(fun((cached,_,_,_,_),_)->cached<>token)control.decoded;
+            control.decoded<-List.filter(fun((cached,_,uniform,_,_,_,_),_)->cached<>token&&uniform<>token)control.decoded;
             control.decoded_indices<-List.filter(fun((cached,_,_,_,_),_)->cached<>token)control.decoded_indices;
             control.buffers<-control.buffers-1;Ok()
         |Some(Texture _)->Hashtbl.remove control.objects token;
@@ -153,15 +153,26 @@ let create () =
                     else
                       let buffer_token=match List.assoc_opt binding.buffer_id resources with
                         |Some token->token|None->assert false in
-                      let key=(buffer_token,vertex_buffer.version,textured,binding.offset,maximum+1)in
+                      let affine=match List.find_opt(fun(b:Ogpu.Render_pass.buffer_binding)->b.stage=Ogpu.Command.Vertex&&b.index=6)d.buffers with
+                        |Some uniform_binding->(match find uniform_binding.buffer_id,List.assoc_opt uniform_binding.buffer_id resources with
+                          |Some(Buffer uniform_buffer),Some uniform_token when Bytes.length uniform_buffer.bytes=24&&valid_range uniform_buffer.bytes uniform_binding.offset 24->
+                              let at index=Int32.float_of_bits(Bytes.get_int32_le uniform_buffer.bytes(Int64.to_int uniform_binding.offset+index*4))in
+                              Some(uniform_token,uniform_buffer.version,at 0,at 1,at 2,at 3,at 4,at 5)
+                          |_->None)
+                        |None->None in
+                      let uniform_token,uniform_version=match affine with Some(token,version,_,_,_,_,_,_)->token,version|None->0L,0 in
+                      let key=(buffer_token,vertex_buffer.version,uniform_token,uniform_version,textured,binding.offset,maximum+1)in
                       let decoded=match List.assoc_opt key control.decoded with
                         |Some decoded->decoded
                         |None->
                             let base=Int64.to_int binding.offset in
                             let decoded=Array.init(maximum+1)(fun index->
                               let offset=base+index*stride in
-                              {Raster2.Triangle.x=Int64.float_of_bits(Bytes.get_int64_le vertices offset);
-                                y=Int64.float_of_bits(Bytes.get_int64_le vertices(offset+8));
+                              let x=Int64.float_of_bits(Bytes.get_int64_le vertices offset)
+                              and y=Int64.float_of_bits(Bytes.get_int64_le vertices(offset+8))in
+                              let x,y=match affine with None->x,y|Some(_,_,xx,yx,tx,xy,yy,ty)->xx*.x+.yx*.y+.tx,xy*.x+.yy*.y+.ty in
+                              {Raster2.Triangle.x=x;
+                                y;
                                 depth=(if textured then Int64.float_of_bits(Bytes.get_int64_le vertices(offset+16))else 0.);
                                 color=(if textured then Bytes.get_int32_le vertices(offset+48)else 0x4080BFFFl);
                                 u=(if textured then Int64.float_of_bits(Bytes.get_int64_le vertices(offset+52))else 0.);

@@ -38,10 +38,10 @@ type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
 type draw = { family:family; blend:blend; texture:Scene_execution.sampled_texture option;
   auxiliary:Scene_execution.auxiliary_resource option;samples:int;value:Scene_execution.draw }
 type cached_scene2_geometry={vertices:float array;indices:int array;fingerprint:int;source_bytes:int;color:int32;
-  transform:Raster2.Render_ir.transform;clip:int*int*int*int;draw:draw}
+  clip:int*int*int*int;draw:draw}
 type scene2_geometry_candidate={candidate_vertex_count:int;
   candidate_index_count:int;candidate_fingerprint:int;candidate_source_bytes:int;candidate_color:int32;
-  candidate_transform:Raster2.Render_ir.transform;candidate_clip:int*int*int*int}
+  candidate_clip:int*int*int*int}
 type cached_scene2_batch={batch_fingerprint:int;batch_draw_count:int;
   batch_source_bytes:int;batch_draw:draw}
 type cached_scene2_quad={quad_texture:Scene_execution.sampled_texture;
@@ -65,21 +65,33 @@ let default_state viewport scissor = { Scene_execution.viewport; scissor;
   stencil_clear=0 }
 let finite value = Float.is_finite value
 let put_float bytes offset value = Bytes.set_int64_le bytes offset (Int64.bits_of_float value)
+let identity_affine_uniforms=let bytes=Bytes.make 24 '\000'in
+  Bytes.set_int32_le bytes 0(Int32.bits_of_float 1.);
+  Bytes.set_int32_le bytes 16(Int32.bits_of_float 1.);bytes
+let affine_uniforms (transform:Raster2.Render_ir.transform)=
+  if transform.xx=1.&&transform.xy=0.&&transform.yx=0.&&transform.yy=1.&&
+    transform.tx=0.&&transform.ty=0. then identity_affine_uniforms else
+  let bytes=Bytes.make 24 '\000'in
+  let put index value=Bytes.set_int32_le bytes(index*4)(Int32.bits_of_float value)in
+  put 0 transform.xx;put 1 transform.yx;put 2 transform.tx;
+  put 3 transform.xy;put 4 transform.yy;put 5 transform.ty;bytes
+let identity_transform (transform:Raster2.Render_ir.transform)=
+  transform.xx=1.&&transform.xy=0.&&transform.yx=0.&&transform.yy=1.&&
+  transform.tx=0.&&transform.ty=0.
 let mesh_of_geometry number transform clip (geometry:Raster2.Render_ir.geometry) =
   let count=Array.length geometry.vertices/2 in
   let vertices=Bytes.create(count*16) in
   for index=0 to count-1 do
     let x=geometry.vertices.(index*2) and y=geometry.vertices.(index*2+1) in
-    let tx=transform.Raster2.Render_ir.xx*.x+.transform.yx*.y+.transform.tx
-    and ty=transform.xy*.x+.transform.yy*.y+.transform.ty in
-    put_float vertices(index*16)tx; put_float vertices(index*16+8)ty
+    put_float vertices(index*16)x; put_float vertices(index*16+8)y
   done;
   let indices=Bytes.create(Array.length geometry.indices*4) in
   Array.iteri(fun index value->Bytes.set_int32_le indices(index*4)(Int32.of_int value))geometry.indices;
   let x,y,width,height=clip in
   { family=Scene2;blend=Replace;texture=None;auxiliary=None;samples=1; value={Scene_execution.mesh={key=Printf.sprintf "ir-%Ld-%d" 0L number;
       vertices;vertex_count=count;indices;index_count=Array.length geometry.indices};
-      state=default_state (x,y,width,height) (x,y,width,height)} }
+      state={(default_state (x,y,width,height) (x,y,width,height))with
+        transform_uniforms=(if identity_transform transform then None else Some(affine_uniforms transform))}} }
 let debug_text_geometry transform (debug:Raster2.Render_ir.debug_text) =
   let stop = match String.index_opt debug.text '\000' with
     | Some index -> index | None -> String.length debug.text in
@@ -407,11 +419,12 @@ let lower_scene2 value ~density ~resource:resolve ir =
     let fingerprint=Hashtbl.hash(geometry.vertices,geometry.indices)in
     let source_bytes=Array.length geometry.vertices*(Sys.word_size/8)+
       Array.length geometry.indices*(Sys.word_size/8)in
-    let same vertices indices cached_fingerprint color cached_transform cached_clip=
+    let same vertices indices cached_fingerprint color cached_clip=
       cached_fingerprint=fingerprint&&vertices=geometry.vertices&&indices=geometry.indices&&
-      color=geometry.color&&cached_transform=transform&&cached_clip=clip in
-    match List.find_opt(fun cached->same cached.vertices cached.indices cached.fingerprint cached.color cached.transform cached.clip)value.scene2_geometry_cache with
-    |Some cached->cached.draw
+      color=geometry.color&&cached_clip=clip in
+    match List.find_opt(fun cached->same cached.vertices cached.indices cached.fingerprint cached.color cached.clip)value.scene2_geometry_cache with
+    |Some cached when identity_transform transform->cached.draw
+    |Some cached->{cached.draw with value={cached.draw.value with state={cached.draw.value.state with transform_uniforms=Some(affine_uniforms transform)}}}
     |None->
         let draw=mesh_of_geometry number transform clip geometry in
         (* Admission candidates deliberately retain metadata, not the source
@@ -426,8 +439,7 @@ let lower_scene2 value ~density ~resource:resolve ir =
           candidate.candidate_fingerprint=fingerprint&&
           candidate.candidate_vertex_count=Array.length geometry.vertices&&
           candidate.candidate_index_count=Array.length geometry.indices&&
-          candidate.candidate_color=geometry.color&&
-          candidate.candidate_transform=transform&&candidate.candidate_clip=clip)
+          candidate.candidate_color=geometry.color&&candidate.candidate_clip=clip)
           value.scene2_geometry_candidates with
         |None->
             value.scene2_geometry_candidates<-{
@@ -435,8 +447,7 @@ let lower_scene2 value ~density ~resource:resolve ir =
               candidate_index_count=Array.length geometry.indices;
               candidate_fingerprint=fingerprint;
               candidate_source_bytes=source_bytes;
-              candidate_color=geometry.color;candidate_transform=transform;
-              candidate_clip=clip}::value.scene2_geometry_candidates;
+              candidate_color=geometry.color;candidate_clip=clip}::value.scene2_geometry_candidates;
             value.scene2_geometry_candidates<-trim_scene2_entries
               ~capacity:64
               (fun candidate->candidate.candidate_source_bytes)
@@ -444,7 +455,7 @@ let lower_scene2 value ~density ~resource:resolve ir =
         |Some candidate->
             value.scene2_geometry_candidates<-List.filter((!=)candidate)value.scene2_geometry_candidates;
             let cached={vertices=Array.copy geometry.vertices;indices=Array.copy geometry.indices;
-              fingerprint;source_bytes;color=geometry.color;transform;clip;draw}in
+              fingerprint;source_bytes;color=geometry.color;clip;draw}in
             value.scene2_geometry_cache<-cached::value.scene2_geometry_cache;
             value.scene2_geometry_cache<-trim_scene2_entries
               (fun cached->cached.source_bytes)value.scene2_geometry_cache;draw

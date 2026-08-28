@@ -76,6 +76,19 @@ let () =
   let upload1=(get(stats resource_runtime)).uploaded_bytes in
   check(upload1=Int64.add upload0 60L)
     "content-identical fresh Scene2 geometry was repeatedly uploaded";
+  let transform tx={Raster2.Render_ir.xx=1.;xy=0.;yx=0.;yy=1.;tx;ty=0.}in
+  let transformed_ir tx=Result.get_ok(Raster2.Render_ir.Private.create_owned[|
+    Push_transform(transform tx);Geometry{vertices=Array.copy owned_vertices;
+      indices=Array.copy owned_indices;color=0x4080BFFFl};Pop_transform;
+    Push_transform(transform(tx+.7.));Geometry{vertices=Array.copy owned_vertices;
+      indices=Array.copy owned_indices;color=0x4080BFFFl};Pop_transform|])in
+  ignore(get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)(transformed_ir 4.)));
+  let transformed=get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)(transformed_ir 4.))in
+  check(List.length transformed=2)"two transformed draws were not preserved";
+  ignore(get(step resource_runtime transformed));let affine_upload=(get(stats resource_runtime)).uploaded_bytes in
+  ignore(get(step resource_runtime transformed));
+  check((get(stats resource_runtime)).uploaded_bytes=affine_upload)
+    "stable affine draws re-uploaded geometry or uniforms";
   let changed=Result.get_ok(Raster2.Render_ir.Private.create_owned[|
     Geometry{vertices=[|3.;3.;26.;3.;3.;27.|];indices=Array.copy owned_indices;
       color=0x4080BFFFl}|])in
