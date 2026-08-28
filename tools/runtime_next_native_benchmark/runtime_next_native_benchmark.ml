@@ -39,6 +39,17 @@ let source_snapshot()=match command_output"git"[|"git";"rev-parse";"HEAD"|],
 let native_gpu_counters ~supported ~duration ~samples ~wall =
   if not supported then `Assoc["status",`String"unsupported";"supported",`Bool false;"gpu_duration",`Null;"sample_count",`Intlit"0";"gpu_utilization",`Null;"reason",`String"Metal command-buffer timestamps are unavailable on this device/API"]
   else `Assoc["status",`String"measured";"supported",`Bool true;"gpu_duration",`Float duration;"sample_count",`Intlit(Int64.to_string samples);"gpu_utilization",`Float(if wall>0. then 100.*.duration/.wall else 0.);"reason",`Null]
+let retained_plan_counters (before : Prismel_next_execution.stats)
+    (after : Prismel_next_execution.stats) =
+  let difference current initial = `Intlit (Int64.to_string (Int64.sub current initial)) in
+  `Assoc [
+    "builds", difference after.retained_plan_builds before.retained_plan_builds;
+    "hits", difference after.retained_plan_hits before.retained_plan_hits;
+    "misses", difference after.retained_plan_misses before.retained_plan_misses;
+    "evictions", difference after.retained_plan_evictions before.retained_plan_evictions;
+    "executions", difference after.retained_plan_executions before.retained_plan_executions;
+    "entries", `Int after.retained_plan_entries;
+    "capacity", `Int after.retained_plan_capacity]
 let putf bytes offset value=Bytes.set_int64_le bytes offset(Int64.bits_of_float value)
 let measure_frames render count seconds = match seconds with
 |None->Array.init count(fun _->let started=Unix.gettimeofday()in ignore(get(render()));Unix.gettimeofday()-.started)
@@ -215,7 +226,9 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
     "work_units",`Int descriptor.work_units;"semantics_supported",`Bool true;"scheduling",`String(match sample_seconds with Some _->"duration-bounded"|None->"frame-count");
     "scheduled_frame_rate",`Null;
     "framebuffer_digest",`String(Digest.to_hex(Digest.bytes framebuffer));"pixel_authority",`String("phase0/runtime-next-native/"^protocol_scenario_name selected);"pixel_tolerance",`Int 3;
-    "native_gpu_counters",native_gpu_counters ~supported:after.gpu_timing_supported ~duration:(after.gpu_duration_seconds-.before.gpu_duration_seconds) ~samples:(Int64.sub after.gpu_sample_count before.gpu_sample_count) ~wall:total;"machine",`Assoc["arch",`String(Sys.getenv_opt"HOSTTYPE"|>Option.value~default:"arm64");"ocaml",`String Sys.ocaml_version]]in
+    "native_gpu_counters",native_gpu_counters ~supported:after.gpu_timing_supported ~duration:(after.gpu_duration_seconds-.before.gpu_duration_seconds) ~samples:(Int64.sub after.gpu_sample_count before.gpu_sample_count) ~wall:total;
+    "retained_render_plans",retained_plan_counters before after;
+    "machine",`Assoc["arch",`String(Sys.getenv_opt"HOSTTYPE"|>Option.value~default:"arm64");"ocaml",`String Sys.ocaml_version]]in
   Yojson.Safe.pretty_to_string json^"\n"
 
 let ()=let selected=ref Basic and warmup=ref 5 and warmup_seconds=ref None and samples=ref 30 and sample_seconds=ref None and report=ref None and artifact_path=ref None and visibility=ref Hidden and width=ref 64 and height=ref 64 and protocol_r9=ref false in Arg.parse["--warmup",Arg.Set_int warmup,"frames";"--warmup-seconds",Arg.Float(fun x->warmup_seconds:=Some x),"duration";"--samples",Arg.Set_int samples,"frames";"--sample-seconds",Arg.Float(fun x->sample_seconds:=Some x),"duration";"--width",Arg.Set_int width,"logical width";"--height",Arg.Set_int height,"logical height";"--report",Arg.String(fun x->report:=Some x),"path";"--acceptance-artifact",Arg.String(fun x->artifact_path:=Some x),"cooked shattered artifact";"--visibility",Arg.Symbol(["visible";"hidden"],fun x->visibility:=if x="visible"then Visible else Hidden),"window visibility";"--protocol-r9",Arg.Set protocol_r9,"exact 600-frame stable camera-only upload protocol"](fun x->selected:=parse x)"runtime_next_native_benchmark scenario";if !warmup<1|| !samples<1|| !width<=0|| !height<=0||Option.fold~none:false~some:(fun x->x<=0.)!warmup_seconds||Option.fold~none:false~some:(fun x->x<=0.)!sample_seconds then invalid_arg"counts or dimensions";

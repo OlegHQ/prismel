@@ -63,8 +63,9 @@ let mixed_scene2_batching () =
   ignore(get(Scene_execution.render_resources renderer mixed));
   let trace=Ogpu.Backend_mock.trace control in
   let renders=List.filter(String.starts_with~prefix:"render:")trace in
-  if List.length renders<>1||List.length(List.filter(String.starts_with~prefix:"submit:")trace)<>1 then
-    failwith("compatible mixed Scene2 draws did not use one submission: "^String.concat","trace);
+  if List.length renders<>2||List.length(List.filter(String.starts_with~prefix:"submit:")trace)<>2
+     ||not(List.exists(fun render->String.contains render ';')renders)then
+    failwith("classic/retained Scene2 boundary did not preserve retained batching: "^String.concat","trace);
   Ogpu.Backend_mock.clear_trace control;
   let clipped={state with scissor=(1,1,7,7)}in
   ignore(get(Scene_execution.render_resources renderer[

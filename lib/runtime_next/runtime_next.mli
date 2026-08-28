@@ -1,7 +1,10 @@
 type t
 type stats = { pipeline_cache_entries:int; mesh_cache_entries:int;
   uploaded_bytes:int64; gpu_timing_supported:bool; gpu_duration_seconds:float;
-  gpu_sample_count:int64 }
+  gpu_sample_count:int64; retained_plan_builds:int64; retained_plan_hits:int64;
+  retained_plan_misses:int64; retained_plan_evictions:int64;
+  retained_plan_executions:int64; retained_plan_entries:int;
+  retained_plan_capacity:int }
 type frame_facts = { logical_width:int; logical_height:int;
   drawable_width:int; drawable_height:int; pixel_scale_x:float; pixel_scale_y:float }
 type window_facts = {

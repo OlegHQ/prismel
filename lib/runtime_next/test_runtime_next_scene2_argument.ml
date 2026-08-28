@@ -58,6 +58,12 @@ let () =
       if uploaded <= 0L then failwith "scene2 retained argument fixture was not uploaded";
       if Some uploaded <> !first_uploaded then
         failwith "scene2 retained argument stable draw was re-expanded or re-uploaded";
+      let retained = Runtime_next.stats runtime in
+      if retained.retained_plan_builds <> 1L || retained.retained_plan_misses <> 1L
+         || retained.retained_plan_hits <> 19L || retained.retained_plan_executions <> 20L
+         || retained.retained_plan_evictions <> 0L || retained.retained_plan_entries <> 1
+         || retained.retained_plan_capacity <> 64 then
+        failwith "scene2 retained argument counters are not exact";
       get (Runtime_next.destroy runtime);
       ignore (get_metal (Metal.Release_queue.drain ()));
       let after = get_metal (Metal.Release_queue.stats ()) in

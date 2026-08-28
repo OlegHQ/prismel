@@ -13,7 +13,10 @@ type facts = { title:string;logical_width:int;logical_height:int;drawable_width:
 type pacing = {frames:int64;presented:int64;last_presented:bool}
 type stats={frames:int64;presented:int64;logical_draws:int64;logical_passes:int64;
   logical_submissions:int64;uploaded_bytes:int64;cache_entries:int;
-  gpu_timing_supported:bool;gpu_duration_seconds:float;gpu_sample_count:int64}
+  gpu_timing_supported:bool;gpu_duration_seconds:float;gpu_sample_count:int64;
+  retained_plan_builds:int64;retained_plan_hits:int64;retained_plan_misses:int64;
+  retained_plan_evictions:int64;retained_plan_executions:int64;
+  retained_plan_entries:int;retained_plan_capacity:int}
 type diagnostics={active:bool;cache_entries:int;release_queue_pending:int option;
   release_queue_live_handles:int option;release_queue_total_created:int64 option;
   release_queue_total_released:int64 option}
@@ -84,9 +87,9 @@ let is_displayless value=value.target<>Native
 let facts value=Result.map(fun()->value.facts)(ensure"Runtime_next_orchestrator.facts"value)
 let pacing value=Result.map(fun()->value.pacing)(ensure"Runtime_next_orchestrator.pacing"value)
 let stats value=match ensure"Runtime_next_orchestrator.stats"value with Error _ as e->e|Ok()->
-  let uploaded_bytes,cache_entries,gpu_timing_supported,gpu_duration_seconds,gpu_sample_count=match value.implementation with Native_runtime runtime->let s=Runtime_next.stats runtime in s.uploaded_bytes,s.mesh_cache_entries,s.gpu_timing_supported,s.gpu_duration_seconds,s.gpu_sample_count|Headless_runtime runtime->let uploaded,cache=Runtime_next_headless.resource_stats runtime in uploaded,cache,false,0.,0L|Web_runtime runtime->let uploaded,cache=Runtime_next_web.resource_stats runtime in uploaded,cache,false,0.,0L in
+  let uploaded_bytes,cache_entries,gpu_timing_supported,gpu_duration_seconds,gpu_sample_count,retained_plan_builds,retained_plan_hits,retained_plan_misses,retained_plan_evictions,retained_plan_executions,retained_plan_entries,retained_plan_capacity=match value.implementation with Native_runtime runtime->let s=Runtime_next.stats runtime in s.uploaded_bytes,s.mesh_cache_entries,s.gpu_timing_supported,s.gpu_duration_seconds,s.gpu_sample_count,s.retained_plan_builds,s.retained_plan_hits,s.retained_plan_misses,s.retained_plan_evictions,s.retained_plan_executions,s.retained_plan_entries,s.retained_plan_capacity|Headless_runtime runtime->let uploaded,cache=Runtime_next_headless.resource_stats runtime in uploaded,cache,false,0.,0L,0L,0L,0L,0L,0L,0,0|Web_runtime runtime->let uploaded,cache=Runtime_next_web.resource_stats runtime in uploaded,cache,false,0.,0L,0L,0L,0L,0L,0L,0,0 in
   Ok{frames=value.pacing.frames;presented=value.pacing.presented;logical_draws=value.logical_draws;
-    logical_passes=value.logical_passes;logical_submissions=value.logical_submissions;uploaded_bytes;cache_entries;gpu_timing_supported;gpu_duration_seconds;gpu_sample_count}
+    logical_passes=value.logical_passes;logical_submissions=value.logical_submissions;uploaded_bytes;cache_entries;gpu_timing_supported;gpu_duration_seconds;gpu_sample_count;retained_plan_builds;retained_plan_hits;retained_plan_misses;retained_plan_evictions;retained_plan_executions;retained_plan_entries;retained_plan_capacity}
 let native_release_queue()=match Metal.Release_queue.stats()with
   |Ok stats->Some(stats.pending,stats.live_handles,stats.total_created,stats.total_released)
   |Error _->None
