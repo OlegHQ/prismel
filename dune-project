@@ -24,10 +24,6 @@
  (depends
   (ocaml (>= 5.2))
   (dune (>= 3.17))
-  tsdl
-  tsdl-image
-  tsdl-ttf
-  tsdl-mixer
   ctypes
   ctypes-foreign
   digestif
@@ -37,10 +33,6 @@
   (utop :with-test)
   domainslib
   yojson
-  conf-sdl2
-  conf-sdl2-image
-  conf-sdl2-ttf
-  conf-sdl2-mixer
   conf-sdl3
   conf-sdl3-image
   conf-sdl3-ttf

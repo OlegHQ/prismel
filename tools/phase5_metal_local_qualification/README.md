@@ -11,8 +11,8 @@ and presentation stress do not interfere with benchmark measurements.
 | M5 | Presentation adapter/complete/snapshot models cover three drawable slots, resize-invalidated snapshots, occluded/timeout/lost classification, injected failures, and one-shot presentation. Safe and native lifecycle tests cover real M1 acquisition, completion retention, and exact pixels. |
 | M6 | The native lifecycle and safe facade cover resize and completion; presentation 10k plus snapshot 10k prove zero live-handle delta and bounded teardown. The Leaks stress lanes enforce settled RSS tolerances and zero reported leaks across buffers, textures/samplers/views, heaps/resources, sparse, residency, backed/shared/IO/external resources. |
 
-The aggregate does **not** claim M3+ hardware coverage, alternate macOS/SDK or
-Xcode versions, sanitizer configurations other than the committed Leaks lane,
+The aggregate does **not** claim M3+ hardware coverage, alternate macOS/SDK
+configurations, sanitizer configurations other than the committed Leaks lane,
 window-server behavior unavailable to these tests, or external-machine gates.
 
 ## Current local result

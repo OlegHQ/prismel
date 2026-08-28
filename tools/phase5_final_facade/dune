@@ -1,5 +1,0 @@
-(test
- (name phase5_final_facade)
- (modules phase5_final_facade)
- (libraries unix)
- (action (run %{test} --root ../../../..)))

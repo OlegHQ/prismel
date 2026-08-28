@@ -99,35 +99,11 @@ let safe_hardware () =
     ; "graphics", `List graphics
     ]
 
-let first_line value =
-  match split_lines value with
-  | line :: _ -> Some line
-  | [] -> None
-
 let toolchain () =
-  let xcode_path = command_output "xcode-select" [ "-p" ] in
-  let xcode = optional_command "xcodebuild" [ "-version" ] in
-  let metal = optional_command "xcrun" [ "-f"; "metal" ] in
   let clang = command_output "clang" [ "--version" ] |> split_lines in
-  let xcode_available = successful xcode && contains ~needle:"Xcode" xcode.stdout in
   `Assoc
-    [ "developer_directory", `String xcode_path
-    ; "full_xcode_available", `Bool xcode_available
-    ; "xcode_version", if successful xcode then `String xcode.stdout else `Null
-    ; ( "xcode_diagnostic"
-      , if successful xcode then `Null else option_string (first_line xcode.stderr) )
-    ; ( "macos_sdk_version"
-      , `String
-          (command_output "xcrun"
-             [ "--sdk"; "macosx"; "--show-sdk-version" ]) )
-    ; ( "macos_sdk_path"
-      , `String
-          (command_output "xcrun" [ "--sdk"; "macosx"; "--show-sdk-path" ]) )
-    ; "metal_compiler_available", `Bool (successful metal)
-    ; "metal_compiler_path", if successful metal then `String metal.stdout else `Null
-    ; ( "metal_compiler_diagnostic"
-      , if successful metal then `Null else option_string (first_line metal.stderr) )
-    ; "clang", `List (List.map (fun line -> `String line) (List.filteri (fun index _ -> index < 2) clang))
+    [ "clang", `List (List.map (fun line -> `String line)
+          (List.filteri (fun index _ -> index < 2) clang))
     ; "deployment_floor", `String "macOS 14"
     ]
 
@@ -138,19 +114,16 @@ let versions names value =
 
 let software () =
   let opam_packages =
-    [ "ocaml"; "dune"; "domainslib"; "ctypes"; "ctypes-foreign"; "tsdl"
-    ; "tsdl-image"; "tsdl-ttf"; "tsdl-mixer"; "conf-sdl2"
-    ; "conf-sdl2-image"; "conf-sdl2-ttf"; "conf-sdl2-mixer"
+    [ "ocaml"; "dune"; "domainslib"; "ctypes"; "ctypes-foreign"
+    ; "conf-sdl3"; "conf-sdl3-image"; "conf-sdl3-ttf"; "conf-sdl3-mixer"
     ]
   in
   let pkg_names =
-    [ "sdl2"; "SDL2_image"; "SDL2_ttf"; "SDL2_mixer"; "SDL2_gfx"; "sdl3"
-    ; "SDL3_image"; "SDL3_ttf"; "SDL3_mixer"
+    [ "sdl3"; "SDL3_image"; "SDL3_ttf"; "SDL3_mixer"
     ]
   in
   let brew_names =
-    [ "sdl2"; "sdl2_image"; "sdl2_ttf"; "sdl2_mixer"; "sdl2_gfx"; "sdl3"
-    ; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"
+    [ "sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"
     ]
   in
   `Assoc
@@ -285,8 +258,9 @@ let validate root value =
      || Option.value (member_list "graphics" hardware) ~default:[] = [])
     "hardware model or GPU/display facts are missing";
   let toolchain = member_exn "toolchain" value in
-  reject (not (nonempty_string "macos_sdk_version" toolchain))
-    "macOS SDK version is missing";
+  reject
+    (Option.value (member_list "clang" toolchain) ~default:[] = [])
+    "clang toolchain facts are missing";
   let software = member_exn "software" value in
   reject
     (not (nonempty_string "ocaml" software && nonempty_string "dune" software))
