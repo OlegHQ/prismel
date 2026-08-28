@@ -60,7 +60,7 @@ let create ~logical_width ~logical_height ~drawable_width ~drawable_height =
   match sdl operation(Sdl3.Window.create~title:"Prismel headless-next"
       ~width:logical_width~height:logical_height~flags:[Hidden]())with
   |Error e->fail_after_video(Error e)
-  |Ok window->match sdl operation(Sdl3.Rgba_presenter.create window)with
+  |Ok window->match sdl operation(Sdl3.Rgba_presenter.create ~retain_snapshot:false window)with
     |Error e->ignore(Sdl3.Window.destroy window);fail_after_video(Error e)
     |Ok presenter->match sdl operation(Sdl3.Rgba_presenter.renderer_name presenter)with
     |Error e->ignore(Sdl3.Rgba_presenter.destroy presenter);ignore(Sdl3.Window.destroy window);
@@ -136,7 +136,7 @@ let read_pixels value ~bytes_per_row =
 
 let presented_pixels value =
   match ensure_live"Runtime_next_headless.presented_pixels"value with Error _ as e->e|Ok()->
-  sdl"Runtime_next_headless.presented_pixels"(Sdl3.Rgba_presenter.copy_rgba value.presenter)
+  Ok(Bytes.copy value.readback)
 
 let sdl_drivers value =
   match ensure_live"Runtime_next_headless.sdl_drivers"value with Error _ as e->e|Ok()->

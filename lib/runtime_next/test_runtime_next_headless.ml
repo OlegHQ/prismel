@@ -23,6 +23,9 @@ let expect_pixels runtime extent =
   let pitch=extent*4 in let rendered=get(Headless.read_pixels runtime~bytes_per_row:pitch)
   and presented=get(Headless.presented_pixels runtime)in
   if rendered<>presented then failwith"presented framebuffer differs from software render";
+  Bytes.set presented 0 '\000';
+  if get(Headless.presented_pixels runtime)<>rendered then
+    failwith"presented framebuffer snapshot aliases runtime storage";
   if Bytes.get_int32_be rendered 0<>0x4080bfffl then failwith"genuine software pixel missing"
 
 let () =

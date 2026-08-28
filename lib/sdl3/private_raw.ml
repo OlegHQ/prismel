@@ -92,7 +92,7 @@ external metal_layer_token : nativeint -> int64 -> int64 -> Native_layer_token.t
 external invalidate_metal_layer_token : Native_layer_token.t -> unit
   = "caml_sdl3_invalidate_metal_layer_token"
 
-external create_rgba_presenter : nativeint -> nativeint
+external create_rgba_presenter : nativeint -> bool -> nativeint
   = "caml_sdl3_create_rgba_presenter"
 external destroy_rgba_presenter : nativeint -> unit
   = "caml_sdl3_destroy_rgba_presenter"

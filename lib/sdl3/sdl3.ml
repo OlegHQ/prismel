@@ -589,12 +589,12 @@ module Rgba_presenter = struct
       error operation Destroyed "parent window is destroyed"
     else callback value.raw)
 
-  let create window = on_main "SDL3.Rgba_presenter.create" (fun () ->
+  let create ?(retain_snapshot=true) window = on_main "SDL3.Rgba_presenter.create" (fun () ->
     if window.Window.destroyed then
       error "SDL3.Rgba_presenter.create" Destroyed "parent window is destroyed"
     else begin
       Private_raw.clear_error ();
-      let raw = Private_raw.create_rgba_presenter window.raw in
+      let raw = Private_raw.create_rgba_presenter window.raw retain_snapshot in
       if raw = Nativeint.zero then sdl_error "SDL3.Rgba_presenter.create"
       else begin
         Atomic.incr window.presenters;

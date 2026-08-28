@@ -494,7 +494,7 @@ end
 module Rgba_presenter : sig
   type t
 
-  val create : Window.t -> (t, error) result
+  val create : ?retain_snapshot:bool -> Window.t -> (t, error) result
   val destroyed : t -> bool
   val texture_size : t -> (int * int, error) result
   val renderer_name : t -> (string, error) result

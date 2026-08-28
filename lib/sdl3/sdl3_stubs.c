@@ -32,6 +32,7 @@ typedef struct {
   int height;
   uint8_t *snapshot;
   size_t snapshot_size;
+  bool retain_snapshot;
 } prismel_rgba_presenter;
 
 static prismel_rgba_presenter *presenter_of_value(value raw)
@@ -51,10 +52,11 @@ CAMLprim value caml_sdl3_current_video_driver(value unit)
   CAMLreturn(some);
 }
 
-CAMLprim value caml_sdl3_create_rgba_presenter(value raw_window)
+CAMLprim value caml_sdl3_create_rgba_presenter(value raw_window, value retain_snapshot)
 {
   prismel_rgba_presenter *presenter = calloc(1, sizeof(*presenter));
   if (presenter == NULL) return caml_copy_nativeint(0);
+  presenter->retain_snapshot = Bool_val(retain_snapshot);
   presenter->renderer = SDL_CreateRenderer(window_of_value(raw_window), NULL);
   if (presenter->renderer == NULL) {
     free(presenter);
@@ -75,6 +77,7 @@ CAMLprim value caml_sdl3_destroy_rgba_presenter(value raw)
   if (presenter != NULL) {
     SDL_DestroyTexture(presenter->texture);
     SDL_DestroyRenderer(presenter->renderer);
+    free(presenter->snapshot);
     free(presenter);
   }
   return Val_unit;
@@ -99,7 +102,7 @@ CAMLprim value caml_sdl3_present_rgba(
       !SDL_RenderClear(presenter->renderer) ||
       !SDL_RenderTexture(presenter->renderer, presenter->texture, NULL, NULL))
     return Val_false;
-  {
+  if (presenter->retain_snapshot) {
     size_t row_bytes = (size_t)w * 4;
     size_t needed = row_bytes * (size_t)h;
     uint8_t *replacement = realloc(presenter->snapshot, needed);

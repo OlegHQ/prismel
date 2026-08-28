@@ -233,6 +233,22 @@ let () =
   (match Surface.copy_rgba surface with
    | Error { kind = Destroyed; _ } -> ()
    | Ok _ | Error _ -> fail "stale surface access was not rejected");
+  let pixels = Bytes.init 16 Char.chr in
+  let presenter = get (Rgba_presenter.create window) in
+  get (Rgba_presenter.present presenter ~width:2 ~height:2 ~pitch:8 pixels);
+  let presented = get (Rgba_presenter.copy_rgba presenter) in
+  if presented <> pixels then fail "default presenter snapshot changed";
+  Bytes.set presented 0 '\255';
+  if get (Rgba_presenter.copy_rgba presenter) <> pixels then
+    fail "default presenter snapshot was not copied";
+  get (Rgba_presenter.destroy presenter);
+  get (Rgba_presenter.destroy presenter);
+  let presenter = get (Rgba_presenter.create ~retain_snapshot:false window) in
+  get (Rgba_presenter.present presenter ~width:2 ~height:2 ~pitch:8 pixels);
+  (match Rgba_presenter.copy_rgba presenter with
+   | Error _ -> ()
+   | Ok _ -> fail "snapshot-disabled presenter retained pixels");
+  get (Rgba_presenter.destroy presenter);
   get (Window.destroy window);
   get (Window.destroy window);
   if not (Window.destroyed window) then fail "destroy did not mark the handle stale";
