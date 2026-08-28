@@ -75,6 +75,24 @@ these two reviewed additions.
 The shattered-cube changes remain substantive: they add the R11 native
 delegate, artifact validation, and runtime-next dependencies to the unchanged
 acceptance sketch.  They are useful qualification work but not source-neutral,
-so the Phase-4 freeze authority remains unchanged and red pending explicit
-review of that exception.  R1 remains pending for these two real reasons; the
-tooling false positives and the reviewed Sketch delta are closed.
+and were therefore reviewed line by line before changing the freeze authority.
+The ordinary invocation still reaches the original `Sketch_ui.Environment3.run`
+with the same graph, overlay, and configuration; the new branch is reachable
+only when the explicit `--r11-renderer` protocol argument is present.  That
+branch recooks the same `graph`, rejects every artifact cardinality/render-hash
+mismatch, and passes the cooked mesh directly to the native measurement module.
+The module retains one prepared draw, checks requested/observed visibility,
+warms it before measurement, reports backend upload/draw/pass/cache counters,
+and destroys the execution transactionally.
+
+A fresh one/four-domain acceptance cook produced 18,278 pieces, 278,368
+triangles, 835,104 vertices, exact topology/attribute/order/render hashes
+`f7df96ba5de50db4f964caa418ac4a90`,
+`a34503939b89dcd5f6d8503f58b3fd8d`,
+`2a4f0c8756d6abc4c0f8cec85c10dc10`, and
+`681eacdabdce457de462c3f4fc01a761`.  A focused hidden native run passed the R11
+validator with 60,127,488 prepared bytes, zero measurement upload bytes, one
+cache entry, and equal draw/pass/backend-call counts.  The freeze now pins the
+exact three reviewed source hashes rather than falsely claiming those files are
+unchanged from Phase 0.  R1's local source/API freeze is green; final selection
+and the complete R11/R10 duration matrix remain separate gates.

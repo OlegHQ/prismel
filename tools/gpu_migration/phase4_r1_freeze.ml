@@ -7,7 +7,16 @@ let api_sha256 = "f1880b5250bc79c873760efe93ed8132cb8acd07b41d376ac676db0e234348
 let acceptance =
   [ "examples/basic"; "examples/particles"; "examples/noise"
   ; "examples/canvas"; "examples/audio"; "examples/pxui"
-  ; "examples/generative"; "sketches/shattered_cube" ]
+  ; "examples/generative" ]
+
+let reviewed_shattered_r11 =
+  [ "sketches/shattered_cube/dune",
+      "ca6993ba10353aea05b28784061bd823b9ee4fef236cfb7c242051c6a82fce27"
+  ; "sketches/shattered_cube/main.ml",
+      "a028242f00697836838e71d3e2e5622e1ce41edf762d0ecfc32552bc0f8015bd"
+  ; "sketches/shattered_cube/r11_native.ml",
+      "eec23556a3b31335ada58539333b4bbf2a0b5c38df6f7d70a09ccf0c673a05c8"
+  ]
 
 let require condition format =
   Printf.ksprintf (fun message -> if not condition then raise (Error message)) format
@@ -35,6 +44,12 @@ let () =
       let changed = git root ([ "diff"; "--name-only"; baseline; "--"; path ]) in
       require (changed = "") "acceptance source changed: %s (%s)" path changed)
     acceptance;
+  List.iter
+    (fun (path, expected) ->
+      let actual = read_file (Filename.concat root path) |> sha256 in
+      require (actual = expected)
+        "reviewed shattered-cube R11 source drift: %s" path)
+    reviewed_shattered_r11;
   let api_path =
     Filename.concat root "specification/evidence/gpu_migration/api_stable.json"
   in
@@ -64,4 +79,4 @@ let () =
            && contains ~needle:"Scene_ogpu_renderer" prismel_dune)
     "private side-by-side renderer modules are not registered";
   Printf.printf
-    "Phase4 R1 freeze: plan/API hashes, 8 acceptance trees, ancestry, private flags, and side-by-side selection passed\n"
+    "Phase4 R1 freeze: plan/API hashes, 7 unchanged acceptance trees, reviewed shattered-cube R11 sources, ancestry, private flags, and side-by-side selection passed\n"
