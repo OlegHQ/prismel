@@ -1,4 +1,4 @@
-type target = Native | Headless | Web
+type target = Native
 
 val abi_version : int
 

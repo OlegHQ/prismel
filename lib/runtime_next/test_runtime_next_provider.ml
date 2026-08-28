@@ -14,15 +14,15 @@ let provider target name version =
 
 let () =
   Private.reset ();
-  expect_error (function Missing_target Web -> true | _ -> false) (find Web);
+  expect_error (function Missing_target Native -> true | _ -> false) (find Native);
   expect_error
     (function Abi_mismatch { expected; actual=0; _ } -> expected=abi_version | _ -> false)
-    (register (provider Web "stale" 0));
-  if register (provider Web "web" abi_version) <> Ok () then
+    (register (provider Native "stale" 0));
+  if register (provider Native "native" abi_version) <> Ok () then
     failwith "valid provider rejected";
-  expect_error (function Duplicate_target Web -> true | _ -> false)
-    (register (provider Web "duplicate" abi_version));
-  (match find Web with
-   | Ok (Pack (module Provider)) when Provider.name="web" -> ()
+  expect_error (function Duplicate_target Native -> true | _ -> false)
+    (register (provider Native "duplicate" abi_version));
+  (match find Native with
+   | Ok (Pack (module Provider)) when Provider.name="native" -> ()
    | _ -> failwith "registered provider identity changed");
   print_endline "runtime-next provider registry: missing/ABI/duplicate/pinned identity"

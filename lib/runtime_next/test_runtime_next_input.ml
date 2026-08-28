@@ -28,29 +28,17 @@ let sdl_fixture iteration =
     Window { timestamp_ns; window_id; change = Focus_lost };
   ]
 
-let wap_fixture =
-  [ Wap.Pointer_moved (7, 11); Pointer_pressed (Left, 7, 11);
-    Pointer_moved (9, 14); Pointer_released (Left, 9, 14);
-    Wheel (1, -2); Key_pressed "a"; Key_released "a"; Text_input "a";
-    Text_editing { text = "ab"; start = 1; length = 1 };
-    Resized (20, 10); Focus_lost ]
-
 let () =
   let native = get (Input.create ~max_events:64 ~max_file_bytes:16
-      ~logical_width:10 ~logical_height:10)
-  and web = get (Input.create ~max_events:64 ~max_file_bytes:16
       ~logical_width:10 ~logical_height:10) in
   for iteration = 1 to 3 do
     List.iter (fun event -> get (Runtime_next_input_sdl3.push native event))
       (sdl_fixture iteration);
-    List.iter (fun event -> get (Runtime_next_input_wap.push web event))
-      wap_fixture
   done;
-  let native_trace = Input.drain native and web_trace = Input.drain web in
-  if List.length native_trace <> 33 || native_trace <> web_trace then
-    failwith "native/web frozen 33-event trace differs";
-  let native_facts = Input.snapshot native and web_facts = Input.snapshot web in
-  if native_facts <> web_facts then failwith "native/web input facts differ";
+  let native_trace = Input.drain native in
+  if List.length native_trace <> 33 then
+    failwith "native frozen 33-event trace differs";
+  let native_facts = Input.snapshot native in
   if native_facts.pointer <> (9., 14.) then
     failwith "SDL logical coordinates were incorrectly Retina-scaled";
   if native_facts.mouse_delta <> (9., 14.)
@@ -67,16 +55,7 @@ let () =
   get (Input.push native (Pointer_cancelled Left));
   if (Input.snapshot native).pointer_captured then
     failwith "pointer cancellation retained capture";
-  let uploaded = Bytes.of_string "payload" in
-  get (Runtime_next_input_wap.push native
-      (Wap.File_uploaded { name = "drop.bin"; contents = uploaded }));
-  Bytes.fill uploaded 0 (Bytes.length uploaded) 'x';
-  begin
-    match List.rev (Input.drain native) with
-    | Input.File_dropped { contents = Some copy; _ } :: _
-      when Bytes.to_string copy = "payload" -> ()
-    | _ -> failwith "file-drop bytes were not copied into bounded ownership"
-  end;
+  ignore (Input.drain native);
   let timestamp_ns=0L and window_id=1L and which=1L in
   let named=[40,"Enter";41,"Escape";42,"Backspace";43,"Tab";44,"Space";
     58,"F1";59,"F2";60,"F3";61,"F4";62,"F5";63,"F6";64,"F7";
@@ -125,18 +104,10 @@ let () =
   let domains=Array.init 4(fun _->Domain.spawn translate_all)in
   Array.iter(fun domain->if Domain.join domain<>sequential then
     failwith"one/four-domain key translation drift")domains;
-  begin
-    match Runtime_next_input_wap.push native
-        (Wap.File_uploaded { name = "large"; contents = Bytes.make 17 'x' }) with
-    | Error _ -> ()
-    | Ok () -> failwith "oversized file drop was accepted"
-  end;
   let bounded = get (Input.create ~max_events:8 ~max_file_bytes:0
       ~logical_width:1 ~logical_height:1) in
   for index = 1 to 100_000 do
-    if index land 1=0 then
-      get(Runtime_next_input_wap.push bounded(Wap.Pointer_moved(index,0)))
-    else get(Runtime_next_input_sdl3.push bounded(Sdl3.Event.Mouse_motion{
+    get(Runtime_next_input_sdl3.push bounded(Sdl3.Event.Mouse_motion{
       timestamp_ns=Int64.of_int index;window_id=1L;which=1L;buttons=0L;
       x=float index;y=0.;dx=1.;dy=0.}))
   done;
@@ -144,4 +115,4 @@ let () =
      || (Input.snapshot bounded).dropped_events <> 99_992 then
     failwith "input queue is not bounded";
   print_endline
-    "runtime_next input: native/web trace33, Retina, reset, capture, bounded"
+    "runtime_next input: native trace33, Retina, reset, capture, bounded"

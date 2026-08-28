@@ -6,16 +6,6 @@ let provider_name target =
 
 let () =
   ignore (Runtime_next_native_provider.install ());
-  ignore (Runtime_next_headless_provider.install ());
-  ignore (Runtime_next_web_provider.install ());
-  if provider_name Runtime_next_provider.Native <> "runtime-next-metal"
-     || provider_name Runtime_next_provider.Headless <> "runtime-next-headless"
-     || provider_name Runtime_next_provider.Web <> "runtime-next-web" then
+  if provider_name Runtime_next_provider.Native <> "runtime-next-metal" then
     failwith "provider identity drift";
-  let headless = get (Runtime_next_headless_provider.create ~logical_width:2
-      ~logical_height:2 ~drawable_width:2 ~drawable_height:2) in
-  get (Runtime_next_headless_provider.destroy headless);
-  let web = get (Runtime_next_web_provider.create ~logical_width:2
-      ~logical_height:2 ~drawable_width:2 ~drawable_height:2 ()) in
-  get (Runtime_next_web_provider.destroy web);
-  print_endline "runtime-next concrete providers: native identity + headless/web lifecycle"
+  print_endline "runtime-next concrete provider: native identity"

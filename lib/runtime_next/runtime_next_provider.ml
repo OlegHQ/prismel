@@ -1,4 +1,4 @@
-type target = Native | Headless | Web
+type target = Native
 
 let abi_version = 1
 
@@ -15,24 +15,22 @@ type error =
   | Duplicate_target of target
   | Missing_target of target
 
-let providers : packed option array = Array.make 3 None
-let index = function Native -> 0 | Headless -> 1 | Web -> 2
+let registered_provider : packed option ref = ref None
 
 let register (Pack ((module Provider) as provider)) =
   if Provider.abi_version <> abi_version then
     Error (Abi_mismatch { name=Provider.name; expected=abi_version;
       actual=Provider.abi_version })
   else
-    let slot = index Provider.target in
-    match providers.(slot) with
+    match !registered_provider with
     | Some _ -> Error (Duplicate_target Provider.target)
-    | None -> providers.(slot) <- Some (Pack provider); Ok ()
+    | None -> registered_provider := Some (Pack provider); Ok ()
 
 let find target =
-  match providers.(index target) with
+  match !registered_provider with
   | Some provider -> Ok provider
   | None -> Error (Missing_target target)
 
 module Private = struct
-  let reset () = Array.fill providers 0 (Array.length providers) None
+  let reset () = registered_provider := None
 end
