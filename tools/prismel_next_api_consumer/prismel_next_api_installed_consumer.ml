@@ -39,7 +39,7 @@ let check_dependencies filename =
     (fun required ->
       require (contains resolved required)
         ("missing resolved dependency: " ^ required))
-    [ "Prismel_next_resources"; "Raster2"; "Runtime_next_input" ];
+    [ "Prismel_next_resources"; "Runtime_next_input" ];
   List.iter
     (fun forbidden ->
       require (not (contains resolved forbidden))

@@ -17,4 +17,4 @@ let () =
     [2;60;600];
   R10_scene3_semantics.write Sys.argv.(1)rgba;
   R10_scene3_semantics.metadata Sys.argv.(2)
-    ~backend:"prismel-next-scene3-raster2"~rgba
+    ~backend:"prismel-next-scene3-native"~rgba

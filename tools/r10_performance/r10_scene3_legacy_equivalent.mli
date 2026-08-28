@@ -17,7 +17,7 @@ type t = {
 val create : width:int -> height:int -> t
 (** Reproduce the topology, camera, and twelve transforms from
     [tools/bench_renderer.ml]'s legacy Scene3 workload. [software_draws] store
-    projected pixel coordinates in the 16-byte Raster2 layout;
+    projected pixel coordinates in the legacy 16-byte layout;
     [software_batched_draws] is their exact concatenated/rebased form;
     [native_draws] store clip-space positions and the legacy diffuse color in
     the 68-byte native benchmark layout. [native_batched_draws] is the exact

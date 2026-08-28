@@ -95,7 +95,7 @@ let () =
   in
   let private_modules = [ "scene3_raster2_lowering"; "scene3_raster2_resources" ] in
   let dependencies =
-    [ "domainslib"; "prismel_next_resources"; "runtime_next_input"; "raster2";
+    [ "domainslib"; "prismel_next_resources"; "runtime_next_input";
       "unix"; "prismel_next_execution"; "runtime_next_compat" ]
   in
   require (List.length public_modules = 40) "candidate public module count is not 40";

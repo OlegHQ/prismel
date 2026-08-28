@@ -1,3 +1,0 @@
-(test
- (name scene_geometry_semantics)
- (libraries prismel_next_api raster2))

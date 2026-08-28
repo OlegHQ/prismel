@@ -7,4 +7,4 @@
   assets audio camera canvas color compute3 easy_camera easy_camera2 event fog3
   font frame framebuffer3 image input light mat3 mat4 material math mesh node3 noise parallel path preview quat rand render2 render3 scene scene3 shader3 shadow3 sketch texture time transform_feedback3 vec2 vec3 scene3_raster2_lowering scene3_raster2_resources)
  (private_modules scene3_raster2_lowering scene3_raster2_resources)
- (libraries domainslib prismel_next_resources runtime_next_input raster2 unix prismel_next_execution runtime_next_compat))
+ (libraries domainslib prismel_next_resources runtime_next_input unix prismel_next_execution runtime_next_compat))
