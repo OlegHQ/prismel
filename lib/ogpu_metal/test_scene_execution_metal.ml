@@ -80,6 +80,10 @@ let ()=match Device.system_default()with Error _->print_endline"scene execution 
     ignore(get(Scene_execution.render_textured renderer[Scene_execution.Scene2_textured,Ogpu.Pipeline.Replace,Some texture,{mesh=mesh_uv 0.1 0.1;state}]))
   done;
   if Backend.sampler_cache_entries control<1||Backend.sampler_cache_entries control>64 then failwith"native sampler cache capacity";
+  let compacted_texture:Scene_execution.sampled_texture={key="native-sampler-eviction";levels;sampler=sampler~min_filter:Linear~mag_filter:Linear()}in
+  List.iter(fun _->ignore(get(Scene_execution.render_textured renderer[
+    Scene_execution.Scene2_textured,Ogpu.Pipeline.Replace,Some compacted_texture,
+      {mesh=mesh_uv 0.5 0.5;state}])))[1;2;60;600];
   let replacement=[|{Scene_execution.width=2;height=2;bytes=Bytes.make 16 '\255'};{width=1;height=1;bytes=Bytes.of_string"\000\000\255\255"}|]in let replaced:Scene_execution.sampled_texture={key="native-mip-chain";levels=replacement;sampler=sampler()}in let before_reload=Scene_execution.upload_bytes renderer in ignore(get(Scene_execution.render_textured renderer[Scene_execution.Scene3_textured,Ogpu.Pipeline.Replace,Some replaced,{mesh=mesh_uv 0.1 0.1;state}]));if Scene_execution.upload_bytes renderer<=before_reload then failwith"texture generation replacement was not uploaded";
   let malformed={replaced with Scene_execution.key="malformed";levels=[|{Scene_execution.width=2;height=2;bytes=Bytes.make 15 '\000'}|]}and before_reject=Scene_execution.upload_bytes renderer in begin match Scene_execution.render_textured renderer[Scene_execution.Scene3_textured,Ogpu.Pipeline.Replace,Some malformed,{mesh=mesh_uv 0.1 0.1;state}]with Error _ when Scene_execution.upload_bytes renderer=before_reject->()|_->failwith"malformed texture was not rejected atomically"end;
   let shadow_vertices=Bytes.copy vertices3 in for index=0 to 2 do let offset=index*68 in Bytes.set_int64_le shadow_vertices(offset+16)(Int64.bits_of_float 0.5);Bytes.set_int64_le shadow_vertices(offset+40)(Int64.bits_of_float 1.);Bytes.set_int32_le shadow_vertices(offset+48)0xffffffffl done;
