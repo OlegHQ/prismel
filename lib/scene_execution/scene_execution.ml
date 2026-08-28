@@ -121,17 +121,19 @@ let valid_texture(source:sampled_texture)=
   (match Ogpu.Types.validate_sampler source.sampler with Error _->false|Ok()->true)&&
   (Array.mapi(fun index level->level.width=max 1(source.levels.(0).width lsr index)&&level.height=max 1(source.levels.(0).height lsr index)&&Bytes.length level.bytes=level.width*level.height*4)source.levels|>Array.for_all Fun.id)
 let prepare_texture value ~defer(source:sampled_texture)=
-  let hash=Digest.to_hex(Digest.string(Array.to_list source.levels|>List.map(fun level->string_of_int level.width^"x"^string_of_int level.height^Bytes.to_string level.bytes)|>String.concat"|"))in
+  let hash=Digest.to_hex(Digest.string(Array.to_list source.levels|>List.map(fun level->Printf.sprintf"%dx%d:%s"level.width level.height(Digest.to_hex(Digest.bytes level.bytes)))|>String.concat"|"))in
   match List.find_opt(fun item->item.texture_key=source.key&&item.texture_hash=hash)value.texture_cache with
   |Some item->Ok item
   |None->
     if not(valid_texture source)then error"Scene_execution.prepare_texture"Ogpu.Error.Invalid_argument"texture or sampler is malformed"else
     let shape=Array.to_list source.levels|>List.map(fun level->Printf.sprintf"%dx%d"level.width level.height)|>String.concat"/"in
-    (* Canvas identities are unique and lower to one sampled draw per frame, so
-       their same-shape storage can be updated safely between submissions.
+    (* Canvas and managed-image identities are unique and lower to one
+       authoritative generation per staged frame, so their same-shape storage
+       can be updated safely between completed submissions.
        General sampled keys may occur with multiple payloads in one submission
        (for example shadow fixtures) and must retain distinct textures. *)
-    let reusable=if String.starts_with~prefix:"canvas:"source.key then
+    let reusable=if String.starts_with~prefix:"canvas:"source.key||
+      String.starts_with~prefix:"image:"source.key then
       List.find_opt(fun item->item.texture_key=source.key&&item.texture_shape=shape)value.texture_cache
       else None in
     let descriptor:Ogpu.Types.texture_descriptor={label=Some("scene-texture-"^source.key);width=source.levels.(0).width;height=source.levels.(0).height;depth=1;mip_levels=Array.length source.levels;sample_count=1;usage=[Texture_binding;Texture_copy_dst]}in

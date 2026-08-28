@@ -64,9 +64,43 @@ let () =
          || retained.retained_plan_evictions <> 0L || retained.retained_plan_entries <> 1
          || retained.retained_plan_capacity <> 64 then
         failwith "scene2 retained argument counters are not exact";
+      let settled_release = ref None in
+      let peak_live = ref 0 in
+      let peak_pending = ref 0 in
+      for frame = 1 to 1000 do
+        let rgba = if frame land 1 = 0 then "\x11\x22\x33\xff" else "\x99\x55\x22\xff" in
+        let changing : Scene_execution.sampled_texture =
+          { key = "image:managed-churn:1";
+            levels = [| { width = 1; height = 1; bytes = Bytes.of_string rgba } |];
+            sampler }
+        in
+        let changing_draw = Scene_execution.Scene2_textured, Ogpu.Pipeline.Replace,
+          Some changing, None, 1, { Scene_execution.mesh; state } in
+        if not (get (Runtime_next.render_sampled_resources runtime [changing_draw])) then
+          failwith "managed-image churn frame was not presented";
+        let pixels = get (Runtime_next.read_pixels runtime ~bytes_per_row:16) in
+        if Bytes.sub pixels 0 4 <> Bytes.of_string rgba then
+          failwith "managed-image churn exact pixel mismatch";
+        if frame = 1 || frame mod 100 = 0 then begin
+          let current = get_metal (Metal.Release_queue.stats ()) in
+          if frame = 1 then settled_release := Some (current.live_handles, current.pending);
+          peak_live := max !peak_live current.live_handles;
+          peak_pending := max !peak_pending current.pending
+        end
+      done;
+      let churn = Runtime_next.stats runtime in
+      if churn.retained_plan_builds <> 2L || churn.retained_plan_misses <> 2L
+         || churn.retained_plan_hits <> 1018L || churn.retained_plan_executions <> 1020L
+         || churn.retained_plan_evictions <> 0L || churn.retained_plan_entries <> 2 then
+        failwith "managed-image churn rebuilt its retained render plan";
+      if Int64.sub churn.uploaded_bytes uploaded <> 256000L then
+        failwith "managed-image churn upload cardinality is not exact";
+      let settled_live, settled_pending = Option.get !settled_release in
+      if !peak_live <> settled_live || !peak_pending <> settled_pending then
+        failwith "managed-image churn grew Metal release state";
       get (Runtime_next.destroy runtime);
       ignore (get_metal (Metal.Release_queue.drain ()));
       let after = get_metal (Metal.Release_queue.stats ()) in
       if after.live_handles <> before.live_handles then
         failwith "scene2 retained argument live-handle delta";
-      print_endline "runtime-next scene2 retained argument: indexed expansion cached, exact pixels, zero delta"
+      print_endline "runtime-next scene2 retained argument: indexed expansion + 1000 managed-image generations cached, exact pixels, bounded release state, zero delta"
