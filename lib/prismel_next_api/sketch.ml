@@ -22,6 +22,7 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
   let configuration={Prismel_next_execution.default_configuration with target;logical_width=config.width;logical_height=config.height;drawable_width=config.width;drawable_height=config.height;title=config.title;timing}in
   let get=function Ok x->x|Error e->failwith(Format.asprintf"%a"Prismel_next_execution.pp_error e)in
   let coordinator=get(Prismel_next_execution.create configuration)in
+  Runtime_diagnostics.Private.install coordinator;
   let logical_width=ref config.width and logical_height=ref config.height in
   let capture ()=Prismel_next_execution.capture coordinator
     |>Result.map(fun bytes-> !logical_width,!logical_height,bytes)
@@ -44,7 +45,7 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
       ~logical_height:height~drawable_width:width~drawable_height:height);
     logical_width:=width;logical_height:=height);
   let latest=ref None and last_scene=ref None in Scene.Private.install_renderer(fun scene->last_scene:=Some scene;let ir,resources=Result.get_ok(Scene.Private.stage~width:!logical_width~height:!logical_height scene)in latest:=Some(get(Prismel_next_execution.lower_scene2 coordinator~density:1~resource:(fun id->List.assoc_opt id resources)ir)));
-  let cleanup()=Fun.protect~finally:(fun()->resize_current:=None;Canvas_runtime.clear();Option.iter Scene.Private.release !last_scene;ignore(Prismel_next_execution.destroy coordinator))(fun()->on_stop!model)in
+  let cleanup()=Fun.protect~finally:(fun()->resize_current:=None;Canvas_runtime.clear();Option.iter Scene.Private.release !last_scene;ignore(Prismel_next_execution.destroy coordinator);Runtime_diagnostics.Private.record coordinator)(fun()->on_stop!model)in
   Fun.protect~finally:cleanup(fun()->
     let limit=match max_frames with Some value->Some value|None when is_headless()||is_web()->Some 1|None->None in let count=ref 0 in while not !stopped&&Option.fold~none:true~some:(fun limit-> !count<limit)limit do
       Time.update();let events=Event.poll_events()in incr count;let dt=match config.clock with Realtime->Time.get_delta_time()|Fixed value->value in

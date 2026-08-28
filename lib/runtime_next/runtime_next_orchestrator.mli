@@ -14,6 +14,10 @@ type pacing = { frames:int64; presented:int64; last_presented:bool }
 type stats = { frames:int64; presented:int64; logical_draws:int64;
   logical_passes:int64; logical_submissions:int64; uploaded_bytes:int64;
   cache_entries:int }
+type diagnostics = { active:bool; cache_entries:int;
+  release_queue_pending:int option; release_queue_live_handles:int option;
+  release_queue_total_created:int64 option;
+  release_queue_total_released:int64 option }
 type family = Scene2 | Scene2_textured | Scene3 | Scene3_textured | Scene3_shadow |
   Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil
 type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
@@ -51,6 +55,12 @@ val is_displayless : t -> bool
 val facts : t -> (facts,Ogpu.Error.t) result
 val pacing : t -> (pacing,Ogpu.Error.t) result
 val stats : t -> (stats,Ogpu.Error.t) result
+val diagnostics : t -> diagnostics
+(** Read-only teardown diagnostics.  The release-queue count is available on
+    the native Metal target and absent on deterministic targets. *)
+val native_release_queue : unit -> (int * int * int64 * int64) option
+(** [(pending, live_handles, total_created, total_released)] when the typed
+    Metal counter source is available. *)
 val render : t -> Scene_execution.draw list -> (bool,Ogpu.Error.t) result
 val render_prepared : t -> prepared list -> (bool,Ogpu.Error.t) result
 val resize : t -> logical_width:int -> logical_height:int -> drawable_width:int ->

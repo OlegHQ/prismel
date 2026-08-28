@@ -13,6 +13,9 @@ type facts = { title:string;logical_width:int;logical_height:int;drawable_width:
 type pacing = {frames:int64;presented:int64;last_presented:bool}
 type stats={frames:int64;presented:int64;logical_draws:int64;logical_passes:int64;
   logical_submissions:int64;uploaded_bytes:int64;cache_entries:int}
+type diagnostics={active:bool;cache_entries:int;release_queue_pending:int option;
+  release_queue_live_handles:int option;release_queue_total_created:int64 option;
+  release_queue_total_released:int64 option}
 type family=Scene2|Scene2_textured|Scene3|Scene3_textured|Scene3_shadow|Scene3_stencil
   |Scene3_textured_stencil|Scene3_shadow_stencil
 type blend=Replace|Alpha|Add|Multiply|Screen|Subtract
@@ -83,6 +86,21 @@ let stats value=match ensure"Runtime_next_orchestrator.stats"value with Error _ 
   let uploaded_bytes,cache_entries=match value.implementation with Native_runtime runtime->let s=Runtime_next.stats runtime in s.uploaded_bytes,s.mesh_cache_entries|Headless_runtime runtime->Runtime_next_headless.resource_stats runtime|Web_runtime runtime->Runtime_next_web.resource_stats runtime in
   Ok{frames=value.pacing.frames;presented=value.pacing.presented;logical_draws=value.logical_draws;
     logical_passes=value.logical_passes;logical_submissions=value.logical_submissions;uploaded_bytes;cache_entries}
+let native_release_queue()=match Metal.Release_queue.stats()with
+  |Ok stats->Some(stats.pending,stats.live_handles,stats.total_created,stats.total_released)
+  |Error _->None
+let diagnostics value=
+  let cache_entries=match value.implementation with
+    |Native_runtime runtime->let s=Runtime_next.stats runtime in
+        s.mesh_cache_entries+s.pipeline_cache_entries
+    |Headless_runtime runtime->snd(Runtime_next_headless.resource_stats runtime)
+    |Web_runtime runtime->snd(Runtime_next_web.resource_stats runtime)in
+  let release_queue=match value.target with Native->native_release_queue()|Headless|Web->None in
+  {active=not value.dead;cache_entries;
+   release_queue_pending=Option.map(fun(pending,_,_,_)->pending)release_queue;
+   release_queue_live_handles=Option.map(fun(_,live,_,_)->live)release_queue;
+   release_queue_total_created=Option.map(fun(_,_,created,_)->created)release_queue;
+   release_queue_total_released=Option.map(fun(_,_,_,released)->released)release_queue}
 let account value draw_count result =
   (match result with Ok presented->value.pacing<-{frames=Int64.succ value.pacing.frames;
     presented=(if presented then Int64.succ value.pacing.presented else value.pacing.presented);

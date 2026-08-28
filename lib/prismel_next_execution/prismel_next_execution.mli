@@ -84,6 +84,14 @@ type stats = Runtime_next_orchestrator.stats = { frames:int64; presented:int64;
   logical_draws:int64; logical_passes:int64; logical_submissions:int64;
   uploaded_bytes:int64; cache_entries:int }
 val stats : t -> (stats,error) result
+type diagnostics = { active:bool; resource_count:int; cache_entries:int;
+  release_queue_pending:int option; release_queue_live_handles:int option;
+  release_queue_total_created:int64 option;
+  release_queue_total_released:int64 option }
+val diagnostics : t -> diagnostics
+(** Actual coordinator, owned-resource, renderer-cache, and native release
+    queue state.  This remains readable after [destroy]. *)
+val native_release_queue : unit -> (int * int * int64 * int64) option
 val push_event : t -> event -> (unit,error) result
 val resize : t -> logical_width:int -> logical_height:int ->
   drawable_width:int -> drawable_height:int -> (unit,error) result

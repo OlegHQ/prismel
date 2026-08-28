@@ -6,10 +6,14 @@ frames 1/2/60/600, and then continues for 30 minutes. Samples use a fixed
 256-entry ring. It performs real alternating window sizes, stable-identity image
 reload (including failed-reload retention), short-lived Canvas/image pairs,
 audio sample play/stop/destruction, and changing Scene3 meshes. The validator
-requires zero facade resource/window/cache counters after teardown and at most
-5% RSS range in the final sample quarter. The frozen facade does not expose a
-backend deferred-release-queue counter, so reports encode that fact as JSON
-null plus `release_queue_counter_supported=false`; they never manufacture zero.
+requires zero facade resource/runtime/cache counters after teardown and at most
+5% RSS range in the final sample quarter. The read-only runtime diagnostic uses
+the coordinator's owned-resource and cache counts. Native reports also use the
+typed Metal deferred-release-queue counter; deterministic headless/web reports
+encode that inapplicable counter as JSON null with
+`release_queue_counter_supported=false`. Native validation also requires live
+Metal handles to return to the explicit pre-runtime baseline and requires the
+created-handle delta to equal the released-handle delta.
 It also proves that retained samples are the final fixed-ring window (rather
 than an earlier flat interval), enforces the frozen 10-second sampling period,
 checks live-resource/sample facts, and rejects policy or canonical-hash drift.

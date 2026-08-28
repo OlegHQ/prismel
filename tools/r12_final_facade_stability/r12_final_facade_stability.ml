@@ -40,13 +40,13 @@ let lane model=match!scenario with
   |value->value
 let sample model elapsed=
   let gc=Gc.quick_stat()and live=model.created-model.destroyed in
-  let caches=Assets.image_count model.assets+Assets.font_count model.assets+
-    Assets.sample_count model.assets+Assets.music_count model.assets in
+  let runtime=Runtime_diagnostics.snapshot()in
   model.samples.(model.observations mod 256)<-Some(`Assoc[
     "frame",`Int model.frame;"elapsed_seconds",`Float elapsed;
     "rss_kib",`Int(rss_kib());"heap_words",`Int gc.heap_words;
-    "resource_count",`Int live;"cache_entries",`Int caches;
-    "release_queue_pending",`Null]);
+    "resource_count",`Int live;"runtime_resource_count",`Int runtime.resource_count;
+    "cache_entries",`Int runtime.cache_entries;
+    "release_queue_pending",(match runtime.release_queue_pending with None->`Null|Some n->`Int n)]);
   model.observations<-model.observations+1;
   model.next_sample<-elapsed+. !sample_every
 let update model _=
@@ -128,6 +128,9 @@ let ()=
      Option.fold~none:false~some:(fun n->n<600)!frames
   then invalid_arg"positive duration, sample period, and at least 600 frames required";
   Unix.putenv"PRISMEL_RENDER_TARGET"(target_name!target);
+  let release_before=match!target with
+    |Native->Runtime_diagnostics.native_release_queue()
+    |Headless|Web->None in
   let red=Filename.temp_file"prismel-r12-red-"".ppm"
   and blue=Filename.temp_file"prismel-r12-blue-"".ppm"in
   ppm red(255,0,0);ppm blue(0,0,255);
@@ -152,8 +155,11 @@ let ()=
   let retained=let n=min final.observations 256 in
     let start=if final.observations<=256 then 0 else final.observations mod 256 in
     List.init n(fun index->Option.get final.samples.((start+index)mod 256))in
-  let cache_entries=Assets.image_count final.assets+Assets.font_count final.assets+
-    Assets.sample_count final.assets+Assets.music_count final.assets in
+  let runtime=Runtime_diagnostics.snapshot()in
+  let release_after=match!target with
+    |Native->Runtime_diagnostics.native_release_queue()
+    |Headless|Web->None in
+  let release_field select value=match value with None->`Null|Some stats->select stats in
   let output=`Assoc[
     "schema",`Int 1;"qualification",`String"R12-final-facade";
     "target",`String(target_name!target);"scenario",`String(scenario_name!scenario);
@@ -165,9 +171,17 @@ let ()=
     "rss_limit_percent",`Float 5.;"created_resources",`Int final.created;
     "destroyed_resources",`Int final.destroyed;"peak_live_resources",`Int final.peak_live;
     "live_resources_after_teardown",`Int(final.created-final.destroyed);
-    "window_live_after_teardown",`Bool Low.Window.(exists());
-    "cache_entries_after_teardown",`Int cache_entries;
-    "release_queue_pending_after_teardown",`Null;"release_queue_counter_supported",`Bool false;
+    "window_live_after_teardown",`Bool runtime.active;
+    "cache_entries_after_teardown",`Int runtime.cache_entries;
+    "runtime_resources_after_teardown",`Int runtime.resource_count;
+    "release_queue_pending_after_teardown",(match runtime.release_queue_pending with None->`Null|Some n->`Int n);
+    "release_queue_counter_supported",`Bool(Option.is_some runtime.release_queue_pending);
+    "metal_live_handles_before",release_field(fun x->`Int x.Runtime_diagnostics.live_handles)release_before;
+    "metal_live_handles_after",release_field(fun x->`Int x.Runtime_diagnostics.live_handles)release_after;
+    "metal_total_created_before",release_field(fun x->`Intlit(Int64.to_string x.Runtime_diagnostics.total_created))release_before;
+    "metal_total_created_after",release_field(fun x->`Intlit(Int64.to_string x.Runtime_diagnostics.total_created))release_after;
+    "metal_total_released_before",release_field(fun x->`Intlit(Int64.to_string x.Runtime_diagnostics.total_released))release_before;
+    "metal_total_released_after",release_field(fun x->`Intlit(Int64.to_string x.Runtime_diagnostics.total_released))release_after;
     "canvas_cycles",`Int final.canvas_cycles;"watched_reload_cycles",`Int final.reload_cycles;
     "failed_reload_cycles",`Int final.failed_reload_cycles;"audio_cycles",`Int final.audio_cycles;
     "resize_cycles",`Int final.resize_cycles;"changing_mesh_frames",`Int final.changing_mesh_frames]in

@@ -1,6 +1,8 @@
 let allow_smoke=ref false and compare=ref None and complete_set=ref false and paths=ref[]
 let field name fields=match List.assoc_opt name fields with Some x->x|None->failwith("missing "^name)
 let int name fields=match field name fields with `Int x->x|_->failwith(name^" is not int")
+let int64 name fields=match field name fields with
+  |`Int x->Int64.of_int x|`Intlit x->Int64.of_string x|_->failwith(name^" is not int64")
 let float name fields=match field name fields with `Float x->x|`Int x->float x|_->failwith(name^" is not number")
 let string name fields=match field name fields with `String x->x|_->failwith(name^" is not string")
 let hexadecimal16 value=
@@ -44,9 +46,26 @@ let validate path=match Yojson.Safe.from_file path with
   let rss=List.map(fun(_,_,rss)->rss)parsed in let tail=let n=List.length rss in List.filteri(fun i _->i>=n*3/4)rss in
   (match tail with []->if not!allow_smoke then failwith"no RSS samples"|x::xs->let lo,hi=List.fold_left(fun(a,b)v->min a v,max b v)(x,x)xs in if not!allow_smoke&&lo>0.&&100.*.(hi-.lo)/.lo>5. then failwith"final RSS window exceeds 5 percent");
   let destroyed=int"destroyed_resources"fields in if created<>destroyed then failwith"created/destroyed resource mismatch";
-  if int"live_resources_after_teardown"fields<>0||int"cache_entries_after_teardown"fields<>0 then failwith"teardown counters nonzero";
-  (match field"release_queue_pending_after_teardown"fields,field"release_queue_counter_supported"fields with
-   |`Int 0,`Bool true|`Null,`Bool false->()|_->failwith"invalid release-queue diagnostic");
+  if int"live_resources_after_teardown"fields<>0||int"runtime_resources_after_teardown"fields<>0
+     ||int"cache_entries_after_teardown"fields<>0 then failwith"teardown counters nonzero";
+  (match target,field"release_queue_pending_after_teardown"fields,field"release_queue_counter_supported"fields with
+   |"native",`Int 0,`Bool true->
+       let live_before=int"metal_live_handles_before"fields
+       and live_after=int"metal_live_handles_after"fields
+       and created_before=int64"metal_total_created_before"fields
+       and created_after=int64"metal_total_created_after"fields
+       and released_before=int64"metal_total_released_before"fields
+       and released_after=int64"metal_total_released_after"fields in
+       if live_after<>live_before||created_after<created_before||released_after<released_before
+          ||Int64.sub created_after created_before<>
+            Int64.sub released_after released_before then
+         failwith"native Metal ownership counters did not return to baseline"
+   |("headless"|"web"),`Null,`Bool false->
+       List.iter(fun name->match field name fields with `Null->()|_->failwith(name^" must be null"))
+         ["metal_live_handles_before";"metal_live_handles_after";
+          "metal_total_created_before";"metal_total_created_after";
+          "metal_total_released_before";"metal_total_released_after"]
+   |_->failwith"invalid target release-queue diagnostic");
   List.iter(fun name->if int name fields<=0 then failwith(name^" did not exercise workload"))
     ["canvas_cycles";"watched_reload_cycles";"failed_reload_cycles";"audio_cycles";"resize_cycles";"changing_mesh_frames"];
   (match field"window_live_after_teardown"fields with `Bool false->()|_->failwith"window survived teardown");

@@ -226,6 +226,21 @@ type stats=Runtime_next_orchestrator.stats={frames:int64;presented:int64;logical
 let stats value=match ensure"Prismel_next_execution.stats"value with Error _ as e->e|Ok()->
   Result.map_error(fun error->{operation="Prismel_next_execution.stats";kind=Backend;
     message=Ogpu.Error.to_string error})(Runtime_next_orchestrator.stats value.runtime)
+type diagnostics={active:bool;resource_count:int;cache_entries:int;
+  release_queue_pending:int option;release_queue_live_handles:int option;
+  release_queue_total_created:int64 option;release_queue_total_released:int64 option}
+let native_release_queue=Runtime_next_orchestrator.native_release_queue
+let diagnostics value=
+  let runtime=Runtime_next_orchestrator.diagnostics value.runtime in
+  {active=not value.dead&&runtime.active;
+   resource_count=Prismel_next_resources.Assets.count value.assets;
+   cache_entries=runtime.cache_entries+List.length value.snapshots+
+     List.length value.scene2_geometry_cache+
+     List.length value.scene2_geometry_candidates+List.length value.canvas_keys;
+   release_queue_pending=runtime.release_queue_pending;
+   release_queue_live_handles=runtime.release_queue_live_handles;
+   release_queue_total_created=runtime.release_queue_total_created;
+   release_queue_total_released=runtime.release_queue_total_released}
 let snapshot value ~density source =
   let operation="Prismel_next_execution.lower_scene2"in
   if density<=0 then fail operation Invalid_argument"density must be positive"else
@@ -410,7 +425,9 @@ let capture value=match ensure"Prismel_next_execution.capture"value with Error _
   match Runtime_next_orchestrator.capture value.runtime~bytes_per_row:(facts.drawable_width*4)with Ok x->Ok x|Error e->backend"Prismel_next_execution.capture"e
 let destroy value=if value.dead then Ok()else(
   match Prismel_next_resources.Assets.destroy value.assets with Error e->resource"Prismel_next_execution.destroy"e|Ok()->
-    value.snapshots<-[];value.canvas_keys<-[];value.dead<-true;match Runtime_next_orchestrator.destroy value.runtime with Ok()->Ok()|Error e->backend"Prismel_next_execution.destroy"e)
+    value.snapshots<-[];value.scene2_geometry_cache<-[];
+    value.scene2_geometry_candidates<-[];value.canvas_keys<-[];value.dead<-true;
+    match Runtime_next_orchestrator.destroy value.runtime with Ok()->Ok()|Error e->backend"Prismel_next_execution.destroy"e)
 let run configuration body ~on_stop = match create configuration with Error _ as e->e|Ok value->
   let outcome=try body value with exn->fail"Prismel_next_execution.run"Backend(Printexc.to_string exn)in
   let stopped=try on_stop value with exn->fail"Prismel_next_execution.on_stop"Backend(Printexc.to_string exn)in

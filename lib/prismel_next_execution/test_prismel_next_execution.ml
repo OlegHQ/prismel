@@ -140,6 +140,9 @@ let () =
   check(after.uploaded_bytes=before.uploaded_bytes)"stable draws must not re-upload";
   ignore(Prismel_next_resources.Image.destroy image);ignore(Prismel_next_resources.Canvas.destroy canvas);
   get(destroy resource_runtime);
+  let teardown=diagnostics resource_runtime in
+  check(not teardown.active&&teardown.resource_count=0&&teardown.cache_entries=0)
+    "authoritative execution teardown diagnostics";
   check(Result.is_error(stats resource_runtime))"destroyed stats stale";
   let bounded=get(create{configuration with max_events=64})in
   for index=1 to 100_000 do get(push_event bounded(Pointer_moved(float index,0.)))done;
