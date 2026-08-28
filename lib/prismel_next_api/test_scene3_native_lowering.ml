@@ -26,4 +26,15 @@ let () =
     [Scene.view3d~camera scene])in
   if List.length staged.scene3<>1||Array.length(List.hd staged.scene3).entries<>1 then
     failwith"View3d did not reach structured native staging";
-  print_endline"native Scene3 lowering: 68-byte vertices, 5456-byte uniforms, staged View3d"
+  let texture=Texture.init~width:2~height:2(fun~x~y->if x=y then Color.red else Color.blue)|>Texture.generate_mipmaps in
+  let textured=Scene3.create[Scene3.mesh~texture:(Scene3.textured~filter:Texture.Trilinear texture)mesh]in
+  let textured_stage=Result.get_ok(Scene.Private.stage_native~width:16~height:16[Scene.view3d~camera textured])in
+  let textured_entry=(List.hd textured_stage.scene3).entries.(0)in
+  (match textured_entry.family,textured_entry.texture with Scene_execution.Scene3_textured,Some value when Array.length value.levels=2&&Bytes.length value.levels.(0).bytes=16->()|_->failwith"native texture mip/sampler staging");
+  let light=Light.directional~direction:(Vec3.create 0. 0.(-1.))()in
+  let shadow=Shadow3.create~light~camera~width:1~height:1~depths:[|0.5|]()in
+  let shadowed=Scene3.create~lights:[light]~shadows:[shadow][Scene3.mesh mesh]in
+  let shadow_stage=Result.get_ok(Scene.Private.stage_native~width:16~height:16[Scene.view3d~camera shadowed])in
+  let shadow_entry=(List.hd shadow_stage.scene3).entries.(0)in
+  (match shadow_entry.family,shadow_entry.auxiliary with Scene_execution.Scene3_shadow,Some value when Bytes.length value.buffer=84->()|_->failwith"native shadow staging");
+  print_endline"native Scene3 lowering: geometry, uniforms, View3d, texture mips, shadow"

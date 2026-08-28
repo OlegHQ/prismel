@@ -4,23 +4,23 @@ type text_node={x:int;y:int;value:string;color:Color.t;size:int;wrap:int option;
 and debug_text_node={x:int;y:int;value:string;color:Color.t}
 and view3d_node={viewport:(int*int*int*int)option;camera:Camera.t;scene:Scene3.t;mutable rendered3d:Image.t option}
 and image_node={image:Image.t;x:int;y:int;scale:float;angle:float;center:(int*int)option;flip_x:bool}
-and node=Group of t|Clear of Color.t|Primitive of primitive|Geometry of Raster2.Render_ir.geometry|Text of text_node|Debug_text of debug_text_node|Image of image_node
+and node=Group of t|Clear of Color.t|Primitive of primitive|Geometry of Scene_command.Render_ir.geometry|Text of text_node|Debug_text of debug_text_node|Image of image_node
  |View3d of view3d_node|Region of int*int*int*int*bool
  |Translate of int*int*t|Rotate of float*t|Scale of float*float*t|Clip of int*int*int*int*t|Blend of blend*t
 and t=node list
 let empty=[]let one n=[n]let group x=Group x let clear c=Clear c
 let default_color=Color.white
 let rgba c=Int32.logor(Int32.shift_left(Int32.of_int c.Color.r)24)(Int32.logor(Int32.shift_left(Int32.of_int c.g)16)(Int32.logor(Int32.shift_left(Int32.of_int c.b)8)(Int32.of_int c.a)))
-let point2 (x,y)={Raster2.Path.x=float x;y=float y}
-let geometry_of_mesh color (mesh:Raster2.Path.mesh)=
+let point2 (x,y)={Scene_command.Path.x=float x;y=float y}
+let geometry_of_mesh color (mesh:Scene_command.Path.mesh)=
   let vertices=Array.make(Array.length mesh.vertices*2)0. in
-  Array.iteri(fun index (point:Raster2.Path.point)->vertices.(index*2)<-point.x;vertices.(index*2+1)<-point.y)mesh.vertices;
-  Geometry{Raster2.Render_ir.vertices;indices=mesh.indices;color=rgba color}
+  Array.iteri(fun index (point:Scene_command.Path.point)->vertices.(index*2)<-point.x;vertices.(index*2+1)<-point.y)mesh.vertices;
+  Geometry{Scene_command.Render_ir.vertices;indices=mesh.indices;color=rgba color}
 let path_error operation=function
-  |Ok mesh->mesh|Error Raster2.Path.Empty_path->{Raster2.Path.vertices=[||];indices=[||]}
+  |Ok mesh->mesh|Error Scene_command.Path.Empty_path->{Scene_command.Path.vertices=[||];indices=[||]}
   |Error _->invalid_arg operation
-let fill_path color path=geometry_of_mesh color(path_error"Scene path fill"(Raster2.Path.tessellate~tolerance:0.25~fill_rule:Raster2.Path.Non_zero path))
-let stroke_path ?(width=1.) color path=geometry_of_mesh color(path_error"Scene path stroke"(Raster2.Path.stroke~tolerance:0.25~width~cap:Raster2.Path.Butt~join:Raster2.Path.Miter~miter_limit:4. path))
+let fill_path color path=geometry_of_mesh color(path_error"Scene path fill"(Scene_command.Path.tessellate~tolerance:0.25~fill_rule:Scene_command.Path.Non_zero path))
+let stroke_path ?(width=1.) color path=geometry_of_mesh color(path_error"Scene path stroke"(Scene_command.Path.stroke~tolerance:0.25~width~cap:Scene_command.Path.Butt~join:Scene_command.Path.Miter~miter_limit:4. path))
 let styled_path ?fill ?stroke path=
   let fill=match fill,stroke with None,None->Some default_color|_->fill in
   Group(Option.to_list(Option.map(fun color->fill_path color path)fill)@Option.to_list(Option.map(fun color->stroke_path color path)stroke))
@@ -40,7 +40,7 @@ let rounded_cached key make=
       Hashtbl.replace cache.table key value;cache.order<-key::cache.order;value
 let point ~at ?(color=default_color)()=Primitive{points=[at];closed=false;fill=None;stroke=Some color}
 let line ~from_ ~to_ ?(color=default_color)?(width=1)()=
-  stroke_path~width:(float(max 1 width))color(Raster2.Path.of_commands[|Raster2.Path.Move_to(point2 from_);Raster2.Path.Line_to(point2 to_)|])
+  stroke_path~width:(float(max 1 width))color(Scene_command.Path.of_commands[|Scene_command.Path.Move_to(point2 from_);Scene_command.Path.Line_to(point2 to_)|])
 let polygon points ?fill ?stroke()=Primitive{points;closed=true;fill;stroke}
 let polyline points ?(color=default_color)()=Primitive{points;closed=false;fill=None;stroke=Some color}
 let rect ~at:(x,y)~w~h ?fill ?stroke()=polygon[x,y;x+w,y;x+w,y+h;x,y+h]?fill?stroke()
@@ -51,9 +51,9 @@ let rounded_rect ~at:(x,y) ~w ~h ~radius ?fill ?stroke()=
   let geometry=rounded_cached key(fun()->
     let r=float radius and w=float w and h=float h in
     let k=0.5522847498307936*.r in
-    let p x y={Raster2.Path.x;y}in
-    let path=Raster2.Path.of_commands[|
-      Raster2.Path.Move_to(p r 0.);Line_to(p(w-.r)0.);
+    let p x y={Scene_command.Path.x;y}in
+    let path=Scene_command.Path.of_commands[|
+      Scene_command.Path.Move_to(p r 0.);Line_to(p(w-.r)0.);
       Cubic_to(p(w-.r+.k)0.,p w(r-.k),p w r);
       Line_to(p w(h-.r));Cubic_to(p w(h-.r+.k),p(w-.r+.k)h,p(w-.r)h);
       Line_to(p r h);Cubic_to(p(r-.k)h,p 0.(h-.r+.k),p 0.(h-.r));
@@ -113,9 +113,9 @@ let bezier points ?(steps=20)?(color=default_color)()=
         for level=Array.length values-1 downto 1 do for index=0 to level-1 do
           let x0,y0=values.(index)and x1,y1=values.(index+1)in
           values.(index)<-(x0+.t*.(x1-.x0),y0+.t*.(y1-.y0))done done;
-        let x,y=values.(0)in {Raster2.Path.x;y})in
-      let commands=Array.of_list(Raster2.Path.Move_to(point2 first)::List.map(fun p->Raster2.Path.Line_to p)(List.tl sampled))in
-      ignore rest;stroke_path color(Raster2.Path.of_commands commands))
+        let x,y=values.(0)in {Scene_command.Path.x;y})in
+      let commands=Array.of_list(Scene_command.Path.Move_to(point2 first)::List.map(fun p->Scene_command.Path.Line_to p)(List.tl sampled))in
+      ignore rest;stroke_path color(Scene_command.Path.of_commands commands))
 let path ?(steps=20)?(fill_rule=Path.Non_zero)?fill?stroke value=ignore fill_rule;Primitive{points=Path.points~steps value;closed=Path.is_closed value;fill;stroke}
 let text ~at:(x,y) ?(color=default_color) ?(size=16) value=Text{x;y;value;color;size;wrap=None;align=Font.Left;provided_font=None;automatic=None;rendered=None}
 let debug_text ~at:(x,y) ?(color=default_color) value=Debug_text{x;y;value;color}
@@ -136,8 +136,8 @@ let geometry_uncached p=
       fill(index+2)rest in
  fill 0 p.points;
  let indices=if p.closed&&n>=3 then Array.init((n-2)*3)(fun i->let t=i/3 and k=i mod 3 in if k=0 then 0 else t+k)else if n=1 then[|0|]else Array.init(max 0((n-1)*2))(fun i->if i mod 2=0 then i/2 else i/2+1)in
- Raster2.Render_ir.Geometry{vertices;indices;color=rgba(Option.value p.fill~default:(Option.value p.stroke~default:default_color))}
-type primitive_cache={primitive_table:(primitive,Raster2.Render_ir.command)Hashtbl.t;
+ Scene_command.Render_ir.Geometry{vertices;indices;color=rgba(Option.value p.fill~default:(Option.value p.stroke~default:default_color))}
+type primitive_cache={primitive_table:(primitive,Scene_command.Render_ir.command)Hashtbl.t;
   mutable primitive_order:primitive list}
 let primitive_cache_capacity=256
 let primitive_caches=Domain.DLS.new_key(fun()->
@@ -158,26 +158,26 @@ let geometry p=
       cache.primitive_order<-p::cache.primitive_order;
       command
 module Private=struct
- type staged_native={scene2:Raster2.Render_ir.t;
+ type staged_native={scene2:Scene_command.Render_ir.t;
    resources:(int*Prismel_next_execution.resource)list;
    scene3:Scene_execution.prepared_scene3 list}
  let renderer=ref(fun(_ : t)->())let install_renderer value=renderer:=value
- let rec commands acc=function []->acc|Clear c::xs->commands(Raster2.Render_ir.Clear(rgba c)::acc)xs|Primitive p::xs->commands(geometry p::acc)xs|Geometry g::xs->commands(Raster2.Render_ir.Geometry g::acc)xs|Group g::xs->commands(commands acc g)xs
-  |Debug_text node::xs->commands(Raster2.Render_ir.Debug_text{x=float node.x;y=float node.y;text=node.value;color=rgba node.color}::acc)xs
-  |Translate(x,y,g)::xs->commands(Raster2.Render_ir.Pop_transform::commands(Raster2.Render_ir.Push_transform{xx=1.;xy=0.;yx=0.;yy=1.;tx=float x;ty=float y}::acc)g)xs
-  |Scale(x,y,g)::xs->commands(Raster2.Render_ir.Pop_transform::commands(Raster2.Render_ir.Push_transform{xx=x;xy=0.;yx=0.;yy=y;tx=0.;ty=0.}::acc)g)xs
-  |Rotate(a,g)::xs->let c=cos a and s=sin a in commands(Raster2.Render_ir.Pop_transform::commands(Raster2.Render_ir.Push_transform{xx=c;xy=s;yx=(-.s);yy=c;tx=0.;ty=0.}::acc)g)xs
-  |Clip(x,y,w,h,g)::xs->commands(Raster2.Render_ir.Pop_clip::commands(Raster2.Render_ir.Push_clip{x=float x;y=float y;width=float w;height=float h}::acc)g)xs
-  |Blend(mode,g)::xs->let mode=match mode with Replace->Raster2.Composite.Replace|Alpha->Alpha|Add->Add|Multiply->Multiply in commands(commands(Raster2.Render_ir.Set_blend mode::acc)g)xs
-  |Image node::xs->let width,height=Image.get_size node.image in let rect={Raster2.Render_ir.x=0.;y=0.;width=float width;height=float height}in
-    let destination={Raster2.Render_ir.x=float node.x;y=float node.y;width=float width*.node.scale;height=float height*.node.scale}in
-    let command=Raster2.Render_ir.Image{resource_id=Image.Private.identity node.image;source=rect;destination}in
+ let rec commands acc=function []->acc|Clear c::xs->commands(Scene_command.Render_ir.Clear(rgba c)::acc)xs|Primitive p::xs->commands(geometry p::acc)xs|Geometry g::xs->commands(Scene_command.Render_ir.Geometry g::acc)xs|Group g::xs->commands(commands acc g)xs
+  |Debug_text node::xs->commands(Scene_command.Render_ir.Debug_text{x=float node.x;y=float node.y;text=node.value;color=rgba node.color}::acc)xs
+  |Translate(x,y,g)::xs->commands(Scene_command.Render_ir.Pop_transform::commands(Scene_command.Render_ir.Push_transform{xx=1.;xy=0.;yx=0.;yy=1.;tx=float x;ty=float y}::acc)g)xs
+  |Scale(x,y,g)::xs->commands(Scene_command.Render_ir.Pop_transform::commands(Scene_command.Render_ir.Push_transform{xx=x;xy=0.;yx=0.;yy=y;tx=0.;ty=0.}::acc)g)xs
+  |Rotate(a,g)::xs->let c=cos a and s=sin a in commands(Scene_command.Render_ir.Pop_transform::commands(Scene_command.Render_ir.Push_transform{xx=c;xy=s;yx=(-.s);yy=c;tx=0.;ty=0.}::acc)g)xs
+  |Clip(x,y,w,h,g)::xs->commands(Scene_command.Render_ir.Pop_clip::commands(Scene_command.Render_ir.Push_clip{x=float x;y=float y;width=float w;height=float h}::acc)g)xs
+  |Blend(mode,g)::xs->let mode=match mode with Replace->Scene_command.Render_ir.Replace|Alpha->Alpha|Add->Add|Multiply->Multiply in commands(commands(Scene_command.Render_ir.Set_blend mode::acc)g)xs
+  |Image node::xs->let width,height=Image.get_size node.image in let rect={Scene_command.Render_ir.x=0.;y=0.;width=float width;height=float height}in
+    let destination={Scene_command.Render_ir.x=float node.x;y=float node.y;width=float width*.node.scale;height=float height*.node.scale}in
+    let command=Scene_command.Render_ir.Image{resource_id=Image.Private.identity node.image;source=rect;destination}in
     let transformed=node.angle<>0.||node.flip_x||node.center<>None in
     let acc=if transformed then
       let cx,cy=match node.center with None->destination.width*.0.5,destination.height*.0.5|Some(cx,cy)->float cx,float cy in
       let px=destination.x+.cx and py=destination.y+.cy and c=cos node.angle and s=sin node.angle and sx=if node.flip_x then -.1. else 1. in
       let xx=c*.sx and xy=(-.s)and yx=s*.sx and yy=c in
-      Raster2.Render_ir.Pop_transform::command::Raster2.Render_ir.Push_transform{xx;xy;yx;yy;tx=px-.xx*.px-.xy*.py;ty=py-.yx*.px-.yy*.py}::acc
+      Scene_command.Render_ir.Pop_transform::command::Scene_command.Render_ir.Push_transform{xx;xy;yx;yy;tx=px-.xx*.px-.xy*.py;ty=py-.yx*.px-.yy*.py}::acc
     else command::acc in
     commands acc xs
   |(Text _|View3d _|Region _)::xs->commands acc xs
@@ -226,7 +226,7 @@ module Private=struct
    else
      try
        let scene = materialize ~width ~height scene in
-       match Raster2.Render_ir.Private.create_owned (Array.of_list (List.rev (commands [] scene))) with
+       match Scene_command.Render_ir.Private.create_owned (Array.of_list (List.rev (commands [] scene))) with
        | Error _ -> Error "invalid scene description"
        | Ok ir -> Ok (ir, image_resources scene)
      with
@@ -237,8 +237,8 @@ module Private=struct
    match stage ~width ~height scene with Error _ as error->error|Ok(scene2,resources)->
    let lowered=ref[]and failure=ref None in
    let callbacks:Scene3_native_lowering.resources={
-     texture=(fun _->Error Unsupported_texture);
-     shadow=(fun _->Error Unsupported_shadow)}in
+     texture=(fun value->let levels=Texture.Private.levels value.Scene3.value|>Array.map(fun(w,h,pixels)->let bytes=Bytes.create(w*h*4)in Array.iteri(fun index color->Bytes.set_int32_be bytes(index*4)(Int32.of_int((color.Color.r lsl 24)lor(color.g lsl 16)lor(color.b lsl 8)lor color.a)))pixels;{Scene_execution.width=w;height=h;bytes})in let address=function Texture.Clamp->Ogpu.Types.Clamp_to_edge|Repeat->Repeat|Mirror->Mirror_repeat in let min_filter,mag_filter,mip_filter=match value.filter with Texture.Nearest->Ogpu.Types.Nearest,Ogpu.Types.Nearest,Ogpu.Types.No_mip|Texture.Bilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.No_mip|Texture.Trilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.Linear_mip in let sampler:Ogpu.Types.sampler_descriptor={label=Some"scene3-texture";min_filter;mag_filter;mip_filter;address_u=address value.wrap_u;address_v=address value.wrap_v;lod_min=0.;lod_max=float(Array.length levels-1);max_anisotropy=1}in Ok{Scene_execution.key=Digest.to_hex(Digest.string(Marshal.to_string levels[]));levels;sampler});
+     shadow=(fun value->let source=Shadow3.Private.snapshot value in let matrix=Array.init 16(fun index->Mat4.get source.view_projection~row:(index/4)~column:(index mod 4))in let snapshot:Scene_execution.shadow_snapshot={width=source.width;height=source.height;depths=source.depths;matrix;bias={constant=source.bias;slope=source.normal_bias};kernel=(match source.filter with Hard->Tap1|Pcf_3x3->Tap9|Pcf_5x5->Tap25);strength=source.strength}in match Scene_execution.shadow_resource~key:(Digest.to_hex(Digest.string(Marshal.to_string snapshot[])))snapshot with Error _->Error Unsupported_shadow|Ok resource->Ok{Scene_execution.key=resource.texture.key;buffer=resource.parameters;texture=resource.texture})}in
    let rec visit=function
      |[]->()|View3d node::rest->
        let viewport=Option.value node.viewport~default:(0,0,width,height)in
