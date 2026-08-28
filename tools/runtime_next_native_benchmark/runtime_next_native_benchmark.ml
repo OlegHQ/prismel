@@ -171,10 +171,11 @@ let create_renderer counters visibility width height =
 let run_public selected warmup_seconds samples sample_seconds visibility width height =
   let public=match selected with Basic->R10_scene2_legacy_equivalent.Basic|Pxui->Pxui|Canvas->Canvas|Scene3->Scene3|Shattered->assert false in
   let descriptor=R10_scene2_legacy_equivalent.describe public~width~height in
-  let render,capture,stats,set_visibility,observed_visibility,destroy=match selected with
+  let render,render_canonical,capture,stats,set_visibility,observed_visibility,destroy=match selected with
   |Basic|Pxui|Canvas->
       let candidate=Result.get_ok(R10_scene2_candidate.create~target:`Native~width~height public)in
       (fun()->R10_scene2_candidate.render candidate~width~height;Ok true),
+      (fun()->R10_scene2_candidate.render_canonical candidate~width~height;Ok true),
       (fun()->Ok(R10_scene2_candidate.capture candidate)),
       (fun()->Ok(R10_scene2_candidate.stats candidate)),
       (fun visible->if visible then Prismel_next_execution.show candidate.execution else Prismel_next_execution.hide candidate.execution),
@@ -188,6 +189,7 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
       let canonical=R10_scene3_legacy_equivalent.create~width~height in
       ignore(Result.get_ok(R10_scene3_equivalence_bridge.prove~width~height canonical));
       let draws=List.map(fun draw->Prismel_next_execution.prepared_draw~family:Scene3~samples:4 draw)canonical.software_batched_draws in
+      (fun()->Result.map(fun _->true)(Prismel_next_execution.step execution draws)),
       (fun()->Result.map(fun _->true)(Prismel_next_execution.step execution draws)),
       (fun()->Prismel_next_execution.capture execution),
       (fun()->Prismel_next_execution.stats execution),
@@ -221,7 +223,9 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
   |Some duration->run_for duration true in
   let measured=Array.length walls in
   let after=Result.get_ok(stats())and gc1=Gc.quick_stat()and cpu1=Unix.times()and allocated=Gc.allocated_bytes()-.allocated0 in
-  let framebuffer=Result.get_ok(capture())and rss=rss_kib()in rss_peak:=max!rss_peak rss;ignore(Result.get_ok(destroy()));
+  let framebuffer=Result.get_ok(capture())and rss=rss_kib()in rss_peak:=max!rss_peak rss;
+  ignore(Result.get_ok(render_canonical()));let canonical_framebuffer=Result.get_ok(capture())in
+  ignore(Result.get_ok(destroy()));
   let cpu=cpu1.tms_utime+.cpu1.tms_stime-.cpu0.tms_utime-.cpu0.tms_stime in
   let promoted=(gc1.promoted_words-.gc0.promoted_words)*.float(Sys.word_size/8)in
   let delta x y=Int64.to_int(Int64.sub x y)in
@@ -243,6 +247,8 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
     "work_units",`Int descriptor.work_units;"semantics_supported",`Bool true;"scheduling",`String(match sample_seconds with Some _->"duration-bounded"|None->"frame-count");
     "scheduled_frame_rate",`Null;
     "framebuffer_digest",`String(Digest.to_hex(Digest.bytes framebuffer));
+    "canonical_framebuffer_digest",`String(Digest.to_hex(Digest.bytes canonical_framebuffer));
+    "canonical_pixel_authority",`String("r10-canonical-frame-1/"^protocol_scenario_name selected);
     "pixel_authority",`String("phase0/runtime-next-native"^(match visibility with Visible->""|Hidden->"-hidden")^"/"^protocol_scenario_name selected);"pixel_tolerance",`Int 3;
     "native_gpu_counters",native_gpu_counters ~supported:after.gpu_timing_supported ~duration:(after.gpu_duration_seconds-.before.gpu_duration_seconds) ~samples:(Int64.sub after.gpu_sample_count before.gpu_sample_count) ~wall:total;
     "retained_render_plans",retained_plan_counters before after;
@@ -251,7 +257,7 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
 
 let ()=let selected=ref Basic and warmup=ref 5 and warmup_seconds=ref None and samples=ref 30 and sample_seconds=ref None and report=ref None and artifact_path=ref None and visibility=ref Hidden and width=ref 64 and height=ref 64 and protocol_r9=ref false in Arg.parse["--warmup",Arg.Set_int warmup,"frames";"--warmup-seconds",Arg.Float(fun x->warmup_seconds:=Some x),"duration";"--samples",Arg.Set_int samples,"frames";"--sample-seconds",Arg.Float(fun x->sample_seconds:=Some x),"duration";"--width",Arg.Set_int width,"logical width";"--height",Arg.Set_int height,"logical height";"--report",Arg.String(fun x->report:=Some x),"path";"--acceptance-artifact",Arg.String(fun x->artifact_path:=Some x),"cooked shattered artifact";"--visibility",Arg.Symbol(["visible";"hidden"],fun x->visibility:=if x="visible"then Visible else Hidden),"window visibility";"--protocol-r9",Arg.Set protocol_r9,"exact 600-frame stable camera-only upload protocol"](fun x->selected:=parse x)"runtime_next_native_benchmark scenario";if !warmup<1|| !samples<1|| !width<=0|| !height<=0||Option.fold~none:false~some:(fun x->x<=0.)!warmup_seconds||Option.fold~none:false~some:(fun x->x<=0.)!sample_seconds then invalid_arg"counts or dimensions";
   if !protocol_r9 then(samples:=600;sample_seconds:=None;if !selected<>Scene3 then invalid_arg"R9 protocol requires scene3");
-  if !selected<>Shattered && !selected<>Scene3 && not !protocol_r9 then(let public_warmup=Option.value!warmup_seconds~default:(float!warmup/.60.)in let text=run_public!selected public_warmup!samples!sample_seconds!visibility!width!height in (match!report with None->print_string text|Some path->let out=open_out_bin path in output_string out text;close_out out);exit 0);
+  if !selected<>Shattered && not !protocol_r9 then(let public_warmup=Option.value!warmup_seconds~default:(float!warmup/.60.)in let text=run_public!selected public_warmup!samples!sample_seconds!visibility!width!height in (match!report with None->print_string text|Some path->let out=open_out_bin path in output_string out text;close_out out);exit 0);
   let protocol_r11=ref(!sample_seconds=Some 30.)in
   let source_before=source_snapshot()in
   if (!protocol_r9 || !protocol_r11) && (match source_before with Some(_,true)->false|_->true)then

@@ -26,6 +26,8 @@ let sample ?(wall=1.) ?(frames=100) ?(scheduling="duration-bounded") ~target ~sc
         [ "workload_signature", `String (scenario ^ "-work")
         ; "semantics_supported", `Bool true
         ; "pixel_hash", `String (target ^ "-" ^ scenario ^ "-pixels")
+        ; "canonical_pixel_hash", `String (target ^ "-" ^ scenario ^ "-canonical-pixels")
+        ; "canonical_pixel_authority", `String ("r10-canonical-frame-1/" ^ scenario)
         ; "pixel_authority", `String ("phase0/" ^
             (if target="legacy-native"then"legacy"else target)^"/"^scenario)
         ; "pixel_tolerance", `Int (if target = "legacy-native" then 0 else 3)
@@ -164,6 +166,22 @@ let () =
       write invalid (report scene3_signature);
       if run Sys.argv.(1) invalid = Unix.WEXITED 0 then
         failwith "Scene3 workload mismatch bypassed equivalence validation";
+      let missing_canonical=replace_cell~target:"headless"~scenario:"scene3"
+        (fun fields->match List.assoc"equivalence"fields with
+        |`Assoc values->replace_field"equivalence"(`Assoc(List.map(fun(name,value)->
+            if name="canonical_pixel_hash"then name,`Null else name,value)values))fields
+        |_->assert false)samples in
+      write invalid(report missing_canonical);
+      if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
+        failwith"missing canonical fixed-frame hash accepted";
+      let wrong_visibility=replace_cell~target:"runtime-next-native"~scenario:"scene3"
+        (fun fields->match List.assoc"raw"fields with
+        |`Assoc values->replace_field"raw"(`Assoc(List.map(fun(name,value)->
+            if name="observed_visible"then name,`Bool false else name,value)values))fields
+        |_->assert false)samples in
+      write invalid(report wrong_visibility);
+      if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
+        failwith"mismatching observed native visibility accepted";
       let scene3_authority = replace_cell ~target:"legacy-native" ~scenario:"scene3"
         (fun fields ->
           let equivalence = match List.assoc "equivalence" fields with

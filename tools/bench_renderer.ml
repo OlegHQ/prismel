@@ -430,7 +430,7 @@ let print_result model result =
       (Sys.getenv_opt "PRISMEL_BENCH_PROFILE") in
   let descriptor=descriptor model.resources in
   Printf.printf
-    "{\"schema\":1,\"benchmark\":\"renderer\",\"scenario\":\"%s\",\"target\":\"%s\",\"profile\":\"%s\",\"width\":%d,\"height\":%d,\"drawable_width\":%d,\"drawable_height\":%d,\"pixel_scale\":[%.6f,%.6f],\"domains\":%d,\"warmup_seconds\":%.6f,\"requested_measure_seconds\":%.6f,\"scheduling\":\"duration-bounded\",\"scheduled_frame_rate\":null,\"frames\":%d,\"wall_seconds\":%.9f,\"frames_per_second\":%.6f,\"median_frame_seconds\":%.9f,\"p95_frame_seconds\":%.9f,\"p99_frame_seconds\":%.9f,\"user_seconds\":%.9f,\"system_seconds\":%.9f,\"cpu_percent\":%.6f,\"allocated_bytes\":%.0f,\"allocated_bytes_per_frame\":%.6f,\"minor_bytes\":%.0f,\"promoted_bytes\":%.0f,\"promoted_bytes_per_frame\":%.6f,\"major_bytes\":%.0f,\"major_collections\":%d,\"ending_heap_bytes\":%d,\"peak_heap_bytes\":%d,\"starting_rss_kib\":%s,\"ending_rss_kib\":%s,\"peak_sampled_rss_kib\":%s,\"workload_signature\":\"%s\",\"work_units\":%d,\"semantics_supported\":true,\"pixel_authority\":\"phase0/legacy/%s\",\"pixel_tolerance\":0,\"framebuffer_hash\":\"%s\",\"legacy_gpu_duration_seconds\":null,\"legacy_gpu_utilization_percent\":null,\"legacy_draw_count\":null,\"legacy_upload_bytes\":null}\n%!"
+    "{\"schema\":1,\"benchmark\":\"renderer\",\"scenario\":\"%s\",\"target\":\"%s\",\"profile\":\"%s\",\"width\":%d,\"height\":%d,\"drawable_width\":%d,\"drawable_height\":%d,\"pixel_scale\":[%.6f,%.6f],\"domains\":%d,\"warmup_seconds\":%.6f,\"requested_measure_seconds\":%.6f,\"scheduling\":\"duration-bounded\",\"scheduled_frame_rate\":null,\"frames\":%d,\"wall_seconds\":%.9f,\"frames_per_second\":%.6f,\"median_frame_seconds\":%.9f,\"p95_frame_seconds\":%.9f,\"p99_frame_seconds\":%.9f,\"user_seconds\":%.9f,\"system_seconds\":%.9f,\"cpu_percent\":%.6f,\"allocated_bytes\":%.0f,\"allocated_bytes_per_frame\":%.6f,\"minor_bytes\":%.0f,\"promoted_bytes\":%.0f,\"promoted_bytes_per_frame\":%.6f,\"major_bytes\":%.0f,\"major_collections\":%d,\"ending_heap_bytes\":%d,\"peak_heap_bytes\":%d,\"starting_rss_kib\":%s,\"ending_rss_kib\":%s,\"peak_sampled_rss_kib\":%s,\"workload_signature\":\"%s\",\"work_units\":%d,\"semantics_supported\":true,\"pixel_authority\":\"phase0/legacy/%s\",\"pixel_tolerance\":0,\"framebuffer_hash\":\"%s\",\"canonical_framebuffer_digest\":\"%s\",\"canonical_pixel_authority\":\"r10-canonical-frame-1/%s\",\"legacy_gpu_duration_seconds\":null,\"legacy_gpu_utilization_percent\":null,\"legacy_draw_count\":null,\"legacy_upload_bytes\":null}\n%!"
     (scenario_name scenario) (target_name ()) profile width height
     model.drawable_width model.drawable_height model.pixel_scale_x
     model.pixel_scale_y domains warmup_seconds measure_seconds result.frames
@@ -447,7 +447,7 @@ let print_result model result =
     (Option.fold ~none:"null" ~some:string_of_int result.ending_rss_kib)
     (Option.fold ~none:"null" ~some:string_of_int result.peak_sampled_rss_kib)
     descriptor.semantic_signature descriptor.work_units (scenario_name scenario)
-    result.framebuffer_hash
+    result.framebuffer_hash result.framebuffer_hash (scenario_name scenario)
 
 let () =
   let final = Sketch.run_state

@@ -216,6 +216,8 @@ let normalize ~protocol ~case ~sample_index raw =
       "semantics_supported", (match first ["semantics_supported"] raw with
         | Some (`Bool _ as value) -> value | _ -> `Null);
       "pixel_hash", string_or_null (first ["pixel_hash"; "framebuffer_hash"; "framebuffer_digest"] raw);
+      "canonical_pixel_hash", string_or_null (first ["canonical_framebuffer_digest"] raw);
+      "canonical_pixel_authority", string_or_null (first ["canonical_pixel_authority"] raw);
       "pixel_authority", string_or_null (first ["pixel_authority"] raw);
       "pixel_tolerance", number_or_null (first ["pixel_tolerance"] raw)];
     "gpu", `Assoc ["duration_seconds", number_or_null (first ["gpu_duration_seconds"; "legacy_gpu_duration_seconds"] raw);
@@ -257,6 +259,11 @@ let require_equivalent_work samples scenario =
     if member "semantics_supported" equivalence <> `Bool true then
       fail "%s/%s does not support the exact neutral descriptor" target scenario;
     ignore(exact_string "pixel_hash" sample);
+    ignore(exact_string "canonical_pixel_hash" sample);
+    let canonical_authority=exact_string "canonical_pixel_authority" sample in
+    let expected_canonical="r10-canonical-frame-1/"^scenario in
+    if canonical_authority<>expected_canonical then fail "%s/%s canonical pixel authority %s is not %s"
+      target scenario canonical_authority expected_canonical;
     let authority=exact_string "pixel_authority" sample in
     let expected=Printf.sprintf "phase0/%s/%s" (authority_target target) scenario in
     if authority<>expected then fail "%s/%s pixel authority %s is not %s"
@@ -267,9 +274,9 @@ let require_equivalent_work samples scenario =
     matching;
   List.iter(fun target->
     let target_samples=List.filter(fun sample->member "target" sample=`String target)matching in
-    let hashes=unique(List.map(exact_string "pixel_hash")target_samples)
+    let hashes=unique(List.map(exact_string "canonical_pixel_hash")target_samples)
     and authorities=unique(List.map(exact_string "pixel_authority")target_samples)in
-    if List.length hashes<>1 then fail "%s/%s pixel authority hash drift"target scenario;
+    if List.length hashes<>1 then fail "%s/%s canonical pixel authority hash drift"target scenario;
     if List.length authorities<>1 then fail "%s/%s pixel provenance drift"target scenario)
     required_targets;
   List.iter (fun sample -> ignore (exact_positive "frame_count" sample)) matching;

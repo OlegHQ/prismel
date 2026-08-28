@@ -176,6 +176,8 @@ let () =
     "pixel_tolerance", `Int 3;
     "work_units", `Int artifact.work_units;
     "framebuffer_digest", `String (Digest.to_hex (Digest.bytes framebuffer));
+    "canonical_framebuffer_digest", `String (Digest.to_hex (Digest.bytes framebuffer));
+    "canonical_pixel_authority", `String ("r10-canonical-frame-1/" ^ !scenario);
     "median_frame_seconds", `Float (percentile 0.5 frames);
     "p95_frame_seconds", `Float (percentile 0.95 frames);
     "p99_frame_seconds", `Float (percentile 0.99 frames);
