@@ -1,4 +1,4 @@
-let allow_smoke=ref false and compare=ref None and complete_set=ref false and paths=ref[]
+let allow_smoke=ref false and paths=ref[]
 let field name fields=match List.assoc_opt name fields with Some x->x|None->failwith("missing "^name)
 let int name fields=match field name fields with `Int x->x|_->failwith(name^" is not int")
 let int64 name fields=match field name fields with
@@ -12,7 +12,7 @@ type validated={target:string;hash:string}
 let validate path=match Yojson.Safe.from_file path with
 |`Assoc fields->
   if int"schema"fields<>1||string"qualification"fields<>"R12-final-facade"then failwith"schema drift";
-  let target=string"target"fields in if not(List.mem target["native";"headless";"web"])then failwith"invalid target";
+  let target=string"target"fields in if target<>"native"then failwith"invalid target";
   if string"scenario"fields<>"all"then failwith"qualification scenario must be all";
   if int"frames"fields<600 then failwith"checkpoint cardinality";
   let duration=float"duration_seconds"fields in if not!allow_smoke&&duration<1790. then failwith"lane shorter than 30 minutes";
@@ -41,9 +41,8 @@ let validate path=match Yojson.Safe.from_file path with
        ||resources<0||resources>created||runtime_resources<0||
        runtime_resources>runtime_resource_limit||cache_entries<0||
        cache_entries>cache_entry_limit then failwith"invalid sample facts";
-    (match field"release_queue_pending"fs,target with
-     |`Null,("headless"|"web")->()
-     |`Int pending,"native" when pending>=0&&pending<=release_queue_pending_limit->()
+    (match field"release_queue_pending"fs with
+     |`Int pending when pending>=0&&pending<=release_queue_pending_limit->()
      |_->failwith"invalid sampled release-queue bound");
     frame,elapsed,rss|_->failwith"sample is not object")samples in
   let rec ordered=function []|[_]->true|(f0,t0,_)::((f1,t1,_)::_ as rest)->f1>f0&&t1>t0&&ordered rest in
@@ -61,8 +60,8 @@ let validate path=match Yojson.Safe.from_file path with
   let destroyed=int"destroyed_resources"fields in if created<>destroyed then failwith"created/destroyed resource mismatch";
   if int"live_resources_after_teardown"fields<>0||int"runtime_resources_after_teardown"fields<>0
      ||int"cache_entries_after_teardown"fields<>0 then failwith"teardown counters nonzero";
-  (match target,field"release_queue_pending_after_teardown"fields,field"release_queue_counter_supported"fields with
-   |"native",`Int 0,`Bool true->
+  (match field"release_queue_pending_after_teardown"fields,field"release_queue_counter_supported"fields with
+   |`Int 0,`Bool true->
        let live_before=int"metal_live_handles_before"fields
        and live_after=int"metal_live_handles_after"fields
        and created_before=int64"metal_total_created_before"fields
@@ -73,11 +72,6 @@ let validate path=match Yojson.Safe.from_file path with
           ||Int64.sub created_after created_before<>
             Int64.sub released_after released_before then
          failwith"native Metal ownership counters did not return to baseline"
-   |("headless"|"web"),`Null,`Bool false->
-       List.iter(fun name->match field name fields with `Null->()|_->failwith(name^" must be null"))
-         ["metal_live_handles_before";"metal_live_handles_after";
-          "metal_total_created_before";"metal_total_created_after";
-          "metal_total_released_before";"metal_total_released_after"]
    |_->failwith"invalid target release-queue diagnostic");
   List.iter(fun name->if int name fields<=0 then failwith(name^" did not exercise workload"))
     ["canvas_cycles";"watched_reload_cycles";"failed_reload_cycles";"audio_cycles";"resize_cycles";"changing_mesh_frames"];
@@ -86,7 +80,7 @@ let validate path=match Yojson.Safe.from_file path with
   if not(hexadecimal16 hash)then failwith"deterministic hash is not canonical";
   {target;hash}
 |_->failwith"report root is not object"
-let ()=Arg.parse["--allow-smoke",Arg.Set allow_smoke,"accept short lane";"--compare",Arg.String(fun p->compare:=Some p),"compare deterministic report";"--complete-set",Arg.Set complete_set,"require native/headless/web reports"](fun p->paths:=p::!paths)"validate R12 report(s)";
+let ()=Arg.parse["--allow-smoke",Arg.Set allow_smoke,"accept short lane"](fun p->paths:=p::!paths)"validate R12 report";
   let reports=List.map validate(List.rev!paths)in
-  (if!complete_set then begin if Option.is_some!compare then invalid_arg"--compare is incompatible with --complete-set";let targets=List.sort String.compare(List.map(fun report->report.target)reports)in if targets<>["headless";"native";"web"]then failwith"complete set requires exactly native, headless, and web"end else match reports with [report]->Option.iter(fun other->if report.hash<>(validate other).hash then failwith"deterministic hash mismatch")!compare|_->invalid_arg"one report required unless --complete-set is used");
+  (match reports with [_]->()|_->invalid_arg"one native report required");
   print_endline"R12 final-facade report: valid"

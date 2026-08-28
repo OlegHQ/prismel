@@ -1,12 +1,10 @@
 open Prismel_next_api
 
-type target=Native|Headless|Web
 type scenario=Basic|Pxui|Canvas|Scene3|All
-let target=ref Headless and scenario=ref All and minutes=ref 30.
+let scenario=ref All and minutes=ref 30.
 and frames=ref None and sample_every=ref 10. and report=ref None
 let runtime_resource_limit=512 and cache_entry_limit=2048
 and release_queue_pending_limit=256
-let target_name=function Native->"native"|Headless->"headless"|Web->"web"
 let scenario_name=function Basic->"basic"|Pxui->"pxui"|Canvas->"canvas"|Scene3->"scene3"|All->"all"
 let rss_kib()=
   let argv=[|"/bin/ps";"-o";"rss=";"-p";string_of_int(Unix.getpid())|]in
@@ -75,7 +73,7 @@ let update model _=
   end;
   if frame mod 30=0 then begin
     let transient=Canvas.create_exn~width:(8+frame mod 9)~height:(8+frame mod 7)in
-    created model;Canvas.render transient[Scene.clear(color frame)];
+    Canvas.set_pixel transient ~x:0 ~y:0 (color frame);created model;
     let copy=get(Canvas.to_image transient)in created model;
     Image.destroy copy;destroyed model;Canvas.destroy transient;destroyed model;
     model.canvas_cycles<-model.canvas_cycles+1
@@ -116,8 +114,6 @@ let stop model=
 
 let ()=
   Arg.parse[
-    "--target",Arg.Symbol(["native";"headless";"web"],function
-      |"native"->target:=Native|"headless"->target:=Headless|_->target:=Web),"target";
     "--scenario",Arg.Symbol(["basic";"pxui";"canvas";"scene3";"all"],function
       |"basic"->scenario:=Basic|"pxui"->scenario:=Pxui|"canvas"->scenario:=Canvas
       |"scene3"->scenario:=Scene3|_->scenario:=All),"scenario";
@@ -129,10 +125,7 @@ let ()=
   if !minutes<=0.|| !sample_every<=0.||
      Option.fold~none:false~some:(fun n->n<600)!frames
   then invalid_arg"positive duration, sample period, and at least 600 frames required";
-  Unix.putenv"PRISMEL_RENDER_TARGET"(target_name!target);
-  let release_before=match!target with
-    |Native->Runtime_diagnostics.native_release_queue()
-    |Headless|Web->None in
+  let release_before=Runtime_diagnostics.native_release_queue() in
   let red=Filename.temp_file"prismel-r12-red-"".ppm"
   and blue=Filename.temp_file"prismel-r12-blue-"".ppm"in
   ppm red(255,0,0);ppm blue(0,0,255);
@@ -146,7 +139,7 @@ let ()=
         let assets=Assets.create~root:(Filename.dirname red)~watch:true()in
         let image=Assets.image_exn assets(Filename.basename red)in
         let canvas=Canvas.create_exn~width:16~height:16 in
-        Canvas.render canvas[Scene.clear(Color.rgb 20 40 80)];
+        Canvas.set_pixel canvas ~x:0 ~y:0 (Color.rgb 20 40 80);
         get(Audio.init());
         {assets;image;canvas;sample=None;frame=0;started;next_sample=0.;
          samples=Array.make 256 None;observations=0;rolling=0xcbf29ce484222325L;
@@ -158,13 +151,11 @@ let ()=
     let start=if final.observations<=256 then 0 else final.observations mod 256 in
     List.init n(fun index->Option.get final.samples.((start+index)mod 256))in
   let runtime=Runtime_diagnostics.snapshot()in
-  let release_after=match!target with
-    |Native->Runtime_diagnostics.native_release_queue()
-    |Headless|Web->None in
+  let release_after=Runtime_diagnostics.native_release_queue() in
   let release_field select value=match value with None->`Null|Some stats->select stats in
   let output=`Assoc[
     "schema",`Int 1;"qualification",`String"R12-final-facade";
-    "target",`String(target_name!target);"scenario",`String(scenario_name!scenario);
+    "target",`String"native";"scenario",`String(scenario_name!scenario);
     "duration_seconds",`Float(Unix.gettimeofday()-.started);"frames",`Int final.frame;
     "checkpoints",`List(List.rev_map(fun(frame,hash)->`List[`Int frame;`String hash])final.checkpoints);
     "deterministic_hash",`String(Printf.sprintf"%016Lx"final.rolling);

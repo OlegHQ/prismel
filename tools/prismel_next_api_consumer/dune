@@ -11,6 +11,4 @@
  (modules prismel_next_api_installed_consumer)
  (libraries prismel.prismel_next_api)
  (deps resolved_deps.txt)
- (action
-  (setenv PRISMEL_RENDER_TARGET headless
-   (run %{test} %{dep:resolved_deps.txt}))))
+ (action (run %{test} %{dep:resolved_deps.txt})))

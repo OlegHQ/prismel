@@ -20,13 +20,13 @@ let check_dependencies filename =
   let public_modules =
     [ "Assets"; "Audio"; "Camera"; "Canvas"; "Color"; "Compute3";
       "Easy_camera"; "Easy_camera2"; "Event"; "Fog3"; "Font"; "Frame";
-      "Framebuffer3"; "Image"; "Input"; "Light"; "Mat3"; "Mat4";
+      "Image"; "Input"; "Light"; "Mat3"; "Mat4";
       "Material"; "Math"; "Mesh"; "Node3"; "Noise"; "Parallel"; "Path";
-      "Preview"; "Quat"; "Rand"; "Render3"; "Scene"; "Scene3";
+      "Preview"; "Quat"; "Rand"; "Scene"; "Scene3";
       "Shader3"; "Shadow3"; "Sketch"; "Texture"; "Time";
       "Transform_feedback3"; "Vec2"; "Vec3" ]
   in
-  require (List.length public_modules = 39) "public module manifest cardinality";
+  require (List.length public_modules = 37) "public module manifest cardinality";
   List.iter
     (fun name ->
       require
@@ -91,10 +91,7 @@ let representative_values () =
   in
   require (Shadow3.size shadow = (1, 1)) "Shadow3";
   let scene = Scene3.create [ Scene3.mesh mesh ] in
-  let framebuffer = Framebuffer3.render ~width:8 ~height:8 ~camera scene in
-  require (Framebuffer3.size framebuffer = (8, 8)) "Framebuffer3";
-  ignore (Render3.save_png : width:int -> height:int -> ?background:Color.t ->
-          camera:Camera.t -> Scene3.t -> string -> (unit, string) result);
+  ignore (Scene.view3d ~camera scene);
   let scene2 = [ Scene.clear Color.black;
     Scene.rect ~at:(1, 1) ~w:4 ~h:4 ~fill:Color.red () ] in
   ignore (Result.get_ok (Scene.Private.to_ir scene2));
@@ -110,7 +107,7 @@ let representative_values () =
       ~update:(fun value _ -> value + 1)
       ~view:(fun _ _ -> scene2) ()
   in
-  require (model = 1) "Sketch headless frame";
+  require (model = 1) "Sketch frame";
   let low_window =
     Result.get_ok
       (Low.Backend.start ~width:8 ~height:8 ~title:"consumer-low"
