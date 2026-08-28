@@ -66,6 +66,9 @@ let set_always_on_top value enabled=window_call"Runtime_next.set_always_on_top"(
 let set_fullscreen value enabled=window_call"Runtime_next.set_fullscreen"(fun window->Sdl3.Window.set_fullscreen window enabled)value
 let show=window_call"Runtime_next.show" Sdl3.Window.show
 let hide=window_call"Runtime_next.hide" Sdl3.Window.hide
+let visible value=live_window"Runtime_next.visible"value(fun window->
+  Result.map(fun flags->Int64.logand flags 0x8L=0L)
+    (sdl"Runtime_next.visible"(Sdl3.Window.flags window)))
 let minimize=window_call"Runtime_next.minimize" Sdl3.Window.minimize
 let maximize=window_call"Runtime_next.maximize" Sdl3.Window.maximize
 let restore=window_call"Runtime_next.restore" Sdl3.Window.restore

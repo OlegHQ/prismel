@@ -37,6 +37,7 @@ val set_always_on_top : t -> bool -> (unit, Ogpu.Error.t) result
 val set_fullscreen : t -> bool -> (unit, Ogpu.Error.t) result
 val show : t -> (unit, Ogpu.Error.t) result
 val hide : t -> (unit, Ogpu.Error.t) result
+val visible : t -> (bool, Ogpu.Error.t) result
 val minimize : t -> (unit, Ogpu.Error.t) result
 val maximize : t -> (unit, Ogpu.Error.t) result
 val restore : t -> (unit, Ogpu.Error.t) result

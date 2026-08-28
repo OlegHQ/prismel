@@ -40,8 +40,8 @@ let rss_kib()=
 
 let run ~visibility ~seconds ~report ~metadata mesh =
   if seconds<=0. then invalid_arg"R11 duration must be positive";
-  if visibility<>"hidden" then failwith
-    "actual-sketch R11 visible measurement is unavailable: runtime-next currently creates a hidden native window";
+  if visibility<>"hidden"&&visibility<>"visible"then
+    invalid_arg"R11 visibility must be hidden or visible";
   let width=1200 and height=760 in
   let vertices,indices=pack mesh in
   if Bytes.length vertices<>metadata.render_vertices*68||
@@ -53,6 +53,11 @@ let run ~visibility ~seconds ~report ~metadata mesh =
     title="Prismel shattered cube · R11 actual sketch"}in
   let execution=get"create"(Prismel_next_execution.create configuration)in
   Fun.protect~finally:(fun()->ignore(Prismel_next_execution.destroy execution))(fun()->
+    ignore(get visibility((if visibility="visible"then Prismel_next_execution.show
+      else Prismel_next_execution.hide)execution));
+    let observed_visible=get"visible"(Prismel_next_execution.visible execution)in
+    if observed_visible<>(visibility="visible")then
+      failwith"actual-sketch R11 window visibility did not match the requested mode";
     let state:Scene_execution.state={viewport=(0,0,width,height);scissor=(0,0,width,height);
       cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;
       depth_write=false;depth_load=Ogpu.Render_pass.Clear;depth_clear=1.;
@@ -88,7 +93,8 @@ let run ~visibility ~seconds ~report ~metadata mesh =
     let json=`Assoc[
       "schema",`Int 2;"scenario",`String"shattered-cube";
       "backend",`String"actual-sketch-runtime-next-metal";
-      "visibility",`String visibility;"protocol_r11_requested",`Bool(seconds=30.);
+      "visibility",`String visibility;"observed_visible",`Bool observed_visible;
+      "protocol_r11_requested",`Bool(seconds=30.);
       "r11_sketch_invocation",`Assoc[
         "status",`String"actual-sketch-cooked-and-rendered";
         "evidence_class",`String"candidate";"frozen_r11_closure",`Bool false;

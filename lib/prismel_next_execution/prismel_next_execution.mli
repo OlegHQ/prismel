@@ -97,6 +97,9 @@ val diagnostics : t -> diagnostics
 (** Actual coordinator, owned-resource, renderer-cache, and native release
     queue state.  This remains readable after [destroy]. *)
 val native_release_queue : unit -> (int * int * int64 * int64) option
+val show : t -> (unit,error) result
+val hide : t -> (unit,error) result
+val visible : t -> (bool,error) result
 val push_event : t -> event -> (unit,error) result
 val resize : t -> logical_width:int -> logical_height:int ->
   drawable_width:int -> drawable_height:int -> (unit,error) result

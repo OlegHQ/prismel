@@ -24,6 +24,9 @@ let validate_actual_report ~run ~sketch ~artifact report=
   let require_int label expected value=if value<>expected then
     failwith(Printf.sprintf"R11 child %d %s mismatch: expected %d, got %d"run label expected value)in
   require"backend""actual-sketch-runtime-next-metal"(json|>member"backend"|>to_string);
+  let visibility=json|>member"visibility"|>to_string in
+  if (json|>member"observed_visible"|>to_bool)<>(visibility="visible")then
+    failwith(Printf.sprintf"R11 child %d observed visibility mismatch"run);
   require_int"width"1200(json|>member"width"|>to_int);
   require_int"height"760(json|>member"height"|>to_int);
   require_int"pieces"18_278(json|>member"pieces"|>to_int);

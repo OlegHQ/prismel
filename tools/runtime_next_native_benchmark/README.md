@@ -14,6 +14,7 @@ upload, one draw/pass/submission per frame, one resident cache entry, and either
 measured GPU counters or an explicit unsupported/null result.
 
 This removes the delegated-renderer blocker but does not by itself close R11.
-Visible-window execution, comparable R10 envelope evidence, clean full-length
-runs, RSS plateau evidence, and any unavailable GPU counters remain honest
-qualification requirements.
+Comparable R10 envelope evidence, clean full-length visible and hidden runs,
+RSS plateau evidence, and any unavailable GPU counters remain honest
+qualification requirements. Each report records and validates observed SDL
+window visibility rather than trusting the requested mode alone.

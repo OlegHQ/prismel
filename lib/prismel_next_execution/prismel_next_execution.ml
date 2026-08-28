@@ -326,6 +326,12 @@ type diagnostics={active:bool;resource_count:int;cache_entries:int;
   release_queue_pending:int option;release_queue_live_handles:int option;
   release_queue_total_created:int64 option;release_queue_total_released:int64 option}
 let native_release_queue=Runtime_next_orchestrator.native_release_queue
+let window operation call value=match ensure operation value with Error _ as e->e|Ok()->
+  Result.map_error(fun error->{operation;kind=Backend;message=Ogpu.Error.to_string error})
+    (call value.runtime)
+let show value=window"Prismel_next_execution.show"Runtime_next_orchestrator.show value
+let hide value=window"Prismel_next_execution.hide"Runtime_next_orchestrator.hide value
+let visible value=window"Prismel_next_execution.visible"Runtime_next_orchestrator.visible value
 let diagnostics value=
   let runtime=Runtime_next_orchestrator.diagnostics value.runtime in
   {active=not value.dead&&runtime.active;

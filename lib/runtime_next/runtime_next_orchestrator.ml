@@ -148,6 +148,7 @@ let set_always_on_top value x=native_call"Runtime_next_orchestrator.set_always_o
 let set_fullscreen value x=native_call"Runtime_next_orchestrator.set_fullscreen"value(fun r->Runtime_next.set_fullscreen r x)
 let show value=native_call"Runtime_next_orchestrator.show"value Runtime_next.show
 let hide value=native_call"Runtime_next_orchestrator.hide"value Runtime_next.hide
+let visible value=native_call"Runtime_next_orchestrator.visible"value Runtime_next.visible
 let minimize value=native_call"Runtime_next_orchestrator.minimize"value Runtime_next.minimize
 let maximize value=native_call"Runtime_next_orchestrator.maximize"value Runtime_next.maximize
 let restore value=native_call"Runtime_next_orchestrator.restore"value Runtime_next.restore
