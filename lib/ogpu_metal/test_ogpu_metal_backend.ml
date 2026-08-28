@@ -76,6 +76,10 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal backe
   if Backend.retained_plan_entries control<>1||Backend.retired_plan_entries control<>1 then failwith"retained plan queue eviction state";
   get(Ogpu.Backend.complete_through qa pending_a.epoch);if Backend.retired_plan_entries control<>1 then failwith"queue A drained B retirement";
   get(Ogpu.Backend.complete_through qb pending_b.epoch);if Backend.retired_plan_entries control<>0 then failwith"queue B retirement remained";
+  let shared=get(Ogpu.Backend.submit qa(get(Ogpu.Backend.render rp[argument_draw;argument_draw]))~resources:[`Texture target;`Texture sampled;`Buffer vertex]~pipelines:[argument_pipeline])in
+  get(Ogpu.Backend.complete_through qa shared.epoch);
+  let shared_pixels=get(Ogpu.Backend.read_texture target~bytes_per_row:16)in
+  if Bytes.sub_string shared_pixels 0 4<>"\x11\x22\x33\xff"then failwith"duplicate retained resources changed exact pixels";
   get(Ogpu.Backend.destroy_queue qa);get(Ogpu.Backend.destroy_queue qb);
   let before_disabled=get(Ogpu.Backend.read_texture target~bytes_per_row:16)in Backend.Private.disable_retained_plans_for_test control;(match submit_argument queue with Error e when e.Ogpu.Error.kind=Ogpu.Error.Unsupported->()|_->failwith"unavailable retained plan fell through classic path");if Backend.retained_plan_entries control<>0||Backend.retired_plan_entries control<>0||get(Ogpu.Backend.read_texture target~bytes_per_row:16)<>before_disabled then failwith"retained plan failure was not atomic";
   get(Ogpu.Backend.destroy_texture sampled);get(Ogpu.Backend.destroy_buffer vertex);if Backend.retained_plan_entries control<>0 then failwith"resource invalidation retained plan";

@@ -49,7 +49,7 @@ val shadow_resource : key:string -> Raster2.Shadow_map.snapshot ->
 
 val create : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
   (t, Ogpu.Error.t) result
-val create_variants : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
+val create_variants : ?canonical_scene2_argument:bool -> Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
   (t, Ogpu.Error.t) result
 val create_with_pipeline : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
   ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
@@ -62,6 +62,7 @@ val create_with_pipeline_variants : Ogpu.Backend.driver -> Ogpu.Surface.configur
   (t, Ogpu.Error.t) result
 val create_with_sampled_pipeline_variants : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
   ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
+  ?canonical_scene2_argument:bool ->
   (Ogpu.Backend.device -> pipeline_family -> Ogpu.Pipeline.blend -> int ->
     (Ogpu.Pipeline.t, Ogpu.Error.t) result) ->
   (t, Ogpu.Error.t) result
