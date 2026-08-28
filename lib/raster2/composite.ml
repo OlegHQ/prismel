@@ -4,15 +4,16 @@ type error=Invalid_extent of{width:int;height:int}
 let clamp x=min 255(max 0 x)
 let chi c n=(c lsr n)land 255
 let rgbai r g b a=(r lsl 24)lor(g lsl 16)lor(b lsl 8)lor a
-let over_channel s d sa da oa n=
+let[@inline always] over_channel s d sa da oa n=
   if oa=0 then 0 else
     let prem=(chi s n*sa)+((chi d n*da*(255-sa)+127)/255)in
     clamp((prem+(oa/2))/oa)
-let overi s d=
+let[@inline always] overi s d=
   let sa=chi s 0 and da=chi d 0 in
-  let oa=sa+((da*(255-sa)+127)/255)in
-  rgbai(over_channel s d sa da oa 24)(over_channel s d sa da oa 16)
-    (over_channel s d sa da oa 8)oa
+  if sa=255 then s else if sa=0 then(if da=0 then 0 else d)else
+    let oa=sa+((da*(255-sa)+127)/255)in
+    rgbai(over_channel s d sa da oa 24)(over_channel s d sa da oa 16)
+      (over_channel s d sa da oa 8)oa
 let mode_channel mode source destination source_alpha=
   let amount=(source*source_alpha+127)/255 in
   match mode with
@@ -21,7 +22,7 @@ let mode_channel mode source destination source_alpha=
   |Screen->255-(((255-destination)*(255-amount)+127)/255)
   |Subtract->max 0(destination-amount)
   |_->assert false
-let blend_int mode s d=match mode with Copy|Replace->s|Source_over|Alpha->overi s d
+let[@inline always] blend_int mode s d=match mode with Copy|Replace->s|Source_over|Alpha->overi s d
 |Add|Multiply|Screen|Subtract->
   let sa=chi s 0 and da=chi d 0 in
   let alpha=sa*255+da*(255-sa)in
