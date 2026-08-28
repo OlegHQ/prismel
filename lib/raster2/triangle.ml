@@ -33,13 +33,31 @@ let draw_solid ~color ~blend ~cull ~clip (a:vertex)(b:vertex)(c:vertex)=
     and e0x=c.y-.b.y and e0y=b.x-.c.x and e0c=b.y*.c.x-.b.x*.c.y
     and e1x=a.y-.c.y and e1y=c.x-.a.x and e1c=c.y*.a.x-.c.x*.a.y
     and e2x=b.y-.a.y and e2y=a.x-.b.x and e2c=a.y*.b.x-.a.x*.b.y in
-    for y=ymin to ymax do for x=xmin to xmax do
-      let px=float x+.0.5 and py=float y+.0.5 in
-      let w0=e0x*.px+.e0y*.py+.e0c and w1=e1x*.px+.e1y*.py+.e1c
-      and w2=e2x*.px+.e2y*.py+.e2c in
-      if(w0>0.||w0=0.&&top b c)&&(w1>0.||w1=0.&&top c a)&&(w2>0.||w2=0.&&top a b)
-      then write_unchecked color blend pitch x y packed
-    done done
+    let top0=top b c and top1=top c a and top2=top a b in
+    let left=ref xmin and right=ref xmax and searching=ref true in
+    for y=ymin to ymax do
+      let py=float y+.0.5 in
+      left:=xmin;
+      searching:=true;
+      while!searching&& !left<=xmax do
+        let px=float!left+.0.5 in
+        let w0=e0x*.px+.e0y*.py+.e0c and w1=e1x*.px+.e1y*.py+.e1c
+        and w2=e2x*.px+.e2y*.py+.e2c in
+        if(w0>0.||w0=0.&&top0)&&(w1>0.||w1=0.&&top1)&&
+          (w2>0.||w2=0.&&top2)then searching:=false else incr left
+      done;
+      if!left<=xmax then begin
+        right:=xmax;searching:=true;
+        while!searching&& !right> !left do
+          let px=float!right+.0.5 in
+          let w0=e0x*.px+.e0y*.py+.e0c and w1=e1x*.px+.e1y*.py+.e1c
+          and w2=e2x*.px+.e2y*.py+.e2c in
+          if(w0>0.||w0=0.&&top0)&&(w1>0.||w1=0.&&top1)&&
+            (w2>0.||w2=0.&&top2)then searching:=false else decr right
+        done;
+        for x= !left to!right do write_unchecked color blend pitch x y packed done
+      end
+    done
   end
 let draw_depth_solid ~color ~depth ~depth_state ~blend ~cull ~clip
     (a:vertex)(b:vertex)(c:vertex)=
