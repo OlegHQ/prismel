@@ -7,8 +7,12 @@ are not performance evidence.
 
 ## Matrix and process isolation
 
-Measure `basic`, `pxui`, `canvas`, and `scene3` at one fixed 64×64 logical
-resolution on runtime-next native, headless, web, and the legacy executable.
+Measure `basic`, `pxui`, `canvas`, and `scene3` at one fixed logical resolution
+on runtime-next native, headless, web, and the explicitly labelled
+`legacy-native` executable. The native candidate compares with that native
+legacy process. Headless and web compare only with their target-matched frozen
+Phase 0 SDL2 software authorities; the native OpenGL legacy cell is never their
+performance comparator.
 Every matrix cell has five independent, warmed, 30-second samples. Each sample
 is a new child process. The manifest must point each cell at an already-linked
 executable; the harness never loads either SDL version and never co-links SDL2

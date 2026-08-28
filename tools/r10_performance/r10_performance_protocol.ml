@@ -226,7 +226,8 @@ let normalize ~protocol ~case ~sample_index raw =
     "raw", raw ]
 
 let required_scenarios = ["basic"; "pxui"; "canvas"; "scene3"]
-let required_targets = ["runtime-next-native"; "runtime-next-native-hidden"; "headless"; "web"; "legacy"]
+let required_targets = ["runtime-next-native"; "runtime-next-native-hidden"; "headless"; "web"; "legacy-native"]
+let authority_target=function"legacy-native"->"legacy"|target->target
 
 let require_equivalent_work samples scenario =
   let matching = List.filter (fun sample -> member "scenario" sample = `String scenario) samples in
@@ -257,7 +258,7 @@ let require_equivalent_work samples scenario =
       fail "%s/%s does not support the exact neutral descriptor" target scenario;
     ignore(exact_string "pixel_hash" sample);
     let authority=exact_string "pixel_authority" sample in
-    let expected=Printf.sprintf "phase0/%s/%s" target scenario in
+    let expected=Printf.sprintf "phase0/%s/%s" (authority_target target) scenario in
     if authority<>expected then fail "%s/%s pixel authority %s is not %s"
       target scenario authority expected;
     match numeric_float(member_opt "pixel_tolerance" equivalence)with
@@ -395,13 +396,13 @@ let enforce_performance ~profile ~width ~height samples baselines scenario =
     | _ -> fail "%s/%s has duplicate Phase0 performance baselines" target scenario
   in
   List.iter (fun target ->
-    if target <> "legacy" then
+    if target <> "legacy-native" then
       List.iter (fun (label, section, median_field, p95_field) ->
         let _, candidate_median, candidate_p95 =
           summary target label section median_field p95_field in
         let baseline_median, baseline_p95 =
           if target = "runtime-next-native" || target = "runtime-next-native-hidden" then
-            let _, median, p95 = summary "legacy" label section median_field p95_field in
+            let _, median, p95 = summary "legacy-native" label section median_field p95_field in
             median, p95
           else artifact target label in
         let ratio value baseline =

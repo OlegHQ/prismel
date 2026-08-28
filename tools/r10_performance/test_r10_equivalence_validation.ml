@@ -26,8 +26,9 @@ let sample ?(wall=1.) ?(frames=100) ?(scheduling="duration-bounded") ~target ~sc
         [ "workload_signature", `String (scenario ^ "-work")
         ; "semantics_supported", `Bool true
         ; "pixel_hash", `String (target ^ "-" ^ scenario ^ "-pixels")
-        ; "pixel_authority", `String ("phase0/" ^ target ^ "/" ^ scenario)
-        ; "pixel_tolerance", `Int (if target = "legacy" then 0 else 3)
+        ; "pixel_authority", `String ("phase0/" ^
+            (if target="legacy-native"then"legacy"else target)^"/"^scenario)
+        ; "pixel_tolerance", `Int (if target = "legacy-native" then 0 else 3)
         ]
     ; "raw",`Assoc["peak_sampled_rss_kib",`Int 1024;
         "observed_visible",(if target="runtime-next-native"then`Bool true
@@ -91,7 +92,7 @@ let replace_field name replacement fields =
 let () =
   if Array.length Sys.argv <> 2 then invalid_arg "protocol executable";
   let targets = [ "runtime-next-native"; "runtime-next-native-hidden";
-    "headless"; "web"; "legacy" ]
+    "headless"; "web"; "legacy-native" ]
   and scenarios = [ "basic"; "pxui"; "canvas"; "scene3" ] in
   let samples = List.concat_map (fun target ->
     List.map (fun scenario -> sample ~target ~scenario ()) scenarios) targets in
@@ -163,7 +164,7 @@ let () =
       write invalid (report scene3_signature);
       if run Sys.argv.(1) invalid = Unix.WEXITED 0 then
         failwith "Scene3 workload mismatch bypassed equivalence validation";
-      let scene3_authority = replace_cell ~target:"legacy" ~scenario:"scene3"
+      let scene3_authority = replace_cell ~target:"legacy-native" ~scenario:"scene3"
         (fun fields ->
           let equivalence = match List.assoc "equivalence" fields with
             | `Assoc values -> `Assoc (List.map (fun (name, value) ->

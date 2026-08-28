@@ -55,9 +55,12 @@ The native candidate frame-time cells are within the frozen envelope and are
 faster than legacy. The overall R10 gate nevertheless fails and cannot average
 those wins against other cells:
 
-- Headless Scene3 is 2.591× legacy median and 1.418× legacy p95; web Scene3 is
-  2.604× and 1.418× respectively.
-- Headless/web Scene3 CPU is about 2.38× legacy.
+- The original summary incorrectly compared headless/web Scene3 with the
+  native OpenGL legacy cell. Their authoritative Phase 0 SDL2 software
+  baselines are target-specific (46.813 ms headless and 47.019 ms web median),
+  so the measured 31 ms candidate cells are not Scene3 timing regressions.
+  The corrected harness labels the OpenGL comparator `legacy-native` and never
+  uses it for headless/web acceptance.
 - Web Basic peak RSS is 1.180× legacy, beyond the 10% p95 envelope used for
   peak/steady memory comparison.
 - Promoted allocation is above legacy in multiple cells, including native
