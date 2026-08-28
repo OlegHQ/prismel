@@ -50,7 +50,9 @@ let run frames =
   let _,changed_misses=Ogpu_raster2.decode_cache_stats control in
   if changed_misses<=unchanged_misses then
     failwith"changed vertex buffer did not invalidate decoded vertices";
-  for version=0 to 79 do
+  (* Cross the fixed decoded-cache capacity so replacement, mutation and
+     eviction are exercised together rather than only checking warm entries. *)
+  for version=0 to 319 do
     let changing=Bytes.copy vertices in
     Bytes.set_int64_le changing 0(Int64.bits_of_float(float version));
     let changing_mesh:Scene_execution.mesh={mesh with key="decode-lru-"^string_of_int version;

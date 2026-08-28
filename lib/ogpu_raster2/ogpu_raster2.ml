@@ -13,7 +13,9 @@ type control = {
   log_submit : bool array; mutable log_start:int; mutable log_length:int;
   mutable dropped_log_entries:int;
   objects : (int64, storage) Hashtbl.t;
-  mutable decoded:decoded_entry list; mutable decoded_indices:index_entry list;
+  decoded:decoded_entry option array; mutable decoded_start:int;
+  mutable decoded_length:int; mutable decoded_bytes:int;
+  mutable decoded_indices:index_entry list;
   mutable sampled:sampled_entry list;
   mutable decode_misses:int;
   mutable fast_rectangles:int; mutable triangle_fallbacks:int;
@@ -26,6 +28,37 @@ let next control = let value=control.next in control.next<-Int64.succ value; val
 let log_capacity=256
 let decode_cache_capacity=256
 let decode_cache_byte_capacity=64*1024*1024
+let decoded_weight(_,vertices)=Array.length vertices*64
+let decoded_find control key=
+  let found=ref None and index=ref 0 in
+  while!found=None&& !index<control.decoded_length do
+    let slot=(control.decoded_start+ !index)mod decode_cache_capacity in
+    (match Array.unsafe_get control.decoded slot with
+     |Some(cached,value)when cached=key->found:=Some value|_->());
+    incr index
+  done;!found
+let decoded_drop_oldest control=
+  if control.decoded_length>0 then begin
+    let slot=control.decoded_start in
+    (match Array.unsafe_get control.decoded slot with
+     |Some entry->control.decoded_bytes<-control.decoded_bytes-decoded_weight entry|None->());
+    Array.unsafe_set control.decoded slot None;
+    control.decoded_start<-(slot+1)mod decode_cache_capacity;
+    control.decoded_length<-control.decoded_length-1
+  end
+let decoded_add control entry=
+  let weight=decoded_weight entry in
+  if weight<=decode_cache_byte_capacity then begin
+    while control.decoded_length>0&&
+      (control.decoded_length=decode_cache_capacity||
+       control.decoded_bytes>decode_cache_byte_capacity-weight)do
+      decoded_drop_oldest control
+    done;
+    let slot=(control.decoded_start+control.decoded_length)mod decode_cache_capacity in
+    Array.unsafe_set control.decoded slot(Some entry);
+    control.decoded_length<-control.decoded_length+1;
+    control.decoded_bytes<-control.decoded_bytes+weight
+  end
 let trim_decode_cache weight entries =
   let rec loop count bytes kept=function
     |[]->List.rev kept
@@ -63,7 +96,8 @@ let create () =
     log_text=Array.make log_capacity None;log_epoch=Array.make log_capacity 0L;
     log_submit=Array.make log_capacity false;log_start=0;log_length=0;
     dropped_log_entries=0;
-    objects=Hashtbl.create 64;decoded=[];decoded_indices=[];sampled=[];decode_misses=0;
+    objects=Hashtbl.create 64;decoded=Array.make decode_cache_capacity None;
+    decoded_start=0;decoded_length=0;decoded_bytes=0;decoded_indices=[];sampled=[];decode_misses=0;
     fast_rectangles=0;triangle_fallbacks=0;
     buffers=0;textures=0;pipelines=0;queues=0;surfaces=0}in
   let create_device () =
@@ -95,7 +129,16 @@ let create () =
         |_->error"Ogpu_raster2.read_into"Invalid_argument"range is invalid"in
       let destroy () = match Hashtbl.find_opt control.objects token with
         |None->Ok()|Some(Buffer _)->Hashtbl.remove control.objects token;
-            control.decoded<-List.filter(fun((cached,_,uniform,_,_,_,_),_)->cached<>token&&uniform<>token)control.decoded;
+            let kept=ref[]in
+            for index=0 to control.decoded_length-1 do
+              let slot=(control.decoded_start+index)mod decode_cache_capacity in
+              match Array.unsafe_get control.decoded slot with
+              |Some(((cached,_,uniform,_,_,_,_),_)as entry)when cached<>token&&uniform<>token->kept:=entry::!kept
+              |_->()
+            done;
+            Array.fill control.decoded 0 decode_cache_capacity None;
+            control.decoded_start<-0;control.decoded_length<-0;control.decoded_bytes<-0;
+            List.iter(decoded_add control)(List.rev!kept);
             control.decoded_indices<-List.filter(fun((cached,_,_,_,_),_)->cached<>token)control.decoded_indices;
             control.buffers<-control.buffers-1;Ok()
         |Some(Texture _)->Hashtbl.remove control.objects token;
@@ -187,7 +230,7 @@ let create () =
                         |None->None in
                       let uniform_token,uniform_version=match affine with Some(token,version,_,_,_,_,_,_)->token,version|None->0L,0 in
                       let key=(buffer_token,vertex_buffer.version,uniform_token,uniform_version,textured,binding.offset,maximum+1)in
-                      let decoded=match List.assoc_opt key control.decoded with
+                      let decoded=match decoded_find control key with
                         |Some decoded->decoded
                         |None->
                             let base=Int64.to_int binding.offset in
@@ -207,10 +250,7 @@ let create () =
                                 u=(if textured then Int64.float_of_bits(Bytes.get_int64_le vertices(offset+52))else 0.);
                                 v=(if textured then Int64.float_of_bits(Bytes.get_int64_le vertices(offset+60))else 0.)})in
                             control.decode_misses<-control.decode_misses+1;
-                            control.decoded<-(key,decoded)::control.decoded;
-                            control.decoded<-trim_decode_cache
-                              (fun(_,vertices)->Array.length vertices*64)
-                              control.decoded;
+                            decoded_add control(key,decoded);
                             decoded in
                       let depth=Option.map(fun _->depth)descriptor.depth in
                       let fast_source=match sampled with
@@ -339,7 +379,9 @@ let create () =
       create_surface=(fun _->let surface_token=next control and frame=ref 0L in control.surfaces<-control.surfaces+1;Ok{Ogpu.Backend.surface_token;configure=(fun _->Ok());acquire=(fun()->if control.lost then Ok`Device_lost else(frame:=Int64.succ!frame;Ok(`Acquired{Ogpu.Backend.frame_token= !frame})));present=(fun _->Ok());discard=(fun _->Ok());destroy_surface=(fun()->control.surfaces<-control.surfaces-1;Ok())});
       destroy_device=(fun()->Ogpu.Handle.destroy_device device_handle;Ok())}
   in {Ogpu.Backend.create_device},control
-let inject_device_loss control=control.lost<-true;control.decoded<-[];
+let inject_device_loss control=control.lost<-true;
+  Array.fill control.decoded 0 decode_cache_capacity None;
+  control.decoded_start<-0;control.decoded_length<-0;control.decoded_bytes<-0;
   control.decoded_indices<-[];control.sampled<-[]
 let trace control=
   List.init control.log_length(fun index->let slot=(control.log_start+index)mod log_capacity in
@@ -347,9 +389,9 @@ let trace control=
     else Option.value control.log_text.(slot)~default:"")
 let trace_stats control=control.log_length,control.dropped_log_entries
 let decode_cache_stats control=
-  List.length control.decoded+List.length control.decoded_indices,control.decode_misses
+  control.decoded_length+List.length control.decoded_indices,control.decode_misses
 let decode_cache_bytes control=
-  List.fold_left(fun total(_,vertices)->total+Array.length vertices*64)0 control.decoded+
+  control.decoded_bytes+
   List.fold_left(fun total(_,indices)->total+Array.length indices*(Sys.word_size/8))0
     control.decoded_indices
 let sampled_cache_entries control=List.length control.sampled
