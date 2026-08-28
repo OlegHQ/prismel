@@ -34,14 +34,14 @@ module Window : sig
   val register_text : t -> id:int -> Prismel_next_resources.Text.t -> (unit,error) result
   val register_canvas : t -> id:int -> Prismel_next_resources.Canvas.t -> (unit,error) result
   val remove_resource : t -> int -> unit
-  val present : t -> Raster2.Render_ir.t -> (bool,error) result
+  val present : t -> Scene_command.Render_ir.t -> (bool,error) result
   val destroy : t -> (unit,error) result
   val exists : t -> bool
 end
 
 module Graphics : sig
   type color = int32
-  type blend = Raster2.Composite.blend
+  type blend = Scene_command.Render_ir.blend
   type t
   val create : ?capacity:int -> unit -> (t,error) result
   val clear : t -> color -> (unit,error) result
@@ -61,8 +61,8 @@ module Graphics : sig
   val arc : t -> center:int*int -> radius:int -> start_angle:float -> end_angle:float -> ?color:color -> unit -> (unit,error) result
   val pie : t -> center:int*int -> radius:int -> start_angle:float -> end_angle:float -> ?filled:bool -> ?color:color -> unit -> (unit,error) result
   val bezier : t -> points:(int*int) list -> steps:int -> ?color:color -> unit -> (unit,error) result
-  val fill_contours : t -> (int*int) list list -> rule:Raster2.Path.fill_rule -> color:color -> (unit,error) result
-  val stroke_path : t -> Raster2.Path.command array -> width:float -> cap:Raster2.Path.cap -> join:Raster2.Path.join -> ?color:color -> unit -> (unit,error) result
+  val fill_contours : t -> (int*int) list list -> rule:Scene_command.Path.fill_rule -> color:color -> (unit,error) result
+  val stroke_path : t -> Scene_command.Path.command array -> width:float -> cap:Scene_command.Path.cap -> join:Scene_command.Path.join -> ?color:color -> unit -> (unit,error) result
   val push_matrix : t -> (unit,error) result
   val pop_matrix : t -> (unit,error) result
   val translate : t -> dx:int -> dy:int -> unit
@@ -81,7 +81,7 @@ module Graphics : sig
     pos:int*int -> (unit,error) result
   val set_gfx_font_rotation : t -> int -> (unit,error) result
   val draw_gfx_text : t -> pos:int*int -> text:string -> ?color:color -> unit -> (unit,error) result
-  val flush : t -> (Raster2.Render_ir.t,error) result
+  val flush : t -> (Scene_command.Render_ir.t,error) result
   val command_count : t -> int
   val peak_commands : t -> int
   val destroy : t -> unit

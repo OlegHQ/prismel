@@ -112,9 +112,9 @@ end
 
 module Graphics = struct
   type color = int32
-  type blend = Raster2.Composite.blend
+  type blend = Scene_command.Render_ir.blend
   type matrix = { xx:float; xy:float; yx:float; yy:float; tx:float; ty:float }
-  type t = { capacity:int; mutable commands:Raster2.Render_ir.command list;
+  type t = { capacity:int; mutable commands:Scene_command.Render_ir.command list;
     mutable count:int; mutable peak:int; mutable color:color; mutable matrix:matrix;
     mutable stack:matrix list; mutable clip:(int*int*int*int) option;
     mutable rotation:int; mutable destroyed:bool }
@@ -125,7 +125,7 @@ module Graphics = struct
   let add t command = if t.destroyed then Error (Unavailable "Graphics: destroyed")
     else if t.count=t.capacity then Error (Unavailable "Graphics: command capacity") else
     (t.commands<-command::t.commands;t.count<-t.count+1;t.peak<-max t.peak t.count;Ok ())
-  let clear t c = add t (Raster2.Render_ir.Clear c)
+  let clear t c = add t (Scene_command.Render_ir.Clear c)
   let set_color t c = t.color<-c
   let get_color t ?color () = Option.value color ~default:t.color
   let set_blend t b = add t (Set_blend b)
@@ -224,23 +224,23 @@ module Graphics = struct
           int_of_float !x,int_of_float !y) in
         polyline t ~points:sampled ?color ()
   let path_geometry t ?color mesh =
-    let vertices=Array.make(Array.length mesh.Raster2.Path.vertices*2)0. in
+    let vertices=Array.make(Array.length mesh.Scene_command.Path.vertices*2)0. in
     Array.iteri(fun i point -> let x,y=transform t
-      (int_of_float point.Raster2.Path.x,int_of_float point.y) in
+      (int_of_float point.Scene_command.Path.x,int_of_float point.y) in
       vertices.(2*i)<-x;vertices.(2*i+1)<-y)mesh.vertices;
     geometry t ?color vertices mesh.indices
   let fill_contours t contours ~rule ~color =
     let commands = List.concat_map (function []->[]|first::rest ->
-      Raster2.Path.Move_to {x=float(fst first);y=float(snd first)} ::
-      List.map(fun(x,y)->Raster2.Path.Line_to{x=float x;y=float y})rest @
-      [Raster2.Path.Close]) contours |> Array.of_list in
-    match Raster2.Path.tessellate ~tolerance:0.25 ~fill_rule:rule
-      (Raster2.Path.of_commands commands) with
+      Scene_command.Path.Move_to {x=float(fst first);y=float(snd first)} ::
+      List.map(fun(x,y)->Scene_command.Path.Line_to{x=float x;y=float y})rest @
+      [Scene_command.Path.Close]) contours |> Array.of_list in
+    match Scene_command.Path.tessellate ~tolerance:0.25 ~fill_rule:rule
+      (Scene_command.Path.of_commands commands) with
     | Ok mesh -> path_geometry t ~color mesh
     | Error _ -> Error (Invalid_argument "Graphics.fill_contours")
   let stroke_path t commands ~width ~cap ~join ?color () =
-    match Raster2.Path.stroke ~tolerance:0.25 ~width ~cap ~join
-      ~miter_limit:4. (Raster2.Path.of_commands commands) with
+    match Scene_command.Path.stroke ~tolerance:0.25 ~width ~cap ~join
+      ~miter_limit:4. (Scene_command.Path.of_commands commands) with
     | Ok mesh -> path_geometry t ?color mesh
     | Error _ -> Error (Invalid_argument "Graphics.stroke_path")
   let push_matrix t = t.stack<-t.matrix::t.stack; add t (Push_transform {xx=t.matrix.xx;xy=t.matrix.xy;yx=t.matrix.yx;yy=t.matrix.yy;tx=t.matrix.tx;ty=t.matrix.ty})
@@ -252,8 +252,8 @@ module Graphics = struct
   let get_clip t=t.clip
   let set_clip t value =
     let command = match t.clip, value with
-      | Some _, None -> Some Raster2.Render_ir.Pop_clip
-      | _, Some (x,y,w,h) -> Some (Raster2.Render_ir.Push_clip
+      | Some _, None -> Some Scene_command.Render_ir.Pop_clip
+      | _, Some (x,y,w,h) -> Some (Scene_command.Render_ir.Push_clip
           {x=float x; y=float y; width=float w; height=float h})
       | None, None -> None
     in
@@ -276,7 +276,7 @@ module Graphics = struct
         let cosine=cos angle*.scale and sine=sin angle*.scale in
         let xx=if flip then -.cosine else cosine
         and yx=if flip then -.sine else sine in
-        let transform=Raster2.Render_ir.{xx;xy=(-.sine);yx;yy=cosine;
+        let transform=Scene_command.Render_ir.{xx;xy=(-.sine);yx;yy=cosine;
           tx=float x -. (float cx *. xx) -. (float cy *. (-. sine));
           ty=float y -. (float cx *. yx) -. (float cy *. cosine)} in
         bind (add t (Push_transform transform)) (fun () ->
@@ -284,7 +284,7 @@ module Graphics = struct
           source={x=0.;y=0.;width=float w;height=float h};
           destination={x=0.;y=0.;width=float w;height=float h}})) (fun () ->
         add t Pop_transform))
-  let draw_text t font ~pos:(x,y) ~text ?color () = if text="" then Ok() else let glyphs=Array.init(String.length text)(fun i->{Raster2.Render_ir.glyph_id=Char.code text.[i];x=float(x+i*8);y=float y}) in add t(Glyphs{resource_id=Prismel_next_resources.Font.generation font;color=get_color t ?color ();glyphs})
+  let draw_text t font ~pos:(x,y) ~text ?color () = if text="" then Ok() else let glyphs=Array.init(String.length text)(fun i->{Scene_command.Render_ir.glyph_id=Char.code text.[i];x=float(x+i*8);y=float y}) in add t(Glyphs{resource_id=Prismel_next_resources.Font.generation font;color=get_color t ?color ();glyphs})
   let draw_text_snapshot t ~resource_id text ~pos:(x,y) =
     match Prismel_next_resources.Text.size text with Error _->Error(Unavailable"Graphics.draw_text_snapshot")|Ok _->
     add t(Glyphs{resource_id;color=Int32.minus_one;glyphs=[|{glyph_id=0;x=float x;y=float y}|]})
@@ -292,8 +292,8 @@ module Graphics = struct
     match Prismel_next_resources.Canvas.size canvas with Error _->Error(Unavailable"Graphics.draw_canvas")|Ok(w,h)->
     add t(Image{resource_id;source={x=0.;y=0.;width=float w;height=float h};destination={x=float x;y=float y;width=float w;height=float h}})
   let set_gfx_font_rotation t value = if value<0||value>3 then Error(Invalid_argument "Graphics.set_gfx_font_rotation") else (t.rotation<-value;Ok())
-  let draw_gfx_text t ~pos:(x,y) ~text ?color () = let glyphs=Array.init(String.length text)(fun i->{Raster2.Render_ir.glyph_id=Char.code text.[i];x=float(x+i*8);y=float y}) in add t(Glyphs{resource_id=1+t.rotation;color=get_color t ?color ();glyphs})
-  let flush t = if t.stack<>[] then Error(Invalid_argument "Graphics.flush: unbalanced matrix") else match Raster2.Render_ir.create(Array.of_list(List.rev t.commands)) with Error _->Error(Invalid_argument "Graphics.flush: invalid stream")|Ok ir->t.commands<-[];t.count<-0;Ok ir
+  let draw_gfx_text t ~pos:(x,y) ~text ?color () = let glyphs=Array.init(String.length text)(fun i->{Scene_command.Render_ir.glyph_id=Char.code text.[i];x=float(x+i*8);y=float y}) in add t(Glyphs{resource_id=1+t.rotation;color=get_color t ?color ();glyphs})
+  let flush t = if t.stack<>[] then Error(Invalid_argument "Graphics.flush: unbalanced matrix") else match Scene_command.Render_ir.create(Array.of_list(List.rev t.commands)) with Error _->Error(Invalid_argument "Graphics.flush: invalid stream")|Ok ir->t.commands<-[];t.count<-0;Ok ir
   let command_count t=t.count
   let peak_commands t=t.peak
   let destroy t=t.destroyed<-true;t.commands<-[];t.count<-0;t.stack<-[]

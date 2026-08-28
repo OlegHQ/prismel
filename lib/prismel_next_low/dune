@@ -2,11 +2,11 @@
  (name prismel_next_low)
  (public_name prismel.prismel_next_low)
  (modules prismel_next_low)
- (libraries ogpu raster2 runtime_next_orchestrator prismel_next_resources
+ (libraries ogpu scene_command runtime_next_orchestrator prismel_next_resources
   prismel_next_execution))
 
 (test
  (name test_prismel_next_low)
  (modules test_prismel_next_low)
- (libraries prismel_next_low raster2)
+ (libraries prismel_next_low scene_command)
  (action (setenv PRISMEL_RENDER_TARGET headless (run %{test}))))

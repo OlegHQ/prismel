@@ -1,5 +1,4 @@
 (library
  (name scene_command)
  (public_name prismel.scene_command)
- (modules path))
-
+ (modules path render_ir))

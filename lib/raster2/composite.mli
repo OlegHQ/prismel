@@ -1,5 +1,6 @@
 (** Deterministic straight-alpha RGBA compositing. *)
-type blend = Source_over | Copy | Replace | Alpha | Add | Multiply | Screen | Subtract
+type blend = Scene_command.Render_ir.blend =
+  Source_over | Copy | Replace | Alpha | Add | Multiply | Screen | Subtract
 type rect = { x:int; y:int; width:int; height:int }
 type error = Invalid_extent of { width:int; height:int }
 val color : blend:blend -> source:int32 -> destination:int32 -> int32

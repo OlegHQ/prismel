@@ -2,7 +2,7 @@
 
 `Prismel_next_low` preserves the immediate-mode names for color, transform and
 clip state, primitives, images, text, rotated diagnostic text, window facts and
-window mutations. Calls record immutable `Raster2.Render_ir` commands and the
+window mutations. Calls record immutable `Scene_command.Render_ir` commands and the
 window delegates to typed runtime-next authority.
 
 Persistent windows retain a bounded execution-side snapshot cache. Images are

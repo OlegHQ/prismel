@@ -31,17 +31,17 @@ let () =
     ~end_angle:(Float.pi /. 2.) ());
   ok (G.bezier recorder ~points:[0,0;3,8;9,2] ~steps:12 ());
   ok (G.fill_contours recorder [[0,0;8,0;8,8;0,8];
-    [2,2;2,6;6,6;6,2]] ~rule:Raster2.Path.Even_odd
+    [2,2;2,6;6,6;6,2]] ~rule:Scene_command.Path.Even_odd
     ~color:0x8899aaffl);
-  ok (G.stroke_path recorder [|Raster2.Path.Move_to {x=0.;y=0.};
-    Raster2.Path.Cubic_to ({x=2.;y=8.},{x=7.;y=8.},{x=9.;y=0.})|]
-    ~width:2. ~cap:Raster2.Path.Round ~join:Raster2.Path.Bevel ());
+  ok (G.stroke_path recorder [|Scene_command.Path.Move_to {x=0.;y=0.};
+    Scene_command.Path.Cubic_to ({x=2.;y=8.},{x=7.;y=8.},{x=9.;y=0.})|]
+    ~width:2. ~cap:Scene_command.Path.Round ~join:Scene_command.Path.Bevel ());
   let first = ok (G.flush recorder) in
-  let frozen = Raster2.Render_ir.serialize first in
+  let frozen = Scene_command.Render_ir.serialize first in
   for _ = 1 to 100_000 do
     ok (G.point recorder ~x:1 ~y:2 ());
     let value = ok (G.flush recorder) in
-    if Array.length (Raster2.Render_ir.commands value) <> 1 then
+    if Array.length (Scene_command.Render_ir.commands value) <> 1 then
       failwith "flush cardinality"
   done;
   if G.command_count recorder <> 0 || G.peak_commands recorder > 128 then
@@ -69,12 +69,12 @@ let () =
   ok (G.draw_image_ex image_recorder image ~pos:(7,8) ~scale:2.
     ~angle:(Float.pi /. 2.) ~center:(1,1) ~flip:true ());
   let image_stream = ok (G.flush image_recorder) in
-  let image_commands = Raster2.Render_ir.commands image_stream in
+  let image_commands = Scene_command.Render_ir.commands image_stream in
   let identity = Prismel_next_resources.Image.identity image in
   let image_ids = Array.to_list image_commands |> List.filter_map (function
-    | Raster2.Render_ir.Image value -> Some value.resource_id | _ -> None) in
+    | Scene_command.Render_ir.Image value -> Some value.resource_id | _ -> None) in
   if image_ids <> [identity; identity] then failwith "image identity drift";
-  if Raster2.Render_ir.hash image_stream <> 0xdf75694ab73e182fL then
+  if Scene_command.Render_ir.hash image_stream <> 0xdf75694ab73e182fL then
     failwith "image stream hash drift";
   G.destroy image_recorder;
   begin match Prismel_next_resources.Image.destroy image with

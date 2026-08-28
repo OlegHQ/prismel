@@ -1,4 +1,4 @@
-type blend=Source_over|Copy|Replace|Alpha|Add|Multiply|Screen|Subtract
+type blend=Scene_command.Render_ir.blend=Source_over|Copy|Replace|Alpha|Add|Multiply|Screen|Subtract
 type rect={x:int;y:int;width:int;height:int}
 type error=Invalid_extent of{width:int;height:int}
 let clamp x=min 255(max 0 x)
