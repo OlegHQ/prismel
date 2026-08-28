@@ -1,6 +1,17 @@
 let get = function Ok value -> value | Error error -> failwith (Ogpu.Error.to_string error)
 let metal = function Ok value -> value | Error error -> failwith (Format.asprintf "%a" Metal.pp_error error)
 let rss_kib () = let argv=[|"/bin/ps";"-o";"rss=";"-p";string_of_int(Unix.getpid())|]in let input=Unix.open_process_args_in argv.(0)argv in Fun.protect~finally:(fun()->ignore(Unix.close_process_in input))(fun()->int_of_string(String.trim(input_line input)))
+let command_output program arguments=
+  let input=Unix.open_process_args_in program(Array.of_list(program::arguments))and output=Buffer.create 128 in
+  (try while true do Buffer.add_string output(input_line input);Buffer.add_char output '\n'done with End_of_file->());
+  match Unix.close_process_in input with Unix.WEXITED 0->Some(String.trim(Buffer.contents output))|_->None
+let canonical_commit value=String.length value=40&&String.for_all(function '0'..'9'|'a'..'f'->true|_->false)value
+let source_snapshot()=match command_output"git"["rev-parse";"HEAD"],command_output"git"["status";"--porcelain=v1";"--untracked-files=all"]with
+  |Some commit,Some status when canonical_commit commit->Some(commit,status="")|_->None
+let source_json=function None->`Null|Some(commit,clean)->`Assoc["commit",`String commit;"clean",`Bool clean]
+let write_atomic path text postflight=
+  let temporary,channel=Filename.open_temp_file~temp_dir:(Filename.dirname path)(Filename.basename path^".tmp-")".json"in
+  Fun.protect~finally:(fun()->close_out_noerr channel;if Sys.file_exists temporary then Sys.remove temporary)(fun()->output_string channel text;flush channel;close_out channel;postflight();Sys.rename temporary path)
 let mesh frame =
   let vertices=Bytes.make 48 '\000'and indices=Bytes.make 12 '\000'in
   Bytes.set_int32_le indices 4 1l;Bytes.set_int32_le indices 8 2l;
@@ -17,6 +28,9 @@ let () =
   let minutes=ref 30. and report=ref None and changing_payload=ref true and resizing=ref true and capturing=ref true in
   Arg.parse["--minutes",Arg.Set_float minutes,"duration";"--report",Arg.String(fun value->report:=Some value),"JSON report";"--stable-payload",Arg.Clear changing_payload,"reuse one mesh payload";"--no-resize",Arg.Clear resizing,"disable resize churn";"--no-capture",Arg.Clear capturing,"disable readback churn"](fun value->raise(Arg.Bad value))"runtime_next_native_stability";
   if not(Float.is_finite !minutes)|| !minutes<=0. then invalid_arg"minutes";
+  let qualification= !minutes>=30. in
+  let source_before=source_snapshot()in
+  if qualification && (match source_before with Some(_,true)->false|_->true)then failwith"O6 qualification requires a canonical clean source tree";
   let before=metal(Metal.Release_queue.stats())and started=Unix.gettimeofday()in
   let width=ref 64 and height=ref 48 and frame=ref 0 and rolling=ref 0L in
   let runtime=get(Runtime_next.create~width:!width~height:!height)in
@@ -34,7 +48,7 @@ let () =
         Gc.full_major();
         ignore(metal(Metal.Release_queue.drain()));
         let stats=Runtime_next.stats runtime and handles=metal(Metal.Release_queue.stats())and gc=Gc.quick_stat()in
-        samples.(!observations mod 256)<-Some(`Assoc["elapsed",`Float(now-.started);"frame",`Int !frame;"rss_kib",`Int(rss_kib());"heap_words",`Int gc.heap_words;"live_words",`Int gc.live_words;"mesh_cache",`Int stats.mesh_cache_entries;"pipeline_cache",`Int stats.pipeline_cache_entries;"metal_live",`Int handles.live_handles;"metal_pending",`Int handles.pending;"metal_created",`Intlit(Int64.to_string handles.total_created);"metal_released",`Intlit(Int64.to_string handles.total_released);"resident_bytes",`Intlit(Int64.to_string handles.resident_bytes)]);incr observations
+        samples.(!observations mod 256)<-Some(`Assoc["observation",`Int(!observations+1);"elapsed",`Float(now-.started);"frame",`Int !frame;"rss_kib",`Int(rss_kib());"heap_words",`Int gc.heap_words;"live_words",`Int gc.live_words;"mesh_cache",`Int stats.mesh_cache_entries;"pipeline_cache",`Int stats.pipeline_cache_entries;"metal_live",`Int handles.live_handles;"metal_pending",`Int handles.pending;"metal_created",`Intlit(Int64.to_string handles.total_created);"metal_released",`Intlit(Int64.to_string handles.total_released);"resident_bytes",`Intlit(Int64.to_string handles.resident_bytes)]);incr observations
       end
     end
   done;
@@ -51,5 +65,17 @@ let () =
   let first_high=maximum first_half and second_high=maximum second_half in
   let plateau_slack_kib=8192 in
   if length=256&&second_high>first_high+plateau_slack_kib then failwith(Printf.sprintf"native settled RSS high-water grew: %d -> %d KiB"first_high second_high);
-  let json=`Assoc["schema",`Int 3;"minutes",`Float !minutes;"changing_payload",`Bool !changing_payload;"resizing",`Bool !resizing;"capturing",`Bool !capturing;"frames",`Int !frame;"hash",`String(Printf.sprintf"%016Lx" !rolling);"observations",`Int !observations;"retained",`Int length;"samples",`List retained;"settled_rss_first_half_high_kib",`Int first_high;"settled_rss_second_half_high_kib",`Int second_high;"settled_rss_plateau_slack_kib",`Int plateau_slack_kib;"live_mesh_cache_peak_bound",`Int expected_mesh_cache;"pipeline_cache_live_expected",`Int expected_pipeline_cache;"live_mesh_cache_final",`Int dead.mesh_cache_entries;"pipeline_cache_final",`Int dead.pipeline_cache_entries;"metal_live_before",`Int before.live_handles;"metal_live_after",`Int after.live_handles]in
-  let text=Yojson.Safe.pretty_to_string json^"\n"in match !report with None->print_string text|Some path->let channel=open_out_bin path in output_string channel text;close_out channel
+  let tail=List.filteri(fun index _->index>=length*3/4)retained in
+  let tail_rss=List.map rss tail in
+  let tail_low=List.fold_left min max_int tail_rss and tail_high=List.fold_left max 0 tail_rss in
+  let rss_limit_percent=5. in
+  let rss_range_percent=if tail_low<=0 then infinity else 100.*.float(tail_high-tail_low)/.float tail_low in
+  if qualification && (length<>256 || !observations<256)then failwith"O6 qualification requires the exact final 256-sample ring";
+  if qualification&&rss_range_percent>rss_limit_percent then failwith(Printf.sprintf"O6 final-window RSS range %.3f%% exceeds %.1f%%"rss_range_percent rss_limit_percent);
+  let source_after=source_snapshot()in
+  let source_stable_clean=match source_before,source_after with Some(a,true),Some(b,true)->a=b|_->false in
+  if qualification&&not source_stable_clean then failwith"O6 qualification source changed during measurement";
+  let created_delta=Int64.sub after.total_created before.total_created and released_delta=Int64.sub after.total_released before.total_released in
+  if qualification && (after.pending<>0 || created_delta<>released_delta || after.resident_bytes<>before.resident_bytes)then failwith"O6 qualification teardown counters did not settle";
+  let json=`Assoc["schema",`Int 4;"qualification",`String(if qualification then"O6-native-30m"else"smoke");"source_before",source_json source_before;"source_after",source_json source_after;"source_stable_clean",`Bool source_stable_clean;"minutes",`Float !minutes;"changing_payload",`Bool !changing_payload;"resizing",`Bool !resizing;"capturing",`Bool !capturing;"frames",`Int !frame;"hash",`String(Printf.sprintf"%016Lx" !rolling);"sample_capacity",`Int 256;"observations",`Int !observations;"retained",`Int length;"samples",`List retained;"rss_limit_percent",`Float rss_limit_percent;"final_window_rss_low_kib",`Int tail_low;"final_window_rss_high_kib",`Int tail_high;"final_window_rss_range_percent",`Float rss_range_percent;"settled_rss_first_half_high_kib",`Int first_high;"settled_rss_second_half_high_kib",`Int second_high;"settled_rss_plateau_slack_kib",`Int plateau_slack_kib;"live_mesh_cache_peak_bound",`Int expected_mesh_cache;"pipeline_cache_live_expected",`Int expected_pipeline_cache;"live_mesh_cache_final",`Int dead.mesh_cache_entries;"pipeline_cache_final",`Int dead.pipeline_cache_entries;"metal_pending_final",`Int after.pending;"metal_live_before",`Int before.live_handles;"metal_live_after",`Int after.live_handles;"metal_created_delta",`Intlit(Int64.to_string created_delta);"metal_released_delta",`Intlit(Int64.to_string released_delta);"metal_resident_bytes_before",`Intlit(Int64.to_string before.resident_bytes);"metal_resident_bytes_after",`Intlit(Int64.to_string after.resident_bytes)]in
+  let text=Yojson.Safe.pretty_to_string json^"\n"in match !report with None->print_string text|Some path->write_atomic path text(fun()->if qualification then match source_snapshot()with Some(commit,true)when source_before=Some(commit,true)->()|_->failwith"O6 source changed before atomic publication")

@@ -1,3 +1,15 @@
 (executable
  (name runtime_next_native_stability)
  (libraries runtime_next scene_execution metal ogpu unix yojson))
+
+(executable
+ (name validate_runtime_next_native_stability)
+ (modules validate_runtime_next_native_stability)
+ (libraries yojson))
+
+(test
+ (name test_validate_runtime_next_native_stability)
+ (modules test_validate_runtime_next_native_stability)
+ (libraries unix yojson)
+ (deps validate_runtime_next_native_stability.exe)
+ (action (run %{test} %{exe:./validate_runtime_next_native_stability.exe})))
