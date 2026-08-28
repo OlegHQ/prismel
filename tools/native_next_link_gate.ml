@@ -18,7 +18,7 @@ let require path text needle =
 
 let reject_composition libraries =
   let has name = List.mem name libraries in
-  if has "prismel" && (has "sdl3" || has "runtime_sdl3_raster2_presenter") then
+  if has "prismel" && has "sdl3" then
     Error "legacy prismel archive and SDL3 presenter would co-link SDL2 and SDL3"
   else Ok ()
 
@@ -38,8 +38,8 @@ let () =
       require prismel_path prismel "Scene_ogpu_renderer";
       require prismel_path prismel "tsdl";
       require prismel_path prismel "runtime";
-      require runtime_path runtime "runtime_sdl3_raster2_presenter";
-      require runtime_path runtime "(libraries sdl3)";
+      if contains runtime "sdl3" then
+        fail "%s: legacy runtime acquired an SDL3 dependency" runtime_path;
       require metal_path metal "(libraries ogpu metal)";
       require scene_path scene "(libraries raster2 ogpu)";
       List.iter (fun forbidden -> if contains scene forbidden then
@@ -47,10 +47,8 @@ let () =
           scene_path forbidden) ["tsdl"; "sdl3"; "runtime"; "metal"];
       if contains metal "sdl3" || contains metal "tsdl" then
         fail "%s: ogpu_metal acquired an SDL dependency" metal_path;
-      expect_rejected ["prismel"; "runtime_sdl3_raster2_presenter"; "ogpu_metal"];
       expect_rejected ["prismel"; "sdl3"];
       expect_accepted ["ogpu"; "ogpu_metal"; "metal"];
-      expect_accepted ["runtime_sdl3_raster2_presenter"; "sdl3"];
       print_endline
         "native-next link gate: unsafe Prismel(SDL2)+SDL3 composition rejected; isolated foundations accepted"
   | _ -> fail "usage: native_next_link_gate PRISMEL_DUNE RUNTIME_DUNE OGPU_METAL_DUNE SCENE_EXECUTION_DUNE"
