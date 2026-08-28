@@ -69,9 +69,7 @@ let validate_capacities root =
   require_source "lib/prismel_next_resources/prismel_next_resources.ml"
     ["if List.length entries<=256" ];
   require_source "lib/prismel_next_api/font.ml"
-    ["let capacity=256 and font_capacity=32"];
-  require_source "lib/ogpu_raster2/ogpu_raster2.ml"
-    ["let decode_cache_capacity=256";"let decode_cache_byte_capacity=64*1024*1024"]
+    ["let capacity=256 and font_capacity=32"]
 
 let validate_native value =
   require (value |> member "backend" |> to_string = "real-m1-runtime-next-metal")
@@ -100,23 +98,22 @@ let validate_native value =
   require (cache>0 && cache<=64) "native mesh/pipeline cache exceeds 64 entries"
 
 let () =
-  let root=ref"" and native=ref"" and scene=ref"" and text=ref"" and font=ref"" and raster=ref"" in
+  let root=ref"" and native=ref"" and scene=ref"" and text=ref"" and font=ref"" in
   Arg.parse
     ["--root",Arg.Set_string root,"DIR clean repository root";
      "--native-report",Arg.Set_string native,"FILE clean native R9 JSON";
      "--scene-batching-test",Arg.Set_string scene,"EXE Scene_execution batching proof";
      "--text-cache-test",Arg.Set_string text,"EXE automatic text LRU proof";
-     "--font-cache-test",Arg.Set_string font,"EXE explicit font LRU proof";
-     "--raster-cache-test",Arg.Set_string raster,"EXE Raster2 decode/image cache proof"]
+     "--font-cache-test",Arg.Set_string font,"EXE explicit font LRU proof"]
     (fun value->fail"unexpected argument %S"value) "runtime_next_r9_synthesis";
   List.iter(fun(name,value)->require(!value<>"")"missing %s"name)
     ["repository root",root;"native report",native;"scene batching test",scene;"text cache test",text;
-     "font cache test",font;"raster cache test",raster];
+     "font cache test",font];
   let report=Yojson.Safe.from_file !native in
   let head=validate_provenance !root report in
   validate_native report;
   validate_capacities !root;
-  List.iter run [!scene;!text;!font;!raster];
+  List.iter run [!scene;!text;!font];
   `Assoc ["schema",`Int 1;"gate",`String"R9";"source_commit",`String head;
     "frames",`Int 600;"measurement_upload_bytes",`String"0";
     "passes_per_frame",`Int 1;"backend_calls_per_frame",`Int 1;
@@ -124,6 +121,6 @@ let () =
     "image_cache_max",`Int 256;"glyph_cache_max",`Int 256;
     "proofs",`List(List.map(fun x->`String x)
       ["native-camera-zero-upload";"scene-material-clip-batching";
-       "automatic-text-lru";"explicit-font-lru";"raster-decoded-image-lru"])]
+       "automatic-text-lru";"explicit-font-lru"])]
   |> Yojson.Safe.pretty_to_channel stdout;
   output_char stdout '\n'

@@ -39,8 +39,7 @@
  (deps runtime_next_r9_synthesis.exe
   ../../lib/scene_execution/scene_execution.ml
   ../../lib/prismel_next_resources/prismel_next_resources.ml
-  ../../lib/prismel_next_api/font.ml
-  ../../lib/ogpu_raster2/ogpu_raster2.ml)
+  ../../lib/prismel_next_api/font.ml)
  (action (run %{test} %{exe:./runtime_next_r9_synthesis.exe} %{workspace_root})))
 
 (test

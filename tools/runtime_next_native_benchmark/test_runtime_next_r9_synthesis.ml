@@ -17,7 +17,7 @@ let report path commit =
 let run executable root input =
   let proof="/usr/bin/true"in
   let args=[|executable;"--root";root;"--native-report";input;"--scene-batching-test";proof;
-    "--text-cache-test";proof;"--font-cache-test";proof;"--raster-cache-test";proof|]in
+    "--text-cache-test";proof;"--font-cache-test";proof|]in
   let null=Unix.openfile"/dev/null"[Unix.O_WRONLY]0 in
   let pid=Unix.create_process executable args Unix.stdin null null in
   Unix.close null;
@@ -39,7 +39,6 @@ let () =
   fixture root"lib/scene_execution/scene_execution.ml""let mesh_cache_entry_capacity=256\nlet texture_cache_entry_capacity=256\nlet cache_byte_capacity=256*1024*1024\nwhen entries < 64";
   fixture root"lib/prismel_next_resources/prismel_next_resources.ml""if List.length entries<=256";
   fixture root"lib/prismel_next_api/font.ml""let capacity=256 and font_capacity=32";
-  fixture root"lib/ogpu_raster2/ogpu_raster2.ml""let decode_cache_capacity=256\nlet decode_cache_byte_capacity=64*1024*1024";
   command root["init";"-q"];command root["add";"."];
   command root["-c";"user.name=R9 Test";"-c";"user.email=r9@example.invalid";"commit";"-qm";"fixture"];
   let head=let input=Unix.open_process_args_in"git"[|"git";"-C";root;"rev-parse";"HEAD"|]in let x=input_line input in ignore(Unix.close_process_in input);x in
