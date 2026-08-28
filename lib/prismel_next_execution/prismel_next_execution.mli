@@ -63,7 +63,7 @@ type resource = Image of Prismel_next_resources.Image.t |
 
 (** Lower target-neutral geometry commands. Image and glyph commands require
     resource binding and are rejected atomically in this first staging slice. *)
-val scene2_ir : Raster2.Render_ir.t -> (draw list, error) result
+val scene2_ir : Scene_command.Render_ir.t -> (draw list, error) result
 
 (** Lower already validated renderer-neutral native Scene2 commands. *)
 val scene2_commands : Scene_execution.Scene2_command.t array ->
@@ -81,7 +81,7 @@ val create : configuration -> (t,error) result
 val target : t -> target
 val assets : t -> Prismel_next_resources.Assets.t
 val lower_scene2 : t -> density:int -> resource:(int -> resource option) ->
-  Raster2.Render_ir.t -> (draw list,error) result
+  Scene_command.Render_ir.t -> (draw list,error) result
 val snapshot_cache_entries : t -> int
 val scene2_geometry_cache_entries : t -> int * int
 type stats = Runtime_next_orchestrator.stats = { frames:int64; presented:int64;

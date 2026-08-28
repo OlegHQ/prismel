@@ -45,13 +45,13 @@ type scene2_geometry_candidate={candidate_vertex_count:int;
 type cached_scene2_batch={batch_fingerprint:int;batch_draw_count:int;
   batch_source_bytes:int;batch_draw:draw}
 type cached_scene2_quad={quad_texture:Scene_execution.sampled_texture;
-  quad_destination:Raster2.Render_ir.rect;quad_transform:Raster2.Render_ir.transform;
+  quad_destination:Scene_command.Render_ir.rect;quad_transform:Scene_command.Render_ir.transform;
   quad_clip:int*int*int*int;quad_uv:float*float*float*float;quad_draw:draw}
-type cached_scene2_quad_payload={payload_destination:Raster2.Render_ir.rect;
-  payload_transform:Raster2.Render_ir.transform;payload_clip:int*int*int*int;
+type cached_scene2_quad_payload={payload_destination:Scene_command.Render_ir.rect;
+  payload_transform:Scene_command.Render_ir.transform;payload_clip:int*int*int*int;
   payload_uv:float*float*float*float;payload_vertices:bytes;payload_indices:bytes}
-type cached_scene2_debug={debug_source:Raster2.Render_ir.debug_text;
-  debug_transform:Raster2.Render_ir.transform;debug_clip:int*int*int*int;
+type cached_scene2_debug={debug_source:Scene_command.Render_ir.debug_text;
+  debug_transform:Scene_command.Render_ir.transform;debug_clip:int*int*int*int;
   debug_draw:draw option}
 type resource=Image of Prismel_next_resources.Image.t|Text of Prismel_next_resources.Text.t
   |Canvas of Prismel_next_resources.Canvas.t
@@ -62,7 +62,7 @@ type scene2_resource_stamp=
 type cached_scene2_plan={plan_fingerprint:int;plan_command_count:int;
   plan_source_bytes:int;plan_density:int;plan_target:target;
   plan_extent:int*int*int*int;plan_resources:scene2_resource_stamp list;
-  plan_ir:Raster2.Render_ir.t;plan_draws:draw list;
+  plan_ir:Scene_command.Render_ir.t;plan_draws:draw list;
   plan_image_ids:int option list}
 type scene2_plan_candidate={candidate_plan_fingerprint:int;
   candidate_plan_command_count:int;candidate_plan_density:int;
@@ -117,9 +117,9 @@ let debug_text_geometry (transform:Command.transform) (debug:Command.debug_text)
     | Some index -> index | None -> String.length debug.text in
   let pixels = ref 0 in
   for character = 0 to stop - 1 do
-    for row = 0 to Raster2.Debug_font.height - 1 do
-      let bits = Raster2.Debug_font.glyph_row debug.text.[character] row in
-      for column = 0 to Raster2.Debug_font.width - 1 do
+    for row = 0 to Scene_command.Debug_font.height - 1 do
+      let bits = Scene_command.Debug_font.glyph_row debug.text.[character] row in
+      for column = 0 to Scene_command.Debug_font.width - 1 do
         if bits land (0x80 lsr column) <> 0 then incr pixels
       done
     done
@@ -132,11 +132,11 @@ let debug_text_geometry (transform:Command.transform) (debug:Command.debug_text)
     +. transform.yy *. debug.y +. transform.ty in
   let pixel = ref 0 in
   for character = 0 to stop - 1 do
-    for row = 0 to Raster2.Debug_font.height - 1 do
-      let bits = Raster2.Debug_font.glyph_row debug.text.[character] row in
-      for column = 0 to Raster2.Debug_font.width - 1 do
+    for row = 0 to Scene_command.Debug_font.height - 1 do
+      let bits = Scene_command.Debug_font.glyph_row debug.text.[character] row in
+      for column = 0 to Scene_command.Debug_font.width - 1 do
         if bits land (0x80 lsr column) <> 0 then begin
-          let x = anchor_x +. float (character * Raster2.Debug_font.width + column)
+          let x = anchor_x +. float (character * Scene_command.Debug_font.width + column)
           and y = anchor_y +. float row in
           let vertex = !pixel * 8 and index = !pixel * 6
           and base = !pixel * 4 in
@@ -157,13 +157,13 @@ let compose (a:Command.transform) (b:Command.transform) = Command.{xx=a.xx*.b.xx
   xy=a.xy*.b.xx+.a.yy*.b.xy; yx=a.xx*.b.yx+.a.yx*.b.yy;
   yy=a.xy*.b.yx+.a.yy*.b.yy; tx=a.xx*.b.tx+.a.yx*.b.ty+.a.tx;
   ty=a.xy*.b.tx+.a.yy*.b.ty+.a.ty }
-let compose_raster (a:Raster2.Render_ir.transform) (b:Raster2.Render_ir.transform)={Raster2.Render_ir.xx=a.xx*.b.xx+.a.yx*.b.xy;
+let compose_raster (a:Scene_command.Render_ir.transform) (b:Scene_command.Render_ir.transform)={Scene_command.Render_ir.xx=a.xx*.b.xx+.a.yx*.b.xy;
   xy=a.xy*.b.xx+.a.yy*.b.xy;yx=a.xx*.b.yx+.a.yx*.b.yy;
   yy=a.xy*.b.yx+.a.yy*.b.yy;tx=a.xx*.b.tx+.a.yx*.b.ty+.a.tx;
   ty=a.xy*.b.tx+.a.yy*.b.ty+.a.ty}
-let command_transform_of_raster (value:Raster2.Render_ir.transform):Command.transform=
+let command_transform_of_raster (value:Scene_command.Render_ir.transform):Command.transform=
   {xx=value.xx;xy=value.xy;yx=value.yx;yy=value.yy;tx=value.tx;ty=value.ty}
-let command_geometry_of_raster (value:Raster2.Render_ir.geometry):Command.geometry=
+let command_geometry_of_raster (value:Scene_command.Render_ir.geometry):Command.geometry=
   {vertices=value.vertices;indices=value.indices;color=value.color}
 let scene2_commands commands =
   let identity=Command.{xx=1.;xy=0.;yx=0.;yy=1.;tx=0.;ty=0.} in
@@ -191,9 +191,9 @@ let scene2_commands commands =
   |None->Ok(List.rev!draws)
 
 let command_of_raster2 = function
-  |Raster2.Render_ir.Clear color->Ok(Command.Clear color)
+  |Scene_command.Render_ir.Clear color->Ok(Command.Clear color)
   |Set_blend blend->Ok(Command.Set_blend(match blend with
-      |Raster2.Composite.Replace|Copy->Command.Replace
+      |Scene_command.Render_ir.Replace|Copy->Command.Replace
       |Alpha|Source_over->Alpha|Add->Add|Multiply->Multiply|Screen->Screen
       |Subtract->Subtract))
   |Push_clip rect->Ok(Command.Push_clip{x=rect.x;y=rect.y;width=rect.width;height=rect.height})
@@ -206,7 +206,7 @@ let command_of_raster2 = function
   |Debug_text debug->Ok(Command.Debug_text{x=debug.x;y=debug.y;text=debug.text;color=debug.color})
   |Image _|Glyphs _->Error"image/glyph resource binding is not available"
 let scene2_ir ir =
-  let source=Raster2.Render_ir.Private.commands_readonly ir in
+  let source=Scene_command.Render_ir.Private.commands_readonly ir in
   let commands=Array.make(Array.length source)(Command.Clear 0l)and failure=ref None in
   Array.iteri(fun index value->match command_of_raster2 value with
     |Ok command->commands.(index)<-command|Error message->failure:=Some message)source;
@@ -463,20 +463,20 @@ let lower_scene2_uncached value ~density ~resource:resolve ir =
       |lease::rest->Prismel_next_resources.Image.Private.release_snapshot lease;loop rest
       |[]->()in
     loop value.pending_image_leases;value.pending_image_leases<-leases_before in
-  let identity={Raster2.Render_ir.xx=1.;xy=0.;yx=0.;yy=1.;tx=0.;ty=0.}in
+  let identity={Scene_command.Render_ir.xx=1.;xy=0.;yx=0.;yy=1.;tx=0.;ty=0.}in
   let facts=Runtime_next_orchestrator.facts value.runtime|>Result.get_ok in
   let native_projection=match target value with
-    |Native->Some{Raster2.Render_ir.xx=2./.float facts.logical_width;xy=0.;yx=0.;
+    |Native->Some{Scene_command.Render_ir.xx=2./.float facts.logical_width;xy=0.;yx=0.;
         yy=(-2.)/.float facts.logical_height;tx=(-1.);ty=1.}
     |Headless|Web->None in
   let render_transform transform=match native_projection with
     |None->transform|Some projection->compose_raster projection transform in
   let transforms=ref[identity]and clips=ref[(0,0,facts.drawable_width,facts.drawable_height)]and draws=ref[]and number=ref 0 and failure=ref None in
-  let point transform x y=transform.Raster2.Render_ir.xx*.x+.transform.yx*.y+.transform.tx,
+  let point transform x y=transform.Scene_command.Render_ir.xx*.x+.transform.yx*.y+.transform.tx,
     transform.xy*.x+.transform.yy*.y+.transform.ty in
   let clip_live()=let _,_,width,height=List.hd!clips in width>0&&height>0 in
-  let geometry_draw number (transform:Raster2.Render_ir.transform) clip
-      (geometry:Raster2.Render_ir.geometry)=
+  let geometry_draw number (transform:Scene_command.Render_ir.transform) clip
+      (geometry:Scene_command.Render_ir.geometry)=
     (* [Render_ir] owns these arrays and exposes them read-only.  Public Scene
        lowering nevertheless constructs fresh, content-identical arrays every
        frame.  A physical-identity cache consequently re-uploaded every static
@@ -530,7 +530,7 @@ let lower_scene2_uncached value ~density ~resource:resolve ir =
               (fun cached->cached.source_bytes)value.scene2_geometry_cache;draw
     in
   let quad (texture:Scene_execution.sampled_texture)
-      (destination:Raster2.Render_ir.rect) (u0,v0,u1,v1 as uv) =
+      (destination:Scene_command.Render_ir.rect) (u0,v0,u1,v1 as uv) =
     let transform=render_transform(List.hd!transforms)in
     let clip=List.hd!clips in
     let borrowed=String.starts_with~prefix:"image:"texture.Scene_execution.key in
@@ -544,7 +544,7 @@ let lower_scene2_uncached value ~density ~resource:resolve ir =
       cached.payload_clip=clip&&cached.payload_uv=uv)value.scene2_quad_payload_cache with
     |Some cached->cached.payload_vertices,cached.payload_indices
     |None->
-    let x0,y0=point transform destination.Raster2.Render_ir.x destination.y
+    let x0,y0=point transform destination.Scene_command.Render_ir.x destination.y
     and x1,y0'=point transform(destination.x+.destination.width)destination.y
     and x1',y1=point transform(destination.x+.destination.width)(destination.y+.destination.height)
     and x0',y1'=point transform destination.x(destination.y+.destination.height)in
@@ -570,13 +570,13 @@ let lower_scene2_uncached value ~density ~resource:resolve ir =
         value.scene2_quad_cache<-List.rev(List.tl(List.rev value.scene2_quad_cache))
     end;
     draw in
-  let image (command:Raster2.Render_ir.image) = match resolve command.Raster2.Render_ir.resource_id with None->failure:=Some"resource id is unbound"|Some source->
+  let image (command:Scene_command.Render_ir.image) = match resolve command.Scene_command.Render_ir.resource_id with None->failure:=Some"resource id is unbound"|Some source->
     match snapshot value~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
       let s=command.source in if width<=0||height<=0 then failure:=Some"resource extent is invalid"else
       let u0=s.x/.float width and v0=s.y/.float height and u1=(s.x+.s.width)/.float width and v1=(s.y+.s.height)/.float height in
       draws:=quad texture command.destination(u0,v0,u1,v1)::!draws;incr number in
   Array.iter(fun command->if!failure=None then match command with
-    |Raster2.Render_ir.Clear _|Set_blend _->()
+    |Scene_command.Render_ir.Clear _|Set_blend _->()
     |Push_transform transform->transforms:=compose_raster(List.hd!transforms)transform::!transforms
     |Pop_transform->(match!transforms with _::(_::_ as rest)->transforms:=rest|_->())
     |Push_clip rect->let px,py,pw,ph=List.hd!clips and x=int_of_float(floor rect.x)
@@ -607,14 +607,14 @@ let lower_scene2_uncached value ~density ~resource:resolve ir =
     |Image command->if clip_live()then image command
     |Glyphs glyphs->if clip_live()&&Array.length glyphs.glyphs>0 then match resolve glyphs.resource_id with None->failure:=Some"glyph resource id is unbound"|Some source->
         match snapshot value~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
-          Array.iter(fun(glyph:Raster2.Render_ir.glyph)->let destination={Raster2.Render_ir.x=glyph.x;y=glyph.y;width=float width;height=float height}in draws:=quad texture destination(0.,0.,1.,1.)::!draws;incr number)glyphs.glyphs)
-    (Raster2.Render_ir.Private.commands_readonly ir);
+          Array.iter(fun(glyph:Scene_command.Render_ir.glyph)->let destination={Scene_command.Render_ir.x=glyph.x;y=glyph.y;width=float width;height=float height}in draws:=quad texture destination(0.,0.,1.,1.)::!draws;incr number)glyphs.glyphs)
+    (Scene_command.Render_ir.Private.commands_readonly ir);
   match!failure with Some message->release_new_leases();fail"Prismel_next_execution.lower_scene2"Resource message
   |None->Ok(batch_scene2_draws ~cache:value.scene2_batch_cache
       ~set_cache:(fun cache->value.scene2_batch_cache<-cache)(List.rev!draws))
 let scene2_plan_source_bytes commands=
   Array.fold_left(fun total->function
-    |Raster2.Render_ir.Geometry g->total+Array.length g.vertices*(Sys.word_size/8)+
+    |Scene_command.Render_ir.Geometry g->total+Array.length g.vertices*(Sys.word_size/8)+
       Array.length g.indices*(Sys.word_size/8)
     |Glyphs g->total+Array.length g.glyphs*24
     |Debug_text d->total+String.length d.text
@@ -632,7 +632,7 @@ let same_scene2_resource_stamps left right=
 let scene2_resource_stamps resolve commands=
   let ids=ref[]and missing=ref false in
   Array.iter(function
-    |Raster2.Render_ir.Image image->ids:=image.resource_id::!ids
+    |Scene_command.Render_ir.Image image->ids:=image.resource_id::!ids
     |Glyphs glyphs->ids:=glyphs.resource_id::!ids|_->())commands;
   let stamps=List.filter_map(fun id->
     match resolve id with
@@ -670,11 +670,11 @@ let scene2_plan_hydrate value ~density plan=
       plan.plan_draws plan.plan_image_ids)
 let lower_scene2 value ~density ~resource:resolve ir =
   if value.dead then lower_scene2_uncached value~density~resource:resolve ir else
-  let commands=Raster2.Render_ir.Private.commands_readonly ir in
+  let commands=Scene_command.Render_ir.Private.commands_readonly ir in
   let fingerprint=ref(Hashtbl.hash commands)and command_count=Array.length commands in
   let mix value=fingerprint:=(!fingerprint*65599)lxor value in
   for index=0 to command_count-1 do match Array.unsafe_get commands index with
-    |Raster2.Render_ir.Push_transform transform->
+    |Scene_command.Render_ir.Push_transform transform->
       mix(Int64.to_int(Int64.bits_of_float transform.xx));
       mix(Int64.to_int(Int64.bits_of_float transform.xy));
       mix(Int64.to_int(Int64.bits_of_float transform.yx));
@@ -705,7 +705,7 @@ let lower_scene2 value ~density ~resource:resolve ir =
     plan.plan_command_count=command_count&&plan.plan_density=density&&
     plan.plan_target=target&&plan.plan_extent=extent&&
     same_scene2_resource_stamps plan.plan_resources resources&&
-    Raster2.Render_ir.Private.commands_readonly plan.plan_ir=commands in
+    Scene_command.Render_ir.Private.commands_readonly plan.plan_ir=commands in
   if cacheable then match List.find_opt exact value.scene2_plan_cache with
   |Some plan->scene2_plan_hydrate value~density plan
   |None->
