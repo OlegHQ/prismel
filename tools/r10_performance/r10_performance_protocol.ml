@@ -92,6 +92,9 @@ let numeric_float = function
   | Some (`Intlit value) -> (try Some (float_of_string value) with Failure _ -> None)
   | _ -> None
 let numeric_int value = Option.map int_of_float (numeric_float value)
+let canonical_git_commit value =
+  String.length value = 40 && String.for_all (function
+    | '0'..'9' | 'a'..'f' -> true | _ -> false) value
 let seconds_metric raw seconds_names millisecond_names =
   match first seconds_names raw with
   | Some value -> number_or_null (Some value)
@@ -383,6 +386,16 @@ let validate_report report =
   and height = protocol |> member "height" |> to_int
   and sample_seconds = protocol |> member "sample_seconds" |> to_float in
   let smoke = member "smoke" protocol = `Bool true in
+  if not smoke then begin
+    let provenance=member "provenance" report in
+    (match member "git_dirty" provenance with
+     |`Bool false->()
+     |`Bool true->fail "R10 qualification report was captured from a dirty worktree"
+     |_->fail "R10 qualification report lacks git_dirty provenance");
+    (match member "git_commit" provenance with
+     |`String commit when canonical_git_commit commit->()
+     |_->fail "R10 qualification report lacks a canonical git commit")
+  end;
   let samples = report |> member "samples" |> to_list in
   let baselines = match member "performance_baselines" report with
     | `List values -> values | `Null -> []

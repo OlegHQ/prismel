@@ -39,7 +39,8 @@ let baseline target scenario =
     "metrics", `Assoc ["wall", metric 1. 1.; "frame", metric 0.01 0.011;
       "CPU", metric 0.5 0.5; "promoted", metric 4. 4.; "RSS", metric 1024. 1024.]]
 
-let report ?(sample_count=1) ?(sample_seconds=1.) ?(smoke=false) samples =
+let report ?(sample_count=1) ?(sample_seconds=1.) ?(smoke=false)
+    ?(dirty=false)?(commit="0123456789abcdef0123456789abcdef01234567") samples =
   `Assoc
     [ "protocol",
       `Assoc
@@ -47,6 +48,7 @@ let report ?(sample_count=1) ?(sample_seconds=1.) ?(smoke=false) samples =
         ; "width", `Int 64; "height", `Int 64;
           "sample_seconds",`Float sample_seconds; "smoke", `Bool smoke
         ]
+    ; "provenance", `Assoc["git_commit",`String commit;"git_dirty",`Bool dirty]
     ; "samples", `List samples
     ; "performance_baselines", `List (List.concat_map (fun target ->
         List.map (baseline target) ["basic";"pxui";"canvas";"scene3"])
@@ -114,6 +116,12 @@ let () =
       write invalid (report broken);
       if run Sys.argv.(1) valid <> Unix.WEXITED 0 then
         failwith "equivalent R10 report rejected";
+      write invalid(report~dirty:true samples);
+      if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
+        failwith"dirty R10 qualification report accepted";
+      write invalid(report~commit:"not-a-commit" samples);
+      if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
+        failwith"noncanonical R10 commit provenance accepted";
       if run Sys.argv.(1) invalid = Unix.WEXITED 0 then
         failwith "inequivalent R10 report accepted";
       let different_counts = replace_cell ~target:"headless" ~scenario:"basic"
