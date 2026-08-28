@@ -48,9 +48,8 @@ val run_assets :
 val export :
   ?config:config -> ?fps:int -> ?prefix:string -> directory:string ->
   frames:int -> (Frame.t -> Scene.t) -> unit
-(** Render a deterministic PNG sequence named [prefix-NNNNNN.png]. Captured
-    frames use the renderer's native backing dimensions; headless output has
-    one backing pixel per logical point. *)
+(** Renders a deterministic PNG sequence named [prefix-NNNNNN.png]. Captured
+    frames use the renderer's native backing dimensions. *)
 
 val export_state :
   ?config:config ->

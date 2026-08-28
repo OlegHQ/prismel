@@ -2,7 +2,7 @@
 
     Both environments share a responsive view/graph/inspector workspace,
     persistent graph navigation, generated node inspection, bounded
-    asynchronous cooking, status UI, and finite headless execution. Their thin
+    asynchronous cooking, status UI, and finite native execution. Their thin
     adapters own only the dimensional camera, viewport composition, and
     still-image renderer. Overlay callbacks receive a frame and coordinates
     local to the current view pane. *)

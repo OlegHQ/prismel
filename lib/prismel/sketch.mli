@@ -1,4 +1,4 @@
-(** Ergonomic functional sketch lifecycle. *)
+(** Ergonomic functional native Metal sketch lifecycle. *)
 
 type clock =
   | Realtime
@@ -16,7 +16,7 @@ type config = {
   resizable : bool;
   fullscreen : bool;
 }
-(** [default_config] enables native resizing. *)
+(** The default configuration enables native resizing. *)
 
 val default_config : config
 
@@ -24,7 +24,7 @@ val run :
   ?config:config ->
   (Frame.t -> Scene.t) ->
   unit
-(** Run a sketch with no user model. *)
+(** Runs a sketch with no user model. *)
 
 val run_state :
   ?config:config ->
@@ -35,7 +35,7 @@ val run_state :
   ?on_stop:('model -> unit) ->
   unit ->
   'model
-(** Run a sketch with immutable user state threaded through every frame.
+(** Runs a sketch with immutable user state threaded through every frame.
     [max_frames] keeps one runtime alive for exactly that many frames unless
     [quit] is requested first. *)
 
@@ -48,7 +48,7 @@ val run_assets :
   view:(Assets.t -> 'model -> Frame.t -> Scene.t) ->
   unit ->
   'model
-(** Run a stateful sketch with an automatically owned asset cache. *)
+(** Runs a stateful sketch with an automatically owned asset cache. *)
 
 val export :
   ?config:config ->
@@ -58,9 +58,8 @@ val export :
   frames:int ->
   (Frame.t -> Scene.t) ->
   unit
-(** Render a deterministic PNG sequence named [prefix-NNNNNN.png]. Captured
-    frames use the renderer's native backing dimensions; headless output has
-    one backing pixel per logical point. *)
+(** Renders a deterministic PNG sequence named [prefix-NNNNNN.png]. Captured
+    frames use the renderer's native backing dimensions. *)
 
 val export_state :
   ?config:config ->
@@ -74,9 +73,9 @@ val export_state :
   ?on_stop:('model -> unit) ->
   unit ->
   'model
-(** Stateful deterministic PNG-sequence export. *)
+(** Renders a stateful deterministic PNG sequence. *)
 
 val quit : unit -> unit
 val resize : width:int -> height:int -> unit
-(** Resize the active sketch through its selected runtime target. *)
+(** Resizes the active native sketch. *)
 val render_target : unit -> render_target
