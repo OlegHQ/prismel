@@ -56,10 +56,12 @@ let run validator value =
     ~finally:(fun () -> if Sys.file_exists path then Sys.remove path)
     (fun () ->
       Yojson.Safe.to_file path value;
-      Sys.command
-        (Printf.sprintf "%s %s >/dev/null 2>&1" (Filename.quote validator)
-           (Filename.quote path))
-      = 0)
+      let validator = Unix.realpath validator in
+      let process = Unix.create_process validator [| validator; path |]
+          Unix.stdin Unix.stdout Unix.stderr in
+      match snd (Unix.waitpid [] process) with
+      | Unix.WEXITED code -> code = 0
+      | Unix.WSIGNALED _ | Unix.WSTOPPED _ -> false)
 
 let () =
   let validator = Sys.argv.(1) in

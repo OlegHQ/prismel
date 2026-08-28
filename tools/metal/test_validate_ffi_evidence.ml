@@ -10,6 +10,7 @@ let run ~validator ~root evidence =
     ~finally:(fun () -> if Sys.file_exists path then Sys.remove path)
     (fun () ->
       Yojson.Safe.to_file path evidence;
+      let validator = Unix.realpath validator in
       let arguments =
         [| validator; "--root"; root; "--evidence"; path |]
       in
