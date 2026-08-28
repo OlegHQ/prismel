@@ -24,7 +24,9 @@ module Private : sig
   type native = Compute of Metal.Compute_pipeline.t | Render of Metal.Render_pipeline.t
   val native : t -> native
   val portable : t -> Ogpu.Pipeline.t
+  val native_identity : t -> int64 * int64
   val argument_encoder : t -> buffer_index:int64 -> (Metal.Shader_argument_encoder.t,Ogpu.Error.t) result
+  val argument_function : t -> Metal.Function.t option
   val retain_submission : t -> (unit,Ogpu.Error.t) result
   val release_submission : t -> unit
 end

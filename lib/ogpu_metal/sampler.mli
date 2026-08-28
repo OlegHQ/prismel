@@ -11,4 +11,4 @@ val device_id : t -> int64
 val descriptor : Device.t -> t -> (descriptor,Ogpu.Error.t) result
 val destroyed : t -> bool
 val destroy : t -> (unit,Ogpu.Error.t) result
-module Private : sig val metal:t->Metal.Sampler.t val retain_submission:t->(unit,Ogpu.Error.t)result val release_submission:t->unit end
+module Private : sig val metal:t->Metal.Sampler.t val descriptor:t->descriptor val create_argument:Device.t->descriptor->(Metal.Sampler.t,Metal.error)result val retain_submission:t->(unit,Ogpu.Error.t)result val release_submission:t->unit end

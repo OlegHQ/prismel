@@ -11,7 +11,7 @@ let device_id value=Device.id value.device
 let generation value=Ogpu.Handle.generation value.handle
 let destroyed value=value.dead
 let validate device value=Ogpu.Handle.validate_for~operation:"Ogpu_metal.Pipeline.validate"(Device.Private.handle device)value.handle
-let finish_destroy value=let native_result=match value.native with Compute x->Metal.Compute_pipeline.destroy x|Render x->Metal.Render_pipeline.destroy x in match native_result with Error e->Error(Adapter.error~operation:"Ogpu_metal.Pipeline.destroy" e)|Ok()->List.iter(fun f->ignore(Metal.Function.destroy f))value.functions;ignore(Metal.Library.destroy value.library);Option.iter(fun f->f())value.descriptor_destroy;Device.Private.detach_resource value.device;Ok()
+let finish_destroy value=let operation="Ogpu_metal.Pipeline.destroy"in let native_result=match value.native with Compute x->Metal.Compute_pipeline.destroy x|Render x->Metal.Render_pipeline.destroy x in match native_result with Error e->Error(Adapter.error~operation e)|Ok()->let first=List.fold_left(fun failure function_->match failure,Metal.Function.destroy function_ with Some _,_->failure|None,Ok()->None|None,Error e->Some e)None value.functions in let first=match first,Metal.Library.destroy value.library with Some e,_->Some e|None,Ok()->None|None,Error e->Some e in match first with Some e->Error(Adapter.error~operation e)|None->Option.iter(fun f->f())value.descriptor_destroy;Device.Private.detach_resource value.device;Ok()
 let destroy value=if value.dead then Ok()else if value.submission_uses>0 then(Ogpu.Handle.destroy value.handle;value.dead<-true;value.destroy_requested<-true;Ok())else match finish_destroy value with Error _ as failure->failure|Ok()->Ogpu.Handle.destroy value.handle;value.dead<-true;Ok()
 let create_cache~capacity=Result.map(fun values->{values})(Ogpu.Cache.create~capacity~on_evict:(fun~key:_ value _->ignore(destroy value)))
 let cache_length value=Ogpu.Cache.length value.values
@@ -66,7 +66,9 @@ module Private=struct
   type nonrec native=native=Compute of Metal.Compute_pipeline.t|Render of Metal.Render_pipeline.t
   let native value=value.native
   let portable value=value.portable
-  let argument_encoder value ~buffer_index=match value.native,value.functions with Compute _,_->error"Ogpu_metal.Pipeline.argument_encoder"Ogpu.Error.Invalid_argument"compute pipeline has no fragment argument encoder"|Render _,[]->error"Ogpu_metal.Pipeline.argument_encoder"Ogpu.Error.Invalid_state"fragment function was not retained"|Render _,function_::_->(match Metal.Function.argument_encoder function_~buffer_index with Error e->Error(Adapter.error~operation:"Ogpu_metal.Pipeline.argument_encoder" e)|Ok encoder->Ok encoder)
+  let native_identity value=Ogpu.Handle.id value.handle,Ogpu.Handle.generation value.handle
+  let argument_function value=match value.native,value.functions with Render _,function_::_->Some function_|_->None
+  let argument_encoder value ~buffer_index=match argument_function value with None->error"Ogpu_metal.Pipeline.argument_encoder"Ogpu.Error.Invalid_state"fragment function was not retained"|Some function_->(match Metal.Function.argument_encoder function_~buffer_index with Error e->Error(Adapter.error~operation:"Ogpu_metal.Pipeline.argument_encoder" e)|Ok encoder->Ok encoder)
   let retain_submission value=if value.dead then Error(Ogpu.Error.make"Ogpu_metal.Pipeline.retain_submission"Ogpu.Error.Stale_handle"pipeline is destroyed")else(value.submission_uses<-value.submission_uses+1;Ok())
   let release_submission value=value.submission_uses<-value.submission_uses-1;if value.submission_uses=0&&value.destroy_requested then ignore(finish_destroy value)
 end
