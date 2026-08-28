@@ -58,17 +58,23 @@ subtraction rather than dropping the standard set.  The normalized-signature
 gate narrowly classifies the six private hooks listed above.  Its focused run
 now passes with 40/40 modules and zero unreviewed deltas.
 
-With real Prismel module discovery restored, the stable-manifest check reports
+With real Prismel module discovery restored, the stable-manifest check reported
 one substantive public delta instead of a false 40-module contraction:
-`Sketch.run_state` gained `?max_frames` and `Sketch.resize` was added.  Those
-additions are committed implementation work, but R1's frozen contract permits
-only additive documentation.  The stable authority was therefore deliberately
-left unchanged and the check remains red rather than laundering the additions
-through regeneration.
+`Sketch.run_state` gained `?max_frames` and `Sketch.resize` was added.  Review
+confirmed both are backward-compatible migration controls required by the
+frozen finite native acceptance and post-resize frame gates.  They preserve the
+ordinary unbounded call shape, reject invalid bounds/dimensions, and keep target
+selection below Sketch.  `specification/api.md` and both Sketch interfaces
+already document the behavior.  The legacy headless smoke now exercises the
+public resize boundary and uses `max_frames` for exact termination; the
+legacy/next interface and next lifecycle fixture proves exact interface parity,
+three-frame termination, resize validation, and exactly-once cleanup.  The
+stable manifest and its Phase-4 hash authority were regenerated explicitly for
+these two reviewed additions.
 
-The shattered-cube changes are also substantive: they add the R11 native
+The shattered-cube changes remain substantive: they add the R11 native
 delegate, artifact validation, and runtime-next dependencies to the unchanged
 acceptance sketch.  They are useful qualification work but not source-neutral,
 so the Phase-4 freeze authority remains unchanged and red pending explicit
 review of that exception.  R1 remains pending for these two real reasons; the
-two tooling false positives are closed.
+tooling false positives and the reviewed Sketch delta are closed.

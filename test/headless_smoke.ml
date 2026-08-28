@@ -925,7 +925,7 @@ let init (frame : Frame.t) =
        then failwith "Font.load_dpi did not honor its explicit uniform DPI";
        Font.destroy dpi_font);
   Canvas.destroy canvas;
-  Low.Window.set_size 40 30;
+  Sketch.resize ~width:40 ~height:30;
   Input.reset ~mouse:(10, 10);
   push_mouse_motion 13 14;
   push_mouse_motion 20 25;
@@ -973,7 +973,6 @@ let update state (frame : Frame.t) =
   end;
   if frame.count = 2 && frame.mouse_delta <> (0, 0) then
     failwith "mouse delta was nonzero on the quiet frame";
-  if frame.count = 2 then Sketch.quit ();
   state + 1
 
 let view state (frame : Frame.t) =
@@ -991,6 +990,7 @@ let () =
     failwith "headless smoke test was not launched with HEADLESS enabled";
   let final_state =
     Sketch.run_state
+      ~max_frames:2
       ~config:{ Sketch.default_config with
         width = 32;
         height = 32;

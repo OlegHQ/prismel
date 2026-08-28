@@ -2,7 +2,7 @@ open Support
 
 let baseline = "4622091a65bc9a8816a1f10bcc83c1a625ca7522"
 let plan_sha256 = "75cb47632aa2b26199677560c6382b8b94786af5f704867b40d306ccefbe19d3"
-let api_sha256 = "ca6861c5dfbfafd6ea64d1c9837bc218e2af0dfe83a5b9589183384ffefcb7e2"
+let api_sha256 = "f1880b5250bc79c873760efe93ed8132cb8acd07b41d376ac676db0e234348c6"
 
 let acceptance =
   [ "examples/basic"; "examples/particles"; "examples/noise"
