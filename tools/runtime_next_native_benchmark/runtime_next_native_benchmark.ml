@@ -6,6 +6,12 @@ type acceptance_artifact={pieces:int;triangles:int;render_vertices:int;cook_seco
 type counters = {
   mutable buffer_creates : int;
   mutable buffer_bytes : int64;
+  mutable buffer_writes : int;
+  mutable buffer_write_bytes : int64;
+  mutable mesh_buffer_creates : int;
+  mutable mesh_buffer_bytes : int64;
+  mutable mesh_buffer_writes : int;
+  mutable mesh_buffer_write_bytes : int64;
   mutable submissions : int;
   mutable render_passes : int;
   mutable draws : int;
@@ -69,10 +75,66 @@ let workload ?acceptance=function
   |Scene3->List.init 12(fun i->Scene_execution.Scene3,Ogpu.Pipeline.Replace,{Scene_execution.mesh=mesh68~key:("scene3-"^string_of_int i)9_216;state})
   |Shattered->let accepted=Option.get acceptance in[Scene_execution.Scene3,Ogpu.Pipeline.Replace,{Scene_execution.mesh=acceptance_mesh accepted;state}]
 
-let instrument counters(driver:Ogpu.Backend.driver):Ogpu.Backend.driver={create_device=(fun()->Result.map(fun(device:Ogpu.Backend.driver_device)->
-  let create_buffer descriptor=counters.buffer_creates<-counters.buffer_creates+1;counters.buffer_bytes<-Int64.add counters.buffer_bytes descriptor.Ogpu.Types.size;device.create_buffer descriptor in
-  let create_queue()=Result.map(fun(queue:Ogpu.Backend.driver_queue)->{queue with submit=(fun command~resources~pipelines->counters.submissions<-counters.submissions+1;(match command with Ogpu.Backend.Render submission->counters.render_passes<-counters.render_passes+1;counters.draws<-counters.draws+List.length(Ogpu.Render_pass.submission_draws submission)|_->());queue.submit command~resources~pipelines)})(device.create_queue())in
-  {device with create_buffer;create_queue})(driver.create_device()))}
+let instrument counters (driver : Ogpu.Backend.driver) : Ogpu.Backend.driver =
+  let create_device () =
+    Result.map
+      (fun (device : Ogpu.Backend.driver_device) ->
+        let create_buffer (descriptor : Ogpu.Types.buffer_descriptor) =
+          let mesh =
+            Option.fold ~none:false
+              ~some:(String.starts_with ~prefix:"scene-mesh-")
+              descriptor.Ogpu.Types.label
+          in
+          counters.buffer_creates <- counters.buffer_creates + 1;
+          counters.buffer_bytes <-
+            Int64.add counters.buffer_bytes descriptor.Ogpu.Types.size;
+          if mesh then begin
+            counters.mesh_buffer_creates <- counters.mesh_buffer_creates + 1;
+            counters.mesh_buffer_bytes <-
+              Int64.add counters.mesh_buffer_bytes descriptor.size
+          end;
+          Result.map
+            (fun (resource : Ogpu.Backend.driver_resource) ->
+              { resource with
+                write =
+                  (fun offset bytes ->
+                    let length = Int64.of_int (Bytes.length bytes) in
+                    counters.buffer_writes <- counters.buffer_writes + 1;
+                    counters.buffer_write_bytes <-
+                      Int64.add counters.buffer_write_bytes length;
+                    if mesh then begin
+                      counters.mesh_buffer_writes <-
+                        counters.mesh_buffer_writes + 1;
+                      counters.mesh_buffer_write_bytes <-
+                        Int64.add counters.mesh_buffer_write_bytes length
+                    end;
+                    resource.write offset bytes)
+              })
+            (device.create_buffer descriptor)
+        in
+        let create_queue () =
+          Result.map
+            (fun (queue : Ogpu.Backend.driver_queue) ->
+              { queue with
+                submit =
+                  (fun command ~resources ~pipelines ->
+                    counters.submissions <- counters.submissions + 1;
+                    (match command with
+                     | Ogpu.Backend.Render submission ->
+                         counters.render_passes <- counters.render_passes + 1;
+                         counters.draws <-
+                           counters.draws
+                           + List.length
+                               (Ogpu.Render_pass.submission_draws submission)
+                     | _ -> ());
+                    queue.submit command ~resources ~pipelines)
+              })
+            (device.create_queue ())
+        in
+        { device with create_buffer; create_queue })
+      (driver.create_device ())
+  in
+  { create_device }
 
 let scene2_source={|#include <metal_stdlib>
 using namespace metal;struct Out{float4 position[[position]];float4 color;};vertex Out scene_vertex(uint i[[vertex_id]],const device uchar*input[[buffer(0)]]){const device float2*p=(const device float2*)input;Out o;o.position=float4(p[i],0,1);o.color=float4(1,1,1,1);return o;}fragment float4 scene_fragment(Out i[[stage_in]]){return i.color;}|}
@@ -153,22 +215,25 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
     "native_gpu_counters",`Null;"machine",`Assoc["arch",`String(Sys.getenv_opt"HOSTTYPE"|>Option.value~default:"arm64");"ocaml",`String Sys.ocaml_version]]in
   Yojson.Safe.pretty_to_string json^"\n"
 
-let ()=let selected=ref Basic and warmup=ref 5 and warmup_seconds=ref None and samples=ref 30 and sample_seconds=ref None and report=ref None and artifact_path=ref None and visibility=ref Hidden and width=ref 64 and height=ref 64 in Arg.parse["--warmup",Arg.Set_int warmup,"frames";"--warmup-seconds",Arg.Float(fun x->warmup_seconds:=Some x),"duration";"--samples",Arg.Set_int samples,"frames";"--sample-seconds",Arg.Float(fun x->sample_seconds:=Some x),"duration";"--width",Arg.Set_int width,"logical width";"--height",Arg.Set_int height,"logical height";"--report",Arg.String(fun x->report:=Some x),"path";"--acceptance-artifact",Arg.String(fun x->artifact_path:=Some x),"cooked shattered artifact";"--visibility",Arg.Symbol(["visible";"hidden"],fun x->visibility:=if x="visible"then Visible else Hidden),"window visibility"](fun x->selected:=parse x)"runtime_next_native_benchmark scenario";if !warmup<1|| !samples<1|| !width<=0|| !height<=0||Option.fold~none:false~some:(fun x->x<=0.)!warmup_seconds||Option.fold~none:false~some:(fun x->x<=0.)!sample_seconds then invalid_arg"counts or dimensions";
-  if !selected<>Shattered then(let public_warmup=Option.value!warmup_seconds~default:(float!warmup/.60.)in let text=run_public!selected public_warmup!samples!sample_seconds!visibility!width!height in (match!report with None->print_string text|Some path->let out=open_out_bin path in output_string out text;close_out out);exit 0);
+let ()=let selected=ref Basic and warmup=ref 5 and warmup_seconds=ref None and samples=ref 30 and sample_seconds=ref None and report=ref None and artifact_path=ref None and visibility=ref Hidden and width=ref 64 and height=ref 64 and protocol_r9=ref false in Arg.parse["--warmup",Arg.Set_int warmup,"frames";"--warmup-seconds",Arg.Float(fun x->warmup_seconds:=Some x),"duration";"--samples",Arg.Set_int samples,"frames";"--sample-seconds",Arg.Float(fun x->sample_seconds:=Some x),"duration";"--width",Arg.Set_int width,"logical width";"--height",Arg.Set_int height,"logical height";"--report",Arg.String(fun x->report:=Some x),"path";"--acceptance-artifact",Arg.String(fun x->artifact_path:=Some x),"cooked shattered artifact";"--visibility",Arg.Symbol(["visible";"hidden"],fun x->visibility:=if x="visible"then Visible else Hidden),"window visibility";"--protocol-r9",Arg.Set protocol_r9,"exact 600-frame stable camera-only upload protocol"](fun x->selected:=parse x)"runtime_next_native_benchmark scenario";if !warmup<1|| !samples<1|| !width<=0|| !height<=0||Option.fold~none:false~some:(fun x->x<=0.)!warmup_seconds||Option.fold~none:false~some:(fun x->x<=0.)!sample_seconds then invalid_arg"counts or dimensions";
+  if !protocol_r9 then(samples:=600;sample_seconds:=None;if !selected<>Scene3 then invalid_arg"R9 protocol requires scene3");
+  if !selected<>Shattered && not !protocol_r9 then(let public_warmup=Option.value!warmup_seconds~default:(float!warmup/.60.)in let text=run_public!selected public_warmup!samples!sample_seconds!visibility!width!height in (match!report with None->print_string text|Some path->let out=open_out_bin path in output_string out text;close_out out);exit 0);
   let protocol_r11=ref(!sample_seconds=Some 30.)in
   let source_before=source_snapshot()in
-  if !protocol_r11&&(match source_before with Some(_,true)->false|_->true)then
-    failwith"R11 requires a captured clean source tree";
-  let counters={buffer_creates=0;buffer_bytes=0L;submissions=0;render_passes=0;draws=0}in
+  if (!protocol_r9 || !protocol_r11) && (match source_before with Some(_,true)->false|_->true)then
+    failwith"native protocol requires a captured clean source tree";
+  let counters={buffer_creates=0;buffer_bytes=0L;buffer_writes=0;buffer_write_bytes=0L;mesh_buffer_creates=0;mesh_buffer_bytes=0L;mesh_buffer_writes=0;mesh_buffer_write_bytes=0L;submissions=0;render_passes=0;draws=0}in
   let renderer,window,cleanup=create_renderer counters!visibility in
   let acceptance=match!selected,!artifact_path with Shattered,Some path->let input=open_in_bin path in Some(Fun.protect~finally:(fun()->close_in input)(fun()->Marshal.from_channel input))|Shattered,None->invalid_arg"shattered requires --acceptance-artifact"|_,_->None in
   let work=workload ?acceptance!selected in
   let prepared=List.map(fun(family,blend,draw)->family,blend,None,None,1,draw)work in
-  let render renderer=Scene_execution.render_prepared_sampled_resources~identity:(scenario_name!selected)~version:1L renderer prepared in
-  for _=1 to !warmup do ignore(get(render renderer))done;let upload0=Scene_execution.upload_bytes renderer and creates0=counters.buffer_creates and submits0=counters.submissions and passes0=counters.render_passes and draws0=counters.draws in Gc.full_major();let gc0=Gc.quick_stat()and allocated0=Gc.allocated_bytes()and cpu0=Unix.times()in let walls=measure_frames(fun()->render renderer)!samples!sample_seconds in let measured=Array.length walls in samples:=measured;let gc1=Gc.quick_stat()and cpu1=Unix.times()and allocated=Gc.allocated_bytes()-.allocated0 and upload1=Scene_execution.upload_bytes renderer in let rss=rss_kib()and cache=Scene_execution.cache_entries renderer in cleanup();let total=Array.fold_left(+.)0. walls and cpu=cpu1.tms_utime+.cpu1.tms_stime-.cpu0.tms_utime-.cpu0.tms_stime in let promoted=(gc1.promoted_words-.gc0.promoted_words)*.float(Sys.word_size/8)in let pieces=Option.fold~none:(List.length work)~some:(fun one->one.pieces)acceptance and triangles=List.fold_left(fun n(_,_,d)->n+d.Scene_execution.mesh.index_count/3)0 work in let misses=counters.buffer_creates-creates0 in let hits=max 0(measured*pieces-misses)in
+  let camera_frame=ref 0 in
+  let camera_uniforms()=let bytes=Bytes.make 208 '\000'in Bytes.set_int32_le bytes 0(Int32.bits_of_float(float(!camera_frame land 1)));bytes in
+  let render renderer=if !protocol_r9 then(begin incr camera_frame;let changing=List.map(fun(family,blend,texture,auxiliary,samples,(draw:Scene_execution.draw))->family,blend,texture,auxiliary,samples,{draw with state={draw.state with transform_uniforms=Some(camera_uniforms())}})prepared in Scene_execution.render_sampled_resources renderer changing end)else Scene_execution.render_prepared_sampled_resources~identity:(scenario_name!selected)~version:1L renderer prepared in
+  for _=1 to !warmup do ignore(get(render renderer))done;let upload0=Scene_execution.upload_bytes renderer and creates0=counters.buffer_creates and create_bytes0=counters.buffer_bytes and writes0=counters.buffer_writes and write_bytes0=counters.buffer_write_bytes and mesh_creates0=counters.mesh_buffer_creates and mesh_create_bytes0=counters.mesh_buffer_bytes and mesh_writes0=counters.mesh_buffer_writes and mesh_write_bytes0=counters.mesh_buffer_write_bytes and submits0=counters.submissions and passes0=counters.render_passes and draws0=counters.draws in Gc.full_major();let gc0=Gc.quick_stat()and allocated0=Gc.allocated_bytes()and cpu0=Unix.times()in let walls=measure_frames(fun()->render renderer)!samples!sample_seconds in let measured=Array.length walls in samples:=measured;let gc1=Gc.quick_stat()and cpu1=Unix.times()and allocated=Gc.allocated_bytes()-.allocated0 and upload1=Scene_execution.upload_bytes renderer in let native_creates=counters.buffer_creates-creates0 and native_create_bytes=Int64.sub counters.buffer_bytes create_bytes0 and native_writes=counters.buffer_writes-writes0 and native_write_bytes=Int64.sub counters.buffer_write_bytes write_bytes0 and native_mesh_creates=counters.mesh_buffer_creates-mesh_creates0 and native_mesh_create_bytes=Int64.sub counters.mesh_buffer_bytes mesh_create_bytes0 and native_mesh_writes=counters.mesh_buffer_writes-mesh_writes0 and native_mesh_write_bytes=Int64.sub counters.mesh_buffer_write_bytes mesh_write_bytes0 in let rss=rss_kib()and cache=Scene_execution.cache_entries renderer in cleanup();let total=Array.fold_left(+.)0. walls and cpu=cpu1.tms_utime+.cpu1.tms_stime-.cpu0.tms_utime-.cpu0.tms_stime in let promoted=(gc1.promoted_words-.gc0.promoted_words)*.float(Sys.word_size/8)in let pieces=Option.fold~none:(List.length work)~some:(fun one->one.pieces)acceptance and triangles=List.fold_left(fun n(_,_,d)->n+d.Scene_execution.mesh.index_count/3)0 work in let misses=native_creates in let hits=max 0(measured*pieces-misses)in
   let acceptance_json=match acceptance with None->`Null|Some one->`Assoc["pieces",`Int one.pieces;"triangles",`Int one.triangles;"render_vertices",`Int one.render_vertices;"cook_seconds_one_domain",`Float one.cook_seconds;"cook_seconds_four_domains",`Float one.cook_seconds_four;"pack_seconds_one_domain",`Float one.pack_seconds;"one_four_domain_exact",`Bool true;"topology_hash",`String one.topology_hash;"attribute_hash",`String one.attribute_hash;"order_hash",`String one.order_hash;"render_hash",`String one.render_hash]in
   let source_after=source_snapshot()in
   let source_json snapshot=match snapshot with None->`Null|Some(commit,clean)->`Assoc["commit",`String commit;"clean",`Bool clean]in
   let source_stable=match source_before,source_after with Some(a,true),Some(b,true)->a=b|_->false in
-  if !protocol_r11&&not source_stable then failwith"R11 source tree changed during measurement";
-  let json=`Assoc["schema",`Int 1;"scenario",`String(scenario_name!selected);"backend",`String"real-m1-runtime-next-metal";"profile",`String"release";"visibility",`String(match!visibility with Visible->"visible"|Hidden->"hidden");"protocol_r11_requested",`Bool!protocol_r11;"source_before",source_json source_before;"source_after",source_json source_after;"source_stable_clean",`Bool source_stable;"window",`Assoc["pixel_density",`Float window.pixel_density;"display_scale",`Float window.display_scale;"drawable_width",`Int window.drawable_width;"drawable_height",`Int window.drawable_height;"refresh_hz",`Null;"power_state",`Null;"thermal_state",`Null];"warmup_frames",`Int!warmup;"sample_frames",`Int!samples;"pieces",`Int pieces;"triangles",`Int triangles;"acceptance_cook",acceptance_json;"wall_seconds",`Float total;"user_seconds",`Float(cpu1.tms_utime-.cpu0.tms_utime);"system_seconds",`Float(cpu1.tms_stime-.cpu0.tms_stime);"median_ms",`Float(1000.*.percentile 0.5 walls);"p95_ms",`Float(1000.*.percentile 0.95 walls);"p99_ms",`Float(1000.*.percentile 0.99 walls);"fps",`Float(float!samples/.total);"cpu_percent",`Float(100.*.cpu/.total);"allocated_bytes",`Float allocated;"promoted_bytes",`Float promoted;"rss_kib",`Int rss;"prepared_upload_bytes",`String(Int64.to_string upload0);"measurement_upload_bytes",`String(Int64.to_string(Int64.sub upload1 upload0));"draws",`Int(counters.draws-draws0);"passes",`Int(counters.render_passes-passes0);"backend_calls",`Int(counters.submissions-submits0);"cache_entries",`Int cache;"cache_hits_inferred",`Int hits;"cache_misses_observed",`Int misses;"native_gpu_counters",`Null;"machine",`Assoc["arch",`String(Sys.getenv_opt"HOSTTYPE"|>Option.value~default:"arm64");"ocaml",`String Sys.ocaml_version]]in let text=Yojson.Safe.pretty_to_string json^"\n"in match!report with None->print_string text|Some path->let out=open_out_bin path in output_string out text;close_out out
+  if (!protocol_r9 || !protocol_r11) && not source_stable then failwith"native protocol source tree changed during measurement";
+  let json=`Assoc["schema",`Int 1;"scenario",`String(scenario_name!selected);"backend",`String"real-m1-runtime-next-metal";"profile",`String"release";"visibility",`String(match!visibility with Visible->"visible"|Hidden->"hidden");"protocol_r9_requested",`Bool!protocol_r9;"camera_only_changes",`Bool!protocol_r9;"protocol_r11_requested",`Bool!protocol_r11;"source_before",source_json source_before;"source_after",source_json source_after;"source_stable_clean",`Bool source_stable;"window",`Assoc["pixel_density",`Float window.pixel_density;"display_scale",`Float window.display_scale;"drawable_width",`Int window.drawable_width;"drawable_height",`Int window.drawable_height;"refresh_hz",`Null;"power_state",`Null;"thermal_state",`Null];"warmup_frames",`Int!warmup;"sample_frames",`Int!samples;"pieces",`Int pieces;"triangles",`Int triangles;"acceptance_cook",acceptance_json;"wall_seconds",`Float total;"user_seconds",`Float(cpu1.tms_utime-.cpu0.tms_utime);"system_seconds",`Float(cpu1.tms_stime-.cpu0.tms_stime);"median_ms",`Float(1000.*.percentile 0.5 walls);"p95_ms",`Float(1000.*.percentile 0.95 walls);"p99_ms",`Float(1000.*.percentile 0.99 walls);"fps",`Float(float!samples/.total);"cpu_percent",`Float(100.*.cpu/.total);"allocated_bytes",`Float allocated;"promoted_bytes",`Float promoted;"rss_kib",`Int rss;"prepared_upload_bytes",`String(Int64.to_string upload0);"measurement_upload_bytes",`String(Int64.to_string(Int64.sub upload1 upload0));"native_buffer_creates",`Int native_creates;"native_buffer_create_bytes",`String(Int64.to_string native_create_bytes);"native_buffer_writes",`Int native_writes;"native_buffer_write_bytes",`String(Int64.to_string native_write_bytes);"native_mesh_buffer_creates",`Int native_mesh_creates;"native_mesh_buffer_create_bytes",`String(Int64.to_string native_mesh_create_bytes);"native_mesh_buffer_writes",`Int native_mesh_writes;"native_mesh_buffer_write_bytes",`String(Int64.to_string native_mesh_write_bytes);"draws",`Int(counters.draws-draws0);"passes",`Int(counters.render_passes-passes0);"backend_calls",`Int(counters.submissions-submits0);"cache_entries",`Int cache;"cache_hits_inferred",`Int hits;"cache_misses_observed",`Int misses;"native_gpu_counters",`Null;"machine",`Assoc["arch",`String(Sys.getenv_opt"HOSTTYPE"|>Option.value~default:"arm64");"ocaml",`String Sys.ocaml_version]]in let text=Yojson.Safe.pretty_to_string json^"\n"in match!report with None->print_string text|Some path->let out=open_out_bin path in output_string out text;close_out out
