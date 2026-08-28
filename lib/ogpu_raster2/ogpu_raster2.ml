@@ -93,7 +93,7 @@ let create () =
               let draw(d:Ogpu.Render_pass.draw)=match List.find_opt(fun(b:Ogpu.Render_pass.buffer_binding)->b.stage=Ogpu.Command.Vertex&&b.index=0)d.buffers with
                 |None->error"Ogpu_raster2.render"Invalid_argument"vertex buffer zero is absent"
                 |Some binding->match find binding.buffer_id with
-                  |Some(Buffer vertex_buffer)->(let vertices=vertex_buffer.bytes in let sampled=Option.bind(sampled_pairs d)(function pair::_->Some pair|[]->None)in let texture=match sampled with None->Ok None|Some(binding,sampler)->match find binding.texture_id with Some(Texture({levels;_},_))->let first=match sampler.sampler.mip_filter with No_mip->0|Nearest_mip|Linear_mip->min(Array.length levels-1)(int_of_float(floor sampler.sampler.lod_min))in let sampled_levels=Array.sub levels first(Array.length levels-first)in let capacity=Array.fold_left(fun n surface->n+Bytes.length(Raster2.Surface.bytes surface))0 sampled_levels in(match Raster2.Texture.create_levels~color_space:Raster2.Texture.Linear~hard_capacity:capacity sampled_levels with Ok texture->let filter=match sampler.sampler.mip_filter,sampler.sampler.min_filter with Linear_mip,_->Raster2.Texture.Trilinear|_,Linear->Bilinear|_,Nearest->Nearest and address=function Ogpu.Types.Clamp_to_edge->Raster2.Texture.Clamp|Repeat->Repeat|Mirror_repeat->Mirror in Ok(Some{Raster2.Triangle.texture;filter;address_u=address sampler.sampler.address_u;address_v=address sampler.sampler.address_v})|Error _->error"Ogpu_raster2.render"Invalid_argument"fragment texture is invalid")|_->error"Ogpu_raster2.render"Invalid_argument"fragment texture is absent"in match texture with Error _ as e->e|Ok texture->let textured=Option.is_some texture in let indices=match d.index with
+                  |Some(Buffer vertex_buffer)->(let vertices=vertex_buffer.bytes in let sampled=Option.bind(sampled_pairs d)(function pair::_->Some pair|[]->None)in let texture()=match sampled with None->Ok None|Some(binding,sampler)->match find binding.texture_id with Some(Texture({levels;_},_))->let first=match sampler.sampler.mip_filter with No_mip->0|Nearest_mip|Linear_mip->min(Array.length levels-1)(int_of_float(floor sampler.sampler.lod_min))in let sampled_levels=Array.sub levels first(Array.length levels-first)in let capacity=Array.fold_left(fun n surface->n+Bytes.length(Raster2.Surface.bytes surface))0 sampled_levels in(match Raster2.Texture.create_levels~color_space:Raster2.Texture.Linear~hard_capacity:capacity sampled_levels with Ok texture->let filter=match sampler.sampler.mip_filter,sampler.sampler.min_filter with Linear_mip,_->Raster2.Texture.Trilinear|_,Linear->Bilinear|_,Nearest->Nearest and address=function Ogpu.Types.Clamp_to_edge->Raster2.Texture.Clamp|Repeat->Repeat|Mirror_repeat->Mirror in Ok(Some{Raster2.Triangle.texture;filter;address_u=address sampler.sampler.address_u;address_v=address sampler.sampler.address_v})|Error _->error"Ogpu_raster2.render"Invalid_argument"fragment texture is invalid")|_->error"Ogpu_raster2.render"Invalid_argument"fragment texture is absent"in let textured=Option.is_some sampled in let indices=match d.index with
                     |None->if d.vertex_count<0||d.vertex_start<0 then None else Some(Array.init d.vertex_count(fun i->d.vertex_start+i))
                     |Some(kind,id,offset,count)->match find id with
                       |Some(Buffer buffer)->let bytes=buffer.bytes and width=match kind with Uint16->2|Uint32->4 in
@@ -146,9 +146,6 @@ let create () =
                             |Some(Texture({levels;_},_))->Some(levels.(0),sampler.sampler)
                             |_->None)
                         |None->None in
-                      let triangle a b c=Raster2.Triangle.draw~color~depth~depth_state
-                          ~blend:Raster2.Composite.Copy~cull:Cull_none~clip~texture
-                          decoded.(a)decoded.(b)decoded.(c)in
                       let fast_rectangle()=match fast_source with None->false|Some(source,sampler)->
                         let integral value=Float.is_finite value&&value=floor value in
                         if descriptor.depth<>None||descriptor.stencil<>None||
@@ -176,11 +173,16 @@ let create () =
                           ~src_rect:{x=int_of_float sx;y=int_of_float sy;width=int_of_float sw;height=int_of_float sh}
                           ~dst:color~dst_rect:{x=int_of_float a.x;y=int_of_float a.y;width=int_of_float dw;height=int_of_float dh}
                           ~filter:Raster2.Image.Bilinear with Ok()->true|Error _->false in
-                      if fast_rectangle()then control.fast_rectangles<-control.fast_rectangles+1
-                      else begin control.triangle_fallbacks<-control.triangle_fallbacks+1;(match d.primitive with
-                       |Triangle_list->for i=0 to Array.length indices/3-1 do triangle indices.(i*3)indices.(i*3+1)indices.(i*3+2)done
-                       |Triangle_strip->for i=0 to Array.length indices-3 do if i land 1=0 then triangle indices.(i)indices.(i+1)indices.(i+2)else triangle indices.(i+1)indices.(i)indices.(i+2)done)end;
-                      Ok())
+                      if fast_rectangle()then(control.fast_rectangles<-control.fast_rectangles+1;Ok())
+                      else match texture()with Error _ as failure->failure|Ok texture->
+                        control.triangle_fallbacks<-control.triangle_fallbacks+1;
+                        let triangle a b c=Raster2.Triangle.draw~color~depth~depth_state
+                            ~blend:Raster2.Composite.Copy~cull:Cull_none~clip~texture
+                            decoded.(a)decoded.(b)decoded.(c)in
+                        (match d.primitive with
+                         |Triangle_list->for i=0 to Array.length indices/3-1 do triangle indices.(i*3)indices.(i*3+1)indices.(i*3+2)done
+                         |Triangle_strip->for i=0 to Array.length indices-3 do if i land 1=0 then triangle indices.(i)indices.(i+1)indices.(i+2)else triangle indices.(i+1)indices.(i)indices.(i+2)done);
+                        Ok())
                   |_->error"Ogpu_raster2.render"Invalid_argument"vertex buffer is absent"in
               let resolve()=
                 Array.iter
@@ -197,9 +199,29 @@ let create () =
               let rec all=function []->resolve();Ok()|x::xs->match draw x with Error _ as e->e|Ok()->all xs in all draws
           |_->error"Ogpu_raster2.render"Invalid_argument"color attachment is absent"in
         let transfer operations =
-          let snapshots=List.filter_map(fun(_,token)->match Hashtbl.find_opt control.objects token with Some(Buffer buffer)->Some(token,[|Bytes.copy buffer.bytes|])|Some(Texture({levels;_},_))->Some(token,Array.map(fun surface->Bytes.copy(Raster2.Surface.bytes surface))levels)|None->None)resources in
-          let restore()=List.iter(fun(token,copies)->match Hashtbl.find_opt control.objects token with Some(Buffer buffer)->Bytes.blit copies.(0)0 buffer.bytes 0(Bytes.length copies.(0))|Some(Texture({levels;_},_))->Array.iteri(fun i copy->Bytes.blit copy 0(Raster2.Surface.bytes levels.(i))0(Bytes.length copy))copies|None->())snapshots in
           let buffer id=match find id with Some(Buffer buffer)->Some buffer.bytes|_->None and texture id mip=match find id with Some(Texture({levels;_},_))when mip>=0&&mip<Array.length levels->Some levels.(mip)|_->None in
+          let extent surface origin extent=
+            origin.Ogpu.Transfer_pass.z=0&&extent.Ogpu.Transfer_pass.depth=1
+            &&origin.x>=0&&origin.y>=0
+            &&origin.x+extent.width<=Raster2.Surface.width surface
+            &&origin.y+extent.height<=Raster2.Surface.height surface in
+          let int64_length value=value>=0L&&value<=Int64.of_int max_int in
+          let valid=function
+            |Ogpu.Transfer_pass.Copy_buffer(src,so,dst,do_,length)->
+                int64_length length&&(match buffer src,buffer dst with
+                |Some a,Some b->valid_range a so(Int64.to_int length)&&valid_range b do_(Int64.to_int length)|_->false)
+            |Fill_buffer(id,offset,length,_)->int64_length length&&(match buffer id with Some bytes->valid_range bytes offset(Int64.to_int length)|_->false)
+            |Buffer_to_texture(src,offset,row,_,dst,mip,origin,size)->
+                int64_length row&&size.height>=0&&Int64.to_int row<=max_int/max 1 size.height&&
+                (match buffer src,texture dst mip with Some bytes,Some surface->extent surface origin size&&valid_range bytes offset(Int64.to_int row*size.height)|_->false)
+            |Texture_to_buffer(src,mip,origin,size,dst,offset,row,_)->
+                int64_length row&&size.height>=0&&Int64.to_int row<=max_int/max 1 size.height&&
+                (match texture src mip,buffer dst with Some surface,Some bytes->extent surface origin size&&valid_range bytes offset(Int64.to_int row*size.height)|_->false)
+            |Copy_texture(src,sm,so,dst,dm,do_,size)->
+                (match texture src sm,texture dst dm with Some a,Some b->extent a so size&&extent b do_ size|_->false)in
+          if not(Array.for_all valid operations)then
+            error"Ogpu_raster2.transfer"Invalid_argument"transfer batch validation failed"
+          else begin
           List.iter(fun(_,token)->match Hashtbl.find_opt control.objects token with
             |Some(Buffer buffer)->buffer.version<-buffer.version+1|_->())resources;
           let copy_rows ~src ~src_offset ~src_row ~dst ~dst_offset ~dst_row width height=for row=0 to height-1 do Bytes.blit src(src_offset+row*src_row)dst(dst_offset+row*dst_row)width done in
@@ -209,7 +231,7 @@ let create () =
             |Buffer_to_texture(src,offset,row,_,dst,mip,origin,extent)->(match buffer src,texture dst mip with Some bytes,Some surface when origin.z=0&&extent.depth=1&&origin.x>=0&&origin.y>=0&&origin.x+extent.width<=Raster2.Surface.width surface&&origin.y+extent.height<=Raster2.Surface.height surface&&valid_range bytes offset(Int64.to_int row*extent.height)->copy_rows~src:bytes~src_offset:(Int64.to_int offset)~src_row:(Int64.to_int row)~dst:(Raster2.Surface.bytes surface)~dst_offset:(origin.y*Raster2.Surface.pitch surface+origin.x*4)~dst_row:(Raster2.Surface.pitch surface)(extent.width*4)extent.height;Ok()|_->error"Ogpu_raster2.transfer"Invalid_argument"buffer texture upload")
             |Texture_to_buffer(src,mip,origin,extent,dst,offset,row,_)->(match texture src mip,buffer dst with Some surface,Some bytes when origin.z=0&&extent.depth=1&&origin.x>=0&&origin.y>=0&&origin.x+extent.width<=Raster2.Surface.width surface&&origin.y+extent.height<=Raster2.Surface.height surface&&valid_range bytes offset(Int64.to_int row*extent.height)->copy_rows~src:(Raster2.Surface.bytes surface)~src_offset:(origin.y*Raster2.Surface.pitch surface+origin.x*4)~src_row:(Raster2.Surface.pitch surface)~dst:bytes~dst_offset:(Int64.to_int offset)~dst_row:(Int64.to_int row)(extent.width*4)extent.height;Ok()|_->error"Ogpu_raster2.transfer"Invalid_argument"texture buffer download")
             |Copy_texture(src,sm,so,dst,dm,do_,extent)->(match texture src sm,texture dst dm with Some a,Some b when so.z=0&&do_.z=0&&extent.depth=1&&so.x>=0&&so.y>=0&&do_.x>=0&&do_.y>=0&&so.x+extent.width<=Raster2.Surface.width a&&so.y+extent.height<=Raster2.Surface.height a&&do_.x+extent.width<=Raster2.Surface.width b&&do_.y+extent.height<=Raster2.Surface.height b->let temporary=Bytes.create(extent.width*extent.height*4)in copy_rows~src:(Raster2.Surface.bytes a)~src_offset:(so.y*Raster2.Surface.pitch a+so.x*4)~src_row:(Raster2.Surface.pitch a)~dst:temporary~dst_offset:0~dst_row:(extent.width*4)(extent.width*4)extent.height;copy_rows~src:temporary~src_offset:0~src_row:(extent.width*4)~dst:(Raster2.Surface.bytes b)~dst_offset:(do_.y*Raster2.Surface.pitch b+do_.x*4)~dst_row:(Raster2.Surface.pitch b)(extent.width*4)extent.height;Ok()|_->error"Ogpu_raster2.transfer"Invalid_argument"texture copy range")in
-          let rec loop index=if index=Array.length operations then Ok()else match execute operations.(index)with Ok()->loop(index+1)|Error _ as failure->restore();failure in loop 0 in
+          let rec loop index=if index=Array.length operations then Ok()else match execute operations.(index)with Ok()->loop(index+1)|Error _ as failure->failure in loop 0 end in
         let result=match command with Ogpu.Backend.Render submission->render submission|Compute _->error"Ogpu_raster2.compute"Unsupported"software compute is unsupported"|Transfer operations->transfer operations in
         match result with Error _ as e->e|Ok()->control.epoch<-Int64.succ control.epoch;record control("submit:"^Int64.to_string control.epoch);Ok{Ogpu.Backend.epoch=control.epoch}in
       Ok{Ogpu.Backend.queue_token;submit;complete_through=(fun epoch->if epoch<=control.complete||epoch>control.epoch then error"Ogpu_raster2.complete"Invalid_argument"epoch is invalid"else(control.complete<-epoch;Ok()));destroy_queue=(fun()->control.queues<-control.queues-1;Ok())}
