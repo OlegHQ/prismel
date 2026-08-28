@@ -29,7 +29,7 @@ let validate path=match Yojson.Safe.from_file path with
     and rss=float"rss_kib"fs and heap=int"heap_words"fs
     and resources=int"resource_count"fs in
     if frame<=0||elapsed<0.||elapsed>duration+.period||rss<=0.||heap<0
-       ||resources<>created then failwith"invalid sample facts";
+       ||resources<0||resources>created then failwith"invalid sample facts";
     frame,elapsed,rss|_->failwith"sample is not object")samples in
   let rec ordered=function []|[_]->true|(f0,t0,_)::((f1,t1,_)::_ as rest)->f1>f0&&t1>t0&&ordered rest in
   if not(ordered parsed)then failwith"samples not strictly ordered";
@@ -44,7 +44,11 @@ let validate path=match Yojson.Safe.from_file path with
   let rss=List.map(fun(_,_,rss)->rss)parsed in let tail=let n=List.length rss in List.filteri(fun i _->i>=n*3/4)rss in
   (match tail with []->if not!allow_smoke then failwith"no RSS samples"|x::xs->let lo,hi=List.fold_left(fun(a,b)v->min a v,max b v)(x,x)xs in if not!allow_smoke&&lo>0.&&100.*.(hi-.lo)/.lo>5. then failwith"final RSS window exceeds 5 percent");
   let destroyed=int"destroyed_resources"fields in if created<>destroyed then failwith"created/destroyed resource mismatch";
-  if int"live_resources_after_teardown"fields<>0||int"cache_entries_after_teardown"fields<>0||int"release_queue_pending_after_teardown"fields<>0 then failwith"teardown counters nonzero";
+  if int"live_resources_after_teardown"fields<>0||int"cache_entries_after_teardown"fields<>0 then failwith"teardown counters nonzero";
+  (match field"release_queue_pending_after_teardown"fields,field"release_queue_counter_supported"fields with
+   |`Int 0,`Bool true|`Null,`Bool false->()|_->failwith"invalid release-queue diagnostic");
+  List.iter(fun name->if int name fields<=0 then failwith(name^" did not exercise workload"))
+    ["canvas_cycles";"watched_reload_cycles";"failed_reload_cycles";"audio_cycles";"resize_cycles";"changing_mesh_frames"];
   (match field"window_live_after_teardown"fields with `Bool false->()|_->failwith"window survived teardown");
   let hash=string"deterministic_hash"fields in
   if not(hexadecimal16 hash)then failwith"deterministic hash is not canonical";

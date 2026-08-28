@@ -24,6 +24,11 @@ let () = match Array.to_list Sys.argv with
     ~update:(fun model frame->require(frame.count=1)(Printf.sprintf"finite headless frame: %d"frame.count);model+1)
     ~view:(fun _ _->Scene.empty)~on_stop:(fun _->incr stopped)()in
   require(model=1)"finite headless lifecycle";require(!stopped=1)"exactly-once on_stop";
+  let bounded=Sketch.run_state~config:{Sketch.default_config with width=8;height=8;clock=Fixed(1./.60.)}
+    ~max_frames:3 ~init:(fun _->0) ~update:(fun model frame->
+      require(frame.count=model+1)"bounded frame ordering";model+1)
+    ~view:(fun _ _->Scene.empty)()in
+  require(bounded=3)"explicit headless max_frames lifecycle";
   let directory=Filename.concat(Filename.get_temp_dir_name())(Printf.sprintf"prismel-next-export-%d"(Unix.getpid()))in
   let export_stopped=ref 0 in
   let exported=Sketch.export_state~config:{Sketch.default_config with width=8;height=8}

@@ -31,13 +31,16 @@ val run :
 
 val run_state :
   ?config:config ->
+  ?max_frames:int ->
   init:(Frame.t -> 'model) ->
   update:('model -> Frame.t -> 'model) ->
   view:('model -> Frame.t -> Scene.t) ->
   ?on_stop:('model -> unit) ->
   unit ->
   'model
-(** Run a sketch with immutable user state threaded through every frame. *)
+(** Run a sketch with immutable user state threaded through every frame.
+    [max_frames] keeps one runtime alive for exactly that many frames unless
+    [quit] is requested first. *)
 
 val run_assets :
   ?config:config ->
@@ -77,6 +80,8 @@ val export_state :
 (** Stateful deterministic PNG-sequence export. *)
 
 val quit : unit -> unit
+val resize : width:int -> height:int -> unit
+(** Resize the active sketch through its selected runtime target. *)
 val is_headless : unit -> bool
 val is_web : unit -> bool
 val render_target : unit -> render_target

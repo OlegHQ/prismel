@@ -75,8 +75,12 @@ let window_config config =
     vsync = Option.is_none config.fps;
   }
 
-let run_state_internal ?(config = default_config) ~init ~update ~view
+let run_state_internal ?(config = default_config) ?max_frames ~init ~update ~view
     ?after_draw ?on_stop () =
+  Option.iter
+    (fun frames ->
+      if frames <= 0 then invalid_arg "Sketch: max_frames must be positive")
+    max_frames;
   Time.set_frame_rate (Option.value config.fps ~default:0);
   let init_runtime () =
     let frame = snapshot ~clock:config.clock ~count:0 ~events:[] in
@@ -90,11 +94,16 @@ let run_state_internal ?(config = default_config) ~init ~update ~view
     let frame =
       snapshot ~clock:config.clock ~count:(runtime.frame.count + 1) ~events
     in
+    let next =
     {
       model = update runtime.model frame;
       frame;
       pending_events_rev = [];
-    }
+    } in
+    Option.iter
+      (fun limit -> if frame.count >= limit then App.request_quit ())
+      max_frames;
+    next
   in
   let draw_runtime runtime = Scene.render (view runtime.model runtime.frame) in
   let final =
@@ -112,8 +121,8 @@ let run_state_internal ?(config = default_config) ~init ~update ~view
   in
   final.model
 
-let run_state ?config ~init ~update ~view ?on_stop () =
-  run_state_internal ?config ~init ~update ~view ?on_stop ()
+let run_state ?config ?max_frames ~init ~update ~view ?on_stop () =
+  run_state_internal ?config ?max_frames ~init ~update ~view ?on_stop ()
 
 let run ?config view =
   ignore
@@ -157,6 +166,12 @@ let run_assets ?config ?root ?(watch = false) ~init ~update ~view () =
   final.user_model
 
 let quit = App.request_quit
+
+let resize ~width ~height =
+  if width <= 0 || height <= 0 then
+    invalid_arg "Sketch.resize: dimensions must be positive";
+  if not (Window.exists ()) then invalid_arg "Sketch.resize: no sketch is running";
+  Window.set_size width height
 let is_headless = Backend.is_headless
 let is_web = Backend.is_web
 let render_target () =

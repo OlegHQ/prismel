@@ -628,12 +628,16 @@ one latest pending request; superseded work is cancelled and its result is
 never published. Only target-neutral CPU preparation runs in the worker.
 
 - `Sketch.run view` is the zero-state path.
-- `Sketch.run_state ~init ~update ~view ()` is the functional model path.
+- `Sketch.run_state ~init ~update ~view ()` is the functional model path;
+  optional `~max_frames` keeps one runtime alive for a positive finite frame
+  bound, including in headless/web integration runs.
 - `Sketch.export` and `Sketch.export_state` render deterministic numbered PNG
   sequences using a fixed clock and no realtime frame limiter.
 - width, height, title, FPS and window behavior are optional configuration.
 - cleanup is exception-safe.
 - `Sketch.quit ()` requests graceful termination.
+- `Sketch.resize ~width ~height` resizes the active selected runtime and updates
+  subsequent logical `Frame` facts without crossing through `Low.Window`.
 - `Sketch.render_target ()` returns `Native`, `Headless`, or `Web`;
   `Sketch.is_headless ()` and `Sketch.is_web ()` are convenience predicates.
   Runtime selection remains outside the immutable model and view APIs.

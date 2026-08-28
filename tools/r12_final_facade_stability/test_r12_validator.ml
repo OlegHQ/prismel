@@ -10,7 +10,9 @@ let report ?(scenario="all")?(checkpoints=[1;2;60;600])?(created=2)?(destroyed=2
     "deterministic_hash",`String"fedcba9876543210";"sample_capacity",`Int 256;"sample_every_seconds",`Float period;
     "sample_observations",`Int 181;"samples",`List samples;"rss_limit_percent",`Float rss_limit;"created_resources",`Int created;
     "destroyed_resources",`Int destroyed;"live_resources_after_teardown",`Int 0;"window_live_after_teardown",`Bool false;
-    "cache_entries_after_teardown",`Int 0;"release_queue_pending_after_teardown",`Int 0]
+    "cache_entries_after_teardown",`Int 0;"release_queue_pending_after_teardown",`Null;
+    "release_queue_counter_supported",`Bool false;"canvas_cycles",`Int 1;"watched_reload_cycles",`Int 1;
+    "failed_reload_cycles",`Int 1;"audio_cycles",`Int 1;"resize_cycles",`Int 1;"changing_mesh_frames",`Int 1]
 let run validator args expected=
   let command=String.concat" "(Filename.quote validator::List.map Filename.quote args)^" >/dev/null 2>&1"in
   if (Sys.command command=0)<>expected then failwith("unexpected validator result: "^command)

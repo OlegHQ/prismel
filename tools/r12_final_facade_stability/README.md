@@ -3,8 +3,13 @@
 This harness imports only the installed `prismel.prismel_next_api` facade. Each
 target cycles Basic, PXUI-like, Canvas/image, and Scene3 scenes, records exact
 frames 1/2/60/600, and then continues for 30 minutes. Samples use a fixed
-256-entry ring. The validator requires zero facade resource/window/cache/release
-counters after teardown and at most 5% RSS range in the final sample quarter.
+256-entry ring. It performs real alternating window sizes, stable-identity image
+reload (including failed-reload retention), short-lived Canvas/image pairs,
+audio sample play/stop/destruction, and changing Scene3 meshes. The validator
+requires zero facade resource/window/cache counters after teardown and at most
+5% RSS range in the final sample quarter. The frozen facade does not expose a
+backend deferred-release-queue counter, so reports encode that fact as JSON
+null plus `release_queue_counter_supported=false`; they never manufacture zero.
 It also proves that retained samples are the final fixed-ring window (rather
 than an earlier flat interval), enforces the frozen 10-second sampling period,
 checks live-resource/sample facts, and rejects policy or canonical-hash drift.
