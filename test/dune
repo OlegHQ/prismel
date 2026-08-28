@@ -124,7 +124,7 @@
  (deps ../lib/prismel/dune ../lib/runtime/dune
   ../lib/sdl3/dune ../lib/sdl3_image/dune ../lib/sdl3_ttf/dune
   ../lib/sdl3_mixer/dune ../lib/metal/dune ../lib/ogpu/dune
-  ../lib/ogpu_metal/dune ../lib/raster2/dune)
+  ../lib/ogpu_metal/dune)
  (action
   (run %{test}
    %{dep:../lib/prismel/dune}
@@ -135,8 +135,7 @@
    %{dep:../lib/sdl3_mixer/dune}
    %{dep:../lib/metal/dune}
    %{dep:../lib/ogpu/dune}
-   %{dep:../lib/ogpu_metal/dune}
-   %{dep:../lib/raster2/dune})))
+   %{dep:../lib/ogpu_metal/dune})))
 
 (test
  (name audio_snapshot)

@@ -130,11 +130,8 @@ let forbidden = function
        "metal_fx"; "ogpu_metal"; "runtime"; "prismel"; "pxui"]
   | "ogpu_metal" ->
       ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "runtime";
-       "prismel"; "pxui"; "raster2"]
-  | "raster2" ->
-      ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal";
-       "metal_fx"; "ogpu"; "ogpu_metal"; "runtime"; "prismel"; "pxui"]
-  | "runtime" -> ["metal"; "metal_fx"; "ogpu"; "raster2"; "prismel"; "pxui"]
+       "prismel"; "pxui"]
+  | "runtime" -> ["metal"; "metal_fx"; "ogpu"; "prismel"; "pxui"]
   | _ -> []
 
 let violations graph =
@@ -164,12 +161,10 @@ let verify_negative_test graph =
   check "sdl3" "prismel";
   check "metal" "sdl3";
   check "ogpu" "metal";
-  check "ogpu_metal" "runtime";
-  check "raster2" "prismel"
+  check "ogpu_metal" "runtime"
 
 let require_current_foundations graph =
   [ "sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu"; "runtime"
-  ; "raster2"
   ]
   |> List.iter (fun required ->
     if not (List.exists (fun (name, _) -> name = required) graph) then
