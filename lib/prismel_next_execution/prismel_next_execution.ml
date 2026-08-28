@@ -1,4 +1,4 @@
-type target = Native | Headless | Web
+type target = Native
 type error_kind = Invalid_argument | Unsupported | Backend | Resource | Destroyed
 type error = { operation:string; kind:error_kind; message:string }
 let pp_error formatter value =
@@ -13,7 +13,7 @@ type timing = Fixed of float | Variable
 type configuration = { target:target; logical_width:int; logical_height:int;
   drawable_width:int; drawable_height:int; title:string; timing:timing;
   max_events:int; max_file_bytes:int }
-let default_configuration = { target=Headless; logical_width=640; logical_height=480;
+let default_configuration = { target=Native; logical_width=640; logical_height=480;
   drawable_width=640; drawable_height=480; title="Prismel"; timing=Fixed (1. /. 60.);
   max_events=4096; max_file_bytes=16*1024*1024 }
 
@@ -30,8 +30,6 @@ type facts = { frame:int64; time:float; dt:float; logical_width:int; logical_hei
   drawable_width:int; drawable_height:int; pixel_scale:float; events:event list;
   pointer:float*float; mouse_delta:float*float; wheel_delta:float*float;
   dropped_events:int }
-type text_region = {x:int;y:int;width:int;height:int;focused:bool}
-type audio_intent = Prismel_next_resources.Audio.intent
 type family = Scene2 | Scene2_textured | Scene3 | Scene3_textured | Scene3_shadow |
   Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil
 type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
@@ -352,10 +350,6 @@ type t = { runtime:Runtime_next_orchestrator.t; input:Runtime_next_input.t;
   mutable scene2_probe_cooldown:int;
   mutable pending_image_leases:Prismel_next_resources.Image.Private.lease list;
   mutable canvas_keys:(Prismel_next_resources.Canvas.t*string)list;mutable next_canvas_key:int }
-let runtime_target=function
-  |Native->Ok Runtime_next_orchestrator.Native
-  |Headless|Web->fail"Prismel_next_execution.create"Unsupported
-      "only the native Metal target is available"
 let create (configuration:configuration) =
   let operation="Prismel_next_execution.create" in
   let positive x=x>0 in
@@ -364,8 +358,7 @@ let create (configuration:configuration) =
       configuration.max_file_bytes])then fail operation Invalid_argument"dimensions and bounds must be positive"
   else(match configuration.timing with Fixed dt when not(finite dt&&dt>0.)->
       fail operation Invalid_argument"fixed dt must be finite and positive"|_->
-    match runtime_target configuration.target with Error _ as error->error|Ok target->
-    let config:Runtime_next_orchestrator.configuration={target;
+    let config:Runtime_next_orchestrator.configuration={target=Runtime_next_orchestrator.Native;
       logical_width=configuration.logical_width;logical_height=configuration.logical_height;
       drawable_width=configuration.drawable_width;drawable_height=configuration.drawable_height}in
     match Runtime_next_orchestrator.create config with Error e->backend operation e|Ok runtime->
@@ -376,7 +369,7 @@ let create (configuration:configuration) =
       |Ok input->Ok{runtime;input;assets=Prismel_next_resources.Assets.create();timing=configuration.timing;
           frame=0L;elapsed=0.;last_clock=Unix.gettimeofday();dead=false;snapshots=[];scene2_geometry_cache=[];scene2_geometry_candidates=[];scene2_batch_cache=[];scene2_quad_cache=[];scene2_quad_payload_cache=[];scene2_debug_cache=[];
           scene2_plan_cache=[];scene2_plan_candidates=[];
-          scene2_probe_count=(-1);scene2_probe_density=0;scene2_probe_target=Headless;
+          scene2_probe_count=(-1);scene2_probe_density=0;scene2_probe_target=Native;
           scene2_probe_fingerprint=0;scene2_probe_cooldown=0;
           pending_image_leases=[];canvas_keys=[];next_canvas_key=0})
 let target value=match Runtime_next_orchestrator.target value.runtime with Native->Native
@@ -465,12 +458,9 @@ let lower_scene2_uncached value ~density ~resource:resolve ir =
     loop value.pending_image_leases;value.pending_image_leases<-leases_before in
   let identity={Scene_command.Render_ir.xx=1.;xy=0.;yx=0.;yy=1.;tx=0.;ty=0.}in
   let facts=Runtime_next_orchestrator.facts value.runtime|>Result.get_ok in
-  let native_projection=match target value with
-    |Native->Some{Scene_command.Render_ir.xx=2./.float facts.logical_width;xy=0.;yx=0.;
-        yy=(-2.)/.float facts.logical_height;tx=(-1.);ty=1.}
-    |Headless|Web->None in
-  let render_transform transform=match native_projection with
-    |None->transform|Some projection->compose_raster projection transform in
+  let native_projection={Scene_command.Render_ir.xx=2./.float facts.logical_width;xy=0.;yx=0.;
+    yy=(-2.)/.float facts.logical_height;tx=(-1.);ty=1.} in
+  let render_transform transform=compose_raster native_projection transform in
   let transforms=ref[identity]and clips=ref[(0,0,facts.drawable_width,facts.drawable_height)]and draws=ref[]and number=ref 0 and failure=ref None in
   let point transform x y=transform.Scene_command.Render_ir.xx*.x+.transform.yx*.y+.transform.tx,
     transform.xy*.x+.transform.yy*.y+.transform.ty in
@@ -758,17 +748,6 @@ let resize value ~logical_width ~logical_height ~drawable_width ~drawable_height
   match ensure"Prismel_next_execution.resize"value with Error _ as e->e|Ok()->
   match Runtime_next_orchestrator.resize value.runtime~logical_width~logical_height~drawable_width~drawable_height with
   |Ok()->push_event value(Resized(logical_width,logical_height))|Error e->backend"Prismel_next_execution.resize"e
-let set_text_regions value regions=match ensure"Prismel_next_execution.set_text_regions"value with Error _ as e->e|Ok()->
-  ignore regions;fail"Prismel_next_execution.set_text_regions"Unsupported
-    "browser text regions are unavailable on the native Metal target"
-let register_asset value ?content_type bytes=match ensure"Prismel_next_execution.register_asset"value with Error _ as e->e|Ok()->
-  ignore content_type;ignore bytes;fail"Prismel_next_execution.register_asset"Unsupported"web assets are unavailable on the native Metal target"
-let remove_asset value asset=match ensure"Prismel_next_execution.remove_asset"value with Error _ as e->e|Ok()->
-  ignore asset;fail"Prismel_next_execution.remove_asset"Unsupported"web assets are unavailable on the native Metal target"
-let send_audio value intent=match ensure"Prismel_next_execution.send_audio"value with Error _ as e->e|Ok()->
-  ignore intent;fail"Prismel_next_execution.send_audio"Unsupported"browser audio is unavailable on the native Metal target"
-let download_frame value ~filename=match ensure"Prismel_next_execution.download_frame"value with Error _ as e->e|Ok()->
-  ignore filename;fail"Prismel_next_execution.download_frame"Unsupported"browser downloads are unavailable on the native Metal target"
 let mod_of_input=function Runtime_next_input.Shift->Shift|Control->Control|Alt->Alt|Meta->Meta|Num_lock->Num_lock|Caps_lock->Caps_lock|Scroll_lock->Scroll_lock
 let event_of_input=function Runtime_next_input.Pointer_moved(x,y)->Pointer_moved(x,y)|Pointer_pressed(b,x,y)->Pointer_pressed((match b with Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2),x,y)
   |Pointer_released(b,x,y)->Pointer_released((match b with Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2),x,y)
@@ -776,14 +755,12 @@ let event_of_input=function Runtime_next_input.Pointer_moved(x,y)->Pointer_moved
   |Wheel(x,y)->Wheel(x,y)|Key_pressed k->Key_pressed{name=k.key;modifiers=List.map mod_of_input k.modifiers;repeat=k.repeat}|Key_released k->Key_released{name=k.key;modifiers=List.map mod_of_input k.modifiers;repeat=k.repeat}
   |Text_input s->Text_input s|Text_editing{text;start;length}->Text_editing{text;start;length}|Focus_lost->Focus_lost|Focus_gained->Focus_gained
   |Visibility_changed x->Visibility_changed x|Quit->Quit|Resized(x,y)->Resized(x,y)|File_dropped{name;contents}->File_dropped{name;contents}
-let push_web _value = Ok()
 let step value draws=match ensure"Prismel_next_execution.step"value with Error _ as e->e|Ok()->
   let release_image_leases()=
     List.iter Prismel_next_resources.Image.Private.release_snapshot value.pending_image_leases;
     value.pending_image_leases<-[]in
   Fun.protect~finally:release_image_leases(fun()->
   Runtime_next_input.begin_frame value.input;
-  match push_web value with Error _ as e->e|Ok()->
   match Runtime_next_orchestrator.facts value.runtime with Error e->backend"Prismel_next_execution.step"e|Ok f->
     let family=function Scene2->Runtime_next_orchestrator.Scene2|Scene2_textured->Scene2_textured|Scene3->Scene3
       |Scene3_textured->Scene3_textured|Scene3_shadow->Scene3_shadow|Scene3_stencil->Scene3_stencil

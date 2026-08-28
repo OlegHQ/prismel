@@ -1,7 +1,7 @@
-(** Isolated frame coordinator for the SDL3/OGPU staging stack.  The public
-    values deliberately contain no SDL, Wap, Metal, or native handles. *)
+(** Isolated native Metal frame coordinator.  The public values deliberately
+    contain no SDL or native handles. *)
 
-type target = Native | Headless | Web
+type target = Native
 type error_kind = Invalid_argument | Unsupported | Backend | Resource | Destroyed
 type error = private { operation : string; kind : error_kind; message : string }
 val pp_error : Format.formatter -> error -> unit
@@ -52,8 +52,6 @@ type facts = {
   dropped_events : int;
 }
 
-type text_region = { x:int; y:int; width:int; height:int; focused:bool }
-type audio_intent = Prismel_next_resources.Audio.intent
 type family = Scene2 | Scene2_textured | Scene3 | Scene3_textured | Scene3_shadow |
   Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil
 type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
@@ -107,11 +105,6 @@ val visible : t -> (bool,error) result
 val push_event : t -> event -> (unit,error) result
 val resize : t -> logical_width:int -> logical_height:int ->
   drawable_width:int -> drawable_height:int -> (unit,error) result
-val set_text_regions : t -> text_region list -> (unit,error) result
-val register_asset : t -> ?content_type:string -> bytes -> (string,error) result
-val remove_asset : t -> string -> (bool,error) result
-val send_audio : t -> audio_intent -> (unit,error) result
-val download_frame : t -> filename:string -> (unit,error) result
 val step : t -> draw list -> (facts,error) result
 val capture : t -> (bytes,error) result
 val destroy : t -> (unit,error) result
