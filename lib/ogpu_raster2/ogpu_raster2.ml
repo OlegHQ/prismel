@@ -85,29 +85,38 @@ let create () =
         let render submission =
           let descriptor=Ogpu.Render_pass.descriptor(Ogpu.Render_pass.submission_pass submission)
           and draws=Ogpu.Render_pass.submission_draws submission in
-          let target=Array.to_list descriptor.colors|>List.find_map(function None->None|Some(c:Ogpu.Render_pass.color)->find c.texture.id)in
-          let required=List.concat_map(fun(d:Ogpu.Render_pass.draw)->
-            List.map(fun(b:Ogpu.Render_pass.buffer_binding)->b.buffer_id)d.buffers@
-            List.map(fun(t:Ogpu.Render_pass.texture_binding)->t.texture_id)d.textures@
-            match d.index with None->[]|Some(_,id,_,_)->[id])draws in
+          let rec first_color index=
+            if index=Array.length descriptor.colors then None else
+            match descriptor.colors.(index)with
+            |None->first_color(index+1)
+            |Some color->Some color in
+          let target=Option.bind(first_color 0)(fun(c:Ogpu.Render_pass.color)->find c.texture.id)in
           let sampled_pairs(d:Ogpu.Render_pass.draw)=
             let textures=List.filter(fun(t:Ogpu.Render_pass.texture_binding)->t.stage=Ogpu.Command.Fragment)d.textures|>List.sort(fun(a:Ogpu.Render_pass.texture_binding)b->Int.compare a.index b.index)
             and samplers=List.filter(fun(s:Ogpu.Render_pass.sampler_binding)->s.stage=Ogpu.Command.Fragment)d.samplers|>List.sort(fun(a:Ogpu.Render_pass.sampler_binding)b->Int.compare a.index b.index)in
             if List.length textures<>List.length d.textures||List.length samplers<>List.length d.samplers||List.length textures<>List.length samplers then None
             else Some(List.combine textures samplers)in
-          let invalid_sampled_bindings=List.exists(fun draw->Option.is_none(sampled_pairs draw))draws in
-          if draws=[]||pipelines=[]||invalid_sampled_bindings||List.exists(fun id->Option.is_none(find id))required then
+          let prepared_draws=List.map(fun draw->draw,sampled_pairs draw)draws in
+          let complete((draw:Ogpu.Render_pass.draw),pairs)=
+            Option.is_some pairs&&
+            List.for_all(fun(b:Ogpu.Render_pass.buffer_binding)->Option.is_some(find b.buffer_id))draw.buffers&&
+            List.for_all(fun(t:Ogpu.Render_pass.texture_binding)->Option.is_some(find t.texture_id))draw.textures&&
+            match draw.index with None->true|Some(_,id,_,_)->Option.is_some(find id)in
+          if draws=[]||pipelines=[]||not(List.for_all complete prepared_draws)then
             error"Ogpu_raster2.render"Invalid_argument"draw graph is incomplete"
           else match target with
           |Some(Texture({levels;depth},_))->let color=levels.(0)in
-              Option.iter(fun(c:Ogpu.Render_pass.color)->if c.load=Clear then Raster2.Surface.clear color(rgba c.clear))(Array.to_list descriptor.colors|>List.find_map Fun.id);
+              Option.iter(fun(c:Ogpu.Render_pass.color)->if c.load=Clear then Raster2.Surface.clear color(rgba c.clear))(first_color 0);
               Option.iter(fun(d:Ogpu.Render_pass.depth)->if d.load=Clear then ignore(Raster2.Depth_stencil.clear depth~depth:d.clear~stencil:0))descriptor.depth;
               let clip={Raster2.Triangle.x=descriptor.scissor.x;y=descriptor.scissor.y;width=descriptor.scissor.width;height=descriptor.scissor.height}
               and depth_state={Raster2.Depth_stencil.depth_compare=Always;depth_write=false;stencil=None}in
-              let draw(d:Ogpu.Render_pass.draw)=match List.find_opt(fun(b:Ogpu.Render_pass.buffer_binding)->b.stage=Ogpu.Command.Vertex&&b.index=0)d.buffers with
+              let draw((d:Ogpu.Render_pass.draw),
+                  (sampled_pairs:(Ogpu.Render_pass.texture_binding*
+                    Ogpu.Render_pass.sampler_binding)list option))=
+                match List.find_opt(fun(b:Ogpu.Render_pass.buffer_binding)->b.stage=Ogpu.Command.Vertex&&b.index=0)d.buffers with
                 |None->error"Ogpu_raster2.render"Invalid_argument"vertex buffer zero is absent"
                 |Some binding->match find binding.buffer_id with
-                  |Some(Buffer vertex_buffer)->(let vertices=vertex_buffer.bytes in let sampled=Option.bind(sampled_pairs d)(function pair::_->Some pair|[]->None)in let texture()=match sampled with None->Ok None|Some(binding,sampler)->match find binding.texture_id,List.assoc_opt binding.texture_id resources with Some(Texture({levels;_},_)),Some token->let first=match sampler.sampler.mip_filter with No_mip->0|Nearest_mip|Linear_mip->min(Array.length levels-1)(int_of_float(floor sampler.sampler.lod_min))in let filter=match sampler.sampler.mip_filter,sampler.sampler.min_filter with Linear_mip,_->Raster2.Texture.Trilinear|_,Linear->Bilinear|_,Nearest->Nearest and address=function Ogpu.Types.Clamp_to_edge->Raster2.Texture.Clamp|Repeat->Repeat|Mirror_repeat->Mirror in let address_u=address sampler.sampler.address_u and address_v=address sampler.sampler.address_v in let key=token,first,filter,address_u,address_v in(match List.assoc_opt key control.sampled with Some texture->Ok(Some texture)|None->let sampled_levels=if first=0 then levels else Array.sub levels first(Array.length levels-first)in(match Raster2.Texture.Private.create_levels_borrowed~color_space:Raster2.Texture.Linear sampled_levels with Ok texture->let value={Raster2.Triangle.texture;filter;address_u;address_v}in control.sampled<-(key,value)::control.sampled;if List.length control.sampled>32 then control.sampled<-List.rev(List.tl(List.rev control.sampled));Ok(Some value)|Error _->error"Ogpu_raster2.render"Invalid_argument"fragment texture is invalid"))|_->error"Ogpu_raster2.render"Invalid_argument"fragment texture is absent"in let textured=Option.is_some sampled in let indices=match d.index with
+                  |Some(Buffer vertex_buffer)->(let vertices=vertex_buffer.bytes in let sampled=Option.bind sampled_pairs(function pair::_->Some pair|[]->None)in let texture()=match sampled with None->Ok None|Some((binding:Ogpu.Render_pass.texture_binding),sampler)->match find binding.texture_id,List.assoc_opt binding.texture_id resources with Some(Texture({levels;_},_)),Some token->let first=match sampler.sampler.mip_filter with No_mip->0|Nearest_mip|Linear_mip->min(Array.length levels-1)(int_of_float(floor sampler.sampler.lod_min))in let filter=match sampler.sampler.mip_filter,sampler.sampler.min_filter with Linear_mip,_->Raster2.Texture.Trilinear|_,Linear->Bilinear|_,Nearest->Nearest and address=function Ogpu.Types.Clamp_to_edge->Raster2.Texture.Clamp|Repeat->Repeat|Mirror_repeat->Mirror in let address_u=address sampler.sampler.address_u and address_v=address sampler.sampler.address_v in let key=token,first,filter,address_u,address_v in(match List.assoc_opt key control.sampled with Some texture->Ok(Some texture)|None->let sampled_levels=if first=0 then levels else Array.sub levels first(Array.length levels-first)in(match Raster2.Texture.Private.create_levels_borrowed~color_space:Raster2.Texture.Linear sampled_levels with Ok texture->let value={Raster2.Triangle.texture;filter;address_u;address_v}in control.sampled<-(key,value)::control.sampled;if List.length control.sampled>32 then control.sampled<-List.rev(List.tl(List.rev control.sampled));Ok(Some value)|Error _->error"Ogpu_raster2.render"Invalid_argument"fragment texture is invalid"))|_->error"Ogpu_raster2.render"Invalid_argument"fragment texture is absent"in let textured=Option.is_some sampled in let indices=match d.index with
                     |None->if d.vertex_count<0||d.vertex_start<0 then None else Some(Array.init d.vertex_count(fun i->d.vertex_start+i))
                     |Some(kind,id,offset,count)->match find id with
                       |Some(Buffer buffer)->let bytes=buffer.bytes and width=match kind with Uint16->2|Uint32->4 in
@@ -228,7 +237,7 @@ let create () =
                           |_->())c.resolve
                     |None->())descriptor.colors
               in
-              let rec all=function []->resolve();Ok()|x::xs->match draw x with Error _ as e->e|Ok()->all xs in all draws
+              let rec all=function []->resolve();Ok()|x::xs->match draw x with Error _ as e->e|Ok()->all xs in all prepared_draws
           |_->error"Ogpu_raster2.render"Invalid_argument"color attachment is absent"in
         let transfer operations =
           let buffer id=match find id with Some(Buffer buffer)->Some buffer.bytes|_->None and texture id mip=match find id with Some(Texture({levels;_},_))when mip>=0&&mip<Array.length levels->Some levels.(mip)|_->None in
