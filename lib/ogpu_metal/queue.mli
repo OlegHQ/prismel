@@ -16,4 +16,5 @@ val destroy : t -> (unit,Ogpu.Error.t) result
 module Private : sig
   val gpu_timing_total : unit -> gpu_timing
   val gpu_timing_entry_count : unit -> int
+  val valid_gpu_duration : float -> bool
 end

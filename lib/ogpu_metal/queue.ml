@@ -4,7 +4,7 @@ type pending={epoch:int64;command:native_completion;cleanup:cleanup list}
 type t={device:Device.t;metal:Metal.Command_queue.t;submission:Ogpu.Submission.t;mutable command4:Metal.Command4.Queue.t option;mutable pending:pending list;mutable fail_next:bool;mutable dead:bool}
 type receipt={epoch:int64}
 type gpu_timing={supported:bool;duration_seconds:float;sample_count:int64}
-type gpu_timing_accumulator={supported:bool;mutable duration_seconds:float;mutable sample_count:int64;mutable queues:int}
+type gpu_timing_accumulator={mutable supported:bool;mutable duration_seconds:float;mutable sample_count:int64;mutable queues:int}
 let gpu_timings:(int64,gpu_timing_accumulator)Hashtbl.t=Hashtbl.create 4
 let gpu_timing_for_device device=
   let id=Device.id device in
@@ -17,13 +17,14 @@ let gpu_timing_total() : gpu_timing=
      duration_seconds=total.duration_seconds+.value.duration_seconds;
      sample_count=Int64.add total.sample_count value.sample_count})
     gpu_timings {supported=false;duration_seconds=0.;sample_count=0L}
+let valid_gpu_duration duration=Float.is_finite duration&&duration>0.
 let record_gpu_duration device duration=
   match Hashtbl.find_opt gpu_timings(Device.id device)with
-  |Some value when value.supported&&Float.is_finite duration&&duration>=0.->value.duration_seconds<-value.duration_seconds+.duration;value.sample_count<-Int64.succ value.sample_count
+  |Some value when valid_gpu_duration duration->value.supported<-true;value.duration_seconds<-value.duration_seconds+.duration;value.sample_count<-Int64.succ value.sample_count
   |_->()
 let error op kind message=Error(Ogpu.Error.make op kind message)
 let create ?(max_frames=3) device=let op="Ogpu_metal.Queue.create"in if Device.destroyed device then error op Ogpu.Error.Stale_handle"device is destroyed"else
-  match Ogpu.Submission.create~max_frames(Device.Private.handle device)with Error _ as e->e|Ok submission->match Metal.Command_queue.create(Device.Private.metal device)with Error e->Error(Adapter.error~operation:op e)|Ok metal->let id=Device.id device in (match Hashtbl.find_opt gpu_timings id with Some timing->timing.queues<-timing.queues+1|None->let supported=Result.is_ok(Device.supports device Adapter.Timestamp_queries)in Hashtbl.add gpu_timings id{supported;duration_seconds=0.;sample_count=0L;queues=1});Device.Private.attach_resource device;Ok{device;metal;submission;command4=None;pending=[];fail_next=false;dead=false}
+  match Ogpu.Submission.create~max_frames(Device.Private.handle device)with Error _ as e->e|Ok submission->match Metal.Command_queue.create(Device.Private.metal device)with Error e->Error(Adapter.error~operation:op e)|Ok metal->let id=Device.id device in (match Hashtbl.find_opt gpu_timings id with Some timing->timing.queues<-timing.queues+1|None->Hashtbl.add gpu_timings id{supported=false;duration_seconds=0.;sample_count=0L;queues=1});Device.Private.attach_resource device;Ok{device;metal;submission;command4=None;pending=[];fail_next=false;dead=false}
 let destroyed value=value.dead
 let in_flight value=Ogpu.Submission.in_flight value.submission
 let completed_epoch value=Ogpu.Submission.completed_epoch value.submission
@@ -81,4 +82,5 @@ let destroy value=let op="Ogpu_metal.Queue.destroy"in if value.dead then Ok()els
 module Private=struct
   let gpu_timing_total=gpu_timing_total
   let gpu_timing_entry_count()=Hashtbl.length gpu_timings
+  let valid_gpu_duration=valid_gpu_duration
 end

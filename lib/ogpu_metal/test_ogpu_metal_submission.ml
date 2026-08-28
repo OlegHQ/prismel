@@ -12,6 +12,14 @@ let ended f=let command=Command.create()in get(f command);get(Command.end_ comma
 let ()=match Device.system_default()with Error _->print_endline"ogpu_metal submission: skipped (no device)"|Ok device->
   let other=get(Device.system_default())in let before=get_metal(Metal.Release_queue.stats())in
   let queue=get(Queue.create~max_frames:3 device)in
+  let initial_timing=Queue.gpu_timing_for_device device in
+  if initial_timing.supported||initial_timing.duration_seconds<>0.||initial_timing.sample_count<>0L then
+    failwith"GPU timing claimed support without a valid completed interval";
+  if List.exists Queue.Private.valid_gpu_duration[0.;-1.;Float.nan;Float.infinity;Float.neg_infinity]
+     ||not(Queue.Private.valid_gpu_duration Float.epsilon)then
+    failwith"GPU timing interval validation drift";
+  if Queue.gpu_timing_for_device device<>initial_timing then
+    failwith"invalid GPU timing interval changed diagnostics";
   let source=get(Buffer.create device~memory:Buffer.Shared buffer_descriptor)and destination=get(Buffer.create device~memory:Buffer.Shared buffer_descriptor)in
   let bytes=Bytes.make 16 '\000'in for i=0 to 3 do Bytes.set_int32_le bytes(i*4)(Int32.of_int(i*10))done;get(Buffer.write_bytes device source~dst_offset:0L bytes);
   let target=get(Texture.create device~memory:Texture.Shared~format:Texture.Rgba8_unorm texture_descriptor)in
@@ -23,6 +31,9 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal submi
   let capacity=ended(fun _->Ok())in expect Ogpu.Error.Capacity(Queue.submit queue capacity);
   get(Queue.wait_through queue r3.epoch);
   let timing_before_second=Queue.gpu_timing_for_device device in
+  if not timing_before_second.supported||timing_before_second.duration_seconds<=0.
+     ||timing_before_second.sample_count<=0L then
+    failwith"valid command-buffer GPU interval did not promote diagnostics";
   let second_queue=get(Queue.create device)in
   let timing_after_second=Queue.gpu_timing_for_device device in
   if timing_after_second<>timing_before_second||Queue.Private.gpu_timing_entry_count()<>1 then failwith"second queue reset or duplicated GPU timing state";
