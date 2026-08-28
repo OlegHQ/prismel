@@ -1,0 +1,88 @@
+{
+  "schema": 2,
+  "target": "native",
+  "comparison": "exact-framebuffer-digest",
+  "provenance": {
+    "renderer_commit": "bc5f5a60b0bb14a568a2a90f1b4dabbb35566ebb",
+    "tracked_tree_clean": true,
+    "host": "Apple M1",
+    "executable_digest": "62836f8e38be195ad17928e0cc28d725"
+  },
+  "width": 640,
+  "height": 480,
+  "pixel_tolerance": 3,
+  "scenarios": [
+    {
+      "scenario": "basic",
+      "visibility_observed": [ true, true, true ],
+      "checkpoints": [
+        {
+          "frame": 1,
+          "digest": "63defc45b7510c143d556650730bc3c6",
+          "non_clear_pixels": 273236,
+          "distinct_non_background_colors": 642
+        },
+        {
+          "frame": 2,
+          "digest": "606778c375b2f664c9fe271ac25ac874",
+          "non_clear_pixels": 273236,
+          "distinct_non_background_colors": 642
+        },
+        {
+          "frame": 60,
+          "digest": "ba0233dbcb74e08c483f79dd5e55c017",
+          "non_clear_pixels": 273236,
+          "distinct_non_background_colors": 642
+        },
+        {
+          "frame": 600,
+          "digest": "8d726925c408df76cc5fa36bc92da2df",
+          "non_clear_pixels": 273236,
+          "distinct_non_background_colors": 642
+        }
+      ],
+      "resized": {
+        "frame": 601,
+        "digest": "aa71d926c3965e2f6ef5375f8cb26677",
+        "non_clear_pixels": 437316,
+        "distinct_non_background_colors": 642
+      }
+    },
+    {
+      "scenario": "pxui",
+      "visibility_observed": [ true, true, true ],
+      "checkpoints": [
+        {
+          "frame": 1,
+          "digest": "cbb6deb05d2055d6ea0466ee38269e53",
+          "non_clear_pixels": 251419,
+          "distinct_non_background_colors": 1076
+        },
+        {
+          "frame": 2,
+          "digest": "cbb6deb05d2055d6ea0466ee38269e53",
+          "non_clear_pixels": 251419,
+          "distinct_non_background_colors": 1076
+        },
+        {
+          "frame": 60,
+          "digest": "cbb6deb05d2055d6ea0466ee38269e53",
+          "non_clear_pixels": 251419,
+          "distinct_non_background_colors": 1076
+        },
+        {
+          "frame": 600,
+          "digest": "cbb6deb05d2055d6ea0466ee38269e53",
+          "non_clear_pixels": 251419,
+          "distinct_non_background_colors": 1076
+        }
+      ],
+      "resized": {
+        "frame": 601,
+        "digest": "1258480171b27ca44f5b715577a6dac7",
+        "non_clear_pixels": 268699,
+        "distinct_non_background_colors": 1108
+      }
+    }
+  ]
+}
