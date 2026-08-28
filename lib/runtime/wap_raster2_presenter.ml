@@ -1,6 +1,8 @@
 type error=Invalid_frame of string|Transport of string|Destroyed
 type frame={rgba:bytes;pitch:int;logical_width:int;logical_height:int;drawable_width:int;drawable_height:int}
 type t={server:Wap.t;mutable destroyed:bool;mutable regions:Wap.text_input_region list}
+external blit_bytes_to_pixels : bytes -> int -> Wap.pixel_buffer -> int -> int -> unit
+  = "caml_wap_raster2_blit_bytes_to_pixels"
 let create ?config ()=match Wap.start ?config()with Error message->Error(Transport message)|Ok server->Ok{server;destroyed=false;regions=[]}
 let validate frame=
   if frame.logical_width<=0||frame.logical_height<=0||frame.drawable_width<=0||frame.drawable_height<=0 then Error(Invalid_frame"dimensions must be positive")
@@ -11,7 +13,10 @@ let validate frame=
     else if frame.drawable_height>max_int/row then Error(Invalid_frame"packed frame size overflows")else Ok row
 let present value frame=if value.destroyed then Error Destroyed else match validate frame with Error _ as error->error|Ok row->
   let length=row*frame.drawable_height in let packed=Wap.acquire_frame value.server~length in
-  for y=0 to frame.drawable_height-1 do for x=0 to row-1 do Bigarray.Array1.unsafe_set packed(y*row+x)(Char.code(Bytes.unsafe_get frame.rgba(y*frame.pitch+x)))done done;
+  if frame.pitch=row then blit_bytes_to_pixels frame.rgba 0 packed 0 length
+  else for y=0 to frame.drawable_height-1 do
+    blit_bytes_to_pixels frame.rgba(y*frame.pitch)packed(y*row)row
+  done;
   Wap.publish_frame value.server~drawable_width:frame.drawable_width~drawable_height:frame.drawable_height~logical_width:frame.logical_width~logical_height:frame.logical_height packed;Ok()
 let stats value=Wap.stats value.server
 let port value=Wap.port value.server

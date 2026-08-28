@@ -27,6 +27,9 @@
  (name runtime_wap_raster2_presenter)
  (public_name prismel.runtime.wap_raster2_presenter)
  (modules wap_raster2_presenter)
+ (foreign_stubs
+  (language c)
+  (names wap_raster2_presenter_stubs))
  (libraries wap))
 
 (test
