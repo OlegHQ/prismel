@@ -17,6 +17,24 @@
  (libraries runtime_next_provider))
 
 (library
+ (name runtime_next_native_provider)
+ (public_name prismel.runtime_next_native_provider)
+ (modules runtime_next_native_provider)
+ (libraries runtime_next runtime_next_provider))
+
+(library
+ (name runtime_next_headless_provider)
+ (public_name prismel.runtime_next_headless_provider)
+ (modules runtime_next_headless_provider)
+ (libraries runtime_next_headless runtime_next_provider))
+
+(library
+ (name runtime_next_web_provider)
+ (public_name prismel.runtime_next_web_provider)
+ (modules runtime_next_web_provider)
+ (libraries runtime_next_web runtime_next_provider))
+
+(library
  (name runtime_next_headless)
  (public_name prismel.runtime_next_headless)
  (modules runtime_next_headless)
@@ -111,3 +129,10 @@
  (name test_runtime_next_provider_loader)
  (modules test_runtime_next_provider_loader)
  (libraries runtime_next_provider runtime_next_provider_loader))
+
+(test
+ (name test_runtime_next_concrete_providers)
+ (modules test_runtime_next_concrete_providers)
+ (libraries runtime_next_native_provider runtime_next_headless_provider
+  runtime_next_web_provider runtime_next_provider ogpu)
+ (action (setenv SDL_VIDEODRIVER dummy (run %{test}))))
