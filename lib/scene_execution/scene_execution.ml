@@ -9,7 +9,8 @@ type auxiliary_resource={key:string;buffer:bytes;texture:sampled_texture}
 type cached={mutable key:string;mutable payload_hash:string;buffer:Ogpu.Backend.buffer;mutable index_offset:int64;mutable uniform_offset:int64 option;mutable vertex_count:int;mutable index_count:int;bytes:int}
 type cached_auxiliary={auxiliary_key:string;auxiliary_hash:string;auxiliary_buffer:Ogpu.Backend.buffer}
 type cached_texture={texture_key:string;texture_hash:string;texture_shape:string;
-  texture:Ogpu.Backend.texture;staging:Ogpu.Backend.buffer;staging_bytes:int}
+  texture:Ogpu.Backend.texture;staging:Ogpu.Backend.buffer;staging_bytes:int;
+  staging_packed:bytes}
 type prepared_run={prepared_identity:string;prepared_version:int64;prepared_draws:(pipeline_family*Ogpu.Pipeline.blend*sampled_texture option*auxiliary_resource option*int*draw)list;prepared_bytes:int}
 type prepared_submission={submission_identity:string;submission_version:int64;
   submission_clear:float*float*float*float;
@@ -154,6 +155,16 @@ let prepare value ~defer ~trusted_key ~reserved ~uniforms ~nonindexed ~canonical
   match Ogpu.Backend.create_buffer value.device descriptor with Error _ as e->e|Ok buffer->
     let offset=Int64.of_int(Bytes.length vertices)and uniform_offset=Int64.of_int(Bytes.length vertices+Bytes.length indices)in let packed=Bytes.concat Bytes.empty[indices;uniform_bytes]in match Ogpu.Backend.write_buffer buffer~offset:0L vertices with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->match Ogpu.Backend.write_buffer buffer~offset packed with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->let item={key;payload_hash;buffer;index_offset=offset;uniform_offset=(if uniforms=None then None else Some uniform_offset);vertex_count;index_count;bytes=total}in let replaced,others=List.partition(fun(x:cached)->x.key=key)value.cache in List.iter(fun x->defer(fun()->ignore(Ogpu.Backend.destroy_buffer x.buffer)))replaced;let keep,evict=trim_cache(item::others)in List.iter(fun x->defer(fun()->ignore(Ogpu.Backend.destroy_buffer x.buffer)))evict;value.cache<-keep;value.uploaded<-Int64.add value.uploaded(Int64.of_int total);Ok item
 let align256 value=(value+255)land(lnot 255)
+let texture_cache_entry_capacity=256
+let texture_cache_byte_capacity=256*1024*1024
+let trim_texture_cache cache =
+  let rec loop entries bytes keep evict=function
+    |[]->List.rev keep,List.rev evict
+    |item::rest when entries<texture_cache_entry_capacity&&
+      item.staging_bytes<=texture_cache_byte_capacity-bytes->
+        loop(entries+1)(bytes+item.staging_bytes)(item::keep)evict rest
+    |item::rest->loop entries bytes keep(item::evict)rest in
+  loop 0 0 [] [] cache
 let valid_texture(source:sampled_texture)=
   source.key<>""&&Array.length source.levels>0&&
   (match Ogpu.Types.validate_sampler source.sampler with Error _->false|Ok()->true)&&
@@ -185,16 +196,21 @@ let prepare_texture value ~defer(source:sampled_texture)=
     let offsets=Array.make(Array.length source.levels)0 in
     for index=1 to Array.length offsets-1 do offsets.(index)<-offsets.(index-1)+rows.(index-1)*source.levels.(index-1).height done;
     let total=offsets.(Array.length offsets-1)+rows.(Array.length rows-1)*source.levels.(Array.length rows-1).height in
+    let cacheable=total<=texture_cache_byte_capacity in
     let staging_descriptor:Ogpu.Types.buffer_descriptor={label=Some"scene-texture-staging";size=Int64.of_int total;usage=[Copy_src]}in
     let create_handles ()=match Ogpu.Backend.create_texture value.device descriptor with Error _ as e->e|Ok texture->
       match Ogpu.Backend.create_buffer value.device staging_descriptor with Error e->ignore(Ogpu.Backend.destroy_texture texture);Error e|Ok staging->Ok(texture,staging,true)in
-    match(match reusable with Some item when item.staging_bytes=total->Ok(item.texture,item.staging,false)|_->create_handles())with Error _ as e->e|Ok(texture,staging,created)->
-    let packed=Bytes.make total '\000'in Array.iteri(fun level_index level->for row=0 to level.height-1 do Bytes.blit level.bytes(row*level.width*4)packed(offsets.(level_index)+row*rows.(level_index))(level.width*4)done)source.levels;
+    match(match reusable with Some item when cacheable&&item.staging_bytes=total->
+      Ok(item.texture,item.staging,item.staging_packed,false)
+      |_->Result.map(fun(texture,staging,created)->
+        texture,staging,Bytes.make total '\000',created)(create_handles()))with
+    |Error _ as e->e|Ok(texture,staging,packed,created)->
+    Array.iteri(fun level_index level->for row=0 to level.height-1 do Bytes.blit level.bytes(row*level.width*4)packed(offsets.(level_index)+row*rows.(level_index))(level.width*4)done)source.levels;
     match Ogpu.Backend.write_buffer staging~offset:0L packed with Error e->if created then(ignore(Ogpu.Backend.destroy_buffer staging);ignore(Ogpu.Backend.destroy_texture texture));Error e|Ok()->
     let pass=Ogpu.Transfer_pass.create(Ogpu.Backend.device_handle value.device)in
     let src=Ogpu.Backend.transfer_buffer staging and dst=Ogpu.Backend.transfer_texture texture in
     let failure=ref None in Array.iteri(fun index level->if !failure=None then match Ogpu.Transfer_pass.buffer_to_texture pass~src~offset:(Int64.of_int offsets.(index))~bytes_per_row:(Int64.of_int rows.(index))~bytes_per_image:(Int64.of_int(rows.(index)*level.height))~dst~mip:index~origin:{x=0;y=0;z=0}~extent:{width=level.width;height=level.height;depth=1}with Ok()->()|Error e->failure:=Some e)source.levels;
-    let finish result=match result with Error e->if created then(ignore(Ogpu.Backend.destroy_buffer staging);ignore(Ogpu.Backend.destroy_texture texture));Error e|Ok()->let item={texture_key=source.key;texture_hash=hash;texture_shape=shape;texture;staging;staging_bytes=total}in let replaced,others=List.partition(fun old->old.texture_key=source.key)value.texture_cache in List.iter(fun old->if old.texture!=texture then defer(fun()->ignore(Ogpu.Backend.destroy_texture old.texture));if old.staging!=staging then defer(fun()->ignore(Ogpu.Backend.destroy_buffer old.staging)))replaced;value.texture_cache<-item::others;value.uploaded<-Int64.add value.uploaded(Int64.of_int total);Ok item in
+    let finish result=match result with Error e->if created then(ignore(Ogpu.Backend.destroy_buffer staging);ignore(Ogpu.Backend.destroy_texture texture));Error e|Ok()->let item={texture_key=source.key;texture_hash=hash;texture_shape=shape;texture;staging;staging_bytes=total;staging_packed=packed}in value.uploaded<-Int64.add value.uploaded(Int64.of_int total);if not cacheable then begin defer(fun()->ignore(Ogpu.Backend.destroy_texture texture));defer(fun()->ignore(Ogpu.Backend.destroy_buffer staging));Ok item end else let replaced,others=List.partition(fun old->old.texture_key=source.key)value.texture_cache in List.iter(fun old->if old.texture!=texture then defer(fun()->ignore(Ogpu.Backend.destroy_texture old.texture));if old.staging!=staging then defer(fun()->ignore(Ogpu.Backend.destroy_buffer old.staging)))replaced;let keep,evict=trim_texture_cache(item::others)in value.texture_cache<-keep;List.iter(fun old->defer(fun()->ignore(Ogpu.Backend.destroy_texture old.texture));defer(fun()->ignore(Ogpu.Backend.destroy_buffer old.staging)))evict;Ok item in
     match !failure with Some e->finish(Error e)|None->match Ogpu.Backend.transfer pass with Error e->finish(Error e)|Ok command->match Ogpu.Backend.submit value.queue command~resources:[`Buffer staging;`Texture texture]~pipelines:[]with Error e->finish(Error e)|Ok receipt->finish(Ogpu.Backend.complete_through value.queue receipt.epoch)
 let prepare_auxiliary value ~defer(source:auxiliary_resource)=
   let hash=Digest.to_hex(Digest.bytes source.buffer)in

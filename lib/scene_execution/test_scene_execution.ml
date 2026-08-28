@@ -110,6 +110,46 @@ let auxiliary_lifecycle renderer control mesh state =
   let changed_uploaded=Scene_execution.upload_bytes renderer in
   ignore(get(Scene_execution.render_resources renderer[Scene2,Ogpu.Pipeline.Replace,Some changed,Some first,draw]));
   if Scene_execution.upload_bytes renderer<>changed_uploaded then failwith"stable changed texture reuploaded";
+  let dynamic_bytes=Bytes.make(256*256*4)'\000'in
+  let dynamic:Scene_execution.sampled_texture={key="image:dynamic-staging";
+    levels=[|{width=256;height=256;bytes=dynamic_bytes}|];sampler}in
+  ignore(get(Scene_execution.render_resources renderer[
+    Scene2,Ogpu.Pipeline.Replace,Some dynamic,None,draw]));
+  Bytes.set dynamic_bytes 0 '\001';
+  ignore(get(Scene_execution.render_resources renderer[
+    Scene2,Ogpu.Pipeline.Replace,Some dynamic,None,draw]));
+  Gc.full_major();let allocated0=Gc.allocated_bytes()and gc0=Gc.quick_stat()in
+  for frame=1 to 100 do
+    Bytes.set dynamic_bytes 0(Char.chr((frame+1)land 255));
+    ignore(get(Scene_execution.render_resources renderer[
+      Scene2,Ogpu.Pipeline.Replace,Some dynamic,None,draw]));
+    Ogpu.Backend_mock.clear_trace control
+  done;
+  let gc1=Gc.quick_stat()in
+  let allocated=(Gc.allocated_bytes()-.allocated0)/.100.
+  and promoted=(gc1.promoted_words-.gc0.promoted_words)*.float(Sys.word_size/8)in
+  if allocated>50_000. then
+    failwith(Printf.sprintf"dynamic texture staging allocated %.0f bytes/frame"allocated);
+  if promoted>100_000. then
+    failwith(Printf.sprintf"dynamic texture staging promoted %.0f bytes"promoted);
+  let dynamic_uploaded=Scene_execution.upload_bytes renderer in
+  ignore(get(Scene_execution.render_resources renderer[
+    Scene2,Ogpu.Pipeline.Replace,Some dynamic,None,draw]));
+  if Scene_execution.upload_bytes renderer<>dynamic_uploaded then
+    failwith"stable dynamic texture reuploaded";
+  let churn first last=
+    for index=first to last do
+      let source=texture(Printf.sprintf"unique-texture-%03d"index)
+        (String.init 4(fun channel->if channel=3 then '\255'
+          else Char.chr(index land 255)))in
+      ignore(get(Scene_execution.render_resources renderer[
+        Scene2,Ogpu.Pipeline.Replace,Some source,None,draw]))
+    done in
+  churn 0 299;
+  let plateau=Ogpu.Backend_mock.live_counts control in
+  churn 300 399;
+  if Ogpu.Backend_mock.live_counts control<>plateau then
+    failwith"bounded texture cache live handles did not plateau";
   Ogpu.Backend_mock.clear_trace control;
   ignore(get(Scene_execution.render_resources renderer[Scene2,Ogpu.Pipeline.Replace,Some primary,Some first,draw;Scene2,Ogpu.Pipeline.Replace,Some primary,Some first,draw]));
   let renders=Ogpu.Backend_mock.trace control|>List.filter(String.starts_with~prefix:"render:")in
