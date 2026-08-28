@@ -60,8 +60,26 @@ let rounded_rect ~at:(x,y) ~w ~h ~radius ?fill ?stroke()=
       Line_to(p 0. r);Cubic_to(p 0.(r-.k),p(r-.k)0.,p r 0.);Close|]in
     [styled_path?fill?stroke path])in
   Translate(x,y,geometry)
+type ellipse_cache={table:((int*int*int*int*int32 option*int32 option),node)Hashtbl.t;
+  mutable order:(int*int*int*int*int32 option*int32 option)list}
+let ellipse_cache_capacity=256
+let ellipse_caches=Domain.DLS.new_key(fun()->
+  {table=Hashtbl.create ellipse_cache_capacity;order=[]})
+let ellipse_cached key make=
+  let cache=Domain.DLS.get ellipse_caches in
+  match Hashtbl.find_opt cache.table key with
+  |Some value->value
+  |None->
+      let value=make()in
+      (if Hashtbl.length cache.table>=ellipse_cache_capacity then
+        match List.rev cache.order with
+        |[]->()
+        |oldest::rest->Hashtbl.remove cache.table oldest;cache.order<-List.rev rest);
+      Hashtbl.replace cache.table key value;cache.order<-key::cache.order;value
 let ellipse_points (cx,cy) rx ry=List.init 32(fun i->let a=(2.*.Float.pi)*.float i/.32. in cx+int_of_float(float rx*.cos a),cy+int_of_float(float ry*.sin a))
-let ellipse ~at ~rx ~ry ?fill ?stroke()=polygon(ellipse_points at rx ry)?fill?stroke()
+let ellipse ~at:(cx,cy as at) ~rx ~ry ?fill ?stroke()=
+  let key=cx,cy,rx,ry,Option.map rgba fill,Option.map rgba stroke in
+  ellipse_cached key(fun()->polygon(ellipse_points at rx ry)?fill?stroke())
 let circle ~at ~radius ?fill ?stroke()=ellipse~at~rx:radius~ry:radius?fill?stroke()
 let triangle a b c ?fill ?stroke()=polygon[a;b;c]?fill?stroke()
 let quad a b c d ?fill ?stroke()=polygon[a;b;c;d]?fill?stroke()

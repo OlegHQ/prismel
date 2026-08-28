@@ -45,6 +45,22 @@ let () =
   done;
   require (primitive_baseline = serialize (primitive ()))
     "bounded primitive cache eviction changed geometry";
+  let ellipse_node () = Scene.circle ~at:(44, 37) ~radius:19
+      ~fill:(Color.rgba 11 22 33 210) () in
+  let ellipse_first=ellipse_node() and ellipse_second=ellipse_node()in
+  require(ellipse_first==ellipse_second)
+    "stable ellipse did not reuse its immutable scene node";
+  for index=0 to 299 do
+    ignore(Scene.ellipse~at:(index,index land 15)~rx:(index+2)~ry:11
+      ~fill:Color.blue())
+  done;
+  require(primitive_baseline=serialize(primitive()))
+    "bounded ellipse cache eviction changed geometry";
+  ignore(ellipse_node());Gc.full_major();
+  let ellipse_before=Gc.allocated_bytes()in
+  for _=1 to 1_000 do ignore(ellipse_node())done;
+  let ellipse_per_hit=(Gc.allocated_bytes()-.ellipse_before)/.1_000. in
+  require(ellipse_per_hit<512.)"stable ellipse cache allocation regression";
   ignore (first_geometry (primitive ()));Gc.full_major ();
   let primitive_before = Gc.allocated_bytes () in
   for _ = 1 to 1_000 do ignore (first_geometry (primitive ())) done;

@@ -147,7 +147,7 @@ let () =
     ignore(get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)transient))
   done;
   let cached,candidates=scene2_geometry_cache_entries resource_runtime in
-  check(cached<=256&&candidates<=256)"owned geometry caches exceeded capacity";
+  check(cached<=256&&candidates<=64)"owned geometry caches exceeded capacity";
   ignore(get(step resource_runtime batched));
   check(Bytes.exists((<>)'\000')(get(capture resource_runtime)))
     "batched Scene2 topology produced no pixels";

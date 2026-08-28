@@ -199,12 +199,12 @@ let batch_matches sources (cached:cached_scene2_batch) =
     !index_offset=Bytes.length merged.indices
 
 let scene2_geometry_byte_capacity=64*1024*1024
-let trim_scene2_entries bytes entries =
+let trim_scene2_entries ?(capacity=256) bytes entries =
   let rec loop count total kept = function
     | [] -> List.rev kept
     | entry::rest ->
         let size=bytes entry in
-        if count<256&&size<=scene2_geometry_byte_capacity-total then
+        if count<capacity&&size<=scene2_geometry_byte_capacity-total then
           loop(count+1)(total+size)(entry::kept)rest
         else loop count total kept rest
   in loop 0 0 [] entries
@@ -438,6 +438,7 @@ let lower_scene2 value ~density ~resource:resolve ir =
               candidate_color=geometry.color;candidate_transform=transform;
               candidate_clip=clip}::value.scene2_geometry_candidates;
             value.scene2_geometry_candidates<-trim_scene2_entries
+              ~capacity:64
               (fun candidate->candidate.candidate_source_bytes)
               value.scene2_geometry_candidates;draw
         |Some candidate->
