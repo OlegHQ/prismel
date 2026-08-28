@@ -35,18 +35,18 @@ let () = match Array.to_list Sys.argv with
       and sop_catalog = read sop_catalog_path and sketch = read sketch_path
       and sketch_ui = read sketch_ui_path in
       reject pdk_path pdk
-        ["geom"; "procedural"; "pxui"; "sop_ui"; "runtime"; "wap"];
+        ["geom"; "procedural"; "pxui"; "sop_ui"; "runtime"];
       reject geom_path geom
-        ["procedural"; "pxui"; "sop_ui"; "runtime"; "wap"];
-      reject procedural_path procedural ["pxui"; "sop_ui"; "runtime"; "wap"];
-      reject pxui_path pxui ["procedural"; "sop_ui"; "runtime"; "wap"];
-      reject sop_ui_path sop_ui ["runtime"; "wap"];
+        ["procedural"; "pxui"; "sop_ui"; "runtime"];
+      reject procedural_path procedural ["pxui"; "sop_ui"; "runtime"];
+      reject pxui_path pxui ["procedural"; "sop_ui"; "runtime"];
+      reject sop_ui_path sop_ui ["runtime"];
       reject pxui_graph_path pxui_graph ["sop_ui"; "sketch_support";
-        "sketch_ui"; "runtime"; "wap"];
+        "sketch_ui"; "runtime"];
       reject sop_catalog_path sop_catalog ["geom"; "pxui"; "pxui_graph";
-        "sop_ui"; "sketch_support"; "sketch_ui"; "runtime"; "wap"];
-      reject sketch_path sketch ["geom"; "pxui"; "sop_ui"; "runtime"; "wap"];
-      reject sketch_ui_path sketch_ui ["runtime"; "wap"];
+        "sop_ui"; "sketch_support"; "sketch_ui"; "runtime"];
+      reject sketch_path sketch ["geom"; "pxui"; "sop_ui"; "runtime"];
+      reject sketch_ui_path sketch_ui ["runtime"];
       if not (contains geom "(libraries prismel pdk)") then
         failwith "Geom must consume PDK as its single mesh compute core";
       if not (contains procedural "(libraries prismel pdk") then

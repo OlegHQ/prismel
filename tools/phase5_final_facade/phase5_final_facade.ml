@@ -21,7 +21,7 @@ let () =
   let root = Unix.realpath !root in
   let path value = Filename.concat root value in
   let retired =
-    [ "lib/runtime_next_headless"; "lib/runtime_next_web";
+    [ "lib/runtime_next_headless"; "lib/runtime_next_web"; "lib/wap";
       "tools/phase5_switch/runtime_owner_candidate.dune";
       "tools/phase5_switch/runtime_owner_candidate.json";
       "tools/phase5_switch/test_runtime_owner_candidate.ml";
@@ -36,7 +36,7 @@ let () =
   List.iter
     (fun dependency -> require (not (contains runtime_dune dependency))
       "native runtime still references retired dependency %s" dependency)
-    [ "runtime_next_headless"; "runtime_next_web"; " wap" ];
+    [ "runtime_next_headless"; "runtime_next_web" ];
   let sketch_mli = read (path "lib/prismel_next_api/sketch.mli") in
   require (contains sketch_mli "type render_target = Native")
     "public render target is not exactly Native";
