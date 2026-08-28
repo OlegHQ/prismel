@@ -98,9 +98,27 @@ let () =
       let settled_live, settled_pending = Option.get !settled_release in
       if !peak_live <> settled_live || !peak_pending <> settled_pending then
         failwith "managed-image churn grew Metal release state";
+      let plain_mesh = { mesh with Scene_execution.key = "scene2-retained-plain" } in
+      let plain_draw = Scene_execution.Scene2, Ogpu.Pipeline.Replace, None,
+        None, 1, { Scene_execution.mesh = plain_mesh; state } in
+      let textured_draw = Scene_execution.Scene2_textured, Ogpu.Pipeline.Alpha,
+        Some texture, None, 1, { Scene_execution.mesh; state } in
+      for _frame = 1 to 600 do
+        if not (get (Runtime_next.render_sampled_resources runtime
+          [plain_draw; textured_draw])) then
+          failwith "mixed canonical Scene2 frame was not presented"
+      done;
+      let pixels = get (Runtime_next.read_pixels runtime ~bytes_per_row:16) in
+      if Bytes.sub pixels 0 4 <> Bytes.of_string "\x11\x22\x33\xff" then
+        failwith "mixed canonical Scene2 exact pixel mismatch";
+      let mixed = Runtime_next.stats runtime in
+      if mixed.retained_plan_builds <> 3L || mixed.retained_plan_misses <> 3L
+         || mixed.retained_plan_hits <> 1617L || mixed.retained_plan_executions <> 1620L
+         || mixed.retained_plan_evictions <> 0L || mixed.retained_plan_entries <> 3 then
+        failwith "mixed plain/textured Scene2 did not retain one stable plan";
       get (Runtime_next.destroy runtime);
       ignore (get_metal (Metal.Release_queue.drain ()));
       let after = get_metal (Metal.Release_queue.stats ()) in
       if after.live_handles <> before.live_handles then
         failwith "scene2 retained argument live-handle delta";
-      print_endline "runtime-next scene2 retained argument: indexed expansion + 1000 managed-image generations cached, exact pixels, bounded release state, zero delta"
+      print_endline "runtime-next scene2 retained argument: indexed expansion + 1000 managed-image generations + 600 mixed plain/textured frames, exact pixels, bounded release state, zero delta"
