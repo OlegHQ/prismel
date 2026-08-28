@@ -17,9 +17,9 @@ module Image : sig
   val snapshot : t -> ((int * int * int * bytes),error) result
   module Private : sig
     type lease
-    (** The bytes remain stable until the lease is released, including across
-        image destruction. Mutations use a second bounded buffer rather than
-        changing leased storage; release is idempotent. *)
+    (* The bytes remain stable until the lease is released, including across
+       image destruction. Mutations use a second bounded buffer rather than
+       changing leased storage; release is idempotent. *)
     val borrow_snapshot : t ->
       ((int * int * int * bytes * lease),error) result
     val release_snapshot : lease -> unit
@@ -93,13 +93,6 @@ end
 module Audio : sig
   type t
   type sample
-  type intent =
-    | Master_volume of float | Stop_all
-    | Sample_play of { asset:string; channel:int; loops:int; volume:float }
-    | Sample_stop of int | Sample_pause of int | Sample_resume of int
-    | Music_play of { asset:string; loops:int; fade_ms:int }
-    | Music_volume of float | Music_pause | Music_resume | Music_stop of int
-    | Asset_remove of string
   type generated = { mixed_bytes:int; pcm_f32:bytes }
   val create_memory : sample_rate:int -> channels:int -> max_channels:int -> (t,error) result
   val load_sample_bytes : t -> bytes -> (sample,error) result
@@ -122,8 +115,6 @@ module Audio : sig
   val master_volume : t -> (float,error) result
   val music_volume : t -> (float,error) result
   val generate : t -> frames:int -> (generated,error) result
-  val drain_web_intents : t -> intent list
-  val dropped_web_intents : t -> int
   val destroy_sample : sample -> (unit,error) result
   val destroy : t -> (unit,error) result
 end

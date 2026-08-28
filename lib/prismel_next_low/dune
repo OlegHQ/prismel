@@ -8,5 +8,4 @@
 (test
  (name test_prismel_next_low)
  (modules test_prismel_next_low)
- (libraries prismel_next_low scene_command)
- (action (setenv PRISMEL_RENDER_TARGET headless (run %{test}))))
+ (libraries prismel_next_low scene_command))

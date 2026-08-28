@@ -15,7 +15,6 @@ let ()=
   get(Audio.pause_channel owner channel);get(Audio.resume_channel owner channel);get(Audio.stop_channel owner channel~fade_out_ms:2());
   get(Audio.play_music owner~loops:1~fade_in_ms:2 sample);get(Audio.set_music_volume owner 0.4);get(Audio.pause_music owner);get(Audio.resume_music owner);get(Audio.stop_music owner~fade_out_ms:2());
   for i=1 to 100_000 do get(Audio.set_master_volume owner(float(i land 1)))done;
-  if List.length(Audio.drain_web_intents owner)<>256||Audio.dropped_web_intents owner<99_000 then failwith"web intent bound";
   let assets=Assets.create()and order=ref[]in ignore(get(Assets.borrow assets~destroy:(fun()->order:=2::!order;Audio.destroy owner)owner));ignore(get(Assets.borrow assets~destroy:(fun()->order:=1::!order;Audio.destroy_sample sample)sample));get(Assets.destroy assets);if!order<>[2;1]then failwith"audio on_stop ordering";
   (match Audio.generate owner~frames:1 with Error{kind=Destroyed;_}->()|_->failwith"stale audio");
-  print_endline"prismel_next_resources Audio: dummy PCM reload fades intents100k teardown passed"
+  print_endline"prismel_next_resources Audio: dummy PCM reload fades teardown passed"
