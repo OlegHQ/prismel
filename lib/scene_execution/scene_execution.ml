@@ -28,7 +28,7 @@ type automatic_signature={signature_family:pipeline_family;
   signature_uniform_buffer:int64 option;signature_vertex_count:int;
   signature_index_count:int}
 type automatic_submission={automatic_clear:float*float*float*float;
-  automatic_signatures:automatic_signature list;
+  automatic_payloads:(automatic_signature*Ogpu.Render_pass.draw*Ogpu.Backend.pipeline)list;
   automatic_commands:(Ogpu.Backend.command*
     [ `Buffer of Ogpu.Backend.buffer | `Texture of Ogpu.Backend.texture ] list*
     Ogpu.Backend.pipeline list)list}
@@ -444,10 +444,10 @@ let same_automatic signature
   signature.signature_uniform_buffer=Option.map(fun item->Ogpu.Backend.buffer_id item.buffer)uniform&&
   signature.signature_vertex_count=item.vertex_count&&
   signature.signature_index_count=item.index_count
-let rec same_prepared signatures prepared=match signatures,prepared with
+let rec same_payloads payloads prepared=match payloads,prepared with
   |[],[]->true
-  |signature::signatures,entry::prepared->
-      same_automatic signature entry&&same_prepared signatures prepared
+  |(signature,_,_)::payloads,entry::prepared->
+      same_automatic signature entry&&same_payloads payloads prepared
   |_->false
 let submit_acquired value frame commands =
   let rec submit=function
@@ -480,7 +480,7 @@ let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws
   match Ogpu.Backend.acquire value.surface with Error _ as e->finish e|Ok(`Timeout|`Occluded)->finish(Ok false)|Ok`Device_lost->finish(error"Scene_execution.render"Device_lost"device lost")|Ok(`Acquired frame)->match prepare_all[]draws with Error _ as e->ignore(Ogpu.Backend.discard frame);finish e|Ok prepared->
     match value.automatic_submission with
     |Some cached when cached.automatic_clear=clear&&
-      same_prepared cached.automatic_signatures prepared->
+      same_payloads cached.automatic_payloads prepared->
         finish(Result.map(fun()->true)
           (submit_acquired value frame cached.automatic_commands))
     |_->
@@ -507,22 +507,38 @@ let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws
           take class_ retained samples state(count+1)(entry::acc)rest
       |rest->List.rev acc,rest in
     let variant family blend samples=List.find_opt(fun value->value.family=family&&value.blend=blend&&value.samples=samples)value.pipelines in
-    let made_commands=ref[]in
+    let made_commands=ref[]and made_payloads=ref[]in
+    let previous_payloads=ref(match value.automatic_submission with
+      |Some cached->cached.automatic_payloads|None->[])in
     let rec batches first=function []->Ok()|(family,blend,samples,state,texture,auxiliary,item,uniform)::rest->
       let class_=attachment_class family in
       let same,rest=take class_ (family=Scene2_textured) samples state 1[(family,blend,samples,state,texture,auxiliary,item,uniform)]rest in
       match pass value family samples state(if first then Ogpu.Render_pass.Clear else Load)clear with Error _ as e->e|Ok(pass,attachments)->
       let resources=List.map(fun texture->`Texture texture)attachments@resources in
-      let payload=List.map(fun(family,blend,samples,_,texture,auxiliary,item,uniform)->let canonical_scene2=value.canonical_scene2_argument&&(family=Scene2||family=Scene2_textured)in let pipeline_family=if canonical_scene2&&family=Scene2 then Scene2_textured else family in let variant=Option.get(variant pipeline_family blend samples)in let texture_index,sampler_index=if canonical_scene2 then 0,1 else 1,2 in let textures,samplers=match texture with None->[],[]|Some(source,cached)->[{Ogpu.Render_pass.stage=Fragment;index=texture_index;texture_id=Ogpu.Backend.texture_id cached.texture}],[{Ogpu.Render_pass.stage=Fragment;index=sampler_index;sampler=source.sampler}]in let buffers,textures,samplers=match auxiliary with None->[{Ogpu.Render_pass.stage=Ogpu.Command.Vertex;index=0;buffer_id=Ogpu.Backend.buffer_id item.buffer;offset=0L}],textures,samplers|Some((source:auxiliary_resource),buffer,texture)->[{Ogpu.Render_pass.stage=Ogpu.Command.Vertex;index=0;buffer_id=Ogpu.Backend.buffer_id item.buffer;offset=0L};{stage=Fragment;index=3;buffer_id=Ogpu.Backend.buffer_id buffer.auxiliary_buffer;offset=0L}],{Ogpu.Render_pass.stage=Fragment;index=4;texture_id=Ogpu.Backend.texture_id texture.texture}::textures,{Ogpu.Render_pass.stage=Fragment;index=5;sampler=source.texture.sampler}::samplers in let buffers=match uniform,item.uniform_offset with Some uniform,_->{Ogpu.Render_pass.stage=Ogpu.Command.Vertex;index=6;buffer_id=Ogpu.Backend.buffer_id uniform.buffer;offset=0L}::buffers|None,Some offset->{Ogpu.Render_pass.stage=Ogpu.Command.Vertex;index=6;buffer_id=Ogpu.Backend.buffer_id item.buffer;offset}::{Ogpu.Render_pass.stage=Ogpu.Command.Fragment;index=6;buffer_id=Ogpu.Backend.buffer_id item.buffer;offset}::buffers|None,None->buffers in let index=if canonical_scene2||family=Scene2_textured then None else Some(Ogpu.Render_pass.Uint32,Ogpu.Backend.buffer_id item.buffer,item.index_offset,item.index_count)in({Ogpu.Render_pass.pipeline_key=variant.key;buffers;textures;samplers;primitive=Triangle_list;vertex_start=0;vertex_count=item.vertex_count;index},variant.pipeline))same in
-      let payload,pipelines=List.split payload in
+      let payload_entry(family,blend,samples,_,texture,auxiliary,item,uniform)=let canonical_scene2=value.canonical_scene2_argument&&(family=Scene2||family=Scene2_textured)in let pipeline_family=if canonical_scene2&&family=Scene2 then Scene2_textured else family in let variant=Option.get(variant pipeline_family blend samples)in let texture_index,sampler_index=if canonical_scene2 then 0,1 else 1,2 in let textures,samplers=match texture with None->[],[]|Some(source,cached)->[{Ogpu.Render_pass.stage=Fragment;index=texture_index;texture_id=Ogpu.Backend.texture_id cached.texture}],[{Ogpu.Render_pass.stage=Fragment;index=sampler_index;sampler=source.sampler}]in let buffers,textures,samplers=match auxiliary with None->[{Ogpu.Render_pass.stage=Ogpu.Command.Vertex;index=0;buffer_id=Ogpu.Backend.buffer_id item.buffer;offset=0L}],textures,samplers|Some((source:auxiliary_resource),buffer,texture)->[{Ogpu.Render_pass.stage=Ogpu.Command.Vertex;index=0;buffer_id=Ogpu.Backend.buffer_id item.buffer;offset=0L};{stage=Fragment;index=3;buffer_id=Ogpu.Backend.buffer_id buffer.auxiliary_buffer;offset=0L}],{Ogpu.Render_pass.stage=Fragment;index=4;texture_id=Ogpu.Backend.texture_id texture.texture}::textures,{Ogpu.Render_pass.stage=Fragment;index=5;sampler=source.texture.sampler}::samplers in let buffers=match uniform,item.uniform_offset with Some uniform,_->{Ogpu.Render_pass.stage=Ogpu.Command.Vertex;index=6;buffer_id=Ogpu.Backend.buffer_id uniform.buffer;offset=0L}::buffers|None,Some offset->{Ogpu.Render_pass.stage=Ogpu.Command.Vertex;index=6;buffer_id=Ogpu.Backend.buffer_id item.buffer;offset}::{Ogpu.Render_pass.stage=Ogpu.Command.Fragment;index=6;buffer_id=Ogpu.Backend.buffer_id item.buffer;offset}::buffers|None,None->buffers in let index=if canonical_scene2||family=Scene2_textured then None else Some(Ogpu.Render_pass.Uint32,Ogpu.Backend.buffer_id item.buffer,item.index_offset,item.index_count)in({Ogpu.Render_pass.pipeline_key=variant.key;buffers;textures;samplers;primitive=Triangle_list;vertex_start=0;vertex_count=item.vertex_count;index},variant.pipeline)in
+      (* Draw payloads are immutable.  Reusing an exact positional match keeps
+         stable runs around animated draws in the same render pass, preserving
+         ordering and attachment load/store semantics. *)
+      let rec payloads acc previous entries=match entries,previous with
+        |[],_->List.rev acc,previous
+        |entry::rest,(signature,draw,pipeline)::old when same_automatic signature entry->payloads((signature,draw,pipeline)::acc)old rest
+        |entry::rest,_::old->let draw,pipeline=payload_entry entry in payloads((automatic_signature entry,draw,pipeline)::acc)old rest
+        |entry::rest,[]->let draw,pipeline=payload_entry entry in payloads((automatic_signature entry,draw,pipeline)::acc)[]rest in
+      let automatic_payloads,remaining=payloads[]!previous_payloads same in
+      previous_payloads:=remaining;
+      let payload=List.map(fun(_,draw,_)->draw)automatic_payloads in
+      let pipelines=List.map(fun(_,_,pipeline)->pipeline)automatic_payloads in
+      made_payloads:=List.rev_append automatic_payloads!made_payloads;
       let pipelines=List.fold_left(fun unique pipeline->if List.exists((==)pipeline)unique then unique else pipeline::unique)[]pipelines in
       match Ogpu.Backend.render pass payload with Error _ as e->e|Ok command->made_commands:=(command,resources,pipelines)::!made_commands;match Ogpu.Backend.submit value.queue command~resources~pipelines with Error _ as e->e|Ok receipt->match Ogpu.Backend.complete_through value.queue receipt.epoch with Error _ as e->e|Ok()->batches false rest in
     finish(match batches true prepared with Error e->ignore(Ogpu.Backend.discard frame);Error e|Ok()->
       let commands=List.rev!made_commands in
       match Ogpu.Backend.present frame with Error _ as e->e|Ok()->
       (match prepared_key with Some(identity,version)->value.prepared_submission<-Some{submission_identity=identity;submission_version=version;submission_clear=clear;submission_commands=commands}|None->());
+      let automatic_payloads=List.rev!made_payloads in
       value.automatic_submission<-Some{
-        automatic_clear=clear;automatic_signatures=List.map automatic_signature prepared;
+        automatic_clear=clear;
+        automatic_payloads;
         automatic_commands=commands};
       Ok true)
 let render_sampled_resources ?clear value draws=render_sampled_resources_common ?clear value draws

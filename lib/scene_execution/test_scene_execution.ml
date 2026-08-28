@@ -88,11 +88,16 @@ let duplicate_key_affine_retention () =
     depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;
     transform_uniforms=Some affine;stencil_state=None;
     stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}in
-  let mesh byte:Scene_execution.mesh={key="duplicate-key";
+  let mesh key byte:Scene_execution.mesh={key;
     vertices=Bytes.make 48 byte;vertex_count=3;
     indices=Bytes.make 12 '\000';index_count=3}in
-  let draws=List.map(fun mesh->Scene_execution.Scene2,Ogpu.Pipeline.Replace,
-      None,None,1,{Scene_execution.mesh;state})[mesh '\001';mesh '\002']in
+  let stable={state with transform_uniforms=None}in
+  let draw mesh state=Scene_execution.Scene2,Ogpu.Pipeline.Replace,
+      None,None,1,{Scene_execution.mesh;state}in
+  (* Stable neighbours must remain ordered around the one animated lane. *)
+  let draws=[draw(mesh"stable-before"'\001')stable;
+    draw(mesh"duplicate-key"'\002')state;
+    draw(mesh"stable-after"'\003')stable]in
   let render()=ignore(get(Scene_execution.render_sampled_resources renderer draws))in
   render();let uploaded=Scene_execution.upload_bytes renderer in
   for _=1 to 60 do render()done;
