@@ -11,5 +11,3 @@ let install () =
   | Ok (Runtime_next_provider.Pack (module Provider)) when Provider.name=Descriptor.name -> Ok ()
   | _ -> Runtime_next_provider.register
       (Runtime_next_provider.Pack (module Descriptor : Runtime_next_provider.S))
-
-let () = ignore (install ())

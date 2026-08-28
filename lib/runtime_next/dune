@@ -35,6 +35,14 @@
  (libraries runtime_next_web runtime_next_provider))
 
 (library
+ (name runtime_next_concrete_provider_loader)
+ (public_name prismel.runtime_next_concrete_provider_loader)
+ (modules runtime_next_concrete_provider_loader)
+ (libraries runtime_next_provider runtime_next_provider_loader
+  runtime_next_native_provider runtime_next_headless_provider
+  runtime_next_web_provider))
+
+(library
  (name runtime_next_headless)
  (public_name prismel.runtime_next_headless)
  (modules runtime_next_headless)
@@ -135,4 +143,10 @@
  (modules test_runtime_next_concrete_providers)
  (libraries runtime_next_native_provider runtime_next_headless_provider
   runtime_next_web_provider runtime_next_provider ogpu)
+ (action (setenv SDL_VIDEODRIVER dummy (run %{test}))))
+
+(test
+ (name test_runtime_next_concrete_provider_loader)
+ (modules test_runtime_next_concrete_provider_loader)
+ (libraries runtime_next_concrete_provider_loader runtime_next_provider)
  (action (setenv SDL_VIDEODRIVER dummy (run %{test}))))
