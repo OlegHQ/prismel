@@ -48,10 +48,6 @@ module Canvas : sig
      the image identity. Equal extents reuse the image's owned storage. *)
   val copy_to_image : t -> Image.t -> (unit,error) result
   val snapshot : t -> ((int * int * int * bytes),error) result
-  (* Execute transactionally with one canvas-owned, resize-bounded workspace.
-     Rejection leaves pixels and generation unchanged. *)
-  val render_ir : t -> lookup:(int -> Raster2.Consumer.resource option) ->
-    Raster2.Render_ir.t -> (unit,error) result
   val draw_image : t -> Image.t -> x:int -> y:int -> (unit,error) result
   val resize : t -> width:int -> height:int -> (unit,error) result
   val capture : t -> (Image.t,error) result

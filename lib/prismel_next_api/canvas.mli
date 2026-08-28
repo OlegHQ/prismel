@@ -4,7 +4,6 @@ val create_exn : width:int -> height:int -> t
 val width : t -> int
 val height : t -> int
 val size : t -> int * int
-val render : t -> Scene.t -> unit
 val capture : unit -> (t,string) result
 val pixel : t -> x:int -> y:int -> Color.t option
 val pixels : t -> Color.t array

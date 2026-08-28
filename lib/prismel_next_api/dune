@@ -67,12 +67,6 @@
  (libraries prismel_next_api prismel_next_resources))
 
 (test
- (name test_canvas_runtime)
- (modules test_canvas_runtime)
- (libraries prismel_next_api)
- (action(setenv PRISMEL_RENDER_TARGET headless(run %{test}))))
-
-(test
  (name test_prismel_next_api_batch_e)
  (modules test_prismel_next_api_batch_e)
  (libraries prismel_next_api)

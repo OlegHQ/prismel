@@ -35,20 +35,6 @@ end
 let save_png value path=match Prismel_next_resources.Canvas.save_png value.resource path with Ok()->Ok()|Error error->Error(message"Canvas.save_png"error)
 let write_bytes value bytes=match Prismel_next_resources.Canvas.replace_pixels value.resource bytes with
  |Ok()->()|Error error->invalid_arg(message"Canvas.write_bytes"error)
-let consumer_resource=function
- |Prismel_next_execution.Image image->let w,h=Prismel_next_resources.Image.size image|>Result.get_ok and bytes=Prismel_next_resources.Image.pixels image|>Result.get_ok in Some(Raster2.Consumer.Image(Raster2.Surface.of_bytes~width:w~height:h~pitch:(w*4)bytes|>Result.get_ok))
- |Text text->let w,h=Prismel_next_resources.Text.size text|>Result.get_ok and bytes=Prismel_next_resources.Text.pixels text|>Result.get_ok in Some(Raster2.Consumer.Image(Raster2.Surface.of_bytes~width:w~height:h~pitch:(w*4)bytes|>Result.get_ok))
- |Canvas canvas->let image=Prismel_next_resources.Canvas.capture canvas|>Result.get_ok in let w,h=Prismel_next_resources.Image.size image|>Result.get_ok and bytes=Prismel_next_resources.Image.pixels image|>Result.get_ok in ignore(Prismel_next_resources.Image.destroy image);Some(Raster2.Consumer.Image(Raster2.Surface.of_bytes~width:w~height:h~pitch:(w*4)bytes|>Result.get_ok))
-let render value scene=
-  Fun.protect ~finally:(fun()->Scene.Private.release scene)(fun()->
-    let width,height=size value in
-    let ir,resources=match Scene.Private.stage~width~height scene with
-      |Ok result->result|Error error->failwith("Canvas.render: "^error)in
-    let table=Hashtbl.create(List.length resources)in
-    List.iter(fun(id,resource)->Option.iter(Hashtbl.replace table id)(consumer_resource resource))resources;
-    match Prismel_next_resources.Canvas.render_ir value.resource
-      ~lookup:(Hashtbl.find_opt table)ir with
-    |Ok()->()|Error error->failwith(message"Canvas.render"error))
 let capture()=match Canvas_runtime.capture()with Error _ as error->error|Ok(w,h,bytes)->let value=create_exn~width:w~height:h in(try write_bytes value bytes;Ok value with exn->ignore(Prismel_next_resources.Canvas.destroy value.resource);Error(Printexc.to_string exn))
 let save_screen_png=Canvas_runtime.save
 let destroy value=if not value.destroyed then(ignore(Prismel_next_resources.Canvas.destroy value.resource);value.destroyed<-true)

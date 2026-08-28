@@ -51,42 +51,8 @@ let ()=
   if !allocation/.32.>2048. then
     failwith(Printf.sprintf"owned replacement allocated %.0f bytes/copy"(!allocation/.32.));
   get(Image.destroy stable);
-  let before=get(Canvas.capture canvas)in
-  let before_pixels=get(Image.pixels before)and before_generation=Canvas.generation canvas in
-  let missing=Result.get_ok(Raster2.Render_ir.create[|Raster2.Render_ir.Image{
-    resource_id=404;source={x=0.;y=0.;width=1.;height=1.};
-    destination={x=0.;y=0.;width=1.;height=1.}}|])in
-  (match Canvas.render_ir canvas~lookup:(fun _->None)missing with
-   |Error{kind=Invalid_argument;_}->()|_->failwith"canvas accepted missing render resource");
-  let after_rejection=get(Canvas.capture canvas)in
-  if Canvas.generation canvas<>before_generation||get(Image.pixels after_rejection)<>before_pixels
-  then failwith"canvas rejected render was not atomic";
-  get(Image.destroy after_rejection);get(Image.destroy before);
-  (* A full-size Canvas owns one transaction workspace. After its first use,
-     successful renders reuse it; a later rejection must still preserve the
-     last complete frame and generation. *)
   let hot=get(Canvas.create~width:640~height:480)in
-  let hot_ir=Result.get_ok(Raster2.Render_ir.create[|
-    Raster2.Render_ir.Clear 0x102030ffl;
-    Push_clip{x=0.;y=0.;width=640.;height=480.};
-    Geometry{vertices=[|0.;0.;640.;0.;640.;480.;0.;480.|];
-      indices=[|0;1;2;0;2;3|];color=0x334455ffl};
-    Pop_clip|])in
-  get(Canvas.render_ir hot~lookup:(fun _->None)hot_ir);
-  Gc.compact();
-  let hot_before=Gc.allocated_bytes()in
-  for _=1 to 8 do get(Canvas.render_ir hot~lookup:(fun _->None)hot_ir)done;
-  let hot_per_frame=(Gc.allocated_bytes()-.hot_before)/.8. in
-  if hot_per_frame>50_000. then
-    failwith(Printf.sprintf"canvas workspace allocated %.0f bytes/frame"hot_per_frame);
-  Printf.printf"Canvas reusable workspace allocation: %.0f bytes/frame\n"hot_per_frame;
-  let hot_generation=Canvas.generation hot in
-  let _,_,_,hot_pixels=get(Canvas.snapshot hot)in
-  (match Canvas.render_ir hot~lookup:(fun _->None)missing with
-   |Error{kind=Invalid_argument;_}->()|_->failwith"hot canvas accepted missing resource");
-  let _,_,_,hot_after=get(Canvas.snapshot hot)in
-  if Canvas.generation hot<>hot_generation||hot_after<>hot_pixels then
-    failwith"reused canvas workspace broke rollback";
+  get(Canvas.clear hot 0x102030ffl);
   let leased_image=get(Image.create~width:640~height:480~rgba:(Bytes.make(640*480*4)'\000'))in
   get(Canvas.copy_to_image hot leased_image);
   let _,_,_,leased_pixels,lease1=get(Image.Private.borrow_snapshot leased_image)in
@@ -121,12 +87,11 @@ let ()=
   get(Canvas.destroy hot);
   let bank_canvas=get(Canvas.create~width:4~height:4)in
   let bank_image=get(Image.create~width:4~height:4~rgba:(Bytes.make 64 '\000'))in
-  let bank_ir=Result.get_ok(Raster2.Render_ir.create[|Raster2.Render_ir.Clear 0x2468acffl|])in
-  get(Canvas.render_ir bank_canvas~lookup:(fun _->None)bank_ir);
+  get(Canvas.clear bank_canvas 0x2468acffl);
   get(Canvas.copy_to_image bank_canvas bank_image);
   Gc.compact();let bank_live_before=(Gc.quick_stat()).live_words in
   for _=1 to 100_000 do
-    get(Canvas.render_ir bank_canvas~lookup:(fun _->None)bank_ir);
+    get(Canvas.clear bank_canvas 0x2468acffl);
     get(Canvas.copy_to_image bank_canvas bank_image)
   done;
   Gc.compact();let bank_live_after=(Gc.quick_stat()).live_words in
@@ -134,13 +99,13 @@ let ()=
   let second=get(Image.create~width:4~height:4~rgba:(Bytes.make 64 '\x7f'))in
   get(Canvas.copy_to_image bank_canvas second);
   let first_pixels=get(Image.pixels bank_image)in
-  get(Canvas.render_ir bank_canvas~lookup:(fun _->None)bank_ir);
+  get(Canvas.clear bank_canvas 0x2468acffl);
   if get(Image.pixels bank_image)<>first_pixels then failwith"second target changed first image";
   get(Image.replace bank_image~width:4~height:4~rgba:(Bytes.make 64 '\x3c'));
   let _,_,_,canvas_pixels=get(Canvas.snapshot bank_canvas)in
   if canvas_pixels=Bytes.make 64 '\x3c'then failwith"external image replacement changed canvas";
   get(Image.destroy bank_image);
-  get(Canvas.render_ir bank_canvas~lookup:(fun _->None)bank_ir);
+  get(Canvas.clear bank_canvas 0x2468acffl);
   get(Canvas.resize bank_canvas~width:8~height:2);
   if get(Canvas.size bank_canvas)<>(8,2)then failwith"mirrored canvas resize";
   get(Image.destroy second);get(Canvas.destroy bank_canvas);

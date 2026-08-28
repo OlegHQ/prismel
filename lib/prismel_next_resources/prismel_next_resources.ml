@@ -104,36 +104,36 @@ module Png=struct
 end
 
 module Canvas=struct
-  type t={identity:int;mutable generation:int;mutable surface:Raster2.Surface.t;
-    workspace:Raster2.Consumer.Workspace.t;mutable mirror:Image.t option;
+  type t={identity:int;mutable generation:int;mutable width:int;mutable height:int;
+    mutable rgba:bytes;mutable spare:bytes option;mutable mirror:Image.t option;
     mutable blocked:Image.t option;mutable dead:bool}
   let generation x=x.generation and destroyed x=x.dead
   let live op x f=main op(fun()->if x.dead then error op Destroyed"canvas is destroyed"else f())
-  let surface operation width height=match Raster2.Surface.create~width~height()with Ok x->Ok x|Error _->error operation Invalid_argument"invalid canvas extent"
-  let create ~width ~height=main"Canvas.create"(fun()->Result.map(fun surface->{identity=fresh_identity();generation=1;surface;workspace=Raster2.Consumer.Workspace.create();mirror=None;blocked=None;dead=false})(surface"Canvas.create"width height))
-  let size x=live"Canvas.size"x(fun()->Ok(Raster2.Surface.width x.surface,Raster2.Surface.height x.surface))
+  let storage operation width height=
+    if width<=0||height<=0||width>max_int/4||height>max_int/(width*4)then
+      error operation Invalid_argument"invalid canvas extent"
+    else Ok(Bytes.make(width*height*4)'\000')
+  let create ~width ~height=main"Canvas.create"(fun()->Result.map(fun rgba->{identity=fresh_identity();generation=1;width;height;rgba;spare=None;mirror=None;blocked=None;dead=false})(storage"Canvas.create"width height))
+  let size x=live"Canvas.size"x(fun()->Ok(x.width,x.height))
   let valid_mirror x image=not image.Image.dead&&image.canvas_owner=Some x.identity&&
-    image.rgba==Raster2.Surface.bytes x.surface
+    image.rgba==x.rgba
   let detach_mirror x=(match x.mirror with
     |Some image when valid_mirror x image->image.canvas_owner<-None
     |_->());x.mirror<-None
   let detach_for_mutation x=match x.mirror with
     |Some image when valid_mirror x image->
-        let old=x.surface in
-        let replacement=Result.get_ok(Raster2.Surface.create~width:(Raster2.Surface.width old)
-          ~height:(Raster2.Surface.height old)())in
-        Bytes.blit(Raster2.Surface.bytes old)0(Raster2.Surface.bytes replacement)0
-          (Bytes.length(Raster2.Surface.bytes old));
-        detach_mirror x;x.surface<-replacement
+        let replacement=match x.spare with
+          |Some spare when Bytes.length spare=Bytes.length x.rgba->x.spare<-None;Bytes.blit x.rgba 0 spare 0(Bytes.length x.rgba);spare
+          |_->Bytes.copy x.rgba in
+        detach_mirror x;x.rgba<-replacement
     |Some _->x.mirror<-None|None->()
-  let clear x color=live"Canvas.clear"x(fun()->detach_for_mutation x;Raster2.Surface.clear x.surface color;x.generation<-x.generation+1;Ok())
-  let set_pixel x ~x:px ~y color=live"Canvas.set_pixel"x(fun()->detach_for_mutation x;match Raster2.Surface.set_rgba x.surface~x:px~y color with
-    |Ok()->x.generation<-x.generation+1;Ok()
-    |Error _->error"Canvas.set_pixel"Invalid_argument"pixel is out of bounds")
+  let write_color bytes offset color=Bytes.set_int32_be bytes offset color
+  let clear x color=live"Canvas.clear"x(fun()->detach_for_mutation x;for offset=0 to Bytes.length x.rgba/4-1 do write_color x.rgba(offset*4)color done;x.generation<-x.generation+1;Ok())
+  let set_pixel x ~x:px ~y:py color=live"Canvas.set_pixel"x(fun()->if px<0||py<0||px>=x.width||py>=x.height then error"Canvas.set_pixel"Invalid_argument"pixel is out of bounds"else(detach_for_mutation x;write_color x.rgba((py*x.width+px)*4)color;x.generation<-x.generation+1;Ok()))
   let replace_pixels x pixels=live"Canvas.replace_pixels"x(fun()->
-    let expected=Raster2.Surface.height x.surface*Raster2.Surface.pitch x.surface in
+    let expected=x.width*x.height*4 in
     if Bytes.length pixels<>expected then error"Canvas.replace_pixels"Invalid_argument"pixel storage length does not match canvas"
-    else(detach_for_mutation x;Bytes.blit pixels 0(Raster2.Surface.bytes x.surface)0 expected;x.generation<-x.generation+1;Ok()))
+    else(detach_for_mutation x;Bytes.blit pixels 0 x.rgba 0 expected;x.generation<-x.generation+1;Ok()))
   let copy_to_image x image=main"Canvas.copy_to_image"(fun()->
     if x.dead then error"Canvas.copy_to_image"Destroyed"canvas is destroyed"
     else if image.Image.dead then error"Canvas.copy_to_image"Destroyed"image is destroyed"
@@ -141,61 +141,44 @@ module Canvas=struct
       image.generation<-image.generation+1;Ok())
     else if match x.blocked with Some blocked->blocked==image|None->false then begin
       let spare=if not(Image.leased image image.rgba)then Ok image.rgba else
-        Image.writable image(Bytes.length(Raster2.Surface.bytes x.surface))in
+        Image.writable image(Bytes.length x.rgba)in
       match spare with
       |Error _ as failure->failure
       |Ok spare->
-        image.rgba<-Raster2.Surface.bytes x.surface;image.canvas_owner<-Some x.identity;
-        image.width<-Raster2.Surface.width x.surface;image.height<-Raster2.Surface.height x.surface;
-        image.generation<-image.generation+1;x.blocked<-None;x.mirror<-Some image;
-        Raster2.Consumer.Private.replace_workspace_color x.workspace spare;Ok()
+        image.rgba<-x.rgba;image.canvas_owner<-Some x.identity;
+        image.width<-x.width;image.height<-x.height;
+        x.spare<-Some spare;image.generation<-image.generation+1;
+        x.blocked<-None;x.mirror<-Some image;Ok()
     end else if x.mirror=None then begin
-      match Image.writable image(Bytes.length(Raster2.Surface.bytes x.surface))with
+      match Image.writable image(Bytes.length x.rgba)with
       |Error _ as failure->failure
       |Ok spare->
-        image.rgba<-Raster2.Surface.bytes x.surface;image.canvas_owner<-Some x.identity;
-        image.width<-Raster2.Surface.width x.surface;image.height<-Raster2.Surface.height x.surface;
-        image.generation<-image.generation+1;x.blocked<-None;x.mirror<-Some image;
-        Raster2.Consumer.Private.replace_workspace_color x.workspace spare;Ok()
+        image.rgba<-x.rgba;image.canvas_owner<-Some x.identity;
+        image.width<-x.width;image.height<-x.height;
+        x.spare<-Some spare;image.generation<-image.generation+1;
+        x.blocked<-None;x.mirror<-Some image;Ok()
     end else
-      let width=Raster2.Surface.width x.surface
-      and height=Raster2.Surface.height x.surface
-      and source=Raster2.Surface.bytes x.surface in
+      let width=x.width and height=x.height and source=x.rgba in
       match Image.writable image(Bytes.length source)with Error _ as e->e|Ok bytes->
       Bytes.blit source 0 bytes 0(Bytes.length source);Image.install image bytes;
       image.width<-width;image.height<-height;
       image.generation<-image.generation+1;Ok())
   let snapshot x=live"Canvas.snapshot"x(fun()->
-    Ok(Raster2.Surface.width x.surface,Raster2.Surface.height x.surface,
-      x.generation,Bytes.copy(Raster2.Surface.bytes x.surface)))
-  let render_ir x ~lookup ir=live"Canvas.render_ir"x(fun()->
-    (match x.mirror with Some image when not(valid_mirror x image)->x.mirror<-None|_->());
-    (match x.blocked with
-     |Some image when image.rgba==Raster2.Surface.bytes x.surface->x.blocked<-None
-     |Some _->Raster2.Consumer.Private.replace_workspace_color x.workspace
-         (Bytes.create(Bytes.length(Raster2.Surface.bytes x.surface)));x.blocked<-None
-     |None->());
-    let old_mirror=x.mirror in
-    match Raster2.Consumer.Private.execute_swap~workspace:x.workspace~lookup~target:x.surface ir with
-    |Error _->error"Canvas.render_ir"Invalid_argument"invalid render command stream"
-    |Ok surface->x.surface<-surface;x.mirror<-None;x.blocked<-old_mirror;
-      x.generation<-x.generation+1;Ok())
-  let draw_image x image ~x:px ~y=live"Canvas.draw_image"x(fun()->detach_for_mutation x;match Image.size image,Image.pixels image with
-    |Ok(w,h),Ok bytes->let src=Result.get_ok(Raster2.Surface.of_bytes~width:w~height:h~pitch:(w*4) bytes)in(match Raster2.Composite.blit~src~src_rect:{x=0;y=0;width=w;height=h}~dst:x.surface~dst_x:px~dst_y:y~blend:Raster2.Composite.Copy with Ok()->x.generation<-x.generation+1;Ok()|Error _->error"Canvas.draw_image"Invalid_argument"invalid blit")
+    Ok(x.width,x.height,x.generation,Bytes.copy x.rgba))
+  let draw_image x image ~x:px ~y:py=live"Canvas.draw_image"x(fun()->match Image.size image,Image.pixels image with
+    |Ok(w,h),Ok bytes->detach_for_mutation x;for sy=0 to h-1 do let dy=py+sy in if dy>=0&&dy<x.height then for sx=0 to w-1 do let dx=px+sx in if dx>=0&&dx<x.width then Bytes.blit bytes((sy*w+sx)*4)x.rgba((dy*x.width+dx)*4)4 done done;x.generation<-x.generation+1;Ok()
     |Error e,_|_,Error e->Error e)
-  let resize x ~width ~height=live"Canvas.resize"x(fun()->match surface"Canvas.resize"width height with Error _ as e->e|Ok s->detach_mirror x;x.blocked<-None;x.surface<-s;x.generation<-x.generation+1;Ok())
+  let resize x ~width ~height=live"Canvas.resize"x(fun()->match storage"Canvas.resize"width height with Error _ as e->e|Ok rgba->detach_mirror x;x.blocked<-None;x.spare<-None;x.width<-width;x.height<-height;x.rgba<-rgba;x.generation<-x.generation+1;Ok())
   let capture x=live"Canvas.capture"x(fun()->
     if x.mirror=None&&x.blocked=None then begin
       let image:Image.t={identity=fresh_identity();generation=1;
-        width=Raster2.Surface.width x.surface;height=Raster2.Surface.height x.surface;
-        rgba=Raster2.Surface.bytes x.surface;spare=None;leases=[];
+        width=x.width;height=x.height;rgba=x.rgba;spare=None;leases=[];
         canvas_owner=Some x.identity;dead=false}in
       x.mirror<-Some image;Ok image
     end else
-      Image.create~width:(Raster2.Surface.width x.surface)
-        ~height:(Raster2.Surface.height x.surface)~rgba:(Raster2.Surface.bytes x.surface))
-  let save_png x path=live"Canvas.save_png"x(fun()->try let bytes=Png.encode~width:(Raster2.Surface.width x.surface)~height:(Raster2.Surface.height x.surface)(Raster2.Surface.bytes x.surface)in let out=open_out_bin path in Fun.protect~finally:(fun()->close_out_noerr out)(fun()->output_bytes out bytes);Ok()with Sys_error m->error"Canvas.save_png"Io m)
-  let destroy x=main"Canvas.destroy"(fun()->if x.dead then Ok()else(detach_mirror x;x.blocked<-None;x.dead<-true;Ok()))
+      Image.create~width:x.width~height:x.height~rgba:x.rgba)
+  let save_png x path=live"Canvas.save_png"x(fun()->try let bytes=Png.encode~width:x.width~height:x.height x.rgba in let out=open_out_bin path in Fun.protect~finally:(fun()->close_out_noerr out)(fun()->output_bytes out bytes);Ok()with Sys_error m->error"Canvas.save_png"Io m)
+  let destroy x=main"Canvas.destroy"(fun()->if x.dead then Ok()else(detach_mirror x;x.blocked<-None;x.spare<-None;x.rgba<-Bytes.empty;x.dead<-true;Ok()))
 end
 
 module Text=struct
