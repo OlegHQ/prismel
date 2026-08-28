@@ -1578,3 +1578,8 @@
  (name test_metal_retained_render_plan)
  (modules test_metal_retained_render_plan)
  (libraries metal))
+
+(executable
+ (name test_metal_render_icb_argument)
+ (modules test_metal_render_icb_argument)
+ (libraries metal))

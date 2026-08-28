@@ -16863,7 +16863,7 @@ module Retained_render_plan = struct
     on_main operation(fun()->if value.dead then error operation Destroyed"retained plan cache is destroyed"else match ensure_live operation value.device.lifetime with Error _ as e->e|Ok()when not value.enabled->error operation Unsupported"indirect command plans are unavailable"|Ok()when key=""||generation<0L||command_count<=0||command_count>65_536->error operation Invalid_argument"plan identity/generation/count is invalid"|Ok()->match Hashtbl.find_opt value.entries key with
       |Some entry when entry.generation=generation&&entry.commands=command_count->value.order<-List.filter((<>)key)value.order@[key];Ok(entry.buffer,true)
       |stale->Option.iter(fun _->remove value key)stale;
-        match Indirect_command_buffer.create~device:value.device~max_command_count:command_count descriptor with Error _ as e->e|Ok buffer->
+        match Indirect_command_buffer.create~device:value.device~storage:Buffer.Shared~max_command_count:command_count descriptor with Error _ as e->e|Ok buffer->
         (match build buffer with Error _ as e->ignore(Indirect_command_buffer.destroy buffer);e|Ok()->
           if Hashtbl.length value.entries>=value.capacity then(match value.order with oldest::_->remove value oldest|[]->());
           Hashtbl.add value.entries key{key;generation;commands=command_count;buffer};value.order<-value.order@[key];Ok(buffer,false)))
