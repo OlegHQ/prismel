@@ -29,8 +29,7 @@
  (name runtime_next_orchestrator)
  (public_name prismel.runtime_next_orchestrator)
  (modules runtime_next_orchestrator)
- (libraries ogpu metal scene_execution runtime_next runtime_next_headless
-  runtime_next_web))
+ (libraries ogpu scene_execution runtime_next_provider))
 
 (library
  (name runtime_next_input)
@@ -100,3 +99,8 @@
  (name test_runtime_next_provider)
  (modules test_runtime_next_provider)
  (libraries runtime_next_provider))
+
+(test
+ (name test_runtime_next_provider_backend)
+ (modules test_runtime_next_provider_backend)
+ (libraries runtime_next_orchestrator runtime_next_provider ogpu))
