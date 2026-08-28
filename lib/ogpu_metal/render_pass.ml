@@ -6,7 +6,8 @@ type texture_binding={stage:stage;index:int;texture:Texture.t}
 type sampler_binding={stage:stage;index:int;sampler:Sampler.t}
 type draw={pipeline:Pipeline.t;buffers:buffer_binding list;textures:texture_binding list;samplers:sampler_binding list;primitive:primitive;vertex_start:int;vertex_count:int;index:(index_type*Buffer.t*int64*int)option}
 type indirect_resources={vertex_buffers:Metal.Buffer.t list;fragment_buffers:Metal.Buffer.t list;textures:Metal.Texture.t list}
-type t={pass:Ogpu.Render_pass.t;color:Texture.t;resolve:Texture.t option;depth:Texture.t option;stencil:Texture.t option;draws:draw list;owned_samplers:Sampler.t list;indirect:(Metal.Indirect_command_buffer.t*indirect_resources)option}
+type retention={retain:unit->(unit,Ogpu.Error.t)result;release:unit->unit}
+type t={pass:Ogpu.Render_pass.t;color:Texture.t;resolve:Texture.t option;depth:Texture.t option;stencil:Texture.t option;draws:draw list;owned_samplers:Sampler.t list;indirect:(Metal.Indirect_command_buffer.t*indirect_resources)option;retention:retention array;releases:(unit->unit)list}
 let error op kind message=Error(Ogpu.Error.make op kind message)
 let metal_compare=function
   |Ogpu.Render_pass.Never->Metal.Depth_stencil.Never|Less->Less|Equal->Equal
@@ -25,6 +26,17 @@ let attachment device texture ~usage=let op="Ogpu_metal.Render_pass.attachment"i
   |Error e,_->Error e|_,Error e->Error e
   |Ok d,Ok f->match format f with None->error op Ogpu.Error.Unsupported"texture format is not a portable render attachment"|Some format->Ok({id=Texture.id texture;handle=Texture.Private.resource_handle texture;format;samples=d.sample_count;width=d.width;height=d.height;usage=[usage]}:Ogpu.Render_pass.texture)
 let validate_slot op seen stage index=if index<0||index>30 then error op Ogpu.Error.Invalid_argument"binding index is outside [0,30]"else let key=stage,index in if Hashtbl.mem seen key then error op Ogpu.Error.Invalid_argument"binding stage/index is duplicated"else(Hashtbl.add seen key();Ok())
+let retention ~color ~resolve ~depth ~stencil draws =
+  let seen=Hashtbl.create 32 and reversed=ref[]in
+  let add key retain release=if not(Hashtbl.mem seen key)then(Hashtbl.add seen key();reversed:={retain;release}::!reversed)in
+  let texture t=add("t:"^Int64.to_string(Texture.id t))(fun()->Texture.Private.retain_submission t)(fun()->Texture.Private.release_submission t)
+  and buffer b=add("b:"^Int64.to_string(Buffer.id b))(fun()->Buffer.Private.retain_submission b)(fun()->Buffer.Private.release_submission b)
+  and pipeline p=add("p:"^Pipeline.key p)(fun()->Pipeline.Private.retain_submission p)(fun()->Pipeline.Private.release_submission p)
+  and sampler s=add("s:"^Int64.to_string(Sampler.id s))(fun()->Sampler.Private.retain_submission s)(fun()->Sampler.Private.release_submission s)in
+  texture color;Option.iter texture resolve;Option.iter texture depth;Option.iter texture stencil;
+  List.iter(fun draw->pipeline draw.pipeline;List.iter(fun(b:buffer_binding)->buffer b.buffer)draw.buffers;List.iter(fun(b:texture_binding)->texture b.texture)draw.textures;List.iter(fun(b:sampler_binding)->sampler b.sampler)draw.samplers;Option.iter(fun(_,b,_,_)->buffer b)draw.index)draws;
+  let retention=Array.of_list(List.rev!reversed)in
+  retention,Array.to_list(Array.map(fun item->item.release)retention)
 let create device pass ~attachments draw=let op="Ogpu_metal.Render_pass.create"in
   let descriptor=Ogpu.Render_pass.descriptor pass in
   let colors=Array.to_list descriptor.colors|>List.filter_map Fun.id in
@@ -54,7 +66,8 @@ let create device pass ~attachments draw=let op="Ogpu_metal.Render_pass.create"i
       let depth=match descriptor.depth with None->Ok None|Some d when d.store=Resolve->error op Ogpu.Error.Invalid_argument"depth attachments cannot resolve"|Some d->match List.find_map(find d.texture.id)attachments with None->error op Ogpu.Error.Invalid_argument"depth attachment texture is absent from the typed texture graph"|Some texture->Result.map(fun _->Some texture)(Texture.descriptor device texture)in
       let stencil=match descriptor.stencil with None->Ok None|Some s when s.store=Resolve->error op Ogpu.Error.Invalid_argument"stencil attachments cannot resolve"|Some s->match List.find_map(find s.texture.id)attachments with None->error op Ogpu.Error.Invalid_argument"stencil attachment texture is absent from the typed texture graph"|Some texture->Result.map(fun _->Some texture)(Texture.descriptor device texture)in
       match depth,stencil with Error e,_->Error e|_,Error e->Error e|Ok depth,Ok stencil->
-      match draw.index with None->Ok{pass;color=target;resolve;depth;stencil;draws=[draw];owned_samplers=[];indirect=None}|Some(kind,buffer,offset,count)->match Buffer.descriptor device buffer with Error _ as e->e|Ok bd->let stride=match kind with Uint16->2L|Uint32->4L in if count<=0||offset<0L||Int64.rem offset stride<>0L||Int64.of_int count>Int64.div(Int64.sub bd.size offset)stride then error op Ogpu.Error.Invalid_argument"index range is invalid"else Ok{pass;color=target;resolve;depth;stencil;draws=[draw];owned_samplers=[];indirect=None})
+      let finish()=let retention,releases=retention~color:target~resolve~depth~stencil[draw]in Ok{pass;color=target;resolve;depth;stencil;draws=[draw];owned_samplers=[];indirect=None;retention;releases}in
+      match draw.index with None->finish()|Some(kind,buffer,offset,count)->match Buffer.descriptor device buffer with Error _ as e->e|Ok bd->let stride=match kind with Uint16->2L|Uint32->4L in if count<=0||offset<0L||Int64.rem offset stride<>0L||Int64.of_int count>Int64.div(Int64.sub bd.size offset)stride then error op Ogpu.Error.Invalid_argument"index range is invalid"else finish())
 let validate_batch_draw device draw =
   let op="Ogpu_metal.Render_pass.create_batch"in
   match Pipeline.validate device draw.pipeline with Error _ as e->e|Ok()->
@@ -87,11 +100,10 @@ let create_batch ?(owned_samplers=[]) device pass ~attachments draws =
     |[]->assert false
     |first_draw::rest->match create device pass~attachments first_draw with Error _ as e->e|Ok first->
       let rec validate rev=function
-        |[]->Ok{first with draws=List.rev rev;owned_samplers}
+        |[]->let draws=List.rev rev in let retention,releases=retention~color:first.color~resolve:first.resolve~depth:first.depth~stencil:first.stencil draws in Ok{first with draws;owned_samplers;retention;releases}
         |draw::rest->match validate_batch_draw device draw with Error _ as e->e|Ok()->validate(draw::rev)rest in
       validate[first_draw]rest
 let with_indirect value indirect ~vertex_buffers ~fragment_buffers ~textures={value with indirect=Some(indirect,{vertex_buffers;fragment_buffers;textures})}
-let retain_one retained retain release=match retain()with Error _ as e->e|Ok()->retained:=release::!retained;Ok()
 module Private=struct
   let requires_command4 value=
     let descriptor=Ogpu.Render_pass.descriptor value.pass in
@@ -99,12 +111,13 @@ module Private=struct
     (Array.exists(fun color->Option.fold~none:false~some:(fun(color:Ogpu.Render_pass.color)->color.load<>Clear)color)descriptor.colors||Option.is_some descriptor.stencil||
     Option.fold~none:false~some:(fun(d:Ogpu.Render_pass.depth)->d.load<>Clear||d.store<>Store||d.clear<>1.)descriptor.depth)
   let encode_portable value command=Ogpu.Render_pass.encode value.pass command
-  let retain value=let retained=ref[]and seen=Hashtbl.create 32 in let keep retain release=retain_one retained retain release in let once key f=if Hashtbl.mem seen key then(fun()->Ok())else(Hashtbl.add seen key();f)in
-    let texture t=once("t:"^Int64.to_string(Texture.id t))(fun()->keep(fun()->Texture.Private.retain_submission t)(fun()->Texture.Private.release_submission t))and buffer b=once("b:"^Int64.to_string(Buffer.id b))(fun()->keep(fun()->Buffer.Private.retain_submission b)(fun()->Buffer.Private.release_submission b))and pipeline p=once("p:"^Pipeline.key p)(fun()->keep(fun()->Pipeline.Private.retain_submission p)(fun()->Pipeline.Private.release_submission p))in
-    let sampler s=once("s:"^Int64.to_string(Sampler.id s))(fun()->keep(fun()->Sampler.Private.retain_submission s)(fun()->Sampler.Private.release_submission s))in
-    let draw_resources draw=pipeline draw.pipeline::List.map(fun(b:buffer_binding)->buffer b.buffer)draw.buffers@List.map(fun(b:texture_binding)->texture b.texture)draw.textures@List.map(fun(b:sampler_binding)->sampler b.sampler)draw.samplers@(match draw.index with None->[]|Some(_,b,_,_)->[buffer b])in
-    let resources=texture value.color::(match value.resolve with None->[]|Some t->[texture t])@(match value.depth with None->[]|Some t->[texture t])@(match value.stencil with None->[]|Some t->[texture t])@List.concat_map draw_resources value.draws in
-    let rec loop=function []->Ok(List.rev!retained)|f::fs->match f()with Ok()->loop fs|Error _ as e->List.iter(fun release->release())!retained;e in loop resources
+  let retain value=
+    let rec loop index=
+      if index=Array.length value.retention then Ok value.releases
+      else match value.retention.(index).retain()with
+      |Ok()->loop(index+1)
+      |Error _ as failure->for release=0 to index-1 do value.retention.(release).release()done;failure
+    in loop 0
   let encode command value=let op="Ogpu_metal.Render_pass.encode"in let descriptor=Ogpu.Render_pass.descriptor value.pass in let color=List.hd(Array.to_list descriptor.colors|>List.filter_map Fun.id)in
     let native_pass=Metal.Render_pass_descriptor.create~width:color.texture.width~height:color.texture.height~sample_count:color.texture.samples()in
     match native_pass with Error e->Error(Adapter.error~operation:op e)|Ok native_pass->
