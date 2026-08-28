@@ -25,6 +25,7 @@ type t = {
   presenter : Presenter.t;
   renderer : Scene_execution.t;
   control : Ogpu_raster2.control;
+  mutable readback : bytes;
   mutable logical_width : int;
   mutable logical_height : int;
   mutable drawable_width : int;
@@ -88,6 +89,7 @@ let create ?wap_config ~logical_width ~logical_height ~drawable_width
                 presenter;
                 renderer;
                 control;
+                readback=Bytes.create(drawable_width*drawable_height*4);
                 logical_width;
                 logical_height;
                 drawable_width;
@@ -117,12 +119,13 @@ let render_result operation value submit =
       | Ok false -> Ok false
       | Ok true ->
           let pitch = value.drawable_width * 4 in
-          match Scene_execution.read_pixels value.renderer ~bytes_per_row:pitch with
+          match Scene_execution.read_pixels_into value.renderer ~bytes_per_row:pitch
+            ~destination:value.readback with
           | Error _ as error_value -> error_value
-          | Ok rgba ->
+          | Ok () ->
               let frame : Presenter.frame =
                 {
-                  rgba;
+                  rgba=value.readback;
                   pitch;
                   logical_width = value.logical_width;
                   logical_height = value.logical_height;
@@ -162,8 +165,9 @@ let resize value ~logical_width ~logical_height ~drawable_width
         | Ok () ->
             value.logical_width <- logical_width;
             value.logical_height <- logical_height;
-            value.drawable_width <- drawable_width;
-            value.drawable_height <- drawable_height;
+              value.drawable_width <- drawable_width;
+              value.drawable_height <- drawable_height;
+              value.readback<-Bytes.create(drawable_width*drawable_height*4);
             Ok ()
 
 let stats value = Presenter.stats value.presenter

@@ -4,7 +4,10 @@ type command =
   | Compute of Compute_pass.description
   | Render of Render_pass.submission
 type receipt = { epoch:int64 }
-type driver_resource = { token:token; write:int64 -> bytes -> (unit,Error.t) result; read:int64 -> int -> (bytes,Error.t) result; destroy:unit -> (unit,Error.t) result }
+type driver_resource = { token:token; write:int64 -> bytes -> (unit,Error.t) result;
+  read:int64 -> int -> (bytes,Error.t) result;
+  read_into:int64 -> bytes -> int -> int -> (unit,Error.t) result;
+  destroy:unit -> (unit,Error.t) result }
 type driver_pipeline = { pipeline_token:token; destroy_pipeline:unit -> (unit,Error.t) result }
 type driver_frame = { frame_token:token }
 type driver_surface =
@@ -59,6 +62,8 @@ val render_texture : texture -> format:Render_pass.format -> usage:Render_pass.u
 val write_buffer : buffer -> offset:int64 -> bytes -> (unit,Error.t) result
 val read_buffer : buffer -> offset:int64 -> length:int -> (bytes,Error.t) result
 val read_texture : texture -> bytes_per_row:int -> (bytes,Error.t) result
+val read_texture_into : texture -> bytes_per_row:int -> destination:bytes ->
+  (unit,Error.t) result
 val transfer : Transfer_pass.t -> (command,Error.t) result
 val compute : Compute_pass.t -> command
 val render : Render_pass.t -> Render_pass.draw list -> (command,Error.t) result

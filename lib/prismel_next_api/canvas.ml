@@ -27,6 +27,11 @@ let apply_mask ~source ~mask=let sw,sh=size source and mw,mh=size mask in if(sw,
 let to_image value=match Prismel_next_resources.Canvas.capture value.resource with
   |Ok image->Ok(Image.Private.of_resource image)
   |Error error->Error(message"Canvas.to_image"error)
+module Private=struct
+  let copy_to_image value image=
+    match Prismel_next_resources.Canvas.copy_to_image value.resource(Image.Private.resource image)with
+    |Ok()->Ok()|Error error->Error(message"Canvas.Private.copy_to_image"error)
+end
 let save_png value path=match Prismel_next_resources.Canvas.save_png value.resource path with Ok()->Ok()|Error error->Error(message"Canvas.save_png"error)
 let write_bytes value bytes=match Prismel_next_resources.Canvas.replace_pixels value.resource bytes with
  |Ok()->()|Error error->invalid_arg(message"Canvas.write_bytes"error)

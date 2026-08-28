@@ -83,7 +83,8 @@ let replace_field name replacement fields =
 
 let () =
   if Array.length Sys.argv <> 2 then invalid_arg "protocol executable";
-  let targets = [ "runtime-next-native"; "headless"; "web"; "legacy" ]
+  let targets = [ "runtime-next-native"; "runtime-next-native-hidden";
+    "headless"; "web"; "legacy" ]
   and scenarios = [ "basic"; "pxui"; "canvas"; "scene3" ] in
   let samples = List.concat_map (fun target ->
     List.map (fun scenario -> sample ~target ~scenario ()) scenarios) targets in

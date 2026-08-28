@@ -91,6 +91,25 @@ let () =
   and geometry_promoted=(geometry_gc1.promoted_words-.geometry_gc0.promoted_words)*.float(Sys.word_size/8)in
   check(geometry_allocated<10_000.)"stable owned geometry allocation regression";
   check(geometry_promoted<100_000.)"stable owned geometry promotion regression";
+  (* One-hit transformed geometry must not retain full source arrays.  This is
+     the common animated-Scene2 shape and used to promote every large source
+     snapshot while filling the admission cache. *)
+  let transient_vertices=Array.init 65_536(fun index->float(index land 255))
+  and transient_indices=Array.init 32_766(fun index->index land 32_767)in
+  Gc.full_major();let transient_gc0=Gc.quick_stat()in
+  for frame=1 to 300 do
+    let transient_ir=Result.get_ok(Raster2.Render_ir.Private.create_owned[|
+      Push_transform{xx=1.;xy=0.;yx=0.;yy=1.;tx=float frame;ty=0.};
+      Geometry{vertices=transient_vertices;indices=transient_indices;
+        color=0x102030ffl};Pop_transform|])in
+    ignore(get(lower_scene2 resource_runtime~density:1
+      ~resource:(fun _->None)transient_ir))
+  done;
+  Gc.full_major();let transient_gc1=Gc.quick_stat()in
+  let transient_promoted=(transient_gc1.promoted_words-.transient_gc0.promoted_words)
+    *.float(Sys.word_size/8)in
+  check(transient_promoted<2_000_000.)
+    "one-hit transformed geometry retained source snapshots";
   (* Cache validation owns its comparison snapshots.  A caller changing an
      array after a prior lowering must produce new prepared bytes, never make
      the retained snapshot compare equal to itself. *)

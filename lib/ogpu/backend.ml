@@ -1,7 +1,7 @@
 type token=int64
 type command=Transfer of Transfer_pass.description array|Compute of Compute_pass.description|Render of Render_pass.submission
 type receipt={epoch:int64}
-type driver_resource={token:token;write:int64->bytes->(unit,Error.t)result;read:int64->int->(bytes,Error.t)result;destroy:unit->(unit,Error.t)result}
+type driver_resource={token:token;write:int64->bytes->(unit,Error.t)result;read:int64->int->(bytes,Error.t)result;read_into:int64->bytes->int->int->(unit,Error.t)result;destroy:unit->(unit,Error.t)result}
 type driver_pipeline={pipeline_token:token;destroy_pipeline:unit->(unit,Error.t)result}
 type driver_frame={frame_token:token}
 type driver_surface={surface_token:token;configure:Surface.configuration->(unit,Error.t)result;acquire:unit->([`Acquired of driver_frame|`Timeout|`Occluded|`Device_lost],Error.t)result;present:driver_frame->(unit,Error.t)result;discard:driver_frame->(unit,Error.t)result;destroy_surface:unit->(unit,Error.t)result}
@@ -39,6 +39,15 @@ let render_texture (value:texture) ~format ~usage={Render_pass.id=Handle.id valu
 let write_buffer (value:buffer) ~offset bytes=if value.resource.dead then error"Backend.write_buffer"Error.Stale_handle"buffer is destroyed"else value.resource.raw.write offset bytes
 let read_buffer (value:buffer) ~offset ~length=if value.resource.dead then error"Backend.read_buffer"Error.Stale_handle"buffer is destroyed"else value.resource.raw.read offset length
 let read_texture (value:texture) ~bytes_per_row=if value.resource.dead then error"Backend.read_texture"Error.Stale_handle"texture is destroyed"else if bytes_per_row<=0||value.texture_descriptor.height>max_int/bytes_per_row then error"Backend.read_texture"Error.Invalid_argument"row pitch is invalid"else value.resource.raw.read 0L(bytes_per_row*value.texture_descriptor.height)
+let read_texture_into (value:texture) ~bytes_per_row ~destination=
+  let operation="Backend.read_texture_into"in
+  if value.resource.dead then error operation Error.Stale_handle"texture is destroyed"
+  else if bytes_per_row<=0||value.texture_descriptor.height>max_int/bytes_per_row
+  then error operation Error.Invalid_argument"row pitch is invalid"
+  else let length=bytes_per_row*value.texture_descriptor.height in
+    if Bytes.length destination<>length then
+      error operation Error.Invalid_argument"destination length does not match texture extent"
+    else value.resource.raw.read_into 0L destination 0 length
 let transfer pass=Result.map(fun x->Transfer x)(Transfer_pass.finish pass)
 let compute pass=Compute(Compute_pass.describe pass)
 let render pass draws=Result.map(fun submission->Render submission)(Render_pass.submit pass draws)

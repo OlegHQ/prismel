@@ -2,7 +2,9 @@ open Prismel_next_api
 
 type t = {
   software_draws : Scene_execution.draw list;
+  software_batched_draws : Scene_execution.draw list;
   native_draws : Scene_execution.draw list;
+  native_batched_draws : Scene_execution.draw list;
   instances : int;
   vertices_per_instance : int;
   indices_per_instance : int;
@@ -81,6 +83,35 @@ let native_vertices matrix points =
 let mesh key vertices indices vertex_count index_count : Scene_execution.mesh =
   { key; vertices; vertex_count; indices; index_count }
 
+let batch ~stride ~key draws =
+  match draws with
+  | [] -> []
+  | (first : Scene_execution.draw) :: _ ->
+      let vertex_count = List.fold_left
+          (fun total (draw : Scene_execution.draw) ->
+            total + draw.mesh.vertex_count) 0 draws
+      and index_count = List.fold_left
+          (fun total (draw : Scene_execution.draw) ->
+            total + draw.mesh.index_count) 0 draws in
+      let vertices = Bytes.create (vertex_count * stride)
+      and indices = Bytes.create (index_count * 4) in
+      let vertex_base = ref 0 and index_base = ref 0 in
+      List.iter
+        (fun (draw : Scene_execution.draw) ->
+          Bytes.blit draw.mesh.vertices 0 vertices (!vertex_base * stride)
+            (draw.mesh.vertex_count * stride);
+          for index = 0 to draw.mesh.index_count - 1 do
+            let source = Int32.to_int
+                (Bytes.get_int32_le draw.mesh.indices (index * 4)) in
+            Bytes.set_int32_le indices ((!index_base + index) * 4)
+              (Int32.of_int (source + !vertex_base))
+          done;
+          vertex_base := !vertex_base + draw.mesh.vertex_count;
+          index_base := !index_base + draw.mesh.index_count)
+        draws;
+      [ { first with mesh = mesh key vertices
+            indices vertex_count index_count } ]
+
 let create ~width ~height =
   if width <= 0 || height <= 0 then invalid_arg "R10 Scene3 extent";
   let source = Mesh.sphere ~segments:96 ~rings:48 ~radius:1. () in
@@ -115,6 +146,10 @@ let create ~width ~height =
          (make (software_vertices ~width ~height matrix points),
           make (native_vertices matrix points))))
   in
+  let software_batched_draws = batch ~stride:16
+      ~key:"software-scene3-spheres-batched" software_draws
+  and native_batched_draws = batch ~stride:68
+      ~key:"native-scene3-spheres-batched" native_draws in
   let digest draws =
     let context = Digest.string in
     draws
@@ -124,7 +159,9 @@ let create ~width ~height =
     |> String.concat ":" |> context |> Digest.to_hex
   in
   { software_draws;
+    software_batched_draws;
     native_draws;
+    native_batched_draws;
     instances = 12;
     vertices_per_instance = Array.length points;
     indices_per_instance = Array.length indices;

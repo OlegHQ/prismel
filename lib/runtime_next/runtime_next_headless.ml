@@ -3,6 +3,7 @@ type t = {
   presenter : Sdl3.Rgba_presenter.t;
   renderer : Scene_execution.t;
   control : Ogpu_raster2.control;
+  mutable readback : bytes;
   mutable drawable_width : int;
   mutable drawable_height : int;
   mutable dead : bool;
@@ -37,6 +38,7 @@ let create ~logical_width ~logical_height ~drawable_width ~drawable_height =
       |Error e->ignore(Sdl3.Rgba_presenter.destroy presenter);ignore(Sdl3.Window.destroy window);
         ignore(Sdl3.Init.quit_subsystems[Video]);Error e
       |Ok renderer->Ok{window;presenter;renderer;control;
+        readback=Bytes.create(drawable_width*drawable_height*4);
         drawable_width;drawable_height;dead=false}
 
 let ensure_live operation value =
@@ -46,9 +48,10 @@ let render_result operation value submit =
   match ensure_live operation value with Error _ as e->e|Ok()->
   match submit value.renderer with Error _ as e->e|Ok false->Ok false|Ok true->
   let pitch=value.drawable_width*4 in
-  match Scene_execution.read_pixels value.renderer~bytes_per_row:pitch with Error _ as e->e|Ok pixels->
+  match Scene_execution.read_pixels_into value.renderer~bytes_per_row:pitch
+    ~destination:value.readback with Error _ as e->e|Ok()->
   match sdl operation(Sdl3.Rgba_presenter.present value.presenter~width:value.drawable_width
-      ~height:value.drawable_height~pitch pixels)with Error _ as e->e|Ok()->Ok true
+      ~height:value.drawable_height~pitch value.readback)with Error _ as e->e|Ok()->Ok true
 
 let render value draws = render_result "Runtime_next_headless.render" value
   (fun renderer->Scene_execution.render renderer draws)
@@ -78,6 +81,7 @@ let resize value ~logical_width ~logical_height ~drawable_width ~drawable_height
               | Ok () ->
                   value.drawable_width <- drawable_width;
                   value.drawable_height <- drawable_height;
+                  value.readback<-Bytes.create(drawable_width*drawable_height*4);
                   Ok ()
               | Error _ as error ->
                   ignore (Sdl3.Window.set_size value.window ~width:old_width

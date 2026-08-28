@@ -47,6 +47,17 @@ let[@inline always] sample_int_unchecked t ~address_u ~address_v ~filter scratch
  let lod=Float.Array.unsafe_get scratch 2 in let maximum=Array.length t.levels-1 in let lod_floor=int_of_float lod in let low=min maximum lod_floor in match filter with Trilinear->let high=min maximum(low+1)in let a=sample_level_int t low~address_u~address_v~filter:Bilinear scratch and b=sample_level_int t high~address_u~address_v~filter:Bilinear scratch in Float.Array.unsafe_set scratch 5(lod-.float lod_floor);blend_int t.color_space a b scratch 5|Nearest|Bilinear->sample_level_int t low~address_u~address_v~filter scratch
 let sample t ~address_u ~address_v ~filter ~u ~v ~lod=if not(Float.is_finite u&&Float.is_finite v)then Error Invalid_coordinate else if not(Float.is_finite lod)||lod<0. then Error(Invalid_lod lod)else let scratch=Float.Array.of_list[u;v;lod;0.;0.;0.]in Ok(Int32.of_int(sample_int_unchecked t~address_u~address_v~filter scratch))
 module Private=struct
+  let create_levels_borrowed ~color_space sources=
+    if Array.length sources=0 then Error Invalid_size else
+    let required=ref 0 and valid=ref true in
+    Array.iteri(fun index surface->
+      let expected_w=max 1((Surface.width sources.(0)+(1 lsl index)-1)asr index)
+      and expected_h=max 1((Surface.height sources.(0)+(1 lsl index)-1)asr index)in
+      if Surface.width surface<>expected_w||Surface.height surface<>expected_h
+      then valid:=false
+      else required:=!required+Bytes.length(Surface.bytes surface))sources;
+    if !valid then Ok{levels=sources;color_space;storage_bytes= !required}
+    else Error Invalid_size
   let sample_int_unchecked t ~address_u ~address_v ~filter coordinates=
     sample_int_unchecked t~address_u~address_v~filter coordinates
   let texel_int_unchecked=texel_int_unchecked

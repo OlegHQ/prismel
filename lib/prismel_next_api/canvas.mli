@@ -12,6 +12,11 @@ val set_pixel : t -> x:int -> y:int -> Color.t -> unit
 val map_pixels : t -> (x:int -> y:int -> Color.t -> Color.t) -> unit
 val apply_mask : source:t -> mask:t -> unit
 val to_image : t -> (Image.t,string) result
+module Private : sig
+  (** Copy current pixels into an existing image without replacing its identity
+      or allocating a same-sized snapshot. *)
+  val copy_to_image : t -> Image.t -> (unit,string) result
+end
 val save_png : t -> string -> (unit,string) result
 val save_screen_png : string -> (unit,string) result
 val destroy : t -> unit

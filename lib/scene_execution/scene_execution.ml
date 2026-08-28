@@ -366,4 +366,6 @@ let resize value configuration=
 let upload_bytes value=value.uploaded
 let cache_entries value=List.length value.cache
 let read_pixels value ~bytes_per_row=Ogpu.Backend.read_texture value.target~bytes_per_row
+let read_pixels_into value ~bytes_per_row ~destination=
+  Ogpu.Backend.read_texture_into value.target~bytes_per_row~destination
 let destroy value=if value.dead then Ok()else(value.dead<-true;List.iter(fun item->ignore(Ogpu.Backend.destroy_buffer item.buffer))value.cache;value.cache<-[];List.iter(fun item->ignore(Ogpu.Backend.destroy_buffer item.auxiliary_buffer))value.auxiliary_cache;value.auxiliary_cache<-[];List.iter(fun item->ignore(Ogpu.Backend.destroy_texture item.texture);ignore(Ogpu.Backend.destroy_buffer item.staging))value.texture_cache;value.texture_cache<-[];destroy_targets value.multisample_targets;value.multisample_targets<-[];destroy_targets value.depth_targets;value.depth_targets<-[];destroy_targets value.stencil_targets;value.stencil_targets<-[];ignore(Ogpu.Backend.destroy_texture value.target);List.iter(fun variant->ignore(Ogpu.Backend.destroy_pipeline variant.pipeline))value.pipelines;ignore(Ogpu.Backend.destroy_surface value.surface);ignore(Ogpu.Backend.destroy_queue value.queue);match value.before_device_destroy()with Error _ as e->e|Ok()->Ogpu.Backend.destroy_device value.device)

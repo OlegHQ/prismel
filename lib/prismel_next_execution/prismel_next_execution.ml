@@ -39,8 +39,8 @@ type draw = { family:family; blend:blend; texture:Scene_execution.sampled_textur
   auxiliary:Scene_execution.auxiliary_resource option;samples:int;value:Scene_execution.draw }
 type cached_scene2_geometry={vertices:float array;indices:int array;fingerprint:int;source_bytes:int;color:int32;
   transform:Raster2.Render_ir.transform;clip:int*int*int*int;draw:draw}
-type scene2_geometry_candidate={candidate_vertices:float array;
-  candidate_indices:int array;candidate_fingerprint:int;candidate_source_bytes:int;candidate_color:int32;
+type scene2_geometry_candidate={candidate_vertex_count:int;
+  candidate_index_count:int;candidate_fingerprint:int;candidate_source_bytes:int;candidate_color:int32;
   candidate_transform:Raster2.Render_ir.transform;candidate_clip:int*int*int*int}
 type cached_scene2_batch={batch_fingerprint:int;batch_draw_count:int;
   batch_source_bytes:int;batch_draw:draw}
@@ -392,10 +392,26 @@ let lower_scene2 value ~density ~resource:resolve ir =
     |Some cached->cached.draw
     |None->
         let draw=mesh_of_geometry number transform clip geometry in
-        match List.find_opt(fun candidate->same candidate.candidate_vertices candidate.candidate_indices candidate.candidate_fingerprint candidate.candidate_color candidate.candidate_transform candidate.candidate_clip)value.scene2_geometry_candidates with
+        (* Admission candidates deliberately retain metadata, not the source
+           arrays.  Scene construction commonly creates fresh arrays and an
+           animated transform can make every prepared mesh unique.  Retaining
+           copies for all of those one-hit values promoted a bounded but large
+           stream of dead geometry into the major heap.  A matching token only
+           authorizes admission; the cache entry below still owns fresh copies
+           and every later hit performs an exact array comparison, so a hash
+           collision cannot reuse incorrect prepared bytes. *)
+        match List.find_opt(fun candidate->
+          candidate.candidate_fingerprint=fingerprint&&
+          candidate.candidate_vertex_count=Array.length geometry.vertices&&
+          candidate.candidate_index_count=Array.length geometry.indices&&
+          candidate.candidate_color=geometry.color&&
+          candidate.candidate_transform=transform&&candidate.candidate_clip=clip)
+          value.scene2_geometry_candidates with
         |None->
-            value.scene2_geometry_candidates<-{candidate_vertices=Array.copy geometry.vertices;
-              candidate_indices=Array.copy geometry.indices;candidate_fingerprint=fingerprint;
+            value.scene2_geometry_candidates<-{
+              candidate_vertex_count=Array.length geometry.vertices;
+              candidate_index_count=Array.length geometry.indices;
+              candidate_fingerprint=fingerprint;
               candidate_source_bytes=source_bytes;
               candidate_color=geometry.color;candidate_transform=transform;
               candidate_clip=clip}::value.scene2_geometry_candidates;
@@ -404,7 +420,7 @@ let lower_scene2 value ~density ~resource:resolve ir =
               value.scene2_geometry_candidates;draw
         |Some candidate->
             value.scene2_geometry_candidates<-List.filter((!=)candidate)value.scene2_geometry_candidates;
-            let cached={vertices=candidate.candidate_vertices;indices=candidate.candidate_indices;
+            let cached={vertices=Array.copy geometry.vertices;indices=Array.copy geometry.indices;
               fingerprint;source_bytes;color=geometry.color;transform;clip;draw}in
             value.scene2_geometry_cache<-cached::value.scene2_geometry_cache;
             value.scene2_geometry_cache<-trim_scene2_entries

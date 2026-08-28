@@ -23,7 +23,28 @@ let verify value =
     (value.light_direction = (-0.6, -1., -1.4))
     "directional light";
   require (List.length value.software_draws = 12) "software draw count";
+  require (List.length value.software_batched_draws = 1) "software batch count";
   require (List.length value.native_draws = 12) "native draw count";
+  require (List.length value.native_batched_draws = 1) "native batch count";
+  let verify_batch label stride draws batched_draws =
+    let batched=(List.hd batched_draws).Scene_execution.mesh in
+    require (batched.vertex_count=value.instances*value.vertices_per_instance)
+      (label^" batch vertex count");
+    require (batched.index_count=value.instances*value.indices_per_instance)
+      (label^" batch index count");
+    List.iteri (fun instance (draw:Scene_execution.draw) ->
+      let source_vertex=draw.mesh.vertex_count and source_index=draw.mesh.index_count in
+      require (Bytes.sub batched.vertices (instance*source_vertex*stride)
+        (source_vertex*stride)=draw.mesh.vertices) (label^" batch vertex ordering");
+      for index=0 to source_index-1 do
+        require (Int32.to_int(Bytes.get_int32_le batched.indices
+          ((instance*source_index+index)*4))=
+          Int32.to_int(Bytes.get_int32_le draw.mesh.indices(index*4))+
+          instance*source_vertex) (label^" batch index rebasing")
+      done) draws
+  in
+  verify_batch "software" 16 value.software_draws value.software_batched_draws;
+  verify_batch "native" 68 value.native_draws value.native_batched_draws;
   List.iter
     (fun (draw : Scene_execution.draw) ->
       require

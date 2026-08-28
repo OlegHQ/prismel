@@ -93,4 +93,6 @@ val resize : t -> Ogpu.Surface.configuration -> (unit, Ogpu.Error.t) result
 val upload_bytes : t -> int64
 val cache_entries : t -> int
 val read_pixels : t -> bytes_per_row:int -> (bytes, Ogpu.Error.t) result
+val read_pixels_into : t -> bytes_per_row:int -> destination:bytes ->
+  (unit, Ogpu.Error.t) result
 val destroy : t -> (unit, Ogpu.Error.t) result
