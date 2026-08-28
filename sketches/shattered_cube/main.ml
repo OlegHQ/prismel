@@ -1,6 +1,66 @@
 open Prismel
 open Procedural
 
+type r11_artifact = {
+  pieces : int; triangles : int; render_vertices : int;
+  cook_seconds : float; cook_seconds_four : float; pack_seconds : float;
+  topology_hash : string; attribute_hash : string; order_hash : string;
+  render_hash : string; vertices : bytes; indices : bytes;
+}
+
+let r11_delegate graph =
+  let renderer=ref None and artifact_path=ref None and visibility=ref None
+  and seconds=ref None and report=ref None in
+  let options=[
+    "--r11-renderer",Arg.String(fun value->renderer:=Some value),"R11 renderer";
+    "--r11-artifact",Arg.String(fun value->artifact_path:=Some value),"R11 artifact";
+    "--r11-visibility",Arg.String(fun value->visibility:=Some value),"R11 visibility";
+    "--r11-seconds",Arg.String(fun value->seconds:=Some value),"R11 duration";
+    "--r11-report",Arg.String(fun value->report:=Some value),"R11 report";
+  ] in
+  if Array.exists((=)"--r11-renderer")Sys.argv then begin
+    Arg.parse options (fun value->invalid_arg("unexpected R11 argument: "^value))
+      "shattered_cube R11 delegate";
+    let renderer=Option.get!renderer and artifact_path=Option.get!artifact_path
+    and visibility=Option.get!visibility and seconds=Option.get!seconds
+    and report=Option.get!report in
+    let input=open_in_bin artifact_path in
+    let artifact:r11_artifact=Fun.protect~finally:(fun()->close_in input)
+      (fun()->Marshal.from_channel input) in
+    if (artifact.pieces,artifact.triangles,artifact.render_vertices)<>
+       (18_278,278_368,835_104) then
+      failwith"shattered_cube R11 artifact cardinality drift";
+    let cooked_pieces,cooked_triangles,cooked_vertices,cooked_render_hash =
+      Parallel.run ~domains:1 (fun () ->
+        let node=graph() in
+        let get=function Ok value->value|Error message->failwith message in
+        let session=get(Session.create~max_entries:24
+          ~max_payload_bytes:(256*1024*1024)) in
+        let context=get(Context.create~seed:7349L~domains:1~grain:2()) in
+        Fun.protect~finally:(fun()->Session.close session)(fun()->
+          let output=match Session.cook session~context node with
+            |Ok value->value|Error error->failwith(Diagnostic.error_to_string error)in
+          let pieces=get(Sketch_support.Packed_pieces.of_geometry
+            ~piece_attribute:"piece" output.geometry)in
+          let mesh=Sketch_support.Packed_pieces.mesh_for_node node pieces in
+          let view=Mesh.Private.packed_view mesh in
+          Sketch_support.Packed_pieces.piece_count pieces,
+          Mesh.Private.triangle_count mesh,Mesh.vertex_count mesh,
+          Digest.to_hex(Digest.string(Marshal.to_string
+            (view.mode,view.vertices,view.indices,view.normals,view.colors,
+             view.tex_coords)[])))) in
+    if (cooked_pieces,cooked_triangles,cooked_vertices)<>
+       (artifact.pieces,artifact.triangles,artifact.render_vertices) ||
+       cooked_render_hash<>artifact.render_hash then
+      failwith"shattered_cube R11 artifact does not match the sketch graph";
+    Unix.putenv "PRISMEL_R11_SKETCH_EXECUTABLE" Sys.executable_name;
+    Unix.putenv "PRISMEL_R11_ARTIFACT" artifact_path;
+    let arguments=[|renderer;"shattered";"--acceptance-artifact";artifact_path;
+      "--visibility";visibility;"--warmup";"5";"--sample-seconds";seconds;
+      "--report";report|] in
+    Unix.execv renderer arguments
+  end
+
 let graph () =
   let cube = Sop_catalog.Box.create ~label:"cube"
       ~size:(Vec3.create 2.6 2.6 2.6) ~connectivity:Pdk.Ops.Box_quads
@@ -112,6 +172,7 @@ let overlay graph preview frame =
   ]
 
 let () =
+  r11_delegate graph;
   Sketch_ui.Environment3.run
     ~config:{ Sketch.default_config with width = 1200; height = 760;
       title = "Prismel sketch · shattered cube"; domains = Some 1 }

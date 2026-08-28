@@ -13,7 +13,7 @@
 (executable
  (name runtime_next_native_r11_protocol)
  (modules runtime_next_native_r11_protocol)
- (libraries unix))
+ (libraries unix yojson))
 
 (executable
  (name runtime_next_native_r9_protocol)
