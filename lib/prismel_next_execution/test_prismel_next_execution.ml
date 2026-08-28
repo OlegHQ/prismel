@@ -55,14 +55,35 @@ let () =
   let resource_runtime=get(create configuration)in
   let batched_ir=Result.get_ok(Raster2.Render_ir.create[|geometry;geometry|])in
   let batched=get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)batched_ir)in
-  check(List.length batched=1)"adjacent compatible Scene2 draws were not batched";
-  let owned_vertices=[|2.;2.;30.;2.;2.;30.|]and owned_indices=[|0;1;2|]in
+  check(List.length batched=2)
+    "small Scene2 run lost independent stable mesh identities";
+  let owned_vertices=[|3.;3.;27.;3.;3.;27.|]and owned_indices=[|0;1;2|]in
   let owned_ir=Result.get_ok(Raster2.Render_ir.Private.create_owned[|Geometry{vertices=owned_vertices;indices=owned_indices;color=0x4080BFFFl}|])in
   let cached0,candidates0=scene2_geometry_cache_entries resource_runtime in
   ignore(get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)owned_ir));
   check(scene2_geometry_cache_entries resource_runtime=(cached0,candidates0+1))"first-seen geometry was retained strongly";
   ignore(get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)owned_ir));
   check(scene2_geometry_cache_entries resource_runtime=(cached0+1,candidates0))"stable geometry was not admitted on second sight";
+  let equivalent_ir()=Result.get_ok(Raster2.Render_ir.Private.create_owned[|
+    Geometry{vertices=Array.copy owned_vertices;indices=Array.copy owned_indices;
+      color=0x4080BFFFl}|])in
+  let upload0=(get(stats resource_runtime)).uploaded_bytes in
+  for _=1 to 100 do
+    let equivalent=get(lower_scene2 resource_runtime~density:1
+      ~resource:(fun _->None)(equivalent_ir()))in
+    ignore(get(step resource_runtime equivalent))
+  done;
+  let upload1=(get(stats resource_runtime)).uploaded_bytes in
+  check(upload1=Int64.add upload0 60L)
+    "content-identical fresh Scene2 geometry was repeatedly uploaded";
+  let changed=Result.get_ok(Raster2.Render_ir.Private.create_owned[|
+    Geometry{vertices=[|3.;3.;26.;3.;3.;27.|];indices=Array.copy owned_indices;
+      color=0x4080BFFFl}|])in
+  let changed_draws=get(lower_scene2 resource_runtime~density:1
+    ~resource:(fun _->None)changed)in
+  ignore(get(step resource_runtime changed_draws));
+  check((get(stats resource_runtime)).uploaded_bytes>upload1)
+    "changed Scene2 geometry incorrectly reused a content-cache entry";
   Gc.full_major();let geometry_allocated0=Gc.allocated_bytes()and geometry_gc0=Gc.quick_stat()in
   for _=1 to 1_000 do ignore(get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)owned_ir))done;
   let geometry_gc1=Gc.quick_stat()in

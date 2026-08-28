@@ -37,10 +37,10 @@ type family = Scene2 | Scene2_textured | Scene3 | Scene3_textured | Scene3_shado
 type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
 type draw = { family:family; blend:blend; texture:Scene_execution.sampled_texture option;
   auxiliary:Scene_execution.auxiliary_resource option;samples:int;value:Scene_execution.draw }
-type cached_scene2_geometry={vertices:float array Weak.t;indices:int array Weak.t;color:int32;
+type cached_scene2_geometry={vertices:float array;indices:int array;fingerprint:int;source_bytes:int;color:int32;
   transform:Raster2.Render_ir.transform;clip:int*int*int*int;draw:draw}
-type scene2_geometry_candidate={candidate_vertices:float array Weak.t;
-  candidate_indices:int array Weak.t;candidate_color:int32;
+type scene2_geometry_candidate={candidate_vertices:float array;
+  candidate_indices:int array;candidate_fingerprint:int;candidate_source_bytes:int;candidate_color:int32;
   candidate_transform:Raster2.Render_ir.transform;candidate_clip:int*int*int*int}
 type resource=Image of Prismel_next_resources.Image.t|Text of Prismel_next_resources.Text.t
   |Canvas of Prismel_next_resources.Canvas.t
@@ -141,6 +141,7 @@ let scene2_ir ir =
   |None->Ok(List.rev!draws)
 
 let batch_scene2_draws draws =
+  let preserve_independent = List.length draws <= 64 in
   let compatible (left : draw) (right : draw) =
     left.family = Scene2 && right.family = Scene2
     && left.blend = right.blend && left.texture = None && right.texture = None
@@ -150,7 +151,12 @@ let batch_scene2_draws draws =
   let merge reversed =
     match List.rev reversed with
     | [] -> assert false
-    | [draw] -> draw
+    | [draw] -> [draw]
+    (* Preserve independent stable identities for ordinary scene-sized runs.
+       If one member moves, eagerly combining a small run re-uploads every
+       unchanged neighbour.  Large UI runs still batch to keep draw and cache
+       cardinality bounded. *)
+    | group when preserve_independent -> group
     | first :: _ as group ->
         let vertex_count = List.fold_left
             (fun count draw -> count + draw.value.mesh.vertex_count) 0 group
@@ -173,18 +179,30 @@ let batch_scene2_draws draws =
         let mesh : Scene_execution.mesh = {
           key=Printf.sprintf "%s+%d" first.value.mesh.key (List.length group);
           vertices; vertex_count; indices; index_count } in
-        { first with value={first.value with mesh} }
+        [{ first with value={first.value with mesh} }]
   in
+  let flush output current = List.rev_append (merge current) output in
   let rec loop output current = function
-    | [] -> List.rev (match current with [] -> output | _ -> merge current :: output)
+    | [] -> List.rev (match current with [] -> output | _ -> flush output current)
     | draw :: rest ->
         (match current with
          | previous :: _ when compatible previous draw ->
              loop output (draw :: current) rest
          | [] -> loop output [draw] rest
-         | _ -> loop (merge current :: output) [draw] rest)
+         | _ -> loop (flush output current) [draw] rest)
   in
   loop [] [] draws
+
+let scene2_geometry_byte_capacity=64*1024*1024
+let trim_scene2_entries bytes entries =
+  let rec loop count total kept = function
+    | [] -> List.rev kept
+    | entry::rest ->
+        let size=bytes entry in
+        if count<256&&size<=scene2_geometry_byte_capacity-total then
+          loop(count+1)(total+size)(entry::kept)rest
+        else loop count total kept rest
+  in loop 0 0 [] entries
 
 type t = { runtime:Runtime_next_orchestrator.t; input:Runtime_next_input.t;
   assets:Prismel_next_resources.Assets.t; timing:timing; mutable frame:int64;
@@ -286,26 +304,40 @@ let lower_scene2 value ~density ~resource:resolve ir =
     transform.xy*.x+.transform.yy*.y+.transform.ty in
   let clip_live()=let _,_,width,height=List.hd!clips in width>0&&height>0 in
   let geometry_draw number transform clip (geometry:Raster2.Render_ir.geometry)=
-    let weak_same weak target=match Weak.get weak 0 with Some value->value==target|None->false in
-    let same vertices indices color cached_transform cached_clip=
-      weak_same vertices geometry.vertices&&weak_same indices geometry.indices&&
+    (* [Render_ir] owns these arrays and exposes them read-only.  Public Scene
+       lowering nevertheless constructs fresh, content-identical arrays every
+       frame.  A physical-identity cache consequently re-uploaded every static
+       primitive.  Hash first, then compare exactly so collisions cannot reuse
+       the wrong geometry.  Retaining at most 256 immutable inputs makes the
+       content cache bounded and lets the prepared byte buffers survive those
+       fresh IR allocations. *)
+    let fingerprint=Hashtbl.hash(geometry.vertices,geometry.indices)in
+    let source_bytes=Array.length geometry.vertices*(Sys.word_size/8)+
+      Array.length geometry.indices*(Sys.word_size/8)in
+    let same vertices indices cached_fingerprint color cached_transform cached_clip=
+      cached_fingerprint=fingerprint&&vertices=geometry.vertices&&indices=geometry.indices&&
       color=geometry.color&&cached_transform=transform&&cached_clip=clip in
-    value.scene2_geometry_cache<-List.filter(fun cached->Weak.check cached.vertices 0&&Weak.check cached.indices 0)value.scene2_geometry_cache;
-    match List.find_opt(fun cached->same cached.vertices cached.indices cached.color cached.transform cached.clip)value.scene2_geometry_cache with
+    match List.find_opt(fun cached->same cached.vertices cached.indices cached.fingerprint cached.color cached.transform cached.clip)value.scene2_geometry_cache with
     |Some cached->cached.draw
     |None->
         let draw=mesh_of_geometry number transform clip geometry in
-        value.scene2_geometry_candidates<-List.filter(fun candidate->Weak.check candidate.candidate_vertices 0&&Weak.check candidate.candidate_indices 0)value.scene2_geometry_candidates;
-        match List.find_opt(fun candidate->same candidate.candidate_vertices candidate.candidate_indices candidate.candidate_color candidate.candidate_transform candidate.candidate_clip)value.scene2_geometry_candidates with
+        match List.find_opt(fun candidate->same candidate.candidate_vertices candidate.candidate_indices candidate.candidate_fingerprint candidate.candidate_color candidate.candidate_transform candidate.candidate_clip)value.scene2_geometry_candidates with
         |None->
-            let vertices=Weak.create 1 and indices=Weak.create 1 in Weak.set vertices 0(Some geometry.vertices);Weak.set indices 0(Some geometry.indices);
-            value.scene2_geometry_candidates<-{candidate_vertices=vertices;candidate_indices=indices;candidate_color=geometry.color;candidate_transform=transform;candidate_clip=clip}::value.scene2_geometry_candidates;
-            if List.length value.scene2_geometry_candidates>256 then value.scene2_geometry_candidates<-List.rev(List.tl(List.rev value.scene2_geometry_candidates));draw
+            value.scene2_geometry_candidates<-{candidate_vertices=geometry.vertices;
+              candidate_indices=geometry.indices;candidate_fingerprint=fingerprint;
+              candidate_source_bytes=source_bytes;
+              candidate_color=geometry.color;candidate_transform=transform;
+              candidate_clip=clip}::value.scene2_geometry_candidates;
+            value.scene2_geometry_candidates<-trim_scene2_entries
+              (fun candidate->candidate.candidate_source_bytes)
+              value.scene2_geometry_candidates;draw
         |Some candidate->
             value.scene2_geometry_candidates<-List.filter((!=)candidate)value.scene2_geometry_candidates;
-            let cached={vertices=candidate.candidate_vertices;indices=candidate.candidate_indices;color=geometry.color;transform;clip;draw}in
+            let cached={vertices=candidate.candidate_vertices;indices=candidate.candidate_indices;
+              fingerprint;source_bytes;color=geometry.color;transform;clip;draw}in
             value.scene2_geometry_cache<-cached::value.scene2_geometry_cache;
-            if List.length value.scene2_geometry_cache>256 then value.scene2_geometry_cache<-List.rev(List.tl(List.rev value.scene2_geometry_cache));draw
+            value.scene2_geometry_cache<-trim_scene2_entries
+              (fun cached->cached.source_bytes)value.scene2_geometry_cache;draw
     in
   let quad texture (destination:Raster2.Render_ir.rect) =
     let transform=List.hd!transforms in
