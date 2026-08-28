@@ -22,6 +22,12 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal submi
   if(r1.epoch,r2.epoch,r3.epoch)<>(1L,2L,3L)||Queue.in_flight queue<>3 then failwith"three-frame epoch ordering drift";
   let capacity=ended(fun _->Ok())in expect Ogpu.Error.Capacity(Queue.submit queue capacity);
   get(Queue.wait_through queue r3.epoch);
+  let timing_before_second=Queue.gpu_timing_for_device device in
+  let second_queue=get(Queue.create device)in
+  let timing_after_second=Queue.gpu_timing_for_device device in
+  if timing_after_second<>timing_before_second||Queue.Private.gpu_timing_entry_count()<>1 then failwith"second queue reset or duplicated GPU timing state";
+  get(Queue.destroy second_queue);
+  if Queue.gpu_timing_for_device device<>timing_before_second||Queue.Private.gpu_timing_entry_count()<>1 then failwith"second queue destroy removed shared GPU timing state";
   let actual=get(Buffer.read_bytes device destination~offset:0L~length:16)in for i=0 to 3 do if Bytes.get_int32_le actual(i*4)<>Int32.of_int(i*10+1)then failwith"copy/compute result mismatch"done;
   let pixels=get(Texture.read_bytes device target~mip_level:0~bytes_per_row:8)in if Bytes.length pixels<>16||Char.code(Bytes.get pixels 0)<>64||Char.code(Bytes.get pixels 1)<>128||Char.code(Bytes.get pixels 2)<>191||Char.code(Bytes.get pixels 3)<>255 then failwith"render clear result mismatch";
   let fourth=get(Queue.submit queue capacity)in expect Ogpu.Error.Invalid_state(Queue.submit queue capacity);get(Queue.wait_through queue fourth.epoch);
@@ -33,6 +39,6 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal submi
   let deferred_receipt=get(Queue.submit queue deferred)in get(Buffer.destroy deferred_source);get(Buffer.destroy deferred_destination);
   if not(Buffer.destroyed deferred_source&&Buffer.destroyed deferred_destination)then failwith"submitted destroy did not stale handles";
   expect Ogpu.Error.Invalid_state(Device.destroy device);get(Queue.wait_through queue deferred_receipt.epoch);
-  get(Buffer.destroy foreign);get(Texture.destroy target);get(Buffer.destroy destination);get(Buffer.destroy source);get(Queue.destroy queue);get(Device.destroy device);get(Device.destroy other);ignore(get_metal(Metal.Release_queue.drain()));
+  get(Buffer.destroy foreign);get(Texture.destroy target);get(Buffer.destroy destination);get(Buffer.destroy source);get(Queue.destroy queue);if Queue.Private.gpu_timing_entry_count()<>0 then failwith"GPU timing registry retained last destroyed queue";get(Device.destroy device);get(Device.destroy other);ignore(get_metal(Metal.Release_queue.drain()));
   let after=get_metal(Metal.Release_queue.stats())in if after.live_handles<>before.live_handles-2 then failwith"submission live-handle delta";
   print_endline"ogpu_metal submission: copy/compute/clear, ordered max3, zero live-handle delta"

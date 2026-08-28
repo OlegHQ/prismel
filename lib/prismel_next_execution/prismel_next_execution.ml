@@ -222,7 +222,8 @@ let scene2_geometry_cache_entries value=
   List.length value.scene2_geometry_cache,List.length value.scene2_geometry_candidates
 let ensure operation value=if value.dead then fail operation Destroyed"coordinator is destroyed"else Ok()
 type stats=Runtime_next_orchestrator.stats={frames:int64;presented:int64;logical_draws:int64;
-  logical_passes:int64;logical_submissions:int64;uploaded_bytes:int64;cache_entries:int}
+  logical_passes:int64;logical_submissions:int64;uploaded_bytes:int64;cache_entries:int;
+  gpu_timing_supported:bool;gpu_duration_seconds:float;gpu_sample_count:int64}
 let stats value=match ensure"Prismel_next_execution.stats"value with Error _ as e->e|Ok()->
   Result.map_error(fun error->{operation="Prismel_next_execution.stats";kind=Backend;
     message=Ogpu.Error.to_string error})(Runtime_next_orchestrator.stats value.runtime)

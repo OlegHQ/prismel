@@ -1,5 +1,7 @@
 type t
 type receipt={epoch:int64}
+type gpu_timing={supported:bool;duration_seconds:float;sample_count:int64}
+val gpu_timing_for_device : Device.t -> gpu_timing
 val create : ?max_frames:int -> Device.t -> (t,Ogpu.Error.t) result
 val submit : t -> Command.t -> (receipt,Ogpu.Error.t) result
 val submit_render_pass : t -> Render_pass.t -> (receipt,Ogpu.Error.t) result
@@ -11,3 +13,7 @@ val completed_epoch : t -> int64
 val inject_next_error : t -> unit
 val destroyed : t -> bool
 val destroy : t -> (unit,Ogpu.Error.t) result
+module Private : sig
+  val gpu_timing_total : unit -> gpu_timing
+  val gpu_timing_entry_count : unit -> int
+end

@@ -3,9 +3,27 @@ type native_completion=Classic of Metal.Command_buffer.t|Command4 of Metal.Comma
 type pending={epoch:int64;command:native_completion;cleanup:cleanup list}
 type t={device:Device.t;metal:Metal.Command_queue.t;submission:Ogpu.Submission.t;mutable command4:Metal.Command4.Queue.t option;mutable pending:pending list;mutable fail_next:bool;mutable dead:bool}
 type receipt={epoch:int64}
+type gpu_timing={supported:bool;duration_seconds:float;sample_count:int64}
+type gpu_timing_accumulator={supported:bool;mutable duration_seconds:float;mutable sample_count:int64;mutable queues:int}
+let gpu_timings:(int64,gpu_timing_accumulator)Hashtbl.t=Hashtbl.create 4
+let gpu_timing_for_device device=
+  let id=Device.id device in
+  match Hashtbl.find_opt gpu_timings id with
+  |Some value->{supported=value.supported;duration_seconds=value.duration_seconds;sample_count=value.sample_count}
+  |None->{supported=false;duration_seconds=0.;sample_count=0L}
+let gpu_timing_total() : gpu_timing=
+  Hashtbl.fold(fun _ (value:gpu_timing_accumulator) (total:gpu_timing)->
+    {supported=total.supported||value.supported;
+     duration_seconds=total.duration_seconds+.value.duration_seconds;
+     sample_count=Int64.add total.sample_count value.sample_count})
+    gpu_timings {supported=false;duration_seconds=0.;sample_count=0L}
+let record_gpu_duration device duration=
+  match Hashtbl.find_opt gpu_timings(Device.id device)with
+  |Some value when value.supported&&Float.is_finite duration&&duration>=0.->value.duration_seconds<-value.duration_seconds+.duration;value.sample_count<-Int64.succ value.sample_count
+  |_->()
 let error op kind message=Error(Ogpu.Error.make op kind message)
 let create ?(max_frames=3) device=let op="Ogpu_metal.Queue.create"in if Device.destroyed device then error op Ogpu.Error.Stale_handle"device is destroyed"else
-  match Ogpu.Submission.create~max_frames(Device.Private.handle device)with Error _ as e->e|Ok submission->match Metal.Command_queue.create(Device.Private.metal device)with Error e->Error(Adapter.error~operation:op e)|Ok metal->Device.Private.attach_resource device;Ok{device;metal;submission;command4=None;pending=[];fail_next=false;dead=false}
+  match Ogpu.Submission.create~max_frames(Device.Private.handle device)with Error _ as e->e|Ok submission->match Metal.Command_queue.create(Device.Private.metal device)with Error e->Error(Adapter.error~operation:op e)|Ok metal->let id=Device.id device in (match Hashtbl.find_opt gpu_timings id with Some timing->timing.queues<-timing.queues+1|None->let supported=Result.is_ok(Device.supports device Adapter.Timestamp_queries)in Hashtbl.add gpu_timings id{supported;duration_seconds=0.;sample_count=0L;queues=1});Device.Private.attach_resource device;Ok{device;metal;submission;command4=None;pending=[];fail_next=false;dead=false}
 let destroyed value=value.dead
 let in_flight value=Ogpu.Submission.in_flight value.submission
 let completed_epoch value=Ogpu.Submission.completed_epoch value.submission
@@ -56,7 +74,11 @@ let submit_compute_pass value pass=submit_typed value"Ogpu_metal.Queue.submit_co
 let wait_through value epoch=let op="Ogpu_metal.Queue.wait_through"in if epoch<=completed_epoch value||epoch>Int64.of_int(max_int)then error op Ogpu.Error.Invalid_argument"completion epoch is invalid"else
   let ready,later=List.partition(fun (p:pending)->p.epoch<=epoch)value.pending in
   if ready=[] then error op Ogpu.Error.Invalid_argument"epoch was not submitted"else
-  let finish p=match p.command with Classic command->(match Metal.Command_buffer.wait_until_completed command with Error e->Error(Adapter.error~operation:op e)|Ok()->match Metal.Command_buffer.status command with Ok Metal.Command_buffer.Completed->ignore(Metal.Command_buffer.destroy command);Ok()|Ok(Metal.Command_buffer.Error message)->error op Ogpu.Error.Device_lost message|Ok _->error op Ogpu.Error.Invalid_state"command did not complete"|Error e->Error(Adapter.error~operation:op e))|Command4(submission,command,allocator)->(match Metal.Command4.Submission.wait submission with Error e->Error(Adapter.error~operation:op e)|Ok()->ignore(Metal.Command4.Submission.destroy submission);ignore(Metal.Command4.Command_buffer.destroy command);ignore(Metal.Command4.Allocator.destroy allocator);Ok())in
+  let finish p=match p.command with Classic command->(match Metal.Command_buffer.wait_until_completed command with Error e->Error(Adapter.error~operation:op e)|Ok()->match Metal.Command_buffer.status command with Ok Metal.Command_buffer.Completed->(match Metal.Command_buffer.diagnostics command with Ok d when d.gpu_end_time>=d.gpu_start_time->record_gpu_duration value.device(d.gpu_end_time-.d.gpu_start_time)|_->());ignore(Metal.Command_buffer.destroy command);Ok()|Ok(Metal.Command_buffer.Error message)->error op Ogpu.Error.Device_lost message|Ok _->error op Ogpu.Error.Invalid_state"command did not complete"|Error e->Error(Adapter.error~operation:op e))|Command4(submission,command,allocator)->(match Metal.Command4.Submission.wait submission with Error e->Error(Adapter.error~operation:op e)|Ok()->(match Metal.Command4.Submission.feedback submission with Ok feedback->record_gpu_duration value.device feedback.gpu_duration|Error _->());ignore(Metal.Command4.Submission.destroy submission);ignore(Metal.Command4.Command_buffer.destroy command);ignore(Metal.Command4.Allocator.destroy allocator);Ok())in
   let rec completed=function []->Ok()|p::ps->match finish p with Error _ as e->e|Ok()->List.iter(fun f->f())p.cleanup;completed ps in
   match completed ready with Error _ as e->e|Ok()->value.pending<-later;Ogpu.Submission.complete_through value.submission epoch
-let destroy value=let op="Ogpu_metal.Queue.destroy"in if value.dead then Ok()else if value.pending<>[]then error op Ogpu.Error.Invalid_state"queue has commands in flight"else match Metal.Command_queue.destroy value.metal with Error e->Error(Adapter.error~operation:op e)|Ok()->(match value.command4 with None->()|Some queue->ignore(Metal.Command4.Queue.destroy queue));value.dead<-true;Device.Private.detach_resource value.device;Ok()
+let destroy value=let op="Ogpu_metal.Queue.destroy"in if value.dead then Ok()else if value.pending<>[]then error op Ogpu.Error.Invalid_state"queue has commands in flight"else match Metal.Command_queue.destroy value.metal with Error e->Error(Adapter.error~operation:op e)|Ok()->(match value.command4 with None->()|Some queue->ignore(Metal.Command4.Queue.destroy queue));let id=Device.id value.device in (match Hashtbl.find_opt gpu_timings id with Some timing when timing.queues>1->timing.queues<-timing.queues-1|Some _->Hashtbl.remove gpu_timings id|None->());value.dead<-true;Device.Private.detach_resource value.device;Ok()
+module Private=struct
+  let gpu_timing_total=gpu_timing_total
+  let gpu_timing_entry_count()=Hashtbl.length gpu_timings
+end

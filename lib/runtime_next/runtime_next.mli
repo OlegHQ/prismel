@@ -1,6 +1,7 @@
 type t
 type stats = { pipeline_cache_entries:int; mesh_cache_entries:int;
-  uploaded_bytes:int64 }
+  uploaded_bytes:int64; gpu_timing_supported:bool; gpu_duration_seconds:float;
+  gpu_sample_count:int64 }
 type frame_facts = { logical_width:int; logical_height:int;
   drawable_width:int; drawable_height:int; pixel_scale_x:float; pixel_scale_y:float }
 type window_facts = {

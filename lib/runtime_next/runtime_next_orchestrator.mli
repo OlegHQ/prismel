@@ -13,7 +13,8 @@ type facts = { title:string; logical_width:int; logical_height:int;
 type pacing = { frames:int64; presented:int64; last_presented:bool }
 type stats = { frames:int64; presented:int64; logical_draws:int64;
   logical_passes:int64; logical_submissions:int64; uploaded_bytes:int64;
-  cache_entries:int }
+  cache_entries:int; gpu_timing_supported:bool; gpu_duration_seconds:float;
+  gpu_sample_count:int64 }
 type diagnostics = { active:bool; cache_entries:int;
   release_queue_pending:int option; release_queue_live_handles:int option;
   release_queue_total_created:int64 option;

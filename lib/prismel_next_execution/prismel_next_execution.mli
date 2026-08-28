@@ -82,7 +82,8 @@ val snapshot_cache_entries : t -> int
 val scene2_geometry_cache_entries : t -> int * int
 type stats = Runtime_next_orchestrator.stats = { frames:int64; presented:int64;
   logical_draws:int64; logical_passes:int64; logical_submissions:int64;
-  uploaded_bytes:int64; cache_entries:int }
+  uploaded_bytes:int64; cache_entries:int; gpu_timing_supported:bool;
+  gpu_duration_seconds:float; gpu_sample_count:int64 }
 val stats : t -> (stats,error) result
 type diagnostics = { active:bool; resource_count:int; cache_entries:int;
   release_queue_pending:int option; release_queue_live_handles:int option;
