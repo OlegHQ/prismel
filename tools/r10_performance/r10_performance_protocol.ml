@@ -55,6 +55,47 @@ let optional_command_output program arguments =
     match Unix.close_process_in input with Unix.WEXITED 0 -> line | _ -> None
   with Unix.Unix_error _ -> None
 
+let run_command program arguments =
+  let argv=Array.of_list(program::arguments)in
+  match snd(Unix.waitpid[](Unix.create_process program argv Unix.stdin Unix.stdout Unix.stderr))with
+  |Unix.WEXITED 0->()
+  |Unix.WEXITED code->fail "%s exited %d during executable freshness preflight"program code
+  |Unix.WSIGNALED signal|Unix.WSTOPPED signal->
+      fail "%s received signal %d during executable freshness preflight"program signal
+
+let executable_paths cases =
+  let paths=List.concat_map(fun case->
+    let command=case|>member"command"|>to_list|>List.map to_string in
+    match command with
+    |[]->fail"manifest contains an empty command"
+    |program::_->
+        let rec nested acc=function
+          |"--executable"::path::rest->nested(path::acc)rest
+          |_::rest->nested acc rest|[]->List.rev acc in
+        program::nested[]command)cases in
+  List.sort_uniq String.compare paths
+
+let build_target path =
+  let prefix="_build/default/"in
+  if String.starts_with~prefix path then
+    String.sub path(String.length prefix)(String.length path-String.length prefix)
+  else fail"manifest executable %s is outside _build/default; cannot prove Dune freshness"path
+
+let executable_identity path =
+  if not(Sys.file_exists path)then fail"Dune did not produce manifest executable %s"path;
+  let stat=Unix.stat path in
+  let digest=command_output "/usr/bin/shasum"["-a";"256";path]
+    |> String.split_on_char ' '|>List.hd in
+  if String.length digest<>64 then fail"could not hash manifest executable %s"path;
+  `Assoc["path",`String path;"sha256",`String digest;
+    "size_bytes",`Int stat.st_size;"mtime",`Float stat.st_mtime]
+
+let preflight_executables ~profile cases =
+  let paths=executable_paths cases in
+  let targets=List.map build_target paths in
+  run_command"dune"("build"::"--profile"::profile::targets);
+  List.map executable_identity paths
+
 let replace token value text =
   let rec loop offset result =
     match String.index_from_opt text offset '{' with
@@ -394,7 +435,15 @@ let validate_report report =
      |_->fail "R10 qualification report lacks git_dirty provenance");
     (match member "git_commit" provenance with
      |`String commit when canonical_git_commit commit->()
-     |_->fail "R10 qualification report lacks a canonical git commit")
+     |_->fail "R10 qualification report lacks a canonical git commit");
+    let identities=match member"executables"provenance with
+      |`List(_::_ as values)->values|_->fail"R10 qualification report lacks executable identities"in
+    List.iter(fun identity->
+      let path=identity|>member"path"|>to_string
+      and digest=identity|>member"sha256"|>to_string in
+      if path=""||String.length digest<>64||not(String.for_all(function
+        |'0'..'9'|'a'..'f'->true|_->false)digest)then
+        fail"R10 qualification report has an invalid executable identity")identities
   end;
   let samples = report |> member "samples" |> to_list in
   let baselines = match member "performance_baselines" report with
@@ -464,6 +513,13 @@ let () =
       and warmup = if !smoke then 0.02 else manifest |> member "warmup_seconds" |> to_float in
       let runs = if !smoke then 1 else configured_samples in
       let cases = manifest |> member "cases" |> to_list in
+      let commit_before=command_output "/usr/bin/git" ["rev-parse";"HEAD"]in
+      if command_output "/usr/bin/git" ["status";"--porcelain"]<>""then
+        fail"R10 protocol requires a clean worktree before executable preflight";
+      let executable_identities=preflight_executables~profile cases in
+      let commit_after=command_output "/usr/bin/git" ["rev-parse";"HEAD"]in
+      if commit_after<>commit_before||command_output "/usr/bin/git" ["status";"--porcelain"]<>""then
+        fail"source provenance changed during executable freshness preflight";
       let protocol = `Assoc ["name", `String "R10"; "profile", member "profile" manifest;
         "width", member "width" manifest; "height", member "height" manifest;
         "samples", `Int runs; "sample_seconds", `Float seconds; "warmup_seconds", `Float warmup;
@@ -483,10 +539,18 @@ let () =
                 "scenario", member "scenario" case; "message", `String message] :: !failures
       ) cases done;
       if not !dry_run then begin
+        if command_output "/usr/bin/git" ["rev-parse";"HEAD"]<>commit_before||
+           command_output "/usr/bin/git" ["status";"--porcelain"]<>""then
+          fail"source provenance changed during R10 measurement";
+        let identities_after=List.map executable_identity(executable_paths cases)in
+        if identities_after<>executable_identities then
+          fail"a manifest executable changed during R10 measurement";
         let report = `Assoc ["schema", `String "prismel-r10-suite/v1";
           "protocol", protocol;
-          "provenance", `Assoc ["git_commit", `String (command_output "/usr/bin/git" ["rev-parse"; "HEAD"]);
+          "provenance", `Assoc ["git_commit", `String commit_before;
             "git_dirty", `Bool (command_output "/usr/bin/git" ["status"; "--porcelain"] <> "");
+            "executable_build",`String"dune-build-current-clean-commit";
+            "executables",`List executable_identities;
             "machine", machine_facts (); "display", member "display" manifest];
           "samples", `List (List.rev !collected);
           "performance_baselines", `List performance_baselines;

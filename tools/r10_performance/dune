@@ -19,7 +19,12 @@
 (executable
  (name r10_performance_protocol)
  (modules r10_performance_protocol)
- (libraries unix yojson))
+ (libraries unix yojson)
+ (link_deps
+  %{exe:r10_existing_adapter.exe}
+  %{exe:r10_runtime_next_target_benchmark.exe}
+  %{exe:../runtime_next_native_benchmark/runtime_next_native_benchmark.exe}
+  %{exe:../bench_renderer.exe}))
 
 (executable
  (name r10_existing_adapter)

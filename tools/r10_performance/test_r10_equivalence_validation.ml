@@ -40,7 +40,8 @@ let baseline target scenario =
       "CPU", metric 0.5 0.5; "promoted", metric 4. 4.; "RSS", metric 1024. 1024.]]
 
 let report ?(sample_count=1) ?(sample_seconds=1.) ?(smoke=false)
-    ?(dirty=false)?(commit="0123456789abcdef0123456789abcdef01234567") samples =
+    ?(dirty=false)?(commit="0123456789abcdef0123456789abcdef01234567")
+    ?(executables=true) samples =
   `Assoc
     [ "protocol",
       `Assoc
@@ -48,7 +49,10 @@ let report ?(sample_count=1) ?(sample_seconds=1.) ?(smoke=false)
         ; "width", `Int 64; "height", `Int 64;
           "sample_seconds",`Float sample_seconds; "smoke", `Bool smoke
         ]
-    ; "provenance", `Assoc["git_commit",`String commit;"git_dirty",`Bool dirty]
+    ; "provenance", `Assoc["git_commit",`String commit;"git_dirty",`Bool dirty;
+        "executable_build",`String"dune-build-current-clean-commit";
+        "executables",if executables then `List[`Assoc["path",`String"_build/default/fake.exe";
+          "sha256",`String(String.make 64 'a');"size_bytes",`Int 1;"mtime",`Float 1.]]else`List[]]
     ; "samples", `List samples
     ; "performance_baselines", `List (List.concat_map (fun target ->
         List.map (baseline target) ["basic";"pxui";"canvas";"scene3"])
@@ -123,6 +127,9 @@ let () =
       write invalid(report~commit:"not-a-commit" samples);
       if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
         failwith"noncanonical R10 commit provenance accepted";
+      write invalid(report~executables:false samples);
+      if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
+        failwith"R10 report without executable identities accepted";
       if run Sys.argv.(1) invalid = Unix.WEXITED 0 then
         failwith "inequivalent R10 report accepted";
       let different_counts = replace_cell ~target:"headless" ~scenario:"basic"
