@@ -15,4 +15,4 @@
 (test
  (name test_pxui_next)
  (modules test_pxui_next)
- (libraries pxui_next prismel_next_api raster2))
+ (libraries pxui_next prismel_next_api scene_command))

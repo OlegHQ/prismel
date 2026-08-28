@@ -190,7 +190,7 @@ let scene2_commands commands =
   match !failure with Some message->fail"Prismel_next_execution.scene2_commands"Unsupported message
   |None->Ok(List.rev!draws)
 
-let command_of_raster2 = function
+let command_of_scene = function
   |Scene_command.Render_ir.Clear color->Ok(Command.Clear color)
   |Set_blend blend->Ok(Command.Set_blend(match blend with
       |Scene_command.Render_ir.Replace|Copy->Command.Replace
@@ -208,7 +208,7 @@ let command_of_raster2 = function
 let scene2_ir ir =
   let source=Scene_command.Render_ir.Private.commands_readonly ir in
   let commands=Array.make(Array.length source)(Command.Clear 0l)and failure=ref None in
-  Array.iteri(fun index value->match command_of_raster2 value with
+  Array.iteri(fun index value->match command_of_scene value with
     |Ok command->commands.(index)<-command|Error message->failure:=Some message)source;
   match!failure with Some message->fail"Prismel_next_execution.scene2_ir"Unsupported message
   |None->scene2_commands commands

@@ -22,17 +22,17 @@ let () =
   let scene=Pxui_next.scene ui in
   require(Pxui_next.scene ui==scene)"stable UI did not reuse bounded Scene description";
   let first=Result.get_ok(Scene.Private.to_ir scene)in
-  let hash=Printf.sprintf"%016Lx"(Raster2.Render_ir.hash first)in
+  let hash=Printf.sprintf"%016Lx"(Scene_command.Render_ir.hash first)in
   require(hash="d8db72222365d861")"PXUI-next exact Scene hash drift";
   List.iter(fun checkpoint->let ir=Result.get_ok(Scene.Private.to_ir scene)in
-    require(Raster2.Render_ir.serialize ir=Raster2.Render_ir.serialize first)(Printf.sprintf"frame %d drift"checkpoint))
+    require(Scene_command.Render_ir.serialize ir=Scene_command.Render_ir.serialize first)(Printf.sprintf"frame %d drift"checkpoint))
     [1;2;60;600];
-  require(Array.length(Raster2.Render_ir.commands first)>12)"representative layout commands";
+  require(Array.length(Scene_command.Render_ir.commands first)>12)"representative layout commands";
   let changed=Pxui_next.set_toggle_value ui"enabled"false in
   let changed_scene=Pxui_next.scene changed in
   require(changed_scene!=scene)"functional widget update reused stale Scene";
   let changed_ir=Result.get_ok(Scene.Private.to_ir changed_scene)in
-  require(Raster2.Render_ir.serialize changed_ir<>Raster2.Render_ir.serialize first)
+  require(Scene_command.Render_ir.serialize changed_ir<>Scene_command.Render_ir.serialize first)
     "functional widget update did not change exact Scene";
   Pxui_next.add_label ui~text:"compatibility mutation";
   let mutated_scene=Pxui_next.scene ui in
