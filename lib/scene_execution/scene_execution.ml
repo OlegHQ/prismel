@@ -81,10 +81,11 @@ let create_with_pipeline driver configuration ?(before_device_destroy=fun()->Ok(
   create_common driver configuration before_device_destroy[Scene2][Ogpu.Pipeline.Replace]one_sample
     (Some(fun device _family _blend _samples->make device))
 let cache_byte_capacity=256*1024*1024
+let mesh_cache_entry_capacity=256
 let trim_cache cache =
   let rec loop entries bytes keep evict = function
     | [] -> List.rev keep, List.rev evict
-    | item :: rest when entries < 64 && bytes <= cache_byte_capacity - item.bytes ->
+    | item :: rest when entries < mesh_cache_entry_capacity && bytes <= cache_byte_capacity - item.bytes ->
         loop (entries + 1) (bytes + item.bytes) (item :: keep) evict rest
     | item :: rest -> loop entries bytes keep (item :: evict) rest
   in
@@ -106,7 +107,7 @@ let prepare value ~defer ~trusted_key ~reserved ~uniforms ~nonindexed (mesh:mesh
     else let expanded=Bytes.create(mesh.index_count*vertex_stride)in for index=0 to mesh.index_count-1 do let source=index_at index in Bytes.blit mesh.vertices(source*vertex_stride)expanded(index*vertex_stride)vertex_stride done;expanded,Bytes.empty,mesh.index_count,0 in
   let total=Bytes.length vertices+Bytes.length indices+Bytes.length uniform_bytes in
   if mesh.key=""||vertex_count<=0||(not nonindexed&&index_count<=0)||total=0||not valid_uniforms then error"Scene_execution.prepare"Ogpu.Error.Invalid_argument"mesh payload or transform uniforms are malformed"else
-  let at_capacity=List.length value.cache>=64 in
+  let at_capacity=List.length value.cache>=mesh_cache_entry_capacity in
   match List.find_opt(fun(x:cached)->x.bytes=total&&not(List.exists((==)x)reserved)&&(x.key=key||at_capacity))value.cache with
   |Some item->
     let packed=Bytes.concat Bytes.empty[vertices;indices;uniform_bytes]in
