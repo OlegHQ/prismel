@@ -22,7 +22,10 @@ module Workspace = struct
 end
 
 let execute ?depth ?workspace ~lookup ~target ir =
-  let commands = Render_ir.commands ir in
+  (* Execution is synchronous and never retains a command or nested payload.
+     Borrow the validated immutable storage instead of defensively cloning the
+     complete geometry graph on every frame. *)
+  let commands = Render_ir.Private.commands_readonly ir in
   let resources = Hashtbl.create 16 and failure = ref None in
   let fail error = if !failure = None then failure := Some error in
   Array.iter

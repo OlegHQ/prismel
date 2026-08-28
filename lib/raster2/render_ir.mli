@@ -15,8 +15,9 @@ val create : command array -> (t,error) result
 val commands : t -> command array
 val batches : t -> batch array
 module Private : sig
-  (** Borrowed validated command storage for audited consumers. The array and
-      every nested payload must be treated as read-only. *)
+  (** Borrowed validated command storage for synchronous audited consumers.
+      The returned array and every nested payload must be treated as read-only
+      and must not escape the dynamic extent of the consuming operation. *)
   val commands_readonly : t -> command array
   (* Validates and takes ownership of a freshly allocated command graph. The
      caller must retain no mutable aliases to arrays nested in [input]. *)
