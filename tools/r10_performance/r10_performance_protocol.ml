@@ -185,7 +185,7 @@ let normalize ~protocol ~case ~sample_index raw =
     "raw", raw ]
 
 let required_scenarios = ["basic"; "pxui"; "canvas"; "scene3"]
-let required_targets = ["runtime-next-native"; "headless"; "web"; "legacy"]
+let required_targets = ["runtime-next-native"; "runtime-next-native-hidden"; "headless"; "web"; "legacy"]
 
 let require_equivalent_work samples scenario =
   let matching = List.filter (fun sample -> member "scenario" sample = `String scenario) samples in
@@ -359,7 +359,7 @@ let enforce_performance ~profile ~width ~height samples baselines scenario =
         let _, candidate_median, candidate_p95 =
           summary target label section median_field p95_field in
         let baseline_median, baseline_p95 =
-          if target = "runtime-next-native" then
+          if target = "runtime-next-native" || target = "runtime-next-native-hidden" then
             let _, median, p95 = summary "legacy" label section median_field p95_field in
             median, p95
           else artifact target label in

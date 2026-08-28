@@ -225,7 +225,8 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
     "cache_entries",`Int after.cache_entries;"cache_hits_inferred",`Int 0;"cache_misses_observed",`Int 0;"workload_signature",`String descriptor.semantic_signature;
     "work_units",`Int descriptor.work_units;"semantics_supported",`Bool true;"scheduling",`String(match sample_seconds with Some _->"duration-bounded"|None->"frame-count");
     "scheduled_frame_rate",`Null;
-    "framebuffer_digest",`String(Digest.to_hex(Digest.bytes framebuffer));"pixel_authority",`String("phase0/runtime-next-native/"^protocol_scenario_name selected);"pixel_tolerance",`Int 3;
+    "framebuffer_digest",`String(Digest.to_hex(Digest.bytes framebuffer));
+    "pixel_authority",`String("phase0/runtime-next-native"^(match visibility with Visible->""|Hidden->"-hidden")^"/"^protocol_scenario_name selected);"pixel_tolerance",`Int 3;
     "native_gpu_counters",native_gpu_counters ~supported:after.gpu_timing_supported ~duration:(after.gpu_duration_seconds-.before.gpu_duration_seconds) ~samples:(Int64.sub after.gpu_sample_count before.gpu_sample_count) ~wall:total;
     "retained_render_plans",retained_plan_counters before after;
     "machine",`Assoc["arch",`String(Sys.getenv_opt"HOSTTYPE"|>Option.value~default:"arm64");"ocaml",`String Sys.ocaml_version]]in

@@ -44,7 +44,8 @@ let prepare_legacy_linkage executable =
 let () =
   let kind = ref "" and executable = ref "" and scenario = ref ""
   and target = ref "native" and profile = ref "release" and width = ref 64
-  and height = ref 64 and warmup = ref 3. and seconds = ref 30. in
+  and height = ref 64 and warmup = ref 3. and seconds = ref 30.
+  and visibility = ref "visible" in
   Arg.parse [
     "--kind", Arg.Symbol (["native-next"; "legacy"], fun x -> kind := x), "adapter kind";
     "--executable", Arg.Set_string executable, "existing benchmark executable";
@@ -54,13 +55,15 @@ let () =
     "--width", Arg.Set_int width, "logical width";
     "--height", Arg.Set_int height, "logical height";
     "--warmup", Arg.Set_float warmup, "warmup seconds";
-    "--seconds", Arg.Set_float seconds, "measurement seconds" ]
+    "--seconds", Arg.Set_float seconds, "measurement seconds";
+    "--visibility", Arg.Symbol (["visible"; "hidden"], fun value -> visibility := value),
+      "native-next window visibility" ]
     (fun value -> fail ("unexpected argument " ^ value)) "R10 existing benchmark adapter";
   if !executable = "" || !scenario = "" || !warmup <= 0. || !seconds <= 0.
      || !width <= 0 || !height <= 0 then fail "invalid or missing arguments";
   let argv = match !kind with
     | "native-next" ->
-        [| !executable; !scenario; "--visibility"; "visible"; "--warmup-seconds"; string_of_float !warmup;
+        [| !executable; !scenario; "--visibility"; !visibility; "--warmup-seconds"; string_of_float !warmup;
            "--sample-seconds"; string_of_float !seconds;
            "--width";string_of_int!width;"--height";string_of_int!height |]
     | "legacy" ->
