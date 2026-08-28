@@ -339,13 +339,13 @@ let publish_frame server ~drawable_width ~drawable_height
     invalid_arg "Wap.publish_frame: RGBA buffer length does not match dimensions";
   let source_length = Bigarray.Array1.dim pixels in
   with_mutex server.publish_mutex (fun () ->
-    let previous =
+    let previous,has_clients =
       with_mutex server.mutex (fun () ->
         server.stats.frames_submitted <- server.stats.frames_submitted + 1;
         server.stats.source_bytes_submitted <-
           Int64.add server.stats.source_bytes_submitted
             (Int64.of_int source_length);
-        match server.latest with
+        let previous=match server.latest with
         | Some previous
           when previous.drawable_width = drawable_width
                && previous.drawable_height = drawable_height
@@ -353,7 +353,8 @@ let publish_frame server ~drawable_width ~drawable_height
                && previous.logical_height = logical_height ->
             previous.references <- previous.references + 1;
             Some previous
-        | _ -> None)
+        | _ -> None in
+        previous,server.clients<>[])
     in
     let difference =
       Option.map (fun previous ->
@@ -367,7 +368,7 @@ let publish_frame server ~drawable_width ~drawable_height
           recycle_frame_buffer_locked server pixels;
           Option.iter (release_frame_locked server) previous)
     | None | Some (Some _) ->
-        let should_compress = compression_enabled server source_length in
+        let should_compress = has_clients&&compression_enabled server source_length in
         let encoded =
           if should_compress then Frame_codec.encode_qoi pixels else None
         in
@@ -376,8 +377,8 @@ let publish_frame server ~drawable_width ~drawable_height
           Option.fold ~none:(Raw pixels) ~some:(fun value -> Qoi value) encoded
         in
         let patch =
-          match previous, difference with
-          | Some previous, Some (Some (x, y, width, height, patch_pixels)) ->
+          match has_clients,previous,difference with
+          | true,Some previous, Some (Some (x, y, width, height, patch_pixels)) ->
               if width = drawable_width && height = drawable_height then None
               else
                 let patch_payload =
