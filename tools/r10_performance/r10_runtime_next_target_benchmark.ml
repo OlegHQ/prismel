@@ -100,6 +100,12 @@ let () =
          else fun () -> Runtime_next_web.render runtime work),
         (fun () -> Runtime_next_web.read_pixels runtime ~bytes_per_row:(!width * 4)),
         (fun () -> Runtime_next_web.destroy runtime) in
+  let sampled_peak_rss=ref None and next_rss_sample=ref 0. in
+  let sample_rss now=if now >= !next_rss_sample then begin
+    let current=rss_kib()in
+    sampled_peak_rss:=Some(Option.fold~none:current~some:(max current)!sampled_peak_rss);
+    next_rss_sample:=now+.1.
+  end in
   let run_for duration collect =
     let now = monotonic_seconds in
     let smoke = collect && duration <= 0.1 in
@@ -121,12 +127,14 @@ let () =
     while continue () do
       ignore (ok (render ()));
       let completed = now () in
+      if collect then sample_rss completed;
       if collect then append (completed -. !previous) else incr count;
       previous:=completed
     done;
     (if collect then Array.sub !values 0 !count else [||]), now () -. epoch, !count in
   let _,warmup_wall,warmup_frames=run_for !warmup false in Gc.full_major ();
   let rss0 = rss_kib () in
+  sampled_peak_rss:=Some rss0;next_rss_sample:=monotonic_seconds()+.1.;
   let gc0 = Gc.quick_stat () and allocated0 = Gc.allocated_bytes ()
   and cpu0 = Unix.times () in
   let frames,wall,_ = run_for !seconds true in
@@ -134,6 +142,7 @@ let () =
   let allocated = Gc.allocated_bytes () -. allocated0
   and promoted = (gc1.promoted_words -. gc0.promoted_words) *. float (Sys.word_size / 8) in
   let rss1 = rss_kib () in
+  let peak_rss=Option.fold~none:rss1~some:(max rss1)!sampled_peak_rss in
   (* Duration-bounded runs intentionally stop on whichever animation phase is
      current.  Render one fixed phase after every measured metric has been
      sampled so pixel evidence is comparable without hiding timing work. *)
@@ -159,7 +168,7 @@ let () =
     "allocated_bytes_per_frame", `Float (allocated /. float count);
     "promoted_bytes_per_frame", `Float (promoted /. float count);
     "rss_before_kib", `Int rss0; "rss_after_kib", `Int rss1;
-    "rss_delta_kib", `Int (rss1 - rss0); "peak_sampled_rss_kib", `Int (max rss0 rss1);
+    "rss_delta_kib", `Int (rss1 - rss0); "peak_sampled_rss_kib", `Int peak_rss;
     "workload_signature", `String artifact.workload_signature;
     "semantics_supported", `Bool true;
     "pixel_authority", `String(Printf.sprintf"phase0/%s/%s"

@@ -171,12 +171,14 @@ let create_renderer counters visibility width height =
 let run_public selected warmup_seconds samples sample_seconds visibility width height =
   let public=match selected with Basic->R10_scene2_legacy_equivalent.Basic|Pxui->Pxui|Canvas->Canvas|Scene3->Scene3|Shattered->assert false in
   let descriptor=R10_scene2_legacy_equivalent.describe public~width~height in
-  let render,capture,stats,destroy=match selected with
+  let render,capture,stats,set_visibility,observed_visibility,destroy=match selected with
   |Basic|Pxui|Canvas->
       let candidate=Result.get_ok(R10_scene2_candidate.create~target:`Native~width~height public)in
       (fun()->R10_scene2_candidate.render candidate~width~height;Ok true),
       (fun()->Ok(R10_scene2_candidate.capture candidate)),
       (fun()->Ok(R10_scene2_candidate.stats candidate)),
+      (fun visible->if visible then Prismel_next_execution.show candidate.execution else Prismel_next_execution.hide candidate.execution),
+      (fun()->Prismel_next_execution.visible candidate.execution),
       (fun()->Ok(R10_scene2_candidate.destroy candidate))
   |Scene3->
       let configuration={Prismel_next_execution.default_configuration with target=Native;
@@ -189,30 +191,43 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
       (fun()->Result.map(fun _->true)(Prismel_next_execution.step execution draws)),
       (fun()->Prismel_next_execution.capture execution),
       (fun()->Prismel_next_execution.stats execution),
+      (fun visible->if visible then Prismel_next_execution.show execution else Prismel_next_execution.hide execution),
+      (fun()->Prismel_next_execution.visible execution),
       (fun()->Prismel_next_execution.destroy execution)
   |Shattered->assert false in
+  let requested_visible=visibility=Visible in
+  ignore(Result.get_ok(set_visibility requested_visible));
+  let observed_visible=Result.get_ok(observed_visibility())in
+  if observed_visible<>requested_visible then failwith"R10 native observed visibility mismatch";
+  let rss_peak=ref(rss_kib())and next_rss_sample=ref(Sdl3.Time.monotonic_seconds()+.1.)in
+  let sample_rss now=if now >= !next_rss_sample then(
+    rss_peak:=max !rss_peak(rss_kib());next_rss_sample:=now+.1.)in
   let run_for duration collect =
     let started=Sdl3.Time.monotonic_seconds()in
     let rec loop count values =
       let now=Sdl3.Time.monotonic_seconds()in
       if count>0&&now-.started>=duration then Array.of_list(List.rev values),now-.started
       else let frame_started=now in ignore(Result.get_ok(render()));
-        let elapsed=Sdl3.Time.monotonic_seconds()-.frame_started in
+        let completed=Sdl3.Time.monotonic_seconds()in if collect then sample_rss completed;
+        let elapsed=completed-.frame_started in
         loop(count+1)(if collect then elapsed::values else values)
     in loop 0 [] in
   ignore(run_for warmup_seconds false);
+  let rss_before=rss_kib()in rss_peak:=rss_before;
+  next_rss_sample:=Sdl3.Time.monotonic_seconds()+.1.;
   let before=Result.get_ok(stats())in Gc.full_major();let gc0=Gc.quick_stat()and allocated0=Gc.allocated_bytes()and cpu0=Unix.times()in
   let walls,total=match sample_seconds with
   |None->let values=Array.init samples(fun _->let started=Sdl3.Time.monotonic_seconds()in ignore(Result.get_ok(render()));Sdl3.Time.monotonic_seconds()-.started)in values,Array.fold_left(+.)0. values
   |Some duration->run_for duration true in
   let measured=Array.length walls in
   let after=Result.get_ok(stats())and gc1=Gc.quick_stat()and cpu1=Unix.times()and allocated=Gc.allocated_bytes()-.allocated0 in
-  let framebuffer=Result.get_ok(capture())and rss=rss_kib()in ignore(Result.get_ok(destroy()));
+  let framebuffer=Result.get_ok(capture())and rss=rss_kib()in rss_peak:=max!rss_peak rss;ignore(Result.get_ok(destroy()));
   let cpu=cpu1.tms_utime+.cpu1.tms_stime-.cpu0.tms_utime-.cpu0.tms_stime in
   let promoted=(gc1.promoted_words-.gc0.promoted_words)*.float(Sys.word_size/8)in
   let delta x y=Int64.to_int(Int64.sub x y)in
   let json=`Assoc["schema",`Int 1;"scenario",`String(scenario_name selected);"backend",`String"real-m1-runtime-next-metal";"profile",`String"release";
-    "visibility",`String(match visibility with Visible->"visible"|Hidden->"hidden");"protocol_r11_requested",`Bool(sample_seconds=Some 30.);
+    "visibility",`String(match visibility with Visible->"visible"|Hidden->"hidden");
+    "observed_visible",`Bool observed_visible;"protocol_r11_requested",`Bool(sample_seconds=Some 30.);
     "width",`Int width;"height",`Int height;
     "window",`Assoc["pixel_density",`Float 1.;"display_scale",`Float 1.;"drawable_width",`Int width;"drawable_height",`Int height;"refresh_hz",`Null;"power_state",`Null;"thermal_state",`Null];
     "warmup_seconds",`Float warmup_seconds;"sample_frames",`Int measured;"pieces",`Int descriptor.work_units;"triangles",`Int descriptor.work_units;"acceptance_cook",`Null;
@@ -220,6 +235,8 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
     "median_ms",`Float(1000.*.percentile 0.5 walls);"p95_ms",`Float(1000.*.percentile 0.95 walls);"p99_ms",`Float(1000.*.percentile 0.99 walls);
     "fps",`Float(float measured/.total);"cpu_percent",`Float(100.*.cpu/.total);"allocated_bytes",`Float allocated;"promoted_bytes",`Float promoted;
     "allocated_bytes_per_frame",`Float(allocated/.float measured);"promoted_bytes_per_frame",`Float(promoted/.float measured);"rss_kib",`Int rss;
+    "rss_before_kib",`Int rss_before;"rss_after_kib",`Int rss;
+    "peak_sampled_rss_kib",`Int !rss_peak;
     "prepared_upload_bytes",`String(Int64.to_string before.uploaded_bytes);"measurement_upload_bytes",`String(Int64.to_string(Int64.sub after.uploaded_bytes before.uploaded_bytes));
     "draws",`Int(delta after.logical_draws before.logical_draws);"passes",`Int(delta after.logical_passes before.logical_passes);"backend_calls",`Int(delta after.logical_submissions before.logical_submissions);
     "cache_entries",`Int after.cache_entries;"cache_hits_inferred",`Int 0;"cache_misses_observed",`Int 0;"workload_signature",`String descriptor.semantic_signature;

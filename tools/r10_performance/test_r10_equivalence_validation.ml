@@ -29,6 +29,9 @@ let sample ?(wall=1.) ?(frames=100) ?(scheduling="duration-bounded") ~target ~sc
         ; "pixel_authority", `String ("phase0/" ^ target ^ "/" ^ scenario)
         ; "pixel_tolerance", `Int (if target = "legacy" then 0 else 3)
         ]
+    ; "raw",`Assoc["peak_sampled_rss_kib",`Int 1024;
+        "observed_visible",(if target="runtime-next-native"then`Bool true
+          else if target="runtime-next-native-hidden"then`Bool false else`Null)]
     ]
 
 let baseline target scenario =

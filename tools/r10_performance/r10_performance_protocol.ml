@@ -469,6 +469,16 @@ let validate_report report =
         fail "%s/%s does not report duration-bounded scheduling"target scenario;
       let frames=sample|>member "work"|>member "frame_count"|>to_int
       and wall=timing|>member "wall_seconds"|>to_float in
+      let raw=member"raw"sample in
+      (match target,member"observed_visible"raw with
+      |"runtime-next-native",`Bool true->()
+      |"runtime-next-native-hidden",`Bool false->()
+      |("runtime-next-native"|"runtime-next-native-hidden"),_->
+          fail"%s/%s lacks matching observed native visibility"target scenario
+      |_->());
+      (match numeric_int(member_opt"peak_sampled_rss_kib"raw)with
+      |Some value when value>0->()
+      |_->fail"%s/%s lacks positive periodically sampled peak RSS"target scenario);
       if frames <= 0 then fail "%s/%s emitted no measured frames" target scenario;
       if smoke then begin
         List.iter (fun field -> ignore (required_number ~target ~scenario "timing" field sample))
