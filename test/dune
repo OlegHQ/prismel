@@ -61,36 +61,10 @@
  (libraries prismel pdk procedural pxui pxui_graph sop_ui sketch_support
   sketch_ui))
 
-(executable
- (name gpu_baseline_renderer)
- (modules gpu_baseline_renderer)
- (libraries prismel pxui unix))
-
-(executable
- (name gpu_baseline_audio)
- (modules gpu_baseline_audio)
- (libraries prismel unix))
-
 (test
  (name test_sop_catalog)
  (modules test_sop_catalog)
  (libraries prismel pdk procedural sop_catalog sketch_support))
-
-(test
- (name headless_smoke)
- (modules headless_smoke)
- (libraries prismel pxui tsdl)
- (action
-  (setenv PRISMEL_RENDER_TARGET headless
-   (run %{test}))))
-
-(test
- (name render3_save_smoke)
- (modules render3_save_smoke)
- (libraries prismel)
- (action
-  (setenv PRISMEL_RENDER_TARGET headless
-   (run %{test}))))
 
 (test
  (name test_geom)

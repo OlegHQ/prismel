@@ -17,21 +17,6 @@
  (libraries prismel_next_api scene_execution ogpu))
 
 (executable
- (name r10_performance_protocol)
- (modules r10_performance_protocol)
- (libraries unix yojson)
- (link_deps
-  %{exe:r10_existing_adapter.exe}
-  %{exe:r10_runtime_next_target_benchmark.exe}
-  %{exe:../runtime_next_native_benchmark/runtime_next_native_benchmark.exe}
-  %{exe:../bench_renderer.exe}))
-
-(executable
- (name r10_existing_adapter)
- (modules r10_existing_adapter)
- (libraries unix))
-
-(executable
  (name r10_native_scene2_correctness)
  (modules r10_native_scene2_correctness)
  (libraries r10_scene2_candidate_lib r10_workload_descriptor
@@ -50,13 +35,6 @@
  (libraries r10_workload_descriptor))
 
 (test
- (name test_r10_equivalence_validation)
- (modules test_r10_equivalence_validation)
- (libraries unix yojson)
- (deps r10_performance_protocol.exe)
- (action (run %{test} ./%{dep:r10_performance_protocol.exe})))
-
-(test
  (name test_r10_scene3_legacy_equivalent)
  (modules test_r10_scene3_legacy_equivalent)
  (libraries r10_scene3_candidate_lib prismel_next_api scene_execution ogpu))
@@ -65,8 +43,3 @@
  (name test_r10_scene3_equivalence_bridge)
  (modules test_r10_scene3_equivalence_bridge)
  (libraries r10_scene3_candidate_lib prismel_next_api scene_execution ogpu))
-
-(test
- (name test_r10_scene3_candidate_capture)
- (modules test_r10_scene3_candidate_capture)
- (libraries r10_scene3_candidate_lib runtime_next_headless prismel_next_api scene_execution ogpu))

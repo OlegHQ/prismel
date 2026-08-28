@@ -26,10 +26,6 @@
  (libraries prismel prismel.geom unix))
 
 (executable
- (name bench_renderer)
- (libraries prismel pxui r10_workload_descriptor unix tsdl))
-
-(executable
  (name bench_sdl3)
  (libraries prismel.sdl3 prismel.sdl3_mixer unix yojson))
 
@@ -93,10 +89,6 @@
 (executable
  (name bench_iso_stream)
  (libraries prismel prismel.geom unix))
-
-(executable
- (name bench_scene2d)
- (libraries prismel unix))
 
 (executable
  (name bench_pxui)

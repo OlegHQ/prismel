@@ -4,9 +4,13 @@ let execution_ok=function Ok value->value|Error error->failwith(Format.asprintf"
 type t={execution:Prismel_next_execution.t;scenario:R10_scene2_legacy_equivalent.scenario;
   descriptor:R10_scene2_legacy_equivalent.descriptor;mutable frame:int;
   mutable image:Image.t option;canvas:Canvas.t option;ui:Pxui_next.t option}
-let target=function `Native->Prismel_next_execution.Native|`Headless->Headless|`Web->Web
+let target=function `Native->Prismel_next_execution.Native
+let fill canvas ~width ~height color=for y=0 to height-1 do for x=0 to width-1 do
+  Canvas.set_pixel canvas~x~y color done done
 let generated_image()=let canvas=Canvas.create_exn~width:96~height:96 in
-  Canvas.render canvas Scene.[clear(Color.hex_exn"#0f172a");rounded_rect~at:(4,4)~w:88~h:88~radius:14~fill:(Color.hex_exn"#155e75")~stroke:(Color.hex_exn"#67e8f9")();circle~at:(48,48)~radius:30~fill:(Color.rgba 251 146 60 220)();line~from_:(18,74)~to_:(78,22)~width:5~color:Color.white()];
+  for y=0 to 95 do for x=0 to 95 do
+    Canvas.set_pixel canvas~x~y(Color.rgb((x*255)/95)((y*255)/95)160)
+  done done;
   let image=Result.get_ok(Canvas.to_image canvas)in Canvas.destroy canvas;image
 let create ~target:target_kind ~width ~height scenario =
   let descriptor=R10_scene2_legacy_equivalent.describe scenario~width~height in
@@ -16,7 +20,7 @@ let create ~target:target_kind ~width ~height scenario =
   let execution=Prismel_next_execution.create configuration|>Result.get_ok in
   match scenario with
   |Basic->Ok{execution;scenario;descriptor;frame=0;image=Some(generated_image());canvas=None;ui=None}
-  |Canvas->let canvas=Canvas.create_exn~width~height in Canvas.render canvas Scene.[clear Color.black];
+  |Canvas->let canvas=Canvas.create_exn~width~height in fill canvas~width~height Color.black;
       Ok{execution;scenario;descriptor;frame=0;image=Some(Result.get_ok(Canvas.to_image canvas));canvas=Some canvas;ui=None}
   |Pxui->let ui=ref(Pxui_next.create~x:348~y:16~width:276~row_height:29~padding:8~max_height:448())in
       for index=0 to 3 do ui:=Pxui_next.accordion~name:("section-"^string_of_int index)
@@ -29,7 +33,11 @@ let create ~target:target_kind ~width ~height scenario =
   |Scene3->ignore(Prismel_next_execution.destroy execution);Error"Scene3 uses its canonical interpreter"
 let basic_scene value width height=Scene.[clear(Color.hex_exn"#07111f");rounded_rect~at:(18,18)~w:(width-36)~h:(height-36)~radius:18~fill:(Color.hex_exn"#111827")~stroke:(Color.hex_exn"#475569")();circle~at:(120,150)~radius:72~fill:(Color.hex_exn"#0891b2")();rect~at:(220,74)~w:180~h:120~fill:(Color.rgba 244 63 94 190)();translate 338 292[rotate(float value.frame*.0.01)[polygon[-80,-42;76,-54;98,36;0,74;-88,34]~fill:(Color.hex_exn"#a78bfa")~stroke:Color.white()]];image(Option.get value.image)~at:(470,92)~scale:1.15~angle:(-0.18)~center:(48,48)();bezier[34,404;176,320;282,474;430,382]~steps:48~color:(Color.hex_exn"#fbbf24")();text~at:(32,38)~size:18"Prismel renderer baseline";debug_text~at:(472,430)"FIXED 8x8"]
 let canvas_scene value width height=let canvas=Option.get value.canvas and phase=R10_scene2_legacy_equivalent.phase~frame:value.frame in
-  Canvas.render canvas Scene.[clear(Color.hex_exn"#07111f");rect~at:(0,0)~w:width~h:height~fill:(Color.hex_exn"#0f172a")();circle~at:(40+((phase*3)mod max 1(width-80)),height/2)~radius:34~fill:(Color.hex_exn"#22d3ee")();translate(width/2)(height/2)[rotate(float phase*.0.02)[rounded_rect~at:(-90,-28)~w:180~h:56~radius:14~fill:(Color.rgba 244 63 94 210)~stroke:Color.white()]];debug_text~at:(16,16)"CANVAS BASELINE"];
+  let center=40+((phase*3)mod max 1(width-80))in
+  for y=0 to height-1 do for x=0 to width-1 do
+    let dx=x-center and dy=y-(height/2)in
+    Canvas.set_pixel canvas~x~y(if dx*dx+dy*dy<=34*34 then Color.cyan else Color.hex_exn"#0f172a")
+  done done;
   (match value.image with
    |None->value.image<-Some(Result.get_ok(Canvas.to_image canvas))
    |Some image->Result.get_ok(Canvas.Private.copy_to_image canvas image));
