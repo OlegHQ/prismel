@@ -10,18 +10,24 @@ let transform_uniforms (draw:Raster2.Scene3_consumer.draw)=
   let matrix values=Mat4.of_rows(values.(0),values.(1),values.(2),values.(3))(values.(4),values.(5),values.(6),values.(7))(values.(8),values.(9),values.(10),values.(11))(values.(12),values.(13),values.(14),values.(15))in
   let normal=match Mat4.inverse(matrix draw.model_matrix)with None->Mat4.identity|Some inverse->Mat4.transpose inverse in
   let normal=Array.init 16(fun index->Mat4.get normal~row:(index/4)~column:(index mod 4))in
-  let values=Array.make 1364 0. in
-  Array.blit draw.matrix 0 values 0 16;Array.blit draw.model_matrix 0 values 16 16;Array.blit normal 0 values 32 16;
-  values.(48)<-draw.camera_position.x;values.(49)<-draw.camera_position.y;values.(50)<-draw.camera_position.z;
-  let color offset(c:Raster2.Scene3_lighting.color)=values.(offset)<-c.r;values.(offset+1)<-c.g;values.(offset+2)<-c.b;values.(offset+3)<-c.a in
-  let lighting=draw.lighting and material=draw.lighting.material in color 52 material.ambient;color 56 material.diffuse;color 60 material.specular;color 64 material.emissive;values.(68)<-material.shininess;color 69 lighting.ambient;values.(73)<-float(Array.length lighting.lights);values.(74)<-(if lighting.two_sided then 1. else 0.);values.(75)<-(if lighting.separate_specular then 1. else 0.);
-  (match lighting.fog with No_fog->()|Linear fog->values.(76)<-1.;color 77 fog.color;values.(81)<-fog.near;values.(82)<-fog.far|Exponential fog->values.(76)<-2.;color 77 fog.color;values.(81)<-fog.density|Exponential_squared fog->values.(76)<-3.;color 77 fog.color;values.(81)<-fog.density);
+  (* Write the fixed-layout block directly.  The old intermediate 1,364-float
+     array was larger than the minor-heap fast path under frame churn and was
+     then copied wholesale into this byte buffer. *)
+  let bytes=Bytes.make 5456 '\000' in
+  let put index value=Bytes.set_int32_le bytes(index*4)(Int32.bits_of_float value)in
+  Array.iteri(fun index value->put index value)draw.matrix;
+  Array.iteri(fun index value->put(16+index)value)draw.model_matrix;
+  Array.iteri(fun index value->put(32+index)value)normal;
+  put 48 draw.camera_position.x;put 49 draw.camera_position.y;put 50 draw.camera_position.z;
+  let color offset(c:Raster2.Scene3_lighting.color)=put offset c.r;put(offset+1)c.g;put(offset+2)c.b;put(offset+3)c.a in
+  let lighting=draw.lighting and material=draw.lighting.material in color 52 material.ambient;color 56 material.diffuse;color 60 material.specular;color 64 material.emissive;put 68 material.shininess;color 69 lighting.ambient;put 73(float(Array.length lighting.lights));put 74(if lighting.two_sided then 1. else 0.);put 75(if lighting.separate_specular then 1. else 0.);
+  (match lighting.fog with No_fog->()|Linear fog->put 76 1.;color 77 fog.color;put 81 fog.near;put 82 fog.far|Exponential fog->put 76 2.;color 77 fog.color;put 81 fog.density|Exponential_squared fog->put 76 3.;color 77 fog.color;put 81 fog.density);
   Array.iteri(fun index light->let offset=84+index*20 in match light with
-    |Raster2.Scene3_lighting.Directional light->values.(offset)<-0.;values.(offset+1)<-light.direction.x;values.(offset+2)<-light.direction.y;values.(offset+3)<-light.direction.z;color(offset+4)light.color;values.(offset+8)<-light.intensity
-    |Point light->values.(offset)<-1.;values.(offset+1)<-light.position.x;values.(offset+2)<-light.position.y;values.(offset+3)<-light.position.z;color(offset+4)light.color;values.(offset+8)<-light.intensity;values.(offset+9)<-light.attenuation.constant;values.(offset+10)<-light.attenuation.linear;values.(offset+11)<-light.attenuation.quadratic
-    |Spot light->values.(offset)<-2.;values.(offset+1)<-light.position.x;values.(offset+2)<-light.position.y;values.(offset+3)<-light.position.z;color(offset+4)light.color;values.(offset+8)<-light.intensity;values.(offset+9)<-light.direction.x;values.(offset+10)<-light.direction.y;values.(offset+11)<-light.direction.z;values.(offset+12)<-light.inner_cos;values.(offset+13)<-light.outer_cos;values.(offset+14)<-light.concentration;values.(offset+15)<-light.attenuation.constant;values.(offset+16)<-light.attenuation.linear;values.(offset+17)<-light.attenuation.quadratic
-    |Area light->values.(offset)<-3.;values.(offset+1)<-light.position.x;values.(offset+2)<-light.position.y;values.(offset+3)<-light.position.z;color(offset+4)light.color;values.(offset+8)<-light.intensity;values.(offset+9)<-light.direction.x;values.(offset+10)<-light.direction.y;values.(offset+11)<-light.direction.z;values.(offset+12)<-light.width;values.(offset+13)<-light.height;values.(offset+14)<-float light.samples;values.(offset+15)<-light.attenuation.constant;values.(offset+16)<-light.attenuation.linear;values.(offset+17)<-light.attenuation.quadratic)lighting.lights;
-  let bytes=Bytes.create 5456 in Array.iteri(fun index value->Bytes.set_int32_le bytes(index*4)(Int32.bits_of_float value))values;bytes
+    |Raster2.Scene3_lighting.Directional light->put offset 0.;put(offset+1)light.direction.x;put(offset+2)light.direction.y;put(offset+3)light.direction.z;color(offset+4)light.color;put(offset+8)light.intensity
+    |Point light->put offset 1.;put(offset+1)light.position.x;put(offset+2)light.position.y;put(offset+3)light.position.z;color(offset+4)light.color;put(offset+8)light.intensity;put(offset+9)light.attenuation.constant;put(offset+10)light.attenuation.linear;put(offset+11)light.attenuation.quadratic
+    |Spot light->put offset 2.;put(offset+1)light.position.x;put(offset+2)light.position.y;put(offset+3)light.position.z;color(offset+4)light.color;put(offset+8)light.intensity;put(offset+9)light.direction.x;put(offset+10)light.direction.y;put(offset+11)light.direction.z;put(offset+12)light.inner_cos;put(offset+13)light.outer_cos;put(offset+14)light.concentration;put(offset+15)light.attenuation.constant;put(offset+16)light.attenuation.linear;put(offset+17)light.attenuation.quadratic
+    |Area light->put offset 3.;put(offset+1)light.position.x;put(offset+2)light.position.y;put(offset+3)light.position.z;color(offset+4)light.color;put(offset+8)light.intensity;put(offset+9)light.direction.x;put(offset+10)light.direction.y;put(offset+11)light.direction.z;put(offset+12)light.width;put(offset+13)light.height;put(offset+14)(float light.samples);put(offset+15)light.attenuation.constant;put(offset+16)light.attenuation.linear;put(offset+17)light.attenuation.quadratic)lighting.lights;
+  bytes
 let index_bytes values=let out=Bytes.create(Array.length values*4)in Array.iteri(fun i x->Bytes.set_int32_le out(i*4)(Int32.of_int x))values;out
 let vertex3_bytes values=let stride=68 and out=Bytes.create(Array.length values*68)in let put o x=Bytes.set_int64_le out o(Int64.bits_of_float x)in Array.iteri(fun i(v:Raster2.Scene3_consumer.vertex)->let o=i*stride in put o v.position.x;put(o+8)v.position.y;put(o+16)v.position.z;put(o+24)v.normal.x;put(o+32)v.normal.y;put(o+40)v.normal.z;Bytes.set_int32_le out(o+48)v.color;put(o+52)v.u;put(o+60)v.v)values;out
 let geometry_key(v:Raster2.Render_ir.geometry)=Digest.to_hex(Digest.string(Marshal.to_string(v.vertices,v.indices,v.color)[]))
@@ -59,7 +65,8 @@ let native_triangles(draw:Raster2.Scene3_consumer.draw)=
   |Triangle_fan->Array.init(max 0(Array.length source-2))(fun i->source.(0),source.(i+1),source.(i+2))
   |Point_list|Line_list|Line_strip|Line_loop->[||]in
   match draw.mode,draw.topology with
-  |Raster2.Scene3_consumer.Faces,(Raster2.Scene3.Triangle_list|Triangle_strip|Triangle_fan)->
+  |Raster2.Scene3_consumer.Faces,Raster2.Scene3.Triangle_list->draw
+  |Raster2.Scene3_consumer.Faces,(Raster2.Scene3.Triangle_strip|Triangle_fan)->
     let indices = Array.make (Array.length triangles * 3) 0 in
     Array.iteri
       (fun i (a, b, c) ->
