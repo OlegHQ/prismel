@@ -34,7 +34,7 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
               let packed=Int32.logor(Int32.shift_left(Int32.of_int(Char.code(Bytes.get bytes o)))24)(Int32.logor(Int32.shift_left(Int32.of_int(Char.code(Bytes.get bytes(o+1))))16)(Int32.logor(Int32.shift_left(Int32.of_int(Char.code(Bytes.get bytes(o+2))))8)(Int32.of_int(Char.code(Bytes.get bytes(o+3))))))in
               Prismel_next_resources.Canvas.set_pixel canvas~x~y packed|>Result.get_ok done done;
             Prismel_next_resources.Canvas.save_png canvas filename
-            |>Result.map_error(fun error->Format.asprintf"%a"Prismel_next_resources.pp_error error))in
+            |>Result.map_error(fun error->Format.asprintf"%a"Prismel_next_resources.pp_error error)))in
   Canvas_runtime.install~capture~save;
   resize_current:=Some(fun~width~height->
     get(Prismel_next_execution.resize coordinator~logical_width:width
@@ -43,7 +43,7 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
   let latest=ref None and last_scene=ref None in Scene.Private.install_renderer(fun scene->last_scene:=Some scene;let staged=Result.get_ok(Scene.Private.stage_native~width:!logical_width~height:!logical_height scene)in let scene2=get(Prismel_next_execution.lower_scene2 coordinator~density:1~resource:(fun id->List.assoc_opt id staged.resources)staged.scene2)in let scene3=List.concat_map(fun prepared->Array.to_list prepared.Scene_execution.entries|>List.map(fun(entry:Scene_execution.scene3_entry)->Prismel_next_execution.prepared_draw~family:(match entry.family with Scene3->Scene3|Scene3_textured->Scene3_textured|Scene3_shadow->Scene3_shadow|Scene3_stencil->Scene3_stencil|Scene3_textured_stencil->Scene3_textured_stencil|Scene3_shadow_stencil->Scene3_shadow_stencil|Scene2->Scene2|Scene2_textured->Scene2_textured)~blend:(match entry.blend with Replace->Replace|Alpha->Alpha|Add->Add|Multiply->Multiply|Screen->Screen|Subtract->Subtract)?texture:entry.texture?auxiliary:entry.auxiliary~samples:entry.samples entry.draw))staged.scene3 in latest:=Some(scene2@scene3));
   let cleanup()=Fun.protect~finally:(fun()->resize_current:=None;Canvas_runtime.clear();Option.iter Scene.Private.release !last_scene;ignore(Prismel_next_execution.destroy coordinator);Runtime_diagnostics.Private.record coordinator)(fun()->on_stop!model)in
   Fun.protect~finally:cleanup(fun()->
-    let limit=match max_frames with Some value->Some value|None when is_headless()||is_web()->Some 1|None->None in let count=ref 0 in while not !stopped&&Option.fold~none:true~some:(fun limit-> !count<limit)limit do
+    let limit=max_frames in let count=ref 0 in while not !stopped&&Option.fold~none:true~some:(fun limit-> !count<limit)limit do
       Time.update();let events=Event.poll_events()in incr count;let dt=match config.clock with Realtime->Time.get_delta_time()|Fixed value->value in
       let base=frame config !count(match config.clock with Realtime->Time.now()|Fixed _->float !count*.dt)dt events in
       let facts={base with width= !logical_width;height= !logical_height;size=(!logical_width,!logical_height);drawable_width= !logical_width;drawable_height= !logical_height;drawable_size=(!logical_width,!logical_height)}in

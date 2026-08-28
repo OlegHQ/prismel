@@ -1449,11 +1449,10 @@ module Camera_control = struct
   let ui_visible control = control.ui_visible
 
   let save ?(background = Prismel.Color.black) request ~frame ~camera scene =
-    Prismel.Render3.save_png
-      ~width:(frame.Prismel.Frame.width * request.factor)
-      ~height:(frame.height * request.factor)
-      ~background ~camera:(Prismel.Easy_camera.camera camera)
-      scene request.filename
+    ignore (background, frame, camera, scene);
+    if request.factor <> 1 then
+      Error "native framebuffer export supports render factor 1 only"
+    else Prismel.Canvas.save_screen_png request.filename
 end
 
 module Camera2_control = struct
@@ -1607,9 +1606,10 @@ module Camera2_control = struct
   let ui_visible control = control.ui_visible
 
   let save ?(background = Prismel.Color.black) request ~frame ~camera scene =
-    Prismel.Render2.save_png ~logical_width:frame.Prismel.Frame.width
-      ~logical_height:frame.height ~factor:request.factor ~background ~camera
-      scene request.filename
+    ignore (background, frame, camera, scene);
+    if request.factor <> 1 then
+      Error "native framebuffer export supports render factor 1 only"
+    else Prismel.Canvas.save_screen_png request.filename
 end
 
 let hex_of_string text =
