@@ -1,1 +1,0 @@
-include Scene_command.Render_ir

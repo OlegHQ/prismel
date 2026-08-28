@@ -37,4 +37,12 @@ let () =
   let shadow_stage=Result.get_ok(Scene.Private.stage_native~width:16~height:16[Scene.view3d~camera shadowed])in
   let shadow_entry=(List.hd shadow_stage.scene3).entries.(0)in
   (match shadow_entry.family,shadow_entry.auxiliary with Scene_execution.Scene3_shadow,Some value when Bytes.length value.buffer=84->()|_->failwith"native shadow staging");
+  let strip=Mesh.create_exn~mode:Mesh.Triangle_strip~indices:[0;1;2;3]
+    ~normals:[Vec3.unit_z;Vec3.unit_z;Vec3.unit_z;Vec3.unit_z]
+    [Vec3.zero;Vec3.unit_x;Vec3.unit_y;Vec3.create 1. 1. 0.]in
+  let strip_scene=Scene3.create[Scene3.mesh strip]in
+  let strip_prepared=Result.get_ok(Scene3_native_lowering.prepare~resources~camera~viewport:(0,0,16,16)strip_scene)in
+  let encoded=strip_prepared.entries.(0).draw.mesh.indices in
+  let actual=Array.init 6(fun index->Int32.to_int(Bytes.get_int32_le encoded(index*4)))in
+  if actual<>[|0;1;2;2;1;3|]then failwith"native triangle strip winding";
   print_endline"native Scene3 lowering: geometry, uniforms, View3d, texture mips, shadow"
