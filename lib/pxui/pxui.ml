@@ -112,6 +112,7 @@ type t = {
   mutable active : active option;
   mutable numeric_edit : numeric_edit option;
   mutable last_label_press : (int * (int * int) * float) option;
+  mutable scene_cache : (t * Prismel.Scene.t) option;
 }
 
 let create ?(x = 12) ?(y = 12) ?(width = 280) ?(row_height = 32)
@@ -149,6 +150,7 @@ let create ?(x = 12) ?(y = 12) ?(width = 280) ?(row_height = 32)
     active = None;
     numeric_edit = None;
     last_label_press = None;
+    scene_cache = None;
   }
 
 let append canvas widget =
@@ -604,7 +606,7 @@ let widget_scene (canvas : t) layout widget =
           ~fill:theme.accent ~stroke:theme.foreground ();
       ]
 
-let scene (canvas : t) =
+let scene_uncached (canvas : t) =
   let displayed = displayed_widgets canvas in
   let height = panel_height canvas in
   let open Prismel in
@@ -671,6 +673,25 @@ let scene (canvas : t) =
       ]
   in
   panel @ content @ scrollbar
+
+let same_scene_state (left:t) (right:t) =
+  left.x=right.x&&left.y=right.y&&left.width=right.width&&
+  left.row_height=right.row_height&&left.padding=right.padding&&
+  left.theme=right.theme&&left.font==right.font&&left.font_size=right.font_size&&
+  left.frame_max_height=right.frame_max_height&&left.max_height=right.max_height&&
+  left.scroll_y=right.scroll_y&&left.widgets==right.widgets&&
+  left.focus=right.focus&&left.composition=right.composition&&
+  left.hover=right.hover&&left.active=right.active&&left.numeric_edit=right.numeric_edit
+
+let scene (canvas:t) = match canvas.scene_cache with
+  |Some(snapshot,scene)when same_scene_state snapshot canvas->scene
+  |_->
+      let scene=scene_uncached canvas in
+      (* Query memoization is already part of [t] through [ordered_cache].
+         Retain exactly one immutable render-state snapshot and its pure Scene;
+         physical widget-list identity makes functional and compatibility
+         updates invalidate without polymorphic comparison or callbacks. *)
+      canvas.scene_cache<-Some({canvas with scene_cache=None},scene);scene
 
 let draw canvas = Prismel.Scene.render (scene canvas)
 
