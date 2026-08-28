@@ -58,6 +58,7 @@ type model = {
   frame_times : float array;
   frame_count : int;
   result : result option;
+  canonical_frames_remaining : int;
   drawable_width : int;
   drawable_height : int;
   pixel_scale_x : float;
@@ -248,8 +249,8 @@ let destroy_resources = function
       Canvas.destroy resources.canvas
   | Scene3_resources _ -> ()
 
-let update_canvas resources frame =
-  let phase = frame.Frame.count mod 240 in
+let update_canvas_phase resources phase =
+  let phase = phase mod 240 in
   Canvas.render resources.canvas Scene.[
     clear (Color.hex_exn "#07111f");
     rect ~at:(0, 0) ~w:width ~h:height ~fill:(Color.hex_exn "#0f172a") ();
@@ -267,6 +268,9 @@ let update_canvas resources frame =
   Image.destroy resources.image;
   resources.image <- next
 
+let update_canvas resources frame =
+  update_canvas_phase resources frame.Frame.count
+
 let init frame =
   let now = monotonic_seconds () in
   {
@@ -283,13 +287,18 @@ let init frame =
     frame_times = Array.make 16_384 0.;
     frame_count = 0;
     result = None;
+    canonical_frames_remaining = 0;
     drawable_width = frame.Frame.drawable_width;
     drawable_height = frame.drawable_height;
     pixel_scale_x = fst frame.pixel_scale;
     pixel_scale_y = snd frame.pixel_scale;
   }
 
-let finish model now =
+let prepare_canonical_frame = function
+  | Canvas_resources resources -> update_canvas_phase resources 0
+  | Basic_resources _ | Pxui_resources _ | Scene3_resources _ -> ()
+
+let finish_measurement model now =
   let started_gc = Option.get model.started_gc
   and started_times = Option.get model.started_times in
   let ending_gc = gc_snapshot () and ending_times = Unix.times () in
@@ -315,14 +324,27 @@ let finish model now =
     median_frame_seconds = percentile model.frame_times model.frame_count 0.5;
     p95_frame_seconds = percentile model.frame_times model.frame_count 0.95;
     p99_frame_seconds = percentile model.frame_times model.frame_count 0.99;
-    framebuffer_hash = framebuffer_hash ();
+    framebuffer_hash = "";
   } in
-  Sketch.quit ();
-  { model with result = Some result }
+  (* Measurement ends before preparing or rendering the canonical evidence
+     state.  Render it repeatedly outside the measured interval so every SDL
+     swap-chain buffer contains the same frame before readback. *)
+  prepare_canonical_frame model.resources;
+  { model with measuring = false; result = Some result;
+    canonical_frames_remaining = 4 }
 
 let update model (frame : Frame.t) =
   let now = monotonic_seconds () in
-  if not model.measuring && now -. model.launched_at >= warmup_seconds then begin
+  if model.result <> None && model.canonical_frames_remaining > 0 then
+    { model with
+      canonical_frames_remaining = model.canonical_frames_remaining - 1 }
+  else if model.result <> None then begin
+    let result = Option.get model.result in
+    let result = { result with framebuffer_hash = framebuffer_hash () } in
+    Sketch.quit ();
+    { model with result = Some result }
+  end
+  else if not model.measuring && now -. model.launched_at >= warmup_seconds then begin
     Gc.full_major ();
     let rss = resident_kib () in
     {
@@ -338,7 +360,7 @@ let update model (frame : Frame.t) =
       frame_count = 0;
     }
   end else if model.measuring && now -. model.started_at >= measure_seconds then
-    finish model now
+    finish_measurement model now
   else begin
     (match model.resources with
      | Canvas_resources resources -> update_canvas resources frame
@@ -359,14 +381,14 @@ let update model (frame : Frame.t) =
     end
   end
 
-let basic_scene texture frame = Scene.[
+let basic_scene texture phase = Scene.[
   clear (Color.hex_exn "#07111f");
   rounded_rect ~at:(18, 18) ~w:(width - 36) ~h:(height - 36) ~radius:18
     ~fill:(Color.hex_exn "#111827") ~stroke:(Color.hex_exn "#475569") ();
   circle ~at:(120, 150) ~radius:72 ~fill:(Color.hex_exn "#0891b2") ();
   rect ~at:(220, 74) ~w:180 ~h:120 ~fill:(Color.rgba 244 63 94 190) ();
   translate 338 292 [
-    rotate (float frame.Frame.count *. 0.01) [
+    rotate (float phase *. 0.01) [
       polygon [-80, -42; 76, -54; 98, 36; 0, 74; -88, 34]
         ~fill:(Color.hex_exn "#a78bfa") ~stroke:Color.white ();
     ];
@@ -379,7 +401,11 @@ let basic_scene texture frame = Scene.[
 ]
 
 let view model frame = match model.resources with
-  | Basic_resources image -> basic_scene image frame
+  | Basic_resources image ->
+      let phase =
+        if model.result <> None then 0 else frame.Frame.count
+      in
+      basic_scene image phase
   | Pxui_resources ui ->
       Scene.[
         clear (Color.hex_exn "#07111f");
