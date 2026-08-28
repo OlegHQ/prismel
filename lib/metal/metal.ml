@@ -1774,6 +1774,11 @@ let make_device raw =
 let attach_finalizer ?(on_finalize = fun () -> ()) value lifetime parent =
   Gc.finalise (fun _ -> finalize_child lifetime parent on_finalize) value
 
+let attach_lifetime_finalizer ?(on_finalize = fun () -> ()) lifetime parent =
+  Gc.finalise
+    (fun lifetime -> finalize_child lifetime parent on_finalize)
+    lifetime
+
 let command_resource_lifetime = function
   | Command_buffer_buffer buffer -> buffer.lifetime
   | Command_buffer_acceleration_structure value -> value.lifetime
@@ -17178,7 +17183,7 @@ module Command_buffer = struct
 
   let wrap_queue_raw (queue:Command_queue.t) raw =
     let value:t={raw;lifetime=lifetime();queue;phase=Recording;resources=ref[];callback_tokens=ref[];presentation_events=ref[];debug_depth=0;explicitly_enqueued=false}in
-    attach queue.lifetime;let resources=value.resources and callback_tokens=value.callback_tokens and presentation_events=value.presentation_events in attach_finalizer~on_finalize:(fun()->release_command_resources resources;release_callback_tokens callback_tokens;List.iter detach !presentation_events;presentation_events:=[])value value.lifetime queue.lifetime;value
+    attach queue.lifetime;let resources=value.resources and callback_tokens=value.callback_tokens and presentation_events=value.presentation_events in attach_lifetime_finalizer~on_finalize:(fun()->release_command_resources resources;release_callback_tokens callback_tokens;List.iter detach !presentation_events;presentation_events:=[])value.lifetime queue.lifetime;value
 
   let create_unretained (queue:Command_queue.t)=let operation="Metal.Command_buffer.create_unretained"in on_main operation(fun()->match ensure_live operation queue.lifetime with Error _ as failure->failure|Ok()->match Metal_raw.command_queue_command_buffer queue.raw 0 false 0L None with Error message->native_error operation message|Ok raw->Ok(wrap_queue_raw queue raw))
   let create_with_descriptor (queue:Command_queue.t)?(retained_references=true)?(error_options=0L)?log_state()=let operation="Metal.Command_buffer.create_with_descriptor"in on_main operation(fun()->match ensure_live operation queue.lifetime with Error _ as failure->failure|Ok()when error_options<0L->error operation Invalid_argument "command-buffer error options are invalid"|Ok()->match log_state with Some(log:command4_log_state)when is_destroyed log.lifetime->error operation Destroyed "log state is destroyed"|Some log when not(same_device queue.device log.device)->error operation Device_mismatch "log state belongs to another device"|_->match Metal_raw.command_queue_command_buffer queue.raw 1 retained_references error_options(Option.map(fun(log:command4_log_state)->log.raw)log_state)with Error message->native_error operation message|Ok raw->let value=wrap_queue_raw queue raw in Option.iter(fun(log:command4_log_state)->attach log.lifetime;value.presentation_events:=log.lifetime::!(value.presentation_events))log_state;Ok value)
@@ -17213,13 +17218,13 @@ module Command_buffer = struct
                    let resources = value.resources
                    and callback_tokens = value.callback_tokens
                    and presentation_events=value.presentation_events in
-                   attach_finalizer
+                   attach_lifetime_finalizer
                      ~on_finalize:(fun () ->
                        release_command_resources resources;
                        release_callback_tokens callback_tokens;
                        List.iter detach !presentation_events;
                        presentation_events:=[])
-                     value value.lifetime queue.lifetime;
+                     value.lifetime queue.lifetime;
                    (match label with
                     | None -> Ok value
                     | Some label ->
@@ -17801,7 +17806,7 @@ module Render_encoder = struct
                      retain_command_buffer_texture command_buffer target;
                      Option.iter (retain_command_buffer_texture command_buffer) depth;
                      Option.iter (retain_command_buffer_texture command_buffer) stencil;
-                     attach_finalizer value value.lifetime command_buffer.lifetime;
+                     attach_lifetime_finalizer value.lifetime command_buffer.lifetime;
                      Ok value)))
 
   let create_from_pass (command_buffer : Command_buffer.t)
@@ -17854,7 +17859,7 @@ module Render_encoder = struct
                                    state.sample_buffer_lifetime ::
                                    !(command_buffer.presentation_events)
                                end)) pass.pass_samples;
-                             attach_finalizer value value.lifetime
+                             attach_lifetime_finalizer value.lifetime
                                command_buffer.lifetime;
                              Ok value))))
 

@@ -34,6 +34,19 @@ let () =
       expect Invalid_state (Command_buffer.encoder_infos command);
       get (Buffer.destroy buffer);
       get (Command_buffer.destroy command);
+      let handles_before_abandon = (get (Release_queue.stats ())).live_handles in
+      let abandon_completed_command () =
+        let command = get (Command_buffer.create queue ()) in
+        get (Command_buffer.commit command);
+        get (Command_buffer.wait_until_completed command)
+      in
+      abandon_completed_command ();
+      Gc.full_major ();
+      Gc.full_major ();
+      ignore (get (Release_queue.drain ()));
+      let handles_after_abandon = (get (Release_queue.stats ())).live_handles in
+      if handles_after_abandon <> handles_before_abandon then
+        failwith "abandoned command buffer retained a native handle";
       get (Command_queue.destroy queue);
       get (Device.destroy device);
       print_endline "command-buffer19 safe: ownership/completion/diagnostics ok"
