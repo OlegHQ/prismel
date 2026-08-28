@@ -16852,12 +16852,12 @@ end
 
 module Retained_render_plan = struct
   type entry={key:string;generation:int64;commands:int;buffer:Indirect_command_buffer.t}
-  type t={device:Device.t;capacity:int;enabled:bool;entries:(string,entry)Hashtbl.t;mutable order:string list;mutable dead:bool}
-  let create ~(device:Device.t) ?(capacity=64) ?(enabled=true) ()=
+  type t={device:Device.t;capacity:int;enabled:bool;on_evict:key:string->generation:int64->Indirect_command_buffer.t->unit;entries:(string,entry)Hashtbl.t;mutable order:string list;mutable dead:bool}
+  let create ~(device:Device.t) ?(capacity=64) ?(enabled=true) ?(on_evict=(fun~key:_~generation:_ buffer->ignore(Indirect_command_buffer.destroy buffer))) ()=
     let operation="Metal.Retained_render_plan.create"in
-    on_main operation(fun()->match ensure_live operation device.lifetime with Error _ as e->e|Ok()when capacity<=0||capacity>1024->error operation Invalid_argument"capacity must be in [1,1024]"|Ok()->Ok{device;capacity;enabled;entries=Hashtbl.create capacity;order=[];dead=false})
+    on_main operation(fun()->match ensure_live operation device.lifetime with Error _ as e->e|Ok()when capacity<=0||capacity>1024->error operation Invalid_argument"capacity must be in [1,1024]"|Ok()->Ok{device;capacity;enabled;on_evict;entries=Hashtbl.create capacity;order=[];dead=false})
   let length value=Hashtbl.length value.entries
-  let remove value key=match Hashtbl.find_opt value.entries key with None->()|Some entry->ignore(Indirect_command_buffer.destroy entry.buffer);Hashtbl.remove value.entries key;value.order<-List.filter((<>)key)value.order
+  let remove value key=match Hashtbl.find_opt value.entries key with None->()|Some entry->Hashtbl.remove value.entries key;value.order<-List.filter((<>)key)value.order;value.on_evict~key:entry.key~generation:entry.generation entry.buffer
   let find_or_create value ~key ~generation ~command_count ~descriptor ~build=
     let operation="Metal.Retained_render_plan.find_or_create"in
     on_main operation(fun()->if value.dead then error operation Destroyed"retained plan cache is destroyed"else match ensure_live operation value.device.lifetime with Error _ as e->e|Ok()when not value.enabled->error operation Unsupported"indirect command plans are unavailable"|Ok()when key=""||generation<0L||command_count<=0||command_count>65_536->error operation Invalid_argument"plan identity/generation/count is invalid"|Ok()->match Hashtbl.find_opt value.entries key with
@@ -16868,7 +16868,7 @@ module Retained_render_plan = struct
           if Hashtbl.length value.entries>=value.capacity then(match value.order with oldest::_->remove value oldest|[]->());
           Hashtbl.add value.entries key{key;generation;commands=command_count;buffer};value.order<-value.order@[key];Ok(buffer,false)))
   let invalidate value key=if value.dead then error"Metal.Retained_render_plan.invalidate"Destroyed"retained plan cache is destroyed"else(remove value key;Ok())
-  let destroy value=if value.dead then Ok()else(Hashtbl.iter(fun _ entry->ignore(Indirect_command_buffer.destroy entry.buffer))value.entries;Hashtbl.clear value.entries;value.order<-[];value.dead<-true;Ok())
+  let destroy value=if value.dead then Ok()else(let entries=Hashtbl.to_seq_values value.entries|>List.of_seq in Hashtbl.clear value.entries;value.order<-[];value.dead<-true;List.iter(fun entry->value.on_evict~key:entry.key~generation:entry.generation entry.buffer)entries;Ok())
 end
 
 module Function_log = struct

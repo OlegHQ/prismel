@@ -72,5 +72,16 @@ let () =
   get (Retained_render_plan.destroy cache);
   assert (Indirect_command_buffer.destroyed third);
   expect Destroyed (Retained_render_plan.invalidate cache "c");
+  let handed=ref[]in
+  let handoff=get(Retained_render_plan.create~device~capacity:1~on_evict:(fun~key~generation buffer->handed:=(key,generation,buffer)::!handed)())in
+  let h1,_=get(Retained_render_plan.find_or_create handoff~key:"h1"~generation:7L~command_count:1~descriptor~build)in
+  expect Invalid_argument(Retained_render_plan.find_or_create handoff~key:"bad"~generation:1L~command_count:1~descriptor~build:(fun buffer->Indirect_command_buffer.reset buffer~location:(-1)~length:1));
+  assert(!handed=[]);
+  let h2,_=get(Retained_render_plan.find_or_create handoff~key:"h2"~generation:8L~command_count:1~descriptor~build)in
+  (match!handed with[(key,generation,buffer)]->assert(key="h1"&&generation=7L&&buffer==h1&&not(Indirect_command_buffer.destroyed h1))|_->assert false);
+  get(Retained_render_plan.invalidate handoff"h2");
+  (match!handed with[(k2,g2,b2);(k1,g1,b1)]->assert(k2="h2"&&g2=8L&&b2==h2&&k1="h1"&&g1=7L&&b1==h1)|_->assert false);
+  get(Retained_render_plan.destroy handoff);get(Retained_render_plan.destroy handoff);
+  assert(List.length!handed=2);get(Indirect_command_buffer.destroy h1);get(Indirect_command_buffer.destroy h2);
   get (Device.destroy device);
   print_endline "metal retained render plan: hit/rebuild/evict/unsupported/atomic/destroy"

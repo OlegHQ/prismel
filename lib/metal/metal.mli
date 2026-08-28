@@ -3353,7 +3353,9 @@ end
 
 module Retained_render_plan : sig
   type t
-  val create : device:Device.t -> ?capacity:int -> ?enabled:bool -> unit -> (t,error) result
+  val create : device:Device.t -> ?capacity:int -> ?enabled:bool ->
+    ?on_evict:(key:string -> generation:int64 -> Indirect_command_buffer.t -> unit) ->
+    unit -> (t,error) result
   val length : t -> int
   val find_or_create : t -> key:string -> generation:int64 -> command_count:int ->
     descriptor:Indirect_command_buffer.descriptor ->
