@@ -409,7 +409,13 @@ let automatic_signature
   (* Submission signatures own affine bytes.  Scene values are immutable by
      contract, but callers may reuse their input buffer after [render] returns;
      retaining it here would turn later mutation into a false cache hit. *)
-  let state={state with transform_uniforms=Option.map Bytes.copy state.transform_uniforms}in
+  (* Transform bytes are buffer contents, not encoded command identity.  Once
+     [prepare_uniform] has selected a reserved native buffer, replaying the
+     command that binds that exact buffer observes its newly uploaded bytes.
+     Different transforms in one submission cannot alias because preparation
+     reserves every selected slot until the complete draw graph is built. *)
+  let state={state with transform_uniforms=match uniform with
+    |Some _->None|None->Option.map Bytes.copy state.transform_uniforms}in
   let texture=Option.map(fun(source,cached)->
     Ogpu.Backend.texture_id cached.texture,source.sampler)texture in
   let auxiliary=Option.map(fun((source:auxiliary_resource),buffer,texture)->
@@ -423,6 +429,13 @@ let automatic_signature
    signature_vertex_count=item.vertex_count;signature_index_count=item.index_count}
 let same_automatic signature
     (family,blend,samples,state,texture,auxiliary,item,uniform) =
+  let same_state left right =
+    left.viewport=right.viewport&&left.scissor=right.scissor&&
+    left.cull=right.cull&&left.depth_compare=right.depth_compare&&
+    left.depth_write=right.depth_write&&left.depth_load=right.depth_load&&
+    left.depth_clear=right.depth_clear&&left.stencil_state=right.stencil_state&&
+    left.stencil_load=right.stencil_load&&left.stencil_clear=right.stencil_clear&&
+    (match uniform with Some _->true|None->left.transform_uniforms=right.transform_uniforms)in
   let same_texture=match signature.signature_texture,texture with
     |None,None->true
     |Some(id,sampler),Some(source,cached)->
@@ -437,7 +450,7 @@ let same_automatic signature
         sampler=source.texture.sampler
     |_->false in
   signature.signature_family=family&&signature.signature_blend=blend&&
-  signature.signature_samples=samples&&signature.signature_state=state&&
+  signature.signature_samples=samples&&same_state signature.signature_state state&&
   same_texture&&same_auxiliary&&
   signature.signature_buffer=Ogpu.Backend.buffer_id item.buffer&&
   signature.signature_index_offset=item.index_offset&&
