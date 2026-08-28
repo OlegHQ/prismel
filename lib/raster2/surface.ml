@@ -47,16 +47,25 @@ let clear t color =
   and g = Char.chr (channel color 16)
   and b = Char.chr (channel color 8)
   and a = Char.chr (channel color 0) in
-  for y = 0 to t.height - 1 do
-    let row = y * t.pitch in
-    for x = 0 to t.width - 1 do
-      let i = row + (x * 4) in
-      Bytes.set t.bytes i r;
-      Bytes.set t.bytes (i + 1) g;
-      Bytes.set t.bytes (i + 2) b;
-      Bytes.set t.bytes (i + 3) a
-    done
-  done
+  let row_bytes=t.width*4 in
+  if row_bytes>0&&t.height>0 then begin
+    Bytes.set t.bytes 0 r;Bytes.set t.bytes 1 g;
+    Bytes.set t.bytes 2 b;Bytes.set t.bytes 3 a;
+    let filled=ref 4 in
+    while!filled<row_bytes do
+      let count=min!filled(row_bytes- !filled)in
+      Bytes.blit t.bytes 0 t.bytes!filled count;filled:= !filled+count
+    done;
+    if t.pitch=row_bytes then begin
+      let filled_rows=ref 1 in
+      while!filled_rows<t.height do
+        let count=min!filled_rows(t.height- !filled_rows)in
+        Bytes.blit t.bytes 0 t.bytes(!filled_rows*row_bytes)(count*row_bytes);
+        filled_rows:= !filled_rows+count
+      done
+    end else
+      for y=1 to t.height-1 do Bytes.blit t.bytes 0 t.bytes(y*t.pitch)row_bytes done
+  end
 
 let get_rgba t ~x ~y =
   match offset t ~x ~y with
