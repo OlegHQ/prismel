@@ -7,6 +7,9 @@ let ()=
   let d1=Ogpu.Handle.create_device()and d2=Ogpu.Handle.create_device()in expect Ogpu.Error.Invalid_argument(Ogpu.Submission.create ~max_frames:0 d1);expect Ogpu.Error.Invalid_argument(Ogpu.Submission.create ~max_frames:4 d1);
   let q=ok(Ogpu.Submission.create d1)and foreign=Ogpu.Handle.create ~device:d2 in expect Ogpu.Error.Cross_device(Ogpu.Submission.submit q(ended())~resources:[foreign]);
   let resource=Ogpu.Handle.create ~device:d1 and command=ended()in let first=ok(Ogpu.Submission.submit q command ~resources:[resource])in expect Ogpu.Error.Invalid_state(Ogpu.Submission.submit q command ~resources:[]);
+  first.commands.(0)<-Ogpu.Command.Present;
+  let _,retained=(Ogpu.Submission.pending_descriptions q).(0)in
+  if retained.(0)=Ogpu.Command.Present then fail"public receipt mutated pending storage";
   ignore(ok(Ogpu.Submission.submit q(ended())~resources:[]));expect Ogpu.Error.Capacity(Ogpu.Submission.submit q(ended())~resources:[]);
   Ogpu.Handle.destroy resource;if Ogpu.Submission.retained_resource_count q<>1 then fail"submitted resource released early";ignore(ok(Ogpu.Submission.complete_through q first.id));if Ogpu.Submission.retained_resource_count q<>0 then fail"completion did not release resource";
   expect Ogpu.Error.Invalid_argument(Ogpu.Submission.complete_through q 0L);Ogpu.Submission.drain q;if Ogpu.Submission.in_flight q<>0 then fail"drain left submissions";Ogpu.Submission.lose_device q;expect Ogpu.Error.Device_lost(Ogpu.Submission.submit q(ended())~resources:[]);

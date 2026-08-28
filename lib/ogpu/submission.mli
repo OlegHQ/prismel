@@ -9,3 +9,7 @@ val in_flight : t -> int
 val retained_resource_count : t -> int
 val completed_epoch : t -> int64
 val pending_descriptions : t -> (int64 * Command.description array) array
+module Private : sig
+  val submit_epoch : t -> Command.t -> resources:'a Handle.t list ->
+    (int64,Error.t) result
+end
