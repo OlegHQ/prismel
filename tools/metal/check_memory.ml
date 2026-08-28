@@ -87,14 +87,70 @@ let contains ~needle value =
   in
   needle_length = 0 || search 0
 
-let has_nonzero_leak_summary output =
+let leak_summary output =
   String.split_on_char '\n' output
-  |> List.exists (fun line ->
-    contains ~needle:" total leaked bytes" line
-    && not (contains ~needle:" 0 total leaked bytes" line))
+  |> List.find_map (fun line ->
+    try Some (Scanf.sscanf (String.trim line)
+      "Process %s %d leaks for %d total leaked bytes." (fun _ leaks bytes -> leaks,bytes))
+    with Scanf.Scan_failure _ | End_of_file -> None)
+
+let starts_with prefix value =
+  String.length value >= String.length prefix
+  && String.sub value 0 (String.length prefix) = prefix
+
+let displayed_bytes line =
+  let left=String.index_opt line '('and right=String.index_opt line ')'in
+  match left,right with None,_|_,None->None|Some left,Some right when right<=left->None
+  |Some left,Some right->
+  let value=String.sub line(left+1)(right-left-1)|>String.trim in
+  try
+    if value.[String.length value-1]='K'then
+      Some(int_of_float(float_of_string(String.sub value 0(String.length value-1))*.1024.))
+    else Scanf.sscanf value"%d bytes"(fun bytes->Some bytes)
+  with Failure _|Scanf.Scan_failure _|End_of_file->None
+
+type root_classification={name:string;kind:string;instances:int;displayed_bytes:int}
+let classify_roots output =
+  let pending=ref None and after_separator=ref false and roots=ref[]in
+  String.split_on_char '\n' output|>List.iter(fun line->
+    let trimmed=String.trim line in
+    if starts_with"STACK OF "trimmed&&contains~needle:"ROOT LEAK: <"trimmed then
+      (try Scanf.sscanf trimmed"STACK OF %d INSTANCES OF 'ROOT LEAK: <%[^>]>':"
+        (fun count name->pending:=Some(count,name))with Scanf.Scan_failure _|End_of_file->
+       try Scanf.sscanf trimmed"STACK OF %d INSTANCE OF 'ROOT LEAK: <%[^>]>':"
+        (fun count name->pending:=Some(count,name))with Scanf.Scan_failure _|End_of_file->pending:=Some(0,"<unparsed>"))
+    else if trimmed="===="&&Option.is_some!pending then after_separator:=true
+    else if!after_separator&&trimmed<>""then begin
+      after_separator:=false;
+      match !pending with
+      |Some(instances,name)->
+          let kind=if starts_with"AGX"name||starts_with"dispatch_"name then"system/framework"
+            else if contains~needle:"caml_"name then"ocaml/runtime"else"unknown"in
+          roots:={name;kind;instances;displayed_bytes=Option.value(displayed_bytes trimmed)~default:(-1)}::!roots;
+          pending:=None
+      |None->()
+    end);
+  List.rev!roots
+
+let format_roots roots =
+  roots|>List.map(fun root->Printf.sprintf"%s [%s]: %d roots, displayed %d bytes"
+    root.name root.kind root.instances root.displayed_bytes)|>String.concat"\n"
 
 let reject_output mode test result =
-  let output = String.lowercase_ascii (result.stdout ^ "\n" ^ result.stderr) in
+  let raw_output=result.stdout ^ "\n" ^ result.stderr in
+  let output = String.lowercase_ascii raw_output in
+  (match mode with
+  |Leaks->(match leak_summary raw_output with
+      |None->fail "%s has no parseable Leaks summary"test.label
+      |Some(0,0)->()
+      |Some(leaks,bytes)->
+          let roots=classify_roots raw_output in
+          if roots=[]||List.exists(fun root->root.kind="unknown"||root.displayed_bytes<0)roots then
+            fail "%s reports %d leaks/%d bytes with unknown or unclassified roots:\n%s\n%s%s"
+              test.label leaks bytes(format_roots roots)result.stdout result.stderr;
+          fail "%s reports %d leaks/%d bytes:\n%s\n%s%s"test.label leaks bytes
+            (format_roots roots)result.stdout result.stderr)
+  |_->());
   let markers =
     match mode with
     | Address -> [ "error: addresssanitizer"; "addresssanitizer: check failed" ]
@@ -107,8 +163,6 @@ let reject_output mode test result =
   | Some marker ->
       fail "%s output contains %S:\n%s%s" test.label marker result.stdout
         result.stderr
-  | None when mode = Leaks && has_nonzero_leak_summary output ->
-      fail "%s reports leaked bytes:\n%s%s" test.label result.stdout result.stderr
   | None -> ()
 
 let existing_executable artifacts relative =
@@ -189,12 +243,13 @@ let run_test mode test =
     run ~environment:(environment_with replacements base_removals) program
       arguments
   in
+  if mode=Leaks then reject_output mode test result;
   (match result.status with
    | Unix.WEXITED 0 -> ()
    | status ->
        fail "%s failed with %s:\n%s%s" test.label (status_string status)
          result.stdout result.stderr);
-  reject_output mode test result;
+  if mode<>Leaks then reject_output mode test result;
   Printf.printf "%s: passed\n%!" test.label
 
 let parse_mode = function
