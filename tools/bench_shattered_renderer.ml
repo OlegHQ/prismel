@@ -255,7 +255,7 @@ let init frame =
       ~camera:(Easy_camera.create ~target:Vec3.zero ~distance:6.8
         ~azimuth:0.72 ~elevation:0.42 ())
       ~seed:7349L ~grain ~domains ~max_entries:24
-      ~max_payload_bytes:(256 * 1024 * 1024) ~headless_frames:max_int
+      ~max_payload_bytes:(256 * 1024 * 1024)
       ~factories:Sop_catalog.Editor.factories ~graph:(graph ()) ~prepare
       ~scene3 ~overlay () |> result_exn in
   let now = Unix.gettimeofday () in
@@ -358,10 +358,7 @@ let update model frame =
         next_rss_sample_at }
   | Some _ -> model
 
-let target_name () = match Sketch.render_target () with
-  | Sketch.Native -> "native"
-  | Headless -> "headless"
-  | Web -> "web"
+let target_name () = "native"
 
 let option_int_json = Option.fold ~none:"null" ~some:string_of_int
 

@@ -1,5 +1,3 @@
-open Yojson.Safe
-
 let replace name value = function
   | `Assoc fields -> `Assoc ((name, value) :: List.remove_assoc name fields)
   | _ -> failwith "object"

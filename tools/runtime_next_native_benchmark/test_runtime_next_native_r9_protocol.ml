@@ -1,5 +1,3 @@
-open Yojson.Safe
-
 let fail format = Printf.ksprintf failwith format
 
 let replace name value = function

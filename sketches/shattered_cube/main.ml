@@ -30,6 +30,9 @@ let r11_delegate graph =
     if (artifact.pieces,artifact.triangles,artifact.render_vertices)<>
        (18_278,278_368,835_104) then
       failwith"shattered_cube R11 artifact cardinality drift";
+    if Bytes.length artifact.vertices <> artifact.render_vertices * 68
+       || Bytes.length artifact.indices <> artifact.triangles * 12 then
+      failwith "shattered_cube R11 packed artifact cardinality drift";
     let cooked_pieces,cooked_triangles,cooked_vertices,cooked_render_hash,cooked_mesh =
       Parallel.run ~domains:1 (fun () ->
         let node=graph() in

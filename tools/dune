@@ -68,10 +68,6 @@
  (name bench_shattered_renderer)
  (libraries prismel pdk procedural sop_catalog sketch_support sketch_ui unix))
 
-(test
- (name compare_floor)
- (libraries prismel unix))
-
 (executable
  (name bench_iso_stream)
  (libraries prismel prismel.geom unix))
