@@ -4,6 +4,8 @@ type target=Native|Headless|Web
 type scenario=Basic|Pxui|Canvas|Scene3|All
 let target=ref Headless and scenario=ref All and minutes=ref 30.
 and frames=ref None and sample_every=ref 10. and report=ref None
+let runtime_resource_limit=512 and cache_entry_limit=2048
+and release_queue_pending_limit=256
 let target_name=function Native->"native"|Headless->"headless"|Web->"web"
 let scenario_name=function Basic->"basic"|Pxui->"pxui"|Canvas->"canvas"|Scene3->"scene3"|All->"all"
 let rss_kib()=
@@ -168,7 +170,11 @@ let ()=
     "deterministic_hash",`String(Printf.sprintf"%016Lx"final.rolling);
     "sample_capacity",`Int 256;"sample_every_seconds",`Float!sample_every;
     "sample_observations",`Int final.observations;"samples",`List retained;
-    "rss_limit_percent",`Float 5.;"created_resources",`Int final.created;
+    "rss_limit_percent",`Float 5.;
+    "runtime_resource_limit",`Int runtime_resource_limit;
+    "cache_entry_limit",`Int cache_entry_limit;
+    "release_queue_pending_limit",`Int release_queue_pending_limit;
+    "created_resources",`Int final.created;
     "destroyed_resources",`Int final.destroyed;"peak_live_resources",`Int final.peak_live;
     "live_resources_after_teardown",`Int(final.created-final.destroyed);
     "window_live_after_teardown",`Bool runtime.active;

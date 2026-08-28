@@ -17,6 +17,12 @@ created-handle delta to equal the released-handle delta.
 It also proves that retained samples are the final fixed-ring window (rather
 than an earlier flat interval), enforces the frozen 10-second sampling period,
 checks live-resource/sample facts, and rejects policy or canonical-hash drift.
+Every retained observation also enforces explicit fixed bounds: at most 512
+runtime resources, 2,048 cache entries, and (on native) 256 pending deferred
+Metal releases. These are schema-checked policy constants, so weakening or
+omitting a bound invalidates both smoke and qualification reports. Teardown
+zeroes remain independently required; a bounded plateau cannot hide a leak at
+shutdown.
 
 Run the three release lanes separately:
 

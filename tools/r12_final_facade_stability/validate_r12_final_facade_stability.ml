@@ -21,6 +21,11 @@ let validate path=match Yojson.Safe.from_file path with
   let period=float"sample_every_seconds"fields in if period<=0. then failwith"invalid sample period";
   if not!allow_smoke&&period<>10. then failwith"qualification sample period must be 10 seconds";
   if float"rss_limit_percent"fields<>5. then failwith"RSS policy drift";
+  let runtime_resource_limit=int"runtime_resource_limit"fields
+  and cache_entry_limit=int"cache_entry_limit"fields
+  and release_queue_pending_limit=int"release_queue_pending_limit"fields in
+  if runtime_resource_limit<>512||cache_entry_limit<>2048||
+     release_queue_pending_limit<>256 then failwith"bounded-counter policy drift";
   let observations=int"sample_observations"fields in
   let samples=match field"samples"fields with `List xs->xs|_->failwith"samples not list"in
   if List.length samples<>min observations capacity then failwith"sample retained/observation count mismatch";
@@ -29,9 +34,17 @@ let validate path=match Yojson.Safe.from_file path with
   let parsed=List.map(function `Assoc fs->
     let frame=int"frame"fs and elapsed=float"elapsed_seconds"fs
     and rss=float"rss_kib"fs and heap=int"heap_words"fs
-    and resources=int"resource_count"fs in
+    and resources=int"resource_count"fs
+    and runtime_resources=int"runtime_resource_count"fs
+    and cache_entries=int"cache_entries"fs in
     if frame<=0||elapsed<0.||elapsed>duration+.period||rss<=0.||heap<0
-       ||resources<0||resources>created then failwith"invalid sample facts";
+       ||resources<0||resources>created||runtime_resources<0||
+       runtime_resources>runtime_resource_limit||cache_entries<0||
+       cache_entries>cache_entry_limit then failwith"invalid sample facts";
+    (match field"release_queue_pending"fs,target with
+     |`Null,("headless"|"web")->()
+     |`Int pending,"native" when pending>=0&&pending<=release_queue_pending_limit->()
+     |_->failwith"invalid sampled release-queue bound");
     frame,elapsed,rss|_->failwith"sample is not object")samples in
   let rec ordered=function []|[_]->true|(f0,t0,_)::((f1,t1,_)::_ as rest)->f1>f0&&t1>t0&&ordered rest in
   if not(ordered parsed)then failwith"samples not strictly ordered";

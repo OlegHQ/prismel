@@ -1,7 +1,8 @@
-let sample index=`Assoc["frame",`Int(index*100+1);"elapsed_seconds",`Float(float(index*10));"rss_kib",`Int 1000;"heap_words",`Int 1;"resource_count",`Int 2]
+let sample ?(runtime_resources=3) ?(cache_entries=4) ?(pending=0) target index=`Assoc["frame",`Int(index*100+1);"elapsed_seconds",`Float(float(index*10));"rss_kib",`Int 1000;"heap_words",`Int 1;"resource_count",`Int 2;"runtime_resource_count",`Int runtime_resources;"cache_entries",`Int cache_entries;"release_queue_pending",(if target="native"then`Int pending else`Null)]
 let report ?(scenario="all")?(checkpoints=[1;2;60;600])?(created=2)?(destroyed=2)
-    ?(ordered=true)?(period=10.)?(rss_limit=5.)?(stale=false)?(metal_balanced=true) target=
-  let samples=List.init 181 sample in
+    ?(ordered=true)?(period=10.)?(rss_limit=5.)?(stale=false)?(metal_balanced=true)
+    ?(runtime_resources=3)?(cache_entries=4)?(pending=0) target=
+  let samples=List.init 181(sample~runtime_resources~cache_entries~pending target)in
   let samples=if stale then List.map(function `Assoc fields->`Assoc(List.map(function
     |"elapsed_seconds",`Float value->"elapsed_seconds",`Float(value-.100.)|field->field)fields)|x->x)samples else samples in
   let samples=if ordered then samples else List.rev samples in
@@ -9,7 +10,9 @@ let report ?(scenario="all")?(checkpoints=[1;2;60;600])?(created=2)?(destroyed=2
   `Assoc["schema",`Int 1;"qualification",`String"R12-final-facade";"target",`String target;"scenario",`String scenario;
     "duration_seconds",`Float 1800.;"frames",`Int 10000;"checkpoints",`List(List.map(fun frame->`List[`Int frame;`String"0123456789abcdef"])checkpoints);
     "deterministic_hash",`String"fedcba9876543210";"sample_capacity",`Int 256;"sample_every_seconds",`Float period;
-    "sample_observations",`Int 181;"samples",`List samples;"rss_limit_percent",`Float rss_limit;"created_resources",`Int created;
+    "sample_observations",`Int 181;"samples",`List samples;"rss_limit_percent",`Float rss_limit;
+    "runtime_resource_limit",`Int 512;"cache_entry_limit",`Int 2048;
+    "release_queue_pending_limit",`Int 256;"created_resources",`Int created;
     "destroyed_resources",`Int destroyed;"live_resources_after_teardown",`Int 0;"window_live_after_teardown",`Bool false;
     "cache_entries_after_teardown",`Int 0;"runtime_resources_after_teardown",`Int 0;
     "release_queue_pending_after_teardown",(if native then`Int 0 else`Null);
@@ -36,6 +39,9 @@ let ()=let validator=Sys.argv.(1)and directory=Filename.get_temp_dir_name()in
   run validator[write directory"r12-stale-ring.json"(report~stale:true"native")]false;
   run validator[write directory"r12-period-drift.json"(report~period:9."native")]false;
   run validator[write directory"r12-policy-drift.json"(report~rss_limit:6."native")]false;
+  run validator[write directory"r12-runtime-overflow.json"(report~runtime_resources:513"native")]false;
+  run validator[write directory"r12-cache-overflow.json"(report~cache_entries:2049"native")]false;
+  run validator[write directory"r12-pending-overflow.json"(report~pending:257"native")]false;
   run validator[write directory"r12-metal-leak.json"(report~metal_balanced:false"native")]false;
   run validator["--complete-set";native;headless;headless]false;
   List.iter(fun path->try Sys.remove path with Sys_error _->())[native;headless;web];
