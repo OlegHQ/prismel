@@ -7,7 +7,12 @@ let mesh frame =
   let shift=float(frame mod 17)/.128. and color=Int32.logor 0x000000FFl(Int32.shift_left(Int32.of_int(frame land 255))24)in
   List.iteri(fun index(x,y)->let offset=index*16 in Bytes.set_int32_le vertices offset(Int32.bits_of_float(x+.shift));Bytes.set_int32_le vertices(offset+4)(Int32.bits_of_float y);Bytes.set_int32_le vertices(offset+8)color)[-1.,1.;1.,1.;-1.,-1.];
   {Scene_execution.key=Printf.sprintf"churn-%02d"(frame mod 80);vertices;vertex_count=3;indices;index_count=3}
-let draw frame width height=let inset=frame mod 3 in{Scene_execution.mesh=mesh frame;state={viewport=(0,0,width,height);scissor=(inset,inset,width-inset,height-inset)}}
+let draw frame width height=let inset=frame mod 3 in
+  {Scene_execution.mesh=mesh frame;state={viewport=(0,0,width,height);
+    scissor=(inset,inset,width-inset,height-inset);cull=Ogpu.Render_pass.Cull_none;
+    depth_compare=Ogpu.Render_pass.Always;depth_write=false;
+    depth_load=Ogpu.Render_pass.Load;depth_clear=1.;transform_uniforms=None;
+    stencil_state=None;stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}}
 let () =
   let minutes=ref 30. and report=ref None and changing_payload=ref true and resizing=ref true and capturing=ref true in
   Arg.parse["--minutes",Arg.Set_float minutes,"duration";"--report",Arg.String(fun value->report:=Some value),"JSON report";"--stable-payload",Arg.Clear changing_payload,"reuse one mesh payload";"--no-resize",Arg.Clear resizing,"disable resize churn";"--no-capture",Arg.Clear capturing,"disable readback churn"](fun value->raise(Arg.Bad value))"runtime_next_native_stability";

@@ -73,7 +73,7 @@ let scene3_hash () =
 
 let resource_fixture () =
   let canvas = Canvas.create_exn ~width:4 ~height:4 in
-  Canvas.clear canvas Color.black;
+  Canvas.map_pixels canvas (fun ~x:_ ~y:_ _ -> Color.black);
   Canvas.set_pixel canvas ~x:1 ~y:1 Color.red;
   let image = Canvas.to_image canvas |> Result.get_ok in
   let identity = Image.Private.identity image and generation = Image.Private.generation image in

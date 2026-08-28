@@ -71,7 +71,11 @@ let mesh ~key triangles =
 let state index =
   let inset = index land 1 in
   { Scene_execution.viewport = (0, 0, 64, 64);
-    scissor = (inset, inset, 64 - inset, 64 - inset) }
+    scissor = (inset, inset, 64 - inset, 64 - inset);
+    cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;
+    depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;
+    transform_uniforms=None;stencil_state=None;stencil_load=Ogpu.Render_pass.Load;
+    stencil_clear=0 }
 
 let draws = function
   | Basic -> [ { Scene_execution.mesh = mesh ~key:"basic" 128; state = state 0 } ]

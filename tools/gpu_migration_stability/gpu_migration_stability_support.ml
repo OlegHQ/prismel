@@ -69,7 +69,11 @@ let run config =
     get (Raster2.Offscreen.render view ~lookup:(fun _ -> None) (ir !frame));
     let capture = get (Raster2.Offscreen.capture view) in
     get (Raster2.Offscreen.release_view view);
-    let state : Scene_execution.state = { viewport = (0, 0, !width, !height); scissor = (0, 0, !width, !height) } in
+    let state : Scene_execution.state = { viewport = (0, 0, !width, !height);
+      scissor = (0, 0, !width, !height); cull=Ogpu.Render_pass.Cull_none;
+      depth_compare=Ogpu.Render_pass.Always;depth_write=false;
+      depth_load=Ogpu.Render_pass.Load;depth_clear=1.;transform_uniforms=None;
+      stencil_state=None;stencil_load=Ogpu.Render_pass.Load;stencil_clear=0 } in
     ignore (get (Scene_execution.render scene [ { mesh = mesh !frame; state } ]));
     get (Runtime_wap_raster2_presenter.Wap_raster2_presenter.present presenter
       { rgba = capture.pixels; pitch = capture.pitch; logical_width = !width;
