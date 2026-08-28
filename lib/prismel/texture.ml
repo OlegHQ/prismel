@@ -1,5 +1,3 @@
-open Tsdl
-
 type level = {
   width : int;
   height : int;
@@ -54,47 +52,17 @@ let require_main_domain () =
 
 let load filename =
   require_main_domain ();
-  match Tsdl_image.Image.load filename with
-  | Error (`Msg message) -> Error ("Texture load failed: " ^ message)
-  | Ok source ->
-      Fun.protect ~finally:(fun () -> Sdl.free_surface source) (fun () ->
-        match
-          Sdl.convert_surface_format source Sdl_compat.format_rgba32
-        with
-        | Error (`Msg message) ->
-            Error ("Texture format conversion failed: " ^ message)
-        | Ok surface ->
-            Fun.protect ~finally:(fun () -> Sdl.free_surface surface) (fun () ->
-              let width, height = Sdl.get_surface_size surface in
-              match Sdl.lock_surface surface with
-              | Error (`Msg message) ->
-                  Error ("Texture pixel lock failed: " ^ message)
-              | Ok () ->
-                  Fun.protect
-                    ~finally:(fun () -> Sdl.unlock_surface surface)
-                    (fun () ->
-                      match
-                        Sdl.alloc_format Sdl_compat.format_rgba32
-                      with
-                      | Error (`Msg message) ->
-                          Error ("Texture pixel format failed: " ^ message)
-                      | Ok format ->
-                          Fun.protect
-                            ~finally:(fun () -> Sdl.free_format format)
-                            (fun () ->
-                              let values =
-                                Sdl.get_surface_pixels surface Bigarray.int32
-                              and stride = Sdl.get_surface_pitch surface / 4 in
-                              let pixels =
-                                Array.init (width * height) (fun index ->
-                                  let x = index mod width
-                                  and y = index / width in
-                                  let r, g, b, a =
-                                    Sdl.get_rgba format values.{(y * stride) + x}
-                                  in
-                                  Color.rgba r g b a)
-                              in
-                              Ok { width; height; pixels; mipmaps = [||] }))))
+  match Prismel_next_resources.Image.load_file filename with
+  | Error error -> Error ("Texture load failed: " ^ Format.asprintf "%a" Prismel_next_resources.pp_error error)
+  | Ok image ->
+      Fun.protect ~finally:(fun()->ignore(Prismel_next_resources.Image.destroy image))(fun()->
+        match Prismel_next_resources.Image.size image,Prismel_next_resources.Image.pixels image with
+        |Ok(width,height),Ok bytes->
+            let pixels=Array.init(width*height)(fun index->let offset=index*4 in
+              Color.rgba(Char.code(Bytes.get bytes offset))(Char.code(Bytes.get bytes(offset+1)))
+                (Char.code(Bytes.get bytes(offset+2)))(Char.code(Bytes.get bytes(offset+3))))in
+            Ok{width;height;pixels;mipmaps=[||]}
+        |Error error,_|_,Error error->Error("Texture load failed: "^Format.asprintf"%a"Prismel_next_resources.pp_error error))
 
 let load_exn filename =
   match load filename with

@@ -1,9 +1,4 @@
-(* Time and Animation Management Module *)
-
-open Tsdl
-
-(* Internal state *)
-let start_time = ref None
+let origin = ref (Unix.gettimeofday ())
 let last_frame_time = ref 0.0
 let delta_time = ref 0.0
 let current_fps = ref 0.0
@@ -11,88 +6,37 @@ let target_fps = ref None
 let vsync_enabled = ref true
 let time_scale = ref 1.0
 
-(* Initialize timing system *)
 let init () =
-  start_time := Some (Sdl.get_performance_counter ());
+  origin := Unix.gettimeofday ();
   last_frame_time := 0.0;
   delta_time := 0.0
-
-(* Get current time in seconds since program start *)
-let now () =
-  match !start_time with
-  | None -> 0.0
-  | Some start ->
-    let current = Sdl.get_performance_counter () in
-    let freq = Sdl.get_performance_frequency () in
-    Int64.to_float (Int64.sub current start) /. Int64.to_float freq
-
-(* Get elapsed time since program start (alias for now) *)
+let now () = Unix.gettimeofday () -. !origin
 let elapsed () = now ()
-
-(* Get the delta time from the last frame *)
 let get_delta_time () = !delta_time
-
-(* Get current frame rate *)
 let get_frame_rate () = !current_fps
-
-(* Set target frame rate *)
-let set_frame_rate fps =
-  if fps > 0 then
-    target_fps := Some fps
-  else
-    target_fps := None
-
-(* Set vsync *)
-let set_vsync enabled =
-  vsync_enabled := enabled
-
-(* Set time scale for slow motion or fast forward *)
-let set_time_scale scale =
-  time_scale := max 0.0 scale
-
-(* Get current time scale *)
+let set_frame_rate fps = target_fps := if fps > 0 then Some fps else None
+let set_vsync enabled = vsync_enabled := enabled
+let set_time_scale scale = time_scale := max 0.0 scale
 let get_time_scale () = !time_scale
-
-(* Update timing - should be called each frame by the main loop *)
 let update () =
   let current_time = now () in
   let raw_dt = current_time -. !last_frame_time in
-  
-  (* Clamp delta time to prevent huge jumps (max 0.1 seconds) *)
-  let clamped_dt = min raw_dt 0.1 in
-  
-  (* Apply time scaling *)
-  delta_time := clamped_dt *. !time_scale;
-  
-  (* Update FPS calculation *)
-  if raw_dt > 0.0 then
-    current_fps := 1.0 /. raw_dt
-  else
-    current_fps := 0.0;
-  
+  delta_time := min raw_dt 0.1 *. !time_scale;
+  current_fps := if raw_dt > 0.0 then 1.0 /. raw_dt else 0.0;
   last_frame_time := current_time
-
-(* Frame rate limiting - call after rendering *)
-let limit_frame_rate () =
-  match !target_fps with
-  | None -> () (* No frame rate limit *)
-  | Some _ when !vsync_enabled -> () (* Vsync handles limiting *)
+let limit_frame_rate () = match !target_fps with
+  | None -> ()
+  | Some _ when !vsync_enabled -> ()
   | Some fps ->
-    let target_dt = 1.0 /. float_of_int fps in
-    let current_dt = !delta_time /. !time_scale in (* Use unscaled dt for limiting *)
-    if current_dt < target_dt then
-      let delay_ms = int_of_float ((target_dt -. current_dt) *. 1000.0) in
-      if delay_ms > 0 then
-        Sdl.delay (Int32.of_int delay_ms)
-
-(* Animation helper: calculate elapsed fraction between start_time and duration *)
+      let target_dt = 1.0 /. float_of_int fps in
+      let current_dt = !delta_time /. !time_scale in
+      if current_dt < target_dt then
+        let delay = target_dt -. current_dt in
+        if delay > 0. then Unix.sleepf delay
 let elapsed_fraction start_time duration =
   if duration <= 0.0 then 1.0
-  else
-    let elapsed = now () -. start_time in
-    Math.clamp_float (elapsed /. duration) ~min:0.0 ~max:1.0
+  else Math.clamp_float ((now () -. start_time) /. duration) ~min:0.0 ~max:1.0
 
-(* Easing functions *)
 module Easing = struct
   (* Linear interpolation (no easing) *)
   let linear t = t
@@ -267,3 +211,4 @@ end
 
 (* Initialize the timing system *)
 let () = init ()
+

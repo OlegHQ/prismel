@@ -658,10 +658,7 @@ description, domain, code, and `userInfo`, and prefix compile,
 specialization, and link failures with the caller's label. Libraries,
 specialized functions, and compute pipelines expose their observed native
 labels. Libraries also expose their Metal kind, install name, and sorted entry
-point names. `Library.load_file` provides an absolute-path `.metallib` boundary;
-the local Command Line Tools environment exercises its validation and complete
-missing-file diagnostic, while a valid offline artifact remains a full-Xcode
-qualification item. `Function.constants` returns sorted
+point names. `Function.constants` returns sorted
 name/type/index/required metadata,
 while `Function.specialize` accepts checked bool, signed and unsigned
 8/16/32/64-bit, half, and float values and rejects malformed names,
@@ -1141,14 +1138,12 @@ The M1 conformance path compiles an exact 32×32 full-tile pipeline, clears its
 argument-table slot immediately after dispatch, and verifies the retained shared
 buffer contains the tile shader's exact value `23` after commit feedback.
 
-Positive offline `.metallib` provenance remains open.
-
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, full labeled shader diagnostics, function-constant introspection and
 specialization, linked visible functions, reflected binding-layout validation,
 dynamic-library source/client linking and serialize/reload retention, binary
 archive population and serialize/reload strict-hit creation, compiled-library
-metadata, `.metallib` path/error handling, Metal 4 compiler library and
+metadata, Metal 4 compiler library and
 reflected compute creation, descriptor and binary dataset capture, serialized
 Metal 4 archive reload/strict binary lookup, binary-function compilation and
 dynamic pipeline linking, public/private/grouped static-link descriptors,
@@ -1280,21 +1275,9 @@ unrelated tests. The result makes the later descriptor/command batching
 decision measurable instead of applying `[@@noalloc]` or per-item calls
 speculatively.
 
-The currently selected Command Line Tools include SDK 26.5 headers but not the
-`metal` and `metallib` executables. Runtime source compilation is therefore
-covered locally; offline `.metallib`, Xcode validation, capture, and archive
-qualification remain explicit Phase 2 work requiring the pinned full Xcode
-toolchain. This limitation does not weaken or skip any M1-M10 completion gate.
-
-The ordinary repository build never compiles offline shaders, so it remains
-usable with Command Line Tools alone. On a machine with the pinned full Xcode
-toolchain, the explicit provenance gate compiles a temporary `.air` and
-`.metallib`, writes metadata, and verifies its source/artifact hashes before
-removing the temporary files:
-
-```sh
-opam exec -- dune build @full_xcode_shader_artifacts
-```
+The native runtime compiles MSL source directly through the public Metal API.
+Prismel has no offline `.air`/`.metallib` artifact pipeline and no dependency on
+the Xcode command-line shader tools.
 
 Run the current binding checks with:
 

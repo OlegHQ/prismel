@@ -1,252 +1,277 @@
-include Scene_description
+type blend=Replace|Alpha|Add|Multiply
+type primitive={points:(int*int)list;closed:bool;fill:Color.t option;stroke:Color.t option}
+type text_node={x:int;y:int;value:string;color:Color.t;size:int;wrap:int option;align:Font.alignment;provided_font:Font.t option;mutable automatic:Font.Private.automatic option;mutable rendered:Image.t option}
+and debug_text_node={x:int;y:int;value:string;color:Color.t}
+and view3d_node={viewport:(int*int*int*int)option;camera:Camera.t;scene:Scene3.t;mutable rendered3d:Image.t option}
+and image_node={image:Image.t;x:int;y:int;scale:float;angle:float;center:(int*int)option;flip_x:bool}
+and node=Group of t|Clear of Color.t|Primitive of primitive|Geometry of Scene_command.Render_ir.geometry|Text of text_node|Debug_text of debug_text_node|Image of image_node
+ |View3d of view3d_node|Region of int*int*int*int*bool
+ |Translate of int*int*t|Rotate of float*t|Scale of float*float*t|Clip of int*int*int*int*t|Blend of blend*t
+and t=node list
+let empty=[]let one n=[n]let group x=Group x let clear c=Clear c
+let default_color=Color.white
+let rgba c=Int32.logor(Int32.shift_left(Int32.of_int c.Color.r)24)(Int32.logor(Int32.shift_left(Int32.of_int c.g)16)(Int32.logor(Int32.shift_left(Int32.of_int c.b)8)(Int32.of_int c.a)))
+let point2 (x,y)={Scene_command.Path.x=float x;y=float y}
+let geometry_of_mesh color (mesh:Scene_command.Path.mesh)=
+  let vertices=Array.make(Array.length mesh.vertices*2)0. in
+  Array.iteri(fun index (point:Scene_command.Path.point)->vertices.(index*2)<-point.x;vertices.(index*2+1)<-point.y)mesh.vertices;
+  Geometry{Scene_command.Render_ir.vertices;indices=mesh.indices;color=rgba color}
+let path_error operation=function
+  |Ok mesh->mesh|Error Scene_command.Path.Empty_path->{Scene_command.Path.vertices=[||];indices=[||]}
+  |Error _->invalid_arg operation
+let fill_path color path=geometry_of_mesh color(path_error"Scene path fill"(Scene_command.Path.tessellate~tolerance:0.25~fill_rule:Scene_command.Path.Non_zero path))
+let stroke_path ?(width=1.) color path=geometry_of_mesh color(path_error"Scene path stroke"(Scene_command.Path.stroke~tolerance:0.25~width~cap:Scene_command.Path.Butt~join:Scene_command.Path.Miter~miter_limit:4. path))
+let styled_path ?fill ?stroke path=
+  let fill=match fill,stroke with None,None->Some default_color|_->fill in
+  Group(Option.to_list(Option.map(fun color->fill_path color path)fill)@Option.to_list(Option.map(fun color->stroke_path color path)stroke))
+type rounded_cache={table:((int*int*int*int32 option*int32 option),t)Hashtbl.t;mutable order:(int*int*int*int32 option*int32 option)list}
+let rounded_cache_capacity=256
+let rounded_caches=Domain.DLS.new_key(fun()->{table=Hashtbl.create rounded_cache_capacity;order=[]})
+let rounded_cached key make=
+  let cache=Domain.DLS.get rounded_caches in
+  match Hashtbl.find_opt cache.table key with
+  |Some value->value
+  |None->
+      let value=make()in
+      (if Hashtbl.length cache.table>=rounded_cache_capacity then
+        match List.rev cache.order with
+        |[]->()
+        |oldest::rest->Hashtbl.remove cache.table oldest;cache.order<-List.rev rest);
+      Hashtbl.replace cache.table key value;cache.order<-key::cache.order;value
+let point ~at ?(color=default_color)()=Primitive{points=[at];closed=false;fill=None;stroke=Some color}
+let line ~from_ ~to_ ?(color=default_color)?(width=1)()=
+  stroke_path~width:(float(max 1 width))color(Scene_command.Path.of_commands[|Scene_command.Path.Move_to(point2 from_);Scene_command.Path.Line_to(point2 to_)|])
+let polygon points ?fill ?stroke()=Primitive{points;closed=true;fill;stroke}
+let polyline points ?(color=default_color)()=Primitive{points;closed=false;fill=None;stroke=Some color}
+let rect ~at:(x,y)~w~h ?fill ?stroke()=polygon[x,y;x+w,y;x+w,y+h;x,y+h]?fill?stroke()
+let square ~at ~size ?fill ?stroke()=rect~at~w:size~h:size?fill?stroke()
+let rounded_rect ~at:(x,y) ~w ~h ~radius ?fill ?stroke()=
+  let radius=max 0(min radius(min(abs w)(abs h)/2))in
+  let key=w,h,radius,Option.map rgba fill,Option.map rgba stroke in
+  let geometry=rounded_cached key(fun()->
+    let r=float radius and w=float w and h=float h in
+    let k=0.5522847498307936*.r in
+    let p x y={Scene_command.Path.x;y}in
+    let path=Scene_command.Path.of_commands[|
+      Scene_command.Path.Move_to(p r 0.);Line_to(p(w-.r)0.);
+      Cubic_to(p(w-.r+.k)0.,p w(r-.k),p w r);
+      Line_to(p w(h-.r));Cubic_to(p w(h-.r+.k),p(w-.r+.k)h,p(w-.r)h);
+      Line_to(p r h);Cubic_to(p(r-.k)h,p 0.(h-.r+.k),p 0.(h-.r));
+      Line_to(p 0. r);Cubic_to(p 0.(r-.k),p(r-.k)0.,p r 0.);Close|]in
+    [styled_path?fill?stroke path])in
+  Translate(x,y,geometry)
+type ellipse_cache={table:((int*int*int*int*int32 option*int32 option),node)Hashtbl.t;
+  mutable order:(int*int*int*int*int32 option*int32 option)list}
+let ellipse_cache_capacity=256
+let ellipse_caches=Domain.DLS.new_key(fun()->
+  {table=Hashtbl.create ellipse_cache_capacity;order=[]})
+let ellipse_cached key make=
+  let cache=Domain.DLS.get ellipse_caches in
+  match Hashtbl.find_opt cache.table key with
+  |Some value->value
+  |None->
+      let value=make()in
+      (if Hashtbl.length cache.table>=ellipse_cache_capacity then
+        match List.rev cache.order with
+        |[]->()
+        |oldest::rest->Hashtbl.remove cache.table oldest;cache.order<-List.rev rest);
+      Hashtbl.replace cache.table key value;cache.order<-key::cache.order;value
+let ellipse_points (cx,cy) rx ry=List.init 32(fun i->let a=(2.*.Float.pi)*.float i/.32. in cx+int_of_float(float rx*.cos a),cy+int_of_float(float ry*.sin a))
+let ellipse ~at:(cx,cy as at) ~rx ~ry ?fill ?stroke()=
+  let key=cx,cy,rx,ry,Option.map rgba fill,Option.map rgba stroke in
+  ellipse_cached key(fun()->polygon(ellipse_points at rx ry)?fill?stroke())
+let circle ~at ~radius ?fill ?stroke()=ellipse~at~rx:radius~ry:radius?fill?stroke()
+let triangle a b c ?fill ?stroke()=polygon[a;b;c]?fill?stroke()
+let quad a b c d ?fill ?stroke()=polygon[a;b;c;d]?fill?stroke()
+let arc ~at:(cx,cy)~radius~from_~to_ ?(color=default_color)()=let points=List.init 33(fun i->let a=from_+.(to_-.from_)*.float i/.32. in cx+int_of_float(float radius*.cos a),cy+int_of_float(float radius*.sin a))in polyline points~color()
+let pie ~at ~radius ~from_ ~to_ ?fill ?stroke()=match arc~at~radius~from_~to_()with Primitive p->polygon(at::p.points)?fill?stroke()|_->assert false
+type bezier_cache={table:(((int*int)list*int*int32),node)Hashtbl.t;
+  mutable order:((int*int)list*int*int32)list}
+let bezier_cache_capacity=256
+let bezier_caches=Domain.DLS.new_key(fun()->
+  {table=Hashtbl.create bezier_cache_capacity;order=[]})
+let bezier_cached key make=
+  let cache=Domain.DLS.get bezier_caches in
+  match Hashtbl.find_opt cache.table key with
+  |Some value->value
+  |None->
+      let value=make()in
+      (if Hashtbl.length cache.table>=bezier_cache_capacity then
+        match List.rev cache.order with
+        |[]->()
+        |oldest::rest->Hashtbl.remove cache.table oldest;cache.order<-List.rev rest);
+      Hashtbl.replace cache.table key value;cache.order<-key::cache.order;value
+let bezier points ?(steps=20)?(color=default_color)()=
+  let steps=max 1 steps in
+  match points with
+  |[]->Group[]|[p0]->point~at:p0~color()
+  |first::rest->
+      bezier_cached(points,steps,rgba color)(fun()->
+      let controls=Array.of_list points in
+      let sampled=List.init(steps+1)(fun sample->let t=float sample/.float steps in
+        let values=Array.map(fun(x,y)->float x,float y)controls in
+        for level=Array.length values-1 downto 1 do for index=0 to level-1 do
+          let x0,y0=values.(index)and x1,y1=values.(index+1)in
+          values.(index)<-(x0+.t*.(x1-.x0),y0+.t*.(y1-.y0))done done;
+        let x,y=values.(0)in {Scene_command.Path.x;y})in
+      let commands=Array.of_list(Scene_command.Path.Move_to(point2 first)::List.map(fun p->Scene_command.Path.Line_to p)(List.tl sampled))in
+      ignore rest;stroke_path color(Scene_command.Path.of_commands commands))
+let path ?(steps=20)?(fill_rule=Path.Non_zero)?fill?stroke value=ignore fill_rule;Primitive{points=Path.points~steps value;closed=Path.is_closed value;fill;stroke}
+let text ~at:(x,y) ?(color=default_color) ?(size=16) value=Text{x;y;value;color;size;wrap=None;align=Font.Left;provided_font=None;automatic=None;rendered=None}
+let debug_text ~at:(x,y) ?(color=default_color) value=Debug_text{x;y;value;color}
+let font_text font ~at:(x,y) ?(color=default_color) ?wrap ?(align=Font.Left) value=Text{x;y;value;color;size=Font.get_size font;wrap;align;provided_font=Some font;automatic=None;rendered=None}
+let image image ~at:(x,y) ?(scale=1.) ?(angle=0.) ?center ?(flip_x=false)()=
+  if not(Float.is_finite scale&&Float.is_finite angle)||scale<=0. then invalid_arg"Scene.image: invalid transform";
+  Image{image;x;y;scale;angle;center;flip_x}
+let view3d ?viewport ~camera scene=View3d{viewport;camera;scene;rendered3d=None}
+let text_input_region ~at:(x,y)~w~h ?(focused=false)()=Region(x,y,w,h,focused)
+let translate x y nodes=Translate(x,y,nodes)let rotate a nodes=Rotate(a,nodes)let scale x y nodes=Scale(x,y,nodes)
+let clip ~at:(x,y)~w~h nodes=Clip(x,y,w,h,nodes)let blend mode nodes=Blend(mode,nodes)
+let geometry_uncached p=
+ let n=List.length p.points in
+ let vertices=Array.make(n*2)0. in
+ let rec fill index=function
+  |[]->()
+  |(x,y)::rest->vertices.(index)<-float x;vertices.(index+1)<-float y;
+      fill(index+2)rest in
+ fill 0 p.points;
+ let indices=if p.closed&&n>=3 then Array.init((n-2)*3)(fun i->let t=i/3 and k=i mod 3 in if k=0 then 0 else t+k)else if n=1 then[|0|]else Array.init(max 0((n-1)*2))(fun i->if i mod 2=0 then i/2 else i/2+1)in
+ Scene_command.Render_ir.Geometry{vertices;indices;color=rgba(Option.value p.fill~default:(Option.value p.stroke~default:default_color))}
+type primitive_cache={primitive_table:(primitive,Scene_command.Render_ir.command)Hashtbl.t;
+  mutable primitive_order:primitive list}
+let primitive_cache_capacity=256
+let primitive_caches=Domain.DLS.new_key(fun()->
+  {primitive_table=Hashtbl.create primitive_cache_capacity;primitive_order=[]})
+let geometry p=
+  let cache=Domain.DLS.get primitive_caches in
+  match Hashtbl.find_opt cache.primitive_table p with
+  |Some command->command
+  |None->
+      let command=geometry_uncached p in
+      (if Hashtbl.length cache.primitive_table>=primitive_cache_capacity then
+        match List.rev cache.primitive_order with
+        |[]->()
+        |oldest::rest->
+            Hashtbl.remove cache.primitive_table oldest;
+            cache.primitive_order<-List.rev rest);
+      Hashtbl.replace cache.primitive_table p command;
+      cache.primitive_order<-p::cache.primitive_order;
+      command
+module Private=struct
+ type staged_native={scene2:Scene_command.Render_ir.t;
+   resources:(int*Prismel_next_execution.resource)list;
+   scene3:Scene_execution.prepared_scene3 list}
+ let renderer=ref(fun(_ : t)->())let install_renderer value=renderer:=value
+ let rec commands acc=function []->acc|Clear c::xs->commands(Scene_command.Render_ir.Clear(rgba c)::acc)xs|Primitive p::xs->commands(geometry p::acc)xs|Geometry g::xs->commands(Scene_command.Render_ir.Geometry g::acc)xs|Group g::xs->commands(commands acc g)xs
+  |Debug_text node::xs->commands(Scene_command.Render_ir.Debug_text{x=float node.x;y=float node.y;text=node.value;color=rgba node.color}::acc)xs
+  |Translate(x,y,g)::xs->commands(Scene_command.Render_ir.Pop_transform::commands(Scene_command.Render_ir.Push_transform{xx=1.;xy=0.;yx=0.;yy=1.;tx=float x;ty=float y}::acc)g)xs
+  |Scale(x,y,g)::xs->commands(Scene_command.Render_ir.Pop_transform::commands(Scene_command.Render_ir.Push_transform{xx=x;xy=0.;yx=0.;yy=y;tx=0.;ty=0.}::acc)g)xs
+  |Rotate(a,g)::xs->let c=cos a and s=sin a in commands(Scene_command.Render_ir.Pop_transform::commands(Scene_command.Render_ir.Push_transform{xx=c;xy=s;yx=(-.s);yy=c;tx=0.;ty=0.}::acc)g)xs
+  |Clip(x,y,w,h,g)::xs->commands(Scene_command.Render_ir.Pop_clip::commands(Scene_command.Render_ir.Push_clip{x=float x;y=float y;width=float w;height=float h}::acc)g)xs
+  |Blend(mode,g)::xs->let mode=match mode with Replace->Scene_command.Render_ir.Replace|Alpha->Alpha|Add->Add|Multiply->Multiply in commands(commands(Scene_command.Render_ir.Set_blend mode::acc)g)xs
+  |Image node::xs->let width,height=Image.get_size node.image in let rect={Scene_command.Render_ir.x=0.;y=0.;width=float width;height=float height}in
+    let destination={Scene_command.Render_ir.x=float node.x;y=float node.y;width=float width*.node.scale;height=float height*.node.scale}in
+    let command=Scene_command.Render_ir.Image{resource_id=Image.Private.identity node.image;source=rect;destination}in
+    let transformed=node.angle<>0.||node.flip_x||node.center<>None in
+    let acc=if transformed then
+      let cx,cy=match node.center with None->destination.width*.0.5,destination.height*.0.5|Some(cx,cy)->float cx,float cy in
+      let px=destination.x+.cx and py=destination.y+.cy and c=cos node.angle and s=sin node.angle and sx=if node.flip_x then -.1. else 1. in
+      let xx=c*.sx and xy=(-.s)and yx=s*.sx and yy=c in
+      Scene_command.Render_ir.Pop_transform::command::Scene_command.Render_ir.Push_transform{xx;xy;yx;yy;tx=px-.xx*.px-.xy*.py;ty=py-.yx*.px-.yy*.py}::acc
+    else command::acc in
+    commands acc xs
+  |(Text _|View3d _|Region _)::xs->commands acc xs
+ let rec text_regions scene=List.concat_map(function Region(x,y,w,h,f)->[x,y,w,h,f]|Group g|Translate(_,_,g)|Rotate(_,g)|Scale(_,_,g)|Clip(_,_,_,_,g)|Blend(_,g)->text_regions g|_->[])scene
+ let rec image_resources scene=List.concat_map(function Image node->[Image.Private.identity node.image,Prismel_next_execution.Image(Image.Private.resource node.image)]|Group g|Translate(_,_,g)|Rotate(_,g)|Scale(_,_,g)|Clip(_,_,_,_,g)|Blend(_,g)->image_resources g|_->[])scene
 
-let empty = []
-let one node = [node]
-let group nodes = Group nodes
-let clear color = Clear color
-let point ~at ?color () = Point (at, color)
-let line ~from_ ~to_ ?color ?(width = 1) () =
-  Line (from_, to_, color, max 1 width)
+ let text_image (node : text_node) =
+   match node.rendered with
+   | Some image -> image
+   | None ->
+       let image=match node.provided_font with
+       |Some font->Result.get_ok(Font.cached_text?wrap:node.wrap~align:node.align font node.value(Font.Solid node.color))
+       |None->let automatic=Result.get_ok(Font.Private.borrow_automatic?wrap:node.wrap~align:node.align~size:node.size node.value(Font.Solid node.color))in
+         node.automatic<-Some automatic;Font.Private.automatic_image automatic in
+       node.rendered <- Some image;
+       image
 
-let style ?fill ?stroke () =
-  match fill, stroke with
-  | None, None -> { fill = Some Color.white; stroke = None }
-  | fill, stroke -> { fill; stroke }
+ let rec materialize ~width ~height = function
+   | [] -> []
+   | Text node :: rest ->
+       Image {image=text_image node;x=node.x;y=node.y;scale=1.;angle=0.;center=None;flip_x=false}
+       :: materialize ~width ~height rest
+   | View3d node :: rest -> View3d node :: materialize ~width ~height rest
+   | Group nodes :: rest ->
+       Group (materialize ~width ~height nodes)
+       :: materialize ~width ~height rest
+   | Translate (x, y, nodes) :: rest ->
+       Translate (x, y, materialize ~width ~height nodes)
+       :: materialize ~width ~height rest
+   | Rotate (angle, nodes) :: rest ->
+       Rotate (angle, materialize ~width ~height nodes)
+       :: materialize ~width ~height rest
+   | Scale (x, y, nodes) :: rest ->
+       Scale (x, y, materialize ~width ~height nodes)
+       :: materialize ~width ~height rest
+   | Clip (x, y, w, h, nodes) :: rest ->
+       Clip (x, y, w, h, materialize ~width ~height nodes)
+       :: materialize ~width ~height rest
+   | Blend (mode, nodes) :: rest ->
+       Blend (mode, materialize ~width ~height nodes)
+       :: materialize ~width ~height rest
+   | node :: rest -> node :: materialize ~width ~height rest
 
-let rect ~at ~w ~h ?fill ?stroke () =
-  Rect (at, w, h, None, style ?fill ?stroke ())
+ let stage ~width ~height scene =
+   if width <= 0 || height <= 0 then Error "invalid scene extent"
+   else
+     try
+       let scene = materialize ~width ~height scene in
+       match Scene_command.Render_ir.Private.create_owned (Array.of_list (List.rev (commands [] scene))) with
+       | Error _ -> Error "invalid scene description"
+       | Ok ir -> Ok (ir, image_resources scene)
+     with
+     | Failure message -> Error message
+     | Invalid_argument message -> Error message
 
-let square ~at ~size ?fill ?stroke () =
-  rect ~at ~w:size ~h:size ?fill ?stroke ()
+ let stage_native ~width ~height scene =
+   match stage ~width ~height scene with Error _ as error->error|Ok(scene2,resources)->
+   let lowered=ref[]and failure=ref None in
+   let callbacks:Scene3_native_lowering.resources={
+     texture=(fun value->let levels=Texture.Private.levels value.Scene3.value|>Array.map(fun(w,h,pixels)->let bytes=Bytes.create(w*h*4)in Array.iteri(fun index color->Bytes.set_int32_be bytes(index*4)(Int32.of_int((color.Color.r lsl 24)lor(color.g lsl 16)lor(color.b lsl 8)lor color.a)))pixels;{Scene_execution.width=w;height=h;bytes})in let address=function Texture.Clamp->Ogpu.Types.Clamp_to_edge|Repeat->Repeat|Mirror->Mirror_repeat in let min_filter,mag_filter,mip_filter=match value.filter with Texture.Nearest->Ogpu.Types.Nearest,Ogpu.Types.Nearest,Ogpu.Types.No_mip|Texture.Bilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.No_mip|Texture.Trilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.Linear_mip in let sampler:Ogpu.Types.sampler_descriptor={label=Some"scene3-texture";min_filter;mag_filter;mip_filter;address_u=address value.wrap_u;address_v=address value.wrap_v;lod_min=0.;lod_max=float(Array.length levels-1);max_anisotropy=1}in Ok{Scene_execution.key=Digest.to_hex(Digest.string(Marshal.to_string levels[]));levels;sampler});
+     shadow=(fun value->let source=Shadow3.Private.snapshot value in let matrix=Array.init 16(fun index->Mat4.get source.view_projection~row:(index/4)~column:(index mod 4))in let snapshot:Scene_execution.shadow_snapshot={width=source.width;height=source.height;depths=source.depths;matrix;bias={constant=source.bias;slope=source.normal_bias};kernel=(match source.filter with Hard->Tap1|Pcf_3x3->Tap9|Pcf_5x5->Tap25);strength=source.strength}in match Scene_execution.shadow_resource~key:(Digest.to_hex(Digest.string(Marshal.to_string snapshot[])))snapshot with Error _->Error Unsupported_shadow|Ok resource->Ok{Scene_execution.key=resource.texture.key;buffer=resource.parameters;texture=resource.texture})}in
+   let rec visit=function
+     |[]->()|View3d node::rest->
+       let viewport=Option.value node.viewport~default:(0,0,width,height)in
+       (match Scene3_native_lowering.prepare~resources:callbacks~camera:node.camera
+          ~viewport node.scene with Ok prepared->lowered:=prepared::!lowered
+        |Error _->failure:=Some"native View3d lowering failed");visit rest
+     |Group nodes::rest|Translate(_,_,nodes)::rest|Rotate(_,nodes)::rest
+     |Scale(_,_,nodes)::rest|Clip(_,_,_,_,nodes)::rest|Blend(_,nodes)::rest->
+       visit nodes;visit rest
+     |_::rest->visit rest in
+   visit scene;match!failure with Some message->Error message
+   |None->Ok{scene2;resources;scene3=List.rev!lowered}
 
-let rounded_rect ~at ~w ~h ~radius ?fill ?stroke () =
-  Rect (at, w, h, Some radius, style ?fill ?stroke ())
+ let to_ir scene = Result.map fst (stage ~width:640 ~height:480 scene)
+ let resources scene =
+   match stage ~width:640 ~height:480 scene with
+   | Ok (_, resources) -> resources
+   | Error _ -> []
 
-let circle ~at ~radius ?fill ?stroke () =
-  Circle (at, radius, style ?fill ?stroke ())
-
-let ellipse ~at ~rx ~ry ?fill ?stroke () =
-  Ellipse (at, rx, ry, style ?fill ?stroke ())
-
-let triangle p1 p2 p3 ?fill ?stroke () =
-  Triangle (p1, p2, p3, style ?fill ?stroke ())
-
-let quad p1 p2 p3 p4 ?fill ?stroke () =
-  Polygon ([p1; p2; p3; p4], style ?fill ?stroke ())
-
-let polygon points ?fill ?stroke () =
-  Polygon (points, style ?fill ?stroke ())
-
-let polyline points ?color () = Polyline (points, color)
-let arc ~at ~radius ~from_ ~to_ ?color () =
-  Arc (at, radius, from_, to_, color)
-
-let pie ~at ~radius ~from_ ~to_ ?fill ?stroke () =
-  Pie (at, radius, from_, to_, style ?fill ?stroke ())
-
-let bezier points ?(steps = 24) ?color () =
-  Bezier (points, max 1 steps, color)
-
-let path ?(steps = 20) ?(fill_rule = Path.Even_odd) ?fill ?stroke value =
-  Path (value, max 1 steps, fill_rule, style ?fill ?stroke ())
-
-let text ~at ?color ?(size = 14) value =
-  if size <= 0 then invalid_arg "Scene.text: size must be positive";
-  Text (at, value, color, size)
-
-let debug_text ~at ?color value = Debug_text (at, value, color)
-let font_text font ~at ?color ?wrap ?align value =
-  Font_text (font, at, value, color, wrap, align)
-let image value ~at ?scale ?angle ?center ?flip_x () =
-  Image (value, at, scale, angle, center, flip_x)
-let view3d ?viewport ~camera scene = View3d (camera, scene, viewport)
-let text_input_region ~at ~w ~h ?(focused = false) () =
-  if w <= 0 || h <= 0 then
-    invalid_arg "Scene.text_input_region: dimensions must be positive";
-  Text_input_region (at, w, h, focused)
-let translate x y nodes = Translate (x, y, nodes)
-let rotate angle nodes = Rotate (angle, nodes)
-let scale x y nodes = Scale (x, y, nodes)
-let clip ~at ~w ~h nodes = Clip (at, w, h, nodes)
-let blend mode nodes = Blend (mode, nodes)
-
-let rec render_node = function
-  | Clear color -> Graphics.clear color
-  | Point ((x, y), color) -> Graphics.point ~x ~y ?color ()
-  | Line ((x1, y1), (x2, y2), color, width) ->
-      if width = 1 then Graphics.line ~x1 ~y1 ~x2 ~y2 ?color ()
-      else Graphics.thick_line ~x1 ~y1 ~x2 ~y2 ~width ?color ()
-  | Rect (at, w, h, radius, style) ->
-      (match style.fill with
-       | None -> ()
-       | Some color ->
-           (match radius with
-            | None -> Graphics.rect ~pos:at ~w ~h ~filled:true ~color ()
-            | Some radius ->
-                Graphics.rounded_rect ~pos:at ~w ~h ~radius ~filled:true
-                  ~color ()));
-      (match style.stroke with
-       | None -> ()
-       | Some color ->
-           (match radius with
-            | None -> Graphics.rect ~pos:at ~w ~h ~filled:false ~color ()
-            | Some radius ->
-                Graphics.rounded_rect ~pos:at ~w ~h ~radius ~filled:false
-                  ~color ()))
-  | Circle (at, radius, style) ->
-      (match style.fill with
-       | None -> ()
-       | Some color -> Graphics.circle ~center:at ~radius ~filled:true ~color ());
-      (match style.stroke with
-       | None -> ()
-       | Some color -> Graphics.circle ~center:at ~radius ~filled:false ~color ())
-  | Ellipse (at, rx, ry, style) ->
-      (match style.fill with
-       | None -> ()
-       | Some color ->
-           Graphics.ellipse ~center:at ~rx ~ry ~filled:true ~color ());
-      (match style.stroke with
-       | None -> ()
-       | Some color ->
-           Graphics.ellipse ~center:at ~rx ~ry ~filled:false ~color ())
-  | Triangle (p1, p2, p3, style) ->
-      (match style.fill with
-       | None -> ()
-       | Some color -> Graphics.triangle ~p1 ~p2 ~p3 ~filled:true ~color ());
-      (match style.stroke with
-       | None -> ()
-       | Some color -> Graphics.triangle ~p1 ~p2 ~p3 ~filled:false ~color ())
-  | Polygon (points, style) ->
-      (match style.fill with
-       | None -> ()
-       | Some color -> Graphics.polygon ~points ~filled:true ~color ());
-      (match style.stroke with
-       | None -> ()
-       | Some color -> Graphics.polygon ~points ~filled:false ~color ())
-  | Polyline (points, color) -> Graphics.polyline ~points ?color ()
-  | Arc (at, radius, from_, to_, color) ->
-      Graphics.arc ~center:at ~radius ~start_angle:from_ ~end_angle:to_ ?color ()
-  | Pie (at, radius, from_, to_, style) ->
-      (match style.fill with
-       | None -> ()
-       | Some color ->
-           Graphics.pie ~center:at ~radius ~start_angle:from_ ~end_angle:to_
-             ~filled:true ~color ());
-      (match style.stroke with
-       | None -> ()
-       | Some color ->
-           Graphics.pie ~center:at ~radius ~start_angle:from_ ~end_angle:to_
-             ~filled:false ~color ())
-  | Bezier (points, steps, color) ->
-      Graphics.bezier ~points ~steps ?color ()
-  | Path (path, steps, fill_rule, style) ->
-      let contours = Path.contours ~steps path in
-      Option.iter
-        (fun color -> Graphics.fill_contours contours ~rule:fill_rule ~color)
-        style.fill;
-      Option.iter
-        (fun color ->
-          List.iter (fun points -> Graphics.polyline ~points ~color ()) contours)
-        style.stroke
-  | Text (at, value, color, size) ->
-      (match Font.system ~size () with
-       | Ok font ->
-           Graphics.draw_text font ~pos:at ~text:value ?color ()
-       | Error _ ->
-           Graphics.draw_gfx_text ~pos:at ~text:value ?color ())
-  | Debug_text (at, value, color) ->
-      Graphics.draw_gfx_text ~pos:at ~text:value ?color ()
-  | Font_text (font, at, value, color, wrap, align) ->
-      Graphics.draw_text font ~pos:at ~text:value ?color ?wrap ?align ()
-  | Image (image, at, scale, angle, center, flip_x) ->
-      Graphics.draw_image_ex image ~pos:at ?scale ?angle ?center ?flip:flip_x ()
-  | View3d (camera, scene, viewport) ->
-      Renderer3d.render ?viewport ~camera scene
-  | Text_input_region ((x, y), width, height, focused) ->
-      if Window.exists () && Graphics.get_renderer () == Window.get_renderer ()
-      then begin
-        let corners =
-          [ Graphics.transform_point (x, y);
-            Graphics.transform_point (x + width, y);
-            Graphics.transform_point (x, y + height);
-            Graphics.transform_point (x + width, y + height) ] in
-        let xs = List.map fst corners and ys = List.map snd corners in
-        let left = List.fold_left min max_int xs
-        and right = List.fold_left max min_int xs
-        and top = List.fold_left min max_int ys
-        and bottom = List.fold_left max min_int ys in
-        let left, top, right, bottom =
-          match Graphics.get_clip () with
-          | None -> left, top, right, bottom
-          | Some (cx, cy, cw, ch) ->
-              max left cx, max top cy,
-              min right (cx + cw), min bottom (cy + ch)
-        in
-        ignore (left, top, right, bottom, focused)
-      end
-  | Group nodes -> List.iter render_node nodes
-  | Translate (x, y, nodes) ->
-      scoped (fun () -> Graphics.translate ~dx:x ~dy:y) nodes
-  | Rotate (angle, nodes) ->
-      scoped (fun () -> Graphics.rotate ~angle) nodes
-  | Scale (x, y, nodes) ->
-      scoped (fun () -> Graphics.scale ~sx:x ~sy:y) nodes
-  | Clip ((x, y), width, height, nodes) ->
-      let x1, y1 = Graphics.transform_point (x, y) in
-      let x2, y2 = Graphics.transform_point (x + width, y + height) in
-      let left = min x1 x2 and top = min y1 y2 in
-      let clip = left, top, abs (x2 - x1), abs (y2 - y1) in
-      scoped_clip clip nodes
-  | Blend (mode, nodes) -> scoped_blend mode nodes
-
-and scoped transform nodes =
-  Graphics.push_matrix ();
-  Fun.protect
-    ~finally:Graphics.pop_matrix
-    (fun () ->
-      transform ();
-      List.iter render_node nodes)
-
-and scoped_clip (x, y, width, height) nodes =
-  let previous = Graphics.get_clip () in
-  let intersection =
-    match previous with
-    | None -> Some (x, y, width, height)
-    | Some (px, py, pw, ph) ->
-        let left = max x px and top = max y py in
-        let right = min (x + width) (px + pw) in
-        let bottom = min (y + height) (py + ph) in
-        Some (left, top, max 0 (right - left), max 0 (bottom - top))
-  in
-  Graphics.set_clip intersection;
-  Fun.protect
-    ~finally:(fun () -> Graphics.set_clip previous)
-    (fun () -> List.iter render_node nodes)
-
-and scoped_blend mode nodes =
-  let renderer = Graphics.get_renderer () in
-  let previous =
-    match Tsdl.Sdl.get_render_draw_blend_mode renderer with
-    | Ok mode -> mode
-    | Error (`Msg message) ->
-        failwith ("Failed to query render blend mode: " ^ message)
-  in
-  let mode =
-    match mode with
-    | Replace -> Tsdl.Sdl.Blend.mode_none
-    | Alpha -> Tsdl.Sdl.Blend.mode_blend
-    | Add -> Tsdl.Sdl.Blend.mode_add
-    | Multiply -> Tsdl.Sdl.Blend.mode_mod
-  in
-  (match Tsdl.Sdl.set_render_draw_blend_mode renderer mode with
-   | Error (`Msg message) ->
-       failwith ("Failed to set render blend mode: " ^ message)
-   | Ok () -> ());
-  Fun.protect
-    ~finally:(fun () -> ignore (Tsdl.Sdl.set_render_draw_blend_mode renderer previous))
-    (fun () -> List.iter render_node nodes)
-
-let render scene =
-  if not (Domain.is_main_domain ()) then
-    invalid_arg "Scene.render must run on the main domain";
-  List.iter render_node scene
+ let rec release scene =
+   List.iter
+     (function
+       | Text node ->
+           Option.iter Font.Private.release_automatic node.automatic;
+           node.automatic <- None;
+           node.rendered <- None
+       | View3d node ->
+           Option.iter Image.destroy node.rendered3d;
+           node.rendered3d <- None
+       | Group nodes | Translate (_, _, nodes) | Rotate (_, nodes)
+       | Scale (_, _, nodes) | Clip (_, _, _, _, nodes) | Blend (_, nodes) ->
+           release nodes
+       | Clear _ | Primitive _ | Geometry _ | Debug_text _ | Image _ | Region _ -> ())
+     scene
+end
+let render scene=(!Private.renderer) scene

@@ -133,3 +133,4 @@ let mouse_button_to_string = function
   | MiddleButton -> "MiddleButton"
   | MouseX1 -> "MouseX1"
   | MouseX2 -> "MouseX2"
+

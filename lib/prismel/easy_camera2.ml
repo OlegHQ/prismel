@@ -212,7 +212,8 @@ let update value frame =
             { value with drag = Some (button, point); velocity = None;
               last_press = Some (button, point, frame.time) }
           else { value with last_press = Some (button, point, frame.time) }
-      | MouseMoved ((x, y) as point) ->
+      | MouseMoved (x, y) ->
+          let point = x, y in
           (match value.drag with
            | None -> value
            | Some (button, (previous_x, previous_y)) ->

@@ -1,271 +1,49 @@
-open Tsdl
-module Mix = Tsdl_mixer.Mixer
-
-let initialized = ref false
-
-let require_main_domain () =
-  if not (Domain.is_main_domain ()) then
-    invalid_arg "Audio operations must run on the main domain"
-
-let message prefix = function
-  | Ok value -> Ok value
-  | Error (`Msg detail) -> Error (prefix ^ ": " ^ detail)
-
-let init ?(frequency = Mix.default_frequency) ?(channels = 32)
-    ?(chunk_size = 1024) () =
-  require_main_domain ();
-  if !initialized then Ok ()
-  else
-    match Sdl.init_sub_system Sdl.Init.audio with
-    | Error (`Msg detail) -> Error ("SDL audio initialization failed: " ^ detail)
-    | Ok () ->
-        (match Mix.open_audio frequency Mix.default_format
-            Mix.default_channels chunk_size with
-         | Error (`Msg detail) ->
-             Sdl.quit_sub_system Sdl.Init.audio;
-             Error ("Audio device open failed: " ^ detail)
-         | Ok () ->
-             ignore (Mix.allocate_channels (max 1 channels));
-             let requested = Mix.Init.(ogg + mp3 + flac) in
-             ignore (Mix.init requested);
-             initialized := true;
-             Ok ())
-
-let is_initialized () = !initialized
-
-let ensure () =
-  match init () with
-  | Ok () -> Ok ()
-  | Error _ as error -> error
-
-let volume value =
-  int_of_float (max 0. (min 1. value) *. float Mix.max_volume +. 0.5)
-
-let normalized_volume value = max 0. (min 1. value)
-
-let read_file path =
-  try
-    let channel = open_in_bin path in
-    Ok (Fun.protect ~finally:(fun () -> close_in channel) (fun () ->
-      really_input_string channel (in_channel_length channel) |> Bytes.of_string))
-  with Sys_error message -> Error message
-
-let set_master_volume value =
-  require_main_domain ();
-  ignore (Mix.volume (-1) (volume value));
-  ignore (Mix.volume_music (volume value));
-  ignore (normalized_volume value)
-
-let stop_all () =
-  require_main_domain ();
-  if !initialized then begin
-    ignore (Mix.halt_channel (-1));
-    ignore (Mix.halt_music ())
-  end
-
-let shutdown () =
-  require_main_domain ();
-  if !initialized then begin
-    stop_all ();
-    Mix.close_audio ();
-    Mix.quit ();
-    Sdl.quit_sub_system Sdl.Init.audio;
-    initialized := false
-  end
-
-module Sample = struct
-  type waveform = Sine | Square | Saw | Triangle
-
-  type t = {
-    chunk : Mix.chunk;
-    mutable destroyed : bool;
-  }
-
-  let ensure_sample sample =
-    require_main_domain ();
-    if sample.destroyed then invalid_arg "Audio sample has been destroyed"
-
-  let load path =
-    require_main_domain ();
-    match ensure () with
-    | Error _ as error -> error
-    | Ok () ->
-        (match message (Printf.sprintf "sample %S" path) (Mix.load_wav path) with
-         | Error _ as error -> error
-         | Ok chunk ->
-           match read_file path with
-           | Error detail -> Mix.free_chunk chunk; Error ("sample snapshot: "^detail)
-           | Ok encoded ->
-             let value = {
-             chunk;
-             destroyed = false;
-             } in Audio_snapshot.register(Obj.repr value)~kind:Sample encoded;Ok value)
-
-  let load_exn path =
-    match load path with Ok sample -> sample | Error detail -> failwith detail
-
-  let output_u16 channel value =
-    output_byte channel (value land 0xff);
-    output_byte channel ((value lsr 8) land 0xff)
-
-  let output_u32 channel value =
-    output_u16 channel (value land 0xffff);
-    output_u16 channel ((value lsr 16) land 0xffff)
-
-  let wave waveform phase =
-    match waveform with
-    | Sine -> Float.sin (phase *. Math.two_pi)
-    | Square -> if phase < 0.5 then 1. else -1.
-    | Saw -> (2. *. phase) -. 1.
-    | Triangle -> 1. -. (4. *. abs_float (phase -. 0.5))
-
-  let synth ?(sample_rate = 44_100) ?(volume = 0.8) ~waveform
-      ~frequency ~duration () =
-    require_main_domain ();
-    if sample_rate <= 0 then Error "Audio.Sample.synth: invalid sample rate"
-    else if frequency <= 0. then Error "Audio.Sample.synth: frequency must be positive"
-    else if duration <= 0. then Error "Audio.Sample.synth: duration must be positive"
-    else
-      let count = max 1 (int_of_float (duration *. float sample_rate)) in
-      let filename = Filename.temp_file "prismel-synth-" ".wav" in
-      let write () =
-        let channel = open_out_bin filename in
-        Fun.protect ~finally:(fun () -> close_out channel) (fun () ->
-          output_string channel "RIFF";
-          output_u32 channel (36 + (count * 2));
-          output_string channel "WAVEfmt ";
-          output_u32 channel 16;
-          output_u16 channel 1;
-          output_u16 channel 1;
-          output_u32 channel sample_rate;
-          output_u32 channel (sample_rate * 2);
-          output_u16 channel 2;
-          output_u16 channel 16;
-          output_string channel "data";
-          output_u32 channel (count * 2);
-          let amplitude = max 0. (min 1. volume) *. 32_767. in
-          for index = 0 to count - 1 do
-            let phase =
-              mod_float (float index *. frequency /. float sample_rate) 1.
-            in
-            let signed = int_of_float (wave waveform phase *. amplitude) in
-            output_u16 channel (signed land 0xffff)
-          done)
-      in
-      Fun.protect
-        ~finally:(fun () -> if Sys.file_exists filename then Sys.remove filename)
-        (fun () ->
-          try
-            write ();
-            let channel = open_in_bin filename in
-            let bytes =
-              Fun.protect ~finally:(fun () -> close_in channel) (fun () ->
-                really_input_string channel (in_channel_length channel)
-                |> Bytes.of_string) in
-            let result = load filename in
-            (match result with
-             | Error _ -> ()
-             | Ok sample ->
-                 Audio_snapshot.update (Obj.repr sample) bytes;
-                 ignore sample);
-            result
-          with Sys_error detail -> Error ("Audio synthesis failed: " ^ detail))
-
-  let set_volume sample value =
-    ensure_sample sample;
-    let value = normalized_volume value in
-    ignore (Mix.volume_chunk sample.chunk (volume value))
-
-  let play ?(loops = 0) ?volume:sample_volume sample =
-    ensure_sample sample;
-    Option.iter (set_volume sample) sample_volume;
-    match Mix.play_channel (-1) sample.chunk loops with
-    | Ok channel -> Ok channel
-    | Error (`Msg detail) -> Error ("Sample playback failed: " ^ detail)
-
-  let stop channel =
-    require_main_domain ();
-    ignore (Mix.halt_channel channel)
-
-  let pause channel =
-    require_main_domain ();
-    Mix.pause channel
-  let resume channel =
-    require_main_domain ();
-    Mix.resume channel
-  let is_playing channel = require_main_domain (); Mix.playing (Some channel)
-
-  let destroy sample =
-    require_main_domain ();
-    if not sample.destroyed then begin
-      Mix.free_chunk sample.chunk;
-      Audio_snapshot.remove (Obj.repr sample);
-      sample.destroyed <- true
-    end
+type state={audio:Prismel_next_resources.Audio.t;playing:(int,unit)Hashtbl.t;mutable music_playing:bool}
+let engine:state option ref=ref None
+let message operation error=Format.asprintf"%s: %a"operation Prismel_next_resources.pp_error error
+let current operation=match!engine with Some value->Ok value|None->Error(operation^": not initialized")
+let init ?(frequency=48000)?(channels=2)?chunk_size:_ ()=match!engine with Some _->Ok()|None->
+  begin match Prismel_next_resources.Audio.create_memory ~sample_rate:frequency ~channels ~max_channels:32 with
+  |Ok audio->engine:=Some{audio;playing=Hashtbl.create 32;music_playing=false};Ok()|Error error->Error(message"Audio.init"error)end
+let is_initialized()=Option.is_some!engine
+let shutdown()=match!engine with None->()|Some value->ignore(Prismel_next_resources.Audio.destroy value.audio);engine:=None
+let set_master_volume volume=match current"Audio.set_master_volume"with Ok value->ignore(Prismel_next_resources.Audio.set_master_volume value.audio volume)|Error _->()
+let stop_all()=match!engine with None->()|Some value->List.init 32 Fun.id|>List.iter(fun channel->ignore(Prismel_next_resources.Audio.stop_channel value.audio channel()));Hashtbl.clear value.playing;value.music_playing<-false
+let read path=let input=open_in_bin path in Fun.protect~finally:(fun()->close_in_noerr input)(fun()->really_input_string input(in_channel_length input)|>Bytes.of_string)
+module Sample=struct
+  type waveform=Sine|Square|Saw|Triangle
+  type t={resource:Prismel_next_resources.Audio.sample;mutable destroyed:bool;mutable volume:float}
+  let load path=match current"Audio.Sample.load"with Error _ as error->error|Ok audio->
+    begin try match Prismel_next_resources.Audio.load_sample_bytes audio.audio(read path)with
+    |Ok resource->Ok{resource;destroyed=false;volume=1.}|Error error->Error(message"Audio.Sample.load"error)
+    with Sys_error value->Error value end
+  let load_exn path=match load path with Ok value->value|Error value->failwith value
+  let synth ?(sample_rate=48000)?(volume=1.)~waveform ~frequency ~duration ()=match current"Audio.Sample.synth"with Error _ as e->e|Ok state->
+    if frequency<=0.||duration<=0. then Error"Audio.Sample.synth: invalid frequency or duration"else
+    let frames=max 1(int_of_float(duration*.float sample_rate))in let bytes=Bytes.make(44+frames*2)'\000'in
+    let p16 o v=Bytes.set bytes o(Char.chr(v land 255));Bytes.set bytes(o+1)(Char.chr((v lsr 8)land 255))in let p32 o v=p16 o v;p16(o+2)(v lsr 16)in
+    Bytes.blit_string"RIFF"0 bytes 0 4;p32 4(36+frames*2);Bytes.blit_string"WAVEfmt "0 bytes 8 8;p32 16 16;p16 20 1;p16 22 1;p32 24 sample_rate;p32 28(sample_rate*2);p16 32 2;p16 34 16;Bytes.blit_string"data"0 bytes 36 4;p32 40(frames*2);
+    let pi=4. *. atan 1. in for i=0 to frames-1 do let phase=frequency *. float i /. float sample_rate in let x=match waveform with Sine->sin(2. *. pi *. phase)|Square->if sin(2. *. pi *. phase)>=0. then 1. else -1.|Saw->2. *. (phase -. floor(phase +. 0.5))|Triangle->2. *. Float.abs(2. *. (phase -. floor(phase +. 0.5))) -. 1. in let scaled=Float.max (-1.) (Float.min 1. (volume *. x)) in p16(44+i*2)(int_of_float(scaled *. 32767.)land 0xffff)done;
+    match Prismel_next_resources.Audio.load_sample_bytes state.audio bytes with Ok resource->Ok{resource;destroyed=false;volume=1.}|Error e->Error(message"Audio.Sample.synth"e)
+  let play ?loops ?volume sample=match current"Audio.Sample.play"with Error _ as error->error|Ok state->
+    begin match Prismel_next_resources.Audio.play_sample state.audio ?loops ~volume:(Option.value volume~default:sample.volume) sample.resource with Ok channel->Hashtbl.replace state.playing channel();Ok channel|Error error->Error(message"Audio.Sample.play"error)end
+  let set_volume sample value=sample.volume<-max 0. (min 1. value)
+  let stop channel=match!engine with Some value->ignore(Prismel_next_resources.Audio.stop_channel value.audio channel());Hashtbl.remove value.playing channel|None->()
+  let pause channel=match!engine with Some value->ignore(Prismel_next_resources.Audio.pause_channel value.audio channel)|None->()
+  let resume channel=match!engine with Some value->ignore(Prismel_next_resources.Audio.resume_channel value.audio channel)|None->()
+  let is_playing channel=match!engine with Some value->Hashtbl.mem value.playing channel|None->false
+  let destroy sample=if not sample.destroyed then(ignore(Prismel_next_resources.Audio.destroy_sample sample.resource);sample.destroyed<-true)
 end
-
-module Music = struct
-  type t = {
-    music : Mix.music;
-    mutable destroyed : bool;
-  }
-
-  let ensure_music music =
-    require_main_domain ();
-    if music.destroyed then invalid_arg "Audio music has been destroyed"
-
-  let load path =
-    require_main_domain ();
-    match ensure () with
-    | Error _ as error -> error
-    | Ok () ->
-        (match message (Printf.sprintf "music %S" path) (Mix.load_mus path) with
-         | Error _ as error -> error
-         | Ok music ->
-           match read_file path with
-           | Error detail -> Mix.free_music music;Error("music snapshot: "^detail)
-           | Ok encoded -> let value={
-             music;
-             destroyed = false;
-           }in Audio_snapshot.register(Obj.repr value)~kind:Music encoded;Ok value)
-
-  let load_exn path =
-    match load path with Ok music -> music | Error detail -> failwith detail
-
-  let play ?(loops = 0) ?(fade_ms = 0) music =
-    ensure_music music;
-    let result =
-      if fade_ms > 0 then Mix.fade_in_music music.music loops fade_ms
-      else Mix.play_music music.music loops
-    in
-    match result with
-    | Ok _ -> Ok ()
-    | Error (`Msg detail) -> Error ("Music playback failed: " ^ detail)
-
-  let set_volume value =
-    require_main_domain ();
-    let value = normalized_volume value in
-    ignore (Mix.volume_music (volume value))
-
-  let pause () =
-    require_main_domain ();
-    Mix.pause_music ()
-  let resume () =
-    require_main_domain ();
-    Mix.resume_music ()
-
-  let stop ?(fade_ms = 0) () =
-    require_main_domain ();
-    if fade_ms > 0 then ignore (Mix.fade_out_music fade_ms)
-    else ignore (Mix.halt_music ())
-
-  let is_playing () = require_main_domain (); Mix.playing_music ()
-
-  let destroy music =
-    require_main_domain ();
-    if not music.destroyed then begin
-      Mix.free_music music.music;
-      Audio_snapshot.remove (Obj.repr music);
-      music.destroyed <- true
-    end
+module Music=struct
+  type t=Sample.t
+  let load=Sample.load
+  let load_exn=Sample.load_exn
+  let play ?loops ?(fade_ms=0) value=match current"Audio.Music.play"with Error _ as error->error|Ok audio->
+    begin match Prismel_next_resources.Audio.play_music audio.audio ?loops ~fade_in_ms:fade_ms value.Sample.resource with Ok()->audio.music_playing<-true;Ok()|Error error->Error(message"Audio.Music.play"error)end
+  let set_volume value=match!engine with Some audio->ignore(Prismel_next_resources.Audio.set_music_volume audio.audio value)|None->()
+  let pause()=match!engine with Some audio->ignore(Prismel_next_resources.Audio.pause_music audio.audio)|None->()
+  let resume()=match!engine with Some audio->ignore(Prismel_next_resources.Audio.resume_music audio.audio)|None->()
+  let stop ?(fade_ms=0)()=match!engine with Some audio->ignore(Prismel_next_resources.Audio.stop_music audio.audio ~fade_out_ms:fade_ms());audio.music_playing<-false|None->()
+  let is_playing()=match!engine with Some audio->audio.music_playing|None->false
+  let destroy=Sample.destroy
 end

@@ -87,7 +87,7 @@ or surface destruction.
 
 Maintain generated inventory/provenance, ABI/layout checks, immediate SDL error
 capture, main-thread enforcement, event/DPI correctness, SDL3 extension
-ownership, Metal/QuartzCore coverage, and offline shader provenance. S1-S8 and
+ownership and Metal/QuartzCore coverage. S1-S8 and
 M1-M10 remain mandatory.
 
 ### 2. OGPU and Metal backend
@@ -130,7 +130,7 @@ bounded native SDL stress pass on the release matrix.
 
 Complete non-deprecated SDK inventory; ABI-conformant raw bindings; typed direct
 selectors; ownership/availability/capability rejection; error translation,
-threading/destruction, offline shader provenance, Metal 4, and M3+ ray tracing
+threading/destruction, Metal 4, and M3+ ray tracing
 pass according to their hardware requirements.
 
 ### O: OGPU (O1-O9)
@@ -191,7 +191,7 @@ canonical native captures, and validator output. R10 is native-only; old
 cross-target cells are deleted.
 
 This plan is complete only when S1-S8, M1-M10, O1-O9, R1-R12, and D1-D8 pass
-on one final clean commit; native API/example, full-Xcode shaders, sanitizers,
+on one final clean commit; native API/example, runtime shader compilation, sanitizers,
 native 30-minute stability, M1/M3+ matrix, and evidence agree; and source,
 dependencies, and binaries contain no software rasterizer, headless/web
 transport, SDL2, Tsdl, or OpenGL fallback.

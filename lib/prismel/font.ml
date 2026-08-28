@@ -1,559 +1,123 @@
-(* font.ml — SDL2_ttf backend via tsdl-ttf *)
-
-open Result
-open Tsdl
-module Ttf = Tsdl_ttf.Ttf
-
-(** In-file re-export of public types so we can pattern-match *)
-
-type render_mode =
-  | Solid   of Color.t
-  | Shaded  of Color.t * Color.t
-  | Blended of Color.t
-
-type style = Normal | Bold | Italic | Underline | Strikethrough
-
-type hinting = Normal_hinting | Light_hinting | Mono_hinting | None_hinting
-
-type alignment = Left | Center | Right
-
-(** Convenient bind alias *)
-let ( >>= ) = Result.bind
-
-(* -------------------------------------------------------------------------- *)
-(* Helpers                                                                     *)
-(* -------------------------------------------------------------------------- *)
-
-let sdl_color (c : Color.t) : Sdl.color =
-  Sdl.Color.create ~r:c.r ~g:c.g ~b:c.b ~a:c.a
-
-let map_err (r : ('a, string) result) : ('a, [> `Msg of string ]) result =
-  match r with Ok v -> Ok v | Error e -> Error (`Msg e)
-
-(* -------------------------------------------------------------------------- *)
-(* One-time TTF init                                                           *)
-(* -------------------------------------------------------------------------- *)
-
-let ensure_init () : (unit, [> `Msg of string ]) result =
-  if Ttf.was_init () then Ok () else (Ttf.init () :> _)
-
-(* -------------------------------------------------------------------------- *)
-(* Font handle                                                                 *)
-(* -------------------------------------------------------------------------- *)
-
-type cache_key = string * render_mode * int option * alignment * int
-
-type cached_text = {
-  key : cache_key;
-  renderer : Sdl.renderer;
-  image : Image.t;
-}
-
-type handle = {
-  raster_size : int;
-  value : Ttf.font;
-}
-
-type t = {
-  font : Ttf.font;
-  size : int;
-  path : string;
-  explicit_density : float option;
-  mutable handles : handle list;
-  mutable cache : cached_text list;
-  mutable draw_cache : cached_text list;
-  mutable destroyed : bool;
-}
-
-let loaded_fonts : t list ref = ref []
-let system_fonts : (int, t) Hashtbl.t = Hashtbl.create 4
-
-(* -------------------------------------------------------------------------- *)
-(* Loading                                                                     *)
-(* -------------------------------------------------------------------------- *)
-
-let load_with_density ?explicit_density path pt :
-    (t, [> `Msg of string ]) result =
-  if pt <= 0 then Error (`Msg "font point size must be positive")
-  else
-  ensure_init () >>= fun () ->
-  Ttf.open_font path pt >>= fun font ->
-  let loaded = {
-    font;
-    size = pt;
-    path;
-    explicit_density;
-    handles = [{ raster_size = pt; value = font }];
-    cache = [];
-    draw_cache = [];
-    destroyed = false;
-  } in
-  loaded_fonts := loaded :: !loaded_fonts;
-  Ok loaded
-
-let load path pt = load_with_density path pt
-
-let load_dpi path pt hdpi vdpi =
-  if hdpi <= 0 || vdpi <= 0 then
-    Error (`Msg "font DPI must be positive")
-  else if hdpi <> vdpi then
-    Error (`Msg
-      "this SDL_ttf binding supports uniform font DPI only (hdpi must equal vdpi)")
-  else
-    load_with_density
-      ~explicit_density:(float_of_int hdpi /. 72.) path pt
-
-let resize f pt =
-  load_with_density ?explicit_density:f.explicit_density f.path pt
-
-let system_font_candidates () =
-  let fixed = [
-    (* macOS: SF is a system resource and is intentionally not bundled. *)
-    "/System/Library/Fonts/SFNS.ttf";
-    "/System/Library/Fonts/SFCompact.ttf";
-    "/System/Library/Fonts/HelveticaNeue.ttc";
-    "/System/Library/Fonts/Helvetica.ttc";
-    "/System/Library/Fonts/LucidaGrande.ttc";
-    (* Common Linux desktop fallbacks. *)
-    "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf";
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
-    "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf";
-    "/usr/share/fonts/TTF/DejaVuSans.ttf";
-  ] in
-  match Sys.getenv_opt "WINDIR" with
-  | None -> fixed
-  | Some root ->
-      Filename.concat root "Fonts/SegUIVar.ttf"
-      :: Filename.concat root "Fonts/segoeui.ttf"
-      :: Filename.concat root "Fonts/arial.ttf"
-      :: fixed
-
-let system_path () =
-  match Sys.getenv_opt "PRISMEL_UI_FONT" with
-  | Some path when path <> "" ->
-      if Sys.file_exists path then Some path else None
-  | _ -> List.find_opt Sys.file_exists (system_font_candidates ())
-
-let system ?(size = 14) () =
-  if size <= 0 then Error (`Msg "system font point size must be positive")
-  else
-    match Hashtbl.find_opt system_fonts size with
-    | Some font when not font.destroyed -> Ok font
-    | _ ->
-        (match system_path () with
-         | None ->
-             let message =
-               match Sys.getenv_opt "PRISMEL_UI_FONT" with
-               | Some path when path <> "" ->
-                   Printf.sprintf
-                     "PRISMEL_UI_FONT does not name a readable font: %s" path
-               | _ -> "No supported installed system UI font was found"
-             in
-             Error (`Msg message)
-         | Some path ->
-             load path size >>= fun font ->
-             Hashtbl.replace system_fonts size font;
-             Ok font)
-
-(* -------------------------------------------------------------------------- *)
-(* Style / hinting conversion                                                  *)
-(* -------------------------------------------------------------------------- *)
-
-let ttf_style_of_list lst =
-  List.fold_left
-    (fun acc s -> match s with
-       | Normal        -> acc
-       | Bold          -> Ttf.Style.(acc + bold)
-       | Italic        -> Ttf.Style.(acc + italic)
-       | Underline     -> Ttf.Style.(acc + underline)
-       | Strikethrough -> Ttf.Style.(acc + strikethrough))
-    Ttf.Style.normal lst
-
-let list_of_ttf_style v : style list =
-  let open Ttf.Style in
-  let add flag tag acc = if test v flag then tag :: acc else acc in
-  let res = []
-    |> add bold Bold |> add italic Italic |> add underline Underline
-    |> add strikethrough Strikethrough in
-  if eq v normal then Normal :: res else res |> List.rev
-
-let ttf_hint = function
-  | Normal_hinting -> Ttf.Hinting.Normal
-  | Light_hinting  -> Ttf.Hinting.Light
-  | Mono_hinting   -> Ttf.Hinting.Mono
-  | None_hinting   -> Ttf.Hinting.None
-
-let hint_of_ttf = function
-  | Ttf.Hinting.Normal -> Normal_hinting
-  | Ttf.Hinting.Light  -> Light_hinting
-  | Ttf.Hinting.Mono   -> Mono_hinting
-  | Ttf.Hinting.None   -> None_hinting
-
-let renderer_density renderer =
-  let logical_width, logical_height = Sdl.render_get_logical_size renderer in
-  if logical_width <= 0 || logical_height <= 0 then 1.
-  else
-    match Sdl.get_renderer_output_size renderer with
-    | Error _ -> 1.
-    | Ok (output_width, output_height) ->
-        let x =
-          float_of_int output_width /. float_of_int logical_width
-        in
-        let y =
-          float_of_int output_height /. float_of_int logical_height
-        in
-        max 1. (min x y)
-
-let configure_like source destination =
-  Ttf.set_font_style destination (Ttf.get_font_style source);
-  Ttf.set_font_hinting destination (Ttf.get_font_hinting source);
-  Ttf.set_font_kerning destination (Ttf.get_font_kerning source)
-
-let handle_for_renderer f renderer =
-  let requested_density =
-    Option.value ~default:(renderer_density renderer) f.explicit_density
-  in
-  let raster_size =
-    max 1
-      (int_of_float
-         ((float_of_int f.size *. requested_density) +. 0.5))
-  in
-  let density = float_of_int raster_size /. float_of_int f.size in
-  match List.find_opt (fun handle -> handle.raster_size = raster_size) f.handles with
-  | Some handle -> Ok (handle.value, density, raster_size)
-  | None ->
-      Ttf.open_font f.path raster_size >>= fun font ->
-      configure_like f.font font;
-      f.handles <- { raster_size; value = font } :: f.handles;
-      Ok (font, density, raster_size)
-
-(* -------------------------------------------------------------------------- *)
-(* Surface → Image                                                             *)
-(* -------------------------------------------------------------------------- *)
-
-let logical_pixels density pixels =
-  max 1 (int_of_float ((float_of_int pixels /. density) +. 0.5))
-
-let image_from_surface ~density (surf : Sdl.surface) :
-    (Image.t, [> `Msg of string ]) result =
-  map_err (Image.Private.get_renderer ()) >>= fun renderer ->
-  Sdl.create_texture_from_surface renderer surf >>= fun tex ->
-  match Sdl.query_texture tex with
-  | Error _ as error ->
-      Sdl.destroy_texture tex;
-      error
-  | Ok (_, _, (w, h)) ->
-      let image = Image.Private.from_texture tex
-          (logical_pixels density w) (logical_pixels density h) in
-      begin match Image_snapshot.rgba_of_surface surf with
-      | Error _ -> Sdl.destroy_texture tex; Error (`Msg "text snapshot failed")
-      | Ok (width, height, rgba) ->
-          Image_snapshot.register (Obj.repr image) ~width ~height rgba;
-          Ok image
-      end
-
-(* -------------------------------------------------------------------------- *)
-(* Render helpers                                                              *)
-(* -------------------------------------------------------------------------- *)
-
-let render_surface font text = function
-  | Solid fg          -> Ttf.render_utf8_solid   font text (sdl_color fg)
-  | Shaded (fg, bg)   -> Ttf.render_utf8_shaded  font text (sdl_color fg) (sdl_color bg)
-  | Blended fg        -> Ttf.render_utf8_blended font text (sdl_color fg)
-
-let transparent_text_surface font =
-  let height = max 1 (Ttf.font_height font) in
-  Sdl.create_rgb_surface_with_format ~w:1 ~h:height
-    ~depth:32 Sdl.Pixel.format_argb8888
-  >>= fun surface ->
-  match Sdl.fill_rect surface None 0l with
-  | Ok () -> Ok surface
-  | Error _ as error ->
-      Sdl.free_surface surface;
-      error
-
-(* -------------------------------------------------------------------------- *)
-(* Public API — single-line / wrapped                                          *)
-(* -------------------------------------------------------------------------- *)
-
-let render_text_with font density txt mode =
-  (if txt = "" then transparent_text_surface font
-   else render_surface font txt mode)
-  >>= fun surf ->
-  Fun.protect
-    ~finally:(fun () -> Sdl.free_surface surf)
-    (fun () -> image_from_surface ~density surf)
-
-let render_text f txt mode =
-  map_err (Image.Private.get_renderer ()) >>= fun renderer ->
-  handle_for_renderer f renderer >>= fun (font, density, _) ->
-  render_text_with font density txt mode
-
-(* -------------------------------------------------------------------------- *)
-(* Multi-line with alignment                                                   *)
-(* -------------------------------------------------------------------------- *)
-
-let render_multiline_with font density txt mode align =
-  let lines = String.split_on_char '\n' txt in
-  (* Measure *)
-  let rec measure acc = function
-    | [] -> Ok (List.rev acc)
-    | "" :: ls ->
-        measure (("", 0, max 1 (Ttf.font_height font)) :: acc) ls
-    | l :: ls ->
-        Ttf.size_utf8 font l >>= fun (w, h) ->
-        measure ((l, w, h) :: acc) ls
-  in
-  measure [] lines >>= fun dims ->
-  let max_w = max 1 (List.fold_left (fun m (_,w,_) -> max m w) 0 dims) in
-  let total_h = max 1 (List.fold_left (fun s (_,_,h) -> s + h) 0 dims) in
-  Sdl.create_rgb_surface_with_format ~w:max_w ~h:total_h
-    ~depth:32 Sdl.Pixel.format_argb8888 >>= fun dst ->
-  (match Sdl.fill_rect dst None 0l with
-   | Error _ as error ->
-       Sdl.free_surface dst;
-       error
-   | Ok () ->
-       Fun.protect
-         ~finally:(fun () -> Sdl.free_surface dst)
-         (fun () ->
-           let y = ref 0 in
-           let blit (line, w, h) =
-             if line = "" then begin
-               y := !y + h;
-               Ok ()
-             end else
-             render_surface font line mode >>= fun surf ->
-             Fun.protect
-               ~finally:(fun () -> Sdl.free_surface surf)
-               (fun () ->
-                 let x = match align with
-                   | Left -> 0
-                   | Center -> (max_w - w) / 2
-                   | Right -> max_w - w
-                 in
-                 let rect = Sdl.Rect.create ~x ~y:!y ~w ~h in
-                 Sdl.blit_surface ~src:surf None ~dst (Some rect) >>= fun () ->
-                 y := !y + h;
-                 Ok ())
-           in
-           List.fold_left
-             (fun result dimensions -> result >>= fun () -> blit dimensions)
-             (Ok ()) dims
-           >>= fun () ->
-           image_from_surface ~density dst))
-
-let render_multiline f txt mode align =
-  map_err (Image.Private.get_renderer ()) >>= fun renderer ->
-  handle_for_renderer f renderer >>= fun (font, density, _) ->
-  render_multiline_with font density txt mode align
-
-let wrap_paragraph font width paragraph =
-  let words =
-    String.split_on_char ' ' paragraph
-    |> List.filter (fun word -> word <> "")
-  in
-  let rec loop lines current = function
-    | [] ->
-        Ok (List.rev (if current = "" then lines else current :: lines))
-    | word :: rest ->
-        let candidate = if current = "" then word else current ^ " " ^ word in
-        Ttf.size_utf8 font candidate >>= fun (candidate_width, _) ->
-        if candidate_width <= width || current = "" then
-          loop lines candidate rest
-        else
-          loop (current :: lines) word rest
-  in
-  match words with
-  | [] -> Ok [""]
-  | _ -> loop [] "" words
-
-let wrap_text font width text =
-  if width <= 0 then Error (`Msg "text wrap width must be positive")
-  else
-    let rec paragraphs lines = function
-      | [] -> Ok (String.concat "\n" (List.rev lines))
-      | paragraph :: rest ->
-          wrap_paragraph font width paragraph >>= fun wrapped ->
-          paragraphs (List.rev_append wrapped lines) rest
-    in
-    paragraphs [] (String.split_on_char '\n' text)
-
-let render_wrapped f txt mode width =
-  if width <= 0 then Error (`Msg "text wrap width must be positive")
-  else
-    map_err (Image.Private.get_renderer ()) >>= fun renderer ->
-    handle_for_renderer f renderer >>= fun (font, density, _) ->
-    let raster_width =
-      max 1 (int_of_float ((float_of_int width *. density) +. 0.5))
-    in
-    wrap_text font raster_width txt >>= fun wrapped ->
-    render_multiline_with font density wrapped mode Left >>= fun image ->
-    Ok [image]
-
-let render_composed_with ?wrap ~align font density text mode =
-  match wrap with
-  | Some width ->
-      let raster_width =
-        max 1 (int_of_float ((float_of_int width *. density) +. 0.5))
-      in
-      wrap_text font raster_width text >>= fun wrapped ->
-      render_multiline_with font density wrapped mode align
-  | None when String.contains text '\n' ->
-      render_multiline_with font density text mode align
-  | None -> render_text_with font density text mode
-
-let cached_text ?wrap ?(align = Left) f text mode =
-  map_err (Image.Private.get_renderer ()) >>= fun renderer ->
-  handle_for_renderer f renderer >>= fun (font, density, raster_size) ->
-  let key = text, mode, wrap, align, raster_size in
-  match
-    List.find_opt
-      (fun cached -> cached.key = key && cached.renderer == renderer)
-      f.cache
-  with
-  | Some cached -> Ok cached.image
-  | None ->
-      render_composed_with ?wrap ~align font density text mode >>= fun image ->
-      f.cache <- { key; renderer; image } :: f.cache;
-      Ok image
-
-let cached_text_for_draw ?wrap ?(align = Left) f text mode =
-  map_err (Image.Private.get_renderer ()) >>= fun renderer ->
-  handle_for_renderer f renderer >>= fun (font, density, raster_size) ->
-  let key = text, mode, wrap, align, raster_size in
-  let rec extract reversed = function
-    | [] -> None, List.rev reversed
-    | cached :: rest
-      when cached.key = key && cached.renderer == renderer ->
-        Some cached, List.rev_append reversed rest
-    | cached :: rest -> extract (cached :: reversed) rest
-  in
-  let cached, remaining = extract [] f.draw_cache in
-  match cached with
-  | Some cached ->
-      f.draw_cache <- cached :: remaining;
-      Ok cached.image
-  | None ->
-      render_composed_with ?wrap ~align font density text mode >>= fun image ->
-      let inserted = { key; renderer; image } in
-      let maximum_per_renderer = 256 in
-      let rec trim count kept evicted = function
-        | [] -> List.rev kept, evicted
-        | cached :: rest when cached.renderer == renderer ->
-            if count < maximum_per_renderer then
-              trim (count + 1) (cached :: kept) evicted rest
-            else
-              trim count kept (cached :: evicted) rest
-        | cached :: rest -> trim count (cached :: kept) evicted rest
-      in
-      let retained, evicted = trim 0 [] [] (inserted :: f.draw_cache) in
-      List.iter (fun cached -> Image.destroy cached.image) evicted;
-      f.draw_cache <- retained;
-      Ok image
-
-let cache_count f = List.length f.cache + List.length f.draw_cache
-
-let clear_cache f =
-  List.iter (fun cached -> Image.destroy cached.image) f.cache;
-  List.iter (fun cached -> Image.destroy cached.image) f.draw_cache;
-  f.cache <- [];
-  f.draw_cache <- []
-
-let release_renderer renderer =
-  List.iter
-    (fun font ->
-      let release cache =
-        let owned, retained =
-          List.partition (fun cached -> cached.renderer == renderer) cache
-        in
-        List.iter (fun cached -> Image.destroy cached.image) owned;
-        retained
-      in
-      font.cache <- release font.cache;
-      font.draw_cache <- release font.draw_cache)
-    !loaded_fonts
-
-module Private = struct
-  let cached_text = cached_text_for_draw
-end
-
-(* -------------------------------------------------------------------------- *)
-(* Metrics                                                                     *)
-(* -------------------------------------------------------------------------- *)
-
-let text_size  f s = (Ttf.size_utf8 f.font s :> _)
-let text_width f s = text_size f s >>= fun (w,_) -> Ok w
-let text_height f s = text_size f s >>= fun (_,h) -> Ok h
-
-let get_height    f = Ttf.font_height    f.font
-let get_ascent    f = Ttf.font_ascent    f.font
-let get_descent   f = Ttf.font_descent   f.font
-let get_line_skip f = Ttf.font_line_skip f.font
-let get_size      f = f.size
-
-(* -------------------------------------------------------------------------- *)
-(* Style / hinting / kerning                                                  *)
-(* -------------------------------------------------------------------------- *)
-
-let set_style f lst =
-  clear_cache f;
-  let style = ttf_style_of_list lst in
-  List.iter (fun handle -> Ttf.set_font_style handle.value style) f.handles
-let get_style   f     = list_of_ttf_style (Ttf.get_font_style f.font)
-let set_hinting f h =
-  clear_cache f;
-  let hinting = ttf_hint h in
-  List.iter
-    (fun handle -> Ttf.set_font_hinting handle.value hinting)
-    f.handles
-let get_hinting f     = hint_of_ttf (Ttf.get_font_hinting f.font)
-let set_kerning f b =
-  clear_cache f;
-  List.iter (fun handle -> Ttf.set_font_kerning handle.value b) f.handles
-let get_kerning f     = Ttf.get_font_kerning f.font
-
-(* -------------------------------------------------------------------------- *)
-(* Misc info                                                                   *)
-(* -------------------------------------------------------------------------- *)
-
-let get_family_name f =
-  match Ttf.font_face_family_name f.font with
-  | "" -> None | s -> Some s
-
-let get_style_name f =
-  match Ttf.font_face_style_name f.font with
-  | "" -> None | s -> Some s
-
-let is_fixed_width f = Ttf.font_face_is_fixed_width f.font <> 0
-
-(* -------------------------------------------------------------------------- *)
-(* Glyph utilities                                                             *)
-(* -------------------------------------------------------------------------- *)
-
-let glyph_provided f cp = Ttf.glyph_is_provided f.font cp
-
-let glyph_metrics f cp =
-  Ttf.glyph_metrics f.font cp >>= fun m ->
-  Ok (m.min_x, m.max_x, m.min_y, m.max_y, m.advance)
-
-(* -------------------------------------------------------------------------- *)
-(* Cleanup                                                                     *)
-(* -------------------------------------------------------------------------- *)
-
-let destroy f =
-  if not f.destroyed then begin
-    clear_cache f;
-    List.iter (fun handle -> Ttf.close_font handle.value) f.handles;
-    f.handles <- [];
-    f.destroyed <- true;
-    loaded_fonts := List.filter (fun loaded -> loaded != f) !loaded_fonts;
-    Hashtbl.filter_map_inplace
-      (fun _ loaded -> if loaded == f then None else Some loaded)
-      system_fonts
+type render_mode=Solid of Color.t|Shaded of Color.t*Color.t|Blended of Color.t
+type style=Normal|Bold|Italic|Underline|Strikethrough
+type hinting=Normal_hinting|Light_hinting|Mono_hinting|None_hinting
+type alignment=Left|Center|Right
+type t={resource:Prismel_next_resources.Font.t;size:int;source:string option;mutable styles:style list;
+  mutable hinting:hinting;mutable kerning:bool;cache:(string,Image.t)Hashtbl.t;order:string Queue.t}
+let message operation error=`Msg(Format.asprintf"%s: %a"operation Prismel_next_resources.pp_error error)
+let fonts:t list ref=ref[]
+let make ?source size=function Ok resource->let value={resource;size;source;styles=[];hinting=Normal_hinting;kerning=true;cache=Hashtbl.create 256;order=Queue.create()}in fonts:=value::!fonts;Ok value|Error error->Error(message"Font.load"error)
+let load path size=make ~source:path size(Prismel_next_resources.Font.open_file ~path ~size:(float size))
+let system_path()=match Sys.getenv_opt"PRISMEL_UI_FONT"with Some path when Sys.file_exists path->Some path|_->List.find_opt Sys.file_exists["/System/Library/Fonts/SFNS.ttf";"/Library/Fonts/Arial.ttf";"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
+let system ?(size=16)()=make size(Prismel_next_resources.Font.open_system ~size:(float size))
+let load_dpi path size hdpi vdpi=if hdpi<>vdpi then Error(`Msg"Font.load_dpi: non-uniform DPI")else load path size
+let resize font size=match font.source with Some path->load path size|None->system ~size()
+let rgba=function Solid c|Blended c|Shaded(c,_)->c.Color.r,c.g,c.b,c.a
+let image_of_text text=match Prismel_next_resources.Text.size text,Prismel_next_resources.Text.pixels text with
+  |Ok(width,height),Ok rgba->begin match Prismel_next_resources.Image.create ~width ~height ~rgba with Ok image->Ok(Image.Private.of_resource image)|Error error->Error(message"Font.image"error)end
+  |Error error,_->Error(message"Font.size"error)|_,Error error->Error(message"Font.pixels"error)
+let render_text font text mode=match Prismel_next_resources.Font.render font.resource ~density:1 ~color:(rgba mode)text with
+  |Error error->Error(message"Font.render_text"error)|Ok None->Ok(Image.create ~width:1 ~height:1())
+  |Ok(Some value)->let result=image_of_text value in ignore(Prismel_next_resources.Text.destroy value);result
+let key ?wrap ?(align=Left) text mode=Marshal.to_string(text,wrap,align,rgba mode)[]
+let cached_text ?wrap ?(align=Left) font text mode=let key=key ?wrap ~align text mode in match Hashtbl.find_opt font.cache key with Some image->Ok image|None->
+  match render_text font text mode with Error _ as error->error|Ok image->
+    if Hashtbl.length font.cache=256 then begin
+      let oldest=Queue.pop font.order in
+      match Hashtbl.find_opt font.cache oldest with
+      |Some old->Image.destroy old;Hashtbl.remove font.cache oldest
+      |None->()
+    end;
+    Hashtbl.replace font.cache key image;Queue.push key font.order;Ok image
+let cache_count font=Hashtbl.length font.cache
+let clear_cache font=Hashtbl.iter(fun _ image->Image.destroy image)font.cache;Hashtbl.clear font.cache;Queue.clear font.order
+let resource_styles styles=List.map(function
+  |Normal->Prismel_next_resources.Font.Normal
+  |Bold->Prismel_next_resources.Font.Bold
+  |Italic->Prismel_next_resources.Font.Italic
+  |Underline->Prismel_next_resources.Font.Underline
+  |Strikethrough->Prismel_next_resources.Font.Strikethrough)styles
+let set_style font styles=match Prismel_next_resources.Font.set_style font.resource(resource_styles styles)with Ok()->clear_cache font;font.styles<-styles|Error _->()
+let get_style font=font.styles
+let resource_hinting=function
+  |Normal_hinting->Prismel_next_resources.Font.Normal_hinting
+  |Light_hinting->Prismel_next_resources.Font.Light_hinting
+  |Mono_hinting->Prismel_next_resources.Font.Mono_hinting
+  |None_hinting->Prismel_next_resources.Font.None_hinting
+let set_hinting font value=match Prismel_next_resources.Font.set_hinting font.resource(resource_hinting value)with Ok()->clear_cache font;font.hinting<-value|Error _->()
+let get_hinting font=font.hinting
+let set_kerning font value=match Prismel_next_resources.Font.set_kerning font.resource value with Ok()->clear_cache font;font.kerning<-value|Error _->()
+let get_kerning font=font.kerning
+let get_size font=font.size
+let destroy font=
+  fonts:=List.filter(fun candidate->candidate!=font)!fonts;
+  clear_cache font;ignore(Prismel_next_resources.Font.destroy font.resource)
+module Private=struct
+ let cached_text=cached_text
+ type automatic_entry={image:Image.t;mutable references:int;mutable stamp:int;mutable cached:bool}
+ type automatic={entry:automatic_entry;mutable released:bool}
+ let capacity=256 and font_capacity=32
+ let automatic_cache:(string,automatic_entry)Hashtbl.t=Hashtbl.create capacity
+ let automatic_fonts:(int,t*int)Hashtbl.t=Hashtbl.create font_capacity
+ let clock=ref 0
+ let next_stamp()=incr clock;!clock
+ let automatic_key ?wrap ?(align=Left) ~size text mode=
+   Marshal.to_string(size,text,wrap,align,rgba mode)[]
+ let evict_entry()=
+   let oldest=ref None in
+   Hashtbl.iter(fun key entry->if entry.references=0 then match!oldest with
+    |None->oldest:=Some(key,entry)|Some(_,candidate)when entry.stamp<candidate.stamp->oldest:=Some(key,entry)|Some _->())automatic_cache;
+   match!oldest with None->false|Some(key,entry)->Hashtbl.remove automatic_cache key;entry.cached<-false;Image.destroy entry.image;true
+ let font size=
+   match Hashtbl.find_opt automatic_fonts size with
+   |Some(value,_)->Hashtbl.replace automatic_fonts size(value,next_stamp());Ok value
+   |None->
+     if Hashtbl.length automatic_fonts>=font_capacity then begin
+      let oldest=ref None in Hashtbl.iter(fun key(value,stamp)->match!oldest with None->oldest:=Some(key,value,stamp)|Some(_,_,candidate)when stamp<candidate->oldest:=Some(key,value,stamp)|Some _->())automatic_fonts;
+      Option.iter(fun(key,value,_)->Hashtbl.remove automatic_fonts key;destroy value)!oldest
+     end;
+     match system~size()with Error _ as error->error|Ok value->Hashtbl.add automatic_fonts size(value,next_stamp());Ok value
+ let borrow_automatic ?wrap ?(align=Left) ~size text mode=
+   let key=automatic_key?wrap~align~size text mode in
+   match Hashtbl.find_opt automatic_cache key with
+   |Some entry->entry.references<-entry.references+1;entry.stamp<-next_stamp();Ok{entry;released=false}
+   |None->match font size with Error _ as error->error|Ok font->
+     match render_text font text mode with Error _ as error->error|Ok image->
+      let can_cache=Hashtbl.length automatic_cache<capacity||evict_entry()in
+      let entry={image;references=1;stamp=next_stamp();cached=can_cache}in
+      if can_cache then Hashtbl.add automatic_cache key entry;
+      Ok{entry;released=false}
+ let automatic_image handle=handle.entry.image
+ let release_automatic handle=if not handle.released then begin
+   handle.released<-true;handle.entry.references<-handle.entry.references-1;
+   if handle.entry.references=0&&not handle.entry.cached then Image.destroy handle.entry.image
   end
-
-let shutdown () =
-  List.iter destroy (List.rev !loaded_fonts);
-  loaded_fonts := [];
-  Hashtbl.clear system_fonts
+ let clear_automatic()=
+  Hashtbl.iter(fun _ entry->entry.cached<-false;if entry.references=0 then Image.destroy entry.image)automatic_cache;
+  Hashtbl.clear automatic_cache;
+  let owned=Hashtbl.fold(fun _ (font,_) acc->font::acc)automatic_fonts[]in
+  Hashtbl.clear automatic_fonts;List.iter destroy owned
+ let automatic_counts()=
+  let references=Hashtbl.fold(fun _ entry count->count+entry.references)automatic_cache 0 in
+  Hashtbl.length automatic_cache,Hashtbl.length automatic_fonts,references
+end
+let release_renderer _renderer=List.iter clear_cache!fonts;Private.clear_automatic()
+let shutdown()=Private.clear_automatic();let owned= !fonts in fonts:=[];List.iter destroy owned
+let text_size font text=match render_text font text(Blended Color.white)with Error _ as e->e|Ok image->let size=Image.get_size image in Image.destroy image;Ok size
+let render_wrapped font text mode width=
+  let words=String.split_on_char ' ' text in
+  let rec build line acc=function []->List.rev(line::acc)|word::rest->let candidate=if line=""then word else line^" "^word in if fst(Result.value(text_size font candidate)~default:(0,0))<=width then build candidate acc rest else build word(line::acc)rest in
+  let lines=if text=""then[""]else build""[]words in
+  let rec render acc=function []->Ok(List.rev acc)|line::rest->match render_text font line mode with Error _ as e->e|Ok image->render(image::acc)rest in render[]lines
+let render_multiline font text mode align=cached_text ~align font text mode
+let text_width font text=Result.map fst(text_size font text)
+let text_height font text=Result.map snd(text_size font text)
+let get_height font=font.size
+let get_ascent font=font.size
+let get_descent _font=0
+let get_line_skip font=font.size
+let get_family_name _=None
+let get_style_name _=None
+let is_fixed_width _=false
+let glyph_metrics font code=match Prismel_next_resources.Font.glyph_metrics font.resource code with Ok m->Ok(m.min_x,m.max_x,m.min_y,m.max_y,m.advance)|Error e->Error(message"Font.glyph_metrics"e)
+let glyph_provided font code=Result.is_ok(glyph_metrics font code)

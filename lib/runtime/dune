@@ -1,18 +1,105 @@
-(executable
- (name discover)
- (modules discover)
- (libraries dune-configurator))
-
-(rule
- (targets c_library_flags.sexp)
- (action (run ./discover.exe)))
+(library
+ (name runtime_next)
+ (public_name prismel.runtime_next)
+ (modules runtime_next runtime_next_shaders)
+ (private_modules runtime_next_shaders)
+ (libraries sdl3 metal ogpu ogpu_metal scene_execution))
 
 (library
- (name runtime)
- (public_name prismel.runtime)
- (modules runtime target)
- (foreign_stubs
-  (language c)
-  (names runtime_stubs))
- (c_library_flags (:include c_library_flags.sexp))
- (libraries unix tsdl tsdl-image tsdl-ttf))
+ (name runtime_next_provider)
+ (public_name prismel.runtime_next_provider)
+ (modules runtime_next_provider))
+
+(library
+ (name runtime_next_provider_loader)
+ (public_name prismel.runtime_next_provider_loader)
+ (modules runtime_next_provider_loader)
+ (libraries runtime_next_provider))
+
+(library
+ (name runtime_next_native_provider)
+ (public_name prismel.runtime_next_native_provider)
+ (modules runtime_next_native_provider)
+ (libraries runtime_next runtime_next_provider))
+
+(library
+ (name runtime_next_concrete_provider_loader)
+ (public_name prismel.runtime_next_concrete_provider_loader)
+ (modules runtime_next_concrete_provider_loader)
+ (libraries runtime_next_provider runtime_next_provider_loader
+  runtime_next_native_provider))
+
+(library
+ (name runtime_next_orchestrator)
+ (public_name prismel.runtime_next_orchestrator)
+ (modules runtime_next_orchestrator)
+ (libraries ogpu metal scene_execution runtime_next))
+
+(library
+ (name runtime_next_input)
+ (public_name prismel.runtime_next_input)
+ (wrapped false)
+ (modules runtime_next_input runtime_next_input_sdl3)
+ (libraries sdl3))
+
+(test
+ (name test_runtime_next)
+ (modules test_runtime_next)
+ (libraries runtime_next scene_execution metal))
+
+(test
+ (name test_runtime_next_visibility)
+ (modules test_runtime_next_visibility)
+ (libraries runtime_next ogpu))
+
+(test
+ (name test_runtime_next_scaling)
+ (modules test_runtime_next_scaling)
+ (libraries runtime_next scene_execution ogpu))
+
+(test
+ (name test_runtime_next_scene3_lighting)
+ (modules test_runtime_next_scene3_lighting)
+ (libraries runtime_next scene_execution metal ogpu))
+
+(test
+ (name test_runtime_next_scene2_argument_shader)
+ (modules test_runtime_next_scene2_argument_shader)
+ (libraries runtime_next metal))
+
+(test
+ (name test_runtime_next_scene2_argument)
+ (modules test_runtime_next_scene2_argument)
+ (libraries runtime_next scene_execution metal ogpu))
+
+(test
+ (name test_runtime_next_orchestrator)
+ (modules test_runtime_next_orchestrator)
+ (libraries runtime_next_orchestrator scene_execution ogpu))
+
+(test
+ (name test_runtime_next_input)
+ (modules test_runtime_next_input)
+ (libraries runtime_next_input sdl3))
+
+(test
+ (name test_runtime_next_provider)
+ (modules test_runtime_next_provider)
+ (libraries runtime_next_provider))
+
+(test
+ (name test_runtime_next_provider_loader)
+ (modules test_runtime_next_provider_loader)
+ (libraries runtime_next_provider runtime_next_provider_loader))
+
+(test
+ (name test_runtime_next_concrete_providers)
+ (modules test_runtime_next_concrete_providers)
+ (libraries runtime_next_native_provider runtime_next_provider ogpu)
+ (action (setenv SDL_VIDEODRIVER dummy (run %{test}))))
+
+(test
+ (name test_runtime_next_concrete_provider_loader)
+ (modules test_runtime_next_concrete_provider_loader)
+ (libraries runtime_next_concrete_provider_loader runtime_next_provider)
+ (action (setenv SDL_VIDEODRIVER dummy (run %{test}))))
