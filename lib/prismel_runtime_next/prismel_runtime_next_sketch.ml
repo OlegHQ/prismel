@@ -179,7 +179,7 @@ let test () =
                                 Scene.point ~at:(frame.count mod 4, 0) () ])
         ~prepare:(fun frame _scene ->
           if frame.events <> [] || frame.mouse_delta <> (0, 0) then
-            failwith "finite headless frame synthesized input";
+            failwith "finite native frame synthesized input";
           Ok [ draw ])
         ~on_stop:(fun model -> stopped := Some model) () with
     | Ok result -> result
@@ -194,7 +194,7 @@ let test () =
   if !stopped <> Some result.model then
     failwith "private Sketch cleanup did not retain final model";
   print_endline
-    "private runtime-next Sketch loop: headless frame600 exact pixels/cleanup passed"
+    "private runtime-next Sketch loop: native frame600 exact pixels/cleanup passed"
 
 let () =
   match Sys.getenv_opt "PRISMEL_TEST_RUNTIME_NEXT_SKETCH" with

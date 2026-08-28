@@ -194,7 +194,7 @@ let test () =
       ~drawable_width:40 ~drawable_height:30 ~time:2. ~dt:1. ~fps:1.
       ~count:2 in
   if empty.events <> [] || empty.mouse_delta <> (0, 0) then
-    failwith "headless no-input/frame reset differs";
+    failwith "native no-input/frame reset differs";
   let cancellation = frame adapter ~facts:(facts 20 10)
       ~events:[ Pointer_pressed (Left, 1., 1.); Focus_lost;
                 Pointer_cancelled Left ]
