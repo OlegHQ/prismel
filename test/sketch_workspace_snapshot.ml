@@ -75,7 +75,6 @@ let init frame =
     else Filename.concat (Filename.get_temp_dir_name ())
         "prismel-workspace-snapshot.png" in
   let environment = Sketch_ui.Environment3.create ~graph:(graph ())
-      ~headless_frames:20
       ~camera:(Easy_camera.create ~distance:6.8 ~azimuth:0.72 ~elevation:0.42 ())
       ~prepare:(fun output -> Bridge.to_mesh output.Session.geometry
         |> Result.map_error Pdk.Error.to_string)

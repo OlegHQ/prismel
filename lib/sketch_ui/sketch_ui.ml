@@ -301,7 +301,6 @@ module Core = struct
     edit_error : string option;
     cook_error : string option;
     cook_seconds : float option;
-    headless_frames : int option;
   }
 
   type 'prepared update = {
@@ -328,12 +327,9 @@ module Core = struct
   let create ?(layout = default_layout) ?(factories = [])
       ?(seed = 0L) ?(grain = 16_384)
       ?domains ?(max_entries = 32)
-      ?(max_payload_bytes = 256 * 1024 * 1024) ?(headless_frames = 2)
+      ?(max_payload_bytes = 256 * 1024 * 1024)
       ~graph ~prepare () =
-    if headless_frames <= 0 then Error
-        "Sketch_ui: headless_frames must be positive"
-    else
-      Result.map (fun worker ->
+    Result.map (fun worker ->
         let workspace = Workspace.create layout in
         let panes = Workspace.geometry workspace initial_frame in
         let gx, gy, gw, gh = panes.graph in
@@ -347,9 +343,7 @@ module Core = struct
           timeline = Sketch_support.Timeline.create (); worker;
           schedule = Sketch_support.Reactive_sop.schedule_initial; prepare;
           prepared = None; edit_error = None; cook_error = None;
-          cook_seconds = None;
-          headless_frames = if Sketch.is_headless () then Some headless_frames
-            else None })
+          cook_seconds = None })
         (Sketch_support.Reactive_sop.create ~seed ~grain ?domains ~max_entries
           ~max_payload_bytes ())
 
@@ -566,17 +560,9 @@ module Core = struct
       | Ok _ -> None
       | Error message -> Some message
       else cook_error in
-    let done_ = not (busy value.worker)
-        && (Option.is_some prepared || Option.is_some cook_error) in
-    let headless_frames = if not done_ then value.headless_frames else
-      match value.headless_frames with
-      | None -> None
-      | Some 1 -> Sketch.quit (); Some 0
-      | Some remaining -> Some (remaining - 1) in
     { core = { value with graph; displayed_graph; document; graph_view; displayed_id;
         inspector; inspector_ui;
-        workspace; timeline; schedule; prepared; edit_error; cook_error; cook_seconds;
-        headless_frames };
+        workspace; timeline; schedule; prepared; edit_error; cook_error; cook_seconds };
       effects; prepared_changed }
 
   let truncate limit text = if String.length text <= limit then text
@@ -638,7 +624,7 @@ module Environment3 = struct
   let create ?(layout = default_layout) ?factories
       ?(camera = Easy_camera.create ~target:Vec3.zero ~distance:7. ())
       ?(background = Color.hex_exn "#09090b") ?seed ?grain ?domains
-      ?max_entries ?max_payload_bytes ?headless_frames ~graph ~prepare ~scene3
+      ?max_entries ?max_payload_bytes ~graph ~prepare ~scene3
       ?(overlay = fun _ _ _ -> Scene.empty) () =
     Result.map (fun core ->
       let camera_control = Pxui.Camera_control.create () in
@@ -649,7 +635,7 @@ module Environment3 = struct
       { core; camera; camera_control; camera_ui; scene3; overlay;
         rendered = None; render_status = None; background })
       (Core.create ~layout ?factories ?seed ?grain ?domains ?max_entries
-        ?max_payload_bytes ?headless_frames ~graph ~prepare ())
+        ?max_payload_bytes ~graph ~prepare ())
 
   let graph value = Core.graph value.core
   let document value = Core.document value.core
@@ -719,10 +705,10 @@ module Environment3 = struct
   let close value = Core.close value.core
 
   let run ?layout ?factories ?camera ?background ?seed ?grain ?domains ?max_entries
-      ?max_payload_bytes ?headless_frames ~config ~graph ~prepare ~scene3
+      ?max_payload_bytes ~config ~graph ~prepare ~scene3
       ?overlay () =
     let init _frame = create ?layout ?factories ?camera ?background ?seed ?grain ?domains
-        ?max_entries ?max_payload_bytes ?headless_frames ~graph ~prepare ~scene3
+        ?max_entries ?max_payload_bytes ~graph ~prepare ~scene3
         ?overlay () |> Result.get_ok in
     ignore (Sketch.run_state ~config ~init ~update ~view:scene ~on_stop:close ())
 end
@@ -746,7 +732,7 @@ module Environment2 = struct
   let create ?(layout = default_layout) ?factories
       ?(camera = Easy_camera2.create ())
       ?(background = Color.hex_exn "#09090b") ?seed ?grain ?domains
-      ?max_entries ?max_payload_bytes ?headless_frames ~graph ~prepare ~scene2
+      ?max_entries ?max_payload_bytes ~graph ~prepare ~scene2
       ?(overlay = fun _ _ _ -> Scene.empty) () =
     Result.map (fun core ->
       let camera_control = Pxui.Camera2_control.create () in
@@ -757,7 +743,7 @@ module Environment2 = struct
       { core; camera; camera_control; camera_ui; scene2; overlay;
         rendered = None; render_status = None; background })
       (Core.create ~layout ?factories ?seed ?grain ?domains ?max_entries
-        ?max_payload_bytes ?headless_frames ~graph ~prepare ())
+        ?max_payload_bytes ~graph ~prepare ())
 
   let graph value = Core.graph value.core
   let document value = Core.document value.core
@@ -826,10 +812,10 @@ module Environment2 = struct
   let close value = Core.close value.core
 
   let run ?layout ?factories ?camera ?background ?seed ?grain ?domains ?max_entries
-      ?max_payload_bytes ?headless_frames ~config ~graph ~prepare ~scene2
+      ?max_payload_bytes ~config ~graph ~prepare ~scene2
       ?overlay () =
     let init _frame = create ?layout ?factories ?camera ?background ?seed ?grain ?domains
-        ?max_entries ?max_payload_bytes ?headless_frames ~graph ~prepare ~scene2
+        ?max_entries ?max_payload_bytes ~graph ~prepare ~scene2
         ?overlay () |> Result.get_ok in
     ignore (Sketch.run_state ~config ~init ~update ~view:scene ~on_stop:close ())
 end

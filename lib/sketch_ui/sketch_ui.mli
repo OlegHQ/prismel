@@ -66,7 +66,6 @@ module Environment3 : sig
     ?domains:int ->
     ?max_entries:int ->
     ?max_payload_bytes:int ->
-    ?headless_frames:int ->
     graph:Procedural.Graph.t ->
     prepare:(Procedural.Session.output -> ('prepared, string) result) ->
     scene3:(Procedural.Graph.t -> 'prepared -> Prismel.Scene3.t) ->
@@ -98,7 +97,6 @@ module Environment3 : sig
     ?domains:int ->
     ?max_entries:int ->
     ?max_payload_bytes:int ->
-    ?headless_frames:int ->
     config:Prismel.Sketch.config ->
     graph:Procedural.Graph.t ->
     prepare:(Procedural.Session.output -> ('prepared, string) result) ->
@@ -124,7 +122,6 @@ module Environment2 : sig
     ?domains:int ->
     ?max_entries:int ->
     ?max_payload_bytes:int ->
-    ?headless_frames:int ->
     graph:Procedural.Graph.t ->
     prepare:(Procedural.Session.output -> ('prepared, string) result) ->
     scene2:(Procedural.Graph.t -> 'prepared -> Prismel.Scene.t) ->
@@ -156,7 +153,6 @@ module Environment2 : sig
     ?domains:int ->
     ?max_entries:int ->
     ?max_payload_bytes:int ->
-    ?headless_frames:int ->
     config:Prismel.Sketch.config ->
     graph:Procedural.Graph.t ->
     prepare:(Procedural.Session.output -> ('prepared, string) result) ->
