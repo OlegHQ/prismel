@@ -63,9 +63,9 @@ let mixed_scene2_batching () =
   ignore(get(Scene_execution.render_resources renderer mixed));
   let trace=Ogpu.Backend_mock.trace control in
   let renders=List.filter(String.starts_with~prefix:"render:")trace in
-  if List.length renders<>1||List.length(List.filter(String.starts_with~prefix:"submit:")trace)<>1
-     ||not(String.contains(List.hd renders)';')then
-    failwith("canonical Scene2 ABI did not retain one ordered batch: "^String.concat","trace);
+  if List.length renders<>2||List.length(List.filter(String.starts_with~prefix:"submit:")trace)<>2
+     ||not(List.exists(fun render->String.contains render ';')renders)then
+    failwith("classic/retained Scene2 boundary did not preserve retained batching: "^String.concat","trace);
   Ogpu.Backend_mock.clear_trace control;
   let clipped={state with scissor=(1,1,7,7)}in
   ignore(get(Scene_execution.render_resources renderer[
@@ -82,7 +82,18 @@ let mixed_scene2_batching () =
   |_->failwith"malformed second draw was not rejected"end;
   if Ogpu.Backend_mock.trace control<>[]then failwith"failed mixed pass submitted partial work";
   get(Scene_execution.destroy renderer);
-  if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then failwith"mixed pass leaked objects"
+  if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then failwith"mixed pass leaked objects";
+  let driver,control=Ogpu.Backend_mock.create()in
+  let renderer=get(Scene_execution.create_variants~canonical_scene2_argument:true driver configuration)in
+  ignore(get(Scene_execution.render_resources renderer mixed));
+  Ogpu.Backend_mock.clear_trace control;
+  ignore(get(Scene_execution.render_resources renderer mixed));
+  let trace=Ogpu.Backend_mock.trace control in
+  if List.length(List.filter(String.starts_with~prefix:"render:")trace)<>1||
+     List.length(List.filter(String.starts_with~prefix:"submit:")trace)<>1 then
+    failwith("canonical Scene2 policy split a compatible plain/textured batch: "^String.concat","trace);
+  get(Scene_execution.destroy renderer);
+  if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then failwith"canonical mixed pass leaked objects"
 let oversized_frame () =
   let driver,control=Ogpu.Backend_mock.create()in
   let configuration:Ogpu.Surface.configuration={logical_width=8;logical_height=8;physical_width=8;physical_height=8;format=Rgba8_unorm;present_mode=Fifo;max_acquired=2}in
@@ -96,7 +107,7 @@ let oversized_frame () =
   let before=Scene_execution.upload_bytes renderer in
   ignore(get(Scene_execution.render renderer(draws 18_278)));
   let uploaded=Int64.sub(Scene_execution.upload_bytes renderer)before in
-  if uploaded<>Int64.of_int(18_278*48)then failwith"exact oversized upload cardinality";
+  if uploaded<>Int64.of_int(18_278*60)then failwith"exact oversized upload cardinality";
   let renders=Ogpu.Backend_mock.trace control|>List.filter(String.starts_with~prefix:"render:")in
   if List.length renders<>1 then failwith"exact oversized frame lost ordered batching";
   if Scene_execution.cache_entries renderer<>2 then failwith"exact frame escaped coalesced cache";
@@ -130,7 +141,7 @@ let replacement_reuse () =
   ignore(get(Scene_execution.render renderer[{mesh=make '\000';state}]));
   let before=Scene_execution.upload_bytes renderer in Ogpu.Backend_mock.clear_trace control;
   ignore(get(Scene_execution.render renderer[{mesh=make '\001';state}]));
-  if Scene_execution.upload_bytes renderer<>Int64.add before 48L then failwith"same-size replacement upload cardinality";
+  if Scene_execution.upload_bytes renderer<>Int64.add before 60L then failwith"same-size replacement upload cardinality";
   if List.exists(String.starts_with~prefix:"create-buffer:")(Ogpu.Backend_mock.trace control)then failwith"same-size replacement allocated a buffer";
   Ogpu.Backend_mock.clear_trace control;
   let other={state with scissor=(1,1,7,7)}in
@@ -141,7 +152,7 @@ let replacement_reuse () =
   ignore(get(Scene_execution.render renderer(small '\000')));
   let selective=Scene_execution.upload_bytes renderer in
   ignore(get(Scene_execution.render renderer(small '\001')));
-  if Scene_execution.upload_bytes renderer<>Int64.add selective 48L then failwith"small stable run reuploaded unchanged neighbours";
+  if Scene_execution.upload_bytes renderer<>Int64.add selective 60L then failwith"small stable run reuploaded unchanged neighbours";
   let selective_changed=Scene_execution.upload_bytes renderer in
   ignore(get(Scene_execution.render renderer(small '\001')));
   if Scene_execution.upload_bytes renderer<>selective_changed then failwith"stable small run reuploaded";
@@ -222,7 +233,7 @@ let ()=let driver,control=Ogpu.Backend_mock.create()in let configuration:Ogpu.Su
     [Ogpu.Pipeline.Replace;Alpha;Add;Multiply;Screen;Subtract];
   let pipelines=Ogpu.Backend_mock.trace control|>List.filter(fun value->String.starts_with~prefix:"pipeline:"value)in
   if List.length pipelines<>6||List.length(List.sort_uniq String.compare pipelines)<>6 then failwith"blend pipeline variants/cache";
-  if Scene_execution.upload_bytes renderer<>304L then failwith"stable mesh or canonical white texture reuploaded";
+  if Scene_execution.upload_bytes renderer<>60L then failwith"stable mesh reuploaded";
   auxiliary_lifecycle renderer control mesh state;
   mixed_scene2_batching();
   oversized_frame();
