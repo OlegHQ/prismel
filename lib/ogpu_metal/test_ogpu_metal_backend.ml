@@ -57,6 +57,24 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal backe
     get(Ogpu.Backend.complete_through queue receipt.epoch))[1;2;60;600];
   let stable_pixels=get(Ogpu.Backend.read_texture target~bytes_per_row:16)in
   if stable_pixels<>pixels then failwith"stable classic descriptor reuse pixels";
+  let classic_probe=get(Ogpu.Backend.create_texture device td)in
+  let classic_probe_texture=Ogpu.Backend.render_texture classic_probe~format:Rgba8~usage:Render_target in
+  let classic_probe_color={color with texture=classic_probe_texture}in
+  let classic_probe_pass=get(Ogpu.Render_pass.create(Ogpu.Backend.device_handle device){colors=[|Some classic_probe_color|];depth=None;stencil=None;viewport={x=0;y=0;width=4;height=4};scissor={x=0;y=0;width=4;height=4}})in
+  let classic_probe_command=get(Ogpu.Backend.render classic_probe_pass[draw])in
+  let classic_probe_receipt=get(Ogpu.Backend.submit queue classic_probe_command~resources:[`Texture classic_probe]~pipelines:[render_pipeline])in
+  get(Ogpu.Backend.complete_through queue classic_probe_receipt.epoch);
+  if Backend.classic_submission_entries control<>1 then failwith"classic attachment cache fixture";
+  get(Ogpu.Backend.destroy_texture classic_probe);
+  if Backend.classic_submission_entries control<>0 then failwith"destroyed classic attachment remained cached";
+  let classic_replacement=get(Ogpu.Backend.create_texture device td)in
+  let replacement_texture=Ogpu.Backend.render_texture classic_replacement~format:Rgba8~usage:Render_target in
+  let replacement_color={color with texture=replacement_texture}in
+  let replacement_pass=get(Ogpu.Render_pass.create(Ogpu.Backend.device_handle device){colors=[|Some replacement_color|];depth=None;stencil=None;viewport={x=0;y=0;width=4;height=4};scissor={x=0;y=0;width=4;height=4}})in
+  let replacement_receipt=get(Ogpu.Backend.submit queue(get(Ogpu.Backend.render replacement_pass[draw]))~resources:[`Texture classic_replacement]~pipelines:[render_pipeline])in
+  get(Ogpu.Backend.complete_through queue replacement_receipt.epoch);
+  if get(Ogpu.Backend.read_texture classic_replacement~bytes_per_row:16)<>pixels then failwith"classic attachment replacement pixels";
+  get(Ogpu.Backend.destroy_texture classic_replacement);
   let changed_resources=get(Ogpu.Backend.submit queue stable_classic
     ~resources:[`Texture target;`Buffer a]~pipelines:[render_pipeline])in
   get(Ogpu.Backend.complete_through queue changed_resources.epoch);
@@ -96,7 +114,17 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal backe
   get(Ogpu.Backend.complete_through qa shared.epoch);
   let shared_pixels=get(Ogpu.Backend.read_texture target~bytes_per_row:16)in
   if Bytes.sub_string shared_pixels 0 4<>"\x11\x22\x33\xff"then failwith"duplicate retained resources changed exact pixels";
+  let retained_probe=get(Ogpu.Backend.create_texture device{label=Some"retained-invalidation-probe";width=1;height=1;depth=1;mip_levels=1;sample_count=1;usage=[Texture_binding;Texture_copy_dst]})in
+  let retained_probe_id=(Ogpu.Backend.render_texture retained_probe~format:Rgba8~usage:Render_target).id in
+  let retained_probe_draw={argument_draw with textures=[{stage=Ogpu.Command.Fragment;index=0;texture_id=retained_probe_id}]}in
+  let retained_probe_receipt=get(Ogpu.Backend.submit qa(get(Ogpu.Backend.render rp[retained_probe_draw]))~resources:[`Texture target;`Texture retained_probe;`Buffer vertex]~pipelines:[argument_pipeline])in
+  get(Ogpu.Backend.complete_through qa retained_probe_receipt.epoch);
+  if Backend.retained_plan_entries control<>1 then failwith"retained dependency invalidation fixture";
+  get(Ogpu.Backend.destroy_texture retained_probe);
+  if Backend.retained_plan_entries control<>0 then failwith"destroyed retained dependency remained cached";
+  let invalidators_before=Backend.classic_invalidator_entries control in
   get(Ogpu.Backend.destroy_queue qa);get(Ogpu.Backend.destroy_queue qb);
+  if Backend.classic_invalidator_entries control<>invalidators_before-2 then failwith"queue teardown retained classic invalidators";
   let before_disabled=get(Ogpu.Backend.read_texture target~bytes_per_row:16)in Backend.Private.disable_retained_plans_for_test control;(match submit_argument queue with Error e when e.Ogpu.Error.kind=Ogpu.Error.Unsupported->()|_->failwith"unavailable retained plan fell through classic path");if Backend.retained_plan_entries control<>0||Backend.retired_plan_entries control<>0||get(Ogpu.Backend.read_texture target~bytes_per_row:16)<>before_disabled then failwith"retained plan failure was not atomic";
   get(Ogpu.Backend.destroy_texture sampled);get(Ogpu.Backend.destroy_buffer vertex);if Backend.retained_plan_entries control<>0 then failwith"resource invalidation retained plan";
   let ibd : Ogpu.Types.buffer_descriptor={label=None;size=6L;usage=[Index;Copy_dst]}in let indices=get(Ogpu.Backend.create_buffer device ibd)in let ibytes=Bytes.create 6 in Bytes.set_uint16_le ibytes 0 0;Bytes.set_uint16_le ibytes 2 1;Bytes.set_uint16_le ibytes 4 2;get(Ogpu.Backend.write_buffer indices~offset:0L ibytes);let indexed={draw with index=Some(Uint16,Ogpu.Backend.buffer_id indices,0L,3)}in let draws=List.init 1000(fun i->if i land 1=0 then indexed else{draw with pipeline_key=Pipeline.key native_render2})in Gc.full_major();let allocated_before=Gc.allocated_bytes()in let rr=get(Ogpu.Backend.submit queue(get(Ogpu.Backend.render rp draws))~resources:[`Texture target;`Buffer indices]~pipelines:[render_pipeline;render_pipeline2])in let allocated=Gc.allocated_bytes()-.allocated_before in if allocated>9_000_000. then failwith(Printf.sprintf"backend 1000-draw allocation regression %.0f"allocated);get(Ogpu.Backend.destroy_buffer indices);get(Ogpu.Backend.complete_through queue rr.epoch);let pixels=get(Ogpu.Backend.read_texture target~bytes_per_row:16)in if Char.code(Bytes.get pixels 0)<>0||Char.code(Bytes.get pixels 1)<>255||Char.code(Bytes.get pixels 2)<>0 then failwith"backend ordered 1000-draw render mismatch";
