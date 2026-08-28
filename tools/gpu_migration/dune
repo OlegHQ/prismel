@@ -15,16 +15,6 @@
  (libraries gpu_migration_support))
 
 (executable
- (name fixture_manifest)
- (modules fixture_manifest)
- (libraries gpu_migration_support sdl3_image))
-
-(executable
- (name run_baseline_benchmarks)
- (modules run_baseline_benchmarks)
- (libraries gpu_migration_support threads))
-
-(executable
  (name metal_shader_artifact)
  (modules metal_shader_artifact)
  (libraries unix))
