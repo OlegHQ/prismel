@@ -16,17 +16,3 @@
   (names runtime_stubs))
  (c_library_flags (:include c_library_flags.sexp))
  (libraries unix tsdl tsdl-image tsdl-ttf))
-
-(library
- (name runtime_wap_raster2_presenter)
- (public_name prismel.runtime.wap_raster2_presenter)
- (modules wap_raster2_presenter)
- (foreign_stubs
-  (language c)
-  (names wap_raster2_presenter_stubs))
- (libraries wap))
-
-(test
- (name test_wap_raster2_presenter)
- (modules test_wap_raster2_presenter)
- (libraries runtime_wap_raster2_presenter wap))
