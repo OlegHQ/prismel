@@ -41,7 +41,7 @@ let run frames =
   if allocated>750_000. then
     failwith(Printf.sprintf"shared-index render allocated %.0f bytes"allocated);
   let entries,unchanged_misses=Ogpu_raster2.decode_cache_stats control in
-  if unchanged_misses<>shared_misses||entries>64 then
+  if unchanged_misses<>shared_misses||entries>512 then
     failwith"stable shared-index draw missed or decode cache exceeded capacity";
   let changed_vertices=Bytes.copy vertices in
   Bytes.set_int64_le changed_vertices 0(Int64.bits_of_float 1.);
@@ -58,7 +58,9 @@ let run frames =
     ignore(get(Scene_execution.render renderer[{draw with mesh=changing_mesh}]))
   done;
   let cache_entries,_=Ogpu_raster2.decode_cache_stats control in
-  if cache_entries>64 then failwith"decoded vertex cache did not remain bounded";
+  if cache_entries>512 then failwith"decoded vertex cache did not remain bounded";
+  if Ogpu_raster2.decode_cache_bytes control>2*64*1024*1024 then
+    failwith"decoded vertex cache exceeded byte capacity";
   get(Scene_execution.resize renderer {config with physical_width=8;physical_height=8});
   ignore(get(Scene_execution.render renderer [{draw with state={state with viewport=(0,0,8,8);scissor=(0,0,8,8)}}]));
   Ogpu_raster2.inject_device_loss control;

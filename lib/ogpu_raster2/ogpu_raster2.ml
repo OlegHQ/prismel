@@ -22,6 +22,17 @@ type control = {
 let error operation kind message = Error (Ogpu.Error.make operation kind message)
 let next control = let value=control.next in control.next<-Int64.succ value; value
 let log_capacity=256
+let decode_cache_capacity=256
+let decode_cache_byte_capacity=64*1024*1024
+let trim_decode_cache weight entries =
+  let rec loop count bytes kept=function
+    |[]->List.rev kept
+    |entry::rest->
+        let size=weight entry in
+        if count<decode_cache_capacity&&size<=decode_cache_byte_capacity-bytes
+        then loop(count+1)(bytes+size)(entry::kept)rest
+        else loop count bytes kept rest in
+  loop 0 0[]entries
 let record control text =
   Queue.add text control.log;
   if Queue.length control.log>log_capacity then(Queue.take control.log|>ignore;control.dropped_log_entries<-control.dropped_log_entries+1)
@@ -129,8 +140,9 @@ let create () =
                                  let indices=Array.init count(fun i->if width=2 then Bytes.get_uint16_le bytes(Int64.to_int offset+i*width)else Int32.to_int(Bytes.get_int32_le bytes(Int64.to_int offset+i*width)))in
                                  control.decode_misses<-control.decode_misses+1;
                                  control.decoded_indices<-(key,indices)::control.decoded_indices;
-                                 if List.length control.decoded_indices>32 then
-                                   control.decoded_indices<-List.rev(List.tl(List.rev control.decoded_indices));
+                                 control.decoded_indices<-trim_decode_cache
+                                   (fun(_,indices)->Array.length indices*(Sys.word_size/8))
+                                   control.decoded_indices;
                                  Some indices)
                       |_->None in
                     match indices with None->error"Ogpu_raster2.render"Invalid_argument"index range is invalid"|Some indices->
@@ -156,8 +168,9 @@ let create () =
                                 v=(if textured then Int64.float_of_bits(Bytes.get_int64_le vertices(offset+60))else 0.)})in
                             control.decode_misses<-control.decode_misses+1;
                             control.decoded<-(key,decoded)::control.decoded;
-                            if List.length control.decoded>32 then
-                              control.decoded<-List.rev(List.tl(List.rev control.decoded));
+                            control.decoded<-trim_decode_cache
+                              (fun(_,vertices)->Array.length vertices*64)
+                              control.decoded;
                             decoded in
                       let depth=Option.map(fun _->depth)descriptor.depth in
                       let fast_source=match sampled with
@@ -292,6 +305,10 @@ let trace control=List.of_seq(Queue.to_seq control.log)
 let trace_stats control=Queue.length control.log,control.dropped_log_entries
 let decode_cache_stats control=
   List.length control.decoded+List.length control.decoded_indices,control.decode_misses
+let decode_cache_bytes control=
+  List.fold_left(fun total(_,vertices)->total+Array.length vertices*64)0 control.decoded+
+  List.fold_left(fun total(_,indices)->total+Array.length indices*(Sys.word_size/8))0
+    control.decoded_indices
 let sampled_cache_entries control=List.length control.sampled
 let rectangle_path_stats control=control.fast_rectangles,control.triangle_fallbacks
 let live_counts control=control.buffers,control.textures,control.pipelines,control.queues,control.surfaces
