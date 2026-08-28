@@ -98,3 +98,7 @@
    --source %{dep:offline_parity.metal} --air offline_parity.air
    --metallib offline_parity.metallib
    --metadata offline_parity.metadata --deployment 13.0)))
+(test
+ (name test_pipeline_argument_buffer)
+ (modules test_pipeline_argument_buffer)
+ (libraries ogpu_metal))
