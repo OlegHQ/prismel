@@ -30,20 +30,6 @@
  (libraries prismel pxui r10_workload_descriptor unix tsdl))
 
 (executable
- (name bench_raster2_renderer)
- (libraries raster2 unix yojson))
-
-(rule
- (alias runtest)
- (action
-  (progn
-   (run %{exe:bench_raster2_renderer.exe} basic --warmup 0 --samples 2 --frames 2 --check)
-   (run %{exe:bench_raster2_renderer.exe} path --warmup 0 --samples 1 --frames 1 --check)
-   (run %{exe:bench_raster2_renderer.exe} text --warmup 0 --samples 1 --frames 1 --check)
-   (run %{exe:bench_raster2_renderer.exe} scene3 --warmup 0 --samples 1 --frames 1 --check)
-   (run %{exe:bench_raster2_renderer.exe} offscreen --warmup 0 --samples 1 --frames 1 --check))))
-
-(executable
  (name bench_sdl3)
  (libraries prismel.sdl3 prismel.sdl3_mixer unix yojson))
 

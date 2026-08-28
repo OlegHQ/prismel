@@ -91,11 +91,6 @@
  (action (chdir %{workspace_root} (run %{test} --root %{workspace_root}))))
 
 (test
- (name phase5_b0_snapshot_freeze)
- (modules phase5_b0_snapshot_freeze)
- (libraries raster2))
-
-(test
  (name phase5_prismel_api_map)
  (modules phase5_prismel_api_map)
  (libraries gpu_migration_support yojson)
@@ -108,7 +103,6 @@
   (source_tree ../../lib/prismel_next_execution)
   (source_tree ../../lib/runtime_next)
   (source_tree ../../lib/runtime_next_compat)
-  (source_tree ../../lib/raster2)
   (source_tree ../../lib/ogpu))
  (action (chdir %{workspace_root} (run %{test} --root %{workspace_root}))))
 
