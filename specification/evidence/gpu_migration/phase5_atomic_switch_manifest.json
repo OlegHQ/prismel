@@ -5,7 +5,6 @@
   "lib/runtime/runtime.ml","lib/runtime/runtime.mli","lib/runtime/target.ml","lib/runtime/dune",
   "lib/prismel/app.ml","lib/prismel/audio.ml","lib/prismel/canvas.ml","lib/prismel/event.ml","lib/prismel/font.ml","lib/prismel/graphics.ml","lib/prismel/image.ml","lib/prismel/image_snapshot.ml","lib/prismel/preview.ml","lib/prismel/renderer3d.ml","lib/prismel/scene.ml","lib/prismel/texture.ml","lib/prismel/time.ml","lib/prismel/window.ml",
   "lib/prismel/app.mli","lib/prismel/backend.mli","lib/prismel/font.mli","lib/prismel/graphics.mli","lib/prismel/image.mli","lib/prismel/scene.mli","lib/prismel/window.mli",
-  "lib/prismel/canvas_raster2_snapshot_test.ml","lib/prismel/font_raster2_snapshot_test.ml","lib/prismel/image_raster2_snapshot_test.ml",
   "lib/prismel/dune","dune-project","prismel.opam",
   "README.md","AGENTS.md","specification/3d-parity.md","specification/3d.md","specification/api.md","specification/backend.md","specification/color.md","specification/composition.md","specification/geom.md","specification/graphics.md","specification/image.md","specification/input.md","specification/packaging.md","specification/performance.md","specification/project.md","specification/vec2-mat3.md","specification/window.md","specification/workflow.md"],
  "required_public_modules":["Runtime_next_compat","Prismel","Sketch","Scene","Image","Font","Canvas","Audio"],
