@@ -114,6 +114,24 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal backe
   get(Ogpu.Backend.complete_through qa shared.epoch);
   let shared_pixels=get(Ogpu.Backend.read_texture target~bytes_per_row:16)in
   if Bytes.sub_string shared_pixels 0 4<>"\x11\x22\x33\xff"then failwith"duplicate retained resources changed exact pixels";
+  (* A retained ICB is encoded through the classic render-pass descriptor.  Its
+     Load action must preserve the color written by an earlier pass rather than
+     silently clearing the attachment. *)
+  let left_pass=get(Ogpu.Render_pass.create(Ogpu.Backend.device_handle device)
+    {colors=[|Some color|];depth=None;stencil=None;viewport={x=0;y=0;width=4;height=4};scissor={x=0;y=0;width=2;height=4}})in
+  let loaded_color={color with Ogpu.Render_pass.load=Load}in
+  let right_pass=get(Ogpu.Render_pass.create(Ogpu.Backend.device_handle device)
+    {colors=[|Some loaded_color|];depth=None;stencil=None;viewport={x=0;y=0;width=4;height=4};scissor={x=2;y=0;width=2;height=4}})in
+  let left=get(Ogpu.Backend.submit qa(get(Ogpu.Backend.render left_pass[draw]))
+    ~resources:[`Texture target]~pipelines:[render_pipeline])in
+  get(Ogpu.Backend.complete_through qa left.epoch);
+  let right=get(Ogpu.Backend.submit qa(get(Ogpu.Backend.render right_pass[argument_draw]))
+    ~resources:[`Texture target;`Texture sampled;`Buffer vertex]~pipelines:[argument_pipeline])in
+  get(Ogpu.Backend.complete_through qa right.epoch);
+  let cross_pass=get(Ogpu.Backend.read_texture target~bytes_per_row:16)in
+  let rgba x=Bytes.sub_string cross_pass(x*4)4 in
+  if rgba 0<>"\x40\x80\xbf\xff"||rgba 3<>"\x11\x22\x33\xff"then
+    failwith"retained ICB Load did not preserve the earlier pass color";
   let retained_probe=get(Ogpu.Backend.create_texture device{label=Some"retained-invalidation-probe";width=1;height=1;depth=1;mip_levels=1;sample_count=1;usage=[Texture_binding;Texture_copy_dst]})in
   let retained_probe_id=(Ogpu.Backend.render_texture retained_probe~format:Rgba8~usage:Render_target).id in
   let retained_probe_draw={argument_draw with textures=[{stage=Ogpu.Command.Fragment;index=0;texture_id=retained_probe_id}]}in

@@ -6762,6 +6762,7 @@ module Rasterization_rate_map = struct
 end
 
 module Render_pass_descriptor = struct
+  type color_load_action = Load_dont_care | Load | Clear
   type t = render_pass_descriptor
   type visibility_result_type = Disabled | Boolean
   type sample_attachment =
@@ -6917,6 +6918,13 @@ module Render_pass_descriptor = struct
       let code=if resolve then 2 else 1 in
       if resolve&&value.pass_sample_count=1 then error operation Invalid_argument"resolve store actions require multisampling"else
       match Metal_raw.render_pass_color_store_action value.raw code with Ok()->Ok()|Error message->native_error operation message)
+  let set_color_load_action(value:t) action=
+    let operation="Metal.Render_pass_descriptor.set_color_load_action"in
+    on_main operation(fun()->match ensure_live operation value.lifetime with
+      |Error _ as e->e
+      |Ok()->let code=match action with Load_dont_care->0|Load->1|Clear->2 in
+        match Metal_raw.render_pass_color_load_action value.raw code with
+        |Ok()->Ok()|Error message->native_error operation message)
   let rasterization_rate_map(value:t)=value.pass_rate_map
   let set_rasterization_rate_map(value:t)(next:Rasterization_rate_map.t option)=
     let operation="Metal.Render_pass_descriptor.set_rasterization_rate_map" in

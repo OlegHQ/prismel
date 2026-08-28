@@ -1445,6 +1445,7 @@ external render_pass_sample_attachments : handle -> (handle,string) result = "ca
 external render_pass_sample_set : handle -> int64 -> handle option -> int64 -> int64 -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_render_pass_sample_set_bytecode" "caml_prismel_metal_render_pass_sample_set"
 external render_pass_resolve_texture : handle -> handle option -> bool -> (handle option,string) result = "caml_prismel_metal_render_pass_resolve_texture"
 external render_pass_color_store_action : handle -> int -> (unit,string) result = "caml_prismel_metal_render_pass_color_store_action"
+external render_pass_color_load_action : handle -> int -> (unit,string) result = "caml_prismel_metal_render_pass_color_load_action"
 external render_pass_set_rate_map : handle -> handle option -> (unit,string) result = "caml_prismel_metal_render_pass_set_rate_map"
 external render_pass_sizes : handle -> ((int64 * int64 * int64 * int64),string) result = "caml_prismel_metal_render_pass_sizes"
 external render_pass_descriptor_set_attachments :

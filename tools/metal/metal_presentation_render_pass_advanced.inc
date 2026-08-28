@@ -78,3 +78,11 @@ extern "C" CAMLprim value caml_prismel_metal_render_pass_color_store_action(valu
     CAMLreturn(result_unit());
   }@catch(NSException*x){CAMLreturn(result_error(x.reason));}
 }
+extern "C" CAMLprim value caml_prismel_metal_render_pass_color_load_action(value raw,value action){
+  CAMLparam2(raw,action);
+  @try{
+    MTLRenderPassDescriptor*p=object_of_handle(raw,Handle_kind::Render_pass_descriptor);
+    p.colorAttachments[0].loadAction=(MTLLoadAction)Int_val(action);
+    CAMLreturn(result_unit());
+  }@catch(NSException*x){CAMLreturn(result_error(x.reason));}
+}
