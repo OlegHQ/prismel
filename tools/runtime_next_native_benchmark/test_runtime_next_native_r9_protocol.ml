@@ -12,6 +12,7 @@ let run validator value =
     ~finally:(fun () -> if Sys.file_exists path then Sys.remove path)
     (fun () ->
       Yojson.Safe.to_file path value;
+      let validator = Unix.realpath validator in
       let arguments = [| validator; "--validate"; path |] in
       let pid = Unix.create_process validator arguments Unix.stdin Unix.stdout Unix.stderr in
       match snd (Unix.waitpid [] pid) with Unix.WEXITED code -> code | _ -> 255)

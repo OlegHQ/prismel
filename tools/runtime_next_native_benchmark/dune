@@ -27,6 +27,22 @@
  (deps runtime_next_native_r9_protocol.exe)
  (action (run %{test} %{exe:./runtime_next_native_r9_protocol.exe})))
 
+(executable
+ (name runtime_next_r9_synthesis)
+ (modules runtime_next_r9_synthesis)
+ (libraries unix yojson))
+
+(test
+ (name test_runtime_next_r9_synthesis)
+ (modules test_runtime_next_r9_synthesis)
+ (libraries unix yojson)
+ (deps runtime_next_r9_synthesis.exe
+  ../../lib/scene_execution/scene_execution.ml
+  ../../lib/prismel_next_resources/prismel_next_resources.ml
+  ../../lib/prismel_next_api/font.ml
+  ../../lib/ogpu_raster2/ogpu_raster2.ml)
+ (action (run %{test} %{exe:./runtime_next_r9_synthesis.exe} %{workspace_root})))
+
 (test
  (name test_runtime_next_native_dimensions)
  (modules test_runtime_next_native_dimensions)
