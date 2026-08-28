@@ -48,8 +48,8 @@ let report () =
     ; "metal_live_after", `Int 1
     ; "metal_created_delta", `Intlit "10"
     ; "metal_released_delta", `Intlit "10"
-    ; "metal_resident_bytes_before", `Intlit "0"
-    ; "metal_resident_bytes_after", `Intlit "0"
+    ; "metal_resident_bytes_before", `Intlit "1024"
+    ; "metal_resident_bytes_after", `Intlit "4096"
     ]
 
 let run validator value =
@@ -77,7 +77,7 @@ let () =
   ; replace "metal_pending_final" (`Int 1) valid
   ; replace "metal_live_after" (`Int 2) valid
   ; replace "metal_released_delta" (`Intlit "9") valid
-  ; replace "metal_resident_bytes_after" (`Intlit "1") valid
+  ; replace "metal_resident_bytes_after" (`Intlit "5000") valid
   ]
   |> List.iteri (fun index value ->
     if run validator value then

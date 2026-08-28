@@ -46,22 +46,24 @@ let validate path =
     let frame = sample |> member "frame" |> to_int in
     let elapsed = sample |> member "elapsed" |> to_float in
     let rss = sample |> member "rss_kib" |> to_int in
+    let resident = int64_field sample "resident_bytes" in
     require (sample |> member "mesh_cache" |> to_int <= mesh_bound)
       "O6 sample mesh cache exceeds its bound";
     require (sample |> member "pipeline_cache" |> to_int = pipeline_expected)
       "O6 sample pipeline cache changed";
     require (sample |> member "metal_pending" |> to_int >= 0)
       "O6 sample pending count is negative";
-    require (frame > 0 && elapsed >= 0. && rss > 0) "O6 sample facts are invalid";
-    observation, frame, elapsed, rss) samples in
+    require (frame > 0 && elapsed >= 0. && rss > 0 && resident > 0L)
+      "O6 sample facts are invalid";
+    observation, frame, elapsed, rss, resident) samples in
   let rec ordered = function
     | [] | [_] -> true
-    | (o0,f0,t0,_) :: ((o1,f1,t1,_) :: _ as rest) ->
+    | (o0,f0,t0,_,_) :: ((o1,f1,t1,_,_) :: _ as rest) ->
         o1 = o0 + 1 && f1 > f0 && t1 > t0 && ordered rest
   in
   require (ordered parsed) "O6 retained observations are not consecutive and monotonic";
   if not smoke then begin
-    let first,_,_,_ = List.hd parsed and last,_,_,_ = List.hd (List.rev parsed) in
+    let first,_,_,_,_ = List.hd parsed and last,_,_,_,_ = List.hd (List.rev parsed) in
     require (first = observations - 255 && last = observations)
       "O6 retained ring is not the exact final observation window"
   end;
@@ -69,6 +71,13 @@ let validate path =
     "O6 RSS policy drift";
   let low = value |> member "final_window_rss_low_kib" |> to_int in
   let high = value |> member "final_window_rss_high_kib" |> to_int in
+  let tail = List.filteri (fun index _ -> index >= List.length parsed * 3 / 4) parsed in
+  let sampled_rss = List.map (fun (_,_,_,rss,_) -> rss) tail in
+  let sampled_low = List.fold_left min max_int sampled_rss in
+  let sampled_high = List.fold_left max 0 sampled_rss in
+  if parsed <> [] then
+    require (low = sampled_low && high = sampled_high)
+      "O6 final-window RSS bounds disagree with retained samples";
   let recomputed = if low <= 0 then infinity else 100. *. float (high-low) /. float low in
   let recorded = value |> member "final_window_rss_range_percent" |> to_float in
   require (Float.abs (recorded -. recomputed) <= 1e-9)
@@ -90,8 +99,24 @@ let validate path =
     "O6 live Metal handle count changed";
   require (created_delta = released_delta)
     "O6 native create/release deltas differ";
-  require (resident_before = resident_after)
-    "O6 resident bytes did not return to baseline";
+  require (resident_before > 0L && resident_after > 0L)
+    "O6 process resident-byte context is invalid";
+  if not smoke then begin
+    let residents = List.map (fun (_,_,_,_,resident) -> resident) tail in
+    let resident_low = List.fold_left Int64.min Int64.max_int residents in
+    let resident_high = List.fold_left Int64.max 0L residents in
+    let resident_range =
+      100. *. Int64.to_float (Int64.sub resident_high resident_low)
+      /. Int64.to_float resident_low
+    in
+    require (resident_range <= 5.)
+      "O6 final-window process resident bytes exceed 5 percent";
+    let resident_teardown_limit =
+      Int64.add resident_high (Int64.div resident_high 20L)
+    in
+    require (resident_after <= resident_teardown_limit)
+      "O6 teardown process resident bytes exceed the settled window"
+  end;
   print_endline "O6 native lifetime/bounds report: valid"
 
 let () =

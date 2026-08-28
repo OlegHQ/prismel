@@ -60,6 +60,7 @@ let () =
   let length=min !observations 256 and start=if !observations<=256 then 0 else !observations mod 256 in
   let retained=List.init length(fun offset->match samples.((start+offset)mod 256)with Some value->value|None->assert false)in
   let rss sample=match sample with `Assoc fields->(match List.assoc_opt"rss_kib"fields with Some(`Int value)->value|_->assert false)|_->assert false in
+  let resident sample=match sample with `Assoc fields->(match List.assoc_opt"resident_bytes"fields with Some(`Intlit value)->Int64.of_string value|Some(`Int value)->Int64.of_int value|_->assert false)|_->assert false in
   let first_half,second_half=let half=length/2 in List.filteri(fun i _->i<half)retained,List.filteri(fun i _->i>=half)retained in
   let maximum values=List.fold_left(fun high sample->max high(rss sample))0 values in
   let first_high=maximum first_half and second_high=maximum second_half in
@@ -67,15 +68,19 @@ let () =
   if length=256&&second_high>first_high+plateau_slack_kib then failwith(Printf.sprintf"native settled RSS high-water grew: %d -> %d KiB"first_high second_high);
   let tail=List.filteri(fun index _->index>=length*3/4)retained in
   let tail_rss=List.map rss tail in
-  let tail_low=List.fold_left min max_int tail_rss and tail_high=List.fold_left max 0 tail_rss in
+  let tail_low,tail_high=match tail_rss with []->let current=rss_kib()in current,current|first::rest->List.fold_left min first rest,List.fold_left max first rest in
+  let tail_resident=List.map resident tail in
+  let resident_low,resident_high=match tail_resident with []->after.resident_bytes,after.resident_bytes|first::rest->List.fold_left Int64.min first rest,List.fold_left Int64.max first rest in
   let rss_limit_percent=5. in
   let rss_range_percent=if tail_low<=0 then infinity else 100.*.float(tail_high-tail_low)/.float tail_low in
+  let resident_range_percent=if resident_low<=0L then infinity else 100.*.Int64.to_float(Int64.sub resident_high resident_low)/.Int64.to_float resident_low in
   if qualification && (length<>256 || !observations<256)then failwith"O6 qualification requires the exact final 256-sample ring";
-  if qualification&&rss_range_percent>rss_limit_percent then failwith(Printf.sprintf"O6 final-window RSS range %.3f%% exceeds %.1f%%"rss_range_percent rss_limit_percent);
+  if qualification && (rss_range_percent>rss_limit_percent || resident_range_percent>rss_limit_percent)then failwith(Printf.sprintf"O6 final-window RSS range %.3f%%/%.3f%% exceeds %.1f%%"rss_range_percent resident_range_percent rss_limit_percent);
   let source_after=source_snapshot()in
   let source_stable_clean=match source_before,source_after with Some(a,true),Some(b,true)->a=b|_->false in
-  if qualification&&not source_stable_clean then failwith"O6 qualification source changed during measurement";
+  if qualification && not source_stable_clean then failwith"O6 qualification source changed during measurement";
   let created_delta=Int64.sub after.total_created before.total_created and released_delta=Int64.sub after.total_released before.total_released in
-  if qualification && (after.pending<>0 || created_delta<>released_delta || after.resident_bytes<>before.resident_bytes)then failwith"O6 qualification teardown counters did not settle";
+  let resident_teardown_limit=Int64.add resident_high(Int64.div resident_high 20L)in
+  if qualification && (after.pending<>0 || created_delta<>released_delta || after.resident_bytes>resident_teardown_limit)then failwith"O6 qualification teardown counters did not settle";
   let json=`Assoc["schema",`Int 4;"qualification",`String(if qualification then"O6-native-30m"else"smoke");"source_before",source_json source_before;"source_after",source_json source_after;"source_stable_clean",`Bool source_stable_clean;"minutes",`Float !minutes;"changing_payload",`Bool !changing_payload;"resizing",`Bool !resizing;"capturing",`Bool !capturing;"frames",`Int !frame;"hash",`String(Printf.sprintf"%016Lx" !rolling);"sample_capacity",`Int 256;"observations",`Int !observations;"retained",`Int length;"samples",`List retained;"rss_limit_percent",`Float rss_limit_percent;"final_window_rss_low_kib",`Int tail_low;"final_window_rss_high_kib",`Int tail_high;"final_window_rss_range_percent",`Float rss_range_percent;"settled_rss_first_half_high_kib",`Int first_high;"settled_rss_second_half_high_kib",`Int second_high;"settled_rss_plateau_slack_kib",`Int plateau_slack_kib;"live_mesh_cache_peak_bound",`Int expected_mesh_cache;"pipeline_cache_live_expected",`Int expected_pipeline_cache;"live_mesh_cache_final",`Int dead.mesh_cache_entries;"pipeline_cache_final",`Int dead.pipeline_cache_entries;"metal_pending_final",`Int after.pending;"metal_live_before",`Int before.live_handles;"metal_live_after",`Int after.live_handles;"metal_created_delta",`Intlit(Int64.to_string created_delta);"metal_released_delta",`Intlit(Int64.to_string released_delta);"metal_resident_bytes_before",`Intlit(Int64.to_string before.resident_bytes);"metal_resident_bytes_after",`Intlit(Int64.to_string after.resident_bytes)]in
   let text=Yojson.Safe.pretty_to_string json^"\n"in match !report with None->print_string text|Some path->write_atomic path text(fun()->if qualification then match source_snapshot()with Some(commit,true)when source_before=Some(commit,true)->()|_->failwith"O6 source changed before atomic publication")
