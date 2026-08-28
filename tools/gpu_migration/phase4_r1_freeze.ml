@@ -75,8 +75,7 @@ let () =
   let prismel_dune = read_file (Filename.concat root "lib/prismel/dune") in
   require (contains ~needle:"Scene.render" sketch)
     "legacy Scene.render comparison path is no longer selected by Sketch";
-  require (contains ~needle:"Scene_raster2_lowering" prismel_dune
-           && contains ~needle:"Scene_ogpu_renderer" prismel_dune)
-    "private side-by-side renderer modules are not registered";
+  require (not (contains ~needle:"raster2" prismel_dune))
+    "retired private Raster2 renderer remains linked into Prismel";
   Printf.printf
     "Phase4 R1 freeze: plan/API hashes, 7 unchanged acceptance trees, reviewed shattered-cube R11 sources, ancestry, private flags, and side-by-side selection passed\n"

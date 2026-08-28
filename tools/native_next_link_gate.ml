@@ -35,13 +35,12 @@ let () =
       and runtime = read runtime_path
       and metal = read metal_path
       and scene = read scene_path in
-      require prismel_path prismel "Scene_ogpu_renderer";
       require prismel_path prismel "tsdl";
       require prismel_path prismel "runtime";
       if contains runtime "sdl3" then
         fail "%s: legacy runtime acquired an SDL3 dependency" runtime_path;
       require metal_path metal "(libraries ogpu metal)";
-      require scene_path scene "(libraries raster2 ogpu)";
+      require scene_path scene "(libraries ogpu)";
       List.iter (fun forbidden -> if contains scene forbidden then
         fail "%s: neutral scene execution acquired forbidden dependency %s"
           scene_path forbidden) ["tsdl"; "sdl3"; "runtime"; "metal"];

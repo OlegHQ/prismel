@@ -1,5 +1,0 @@
-(test
- (name scene3_native_qualification)
- (modules scene3_native_qualification)
- (flags (:standard -I lib/prismel/.prismel.objs/byte))
- (libraries prismel runtime_next raster2))

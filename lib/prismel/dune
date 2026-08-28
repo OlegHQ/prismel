@@ -3,8 +3,7 @@
  (public_name prismel)
  (modules :standard)
  (private_modules App Backend Graphics Renderer3d Renderer3d_gpu Sdl_compat
-  Window Scene_description Scene_raster2_lowering Scene3_raster2_lowering
-  Scene3_raster2_resources Image_snapshot Audio_snapshot Audio_snapshot_test
-  Scene_ogpu_renderer Prismel_runtime_next_input_compat)
+  Window Scene_description Image_snapshot Audio_snapshot Audio_snapshot_test
+  Prismel_runtime_next_input_compat)
  (libraries unix domainslib ctypes ctypes.foreign tsdl tsdl-image tsdl-ttf
-  tsdl-mixer tsdl_gfx runtime raster2 ogpu scene_execution runtime_next_input))
+  tsdl-mixer tsdl_gfx runtime ogpu scene_execution runtime_next_input))
