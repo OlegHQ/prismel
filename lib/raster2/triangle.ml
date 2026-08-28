@@ -6,7 +6,8 @@ let texture_scratch=Domain.DLS.new_key(fun()->Float.Array.create 6)
 let ch c n=Int32.(to_int(logand(shift_right_logical c n)0xffl))
 let rgba r g b a=Int32.(logor(shift_left(of_int r)24)(logor(shift_left(of_int g)16)(logor(shift_left(of_int b)8)(of_int a))))
 let sample ?(lod=0.) t u v=match Texture.sample t.texture~address_u:t.address_u~address_v:t.address_v~filter:t.filter~u~v~lod with Ok value->value|Error _->0xffffffffl
-let edge (a:vertex) (b:vertex) x y=(x-.a.x)*.(b.y-.a.y)-.(y-.a.y)*.(b.x-.a.x)
+let[@inline always] edge (a:vertex) (b:vertex) x y=
+  (x-.a.x)*.(b.y-.a.y)-.(y-.a.y)*.(b.x-.a.x)
 let top (a:vertex) (b:vertex)=a.y<b.y||(a.y=b.y&&a.x>b.x)
 let visible ~cull (a:vertex) (b:vertex) (c:vertex)=let area=edge a b c.x c.y in area<>0.&&match cull with Back->area>0.|Front->area<0.|Cull_none->true
 let write_unchecked color blend pitch x y packed=
