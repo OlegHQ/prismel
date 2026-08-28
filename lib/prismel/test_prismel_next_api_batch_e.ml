@@ -1,5 +1,5 @@
 let require value message=if not value then failwith message
-let ()=let open Prismel_next_api in
+let ()=let open Prismel in
   let image=Image.create ~width:2 ~height:2 ~color:(Color.rgba 1 2 3 4)()in
   require(Image.get_size image=(2,2)&&Bytes.length(Result.get_ok(Image.Private.pixels image))=16)"Image snapshot";
   let canvas=Canvas.create_exn ~width:3 ~height:2 in

@@ -1,4 +1,4 @@
-open Prismel_next_api
+open Prismel
 let ()=
   Input.reset~mouse:(0,0);Input.press_key(Input.KeyChar 'a');Input.update_mouse_pos 3 4;Input.update_mouse_pos 5 7;
   if not(Input.is_key_down(Input.KeyChar 'a'))||Input.mouse_delta()<>(5,7)then failwith"input";

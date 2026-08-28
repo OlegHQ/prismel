@@ -1,4 +1,4 @@
-open Prismel_next_api
+open Prismel
 
 let require condition message = if not condition then failwith message
 

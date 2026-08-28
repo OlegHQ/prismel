@@ -1,4 +1,4 @@
-open Prismel_next_api
+open Prismel
 
 let () =
   let resources:Scene3_native_lowering.resources={

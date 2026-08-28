@@ -1,4 +1,4 @@
-open Prismel_next_api
+open Prismel
 let check condition message=if not condition then failwith message
 let finite x=Float.is_finite x
 let ()=

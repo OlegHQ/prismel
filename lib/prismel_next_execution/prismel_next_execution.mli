@@ -96,8 +96,8 @@ type diagnostics = { active:bool; resource_count:int; cache_entries:int;
   release_queue_total_created:int64 option;
   release_queue_total_released:int64 option }
 val diagnostics : t -> diagnostics
-(** Actual coordinator, owned-resource, renderer-cache, and native release
-    queue state.  This remains readable after [destroy]. *)
+(* Actual coordinator, owned-resource, renderer-cache, and native release
+   queue state.  This remains readable after [destroy]. *)
 val native_release_queue : unit -> (int * int * int64 * int64) option
 val show : t -> (unit,error) result
 val hide : t -> (unit,error) result

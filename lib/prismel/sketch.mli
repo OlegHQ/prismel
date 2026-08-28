@@ -66,5 +66,5 @@ val export_state :
 
 val quit : unit -> unit
 val resize : width:int -> height:int -> unit
-(** Resize the active sketch through its selected runtime target. *)
+(* Resize the active sketch through its native runtime. *)
 val render_target : unit -> render_target

@@ -1,5 +1,5 @@
 let () =
-  let open Prismel_next_api in
+  let open Prismel in
   let a=Vec2.create 3. 4. in
   if Vec2.length a <> 5. || Vec2.to_pair (Vec2.rotate Vec2.unit_x
       (Float.pi/.2.)) <> (0,1) then failwith "Vec2 parity";

@@ -6,15 +6,6 @@ let error op text=Error(Ogpu.Error.make op Ogpu.Error.Invalid_state text)
 let sdl op=function Ok x->Ok x|Error e->error op(Format.asprintf"%a"Sdl3.pp_error e)
 let metal op=function Ok x->Ok x|Error e->error op(Format.asprintf"%a"Metal.pp_error e)
 let facts window=match Sdl3.Window.size window,Sdl3.Window.size_in_pixels window with Ok(lw,lh),Ok(dw,dh)when lw>0&&lh>0&&dw>0&&dh>0->Ok{logical_width=lw;logical_height=lh;drawable_width=dw;drawable_height=dh;pixel_scale_x=float dw/.float lw;pixel_scale_y=float dh/.float lh}|Error e,_->sdl"Runtime_next.facts"(Error e)|_,Error e->sdl"Runtime_next.facts"(Error e)|_->error"Runtime_next.facts""window dimensions are invalid"
-let source_scene2={|#include <metal_stdlib>
-using namespace metal;
-struct V { float4 position [[position]]; };
-struct Input { float2 position; uint color; uint reserved; };
-struct Out { float4 position [[position]]; float4 color; };
-vertex Out scene_vertex(uint i [[vertex_id]], const device Input *input [[buffer(0)]]) { Out v;v.position=float4(input[i].position,0.,1.);uint c=input[i].color;v.color=float4(float((c>>24)&255),float((c>>16)&255),float((c>>8)&255),float(c&255))/255.;return v; }
-fragment float4 scene_fragment(Out value [[stage_in]]){return value.color;}
-|}
-let source_scene2_textured=Runtime_next_shaders.scene2_textured_direct
 let source_scene3_header={|#include <metal_stdlib>
 using namespace metal;
 struct Out { float4 position [[position]]; float4 color; float2 uv; float3 world; float3 normal; };

@@ -38,10 +38,10 @@ val facts : t -> (facts,Ogpu.Error.t) result
 val pacing : t -> (pacing,Ogpu.Error.t) result
 val stats : t -> (stats,Ogpu.Error.t) result
 val diagnostics : t -> diagnostics
-(** Read-only teardown diagnostics for the native Metal target. *)
+(* Read-only teardown diagnostics for the native Metal target. *)
 val native_release_queue : unit -> (int * int * int64 * int64) option
-(** [(pending, live_handles, total_created, total_released)] when the typed
-    Metal counter source is available. *)
+(* [(pending, live_handles, total_created, total_released)] when the typed
+   Metal counter source is available. *)
 val render : t -> Scene_execution.draw list -> (bool,Ogpu.Error.t) result
 val render_prepared : t -> prepared list -> (bool,Ogpu.Error.t) result
 val resize : t -> logical_width:int -> logical_height:int -> drawable_width:int ->

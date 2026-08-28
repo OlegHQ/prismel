@@ -1,4 +1,4 @@
-open Prismel_next_api
+open Prismel
 
 let require condition message=if not condition then failwith message
 let read path=let channel=open_in_bin path in Fun.protect~finally:(fun()->close_in channel)

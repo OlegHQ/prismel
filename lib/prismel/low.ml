@@ -172,7 +172,6 @@ module App = struct
 end
 
 module Backend = struct
-  let selected () = Runtime_next_compat.selected_target ()
   let is_headless () = false
   let is_web () = false
   let is_displayless () = false

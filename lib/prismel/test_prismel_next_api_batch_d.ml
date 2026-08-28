@@ -1,4 +1,4 @@
-open Prismel_next_api
+open Prismel
 let check condition message=if not condition then failwith message
 let ()=
   let path=Path.empty|>Path.move_to 0. 0.|>Path.line_to 4. 0.|>Path.quadratic_to~control:(6.,2.)~to_:(4.,4.)|>Path.line_to 0. 4.|>Path.close in
