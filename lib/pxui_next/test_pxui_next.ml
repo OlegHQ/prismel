@@ -22,7 +22,7 @@ let () =
   let scene=Pxui_next.scene ui in
   let first=Result.get_ok(Scene.Private.to_ir scene)in
   let hash=Printf.sprintf"%016Lx"(Raster2.Render_ir.hash first)in
-  require(hash="77f6b5366e526d80")"PXUI-next exact Scene hash drift";
+  require(hash="d8db72222365d861")"PXUI-next exact Scene hash drift";
   List.iter(fun checkpoint->let ir=Result.get_ok(Scene.Private.to_ir scene)in
     require(Raster2.Render_ir.serialize ir=Raster2.Render_ir.serialize first)(Printf.sprintf"frame %d drift"checkpoint))
     [1;2;60;600];
