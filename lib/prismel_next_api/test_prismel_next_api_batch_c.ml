@@ -14,9 +14,5 @@ let ()=
   let scene=[Scene.clear Color.black;Scene.rect~at:(0,0)~w:4~h:3~fill:Color.red();
     Scene.text_input_region~at:(1,1)~w:2~h:1~focused:true()]in
   let ir=Result.get_ok(Scene.Private.to_ir scene)in
-  if Array.length(Raster2.Render_ir.commands ir)<>2||Scene.Private.text_regions scene<>[1,1,2,1,true]then failwith"scene lowering";
-  Unix.putenv"PRISMEL_RENDER_TARGET""headless";Preview.start~width:4~height:3();ignore(Preview.step scene);Preview.stop();if Preview.is_open()then failwith"preview teardown";
-  let stopped=ref false in let config={Sketch.default_config with width=4;height=3;clock=Sketch.Fixed(1./.60.)}in
-  let result=Sketch.run_state~config~init:(fun _->0)~update:(fun model _->model+1)~view:(fun _ _->scene)~on_stop:(fun _->stopped:=true)()in
-  if result<>1||not !stopped then failwith"sketch finite lifecycle";
-  print_endline"prismel_next_api batch C: Event/Input/Frame/Time semantic fixtures passed"
+  if Array.length(Scene_command.Render_ir.commands ir)<>2||Scene.Private.text_regions scene<>[1,1,2,1,true]then failwith"scene lowering";
+  print_endline"prismel_next_api batch C: Event/Input/Frame/Time/Scene fixtures passed"

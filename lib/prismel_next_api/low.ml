@@ -87,7 +87,7 @@ module Graphics = struct
   let triangle ~p1 ~p2 ~p3 ?filled ?color () = result (Next.Graphics.triangle (state ()) ~p1 ~p2 ~p3 ?filled ?color:(Option.map packed color) ())
   let polygon ~points ?filled ?color () = result (Next.Graphics.polygon (state ()) ~points ?filled ?color:(Option.map packed color) ())
   let fill_contours contours ~rule ~color =
-    let rule = match rule with Path.Even_odd -> Raster2.Path.Even_odd | Non_zero -> Non_zero in
+    let rule = match rule with Path.Even_odd -> Scene_command.Path.Even_odd | Non_zero -> Non_zero in
     result (Next.Graphics.fill_contours (state ()) contours ~rule ~color:(packed color))
   let draw_image image ~pos = result (Next.Graphics.draw_image (state ()) (Image.Private.resource image) ~pos)
   let draw_sub_image image ~src_rect ~dst_rect = result (Next.Graphics.draw_sub_image (state ()) (Image.Private.resource image) ~src_rect ~dst_rect)

@@ -4,13 +4,13 @@ let require condition message = if not condition then failwith message
 
 let serialize scene =
   let ir = Result.get_ok (Scene.Private.to_ir scene) in
-  Raster2.Render_ir.serialize ir
+  Scene_command.Render_ir.serialize ir
 
 let first_geometry scene =
   let ir = Result.get_ok (Scene.Private.to_ir scene) in
   Array.find_map
-    (function Raster2.Render_ir.Geometry geometry -> Some geometry | _ -> None)
-    (Raster2.Render_ir.Private.commands_readonly ir)
+    (function Scene_command.Render_ir.Geometry geometry -> Some geometry | _ -> None)
+    (Scene_command.Render_ir.Private.commands_readonly ir)
   |> Option.get
 
 let () =

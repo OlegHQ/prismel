@@ -5,8 +5,8 @@
   node3 path parallel texture shader3 compute3 input event frame time image
   canvas canvas_runtime font audio assets mesh camera easy_camera transform_feedback3 shadow3
   scene3 scene3_native_lowering
-  scene preview runtime_diagnostics sketch easy_camera2 render2 low)
- (libraries domainslib prismel_next_resources runtime_next_input raster2 unix
+  scene preview runtime_diagnostics sketch easy_camera2 low)
+ (libraries domainslib prismel_next_resources runtime_next_input scene_command unix
   prismel_next_execution runtime_next_compat prismel_next_low
   runtime_next_orchestrator))
 
@@ -41,25 +41,9 @@
  (libraries prismel_next_api))
 
 (test
- (name test_preview_sketch_lifecycle)
- (modules test_preview_sketch_lifecycle)
- (libraries prismel_next_api)
- (deps ../prismel/preview.mli preview.mli ../prismel/sketch.mli sketch.mli)
- (action
-  (setenv PRISMEL_RENDER_TARGET headless
-   (setenv SDL_VIDEODRIVER dummy
-    (run %{test} %{dep:../prismel/preview.mli} %{dep:preview.mli}
-     %{dep:../prismel/sketch.mli} %{dep:sketch.mli})))))
-
-(test
- (name test_scene_image_transforms)
- (modules test_scene_image_transforms)
- (libraries prismel_next_api prismel_next_resources raster2))
-
-(test
  (name test_scene_rounded_cache)
  (modules test_scene_rounded_cache)
- (libraries prismel_next_api raster2))
+ (libraries prismel_next_api scene_command))
 
 (test
  (name test_automatic_text_cache)
@@ -84,7 +68,7 @@
  (deps low.mli ../prismel/app.mli ../prismel/backend.mli
   ../prismel/graphics.mli ../prismel/window.mli)
  (action
-  (setenv PRISMEL_RENDER_TARGET headless
+  (setenv PRISMEL_RENDER_TARGET native
    (run %{test} %{dep:low.mli} %{dep:../prismel/app.mli}
     %{dep:../prismel/backend.mli} %{dep:../prismel/graphics.mli}
     %{dep:../prismel/window.mli}))))

@@ -20,13 +20,13 @@ let () =
   let first_ir, first_resources =
     Result.get_ok (Scene.Private.stage ~width:32 ~height:24 scene)
   in
-  let first_commands = Raster2.Render_ir.commands first_ir in
+  let first_commands = Scene_command.Render_ir.commands first_ir in
   let automatic_text_id=ref None in
   require (Array.length first_commands = 7) "complete ordered lowering";
   (match Array.to_list first_commands with
-  | [ Raster2.Render_ir.Clear _;
+  | [ Scene_command.Render_ir.Clear _;
       Push_clip _;
-      Set_blend Raster2.Composite.Alpha;
+      Set_blend Scene_command.Render_ir.Alpha;
       Image text;
       Image view;
       Pop_clip;
@@ -35,7 +35,7 @@ let () =
       require (text.resource_id <> view.resource_id) "distinct staged resources"
   | commands ->
       let tag = function
-        | Raster2.Render_ir.Clear _ -> "clear"
+        | Scene_command.Render_ir.Clear _ -> "clear"
         | Set_blend _ -> "blend"
         | Push_clip _ -> "push-clip"
         | Pop_clip -> "pop-clip"
@@ -56,7 +56,7 @@ let () =
         Result.get_ok (Scene.Private.stage ~width:32 ~height:24 scene)
       in
       require
-        (Raster2.Render_ir.serialize ir = Raster2.Render_ir.serialize first_ir)
+        (Scene_command.Render_ir.serialize ir = Scene_command.Render_ir.serialize first_ir)
         (Printf.sprintf "frame %d deterministic IR" frame);
       require
         (resource_ids resources = resource_ids first_resources)
@@ -67,10 +67,10 @@ let () =
   List.iter(fun frame->
     let ir,resources=Result.get_ok(Scene.Private.stage~width:32~height:24 diagnostic)in
     require(resources=[]) (Printf.sprintf"debug text frame %d allocated resource"frame);
-    let encoding=Raster2.Render_ir.serialize ir in
+    let encoding=Scene_command.Render_ir.serialize ir in
     (match!diagnostic_encoding with None->diagnostic_encoding:=Some encoding
       |Some expected->require(encoding=expected)(Printf.sprintf"debug text frame %d drift"frame));
-    match Array.to_list(Raster2.Render_ir.commands ir)with
+    match Array.to_list(Scene_command.Render_ir.commands ir)with
     |[Debug_text{x;y;text;color}]->
         require(x=5.&&y=7.&&text="fixed"&&color=0x01020304l)
           (Printf.sprintf"debug text frame %d semantics"frame)
@@ -78,7 +78,7 @@ let () =
   Scene.Private.release diagnostic;
   let after_ir,after_release=Result.get_ok(Scene.Private.stage~width:32~height:24 diagnostic)in
   require(after_release=[])"debug text release acquired ownership";
-  require(Some(Raster2.Render_ir.serialize after_ir)= !diagnostic_encoding)"debug text release changed IR";
+  require(Some(Scene_command.Render_ir.serialize after_ir)= !diagnostic_encoding)"debug text release changed IR";
   Scene.Private.release scene;
   List.iter
     (function
