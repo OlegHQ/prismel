@@ -10,7 +10,6 @@ type configuration = {
   drawable_height : int;
   frames : int;
   dt : float;
-  web_configuration : Orchestrator.web_configuration option;
 }
 
 type 'model result = {
@@ -54,7 +53,7 @@ let validate configuration =
     Error "dimensions must be positive"
   else Ok ()
 
-let run_state ~configuration ~init ~update ~view ~prepare ?regions ?after_frame
+let run_state ~configuration ~init ~update ~view ~prepare ?regions:_ ?after_frame
     ?on_stop () =
   match validate configuration with
   | Error message ->
@@ -69,7 +68,6 @@ let run_state ~configuration ~init ~update ~view ~prepare ?regions ?after_frame
           logical_height = configuration.logical_height;
           drawable_width = configuration.drawable_width;
           drawable_height = configuration.drawable_height;
-          web_configuration = configuration.web_configuration;
         }
       in
       match Orchestrator.create runtime_configuration with
@@ -88,14 +86,7 @@ let run_state ~configuration ~init ~update ~view ~prepare ?regions ?after_frame
                 model := Some (update current_model current_frame);
                 last_frame := current_frame;
                 let scene = view (Option.get !model) current_frame in
-                let text_input_regions =
-                  Option.fold ~none:[]
-                    ~some:(fun extract -> extract current_frame scene) regions
-                in
-                match Orchestrator.set_text_input_regions runtime
-                    text_input_regions with
-                | Error _ as error -> error
-                | Ok () -> match prepare current_frame scene with
+                match prepare current_frame scene with
                 | Error _ as error -> error
                 | Ok draws ->
                     match Orchestrator.render runtime draws with
@@ -139,7 +130,7 @@ let run_state ~configuration ~init ~update ~view ~prepare ?regions ?after_frame
             run
 
 let run_selected ~logical_width ~logical_height ~drawable_width
-    ~drawable_height ~frames ~dt ?web_configuration ~init ~update ~view ~prepare
+    ~drawable_height ~frames ~dt ~init ~update ~view ~prepare
     ?regions ?after_frame ?on_stop () =
   match Orchestrator.selected () with
   | Error message ->
@@ -149,7 +140,7 @@ let run_selected ~logical_width ~logical_height ~drawable_width
   | Ok target ->
       run_state
         ~configuration:{ target; logical_width; logical_height; drawable_width;
-          drawable_height; frames; dt; web_configuration }
+          drawable_height; frames; dt }
         ~init ~update ~view ~prepare ?regions ?after_frame ?on_stop ()
 
 let test () =
@@ -177,9 +168,9 @@ let test () =
   in
   let stopped = ref None in
   let configuration =
-    { target = Orchestrator.Headless; logical_width = 4; logical_height = 4;
+    { target = Orchestrator.Native; logical_width = 4; logical_height = 4;
       drawable_width = 4; drawable_height = 4; frames = 600;
-      dt = 1. /. 60.; web_configuration = None }
+      dt = 1. /. 60. }
   in
   let result =
     match run_state ~configuration ~init:(fun frame -> frame.count)

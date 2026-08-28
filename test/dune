@@ -121,7 +121,7 @@
 (test
  (name gpu_dependency_direction)
  (modules gpu_dependency_direction)
- (deps ../lib/prismel/dune ../lib/runtime/dune ../lib/wap/dune
+ (deps ../lib/prismel/dune ../lib/runtime/dune
   ../lib/sdl3/dune ../lib/sdl3_image/dune ../lib/sdl3_ttf/dune
   ../lib/sdl3_mixer/dune ../lib/metal/dune ../lib/ogpu/dune
   ../lib/ogpu_metal/dune ../lib/raster2/dune)
@@ -129,7 +129,6 @@
   (run %{test}
    %{dep:../lib/prismel/dune}
    %{dep:../lib/runtime/dune}
-   %{dep:../lib/wap/dune}
    %{dep:../lib/sdl3/dune}
    %{dep:../lib/sdl3_image/dune}
    %{dep:../lib/sdl3_ttf/dune}
@@ -429,20 +428,6 @@
  (action
   (setenv PRISMEL_RENDER_TARGET headless
    (run %{test}))))
-
-(test
- (name test_wap)
- (modules test_wap)
- (libraries wap runtime unix threads))
-
-(test
- (name web_runtime_smoke)
- (modules web_runtime_smoke)
- (libraries prismel unix threads)
- (action
-  (setenv PRISMEL_RENDER_TARGET web
-   (setenv PRISMEL_WEB_PORT 0
-    (run %{test})))))
 
 (test
  (name scene_ogpu_renderer)

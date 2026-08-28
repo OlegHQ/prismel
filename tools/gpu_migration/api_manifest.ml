@@ -13,7 +13,7 @@ let legacy_relative =
 
 let stable_library_directories =
   [ "prismel"; "pdk"; "geom"; "procedural"; "pxui"; "pxui_graph"
-  ; "sop_catalog"; "sop_ui"; "sketch"; "sketch_ui"; "wap"
+  ; "sop_catalog"; "sop_ui"; "sketch"; "sketch_ui"
   ]
 
 let mixed_legacy library module_name =
@@ -26,7 +26,6 @@ let mixed_legacy library module_name =
    Removing or changing an old declaration still changes [api_sha256]. *)
 let approved_additions library module_name =
   match library, module_name with
-  | "wap", "Wap" -> [ "value:send_audio"; "value:remove_asset_checked" ]
   | _ -> []
 
 type sexp =

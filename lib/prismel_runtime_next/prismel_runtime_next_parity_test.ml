@@ -62,10 +62,10 @@ let digest bytes = Digest.to_hex (Digest.bytes bytes)
 let run fixture extent =
   let checkpoints = Hashtbl.create 4 and stop_count = ref 0 in
   let configuration : Loop.configuration =
-    { target = Orchestrator.Headless; logical_width = extent;
+    { target = Orchestrator.Native; logical_width = extent;
       logical_height = extent; drawable_width = extent;
       drawable_height = extent; frames = 600; dt = 1. /. 60.;
-      web_configuration = None }
+      }
   in
   let result =
     match Loop.run_state ~configuration ~init:(fun _ -> 0)

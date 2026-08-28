@@ -121,10 +121,6 @@
  (libraries prismel pxui unix))
 
 (executable
- (name bench_wap)
- (libraries wap unix))
-
-(executable
  (name bench_pdk_ops)
  (libraries prismel pdk procedural unix))
 

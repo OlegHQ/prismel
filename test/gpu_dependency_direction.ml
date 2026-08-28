@@ -121,23 +121,19 @@ let libraries_of_file path =
 let forbidden = function
   | "sdl3" | "sdl3_image" | "sdl3_ttf" | "sdl3_mixer" ->
       ["metal"; "metal_fx"; "ogpu"; "ogpu_metal"; "runtime"; "prismel";
-       "pxui"; "wap"]
+       "pxui"]
   | "metal" | "metal_fx" ->
       ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "ogpu";
-       "ogpu_metal"; "runtime"; "prismel"; "pxui"; "wap"]
+       "ogpu_metal"; "runtime"; "prismel"; "pxui"]
   | "ogpu" ->
       ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal";
-       "metal_fx"; "ogpu_metal"; "runtime"; "prismel"; "pxui"; "wap"]
+       "metal_fx"; "ogpu_metal"; "runtime"; "prismel"; "pxui"]
   | "ogpu_metal" ->
       ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "runtime";
-       "prismel"; "pxui"; "wap"; "raster2"]
+       "prismel"; "pxui"; "raster2"]
   | "raster2" ->
       ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal";
        "metal_fx"; "ogpu"; "ogpu_metal"; "runtime"; "prismel"; "pxui"]
-  | "wap" ->
-      ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal";
-       "metal_fx"; "ogpu"; "ogpu_metal"; "raster2"; "runtime";
-       "prismel"; "pxui"]
   | "runtime" -> ["metal"; "metal_fx"; "ogpu"; "raster2"; "prismel"; "pxui"]
   | _ -> []
 
@@ -173,7 +169,7 @@ let verify_negative_test graph =
 
 let require_current_foundations graph =
   [ "sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu"; "runtime"
-  ; "wap"; "raster2"
+  ; "raster2"
   ]
   |> List.iter (fun required ->
     if not (List.exists (fun (name, _) -> name = required) graph) then

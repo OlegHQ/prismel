@@ -86,9 +86,7 @@ val present :
   logical_width:int ->
   logical_height:int ->
   (unit, string) result
-(** Present one frame. Web presentation reads the native RGBA framebuffer only
-    when at least one browser is connected, then transfers ownership to Wap's
-    duplicate-suppressing, compressed, bounded latest-frame channel. *)
+(** Present one frame through the selected local SDL target. *)
 
 module Private : sig
   val select_target : (string -> string option) -> (target, string) result

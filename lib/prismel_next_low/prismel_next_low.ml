@@ -23,13 +23,12 @@ module Window = struct
       | Ok selected_target ->
       let configuration = Runtime_next_orchestrator.{ target=selected_target;
         logical_width=config.width; logical_height=config.height;
-        drawable_width=config.width; drawable_height=config.height;
-        web_configuration=None } in
+        drawable_width=config.width; drawable_height=config.height } in
       match Runtime_next_orchestrator.create configuration with
       | Error value -> Error (backend "Window.create" value)
       | Ok target ->
           let execution_config = Prismel_next_execution.{ default_configuration
-            with target=(match selected_target with Native->Native|Headless->Headless|Web->Web);
+            with target=(match selected_target with Native->Native);
             logical_width=config.width; logical_height=config.height;
             drawable_width=config.width; drawable_height=config.height;
             title=config.title } in

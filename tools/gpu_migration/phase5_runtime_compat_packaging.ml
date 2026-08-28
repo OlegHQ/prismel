@@ -31,7 +31,7 @@ let () =
     "runtime-next compatibility dependency set drift";
   List.iter(fun forbidden->require(not(List.mem forbidden(words library_dune)))
     "compatibility package imports forbidden legacy dependency %s"forbidden)
-    ["runtime";"prismel";"wap";"tsdl";"tsdl_gfx"];
+    ["runtime";"prismel";"tsdl";"tsdl_gfx"];
   List.iter(fun required->require(contains~needle:required mli)
     "compatibility public signature lost %s"required)
     ["val start";"val stop";"val render";"val capture";
