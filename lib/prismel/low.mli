@@ -22,7 +22,6 @@ module Window : sig
   val is_fullscreen : unit -> bool
   val set_title : string -> unit
   val set_size : int -> int -> unit
-  val set_web_size : int -> int -> unit
   val set_position : int -> int -> unit
   val center : unit -> unit
   val set_fullscreen : bool -> unit
@@ -110,8 +109,6 @@ module App : sig
 end
 
 module Backend : sig
-  val is_headless : unit -> bool
-  val is_web : unit -> bool
   val is_displayless : unit -> bool
   val start : width:int -> height:int -> title:string -> resizable:bool -> (Window.t,string) result
   val stop : unit -> unit

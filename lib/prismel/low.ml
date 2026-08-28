@@ -30,7 +30,6 @@ module Window = struct
   let is_fullscreen () = Next.Window.is_fullscreen (get_current ())
   let set_title value = get (Next.Window.set_title (get_current ()) value)
   let set_size width height = get (Next.Window.set_size (get_current ()) width height)
-  let set_web_size = set_size
   let set_position x y = get (Next.Window.set_position (get_current ()) x y)
   let center () = get (Next.Window.center (get_current ()))
   let set_fullscreen value = get (Next.Window.set_fullscreen (get_current ()) value)
@@ -172,8 +171,6 @@ module App = struct
 end
 
 module Backend = struct
-  let is_headless () = false
-  let is_web () = false
   let is_displayless () = false
   let start ~width ~height ~title ~resizable =
     try Ok (Window.create ~config:{Window.default_config with width;height;title;resizable} ())
