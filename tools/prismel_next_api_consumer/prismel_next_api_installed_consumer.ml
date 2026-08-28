@@ -22,11 +22,11 @@ let check_dependencies filename =
       "Easy_camera"; "Easy_camera2"; "Event"; "Fog3"; "Font"; "Frame";
       "Framebuffer3"; "Image"; "Input"; "Light"; "Mat3"; "Mat4";
       "Material"; "Math"; "Mesh"; "Node3"; "Noise"; "Parallel"; "Path";
-      "Preview"; "Quat"; "Rand"; "Render2"; "Render3"; "Scene"; "Scene3";
+      "Preview"; "Quat"; "Rand"; "Render3"; "Scene"; "Scene3";
       "Shader3"; "Shadow3"; "Sketch"; "Texture"; "Time";
       "Transform_feedback3"; "Vec2"; "Vec3" ]
   in
-  require (List.length public_modules = 40) "public module manifest cardinality";
+  require (List.length public_modules = 39) "public module manifest cardinality";
   List.iter
     (fun name ->
       require
@@ -111,13 +111,6 @@ let representative_values () =
       ~view:(fun _ _ -> scene2) ()
   in
   require (model = 1) "Sketch headless frame";
-  let png = Filename.temp_file "prismel-next-consumer" ".png" in
-  Fun.protect ~finally:(fun () -> Sys.remove png) (fun () ->
-    let camera2 = Easy_camera2.create () in
-    Result.get_ok
-      (Render2.save_png ~logical_width:8 ~logical_height:8 ~factor:1
-         ~camera:camera2 scene2 png);
-    require ((Unix.stat png).st_size > 32) "Render2 installed PNG");
   let low_window =
     Result.get_ok
       (Low.Backend.start ~width:8 ~height:8 ~title:"consumer-low"

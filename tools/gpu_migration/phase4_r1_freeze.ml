@@ -73,6 +73,8 @@ let () =
     public_interfaces;
   let sketch = read_file (Filename.concat root "lib/prismel/sketch.ml") in
   let prismel_dune = read_file (Filename.concat root "lib/prismel/dune") in
+  require (not (Sys.file_exists (Filename.concat root "lib/raster2")))
+    "retired Raster2 library directory still exists";
   require (contains ~needle:"Scene.render" sketch)
     "legacy Scene.render comparison path is no longer selected by Sketch";
   require (not (contains ~needle:"raster2" prismel_dune))
