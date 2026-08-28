@@ -55,6 +55,19 @@ type cached_scene2_debug={debug_source:Raster2.Render_ir.debug_text;
   debug_draw:draw option}
 type resource=Image of Prismel_next_resources.Image.t|Text of Prismel_next_resources.Text.t
   |Canvas of Prismel_next_resources.Canvas.t
+type scene2_resource_stamp=
+  |Image_stamp of int*Prismel_next_resources.Image.t*int
+  |Text_stamp of int*Prismel_next_resources.Text.t*int
+  |Canvas_stamp of int*Prismel_next_resources.Canvas.t*int
+type cached_scene2_plan={plan_fingerprint:int;plan_command_count:int;
+  plan_source_bytes:int;plan_density:int;plan_target:target;
+  plan_extent:int*int*int*int;plan_resources:scene2_resource_stamp list;
+  plan_ir:Raster2.Render_ir.t;plan_draws:draw list;
+  plan_image_ids:int option list}
+type scene2_plan_candidate={candidate_plan_fingerprint:int;
+  candidate_plan_command_count:int;candidate_plan_density:int;
+  candidate_plan_target:target;candidate_plan_extent:int*int*int*int;
+  candidate_plan_resources:scene2_resource_stamp list}
 let prepared_draw ~family ?(blend=Replace) ?texture ?auxiliary ?(samples=1) value =
   {family;blend;texture;auxiliary;samples;value}
 
@@ -301,6 +314,8 @@ type t = { runtime:Runtime_next_orchestrator.t; input:Runtime_next_input.t;
   mutable scene2_quad_cache:cached_scene2_quad list;
   mutable scene2_quad_payload_cache:cached_scene2_quad_payload list;
   mutable scene2_debug_cache:cached_scene2_debug list;
+  mutable scene2_plan_cache:cached_scene2_plan list;
+  mutable scene2_plan_candidates:scene2_plan_candidate list;
   mutable pending_image_leases:Prismel_next_resources.Image.Private.lease list;
   mutable canvas_keys:(Prismel_next_resources.Canvas.t*string)list;mutable next_canvas_key:int }
 let runtime_target=function Native->Runtime_next_orchestrator.Native
@@ -324,6 +339,7 @@ let create (configuration:configuration) =
       |Error message->ignore(Runtime_next_orchestrator.destroy runtime);fail operation Backend message
       |Ok input->Ok{runtime;input;assets=Prismel_next_resources.Assets.create();timing=configuration.timing;
           frame=0L;elapsed=0.;last_clock=Unix.gettimeofday();dead=false;snapshots=[];scene2_geometry_cache=[];scene2_geometry_candidates=[];scene2_batch_cache=[];scene2_quad_cache=[];scene2_quad_payload_cache=[];scene2_debug_cache=[];
+          scene2_plan_cache=[];scene2_plan_candidates=[];
           pending_image_leases=[];canvas_keys=[];next_canvas_key=0})
 let target value=match Runtime_next_orchestrator.target value.runtime with Native->Native|Headless->Headless|Web->Web
 let assets value=value.assets
@@ -358,6 +374,7 @@ let diagnostics value=
      List.length value.scene2_geometry_cache+
      List.length value.scene2_geometry_candidates+List.length value.scene2_batch_cache+
      List.length value.scene2_quad_cache+List.length value.scene2_debug_cache+
+     List.length value.scene2_plan_cache+List.length value.scene2_plan_candidates+
      List.length value.canvas_keys;
    release_queue_pending=runtime.release_queue_pending;
    release_queue_live_handles=runtime.release_queue_live_handles;
@@ -399,7 +416,7 @@ let snapshot value ~density source =
       (match Prismel_next_resources.Canvas.snapshot canvas with
        |Ok(width,height,generation,pixels)->finish~copy:false key generation width height pixels
        |Error e->resource operation e)
-let lower_scene2 value ~density ~resource:resolve ir =
+let lower_scene2_uncached value ~density ~resource:resolve ir =
   match ensure"Prismel_next_execution.lower_scene2"value with Error _ as e->e|Ok()->
   let leases_before=value.pending_image_leases in
   let release_new_leases()=
@@ -554,6 +571,112 @@ let lower_scene2 value ~density ~resource:resolve ir =
   match!failure with Some message->release_new_leases();fail"Prismel_next_execution.lower_scene2"Resource message
   |None->Ok(batch_scene2_draws ~cache:value.scene2_batch_cache
       ~set_cache:(fun cache->value.scene2_batch_cache<-cache)(List.rev!draws))
+let scene2_plan_source_bytes commands=
+  Array.fold_left(fun total->function
+    |Raster2.Render_ir.Geometry g->total+Array.length g.vertices*(Sys.word_size/8)+
+      Array.length g.indices*(Sys.word_size/8)
+    |Glyphs g->total+Array.length g.glyphs*24
+    |Debug_text d->total+String.length d.text
+    |_->total+32)0 commands
+let same_scene2_resource_stamps left right=
+  let rec loop left right=match left,right with
+  |[],[]->true
+  |Text_stamp(id,a,g)::xs,Text_stamp(id',b,g')::ys->
+      id=id'&&a==b&&g=g'&&loop xs ys
+  |Image_stamp(id,a,g)::xs,Image_stamp(id',b,g')::ys->
+      id=id'&&a==b&&g=g'&&loop xs ys
+  |Canvas_stamp(id,a,g)::xs,Canvas_stamp(id',b,g')::ys->
+      id=id'&&a==b&&g=g'&&loop xs ys
+  |_->false in loop left right
+let scene2_resource_stamps resolve commands=
+  let ids=ref[]and missing=ref false in
+  Array.iter(function
+    |Raster2.Render_ir.Image image->ids:=image.resource_id::!ids
+    |Glyphs glyphs->ids:=glyphs.resource_id::!ids|_->())commands;
+  let stamps=List.filter_map(fun id->
+    match resolve id with
+    |None->missing:=true;None
+    |Some(Image image)->if Prismel_next_resources.Image.destroyed image then(
+        missing:=true;None)else
+      Some(Image_stamp(id,image,Prismel_next_resources.Image.generation image))
+    |Some(Text text)->if Prismel_next_resources.Text.destroyed text then(
+        missing:=true;None)else
+      Some(Text_stamp(id,text,Prismel_next_resources.Text.generation text))
+    |Some(Canvas canvas)->if Prismel_next_resources.Canvas.destroyed canvas then(
+        missing:=true;None)else
+      Some(Canvas_stamp(id,canvas,Prismel_next_resources.Canvas.generation canvas)))
+    (List.sort_uniq Int.compare!ids)in
+  not!missing,stamps
+let scene2_plan_hydrate value ~density plan=
+  let leases_before=value.pending_image_leases in
+  let release_new_leases()=
+    let rec loop=function
+    |leases when leases==leases_before->()
+    |lease::rest->Prismel_next_resources.Image.Private.release_snapshot lease;loop rest
+    |[]->()in
+    loop value.pending_image_leases;value.pending_image_leases<-leases_before in
+  let textures=ref[]and failure=ref None in
+  List.iter(function
+    |Image_stamp(id,image,_)->(match snapshot value~density(Image image)with
+      |Ok(_,_,texture)->textures:=(id,texture)::!textures
+      |Error error->failure:=Some error)
+    |Text_stamp _|Canvas_stamp _->())plan.plan_resources;
+  match!failure with
+  |Some error->release_new_leases();Error error
+  |None->Ok(List.map2(fun draw->function
+      |None->draw
+      |Some id->{draw with texture=List.assoc_opt id!textures})
+      plan.plan_draws plan.plan_image_ids)
+let lower_scene2 value ~density ~resource:resolve ir =
+  if value.dead then lower_scene2_uncached value~density~resource:resolve ir else
+  let commands=Raster2.Render_ir.Private.commands_readonly ir in
+  let fingerprint=Hashtbl.hash commands and command_count=Array.length commands in
+  let cacheable,resources=scene2_resource_stamps resolve commands in
+  let facts=Runtime_next_orchestrator.facts value.runtime|>Result.get_ok in
+  let extent=facts.logical_width,facts.logical_height,
+    facts.drawable_width,facts.drawable_height and target=target value in
+  let exact plan=plan.plan_fingerprint=fingerprint&&
+    plan.plan_command_count=command_count&&plan.plan_density=density&&
+    plan.plan_target=target&&plan.plan_extent=extent&&
+    same_scene2_resource_stamps plan.plan_resources resources&&
+    Raster2.Render_ir.Private.commands_readonly plan.plan_ir=commands in
+  if cacheable then match List.find_opt exact value.scene2_plan_cache with
+  |Some plan->scene2_plan_hydrate value~density plan
+  |None->
+    (match lower_scene2_uncached value~density~resource:resolve ir with
+    |Error _ as error->error
+    |Ok draws as result->
+      let candidate=List.find_opt(fun candidate->
+        candidate.candidate_plan_fingerprint=fingerprint&&
+        candidate.candidate_plan_command_count=command_count&&
+        candidate.candidate_plan_density=density&&candidate.candidate_plan_target=target&&
+        candidate.candidate_plan_extent=extent&&
+        same_scene2_resource_stamps candidate.candidate_plan_resources resources)
+        value.scene2_plan_candidates in
+      (match candidate with
+      |None->value.scene2_plan_candidates<-{
+          candidate_plan_fingerprint=fingerprint;candidate_plan_command_count=command_count;
+          candidate_plan_density=density;candidate_plan_target=target;
+          candidate_plan_extent=extent;candidate_plan_resources=resources}::
+          value.scene2_plan_candidates;
+        value.scene2_plan_candidates<-trim_scene2_entries~capacity:64(fun _->64)
+          value.scene2_plan_candidates
+      |Some candidate->
+        value.scene2_plan_candidates<-List.filter((!=)candidate)value.scene2_plan_candidates;
+        let image_ids=List.filter_map(function Image_stamp(id,_,_)->Some id|_->None)resources in
+        let image_id_of_draw draw=match draw.texture with None->None|Some texture->
+          List.find_opt(fun id->texture.Scene_execution.key=
+            "image:"^string_of_int id^":"^string_of_int density)image_ids in
+        let plan_image_ids=List.map image_id_of_draw draws in
+        let plan_draws=List.map2(fun draw->function None->draw|Some _->{draw with texture=None})
+          draws plan_image_ids in
+        let plan={plan_fingerprint=fingerprint;plan_command_count=command_count;
+          plan_source_bytes=scene2_plan_source_bytes commands;plan_density=density;
+          plan_target=target;plan_extent=extent;plan_resources=resources;
+          plan_ir=ir;plan_draws;plan_image_ids}in
+        value.scene2_plan_cache<-trim_scene2_entries~capacity:16
+          (fun plan->plan.plan_source_bytes)(plan::value.scene2_plan_cache));result)
+  else lower_scene2_uncached value~density~resource:resolve ir
 let mb_to_input=function Left->Runtime_next_input.Left|Middle->Middle|Right->Right|X1->X1|X2->X2
 let mb_of_web=function Runtime_next_orchestrator.Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2
 let mod_to_input=function Shift->Runtime_next_input.Shift|Control->Control|Alt->Alt|Meta->Meta|Num_lock->Num_lock|Caps_lock->Caps_lock|Scroll_lock->Scroll_lock
@@ -640,6 +763,7 @@ let destroy value=if value.dead then Ok()else(
     value.scene2_quad_cache<-[];
     value.scene2_quad_payload_cache<-[];
     value.scene2_debug_cache<-[];
+    value.scene2_plan_cache<-[];value.scene2_plan_candidates<-[];
     value.scene2_geometry_candidates<-[];value.canvas_keys<-[];value.dead<-true;
     match Runtime_next_orchestrator.destroy value.runtime with Ok()->Ok()|Error e->backend"Prismel_next_execution.destroy"e)
 let run configuration body ~on_stop = match create configuration with Error _ as e->e|Ok value->

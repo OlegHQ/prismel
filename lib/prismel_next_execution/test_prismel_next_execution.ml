@@ -191,6 +191,25 @@ let () =
   let mutated_pixels=get(capture resource_runtime)in
   check(Char.code(Bytes.get mutated_pixels 0)=0&&Char.code(Bytes.get mutated_pixels 2)=255)
     "image generation invalidation missed replacement";
+  (* Admit the exact lowering plan, then prove every hit reacquires a fresh
+     per-frame lease rather than retaining borrowed mutable image bytes. *)
+  for _=1 to 2 do
+    ignore(get(step resource_runtime(get(lower_scene2 resource_runtime~density:1
+      ~resource:(function 1->Some(Image leased_image)|_->None)image_ir))))
+  done;
+  let retained_draws=get(lower_scene2 resource_runtime~density:1
+    ~resource:(function 1->Some(Image leased_image)|_->None)image_ir)in
+  ignore(Prismel_next_resources.Image.replace leased_image~width:2~height:2
+    ~rgba:(Bytes.init 16(fun i->match i mod 4 with 1|3->'\255'|_->'\000')));
+  ignore(get(step resource_runtime retained_draws));
+  let retained_pixels=get(capture resource_runtime)in
+  check(Char.code(Bytes.get retained_pixels 2)=255&&Char.code(Bytes.get retained_pixels 1)=0)
+    "retained lowering plan escaped borrowed image bytes";
+  ignore(get(step resource_runtime(get(lower_scene2 resource_runtime~density:1
+    ~resource:(function 1->Some(Image leased_image)|_->None)image_ir))));
+  let regenerated_pixels=get(capture resource_runtime)in
+  check(Char.code(Bytes.get regenerated_pixels 1)=255&&Char.code(Bytes.get regenerated_pixels 2)=0)
+    "retained lowering plan missed image generation invalidation";
   Gc.full_major();
   let leased_allocated_before=Gc.allocated_bytes()in
   for frame=1 to 600 do
