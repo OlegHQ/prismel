@@ -88,7 +88,8 @@ let () =
   let stats = get(Web.target_stats runtime) in
   if stats.frames_submitted <> 100_601 || stats.frames_suppressed < 100_598 then
     failwith "slow-client stale-frame storage is not bounded";
-  if Web.backend_live_counts runtime <> (2, 6, 84, 1, 1) then
+  if Web.backend_live_counts runtime <>
+      (2, 6, Scene_execution.pipeline_variants_per_sample * 2, 1, 1) then
     failwith "web long-run object counts grew";
   let trace_length, dropped_traces = Web.backend_trace_stats runtime in
   if trace_length > 256 || dropped_traces = 0 then

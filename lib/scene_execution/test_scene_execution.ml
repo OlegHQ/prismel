@@ -1,4 +1,79 @@
 let get=function Ok x->x|Error e->failwith(Ogpu.Error.to_string e)
+let prepared_clear_cache_key () =
+  let driver,_=Ogpu_raster2.create()in
+  let configuration:Ogpu.Surface.configuration={logical_width=4;logical_height=4;physical_width=4;physical_height=4;format=Rgba8_unorm;present_mode=Fifo;max_acquired=2}in
+  let renderer=get(Scene_execution.create driver configuration)in
+  let vertices=Bytes.make 48 '\000'and indices=Bytes.make 12 '\000'in
+  List.iteri(fun index(x,y)->Bytes.set_int64_le vertices(index*16)(Int64.bits_of_float x);Bytes.set_int64_le vertices(index*16+8)(Int64.bits_of_float y))[1.,1.;2.,1.;1.,2.];
+  Bytes.set_int32_le indices 4 1l;Bytes.set_int32_le indices 8 2l;
+  let mesh:Scene_execution.mesh={key="prepared-clear";vertices;vertex_count=3;indices;index_count=3}and state:Scene_execution.state={viewport=(0,0,4,4);scissor=(0,0,4,4);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;transform_uniforms=None;stencil_state=None;stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}in
+  let draws=[Scene_execution.Scene2,Ogpu.Pipeline.Replace,None,None,1,{Scene_execution.mesh;state}]in
+  ignore(get(Scene_execution.render_prepared_sampled_resources~clear:(1.,0.,0.,1.)~identity:"clear-key"~version:1L renderer draws));
+  let red=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in
+  ignore(get(Scene_execution.render_prepared_sampled_resources~clear:(0.,0.,1.,1.)~identity:"clear-key"~version:1L renderer []));
+  let blue=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in
+  if red=blue||Char.code(Bytes.get red 0)<>255||Char.code(Bytes.get blue 2)<>255 then failwith"prepared clear-color cache key reused stale command";
+  ignore(get(Scene_execution.render_sampled_resources~clear:(1.,0.,0.,1.) renderer draws));
+  let automatic_red=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in
+  ignore(get(Scene_execution.render_sampled_resources~clear:(0.,0.,1.,1.) renderer draws));
+  let automatic_blue=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in
+  if automatic_red=automatic_blue||Char.code(Bytes.get automatic_red 0)<>255||
+     Char.code(Bytes.get automatic_blue 2)<>255 then
+    failwith"automatic submission reused a stale clear color";
+  ignore(get(Scene_execution.render_sampled_resources~clear:(0.,0.,1.,1.) renderer draws));
+  Gc.full_major();let allocated0=Gc.allocated_bytes()and gc0=Gc.quick_stat()in
+  for _=1 to 1_000 do
+    ignore(get(Scene_execution.render_sampled_resources~clear:(0.,0.,1.,1.) renderer draws))
+  done;
+  let gc1=Gc.quick_stat()in
+  let allocated=(Gc.allocated_bytes()-.allocated0)/.1_000.
+  and promoted=(gc1.promoted_words-.gc0.promoted_words)*.float(Sys.word_size/8)in
+  if allocated>20_000. then
+    failwith(Printf.sprintf"automatic stable submission allocated %.0f bytes/frame"allocated);
+  if promoted>100_000. then
+    failwith(Printf.sprintf"automatic stable submission promoted %.0f bytes"promoted);
+  get(Scene_execution.destroy renderer)
+let automatic_layout_invalidation () =
+  let driver,control=Ogpu.Backend_mock.create()in
+  let configuration:Ogpu.Surface.configuration={logical_width=8;logical_height=8;
+    physical_width=8;physical_height=8;format=Rgba8_unorm;present_mode=Fifo;
+    max_acquired=2}in
+  let renderer=get(Scene_execution.create driver configuration)in
+  let state:Scene_execution.state={viewport=(0,0,8,8);scissor=(0,0,8,8);
+    cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;
+    depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;
+    transform_uniforms=None;stencil_state=None;stencil_load=Ogpu.Render_pass.Load;
+    stencil_clear=0}in
+  let indices count modulus=Bytes.init(count*4)(fun _->'\000')|>fun bytes->
+    for index=0 to count-1 do
+      Bytes.set_int32_le bytes(index*4)(Int32.of_int(index mod modulus))
+    done;bytes in
+  let draw vertices vertex_count index_count={Scene_execution.mesh={key="layout";
+    vertices=Bytes.make vertices '\000';vertex_count;
+    indices=indices index_count vertex_count;index_count};state}in
+  let render draw=get(Scene_execution.render_sampled_resources renderer[
+    Scene_execution.Scene2,Ogpu.Pipeline.Replace,None,None,1,draw])|>ignore in
+  render(draw 48 3 3);Ogpu.Backend_mock.clear_trace control;
+  render(draw 48 3 3);
+  let stable=Ogpu.Backend_mock.trace control|>List.find(String.starts_with~prefix:"render:")in
+  Ogpu.Backend_mock.clear_trace control;
+  (* The packed byte total remains 60, forcing same-buffer replacement while
+     changing the command's captured index count. *)
+  render(draw 32 2 7);
+  let changed=Ogpu.Backend_mock.trace control|>List.find(String.starts_with~prefix:"render:")in
+  if stable=changed then failwith"automatic submission reused stale draw cardinality";
+  let large={Scene_execution.mesh={key="large-stable";
+    vertices=Bytes.make(65_535*16)'\000';vertex_count=65_535;
+    indices=indices 3 65_535;index_count=3};state}in
+  render large;render large;Gc.full_major();
+  let allocated0=Gc.allocated_bytes()in
+  for _=1 to 20 do render large done;
+  let allocated=(Gc.allocated_bytes()-.allocated0)/.20. in
+  if allocated>100_000. then
+    failwith(Printf.sprintf"stable payload hashing copied %.0f bytes/frame"allocated);
+  get(Scene_execution.destroy renderer);
+  if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then
+    failwith"automatic layout invalidation leaked objects"
 let shadow=function Ok x->x|Error _->failwith"shadow map error"
 let shadow_payload () =
   let open Raster2.Shadow_map in
@@ -228,6 +303,8 @@ let depth_target_lifecycle () =
   begin match Scene_execution.create_variants driver configuration with Error _->()|Ok renderer->ignore(Scene_execution.destroy renderer);failwith"partial depth allocation unexpectedly succeeded"end;
   if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then failwith"partial depth allocation leaked objects"
 let ()=let driver,control=Ogpu.Backend_mock.create()in let configuration:Ogpu.Surface.configuration={logical_width=8;logical_height=8;physical_width=8;physical_height=8;format=Rgba8_unorm;present_mode=Fifo;max_acquired=2}in let renderer=get(Scene_execution.create driver configuration)in let mesh:Scene_execution.mesh={key="triangle";vertices=Bytes.make 48 '\000';vertex_count=3;indices=Bytes.make 12 '\000';index_count=3}and state:Scene_execution.state={viewport=(0,0,8,8);scissor=(0,0,8,8);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;transform_uniforms=None;stencil_state=None;stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}in for _=1 to 1000 do ignore(get(Scene_execution.render renderer[{mesh;state}]))done;
+  prepared_clear_cache_key();
+  automatic_layout_invalidation();
   shadow_payload();
   List.iter(fun blend->List.iter(fun _frame->ignore(get(Scene_execution.render_blended renderer[blend,{mesh;state}])))[1;2;60;600])
     [Ogpu.Pipeline.Replace;Alpha;Add;Multiply;Screen;Subtract];

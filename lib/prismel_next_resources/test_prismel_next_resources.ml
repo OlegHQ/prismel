@@ -87,6 +87,37 @@ let ()=
   let _,_,_,hot_after=get(Canvas.snapshot hot)in
   if Canvas.generation hot<>hot_generation||hot_after<>hot_pixels then
     failwith"reused canvas workspace broke rollback";
+  let leased_image=get(Image.create~width:640~height:480~rgba:(Bytes.make(640*480*4)'\000'))in
+  get(Canvas.copy_to_image hot leased_image);
+  let _,_,_,leased_pixels,lease1=get(Image.Private.borrow_snapshot leased_image)in
+  let leased_copy=Bytes.copy leased_pixels in
+  let lease_target=get(Image.create~width:1~height:1~rgba:(Bytes.make 4 '\x5c'))in
+  let lease_target_before=get(Image.pixels lease_target)in
+  (match Image.replace_owned lease_target leased_image with
+   |Error{kind=Invalid_argument;_}->()
+   |_->failwith"leased source storage was moved");
+  if Image.destroyed leased_image||get(Image.pixels lease_target)<>lease_target_before then
+    failwith"leased owned replacement was not atomic";
+  get(Image.destroy lease_target);
+  get(Canvas.clear hot 0xaabbccffl);get(Canvas.copy_to_image hot leased_image);
+  if leased_pixels<>leased_copy then failwith"image mutation changed leased snapshot";
+  let _,_,_,_,lease2=get(Image.Private.borrow_snapshot leased_image)in
+  get(Canvas.clear hot 0x112233ffl);
+  (match Canvas.copy_to_image hot leased_image with
+   |Error{kind=Invalid_argument;_}->()
+   |_->failwith"bounded image snapshot buffers were exceeded");
+  Image.Private.release_snapshot lease1;
+  get(Canvas.copy_to_image hot leased_image);
+  Image.Private.release_snapshot lease2;
+  Image.Private.release_snapshot lease2;
+  get(Image.destroy leased_image);
+  let destroy_leased=get(Image.create~width:1~height:1~rgba:(Bytes.of_string"\x12\x34\x56\x78"))in
+  let _,_,_,destroy_bytes,destroy_lease=get(Image.Private.borrow_snapshot destroy_leased)in
+  get(Image.destroy destroy_leased);
+  if destroy_bytes<>Bytes.of_string"\x12\x34\x56\x78"then
+    failwith"destroy invalidated leased image bytes";
+  Image.Private.release_snapshot destroy_lease;
+  Image.Private.release_snapshot destroy_lease;
   get(Canvas.destroy hot);
   List.iter(fun frame->if List.mem frame[1;2;60;600]then let capture=get(Canvas.capture canvas)in if get(Image.size capture)<>(4,4)then failwith"capture";get(Image.destroy capture)) [1;2;60;600];
   get(Canvas.resize canvas~width:8~height:8);if get(Canvas.size canvas)<>(8,8)then failwith"resize";

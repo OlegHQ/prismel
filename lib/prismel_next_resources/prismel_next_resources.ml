@@ -14,12 +14,15 @@ let valid_storage width height bytes=
 
 module Image=struct
   type t={identity:int;mutable generation:int;mutable width:int;mutable height:int;
-    mutable rgba:bytes;mutable dead:bool}
+    mutable rgba:bytes;mutable spare:bytes option;mutable leases:(bytes*int)list;
+    mutable dead:bool}
+  type lease={owner:t;bytes:bytes;mutable released:bool}
   let identity x=x.identity and generation x=x.generation and destroyed x=x.dead
   let live op x f=main op(fun()->if x.dead then error op Destroyed"image is destroyed"else f())
   let create ~width ~height ~rgba=main"Image.create"(fun()->
     if not(valid_storage width height rgba)then error"Image.create"Invalid_argument"invalid RGBA extent or storage"
-    else Ok{identity=fresh_identity();generation=1;width;height;rgba=Bytes.copy rgba;dead=false})
+    else Ok{identity=fresh_identity();generation=1;width;height;rgba=Bytes.copy rgba;
+      spare=None;leases=[];dead=false})
   let of_surface operation surface=
     match Sdl3.Surface.copy_rgba surface with
     |Error e->error operation Decode(Format.asprintf"%a"Sdl3.pp_error e)
@@ -36,20 +39,45 @@ module Image=struct
   let pixels x=live"Image.pixels"x(fun()->Ok(Bytes.copy x.rgba))
   let snapshot x=live"Image.snapshot"x(fun()->
     Ok(x.width,x.height,x.generation,Bytes.copy x.rgba))
+  let leased x bytes=List.memq bytes(List.map fst x.leases)
+  let writable x length=
+    if Bytes.length x.rgba=length&&not(leased x x.rgba)then Ok x.rgba else
+    match x.spare with
+    |Some bytes when Bytes.length bytes=length&&not(leased x bytes)->x.spare<-None;Ok bytes
+    |_->if List.length x.leases<2 then Ok(Bytes.create length)
+        else error"Image.borrow_snapshot"Invalid_argument"both bounded image snapshot buffers are leased"
+  let install x bytes=
+    let old=x.rgba in x.rgba<-bytes;
+    if old!=bytes&&not(leased x old)then x.spare<-Some old
+  let borrow_snapshot x=live"Image.borrow_snapshot"x(fun()->
+    let count=Option.value(List.assq_opt x.rgba x.leases)~default:0 in
+    x.leases<-(x.rgba,count+1)::List.remove_assq x.rgba x.leases;
+    Ok(x.width,x.height,x.generation,x.rgba,{owner=x;bytes=x.rgba;released=false}))
+  let release_snapshot lease=if not lease.released then begin
+    lease.released<-true;
+    let x=lease.owner and count=Option.value(List.assq_opt lease.bytes lease.owner.leases)~default:0 in
+    x.leases<-List.remove_assq lease.bytes x.leases;
+    if count>1 then x.leases<-(lease.bytes,count-1)::x.leases
+    else if lease.bytes!=x.rgba then x.spare<-Some lease.bytes
+  end
   let replace x ~width ~height ~rgba=live"Image.replace"x(fun()->
     if not(valid_storage width height rgba)then error"Image.replace"Invalid_argument"invalid RGBA replacement"
-    else(x.width<-width;x.height<-height;x.rgba<-Bytes.copy rgba;x.generation<-x.generation+1;Ok()))
+    else match writable x(Bytes.length rgba)with Error _ as e->e|Ok bytes->
+      Bytes.blit rgba 0 bytes 0(Bytes.length rgba);install x bytes;
+      x.width<-width;x.height<-height;x.generation<-x.generation+1;Ok())
   let replace_owned target source=main"Image.replace_owned"(fun()->
     if target.dead then error"Image.replace_owned"Destroyed"target image is destroyed"
     else if source.dead then error"Image.replace_owned"Destroyed"source image is destroyed"
     else if target==source then error"Image.replace_owned"Invalid_argument"source and target images must differ"
+    else if leased source source.rgba then
+      error"Image.replace_owned"Invalid_argument"source image storage is leased"
     else begin
       (* Both values and the complete replacement have been validated before
          mutation.  Moving the byte storage makes replacement transactional
          without another full-frame copy. *)
       target.width<-source.width;
       target.height<-source.height;
-      target.rgba<-source.rgba;
+      install target source.rgba;
       target.generation<-target.generation+1;
       source.rgba<-Bytes.empty;
       source.dead<-true;
@@ -59,7 +87,12 @@ module Image=struct
     |Error _ as failure->failure
     |Ok replacement->let result=replace x~width:replacement.width~height:replacement.height~rgba:replacement.rgba in
       ignore(destroy replacement);result)
-  and destroy x=main"Image.destroy"(fun()->if x.dead then Ok()else(x.dead<-true;x.rgba<-Bytes.empty;Ok()))
+  and destroy x=main"Image.destroy"(fun()->if x.dead then Ok()else(x.dead<-true;x.rgba<-Bytes.empty;x.spare<-None;Ok()))
+  module Private=struct
+    type nonrec lease=lease
+    let borrow_snapshot=borrow_snapshot
+    let release_snapshot=release_snapshot
+  end
 end
 
 module Png=struct
@@ -93,13 +126,10 @@ module Canvas=struct
       let width=Raster2.Surface.width x.surface
       and height=Raster2.Surface.height x.surface
       and source=Raster2.Surface.bytes x.surface in
-      if image.width=width&&image.height=height&&Bytes.length image.rgba=Bytes.length source
-      then(Bytes.blit source 0 image.rgba 0(Bytes.length source);
-        image.generation<-image.generation+1;Ok())
-      else
-        let replacement=Bytes.copy source in
-        image.width<-width;image.height<-height;image.rgba<-replacement;
-        image.generation<-image.generation+1;Ok())
+      match Image.writable image(Bytes.length source)with Error _ as e->e|Ok bytes->
+      Bytes.blit source 0 bytes 0(Bytes.length source);Image.install image bytes;
+      image.width<-width;image.height<-height;
+      image.generation<-image.generation+1;Ok())
   let snapshot x=live"Canvas.snapshot"x(fun()->
     Ok(Raster2.Surface.width x.surface,Raster2.Surface.height x.surface,
       x.generation,Bytes.copy(Raster2.Surface.bytes x.surface)))

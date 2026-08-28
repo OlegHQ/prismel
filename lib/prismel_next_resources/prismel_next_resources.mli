@@ -15,9 +15,19 @@ module Image : sig
   val size : t -> ((int*int),error) result
   val pixels : t -> (bytes,error) result
   val snapshot : t -> ((int * int * int * bytes),error) result
+  module Private : sig
+    type lease
+    (** The bytes remain stable until the lease is released, including across
+        image destruction. Mutations use a second bounded buffer rather than
+        changing leased storage; release is idempotent. *)
+    val borrow_snapshot : t ->
+      ((int * int * int * bytes * lease),error) result
+    val release_snapshot : lease -> unit
+  end
   val replace : t -> width:int -> height:int -> rgba:bytes -> (unit,error) result
-  (* Atomically transfer the source's owned pixel storage.  On success the
-     source is destroyed and the target retains its identity. *)
+  (* Atomically transfer the source's owned pixel storage. On success the
+     source is destroyed and the target retains its identity. A source with an
+     active private snapshot lease is rejected without mutation. *)
   val replace_owned : t -> t -> (unit,error) result
   (* Stable-identity watched replacement. Decode failure retains the previous
       valid generation and pixels. *)

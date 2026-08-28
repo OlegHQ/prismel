@@ -16,8 +16,23 @@ type prepared_submission={submission_identity:string;submission_version:int64;
   submission_commands:(Ogpu.Backend.command*
     [ `Buffer of Ogpu.Backend.buffer | `Texture of Ogpu.Backend.texture ] list*
     Ogpu.Backend.pipeline list)list}
+type prepared_entry=pipeline_family*Ogpu.Pipeline.blend*int*state*
+  (sampled_texture*cached_texture)option*
+  (auxiliary_resource*cached_auxiliary*cached_texture)option*cached
+type automatic_signature={signature_family:pipeline_family;
+  signature_blend:Ogpu.Pipeline.blend;signature_samples:int;
+  signature_state:state;signature_texture:(int64*Ogpu.Types.sampler_descriptor)option;
+  signature_auxiliary:(int64*int64*Ogpu.Types.sampler_descriptor)option;
+  signature_buffer:int64;signature_index_offset:int64;
+  signature_uniform_offset:int64 option;signature_vertex_count:int;
+  signature_index_count:int}
+type automatic_submission={automatic_clear:float*float*float*float;
+  automatic_signatures:automatic_signature list;
+  automatic_commands:(Ogpu.Backend.command*
+    [ `Buffer of Ogpu.Backend.buffer | `Texture of Ogpu.Backend.texture ] list*
+    Ogpu.Backend.pipeline list)list}
 type pipeline_variant={family:pipeline_family;blend:Ogpu.Pipeline.blend;samples:int;pipeline:Ogpu.Backend.pipeline;key:string}
-type t={device:Ogpu.Backend.device;queue:Ogpu.Backend.queue;surface:Ogpu.Backend.surface;mutable target:Ogpu.Backend.texture;mutable multisample_targets:(int*Ogpu.Backend.texture)list;mutable depth_targets:(int*Ogpu.Backend.texture)list;mutable stencil_targets:(int*Ogpu.Backend.texture)list;pipelines:pipeline_variant list;canonical_scene2_argument:bool;mutable cache:cached list;mutable prepared_cache:prepared_run list;mutable prepared_submission:prepared_submission option;mutable auxiliary_cache:cached_auxiliary list;mutable texture_cache:cached_texture list;mutable uploaded:int64;mutable dead:bool;before_device_destroy:unit->(unit,Ogpu.Error.t)result}
+type t={device:Ogpu.Backend.device;queue:Ogpu.Backend.queue;surface:Ogpu.Backend.surface;mutable target:Ogpu.Backend.texture;mutable multisample_targets:(int*Ogpu.Backend.texture)list;mutable depth_targets:(int*Ogpu.Backend.texture)list;mutable stencil_targets:(int*Ogpu.Backend.texture)list;pipelines:pipeline_variant list;canonical_scene2_argument:bool;mutable cache:cached list;mutable prepared_cache:prepared_run list;mutable prepared_submission:prepared_submission option;mutable automatic_submission:automatic_submission option;mutable auxiliary_cache:cached_auxiliary list;mutable texture_cache:cached_texture list;mutable uploaded:int64;mutable dead:bool;before_device_destroy:unit->(unit,Ogpu.Error.t)result}
 let error op kind text=Error(Ogpu.Error.make op kind text)
 let set_u32_le bytes offset value =
   let open Int32 in
@@ -75,7 +90,7 @@ let create_common ?(canonical_scene2_argument=false) driver configuration before
     let rec variants made=function []->Ok(List.rev made)|(family,blend,samples)::rest->match make family blend samples with Error e->List.iter(fun x->ignore(Ogpu.Backend.destroy_pipeline x.pipeline))made;Error e|Ok(pipeline,key)->variants({family;blend;samples;pipeline;key}::made)rest in
     match variants[]requested with Error e->ignore(Ogpu.Backend.destroy_surface surface);ignore(Ogpu.Backend.destroy_queue queue);cleanup();Error e|Ok pipelines->
     (match allocate_targets device configuration samples with
-      |Ok(target,multisample_targets,depth_targets,stencil_targets)->Ok{device;queue;surface;target;multisample_targets;depth_targets;stencil_targets;pipelines;canonical_scene2_argument;cache=[];prepared_cache=[];prepared_submission=None;auxiliary_cache=[];texture_cache=[];uploaded=0L;dead=false;before_device_destroy}
+      |Ok(target,multisample_targets,depth_targets,stencil_targets)->Ok{device;queue;surface;target;multisample_targets;depth_targets;stencil_targets;pipelines;canonical_scene2_argument;cache=[];prepared_cache=[];prepared_submission=None;automatic_submission=None;auxiliary_cache=[];texture_cache=[];uploaded=0L;dead=false;before_device_destroy}
       |Error e->List.iter(fun x->ignore(Ogpu.Backend.destroy_pipeline x.pipeline))pipelines;ignore(Ogpu.Backend.destroy_surface surface);ignore(Ogpu.Backend.destroy_queue queue);cleanup();Error e)
 let one_sample _=[1]
 let create driver configuration=create_common driver configuration(fun()->Ok())[Scene2]blends one_sample None
@@ -101,7 +116,11 @@ let prepare value ~defer ~trusted_key ~reserved ~uniforms ~nonindexed ~canonical
   let key=mesh.key^(if canonical_plain then ":canonical-scene2" else if nonindexed then ":nonindexed" else "")^(if Bytes.length uniform_bytes=0 then""else":"^Digest.to_hex(Digest.bytes uniform_bytes))in
   let trusted=if trusted_key then List.find_opt(fun(x:cached)->x.key=key)value.cache else None in
   match trusted with Some item->Ok item|None->
-  let payload_hash=Digest.to_hex(Digest.string(Bytes.to_string mesh.vertices^Bytes.to_string mesh.indices^Bytes.to_string uniform_bytes))in match List.find_opt(fun(x:cached)->x.key=key&&x.payload_hash=payload_hash)value.cache with Some item->Ok item|None->
+  let payload_hash=String.concat":"[
+    Digest.to_hex(Digest.bytes mesh.vertices);
+    Digest.to_hex(Digest.bytes mesh.indices);
+    Digest.to_hex(Digest.bytes uniform_bytes)]in
+  match List.find_opt(fun(x:cached)->x.key=key&&x.payload_hash=payload_hash)value.cache with Some item->Ok item|None->
   let vertex_stride=if mesh.vertex_count=0 then 0 else Bytes.length mesh.vertices/mesh.vertex_count in
   let index_at index=Int32.to_int(Bytes.get_int32_le mesh.indices(index*4))in
   let valid_indices=ref(Bytes.length mesh.indices=mesh.index_count*4)in
@@ -317,19 +336,61 @@ let pass value family samples state load clear=
   let x,y,width,height=state.viewport and sx,sy,sw,sh=state.scissor in
   if family<>Scene2&&family<>Scene2_textured&&depth=None then error"Scene_execution.pass"Ogpu.Error.Unsupported"depth target is unavailable"else
   Ogpu.Render_pass.create~raster_state:{cull=state.cull;depth_compare=state.depth_compare;depth_write=state.depth_write}?stencil_state:state.stencil_state(Ogpu.Backend.device_handle value.device){colors=[|Some{texture;resolve;load;store=(if samples=1 then Store else Resolve);clear}|];depth;stencil;viewport={x;y;width;height};scissor={x=sx;y=sy;width=sw;height=sh}}
-let replay_prepared value commands =
-  match Ogpu.Backend.acquire value.surface with
-  |Error _ as e->e|Ok(`Timeout|`Occluded)->Ok false
-  |Ok`Device_lost->error"Scene_execution.render"Ogpu.Error.Device_lost"device lost"
-  |Ok(`Acquired frame)->
-    let rec submit=function
-      |[]->Result.map(fun()->true)(Ogpu.Backend.present frame)
-      |(command,resources,pipelines)::rest->
+let automatic_signature
+    (family,blend,samples,state,texture,auxiliary,item) =
+  let texture=Option.map(fun(source,cached)->
+    Ogpu.Backend.texture_id cached.texture,source.sampler)texture in
+  let auxiliary=Option.map(fun((source:auxiliary_resource),buffer,texture)->
+    (Ogpu.Backend.buffer_id buffer.auxiliary_buffer,
+     Ogpu.Backend.texture_id texture.texture,source.texture.sampler))auxiliary in
+  {signature_family=family;signature_blend=blend;signature_samples=samples;
+   signature_state=state;signature_texture=texture;signature_auxiliary=auxiliary;
+   signature_buffer=Ogpu.Backend.buffer_id item.buffer;
+   signature_index_offset=item.index_offset;
+   signature_uniform_offset=item.uniform_offset;
+   signature_vertex_count=item.vertex_count;signature_index_count=item.index_count}
+let same_automatic signature
+    (family,blend,samples,state,texture,auxiliary,item) =
+  let same_texture=match signature.signature_texture,texture with
+    |None,None->true
+    |Some(id,sampler),Some(source,cached)->
+        id=Ogpu.Backend.texture_id cached.texture&&sampler=source.sampler
+    |_->false in
+  let same_auxiliary=match signature.signature_auxiliary,auxiliary with
+    |None,None->true
+    |Some(buffer_id,texture_id,sampler),
+     Some((source:auxiliary_resource),buffer,texture)->
+        buffer_id=Ogpu.Backend.buffer_id buffer.auxiliary_buffer&&
+        texture_id=Ogpu.Backend.texture_id texture.texture&&
+        sampler=source.texture.sampler
+    |_->false in
+  signature.signature_family=family&&signature.signature_blend=blend&&
+  signature.signature_samples=samples&&signature.signature_state=state&&
+  same_texture&&same_auxiliary&&
+  signature.signature_buffer=Ogpu.Backend.buffer_id item.buffer&&
+  signature.signature_index_offset=item.index_offset&&
+  signature.signature_uniform_offset=item.uniform_offset&&
+  signature.signature_vertex_count=item.vertex_count&&
+  signature.signature_index_count=item.index_count
+let rec same_prepared signatures prepared=match signatures,prepared with
+  |[],[]->true
+  |signature::signatures,entry::prepared->
+      same_automatic signature entry&&same_prepared signatures prepared
+  |_->false
+let submit_acquired value frame commands =
+  let rec submit=function
+    |[]->Ogpu.Backend.present frame
+    |(command,resources,pipelines)::rest->
         match Ogpu.Backend.submit value.queue command~resources~pipelines with
         |Error e->ignore(Ogpu.Backend.discard frame);Error e
         |Ok receipt->match Ogpu.Backend.complete_through value.queue receipt.epoch with
           |Error e->ignore(Ogpu.Backend.discard frame);Error e|Ok()->submit rest in
-    submit commands
+  submit commands
+let replay_prepared value commands =
+  match Ogpu.Backend.acquire value.surface with
+  |Error _ as e->e|Ok(`Timeout|`Occluded)->Ok false
+  |Ok`Device_lost->error"Scene_execution.render"Ogpu.Error.Device_lost"device lost"
+  |Ok(`Acquired frame)->Result.map(fun()->true)(submit_acquired value frame commands)
 let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws=if value.dead then error"Scene_execution.render"Ogpu.Error.Stale_handle"renderer is destroyed"else
   match prepared,value.prepared_submission with
   |Some(identity,version),Some cached when cached.submission_identity=identity&&cached.submission_version=version&&cached.submission_clear=clear->replay_prepared value cached.submission_commands
@@ -345,6 +406,12 @@ let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws
   let rec prepare_all acc=function []->Ok(List.rev acc)|(family,blend,texture,auxiliary,samples,(draw:draw))::rest->let reserved=List.map(fun(_,_,_,_,_,_,item)->item)acc in let canonical_scene2=value.canonical_scene2_argument&&(family=Scene2||family=Scene2_textured)in let canonical_plain=value.canonical_scene2_argument&&family=Scene2 in match prepare value~defer~trusted_key~reserved~uniforms:draw.state.transform_uniforms~nonindexed:(family=Scene2_textured||canonical_scene2)~canonical_plain draw.mesh with Error _ as e->e|Ok mesh->let texture=match family,texture with Scene2,None when canonical_scene2->Some scene2_white_texture|_->texture in match texture with Some source->(match prepare_texture value~defer source with Error _ as e->e|Ok texture->prepare_aux family blend auxiliary samples draw mesh (Some(source,texture)) acc rest)|None->prepare_aux family blend auxiliary samples draw mesh None acc rest
   and prepare_aux family blend auxiliary samples draw mesh texture acc rest=match auxiliary with None->prepare_all((family,blend,samples,draw.state,texture,None,mesh)::acc)rest|Some source->match prepare_auxiliary value~defer source with Error _ as e->e|Ok buffer->match prepare_texture value~defer source.texture with Error _ as e->e|Ok texture2->prepare_all((family,blend,samples,draw.state,texture,Some(source,buffer,texture2),mesh)::acc)rest in
   match Ogpu.Backend.acquire value.surface with Error _ as e->finish e|Ok(`Timeout|`Occluded)->finish(Ok false)|Ok`Device_lost->finish(error"Scene_execution.render"Device_lost"device lost")|Ok(`Acquired frame)->match prepare_all[]draws with Error _ as e->ignore(Ogpu.Backend.discard frame);finish e|Ok prepared->
+    match value.automatic_submission with
+    |Some cached when cached.automatic_clear=clear&&
+      same_prepared cached.automatic_signatures prepared->
+        finish(Result.map(fun()->true)
+          (submit_acquired value frame cached.automatic_commands))
+    |_->
     let resources=`Texture value.target::List.map(fun(_,texture)->`Texture texture)(value.multisample_targets@value.depth_targets@value.stencil_targets)@List.concat_map(fun(_,_,_,_,texture,auxiliary,item)->`Buffer item.buffer::(match texture with None->[]|Some(_,cached)->[`Texture cached.texture])@(match auxiliary with None->[]|Some(_,buffer,texture)->[`Buffer buffer.auxiliary_buffer;`Texture texture.texture]))prepared in
     let identity=function `Buffer buffer->0,Ogpu.Backend.buffer_id buffer|`Texture texture->1,Ogpu.Backend.texture_id texture in
     let resources=List.fold_left(fun unique resource->if List.exists(fun old->identity old=identity resource)unique then unique else resource::unique)[]resources|>List.rev in
@@ -374,7 +441,14 @@ let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws
       let payload,pipelines=List.split payload in
       let pipelines=List.fold_left(fun unique pipeline->if List.exists((==)pipeline)unique then unique else pipeline::unique)[]pipelines in
       match Ogpu.Backend.render pass payload with Error _ as e->e|Ok command->made_commands:=(command,resources,pipelines)::!made_commands;match Ogpu.Backend.submit value.queue command~resources~pipelines with Error _ as e->e|Ok receipt->match Ogpu.Backend.complete_through value.queue receipt.epoch with Error _ as e->e|Ok()->batches false rest in
-    finish(match batches true prepared with Error e->ignore(Ogpu.Backend.discard frame);Error e|Ok()->(match prepared_key with Some(identity,version)->value.prepared_submission<-Some{submission_identity=identity;submission_version=version;submission_clear=clear;submission_commands=List.rev!made_commands}|None->());Result.map(fun()->true)(Ogpu.Backend.present frame))
+    finish(match batches true prepared with Error e->ignore(Ogpu.Backend.discard frame);Error e|Ok()->
+      let commands=List.rev!made_commands in
+      match Ogpu.Backend.present frame with Error _ as e->e|Ok()->
+      (match prepared_key with Some(identity,version)->value.prepared_submission<-Some{submission_identity=identity;submission_version=version;submission_clear=clear;submission_commands=commands}|None->());
+      value.automatic_submission<-Some{automatic_clear=clear;
+        automatic_signatures=List.map automatic_signature prepared;
+        automatic_commands=commands};
+      Ok true)
 let render_sampled_resources ?clear value draws=render_sampled_resources_common ?clear value draws
 let render_prepared_sampled_resources ?clear ~identity ~version value draws=render_sampled_resources_common ?clear~prepared:(identity,version)value draws
 let render_resources ?clear value draws=render_sampled_resources ?clear value(List.map(fun(family,blend,texture,auxiliary,draw)->family,blend,texture,auxiliary,1,draw)draws)
@@ -384,6 +458,7 @@ let render_blended ?clear value draws=render_family ?clear value(List.map(fun(bl
 let render ?clear value draws=render_blended ?clear value(List.map(fun draw->Ogpu.Pipeline.Replace,draw)draws)
 let resize value configuration=
   value.prepared_submission<-None;
+  value.automatic_submission<-None;
   let samples=List.map fst value.depth_targets in
   match allocate_targets value.device configuration samples with Error _ as e->e|Ok(target,multisample_targets,depth_targets,stencil_targets)->
   match Ogpu.Backend.configure value.surface configuration with Error e->ignore(Ogpu.Backend.destroy_texture target);destroy_targets multisample_targets;destroy_targets depth_targets;destroy_targets stencil_targets;Error e|Ok()->let old=value.target and old_multisample=value.multisample_targets and old_depth=value.depth_targets and old_stencil=value.stencil_targets in value.target<-target;value.multisample_targets<-multisample_targets;value.depth_targets<-depth_targets;value.stencil_targets<-stencil_targets;destroy_targets old_multisample;destroy_targets old_depth;destroy_targets old_stencil;Ogpu.Backend.destroy_texture old
@@ -392,4 +467,7 @@ let cache_entries value=List.length value.cache
 let read_pixels value ~bytes_per_row=Ogpu.Backend.read_texture value.target~bytes_per_row
 let read_pixels_into value ~bytes_per_row ~destination=
   Ogpu.Backend.read_texture_into value.target~bytes_per_row~destination
-let destroy value=if value.dead then Ok()else(value.dead<-true;List.iter(fun item->ignore(Ogpu.Backend.destroy_buffer item.buffer))value.cache;value.cache<-[];List.iter(fun item->ignore(Ogpu.Backend.destroy_buffer item.auxiliary_buffer))value.auxiliary_cache;value.auxiliary_cache<-[];List.iter(fun item->ignore(Ogpu.Backend.destroy_texture item.texture);ignore(Ogpu.Backend.destroy_buffer item.staging))value.texture_cache;value.texture_cache<-[];destroy_targets value.multisample_targets;value.multisample_targets<-[];destroy_targets value.depth_targets;value.depth_targets<-[];destroy_targets value.stencil_targets;value.stencil_targets<-[];ignore(Ogpu.Backend.destroy_texture value.target);List.iter(fun variant->ignore(Ogpu.Backend.destroy_pipeline variant.pipeline))value.pipelines;ignore(Ogpu.Backend.destroy_surface value.surface);ignore(Ogpu.Backend.destroy_queue value.queue);match value.before_device_destroy()with Error _ as e->e|Ok()->Ogpu.Backend.destroy_device value.device)
+let destroy value=if value.dead then Ok()else(value.dead<-true;
+  value.prepared_cache<-[];value.prepared_submission<-None;
+  value.automatic_submission<-None;
+  List.iter(fun item->ignore(Ogpu.Backend.destroy_buffer item.buffer))value.cache;value.cache<-[];List.iter(fun item->ignore(Ogpu.Backend.destroy_buffer item.auxiliary_buffer))value.auxiliary_cache;value.auxiliary_cache<-[];List.iter(fun item->ignore(Ogpu.Backend.destroy_texture item.texture);ignore(Ogpu.Backend.destroy_buffer item.staging))value.texture_cache;value.texture_cache<-[];destroy_targets value.multisample_targets;value.multisample_targets<-[];destroy_targets value.depth_targets;value.depth_targets<-[];destroy_targets value.stencil_targets;value.stencil_targets<-[];ignore(Ogpu.Backend.destroy_texture value.target);List.iter(fun variant->ignore(Ogpu.Backend.destroy_pipeline variant.pipeline))value.pipelines;ignore(Ogpu.Backend.destroy_surface value.surface);ignore(Ogpu.Backend.destroy_queue value.queue);match value.before_device_destroy()with Error _ as e->e|Ok()->Ogpu.Backend.destroy_device value.device)

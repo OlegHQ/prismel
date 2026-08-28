@@ -279,6 +279,7 @@ type t = { runtime:Runtime_next_orchestrator.t; input:Runtime_next_input.t;
   mutable scene2_batch_cache:cached_scene2_batch list;
   mutable scene2_quad_cache:cached_scene2_quad list;
   mutable scene2_debug_cache:cached_scene2_debug list;
+  mutable pending_image_leases:Prismel_next_resources.Image.Private.lease list;
   mutable canvas_keys:(Prismel_next_resources.Canvas.t*string)list;mutable next_canvas_key:int }
 let runtime_target=function Native->Runtime_next_orchestrator.Native
   |Headless->Headless|Web->Web
@@ -301,7 +302,7 @@ let create (configuration:configuration) =
       |Error message->ignore(Runtime_next_orchestrator.destroy runtime);fail operation Backend message
       |Ok input->Ok{runtime;input;assets=Prismel_next_resources.Assets.create();timing=configuration.timing;
           frame=0L;elapsed=0.;last_clock=Unix.gettimeofday();dead=false;snapshots=[];scene2_geometry_cache=[];scene2_geometry_candidates=[];scene2_batch_cache=[];scene2_quad_cache=[];scene2_debug_cache=[];
-          canvas_keys=[];next_canvas_key=0})
+          pending_image_leases=[];canvas_keys=[];next_canvas_key=0})
 let target value=match Runtime_next_orchestrator.target value.runtime with Native->Native|Headless->Headless|Web->Web
 let assets value=value.assets
 let snapshot_cache_entries value=List.length value.snapshots
@@ -351,10 +352,14 @@ let snapshot value ~density source =
         if List.length value.snapshots>256 then value.snapshots<-List.rev(List.tl(List.rev value.snapshots));
         Ok(width,height,texture)in
   match source with
-  |Image image->(match Prismel_next_resources.Image.snapshot image with
-      |Ok(width,height,generation,pixels)->finish~copy:false
-          ("image:"^string_of_int(Prismel_next_resources.Image.identity image))
-          generation width height pixels
+  |Image image->(match Prismel_next_resources.Image.Private.borrow_snapshot image with
+      |Ok(width,height,_generation,pixels,lease)->
+          let key="image:"^string_of_int(Prismel_next_resources.Image.identity image)in
+          let sampler:Ogpu.Types.sampler_descriptor={label=Some key;min_filter=Linear;mag_filter=Linear;
+            mip_filter=No_mip;address_u=Clamp_to_edge;address_v=Clamp_to_edge;lod_min=0.;lod_max=0.;max_anisotropy=1}in
+          value.pending_image_leases<-lease::value.pending_image_leases;
+          Ok(width,height,{Scene_execution.key=key^":"^string_of_int density;
+            levels=[|{width;height;bytes=pixels}|];sampler})
       |Error e->resource operation e)
   |Text text->(match Prismel_next_resources.Text.size text,Prismel_next_resources.Text.pixels text with
       |Ok(width,height),Ok pixels->finish("text:"^Digest.to_hex(Digest.bytes pixels))(Prismel_next_resources.Text.generation text)width height pixels
@@ -368,6 +373,13 @@ let snapshot value ~density source =
        |Error e->resource operation e)
 let lower_scene2 value ~density ~resource:resolve ir =
   match ensure"Prismel_next_execution.lower_scene2"value with Error _ as e->e|Ok()->
+  let leases_before=value.pending_image_leases in
+  let release_new_leases()=
+    let rec loop=function
+      |leases when leases==leases_before->()
+      |lease::rest->Prismel_next_resources.Image.Private.release_snapshot lease;loop rest
+      |[]->()in
+    loop value.pending_image_leases;value.pending_image_leases<-leases_before in
   let identity={Raster2.Render_ir.xx=1.;xy=0.;yx=0.;yy=1.;tx=0.;ty=0.}in
   let facts=Runtime_next_orchestrator.facts value.runtime|>Result.get_ok in
   let transforms=ref[identity]and clips=ref[(0,0,facts.drawable_width,facts.drawable_height)]and draws=ref[]and number=ref 0 and failure=ref None in
@@ -426,10 +438,12 @@ let lower_scene2 value ~density ~resource:resolve ir =
             value.scene2_geometry_cache<-trim_scene2_entries
               (fun cached->cached.source_bytes)value.scene2_geometry_cache;draw
     in
-  let quad texture (destination:Raster2.Render_ir.rect) (u0,v0,u1,v1 as uv) =
+  let quad (texture:Scene_execution.sampled_texture)
+      (destination:Raster2.Render_ir.rect) (u0,v0,u1,v1 as uv) =
     let transform=List.hd!transforms in
     let clip=List.hd!clips in
-    match List.find_opt(fun cached->cached.quad_texture==texture&&
+    let borrowed=String.starts_with~prefix:"image:"texture.Scene_execution.key in
+    match if borrowed then None else List.find_opt(fun cached->cached.quad_texture==texture&&
       cached.quad_destination=destination&&cached.quad_transform=transform&&
       cached.quad_clip=clip&&cached.quad_uv=uv)value.scene2_quad_cache with
     |Some cached->cached.quad_draw
@@ -448,9 +462,11 @@ let lower_scene2 value ~density ~resource:resolve ir =
       value={Scene_execution.mesh={key=Printf.sprintf"snapshot-%d"!number;vertices;vertex_count=4;indices;index_count=6};state=default_state(x,y,w,h)(x,y,w,h)}}in
     let cached={quad_texture=texture;quad_destination=destination;
       quad_transform=transform;quad_clip=clip;quad_uv=uv;quad_draw=draw}in
-    value.scene2_quad_cache<-cached::value.scene2_quad_cache;
-    if List.length value.scene2_quad_cache>1024 then
-      value.scene2_quad_cache<-List.rev(List.tl(List.rev value.scene2_quad_cache));
+    if not borrowed then begin
+      value.scene2_quad_cache<-cached::value.scene2_quad_cache;
+      if List.length value.scene2_quad_cache>1024 then
+        value.scene2_quad_cache<-List.rev(List.tl(List.rev value.scene2_quad_cache))
+    end;
     draw in
   let image (command:Raster2.Render_ir.image) = match resolve command.Raster2.Render_ir.resource_id with None->failure:=Some"resource id is unbound"|Some source->
     match snapshot value~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
@@ -490,7 +506,7 @@ let lower_scene2 value ~density ~resource:resolve ir =
         match snapshot value~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
           Array.iter(fun(glyph:Raster2.Render_ir.glyph)->let destination={Raster2.Render_ir.x=glyph.x;y=glyph.y;width=float width;height=float height}in draws:=quad texture destination(0.,0.,1.,1.)::!draws;incr number)glyphs.glyphs)
     (Raster2.Render_ir.Private.commands_readonly ir);
-  match!failure with Some message->fail"Prismel_next_execution.lower_scene2"Resource message
+  match!failure with Some message->release_new_leases();fail"Prismel_next_execution.lower_scene2"Resource message
   |None->Ok(batch_scene2_draws ~cache:value.scene2_batch_cache
       ~set_cache:(fun cache->value.scene2_batch_cache<-cache)(List.rev!draws))
 let mb_to_input=function Left->Runtime_next_input.Left|Middle->Middle|Right->Right|X1->X1|X2->X2
@@ -542,6 +558,10 @@ let push_web value =
       |File_uploaded{name;contents}->File_dropped{name;contents=Some contents}in
     let rec all=function []->Ok()|x::xs->match push_event value(convert x)with Ok()->all xs|Error _ as e->e in all events
 let step value draws=match ensure"Prismel_next_execution.step"value with Error _ as e->e|Ok()->
+  let release_image_leases()=
+    List.iter Prismel_next_resources.Image.Private.release_snapshot value.pending_image_leases;
+    value.pending_image_leases<-[]in
+  Fun.protect~finally:release_image_leases(fun()->
   Runtime_next_input.begin_frame value.input;
   match push_web value with Error _ as e->e|Ok()->
   match Runtime_next_orchestrator.facts value.runtime with Error e->backend"Prismel_next_execution.step"e|Ok f->
@@ -563,11 +583,13 @@ let step value draws=match ensure"Prismel_next_execution.step"value with Error _
       let events=List.map event_of_input(Runtime_next_input.drain value.input)and input=Runtime_next_input.snapshot value.input in
       Ok{frame=value.frame;time=value.elapsed;dt;logical_width=f.logical_width;logical_height=f.logical_height;
         drawable_width=f.drawable_width;drawable_height=f.drawable_height;pixel_scale=f.pixel_density;
-        events;pointer=input.pointer;mouse_delta=input.mouse_delta;wheel_delta=input.wheel_delta;dropped_events=input.dropped_events}
+        events;pointer=input.pointer;mouse_delta=input.mouse_delta;wheel_delta=input.wheel_delta;dropped_events=input.dropped_events})
 let capture value=match ensure"Prismel_next_execution.capture"value with Error _ as e->e|Ok()->
   match Runtime_next_orchestrator.facts value.runtime with Error e->backend"Prismel_next_execution.capture"e|Ok facts->
   match Runtime_next_orchestrator.capture value.runtime~bytes_per_row:(facts.drawable_width*4)with Ok x->Ok x|Error e->backend"Prismel_next_execution.capture"e
 let destroy value=if value.dead then Ok()else(
+  List.iter Prismel_next_resources.Image.Private.release_snapshot value.pending_image_leases;
+  value.pending_image_leases<-[];
   match Prismel_next_resources.Assets.destroy value.assets with Error e->resource"Prismel_next_execution.destroy"e|Ok()->
     value.snapshots<-[];value.scene2_geometry_cache<-[];value.scene2_batch_cache<-[];
     value.scene2_quad_cache<-[];

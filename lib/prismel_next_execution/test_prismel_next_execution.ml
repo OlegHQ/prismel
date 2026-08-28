@@ -163,6 +163,35 @@ let () =
   let image_draws=get(lower_scene2 resource_runtime~density:1~resource:(function 1->Some(Image image)|_->None)image_ir)in
   ignore(get(step resource_runtime image_draws));let image_pixels=get(capture resource_runtime)in
   check(Char.code(Bytes.get image_pixels 0)=255)"image snapshot pixel";
+  let leased_image=get_resource(Prismel_next_resources.Image.create~width:2~height:2
+    ~rgba:(Bytes.init 16(fun i->match i mod 4 with 0|3->'\255'|_->'\000')))in
+  let leased_draws=get(lower_scene2 resource_runtime~density:1
+    ~resource:(function 1->Some(Image leased_image)|_->None)image_ir)in
+  ignore(Prismel_next_resources.Image.replace leased_image~width:2~height:2
+    ~rgba:(Bytes.init 16(fun i->match i mod 4 with 2|3->'\255'|_->'\000')));
+  ignore(get(step resource_runtime leased_draws));
+  let staged_pixels=get(capture resource_runtime)in
+  check(Char.code(Bytes.get staged_pixels 0)=255&&Char.code(Bytes.get staged_pixels 2)=0)
+    "image mutation after lowering changed leased pixels";
+  ignore(get(step resource_runtime(get(lower_scene2 resource_runtime~density:1
+    ~resource:(function 1->Some(Image leased_image)|_->None)image_ir))));
+  let mutated_pixels=get(capture resource_runtime)in
+  check(Char.code(Bytes.get mutated_pixels 0)=0&&Char.code(Bytes.get mutated_pixels 2)=255)
+    "image generation invalidation missed replacement";
+  Gc.full_major();
+  let leased_allocated_before=Gc.allocated_bytes()in
+  for frame=1 to 600 do
+    let red=frame land 255 in
+    ignore(Prismel_next_resources.Image.replace leased_image~width:2~height:2
+      ~rgba:(Bytes.init 16(fun i->match i mod 4 with 0->Char.chr red|3->'\255'|_->'\000')));
+    let frame_draws=get(lower_scene2 resource_runtime~density:1
+      ~resource:(function 1->Some(Image leased_image)|_->None)image_ir)in
+    ignore(get(step resource_runtime frame_draws))
+  done;
+  let leased_allocated=(Gc.allocated_bytes()-.leased_allocated_before)/.600. in
+  check(leased_allocated<250_000.)"600-frame leased image allocation bound";
+  check(snapshot_cache_entries resource_runtime<=256)
+    "600-frame leased image grew retained snapshot cache";
   check(Result.is_error(Prismel_next_resources.Image.replace image~width:0~height:2~rgba:Bytes.empty))"malformed replacement accepted";
   ignore(get(step resource_runtime(get(lower_scene2 resource_runtime~density:1~resource:(function 1->Some(Image image)|_->None)image_ir))));
   check(Char.code(Bytes.get(get(capture resource_runtime))0)=255)"failed reload retention";
@@ -210,6 +239,7 @@ let () =
   let after=get(stats resource_runtime)in
   check(after.frames=Int64.succ before.frames&&after.logical_draws=Int64.add before.logical_draws(Int64.of_int(List.length draws)))"execution stats accounting";
   check(after.uploaded_bytes=before.uploaded_bytes)"stable draws must not re-upload";
+  ignore(Prismel_next_resources.Image.destroy leased_image);
   ignore(Prismel_next_resources.Image.destroy image);ignore(Prismel_next_resources.Canvas.destroy canvas);
   get(destroy resource_runtime);
   let teardown=diagnostics resource_runtime in
