@@ -9,7 +9,9 @@ type sampled_key = int64 * int * Raster2.Texture.filter * Raster2.Texture.addres
 type sampled_entry = sampled_key * Raster2.Triangle.texture
 type control = {
   mutable next : int64; mutable epoch : int64; mutable complete : int64;
-  mutable lost : bool; log : string Queue.t; mutable dropped_log_entries:int;
+  mutable lost : bool; log_text : string option array; log_epoch : int64 array;
+  log_submit : bool array; mutable log_start:int; mutable log_length:int;
+  mutable dropped_log_entries:int;
   objects : (int64, storage) Hashtbl.t;
   mutable decoded:decoded_entry list; mutable decoded_indices:index_entry list;
   mutable sampled:sampled_entry list;
@@ -33,9 +35,19 @@ let trim_decode_cache weight entries =
         then loop(count+1)(bytes+size)(entry::kept)rest
         else loop count bytes kept rest in
   loop 0 0[]entries
+let log_slot control =
+  let slot=(control.log_start+control.log_length)mod log_capacity in
+  if control.log_length=log_capacity then begin
+    control.log_start<-(control.log_start+1)mod log_capacity;
+    control.dropped_log_entries<-control.dropped_log_entries+1
+  end else control.log_length<-control.log_length+1;
+  slot
 let record control text =
-  Queue.add text control.log;
-  if Queue.length control.log>log_capacity then(Queue.take control.log|>ignore;control.dropped_log_entries<-control.dropped_log_entries+1)
+  let slot=log_slot control in control.log_submit.(slot)<-false;
+  control.log_text.(slot)<-Some text
+let record_submit control epoch =
+  let slot=log_slot control in control.log_submit.(slot)<-true;
+  control.log_text.(slot)<-None;control.log_epoch.(slot)<-epoch
 let valid_range bytes offset length =
   offset >= 0L && length >= 0 && length <= Bytes.length bytes
   && offset <= Int64.of_int (Bytes.length bytes - length)
@@ -47,7 +59,10 @@ let rgba (r,g,b,a) =
       (Int32.logor(Int32.shift_left(byte b)8)(byte a)))
 
 let create () =
-  let control={next=1L;epoch=0L;complete=0L;lost=false;log=Queue.create();dropped_log_entries=0;
+  let control={next=1L;epoch=0L;complete=0L;lost=false;
+    log_text=Array.make log_capacity None;log_epoch=Array.make log_capacity 0L;
+    log_submit=Array.make log_capacity false;log_start=0;log_length=0;
+    dropped_log_entries=0;
     objects=Hashtbl.create 64;decoded=[];decoded_indices=[];sampled=[];decode_misses=0;
     fast_rectangles=0;triangle_fallbacks=0;
     buffers=0;textures=0;pipelines=0;queues=0;surfaces=0}in
@@ -312,7 +327,7 @@ let create () =
             |Copy_texture(src,sm,so,dst,dm,do_,extent)->(match texture src sm,texture dst dm with Some a,Some b when so.z=0&&do_.z=0&&extent.depth=1&&so.x>=0&&so.y>=0&&do_.x>=0&&do_.y>=0&&so.x+extent.width<=Raster2.Surface.width a&&so.y+extent.height<=Raster2.Surface.height a&&do_.x+extent.width<=Raster2.Surface.width b&&do_.y+extent.height<=Raster2.Surface.height b->let temporary=Bytes.create(extent.width*extent.height*4)in copy_rows~src:(Raster2.Surface.bytes a)~src_offset:(so.y*Raster2.Surface.pitch a+so.x*4)~src_row:(Raster2.Surface.pitch a)~dst:temporary~dst_offset:0~dst_row:(extent.width*4)(extent.width*4)extent.height;copy_rows~src:temporary~src_offset:0~src_row:(extent.width*4)~dst:(Raster2.Surface.bytes b)~dst_offset:(do_.y*Raster2.Surface.pitch b+do_.x*4)~dst_row:(Raster2.Surface.pitch b)(extent.width*4)extent.height;Ok()|_->error"Ogpu_raster2.transfer"Invalid_argument"texture copy range")in
           let rec loop index=if index=Array.length operations then Ok()else match execute operations.(index)with Ok()->loop(index+1)|Error _ as failure->failure in loop 0 end in
         let result=match command with Ogpu.Backend.Render submission->render submission|Compute _->error"Ogpu_raster2.compute"Unsupported"software compute is unsupported"|Transfer operations->transfer operations in
-        match result with Error _ as e->e|Ok()->control.epoch<-Int64.succ control.epoch;record control("submit:"^Int64.to_string control.epoch);Ok{Ogpu.Backend.epoch=control.epoch}in
+        match result with Error _ as e->e|Ok()->control.epoch<-Int64.succ control.epoch;record_submit control control.epoch;Ok{Ogpu.Backend.epoch=control.epoch}in
       Ok{Ogpu.Backend.queue_token;submit;complete_through=(fun epoch->if epoch<=control.complete||epoch>control.epoch then error"Ogpu_raster2.complete"Invalid_argument"epoch is invalid"else(control.complete<-epoch;Ok()));destroy_queue=(fun()->control.queues<-control.queues-1;Ok())}
     in
     Ok{Ogpu.Backend.device_token;device_handle;capabilities=Ogpu.Capabilities.minimum_m1;
@@ -326,8 +341,11 @@ let create () =
   in {Ogpu.Backend.create_device},control
 let inject_device_loss control=control.lost<-true;control.decoded<-[];
   control.decoded_indices<-[];control.sampled<-[]
-let trace control=List.of_seq(Queue.to_seq control.log)
-let trace_stats control=Queue.length control.log,control.dropped_log_entries
+let trace control=
+  List.init control.log_length(fun index->let slot=(control.log_start+index)mod log_capacity in
+    if control.log_submit.(slot)then"submit:"^Int64.to_string control.log_epoch.(slot)
+    else Option.value control.log_text.(slot)~default:"")
+let trace_stats control=control.log_length,control.dropped_log_entries
 let decode_cache_stats control=
   List.length control.decoded+List.length control.decoded_indices,control.decode_misses
 let decode_cache_bytes control=
