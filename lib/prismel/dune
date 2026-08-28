@@ -10,6 +10,15 @@
   prismel_next_execution runtime_next_compat prismel_next_low
   runtime_next_orchestrator))
 
+; Transitional module identity for native-only validation clients. It
+; re-exports the promoted facade and owns no renderer implementation.
+(library
+ (name prismel_next_api)
+ (public_name prismel.prismel_next_api)
+ (wrapped false)
+ (modules prismel_next_api)
+ (libraries prismel))
+
 (test
  (name test_prismel_next_api)
  (modules test_prismel_next_api)
