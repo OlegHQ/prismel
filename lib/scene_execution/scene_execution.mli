@@ -47,6 +47,27 @@ type shadow_snapshot = {
   kernel : shadow_kernel;
   strength : float;
 }
+
+(** Renderer-neutral values accepted by the native Scene2 lowering boundary.
+    This is a command vocabulary, not a rasterizer or an execution API. *)
+module Scene2_command : sig
+  type rect = { x : float; y : float; width : float; height : float }
+  type transform = {
+    xx : float; xy : float; yx : float; yy : float; tx : float; ty : float;
+  }
+  type geometry = { vertices : float array; indices : int array; color : int32 }
+  type debug_text = { x : float; y : float; text : string; color : int32 }
+  type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
+  type t =
+    | Clear of int32
+    | Set_blend of blend
+    | Push_clip of rect
+    | Pop_clip
+    | Push_transform of transform
+    | Pop_transform
+    | Geometry of geometry
+    | Debug_text of debug_text
+end
 type auxiliary_resource = {
   key : string;
   buffer : bytes;

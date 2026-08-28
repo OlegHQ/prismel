@@ -65,6 +65,10 @@ type resource = Image of Prismel_next_resources.Image.t |
     resource binding and are rejected atomically in this first staging slice. *)
 val scene2_ir : Raster2.Render_ir.t -> (draw list, error) result
 
+(** Lower already validated renderer-neutral native Scene2 commands. *)
+val scene2_commands : Scene_execution.Scene2_command.t array ->
+  (draw list, error) result
+
 (** Adopt an already prepared draw without exposing it again. Scene3 values are
     retained as a distinct family and never misrouted through a Scene2 pipeline. *)
 val prepared_draw : family:family -> ?blend:blend ->

@@ -18,3 +18,8 @@
  (libraries prismel_next_execution raster2)
  (action
   (setenv SDL_VIDEODRIVER dummy (run %{test}))))
+
+(test
+ (name test_scene2_command)
+ (modules test_scene2_command)
+ (libraries prismel_next_execution))

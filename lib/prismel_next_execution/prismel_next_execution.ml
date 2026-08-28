@@ -84,18 +84,19 @@ let put_float bytes offset value = Bytes.set_int64_le bytes offset (Int64.bits_o
 let identity_affine_uniforms=let bytes=Bytes.make 48 '\000'in
   Bytes.set_int64_le bytes 0(Int64.bits_of_float 1.);
   Bytes.set_int64_le bytes 32(Int64.bits_of_float 1.);bytes
-let affine_uniforms (transform:Raster2.Render_ir.transform)=
+module Command = Scene_execution.Scene2_command
+let affine_uniforms (transform:Command.transform)=
   if transform.xx=1.&&transform.xy=0.&&transform.yx=0.&&transform.yy=1.&&
     transform.tx=0.&&transform.ty=0. then identity_affine_uniforms else
   let bytes=Bytes.make 48 '\000'in
   let put index value=Bytes.set_int64_le bytes(index*8)(Int64.bits_of_float value)in
   put 0 transform.xx;put 1 transform.yx;put 2 transform.tx;
   put 3 transform.xy;put 4 transform.yy;put 5 transform.ty;bytes
-let identity_transform (transform:Raster2.Render_ir.transform)=
+let identity_transform (transform:Command.transform)=
   transform.xx=1.&&transform.xy=0.&&transform.yx=0.&&transform.yy=1.&&
   transform.tx=0.&&transform.ty=0.
 let scene2_vertex_stride=24
-let mesh_of_geometry number transform clip (geometry:Raster2.Render_ir.geometry) =
+let mesh_of_geometry number transform clip (geometry:Command.geometry) =
   let count=Array.length geometry.vertices/2 in
   let vertices=Bytes.create(count*scene2_vertex_stride) in
   for index=0 to count-1 do
@@ -111,7 +112,7 @@ let mesh_of_geometry number transform clip (geometry:Raster2.Render_ir.geometry)
       vertices;vertex_count=count;indices;index_count=Array.length geometry.indices};
       state={(default_state (x,y,width,height) (x,y,width,height))with
         transform_uniforms=(if identity_transform transform then None else Some(affine_uniforms transform))}} }
-let debug_text_geometry transform (debug:Raster2.Render_ir.debug_text) =
+let debug_text_geometry (transform:Command.transform) (debug:Command.debug_text) =
   let stop = match String.index_opt debug.text '\000' with
     | Some index -> index | None -> String.length debug.text in
   let pixels = ref 0 in
@@ -125,7 +126,7 @@ let debug_text_geometry transform (debug:Raster2.Render_ir.debug_text) =
   done;
   let vertices = Array.make (!pixels * 8) 0.
   and indices = Array.make (!pixels * 6) 0 in
-  let anchor_x = transform.Raster2.Render_ir.xx *. debug.x
+  let anchor_x = transform.xx *. debug.x
     +. transform.yx *. debug.y +. transform.tx
   and anchor_y = transform.xy *. debug.x
     +. transform.yy *. debug.y +. transform.ty in
@@ -151,17 +152,25 @@ let debug_text_geometry transform (debug:Raster2.Render_ir.debug_text) =
       done
     done
   done;
-  { Raster2.Render_ir.vertices; indices; color=debug.color }
-let compose (a:Raster2.Render_ir.transform) (b:Raster2.Render_ir.transform) = { Raster2.Render_ir.xx=a.Raster2.Render_ir.xx*.b.xx+.a.yx*.b.xy;
+  Command.{vertices;indices;color=debug.color}
+let compose (a:Command.transform) (b:Command.transform) = Command.{xx=a.xx*.b.xx+.a.yx*.b.xy;
   xy=a.xy*.b.xx+.a.yy*.b.xy; yx=a.xx*.b.yx+.a.yx*.b.yy;
   yy=a.xy*.b.yx+.a.yy*.b.yy; tx=a.xx*.b.tx+.a.yx*.b.ty+.a.tx;
   ty=a.xy*.b.tx+.a.yy*.b.ty+.a.ty }
-let scene2_ir ir =
-  let identity={Raster2.Render_ir.xx=1.;xy=0.;yx=0.;yy=1.;tx=0.;ty=0.} in
+let compose_raster (a:Raster2.Render_ir.transform) (b:Raster2.Render_ir.transform)={Raster2.Render_ir.xx=a.xx*.b.xx+.a.yx*.b.xy;
+  xy=a.xy*.b.xx+.a.yy*.b.xy;yx=a.xx*.b.yx+.a.yx*.b.yy;
+  yy=a.xy*.b.yx+.a.yy*.b.yy;tx=a.xx*.b.tx+.a.yx*.b.ty+.a.tx;
+  ty=a.xy*.b.tx+.a.yy*.b.ty+.a.ty}
+let command_transform_of_raster (value:Raster2.Render_ir.transform):Command.transform=
+  {xx=value.xx;xy=value.xy;yx=value.yx;yy=value.yy;tx=value.tx;ty=value.ty}
+let command_geometry_of_raster (value:Raster2.Render_ir.geometry):Command.geometry=
+  {vertices=value.vertices;indices=value.indices;color=value.color}
+let scene2_commands commands =
+  let identity=Command.{xx=1.;xy=0.;yx=0.;yy=1.;tx=0.;ty=0.} in
   let transforms=ref[identity] and clips=ref[(0,0,-1,-1)]
   and draws=ref[] and number=ref 0 and failure=ref None in
   Array.iter(fun command->if !failure=None then match command with
-    |Raster2.Render_ir.Clear _|Set_blend _->()
+    |Command.Clear _|Set_blend _->()
     |Push_transform value->transforms:=compose(List.hd!transforms)value::!transforms
     |Pop_transform->(match !transforms with _::(_::_ as rest)->transforms:=rest|_->())
     |Push_clip rect->
@@ -177,10 +186,32 @@ let scene2_ir ir =
           draws:=mesh_of_geometry !number identity(List.hd!clips)geometry::!draws;
           incr number
         end
-    |Image _|Glyphs _->failure:=Some"image/glyph resource binding is not available")
-    (Raster2.Render_ir.Private.commands_readonly ir);
-  match !failure with Some message->fail"Prismel_next_execution.scene2_ir"Unsupported message
+    ) commands;
+  match !failure with Some message->fail"Prismel_next_execution.scene2_commands"Unsupported message
   |None->Ok(List.rev!draws)
+
+let command_of_raster2 = function
+  |Raster2.Render_ir.Clear color->Ok(Command.Clear color)
+  |Set_blend blend->Ok(Command.Set_blend(match blend with
+      |Raster2.Composite.Replace|Copy->Command.Replace
+      |Alpha|Source_over->Alpha|Add->Add|Multiply->Multiply|Screen->Screen
+      |Subtract->Subtract))
+  |Push_clip rect->Ok(Command.Push_clip{x=rect.x;y=rect.y;width=rect.width;height=rect.height})
+  |Pop_clip->Ok Command.Pop_clip
+  |Push_transform value->Ok(Command.Push_transform{xx=value.xx;xy=value.xy;yx=value.yx;
+      yy=value.yy;tx=value.tx;ty=value.ty})
+  |Pop_transform->Ok Command.Pop_transform
+  |Geometry geometry->Ok(Command.Geometry{vertices=geometry.vertices;indices=geometry.indices;
+      color=geometry.color})
+  |Debug_text debug->Ok(Command.Debug_text{x=debug.x;y=debug.y;text=debug.text;color=debug.color})
+  |Image _|Glyphs _->Error"image/glyph resource binding is not available"
+let scene2_ir ir =
+  let source=Raster2.Render_ir.Private.commands_readonly ir in
+  let commands=Array.make(Array.length source)(Command.Clear 0l)and failure=ref None in
+  Array.iteri(fun index value->match command_of_raster2 value with
+    |Ok command->commands.(index)<-command|Error message->failure:=Some message)source;
+  match!failure with Some message->fail"Prismel_next_execution.scene2_ir"Unsupported message
+  |None->scene2_commands commands
 
 let batch_fingerprint draws =
   List.fold_left (fun fingerprint (draw:draw) ->
@@ -321,8 +352,10 @@ type t = { runtime:Runtime_next_orchestrator.t; input:Runtime_next_input.t;
   mutable scene2_probe_cooldown:int;
   mutable pending_image_leases:Prismel_next_resources.Image.Private.lease list;
   mutable canvas_keys:(Prismel_next_resources.Canvas.t*string)list;mutable next_canvas_key:int }
-let runtime_target=function Native->Runtime_next_orchestrator.Native
-  |Headless->Headless|Web->Web
+let runtime_target=function
+  |Native->Ok Runtime_next_orchestrator.Native
+  |Headless|Web->fail"Prismel_next_execution.create"Unsupported
+      "only the native Metal target is available"
 let create (configuration:configuration) =
   let operation="Prismel_next_execution.create" in
   let positive x=x>0 in
@@ -331,10 +364,10 @@ let create (configuration:configuration) =
       configuration.max_file_bytes])then fail operation Invalid_argument"dimensions and bounds must be positive"
   else(match configuration.timing with Fixed dt when not(finite dt&&dt>0.)->
       fail operation Invalid_argument"fixed dt must be finite and positive"|_->
-    let config:Runtime_next_orchestrator.configuration={target=runtime_target configuration.target;
+    match runtime_target configuration.target with Error _ as error->error|Ok target->
+    let config:Runtime_next_orchestrator.configuration={target;
       logical_width=configuration.logical_width;logical_height=configuration.logical_height;
-      drawable_width=configuration.drawable_width;drawable_height=configuration.drawable_height;
-      web_configuration=None}in
+      drawable_width=configuration.drawable_width;drawable_height=configuration.drawable_height}in
     match Runtime_next_orchestrator.create config with Error e->backend operation e|Ok runtime->
       match Runtime_next_input.create~max_events:configuration.max_events
         ~max_file_bytes:configuration.max_file_bytes~logical_width:configuration.logical_width
@@ -346,7 +379,7 @@ let create (configuration:configuration) =
           scene2_probe_count=(-1);scene2_probe_density=0;scene2_probe_target=Headless;
           scene2_probe_fingerprint=0;scene2_probe_cooldown=0;
           pending_image_leases=[];canvas_keys=[];next_canvas_key=0})
-let target value=match Runtime_next_orchestrator.target value.runtime with Native->Native|Headless->Headless|Web->Web
+let target value=match Runtime_next_orchestrator.target value.runtime with Native->Native
 let assets value=value.assets
 let snapshot_cache_entries value=List.length value.snapshots
 let scene2_geometry_cache_entries value=
@@ -437,12 +470,13 @@ let lower_scene2_uncached value ~density ~resource:resolve ir =
         yy=(-2.)/.float facts.logical_height;tx=(-1.);ty=1.}
     |Headless|Web->None in
   let render_transform transform=match native_projection with
-    |None->transform|Some projection->compose projection transform in
+    |None->transform|Some projection->compose_raster projection transform in
   let transforms=ref[identity]and clips=ref[(0,0,facts.drawable_width,facts.drawable_height)]and draws=ref[]and number=ref 0 and failure=ref None in
   let point transform x y=transform.Raster2.Render_ir.xx*.x+.transform.yx*.y+.transform.tx,
     transform.xy*.x+.transform.yy*.y+.transform.ty in
   let clip_live()=let _,_,width,height=List.hd!clips in width>0&&height>0 in
-  let geometry_draw number transform clip (geometry:Raster2.Render_ir.geometry)=
+  let geometry_draw number (transform:Raster2.Render_ir.transform) clip
+      (geometry:Raster2.Render_ir.geometry)=
     (* [Render_ir] owns these arrays and exposes them read-only.  Public Scene
        lowering nevertheless constructs fresh, content-identical arrays every
        frame.  A physical-identity cache consequently re-uploaded every static
@@ -457,10 +491,11 @@ let lower_scene2_uncached value ~density ~resource:resolve ir =
       cached_fingerprint=fingerprint&&vertices=geometry.vertices&&indices=geometry.indices&&
       color=geometry.color&&cached_clip=clip in
     match List.find_opt(fun cached->same cached.vertices cached.indices cached.fingerprint cached.color cached.clip)value.scene2_geometry_cache with
-    |Some cached when identity_transform transform->cached.draw
-    |Some cached->{cached.draw with value={cached.draw.value with state={cached.draw.value.state with transform_uniforms=Some(affine_uniforms transform)}}}
+    |Some cached when identity_transform(command_transform_of_raster transform)->cached.draw
+    |Some cached->{cached.draw with value={cached.draw.value with state={cached.draw.value.state with transform_uniforms=Some(affine_uniforms(command_transform_of_raster transform))}}}
     |None->
-        let draw=mesh_of_geometry number transform clip geometry in
+        let draw=mesh_of_geometry number(command_transform_of_raster transform)clip
+          (command_geometry_of_raster geometry)in
         (* Admission candidates deliberately retain metadata, not the source
            arrays.  Scene construction commonly creates fresh arrays and an
            animated transform can make every prepared mesh unique.  Retaining
@@ -542,7 +577,7 @@ let lower_scene2_uncached value ~density ~resource:resolve ir =
       draws:=quad texture command.destination(u0,v0,u1,v1)::!draws;incr number in
   Array.iter(fun command->if!failure=None then match command with
     |Raster2.Render_ir.Clear _|Set_blend _->()
-    |Push_transform transform->transforms:=compose(List.hd!transforms)transform::!transforms
+    |Push_transform transform->transforms:=compose_raster(List.hd!transforms)transform::!transforms
     |Pop_transform->(match!transforms with _::(_::_ as rest)->transforms:=rest|_->())
     |Push_clip rect->let px,py,pw,ph=List.hd!clips and x=int_of_float(floor rect.x)
       and y=int_of_float(floor rect.y)and right=int_of_float(ceil(rect.x+.rect.width))
@@ -559,9 +594,10 @@ let lower_scene2_uncached value ~density ~resource:resolve ir =
           value.scene2_debug_cache with
         |Some cached->cached.debug_draw
         |None->
-            let geometry=debug_text_geometry transform debug in
+            let geometry=debug_text_geometry(command_transform_of_raster transform)
+              Command.{x=debug.x;y=debug.y;text=debug.text;color=debug.color}in
             let draw=if Array.length geometry.indices=0 then None else
-              Some(mesh_of_geometry!number identity clip geometry)in
+              Some(mesh_of_geometry!number(command_transform_of_raster identity)clip geometry)in
             value.scene2_debug_cache<-{debug_source=debug;debug_transform=transform;
               debug_clip=clip;debug_draw=draw}::value.scene2_debug_cache;
             if List.length value.scene2_debug_cache>256 then
@@ -708,7 +744,6 @@ let lower_scene2 value ~density ~resource:resolve ir =
           (fun plan->plan.plan_source_bytes)(plan::value.scene2_plan_cache));result)
   else lower_scene2_uncached value~density~resource:resolve ir end
 let mb_to_input=function Left->Runtime_next_input.Left|Middle->Middle|Right->Right|X1->X1|X2->X2
-let mb_of_web=function Runtime_next_orchestrator.Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2
 let mod_to_input=function Shift->Runtime_next_input.Shift|Control->Control|Alt->Alt|Meta->Meta|Num_lock->Num_lock|Caps_lock->Caps_lock|Scroll_lock->Scroll_lock
 let to_input=function Pointer_moved(x,y)->Runtime_next_input.Pointer_moved(x,y)
   |Pointer_pressed(b,x,y)->Pointer_pressed(mb_to_input b,x,y)|Pointer_released(b,x,y)->Pointer_released(mb_to_input b,x,y)
@@ -724,21 +759,16 @@ let resize value ~logical_width ~logical_height ~drawable_width ~drawable_height
   match Runtime_next_orchestrator.resize value.runtime~logical_width~logical_height~drawable_width~drawable_height with
   |Ok()->push_event value(Resized(logical_width,logical_height))|Error e->backend"Prismel_next_execution.resize"e
 let set_text_regions value regions=match ensure"Prismel_next_execution.set_text_regions"value with Error _ as e->e|Ok()->
-  let regions=List.map(fun r->{Runtime_next_orchestrator.x=r.x;y=r.y;width=r.width;height=r.height;focused=r.focused})regions in
-  match Runtime_next_orchestrator.set_text_input_regions value.runtime regions with Ok()->Ok()|Error e->backend"Prismel_next_execution.set_text_regions"e
+  ignore regions;fail"Prismel_next_execution.set_text_regions"Unsupported
+    "browser text regions are unavailable on the native Metal target"
 let register_asset value ?content_type bytes=match ensure"Prismel_next_execution.register_asset"value with Error _ as e->e|Ok()->
-  match Runtime_next_orchestrator.register_web_bytes value.runtime?content_type bytes with Ok x->Ok x|Error e->backend"Prismel_next_execution.register_asset"e
+  ignore content_type;ignore bytes;fail"Prismel_next_execution.register_asset"Unsupported"web assets are unavailable on the native Metal target"
 let remove_asset value asset=match ensure"Prismel_next_execution.remove_asset"value with Error _ as e->e|Ok()->
-  match Runtime_next_orchestrator.remove_web_asset value.runtime asset with Ok x->Ok x|Error e->backend"Prismel_next_execution.remove_asset"e
-let audio_command=function Prismel_next_resources.Audio.Master_volume x->Runtime_next_orchestrator.Audio_master_volume x
-  |Stop_all->Audio_stop_all|Sample_play{asset;channel;loops;volume}->Audio_sample_play{asset;channel;loops;volume}|Sample_stop x->Audio_sample_stop x
-  |Sample_pause x->Audio_sample_pause x|Sample_resume x->Audio_sample_resume x
-  |Music_play{asset;loops;fade_ms}->Audio_music_play{asset;loops;fade_ms}|Music_volume x->Audio_music_volume x|Music_pause->Audio_music_pause
-  |Music_resume->Audio_music_resume|Music_stop x->Audio_music_stop x|Asset_remove x->Audio_asset_remove x
+  ignore asset;fail"Prismel_next_execution.remove_asset"Unsupported"web assets are unavailable on the native Metal target"
 let send_audio value intent=match ensure"Prismel_next_execution.send_audio"value with Error _ as e->e|Ok()->
-  match Runtime_next_orchestrator.send_web_audio value.runtime(audio_command intent)with Ok()->Ok()|Error e->backend"Prismel_next_execution.send_audio"e
+  ignore intent;fail"Prismel_next_execution.send_audio"Unsupported"browser audio is unavailable on the native Metal target"
 let download_frame value ~filename=match ensure"Prismel_next_execution.download_frame"value with Error _ as e->e|Ok()->
-  match Runtime_next_orchestrator.download_web_frame value.runtime~filename with Ok()->Ok()|Error e->backend"Prismel_next_execution.download_frame"e
+  ignore filename;fail"Prismel_next_execution.download_frame"Unsupported"browser downloads are unavailable on the native Metal target"
 let mod_of_input=function Runtime_next_input.Shift->Shift|Control->Control|Alt->Alt|Meta->Meta|Num_lock->Num_lock|Caps_lock->Caps_lock|Scroll_lock->Scroll_lock
 let event_of_input=function Runtime_next_input.Pointer_moved(x,y)->Pointer_moved(x,y)|Pointer_pressed(b,x,y)->Pointer_pressed((match b with Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2),x,y)
   |Pointer_released(b,x,y)->Pointer_released((match b with Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2),x,y)
@@ -746,15 +776,7 @@ let event_of_input=function Runtime_next_input.Pointer_moved(x,y)->Pointer_moved
   |Wheel(x,y)->Wheel(x,y)|Key_pressed k->Key_pressed{name=k.key;modifiers=List.map mod_of_input k.modifiers;repeat=k.repeat}|Key_released k->Key_released{name=k.key;modifiers=List.map mod_of_input k.modifiers;repeat=k.repeat}
   |Text_input s->Text_input s|Text_editing{text;start;length}->Text_editing{text;start;length}|Focus_lost->Focus_lost|Focus_gained->Focus_gained
   |Visibility_changed x->Visibility_changed x|Quit->Quit|Resized(x,y)->Resized(x,y)|File_dropped{name;contents}->File_dropped{name;contents}
-let push_web value =
-  if target value<>Web then Ok()else match Runtime_next_orchestrator.drain_web_events value.runtime with Error e->backend"Prismel_next_execution.step"e|Ok events->
-    let convert=function Runtime_next_orchestrator.Pointer_moved(x,y)->Pointer_moved(float x,float y)
-      |Pointer_pressed(b,x,y)->Pointer_pressed(mb_of_web b,float x,float y)|Pointer_released(b,x,y)->Pointer_released(mb_of_web b,float x,float y)
-      |Pointer_cancelled b->Pointer_cancelled(mb_of_web b)|Wheel(x,y)->Wheel(float x,float y)
-      |Key_pressed name->Key_pressed{name;modifiers=[];repeat=false}|Key_released name->Key_released{name;modifiers=[];repeat=false}
-      |Text_input s->Text_input s|Text_editing{text;start;length}->Text_editing{text;start;length}|Resized(x,y)->Resized(x,y)|Focus_lost->Focus_lost
-      |File_uploaded{name;contents}->File_dropped{name;contents=Some contents}in
-    let rec all=function []->Ok()|x::xs->match push_event value(convert x)with Ok()->all xs|Error _ as e->e in all events
+let push_web _value = Ok()
 let step value draws=match ensure"Prismel_next_execution.step"value with Error _ as e->e|Ok()->
   let release_image_leases()=
     List.iter Prismel_next_resources.Image.Private.release_snapshot value.pending_image_leases;
