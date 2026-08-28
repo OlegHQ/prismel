@@ -33,7 +33,7 @@ type automatic_submission={automatic_clear:float*float*float*float;
     [ `Buffer of Ogpu.Backend.buffer | `Texture of Ogpu.Backend.texture ] list*
     Ogpu.Backend.pipeline list)list}
 type pipeline_variant={family:pipeline_family;blend:Ogpu.Pipeline.blend;samples:int;pipeline:Ogpu.Backend.pipeline;key:string}
-type t={device:Ogpu.Backend.device;queue:Ogpu.Backend.queue;surface:Ogpu.Backend.surface;mutable target:Ogpu.Backend.texture;mutable multisample_targets:(int*Ogpu.Backend.texture)list;mutable depth_targets:(int*Ogpu.Backend.texture)list;mutable stencil_targets:(int*Ogpu.Backend.texture)list;pipelines:pipeline_variant list;canonical_scene2_argument:bool;mutable cache:cached list;mutable uniform_cache:cached list;mutable prepared_cache:prepared_run list;mutable prepared_submission:prepared_submission option;mutable automatic_submission:automatic_submission option;mutable auxiliary_cache:cached_auxiliary list;mutable texture_cache:cached_texture list;mutable uploaded:int64;mutable dead:bool;before_device_destroy:unit->(unit,Ogpu.Error.t)result}
+type t={device:Ogpu.Backend.device;queue:Ogpu.Backend.queue;surface:Ogpu.Backend.surface;mutable target:Ogpu.Backend.texture;mutable attachments:Scene_attachment_pool.t;pipelines:pipeline_variant list;canonical_scene2_argument:bool;mutable cache:cached list;mutable uniform_cache:cached list;mutable prepared_cache:prepared_run list;mutable prepared_submission:prepared_submission option;mutable automatic_submission:automatic_submission option;mutable auxiliary_cache:cached_auxiliary list;mutable texture_cache:cached_texture list;mutable uploaded:int64;mutable dead:bool;before_device_destroy:unit->(unit,Ogpu.Error.t)result}
 let error op kind text=Error(Ogpu.Error.make op kind text)
 let set_u32_le bytes offset value =
   let open Int32 in
@@ -69,18 +69,7 @@ let blends=[Ogpu.Pipeline.Replace;Alpha;Add;Multiply;Screen;Subtract]
 let families=[Scene2;Scene2_textured;Scene3;Scene3_textured;Scene3_shadow;Scene3_stencil;Scene3_textured_stencil;Scene3_shadow_stencil]
 let pipeline_variants_per_sample=List.length families*List.length blends
 let sample_counts device=List.filter(fun samples->samples<=(Ogpu.Backend.capabilities device).Ogpu.Capabilities.limits.max_sample_count)[1;4;9;16]
-let multisample_descriptor configuration samples:Ogpu.Types.texture_descriptor={label=Some("scene-execution-msaa-"^string_of_int samples);width=configuration.Ogpu.Surface.physical_width;height=configuration.physical_height;depth=1;mip_levels=1;sample_count=samples;usage=[Render_attachment]}
-let depth_descriptor configuration samples:Ogpu.Types.texture_descriptor={label=Some("scene-execution-depth-"^string_of_int samples);width=configuration.Ogpu.Surface.physical_width;height=configuration.physical_height;depth=1;mip_levels=1;sample_count=samples;usage=[Render_attachment]}
-let stencil_descriptor configuration samples:Ogpu.Types.texture_descriptor={label=Some("scene-execution-stencil-"^string_of_int samples);width=configuration.Ogpu.Surface.physical_width;height=configuration.physical_height;depth=1;mip_levels=1;sample_count=samples;usage=[Render_attachment]}
-let destroy_targets targets=List.iter(fun(_,texture)->ignore(Ogpu.Backend.destroy_texture texture))targets
-let allocate_targets device configuration samples=
-  match Ogpu.Backend.create_texture device(texture_descriptor configuration)with Error _ as e->e|Ok target->
-  let rec colors made=function []->Ok(List.rev made)|samples::rest->match Ogpu.Backend.create_texture device(multisample_descriptor configuration samples)with Error e->destroy_targets made;Error e|Ok texture->colors((samples,texture)::made)rest in
-  match colors[](List.filter((<>)1)samples)with Error e->ignore(Ogpu.Backend.destroy_texture target);Error e|Ok multisample_targets->
-  let rec depths made=function []->Ok(List.rev made)|samples::rest->match Ogpu.Backend.create_depth_texture device(depth_descriptor configuration samples)with Error e->destroy_targets made;Error e|Ok texture->depths((samples,texture)::made)rest in
-  match depths[]samples with Error e->ignore(Ogpu.Backend.destroy_texture target);destroy_targets multisample_targets;Error e|Ok depth_targets->
-  let rec stencils made=function []->Ok(List.rev made)|samples::rest->match Ogpu.Backend.create_stencil_texture device(stencil_descriptor configuration samples)with Error e->destroy_targets made;Error e|Ok texture->stencils((samples,texture)::made)rest in
-  match stencils[]samples with Error e->ignore(Ogpu.Backend.destroy_texture target);destroy_targets multisample_targets;destroy_targets depth_targets;Error e|Ok stencil_targets->Ok(target,multisample_targets,depth_targets,stencil_targets)
+let allocate_target device configuration=Ogpu.Backend.create_texture device(texture_descriptor configuration)
 let create_common ?(canonical_scene2_argument=false) driver configuration before_device_destroy families_to_make variants_to_make samples_to_make supplied=match Ogpu.Backend.create_device driver with Error _ as e->e|Ok device->
   let cleanup()=ignore(Ogpu.Backend.destroy_device device)in
   match Ogpu.Backend.create_queue device with Error e->cleanup();Error e|Ok queue->
@@ -90,8 +79,8 @@ let create_common ?(canonical_scene2_argument=false) driver configuration before
     let requested=List.concat_map(fun family->List.concat_map(fun blend->List.map(fun samples->family,blend,samples)samples)variants_to_make)families_to_make in
     let rec variants made=function []->Ok(List.rev made)|(family,blend,samples)::rest->match make family blend samples with Error e->List.iter(fun x->ignore(Ogpu.Backend.destroy_pipeline x.pipeline))made;Error e|Ok(pipeline,key)->variants({family;blend;samples;pipeline;key}::made)rest in
     match variants[]requested with Error e->ignore(Ogpu.Backend.destroy_surface surface);ignore(Ogpu.Backend.destroy_queue queue);cleanup();Error e|Ok pipelines->
-    (match allocate_targets device configuration samples with
-      |Ok(target,multisample_targets,depth_targets,stencil_targets)->Ok{device;queue;surface;target;multisample_targets;depth_targets;stencil_targets;pipelines;canonical_scene2_argument;cache=[];uniform_cache=[];prepared_cache=[];prepared_submission=None;automatic_submission=None;auxiliary_cache=[];texture_cache=[];uploaded=0L;dead=false;before_device_destroy}
+    (match allocate_target device configuration with
+      |Ok target->let attachments=Scene_attachment_pool.create~device~configuration~sample_counts:samples in Ok{device;queue;surface;target;attachments;pipelines;canonical_scene2_argument;cache=[];uniform_cache=[];prepared_cache=[];prepared_submission=None;automatic_submission=None;auxiliary_cache=[];texture_cache=[];uploaded=0L;dead=false;before_device_destroy}
       |Error e->List.iter(fun x->ignore(Ogpu.Backend.destroy_pipeline x.pipeline))pipelines;ignore(Ogpu.Backend.destroy_surface surface);ignore(Ogpu.Backend.destroy_queue queue);cleanup();Error e)
 let one_sample _=[1]
 let create driver configuration=create_common driver configuration(fun()->Ok())[Scene2]blends one_sample None
@@ -376,15 +365,17 @@ let resolve_prepared value prepared draws =
       |None->Result.map(fun prepared_draws->let item={prepared_identity=identity;prepared_version=version;prepared_draws;prepared_bytes=prepared_bytes prepared_draws}in let others=List.filter(fun old->old.prepared_identity<>identity)value.prepared_cache in value.prepared_cache<-trim_prepared(item::others);prepared_draws,false)(coalesce_sampled draws))
   |None->Result.map(fun draws->draws,false)(coalesce_sampled draws)
 let pass value family samples state load clear=
-  let target=if samples=1 then Some value.target else List.assoc_opt samples value.multisample_targets in
-  match target with None->error"Scene_execution.pass"Ogpu.Error.Unsupported"multisample target is unavailable"|Some target->
+  let keys=(if samples=1 then[]else[Scene_attachment_pool.Color,samples])@(match family with Scene2|Scene2_textured->[]|Scene3|Scene3_textured|Scene3_shadow->[Depth,samples]|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->[Depth,samples;Stencil,samples])in
+  match Scene_attachment_pool.acquire_many value.attachments keys with Error _ as e->e|Ok pooled->
+  let attachments=ref pooled in
+  let take()=match!attachments with texture::rest->attachments:=rest;texture|[]->assert false in
+  let target=if samples=1 then value.target else take()in
   let texture=Ogpu.Backend.render_texture target~format:Ogpu.Render_pass.Rgba8~usage:Render_target in
   let resolve=if samples=1 then None else Some(Ogpu.Backend.render_texture value.target~format:Ogpu.Render_pass.Rgba8~usage:Resolve_target)in
-  let depth=match family with Scene2|Scene2_textured->None|Scene3|Scene3_textured|Scene3_shadow|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->Option.map(fun target->let texture=Ogpu.Backend.render_texture target~format:Ogpu.Render_pass.Depth32~usage:Render_target in ({Ogpu.Render_pass.texture;load=state.depth_load;store=Store;clear=state.depth_clear}:Ogpu.Render_pass.depth)) (List.assoc_opt samples value.depth_targets)in
-  let stencil=match family with Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->Option.map(fun target->let texture=Ogpu.Backend.render_texture target~format:Ogpu.Render_pass.Stencil8~usage:Render_target in ({Ogpu.Render_pass.texture;load=state.stencil_load;store=Store;clear=state.stencil_clear}:Ogpu.Render_pass.stencil))(List.assoc_opt samples value.stencil_targets)|Scene2|Scene2_textured|Scene3|Scene3_textured|Scene3_shadow->None in
+  let depth=match family with Scene2|Scene2_textured->None|Scene3|Scene3_textured|Scene3_shadow|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->let texture=Ogpu.Backend.render_texture(take())~format:Ogpu.Render_pass.Depth32~usage:Render_target in Some({Ogpu.Render_pass.texture;load=state.depth_load;store=Store;clear=state.depth_clear}:Ogpu.Render_pass.depth)in
+  let stencil=match family with Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->let texture=Ogpu.Backend.render_texture(take())~format:Ogpu.Render_pass.Stencil8~usage:Render_target in Some({Ogpu.Render_pass.texture;load=state.stencil_load;store=Store;clear=state.stencil_clear}:Ogpu.Render_pass.stencil)|Scene2|Scene2_textured|Scene3|Scene3_textured|Scene3_shadow->None in
   let x,y,width,height=state.viewport and sx,sy,sw,sh=state.scissor in
-  if family<>Scene2&&family<>Scene2_textured&&depth=None then error"Scene_execution.pass"Ogpu.Error.Unsupported"depth target is unavailable"else
-  Ogpu.Render_pass.create~raster_state:{cull=state.cull;depth_compare=state.depth_compare;depth_write=state.depth_write}?stencil_state:state.stencil_state(Ogpu.Backend.device_handle value.device){colors=[|Some{texture;resolve;load;store=(if samples=1 then Store else Resolve);clear}|];depth;stencil;viewport={x;y;width;height};scissor={x=sx;y=sy;width=sw;height=sh}}
+  Result.map(fun pass->pass,pooled)(Ogpu.Render_pass.create~raster_state:{cull=state.cull;depth_compare=state.depth_compare;depth_write=state.depth_write}?stencil_state:state.stencil_state(Ogpu.Backend.device_handle value.device){colors=[|Some{texture;resolve;load;store=(if samples=1 then Store else Resolve);clear}|];depth;stencil;viewport={x;y;width;height};scissor={x=sx;y=sy;width=sw;height=sh}})
 let automatic_signature
     (family,blend,samples,state,texture,auxiliary,item,uniform) =
   let texture=Option.map(fun(source,cached)->
@@ -461,7 +452,7 @@ let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws
         finish(Result.map(fun()->true)
           (submit_acquired value frame cached.automatic_commands))
     |_->
-    let resources=`Texture value.target::List.map(fun(_,texture)->`Texture texture)(value.multisample_targets@value.depth_targets@value.stencil_targets)@List.concat_map(fun(_,_,_,_,texture,auxiliary,item,uniform)->`Buffer item.buffer::Option.fold~none:[]~some:(fun item->[`Buffer item.buffer])uniform@(match texture with None->[]|Some(_,cached)->[`Texture cached.texture])@(match auxiliary with None->[]|Some(_,buffer,texture)->[`Buffer buffer.auxiliary_buffer;`Texture texture.texture]))prepared in
+    let resources=`Texture value.target::List.concat_map(fun(_,_,_,_,texture,auxiliary,item,uniform)->`Buffer item.buffer::Option.fold~none:[]~some:(fun item->[`Buffer item.buffer])uniform@(match texture with None->[]|Some(_,cached)->[`Texture cached.texture])@(match auxiliary with None->[]|Some(_,buffer,texture)->[`Buffer buffer.auxiliary_buffer;`Texture texture.texture]))prepared in
     let seen_buffers=Hashtbl.create 32 and seen_textures=Hashtbl.create 16 in
     let resources=List.filter(fun resource->let table,id=match resource with
       |`Buffer buffer->seen_buffers,Ogpu.Backend.buffer_id buffer
@@ -488,7 +479,8 @@ let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws
     let rec batches first=function []->Ok()|(family,blend,samples,state,texture,auxiliary,item,uniform)::rest->
       let class_=attachment_class family in
       let same,rest=take class_ (family=Scene2_textured) samples state 1[(family,blend,samples,state,texture,auxiliary,item,uniform)]rest in
-      match pass value family samples state(if first then Ogpu.Render_pass.Clear else Load)clear with Error _ as e->e|Ok pass->
+      match pass value family samples state(if first then Ogpu.Render_pass.Clear else Load)clear with Error _ as e->e|Ok(pass,attachments)->
+      let resources=List.map(fun texture->`Texture texture)attachments@resources in
       let payload=List.map(fun(family,blend,samples,_,texture,auxiliary,item,uniform)->let canonical_scene2=value.canonical_scene2_argument&&(family=Scene2||family=Scene2_textured)in let pipeline_family=if canonical_scene2&&family=Scene2 then Scene2_textured else family in let variant=Option.get(variant pipeline_family blend samples)in let texture_index,sampler_index=if canonical_scene2 then 0,1 else 1,2 in let textures,samplers=match texture with None->[],[]|Some(source,cached)->[{Ogpu.Render_pass.stage=Fragment;index=texture_index;texture_id=Ogpu.Backend.texture_id cached.texture}],[{Ogpu.Render_pass.stage=Fragment;index=sampler_index;sampler=source.sampler}]in let buffers,textures,samplers=match auxiliary with None->[{Ogpu.Render_pass.stage=Ogpu.Command.Vertex;index=0;buffer_id=Ogpu.Backend.buffer_id item.buffer;offset=0L}],textures,samplers|Some((source:auxiliary_resource),buffer,texture)->[{Ogpu.Render_pass.stage=Ogpu.Command.Vertex;index=0;buffer_id=Ogpu.Backend.buffer_id item.buffer;offset=0L};{stage=Fragment;index=3;buffer_id=Ogpu.Backend.buffer_id buffer.auxiliary_buffer;offset=0L}],{Ogpu.Render_pass.stage=Fragment;index=4;texture_id=Ogpu.Backend.texture_id texture.texture}::textures,{Ogpu.Render_pass.stage=Fragment;index=5;sampler=source.texture.sampler}::samplers in let buffers=match uniform,item.uniform_offset with Some uniform,_->{Ogpu.Render_pass.stage=Ogpu.Command.Vertex;index=6;buffer_id=Ogpu.Backend.buffer_id uniform.buffer;offset=0L}::buffers|None,Some offset->{Ogpu.Render_pass.stage=Ogpu.Command.Vertex;index=6;buffer_id=Ogpu.Backend.buffer_id item.buffer;offset}::{Ogpu.Render_pass.stage=Ogpu.Command.Fragment;index=6;buffer_id=Ogpu.Backend.buffer_id item.buffer;offset}::buffers|None,None->buffers in let index=if canonical_scene2||family=Scene2_textured then None else Some(Ogpu.Render_pass.Uint32,Ogpu.Backend.buffer_id item.buffer,item.index_offset,item.index_count)in({Ogpu.Render_pass.pipeline_key=variant.key;buffers;textures;samplers;primitive=Triangle_list;vertex_start=0;vertex_count=item.vertex_count;index},variant.pipeline))same in
       let payload,pipelines=List.split payload in
       let pipelines=List.fold_left(fun unique pipeline->if List.exists((==)pipeline)unique then unique else pipeline::unique)[]pipelines in
@@ -514,9 +506,12 @@ let render ?clear value draws=render_blended ?clear value(List.map(fun draw->Ogp
 let resize value configuration=
   value.prepared_submission<-None;
   value.automatic_submission<-None;
-  let samples=List.map fst value.depth_targets in
-  match allocate_targets value.device configuration samples with Error _ as e->e|Ok(target,multisample_targets,depth_targets,stencil_targets)->
-  match Ogpu.Backend.configure value.surface configuration with Error e->ignore(Ogpu.Backend.destroy_texture target);destroy_targets multisample_targets;destroy_targets depth_targets;destroy_targets stencil_targets;Error e|Ok()->let old=value.target and old_multisample=value.multisample_targets and old_depth=value.depth_targets and old_stencil=value.stencil_targets in value.target<-target;value.multisample_targets<-multisample_targets;value.depth_targets<-depth_targets;value.stencil_targets<-stencil_targets;destroy_targets old_multisample;destroy_targets old_depth;destroy_targets old_stencil;Ogpu.Backend.destroy_texture old
+  let samples=List.sort_uniq Int.compare(List.map(fun variant->variant.samples)value.pipelines)in
+  match allocate_target value.device configuration with Error _ as e->e|Ok target->
+  let attachments=Scene_attachment_pool.create~device:value.device~configuration~sample_counts:samples in
+  let rec restore=function []->Ok()|(kind,samples,_)::rest->match Scene_attachment_pool.acquire attachments kind~samples with Error _ as e->e|Ok _->restore rest in
+  match restore(Scene_attachment_pool.allocated value.attachments)with Error e->ignore(Ogpu.Backend.destroy_texture target);Scene_attachment_pool.destroy attachments;Error e|Ok()->
+  match Ogpu.Backend.configure value.surface configuration with Error e->ignore(Ogpu.Backend.destroy_texture target);Scene_attachment_pool.destroy attachments;Error e|Ok()->let old=value.target and old_attachments=value.attachments in value.target<-target;value.attachments<-attachments;Scene_attachment_pool.destroy old_attachments;Ogpu.Backend.destroy_texture old
 let upload_bytes value=value.uploaded
 let cache_entries value=List.length value.cache+List.length value.uniform_cache
 let read_pixels value ~bytes_per_row=Ogpu.Backend.read_texture value.target~bytes_per_row
@@ -525,4 +520,4 @@ let read_pixels_into value ~bytes_per_row ~destination=
 let destroy value=if value.dead then Ok()else(value.dead<-true;
   value.prepared_cache<-[];value.prepared_submission<-None;
   value.automatic_submission<-None;
-  List.iter(fun item->ignore(Ogpu.Backend.destroy_buffer item.buffer))value.cache;value.cache<-[];List.iter(fun item->ignore(Ogpu.Backend.destroy_buffer item.buffer))value.uniform_cache;value.uniform_cache<-[];List.iter(fun item->ignore(Ogpu.Backend.destroy_buffer item.auxiliary_buffer))value.auxiliary_cache;value.auxiliary_cache<-[];List.iter(fun item->ignore(Ogpu.Backend.destroy_texture item.texture);ignore(Ogpu.Backend.destroy_buffer item.staging))value.texture_cache;value.texture_cache<-[];destroy_targets value.multisample_targets;value.multisample_targets<-[];destroy_targets value.depth_targets;value.depth_targets<-[];destroy_targets value.stencil_targets;value.stencil_targets<-[];ignore(Ogpu.Backend.destroy_texture value.target);List.iter(fun variant->ignore(Ogpu.Backend.destroy_pipeline variant.pipeline))value.pipelines;ignore(Ogpu.Backend.destroy_surface value.surface);ignore(Ogpu.Backend.destroy_queue value.queue);match value.before_device_destroy()with Error _ as e->e|Ok()->Ogpu.Backend.destroy_device value.device)
+  List.iter(fun item->ignore(Ogpu.Backend.destroy_buffer item.buffer))value.cache;value.cache<-[];List.iter(fun item->ignore(Ogpu.Backend.destroy_buffer item.buffer))value.uniform_cache;value.uniform_cache<-[];List.iter(fun item->ignore(Ogpu.Backend.destroy_buffer item.auxiliary_buffer))value.auxiliary_cache;value.auxiliary_cache<-[];List.iter(fun item->ignore(Ogpu.Backend.destroy_texture item.texture);ignore(Ogpu.Backend.destroy_buffer item.staging))value.texture_cache;value.texture_cache<-[];Scene_attachment_pool.destroy value.attachments;ignore(Ogpu.Backend.destroy_texture value.target);List.iter(fun variant->ignore(Ogpu.Backend.destroy_pipeline variant.pipeline))value.pipelines;ignore(Ogpu.Backend.destroy_surface value.surface);ignore(Ogpu.Backend.destroy_queue value.queue);match value.before_device_destroy()with Error _ as e->e|Ok()->Ogpu.Backend.destroy_device value.device)

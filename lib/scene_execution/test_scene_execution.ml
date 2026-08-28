@@ -307,21 +307,38 @@ let depth_target_lifecycle () =
   let renderer=get(Scene_execution.create_variants driver configuration)in
   let creations=Ogpu.Backend_mock.trace control|>List.filter(String.starts_with~prefix:"create-depth-texture:")in
   let stencil_creations=Ogpu.Backend_mock.trace control|>List.filter(String.starts_with~prefix:"create-stencil-texture:")in
-  let max_samples=Ogpu.Capabilities.minimum_m1.Ogpu.Capabilities.limits.max_sample_count in
-  let expected=List.filter(fun samples->samples<=max_samples)[1;4;9;16]|>List.length in
-  if List.length creations<>expected then failwith"depth target count did not match provisioned sample variants";
-  if List.length stencil_creations<>expected then failwith"stencil target count did not match provisioned sample variants";
+  if creations<>[]||stencil_creations<>[] then failwith"attachments were allocated eagerly";
   Ogpu.Backend_mock.clear_trace control;
   ignore(get(Scene_execution.render_family renderer[Scene2,Ogpu.Pipeline.Replace,draw]));
+  if List.exists(fun trace->String.starts_with~prefix:"create-depth-texture:"trace||String.starts_with~prefix:"create-stencil-texture:"trace)(Ogpu.Backend_mock.trace control)then failwith"Scene2 allocated unused depth/stencil";
   if not(List.exists(String.starts_with~prefix:"render:nodepth:none:always:false:")(Ogpu.Backend_mock.trace control))then failwith"Scene2 acquired depth or raster state";
   Ogpu.Backend_mock.clear_trace control;
   ignore(get(Scene_execution.render_family renderer[Scene3,Ogpu.Pipeline.Replace,draw]));
+  if List.length(List.filter(String.starts_with~prefix:"create-depth-texture:")(Ogpu.Backend_mock.trace control))<>1 then failwith"Scene3 did not lazily allocate one depth target";
+  if List.exists(String.starts_with~prefix:"create-stencil-texture:")(Ogpu.Backend_mock.trace control)then failwith"non-stencil Scene3 allocated stencil";
   if not(List.exists(String.starts_with~prefix:"render:depth:")(Ogpu.Backend_mock.trace control))then failwith"Scene3 omitted its depth attachment";
   Ogpu.Backend_mock.clear_trace control;
   let raster={state with cull=Ogpu.Render_pass.Cull_front;depth_compare=Greater_equal;depth_write=true;depth_load=Clear;depth_clear=0.25}in
   ignore(get(Scene_execution.render_family renderer[Scene3,Ogpu.Pipeline.Replace,{draw with state=raster}]));
   let traces=Ogpu.Backend_mock.trace control in
   if not(List.exists(fun value->match String.split_on_char ':' value with "render"::"depth"::_::"clear"::"0.25"::"front"::"ge"::"true"::_->true|_->false)traces)then failwith"Scene3 raster state was not forwarded";
+  Ogpu.Backend_mock.clear_trace control;
+  ignore(get(Scene_execution.render_family renderer[Scene3_stencil,Ogpu.Pipeline.Replace,{draw with state=raster}]));
+  if List.length(List.filter(String.starts_with~prefix:"create-stencil-texture:")(Ogpu.Backend_mock.trace control))<>1 then failwith"stencil family did not lazily allocate one stencil target";
+  let max_samples=Ogpu.Capabilities.minimum_m1.Ogpu.Capabilities.limits.max_sample_count in
+  if max_samples>=4 then begin
+    Ogpu.Backend_mock.clear_trace control;
+    ignore(get(Scene_execution.render_sampled_resources renderer[Scene3_stencil,Ogpu.Pipeline.Replace,None,None,4,{draw with state=raster}]));
+    let trace=Ogpu.Backend_mock.trace control in
+    if List.length(List.filter(String.starts_with~prefix:"create-texture:")trace)<>1||
+       List.length(List.filter(String.starts_with~prefix:"create-depth-texture:")trace)<>1||
+       List.length(List.filter(String.starts_with~prefix:"create-stencil-texture:")trace)<>1 then
+      failwith"MSAA stencil pass did not allocate one exact attachment set";
+    Ogpu.Backend_mock.clear_trace control;
+    ignore(get(Scene_execution.render_sampled_resources renderer[Scene3_stencil,Ogpu.Pipeline.Replace,None,None,4,{draw with state=raster}]));
+    if List.exists(fun trace->String.starts_with~prefix:"create-texture:"trace||String.starts_with~prefix:"create-depth-texture:"trace||String.starts_with~prefix:"create-stencil-texture:"trace)(Ogpu.Backend_mock.trace control)then
+      failwith"stable MSAA stencil pass did not reuse exact attachments"
+  end;
   let malformed=Bytes.make 208 '\000'in Bytes.set_int32_le malformed 0(Int32.bits_of_float nan);
   let before_upload=Scene_execution.upload_bytes renderer and before_live=Ogpu.Backend_mock.live_counts control in
   begin match Scene_execution.render_family renderer[Scene3,Ogpu.Pipeline.Replace,{draw with state={raster with transform_uniforms=Some malformed}}]with Error e when e.Ogpu.Error.kind=Invalid_argument->()|_->failwith"malformed transform uniforms were not rejected"end;
@@ -339,8 +356,10 @@ let depth_target_lifecycle () =
   get(Scene_execution.destroy renderer);
   if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then failwith"depth targets survived device-loss destruction";
   let driver,control=Ogpu.Backend_mock.create()in
-  Ogpu.Backend_mock.fail_depth_allocation_after control 1;
-  begin match Scene_execution.create_variants driver configuration with Error _->()|Ok renderer->ignore(Scene_execution.destroy renderer);failwith"partial depth allocation unexpectedly succeeded"end;
+  let renderer=get(Scene_execution.create_variants driver configuration)in
+  Ogpu.Backend_mock.fail_depth_allocation_after control 0;
+  begin match Scene_execution.render_family renderer[Scene3,Ogpu.Pipeline.Replace,draw]with Error _->()|Ok _->failwith"deferred depth allocation unexpectedly succeeded"end;
+  get(Scene_execution.destroy renderer);
   if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then failwith"partial depth allocation leaked objects"
 let ()=let driver,control=Ogpu.Backend_mock.create()in let configuration:Ogpu.Surface.configuration={logical_width=8;logical_height=8;physical_width=8;physical_height=8;format=Rgba8_unorm;present_mode=Fifo;max_acquired=2}in let renderer=get(Scene_execution.create driver configuration)in let mesh:Scene_execution.mesh={key="triangle";vertices=Bytes.make 48 '\000';vertex_count=3;indices=Bytes.make 12 '\000';index_count=3}and state:Scene_execution.state={viewport=(0,0,8,8);scissor=(0,0,8,8);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;transform_uniforms=None;stencil_state=None;stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}in for _=1 to 1000 do ignore(get(Scene_execution.render renderer[{mesh;state}]))done;
   prepared_clear_cache_key();

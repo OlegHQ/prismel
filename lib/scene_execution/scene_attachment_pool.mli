@@ -10,6 +10,7 @@ val create :
 (** [acquire pool kind ~samples] allocates the exact attachment on its first
     use and returns the same live texture on later uses. *)
 val acquire : t -> kind -> samples:int -> (Ogpu.Backend.texture, Ogpu.Error.t) result
+val acquire_many : t -> (kind * int) list -> (Ogpu.Backend.texture list, Ogpu.Error.t) result
 
 (** Recreates only attachments which have already been acquired. Allocation is
     transactional: on failure all old attachments and dimensions remain live. *)

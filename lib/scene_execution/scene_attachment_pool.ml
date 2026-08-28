@@ -31,17 +31,25 @@ let allocate value configuration kind samples =
   | Depth -> Ogpu.Backend.create_depth_texture value.device descriptor
   | Stencil -> Ogpu.Backend.create_stencil_texture value.device descriptor
 
-let acquire value kind ~samples =
-  if value.dead then error "pool is destroyed"
-  else if not (List.mem samples value.sample_counts) then error "unsupported sample count"
-  else match List.find_opt (fun entry -> entry.kind=kind && entry.samples=samples) value.entries with
-    | Some entry -> Ok entry.texture
-    | None -> Result.map (fun texture ->
-        value.entries <- {kind;samples;texture} :: value.entries; texture)
-        (allocate value value.configuration kind samples)
-
 let destroy_entries entries =
   List.iter (fun entry -> ignore (Ogpu.Backend.destroy_texture entry.texture)) entries
+
+let acquire_many value keys =
+  if value.dead then error "pool is destroyed"
+  else if List.exists (fun (_,samples)->not(List.mem samples value.sample_counts)) keys then error "unsupported sample count"
+  else
+    let rec loop made textures=function
+      |[]->value.entries<-List.rev_append made value.entries;Ok(List.rev textures)
+      |(kind,samples)::rest->
+          match List.find_opt(fun entry->entry.kind=kind&&entry.samples=samples)(made@value.entries)with
+          |Some entry->loop made(entry.texture::textures)rest
+          |None->match allocate value value.configuration kind samples with
+            |Error failure->destroy_entries made;Error failure
+            |Ok texture->loop({kind;samples;texture}::made)(texture::textures)rest in
+    loop[][]keys
+
+let acquire value kind ~samples =
+  Result.map List.hd(acquire_many value[kind,samples])
 
 let resize value configuration =
   if value.dead then error "pool is destroyed"

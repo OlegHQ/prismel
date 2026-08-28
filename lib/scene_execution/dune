@@ -1,21 +1,11 @@
 (library
  (name scene_execution)
  (public_name prismel.scene_execution)
- (modules scene_execution)
+ (modules scene_execution scene_attachment_pool)
+ (private_modules scene_attachment_pool)
  (libraries raster2 ogpu))
-
-(library
- (name scene_attachment_pool)
- (wrapped false)
- (modules scene_attachment_pool)
- (libraries ogpu))
 
 (test
  (name test_scene_execution)
  (modules test_scene_execution)
  (libraries scene_execution ogpu ogpu_raster2 raster2))
-
-(test
- (name test_scene_attachment_pool)
- (modules test_scene_attachment_pool)
- (libraries scene_attachment_pool ogpu))

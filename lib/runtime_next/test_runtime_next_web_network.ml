@@ -188,8 +188,8 @@ let () =
     if Runtime_next_web.backend_trace_stats runtime|>fst>256 then fail"trace bound";
     let buffers,textures,pipelines,queues,surfaces=Runtime_next_web.backend_live_counts runtime in
     if (buffers,textures,pipelines,queues,surfaces)<>
-        (2,6,Scene_execution.pipeline_variants_per_sample*2,1,1)then
-      fail(Printf.sprintf"live bound %d,%d,%d,%d,%d"buffers textures pipelines queues surfaces));
+        (2,1,Scene_execution.pipeline_variants_per_sample*2,1,1)then
+      fail(Printf.sprintf"sample-1 Scene2 target bound %d,%d,%d,%d,%d"buffers textures pipelines queues surfaces));
   if Runtime_next_web.backend_live_counts runtime<>(0,0,0,0,0)then fail"teardown";
   (match Runtime_next_web.url runtime with Error{kind=Ogpu.Error.Stale_handle;_}->()|_->fail"dead URL");
   (match Runtime_next_web.drain_events_ordered runtime with Error{kind=Ogpu.Error.Stale_handle;_}->()|_->fail"dead event drain");

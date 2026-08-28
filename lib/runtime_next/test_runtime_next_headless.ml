@@ -35,8 +35,8 @@ let () =
   ignore(get(Headless.render runtime[draw 8]));expect_pixels runtime 8;
   for _cycle=1 to 100_000 do ignore(get(Headless.render runtime[draw 8]))done;
   if Headless.backend_live_counts runtime<>
-      (2,6,Scene_execution.pipeline_variants_per_sample*2,1,1)then
-    failwith"headless long-run object counts grew";
+      (2,1,Scene_execution.pipeline_variants_per_sample*2,1,1)then
+    failwith"headless sample-1 Scene2 did not retain exactly its readback target";
   let trace_length, dropped_traces = Headless.backend_trace_stats runtime in
   if trace_length > 256 || dropped_traces = 0 then
     failwith "headless long-run trace storage is not bounded";
