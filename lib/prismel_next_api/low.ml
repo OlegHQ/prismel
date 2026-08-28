@@ -172,12 +172,10 @@ module App = struct
 end
 
 module Backend = struct
-  type web_event = Runtime_next_orchestrator.web_event
-  type web_audio_command = Runtime_next_orchestrator.audio_command
   let selected () = Runtime_next_compat.selected_target ()
-  let is_headless () = selected () = Ok Runtime_next_compat.Headless
-  let is_web () = selected () = Ok Runtime_next_compat.Web
-  let is_displayless () = not (selected () = Ok Runtime_next_compat.Native)
+  let is_headless () = false
+  let is_web () = false
+  let is_displayless () = false
   let start ~width ~height ~title ~resizable =
     try Ok (Window.create ~config:{Window.default_config with width;height;title;resizable} ())
     with exn -> Error (Printexc.to_string exn)
@@ -185,13 +183,4 @@ module Backend = struct
   let present window ~logical_width ~logical_height =
     ignore (logical_width, logical_height);
     try App.present window; Ok () with exn -> Error (Printexc.to_string exn)
-  let drain_web_events () = []
-  let web_url () = None
-  let web_drawable_size ~logical_width ~logical_height = logical_width, logical_height
-  let register_web_file ?content_type:_ _ = None
-  let register_web_bytes ?content_type:_ _ = None
-  let remove_web_asset _ = ()
-  let send_web_audio _ = ()
-  let download_web_frame ~filename:_ = Error "web frame download unavailable without an active typed web session"
-  let add_web_text_input_region ~x:_ ~y:_ ~width:_ ~height:_ ~focused:_ = ()
 end

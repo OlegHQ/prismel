@@ -158,6 +158,9 @@ let geometry p=
       cache.primitive_order<-p::cache.primitive_order;
       command
 module Private=struct
+ type staged_native={scene2:Raster2.Render_ir.t;
+   resources:(int*Prismel_next_execution.resource)list;
+   scene3:Scene_execution.prepared_scene3 list}
  let renderer=ref(fun(_ : t)->())let install_renderer value=renderer:=value
  let rec commands acc=function []->acc|Clear c::xs->commands(Raster2.Render_ir.Clear(rgba c)::acc)xs|Primitive p::xs->commands(geometry p::acc)xs|Geometry g::xs->commands(Raster2.Render_ir.Geometry g::acc)xs|Group g::xs->commands(commands acc g)xs
   |Debug_text node::xs->commands(Raster2.Render_ir.Debug_text{x=float node.x;y=float node.y;text=node.value;color=rgba node.color}::acc)xs
@@ -192,30 +195,12 @@ module Private=struct
        node.rendered <- Some image;
        image
 
- let view_image ~width ~height (node : view3d_node) =
-   match node.rendered3d with
-   | Some image -> image
-   | None ->
-       let x, y, view_width, view_height =
-         Option.value node.viewport ~default:(0, 0, width, height)
-       in
-       let image = Scene3_image.render ~width:view_width ~height:view_height
-           ~camera:node.camera node.scene in
-       node.rendered3d <- Some image;
-       ignore (x, y);
-       image
-
  let rec materialize ~width ~height = function
    | [] -> []
    | Text node :: rest ->
        Image {image=text_image node;x=node.x;y=node.y;scale=1.;angle=0.;center=None;flip_x=false}
        :: materialize ~width ~height rest
-   | View3d node :: rest ->
-       let x, y, _, _ =
-         Option.value node.viewport ~default:(0, 0, width, height)
-       in
-       Image {image=view_image ~width ~height node;x;y;scale=1.;angle=0.;center=None;flip_x=false}
-       :: materialize ~width ~height rest
+   | View3d node :: rest -> View3d node :: materialize ~width ~height rest
    | Group nodes :: rest ->
        Group (materialize ~width ~height nodes)
        :: materialize ~width ~height rest
@@ -247,6 +232,25 @@ module Private=struct
      with
      | Failure message -> Error message
      | Invalid_argument message -> Error message
+
+ let stage_native ~width ~height scene =
+   match stage ~width ~height scene with Error _ as error->error|Ok(scene2,resources)->
+   let lowered=ref[]and failure=ref None in
+   let callbacks:Scene3_native_lowering.resources={
+     texture=(fun _->Error Unsupported_texture);
+     shadow=(fun _->Error Unsupported_shadow)}in
+   let rec visit=function
+     |[]->()|View3d node::rest->
+       let viewport=Option.value node.viewport~default:(0,0,width,height)in
+       (match Scene3_native_lowering.prepare~resources:callbacks~camera:node.camera
+          ~viewport node.scene with Ok prepared->lowered:=prepared::!lowered
+        |Error _->failure:=Some"native View3d lowering failed");visit rest
+     |Group nodes::rest|Translate(_,_,nodes)::rest|Rotate(_,nodes)::rest
+     |Scale(_,_,nodes)::rest|Clip(_,_,_,_,nodes)::rest|Blend(_,nodes)::rest->
+       visit nodes;visit rest
+     |_::rest->visit rest in
+   visit scene;match!failure with Some message->Error message
+   |None->Ok{scene2;resources;scene3=List.rev!lowered}
 
  let to_ir scene = Result.map fst (stage ~width:640 ~height:480 scene)
  let resources scene =
