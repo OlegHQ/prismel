@@ -14,13 +14,11 @@ struct Out { float4 position [[position]]; float4 color; };
 vertex Out scene_vertex(uint i [[vertex_id]], const device Input *input [[buffer(0)]]) { Out v;v.position=float4(input[i].position,0.,1.);uint c=input[i].color;v.color=float4(float((c>>24)&255),float((c>>16)&255),float((c>>8)&255),float(c&255))/255.;return v; }
 fragment float4 scene_fragment(Out value [[stage_in]]){return value.color;}
 |}
-let source_scene2_textured={|#include <metal_stdlib>
-using namespace metal;
-struct Out { float4 position [[position]]; float4 color; float2 uv; };
-inline float scene_double(const device uchar *p){uint lo=*reinterpret_cast<const device uint*>(p);uint hi=*reinterpret_cast<const device uint*>(p+4);ulong bits=(ulong(hi)<<32)|ulong(lo);float sign=(hi>>31)==0?1.:-1.;int exponent=int((bits>>52)&0x7fful);ulong fraction=bits&0xffffffffffffful;if(exponent==0)return sign*ldexp(float(fraction)/4503599627370496.,-1022);return sign*ldexp(1.+float(fraction)/4503599627370496.,exponent-1023);}
-vertex Out scene_vertex(uint i [[vertex_id]],const device uchar *input [[buffer(0)]]){const device uchar*p=input+i*68;Out v;v.position=float4(scene_double(p),scene_double(p+8),0.,1.);v.color=unpack_unorm4x8_to_float(*reinterpret_cast<const device uint*>(p+48)).abgr;v.uv=float2(scene_double(p+52),scene_double(p+60));return v;}
-fragment float4 scene_fragment(Out value [[stage_in]],texture2d<float> image [[texture(1)]],sampler sampling [[sampler(2)]]){return value.color*image.sample(sampling,value.uv);}
-|}
+let source_scene2_textured=Runtime_next_shaders.scene2_textured_direct
+module Private=struct
+  let scene2_textured_direct=Runtime_next_shaders.scene2_textured_direct
+  let scene2_textured_argument=Runtime_next_shaders.scene2_textured_argument
+end
 let source_scene3_header={|#include <metal_stdlib>
 using namespace metal;
 struct Out { float4 position [[position]]; float4 color; float2 uv; float3 world; float3 normal; };

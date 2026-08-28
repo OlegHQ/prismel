@@ -37,3 +37,7 @@ val minimize : t -> (unit, Ogpu.Error.t) result
 val maximize : t -> (unit, Ogpu.Error.t) result
 val restore : t -> (unit, Ogpu.Error.t) result
 val destroy : t -> (unit, Ogpu.Error.t) result
+module Private : sig
+  val scene2_textured_direct : string
+  val scene2_textured_argument : string
+end

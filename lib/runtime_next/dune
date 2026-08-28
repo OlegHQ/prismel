@@ -1,7 +1,8 @@
 (library
  (name runtime_next)
  (public_name prismel.runtime_next)
- (modules runtime_next)
+ (modules runtime_next runtime_next_shaders)
+ (private_modules runtime_next_shaders)
  (libraries sdl3 metal ogpu ogpu_metal scene_execution))
 
 (library
@@ -39,6 +40,11 @@
  (name test_runtime_next_scene3_lighting)
  (modules test_runtime_next_scene3_lighting)
  (libraries runtime_next scene_execution metal ogpu))
+
+(test
+ (name test_runtime_next_scene2_argument_shader)
+ (modules test_runtime_next_scene2_argument_shader)
+ (libraries runtime_next metal))
 
 (test
  (name test_runtime_next_headless)
