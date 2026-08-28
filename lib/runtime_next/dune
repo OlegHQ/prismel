@@ -42,6 +42,11 @@
  (libraries runtime_next ogpu))
 
 (test
+ (name test_runtime_next_scaling)
+ (modules test_runtime_next_scaling)
+ (libraries runtime_next scene_execution ogpu))
+
+(test
  (name test_runtime_next_scene3_lighting)
  (modules test_runtime_next_scene3_lighting)
  (libraries runtime_next scene_execution metal ogpu))

@@ -45,4 +45,12 @@ val destroy : t -> (unit, Ogpu.Error.t) result
 module Private : sig
   val scene2_textured_direct : string
   val scene2_textured_argument : string
+  val scale_draws : frame_facts -> Scene_execution.draw list -> Scene_execution.draw list
+  val scale_sampled_resources : frame_facts ->
+    (Scene_execution.pipeline_family * Ogpu.Pipeline.blend *
+     Scene_execution.sampled_texture option * Scene_execution.auxiliary_resource option *
+     int * Scene_execution.draw) list ->
+    (Scene_execution.pipeline_family * Ogpu.Pipeline.blend *
+     Scene_execution.sampled_texture option * Scene_execution.auxiliary_resource option *
+     int * Scene_execution.draw) list
 end
