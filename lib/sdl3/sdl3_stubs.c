@@ -39,6 +39,18 @@ static prismel_rgba_presenter *presenter_of_value(value raw)
   return (prismel_rgba_presenter *)(intnat)Nativeint_val(raw);
 }
 
+CAMLprim value caml_sdl3_current_video_driver(value unit)
+{
+  CAMLparam1(unit);
+  CAMLlocal2(result, some);
+  const char *name = SDL_GetCurrentVideoDriver();
+  if (name == NULL) CAMLreturn(Val_none);
+  result = caml_copy_string(name);
+  some = caml_alloc(1, 0);
+  Store_field(some, 0, result);
+  CAMLreturn(some);
+}
+
 CAMLprim value caml_sdl3_create_rgba_presenter(value raw_window)
 {
   prismel_rgba_presenter *presenter = calloc(1, sizeof(*presenter));
@@ -125,6 +137,19 @@ CAMLprim value caml_sdl3_presenter_texture_size(value raw)
   Store_field(pair, 0, Val_int(presenter->width));
   Store_field(pair, 1, Val_int(presenter->height));
   CAMLreturn(pair);
+}
+
+CAMLprim value caml_sdl3_presenter_renderer_name(value raw)
+{
+  CAMLparam1(raw);
+  CAMLlocal2(result, some);
+  prismel_rgba_presenter *presenter = presenter_of_value(raw);
+  const char *name = presenter == NULL ? NULL : SDL_GetRendererName(presenter->renderer);
+  if (name == NULL) CAMLreturn(Val_none);
+  result = caml_copy_string(name);
+  some = caml_alloc(1, 0);
+  Store_field(some, 0, result);
+  CAMLreturn(some);
 }
 
 CAMLprim value caml_sdl3_linked_version(value unit)

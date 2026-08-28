@@ -10,6 +10,8 @@ external performance_frequency : unit -> int64 = "caml_sdl3_performance_frequenc
 external init_subsystem : int -> bool = "caml_sdl3_init_subsystem"
 external quit_subsystem : int -> unit = "caml_sdl3_quit_subsystem"
 external quit : unit -> unit = "caml_sdl3_quit"
+external current_video_driver : unit -> string option
+  = "caml_sdl3_current_video_driver"
 external was_init : int -> int = "caml_sdl3_was_init"
 
 external create_window : string -> int -> int -> int64 -> nativeint
@@ -100,6 +102,8 @@ external presenter_copy_rgba : nativeint -> bytes option
   = "caml_sdl3_presenter_copy_rgba"
 external presenter_texture_size : nativeint -> int * int
   = "caml_sdl3_presenter_texture_size"
+external presenter_renderer_name : nativeint -> string option
+  = "caml_sdl3_presenter_renderer_name"
 
 (* The SDL_Event union never crosses this module boundary.  The C stub copies
    only the active member into one of these constructors while SDL still owns

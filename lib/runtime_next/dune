@@ -9,7 +9,10 @@
  (name runtime_next_headless)
  (public_name prismel.runtime_next_headless)
  (modules runtime_next_headless)
- (libraries sdl3 ogpu ogpu_raster2 scene_execution))
+ (libraries sdl3 ogpu ogpu_raster2 scene_execution)
+ (foreign_stubs
+  (language c)
+  (names runtime_next_headless_stubs)))
 
 (library
  (name runtime_next_web)

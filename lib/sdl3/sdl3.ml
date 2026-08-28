@@ -216,6 +216,10 @@ module Init = struct
       let requested = mask subsystems in
       Ok (Private_raw.was_init requested land requested = requested))
 
+  let current_video_driver () =
+    on_main "SDL3.Init.current_video_driver" (fun () ->
+      Ok (Private_raw.current_video_driver ()))
+
   let quit_subsystems subsystems =
     on_main "SDL3.Init.quit_subsystems" (fun () ->
       Private_raw.quit_subsystem (mask subsystems);
@@ -630,6 +634,11 @@ module Rgba_presenter = struct
 
   let texture_size value = live "SDL3.Rgba_presenter.texture_size" value
       (fun raw -> Ok (Private_raw.presenter_texture_size raw))
+
+  let renderer_name value = live "SDL3.Rgba_presenter.renderer_name" value
+      (fun raw -> match Private_raw.presenter_renderer_name raw with
+       | Some name -> Ok name
+       | None -> sdl_error "SDL3.Rgba_presenter.renderer_name")
 
   let copy_rgba value = live "SDL3.Rgba_presenter.copy_rgba" value (fun raw ->
     Private_raw.clear_error ();

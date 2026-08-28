@@ -6,8 +6,28 @@ type t = {
   mutable readback : bytes;
   mutable drawable_width : int;
   mutable drawable_height : int;
+  environment : (string * string option) list;
   mutable dead : bool;
 }
+
+external unset_environment : string -> unit
+  = "caml_runtime_next_headless_unsetenv"
+
+let environment_names =
+  [ "SDL_VIDEODRIVER"; "SDL_RENDER_DRIVER"; "SDL_AUDIODRIVER" ]
+
+let capture_environment () =
+  List.map (fun name -> name, Sys.getenv_opt name) environment_names
+
+let restore_environment values =
+  List.iter (fun (name, value) -> match value with
+    | Some value -> Unix.putenv name value
+    | None -> unset_environment name) values
+
+let configure_environment () =
+  Unix.putenv "SDL_VIDEODRIVER" "dummy";
+  Unix.putenv "SDL_RENDER_DRIVER" "software";
+  Unix.putenv "SDL_AUDIODRIVER" "dummy"
 
 let error operation kind message = Error (Ogpu.Error.make operation kind message)
 let sdl operation = Result.map_error (fun value ->
@@ -26,20 +46,41 @@ let create ~logical_width ~logical_height ~drawable_width ~drawable_height =
   let operation="Runtime_next_headless.create"in
   if not(valid_dimensions~logical_width~logical_height~drawable_width~drawable_height)
   then error operation Invalid_argument"dimensions must be positive"else
-  match sdl operation(Sdl3.Init.init~release:false[Sdl3.Init.Video])with Error _ as e->e|Ok()->
+  let environment=capture_environment()in
+  configure_environment();
+  let fail_before_video result=restore_environment environment;result in
+  match sdl operation(Sdl3.Init.init~release:false[Sdl3.Init.Video])with
+  |Error _ as e->fail_before_video e
+  |Ok()->
+  let fail_after_video result=ignore(Sdl3.Init.quit_subsystems[Video]);
+    restore_environment environment;result in
+  match sdl operation(Sdl3.Init.current_video_driver())with
+  |Error _ as e->fail_after_video e
+  |Ok(Some"dummy")->begin
   match sdl operation(Sdl3.Window.create~title:"Prismel headless-next"
       ~width:logical_width~height:logical_height~flags:[Hidden]())with
-  |Error e->ignore(Sdl3.Init.quit_subsystems[Video]);Error e
+  |Error e->fail_after_video(Error e)
   |Ok window->match sdl operation(Sdl3.Rgba_presenter.create window)with
-    |Error e->ignore(Sdl3.Window.destroy window);ignore(Sdl3.Init.quit_subsystems[Video]);Error e
-    |Ok presenter->let driver,control=Ogpu_raster2.create()in
+    |Error e->ignore(Sdl3.Window.destroy window);fail_after_video(Error e)
+    |Ok presenter->match sdl operation(Sdl3.Rgba_presenter.renderer_name presenter)with
+    |Error e->ignore(Sdl3.Rgba_presenter.destroy presenter);ignore(Sdl3.Window.destroy window);
+      fail_after_video(Error e)
+    |Ok name when String.lowercase_ascii name<>"software"->
+      ignore(Sdl3.Rgba_presenter.destroy presenter);ignore(Sdl3.Window.destroy window);
+      fail_after_video(error operation Invalid_state
+        (Printf.sprintf"headless SDL renderer is %S, expected software"name))
+    |Ok _->let driver,control=Ogpu_raster2.create()in
       match Scene_execution.create_variants driver(configuration~logical_width~logical_height
           ~drawable_width~drawable_height)with
       |Error e->ignore(Sdl3.Rgba_presenter.destroy presenter);ignore(Sdl3.Window.destroy window);
-        ignore(Sdl3.Init.quit_subsystems[Video]);Error e
+        fail_after_video(Error e)
       |Ok renderer->Ok{window;presenter;renderer;control;
         readback=Bytes.create(drawable_width*drawable_height*4);
-        drawable_width;drawable_height;dead=false}
+        drawable_width;drawable_height;environment;dead=false}
+  end
+  |Ok driver->fail_after_video(error operation Invalid_state
+      (Printf.sprintf"headless SDL video driver is %s, expected dummy"
+        (Option.value driver~default:"unavailable")))
 
 let ensure_live operation value =
   if value.dead then error operation Stale_handle"runtime is destroyed"else Ok()
@@ -97,6 +138,14 @@ let presented_pixels value =
   match ensure_live"Runtime_next_headless.presented_pixels"value with Error _ as e->e|Ok()->
   sdl"Runtime_next_headless.presented_pixels"(Sdl3.Rgba_presenter.copy_rgba value.presenter)
 
+let sdl_drivers value =
+  match ensure_live"Runtime_next_headless.sdl_drivers"value with Error _ as e->e|Ok()->
+  match sdl"Runtime_next_headless.sdl_drivers"(Sdl3.Init.current_video_driver())with
+  |Error _ as e->e|Ok None->error"Runtime_next_headless.sdl_drivers"Invalid_state
+      "SDL has no active video driver"
+  |Ok(Some video)->Result.map(fun renderer->video,renderer)
+      (sdl"Runtime_next_headless.sdl_drivers"(Sdl3.Rgba_presenter.renderer_name value.presenter))
+
 let backend_live_counts value=Ogpu_raster2.live_counts value.control
 let backend_trace_stats value = Ogpu_raster2.trace_stats value.control
 let resource_stats value=Scene_execution.upload_bytes value.renderer,Scene_execution.cache_entries value.renderer
@@ -117,6 +166,7 @@ let destroy value =
       sdl "Runtime_next_headless.destroy"
         (Sdl3.Init.quit_subsystems [ Sdl3.Init.Video ])
     in
+    restore_environment value.environment;
     match renderer_result, presenter_result, window_result, video_result with
     | Error error, _, _, _
     | _, Error error, _, _

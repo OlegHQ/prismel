@@ -26,8 +26,17 @@ let expect_pixels runtime extent =
   if Bytes.get_int32_be rendered 0<>0x4080bfffl then failwith"genuine software pixel missing"
 
 let () =
+  Unix.putenv"SDL_VIDEODRIVER""caller-video";
+  Unix.putenv"SDL_RENDER_DRIVER""caller-render";
+  Unix.putenv"SDL_AUDIODRIVER""caller-audio";
+  (match Headless.create~logical_width:0~logical_height:4~drawable_width:4
+      ~drawable_height:4 with Error _->()|Ok _->failwith"invalid create accepted");
+  if Sys.getenv_opt"SDL_VIDEODRIVER"<>Some"caller-video"then
+    failwith"invalid create changed caller environment";
   let runtime=get(Headless.create~logical_width:4~logical_height:4
       ~drawable_width:4~drawable_height:4)in
+  if get(Headless.sdl_drivers runtime)<>("dummy","software")then
+    failwith"headless did not select dummy/software SDL drivers";
   for frame=1 to 600 do ignore(get(Headless.render runtime[draw 4]));
     if List.mem frame[1;2;60;600]then expect_pixels runtime 4 done;
   get(Headless.resize runtime~logical_width:4~logical_height:4
@@ -41,7 +50,18 @@ let () =
   if trace_length > 256 || dropped_traces = 0 then
     failwith "headless long-run trace storage is not bounded";
   get(Headless.destroy runtime);
+  List.iter(fun(name,value)->if Sys.getenv_opt name<>Some value then
+    failwith("headless did not restore "^name))[
+      "SDL_VIDEODRIVER","caller-video";"SDL_RENDER_DRIVER","caller-render";
+      "SDL_AUDIODRIVER","caller-audio"];
   if Headless.backend_live_counts runtime<>(0,0,0,0,0)then
     failwith"headless destroy leaked backend objects";
   begin match Headless.render runtime[]with Error _->()|Ok _->failwith"stale runtime accepted"end;
+  for _=1 to 8 do
+    let value=get(Headless.create~logical_width:2~logical_height:2
+      ~drawable_width:2~drawable_height:2)in
+    if get(Headless.sdl_drivers value)<>("dummy","software")then
+      failwith"repeated headless lifecycle driver drift";
+    get(Headless.destroy value)
+  done;
   print_endline"runtime_next headless: genuine pixels frames1/2/60/600+resize, 100k flat"

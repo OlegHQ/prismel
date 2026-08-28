@@ -59,6 +59,7 @@ module Init : sig
 
   val init : ?release:bool -> subsystem list -> (unit, error) result
   val initialized : subsystem list -> (bool, error) result
+  val current_video_driver : unit -> (string option, error) result
   val quit_subsystems : subsystem list -> (unit, error) result
   val quit : unit -> (unit, error) result
 end
@@ -496,6 +497,7 @@ module Rgba_presenter : sig
   val create : Window.t -> (t, error) result
   val destroyed : t -> bool
   val texture_size : t -> (int * int, error) result
+  val renderer_name : t -> (string, error) result
   val present : t -> width:int -> height:int -> pitch:int -> bytes ->
     (unit, error) result
   (* A tightly packed snapshot of the exact bytes last accepted for
