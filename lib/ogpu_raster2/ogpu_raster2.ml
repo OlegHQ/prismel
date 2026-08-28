@@ -167,12 +167,23 @@ let create () =
                         if not(rectangle&&white a&&white b&&white c&&white e&&
                           integral a.x&&integral a.y&&integral dw&&integral dh&&
                           integral sx&&integral sy&&integral sw&&integral sh&&sw=dw&&sh=dh&&
+                          sx>=0.&&sy>=0.&&sx+.sw<=source_width&&sy+.sh<=source_height&&
                           a.x>=float clip.x&&a.y>=float clip.y&&b.x<=float(clip.x+clip.width)&&
                           e.y<=float(clip.y+clip.height))then false else
-                        match Raster2.Image.blit_scaled_blend~blend:Raster2.Composite.Copy~src:source
-                          ~src_rect:{x=int_of_float sx;y=int_of_float sy;width=int_of_float sw;height=int_of_float sh}
-                          ~dst:color~dst_rect:{x=int_of_float a.x;y=int_of_float a.y;width=int_of_float dw;height=int_of_float dh}
-                          ~filter:Raster2.Image.Bilinear with Ok()->true|Error _->false in
+                        let source_bytes=Raster2.Surface.bytes source
+                        and destination_bytes=Raster2.Surface.bytes color
+                        and source_pitch=Raster2.Surface.pitch source
+                        and destination_pitch=Raster2.Surface.pitch color
+                        and source_x=int_of_float sx and source_y=int_of_float sy
+                        and destination_x=int_of_float a.x and destination_y=int_of_float a.y
+                        and width=int_of_float sw and height=int_of_float sh in
+                        let copy row=Bytes.blit source_bytes
+                            ((source_y+row)*source_pitch+source_x*4)destination_bytes
+                            ((destination_y+row)*destination_pitch+destination_x*4)(width*4)in
+                        if source_bytes==destination_bytes&&destination_y>source_y
+                        then for row=height-1 downto 0 do copy row done
+                        else for row=0 to height-1 do copy row done;
+                        true in
                       if fast_rectangle()then(control.fast_rectangles<-control.fast_rectangles+1;Ok())
                       else match texture()with Error _ as failure->failure|Ok texture->
                         control.triangle_fallbacks<-control.triangle_fallbacks+1;
