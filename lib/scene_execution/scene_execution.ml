@@ -159,7 +159,11 @@ let prepare value ~defer ~trusted_key ~reserved ~uniforms ~nonindexed ~canonical
   |None->
   let descriptor:Ogpu.Types.buffer_descriptor={label=Some("scene-mesh-"^mesh.key);size=Int64.of_int total;usage=[Vertex;Index;Storage;Copy_dst]}in
   match Ogpu.Backend.create_buffer value.device descriptor with Error _ as e->e|Ok buffer->
-    let offset=Int64.of_int(Bytes.length vertices)and uniform_offset=Int64.of_int(Bytes.length vertices+Bytes.length indices)in let packed=Bytes.concat Bytes.empty[indices;uniform_bytes]in match Ogpu.Backend.write_buffer buffer~offset:0L vertices with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->match Ogpu.Backend.write_buffer buffer~offset packed with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->let item={key;payload_hash;uniform_bytes=None;buffer;index_offset=offset;uniform_offset=(if uniforms=None then None else Some uniform_offset);vertex_count;index_count;bytes=total}in let replaced,others=List.partition(fun(x:cached)->x.key=key)value.cache in List.iter(fun x->defer(fun()->ignore(Ogpu.Backend.destroy_buffer x.buffer)))replaced;let keep,evict=trim_cache(item::others)in List.iter(fun x->defer(fun()->ignore(Ogpu.Backend.destroy_buffer x.buffer)))evict;value.cache<-keep;value.uploaded<-Int64.add value.uploaded(Int64.of_int total);Ok item
+    let offset=Int64.of_int(Bytes.length vertices)and uniform_offset=Int64.of_int(Bytes.length vertices+Bytes.length indices)in let packed=Bytes.concat Bytes.empty[indices;uniform_bytes]in match Ogpu.Backend.write_buffer buffer~offset:0L vertices with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->match Ogpu.Backend.write_buffer buffer~offset packed with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->let item={key;payload_hash;uniform_bytes=None;buffer;index_offset=offset;uniform_offset=(if uniforms=None then None else Some uniform_offset);vertex_count;index_count;bytes=total}in
+    let replaced,others=List.partition(fun(x:cached)->
+      x.key=key&&not(List.exists((==)x)(reserved())))value.cache in
+    List.iter(fun x->defer(fun()->ignore(Ogpu.Backend.destroy_buffer x.buffer)))replaced;
+    let keep,evict=trim_cache(item::others)in List.iter(fun x->defer(fun()->ignore(Ogpu.Backend.destroy_buffer x.buffer)))evict;value.cache<-keep;value.uploaded<-Int64.add value.uploaded(Int64.of_int total);Ok item
 (* A render batch is already bounded to 65,536 draws.  Uniform storage shares
    byte-identical affine values and reserves distinct mutable slots only for
    differing values in the same submission, so this is a hard finite upper
@@ -402,6 +406,10 @@ let pass value family samples state load clear=
   Result.map(fun pass->pass,pooled)(Ogpu.Render_pass.create~raster_state:{cull=state.cull;depth_compare=state.depth_compare;depth_write=state.depth_write}?stencil_state:state.stencil_state(Ogpu.Backend.device_handle value.device){colors=[|Some{texture;resolve;load;store=(if samples=1 then Store else Resolve);clear}|];depth;stencil;viewport={x;y;width;height};scissor={x=sx;y=sy;width=sw;height=sh}})
 let automatic_signature
     (family,blend,samples,state,texture,auxiliary,item,uniform) =
+  (* Submission signatures own affine bytes.  Scene values are immutable by
+     contract, but callers may reuse their input buffer after [render] returns;
+     retaining it here would turn later mutation into a false cache hit. *)
+  let state={state with transform_uniforms=Option.map Bytes.copy state.transform_uniforms}in
   let texture=Option.map(fun(source,cached)->
     Ogpu.Backend.texture_id cached.texture,source.sampler)texture in
   let auxiliary=Option.map(fun((source:auxiliary_resource),buffer,texture)->
@@ -513,13 +521,9 @@ let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws
       let commands=List.rev!made_commands in
       match Ogpu.Backend.present frame with Error _ as e->e|Ok()->
       (match prepared_key with Some(identity,version)->value.prepared_submission<-Some{submission_identity=identity;submission_version=version;submission_clear=clear;submission_commands=commands}|None->());
-      let changing_affine=List.exists(fun(_,_,_,state,_,_,_,_)->
-        Option.fold~none:false~some:(fun bytes->
-          (Bytes.length bytes=24&&not(Bytes.equal bytes scene2_identity_affine))||
-          Bytes.length bytes=48)state.transform_uniforms)prepared in
-      value.automatic_submission<-(if changing_affine then None else Some{
+      value.automatic_submission<-Some{
         automatic_clear=clear;automatic_signatures=List.map automatic_signature prepared;
-        automatic_commands=commands});
+        automatic_commands=commands};
       Ok true)
 let render_sampled_resources ?clear value draws=render_sampled_resources_common ?clear value draws
 let render_prepared_sampled_resources ?clear ~identity ~version value draws=render_sampled_resources_common ?clear~prepared:(identity,version)value draws

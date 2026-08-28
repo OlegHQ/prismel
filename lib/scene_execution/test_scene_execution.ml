@@ -74,6 +74,38 @@ let automatic_layout_invalidation () =
   get(Scene_execution.destroy renderer);
   if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then
     failwith"automatic layout invalidation leaked objects"
+let duplicate_key_affine_retention () =
+  let driver,control=Ogpu.Backend_mock.create()in
+  let configuration:Ogpu.Surface.configuration={logical_width=8;logical_height=8;
+    physical_width=8;physical_height=8;format=Rgba8_unorm;present_mode=Fifo;
+    max_acquired=2}in
+  let renderer=get(Scene_execution.create driver configuration)in
+  let affine=Bytes.make 24 '\000'in
+  Bytes.set_int32_le affine 0(Int32.bits_of_float 0.5);
+  Bytes.set_int32_le affine 16(Int32.bits_of_float 0.5);
+  let state:Scene_execution.state={viewport=(0,0,8,8);scissor=(0,0,8,8);
+    cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;
+    depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;
+    transform_uniforms=Some affine;stencil_state=None;
+    stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}in
+  let mesh byte:Scene_execution.mesh={key="duplicate-key";
+    vertices=Bytes.make 48 byte;vertex_count=3;
+    indices=Bytes.make 12 '\000';index_count=3}in
+  let draws=List.map(fun mesh->Scene_execution.Scene2,Ogpu.Pipeline.Replace,
+      None,None,1,{Scene_execution.mesh;state})[mesh '\001';mesh '\002']in
+  let render()=ignore(get(Scene_execution.render_sampled_resources renderer draws))in
+  render();let uploaded=Scene_execution.upload_bytes renderer in
+  for _=1 to 60 do render()done;
+  if Scene_execution.upload_bytes renderer<>uploaded then
+    failwith"duplicate-key stable affine reuploaded reserved buffers";
+  (* The signature owns its prior affine bytes.  Mutating the caller's buffer
+     must invalidate exact admission and upload the changed transform. *)
+  Bytes.set_int32_le affine 8(Int32.bits_of_float 0.25);render();
+  if Scene_execution.upload_bytes renderer<=uploaded then
+    failwith"one-lane affine mutation reused an old automatic signature";
+  get(Scene_execution.destroy renderer);
+  if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then
+    failwith"duplicate-key affine retention leaked objects"
 let shadow=function Ok x->x|Error _->failwith"shadow map error"
 let shadow_payload () =
   let open Raster2.Shadow_map in
@@ -364,6 +396,7 @@ let depth_target_lifecycle () =
 let ()=let driver,control=Ogpu.Backend_mock.create()in let configuration:Ogpu.Surface.configuration={logical_width=8;logical_height=8;physical_width=8;physical_height=8;format=Rgba8_unorm;present_mode=Fifo;max_acquired=2}in let renderer=get(Scene_execution.create driver configuration)in let mesh:Scene_execution.mesh={key="triangle";vertices=Bytes.make 48 '\000';vertex_count=3;indices=Bytes.make 12 '\000';index_count=3}and state:Scene_execution.state={viewport=(0,0,8,8);scissor=(0,0,8,8);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;transform_uniforms=None;stencil_state=None;stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}in for _=1 to 1000 do ignore(get(Scene_execution.render renderer[{mesh;state}]))done;
   prepared_clear_cache_key();
   automatic_layout_invalidation();
+  duplicate_key_affine_retention();
   shadow_payload();
   List.iter(fun blend->List.iter(fun _frame->ignore(get(Scene_execution.render_blended renderer[blend,{mesh;state}])))[1;2;60;600])
     [Ogpu.Pipeline.Replace;Alpha;Add;Multiply;Screen;Subtract];
