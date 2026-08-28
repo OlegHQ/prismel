@@ -243,9 +243,7 @@ let capture () =
                Error message)
 
 let save_screen_png filename =
-  if Backend.is_web () then Backend.download_web_frame ~filename
-  else
-    match capture () with
+  match capture () with
     | Error _ as error -> error
     | Ok canvas ->
         Fun.protect ~finally:(fun () ->

@@ -4,7 +4,7 @@ type clock =
   | Realtime
   | Fixed of float
 
-type render_target = Native | Headless | Web
+type render_target = Native | Headless
 
 type config = {
   width : int;
@@ -16,10 +16,7 @@ type config = {
   resizable : bool;
   fullscreen : bool;
 }
-(** [width] and [height] are the initial web size until a browser connects.
-    Web canvases then adopt the full browser viewport regardless of
-    [resizable], which continues to control native desktop windows.
-    [default_config] enables native resizing. *)
+(** [default_config] enables native resizing. *)
 
 val default_config : config
 
@@ -83,5 +80,4 @@ val quit : unit -> unit
 val resize : width:int -> height:int -> unit
 (** Resize the active sketch through its selected runtime target. *)
 val is_headless : unit -> bool
-val is_web : unit -> bool
 val render_target : unit -> render_target

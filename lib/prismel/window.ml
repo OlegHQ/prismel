@@ -72,9 +72,6 @@ let create ?(config = default_config) () =
   match !current_window with
   | Some _ -> failwith "Window already created. Only one window is supported."
   | None ->
-    let config =
-      if Backend.is_web () then { config with resizable = true } else config
-    in
     (* Determine window position *)
     let x = match config.x with
       | Some x -> x
@@ -104,12 +101,7 @@ let create ?(config = default_config) () =
     (* Create SDL window *)
     let window_flags = get_window_flags config in
     let window_flags= List.fold_left (fun acc flag -> Sdl.Window.(+) acc flag) Sdl.Window.windowed window_flags in
-    let window_width, window_height =
-      if Backend.is_web () then
-        Backend.web_drawable_size
-          ~logical_width:config.width ~logical_height:config.height
-      else config.width, config.height
-    in
+    let window_width, window_height = config.width, config.height in
     let window_result = Sdl.create_window config.title
       ~x ~y
       ~w:window_width
@@ -140,9 +132,7 @@ let create ?(config = default_config) () =
           else match Sdl.gl_get_current_context () with
             | Ok context -> Some context
             | Error _ -> None in
-        let logical_width, logical_height =
-          if Backend.is_web () then config.width, config.height
-          else Sdl.get_window_size window in
+        let logical_width, logical_height = Sdl.get_window_size window in
         (try set_renderer_logical_size renderer logical_width logical_height
          with error ->
            Sdl.destroy_renderer renderer;
@@ -217,17 +207,6 @@ let set_size new_width new_height =
   w.current_height <- new_height;
   set_renderer_logical_size w.renderer new_width new_height
 
-let set_web_size logical_width logical_height =
-  if logical_width <= 0 || logical_height <= 0 then
-    invalid_arg "Window.set_web_size: dimensions must be positive";
-  let drawable_width, drawable_height =
-    Backend.web_drawable_size ~logical_width ~logical_height
-  in
-  let w = get_current () in
-  Sdl.set_window_size w.window ~w:drawable_width ~h:drawable_height;
-  w.current_width <- logical_width;
-  w.current_height <- logical_height;
-  set_renderer_logical_size w.renderer logical_width logical_height
 
 let set_position x y =
   let w = get_current () in

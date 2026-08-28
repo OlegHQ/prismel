@@ -186,8 +186,7 @@ let rec render_node = function
               max left cx, max top cy,
               min right (cx + cw), min bottom (cy + ch)
         in
-        Backend.add_web_text_input_region ~x:left ~y:top
-          ~width:(max 0 (right - left)) ~height:(max 0 (bottom - top)) ~focused
+        ignore (left, top, right, bottom, focused)
       end
   | Group nodes -> List.iter render_node nodes
   | Translate (x, y, nodes) ->

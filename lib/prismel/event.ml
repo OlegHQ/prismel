@@ -86,64 +86,6 @@ let sdl_button_to_input_button button =
   | 5 -> Some Input.MouseX2         (* SDL_BUTTON_X2 *)
   | _ -> None
 
-let web_button_to_input_button = function
-  | Runtime.Left -> Input.LeftButton
-  | Middle -> Input.MiddleButton
-  | Right -> Input.RightButton
-  | X1 -> Input.MouseX1
-  | X2 -> Input.MouseX2
-
-let web_key_to_input_key value =
-  match value with
-  | value when String.length value = 1 ->
-      Input.KeyChar (Char.lowercase_ascii value.[0])
-  | "ArrowUp" -> Input.ArrowUp
-  | "ArrowDown" -> Input.ArrowDown
-  | "ArrowLeft" -> Input.ArrowLeft
-  | "ArrowRight" -> Input.ArrowRight
-  | "Space" | " " -> Input.Space
-  | "Enter" -> Input.Enter
-  | "Escape" -> Input.Escape
-  | "Backspace" -> Input.Backspace
-  | "Tab" -> Input.Tab
-  | "Shift" -> Input.Shift
-  | "Control" -> Input.Ctrl
-  | "Alt" -> Input.Alt
-  | "Meta" -> Input.Meta
-  | "F1" -> Input.F1 | "F2" -> Input.F2 | "F3" -> Input.F3
-  | "F4" -> Input.F4 | "F5" -> Input.F5 | "F6" -> Input.F6
-  | "F7" -> Input.F7 | "F8" -> Input.F8 | "F9" -> Input.F9
-  | "F10" -> Input.F10 | "F11" -> Input.F11 | "F12" -> Input.F12
-  | "Home" -> Input.Home
-  | "End" -> Input.End
-  | "PageUp" -> Input.PageUp
-  | "PageDown" -> Input.PageDown
-  | "Insert" -> Input.Insert
-  | "Delete" -> Input.Delete
-  | _ -> Input.Unknown 0
-
-let web_event_to_event = function
-  | Runtime.Pointer_moved (x, y) -> Some (MouseMoved (x, y))
-  | Pointer_pressed (button, x, y) ->
-      Some (MousePressed (web_button_to_input_button button, (x, y)))
-  | Pointer_released (button, x, y) ->
-      Some (MouseReleased (web_button_to_input_button button, (x, y)))
-  | Pointer_cancelled button ->
-      Some (PointerCancelled (web_button_to_input_button button))
-  | Wheel (x, y) -> Some (MouseScrolled (x, y))
-  | Key_pressed key -> Some (KeyPressed (web_key_to_input_key key))
-  | Key_released key -> Some (KeyReleased (web_key_to_input_key key))
-  | Text_input text -> Some (TextInput text)
-  | Text_editing { text; start; length } ->
-      Some (TextEditing { text; start; length })
-  | Resized (width, height)
-    when width > 0 && height > 0 && width <= 8_192 && height <= 8_192
-         && width * height <= 33_554_432 ->
-      Some (WindowResized (width, height))
-  | Resized _ -> None
-  | Focus_lost -> Some WindowFocusLost
-  | File_dropped path -> Some (FileDropped path)
-
 (* Convert an SDL event to our Event.t *)
 let sdl_event_to_event sdl_event =
   let open Tsdl.Sdl in
@@ -204,11 +146,9 @@ let sdl_event_to_event sdl_event =
   | `Window_event ->
       (match Event.window_event_enum (Event.get sdl_event Event.window_event_id) with
        | `Size_changed ->
-           if Backend.is_web () then None
-           else
-             let w = Event.get sdl_event Event.window_data1 in
-             let h = Event.get sdl_event Event.window_data2 in
-             Some (WindowResized (Int32.to_int w, Int32.to_int h))
+           let w = Event.get sdl_event Event.window_data1 in
+           let h = Event.get sdl_event Event.window_data2 in
+           Some (WindowResized (Int32.to_int w, Int32.to_int h))
        | `Resized -> None
        | `Focus_lost -> Some WindowFocusLost
        | `Close -> Some WindowClosed
@@ -233,8 +173,7 @@ let update_input_state event =
   | MouseScrolled _ -> () (* No persistent state for scroll *)
   | TextInput _ | TextEditing _ | FileDropped _ -> ()
   | WindowResized (width, height) ->
-      if Backend.is_web () then Window.set_web_size width height
-      else Window.update_dimensions width height
+      Window.update_dimensions width height
   | WindowFocusLost -> Input.clear_all_input ()
   | WindowClosed -> () (* Handled by main loop *)
 
@@ -253,13 +192,7 @@ let poll_events () =
          | None ->
              poll_loop acc)
   in
-  let sdl_events = poll_loop [] in
-  let web_events =
-    Backend.drain_web_events () |> List.filter_map web_event_to_event
-  in
-  let events = sdl_events @ web_events in
-  List.iter update_input_state web_events;
-  events
+  poll_loop []
 
 (* Process events through user's event handler *)
 let process_events events state on_event_opt =

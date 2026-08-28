@@ -54,15 +54,13 @@ let set_master_volume value =
   require_main_domain ();
   ignore (Mix.volume (-1) (volume value));
   ignore (Mix.volume_music (volume value));
-  Backend.send_web_audio
-    (Runtime.Audio_master_volume (normalized_volume value))
+  ignore (normalized_volume value)
 
 let stop_all () =
   require_main_domain ();
   if !initialized then begin
     ignore (Mix.halt_channel (-1));
-    ignore (Mix.halt_music ());
-    Backend.send_web_audio Runtime.Audio_stop_all
+    ignore (Mix.halt_music ())
   end
 
 let shutdown () =
@@ -81,8 +79,6 @@ module Sample = struct
   type t = {
     chunk : Mix.chunk;
     mutable destroyed : bool;
-    mutable web_asset : string option;
-    mutable web_volume : float;
   }
 
   let ensure_sample sample =
@@ -103,8 +99,6 @@ module Sample = struct
              let value = {
              chunk;
              destroyed = false;
-             web_asset = Backend.register_web_file path;
-             web_volume = 1.;
              } in Audio_snapshot.register(Obj.repr value)~kind:Sample encoded;Ok value)
 
   let load_exn path =
@@ -173,60 +167,37 @@ module Sample = struct
              | Error _ -> ()
              | Ok sample ->
                  Audio_snapshot.update (Obj.repr sample) bytes;
-                 Option.iter Backend.remove_web_asset sample.web_asset;
-                 sample.web_asset <-
-                   Backend.register_web_bytes ~content_type:"audio/wav" bytes);
+                 ignore sample);
             result
           with Sys_error detail -> Error ("Audio synthesis failed: " ^ detail))
 
   let set_volume sample value =
     ensure_sample sample;
     let value = normalized_volume value in
-    sample.web_volume <- value;
-    ignore (Mix.volume_chunk sample.chunk (volume value));
-    Option.iter (fun id ->
-      Backend.send_web_audio
-        (Runtime.Audio_sample_volume { asset = id; volume = value }))
-      sample.web_asset
+    ignore (Mix.volume_chunk sample.chunk (volume value))
 
   let play ?(loops = 0) ?volume:sample_volume sample =
     ensure_sample sample;
     Option.iter (set_volume sample) sample_volume;
     match Mix.play_channel (-1) sample.chunk loops with
-    | Ok channel ->
-        Option.iter (fun id ->
-          Backend.send_web_audio
-            (Runtime.Audio_sample_play {
-              asset = id;
-              channel;
-              loops;
-              volume = sample.web_volume;
-            })) sample.web_asset;
-        Ok channel
+    | Ok channel -> Ok channel
     | Error (`Msg detail) -> Error ("Sample playback failed: " ^ detail)
 
   let stop channel =
     require_main_domain ();
-    ignore (Mix.halt_channel channel);
-    Backend.send_web_audio (Runtime.Audio_sample_stop channel)
+    ignore (Mix.halt_channel channel)
 
   let pause channel =
     require_main_domain ();
-    Mix.pause channel;
-    Backend.send_web_audio (Runtime.Audio_sample_pause channel)
+    Mix.pause channel
   let resume channel =
     require_main_domain ();
-    Mix.resume channel;
-    Backend.send_web_audio (Runtime.Audio_sample_resume channel)
+    Mix.resume channel
   let is_playing channel = require_main_domain (); Mix.playing (Some channel)
 
   let destroy sample =
     require_main_domain ();
     if not sample.destroyed then begin
-      Option.iter (fun id ->
-        Backend.send_web_audio (Runtime.Audio_asset_remove id);
-        Backend.remove_web_asset id) sample.web_asset;
-      sample.web_asset <- None;
       Mix.free_chunk sample.chunk;
       Audio_snapshot.remove (Obj.repr sample);
       sample.destroyed <- true
@@ -237,7 +208,6 @@ module Music = struct
   type t = {
     music : Mix.music;
     mutable destroyed : bool;
-    mutable web_asset : string option;
   }
 
   let ensure_music music =
@@ -257,7 +227,6 @@ module Music = struct
            | Ok encoded -> let value={
              music;
              destroyed = false;
-             web_asset = Backend.register_web_file path;
            }in Audio_snapshot.register(Obj.repr value)~kind:Music encoded;Ok value)
 
   let load_exn path =
@@ -270,44 +239,31 @@ module Music = struct
       else Mix.play_music music.music loops
     in
     match result with
-    | Ok _ ->
-        Option.iter (fun id ->
-          Backend.send_web_audio
-            (Runtime.Audio_music_play { asset = id; loops; fade_ms }))
-          music.web_asset;
-        Ok ()
+    | Ok _ -> Ok ()
     | Error (`Msg detail) -> Error ("Music playback failed: " ^ detail)
 
   let set_volume value =
     require_main_domain ();
     let value = normalized_volume value in
-    ignore (Mix.volume_music (volume value));
-    Backend.send_web_audio (Runtime.Audio_music_volume value)
+    ignore (Mix.volume_music (volume value))
 
   let pause () =
     require_main_domain ();
-    Mix.pause_music ();
-    Backend.send_web_audio Runtime.Audio_music_pause
+    Mix.pause_music ()
   let resume () =
     require_main_domain ();
-    Mix.resume_music ();
-    Backend.send_web_audio Runtime.Audio_music_resume
+    Mix.resume_music ()
 
   let stop ?(fade_ms = 0) () =
     require_main_domain ();
     if fade_ms > 0 then ignore (Mix.fade_out_music fade_ms)
-    else ignore (Mix.halt_music ());
-    Backend.send_web_audio (Runtime.Audio_music_stop fade_ms)
+    else ignore (Mix.halt_music ())
 
   let is_playing () = require_main_domain (); Mix.playing_music ()
 
   let destroy music =
     require_main_domain ();
     if not music.destroyed then begin
-      Option.iter (fun id ->
-        Backend.send_web_audio (Runtime.Audio_asset_remove id);
-        Backend.remove_web_asset id) music.web_asset;
-      music.web_asset <- None;
       Mix.free_music music.music;
       Audio_snapshot.remove (Obj.repr music);
       music.destroyed <- true

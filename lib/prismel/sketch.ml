@@ -2,7 +2,7 @@ type clock =
   | Realtime
   | Fixed of float
 
-type render_target = Native | Headless | Web
+type render_target = Native | Headless
 
 type config = {
   width : int;
@@ -173,12 +173,10 @@ let resize ~width ~height =
   if not (Window.exists ()) then invalid_arg "Sketch.resize: no sketch is running";
   Window.set_size width height
 let is_headless = Backend.is_headless
-let is_web = Backend.is_web
 let render_target () =
   match Runtime.selected_target () with
   | Runtime.Native -> Native
   | Headless -> Headless
-  | Web -> Web
 
 let rec ensure_directory path =
   if path = "" || path = "." || Sys.file_exists path then ()

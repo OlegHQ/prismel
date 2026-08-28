@@ -43,7 +43,6 @@ let get () =
   | Error message -> invalid_arg ("Prismel runtime target: " ^ message)
 
 let is_headless () = get () = Headless
-let is_web () = false
 let is_displayless () = match get () with Native -> false | Headless -> true
 
 let configure_sdl_environment = function

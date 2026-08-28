@@ -85,7 +85,7 @@ let choose_toolbar_action model point =
     let status =
       match Canvas.save_screen_png "prismel-drawing.png" with
       | Ok () ->
-          if Sketch.is_web () then "Download started" else "Saved prismel-drawing.png"
+          "Saved prismel-drawing.png"
       | Error message -> message
     in
     { model with active = None; status }
@@ -119,7 +119,7 @@ let handle_key model key =
       let status =
         match Canvas.save_screen_png "prismel-drawing.png" with
         | Ok () ->
-            if Sketch.is_web () then "Download started" else "Saved prismel-drawing.png"
+            "Saved prismel-drawing.png"
         | Error message -> message
       in
       { model with status }
