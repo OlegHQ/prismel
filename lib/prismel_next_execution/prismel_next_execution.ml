@@ -316,6 +316,9 @@ type t = { runtime:Runtime_next_orchestrator.t; input:Runtime_next_input.t;
   mutable scene2_debug_cache:cached_scene2_debug list;
   mutable scene2_plan_cache:cached_scene2_plan list;
   mutable scene2_plan_candidates:scene2_plan_candidate list;
+  mutable scene2_probe_count:int;mutable scene2_probe_density:int;
+  mutable scene2_probe_target:target;mutable scene2_probe_fingerprint:int;
+  mutable scene2_probe_cooldown:int;
   mutable pending_image_leases:Prismel_next_resources.Image.Private.lease list;
   mutable canvas_keys:(Prismel_next_resources.Canvas.t*string)list;mutable next_canvas_key:int }
 let runtime_target=function Native->Runtime_next_orchestrator.Native
@@ -340,6 +343,8 @@ let create (configuration:configuration) =
       |Ok input->Ok{runtime;input;assets=Prismel_next_resources.Assets.create();timing=configuration.timing;
           frame=0L;elapsed=0.;last_clock=Unix.gettimeofday();dead=false;snapshots=[];scene2_geometry_cache=[];scene2_geometry_candidates=[];scene2_batch_cache=[];scene2_quad_cache=[];scene2_quad_payload_cache=[];scene2_debug_cache=[];
           scene2_plan_cache=[];scene2_plan_candidates=[];
+          scene2_probe_count=(-1);scene2_probe_density=0;scene2_probe_target=Headless;
+          scene2_probe_fingerprint=0;scene2_probe_cooldown=0;
           pending_image_leases=[];canvas_keys=[];next_canvas_key=0})
 let target value=match Runtime_next_orchestrator.target value.runtime with Native->Native|Headless->Headless|Web->Web
 let assets value=value.assets
@@ -630,11 +635,36 @@ let scene2_plan_hydrate value ~density plan=
 let lower_scene2 value ~density ~resource:resolve ir =
   if value.dead then lower_scene2_uncached value~density~resource:resolve ir else
   let commands=Raster2.Render_ir.Private.commands_readonly ir in
-  let fingerprint=Hashtbl.hash commands and command_count=Array.length commands in
+  let fingerprint=ref(Hashtbl.hash commands)and command_count=Array.length commands in
+  let mix value=fingerprint:=(!fingerprint*65599)lxor value in
+  for index=0 to command_count-1 do match Array.unsafe_get commands index with
+    |Raster2.Render_ir.Push_transform transform->
+      mix(Int64.to_int(Int64.bits_of_float transform.xx));
+      mix(Int64.to_int(Int64.bits_of_float transform.xy));
+      mix(Int64.to_int(Int64.bits_of_float transform.yx));
+      mix(Int64.to_int(Int64.bits_of_float transform.yy));
+      mix(Int64.to_int(Int64.bits_of_float transform.tx));
+      mix(Int64.to_int(Int64.bits_of_float transform.ty))
+    |Geometry geometry->mix(Hashtbl.hash geometry.vertices);
+      mix(Hashtbl.hash geometry.indices);mix(Int32.to_int geometry.color)
+    |_->()
+  done;
+  let fingerprint= !fingerprint in
+  let target=target value in
+  let same_probe=value.scene2_probe_count=command_count&&
+    value.scene2_probe_density=density&&value.scene2_probe_target=target in
+  if same_probe&&value.scene2_probe_cooldown>0 then(
+    value.scene2_probe_cooldown<-value.scene2_probe_cooldown-1;
+    lower_scene2_uncached value~density~resource:resolve ir)else
+  if same_probe&&value.scene2_probe_fingerprint<>fingerprint then(
+    value.scene2_probe_fingerprint<-fingerprint;value.scene2_probe_cooldown<-120;
+    lower_scene2_uncached value~density~resource:resolve ir)else begin
+  value.scene2_probe_count<-command_count;value.scene2_probe_density<-density;
+  value.scene2_probe_target<-target;value.scene2_probe_fingerprint<-fingerprint;
   let cacheable,resources=scene2_resource_stamps resolve commands in
   let facts=Runtime_next_orchestrator.facts value.runtime|>Result.get_ok in
   let extent=facts.logical_width,facts.logical_height,
-    facts.drawable_width,facts.drawable_height and target=target value in
+    facts.drawable_width,facts.drawable_height in
   let exact plan=plan.plan_fingerprint=fingerprint&&
     plan.plan_command_count=command_count&&plan.plan_density=density&&
     plan.plan_target=target&&plan.plan_extent=extent&&
@@ -676,7 +706,7 @@ let lower_scene2 value ~density ~resource:resolve ir =
           plan_ir=ir;plan_draws;plan_image_ids}in
         value.scene2_plan_cache<-trim_scene2_entries~capacity:16
           (fun plan->plan.plan_source_bytes)(plan::value.scene2_plan_cache));result)
-  else lower_scene2_uncached value~density~resource:resolve ir
+  else lower_scene2_uncached value~density~resource:resolve ir end
 let mb_to_input=function Left->Runtime_next_input.Left|Middle->Middle|Right->Right|X1->X1|X2->X2
 let mb_of_web=function Runtime_next_orchestrator.Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2
 let mod_to_input=function Shift->Runtime_next_input.Shift|Control->Control|Alt->Alt|Meta->Meta|Num_lock->Num_lock|Caps_lock->Caps_lock|Scroll_lock->Scroll_lock
