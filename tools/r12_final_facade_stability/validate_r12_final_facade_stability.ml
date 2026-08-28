@@ -8,7 +8,6 @@ let string name fields=match field name fields with `String x->x|_->failwith(nam
 let hexadecimal16 value=
   String.length value=16&&String.for_all(function
     |'0'..'9'|'a'..'f'->true|_->false)value
-type validated={target:string;hash:string}
 let validate path=match Yojson.Safe.from_file path with
 |`Assoc fields->
   if int"schema"fields<>1||string"qualification"fields<>"R12-final-facade"then failwith"schema drift";
@@ -77,8 +76,7 @@ let validate path=match Yojson.Safe.from_file path with
     ["canvas_cycles";"watched_reload_cycles";"failed_reload_cycles";"audio_cycles";"resize_cycles";"changing_mesh_frames"];
   (match field"window_live_after_teardown"fields with `Bool false->()|_->failwith"window survived teardown");
   let hash=string"deterministic_hash"fields in
-  if not(hexadecimal16 hash)then failwith"deterministic hash is not canonical";
-  {target;hash}
+  if not(hexadecimal16 hash)then failwith"deterministic hash is not canonical"
 |_->failwith"report root is not object"
 let ()=Arg.parse["--allow-smoke",Arg.Set allow_smoke,"accept short lane"](fun p->paths:=p::!paths)"validate R12 report";
   let reports=List.map validate(List.rev!paths)in

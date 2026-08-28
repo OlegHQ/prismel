@@ -1286,6 +1286,16 @@ covered locally; offline `.metallib`, Xcode validation, capture, and archive
 qualification remain explicit Phase 2 work requiring the pinned full Xcode
 toolchain. This limitation does not weaken or skip any M1-M10 completion gate.
 
+The ordinary repository build never compiles offline shaders, so it remains
+usable with Command Line Tools alone. On a machine with the pinned full Xcode
+toolchain, the explicit provenance gate compiles a temporary `.air` and
+`.metallib`, writes metadata, and verifies its source/artifact hashes before
+removing the temporary files:
+
+```sh
+opam exec -- dune build @full_xcode_shader_artifacts
+```
+
 Run the current binding checks with:
 
 ```sh

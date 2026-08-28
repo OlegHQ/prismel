@@ -90,14 +90,11 @@
  (libraries scene_execution ogpu_metal metal))
 
 (rule
- (alias offline_shader_artifacts)
- (targets offline_parity.air offline_parity.metallib offline_parity.metadata)
+ (alias full_xcode_shader_artifacts)
  (deps offline_parity.metal ../../tools/gpu_migration/metal_shader_artifact.exe)
  (action
   (run ../../tools/gpu_migration/metal_shader_artifact.exe
-   --source %{dep:offline_parity.metal} --air offline_parity.air
-   --metallib offline_parity.metallib
-   --metadata offline_parity.metadata --deployment 13.0)))
+   --temporary --source %{dep:offline_parity.metal} --deployment 13.0)))
 (test
  (name test_pipeline_argument_buffer)
  (modules test_pipeline_argument_buffer)
