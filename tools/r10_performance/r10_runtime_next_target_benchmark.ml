@@ -67,8 +67,9 @@ let () =
           draw ))
       work
   in
-  let render, capture, destroy = match candidate with
+  let render, render_canonical, capture, destroy = match candidate with
     |Some candidate->(fun()->R10_scene2_candidate.render candidate~width:!width~height:!height;Ok true),
+      (fun()->R10_scene2_candidate.render_canonical candidate~width:!width~height:!height;Ok true),
       (fun()->Ok(R10_scene2_candidate.capture candidate)),
       (fun()->Ok(R10_scene2_candidate.destroy candidate))
     |None->match !target with
@@ -79,12 +80,20 @@ let () =
            fun () ->
              Runtime_next_headless.render_sampled_resources runtime sampled_scene3
          else fun () -> Runtime_next_headless.render runtime work),
+        (if !scenario = "scene3" then
+           fun () ->
+             Runtime_next_headless.render_sampled_resources runtime sampled_scene3
+         else fun () -> Runtime_next_headless.render runtime work),
         (fun () -> Runtime_next_headless.read_pixels runtime ~bytes_per_row:(!width * 4)),
         (fun () -> Runtime_next_headless.destroy runtime)
     | Web ->
         let config = { Wap.default_config with interface = "127.0.0.1"; port = 0 } in
         let runtime = ok (Runtime_next_web.create ~wap_config:config ~logical_width:!width
           ~logical_height:!height ~drawable_width:!width ~drawable_height:!height ()) in
+        (if !scenario = "scene3" then
+           fun () ->
+             Runtime_next_web.render_sampled_resources runtime sampled_scene3
+         else fun () -> Runtime_next_web.render runtime work),
         (if !scenario = "scene3" then
            fun () ->
              Runtime_next_web.render_sampled_resources runtime sampled_scene3
@@ -124,7 +133,12 @@ let () =
   let cpu1 = Unix.times () and gc1 = Gc.quick_stat () in
   let allocated = Gc.allocated_bytes () -. allocated0
   and promoted = (gc1.promoted_words -. gc0.promoted_words) *. float (Sys.word_size / 8) in
-  let rss1 = rss_kib () and framebuffer = ok (capture ()) in
+  let rss1 = rss_kib () in
+  (* Duration-bounded runs intentionally stop on whichever animation phase is
+     current.  Render one fixed phase after every measured metric has been
+     sampled so pixel evidence is comparable without hiding timing work. *)
+  ignore (ok (render_canonical ()));
+  let framebuffer = ok (capture ()) in
   ok (destroy ());
   let count = Array.length frames in
   let draws = count * List.length work in

@@ -41,6 +41,9 @@ let render value ~width ~height =value.frame<-value.frame+1;
   let ir,resources=Scene.Private.stage~width~height scene|>Result.get_ok in
   let draws=Prismel_next_execution.lower_scene2 value.execution~density:1~resource:(fun id->List.assoc_opt id resources)ir|>Result.get_ok in
   ignore(execution_ok(Prismel_next_execution.step value.execution draws))
+let render_canonical value ~width ~height =
+  value.frame <- 0;
+  render value ~width ~height
 let capture value=execution_ok(Prismel_next_execution.capture value.execution)
 let stats value=execution_ok(Prismel_next_execution.stats value.execution)
 let destroy value=Option.iter Scene.Private.release value.last_scene;Option.iter Image.destroy value.image;
