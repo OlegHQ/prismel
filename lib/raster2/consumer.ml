@@ -123,13 +123,34 @@ let execute ?depth ~lookup ~target ir =
                   in
                   let depth_attachment = Option.map snd depth_copy in
                   let depth_state = match depth with None -> default_depth_state | Some d -> d.state in
-                  for triangle = 0 to (Array.length geometry.indices / 3) - 1 do
-                    let vertex corner = geometry.indices.((triangle * 3) + corner) in
-                    let a = vertex 0 and b = vertex 1 and c = vertex 2 in
-                    Triangle.draw ~color:working ~depth:depth_attachment ~depth_state
-                      ~blend:!active_blend ~cull:Triangle.Cull_none ~clip ~texture:None
-                      transformed.(a) transformed.(b) transformed.(c)
-                  done
+                  let fast_rectangle =
+                    depth=None && vertex_count=4
+                    && geometry.indices=[|0;1;2;0;2;3|]
+                    && let a=transformed.(0)and b=transformed.(1)
+                       and c=transformed.(2)and d=transformed.(3)in
+                       a.y=b.y&&b.x=c.x&&c.y=d.y&&d.x=a.x
+                       &&b.x>a.x&&c.y>a.y
+                       &&List.for_all(fun value->Float.is_finite value&&value=floor value)
+                           [a.x;a.y;c.x;c.y]
+                       &&let x=max clip.x(int_of_float a.x)
+                         and y=max clip.y(int_of_float a.y)
+                         and right=min(clip.x+clip.width)(int_of_float c.x)
+                         and bottom=min(clip.y+clip.height)(int_of_float c.y)in
+                         let width=max 0(right-x)and height=max 0(bottom-y)in
+                         if width=Surface.width working&&height=Surface.height working
+                            &&x=0&&y=0
+                            &&Int32.logand geometry.color 0xffl=0xffl
+                            &&match!active_blend with Composite.Source_over|Copy|Replace->true|_->false
+                         then(Surface.clear working geometry.color;true)
+                         else false in
+                  if not fast_rectangle then
+                    for triangle = 0 to (Array.length geometry.indices / 3) - 1 do
+                      let vertex corner = geometry.indices.((triangle * 3) + corner) in
+                      let a = vertex 0 and b = vertex 1 and c = vertex 2 in
+                      Triangle.draw ~color:working ~depth:depth_attachment ~depth_state
+                        ~blend:!active_blend ~cull:Triangle.Cull_none ~clip ~texture:None
+                        transformed.(a) transformed.(b) transformed.(c)
+                    done
               | Image image ->
                   let source = match Hashtbl.find resources image.resource_id with Image value -> value | _ -> assert false in
                   let convert (r : Render_ir.rect) =

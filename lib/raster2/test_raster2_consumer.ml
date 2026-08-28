@@ -41,6 +41,24 @@ let () =
   (match Consumer.execute ~lookup:(fun _ -> None) ~target missing with
   | Error (Consumer.Missing_resource 99) -> () | _ -> failwith "missing resource accepted");
   assert (Surface.bytes target = before);
+  let rectangle indices = ok (Render_ir.create [|
+    Clear 0x010203ffl;
+    Geometry {vertices=[|0.;0.;640.;0.;640.;480.;0.;480.|];indices;
+      color=0x19324bffl}|])in
+  let fast_target=ok(Surface.create~width:640~height:480())
+  and fallback_target=ok(Surface.create~width:640~height:480())in
+  let fast=rectangle[|0;1;2;0;2;3|]
+  and fallback=rectangle[|0;1;3;1;2;3|]in
+  ok(Consumer.execute~lookup:(fun _->None)~target:fast_target fast);
+  ok(Consumer.execute~lookup:(fun _->None)~target:fallback_target fallback);
+  if Surface.bytes fast_target<>Surface.bytes fallback_target then
+    failwith"rectangle fast path pixel drift";
+  Gc.compact();
+  let rectangle_before=Gc.allocated_bytes()in
+  ok(Consumer.execute~lookup:(fun _->None)~target:fast_target fast);
+  let rectangle_allocation=Gc.allocated_bytes()-.rectangle_before in
+  if rectangle_allocation>1_300_000. then
+    failwith(Printf.sprintf"rectangle fast path allocation %.0f"rectangle_allocation);
   let shared_vertices = Array.init 160 (fun index ->
     let vertex = index / 2 in
     if index land 1 = 0 then float (vertex mod 8) else float (vertex / 8)) in
