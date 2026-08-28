@@ -20,9 +20,28 @@ let run ()=
   let pass=Ogpu.Transfer_pass.create(Ogpu.Backend.device_handle device)in get(Ogpu.Transfer_pass.copy_buffer pass~src:portable_source~src_offset:0L~dst:portable_destination~dst_offset:0L~length:16L);let command=get(Ogpu.Backend.transfer pass)in
   let queue=get(Ogpu.Backend.create_queue device)in expect Ogpu.Error.Invalid_argument(Ogpu.Backend.submit queue command~resources:[]~pipelines:[]);
   ignore portable_source;ignore portable_destination;
-  let receipt=get(Ogpu.Backend.submit queue command~resources:[`Buffer source;`Buffer destination]~pipelines:[])in get(Ogpu.Backend.complete_through queue receipt.epoch);
+  let resources=[`Buffer source;`Buffer destination]in
+  let receipt=get(Ogpu.Backend.submit queue command~resources~pipelines:[])in get(Ogpu.Backend.complete_through queue receipt.epoch);
+  Ogpu.Backend_mock.clear_trace control;Gc.full_major();
+  let allocated0=Gc.allocated_bytes()and gc0=Gc.quick_stat()in
+  for _=1 to 1_000 do
+    (* Fresh list cells must still reuse the same checked handle translation. *)
+    let receipt=get(Ogpu.Backend.submit queue command
+      ~resources:[`Buffer source;`Buffer destination]~pipelines:[])in
+    get(Ogpu.Backend.complete_through queue receipt.epoch);
+    Ogpu.Backend_mock.clear_trace control
+  done;
+  let gc1=Gc.quick_stat()in
+  let allocated=(Gc.allocated_bytes()-.allocated0)/.1_000.
+  and promoted=(gc1.promoted_words-.gc0.promoted_words)*.float(Sys.word_size/8)in
+  if allocated>2_000. then
+    failwith(Printf.sprintf"stable queue wrapper allocated %.0f bytes/frame"allocated);
+  if promoted>100_000. then
+    failwith(Printf.sprintf"stable queue wrapper promoted %.0f bytes"promoted);
   let config : Ogpu.Surface.configuration={logical_width=2;logical_height=2;physical_width=4;physical_height=4;format=Rgba8_unorm;present_mode=Fifo;max_acquired=2}in let surface=get(Ogpu.Backend.create_surface device config)in let frame=match get(Ogpu.Backend.acquire surface)with`Acquired x->x|_->failwith"mock acquire"in get(Ogpu.Backend.present frame);expect Ogpu.Error.Invalid_state(Ogpu.Backend.present frame);
   Ogpu.Backend_mock.inject_device_loss control;expect Ogpu.Error.Device_lost(Ogpu.Backend.submit queue command~resources:[`Buffer source;`Buffer destination]~pipelines:[]);
+  get(Ogpu.Backend.destroy_buffer source);
+  expect Ogpu.Error.Stale_handle(Ogpu.Backend.submit queue command~resources~pipelines:[]);
   expect Ogpu.Error.Invalid_state(Ogpu.Backend.destroy_device device);get(Ogpu.Backend.destroy_surface surface);get(Ogpu.Backend.destroy_queue queue);get(Ogpu.Backend.destroy_buffer source);get(Ogpu.Backend.destroy_buffer destination);get(Ogpu.Backend.destroy_texture stencil);get(Ogpu.Backend.destroy_texture readable);get(Ogpu.Backend.destroy_device device);
   if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then failwith"backend mock live-count delta";Ogpu.Backend_mock.trace control
 let ()=let a=run()and b=run()in if a<>b then failwith"backend mock trace is nondeterministic";print_endline"OGPU backend boundary: deterministic submit/loss/frame/lifetime conformance passed"

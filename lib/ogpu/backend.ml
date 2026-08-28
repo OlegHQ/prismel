@@ -13,7 +13,13 @@ type resource={raw:driver_resource;handle:unit Handle.t;device:device;mutable de
 type buffer={resource:resource;buffer_descriptor:Types.buffer_descriptor}
 type texture={resource:resource;texture_descriptor:Types.texture_descriptor}
 type pipeline={pipeline_driver:driver_pipeline;device:device;mutable dead:bool}
-type queue={raw:driver_queue;device:device;mutable dead:bool}
+type submitted_resource=[`Buffer of buffer|`Texture of texture]
+type queue={raw:driver_queue;device:device;mutable dead:bool;
+  mutable submitted_resources:submitted_resource list;
+  mutable submitted_pairs:(int64*resource)list;
+  mutable submitted_tokens:(int64*token)list;
+  mutable submitted_pipelines:pipeline list;
+  mutable submitted_pipeline_tokens:token list}
 type surface={raw:driver_surface;device:device;mutable dead:bool;mutable frames:int}
 type frame={raw:driver_frame;surface:surface;mutable consumed:bool}
 let error op kind text=Error(Error.make op kind text)
@@ -27,7 +33,7 @@ let create_texture device descriptor=match live"Backend.create_texture"device wi
 let create_depth_texture device descriptor=match live"Backend.create_depth_texture"device with Error _ as e->e|Ok()->match Types.validate_texture device.raw.capabilities descriptor with Error _ as e->e|Ok() when not(List.mem Types.Render_attachment descriptor.usage)||List.exists(fun usage->usage<>Types.Render_attachment)descriptor.usage->error"Backend.create_depth_texture"Error.Invalid_argument"depth textures are render-attachment only"|Ok()->match device.raw.create_depth_texture descriptor with Error _ as e->e|Ok raw->device.children<-device.children+1;Ok{resource=make_resource device raw;texture_descriptor=descriptor}
 let create_stencil_texture device descriptor=match live"Backend.create_stencil_texture"device with Error _ as e->e|Ok()->match Types.validate_texture device.raw.capabilities descriptor with Error _ as e->e|Ok() when not(List.mem Types.Render_attachment descriptor.usage)||List.exists(fun usage->usage<>Types.Render_attachment)descriptor.usage->error"Backend.create_stencil_texture"Error.Invalid_argument"stencil textures are render-attachment only"|Ok()->match device.raw.create_stencil_texture descriptor with Error _ as e->e|Ok raw->device.children<-device.children+1;Ok{resource=make_resource device raw;texture_descriptor=descriptor}
 let adopt_pipeline device portable=match live"Backend.adopt_pipeline"device with Error _ as e->e|Ok()->match device.raw.create_pipeline portable with Error _ as e->e|Ok pipeline_driver->device.children<-device.children+1;Ok{pipeline_driver;device;dead=false}
-let create_queue device=match live"Backend.create_queue"device with Error _ as e->e|Ok()->match device.raw.create_queue()with Error _ as e->e|Ok raw->device.children<-device.children+1;Ok{raw;device;dead=false}
+let create_queue device=match live"Backend.create_queue"device with Error _ as e->e|Ok()->match device.raw.create_queue()with Error _ as e->e|Ok raw->device.children<-device.children+1;Ok{raw;device;dead=false;submitted_resources=[];submitted_pairs=[];submitted_tokens=[];submitted_pipelines=[];submitted_pipeline_tokens=[]}
 let create_surface device configuration=match live"Backend.create_surface"device with Error _ as e->e|Ok()->match Surface.create device.handle configuration with Error _ as e->e|Ok portable->Surface.destroy portable;(match device.raw.create_surface configuration with Error _ as e->e|Ok raw->device.children<-device.children+1;Ok{raw;device;dead=false;frames=0})
 let transfer_buffer (value:buffer)=Transfer_pass.buffer~device:value.resource.device.handle value.resource.handle value.buffer_descriptor
 let transfer_texture (value:texture)=Transfer_pass.texture~device:value.resource.device.handle value.resource.handle value.texture_descriptor
@@ -52,7 +58,47 @@ let transfer pass=Result.map(fun x->Transfer x)(Transfer_pass.finish pass)
 let compute pass=Compute(Compute_pass.describe pass)
 let render pass draws=Result.map(fun submission->Render submission)(Render_pass.submit pass draws)
 let resource_pair=function `Buffer(b:buffer)->Handle.id b.resource.handle,b.resource|`Texture(t:texture)->Handle.id t.resource.handle,t.resource
-let submit (queue:queue) command ~resources ~pipelines=let op="Backend.submit"in match live op queue.device with Error _ as e->e|Ok()when queue.dead->error op Error.Stale_handle"queue is destroyed"|Ok()->let pairs=List.map resource_pair resources in if List.exists(fun(_,r:token*resource)->r.dead)pairs||List.exists(fun(p:pipeline)->p.dead)pipelines then error op Error.Stale_handle"submitted graph contains a destroyed object"else if List.exists(fun(_,r:token*resource)->r.device!=queue.device)pairs||List.exists(fun(p:pipeline)->p.device!=queue.device)pipelines then error op Error.Cross_device"submitted graph contains a foreign object"else queue.raw.submit command~resources:(List.map(fun(id,(r:resource))->id,r.raw.token)pairs)~pipelines:(List.map(fun(p:pipeline)->p.pipeline_driver.pipeline_token)pipelines)
+let rec same_resources left right=match left,right with
+  |[],[]->true
+  |`Buffer left::lefts,`Buffer right::rights when left==right->
+      same_resources lefts rights
+  |`Texture left::lefts,`Texture right::rights when left==right->
+      same_resources lefts rights
+  |_->false
+let rec same_pipelines left right=match left,right with
+  |[],[]->true
+  |left::lefts,right::rights when left==right->same_pipelines lefts rights
+  |_->false
+let submit (queue:queue) command ~resources ~pipelines=
+  let op="Backend.submit"in
+  match live op queue.device with Error _ as e->e
+  |Ok()when queue.dead->error op Error.Stale_handle"queue is destroyed"
+  |Ok()->
+      let reused_resources=same_resources resources queue.submitted_resources in
+      let pairs=if reused_resources then queue.submitted_pairs
+        else List.map resource_pair resources in
+      if List.exists(fun(_,r:token*resource)->r.dead)pairs||
+         List.exists(fun(p:pipeline)->p.dead)pipelines then
+        error op Error.Stale_handle"submitted graph contains a destroyed object"
+      else if List.exists(fun(_,r:token*resource)->r.device!=queue.device)pairs||
+              List.exists(fun(p:pipeline)->p.device!=queue.device)pipelines then
+        error op Error.Cross_device"submitted graph contains a foreign object"
+      else
+        let resource_tokens=if reused_resources then queue.submitted_tokens else
+          List.map(fun(id,(resource:resource))->id,resource.raw.token)pairs in
+        let reused_pipelines=same_pipelines pipelines queue.submitted_pipelines in
+        let pipeline_tokens=if reused_pipelines then queue.submitted_pipeline_tokens
+          else List.map(fun(pipeline:pipeline)->pipeline.pipeline_driver.pipeline_token)
+            pipelines in
+        if not reused_resources then begin
+          queue.submitted_resources<-resources;queue.submitted_pairs<-pairs;
+          queue.submitted_tokens<-resource_tokens
+        end;
+        if not reused_pipelines then begin
+          queue.submitted_pipelines<-pipelines;
+          queue.submitted_pipeline_tokens<-pipeline_tokens
+        end;
+        queue.raw.submit command~resources:resource_tokens~pipelines:pipeline_tokens
 let complete_through (queue:queue) epoch=if queue.dead then error"Backend.complete_through"Error.Stale_handle"queue is destroyed"else queue.raw.complete_through epoch
 let configure (surface:surface) value=if surface.dead then error"Backend.configure"Error.Stale_handle"surface is destroyed"else if surface.frames<>0 then error"Backend.configure"Error.Invalid_state"surface has acquired frames"else surface.raw.configure value
 let acquire (surface:surface)=if surface.dead then error"Backend.acquire"Error.Stale_handle"surface is destroyed"else match surface.raw.acquire()with Error _ as e->e|Ok(`Acquired raw)->surface.frames<-surface.frames+1;Ok(`Acquired{raw;surface;consumed=false})|Ok`Timeout->Ok`Timeout|Ok`Occluded->Ok`Occluded|Ok`Device_lost->Ok`Device_lost
@@ -63,6 +109,6 @@ let destroy_resource (resource:resource)=if resource.dead then Ok()else match re
 let destroy_buffer (value:buffer)=destroy_resource value.resource
 let destroy_texture (value:texture)=destroy_resource value.resource
 let destroy_pipeline (value:pipeline)=if value.dead then Ok()else match value.pipeline_driver.destroy_pipeline()with Error _ as e->e|Ok()->value.dead<-true;value.device.children<-value.device.children-1;Ok()
-let destroy_queue (value:queue)=if value.dead then Ok()else match value.raw.destroy_queue()with Error _ as e->e|Ok()->value.dead<-true;value.device.children<-value.device.children-1;Ok()
+let destroy_queue (value:queue)=if value.dead then Ok()else match value.raw.destroy_queue()with Error _ as e->e|Ok()->value.dead<-true;value.submitted_resources<-[];value.submitted_pairs<-[];value.submitted_tokens<-[];value.submitted_pipelines<-[];value.submitted_pipeline_tokens<-[];value.device.children<-value.device.children-1;Ok()
 let destroy_surface (value:surface)=if value.dead then Ok()else if value.frames<>0 then error"Backend.destroy_surface"Error.Invalid_state"surface has acquired frames"else match value.raw.destroy_surface()with Error _ as e->e|Ok()->value.dead<-true;value.device.children<-value.device.children-1;Ok()
 let destroy_device (value:device)=if value.dead then Ok()else if value.children<>0 then error"Backend.destroy_device"Error.Invalid_state"device has live children"else match value.raw.destroy_device()with Error _ as e->e|Ok()->value.dead<-true;Ok()
