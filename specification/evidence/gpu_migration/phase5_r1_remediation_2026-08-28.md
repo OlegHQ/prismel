@@ -50,3 +50,25 @@ The smallest honest remediation is to teach the manifest scanner Dune ordered
 set semantics for `:standard`, classify only the reviewed private additions in
 the normalized-signature gate, review the three shattered-cube source changes,
 and rerun all three checks on the final selected clean commit.
+
+## Remediation result
+
+The scanner now evaluates `:standard`, explicit module atoms, and ordered-set
+subtraction rather than dropping the standard set.  The normalized-signature
+gate narrowly classifies the six private hooks listed above.  Its focused run
+now passes with 40/40 modules and zero unreviewed deltas.
+
+With real Prismel module discovery restored, the stable-manifest check reports
+one substantive public delta instead of a false 40-module contraction:
+`Sketch.run_state` gained `?max_frames` and `Sketch.resize` was added.  Those
+additions are committed implementation work, but R1's frozen contract permits
+only additive documentation.  The stable authority was therefore deliberately
+left unchanged and the check remains red rather than laundering the additions
+through regeneration.
+
+The shattered-cube changes are also substantive: they add the R11 native
+delegate, artifact validation, and runtime-next dependencies to the unchanged
+acceptance sketch.  They are useful qualification work but not source-neutral,
+so the Phase-4 freeze authority remains unchanged and red pending explicit
+review of that exception.  R1 remains pending for these two real reasons; the
+two tooling false positives are closed.

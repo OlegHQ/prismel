@@ -49,7 +49,13 @@ let allowed=Sset.of_list[
   "Image.module:Private.val:of_resource";"Image.module:Private.val:resource";
   "Scene.module:Private.val:install_renderer";"Scene.module:Private.val:release";
   "Scene.module:Private.val:resources";"Scene.module:Private.val:stage";
-  "Scene.module:Private.val:text_regions";"Scene.module:Private.val:to_ir"]
+  "Scene.module:Private.val:text_regions";"Scene.module:Private.val:to_ir";
+  "Canvas.module:Private.val:copy_to_image";
+  "Font.module:Private.type:automatic";
+  "Font.module:Private.val:automatic_counts";
+  "Font.module:Private.val:automatic_image";
+  "Font.module:Private.val:borrow_automatic";
+  "Font.module:Private.val:release_automatic"]
 let omissions=Sset.of_list[
   "Low.module:Graphics.val:get_renderer";"Low.module:Window.val:get_window";
   "Low.module:Window.val:get_renderer";"Low.module:Window.val:get_window_flags";

@@ -161,17 +161,36 @@ let atoms_set atoms =
     (fun values atom -> String_set.add (String.lowercase_ascii atom) values)
     String_set.empty atoms
 
+let module_ordered_set directory values =
+  let atoms = flatten_atoms values |> List.map String.lowercase_ascii in
+  let rec apply included excluding = function
+    | [] -> included
+    | "\\" :: rest -> apply included true rest
+    | ":standard" :: rest ->
+        let standard = add_directory_stems directory String_set.empty in
+        let included =
+          if excluding then String_set.diff included standard
+          else String_set.union included standard
+        in
+        apply included excluding rest
+    | atom :: rest when has_prefix ~prefix:":" atom ->
+        apply included excluding rest
+    | atom :: rest ->
+        let included =
+          if excluding then String_set.remove atom included
+          else String_set.add atom included
+        in
+        apply included excluding rest
+  in
+  apply String_set.empty false atoms
+
 let public_interfaces root directory_name =
   let directory = Filename.concat (Filename.concat root "lib") directory_name in
   let stanza = library_stanza (Filename.concat directory "dune") in
   let stems =
     match stanza_field stanza "modules" with
     | None -> add_directory_stems directory String_set.empty
-    | Some values ->
-        flatten_atoms values
-        |> List.filter (fun atom ->
-          atom <> ":standard" && atom <> "\\" && not (has_prefix ~prefix:":" atom))
-        |> atoms_set
+    | Some values -> module_ordered_set directory values
   in
   let private_modules =
     Option.value (stanza_field stanza "private_modules") ~default:[]
