@@ -65,10 +65,9 @@ type cached_scene2_plan={plan_fingerprint:int;plan_command_count:int;
   plan_ir:Raster2.Render_ir.t;plan_draws:draw list;
   plan_image_ids:int option list}
 type scene2_plan_candidate={candidate_plan_fingerprint:int;
-  candidate_plan_command_count:int;candidate_plan_density:int}
-type scene2_negative_admission={mutable negative_active:bool;
-  mutable negative_command_count:int;mutable negative_density:int;
-  mutable negative_target:target;mutable negative_remaining:int}
+  candidate_plan_command_count:int;candidate_plan_density:int;
+  candidate_plan_target:target;candidate_plan_extent:int*int*int*int;
+  candidate_plan_resources:scene2_resource_stamp list}
 let prepared_draw ~family ?(blend=Replace) ?texture ?auxiliary ?(samples=1) value =
   {family;blend;texture;auxiliary;samples;value}
 
@@ -316,10 +315,7 @@ type t = { runtime:Runtime_next_orchestrator.t; input:Runtime_next_input.t;
   mutable scene2_quad_payload_cache:cached_scene2_quad_payload list;
   mutable scene2_debug_cache:cached_scene2_debug list;
   mutable scene2_plan_cache:cached_scene2_plan list;
-  scene2_plan_candidates:scene2_plan_candidate option array;
-  mutable scene2_plan_candidate_cursor:int;
-  scene2_negative_admissions:scene2_negative_admission array;
-  mutable scene2_negative_cursor:int;
+  mutable scene2_plan_candidates:scene2_plan_candidate list;
   mutable pending_image_leases:Prismel_next_resources.Image.Private.lease list;
   mutable canvas_keys:(Prismel_next_resources.Canvas.t*string)list;mutable next_canvas_key:int }
 let runtime_target=function Native->Runtime_next_orchestrator.Native
@@ -343,11 +339,7 @@ let create (configuration:configuration) =
       |Error message->ignore(Runtime_next_orchestrator.destroy runtime);fail operation Backend message
       |Ok input->Ok{runtime;input;assets=Prismel_next_resources.Assets.create();timing=configuration.timing;
           frame=0L;elapsed=0.;last_clock=Unix.gettimeofday();dead=false;snapshots=[];scene2_geometry_cache=[];scene2_geometry_candidates=[];scene2_batch_cache=[];scene2_quad_cache=[];scene2_quad_payload_cache=[];scene2_debug_cache=[];
-          scene2_plan_cache=[];scene2_plan_candidates=Array.make 64 None;
-          scene2_plan_candidate_cursor=0;
-          scene2_negative_admissions=Array.init 8(fun _->{negative_active=false;
-            negative_command_count=0;negative_density=0;negative_target=Headless;
-            negative_remaining=0});scene2_negative_cursor=0;
+          scene2_plan_cache=[];scene2_plan_candidates=[];
           pending_image_leases=[];canvas_keys=[];next_canvas_key=0})
 let target value=match Runtime_next_orchestrator.target value.runtime with Native->Native|Headless->Headless|Web->Web
 let assets value=value.assets
@@ -382,9 +374,7 @@ let diagnostics value=
      List.length value.scene2_geometry_cache+
      List.length value.scene2_geometry_candidates+List.length value.scene2_batch_cache+
      List.length value.scene2_quad_cache+List.length value.scene2_debug_cache+
-     List.length value.scene2_plan_cache+
-     Array.fold_left(fun count->function None->count|Some _->count+1)0
-       value.scene2_plan_candidates+
+     List.length value.scene2_plan_cache+List.length value.scene2_plan_candidates+
      List.length value.canvas_keys;
    release_queue_pending=runtime.release_queue_pending;
    release_queue_live_handles=runtime.release_queue_live_handles;
@@ -640,70 +630,39 @@ let scene2_plan_hydrate value ~density plan=
 let lower_scene2 value ~density ~resource:resolve ir =
   if value.dead then lower_scene2_uncached value~density~resource:resolve ir else
   let commands=Raster2.Render_ir.Private.commands_readonly ir in
-  let command_count=Array.length commands and runtime_target=target value in
-  match Array.find_opt(fun negative->negative.negative_active&&
-    negative.negative_command_count=command_count&&negative.negative_density=density&&
-    negative.negative_target=runtime_target&&negative.negative_remaining>0)
-    value.scene2_negative_admissions with
-  |Some negative->negative.negative_remaining<-negative.negative_remaining-1;
-    lower_scene2_uncached value~density~resource:resolve ir
-  |None->
-  let fingerprint=Hashtbl.hash commands in
-  let exact_shape plan=plan.plan_fingerprint=fingerprint&&
+  let fingerprint=Hashtbl.hash commands and command_count=Array.length commands in
+  let cacheable,resources=scene2_resource_stamps resolve commands in
+  let facts=Runtime_next_orchestrator.facts value.runtime|>Result.get_ok in
+  let extent=facts.logical_width,facts.logical_height,
+    facts.drawable_width,facts.drawable_height and target=target value in
+  let exact plan=plan.plan_fingerprint=fingerprint&&
     plan.plan_command_count=command_count&&plan.plan_density=density&&
-    plan.plan_target=runtime_target&&
+    plan.plan_target=target&&plan.plan_extent=extent&&
+    same_scene2_resource_stamps plan.plan_resources resources&&
     Raster2.Render_ir.Private.commands_readonly plan.plan_ir=commands in
-  match List.find_opt exact_shape value.scene2_plan_cache with
-  |Some plan->
-    let facts=Runtime_next_orchestrator.facts value.runtime|>Result.get_ok in
-    let extent=facts.logical_width,facts.logical_height,
-      facts.drawable_width,facts.drawable_height in
-    let cacheable,resources=scene2_resource_stamps resolve commands in
-    if plan.plan_extent=extent&&cacheable&&
-      same_scene2_resource_stamps plan.plan_resources resources then
-      scene2_plan_hydrate value~density plan
-    else lower_scene2_uncached value~density~resource:resolve ir
+  if cacheable then match List.find_opt exact value.scene2_plan_cache with
+  |Some plan->scene2_plan_hydrate value~density plan
   |None->
     (match lower_scene2_uncached value~density~resource:resolve ir with
     |Error _ as error->error
     |Ok draws as result->
-      let candidate_index=Array.find_index(function Some candidate->
+      let candidate=List.find_opt(fun candidate->
         candidate.candidate_plan_fingerprint=fingerprint&&
         candidate.candidate_plan_command_count=command_count&&
-        candidate.candidate_plan_density=density|None->false)
+        candidate.candidate_plan_density=density&&candidate.candidate_plan_target=target&&
+        candidate.candidate_plan_extent=extent&&
+        same_scene2_resource_stamps candidate.candidate_plan_resources resources)
         value.scene2_plan_candidates in
-      (match candidate_index with
-      |None->
-        let changing=Array.exists(function Some candidate->
-          candidate.candidate_plan_command_count=command_count&&
-          candidate.candidate_plan_density=density&&
-          candidate.candidate_plan_fingerprint<>fingerprint|None->false)
-          value.scene2_plan_candidates in
-        if changing then begin
-          let negative=value.scene2_negative_admissions.(value.scene2_negative_cursor)in
-          negative.negative_active<-true;negative.negative_command_count<-command_count;
-          negative.negative_density<-density;negative.negative_target<-runtime_target;
-          negative.negative_remaining<-120;
-          value.scene2_negative_cursor<-(value.scene2_negative_cursor+1)mod
-            Array.length value.scene2_negative_admissions;
-          Array.iteri(fun index->function Some candidate when
-            candidate.candidate_plan_command_count=command_count&&
-            candidate.candidate_plan_density=density->
-              value.scene2_plan_candidates.(index)<-None|_->())value.scene2_plan_candidates
-        end else begin
-        value.scene2_plan_candidates.(value.scene2_plan_candidate_cursor)<-Some{
+      (match candidate with
+      |None->value.scene2_plan_candidates<-{
           candidate_plan_fingerprint=fingerprint;candidate_plan_command_count=command_count;
-          candidate_plan_density=density};
-        value.scene2_plan_candidate_cursor<-
-          (value.scene2_plan_candidate_cursor+1)mod Array.length value.scene2_plan_candidates
-        end
-      |Some index->
-        value.scene2_plan_candidates.(index)<-None;
-        let cacheable,resources=scene2_resource_stamps resolve commands in
-        if cacheable then begin
-        let facts=Runtime_next_orchestrator.facts value.runtime|>Result.get_ok in
-        let extent=facts.logical_width,facts.logical_height,
-          facts.drawable_width,facts.drawable_height in
+          candidate_plan_density=density;candidate_plan_target=target;
+          candidate_plan_extent=extent;candidate_plan_resources=resources}::
+          value.scene2_plan_candidates;
+        value.scene2_plan_candidates<-trim_scene2_entries~capacity:64(fun _->64)
+          value.scene2_plan_candidates
+      |Some candidate->
+        value.scene2_plan_candidates<-List.filter((!=)candidate)value.scene2_plan_candidates;
         let image_ids=List.filter_map(function Image_stamp(id,_,_)->Some id|_->None)resources in
         let image_id_of_draw draw=match draw.texture with None->None|Some texture->
           List.find_opt(fun id->texture.Scene_execution.key=
@@ -713,11 +672,11 @@ let lower_scene2 value ~density ~resource:resolve ir =
           draws plan_image_ids in
         let plan={plan_fingerprint=fingerprint;plan_command_count=command_count;
           plan_source_bytes=scene2_plan_source_bytes commands;plan_density=density;
-          plan_target=runtime_target;plan_extent=extent;plan_resources=resources;
+          plan_target=target;plan_extent=extent;plan_resources=resources;
           plan_ir=ir;plan_draws;plan_image_ids}in
         value.scene2_plan_cache<-trim_scene2_entries~capacity:16
-          (fun plan->plan.plan_source_bytes)(plan::value.scene2_plan_cache)
-        end);result)
+          (fun plan->plan.plan_source_bytes)(plan::value.scene2_plan_cache));result)
+  else lower_scene2_uncached value~density~resource:resolve ir
 let mb_to_input=function Left->Runtime_next_input.Left|Middle->Middle|Right->Right|X1->X1|X2->X2
 let mb_of_web=function Runtime_next_orchestrator.Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2
 let mod_to_input=function Shift->Runtime_next_input.Shift|Control->Control|Alt->Alt|Meta->Meta|Num_lock->Num_lock|Caps_lock->Caps_lock|Scroll_lock->Scroll_lock
@@ -804,12 +763,7 @@ let destroy value=if value.dead then Ok()else(
     value.scene2_quad_cache<-[];
     value.scene2_quad_payload_cache<-[];
     value.scene2_debug_cache<-[];
-    value.scene2_plan_cache<-[];
-    Array.fill value.scene2_plan_candidates 0(Array.length value.scene2_plan_candidates)None;
-    value.scene2_plan_candidate_cursor<-0;
-    Array.iter(fun negative->negative.negative_active<-false;
-      negative.negative_remaining<-0)value.scene2_negative_admissions;
-    value.scene2_negative_cursor<-0;
+    value.scene2_plan_cache<-[];value.scene2_plan_candidates<-[];
     value.scene2_geometry_candidates<-[];value.canvas_keys<-[];value.dead<-true;
     match Runtime_next_orchestrator.destroy value.runtime with Ok()->Ok()|Error e->backend"Prismel_next_execution.destroy"e)
 let run configuration body ~on_stop = match create configuration with Error _ as e->e|Ok value->
