@@ -22,6 +22,7 @@ val create : Device.t -> Ogpu.Render_pass.t -> attachments:Texture.t list ->
   draw -> (t,Ogpu.Error.t) result
 val create_batch : ?owned_samplers:Sampler.t list -> Device.t -> Ogpu.Render_pass.t -> attachments:Texture.t list ->
   draw list -> (t,Ogpu.Error.t) result
+val with_indirect : t -> Metal.Indirect_command_buffer.t -> t
 
 module Private : sig
   val encode_portable : t -> Ogpu.Command.t -> (unit,Ogpu.Error.t) result
