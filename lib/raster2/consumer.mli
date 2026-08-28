@@ -19,7 +19,7 @@ type error =
 
 module Workspace : sig
   type t
-  (** Bounded, resize-on-demand transaction storage. A workspace must not be
+  (* Bounded, resize-on-demand transaction storage. A workspace must not be
       used by overlapping [execute] calls. *)
   val create : unit -> t
 end
@@ -31,3 +31,9 @@ val execute :
   target:Surface.t ->
   Render_ir.t ->
   (unit, error) result
+module Private : sig
+  val execute_swap : ?depth:depth -> workspace:Workspace.t ->
+    lookup:(int -> resource option) -> target:Surface.t -> Render_ir.t ->
+    (Surface.t,error) result
+  val replace_workspace_color : Workspace.t -> bytes -> unit
+end

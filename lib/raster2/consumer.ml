@@ -30,9 +30,10 @@ module Workspace = struct
       t.transformed<-Float.Array.create !capacity
     end;
     t.transformed
+  let replace_color t bytes=t.color<-bytes
 end
 
-let execute ?depth ?workspace ~lookup ~target ir =
+let execute_common ~swap ?depth ?workspace ~lookup ~target ir =
   (* Execution is synchronous and never retains a command or nested payload.
      Borrow the validated immutable storage instead of defensively cloning the
      complete geometry graph on every frame. *)
@@ -245,4 +246,14 @@ let execute ?depth ?workspace ~lookup ~target ir =
             commands;
           match !failure with
           | Some error -> Error error
-          | None -> Bytes.blit working_bytes 0 target_bytes 0 (Bytes.length target_bytes);(match depth,depth_copy with Some d,Some(_,a)->Bytes.blit(Depth_stencil.bytes a)0(Depth_stencil.bytes d.attachment)0(Bytes.length(Depth_stencil.bytes a))|_->());Ok ()
+          | None ->
+              (match depth,depth_copy with Some d,Some(_,a)->Bytes.blit(Depth_stencil.bytes a)0(Depth_stencil.bytes d.attachment)0(Bytes.length(Depth_stencil.bytes a))|_->());
+              if swap then(Workspace.replace_color workspace target_bytes;Ok working)
+              else(Bytes.blit working_bytes 0 target_bytes 0(Bytes.length target_bytes);Ok target)
+let execute ?depth ?workspace ~lookup ~target ir=
+  Result.map(fun _->())(execute_common~swap:false?depth?workspace~lookup~target ir)
+module Private=struct
+  let execute_swap ?depth ~workspace ~lookup ~target ir=
+    execute_common~swap:true?depth~workspace~lookup~target ir
+  let replace_workspace_color=Workspace.replace_color
+end

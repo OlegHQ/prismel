@@ -119,6 +119,31 @@ let ()=
   Image.Private.release_snapshot destroy_lease;
   Image.Private.release_snapshot destroy_lease;
   get(Canvas.destroy hot);
+  let bank_canvas=get(Canvas.create~width:4~height:4)in
+  let bank_image=get(Image.create~width:4~height:4~rgba:(Bytes.make 64 '\000'))in
+  let bank_ir=Result.get_ok(Raster2.Render_ir.create[|Raster2.Render_ir.Clear 0x2468acffl|])in
+  get(Canvas.render_ir bank_canvas~lookup:(fun _->None)bank_ir);
+  get(Canvas.copy_to_image bank_canvas bank_image);
+  Gc.compact();let bank_live_before=(Gc.quick_stat()).live_words in
+  for _=1 to 100_000 do
+    get(Canvas.render_ir bank_canvas~lookup:(fun _->None)bank_ir);
+    get(Canvas.copy_to_image bank_canvas bank_image)
+  done;
+  Gc.compact();let bank_live_after=(Gc.quick_stat()).live_words in
+  if bank_live_after-bank_live_before>4096 then failwith"canvas/image two-bank loop did not plateau";
+  let second=get(Image.create~width:4~height:4~rgba:(Bytes.make 64 '\x7f'))in
+  get(Canvas.copy_to_image bank_canvas second);
+  let first_pixels=get(Image.pixels bank_image)in
+  get(Canvas.render_ir bank_canvas~lookup:(fun _->None)bank_ir);
+  if get(Image.pixels bank_image)<>first_pixels then failwith"second target changed first image";
+  get(Image.replace bank_image~width:4~height:4~rgba:(Bytes.make 64 '\x3c'));
+  let _,_,_,canvas_pixels=get(Canvas.snapshot bank_canvas)in
+  if canvas_pixels=Bytes.make 64 '\x3c'then failwith"external image replacement changed canvas";
+  get(Image.destroy bank_image);
+  get(Canvas.render_ir bank_canvas~lookup:(fun _->None)bank_ir);
+  get(Canvas.resize bank_canvas~width:8~height:2);
+  if get(Canvas.size bank_canvas)<>(8,2)then failwith"mirrored canvas resize";
+  get(Image.destroy second);get(Canvas.destroy bank_canvas);
   List.iter(fun frame->if List.mem frame[1;2;60;600]then let capture=get(Canvas.capture canvas)in if get(Image.size capture)<>(4,4)then failwith"capture";get(Image.destroy capture)) [1;2;60;600];
   get(Canvas.resize canvas~width:8~height:8);if get(Canvas.size canvas)<>(8,8)then failwith"resize";
   let png=Filename.temp_file"prismel-next-"".png"in get(Canvas.save_png canvas png);let input=open_in_bin png in let signature=really_input_string input 8 in close_in input;Sys.remove png;if signature<>"\x89PNG\r\n\x1a\n"then failwith"PNG";
