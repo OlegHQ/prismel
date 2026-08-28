@@ -59,6 +59,40 @@ let draw_solid ~color ~blend ~cull ~clip (a:vertex)(b:vertex)(c:vertex)=
       end
     done
   end
+let draw_solid_xy ~color ~blend ~cull ~clip ~packed ax ay bx by cx cy=
+  let edge ax ay bx by x y=(x-.ax)*.(by-.ay)-.(y-.ay)*.(bx-.ax)in
+  let top ax ay bx by=ay<by||(ay=by&&ax>bx)in
+  let area=edge ax ay bx by cx cy in
+  let rejected=area=0.||match cull with Back->area<=0.|Front->area>=0.|Cull_none->false in
+  if not rejected then begin
+    let ax,ay,bx,by=if area<0. then bx,by,ax,ay else ax,ay,bx,by in
+    let xmin=max clip.x(max 0(int_of_float(floor(min ax(min bx cx)))))
+    and ymin=max clip.y(max 0(int_of_float(floor(min ay(min by cy)))))
+    and xmax=min(clip.x+clip.width-1)(min(Surface.width color-1)(int_of_float(ceil(max ax(max bx cx)))))
+    and ymax=min(clip.y+clip.height-1)(min(Surface.height color-1)(int_of_float(ceil(max ay(max by cy)))))in
+    let pitch=Surface.pitch color
+    and e0x=cy-.by and e0y=bx-.cx and e0c=by*.cx-.bx*.cy
+    and e1x=ay-.cy and e1y=cx-.ax and e1c=cy*.ax-.cx*.ay
+    and e2x=by-.ay and e2y=ax-.bx and e2c=ay*.bx-.ax*.by in
+    let top0=top bx by cx cy and top1=top cx cy ax ay and top2=top ax ay bx by in
+    let left=ref xmin and right=ref xmax and searching=ref true in
+    for y=ymin to ymax do
+      let py=float y+.0.5 in left:=xmin;searching:=true;
+      while!searching&& !left<=xmax do
+        let px=float!left+.0.5 in
+        let w0=e0x*.px+.e0y*.py+.e0c and w1=e1x*.px+.e1y*.py+.e1c and w2=e2x*.px+.e2y*.py+.e2c in
+        if(w0>0.||w0=0.&&top0)&&(w1>0.||w1=0.&&top1)&&(w2>0.||w2=0.&&top2)then searching:=false else incr left
+      done;
+      if!left<=xmax then begin right:=xmax;searching:=true;
+        while!searching&& !right> !left do
+          let px=float!right+.0.5 in
+          let w0=e0x*.px+.e0y*.py+.e0c and w1=e1x*.px+.e1y*.py+.e1c and w2=e2x*.px+.e2y*.py+.e2c in
+          if(w0>0.||w0=0.&&top0)&&(w1>0.||w1=0.&&top1)&&(w2>0.||w2=0.&&top2)then searching:=false else decr right
+        done;
+        for x= !left to!right do write_unchecked color blend pitch x y packed done
+      end
+    done
+  end
 let draw_depth_solid ~color ~depth ~depth_state ~blend ~cull ~clip
     (a:vertex)(b:vertex)(c:vertex)=
   let area=edge a b c.x c.y in
@@ -176,3 +210,4 @@ let draw_line ~color ~depth ~depth_state ~blend ~clip ~texture ~width (a:vertex)
     done done
   |_->for y=ymin to ymax do for x=xmin to xmax do let px=float x+.0.5 and py=float y+.0.5 in let t=if length2=0. then 0. else max 0.(min 1.(((px-.a.x)*.dx+.(py-.a.y)*.dy)/.length2))in let qx=a.x+.t*.dx and qy=a.y+.t*.dy in if(px-.qx)*.(px-.qx)+.(py-.qy)*.(py-.qy)<=half*.half then fragment~color~depth~depth_state~blend~texture~x~y(interpolate_vertex a b t)done done
 let draw_point ~color ~depth ~depth_state ~blend ~clip ~texture ~size (v:vertex)=let half=size*.0.5 in let xmin=max clip.x(max 0(int_of_float(ceil(v.x-.half-.0.5))))and ymin=max clip.y(max 0(int_of_float(ceil(v.y-.half-.0.5))))and xmax=min(clip.x+clip.width-1)(min(Surface.width color-1)(int_of_float(floor(v.x+.half-.0.5))))and ymax=min(clip.y+clip.height-1)(min(Surface.height color-1)(int_of_float(floor(v.y+.half-.0.5))))in for y=ymin to ymax do for x=xmin to xmax do fragment~color~depth~depth_state~blend~texture~x~y v done done
+module Private=struct let draw_solid_xy=draw_solid_xy end

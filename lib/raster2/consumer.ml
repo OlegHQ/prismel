@@ -12,13 +12,24 @@ type depth={attachment:Depth_stencil.t;state:Depth_stencil.state;value:float;cle
 type error = Missing_resource of int | Wrong_resource_kind of int | Invalid_resource of int | Surface_error | Scratch_limit
 
 module Workspace = struct
-  type t = { mutable color : bytes; mutable clip : bytes; mutable depth : bytes }
-  let create () = { color=Bytes.empty; clip=Bytes.empty; depth=Bytes.empty }
+  type t = { mutable color : bytes; mutable clip : bytes; mutable depth : bytes;
+    mutable transformed : Float.Array.t }
+  let create () = { color=Bytes.empty; clip=Bytes.empty; depth=Bytes.empty;
+    transformed=Float.Array.create 0 }
   let storage bytes length =
     if Bytes.length bytes = length then bytes else Bytes.create length
   let color t length = let bytes=storage t.color length in t.color<-bytes;bytes
   let clip t length = let bytes=storage t.clip length in t.clip<-bytes;bytes
   let depth t length = let bytes=storage t.depth length in t.depth<-bytes;bytes
+  let transformed t length =
+    if Float.Array.length t.transformed < length then begin
+      let capacity=ref(max 16(Float.Array.length t.transformed))in
+      while!capacity<length do
+        capacity:=if!capacity>length/2 then length else!capacity*2
+      done;
+      t.transformed<-Float.Array.create !capacity
+    end;
+    t.transformed
 end
 
 let execute ?depth ?workspace ~lookup ~target ir =
@@ -125,11 +136,19 @@ let execute ?depth ?workspace ~lookup ~target ir =
                      vertices heavily; rebuilding three records (and rounding twice)
                      per triangle made the command consumer allocate in proportion to
                      index count rather than vertex count. *)
-                  let transformed =
+                  let packed=match depth with Some _->None|None->
+                    let packed=Workspace.transformed workspace(vertex_count*2)in
+                    for index=0 to vertex_count-1 do
+                      let x,y=point transform geometry.vertices.(index*2)
+                        geometry.vertices.(index*2+1)in
+                      Float.Array.unsafe_set packed(index*2)(float x);
+                      Float.Array.unsafe_set packed(index*2+1)(float y)
+                    done;Some packed in
+                  let transformed = match depth with None->[||]|Some _->
                     Array.init vertex_count (fun index ->
-                      let x, y = point transform geometry.vertices.(index * 2)
-                          geometry.vertices.((index * 2) + 1) in
-                      { Triangle.x=float x; y=float y;
+                      let x,y=point transform geometry.vertices.(index*2)
+                        geometry.vertices.(index*2+1)in
+                      { Triangle.x=float x;y=float y;
                         depth=(match depth with None->0. | Some d->d.value);
                         color=geometry.color; u=0.; v=0. })
                   in
@@ -145,16 +164,19 @@ let execute ?depth ?workspace ~lookup ~target ir =
                   let fast_rectangle =
                     depth=None && vertex_count=4
                     && geometry.indices=[|0;1;2;0;2;3|]
-                    && let a=transformed.(0)and b=transformed.(1)
-                       and c=transformed.(2)and d=transformed.(3)in
-                       a.y=b.y&&b.x=c.x&&c.y=d.y&&d.x=a.x
-                       &&b.x>a.x&&c.y>a.y
+                    && let packed=Option.get packed in
+                       let ax=Float.Array.unsafe_get packed 0 and ay=Float.Array.unsafe_get packed 1
+                       and bx=Float.Array.unsafe_get packed 2 and by=Float.Array.unsafe_get packed 3
+                       and cx=Float.Array.unsafe_get packed 4 and cy=Float.Array.unsafe_get packed 5
+                       and dx=Float.Array.unsafe_get packed 6 and dy=Float.Array.unsafe_get packed 7 in
+                       ay=by&&bx=cx&&cy=dy&&dx=ax
+                       &&bx>ax&&cy>ay
                        &&List.for_all(fun value->Float.is_finite value&&value=floor value)
-                           [a.x;a.y;c.x;c.y]
-                       &&let x=max clip.x(int_of_float a.x)
-                         and y=max clip.y(int_of_float a.y)
-                         and right=min(clip.x+clip.width)(int_of_float c.x)
-                         and bottom=min(clip.y+clip.height)(int_of_float c.y)in
+                           [ax;ay;cx;cy]
+                       &&let x=max clip.x(int_of_float ax)
+                         and y=max clip.y(int_of_float ay)
+                         and right=min(clip.x+clip.width)(int_of_float cx)
+                         and bottom=min(clip.y+clip.height)(int_of_float cy)in
                          let width=max 0(right-x)and height=max 0(bottom-y)in
                          if width=Surface.width working&&height=Surface.height working
                             &&x=0&&y=0
@@ -166,7 +188,14 @@ let execute ?depth ?workspace ~lookup ~target ir =
                     for triangle = 0 to (Array.length geometry.indices / 3) - 1 do
                       let vertex corner = geometry.indices.((triangle * 3) + corner) in
                       let a = vertex 0 and b = vertex 1 and c = vertex 2 in
-                      Triangle.draw ~color:working ~depth:depth_attachment ~depth_state
+                      match depth with
+                      |None->let packed=Option.get packed in Triangle.Private.draw_solid_xy ~color:working
+                        ~blend:!active_blend ~cull:Triangle.Cull_none ~clip
+                        ~packed:(Int32.to_int geometry.color)
+                        (Float.Array.unsafe_get packed(a*2))(Float.Array.unsafe_get packed(a*2+1))
+                        (Float.Array.unsafe_get packed(b*2))(Float.Array.unsafe_get packed(b*2+1))
+                        (Float.Array.unsafe_get packed(c*2))(Float.Array.unsafe_get packed(c*2+1))
+                      |Some _->Triangle.draw ~color:working ~depth:depth_attachment ~depth_state
                         ~blend:!active_blend ~cull:Triangle.Cull_none ~clip ~texture:None
                         transformed.(a) transformed.(b) transformed.(c)
                     done
