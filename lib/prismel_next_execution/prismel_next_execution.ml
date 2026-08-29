@@ -59,8 +59,7 @@ type scene2_resource_stamp=
 type cached_scene2_plan={plan_fingerprint:int;plan_command_count:int;
   plan_source_bytes:int;plan_density:int;
   plan_extent:int*int*int*int;plan_resources:scene2_resource_stamp list;
-  plan_ir:Scene_command.Render_ir.t;plan_draws:draw list;
-  plan_image_ids:int option list}
+  plan_ir:Scene_command.Render_ir.t;plan_draws:draw list}
 type scene2_plan_candidate={candidate_plan_fingerprint:int;
   candidate_plan_command_count:int;candidate_plan_density:int;
   candidate_plan_extent:int*int*int*int;
@@ -323,10 +322,20 @@ type offscreen_runtime={runtime:Runtime_next.offscreen;
 type runtime=Window of Runtime_next_orchestrator.t|Offscreen of offscreen_runtime
 type submission_state=Open|Closed
 exception Resource_resolver_raised of exn
+type snapshot_cache_entry={snapshot_key:string;snapshot_generation:int;
+  snapshot_density:int;snapshot_width:int;snapshot_height:int;
+  snapshot_bytes:int;snapshot_texture:Scene_execution.sampled_texture}
+let snapshot_cache_capacity=256
+let snapshot_cache_byte_capacity=64*1024*1024
+let sampled_texture_bytes (texture:Scene_execution.sampled_texture)=
+  Array.fold_left(fun total level->
+    let bytes=Bytes.length level.Scene_execution.bytes in
+    if total>snapshot_cache_byte_capacity-bytes then
+      snapshot_cache_byte_capacity+1 else total+bytes)0 texture.levels
 type t = { runtime:runtime; input:Runtime_next_input.t;
   assets:Prismel_next_resources.Assets.t; timing:timing; mutable frame:int64;
   mutable elapsed:float; mutable last_clock:float; mutable dead:bool;
-  mutable snapshots:(string*int*int*Scene_execution.sampled_texture)list;
+  mutable snapshots:snapshot_cache_entry list;mutable snapshot_bytes:int;
   mutable scene2_geometry_cache:cached_scene2_geometry list;
   mutable scene2_geometry_candidates:scene2_geometry_candidate list;
   mutable scene2_batch_cache:cached_scene2_batch list;
@@ -358,7 +367,7 @@ let finish_create operation configuration runtime destroy_runtime=
   |Error message->ignore(destroy_runtime());fail operation Backend message
   |Ok input->Ok{runtime;input;assets=Prismel_next_resources.Assets.create();
       timing=configuration.timing;frame=0L;elapsed=0.;last_clock=Unix.gettimeofday();
-      dead=false;snapshots=[];scene2_geometry_cache=[];scene2_geometry_candidates=[];
+      dead=false;snapshots=[];snapshot_bytes=0;scene2_geometry_cache=[];scene2_geometry_candidates=[];
       scene2_batch_cache=[];scene2_quad_cache=[];scene2_quad_payload_cache=[];
       scene2_debug_cache=[];scene2_plan_cache=[];scene2_plan_candidates=[];
       scene2_probe_count=(-1);scene2_probe_density=0;scene2_probe_fingerprint=0;
@@ -508,39 +517,73 @@ let diagnostics value=
      List.length value.canvas_keys;
    release_queue_pending;release_queue_live_handles;release_queue_total_created;
    release_queue_total_released}
-let snapshot value ~lease_policy ~density source =
+let snapshot value ~lease_policy:_ ~density source =
   let operation="Prismel_next_execution.lower_scene2"in
   if density<=0 then fail operation Invalid_argument"density must be positive"else
+  let find key generation=
+    let rec loop before=function
+      |[]->None
+      |entry::after when entry.snapshot_key=key&&
+          entry.snapshot_generation=generation&&entry.snapshot_density=density->
+          value.snapshots<-entry::List.rev_append before after;
+          Some(entry.snapshot_width,entry.snapshot_height,entry.snapshot_texture)
+      |entry::after->loop(entry::before)after in
+    loop[]value.snapshots in
+  let remove_stale key=
+    let kept,removed=List.partition(fun entry->
+      entry.snapshot_key<>key||entry.snapshot_density<>density)value.snapshots in
+    value.snapshots<-kept;
+    value.snapshot_bytes<-value.snapshot_bytes-
+      List.fold_left(fun bytes (entry:snapshot_cache_entry)->
+        bytes+entry.snapshot_bytes)0 removed in
+  let rec trim()=
+    if List.length value.snapshots>snapshot_cache_capacity||
+       value.snapshot_bytes>snapshot_cache_byte_capacity then
+      match List.rev value.snapshots with
+      |[]->()
+      |oldest::rest->
+          value.snapshots<-List.rev rest;
+          value.snapshot_bytes<-value.snapshot_bytes-oldest.snapshot_bytes;
+          trim()in
+  let store key generation width height texture bytes=
+    remove_stale key;
+    if bytes<=snapshot_cache_byte_capacity then begin
+      value.snapshots<-{snapshot_key=key;snapshot_generation=generation;
+        snapshot_density=density;snapshot_width=width;snapshot_height=height;
+        snapshot_bytes=bytes;snapshot_texture=texture}::value.snapshots;
+      value.snapshot_bytes<-value.snapshot_bytes+bytes;
+      trim()
+    end in
   let finish ?(copy=true) key generation width height pixels =
-    match List.find_opt(fun(k,g,d,_)->k=key&&g=generation&&d=density)value.snapshots with
-    |Some(_,_,_,texture)->Ok(width,height,texture)
+    match find key generation with
+    |Some cached->Ok cached
     |None->
         let sampler:Ogpu.Types.sampler_descriptor={label=Some key;min_filter=Linear;mag_filter=Linear;
           mip_filter=No_mip;address_u=Clamp_to_edge;address_v=Clamp_to_edge;lod_min=0.;lod_max=0.;max_anisotropy=1}in
         let bytes=if copy then Bytes.copy pixels else pixels in
         let texture:Scene_execution.sampled_texture={key=key^":"^string_of_int density;
           levels=[|{width;height;bytes}|];sampler}in
-        let others=List.filter(fun(k,_,d,_)->k<>key||d<>density)value.snapshots in
-        value.snapshots<-(key,generation,density,texture)::others;
-        if List.length value.snapshots>256 then value.snapshots<-List.rev(List.tl(List.rev value.snapshots));
+        store key generation width height texture(Bytes.length bytes);
         Ok(width,height,texture)in
   match source with
-  |Image image->(match Prismel_next_resources.Image.Private.borrow_snapshot image with
-      |Ok(width,height,_generation,pixels,lease)->
-          let key="image:"^string_of_int(Prismel_next_resources.Image.identity image)in
+  |Image image->
+      if Prismel_next_resources.Image.destroyed image then
+        fail operation Destroyed"image snapshot is destroyed"
+      else let key="image:"^string_of_int(Prismel_next_resources.Image.identity image)
+      and generation=Prismel_next_resources.Image.generation image in
+      (match find key generation with
+      |Some cached->Ok cached
+      |None->match Prismel_next_resources.Image.Private.borrow_snapshot image with
+      |Ok(width,height,borrowed_generation,pixels,lease)->
           let sampler:Ogpu.Types.sampler_descriptor={label=Some key;min_filter=Linear;mag_filter=Linear;
             mip_filter=No_mip;address_u=Clamp_to_edge;address_v=Clamp_to_edge;lod_min=0.;lod_max=0.;max_anisotropy=1}in
-          let pixels=match lease_policy with
-          |Retain_image_snapshots submission->
-              submission.image_leases<-lease::submission.image_leases;
-              pixels
-          |Copy_image_snapshots->
-              Fun.protect
-                ~finally:(fun()->
-                  Prismel_next_resources.Image.Private.release_snapshot lease)
-                (fun()->Bytes.copy pixels)in
-          Ok(width,height,{Scene_execution.key=key^":"^string_of_int density;
-            levels=[|{width;height;bytes=pixels}|];sampler})
+          let bytes=Fun.protect
+            ~finally:(fun()->Prismel_next_resources.Image.Private.release_snapshot lease)
+            (fun()->Bytes.copy pixels)in
+          let texture={Scene_execution.key=key^":"^string_of_int density;
+            levels=[|{width;height;bytes}|];sampler}in
+          store key borrowed_generation width height texture(Bytes.length bytes);
+          Ok(width,height,texture)
       |Error e->resource operation e)
   |Text text->(match Prismel_next_resources.Text.size text,Prismel_next_resources.Text.pixels text with
       |Ok(width,height),Ok pixels->finish("text:"^Digest.to_hex(Digest.bytes pixels))(Prismel_next_resources.Text.generation text)width height pixels
@@ -624,8 +667,7 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
       (destination:Scene_command.Render_ir.rect) (u0,v0,u1,v1 as uv) =
     let transform=render_transform(List.hd!transforms)in
     let clip=List.hd!clips in
-    let borrowed=String.starts_with~prefix:"image:"texture.Scene_execution.key in
-    match if borrowed then None else List.find_opt(fun cached->cached.quad_texture==texture&&
+    match List.find_opt(fun cached->cached.quad_texture==texture&&
       cached.quad_destination=destination&&cached.quad_transform=transform&&
       cached.quad_clip=clip&&cached.quad_uv=uv)value.scene2_quad_cache with
     |Some cached->cached.quad_draw
@@ -655,7 +697,7 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
       value={Scene_execution.mesh={key=Printf.sprintf"snapshot-%d"!number;vertices;vertex_count=4;indices;index_count=6};state=default_state(x,y,w,h)(x,y,w,h)}}in
     let cached={quad_texture=texture;quad_destination=destination;
       quad_transform=transform;quad_clip=clip;quad_uv=uv;quad_draw=draw}in
-    if not borrowed then begin
+    if sampled_texture_bytes texture<=snapshot_cache_byte_capacity then begin
       value.scene2_quad_cache<-cached::value.scene2_quad_cache;
       if List.length value.scene2_quad_cache>1024 then
         value.scene2_quad_cache<-List.rev(List.tl(List.rev value.scene2_quad_cache))
@@ -748,21 +790,6 @@ let scene2_resource_stamps resolve commands=
       Some(Canvas_stamp(id,canvas,Prismel_next_resources.Canvas.generation canvas)))
     (List.sort_uniq Int.compare!ids)in
   not!missing,stamps
-let scene2_plan_hydrate value ~lease_policy ~density plan=
-  let checkpoint=lease_checkpoint lease_policy in
-  let release_new_leases()=rollback_leases lease_policy checkpoint in
-  let textures=ref[]and failure=ref None in
-  List.iter(function
-    |Image_stamp(id,image,_)->(match snapshot value~lease_policy~density(Image image)with
-      |Ok(_,_,texture)->textures:=(id,texture)::!textures
-      |Error error->failure:=Some error)
-    |Text_stamp _|Canvas_stamp _->())plan.plan_resources;
-  match!failure with
-  |Some error->release_new_leases();Error error
-  |None->Ok(List.map2(fun draw->function
-      |None->draw
-      |Some id->{draw with texture=List.assoc_opt id!textures})
-      plan.plan_draws plan.plan_image_ids)
 let lower_scene2_with_policy value ~lease_policy ~density ~resource:resolve ir =
   if value.dead then lower_scene2_uncached value~lease_policy~density~resource:resolve ir else
   let commands=Scene_command.Render_ir.Private.commands_readonly ir in
@@ -801,11 +828,14 @@ let lower_scene2_with_policy value ~lease_policy ~density ~resource:resolve ir =
     same_scene2_resource_stamps plan.plan_resources resources&&
     Scene_command.Render_ir.Private.commands_readonly plan.plan_ir=commands in
   if cacheable then match List.find_opt exact value.scene2_plan_cache with
-  |Some plan->scene2_plan_hydrate value~lease_policy~density plan
+  |Some plan->Ok plan.plan_draws
   |None->
     (match lower_scene2_uncached value~lease_policy~density~resource:resolve ir with
     |Error _ as error->error
     |Ok draws as result->
+      if List.exists(fun draw->match draw.texture with
+        |Some texture->sampled_texture_bytes texture>snapshot_cache_byte_capacity
+        |None->false)draws then result else
       let candidate=List.find_opt(fun candidate->
         candidate.candidate_plan_fingerprint=fingerprint&&
         candidate.candidate_plan_command_count=command_count&&
@@ -823,17 +853,10 @@ let lower_scene2_with_policy value ~lease_policy ~density ~resource:resolve ir =
           value.scene2_plan_candidates
       |Some candidate->
         value.scene2_plan_candidates<-List.filter((!=)candidate)value.scene2_plan_candidates;
-        let image_ids=List.filter_map(function Image_stamp(id,_,_)->Some id|_->None)resources in
-        let image_id_of_draw draw=match draw.texture with None->None|Some texture->
-          List.find_opt(fun id->texture.Scene_execution.key=
-            "image:"^string_of_int id^":"^string_of_int density)image_ids in
-        let plan_image_ids=List.map image_id_of_draw draws in
-        let plan_draws=List.map2(fun draw->function None->draw|Some _->{draw with texture=None})
-          draws plan_image_ids in
         let plan={plan_fingerprint=fingerprint;plan_command_count=command_count;
           plan_source_bytes=scene2_plan_source_bytes commands;plan_density=density;
           plan_extent=extent;plan_resources=resources;
-          plan_ir=ir;plan_draws;plan_image_ids}in
+          plan_ir=ir;plan_draws=draws}in
         value.scene2_plan_cache<-trim_scene2_entries~capacity:16
           (fun plan->plan.plan_source_bytes)(plan::value.scene2_plan_cache));result)
   else lower_scene2_uncached value~lease_policy~density~resource:resolve ir end
@@ -979,7 +1002,7 @@ let capture_into value~destination=
 let destroy value=if value.dead then Ok()else(
   List.iter close_submission value.submissions;
   match Prismel_next_resources.Assets.destroy value.assets with Error e->resource"Prismel_next_execution.destroy"e|Ok()->
-    value.snapshots<-[];value.scene2_geometry_cache<-[];value.scene2_batch_cache<-[];
+    value.snapshots<-[];value.snapshot_bytes<-0;value.scene2_geometry_cache<-[];value.scene2_batch_cache<-[];
     value.scene2_quad_cache<-[];
     value.scene2_quad_payload_cache<-[];
     value.scene2_debug_cache<-[];

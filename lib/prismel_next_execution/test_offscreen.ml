@@ -115,16 +115,14 @@ let ()=
             let failed=get(Prismel_next_execution.Private.begin_submission execution)in
             ignore(get(Prismel_next_execution.Private.lower_scene2 failed~density:1
               ~resource:resolve image_ir));
-            expect_error"two isolated snapshot leases did not bound mutation"
-              (replace image);
+            ignore(get_resource(replace image));
             expect_error"later lowering failure was accepted"
               (Prismel_next_execution.Private.lower_scene2 failed~density:1
                 ~resource:resolve missing_ir);
             let overlap=get(Prismel_next_execution.Private.begin_submission execution)in
             ignore(get(Prismel_next_execution.Private.lower_scene2 overlap~density:1
               ~resource:resolve image_ir));
-            expect_error"failed submission released another submission's lease"
-              (replace image);
+            ignore(get_resource(replace image));
             Prismel_next_execution.Private.cancel first;
             ignore(get_resource(replace image));
             Prismel_next_execution.Private.cancel first;
@@ -136,8 +134,7 @@ let ()=
             let step_overlap=get(Prismel_next_execution.Private.begin_submission execution)in
             ignore(get(Prismel_next_execution.Private.lower_scene2 step_overlap
               ~density:1~resource:resolve image_ir));
-            expect_error"step-failure overlap fixture did not exhaust snapshots"
-              (replace image);
+            ignore(get_resource(replace image));
             expect_error"non-finite clear unexpectedly submitted"
               (Prismel_next_execution.Private.step~clear:(Float.nan,0.,0.,1.)
                 step_failed[step_draws]);
@@ -182,6 +179,76 @@ let ()=
             let submitted=get(Prismel_next_execution.capture execution)in
             pixel submitted 0 expected"successful transaction changed snapshot pixels";
             ignore(get_resource(replace image));
+            let labels=Array.init 45(fun index->
+              get_resource(Prismel_next_resources.Image.create~width:1~height:1
+                ~rgba:(Bytes.of_string
+                  (String.init 4(function 0->Char.chr index|3->'\xff'|_->'\000')))))in
+            Fun.protect
+              ~finally:(fun()->Array.iter(fun label->
+                ignore(Prismel_next_resources.Image.destroy label))labels)
+              (fun()->
+                let commands=Array.init 45(fun index->
+                  Scene_command.Render_ir.Image
+                    {resource_id=100+index;source=rect;destination=rect})in
+                let labels_ir=get_ir(Scene_command.Render_ir.create commands)
+                and resolve_label id=
+                  if id>=100&&id<145 then
+                    Some(Prismel_next_execution.Image labels.(id-100))
+                  else None in
+                let open_submission()=
+                  let submission=get(Prismel_next_execution.Private.begin_submission execution)in
+                  ignore(get(Prismel_next_execution.Private.lower_scene2 submission
+                    ~density:1~resource:resolve_label labels_ir));
+                  submission in
+                let no_lease=open_submission()in
+                Array.iteri(fun index label->
+                  let rgba value=Bytes.of_string
+                    (String.init 4(function 0->Char.chr value|3->'\xff'|_->'\000'))in
+                  ignore(get_resource(Prismel_next_resources.Image.replace label
+                    ~width:1~height:1~rgba:(rgba((index+1)land 255))));
+                  ignore(get_resource(Prismel_next_resources.Image.replace label
+                    ~width:1~height:1~rgba:(rgba((index+2)land 255)))))labels;
+                Prismel_next_execution.Private.cancel no_lease;
+                let warm=open_submission()in
+                Prismel_next_execution.Private.cancel warm;
+                let before=Gc.quick_stat()and allocated_before=Gc.allocated_bytes()in
+                for _frame=1 to 600 do
+                  let submission=open_submission()in
+                  Prismel_next_execution.Private.cancel submission
+                done;
+                let after=Gc.quick_stat()and allocated_after=Gc.allocated_bytes()in
+                let allocated_per_frame=(allocated_after-.allocated_before)/.600.
+                and promoted_per_frame=(after.promoted_words-.before.promoted_words)*.
+                  float(Sys.word_size/8)/.600. in
+                require(allocated_per_frame<131072.)
+                  "45-image cached lowering allocation ceiling";
+                require(promoted_per_frame<16384.)
+                  "45-image cached lowering promotion ceiling";
+                require(Prismel_next_execution.snapshot_cache_entries execution<=256)
+                  "image snapshot cache exceeded entry capacity";
+                let last=labels.(44)in
+                let blue=Bytes.of_string"\000\000\xff\xff"in
+                ignore(get_resource(Prismel_next_resources.Image.replace last
+                  ~width:1~height:1~rgba:blue));
+                let mutation=get(Prismel_next_execution.Private.begin_submission execution)in
+                let batch=get(Prismel_next_execution.Private.lower_scene2 mutation
+                  ~density:1~resource:resolve_label labels_ir)in
+                ignore(get(Prismel_next_execution.Private.step mutation[batch]));
+                pixel(get(Prismel_next_execution.capture execution))0 blue
+                  "image snapshot cache did not invalidate mutated pixels");
+            let eviction_images=Array.init 257(fun index->
+              get_resource(Prismel_next_resources.Image.create~width:1~height:1
+                ~rgba:(Bytes.of_string
+                  (String.init 4(function 0->Char.chr(index land 255)|3->'\xff'|_->'\000')))))in
+            Fun.protect
+              ~finally:(fun()->Array.iter(fun cached->
+                ignore(Prismel_next_resources.Image.destroy cached))eviction_images)
+              (fun()->Array.iter(fun cached->
+                ignore(get(Prismel_next_execution.lower_scene2 execution~density:1
+                  ~resource:(function 1->Some(Prismel_next_execution.Image cached)|_->None)
+                  image_ir)))eviction_images;
+                require(Prismel_next_execution.snapshot_cache_entries execution=256)
+                  "image snapshot cache did not evict to its exact entry capacity");
             let destroy_first=get(Prismel_next_execution.Private.begin_submission execution)in
             ignore(get(Prismel_next_execution.Private.lower_scene2 destroy_first
               ~density:1~resource:resolve image_ir));
@@ -189,8 +256,7 @@ let ()=
             let destroy_second=get(Prismel_next_execution.Private.begin_submission execution)in
             ignore(get(Prismel_next_execution.Private.lower_scene2 destroy_second
               ~density:1~resource:resolve image_ir));
-            expect_error"destroy overlap fixture did not exhaust snapshots"
-              (replace image);
+            ignore(get_resource(replace image));
             ignore(get(Prismel_next_execution.destroy execution));
             ignore(get_resource(replace image));
             expect_error"destroyed coordinator began a submission"
