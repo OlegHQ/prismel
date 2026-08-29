@@ -324,7 +324,7 @@ type offscreen_runtime={runtime:Runtime_next.offscreen;
 type runtime=Window of Runtime_next_orchestrator.t|Offscreen of offscreen_runtime
 type submission_state=Open|Closed
 exception Resource_resolver_raised of exn
-type snapshot_cache_entry={snapshot_key:string;snapshot_generation:int;
+type snapshot_cache_entry={snapshot_key:string;mutable snapshot_generation:int;
   snapshot_density:int;snapshot_width:int;snapshot_height:int;
   snapshot_bytes:int;snapshot_texture:Scene_execution.sampled_texture}
 let snapshot_cache_capacity=256
@@ -358,6 +358,7 @@ type t = { runtime:runtime; input:Runtime_next_input.t;
   mutable last_step_prepared:Runtime_next_orchestrator.prepared list;
   mutable scene2_out_slots:draw array;
   mutable scene2_out_list:draw list;
+  mutable last_presentation:presentation_facts option;
   mutable canvas_keys:(Prismel_next_resources.Canvas.t*string)list;mutable next_canvas_key:int }
 and submission={owner:t;mutable submission_state:submission_state;
   mutable image_leases:Prismel_next_resources.Image.Private.lease list}
@@ -382,7 +383,7 @@ let finish_create operation configuration runtime destroy_runtime=
       scene2_debug_cache=[];scene2_plan_cache=[];scene2_plan_candidates=[];
       scene2_probe_count=(-1);scene2_probe_density=0;scene2_probe_fingerprint=0;
       scene2_probe_cooldown=0;submissions=[];last_step_draws=[];last_step_prepared=[];
-      scene2_out_slots=[||];scene2_out_list=[];
+      scene2_out_slots=[||];scene2_out_list=[];last_presentation=None;
       canvas_keys=[];next_canvas_key=0}
 let create (configuration:configuration) =
   let operation="Prismel_next_execution.create" in
@@ -487,11 +488,19 @@ let presentation_facts value=match ensure"Prismel_next_execution.presentation_fa
     |Window runtime->(match Runtime_next_orchestrator.facts runtime with
       |Error error->{operation="Prismel_next_execution.presentation_facts";
           kind=Backend;message=Ogpu.Error.to_string error}|>Result.error
-      |Ok facts->Ok{title=facts.title;logical_width=facts.logical_width;
-          logical_height=facts.logical_height;drawable_width=facts.drawable_width;
-          drawable_height=facts.drawable_height;position=facts.position;
-          pixel_density=facts.pixel_density;display_scale=facts.display_scale;
-          refresh_rate=facts.refresh_rate;vsync=facts.vsync})
+      |Ok facts->
+          (match value.last_presentation with
+           |Some p when p.logical_width=facts.logical_width&&p.logical_height=facts.logical_height&&
+               p.drawable_width=facts.drawable_width&&p.drawable_height=facts.drawable_height&&
+               p.pixel_density=facts.pixel_density&&p.display_scale=facts.display_scale&&
+               p.vsync=facts.vsync&&p.title=facts.title&&p.position=facts.position&&
+               p.refresh_rate=facts.refresh_rate->Ok p
+           |_->let p={title=facts.title;logical_width=facts.logical_width;
+               logical_height=facts.logical_height;drawable_width=facts.drawable_width;
+               drawable_height=facts.drawable_height;position=facts.position;
+               pixel_density=facts.pixel_density;display_scale=facts.display_scale;
+               refresh_rate=facts.refresh_rate;vsync=facts.vsync}in
+               value.last_presentation<-Some p;Ok p))
     |Offscreen state->Ok state.facts
 type diagnostics={active:bool;resource_count:int;cache_entries:int;
   release_queue_pending:int option;release_queue_live_handles:int option;
@@ -570,6 +579,21 @@ let snapshot value ~lease_policy ~density source =
     match find key generation with
     |Some cached->Ok cached
     |None->
+        let rec find_key before=function
+          |[]->None
+          |entry::after when entry.snapshot_key=key&&entry.snapshot_density=density&&
+              entry.snapshot_width=width&&entry.snapshot_height=height->
+              value.snapshots<-entry::List.rev_append before after;
+              Some entry
+          |entry::after->find_key(entry::before)after in
+        match find_key[]value.snapshots with
+        |Some entry->
+            entry.snapshot_generation<-generation;
+            let texture=entry.snapshot_texture in
+            let bytes=if copy then Bytes.copy pixels else pixels in
+            texture.levels.(0)<-{texture.levels.(0) with bytes};
+            Ok(width,height,texture)
+        |None->
         let sampler:Ogpu.Types.sampler_descriptor={label=Some"scene-image";min_filter=Linear;mag_filter=Linear;
           mip_filter=No_mip;address_u=Clamp_to_edge;address_v=Clamp_to_edge;lod_min=0.;lod_max=0.;max_anisotropy=1}in
         let bytes=if copy then Bytes.copy pixels else pixels in
@@ -1085,7 +1109,7 @@ let destroy value=if value.dead then Ok()else(
     value.scene2_plan_cache<-[];value.scene2_plan_candidates<-[];
     value.scene2_geometry_candidates<-[];value.last_step_draws<-[];
     value.last_step_prepared<-[];value.scene2_out_slots<-[||];
-    value.scene2_out_list<-[];value.canvas_keys<-[];value.dead<-true;
+    value.scene2_out_list<-[];value.last_presentation<-None;value.canvas_keys<-[];value.dead<-true;
     let destroyed=match value.runtime with
     |Window runtime->Runtime_next_orchestrator.destroy runtime
     |Offscreen state->Runtime_next.destroy_offscreen state.runtime in

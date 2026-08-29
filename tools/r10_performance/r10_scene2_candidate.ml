@@ -75,9 +75,12 @@ let update_canvas value ~width ~height =
       rounded_rect~at:(-90,-28)~w:180~h:56~radius:14
         ~fill:(Color.rgba 244 63 94 210)~stroke:Color.white()]];
     debug_text~at:(16,16)"CANVAS BASELINE"];
-  let next=Result.get_ok(Canvas.to_image canvas)in
-  Option.iter Image.destroy value.image;
-  value.image<-Some next
+  match value.image with
+  |Some image->
+      (match Canvas.Private.copy_to_image canvas image with
+       |Ok()->()
+       |Error message->failwith message)
+  |None->value.image<-Some(Result.get_ok(Canvas.to_image canvas))
 let pxui_scene value=Scene.[clear(Color.hex_exn"#07111f");text~at:(24,24)~size:20"PXUI render baseline";rounded_rect~at:(18,62)~w:306~h:382~radius:12~fill:(Color.hex_exn"#111827")~stroke:(Color.hex_exn"#334155")();circle~at:(168,236)~radius:94~fill:(Color.hex_exn"#155e75")();debug_text~at:(88,420)"GRAPH / INSPECTOR"]@Pxui_next.scene(Option.get value.ui)
 let render value ~width ~height =value.frame<-value.frame+1;
   if value.scenario=Canvas then update_canvas value~width~height;
