@@ -40,6 +40,15 @@ module Time : sig
   val performance_frequency : unit -> int64
   val monotonic_seconds : unit -> float
 
+  (** Wait at least the requested whole number of milliseconds using SDL's
+      ordinary millisecond timer. The value must fit in an unsigned 32-bit
+      integer. The calling OCaml domain does not retain the runtime lock. *)
+  val delay_ms : int -> (unit, error) result
+
+  (** [delay_seconds seconds] rounds a finite, non-negative duration up to
+      milliseconds and waits using SDL's ordinary millisecond timer. *)
+  val delay_seconds : float -> (unit, error) result
+
   (** Wait as close as possible to the requested non-negative duration.
       The calling OCaml domain does not retain the runtime lock while waiting. *)
   val delay_precise_ns : int64 -> (unit, error) result

@@ -13,6 +13,19 @@ let () =
     fail"SDL3 monotonic performance counter invalid";
   List.iter (function
     | Error { kind = Invalid_argument; _ } -> ()
+    | Ok () | Error _ -> fail "invalid ordinary delay was not rejected")
+    [Time.delay_ms (-1); Time.delay_ms 4_294_967_296;
+     Time.delay_seconds (-0.001); Time.delay_seconds nan;
+     Time.delay_seconds infinity; Time.delay_seconds 0x1p63];
+  get (Time.delay_ms 0);
+  let ordinary_before = Time.monotonic_seconds () in
+  get (Time.delay_seconds 0.002);
+  let ordinary_elapsed = Time.monotonic_seconds () -. ordinary_before in
+  if ordinary_elapsed < 0.0019 then fail "ordinary delay returned too early";
+  if ordinary_elapsed > 0.5 then fail "ordinary delay overslept absurdly";
+  get (Domain.spawn (fun () -> Time.delay_ms 1) |> Domain.join);
+  List.iter (function
+    | Error { kind = Invalid_argument; _ } -> ()
     | Ok () | Error _ -> fail "invalid precise delay was not rejected")
     [Time.delay_precise_ns (-1L); Time.delay_precise_seconds (-0.001);
      Time.delay_precise_seconds nan; Time.delay_precise_seconds infinity;

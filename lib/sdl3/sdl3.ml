@@ -80,6 +80,28 @@ module Time = struct
     Int64.to_float (performance_counter ())
     /. Int64.to_float (performance_frequency ())
 
+  let max_delay_ms = 0xffff_ffffL
+
+  let delay_ms milliseconds =
+    let milliseconds = Int64.of_int milliseconds in
+    if milliseconds < 0L || milliseconds > max_delay_ms then
+      error "SDL3.Time.delay_ms" Invalid_argument
+        "milliseconds must fit in a non-negative unsigned 32-bit integer"
+    else (Private_raw.delay_ms milliseconds; Ok ())
+
+  let delay_seconds seconds =
+    let operation = "SDL3.Time.delay_seconds" in
+    if not (Float.is_finite seconds) then
+      error operation Invalid_argument "seconds must be finite"
+    else if seconds < 0. then
+      error operation Invalid_argument "seconds must be non-negative"
+    else
+      let milliseconds = Float.ceil (seconds *. 1_000.) in
+      if milliseconds > Int64.to_float max_delay_ms then
+        error operation Invalid_argument
+          "seconds exceed the supported millisecond range"
+      else (Private_raw.delay_ms (Int64.of_float milliseconds); Ok ())
+
   let delay_precise_ns nanoseconds =
     if nanoseconds < 0L then
       error "SDL3.Time.delay_precise_ns" Invalid_argument
