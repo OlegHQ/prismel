@@ -902,13 +902,13 @@
       "source_sha256": "bd3fec239106de569f8fb27d6f3982aa8eb4fdeb569fdaf5500c177821b5bdb0"
     },
     {
-      "api_sha256": "d9a1627d2abdccf2c2c160c63e280f5731fde2fb32cb27e70ed9201aa811075a",
+      "api_sha256": "315ce1c8c391ab77f5980eb1643d8748ef2c2a1c97f859f2537c5458d7231280",
       "excluded_legacy_symbols": [],
       "library": "prismel",
       "module": "Sketch",
       "source": "lib/prismel/sketch.mli",
-      "source_bytes": 1940,
-      "source_sha256": "c01ff95ef0ff9ec637a96b7c0d45893925c735c32b5c0c314214fcaaf1130675"
+      "source_bytes": 1869,
+      "source_sha256": "476d4f3ed56159786d843859fd563388adb06f0c840e4182d7370b19fc6a925c"
     },
     {
       "api_sha256": "01086afcf1c63d71139bcc9d48fee9cfb6c3c3e9243b76476636852e1801adb5",
@@ -916,8 +916,8 @@
       "library": "prismel",
       "module": "Texture",
       "source": "lib/prismel/texture.mli",
-      "source_bytes": 1895,
-      "source_sha256": "2b40a061f76cdd7ef09a07c837265d22b48e7f252eb8117e1ed58831f1a294d6"
+      "source_bytes": 1948,
+      "source_sha256": "cbe326671da2090848cc380f69ca8b122ace60eeaa8fa7fe51d4538d2a46f464"
     },
     {
       "api_sha256": "198f7da5ef5f3d5c149699105f58c8b4c311f7cbd641df2870f233bd227879df",
