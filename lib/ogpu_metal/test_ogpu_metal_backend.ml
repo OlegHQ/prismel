@@ -181,6 +181,8 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal backe
   let surface=get(Ogpu.Backend.create_surface device config)in
   let acquire_surface_frame()=match get(Ogpu.Backend.acquire surface)with
     |`Acquired frame->frame|_->failwith"backend surface acquire"in
+  let acquire_surface_frame_sync()=match get(Ogpu.Backend.acquire_sync surface)with
+    |`Acquired frame->frame|_->failwith"backend scoped surface acquire"in
   for i=0 to 2 do
     let frame=acquire_surface_frame()in
     if i land 1=0 then get(Ogpu.Backend.present~queue~source:target frame)
@@ -216,13 +218,15 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal backe
   get(Ogpu.Backend.configure surface config);
   let terminal_command=get(Ogpu.Backend.render rp[draw])in
   let submit_terminal()=
-    let frame=acquire_surface_frame()in
-    Ogpu.Backend.submit_present queue terminal_command
+    let frame=acquire_surface_frame_sync()in
+    match Ogpu.Backend.submit_present_sync queue terminal_command
       ~resources:[`Texture target]~pipelines:[render_pipeline]
-      ~source:target frame in
+      ~source:target frame with
+    |Error _ as error->error
+    |Ok{receipt;completion=Ok()}->Ok receipt
+    |Ok{completion=Error error;_}->Error error in
   for _=1 to 4 do
-    let receipt=get(submit_terminal())in
-    get(Ogpu.Backend.complete_through queue receipt.epoch)
+    ignore(get(submit_terminal()))
   done;
   Gc.full_major();
   let control_gc_before=Gc.quick_stat()in
@@ -240,14 +244,7 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal backe
       float(Sys.word_size/8)/.600. in
   Gc.full_major();
   let presentation_gc_before=Gc.quick_stat()in
-  for frame=1 to 600 do
-    let receipt=get(submit_terminal())in
-    if List.mem frame[1;2;60;600]then begin
-      expect Ogpu.Error.Invalid_state(Ogpu.Backend.configure surface config);
-      expect Ogpu.Error.Invalid_state(Ogpu.Backend.destroy_surface surface)
-    end;
-    get(Ogpu.Backend.complete_through queue receipt.epoch)
-  done;
+  for _frame=1 to 600 do ignore(get(submit_terminal()))done;
   Gc.minor();
   let presentation_gc_after=Gc.quick_stat()in
   let presentation_promoted=
