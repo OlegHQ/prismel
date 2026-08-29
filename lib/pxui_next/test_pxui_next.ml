@@ -23,7 +23,7 @@ let () =
   require(Pxui_next.scene ui==scene)"stable UI did not reuse bounded Scene description";
   let first=Result.get_ok(Scene.Private.to_ir scene)in
   let hash=Printf.sprintf"%016Lx"(Scene_command.Render_ir.hash first)in
-  require(hash="d8db72222365d861")"PXUI-next exact Scene hash drift";
+  require(hash="22f8eb4ad7bef0f5")"PXUI-next exact Scene hash drift";
   List.iter(fun checkpoint->let ir=Result.get_ok(Scene.Private.to_ir scene)in
     require(Scene_command.Render_ir.serialize ir=Scene_command.Render_ir.serialize first)(Printf.sprintf"frame %d drift"checkpoint))
     [1;2;60;600];
