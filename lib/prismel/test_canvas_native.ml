@@ -50,6 +50,10 @@ let ()=
       let pixels=Result.get_ok(Image.Private.pixels image)in
       require(Bytes.sub pixels 0 4=Bytes.of_string"\255\000\000\255")
         "Canvas native to_image exact pixel");
+    Canvas.destroy canvas;
+    let after=Canvas.Private.native_stats canvas in
+    require(after.cache_entries=0&&after.frames=0L&&
+      after.logical_submissions=0L)"Canvas native cache teardown delta";
     Canvas.destroy canvas;drain();
     require(live_handles()=baseline)"Canvas native Metal live-handle delta";
     print_endline
