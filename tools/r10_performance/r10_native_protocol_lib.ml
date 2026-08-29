@@ -11,8 +11,10 @@ let production_benchmark =
   "_build/default/tools/runtime_next_native_benchmark/runtime_next_native_benchmark.exe"
 let production_protocol_suffix =
   "_build/default/tools/r10_performance/r10_native_protocol.exe"
-let qualification_schema = "prismel-r10-native-qualification/v2"
+let qualification_schema = "prismel-r10-native-qualification/v3"
 let smoke_schema = "prismel-r10-native-smoke/v1"
+let historical_schema = 1
+let historical_commit = "57e1078952b62a39452665cea68d3629530b45b6"
 let frozen_baseline_sha256 =
   "80da0d5026d45334d14b4d3225aa45ed3243e09eea3d8813ebb0f4b9e1ae3b6a"
 
@@ -302,6 +304,23 @@ let expected_command ~benchmark ~width ~height ~warmup_seconds ~sample_seconds
   ; "--sample-seconds"; Printf.sprintf "%.9g" sample_seconds
   ]
 
+let historical_environment ~profile ~width ~height ~warmup_seconds
+    ~sample_seconds =
+  [ "PRISMEL_BENCH_DOMAINS", "1"
+  ; "PRISMEL_BENCH_PROFILE", profile
+  ; "PRISMEL_RENDERER_BENCH_WIDTH", string_of_int width
+  ; "PRISMEL_RENDERER_BENCH_HEIGHT", string_of_int height
+  ; "PRISMEL_RENDERER_BENCH_WARMUP", Printf.sprintf "%.9g" warmup_seconds
+  ; "PRISMEL_RENDERER_BENCH_SECONDS", Printf.sprintf "%.9g" sample_seconds
+  ; "PRISMEL_RENDER_TARGET", "native"
+  ]
+
+let expected_historical_command ~benchmark scenario = [ benchmark; scenario ]
+
+let historical_samples_for report scenario =
+  report |> member "historical_samples" |> to_list
+  |> List.filter (fun sample -> member "scenario" sample = `String scenario)
+
 let sample_raw context sample = field context "raw" sample
 
 let samples_for report scenario visibility =
@@ -566,6 +585,115 @@ let validate_machine provenance =
       |Some(`List(_::_))->()|_->fail "machine display inventory has no displays")
    |_->fail "machine display inventory is not an object")
 
+let validate_historical_raw ~profile ~width ~height ~warmup_seconds
+    ~sample_seconds scenario raw =
+  let context = "historical/" ^ scenario in
+  if integer context (field context "schema" raw) <> historical_schema
+     || member "benchmark" raw <> `String "renderer"
+     || member "scenario" raw <> `String scenario
+     || member "target" raw <> `String "native"
+  then fail "%s is not a Phase0 native renderer result" context;
+  if string context (field context "profile" raw) <> profile
+     || integer context (field context "width" raw) <> width
+     || integer context (field context "height" raw) <> height
+     || integer context (field context "domains" raw) <> 1
+  then fail "%s profile/resolution/domain mismatch" context;
+  if number context (field context "warmup_seconds" raw) <> warmup_seconds
+     || number context (field context "requested_measure_seconds" raw)
+        <> sample_seconds
+  then fail "%s duration mismatch" context;
+  let frames = integer context (field context "frames" raw) in
+  if frames <= 0 then fail "%s measured no frames" context;
+  let wall = number context (field context "wall_seconds" raw) in
+  if wall < sample_seconds *. 0.90 || wall > sample_seconds *. 1.10 then
+    fail "%s wall interval %.3fs is outside the 10%% protocol envelope"
+      context wall;
+  List.iter (fun metric -> ignore (baseline_metric context metric raw)) metrics
+
+let validate_historical_samples report ~expected ~benchmark ~profile ~width
+    ~height ~warmup_seconds ~sample_seconds =
+  let samples = report |> member "historical_samples" |> to_list in
+  let expected_order = ref [] in
+  for sample_index = 1 to expected do
+    List.iter (fun scenario ->
+      expected_order := (sample_index, scenario) :: !expected_order) scenarios
+  done;
+  let expected_order = List.rev !expected_order in
+  if List.length samples <> List.length expected_order then
+    fail "report has %d historical samples, expected exactly %d"
+      (List.length samples) (List.length expected_order);
+  let expected_environment =
+    historical_environment ~profile ~width ~height ~warmup_seconds
+      ~sample_seconds
+  in
+  let actual_order = List.map (fun sample ->
+    let context = "historical sample" in
+    let index = integer context (field context "sample_index" sample)
+    and scenario = string context (field context "scenario" sample) in
+    if not (List.mem scenario scenarios) then
+      fail "unknown historical R10 scenario %s" scenario;
+    let command = field context "command" sample |> to_list |> List.map to_string in
+    if command <> expected_historical_command ~benchmark scenario then
+      fail "historical %s index %d child command drift" scenario index;
+    let environment = field context "environment" sample |> to_assoc
+      |> List.map (fun (name, value) -> name, to_string value) in
+    if environment <> expected_environment then
+      fail "historical %s index %d environment drift" scenario index;
+    let before_time, before_power, before_thermal =
+      validate_conditions (context ^ ".conditions_before")
+        (field context "conditions_before" sample)
+    and after_time, after_power, after_thermal =
+      validate_conditions (context ^ ".conditions_after")
+        (field context "conditions_after" sample) in
+    if after_time < before_time then
+      fail "%s condition timestamps are reversed" context;
+    if not (contains before_power "AC Power")
+       || not (contains after_power "AC Power")
+       || before_thermal <> after_thermal
+    then fail "%s power/thermal conditions were not stable AC" context;
+    validate_historical_raw ~profile ~width ~height ~warmup_seconds
+      ~sample_seconds scenario (field context "raw" sample);
+    index, scenario) samples in
+  if actual_order <> expected_order then
+    fail "historical cells are not exactly round-major/scenario-major";
+  samples
+
+let validate_interleaving report ~expected =
+  let candidates = report |> member "samples" |> to_list
+  and historical = report |> member "historical_samples" |> to_list in
+  let find_candidate index scenario visibility =
+    List.find (fun sample ->
+      member "sample_index" sample = `Int index
+      && member "scenario" sample = `String scenario
+      && member "visibility" sample = `String visibility) candidates
+  and find_historical index scenario =
+    List.find (fun sample ->
+      member "sample_index" sample = `Int index
+      && member "scenario" sample = `String scenario) historical in
+  for index = 1 to expected do
+    List.iter (fun scenario ->
+      let legacy = find_historical index scenario
+      and visible = find_candidate index scenario "visible"
+      and hidden = find_candidate index scenario "hidden" in
+      let condition sample side =
+        validate_conditions "interleaving"
+          (field "interleaving" ("conditions_" ^ side) sample) in
+      let _, _, legacy_before_thermal = condition legacy "before"
+      and legacy_after, _, legacy_after_thermal = condition legacy "after"
+      and visible_before, _, visible_before_thermal = condition visible "before"
+      and visible_after, _, visible_after_thermal = condition visible "after"
+      and hidden_before, _, hidden_before_thermal = condition hidden "before" in
+      if legacy_after > visible_before || visible_after > hidden_before then
+        fail "round %d %s was not sampled historical-visible-hidden in order"
+          index scenario;
+      if List.sort_uniq String.compare
+           [ legacy_before_thermal; legacy_after_thermal; visible_before_thermal;
+             visible_after_thermal; hidden_before_thermal ]
+         |> List.length <> 1
+      then fail "round %d %s thermal state changed across comparator pair"
+        index scenario) scenarios
+  done
+
 let validate_report ?(verify_files=true) report =
   if member "schema" report <> `String qualification_schema then
     fail "report is not an R10 native qualification artifact";
@@ -604,6 +732,15 @@ let validate_report ?(verify_files=true) report =
      ||member "workload_source_sha256"provenance<>
        `String R10_phase0_workload_authority.source_sha256 then
     fail "frozen Phase0 workload provenance mismatch";
+  let historical_benchmark = string "provenance.historical_benchmark"
+      (field "provenance" "historical_benchmark" provenance)
+  and historical_executable_sha =
+    string "provenance.historical_executable_sha256"
+      (field "provenance" "historical_executable_sha256" provenance) in
+  if member "historical_commit" provenance <> `String historical_commit then
+    fail "historical comparator is not pinned to commit %s" historical_commit;
+  if not (hex64 historical_executable_sha) then
+    fail "historical comparator digest is not canonical SHA-256";
   let commit = string "provenance.git_commit" (field "provenance" "git_commit" provenance) in
   if not (canonical_commit commit) then fail "report lacks a canonical git commit";
   if boolean "provenance.git_dirty" (field "provenance" "git_dirty" provenance) then
@@ -626,14 +763,22 @@ let validate_report ?(verify_files=true) report =
     if not(Sys.file_exists benchmark)||sha256 benchmark<>executable_sha then
       fail "benchmark executable digest does not correspond to its path";
     if not(Sys.file_exists protocol_executable)||sha256 protocol_executable<>protocol_sha then
-      fail "protocol executable digest does not correspond to its path"
+      fail "protocol executable digest does not correspond to its path";
+    if not (Sys.file_exists historical_benchmark)
+       || sha256 historical_benchmark <> historical_executable_sha
+    then fail "historical comparator digest does not correspond to its path"
   end;
   ignore(validate_exact_cells report~expected~benchmark~width~height~warmup_seconds
     ~sample_seconds~qualification:true);
+  ignore (validate_historical_samples report ~expected
+    ~benchmark:historical_benchmark ~profile ~width ~height ~warmup_seconds
+    ~sample_seconds);
+  validate_interleaving report ~expected;
   let summaries = ref [] in
   List.iter
     (fun scenario ->
-      let baseline = baseline_runs ~baseline_path ~profile ~width ~height scenario in
+      let baseline = historical_samples_for report scenario
+        |> List.map (fun sample -> field ("historical/" ^ scenario) "raw" sample) in
       List.iter
         (fun visibility ->
           let samples = samples_for report scenario visibility in
@@ -682,7 +827,7 @@ let validate_report ?(verify_files=true) report =
               [ "scenario", `String scenario
               ; "visibility", `String visibility
               ; "baseline_authority",
-                  `String (baseline_path ^ "#renderer:native:" ^ scenario)
+                  `String (historical_benchmark ^ "@" ^ historical_commit)
               ; "checks", `List checks
               ]
             :: !summaries)
@@ -772,6 +917,39 @@ let capture argv =
       cleanup ();
       fail "child received signal %d: %s" signal detail
 
+let capture_with_environment bindings argv =
+  let overridden = List.map fst bindings in
+  let inherited = Unix.environment () |> Array.to_list
+    |> List.filter (fun entry ->
+      match String.index_opt entry '=' with
+      | None -> true
+      | Some index ->
+          not (List.mem (String.sub entry 0 index) overridden)) in
+  let additions = List.map (fun (name, value) -> name ^ "=" ^ value) bindings in
+  let output = Filename.temp_file "prismel-r10-historical-" ".json"
+  and errors = Filename.temp_file "prismel-r10-historical-" ".stderr" in
+  let output_fd = Unix.openfile output [ Unix.O_WRONLY; Unix.O_TRUNC ] 0o600
+  and error_fd = Unix.openfile errors [ Unix.O_WRONLY; Unix.O_TRUNC ] 0o600 in
+  let pid = Unix.create_process_env argv.(0) argv
+      (Array.of_list (additions @ inherited)) Unix.stdin output_fd error_fd in
+  Unix.close output_fd;
+  Unix.close error_fd;
+  let read_text path =
+    let channel = open_in_bin path in
+    Fun.protect ~finally:(fun () -> close_in channel) (fun () ->
+      really_input_string channel (in_channel_length channel)) in
+  let cleanup () =
+    (try Sys.remove output with Sys_error _ -> ());
+    (try Sys.remove errors with Sys_error _ -> ()) in
+  match snd (Unix.waitpid [] pid) with
+  | Unix.WEXITED 0 -> Fun.protect ~finally:cleanup (fun () -> read_json output)
+  | Unix.WEXITED code ->
+      let detail = String.trim (read_text errors) in cleanup ();
+      fail "historical child exited %d: %s" code detail
+  | Unix.WSIGNALED signal | Unix.WSTOPPED signal ->
+      let detail = String.trim (read_text errors) in cleanup ();
+      fail "historical child received signal %d: %s" signal detail
+
 let finalize_report ?(verify_files=true) ~smoke ~output provisional =
   if smoke then begin
     validate_smoke_report provisional;
@@ -793,7 +971,8 @@ let finalize_report ?(verify_files=true) ~smoke ~output provisional =
     report
   end
 
-let run ~benchmark ~baseline_path ~output ~profile ~width ~height ~samples
+let run ~benchmark ~historical_benchmark ~historical_commit:requested_historical_commit
+    ~baseline_path ~output ~profile ~width ~height ~samples
     ~warmup_seconds ~sample_seconds ~smoke ~dry_run =
   let baseline_path =
     try Unix.realpath baseline_path with Unix.Unix_error _ ->
@@ -809,8 +988,14 @@ let run ~benchmark ~baseline_path ~output ~profile ~width ~height ~samples
     fail "R10 smoke requires one positive-duration run per cell";
   if not smoke&&benchmark<>production_benchmark then
     fail "qualification benchmark must be %s"production_benchmark;
+  if not smoke && requested_historical_commit <> historical_commit then
+    fail "R10 historical comparator must be pinned to %s" historical_commit;
+  if not smoke && historical_benchmark = "" then
+    fail "R10 qualification requires --historical-benchmark";
   if not dry_run then preflight_benchmark ~profile benchmark;
   if not (Sys.file_exists benchmark) then fail "benchmark does not exist: %s" benchmark;
+  if not smoke && not (Sys.file_exists historical_benchmark) then
+    fail "historical benchmark does not exist: %s" historical_benchmark;
   if sha256 baseline_path <> frozen_baseline_sha256 then
     fail "Phase0 baseline digest drift";
   List.iter
@@ -820,12 +1005,39 @@ let run ~benchmark ~baseline_path ~output ~profile ~width ~height ~samples
   R10_phase0_workload_authority.validate_all~width~height;
   let commit = if smoke || dry_run then git [ "rev-parse"; "HEAD" ] else clean_commit () in
   let executable_digest = sha256 benchmark in
+  let historical_executable_digest =
+    if smoke then "" else sha256 historical_benchmark in
   let protocol_executable_digest = sha256 Sys.executable_name in
   let machine=if dry_run then `Null else machine_facts()in
   let samples_json = ref [] in
+  let historical_samples_json = ref [] in
   for sample_index = 1 to runs do
     List.iter
       (fun scenario ->
+        if not smoke then begin
+          let environment = historical_environment ~profile ~width ~height
+              ~warmup_seconds ~sample_seconds
+          and command = expected_historical_command
+              ~benchmark:historical_benchmark scenario in
+          Printf.printf "[%d/%d] historical/%s\n%!" sample_index runs scenario;
+          if dry_run then
+            Printf.printf "  %s %s\n%!"
+              (String.concat " " (List.map (fun (name,value)->name^"="^value) environment))
+              (String.concat " " command)
+          else
+            let conditions_before = conditions () in
+            let raw = capture_with_environment environment (Array.of_list command) in
+            let conditions_after = conditions () in
+            historical_samples_json := `Assoc
+              [ "sample_index", `Int sample_index
+              ; "scenario", `String scenario
+              ; "command", `List (List.map (fun value -> `String value) command)
+              ; "environment", `Assoc (List.map
+                  (fun (name, value) -> name, `String value) environment)
+              ; "conditions_before", conditions_before
+              ; "conditions_after", conditions_after
+              ; "raw", raw ] :: !historical_samples_json
+        end;
         List.iter
           (fun visibility ->
             let command=expected_command~benchmark~width~height~warmup_seconds
@@ -855,7 +1067,9 @@ let run ~benchmark ~baseline_path ~output ~profile ~width ~height ~samples
     if not smoke then begin
       if clean_commit () <> commit then fail "source commit changed during R10";
       if sha256 benchmark <> executable_digest then
-        fail "benchmark executable changed during R10"
+        fail "benchmark executable changed during R10";
+      if sha256 historical_benchmark <> historical_executable_digest then
+        fail "historical benchmark executable changed during R10"
     end;
     let protocol =
       `Assoc
@@ -864,6 +1078,8 @@ let run ~benchmark ~baseline_path ~output ~profile ~width ~height ~samples
         ; "sample_seconds", `Float sample_seconds
         ; "kind",`String(if smoke then"smoke"else"qualification")
         ; "ordering", `String "round-major/scenario-major/visibility-minor"
+        ; "historical_ordering",
+            `String "one historical visible immediately before each candidate visible/hidden pair"
         ]
     in
     let provisional =
@@ -876,6 +1092,9 @@ let run ~benchmark ~baseline_path ~output ~profile ~width ~height ~samples
               ; "git_dirty", `Bool(git["status";"--porcelain=v1";"--untracked-files=all"]<>"")
               ; "benchmark", `String benchmark
               ; "executable_sha256", `String executable_digest
+              ; "historical_benchmark", `String historical_benchmark
+              ; "historical_executable_sha256", `String historical_executable_digest
+              ; "historical_commit", `String requested_historical_commit
               ; "protocol_executable", `String Sys.executable_name
               ; "protocol_executable_sha256", `String protocol_executable_digest
               ; "baseline_path", `String baseline_path
@@ -885,6 +1104,7 @@ let run ~benchmark ~baseline_path ~output ~profile ~width ~height ~samples
               ; "workload_source_sha256",`String R10_phase0_workload_authority.source_sha256
               ; "machine",machine
               ]
+        ; "historical_samples", `List (List.rev !historical_samples_json)
         ; "samples", `List (List.rev !samples_json)
         ]
     in
@@ -973,12 +1193,27 @@ let synthetic_raw ~scenario ~visibility run =
 
 let self_test baseline_path =
   if sha256 baseline_path <> frozen_baseline_sha256 then fail "self-test baseline drift";
-  let sample_values = ref [] in
+  let sample_values = ref [] and historical_sample_values = ref [] in
   let baselines=List.map(fun scenario->scenario,
     baseline_runs~baseline_path~profile:"release"~width:640~height:480 scenario)scenarios in
   for index=0 to 4 do
     List.iter(fun scenario->
       let runs=List.assoc scenario baselines in
+      let run=List.nth runs index in
+      historical_sample_values :=
+        `Assoc
+          [ "sample_index", `Int (index + 1); "scenario", `String scenario
+          ; "command", `List [`String "/test/bench_renderer"; `String scenario]
+          ; "environment", `Assoc (List.map (fun (name,value)->name,`String value)
+              (historical_environment ~profile:"release" ~width:640 ~height:480
+                ~warmup_seconds:3. ~sample_seconds:30.))
+          ; "conditions_before",`Assoc["captured_epoch_seconds",`Float 0.;
+              "power",`String"Now drawing from 'AC Power'";
+              "thermal",`String"nominal"]
+          ; "conditions_after",`Assoc["captured_epoch_seconds",`Float 0.5;
+              "power",`String"Now drawing from 'AC Power'";
+              "thermal",`String"nominal"]
+          ; "raw", run ] :: !historical_sample_values;
       List.iter(fun visibility->let run=List.nth runs index in
               sample_values :=
                 `Assoc
@@ -987,10 +1222,12 @@ let self_test baseline_path =
                   ; "command",`List(List.map(fun value->`String value)
                       (expected_command~benchmark:production_benchmark~width:640~height:480
                         ~warmup_seconds:3.~sample_seconds:30. scenario visibility))
-                  ; "conditions_before",`Assoc["captured_epoch_seconds",`Float 1.;
+                  ; "conditions_before",`Assoc["captured_epoch_seconds",
+                      `Float(if visibility="visible"then 1. else 3.);
                       "power",`String"Now drawing from 'AC Power'";
                       "thermal",`String"nominal"]
-                  ; "conditions_after",`Assoc["captured_epoch_seconds",`Float 2.;
+                  ; "conditions_after",`Assoc["captured_epoch_seconds",
+                      `Float(if visibility="visible"then 2. else 4.);
                       "power",`String"Now drawing from 'AC Power'";
                       "thermal",`String"nominal"]
                   ; "raw", synthetic_raw ~scenario ~visibility run
@@ -1008,6 +1245,9 @@ let self_test baseline_path =
           [ "git_commit", `String (String.make 40 'a'); "git_dirty", `Bool false
           ; "benchmark",`String production_benchmark
           ; "executable_sha256", `String (String.make 64 'b')
+          ; "historical_benchmark", `String "/test/bench_renderer"
+          ; "historical_executable_sha256", `String (String.make 64 'd')
+          ; "historical_commit", `String historical_commit
           ; "protocol_executable",`String"_build/default/tools/r10_performance/r10_native_protocol.exe"
           ; "protocol_executable_sha256", `String (String.make 64 'c')
           ; "baseline_path", `String baseline_path
@@ -1022,6 +1262,7 @@ let self_test baseline_path =
               "display_inventory",`Assoc["SPDisplaysDataType",
                 `List[`Assoc["name",`String"Test Display"]]]]
           ]
+      ; "historical_samples", `List (List.rev !historical_sample_values)
       ; "samples", `List (List.rev !sample_values)
       ]
   in
@@ -1071,6 +1312,28 @@ let self_test baseline_path =
   expect_invalid "a malformed protocol digest"
     (update_assoc "provenance"(update_assoc "protocol_executable_sha256"
        (replace(`String"not-a-sha")))report);
+  expect_invalid "an unpinned historical commit"
+    (update_assoc "provenance" (update_assoc "historical_commit"
+       (replace (`String (String.make 40 '0')))) report);
+  expect_invalid "historical environment drift"
+    (update_assoc "historical_samples" (function
+       | `List (first :: rest) ->
+           `List (update_assoc "environment" (update_assoc
+             "PRISMEL_BENCH_PROFILE" (replace (`String "dev"))) first :: rest)
+       | _ -> assert false) report);
+  expect_invalid "historical JSON schema drift"
+    (update_assoc "historical_samples" (function
+       | `List (first :: rest) ->
+           `List (update_assoc "raw"
+             (update_assoc "schema" (replace (`Int 2))) first :: rest)
+       | _ -> assert false) report);
+  expect_invalid "non-interleaved comparator timestamps"
+    (update_assoc "historical_samples" (function
+       | `List (first :: rest) ->
+           `List (update_assoc "conditions_after"
+             (update_assoc "captured_epoch_seconds" (replace (`Float 1.5)))
+             first :: rest)
+       | _ -> assert false) report);
   let dirty =
     match report with
     | `Assoc fields ->
