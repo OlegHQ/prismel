@@ -212,30 +212,6 @@ module Private=struct
    resources:(int*Prismel_next_execution.resource)list;
    scene3:Scene_execution.prepared_scene3 list;layers:native_layer list}
  let renderer=ref(fun(_ : t)->())let install_renderer value=renderer:=value
- let rec commands acc=function []->acc|Clear c::xs->commands(Scene_command.Render_ir.Clear(rgba c)::acc)xs|Primitive p::xs->commands(geometry p::acc)xs|Geometry g::xs->commands(Scene_command.Render_ir.Geometry g::acc)xs|Group g::xs->commands(commands acc g)xs
-  |Debug_text node::xs->commands(Scene_command.Render_ir.Debug_text{x=float node.x;y=float node.y;text=node.value;color=rgba node.color}::acc)xs
-  |Translate(x,y,g)::xs->commands(Scene_command.Render_ir.Pop_transform::commands(Scene_command.Render_ir.Push_transform{xx=1.;xy=0.;yx=0.;yy=1.;tx=float x;ty=float y}::acc)g)xs
-  |Scale(x,y,g)::xs->commands(Scene_command.Render_ir.Pop_transform::commands(Scene_command.Render_ir.Push_transform{xx=x;xy=0.;yx=0.;yy=y;tx=0.;ty=0.}::acc)g)xs
-  |Rotate(a,g)::xs->let c=cos a and s=sin a in commands(Scene_command.Render_ir.Pop_transform::commands(Scene_command.Render_ir.Push_transform{xx=c;xy=s;yx=(-.s);yy=c;tx=0.;ty=0.}::acc)g)xs
-  |Clip(x,y,w,h,g)::xs->commands(Scene_command.Render_ir.Pop_clip::commands(Scene_command.Render_ir.Push_clip{x=float x;y=float y;width=float w;height=float h}::acc)g)xs
-  |Blend(mode,g)::xs->let mode=match mode with Replace->Scene_command.Render_ir.Replace|Alpha->Alpha|Add->Add|Multiply->Multiply in
-    commands(Scene_command.Render_ir.Set_blend Scene_command.Render_ir.Alpha::
-      commands(Scene_command.Render_ir.Set_blend mode::acc)g)xs
-  |Image node::xs->let width,height=Image.get_size node.image in let rect={Scene_command.Render_ir.x=0.;y=0.;width=float width;height=float height}in
-    let destination={Scene_command.Render_ir.x=float node.x;y=float node.y;width=float width*.node.scale;height=float height*.node.scale}in
-    let command=Scene_command.Render_ir.Image{resource_id=Image.Private.identity node.image;source=rect;destination}in
-    let transformed=node.angle<>0.||node.flip_x||node.center<>None in
-    let acc=if transformed then
-      let cx,cy=match node.center with None->destination.width*.0.5,destination.height*.0.5|Some(cx,cy)->float cx,float cy in
-      let px=destination.x+.cx and py=destination.y+.cy and c=cos node.angle and s=sin node.angle and sx=if node.flip_x then -.1. else 1. in
-      let xx=c*.sx and xy=(-.s)and yx=s*.sx and yy=c in
-      Scene_command.Render_ir.Pop_transform::command::Scene_command.Render_ir.Push_transform{xx;xy;yx;yy;tx=px-.xx*.px-.xy*.py;ty=py-.yx*.px-.yy*.py}::acc
-    else command::acc in
-    commands acc xs
-  |(Text _|View3d _|Region _)::xs->commands acc xs
- let rec text_regions scene=List.concat_map(function Region(x,y,w,h,f)->[x,y,w,h,f]|Group g|Translate(_,_,g)|Rotate(_,g)|Scale(_,_,g)|Clip(_,_,_,_,g)|Blend(_,g)->text_regions g|_->[])scene
- let rec image_resources scene=List.concat_map(function Image node->[Image.Private.identity node.image,Prismel_next_execution.Image(Image.Private.resource node.image)]|Group g|Translate(_,_,g)|Rotate(_,g)|Scale(_,_,g)|Clip(_,_,_,_,g)|Blend(_,g)->image_resources g|_->[])scene
-
  let text_image (node : text_node) =
    match node.rendered with
    | Some image -> image
@@ -247,36 +223,61 @@ module Private=struct
        node.rendered <- Some image;
        image
 
- let rec materialize ~width ~height = function
-   | [] -> []
-   | Text node :: rest ->
-       Image {image=text_image node;x=node.x;y=node.y;scale=1.;angle=0.;center=None;flip_x=false}
-       :: materialize ~width ~height rest
-   | View3d node :: rest -> View3d node :: materialize ~width ~height rest
-   | Group nodes :: rest ->
-       Group (materialize ~width ~height nodes)
-       :: materialize ~width ~height rest
-   | Translate (x, y, nodes) :: rest ->
-       Translate (x, y, materialize ~width ~height nodes)
-       :: materialize ~width ~height rest
-   | Rotate (angle, nodes) :: rest ->
-       Rotate (angle, materialize ~width ~height nodes)
-       :: materialize ~width ~height rest
-   | Scale (x, y, nodes) :: rest ->
-       Scale (x, y, materialize ~width ~height nodes)
-       :: materialize ~width ~height rest
-   | Clip (x, y, w, h, nodes) :: rest ->
-       Clip (x, y, w, h, materialize ~width ~height nodes)
-       :: materialize ~width ~height rest
-   | Blend (mode, nodes) :: rest ->
-       Blend (mode, materialize ~width ~height nodes)
-       :: materialize ~width ~height rest
-   | node :: rest -> node :: materialize ~width ~height rest
+ type command_builder={mutable values:Scene_command.Render_ir.command array;
+   mutable length:int}
+ let command_builder()={values=Array.make 32(Scene_command.Render_ir.Clear 0l);length=0}
+ let emit builder command=
+   if builder.length=Array.length builder.values then(
+     let values=Array.make(2*builder.length)(Scene_command.Render_ir.Clear 0l)in
+     Array.blit builder.values 0 values 0 builder.length;builder.values<-values);
+   Array.unsafe_set builder.values builder.length command;
+   builder.length<-builder.length+1
+ let image_command builder image x y scale angle center flip_x=
+  let width,height=Image.get_size image in let rect={Scene_command.Render_ir.x=0.;y=0.;width=float width;height=float height}in
+    let destination={Scene_command.Render_ir.x=float x;y=float y;width=float width*.scale;height=float height*.scale}in
+    let command=Scene_command.Render_ir.Image{resource_id=Image.Private.identity image;source=rect;destination}in
+    let transformed=angle<>0.||flip_x||center<>None in
+    if transformed then(
+      let cx,cy=match center with None->destination.width*.0.5,destination.height*.0.5|Some(cx,cy)->float cx,float cy in
+      let px=destination.x+.cx and py=destination.y+.cy and c=cos angle and s=sin angle and sx=if flip_x then -.1. else 1. in
+      let xx=c*.sx and xy=(-.s)and yx=s*.sx and yy=c in
+      emit builder(Scene_command.Render_ir.Push_transform{xx;xy;yx;yy;tx=px-.xx*.px-.xy*.py;ty=py-.yx*.px-.yy*.py});
+      emit builder command;emit builder Scene_command.Render_ir.Pop_transform)
+    else emit builder command
+ let commands scene=
+  let builder=command_builder()in
+  let rec nodes=function
+   |[]->()
+   |Clear c::xs->emit builder(Scene_command.Render_ir.Clear(rgba c));nodes xs
+   |Primitive p::xs->emit builder(geometry p);nodes xs
+   |Geometry g::xs->emit builder(Scene_command.Render_ir.Geometry g);nodes xs
+   |Debug_text node::xs->emit builder(Scene_command.Render_ir.Debug_text{x=float node.x;y=float node.y;text=node.value;color=rgba node.color});nodes xs
+   |Image node::xs->image_command builder node.image node.x node.y node.scale node.angle node.center node.flip_x;nodes xs
+   |Text node::xs->image_command builder(text_image node)node.x node.y 1. 0. None false;nodes xs
+   |Group g::xs->nodes g;nodes xs
+   |Translate(x,y,g)::xs->emit builder(Scene_command.Render_ir.Push_transform{xx=1.;xy=0.;yx=0.;yy=1.;tx=float x;ty=float y});nodes g;emit builder Scene_command.Render_ir.Pop_transform;nodes xs
+   |Scale(x,y,g)::xs->emit builder(Scene_command.Render_ir.Push_transform{xx=x;xy=0.;yx=0.;yy=y;tx=0.;ty=0.});nodes g;emit builder Scene_command.Render_ir.Pop_transform;nodes xs
+   |Rotate(a,g)::xs->let c=cos a and s=sin a in emit builder(Scene_command.Render_ir.Push_transform{xx=c;xy=s;yx=(-.s);yy=c;tx=0.;ty=0.});nodes g;emit builder Scene_command.Render_ir.Pop_transform;nodes xs
+   |Clip(x,y,w,h,g)::xs->emit builder(Scene_command.Render_ir.Push_clip{x=float x;y=float y;width=float w;height=float h});nodes g;emit builder Scene_command.Render_ir.Pop_clip;nodes xs
+   |Blend(mode,g)::xs->let mode=match mode with Replace->Scene_command.Render_ir.Replace|Alpha->Alpha|Add->Add|Multiply->Multiply in emit builder(Scene_command.Render_ir.Set_blend mode);nodes g;emit builder(Scene_command.Render_ir.Set_blend Scene_command.Render_ir.Alpha);nodes xs
+   |(View3d _|Region _)::xs->nodes xs in
+  nodes scene;Array.sub builder.values 0 builder.length
+ let rec text_regions scene=List.concat_map(function Region(x,y,w,h,f)->[x,y,w,h,f]|Group g|Translate(_,_,g)|Rotate(_,g)|Scale(_,_,g)|Clip(_,_,_,_,g)|Blend(_,g)->text_regions g|_->[])scene
+ let image_resources scene=
+   let rec nodes acc=function
+    |[]->acc
+    |Image node::rest->nodes((Image.Private.identity node.image,Prismel_next_execution.Image(Image.Private.resource node.image))::acc)rest
+    |Text node::rest->let image=text_image node in nodes((Image.Private.identity image,Prismel_next_execution.Image(Image.Private.resource image))::acc)rest
+    |Group nested::rest|Translate(_,_,nested)::rest|Rotate(_,nested)::rest
+    |Scale(_,_,nested)::rest|Clip(_,_,_,_,nested)::rest|Blend(_,nested)::rest->
+        nodes(nodes acc nested)rest
+    |_::rest->nodes acc rest in
+   List.rev(nodes[]scene)
 
  let stage_materialized scene =
    try
      match Scene_command.Render_ir.Private.create_owned
-       (Array.of_list(List.rev(commands[]scene)))with
+       (commands scene)with
      |Error _->Error "invalid scene description"
      |Ok ir->Ok(ir,image_resources scene)
    with
@@ -286,7 +287,7 @@ module Private=struct
  let stage ~width ~height scene =
    if width <= 0 || height <= 0 then Error "invalid scene extent"
    else
-     try stage_materialized(materialize~width~height scene)with
+     try stage_materialized scene with
      |Failure message->Error message
      |Invalid_argument message->Error message
 
@@ -318,16 +319,13 @@ module Private=struct
 
  let stage_native ~width ~height scene =
    if width<=0||height<=0 then Error "invalid scene extent"else
-   let materialized=try Ok(materialize~width~height scene)with
-     |Failure message|Invalid_argument message->Error message in
-   match materialized with Error _ as error->error|Ok materialized->
-   match stage_materialized materialized with Error _ as error->error
+   match stage_materialized scene with Error _ as error->error
    |Ok(scene2,resources)->
    let failure=ref None in
    let callbacks:Scene3_native_lowering.resources={
      texture=(fun value->let levels=Texture.Private.levels value.Scene3.value|>Array.map(fun(w,h,pixels)->let bytes=Bytes.create(w*h*4)in Array.iteri(fun index color->Bytes.set_int32_be bytes(index*4)(Int32.of_int((color.Color.r lsl 24)lor(color.g lsl 16)lor(color.b lsl 8)lor color.a)))pixels;{Scene_execution.width=w;height=h;bytes})in let address=function Texture.Clamp->Ogpu.Types.Clamp_to_edge|Repeat->Repeat|Mirror->Mirror_repeat in let min_filter,mag_filter,mip_filter=match value.filter with Texture.Nearest->Ogpu.Types.Nearest,Ogpu.Types.Nearest,Ogpu.Types.No_mip|Texture.Bilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.No_mip|Texture.Trilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.Linear_mip in let sampler:Ogpu.Types.sampler_descriptor={label=Some"scene3-texture";min_filter;mag_filter;mip_filter;address_u=address value.wrap_u;address_v=address value.wrap_v;lod_min=0.;lod_max=float(Array.length levels-1);max_anisotropy=1}in Ok{Scene_execution.key=Digest.to_hex(Digest.string(Marshal.to_string levels[]));levels;sampler});
      shadow=(fun value->let source=Shadow3.Private.snapshot value in let matrix=Array.init 16(fun index->Mat4.get source.view_projection~row:(index/4)~column:(index mod 4))in let snapshot:Scene_execution.shadow_snapshot={width=source.width;height=source.height;depths=source.depths;matrix;bias={constant=source.bias;slope=source.normal_bias};kernel=(match source.filter with Hard->Tap1|Pcf_3x3->Tap9|Pcf_5x5->Tap25);strength=source.strength}in match Scene_execution.shadow_resource~key:(Digest.to_hex(Digest.string(Marshal.to_string snapshot[])))snapshot with Error _->Error Unsupported_shadow|Ok resource->Ok{Scene_execution.key=resource.texture.key;buffer=resource.parameters;texture=resource.texture})}in
-   let grouped=grouped_items(ordered_items materialized)in
+   let grouped=grouped_items(ordered_items scene)in
    let layers=match grouped with
    |[`Two _]->[Scene2_layer(scene2,resources)]
    |_->List.filter_map(fun item->if!failure<>None then None else match item with

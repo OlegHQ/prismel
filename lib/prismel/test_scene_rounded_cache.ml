@@ -14,8 +14,8 @@ let first_geometry scene =
   |> Option.get
 
 let require_geometry_reuse label make =
-  let first = first_geometry Scene.[make ()]
-  and second = first_geometry Scene.[make ()] in
+  let first = first_geometry [make ()]
+  and second = first_geometry [make ()] in
   require (first.vertices == second.vertices && first.indices == second.indices)
     (label ^ " rebuilt tessellated geometry arrays")
 
