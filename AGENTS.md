@@ -3,16 +3,15 @@
 ## Purpose
 
 Prismel is an OCaml creative-coding framework. Keep its public API small,
-functional where practical, and suitable for both interactive desktop programs
-and deterministic headless execution.
+functional where practical, and suitable for interactive native desktop
+programs on Apple Silicon.
 
 ## Native Metal-only migration override
 
-Prismel now ships native Apple-Silicon Metal only.  The former headless,
-software-raster, browser/web, and Wap targets are being deleted; do not add,
-preserve, repair, or introduce a fallback for them.  `raster2`, `ogpu_raster2`,
-Wap, Web/Headless Runtime providers and target selection are legacy deletion
-work, not supported compatibility surfaces.  Preserve the high-level Scene,
+Prismel ships native Apple-Silicon Metal only. Do not add, preserve, repair, or
+introduce a CPU raster, browser, web, Wap, SDL2/Tsdl, or OpenGL fallback.
+`raster2`, `ogpu_raster2`, Wap, and alternate Runtime providers are retired
+deletion work, not compatibility surfaces. Preserve the high-level Scene,
 Canvas, Image, Font, Audio, and input APIs by lowering them to Metal/OGPU; a
 renderer-neutral command/value type extraction is acceptable, but a new CPU
 rasterizer is not.  Native Metal unavailability must fail with a typed startup
@@ -22,14 +21,13 @@ with older multi-target guidance below.
 ## Repository layout
 
 - `lib/prismel/` is the main `prismel` library.
-- `lib/runtime/` owns target selection, SDL lifecycle, and frame presentation.
-- `lib/wap/` is the standalone browser transport imported by `runtime`; it
-  must not depend on `runtime` or `prismel`.
+- `lib/runtime/` owns the native SDL3 lifecycle, Metal presentation, and event
+  translation.
 - `lib/<name>/` contains sibling feature libraries. An ordinary sibling may
   depend on `prismel`; `prismel` must never depend on one. The frozen GPU graph
-  deliberately exempts the foundational `sdl3`, `metal`, `ogpu`, `ogpu_metal`,
-  and `raster2` libraries described below: `prismel` may depend on `ogpu` and
-  `raster2`, and `runtime` may combine SDL3 with `ogpu_metal`.
+  deliberately exempts the foundational `sdl3`, `metal`, `ogpu`, and
+  `ogpu_metal` libraries described below: `prismel` may depend on `ogpu`, and
+  `runtime` may combine SDL3 with `ogpu_metal`.
 - `lib/pxui/` is the UI toolkit inspired by ofxUI.
 - `lib/sop_ui/` is the one-way adapter that renders typed `procedural`
   parameter templates through PXUI; neither underlying library imports it.
@@ -53,26 +51,22 @@ with older multi-target guidance below.
   `sketch_support`, `pxui`, `pxui_graph`, and `sop_ui`. It owns camera/render
   controls for both 2D and 3D, the reusable responsive view/graph/inspector
   workspace, one shared timeline/selection/cook lifecycle, scheduling/status,
-  and finite headless integration; lower layers never import it.
+  and finite native smoke integration; lower layers never import it.
 - `examples/<project>/` contains self-contained example executables. Give every
   example its own `dune` file and keep shared framework code out of examples.
 - `sketches/<project>/` contains experimental creative-coding executables.
   Give every sketch its own `dune` file, keep experiments out of the public
   library surface, and prefer `Sketch`, `Scene`, and immutable SOP graphs.
-  Sketches must remain finite under the headless render target.
-- `test/` contains automated tests, including headless integration tests.
+  Sketches must provide an explicit finite native smoke path.
+- `test/` contains automated tests, including finite native integration tests.
 - `specification/` contains design notes. Update it when behavior or architecture
   changes materially.
-- `tsdl_gfx/` is the low-level SDL2_gfx binding and is not part of the high-level
-  API.
 
 ## Dependency direction
 
 ```text
-examples ──> pxui ──> prismel ──> runtime ──> wap
-    └────────────────> prismel        │
-                         │             └──> tsdl
-                         └──> tsdl/tsdl_gfx
+examples ──> pxui ──> prismel ──> runtime
+    └────────────────> prismel
 
 sketches/examples ──> sop_ui ──> pxui
                          └─────> procedural
@@ -83,10 +77,8 @@ sketches/examples ──> sop_ui ──> pxui
 
 Never introduce a dependency from `prismel` to `pxui` or to an example.
 
-The GPU migration defined by `NEW_GPU_STUFF.md` adds foundational libraries
-below `runtime` and `prismel`. During the side-by-side qualification phases the
-legacy SDL2/OpenGL edges remain temporarily present, but every new edge must
-already follow this final graph:
+The native GPU architecture defined by `NEW_GPU_STUFF.md` uses these
+foundational libraries below `runtime` and `prismel`:
 
 ```text
 examples / sketches / pxui / procedural / pdk
@@ -99,34 +91,25 @@ examples / sketches / pxui / procedural / pdk
                       runtime -----------> ogpu_metal --------> metal
                          |
                          +----> sdl3 / sdl3_image / sdl3_ttf / sdl3_mixer
-                         |
-                         +----> wap
-
-prismel ----------------> raster2
 ```
 
-`sdl3`, its extension bindings, `metal`, `metal_fx`, `ogpu`, `ogpu_metal`, and
-`raster2` are foundational libraries rather than ordinary sibling feature
-libraries. `sdl3` must not import Metal, OGPU, Runtime, Prismel, PXUI, or Wap;
-`metal` must not import SDL3, OGPU, Runtime, Prismel, PXUI, or Wap; `ogpu` must
-not import SDL3, Metal, Runtime, Prismel, PXUI, or Wap; `ogpu_metal` may import
-only `ogpu` and `metal`; and `raster2` must remain independent of SDL3, Metal,
-OGPU, Runtime, Prismel, and PXUI. Wap remains independent of every platform and
-renderer library. Runtime alone combines the SDL3 Metal view with an
-`ogpu_metal` surface, while Prismel records through `ogpu` and renders the
-deterministic targets through `raster2` without receiving raw native pointers.
-These exceptions do not permit reverse edges: SDL3/Metal/OGPU/Raster2 never
-import Runtime or Prismel, `ogpu_metal` never imports Runtime or SDL3, and no
-foundational library imports PXUI or Wap. The dependency-direction gate must
-check both the required final edges and injected forbidden reversals.
+`sdl3`, its extension bindings, `metal`, optional `metal_fx`, `ogpu`, and
+`ogpu_metal` are foundational libraries rather than ordinary sibling feature
+libraries. `sdl3` must not import Metal, OGPU, Runtime, Prismel, or PXUI;
+`metal` must not import SDL3, OGPU, Runtime, Prismel, or PXUI; `ogpu` must not
+import SDL3, Metal, Runtime, Prismel, or PXUI; and `ogpu_metal` may import only
+`ogpu` and `metal`. Runtime alone combines the SDL3 Metal view with an
+`ogpu_metal` surface, while Prismel records through `ogpu` without exposing raw
+native pointers. These exceptions do not permit reverse edges: SDL3, Metal, and
+OGPU never import Runtime or Prismel, and `ogpu_metal` never imports Runtime or
+SDL3. The dependency-direction gate must check both required edges and injected
+forbidden reversals.
 
-During side-by-side qualification, private `Scene_description` values lower to
-shared Raster2 IR/resource snapshots while the legacy Scene renderer remains
-selectable for comparison. Keep this pivot private until the frozen atomic
-switch, parity, target, and long-run gates pass; do not fork public Scene
-semantics. Binding generation and migration orchestration remain OCaml/Dune
-native: the GPU migration has no Python glue and must not acquire any. This does
-not change the separately documented, isolated SideFX `hython` reference use.
+Private scene descriptions lower directly to native render work; do not fork
+public Scene semantics. Binding generation and migration orchestration remain
+OCaml/Dune native: the GPU migration has no Python glue and must not acquire
+any. This does not change the separately documented, isolated SideFX `hython`
+reference use.
 
 ## Metal binding generation
 
@@ -262,7 +245,7 @@ widgets, camera policy, or render lifecycle into `procedural` or `pdk`.
   intersection signs where floating-point ambiguity can change topology;
   tolerances remain explicit policy, not a substitute for robust predicates.
 - External native geometry libraries require an explicit dependency, license,
-  portability, determinism, and headless-build review. Prefer a small audited
+  portability, determinism, and native-build review. Prefer a small audited
   native OCaml kernel for core operations; reuse a mature library only when it
   materially improves robustness and the boundary preserves PDK ownership.
 - Production mesh Booleans use an exact surface-arrangement/Weiler pipeline,
@@ -318,84 +301,51 @@ widgets, camera policy, or render lifecycle into `procedural` or `pdk`.
   `Frame` facts, pure `Scene` data, public `Event`/`Input`, resource APIs, and
   renderer behavior. It may call the narrow `runtime` lifecycle/presentation
   boundary, but it must not implement HTTP, WebSocket, DOM, or browser policy.
-- `runtime` owns render-target selection, SDL subsystem lifetime, environment
-  setup/restoration, presentation scheduling, and typed translation between
-  Prismel-facing facts and Wap-facing transport. It must not own widgets,
-  scene constructors, application models, or browser JavaScript.
-- `wap` owns only bounded browser transport: HTTP/WebSocket protocol, client
-  HTML/JavaScript, framebuffer delivery, browser input encoding, authenticated
-  assets, and connection/thread lifetime. It must remain usable without
-  importing `runtime`, `prismel`, `pxui`, SDL, or application modules.
+- `runtime` owns SDL3 subsystem lifetime, native environment setup/restoration,
+  Metal surface presentation scheduling, and typed event translation. It must
+  not own widgets, scene constructors, or application models.
 - Sibling libraries such as `pxui` depend only on public `prismel` semantics.
-  PXUI represents browser text-entry intent as pure `Scene` metadata; it must
-  never call Runtime/Wap or inspect render-target environment variables.
-- Cross-library communication uses narrow typed functions. Do not pass raw Wap
-  protocol strings into PXUI or public sketch code, expose browser internals in
-  `Scene`, or move target-neutral behavior downward merely for convenience.
-- Browser command variants and JSON/wire encoding belong exclusively to Wap.
-  Runtime may translate typed target facts, and Prismel may emit typed audio or
-  input-region intent, but neither may construct browser protocol strings.
+  PXUI represents text-entry intent as pure `Scene` metadata; it must never
+  call Runtime or inspect platform internals.
+- Cross-library communication uses narrow typed functions. Do not expose raw
+  SDL, Metal, or runtime internals in `Scene` or public sketch code.
 - A boundary change must include a Dune dependency-direction check, focused
   tests at each affected boundary, and an update to `specification/backend.md`.
 
-## Runtime target contract
+## Native runtime contract
 
-- Select `native`, `headless`, or `web` with `PRISMEL_RENDER_TARGET`.
-  Accept `PRISMAL_RENDER_TARGET` as an alias and keep legacy `HEADLESS` as a
-  final fallback.
-- Headless mode must not require a display server, monitor, GPU, or OpenGL.
-- Use SDL's dummy video driver and software renderer in headless mode.
-- Do not silently turn drawing calls into no-ops: rendering should target the
-  software framebuffer so programs exercise the same drawing paths.
-- Native fixed-pipeline `Scene3` meshes render through the GPU with hardware
+- Runtime has one native Metal lifecycle: initialize SDL3 on the initial
+  domain, create the high-DPI Metal view and `ogpu_metal` surface, translate
+  events, acquire/present drawables, drain completion/deferred release, then
+  destroy GPU resources before the view/window/SDL.
+- Native fixed-pipeline `Scene3` meshes render through Metal with hardware
   transforms, depth/stencil, lighting, culling, blending, and window MSAA.
-  Keep the deterministic software rasterizer authoritative for headless/web
-  and offscreen readback. A native software fallback is transitional and must
-  remain explicit while textures, typed `Shader3`, shadows, fog, and separate
-  specular are promoted to GPU parity; do not describe texture upload of a CPU
-  framebuffer as GPU 3D rendering.
+  Functional shaders require typed MSL/IR support or return a typed
+  unsupported-feature error.
 - Native GPU access and packed mesh caches belong to `prismel`, stay on the
-  initial domain, draw through SDL's own OpenGL renderer context before later
-  2D/PXUI commands, and remain strictly bounded under changing procedural
-  meshes. Isolate every raw OpenGL pass from SDL's persistent shader, texture,
-  and streaming-buffer bindings; verify more than the first presented frame.
-- Keep target selection in `runtime` rather than scattering
-  environment checks through application code.
+  initial domain, submit through `ogpu_metal`, and remain strictly bounded
+  under changing procedural meshes. Verify more than the first presented frame.
+- A compatible native Metal device and surface are required. Their absence must
+  return a typed startup error.
 - Any automated application-loop test must arrange its own termination.
-- Web mode binds to `0.0.0.0`, keeps the SDL software renderer authoritative,
-  and presents pooled RGBA frames through Wap's WebGL client. Never fork scene,
-  geometry, font, image, Canvas, PXUI, or shader semantics into a second web
-  renderer.
-- Keep web frame, event, upload, command, asset, connection, and client queues
-  explicitly bounded. Slow browsers skip stale complete frames.
-- Browser input must enter the same ordered `Event` and `Input` path in logical
-  coordinates. Preserve pointer capture, IME, focus-loss cancellation, resize,
-  file-drop lifetime, and mirrored browser audio behavior.
-- Browser text entry must be opt-in through logical `Scene.text_input_region`
-  metadata. Focus the hidden browser editor synchronously only for presses in a
-  registered text region; non-text taps must not open a mobile keyboard.
-- Treat browser pointer cancellation separately from window focus loss: release
-  the held pointer and cancel drag capture without dismissing text focus.
-- Keep SDL calls on the initial domain. Wap may use long-lived system threads
-  for blocking sockets, but must never create a domain or thread per frame.
+- Keep SDL3, Metal, texture, font, audio, event, and cache operations on the
+  initial domain. Never create a domain or thread per frame.
 
 ## High-DPI and coordinate contract
 
 - Treat `Sketch` configuration sizes, `Frame.width`/`height`, `Scene`
   coordinates, `Input.mouse_pos`, mouse event positions, and PXUI layout as
   logical points in one shared coordinate system.
-- Keep SDL renderer logical size synchronized with the actual window size.
-  `SDL_WINDOWEVENT_SIZE_CHANGED` is authoritative; ignore the duplicate
-  `RESIZED` notification.
-- Do not manually scale mouse events for Retina displays. SDL maps pointer
-  events through the renderer logical size, which keeps drawing and hit testing
-  aligned.
-- Query renderer output size for physical backing pixels. Preserve
+- Keep SDL3 logical size synchronized with the actual window size.
+  `SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED` is authoritative.
+- Do not manually scale mouse events for Retina displays. SDL3 logical event
+  coordinates keep drawing and hit testing aligned.
+- Query Metal drawable size for physical backing pixels. Preserve
   `Frame.drawable_width`, `drawable_height`, `drawable_size`, and
   `pixel_scale` as the explicit native-pixel boundary.
 - Convert a logical `Scene.view3d` sub-viewport to physical drawable edges
-  exactly once inside the native GPU backend before calling OpenGL viewport or
-  scissor functions. Never pass logical Retina coordinates directly to GL.
+  exactly once inside the native GPU backend before configuring a Metal viewport
+  or scissor. Never pass logical Retina coordinates directly to Metal.
 - `Canvas.capture` and `Canvas.save_screen_png` read and preserve the full native
   framebuffer. Never allocate their readback from logical window dimensions.
 - Keep `Scene.text` on an installed platform UI font and interpret `?size` in
@@ -408,7 +358,8 @@ widgets, camera policy, or render lifecycle into `procedural` or `pdk`.
   SDL_ttf error.
 - Keep renderer-local text caches LRU-bounded to 256 textures, including for
   rapidly changing labels, and preserve empty text as a valid no-op.
-- Reserve `Scene.debug_text` for the fixed SDL2_gfx 8×8 diagnostic face.
+- Keep diagnostic text inside the native scene command path; do not reintroduce
+  a legacy bitmap-font dependency.
 
 ## Public sketch API
 
@@ -441,8 +392,8 @@ widgets, camera policy, or render lifecycle into `procedural` or `pdk`.
   Even-odd and non-zero behavior must be tested with transparent holes rather
   than simulated background-colored shapes.
 - Directly loaded or synthesized `Audio` values are owned resources and belong
-  in `on_stop`. Headless audio must exercise SDL_mixer through the dummy device,
-  not silently replace playback with a no-op.
+  in `on_stop`. Audio remains SDL3_mixer-backed on the native lifecycle and
+  must not silently become a no-op.
 - Do not add fake polymorphic placeholders for planned operations. Implement a
   real result-returning boundary or leave the operation out of the public API.
 
@@ -596,7 +547,7 @@ source '/Applications/Houdini/Houdini22.0.368/Frameworks/Houdini.framework/Versi
 hython
 ```
 
-Reference scripts belong under `tools/houdini/`. They must run headlessly,
+Reference scripts belong under `tools/houdini/`. They must run non-interactively,
 create their own temporary scene, set every relevant parameter explicitly,
 print or write deterministic machine-readable results, destroy temporary state
 when practical, and exit nonzero on capture or validation failure. Keep any
@@ -660,17 +611,17 @@ Run these before handing off a change:
 ```sh
 dune build @all
 dune runtest
-PRISMEL_RENDER_TARGET=headless dune exec examples/basic/main.exe
-PRISMEL_RENDER_TARGET=headless dune exec examples/particles/main.exe
-PRISMEL_RENDER_TARGET=headless dune exec examples/noise/main.exe
-PRISMEL_RENDER_TARGET=headless dune exec examples/canvas/main.exe
-PRISMEL_RENDER_TARGET=headless dune exec examples/audio/main.exe
-PRISMEL_RENDER_TARGET=headless dune exec examples/pxui/main.exe
-PRISMEL_RENDER_TARGET=headless dune exec examples/generative/main.exe
+dune exec examples/basic/main.exe
+dune exec examples/particles/main.exe
+dune exec examples/noise/main.exe
+dune exec examples/canvas/main.exe
+dune exec examples/audio/main.exe
+dune exec examples/pxui/main.exe
+dune exec examples/generative/main.exe
 dune build @doc
 ```
 
-If a headless example would otherwise run forever, give it an explicit finite
+If a native example would otherwise run forever, give it an explicit finite
 frame count for smoke testing.
 
 ## OCaml conventions
@@ -686,7 +637,7 @@ frame count for smoke testing.
 - Prefer explicit result/error handling at backend boundaries.
 - Avoid exposing additional SDL values in new public APIs.
 - Keep sibling libraries wrapped, so their modules remain namespaced.
-- Add focused tests for pure behavior and a headless integration test for
+- Add focused tests for pure behavior and a finite native integration test for
   renderer or lifecycle changes.
 - High-DPI changes need coverage for renderer logical/output size, native
   capture dimensions, logical mouse alignment, per-frame delta reset, and PXUI
@@ -730,7 +681,7 @@ PXUI.
 
 Create `examples/<name>/dune` and `examples/<name>/main.ml`. Depend only on the
 libraries the example demonstrates. Examples are teaching material: keep them
-short, readable, independently runnable, and finite under `HEADLESS`.
+short, readable, independently runnable, and finite in native smoke runs.
 
 Use the repository scaffold for the standard shape:
 
@@ -746,12 +697,12 @@ exploratory than examples, but must respect library dependency direction and
 must not hide reusable framework code in the sketch directory. Prefer SOP
 graphs for procedural geometry, deterministic seeds for generative work, an
 `Easy_camera` for interactive 3D views, and explicit termination when running
-headless.
+native smoke runs.
 
 Prefer `Sketch_ui.Environment3` for 3D SOP scenes and
 `Sketch_ui.Environment2` for 2D SOP scenes. Both own P/S/R playback,
 G/I/C/H visibility, selected-node inspection, reactive cooking, camera/render
-controls, resize handling, status, export, and finite headless termination;
+controls, resize handling, status, export, and finite native termination;
 sketch source should primarily define its graph and scene preparation.
 
 Keep the standard sketch workspace as three independently collapsible columns:
