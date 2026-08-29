@@ -10,7 +10,7 @@ let sample observation rss =
     ; "rss_kib", `Int rss
     ; "heap_words", `Int 10
     ; "live_words", `Int 5
-    ; "mesh_cache", `Int 64
+    ; "mesh_cache", `Int 81
     ; "pipeline_cache", `Int 48
     ; "metal_live", `Int 3
     ; "metal_pending", `Int 0
@@ -37,7 +37,7 @@ let report () =
     ; "final_window_rss_low_kib", `Int 1000
     ; "final_window_rss_high_kib", `Int 1000
     ; "final_window_rss_range_percent", `Float 0.
-    ; "live_mesh_cache_peak_bound", `Int 64
+    ; "live_mesh_cache_peak_bound", `Int 81
     ; "pipeline_cache_live_expected", `Int 48
     ; "live_mesh_cache_final", `Int 0
     ; "pipeline_cache_final", `Int 0
