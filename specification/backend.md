@@ -1,6 +1,6 @@
 # Native backend
 
-Prismel ships one backend: native Apple-Silicon Metal. The supported host is
+Prismel ships one backend: the native Metal runtime on Apple Silicon. The supported host is
 macOS on Apple Silicon with Metal available. Backend initialization either
 creates that native stack or returns a typed startup error; applications do
 not select an alternate renderer through environment variables or public API.
