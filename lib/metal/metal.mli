@@ -2887,6 +2887,8 @@ module Command4 : sig
     type store_action =
       | Store_dont_care
       | Store
+      | Multisample_resolve
+      | Store_and_multisample_resolve
       | Store_deferred
 
     type visibility_result_mode =
@@ -2954,19 +2956,21 @@ module Command4 : sig
     val color :
       red:float -> green:float -> blue:float -> alpha:float -> color
 
-    (** Creates a base-level, single-sample 2D color attachment.
-        [Store_deferred] must be finalized on the encoder before it ends. *)
+    (** Creates a base-level 2D or 2D-multisample color attachment. A resolve
+        store action requires [resolve_texture] to be a compatible base-level,
+        single-sample 2D texture. [Store_deferred] must be finalized on the
+        encoder before it ends. *)
     val color_attachment :
-      ?load_action:load_action -> ?store_action:store_action -> Texture.t ->
-      color_attachment
+      ?load_action:load_action -> ?store_action:store_action ->
+      ?resolve_texture:Texture.t -> Texture.t -> color_attachment
 
-    (** Creates a base-level, single-sample 2D depth attachment.
+    (** Creates a base-level 2D or 2D-multisample depth attachment.
         [Store_deferred] must be finalized on the encoder before it ends. *)
     val depth_attachment :
       ?load_action:depth_load_action -> ?store_action:store_action ->
       ?clear_depth:float -> Texture.t -> depth_attachment
 
-    (** Creates a base-level, single-sample 2D stencil attachment. The clear
+    (** Creates a base-level 2D or 2D-multisample stencil attachment. The clear
         value is interpreted as an unsigned 32-bit bit pattern.
         [Store_deferred] must be finalized on the encoder before it ends. *)
     val stencil_attachment :

@@ -1482,6 +1482,8 @@ type command4_submission =
 type render_store_action =
   | Store_dont_care
   | Store
+  | Multisample_resolve
+  | Store_and_multisample_resolve
   | Store_deferred
 
 type command4_render_encoder =
@@ -1490,6 +1492,7 @@ type command4_render_encoder =
   ; command_buffer : command4_buffer
   ; width : int
   ; height : int
+  ; raster_sample_count : int
   ; tile_width : int
   ; tile_height : int
   ; color_formats : pixel_format list
@@ -1498,6 +1501,7 @@ type command4_render_encoder =
   ; support_color_attachment_mapping : bool
   ; visibility_result_buffer : buffer option
   ; color_store_actions : render_store_action array
+  ; color_has_resolve : bool array
   ; mutable depth_store_action : render_store_action option
   ; mutable stencil_store_action : render_store_action option
   ; mutable vertex_amplification_count : int
@@ -14335,6 +14339,8 @@ module Command4 = struct
     type store_action = render_store_action =
       | Store_dont_care
       | Store
+      | Multisample_resolve
+      | Store_and_multisample_resolve
       | Store_deferred
 
     type visibility_result_mode =
@@ -14358,6 +14364,7 @@ module Command4 = struct
 
     type color_attachment =
       { texture : Texture.t
+      ; resolve_texture : Texture.t option
       ; load_action : load_action
       ; store_action : store_action
       }
@@ -14434,8 +14441,8 @@ module Command4 = struct
     let transparent_black = color ~red:0. ~green:0. ~blue:0. ~alpha:0.
 
     let color_attachment ?(load_action = Clear transparent_black)
-        ?(store_action = Store) texture =
-      { texture; load_action; store_action }
+        ?(store_action = Store) ?resolve_texture texture =
+      { texture; resolve_texture; load_action; store_action }
 
     let depth_attachment ?(load_action = Depth_clear)
         ?(store_action = Store) ?(clear_depth = 1.) texture =
@@ -14465,7 +14472,18 @@ module Command4 = struct
     let store_code = function
       | Store_dont_care -> 0
       | Store -> 1
+      | Multisample_resolve -> 2
+      | Store_and_multisample_resolve -> 3
       | Store_deferred -> 4
+
+    let resolves = function
+      | Multisample_resolve | Store_and_multisample_resolve -> true
+      | Store_dont_care | Store | Store_deferred -> false
+
+    let compatible_render_kind (descriptor : texture_descriptor) =
+      (descriptor.sample_count = 1 && descriptor.kind = Texture_2d)
+      || (descriptor.sample_count > 1
+          && descriptor.kind = Texture_2d_multisample)
 
     let visibility_result_type_code = function
       | Visibility_reset -> 0
@@ -14489,8 +14507,9 @@ module Command4 = struct
       left.texture.lifetime == right.texture.lifetime
 
     let validate_attachments operation device attachments =
-      let rec loop seen dimensions formats = function
-        | [] -> Ok (Option.get dimensions, List.rev formats)
+      let rec loop seen dimensions sample_count formats = function
+        | [] ->
+            Ok (Option.get dimensions, Option.get sample_count, List.rev formats)
         | (attachment : color_attachment) :: rest ->
             if List.exists (same_attachment attachment) seen then
               error operation Invalid_argument
@@ -14506,18 +14525,41 @@ module Command4 = struct
                     | Ok () ->
                         let descriptor = attachment.texture.descriptor in
                         let color = clear_color attachment.load_action in
-                        if descriptor.kind <> Texture_2d then
+                        if not (compatible_render_kind descriptor) then
                           error operation Invalid_argument
-                            "Metal 4 base render attachments must be 2D textures"
-                        else if descriptor.sample_count <> 1 then
-                          error operation Invalid_argument
-                            "Metal 4 base render attachments must be single-sample"
+                            "Metal 4 render attachments must be 2D or 2D-multisample textures consistent with their sample count"
                         else if not (List.mem Render_target descriptor.usage) then
                           error operation Invalid_argument
                             "color attachment lacks render-target usage"
                         else if not (finite_color color) then
                           error operation Invalid_argument
                             "clear-color components must be finite"
+                        else if
+                          resolves attachment.store_action
+                          && Option.is_none attachment.resolve_texture
+                        then
+                          error operation Invalid_argument
+                            "a multisample resolve store action requires a resolve texture"
+                        else if
+                          descriptor.sample_count = 1
+                          && Option.is_some attachment.resolve_texture
+                        then
+                          error operation Invalid_argument
+                            "a single-sample color attachment cannot have a resolve texture"
+                        else if
+                          Option.is_some attachment.resolve_texture
+                          && not
+                               (resolves attachment.store_action
+                                || attachment.store_action = Store_deferred)
+                        then
+                          error operation Invalid_argument
+                            "a resolve texture requires a resolve or deferred store action"
+                        else if
+                          descriptor.sample_count = 1
+                          && resolves attachment.store_action
+                        then
+                          error operation Invalid_argument
+                            "a resolve store action requires a multisample color attachment"
                         else
                           let current = descriptor.width, descriptor.height in
                           (match dimensions with
@@ -14525,14 +14567,54 @@ module Command4 = struct
                                error operation Invalid_argument
                                  "color attachments have different dimensions"
                            | None | Some _ ->
-                               loop (attachment :: seen) (Some current)
-                                 (descriptor.format :: formats) rest)))
+                               (match sample_count with
+                                | Some expected
+                                  when expected <> descriptor.sample_count ->
+                                    error operation Invalid_argument
+                                      "render attachments have different sample counts"
+                                | None | Some _ ->
+                                    let validate_resolve =
+                                      match attachment.resolve_texture with
+                                      | None -> Ok ()
+                                      | Some resolve ->
+                                          let ( let* ) result callback =
+                                            Result.bind result callback
+                                          in
+                                          let* () =
+                                            ensure_texture_usable operation resolve
+                                          in
+                                          let* () =
+                                            ensure_same_device operation device
+                                              resolve.device
+                                          in
+                                          let rd = resolve.descriptor in
+                                          if
+                                            descriptor.sample_count <= 1
+                                            || rd.kind <> Texture_2d
+                                            || rd.sample_count <> 1
+                                            || rd.width <> descriptor.width
+                                            || rd.height <> descriptor.height
+                                            || rd.format <> descriptor.format
+                                            || not
+                                                 (List.mem Render_target rd.usage)
+                                          then
+                                            error operation Invalid_argument
+                                              "resolve texture kind, dimensions, format, samples, or usage are incompatible"
+                                          else Ok ()
+                                    in
+                                    Result.bind validate_resolve (fun () ->
+                                      loop (attachment :: seen) (Some current)
+                                        (Some descriptor.sample_count)
+                                        (descriptor.format :: formats) rest)))))
       in
-      loop [] None [] attachments
+      loop [] None None [] attachments
 
     let raw_attachment (attachment : color_attachment) =
       let clear = clear_color attachment.load_action in
       ({ Metal_raw.texture = attachment.texture.raw
+       ; resolve_texture =
+           Option.map (fun (texture : Texture.t) -> texture.raw)
+             attachment.resolve_texture
        ; load_action = load_code attachment.load_action
        ; store_action = store_code attachment.store_action
        ; clear_red = clear.red
@@ -14547,7 +14629,7 @@ module Command4 = struct
       | Texture.Depth24_unorm_stencil8 | Texture.Depth32_float_stencil8 -> true
       | _ -> false
 
-    let validate_depth_attachment operation device ~width ~height = function
+    let validate_depth_attachment operation device ~width ~height ~sample_count = function
       | None -> Ok ()
       | Some (attachment : depth_attachment) ->
           let ( let* ) result callback = Result.bind result callback in
@@ -14556,15 +14638,18 @@ module Command4 = struct
             ensure_same_device operation device attachment.texture.device
           in
           let descriptor = attachment.texture.descriptor in
-          if descriptor.kind <> Texture_2d then
+          if not (compatible_render_kind descriptor) then
             error operation Invalid_argument
-              "Metal 4 depth attachments must be 2D textures"
-          else if descriptor.sample_count <> 1 then
+              "Metal 4 depth attachments must be 2D or 2D-multisample textures consistent with their sample count"
+          else if resolves attachment.store_action then
             error operation Invalid_argument
-              "Metal 4 depth attachments must be single-sample"
+              "Metal 4 depth attachments cannot resolve without a resolve texture"
           else if descriptor.width <> width || descriptor.height <> height then
             error operation Invalid_argument
               "depth and color attachments have different dimensions"
+          else if descriptor.sample_count <> sample_count then
+            error operation Invalid_argument
+              "depth and color attachments have different sample counts"
           else if not (List.mem Render_target descriptor.usage) then
             error operation Invalid_argument
               "depth attachment lacks render-target usage"
@@ -14593,7 +14678,7 @@ module Command4 = struct
       | Texture.X24_stencil8 -> true
       | _ -> false
 
-    let validate_stencil_attachment operation device ~width ~height = function
+    let validate_stencil_attachment operation device ~width ~height ~sample_count = function
       | None -> Ok ()
       | Some (attachment : stencil_attachment) ->
           let ( let* ) result callback = Result.bind result callback in
@@ -14602,15 +14687,18 @@ module Command4 = struct
             ensure_same_device operation device attachment.texture.device
           in
           let descriptor = attachment.texture.descriptor in
-          if descriptor.kind <> Texture_2d then
+          if not (compatible_render_kind descriptor) then
             error operation Invalid_argument
-              "Metal 4 stencil attachments must be 2D textures"
-          else if descriptor.sample_count <> 1 then
+              "Metal 4 stencil attachments must be 2D or 2D-multisample textures consistent with their sample count"
+          else if resolves attachment.store_action then
             error operation Invalid_argument
-              "Metal 4 stencil attachments must be single-sample"
+              "Metal 4 stencil attachments cannot resolve without a resolve texture"
           else if descriptor.width <> width || descriptor.height <> height then
             error operation Invalid_argument
               "stencil and color attachments have different dimensions"
+          else if descriptor.sample_count <> sample_count then
+            error operation Invalid_argument
+              "stencil and color attachments have different sample counts"
           else if not (List.mem Render_target descriptor.usage) then
             error operation Invalid_argument
               "stencil attachment lacks render-target usage"
@@ -14671,10 +14759,10 @@ module Command4 = struct
                  color_attachments
              with
              | Error _ as failure -> failure
-             | Ok ((width, height), color_formats) ->
+             | Ok ((width, height), sample_count, color_formats) ->
                  (match
                     validate_depth_attachment operation
-                      command_buffer.allocator.device ~width ~height
+                      command_buffer.allocator.device ~width ~height ~sample_count
                       depth_attachment
                   with
                   | Error _ as failure -> failure
@@ -14682,6 +14770,7 @@ module Command4 = struct
                       (match
                          validate_stencil_attachment operation
                            command_buffer.allocator.device ~width ~height
+                           ~sample_count
                            stencil_attachment
                        with
                        | Error _ as failure -> failure
@@ -14707,6 +14796,7 @@ module Command4 = struct
                                         stencil_attachment
                                   ; width
                                   ; height
+                                  ; sample_count
                                   ; label
                                   ; support_color_attachment_mapping
                                   ; visibility_result_buffer =
@@ -14727,7 +14817,10 @@ module Command4 = struct
                                     List.iter
                                       (fun (attachment : color_attachment) ->
                                         retain_command4_texture command_buffer
-                                          attachment.texture)
+                                          attachment.texture;
+                                        Option.iter
+                                          (retain_command4_texture command_buffer)
+                                          attachment.resolve_texture)
                                       color_attachments;
                                     Option.iter
                                       (fun (attachment : depth_attachment) ->
@@ -14748,6 +14841,7 @@ module Command4 = struct
                                       ; command_buffer
                                       ; width
                                       ; height
+                                      ; raster_sample_count = sample_count
                                       ; tile_width
                                       ; tile_height
                                       ; color_formats
@@ -14771,6 +14865,14 @@ module Command4 = struct
                                                (fun
                                                  (attachment : color_attachment) ->
                                                  attachment.store_action)
+                                               color_attachments)
+                                      ; color_has_resolve =
+                                          Array.of_list
+                                            (List.map
+                                               (fun
+                                                 (attachment : color_attachment) ->
+                                                 Option.is_some
+                                                   attachment.resolve_texture)
                                                color_attachments)
                                       ; depth_store_action =
                                           Option.map
@@ -14905,7 +15007,9 @@ module Command4 = struct
                       value.command_buffer.allocator.device pipeline.device
                   with
                   | Error _ as failure -> failure
-                  | Ok () when pipeline.raster_sample_count <> 1 ->
+                  | Ok ()
+                    when pipeline.raster_sample_count
+                         <> value.raster_sample_count ->
                       error operation Invalid_argument
                         "pipeline sample count does not match the render pass"
                   | Ok () when pipeline.color_formats <> value.color_formats ->
@@ -15494,7 +15598,11 @@ module Command4 = struct
               "color store-action index is outside the render pass"
         | Ok () when action = Store_deferred ->
             error operation Invalid_argument
-              "a dynamic store action must finalize to dont-care or store"
+              "a dynamic store action must finalize to a concrete action"
+        | Ok ()
+          when resolves action && not value.color_has_resolve.(index) ->
+            error operation Invalid_argument
+              "a resolve store action requires a configured resolve texture"
         | Ok () when value.color_store_actions.(index) <> Store_deferred ->
             error operation Invalid_state
               "the color attachment already has a final store action"
@@ -15520,7 +15628,10 @@ module Command4 = struct
               "a depth store action requires a depth attachment"
         | Ok () when action = Store_deferred ->
             error operation Invalid_argument
-              "a dynamic store action must finalize to dont-care or store"
+              "a dynamic store action must finalize to a concrete action"
+        | Ok () when resolves action ->
+            error operation Invalid_argument
+              "the depth attachment has no resolve texture"
         | Ok () when value.depth_store_action <> Some Store_deferred ->
             error operation Invalid_state
               "the depth attachment already has a final store action"
@@ -15546,7 +15657,10 @@ module Command4 = struct
               "a stencil store action requires a stencil attachment"
         | Ok () when action = Store_deferred ->
             error operation Invalid_argument
-              "a dynamic store action must finalize to dont-care or store"
+              "a dynamic store action must finalize to a concrete action"
+        | Ok () when resolves action ->
+            error operation Invalid_argument
+              "the stencil attachment has no resolve texture"
         | Ok () when value.stencil_store_action <> Some Store_deferred ->
             error operation Invalid_state
               "the stencil attachment already has a final store action"

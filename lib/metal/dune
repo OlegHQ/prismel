@@ -452,6 +452,11 @@
  (libraries metal))
 
 (test
+ (name test_metal4_msaa_render_safe)
+ (modules test_metal4_msaa_render_safe)
+ (libraries metal))
+
+(test
  (name test_metal4_command_buffer7_safe)
  (modules test_metal4_command_buffer7_safe)
  (libraries metal))

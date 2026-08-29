@@ -11462,7 +11462,7 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
         PrismelMetal4CommandBufferState *state =
             command_buffer4_state_of_handle(raw_buffer);
         if (!Is_block(raw_descriptor) || Tag_val(raw_descriptor) != 0 ||
-            Wosize_val(raw_descriptor) != 9) {
+            Wosize_val(raw_descriptor) != 10) {
           CAMLreturn(result_error_text(
               "Metal 4 render-pass descriptor shape is invalid"));
         }
@@ -11471,10 +11471,11 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
         value raw_stencil_attachment = Field(raw_descriptor, 2);
         value raw_width = Field(raw_descriptor, 3);
         value raw_height = Field(raw_descriptor, 4);
-        value raw_label = Field(raw_descriptor, 5);
-        value raw_support_color_attachment_mapping = Field(raw_descriptor, 6);
-        value raw_visibility_result_buffer = Field(raw_descriptor, 7);
-        value raw_visibility_result_type = Field(raw_descriptor, 8);
+        value raw_sample_count = Field(raw_descriptor, 5);
+        value raw_label = Field(raw_descriptor, 6);
+        value raw_support_color_attachment_mapping = Field(raw_descriptor, 7);
+        value raw_visibility_result_buffer = Field(raw_descriptor, 8);
+        value raw_visibility_result_type = Field(raw_descriptor, 9);
         if (!Is_long(raw_support_color_attachment_mapping) ||
             !Is_long(raw_visibility_result_type) ||
             !((Is_long(raw_visibility_result_buffer) &&
@@ -11492,6 +11493,7 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
         const mlsize_t count = Wosize_val(raw_attachments);
         const intnat width = Long_val(raw_width);
         const intnat height = Long_val(raw_height);
+        const intnat sample_count = Long_val(raw_sample_count);
         NSString *expected_label = nil;
         if (Is_block(raw_label)) {
           expected_label = string_from_ocaml(Field(raw_label, 0));
@@ -11501,6 +11503,7 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
           }
         }
         if (count == 0 || count > 8 || width <= 0 || height <= 0 ||
+            sample_count <= 0 ||
             support_color_attachment_mapping_code < 0 ||
             support_color_attachment_mapping_code > 1 ||
             (visibility_result_type_code != MTLVisibilityResultTypeReset &&
@@ -11539,7 +11542,8 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
         }
         descriptor.renderTargetWidth = static_cast<NSUInteger>(width);
         descriptor.renderTargetHeight = static_cast<NSUInteger>(height);
-        descriptor.defaultRasterSampleCount = 1;
+        descriptor.defaultRasterSampleCount =
+            static_cast<NSUInteger>(sample_count);
         descriptor.supportColorAttachmentMapping =
             support_color_attachment_mapping;
         descriptor.visibilityResultBuffer = visibility_result_buffer;
@@ -11548,25 +11552,55 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
             [[NSMutableArray alloc] initWithCapacity:count];
         for (mlsize_t index = 0; index < count; ++index) {
           value attachment_value = Field(raw_attachments, index);
+          if (!Is_block(attachment_value) || Tag_val(attachment_value) != 0 ||
+              Wosize_val(attachment_value) != 8) {
+            CAMLreturn(result_error_text(
+                "Metal 4 color attachment shape is invalid"));
+          }
           id<MTLTexture> texture = object_of_handle(
               Field(attachment_value, 0), Handle_kind::Texture);
-          const intnat load_action = Long_val(Field(attachment_value, 1));
-          const intnat store_action = Long_val(Field(attachment_value, 2));
-          const double clear_red = Double_val(Field(attachment_value, 3));
-          const double clear_green = Double_val(Field(attachment_value, 4));
-          const double clear_blue = Double_val(Field(attachment_value, 5));
-          const double clear_alpha = Double_val(Field(attachment_value, 6));
+          value raw_resolve_texture = Field(attachment_value, 1);
+          id<MTLTexture> resolve_texture = nil;
+          if (Is_block(raw_resolve_texture)) {
+            resolve_texture = object_of_handle(Field(raw_resolve_texture, 0),
+                                                Handle_kind::Texture);
+          }
+          const intnat load_action = Long_val(Field(attachment_value, 2));
+          const intnat store_action = Long_val(Field(attachment_value, 3));
+          const double clear_red = Double_val(Field(attachment_value, 4));
+          const double clear_green = Double_val(Field(attachment_value, 5));
+          const double clear_blue = Double_val(Field(attachment_value, 6));
+          const double clear_alpha = Double_val(Field(attachment_value, 7));
+          const MTLTextureType expected_texture_type = sample_count == 1
+              ? MTLTextureType2D : MTLTextureType2DMultisample;
+          const bool resolve_action =
+              store_action == MTLStoreActionMultisampleResolve ||
+              store_action == MTLStoreActionStoreAndMultisampleResolve;
+          const bool valid_resolve = resolve_texture == nil
+              ? !resolve_action
+              : sample_count > 1 &&
+                resolve_texture.device.registryID ==
+                    state.commandBuffer.device.registryID &&
+                resolve_texture.textureType == MTLTextureType2D &&
+                resolve_texture.sampleCount == 1 &&
+                resolve_texture.width == static_cast<NSUInteger>(width) &&
+                resolve_texture.height == static_cast<NSUInteger>(height) &&
+                resolve_texture.pixelFormat == texture.pixelFormat &&
+                (resolve_texture.usage & MTLTextureUsageRenderTarget) != 0;
           if (texture.device.registryID != state.commandBuffer.device.registryID ||
-              texture.textureType != MTLTextureType2D ||
-              texture.sampleCount != 1 ||
+              texture.textureType != expected_texture_type ||
+              texture.sampleCount != static_cast<NSUInteger>(sample_count) ||
               texture.width != static_cast<NSUInteger>(width) ||
               texture.height != static_cast<NSUInteger>(height) ||
               (texture.usage & MTLTextureUsageRenderTarget) == 0 ||
+              !valid_resolve ||
               (load_action != MTLLoadActionDontCare &&
                load_action != MTLLoadActionLoad &&
                load_action != MTLLoadActionClear) ||
               (store_action != MTLStoreActionDontCare &&
                store_action != MTLStoreActionStore &&
+               store_action != MTLStoreActionMultisampleResolve &&
+               store_action != MTLStoreActionStoreAndMultisampleResolve &&
                store_action != MTLStoreActionUnknown)) {
             CAMLreturn(result_error_text(
                 "Metal 4 color attachment failed native validation"));
@@ -11574,11 +11608,13 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
           MTLRenderPassColorAttachmentDescriptor *attachment =
               descriptor.colorAttachments[index];
           attachment.texture = texture;
+          attachment.resolveTexture = resolve_texture;
           attachment.loadAction = static_cast<MTLLoadAction>(load_action);
           attachment.storeAction = static_cast<MTLStoreAction>(store_action);
           attachment.clearColor = MTLClearColorMake(
               clear_red, clear_green, clear_blue, clear_alpha);
           if (attachment.texture != texture ||
+              attachment.resolveTexture != resolve_texture ||
               attachment.loadAction != static_cast<MTLLoadAction>(load_action) ||
               attachment.storeAction !=
                   static_cast<MTLStoreAction>(store_action) ||
@@ -11590,6 +11626,9 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
                 "Metal changed checked Metal 4 color attachment properties"));
           }
           [textures addObject:texture];
+          if (resolve_texture != nil) {
+            [textures addObject:resolve_texture];
+          }
         }
         if (Is_block(raw_depth_attachment)) {
           value attachment_value = Field(raw_depth_attachment, 0);
@@ -11604,8 +11643,9 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
               texture.pixelFormat == MTLPixelFormatDepth24Unorm_Stencil8 ||
               texture.pixelFormat == MTLPixelFormatDepth32Float_Stencil8;
           if (texture.device.registryID != state.commandBuffer.device.registryID ||
-              texture.textureType != MTLTextureType2D ||
-              texture.sampleCount != 1 ||
+              texture.textureType != (sample_count == 1
+                  ? MTLTextureType2D : MTLTextureType2DMultisample) ||
+              texture.sampleCount != static_cast<NSUInteger>(sample_count) ||
               texture.width != static_cast<NSUInteger>(width) ||
               texture.height != static_cast<NSUInteger>(height) ||
               (texture.usage & MTLTextureUsageRenderTarget) == 0 ||
@@ -11652,8 +11692,9 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
               texture.pixelFormat == MTLPixelFormatX32_Stencil8 ||
               texture.pixelFormat == MTLPixelFormatX24_Stencil8;
           if (texture.device.registryID != state.commandBuffer.device.registryID ||
-              texture.textureType != MTLTextureType2D ||
-              texture.sampleCount != 1 ||
+              texture.textureType != (sample_count == 1
+                  ? MTLTextureType2D : MTLTextureType2DMultisample) ||
+              texture.sampleCount != static_cast<NSUInteger>(sample_count) ||
               texture.width != static_cast<NSUInteger>(width) ||
               texture.height != static_cast<NSUInteger>(height) ||
               (texture.usage & MTLTextureUsageRenderTarget) == 0 ||
@@ -11685,7 +11726,8 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
         }
         if (descriptor.renderTargetWidth != static_cast<NSUInteger>(width) ||
             descriptor.renderTargetHeight != static_cast<NSUInteger>(height) ||
-            descriptor.defaultRasterSampleCount != 1 ||
+            descriptor.defaultRasterSampleCount !=
+                static_cast<NSUInteger>(sample_count) ||
             descriptor.supportColorAttachmentMapping !=
                 support_color_attachment_mapping ||
             descriptor.visibilityResultBuffer != visibility_result_buffer ||
@@ -11904,7 +11946,9 @@ bool checked_metal4_store_action(value raw_action,
     return false;
   }
   const intnat code = Long_val(raw_action);
-  if (code != MTLStoreActionDontCare && code != MTLStoreActionStore) {
+  if (code != MTLStoreActionDontCare && code != MTLStoreActionStore &&
+      code != MTLStoreActionMultisampleResolve &&
+      code != MTLStoreActionStoreAndMultisampleResolve) {
     return false;
   }
   *store_action = static_cast<MTLStoreAction>(code);

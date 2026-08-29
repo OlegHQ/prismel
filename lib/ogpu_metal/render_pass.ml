@@ -189,8 +189,10 @@ module Private=struct
     let color=List.hd(Array.to_list descriptor.colors|>List.filter_map Fun.id)in
     let c=Metal.Command4.Render_encoder.color~red:(let r,_,_,_=color.clear in r)~green:(let _,g,_,_=color.clear in g)~blue:(let _,_,b,_=color.clear in b)~alpha:(let _,_,_,a=color.clear in a)in
     let load=match color.load with Ogpu.Render_pass.Clear->Metal.Command4.Render_encoder.Clear c|Load->Load|Dont_care->Load_dont_care
-    and store=match color.store with Ogpu.Render_pass.Store->Metal.Command4.Render_encoder.Store|Discard->Store_dont_care|Resolve->Store_deferred in
-    let colors=[Metal.Command4.Render_encoder.color_attachment~load_action:load~store_action:store(Texture.Private.metal value.color)]in
+    and store=match color.store with Ogpu.Render_pass.Store->Metal.Command4.Render_encoder.Store|Discard->Store_dont_care|Resolve->Multisample_resolve in
+    let resolve_texture=Option.map Texture.Private.metal value.resolve in
+    let colors=[Metal.Command4.Render_encoder.color_attachment ~load_action:load
+      ~store_action:store ?resolve_texture (Texture.Private.metal value.color)]in
     let depth_attachment=Option.map(fun texture->let d=Option.get descriptor.depth in Metal.Command4.Render_encoder.depth_attachment~load_action:(match d.load with Clear->Depth_clear|Load->Depth_load|Dont_care->Depth_load_dont_care)~store_action:(match d.store with Store->Store|Discard->Store_dont_care|Resolve->Store_deferred)~clear_depth:d.clear(Texture.Private.metal texture))value.depth in
     let stencil_attachment=Option.map(fun texture->let s=Option.get descriptor.stencil in Metal.Command4.Render_encoder.stencil_attachment~load_action:(match s.load with Clear->Stencil_clear|Load->Stencil_load|Dont_care->Stencil_load_dont_care)~store_action:(match s.store with Store->Store|Discard->Store_dont_care|Resolve->Store_deferred)~clear_stencil:(Int32.of_int s.clear)(Texture.Private.metal texture))value.stencil in
     match Metal.Command4.Render_encoder.create ?depth_attachment ?stencil_attachment command~color_attachments:colors with

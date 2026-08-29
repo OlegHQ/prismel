@@ -244,10 +244,11 @@ type metal4_tile_descriptor =
   ; dynamic_linking : metal4_stage_dynamic_linking_descriptor option
   }
 
-(** Positional native ABI record for one base-level, single-sample Metal 4
-    render-pass color attachment. *)
+(** Positional native ABI record for one base-level Metal 4 render-pass color
+    attachment and its optional single-sample resolve target. *)
 type metal4_render_attachment =
   { texture : handle
+  ; resolve_texture : handle option
   ; load_action : int
   ; store_action : int
   ; clear_red : float
@@ -256,8 +257,8 @@ type metal4_render_attachment =
   ; clear_alpha : float
   }
 
-(** Positional native ABI record for one base-level, single-sample Metal 4
-    render-pass depth attachment. *)
+(** Positional native ABI record for one base-level Metal 4 render-pass depth
+    attachment. *)
 type metal4_render_depth_attachment =
   { texture : handle
   ; load_action : int
@@ -265,8 +266,8 @@ type metal4_render_depth_attachment =
   ; clear_depth : float
   }
 
-(** Positional native ABI record for one base-level, single-sample Metal 4
-    render-pass stencil attachment. *)
+(** Positional native ABI record for one base-level Metal 4 render-pass stencil
+    attachment. *)
 type metal4_render_stencil_attachment =
   { texture : handle
   ; load_action : int
@@ -281,6 +282,7 @@ type metal4_render_pass_descriptor =
   ; stencil_attachment : metal4_render_stencil_attachment option
   ; width : int
   ; height : int
+  ; sample_count : int
   ; label : string option
   ; support_color_attachment_mapping : bool
   ; visibility_result_buffer : handle option
