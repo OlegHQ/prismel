@@ -1078,10 +1078,12 @@ let step_submission ?clear ?identity ?version submission batches=
           fail"Prismel_next_execution.Private.step"Invalid_argument
             "draw batch belongs to another submission"
         else
-          let reversed=List.fold_left(fun reversed batch->
-            List.rev_append batch.batch_draws reversed)[]batches in
+          let draws=match batches with
+            |[batch]->batch.batch_draws
+            |_->List.rev(List.fold_left(fun reversed batch->
+                List.rev_append batch.batch_draws reversed)[]batches)in
           step_core ~after_prepare:(fun()->close_submission submission)
-            ?clear ?identity ?version submission.owner(List.rev reversed))
+            ?clear ?identity ?version submission.owner draws)
 let capture value=match ensure"Prismel_next_execution.capture"value with Error _ as e->e|Ok()->
   match presentation_facts value with Error _ as error->error|Ok facts->
   let captured=match value.runtime with
