@@ -57,6 +57,26 @@ let run_case count=
   ignore(get(Scene_execution.render_blended renderer stable));
   require(only_render_trace control=expected)
     (Printf.sprintf"%d-draw restored order did not recover exact command"count);
+  let transient=Weak.create 1 in
+  let ()=
+    let draw={Scene_execution.mesh=mesh(count+1_000);
+      state={state with scissor=(2,2,60,60)}}in
+    Weak.set transient 0(Some draw);
+    ignore(get(Scene_execution.render_blended renderer[Ogpu.Pipeline.Replace,draw]))
+  in
+  Gc.full_major();
+  require(Weak.get transient 0=None)
+    (Printf.sprintf"%d-draw one-hit submission retained its draw graph"count);
+  (* A compact candidate may authorize admission, but only an exact retained
+     signature may replay.  Two equal frames admit; the following frame reuses
+     the admitted command without accepting the intervening transient. *)
+  let stable_again=draws count in
+  ignore(get(Scene_execution.render_blended renderer stable_again));
+  ignore(get(Scene_execution.render_blended renderer stable_again));
+  Ogpu.Backend_mock.clear_trace control;
+  ignore(get(Scene_execution.render_blended renderer stable_again));
+  require(only_render_trace control=expected)
+    (Printf.sprintf"%d-draw two-hit admission did not preserve stable replay"count);
   get(Scene_execution.destroy renderer);
   require(Ogpu.Backend_mock.live_counts control=(0,0,0,0,0))
     (Printf.sprintf"%d-draw mock handle delta"count);
