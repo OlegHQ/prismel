@@ -16,17 +16,15 @@ let contains text needle =
 let require path text needle =
   if not (contains text needle) then fail "%s: required boundary %S is absent" path needle
 
-let reject_composition libraries =
-  let has name = List.mem name libraries in
-  if has "prismel" && has "sdl3" then
-    Error "legacy prismel archive and SDL3 presenter would co-link SDL2 and SDL3"
-  else Ok ()
+let legacy =
+  [ "tsdl"; "sdl2"; "raster2"; "ogpu_raster2"; "wap"; "opengl" ]
 
-let expect_rejected libraries =
-  match reject_composition libraries with Error _ -> () | Ok () -> fail "unsafe co-link was accepted"
-
-let expect_accepted libraries =
-  match reject_composition libraries with Ok () -> () | Error text -> fail "%s" text
+let reject_legacy path text =
+  List.iter
+    (fun token ->
+      if contains text token then
+        fail "%s: native dependency boundary still mentions %s" path token)
+    legacy
 
 let () =
   match Array.to_list Sys.argv with
@@ -35,19 +33,19 @@ let () =
       and runtime = read runtime_path
       and metal = read metal_path
       and scene = read scene_path in
-      require prismel_path prismel "tsdl";
-      require prismel_path prismel "runtime";
-      if contains runtime "sdl3" then
-        fail "%s: legacy runtime acquired an SDL3 dependency" runtime_path;
+      reject_legacy prismel_path prismel;
+      reject_legacy runtime_path runtime;
+      require prismel_path prismel "runtime_next_orchestrator";
+      require runtime_path runtime "(libraries sdl3 metal ogpu ogpu_metal scene_execution)";
+      require runtime_path runtime "(libraries runtime_next)";
       require metal_path metal "(libraries ogpu metal)";
       require scene_path scene "(libraries ogpu)";
       List.iter (fun forbidden -> if contains scene forbidden then
         fail "%s: neutral scene execution acquired forbidden dependency %s"
-          scene_path forbidden) ["tsdl"; "sdl3"; "runtime"; "metal"];
-      if contains metal "sdl3" || contains metal "tsdl" then
-        fail "%s: ogpu_metal acquired an SDL dependency" metal_path;
-      expect_rejected ["prismel"; "sdl3"];
-      expect_accepted ["ogpu"; "ogpu_metal"; "metal"];
+          scene_path forbidden) ["sdl3"; "runtime"; "metal"];
+      List.iter (fun forbidden -> if contains metal forbidden then
+        fail "%s: ogpu_metal acquired a platform dependency %s" metal_path forbidden)
+        ["sdl3"; "runtime"];
       print_endline
-        "native-next link gate: unsafe Prismel(SDL2)+SDL3 composition rejected; isolated foundations accepted"
+        "native link gate: Prismel facade, SDL3/Metal runtime, and neutral OGPU boundaries passed"
   | _ -> fail "usage: native_next_link_gate PRISMEL_DUNE RUNTIME_DUNE OGPU_METAL_DUNE SCENE_EXECUTION_DUNE"
