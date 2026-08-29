@@ -1,6 +1,5 @@
-type target = Native
 type t
-type configuration = { target:target; logical_width:int; logical_height:int;
+type configuration = { logical_width:int; logical_height:int;
   drawable_width:int; drawable_height:int }
 type facts = { title:string; logical_width:int; logical_height:int;
   drawable_width:int; drawable_height:int; position:(int*int) option;
@@ -28,12 +27,7 @@ type prepared = {
   samples : int;
   draw : Scene_execution.draw;
 }
-val target_of_string : string -> (target,string) result
-val select_with : (string -> string option) -> (target,string) result
-val selected : unit -> (target,string) result
 val create : configuration -> (t,Ogpu.Error.t) result
-val target : t -> target
-val is_native : t -> bool
 val facts : t -> (facts,Ogpu.Error.t) result
 val pacing : t -> (pacing,Ogpu.Error.t) result
 val stats : t -> (stats,Ogpu.Error.t) result

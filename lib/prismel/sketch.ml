@@ -1,4 +1,4 @@
-type clock=Realtime|Fixed of float type render_target=Native
+type clock=Realtime|Fixed of float
 type config={width:int;height:int;title:string;fps:int option;domains:int option;clock:clock;resizable:bool;fullscreen:bool}
 let default_config={width=800;height=600;title="Prismel sketch";fps=Some 60;domains=None;clock=Realtime;resizable=true;fullscreen=false}
 let stopped=ref false let quit()=stopped:=true
@@ -8,7 +8,6 @@ let resize ~width ~height =
   match !resize_current with
   |None->invalid_arg"Sketch.resize: no sketch is running"
   |Some resize->resize~width~height
-let render_target () = Native
 let frame config count time dt events={Frame.width=config.width;height=config.height;size=(config.width,config.height);drawable_width=config.width;drawable_height=config.height;drawable_size=(config.width,config.height);pixel_scale=(1.,1.);time;dt;fps=(if dt > 0. then 1. /. dt else 0.);count;mouse=Input.mouse_pos();mouse_delta=Input.mouse_delta();keys=Input.keys_down();mouse_buttons=Input.mouse_buttons_down();events}
 let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _ _->())~init~update~view ?(on_stop=fun _->())()=
   if config.width<=0||config.height<=0 then invalid_arg"Sketch: dimensions must be positive";
@@ -16,9 +15,8 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
   Option.iter(fun fps->if fps<=0 then invalid_arg"Sketch: fps must be positive")config.fps;
   Option.iter(fun domains->if domains<=0 then invalid_arg"Sketch: domains must be positive")config.domains;
   stopped:=false;Time.init();let first=frame config 0 0. 0.[]in let model=ref(init first)in
-  let target=Prismel_next_execution.Native in
   let timing=match config.clock with Realtime->Prismel_next_execution.Variable|Fixed dt when Float.is_finite dt&&dt>0.->Fixed dt|Fixed _->invalid_arg"fixed dt must be finite and positive"in
-  let configuration={Prismel_next_execution.default_configuration with target;logical_width=config.width;logical_height=config.height;drawable_width=config.width;drawable_height=config.height;title=config.title;timing}in
+  let configuration={Prismel_next_execution.default_configuration with logical_width=config.width;logical_height=config.height;drawable_width=config.width;drawable_height=config.height;title=config.title;timing}in
   let get=function Ok x->x|Error e->failwith(Format.asprintf"%a"Prismel_next_execution.pp_error e)in
   let coordinator=get(Prismel_next_execution.create configuration)in
   Runtime_diagnostics.Private.install coordinator;

@@ -4,8 +4,6 @@ type clock =
   | Realtime
   | Fixed of float
 
-type render_target = Native
-
 type config = {
   width : int;
   height : int;
@@ -67,4 +65,3 @@ val export_state :
 val quit : unit -> unit
 val resize : width:int -> height:int -> unit
 (* Resize the active sketch through its native runtime. *)
-val render_target : unit -> render_target

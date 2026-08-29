@@ -1,4 +1,4 @@
-(** SDL2-free staging replacement for [Prismel.Low]. No native handles escape. *)
+(** Native Metal implementation of [Prismel.Low]. No native handles escape. *)
 
 type error = Invalid_argument of string | Unavailable of string | Backend of string
 

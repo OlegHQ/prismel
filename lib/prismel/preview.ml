@@ -2,10 +2,9 @@ let session : Prismel_next_execution.t option ref=ref None
 let last_capture=ref Bytes.empty
 let last_scene : Scene.t option ref = ref None
 let get=function Ok x->x|Error e->failwith(Format.asprintf"%a"Prismel_next_execution.pp_error e)
-let target () = Prismel_next_execution.Native
 let start ?(width=800)?(height=600)?(title="Prismel preview")()=
   if width<=0||height<=0 then invalid_arg"Preview.start: dimensions must be positive";
-  match!session with Some _->()|None->let configuration={Prismel_next_execution.default_configuration with target=target();logical_width=width;logical_height=height;drawable_width=width;drawable_height=height;title}in
+  match!session with Some _->()|None->let configuration={Prismel_next_execution.default_configuration with logical_width=width;logical_height=height;drawable_width=width;drawable_height=height;title}in
   let value=get(Prismel_next_execution.create configuration)in session:=Some value;
   Scene.Private.install_renderer(fun scene->last_scene:=Some scene;let staged=Result.get_ok(Scene.Private.stage_native~width~height scene)in
     let draws=get(Prismel_next_execution.lower_scene2 value~density:1~resource:(fun id->List.assoc_opt id staged.resources)staged.scene2)in

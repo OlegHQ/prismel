@@ -1,6 +1,4 @@
-type target = Native
-type implementation = Native_runtime of Runtime_next.t
-type configuration = { target:target;logical_width:int;logical_height:int;
+type configuration = { logical_width:int;logical_height:int;
   drawable_width:int;drawable_height:int }
 type facts = { title:string;logical_width:int;logical_height:int;drawable_width:int;
   drawable_height:int;position:(int*int)option;pixel_density:float;display_scale:float;
@@ -20,45 +18,35 @@ type family=Scene2|Scene2_textured|Scene3|Scene3_textured|Scene3_shadow|Scene3_s
 type blend=Replace|Alpha|Add|Multiply|Screen|Subtract
 type prepared={family:family;blend:blend;texture:Scene_execution.sampled_texture option;
   auxiliary:Scene_execution.auxiliary_resource option;samples:int;draw:Scene_execution.draw}
-type t={target:target;implementation:implementation;mutable facts:facts;
+type t={runtime:Runtime_next.t;mutable facts:facts;
   mutable pacing:pacing;mutable logical_draws:int64;mutable logical_passes:int64;
   mutable logical_submissions:int64;mutable dead:bool}
-let target_of_string value=match String.lowercase_ascii(String.trim value)with
-  |"native"->Ok Native
-  |invalid->Error(Printf.sprintf"unknown render target %S (expected native)"invalid)
-let select_with getenv=let explicit=match getenv"PRISMEL_RENDER_TARGET"with
-  |Some value->Some("PRISMEL_RENDER_TARGET",value)|None->Option.map(fun value->"PRISMAL_RENDER_TARGET",value)(getenv"PRISMAL_RENDER_TARGET")in
-  match explicit with Some(name,value)->Result.map_error(fun message->name^": "^message)(target_of_string value)
-  |None->Ok Native
-let selected()=select_with Sys.getenv_opt
 let error operation kind message=Error(Ogpu.Error.make operation kind message)
 let invalid operation message=error operation Ogpu.Error.Invalid_argument message
 let create (c:configuration)=let op="Runtime_next_orchestrator.create"in
   if c.logical_width<=0||c.logical_height<=0||c.drawable_width<=0||c.drawable_height<=0
-  then invalid op"dimensions must be positive"else let finish implementation facts=
-    Ok{target=c.target;implementation;facts;pacing={frames=0L;presented=0L;last_presented=false};logical_draws=0L;logical_passes=0L;logical_submissions=0L;dead=false}in
+  then invalid op"dimensions must be positive"else let finish runtime facts=
+    Ok{runtime;facts;pacing={frames=0L;presented=0L;last_presented=false};logical_draws=0L;logical_passes=0L;logical_submissions=0L;dead=false}in
   match Runtime_next.create~width:c.logical_width~height:c.logical_height with Error _ as e->e|Ok runtime->
       (match Runtime_next.set_title runtime "Prismel runtime-next",Runtime_next.set_resizable runtime true with
        |Ok(),Ok()->(match Runtime_next.window_facts runtime~vsync:true with
-          |Ok f->finish(Native_runtime runtime){title=f.title;logical_width=f.logical_width;logical_height=f.logical_height;drawable_width=f.drawable_width;drawable_height=f.drawable_height;position=Some f.position;pixel_density=f.pixel_density;display_scale=f.display_scale;refresh_rate=f.refresh_rate;vsync=f.vsync}
+          |Ok f->finish runtime {title=f.title;logical_width=f.logical_width;logical_height=f.logical_height;drawable_width=f.drawable_width;drawable_height=f.drawable_height;position=Some f.position;pixel_density=f.pixel_density;display_scale=f.display_scale;refresh_rate=f.refresh_rate;vsync=f.vsync}
           |Error e->ignore(Runtime_next.destroy runtime);Error e)
        |Error e,_|_,Error e->ignore(Runtime_next.destroy runtime);Error e)
 let ensure operation value=if value.dead then error operation Ogpu.Error.Stale_handle"runtime is destroyed"else Ok()
-let target value=value.target
-let is_native value=value.target=Native
 let facts value=Result.map(fun()->value.facts)(ensure"Runtime_next_orchestrator.facts"value)
 let pacing value=Result.map(fun()->value.pacing)(ensure"Runtime_next_orchestrator.pacing"value)
 let stats value=match ensure"Runtime_next_orchestrator.stats"value with Error _ as e->e|Ok()->
-  let uploaded_bytes,cache_entries,gpu_timing_supported,gpu_duration_seconds,gpu_sample_count,retained_plan_builds,retained_plan_hits,retained_plan_misses,retained_plan_evictions,retained_plan_executions,retained_plan_entries,retained_plan_capacity=match value.implementation with Native_runtime runtime->let s=Runtime_next.stats runtime in s.uploaded_bytes,s.mesh_cache_entries,s.gpu_timing_supported,s.gpu_duration_seconds,s.gpu_sample_count,s.retained_plan_builds,s.retained_plan_hits,s.retained_plan_misses,s.retained_plan_evictions,s.retained_plan_executions,s.retained_plan_entries,s.retained_plan_capacity in
+  let s=Runtime_next.stats value.runtime in
+  let uploaded_bytes,cache_entries,gpu_timing_supported,gpu_duration_seconds,gpu_sample_count,retained_plan_builds,retained_plan_hits,retained_plan_misses,retained_plan_evictions,retained_plan_executions,retained_plan_entries,retained_plan_capacity=s.uploaded_bytes,s.mesh_cache_entries,s.gpu_timing_supported,s.gpu_duration_seconds,s.gpu_sample_count,s.retained_plan_builds,s.retained_plan_hits,s.retained_plan_misses,s.retained_plan_evictions,s.retained_plan_executions,s.retained_plan_entries,s.retained_plan_capacity in
   Ok{frames=value.pacing.frames;presented=value.pacing.presented;logical_draws=value.logical_draws;
     logical_passes=value.logical_passes;logical_submissions=value.logical_submissions;uploaded_bytes;cache_entries;gpu_timing_supported;gpu_duration_seconds;gpu_sample_count;retained_plan_builds;retained_plan_hits;retained_plan_misses;retained_plan_evictions;retained_plan_executions;retained_plan_entries;retained_plan_capacity}
 let native_release_queue()=match Metal.Release_queue.stats()with
   |Ok stats->Some(stats.pending,stats.live_handles,stats.total_created,stats.total_released)
   |Error _->None
 let diagnostics value=
-  let cache_entries=match value.implementation with
-    |Native_runtime runtime->let s=Runtime_next.stats runtime in
-        s.mesh_cache_entries+s.pipeline_cache_entries in
+  let s=Runtime_next.stats value.runtime in
+  let cache_entries=s.mesh_cache_entries+s.pipeline_cache_entries in
   let release_queue=native_release_queue() in
   {active=not value.dead;cache_entries;
    release_queue_pending=Option.map(fun(pending,_,_,_)->pending)release_queue;
@@ -71,7 +59,7 @@ let account value draw_count result =
     last_presented=presented};value.logical_draws<-Int64.add value.logical_draws(Int64.of_int draw_count);
     value.logical_passes<-Int64.succ value.logical_passes;value.logical_submissions<-Int64.succ value.logical_submissions|Error _->());result
 let render value draws=match ensure"Runtime_next_orchestrator.render"value with Error _ as e->e|Ok()->
-  account value(List.length draws)(match value.implementation with Native_runtime x->Runtime_next.render x draws)
+  account value(List.length draws)(Runtime_next.render value.runtime draws)
 let scene_family=function Scene2->Scene_execution.Scene2|Scene2_textured->Scene2_textured|Scene3->Scene3
   |Scene3_textured->Scene3_textured|Scene3_shadow->Scene3_shadow
   |Scene3_stencil->Scene3_stencil|Scene3_textured_stencil->Scene3_textured_stencil
@@ -80,17 +68,16 @@ let pipeline_blend=function Replace->Ogpu.Pipeline.Replace|Alpha->Alpha|Add->Add
   |Multiply->Multiply|Screen->Screen|Subtract->Subtract
 let render_prepared value draws=match ensure"Runtime_next_orchestrator.render_prepared"value with Error _ as e->e|Ok()->
   let draws=List.map(fun x->scene_family x.family,pipeline_blend x.blend,x.texture,x.auxiliary,x.samples,x.draw)draws in
-  account value(List.length draws)(match value.implementation with
-    |Native_runtime x->Runtime_next.render_sampled_resources x draws)
+  account value(List.length draws)(Runtime_next.render_sampled_resources value.runtime draws)
 let resize value~logical_width~logical_height~drawable_width~drawable_height=
   match ensure"Runtime_next_orchestrator.resize"value with Error _ as e->e|Ok()->let result=
-    match value.implementation with Native_runtime x->Runtime_next.resize x~width:logical_width~height:logical_height in
+    Runtime_next.resize value.runtime~width:logical_width~height:logical_height in
     (match result with Ok()->value.facts<-{value.facts with logical_width;logical_height;drawable_width;drawable_height;
       pixel_density=float drawable_width/.float logical_width;display_scale=float drawable_width/.float logical_width}|Error _->());result
 let capture value~bytes_per_row=match ensure"Runtime_next_orchestrator.capture"value with Error _ as e->e|Ok()->
-  match value.implementation with Native_runtime x->Runtime_next.read_pixels x~bytes_per_row
-let native_call operation value call=match ensure operation value with Error _ as e->e|Ok()->match value.implementation with
-  |Native_runtime runtime->call runtime
+  Runtime_next.read_pixels value.runtime~bytes_per_row
+let native_call operation value call=match ensure operation value with Error _ as e->e|Ok()->
+  call value.runtime
 let set_title value title=match native_call"Runtime_next_orchestrator.set_title"value(fun x->Runtime_next.set_title x title)with
   |Ok()->value.facts<-{value.facts with title};Ok()|Error _ as e->e
 let set_position value~x~y=match native_call"Runtime_next_orchestrator.set_position"value(fun r->Runtime_next.set_position r~x~y)with
@@ -106,4 +93,4 @@ let visible value=native_call"Runtime_next_orchestrator.visible"value Runtime_ne
 let minimize value=native_call"Runtime_next_orchestrator.minimize"value Runtime_next.minimize
 let maximize value=native_call"Runtime_next_orchestrator.maximize"value Runtime_next.maximize
 let restore value=native_call"Runtime_next_orchestrator.restore"value Runtime_next.restore
-let destroy value=if value.dead then Ok()else(value.dead<-true;match value.implementation with Native_runtime x->Runtime_next.destroy x)
+let destroy value=if value.dead then Ok()else(value.dead<-true;Runtime_next.destroy value.runtime)

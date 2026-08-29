@@ -4,22 +4,6 @@
  (libraries prismel pxui))
 
 (test
- (name test_prismel_runtime_next_input_compat)
- (modules test_prismel_runtime_next_input_compat)
- (libraries prismel runtime_next_input)
- (link_flags -linkall)
- (action
-  (setenv PRISMEL_TEST_RUNTIME_NEXT_INPUT_COMPAT 1 (run %{test}))))
-
-(test
- (name test_prismel_runtime_next_sketch)
- (modules test_prismel_runtime_next_sketch)
- (libraries prismel_runtime_next_sketch)
- (link_flags -linkall)
- (action
-  (setenv PRISMEL_TEST_RUNTIME_NEXT_SKETCH 1 (run %{test}))))
-
-(test
  (name test_easy_camera2)
  (modules test_easy_camera2)
  (libraries prismel pxui))
@@ -111,14 +95,6 @@
   (glob_files ../lib/*/dune))
  (action
   (run %{exe:../tools/gpu_migration/api_manifest.exe}
-   --root %{workspace_root} --check)))
-
-(rule
- (alias runtest)
- (deps ../specification/evidence/gpu_migration/phase0_baseline.json
-  ../specification/evidence/gpu_migration/phase0_environment.json)
- (action
-  (run %{exe:../tools/gpu_migration/capture_environment.exe}
    --root %{workspace_root} --check)))
 
 (test

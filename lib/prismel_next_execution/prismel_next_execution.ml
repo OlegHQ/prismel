@@ -1,4 +1,3 @@
-type target = Native
 type error_kind = Invalid_argument | Unsupported | Backend | Resource | Destroyed
 type error = { operation:string; kind:error_kind; message:string }
 let pp_error formatter value =
@@ -10,10 +9,10 @@ let resource operation value =
   Error { operation; kind=Resource; message=Format.asprintf "%a" Prismel_next_resources.pp_error value }
 
 type timing = Fixed of float | Variable
-type configuration = { target:target; logical_width:int; logical_height:int;
+type configuration = { logical_width:int; logical_height:int;
   drawable_width:int; drawable_height:int; title:string; timing:timing;
   max_events:int; max_file_bytes:int }
-let default_configuration = { target=Native; logical_width=640; logical_height=480;
+let default_configuration = { logical_width=640; logical_height=480;
   drawable_width=640; drawable_height=480; title="Prismel"; timing=Fixed (1. /. 60.);
   max_events=4096; max_file_bytes=16*1024*1024 }
 
@@ -58,13 +57,13 @@ type scene2_resource_stamp=
   |Text_stamp of int*Prismel_next_resources.Text.t*int
   |Canvas_stamp of int*Prismel_next_resources.Canvas.t*int
 type cached_scene2_plan={plan_fingerprint:int;plan_command_count:int;
-  plan_source_bytes:int;plan_density:int;plan_target:target;
+  plan_source_bytes:int;plan_density:int;
   plan_extent:int*int*int*int;plan_resources:scene2_resource_stamp list;
   plan_ir:Scene_command.Render_ir.t;plan_draws:draw list;
   plan_image_ids:int option list}
 type scene2_plan_candidate={candidate_plan_fingerprint:int;
   candidate_plan_command_count:int;candidate_plan_density:int;
-  candidate_plan_target:target;candidate_plan_extent:int*int*int*int;
+  candidate_plan_extent:int*int*int*int;
   candidate_plan_resources:scene2_resource_stamp list}
 let prepared_draw ~family ?(blend=Replace) ?texture ?auxiliary ?(samples=1) value =
   {family;blend;texture;auxiliary;samples;value}
@@ -76,9 +75,8 @@ let default_state viewport scissor = { Scene_execution.viewport; scissor;
   stencil_clear=0 }
 let finite value = Float.is_finite value
 let put_float bytes offset value = Bytes.set_int64_le bytes offset (Int64.bits_of_float value)
-(* Scene2 keeps affine coefficients as f64 so deterministic software targets
-   perform the same arithmetic as the original CPU-baked lowering.  The native
-   execution boundary narrows these values to the six-f32 Metal ABI. *)
+(* Scene2 keeps affine coefficients as f64 through command lowering.  The
+   native execution boundary narrows these values to the six-f32 Metal ABI. *)
 let identity_affine_uniforms=let bytes=Bytes.make 48 '\000'in
   Bytes.set_int64_le bytes 0(Int64.bits_of_float 1.);
   Bytes.set_int64_le bytes 32(Int64.bits_of_float 1.);bytes
@@ -346,7 +344,7 @@ type t = { runtime:Runtime_next_orchestrator.t; input:Runtime_next_input.t;
   mutable scene2_plan_cache:cached_scene2_plan list;
   mutable scene2_plan_candidates:scene2_plan_candidate list;
   mutable scene2_probe_count:int;mutable scene2_probe_density:int;
-  mutable scene2_probe_target:target;mutable scene2_probe_fingerprint:int;
+  mutable scene2_probe_fingerprint:int;
   mutable scene2_probe_cooldown:int;
   mutable pending_image_leases:Prismel_next_resources.Image.Private.lease list;
   mutable canvas_keys:(Prismel_next_resources.Canvas.t*string)list;mutable next_canvas_key:int }
@@ -358,7 +356,7 @@ let create (configuration:configuration) =
       configuration.max_file_bytes])then fail operation Invalid_argument"dimensions and bounds must be positive"
   else(match configuration.timing with Fixed dt when not(finite dt&&dt>0.)->
       fail operation Invalid_argument"fixed dt must be finite and positive"|_->
-    let config:Runtime_next_orchestrator.configuration={target=Runtime_next_orchestrator.Native;
+    let config:Runtime_next_orchestrator.configuration={
       logical_width=configuration.logical_width;logical_height=configuration.logical_height;
       drawable_width=configuration.drawable_width;drawable_height=configuration.drawable_height}in
     match Runtime_next_orchestrator.create config with Error e->backend operation e|Ok runtime->
@@ -369,10 +367,9 @@ let create (configuration:configuration) =
       |Ok input->Ok{runtime;input;assets=Prismel_next_resources.Assets.create();timing=configuration.timing;
           frame=0L;elapsed=0.;last_clock=Unix.gettimeofday();dead=false;snapshots=[];scene2_geometry_cache=[];scene2_geometry_candidates=[];scene2_batch_cache=[];scene2_quad_cache=[];scene2_quad_payload_cache=[];scene2_debug_cache=[];
           scene2_plan_cache=[];scene2_plan_candidates=[];
-          scene2_probe_count=(-1);scene2_probe_density=0;scene2_probe_target=Native;
+          scene2_probe_count=(-1);scene2_probe_density=0;
           scene2_probe_fingerprint=0;scene2_probe_cooldown=0;
           pending_image_leases=[];canvas_keys=[];next_canvas_key=0})
-let target value=match Runtime_next_orchestrator.target value.runtime with Native->Native
 let assets value=value.assets
 let snapshot_cache_entries value=List.length value.snapshots
 let scene2_geometry_cache_entries value=
@@ -676,9 +673,8 @@ let lower_scene2 value ~density ~resource:resolve ir =
     |_->()
   done;
   let fingerprint= !fingerprint in
-  let target=target value in
   let same_probe=value.scene2_probe_count=command_count&&
-    value.scene2_probe_density=density&&value.scene2_probe_target=target in
+    value.scene2_probe_density=density in
   if same_probe&&value.scene2_probe_cooldown>0 then(
     value.scene2_probe_cooldown<-value.scene2_probe_cooldown-1;
     lower_scene2_uncached value~density~resource:resolve ir)else
@@ -686,14 +682,14 @@ let lower_scene2 value ~density ~resource:resolve ir =
     value.scene2_probe_fingerprint<-fingerprint;value.scene2_probe_cooldown<-120;
     lower_scene2_uncached value~density~resource:resolve ir)else begin
   value.scene2_probe_count<-command_count;value.scene2_probe_density<-density;
-  value.scene2_probe_target<-target;value.scene2_probe_fingerprint<-fingerprint;
+  value.scene2_probe_fingerprint<-fingerprint;
   let cacheable,resources=scene2_resource_stamps resolve commands in
   let facts=Runtime_next_orchestrator.facts value.runtime|>Result.get_ok in
   let extent=facts.logical_width,facts.logical_height,
     facts.drawable_width,facts.drawable_height in
   let exact plan=plan.plan_fingerprint=fingerprint&&
     plan.plan_command_count=command_count&&plan.plan_density=density&&
-    plan.plan_target=target&&plan.plan_extent=extent&&
+    plan.plan_extent=extent&&
     same_scene2_resource_stamps plan.plan_resources resources&&
     Scene_command.Render_ir.Private.commands_readonly plan.plan_ir=commands in
   if cacheable then match List.find_opt exact value.scene2_plan_cache with
@@ -705,14 +701,14 @@ let lower_scene2 value ~density ~resource:resolve ir =
       let candidate=List.find_opt(fun candidate->
         candidate.candidate_plan_fingerprint=fingerprint&&
         candidate.candidate_plan_command_count=command_count&&
-        candidate.candidate_plan_density=density&&candidate.candidate_plan_target=target&&
+        candidate.candidate_plan_density=density&&
         candidate.candidate_plan_extent=extent&&
         same_scene2_resource_stamps candidate.candidate_plan_resources resources)
         value.scene2_plan_candidates in
       (match candidate with
       |None->value.scene2_plan_candidates<-{
           candidate_plan_fingerprint=fingerprint;candidate_plan_command_count=command_count;
-          candidate_plan_density=density;candidate_plan_target=target;
+          candidate_plan_density=density;
           candidate_plan_extent=extent;candidate_plan_resources=resources}::
           value.scene2_plan_candidates;
         value.scene2_plan_candidates<-trim_scene2_entries~capacity:64(fun _->64)
@@ -728,7 +724,7 @@ let lower_scene2 value ~density ~resource:resolve ir =
           draws plan_image_ids in
         let plan={plan_fingerprint=fingerprint;plan_command_count=command_count;
           plan_source_bytes=scene2_plan_source_bytes commands;plan_density=density;
-          plan_target=target;plan_extent=extent;plan_resources=resources;
+          plan_extent=extent;plan_resources=resources;
           plan_ir=ir;plan_draws;plan_image_ids}in
         value.scene2_plan_cache<-trim_scene2_entries~capacity:16
           (fun plan->plan.plan_source_bytes)(plan::value.scene2_plan_cache));result)

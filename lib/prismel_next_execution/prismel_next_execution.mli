@@ -1,14 +1,12 @@
 (** Isolated native Metal frame coordinator.  The public values deliberately
     contain no SDL or native handles. *)
 
-type target = Native
 type error_kind = Invalid_argument | Unsupported | Backend | Resource | Destroyed
 type error = private { operation : string; kind : error_kind; message : string }
 val pp_error : Format.formatter -> error -> unit
 
 type timing = Fixed of float | Variable
 type configuration = {
-  target : target;
   logical_width : int;
   logical_height : int;
   drawable_width : int;
@@ -76,7 +74,6 @@ val prepared_draw : family:family -> ?blend:blend ->
 
 type t
 val create : configuration -> (t,error) result
-val target : t -> target
 val assets : t -> Prismel_next_resources.Assets.t
 val lower_scene2 : t -> density:int -> resource:(int -> resource option) ->
   Scene_command.Render_ir.t -> (draw list,error) result
