@@ -39,6 +39,14 @@ module Time : sig
   val performance_counter : unit -> int64
   val performance_frequency : unit -> int64
   val monotonic_seconds : unit -> float
+
+  (** Wait as close as possible to the requested non-negative duration.
+      The calling OCaml domain does not retain the runtime lock while waiting. *)
+  val delay_precise_ns : int64 -> (unit, error) result
+
+  (** [delay_precise_seconds seconds] converts a finite, non-negative duration
+      to nanoseconds and waits using {!delay_precise_ns}. *)
+  val delay_precise_seconds : float -> (unit, error) result
 end
 
 module Thread : sig

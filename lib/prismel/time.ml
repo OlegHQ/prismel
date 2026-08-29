@@ -32,7 +32,7 @@ let limit_frame_rate () = match !target_fps with
       let current_dt = !delta_time /. !time_scale in
       if current_dt < target_dt then
         let delay = target_dt -. current_dt in
-        if delay > 0. then Unix.sleepf delay
+        if delay > 0. then ignore (Sdl3.Time.delay_precise_seconds delay)
 let elapsed_fraction start_time duration =
   if duration <= 0.0 then 1.0
   else Math.clamp_float ((now () -. start_time) /. duration) ~min:0.0 ~max:1.0
@@ -211,4 +211,3 @@ end
 
 (* Initialize the timing system *)
 let () = init ()
-

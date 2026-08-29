@@ -79,6 +79,26 @@ module Time = struct
   let monotonic_seconds () =
     Int64.to_float (performance_counter ())
     /. Int64.to_float (performance_frequency ())
+
+  let delay_precise_ns nanoseconds =
+    if nanoseconds < 0L then
+      error "SDL3.Time.delay_precise_ns" Invalid_argument
+        "nanoseconds must be non-negative"
+    else (Private_raw.delay_precise_ns nanoseconds; Ok ())
+
+  let delay_precise_seconds seconds =
+    let operation = "SDL3.Time.delay_precise_seconds" in
+    if not (Float.is_finite seconds) then
+      error operation Invalid_argument "seconds must be finite"
+    else if seconds < 0. then
+      error operation Invalid_argument "seconds must be non-negative"
+    else
+      let nanoseconds = seconds *. 1_000_000_000. in
+      (* [Int64.of_float] is unspecified outside the signed int64 range. *)
+      if nanoseconds >= 0x1p63 then
+        error operation Invalid_argument
+          "seconds exceed the supported nanosecond range"
+      else (Private_raw.delay_precise_ns (Int64.of_float nanoseconds); Ok ())
 end
 
 module Thread = struct

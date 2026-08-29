@@ -173,6 +173,18 @@ CAMLprim value caml_sdl3_performance_frequency(value unit)
   CAMLreturn(caml_copy_int64((int64_t)SDL_GetPerformanceFrequency()));
 }
 
+CAMLprim value caml_sdl3_delay_precise_ns(value nanoseconds)
+{
+  CAMLparam1(nanoseconds);
+  const Uint64 ns = (Uint64)Int64_val(nanoseconds);
+  if (ns > 0) {
+    caml_release_runtime_system();
+    SDL_DelayPrecise(ns);
+    caml_acquire_runtime_system();
+  }
+  CAMLreturn(Val_unit);
+}
+
 CAMLprim value caml_sdl3_revision(value unit)
 {
   const char *revision;

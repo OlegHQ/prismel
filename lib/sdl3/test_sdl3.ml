@@ -11,6 +11,20 @@ let () =
   let after=Time.performance_counter()in
   if frequency<=0L||before<0L||after<before||not(Float.is_finite(Time.monotonic_seconds()))then
     fail"SDL3 monotonic performance counter invalid";
+  List.iter (function
+    | Error { kind = Invalid_argument; _ } -> ()
+    | Ok () | Error _ -> fail "invalid precise delay was not rejected")
+    [Time.delay_precise_ns (-1L); Time.delay_precise_seconds (-0.001);
+     Time.delay_precise_seconds nan; Time.delay_precise_seconds infinity;
+     Time.delay_precise_seconds 0x1p63];
+  get (Time.delay_precise_seconds 0.);
+  let delay_before = Time.monotonic_seconds () in
+  get (Time.delay_precise_seconds 0.002);
+  let delay_elapsed = Time.monotonic_seconds () -. delay_before in
+  if delay_elapsed < 0.0019 then fail "precise delay returned too early";
+  if delay_elapsed > 0.5 then fail "precise delay overslept absurdly";
+  get (Domain.spawn (fun () -> Time.delay_precise_seconds 0.0001)
+    |> Domain.join);
   let compiled = Version.compiled and linked = Version.linked () in
   if compiled.major <> 3 || compiled.minor <> 4 || compiled.patch <> 14 then
     fail "generated header version changed without fixture review";
