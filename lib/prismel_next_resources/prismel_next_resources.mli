@@ -52,6 +52,13 @@ module Canvas : sig
   val resize : t -> width:int -> height:int -> (unit,error) result
   val capture : t -> (Image.t,error) result
   val save_png : t -> string -> (unit,error) result
+  module Private : sig
+    (** Return the Canvas-owned writable bank after detaching any published
+        image snapshot.  The caller must synchronously fill it and call
+        [commit_write] only after the complete write succeeds. *)
+    val prepare_write : t -> ((int * int * bytes),error) result
+    val commit_write : t -> (unit,error) result
+  end
   val destroy : t -> (unit,error) result
 end
 

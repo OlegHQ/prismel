@@ -726,6 +726,12 @@ external texture_read :
   (bytes, string) result
   = "caml_prismel_metal_texture_read"
 
+external texture_read_into :
+  handle ->
+  ((int * int * int * int * int * int) * int * int * int * int * int) ->
+  bytes -> (unit, string) result
+  = "caml_prismel_metal_texture_read_into"
+
 external texture_create_view :
   handle -> texture_view_descriptor -> string option ->
   (handle, string) result

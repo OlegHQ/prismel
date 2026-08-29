@@ -15,6 +15,8 @@ val format : Device.t -> t -> (format, Ogpu.Error.t) result
 val destroyed : t -> bool
 val read_bytes : Device.t -> t -> mip_level:int -> bytes_per_row:int ->
   (bytes, Ogpu.Error.t) result
+val read_bytes_into : Device.t -> t -> mip_level:int -> bytes_per_row:int ->
+  destination:bytes -> (unit, Ogpu.Error.t) result
 val write_bytes : Device.t -> t -> mip_level:int -> bytes_per_row:int -> bytes ->
   (unit, Ogpu.Error.t) result
 val destroy : t -> (unit, Ogpu.Error.t) result

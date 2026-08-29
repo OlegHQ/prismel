@@ -893,6 +893,11 @@ module Texture : sig
   val read_bytes :
     t -> region:region -> mip_level:int -> slice:int -> bytes_per_row:int ->
     bytes_per_image:int -> (bytes, error) result
+  (* Read directly into caller-owned storage.  The destination must have the
+     exact pitched size of the requested region. *)
+  val read_bytes_into :
+    t -> region:region -> mip_level:int -> slice:int -> bytes_per_row:int ->
+    bytes_per_image:int -> destination:bytes -> (unit, error) result
   val purgeable_state : t -> (purgeable_state, error) result
   val set_purgeable_state :
     t -> purgeable_state -> (purgeable_state, error) result

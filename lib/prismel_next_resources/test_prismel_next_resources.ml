@@ -85,6 +85,28 @@ let ()=
   Image.Private.release_snapshot destroy_lease;
   Image.Private.release_snapshot destroy_lease;
   get(Canvas.destroy hot);
+  let direct=get(Canvas.create~width:640~height:480)in
+  let direct_generation=Canvas.generation direct in
+  let _,_,first_bank=get(Canvas.Private.prepare_write direct)in
+  Bytes.fill first_bank 0(Bytes.length first_bank)'\x2a';
+  get(Canvas.Private.commit_write direct);
+  if Canvas.generation direct<>direct_generation+1 then
+    failwith"direct Canvas write did not commit one generation";
+  let direct_image=get(Canvas.capture direct)in
+  let _,_,second_bank=get(Canvas.Private.prepare_write direct)in
+  if second_bank==first_bank then
+    failwith"direct Canvas write changed a published image snapshot";
+  get(Canvas.Private.commit_write direct);
+  let before=Gc.allocated_bytes()in
+  let _,_,reused_bank=get(Canvas.Private.prepare_write direct)in
+  if reused_bank!=second_bank then
+    failwith"direct Canvas write did not reuse its owned bank";
+  get(Canvas.Private.commit_write direct);
+  let direct_allocated=Gc.allocated_bytes()-.before in
+  if direct_allocated>65536. then
+    failwith(Printf.sprintf
+      "direct Canvas write allocated %.0f bytes after warmup"direct_allocated);
+  get(Image.destroy direct_image);get(Canvas.destroy direct);
   let bank_canvas=get(Canvas.create~width:4~height:4)in
   let bank_image=get(Image.create~width:4~height:4~rgba:(Bytes.make 64 '\000'))in
   get(Canvas.clear bank_canvas 0x2468acffl);

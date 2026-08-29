@@ -178,6 +178,15 @@ module Canvas=struct
     end else
       Image.create~width:x.width~height:x.height~rgba:x.rgba)
   let save_png x path=live"Canvas.save_png"x(fun()->try let bytes=Png.encode~width:x.width~height:x.height x.rgba in let out=open_out_bin path in Fun.protect~finally:(fun()->close_out_noerr out)(fun()->output_bytes out bytes);Ok()with Sys_error m->error"Canvas.save_png"Io m)
+  module Private=struct
+    (* The native readback path is synchronous and initial-domain-only.  It
+       obtains the Canvas-owned bank after detaching any published Image, then
+       marks the generation only after a successful GPU read. *)
+    let prepare_write x=live"Canvas.Private.prepare_write"x(fun()->
+      detach_for_mutation x;Ok(x.width,x.height,x.rgba))
+    let commit_write x=live"Canvas.Private.commit_write"x(fun()->
+      x.generation<-x.generation+1;Ok())
+  end
   let destroy x=main"Canvas.destroy"(fun()->if x.dead then Ok()else(detach_mirror x;x.blocked<-None;x.spare<-None;x.rgba<-Bytes.empty;x.dead<-true;Ok()))
 end
 

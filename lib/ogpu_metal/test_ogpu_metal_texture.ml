@@ -11,6 +11,14 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal textu
   expect Ogpu.Error.Invalid_argument(Texture.write_bytes device texture~mip_level:0~bytes_per_row:15 bytes);
   get(Texture.write_bytes device texture~mip_level:0~bytes_per_row:16 bytes);
   if get(Texture.read_bytes device texture~mip_level:0~bytes_per_row:16)<>bytes then failwith"texture readback mismatch";
+  let direct=Bytes.make 64 '\xff'in
+  get(Texture.read_bytes_into device texture~mip_level:0~bytes_per_row:16
+    ~destination:direct);
+  if direct<>bytes then failwith"texture direct read-into mismatch";
+  (match Texture.read_bytes_into device texture~mip_level:0~bytes_per_row:16
+      ~destination:(Bytes.create 63)with
+   |Error{Ogpu.Error.kind=Invalid_argument;_}->()
+   |_->failwith"texture direct read-into accepted a short destination");
   expect Ogpu.Error.Cross_device(Texture.descriptor other texture);
   expect Ogpu.Error.Invalid_argument(Texture.create_view device texture~format:Texture.R8_unorm~base_mip:0~mip_count:1~base_slice:0~slice_count:1);
   let view=get(Texture.create_view device texture~format:Texture.Rgba8_unorm~base_mip:0~mip_count:1~base_slice:0~slice_count:1)in

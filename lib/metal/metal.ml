@@ -6310,6 +6310,32 @@ module Texture = struct
                | Ok bytes -> Ok bytes
                | Error message -> native_error "Metal.Texture.read_bytes" message))
 
+  let read_bytes_into (value : t) ~region ~mip_level ~slice ~bytes_per_row
+      ~bytes_per_image ~destination =
+    on_main "Metal.Texture.read_bytes_into" (fun () ->
+      match ensure_texture_usable "Metal.Texture.read_bytes_into" value with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match
+             validate_transfer "Metal.Texture.read_bytes_into" value ~region
+               ~mip_level ~slice ~bytes_per_row ~bytes_per_image
+           with
+           | Error _ as failure -> failure
+           | Ok total ->
+               if Bytes.length destination <> total then
+                 error "Metal.Texture.read_bytes_into" Invalid_argument
+                   "destination length does not match the complete pitched region"
+               else
+                 match
+                   Metal_raw.texture_read_into value.raw
+                     (transfer_tuple region ~mip_level ~slice ~source_offset:0
+                        ~bytes_per_row ~bytes_per_image)
+                     destination
+                 with
+                 | Ok () -> Ok ()
+                 | Error message ->
+                     native_error "Metal.Texture.read_bytes_into" message))
+
   let compatible_view_format = Metal_format.compatible_view
 
   let compose_swizzle_channel (parent : swizzle) = function

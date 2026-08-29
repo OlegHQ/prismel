@@ -5417,6 +5417,35 @@ extern "C" CAMLprim value caml_prismel_metal_texture_read(
   CAMLreturn(result);
 }
 
+extern "C" CAMLprim value caml_prismel_metal_texture_read_into(
+    value raw, value raw_transfer, value destination) {
+  CAMLparam3(raw, raw_transfer, destination);
+  id<MTLTexture> texture = object_of_handle(raw, Handle_kind::Texture);
+  MTLRegion region{};
+  NSUInteger level = 0;
+  NSUInteger slice = 0;
+  intnat ignored_offset = 0;
+  intnat bytes_per_row = 0;
+  intnat bytes_per_image = 0;
+  intnat total_bytes = 0;
+  if (!texture_transfer_range(texture, raw_transfer, &region, &level, &slice,
+                              &ignored_offset, &bytes_per_row, &bytes_per_image,
+                              &total_bytes) ||
+      total_bytes != static_cast<intnat>(caml_string_length(destination)) ||
+      texture.storageMode == MTLStorageModePrivate ||
+      texture.textureType == MTLTextureType2DMultisample ||
+      texture.textureType == MTLTextureType2DMultisampleArray) {
+    CAMLreturn(result_error_text("texture read-into arguments are invalid"));
+  }
+  [texture getBytes:Bytes_val(destination)
+             bytesPerRow:static_cast<NSUInteger>(bytes_per_row)
+           bytesPerImage:static_cast<NSUInteger>(bytes_per_image)
+             fromRegion:region
+            mipmapLevel:level
+                   slice:slice];
+  CAMLreturn(result_unit());
+}
+
 extern "C" CAMLprim value caml_prismel_metal_texture_create_view(
     value raw_parent, value raw_descriptor, value raw_label) {
   CAMLparam3(raw_parent, raw_descriptor, raw_label);

@@ -74,6 +74,28 @@ let read_bytes device value ~mip_level ~bytes_per_row =
     if bytes_per_row<minimum||bytes_per_row>max_int/height then error operation Ogpu.Error.Invalid_argument "bytes_per_row is invalid"
     else match Metal.Texture.read_bytes value.metal~region:{x=0;y=0;z=0;width;height;depth=1}~mip_level~slice:0~bytes_per_row~bytes_per_image:(bytes_per_row*height)with Ok x->Ok x|Error e->Error(Adapter.error~operation e)
 
+let read_bytes_into device value ~mip_level ~bytes_per_row ~destination =
+  let operation="Ogpu_metal.Texture.read_bytes_into"in
+  match validate operation device value with Error _ as e->e|Ok()->
+  if mip_level<0||mip_level>=value.descriptor.mip_levels then
+    error operation Ogpu.Error.Invalid_argument "mip level is outside the texture"
+  else
+    let width=max 1(value.descriptor.width lsr mip_level)
+    and height=max 1(value.descriptor.height lsr mip_level)in
+    let minimum=width*bytes_per_pixel value.format in
+    if bytes_per_row<minimum||bytes_per_row>max_int/height then
+      error operation Ogpu.Error.Invalid_argument "bytes_per_row is invalid"
+    else
+      let required=bytes_per_row*height in
+      if Bytes.length destination<>required then
+        error operation Ogpu.Error.Invalid_argument
+          "destination length does not match the texture row layout"
+      else
+        match Metal.Texture.read_bytes_into value.metal
+          ~region:{x=0;y=0;z=0;width;height;depth=1}~mip_level~slice:0
+          ~bytes_per_row~bytes_per_image:required~destination with
+        |Ok()->Ok()|Error e->Error(Adapter.error~operation e)
+
 let write_bytes device value ~mip_level ~bytes_per_row bytes =
   let operation="Ogpu_metal.Texture.write_bytes"in match validate operation device value with Error _ as e->e|Ok()->
   if mip_level<0||mip_level>=value.descriptor.mip_levels then error operation Ogpu.Error.Invalid_argument "mip level is outside the texture"

@@ -29,10 +29,13 @@ let render value scene=
   |Ok _->()
   |Error error->
       failwith(Format.asprintf"Canvas.render: %a"Native_scene_lowering.pp_error error));
-    match Prismel_next_execution.capture execution with
-    |Error error->failwith(execution_message"Canvas.render"error)
-    |Ok bytes->match Prismel_next_resources.Canvas.replace_pixels value.resource bytes with
-      |Ok()->()|Error error->failwith(message"Canvas.render"error)
+    match Prismel_next_resources.Canvas.Private.prepare_write value.resource with
+    |Error error->failwith(message"Canvas.render"error)
+    |Ok(_,_,destination)->
+      (match Prismel_next_execution.capture_into execution~destination with
+       |Error error->failwith(execution_message"Canvas.render"error)
+       |Ok()->match Prismel_next_resources.Canvas.Private.commit_write value.resource with
+         |Ok()->()|Error error->failwith(message"Canvas.render"error))
 let packed color=Int32.logor(Int32.shift_left(Int32.of_int color.Color.r)24)
   (Int32.logor(Int32.shift_left(Int32.of_int color.g)16)
     (Int32.logor(Int32.shift_left(Int32.of_int color.b)8)(Int32.of_int color.a)))
