@@ -13,7 +13,8 @@ type window_facts = {
   pixel_density : float; display_scale : float; refresh_rate : float option;
   vsync : bool;
 }
-val create : width:int -> height:int -> (t, Ogpu.Error.t) result
+val create : ?vsync:bool -> width:int -> height:int -> unit ->
+  (t, Ogpu.Error.t) result
 val render : ?clear:(float * float * float * float) -> t ->
   Scene_execution.draw list -> (bool, Ogpu.Error.t) result
 val render_sampled_resources : ?clear:(float * float * float * float) -> t ->
@@ -42,6 +43,18 @@ val minimize : t -> (unit, Ogpu.Error.t) result
 val maximize : t -> (unit, Ogpu.Error.t) result
 val restore : t -> (unit, Ogpu.Error.t) result
 val destroy : t -> (unit, Ogpu.Error.t) result
+type offscreen
+val create_offscreen : width:int -> height:int -> (offscreen,Ogpu.Error.t) result
+val render_offscreen : ?clear:(float*float*float*float) -> offscreen ->
+  (Scene_execution.pipeline_family * Ogpu.Pipeline.blend *
+   Scene_execution.sampled_texture option * Scene_execution.auxiliary_resource option *
+   int * Scene_execution.draw) list -> (bool,Ogpu.Error.t) result
+val read_offscreen : offscreen -> bytes_per_row:int -> (bytes,Ogpu.Error.t) result
+val resize_offscreen : offscreen -> width:int -> height:int ->
+  (unit,Ogpu.Error.t) result
+val offscreen_stats : offscreen -> stats
+val offscreen_facts : offscreen -> frame_facts
+val destroy_offscreen : offscreen -> (unit,Ogpu.Error.t) result
 module Private : sig
   val scene2_textured_direct : string
   val scene2_textured_argument : string

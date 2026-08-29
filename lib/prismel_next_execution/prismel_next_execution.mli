@@ -15,6 +15,7 @@ type configuration = {
   timing : timing;
   max_events : int;
   max_file_bytes : int;
+  vsync : bool;
 }
 val default_configuration : configuration
 

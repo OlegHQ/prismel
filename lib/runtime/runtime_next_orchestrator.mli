@@ -1,6 +1,6 @@
 type t
 type configuration = { logical_width:int; logical_height:int;
-  drawable_width:int; drawable_height:int }
+  drawable_width:int; drawable_height:int; vsync:bool }
 type facts = { title:string; logical_width:int; logical_height:int;
   drawable_width:int; drawable_height:int; position:(int*int) option;
   pixel_density:float; display_scale:float; refresh_rate:float option; vsync:bool }

@@ -35,7 +35,7 @@ let () =
   if qualification && (match source_before with Some(_,true)->false|_->true)then failwith"O6 qualification requires a canonical clean source tree";
   let before=metal(Metal.Release_queue.stats())and started=Unix.gettimeofday()in
   let width=ref 64 and height=ref 48 and frame=ref 0 and rolling=ref 0L and resize_events=ref 0 and capture_events=ref 0 and captured_bytes=ref 0L in
-  let runtime=get(Runtime_next.create~width:!width~height:!height)in
+  let runtime=get(Runtime_next.create~width:!width~height:!height())in
   let expected_pipeline_cache=(Runtime_next.stats runtime).pipeline_cache_entries in
   let samples=Array.make 256 None and observations=ref 0 and last_sample=ref(started-.1.)and last_allocated=ref(Gc.allocated_bytes())and last_created=ref before.total_created and last_released=ref before.total_released in
   while Unix.gettimeofday()-.started < !minutes*.60. do

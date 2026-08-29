@@ -11,10 +11,10 @@ let resource operation value =
 type timing = Fixed of float | Variable
 type configuration = { logical_width:int; logical_height:int;
   drawable_width:int; drawable_height:int; title:string; timing:timing;
-  max_events:int; max_file_bytes:int }
+  max_events:int; max_file_bytes:int;vsync:bool }
 let default_configuration = { logical_width=640; logical_height=480;
   drawable_width=640; drawable_height=480; title="Prismel"; timing=Fixed (1. /. 60.);
-  max_events=4096; max_file_bytes=16*1024*1024 }
+  max_events=4096; max_file_bytes=16*1024*1024;vsync=true }
 
 type mouse_button = Left | Middle | Right | X1 | X2
 type modifier = Shift | Control | Alt | Meta | Num_lock | Caps_lock | Scroll_lock
@@ -363,7 +363,8 @@ let create (configuration:configuration) =
       fail operation Invalid_argument"fixed dt must be finite and positive"|_->
     let config:Runtime_next_orchestrator.configuration={
       logical_width=configuration.logical_width;logical_height=configuration.logical_height;
-      drawable_width=configuration.drawable_width;drawable_height=configuration.drawable_height}in
+      drawable_width=configuration.drawable_width;drawable_height=configuration.drawable_height;
+      vsync=configuration.vsync}in
     match Runtime_next_orchestrator.create config with Error e->backend operation e|Ok runtime->
       match Runtime_next_input.create~max_events:configuration.max_events
         ~max_file_bytes:configuration.max_file_bytes~logical_width:configuration.logical_width

@@ -5,7 +5,7 @@ let get_metal = function Ok value -> value | Error error -> failwith error.Metal
 
 let () =
   let before = get_metal (Metal.Release_queue.stats ()) in
-  match Runtime_next.create ~width:4 ~height:4 with
+  match Runtime_next.create ~width:4 ~height:4 () with
   | Error _ -> print_endline "runtime-next scene2 retained argument: skipped (no Metal device)"
   | Ok runtime ->
       let vertices = Bytes.make (3 * 68) '\000' in

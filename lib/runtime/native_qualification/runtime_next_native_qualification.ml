@@ -68,7 +68,7 @@ let check_pixels extent bytes =
   Digest.to_hex (Digest.bytes bytes)
 
 let run scenario =
-  let runtime = get (Runtime_next.create ~width:4 ~height:4) in
+  let runtime = get (Runtime_next.create ~width:4 ~height:4 ()) in
   let initial_facts=Runtime_next.frame_facts runtime in
   let clear=(0.,0.,0.,0.)in
   let checkpoints = ref [] in
@@ -112,7 +112,7 @@ let () =
   ignore(Runtime_next_input_sdl3.push input(Sdl3.Event.Mouse_motion{timestamp_ns=0L;window_id=1L;which=1L;buttons=0L;x=3.25;y=4.5;dx=0.;dy=0.}));
   if (Runtime_next_input.snapshot input).pointer<>(3.25,4.5)then failwith"SDL3 logical pointer was double-scaled";
   let before = metal (Metal.Release_queue.stats ()) and rss_before = rss_kib () in
-  match Runtime_next.create ~width:1 ~height:1 with
+  match Runtime_next.create ~width:1 ~height:1 () with
   | Error error -> failwith ("runtime-next native qualification create failed: " ^ Ogpu.Error.to_string error)
   | Ok probe ->
       get (Runtime_next.destroy probe);
@@ -125,12 +125,12 @@ let () =
          then measure a settled sequence rather than treating allocator warm-up
          as a leak. *)
       for _ = 1 to 4 do
-        let runtime = get (Runtime_next.create ~width:2 ~height:2) in
+        let runtime = get (Runtime_next.create ~width:2 ~height:2 ()) in
         get (Runtime_next.destroy runtime);
         ignore (metal (Metal.Release_queue.drain ()));
         Gc.full_major ()
       done;
-      let teardown_rss=Array.init 12(fun _->let runtime=get(Runtime_next.create~width:2~height:2)in get(Runtime_next.destroy runtime);ignore(metal(Metal.Release_queue.drain()));Gc.full_major();rss_kib())in
+      let teardown_rss=Array.init 12(fun _->let runtime=get(Runtime_next.create~width:2~height:2())in get(Runtime_next.destroy runtime);ignore(metal(Metal.Release_queue.drain()));Gc.full_major();rss_kib())in
       let teardown_min=Array.fold_left min max_int teardown_rss and teardown_max=Array.fold_left max 0 teardown_rss in
       if teardown_max-teardown_min>4096 then failwith"native repeated teardown RSS did not plateau";
       ignore (metal (Metal.Release_queue.drain ()));

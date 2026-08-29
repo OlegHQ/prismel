@@ -30,7 +30,7 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
   Time.set_vsync(Option.is_none config.fps);
   let first=frame config 0 0. 0.[]in let model=ref(init first)in
   let timing=match config.clock with Realtime->Prismel_next_execution.Variable|Fixed dt when Float.is_finite dt&&dt>0.->Fixed dt|Fixed _->invalid_arg"fixed dt must be finite and positive"in
-  let configuration={Prismel_next_execution.default_configuration with logical_width=config.width;logical_height=config.height;drawable_width=config.width;drawable_height=config.height;title=config.title;timing}in
+  let configuration={Prismel_next_execution.default_configuration with logical_width=config.width;logical_height=config.height;drawable_width=config.width;drawable_height=config.height;title=config.title;timing;vsync=Option.is_none config.fps}in
   let get=function Ok x->x|Error e->failwith(Format.asprintf"%a"Prismel_next_execution.pp_error e)in
   let coordinator=get(Prismel_next_execution.create configuration)in
   Runtime_diagnostics.Private.install coordinator;
