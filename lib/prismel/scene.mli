@@ -28,10 +28,16 @@ val clip : at:(int*int) -> w:int -> h:int -> t -> node
 val blend : blend -> t -> node
 val render : t -> unit
 module Private : sig
+  type native_layer =
+    | Scene2_layer of Scene_command.Render_ir.t *
+        (int * Prismel_next_execution.resource) list
+    | Scene3_layer of Scene_execution.prepared_scene3
   type staged_native = {
+    clear : float * float * float * float;
     scene2 : Scene_command.Render_ir.t;
     resources : (int * Prismel_next_execution.resource) list;
     scene3 : Scene_execution.prepared_scene3 list;
+    layers : native_layer list;
   }
   val stage_native : width:int -> height:int -> t -> (staged_native,string) result
   val to_ir : t -> (Scene_command.Render_ir.t,string) result

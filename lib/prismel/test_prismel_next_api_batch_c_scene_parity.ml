@@ -21,13 +21,19 @@ let () =
   let first_ir,first_resources=first.scene2,first.resources in
   let first_commands = Scene_command.Render_ir.commands first_ir in
   let automatic_text_id=ref None in
-  require (Array.length first_commands = 6) "complete ordered lowering";
+  require (Array.length first_commands = 7) "complete ordered lowering";
   require(List.length first.scene3=1)"View3d native staging";
+  require(first.clear=(0.,0.,0.,1.))"native clear staging";
+  (match first.layers with
+   |[Scene.Private.Scene2_layer _;Scene.Private.Scene3_layer _;
+      Scene.Private.Scene2_layer _]->()
+   |_->failwith"Scene2/View3d/overlay layer ordering");
   (match Array.to_list first_commands with
   | [ Scene_command.Render_ir.Clear _;
       Push_clip _;
       Set_blend Scene_command.Render_ir.Alpha;
       Image text;
+      Set_blend Scene_command.Render_ir.Alpha;
       Pop_clip;
       Geometry _ ] ->
       automatic_text_id:=Some text.resource_id;
@@ -48,6 +54,11 @@ let () =
         ("text/View3d ordering or state scope: "
         ^ String.concat "," (List.map tag commands)));
   require (List.length first_resources = 1) "text resource";
+  let styled=Scene.[polygon[0,0;8,0;8,8]~fill:Color.red~stroke:Color.white()]in
+  let styled_ir,_=Result.get_ok(Scene.Private.stage~width:16~height:16 styled)in
+  (match Array.to_list(Scene_command.Render_ir.commands styled_ir)with
+   |[Geometry _;Geometry _]->()
+   |_->failwith"polygon fill/stroke did not stage two meshes");
   List.iter
     (fun frame ->
       let staged=Result.get_ok(Scene.Private.stage_native~width:32~height:24 scene)in

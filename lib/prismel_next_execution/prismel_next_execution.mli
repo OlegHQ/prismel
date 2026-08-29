@@ -116,9 +116,13 @@ val visible : t -> (bool,error) result
 val push_event : t -> event -> (unit,error) result
 val resize : t -> logical_width:int -> logical_height:int ->
   drawable_width:int -> drawable_height:int -> (unit,error) result
-val step : t -> draw list -> (facts,error) result
+val step : ?clear:(float * float * float * float) -> t -> draw list ->
+  (facts,error) result
 val capture : t -> (bytes,error) result
 val destroy : t -> (unit,error) result
+module Private : sig
+  val draw_family_blend : draw -> family * blend
+end
 
 (** Always destroys in resources -> coordinator -> target/extensions order.
     [on_stop] runs while resources and the target are still alive. *)

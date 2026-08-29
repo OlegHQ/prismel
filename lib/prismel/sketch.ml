@@ -1,6 +1,17 @@
 type clock=Realtime|Fixed of float
 type config={width:int;height:int;title:string;fps:int option;domains:int option;clock:clock;resizable:bool;fullscreen:bool}
 let default_config={width=800;height=600;title="Prismel sketch";fps=Some 60;domains=None;clock=Realtime;resizable=true;fullscreen=false}
+let draw_of_scene3_entry(entry:Scene_execution.scene3_entry)=
+  Prismel_next_execution.prepared_draw
+    ~family:(match entry.family with Scene3->Scene3|Scene3_textured->Scene3_textured
+      |Scene3_shadow->Scene3_shadow|Scene3_stencil->Scene3_stencil
+      |Scene3_textured_stencil->Scene3_textured_stencil
+      |Scene3_shadow_stencil->Scene3_shadow_stencil|Scene2->Scene2
+      |Scene2_textured->Scene2_textured)
+    ~blend:(match entry.blend with Replace->Replace|Alpha->Alpha|Add->Add
+      |Multiply->Multiply|Screen->Screen|Subtract->Subtract)
+    ?texture:entry.texture ?auxiliary:entry.auxiliary ~samples:entry.samples
+    entry.draw
 let stopped=ref false let quit()=stopped:=true
 let resize_current : (width:int -> height:int -> unit) option ref = ref None
 let resize ~width ~height =
@@ -14,15 +25,20 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
   Option.iter(fun frames->if frames<=0 then invalid_arg"Sketch: max_frames must be positive")max_frames;
   Option.iter(fun fps->if fps<=0 then invalid_arg"Sketch: fps must be positive")config.fps;
   Option.iter(fun domains->if domains<=0 then invalid_arg"Sketch: domains must be positive")config.domains;
-  stopped:=false;Time.init();let first=frame config 0 0. 0.[]in let model=ref(init first)in
+  stopped:=false;Time.init();
+  Time.set_frame_rate(Option.value config.fps~default:0);
+  Time.set_vsync(Option.is_none config.fps);
+  let first=frame config 0 0. 0.[]in let model=ref(init first)in
   let timing=match config.clock with Realtime->Prismel_next_execution.Variable|Fixed dt when Float.is_finite dt&&dt>0.->Fixed dt|Fixed _->invalid_arg"fixed dt must be finite and positive"in
   let configuration={Prismel_next_execution.default_configuration with logical_width=config.width;logical_height=config.height;drawable_width=config.width;drawable_height=config.height;title=config.title;timing}in
   let get=function Ok x->x|Error e->failwith(Format.asprintf"%a"Prismel_next_execution.pp_error e)in
   let coordinator=get(Prismel_next_execution.create configuration)in
   Runtime_diagnostics.Private.install coordinator;
   let logical_width=ref config.width and logical_height=ref config.height in
-  let capture ()=Prismel_next_execution.capture coordinator
-    |>Result.map(fun bytes-> !logical_width,!logical_height,bytes)
+  let capture ()=
+    let facts=get(Prismel_next_execution.presentation_facts coordinator)in
+    Prismel_next_execution.capture coordinator
+    |>Result.map(fun bytes->facts.drawable_width,facts.drawable_height,bytes)
     |>Result.map_error(fun error->Format.asprintf"%a"Prismel_next_execution.pp_error error)in
   let save filename=Result.bind(capture())(fun(width,height,bytes)->
         match Prismel_next_resources.Canvas.create~width~height with
@@ -38,14 +54,39 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
     get(Prismel_next_execution.resize coordinator~logical_width:width
       ~logical_height:height~drawable_width:width~drawable_height:height);
     logical_width:=width;logical_height:=height);
-  let latest=ref None and last_scene=ref None in Scene.Private.install_renderer(fun scene->last_scene:=Some scene;let staged=Result.get_ok(Scene.Private.stage_native~width:!logical_width~height:!logical_height scene)in let scene2=get(Prismel_next_execution.lower_scene2 coordinator~density:1~resource:(fun id->List.assoc_opt id staged.resources)staged.scene2)in let scene3=List.concat_map(fun prepared->Array.to_list prepared.Scene_execution.entries|>List.map(fun(entry:Scene_execution.scene3_entry)->Prismel_next_execution.prepared_draw~family:(match entry.family with Scene3->Scene3|Scene3_textured->Scene3_textured|Scene3_shadow->Scene3_shadow|Scene3_stencil->Scene3_stencil|Scene3_textured_stencil->Scene3_textured_stencil|Scene3_shadow_stencil->Scene3_shadow_stencil|Scene2->Scene2|Scene2_textured->Scene2_textured)~blend:(match entry.blend with Replace->Replace|Alpha->Alpha|Add->Add|Multiply->Multiply|Screen->Screen|Subtract->Subtract)?texture:entry.texture?auxiliary:entry.auxiliary~samples:entry.samples entry.draw))staged.scene3 in latest:=Some(scene2@scene3));
+  let latest=ref None and last_scene=ref None in
+  Scene.Private.install_renderer(fun scene->
+    last_scene:=Some scene;
+    let facts=get(Prismel_next_execution.presentation_facts coordinator)in
+    let staged=Result.get_ok(Scene.Private.stage_native
+      ~width:facts.logical_width~height:facts.logical_height scene)in
+    let density=max 1(int_of_float(Float.round facts.pixel_density))in
+    let draws=List.concat_map(function
+      |Scene.Private.Scene2_layer(ir,resources)->
+          get(Prismel_next_execution.lower_scene2 coordinator~density
+            ~resource:(fun id->List.assoc_opt id resources)ir)
+      |Scene.Private.Scene3_layer prepared->
+          Array.to_list prepared.Scene_execution.entries|>List.map draw_of_scene3_entry)
+      staged.layers in
+    latest:=Some(staged.clear,draws));
   let cleanup()=Fun.protect~finally:(fun()->resize_current:=None;Canvas_runtime.clear();Option.iter Scene.Private.release !last_scene;ignore(Prismel_next_execution.destroy coordinator);Runtime_diagnostics.Private.record coordinator)(fun()->on_stop!model)in
   Fun.protect~finally:cleanup(fun()->
     let limit=max_frames in let count=ref 0 in while not !stopped&&Option.fold~none:true~some:(fun limit-> !count<limit)limit do
       Time.update();let events=Event.poll_events()in incr count;let dt=match config.clock with Realtime->Time.get_delta_time()|Fixed value->value in
       let base=frame config !count(match config.clock with Realtime->Time.now()|Fixed _->float !count*.dt)dt events in
-      let facts={base with width= !logical_width;height= !logical_height;size=(!logical_width,!logical_height);drawable_width= !logical_width;drawable_height= !logical_height;drawable_size=(!logical_width,!logical_height)}in
-      model:=update !model facts;Scene.render(view !model facts);ignore(get(Prismel_next_execution.step coordinator(Option.value!latest~default:[])));after_present !model facts;Time.limit_frame_rate()done;!model)
+      let presentation=get(Prismel_next_execution.presentation_facts coordinator)in
+      logical_width:=presentation.logical_width;logical_height:=presentation.logical_height;
+      let scale_x=float presentation.drawable_width/.float presentation.logical_width
+      and scale_y=float presentation.drawable_height/.float presentation.logical_height in
+      let facts={base with width=presentation.logical_width;height=presentation.logical_height;
+        size=(presentation.logical_width,presentation.logical_height);
+        drawable_width=presentation.drawable_width;drawable_height=presentation.drawable_height;
+        drawable_size=(presentation.drawable_width,presentation.drawable_height);
+        pixel_scale=(scale_x,scale_y)}in
+      model:=update !model facts;Scene.render(view !model facts);
+      let clear,draws=Option.value!latest~default:((0.,0.,0.,0.),[])in
+      ignore(get(Prismel_next_execution.step~clear coordinator draws));
+      after_present !model facts;Time.limit_frame_rate()done;!model)
 let run_state ?config ?max_frames ~init~update~view ?on_stop()=
   Parallel.run ?domains:(Option.bind config(fun value->value.domains))(fun()->run_state_internal?config?max_frames~init~update~view?on_stop())
 let run ?config view=ignore(run_state?config~init:(fun _->())~update:(fun()_->())~view:(fun()frame->view frame)())

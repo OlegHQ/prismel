@@ -66,14 +66,25 @@ let scene_family=function Scene2->Scene_execution.Scene2|Scene2_textured->Scene2
   |Scene3_shadow_stencil->Scene3_shadow_stencil
 let pipeline_blend=function Replace->Ogpu.Pipeline.Replace|Alpha->Alpha|Add->Add
   |Multiply->Multiply|Screen->Screen|Subtract->Subtract
-let render_prepared value draws=match ensure"Runtime_next_orchestrator.render_prepared"value with Error _ as e->e|Ok()->
+let render_prepared ?clear value draws=match ensure"Runtime_next_orchestrator.render_prepared"value with Error _ as e->e|Ok()->
   let draws=List.map(fun x->scene_family x.family,pipeline_blend x.blend,x.texture,x.auxiliary,x.samples,x.draw)draws in
-  account value(List.length draws)(Runtime_next.render_sampled_resources value.runtime draws)
+  account value(List.length draws)(Runtime_next.render_sampled_resources ?clear value.runtime draws)
 let resize value~logical_width~logical_height~drawable_width~drawable_height=
   match ensure"Runtime_next_orchestrator.resize"value with Error _ as e->e|Ok()->let result=
     Runtime_next.resize value.runtime~width:logical_width~height:logical_height in
-    (match result with Ok()->value.facts<-{value.facts with logical_width;logical_height;drawable_width;drawable_height;
-      pixel_density=float drawable_width/.float logical_width;display_scale=float drawable_width/.float logical_width}|Error _->());result
+    (match result with
+     |Error _->()
+     |Ok()->
+        ignore(drawable_width,drawable_height);
+        match Runtime_next.window_facts value.runtime~vsync:value.facts.vsync with
+        |Error _->()
+        |Ok facts->value.facts<-
+            {title=facts.title;logical_width=facts.logical_width;
+             logical_height=facts.logical_height;
+             drawable_width=facts.drawable_width;drawable_height=facts.drawable_height;
+             position=Some facts.position;pixel_density=facts.pixel_density;
+             display_scale=facts.display_scale;refresh_rate=facts.refresh_rate;
+             vsync=facts.vsync});result
 let capture value~bytes_per_row=match ensure"Runtime_next_orchestrator.capture"value with Error _ as e->e|Ok()->
   Runtime_next.read_pixels value.runtime~bytes_per_row
 let native_call operation value call=match ensure operation value with Error _ as e->e|Ok()->

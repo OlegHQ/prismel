@@ -164,9 +164,11 @@ let command_geometry_of_raster (value:Scene_command.Render_ir.geometry):Command.
 let scene2_commands commands =
   let identity=Command.{xx=1.;xy=0.;yx=0.;yy=1.;tx=0.;ty=0.} in
   let transforms=ref[identity] and clips=ref[(0,0,-1,-1)]
-  and draws=ref[] and number=ref 0 and failure=ref None in
+  and blend=ref Alpha and draws=ref[] and number=ref 0 and failure=ref None in
   Array.iter(fun command->if !failure=None then match command with
-    |Command.Clear _|Set_blend _->()
+    |Command.Clear _->()
+    |Set_blend mode->blend:=(match mode with Command.Replace->Replace|Alpha->Alpha
+        |Add->Add|Multiply->Multiply|Screen->Screen|Subtract->Subtract)
     |Push_transform value->transforms:=compose(List.hd!transforms)value::!transforms
     |Pop_transform->(match !transforms with _::(_::_ as rest)->transforms:=rest|_->())
     |Push_clip rect->
@@ -175,11 +177,14 @@ let scene2_commands commands =
           and w=max 0(int_of_float(ceil rect.width))and h=max 0(int_of_float(ceil rect.height))in
           clips:=(x,y,w,h)::!clips
     |Pop_clip->(match !clips with _::(_::_ as rest)->clips:=rest|_->())
-    |Geometry geometry->draws:=mesh_of_geometry !number(List.hd!transforms)(List.hd!clips)geometry::!draws;incr number
+    |Geometry geometry->
+        let draw=mesh_of_geometry !number(List.hd!transforms)(List.hd!clips)geometry in
+        draws:={draw with blend= !blend}::!draws;incr number
     |Debug_text debug->
         let geometry=debug_text_geometry(List.hd!transforms)debug in
         if Array.length geometry.indices>0 then begin
-          draws:=mesh_of_geometry !number identity(List.hd!clips)geometry::!draws;
+          let draw=mesh_of_geometry !number identity(List.hd!clips)geometry in
+          draws:={draw with blend= !blend}::!draws;
           incr number
         end
     ) commands;
@@ -467,7 +472,8 @@ let lower_scene2_uncached value ~density ~resource:resolve ir =
   let native_projection={Scene_command.Render_ir.xx=2./.float facts.logical_width;xy=0.;yx=0.;
     yy=(-2.)/.float facts.logical_height;tx=(-1.);ty=1.} in
   let render_transform transform=compose_raster native_projection transform in
-  let transforms=ref[identity]and clips=ref[(0,0,facts.drawable_width,facts.drawable_height)]and draws=ref[]and number=ref 0 and failure=ref None in
+  let transforms=ref[identity]and clips=ref[(0,0,facts.drawable_width,facts.drawable_height)]
+  and blend=ref Alpha and draws=ref[]and number=ref 0 and failure=ref None in
   let point transform x y=transform.Scene_command.Render_ir.xx*.x+.transform.yx*.y+.transform.tx,
     transform.xy*.x+.transform.yy*.y+.transform.ty in
   let clip_live()=let _,_,width,height=List.hd!clips in width>0&&height>0 in
@@ -570,9 +576,13 @@ let lower_scene2_uncached value ~density ~resource:resolve ir =
     match snapshot value~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
       let s=command.source in if width<=0||height<=0 then failure:=Some"resource extent is invalid"else
       let u0=s.x/.float width and v0=s.y/.float height and u1=(s.x+.s.width)/.float width and v1=(s.y+.s.height)/.float height in
-      draws:=quad texture command.destination(u0,v0,u1,v1)::!draws;incr number in
+      let draw=quad texture command.destination(u0,v0,u1,v1)in
+      draws:={draw with blend= !blend}::!draws;incr number in
   Array.iter(fun command->if!failure=None then match command with
-    |Scene_command.Render_ir.Clear _|Set_blend _->()
+    |Scene_command.Render_ir.Clear _->()
+    |Set_blend mode->blend:=(match mode with Scene_command.Render_ir.Replace->Replace
+        |Copy->Replace|Alpha|Source_over->Alpha|Add->Add|Multiply->Multiply
+        |Screen->Screen|Subtract->Subtract)
     |Push_transform transform->transforms:=compose_raster(List.hd!transforms)transform::!transforms
     |Pop_transform->(match!transforms with _::(_::_ as rest)->transforms:=rest|_->())
     |Push_clip rect->let px,py,pw,ph=List.hd!clips and x=int_of_float(floor rect.x)
@@ -582,7 +592,9 @@ let lower_scene2_uncached value ~density ~resource:resolve ir =
       let right=min(px+pw)right and bottom=min(py+ph)bottom in
       clips:=(x,y,max 0(right-x),max 0(bottom-y))::!clips
     |Pop_clip->(match!clips with _::(_::_ as rest)->clips:=rest|_->())
-    |Geometry geometry->if clip_live()then(draws:=geometry_draw!number(render_transform(List.hd!transforms))(List.hd!clips)geometry::!draws;incr number)
+    |Geometry geometry->if clip_live()then(
+        let draw=geometry_draw!number(render_transform(List.hd!transforms))(List.hd!clips)geometry in
+        draws:={draw with blend= !blend}::!draws;incr number)
     |Debug_text debug->if clip_live()then
         let transform=render_transform(List.hd!transforms)and clip=List.hd!clips in
         let draw=match List.find_opt(fun cached->cached.debug_source=debug&&
@@ -599,11 +611,14 @@ let lower_scene2_uncached value ~density ~resource:resolve ir =
             if List.length value.scene2_debug_cache>256 then
               value.scene2_debug_cache<-List.rev(List.tl(List.rev value.scene2_debug_cache));
             draw in
-        Option.iter(fun draw->draws:=draw::!draws;incr number)draw
+        Option.iter(fun draw->draws:={draw with blend= !blend}::!draws;incr number)draw
     |Image command->if clip_live()then image command
     |Glyphs glyphs->if clip_live()&&Array.length glyphs.glyphs>0 then match resolve glyphs.resource_id with None->failure:=Some"glyph resource id is unbound"|Some source->
         match snapshot value~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
-          Array.iter(fun(glyph:Scene_command.Render_ir.glyph)->let destination={Scene_command.Render_ir.x=glyph.x;y=glyph.y;width=float width;height=float height}in draws:=quad texture destination(0.,0.,1.,1.)::!draws;incr number)glyphs.glyphs)
+          Array.iter(fun(glyph:Scene_command.Render_ir.glyph)->
+            let destination={Scene_command.Render_ir.x=glyph.x;y=glyph.y;width=float width;height=float height}in
+            let draw=quad texture destination(0.,0.,1.,1.)in
+            draws:={draw with blend= !blend}::!draws;incr number)glyphs.glyphs)
     (Scene_command.Render_ir.Private.commands_readonly ir);
   match!failure with Some message->release_new_leases();fail"Prismel_next_execution.lower_scene2"Resource message
   |None->Ok(batch_scene2_draws ~cache:value.scene2_batch_cache
@@ -760,7 +775,7 @@ let event_of_input=function Runtime_next_input.Pointer_moved(x,y)->Pointer_moved
   |Wheel(x,y)->Wheel(x,y)|Key_pressed k->Key_pressed{name=k.key;modifiers=List.map mod_of_input k.modifiers;repeat=k.repeat}|Key_released k->Key_released{name=k.key;modifiers=List.map mod_of_input k.modifiers;repeat=k.repeat}
   |Text_input s->Text_input s|Text_editing{text;start;length}->Text_editing{text;start;length}|Focus_lost->Focus_lost|Focus_gained->Focus_gained
   |Visibility_changed x->Visibility_changed x|Quit->Quit|Resized(x,y)->Resized(x,y)|File_dropped{name;contents}->File_dropped{name;contents}
-let step value draws=match ensure"Prismel_next_execution.step"value with Error _ as e->e|Ok()->
+let step ?clear value draws=match ensure"Prismel_next_execution.step"value with Error _ as e->e|Ok()->
   let release_image_leases()=
     List.iter Prismel_next_resources.Image.Private.release_snapshot value.pending_image_leases;
     value.pending_image_leases<-[]in
@@ -779,7 +794,7 @@ let step value draws=match ensure"Prismel_next_execution.step"value with Error _
         {draw with Scene_execution.state={state with viewport;scissor}}in
       {Runtime_next_orchestrator.family=family x.family;blend=blend x.blend;texture=x.texture;
         auxiliary=x.auxiliary;samples=x.samples;draw})draws in
-    match Runtime_next_orchestrator.render_prepared value.runtime draws with Error e->backend"Prismel_next_execution.step"e|Ok _->
+    match Runtime_next_orchestrator.render_prepared ?clear value.runtime draws with Error e->backend"Prismel_next_execution.step"e|Ok _->
       let now=Unix.gettimeofday()in let dt=match value.timing with Fixed dt->dt|Variable->max 0.(now-.value.last_clock)in
       value.last_clock<-now;value.elapsed<-value.elapsed+.dt;value.frame<-Int64.succ value.frame;
       let events=List.map event_of_input(Runtime_next_input.drain value.input)and input=Runtime_next_input.snapshot value.input in
@@ -800,6 +815,9 @@ let destroy value=if value.dead then Ok()else(
     value.scene2_plan_cache<-[];value.scene2_plan_candidates<-[];
     value.scene2_geometry_candidates<-[];value.canvas_keys<-[];value.dead<-true;
     match Runtime_next_orchestrator.destroy value.runtime with Ok()->Ok()|Error e->backend"Prismel_next_execution.destroy"e)
+module Private=struct
+  let draw_family_blend draw=draw.family,draw.blend
+end
 let run configuration body ~on_stop = match create configuration with Error _ as e->e|Ok value->
   let outcome=try body value with exn->fail"Prismel_next_execution.run"Backend(Printexc.to_string exn)in
   let stopped=try on_stop value with exn->fail"Prismel_next_execution.on_stop"Backend(Printexc.to_string exn)in

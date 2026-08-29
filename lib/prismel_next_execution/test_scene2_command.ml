@@ -13,12 +13,14 @@ let () =
     [| Clear 0x000000ffl;
        Push_transform { xx=1.; xy=0.; yx=0.; yy=1.; tx=3.; ty=4. };
        Push_clip { x=0.; y=0.; width=32.; height=32. };
-       Geometry geometry; Pop_clip; Pop_transform |]
+       Set_blend Add; Geometry geometry; Pop_clip; Pop_transform |]
   in
   let first = get (Prismel_next_execution.scene2_commands commands) in
   let second = get (Prismel_next_execution.scene2_commands commands) in
   if List.length first <> 1 || List.length second <> 1 then
     failwith "renderer-neutral Scene2 command lowering cardinality";
+  if snd(Prismel_next_execution.Private.draw_family_blend(List.hd first)) <> Add then
+    failwith "renderer-neutral Scene2 blend state was dropped";
   let malformed =
     [| Push_clip { x=nan; y=0.; width=1.; height=1. }; Geometry geometry |]
   in

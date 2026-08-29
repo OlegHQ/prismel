@@ -41,8 +41,17 @@ let rounded_cached key make=
 let point ~at ?(color=default_color)()=Primitive{points=[at];closed=false;fill=None;stroke=Some color}
 let line ~from_ ~to_ ?(color=default_color)?(width=1)()=
   stroke_path~width:(float(max 1 width))color(Scene_command.Path.of_commands[|Scene_command.Path.Move_to(point2 from_);Scene_command.Path.Line_to(point2 to_)|])
-let polygon points ?fill ?stroke()=Primitive{points;closed=true;fill;stroke}
-let polyline points ?(color=default_color)()=Primitive{points;closed=false;fill=None;stroke=Some color}
+let path_of_points ~closed points=
+  match points with
+  |[]->Scene_command.Path.of_commands[||]
+  |first::rest->
+      let commands=Scene_command.Path.Move_to(point2 first)::
+        List.map(fun point->Scene_command.Path.Line_to(point2 point))rest@
+        (if closed then[Scene_command.Path.Close]else[])in
+      Scene_command.Path.of_commands(Array.of_list commands)
+let polygon points ?fill ?stroke()=styled_path?fill?stroke(path_of_points~closed:true points)
+let polyline points ?(color=default_color)()=
+  stroke_path color(path_of_points~closed:false points)
 let rect ~at:(x,y)~w~h ?fill ?stroke()=polygon[x,y;x+w,y;x+w,y+h;x,y+h]?fill?stroke()
 let square ~at ~size ?fill ?stroke()=rect~at~w:size~h:size?fill?stroke()
 let rounded_rect ~at:(x,y) ~w ~h ~radius ?fill ?stroke()=
@@ -158,9 +167,12 @@ let geometry p=
       cache.primitive_order<-p::cache.primitive_order;
       command
 module Private=struct
- type staged_native={scene2:Scene_command.Render_ir.t;
+ type native_layer=
+  |Scene2_layer of Scene_command.Render_ir.t*(int*Prismel_next_execution.resource)list
+  |Scene3_layer of Scene_execution.prepared_scene3
+ type staged_native={clear:float*float*float*float;scene2:Scene_command.Render_ir.t;
    resources:(int*Prismel_next_execution.resource)list;
-   scene3:Scene_execution.prepared_scene3 list}
+   scene3:Scene_execution.prepared_scene3 list;layers:native_layer list}
  let renderer=ref(fun(_ : t)->())let install_renderer value=renderer:=value
  let rec commands acc=function []->acc|Clear c::xs->commands(Scene_command.Render_ir.Clear(rgba c)::acc)xs|Primitive p::xs->commands(geometry p::acc)xs|Geometry g::xs->commands(Scene_command.Render_ir.Geometry g::acc)xs|Group g::xs->commands(commands acc g)xs
   |Debug_text node::xs->commands(Scene_command.Render_ir.Debug_text{x=float node.x;y=float node.y;text=node.value;color=rgba node.color}::acc)xs
@@ -168,7 +180,9 @@ module Private=struct
   |Scale(x,y,g)::xs->commands(Scene_command.Render_ir.Pop_transform::commands(Scene_command.Render_ir.Push_transform{xx=x;xy=0.;yx=0.;yy=y;tx=0.;ty=0.}::acc)g)xs
   |Rotate(a,g)::xs->let c=cos a and s=sin a in commands(Scene_command.Render_ir.Pop_transform::commands(Scene_command.Render_ir.Push_transform{xx=c;xy=s;yx=(-.s);yy=c;tx=0.;ty=0.}::acc)g)xs
   |Clip(x,y,w,h,g)::xs->commands(Scene_command.Render_ir.Pop_clip::commands(Scene_command.Render_ir.Push_clip{x=float x;y=float y;width=float w;height=float h}::acc)g)xs
-  |Blend(mode,g)::xs->let mode=match mode with Replace->Scene_command.Render_ir.Replace|Alpha->Alpha|Add->Add|Multiply->Multiply in commands(commands(Scene_command.Render_ir.Set_blend mode::acc)g)xs
+  |Blend(mode,g)::xs->let mode=match mode with Replace->Scene_command.Render_ir.Replace|Alpha->Alpha|Add->Add|Multiply->Multiply in
+    commands(Scene_command.Render_ir.Set_blend Scene_command.Render_ir.Alpha::
+      commands(Scene_command.Render_ir.Set_blend mode::acc)g)xs
   |Image node::xs->let width,height=Image.get_size node.image in let rect={Scene_command.Render_ir.x=0.;y=0.;width=float width;height=float height}in
     let destination={Scene_command.Render_ir.x=float node.x;y=float node.y;width=float width*.node.scale;height=float height*.node.scale}in
     let command=Scene_command.Render_ir.Image{resource_id=Image.Private.identity node.image;source=rect;destination}in
@@ -233,24 +247,63 @@ module Private=struct
      | Failure message -> Error message
      | Invalid_argument message -> Error message
 
+ let unpack_clear color=
+   let channel shift=Int32.(to_int(logand(shift_right_logical color shift)0xffl))in
+   float(channel 24)/.255.,float(channel 16)/.255.,
+   float(channel 8)/.255.,float(channel 0)/.255.
+
+ type layer_item=Two_node of node|Three_node of view3d_node
+ let ordered_items scene=
+   let rec add wrap acc nodes=List.fold_left(fun acc node->match node with
+     |View3d view->Three_node view::acc
+     |Group nodes->add wrap acc nodes
+     |Translate(x,y,nodes)->add(fun node->wrap(Translate(x,y,[node])))acc nodes
+     |Rotate(angle,nodes)->add(fun node->wrap(Rotate(angle,[node])))acc nodes
+     |Scale(x,y,nodes)->add(fun node->wrap(Scale(x,y,[node])))acc nodes
+     |Clip(x,y,w,h,nodes)->add(fun node->wrap(Clip(x,y,w,h,[node])))acc nodes
+     |Blend(mode,nodes)->add(fun node->wrap(Blend(mode,[node])))acc nodes
+     |node->Two_node(wrap node)::acc)acc nodes in
+   List.rev(add Fun.id[]scene)
+
+ let grouped_items items=
+   let flush nodes acc=if nodes=[]then acc else `Two(List.rev nodes)::acc in
+   let rec loop nodes acc=function
+     |[]->List.rev(flush nodes acc)
+     |Two_node node::rest->loop(node::nodes)acc rest
+     |Three_node view::rest->loop[](`Three view::flush nodes acc)rest in
+   loop[][]items
+
  let stage_native ~width ~height scene =
    match stage ~width ~height scene with Error _ as error->error|Ok(scene2,resources)->
-   let lowered=ref[]and failure=ref None in
+   let materialized=materialize~width~height scene in
+   let failure=ref None in
    let callbacks:Scene3_native_lowering.resources={
      texture=(fun value->let levels=Texture.Private.levels value.Scene3.value|>Array.map(fun(w,h,pixels)->let bytes=Bytes.create(w*h*4)in Array.iteri(fun index color->Bytes.set_int32_be bytes(index*4)(Int32.of_int((color.Color.r lsl 24)lor(color.g lsl 16)lor(color.b lsl 8)lor color.a)))pixels;{Scene_execution.width=w;height=h;bytes})in let address=function Texture.Clamp->Ogpu.Types.Clamp_to_edge|Repeat->Repeat|Mirror->Mirror_repeat in let min_filter,mag_filter,mip_filter=match value.filter with Texture.Nearest->Ogpu.Types.Nearest,Ogpu.Types.Nearest,Ogpu.Types.No_mip|Texture.Bilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.No_mip|Texture.Trilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.Linear_mip in let sampler:Ogpu.Types.sampler_descriptor={label=Some"scene3-texture";min_filter;mag_filter;mip_filter;address_u=address value.wrap_u;address_v=address value.wrap_v;lod_min=0.;lod_max=float(Array.length levels-1);max_anisotropy=1}in Ok{Scene_execution.key=Digest.to_hex(Digest.string(Marshal.to_string levels[]));levels;sampler});
      shadow=(fun value->let source=Shadow3.Private.snapshot value in let matrix=Array.init 16(fun index->Mat4.get source.view_projection~row:(index/4)~column:(index mod 4))in let snapshot:Scene_execution.shadow_snapshot={width=source.width;height=source.height;depths=source.depths;matrix;bias={constant=source.bias;slope=source.normal_bias};kernel=(match source.filter with Hard->Tap1|Pcf_3x3->Tap9|Pcf_5x5->Tap25);strength=source.strength}in match Scene_execution.shadow_resource~key:(Digest.to_hex(Digest.string(Marshal.to_string snapshot[])))snapshot with Error _->Error Unsupported_shadow|Ok resource->Ok{Scene_execution.key=resource.texture.key;buffer=resource.parameters;texture=resource.texture})}in
-   let rec visit=function
-     |[]->()|View3d node::rest->
+   let layers=List.filter_map(fun item->if!failure<>None then None else match item with
+     |`Two nodes->(match stage~width~height nodes with
+       |Ok(ir,resources)->Some(Scene2_layer(ir,resources))
+       |Error message->failure:=Some message;None)
+     |`Three node->
        let viewport=Option.value node.viewport~default:(0,0,width,height)in
        (match Scene3_native_lowering.prepare~resources:callbacks~camera:node.camera
-          ~viewport node.scene with Ok prepared->lowered:=prepared::!lowered
-        |Error _->failure:=Some"native View3d lowering failed");visit rest
-     |Group nodes::rest|Translate(_,_,nodes)::rest|Rotate(_,nodes)::rest
-     |Scale(_,_,nodes)::rest|Clip(_,_,_,_,nodes)::rest|Blend(_,nodes)::rest->
-       visit nodes;visit rest
-     |_::rest->visit rest in
-   visit scene;match!failure with Some message->Error message
-   |None->Ok{scene2;resources;scene3=List.rev!lowered}
+          ~viewport node.scene with
+        |Ok prepared->Some(Scene3_layer prepared)
+        |Error _->failure:=Some"native View3d lowering failed";None))
+     (grouped_items(ordered_items materialized))in
+   let clear=ref(0.,0.,0.,0.)and seen_draw=ref false in
+   List.iter(function
+     |Scene3_layer _->seen_draw:=true
+     |Scene2_layer(ir,_)->Array.iter(function
+       |Scene_command.Render_ir.Clear color->
+          if!seen_draw then failure:=Some"native Clear after drawing is unsupported"
+          else clear:=unpack_clear color
+       |Geometry _|Debug_text _|Image _|Glyphs _->seen_draw:=true
+       |Set_blend _|Push_clip _|Pop_clip|Push_transform _|Pop_transform->())
+       (Scene_command.Render_ir.Private.commands_readonly ir))layers;
+   match!failure with Some message->Error message|None->
+   let scene3=List.filter_map(function Scene3_layer prepared->Some prepared|_->None)layers in
+   Ok{clear= !clear;scene2;resources;scene3;layers}
 
  let to_ir scene = Result.map fst (stage ~width:640 ~height:480 scene)
  let resources scene =
