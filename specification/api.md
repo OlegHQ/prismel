@@ -180,7 +180,7 @@ to their children. Primitive geometry is transformed before rasterization, so
 rotation and non-uniform scale affect complete outlines rather than only anchor
 points.
 Filled curved and polygonal primitives retain an antialiased boundary around
-their scanline fill, so filled and stroked variants both produce fractional
+their tessellated fill, so filled and stroked variants both produce fractional
 edge coverage in the native 2D pipeline.
 
 Coordinates are integer logical points in the initial API. The origin is the
@@ -198,18 +198,12 @@ Its immutable editing/query API includes per-element replacement, safe
 removal, range coloring, compact submeshes, centroid/duplicate/crease-normal
 operations, attributed faces and face normals, spatial diagnostic meshes, UV
 remapping, and ASCII/binary PLY plus OBJ output.
-`Material` and `Light` provide Blinn-Phong surface lighting, while `Mat4` and
-scoped `Scene3` nodes compose hierarchical transforms.
-Area lights use deterministic configurable surface samples, and
-`Scene3.create ~separate_specular:true` retains highlights over dark textures.
-`Scene3.create ~fog` accepts `Fog3` linear, exponential, or
-exponential-squared per-fragment distance fog.
-`Shader3` provides deterministic programmable vertex, geometry, and fragment
-functions, typed immutable uniforms, perspective-correct varyings, discard,
-and fragment-depth output. `Transform_feedback3` captures staged primitives
-without fragments, and `Compute3` provides ordered functional workgroup
-dispatch. These values lower through the same checked native scene and resource
-boundary as ordinary Scene3 draws.
+`Material` and `Light` provide the fixed native lighting inputs, while `Mat4`
+and scoped `Scene3` nodes compose hierarchical transforms. The public model
+also retains area-light, fog, separate-specular, `Shader3`, compute, and
+transform-feedback values. Constructor presence is not a native-support claim:
+the current Scene3 lowering accepts the fixed triangle/material/light path and
+returns typed errors for OCaml-function shaders and other unlowered modes.
 
 The renderer uses native Metal color, depth, and stencil attachments, not
 projected 2D painter ordering. Perspective and orthographic cameras use
@@ -219,13 +213,11 @@ off-axis portal cameras, vertical projection flipping, and frustum diagnostic
 meshes cover multi-display and projection-mapping use cases.
 
 `Scene3.with_depth`, `with_stencil`, `with_raster`, and `with_blend` provide
-immutable scoped depth/stencil, line/point-size, and blend state.
-`Framebuffer3.render` retains readable color/depth/stencil attachments
-offscreen; its color is a normal `Texture.t`, so another Shader3 pass can
-post-process it before conversion to a Canvas or owned Image.
-`Framebuffer3.shadow` turns the depth attachment into a light-bound `Shadow3`
-map with hard or PCF filtering; `Scene3.create ~shadows` applies it per
-fragment without suppressing ambient/emissive material terms.
+immutable scoped intent. Only state explicitly accepted by
+`Scene3_native_lowering` counts as implemented by the public native renderer.
+Unsupported stencil/raster/programming combinations must fail rather than be
+ignored. Capture and offscreen ownership use the native Canvas/resource path;
+there is no separate public `Framebuffer3` module in the installed library.
 
 See [`3d.md`](./3d.md) for the rendering contract and
 [`3d-parity.md`](./3d-parity.md) for the audited openFrameworks parity matrix.

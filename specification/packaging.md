@@ -22,10 +22,9 @@ Runtime provider/orchestrator sublibraries are native-only internal
 qualification boundaries. Their target types contain only `Native`; they do not
 install alternate backends or make backend selection extensible.
 
-The package contains no Raster2, Wap, SDL2/Tsdl, OpenGL compatibility, browser
-server, or headless renderer dependency. A native link audit checks Dune
-external dependencies and every built executable/shared artifact for forbidden
-legacy linkage.
+The package installs only the native renderer graph described above. A native
+link audit checks Dune external dependencies and every built executable/shared
+artifact against the declared graph.
 
 ## System prerequisites
 

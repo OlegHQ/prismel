@@ -21,7 +21,7 @@ a source-level translation.
 ## Dependency and effect boundary
 
 ```text
-examples ──> prismel.geom ──> pdk ──> prismel ──> tsdl/tsdl_gfx
+examples ──> prismel.geom ──> pdk ──> prismel ──> ogpu
 ```
 
 All geometry constructors, queries, transforms, subdivision, triangulation,
@@ -29,9 +29,10 @@ and mesh generation are pure. `Render2` creates pure `Scene.node` or `Path.t`
 descriptions. Actual drawing still happens only at `Scene.render` inside the
 normal Prismel lifecycle.
 
-No geometry function reads `HEADLESS`, touches SDL, uses global random state,
-or mutates a caller-owned collection. Inputs used for independent parallel work
-can therefore be split safely with immutable `Rand.t` values.
+No geometry function touches SDL3 or Metal, consults runtime platform state,
+uses global random state, or mutates a caller-owned collection. Inputs used for
+independent parallel work can therefore be split safely with immutable
+`Rand.t` values.
 
 ## Single compute core migration
 
@@ -126,8 +127,8 @@ keeps all cells finite, and ensures that the returned cells cover the bounds.
 ## Procedural meshes
 
 All `Mesh3` functions return ordinary immutable `Prismel.Mesh.t` values and can
-therefore use existing materials, shaders, instancing, export, framebuffer, and
-headless rendering paths.
+therefore use existing materials, shaders, instancing, export, and native
+framebuffer paths.
 
 ### Extrusion
 
@@ -247,12 +248,11 @@ public abstraction.
 - `examples/geom_subdivision` compares all four mesh subdivision families.
 - `examples/geom_physics` simulates a deterministic spring cloth.
 
-Each example uses `Sketch.Fixed`, exits after three frames under `HEADLESS`, and
-supports a deterministic single-frame export:
+Each automated example uses `Sketch.Fixed`, provides an explicit finite native
+smoke mode, and supports a deterministic single-frame export:
 
 ```sh
-HEADLESS=1 PRISMEL_EXPORT_DIR=frames \
-  dune exec examples/geom_voronoi/main.exe
+PRISMEL_EXPORT_DIR=frames dune exec examples/geom_voronoi/main.exe
 ```
 
 ## Capability map
@@ -284,7 +284,7 @@ port around what currently exists.
 | General SVG path parsing/export | Implemented |
 | Visualization charts | Scales, Cartesian/polar axes, principal SVG layouts, heatmaps, contours, and interval stacking implemented |
 | Mesh attribute generators and topology editing | Implemented through typed UV generators, face expansion, adjacency, immutable editing, repair, and core mesh attributes |
-| GL adapters and shaders | Covered by Prismel core typed 3D APIs and the exhaustive `3d-parity.md` audit; platform-specific browser/Jogl adapters are outside the SDL backend scope |
+| Native adapters and shaders | Tracked by Prismel's `3d-parity.md` audit; only capabilities that pass the public OGPU/Metal lowering count as native support |
 
 Platform-host adapters are treated as backend-specific rather than geometry
 algorithms. All portable upstream namespaces are mapped below to tested native
@@ -333,4 +333,4 @@ native API; it does not mean the Clojure API shape was copied.
 | `svg.core`, `svg.adapter` | `Svg`, `Svg_path`, `Render2` | Mapped for 2D geometry |
 | `svg.renderer`, `svg.shaders` | `Svg3` plus core `Scene3`/`Renderer3d` | Mapped |
 | `viz.core` | `Viz`, `Contour2` | Mapped |
-| `gl.*` | Core camera/easy-camera, mesh, material, shader, framebuffer/post-processing, shadow, texture, compute, and transform-feedback APIs | Mapped where architectural equivalents exist; browser/Jogl host adapters are outside the SDL backend scope |
+| `gl.*` | Core camera/easy-camera, mesh, material, texture, and checked native drawing APIs | Mapped only where the current public OGPU/Metal path has an architectural equivalent; see `3d-parity.md` for explicit gaps |

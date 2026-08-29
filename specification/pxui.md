@@ -34,12 +34,12 @@ changing values share Prismel's bounded renderer-local text cache.
 ## Coordinate model
 
 Panel position, width, padding, row height, rendering, and hit testing all use
-Prismel logical points. Event coordinates arrive in that same space because
-the SDL renderer logical size performs native-to-logical pointer mapping.
+Prismel logical points. Runtime translates SDL3 logical event coordinates into
+that same space.
 PXUI must never multiply event positions by `Frame.pixel_scale`.
 
 A bounded panel reports the smaller visible height from `Pxui.bounds`. Rows,
-text, and browser text-input metadata are clipped to its content viewport.
+text, and native text-input metadata are clipped to its content viewport.
 Vertical wheel/trackpad motion over that viewport adjusts a clamped logical
 scroll offset; horizontal motion does nothing. The optional scrollbar is a
 view of the same offset, not a second source of state. Camera controls derive
@@ -91,17 +91,13 @@ strict integers, so fractional input remains visibly invalid and cannot change
 the stored integer.
 
 `Pxui.scene` includes a pure `Scene.text_input_region` for every text field and
-the active inline numeric editor.
-The web client receives those logical bounds before interaction and focuses its
-hidden textarea synchronously only for a press inside one. Mobile keyboard
-viewport changes do not resize the sketch while the textarea remains focused;
-the viewport is synchronized after blur. Virtual-keyboard `InputEvent` values
-and IME composition are converted into the same ordinary Prismel events used
-by native SDL text entry.
+the active inline numeric editor. Runtime uses those logical bounds to start or
+stop SDL3 text input. Committed UTF-8 and IME composition then enter the same
+ordered Prismel event stream as keyboard and pointer events.
 
 `PointerCancelled` releases only the cancelled pointer and active drag. It does
-not clear text focus. This avoids treating a mobile browser gesture or keyboard
-transition as if the entire window lost focus.
+not clear text focus. This avoids treating a cancelled pointer gesture as if
+the entire window lost focus.
 
 `WindowFocusLost` is a hard cancellation boundary: it clears pointer capture,
 hover, text focus, and composition without emitting a value change. The core
@@ -172,10 +168,10 @@ Tests for PXUI changes must cover:
 6. focus loss during an armed or dragged interaction;
 7. ordered changes from a multi-event update;
 8. hover/pressed/drag scene differences and system-font rendering in a
-   headless framebuffer;
+   native framebuffer;
 9. pointer cancellation without a false text-focus loss;
-10. mobile browser focus only for text-field regions, including virtual-keyboard
-    input and keyboard-induced viewport changes;
+10. SDL3 text-input activation only for text-field regions, including IME
+    composition and focus transitions;
 11. integer-slider snapping, integer persistence, and exact change payloads;
 12. bounded panel clipping, scroll clamping, scrolled hit testing, accordion
     height changes, and resized camera-panel bounds.

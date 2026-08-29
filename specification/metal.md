@@ -2,9 +2,9 @@
 
 The Metal binding is an ordinary Dune library under `lib/metal`, published as
 `prismel.metal`. It is a foundational library beneath `ogpu_metal`; it has no
-dependency on SDL3, OGPU, Runtime, Prismel, PXUI, or Wap. Runtime will eventually
-combine an SDL3-owned `CAMetalLayer` with this binding through `ogpu_metal`, but
-the binding itself never owns an SDL window.
+dependency on SDL3, OGPU, Runtime, Prismel, or PXUI. Runtime combines an
+SDL3-owned `CAMetalLayer` with this binding through `ogpu_metal`, but the
+binding itself never owns an SDL window.
 
 ## Generated SDK inventory
 

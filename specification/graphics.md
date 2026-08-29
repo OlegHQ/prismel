@@ -3,7 +3,7 @@
 New code should build immutable `Scene.t` values and let `Sketch` present them.
 `Low.Graphics` remains an immediate-mode compatibility surface for older code,
 but both entry points lower into the same SDL3-windowed OGPU/Metal renderer.
-There is no SDL2, OpenGL, browser, headless, or CPU-renderer selection path.
+The native Metal renderer is the only execution path.
 
 ## Drawing vocabulary
 

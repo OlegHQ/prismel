@@ -8,7 +8,7 @@ tools, but neither is a fallback for this kernel.
 ## Evidence hierarchy
 
 The target is not a literal clone of one package. It combines the strongest
-published guarantees under PDK's single-core, deterministic, headless OCaml
+published guarantees under PDK's single-core, deterministic, native OCaml
 constraints.
 
 | Evidence | What PDK adopts | What PDK does not infer |
@@ -43,7 +43,7 @@ heads are not a specification:
 
 Permissive licensing does not by itself justify importing a second geometry
 kernel. PDK owns topology, exact identity, packed storage, deterministic
-ordering, attributes, groups, cancellation, and headless portability. Source
+ordering, attributes, groups, cancellation, and Apple-Silicon portability. Source
 is inspected to extract invariants and adversarial cases; implementation uses
 PDK types and tests. Any substantially copied permissive code would need its
 notice preserved explicitly, but the current kernel is an independent OCaml
@@ -365,7 +365,7 @@ validation. The SOP delegates to the single PDK core, forwards cancellation
 and session grain, and includes every policy in static cache identity. Public
 PDK/SOP regressions cover payload conflicts, malformed parameters,
 cancellation, bounded cache reuse, and exact one-/four-domain topology. A
-headless framebuffer export is byte-identical across domain counts and differs
+native framebuffer export is byte-identical across domain counts and differs
 visibly from the unsubtracted source.
 
 Shatter concatenates stable A-only/overlap/B-only ancestry, preserves

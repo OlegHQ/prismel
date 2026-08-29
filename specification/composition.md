@@ -8,10 +8,10 @@ separate contour. `Scene.path` supplies fill, stroke, curve detail, and an
 explicit `Path.Even_odd` (default) or `Path.Non_zero` fill rule. Curves are
 flattened only at the raster boundary, so paths remain reusable data.
 
-Fills use a contour-aware scanline rasterizer after applying the current
-transform. This supports concave geometry and transparent holes without
-painting a fake background shape. Strokes are emitted per contour and never
-bridge separate subpaths.
+Fills use contour-aware tessellation before native command submission. This
+supports concave geometry and transparent holes without painting a fake
+background shape. Strokes are emitted per contour and never bridge separate
+subpaths.
 
 ## Scoped clipping
 

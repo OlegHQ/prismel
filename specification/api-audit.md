@@ -35,7 +35,7 @@ with rationale rather than represented by placeholder APIs.
 | Canvas pixels and native capture | Implemented | owned `Canvas`, read/write/map pixels, drawable-sized capture |
 | Capture/export | Implemented | canvas/framebuffer PNG plus deterministic `Sketch.export[_state]`; repeated sequence digests tested |
 | Native GPU resources | Implemented | Canvas/Image snapshots lower to checked OGPU/Metal resources |
-| Multi-contour tessellation | Implemented | transformed scanline fill, contour-safe strokes, pixel-level hole tests |
+| Multi-contour tessellation | Implemented | transformed native fill tessellation, contour-safe strokes, framebuffer hole tests |
 | General masks/compositing | Implemented initial | same-size canvas alpha masks plus scoped blend and rectangular clip |
 
 ## Interaction and time

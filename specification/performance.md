@@ -1768,7 +1768,7 @@ Measurements used OCaml 5.3.0, Dune 3.24.0, release profile, grain 16,384, and
 Linux 6.8/aarch64 on four cores. Exact one/four-domain geometry tests cover all
 three policies on Catmull-Clark and Loop, ordinary point attributes, recursion,
 explicit-hole union, local selection, closed manifolds, and bilinear immunity;
-the headless render regression composes None with holes and second-input
+the native render regression composes None with holes and second-input
 creases and compares byte-identical PNG output.
 
 Face-varying policy classification is cardinality-first and retains exact
@@ -1801,7 +1801,7 @@ domain and 463,512 KiB on four; these are process high-water values, not an
 isolated cook's live set. Exact one/four-domain regressions cover every policy,
 continuous and tuple seams, three-region junctions, concave corners, darts,
 crease/corner precedence, Catmull-Clark and Loop, recursion, local selection,
-bilinear immunity, cancellation, and byte-identical headless rendering.
+bilinear immunity, cancellation, and byte-identical native rendering.
 Measurements used OCaml 5.3.0, Dune 3.24.0, release profile, grain 16,384, and
 Linux 6.8/aarch64 on four cores.
 
@@ -1846,7 +1846,7 @@ fixture catalog and Dune process. Exact regressions cover asymmetric child
 weights, side-specific resulting groups, a sub-unit parent retained as a full
 crease, parent/child vertex-rule transitions, second-input and local creases,
 Loop, recursion, point corners, smoothly constrained FVar data, 120×80
-one/four-domain geometry, and byte-identical headless rendering.
+one/four-domain geometry, and byte-identical native rendering.
 
 Houdini detail controls add one sequential scan of the immutable attribute
 metadata and five scalar enum resolutions before the existing plan. They do
@@ -3472,7 +3472,7 @@ including source/output geometry, benchmark hashing, Dune, and the OCaml heap.
 Its shared-point accumulation is intentionally sequential for byte-exact
 floating-point order; face construction, normalization, fBm, displacement,
 and independent output fills use the reusable domain pool.
-The headless `test/procedural_render_smoke.exe` scene exercises Mountain,
+The finite native `test/procedural_render_smoke.exe` scene exercises Mountain,
 Point Jitter with group/mask/stable-ID/`pscale`, Peak, atomic pattern Attribute
 Delete/Rename feeding a visible promoted color,
 Edge Divide with a selected native edge group and four shared segments,
@@ -3595,7 +3595,7 @@ full fixture fell from 79.285 MB and 181.932 ms to 27.445 MB and 169.055 ms.
 Cold one/four-domain processes peaked at 107,392/115,376 KiB RSS, including
 Dune and the OCaml heap.
 
-The representative headless procedural scene now includes an ordered
+The representative native procedural scene now includes an ordered
 primitive-dual path-driven ridge, point-edge-depth growth, an
 boundary-promoted attribute-seam/unshared-edge wire and an
 incident-edge-angle-derived selection,
@@ -4897,7 +4897,7 @@ fallbacks for genuine zero determinants; they are reported rather than
 replaced with a tolerance. Randomized tests verify every input against every
 output face with exact predicates, closed incidence and Euler characteristic;
 the SOP suite verifies cache identity and exact one/four-domain topology, and
-the headless framebuffer equals an explicit cube reference byte-for-byte.
+the native framebuffer equals an explicit cube reference byte-for-byte.
 
 ```sh
 PRISMEL_HULL_REPEATS=3 PRISMEL_BENCH_DOMAINS=1 \
@@ -4936,7 +4936,7 @@ parallel speedup claim.
 The complete one-domain campaign peaked at 271,020 KiB RSS and four domains at
 277,012 KiB. PDK tests cover lower-dimensional and solid hull centers, stable
 integer/text identity, detail sharing, malformed input and cancellation; SOP
-tests cover cache identity and exact domain output; the headless framebuffer is
+tests cover cache identity and exact domain output; the native framebuffer is
 byte-identical to explicit reference centers.
 
 ```sh
@@ -4993,7 +4993,7 @@ seams, primitive targets/selections, numeric/discrete/ragged payload, empty and 
 input, non-finite values, `max_float` interpolation, cancellation, 100,000
 small curves, and a 200,001-point blocked curve. SOP tests cover immutable
 identity, static caching, current-time invalidation, errors, and exact domain
-output. The headless framebuffer is byte-identical across one/four domains and
+output. The native framebuffer is byte-identical across one/four domains and
 to explicit reference cut points.
 
 ```sh
@@ -5013,4 +5013,4 @@ PRISMEL_EXTRACT_REPEATS=5 PRISMEL_BENCH_DOMAINS=1 /usr/bin/time -v \
 5. Partition only sufficiently coarse independent work.
 6. Verify sequential/parallel byte-identical ordering.
 7. Measure elapsed time, minor/major allocation, and live memory.
-8. Run correctness, headless, documentation, and diff checks.
+8. Run correctness, finite-native, documentation, and diff checks.

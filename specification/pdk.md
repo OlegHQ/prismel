@@ -10,12 +10,12 @@ interpreted VEX clone. Its public values are immutable and target-independent;
 builders and kernels use locally owned mutation over packed storage.
 
 ```text
-procedural / geom / examples ──> pdk ──> prismel ──> runtime ──> wap
+procedural / geom / examples ──> pdk ──> prismel ──> ogpu
 ```
 
-PDK must not import Geom, Procedural, Runtime, Wap, SDL, or browser code. The
-only renderer boundary is conversion to `Prismel.Mesh.t`. Native, headless,
-and web therefore render identical geometry through the existing renderer.
+PDK must not import Geom, Procedural, Runtime, SDL3, Metal, or platform code.
+The only renderer boundary is conversion to `Prismel.Mesh.t`; PDK itself
+remains a pure native OCaml compute library.
 
 ## Geometry model
 
@@ -2254,7 +2254,7 @@ edges) time/storage. Independent fits and disjoint point projection use the
 reusable domain pool; scalar eigensystem helpers avoid tuple results, and a
 compare-and-set minimum makes the first-error diagnostic scheduling-independent.
 Direct, SOP, scale, malformed,
-cancellation, and headless framebuffer tests compare one and four domains
+cancellation, and native framebuffer tests compare one and four domains
 exactly.
 
 ### Graph Color
@@ -2283,7 +2283,7 @@ by ascending-color blocks. Requested detail integer-array begin/length fields
 describe those selected worksets exactly. Existing output storage, group
 affinity/cardinality, names, grain, cancellation, empty geometry, connectivity
 conflicts, sorted payload ancestry, SOP cache identity, million-element scale,
-and headless framebuffer equality are covered directly.
+and native framebuffer equality are covered directly.
 
 ### Measure Curvature
 
@@ -2318,7 +2318,7 @@ and auxiliary storage. Each smoothing step is O(edges); requested fields add
 O(points) storage. Exact-sized triangle/CSR/field planes and stable index ranges
 allow the reusable Domainslib pool to write disjoint slots. Direct PDK and SOP
 tests compare every requested float plane exactly between one and four domains;
-the headless regression also compares byte-identical PNGs. Analytic sphere,
+the native regression also compares byte-identical PNGs. Analytic sphere,
 saddle, flat-boundary, winding, scaling through `1e-150` and `1e150`, large
 translation, selection-preservation, smoothing, malformed-fan, and cancellation
 cases cover the numerical contract.
@@ -2383,7 +2383,7 @@ incidence) and auxiliary storage is linear. The component traversal computes
 each edge/triangle weight once per point instead of rescanning incidence for
 each tuple component. All point, metric, validation, and output ranges are
 disjoint and deterministic; exact one/four-domain PDK/SOP fields and
-byte-identical headless framebuffers cover signed, positive, and uniform modes.
+byte-identical native framebuffers cover signed, positive, and uniform modes.
 Constant null-space, planar linear precision, the octahedron
 `delta P = -2 H n` identity from scales `1e-150` through `1e150`,
 scalar/tuple/integer storage, point groups,

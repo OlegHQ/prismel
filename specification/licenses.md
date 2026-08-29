@@ -8,7 +8,7 @@ release legal review.
 | Surface | Distributed material / provenance | External obligation |
 | --- | --- | --- |
 | SDL3 core/image/ttf/mixer bindings | Prismel-written bindings plus OCaml-generated inventories, ABI facts and provenance hashes. Generated modules identify generator version and pinned headers. | SDL projects use the zlib license. System/shared libraries and their notices remain external dependencies; Prismel does not vendor them here. |
-| Metal binding | Prismel-written safe/raw layers, typed Objective-C++ bridge and OCaml-generated inventory/value/direct-call artifacts. `lib/metal/generated_provenance.ml` records the SDK-derived input identity. | Apple SDK headers/frameworks are build inputs supplied by Xcode/Command Line Tools and are not redistributed by Prismel. Apple platform/tool terms apply to builders and shipped applications. |
+| Metal binding | Prismel-written safe/raw layers, typed Objective-C++ bridge and OCaml-generated inventory/value/direct-call artifacts. `lib/metal/generated_provenance.ml` records the SDK-derived input identity. | Apple SDK headers/frameworks are system build inputs obtainable with the Command Line Tools and are not redistributed by Prismel. Apple platform/tool terms apply to builders and shipped applications. The full IDE and offline shader toolchain are not required. |
 | OGPU, OGPU Metal, scene execution, native runtime support, and low core | Original Prismel OCaml source under MIT. | No additional bundled third-party renderer implementation or shader binary is introduced by these libraries. |
 
 Generated binding output is mechanical Prismel source: enum/value mappings,

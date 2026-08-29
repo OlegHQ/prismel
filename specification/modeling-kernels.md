@@ -813,12 +813,12 @@ planes. Reusing an external library remains possible when it materially
 improves correctness, but it requires a written review of:
 
 - license and redistribution obligations;
-- Linux/macOS/Windows and repository-local opam availability;
+- Apple-Silicon macOS and repository-local opam availability;
 - deterministic element ordering and floating-point behavior;
 - cancellation and thread ownership;
 - conversion cost for points, corners, attributes, groups, and face-varying
   seams;
-- headless build behavior and absence of renderer/GPU requirements.
+- native build behavior and isolation from renderer/GPU implementation details.
 
 OpenSubdiv is the semantic reference and a possible optional accelerator for
 subdivision, but a binding would not replace PDK ownership or its fallback
@@ -837,5 +837,5 @@ Every production modeling kernel requires:
 4. cancellation before publication for long work;
 5. byte-identical one-/multi-domain output and stable element ordering;
 6. a representative scale benchmark with allocation and peak-RSS evidence;
-7. headless framebuffer or PNG comparison for renderable output;
+7. native framebuffer or PNG comparison for renderable output;
 8. Geom adapter compatibility when replacing an existing public operation.
