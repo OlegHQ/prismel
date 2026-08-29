@@ -918,6 +918,14 @@ let step_core ?clear ?identity ?version value draws=match ensure"Prismel_next_ex
       |Scene3_textured_stencil->Scene3_textured_stencil|Scene3_shadow_stencil->Scene3_shadow_stencil in
     let blend=function Replace->Runtime_next_orchestrator.Replace|Alpha->Alpha|Add->Add
       |Multiply->Multiply|Screen->Screen|Subtract->Subtract in
+    let replayed=match value.runtime,identity,version with
+      |Window runtime,Some identity,Some version->
+          Runtime_next_orchestrator.replay_retained ?clear ~identity ~version runtime
+      |_->Ok None in
+    let rendered=match replayed with
+    |Error error->Error error
+    |Ok(Some presented)->Ok presented
+    |Ok None->
     let draws=List.map(fun x->let draw=x.value in let state=draw.Scene_execution.state in
       let viewport=match state.viewport with _,_,w,h when w<0||h<0->0,0,f.logical_width,f.logical_height|x->x in
       let scissor=match state.scissor with _,_,w,h when w<0||h<0->0,0,f.logical_width,f.logical_height|x->x in
@@ -925,7 +933,7 @@ let step_core ?clear ?identity ?version value draws=match ensure"Prismel_next_ex
         {draw with Scene_execution.state={state with viewport;scissor}}in
       {Runtime_next_orchestrator.family=family x.family;blend=blend x.blend;texture=x.texture;
         auxiliary=x.auxiliary;samples=x.samples;draw})draws in
-    let rendered=match value.runtime with
+    match value.runtime with
     |Window runtime->(match identity,version with
       |None,None->Runtime_next_orchestrator.render_prepared ?clear runtime draws
       |Some identity,Some version->Runtime_next_orchestrator.render_retained ?clear

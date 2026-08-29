@@ -75,6 +75,15 @@ let render_retained ?clear ~identity ~version value draws=
   let draws=List.map(fun x->scene_family x.family,pipeline_blend x.blend,x.texture,x.auxiliary,x.samples,x.draw)draws in
   account value(List.length draws)
     (Runtime_next.render_prepared_sampled_resources ?clear ~identity ~version value.runtime draws)
+let replay_retained ?clear ~identity ~version value=
+  match ensure"Runtime_next_orchestrator.replay_retained"value with
+  |Error _ as e->e
+  |Ok()->match Runtime_next.replay_prepared_sampled_resources ?clear ~identity
+      ~version value.runtime with
+    |Error _ as e->e
+    |Ok None->Ok None
+    |Ok(Some(presented,draw_count))->
+        Result.map Option.some(account value draw_count(Ok presented))
 let resize value~logical_width~logical_height~drawable_width~drawable_height=
   match ensure"Runtime_next_orchestrator.resize"value with Error _ as e->e|Ok()->let result=
     Runtime_next.resize value.runtime~width:logical_width~height:logical_height in

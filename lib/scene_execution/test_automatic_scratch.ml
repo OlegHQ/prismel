@@ -75,6 +75,26 @@ let ()=
     (Printf.sprintf"10-draw stable promotion %.1f B/frame"promoted10);
   require(promoted84<2_048.)
     (Printf.sprintf"84-draw stable promotion %.1f B/frame"promoted84);
+  let driver,replay_control=Ogpu.Backend_mock.create()in
+  let replay_renderer=get(Scene_execution.create driver configuration)in
+  let retained=draws 10|>List.map(fun(blend,draw)->
+    Scene_execution.Scene2,blend,None,None,1,draw)in
+  ignore(get(Scene_execution.render_prepared_sampled_resources
+    ~identity:"scratch-retained"~version:7L replay_renderer retained));
+  Ogpu.Backend_mock.clear_trace replay_control;
+  (match get(Scene_execution.replay_prepared_sampled_resources
+      ~identity:"scratch-retained"~version:7L replay_renderer)with
+   |Some(true,10)->()
+   |_->failwith"retained replay did not return its exact draw count");
+  require(List.length(only_render_trace replay_control)=1)
+    "retained replay did not submit the cached command";
+  (match get(Scene_execution.replay_prepared_sampled_resources
+      ~identity:"scratch-retained"~version:8L replay_renderer)with
+   |None->()
+   |Some _->failwith"retained replay accepted a stale version");
+  get(Scene_execution.destroy replay_renderer);
+  require(Ogpu.Backend_mock.live_counts replay_control=(0,0,0,0,0))
+    "retained replay leaked mock handles";
   let driver,control=Ogpu.Backend_mock.create()in
   let renderer=get(Scene_execution.create driver configuration)in
   let over=draws 65_537 in

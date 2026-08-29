@@ -159,6 +159,9 @@ val render_prepared_sampled_resources :
   (pipeline_family * Ogpu.Pipeline.blend * sampled_texture option *
     auxiliary_resource option * int * draw) list ->
   (bool, Ogpu.Error.t) result
+val replay_prepared_sampled_resources :
+  ?clear:(float * float * float * float) -> identity:string -> version:int64 -> t ->
+  ((bool * int) option, Ogpu.Error.t) result
 val resize : t -> Ogpu.Surface.configuration -> (unit, Ogpu.Error.t) result
 val upload_bytes : t -> int64
 val cache_entries : t -> int

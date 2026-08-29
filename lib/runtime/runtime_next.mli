@@ -56,6 +56,9 @@ val render_offscreen : ?clear:(float*float*float*float) -> offscreen ->
   (Scene_execution.pipeline_family * Ogpu.Pipeline.blend *
    Scene_execution.sampled_texture option * Scene_execution.auxiliary_resource option *
    int * Scene_execution.draw) list -> (bool,Ogpu.Error.t) result
+val replay_prepared_sampled_resources :
+  ?clear:(float * float * float * float) -> identity:string -> version:int64 -> t ->
+  ((bool * int) option, Ogpu.Error.t) result
 val render_offscreen_prepared : ?clear:(float*float*float*float) ->
   identity:string -> version:int64 -> offscreen ->
   (Scene_execution.pipeline_family * Ogpu.Pipeline.blend *

@@ -34,6 +34,7 @@ type texture_upload_scratch={scratch_buffer:Ogpu.Backend.buffer;
 type prepared_run={prepared_identity:string;prepared_version:int64;prepared_draws:(pipeline_family*Ogpu.Pipeline.blend*sampled_texture option*auxiliary_resource option*int*draw)list;prepared_bytes:int}
 type prepared_submission={submission_identity:string;submission_version:int64;
   submission_clear:float*float*float*float;
+  submission_draw_count:int;
   submission_commands:(Ogpu.Backend.command*
     [ `Buffer of Ogpu.Backend.buffer | `Texture of Ogpu.Backend.texture ] list*
     Ogpu.Backend.pipeline list)list}
@@ -648,13 +649,13 @@ let submit_acquired value frame commands =
   match submit commands with
   |Ok() as result->result
   |Error _ as result->discard frame;result
-let replay_prepared value commands =
+let replay_commands value commands =
   match acquire value with
   |Error _ as error->error|Ok`Skipped->Ok false
   |Ok(`Acquired frame)->Result.map(fun()->true)(submit_acquired value frame commands)
 let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws=if value.dead then error"Scene_execution.render"Ogpu.Error.Stale_handle"renderer is destroyed"else if List.length draws>prepared_scratch_capacity then error"Scene_execution.render"Ogpu.Error.Capacity"one submission exceeds the bounded prepared-draw capacity"else
   match prepared,value.prepared_submission with
-  |Some(identity,version),Some cached when cached.submission_identity=identity&&cached.submission_version=version&&cached.submission_clear=clear->replay_prepared value cached.submission_commands
+  |Some(identity,version),Some cached when cached.submission_identity=identity&&cached.submission_version=version&&cached.submission_clear=clear->replay_commands value cached.submission_commands
   |_->value.prepared_submission<-None;
   let prepared_key=prepared in
   match resolve_prepared value prepared draws with Error _ as result -> result | Ok(draws,trusted_key) ->
@@ -885,13 +886,23 @@ let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws
             (match prepared_key with
              |Some(identity,version)->value.prepared_submission<-Some{
                  submission_identity=identity;submission_version=version;
-                 submission_clear=clear;submission_commands=commands}
+                 submission_clear=clear;submission_draw_count=List.length draws;
+                 submission_commands=commands}
              |None->());
             value.automatic_submission<-Some{automatic_clear=clear;
               automatic_payloads;automatic_commands=commands};
             finish(Ok true))
 let render_sampled_resources ?clear value draws=render_sampled_resources_common ?clear value draws
 let render_prepared_sampled_resources ?clear ~identity ~version value draws=render_sampled_resources_common ?clear~prepared:(identity,version)value draws
+let replay_prepared_sampled_resources ?(clear=(0.,0.,0.,0.)) ~identity ~version value=
+  if value.dead then error"Scene_execution.replay_prepared_sampled_resources"
+      Ogpu.Error.Stale_handle"renderer is destroyed"
+  else match value.prepared_submission with
+  |Some cached when cached.submission_identity=identity&&
+      cached.submission_version=version&&cached.submission_clear=clear->
+      Result.map(fun presented->Some(presented,cached.submission_draw_count))
+        (replay_commands value cached.submission_commands)
+  |_->Ok None
 let render_resources ?clear value draws=render_sampled_resources ?clear value(List.map(fun(family,blend,texture,auxiliary,draw)->family,blend,texture,auxiliary,1,draw)draws)
 let render_textured ?clear value draws=render_resources ?clear value(List.map(fun(family,blend,texture,draw)->family,blend,texture,None,draw)draws)
 let render_family ?clear value draws=render_textured ?clear value(List.map(fun(family,blend,draw)->family,blend,None,draw)draws)

@@ -41,6 +41,8 @@ val render_prepared : ?clear:(float * float * float * float) -> t ->
   prepared list -> (bool,Ogpu.Error.t) result
 val render_retained : ?clear:(float * float * float * float) -> identity:string ->
   version:int64 -> t -> prepared list -> (bool,Ogpu.Error.t) result
+val replay_retained : ?clear:(float * float * float * float) -> identity:string ->
+  version:int64 -> t -> (bool option,Ogpu.Error.t) result
 val resize : t -> logical_width:int -> logical_height:int -> drawable_width:int ->
   drawable_height:int -> (unit,Ogpu.Error.t) result
 val capture : t -> bytes_per_row:int -> (bytes,Ogpu.Error.t) result

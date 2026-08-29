@@ -144,6 +144,12 @@ let render_prepared_sampled_resources ?clear ~identity ~version (value:t) draws=
   if value.dead then Error(Ogpu.Error.make"Runtime_next.render_prepared_sampled_resources"Stale_handle"runtime is destroyed")
   else Scene_execution.render_prepared_sampled_resources ?clear ~identity ~version
     value.renderer(scale_sampled_resources value.facts draws)
+let replay_prepared_sampled_resources ?clear ~identity ~version (value:t)=
+  if value.dead then Error(Ogpu.Error.make
+      "Runtime_next.replay_prepared_sampled_resources" Stale_handle
+      "runtime is destroyed")
+  else Scene_execution.replay_prepared_sampled_resources ?clear ~identity ~version
+    value.renderer
 let apply_facts (value:t) (facts:frame_facts)=let configuration:Ogpu.Surface.configuration={logical_width=facts.logical_width;logical_height=facts.logical_height;physical_width=facts.drawable_width;physical_height=facts.drawable_height;format=Bgra8_unorm;present_mode=present_mode value.vsync;max_acquired=2}in match Scene_execution.resize value.renderer configuration with Error _ as e->e|Ok()->value.facts<-facts;Ok()
 let resize (value:t) ~width ~height=if value.dead then Error(Ogpu.Error.make"Runtime_next.resize"Stale_handle"runtime is destroyed")else match sdl"Runtime_next.resize"(Sdl3.Window.set_size value.window~width~height)with Error _ as e->e|Ok()->Result.bind(facts value.window)(apply_facts value)
 let read_pixels (value:t)=Scene_execution.read_pixels value.renderer
