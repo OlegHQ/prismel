@@ -230,7 +230,7 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
   |Scene3->
       let configuration={Prismel_next_execution.default_configuration with
         logical_width=width;logical_height=height;drawable_width=width;drawable_height=height;
-        timing=Fixed(1./.60.);title="R10 exact native Scene3"}in
+        timing=Fixed(1./.60.);vsync=false;title="R10 exact native Scene3"}in
       let execution=Result.get_ok(Prismel_next_execution.create configuration)in
       let canonical=R10_scene3_legacy_equivalent.create~width~height in
       ignore(Result.get_ok(R10_scene3_equivalence_bridge.prove~width~height canonical));

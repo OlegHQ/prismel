@@ -435,7 +435,8 @@ let check_cell_semantics ~qualification ~sample_seconds ~warmup_seconds
         fail "%s drawable width disagrees with pixel density" context;
       if Float.abs(float drawable_height/.float logical_height-.density)>0.01 then
         fail "%s drawable height disagrees with pixel density" context;
-      ignore(boolean context(field context "vsync" window));
+      if boolean context(field context "vsync" window) then
+        fail "%s enabled presentation vsync despite frozen fps=Some 60" context;
       (match member "refresh_hz" window with `Null->()|value->
         if number context value<=0. then fail "%s has invalid refresh rate"context);
       let device=field context "metal_device" raw in
@@ -933,7 +934,7 @@ let synthetic_raw ~scenario ~visibility run =
     ; "window",`Assoc["logical_width",`Int 640;"logical_height",`Int 480;
         "drawable_width",`Int 640;"drawable_height",`Int 480;
         "pixel_density",`Float 1.;"display_scale",`Float 1.;
-        "refresh_hz",`Float 60.;"vsync",`Bool true]
+        "refresh_hz",`Float 60.;"vsync",`Bool false]
     ; "metal_device",`Assoc["selection",`String"Metal.Device.system_default";
         "name",`String"Apple Test";"registry_id",`String"1";
         "architecture",`String"applegpu_test";"low_power",`Bool false;
