@@ -39,9 +39,13 @@ val native_release_queue : unit -> (int * int * int64 * int64) option
 val render : t -> Scene_execution.draw list -> (bool,Ogpu.Error.t) result
 val render_prepared : ?clear:(float * float * float * float) -> t ->
   prepared list -> (bool,Ogpu.Error.t) result
+val render_retained : ?clear:(float * float * float * float) -> identity:string ->
+  version:int64 -> t -> prepared list -> (bool,Ogpu.Error.t) result
 val resize : t -> logical_width:int -> logical_height:int -> drawable_width:int ->
   drawable_height:int -> (unit,Ogpu.Error.t) result
 val capture : t -> bytes_per_row:int -> (bytes,Ogpu.Error.t) result
+val capture_into : t -> bytes_per_row:int -> destination:bytes ->
+  (unit,Ogpu.Error.t) result
 val set_title : t -> string -> (unit,Ogpu.Error.t) result
 val set_position : t -> x:int -> y:int -> (unit,Ogpu.Error.t) result
 val center : t -> (unit,Ogpu.Error.t) result

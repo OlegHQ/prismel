@@ -270,9 +270,15 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
               ~resource:(fun id->List.assoc_opt id resources)ir)
         |Scene3_layer prepared->Array.to_list prepared.entries|>List.map scene3_draw)
         staged.layers in
-      let render_full_scene()=Result.map(fun _->true)
-        (Prismel_next_execution.step~clear:staged.clear execution
-          draws)in
+      let render_full_scene()=
+        match Prismel_next_execution.Private.begin_submission execution with
+        |Error error->Error error
+        |Ok submission->
+            (match Prismel_next_execution.Private.adopt_draws submission draws with
+            |Error error->Error error
+            |Ok batch->Result.map(fun _->true)
+                (Prismel_next_execution.Private.step~clear:staged.clear
+                  ~identity:"r10-scene3-stable"~version:1L submission[batch]))in
       render_full_scene,
       render_full_scene,
       (fun()->Prismel_next_execution.capture execution),

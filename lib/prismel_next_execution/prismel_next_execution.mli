@@ -119,23 +119,25 @@ val resize : t -> logical_width:int -> logical_height:int ->
 val step : ?clear:(float * float * float * float) -> t -> draw list ->
   (facts,error) result
 val capture : t -> (bytes,error) result
+val capture_into : t -> destination:bytes -> (unit,error) result
 val destroy : t -> (unit,error) result
 module Private : sig
   type submission
   type batch
-  (** Starts an isolated zero-copy Scene2 lowering transaction.  A later
+  (* Starts an isolated zero-copy Scene2 lowering transaction.  A later
       lowering or step failure releases every image snapshot owned by this
       submission without affecting another active submission. *)
   val begin_submission : t -> (submission,error) result
   val lower_scene2 : submission -> density:int ->
     resource:(int -> resource option) -> Scene_command.Render_ir.t ->
     (batch,error) result
-  (** Adopts already prepared non-Scene2 draws into this submission. *)
+  (* Adopts already prepared non-Scene2 draws into this submission. *)
   val adopt_draws : submission -> draw list -> (batch,error) result
-  (** Consumes the submission on either success or failure. *)
-  val step : ?clear:(float * float * float * float) -> submission ->
+  (* Consumes the submission on either success or failure. *)
+  val step : ?clear:(float * float * float * float) -> ?identity:string ->
+    ?version:int64 -> submission ->
     batch list -> (facts,error) result
-  (** Idempotently releases an unsubmitted transaction. *)
+  (* Idempotently releases an unsubmitted transaction. *)
   val cancel : submission -> unit
   val draw_family_blend : draw -> family * blend
 end

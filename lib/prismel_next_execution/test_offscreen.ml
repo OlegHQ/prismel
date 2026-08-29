@@ -12,6 +12,24 @@ let live_handles()=match Metal.Release_queue.stats()with
   |Error error->failwith(Format.asprintf"%a"Metal.pp_error error)
 let pixel bytes offset expected message=
   require(Bytes.sub bytes offset 4=expected)message
+let putf bytes offset value=Bytes.set_int64_le bytes offset(Int64.bits_of_float value)
+let scene3_draw key red=
+  let vertices=Bytes.make(3*68)'\000'and indices=Bytes.create 12 in
+  List.iteri(fun index(x,y)->let offset=index*68 in
+    putf vertices offset x;putf vertices(offset+8)y;
+    putf vertices(offset+16)0.;putf vertices(offset+24)1.;
+    putf vertices(offset+28)red;putf vertices(offset+36)0.;
+    putf vertices(offset+44)0.;putf vertices(offset+52)0.;
+    putf vertices(offset+60)0.)[-1.,1.;1.,1.;-1.,-1.];
+  List.iteri(fun index value->Bytes.set_int32_le indices(index*4)value)[0l;1l;2l];
+  let mesh:Scene_execution.mesh={key;vertices;vertex_count=3;indices;index_count=3}
+  and state:Scene_execution.state={viewport=(0,0,5,4);scissor=(0,0,5,4);
+    cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;
+    depth_write=false;depth_load=Ogpu.Render_pass.Clear;depth_clear=1.;
+    transform_uniforms=None;stencil_state=None;
+    stencil_load=Ogpu.Render_pass.Clear;stencil_clear=0}in
+  Prismel_next_execution.prepared_draw~family:Scene3
+    {Scene_execution.mesh;state}
 
 let ()=
   let baseline=live_handles()in
@@ -27,6 +45,13 @@ let ()=
         require(Bytes.length first=3*2*4)"offscreen initial extent";
         pixel first 0(Bytes.of_string"\255\000\000\255")
           "offscreen initial clear pixel";
+        let first_into=Bytes.create(Bytes.length first)in
+        ignore(get(Prismel_next_execution.capture_into execution
+          ~destination:first_into));
+        require(first_into=first)"offscreen caller-owned capture changed pixels";
+        expect_error"offscreen caller-owned capture accepted a short destination"
+          (Prismel_next_execution.capture_into execution
+            ~destination:(Bytes.create(Bytes.length first-1)));
         ignore(get(Prismel_next_execution.resize execution~logical_width:5
           ~logical_height:4~drawable_width:5~drawable_height:4));
         ignore(get(Prismel_next_execution.step~clear:(0.,0.,1.,1.)execution[]));
@@ -38,9 +63,28 @@ let ()=
         require(facts.logical_width=5&&facts.logical_height=4&&
           facts.drawable_width=5&&facts.drawable_height=4&&not facts.vsync)
           "offscreen resized facts";
+        let render_retained version draw=
+          let submission=get(Prismel_next_execution.Private.begin_submission execution)in
+          let batch=get(Prismel_next_execution.Private.adopt_draws submission[draw])in
+          ignore(get(Prismel_next_execution.Private.step~identity:"offscreen-retained"
+            ~version submission[batch]))in
+        let red=scene3_draw"retained-red"1. in
+        render_retained 1L red;
+        let uploaded=(get(Prismel_next_execution.stats execution)).uploaded_bytes in
+        render_retained 1L(scene3_draw"ignored-same-version"0.);
+        require((get(Prismel_next_execution.stats execution)).uploaded_bytes=uploaded)
+          "retained replay revalidated or uploaded a same-version payload";
+        render_retained 2L(scene3_draw"retained-black"0.);
+        require((get(Prismel_next_execution.stats execution)).uploaded_bytes>uploaded)
+          "retained version invalidation did not prepare the replacement payload";
+        let incomplete=get(Prismel_next_execution.Private.begin_submission execution)in
+        let incomplete_batch=get(Prismel_next_execution.Private.adopt_draws incomplete[red])in
+        expect_error"retained identity without version was accepted"
+          (Prismel_next_execution.Private.step~identity:"incomplete"incomplete
+            [incomplete_batch]);
         let stats=get(Prismel_next_execution.stats execution)in
-        require(stats.frames=2L&&stats.presented=0L&&
-          stats.logical_submissions=2L)"offscreen no-presentation accounting";
+        require(stats.frames=5L&&stats.presented=0L&&
+          stats.logical_submissions=5L)"offscreen no-presentation accounting";
         let image=get_resource(Prismel_next_resources.Image.create~width:1
           ~height:1~rgba:(Bytes.of_string"\xff\x00\x00\xff"))in
         let replacement=ref 0 in

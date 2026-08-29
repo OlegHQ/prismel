@@ -140,9 +140,16 @@ let scale_draws(facts:frame_facts)draws=if not(scale_required facts)then draws e
 let scale_sampled_resources(facts:frame_facts)draws=if not(scale_required facts)then draws else List.map(fun((family,blend,texture,auxiliary,samples,draw)as entry)->let scaled=scale_draw facts draw in if scaled==draw then entry else family,blend,texture,auxiliary,samples,scaled)draws
 let render ?clear (value:t) draws=if value.dead then Error(Ogpu.Error.make"Runtime_next.render"Stale_handle"runtime is destroyed")else Scene_execution.render ?clear value.renderer(scale_draws value.facts draws)
 let render_sampled_resources ?clear (value:t) draws=if value.dead then Error(Ogpu.Error.make"Runtime_next.render_sampled_resources"Stale_handle"runtime is destroyed")else Scene_execution.render_sampled_resources ?clear value.renderer(scale_sampled_resources value.facts draws)
+let render_prepared_sampled_resources ?clear ~identity ~version (value:t) draws=
+  if value.dead then Error(Ogpu.Error.make"Runtime_next.render_prepared_sampled_resources"Stale_handle"runtime is destroyed")
+  else Scene_execution.render_prepared_sampled_resources ?clear ~identity ~version
+    value.renderer(scale_sampled_resources value.facts draws)
 let apply_facts (value:t) (facts:frame_facts)=let configuration:Ogpu.Surface.configuration={logical_width=facts.logical_width;logical_height=facts.logical_height;physical_width=facts.drawable_width;physical_height=facts.drawable_height;format=Bgra8_unorm;present_mode=present_mode value.vsync;max_acquired=2}in match Scene_execution.resize value.renderer configuration with Error _ as e->e|Ok()->value.facts<-facts;Ok()
 let resize (value:t) ~width ~height=if value.dead then Error(Ogpu.Error.make"Runtime_next.resize"Stale_handle"runtime is destroyed")else match sdl"Runtime_next.resize"(Sdl3.Window.set_size value.window~width~height)with Error _ as e->e|Ok()->Result.bind(facts value.window)(apply_facts value)
 let read_pixels (value:t)=Scene_execution.read_pixels value.renderer
+let read_pixels_into (value:t)~bytes_per_row~destination=
+  if value.dead then Error(Ogpu.Error.make"Runtime_next.read_pixels_into"Stale_handle"runtime is destroyed")
+  else Scene_execution.read_pixels_into value.renderer~bytes_per_row~destination
 let stats (value:t)=let timing=Ogpu_metal.Queue.gpu_timing_for_device value.device and retained=Ogpu_metal.Backend.retained_plan_stats value.control in {pipeline_cache_entries=Ogpu_metal.Pipeline.cache_length value.cache;mesh_cache_entries=Scene_execution.cache_entries value.renderer;uploaded_bytes=Scene_execution.upload_bytes value.renderer;gpu_timing_supported=timing.supported;gpu_duration_seconds=timing.duration_seconds;gpu_sample_count=timing.sample_count;retained_plan_builds=retained.builds;retained_plan_hits=retained.hits;retained_plan_misses=retained.misses;retained_plan_evictions=retained.evictions;retained_plan_executions=retained.executions;retained_plan_entries=retained.entries;retained_plan_capacity=retained.capacity}
 let frame_facts (value:t)=value.facts
 let handle_window_event (value:t)=function Sdl3.Event.Window{change=Resized _;_}->Result.map(fun()->true)(Result.bind(facts value.window)(apply_facts value))|_->Ok false
@@ -177,10 +184,19 @@ let render_offscreen ?clear value draws=if value.dead then
   Error(Ogpu.Error.make"Runtime_next.render_offscreen"Stale_handle
     "offscreen target is destroyed")
   else Scene_execution.render_sampled_resources?clear value.renderer draws
+let render_offscreen_prepared ?clear ~identity ~version value draws=if value.dead then
+  Error(Ogpu.Error.make"Runtime_next.render_offscreen_prepared"Stale_handle
+    "offscreen target is destroyed")
+  else Scene_execution.render_prepared_sampled_resources ?clear ~identity ~version
+    value.renderer draws
 let read_offscreen value~bytes_per_row=if value.dead then
   Error(Ogpu.Error.make"Runtime_next.read_offscreen"Stale_handle
     "offscreen target is destroyed")
   else Scene_execution.read_pixels value.renderer~bytes_per_row
+let read_offscreen_into value~bytes_per_row~destination=if value.dead then
+  Error(Ogpu.Error.make"Runtime_next.read_offscreen_into"Stale_handle
+    "offscreen target is destroyed")
+  else Scene_execution.read_pixels_into value.renderer~bytes_per_row~destination
 let resize_offscreen value~width~height=
   if value.dead then Error(Ogpu.Error.make"Runtime_next.resize_offscreen"
     Stale_handle"offscreen target is destroyed")

@@ -70,6 +70,11 @@ let pipeline_blend=function Replace->Ogpu.Pipeline.Replace|Alpha->Alpha|Add->Add
 let render_prepared ?clear value draws=match ensure"Runtime_next_orchestrator.render_prepared"value with Error _ as e->e|Ok()->
   let draws=List.map(fun x->scene_family x.family,pipeline_blend x.blend,x.texture,x.auxiliary,x.samples,x.draw)draws in
   account value(List.length draws)(Runtime_next.render_sampled_resources ?clear value.runtime draws)
+let render_retained ?clear ~identity ~version value draws=
+  match ensure"Runtime_next_orchestrator.render_retained"value with Error _ as e->e|Ok()->
+  let draws=List.map(fun x->scene_family x.family,pipeline_blend x.blend,x.texture,x.auxiliary,x.samples,x.draw)draws in
+  account value(List.length draws)
+    (Runtime_next.render_prepared_sampled_resources ?clear ~identity ~version value.runtime draws)
 let resize value~logical_width~logical_height~drawable_width~drawable_height=
   match ensure"Runtime_next_orchestrator.resize"value with Error _ as e->e|Ok()->let result=
     Runtime_next.resize value.runtime~width:logical_width~height:logical_height in
@@ -88,6 +93,9 @@ let resize value~logical_width~logical_height~drawable_width~drawable_height=
              vsync=facts.vsync});result
 let capture value~bytes_per_row=match ensure"Runtime_next_orchestrator.capture"value with Error _ as e->e|Ok()->
   Runtime_next.read_pixels value.runtime~bytes_per_row
+let capture_into value~bytes_per_row~destination=
+  match ensure"Runtime_next_orchestrator.capture_into"value with Error _ as e->e|Ok()->
+  Runtime_next.read_pixels_into value.runtime~bytes_per_row~destination
 let native_call operation value call=match ensure operation value with Error _ as e->e|Ok()->
   call value.runtime
 let set_title value title=match native_call"Runtime_next_orchestrator.set_title"value(fun x->Runtime_next.set_title x title)with

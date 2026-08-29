@@ -21,8 +21,15 @@ val render_sampled_resources : ?clear:(float * float * float * float) -> t ->
   (Scene_execution.pipeline_family * Ogpu.Pipeline.blend *
    Scene_execution.sampled_texture option * Scene_execution.auxiliary_resource option *
    int * Scene_execution.draw) list -> (bool, Ogpu.Error.t) result
+val render_prepared_sampled_resources :
+  ?clear:(float * float * float * float) -> identity:string -> version:int64 -> t ->
+  (Scene_execution.pipeline_family * Ogpu.Pipeline.blend *
+   Scene_execution.sampled_texture option * Scene_execution.auxiliary_resource option *
+   int * Scene_execution.draw) list -> (bool, Ogpu.Error.t) result
 val resize : t -> width:int -> height:int -> (unit, Ogpu.Error.t) result
 val read_pixels : t -> bytes_per_row:int -> (bytes, Ogpu.Error.t) result
+val read_pixels_into : t -> bytes_per_row:int -> destination:bytes ->
+  (unit, Ogpu.Error.t) result
 val stats : t -> stats
 val frame_facts : t -> frame_facts
 val map_logical_rect : frame_facts -> int * int * int * int ->
@@ -49,7 +56,14 @@ val render_offscreen : ?clear:(float*float*float*float) -> offscreen ->
   (Scene_execution.pipeline_family * Ogpu.Pipeline.blend *
    Scene_execution.sampled_texture option * Scene_execution.auxiliary_resource option *
    int * Scene_execution.draw) list -> (bool,Ogpu.Error.t) result
+val render_offscreen_prepared : ?clear:(float*float*float*float) ->
+  identity:string -> version:int64 -> offscreen ->
+  (Scene_execution.pipeline_family * Ogpu.Pipeline.blend *
+   Scene_execution.sampled_texture option * Scene_execution.auxiliary_resource option *
+   int * Scene_execution.draw) list -> (bool,Ogpu.Error.t) result
 val read_offscreen : offscreen -> bytes_per_row:int -> (bytes,Ogpu.Error.t) result
+val read_offscreen_into : offscreen -> bytes_per_row:int -> destination:bytes ->
+  (unit,Ogpu.Error.t) result
 val resize_offscreen : offscreen -> width:int -> height:int ->
   (unit,Ogpu.Error.t) result
 val offscreen_stats : offscreen -> stats
