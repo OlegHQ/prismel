@@ -45,6 +45,18 @@ pool, but all results join before crossing the native boundary.
 4. The command buffer presents the drawable and keeps completion-owned state
    alive until Metal reports completion.
 
+`Canvas.render` uses the same lowering, pipeline variants, validation, and
+completion path against a layerless owned Metal texture. A Canvas creates its
+offscreen coordinator lazily, reuses it for all subsequent renders, reads the
+completed texture back into the public Canvas snapshot, and destroys the
+coordinator with `Canvas.destroy`. Offscreen submission never creates a hidden
+window, acquires a drawable, presents, or waits for display pacing.
+
+Windowed runtime configuration selects FIFO presentation when vsync is enabled
+and Immediate presentation otherwise. The selected mode is retained across
+surface resize and is the mode reported in presentation facts. Layerless
+Canvas targets always report `vsync = false` and `presented = 0`.
+
 Drawable dimensions are physical pixels. `Frame.width`, `Frame.height`, scene
 coordinates, input positions, and PXUI layout remain logical points; the
 backend performs the logical-to-drawable conversion exactly once at the native
@@ -63,6 +75,12 @@ submitted work completes.
 interfaces. Their implementation lowers to the native GPU stack without
 changing public scene semantics. Native framebuffer capture and export use
 the same checked readback path as presentation diagnostics.
+
+Canvas pixel storage is a compatibility/readback snapshot, not a renderer.
+`Canvas.render` replaces it only with completed native Metal output. The
+snapshot continues to support `pixels`, `capture`, `to_image`, `save_png`, and
+explicit resource destruction; no CPU raster fallback participates in scene
+rendering.
 
 ## Qualification
 
