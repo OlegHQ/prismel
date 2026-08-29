@@ -1,5 +1,5 @@
 (rule
- (alias runtest)
+ (alias native_metal_qualification)
  (deps
   ../../lib/metal/test_metal_presentation_safe.exe
   ../../lib/metal/test_metal_presentation_10k.exe

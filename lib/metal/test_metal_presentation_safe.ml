@@ -198,8 +198,8 @@ let () =
   Option.iter(fun(descriptor,samples)->get(Resource100.Sample_buffer.destroy samples);get(Counters.Descriptor.destroy descriptor))render_counter_graph;
   if Atomic.get scheduled <> 1 || Atomic.get completed <> 1 then
     fail "command callback cardinality drift";
-  let deadline=Sys.time()+.5.0 in
-  while Atomic.get presented=0&&Sys.time()<deadline do Unix.sleepf 0.001 done;
+  let deadline=Unix.gettimeofday()+.5.0 in
+  while Atomic.get presented=0&&Unix.gettimeofday()<deadline do Unix.sleepf 0.001 done;
   if Atomic.get presented<>1 then fail"drawable presented callback cardinality drift";
   ignore(get(Drawable.presented_time drawable));
   get(Drawable.Handler.cancel presented_handler);
@@ -215,8 +215,12 @@ let () =
      concurrent fire/cancel races without creating driver-invalid work. *)
   let before_cancel = get (Release_queue.stats ()) in
   let callback_commands = get (Command_buffer.create queue ()) in
-  get (Command_buffer.add_completed_handler callback_commands (fun () -> ()));
+  let abandoned_callbacks = Atomic.make 0 in
+  get (Command_buffer.add_completed_handler callback_commands
+    (fun () -> Atomic.incr abandoned_callbacks));
   get (Command_buffer.destroy callback_commands);
+  if Atomic.get abandoned_callbacks <> 0 then
+    fail "destroyed uncommitted command buffer fired a completion callback";
   ignore (get (Release_queue.drain ()));
   let after_cancel = get (Release_queue.stats ()) in
   if after_cancel.live_handles <> before_cancel.live_handles then

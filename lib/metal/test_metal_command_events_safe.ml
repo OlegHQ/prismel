@@ -27,8 +27,8 @@ let ()=
     if observed<threshold then fail "notification value below threshold";
     Atomic.incr calls))in
   get(Shared_event.set_signaled_value shared threshold);
-  let deadline=Sys.time()+.2.0 in
-  while Atomic.get calls=0&&Sys.time()<deadline do Unix.sleepf 0.001 done;
+  let deadline=Unix.gettimeofday()+.2.0 in
+  while Atomic.get calls=0&&Unix.gettimeofday()<deadline do Unix.sleepf 0.001 done;
   if Atomic.get calls<>1 then fail "shared-event notification was not exactly once";
   get(Shared_event.set_signaled_value shared(Int64.succ threshold));
   if Atomic.get calls<>1 then fail "shared-event notification fired twice";

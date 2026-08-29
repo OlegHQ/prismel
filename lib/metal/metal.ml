@@ -17466,12 +17466,26 @@ module Command_buffer = struct
       error "Metal.Command_buffer.destroy" Parent_has_dependents
         "submitted command buffer has not reached a terminal state"
     else
-      destroy_parent "Metal.Command_buffer.destroy" value.lifetime value.raw
-        (fun () ->
-          release_command_resources value.resources;
-          release_callback_tokens value.callback_tokens;
-          release_presentation_events value;
-          detach value.queue.lifetime)
+      on_main "Metal.Command_buffer.destroy" (fun () ->
+        if is_destroyed value.lifetime then Ok ()
+        else
+          let dependents = dependent_count value.lifetime in
+          if dependents <> 0 then
+            error "Metal.Command_buffer.destroy" Parent_has_dependents
+              (Printf.sprintf "handle still owns %d live dependent(s)" dependents)
+          else begin
+            Atomic.set value.lifetime.destroyed true;
+            (* Metal may synchronously run completion blocks while deallocating
+               an uncommitted command buffer.  Cancel and unroot callbacks
+               before releasing the native object so those blocks become
+               harmless no-ops instead of re-entering the OCaml runtime. *)
+            release_callback_tokens value.callback_tokens;
+            ignore (Metal_raw.destroy value.raw);
+            release_command_resources value.resources;
+            release_presentation_events value;
+            detach value.queue.lifetime;
+            Ok ()
+          end)
 end
 
 module Acceleration_encoder = struct
