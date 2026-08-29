@@ -16,10 +16,10 @@ let ()=
       fail"incomplete or bundled license row")surfaces;
   let names=List.map(fun item->item|>member"name"|>to_string)surfaces in
   List.iter(fun required->if not(List.mem required names)then fail"missing license surface %s"required)
-    ["runtime_next_compat";"runtime_next";"SDL3";"SDL3_image";"SDL3_ttf";"SDL3_mixer";"Metal";"OGPU"];
+    ["runtime_next";"SDL3";"SDL3_image";"SDL3_ttf";"SDL3_mixer";"Metal";"OGPU"];
   if not(contains(read(at"LICENSE"))"MIT License")then fail"root MIT license drift";
   let docs=read(at"specification/licenses.md")and backend=read(at"specification/backend.md")in
   List.iter(fun needle->if not(contains docs needle)then fail"license docs missing %s"needle)
-    ["runtime_next_compat";"zlib license";"Apple SDK";"not vendor"];
-  if not(contains backend"runtime_next_compat")then fail"architecture docs omit staging facade";
+    ["runtime_next";"zlib license";"Apple SDK";"not vendor"];
+  if not(contains backend"native Metal runtime")then fail"architecture docs omit native runtime";
   print_endline"Runtime-next license gate: exact surfaces, provenance, non-bundled declarations passed"

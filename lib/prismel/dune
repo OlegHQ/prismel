@@ -7,7 +7,7 @@
   scene3 scene3_native_lowering
   scene preview runtime_diagnostics sketch easy_camera2 low)
  (libraries domainslib prismel_next_resources runtime_next_input scene_command unix
-  prismel_next_execution runtime_next_compat prismel_next_low
+  prismel_next_execution prismel_low_core
   runtime_next_orchestrator))
 
 ; Transitional module identity for native-only validation clients. It

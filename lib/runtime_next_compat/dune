@@ -1,5 +1,0 @@
-(library
- (name runtime_next_compat)
- (public_name prismel.runtime_next_compat)
- (modules runtime_next_compat)
- (libraries runtime_next_orchestrator scene_execution ogpu))

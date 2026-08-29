@@ -8,7 +8,7 @@ let resize ~width ~height =
   match !resize_current with
   |None->invalid_arg"Sketch.resize: no sketch is running"
   |Some resize->resize~width~height
-let render_target()=match Runtime_next_compat.selected_target()with Ok Runtime_next_compat.Native->Native|Error message->invalid_arg message
+let render_target () = Native
 let frame config count time dt events={Frame.width=config.width;height=config.height;size=(config.width,config.height);drawable_width=config.width;drawable_height=config.height;drawable_size=(config.width,config.height);pixel_scale=(1.,1.);time;dt;fps=(if dt > 0. then 1. /. dt else 0.);count;mouse=Input.mouse_pos();mouse_delta=Input.mouse_delta();keys=Input.keys_down();mouse_buttons=Input.mouse_buttons_down();events}
 let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _ _->())~init~update~view ?(on_stop=fun _->())()=
   if config.width<=0||config.height<=0 then invalid_arg"Sketch: dimensions must be positive";

@@ -9,8 +9,7 @@ release legal review.
 | --- | --- | --- |
 | SDL3 core/image/ttf/mixer bindings | Prismel-written bindings plus OCaml-generated inventories, ABI facts and provenance hashes. Generated modules identify generator version and pinned headers. | SDL projects use the zlib license. System/shared libraries and their notices remain external dependencies; Prismel does not vendor them here. |
 | Metal binding | Prismel-written safe/raw layers, typed Objective-C++ bridge and OCaml-generated inventory/value/direct-call artifacts. `lib/metal/generated_provenance.ml` records the SDK-derived input identity. | Apple SDK headers/frameworks are build inputs supplied by Xcode/Command Line Tools and are not redistributed by Prismel. Apple platform/tool terms apply to builders and shipped applications. |
-| OGPU, OGPU Metal, OGPU Raster2, Raster2, scene execution, runtime-next, runtime_next_compat | Original Prismel OCaml source under MIT. The compatibility facade introduces no native code. | No additional bundled third-party renderer implementation or shader binary is introduced by these libraries. |
-| Wap browser transport | Original Prismel OCaml/JavaScript source under MIT. | Browser standards are specifications, not copied runtime dependencies. |
+| OGPU, OGPU Metal, scene execution, native runtime support, and low core | Original Prismel OCaml source under MIT. | No additional bundled third-party renderer implementation or shader binary is introduced by these libraries. |
 
 Generated binding output is mechanical Prismel source: enum/value mappings,
 typed declarations/calls, layouts, inventories and provenance. Generators fail
@@ -25,7 +24,7 @@ generation. Final Phase 5 evidence must still inventory every installed native
 artifact, copied asset, offline shader, license notice and generator version on
 the release commit.
 
-`runtime_next_license_manifest.json` is the machine-readable staging inventory.
+`runtime_next_license_manifest.json` is the machine-readable native-runtime inventory.
 Its Dune gate checks complete classifications, the MIT/zlib license and Apple
 SDK provenance boundaries, and requires an explicit non-bundled declaration
 for every staged surface. Final release artifact inspection remains separate.

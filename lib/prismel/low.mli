@@ -2,7 +2,7 @@
     are intentionally absent. *)
 
 module Window : sig
-  type config = Prismel_next_low.Window.config = {
+  type config = Prismel_low_core.Window.config = {
     width:int; height:int; title:string; resizable:bool; fullscreen:bool;
     x:int option; y:int option; vsync:bool; highdpi:bool;
     multisampling:int option;

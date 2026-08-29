@@ -79,27 +79,23 @@ runtime ──► sdl3 / sdl3_image / sdl3_ttf / sdl3_mixer
 
 Runtime is the only adapter allowed to combine an SDL3 window and Metal layer
 with an `ogpu_metal` device/surface. Prismel receives abstract OGPU handles and
-records target-neutral render work; Raster2 owns the deterministic packed
-software framebuffer. The foundational libraries have these enforced
+records native Metal render work. The foundational libraries have these enforced
 boundaries:
 
-- `sdl3` and its extensions have no Metal, OGPU, Runtime, Prismel, PXUI, or Wap
+- `sdl3` and its extensions have no Metal, OGPU, Runtime, Prismel, or PXUI
   dependency;
-- `metal` and optional `metal_fx` have no SDL3, OGPU, Runtime, Prismel, PXUI, or
-  Wap dependency;
-- `ogpu` has no SDL3, Metal, Runtime, Prismel, PXUI, or Wap dependency;
+- `metal` and optional `metal_fx` have no SDL3, OGPU, Runtime, Prismel, or PXUI
+  dependency;
+- `ogpu` has no SDL3, Metal, Runtime, Prismel, or PXUI dependency;
 - `ogpu_metal` depends only on `ogpu` and `metal`;
-- `raster2` has no SDL3, Metal, OGPU, Runtime, Prismel, or PXUI dependency;
-- Wap imports no platform or renderer library.
 
-The side-by-side packages are installed from the single `prismel.opam` package
-as `prismel.sdl3`, `prismel.sdl3_image`, `prismel.sdl3_ttf`,
+
+The native Metal runtime is installed from the single `prismel.opam` package
+with `prismel.sdl3`, `prismel.sdl3_image`, `prismel.sdl3_ttf`,
 `prismel.sdl3_mixer`, `prismel.metal`, `prismel.ogpu`,
-`prismel.ogpu_metal`, `prismel.raster2`, `prismel.ogpu_raster2`,
-`prismel.scene_execution`, the four `prismel.runtime_next*` libraries, and the
-SDL2-free staging facade `prismel.runtime_next_compat`.
-These install names are qualification surfaces, not separate opam projects and
-not a claim that the public/default renderer has switched. The four
+`prismel.ogpu_metal`, `prismel.scene_execution`, the native runtime support
+libraries, and `prismel.low_core`. These install names are qualification
+surfaces, not separate opam projects. The four
 `packaging/conf-sdl3*` packages are ordinary system-dependency probes used by
 the one root package; they do not own Prismel libraries or source code.
 

@@ -1,6 +1,6 @@
 # Low staging compatibility
 
-`Prismel_next_low` preserves the immediate-mode names for color, transform and
+`Prismel_low_core` owns native immediate-mode recording primitives for color,
 clip state, primitives, images, text, rotated diagnostic text, window facts and
 window mutations. Calls record immutable `Scene_command.Render_ir` commands and the
 window delegates to typed runtime-next authority.

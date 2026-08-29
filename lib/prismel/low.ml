@@ -1,4 +1,4 @@
-module Next = Prismel_next_low
+module Next = Prismel_low_core
 
 let error_to_string = function
   | Next.Invalid_argument message | Unavailable message | Backend message -> message
