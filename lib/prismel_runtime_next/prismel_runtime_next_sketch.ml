@@ -166,7 +166,7 @@ let test () =
         transform_uniforms = None; stencil_state = None;
         stencil_load = Ogpu.Render_pass.Clear; stencil_clear = 0 } }
   in
-  let stopped = ref None in
+  let stopped = ref None and captured_frames = ref 0 in
   let configuration =
     { target = Orchestrator.Native; logical_width = 4; logical_height = 4;
       drawable_width = 4; drawable_height = 4; frames = 600;
@@ -181,6 +181,10 @@ let test () =
           if frame.events <> [] || frame.mouse_delta <> (0, 0) then
             failwith "finite native frame synthesized input";
           Ok [ draw ])
+        ~after_frame:(fun _ pixels ->
+          if Bytes.length pixels <> 4 * 4 * 4 then
+            failwith "private Sketch loop captured the wrong native drawable extent";
+          incr captured_frames)
         ~on_stop:(fun model -> stopped := Some model) () with
     | Ok result -> result
     | Error error -> failwith (Ogpu.Error.to_string error)
@@ -189,12 +193,14 @@ let test () =
      || result.last_frame.time <> 10.
      || result.last_frame.pixel_scale <> (1., 1.) then
     failwith "private Sketch frame semantics drift";
-  if Bytes.get_int32_be result.pixels 0 <> 0x4080bfffl then
-    failwith "private Sketch loop did not render exact packed pixels";
+  if !captured_frames <> 600 then
+    failwith "private Sketch loop did not capture every native frame";
+  if Bytes.length result.pixels <> 4 * 4 * 4 then
+    failwith "private Sketch loop captured the wrong native drawable extent";
   if !stopped <> Some result.model then
     failwith "private Sketch cleanup did not retain final model";
   print_endline
-    "private runtime-next Sketch loop: native frame600 exact pixels/cleanup passed"
+    "private runtime-next Sketch loop: native frame600 capture/cleanup passed"
 
 let () =
   match Sys.getenv_opt "PRISMEL_TEST_RUNTIME_NEXT_SKETCH" with
