@@ -47,6 +47,7 @@ let translate = function
   | Window { change = Focus_gained; _ } -> Some Runtime_next_input.Focus_gained
   | Window { change = Shown; _ } -> Some(Visibility_changed true)
   | Window { change = Hidden; _ } -> Some(Visibility_changed false)
+  | Window { change = Close_requested; _ } -> Some Runtime_next_input.Quit
   | Sdl3.Event.Quit _ -> Some Runtime_next_input.Quit
   | Drop { change = File _; _ } -> None
   | _ -> None
@@ -55,3 +56,16 @@ let push value event =
   match event with
   |Sdl3.Event.Drop{change=File path;_}->Runtime_next_input.push_file_path value path
   |_->match translate event with None -> Ok () | Some event -> Runtime_next_input.push value event
+
+let pump value =
+  match Sdl3.Event.poll_all () with
+  | Error error -> Error (Format.asprintf "%a" Sdl3.pp_error error)
+  | Ok events ->
+      let rec loop = function
+        | [] -> Ok ()
+        | event :: rest ->
+            (match push value event with
+             | Error _ as error -> error
+             | Ok () -> loop rest)
+      in
+      loop events

@@ -57,7 +57,9 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
   let cleanup()=Fun.protect~finally:(fun()->resize_current:=None;Canvas_runtime.clear();ignore(Prismel_next_execution.destroy coordinator);Runtime_diagnostics.Private.record coordinator)(fun()->on_stop!model)in
   Fun.protect~finally:cleanup(fun()->
     let limit=max_frames in let count=ref 0 in while not !stopped&&Option.fold~none:true~some:(fun limit-> !count<limit)limit do
-      Time.update();let events=Event.poll_events()in incr count;let dt=match config.clock with Realtime->Time.get_delta_time()|Fixed value->value in
+      Time.update();let events=Event.poll_events()in
+      if List.exists(function Event.WindowClosed->true|_->false)events then quit();
+      incr count;let dt=match config.clock with Realtime->Time.get_delta_time()|Fixed value->value in
       let base=frame config !count(match config.clock with Realtime->Time.now()|Fixed _->float !count*.dt)dt events in
       let presentation=get(Prismel_next_execution.presentation_facts coordinator)in
       logical_width:=presentation.logical_width;logical_height:=presentation.logical_height;

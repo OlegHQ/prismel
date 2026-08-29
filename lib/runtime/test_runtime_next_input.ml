@@ -80,7 +80,8 @@ let () =
     if Runtime_next_input_sdl3.translate event<>Some expected then
       failwith"window authority mapping drift")
     [Sdl3.Event.Shown,Visibility_changed true;Hidden,Visibility_changed false;
-     Focus_gained,Runtime_next_input.Focus_gained];
+     Focus_gained,Runtime_next_input.Focus_gained;
+     Close_requested,Runtime_next_input.Quit];
   if Runtime_next_input_sdl3.translate(Sdl3.Event.Quit{timestamp_ns})<>Some Quit then
     failwith"quit mapping drift";
   let drop=Filename.temp_file"runtime-next-drop-"".bin"in

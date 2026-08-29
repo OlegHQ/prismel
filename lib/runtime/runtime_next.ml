@@ -62,7 +62,6 @@ let reveal window=
     ignore(Sdl3.Window.raise_window window);
     ignore(Sdl3.Window.center window);
     ignore(Sdl3.Window.sync window);
-    ignore(Sdl3.Event.poll_all());
     Ok()
 let create ?(vsync=true) ?(hidden=true) ?(title="Prismel") ~width ~height ()=
   let op="Runtime_next.create"in

@@ -620,7 +620,7 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
   let native_projection={Scene_command.Render_ir.xx=2./.float facts.logical_width;xy=0.;yx=0.;
     yy=(-2.)/.float facts.logical_height;tx=(-1.);ty=1.} in
   let render_transform transform=compose_raster native_projection transform in
-  let transforms=ref[identity]and clips=ref[(0,0,facts.drawable_width,facts.drawable_height)]
+  let transforms=ref[identity]and clips=ref[(0,0,facts.logical_width,facts.logical_height)]
   and blend=ref Alpha and draws=ref[]and number=ref 0 and failure=ref None in
   let point transform x y=transform.Scene_command.Render_ir.xx*.x+.transform.yx*.y+.transform.tx,
     transform.xy*.x+.transform.yy*.y+.transform.ty in

@@ -26,7 +26,10 @@ let convert=function
   | File_dropped{name;_}->Some(FileDropped name)|Resized(w,h)->Some(WindowResized(w,h))
   | Focus_lost->Some WindowFocusLost|Quit->Some WindowClosed|Focus_gained|Visibility_changed _->None
 let apply=function KeyPressed k->Input.press_key k|KeyReleased k->Input.release_key k|MouseMoved(x,y)->Input.update_mouse_pos x y|MousePressed(b,(x,y))->Input.update_mouse_pos x y;Input.press_mouse_button b|MouseReleased(b,(x,y))->Input.update_mouse_pos x y;Input.release_mouse_button b|PointerCancelled b->Input.release_mouse_button b|WindowFocusLost->Input.clear_all_input()|_->()
-let poll_events()=Runtime_next_input.drain source|>List.filter_map convert|>List.map(fun e->apply e;e)
+let poll_events()=
+  Input.begin_frame();
+  (match Runtime_next_input_sdl3.pump source with Ok()->()|Error _->());
+  Runtime_next_input.drain source|>List.filter_map convert|>List.map(fun e->apply e;e)
 let process_events events state handler=match handler with None->state|Some f->List.fold_left f state events
 let handle_events state handler=let events=poll_events()in process_events events state handler,events
 let event_to_string=function
