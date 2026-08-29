@@ -1,13 +1,14 @@
 (library
  (name r10_workload_descriptor)
  (wrapped false)
- (modules r10_scene2_legacy_equivalent))
+ (modules r10_scene2_legacy_equivalent r10_phase0_workload_authority)
+ (libraries digestif unix))
 
 (library
  (name r10_scene2_candidate_lib)
  (wrapped false)
  (modules r10_scene2_candidate)
- (libraries prismel_next_api pxui_next prismel_next_execution
+ (libraries prismel_next_api prismel_next_resources pxui_next prismel_next_execution
   r10_workload_descriptor))
 
 (library
@@ -20,7 +21,7 @@
  (name r10_native_protocol_lib)
  (wrapped false)
  (modules r10_native_protocol_lib)
- (libraries unix yojson))
+ (libraries r10_workload_descriptor unix yojson))
 
 (executable
  (name r10_native_protocol)
@@ -62,8 +63,8 @@
  (libraries r10_workload_descriptor))
 
 (test
- (name test_r10_canvas_stability)
- (modules test_r10_canvas_stability)
+ (name test_r10_canvas_phase0_workload)
+ (modules test_r10_canvas_phase0_workload)
  (libraries r10_scene2_candidate_lib prismel_next_execution))
 
 (test

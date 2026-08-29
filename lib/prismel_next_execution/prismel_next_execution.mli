@@ -88,6 +88,20 @@ type stats = Runtime_next_orchestrator.stats = { frames:int64; presented:int64;
   retained_plan_executions:int64; retained_plan_entries:int;
   retained_plan_capacity:int }
 val stats : t -> (stats,error) result
+type presentation_facts = {
+  title : string;
+  logical_width : int;
+  logical_height : int;
+  drawable_width : int;
+  drawable_height : int;
+  position : (int * int) option;
+  pixel_density : float;
+  display_scale : float;
+  refresh_rate : float option;
+  vsync : bool;
+}
+(* Read-only production-window facts for native qualification tooling. *)
+val presentation_facts : t -> (presentation_facts,error) result
 type diagnostics = { active:bool; resource_count:int; cache_entries:int;
   release_queue_pending:int option; release_queue_live_handles:int option;
   release_queue_total_created:int64 option;

@@ -14,12 +14,14 @@ let describe scenario ~width ~height =
       ["rounded-rect";"circle";"ui-text";"debug-text";"pxui-four-expanded-accordions";
        "toggle";"slider";"integer-slider";"choice"],
       Printf.sprintf "extent=%dx%d;clear=#07111f;text=24,24,size20,PXUI render baseline;panel=18,62,306,382,r12,#111827,#334155;circle=168,236,r94,#155e75;debug=88,420,GRAPH / INSPECTOR;pxui=x348,y16,width276,row29,padding8,max_height448;sections=0..3,label Section i+1,expanded;each=toggle Enabled alternating-even,slider Amount [-1,1] value i/4,int_slider Steps [1,64] value 8+i,choice Mode [Solid,Wire,Points] selected i%%3" width height
-  | Canvas -> "canvas", 5,
-      ["offscreen-canvas";"static-circle";"image-snapshot";"stable-resource"],
-      Printf.sprintf "extent=%dx%d;offscreen=clear#0f172a,circle(%d,%d,r34,#22d3ee);present=clear-black,image-at0,0;resource=stable-after-setup" width height (width/2) (height/2)
+  | Canvas -> "canvas", 7,
+      ["offscreen-canvas";"per-frame-mutation";"phase-mod-240";
+       "moving-circle";"rotated-rounded-rect";"debug-text";
+       "image-snapshot-replacement"],
+      Printf.sprintf "extent=%dx%d;each-frame-phase=frame%%240;offscreen=clear#07111f,rect0,0,%d,%d,#0f172a,circle(40+((phase*3)%%max(1,%d)),%d,r34,#22d3ee),translate(%d,%d),rotate(phase*0.02),rounded(-90,-28,180,56,r14,rgba244,63,94,210,stroke-white),debug(16,16,CANVAS BASELINE);snapshot=new-image,destroy-previous;present=clear-black,image-at0,0" width height width height (width-80) (height/2) (width/2) (height/2)
   |Scene3->"scene3",110_592,
       ["sphere96x48";"twelve-instances";"perspective-camera";"depth";"cull-back";"msaa4"],
-      Printf.sprintf "extent=%dx%d;sphere=segments96,rings48,radius1;instances=12,angle=i/12*two_pi,translation(cos(angle)*1.9,sin(angle)*1.2,0),scale0.38;camera=perspective,at0,0,5.4,target0,0,0;material=diffuse#38bdf8,ambient#082f49,specular-white,shininess42;scene=ambient18,22,30,directional(-0.6,-1,-1.4),white,cull-back,depth-less-write,msaa4" width height in
+      Printf.sprintf "extent=%dx%d;outer-clear=#020617;sphere=segments96,rings48,radius1;instances=12,angle=i/12*two_pi,translation(cos(angle)*1.9,sin(angle)*1.2,0),scale0.38;camera=perspective,at0,0,5.4,target0,0,0;material=diffuse#38bdf8,ambient#082f49,specular-white,shininess42;scene=ambient18,22,30,directional(-0.6,-1,-1.4),white,cull-back,depth-less-write,msaa4;outer-text=22,18,size16,Stable Scene3 instance baseline" width height in
   let semantic_signature=Printf.sprintf "r10-public-%s-v2:%s" name
       (Digest.to_hex(Digest.string canonical_parameters)) in
   {scenario;semantic_signature;work_units;required_features;canonical_parameters}

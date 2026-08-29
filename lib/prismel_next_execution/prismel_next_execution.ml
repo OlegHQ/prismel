@@ -384,6 +384,15 @@ type stats=Runtime_next_orchestrator.stats={frames:int64;presented:int64;logical
 let stats value=match ensure"Prismel_next_execution.stats"value with Error _ as e->e|Ok()->
   Result.map_error(fun error->{operation="Prismel_next_execution.stats";kind=Backend;
     message=Ogpu.Error.to_string error})(Runtime_next_orchestrator.stats value.runtime)
+type presentation_facts=Runtime_next_orchestrator.facts={title:string;
+  logical_width:int;logical_height:int;drawable_width:int;drawable_height:int;
+  position:(int*int)option;pixel_density:float;display_scale:float;
+  refresh_rate:float option;vsync:bool}
+let presentation_facts value=match ensure"Prismel_next_execution.presentation_facts"value with
+  |Error _ as e->e
+  |Ok()->Result.map_error(fun error->{operation="Prismel_next_execution.presentation_facts";
+      kind=Backend;message=Ogpu.Error.to_string error})
+      (Runtime_next_orchestrator.facts value.runtime)
 type diagnostics={active:bool;resource_count:int;cache_entries:int;
   release_queue_pending:int option;release_queue_live_handles:int option;
   release_queue_total_created:int64 option;release_queue_total_released:int64 option}
