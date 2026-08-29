@@ -103,8 +103,37 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal backe
   for _=3 to 600 do let receipt=get(submit_argument qa)in get(Ogpu.Backend.complete_through qa receipt.epoch)done;
   let stats600=Backend.retained_plan_stats control in
   if stats600.builds<>stats2.builds||stats600.misses<>stats2.misses||stats600.hits<>Int64.add stats2.hits 598L||stats600.executions<>Int64.add stats2.executions 598L then failwith"retained plan 600-frame reuse statistics";
-  let stats2=stats600 in
   let exact=get(Ogpu.Backend.read_texture target~bytes_per_row:16)in if Bytes.sub_string exact 0 4<>"\x11\x22\x33\xff"then failwith"retained plan cache-hit pixels";
+  (* A retained ICB owns draw bindings, not the render-pass attachment.  Rebind
+     the same plan to a replacement target without rebuilding or invalidating
+     it; this is the resize path used by the native runtime. *)
+  let replacement_target=get(Ogpu.Backend.create_texture device td)in
+  let replacement_target_texture=Ogpu.Backend.render_texture replacement_target~format:Rgba8~usage:Render_target in
+  let replacement_target_color={color with texture=replacement_target_texture}in
+  let replacement_target_pass=get(Ogpu.Render_pass.create(Ogpu.Backend.device_handle device)
+    {colors=[|Some replacement_target_color|];depth=None;stencil=None;
+     viewport={x=0;y=0;width=4;height=4};scissor={x=0;y=0;width=4;height=4}})in
+  let before_attachment_rebind=Backend.retained_plan_stats control in
+  let attachment_rebind=get(Ogpu.Backend.submit qa
+    (get(Ogpu.Backend.render replacement_target_pass[argument_draw]))
+    ~resources:[`Texture replacement_target;`Texture sampled;`Buffer vertex]
+    ~pipelines:[argument_pipeline])in
+  get(Ogpu.Backend.complete_through qa attachment_rebind.epoch);
+  let after_attachment_rebind=Backend.retained_plan_stats control in
+  if after_attachment_rebind.builds<>before_attachment_rebind.builds||
+     after_attachment_rebind.misses<>before_attachment_rebind.misses||
+     after_attachment_rebind.evictions<>before_attachment_rebind.evictions||
+     after_attachment_rebind.hits<>Int64.succ before_attachment_rebind.hits||
+     after_attachment_rebind.executions<>Int64.succ before_attachment_rebind.executions||
+     after_attachment_rebind.entries<>1 then
+    failwith"retained plan rebuilt for replacement attachment";
+  let replacement_pixels=get(Ogpu.Backend.read_texture replacement_target~bytes_per_row:16)in
+  if Bytes.sub_string replacement_pixels 0 4<>"\x11\x22\x33\xff"then
+    failwith"retained plan rendered into stale attachment";
+  get(Ogpu.Backend.destroy_texture replacement_target);
+  if Backend.retained_plan_entries control<>1 then
+    failwith"render attachment was retained as an ICB dependency";
+  let stats2=after_attachment_rebind in
   let replacement_cache=get(Pipeline.create_cache~capacity:1)in let native_replacement=get(Pipeline.create_render_argument_buffer replacement_cache native_device argument_descriptor)in if Pipeline.Private.native_identity native_replacement=Pipeline.Private.native_identity native_argument||Pipeline.key native_replacement<>Pipeline.key native_argument then failwith"replacement pipeline identity fixture";Backend.register_pipeline control native_replacement;let replacement_pipeline=get(Ogpu.Backend.adopt_pipeline device(Pipeline.Private.portable native_replacement))in let replaced=get(Ogpu.Backend.submit qa(get(Ogpu.Backend.render rp[argument_draw]))~resources:[`Texture target;`Texture sampled;`Buffer vertex]~pipelines:[replacement_pipeline])in get(Ogpu.Backend.complete_through qa replaced.epoch);let stats3=Backend.retained_plan_stats control in if Backend.retained_plan_entries control<>1||stats3.entries<>1||stats3.builds<>Int64.succ stats2.builds||stats3.misses<>Int64.succ stats2.misses||stats3.hits<>stats2.hits||stats3.evictions<>Int64.succ stats2.evictions||stats3.executions<>Int64.succ stats2.executions then failwith"native pipeline identity replacement statistics";
   let pending_b=get(submit_argument qb)in let pending_a=get(submit_argument qa)in
   if Backend.retained_plan_entries control<>1||Backend.retired_plan_entries control<>1 then failwith"retained plan queue eviction state";

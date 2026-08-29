@@ -19,13 +19,18 @@ let source value name =
 
 let validate path =
   let value = Yojson.Safe.from_file path in
-  require (value |> member "schema" |> to_int = 4) "O6 schema drift";
+  require (value |> member "schema" |> to_int = 5) "O6 schema drift";
   let qualification = value |> member "qualification" |> to_string in
   let smoke = qualification = "smoke" in
   require (qualification = "O6-native-30m" || (!allow_smoke && smoke))
     "report is not an O6 qualification";
   let minutes = value |> member "minutes" |> to_float in
   if not smoke then require (minutes >= 30.) "O6 run is shorter than 30 minutes";
+  if not smoke then
+    require (value |> member "changing_payload" |> to_bool
+             && value |> member "resizing" |> to_bool
+             && value |> member "capturing" |> to_bool)
+      "O6 qualification omitted payload, resize, or capture churn";
   if not smoke then begin
     let before = source value "source_before" and after = source value "source_after" in
     require (before = after && (value |> member "source_stable_clean" |> to_bool))
@@ -47,12 +52,30 @@ let validate path =
     let elapsed = sample |> member "elapsed" |> to_float in
     let rss = sample |> member "rss_kib" |> to_int in
     let resident = int64_field sample "resident_bytes" in
+    require (sample |> member "gc_allocated_bytes_since_sample" |> to_float >= 0.)
+      "O6 sample GC allocation delta is negative";
+    ignore (int64_field sample "runtime_uploaded_bytes");
+    let plan_entries = sample |> member "retained_plan_entries" |> to_int in
+    let plan_capacity = sample |> member "retained_plan_capacity" |> to_int in
+    let plan_builds = int64_field sample "retained_plan_builds" in
+    ignore (int64_field sample "retained_plan_hits");
+    let plan_misses = int64_field sample "retained_plan_misses" in
+    let plan_evictions = int64_field sample "retained_plan_evictions" in
+    require (plan_entries >= 0 && plan_entries <= plan_capacity)
+      "O6 sample retained-plan entries exceed capacity";
+    if not smoke then
+      require (plan_capacity = 256 && plan_entries = 80 && plan_builds = 80L
+               && plan_misses = 80L && plan_evictions = 0L)
+        "O6 retained plans rebuilt or evicted during resize churn";
     require (sample |> member "mesh_cache" |> to_int <= mesh_bound)
       "O6 sample mesh cache exceeds its bound";
     require (sample |> member "pipeline_cache" |> to_int = pipeline_expected)
       "O6 sample pipeline cache changed";
     require (sample |> member "metal_pending" |> to_int >= 0)
       "O6 sample pending count is negative";
+    require (int64_field sample "metal_created_since_sample" >= 0L
+             && int64_field sample "metal_released_since_sample" >= 0L)
+      "O6 sample native create/release delta is negative";
     require (frame > 0 && elapsed >= 0. && rss > 0 && resident > 0L)
       "O6 sample facts are invalid";
     observation, frame, elapsed, rss, resident) samples in
@@ -69,8 +92,26 @@ let validate path =
   end;
   require (value |> member "rss_limit_percent" |> to_float = 5.)
     "O6 RSS policy drift";
+  require (value |> member "resize_events" |> to_int >= 0
+           && value |> member "capture_events" |> to_int >= 0)
+    "O6 workload event count is negative";
+  ignore (int64_field value "captured_bytes");
   let low = value |> member "final_window_rss_low_kib" |> to_int in
   let high = value |> member "final_window_rss_high_kib" |> to_int in
+  let half = List.length parsed / 2 in
+  let first_half = List.filteri (fun index _ -> index < half) parsed in
+  let second_half = List.filteri (fun index _ -> index >= half) parsed in
+  let maximum values =
+    List.fold_left (fun high (_,_,_,rss,_) -> max high rss) 0 values in
+  let first_high = maximum first_half and second_high = maximum second_half in
+  let recorded_first = value |> member "settled_rss_first_half_high_kib" |> to_int in
+  let recorded_second = value |> member "settled_rss_second_half_high_kib" |> to_int in
+  let plateau_slack = value |> member "settled_rss_plateau_slack_kib" |> to_int in
+  require (recorded_first = first_high && recorded_second = second_high
+           && plateau_slack = 8192)
+    "O6 settled RSS plateau evidence is inconsistent";
+  if not smoke then require (second_high <= first_high + plateau_slack)
+    "O6 settled RSS high-water grew";
   let tail = List.filteri (fun index _ -> index >= List.length parsed * 3 / 4) parsed in
   let sampled_rss = List.map (fun (_,_,_,rss,_) -> rss) tail in
   let sampled_low = List.fold_left min max_int sampled_rss in
@@ -92,6 +133,17 @@ let validate path =
   let released_delta = int64_field value "metal_released_delta" in
   let resident_before = int64_field value "metal_resident_bytes_before" in
   let resident_after = int64_field value "metal_resident_bytes_after" in
+  let plan_capacity = value |> member "retained_plan_capacity_expected" |> to_int in
+  let plan_entries_live = value |> member "retained_plan_entries_live_expected" |> to_int in
+  let plan_entries_final = value |> member "retained_plan_entries_final" |> to_int in
+  let plan_builds = int64_field value "retained_plan_builds" in
+  ignore (int64_field value "retained_plan_hits");
+  let plan_misses = int64_field value "retained_plan_misses" in
+  let plan_evictions = int64_field value "retained_plan_evictions" in
+  require (plan_capacity = 256 && plan_entries_live = 80
+           && plan_entries_final = 0 && plan_builds = 80L
+           && plan_misses = 80L && plan_evictions = 0L)
+    "O6 final retained-plan bounds changed";
   require (mesh_cache_final = 0 && pipeline_cache_final = 0)
     "O6 caches survived teardown";
   require (pending_final = 0) "O6 release queue is still pending";
