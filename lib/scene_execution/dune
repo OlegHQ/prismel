@@ -11,6 +11,11 @@
  (libraries scene_execution ogpu))
 
 (test
+ (name test_automatic_scratch)
+ (modules test_automatic_scratch)
+ (libraries scene_execution ogpu))
+
+(test
  (name test_offscreen_metal)
  (modules test_offscreen_metal)
  (libraries scene_execution ogpu ogpu_metal metal))
