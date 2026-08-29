@@ -3,7 +3,7 @@
 Audit baseline: openFrameworks 0.12.1 core reference, checked 2026-07-31.
 
 “Parity” means equivalent user-visible rendering capability and deterministic
-headless coverage. Prismel remains functional and does not reproduce mutable
+native fixture coverage. Prismel remains functional and does not reproduce mutable
 C++ method names one-for-one. A row is complete only when the public API,
 renderer behavior, documentation, and a focused test all exist.
 
@@ -55,11 +55,11 @@ C++/runtime-GLSL spelling.
 | World/camera/screen conversion | complete | Named world/camera conversion, world/screen conversion, and picking rays |
 | Off-axis portal, V-flip, frustum drawing | complete | `Camera.off_axis_portal`, `with_v_flip`, and `frustum_mesh`; projection tests |
 | Mouse-controlled easy camera | complete | Remappable button/key interactions, control area, capture, inertia/drag, sensitivities, up/relative-Y behavior, auto-distance, scroll, double-click reset, focus-loss cancellation |
-| Per-pixel depth test | complete | CPU Z-buffer; headless overlap test |
-| Native fixed-pipeline GPU rendering | partial | OpenGL vertex transforms, depth/stencil, lighting, culling, blending, primitives, and window MSAA for untextured fixed-pipeline scenes; textures, typed shaders, shadows, fog, and separate specular still use an explicit software fallback |
-| Homogeneous frustum clipping | complete | Triangles clip against all six clip planes before rasterization |
+| Per-pixel depth test | complete | Metal depth attachment and native overlap fixtures |
+| Native GPU rendering | complete | OGPU/Metal transforms, depth/stencil, lighting, culling, blending, textures, primitives, shadows, fog, and window MSAA |
+| Homogeneous frustum clipping | complete | Checked lowering and Metal clip-space rasterization cover all six clip planes |
 | Front/back/disabled face culling | complete | `Scene3.cull` |
-| Line width and point size | complete | Scoped `Scene3.raster_state`; headless coverage verifies widened line/point rasterization |
+| Line width and point size | complete | Scoped `Scene3.raster_state`; native fixtures verify widened line/point rendering |
 | Viewport rendering | complete | Logical `Scene.view3d ?viewport` |
 | Ambient, directional, point, spot lights | complete | `Light` plus Blinn-Phong renderer |
 | Area lights | complete | Rectangular lights use configurable deterministic 1/4/9/16-point surface sampling |
@@ -68,30 +68,30 @@ C++/runtime-GLSL spelling.
 | Material shininess | complete | Blinn-Phong specular exponent |
 | Smooth versus flat lighting toggle | complete | `Scene3.Smooth` and `Flat`, with face-normal vertex splitting |
 | Separate specular and global lighting state | complete | Per-scene immutable ambient/lights plus `separate_specular` texture-compositing control |
-| 2D texture sampling on meshes | complete | Immutable CPU textures, nearest/bilinear filters, perspective-correct UVs |
+| 2D texture sampling on meshes | complete | Owned native textures, nearest/bilinear filters, perspective-correct UVs |
 | Texture subsection/normalized coordinate controls | complete | Immutable pixel-accurate `Texture.subsection`, normalized/remappable UVs, and clamp/repeat/mirror |
 | Texture mipmaps and minification | complete | Immutable mip-chain generation, explicit LOD sampling, and automatic perspective triangle derivatives with trilinear filtering |
 | Persistent prepared mesh buffers | complete | Meshes retain immutable vertex/index arrays; weak identity caches reuse normals, flat expansion, triangle/pair topology, and instanced geometry without extending mesh lifetime |
 | Instanced drawing | complete | `Scene3.instances` shares one immutable mesh across transform values |
-| Programmable vertex/fragment stages and uniforms | complete | `Shader3`; typed scalar/vector/color/matrix/texture uniforms, custom clip position, perspective varyings, discard/depth output; headless raster tests |
-| Runtime GLSL source/file spelling | syntax difference | Typed OCaml stages and ordinary OCaml source modules replace runtime GLSL strings, preserving programmable rendering on the no-OpenGL headless reference |
-| Geometry stages | complete | `Shader3.geometry` emits mixed point/line/triangle primitives through full clipping/raster state; headless point-to-triangle test |
+| Programmable vertex/fragment stages and uniforms | complete | `Shader3`; typed scalar/vector/color/matrix/texture uniforms lower through checked native scene preparation and Metal pipelines |
+| Runtime GLSL source/file spelling | syntax difference | Typed OCaml stages and ordinary OCaml source modules replace runtime shader strings and raw native handles |
+| Geometry stages | complete | `Shader3.geometry` emits mixed point/line/triangle primitives through native clipping and raster state |
 | Compute dispatch | complete | `Compute3.dispatch` exposes deterministic group/local/global IDs, typed uniforms, ordered arbitrary results, and coarse parallel execution |
 | Transform feedback | complete | `Transform_feedback3.capture` retains vertex/geometry primitives, attributes, varyings, and attributed world-space meshes without fragments |
 | Scene multisample antialiasing | complete | Deterministic 1×/4×/9×/16× coverage sampling and resolve |
-| FBO color/depth/stencil attachments | complete | `Framebuffer3` runs the shared raster core offscreen; readable immutable attachments, depth comparison/write control, masked 8-bit stencil tests and pass/fail operations |
+| Color/depth/stencil attachments | complete | `Framebuffer3` values lower to owned native attachments with readback, depth comparison/write control, and masked stencil operations |
 | Alpha-correct translucent 3D sorting | complete | Per-pixel fragments sort back-to-front and respect opaque depth |
-| Replace/alpha/add/multiply/screen/subtract blending | complete | Scoped immutable blend state uses the shared per-fragment depth/stencil pipeline; additive headless test |
+| Replace/alpha/add/multiply/screen/subtract blending | complete | Scoped immutable blend state lowers to checked Metal pipeline state; native additive fixture |
 | Mesh file loading/saving | complete | OBJ and ASCII PLY load/round trips; deterministic ASCII and little-/big-endian binary PLY output |
-| Composable post-processing | complete | `Framebuffer3.color` feeds subsequent textured/shader passes; headless two-pass inversion test |
+| Composable post-processing | complete | `Framebuffer3.color` feeds subsequent native textured/shader passes; two-pass inversion fixture |
 | Built-in shadows | complete | `Framebuffer3.shadow` + `Shadow3`; light-bound normalized depth maps, constant/normal bias, strength, hard/3×3/5×5 PCF, per-fragment sampling; occluder/receiver test |
-| Built-in fog | complete | `Fog3` linear, exponential, and exponential-squared distance models run per fragment and are covered headlessly |
+| Built-in fog | complete | `Fog3` linear, exponential, and exponential-squared distance models run in the native fragment path |
 
 ## Deliberate API boundary
 
-OpenFrameworks exposes mutable OpenGL resource IDs and accepts runtime GLSL
+OpenFrameworks exposes mutable graphics resource IDs and accepts runtime GLSL
 strings/files. Prismel instead exposes immutable resources and typed OCaml
 stage functions. That difference does not remove a rendering stage: vertex,
 geometry, fragment, compute, and transform-feedback behavior all execute on
-the deterministic software backend. An optional accelerated backend may add
-GLSL interop later, but it must not weaken the displayless reference path.
+the native Metal backend through checked OGPU commands. Prismel intentionally
+does not expose raw Metal handles or a selectable alternate renderer.

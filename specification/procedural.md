@@ -29,11 +29,11 @@ HDK vocabulary remains available in the expert PDK namespace.
 Procedural owns immutable graph nodes, operator contracts, parameter/context
 dependencies, validation, diagnostics, cooking, inspection, and bounded
 session caches. It may use PDK, Geom, and public Prismel value semantics. It
-does not import Runtime, Wap, SDL, or browser policy.
+does not import Runtime, SDL3, Metal, or platform policy.
 
 Cooking produces an immutable `Pdk.Geometry.t`. An explicit bridge converts it
-to `Prismel.Mesh.t`, which `Scene3` renders through the same native, headless,
-and web path. A cook context may copy scalar facts from `Prismel.Frame.t`, but
+to `Prismel.Mesh.t`, which `Scene3` lowers through the native OGPU/Metal path.
+A cook context may copy scalar facts from `Prismel.Frame.t`, but
 it must not retain a canvas, renderer, texture, or backend handle.
 
 `Procedural.Instances.t` is a separate packed value: it retains one prototype

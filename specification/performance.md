@@ -12,7 +12,7 @@ use locally owned mutation and packed storage without exposing mutable aliases.
 | Dense procedural mesh | 1–100 million vertices/indices | packed memory, linear passes, coarse parallelism |
 | Scalar/voxel field | 128³–1024³ samples | streaming/slab memory and parallel field evaluation |
 | Offline sequence | thousands of frames | byte determinism and no cumulative cache/resource growth |
-| Software raster | millions of samples/frame | allocation-free pixel/sample loops and early rejection |
+| Native Metal rendering | millions of vertices/fragments per frame | bounded command/resource reuse and stable GPU submission |
 
 ### SOP graph interaction smoke baseline
 
@@ -577,7 +577,7 @@ is restricted to visible tiles.
   are cancelled and discarded.
 
   ```sh
-  time PRISMEL_RENDER_TARGET=headless PRISMEL_SHATTER_FRAMES=1 \
+  time PRISMEL_SHATTER_FRAMES=1 \
     dune exec sketches/shattered_cube/main.exe
   ```
 
@@ -1506,94 +1506,37 @@ boundaries avoids retaining scheduler state across unrelated algorithm phases.
 
 Parallel candidates include field sampling, point transforms, independent
 vertex attributes, classifications, and per-cell geometry counts/fills.
-Topology joins, stable prefix sums, output ordering, SDL work, renderer caches,
+Topology joins, stable prefix sums, output ordering, SDL3 work, renderer caches,
 and resource upload remain deterministic join/initial-domain phases.
 
-Renderer-derived mesh data uses separate smooth/flat weak-key caches, each
-with a hard 256-entry insertion-order cap. The cap bounds retained live-scene
-metadata while weak keys allow unreachable meshes to disappear earlier.
-The software rasterizer retains at most one framebuffer scratch set and reuses
-it only for an exact dimension match; a size change replaces the prior scratch
-set rather than accumulating resolution-specific framebuffers. Opaque color
-attachments use four packed float planes, and the ordinary on-screen path
-writes RGBA bytes directly into a reusable upload buffer instead of allocating
-one color record per covered or resolved pixel. The default opaque
-depth/stencil path uses specialized integer and float comparisons so boxed
-polymorphic comparisons cannot leak into the sample loop. Fixed untextured
-lighting is collapsed once per transformed vertex rather than rebuilt for
-every incident triangle, line segment, or point. The collapsed payload is
-consumed directly for all three primitive modes; it is never indexed as though
-it still contained one entry per active light.
+Renderer-derived mesh data uses bounded weak-key caches. Stable meshes retain
+one prepared native plan and upload once; changing geometry invalidates only
+its identity/generation entry. Retained plan, pipeline, image, font, and canvas
+caches have explicit capacities and release resources through completion-owned
+queues rather than relying on GC timing.
 
-The SDL upload texture is cached for one renderer and exact viewport size.
-Switching renderers or sizes destroys the previous texture, and application or
-canvas teardown releases a matching cached texture before its renderer. This
-keeps the cache bounded while avoiding a native texture allocation on every
-animation frame.
+SDL3 owns the window and Metal view, while OGPU/Metal owns command encoding,
+depth/stencil attachments, sampled resources, MSAA, and presentation. Resize
+replaces drawable-sized resources instead of accumulating extents. The initial
+domain records and submits GPU work; pure mesh/scene preparation may run in the
+shared pool and joins before upload.
 
-Native untextured fixed-pipeline `Scene3` rendering bypasses that CPU
-framebuffer/upload path. One compatibility OpenGL context owns hardware
-transform, depth/stencil, lighting, culling, blending, primitive rasterization,
-and the window's configured MSAA; SDL's OpenGL renderer remains the 2D/PXUI
-compositor. Flat/smooth packed mesh caches use weak keys and retain at most the
-current and previous procedural mesh per shading mode. On the Apple M1/macOS
-26.2 development machine, the 1024×720 shattered-cube sketch's default 50
-noise-deformed two-by-two grids produce 15,361 closed cells and a 237,012-
-triangle render mesh. Fresh native processes take 19.43 s for one frame and
-32.81 s for 1,001 frames, including the same initial Boolean cook. Subtracting
-the one-frame process gives 13.38 s for the following 1,000 frames, or about
-74.7 frames/s; this is a workflow
-measurement rather than a portable threshold. Reproduce with:
+Native qualification measures Basic, PXUI, Canvas, and Scene3 visible/hidden
+scenarios at first, second, 60th, 600th, and post-resize frames. It records CPU
+and GPU duration, frame median/p95/p99, allocations, RSS, uploads, draw/pass
+counts, retained-plan hits/misses/evictions, cache entries, and live/released
+Metal handles. R10 enforces the frozen median/p95 envelope, R11 checks the
+shattered-cube one-upload contract, and R12 checks 30-minute changing-resource
+stability.
+
+Reproduce the finite shattered-cube native workflow without a backend selector:
 
 ```sh
-PRISMEL_RENDER_TARGET=native PRISMEL_SHATTER_FRAMES=1 \
+PRISMEL_SHATTER_FRAMES=1 \
   /usr/bin/time -p dune exec sketches/shattered_cube/main.exe
-PRISMEL_RENDER_TARGET=native PRISMEL_SHATTER_FRAMES=1001 \
+PRISMEL_SHATTER_FRAMES=1001 \
   /usr/bin/time -p dune exec sketches/shattered_cube/main.exe
 ```
-
-The web target performs framebuffer readback only while a browser is connected
-and caps presentation independently with `PRISMEL_WEB_MAX_FPS` (60 by default).
-`PRISMEL_WEB_MAX_MBIT` (2 by default) turns the selected encoded payload size
-into a minimum interval, so incompressible content trades cadence for traffic.
-`PRISMEL_WEB_MAX_PIXELS` (921600 by default) bounds render/readback/diff work
-for large browser windows without shrinking their logical coordinate space.
-Readback writes directly into a pooled RGBA Bigarray. Wap suppresses exact
-duplicates, losslessly QOI-encodes compressible pixels, and extracts the changed
-rectangle between sequential frames. Full frames use a 28-byte metadata
-fragment; patches use 44 bytes and update the persistent browser texture in
-place. One latest frame plus at most one browser-acknowledged in-flight frame
-per bounded client implements backpressure by dropping stale complete frames.
-Consecutive identical frames back readback cadence off to one quarter of the
-configured ceiling; any browser input immediately restores full cadence.
-Browser presentation is aligned to `requestAnimationFrame`, and coalesced
-pointer samples share one bounded message rather than one WebSocket frame each.
-HTTP connections, WebSocket clients, pooled buffers, input
-bytes, uploads, control commands, and registered assets all have explicit
-ownership or capacity bounds. The reusable frame pool has both count and byte
-ceilings, so resolution churn cannot retain an unbounded set of large backing
-buffers. No thread or domain is created per frame.
-
-Offscreen `Framebuffer3` snapshots transfer the rasterizer's fresh color,
-depth, and stencil arrays directly. Their borrowed `Texture.t` color attachment
-shares the same immutable color backing array, avoiding copy/list/array
-round-trips. CPU textures generate mip levels with direct 2×2 channel
-accumulators and sample packed immediate RGBA values. The fixed textured
-raster path collapses lighting per vertex when separate specular, shaders, fog,
-and shadows are absent; it computes perspective UV derivatives and LOD in
-scalars and commits packed samples directly to framebuffer component planes.
-Visible multisampled rendering resolves opaque samples directly from those
-component planes into a reusable native-pixel buffer. It does not materialize
-one temporary color record per supersample. Constant-color triangles bypass
-barycentric color arithmetic; besides reducing work, this keeps an equivalent
-procedural-to-geometry rewrite byte-identical at antialiased edges.
-
-Axis-aligned 2D rectangles, circles, ellipses, and uniformly scaled rounded
-rectangles dispatch directly to SDL2_gfx instead of first materializing
-polygon point lists. The local SDL2_gfx binding uses compiled C stubs rather
-than dynamic Ctypes/libffi invocation. Scalar calls reuse a domain-local
-argument array; polygon and Bézier list conversion uses bounded native
-temporaries and does not build intermediate OCaml coordinate arrays.
 
 ## Measurement contract
 
@@ -1603,34 +1546,17 @@ physics, transform, extrude/lathe/sweep, dense voxel, and sparse-octree
 workloads. Benchmarks run with the release profile and record input
 cardinalities and domain count.
 
-`tools/bench_wap.exe` reports submitted, published, and suppressed frames,
-source and encoded payload bytes, compression ratio, and publish time for a
-static UI, moving sprite, and deliberately incompressible noise. Override its
-resolution and sample count with `PRISMEL_WAP_BENCH_WIDTH`,
-`PRISMEL_WAP_BENCH_HEIGHT`, and `PRISMEL_WAP_BENCH_FRAMES`.
-
 Performance changes require before/after measurements on the same machine and
 compiler profile. Correctness tests additionally enforce deterministic output,
 expected cardinality, and bounded cache/resource behavior. Timing is diagnostic
 unless a stable dedicated benchmark runner is available.
 
-`tools/bench_render.exe` measures the headless software 3D path after warmup.
-`PRISMEL_RENDER_BENCH_SIZE`, `PRISMEL_RENDER_BENCH_FRAMES`,
-`PRISMEL_RENDER_BENCH_SEGMENTS`, and `PRISMEL_RENDER_BENCH_RINGS` control its
-workload; `PRISMEL_RENDER_BENCH_CLEAR_ONLY=1` separates framework overhead from
-raster work, while `PRISMEL_RENDER_BENCH_TEXTURED=1` exercises trilinear CPU
-texture sampling. `PRISMEL_RENDER_BENCH_SAMPLES` selects the supported MSAA
-sample count, and `PRISMEL_RENDER_BENCH_PROGRAMMABLE_FLOOR=1` isolates a large
-custom fragment-shader workload. `PRISMEL_RENDER_MEMPROF=1` enables sampled
-allocation call stacks for diagnostics and is intentionally excluded from
-timing baselines. `tools/compare_floor.exe` verifies that the 3D example's
-fixed-path editor grid remains byte-identical to its programmable reference.
-
-`tools/bench_scene2d.exe` measures a retained scene containing a configurable
-grid of rectangles, circles, ellipses, and rounded rectangles. It accepts the
-shared render size/frame controls plus `PRISMEL_2D_BENCH_COLUMNS` and
-`PRISMEL_2D_BENCH_ROWS`; the same memory-profiler switch is available for FFI
-and primitive-path allocation audits.
+`tools/runtime_next_native_benchmark` owns the native renderer scenarios and
+machine-readable reports. The R9/R11 protocol tools validate upload and cache
+invariants around that benchmark. `tools/r10_performance` runs the frozen native
+Basic/PXUI/Canvas/Scene3 matrix and validates its timing envelope. The R12
+stability tool samples changing resources for the required duration and rejects
+unbounded handles, queues, caches, or RSS.
 
 `tools/bench_pxui.exe` measures retained-scene construction and a captured
 pointer drag on a configurable large control panel. PXUI keeps O(1) reverse-list
@@ -1640,8 +1566,8 @@ single row arithmetically, so pointer lookup is independent of panel length.
 
 Every parallelized operation is also exercised inside `Parallel.run ~domains:1`
 and with multiple domains. Geometry output must be exactly equal, including
-attribute and index ordering. Renderer-facing changes require a headless native
-framebuffer or exported-PNG comparison of representative scenes. The existing
+attribute and index ordering. Renderer-facing changes require a native
+framebuffer capture or exported-PNG comparison of representative scenes. The existing
 deterministic export test compares PNG digests across repeated runs; visual
 coverage must grow alongside new renderer features and optimized drawing paths.
 

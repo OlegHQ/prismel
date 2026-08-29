@@ -2,7 +2,7 @@
 
 This audit tracks the evidence required before calling Prismel's 2D sketch API
 feature-complete. “Implemented” means a public signature, real implementation,
-representative example or integration test, and headless verification exist.
+representative example or integration test, and native Metal verification exist.
 
 Verdict: accepted for the initial desktop 2D sketch target. Every in-scope row
 below has implementation evidence; optional/specialized exclusions are named
@@ -13,14 +13,14 @@ with rationale rather than represented by placeholder APIs.
 | Criterion | Status | Evidence / remaining work |
 |---|---|---|
 | First animated sketch in one short file | Implemented | `Sketch.run`, `examples/basic` |
-| Functional immutable state | Implemented | `Sketch.run_state`, `Frame.t`, headless lifecycle test |
+| Functional immutable state | Implemented | `Sketch.run_state`, `Frame.t`, native lifecycle test |
 | Picture as composable data | Implemented | `Scene.t`, groups, transforms, scoped clip/blend |
 | No raw SDL in normal sketch path | Implemented | `Sketch`, `Frame`, `Scene`, `Canvas`, `Assets`, `Audio` signatures |
 | Deterministic generative tools | Implemented | `Rand`, `Noise`, color palettes, `examples/noise` |
 | Safe multicore acceleration | Implemented | `Parallel`, initial-domain guards, `examples/particles` |
 | One-command project scaffold | Implemented | `tools/new_example.exe`, scaffold smoke check |
 | Reliable edit/compile/restart | Implemented workflow | `Preview`, watched media, `watchexec --restart`, explicit settings codecs |
-| Headless graphics and audio | Implemented | dummy video/software renderer/dummy audio, integration tests |
+| Native graphics and audio | Implemented | SDL3 window/input/audio plus Metal/OGPU presentation and integration tests |
 
 ## Drawing and composition
 
@@ -32,9 +32,9 @@ with rationale rather than represented by placeholder APIs.
 | Scoped transform, clip, blend | Implemented | translate/rotate/scale, intersecting clip, replace/alpha/add/multiply |
 | Images | Implemented | load/cache, position, scale, rotation, center, horizontal flip |
 | Text | Implemented | bitmap/debug text plus measured, wrapped, aligned loaded-font text with renderer-local texture cache |
-| Offscreen rendering and pixels | Implemented | CPU `Canvas`, read/write/map pixels |
+| Canvas pixels and native capture | Implemented | owned `Canvas`, read/write/map pixels, drawable-sized capture |
 | Capture/export | Implemented | canvas/framebuffer PNG plus deterministic `Sketch.export[_state]`; repeated sequence digests tested |
-| GPU offscreen targets | Optional optimization | CPU contract is complete; GPU target can be additive |
+| Native GPU resources | Implemented | Canvas/Image snapshots lower to checked OGPU/Metal resources |
 | Multi-contour tessellation | Implemented | transformed scanline fill, contour-safe strokes, pixel-level hole tests |
 | General masks/compositing | Implemented initial | same-size canvas alpha masks plus scoped blend and rectangular clip |
 
@@ -47,7 +47,7 @@ with rationale rather than represented by placeholder APIs.
 | Timing, FPS, easing, scheduler | Implemented | `Frame`, `Time` |
 | Touch and game controllers | Outside initial desktop target | avoid unverified device APIs without hardware-independent semantics/tests |
 | Drag/drop and text composition | Implemented | committed UTF-8, IME composition, and owned SDL file-drop paths |
-| Fixed timestep mode | Implemented | `Sketch.Fixed`, deterministic headless timing assertions |
+| Fixed timestep mode | Implemented | `Sketch.Fixed`, deterministic native timing assertions |
 
 ## Media and assets
 
@@ -56,7 +56,7 @@ with rationale rather than represented by placeholder APIs.
 | Image/font/sample/music cache | Implemented | `Assets`, deduplication tests |
 | Automatic owned cleanup | Implemented | `Sketch.run_assets`, `on_stop` |
 | Preload error aggregation | Implemented | typed requests and integration test |
-| Sample/music playback | Implemented | SDL_mixer including headless test |
+| Sample/music playback | Implemented | SDL3_mixer native lifecycle and memory-mixer tests |
 | No-file tone synthesis | Implemented | sine/square/saw/triangle `Audio.Sample.synth` |
 | Parallel preload and hot asset reload | Implemented initial | concurrent image file preparation, main-domain decode/upload, stable-identity watched reload |
 | Rich synthesis graph/audio input | Out of initial completeness target | should be a separate pure signal design |
@@ -70,7 +70,7 @@ with rationale rather than represented by placeholder APIs.
 | Text input, dropdown, range/2D controls | Implemented | UTF-8/IME text, choice, dual-handle range, and 2D value controls |
 | Parameter save/load | Implemented | pure encode/decode and file save/load with versioned typed format |
 | Native hot reload preserving model | Outside initial target | arbitrary typed model/code migration is unsafe; explicit codecs plus REPL/watch/restart workflow documented |
-| REPL scene iteration | Implemented | `dune utop lib/prismel`, persistent `Preview.show/step/stop`, headless lifecycle test |
+| REPL scene iteration | Implemented | `dune utop lib/prismel`, persistent native `Preview.show/step/stop` lifecycle test |
 
 ## Low-level API debt
 
@@ -80,13 +80,13 @@ abstract; renderer/texture hooks are isolated under `Image.Private`. Generated
 API documentation builds through `dune build @doc`.
 
 Remaining backend debt is implementation hardening rather than a missing sketch
-capability: several legacy drawing calls still ignore SDL error returns, and
-the compatibility namespace remains available for older programs.
+capability. The compatibility namespace remains available for older programs,
+but it records into the same native command path and owns no alternate renderer.
 
 ## Scope decisions and hardening
 
 Native arbitrary model migration is explicitly excluded from the initial 2D
-target: OCaml closures, changed types, and SDL handles cannot be safely
+target: OCaml closures, changed types, and native resource handles cannot be safely
 marshalled across a relink. `Preview`, watched images, PXUI settings codecs, and
 process restart cover the productive workflow without pretending otherwise.
 

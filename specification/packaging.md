@@ -1,74 +1,61 @@
-# Packaging and installed GPU-migration surfaces
+# Packaging the native Metal stack
 
-Prismel is one opam package and one Dune project. GPU migration libraries stay
-under `lib/<name>` and use public Dune sublibrary names; they do not create an
-opam package per library. `prismel.opam` is generated from `dune-project` and
-must not be edited independently.
+Prismel is one opam package and one Dune project. `prismel.opam` is generated
+from `dune-project`; it must not be edited independently. The supported package
+target is macOS on Apple Silicon with SDL3 and Metal available.
 
-The currently installed side-by-side surfaces are:
+## Installed boundaries
 
-- SDL: `prismel.sdl3`, `prismel.sdl3_image`, `prismel.sdl3_ttf`, and
-  `prismel.sdl3_mixer`;
-- native GPU: `prismel.metal` and `prismel.ogpu_metal`;
-- portable GPU/software: `prismel.ogpu`, `prismel.raster2`,
-  `prismel.ogpu_raster2`, and `prismel.scene_execution`;
-- target qualification: `prismel.runtime_next`,
-  `prismel.runtime_next_headless`, `prismel.runtime_next_web`,
-  `prismel.runtime_next_orchestrator`, `prismel.runtime_next_input`, and the
-  SDL2-free high-level staging facade `prismel.runtime_next_compat`.
+The root package installs:
 
-All are emitted by the root `prismel` package. The only additional opam files
-are the four existing `packaging/conf-sdl3*` system probes. They test headers,
-libraries, versions and pkg-config metadata and contain no Prismel modules.
-Legacy Tsdl/SDL2 dependencies remain declared while the old renderer is the
-comparison/default implementation; removing them before Phase 5 would make the
-package metadata false.
+- the public creative-coding API as `prismel`;
+- foundational native libraries `prismel.sdl3`, `prismel.sdl3_image`,
+  `prismel.sdl3_ttf`, `prismel.sdl3_mixer`, `prismel.metal`, `prismel.ogpu`,
+  and `prismel.ogpu_metal`;
+- native runtime/command libraries including `prismel.runtime`,
+  `prismel.runtime_native`, `prismel.scene_command`, and
+  `prismel.scene_execution`;
+- ordinary feature libraries such as `prismel.geom`, `prismel.pdk`,
+  `prismel.procedural`, and the UI/sketch adapters.
 
-## Native prerequisites
+Runtime provider/orchestrator sublibraries are native-only internal
+qualification boundaries. Their target types contain only `Native`; they do not
+install alternate backends or make backend selection extensible.
 
-SDL3 and each used extension are declared through `conf-sdl3*`. Dynamic
-pkg-config discovery is the default; the documented static and explicit path
-modes remain available. Metal and QuartzCore are platform frameworks discovered
-by the macOS build and are not opam packages. OCaml dependencies used by the
-new stack (`ctypes`, `dune-configurator`, `domainslib`, `yojson`, and threads
-from the compiler/runtime) are already owned by the root package.
+The package contains no Raster2, Wap, SDL2/Tsdl, OpenGL compatibility, browser
+server, or headless renderer dependency. A native link audit checks Dune
+external dependencies and every built executable/shared artifact for forbidden
+legacy linkage.
 
-No Python program participates in SDL3 or Metal generation, provenance, build,
-or validation. The mechanical generators and checks are OCaml/Dune targets.
-Python tools elsewhere in the repository are unrelated geometry/Houdini
-reference utilities and must not become GPU binding glue.
+## System prerequisites
 
-## Install audit, 2026-08-27
+The four `packaging/conf-sdl3*` opam packages own stable native dependency
+probes. They validate pkg-config metadata plus header/runtime versions for SDL3,
+SDL3_image, SDL3_ttf, and SDL3_mixer. Dynamic discovery is the default;
+documented static and explicit include/library directory modes fail on missing
+metadata or archives rather than changing renderer semantics.
 
-The side-by-side tree passed:
+Metal, QuartzCore, CoreGraphics, IOSurface, Foundation, and other used Apple
+frameworks are supplied by the macOS SDK and are not opam packages. Binding
+generation, provenance, and validation use OCaml/Dune tools. Repository Python
+utilities are isolated geometry/Houdini reference tools and never participate
+in GPU binding or package generation.
 
-```sh
-opam exec -- dune build @install --profile release
-prefix=$(mktemp -d /tmp/prismel-install-audit.XXXXXX)
-opam exec -- dune install --prefix "$prefix" prismel
-OCAMLPATH="$prefix/lib" opam exec -- ocamlfind query \
-  prismel.sdl3 prismel.metal prismel.ogpu prismel.ogpu_metal \
-  prismel.ogpu_raster2 prismel.raster2 prismel.runtime_next \
-  prismel.runtime_next_headless prismel.runtime_next_web \
-  prismel.runtime_next_compat prismel.scene_execution
-```
+## Install validation
 
-The temporary prefix contained 2,270 installed files and every queried package
-resolved beneath that prefix, not the checkout. This is an install-surface
-check, not a fresh-switch dependency proof: Phase 5 still requires a clean
-switch without SDL2, full docs/tests, packaging artifacts, and two clean full
-validations on one final commit.
+The packaging gate runs release-profile SDL3 discovery fixtures and license
+checks, builds `@install`, installs into a temporary relocatable prefix, confirms
+`ocamlfind` resolves the installed libraries beneath that prefix, and builds an
+independent consumer outside the checkout. Its source build uses a separate
+workspace-relative build directory so invoking it from Dune cannot contend for
+the caller's build lock.
 
-Do not publish or split migration subpackages until the atomic selection and
-deletion gates pass. Installed comparison libraries may evolve during
-qualification, but the public high-level Prismel API remains the compatibility
-authority.
+A fresh-switch release qualification additionally installs native-only opam
+dependencies, builds documentation and tests, and inspects the produced package
+and linked artifacts. Success in the developer switch or an isolated prefix is
+useful local evidence but does not replace that final clean-switch run.
 
-The `phase5_runtime_compat_packaging` gate mechanically checks the staging
-facade's public name, exact direct dependencies, absence of legacy Runtime,
-Prismel, Wap, Tsdl, and tsdl_gfx edges, SDL3 discovery declarations, public
-coverage values, documentation, and absence of a reverse edge from
-Runtime-next. On 2026-08-27 that focused gate passed. A contemporaneous full
-`dune build @install` was blocked outside this slice by uncommitted
-`prismel_next_execution.ml` warning-27 failures for unused `width` and `height`;
-therefore this refresh does not claim a new full-install qualification.
+Generated and copied material must retain deterministic provenance. Prismel's
+source is MIT; SDL3 family libraries use their external zlib licenses; Apple SDK
+headers and frameworks remain system inputs governed by Apple platform terms and
+are not redistributed by this package.

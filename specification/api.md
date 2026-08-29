@@ -110,8 +110,8 @@ Helpers such as `Frame.key_down` and `Frame.mouse_down` keep common queries
 readable. Events remain available for edge-triggered behavior, including
 committed UTF-8 text and in-progress IME composition.
 
-`Event.PointerCancelled` is distinct from `WindowFocusLost`. It releases the
-cancelled browser/OS pointer and stops pointer capture without clearing an
+`Event.PointerCancelled` is distinct from `WindowFocusLost`. It releases an
+OS-cancelled pointer and stops pointer capture without clearing an
 otherwise valid text-field focus.
 
 `Frame.mouse`, all mouse event coordinates, and scene positions use the same
@@ -140,24 +140,23 @@ exact values regardless of domain count or work-stealing order.
 - polygon and polyline;
 - arc, pie, and Bezier curve;
 - installed system UI text, fixed bitmap debug text, loaded-font text, and images;
-- non-visual `text_input_region` metadata for browser/mobile text entry;
+- non-visual `text_input_region` metadata for focused native text entry;
 - nested translate, rotate, scale, and general groups.
 
-The installed `runtime_next`, OGPU, and Raster2 libraries do not add a second
-public Scene vocabulary. Their lowering, resource snapshots, and target
-orchestration remain private qualification machinery behind the same immutable
-`Scene`/`Scene3` values. Until the atomic migration gate passes, the documented
-public/default renderer and the legacy comparison path remain unchanged; an
-installed runtime-next package is not a public target-selection switch.
+The installed runtime, OGPU, and Metal libraries do not add a second public
+Scene vocabulary. Their lowering, resource snapshots, and orchestration remain
+private implementation machinery behind the same immutable `Scene`/`Scene3`
+values. Native Metal is the only renderer and is not selected through public
+scene data or an environment flag.
 
 `Scene.text_input_region` is pure scene data. At the render boundary its
-transformed, clipped logical bounds are advertised to the web client. A mobile
-keyboard is requested only when a pointer press lands in one of these regions;
-ordinary canvas and control taps never focus the browser text editor.
+transformed, clipped logical bounds describe where native text focus may be
+activated. Ordinary canvas and control presses do not implicitly start text
+input.
 
 `Scene.text ?size` resolves an installed platform UI font and treats `size` as
 a logical point size. `PRISMEL_UI_FONT` overrides the platform font search.
-`Scene.debug_text` is the explicit fixed 8×8 SDL2_gfx diagnostic face. System
+`Scene.debug_text` is Prismel's independent fixed 8×8 diagnostic face. System
 and loaded fonts rasterize and cache at the active renderer density while
 keeping their layout dimensions logical.
 
@@ -182,16 +181,13 @@ rotation and non-uniform scale affect complete outlines rather than only anchor
 points.
 Filled curved and polygonal primitives retain an antialiased boundary around
 their scanline fill, so filled and stroked variants both produce fractional
-edge coverage on the software renderer.
+edge coverage in the native 2D pipeline.
 
-Coordinates are integer logical points in the initial API because the current
-SDL2_gfx backend rasterizes integer coordinates. The origin is the logical
-window's top-left, with positive Y downward. SDL maps that renderer space to
-the native framebuffer and maps mouse events back through the same transform,
-so Retina backing scale never changes layout or hit testing. Model
-calculations should use floats and convert at the scene boundary. A future
-renderer-independent geometry pass may promote scene coordinates to floats
-without changing the lifecycle model.
+Coordinates are integer logical points in the initial API. The origin is the
+logical window's top-left, with positive Y downward. Runtime maps that space to
+the native Metal drawable and keeps pointer events in the same logical space,
+so Retina backing scale never changes layout or hit testing. Model calculations
+should use floats and convert at the scene boundary.
 
 ### `Scene3`
 
@@ -212,14 +208,13 @@ exponential-squared per-fragment distance fog.
 functions, typed immutable uniforms, perspective-correct varyings, discard,
 and fragment-depth output. `Transform_feedback3` captures staged primitives
 without fragments, and `Compute3` provides ordered functional workgroup
-dispatch. These paths are part of the same software implementation, not
-headless no-ops.
+dispatch. These values lower through the same checked native scene and resource
+boundary as ordinary Scene3 draws.
 
-The renderer uses a real per-pixel color and depth framebuffer, not projected
-2D painter ordering. It runs on the CPU and uploads through SDL, so visible and
-headless sketches execute the same camera, culling, lighting, and occlusion
-paths. Perspective and orthographic cameras use logical-point viewports and
-offer world/screen conversion and picking rays. Explicit asymmetric frusta,
+The renderer uses native Metal color, depth, and stencil attachments, not
+projected 2D painter ordering. Perspective and orthographic cameras use
+logical-point viewports and offer world/screen conversion and picking rays.
+Explicit asymmetric frusta,
 off-axis portal cameras, vertical projection flipping, and frustum diagnostic
 meshes cover multi-display and projection-mapping use cases.
 
@@ -249,7 +244,7 @@ extrusion, lathing, parallel-transport sweeps, four subdivision families,
 repair, exchange, and CSG. `Iso3` and `Voxel3` extract the same mesh values
 from pure scalar fields or sparse occupancy. The normal
 Prismel renderer therefore remains the only effect boundary, and the same
-output works in visible, headless, framebuffer, and export paths.
+output works in presented, captured, framebuffer, and export paths.
 
 Loop and Catmull-Clark mesh subdivision adapt through the same packed PDK core
 used by `Procedural.Sop.subdivide`. The SOP additionally exposes bilinear
@@ -584,16 +579,15 @@ The inspector shows camera/render controls with no selection and generated SOP
 parameters with a selection. Display selection cooks the flagged node while
 retaining the previous successful preview. Overlay callbacks receive a
 view-local frame. Both environments retain one shared pause/stop/reset,
-dependency-aware cooking, status, selection, inspection, and finite-headless
-core.
+dependency-aware cooking, status, selection, inspection, and finite native
+lifecycle.
 
 `Easy_camera2` is the immutable 2D view transform. It supplies resize-safe
 viewports and gesture areas, world/screen conversion, captured pan, inertia,
 rotation, pointer-anchored zoom, and pure `Scene` composition. `Render2.save_png`
 preserves the logical camera framing at integer render factors through the
-deterministic software canvas. Interactive native 2D presentation still uses
-the accelerated SDL renderer; 2D still export does not claim the native 3D GPU
-framebuffer path.
+checked Canvas/export boundary. Interactive presentation and capture use the
+native renderer.
 
 ### Boolean fracture pieces
 
@@ -630,21 +624,18 @@ never published. Only target-neutral CPU preparation runs in the worker.
 - `Sketch.run view` is the zero-state path.
 - `Sketch.run_state ~init ~update ~view ()` is the functional model path;
   optional `~max_frames` keeps one runtime alive for a positive finite frame
-  bound, including in headless/web integration runs.
+  bound, including finite native integration runs.
 - `Sketch.export` and `Sketch.export_state` render deterministic numbered PNG
   sequences using a fixed clock and no realtime frame limiter.
 - width, height, title, FPS and window behavior are optional configuration.
 - cleanup is exception-safe.
 - `Sketch.quit ()` requests graceful termination.
-- `Sketch.resize ~width ~height` resizes the active selected runtime and updates
+- `Sketch.resize ~width ~height` resizes the active native runtime and updates
   subsequent logical `Frame` facts without crossing through `Low.Window`.
-- `Sketch.render_target ()` returns `Native`, `Headless`, or `Web`;
-  `Sketch.is_headless ()` and `Sketch.is_web ()` are convenience predicates.
-  Runtime selection remains outside the immutable model and view APIs.
+- `Sketch.render_target ()` returns the sole `Native` target.
 
-Native, headless, and web targets share the same `Scene.render` effect
-boundary. Web-originated pointer, keyboard, UTF-8/IME, focus, resize, and file
-drop facts use the ordinary `Event.t`, `Input`, and logical `Frame` contracts.
+The native runtime uses the ordinary `Event.t`, `Input`, and logical `Frame`
+contracts for pointer, keyboard, UTF-8/IME, focus, resize, and file-drop facts.
 See [the runtime/backend specification](./backend.md).
 
 ### `Parallel`
@@ -662,7 +653,7 @@ Good parallel work:
 Main-domain-only work:
 
 - every `Scene.render` and `Graphics` call;
-- SDL window, renderer, texture, font, input, and event operations;
+- SDL3 window/input/audio and Metal resource/presentation operations;
 - mutation of shared sketch state.
 
 `Parallel.map`, `Parallel.for_`, and `Parallel.both` submit coarse tasks to a
@@ -697,8 +688,8 @@ domain exits; ordinary sketch code must not manage pool lifetime directly.
 The API is considered feature-complete for 2D sketching when these layers are
 covered:
 
-1. lifecycle, timing, input snapshots, deterministic headless execution;
-2. primitives, scoped styles/transforms, images, fonts, offscreen canvases;
+1. lifecycle, timing, input snapshots, deterministic finite native execution;
+2. primitives, scoped styles/transforms, images, fonts, owned canvases/capture;
 3. paths/curves, blend modes, clipping, pixels, capture/export;
 4. asset caching and asynchronous preload;
 5. deterministic random/noise, palettes, interpolation and easing;
@@ -717,8 +708,8 @@ stubs—the API should return useful errors or omit the operation until real.
 - Existing modules remain available during the high-level API rollout.
 - `Scene.render` is public for embedding a declarative scene inside an existing
   `App.run` program.
-- SDL objects should be removed from high-level `.mli` files over time and
-  moved to an explicitly low-level namespace.
+- Native objects remain absent from high-level `.mli` files and confined to
+  checked implementation boundaries.
 - Breaking changes should update this document and at least one complete
   example in the same change.
 
@@ -731,6 +722,6 @@ A proposed high-level feature should demonstrate:
 3. input use without a separate synchronization layer;
 4. matching drawing, event positions, and hit testing at standard and simulated
    high-DPI renderer scales;
-5. successful headless rendering;
-6. no SDL types in the new public signature;
+5. successful native Metal rendering and capture;
+6. no SDL3 or Metal types in the new public signature;
 7. a focused test for pure scene/model behavior.

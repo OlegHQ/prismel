@@ -87,18 +87,16 @@ existing still-image API and are not silently advertised by this binding.
 SDL3_ttf conformance discovers an installed platform UI font with
 `PRISMEL_UI_FONT` override semantics, then covers empty text, UTF-8, family and
 style names, metrics, RGBA rasterization, mutation, and 72/144-DPI rendering.
-A Runtime-shaped CPU-raster cache proves borrowed identity, immediate mutation
+A density-aware raster cache proves borrowed identity, immediate mutation
 invalidation, and destructive least-recently-used eviction at exactly 256
-entries.  The renderer-local OGPU texture cache will retain the same key and
-bound when the high-level Font adapter switches.
+entries. The high-level Font adapter uploads those bounded snapshots through
+the renderer-local OGPU texture cache.
 
 SDL3_mixer conformance covers copied-memory and file-backed sound/music loads,
-device and memory mixers, play, loops, gain, fades, pause/resume, stop, dummy
-headless playback, generated PCM, parent/child ownership, and an invalid-driver
-device failure.  Wap's integration test streams every typed sample/music
-command through an authenticated WebSocket and checks the exact bounded wire
-encoding, preserving web mirroring without putting protocol strings in the
-mixer or Runtime-facing audio API.
+device and memory mixers, play, loops, gain, fades, pause/resume, stop, generated
+PCM, parent/child ownership, and invalid-driver device failure. Native runtime
+tests cover the same typed sample/music operations through SDL3_mixer without a
+transport or alternate audio backend.
 
 ## Packaging and discovery
 
