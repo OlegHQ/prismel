@@ -187,8 +187,8 @@
       "classification_counts": {
         "not-applicable": 0,
         "platform-excluded": 0,
-        "raw-only": 3330,
-        "safe": 73,
+        "raw-only": 3328,
+        "safe": 75,
         "unreviewed": 0
       },
       "function_count": 1246,
@@ -314,7 +314,7 @@
       "tool": "/usr/bin/leaks --quiet --atExit"
     }
   ],
-  "new_gpu_stuff_sha256": "75cb47632aa2b26199677560c6382b8b94786af5f704867b40d306ccefbe19d3",
+  "new_gpu_stuff_sha256": "6f95e5738ae263386bbc414299f598f25ba9f604b48a8c2ef9bee84f974e2954",
   "schema": 1,
   "source_artifacts": [
     {
@@ -323,7 +323,7 @@
     },
     {
       "path": "lib/sdl3/generated_inventory.json",
-      "sha256": "7ad63b84112e70077876249b4f1eb9e0011f98b22c9bad811c4be8c44b07898e"
+      "sha256": "76cfdf61f5eb3fcd03217c6c8561d5df184f2d8e3c353fc755c54731d0895db2"
     },
     {
       "path": "lib/sdl3/generated_layout.json",
@@ -335,7 +335,7 @@
     },
     {
       "path": "lib/sdl3/generated_provenance.ml",
-      "sha256": "0bc00939f5239978ce6ad293119db7c12f806b0748e53417ea69f16f4481e1a1"
+      "sha256": "7bec3d70894bf17ba610f2ec7b263c8663599c941422469bca69243ec45154c4"
     },
     {
       "path": "lib/sdl3_image/generated_inventory.json",

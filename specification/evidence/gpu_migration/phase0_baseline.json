@@ -3,7 +3,7 @@
   "baseline_commit": "4622091a65bc9a8816a1f10bcc83c1a625ca7522",
   "baseline_dirty": false,
   "local_modifications": [],
-  "new_gpu_stuff_sha256": "75cb47632aa2b26199677560c6382b8b94786af5f704867b40d306ccefbe19d3",
+  "new_gpu_stuff_sha256": "6f95e5738ae263386bbc414299f598f25ba9f604b48a8c2ef9bee84f974e2954",
   "baseline_adjustments": [
     {
       "commit": "46f301c",
@@ -12,6 +12,10 @@
     {
       "commit": "4622091",
       "reason": "Keep App, Backend, Graphics, and Window private while structurally exposing the declared Low compatibility namespace."
+    },
+    {
+      "commit": "8ec473e",
+      "reason": "Remove the obsolete offline Metal artifact pipeline from the native-only migration plan and implementation."
     }
   ],
   "validated_commands": [
