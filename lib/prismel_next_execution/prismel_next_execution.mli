@@ -58,10 +58,6 @@ type draw
 type resource = Image of Prismel_next_resources.Image.t |
   Text of Prismel_next_resources.Text.t | Canvas of Prismel_next_resources.Canvas.t
 
-(** Lower target-neutral geometry commands. Image and glyph commands require
-    resource binding and are rejected atomically in this first staging slice. *)
-val scene2_ir : Scene_command.Render_ir.t -> (draw list, error) result
-
 (** Lower already validated renderer-neutral native Scene2 commands. *)
 val scene2_commands : Scene_execution.Scene2_command.t array ->
   (draw list, error) result
@@ -75,6 +71,9 @@ val prepared_draw : family:family -> ?blend:blend ->
 
 type t
 val create : configuration -> (t,error) result
+(* A true layerless native Metal target. It owns one long-lived device and
+   pipeline coordinator until [destroy], without acquiring/presenting a window. *)
+val create_offscreen : configuration -> (t,error) result
 val assets : t -> Prismel_next_resources.Assets.t
 val lower_scene2 : t -> density:int -> resource:(int -> resource option) ->
   Scene_command.Render_ir.t -> (draw list,error) result

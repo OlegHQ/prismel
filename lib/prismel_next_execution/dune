@@ -9,3 +9,8 @@
  (name test_scene2_command)
  (modules test_scene2_command)
  (libraries prismel_next_execution))
+
+(test
+ (name test_offscreen)
+ (modules test_offscreen)
+ (libraries prismel_next_execution metal))

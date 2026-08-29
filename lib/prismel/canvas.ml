@@ -1,11 +1,59 @@
-type t={resource:Prismel_next_resources.Canvas.t;mutable destroyed:bool}
+type t={resource:Prismel_next_resources.Canvas.t;
+  mutable execution:Prismel_next_execution.t option;mutable destroyed:bool}
 let message operation error=Format.asprintf"%s: %a"operation Prismel_next_resources.pp_error error
 let create ~width ~height=match Prismel_next_resources.Canvas.create ~width ~height with
-  |Ok resource->Ok{resource;destroyed=false}|Error error->Error(message"Canvas.create"error)
+  |Ok resource->Ok{resource;execution=None;destroyed=false}
+  |Error error->Error(message"Canvas.create"error)
 let create_exn ~width ~height=match create ~width ~height with Ok value->value|Error value->failwith value
 let size value=match Prismel_next_resources.Canvas.size value.resource with Ok value->value|Error error->failwith(message"Canvas.size"error)
 let width value=fst(size value)
 let height value=snd(size value)
+let execution_message operation error=
+  Format.asprintf"%s: %a"operation Prismel_next_execution.pp_error error
+let execution value=
+  if value.destroyed then invalid_arg"Canvas.render: canvas is destroyed";
+  match value.execution with
+  |Some execution->execution
+  |None->
+      let width,height=size value in
+      let configuration={Prismel_next_execution.default_configuration with
+        logical_width=width;logical_height=height;drawable_width=width;
+        drawable_height=height;title="Prismel Canvas";
+        timing=Prismel_next_execution.Fixed(1./.60.);vsync=false}in
+      match Prismel_next_execution.create_offscreen configuration with
+      |Error error->failwith(execution_message"Canvas.render"error)
+      |Ok execution->value.execution<-Some execution;execution
+let draw_of_scene3_entry(entry:Scene_execution.scene3_entry)=
+  Prismel_next_execution.prepared_draw
+    ~family:(match entry.family with Scene3->Scene3|Scene3_textured->Scene3_textured
+      |Scene3_shadow->Scene3_shadow|Scene3_stencil->Scene3_stencil
+      |Scene3_textured_stencil->Scene3_textured_stencil
+      |Scene3_shadow_stencil->Scene3_shadow_stencil|Scene2->Scene2
+      |Scene2_textured->Scene2_textured)
+    ~blend:(match entry.blend with Replace->Replace|Alpha->Alpha|Add->Add
+      |Multiply->Multiply|Screen->Screen|Subtract->Subtract)
+    ?texture:entry.texture ?auxiliary:entry.auxiliary ~samples:entry.samples
+    entry.draw
+let render value scene=
+  let execution=execution value and width,height=size value in
+  Fun.protect~finally:(fun()->Scene.Private.release scene)(fun()->
+    let staged=match Scene.Private.stage_native~width~height scene with
+    |Ok staged->staged|Error message->failwith("Canvas.render: "^message)in
+    let draws=List.concat_map(function
+      |Scene.Private.Scene2_layer(ir,resources)->
+          (match Prismel_next_execution.lower_scene2 execution~density:1
+            ~resource:(fun id->List.assoc_opt id resources)ir with
+          |Ok draws->draws
+          |Error error->failwith(execution_message"Canvas.render"error))
+      |Scene.Private.Scene3_layer prepared->
+          Array.to_list prepared.Scene_execution.entries
+          |>List.map draw_of_scene3_entry)staged.layers in
+    (match Prismel_next_execution.step~clear:staged.clear execution draws with
+    |Error error->failwith(execution_message"Canvas.render"error)|Ok _->());
+    match Prismel_next_execution.capture execution with
+    |Error error->failwith(execution_message"Canvas.render"error)
+    |Ok bytes->match Prismel_next_resources.Canvas.replace_pixels value.resource bytes with
+      |Ok()->()|Error error->failwith(message"Canvas.render"error))
 let packed color=Int32.logor(Int32.shift_left(Int32.of_int color.Color.r)24)
   (Int32.logor(Int32.shift_left(Int32.of_int color.g)16)
     (Int32.logor(Int32.shift_left(Int32.of_int color.b)8)(Int32.of_int color.a)))
@@ -28,13 +76,29 @@ let to_image value=match Prismel_next_resources.Canvas.capture value.resource wi
   |Ok image->Ok(Image.Private.of_resource image)
   |Error error->Error(message"Canvas.to_image"error)
 module Private=struct
+  type native_stats={frames:int64;logical_draws:int64;logical_passes:int64;
+    logical_submissions:int64;uploaded_bytes:int64;cache_entries:int}
   let copy_to_image value image=
     match Prismel_next_resources.Canvas.copy_to_image value.resource(Image.Private.resource image)with
     |Ok()->Ok()|Error error->Error(message"Canvas.Private.copy_to_image"error)
+  let native_stats value=match value.execution with
+    |None->{frames=0L;logical_draws=0L;logical_passes=0L;
+        logical_submissions=0L;uploaded_bytes=0L;cache_entries=0}
+    |Some execution->match Prismel_next_execution.stats execution with
+      |Error error->failwith(execution_message"Canvas.Private.native_stats"error)
+      |Ok stats->{frames=stats.frames;logical_draws=stats.logical_draws;
+          logical_passes=stats.logical_passes;
+          logical_submissions=stats.logical_submissions;
+          uploaded_bytes=stats.uploaded_bytes;cache_entries=stats.cache_entries}
 end
 let save_png value path=match Prismel_next_resources.Canvas.save_png value.resource path with Ok()->Ok()|Error error->Error(message"Canvas.save_png"error)
 let write_bytes value bytes=match Prismel_next_resources.Canvas.replace_pixels value.resource bytes with
  |Ok()->()|Error error->invalid_arg(message"Canvas.write_bytes"error)
 let capture()=match Canvas_runtime.capture()with Error _ as error->error|Ok(w,h,bytes)->let value=create_exn~width:w~height:h in(try write_bytes value bytes;Ok value with exn->ignore(Prismel_next_resources.Canvas.destroy value.resource);Error(Printexc.to_string exn))
 let save_screen_png=Canvas_runtime.save
-let destroy value=if not value.destroyed then(ignore(Prismel_next_resources.Canvas.destroy value.resource);value.destroyed<-true)
+let destroy value=if not value.destroyed then(
+  Option.iter(fun execution->ignore(Prismel_next_execution.destroy execution))
+    value.execution;
+  value.execution<-None;
+  ignore(Prismel_next_resources.Canvas.destroy value.resource);
+  value.destroyed<-true)

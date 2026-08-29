@@ -191,29 +191,6 @@ let scene2_commands commands =
   match !failure with Some message->fail"Prismel_next_execution.scene2_commands"Unsupported message
   |None->Ok(List.rev!draws)
 
-let command_of_scene = function
-  |Scene_command.Render_ir.Clear color->Ok(Command.Clear color)
-  |Set_blend blend->Ok(Command.Set_blend(match blend with
-      |Scene_command.Render_ir.Replace|Copy->Command.Replace
-      |Alpha|Source_over->Alpha|Add->Add|Multiply->Multiply|Screen->Screen
-      |Subtract->Subtract))
-  |Push_clip rect->Ok(Command.Push_clip{x=rect.x;y=rect.y;width=rect.width;height=rect.height})
-  |Pop_clip->Ok Command.Pop_clip
-  |Push_transform value->Ok(Command.Push_transform{xx=value.xx;xy=value.xy;yx=value.yx;
-      yy=value.yy;tx=value.tx;ty=value.ty})
-  |Pop_transform->Ok Command.Pop_transform
-  |Geometry geometry->Ok(Command.Geometry{vertices=geometry.vertices;indices=geometry.indices;
-      color=geometry.color})
-  |Debug_text debug->Ok(Command.Debug_text{x=debug.x;y=debug.y;text=debug.text;color=debug.color})
-  |Image _|Glyphs _->Error"image/glyph resource binding is not available"
-let scene2_ir ir =
-  let source=Scene_command.Render_ir.Private.commands_readonly ir in
-  let commands=Array.make(Array.length source)(Command.Clear 0l)and failure=ref None in
-  Array.iteri(fun index value->match command_of_scene value with
-    |Ok command->commands.(index)<-command|Error message->failure:=Some message)source;
-  match!failure with Some message->fail"Prismel_next_execution.scene2_ir"Unsupported message
-  |None->scene2_commands commands
-
 let batch_fingerprint draws =
   List.fold_left (fun fingerprint (draw:draw) ->
     let mesh=draw.value.mesh in
@@ -336,7 +313,15 @@ let batch_scene2_draws ~cache ~set_cache draws =
   in
   loop [] [] draws
 
-type t = { runtime:Runtime_next_orchestrator.t; input:Runtime_next_input.t;
+type presentation_facts={title:string;logical_width:int;logical_height:int;
+  drawable_width:int;drawable_height:int;position:(int*int)option;
+  pixel_density:float;display_scale:float;refresh_rate:float option;vsync:bool}
+type offscreen_runtime={runtime:Runtime_next.offscreen;
+  mutable facts:presentation_facts;mutable frames:int64;
+  mutable logical_draws:int64;mutable logical_passes:int64;
+  mutable logical_submissions:int64}
+type runtime=Window of Runtime_next_orchestrator.t|Offscreen of offscreen_runtime
+type t = { runtime:runtime; input:Runtime_next_input.t;
   assets:Prismel_next_resources.Assets.t; timing:timing; mutable frame:int64;
   mutable elapsed:float; mutable last_clock:float; mutable dead:bool;
   mutable snapshots:(string*int*int*Scene_execution.sampled_texture)list;
@@ -353,29 +338,54 @@ type t = { runtime:Runtime_next_orchestrator.t; input:Runtime_next_input.t;
   mutable scene2_probe_cooldown:int;
   mutable pending_image_leases:Prismel_next_resources.Image.Private.lease list;
   mutable canvas_keys:(Prismel_next_resources.Canvas.t*string)list;mutable next_canvas_key:int }
-let create (configuration:configuration) =
-  let operation="Prismel_next_execution.create" in
+let valid_configuration operation (configuration:configuration)=
   let positive x=x>0 in
   if not(List.for_all positive[configuration.logical_width;configuration.logical_height;
       configuration.drawable_width;configuration.drawable_height;configuration.max_events;
       configuration.max_file_bytes])then fail operation Invalid_argument"dimensions and bounds must be positive"
   else(match configuration.timing with Fixed dt when not(finite dt&&dt>0.)->
-      fail operation Invalid_argument"fixed dt must be finite and positive"|_->
+      fail operation Invalid_argument"fixed dt must be finite and positive"|_->Ok())
+let finish_create operation configuration runtime destroy_runtime=
+  match Runtime_next_input.create~max_events:configuration.max_events
+    ~max_file_bytes:configuration.max_file_bytes~logical_width:configuration.logical_width
+    ~logical_height:configuration.logical_height with
+  |Error message->ignore(destroy_runtime());fail operation Backend message
+  |Ok input->Ok{runtime;input;assets=Prismel_next_resources.Assets.create();
+      timing=configuration.timing;frame=0L;elapsed=0.;last_clock=Unix.gettimeofday();
+      dead=false;snapshots=[];scene2_geometry_cache=[];scene2_geometry_candidates=[];
+      scene2_batch_cache=[];scene2_quad_cache=[];scene2_quad_payload_cache=[];
+      scene2_debug_cache=[];scene2_plan_cache=[];scene2_plan_candidates=[];
+      scene2_probe_count=(-1);scene2_probe_density=0;scene2_probe_fingerprint=0;
+      scene2_probe_cooldown=0;pending_image_leases=[];canvas_keys=[];next_canvas_key=0}
+let create (configuration:configuration) =
+  let operation="Prismel_next_execution.create" in
+  match valid_configuration operation configuration with Error _ as error->error|Ok()->
     let config:Runtime_next_orchestrator.configuration={
       logical_width=configuration.logical_width;logical_height=configuration.logical_height;
       drawable_width=configuration.drawable_width;drawable_height=configuration.drawable_height;
       vsync=configuration.vsync}in
     match Runtime_next_orchestrator.create config with Error e->backend operation e|Ok runtime->
-      match Runtime_next_input.create~max_events:configuration.max_events
-        ~max_file_bytes:configuration.max_file_bytes~logical_width:configuration.logical_width
-        ~logical_height:configuration.logical_height with
-      |Error message->ignore(Runtime_next_orchestrator.destroy runtime);fail operation Backend message
-      |Ok input->Ok{runtime;input;assets=Prismel_next_resources.Assets.create();timing=configuration.timing;
-          frame=0L;elapsed=0.;last_clock=Unix.gettimeofday();dead=false;snapshots=[];scene2_geometry_cache=[];scene2_geometry_candidates=[];scene2_batch_cache=[];scene2_quad_cache=[];scene2_quad_payload_cache=[];scene2_debug_cache=[];
-          scene2_plan_cache=[];scene2_plan_candidates=[];
-          scene2_probe_count=(-1);scene2_probe_density=0;
-          scene2_probe_fingerprint=0;scene2_probe_cooldown=0;
-          pending_image_leases=[];canvas_keys=[];next_canvas_key=0})
+      finish_create operation configuration(Window runtime)
+        (fun()->Runtime_next_orchestrator.destroy runtime)
+let create_offscreen (configuration:configuration)=
+  let operation="Prismel_next_execution.create_offscreen"in
+  match valid_configuration operation configuration with Error _ as error->error|Ok()->
+  match Runtime_next.create_offscreen~width:configuration.drawable_width
+      ~height:configuration.drawable_height with
+  |Error error->backend operation error
+  |Ok runtime->
+      let pixel_density=float configuration.drawable_width/.
+        float configuration.logical_width in
+      let facts={title=configuration.title;
+        logical_width=configuration.logical_width;
+        logical_height=configuration.logical_height;
+        drawable_width=configuration.drawable_width;
+        drawable_height=configuration.drawable_height;position=None;pixel_density;
+        display_scale=pixel_density;refresh_rate=None;vsync=false}in
+      let state={runtime;facts;frames=0L;logical_draws=0L;logical_passes=0L;
+        logical_submissions=0L}in
+      finish_create operation configuration(Offscreen state)
+        (fun()->Runtime_next.destroy_offscreen runtime)
 let assets value=value.assets
 let snapshot_cache_entries value=List.length value.snapshots
 let scene2_geometry_cache_entries value=
@@ -388,41 +398,74 @@ type stats=Runtime_next_orchestrator.stats={frames:int64;presented:int64;logical
   retained_plan_evictions:int64;retained_plan_executions:int64;
   retained_plan_entries:int;retained_plan_capacity:int}
 let stats value=match ensure"Prismel_next_execution.stats"value with Error _ as e->e|Ok()->
-  Result.map_error(fun error->{operation="Prismel_next_execution.stats";kind=Backend;
-    message=Ogpu.Error.to_string error})(Runtime_next_orchestrator.stats value.runtime)
-type presentation_facts=Runtime_next_orchestrator.facts={title:string;
-  logical_width:int;logical_height:int;drawable_width:int;drawable_height:int;
-  position:(int*int)option;pixel_density:float;display_scale:float;
-  refresh_rate:float option;vsync:bool}
+  match value.runtime with
+  |Window runtime->Result.map_error(fun error->{operation="Prismel_next_execution.stats";
+      kind=Backend;message=Ogpu.Error.to_string error})
+      (Runtime_next_orchestrator.stats runtime)
+  |Offscreen state->
+      let native=Runtime_next.offscreen_stats state.runtime in
+      Ok{frames=state.frames;presented=0L;logical_draws=state.logical_draws;
+        logical_passes=state.logical_passes;
+        logical_submissions=state.logical_submissions;
+        uploaded_bytes=native.uploaded_bytes;cache_entries=native.mesh_cache_entries;
+        gpu_timing_supported=native.gpu_timing_supported;
+        gpu_duration_seconds=native.gpu_duration_seconds;
+        gpu_sample_count=native.gpu_sample_count;
+        retained_plan_builds=native.retained_plan_builds;
+        retained_plan_hits=native.retained_plan_hits;
+        retained_plan_misses=native.retained_plan_misses;
+        retained_plan_evictions=native.retained_plan_evictions;
+        retained_plan_executions=native.retained_plan_executions;
+        retained_plan_entries=native.retained_plan_entries;
+        retained_plan_capacity=native.retained_plan_capacity}
 let presentation_facts value=match ensure"Prismel_next_execution.presentation_facts"value with
   |Error _ as e->e
-  |Ok()->Result.map_error(fun error->{operation="Prismel_next_execution.presentation_facts";
-      kind=Backend;message=Ogpu.Error.to_string error})
-      (Runtime_next_orchestrator.facts value.runtime)
+  |Ok()->match value.runtime with
+    |Window runtime->(match Runtime_next_orchestrator.facts runtime with
+      |Error error->{operation="Prismel_next_execution.presentation_facts";
+          kind=Backend;message=Ogpu.Error.to_string error}|>Result.error
+      |Ok facts->Ok{title=facts.title;logical_width=facts.logical_width;
+          logical_height=facts.logical_height;drawable_width=facts.drawable_width;
+          drawable_height=facts.drawable_height;position=facts.position;
+          pixel_density=facts.pixel_density;display_scale=facts.display_scale;
+          refresh_rate=facts.refresh_rate;vsync=facts.vsync})
+    |Offscreen state->Ok state.facts
 type diagnostics={active:bool;resource_count:int;cache_entries:int;
   release_queue_pending:int option;release_queue_live_handles:int option;
   release_queue_total_created:int64 option;release_queue_total_released:int64 option}
 let native_release_queue=Runtime_next_orchestrator.native_release_queue
 let window operation call value=match ensure operation value with Error _ as e->e|Ok()->
-  Result.map_error(fun error->{operation;kind=Backend;message=Ogpu.Error.to_string error})
-    (call value.runtime)
+  match value.runtime with
+  |Offscreen _->fail operation Unsupported"operation requires a presentation window"
+  |Window runtime->Result.map_error(fun error->{operation;kind=Backend;
+      message=Ogpu.Error.to_string error})(call runtime)
 let show value=window"Prismel_next_execution.show"Runtime_next_orchestrator.show value
 let hide value=window"Prismel_next_execution.hide"Runtime_next_orchestrator.hide value
 let visible value=window"Prismel_next_execution.visible"Runtime_next_orchestrator.visible value
 let diagnostics value=
-  let runtime=Runtime_next_orchestrator.diagnostics value.runtime in
-  {active=not value.dead&&runtime.active;
+  let active,cache_entries,release_queue_pending,release_queue_live_handles,
+      release_queue_total_created,release_queue_total_released=
+    match value.runtime with
+    |Window runtime->let diagnostic=Runtime_next_orchestrator.diagnostics runtime in
+      diagnostic.active,diagnostic.cache_entries,diagnostic.release_queue_pending,
+      diagnostic.release_queue_live_handles,diagnostic.release_queue_total_created,
+      diagnostic.release_queue_total_released
+    |Offscreen state->
+      let native=Runtime_next.offscreen_stats state.runtime in
+      let release=Runtime_next_orchestrator.native_release_queue()in
+      true,native.mesh_cache_entries+native.pipeline_cache_entries,
+      Option.map(fun(a,_,_,_)->a)release,Option.map(fun(_,a,_,_)->a)release,
+      Option.map(fun(_,_,a,_)->a)release,Option.map(fun(_,_,_,a)->a)release in
+  {active=not value.dead&&active;
    resource_count=Prismel_next_resources.Assets.count value.assets;
-   cache_entries=runtime.cache_entries+List.length value.snapshots+
+   cache_entries=cache_entries+List.length value.snapshots+
      List.length value.scene2_geometry_cache+
      List.length value.scene2_geometry_candidates+List.length value.scene2_batch_cache+
      List.length value.scene2_quad_cache+List.length value.scene2_debug_cache+
      List.length value.scene2_plan_cache+List.length value.scene2_plan_candidates+
      List.length value.canvas_keys;
-   release_queue_pending=runtime.release_queue_pending;
-   release_queue_live_handles=runtime.release_queue_live_handles;
-   release_queue_total_created=runtime.release_queue_total_created;
-   release_queue_total_released=runtime.release_queue_total_released}
+   release_queue_pending;release_queue_live_handles;release_queue_total_created;
+   release_queue_total_released}
 let snapshot value ~density source =
   let operation="Prismel_next_execution.lower_scene2"in
   if density<=0 then fail operation Invalid_argument"density must be positive"else
@@ -469,7 +512,7 @@ let lower_scene2_uncached value ~density ~resource:resolve ir =
       |[]->()in
     loop value.pending_image_leases;value.pending_image_leases<-leases_before in
   let identity={Scene_command.Render_ir.xx=1.;xy=0.;yx=0.;yy=1.;tx=0.;ty=0.}in
-  let facts=Runtime_next_orchestrator.facts value.runtime|>Result.get_ok in
+  let facts=presentation_facts value|>Result.get_ok in
   let native_projection={Scene_command.Render_ir.xx=2./.float facts.logical_width;xy=0.;yx=0.;
     yy=(-2.)/.float facts.logical_height;tx=(-1.);ty=1.} in
   let render_transform transform=compose_raster native_projection transform in
@@ -709,7 +752,7 @@ let lower_scene2 value ~density ~resource:resolve ir =
   value.scene2_probe_count<-command_count;value.scene2_probe_density<-density;
   value.scene2_probe_fingerprint<-fingerprint;
   let cacheable,resources=scene2_resource_stamps resolve commands in
-  let facts=Runtime_next_orchestrator.facts value.runtime|>Result.get_ok in
+  let facts=presentation_facts value|>Result.get_ok in
   let extent=facts.logical_width,facts.logical_height,
     facts.drawable_width,facts.drawable_height in
   let exact plan=plan.plan_fingerprint=fingerprint&&
@@ -767,8 +810,18 @@ let push_event value event=match ensure"Prismel_next_execution.push_event"value 
   (match Runtime_next_input.push value.input(to_input event)with Ok()->Ok()|Error message->fail"Prismel_next_execution.push_event"Backend message)
 let resize value ~logical_width ~logical_height ~drawable_width ~drawable_height =
   match ensure"Prismel_next_execution.resize"value with Error _ as e->e|Ok()->
-  match Runtime_next_orchestrator.resize value.runtime~logical_width~logical_height~drawable_width~drawable_height with
-  |Ok()->push_event value(Resized(logical_width,logical_height))|Error e->backend"Prismel_next_execution.resize"e
+  let resized=match value.runtime with
+  |Window runtime->Runtime_next_orchestrator.resize runtime~logical_width~logical_height
+      ~drawable_width~drawable_height
+  |Offscreen state->match Runtime_next.resize_offscreen state.runtime
+      ~width:drawable_width~height:drawable_height with
+    |Error _ as error->error
+    |Ok()->let pixel_density=float drawable_width/.float logical_width in
+      state.facts<-{state.facts with logical_width;logical_height;drawable_width;
+        drawable_height;pixel_density;display_scale=pixel_density};Ok()in
+  match resized with
+  |Ok()->push_event value(Resized(logical_width,logical_height))
+  |Error e->backend"Prismel_next_execution.resize"e
 let mod_of_input=function Runtime_next_input.Shift->Shift|Control->Control|Alt->Alt|Meta->Meta|Num_lock->Num_lock|Caps_lock->Caps_lock|Scroll_lock->Scroll_lock
 let event_of_input=function Runtime_next_input.Pointer_moved(x,y)->Pointer_moved(x,y)|Pointer_pressed(b,x,y)->Pointer_pressed((match b with Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2),x,y)
   |Pointer_released(b,x,y)->Pointer_released((match b with Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2),x,y)
@@ -782,7 +835,7 @@ let step ?clear value draws=match ensure"Prismel_next_execution.step"value with 
     value.pending_image_leases<-[]in
   Fun.protect~finally:release_image_leases(fun()->
   Runtime_next_input.begin_frame value.input;
-  match Runtime_next_orchestrator.facts value.runtime with Error e->backend"Prismel_next_execution.step"e|Ok f->
+  match presentation_facts value with Error _ as error->error|Ok f->
     let family=function Scene2->Runtime_next_orchestrator.Scene2|Scene2_textured->Scene2_textured|Scene3->Scene3
       |Scene3_textured->Scene3_textured|Scene3_shadow->Scene3_shadow|Scene3_stencil->Scene3_stencil
       |Scene3_textured_stencil->Scene3_textured_stencil|Scene3_shadow_stencil->Scene3_shadow_stencil in
@@ -795,7 +848,28 @@ let step ?clear value draws=match ensure"Prismel_next_execution.step"value with 
         {draw with Scene_execution.state={state with viewport;scissor}}in
       {Runtime_next_orchestrator.family=family x.family;blend=blend x.blend;texture=x.texture;
         auxiliary=x.auxiliary;samples=x.samples;draw})draws in
-    match Runtime_next_orchestrator.render_prepared ?clear value.runtime draws with Error e->backend"Prismel_next_execution.step"e|Ok _->
+    let rendered=match value.runtime with
+    |Window runtime->Runtime_next_orchestrator.render_prepared ?clear runtime draws
+    |Offscreen state->
+      let portable=List.map(fun draw->
+        let family=match draw.Runtime_next_orchestrator.family with
+        |Runtime_next_orchestrator.Scene2->Scene_execution.Scene2
+        |Scene2_textured->Scene2_textured|Scene3->Scene3
+        |Scene3_textured->Scene3_textured|Scene3_shadow->Scene3_shadow
+        |Scene3_stencil->Scene3_stencil
+        |Scene3_textured_stencil->Scene3_textured_stencil
+        |Scene3_shadow_stencil->Scene3_shadow_stencil in
+        let blend=match draw.blend with Runtime_next_orchestrator.Replace->Ogpu.Pipeline.Replace
+        |Alpha->Alpha|Add->Add|Multiply->Multiply|Screen->Screen|Subtract->Subtract in
+        family,blend,draw.texture,draw.auxiliary,draw.samples,draw.draw)draws in
+      let result=Runtime_next.render_offscreen ?clear state.runtime portable in
+      (match result with Ok _->state.frames<-Int64.succ state.frames;
+        state.logical_draws<-Int64.add state.logical_draws
+          (Int64.of_int(List.length draws));
+        state.logical_passes<-Int64.succ state.logical_passes;
+        state.logical_submissions<-Int64.succ state.logical_submissions
+      |Error _->());result in
+    match rendered with Error e->backend"Prismel_next_execution.step"e|Ok _->
       let now=Unix.gettimeofday()in let dt=match value.timing with Fixed dt->dt|Variable->max 0.(now-.value.last_clock)in
       value.last_clock<-now;value.elapsed<-value.elapsed+.dt;value.frame<-Int64.succ value.frame;
       let events=List.map event_of_input(Runtime_next_input.drain value.input)and input=Runtime_next_input.snapshot value.input in
@@ -803,8 +877,13 @@ let step ?clear value draws=match ensure"Prismel_next_execution.step"value with 
         drawable_width=f.drawable_width;drawable_height=f.drawable_height;pixel_scale=f.pixel_density;
         events;pointer=input.pointer;mouse_delta=input.mouse_delta;wheel_delta=input.wheel_delta;dropped_events=input.dropped_events})
 let capture value=match ensure"Prismel_next_execution.capture"value with Error _ as e->e|Ok()->
-  match Runtime_next_orchestrator.facts value.runtime with Error e->backend"Prismel_next_execution.capture"e|Ok facts->
-  match Runtime_next_orchestrator.capture value.runtime~bytes_per_row:(facts.drawable_width*4)with Ok x->Ok x|Error e->backend"Prismel_next_execution.capture"e
+  match presentation_facts value with Error _ as error->error|Ok facts->
+  let captured=match value.runtime with
+  |Window runtime->Runtime_next_orchestrator.capture runtime
+      ~bytes_per_row:(facts.drawable_width*4)
+  |Offscreen state->Runtime_next.read_offscreen state.runtime
+      ~bytes_per_row:(facts.drawable_width*4)in
+  match captured with Ok x->Ok x|Error e->backend"Prismel_next_execution.capture"e
 let destroy value=if value.dead then Ok()else(
   List.iter Prismel_next_resources.Image.Private.release_snapshot value.pending_image_leases;
   value.pending_image_leases<-[];
@@ -815,7 +894,10 @@ let destroy value=if value.dead then Ok()else(
     value.scene2_debug_cache<-[];
     value.scene2_plan_cache<-[];value.scene2_plan_candidates<-[];
     value.scene2_geometry_candidates<-[];value.canvas_keys<-[];value.dead<-true;
-    match Runtime_next_orchestrator.destroy value.runtime with Ok()->Ok()|Error e->backend"Prismel_next_execution.destroy"e)
+    let destroyed=match value.runtime with
+    |Window runtime->Runtime_next_orchestrator.destroy runtime
+    |Offscreen state->Runtime_next.destroy_offscreen state.runtime in
+    match destroyed with Ok()->Ok()|Error e->backend"Prismel_next_execution.destroy"e)
 module Private=struct
   let draw_family_blend draw=draw.family,draw.blend
 end

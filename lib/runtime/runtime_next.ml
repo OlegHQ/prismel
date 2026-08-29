@@ -66,18 +66,25 @@ let create ?(vsync=true) ~width ~height ()=
     |Ok()->
       match sdl op(Sdl3.Window.create~title:"Prismel native-next"~width~height
         ~flags:[Hidden;Metal;High_pixel_density]())with
-      |Error _ as error->error
+      |Error _ as error->ignore(Sdl3.Init.quit_subsystems[Sdl3.Init.Video]);error
       |Ok window->
         match sdl op(Sdl3.Metal_view.create window)with
-        |Error error->ignore(Sdl3.Window.destroy window);Error error
+        |Error error->ignore(Sdl3.Window.destroy window);
+          ignore(Sdl3.Init.quit_subsystems[Sdl3.Init.Video]);Error error
         |Ok view->
-          match sdl op(Sdl3.Metal_view.layer view),Ogpu_metal.Device.system_default()with
-          |Error error,_->Error error|_,Error error->Error error
-          |Ok token,Ok device->
+          let cleanup_sdl()=ignore(Sdl3.Metal_view.destroy view);
+            ignore(Sdl3.Window.destroy window);
+            ignore(Sdl3.Init.quit_subsystems[Sdl3.Init.Video])in
+          match sdl op(Sdl3.Metal_view.layer view)with
+          |Error _ as error->cleanup_sdl();error
+          |Ok token->match Ogpu_metal.Device.system_default()with
+          |Error _ as error->cleanup_sdl();error
+          |Ok device->
             let config=Metal.Metal_layer.default~width~height in
             match metal op(Metal.Metal_layer.adopt_borrowed
               (Ogpu_metal.Device.Private.metal device)token config)with
-            |Error _ as error->error
+            |Error _ as error->ignore(Ogpu_metal.Device.destroy device);
+              cleanup_sdl();error
             |Ok layer->
               let driver,control=Ogpu_metal.Backend.create~device~layer
                 ~retained_plan_capacity:256()in
@@ -90,13 +97,12 @@ let create ?(vsync=true) ~width ~height ()=
                   ~configuration~before_device_destroy:destroy_layer with
               |Error _ as result->
                 ignore(destroy_layer());
-                ignore(Sdl3.Metal_view.destroy view);
-                ignore(Sdl3.Window.destroy window);
-                ignore(Sdl3.Init.quit_subsystems[Sdl3.Init.Video]);
+                cleanup_sdl();
                 result
               |Ok(renderer,cache)->
                 match facts window with
-                |Error error->ignore(Scene_execution.destroy renderer);Error error
+                |Error error->ignore(Scene_execution.destroy renderer);cleanup_sdl();
+                  Error error
                 |Ok facts->
                   let actual={configuration with
                     logical_width=facts.logical_width;
@@ -104,7 +110,8 @@ let create ?(vsync=true) ~width ~height ()=
                     physical_width=facts.drawable_width;
                     physical_height=facts.drawable_height}in
                   match Scene_execution.resize renderer actual with
-                  |Error error->ignore(Scene_execution.destroy renderer);Error error
+                  |Error error->ignore(Scene_execution.destroy renderer);cleanup_sdl();
+                    Error error
                   |Ok()->Ok{window;view;renderer;cache;device;control;facts;
                     vsync;dead=false}
 let create_offscreen ~width ~height=
@@ -157,7 +164,15 @@ let visible value=live_window"Runtime_next.visible"value(fun window->
 let minimize=window_call"Runtime_next.minimize" Sdl3.Window.minimize
 let maximize=window_call"Runtime_next.maximize" Sdl3.Window.maximize
 let restore=window_call"Runtime_next.restore" Sdl3.Window.restore
-let destroy (value:t)=if value.dead then Ok()else(value.dead<-true;match Scene_execution.destroy value.renderer with Error _ as e->e|Ok()->match sdl"Runtime_next.destroy"(Sdl3.Metal_view.destroy value.view)with Error _ as e->e|Ok()->match sdl"Runtime_next.destroy"(Sdl3.Window.destroy value.window)with Error _ as e->e|Ok()->sdl"Runtime_next.destroy"(Sdl3.Init.quit_subsystems[Sdl3.Init.Video]))
+let destroy (value:t)=if value.dead then Ok()else(
+  value.dead<-true;
+  let failure=ref None in
+  let record=function Ok()->()|Error error->if!failure=None then failure:=Some error in
+  record(Scene_execution.destroy value.renderer);
+  record(sdl"Runtime_next.destroy"(Sdl3.Metal_view.destroy value.view));
+  record(sdl"Runtime_next.destroy"(Sdl3.Window.destroy value.window));
+  record(sdl"Runtime_next.destroy"(Sdl3.Init.quit_subsystems[Sdl3.Init.Video]));
+  match!failure with None->Ok()|Some error->Error error)
 let render_offscreen ?clear value draws=if value.dead then
   Error(Ogpu.Error.make"Runtime_next.render_offscreen"Stale_handle
     "offscreen target is destroyed")

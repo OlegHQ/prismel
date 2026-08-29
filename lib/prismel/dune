@@ -86,3 +86,8 @@
  (name test_resource_interface_preservation)
  (modules test_resource_interface_preservation)
  (libraries prismel))
+
+(test
+ (name test_canvas_native)
+ (modules test_canvas_native)
+ (libraries prismel metal))

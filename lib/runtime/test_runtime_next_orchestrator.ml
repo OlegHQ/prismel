@@ -6,7 +6,7 @@ let get = function
 
 let configuration extent : Orchestrator.configuration =
   { logical_width = extent; logical_height = extent;
-    drawable_width = extent; drawable_height = extent }
+    drawable_width = extent; drawable_height = extent; vsync=true }
 
 let () =
   begin match Orchestrator.create (configuration 4) with
