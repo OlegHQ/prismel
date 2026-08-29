@@ -12,6 +12,23 @@ let ()=let open Prismel in
   Result.get_ok(Canvas.Private.copy_to_image canvas captured);
   require(Image.Private.identity captured=captured_identity)"Canvas copy preserves image identity";
   require(Image.Private.pixels captured|>Result.get_ok|>fun bytes->Bytes.sub bytes 0 4=Bytes.of_string"\009\008\007\255")"Canvas copy updates existing image pixels";
+  let alternating=Canvas.create_exn~width:640~height:480 in
+  let published=ref(Result.get_ok(Canvas.to_image alternating))in
+  let publish frame=
+    Canvas.set_pixel alternating~x:(frame mod 640)~y:(frame mod 480)
+      (Color.rgba(frame land 255)17 31 255);
+    let next=Result.get_ok(Canvas.to_image alternating)in
+    Image.destroy!published;
+    published:=next in
+  publish 0;publish 1;
+  let before=Gc.allocated_bytes()in
+  for frame=2 to 601 do publish frame done;
+  let allocated=Gc.allocated_bytes()-.before in
+  require(allocated<float(640*480*4))
+    (Printf.sprintf
+      "Canvas public alternating to_image/destroy allocated %.0f bytes"
+      allocated);
+  Image.destroy!published;Canvas.destroy alternating;
   let assets=Assets.create()in require(Assets.image_count assets=0)"Assets baseline";
   begin match Audio.init()with Error message->failwith message|Ok()->()end;
   for _=1 to 100_000 do require(Image.Private.identity image>0)"stable image identity"done;

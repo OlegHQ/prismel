@@ -15,14 +15,15 @@ let valid_storage width height bytes=
 module Image=struct
   type t={identity:int;mutable generation:int;mutable width:int;mutable height:int;
     mutable rgba:bytes;mutable spare:bytes option;mutable leases:(bytes*int)list;
-    mutable canvas_owner:int option;mutable dead:bool}
+    mutable canvas_owner:int option;
+    mutable canvas_returns:(bytes*(bytes->unit))list;mutable dead:bool}
   type lease={owner:t;bytes:bytes;mutable released:bool}
   let identity x=x.identity and generation x=x.generation and destroyed x=x.dead
   let live op x f=main op(fun()->if x.dead then error op Destroyed"image is destroyed"else f())
   let create ~width ~height ~rgba=main"Image.create"(fun()->
     if not(valid_storage width height rgba)then error"Image.create"Invalid_argument"invalid RGBA extent or storage"
     else Ok{identity=fresh_identity();generation=1;width;height;rgba=Bytes.copy rgba;
-      spare=None;leases=[];canvas_owner=None;dead=false})
+      spare=None;leases=[];canvas_owner=None;canvas_returns=[];dead=false})
   let of_surface operation surface=
     match Sdl3.Surface.copy_rgba surface with
     |Error e->error operation Decode(Format.asprintf"%a"Sdl3.pp_error e)
@@ -40,15 +41,25 @@ module Image=struct
   let snapshot x=live"Image.snapshot"x(fun()->
     Ok(x.width,x.height,x.generation,Bytes.copy x.rgba))
   let leased x bytes=List.memq bytes(List.map fst x.leases)
+  let return_canvas_storage x bytes=match List.assq_opt bytes x.canvas_returns with
+    |None->false
+    |Some callback->
+        x.canvas_returns<-List.remove_assq bytes x.canvas_returns;
+        callback bytes;true
+  let register_canvas_storage x bytes callback=
+    x.canvas_returns<-(bytes,callback)::List.remove_assq bytes x.canvas_returns
+  let canvas_storage x bytes=List.mem_assq bytes x.canvas_returns
   let writable x length=
-    if Bytes.length x.rgba=length&&x.canvas_owner=None&&not(leased x x.rgba)then Ok x.rgba else
+    if Bytes.length x.rgba=length&&x.canvas_owner=None&&
+       not(canvas_storage x x.rgba)&&not(leased x x.rgba)then Ok x.rgba else
     match x.spare with
     |Some bytes when Bytes.length bytes=length&&not(leased x bytes)->x.spare<-None;Ok bytes
     |_->if List.length x.leases<2 then Ok(Bytes.create length)
         else error"Image.borrow_snapshot"Invalid_argument"both bounded image snapshot buffers are leased"
   let install x bytes=
     let old=x.rgba and old_owned=x.canvas_owner=None in x.rgba<-bytes;x.canvas_owner<-None;
-    if old!=bytes&&old_owned&&not(leased x old)then x.spare<-Some old
+    if old!=bytes&&not(leased x old)then
+      if not(return_canvas_storage x old)&&old_owned then x.spare<-Some old
   let borrow_snapshot x=live"Image.borrow_snapshot"x(fun()->
     let count=Option.value(List.assq_opt x.rgba x.leases)~default:0 in
     x.leases<-(x.rgba,count+1)::List.remove_assq x.rgba x.leases;
@@ -58,7 +69,8 @@ module Image=struct
     let x=lease.owner and count=Option.value(List.assq_opt lease.bytes lease.owner.leases)~default:0 in
     x.leases<-List.remove_assq lease.bytes x.leases;
     if count>1 then x.leases<-(lease.bytes,count-1)::x.leases
-    else if lease.bytes!=x.rgba then x.spare<-Some lease.bytes
+    else if lease.bytes!=x.rgba then
+      if not(return_canvas_storage x lease.bytes)then x.spare<-Some lease.bytes
   end
   let replace x ~width ~height ~rgba=live"Image.replace"x(fun()->
     if not(valid_storage width height rgba)then error"Image.replace"Invalid_argument"invalid RGBA replacement"
@@ -77,7 +89,13 @@ module Image=struct
          without another full-frame copy. *)
       target.width<-source.width;
       target.height<-source.height;
-      install target source.rgba;
+      let moved=source.rgba in
+      install target moved;
+      (match List.assq_opt moved source.canvas_returns with
+       |None->()
+       |Some callback->
+           source.canvas_returns<-List.remove_assq moved source.canvas_returns;
+           register_canvas_storage target moved callback);
       target.generation<-target.generation+1;
       source.rgba<-Bytes.empty;
       source.dead<-true;
@@ -87,7 +105,11 @@ module Image=struct
     |Error _ as failure->failure
     |Ok replacement->let result=replace x~width:replacement.width~height:replacement.height~rgba:replacement.rgba in
       ignore(destroy replacement);result)
-  and destroy x=main"Image.destroy"(fun()->if x.dead then Ok()else(x.dead<-true;x.rgba<-Bytes.empty;x.spare<-None;x.canvas_owner<-None;Ok()))
+  and destroy x=main"Image.destroy"(fun()->if x.dead then Ok()else(
+    x.dead<-true;
+    List.iter(fun(bytes,_)->if not(leased x bytes)then
+      ignore(return_canvas_storage x bytes))x.canvas_returns;
+    x.rgba<-Bytes.empty;x.spare<-None;x.canvas_owner<-None;Ok()))
   module Private=struct
     type nonrec lease=lease
     let borrow_snapshot=borrow_snapshot
@@ -117,14 +139,37 @@ module Canvas=struct
   let size x=live"Canvas.size"x(fun()->Ok(x.width,x.height))
   let valid_mirror x image=not image.Image.dead&&image.canvas_owner=Some x.identity&&
     image.rgba==x.rgba
+  let accept_returned_storage x bytes=
+    if not x.dead&&Bytes.length bytes=Bytes.length x.rgba&&bytes!=x.rgba&&x.spare=None
+    then x.spare<-Some bytes
+  let publish_storage x image=
+    image.Image.canvas_owner<-Some x.identity;
+    Image.register_canvas_storage image x.rgba(accept_returned_storage x)
+  let take_image_spare image length=
+    if Image.canvas_storage image image.Image.rgba&&
+       not(Image.leased image image.rgba)then begin
+      ignore(Image.return_canvas_storage image image.rgba);Ok None
+    end else Result.map Option.some(Image.writable image length)
+  let retain_spare x=Option.iter(fun spare->if x.spare=None then x.spare<-Some spare)
   let detach_mirror x=(match x.mirror with
     |Some image when valid_mirror x image->image.canvas_owner<-None
     |_->());x.mirror<-None
+  let discard_invalid_mirror x=match x.mirror with
+    |Some image when not(valid_mirror x image)->x.mirror<-None
+    |_->()
   let detach_for_mutation x=match x.mirror with
     |Some image when valid_mirror x image->
         let replacement=match x.spare with
           |Some spare when Bytes.length spare=Bytes.length x.rgba->x.spare<-None;Bytes.blit x.rgba 0 spare 0(Bytes.length x.rgba);spare
           |_->Bytes.copy x.rgba in
+        detach_mirror x;x.rgba<-replacement
+    |Some _->x.mirror<-None|None->()
+  let detach_for_overwrite x=match x.mirror with
+    |Some image when valid_mirror x image->
+        let replacement=match x.spare with
+          |Some spare when Bytes.length spare=Bytes.length x.rgba->
+              x.spare<-None;spare
+          |_->Bytes.create(Bytes.length x.rgba)in
         detach_mirror x;x.rgba<-replacement
     |Some _->x.mirror<-None|None->()
   let write_color bytes offset color=Bytes.set_int32_be bytes offset color
@@ -137,32 +182,32 @@ module Canvas=struct
   let copy_to_image x image=main"Canvas.copy_to_image"(fun()->
     if x.dead then error"Canvas.copy_to_image"Destroyed"canvas is destroyed"
     else if image.Image.dead then error"Canvas.copy_to_image"Destroyed"image is destroyed"
-    else if match x.mirror with Some mirror->mirror==image&&valid_mirror x image|None->false then(
+    else begin discard_invalid_mirror x;
+    if match x.mirror with Some mirror->mirror==image&&valid_mirror x image|None->false then(
       image.generation<-image.generation+1;Ok())
     else if match x.blocked with Some blocked->blocked==image|None->false then begin
-      let spare=if not(Image.leased image image.rgba)then Ok image.rgba else
-        Image.writable image(Bytes.length x.rgba)in
+      let spare=take_image_spare image(Bytes.length x.rgba)in
       match spare with
       |Error _ as failure->failure
       |Ok spare->
-        image.rgba<-x.rgba;image.canvas_owner<-Some x.identity;
+        image.rgba<-x.rgba;publish_storage x image;
         image.width<-x.width;image.height<-x.height;
-        x.spare<-Some spare;image.generation<-image.generation+1;
+        retain_spare x spare;image.generation<-image.generation+1;
         x.blocked<-None;x.mirror<-Some image;Ok()
     end else if x.mirror=None then begin
-      match Image.writable image(Bytes.length x.rgba)with
+      match take_image_spare image(Bytes.length x.rgba)with
       |Error _ as failure->failure
       |Ok spare->
-        image.rgba<-x.rgba;image.canvas_owner<-Some x.identity;
+        image.rgba<-x.rgba;publish_storage x image;
         image.width<-x.width;image.height<-x.height;
-        x.spare<-Some spare;image.generation<-image.generation+1;
+        retain_spare x spare;image.generation<-image.generation+1;
         x.blocked<-None;x.mirror<-Some image;Ok()
     end else
       let width=x.width and height=x.height and source=x.rgba in
       match Image.writable image(Bytes.length source)with Error _ as e->e|Ok bytes->
       Bytes.blit source 0 bytes 0(Bytes.length source);Image.install image bytes;
       image.width<-width;image.height<-height;
-      image.generation<-image.generation+1;Ok())
+      image.generation<-image.generation+1;Ok()end)
   let snapshot x=live"Canvas.snapshot"x(fun()->
     Ok(x.width,x.height,x.generation,Bytes.copy x.rgba))
   let draw_image x image ~x:px ~y:py=live"Canvas.draw_image"x(fun()->match Image.size image,Image.pixels image with
@@ -170,10 +215,12 @@ module Canvas=struct
     |Error e,_|_,Error e->Error e)
   let resize x ~width ~height=live"Canvas.resize"x(fun()->match storage"Canvas.resize"width height with Error _ as e->e|Ok rgba->detach_mirror x;x.blocked<-None;x.spare<-None;x.width<-width;x.height<-height;x.rgba<-rgba;x.generation<-x.generation+1;Ok())
   let capture x=live"Canvas.capture"x(fun()->
+    discard_invalid_mirror x;
     if x.mirror=None&&x.blocked=None then begin
       let image:Image.t={identity=fresh_identity();generation=1;
         width=x.width;height=x.height;rgba=x.rgba;spare=None;leases=[];
-        canvas_owner=Some x.identity;dead=false}in
+        canvas_owner=None;canvas_returns=[];dead=false}in
+      publish_storage x image;
       x.mirror<-Some image;Ok image
     end else
       Image.create~width:x.width~height:x.height~rgba:x.rgba)
@@ -183,7 +230,7 @@ module Canvas=struct
        obtains the Canvas-owned bank after detaching any published Image, then
        marks the generation only after a successful GPU read. *)
     let prepare_write x=live"Canvas.Private.prepare_write"x(fun()->
-      detach_for_mutation x;Ok(x.width,x.height,x.rgba))
+      detach_for_overwrite x;Ok(x.width,x.height,x.rgba))
     let commit_write x=live"Canvas.Private.commit_write"x(fun()->
       x.generation<-x.generation+1;Ok())
   end
