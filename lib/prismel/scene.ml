@@ -26,20 +26,30 @@ let styled_path ?fill ?stroke path=
   Group(Option.to_list(Option.map(fun color->fill_path color path)fill)@Option.to_list(Option.map(fun color->stroke_path color path)stroke))
 type path_geometry_key={points:(int*int)list;closed:bool;stroke_width:int64;
   fill_rgba:int32 option;stroke_rgba:int32 option}
-type path_geometry_cache={table:(path_geometry_key,node)Hashtbl.t;
+module Path_geometry_key=struct
+  type t=path_geometry_key
+  let equal left right=
+    left.closed=right.closed&&left.stroke_width=right.stroke_width&&
+    left.fill_rgba=right.fill_rgba&&left.stroke_rgba=right.stroke_rgba&&
+    left.points=right.points
+  let hash value=Hashtbl.hash(value.points,value.closed,value.stroke_width,
+    value.fill_rgba,value.stroke_rgba)
+end
+module Path_geometry_table=Hashtbl.Make(Path_geometry_key)
+type path_geometry_cache={table:node Path_geometry_table.t;
   order:path_geometry_key option array;mutable next:int}
 let path_geometry_cache_capacity=256
 let path_geometry_caches=Domain.DLS.new_key(fun()->
-  {table=Hashtbl.create path_geometry_cache_capacity;
+  {table=Path_geometry_table.create path_geometry_cache_capacity;
    order=Array.make path_geometry_cache_capacity None;next=0})
 let path_geometry_cached key make=
   let cache=Domain.DLS.get path_geometry_caches in
-  match Hashtbl.find_opt cache.table key with
+  match Path_geometry_table.find_opt cache.table key with
   |Some value->value
   |None->
       let value=make()in
-      Option.iter(Hashtbl.remove cache.table)cache.order.(cache.next);
-      Hashtbl.add cache.table key value;
+      Option.iter(Path_geometry_table.remove cache.table)cache.order.(cache.next);
+      Path_geometry_table.add cache.table key value;
       cache.order.(cache.next)<-Some key;
       cache.next<-(cache.next+1)mod path_geometry_cache_capacity;
       value
