@@ -178,3 +178,28 @@ pending external**: **37/47 = 78.72%** strict-plus-provisional and **11/47 =
 (1.6142 hours) elapsed with zero classification change, hence both measured
 coverage and strict-completion rates were **0.00 percentage points/hour** for
 this audit interval.
+
+## Follow-up — R12 30-minute renewal on scoped presentation
+
+Captured at `2026-08-29T22:55:00+02:00` on clean commit
+`3d736462e05a9b5cf490a95a23c19f35d90657d8`. A release-profile 30-minute
+`runtime_next_native_stability` run with payload, resize, and capture churn
+passed `validate_runtime_next_native_stability` (`O6-native-30m`, schema 5).
+Evidence is
+[`runtime_next_native_stability_2026-08-29-r12-renewal.md`](runtime_next_native_stability_2026-08-29-r12-renewal.md).
+
+R12 therefore moves from pending-local to provisional. The resulting status is
+**11 strict, 27 provisional, 1 pending local, and 8 pending external**, or
+**38/47 = 80.85%** strict-plus-provisional coverage. Strict completion remains
+**11/47 = 23.40%**. The remaining local blocker is R10 workload-equivalent
+qualification: a full native protocol run on this renderer failed the promoted
+allocation envelope versus the interleaved historical `bench_renderer`
+(Basic ~9.1×, PXUI ~2.9×, Canvas ~170× before the subsequent texture-reuse
+commit; Scene3 was inside the envelope). Frame-time cells were not the first
+rejection. R12 evidence applies to `3d73646`; later lifetime edits must renew
+it before a strict-final declaration.
+
+The interval from the preceding `18:38:13+02:00` checkpoint is 15,407 seconds
+(4.2797 hours). Coverage increased by 1/47 = 2.128 percentage points, a
+measured rate of **0.50 percentage points/hour**. Strict completion changed by
+zero, so its measured rate remains **0.00 percentage points/hour**.
