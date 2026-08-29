@@ -81,14 +81,16 @@ let identity_affine_uniforms=let bytes=Bytes.make 24 '\000'in
   Bytes.set_int32_le bytes 0(Int32.bits_of_float 1.);
   Bytes.set_int32_le bytes 16(Int32.bits_of_float 1.);bytes
 module Command = Scene_execution.Scene2_command
-let write_affine bytes (transform:Command.transform)=
+let write_affine bytes (transform:Scene_command.Render_ir.transform)=
   let put index value=Bytes.set_int32_le bytes(index*4)(Int32.bits_of_float value)in
   put 0 transform.xx;put 1 transform.yx;put 2 transform.tx;
   put 3 transform.xy;put 4 transform.yy;put 5 transform.ty
 let affine_uniforms (transform:Command.transform)=
   if transform.xx=1.&&transform.xy=0.&&transform.yx=0.&&transform.yy=1.&&
     transform.tx=0.&&transform.ty=0. then identity_affine_uniforms else
-  let bytes=Bytes.make 24 '\000'in write_affine bytes transform;bytes
+  let bytes=Bytes.make 24 '\000'in
+  write_affine bytes {Scene_command.Render_ir.xx=transform.xx;xy=transform.xy;
+    yx=transform.yx;yy=transform.yy;tx=transform.tx;ty=transform.ty};bytes
 let identity_transform (transform:Command.transform)=
   transform.xx=1.&&transform.xy=0.&&transform.yx=0.&&transform.yy=1.&&
   transform.tx=0.&&transform.ty=0.
@@ -154,7 +156,10 @@ let compose (a:Command.transform) (b:Command.transform) = Command.{xx=a.xx*.b.xx
   xy=a.xy*.b.xx+.a.yy*.b.xy; yx=a.xx*.b.yx+.a.yx*.b.yy;
   yy=a.xy*.b.yx+.a.yy*.b.yy; tx=a.xx*.b.tx+.a.yx*.b.ty+.a.tx;
   ty=a.xy*.b.tx+.a.yy*.b.ty+.a.ty }
-let compose_raster (a:Scene_command.Render_ir.transform) (b:Scene_command.Render_ir.transform)={Scene_command.Render_ir.xx=a.xx*.b.xx+.a.yx*.b.xy;
+let compose_raster (a:Scene_command.Render_ir.transform) (b:Scene_command.Render_ir.transform)=
+  if b.xx=1.&&b.xy=0.&&b.yx=0.&&b.yy=1.&&b.tx=0.&&b.ty=0. then a
+  else if a.xx=1.&&a.xy=0.&&a.yx=0.&&a.yy=1.&&a.tx=0.&&a.ty=0. then b
+  else {Scene_command.Render_ir.xx=a.xx*.b.xx+.a.yx*.b.xy;
   xy=a.xy*.b.xx+.a.yy*.b.xy;yx=a.xx*.b.yx+.a.yx*.b.yy;
   yy=a.xy*.b.yx+.a.yy*.b.yy;tx=a.xx*.b.tx+.a.yx*.b.ty+.a.tx;
   ty=a.xy*.b.tx+.a.yy*.b.ty+.a.ty}
@@ -682,7 +687,7 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
       color=geometry.color&&cached_clip=clip in
     match List.find_opt(fun cached->not cached.in_use&&same cached.vertices cached.indices cached.fingerprint cached.color cached.clip)value.scene2_geometry_cache with
     |Some cached->
-        write_affine cached.uniform_bytes(command_transform_of_raster transform);
+        write_affine cached.uniform_bytes transform;
         cached.in_use<-true;cached.draw
     |None->
         let draw=mesh_of_geometry number(command_transform_of_raster transform)clip
@@ -714,11 +719,10 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
               value.scene2_geometry_candidates;draw
         |Some candidate->
             value.scene2_geometry_candidates<-List.filter((!=)candidate)value.scene2_geometry_candidates;
-            let command_t=command_transform_of_raster transform in
             let uniform=match draw.value.state.transform_uniforms with
               |Some bytes when Bytes.length bytes=24->bytes
               |_->Bytes.make 24 '\000'in
-            write_affine uniform command_t;
+            write_affine uniform transform;
             let draw={draw with value={draw.value with state={draw.value.state with
               transform_uniforms=Some uniform}}}in
             let cached={vertices=Array.copy geometry.vertices;indices=Array.copy geometry.indices;
