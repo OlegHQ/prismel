@@ -5,12 +5,13 @@ module Orchestrator = Runtime_next_orchestrator
 
 type fixture = Basic | Canvas_readback | Scene3 | Widget
 
-let vertices points =
-  let bytes = Bytes.make (List.length points * 16) '\000' in
+let vertices ~color points =
+  let bytes = Bytes.make (List.length points * 24) '\000' in
   List.iteri (fun index (x, y) ->
-      let offset = index * 16 in
+      let offset = index * 24 in
       Bytes.set_int64_le bytes offset (Int64.bits_of_float x);
-      Bytes.set_int64_le bytes (offset + 8) (Int64.bits_of_float y)) points;
+      Bytes.set_int64_le bytes (offset + 8) (Int64.bits_of_float y);
+      Bytes.set_int32_le bytes (offset + 16) color) points;
   bytes
 
 let indices values =
@@ -20,22 +21,21 @@ let indices values =
   bytes
 
 let draw fixture extent =
-  let edge = float extent in
-  let points, index_values =
+  let points, index_values, color =
     match fixture with
-    | Basic -> [ 0., 0.; edge, 0.; 0., edge ], [ 0; 1; 2 ]
+    | Basic -> [ -1., -1.; 1., -1.; -1., 1. ], [ 0; 1; 2 ], 0xff0000ffl
     | Canvas_readback ->
-        [ 0., 0.; edge /. 2., 0.; 0., edge /. 2. ], [ 0; 1; 2 ]
+        [ -1., -1.; 0., -1.; -1., 0. ], [ 0; 1; 2 ], 0xff00ff00l
     | Scene3 ->
-        [ edge, 0.; edge, edge; 0., edge ], [ 0; 1; 2 ]
+        [ 1., -1.; 1., 1.; -1., 1. ], [ 0; 1; 2 ], 0xffff0000l
     | Widget ->
-        [ 0., 0.; edge, 0.; edge, edge; 0., edge ],
-        [ 0; 1; 2; 0; 2; 3 ]
+        [ -1., -1.; 1., -1.; 1., 1.; -1., 1. ],
+        [ 0; 1; 2; 0; 2; 3 ], 0xffffffffl
   in
   let mesh : Scene_execution.mesh =
     { key = (match fixture with Basic -> "basic" | Canvas_readback -> "canvas"
         | Scene3 -> "scene3" | Widget -> "widget");
-      vertices = vertices points; vertex_count = List.length points;
+      vertices = vertices ~color points; vertex_count = List.length points;
       indices = indices index_values; index_count = List.length index_values }
   in
   { Scene_execution.mesh;
@@ -94,15 +94,27 @@ let test () =
       Scene3, run Scene3 4; Widget, run Widget 4 ]
   in
   let expected =
-    [ Basic, "183be222f2a9499335f80e49bab17f24";
-      Canvas_readback, "6669327647bf796bcc136e62a62f7c95";
-      Scene3, "52462b7485ced3177c5f7bf2fda8a7ae";
-      Widget, "c28fb438cfaf0381adc6b8dddec9d6cf" ]
+    [ Basic, "7e6b294d094d299541308587d4903907";
+      Canvas_readback, "657b6cc72d1ee48d6a42fa7d56961692";
+      Scene3, "aead64c514f28f9d0e85a308aa37c382";
+      Widget, "aabd2b2a451504e119a243d8e775fdad" ]
   in
-  if hashes <> expected then failwith "frozen representative pixel hashes drift";
+  if hashes <> expected then
+    failwith
+      ("frozen representative pixel hashes drift: observed="
+       ^ String.concat ","
+           (List.map
+              (fun (fixture, hash) ->
+                (match fixture with
+                 | Basic -> "Basic"
+                 | Canvas_readback -> "Canvas"
+                 | Scene3 -> "Scene3"
+                 | Widget -> "Widget")
+                ^ "=" ^ hash)
+              hashes));
   let resized = run Basic 8 in
-  if resized <> "a07e462221d8a87c5d83ad9a18411a44" then
-    failwith "frozen resized framebuffer hash drift";
+  if resized <> "368fbe2c2e8e77fcb081f5ac1def4b21" then
+    failwith ("frozen resized framebuffer hash drift: observed=" ^ resized);
   print_endline
     "runtime-next parity: Basic/Canvas/Scene3/PXUI frames1/2/60/600+resize passed"
 
