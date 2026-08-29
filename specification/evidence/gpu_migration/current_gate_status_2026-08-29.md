@@ -127,3 +127,37 @@ and required typed GPU-only RGBA-source-to-BGRA-drawable proof are recorded in
 This correction supersedes only prior claims that internal-target captures
 proved visible pixels; it does not rewrite or invalidate their independently
 measured rendering, lifecycle, counter, or ownership evidence.
+
+## Follow-up — typed visible Metal presentation
+
+Commit `2de959ef1ce17f1f806a020c94f333897669332d` at
+`2026-08-29T17:01:22+02:00` closes the implementation defect identified by the
+visible-drawable audit. Scene execution now submits a typed producer queue and
+owned RGBA8 source with each acquired frame. A classic final pass appends the
+RGBA8-to-BGRA8 conversion and drawable schedule to the producer command buffer;
+a Command4-only final pass uses the ordered same-queue classic fallback until
+Command4 has a bounded submission-scoped drawable lifetime.
+
+The exact test renders asymmetric RGBA bytes, reads the actual private
+`CAMetalDrawable` back through a GPU blit, and checks BGRA bytes at frames 1,
+2, 60, and 600 plus resize. Production layers remain framebuffer-only. The
+affected release suites pass with exact Scene2/Scene3/runtime pixels, injected
+pre-commit retry and terminal-error cleanup, bounded frame/source ownership,
+and zero Metal-handle deltas. The retained Scene2 path measured 33,105 allocated
+and 969 promoted bytes/frame against unchanged 100,000/1,024-byte ceilings.
+An isolated clean worktree of the commit also passes
+`dune build --profile release @all`.
+
+M6, O7, R5, and R8 move from pending-local to provisional. R12 remains local
+until its 30-minute stability evidence is renewed on this renderer, and R10
+remains local until workload-equivalent qualification completes. The resulting
+status is **11 strict, 26 provisional, 2 pending local, and 8 pending
+external**, or **37/47 = 78.72%** strict-plus-provisional coverage. Strict
+completion remains **11/47 = 23.40%**.
+
+The interval from the corrected visible-presentation capture at
+`2026-08-29T16:04:51+02:00` is 3,391 seconds (0.9419 hours). Coverage increased
+by 4/47 = 8.511 percentage points, a measured rate of **9.04 percentage
+points/hour**. Strict completion changed by zero, so its measured rate remains
+**0.00 percentage points/hour**. This interval is an implementation checkpoint,
+not an ETA or a sustainable-rate forecast.
