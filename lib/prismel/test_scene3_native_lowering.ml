@@ -1,22 +1,24 @@
 open Prismel
 
 let () =
-  let resources:Scene3_native_lowering.resources={
-    texture=(fun _->Error Unsupported_texture);
-    shadow=(fun _->Error Unsupported_shadow)}in
   let camera=Camera.orthographic~height:2.~at:(Vec3.create 0. 0. 2.)
     ~target:Vec3.zero()in
-  begin match Scene3_native_lowering.prepare~resources~camera~viewport:(0,0,0,16)
-    Scene3.empty with
-  |Error Invalid_viewport->print_endline"native Scene3 lowering: typed viewport rejection"
+  let prepare ~width ~height scene =
+    match Scene.Private.stage_native ~width ~height [Scene.view3d~camera scene] with
+    | Ok { scene3 = [ prepared ]; _ } -> prepared
+    | Ok _ -> failwith "native Scene3 staging cardinality"
+    | Error message -> failwith message
+  in
+  begin match Scene.Private.stage_native ~width:0 ~height:16
+    [Scene.view3d~camera Scene3.empty] with
+  |Error _->print_endline"native Scene3 lowering: typed viewport rejection"
   |_->failwith"native Scene3 accepted empty viewport" end;
   let mesh=Mesh.create_exn~indices:[0;1;2]
     ~normals:[Vec3.unit_z;Vec3.unit_z;Vec3.unit_z]
     ~colors:[Color.red;Color.green;Color.blue]
     [Vec3.create(-0.5)(-0.5)0.;Vec3.create 0.5(-0.5)0.;Vec3.create 0. 0.5 0.]in
   let scene=Scene3.create[Scene3.mesh~material:(Material.unlit Color.white)mesh]in
-  let prepared=match Scene3_native_lowering.prepare~resources~camera
-    ~viewport:(0,0,16,16)scene with Ok value->value|Error _->failwith"native triangle lowering"in
+  let prepared=prepare ~width:16 ~height:16 scene in
   if Array.length prepared.entries<>1 then failwith"native triangle draw count";
   let entry=prepared.entries.(0)and vertices=prepared.entries.(0).draw.mesh.vertices in
   if Bytes.length vertices<>204||entry.draw.mesh.index_count<>3 then failwith"native Scene3 ABI cardinality";
@@ -41,7 +43,7 @@ let () =
     ~normals:[Vec3.unit_z;Vec3.unit_z;Vec3.unit_z;Vec3.unit_z]
     [Vec3.zero;Vec3.unit_x;Vec3.unit_y;Vec3.create 1. 1. 0.]in
   let strip_scene=Scene3.create[Scene3.mesh strip]in
-  let strip_prepared=Result.get_ok(Scene3_native_lowering.prepare~resources~camera~viewport:(0,0,16,16)strip_scene)in
+  let strip_prepared=prepare ~width:16 ~height:16 strip_scene in
   let encoded=strip_prepared.entries.(0).draw.mesh.indices in
   let actual=Array.init 6(fun index->Int32.to_int(Bytes.get_int32_le encoded(index*4)))in
   if actual<>[|0;1;2;2;1;3|]then failwith"native triangle strip winding";

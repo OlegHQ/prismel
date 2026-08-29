@@ -107,7 +107,6 @@
  (alias runtest)
  (deps ../specification/evidence/gpu_migration/phase0_baseline.json
   ../specification/evidence/gpu_migration/api_stable.json
-  ../specification/evidence/gpu_migration/api_legacy_sdl.json
   (glob_files ../lib/*/*.mli)
   (glob_files ../lib/*/dune))
  (action

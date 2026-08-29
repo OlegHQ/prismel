@@ -8,13 +8,13 @@ let baseline_relative =
 let stable_relative =
   "specification/evidence/gpu_migration/api_stable.json"
 
-let legacy_relative =
-  "specification/evidence/gpu_migration/api_legacy_sdl.json"
-
 let stable_library_directories =
   [ "prismel"; "pdk"; "geom"; "procedural"; "pxui"; "pxui_graph"
   ; "sop_catalog"; "sop_ui"; "sketch"; "sketch_ui"
   ]
+
+let reviewed_native_only_removals =
+  [ "prismel.Framebuffer3"; "prismel.Render2"; "prismel.Render3"; "wap.Wap" ]
 
 let mixed_legacy library module_name =
   match library, module_name with
@@ -374,27 +374,6 @@ let source_entry root library module_name path selectors =
     ; "excluded_legacy_symbols", string_list selectors
     ]
 
-let legacy_entry root surface path selectors =
-  let source = read_file path in
-  let selected =
-    match selectors with
-    | [] -> source
-    | selectors ->
-        List.map
-          (fun selector ->
-            let start, stop = selected_range source selector in
-            String.sub source start (stop - start))
-          selectors
-        |> String.concat "\n"
-  in
-  `Assoc
-    [ "surface", `String surface
-    ; "source", `String (relative_path root path)
-    ; "source_sha256", `String (sha256 source)
-    ; "api_sha256", `String (sha256 (normalized_api selected))
-    ; "selectors", string_list selectors
-    ]
-
 let json_sort_field field left right =
   match member_string field left, member_string field right with
   | Some left, Some right -> String.compare left right
@@ -420,25 +399,6 @@ let generate root =
       if library_order <> 0 then library_order
       else json_sort_field "module" left right)
   in
-  let prismel name = Filename.concat root ("lib/prismel/" ^ name ^ ".mli") in
-  let legacy_entries =
-    [ legacy_entry root "Prismel.Low" (prismel "low") []
-    ; legacy_entry root "Prismel.Low.App" (prismel "app") []
-    ; legacy_entry root "Prismel.Low.Backend" (prismel "backend") []
-    ; legacy_entry root "Prismel.Low.Graphics" (prismel "graphics") []
-    ; legacy_entry root "Prismel.Low.Window" (prismel "window") []
-    ; legacy_entry root "Prismel.Image.Private" (prismel "image")
-        [ "module:Private" ]
-    ; legacy_entry root "Prismel.Font.Private" (prismel "font")
-        [ "module:Private" ]
-    ; legacy_entry root "Prismel.Font.release_renderer" (prismel "font")
-        [ "value:release_renderer" ]
-    ]
-    @ (public_interfaces root "runtime"
-       |> List.map (fun (module_name, path) ->
-         legacy_entry root ("Runtime." ^ module_name) path []))
-    |> List.sort (json_sort_field "surface")
-  in
   let common =
     [ "schema", `Int 1
     ; "baseline_commit", member_exn "baseline_commit" baseline
@@ -446,18 +406,12 @@ let generate root =
     ; "generator", `String "tools/gpu_migration/api_manifest.exe"
     ]
   in
-  ( `Assoc
-      (common
-       @ [ "kind", `String "stable_high_level"
-         ; "module_count", `Int (List.length stable_entries)
-         ; "modules", `List stable_entries
-         ])
-  , `Assoc
-      (common
-       @ [ "kind", `String "declared_legacy_sdl"
-         ; "surface_count", `Int (List.length legacy_entries)
-         ; "surfaces", `List legacy_entries
-         ]) )
+  `Assoc
+    (common
+     @ [ "kind", `String "stable_high_level"
+       ; "module_count", `Int (List.length stable_entries)
+       ; "modules", `List stable_entries
+       ])
 
 let entry_key kind entry =
   match kind with
@@ -558,9 +512,14 @@ let refuse_stable_contraction path expected =
         expected_entries;
       let removed = actual_entries |> List.filter_map (fun (key, _) ->
         if Hashtbl.mem expected_keys key then None else Some key) in
-      if removed <> [] then
-        fail "refusing to write a contracted stable API manifest (%d removed): %s"
-          (List.length removed) (String.concat ", " removed)
+      let unreviewed =
+        List.filter
+          (fun key -> not (List.mem key reviewed_native_only_removals))
+          removed
+      in
+      if unreviewed <> [] then
+        fail "refusing to write a contracted stable API manifest (%d unreviewed removed): %s"
+          (List.length unreviewed) (String.concat ", " unreviewed)
     end
   end
 
@@ -585,11 +544,9 @@ let check path expected =
 let main () =
   self_test_manifest_comparison ();
   let root, mode = root_and_mode () in
-  let stable, legacy = generate root in
+  let stable = generate root in
   let outputs =
-    [ Filename.concat root stable_relative, pretty_json stable
-    ; Filename.concat root legacy_relative, pretty_json legacy
-    ]
+    [ Filename.concat root stable_relative, pretty_json stable ]
   in
   match mode with
   | Write ->
@@ -602,11 +559,7 @@ let main () =
       let stable_count =
         Option.value (member_int "module_count" stable) ~default:0
       in
-      let legacy_count =
-        Option.value (member_int "surface_count" legacy) ~default:0
-      in
-      Printf.printf "wrote %d stable modules and %d legacy surfaces\n%!"
-        stable_count legacy_count
+      Printf.printf "wrote %d stable native modules\n%!" stable_count
   | Check ->
       if not (List.for_all (fun (path, value) -> check path value) outputs) then
         exit 1

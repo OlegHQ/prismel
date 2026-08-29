@@ -2,7 +2,7 @@ open Support
 
 let baseline = "4622091a65bc9a8816a1f10bcc83c1a625ca7522"
 let plan_sha256 = "6f95e5738ae263386bbc414299f598f25ba9f604b48a8c2ef9bee84f974e2954"
-let api_sha256 = "f1880b5250bc79c873760efe93ed8132cb8acd07b41d376ac676db0e234348c6"
+let api_sha256 = "3d46ec450839d95bfc1a797bf1485caf351b2000faf776752814ff1af5a23e93"
 
 let acceptance =
   [ "examples/audio/dune",
