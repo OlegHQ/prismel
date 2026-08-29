@@ -96,3 +96,34 @@ and Metal/QuartzCore frameworks—to compile its Objective-C++ FFI. It does not
 invoke `xcrun metal` or `metallib`, require the Xcode IDE, or ship an offline
 shader artifact. M10 remains external for GPU capture/counters and the required
 sanitizer/Guard Malloc/Leaks evidence, not for offline shader compilation.
+
+## Correction — visible drawable presentation is not yet proved
+
+Captured at `2026-08-29T16:04:51+02:00` on commit
+`28f95deb185faba4062539a456cdf4a1c4a84850`. A source-to-drawable audit found
+that the production Scene execution path renders into its owned RGBA target,
+while surface acquisition yields a drawable that is subsequently presented
+without a typed GPU transfer from that target. The existing pixel assertions
+read the owned target, not the acquired visible drawable. They therefore prove
+native Metal rendering and readback, but not visible presentation.
+
+This finding moves M6, O7, R5, R8, and R12 from provisional to pending-local.
+R10 was already pending-local and remains there. The corrected status is
+**11 strict, 22 provisional, 6 pending local, and 8 pending external**. Strict
+plus provisional coverage is **33/47 = 70.21%**; strict completion remains
+**11/47 = 23.40%**. These percentages classify gate evidence and are not an
+estimate of source-code implementation completion.
+
+The SDL3 implementation and all strict S gates remain **100% complete**. The
+structural deletion of selectable software-rasterizer, SDL2/Tsdl, OpenGL,
+headless, Wap, and web fallbacks also remains **100% complete**. Neither fact
+closes visible presentation: a native-only product can still render the right
+pixels into an internal Metal texture and fail to put them into the acquired
+window drawable.
+
+The exact false-positive mechanism, affected test paths, preserved evidence,
+and required typed GPU-only RGBA-source-to-BGRA-drawable proof are recorded in
+[`visible_drawable_audit_2026-08-29.md`](visible_drawable_audit_2026-08-29.md).
+This correction supersedes only prior claims that internal-target captures
+proved visible pixels; it does not rewrite or invalidate their independently
+measured rendering, lifecycle, counter, or ownership evidence.
