@@ -14,6 +14,27 @@ let expected = function
   | Scene3 ->
       (110_592, "r10-public-scene3-v2:27d16e56efacacc1c93fbc3e9b7adc88")
 
+type runtime_evidence = {
+  draws_per_frame : int;
+  passes_per_frame : int;
+  submissions_per_frame : int;
+  uploads_full_frame_per_frame : bool;
+}
+
+let runtime_evidence = function
+  | R10_scene2_legacy_equivalent.Basic ->
+      { draws_per_frame = 10; passes_per_frame = 1;
+        submissions_per_frame = 1; uploads_full_frame_per_frame = false }
+  | Pxui ->
+      { draws_per_frame = 84; passes_per_frame = 1;
+        submissions_per_frame = 1; uploads_full_frame_per_frame = false }
+  | Canvas ->
+      { draws_per_frame = 1; passes_per_frame = 1;
+        submissions_per_frame = 1; uploads_full_frame_per_frame = true }
+  | Scene3 ->
+      { draws_per_frame = 13; passes_per_frame = 1;
+        submissions_per_frame = 1; uploads_full_frame_per_frame = false }
+
 let scenario_name = function
   | R10_scene2_legacy_equivalent.Basic -> "basic"
   | Pxui -> "pxui"

@@ -21,12 +21,20 @@ let () =
       if first_identity = second_identity || second_identity = third_identity then
         failwith "Phase0 Canvas did not replace its per-frame snapshot";
       let before = R10_scene2_candidate.stats candidate in
+      let offscreen_before = Option.get(R10_scene2_candidate.canvas_stats candidate)in
       for _ = 1 to 5 do
         R10_scene2_candidate.render candidate ~width:640 ~height:480
       done;
       let after = R10_scene2_candidate.stats candidate in
+      let offscreen_after = Option.get(R10_scene2_candidate.canvas_stats candidate)in
       if Int64.sub after.uploaded_bytes before.uploaded_bytes <= 0L then
         failwith "Phase0 Canvas performed no per-frame snapshot upload";
+      if Int64.sub offscreen_after.frames offscreen_before.frames<>5L
+         ||Int64.sub offscreen_after.logical_draws offscreen_before.logical_draws<>25L
+         ||Int64.sub offscreen_after.logical_passes offscreen_before.logical_passes<>5L
+         ||Int64.sub offscreen_after.logical_submissions
+              offscreen_before.logical_submissions<>5L then
+        failwith "Phase0 Canvas did not use one exact native offscreen pass per frame";
       if after.cache_entries > 256 then
         failwith "Phase0 Canvas exceeded its bounded snapshot cache";
       Printf.printf

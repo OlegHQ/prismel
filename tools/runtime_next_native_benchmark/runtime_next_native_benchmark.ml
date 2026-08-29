@@ -23,6 +23,8 @@ let metal = function Ok value -> value | Error error ->
   failwith (Format.asprintf "%a" Metal.pp_error error)
 let sdl operation = function Ok value -> value | Error error ->
   failwith (operation ^ ": " ^ Format.asprintf "%a" Sdl3.pp_error error)
+let execution = function Ok value->value|Error error->
+  failwith(Format.asprintf"%a"Prismel_next_execution.pp_error error)
 
 let scenario_name = function Basic->"basic"|Pxui->"pxui-like"|Canvas->"canvas-like"|Scene3->"scene3-double68"|Shattered->"shattered-cube"
 let protocol_scenario_name = function Basic->"basic"|Pxui->"pxui"|Canvas->"canvas"|Scene3->"scene3"|Shattered->"shattered"
@@ -50,16 +52,43 @@ let retained_plan_counters (before : Prismel_next_execution.stats)
     "executions", difference after.retained_plan_executions before.retained_plan_executions;
     "entries", `Int after.retained_plan_entries;
     "capacity", `Int after.retained_plan_capacity]
+let canvas_stats_json(stats:Prismel_next_api.Canvas.Private.native_stats)=`Assoc[
+  "frames",`String(Int64.to_string stats.frames);
+  "draws",`String(Int64.to_string stats.logical_draws);
+  "passes",`String(Int64.to_string stats.logical_passes);
+  "submissions",`String(Int64.to_string stats.logical_submissions);
+  "uploaded_bytes",`String(Int64.to_string stats.uploaded_bytes);
+  "cache_entries",`Int stats.cache_entries]
+let canvas_stats_delta before after=match before,after with
+  |Some(before:Prismel_next_api.Canvas.Private.native_stats),
+   Some(after:Prismel_next_api.Canvas.Private.native_stats)->
+      let delta current initial=Int64.to_string(Int64.sub current initial)in
+      `Assoc["frames",`String(delta after.frames before.frames);
+        "draws",`String(delta after.logical_draws before.logical_draws);
+        "passes",`String(delta after.logical_passes before.logical_passes);
+        "submissions",`String(delta after.logical_submissions before.logical_submissions);
+        "uploaded_bytes",`String(delta after.uploaded_bytes before.uploaded_bytes);
+        "cache_entries",`Int after.cache_entries]
+  |None,None->`Null|_->failwith"R10 Canvas offscreen stats disappeared"
 let metal_device_facts()=
   let device=metal(Metal.Device.system_default())in
   Fun.protect~finally:(fun()->ignore(Metal.Device.destroy device))(fun()->
     let info=metal(Metal.Device.info device)and architecture=metal(Metal.Device.architecture device)in
-    `Assoc["name",`String info.name;"registry_id",`String(Int64.to_string info.registry_id);
+    `Assoc["selection",`String"Metal.Device.system_default";
+      "name",`String info.name;"registry_id",`String(Int64.to_string info.registry_id);
       "architecture",`String(Metal.Architecture.name architecture);
       "low_power",`Bool info.low_power;"removable",`Bool info.removable;
       "unified_memory",`Bool info.unified_memory;
       "recommended_max_working_set_size",`String(Int64.to_string info.recommended_max_working_set_size);
       "max_buffer_length",`String(Int64.to_string info.max_buffer_length)])
+let metal_release_facts(stats:Metal.Release_queue.stats)=`Assoc[
+  "pending",`Int stats.pending;"dropped",`Int stats.dropped;
+  "live_handles",`Int stats.live_handles;
+  "total_created",`String(Int64.to_string stats.total_created);
+  "total_released",`String(Int64.to_string stats.total_released);
+  "external_deallocations",`String(Int64.to_string stats.external_deallocations);
+  "external_deallocation_mismatches",
+    `String(Int64.to_string stats.external_deallocation_mismatches)]
 let putf bytes offset value=Bytes.set_int64_le bytes offset(Int64.bits_of_float value)
 let measure_frames render count seconds = match seconds with
 |None->Array.init count(fun _->let started=Unix.gettimeofday()in ignore(get(render()));Unix.gettimeofday()-.started)
@@ -179,9 +208,13 @@ let create_renderer counters visibility width height =
   renderer,{pixel_density;display_scale;drawable_width;drawable_height},(fun()->get(Scene_execution.destroy renderer);sdl"view destroy"(Sdl3.Metal_view.destroy view);sdl"window destroy"(Sdl3.Window.destroy window);sdl"quit"(Sdl3.Init.quit_subsystems[Sdl3.Init.Video]))
 
 let run_public selected warmup_seconds samples sample_seconds visibility width height =
+  ignore(metal(Metal.Release_queue.drain()));
+  let release_before=metal(Metal.Release_queue.stats())in
+  let metal_device=metal_device_facts()in
   let public=match selected with Basic->R10_scene2_legacy_equivalent.Basic|Pxui->Pxui|Canvas->Canvas|Scene3->Scene3|Shattered->assert false in
   let descriptor=R10_scene2_legacy_equivalent.describe public~width~height in
-  let render,render_canonical,capture,stats,presentation_facts,set_visibility,observed_visibility,destroy=match selected with
+  let render,render_canonical,capture,stats,presentation_facts,set_visibility,
+      observed_visibility,setup_canvas_stats,canvas_stats,destroy=match selected with
   |Basic|Pxui|Canvas->
       let candidate=Result.get_ok(R10_scene2_candidate.create~width~height public)in
       (fun()->R10_scene2_candidate.render candidate~width~height;Ok true),
@@ -191,6 +224,8 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
       (fun()->Ok(R10_scene2_candidate.presentation_facts candidate)),
       (fun visible->if visible then Prismel_next_execution.show candidate.execution else Prismel_next_execution.hide candidate.execution),
       (fun()->Prismel_next_execution.visible candidate.execution),
+      (fun()->candidate.setup_canvas_stats),
+      (fun()->R10_scene2_candidate.canvas_stats candidate),
       (fun()->Ok(R10_scene2_candidate.destroy candidate))
   |Scene3->
       let configuration={Prismel_next_execution.default_configuration with
@@ -199,17 +234,44 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
       let execution=Result.get_ok(Prismel_next_execution.create configuration)in
       let canonical=R10_scene3_legacy_equivalent.create~width~height in
       ignore(Result.get_ok(R10_scene3_equivalence_bridge.prove~width~height canonical));
-      let draws=List.map(fun draw->Prismel_next_execution.prepared_draw~family:Scene3~samples:4 draw)canonical.software_batched_draws in
-      let render_full_scene()=
-        let clear=Result.get_ok(Prismel_next_execution.scene2_commands
-          [|Scene_execution.Scene2_command.Clear 0x020617ffl|])in
-        let overlay=Prismel_next_api.Scene.[text~at:(22,18)~size:16"Stable Scene3 instance baseline"]in
-        Fun.protect~finally:(fun()->Prismel_next_api.Scene.Private.release overlay)(fun()->
-          let ir,resources=Prismel_next_api.Scene.Private.stage~width~height overlay|>Result.get_ok in
-          let overlay_draws=Prismel_next_execution.lower_scene2 execution~density:1
-            ~resource:(fun id->List.assoc_opt id resources)ir|>Result.get_ok in
-          Result.map(fun _->true)(Prismel_next_execution.step execution
-            (clear@draws@overlay_draws)))in
+      let public=R10_scene3_equivalence_bridge.public_workload()in
+      let scene=Prismel_next_api.Scene.[
+        clear(Prismel_next_api.Color.hex_exn"#020617");
+        view3d~camera:public.camera public.scene;
+        text~at:(22,18)~size:16"Stable Scene3 instance baseline"]in
+      let staged=Result.get_ok(Prismel_next_api.Scene.Private.stage_native
+        ~width~height scene)in
+      let prepared=match staged.scene3 with
+        |[prepared]when Array.length prepared.Scene_execution.entries=12->prepared
+        |_->failwith"R10 Scene3 must lower to one 12-draw public native scene"in
+      Array.iter(fun(entry:Scene_execution.scene3_entry)->
+        if Bytes.length entry.draw.mesh.vertices<>entry.draw.mesh.vertex_count*68
+           ||Option.fold~none:true~some:(fun bytes->Bytes.length bytes<>5456)
+             entry.draw.state.transform_uniforms then
+          failwith"R10 Scene3 did not use the production 68-byte/uniform lowering")
+        prepared.entries;
+      let family=function Scene_execution.Scene3->Prismel_next_execution.Scene3
+        |Scene3_textured->Scene3_textured|Scene3_shadow->Scene3_shadow
+        |Scene3_stencil->Scene3_stencil|Scene3_textured_stencil->Scene3_textured_stencil
+        |Scene3_shadow_stencil->Scene3_shadow_stencil
+        |Scene2->Scene2|Scene2_textured->Scene2_textured in
+      let blend=function Ogpu.Pipeline.Replace->Prismel_next_execution.Replace
+        |Alpha->Alpha|Add->Add|Multiply->Multiply|Screen->Screen|Subtract->Subtract in
+      let scene3_draw(entry:Scene_execution.scene3_entry)=
+          Prismel_next_execution.prepared_draw~family:(family entry.family)
+            ~blend:(blend entry.blend)?texture:entry.texture
+            ?auxiliary:entry.auxiliary~samples:entry.samples entry.draw in
+      let facts=Result.get_ok(Prismel_next_execution.presentation_facts execution)in
+      let density=max 1(int_of_float(Float.round facts.pixel_density))in
+      let draws=List.concat_map(function
+        |Prismel_next_api.Scene.Private.Scene2_layer(ir,resources)->
+            Result.get_ok(Prismel_next_execution.lower_scene2 execution~density
+              ~resource:(fun id->List.assoc_opt id resources)ir)
+        |Scene3_layer prepared->Array.to_list prepared.entries|>List.map scene3_draw)
+        staged.layers in
+      let render_full_scene()=Result.map(fun _->true)
+        (Prismel_next_execution.step~clear:staged.clear execution
+          draws)in
       render_full_scene,
       render_full_scene,
       (fun()->Prismel_next_execution.capture execution),
@@ -217,50 +279,79 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
       (fun()->Prismel_next_execution.presentation_facts execution),
       (fun visible->if visible then Prismel_next_execution.show execution else Prismel_next_execution.hide execution),
       (fun()->Prismel_next_execution.visible execution),
-      (fun()->Prismel_next_execution.destroy execution)
+      (fun()->None),
+      (fun()->None),
+      (fun()->Prismel_next_api.Scene.Private.release scene;
+        Prismel_next_execution.destroy execution)
   |Shattered->assert false in
   let requested_visible=visibility=Visible in
   ignore(Result.get_ok(set_visibility requested_visible));
   let observed_visible=Result.get_ok(observed_visibility())in
   if observed_visible<>requested_visible then failwith"R10 native observed visibility mismatch";
   let rss_peak=ref(rss_kib())and next_rss_sample=ref(Sdl3.Time.monotonic_seconds()+.1.)in
+  let last_frame_started=ref(Sdl3.Time.monotonic_seconds())in
+  let phase0_frame()=
+    let started=Sdl3.Time.monotonic_seconds()in
+    let interval=started-. !last_frame_started in
+    last_frame_started:=started;
+    ignore(execution(render()));
+    let target=1./.60. in
+    if interval<target then begin
+      let delay_ms=int_of_float((target-.interval)*.1000.)in
+      if delay_ms>0 then Unix.sleepf(float delay_ms/.1000.)
+    end;
+    interval in
   let sample_rss now=if now >= !next_rss_sample then(
     rss_peak:=max !rss_peak(rss_kib());next_rss_sample:=now+.1.)in
   let run_for duration collect =
-    let started=Sdl3.Time.monotonic_seconds()in
-    let rec loop count values =
+    let capacity=16_384 and started=Sdl3.Time.monotonic_seconds()in
+    let values=if collect then Some(Array.make capacity 0.)else None in
+    let rec loop count =
       let now=Sdl3.Time.monotonic_seconds()in
-      if count>0&&now-.started>=duration then Array.of_list(List.rev values),now-.started
-      else let frame_started=now in ignore(Result.get_ok(render()));
+      if count>0&&now-.started>=duration then
+        Option.fold~none:[||]~some:(fun values->Array.sub values 0 count)values,
+        now-.started
+      else let interval=phase0_frame()in
         let completed=Sdl3.Time.monotonic_seconds()in if collect then sample_rss completed;
-        let elapsed=completed-.frame_started in
-        loop(count+1)(if collect then elapsed::values else values)
-    in loop 0 [] in
+        Option.iter(fun values->if count>=capacity then
+          failwith"R10 Phase0 frame sample capacity exceeded"else
+          values.(count)<-interval)values;
+        loop(count+1)
+    in loop 0 in
   ignore(run_for warmup_seconds false);
   let rss_before=rss_kib()in rss_peak:=rss_before;
   next_rss_sample:=Sdl3.Time.monotonic_seconds()+.1.;
-  let before=Result.get_ok(stats())in Gc.full_major();let gc0=Gc.quick_stat()and allocated0=Gc.allocated_bytes()and cpu0=Unix.times()in
+  let before=Result.get_ok(stats())and canvas_before=canvas_stats()in
+  Gc.full_major();let gc0=Gc.quick_stat()and allocated0=Gc.allocated_bytes()and cpu0=Unix.times()in
   let walls,total=match sample_seconds with
-  |None->let values=Array.init samples(fun _->let started=Sdl3.Time.monotonic_seconds()in ignore(Result.get_ok(render()));Sdl3.Time.monotonic_seconds()-.started)in values,Array.fold_left(+.)0. values
+  |None->let values=Array.init samples(fun _->let started=Sdl3.Time.monotonic_seconds()in ignore(execution(render()));Sdl3.Time.monotonic_seconds()-.started)in values,Array.fold_left(+.)0. values
   |Some duration->run_for duration true in
   let measured=Array.length walls in
-  let after=Result.get_ok(stats())and gc1=Gc.quick_stat()and cpu1=Unix.times()and allocated=Gc.allocated_bytes()-.allocated0 in
+  let after=Result.get_ok(stats())and canvas_after=canvas_stats()
+  and gc1=Gc.quick_stat()and cpu1=Unix.times()and allocated=Gc.allocated_bytes()-.allocated0 in
   let framebuffer=Result.get_ok(capture())and rss=rss_kib()and window=Result.get_ok(presentation_facts())in rss_peak:=max!rss_peak rss;
-  ignore(Result.get_ok(render_canonical()));let canonical_framebuffer=Result.get_ok(capture())in
+  ignore(execution(render_canonical()));let canonical_framebuffer=Result.get_ok(capture())in
   ignore(Result.get_ok(destroy()));
+  ignore(metal(Metal.Release_queue.drain()));
+  let release_after=metal(Metal.Release_queue.stats())in
   let cpu=cpu1.tms_utime+.cpu1.tms_stime-.cpu0.tms_utime-.cpu0.tms_stime in
   let promoted=(gc1.promoted_words-.gc0.promoted_words)*.float(Sys.word_size/8)in
   let delta x y=Int64.to_int(Int64.sub x y)in
-  let json=`Assoc["schema",`Int 1;"scenario",`String(scenario_name selected);"backend",`String"real-m1-runtime-next-metal";"profile",`String"release";
+  let json=`Assoc["schema",`Int 1;
+    "benchmark_identity",`String"runtime-next-production-public-r10";
+    "scenario",`String(scenario_name selected);"backend",`String"real-m1-runtime-next-metal";"profile",`String"release";
     "visibility",`String(match visibility with Visible->"visible"|Hidden->"hidden");
     "observed_visible",`Bool observed_visible;"protocol_r11_requested",`Bool(sample_seconds=Some 30.);
     "width",`Int width;"height",`Int height;
+    "phase0_fps_configuration",`Int 60;
+    "measurement_clock",`String"phase0-prior-dt-fps60-integer-ms";
+    "timing_buffer_capacity",`Int 16384;"rss_sample_seconds",`Float 1.;
     "window",`Assoc["logical_width",`Int window.logical_width;"logical_height",`Int window.logical_height;
       "pixel_density",`Float window.pixel_density;"display_scale",`Float window.display_scale;
       "drawable_width",`Int window.drawable_width;"drawable_height",`Int window.drawable_height;
       "refresh_hz",(match window.refresh_rate with None->`Null|Some value->`Float value);
       "vsync",`Bool window.vsync];
-    "warmup_seconds",`Float warmup_seconds;"sample_frames",`Int measured;"pieces",`Int descriptor.work_units;"triangles",`Int descriptor.work_units;"acceptance_cook",`Null;
+    "warmup_seconds",`Float warmup_seconds;"sample_frames",`Int measured;"acceptance_cook",`Null;
     "wall_seconds",`Float total;"user_seconds",`Float(cpu1.tms_utime-.cpu0.tms_utime);"system_seconds",`Float(cpu1.tms_stime-.cpu0.tms_stime);
     "median_ms",`Float(1000.*.percentile 0.5 walls);"p95_ms",`Float(1000.*.percentile 0.95 walls);"p99_ms",`Float(1000.*.percentile 0.99 walls);
     "fps",`Float(float measured/.total);"cpu_percent",`Float(100.*.cpu/.total);"allocated_bytes",`Float allocated;"promoted_bytes",`Float promoted;
@@ -274,11 +365,15 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
     "scheduled_frame_rate",`Null;
     "framebuffer_digest",`String(Digest.to_hex(Digest.bytes framebuffer));
     "canonical_framebuffer_digest",`String(Digest.to_hex(Digest.bytes canonical_framebuffer));
-    "canonical_pixel_authority",`String("r10-canonical-frame-1/"^protocol_scenario_name selected);
-    "pixel_authority",`String("phase0/runtime-next-native"^(match visibility with Visible->""|Hidden->"-hidden")^"/"^protocol_scenario_name selected);"pixel_tolerance",`Int 3;
+    "canonical_pixel_source",`String("candidate-stability-frame-1/"^protocol_scenario_name selected);
+    "pixel_source",`String("runtime-next-native"^(match visibility with Visible->""|Hidden->"-hidden")^"/"^protocol_scenario_name selected);"pixel_tolerance",`Int 3;
     "native_gpu_counters",native_gpu_counters ~supported:after.gpu_timing_supported ~duration:(after.gpu_duration_seconds-.before.gpu_duration_seconds) ~samples:(Int64.sub after.gpu_sample_count before.gpu_sample_count) ~wall:total;
     "retained_render_plans",retained_plan_counters before after;
-    "metal_device",metal_device_facts();
+    "offscreen_setup",Option.fold~none:`Null~some:canvas_stats_json(setup_canvas_stats());
+    "offscreen_measurement",canvas_stats_delta canvas_before canvas_after;
+    "metal_device",metal_device;
+    "metal_lifetime",`Assoc["before",metal_release_facts release_before;
+      "after",metal_release_facts release_after];
     "machine",`Assoc["arch",`String(Sys.getenv_opt"HOSTTYPE"|>Option.value~default:"arm64");"ocaml",`String Sys.ocaml_version]]in
   Yojson.Safe.pretty_to_string json^"\n"
 

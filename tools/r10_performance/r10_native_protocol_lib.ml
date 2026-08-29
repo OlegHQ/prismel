@@ -9,6 +9,8 @@ let scenarios = [ "basic"; "pxui"; "canvas"; "scene3" ]
 let visibilities = [ "visible"; "hidden" ]
 let production_benchmark =
   "_build/default/tools/runtime_next_native_benchmark/runtime_next_native_benchmark.exe"
+let production_protocol_suffix =
+  "_build/default/tools/r10_performance/r10_native_protocol.exe"
 let qualification_schema = "prismel-r10-native-qualification/v2"
 let smoke_schema = "prismel-r10-native-smoke/v1"
 let frozen_baseline_sha256 =
@@ -58,6 +60,21 @@ let hex64 value =
   && String.for_all
        (function '0' .. '9' | 'a' .. 'f' -> true | _ -> false)
        value
+
+let hex32 value =
+  String.length value = 32
+  && String.for_all
+       (function '0' .. '9' | 'a' .. 'f' -> true | _ -> false)
+       value
+
+let int64_text context = function
+  | `String value | `Intlit value ->
+      (try
+         let parsed = Int64.of_string value in
+         if parsed < 0L then fail "%s is negative" context;
+         parsed
+       with Failure _ -> fail "%s is not a non-negative int64" context)
+  | _ -> fail "%s is not an int64 string" context
 
 let git arguments = command_output "/usr/bin/git" arguments
 
@@ -146,6 +163,13 @@ let string context = function
 let boolean context = function
   | `Bool value -> value
   | _ -> fail "%s is not a boolean" context
+
+let contains haystack needle =
+  let haystack_length=String.length haystack
+  and needle_length=String.length needle in
+  let rec loop offset=offset+needle_length<=haystack_length&&
+    (String.sub haystack offset needle_length=needle||loop(offset+1))in
+  needle_length=0||loop 0
 
 let field context name json =
   let value = member name json in
@@ -299,6 +323,9 @@ let check_cell_semantics ~qualification ~sample_seconds ~warmup_seconds
       let raw = sample_raw context sample in
       if member "backend" raw <> `String "real-m1-runtime-next-metal" then
         fail "%s is not the production Metal backend" context;
+      if member "benchmark_identity" raw
+         <> `String "runtime-next-production-public-r10"
+      then fail "%s is not the production public R10 benchmark" context;
       if string context (field context "profile" raw) <> profile then
         fail "%s profile mismatch" context;
       if integer context (field context "width" raw) <> width
@@ -309,6 +336,12 @@ let check_cell_semantics ~qualification ~sample_seconds ~warmup_seconds
       then fail "%s workload scenario mismatch" context;
       if string context (field context "visibility" raw) <> visibility then
         fail "%s requested visibility mismatch" context;
+      if integer context(field context "phase0_fps_configuration"raw)<>60
+         ||member "measurement_clock"raw<>
+           `String"phase0-prior-dt-fps60-integer-ms"
+         ||integer context(field context "timing_buffer_capacity"raw)<>16_384
+         ||number context(field context "rss_sample_seconds"raw)<>1. then
+        fail "%s does not use the frozen Phase0 measurement harness"context;
       if boolean context (field context "observed_visible" raw)
          <> (visibility = "visible")
       then fail "%s observed visibility mismatch" context;
@@ -322,6 +355,7 @@ let check_cell_semantics ~qualification ~sample_seconds ~warmup_seconds
         fail "%s child did not execute the exact 30-second protocol" context;
       let frames = integer context (field context "sample_frames" raw) in
       if frames <= 0 then fail "%s measured no frames" context;
+      if frames > 10_000_000 then fail "%s has an implausible frame count" context;
       let wall = number context (field context "wall_seconds" raw) in
       if qualification
          && (wall < sample_seconds *. 0.90 || wall > sample_seconds *. 1.10)
@@ -337,6 +371,57 @@ let check_cell_semantics ~qualification ~sample_seconds ~warmup_seconds
       if List.hd !signatures <> expected_signature
          || List.hd !work_units <> expected_units
       then fail "%s does not match the frozen Phase0 workload authority" context;
+      let evidence =
+        R10_phase0_workload_authority.runtime_evidence
+          (authority_scenario scenario)
+      in
+      let exact_counter name per_frame =
+        let actual = integer context (field context name raw) in
+        let expected = frames * per_frame in
+        if actual <> expected then
+          fail "%s %s=%d, expected %d from the frozen workload lowering"
+            context name actual expected
+      in
+      exact_counter "draws" evidence.draws_per_frame;
+      exact_counter "passes" evidence.passes_per_frame;
+      exact_counter "backend_calls" evidence.submissions_per_frame;
+      let upload = int64_text (context ^ ".measurement_upload_bytes")
+          (field context "measurement_upload_bytes" raw) in
+      if evidence.uploads_full_frame_per_frame then begin
+        let minimum =
+          Int64.mul (Int64.of_int frames)
+            (Int64.of_int (width * height * 4))
+        in
+        if upload < minimum then
+          fail "%s uploaded %Ld bytes, below the %Ld-byte Canvas snapshot minimum"
+            context upload minimum
+      end;
+      let offscreen_setup=member "offscreen_setup"raw
+      and offscreen_measurement=member "offscreen_measurement"raw in
+      let exact_offscreen context value ~frames ~draws ~passes ~submissions=
+        let exact name expected=
+          let actual=int64_text context(field context name value)in
+          if actual<>Int64.of_int expected then
+            fail "%s %s=%Ld, expected %d"context name actual expected in
+        exact"frames"frames;exact"draws"draws;exact"passes"passes;
+        exact"submissions"submissions;
+        ignore(int64_text context(field context "uploaded_bytes"value));
+        if integer context(field context "cache_entries"value)>256 then
+          fail "%s offscreen cache exceeds 256 entries"context in
+      (match scenario with
+      |"basic"->
+          exact_offscreen(context^".offscreen_setup")offscreen_setup
+            ~frames:1~draws:4~passes:1~submissions:1;
+          if offscreen_measurement<>`Null then
+            fail "%s Basic retained an offscreen target during measurement"context
+      |"canvas"->
+          exact_offscreen(context^".offscreen_setup")offscreen_setup
+            ~frames:1~draws:0~passes:1~submissions:1;
+          exact_offscreen(context^".offscreen_measurement")offscreen_measurement
+            ~frames~draws:(frames*5)~passes:frames~submissions:frames
+      |"pxui"|"scene3"->if offscreen_setup<>`Null||offscreen_measurement<>`Null
+          then fail "%s unexpectedly used an offscreen Canvas"context
+      |_ -> assert false);
       let window=field context "window" raw in
       let logical_width=integer context(field context "logical_width" window)
       and logical_height=integer context(field context "logical_height" window)
@@ -348,24 +433,61 @@ let check_cell_semantics ~qualification ~sample_seconds ~warmup_seconds
          ||density<=0.||display_scale<=0. then fail "%s has invalid production-window facts" context;
       if Float.abs(float drawable_width/.float logical_width-.density)>0.01 then
         fail "%s drawable width disagrees with pixel density" context;
+      if Float.abs(float drawable_height/.float logical_height-.density)>0.01 then
+        fail "%s drawable height disagrees with pixel density" context;
       ignore(boolean context(field context "vsync" window));
       (match member "refresh_hz" window with `Null->()|value->
         if number context value<=0. then fail "%s has invalid refresh rate"context);
       let device=field context "metal_device" raw in
-      ignore(string context(field context "name" device));
-      ignore(string context(field context "registry_id" device));
-      ignore(string context(field context "architecture" device));
-      ignore(boolean context(field context "unified_memory" device));
+      if member "selection" device <> `String "Metal.Device.system_default" then
+        fail "%s did not use the default Metal device" context;
+      let device_name=string context(field context "name" device)
+      and architecture=string context(field context "architecture" device)in
+      if not(String.starts_with~prefix:"Apple " device_name)
+         ||not(String.starts_with~prefix:"applegpu_" architecture)then
+        fail "%s is not an Apple-Silicon Metal device"context;
+      if int64_text context(field context "registry_id" device)<=0L then
+        fail "%s has an invalid Metal registry id"context;
+      ignore(boolean context(field context "low_power" device));
+      ignore(boolean context(field context "removable" device));
+      if not(boolean context(field context "unified_memory" device))then
+        fail "%s Metal device does not report unified memory"context;
+      if int64_text context(field context "recommended_max_working_set_size" device)<=0L
+         ||int64_text context(field context "max_buffer_length" device)<=0L then
+        fail "%s has invalid Metal capacity facts"context;
+      let lifetime=field context "metal_lifetime"raw in
+      let before=field context "before"lifetime
+      and after=field context "after"lifetime in
+      let int name value=integer context(field context name value)
+      and wide name value=int64_text context(field context name value)in
+      let before_created=wide"total_created"before
+      and after_created=wide"total_created"after
+      and before_released=wide"total_released"before
+      and after_released=wide"total_released"after in
+      if int"pending"after<>0||int"dropped"before<>0||int"dropped"after<>0
+         ||int"live_handles"before<>int"live_handles"after
+         ||Int64.sub after_created before_created<>
+           Int64.sub after_released before_released
+         ||wide"external_deallocation_mismatches"before<>
+           wide"external_deallocation_mismatches"after then
+        fail "%s leaked/dropped/mismatched native Metal handles"context;
+      ignore(wide"external_deallocations"before);
+      ignore(wide"external_deallocations"after);
       let gpu=field context "native_gpu_counters" raw in
       let supported=boolean context(field context "supported" gpu)in
       let status=string context(field context "status" gpu)in
       if(status="measured")<>supported||not(List.mem status["measured";"unsupported"])
       then fail "%s has inconsistent native GPU counters"context;
       let authority =
-        string context (field context "canonical_pixel_authority" raw)
+        string context (field context "canonical_pixel_source" raw)
       in
-      if authority <> "r10-canonical-frame-1/" ^ scenario then
-        fail "%s canonical pixel authority mismatch" context)
+      if authority <> "candidate-stability-frame-1/" ^ scenario then
+        fail "%s candidate pixel source mismatch" context;
+      if string context(field context "pixel_source"raw)<>
+         "runtime-next-native"^(if visibility="hidden"then"-hidden"else"")^
+         "/"^scenario then fail "%s measured pixel source mismatch"context;
+      if not(hex32(List.hd !hashes))then
+        fail "%s canonical framebuffer digest is not lowercase MD5"context)
     samples;
   let unique compare values = List.sort_uniq compare values in
   if List.length (unique String.compare !signatures) <> 1 then
@@ -381,12 +503,13 @@ let ratio value baseline =
   else value /. baseline
 
 let validate_conditions context value =
-  ignore(number context(field context "captured_epoch_seconds"value));
-  ignore(string context(field context "power"value));
-  ignore(string context(field context "thermal"value))
+  let captured=number context(field context "captured_epoch_seconds"value)
+  and power=string context(field context "power"value)
+  and thermal=string context(field context "thermal"value)in
+  captured,power,thermal
 
 let validate_exact_cells report ~expected ~benchmark ~width ~height
-    ~warmup_seconds ~sample_seconds =
+    ~warmup_seconds ~sample_seconds ~qualification =
   let samples=report|>member "samples"|>to_list in
   let expected_order=ref[]in
   for sample_index=1 to expected do
@@ -408,14 +531,25 @@ let validate_exact_cells report ~expected ~benchmark ~width ~height
     let actual_command=field context "command"sample|>to_list|>List.map to_string in
     if actual_command<>expected_command then
       fail "%s/%s index %d child command drift"scenario visibility index;
-    validate_conditions(context^".conditions_before")(field context "conditions_before"sample);
-    validate_conditions(context^".conditions_after")(field context "conditions_after"sample);
+    let before_time,before_power,before_thermal=
+      validate_conditions(context^".conditions_before")
+        (field context "conditions_before"sample)in
+    let after_time,after_power,after_thermal=
+      validate_conditions(context^".conditions_after")
+        (field context "conditions_after"sample)in
+    if after_time<before_time then fail "%s child condition timestamps are reversed"context;
+    if qualification&&(not(contains before_power "AC Power")
+      ||not(contains after_power "AC Power")||before_thermal<>after_thermal)then
+      fail "%s qualification power/thermal conditions were not stable AC"context;
     index,scenario,visibility)samples in
   if actual_order<>expected_order then
     fail "R10 cells/indices are not exactly round-major indices 1..%d"expected;
   let devices=List.map(fun sample->member "metal_device"(sample_raw "sample" sample))samples
     |>List.sort_uniq compare in
   if List.length devices<>1 then fail "Metal device facts changed between child cells";
+  let windows=List.map(fun sample->member "window"(sample_raw "sample" sample))samples
+    |>List.sort_uniq compare in
+  if List.length windows<>1 then fail "window/display facts changed between child cells";
   samples
 
 let validate_machine provenance =
@@ -423,8 +557,13 @@ let validate_machine provenance =
   List.iter(fun name->ignore(string("machine."^name)(field "machine"name machine)))
     ["os_name";"os_version";"os_build";"kernel";"architecture";
      "sdk_version";"sdk_path";"ocaml_version"];
+  if member "os_name"machine<>`String"macOS"
+     ||member "architecture"machine<>`String"arm64"then
+    fail "qualification machine is not native arm64 macOS";
   (match field "machine" "display_inventory"machine with
-   |`Assoc _->()|_->fail "machine display inventory is not an object")
+   |`Assoc fields->(match List.assoc_opt"SPDisplaysDataType"fields with
+      |Some(`List(_::_))->()|_->fail "machine display inventory has no displays")
+   |_->fail "machine display inventory is not an object")
 
 let validate_report ?(verify_files=true) report =
   if member "schema" report <> `String qualification_schema then
@@ -459,6 +598,8 @@ let validate_report ?(verify_files=true) report =
   if member "baseline_sha256" provenance <> `String frozen_baseline_sha256 then
     fail "report baseline digest provenance mismatch";
   if member "workload_commit"provenance<>`String R10_phase0_workload_authority.commit
+     ||member "workload_source"provenance<>
+       `String R10_phase0_workload_authority.source_path
      ||member "workload_source_sha256"provenance<>
        `String R10_phase0_workload_authority.source_sha256 then
     fail "frozen Phase0 workload provenance mismatch";
@@ -476,6 +617,10 @@ let validate_report ?(verify_files=true) report =
       (field "provenance" "protocol_executable_sha256" provenance) in
   if not(hex64 executable_sha&&hex64 protocol_sha)then
     fail "qualification executable digests are not canonical SHA-256";
+  if protocol_executable<>production_protocol_suffix
+     &&not(String.ends_with~suffix:("/"^production_protocol_suffix)
+       protocol_executable)then
+    fail "qualification used a non-production protocol executable";
   if verify_files then begin
     if not(Sys.file_exists benchmark)||sha256 benchmark<>executable_sha then
       fail "benchmark executable digest does not correspond to its path";
@@ -483,7 +628,7 @@ let validate_report ?(verify_files=true) report =
       fail "protocol executable digest does not correspond to its path"
   end;
   ignore(validate_exact_cells report~expected~benchmark~width~height~warmup_seconds
-    ~sample_seconds);
+    ~sample_seconds~qualification:true);
   let summaries = ref [] in
   List.iter
     (fun scenario ->
@@ -587,7 +732,7 @@ let validate_smoke_report report =
     fail "smoke workload provenance mismatch";
   let benchmark=string "provenance.benchmark"(field "provenance" "benchmark"provenance)in
   ignore(validate_exact_cells report~expected~benchmark~width~height~warmup_seconds
-    ~sample_seconds);
+    ~sample_seconds~qualification:false);
   List.iter(fun scenario->List.iter(fun visibility->
     let samples=samples_for report scenario visibility in
     if List.length samples<>1 then fail "%s/%s smoke cell count drift"scenario visibility;
@@ -733,9 +878,32 @@ let run ~benchmark ~baseline_path ~output ~profile ~width ~height ~samples
 let synthetic_raw ~scenario ~visibility run =
   let frames = integer scenario (field scenario "frames" run) in
   let work_units,signature=expected_workload scenario in
+  let evidence=R10_phase0_workload_authority.runtime_evidence
+      (authority_scenario scenario)in
+  let upload=if evidence.uploads_full_frame_per_frame then
+      Int64.mul(Int64.of_int frames)(Int64.of_int(640*480*4))else 0L in
+  let offscreen_setup,offscreen_measurement=match scenario with
+    |"basic"->
+        `Assoc["frames",`String"1";"draws",`String"4";"passes",`String"1";
+          "submissions",`String"1";"uploaded_bytes",`String"1";
+          "cache_entries",`Int 1],`Null
+    |"canvas"->
+        `Assoc["frames",`String"1";"draws",`String"0";"passes",`String"1";
+          "submissions",`String"1";"uploaded_bytes",`String"0";
+          "cache_entries",`Int 0],
+        `Assoc["frames",`String(Int.to_string frames);
+          "draws",`String(Int.to_string(frames*5));
+          "passes",`String(Int.to_string frames);
+          "submissions",`String(Int.to_string frames);
+          "uploaded_bytes",`String"1";"cache_entries",`Int 1]
+    |_ ->`Null,`Null in
   `Assoc
     [ "backend",`String"real-m1-runtime-next-metal"
+    ; "benchmark_identity",`String"runtime-next-production-public-r10"
     ; "profile", `String "release"; "width", `Int 640; "height", `Int 480
+    ; "phase0_fps_configuration",`Int 60
+    ; "measurement_clock",`String"phase0-prior-dt-fps60-integer-ms"
+    ; "timing_buffer_capacity",`Int 16384;"rss_sample_seconds",`Float 1.
     ; "scenario", `String (expected_raw_scenario scenario)
     ; "visibility", `String visibility
     ; "observed_visible", `Bool (visibility = "visible")
@@ -751,15 +919,36 @@ let synthetic_raw ~scenario ~visibility run =
     ; "promoted_bytes", field scenario "promoted_bytes" run
     ; "peak_sampled_rss_kib", field scenario "peak_sampled_rss_kib" run
     ; "workload_signature", `String signature
-    ; "canonical_framebuffer_digest", `String ("digest-" ^ scenario)
-    ; "canonical_pixel_authority", `String ("r10-canonical-frame-1/" ^ scenario)
+    ; "canonical_framebuffer_digest", `String(Digest.to_hex(Digest.string scenario))
+    ; "canonical_pixel_source", `String ("candidate-stability-frame-1/" ^ scenario)
+    ; "pixel_source",`String("runtime-next-native"^
+        (if visibility="hidden"then"-hidden"else"")^"/"^scenario)
     ; "work_units", `Int work_units
+    ; "draws",`Int(frames*evidence.draws_per_frame)
+    ; "passes",`Int(frames*evidence.passes_per_frame)
+    ; "backend_calls",`Int(frames*evidence.submissions_per_frame)
+    ; "measurement_upload_bytes",`String(Int64.to_string upload)
+    ; "offscreen_setup",offscreen_setup
+    ; "offscreen_measurement",offscreen_measurement
     ; "window",`Assoc["logical_width",`Int 640;"logical_height",`Int 480;
         "drawable_width",`Int 640;"drawable_height",`Int 480;
         "pixel_density",`Float 1.;"display_scale",`Float 1.;
         "refresh_hz",`Float 60.;"vsync",`Bool true]
-    ; "metal_device",`Assoc["name",`String"Apple Test";"registry_id",`String"1";
-        "architecture",`String"apple-test";"unified_memory",`Bool true]
+    ; "metal_device",`Assoc["selection",`String"Metal.Device.system_default";
+        "name",`String"Apple Test";"registry_id",`String"1";
+        "architecture",`String"applegpu_test";"low_power",`Bool false;
+        "removable",`Bool false;"unified_memory",`Bool true;
+        "recommended_max_working_set_size",`String"1";
+        "max_buffer_length",`String"1"]
+    ; "metal_lifetime",`Assoc[
+        "before",`Assoc["pending",`Int 0;"dropped",`Int 0;
+          "live_handles",`Int 0;"total_created",`String"10";
+          "total_released",`String"10";"external_deallocations",`String"0";
+          "external_deallocation_mismatches",`String"0"];
+        "after",`Assoc["pending",`Int 0;"dropped",`Int 0;
+          "live_handles",`Int 0;"total_created",`String"20";
+          "total_released",`String"20";"external_deallocations",`String"0";
+          "external_deallocation_mismatches",`String"0"]]
     ; "native_gpu_counters",`Assoc["status",`String"unsupported";
         "supported",`Bool false]
     ]
@@ -781,9 +970,11 @@ let self_test baseline_path =
                       (expected_command~benchmark:production_benchmark~width:640~height:480
                         ~warmup_seconds:3.~sample_seconds:30. scenario visibility))
                   ; "conditions_before",`Assoc["captured_epoch_seconds",`Float 1.;
-                      "power",`String"AC";"thermal",`String"nominal"]
+                      "power",`String"Now drawing from 'AC Power'";
+                      "thermal",`String"nominal"]
                   ; "conditions_after",`Assoc["captured_epoch_seconds",`Float 2.;
-                      "power",`String"AC";"thermal",`String"nominal"]
+                      "power",`String"Now drawing from 'AC Power'";
+                      "thermal",`String"nominal"]
                   ; "raw", synthetic_raw ~scenario ~visibility run
                   ]
                 :: !sample_values)visibilities)scenarios
@@ -804,17 +995,32 @@ let self_test baseline_path =
           ; "baseline_path", `String baseline_path
           ; "baseline_sha256", `String frozen_baseline_sha256
           ; "workload_commit",`String R10_phase0_workload_authority.commit
+          ; "workload_source",`String R10_phase0_workload_authority.source_path
           ; "workload_source_sha256",`String R10_phase0_workload_authority.source_sha256
           ; "machine",`Assoc["os_name",`String"macOS";"os_version",`String"test";
               "os_build",`String"test";"kernel",`String"test";
               "architecture",`String"arm64";"sdk_version",`String"test";
               "sdk_path",`String"/test";"ocaml_version",`String Sys.ocaml_version;
-              "display_inventory",`Assoc[]]
+              "display_inventory",`Assoc["SPDisplaysDataType",
+                `List[`Assoc["name",`String"Test Display"]]]]
           ]
       ; "samples", `List (List.rev !sample_values)
       ]
   in
   ignore (validate_report~verify_files:false report);
+  let update_assoc key update = function
+    |`Assoc fields->`Assoc(List.map(fun(name,value)->
+         if name=key then name,update value else name,value)fields)
+    |_ -> assert false in
+  let update_first_sample update report=update_assoc "samples"(function
+    |`List(first::rest)->`List(update first::rest)|_->assert false)report in
+  let update_first_raw update report=update_first_sample
+      (update_assoc "raw"update)report in
+  let replace value _=value in
+  let expect_invalid label candidate=
+    try ignore(validate_report~verify_files:false candidate);
+      fail"self-test accepted %s"label
+    with Invalid_report _->()in
   let broken =
     match report with
     | `Assoc fields ->
@@ -828,6 +1034,23 @@ let self_test baseline_path =
      ignore (validate_report~verify_files:false broken);
      fail "self-test accepted a missing cell sample"
    with Invalid_report _ -> ());
+  expect_invalid "a duplicate cell index"
+    (update_first_sample(update_assoc "sample_index"(replace(`Int 2)))report);
+  expect_invalid "an unknown cell"
+    (update_first_sample(update_assoc "scenario"(replace(`String"unknown")))report);
+  expect_invalid "child command drift"
+    (update_first_sample(update_assoc "command"(function
+       |`List values->`List(values@[`String"--unexpected"])|_->assert false))report);
+  expect_invalid "a non-production child backend"
+    (update_first_raw(update_assoc "backend"(replace(`String"pretend-metal")))report);
+  expect_invalid "renderer counter drift"
+    (update_first_raw(update_assoc "draws"(replace(`Int 0)))report);
+  expect_invalid "a non-production benchmark"
+    (update_assoc "provenance"(update_assoc "benchmark"
+       (replace(`String"_build/default/arbitrary.exe")))report);
+  expect_invalid "a malformed protocol digest"
+    (update_assoc "provenance"(update_assoc "protocol_executable_sha256"
+       (replace(`String"not-a-sha")))report);
   let dirty =
     match report with
     | `Assoc fields ->
