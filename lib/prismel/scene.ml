@@ -235,17 +235,22 @@ module Private=struct
        :: materialize ~width ~height rest
    | node :: rest -> node :: materialize ~width ~height rest
 
+ let stage_materialized scene =
+   try
+     match Scene_command.Render_ir.Private.create_owned
+       (Array.of_list(List.rev(commands[]scene)))with
+     |Error _->Error "invalid scene description"
+     |Ok ir->Ok(ir,image_resources scene)
+   with
+   |Failure message->Error message
+   |Invalid_argument message->Error message
+
  let stage ~width ~height scene =
    if width <= 0 || height <= 0 then Error "invalid scene extent"
    else
-     try
-       let scene = materialize ~width ~height scene in
-       match Scene_command.Render_ir.Private.create_owned (Array.of_list (List.rev (commands [] scene))) with
-       | Error _ -> Error "invalid scene description"
-       | Ok ir -> Ok (ir, image_resources scene)
-     with
-     | Failure message -> Error message
-     | Invalid_argument message -> Error message
+     try stage_materialized(materialize~width~height scene)with
+     |Failure message->Error message
+     |Invalid_argument message->Error message
 
  let unpack_clear color=
    let channel shift=Int32.(to_int(logand(shift_right_logical color shift)0xffl))in
@@ -274,23 +279,29 @@ module Private=struct
    loop[][]items
 
  let stage_native ~width ~height scene =
-   match stage ~width ~height scene with Error _ as error->error|Ok(scene2,resources)->
-   let materialized=materialize~width~height scene in
+   if width<=0||height<=0 then Error "invalid scene extent"else
+   let materialized=try Ok(materialize~width~height scene)with
+     |Failure message|Invalid_argument message->Error message in
+   match materialized with Error _ as error->error|Ok materialized->
+   match stage_materialized materialized with Error _ as error->error
+   |Ok(scene2,resources)->
    let failure=ref None in
    let callbacks:Scene3_native_lowering.resources={
      texture=(fun value->let levels=Texture.Private.levels value.Scene3.value|>Array.map(fun(w,h,pixels)->let bytes=Bytes.create(w*h*4)in Array.iteri(fun index color->Bytes.set_int32_be bytes(index*4)(Int32.of_int((color.Color.r lsl 24)lor(color.g lsl 16)lor(color.b lsl 8)lor color.a)))pixels;{Scene_execution.width=w;height=h;bytes})in let address=function Texture.Clamp->Ogpu.Types.Clamp_to_edge|Repeat->Repeat|Mirror->Mirror_repeat in let min_filter,mag_filter,mip_filter=match value.filter with Texture.Nearest->Ogpu.Types.Nearest,Ogpu.Types.Nearest,Ogpu.Types.No_mip|Texture.Bilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.No_mip|Texture.Trilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.Linear_mip in let sampler:Ogpu.Types.sampler_descriptor={label=Some"scene3-texture";min_filter;mag_filter;mip_filter;address_u=address value.wrap_u;address_v=address value.wrap_v;lod_min=0.;lod_max=float(Array.length levels-1);max_anisotropy=1}in Ok{Scene_execution.key=Digest.to_hex(Digest.string(Marshal.to_string levels[]));levels;sampler});
      shadow=(fun value->let source=Shadow3.Private.snapshot value in let matrix=Array.init 16(fun index->Mat4.get source.view_projection~row:(index/4)~column:(index mod 4))in let snapshot:Scene_execution.shadow_snapshot={width=source.width;height=source.height;depths=source.depths;matrix;bias={constant=source.bias;slope=source.normal_bias};kernel=(match source.filter with Hard->Tap1|Pcf_3x3->Tap9|Pcf_5x5->Tap25);strength=source.strength}in match Scene_execution.shadow_resource~key:(Digest.to_hex(Digest.string(Marshal.to_string snapshot[])))snapshot with Error _->Error Unsupported_shadow|Ok resource->Ok{Scene_execution.key=resource.texture.key;buffer=resource.parameters;texture=resource.texture})}in
-   let layers=List.filter_map(fun item->if!failure<>None then None else match item with
-     |`Two nodes->(match stage~width~height nodes with
-       |Ok(ir,resources)->Some(Scene2_layer(ir,resources))
-       |Error message->failure:=Some message;None)
-     |`Three node->
-       let viewport=Option.value node.viewport~default:(0,0,width,height)in
-       (match Scene3_native_lowering.prepare~resources:callbacks~camera:node.camera
-          ~viewport node.scene with
-        |Ok prepared->Some(Scene3_layer prepared)
-        |Error _->failure:=Some"native View3d lowering failed";None))
-     (grouped_items(ordered_items materialized))in
+   let grouped=grouped_items(ordered_items materialized)in
+   let layers=match grouped with
+   |[`Two _]->[Scene2_layer(scene2,resources)]
+   |_->List.filter_map(fun item->if!failure<>None then None else match item with
+       |`Two nodes->(match stage_materialized nodes with
+         |Ok(ir,resources)->Some(Scene2_layer(ir,resources))
+         |Error message->failure:=Some message;None)
+       |`Three node->
+         let viewport=Option.value node.viewport~default:(0,0,width,height)in
+         (match Scene3_native_lowering.prepare~resources:callbacks~camera:node.camera
+            ~viewport node.scene with
+          |Ok prepared->Some(Scene3_layer prepared)
+          |Error _->failure:=Some"native View3d lowering failed";None))grouped in
    let clear=ref(0.,0.,0.,0.)and seen_draw=ref false in
    List.iter(function
      |Scene3_layer _->seen_draw:=true

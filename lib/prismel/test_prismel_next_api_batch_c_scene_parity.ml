@@ -54,6 +54,18 @@ let () =
         ("text/View3d ordering or state scope: "
         ^ String.concat "," (List.map tag commands)));
   require (List.length first_resources = 1) "text resource";
+  let scene2_only=Scene.[clear Color.black;
+    rect~at:(1,2)~w:8~h:6~fill:Color.red();
+    debug_text~at:(2,3)"stage-once"]in
+  let staged_scene2_only=Result.get_ok
+    (Scene.Private.stage_native~width:16~height:12 scene2_only)in
+  (match staged_scene2_only.layers with
+   |[Scene.Private.Scene2_layer(ir,resources)]->
+       require(ir==staged_scene2_only.scene2)
+         "Scene2-only native staging duplicated its render IR";
+       require(resources==staged_scene2_only.resources)
+         "Scene2-only native staging duplicated its resource table"
+   |_->failwith"Scene2-only native staging split one ordered layer");
   let styled=Scene.[polygon[0,0;8,0;8,8]~fill:Color.red~stroke:Color.white()]in
   let styled_ir,_=Result.get_ok(Scene.Private.stage~width:16~height:16 styled)in
   (match Array.to_list(Scene_command.Render_ir.commands styled_ir)with
