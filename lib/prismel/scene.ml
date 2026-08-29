@@ -24,6 +24,28 @@ let stroke_path ?(width=1.) color path=geometry_of_mesh color(path_error"Scene p
 let styled_path ?fill ?stroke path=
   let fill=match fill,stroke with None,None->Some default_color|_->fill in
   Group(Option.to_list(Option.map(fun color->fill_path color path)fill)@Option.to_list(Option.map(fun color->stroke_path color path)stroke))
+type path_geometry_key={points:(int*int)list;closed:bool;stroke_width:int64;
+  fill_rgba:int32 option;stroke_rgba:int32 option}
+type path_geometry_cache={table:(path_geometry_key,node)Hashtbl.t;
+  order:path_geometry_key option array;mutable next:int}
+let path_geometry_cache_capacity=256
+let path_geometry_caches=Domain.DLS.new_key(fun()->
+  {table=Hashtbl.create path_geometry_cache_capacity;
+   order=Array.make path_geometry_cache_capacity None;next=0})
+let path_geometry_cached key make=
+  let cache=Domain.DLS.get path_geometry_caches in
+  match Hashtbl.find_opt cache.table key with
+  |Some value->value
+  |None->
+      let value=make()in
+      Option.iter(Hashtbl.remove cache.table)cache.order.(cache.next);
+      Hashtbl.add cache.table key value;
+      cache.order.(cache.next)<-Some key;
+      cache.next<-(cache.next+1)mod path_geometry_cache_capacity;
+      value
+let path_geometry_key ~points ~closed ~width ~fill ~stroke=
+  {points;closed;stroke_width=Int64.bits_of_float width;
+   fill_rgba=Option.map rgba fill;stroke_rgba=Option.map rgba stroke}
 type rounded_cache={table:((int*int*int*int32 option*int32 option),t)Hashtbl.t;mutable order:(int*int*int*int32 option*int32 option)list}
 let rounded_cache_capacity=256
 let rounded_caches=Domain.DLS.new_key(fun()->{table=Hashtbl.create rounded_cache_capacity;order=[]})
@@ -39,8 +61,6 @@ let rounded_cached key make=
         |oldest::rest->Hashtbl.remove cache.table oldest;cache.order<-List.rev rest);
       Hashtbl.replace cache.table key value;cache.order<-key::cache.order;value
 let point ~at ?(color=default_color)()=Primitive{points=[at];closed=false;fill=None;stroke=Some color}
-let line ~from_ ~to_ ?(color=default_color)?(width=1)()=
-  stroke_path~width:(float(max 1 width))color(Scene_command.Path.of_commands[|Scene_command.Path.Move_to(point2 from_);Scene_command.Path.Line_to(point2 to_)|])
 let path_of_points ~closed points=
   match points with
   |[]->Scene_command.Path.of_commands[||]
@@ -49,9 +69,17 @@ let path_of_points ~closed points=
         List.map(fun point->Scene_command.Path.Line_to(point2 point))rest@
         (if closed then[Scene_command.Path.Close]else[])in
       Scene_command.Path.of_commands(Array.of_list commands)
-let polygon points ?fill ?stroke()=styled_path?fill?stroke(path_of_points~closed:true points)
+let line ~from_ ~to_ ?(color=default_color)?(width=1)()=
+  let width=float(max 1 width)and points=[from_;to_]in
+  let key=path_geometry_key~points~closed:false~width~fill:None~stroke:(Some color)in
+  path_geometry_cached key(fun()->stroke_path~width color(path_of_points~closed:false points))
+let polygon points ?fill ?stroke()=
+  let fill=match fill,stroke with None,None->Some default_color|_->fill in
+  let key=path_geometry_key~points~closed:true~width:1.~fill~stroke in
+  path_geometry_cached key(fun()->styled_path?fill?stroke(path_of_points~closed:true points))
 let polyline points ?(color=default_color)()=
-  stroke_path color(path_of_points~closed:false points)
+  let key=path_geometry_key~points~closed:false~width:1.~fill:None~stroke:(Some color)in
+  path_geometry_cached key(fun()->stroke_path color(path_of_points~closed:false points))
 let rect ~at:(x,y)~w~h ?fill ?stroke()=polygon[x,y;x+w,y;x+w,y+h;x,y+h]?fill?stroke()
 let square ~at ~size ?fill ?stroke()=rect~at~w:size~h:size?fill?stroke()
 let rounded_rect ~at:(x,y) ~w ~h ~radius ?fill ?stroke()=
@@ -136,7 +164,7 @@ let view3d ?viewport ~camera scene=View3d{viewport;camera;scene;rendered3d=None}
 let text_input_region ~at:(x,y)~w~h ?(focused=false)()=Region(x,y,w,h,focused)
 let translate x y nodes=Translate(x,y,nodes)let rotate a nodes=Rotate(a,nodes)let scale x y nodes=Scale(x,y,nodes)
 let clip ~at:(x,y)~w~h nodes=Clip(x,y,w,h,nodes)let blend mode nodes=Blend(mode,nodes)
-let geometry_uncached p=
+let geometry_uncached (p:primitive)=
  let n=List.length p.points in
  let vertices=Array.make(n*2)0. in
  let rec fill index=function
