@@ -11,7 +11,7 @@ let check scenario work_units feature fragments =
   if value<>D.describe scenario ~width:640 ~height:480 then failwith "nondeterminism"
 let ()=check Basic 9 "affine-image" ["generated96x96";"bezier="];
   check Pxui 21 "pxui-four-expanded-accordions" ["sections=0..3";"choice Mode"];
-  check Canvas 5 "offscreen-canvas" ["phase=frame%240";"image-at0,0"];
+  check Canvas 5 "offscreen-canvas" ["resource=stable-after-setup";"image-at0,0"];
   check Scene3 110_592 "sphere96x48" ["instances=12";"msaa4"];
   if D.phase ~frame:1<>1||D.phase ~frame:600<>120 then failwith "phase drift";
   print_endline "R10 exact neutral non-Scene descriptors passed"

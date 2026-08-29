@@ -35,6 +35,11 @@
  (libraries r10_workload_descriptor))
 
 (test
+ (name test_r10_canvas_stability)
+ (modules test_r10_canvas_stability)
+ (libraries r10_scene2_candidate_lib prismel_next_execution))
+
+(test
  (name test_r10_scene3_legacy_equivalent)
  (modules test_r10_scene3_legacy_equivalent)
  (libraries r10_scene3_candidate_lib prismel_next_api scene_execution ogpu))
