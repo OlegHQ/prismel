@@ -636,13 +636,13 @@
       "source_sha256": "c16e0a991785bd39d2241f31b323aa79d12e38d621d7c57eb642716f8e375505"
     },
     {
-      "api_sha256": "38014a690502fd23de06b49a808e894dc9bd57b4d57b91eb07356beee6c78057",
+      "api_sha256": "520fc77d4202e50c553f532f5e9232ae4729750af64f3976b9dc9cef219e40cd",
       "excluded_legacy_symbols": [],
       "library": "prismel",
       "module": "Canvas",
       "source": "lib/prismel/canvas.mli",
-      "source_bytes": 852,
-      "source_sha256": "1af293494a66ef7d97de4441a424a1cc047eb5cf4e339ce8834dcf357369517a"
+      "source_bytes": 1191,
+      "source_sha256": "02013e0376d112d7963e02922f02c2d8b16916569ef9bf105ef651a25c86b9fa"
     },
     {
       "api_sha256": "79f27f4c6bfe422e1bccd3059d53bdc8dbd202cf0a304c97de5443247051a61f",
@@ -866,13 +866,13 @@
       "source_sha256": "74b90ec75bbe4b2ebad22d581cac659ad9e528b00f8efe41f93c2c06fc1972a3"
     },
     {
-      "api_sha256": "dc060e08fc0f06e46ce54246bcd17ba21b05833a71cb2b99d3711427d8d88f94",
+      "api_sha256": "d28e7e991b9e30f672264df537809a89f7ae165afc528088c6450b5338e01c53",
       "excluded_legacy_symbols": [],
       "library": "prismel",
       "module": "Scene",
       "source": "lib/prismel/scene.mli",
-      "source_bytes": 2980,
-      "source_sha256": "59c35f09faf13c29e42276db1f8897db831fd27fbd88d50012ec530fd86dfe78"
+      "source_bytes": 3234,
+      "source_sha256": "0c8a10234ca7a2b4acd0734742a65b3ad4def3173f7d68de6daa3d19472655d9"
     },
     {
       "api_sha256": "838f3925623b5708ffbc449b2fb30d995bacb3ac609333749bbae6bcf4359019",

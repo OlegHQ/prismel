@@ -69,3 +69,14 @@ or provisional coverage increased by 2/47 = 4.255 percentage points, a short
 interval rate of **36.47 percentage points/hour**. Strict completion changed by
 zero, so its rate was **0.00 percentage points/hour**. This seven-minute slice
 is a measured checkpoint, not an ETA or a sustainable-rate forecast.
+
+## Follow-up — R1 manifest renewal
+
+At production commit `03c534dfe703e4e5d730b1f344dd4c1411aed6b5`
+(`2026-08-29T14:44:36+02:00`), the stable API review found exactly the intended
+Canvas and `Scene.Private` changes, no removed stable module, and 127 total
+stable modules. The regenerated manifest check passes. R1 therefore moves from
+pending-local to provisional: **11 strict, 26 provisional, 1 pending local,
+and 9 pending external**, or **37/47 = 78.72%** strict-plus-provisional
+coverage. The only remaining concrete local implementation/evidence blocker is
+R10; final integrated reruns still govern all provisional rows.
