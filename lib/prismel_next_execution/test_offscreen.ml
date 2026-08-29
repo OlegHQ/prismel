@@ -10,6 +10,11 @@ let drain()=match Metal.Release_queue.drain()with
 let live_handles()=match Metal.Release_queue.stats()with
   |Ok stats->stats.live_handles
   |Error error->failwith(Format.asprintf"%a"Metal.pp_error error)
+let rss_kib()=
+  let argv=[|"/bin/ps";"-o";"rss=";"-p";string_of_int(Unix.getpid())|]in
+  let input=Unix.open_process_args_in argv.(0)argv in
+  Fun.protect~finally:(fun()->ignore(Unix.close_process_in input))
+    (fun()->int_of_string(String.trim(input_line input)))
 let pixel bytes offset expected message=
   require(Bytes.sub bytes offset 4=expected)message
 let putf bytes offset value=Bytes.set_int64_le bytes offset(Int64.bits_of_float value)
@@ -236,6 +241,57 @@ let ()=
                 ignore(get(Prismel_next_execution.Private.step mutation[batch]));
                 pixel(get(Prismel_next_execution.capture execution))0 blue
                   "image snapshot cache did not invalidate mutated pixels");
+            let large_a=Bytes.make(640*480*4)'\000'
+            and large_b=Bytes.make(640*480*4)'\000'in
+            Bytes.set large_a 3 '\xff';Bytes.set large_b 2 '\xff';
+            Bytes.set large_b 3 '\xff';
+            let large=get_resource(Prismel_next_resources.Image.create~width:640
+              ~height:480~rgba:large_a)in
+            Fun.protect
+              ~finally:(fun()->ignore(Prismel_next_resources.Image.destroy large))
+              (fun()->
+                let resolve_large=function
+                  |1->Some(Prismel_next_execution.Image large)|_->None in
+                let cache_before=Prismel_next_execution.snapshot_cache_entries execution in
+                Gc.full_major();
+                let rss_before=rss_kib()and allocated_before=Gc.allocated_bytes()in
+                let rss_middle=ref rss_before in
+                for frame=1 to 600 do
+                  ignore(get_resource(Prismel_next_resources.Image.replace large
+                    ~width:640~height:480~rgba:(if frame land 1=0 then large_a else large_b)));
+                  let submission=get(Prismel_next_execution.Private.begin_submission execution)in
+                  ignore(get(Prismel_next_execution.Private.lower_scene2 submission
+                    ~density:1~resource:resolve_large image_ir));
+                  Prismel_next_execution.Private.cancel submission;
+                  (* Two immediate mutations require both resource buffers to be
+                     unleased, rather than merely finding one spare buffer. *)
+                  ignore(get_resource(Prismel_next_resources.Image.replace large
+                    ~width:640~height:480~rgba:large_b));
+                  ignore(get_resource(Prismel_next_resources.Image.replace large
+                    ~width:640~height:480~rgba:large_a));
+                  if frame=300 then(Gc.full_major();rss_middle:=rss_kib())
+                done;
+                Gc.full_major();
+                let rss_after=rss_kib()and allocated_after=Gc.allocated_bytes()in
+                require((allocated_after-.allocated_before)/.600.<131072.)
+                  "changing large-image lowering allocation ceiling";
+                require(!rss_middle<=rss_before+32768&&rss_after<= !rss_middle+16384)
+                  "changing large-image lowering RSS did not plateau";
+                Printf.printf
+                  "large transient image: %.0f bytes/frame, RSS %d/%d/%d KiB\n%!"
+                  ((allocated_after-.allocated_before)/.600.)rss_before
+                  !rss_middle rss_after;
+                require(Prismel_next_execution.snapshot_cache_entries execution=cache_before)
+                  "large transient image entered the immutable snapshot cache";
+                ignore(get_resource(Prismel_next_resources.Image.replace large
+                  ~width:640~height:480~rgba:large_b));
+                let submission=get(Prismel_next_execution.Private.begin_submission execution)in
+                let batch=get(Prismel_next_execution.Private.lower_scene2 submission
+                  ~density:1~resource:resolve_large image_ir)in
+                ignore(get(Prismel_next_execution.Private.step submission[batch]));
+                pixel(get(Prismel_next_execution.capture execution))0
+                  (Bytes.of_string"\000\000\xff\xff")
+                  "large transient image changed submitted snapshot pixels");
             let eviction_images=Array.init 257(fun index->
               get_resource(Prismel_next_resources.Image.create~width:1~height:1
                 ~rgba:(Bytes.of_string

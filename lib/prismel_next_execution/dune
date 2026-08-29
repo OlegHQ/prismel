@@ -13,4 +13,4 @@
 (test
  (name test_offscreen)
  (modules test_offscreen)
- (libraries prismel_next_execution metal))
+ (libraries prismel_next_execution metal unix))

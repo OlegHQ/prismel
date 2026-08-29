@@ -327,11 +327,15 @@ type snapshot_cache_entry={snapshot_key:string;snapshot_generation:int;
   snapshot_bytes:int;snapshot_texture:Scene_execution.sampled_texture}
 let snapshot_cache_capacity=256
 let snapshot_cache_byte_capacity=64*1024*1024
+(* Full-window snapshots change frequently and already have bounded double
+   buffers in [Image].  Keeping entries below 1 MiB admits UI/text assets but
+   deliberately leaves a 640x480 RGBA frame (1,228,800 bytes) transient. *)
+let snapshot_cache_entry_byte_capacity=1024*1024
 let sampled_texture_bytes (texture:Scene_execution.sampled_texture)=
   Array.fold_left(fun total level->
     let bytes=Bytes.length level.Scene_execution.bytes in
-    if total>snapshot_cache_byte_capacity-bytes then
-      snapshot_cache_byte_capacity+1 else total+bytes)0 texture.levels
+    if total>snapshot_cache_entry_byte_capacity-bytes then
+      snapshot_cache_entry_byte_capacity+1 else total+bytes)0 texture.levels
 type t = { runtime:runtime; input:Runtime_next_input.t;
   assets:Prismel_next_resources.Assets.t; timing:timing; mutable frame:int64;
   mutable elapsed:float; mutable last_clock:float; mutable dead:bool;
@@ -517,7 +521,7 @@ let diagnostics value=
      List.length value.canvas_keys;
    release_queue_pending;release_queue_live_handles;release_queue_total_created;
    release_queue_total_released}
-let snapshot value ~lease_policy:_ ~density source =
+let snapshot value ~lease_policy ~density source =
   let operation="Prismel_next_execution.lower_scene2"in
   if density<=0 then fail operation Invalid_argument"density must be positive"else
   let find key generation=
@@ -547,7 +551,7 @@ let snapshot value ~lease_policy:_ ~density source =
           trim()in
   let store key generation width height texture bytes=
     remove_stale key;
-    if bytes<=snapshot_cache_byte_capacity then begin
+    if bytes<=snapshot_cache_entry_byte_capacity then begin
       value.snapshots<-{snapshot_key=key;snapshot_generation=generation;
         snapshot_density=density;snapshot_width=width;snapshot_height=height;
         snapshot_bytes=bytes;snapshot_texture=texture}::value.snapshots;
@@ -577,12 +581,23 @@ let snapshot value ~lease_policy:_ ~density source =
       |Ok(width,height,borrowed_generation,pixels,lease)->
           let sampler:Ogpu.Types.sampler_descriptor={label=Some key;min_filter=Linear;mag_filter=Linear;
             mip_filter=No_mip;address_u=Clamp_to_edge;address_v=Clamp_to_edge;lod_min=0.;lod_max=0.;max_anisotropy=1}in
-          let bytes=Fun.protect
-            ~finally:(fun()->Prismel_next_resources.Image.Private.release_snapshot lease)
-            (fun()->Bytes.copy pixels)in
+          let cacheable=Bytes.length pixels<=snapshot_cache_entry_byte_capacity in
+          let bytes=if cacheable then
+            Fun.protect
+              ~finally:(fun()->Prismel_next_resources.Image.Private.release_snapshot lease)
+              (fun()->Bytes.copy pixels)
+          else match lease_policy with
+            |Retain_image_snapshots submission->
+                submission.image_leases<-lease::submission.image_leases;
+                pixels
+            |Copy_image_snapshots->
+                Fun.protect
+                  ~finally:(fun()->Prismel_next_resources.Image.Private.release_snapshot lease)
+                  (fun()->Bytes.copy pixels)in
           let texture={Scene_execution.key=key^":"^string_of_int density;
             levels=[|{width;height;bytes}|];sampler}in
-          store key borrowed_generation width height texture(Bytes.length bytes);
+          if cacheable then
+            store key borrowed_generation width height texture(Bytes.length bytes);
           Ok(width,height,texture)
       |Error e->resource operation e)
   |Text text->(match Prismel_next_resources.Text.size text,Prismel_next_resources.Text.pixels text with
@@ -697,7 +712,7 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
       value={Scene_execution.mesh={key=Printf.sprintf"snapshot-%d"!number;vertices;vertex_count=4;indices;index_count=6};state=default_state(x,y,w,h)(x,y,w,h)}}in
     let cached={quad_texture=texture;quad_destination=destination;
       quad_transform=transform;quad_clip=clip;quad_uv=uv;quad_draw=draw}in
-    if sampled_texture_bytes texture<=snapshot_cache_byte_capacity then begin
+    if sampled_texture_bytes texture<=snapshot_cache_entry_byte_capacity then begin
       value.scene2_quad_cache<-cached::value.scene2_quad_cache;
       if List.length value.scene2_quad_cache>1024 then
         value.scene2_quad_cache<-List.rev(List.tl(List.rev value.scene2_quad_cache))
@@ -834,7 +849,7 @@ let lower_scene2_with_policy value ~lease_policy ~density ~resource:resolve ir =
     |Error _ as error->error
     |Ok draws as result->
       if List.exists(fun draw->match draw.texture with
-        |Some texture->sampled_texture_bytes texture>snapshot_cache_byte_capacity
+        |Some texture->sampled_texture_bytes texture>snapshot_cache_entry_byte_capacity
         |None->false)draws then result else
       let candidate=List.find_opt(fun candidate->
         candidate.candidate_plan_fingerprint=fingerprint&&
