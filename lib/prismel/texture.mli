@@ -56,7 +56,8 @@ module Private : sig
       array becomes backing storage and must not be mutated afterward. *)
   val create_owned :
     width:int -> height:int -> Color.t array -> (t, string) result
-  (* Allocation-free packed RGBA sampling for the software rasterizer. *)
+  (* Allocation-free packed RGBA sampling for renderer-independent image
+     processing and deterministic texture queries. *)
   val sample_lod_packed :
     ?filter:filter ->
     ?wrap_u:wrap ->
