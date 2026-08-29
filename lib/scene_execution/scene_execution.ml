@@ -523,6 +523,11 @@ let resolve_prepared value prepared draws =
       |Some item->Ok(item.prepared_draws,true)
       |None->Result.map(fun prepared_draws->let item={prepared_identity=identity;prepared_version=version;prepared_draws;prepared_bytes=prepared_bytes prepared_draws}in let others=List.filter(fun old->old.prepared_identity<>identity)value.prepared_cache in value.prepared_cache<-trim_prepared(item::others);prepared_draws,false)(coalesce_sampled draws))
   |None->Result.map(fun draws->draws,false)(coalesce_sampled draws)
+let intersect_extent ~bound_w ~bound_h (x,y,w,h)=
+  let x=max 0 x and y=max 0 y in
+  let w=min w(bound_w-x)and h=min h(bound_h-y)in
+  if bound_w<=0||bound_h<=0||w<=0||h<=0 then(0,0,max 1 bound_w,max 1 bound_h)
+  else(x,y,w,h)
 let pass value family samples state load clear=
   let keys=(if samples=1 then[]else[Scene_attachment_pool.Color,samples])@(match family with Scene2|Scene2_textured->[]|Scene3|Scene3_textured|Scene3_shadow->[Depth,samples]|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->[Depth,samples;Stencil,samples])in
   match Scene_attachment_pool.acquire_many value.attachments keys with Error _ as e->e|Ok pooled->
@@ -533,7 +538,9 @@ let pass value family samples state load clear=
   let resolve=if samples=1 then None else Some(Ogpu.Backend.render_texture value.target~format:Ogpu.Render_pass.Rgba8~usage:Resolve_target)in
   let depth=match family with Scene2|Scene2_textured->None|Scene3|Scene3_textured|Scene3_shadow|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->let texture=Ogpu.Backend.render_texture(take())~format:Ogpu.Render_pass.Depth32~usage:Render_target in Some({Ogpu.Render_pass.texture;load=state.depth_load;store=Store;clear=state.depth_clear}:Ogpu.Render_pass.depth)in
   let stencil=match family with Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->let texture=Ogpu.Backend.render_texture(take())~format:Ogpu.Render_pass.Stencil8~usage:Render_target in Some({Ogpu.Render_pass.texture;load=state.stencil_load;store=Store;clear=state.stencil_clear}:Ogpu.Render_pass.stencil)|Scene2|Scene2_textured|Scene3|Scene3_textured|Scene3_shadow->None in
-  let x,y,width,height=state.viewport and sx,sy,sw,sh=state.scissor in
+  let bound_w=texture.width and bound_h=texture.height in
+  let x,y,width,height=intersect_extent~bound_w~bound_h state.viewport
+  and sx,sy,sw,sh=intersect_extent~bound_w~bound_h state.scissor in
   Result.map(fun pass->pass,pooled)(Ogpu.Render_pass.create~raster_state:{cull=state.cull;depth_compare=state.depth_compare;depth_write=state.depth_write}?stencil_state:state.stencil_state(Ogpu.Backend.device_handle value.device){colors=[|Some{texture;resolve;load;store=(if samples=1 then Store else Resolve);clear}|];depth;stencil;viewport={x;y;width;height};scissor={x=sx;y=sy;width=sw;height=sh}})
 let automatic_signature
     (family,blend,samples,state,texture,auxiliary,item,uniform) =

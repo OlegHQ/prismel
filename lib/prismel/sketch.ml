@@ -22,6 +22,7 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
   let configuration={Prismel_next_execution.default_configuration with logical_width=config.width;logical_height=config.height;drawable_width=config.width;drawable_height=config.height;title=config.title;timing;vsync=Option.is_none config.fps}in
   let get=function Ok x->x|Error e->failwith(Format.asprintf"%a"Prismel_next_execution.pp_error e)in
   let coordinator=get(Prismel_next_execution.create configuration)in
+  get(Prismel_next_execution.show coordinator);
   Runtime_diagnostics.Private.install coordinator;
   let logical_width=ref config.width and logical_height=ref config.height in
   let capture ()=
@@ -42,7 +43,8 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
   resize_current:=Some(fun~width~height->
     get(Prismel_next_execution.resize coordinator~logical_width:width
       ~logical_height:height~drawable_width:width~drawable_height:height);
-    logical_width:=width;logical_height:=height);
+    let facts=get(Prismel_next_execution.presentation_facts coordinator)in
+    logical_width:=facts.logical_width;logical_height:=facts.logical_height);
   Scene.Private.install_renderer(fun scene->
     let facts=get(Prismel_next_execution.presentation_facts coordinator)in
     let density=max 1(int_of_float(Float.round facts.pixel_density))in

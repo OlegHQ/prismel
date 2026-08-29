@@ -67,22 +67,31 @@ let scene_family=function Scene2->Scene_execution.Scene2|Scene2_textured->Scene2
   |Scene3_shadow_stencil->Scene3_shadow_stencil
 let pipeline_blend=function Replace->Ogpu.Pipeline.Replace|Alpha->Alpha|Add->Add
   |Multiply->Multiply|Screen->Screen|Subtract->Subtract
+let pull_window_facts value=
+  let live=Runtime_next.frame_facts value.runtime in
+  value.facts<-{value.facts with logical_width=live.logical_width;
+    logical_height=live.logical_height;drawable_width=live.drawable_width;
+    drawable_height=live.drawable_height;
+    pixel_density=live.pixel_scale_x;display_scale=live.pixel_scale_x}
 let render_prepared ?after_prepare ?clear value draws=match ensure"Runtime_next_orchestrator.render_prepared"value with Error _ as e->Option.iter(fun f->f())after_prepare;e|Ok()->
   let draws=List.map(fun x->scene_family x.family,pipeline_blend x.blend,x.texture,x.auxiliary,x.samples,x.draw)draws in
-  account value(List.length draws)(Runtime_next.render_sampled_resources ?after_prepare ?clear value.runtime draws)
+  let result=account value(List.length draws)(Runtime_next.render_sampled_resources ?after_prepare ?clear value.runtime draws)in
+  (match result with Ok _->pull_window_facts value|Error _->());result
 let render_retained ?after_prepare ?clear ~identity ~version value draws=
   match ensure"Runtime_next_orchestrator.render_retained"value with Error _ as e->Option.iter(fun f->f())after_prepare;e|Ok()->
   let draws=List.map(fun x->scene_family x.family,pipeline_blend x.blend,x.texture,x.auxiliary,x.samples,x.draw)draws in
-  account value(List.length draws)
-    (Runtime_next.render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version value.runtime draws)
+  let result=account value(List.length draws)
+    (Runtime_next.render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version value.runtime draws)in
+  (match result with Ok _->pull_window_facts value|Error _->());result
 let replay_retained ?clear ~identity ~version value=
   match ensure"Runtime_next_orchestrator.replay_retained"value with
   |Error _ as e->e
   |Ok()->match Runtime_next.replay_prepared_sampled_resources ?clear ~identity
       ~version value.runtime with
     |Error _ as e->e
-    |Ok None->Ok None
+    |Ok None->pull_window_facts value;Ok None
     |Ok(Some(presented,draw_count))->
+        pull_window_facts value;
         Result.map Option.some(account value draw_count(Ok presented))
 let resize value~logical_width~logical_height~drawable_width~drawable_height=
   match ensure"Runtime_next_orchestrator.resize"value with Error _ as e->e|Ok()->let result=
@@ -116,7 +125,8 @@ let set_bordered value x=native_call"Runtime_next_orchestrator.set_bordered"valu
 let set_resizable value x=native_call"Runtime_next_orchestrator.set_resizable"value(fun r->Runtime_next.set_resizable r x)
 let set_always_on_top value x=native_call"Runtime_next_orchestrator.set_always_on_top"value(fun r->Runtime_next.set_always_on_top r x)
 let set_fullscreen value x=native_call"Runtime_next_orchestrator.set_fullscreen"value(fun r->Runtime_next.set_fullscreen r x)
-let show value=native_call"Runtime_next_orchestrator.show"value Runtime_next.show
+let show value=match native_call"Runtime_next_orchestrator.show"value Runtime_next.show with
+  |Error _ as error->error|Ok()->pull_window_facts value;Ok()
 let hide value=native_call"Runtime_next_orchestrator.hide"value Runtime_next.hide
 let visible value=native_call"Runtime_next_orchestrator.visible"value Runtime_next.visible
 let minimize value=native_call"Runtime_next_orchestrator.minimize"value Runtime_next.minimize

@@ -168,6 +168,17 @@ let ()=
   get(Scene_execution.destroy renderer);
   require(Ogpu.Backend_mock.live_counts control=(0,0,0,0,0))
     "post-upload release hook test leaked mock handles";
+  let driver,control=Ogpu.Backend_mock.create()in
+  let renderer=get(Scene_execution.create driver configuration)in
+  let oversized={state with viewport=(0,0,128,128);scissor=(16,-8,128,128)}in
+  ignore(get(Scene_execution.render_blended renderer
+    [Ogpu.Pipeline.Replace,{Scene_execution.mesh=mesh 0;state=oversized}]));
+  let offset={state with viewport=(100,100,8,8);scissor=(100,100,8,8)}in
+  ignore(get(Scene_execution.render_blended renderer
+    [Ogpu.Pipeline.Replace,{Scene_execution.mesh=mesh 1;state=offset}]));
+  get(Scene_execution.destroy renderer);
+  require(Ogpu.Backend_mock.live_counts control=(0,0,0,0,0))
+    "oversized viewport clamp leaked mock handles";
   Printf.printf
     "automatic scratch: 1000 exact frames, 10 draws %.0f alloc/%.1f promoted B, 84 draws %.0f alloc/%.1f promoted B, capacity 65536\n%!"
     allocated10 promoted10 allocated84 promoted84

@@ -138,19 +138,34 @@ let scale_required(facts:frame_facts)=facts.logical_width<>facts.drawable_width|
 let scale_draw(facts:frame_facts)(draw:Scene_execution.draw)=let viewport=scale_rect facts draw.state.viewport and scissor=scale_rect facts draw.state.scissor in if viewport=draw.state.viewport&&scissor=draw.state.scissor then draw else{draw with state={draw.state with viewport;scissor}}
 let scale_draws(facts:frame_facts)draws=if not(scale_required facts)then draws else List.map(scale_draw facts)draws
 let scale_sampled_resources(facts:frame_facts)draws=if not(scale_required facts)then draws else List.map(fun((family,blend,texture,auxiliary,samples,draw)as entry)->let scaled=scale_draw facts draw in if scaled==draw then entry else family,blend,texture,auxiliary,samples,scaled)draws
-let render ?clear (value:t) draws=if value.dead then Error(Ogpu.Error.make"Runtime_next.render"Stale_handle"runtime is destroyed")else Scene_execution.render ?clear value.renderer(scale_draws value.facts draws)
-let render_sampled_resources ?after_prepare ?clear (value:t) draws=if value.dead then(Option.iter(fun f->f())after_prepare;Error(Ogpu.Error.make"Runtime_next.render_sampled_resources"Stale_handle"runtime is destroyed"))else Scene_execution.render_sampled_resources ?after_prepare ?clear value.renderer(scale_sampled_resources value.facts draws)
+let apply_facts (value:t) (facts:frame_facts)=let configuration:Ogpu.Surface.configuration={logical_width=facts.logical_width;logical_height=facts.logical_height;physical_width=facts.drawable_width;physical_height=facts.drawable_height;format=Bgra8_unorm;present_mode=present_mode value.vsync;max_acquired=2}in match Scene_execution.resize value.renderer configuration with Error _ as e->e|Ok()->value.facts<-facts;Ok()
+let sync_window_facts (value:t)=
+  if value.dead then Ok()
+  else match facts value.window with
+    |Error _ as error->error
+    |Ok live when live.logical_width=value.facts.logical_width&&
+        live.logical_height=value.facts.logical_height&&
+        live.drawable_width=value.facts.drawable_width&&
+        live.drawable_height=value.facts.drawable_height->Ok()
+    |Ok live->apply_facts value live
+let render ?clear (value:t) draws=if value.dead then Error(Ogpu.Error.make"Runtime_next.render"Stale_handle"runtime is destroyed")else
+  match sync_window_facts value with Error _ as error->error
+  |Ok()->Scene_execution.render ?clear value.renderer(scale_draws value.facts draws)
+let render_sampled_resources ?after_prepare ?clear (value:t) draws=if value.dead then(Option.iter(fun f->f())after_prepare;Error(Ogpu.Error.make"Runtime_next.render_sampled_resources"Stale_handle"runtime is destroyed"))else
+  match sync_window_facts value with Error _ as error->Option.iter(fun f->f())after_prepare;error
+  |Ok()->Scene_execution.render_sampled_resources ?after_prepare ?clear value.renderer(scale_sampled_resources value.facts draws)
 let render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version (value:t) draws=
   if value.dead then(Option.iter(fun f->f())after_prepare;Error(Ogpu.Error.make"Runtime_next.render_prepared_sampled_resources"Stale_handle"runtime is destroyed"))
-  else Scene_execution.render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version
+  else match sync_window_facts value with Error _ as error->Option.iter(fun f->f())after_prepare;error
+  |Ok()->Scene_execution.render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version
     value.renderer(scale_sampled_resources value.facts draws)
 let replay_prepared_sampled_resources ?clear ~identity ~version (value:t)=
   if value.dead then Error(Ogpu.Error.make
       "Runtime_next.replay_prepared_sampled_resources" Stale_handle
       "runtime is destroyed")
-  else Scene_execution.replay_prepared_sampled_resources ?clear ~identity ~version
+  else match sync_window_facts value with Error _ as error->error
+  |Ok()->Scene_execution.replay_prepared_sampled_resources ?clear ~identity ~version
     value.renderer
-let apply_facts (value:t) (facts:frame_facts)=let configuration:Ogpu.Surface.configuration={logical_width=facts.logical_width;logical_height=facts.logical_height;physical_width=facts.drawable_width;physical_height=facts.drawable_height;format=Bgra8_unorm;present_mode=present_mode value.vsync;max_acquired=2}in match Scene_execution.resize value.renderer configuration with Error _ as e->e|Ok()->value.facts<-facts;Ok()
 let resize (value:t) ~width ~height=if value.dead then Error(Ogpu.Error.make"Runtime_next.resize"Stale_handle"runtime is destroyed")else match sdl"Runtime_next.resize"(Sdl3.Window.set_size value.window~width~height)with Error _ as e->e|Ok()->Result.bind(facts value.window)(apply_facts value)
 let read_pixels (value:t)=Scene_execution.read_pixels value.renderer
 let read_pixels_into (value:t)~bytes_per_row~destination=
@@ -158,7 +173,10 @@ let read_pixels_into (value:t)~bytes_per_row~destination=
   else Scene_execution.read_pixels_into value.renderer~bytes_per_row~destination
 let stats (value:t)=let timing=Ogpu_metal.Queue.gpu_timing_for_device value.device and retained=Ogpu_metal.Backend.retained_plan_stats value.control in {pipeline_cache_entries=Ogpu_metal.Pipeline.cache_length value.cache;mesh_cache_entries=Scene_execution.cache_entries value.renderer;uploaded_bytes=Scene_execution.upload_bytes value.renderer;gpu_timing_supported=timing.supported;gpu_duration_seconds=timing.duration_seconds;gpu_sample_count=timing.sample_count;retained_plan_builds=retained.builds;retained_plan_hits=retained.hits;retained_plan_misses=retained.misses;retained_plan_evictions=retained.evictions;retained_plan_executions=retained.executions;retained_plan_entries=retained.entries;retained_plan_capacity=retained.capacity}
 let frame_facts (value:t)=value.facts
-let handle_window_event (value:t)=function Sdl3.Event.Window{change=Resized _;_}->Result.map(fun()->true)(Result.bind(facts value.window)(apply_facts value))|_->Ok false
+let handle_window_event (value:t)=function
+  |Sdl3.Event.Window{change=Resized _;_}|Sdl3.Event.Window{change=Pixel_size_changed _;_}->
+      Result.map(fun()->true)(Result.bind(facts value.window)(apply_facts value))
+  |_->Ok false
 let live_window operation (value:t) callback=if value.dead then Error(Ogpu.Error.make operation Stale_handle"runtime is destroyed")else callback value.window
 let window_facts (value:t)~vsync:_=live_window"Runtime_next.window_facts"value(fun window->match sdl"Runtime_next.window_facts"(Sdl3.Window.presentation_facts window~vsync:value.vsync),sdl"Runtime_next.window_facts"(Sdl3.Window.title window),sdl"Runtime_next.window_facts"(Sdl3.Window.position window)with Ok facts,Ok title,Ok position->Ok({title;logical_width=facts.logical_width;logical_height=facts.logical_height;drawable_width=facts.drawable_width;drawable_height=facts.drawable_height;position;pixel_density=facts.pixel_density;display_scale=facts.display_scale;refresh_rate=facts.refresh_rate;vsync=facts.vsync}:window_facts)|Error e,_,_|_,Error e,_|_,_,Error e->Error e)
 let window_call operation call value=live_window operation value(fun window->sdl operation(call window))
@@ -169,7 +187,8 @@ let set_bordered value enabled=window_call"Runtime_next.set_bordered"(fun window
 let set_resizable value enabled=window_call"Runtime_next.set_resizable"(fun window->Sdl3.Window.set_resizable window enabled)value
 let set_always_on_top value enabled=window_call"Runtime_next.set_always_on_top"(fun window->Sdl3.Window.set_always_on_top window enabled)value
 let set_fullscreen value enabled=window_call"Runtime_next.set_fullscreen"(fun window->Sdl3.Window.set_fullscreen window enabled)value
-let show=window_call"Runtime_next.show" Sdl3.Window.show
+let show value=match window_call"Runtime_next.show" Sdl3.Window.show value with
+  |Error _ as error->error|Ok()->sync_window_facts value
 let hide=window_call"Runtime_next.hide" Sdl3.Window.hide
 let visible value=live_window"Runtime_next.visible"value(fun window->
   Result.map(fun flags->Int64.logand flags 0x8L=0L)
