@@ -114,7 +114,7 @@ let pipeline device family blend samples=let capabilities=Ogpu.Backend.capabilit
   let depth_format=match family with Scene2|Scene2_textured->Ogpu.Pipeline.No_depth|Scene3|Scene3_textured|Scene3_shadow->Depth32_float|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->Depth32_float_stencil8 in
   bind(Ogpu.Pipeline.create_render~blend capabilities{backend="mock";label=Some"scene-execution";layout;vertex;vertex_entry="scene_vertex";fragment=Some fragment;fragment_entry=Some"scene_fragment";color_format=Rgba8_unorm;depth_format;sample_count=samples})(fun portable->
   map(fun value->value,Ogpu.Pipeline.cache_key portable)(Ogpu.Backend.adopt_pipeline device portable)))))
-let texture_descriptor configuration:Ogpu.Types.texture_descriptor={label=Some"scene-execution-target";width=configuration.Ogpu.Surface.physical_width;height=configuration.physical_height;depth=1;mip_levels=1;sample_count=1;usage=[Render_attachment;Texture_copy_src]}
+let texture_descriptor configuration:Ogpu.Types.texture_descriptor={label=Some"scene-execution-target";width=configuration.Ogpu.Surface.physical_width;height=configuration.physical_height;depth=1;mip_levels=1;sample_count=1;usage=[Texture_binding;Render_attachment;Texture_copy_src]}
 let blends=[Ogpu.Pipeline.Replace;Alpha;Add;Multiply;Screen;Subtract]
 let families=[Scene2;Scene2_textured;Scene3;Scene3_textured;Scene3_shadow;Scene3_stencil;Scene3_textured_stencil;Scene3_shadow_stencil]
 let pipeline_variants_per_sample=List.length families*List.length blends
@@ -538,7 +538,10 @@ let rec same_payloads payloads prepared=match payloads,prepared with
   |_->false
 type acquired=Offscreen|Presented of Ogpu.Backend.frame
 let discard=function Offscreen->()|Presented frame->ignore(Ogpu.Backend.discard frame)
-let finish_submission=function Offscreen->Ok()|Presented frame->Ogpu.Backend.present frame
+let finish_submission value=function
+  |Offscreen->Ok()
+  |Presented frame->Ogpu.Backend.present frame~queue:value.queue
+      ~source:value.target
 let acquire value=match value.surface with
   |None->Ok(`Acquired Offscreen)
   |Some surface->match Ogpu.Backend.acquire surface with
@@ -547,14 +550,28 @@ let acquire value=match value.surface with
     |Ok`Device_lost->error"Scene_execution.render"Ogpu.Error.Device_lost"device lost"
     |Ok(`Acquired frame)->Ok(`Acquired(Presented frame))
 let submit_acquired value frame commands =
+  let complete receipt=Ogpu.Backend.complete_through value.queue receipt.Ogpu.Backend.epoch in
+  let submit_one(command,resources,pipelines)=
+    match Ogpu.Backend.submit value.queue command~resources~pipelines with
+    |Error _ as e->e|Ok receipt->complete receipt in
   let rec submit=function
-    |[]->finish_submission frame
-    |(command,resources,pipelines)::rest->
-        match Ogpu.Backend.submit value.queue command~resources~pipelines with
-        |Error e->discard frame;Error e
-        |Ok receipt->match Ogpu.Backend.complete_through value.queue receipt.epoch with
-          |Error e->discard frame;Error e|Ok()->submit rest in
-  submit commands
+    |[]->finish_submission value frame
+    |[command,resources,pipelines]->
+        (match frame with
+         |Offscreen->submit_one(command,resources,pipelines)
+         |Presented surface_frame->
+             (match Ogpu.Backend.submit_present value.queue command~resources
+                      ~pipelines~source:value.target surface_frame with
+              |Ok receipt->complete receipt
+              |Error e when e.Ogpu.Error.kind=Ogpu.Error.Unsupported->
+                  (match submit_one(command,resources,pipelines)with
+                   |Error _ as e->e|Ok()->finish_submission value frame)
+              |Error _ as e->e))
+    |entry::rest->
+        (match submit_one entry with Error _ as e->e|Ok()->submit rest)in
+  match submit commands with
+  |Ok() as result->result
+  |Error _ as result->discard frame;result
 let replay_prepared value commands =
   match acquire value with
   |Error _ as error->error|Ok`Skipped->Ok false
@@ -668,9 +685,7 @@ let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws
              (match Ogpu.Backend.render pass[]with Error _ as error->error
               |Ok command->
                   made_commands:=(command,resources,[])::!made_commands;
-                  (match Ogpu.Backend.submit value.queue command~resources~pipelines:[]with
-                   |Error _ as error->error
-                   |Ok receipt->Ogpu.Backend.complete_through value.queue receipt.epoch)))
+                  Ok()))
       |[]->Ok()
       |(family,blend,samples,state,texture,auxiliary,item,uniform)::rest->
       let class_=attachment_class family in
@@ -692,10 +707,12 @@ let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws
       let pipelines=List.map(fun(_,_,pipeline)->pipeline)automatic_payloads in
       made_payloads:=List.rev_append automatic_payloads!made_payloads;
       let pipelines=List.fold_left(fun unique pipeline->if List.exists((==)pipeline)unique then unique else pipeline::unique)[]pipelines in
-      match Ogpu.Backend.render pass payload with Error _ as e->e|Ok command->made_commands:=(command,resources,pipelines)::!made_commands;match Ogpu.Backend.submit value.queue command~resources~pipelines with Error _ as e->e|Ok receipt->match Ogpu.Backend.complete_through value.queue receipt.epoch with Error _ as e->e|Ok()->batches false rest in
+      match Ogpu.Backend.render pass payload with Error _ as e->e|Ok command->made_commands:=(command,resources,pipelines)::!made_commands;batches false rest in
     finish(match batches true prepared with Error e->discard frame;Error e|Ok()->
       let commands=List.rev!made_commands in
-      match finish_submission frame with Error _ as e->e|Ok()->
+      match submit_acquired value frame commands with
+      |Error _ as e->e
+      |Ok()->
       (match prepared_key with Some(identity,version)->value.prepared_submission<-Some{submission_identity=identity;submission_version=version;submission_clear=clear;submission_commands=commands}|None->());
       let automatic_payloads=List.rev!made_payloads in
       value.automatic_submission<-Some{

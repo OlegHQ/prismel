@@ -149,11 +149,12 @@ let create_batch ?(owned_samplers=[]) device pass ~attachments draws =
       validate[first_draw]rest
 let with_indirect value indirect ~vertex_buffers ~fragment_buffers ~textures={value with indirect=Some(indirect,{vertex_buffers;fragment_buffers;textures})}
 module Private=struct
+  let portable_requires_command4 pass=
+    let descriptor=Ogpu.Render_pass.descriptor pass in
+    Array.exists(fun color->Option.fold~none:false~some:(fun(color:Ogpu.Render_pass.color)->color.load<>Clear)color)descriptor.colors||Option.is_some descriptor.stencil||
+    Option.fold~none:false~some:(fun(d:Ogpu.Render_pass.depth)->d.load<>Clear||d.store<>Store||d.clear<>1.)descriptor.depth
   let requires_command4 value=
-    let descriptor=Ogpu.Render_pass.descriptor value.pass in
-    Option.is_none value.indirect&&
-    (Array.exists(fun color->Option.fold~none:false~some:(fun(color:Ogpu.Render_pass.color)->color.load<>Clear)color)descriptor.colors||Option.is_some descriptor.stencil||
-    Option.fold~none:false~some:(fun(d:Ogpu.Render_pass.depth)->d.load<>Clear||d.store<>Store||d.clear<>1.)descriptor.depth)
+    Option.is_none value.indirect&&portable_requires_command4 value.pass
   let encode_portable value command=Ogpu.Render_pass.encode value.pass command
   let retain value=
     let rec loop index=

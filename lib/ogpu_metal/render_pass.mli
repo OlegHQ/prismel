@@ -30,6 +30,7 @@ module Private : sig
   val encode_portable : t -> Ogpu.Command.t -> (unit,Ogpu.Error.t) result
   val retain : t -> ((unit -> unit) list,Ogpu.Error.t) result
   val encode : Metal.Command_buffer.t -> t -> ((unit -> unit) list,Ogpu.Error.t) result
+  val portable_requires_command4 : Ogpu.Render_pass.t -> bool
   val requires_command4 : t -> bool
   val encode_command4 : Metal.Command4.Command_buffer.t -> t -> ((unit -> unit) list,Ogpu.Error.t) result
 end

@@ -38,10 +38,110 @@ let run ()=
     failwith(Printf.sprintf"stable queue wrapper allocated %.0f bytes/frame"allocated);
   if promoted>100_000. then
     failwith(Printf.sprintf"stable queue wrapper promoted %.0f bytes"promoted);
-  let config : Ogpu.Surface.configuration={logical_width=2;logical_height=2;physical_width=4;physical_height=4;format=Rgba8_unorm;present_mode=Fifo;max_acquired=2}in let surface=get(Ogpu.Backend.create_surface device config)in let frame=match get(Ogpu.Backend.acquire surface)with`Acquired x->x|_->failwith"mock acquire"in get(Ogpu.Backend.present frame);expect Ogpu.Error.Invalid_state(Ogpu.Backend.present frame);
+  let config : Ogpu.Surface.configuration={logical_width=2;logical_height=2;physical_width=4;physical_height=4;format=Rgba8_unorm;present_mode=Fifo;max_acquired=2}in
+  let surface=get(Ogpu.Backend.create_surface device config)in
+  let presentation_descriptor={attachment_descriptor with
+    label=Some"presentation-source";usage=[Texture_binding;Render_attachment]}in
+  let presentation_source=get(Ogpu.Backend.create_texture device presentation_descriptor)in
+  let wrong_extent=get(Ogpu.Backend.create_texture device
+    {presentation_descriptor with label=Some"wrong-extent";width=3})in
+  let wrong_usage=get(Ogpu.Backend.create_texture device
+    {presentation_descriptor with label=Some"wrong-usage";usage=[Render_attachment]})in
+  let multisampled=get(Ogpu.Backend.create_texture device
+    {presentation_descriptor with label=Some"multisampled";sample_count=4})in
+  let stale_source=get(Ogpu.Backend.create_texture device
+    {presentation_descriptor with label=Some"stale-source"})in
+  let foreign_driver,foreign_control=Ogpu.Backend_mock.create()in
+  let foreign_device=get(Ogpu.Backend.create_device foreign_driver)in
+  let foreign_source=get(Ogpu.Backend.create_texture foreign_device
+    {presentation_descriptor with label=Some"foreign-source"})in
+  let foreign_queue=get(Ogpu.Backend.create_queue foreign_device)in
+  let acquire_frame ()=match get(Ogpu.Backend.acquire surface)with
+    |`Acquired frame->frame
+    |_->failwith"mock acquire"in
+  let reject ?(present_queue=queue) source kind=
+    let frame=acquire_frame()in
+    expect kind(Ogpu.Backend.present~queue:present_queue~source frame);
+    get(Ogpu.Backend.discard frame)
+  in
+  let atomic_frame=acquire_frame()in
+  expect Ogpu.Error.Invalid_argument
+    (Ogpu.Backend.submit_present queue command~resources:[]~pipelines:[]
+      ~source:presentation_source atomic_frame);
+  let atomic_receipt=get(Ogpu.Backend.submit_present queue command
+    ~resources~pipelines:[]~source:presentation_source atomic_frame)in
+  get(Ogpu.Backend.complete_through queue atomic_receipt.epoch);
+  expect Ogpu.Error.Invalid_state
+    (Ogpu.Backend.submit_present queue command~resources~pipelines:[]
+      ~source:presentation_source atomic_frame);
+  get(Ogpu.Backend.destroy_texture stale_source);
+  reject stale_source Ogpu.Error.Stale_handle;
+  reject foreign_source Ogpu.Error.Cross_device;
+  reject~present_queue:foreign_queue presentation_source Ogpu.Error.Cross_device;
+  reject wrong_extent Ogpu.Error.Invalid_argument;
+  reject wrong_usage Ogpu.Error.Invalid_argument;
+  reject multisampled Ogpu.Error.Invalid_argument;
+  let frame=acquire_frame()in
+  get(Ogpu.Backend.present~queue~source:presentation_source frame);
+  expect Ogpu.Error.Invalid_state
+    (Ogpu.Backend.present~queue~source:presentation_source frame);
+  Ogpu.Backend_mock.fail_next_configure control;
+  expect Ogpu.Error.Invalid_state
+    (Ogpu.Backend.configure surface{config with physical_width=9});
+  let frame=acquire_frame()in
+  get(Ogpu.Backend.present~queue~source:presentation_source frame);
+  let producer_queue=get(Ogpu.Backend.create_queue device)in
+  let copy_source=get(Ogpu.Backend.create_texture device
+    {presentation_descriptor with label=Some"copy-source";
+      usage=[Texture_copy_src]})in
+  let produced_source=get(Ogpu.Backend.create_texture device
+    {presentation_descriptor with label=Some"produced-source";
+      usage=[Texture_binding;Render_attachment;Texture_copy_dst]})in
+  let copy_pass=Ogpu.Transfer_pass.create(Ogpu.Backend.device_handle device)in
+  let origin:Ogpu.Transfer_pass.origin={x=0;y=0;z=0}
+  and extent:Ogpu.Transfer_pass.extent={width=4;height=4;depth=1}in
+  get(Ogpu.Transfer_pass.copy_texture copy_pass
+    ~src:(Ogpu.Backend.transfer_texture copy_source)~src_mip:0~src_origin:origin
+    ~dst:(Ogpu.Backend.transfer_texture produced_source)~dst_mip:0
+    ~dst_origin:origin~extent);
+  let copy_command=get(Ogpu.Backend.transfer copy_pass)in
+  ignore(get(Ogpu.Backend.submit producer_queue copy_command
+    ~resources:[`Texture copy_source;`Texture produced_source]~pipelines:[]));
+  reject produced_source Ogpu.Error.Invalid_state;
+  let frame=acquire_frame()in
+  get(Ogpu.Backend.present~queue:producer_queue~source:produced_source frame);
+  get(Ogpu.Backend.destroy_queue producer_queue);
+  reject~present_queue:producer_queue produced_source Ogpu.Error.Stale_handle;
+  let frame=acquire_frame()in
+  get(Ogpu.Backend.present~queue~source:produced_source frame);
+  let resized={config with physical_width=5;physical_height=6}in
+  get(Ogpu.Backend.configure surface resized);
+  reject presentation_source Ogpu.Error.Invalid_argument;
+  let resized_source=get(Ogpu.Backend.create_texture device
+    {presentation_descriptor with label=Some"resized-source";width=5;height=6})in
+  let frame=acquire_frame()in
+  get(Ogpu.Backend.present~queue~source:resized_source frame);
   Ogpu.Backend_mock.inject_device_loss control;expect Ogpu.Error.Device_lost(Ogpu.Backend.submit queue command~resources:[`Buffer source;`Buffer destination]~pipelines:[]);
   get(Ogpu.Backend.destroy_buffer source);
   expect Ogpu.Error.Stale_handle(Ogpu.Backend.submit queue command~resources~pipelines:[]);
-  expect Ogpu.Error.Invalid_state(Ogpu.Backend.destroy_device device);get(Ogpu.Backend.destroy_surface surface);get(Ogpu.Backend.destroy_queue queue);get(Ogpu.Backend.destroy_buffer source);get(Ogpu.Backend.destroy_buffer destination);get(Ogpu.Backend.destroy_texture stencil);get(Ogpu.Backend.destroy_texture readable);get(Ogpu.Backend.destroy_device device);
-  if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then failwith"backend mock live-count delta";Ogpu.Backend_mock.trace control
+  expect Ogpu.Error.Invalid_state(Ogpu.Backend.destroy_device device);
+  get(Ogpu.Backend.destroy_surface surface);get(Ogpu.Backend.destroy_queue queue);
+  get(Ogpu.Backend.destroy_buffer source);get(Ogpu.Backend.destroy_buffer destination);
+  get(Ogpu.Backend.destroy_texture stencil);get(Ogpu.Backend.destroy_texture readable);
+  get(Ogpu.Backend.destroy_texture presentation_source);
+  get(Ogpu.Backend.destroy_texture wrong_extent);
+  get(Ogpu.Backend.destroy_texture wrong_usage);
+  get(Ogpu.Backend.destroy_texture multisampled);
+  get(Ogpu.Backend.destroy_texture copy_source);
+  get(Ogpu.Backend.destroy_texture produced_source);
+  get(Ogpu.Backend.destroy_texture resized_source);
+  get(Ogpu.Backend.destroy_device device);
+  get(Ogpu.Backend.destroy_texture foreign_source);
+  get(Ogpu.Backend.destroy_queue foreign_queue);
+  get(Ogpu.Backend.destroy_device foreign_device);
+  if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then
+    failwith"backend mock live-count delta";
+  if Ogpu.Backend_mock.live_counts foreign_control<>(0,0,0,0,0)then
+    failwith"foreign backend mock live-count delta";
+  Ogpu.Backend_mock.trace control
 let ()=let a=run()and b=run()in if a<>b then failwith"backend mock trace is nondeterministic";print_endline"OGPU backend boundary: deterministic submit/loss/frame/lifetime conformance passed"

@@ -1,6 +1,7 @@
 open Ogpu_metal
 let get=function Ok x->x|Error e->failwith(Ogpu.Error.to_string e)
 let get_metal=function Ok x->x|Error e->failwith(Format.asprintf"%a"Metal.pp_error e)
+let expect kind=function Error e when e.Ogpu.Error.kind=kind->()|_->failwith"backend rejection mismatch"
 let source={|#include <metal_stdlib>
 using namespace metal;
 kernel void backend_compute(device uint *v [[buffer(0)]], uint i [[thread_position_in_grid]]) { v[i]=v[i]*2+1; }
@@ -42,7 +43,7 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal backe
   (match Ogpu.Backend.destroy_device device with Error e when e.Ogpu.Error.kind=Ogpu.Error.Invalid_state->()|_->failwith"active-queue device destroy must reject atomically");
   get(Ogpu.Backend.complete_through queue2 rb.epoch);get(Ogpu.Backend.destroy_queue queue2);
   let group=get(Ogpu.Binding.create_group layout~group:0[{binding=0;resource=Ogpu.Backend.binding_buffer b}])in let declared : Ogpu.Compute_pass.resource={id=Ogpu.Backend.buffer_id b;access=Read_write;stages=[Compute_stage]}in let pass=get(Ogpu.Compute_pass.create(Ogpu.Backend.device_handle device)~limits:(Ogpu.Backend.capabilities device).limits~pipeline:(Pipeline.Private.portable native_compute)~layout~groups:[|0,group|]~resources:[|declared|]~dispatch:(Direct{x=4;y=1;z=1}))in for _=1 to 3 do let r=get(Ogpu.Backend.submit queue(Ogpu.Backend.compute pass)~resources:[`Buffer b]~pipelines:[compute_pipeline])in get(Ogpu.Backend.complete_through queue r.epoch)done;let out=get(Ogpu.Backend.read_buffer b~offset:0L~length:16)in for i=0 to 3 do if Bytes.get_int32_le out(i*4)<>Int32.of_int(i*8+7)then failwith"backend compute mismatch"done;
-  let td : Ogpu.Types.texture_descriptor={label=None;width=4;height=4;depth=1;mip_levels=1;sample_count=1;usage=[Render_attachment;Texture_copy_src]}in let target=get(Ogpu.Backend.create_texture device td)in let texture=Ogpu.Backend.render_texture target~format:Rgba8~usage:Render_target in let color : Ogpu.Render_pass.color={texture;resolve=None;load=Clear;store=Store;clear=(0.,0.,0.,1.)}in let rp=get(Ogpu.Render_pass.create(Ogpu.Backend.device_handle device){colors=[|Some color|];depth=None;stencil=None;viewport={x=0;y=0;width=4;height=4};scissor={x=0;y=0;width=4;height=4}})in
+  let td : Ogpu.Types.texture_descriptor={label=None;width=4;height=4;depth=1;mip_levels=1;sample_count=1;usage=[Texture_binding;Render_attachment;Texture_copy_src]}in let target=get(Ogpu.Backend.create_texture device td)in let texture=Ogpu.Backend.render_texture target~format:Rgba8~usage:Render_target in let color : Ogpu.Render_pass.color={texture;resolve=None;load=Clear;store=Store;clear=(0.,0.,0.,1.)}in let rp=get(Ogpu.Render_pass.create(Ogpu.Backend.device_handle device){colors=[|Some color|];depth=None;stencil=None;viewport={x=0;y=0;width=4;height=4};scissor={x=0;y=0;width=4;height=4}})in
   let vertex=get(Ogpu.Backend.create_buffer device{label=Some"argument-vertices";size=24L;usage=[Vertex;Copy_dst]})in
   let vertex_bytes=Bytes.create 24 in List.iteri(fun i f->Bytes.set_int32_le vertex_bytes(i*4)(Int32.bits_of_float f))[-1.;-1.;3.;-1.;-1.;3.];get(Ogpu.Backend.write_buffer vertex~offset:0L vertex_bytes);
   let sampled=get(Ogpu.Backend.create_texture device{label=Some"argument-sampled";width=1;height=1;depth=1;mip_levels=1;sample_count=1;usage=[Texture_binding;Texture_copy_dst]})in
@@ -176,5 +177,50 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal backe
   get(Ogpu.Backend.destroy_texture sampled);get(Ogpu.Backend.destroy_buffer vertex);if Backend.retained_plan_entries control<>0 then failwith"resource invalidation retained plan";
   let ibd : Ogpu.Types.buffer_descriptor={label=None;size=6L;usage=[Index;Copy_dst]}in let indices=get(Ogpu.Backend.create_buffer device ibd)in let ibytes=Bytes.create 6 in Bytes.set_uint16_le ibytes 0 0;Bytes.set_uint16_le ibytes 2 1;Bytes.set_uint16_le ibytes 4 2;get(Ogpu.Backend.write_buffer indices~offset:0L ibytes);let indexed={draw with index=Some(Uint16,Ogpu.Backend.buffer_id indices,0L,3)}in let draws=List.init 1000(fun i->if i land 1=0 then indexed else{draw with pipeline_key=Pipeline.key native_render2})in Gc.full_major();let allocated_before=Gc.allocated_bytes()in let rr=get(Ogpu.Backend.submit queue(get(Ogpu.Backend.render rp draws))~resources:[`Texture target;`Buffer indices]~pipelines:[render_pipeline;render_pipeline2])in let allocated=Gc.allocated_bytes()-.allocated_before in if allocated>9_000_000. then failwith(Printf.sprintf"backend 1000-draw allocation regression %.0f"allocated);get(Ogpu.Backend.destroy_buffer indices);get(Ogpu.Backend.complete_through queue rr.epoch);let pixels=get(Ogpu.Backend.read_texture target~bytes_per_row:16)in if Char.code(Bytes.get pixels 0)<>0||Char.code(Bytes.get pixels 1)<>255||Char.code(Bytes.get pixels 2)<>0 then failwith"backend ordered 1000-draw render mismatch";
   (* Surface lifecycle remains independently real and typed. *)
-  let config : Ogpu.Surface.configuration={logical_width=4;logical_height=4;physical_width=4;physical_height=4;format=Bgra8_unorm;present_mode=Fifo;max_acquired=2}in let surface=get(Ogpu.Backend.create_surface device config)in for i=0 to 2 do match get(Ogpu.Backend.acquire surface)with`Acquired frame->if i land 1=0 then get(Ogpu.Backend.present frame)else get(Ogpu.Backend.discard frame)|_->failwith"backend surface acquire"done;
+  let config : Ogpu.Surface.configuration={logical_width=4;logical_height=4;physical_width=4;physical_height=4;format=Bgra8_unorm;present_mode=Fifo;max_acquired=2}in
+  let surface=get(Ogpu.Backend.create_surface device config)in
+  let acquire_surface_frame()=match get(Ogpu.Backend.acquire surface)with
+    |`Acquired frame->frame|_->failwith"backend surface acquire"in
+  for i=0 to 2 do
+    let frame=acquire_surface_frame()in
+    if i land 1=0 then get(Ogpu.Backend.present~queue~source:target frame)
+    else get(Ogpu.Backend.discard frame)
+  done;
+  let deferred_target=get(Ogpu.Backend.create_texture device
+    {td with label=Some"deferred-presentation-source"})in
+  let deferred_texture=Ogpu.Backend.render_texture deferred_target
+    ~format:Rgba8~usage:Render_target in
+  let deferred_color={color with Ogpu.Render_pass.texture=deferred_texture}in
+  let deferred_pass=get(Ogpu.Render_pass.create(Ogpu.Backend.device_handle device)
+    {colors=[|Some deferred_color|];depth=None;stencil=None;
+     viewport={x=0;y=0;width=4;height=4};scissor={x=0;y=0;width=4;height=4}})in
+  let combined_command=get(Ogpu.Backend.render deferred_pass[draw])in
+  let combined_resources=[`Texture deferred_target]in
+  let retry_frame=acquire_surface_frame()in
+  Backend.Private.inject_next_active_queue_error control;
+  expect Ogpu.Error.Device_lost
+    (Ogpu.Backend.submit_present queue combined_command
+      ~resources:combined_resources~pipelines:[render_pipeline]
+      ~source:deferred_target retry_frame);
+  expect Ogpu.Error.Invalid_state(Ogpu.Backend.configure surface config);
+  expect Ogpu.Error.Invalid_state(Ogpu.Backend.destroy_surface surface);
+  let retried=get(Ogpu.Backend.submit_present queue combined_command
+    ~resources:combined_resources~pipelines:[render_pipeline]
+    ~source:deferred_target retry_frame)in
+  expect Ogpu.Error.Invalid_state(Ogpu.Backend.configure surface config);
+  expect Ogpu.Error.Invalid_state(Ogpu.Backend.destroy_surface surface);
+  get(Ogpu.Backend.destroy_texture deferred_target);
+  expect Ogpu.Error.Stale_handle
+    (Ogpu.Backend.read_texture deferred_target~bytes_per_row:16);
+  get(Ogpu.Backend.complete_through queue retried.epoch);
+  get(Ogpu.Backend.configure surface config);
+  let terminal_command=get(Ogpu.Backend.render rp[draw])in
+  let terminal_frame=acquire_surface_frame()in
+  let terminal=get(Ogpu.Backend.submit_present queue terminal_command
+    ~resources:[`Texture target]~pipelines:[render_pipeline]
+    ~source:target terminal_frame)in
+  Backend.Private.inject_next_active_queue_completion_error control;
+  expect Ogpu.Error.Device_lost
+    (Ogpu.Backend.complete_through queue terminal.epoch);
+  get(Ogpu.Backend.configure surface config);
   get(Ogpu.Backend.destroy_surface surface);get(Ogpu.Backend.destroy_texture target);get(Ogpu.Backend.destroy_buffer upload);get(Ogpu.Backend.destroy_buffer a);get(Ogpu.Backend.destroy_buffer b);get(Ogpu.Backend.destroy_pipeline replacement_pipeline);Pipeline.clear_cache replacement_cache;get(Ogpu.Backend.destroy_pipeline argument_pipeline);get(Ogpu.Backend.destroy_pipeline compute_pipeline);get(Ogpu.Backend.destroy_pipeline render_pipeline);get(Ogpu.Backend.destroy_pipeline render_pipeline2);get(Ogpu.Backend.destroy_queue queue);get_metal(Metal.Metal_layer.destroy layer);get(Ogpu.Backend.destroy_device device);ignore(get_metal(Metal.Release_queue.drain()));let after=get_metal(Metal.Release_queue.stats())in if after.live_handles<>before.live_handles-1 then failwith(Printf.sprintf"backend adapter live delta before=%d after=%d pending=%d/%d created=%Ld/%Ld released=%Ld/%Ld plan=%d retired=%d sampler=%d"before.live_handles after.live_handles before.pending after.pending before.total_created after.total_created before.total_released after.total_released(Backend.retained_plan_entries control)(Backend.retired_plan_entries control)(Backend.sampler_cache_entries control));print_endline"ogpu_metal backend: transfer/compute/render1000/retained-plan queues/surface, zero delta"

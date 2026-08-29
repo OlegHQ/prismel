@@ -42,8 +42,17 @@ pool, but all results join before crossing the native boundary.
 3. Prismel lowers immutable `Scene` data into checked OGPU commands. Native
    implementation code validates device identity, resource lifetime, numeric
    ranges, and command ordering before encoding Metal commands.
-4. The command buffer presents the drawable and keeps completion-owned state
-   alive until Metal reports completion.
+4. Scene passes render into one owned RGBA8 texture, which remains the exact
+   native capture/readback source.
+5. A typed OGPU presentation operation uses the same producer queue to render
+   that RGBA8 texture into the acquired BGRA8 `CAMetalDrawable`. Classic final
+   passes append conversion and drawable scheduling to their existing command
+   buffer. A final pass that requires Command4 completes first and uses the
+   ordered same-queue classic presentation fallback until Command4 exposes a
+   bounded submission-scoped drawable lifetime. Both paths keep
+   completion-owned state alive until Metal reports completion. Production
+   drawables remain framebuffer-only; only the focused backend test creates a
+   readable layer.
 
 `Canvas.render` uses the same lowering, pipeline variants, validation, and
 completion path against a layerless owned Metal texture. A Canvas creates its
@@ -60,7 +69,9 @@ Canvas targets always report `vsync = false` and `presented = 0`.
 Drawable dimensions are physical pixels. `Frame.width`, `Frame.height`, scene
 coordinates, input positions, and PXUI layout remain logical points; the
 backend performs the logical-to-drawable conversion exactly once at the native
-viewport boundary. Captures read the drawable-sized native framebuffer.
+viewport boundary. Captures read the owned drawable-sized RGBA8 Metal target;
+they do not masquerade as a read of the BGRA window drawable. Exact
+presentation tests separately probe the acquired drawable through a GPU blit.
 
 ## Resource rules
 

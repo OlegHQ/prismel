@@ -47,8 +47,11 @@ Each loop iteration:
 2. updates `Input` and constructs immutable `Frame.t` facts;
 3. threads the user model through `update`;
 4. lowers the pure scene returned by `view`;
-5. acquires a Metal drawable, records checked OGPU commands, commits, and
-   presents it;
+5. acquires a Metal drawable, records checked OGPU commands into the owned
+   RGBA8 capture target, then uses that same producer queue for the typed
+   RGBA8-to-BGRA8 drawable pass and ordered presentation. A classic final pass
+   combines both operations in one command buffer; Command4-only final passes
+   use the ordered same-queue presentation fallback;
 6. applies configured realtime pacing or advances a fixed clock by frame count.
 
 `Sketch.Fixed dt` requires finite positive `dt` and derives time from frame

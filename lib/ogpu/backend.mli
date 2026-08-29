@@ -14,7 +14,10 @@ type driver_surface =
   { surface_token:token
   ; configure:Surface.configuration -> (unit,Error.t) result
   ; acquire:unit -> ([ `Acquired of driver_frame | `Timeout | `Occluded | `Device_lost ],Error.t) result
-  ; present:driver_frame -> (unit,Error.t) result
+  ; present:queue:token -> source:token -> driver_frame -> (unit,Error.t) result
+  ; submit_present:queue:token -> source:token -> command ->
+      resources:(int64*token) list -> pipelines:token list -> driver_frame ->
+      (receipt,Error.t) result
   ; discard:driver_frame -> (unit,Error.t) result
   ; destroy_surface:unit -> (unit,Error.t) result }
 type driver_queue =
@@ -71,7 +74,10 @@ val submit : queue -> command -> resources:[ `Buffer of buffer | `Texture of tex
 val complete_through : queue -> int64 -> (unit,Error.t) result
 val configure : surface -> Surface.configuration -> (unit,Error.t) result
 val acquire : surface -> ([ `Acquired of frame | `Timeout | `Occluded | `Device_lost ],Error.t) result
-val present : frame -> (unit,Error.t) result
+val present : queue:queue -> source:texture -> frame -> (unit,Error.t) result
+val submit_present : queue -> command ->
+  resources:[ `Buffer of buffer | `Texture of texture ] list ->
+  pipelines:pipeline list -> source:texture -> frame -> (receipt,Error.t) result
 val discard : frame -> (unit,Error.t) result
 val destroy_buffer : buffer -> (unit,Error.t) result
 val destroy_texture : texture -> (unit,Error.t) result
