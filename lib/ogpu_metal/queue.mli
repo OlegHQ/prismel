@@ -1,16 +1,13 @@
 type t
 type receipt={epoch:int64}
-type presentation=
-  { encode:Metal.Command_buffer.t -> (unit,Ogpu.Error.t) result
-  ; commit:unit -> unit
-  ; rollback:unit -> unit
-  ; complete:unit -> unit
-  }
+type presentation=Metal.Command_buffer.t -> (unit,Ogpu.Error.t) result
 type gpu_timing={supported:bool;duration_seconds:float;sample_count:int64}
 val gpu_timing_for_device : Device.t -> gpu_timing
 val create : ?max_frames:int -> Device.t -> (t,Ogpu.Error.t) result
 val submit : t -> Command.t -> (receipt,Ogpu.Error.t) result
-val submit_render_pass : ?presentation:presentation -> t -> Render_pass.t ->
+val submit_render_pass : t -> Render_pass.t ->
+  (receipt,Ogpu.Error.t) result
+val submit_render_pass_present : t -> presentation -> Render_pass.t ->
   (receipt,Ogpu.Error.t) result
 val submit_transfer_pass : t -> Transfer_pass.t -> (receipt,Ogpu.Error.t) result
 val submit_compute_pass : t -> Compute_pass.t -> (receipt,Ogpu.Error.t) result

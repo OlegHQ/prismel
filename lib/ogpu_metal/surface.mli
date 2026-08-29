@@ -23,6 +23,8 @@ val destroyed : t -> bool
 val destroy : t -> unit
 
 module Private : sig
+  type pending_presentation
+
   (** Creates the only non-framebuffer-only surface configuration.  This is
       restricted to exact drawable-byte tests; production uses [create]. *)
   val create_readable : Device.t -> layer:Metal.Metal_layer.t ->
@@ -46,9 +48,18 @@ module Private : sig
     t -> frame -> queue:Queue.t -> target:Texture.t ->
     (unit,Ogpu.Error.t) result
 
-  (** Prepares a presentation pass for encoding into the producer's classic
-      command buffer.  No frame state changes until the queue commits it, and
-      native drawable ownership is released only on queue completion. *)
+  (** Reusable backend-owned presentation state.  A queue keeps only its native
+      command/resources; completion of these concrete epoch-tagged slots is
+      driven by the backend after [Queue.wait_through]. *)
+  val create_pending_presentation : unit -> pending_presentation
+  val pending_presentation_available : pending_presentation -> bool
   val prepare_present :
-    t -> frame -> source:Texture.t -> (Queue.presentation,Ogpu.Error.t) result
+    pending_presentation -> t -> frame -> source:Texture.t ->
+    (unit,Ogpu.Error.t) result
+  val presentation_encoder : pending_presentation -> Queue.presentation
+  val rollback_present : pending_presentation -> unit
+  val commit_present : pending_presentation -> epoch:int64 -> unit
+  val complete_presentations_through :
+    pending_presentation array -> int64 -> unit
+  val clear_pending_presentations : pending_presentation array -> unit
 end

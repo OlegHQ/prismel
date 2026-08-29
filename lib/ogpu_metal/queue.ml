@@ -1,12 +1,7 @@
 type cleanup=unit->unit
 type native_completion=Classic of Metal.Command_buffer.t|Command4 of Metal.Command4.Submission.t*Metal.Command4.Command_buffer.t*Metal.Command4.Allocator.t
 type pending={epoch:int64;command:native_completion;cleanup:cleanup list}
-type presentation=
-  { encode:Metal.Command_buffer.t -> (unit,Ogpu.Error.t) result
-  ; commit:unit -> unit
-  ; rollback:unit -> unit
-  ; complete:unit -> unit
-  }
+type presentation=Metal.Command_buffer.t -> (unit,Ogpu.Error.t) result
 type t={device:Device.t;metal:Metal.Command_queue.t;submission:Ogpu.Submission.t;mutable command4:Metal.Command4.Queue.t option;mutable pending:pending list;mutable fail_next:bool;mutable fail_next_completion:bool;mutable dead:bool}
 type receipt={epoch:int64}
 type gpu_timing={supported:bool;duration_seconds:float;sample_count:int64}
@@ -73,21 +68,18 @@ let submit value command =let op="Ogpu_metal.Queue.submit"in if value.dead then 
   let rollback failure=List.iter(fun release->release())retained;failure in
   match Ogpu.Submission.Private.submit_epoch value.submission(Command.Private.portable command)~resources:[]with Error _ as e->rollback e|Ok epoch->match Metal.Command_buffer.create value.metal()with Error e->rollback(Error(Adapter.error~operation:op e))|Ok native->match encode native operations with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error e)|Ok cleanup->match Metal.Command_buffer.commit native with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error(Adapter.error~operation:op e))|Ok()->value.pending<-value.pending@[{epoch=epoch;command=Classic native;cleanup=retained@cleanup}];Ok{epoch=epoch}
 let command4_queue value=match value.command4 with Some queue->Ok queue|None->match Metal.Command4.Queue.create_default(Device.Private.metal value.device)with Error e->Error(Adapter.error~operation:"Ogpu_metal.Queue.command4" e)|Ok queue->value.command4<-Some queue;Ok queue
-let submit_render_pass ?presentation value pass =
+let no_presentation _=assert false
+let submit_render_pass_common ~presenting presentation value pass =
   let op = "Ogpu_metal.Queue.submit_render_pass" in
   let requires_command4 = Render_pass.Private.requires_command4 pass in
-  let reject failure =
-    Option.iter (fun request -> request.rollback ()) presentation;
-    failure
-  in
   if value.dead then
-    reject (error op Ogpu.Error.Stale_handle "queue is destroyed")
-  else if Option.is_some presentation && requires_command4 then
-    reject (error op Ogpu.Error.Unsupported
-      "combined presentation requires a classic render pass")
+    error op Ogpu.Error.Stale_handle "queue is destroyed"
+  else if presenting && requires_command4 then
+    error op Ogpu.Error.Unsupported
+      "combined presentation requires a classic render pass"
   else if value.fail_next then begin
     value.fail_next <- false;
-    reject (error op Ogpu.Error.Device_lost "injected submission failure")
+    error op Ogpu.Error.Device_lost "injected submission failure"
   end else if requires_command4 then
     match command4_queue value with
     | Error _ as failure -> failure
@@ -154,11 +146,10 @@ let submit_render_pass ?presentation value pass =
                                                    Ok {epoch})))))))
   else
     match Render_pass.Private.retain pass with
-    | Error _ as failure -> reject failure
+    | Error _ as failure -> failure
     | Ok retained ->
         let rollback failure =
           List.iter (fun release -> release ()) retained;
-          Option.iter (fun request -> request.rollback ()) presentation;
           failure
         in
         match Metal.Command_buffer.create value.metal () with
@@ -176,9 +167,7 @@ let submit_render_pass ?presentation value pass =
                    rollback failure
                  in
                  let presented =
-                   match presentation with
-                   | None -> Ok ()
-                   | Some request -> request.encode native
+                   if presenting then presentation native else Ok()
                  in
                  (match presented with
                   | Error _ as failure ->
@@ -203,17 +192,14 @@ let submit_render_pass ?presentation value pass =
                                           abort
                                             (Error (Adapter.error ~operation:op native_error))
                                       | Ok () ->
-                                          let completion =
-                                            match presentation with
-                                            | None -> []
-                                            | Some request ->
-                                                request.commit ();
-                                                [request.complete]
-                                          in
                                           value.pending <- value.pending @
                                             [{epoch;command=Classic native;
-                                              cleanup=retained @ cleanup @ completion}];
+                                              cleanup=retained @ cleanup}];
                                           Ok {epoch}))))))
+let submit_render_pass value pass=
+  submit_render_pass_common~presenting:false no_presentation value pass
+let submit_render_pass_present value presentation pass=
+  submit_render_pass_common~presenting:true presentation value pass
 let submit_typed value op retain encode=if value.dead then error op Ogpu.Error.Stale_handle"queue is destroyed"else match retain()with Error _ as e->e|Ok retained->let rollback e=List.iter(fun f->f())retained;e in match Metal.Command_buffer.create value.metal()with Error e->rollback(Error(Adapter.error~operation:op e))|Ok native->match encode native with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error e)|Ok()->let portable=Ogpu.Command.begin_encoder()in(match Ogpu.Command.end_encoder portable with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error e)|Ok()->match Ogpu.Submission.Private.submit_epoch value.submission portable~resources:[]with Error _ as e->ignore(Metal.Command_buffer.destroy native);rollback e|Ok epoch->match Metal.Command_buffer.commit native with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error(Adapter.error~operation:op e))|Ok()->value.pending<-value.pending@[{epoch=epoch;command=Classic native;cleanup=retained}];Ok{epoch=epoch})
 let submit_transfer_pass value pass=submit_typed value"Ogpu_metal.Queue.submit_transfer_pass"(fun()->Transfer_pass.Private.retain pass)(fun command->Transfer_pass.Private.encode command pass)
 let submit_compute_pass value pass=submit_typed value"Ogpu_metal.Queue.submit_compute_pass"(fun()->Compute_pass.Private.retain pass)(fun command->Compute_pass.Private.encode command pass)

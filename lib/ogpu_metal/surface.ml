@@ -1,6 +1,9 @@
 type frame_state=Live|Presented|Discarded|Stale
 type t={device:Device.t;layer:Metal.Metal_layer.t;portable:Ogpu.Surface.t;presentation:Presentation.t;readable_drawables_for_test:bool;mutable frames:frame list;mutable in_flight_presentations:int;mutable destroy_pending:bool;mutable dead:bool}
 and frame={surface:t;portable:Ogpu.Surface.frame;drawable:Metal.Drawable.t;texture:Metal.Texture.t;generation:int64;mutable state:frame_state}
+type pending_payload={mutable owner:t;mutable frame:frame;mutable source:Texture.t}
+type pending_presentation={mutable payload:pending_payload option;
+  mutable active:bool;mutable epoch:int64;encode:Queue.presentation}
 type acquire_result=Acquired of frame|Timeout|Occluded|Device_lost
 let error op kind message=Error(Ogpu.Error.make op kind message)
 let metal_config ~readable_drawables_for_test (value:Ogpu.Surface.configuration)=
@@ -46,9 +49,24 @@ let present_from value frame ~queue ~source=
     |Some e,_->Error e
     |None,Presentation.Completed->Ok()
     |None,Presentation.Committed_with_error e->Error e
-let prepare_present value frame ~source=
+let encode_present pending commands=
+  match pending.active,pending.payload with
+  |true,Some{owner=value;frame;source}->
+      Presentation.encode_classic value.presentation commands
+        ~present:frame.drawable ~source:(Texture.Private.metal source)
+        ~target:frame.texture ()
+  |_->error"Ogpu_metal.Surface.encode_present"Ogpu.Error.Invalid_state
+      "presentation slot is not prepared"
+let create_pending_presentation()=
+  let rec pending={payload=None;active=false;epoch=0L;
+    encode=(fun commands->encode_present pending commands)}in
+  pending
+let pending_presentation_available value=not value.active
+let prepare_present pending value frame ~source=
   let op="Ogpu_metal.Surface.prepare_present"in
-  match validate op value frame with Error _ as e->e|Ok()->
+  if not(pending_presentation_available pending)then
+    error op Ogpu.Error.Capacity"bounded presentation slot is already in use"
+  else match validate op value frame with Error _ as e->e|Ok()->
   match Texture.descriptor value.device source,Texture.format value.device source with
   |(Error _ as e),_->e|_,(Error _ as e)->e
   |Ok descriptor,Ok format->
@@ -57,31 +75,39 @@ let prepare_present value frame ~source=
     else let target=Metal.Texture.descriptor frame.texture in
       if descriptor.width<>target.width||descriptor.height<>target.height then error op Ogpu.Error.Invalid_argument"presentation source and drawable extents differ"
       else match Texture.Private.retain_submission source with Error _ as e->e|Ok()->
-        let committed=ref false and completed=ref false in
-        let source_released=ref false in
-        let release_source()=if not!source_released then(source_released:=true;Texture.Private.release_submission source)in
-        let encode commands=
-          Presentation.encode_classic value.presentation commands
-            ~present:frame.drawable ~source:(Texture.Private.metal source)
-            ~target:frame.texture () in
-        let commit()=
-          if not!committed then begin
-            committed:=true;
-            ignore(Ogpu.Surface.present value.portable frame.portable);
-            frame.state<-Presented;
-            remove value frame;
-            value.in_flight_presentations<-value.in_flight_presentations+1
-          end in
-        let rollback()=if not!committed then release_source()in
-        let complete()=
-          if !committed&&not!completed then begin
-            completed:=true;
-            release frame;
-            release_source();
-            value.in_flight_presentations<-value.in_flight_presentations-1;
-            if value.in_flight_presentations=0&&value.destroy_pending then teardown value
-          end in
-        Ok{Queue.encode=encode;commit;rollback;complete}
+        (match pending.payload with
+         |None->pending.payload<-Some{owner=value;frame;source}
+         |Some payload->payload.owner<-value;payload.frame<-frame;
+             payload.source<-source);
+        pending.active<-true;pending.epoch<-0L;Ok()
+let presentation_encoder pending=pending.encode
+let clear_pending pending=pending.active<-false;pending.epoch<-0L
+let rollback_present pending=
+  match pending.active,pending.payload with
+  |true,Some{source;_}when pending.epoch=0L->
+      Texture.Private.release_submission source;clear_pending pending
+  |_->()
+let commit_present pending ~epoch=
+  match pending.active,pending.payload with
+  |true,Some{owner=value;frame;_}when pending.epoch=0L->
+      ignore(Ogpu.Surface.present value.portable frame.portable);
+      frame.state<-Presented;remove value frame;
+      value.in_flight_presentations<-value.in_flight_presentations+1;
+      pending.epoch<-epoch
+  |_->()
+let complete_present pending=
+  match pending.active,pending.payload with
+  |true,Some{owner=value;frame;source}when pending.epoch<>0L->
+      release frame;Texture.Private.release_submission source;
+      value.in_flight_presentations<-value.in_flight_presentations-1;
+      clear_pending pending;
+      if value.in_flight_presentations=0&&value.destroy_pending then teardown value
+  |_->()
+let complete_presentations_through pending epoch=
+  Array.iter(fun slot->if slot.epoch<>0L&&slot.epoch<=epoch then complete_present slot)
+    pending
+let clear_pending_presentations pending=
+  Array.iter(fun slot->if not slot.active then slot.payload<-None)pending
 let discard value frame=let op="Ogpu_metal.Surface.discard"in match validate op value frame with Error _ as e->e|Ok()->match Ogpu.Surface.discard value.portable frame.portable with Error _ as e->e|Ok()->frame.state<-Discarded;remove value frame;release frame;Ok()
 let destroy value=if not(destroyed value)then if value.in_flight_presentations=0 then teardown value else(stale_frames value;value.destroy_pending<-true)
 module Private=struct
@@ -89,5 +115,13 @@ module Private=struct
   let render_for_test value ~queue ~source ~target=let op="Ogpu_metal.Surface.Private.render_for_test"in if destroyed value then error op Ogpu.Error.Stale_handle"surface is destroyed"else match Presentation.render value.presentation~queue:(Queue.Private.metal queue)~source:(Texture.Private.metal source)~target:(Texture.Private.metal target)()with Error _ as e->e|Ok Presentation.Completed->Ok()|Ok(Presentation.Committed_with_error e)->Error e
   let render_source_into_frame value frame ~queue ~source=render_source_into_frame"Ogpu_metal.Surface.Private.render_source_into_frame"value frame~queue source
   let copy_frame_for_test value frame ~queue ~target=let op="Ogpu_metal.Surface.Private.copy_frame_for_test"in match validate op value frame with Error _ as e->e|Ok()->Presentation.copy value.presentation~queue:(Queue.Private.metal queue)~source:frame.texture~target:(Texture.Private.metal target)
+  type nonrec pending_presentation=pending_presentation
+  let create_pending_presentation=create_pending_presentation
+  let pending_presentation_available=pending_presentation_available
   let prepare_present=prepare_present
+  let presentation_encoder=presentation_encoder
+  let rollback_present=rollback_present
+  let commit_present=commit_present
+  let complete_presentations_through=complete_presentations_through
+  let clear_pending_presentations=clear_pending_presentations
 end

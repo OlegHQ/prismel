@@ -215,6 +215,49 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal backe
   get(Ogpu.Backend.complete_through queue retried.epoch);
   get(Ogpu.Backend.configure surface config);
   let terminal_command=get(Ogpu.Backend.render rp[draw])in
+  let submit_terminal()=
+    let frame=acquire_surface_frame()in
+    Ogpu.Backend.submit_present queue terminal_command
+      ~resources:[`Texture target]~pipelines:[render_pipeline]
+      ~source:target frame in
+  for _=1 to 4 do
+    let receipt=get(submit_terminal())in
+    get(Ogpu.Backend.complete_through queue receipt.epoch)
+  done;
+  Gc.full_major();
+  let control_gc_before=Gc.quick_stat()in
+  for _=1 to 600 do
+    let frame=acquire_surface_frame()in
+    let receipt=get(Ogpu.Backend.submit queue terminal_command
+      ~resources:[`Texture target]~pipelines:[render_pipeline])in
+    get(Ogpu.Backend.complete_through queue receipt.epoch);
+    get(Ogpu.Backend.present~queue~source:target frame)
+  done;
+  Gc.minor();
+  let control_gc_after=Gc.quick_stat()in
+  let control_promoted=
+    (control_gc_after.promoted_words-.control_gc_before.promoted_words)*.
+      float(Sys.word_size/8)/.600. in
+  Gc.full_major();
+  let presentation_gc_before=Gc.quick_stat()in
+  for frame=1 to 600 do
+    let receipt=get(submit_terminal())in
+    if List.mem frame[1;2;60;600]then begin
+      expect Ogpu.Error.Invalid_state(Ogpu.Backend.configure surface config);
+      expect Ogpu.Error.Invalid_state(Ogpu.Backend.destroy_surface surface)
+    end;
+    get(Ogpu.Backend.complete_through queue receipt.epoch)
+  done;
+  Gc.minor();
+  let presentation_gc_after=Gc.quick_stat()in
+  let presentation_promoted=
+    (presentation_gc_after.promoted_words-.
+       presentation_gc_before.promoted_words)*.float(Sys.word_size/8)/.600. in
+  let presentation_increment=max 0.(presentation_promoted-.control_promoted)in
+  if presentation_increment>64. then
+    failwith(Printf.sprintf
+      "combined presentation incremental promotion regression %.1f B/frame (combined %.1f, control %.1f)"
+      presentation_increment presentation_promoted control_promoted);
   let terminal_frame=acquire_surface_frame()in
   let terminal=get(Ogpu.Backend.submit_present queue terminal_command
     ~resources:[`Texture target]~pipelines:[render_pipeline]
@@ -223,4 +266,4 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal backe
   expect Ogpu.Error.Device_lost
     (Ogpu.Backend.complete_through queue terminal.epoch);
   get(Ogpu.Backend.configure surface config);
-  get(Ogpu.Backend.destroy_surface surface);get(Ogpu.Backend.destroy_texture target);get(Ogpu.Backend.destroy_buffer upload);get(Ogpu.Backend.destroy_buffer a);get(Ogpu.Backend.destroy_buffer b);get(Ogpu.Backend.destroy_pipeline replacement_pipeline);Pipeline.clear_cache replacement_cache;get(Ogpu.Backend.destroy_pipeline argument_pipeline);get(Ogpu.Backend.destroy_pipeline compute_pipeline);get(Ogpu.Backend.destroy_pipeline render_pipeline);get(Ogpu.Backend.destroy_pipeline render_pipeline2);get(Ogpu.Backend.destroy_queue queue);get_metal(Metal.Metal_layer.destroy layer);get(Ogpu.Backend.destroy_device device);ignore(get_metal(Metal.Release_queue.drain()));let after=get_metal(Metal.Release_queue.stats())in if after.live_handles<>before.live_handles-1 then failwith(Printf.sprintf"backend adapter live delta before=%d after=%d pending=%d/%d created=%Ld/%Ld released=%Ld/%Ld plan=%d retired=%d sampler=%d"before.live_handles after.live_handles before.pending after.pending before.total_created after.total_created before.total_released after.total_released(Backend.retained_plan_entries control)(Backend.retired_plan_entries control)(Backend.sampler_cache_entries control));print_endline"ogpu_metal backend: transfer/compute/render1000/retained-plan queues/surface, zero delta"
+  get(Ogpu.Backend.destroy_surface surface);get(Ogpu.Backend.destroy_texture target);get(Ogpu.Backend.destroy_buffer upload);get(Ogpu.Backend.destroy_buffer a);get(Ogpu.Backend.destroy_buffer b);get(Ogpu.Backend.destroy_pipeline replacement_pipeline);Pipeline.clear_cache replacement_cache;get(Ogpu.Backend.destroy_pipeline argument_pipeline);get(Ogpu.Backend.destroy_pipeline compute_pipeline);get(Ogpu.Backend.destroy_pipeline render_pipeline);get(Ogpu.Backend.destroy_pipeline render_pipeline2);get(Ogpu.Backend.destroy_queue queue);get_metal(Metal.Metal_layer.destroy layer);get(Ogpu.Backend.destroy_device device);ignore(get_metal(Metal.Release_queue.drain()));let after=get_metal(Metal.Release_queue.stats())in if after.live_handles<>before.live_handles-1 then failwith(Printf.sprintf"backend adapter live delta before=%d after=%d pending=%d/%d created=%Ld/%Ld released=%Ld/%Ld plan=%d retired=%d sampler=%d"before.live_handles after.live_handles before.pending after.pending before.total_created after.total_created before.total_released after.total_released(Backend.retained_plan_entries control)(Backend.retired_plan_entries control)(Backend.sampler_cache_entries control));Printf.printf"ogpu_metal backend: transfer/compute/render1000/retained-plan queues/surface, combined %.1f/control %.1f/increment %.1f promoted B/frame, zero delta\n%!"presentation_promoted control_promoted presentation_increment
