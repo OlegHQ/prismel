@@ -93,19 +93,6 @@ external metal_layer_token : nativeint -> int64 -> int64 -> Native_layer_token.t
 external invalidate_metal_layer_token : Native_layer_token.t -> unit
   = "caml_sdl3_invalidate_metal_layer_token"
 
-external create_rgba_presenter : nativeint -> bool -> nativeint
-  = "caml_sdl3_create_rgba_presenter"
-external destroy_rgba_presenter : nativeint -> unit
-  = "caml_sdl3_destroy_rgba_presenter"
-external present_rgba : nativeint -> bytes -> int -> int -> int -> bool
-  = "caml_sdl3_present_rgba"
-external presenter_copy_rgba : nativeint -> bytes option
-  = "caml_sdl3_presenter_copy_rgba"
-external presenter_texture_size : nativeint -> int * int
-  = "caml_sdl3_presenter_texture_size"
-external presenter_renderer_name : nativeint -> string option
-  = "caml_sdl3_presenter_renderer_name"
-
 (* The SDL_Event union never crosses this module boundary.  The C stub copies
    only the active member into one of these constructors while SDL still owns
    any pointer payloads. *)

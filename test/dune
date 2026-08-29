@@ -74,6 +74,23 @@
    %{dep:../lib/ogpu_metal/dune})))
 
 (test
+ (name native_only_rendering)
+ (modules native_only_rendering)
+ (deps ../lib/sdl3/private_raw.ml ../lib/sdl3/sdl3.ml
+  ../lib/sdl3/sdl3.mli ../lib/sdl3/sdl3_stubs.c
+  ../lib/runtime/runtime_next.ml ../lib/runtime/runtime_next_orchestrator.ml
+  ../lib/prismel_next_execution/prismel_next_execution.ml)
+ (action
+  (run %{test}
+   %{dep:../lib/sdl3/private_raw.ml}
+   %{dep:../lib/sdl3/sdl3.ml}
+   %{dep:../lib/sdl3/sdl3.mli}
+   %{dep:../lib/sdl3/sdl3_stubs.c}
+   %{dep:../lib/runtime/runtime_next.ml}
+   %{dep:../lib/runtime/runtime_next_orchestrator.ml}
+   %{dep:../lib/prismel_next_execution/prismel_next_execution.ml})))
+
+(test
  (name audio_snapshot)
  (modules audio_snapshot)
  (libraries prismel)

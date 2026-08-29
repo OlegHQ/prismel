@@ -12,7 +12,7 @@ partial records do not claim final release qualification.
 | SDL3 ABI and lifecycle | `phase1_sdl3.json`, generated layout and ABI records | Native window, Metal-view, DPI, initial-domain, resource, and extension validation. |
 | Metal binding coverage | `metal_completion_audit_2026-08-27.md`, `phase2_metal_ffi_baseline.json`, `phase3_ogpu_audit_2026-08-27.md` | Typed binding inventory, conformance, ownership, and FFI-envelope measurements. |
 | Native runtime | `r10_native_scene2_correctness_2026-08-28.md`, `runtime_next_native_stability_2026-08-29.md`, `runtime_next_native_r11_candidate_protocol_2026-08-27.md` | Native scene lowering, current clean 30-minute changing-resource stability, readback, and lifecycle evidence. |
-| Production linkage | `d3_native_link_audit_2026-08-29.md` | Fresh release build dependency graph and representative executable link list. |
+| Production linkage and native-only selection | `d3_native_link_audit_2026-08-29.md`, `d2_d3_d8_native_only_audit_2026-08-29.md` | Fresh release build linkage plus current token classification, dependency/artifact refresh, retired SDL presenter deletion, and durable selector gate. |
 | Frozen fixtures | `gpu_migration/fixtures.json` | Exact native reference artifact dimensions, bytes, digests, and capture environment. |
 
 ## Reading the records
