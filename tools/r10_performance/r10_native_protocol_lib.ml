@@ -772,6 +772,27 @@ let capture argv =
       cleanup ();
       fail "child received signal %d: %s" signal detail
 
+let finalize_report ?(verify_files=true) ~smoke ~output provisional =
+  if smoke then begin
+    validate_smoke_report provisional;
+    write_json output provisional;
+    provisional
+  end else begin
+    (* A qualification is expensive enough that its complete raw measurements
+       must survive a validation failure.  The provisional document has the
+       canonical qualification schema and samples, but no summaries that could
+       imply that the performance envelopes passed. *)
+    write_json output provisional;
+    let summaries = validate_report ~verify_files provisional in
+    let report = match provisional with
+      | `Assoc fields -> `Assoc (fields @ [ "summaries", `List summaries ])
+      | _ -> assert false
+    in
+    ignore (validate_report ~verify_files report);
+    write_json output report;
+    report
+  end
+
 let run ~benchmark ~baseline_path ~output ~profile ~width ~height ~samples
     ~warmup_seconds ~sample_seconds ~smoke ~dry_run =
   let baseline_path =
@@ -867,11 +888,7 @@ let run ~benchmark ~baseline_path ~output ~profile ~width ~height ~samples
         ; "samples", `List (List.rev !samples_json)
         ]
     in
-    let report=if smoke then(begin validate_smoke_report provisional;provisional end)else
-      let summaries=validate_report provisional in match provisional with
-      |`Assoc fields->`Assoc(fields@["summaries",`List summaries])|_->assert false in
-    if smoke then validate_smoke_report report else ignore(validate_report report);
-    write_json output report;
+    ignore (finalize_report ~smoke ~output provisional);
     Printf.printf "R10 native %s passed: %s\n%!"
       (if smoke then"smoke"else"qualification")output
   end
@@ -1019,9 +1036,14 @@ let self_test baseline_path =
       (update_assoc "raw"update)report in
   let replace value _=value in
   let expect_invalid label candidate=
-    try ignore(validate_report~verify_files:false candidate);
-      fail"self-test accepted %s"label
-    with Invalid_report _->()in
+    let rejected =
+      try
+        ignore (validate_report ~verify_files:false candidate);
+        false
+      with Invalid_report _ -> true
+    in
+    if not rejected then fail "self-test accepted %s" label
+  in
   let broken =
     match report with
     | `Assoc fields ->
@@ -1031,10 +1053,7 @@ let self_test baseline_path =
           else name, value) fields)
     | _ -> assert false
   in
-  (try
-     ignore (validate_report~verify_files:false broken);
-     fail "self-test accepted a missing cell sample"
-   with Invalid_report _ -> ());
+  expect_invalid "a missing cell sample" broken;
   expect_invalid "a duplicate cell index"
     (update_first_sample(update_assoc "sample_index"(replace(`Int 2)))report);
   expect_invalid "an unknown cell"
@@ -1066,20 +1085,51 @@ let self_test baseline_path =
           else name, value) fields)
     | _ -> assert false
   in
-  (try
-     ignore (validate_report~verify_files:false dirty);
-     fail "self-test accepted dirty qualification provenance"
-   with Invalid_report _ -> ());
+  expect_invalid "dirty qualification provenance" dirty;
   let wrong_schema=match report with `Assoc fields->`Assoc(List.map(fun(name,value)->
     if name="schema"then name,`String smoke_schema else name,value)fields)|_->assert false in
-  (try ignore(validate_report~verify_files:false wrong_schema);
-    fail"self-test accepted smoke as qualification"with Invalid_report _->());
+  expect_invalid "smoke as qualification" wrong_schema;
   let wrong_duration=match report with `Assoc fields->`Assoc(List.map(fun(name,value)->
     if name="protocol"then match value with `Assoc protocol->name,`Assoc(List.map
       (fun(key,child)->if key="sample_seconds"then key,`Float 29. else key,child)protocol)
       |_->name,value else name,value)fields)|_->assert false in
-  (try ignore(validate_report~verify_files:false wrong_duration);
-    fail"self-test accepted wrong qualification duration"with Invalid_report _->());
+  expect_invalid "wrong qualification duration" wrong_duration;
+  let invalid_envelope =
+    update_first_raw
+      (update_assoc "wall_seconds" (replace (`Float 20.))) report
+  in
+  let failed_output = Filename.temp_file "r10-failed-qualification-" ".json" in
+  Fun.protect
+    ~finally:(fun () -> try Sys.remove failed_output with Sys_error _ -> ())
+    (fun () ->
+      let rejected =
+        try
+          ignore
+            (finalize_report ~verify_files:false ~smoke:false
+               ~output:failed_output invalid_envelope);
+          false
+        with Invalid_report _ -> true
+      in
+      if not rejected then fail "self-test accepted an invalid wall envelope";
+      let preserved = read_json failed_output in
+      if preserved <> invalid_envelope then
+        fail "failed qualification did not preserve its canonical raw report";
+      if member "summaries" preserved <> `Null then
+        fail "failed qualification was falsely labeled with passing summaries";
+      expect_invalid "the preserved failed qualification" preserved);
+  let passed_output = Filename.temp_file "r10-passed-qualification-" ".json" in
+  Fun.protect
+    ~finally:(fun () -> try Sys.remove passed_output with Sys_error _ -> ())
+    (fun () ->
+      let finalized =
+        finalize_report ~verify_files:false ~smoke:false ~output:passed_output report
+      in
+      if read_json passed_output <> finalized then
+        fail "successful qualification output differs from finalized report";
+      (match member "summaries" finalized with
+       | `List (_ :: _) -> ()
+       | _ -> fail "successful qualification lacks summaries");
+      ignore (validate_report ~verify_files:false finalized));
   print_endline "R10 native protocol self-test passed"
 
 let protect action =

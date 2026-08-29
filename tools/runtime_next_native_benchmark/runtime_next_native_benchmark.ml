@@ -30,6 +30,7 @@ let scenario_name = function Basic->"basic"|Pxui->"pxui-like"|Canvas->"canvas-li
 let protocol_scenario_name = function Basic->"basic"|Pxui->"pxui"|Canvas->"canvas"|Scene3->"scene3"|Shattered->"shattered"
 let parse = function "basic"->Basic|"pxui"->Pxui|"canvas"->Canvas|"scene3"->Scene3|"shattered"->Shattered|value->invalid_arg("unknown scenario: "^value)
 let percentile p values=let copy=Array.copy values in Array.sort Float.compare copy;copy.(max 0(min(Array.length copy-1)(int_of_float(Float.ceil(p*.float(Array.length copy)))-1)))
+let rss_sample_seconds = 1.
 let rss_kib()=let argv=[|"/bin/ps";"-o";"rss=";"-p";string_of_int(Unix.getpid())|]in let input=Unix.open_process_args_in argv.(0)argv in Fun.protect~finally:(fun()->ignore(Unix.close_process_in input))(fun()->int_of_string(String.trim(input_line input)))
 let command_output program arguments=
   let input=Unix.open_process_args_in program arguments and contents=Buffer.create 128 in
@@ -288,7 +289,7 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
   ignore(Result.get_ok(set_visibility requested_visible));
   let observed_visible=Result.get_ok(observed_visibility())in
   if observed_visible<>requested_visible then failwith"R10 native observed visibility mismatch";
-  let rss_peak=ref(rss_kib())and next_rss_sample=ref(Sdl3.Time.monotonic_seconds()+.1.)in
+  let rss_peak=ref(rss_kib())and next_rss_sample=ref(Sdl3.Time.monotonic_seconds()+.rss_sample_seconds)in
   let last_frame_started=ref(Sdl3.Time.monotonic_seconds())in
   let phase0_frame()=
     let started=Sdl3.Time.monotonic_seconds()in
@@ -304,7 +305,8 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
     end;
     interval in
   let sample_rss now=if now >= !next_rss_sample then(
-    rss_peak:=max !rss_peak(rss_kib());next_rss_sample:=now+.1.)in
+    rss_peak:=max !rss_peak(rss_kib());
+    next_rss_sample:=now+.rss_sample_seconds)in
   let run_for duration collect =
     let capacity=16_384 and started=Sdl3.Time.monotonic_seconds()in
     let values=if collect then Some(Array.make capacity 0.)else None in
@@ -322,7 +324,7 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
     in loop 0 in
   ignore(run_for warmup_seconds false);
   let rss_before=rss_kib()in rss_peak:=rss_before;
-  next_rss_sample:=Sdl3.Time.monotonic_seconds()+.1.;
+  next_rss_sample:=Sdl3.Time.monotonic_seconds()+.rss_sample_seconds;
   let before=Result.get_ok(stats())and canvas_before=canvas_stats()in
   Gc.full_major();let gc0=Gc.quick_stat()and allocated0=Gc.allocated_bytes()and cpu0=Unix.times()in
   let walls,total=match sample_seconds with
@@ -347,7 +349,8 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
     "width",`Int width;"height",`Int height;
     "phase0_fps_configuration",`Int 60;
     "measurement_clock",`String"phase0-prior-dt-fps60-integer-ms";
-    "timing_buffer_capacity",`Int 16384;"rss_sample_seconds",`Float 1.;
+    "timing_buffer_capacity",`Int 16384;
+    "rss_sample_seconds",`Float rss_sample_seconds;
     "window",`Assoc["logical_width",`Int window.logical_width;"logical_height",`Int window.logical_height;
       "pixel_density",`Float window.pixel_density;"display_scale",`Float window.display_scale;
       "drawable_width",`Int window.drawable_width;"drawable_height",`Int window.drawable_height;

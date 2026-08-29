@@ -7,15 +7,22 @@ type t={execution:Prismel_next_execution.t;scenario:R10_scene2_legacy_equivalent
   setup_canvas_stats:Canvas.Private.native_stats option;
   ui:Pxui_next.t option}
 let submit_scene execution ~width ~height scene =
-  Fun.protect ~finally:(fun()->Scene.Private.release scene)(fun()->
-    let staged=Scene.Private.stage_native~width~height scene|>Result.get_ok in
-    let facts=execution_ok(Prismel_next_execution.presentation_facts execution)in
-    let density=max 1(int_of_float(Float.round facts.pixel_density))in
-    let draws=Prismel_next_execution.lower_scene2 execution~density
-      ~resource:(fun id->List.assoc_opt id staged.resources)staged.scene2
-      |>Result.get_ok in
-    ignore(execution_ok(Prismel_next_execution.step~clear:staged.clear
-      execution draws)))
+  let active=ref None in
+  let submission,batch,clear=try
+    Fun.protect ~finally:(fun()->Scene.Private.release scene)(fun()->
+      let staged=Scene.Private.stage_native~width~height scene|>Result.get_ok in
+      let facts=execution_ok(Prismel_next_execution.presentation_facts execution)in
+      let density=max 1(int_of_float(Float.round facts.pixel_density))in
+      let submission=execution_ok
+        (Prismel_next_execution.Private.begin_submission execution)in
+      active:=Some submission;
+      let batch=execution_ok(Prismel_next_execution.Private.lower_scene2 submission
+        ~density~resource:(fun id->List.assoc_opt id staged.resources)staged.scene2)in
+      submission,batch,staged.clear)
+  with exn->
+    Option.iter Prismel_next_execution.Private.cancel !active;
+    raise exn in
+  ignore(execution_ok(Prismel_next_execution.Private.step~clear submission[batch]))
 let generated_image () =
   let width=96 and height=96 in
   let canvas=Canvas.create_exn~width~height in
