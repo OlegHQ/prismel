@@ -18,11 +18,11 @@ S1–S8, M1–M10, O1–O9, R1–R12, and D1–D8. Status meanings are:
 | Group | Strict | Provisional | Pending local | Pending external |
 | --- | ---: | ---: | ---: | ---: |
 | S1–S8 | 8 | 0 | 0 | 0 |
-| M1–M10 | 2 | 4 | 0 | 4 |
+| M1–M10 | 2 | 5 | 0 | 3 |
 | O1–O9 | 1 | 6 | 0 | 2 |
 | R1–R12 | 0 | 8 | 4 | 0 |
 | D1–D8 | 0 | 5 | 0 | 3 |
-| **Total** | **11** | **23** | **4** | **9** |
+| **Total** | **11** | **24** | **4** | **8** |
 
 The native code-path cutover is structurally complete: the production tree has
 one SDL3 window/input lifecycle and one OGPU/Metal renderer, with no selectable
@@ -30,8 +30,8 @@ SDL2, Tsdl, OpenGL, software-rasterizer, headless, Wap, or web fallback. This
 is **100% structural cutover**, not the release completion percentage.
 
 Strict release completion is **11/47 = 23.40%**. Strict plus provisional
-implementation/evidence coverage is **34/47 = 72.34%**. The remaining
-**13/47 = 27.66%** consists of four local and nine external gates.
+implementation/evidence coverage is **35/47 = 74.47%**. The remaining
+**12/47 = 25.53%** consists of four local and eight external gates.
 
 Strict rows are S1–S8, M1, M9, and O1. The four local blockers at this capture
 are R1 public API manifest renewal, R2 native Scene resource parity, R4 native
@@ -57,9 +57,9 @@ with the window path. Its 600-frame release fixture completed in 1.94 seconds
 with exact pixels and zero Metal-handle delta. The dead public staging function
 that rejected image and glyph resources was removed.
 
-This moves R2 and R4 from pending-local to provisional: **11 strict, 25
-provisional, 2 pending local, and 9 pending external**. Strict plus provisional
-coverage is now **36/47 = 76.60%**; strict completion remains **11/47 =
+This moves R2 and R4 from pending-local to provisional: **11 strict, 26
+provisional, 2 pending local, and 8 pending external**. Strict plus provisional
+coverage is now **37/47 = 78.72%**; strict completion remains **11/47 =
 23.40%**. The two local blockers are now R1 manifest renewal and R10 qualifying
 evidence.
 
@@ -76,7 +76,23 @@ At production commit `03c534dfe703e4e5d730b1f344dd4c1411aed6b5`
 (`2026-08-29T14:44:36+02:00`), the stable API review found exactly the intended
 Canvas and `Scene.Private` changes, no removed stable module, and 127 total
 stable modules. The regenerated manifest check passes. R1 therefore moves from
-pending-local to provisional: **11 strict, 26 provisional, 1 pending local,
-and 9 pending external**, or **37/47 = 78.72%** strict-plus-provisional
+pending-local to provisional: **11 strict, 27 provisional, 1 pending local,
+and 8 pending external**, or **38/47 = 80.85%** strict-plus-provisional
 coverage. The only remaining concrete local implementation/evidence blocker is
 R10; final integrated reruns still govern all provisional rows.
+
+## Correction — M4 has no offline Xcode dependency
+
+The initial audit inherited an obsolete 2026-08-27 M4 blocker for an offline
+`.air`/`.metallib` build and runtime/offline image parity. Commit `8ec473e`
+removed that pipeline from the authoritative plan. Current M4 uses deterministic
+runtime MSL compilation/reflection/linking through the public Metal API, and
+`specification/metal.md` explicitly states that Prismel has no dependency on
+the Xcode command-line shader tools.
+
+M4 is therefore provisional rather than external. The repository still needs
+ordinary Apple developer/Command Line Tools facilities—`clang++`, SDK headers,
+and Metal/QuartzCore frameworks—to compile its Objective-C++ FFI. It does not
+invoke `xcrun metal` or `metallib`, require the Xcode IDE, or ship an offline
+shader artifact. M10 remains external for GPU capture/counters and the required
+sanitizer/Guard Malloc/Leaks evidence, not for offline shader compilation.

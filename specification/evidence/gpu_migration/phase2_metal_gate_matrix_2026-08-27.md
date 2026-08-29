@@ -1,5 +1,12 @@
 # Phase 2 Metal gate matrix — 2026-08-27
 
+> Historical note (2026-08-29): commit `8ec473e` removed the offline
+> `.air`/`.metallib` pipeline and its Xcode command-line shader dependency from
+> the authoritative plan. The M4 offline-Xcode blocker below is superseded;
+> current M4 uses runtime MSL and is tracked as provisional in
+> `current_gate_status_2026-08-29.md`. M10 still requires external sanitizer and
+> GPU-diagnostics evidence, but not offline shader compilation.
+
 `Proven` means the complete wording of the gate has committed, reproducible
 evidence. `Partial` is intentionally not release-green.
 

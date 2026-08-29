@@ -1,5 +1,9 @@
 # Phase 5 completion audit — 2026-08-27
 
+> This is a historical checkpoint. Current counts and the superseding removal
+> of the former M4 offline-Xcode requirement are recorded in
+> `current_gate_status_2026-08-29.md`.
+
 Captured at `2026-08-27T19:37:24Z` on commit
 `2c32b7ee5affe8dd635dba2ad77f8c0fda0b60ef`. This is a mechanical readiness
 ledger, not deletion authorization. `NEW_GPU_STUFF.md` remains the authority.
