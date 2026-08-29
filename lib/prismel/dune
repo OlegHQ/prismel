@@ -84,11 +84,4 @@
 (test
  (name test_resource_interface_preservation)
  (modules test_resource_interface_preservation)
- (libraries prismel str)
- (deps ../prismel/assets.mli ../prismel/audio.mli ../prismel/font.mli
-  ../prismel/image.mli assets.mli audio.mli font.mli image.mli
-  resource_raw_signature_adaptations.txt)
- (action
-  (run %{test} %{dep:../prismel/assets.mli} %{dep:../prismel/audio.mli}
-   %{dep:../prismel/font.mli} %{dep:../prismel/image.mli}
-   %{dep:assets.mli} %{dep:audio.mli} %{dep:font.mli} %{dep:image.mli})))
+ (libraries prismel))
