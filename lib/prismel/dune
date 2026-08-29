@@ -5,8 +5,8 @@
   node3 path parallel texture shader3 compute3 input event frame time image
   canvas canvas_runtime font audio assets mesh camera easy_camera transform_feedback3 shadow3
   scene3 scene3_native_lowering
-  scene preview runtime_diagnostics sketch easy_camera2 low)
- (private_modules canvas_runtime scene3_native_lowering)
+  scene native_scene_lowering preview runtime_diagnostics sketch easy_camera2 low)
+ (private_modules canvas_runtime scene3_native_lowering native_scene_lowering)
  (libraries domainslib prismel_next_resources runtime_next_input scene_command unix
   prismel_next_execution prismel_low_core
   runtime_next_orchestrator))

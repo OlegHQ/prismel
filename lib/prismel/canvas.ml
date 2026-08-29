@@ -23,37 +23,16 @@ let execution value=
       match Prismel_next_execution.create_offscreen configuration with
       |Error error->failwith(execution_message"Canvas.render"error)
       |Ok execution->value.execution<-Some execution;execution
-let draw_of_scene3_entry(entry:Scene_execution.scene3_entry)=
-  Prismel_next_execution.prepared_draw
-    ~family:(match entry.family with Scene3->Scene3|Scene3_textured->Scene3_textured
-      |Scene3_shadow->Scene3_shadow|Scene3_stencil->Scene3_stencil
-      |Scene3_textured_stencil->Scene3_textured_stencil
-      |Scene3_shadow_stencil->Scene3_shadow_stencil|Scene2->Scene2
-      |Scene2_textured->Scene2_textured)
-    ~blend:(match entry.blend with Replace->Replace|Alpha->Alpha|Add->Add
-      |Multiply->Multiply|Screen->Screen|Subtract->Subtract)
-    ?texture:entry.texture ?auxiliary:entry.auxiliary ~samples:entry.samples
-    entry.draw
 let render value scene=
   let execution=execution value and width,height=size value in
-  Fun.protect~finally:(fun()->Scene.Private.release scene)(fun()->
-    let staged=match Scene.Private.stage_native~width~height scene with
-    |Ok staged->staged|Error message->failwith("Canvas.render: "^message)in
-    let draws=List.concat_map(function
-      |Scene.Private.Scene2_layer(ir,resources)->
-          (match Prismel_next_execution.lower_scene2 execution~density:1
-            ~resource:(fun id->List.assoc_opt id resources)ir with
-          |Ok draws->draws
-          |Error error->failwith(execution_message"Canvas.render"error))
-      |Scene.Private.Scene3_layer prepared->
-          Array.to_list prepared.Scene_execution.entries
-          |>List.map draw_of_scene3_entry)staged.layers in
-    (match Prismel_next_execution.step~clear:staged.clear execution draws with
-    |Error error->failwith(execution_message"Canvas.render"error)|Ok _->());
+  (match Native_scene_lowering.render~execution~density:1~width~height scene with
+  |Ok _->()
+  |Error error->
+      failwith(Format.asprintf"Canvas.render: %a"Native_scene_lowering.pp_error error));
     match Prismel_next_execution.capture execution with
     |Error error->failwith(execution_message"Canvas.render"error)
     |Ok bytes->match Prismel_next_resources.Canvas.replace_pixels value.resource bytes with
-      |Ok()->()|Error error->failwith(message"Canvas.render"error))
+      |Ok()->()|Error error->failwith(message"Canvas.render"error)
 let packed color=Int32.logor(Int32.shift_left(Int32.of_int color.Color.r)24)
   (Int32.logor(Int32.shift_left(Int32.of_int color.g)16)
     (Int32.logor(Int32.shift_left(Int32.of_int color.b)8)(Int32.of_int color.a)))

@@ -40,7 +40,7 @@ let ()=
   let scenes=Array.init 257(fun index->Scene.[text~at:(0,0)~size:16(Printf.sprintf"pinned-%03d"index)])in
   let images=Array.map(fun scene->snd(stage scene))scenes in
   let entries,fonts,references=Font.Private.automatic_counts()in
-  require(entries=256&&fonts=1&&references=256)"pinned cache overflow policy";
+  require(entries=256&&fonts=1&&references=257)"pinned cache overflow policy";
   Array.iter(fun image->require(Result.is_ok(Prismel_next_resources.Image.pixels image))"pinned image invalidated")images;
   Array.iter Scene.Private.release scenes;
   require(Result.is_error(Prismel_next_resources.Image.pixels images.(256)))"transient image retained";

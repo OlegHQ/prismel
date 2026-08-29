@@ -321,6 +321,8 @@ type offscreen_runtime={runtime:Runtime_next.offscreen;
   mutable logical_draws:int64;mutable logical_passes:int64;
   mutable logical_submissions:int64}
 type runtime=Window of Runtime_next_orchestrator.t|Offscreen of offscreen_runtime
+type submission_state=Open|Closed
+exception Resource_resolver_raised of exn
 type t = { runtime:runtime; input:Runtime_next_input.t;
   assets:Prismel_next_resources.Assets.t; timing:timing; mutable frame:int64;
   mutable elapsed:float; mutable last_clock:float; mutable dead:bool;
@@ -336,8 +338,12 @@ type t = { runtime:runtime; input:Runtime_next_input.t;
   mutable scene2_probe_count:int;mutable scene2_probe_density:int;
   mutable scene2_probe_fingerprint:int;
   mutable scene2_probe_cooldown:int;
-  mutable pending_image_leases:Prismel_next_resources.Image.Private.lease list;
+  mutable submissions:submission list;
   mutable canvas_keys:(Prismel_next_resources.Canvas.t*string)list;mutable next_canvas_key:int }
+and submission={owner:t;mutable submission_state:submission_state;
+  mutable image_leases:Prismel_next_resources.Image.Private.lease list}
+and batch={batch_owner:submission;batch_draws:draw list}
+type lease_policy=Copy_image_snapshots|Retain_image_snapshots of submission
 let valid_configuration operation (configuration:configuration)=
   let positive x=x>0 in
   if not(List.for_all positive[configuration.logical_width;configuration.logical_height;
@@ -356,7 +362,7 @@ let finish_create operation configuration runtime destroy_runtime=
       scene2_batch_cache=[];scene2_quad_cache=[];scene2_quad_payload_cache=[];
       scene2_debug_cache=[];scene2_plan_cache=[];scene2_plan_candidates=[];
       scene2_probe_count=(-1);scene2_probe_density=0;scene2_probe_fingerprint=0;
-      scene2_probe_cooldown=0;pending_image_leases=[];canvas_keys=[];next_canvas_key=0}
+      scene2_probe_cooldown=0;submissions=[];canvas_keys=[];next_canvas_key=0}
 let create (configuration:configuration) =
   let operation="Prismel_next_execution.create" in
   match valid_configuration operation configuration with Error _ as error->error|Ok()->
@@ -391,6 +397,42 @@ let snapshot_cache_entries value=List.length value.snapshots
 let scene2_geometry_cache_entries value=
   List.length value.scene2_geometry_cache,List.length value.scene2_geometry_candidates
 let ensure operation value=if value.dead then fail operation Destroyed"coordinator is destroyed"else Ok()
+let release_image_leases leases=
+  List.iter Prismel_next_resources.Image.Private.release_snapshot leases
+let close_submission submission=
+  if submission.submission_state=Open then begin
+    submission.submission_state<-Closed;
+    release_image_leases submission.image_leases;
+    submission.image_leases<-[];
+    submission.owner.submissions<-
+      List.filter((!=)submission)submission.owner.submissions
+  end
+let begin_submission value=
+  match ensure"Prismel_next_execution.Private.begin_submission"value with
+  |Error _ as e->e
+  |Ok()->
+      let submission={owner=value;submission_state=Open;image_leases=[]}in
+      value.submissions<-submission::value.submissions;
+      Ok submission
+let ensure_submission operation submission=
+  if submission.submission_state=Closed then
+    fail operation Invalid_argument"submission is already closed"
+  else ensure operation submission.owner
+let lease_checkpoint=function
+  |Copy_image_snapshots->None
+  |Retain_image_snapshots submission->Some submission.image_leases
+let rollback_leases policy checkpoint=match policy,checkpoint with
+  |Copy_image_snapshots,_->()
+  |Retain_image_snapshots submission,Some before->
+      let rec release=function
+        |leases when leases==before->()
+        |lease::rest->
+            Prismel_next_resources.Image.Private.release_snapshot lease;
+            release rest
+        |[]->()in
+      release submission.image_leases;
+      submission.image_leases<-before
+  |Retain_image_snapshots _,None->assert false
 type stats=Runtime_next_orchestrator.stats={frames:int64;presented:int64;logical_draws:int64;
   logical_passes:int64;logical_submissions:int64;uploaded_bytes:int64;cache_entries:int;
   gpu_timing_supported:bool;gpu_duration_seconds:float;gpu_sample_count:int64;
@@ -466,7 +508,7 @@ let diagnostics value=
      List.length value.canvas_keys;
    release_queue_pending;release_queue_live_handles;release_queue_total_created;
    release_queue_total_released}
-let snapshot value ~density source =
+let snapshot value ~lease_policy ~density source =
   let operation="Prismel_next_execution.lower_scene2"in
   if density<=0 then fail operation Invalid_argument"density must be positive"else
   let finish ?(copy=true) key generation width height pixels =
@@ -488,7 +530,15 @@ let snapshot value ~density source =
           let key="image:"^string_of_int(Prismel_next_resources.Image.identity image)in
           let sampler:Ogpu.Types.sampler_descriptor={label=Some key;min_filter=Linear;mag_filter=Linear;
             mip_filter=No_mip;address_u=Clamp_to_edge;address_v=Clamp_to_edge;lod_min=0.;lod_max=0.;max_anisotropy=1}in
-          value.pending_image_leases<-lease::value.pending_image_leases;
+          let pixels=match lease_policy with
+          |Retain_image_snapshots submission->
+              submission.image_leases<-lease::submission.image_leases;
+              pixels
+          |Copy_image_snapshots->
+              Fun.protect
+                ~finally:(fun()->
+                  Prismel_next_resources.Image.Private.release_snapshot lease)
+                (fun()->Bytes.copy pixels)in
           Ok(width,height,{Scene_execution.key=key^":"^string_of_int density;
             levels=[|{width;height;bytes=pixels}|];sampler})
       |Error e->resource operation e)
@@ -502,15 +552,10 @@ let snapshot value ~density source =
       (match Prismel_next_resources.Canvas.snapshot canvas with
        |Ok(width,height,generation,pixels)->finish~copy:false key generation width height pixels
        |Error e->resource operation e)
-let lower_scene2_uncached value ~density ~resource:resolve ir =
+let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
   match ensure"Prismel_next_execution.lower_scene2"value with Error _ as e->e|Ok()->
-  let leases_before=value.pending_image_leases in
-  let release_new_leases()=
-    let rec loop=function
-      |leases when leases==leases_before->()
-      |lease::rest->Prismel_next_resources.Image.Private.release_snapshot lease;loop rest
-      |[]->()in
-    loop value.pending_image_leases;value.pending_image_leases<-leases_before in
+  let checkpoint=lease_checkpoint lease_policy in
+  let release_new_leases()=rollback_leases lease_policy checkpoint in
   let identity={Scene_command.Render_ir.xx=1.;xy=0.;yx=0.;yy=1.;tx=0.;ty=0.}in
   let facts=presentation_facts value|>Result.get_ok in
   let native_projection={Scene_command.Render_ir.xx=2./.float facts.logical_width;xy=0.;yx=0.;
@@ -617,7 +662,7 @@ let lower_scene2_uncached value ~density ~resource:resolve ir =
     end;
     draw in
   let image (command:Scene_command.Render_ir.image) = match resolve command.Scene_command.Render_ir.resource_id with None->failure:=Some"resource id is unbound"|Some source->
-    match snapshot value~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
+    match snapshot value~lease_policy~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
       let s=command.source in if width<=0||height<=0 then failure:=Some"resource extent is invalid"else
       let u0=s.x/.float width and v0=s.y/.float height and u1=(s.x+.s.width)/.float width and v1=(s.y+.s.height)/.float height in
       let draw=quad texture command.destination(u0,v0,u1,v1)in
@@ -658,7 +703,7 @@ let lower_scene2_uncached value ~density ~resource:resolve ir =
         Option.iter(fun draw->draws:={draw with blend= !blend}::!draws;incr number)draw
     |Image command->if clip_live()then image command
     |Glyphs glyphs->if clip_live()&&Array.length glyphs.glyphs>0 then match resolve glyphs.resource_id with None->failure:=Some"glyph resource id is unbound"|Some source->
-        match snapshot value~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
+        match snapshot value~lease_policy~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
           Array.iter(fun(glyph:Scene_command.Render_ir.glyph)->
             let destination={Scene_command.Render_ir.x=glyph.x;y=glyph.y;width=float width;height=float height}in
             let draw=quad texture destination(0.,0.,1.,1.)in
@@ -703,17 +748,12 @@ let scene2_resource_stamps resolve commands=
       Some(Canvas_stamp(id,canvas,Prismel_next_resources.Canvas.generation canvas)))
     (List.sort_uniq Int.compare!ids)in
   not!missing,stamps
-let scene2_plan_hydrate value ~density plan=
-  let leases_before=value.pending_image_leases in
-  let release_new_leases()=
-    let rec loop=function
-    |leases when leases==leases_before->()
-    |lease::rest->Prismel_next_resources.Image.Private.release_snapshot lease;loop rest
-    |[]->()in
-    loop value.pending_image_leases;value.pending_image_leases<-leases_before in
+let scene2_plan_hydrate value ~lease_policy ~density plan=
+  let checkpoint=lease_checkpoint lease_policy in
+  let release_new_leases()=rollback_leases lease_policy checkpoint in
   let textures=ref[]and failure=ref None in
   List.iter(function
-    |Image_stamp(id,image,_)->(match snapshot value~density(Image image)with
+    |Image_stamp(id,image,_)->(match snapshot value~lease_policy~density(Image image)with
       |Ok(_,_,texture)->textures:=(id,texture)::!textures
       |Error error->failure:=Some error)
     |Text_stamp _|Canvas_stamp _->())plan.plan_resources;
@@ -723,8 +763,8 @@ let scene2_plan_hydrate value ~density plan=
       |None->draw
       |Some id->{draw with texture=List.assoc_opt id!textures})
       plan.plan_draws plan.plan_image_ids)
-let lower_scene2 value ~density ~resource:resolve ir =
-  if value.dead then lower_scene2_uncached value~density~resource:resolve ir else
+let lower_scene2_with_policy value ~lease_policy ~density ~resource:resolve ir =
+  if value.dead then lower_scene2_uncached value~lease_policy~density~resource:resolve ir else
   let commands=Scene_command.Render_ir.Private.commands_readonly ir in
   let fingerprint=ref(Hashtbl.hash commands)and command_count=Array.length commands in
   let mix value=fingerprint:=(!fingerprint*65599)lxor value in
@@ -745,10 +785,10 @@ let lower_scene2 value ~density ~resource:resolve ir =
     value.scene2_probe_density=density in
   if same_probe&&value.scene2_probe_cooldown>0 then(
     value.scene2_probe_cooldown<-value.scene2_probe_cooldown-1;
-    lower_scene2_uncached value~density~resource:resolve ir)else
+    lower_scene2_uncached value~lease_policy~density~resource:resolve ir)else
   if same_probe&&value.scene2_probe_fingerprint<>fingerprint then(
     value.scene2_probe_fingerprint<-fingerprint;value.scene2_probe_cooldown<-120;
-    lower_scene2_uncached value~density~resource:resolve ir)else begin
+    lower_scene2_uncached value~lease_policy~density~resource:resolve ir)else begin
   value.scene2_probe_count<-command_count;value.scene2_probe_density<-density;
   value.scene2_probe_fingerprint<-fingerprint;
   let cacheable,resources=scene2_resource_stamps resolve commands in
@@ -761,9 +801,9 @@ let lower_scene2 value ~density ~resource:resolve ir =
     same_scene2_resource_stamps plan.plan_resources resources&&
     Scene_command.Render_ir.Private.commands_readonly plan.plan_ir=commands in
   if cacheable then match List.find_opt exact value.scene2_plan_cache with
-  |Some plan->scene2_plan_hydrate value~density plan
+  |Some plan->scene2_plan_hydrate value~lease_policy~density plan
   |None->
-    (match lower_scene2_uncached value~density~resource:resolve ir with
+    (match lower_scene2_uncached value~lease_policy~density~resource:resolve ir with
     |Error _ as error->error
     |Ok draws as result->
       let candidate=List.find_opt(fun candidate->
@@ -796,7 +836,10 @@ let lower_scene2 value ~density ~resource:resolve ir =
           plan_ir=ir;plan_draws;plan_image_ids}in
         value.scene2_plan_cache<-trim_scene2_entries~capacity:16
           (fun plan->plan.plan_source_bytes)(plan::value.scene2_plan_cache));result)
-  else lower_scene2_uncached value~density~resource:resolve ir end
+  else lower_scene2_uncached value~lease_policy~density~resource:resolve ir end
+let lower_scene2 value ~density ~resource ir=
+  lower_scene2_with_policy value~lease_policy:Copy_image_snapshots
+    ~density~resource ir
 let mb_to_input=function Left->Runtime_next_input.Left|Middle->Middle|Right->Right|X1->X1|X2->X2
 let mod_to_input=function Shift->Runtime_next_input.Shift|Control->Control|Alt->Alt|Meta->Meta|Num_lock->Num_lock|Caps_lock->Caps_lock|Scroll_lock->Scroll_lock
 let to_input=function Pointer_moved(x,y)->Runtime_next_input.Pointer_moved(x,y)
@@ -829,11 +872,7 @@ let event_of_input=function Runtime_next_input.Pointer_moved(x,y)->Pointer_moved
   |Wheel(x,y)->Wheel(x,y)|Key_pressed k->Key_pressed{name=k.key;modifiers=List.map mod_of_input k.modifiers;repeat=k.repeat}|Key_released k->Key_released{name=k.key;modifiers=List.map mod_of_input k.modifiers;repeat=k.repeat}
   |Text_input s->Text_input s|Text_editing{text;start;length}->Text_editing{text;start;length}|Focus_lost->Focus_lost|Focus_gained->Focus_gained
   |Visibility_changed x->Visibility_changed x|Quit->Quit|Resized(x,y)->Resized(x,y)|File_dropped{name;contents}->File_dropped{name;contents}
-let step ?clear value draws=match ensure"Prismel_next_execution.step"value with Error _ as e->e|Ok()->
-  let release_image_leases()=
-    List.iter Prismel_next_resources.Image.Private.release_snapshot value.pending_image_leases;
-    value.pending_image_leases<-[]in
-  Fun.protect~finally:release_image_leases(fun()->
+let step_core ?clear value draws=match ensure"Prismel_next_execution.step"value with Error _ as e->e|Ok()->
   Runtime_next_input.begin_frame value.input;
   match presentation_facts value with Error _ as error->error|Ok f->
     let family=function Scene2->Runtime_next_orchestrator.Scene2|Scene2_textured->Scene2_textured|Scene3->Scene3
@@ -875,7 +914,41 @@ let step ?clear value draws=match ensure"Prismel_next_execution.step"value with 
       let events=List.map event_of_input(Runtime_next_input.drain value.input)and input=Runtime_next_input.snapshot value.input in
       Ok{frame=value.frame;time=value.elapsed;dt;logical_width=f.logical_width;logical_height=f.logical_height;
         drawable_width=f.drawable_width;drawable_height=f.drawable_height;pixel_scale=f.pixel_density;
-        events;pointer=input.pointer;mouse_delta=input.mouse_delta;wheel_delta=input.wheel_delta;dropped_events=input.dropped_events})
+        events;pointer=input.pointer;mouse_delta=input.mouse_delta;wheel_delta=input.wheel_delta;dropped_events=input.dropped_events}
+let step ?clear value draws=step_core ?clear value draws
+let lower_scene2_submission submission ~density ~resource ir=
+  match ensure_submission"Prismel_next_execution.Private.lower_scene2"submission with
+  |Error _ as e->close_submission submission;e
+  |Ok()->
+      let protected_resource id=try resource id with
+        |(Out_of_memory|Stack_overflow|Sys.Break)as exn->raise exn
+        |exn->raise(Resource_resolver_raised exn)in
+      (try match lower_scene2_with_policy submission.owner
+          ~lease_policy:(Retain_image_snapshots submission)~density
+          ~resource:protected_resource ir with
+       |Ok draws->Ok{batch_owner=submission;batch_draws=draws}
+       |Error _ as error->close_submission submission;error
+       with Resource_resolver_raised exn->
+         close_submission submission;
+         fail"Prismel_next_execution.Private.lower_scene2"Resource
+           ("resource resolver raised: "^Printexc.to_string exn)
+       |exn->close_submission submission;raise exn)
+let adopt_draws submission draws=
+  match ensure_submission"Prismel_next_execution.Private.adopt_draws"submission with
+  |Error _ as error->close_submission submission;error
+  |Ok()->Ok{batch_owner=submission;batch_draws=draws}
+let step_submission ?clear submission batches=
+  match ensure_submission"Prismel_next_execution.Private.step"submission with
+  |Error _ as e->close_submission submission;e
+  |Ok()->Fun.protect~finally:(fun()->close_submission submission)
+      (fun()->
+        if List.exists(fun batch->batch.batch_owner!=submission)batches then
+          fail"Prismel_next_execution.Private.step"Invalid_argument
+            "draw batch belongs to another submission"
+        else
+          let reversed=List.fold_left(fun reversed batch->
+            List.rev_append batch.batch_draws reversed)[]batches in
+          step_core ?clear submission.owner(List.rev reversed))
 let capture value=match ensure"Prismel_next_execution.capture"value with Error _ as e->e|Ok()->
   match presentation_facts value with Error _ as error->error|Ok facts->
   let captured=match value.runtime with
@@ -885,8 +958,7 @@ let capture value=match ensure"Prismel_next_execution.capture"value with Error _
       ~bytes_per_row:(facts.drawable_width*4)in
   match captured with Ok x->Ok x|Error e->backend"Prismel_next_execution.capture"e
 let destroy value=if value.dead then Ok()else(
-  List.iter Prismel_next_resources.Image.Private.release_snapshot value.pending_image_leases;
-  value.pending_image_leases<-[];
+  List.iter close_submission value.submissions;
   match Prismel_next_resources.Assets.destroy value.assets with Error e->resource"Prismel_next_execution.destroy"e|Ok()->
     value.snapshots<-[];value.scene2_geometry_cache<-[];value.scene2_batch_cache<-[];
     value.scene2_quad_cache<-[];
@@ -899,6 +971,13 @@ let destroy value=if value.dead then Ok()else(
     |Offscreen state->Runtime_next.destroy_offscreen state.runtime in
     match destroyed with Ok()->Ok()|Error e->backend"Prismel_next_execution.destroy"e)
 module Private=struct
+  type nonrec submission=submission
+  type nonrec batch=batch
+  let begin_submission=begin_submission
+  let lower_scene2=lower_scene2_submission
+  let adopt_draws=adopt_draws
+  let step=step_submission
+  let cancel=close_submission
   let draw_family_blend draw=draw.family,draw.blend
 end
 let run configuration body ~on_stop = match create configuration with Error _ as e->e|Ok value->

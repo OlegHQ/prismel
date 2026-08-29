@@ -59,6 +59,7 @@ module Private=struct
  let capacity=256 and font_capacity=32
  let automatic_cache:(string,automatic_entry)Hashtbl.t=Hashtbl.create capacity
  let automatic_fonts:(int,t*int)Hashtbl.t=Hashtbl.create font_capacity
+ let automatic_references=ref 0
  let clock=ref 0
  let next_stamp()=incr clock;!clock
  let automatic_key ?wrap ?(align=Left) ~size text mode=
@@ -80,16 +81,20 @@ module Private=struct
  let borrow_automatic ?wrap ?(align=Left) ~size text mode=
    let key=automatic_key?wrap~align~size text mode in
    match Hashtbl.find_opt automatic_cache key with
-   |Some entry->entry.references<-entry.references+1;entry.stamp<-next_stamp();Ok{entry;released=false}
+   |Some entry->
+     entry.references<-entry.references+1;incr automatic_references;
+     entry.stamp<-next_stamp();Ok{entry;released=false}
    |None->match font size with Error _ as error->error|Ok font->
      match render_text font text mode with Error _ as error->error|Ok image->
       let can_cache=Hashtbl.length automatic_cache<capacity||evict_entry()in
       let entry={image;references=1;stamp=next_stamp();cached=can_cache}in
       if can_cache then Hashtbl.add automatic_cache key entry;
+      incr automatic_references;
       Ok{entry;released=false}
  let automatic_image handle=handle.entry.image
  let release_automatic handle=if not handle.released then begin
    handle.released<-true;handle.entry.references<-handle.entry.references-1;
+   decr automatic_references;
    if handle.entry.references=0&&not handle.entry.cached then Image.destroy handle.entry.image
   end
  let clear_automatic()=
@@ -98,8 +103,8 @@ module Private=struct
   let owned=Hashtbl.fold(fun _ (font,_) acc->font::acc)automatic_fonts[]in
   Hashtbl.clear automatic_fonts;List.iter destroy owned
  let automatic_counts()=
-  let references=Hashtbl.fold(fun _ entry count->count+entry.references)automatic_cache 0 in
-  Hashtbl.length automatic_cache,Hashtbl.length automatic_fonts,references
+  Hashtbl.length automatic_cache,Hashtbl.length automatic_fonts,
+    !automatic_references
 end
 let release_renderer _renderer=List.iter clear_cache!fonts;Private.clear_automatic()
 let shutdown()=Private.clear_automatic();let owned= !fonts in fonts:=[];List.iter destroy owned

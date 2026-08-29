@@ -18,6 +18,14 @@ let () =
     ~colors:[Color.red;Color.green;Color.blue]
     [Vec3.create(-0.5)(-0.5)0.;Vec3.create 0.5(-0.5)0.;Vec3.create 0. 0.5 0.]in
   let scene=Scene3.create[Scene3.mesh~material:(Material.unlit Color.white)mesh]in
+  let reusable_view=Scene.[view3d~camera scene]in
+  let before_release=Result.get_ok(Scene.Private.stage_native~width:16~height:16
+    reusable_view)in
+  Scene.Private.release reusable_view;
+  let after_release=Result.get_ok(Scene.Private.stage_native~width:16~height:16
+    reusable_view)in
+  if before_release.scene3<>after_release.scene3 then
+    failwith"released reusable View3d changed prepared native data";
   let prepared=prepare ~width:16 ~height:16 scene in
   if Array.length prepared.entries<>1 then failwith"native triangle draw count";
   let entry=prepared.entries.(0)and vertices=prepared.entries.(0).draw.mesh.vertices in
@@ -47,4 +55,4 @@ let () =
   let encoded=strip_prepared.entries.(0).draw.mesh.indices in
   let actual=Array.init 6(fun index->Int32.to_int(Bytes.get_int32_le encoded(index*4)))in
   if actual<>[|0;1;2;2;1;3|]then failwith"native triangle strip winding";
-  print_endline"native Scene3 lowering: geometry, uniforms, View3d, texture mips, shadow"
+  print_endline"native Scene3 lowering: exact released View3d reuse, geometry, uniforms, texture mips, shadow"
