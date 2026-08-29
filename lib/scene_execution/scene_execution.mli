@@ -108,12 +108,29 @@ val create_with_pipeline : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
   ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
   (Ogpu.Backend.device -> (Ogpu.Pipeline.t, Ogpu.Error.t) result) ->
   (t, Ogpu.Error.t) result
+val create_offscreen_with_pipeline :
+  Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
+  ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
+  (Ogpu.Backend.device -> (Ogpu.Pipeline.t, Ogpu.Error.t) result) ->
+  (t, Ogpu.Error.t) result
 val create_with_pipeline_variants : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
   ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
   (Ogpu.Backend.device -> pipeline_family -> Ogpu.Pipeline.blend ->
     (Ogpu.Pipeline.t, Ogpu.Error.t) result) ->
   (t, Ogpu.Error.t) result
 val create_with_sampled_pipeline_variants : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
+  ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
+  ?canonical_scene2_argument:bool ->
+    (Ogpu.Backend.device -> pipeline_family -> Ogpu.Pipeline.blend -> int ->
+    (Ogpu.Pipeline.t, Ogpu.Error.t) result) ->
+  (t, Ogpu.Error.t) result
+
+(** Creates an owned texture target without creating, acquiring, or presenting
+    a platform surface. Submissions complete before the call returns, so exact
+    readback and explicit destruction have the same contract as surface-backed
+    execution. *)
+val create_offscreen_with_sampled_pipeline_variants :
+  Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
   ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
   ?canonical_scene2_argument:bool ->
   (Ogpu.Backend.device -> pipeline_family -> Ogpu.Pipeline.blend -> int ->
