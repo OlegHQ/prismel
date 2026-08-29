@@ -46,9 +46,7 @@ let submit pass draws =
   let invalid text =
     Error (Error.make "Ogpu.Render_pass.submit" Error.Invalid_argument text)
   in
-  if draws = [] then invalid "render submission has no draws"
-  else
-    let seen_buffers=Hashtbl.create 16 and seen_textures=Hashtbl.create 16 and seen_samplers=Hashtbl.create 16 in
+  let seen_buffers=Hashtbl.create 16 and seen_textures=Hashtbl.create 16 and seen_samplers=Hashtbl.create 16 in
     let valid_stage = function Command.Vertex | Fragment -> true | _ -> false in
     let rec bindings = function
       | [] -> Ok ()
@@ -103,6 +101,6 @@ let submit pass draws =
                   invalid "index draw is invalid"
               | _ -> loop ds))
     in
-    loop draws
+  loop draws
 let submission_pass value=value.pass
 let submission_draws value=value.draws

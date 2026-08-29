@@ -33,6 +33,7 @@ let ()=
   let sampler:Ogpu.Types.sampler_descriptor={label=Some"typed";min_filter=Nearest;mag_filter=Linear;mip_filter=Linear_mip;address_u=Repeat;address_v=Mirror_repeat;lod_min=0.;lod_max=4.;max_anisotropy=1}in
   let draw:Ogpu.Render_pass.draw={pipeline_key="p";buffers=[{stage=Ogpu.Command.Fragment;index=0;buffer_id=3L;offset=0L}];textures=[{stage=Ogpu.Command.Fragment;index=0;texture_id=4L}];samplers=[{stage=Ogpu.Command.Fragment;index=0;sampler}];primitive=Triangle_list;vertex_start=0;vertex_count=3;index=None}in
   ignore(ok(Ogpu.Render_pass.submit pass[draw]));
+  ignore(ok(Ogpu.Render_pass.submit pass[]));
   expect Ogpu.Error.Invalid_argument(Ogpu.Render_pass.submit pass[{draw with samplers=draw.samplers@draw.samplers}]);
   expect Ogpu.Error.Invalid_argument(Ogpu.Render_pass.submit pass[{draw with samplers=[{stage=Ogpu.Command.Fragment;index=0;sampler={sampler with lod_min=nan}}]}]);
   expect Ogpu.Error.Invalid_argument(Ogpu.Render_pass.create device{descriptor with colors=Array.make 9 None});expect Ogpu.Error.Invalid_argument(Ogpu.Render_pass.create device{descriptor with colors=[|Some{attachment with resolve=Some color}|]});expect Ogpu.Error.Invalid_argument(Ogpu.Render_pass.create device{descriptor with viewport={rect with width=65}});Ogpu.Handle.destroy color.handle;expect Ogpu.Error.Stale_handle(Ogpu.Render_pass.create device descriptor);print_endline"OGPU render-pass descriptor validation passed"

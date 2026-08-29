@@ -68,6 +68,50 @@ let create device pass ~attachments draw=let op="Ogpu_metal.Render_pass.create"i
       match depth,stencil with Error e,_->Error e|_,Error e->Error e|Ok depth,Ok stencil->
       let finish()=let retention,releases=retention~color:target~resolve~depth~stencil[draw]in Ok{pass;color=target;resolve;depth;stencil;draws=[draw];owned_samplers=[];indirect=None;retention;releases}in
       match draw.index with None->finish()|Some(kind,buffer,offset,count)->match Buffer.descriptor device buffer with Error _ as e->e|Ok bd->let stride=match kind with Uint16->2L|Uint32->4L in if count<=0||offset<0L||Int64.rem offset stride<>0L||Int64.of_int count>Int64.div(Int64.sub bd.size offset)stride then error op Ogpu.Error.Invalid_argument"index range is invalid"else finish())
+let create_empty device pass ~attachments =
+  let op="Ogpu_metal.Render_pass.create_empty"in
+  let descriptor=Ogpu.Render_pass.descriptor pass in
+  let colors=Array.to_list descriptor.colors|>List.filter_map Fun.id in
+  if List.length colors<>1 then
+    error op Ogpu.Error.Unsupported
+      "classic Metal execution requires exactly one color attachment"
+  else
+    let color=List.hd colors in
+    if (color.texture.samples=1&&(color.store<>Store||Option.is_some color.resolve))||
+       (color.texture.samples>1&&(color.store<>Resolve||Option.is_none color.resolve))
+    then error op Ogpu.Error.Invalid_argument
+      "color store/resolve state differs from its sample count"
+    else
+      let find id texture=if Texture.id texture=id then Some texture else None in
+      match List.find_map(find color.texture.id)attachments with
+      |None->error op Ogpu.Error.Invalid_argument
+          "color attachment texture is absent from the typed texture graph"
+      |Some target->
+          let optional role (portable:Ogpu.Render_pass.texture option)=match portable with
+            |None->Ok None
+            |Some portable->match List.find_map(find portable.id)attachments with
+              |None->error op Ogpu.Error.Invalid_argument
+                  (role^" attachment texture is absent from the typed texture graph")
+              |Some texture->Result.map(fun _->Some texture)
+                  (Texture.descriptor device texture)in
+          let resolve=optional"resolve"color.resolve
+          and depth=optional"depth"(Option.map(fun(value:Ogpu.Render_pass.depth)->value.texture)
+            descriptor.depth)
+          and stencil=optional"stencil"(Option.map(fun(value:Ogpu.Render_pass.stencil)->value.texture)
+            descriptor.stencil)in
+          match Texture.descriptor device target,resolve,depth,stencil with
+          |Error e,_,_,_->Error e|_,Error e,_,_->Error e
+          |_,_,Error e,_->Error e|_,_,_,Error e->Error e
+          |Ok target_descriptor,Ok resolve,Ok depth,Ok stencil->
+              if target_descriptor.width<>color.texture.width||
+                 target_descriptor.height<>color.texture.height||
+                 target_descriptor.sample_count<>color.texture.samples
+              then error op Ogpu.Error.Invalid_argument
+                "native color attachment metadata differs from the portable pass"
+              else
+                let retention,releases=retention~color:target~resolve~depth~stencil[]in
+                Ok{pass;color=target;resolve;depth;stencil;draws=[];
+                  owned_samplers=[];indirect=None;retention;releases}
 let validate_batch_draw device draw =
   let op="Ogpu_metal.Render_pass.create_batch"in
   match Pipeline.validate device draw.pipeline with Error _ as e->e|Ok()->

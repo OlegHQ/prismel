@@ -58,6 +58,11 @@ let () =
       let renderer = get (Scene_execution.create_offscreen_with_pipeline driver
         configuration ~before_device_destroy:(fun () ->
           Pipeline.clear_cache cache; Ok ()) make) in
+      if not(get(Scene_execution.render~clear:(0.125,0.25,0.5,1.)renderer[]))then
+        failwith"layerless clear-only submission was skipped";
+      let clear_pixels=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in
+      if Bytes.sub clear_pixels 0 4<>Bytes.of_string"\x20\x40\x80\xff"then
+        failwith"layerless clear-only pixel drift";
       let indices=Bytes.make 12 '\000' in
       Bytes.set_int32_le indices 4 1l; Bytes.set_int32_le indices 8 2l;
       let mesh : Scene_execution.mesh =
@@ -93,4 +98,4 @@ let () =
       if after.live_handles<>before.live_handles-1 then
         failwith "offscreen native live-handle delta";
       print_endline
-        "offscreen Metal execution: layerless exact frame1/2/60/600, bounded, zero delta"
+        "offscreen Metal execution: exact clear-only/frame1/2/60/600, bounded, zero delta"

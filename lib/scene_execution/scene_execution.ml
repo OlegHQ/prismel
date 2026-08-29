@@ -51,6 +51,7 @@ type automatic_submission={automatic_clear:float*float*float*float;
 type pipeline_variant={family:pipeline_family;blend:Ogpu.Pipeline.blend;samples:int;pipeline:Ogpu.Backend.pipeline;key:string}
 type t={device:Ogpu.Backend.device;queue:Ogpu.Backend.queue;
   surface:Ogpu.Backend.surface option;mutable target:Ogpu.Backend.texture;
+  mutable configuration:Ogpu.Surface.configuration;
   mutable attachments:Scene_attachment_pool.t;pipelines:pipeline_variant list;
   canonical_scene2_argument:bool;mutable cache:cached list;
   mutable uniform_cache:cached list;mutable prepared_cache:prepared_run list;
@@ -132,7 +133,7 @@ let create_common ?(canonical_scene2_argument=false) ?(offscreen=false) driver c
     let destroy_surface()=Option.iter(fun surface->ignore(Ogpu.Backend.destroy_surface surface))surface in
     match variants[]requested with Error e->destroy_surface();ignore(Ogpu.Backend.destroy_queue queue);cleanup();Error e|Ok pipelines->
     (match allocate_target device configuration with
-      |Ok target->let attachments=Scene_attachment_pool.create~device~configuration~sample_counts:samples in Ok{device;queue;surface;target;attachments;pipelines;canonical_scene2_argument;cache=[];uniform_cache=[];prepared_cache=[];prepared_submission=None;automatic_submission=None;auxiliary_cache=[];texture_cache=[];uploaded=0L;dead=false;before_device_destroy}
+      |Ok target->let attachments=Scene_attachment_pool.create~device~configuration~sample_counts:samples in Ok{device;queue;surface;target;configuration;attachments;pipelines;canonical_scene2_argument;cache=[];uniform_cache=[];prepared_cache=[];prepared_submission=None;automatic_submission=None;auxiliary_cache=[];texture_cache=[];uploaded=0L;dead=false;before_device_destroy}
       |Error e->List.iter(fun x->ignore(Ogpu.Backend.destroy_pipeline x.pipeline))pipelines;destroy_surface();ignore(Ogpu.Backend.destroy_queue queue);cleanup();Error e)
 let one_sample _=[1]
 let create driver configuration=create_common driver configuration(fun()->Ok())[Scene2]blends one_sample None
@@ -593,7 +594,27 @@ let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws
     let made_commands=ref[]and made_payloads=ref[]in
     let previous_payloads=ref(match value.automatic_submission with
       |Some cached->cached.automatic_payloads|None->[])in
-    let rec batches first=function []->Ok()|(family,blend,samples,state,texture,auxiliary,item,uniform)::rest->
+    let rec batches first=function
+      |[] when first->
+        let width=value.configuration.Ogpu.Surface.physical_width
+        and height=value.configuration.physical_height in
+        let state={viewport=(0,0,width,height);scissor=(0,0,width,height);
+          cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;
+          depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;
+          transform_uniforms=None;stencil_state=None;
+          stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}in
+        (match pass value Scene2 1 state Ogpu.Render_pass.Clear clear with
+         |Error _ as error->error
+         |Ok(pass,attachments)->
+             let resources=List.map(fun texture->`Texture texture)attachments@resources in
+             (match Ogpu.Backend.render pass[]with Error _ as error->error
+              |Ok command->
+                  made_commands:=(command,resources,[])::!made_commands;
+                  (match Ogpu.Backend.submit value.queue command~resources~pipelines:[]with
+                   |Error _ as error->error
+                   |Ok receipt->Ogpu.Backend.complete_through value.queue receipt.epoch)))
+      |[]->Ok()
+      |(family,blend,samples,state,texture,auxiliary,item,uniform)::rest->
       let class_=attachment_class family in
       let same,rest=take class_ (family=Scene2_textured) samples state 1[(family,blend,samples,state,texture,auxiliary,item,uniform)]rest in
       match pass value family samples state(if first then Ogpu.Render_pass.Clear else Load)clear with Error _ as e->e|Ok(pass,attachments)->
@@ -641,7 +662,7 @@ let resize value configuration=
   match restore(Scene_attachment_pool.allocated value.attachments)with Error e->ignore(Ogpu.Backend.destroy_texture target);Scene_attachment_pool.destroy attachments;Error e|Ok()->
   let configured=match value.surface with None->Ok()|Some surface->
     Ogpu.Backend.configure surface configuration in
-  match configured with Error e->ignore(Ogpu.Backend.destroy_texture target);Scene_attachment_pool.destroy attachments;Error e|Ok()->let old=value.target and old_attachments=value.attachments in value.target<-target;value.attachments<-attachments;Scene_attachment_pool.destroy old_attachments;Ogpu.Backend.destroy_texture old
+  match configured with Error e->ignore(Ogpu.Backend.destroy_texture target);Scene_attachment_pool.destroy attachments;Error e|Ok()->let old=value.target and old_attachments=value.attachments in value.target<-target;value.configuration<-configuration;value.attachments<-attachments;Scene_attachment_pool.destroy old_attachments;Ogpu.Backend.destroy_texture old
 let upload_bytes value=value.uploaded
 let cache_entries value=List.length value.cache+List.length value.uniform_cache
 let read_pixels value ~bytes_per_row=Ogpu.Backend.read_texture value.target~bytes_per_row
