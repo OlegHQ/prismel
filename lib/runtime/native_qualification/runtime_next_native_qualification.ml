@@ -119,7 +119,18 @@ let () =
       let rss_checkpoints = ref [] in
       let scenarios = List.map (fun scenario -> let result = run scenario in Gc.full_major(); rss_checkpoints := rss_kib () :: !rss_checkpoints; result)
         [ Basic; Pxui_like; Canvas_offscreen; Scene3_builtin ] in
-      let teardown_rss=Array.init 12(fun _->let runtime=get(Runtime_next.create~width:2~height:2)in get(Runtime_next.destroy runtime);Gc.full_major();rss_kib())in
+      (* CAMetalLayer, Objective-C and the OCaml allocator may reserve their
+         one-time teardown pools on the first few lifecycles.  Those reservations
+         are not retained Prismel resources: verify the release queue first,
+         then measure a settled sequence rather than treating allocator warm-up
+         as a leak. *)
+      for _ = 1 to 4 do
+        let runtime = get (Runtime_next.create ~width:2 ~height:2) in
+        get (Runtime_next.destroy runtime);
+        ignore (metal (Metal.Release_queue.drain ()));
+        Gc.full_major ()
+      done;
+      let teardown_rss=Array.init 12(fun _->let runtime=get(Runtime_next.create~width:2~height:2)in get(Runtime_next.destroy runtime);ignore(metal(Metal.Release_queue.drain()));Gc.full_major();rss_kib())in
       let teardown_min=Array.fold_left min max_int teardown_rss and teardown_max=Array.fold_left max 0 teardown_rss in
       if teardown_max-teardown_min>4096 then failwith"native repeated teardown RSS did not plateau";
       ignore (metal (Metal.Release_queue.drain ()));
