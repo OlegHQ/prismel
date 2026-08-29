@@ -58,7 +58,7 @@ let run_scenario scenario =
     | "basic" -> R10_scene2_legacy_equivalent.Basic | "pxui" -> Pxui
     | _ -> fail "invalid scenario %S" scenario
   in
-  let candidate = Result.get_ok (R10_scene2_candidate.create ~target:`Native ~width:640 ~height:480 public) in
+  let candidate = Result.get_ok (R10_scene2_candidate.create ~width:640 ~height:480 public) in
   Fun.protect ~finally:(fun () -> R10_scene2_candidate.destroy candidate) (fun () ->
     ignore (get (Prismel_next_execution.hide candidate.execution));
     let hidden_before=not (get (Prismel_next_execution.visible candidate.execution)) in

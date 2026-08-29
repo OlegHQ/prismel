@@ -4,7 +4,6 @@ let execution_ok=function Ok value->value|Error error->failwith(Format.asprintf"
 type t={execution:Prismel_next_execution.t;scenario:R10_scene2_legacy_equivalent.scenario;
   descriptor:R10_scene2_legacy_equivalent.descriptor;mutable frame:int;
   mutable image:Image.t option;canvas:Canvas.t option;ui:Pxui_next.t option}
-let target=function `Native->Prismel_next_execution.Native
 let fill canvas ~width ~height color=for y=0 to height-1 do for x=0 to width-1 do
   Canvas.set_pixel canvas~x~y color done done
 let canvas_background=Color.hex_exn"#0f172a"
@@ -20,9 +19,9 @@ let generated_image()=let canvas=Canvas.create_exn~width:96~height:96 in
     Canvas.set_pixel canvas~x~y(Color.rgb((x*255)/95)((y*255)/95)160)
   done done;
   let image=Result.get_ok(Canvas.to_image canvas)in Canvas.destroy canvas;image
-let create ~target:target_kind ~width ~height scenario =
+let create ~width ~height scenario =
   let descriptor=R10_scene2_legacy_equivalent.describe scenario~width~height in
-  let configuration={Prismel_next_execution.default_configuration with target=target target_kind;
+  let configuration={Prismel_next_execution.default_configuration with
     logical_width=width;logical_height=height;drawable_width=width;drawable_height=height;
     timing=Fixed(1./.60.);title="R10 candidate"}in
   let execution=Prismel_next_execution.create configuration|>Result.get_ok in

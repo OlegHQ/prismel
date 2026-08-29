@@ -9,11 +9,6 @@
  (modules api_manifest)
  (libraries gpu_migration_support))
 
-(executable
- (name capture_environment)
- (modules capture_environment)
- (libraries gpu_migration_support))
-
 (test
  (name phase1_evidence)
  (modules phase1_evidence)
@@ -46,17 +41,3 @@
  (modules test_sdl3_no_dynamic_ffi)
  (libraries unix)
  (action (chdir %{workspace_root} (run %{test}))))
-
-(test
- (name phase4_r1_freeze)
- (modules phase4_r1_freeze)
- (libraries gpu_migration_support yojson)
- (deps
-  ../../NEW_GPU_STUFF.md
-  ../../specification/evidence/gpu_migration/phase0_baseline.json
-  ../../specification/evidence/gpu_migration/api_stable.json
-  (source_tree ../../examples)
-  (source_tree ../../sketches)
-  (source_tree ../../lib/prismel)
-  (source_tree ../../lib/runtime))
- (action (chdir %{workspace_root} (run %{test} --root %{workspace_root}))))

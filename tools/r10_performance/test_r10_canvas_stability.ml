@@ -1,7 +1,7 @@
 let () =
   let candidate =
     Result.get_ok
-      (R10_scene2_candidate.create ~target:`Native ~width:640 ~height:480
+      (R10_scene2_candidate.create ~width:640 ~height:480
          R10_scene2_legacy_equivalent.Canvas)
   in
   Fun.protect

@@ -173,7 +173,7 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
   let descriptor=R10_scene2_legacy_equivalent.describe public~width~height in
   let render,render_canonical,capture,stats,set_visibility,observed_visibility,destroy=match selected with
   |Basic|Pxui|Canvas->
-      let candidate=Result.get_ok(R10_scene2_candidate.create~target:`Native~width~height public)in
+      let candidate=Result.get_ok(R10_scene2_candidate.create~width~height public)in
       (fun()->R10_scene2_candidate.render candidate~width~height;Ok true),
       (fun()->R10_scene2_candidate.render_canonical candidate~width~height;Ok true),
       (fun()->Ok(R10_scene2_candidate.capture candidate)),
@@ -182,7 +182,7 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
       (fun()->Prismel_next_execution.visible candidate.execution),
       (fun()->Ok(R10_scene2_candidate.destroy candidate))
   |Scene3->
-      let configuration={Prismel_next_execution.default_configuration with target=Native;
+      let configuration={Prismel_next_execution.default_configuration with
         logical_width=width;logical_height=height;drawable_width=width;drawable_height=height;
         timing=Fixed(1./.60.);title="R10 exact native Scene3"}in
       let execution=Result.get_ok(Prismel_next_execution.create configuration)in

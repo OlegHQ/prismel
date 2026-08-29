@@ -16,6 +16,33 @@
  (modules r10_scene3_legacy_equivalent r10_scene3_equivalence_bridge)
  (libraries prismel_next_api scene_execution ogpu))
 
+(library
+ (name r10_native_protocol_lib)
+ (wrapped false)
+ (modules r10_native_protocol_lib)
+ (libraries unix yojson))
+
+(executable
+ (name r10_native_protocol)
+ (modules r10_native_protocol)
+ (libraries r10_native_protocol_lib)
+ (link_deps
+  %{exe:../runtime_next_native_benchmark/runtime_next_native_benchmark.exe}))
+
+(executable
+ (name validate_r10_native_protocol)
+ (modules validate_r10_native_protocol)
+ (libraries r10_native_protocol_lib))
+
+(test
+ (name test_r10_native_protocol)
+ (modules test_r10_native_protocol)
+ (libraries r10_native_protocol_lib)
+ (deps ../../specification/evidence/gpu_migration/phase0_performance.json)
+ (action
+  (run %{test}
+   %{dep:../../specification/evidence/gpu_migration/phase0_performance.json})))
+
 (executable
  (name r10_native_scene2_correctness)
  (modules r10_native_scene2_correctness)

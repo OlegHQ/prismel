@@ -14,7 +14,7 @@ let stable_library_directories =
   ]
 
 let reviewed_native_only_removals =
-  [ "prismel.Framebuffer3"; "prismel.Render2"; "prismel.Render3"; "wap.Wap" ]
+  [ "prismel.Framebuffer3"; "prismel.Render2"; "prismel.Render3" ]
 
 let mixed_legacy library module_name =
   match library, module_name with
