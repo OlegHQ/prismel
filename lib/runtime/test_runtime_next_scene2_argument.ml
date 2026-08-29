@@ -134,9 +134,58 @@ let () =
          || cycled.retained_plan_entries <> mixed.retained_plan_entries + 80
          || cycled.retained_plan_capacity <> 256 then
         failwith "80 mesh identities thrashed the aligned retained-plan cache";
+      let affine tx =
+        let bytes = Bytes.make 48 '\000' in
+        Bytes.set_int64_le bytes 0 (Int64.bits_of_float 1.);
+        Bytes.set_int64_le bytes 16 (Int64.bits_of_float tx);
+        Bytes.set_int64_le bytes 32 (Int64.bits_of_float 1.);
+        bytes
+      in
+      let animated tx =
+        let state = { state with Scene_execution.transform_uniforms = Some (affine tx) } in
+        Scene_execution.Scene2_textured, Ogpu.Pipeline.Replace, Some texture,
+          None, 1, { Scene_execution.mesh; state }
+      in
+      for frame = 0 to 19 do
+        ignore (get (Runtime_next.render_sampled_resources runtime
+          [animated (if frame land 1 = 0 then 0. else 2.)]))
+      done;
+      Gc.full_major ();
+      let allocation_before = Gc.allocated_bytes ()
+      and promotion_before = (Gc.quick_stat ()).promoted_words in
+      let measured_frames = 400 in
+      for frame = 0 to measured_frames - 1 do
+        if not (get (Runtime_next.render_sampled_resources runtime
+          [animated (if frame land 1 = 0 then 0. else 2.)])) then
+          failwith "animated affine frame was not presented"
+      done;
+      let allocation_after = Gc.allocated_bytes ()
+      and promotion_after = (Gc.quick_stat ()).promoted_words in
+      let allocated_per_frame =
+        (allocation_after -. allocation_before) /. float measured_frames
+      and promoted_per_frame =
+        (promotion_after -. promotion_before) *. float (Sys.word_size / 8)
+        /. float measured_frames in
+      if allocated_per_frame > 100_000. then
+        failwith (Printf.sprintf
+          "animated affine retained path allocated %.0f bytes/frame"
+          allocated_per_frame);
+      if promoted_per_frame > 1_024. then
+        failwith (Printf.sprintf
+          "animated affine retained path promoted %.0f bytes/frame"
+          promoted_per_frame);
+      ignore (get (Runtime_next.render_sampled_resources runtime [animated 2.]));
+      let shifted = get (Runtime_next.read_pixels runtime ~bytes_per_row:16) in
+      if Bytes.sub shifted 0 4 <> Bytes.of_string "\000\000\000\000" then
+        failwith "animated affine translated pixel mismatch";
+      ignore (get (Runtime_next.render_sampled_resources runtime [animated 0.]));
+      let restored = get (Runtime_next.read_pixels runtime ~bytes_per_row:16) in
+      if Bytes.sub restored 0 4 <> Bytes.of_string "\x11\x22\x33\xff" then
+        failwith "animated affine restored pixel mismatch";
       get (Runtime_next.destroy runtime);
       ignore (get_metal (Metal.Release_queue.drain ()));
       let after = get_metal (Metal.Release_queue.stats ()) in
       if after.live_handles <> before.live_handles then
         failwith "scene2 retained argument live-handle delta";
-      print_endline "runtime-next scene2 retained argument: indexed expansion + 1000 managed-image generations + 600 mixed plain/textured frames, exact pixels, bounded release state, zero delta"
+      Printf.printf "runtime-next scene2 retained argument: indexed expansion + 1000 managed-image generations + 600 mixed plain/textured + 400 affine frames, %.0f allocated and %.0f promoted bytes/frame, exact pixels, bounded release state, zero delta\n"
+        allocated_per_frame promoted_per_frame

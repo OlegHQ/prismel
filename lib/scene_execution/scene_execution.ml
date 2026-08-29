@@ -241,17 +241,29 @@ let scene2_native_affine bytes=
     Bytes.set_int32_le native(index*4)
       (Int32.bits_of_float(Int64.float_of_bits(Bytes.get_int64_le bytes(index*8))))
   done;native
-let prepare_uniform value ~defer:_ ~reserved bytes=
-  match List.find_opt(fun(item:cached)->Option.fold~none:false~some:(Bytes.equal bytes)item.uniform_bytes)value.uniform_cache with
+let prepare_uniform value ~defer:_ ~reserved ?preferred bytes=
+  let available item=
+    item.bytes=Bytes.length bytes&&not(List.exists((==)item)(reserved()))in
+  let same item=Option.fold~none:false~some:(Bytes.equal bytes)item.uniform_bytes in
+  let update item=
+    match item.uniform_bytes with
+    |None->assert false
+    |Some retained when Bytes.equal bytes retained->Ok item
+    |Some retained->Result.map(fun()->Bytes.blit bytes 0 retained 0(Bytes.length bytes);
+        value.uniform_cache<-item::List.filter(fun old->old!=item)value.uniform_cache;
+        value.uploaded<-Int64.add value.uploaded(Int64.of_int(Bytes.length bytes));item)
+        (Ogpu.Backend.write_buffer item.buffer~offset:0L bytes)in
+  match preferred with
+  |Some item when item.bytes=Bytes.length bytes&&same item->Ok item
+  |Some item when available item->update item
+  |_->match List.find_opt(fun(item:cached)->same item)value.uniform_cache with
   |Some item->Ok item
   |None->
-      let reusable=List.find_opt(fun item->not(List.exists((==)item)(reserved())))
+      let reusable=List.find_opt(fun item->item.bytes=Bytes.length bytes&&
+          not(List.exists((==)item)(reserved())))
           (List.rev value.uniform_cache)in
       (match reusable with
-      |Some item->Result.map(fun()->Option.iter(fun retained->Bytes.blit bytes 0 retained 0(Bytes.length bytes))item.uniform_bytes;
-          value.uniform_cache<-item::List.filter(fun old->old!=item)value.uniform_cache;
-          value.uploaded<-Int64.add value.uploaded(Int64.of_int(Bytes.length bytes));item)
-          (Ogpu.Backend.write_buffer item.buffer~offset:0L bytes)
+      |Some item->update item
       |None when List.length value.uniform_cache>=uniform_cache_capacity->
           error"Scene_execution.prepare_uniform"Ogpu.Error.Invalid_state
             "one submission exceeds the bounded transform-uniform capacity"
@@ -559,9 +571,55 @@ let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws
   if not supported then error"Scene_execution.render"Ogpu.Error.Unsupported"pipeline family/blend variant is unavailable"else
   if not valid then error"Scene_execution.render"Ogpu.Error.Invalid_argument"draw resource preflight failed"else
   let deferred=ref[]in let defer release=deferred:=release::!deferred in let finish result=List.iter(fun release->release())!deferred;result in
-  let rec prepare_all acc=function []->Ok(List.rev acc)|(family,blend,texture,auxiliary,samples,(draw:draw))::rest->let reserved()=List.map(fun(_,_,_,_,_,_,item,_)->item)acc and reserved_uniforms()=List.filter_map(fun(_,_,_,_,_,_,_,uniform)->uniform)acc in let scene2=family=Scene2||family=Scene2_textured in let canonical_scene2=value.canonical_scene2_argument&&scene2 in let canonical_plain=value.canonical_scene2_argument&&family=Scene2 in let affine=scene2&&Option.fold~none:false~some:(fun bytes->Bytes.length bytes=24||Bytes.length bytes=48)draw.state.transform_uniforms in match prepare value~defer~trusted_key~reserved~uniforms:(if canonical_scene2||affine then None else draw.state.transform_uniforms)~nonindexed:(family=Scene2_textured||canonical_scene2)~canonical_plain draw.mesh with Error _ as e->e|Ok mesh->let uniform_bytes=if canonical_scene2 then Some(match draw.state.transform_uniforms with None->scene2_identity_affine|Some bytes->scene2_native_affine bytes)else if affine then draw.state.transform_uniforms else None in let uniform=match uniform_bytes with None->Ok None|Some bytes->Result.map Option.some(prepare_uniform value~defer~reserved:reserved_uniforms bytes)in match uniform with Error _ as e->e|Ok uniform->let texture=match family,texture with Scene2,None when canonical_scene2->Some scene2_white_texture|_->texture in match texture with Some source->(match prepare_texture value~defer source with Error _ as e->e|Ok texture->prepare_aux family blend auxiliary samples draw mesh uniform (Some(source,texture)) acc rest)|None->prepare_aux family blend auxiliary samples draw mesh uniform None acc rest
-  and prepare_aux family blend auxiliary samples draw mesh uniform texture acc rest=match auxiliary with None->prepare_all((family,blend,samples,draw.state,texture,None,mesh,uniform)::acc)rest|Some source->match prepare_auxiliary value~defer source with Error _ as e->e|Ok buffer->match prepare_texture value~defer source.texture with Error _ as e->e|Ok texture2->prepare_all((family,blend,samples,draw.state,texture,Some(source,buffer,texture2),mesh,uniform)::acc)rest in
-  match acquire value with Error _ as e->finish e|Ok`Skipped->finish(Ok false)|Ok(`Acquired frame)->match prepare_all[]draws with Error _ as e->discard frame;finish e|Ok prepared->
+  let previous=match value.automatic_submission with
+    |None->[]|Some cached->cached.automatic_payloads in
+  let rec prepare_all acc previous=function
+  |[]->Ok(List.rev acc)
+  |(family,blend,texture,auxiliary,samples,(draw:draw))::rest->
+    let prior,previous=match previous with
+      |(signature,_,_)::remaining->signature.signature_uniform_buffer,remaining
+      |[]->None,[]in
+    let preferred=match prior with None->None|Some id->
+      List.find_opt(fun(item:cached)->Ogpu.Backend.buffer_id item.buffer=id)
+        value.uniform_cache in
+    let reserved()=List.map(fun(_,_,_,_,_,_,item,_)->item)acc
+    and reserved_uniforms()=List.filter_map(fun(_,_,_,_,_,_,_,uniform)->uniform)acc in
+    let scene2=family=Scene2||family=Scene2_textured in
+    let canonical_scene2=value.canonical_scene2_argument&&scene2 in
+    let canonical_plain=value.canonical_scene2_argument&&family=Scene2 in
+    let affine=scene2&&Option.fold~none:false~some:(fun bytes->
+      Bytes.length bytes=24||Bytes.length bytes=48)draw.state.transform_uniforms in
+    match prepare value~defer~trusted_key~reserved
+      ~uniforms:(if canonical_scene2||affine then None else draw.state.transform_uniforms)
+      ~nonindexed:(family=Scene2_textured||canonical_scene2)~canonical_plain draw.mesh with
+    |Error _ as e->e
+    |Ok mesh->
+      let uniform_bytes=if canonical_scene2 then Some(match draw.state.transform_uniforms with
+        |None->scene2_identity_affine|Some bytes->scene2_native_affine bytes)
+        else if affine then draw.state.transform_uniforms else None in
+      let uniform=match uniform_bytes with None->Ok None|Some bytes->
+        Result.map Option.some(prepare_uniform value~defer~reserved:reserved_uniforms
+          ?preferred bytes)in
+      match uniform with Error _ as e->e|Ok uniform->
+      let texture=match family,texture with Scene2,None when canonical_scene2->
+        Some scene2_white_texture|_->texture in
+      match texture with
+      |Some source->(match prepare_texture value~defer source with Error _ as e->e
+        |Ok texture->prepare_aux family blend auxiliary samples draw mesh uniform
+          (Some(source,texture))acc previous rest)
+      |None->prepare_aux family blend auxiliary samples draw mesh uniform None acc
+        previous rest
+  and prepare_aux family blend auxiliary samples draw mesh uniform texture acc
+      previous rest=match auxiliary with
+    |None->prepare_all((family,blend,samples,draw.state,texture,None,mesh,uniform)::acc)
+      previous rest
+    |Some source->match prepare_auxiliary value~defer source with Error _ as e->e
+      |Ok buffer->match prepare_texture value~defer source.texture with Error _ as e->e
+        |Ok texture2->prepare_all((family,blend,samples,draw.state,texture,
+          Some(source,buffer,texture2),mesh,uniform)::acc)previous rest in
+  match acquire value with Error _ as e->finish e|Ok`Skipped->finish(Ok false)
+  |Ok(`Acquired frame)->match prepare_all[]previous draws with
+    |Error _ as e->discard frame;finish e|Ok prepared->
     match value.automatic_submission with
     |Some cached when cached.automatic_clear=clear&&
       same_payloads cached.automatic_payloads prepared->
