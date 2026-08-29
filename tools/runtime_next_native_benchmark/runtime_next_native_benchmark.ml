@@ -298,7 +298,9 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
     let target=1./.60. in
     if interval<target then begin
       let delay_ms=int_of_float((target-.interval)*.1000.)in
-      if delay_ms>0 then Unix.sleepf(float delay_ms/.1000.)
+      if delay_ms>0 then
+        ignore(sdl "R10 Phase0 precise delay"
+          (Sdl3.Time.delay_precise_seconds(float delay_ms/.1000.)))
     end;
     interval in
   let sample_rss now=if now >= !next_rss_sample then(
