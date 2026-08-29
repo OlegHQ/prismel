@@ -25,7 +25,7 @@ let () =
       ; "--warmup-seconds", Arg.Set_float warmup_seconds, "per-run warmup"
       ; "--sample-seconds", Arg.Set_float sample_seconds, "per-run measurement"
       ; "--smoke", Arg.Set smoke, "one short run per cell; skip limits/provenance"
-      ; "--dry-run", Arg.Set dry_run, "print the 40 qualification child commands"
+      ; "--dry-run", Arg.Set dry_run, "print the 60 qualification child commands"
       ]
       (fun value -> raise (Arg.Bad value))
       "native-only R10 performance protocol";

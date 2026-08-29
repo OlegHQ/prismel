@@ -161,3 +161,20 @@ by 4/47 = 8.511 percentage points, a measured rate of **9.04 percentage
 points/hour**. Strict completion changed by zero, so its measured rate remains
 **0.00 percentage points/hour**. This interval is an implementation checkpoint,
 not an ETA or a sustainable-rate forecast.
+
+## Follow-up — native-only static renewal
+
+At `2026-08-29T18:38:13+02:00`, clean commit `5d3d90a` again passed the D1
+source-deletion inventory, the exact D2 token scan, and the D8 selector/fallback
+source audit. The only D2 matches are the two explicitly permitted generated
+SDL3/Metal exception families. The detailed commands and classifications are
+recorded in
+[`d1_d2_d8_static_renewal_2026-08-29.md`](d1_d2_d8_static_renewal_2026-08-29.md).
+
+These three gates remain provisional pending the final twice-clean integrated
+run, so the count remains **11 strict, 26 provisional, 2 pending local, and 8
+pending external**: **37/47 = 78.72%** strict-plus-provisional and **11/47 =
+23.40%** strict. From the preceding `17:01:22` checkpoint, 5,811 seconds
+(1.6142 hours) elapsed with zero classification change, hence both measured
+coverage and strict-completion rates were **0.00 percentage points/hour** for
+this audit interval.
