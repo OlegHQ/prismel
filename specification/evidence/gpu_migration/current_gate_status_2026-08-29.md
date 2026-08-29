@@ -46,3 +46,26 @@ renderer/runtime changes. This capture is the first corrected timestamped
 snapshot, so no percentage-points/hour rate is inferred from those invalid
 estimates. Subsequent snapshots must compute elapsed time and rate from this
 committed baseline.
+
+## Follow-up — native Canvas milestone
+
+Commit `dc97688271642f3c4fc5c55a84347dc76f0290c3` at
+`2026-08-29T14:41:59+02:00` restores public `Canvas.render` through one lazy,
+reusable, layerless Metal coordinator per Canvas. The production Scene2/Scene3
+lowering, resource leases, caches, readback, and explicit teardown are shared
+with the window path. Its 600-frame release fixture completed in 1.94 seconds
+with exact pixels and zero Metal-handle delta. The dead public staging function
+that rejected image and glyph resources was removed.
+
+This moves R2 and R4 from pending-local to provisional: **11 strict, 25
+provisional, 2 pending local, and 9 pending external**. Strict plus provisional
+coverage is now **36/47 = 76.60%**; strict completion remains **11/47 =
+23.40%**. The two local blockers are now R1 manifest renewal and R10 qualifying
+evidence.
+
+The interval from the corrected baseline commit time
+`2026-08-29T14:34:59+02:00` is exactly 420 seconds (0.1167 hours). Implemented
+or provisional coverage increased by 2/47 = 4.255 percentage points, a short
+interval rate of **36.47 percentage points/hour**. Strict completion changed by
+zero, so its rate was **0.00 percentage points/hour**. This seven-minute slice
+is a measured checkpoint, not an ETA or a sustainable-rate forecast.
