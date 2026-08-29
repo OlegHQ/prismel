@@ -1,5 +1,6 @@
 # Dune build output
 /_build/
+/_build-packaging-check-*/
 /_install/
 /dist/
 

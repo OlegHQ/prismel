@@ -29,6 +29,14 @@ let with_temp_directory prefix f =
   let path = Filename.temp_dir prefix "" |> Unix.realpath in
   Fun.protect ~finally:(fun () -> remove_directory path) (fun () -> f path)
 
+let with_source_build_directory root f =
+  let path = Filename.temp_file ~temp_dir:root "_build-packaging-check-" "" in
+  Sys.remove path;
+  Unix.mkdir path 0o755;
+  let relative = Filename.basename path in
+  Fun.protect ~finally:(fun () -> remove_directory path)
+    (fun () -> f ~path ~relative)
+
 let environment_name entry =
   match String.index_opt entry '=' with
   | Some index -> String.sub entry 0 index
@@ -119,14 +127,24 @@ let () =
 
 let install_and_check ~root ~profile =
   with_temp_directory "prismel-installed-consumer-" (fun temporary ->
+    with_source_build_directory root (fun ~path:_ ~relative:source_build ->
     let prefix = Filename.concat temporary "prefix" in
     let consumer = Filename.concat temporary "consumer" in
     Unix.mkdir prefix 0o755;
     Unix.mkdir consumer 0o755;
     ignore
       (command ~directory:root "dune"
+         [ "build"
+         ; "--root"; root
+         ; "--build-dir"; source_build
+         ; "--profile"; profile
+         ; "@install"
+         ]);
+    ignore
+      (command ~directory:root "dune"
          [ "install"
          ; "--root"; root
+         ; "--build-dir"; source_build
          ; "--prefix"; prefix
          ; "--relocatable"
          ; "--profile"; profile
@@ -179,7 +197,7 @@ let install_and_check ~root ~profile =
     then fail "installed consumer returned unexpected output: %S" output;
     Printf.printf
       "isolated %s install and external SDL3 consumer passed at %s\n%!" profile
-      prefix)
+      prefix))
 
 let root = ref None
 let profile = ref "dev"
