@@ -682,22 +682,23 @@ let replay_commands value commands =
   match acquire value with
   |Error _ as error->error|Ok`Skipped->Ok false
   |Ok(`Acquired frame)->Result.map(fun()->true)(submit_acquired value frame commands)
-let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws=if value.dead then error"Scene_execution.render"Ogpu.Error.Stale_handle"renderer is destroyed"else if List.length draws>prepared_scratch_capacity then error"Scene_execution.render"Ogpu.Error.Capacity"one submission exceeds the bounded prepared-draw capacity"else
+let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0.,0.,0.,0.)) value draws=if value.dead then(after_prepare();error"Scene_execution.render"Ogpu.Error.Stale_handle"renderer is destroyed")else if List.length draws>prepared_scratch_capacity then(after_prepare();error"Scene_execution.render"Ogpu.Error.Capacity"one submission exceeds the bounded prepared-draw capacity")else
   match prepared,value.prepared_submission with
-  |Some(identity,version),Some cached when cached.submission_identity=identity&&cached.submission_version=version&&cached.submission_clear=clear->replay_commands value cached.submission_commands
+  |Some(identity,version),Some cached when cached.submission_identity=identity&&cached.submission_version=version&&cached.submission_clear=clear->
+    after_prepare();replay_commands value cached.submission_commands
   |_->value.prepared_submission<-None;
   let prepared_key=prepared in
-  match resolve_prepared value prepared draws with Error _ as result -> result | Ok(draws,trusted_key) ->
+  match resolve_prepared value prepared draws with Error _ as result ->after_prepare();result | Ok(draws,trusted_key) ->
   let valid_mesh(mesh:mesh)=mesh.key<>""&&mesh.vertex_count>0&&mesh.index_count>0&&Bytes.length mesh.vertices+Bytes.length mesh.indices>0 in
   let supported=List.for_all(fun(family,blend,_,_,samples,_)->List.exists(fun variant->variant.family=family&&variant.blend=blend&&variant.samples=samples)value.pipelines)draws in
   let valid=List.for_all(fun(_,_,texture,auxiliary,samples,(draw:draw))->List.mem samples[1;4;9;16]&&valid_mesh draw.mesh&&Option.fold~none:true~some:valid_texture texture&&Option.fold~none:true~some:(fun(source:auxiliary_resource)->source.key<>""&&Bytes.length source.buffer>0&&valid_texture source.texture)auxiliary)draws in
-  if not supported then error"Scene_execution.render"Ogpu.Error.Unsupported"pipeline family/blend variant is unavailable"else
-  if not valid then error"Scene_execution.render"Ogpu.Error.Invalid_argument"draw resource preflight failed"else
+  if not supported then(after_prepare();error"Scene_execution.render"Ogpu.Error.Unsupported"pipeline family/blend variant is unavailable")else
+  if not valid then(after_prepare();error"Scene_execution.render"Ogpu.Error.Invalid_argument"draw resource preflight failed")else
   let deferred=ref[]in let defer release=deferred:=release::!deferred in let finish result=List.iter(fun release->release())!deferred;result in
   let scratch=value.prepared_scratch in
   clear_prepared_scratch scratch;
   match ensure_prepared_scratch scratch(List.length draws)with
-  |Error _ as result->finish result
+  |Error _ as result->after_prepare();finish result
   |Ok()->Fun.protect~finally:(fun()->clear_prepared_scratch scratch)(fun()->
   let previous=match value.automatic_submission with
     |None->[]|Some cached->cached.automatic_payloads in
@@ -752,11 +753,12 @@ let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws
         |Error _ as result->result
         |Ok texture2->append family blend samples draw.state texture
           (Some(source,buffer,texture2))mesh uniform;prepare_all previous rest in
-  match acquire value with Error _ as result->finish result
-  |Ok`Skipped->finish(Ok false)
+  match acquire value with Error _ as result->after_prepare();finish result
+  |Ok`Skipped->after_prepare();finish(Ok false)
   |Ok(`Acquired frame)->match prepare_all previous draws with
-    |Error _ as result->discard frame;finish result
+    |Error _ as result->after_prepare();discard frame;finish result
     |Ok()->let candidate_fingerprint=automatic_candidate_fingerprint scratch in
+      after_prepare();
       match value.automatic_submission with
       |Some cached when cached.automatic_clear=clear&&
         same_scratch_payloads cached.automatic_payloads scratch->
@@ -935,8 +937,8 @@ let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws
                 candidate_length=List.length automatic_payloads;
                 candidate_fingerprint});
             finish(Ok true))
-let render_sampled_resources ?clear value draws=render_sampled_resources_common ?clear value draws
-let render_prepared_sampled_resources ?clear ~identity ~version value draws=render_sampled_resources_common ?clear~prepared:(identity,version)value draws
+let render_sampled_resources ?after_prepare ?clear value draws=render_sampled_resources_common ?after_prepare ?clear value draws
+let render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version value draws=render_sampled_resources_common ?after_prepare ?clear~prepared:(identity,version)value draws
 let replay_prepared_sampled_resources ?(clear=(0.,0.,0.,0.)) ~identity ~version value=
   if value.dead then error"Scene_execution.replay_prepared_sampled_resources"
       Ogpu.Error.Stale_handle"renderer is destroyed"

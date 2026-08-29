@@ -28,6 +28,6 @@ module Private : sig
   val gpu_timing_total : unit -> gpu_timing
   val gpu_timing_entry_count : unit -> int
   val valid_gpu_duration : float -> bool
-  val arm_scoped_render : t -> unit
+  val arm_scoped_render : ?on_committed:(int64 -> unit) -> t -> unit
   val take_scoped_completion : t -> (unit,Ogpu.Error.t) result option
 end

@@ -910,9 +910,11 @@ let event_of_input=function Runtime_next_input.Pointer_moved(x,y)->Pointer_moved
   |Wheel(x,y)->Wheel(x,y)|Key_pressed k->Key_pressed{name=k.key;modifiers=List.map mod_of_input k.modifiers;repeat=k.repeat}|Key_released k->Key_released{name=k.key;modifiers=List.map mod_of_input k.modifiers;repeat=k.repeat}
   |Text_input s->Text_input s|Text_editing{text;start;length}->Text_editing{text;start;length}|Focus_lost->Focus_lost|Focus_gained->Focus_gained
   |Visibility_changed x->Visibility_changed x|Quit->Quit|Resized(x,y)->Resized(x,y)|File_dropped{name;contents}->File_dropped{name;contents}
-let step_core ?clear ?identity ?version value draws=match ensure"Prismel_next_execution.step"value with Error _ as e->e|Ok()->
+let step_core ?after_prepare ?clear ?identity ?version value draws=
+  let after_prepare=Option.value after_prepare ~default:Fun.id in
+  match ensure"Prismel_next_execution.step"value with Error _ as e->e|Ok()->
   Runtime_next_input.begin_frame value.input;
-  match presentation_facts value with Error _ as error->error|Ok f->
+  match presentation_facts value with Error _ as error->after_prepare();error|Ok f->
     let family=function Scene2->Runtime_next_orchestrator.Scene2|Scene2_textured->Scene2_textured|Scene3->Scene3
       |Scene3_textured->Scene3_textured|Scene3_shadow->Scene3_shadow|Scene3_stencil->Scene3_stencil
       |Scene3_textured_stencil->Scene3_textured_stencil|Scene3_shadow_stencil->Scene3_shadow_stencil in
@@ -923,8 +925,8 @@ let step_core ?clear ?identity ?version value draws=match ensure"Prismel_next_ex
           Runtime_next_orchestrator.replay_retained ?clear ~identity ~version runtime
       |_->Ok None in
     let rendered=match replayed with
-    |Error error->Error error
-    |Ok(Some presented)->Ok presented
+    |Error error->after_prepare();Error error
+    |Ok(Some presented)->after_prepare();Ok presented
     |Ok None->
     let draws=List.map(fun x->let draw=x.value in let state=draw.Scene_execution.state in
       let viewport=match state.viewport with _,_,w,h when w<0||h<0->0,0,f.logical_width,f.logical_height|x->x in
@@ -935,10 +937,10 @@ let step_core ?clear ?identity ?version value draws=match ensure"Prismel_next_ex
         auxiliary=x.auxiliary;samples=x.samples;draw})draws in
     match value.runtime with
     |Window runtime->(match identity,version with
-      |None,None->Runtime_next_orchestrator.render_prepared ?clear runtime draws
-      |Some identity,Some version->Runtime_next_orchestrator.render_retained ?clear
+      |None,None->Runtime_next_orchestrator.render_prepared ~after_prepare ?clear runtime draws
+      |Some identity,Some version->Runtime_next_orchestrator.render_retained ~after_prepare ?clear
           ~identity~version runtime draws
-      |_->Error(Ogpu.Error.make"Prismel_next_execution.step"Ogpu.Error.Invalid_argument
+      |_->after_prepare();Error(Ogpu.Error.make"Prismel_next_execution.step"Ogpu.Error.Invalid_argument
           "prepared identity and version must be supplied together"))
     |Offscreen state->
       let portable=List.map(fun draw->
@@ -953,10 +955,10 @@ let step_core ?clear ?identity ?version value draws=match ensure"Prismel_next_ex
         |Alpha->Alpha|Add->Add|Multiply->Multiply|Screen->Screen|Subtract->Subtract in
         family,blend,draw.texture,draw.auxiliary,draw.samples,draw.draw)draws in
       let result=match identity,version with
-      |None,None->Runtime_next.render_offscreen ?clear state.runtime portable
-      |Some identity,Some version->Runtime_next.render_offscreen_prepared ?clear
+      |None,None->Runtime_next.render_offscreen ~after_prepare ?clear state.runtime portable
+      |Some identity,Some version->Runtime_next.render_offscreen_prepared ~after_prepare ?clear
           ~identity~version state.runtime portable
-      |_->Error(Ogpu.Error.make"Prismel_next_execution.step"Ogpu.Error.Invalid_argument
+      |_->after_prepare();Error(Ogpu.Error.make"Prismel_next_execution.step"Ogpu.Error.Invalid_argument
           "prepared identity and version must be supplied together")in
       (match result with Ok _->state.frames<-Int64.succ state.frames;
         state.logical_draws<-Int64.add state.logical_draws
@@ -1004,7 +1006,8 @@ let step_submission ?clear ?identity ?version submission batches=
         else
           let reversed=List.fold_left(fun reversed batch->
             List.rev_append batch.batch_draws reversed)[]batches in
-          step_core ?clear ?identity ?version submission.owner(List.rev reversed))
+          step_core ~after_prepare:(fun()->close_submission submission)
+            ?clear ?identity ?version submission.owner(List.rev reversed))
 let capture value=match ensure"Prismel_next_execution.capture"value with Error _ as e->e|Ok()->
   match presentation_facts value with Error _ as error->error|Ok facts->
   let captured=match value.runtime with

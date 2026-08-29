@@ -61,6 +61,7 @@ module Private : sig
   val presentation_encoder_scoped : pending_presentation -> Queue.presentation
   val rollback_present : pending_presentation -> unit
   val commit_present : pending_presentation -> epoch:int64 -> unit
+  val commit_present_scoped : pending_presentation -> epoch:int64 -> unit
   val complete_presentations_through :
     pending_presentation array -> int64 -> unit
   val clear_pending_presentations : pending_presentation array -> unit

@@ -145,6 +145,29 @@ let ()=
   get(Scene_execution.destroy renderer);
   require(Ogpu.Backend_mock.live_counts control=(0,0,0,0,0))
     "prepared scratch capacity rejection leaked handles";
+  let driver,control=Ogpu.Backend_mock.create()in
+  let renderer=get(Scene_execution.create driver configuration)in
+  let releases=ref 0 in
+  let release()=incr releases in
+  let texture:Scene_execution.sampled_texture={key="lease-release";
+    levels=[|{width=1;height=1;bytes=Bytes.of_string"\xff\xff\xff\xff"}|];
+    sampler={label=None;min_filter=Nearest;mag_filter=Nearest;mip_filter=No_mip;
+      address_u=Clamp_to_edge;address_v=Clamp_to_edge;lod_min=0.;lod_max=0.;
+      max_anisotropy=1}}in
+  ignore(get(Scene_execution.render_sampled_resources
+    ~after_prepare:release renderer
+    [Scene_execution.Scene2,Ogpu.Pipeline.Replace,Some texture,None,1,
+     {Scene_execution.mesh=mesh 0;state}]));
+  require(!releases=1)"post-upload release hook did not run exactly once";
+  let malformed={texture with levels=[||]}in
+  (match Scene_execution.render_sampled_resources ~after_prepare:release renderer
+      [Scene_execution.Scene2,Ogpu.Pipeline.Replace,Some malformed,None,1,
+       {Scene_execution.mesh=mesh 1;state}]with
+   |Error _->()|Ok _->failwith"malformed sampled texture unexpectedly rendered");
+  require(!releases=2)"failed upload did not run release hook exactly once";
+  get(Scene_execution.destroy renderer);
+  require(Ogpu.Backend_mock.live_counts control=(0,0,0,0,0))
+    "post-upload release hook test leaked mock handles";
   Printf.printf
     "automatic scratch: 1000 exact frames, 10 draws %.0f alloc/%.1f promoted B, 84 draws %.0f alloc/%.1f promoted B, capacity 65536\n%!"
     allocated10 promoted10 allocated84 promoted84

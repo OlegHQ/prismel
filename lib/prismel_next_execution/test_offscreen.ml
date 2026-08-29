@@ -291,7 +291,13 @@ let ()=
                 ignore(get(Prismel_next_execution.Private.step submission[batch]));
                 pixel(get(Prismel_next_execution.capture execution))0
                   (Bytes.of_string"\000\000\xff\xff")
-                  "large transient image changed submitted snapshot pixels");
+                  "large transient image changed submitted snapshot pixels";
+                (* A completed step must have released both snapshot leases
+                   before returning, so two immediate mutations stay legal. *)
+                ignore(get_resource(Prismel_next_resources.Image.replace large
+                  ~width:640~height:480~rgba:large_a));
+                ignore(get_resource(Prismel_next_resources.Image.replace large
+                  ~width:640~height:480~rgba:large_b)));
             let eviction_images=Array.init 257(fun index->
               get_resource(Prismel_next_resources.Image.create~width:1~height:1
                 ~rgba:(Bytes.of_string

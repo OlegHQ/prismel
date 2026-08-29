@@ -139,10 +139,10 @@ let scale_draw(facts:frame_facts)(draw:Scene_execution.draw)=let viewport=scale_
 let scale_draws(facts:frame_facts)draws=if not(scale_required facts)then draws else List.map(scale_draw facts)draws
 let scale_sampled_resources(facts:frame_facts)draws=if not(scale_required facts)then draws else List.map(fun((family,blend,texture,auxiliary,samples,draw)as entry)->let scaled=scale_draw facts draw in if scaled==draw then entry else family,blend,texture,auxiliary,samples,scaled)draws
 let render ?clear (value:t) draws=if value.dead then Error(Ogpu.Error.make"Runtime_next.render"Stale_handle"runtime is destroyed")else Scene_execution.render ?clear value.renderer(scale_draws value.facts draws)
-let render_sampled_resources ?clear (value:t) draws=if value.dead then Error(Ogpu.Error.make"Runtime_next.render_sampled_resources"Stale_handle"runtime is destroyed")else Scene_execution.render_sampled_resources ?clear value.renderer(scale_sampled_resources value.facts draws)
-let render_prepared_sampled_resources ?clear ~identity ~version (value:t) draws=
-  if value.dead then Error(Ogpu.Error.make"Runtime_next.render_prepared_sampled_resources"Stale_handle"runtime is destroyed")
-  else Scene_execution.render_prepared_sampled_resources ?clear ~identity ~version
+let render_sampled_resources ?after_prepare ?clear (value:t) draws=if value.dead then(Option.iter(fun f->f())after_prepare;Error(Ogpu.Error.make"Runtime_next.render_sampled_resources"Stale_handle"runtime is destroyed"))else Scene_execution.render_sampled_resources ?after_prepare ?clear value.renderer(scale_sampled_resources value.facts draws)
+let render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version (value:t) draws=
+  if value.dead then(Option.iter(fun f->f())after_prepare;Error(Ogpu.Error.make"Runtime_next.render_prepared_sampled_resources"Stale_handle"runtime is destroyed"))
+  else Scene_execution.render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version
     value.renderer(scale_sampled_resources value.facts draws)
 let replay_prepared_sampled_resources ?clear ~identity ~version (value:t)=
   if value.dead then Error(Ogpu.Error.make
@@ -186,14 +186,14 @@ let destroy (value:t)=if value.dead then Ok()else(
   record(sdl"Runtime_next.destroy"(Sdl3.Window.destroy value.window));
   record(sdl"Runtime_next.destroy"(Sdl3.Init.quit_subsystems[Sdl3.Init.Video]));
   match!failure with None->Ok()|Some error->Error error)
-let render_offscreen ?clear value draws=if value.dead then
-  Error(Ogpu.Error.make"Runtime_next.render_offscreen"Stale_handle
-    "offscreen target is destroyed")
-  else Scene_execution.render_sampled_resources?clear value.renderer draws
-let render_offscreen_prepared ?clear ~identity ~version value draws=if value.dead then
-  Error(Ogpu.Error.make"Runtime_next.render_offscreen_prepared"Stale_handle
-    "offscreen target is destroyed")
-  else Scene_execution.render_prepared_sampled_resources ?clear ~identity ~version
+let render_offscreen ?after_prepare ?clear value draws=if value.dead then
+  (Option.iter(fun f->f())after_prepare;Error(Ogpu.Error.make"Runtime_next.render_offscreen"Stale_handle
+    "offscreen target is destroyed"))
+  else Scene_execution.render_sampled_resources ?after_prepare ?clear value.renderer draws
+let render_offscreen_prepared ?after_prepare ?clear ~identity ~version value draws=if value.dead then
+  (Option.iter(fun f->f())after_prepare;Error(Ogpu.Error.make"Runtime_next.render_offscreen_prepared"Stale_handle
+    "offscreen target is destroyed"))
+  else Scene_execution.render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version
     value.renderer draws
 let read_offscreen value~bytes_per_row=if value.dead then
   Error(Ogpu.Error.make"Runtime_next.read_offscreen"Stale_handle

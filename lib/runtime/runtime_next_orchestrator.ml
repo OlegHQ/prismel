@@ -67,14 +67,14 @@ let scene_family=function Scene2->Scene_execution.Scene2|Scene2_textured->Scene2
   |Scene3_shadow_stencil->Scene3_shadow_stencil
 let pipeline_blend=function Replace->Ogpu.Pipeline.Replace|Alpha->Alpha|Add->Add
   |Multiply->Multiply|Screen->Screen|Subtract->Subtract
-let render_prepared ?clear value draws=match ensure"Runtime_next_orchestrator.render_prepared"value with Error _ as e->e|Ok()->
+let render_prepared ?after_prepare ?clear value draws=match ensure"Runtime_next_orchestrator.render_prepared"value with Error _ as e->Option.iter(fun f->f())after_prepare;e|Ok()->
   let draws=List.map(fun x->scene_family x.family,pipeline_blend x.blend,x.texture,x.auxiliary,x.samples,x.draw)draws in
-  account value(List.length draws)(Runtime_next.render_sampled_resources ?clear value.runtime draws)
-let render_retained ?clear ~identity ~version value draws=
-  match ensure"Runtime_next_orchestrator.render_retained"value with Error _ as e->e|Ok()->
+  account value(List.length draws)(Runtime_next.render_sampled_resources ?after_prepare ?clear value.runtime draws)
+let render_retained ?after_prepare ?clear ~identity ~version value draws=
+  match ensure"Runtime_next_orchestrator.render_retained"value with Error _ as e->Option.iter(fun f->f())after_prepare;e|Ok()->
   let draws=List.map(fun x->scene_family x.family,pipeline_blend x.blend,x.texture,x.auxiliary,x.samples,x.draw)draws in
   account value(List.length draws)
-    (Runtime_next.render_prepared_sampled_resources ?clear ~identity ~version value.runtime draws)
+    (Runtime_next.render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version value.runtime draws)
 let replay_retained ?clear ~identity ~version value=
   match ensure"Runtime_next_orchestrator.replay_retained"value with
   |Error _ as e->e

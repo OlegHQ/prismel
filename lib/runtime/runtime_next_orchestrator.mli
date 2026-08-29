@@ -37,9 +37,9 @@ val native_release_queue : unit -> (int * int * int64 * int64) option
 (* [(pending, live_handles, total_created, total_released)] when the typed
    Metal counter source is available. *)
 val render : t -> Scene_execution.draw list -> (bool,Ogpu.Error.t) result
-val render_prepared : ?clear:(float * float * float * float) -> t ->
+val render_prepared : ?after_prepare:(unit -> unit) -> ?clear:(float * float * float * float) -> t ->
   prepared list -> (bool,Ogpu.Error.t) result
-val render_retained : ?clear:(float * float * float * float) -> identity:string ->
+val render_retained : ?after_prepare:(unit -> unit) -> ?clear:(float * float * float * float) -> identity:string ->
   version:int64 -> t -> prepared list -> (bool,Ogpu.Error.t) result
 val replay_retained : ?clear:(float * float * float * float) -> identity:string ->
   version:int64 -> t -> (bool option,Ogpu.Error.t) result

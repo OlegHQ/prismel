@@ -150,12 +150,12 @@ val render_resources : ?clear:(float * float * float * float) -> t ->
   (pipeline_family * Ogpu.Pipeline.blend * sampled_texture option *
     auxiliary_resource option * draw) list ->
   (bool, Ogpu.Error.t) result
-val render_sampled_resources : ?clear:(float * float * float * float) -> t ->
+val render_sampled_resources : ?after_prepare:(unit -> unit) -> ?clear:(float * float * float * float) -> t ->
   (pipeline_family * Ogpu.Pipeline.blend * sampled_texture option *
     auxiliary_resource option * int * draw) list ->
   (bool, Ogpu.Error.t) result
 val render_prepared_sampled_resources :
-  ?clear:(float * float * float * float) -> identity:string -> version:int64 -> t ->
+  ?after_prepare:(unit -> unit) -> ?clear:(float * float * float * float) -> identity:string -> version:int64 -> t ->
   (pipeline_family * Ogpu.Pipeline.blend * sampled_texture option *
     auxiliary_resource option * int * draw) list ->
   (bool, Ogpu.Error.t) result

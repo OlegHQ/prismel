@@ -256,18 +256,25 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64) ()=
                 |Some pending->match Surface.Private.prepare_present pending surface native
                     ~source:texture with
                   |Error _ as e->e
-                  |Ok()->match active.submit_combined
+                  |Ok()->
+                    if scoped then Queue.Private.arm_scoped_render
+                      ~on_committed:(fun epoch->
+                        Surface.Private.commit_present_scoped pending~epoch;
+                        Hashtbl.remove frames frame.frame_token)active.queue;
+                    match active.submit_combined
                       ((if scoped then Surface.Private.presentation_encoder_scoped
                         else Surface.Private.presentation_encoder)pending)command
                       ~resources~pipelines with
                     |Error _ as e->Surface.Private.rollback_present pending;e
                     |Ok receipt->
-                        Surface.Private.commit_present pending~epoch:receipt.epoch;
-                        Hashtbl.remove frames frame.frame_token;Ok receipt in
+                        if not scoped then begin
+                          Surface.Private.commit_present pending~epoch:receipt.epoch;
+                          Hashtbl.remove frames frame.frame_token
+                        end;
+                        Ok receipt in
         let submit_present=submit_present_common~scoped:false in
         let submit_present_sync~queue~source command~resources~pipelines frame=
           let active=Hashtbl.find_opt c.active_queues queue in
-          Option.iter(fun active->Queue.Private.arm_scoped_render active.queue)active;
           match submit_present_common~scoped:true~queue~source command~resources
               ~pipelines frame with
           |Error _ as e->Option.iter(fun active->ignore

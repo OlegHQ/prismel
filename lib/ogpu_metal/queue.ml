@@ -7,7 +7,7 @@ let drop_encode_cleanup pending=
   pending.encode_cleanup<-[];
   List.iter(fun release->release())cleanup
 type presentation=Metal.Command_buffer.t -> (unit,Ogpu.Error.t) result
-type t={device:Device.t;metal:Metal.Command_queue.t;submission:Ogpu.Submission.t;mutable command4:Metal.Command4.Queue.t option;mutable pending:pending list;mutable fail_next:bool;mutable fail_next_completion:bool;mutable scoped_next_render:bool;mutable scoped_completion:(unit,Ogpu.Error.t)result option;mutable dead:bool}
+type t={device:Device.t;metal:Metal.Command_queue.t;submission:Ogpu.Submission.t;mutable command4:Metal.Command4.Queue.t option;mutable pending:pending list;mutable fail_next:bool;mutable fail_next_completion:bool;mutable scoped_next_render:bool;mutable scoped_on_committed:(int64->unit)option;mutable scoped_completion:(unit,Ogpu.Error.t)result option;mutable dead:bool}
 type receipt={epoch:int64}
 type synchronous_submission={receipt:receipt;completion:(unit,Ogpu.Error.t)result}
 type gpu_timing={supported:bool;duration_seconds:float;sample_count:int64}
@@ -31,7 +31,7 @@ let record_gpu_duration device duration=
   |_->()
 let error op kind message=Error(Ogpu.Error.make op kind message)
 let create ?(max_frames=3) device=let op="Ogpu_metal.Queue.create"in if Device.destroyed device then error op Ogpu.Error.Stale_handle"device is destroyed"else
-  match Ogpu.Submission.create~max_frames(Device.Private.handle device)with Error _ as e->e|Ok submission->match Metal.Command_queue.create(Device.Private.metal device)with Error e->Error(Adapter.error~operation:op e)|Ok metal->let id=Device.id device in (match Hashtbl.find_opt gpu_timings id with Some timing->timing.queues<-timing.queues+1|None->Hashtbl.add gpu_timings id{supported=false;duration_seconds=0.;sample_count=0L;queues=1});Device.Private.attach_resource device;Ok{device;metal;submission;command4=None;pending=[];fail_next=false;fail_next_completion=false;scoped_next_render=false;scoped_completion=None;dead=false}
+  match Ogpu.Submission.create~max_frames(Device.Private.handle device)with Error _ as e->e|Ok submission->match Metal.Command_queue.create(Device.Private.metal device)with Error e->Error(Adapter.error~operation:op e)|Ok metal->let id=Device.id device in (match Hashtbl.find_opt gpu_timings id with Some timing->timing.queues<-timing.queues+1|None->Hashtbl.add gpu_timings id{supported=false;duration_seconds=0.;sample_count=0L;queues=1});Device.Private.attach_resource device;Ok{device;metal;submission;command4=None;pending=[];fail_next=false;fail_next_completion=false;scoped_next_render=false;scoped_on_committed=None;scoped_completion=None;dead=false}
 let destroyed value=value.dead
 let in_flight value=Ogpu.Submission.in_flight value.submission
 let completed_epoch value=Ogpu.Submission.completed_epoch value.submission
@@ -301,12 +301,15 @@ let finish_scoped_render value receipt =
     when epoch=receipt.epoch->
       (* Only the classic R10 lane is detached before the blocking wait. *)
       value.pending<-List.rev rest;
+      (* Drop command-buffer resource retains first so encode-owned
+         depth/sampler objects and the scoped presentation drawable can be
+         destroyed.  The native command buffer still retains those objects
+         through terminal completion. *)
       let released_references=
         Metal.Command_buffer.Private.release_committed_references command in
-      (* Depth/sampler encode objects can still be referenced by the safe
-         command wrapper.  Drop those wrapper references first, then destroy
-         the encode-owned objects before entering the blocking wait. *)
       drop_encode_cleanup pending;
+      Option.iter(fun notify->notify receipt.epoch)value.scoped_on_committed;
+      value.scoped_on_committed<-None;
       let completion=
         Fun.protect
           ~finally:(fun()->
@@ -364,9 +367,11 @@ module Private=struct
   let gpu_timing_total=gpu_timing_total
   let gpu_timing_entry_count()=Hashtbl.length gpu_timings
   let valid_gpu_duration=valid_gpu_duration
-  let arm_scoped_render value=
-    value.scoped_next_render<-true;value.scoped_completion<-None
+  let arm_scoped_render ?on_committed value=
+    value.scoped_next_render<-true;value.scoped_on_committed<-on_committed;
+    value.scoped_completion<-None
   let take_scoped_completion value=
     value.scoped_next_render<-false;
+    value.scoped_on_committed<-None;
     let result=value.scoped_completion in value.scoped_completion<-None;result
 end

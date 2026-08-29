@@ -97,6 +97,18 @@ let commit_present pending ~epoch=
       value.in_flight_presentations<-value.in_flight_presentations+1;
       pending.epoch<-epoch
   |_->()
+let commit_present_scoped pending ~epoch:_=
+  match pending.active,pending.payload with
+  |true,Some{owner=value;frame;source}when pending.epoch=0L->
+      ignore(Ogpu.Surface.present value.portable frame.portable);
+      frame.state<-Presented;remove value frame;
+      (* A successfully committed retained-reference command buffer now owns
+         the native drawable, texture, and source until terminal completion.
+         The synchronous lane can therefore drop its scoped OCaml wrappers
+         before entering the blocking wait. *)
+      release frame;Texture.Private.release_submission source;
+      clear_pending pending;pending.payload<-None
+  |_->()
 let complete_present pending=
   match pending.active,pending.payload with
   |true,Some{owner=value;frame;source}when pending.epoch<>0L->
@@ -126,6 +138,7 @@ module Private=struct
   let presentation_encoder_scoped=presentation_encoder_scoped
   let rollback_present=rollback_present
   let commit_present=commit_present
+  let commit_present_scoped=commit_present_scoped
   let complete_presentations_through=complete_presentations_through
   let clear_pending_presentations=clear_pending_presentations
 end

@@ -17,12 +17,12 @@ val create : ?vsync:bool -> width:int -> height:int -> unit ->
   (t, Ogpu.Error.t) result
 val render : ?clear:(float * float * float * float) -> t ->
   Scene_execution.draw list -> (bool, Ogpu.Error.t) result
-val render_sampled_resources : ?clear:(float * float * float * float) -> t ->
+val render_sampled_resources : ?after_prepare:(unit -> unit) -> ?clear:(float * float * float * float) -> t ->
   (Scene_execution.pipeline_family * Ogpu.Pipeline.blend *
    Scene_execution.sampled_texture option * Scene_execution.auxiliary_resource option *
    int * Scene_execution.draw) list -> (bool, Ogpu.Error.t) result
 val render_prepared_sampled_resources :
-  ?clear:(float * float * float * float) -> identity:string -> version:int64 -> t ->
+  ?after_prepare:(unit -> unit) -> ?clear:(float * float * float * float) -> identity:string -> version:int64 -> t ->
   (Scene_execution.pipeline_family * Ogpu.Pipeline.blend *
    Scene_execution.sampled_texture option * Scene_execution.auxiliary_resource option *
    int * Scene_execution.draw) list -> (bool, Ogpu.Error.t) result
@@ -52,14 +52,14 @@ val restore : t -> (unit, Ogpu.Error.t) result
 val destroy : t -> (unit, Ogpu.Error.t) result
 type offscreen
 val create_offscreen : width:int -> height:int -> (offscreen,Ogpu.Error.t) result
-val render_offscreen : ?clear:(float*float*float*float) -> offscreen ->
+val render_offscreen : ?after_prepare:(unit -> unit) -> ?clear:(float*float*float*float) -> offscreen ->
   (Scene_execution.pipeline_family * Ogpu.Pipeline.blend *
    Scene_execution.sampled_texture option * Scene_execution.auxiliary_resource option *
    int * Scene_execution.draw) list -> (bool,Ogpu.Error.t) result
 val replay_prepared_sampled_resources :
   ?clear:(float * float * float * float) -> identity:string -> version:int64 -> t ->
   ((bool * int) option, Ogpu.Error.t) result
-val render_offscreen_prepared : ?clear:(float*float*float*float) ->
+val render_offscreen_prepared : ?after_prepare:(unit -> unit) -> ?clear:(float*float*float*float) ->
   identity:string -> version:int64 -> offscreen ->
   (Scene_execution.pipeline_family * Ogpu.Pipeline.blend *
    Scene_execution.sampled_texture option * Scene_execution.auxiliary_resource option *

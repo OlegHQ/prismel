@@ -228,6 +228,13 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal backe
   for _=1 to 4 do
     ignore(get(submit_terminal()))
   done;
+  Backend.Private.inject_next_active_queue_completion_error control;
+  expect Ogpu.Error.Device_lost(submit_terminal());
+  (* A terminal completion error is admitted work: the scoped frame must
+     already be consumed and detached, so neither configure nor the next
+     acquisition observes a stale outstanding frame. *)
+  get(Ogpu.Backend.configure surface config);
+  ignore(get(submit_terminal()));
   Gc.full_major();
   let control_gc_before=Gc.quick_stat()in
   for _=1 to 600 do
