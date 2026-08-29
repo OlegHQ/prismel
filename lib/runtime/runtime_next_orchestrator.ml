@@ -3,7 +3,7 @@ type configuration = { logical_width:int;logical_height:int;
 type facts = { title:string;logical_width:int;logical_height:int;drawable_width:int;
   drawable_height:int;position:(int*int)option;pixel_density:float;display_scale:float;
   refresh_rate:float option;vsync:bool }
-type pacing = {frames:int64;presented:int64;last_presented:bool}
+type pacing = {mutable frames:int64;mutable presented:int64;mutable last_presented:bool}
 type stats={frames:int64;presented:int64;logical_draws:int64;logical_passes:int64;
   logical_submissions:int64;uploaded_bytes:int64;cache_entries:int;
   gpu_timing_supported:bool;gpu_duration_seconds:float;gpu_sample_count:int64;
@@ -19,14 +19,18 @@ type blend=Replace|Alpha|Add|Multiply|Screen|Subtract
 type prepared={family:family;blend:blend;texture:Scene_execution.sampled_texture option;
   auxiliary:Scene_execution.auxiliary_resource option;samples:int;draw:Scene_execution.draw}
 type t={runtime:Runtime_next.t;mutable facts:facts;
-  mutable pacing:pacing;mutable logical_draws:int64;mutable logical_passes:int64;
-  mutable logical_submissions:int64;mutable dead:bool}
+  pacing:pacing;mutable logical_draws:int64;mutable logical_passes:int64;
+  mutable logical_submissions:int64;mutable dead:bool;
+  mutable last_prepared_in:prepared list;
+  mutable last_sampled_out:(Scene_execution.pipeline_family*Ogpu.Pipeline.blend*
+    Scene_execution.sampled_texture option*Scene_execution.auxiliary_resource option*
+    int*Scene_execution.draw)list}
 let error operation kind message=Error(Ogpu.Error.make operation kind message)
 let invalid operation message=error operation Ogpu.Error.Invalid_argument message
 let create (c:configuration)=let op="Runtime_next_orchestrator.create"in
   if c.logical_width<=0||c.logical_height<=0||c.drawable_width<=0||c.drawable_height<=0
   then invalid op"dimensions must be positive"else let finish runtime facts=
-    Ok{runtime;facts;pacing={frames=0L;presented=0L;last_presented=false};logical_draws=0L;logical_passes=0L;logical_submissions=0L;dead=false}in
+    Ok{runtime;facts;pacing={frames=0L;presented=0L;last_presented=false};logical_draws=0L;logical_passes=0L;logical_submissions=0L;dead=false;last_prepared_in=[];last_sampled_out=[]}in
   match Runtime_next.create~vsync:c.vsync~hidden:false~title:c.title
       ~width:c.logical_width~height:c.logical_height() with Error _ as e->e|Ok runtime->
       (match Runtime_next.set_title runtime c.title,Runtime_next.set_resizable runtime true with
@@ -55,10 +59,14 @@ let diagnostics value=
    release_queue_total_created=Option.map(fun(_,_,created,_)->created)release_queue;
    release_queue_total_released=Option.map(fun(_,_,_,released)->released)release_queue}
 let account value draw_count result =
-  (match result with Ok presented->value.pacing<-{frames=Int64.succ value.pacing.frames;
-    presented=(if presented then Int64.succ value.pacing.presented else value.pacing.presented);
-    last_presented=presented};value.logical_draws<-Int64.add value.logical_draws(Int64.of_int draw_count);
-    value.logical_passes<-Int64.succ value.logical_passes;value.logical_submissions<-Int64.succ value.logical_submissions|Error _->());result
+  (match result with Ok presented->
+    let p=value.pacing in
+    p.frames<-Int64.succ p.frames;
+    if presented then p.presented<-Int64.succ p.presented;
+    p.last_presented<-presented;
+    value.logical_draws<-Int64.add value.logical_draws(Int64.of_int draw_count);
+    value.logical_passes<-Int64.succ value.logical_passes;
+    value.logical_submissions<-Int64.succ value.logical_submissions|Error _->());result
 let render value draws=match ensure"Runtime_next_orchestrator.render"value with Error _ as e->e|Ok()->
   account value(List.length draws)(Runtime_next.render value.runtime draws)
 let scene_family=function Scene2->Scene_execution.Scene2|Scene2_textured->Scene2_textured|Scene3->Scene3
@@ -67,19 +75,27 @@ let scene_family=function Scene2->Scene_execution.Scene2|Scene2_textured->Scene2
   |Scene3_shadow_stencil->Scene3_shadow_stencil
 let pipeline_blend=function Replace->Ogpu.Pipeline.Replace|Alpha->Alpha|Add->Add
   |Multiply->Multiply|Screen->Screen|Subtract->Subtract
+let sampled_of_prepared value draws=
+  if draws==value.last_prepared_in then value.last_sampled_out
+  else
+    let out=List.map(fun x->scene_family x.family,pipeline_blend x.blend,x.texture,x.auxiliary,x.samples,x.draw)draws in
+    value.last_prepared_in<-draws;value.last_sampled_out<-out;out
 let pull_window_facts value=
-  let live=Runtime_next.frame_facts value.runtime in
-  value.facts<-{value.facts with logical_width=live.logical_width;
+  let live=Runtime_next.frame_facts value.runtime and f=value.facts in
+  if f.logical_width=live.logical_width&&f.logical_height=live.logical_height&&
+      f.drawable_width=live.drawable_width&&f.drawable_height=live.drawable_height&&
+      f.pixel_density=live.pixel_scale_x&&f.display_scale=live.pixel_scale_x then()
+  else value.facts<-{f with logical_width=live.logical_width;
     logical_height=live.logical_height;drawable_width=live.drawable_width;
     drawable_height=live.drawable_height;
     pixel_density=live.pixel_scale_x;display_scale=live.pixel_scale_x}
 let render_prepared ?after_prepare ?clear value draws=match ensure"Runtime_next_orchestrator.render_prepared"value with Error _ as e->Option.iter(fun f->f())after_prepare;e|Ok()->
-  let draws=List.map(fun x->scene_family x.family,pipeline_blend x.blend,x.texture,x.auxiliary,x.samples,x.draw)draws in
+  let draws=sampled_of_prepared value draws in
   let result=account value(List.length draws)(Runtime_next.render_sampled_resources ?after_prepare ?clear value.runtime draws)in
   (match result with Ok _->pull_window_facts value|Error _->());result
 let render_retained ?after_prepare ?clear ~identity ~version value draws=
   match ensure"Runtime_next_orchestrator.render_retained"value with Error _ as e->Option.iter(fun f->f())after_prepare;e|Ok()->
-  let draws=List.map(fun x->scene_family x.family,pipeline_blend x.blend,x.texture,x.auxiliary,x.samples,x.draw)draws in
+  let draws=sampled_of_prepared value draws in
   let result=account value(List.length draws)
     (Runtime_next.render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version value.runtime draws)in
   (match result with Ok _->pull_window_facts value|Error _->());result
@@ -132,4 +148,4 @@ let visible value=native_call"Runtime_next_orchestrator.visible"value Runtime_ne
 let minimize value=native_call"Runtime_next_orchestrator.minimize"value Runtime_next.minimize
 let maximize value=native_call"Runtime_next_orchestrator.maximize"value Runtime_next.maximize
 let restore value=native_call"Runtime_next_orchestrator.restore"value Runtime_next.restore
-let destroy value=if value.dead then Ok()else(value.dead<-true;Runtime_next.destroy value.runtime)
+let destroy value=if value.dead then Ok()else(value.dead<-true;value.last_prepared_in<-[];value.last_sampled_out<-[];Runtime_next.destroy value.runtime)

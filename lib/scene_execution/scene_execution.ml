@@ -267,7 +267,9 @@ let prepare_uniform value ~defer:_ ~reserved ?preferred bytes=
     |None->assert false
     |Some retained when Bytes.equal bytes retained->Ok item
     |Some retained->Result.map(fun()->Bytes.blit bytes 0 retained 0(Bytes.length bytes);
-        value.uniform_cache<-item::List.filter(fun old->old!=item)value.uniform_cache;
+        (match value.uniform_cache with
+         |head::_ when head==item->()
+         |_->value.uniform_cache<-item::List.filter(fun old->old!=item)value.uniform_cache);
         value.uploaded<-Int64.add value.uploaded(Int64.of_int(Bytes.length bytes));item)
         (Ogpu.Backend.write_buffer item.buffer~offset:0L bytes)in
   match preferred with
@@ -334,6 +336,10 @@ let texture_upload_scratch value total =
 let image_or_canvas_key key=
   String.starts_with~prefix:"canvas:"key||String.starts_with~prefix:"image:"key
 let prepare_texture value ~defer(source:sampled_texture)=
+  match List.find_opt(fun item->item.texture_key=source.key)value.texture_cache with
+  |Some item when not(String.starts_with~prefix:"canvas:"source.key)->
+      item.texture_in_use<-true;Ok item
+  |_->
   let hash=Digest.to_hex(Digest.string(Array.to_list source.levels|>List.map(fun (level:texture_level)->Printf.sprintf"%dx%d:%s"level.width level.height(Digest.to_hex(Digest.string(Bytes.unsafe_to_string level.bytes))))|>String.concat"|"))in
   match List.find_opt(fun item->item.texture_key=source.key&&item.texture_hash=hash)value.texture_cache with
   |Some item->item.texture_in_use<-true;Ok item

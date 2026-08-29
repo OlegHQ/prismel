@@ -35,7 +35,7 @@ type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
 type draw = { family:family; blend:blend; texture:Scene_execution.sampled_texture option;
   auxiliary:Scene_execution.auxiliary_resource option;samples:int;value:Scene_execution.draw }
 type cached_scene2_geometry={vertices:float array;indices:int array;fingerprint:int;source_bytes:int;color:int32;
-  clip:int*int*int*int;draw:draw}
+  clip:int*int*int*int;uniform_bytes:bytes;mutable in_use:bool;draw:draw}
 type scene2_geometry_candidate={candidate_vertex_count:int;
   candidate_index_count:int;candidate_fingerprint:int;candidate_source_bytes:int;candidate_color:int32;
   candidate_clip:int*int*int*int}
@@ -77,17 +77,18 @@ let finite value = Float.is_finite value
 let put_float bytes offset value = Bytes.set_int64_le bytes offset (Int64.bits_of_float value)
 (* Scene2 keeps affine coefficients as f64 through command lowering.  The
    native execution boundary narrows these values to the six-f32 Metal ABI. *)
-let identity_affine_uniforms=let bytes=Bytes.make 48 '\000'in
-  Bytes.set_int64_le bytes 0(Int64.bits_of_float 1.);
-  Bytes.set_int64_le bytes 32(Int64.bits_of_float 1.);bytes
+let identity_affine_uniforms=let bytes=Bytes.make 24 '\000'in
+  Bytes.set_int32_le bytes 0(Int32.bits_of_float 1.);
+  Bytes.set_int32_le bytes 16(Int32.bits_of_float 1.);bytes
 module Command = Scene_execution.Scene2_command
+let write_affine bytes (transform:Command.transform)=
+  let put index value=Bytes.set_int32_le bytes(index*4)(Int32.bits_of_float value)in
+  put 0 transform.xx;put 1 transform.yx;put 2 transform.tx;
+  put 3 transform.xy;put 4 transform.yy;put 5 transform.ty
 let affine_uniforms (transform:Command.transform)=
   if transform.xx=1.&&transform.xy=0.&&transform.yx=0.&&transform.yy=1.&&
     transform.tx=0.&&transform.ty=0. then identity_affine_uniforms else
-  let bytes=Bytes.make 48 '\000'in
-  let put index value=Bytes.set_int64_le bytes(index*8)(Int64.bits_of_float value)in
-  put 0 transform.xx;put 1 transform.yx;put 2 transform.tx;
-  put 3 transform.xy;put 4 transform.yy;put 5 transform.ty;bytes
+  let bytes=Bytes.make 24 '\000'in write_affine bytes transform;bytes
 let identity_transform (transform:Command.transform)=
   transform.xx=1.&&transform.xy=0.&&transform.yx=0.&&transform.yy=1.&&
   transform.tx=0.&&transform.ty=0.
@@ -104,7 +105,7 @@ let mesh_of_geometry number transform clip (geometry:Command.geometry) =
   let indices=Bytes.create(Array.length geometry.indices*4) in
   Array.iteri(fun index value->Bytes.set_int32_le indices(index*4)(Int32.of_int value))geometry.indices;
   let x,y,width,height=clip in
-  { family=Scene2;blend=Replace;texture=None;auxiliary=None;samples=1; value={Scene_execution.mesh={key=Printf.sprintf "ir-%Ld-%d" 0L number;
+  { family=Scene2;blend=Alpha;texture=None;auxiliary=None;samples=1; value={Scene_execution.mesh={key=Printf.sprintf "ir-%Ld-%d" 0L number;
       vertices;vertex_count=count;indices;index_count=Array.length geometry.indices};
       state={(default_state (x,y,width,height) (x,y,width,height))with
         transform_uniforms=(if identity_transform transform then None else Some(affine_uniforms transform))}} }
@@ -353,6 +354,10 @@ type t = { runtime:runtime; input:Runtime_next_input.t;
   mutable scene2_probe_fingerprint:int;
   mutable scene2_probe_cooldown:int;
   mutable submissions:submission list;
+  mutable last_step_draws:draw list;
+  mutable last_step_prepared:Runtime_next_orchestrator.prepared list;
+  mutable scene2_out_slots:draw array;
+  mutable scene2_out_list:draw list;
   mutable canvas_keys:(Prismel_next_resources.Canvas.t*string)list;mutable next_canvas_key:int }
 and submission={owner:t;mutable submission_state:submission_state;
   mutable image_leases:Prismel_next_resources.Image.Private.lease list}
@@ -376,7 +381,9 @@ let finish_create operation configuration runtime destroy_runtime=
       scene2_batch_cache=[];scene2_quad_cache=[];scene2_quad_payload_cache=[];
       scene2_debug_cache=[];scene2_plan_cache=[];scene2_plan_candidates=[];
       scene2_probe_count=(-1);scene2_probe_density=0;scene2_probe_fingerprint=0;
-      scene2_probe_cooldown=0;submissions=[];canvas_keys=[];next_canvas_key=0}
+      scene2_probe_cooldown=0;submissions=[];last_step_draws=[];last_step_prepared=[];
+      scene2_out_slots=[||];scene2_out_list=[];
+      canvas_keys=[];next_canvas_key=0}
 let create (configuration:configuration) =
   let operation="Prismel_next_execution.create" in
   match valid_configuration operation configuration with Error _ as error->error|Ok()->
@@ -621,7 +628,16 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
     yy=(-2.)/.float facts.logical_height;tx=(-1.);ty=1.} in
   let render_transform transform=compose_raster native_projection transform in
   let transforms=ref[identity]and clips=ref[(0,0,facts.logical_width,facts.logical_height)]
-  and blend=ref Alpha and draws=ref[]and number=ref 0 and failure=ref None in
+  and blend=ref Alpha and number=ref 0 and failure=ref None in
+  List.iter(fun cached->cached.in_use<-false)value.scene2_geometry_cache;
+  let emit draw=
+    let draw=if draw.blend= !blend then draw else {draw with blend= !blend} in
+    let i= !number in
+    if i>=Array.length value.scene2_out_slots then
+      value.scene2_out_slots<-Array.append value.scene2_out_slots
+        (Array.make(max 8(Array.length value.scene2_out_slots))draw);
+    value.scene2_out_slots.(i)<-draw;
+    incr number in
   let point transform x y=transform.Scene_command.Render_ir.xx*.x+.transform.yx*.y+.transform.tx,
     transform.xy*.x+.transform.yy*.y+.transform.ty in
   let clip_live()=let _,_,width,height=List.hd!clips in width>0&&height>0 in
@@ -640,9 +656,10 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
     let same vertices indices cached_fingerprint color cached_clip=
       cached_fingerprint=fingerprint&&vertices=geometry.vertices&&indices=geometry.indices&&
       color=geometry.color&&cached_clip=clip in
-    match List.find_opt(fun cached->same cached.vertices cached.indices cached.fingerprint cached.color cached.clip)value.scene2_geometry_cache with
-    |Some cached when identity_transform(command_transform_of_raster transform)->cached.draw
-    |Some cached->{cached.draw with value={cached.draw.value with state={cached.draw.value.state with transform_uniforms=Some(affine_uniforms(command_transform_of_raster transform))}}}
+    match List.find_opt(fun cached->not cached.in_use&&same cached.vertices cached.indices cached.fingerprint cached.color cached.clip)value.scene2_geometry_cache with
+    |Some cached->
+        write_affine cached.uniform_bytes(command_transform_of_raster transform);
+        cached.in_use<-true;cached.draw
     |None->
         let draw=mesh_of_geometry number(command_transform_of_raster transform)clip
           (command_geometry_of_raster geometry)in
@@ -673,8 +690,16 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
               value.scene2_geometry_candidates;draw
         |Some candidate->
             value.scene2_geometry_candidates<-List.filter((!=)candidate)value.scene2_geometry_candidates;
+            let command_t=command_transform_of_raster transform in
+            let uniform=match draw.value.state.transform_uniforms with
+              |Some bytes when Bytes.length bytes=24->bytes
+              |_->Bytes.make 24 '\000'in
+            write_affine uniform command_t;
+            let draw={draw with value={draw.value with state={draw.value.state with
+              transform_uniforms=Some uniform}}}in
             let cached={vertices=Array.copy geometry.vertices;indices=Array.copy geometry.indices;
-              fingerprint;source_bytes;color=geometry.color;clip;draw}in
+              fingerprint;source_bytes;color=geometry.color;clip;uniform_bytes=uniform;
+              in_use=true;draw}in
             value.scene2_geometry_cache<-cached::value.scene2_geometry_cache;
             value.scene2_geometry_cache<-trim_scene2_entries
               (fun cached->cached.source_bytes)value.scene2_geometry_cache;draw
@@ -731,7 +756,7 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
       let s=command.source in if width<=0||height<=0 then failure:=Some"resource extent is invalid"else
       let u0=s.x/.float width and v0=s.y/.float height and u1=(s.x+.s.width)/.float width and v1=(s.y+.s.height)/.float height in
       let draw=quad texture command.destination(u0,v0,u1,v1)in
-      draws:={draw with blend= !blend}::!draws;incr number in
+      emit draw in
   Array.iter(fun command->if!failure=None then match command with
     |Scene_command.Render_ir.Clear _->()
     |Set_blend mode->blend:=(match mode with Scene_command.Render_ir.Replace->Replace
@@ -748,7 +773,7 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
     |Pop_clip->(match!clips with _::(_::_ as rest)->clips:=rest|_->())
     |Geometry geometry->if clip_live()then(
         let draw=geometry_draw!number(render_transform(List.hd!transforms))(List.hd!clips)geometry in
-        draws:={draw with blend= !blend}::!draws;incr number)
+        emit draw)
     |Debug_text debug->if clip_live()then
         let transform=render_transform(List.hd!transforms)and clip=List.hd!clips in
         let draw=match List.find_opt(fun cached->cached.debug_source=debug&&
@@ -765,18 +790,29 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
             if List.length value.scene2_debug_cache>256 then
               value.scene2_debug_cache<-List.rev(List.tl(List.rev value.scene2_debug_cache));
             draw in
-        Option.iter(fun draw->draws:={draw with blend= !blend}::!draws;incr number)draw
+        Option.iter emit draw
     |Image command->if clip_live()then image command
     |Glyphs glyphs->if clip_live()&&Array.length glyphs.glyphs>0 then match resolve glyphs.resource_id with None->failure:=Some"glyph resource id is unbound"|Some source->
         match snapshot value~lease_policy~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
           Array.iter(fun(glyph:Scene_command.Render_ir.glyph)->
             let destination={Scene_command.Render_ir.x=glyph.x;y=glyph.y;width=float width;height=float height}in
             let draw=quad texture destination(0.,0.,1.,1.)in
-            draws:={draw with blend= !blend}::!draws;incr number)glyphs.glyphs)
+            emit draw)glyphs.glyphs)
     (Scene_command.Render_ir.Private.commands_readonly ir);
   match!failure with Some message->release_new_leases();fail"Prismel_next_execution.lower_scene2"Resource message
-  |None->Ok(batch_scene2_draws ~cache:value.scene2_batch_cache
-      ~set_cache:(fun cache->value.scene2_batch_cache<-cache)(List.rev!draws))
+  |None->
+      let n= !number in
+      let rec prefix_same i=function
+        |[]->i=n
+        |d::rest->i<n&&value.scene2_out_slots.(i)==d&&prefix_same(i+1)rest in
+      if prefix_same 0 value.scene2_out_list then Ok value.scene2_out_list
+      else
+        let rec loop i acc=if i<0 then acc else loop(i-1)(value.scene2_out_slots.(i)::acc)in
+        let list=loop(n-1)[]in
+        value.scene2_out_list<-list;
+        if n<=64 then Ok list
+        else Ok(batch_scene2_draws ~cache:value.scene2_batch_cache
+          ~set_cache:(fun cache->value.scene2_batch_cache<-cache)list)
 let scene2_plan_source_bytes commands=
   Array.fold_left(fun total->function
     |Scene_command.Render_ir.Geometry g->total+Array.length g.vertices*(Sys.word_size/8)+
@@ -936,13 +972,19 @@ let step_core ?after_prepare ?clear ?identity ?version value draws=
     |Error error->after_prepare();Error error
     |Ok(Some presented)->after_prepare();Ok presented
     |Ok None->
-    let draws=List.map(fun x->let draw=x.value in let state=draw.Scene_execution.state in
-      let viewport=match state.viewport with _,_,w,h when w<0||h<0->0,0,f.logical_width,f.logical_height|x->x in
-      let scissor=match state.scissor with _,_,w,h when w<0||h<0->0,0,f.logical_width,f.logical_height|x->x in
-      let draw=if viewport=state.viewport&&scissor=state.scissor then draw else
-        {draw with Scene_execution.state={state with viewport;scissor}}in
-      {Runtime_next_orchestrator.family=family x.family;blend=blend x.blend;texture=x.texture;
-        auxiliary=x.auxiliary;samples=x.samples;draw})draws in
+    let rec same_draws left right=match left,right with
+      |[],[]->true|x::xs,y::ys->x==y&&same_draws xs ys|_->false in
+    let draws=
+      if same_draws draws value.last_step_draws then value.last_step_prepared
+      else
+        let prepared=List.map(fun x->let draw=x.value in let state=draw.Scene_execution.state in
+          let viewport=match state.viewport with _,_,w,h when w<0||h<0->0,0,f.logical_width,f.logical_height|x->x in
+          let scissor=match state.scissor with _,_,w,h when w<0||h<0->0,0,f.logical_width,f.logical_height|x->x in
+          let draw=if viewport=state.viewport&&scissor=state.scissor then draw else
+            {draw with Scene_execution.state={state with viewport;scissor}}in
+          {Runtime_next_orchestrator.family=family x.family;blend=blend x.blend;texture=x.texture;
+            auxiliary=x.auxiliary;samples=x.samples;draw})draws in
+        value.last_step_draws<-draws;value.last_step_prepared<-prepared;prepared in
     match value.runtime with
     |Window runtime->(match identity,version with
       |None,None->Runtime_next_orchestrator.render_prepared ~after_prepare ?clear runtime draws
@@ -1041,7 +1083,9 @@ let destroy value=if value.dead then Ok()else(
     value.scene2_quad_payload_cache<-[];
     value.scene2_debug_cache<-[];
     value.scene2_plan_cache<-[];value.scene2_plan_candidates<-[];
-    value.scene2_geometry_candidates<-[];value.canvas_keys<-[];value.dead<-true;
+    value.scene2_geometry_candidates<-[];value.last_step_draws<-[];
+    value.last_step_prepared<-[];value.scene2_out_slots<-[||];
+    value.scene2_out_list<-[];value.canvas_keys<-[];value.dead<-true;
     let destroyed=match value.runtime with
     |Window runtime->Runtime_next_orchestrator.destroy runtime
     |Offscreen state->Runtime_next.destroy_offscreen state.runtime in

@@ -4,7 +4,7 @@ type configuration = { logical_width:int; logical_height:int;
 type facts = { title:string; logical_width:int; logical_height:int;
   drawable_width:int; drawable_height:int; position:(int*int) option;
   pixel_density:float; display_scale:float; refresh_rate:float option; vsync:bool }
-type pacing = { frames:int64; presented:int64; last_presented:bool }
+type pacing = { mutable frames:int64; mutable presented:int64; mutable last_presented:bool }
 type stats = { frames:int64; presented:int64; logical_draws:int64;
   logical_passes:int64; logical_submissions:int64; uploaded_bytes:int64;
   cache_entries:int; gpu_timing_supported:bool; gpu_duration_seconds:float;
