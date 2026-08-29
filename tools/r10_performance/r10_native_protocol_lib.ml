@@ -314,7 +314,13 @@ let validate_report report =
         (field "provenance" "executable_sha256" provenance)
     in
     if String.length executable_sha <> 64 then
-      fail "report lacks a benchmark executable digest"
+      fail "report lacks a benchmark executable digest";
+    let protocol_sha =
+      string "provenance.protocol_executable_sha256"
+        (field "provenance" "protocol_executable_sha256" provenance)
+    in
+    if String.length protocol_sha <> 64 then
+      fail "report lacks a protocol executable digest"
   end;
   let summaries = ref [] in
   List.iter
@@ -429,6 +435,10 @@ let capture argv =
 
 let run ~benchmark ~baseline_path ~output ~profile ~width ~height ~samples
     ~warmup_seconds ~sample_seconds ~smoke ~dry_run =
+  let baseline_path =
+    try Unix.realpath baseline_path with Unix.Unix_error _ ->
+      fail "baseline does not exist: %s" baseline_path
+  in
   let runs = if smoke then 1 else samples in
   if profile <> "release" then fail "R10 qualification requires release profile";
   if width <> 640 || height <> 480 then
@@ -446,6 +456,7 @@ let run ~benchmark ~baseline_path ~output ~profile ~width ~height ~samples
     scenarios;
   let commit = if smoke || dry_run then git [ "rev-parse"; "HEAD" ] else clean_commit () in
   let executable_digest = sha256 benchmark in
+  let protocol_executable_digest = sha256 Sys.executable_name in
   let samples_json = ref [] in
   for sample_index = 1 to runs do
     List.iter
@@ -499,6 +510,8 @@ let run ~benchmark ~baseline_path ~output ~profile ~width ~height ~samples
               [ "git_commit", `String commit; "git_dirty", `Bool smoke
               ; "benchmark", `String benchmark
               ; "executable_sha256", `String executable_digest
+              ; "protocol_executable", `String Sys.executable_name
+              ; "protocol_executable_sha256", `String protocol_executable_digest
               ; "baseline_path", `String baseline_path
               ; "baseline_sha256", `String frozen_baseline_sha256
               ]
@@ -566,6 +579,7 @@ let self_test baseline_path =
       ; "provenance", `Assoc
           [ "git_commit", `String (String.make 40 'a'); "git_dirty", `Bool false
           ; "executable_sha256", `String (String.make 64 'b')
+          ; "protocol_executable_sha256", `String (String.make 64 'c')
           ; "baseline_path", `String baseline_path
           ; "baseline_sha256", `String frozen_baseline_sha256 ]
       ; "samples", `List (List.rev !sample_values)
@@ -584,6 +598,24 @@ let self_test baseline_path =
   (try
      ignore (validate_report broken);
      fail "self-test accepted a missing cell sample"
+   with Invalid_report _ -> ());
+  let dirty =
+    match report with
+    | `Assoc fields ->
+        `Assoc (List.map (fun (name, value) ->
+          if name = "provenance" then
+            match value with
+            | `Assoc provenance ->
+                name, `Assoc (List.map (fun (key, child) ->
+                  if key = "git_dirty" then key, `Bool true else key, child)
+                  provenance)
+            | _ -> name, value
+          else name, value) fields)
+    | _ -> assert false
+  in
+  (try
+     ignore (validate_report dirty);
+     fail "self-test accepted dirty qualification provenance"
    with Invalid_report _ -> ());
   print_endline "R10 native protocol self-test passed"
 
