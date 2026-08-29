@@ -1,9 +1,4 @@
-type mode =
-  | Address
-  | Undefined
-  | Thread
-  | Leaks
-  | Guard_malloc
+open Check_memory_rules
 
 type test =
   { label : string
@@ -151,14 +146,7 @@ let reject_output mode test result =
           fail "%s reports %d leaks/%d bytes:\n%s\n%s%s"test.label leaks bytes
             (format_roots roots)result.stdout result.stderr)
   |_->());
-  let markers =
-    match mode with
-    | Address -> [ "error: addresssanitizer"; "addresssanitizer: check failed" ]
-    | Undefined -> [ "runtime error:"; "undefinedbehaviorsanitizer" ]
-    | Thread -> [ "warning: threadsanitizer"; "threadsanitizer: reported" ]
-    | Leaks -> [ "root leak"; "leak of" ]
-    | Guard_malloc -> [ "guardmalloc: invalid"; "guardmalloc: error" ]
-  in
+  let markers = diagnostic_markers mode in
   match List.find_opt (fun marker -> contains ~needle:marker output) markers with
   | Some marker ->
       fail "%s output contains %S:\n%s%s" test.label marker result.stdout
@@ -198,7 +186,7 @@ let tests mode artifacts =
                ("Metal ownership stress: " ^ lane)
                "lib/metal/test_metal_stress.exe")
            lanes
-  | Address | Undefined | Thread -> [ conformance; stress ]
+  | Address | Undefined | Address_undefined | Thread -> [ conformance; stress ]
 
 let base_removals =
   [ "ASAN_OPTIONS"; "UBSAN_OPTIONS"; "TSAN_OPTIONS"
@@ -208,6 +196,36 @@ let base_removals =
   ]
 
 let run_test mode test =
+  let required_runtimes = required_runtime_markers mode in
+  if required_runtimes <> [] then begin
+    let inspection = run ~environment:(Unix.environment ()) "/usr/bin/otool"
+        [ "-L"; test.executable ] in
+    (match inspection.status with
+     | Unix.WEXITED 0 -> ()
+     | status ->
+         fail "%s instrumentation preflight failed with %s:\n%s%s" test.label
+           (status_string status) inspection.stdout inspection.stderr);
+    let linked = inspection.stdout ^ inspection.stderr in
+    let missing = missing_runtime_markers mode linked in
+    if missing <> [] then
+      fail "%s is not instrumented for %s; missing linked runtime(s): %s"
+        test.label (name mode) (String.concat ", " missing)
+  end;
+  let required_instrumentation = required_instrumentation_markers mode in
+  if required_instrumentation <> [] then begin
+    let inspection = run ~environment:(Unix.environment ()) "/usr/bin/nm"
+        [ "-u"; test.executable ] in
+    (match inspection.status with
+     | Unix.WEXITED 0 -> ()
+     | status ->
+         fail "%s instrumentation-symbol preflight failed with %s:\n%s%s"
+           test.label (status_string status) inspection.stdout inspection.stderr);
+    let symbols = inspection.stdout ^ inspection.stderr in
+    let missing = missing_instrumentation_markers mode symbols in
+    if missing <> [] then
+      fail "%s is not instrumented for %s; missing symbol family/families: %s"
+        test.label (name mode) (String.concat ", " missing)
+  end;
   let program, arguments, replacements =
     match mode with
     | Address ->
@@ -221,6 +239,14 @@ let run_test mode test =
         ( test.executable
         , test.arguments
         , [ "UBSAN_OPTIONS", "halt_on_error=1:print_stacktrace=1" ] )
+    | Address_undefined ->
+        ( test.executable
+        , test.arguments
+        , [ ( "ASAN_OPTIONS"
+            , "abort_on_error=1:halt_on_error=1:detect_leaks=0:strict_string_checks=1:use_sigaltstack=0:quarantine_size_mb=0:thread_local_quarantine_size_kb=0" )
+          ; "UBSAN_OPTIONS", "halt_on_error=1:print_stacktrace=1"
+          ; "PRISMEL_METAL_STRESS_RSS_TOLERANCE", "268435456"
+          ] )
     | Thread ->
         ( test.executable
         , test.arguments
@@ -252,15 +278,11 @@ let run_test mode test =
   if mode<>Leaks then reject_output mode test result;
   Printf.printf "%s: passed\n%!" test.label
 
-let parse_mode = function
-  | "address" -> Address
-  | "undefined" -> Undefined
-  | "thread" -> Thread
-  | "leaks" -> Leaks
-  | "guard-malloc" -> Guard_malloc
-  | value ->
+let parse_mode value = match of_string value with
+  | Ok mode -> mode
+  | Error _ ->
       fail
-        "--mode must be address, undefined, thread, leaks, or guard-malloc, not %S"
+        "--mode must be address, undefined, address-undefined, thread, leaks, or guard-malloc, not %S"
         value
 
 let () =

@@ -1247,6 +1247,14 @@ nonzero Leaks summaries, and Guard Malloc errors for the conformance and
 resource-stress tests. Guard Malloc runs the conformance subset because giving
 every stress allocation its own protected VM region would test the tool's
 intentional memory amplification rather than Metal lifetime settling.
+Before launching a sanitizer lane, the checker inspects each executable with
+`otool -L` and rejects missing selected Clang runtime dylibs. Apple clang links
+combined AddressSanitizer/UndefinedBehaviorSanitizer programs through the ASan
+dynamic runtime, whose Darwin implementation supplies the UBSan handlers, so
+the `address-undefined` preflight also requires imported `ubsan_handle_` symbols
+from `nm -u`. That mode installs both runtime option families and rejects either
+diagnostic family. This prevents an ordinary or partly instrumented executable
+from producing a false sanitizer pass.
 
 AddressSanitizer qualification disables its allocation quarantine and uses a
 256 MiB per-worker RSS ceiling for the ownership stress. ThreadSanitizer uses a
@@ -1290,7 +1298,7 @@ PRISMEL_METAL_SANITIZERS=address,undefined opam exec -- dune build \
   --build-dir /tmp/prismel-metal-asan \
   lib/metal/test_metal.exe lib/metal/test_metal_stress.exe
 opam exec -- dune exec tools/metal/check_memory.exe -- \
-  --mode address --artifacts /tmp/prismel-metal-asan/default
+  --mode address-undefined --artifacts /tmp/prismel-metal-asan/default
 PRISMEL_METAL_SANITIZERS=thread opam exec -- dune build \
   --build-dir /tmp/prismel-metal-tsan \
   lib/metal/test_metal.exe lib/metal/test_metal_stress.exe

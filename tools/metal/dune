@@ -1368,10 +1368,20 @@
  (modules generate_inventory)
  (libraries gpu_migration_support metal_inventory_classification unix yojson))
 
+(library
+ (name metal_memory_check_rules)
+ (wrapped false)
+ (modules check_memory_rules))
+
 (executable
  (name check_memory)
  (modules check_memory)
- (libraries unix))
+ (libraries unix metal_memory_check_rules))
+
+(test
+ (name test_check_memory_rules)
+ (modules test_check_memory_rules)
+ (libraries metal_memory_check_rules))
 
 (executable
  (name validate_ffi_evidence)
