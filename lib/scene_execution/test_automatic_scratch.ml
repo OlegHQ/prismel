@@ -97,7 +97,8 @@ let ()=
     (Printf.sprintf"84-draw stable promotion %.1f B/frame"promoted84);
   let driver,replay_control=Ogpu.Backend_mock.create()in
   let replay_renderer=get(Scene_execution.create driver configuration)in
-  let retained=draws 10|>List.map(fun(blend,draw)->
+  let stable=draws 10 in
+  let retained=stable|>List.map(fun(blend,draw)->
     Scene_execution.Scene2,blend,None,None,1,draw)in
   ignore(get(Scene_execution.render_prepared_sampled_resources
     ~identity:"scratch-retained"~version:7L replay_renderer retained));
@@ -108,6 +109,23 @@ let ()=
    |_->failwith"retained replay did not return its exact draw count");
   require(List.length(only_render_trace replay_control)=1)
     "retained replay did not submit the cached command";
+  Ogpu.Backend_mock.inject_next_completion_error replay_control;
+  Ogpu.Backend_mock.clear_trace replay_control;
+  (match Scene_execution.render_blended replay_renderer stable with
+   |Error error when error.Ogpu.Error.kind=Device_lost->()
+   |_->failwith"terminal completion failure was not reported");
+  let terminal_trace=Ogpu.Backend_mock.trace replay_control in
+  require(List.exists(String.starts_with~prefix:"submit-present:")terminal_trace)
+    "terminal failure was not admitted";
+  require(List.exists(String.starts_with~prefix:"complete:")terminal_trace)
+    "terminal failure did not commit its epoch";
+  require(not(List.mem"discard"terminal_trace))
+    "admitted terminal failure discarded an already-consumed frame";
+  Ogpu.Backend_mock.clear_trace replay_control;
+  ignore(get(Scene_execution.render_blended replay_renderer stable));
+  require(List.exists(String.starts_with~prefix:"submit-present:")
+      (Ogpu.Backend_mock.trace replay_control))
+    "renderer did not acquire the exact next frame after terminal failure";
   (match get(Scene_execution.replay_prepared_sampled_resources
       ~identity:"scratch-retained"~version:8L replay_renderer)with
    |None->()

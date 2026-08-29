@@ -71,6 +71,17 @@ let run ()=
   let atomic_receipt=get(Ogpu.Backend.submit_present queue command
     ~resources~pipelines:[]~source:presentation_source atomic_frame)in
   get(Ogpu.Backend.complete_through queue atomic_receipt.epoch);
+  let synchronous_frame=acquire_frame()in
+  Ogpu.Backend_mock.inject_next_completion_error control;
+  let admitted=get(Ogpu.Backend.submit_present_sync queue command
+    ~resources~pipelines:[]~source:presentation_source synchronous_frame)in
+  (match admitted.completion with
+   |Error error when error.Ogpu.Error.kind=Device_lost->()
+   |_->failwith"synchronous terminal completion failure mismatch");
+  if admitted.receipt.epoch<>Int64.succ atomic_receipt.epoch then
+    failwith"synchronous admitted epoch did not advance exactly once";
+  expect Ogpu.Error.Invalid_state
+    (Ogpu.Backend.discard synchronous_frame);
   expect Ogpu.Error.Invalid_state
     (Ogpu.Backend.submit_present queue command~resources~pipelines:[]
       ~source:presentation_source atomic_frame);

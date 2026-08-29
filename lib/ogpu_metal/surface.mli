@@ -23,6 +23,7 @@ val destroyed : t -> bool
 val destroy : t -> unit
 
 module Private : sig
+  val acquire_scoped : t -> (acquire_result,Ogpu.Error.t) result
   type pending_presentation
 
   (** Creates the only non-framebuffer-only surface configuration.  This is
@@ -57,6 +58,7 @@ module Private : sig
     pending_presentation -> t -> frame -> source:Texture.t ->
     (unit,Ogpu.Error.t) result
   val presentation_encoder : pending_presentation -> Queue.presentation
+  val presentation_encoder_scoped : pending_presentation -> Queue.presentation
   val rollback_present : pending_presentation -> unit
   val commit_present : pending_presentation -> epoch:int64 -> unit
   val complete_presentations_through :

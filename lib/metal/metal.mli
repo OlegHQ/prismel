@@ -956,6 +956,17 @@ module Drawable : sig
   val present : t -> ?at:present_time -> unit -> (unit,error) result
   val destroyed : t -> bool
   val destroy : t -> (unit,error) result
+  module Private : sig
+    (** Acquires an explicitly-owned drawable without an OCaml finalizer.
+        Destroy it on every exit, after destroying its texture wrapper.  A
+        drawable scheduled on a retained-reference command buffer remains
+        natively owned through terminal presentation. *)
+    val acquire_scoped : Metal_layer.t -> ((t,loss) result,error) result
+    (* Returns the explicitly-owned drawable texture wrapper without an OCaml
+        finalizer.  Use this with [acquire_scoped], and destroy the texture
+        before destroying its drawable. *)
+    val texture_scoped : t -> (Texture.t,error) result
+  end
 end
 
 module Rasterization_rate_layer : sig
@@ -1214,6 +1225,7 @@ module Sampler : sig
   val destroyed : t -> bool
   val label : t -> (string option, error) result
   val destroy : t -> (unit, error) result
+
 end
 
 module Depth_stencil : sig
@@ -1270,6 +1282,14 @@ module Depth_stencil : sig
   val destroyed : t -> bool
   val label : t -> (string option, error) result
   val destroy : t -> (unit, error) result
+
+  module Private : sig
+    (** Explicitly-owned depth state without an OCaml finalizer. *)
+    val create_scoped :
+      ?label:string -> ?depth_compare:compare_function -> ?depth_write:bool ->
+      ?front_face:face -> ?back_face:face -> Device.t -> unit ->
+      (t, error) result
+  end
 end
 
 module Shader_type : sig
@@ -3500,6 +3520,20 @@ module Command_buffer : sig
   val wait_until_completed : t -> (unit, error) result
   val destroyed : t -> bool
   val destroy : t -> (unit, error) result
+
+  module Private : sig
+    (** Creates an explicitly-owned command buffer without installing an OCaml
+        finalizer.  The caller must end every encoder, wait for a committed
+        buffer to reach a terminal state, and call [destroy] on every exit. *)
+    val create_scoped :
+      Command_queue.t -> ?label:string -> unit -> (t, error) result
+
+    (** Drops the OCaml resource and presentation-event lifetime roots after a
+        successful native commit.  This is valid only for a submitted command
+        buffer whose native [retainedReferences] property is true; the native
+        command and callback tokens are left untouched. *)
+    val release_committed_references : t -> (unit, error) result
+  end
 end
 
 module Acceleration_encoder : sig
@@ -3536,6 +3570,7 @@ module Acceleration_encoder : sig
   val write_compacted_size_typed : t -> source:Acceleration_structure.t -> destination:Buffer.t -> offset:int64 -> compacted_size_type -> (unit,error) result
   val end_encoding : t -> (unit, error) result
   val destroyed : t -> bool
+
 end
 
 module Compute_encoder : sig
@@ -3699,6 +3734,18 @@ module Render_encoder : sig
     (unit, error) result
   val end_encoding : t -> (unit, error) result
   val destroyed : t -> bool
+
+  module Private : sig
+    (** Creates an explicitly-ended attachment encoder without an OCaml
+        finalizer. *)
+    val create_scoped :
+      Command_buffer.t -> target:Texture.t ->
+      ?clear:float * float * float * float -> ?depth:Texture.t ->
+      ?stencil:Texture.t -> unit -> (t, error) result
+    (* Creates an explicitly-ended pass encoder without an OCaml finalizer. *)
+    val create_from_pass_scoped :
+      Command_buffer.t -> Render_pass_descriptor.t -> (t, error) result
+  end
 end
 
 module Resource_state_encoder : sig

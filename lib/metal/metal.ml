@@ -6702,10 +6702,16 @@ module Drawable = struct
     let cancel(value:t)=let operation="Metal.Drawable.Handler.cancel"in on_main operation(fun()->if Atomic.compare_and_set value.lifetime.destroyed false true then(Metal_raw.drawable10_handler_cancel value.token;finish_handler value.state);Ok())
     let destroyed(value:t)=is_destroyed value.lifetime
   end
-  let acquire (layer:metal_layer) = let operation="Metal.Drawable.acquire" in on_main operation(fun()->match ensure_live operation layer.lifetime with Error _ as e->e|Ok()->match Metal_raw.layer_next_drawable layer.raw with Error m->native_error operation m|Ok None->Ok(Error Timeout_or_unavailable)|Ok(Some raw)->match Metal_raw.drawable10_snapshot raw with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok(drawable_id,_)->let value:t={raw;lifetime=lifetime();layer;drawable_texture=None;drawable_id;presentation_scheduled=false}in attach layer.lifetime;attach_finalizer value value.lifetime layer.lifetime;Ok(Ok value))
+  let acquire_owned ~finalize (layer:metal_layer) = let operation="Metal.Drawable.acquire" in on_main operation(fun()->match ensure_live operation layer.lifetime with Error _ as e->e|Ok()->match Metal_raw.layer_next_drawable layer.raw with Error m->native_error operation m|Ok None->Ok(Error Timeout_or_unavailable)|Ok(Some raw)->match Metal_raw.drawable10_snapshot raw with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok(drawable_id,_)->let value:t={raw;lifetime=lifetime();layer;drawable_texture=None;drawable_id;presentation_scheduled=false}in attach layer.lifetime;if finalize then attach_finalizer value value.lifetime layer.lifetime;Ok(Ok value))
+  let acquire layer=acquire_owned ~finalize:true layer
   let layer (value:t)=value.layer
   let checked_layer(value:t)=let operation="Metal.Drawable.checked_layer"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.drawable_native_layer value.raw with Error m->native_error operation m|Ok raw->let native=Metal_raw.layer_native_snapshot raw and expected=Metal_raw.layer_native_snapshot value.layer.raw in ignore(Metal_raw.destroy raw);match native,expected with Ok left,Ok right when left=right->Ok value.layer|Error m,_->native_error operation m|_,Error m->native_error operation m|_->error operation Native_error "drawable parent layer metadata changed")
-  let texture (value:t)=let operation="Metal.Drawable.texture" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match value.drawable_texture with Some texture->Ok texture|None->match Metal_raw.drawable_texture value.raw with Error m->native_error operation m|Ok(raw,width,height,format_code)->match (match format_code with 80->Some Texture.Bgra8_unorm|81->Some Texture.Bgra8_unorm_srgb|115->Some Texture.Rgba16_float|_->None) with None->ignore(Metal_raw.destroy raw);error operation Unsupported "drawable returned an unsupported pixel format"|Some format->let descriptor=match value.layer.drawable_descriptor with Some descriptor when descriptor.width=width&&descriptor.height=height&&descriptor.format=format->descriptor|_->let descriptor=Texture.descriptor_2d ~storage:Buffer.Private ~usage:[Texture.Render_target] ~format ~width ~height()in value.layer.drawable_descriptor<-Some descriptor;descriptor in let texture:texture={raw;lifetime=lifetime();device=value.layer.device;descriptor;parent=Texture_drawable_resource value;heap_offset=None;placement_sparse_page_size=None;allocation=None;state={relinquished=Atomic.make false;purgeable=Atomic.make Nonvolatile};placement_mappings=ref[]}in attach value.lifetime;attach_finalizer texture texture.lifetime value.lifetime;value.drawable_texture<-Some texture;Ok texture)
+  let texture_owned ~finalize (value:t)=let operation="Metal.Drawable.texture" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match value.drawable_texture with Some texture->Ok texture|None->match Metal_raw.drawable_texture value.raw with Error m->native_error operation m|Ok(raw,width,height,format_code)->match (match format_code with 80->Some Texture.Bgra8_unorm|81->Some Texture.Bgra8_unorm_srgb|115->Some Texture.Rgba16_float|_->None) with None->ignore(Metal_raw.destroy raw);error operation Unsupported "drawable returned an unsupported pixel format"|Some format->let descriptor=match value.layer.drawable_descriptor with Some descriptor when descriptor.width=width&&descriptor.height=height&&descriptor.format=format->descriptor|_->let descriptor=Texture.descriptor_2d ~storage:Buffer.Private ~usage:[Texture.Render_target] ~format ~width ~height()in value.layer.drawable_descriptor<-Some descriptor;descriptor in let texture:texture={raw;lifetime=lifetime();device=value.layer.device;descriptor;parent=Texture_drawable_resource value;heap_offset=None;placement_sparse_page_size=None;allocation=None;state={relinquished=Atomic.make false;purgeable=Atomic.make Nonvolatile};placement_mappings=ref[]}in attach value.lifetime;if finalize then attach_finalizer texture texture.lifetime value.lifetime;value.drawable_texture<-Some texture;Ok texture)
+  let texture value=texture_owned ~finalize:true value
+  module Private = struct
+    let acquire_scoped layer=acquire_owned ~finalize:false layer
+    let texture_scoped value=texture_owned ~finalize:false value
+  end
   let snapshot operation(value:t)=on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->match Metal_raw.drawable10_snapshot value.raw with Error m->native_error operation m|Ok(identifier,_)when identifier<>value.drawable_id->error operation Native_error "drawable identity changed"|Ok(_,presented)when not(Float.is_finite presented)||presented<0.->error operation Native_error "native presented time is invalid"|Ok pair->Ok pair))
   let drawable_id(value:t)=Result.map fst(snapshot "Metal.Drawable.drawable_id" value)
   let presented_time(value:t)=Result.map snd(snapshot "Metal.Drawable.presented_time" value)
@@ -8472,7 +8478,7 @@ module Depth_stencil = struct
      }
       : Metal_raw.depth_stencil_face_descriptor)
 
-  let create ?label ?(depth_compare = Always) ?(depth_write = false) ?front_face
+  let create_owned ~finalize ?label ?(depth_compare = Always) ?(depth_write = false) ?front_face
       ?back_face (device : Device.t) () =
     let operation = "Metal.Depth_stencil.create" in
     on_main operation (fun () ->
@@ -8506,8 +8512,20 @@ module Depth_stencil = struct
                  }
                in
                attach device.lifetime;
-               attach_finalizer value value.lifetime device.lifetime;
+               if finalize then
+                 attach_finalizer value value.lifetime device.lifetime;
                Ok value))
+
+  let create ?label ?depth_compare ?depth_write ?front_face ?back_face device () =
+    create_owned ~finalize:true ?label ?depth_compare ?depth_write ?front_face
+      ?back_face device ()
+
+  module Private = struct
+    let create_scoped ?label ?depth_compare ?depth_write ?front_face ?back_face
+        device () =
+      create_owned ~finalize:false ?label ?depth_compare ?depth_write ?front_face
+        ?back_face device ()
+  end
 
   let device (value : t) = value.device
   let depth_compare (value : t) = value.depth_compare
@@ -17337,7 +17355,7 @@ module Command_buffer = struct
   let create_unretained (queue:Command_queue.t)=let operation="Metal.Command_buffer.create_unretained"in on_main operation(fun()->match ensure_live operation queue.lifetime with Error _ as failure->failure|Ok()->match Metal_raw.command_queue_command_buffer queue.raw 0 false 0L None with Error message->native_error operation message|Ok raw->Ok(wrap_queue_raw queue raw))
   let create_with_descriptor (queue:Command_queue.t)?(retained_references=true)?(error_options=0L)?log_state()=let operation="Metal.Command_buffer.create_with_descriptor"in on_main operation(fun()->match ensure_live operation queue.lifetime with Error _ as failure->failure|Ok()when error_options<0L->error operation Invalid_argument "command-buffer error options are invalid"|Ok()->match log_state with Some(log:command4_log_state)when is_destroyed log.lifetime->error operation Destroyed "log state is destroyed"|Some log when not(same_device queue.device log.device)->error operation Device_mismatch "log state belongs to another device"|_->match Metal_raw.command_queue_command_buffer queue.raw 1 retained_references error_options(Option.map(fun(log:command4_log_state)->log.raw)log_state)with Error message->native_error operation message|Ok raw->let value=wrap_queue_raw queue raw in Option.iter(fun(log:command4_log_state)->attach log.lifetime;value.presentation_events:=log.lifetime::!(value.presentation_events))log_state;Ok value)
 
-  let create (queue : Command_queue.t) ?label () =
+  let create_owned ~finalize (queue : Command_queue.t) ?label () =
     on_main "Metal.Command_buffer.create" (fun () ->
       match ensure_live "Metal.Command_buffer.create" queue.lifetime with
       | Error _ as failure -> failure
@@ -17367,13 +17385,14 @@ module Command_buffer = struct
                    let resources = value.resources
                    and callback_tokens = value.callback_tokens
                    and presentation_events=value.presentation_events in
-                   attach_lifetime_finalizer
-                     ~on_finalize:(fun () ->
-                       release_command_resources resources;
-                       release_callback_tokens callback_tokens;
-                       List.iter detach !presentation_events;
-                       presentation_events:=[])
-                     value.lifetime queue.lifetime;
+                   if finalize then
+                     attach_lifetime_finalizer
+                       ~on_finalize:(fun () ->
+                         release_command_resources resources;
+                         release_callback_tokens callback_tokens;
+                         List.iter detach !presentation_events;
+                         presentation_events:=[])
+                       value.lifetime queue.lifetime;
                    (match label with
                     | None -> Ok value
                     | Some label ->
@@ -17384,6 +17403,39 @@ module Command_buffer = struct
                              if Atomic.compare_and_set value.lifetime.destroyed false true
                              then detach queue.lifetime;
                              native_error "Metal.Command_buffer.create" message))))
+
+  let create queue ?label () = create_owned ~finalize:true queue ?label ()
+
+  module Private = struct
+    (* Scoped callers must arrange [destroy] on every exit.  In particular a
+       submitted buffer must first be brought to a terminal state with
+       [wait_until_completed].  Omitting the finalizer prevents a blocking
+       synchronous submission from depending on a later major collection. *)
+    let create_scoped queue ?label () =
+      create_owned ~finalize:false queue ?label ()
+
+    let release_committed_references (value:t) =
+      let operation =
+        "Metal.Command_buffer.Private.release_committed_references"
+      in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when value.phase <> Submitted ->
+            error operation Invalid_state
+              "command buffer must be committed before releasing references"
+        | Ok () ->
+            (match Metal_raw.presentation_command_snapshot value.raw with
+             | Error message -> native_error operation message
+             | Ok (_, _, _, _, _, _, _, false) ->
+                 error operation Invalid_state
+                   "native command buffer does not retain referenced resources"
+             | Ok (_, _, _, _, _, _, _, true) ->
+                 release_command_resources value.resources;
+                 List.iter detach !(value.presentation_events);
+                 value.presentation_events := [];
+                 Ok ()))
+  end
 
   let device (value : t) = value.queue.device
   let generation (value : t) = Metal_raw.generation value.raw
@@ -17904,7 +17956,7 @@ module Render_encoder = struct
 
   type scissor = { x : int; y : int; width : int; height : int }
 
-  let create (command_buffer : Command_buffer.t) ~(target : Texture.t)
+  let create_owned ~finalize (command_buffer : Command_buffer.t) ~(target : Texture.t)
       ?(clear = (0., 0., 0., 1.)) ?(depth : Texture.t option)
       ?(stencil : Texture.t option) () =
     let operation = "Metal.Render_encoder.create" in
@@ -17969,10 +18021,14 @@ module Render_encoder = struct
                      retain_command_buffer_texture command_buffer target;
                      Option.iter (retain_command_buffer_texture command_buffer) depth;
                      Option.iter (retain_command_buffer_texture command_buffer) stencil;
-                     attach_lifetime_finalizer value.lifetime command_buffer.lifetime;
+                     if finalize then
+                       attach_lifetime_finalizer value.lifetime command_buffer.lifetime;
                      Ok value)))
 
-  let create_from_pass (command_buffer : Command_buffer.t)
+  let create command_buffer ~target ?clear ?depth ?stencil () =
+    create_owned ~finalize:true command_buffer ~target ?clear ?depth ?stencil ()
+
+  let create_from_pass_owned ~finalize (command_buffer : Command_buffer.t)
       (pass : render_pass_descriptor) =
     let operation = "Metal.Render_encoder.create_from_pass" in
     on_main operation (fun () ->
@@ -18022,9 +18078,20 @@ module Render_encoder = struct
                                    state.sample_buffer_lifetime ::
                                    !(command_buffer.presentation_events)
                                end)) pass.pass_samples;
-                             attach_lifetime_finalizer value.lifetime
-                               command_buffer.lifetime;
+                             if finalize then
+                               attach_lifetime_finalizer value.lifetime
+                                 command_buffer.lifetime;
                              Ok value))))
+
+  let create_from_pass command_buffer pass =
+    create_from_pass_owned ~finalize:true command_buffer pass
+
+  module Private = struct
+    let create_scoped command_buffer ~target ?clear ?depth ?stencil () =
+      create_owned ~finalize:false command_buffer ~target ?clear ?depth ?stencil ()
+    let create_from_pass_scoped command_buffer pass =
+      create_from_pass_owned ~finalize:false command_buffer pass
+  end
 
   let destroyed (value : t) = is_destroyed value.lifetime
 

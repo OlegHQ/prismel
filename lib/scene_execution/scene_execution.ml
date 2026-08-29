@@ -645,34 +645,39 @@ let finish_submission value=function
       ~source:value.target
 let acquire value=match value.surface with
   |None->Ok(`Acquired Offscreen)
-  |Some surface->match Ogpu.Backend.acquire surface with
+  |Some surface->match Ogpu.Backend.acquire_sync surface with
     |Error _ as error->error
     |Ok(`Timeout|`Occluded)->Ok`Skipped
     |Ok`Device_lost->error"Scene_execution.render"Ogpu.Error.Device_lost"device lost"
     |Ok(`Acquired frame)->Ok(`Acquired(Presented frame))
 let submit_acquired value frame commands =
-  let complete receipt=Ogpu.Backend.complete_through value.queue receipt.Ogpu.Backend.epoch in
   let submit_one(command,resources,pipelines)=
-    match Ogpu.Backend.submit value.queue command~resources~pipelines with
-    |Error _ as e->e|Ok receipt->complete receipt in
+    match Ogpu.Backend.submit_sync value.queue command~resources~pipelines with
+    |Error e->Error e|Ok admitted->Ok admitted.Ogpu.Backend.completion in
   let rec submit=function
-    |[]->finish_submission value frame
+    |[]->Result.map(fun()->Ok())(finish_submission value frame)
     |[command,resources,pipelines]->
         (match frame with
          |Offscreen->submit_one(command,resources,pipelines)
          |Presented surface_frame->
-             (match Ogpu.Backend.submit_present value.queue command~resources
+             (match Ogpu.Backend.submit_present_sync value.queue command~resources
                       ~pipelines~source:value.target surface_frame with
-              |Ok receipt->complete receipt
+              |Ok admitted->Ok admitted.Ogpu.Backend.completion
               |Error e when e.Ogpu.Error.kind=Ogpu.Error.Unsupported->
                   (match submit_one(command,resources,pipelines)with
-                   |Error _ as e->e|Ok()->finish_submission value frame)
-              |Error _ as e->e))
+                   |Error _ as e->e
+                   |Ok(Error _ as completion)->discard frame;Ok completion
+                   |Ok(Ok())->Result.map(fun()->Ok())
+                       (finish_submission value frame))
+              |Error e->Error e))
     |entry::rest->
-        (match submit_one entry with Error _ as e->e|Ok()->submit rest)in
+        (match submit_one entry with
+         |Error _ as e->e
+         |Ok(Error _ as completion)->discard frame;Ok completion
+         |Ok(Ok())->submit rest)in
   match submit commands with
-  |Ok() as result->result
-  |Error _ as result->discard frame;result
+  |Ok completion->completion
+  |Error error->discard frame;Error error
 let replay_commands value commands =
   match acquire value with
   |Error _ as error->error|Ok`Skipped->Ok false

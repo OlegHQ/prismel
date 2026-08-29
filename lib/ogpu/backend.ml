@@ -1,11 +1,12 @@
 type token=int64
 type command=Transfer of Transfer_pass.description array|Compute of Compute_pass.description|Render of Render_pass.submission
 type receipt={epoch:int64}
+type synchronous_submission={receipt:receipt;completion:(unit,Error.t)result}
 type driver_resource={token:token;write:int64->bytes->(unit,Error.t)result;read:int64->int->(bytes,Error.t)result;read_into:int64->bytes->int->int->(unit,Error.t)result;destroy:unit->(unit,Error.t)result}
 type driver_pipeline={pipeline_token:token;destroy_pipeline:unit->(unit,Error.t)result}
 type driver_frame={frame_token:token}
-type driver_surface={surface_token:token;configure:Surface.configuration->(unit,Error.t)result;acquire:unit->([`Acquired of driver_frame|`Timeout|`Occluded|`Device_lost],Error.t)result;present:queue:token->source:token->driver_frame->(unit,Error.t)result;submit_present:queue:token->source:token->command->resources:(int64*token)list->pipelines:token list->driver_frame->(receipt,Error.t)result;discard:driver_frame->(unit,Error.t)result;destroy_surface:unit->(unit,Error.t)result}
-type driver_queue={queue_token:token;submit:command->resources:(int64*token)list->pipelines:token list->(receipt,Error.t)result;complete_through:int64->(unit,Error.t)result;destroy_queue:unit->(unit,Error.t)result}
+type driver_surface={surface_token:token;configure:Surface.configuration->(unit,Error.t)result;acquire:unit->([`Acquired of driver_frame|`Timeout|`Occluded|`Device_lost],Error.t)result;acquire_sync:unit->([`Acquired of driver_frame|`Timeout|`Occluded|`Device_lost],Error.t)result;present:queue:token->source:token->driver_frame->(unit,Error.t)result;submit_present:queue:token->source:token->command->resources:(int64*token)list->pipelines:token list->driver_frame->(receipt,Error.t)result;submit_present_sync:queue:token->source:token->command->resources:(int64*token)list->pipelines:token list->driver_frame->(synchronous_submission,Error.t)result;discard:driver_frame->(unit,Error.t)result;destroy_surface:unit->(unit,Error.t)result}
+type driver_queue={queue_token:token;submit:command->resources:(int64*token)list->pipelines:token list->(receipt,Error.t)result;submit_sync:command->resources:(int64*token)list->pipelines:token list->(synchronous_submission,Error.t)result;complete_through:int64->(unit,Error.t)result;destroy_queue:unit->(unit,Error.t)result}
 type driver_device={device_token:token;device_handle:Handle.device;capabilities:Capabilities.t;create_buffer:Types.buffer_descriptor->(driver_resource,Error.t)result;create_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_depth_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_stencil_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_pipeline:Pipeline.t->(driver_pipeline,Error.t)result;create_queue:unit->(driver_queue,Error.t)result;create_surface:Surface.configuration->(driver_surface,Error.t)result;destroy_device:unit->(unit,Error.t)result}
 type driver={create_device:unit->(driver_device,Error.t)result}
 type device={raw:driver_device;handle:Handle.device;mutable children:int;mutable dead:bool}
@@ -128,6 +129,15 @@ let submit (queue:queue) command ~resources ~pipelines=
       ~pipelines:prepared.prepared_pipeline_tokens with
       |Error _ as e->e
       |Ok receipt->commit_submission queue prepared;Ok receipt
+let submit_sync (queue:queue) command ~resources ~pipelines=
+  let op="Backend.submit_sync" in
+  match prepare_submission op queue~resources~pipelines with
+  |Error _ as e->e
+  |Ok prepared->match queue.raw.submit_sync command
+      ~resources:prepared.prepared_tokens
+      ~pipelines:prepared.prepared_pipeline_tokens with
+    |Error _ as e->e
+    |Ok admitted->commit_submission queue prepared;Ok admitted
 let complete_through (queue:queue) epoch=if queue.dead then error"Backend.complete_through"Error.Stale_handle"queue is destroyed"else queue.raw.complete_through epoch
 let configure (surface:surface) value=
   if surface.dead then error"Backend.configure"Error.Stale_handle"surface is destroyed"
@@ -136,6 +146,7 @@ let configure (surface:surface) value=
     |Error _ as e->e
     |Ok()->surface.configuration<-value;Ok()
 let acquire (surface:surface)=if surface.dead then error"Backend.acquire"Error.Stale_handle"surface is destroyed"else match surface.raw.acquire()with Error _ as e->e|Ok(`Acquired raw)->surface.frames<-surface.frames+1;Ok(`Acquired{raw;surface;consumed=false})|Ok`Timeout->Ok`Timeout|Ok`Occluded->Ok`Occluded|Ok`Device_lost->Ok`Device_lost
+let acquire_sync (surface:surface)=if surface.dead then error"Backend.acquire_sync"Error.Stale_handle"surface is destroyed"else match surface.raw.acquire_sync()with Error _ as e->e|Ok(`Acquired raw)->surface.frames<-surface.frames+1;Ok(`Acquired{raw;surface;consumed=false})|Ok`Timeout->Ok`Timeout|Ok`Occluded->Ok`Occluded|Ok`Device_lost->Ok`Device_lost
 let consume op action (frame:frame)=if frame.consumed then error op Error.Invalid_state"frame is already consumed"else if frame.surface.dead then error op Error.Stale_handle"surface is destroyed"else match action frame.raw with Error _ as e->e|Ok()->frame.consumed<-true;frame.surface.frames<-frame.surface.frames-1;Ok()
 let validate_present op (queue:queue) (source:texture) (frame:frame)=
   if frame.consumed then error op Error.Invalid_state"frame is already consumed"
@@ -191,6 +202,25 @@ let submit_present (queue:queue) command ~resources ~pipelines
           mark_submitted queue source.resource;
           consume_present frame;
           Ok receipt
+let submit_present_sync (queue:queue) command ~resources ~pipelines
+    ~(source:texture) (frame:frame)=
+  let op="Backend.submit_present_sync" in
+  match validate_present op queue source frame with
+  |Error _ as e->e
+  |Ok()->match prepare_submission op queue~resources~pipelines with
+    |Error _ as e->e
+    |Ok prepared->match frame.surface.raw.submit_present_sync
+        ~queue:queue.raw.queue_token~source:source.resource.raw.token command
+        ~resources:prepared.prepared_tokens
+        ~pipelines:prepared.prepared_pipeline_tokens frame.raw with
+      |Error _ as e->e
+      |Ok admitted->
+          (* Admission, not successful completion, commits portable ownership
+             and consumes the presentation exactly once. *)
+          commit_submission queue prepared;
+          mark_submitted queue source.resource;
+          consume_present frame;
+          Ok admitted
 let discard frame=consume"Backend.discard"frame.surface.raw.discard frame
 let destroy_resource (resource:resource)=if resource.dead then Ok()else match resource.raw.destroy()with Error _ as e->e|Ok()->resource.dead<-true;Handle.destroy resource.handle;resource.device.children<-resource.device.children-1;Ok()
 let destroy_buffer (value:buffer)=destroy_resource value.resource

@@ -7,7 +7,7 @@ val create : Device.t -> (t, Ogpu.Error.t) result
     render pass to a caller-owned classic command buffer.  The command buffer
     is never committed or destroyed here. *)
 val encode_classic :
-  t -> Metal.Command_buffer.t -> ?present:Metal.Drawable.t ->
+  ?scoped:bool -> t -> Metal.Command_buffer.t -> ?present:Metal.Drawable.t ->
   source:Metal.Texture.t -> target:Metal.Texture.t -> unit ->
   (unit, Ogpu.Error.t) result
 

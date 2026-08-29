@@ -130,7 +130,7 @@ let validate value ~queue ~source ~target =
   else
     validate_resources value ~device:(Metal.Command_queue.device queue) ~source ~target
 
-let encode_classic value commands ?present ~source ~target () =
+let encode_classic ?(scoped=false) value commands ?present ~source ~target () =
   if Metal.Command_buffer.destroyed commands then
     error Ogpu.Error.Stale_handle "presentation command buffer is destroyed"
   else
@@ -138,7 +138,8 @@ let encode_classic value commands ?present ~source ~target () =
             ~source ~target with
     | Error _ as failure -> failure
     | Ok () ->
-        (match Metal.Render_encoder.create commands ~target () with
+        (match (if scoped then Metal.Render_encoder.Private.create_scoped
+                  commands~target() else Metal.Render_encoder.create commands~target()) with
          | Error value -> metal value
          | Ok encoder ->
              (match Metal.Render_encoder.set_pipeline encoder value.pipeline with
@@ -151,7 +152,7 @@ let encode_classic value commands ?present ~source ~target () =
                         | Error value -> fail_encode (Some encoder) value
                         | Ok () ->
                             (match Metal.Render_encoder.end_encoding encoder with
-                             | Error value -> fail_encode None value
+                             | Error value -> fail_encode (Some encoder) value
                              | Ok () ->
                                  match present with
                                  | None -> Ok ()

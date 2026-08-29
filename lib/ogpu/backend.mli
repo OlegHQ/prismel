@@ -4,6 +4,7 @@ type command =
   | Compute of Compute_pass.description
   | Render of Render_pass.submission
 type receipt = { epoch:int64 }
+type synchronous_submission = { receipt:receipt; completion:(unit,Error.t) result }
 type driver_resource = { token:token; write:int64 -> bytes -> (unit,Error.t) result;
   read:int64 -> int -> (bytes,Error.t) result;
   read_into:int64 -> bytes -> int -> int -> (unit,Error.t) result;
@@ -14,15 +15,21 @@ type driver_surface =
   { surface_token:token
   ; configure:Surface.configuration -> (unit,Error.t) result
   ; acquire:unit -> ([ `Acquired of driver_frame | `Timeout | `Occluded | `Device_lost ],Error.t) result
+  ; acquire_sync:unit -> ([ `Acquired of driver_frame | `Timeout | `Occluded | `Device_lost ],Error.t) result
   ; present:queue:token -> source:token -> driver_frame -> (unit,Error.t) result
   ; submit_present:queue:token -> source:token -> command ->
       resources:(int64*token) list -> pipelines:token list -> driver_frame ->
       (receipt,Error.t) result
+  ; submit_present_sync:queue:token -> source:token -> command ->
+      resources:(int64*token) list -> pipelines:token list -> driver_frame ->
+      (synchronous_submission,Error.t) result
   ; discard:driver_frame -> (unit,Error.t) result
   ; destroy_surface:unit -> (unit,Error.t) result }
 type driver_queue =
   { queue_token:token
   ; submit:command -> resources:(int64*token) list -> pipelines:token list -> (receipt,Error.t) result
+  ; submit_sync:command -> resources:(int64*token) list -> pipelines:token list ->
+      (synchronous_submission,Error.t) result
   ; complete_through:int64 -> (unit,Error.t) result
   ; destroy_queue:unit -> (unit,Error.t) result }
 type driver_device =
@@ -71,13 +78,21 @@ val transfer : Transfer_pass.t -> (command,Error.t) result
 val compute : Compute_pass.t -> command
 val render : Render_pass.t -> Render_pass.draw list -> (command,Error.t) result
 val submit : queue -> command -> resources:[ `Buffer of buffer | `Texture of texture ] list -> pipelines:pipeline list -> (receipt,Error.t) result
+val submit_sync : queue -> command ->
+  resources:[ `Buffer of buffer | `Texture of texture ] list ->
+  pipelines:pipeline list -> (synchronous_submission,Error.t) result
 val complete_through : queue -> int64 -> (unit,Error.t) result
 val configure : surface -> Surface.configuration -> (unit,Error.t) result
 val acquire : surface -> ([ `Acquired of frame | `Timeout | `Occluded | `Device_lost ],Error.t) result
+val acquire_sync : surface -> ([ `Acquired of frame | `Timeout | `Occluded | `Device_lost ],Error.t) result
 val present : queue:queue -> source:texture -> frame -> (unit,Error.t) result
 val submit_present : queue -> command ->
   resources:[ `Buffer of buffer | `Texture of texture ] list ->
   pipelines:pipeline list -> source:texture -> frame -> (receipt,Error.t) result
+val submit_present_sync : queue -> command ->
+  resources:[ `Buffer of buffer | `Texture of texture ] list ->
+  pipelines:pipeline list -> source:texture -> frame ->
+  (synchronous_submission,Error.t) result
 val discard : frame -> (unit,Error.t) result
 val destroy_buffer : buffer -> (unit,Error.t) result
 val destroy_texture : texture -> (unit,Error.t) result

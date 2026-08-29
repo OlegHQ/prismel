@@ -193,11 +193,33 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64) ()=
       let active={queue;submit_combined;presentations=Array.init
         pending_presentation_capacity(fun _->Surface.Private.create_pending_presentation())}in
       Hashtbl.add c.active_queues queue_token active;
+      let commit_completed_epoch epoch completion=
+        Hashtbl.replace c.completed_epochs queue_token epoch;
+        let ready,later=List.partition(fun(retired:retired)->
+          retired.queue_token=queue_token&&retired.epoch<=epoch)c.retired in
+        c.retired<-later;
+        List.iter(fun retired->record_cleanup(destroy_retired retired))ready;
+        match completion,c.cleanup_error with
+        |Error _ as e,_->e
+        |Ok(),Some e->Error(Adapter.error
+            ~operation:"Ogpu_metal.Backend.complete_through"e)
+        |Ok(),None->Ok()in
       let complete_through epoch=
         let waited=Queue.wait_through queue epoch in
         let completed=Queue.completed_epoch queue in
         Surface.Private.complete_presentations_through active.presentations completed;
-        match waited with Error _ as e->e|Ok()->Hashtbl.replace c.completed_epochs queue_token epoch;let ready,later=List.partition(fun(retired:retired)->retired.queue_token=queue_token&&retired.epoch<=epoch)c.retired in c.retired<-later;List.iter(fun retired->record_cleanup(destroy_retired retired))ready;match c.cleanup_error with None->Ok()|Some e->Error(Adapter.error~operation:"Ogpu_metal.Backend.complete_through"e)in
+        commit_completed_epoch epoch waited in
+      let submit_sync command ~resources ~pipelines=
+        Queue.Private.arm_scoped_render queue;
+        match submit command~resources~pipelines with
+        |Error _ as e->ignore(Queue.Private.take_scoped_completion queue);e
+        |Ok receipt->
+            let completion=match Queue.Private.take_scoped_completion queue with
+              |Some result->result
+              |None->complete_through receipt.epoch in
+            let completion=if Queue.completed_epoch queue>=receipt.epoch then
+                commit_completed_epoch receipt.epoch completion else completion in
+            Ok{Ogpu.Backend.receipt;completion}in
       let destroy_queue()=
         if not(Array.for_all Surface.Private.pending_presentation_available
           active.presentations)then
@@ -207,17 +229,19 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64) ()=
           Surface.Private.clear_pending_presentations active.presentations;
           Hashtbl.remove c.classic_invalidators queue_token;
           Hashtbl.remove c.active_queues queue_token;Ok()in
-      Ok{Ogpu.Backend.queue_token;submit;complete_through;destroy_queue}in
+      Ok{Ogpu.Backend.queue_token;submit;submit_sync;complete_through;destroy_queue}in
     let create_surface configuration=
       match c.layer with
       |None->error"Ogpu_metal.Backend.create_surface"Ogpu.Error.Unsupported"adapter was created without a typed Metal layer"
       |Some layer->match Surface.create device~layer configuration with Error _ as e->e|Ok surface->
         let surface_token=token c and frames=Hashtbl.create 4 in
-        let acquire()=match Surface.acquire surface with Error _ as e->e|Ok Surface.Timeout->Ok`Timeout|Ok Occluded->Ok`Occluded|Ok Device_lost->Ok`Device_lost|Ok(Acquired frame)->let frame_token=Surface.frame_id frame in Hashtbl.add frames frame_token frame;Ok(`Acquired{Ogpu.Backend.frame_token})in
+        let acquire_with acquire=match acquire surface with Error _ as e->e|Ok Surface.Timeout->Ok`Timeout|Ok Occluded->Ok`Occluded|Ok Device_lost->Ok`Device_lost|Ok(Acquired frame)->let frame_token=Surface.frame_id frame in Hashtbl.add frames frame_token frame;Ok(`Acquired{Ogpu.Backend.frame_token})in
+        let acquire()=acquire_with Surface.acquire
+        and acquire_sync()=acquire_with Surface.Private.acquire_scoped in
         let take f frame=match Hashtbl.find_opt frames frame.Ogpu.Backend.frame_token with None->error"Ogpu_metal.Backend.surface"Ogpu.Error.Invalid_state"frame token is stale"|Some native->match f surface native with Error _ as e->e|Ok()->Hashtbl.remove frames frame.frame_token;Ok()in
         let take_present queue source frame=match Hashtbl.find_opt frames frame.Ogpu.Backend.frame_token with None->error"Ogpu_metal.Backend.surface"Ogpu.Error.Invalid_state"frame token is stale"|Some native->match Surface.present_from surface native~queue~source with Error _ as e->e|Ok()->Hashtbl.remove frames frame.frame_token;Ok()in
         let present~queue~source frame=match Hashtbl.find_opt c.active_queues queue with None->error"Ogpu_metal.Backend.present"Ogpu.Error.Stale_handle"presentation queue token is stale"|Some active->match native_resource source with Some(Texture texture)->take_present active.queue texture frame|Some(Buffer _)->error"Ogpu_metal.Backend.present"Ogpu.Error.Invalid_argument"presentation source token is not a texture"|None->error"Ogpu_metal.Backend.present"Ogpu.Error.Stale_handle"presentation source token is stale"in
-        let submit_present~queue~source command~resources~pipelines frame=
+        let submit_present_common ~scoped ~queue~source command~resources~pipelines frame=
           match Hashtbl.find_opt c.active_queues queue with
           |None->error"Ogpu_metal.Backend.submit_present"Ogpu.Error.Stale_handle"presentation queue token is stale"
           |Some active->match native_resource source with
@@ -233,13 +257,38 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64) ()=
                     ~source:texture with
                   |Error _ as e->e
                   |Ok()->match active.submit_combined
-                      (Surface.Private.presentation_encoder pending)command
+                      ((if scoped then Surface.Private.presentation_encoder_scoped
+                        else Surface.Private.presentation_encoder)pending)command
                       ~resources~pipelines with
                     |Error _ as e->Surface.Private.rollback_present pending;e
                     |Ok receipt->
                         Surface.Private.commit_present pending~epoch:receipt.epoch;
                         Hashtbl.remove frames frame.frame_token;Ok receipt in
-        Ok{Ogpu.Backend.surface_token;configure=(fun x->Surface.configure surface x);acquire;present;submit_present;discard=take Surface.discard;destroy_surface=(fun()->if Hashtbl.length frames<>0 then error"Ogpu_metal.Backend.destroy_surface"Ogpu.Error.Invalid_state"surface has outstanding frames"else if Surface.in_flight_presentations surface<>0 then error"Ogpu_metal.Backend.destroy_surface"Ogpu.Error.Invalid_state"surface has presentations in flight"else(Surface.destroy surface;Ok()))}in
+        let submit_present=submit_present_common~scoped:false in
+        let submit_present_sync~queue~source command~resources~pipelines frame=
+          let active=Hashtbl.find_opt c.active_queues queue in
+          Option.iter(fun active->Queue.Private.arm_scoped_render active.queue)active;
+          match submit_present_common~scoped:true~queue~source command~resources
+              ~pipelines frame with
+          |Error _ as e->Option.iter(fun active->ignore
+                (Queue.Private.take_scoped_completion active.queue))active;e
+          |Ok receipt->
+              let completion=match active with
+                |None->error"Ogpu_metal.Backend.submit_present_sync"
+                    Ogpu.Error.Stale_handle"presentation queue token is stale"
+                |Some active->
+                    (match Queue.Private.take_scoped_completion active.queue with
+                     |Some result->result
+                     |None->Queue.wait_through active.queue receipt.epoch) in
+              Option.iter(fun active->Surface.Private.complete_presentations_through
+                  active.presentations(Queue.completed_epoch active.queue))active;
+              Hashtbl.replace c.completed_epochs queue receipt.epoch;
+              let ready,later=List.partition(fun(retired:retired)->
+                retired.queue_token=queue&&retired.epoch<=receipt.epoch)c.retired in
+              c.retired<-later;
+              List.iter(fun retired->record_cleanup(destroy_retired retired))ready;
+              Ok{Ogpu.Backend.receipt;completion}in
+        Ok{Ogpu.Backend.surface_token;configure=(fun x->Surface.configure surface x);acquire;acquire_sync;present;submit_present;submit_present_sync;discard=take Surface.discard;destroy_surface=(fun()->if Hashtbl.length frames<>0 then error"Ogpu_metal.Backend.destroy_surface"Ogpu.Error.Invalid_state"surface has outstanding frames"else if Surface.in_flight_presentations surface<>0 then error"Ogpu_metal.Backend.destroy_surface"Ogpu.Error.Invalid_state"surface has presentations in flight"else(Surface.destroy surface;Ok()))}in
     let destroy_device()=if Hashtbl.length c.active_queues<>0 then error"Ogpu_metal.Backend.destroy_device"Ogpu.Error.Invalid_state"device has active queues"else(Option.iter(fun cache->record_cleanup(match Metal.Retained_render_plan.destroy cache with Ok()->None|Error e->Some e))c.plan_cache;c.plan_cache<-None;List.iter(fun retired->record_cleanup(destroy_retired retired))c.retired;c.retired<-[];Hashtbl.iter(fun _ owner->record_cleanup(destroy_owner owner))c.plan_owners;Hashtbl.clear c.plan_owners;Hashtbl.iter(fun _ sampler->ignore(Sampler.destroy sampler))c.sampler_cache;Hashtbl.clear c.sampler_cache;let destroyed=Device.destroy device in match destroyed,c.cleanup_error with Error _ as e,_->e|Ok(),Some e->Error(Adapter.error~operation:"Ogpu_metal.Backend.destroy_device"e)|Ok(),None->c.device_live<-false;Ok())in
     Ok{Ogpu.Backend.device_token;device_handle=Device.Private.handle device;capabilities=Device.capabilities device;create_buffer;create_texture;create_depth_texture;create_stencil_texture;create_pipeline;create_queue;create_surface;destroy_device}in
   {Ogpu.Backend.create_device},c
