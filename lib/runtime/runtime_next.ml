@@ -56,7 +56,15 @@ let configuration ~vsync ~width ~height : Ogpu.Surface.configuration =
    physical_height=height;format=Bgra8_unorm;present_mode=present_mode vsync;
    max_acquired=2}
 
-let create ?(vsync=true) ~width ~height ()=
+let reveal window=
+  match Sdl3.Window.show window with Error _ as error->error|Ok()->
+    ignore(Sdl3.Window.restore window);
+    ignore(Sdl3.Window.raise_window window);
+    ignore(Sdl3.Window.center window);
+    ignore(Sdl3.Window.sync window);
+    ignore(Sdl3.Event.poll_all());
+    Ok()
+let create ?(vsync=true) ?(hidden=true) ?(title="Prismel") ~width ~height ()=
   let op="Runtime_next.create"in
   if width<=0||height<=0 then
     Error(Ogpu.Error.make op Invalid_argument"dimensions must be positive")
@@ -64,10 +72,15 @@ let create ?(vsync=true) ~width ~height ()=
     match sdl op(Sdl3.Init.init[Sdl3.Init.Video])with
     |Error _ as error->error
     |Ok()->
-      match sdl op(Sdl3.Window.create~title:"Prismel native-next"~width~height
-        ~flags:[Hidden;Metal;High_pixel_density]())with
+      let flags:Sdl3.Window.flag list=
+        Metal::High_pixel_density::(if hidden then[Hidden]else[])in
+      match sdl op(Sdl3.Window.create~title~width~height~flags())with
       |Error _ as error->ignore(Sdl3.Init.quit_subsystems[Sdl3.Init.Video]);error
       |Ok window->
+        match (if hidden then Ok() else sdl op(reveal window)) with
+        |Error _ as error->ignore(Sdl3.Window.destroy window);
+          ignore(Sdl3.Init.quit_subsystems[Sdl3.Init.Video]);error
+        |Ok()->
         match sdl op(Sdl3.Metal_view.create window)with
         |Error error->ignore(Sdl3.Window.destroy window);
           ignore(Sdl3.Init.quit_subsystems[Sdl3.Init.Video]);Error error
@@ -187,8 +200,8 @@ let set_bordered value enabled=window_call"Runtime_next.set_bordered"(fun window
 let set_resizable value enabled=window_call"Runtime_next.set_resizable"(fun window->Sdl3.Window.set_resizable window enabled)value
 let set_always_on_top value enabled=window_call"Runtime_next.set_always_on_top"(fun window->Sdl3.Window.set_always_on_top window enabled)value
 let set_fullscreen value enabled=window_call"Runtime_next.set_fullscreen"(fun window->Sdl3.Window.set_fullscreen window enabled)value
-let show value=match window_call"Runtime_next.show" Sdl3.Window.show value with
-  |Error _ as error->error|Ok()->sync_window_facts value
+let show (value:t)=if value.dead then Error(Ogpu.Error.make"Runtime_next.show"Stale_handle"runtime is destroyed")else
+  match sdl"Runtime_next.show"(reveal value.window)with Error _ as error->error|Ok()->sync_window_facts value
 let hide=window_call"Runtime_next.hide" Sdl3.Window.hide
 let visible value=live_window"Runtime_next.visible"value(fun window->
   Result.map(fun flags->Int64.logand flags 0x8L=0L)

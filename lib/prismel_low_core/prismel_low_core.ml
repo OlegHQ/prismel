@@ -20,7 +20,8 @@ module Window = struct
     else
       let configuration = Runtime_next_orchestrator.{
         logical_width=config.width; logical_height=config.height;
-        drawable_width=config.width; drawable_height=config.height;vsync=true } in
+        drawable_width=config.width; drawable_height=config.height;
+        title=config.title; vsync=true } in
       match Runtime_next_orchestrator.create configuration with
       | Error value -> Error (backend "Window.create" value)
       | Ok target ->

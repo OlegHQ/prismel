@@ -17,7 +17,7 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
   stopped:=false;Time.init();
   Time.set_frame_rate(Option.value config.fps~default:0);
   Time.set_vsync(Option.is_none config.fps);
-  let first=frame config 0 0. 0.[]in let model=ref(init first)in
+  let first=frame config 0 0. 0.[]in
   let timing=match config.clock with Realtime->Prismel_next_execution.Variable|Fixed dt when Float.is_finite dt&&dt>0.->Fixed dt|Fixed _->invalid_arg"fixed dt must be finite and positive"in
   let configuration={Prismel_next_execution.default_configuration with logical_width=config.width;logical_height=config.height;drawable_width=config.width;drawable_height=config.height;title=config.title;timing;vsync=Option.is_none config.fps}in
   let get=function Ok x->x|Error e->failwith(Format.asprintf"%a"Prismel_next_execution.pp_error e)in
@@ -53,6 +53,7 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
     |Ok _->()
     |Error error->
         failwith(Format.asprintf"Sketch.render: %a"Native_scene_lowering.pp_error error));
+  let model=ref(init first)in
   let cleanup()=Fun.protect~finally:(fun()->resize_current:=None;Canvas_runtime.clear();ignore(Prismel_next_execution.destroy coordinator);Runtime_diagnostics.Private.record coordinator)(fun()->on_stop!model)in
   Fun.protect~finally:cleanup(fun()->
     let limit=max_frames in let count=ref 0 in while not !stopped&&Option.fold~none:true~some:(fun limit-> !count<limit)limit do

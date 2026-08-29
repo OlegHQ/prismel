@@ -1,5 +1,5 @@
 type configuration = { logical_width:int;logical_height:int;
-  drawable_width:int;drawable_height:int;vsync:bool }
+  drawable_width:int;drawable_height:int;title:string;vsync:bool }
 type facts = { title:string;logical_width:int;logical_height:int;drawable_width:int;
   drawable_height:int;position:(int*int)option;pixel_density:float;display_scale:float;
   refresh_rate:float option;vsync:bool }
@@ -27,9 +27,9 @@ let create (c:configuration)=let op="Runtime_next_orchestrator.create"in
   if c.logical_width<=0||c.logical_height<=0||c.drawable_width<=0||c.drawable_height<=0
   then invalid op"dimensions must be positive"else let finish runtime facts=
     Ok{runtime;facts;pacing={frames=0L;presented=0L;last_presented=false};logical_draws=0L;logical_passes=0L;logical_submissions=0L;dead=false}in
-  match Runtime_next.create~vsync:c.vsync~width:c.logical_width
-      ~height:c.logical_height() with Error _ as e->e|Ok runtime->
-      (match Runtime_next.set_title runtime "Prismel runtime-next",Runtime_next.set_resizable runtime true with
+  match Runtime_next.create~vsync:c.vsync~hidden:false~title:c.title
+      ~width:c.logical_width~height:c.logical_height() with Error _ as e->e|Ok runtime->
+      (match Runtime_next.set_title runtime c.title,Runtime_next.set_resizable runtime true with
        |Ok(),Ok()->(match Runtime_next.window_facts runtime~vsync:c.vsync with
           |Ok f->finish runtime {title=f.title;logical_width=f.logical_width;logical_height=f.logical_height;drawable_width=f.drawable_width;drawable_height=f.drawable_height;position=Some f.position;pixel_density=f.pixel_density;display_scale=f.display_scale;refresh_rate=f.refresh_rate;vsync=f.vsync}
           |Error e->ignore(Runtime_next.destroy runtime);Error e)

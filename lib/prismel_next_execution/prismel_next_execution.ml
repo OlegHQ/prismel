@@ -383,7 +383,7 @@ let create (configuration:configuration) =
     let config:Runtime_next_orchestrator.configuration={
       logical_width=configuration.logical_width;logical_height=configuration.logical_height;
       drawable_width=configuration.drawable_width;drawable_height=configuration.drawable_height;
-      vsync=configuration.vsync}in
+      title=configuration.title;vsync=configuration.vsync}in
     match Runtime_next_orchestrator.create config with Error e->backend operation e|Ok runtime->
       finish_create operation configuration(Window runtime)
         (fun()->Runtime_next_orchestrator.destroy runtime)

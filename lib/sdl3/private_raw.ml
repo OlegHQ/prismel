@@ -24,6 +24,7 @@ external window_size_in_pixels : nativeint -> (int * int) option
   = "caml_sdl3_window_size_in_pixels"
 external window_flags : nativeint -> int64 = "caml_sdl3_window_flags"
 external show_window : nativeint -> bool = "caml_sdl3_show_window"
+external raise_window : nativeint -> bool = "caml_sdl3_raise_window"
 external hide_window : nativeint -> bool = "caml_sdl3_hide_window"
 external set_window_fullscreen : nativeint -> bool -> bool
   = "caml_sdl3_set_window_fullscreen"

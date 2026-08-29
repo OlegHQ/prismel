@@ -13,8 +13,8 @@ type window_facts = {
   pixel_density : float; display_scale : float; refresh_rate : float option;
   vsync : bool;
 }
-val create : ?vsync:bool -> width:int -> height:int -> unit ->
-  (t, Ogpu.Error.t) result
+val create : ?vsync:bool -> ?hidden:bool -> ?title:string ->
+  width:int -> height:int -> unit -> (t, Ogpu.Error.t) result
 val render : ?clear:(float * float * float * float) -> t ->
   Scene_execution.draw list -> (bool, Ogpu.Error.t) result
 val render_sampled_resources : ?after_prepare:(unit -> unit) -> ?clear:(float * float * float * float) -> t ->

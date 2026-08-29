@@ -139,6 +139,7 @@ module Window : sig
   val presentation_facts : t -> vsync:bool -> (presentation_facts, error) result
   val flags : t -> (int64, error) result
   val show : t -> (unit, error) result
+  val raise_window : t -> (unit, error) result
   val hide : t -> (unit, error) result
   val maximize : t -> (unit, error) result
   val minimize : t -> (unit, error) result

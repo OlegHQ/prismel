@@ -191,6 +191,11 @@ CAMLprim value caml_sdl3_show_window(value raw)
   return Val_bool(SDL_ShowWindow(window_of_value(raw)));
 }
 
+CAMLprim value caml_sdl3_raise_window(value raw)
+{
+  return Val_bool(SDL_RaiseWindow(window_of_value(raw)));
+}
+
 CAMLprim value caml_sdl3_hide_window(value raw)
 {
   return Val_bool(SDL_HideWindow(window_of_value(raw)));
