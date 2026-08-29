@@ -156,11 +156,16 @@ R12 30-minute native changing-resource stability with bounded handles/queues/RSS
 **D1.** Software/web/headless/Raster2/Wap plus SDL2/Tsdl/OpenGL source, tests,
 tools, packages, presenters, and compatibility code are deleted.
 
-**D2.** This returns no production/build/package match, except historical
-evidence explicitly listed in the final report:
+**D2.** This token-aware scan returns no unclassified production/build/package
+match. The final report must list every exact pinned-SDK exception; the only
+permitted exception families are Metal's faithfully mapped
+`MTLDevice.isHeadless`/`headless` capability and unused OpenGL-named SDL3
+properties preserved by the generated full SDL3 inventory. Do not exclude
+whole Metal/SDL3 files, ordinary `swap` identifiers, or SDL_image WebP APIs
+from the audit:
 
 ```sh
-rg -n 'Raster2|raster2|ogpu_raster2|Wap|wap|Web|web|Headless|headless|Tsdl|tsdl|SDL2|SDL2_gfx|conf-sdl2|OpenGL|gl[A-Z]' \
+rg -n -P '(?<![[:alnum:]_])(?:Raster2|raster2|ogpu_raster2|Wap|wap|Web|web|Headless|headless|Tsdl(?:_image|_ttf|_mixer)?|tsdl(?:_gfx|-image|-ttf|-mixer)?|SDL2(?:_gfx|_image|_ttf|_mixer)?|sdl2(?:-gfx|-image|-ttf|-mixer)?|libSDL2(?:_gfx|_image|_ttf|_mixer)?|conf-sdl2|OpenGL|opengl|libGL)(?![[:alnum:]_])|(?<![[:alnum:]_])gl[A-Z]' \
   dune-project prismel.opam lib test examples sketches tools
 ```
 
