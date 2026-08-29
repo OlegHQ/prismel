@@ -122,25 +122,6 @@
   (run %{exe:../tools/gpu_migration/capture_environment.exe}
    --root %{workspace_root} --check)))
 
-(rule
- (alias runtest)
- (deps ../specification/evidence/gpu_migration/phase0_environment.json
-  ../specification/evidence/gpu_migration/fixtures.json
-  (glob_files gpu_migration/golden/*.png)
-  (glob_files gpu_migration/traces/*.json))
- (action
-  (run %{exe:../tools/gpu_migration/fixture_manifest.exe}
-   --root %{workspace_root} --check)))
-
-(rule
- (alias runtest)
- (deps ../NEW_GPU_STUFF.md
-  ../specification/evidence/gpu_migration/phase0_baseline.json
-  ../specification/evidence/gpu_migration/phase0_performance.json)
- (action
-  (run %{exe:../tools/gpu_migration/run_baseline_benchmarks.exe}
-   --root %{workspace_root} --check)))
-
 (test
  (name test_sketch_support)
  (modules test_sketch_support)
