@@ -340,10 +340,17 @@ let prepare_texture value ~defer(source:sampled_texture)=
   |Some item when not(String.starts_with~prefix:"canvas:"source.key)->
       item.texture_in_use<-true;Ok item
   |_->
-  let hash=Digest.to_hex(Digest.string(Array.to_list source.levels|>List.map(fun (level:texture_level)->Printf.sprintf"%dx%d:%s"level.width level.height(Digest.to_hex(Digest.string(Bytes.unsafe_to_string level.bytes))))|>String.concat"|"))in
-  match List.find_opt(fun item->item.texture_key=source.key&&item.texture_hash=hash)value.texture_cache with
-  |Some item->item.texture_in_use<-true;Ok item
-  |None->
+  let hash,known_reusable=
+    match List.find_opt(fun item->item.texture_key=source.key)value.texture_cache with
+    |Some item when String.starts_with~prefix:"canvas:"source.key->
+        "",Some item
+    |_->
+        Digest.to_hex(Digest.string(Array.to_list source.levels|>List.map(fun (level:texture_level)->Printf.sprintf"%dx%d:%s"level.width level.height(Digest.to_hex(Digest.string(Bytes.unsafe_to_string level.bytes))))|>String.concat"|")),
+        None in
+  match known_reusable,List.find_opt(fun item->item.texture_key=source.key&&item.texture_hash=hash)value.texture_cache with
+  |None,Some item->item.texture_in_use<-true;Ok item
+  |_->
+    let reusable_override=known_reusable in
     if not(valid_texture source)then error"Scene_execution.prepare_texture"Ogpu.Error.Invalid_argument"texture or sampler is malformed"else
     let shape=Array.to_list source.levels|>List.map(fun (level:texture_level)->Printf.sprintf"%dx%d"level.width level.height)|>String.concat"/"in
     (* Canvas and managed-image identities are unique and lower to one
@@ -353,9 +360,11 @@ let prepare_texture value ~defer(source:sampled_texture)=
        texture; two same-shape images in one submission keep distinct
        textures because an in-use slot cannot be stolen. *)
     let reusable=
-      if not(image_or_canvas_key source.key)then None
-      else match List.find_opt(fun item->item.texture_key=source.key&&
-          item.texture_shape=shape)value.texture_cache with
+      match reusable_override with Some _ as hit->hit
+      |None when not(image_or_canvas_key source.key)->None
+      |None->
+        match List.find_opt(fun item->item.texture_key=source.key&&
+            item.texture_shape=shape)value.texture_cache with
         |Some _ as hit->hit
         |None->List.find_opt(fun item->item.texture_shape=shape&&
             image_or_canvas_key item.texture_key&&not item.texture_in_use)
