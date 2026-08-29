@@ -314,7 +314,7 @@
       "tool": "/usr/bin/leaks --quiet --atExit"
     }
   ],
-  "new_gpu_stuff_sha256": "6f95e5738ae263386bbc414299f598f25ba9f604b48a8c2ef9bee84f974e2954",
+  "new_gpu_stuff_sha256": "7a12828d3eaa7e45eea932bbec297d0bba2a88fe93c6c787f7c1e3a132f289ca",
   "schema": 1,
   "source_artifacts": [
     {
@@ -383,7 +383,7 @@
     },
     {
       "path": "tools/packaging/check_installed_consumer.ml",
-      "sha256": "cff2ab5a13535a61bb790827f2742de8b3f80a47fd9138b0e8aed2f69d41a41c"
+      "sha256": "3871a309f537b7efb93fa93e971b2d00441e1c3d6943b930fee80508fe95243b"
     },
     {
       "path": "tools/packaging/sdl3_asan.supp",
