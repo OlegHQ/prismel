@@ -62,7 +62,7 @@ let () =
       if retained.retained_plan_builds <> 1L || retained.retained_plan_misses <> 1L
          || retained.retained_plan_hits <> 19L || retained.retained_plan_executions <> 20L
          || retained.retained_plan_evictions <> 0L || retained.retained_plan_entries <> 1
-         || retained.retained_plan_capacity <> 64 then
+         || retained.retained_plan_capacity <> 256 then
         failwith "scene2 retained argument counters are not exact";
       let settled_release = ref None in
       let peak_live = ref 0 in
@@ -116,6 +116,24 @@ let () =
          || mixed.retained_plan_hits <> 1617L || mixed.retained_plan_executions <> 1620L
          || mixed.retained_plan_evictions <> 0L || mixed.retained_plan_entries <> 3 then
         failwith "mixed plain/textured Scene2 did not retain one stable plan";
+      for frame = 0 to 159 do
+        let identity = frame mod 80 in
+        let mesh =
+          { mesh with
+            Scene_execution.key = Printf.sprintf "scene2-plan-churn-%02d" identity }
+        in
+        if not (get (Runtime_next.render runtime [{ Scene_execution.mesh; state }])) then
+          failwith "80-identity retained-plan frame was not presented"
+      done;
+      let cycled = Runtime_next.stats runtime in
+      if cycled.retained_plan_builds <> Int64.add mixed.retained_plan_builds 80L
+         || cycled.retained_plan_misses <> Int64.add mixed.retained_plan_misses 80L
+         || cycled.retained_plan_hits <> Int64.add mixed.retained_plan_hits 80L
+         || cycled.retained_plan_executions <> Int64.add mixed.retained_plan_executions 160L
+         || cycled.retained_plan_evictions <> mixed.retained_plan_evictions
+         || cycled.retained_plan_entries <> mixed.retained_plan_entries + 80
+         || cycled.retained_plan_capacity <> 256 then
+        failwith "80 mesh identities thrashed the aligned retained-plan cache";
       get (Runtime_next.destroy runtime);
       ignore (get_metal (Metal.Release_queue.drain ()));
       let after = get_metal (Metal.Release_queue.stats ()) in
