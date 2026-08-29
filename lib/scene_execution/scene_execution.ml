@@ -27,8 +27,9 @@ type prepared_scene3={clear:float*float*float*float;clear_depth:float;
   clear_stencil:int;entries:scene3_entry array}
 type cached={mutable key:string;mutable payload_hash:string;uniform_bytes:bytes option;buffer:Ogpu.Backend.buffer;mutable index_offset:int64;mutable uniform_offset:int64 option;mutable vertex_count:int;mutable index_count:int;bytes:int}
 type cached_auxiliary={auxiliary_key:string;auxiliary_hash:string;auxiliary_buffer:Ogpu.Backend.buffer}
-type cached_texture={texture_key:string;texture_hash:string;texture_shape:string;
-  texture:Ogpu.Backend.texture;texture_bytes:int}
+type cached_texture={mutable texture_key:string;mutable texture_hash:string;
+  texture_shape:string;texture:Ogpu.Backend.texture;texture_bytes:int;
+  mutable texture_in_use:bool}
 type texture_upload_scratch={scratch_buffer:Ogpu.Backend.buffer;
   scratch_bytes:bytes;scratch_size:int}
 type prepared_run={prepared_identity:string;prepared_version:int64;prepared_draws:(pipeline_family*Ogpu.Pipeline.blend*sampled_texture option*auxiliary_resource option*int*draw)list;prepared_bytes:int}
@@ -330,22 +331,29 @@ let texture_upload_scratch value total =
           Option.iter(fun old->ignore(Ogpu.Backend.destroy_buffer old.scratch_buffer))
             previous;
           Ok scratch
+let image_or_canvas_key key=
+  String.starts_with~prefix:"canvas:"key||String.starts_with~prefix:"image:"key
 let prepare_texture value ~defer(source:sampled_texture)=
   let hash=Digest.to_hex(Digest.string(Array.to_list source.levels|>List.map(fun (level:texture_level)->Printf.sprintf"%dx%d:%s"level.width level.height(Digest.to_hex(Digest.string(Bytes.unsafe_to_string level.bytes))))|>String.concat"|"))in
   match List.find_opt(fun item->item.texture_key=source.key&&item.texture_hash=hash)value.texture_cache with
-  |Some item->Ok item
+  |Some item->item.texture_in_use<-true;Ok item
   |None->
     if not(valid_texture source)then error"Scene_execution.prepare_texture"Ogpu.Error.Invalid_argument"texture or sampler is malformed"else
     let shape=Array.to_list source.levels|>List.map(fun (level:texture_level)->Printf.sprintf"%dx%d"level.width level.height)|>String.concat"/"in
     (* Canvas and managed-image identities are unique and lower to one
        authoritative generation per staged frame, so their same-shape storage
        can be updated safely between completed submissions.
-       General sampled keys may occur with multiple payloads in one submission
-       (for example shadow fixtures) and must retain distinct textures. *)
-    let reusable=if String.starts_with~prefix:"canvas:"source.key||
-      String.starts_with~prefix:"image:"source.key then
-      List.find_opt(fun item->item.texture_key=source.key&&item.texture_shape=shape)value.texture_cache
-      else None in
+       A replacement image of the same shape may steal an unused cached
+       texture; two same-shape images in one submission keep distinct
+       textures because an in-use slot cannot be stolen. *)
+    let reusable=
+      if not(image_or_canvas_key source.key)then None
+      else match List.find_opt(fun item->item.texture_key=source.key&&
+          item.texture_shape=shape)value.texture_cache with
+        |Some _ as hit->hit
+        |None->List.find_opt(fun item->item.texture_shape=shape&&
+            image_or_canvas_key item.texture_key&&not item.texture_in_use)
+            value.texture_cache in
     let descriptor:Ogpu.Types.texture_descriptor={label=Some("scene-texture-"^source.key);width=source.levels.(0).width;height=source.levels.(0).height;depth=1;mip_levels=Array.length source.levels;sample_count=1;usage=[Texture_binding;Texture_copy_dst]}in
     let rows=Array.map(fun (level:texture_level)->align256(level.width*4))source.levels in
     let offsets=Array.make(Array.length source.levels)0 in
@@ -365,7 +373,25 @@ let prepare_texture value ~defer(source:sampled_texture)=
     let pass=Ogpu.Transfer_pass.create(Ogpu.Backend.device_handle value.device)in
     let src=Ogpu.Backend.transfer_buffer staging and dst=Ogpu.Backend.transfer_texture texture in
     let failure=ref None in Array.iteri(fun index (level:texture_level)->if !failure=None then match Ogpu.Transfer_pass.buffer_to_texture pass~src~offset:(Int64.of_int offsets.(index))~bytes_per_row:(Int64.of_int rows.(index))~bytes_per_image:(Int64.of_int(rows.(index)*level.height))~dst~mip:index~origin:{x=0;y=0;z=0}~extent:{width=level.width;height=level.height;depth=1}with Ok()->()|Error e->failure:=Some e)source.levels;
-    let finish result=match result with Error e->if created then ignore(Ogpu.Backend.destroy_texture texture);Error e|Ok()->let item={texture_key=source.key;texture_hash=hash;texture_shape=shape;texture;texture_bytes=total}in value.uploaded<-Int64.add value.uploaded(Int64.of_int total);if not cacheable then begin defer(fun()->ignore(Ogpu.Backend.destroy_texture texture));Ok item end else let replaced,others=List.partition(fun old->old.texture_key=source.key)value.texture_cache in List.iter(fun old->if old.texture!=texture then defer(fun()->ignore(Ogpu.Backend.destroy_texture old.texture)))replaced;let keep,evict=trim_texture_cache(item::others)in value.texture_cache<-keep;List.iter(fun old->defer(fun()->ignore(Ogpu.Backend.destroy_texture old.texture)))evict;Ok item in
+    let finish result=match result with Error e->if created then ignore(Ogpu.Backend.destroy_texture texture);Error e|Ok()->
+      value.uploaded<-Int64.add value.uploaded(Int64.of_int total);
+      match reusable with
+      |Some item when item.texture==texture->
+          item.texture_key<-source.key;item.texture_hash<-hash;
+          item.texture_in_use<-true;Ok item
+      |_->let item={texture_key=source.key;texture_hash=hash;texture_shape=shape;
+            texture;texture_bytes=total;texture_in_use=true}in
+          if not cacheable then begin
+            defer(fun()->ignore(Ogpu.Backend.destroy_texture texture));Ok item
+          end else
+            let replaced,others=List.partition(fun old->old.texture_key=source.key)
+              value.texture_cache in
+            List.iter(fun old->if old.texture!=texture then
+              defer(fun()->ignore(Ogpu.Backend.destroy_texture old.texture)))replaced;
+            let keep,evict=trim_texture_cache(item::others)in
+            value.texture_cache<-keep;
+            List.iter(fun old->defer(fun()->ignore(Ogpu.Backend.destroy_texture old.texture)))evict;
+            Ok item in
     match !failure with Some e->finish(Error e)|None->match Ogpu.Backend.transfer pass with Error e->finish(Error e)|Ok command->match Ogpu.Backend.submit value.queue command~resources:[`Buffer staging;`Texture texture]~pipelines:[]with Error e->finish(Error e)|Ok receipt->finish(Ogpu.Backend.complete_through value.queue receipt.epoch)
 let prepare_auxiliary value ~defer(source:auxiliary_resource)=
   let hash=Digest.to_hex(Digest.bytes source.buffer)in
@@ -697,6 +723,7 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
   let deferred=ref[]in let defer release=deferred:=release::!deferred in let finish result=List.iter(fun release->release())!deferred;result in
   let scratch=value.prepared_scratch in
   clear_prepared_scratch scratch;
+  List.iter(fun item->item.texture_in_use<-false)value.texture_cache;
   match ensure_prepared_scratch scratch(List.length draws)with
   |Error _ as result->after_prepare();finish result
   |Ok()->Fun.protect~finally:(fun()->clear_prepared_scratch scratch)(fun()->

@@ -46,7 +46,8 @@ type cached_scene2_quad={quad_texture:Scene_execution.sampled_texture;
   quad_clip:int*int*int*int;quad_uv:float*float*float*float;quad_draw:draw}
 type cached_scene2_quad_payload={payload_destination:Scene_command.Render_ir.rect;
   payload_transform:Scene_command.Render_ir.transform;payload_clip:int*int*int*int;
-  payload_uv:float*float*float*float;payload_vertices:bytes;payload_indices:bytes}
+  payload_uv:float*float*float*float;payload_mesh_key:string;
+  payload_vertices:bytes;payload_indices:bytes}
 type cached_scene2_debug={debug_source:Scene_command.Render_ir.debug_text;
   debug_transform:Scene_command.Render_ir.transform;debug_clip:int*int*int*int;
   debug_draw:draw option}
@@ -562,7 +563,7 @@ let snapshot value ~lease_policy ~density source =
     match find key generation with
     |Some cached->Ok cached
     |None->
-        let sampler:Ogpu.Types.sampler_descriptor={label=Some key;min_filter=Linear;mag_filter=Linear;
+        let sampler:Ogpu.Types.sampler_descriptor={label=Some"scene-image";min_filter=Linear;mag_filter=Linear;
           mip_filter=No_mip;address_u=Clamp_to_edge;address_v=Clamp_to_edge;lod_min=0.;lod_max=0.;max_anisotropy=1}in
         let bytes=if copy then Bytes.copy pixels else pixels in
         let texture:Scene_execution.sampled_texture={key=key^":"^string_of_int density;
@@ -579,7 +580,7 @@ let snapshot value ~lease_policy ~density source =
       |Some cached->Ok cached
       |None->match Prismel_next_resources.Image.Private.borrow_snapshot image with
       |Ok(width,height,borrowed_generation,pixels,lease)->
-          let sampler:Ogpu.Types.sampler_descriptor={label=Some key;min_filter=Linear;mag_filter=Linear;
+          let sampler:Ogpu.Types.sampler_descriptor={label=Some"scene-image";min_filter=Linear;mag_filter=Linear;
             mip_filter=No_mip;address_u=Clamp_to_edge;address_v=Clamp_to_edge;lod_min=0.;lod_max=0.;max_anisotropy=1}in
           let cacheable=Bytes.length pixels<=snapshot_cache_entry_byte_capacity in
           let bytes=if cacheable then
@@ -687,10 +688,10 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
       cached.quad_clip=clip&&cached.quad_uv=uv)value.scene2_quad_cache with
     |Some cached->cached.quad_draw
     |None->
-    let vertices,indices=match List.find_opt(fun cached->
+    let vertices,indices,mesh_key=match List.find_opt(fun cached->
       cached.payload_destination=destination&&cached.payload_transform=transform&&
       cached.payload_clip=clip&&cached.payload_uv=uv)value.scene2_quad_payload_cache with
-    |Some cached->cached.payload_vertices,cached.payload_indices
+    |Some cached->cached.payload_vertices,cached.payload_indices,cached.payload_mesh_key
     |None->
     let x0,y0=point transform destination.Scene_command.Render_ir.x destination.y
     and x1,y0'=point transform(destination.x+.destination.width)destination.y
@@ -701,15 +702,22 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
       put_float vertices(offset+40)1.;Bytes.set_int32_le vertices(offset+48)0xffffffffl;put_float vertices(offset+52)u;put_float vertices(offset+60)v in
     put 0 x0 y0 u0 v0;put 1 x1 y0' u1 v0;put 2 x1' y1 u1 v1;put 3 x0' y1' u0 v1;
     let indices=Bytes.create 24 in List.iteri(fun i n->Bytes.set_int32_le indices(i*4)(Int32.of_int n))[0;1;2;0;2;3];
+    let cx,cy,cw,ch=clip in
+    let mesh_key=Printf.sprintf
+      "quad:%.8g,%.8g,%.8g,%.8g:%.8g,%.8g,%.8g,%.8g,%.8g,%.8g:%d,%d,%d,%d:%.8g,%.8g,%.8g,%.8g"
+      destination.x destination.y destination.width destination.height
+      transform.xx transform.xy transform.yx transform.yy transform.tx transform.ty
+      cx cy cw ch u0 v0 u1 v1 in
     let cached={payload_destination=destination;payload_transform=transform;
-      payload_clip=clip;payload_uv=uv;payload_vertices=vertices;payload_indices=indices}in
+      payload_clip=clip;payload_uv=uv;payload_mesh_key=mesh_key;
+      payload_vertices=vertices;payload_indices=indices}in
     value.scene2_quad_payload_cache<-cached::value.scene2_quad_payload_cache;
     if List.length value.scene2_quad_payload_cache>256 then
       value.scene2_quad_payload_cache<-List.rev(List.tl(List.rev value.scene2_quad_payload_cache));
-    vertices,indices in
+    vertices,indices,mesh_key in
     let x,y,w,h=clip in
     let draw={family=Scene2_textured;blend=Alpha;texture=Some texture;auxiliary=None;samples=1;
-      value={Scene_execution.mesh={key=Printf.sprintf"snapshot-%d"!number;vertices;vertex_count=4;indices;index_count=6};state=default_state(x,y,w,h)(x,y,w,h)}}in
+      value={Scene_execution.mesh={key=mesh_key;vertices;vertex_count=4;indices;index_count=6};state=default_state(x,y,w,h)(x,y,w,h)}}in
     let cached={quad_texture=texture;quad_destination=destination;
       quad_transform=transform;quad_clip=clip;quad_uv=uv;quad_draw=draw}in
     if sampled_texture_bytes texture<=snapshot_cache_entry_byte_capacity then begin
