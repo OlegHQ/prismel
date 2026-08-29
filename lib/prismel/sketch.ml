@@ -16,13 +16,18 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
   Option.iter(fun domains->if domains<=0 then invalid_arg"Sketch: domains must be positive")config.domains;
   stopped:=false;Time.init();
   Time.set_frame_rate(Option.value config.fps~default:0);
-  Time.set_vsync(Option.is_none config.fps);
+  let vsync=match config.clock with Fixed _->false|Realtime->true in
+  Time.set_vsync vsync;
   let first=frame config 0 0. 0.[]in
   let timing=match config.clock with Realtime->Prismel_next_execution.Variable|Fixed dt when Float.is_finite dt&&dt>0.->Fixed dt|Fixed _->invalid_arg"fixed dt must be finite and positive"in
-  let configuration={Prismel_next_execution.default_configuration with logical_width=config.width;logical_height=config.height;drawable_width=config.width;drawable_height=config.height;title=config.title;timing;vsync=Option.is_none config.fps}in
+  let configuration={Prismel_next_execution.default_configuration with logical_width=config.width;logical_height=config.height;drawable_width=config.width;drawable_height=config.height;title=config.title;timing;vsync}in
   let get=function Ok x->x|Error e->failwith(Format.asprintf"%a"Prismel_next_execution.pp_error e)in
   let coordinator=get(Prismel_next_execution.create configuration)in
   get(Prismel_next_execution.show coordinator);
+  (match Prismel_next_execution.presentation_facts coordinator with
+   |Ok facts->Event.configure~logical_width:facts.logical_width
+       ~logical_height:facts.logical_height
+   |Error _->());
   Runtime_diagnostics.Private.install coordinator;
   let logical_width=ref config.width and logical_height=ref config.height in
   let capture ()=
@@ -62,6 +67,10 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
       incr count;let dt=match config.clock with Realtime->Time.get_delta_time()|Fixed value->value in
       let base=frame config !count(match config.clock with Realtime->Time.now()|Fixed _->float !count*.dt)dt events in
       let presentation=get(Prismel_next_execution.presentation_facts coordinator)in
+      if presentation.logical_width<> !logical_width
+          ||presentation.logical_height<> !logical_height then
+        Event.configure~logical_width:presentation.logical_width
+          ~logical_height:presentation.logical_height;
       logical_width:=presentation.logical_width;logical_height:=presentation.logical_height;
       let scale_x=float presentation.drawable_width/.float presentation.logical_width
       and scale_y=float presentation.drawable_height/.float presentation.logical_height in

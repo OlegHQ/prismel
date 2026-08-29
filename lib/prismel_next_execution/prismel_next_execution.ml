@@ -95,7 +95,7 @@ let identity_transform (transform:Command.transform)=
   transform.xx=1.&&transform.xy=0.&&transform.yx=0.&&transform.yy=1.&&
   transform.tx=0.&&transform.ty=0.
 let scene2_vertex_stride=24
-let mesh_of_geometry number transform clip (geometry:Command.geometry) =
+let mesh_of_geometry number transform ~viewport clip (geometry:Command.geometry) =
   let count=Array.length geometry.vertices/2 in
   let vertices=Bytes.create(count*scene2_vertex_stride) in
   for index=0 to count-1 do
@@ -106,10 +106,10 @@ let mesh_of_geometry number transform clip (geometry:Command.geometry) =
   done;
   let indices=Bytes.create(Array.length geometry.indices*4) in
   Array.iteri(fun index value->Bytes.set_int32_le indices(index*4)(Int32.of_int value))geometry.indices;
-  let x,y,width,height=clip in
+  let vx,vy,vw,vh=viewport and sx,sy,sw,sh=clip in
   { family=Scene2;blend=Alpha;texture=None;auxiliary=None;samples=1; value={Scene_execution.mesh={key=Printf.sprintf "ir-%Ld-%d" 0L number;
       vertices;vertex_count=count;indices;index_count=Array.length geometry.indices};
-      state={(default_state (x,y,width,height) (x,y,width,height))with
+      state={(default_state (vx,vy,vw,vh) (sx,sy,sw,sh))with
         transform_uniforms=(if identity_transform transform then None else Some(affine_uniforms transform))}} }
 let debug_text_geometry (transform:Command.transform) (debug:Command.debug_text) =
   let stop = match String.index_opt debug.text '\000' with
@@ -184,12 +184,14 @@ let scene2_commands commands =
           clips:=(x,y,w,h)::!clips
     |Pop_clip->(match !clips with _::(_::_ as rest)->clips:=rest|_->())
     |Geometry geometry->
-        let draw=mesh_of_geometry !number(List.hd!transforms)(List.hd!clips)geometry in
+        let clip=List.hd!clips in
+        let draw=mesh_of_geometry !number(List.hd!transforms)~viewport:clip clip geometry in
         draws:={draw with blend= !blend}::!draws;incr number
     |Debug_text debug->
         let geometry=debug_text_geometry(List.hd!transforms)debug in
         if Array.length geometry.indices>0 then begin
-          let draw=mesh_of_geometry !number identity(List.hd!clips)geometry in
+          let clip=List.hd!clips in
+          let draw=mesh_of_geometry !number identity~viewport:clip clip geometry in
           draws:={draw with blend= !blend}::!draws;
           incr number
         end
@@ -403,7 +405,10 @@ let create (configuration:configuration) =
 let create_offscreen (configuration:configuration)=
   let operation="Prismel_next_execution.create_offscreen"in
   match valid_configuration operation configuration with Error _ as error->error|Ok()->
-  match Runtime_next.create_offscreen~width:configuration.drawable_width
+  match Runtime_next.create_offscreen
+      ~logical_width:configuration.logical_width
+      ~logical_height:configuration.logical_height
+      ~width:configuration.drawable_width
       ~height:configuration.drawable_height with
   |Error error->backend operation error
   |Ok runtime->
@@ -656,7 +661,8 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
   let native_projection={Scene_command.Render_ir.xx=2./.float facts.logical_width;xy=0.;yx=0.;
     yy=(-2.)/.float facts.logical_height;tx=(-1.);ty=1.} in
   let render_transform transform=compose_raster native_projection transform in
-  let transforms=ref[identity]and clips=ref[(0,0,facts.logical_width,facts.logical_height)]
+  let framebuffer=(0,0,facts.logical_width,facts.logical_height) in
+  let transforms=ref[identity]and clips=ref[framebuffer]
   and blend=ref Alpha and number=ref 0 and failure=ref None in
   List.iter(fun cached->cached.in_use<-false)value.scene2_geometry_cache;
   let emit draw=
@@ -682,15 +688,16 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
     let fingerprint=Hashtbl.hash(geometry.vertices,geometry.indices)in
     let source_bytes=Array.length geometry.vertices*(Sys.word_size/8)+
       Array.length geometry.indices*(Sys.word_size/8)in
-    let same vertices indices cached_fingerprint color cached_clip=
+    let same vertices indices cached_fingerprint color cached_clip viewport=
       cached_fingerprint=fingerprint&&vertices=geometry.vertices&&indices=geometry.indices&&
-      color=geometry.color&&cached_clip=clip in
-    match List.find_opt(fun cached->not cached.in_use&&same cached.vertices cached.indices cached.fingerprint cached.color cached.clip)value.scene2_geometry_cache with
+      color=geometry.color&&cached_clip=clip&&viewport=framebuffer in
+    match List.find_opt(fun cached->not cached.in_use&&same cached.vertices cached.indices cached.fingerprint cached.color cached.clip cached.draw.value.state.viewport)value.scene2_geometry_cache with
     |Some cached->
         write_affine cached.uniform_bytes transform;
         cached.in_use<-true;cached.draw
     |None->
-        let draw=mesh_of_geometry number(command_transform_of_raster transform)clip
+        let draw=mesh_of_geometry number(command_transform_of_raster transform)
+          ~viewport:framebuffer clip
           (command_geometry_of_raster geometry)in
         (* Admission candidates deliberately retain metadata, not the source
            arrays.  Scene construction commonly creates fresh arrays and an
@@ -738,7 +745,8 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
     let clip=List.hd!clips in
     match List.find_opt(fun cached->cached.quad_texture==texture&&
       cached.quad_destination=destination&&cached.quad_transform=transform&&
-      cached.quad_clip=clip&&cached.quad_uv=uv)value.scene2_quad_cache with
+      cached.quad_clip=clip&&cached.quad_uv=uv&&
+      cached.quad_draw.value.state.viewport=framebuffer)value.scene2_quad_cache with
     |Some cached->cached.quad_draw
     |None->
     let vertices,indices,mesh_key=match List.find_opt(fun cached->
@@ -768,9 +776,8 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
     if List.length value.scene2_quad_payload_cache>256 then
       value.scene2_quad_payload_cache<-List.rev(List.tl(List.rev value.scene2_quad_payload_cache));
     vertices,indices,mesh_key in
-    let x,y,w,h=clip in
     let draw={family=Scene2_textured;blend=Alpha;texture=Some texture;auxiliary=None;samples=1;
-      value={Scene_execution.mesh={key=mesh_key;vertices;vertex_count=4;indices;index_count=6};state=default_state(x,y,w,h)(x,y,w,h)}}in
+      value={Scene_execution.mesh={key=mesh_key;vertices;vertex_count=4;indices;index_count=6};state=default_state framebuffer clip}}in
     let cached={quad_texture=texture;quad_destination=destination;
       quad_transform=transform;quad_clip=clip;quad_uv=uv;quad_draw=draw}in
     if sampled_texture_bytes texture<=snapshot_cache_entry_byte_capacity then begin
@@ -812,7 +819,8 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
             let geometry=debug_text_geometry(command_transform_of_raster transform)
               Command.{x=debug.x;y=debug.y;text=debug.text;color=debug.color}in
             let draw=if Array.length geometry.indices=0 then None else
-              Some(mesh_of_geometry!number(command_transform_of_raster identity)clip geometry)in
+              Some(mesh_of_geometry!number(command_transform_of_raster identity)
+                ~viewport:framebuffer clip geometry)in
             value.scene2_debug_cache<-{debug_source=debug;debug_transform=transform;
               debug_clip=clip;debug_draw=draw}::value.scene2_debug_cache;
             if List.length value.scene2_debug_cache>256 then
@@ -967,6 +975,7 @@ let resize value ~logical_width ~logical_height ~drawable_width ~drawable_height
   |Window runtime->Runtime_next_orchestrator.resize runtime~logical_width~logical_height
       ~drawable_width~drawable_height
   |Offscreen state->match Runtime_next.resize_offscreen state.runtime
+      ~logical_width~logical_height
       ~width:drawable_width~height:drawable_height with
     |Error _ as error->error
     |Ok()->let pixel_density=float drawable_width/.float logical_width in

@@ -128,6 +128,15 @@ let begin_frame value =
   value.mouse_delta <- (0., 0.);
   value.wheel_delta <- (0., 0.)
 
+let set_extent value ~logical_width ~logical_height =
+  if logical_width <= 0 || logical_height <= 0 then
+    Error "logical dimensions must be positive"
+  else begin
+    value.logical_width <- logical_width;
+    value.logical_height <- logical_height;
+    Ok ()
+  end
+
 let snapshot value =
   { pointer = value.pointer; mouse_delta = value.mouse_delta;
     wheel_delta = value.wheel_delta; buttons = value.buttons; keys = value.keys;

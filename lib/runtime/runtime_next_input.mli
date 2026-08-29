@@ -38,6 +38,7 @@ val create : max_events:int -> max_file_bytes:int ->
 val push : t -> event -> (unit, string) result
 val drain : t -> event list
 val begin_frame : t -> unit
+val set_extent : t -> logical_width:int -> logical_height:int -> (unit, string) result
 val snapshot : t -> snapshot
 val queued_count : t -> int
 val push_file_path : t -> string -> (unit,string) result

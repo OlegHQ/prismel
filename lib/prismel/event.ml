@@ -26,6 +26,10 @@ let convert=function
   | File_dropped{name;_}->Some(FileDropped name)|Resized(w,h)->Some(WindowResized(w,h))
   | Focus_lost->Some WindowFocusLost|Quit->Some WindowClosed|Focus_gained|Visibility_changed _->None
 let apply=function KeyPressed k->Input.press_key k|KeyReleased k->Input.release_key k|MouseMoved(x,y)->Input.update_mouse_pos x y|MousePressed(b,(x,y))->Input.update_mouse_pos x y;Input.press_mouse_button b|MouseReleased(b,(x,y))->Input.update_mouse_pos x y;Input.release_mouse_button b|PointerCancelled b->Input.release_mouse_button b|WindowFocusLost->Input.clear_all_input()|_->()
+let configure ~logical_width ~logical_height =
+  match Runtime_next_input.set_extent source ~logical_width ~logical_height with
+  | Ok () -> ()
+  | Error message -> invalid_arg ("Event.configure: " ^ message)
 let poll_events()=
   Input.begin_frame();
   (match Runtime_next_input_sdl3.pump source with Ok()->()|Error _->());

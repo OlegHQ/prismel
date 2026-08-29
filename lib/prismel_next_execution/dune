@@ -14,3 +14,8 @@
  (name test_offscreen)
  (modules test_offscreen)
  (libraries prismel_next_execution metal unix))
+
+(test
+ (name test_scene2_coordinates)
+ (modules test_scene2_coordinates)
+ (libraries prismel_next_execution scene_command metal))

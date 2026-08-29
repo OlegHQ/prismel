@@ -58,7 +58,7 @@ let push value event =
   |_->match translate event with None -> Ok () | Some event -> Runtime_next_input.push value event
 
 let pump value =
-  match Sdl3.Event.poll_all () with
+  match Sdl3.Event.poll_coalesced () with
   | Error error -> Error (Format.asprintf "%a" Sdl3.pp_error error)
   | Ok events ->
       let rec loop = function

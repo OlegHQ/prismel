@@ -51,7 +51,8 @@ val maximize : t -> (unit, Ogpu.Error.t) result
 val restore : t -> (unit, Ogpu.Error.t) result
 val destroy : t -> (unit, Ogpu.Error.t) result
 type offscreen
-val create_offscreen : width:int -> height:int -> (offscreen,Ogpu.Error.t) result
+val create_offscreen : logical_width:int -> logical_height:int ->
+  width:int -> height:int -> (offscreen,Ogpu.Error.t) result
 val render_offscreen : ?after_prepare:(unit -> unit) -> ?clear:(float*float*float*float) -> offscreen ->
   (Scene_execution.pipeline_family * Ogpu.Pipeline.blend *
    Scene_execution.sampled_texture option * Scene_execution.auxiliary_resource option *
@@ -67,8 +68,8 @@ val render_offscreen_prepared : ?after_prepare:(unit -> unit) -> ?clear:(float*f
 val read_offscreen : offscreen -> bytes_per_row:int -> (bytes,Ogpu.Error.t) result
 val read_offscreen_into : offscreen -> bytes_per_row:int -> destination:bytes ->
   (unit,Ogpu.Error.t) result
-val resize_offscreen : offscreen -> width:int -> height:int ->
-  (unit,Ogpu.Error.t) result
+val resize_offscreen : offscreen -> logical_width:int -> logical_height:int ->
+  width:int -> height:int -> (unit,Ogpu.Error.t) result
 val offscreen_stats : offscreen -> stats
 val offscreen_facts : offscreen -> frame_facts
 val destroy_offscreen : offscreen -> (unit,Ogpu.Error.t) result

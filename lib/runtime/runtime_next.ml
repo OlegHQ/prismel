@@ -126,9 +126,9 @@ let create ?(vsync=true) ?(hidden=true) ?(title="Prismel") ~width ~height ()=
                     Error error
                   |Ok()->Ok{window;view;renderer;cache;device;control;facts;
                     vsync;dead=false}
-let create_offscreen ~width ~height=
+let create_offscreen ~logical_width ~logical_height ~width ~height=
   let op="Runtime_next.create_offscreen"in
-  if width<=0||height<=0 then
+  if width<=0||height<=0||logical_width<=0||logical_height<=0 then
     Error(Ogpu.Error.make op Invalid_argument"dimensions must be positive")
   else match Ogpu_metal.Device.system_default()with
     |Error _ as error->error
@@ -140,9 +140,10 @@ let create_offscreen ~width ~height=
           ~before_device_destroy:(fun()->Ok())with
         |Error _ as error->error
         |Ok(renderer,cache)->
-            let facts={logical_width=width;logical_height=height;
+            let facts={logical_width;logical_height;
               drawable_width=width;drawable_height=height;
-              pixel_scale_x=1.;pixel_scale_y=1.}in
+              pixel_scale_x=float width/.float logical_width;
+              pixel_scale_y=float height/.float logical_height}in
             Ok{renderer;cache;device;control;facts;dead=false}
 let scale_rect (facts:frame_facts)(x,y,w,h)=let edge value logical drawable=value*drawable/logical in let l=edge x facts.logical_width facts.drawable_width and t=edge y facts.logical_height facts.drawable_height and r=edge(x+w)facts.logical_width facts.drawable_width and b=edge(y+h)facts.logical_height facts.drawable_height in(l,t,r-l,b-t)
 let map_logical_rect=scale_rect
@@ -220,12 +221,13 @@ let destroy (value:t)=if value.dead then Ok()else(
 let render_offscreen ?after_prepare ?clear value draws=if value.dead then
   (Option.iter(fun f->f())after_prepare;Error(Ogpu.Error.make"Runtime_next.render_offscreen"Stale_handle
     "offscreen target is destroyed"))
-  else Scene_execution.render_sampled_resources ?after_prepare ?clear value.renderer draws
+  else Scene_execution.render_sampled_resources ?after_prepare ?clear value.renderer
+    (scale_sampled_resources value.facts draws)
 let render_offscreen_prepared ?after_prepare ?clear ~identity ~version value draws=if value.dead then
   (Option.iter(fun f->f())after_prepare;Error(Ogpu.Error.make"Runtime_next.render_offscreen_prepared"Stale_handle
     "offscreen target is destroyed"))
   else Scene_execution.render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version
-    value.renderer draws
+    value.renderer (scale_sampled_resources value.facts draws)
 let read_offscreen value~bytes_per_row=if value.dead then
   Error(Ogpu.Error.make"Runtime_next.read_offscreen"Stale_handle
     "offscreen target is destroyed")
@@ -234,18 +236,20 @@ let read_offscreen_into value~bytes_per_row~destination=if value.dead then
   Error(Ogpu.Error.make"Runtime_next.read_offscreen_into"Stale_handle
     "offscreen target is destroyed")
   else Scene_execution.read_pixels_into value.renderer~bytes_per_row~destination
-let resize_offscreen value~width~height=
+let resize_offscreen value ~logical_width ~logical_height ~width ~height=
   if value.dead then Error(Ogpu.Error.make"Runtime_next.resize_offscreen"
     Stale_handle"offscreen target is destroyed")
-  else if width<=0||height<=0 then Error(Ogpu.Error.make
-    "Runtime_next.resize_offscreen"Invalid_argument"dimensions must be positive")
+  else if width<=0||height<=0||logical_width<=0||logical_height<=0 then
+    Error(Ogpu.Error.make"Runtime_next.resize_offscreen"Invalid_argument
+      "dimensions must be positive")
   else
     let configuration=configuration~vsync:false~width~height in
     match Scene_execution.resize value.renderer configuration with
     |Error _ as error->error
-    |Ok()->value.facts<-{logical_width=width;logical_height=height;
+    |Ok()->value.facts<-{logical_width;logical_height;
         drawable_width=width;drawable_height=height;
-        pixel_scale_x=1.;pixel_scale_y=1.};Ok()
+        pixel_scale_x=float width/.float logical_width;
+        pixel_scale_y=float height/.float logical_height};Ok()
 let offscreen_stats value=let timing=Ogpu_metal.Queue.gpu_timing_for_device value.device
   and retained=Ogpu_metal.Backend.retained_plan_stats value.control in
   {pipeline_cache_entries=Ogpu_metal.Pipeline.cache_length value.cache;

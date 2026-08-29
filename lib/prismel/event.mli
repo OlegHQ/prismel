@@ -16,7 +16,10 @@ type t =
   | WindowFocusLost
   | WindowClosed                                             (* user attempted to close *)
 
-(* Poll all pending events and update Input state *)
+(* Bind the event stream to the running window's logical size. *)
+val configure : logical_width:int -> logical_height:int -> unit
+
+(* Poll pending native events and update Input state *)
 val poll_events : unit -> t list
 
 (* Process events through optional user event handler *)

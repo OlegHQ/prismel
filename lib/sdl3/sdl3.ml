@@ -1254,6 +1254,41 @@ module Event = struct
     in
     loop [])
 
+  let size_event_type = function
+    | 0x205 | 0x206 | 0x207 | 0x208 -> true
+    | _ -> false
+
+  let poll_coalesced () = on_main "SDL3.Event.poll_coalesced" (fun () ->
+    let rec loop last_motion last_size events =
+      match Private_raw.poll_event () with
+      | None ->
+          let events = match last_size with
+            | None -> events
+            | Some event -> of_raw event :: events
+          in
+          let events = match last_motion with
+            | None -> events
+            | Some event -> of_raw event :: events
+          in
+          Ok (List.rev events)
+      | Some (Private_raw.Mouse_motion _ as event) ->
+          loop (Some event) last_size events
+      | Some (Private_raw.Window (event_type, _, _, _, _) as event)
+        when size_event_type event_type ->
+          loop last_motion (Some event) events
+      | Some event ->
+          let events = match last_size with
+            | None -> events
+            | Some size -> of_raw size :: events
+          in
+          let events = match last_motion with
+            | None -> events
+            | Some motion -> of_raw motion :: events
+          in
+          loop None None (of_raw event :: events)
+    in
+    loop None None [])
+
   let wait ~timeout_ms =
     if timeout_ms < -1 || Int64.of_int timeout_ms > Int64.of_int32 Int32.max_int then
       error "SDL3.Event.wait" Invalid_argument
