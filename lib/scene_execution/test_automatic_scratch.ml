@@ -146,6 +146,28 @@ let ()=
   require(Ogpu.Backend_mock.live_counts control=(0,0,0,0,0))
     "prepared scratch capacity rejection leaked handles";
   let driver,control=Ogpu.Backend_mock.create()in
+  let renderer=get(Scene_execution.create_variants driver configuration)in
+  let first={Scene_execution.mesh=mesh 70_000;state}
+  and second={Scene_execution.mesh=mesh 70_001;
+    state={state with depth_write=true}}in
+  let stable=[Scene_execution.Scene2,Ogpu.Pipeline.Replace,None,None,1,first;
+    Scene_execution.Scene3,Ogpu.Pipeline.Replace,None,None,1,second]in
+  ignore(get(Scene_execution.render_sampled_resources renderer stable));
+  ignore(get(Scene_execution.render_sampled_resources renderer stable));
+  let builds0,reuses0=Scene_execution.Private.retained_batch_stats renderer in
+  let changed=[List.hd stable;
+    Scene_execution.Scene3,Ogpu.Pipeline.Replace,None,None,1,
+      {second with state={second.state with scissor=(1,1,62,62)}}]in
+  ignore(get(Scene_execution.render_sampled_resources renderer changed));
+  let builds1,reuses1=Scene_execution.Private.retained_batch_stats renderer in
+  require(reuses1>reuses0&&builds1>builds0)
+    (Printf.sprintf
+      "changed second segment did not reuse stable first batch: %Ld/%Ld -> %Ld/%Ld"
+      builds0 reuses0 builds1 reuses1);
+  get(Scene_execution.destroy renderer);
+  require(Ogpu.Backend_mock.live_counts control=(0,0,0,0,0))
+    "retained batch segment test leaked handles";
+  let driver,control=Ogpu.Backend_mock.create()in
   let renderer=get(Scene_execution.create driver configuration)in
   let releases=ref 0 in
   let release()=incr releases in

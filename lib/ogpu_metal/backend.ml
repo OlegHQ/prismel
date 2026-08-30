@@ -4,7 +4,7 @@ module Metal=struct
   include Native_metal
   type indirect_primitive=Native_metal.Indirect_command_buffer.Render_command.primitive=Point|Line|Line_strip|Triangle|Triangle_strip
 end
-type plan_owner={queue_token:int64;mutable last_epoch:int64;dependencies:int64 list;pipeline_keys:string list;commands:Metal.Indirect_command_buffer.Render_command.t list;samplers:Metal.Sampler.t list;encoders:Metal.Shader_argument_encoder.t list;buffers:Metal.Buffer.t list;resource_sets:Metal.Render_encoder.prepared_resources list;vertex_resources:Metal.Render_encoder.prepared_resources;fragment_resources:Metal.Render_encoder.prepared_resources;texture_resources:Metal.Render_encoder.prepared_resources}
+type plan_owner={queue_token:int64;mutable last_epoch:int64;dependencies:int64 array;pipeline_keys:string list;commands:Metal.Indirect_command_buffer.Render_command.t list;samplers:Metal.Sampler.t list;encoders:Metal.Shader_argument_encoder.t list;buffers:Metal.Buffer.t list;resource_sets:Metal.Render_encoder.prepared_resources list;vertex_resources:Metal.Render_encoder.prepared_resources;fragment_resources:Metal.Render_encoder.prepared_resources;texture_resources:Metal.Render_encoder.prepared_resources}
 type retired={queue_token:int64;epoch:int64;icb:Metal.Indirect_command_buffer.t;owner:plan_owner option}
 type retained_plan_stats={builds:int64;hits:int64;misses:int64;evictions:int64;executions:int64;entries:int;capacity:int}
 type active_queue=
@@ -56,7 +56,7 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64) ()=
   let create_device()=if c.device_live then error"Ogpu_metal.Backend.create_device"Ogpu.Error.Invalid_state"adapter already owns a live device"else match obtain_device()with Error _ as e->e|Ok device->c.device_live<-true;let device_token=token c in
     let handoff~key~generation:_ icb=c.plan_evictions<-Int64.succ c.plan_evictions;let owner:plan_owner option=Hashtbl.find_opt c.plan_owners key in Hashtbl.remove c.plan_owners key;let queue_token=Option.fold~none:0L~some:(fun(owner:plan_owner)->owner.queue_token)owner and epoch=Option.fold~none:0L~some:(fun(owner:plan_owner)->owner.last_epoch)owner in let retired={queue_token;epoch;icb;owner}in let completed=Option.value(Hashtbl.find_opt c.completed_epochs queue_token)~default:0L in if epoch=0L||epoch<=completed||not(Hashtbl.mem c.active_queues queue_token)then record_cleanup(destroy_retired retired)else c.retired<-retired::c.retired in
     (match Metal.Retained_render_plan.create~device:(Device.Private.metal device)~capacity:retained_plan_capacity~on_evict:handoff()with Ok cache->c.plan_cache<-Some cache|Error _->());
-    let invalidate_resource id=Hashtbl.iter(fun _ (invalidate,_,_,_)->invalidate id)c.classic_invalidators;match c.plan_cache with None->()|Some cache->let keys=Hashtbl.fold(fun key(owner:plan_owner) acc->if List.mem id owner.dependencies then key::acc else acc)c.plan_owners[]in List.iter(fun key->ignore(Metal.Retained_render_plan.invalidate cache key))keys in
+    let invalidate_resource id=Hashtbl.iter(fun _ (invalidate,_,_,_)->invalidate id)c.classic_invalidators;match c.plan_cache with None->()|Some cache->let keys=Hashtbl.fold(fun key(owner:plan_owner) acc->if Array.exists(Int64.equal id)owner.dependencies then key::acc else acc)c.plan_owners[]in List.iter(fun key->ignore(Metal.Retained_render_plan.invalidate cache key))keys in
     let create_buffer descriptor=match Buffer.create device~memory:Buffer.Shared descriptor with Error _ as e->e|Ok buffer->let id=token c in Hashtbl.add c.resources id(Buffer buffer);let read offset length=Buffer.read_bytes device buffer~offset~length in Ok{Ogpu.Backend.token=id;write=(fun offset bytes->Buffer.write_bytes device buffer~dst_offset:offset bytes);read;read_into=(fun offset destination destination_offset length->match read offset length with Error _ as e->e|Ok bytes->if destination_offset<0||length>Bytes.length destination-destination_offset then error"Ogpu_metal.Backend.buffer.read_into"Ogpu.Error.Invalid_argument"destination range is invalid"else(Bytes.blit bytes 0 destination destination_offset length;Ok()));destroy=(fun()->invalidate_resource id;match Buffer.destroy buffer with Error _ as e->e|Ok()->Hashtbl.remove c.resources id;Ok())}in
     let create_texture_format ~format ~host_read descriptor=match Texture.create device~memory:(if descriptor.Ogpu.Types.sample_count=1&&host_read then Texture.Shared else Device_local)~format descriptor with Error _ as e->e|Ok texture->let id=token c in Hashtbl.add c.resources id(Texture texture);let read offset length=if not host_read then error"Ogpu_metal.Backend.depth.read"Ogpu.Error.Unsupported"depth textures are not host readable"else if offset<>0L||descriptor.height<=0||length mod descriptor.height<>0 then error"Ogpu_metal.Backend.texture.read"Ogpu.Error.Invalid_argument"texture read range is invalid"else Texture.read_bytes device texture~mip_level:0~bytes_per_row:(length/descriptor.height)in let read_into offset destination destination_offset length=if not host_read then error"Ogpu_metal.Backend.depth.read_into"Ogpu.Error.Unsupported"depth textures are not host readable"else if offset<>0L||destination_offset<>0||length<>Bytes.length destination||descriptor.height<=0||length mod descriptor.height<>0 then error"Ogpu_metal.Backend.texture.read_into"Ogpu.Error.Invalid_argument"destination must exactly match the texture read range"else Texture.read_bytes_into device texture~mip_level:0~bytes_per_row:(length/descriptor.height)~destination in Ok{Ogpu.Backend.token=id;write=(fun _ _->error"Ogpu_metal.Backend.texture.write"Ogpu.Error.Unsupported"use a transfer pass for textures");read;read_into;destroy=(fun()->invalidate_resource id;match Texture.destroy texture with Error _ as e->e|Ok()->Hashtbl.remove c.resources id;Ok())}in
     let create_texture descriptor=create_texture_format~format:Texture.Rgba8_unorm~host_read:true descriptor in
@@ -155,15 +155,25 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64) ()=
           (match cached_classic with
           |Some(_,_,_,encoded)->submit_native_render~presenting presentation queue encoded
           |None->
-          let cached_retained=List.find_opt(fun(old_command,old_pipelines,key,_,_,_)->
-            old_command==command&&same_pipelines old_pipelines pipelines&&
-            Hashtbl.mem c.plan_owners key)!retained_replays in
+          let rec find_retained=function
+            |[]->None
+            |((old_command,old_pipelines,key,_,_,_)as entry)::rest->
+                if old_command==command&&same_pipelines old_pipelines pipelines&&
+                   Hashtbl.mem c.plan_owners key then Some entry
+                else find_retained rest in
+          let cached_retained=find_retained!retained_replays in
           (match cached_retained with
           |Some(_,_,key,template,attachment_ids,attachment_tokens)->
               let owner=Hashtbl.find c.plan_owners key in
-              let dependencies_live=List.for_all(fun dependency->
-                List.exists(fun(_,token)->Int64.equal token dependency)resources)
-                owner.dependencies in
+              let token_live dependency=
+                let rec loop=function
+                  |[]->false
+                  |(_,token)::rest->Int64.equal token dependency||loop rest in
+                loop resources in
+              let rec all_live index=
+                index=Array.length owner.dependencies||
+                token_live owner.dependencies.(index)&&all_live(index+1)in
+              let dependencies_live=all_live 0 in
               if not dependencies_live then begin
                 retained_replays:=List.filter(fun(_,_,stored,_,_,_)->stored<>key)
                   !retained_replays;
@@ -263,7 +273,7 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64) ()=
               |>List.sort_uniq Int64.compare in
             let dependencies=resources|>List.filter_map(fun(id,token)->
               if List.mem id retained_resource_ids then Some token else None)
-              |>List.sort_uniq Int64.compare
+              |>List.sort_uniq Int64.compare|>Array.of_list
             and pipeline_keys=List.map(fun(draw:Render_pass.draw)->Pipeline.key draw.pipeline)native_draws|>List.sort_uniq String.compare in
             let build icb =
               let commands=ref[] and encoders=ref[] and buffers=ref[] and samplers=ref[] and resource_sets=ref[] in

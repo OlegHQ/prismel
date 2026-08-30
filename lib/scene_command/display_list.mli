@@ -3,6 +3,8 @@
 type t
 type segment = t
 
+val fresh_id : unit -> int64
+
 type stats = {
   command_capacity : int;
   command_length : int;

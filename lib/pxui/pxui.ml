@@ -286,13 +286,7 @@ let default_theme = {
   accent = Prismel.Color.rgb 36 218 181;
 }
 
-let next_display_segment_id = ref 1L
-let fresh_display_segment_id () =
-  let value = !next_display_segment_id in
-  if value = Int64.max_int then
-    invalid_arg "Pxui: display-list identity space exhausted";
-  next_display_segment_id := Int64.succ value;
-  value
+let fresh_display_segment_id=Scene_command.Display_list.fresh_id
 
 type range_handle = Low | High
 

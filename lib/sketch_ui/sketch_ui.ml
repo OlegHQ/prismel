@@ -320,6 +320,15 @@ module Workspace = struct
 end
 
 module Core = struct
+  type status_cache = {
+    builder : Scene_command.Display_list.Builder.t;
+    segment_id : int64;
+    mutable version : int64;
+    mutable key : ((int * int * int * int) * string * int) option;
+    mutable scene : Scene.t;
+    mutable retained_text : Font.Private.retained_text option;
+  }
+
   type 'prepared t = {
     graph : Graph.t;
     displayed_graph : Graph.t;
@@ -340,6 +349,7 @@ module Core = struct
     cook_error : string option;
     cook_seconds : float option;
     status_fps : int option;
+    status_cache : status_cache;
   }
 
   type 'prepared update = {
@@ -376,6 +386,9 @@ module Core = struct
         let graph_view = Pxui_graph.create_document ~x:gx ~y:gy
             ~width:(max 1 gw) ~height:(max 1 gh)
             ~catalog:(Pxui_graph.catalog_of_factories factories) document in
+        let status_cache={builder=Scene_command.Display_list.Builder.create
+            ~capacity:2();segment_id=Scene_command.Display_list.fresh_id();
+          version=0L;key=None;scene=[];retained_text=None}in
         { graph; displayed_graph = graph; document; factories; graph_view;
           displayed_id = Node.id graph;
           inspector = None; inspector_ui = None; workspace;
@@ -383,7 +396,7 @@ module Core = struct
           timeline = Sketch_support.Timeline.create (); worker;
           schedule = Sketch_support.Reactive_sop.schedule_initial; prepare;
           prepared = None; edit_error = None; cook_error = None;
-          cook_seconds = None; status_fps = None })
+          cook_seconds = None; status_fps = None; status_cache })
         (Sketch_support.Reactive_sop.create ~seed ~grain ?domains ~max_entries
           ~max_payload_bytes ())
 
@@ -641,6 +654,12 @@ module Core = struct
   let truncate limit text = if String.length text <= limit then text
     else String.sub text 0 (limit - 3) ^ "..."
 
+  let packed_color (color:Color.t)=
+    Int32.logor(Int32.shift_left(Int32.of_int color.r)24)
+      (Int32.logor(Int32.shift_left(Int32.of_int color.g)16)
+        (Int32.logor(Int32.shift_left(Int32.of_int color.b)8)
+          (Int32.of_int color.a)))
+
   let status_scene value frame ~render_status =
     let bounds = (Workspace.geometry value.workspace frame).status in
     let x, y, width, height = bounds in
@@ -661,11 +680,43 @@ module Core = struct
     let fps = match value.status_fps with
       | Some fps -> Printf.sprintf " · %d fps" fps
       | None -> "" in
-    [Scene.rect ~at:(x, y) ~w:width ~h:height
-       ~fill:(Color.hex_exn "#101318") ();
-     Scene.text ~at:(x + 10, y + 8) ~size:11
-       ~color:(Color.hex_exn "#cbd5e1")
-       (cook ^ " · viewing " ^ viewing ^ render ^ fps)]
+    let text=cook ^ " · viewing " ^ viewing ^ render ^ fps in
+    let scale_x,scale_y=frame.pixel_scale in
+    let density=max 1(int_of_float(Float.round(Float.max scale_x scale_y)))in
+    let key=((x,y,width,height),text,density)in
+    let cache=value.status_cache in
+    match cache.key with Some old when old=key->cache.scene|None|Some _->
+      let foreground=Color.hex_exn "#cbd5e1" in
+      match Font.Private.retain_text ~density ~size:11 text(Font.Solid foreground)with
+      |Error _->[Scene.rect ~at:(x,y)~w:width~h:height
+          ~fill:(Color.hex_exn "#101318")();
+        Scene.text ~at:(x+10,y+8)~size:11~color:foreground text]
+      |Ok retained->
+          let image=Font.Private.retained_image retained in
+          let image_width,image_height=Image.get_size image in
+          let resource_id=Image.Private.identity image in
+          let builder=cache.builder in
+          Scene_command.Display_list.Builder.reset builder;
+          Scene_command.Display_list.Builder.solid_rect builder~x:(float x)
+            ~y:(float y)~width:(float width)~height:(float height)
+            ~color:(packed_color(Color.hex_exn "#101318"));
+          let scale=float density in
+          Scene_command.Display_list.Builder.image builder~resource_id
+            ~source:{x=0.;y=0.;width=float image_width;height=float image_height}
+            ~destination:{x=float(x+10);y=float(y+8);
+              width=float image_width/.scale;height=float image_height/.scale};
+          let version=Int64.succ cache.version in
+          (match Scene_command.Display_list.Builder.publish builder
+              ~id:cache.segment_id~version with
+           |Error _->Font.Private.release_retained retained;
+               [Scene.rect ~at:(x,y)~w:width~h:height
+                  ~fill:(Color.hex_exn "#101318")();
+                Scene.text ~at:(x+10,y+8)~size:11~color:foreground text]
+           |Ok segment->
+               let scene=[Scene.display_list~images:[resource_id,image]segment]in
+               Option.iter Font.Private.release_retained cache.retained_text;
+               cache.version<-version;cache.key<-Some key;cache.scene<-scene;
+               cache.retained_text<-Some retained;scene)
 
   let machinery value frame ~all_ui_visible ~camera_scene ~render_status =
     if not all_ui_visible then [] else
@@ -685,6 +736,10 @@ module Core = struct
 
   let close value =
     Option.iter Pxui.Runtime.destroy value.inspector_runtime;
+    Option.iter Font.Private.release_retained value.status_cache.retained_text;
+    value.status_cache.retained_text<-None;
+    value.status_cache.scene<-[];
+    Scene_command.Display_list.Builder.reset value.status_cache.builder;
     Sketch_support.Reactive_sop.close value.worker
 end
 

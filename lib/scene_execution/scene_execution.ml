@@ -75,6 +75,7 @@ type t={device:Ogpu.Backend.device;queue:Ogpu.Backend.queue;
   mutable auxiliary_cache:cached_auxiliary list;
   mutable texture_cache:cached_texture list;
   mutable texture_upload_scratch:texture_upload_scratch option;
+  mutable retained_batch_builds:int64;mutable retained_batch_reuses:int64;
   mutable uploaded:int64;
   mutable dead:bool;before_device_destroy:unit->(unit,Ogpu.Error.t)result}
 let error op kind text=Error(Ogpu.Error.make op kind text)
@@ -150,7 +151,7 @@ let create_common ?(canonical_scene2_argument=false) ?(offscreen=false) driver c
     let destroy_surface()=Option.iter(fun surface->ignore(Ogpu.Backend.destroy_surface surface))surface in
     match variants[]requested with Error e->destroy_surface();ignore(Ogpu.Backend.destroy_queue queue);cleanup();Error e|Ok pipelines->
     (match allocate_target device configuration with
-      |Ok target->let attachments=Scene_attachment_pool.create~device~configuration~sample_counts:samples in Ok{device;queue;surface;target;configuration;attachments;pipelines;canonical_scene2_argument;cache=[];uniform_cache=[];prepared_cache=[];prepared_submission=None;automatic_submission=None;automatic_candidate=None;prepared_scratch={scratch_slots=[||];scratch_length=0};auxiliary_cache=[];texture_cache=[];texture_upload_scratch=None;uploaded=0L;dead=false;before_device_destroy}
+      |Ok target->let attachments=Scene_attachment_pool.create~device~configuration~sample_counts:samples in Ok{device;queue;surface;target;configuration;attachments;pipelines;canonical_scene2_argument;cache=[];uniform_cache=[];prepared_cache=[];prepared_submission=None;automatic_submission=None;automatic_candidate=None;prepared_scratch={scratch_slots=[||];scratch_length=0};auxiliary_cache=[];texture_cache=[];texture_upload_scratch=None;retained_batch_builds=0L;retained_batch_reuses=0L;uploaded=0L;dead=false;before_device_destroy}
       |Error e->List.iter(fun x->ignore(Ogpu.Backend.destroy_pipeline x.pipeline))pipelines;destroy_surface();ignore(Ogpu.Backend.destroy_queue queue);cleanup();Error e)
 let one_sample _=[1]
 let create driver configuration=create_common driver configuration(fun()->Ok())[Scene2]blends one_sample None
@@ -921,6 +922,36 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
     let made_commands=ref[]and made_payloads=ref[]in
     let previous_payloads=ref(match value.automatic_submission with
       |Some cached->cached.automatic_payloads|None->[])in
+    let previous_commands=ref(match value.automatic_submission with
+      |Some cached->cached.automatic_commands|None->[])in
+    let rec same_draws left right=match left,right with
+      |[],[]->true|left::lefts,right::rights->left=right&&
+          same_draws lefts rights|_->false in
+    let rec same_resources left right=match left,right with
+      |[],[]->true
+      |`Buffer left::lefts,`Buffer right::rights->
+          Ogpu.Backend.buffer_id left=Ogpu.Backend.buffer_id right&&
+          same_resources lefts rights
+      |`Texture left::lefts,`Texture right::rights->
+          Ogpu.Backend.texture_id left=Ogpu.Backend.texture_id right&&
+          same_resources lefts rights
+      |_->false in
+    let rec same_pipelines left right=match left,right with
+      |[],[]->true|left::lefts,right::rights->left==right&&
+          same_pipelines lefts rights|_->false in
+    let reuse_command pass payload resources pipelines=
+      match!previous_commands with
+      |[]->None
+      |((command,old_resources,old_pipelines)as entry)::rest->
+          previous_commands:=rest;
+          match command with
+          |Ogpu.Backend.Render submission
+              when Ogpu.Render_pass.same
+                (Ogpu.Render_pass.submission_pass submission)pass&&
+                same_draws(Ogpu.Render_pass.submission_draws submission)payload&&
+                same_resources old_resources resources&&
+                same_pipelines old_pipelines pipelines->Some entry
+          |Transfer _|Compute _|Render _->None in
     let payloads first last=
       let rec loop index previous reversed=
         if index=last then List.rev reversed,previous else
@@ -952,8 +983,15 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
          |Error _ as result->result
          |Ok(pass,attachments)->
              let resources=List.map(fun texture->`Texture texture)attachments@resources in
-             (match Ogpu.Backend.render pass[]with Error _ as result->result
-              |Ok command->made_commands:=(command,resources,[])::!made_commands;Ok()))
+             (match reuse_command pass[]resources[]with
+              |Some entry->value.retained_batch_reuses<-
+                  Int64.succ value.retained_batch_reuses;
+                  made_commands:=entry::!made_commands;Ok()
+              |None->match Ogpu.Backend.render pass[]with Error _ as result->result
+                |Ok command->value.retained_batch_builds<-
+                    Int64.succ value.retained_batch_builds;
+                    made_commands:=(command,resources,[])::!made_commands;
+                    Ok()))
       else
       let slot=Array.unsafe_get scratch.scratch_slots index in
       let family=slot.slot_family and samples=slot.slot_samples
@@ -972,10 +1010,16 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
           made_payloads:=List.rev_append automatic_payloads!made_payloads;
           let pipelines=List.fold_left(fun unique pipeline->
             if List.exists((==)pipeline)unique then unique else pipeline::unique)[]pipelines in
-          match Ogpu.Backend.render pass payload with
-          |Error _ as result->result
-          |Ok command->made_commands:=(command,resources,pipelines)::!made_commands;
-              batches false next in
+          match reuse_command pass payload resources pipelines with
+          |Some entry->value.retained_batch_reuses<-
+              Int64.succ value.retained_batch_reuses;
+              made_commands:=entry::!made_commands;batches false next
+          |None->match Ogpu.Backend.render pass payload with
+            |Error _ as result->result
+            |Ok command->value.retained_batch_builds<-
+                Int64.succ value.retained_batch_builds;
+                made_commands:=(command,resources,pipelines)::!made_commands;
+                batches false next in
     match batches true 0 with
     |Error _ as result->discard frame;finish result
     |Ok()->
@@ -1036,6 +1080,10 @@ let resize value configuration=
   match configured with Error e->ignore(Ogpu.Backend.destroy_texture target);Scene_attachment_pool.destroy attachments;Error e|Ok()->let old=value.target and old_attachments=value.attachments in value.target<-target;value.configuration<-configuration;value.attachments<-attachments;Scene_attachment_pool.destroy old_attachments;Ogpu.Backend.destroy_texture old
 let upload_bytes value=value.uploaded
 let cache_entries value=List.length value.cache+List.length value.uniform_cache
+module Private=struct
+  let retained_batch_stats value=
+    value.retained_batch_builds,value.retained_batch_reuses
+end
 let read_pixels value ~bytes_per_row=Ogpu.Backend.read_texture value.target~bytes_per_row
 let read_pixels_into value ~bytes_per_row ~destination=
   Ogpu.Backend.read_texture_into value.target~bytes_per_row~destination

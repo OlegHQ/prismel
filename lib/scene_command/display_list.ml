@@ -13,6 +13,14 @@ type t = {
 }
 type segment = t
 
+let next_id=ref 1L
+let fresh_id()=
+  let value= !next_id in
+  if value=Int64.max_int then
+    invalid_arg "Display_list.fresh_id: identity space exhausted";
+  next_id:=Int64.succ value;
+  value
+
 module Builder = struct
   type published = { id : int64; version : int64; value : t }
 

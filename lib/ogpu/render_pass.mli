@@ -29,6 +29,7 @@ val create : ?raster_state:raster_state -> ?stencil_state:stencil_state -> Handl
 val descriptor : t -> descriptor
 val raster_state : t -> raster_state
 val stencil_state : t -> stencil_state option
+val same : t -> t -> bool
 val encode : t -> Command.t -> (unit,Error.t) result
 val submit : t -> draw list -> (submission,Error.t) result
 val submission_pass : submission -> t

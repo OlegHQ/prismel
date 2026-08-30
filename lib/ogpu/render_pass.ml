@@ -41,6 +41,27 @@ let create ?(raster_state=default_raster_state) ?stencil_state device descriptor
 let descriptor value={value.descriptor with colors=Array.copy value.descriptor.colors}
 let raster_state value=value.raster_state
 let stencil_state value=value.stencil_state
+let same_texture left right=
+  left.id=right.id&&left.format=right.format&&left.samples=right.samples&&
+  left.width=right.width&&left.height=right.height&&left.usage=right.usage
+let same_color (left:color) (right:color)=
+  same_texture left.texture right.texture&&
+  Option.equal same_texture left.resolve right.resolve&&left.load=right.load&&
+  left.store=right.store&&left.clear=right.clear
+let same_descriptor left right=
+  Array.length left.colors=Array.length right.colors&&
+  Array.for_all2(Option.equal same_color)left.colors right.colors&&
+  Option.equal(fun (left:depth) (right:depth)->same_texture left.texture right.texture&&
+    left.load=right.load&&left.store=right.store&&left.clear=right.clear)
+    left.depth right.depth&&
+  Option.equal(fun (left:stencil) (right:stencil)->same_texture left.texture right.texture&&
+    left.load=right.load&&left.store=right.store&&left.clear=right.clear)
+    left.stencil right.stencil&&left.viewport=right.viewport&&
+  left.scissor=right.scissor
+let same left right=
+  same_descriptor left.descriptor right.descriptor&&
+  left.raster_state=right.raster_state&&left.stencil_state=right.stencil_state&&
+  left.resources=right.resources
 let encode value command=Result.bind(Command.begin_pass command Command.Render)(fun()->let declared=Array.fold_left(fun result(id,access)->Result.bind result(fun()->Command.declare_resource command ~resource_id:id ~access ~stages:[Command.Fragment]))(Ok())value.resources in Result.bind declared(fun()->Command.end_pass command))
 let submit pass draws =
   let invalid text =
