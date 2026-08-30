@@ -563,14 +563,15 @@ module Core = struct
             | _ -> false in
           let runtime = match value.inspector_runtime with
             | Some runtime when same_owner ->
-                ignore (Pxui.Runtime.reconcile runtime ui); runtime
+                if all_ui_visible then ignore (Pxui.Runtime.reconcile runtime ui);
+                runtime
             | previous ->
                 Option.iter Pxui.Runtime.destroy previous;
                 Pxui.Runtime.create (Pxui.Spec.of_canvas ui) in
           Pxui.Runtime.set_visible runtime
             (all_ui_visible
              && not (Workspace.collapsed workspace Workspace.Inspector));
-          Pxui.Runtime.run_passes runtime;
+          if all_ui_visible then Pxui.Runtime.run_passes runtime;
           Some runtime in
     let document, inspector_ui, parameter_effects, edit_error =
       match inspector, inspector_ui with
@@ -757,10 +758,12 @@ module Environment3 = struct
       Pxui.Camera_control.update ~control_area
         ~panel_visible:camera_panel value.camera_control
         ~ui:camera_ui ~camera:value.camera frame in
-    ignore (Pxui.Runtime.reconcile value.camera_runtime camera_ui);
-    Pxui.Runtime.set_visible value.camera_runtime
-      (Pxui.Camera_control.ui_visible camera_control && camera_panel);
-    Pxui.Runtime.run_passes value.camera_runtime;
+    if predicted then begin
+      ignore (Pxui.Runtime.reconcile value.camera_runtime camera_ui);
+      Pxui.Runtime.set_visible value.camera_runtime
+        (Pxui.Camera_control.ui_visible camera_control && camera_panel);
+      Pxui.Runtime.run_passes value.camera_runtime
+    end else Pxui.Runtime.set_visible value.camera_runtime false;
     let rendered = if update.prepared_changed || update.effects.view
         || update.effects.export then
         Option.map (value.scene3 (Core.displayed_node core)) (Core.prepared core)

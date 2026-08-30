@@ -79,6 +79,24 @@ module Allocation_profile = struct
              *. float_of_int (Sys.word_size / 8) /. 1_048_576.) name) entries
 end
 
+module Phase_profile = struct
+  let enabled = Sys.getenv_opt "PRISMEL_RENDERER_PHASE_PROFILE" = Some "1"
+  let calls = ref 0
+  let bytes = ref 0.
+
+  let measure operation =
+    if not enabled then operation () else
+    let before = Gc.allocated_bytes () in
+    let result = operation () in
+    bytes := !bytes +. Gc.allocated_bytes () -. before;
+    incr calls;
+    result
+
+  let report () = if enabled && !calls > 0 then
+    Printf.eprintf "phase-profile view %.1f B/call (%d calls)\n%!"
+      (!bytes /. float_of_int !calls) !calls
+end
+
 type model = {
   environment : preview Sketch_ui.Environment3.t;
   launched_at : float;
@@ -414,6 +432,7 @@ let target_name () = "native"
 let option_int_json = Option.fold ~none:"null" ~some:string_of_int
 
 let print_result model result =
+  Phase_profile.report ();
   let profile = Option.value ~default:"unknown"
       (Sys.getenv_opt "PRISMEL_BENCH_PROFILE") in
   Printf.printf
@@ -439,7 +458,8 @@ let () =
         title = "Prismel shattered-cube renderer benchmark"; domains = Some domains;
         resizable = false }
       ~init ~update
-      ~view:(fun model frame -> Sketch_ui.Environment3.scene model.environment frame)
+      ~view:(fun model frame -> Phase_profile.measure (fun () ->
+        Sketch_ui.Environment3.scene model.environment frame))
       ~on_stop:(fun model -> Sketch_ui.Environment3.close model.environment) () in
   match final.result with
   | None -> failwith "shattered renderer stopped before producing a result"

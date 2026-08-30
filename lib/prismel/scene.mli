@@ -46,6 +46,8 @@ module Private : sig
     retained : (string * int64) option;
   }
   val stage_native : ?density:int -> width:int -> height:int -> t -> (staged_native,string) result
+  val stage_native_render : ?density:int -> width:int -> height:int -> t ->
+    (staged_native,string) result
   val to_ir : t -> (Scene_command.Render_ir.t,string) result
   val stage : ?density:int -> width:int -> height:int -> t ->
     (Scene_command.Render_ir.t * (int * Prismel_next_execution.resource) list, string) result

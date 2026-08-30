@@ -347,15 +347,19 @@ module Private=struct
      |Break::rest->loop[](flush nodes acc)rest in
    loop[][]items
 
- let stage_native_uncached ?(density=1) ~width ~height scene =
+ let empty_ir=Result.get_ok(Scene_command.Render_ir.Private.create_owned[||])
+ let stage_native_uncached_with ~aggregate ?(density=1) ~width ~height scene =
    if width<=0||height<=0 then Error "invalid scene extent"else
-   match stage_materialized ~density scene with Error _ as error->error
+   let grouped=grouped_items(ordered_items scene)in
+   let materialized=match grouped with
+   |[`Two _]->stage_materialized ~density scene
+   |_->if aggregate then stage_materialized ~density scene else Ok(empty_ir,[])in
+   match materialized with Error _ as error->error
    |Ok(scene2,resources)->
    let failure=ref None in
    let callbacks:Scene3_native_lowering.resources={
      texture=(fun value->let levels=Texture.Private.levels value.Scene3.value|>Array.map(fun(w,h,pixels)->let bytes=Bytes.create(w*h*4)in Array.iteri(fun index color->Bytes.set_int32_be bytes(index*4)(Int32.of_int((color.Color.r lsl 24)lor(color.g lsl 16)lor(color.b lsl 8)lor color.a)))pixels;{Scene_execution.width=w;height=h;bytes})in let address=function Texture.Clamp->Ogpu.Types.Clamp_to_edge|Repeat->Repeat|Mirror->Mirror_repeat in let min_filter,mag_filter,mip_filter=match value.filter with Texture.Nearest->Ogpu.Types.Nearest,Ogpu.Types.Nearest,Ogpu.Types.No_mip|Texture.Bilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.No_mip|Texture.Trilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.Linear_mip in let sampler:Ogpu.Types.sampler_descriptor={label=Some"scene3-texture";min_filter;mag_filter;mip_filter;address_u=address value.wrap_u;address_v=address value.wrap_v;lod_min=0.;lod_max=float(Array.length levels-1);max_anisotropy=1}in Ok{Scene_execution.key=Digest.to_hex(Digest.string(Marshal.to_string levels[]));levels;sampler});
      shadow=(fun value->let source=Shadow3.Private.snapshot value in let matrix=Array.init 16(fun index->Mat4.get source.view_projection~row:(index/4)~column:(index mod 4))in let snapshot:Scene_execution.shadow_snapshot={width=source.width;height=source.height;depths=source.depths;matrix;bias={constant=source.bias;slope=source.normal_bias};kernel=(match source.filter with Hard->Tap1|Pcf_3x3->Tap9|Pcf_5x5->Tap25);strength=source.strength}in match Scene_execution.shadow_resource~key:(Digest.to_hex(Digest.string(Marshal.to_string snapshot[])))snapshot with Error _->Error Unsupported_shadow|Ok resource->Ok{Scene_execution.key=resource.texture.key;buffer=resource.parameters;texture=resource.texture})}in
-   let grouped=grouped_items(ordered_items scene)in
    let layers=match grouped with
    |[`Two _]->[Scene2_layer(scene2,resources)]
    |_->List.filter_map(fun item->if!failure<>None then None else match item with
@@ -405,8 +409,14 @@ module Private=struct
    |_->None in
    Ok{clear= !clear;scene2;resources;scene3;layers;retained}
 
+ let stage_native_uncached ?density ~width ~height scene=
+   stage_native_uncached_with ~aggregate:true ?density ~width ~height scene
+ let stage_native_render_uncached ?density ~width ~height scene=
+   stage_native_uncached_with ~aggregate:false ?density ~width ~height scene
+
  type native_stage_cache_entry={cached_scene:t;cached_density:int;
    cached_width:int;cached_height:int;cached_resource_stamp:int;
+   cached_aggregate:bool;
    cached_stage:staged_native}
  let native_stage_cache_capacity=16
  let native_stage_cache_byte_capacity=256*1024*1024
@@ -445,13 +455,15 @@ module Private=struct
   |(id,Canvas canvas)::rest->resource_stamp_loop
       (((stamp*65599)lxor id)lxor Prismel_next_resources.Canvas.generation canvas)rest
  let resource_stamp resources=resource_stamp_loop 0x345678 resources
- let rec find_native_stage scene density width height=function
+ let rec find_native_stage aggregate scene density width height=function
   |[]->None
   |entry::rest->
-      if entry.cached_scene==scene&&entry.cached_density=density&&
+      if entry.cached_aggregate=aggregate&&entry.cached_scene==scene&&
+         entry.cached_density=density&&
          entry.cached_width=width&&entry.cached_height=height&&
          entry.cached_resource_stamp=resource_stamp entry.cached_stage.resources
-      then Some entry else find_native_stage scene density width height rest
+      then Some entry else
+        find_native_stage aggregate scene density width height rest
  let retained_scene scene=
    let found=ref false in
    let rec nodes=function
@@ -464,16 +476,18 @@ module Private=struct
     |Primitive _::_|Geometry _::_|Text _::_|Debug_text _::_|Image _::_
     |View3d _::_->false in
    nodes scene&& !found
- let stage_native ?(density=1) ~width ~height scene =
+ let stage_native_internal ~aggregate ?(density=1) ~width ~height scene =
    let cacheable=match scene with
    |[Clear _;View3d view]->Scene3.Private.cacheable view.scene
    |_->retained_scene scene in
-   if not cacheable then stage_native_uncached~density~width~height scene else
+   let uncached=if aggregate then stage_native_uncached
+     else stage_native_render_uncached in
+   if not cacheable then uncached~density~width~height scene else
    let cache=Domain.DLS.get native_stage_caches in
-   match find_native_stage scene density width height !cache with
+   match find_native_stage aggregate scene density width height !cache with
    |Some entry->Ok entry.cached_stage
    |None->
-       match stage_native_uncached~density~width~height scene with
+       match uncached~density~width~height scene with
        |Error _ as error->error
        |Ok stage->
            let stage=match stage.retained with
@@ -484,13 +498,20 @@ module Private=struct
                  ("scene-stage:"^Int64.to_string!next_native_stage_identity,1L)}in
            let stamp=resource_stamp stage.resources in
            cache:=List.filter(fun entry->not(entry.cached_scene==scene&&
+             entry.cached_aggregate=aggregate&&
              entry.cached_density=density&&entry.cached_width=width&&
              entry.cached_height=height))!cache;
            cache:={cached_scene=scene;cached_density=density;cached_width=width;
              cached_height=height;cached_resource_stamp=stamp;
+             cached_aggregate=aggregate;
              cached_stage=stage}::!cache;
            cache:=trim_native_stage_cache!cache;
            Ok stage
+
+ let stage_native ?density ~width ~height scene=
+   stage_native_internal ~aggregate:true ?density ~width ~height scene
+ let stage_native_render ?density ~width ~height scene=
+   stage_native_internal ~aggregate:false ?density ~width ~height scene
 
  let to_ir scene = Result.map fst (stage ~width:640 ~height:480 scene)
  let resources scene =
