@@ -18991,15 +18991,24 @@ module Render_encoder = struct
   let draw_indexed_basic (value:t) ~primitive ~index_type ~(index_buffer:Buffer.t)
       ~index_offset ~index_count =
     let operation="Metal.Render_encoder.draw_indexed_basic" in
-    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+    match before_main operation with
+    |Error _ as failure->failure
+    |Ok()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
       if Option.is_none value.pipeline then error operation Invalid_state "no render pipeline is bound"
       else if index_count<=0L then error operation Invalid_argument "index count must be positive"
       else let width=index_width index_type in
       if index_offset<0L||Int64.rem index_offset width<>0L then error operation Invalid_argument "index offset is misaligned"
-      else Result.bind(checked_product operation index_count width)(fun required->
-      Result.bind(validate_draw_buffer operation value index_buffer ~offset:index_offset ~required)(fun()->
-      match Metal_raw.render_draw_indexed_basic value.raw(primitive_code primitive)index_count(index_type_code index_type)index_buffer.raw index_offset with
-      | Error m->native_error operation m|Ok()->retain_command_buffer_buffer value.command_buffer index_buffer;Ok())))
+      else if index_count<>0L&&width>Int64.div Int64.max_int index_count
+      then error operation Invalid_argument"draw range overflows"
+      else let required=Int64.mul index_count width in
+        match validate_draw_buffer operation value index_buffer
+            ~offset:index_offset~required with
+        |Error _ as failure->failure
+        |Ok()->match Metal_raw.render_draw_indexed_basic value.raw
+            (primitive_code primitive)index_count(index_type_code index_type)
+            index_buffer.raw index_offset with
+          |Error message->native_error operation message
+          |Ok()->retain_command_buffer_buffer value.command_buffer index_buffer;Ok()
 
   let draw_indexed_instances (value:t) ~primitive ~index_type ~(index_buffer:Buffer.t)
       ~index_offset ~index_count ~instances =

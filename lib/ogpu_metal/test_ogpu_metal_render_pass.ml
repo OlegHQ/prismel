@@ -38,7 +38,7 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal rende
   let run primitive index=let pass=portable_pass device target~clear:(1.,0.,0.,1.)in let encoded=get(Render_pass.create device pass~attachments:[target](draw primitive index))in let receipt=get(Queue.submit_render_pass queue encoded)in get(Queue.wait_through queue receipt.epoch);verify(get(Texture.read_bytes device target~mip_level:0~bytes_per_row:16))in
   run Render_pass.Triangle_list None;
   let indices=get(Buffer.create device~memory:Buffer.Shared{label=Some"indices";size=6L;usage=[Index;Copy_dst]})in let bytes=Bytes.make 6 '\000'in Bytes.set_int16_le bytes 0 0;Bytes.set_int16_le bytes 2 1;Bytes.set_int16_le bytes 4 2;get(Buffer.write_bytes device indices~dst_offset:0L bytes);
-  for _=1 to 3 do run Triangle_strip(Some(Uint16,indices,0L,3))done;
+  for _=1 to 3 do run Triangle_strip(Some(Uint16,indices,0L,3L))done;
   let stencil_pipeline_result=Pipeline.create_render cache device{descriptor with label=Some"typed-stencil";depth_format=Stencil8}in
   (match stencil_pipeline_result with
   |Error error when error.Ogpu.Error.kind=Ogpu.Error.Unsupported->print_endline"ogpu_metal stencil pixels: skipped (typed Command4 unavailable)"

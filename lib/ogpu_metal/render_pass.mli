@@ -12,7 +12,7 @@ type draw =
   ; primitive:primitive
   ; vertex_start:int
   ; vertex_count:int
-  ; index:(index_type * Buffer.t * int64 * int) option
+  ; index:(index_type * Buffer.t * int64 * int64) option
   }
 type t
 

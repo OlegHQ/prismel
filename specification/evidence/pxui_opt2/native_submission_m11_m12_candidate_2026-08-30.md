@@ -469,6 +469,20 @@ executions, and a 2,450-created/2,450-released native-handle balance. Promoted
 allocation was 7.92 bytes/frame, median was 8.35 ms, and p95 was 10.29 ms. The
 8 KiB final visible-workspace gate remains open.
 
+Native OGPU-Metal render draws now retain their already-validated index count as
+`int64` and use Metal's specialized single-instance, zero-base indexed selector.
+This removes per-frame count boxing and optional-argument dispatch while leaving
+the public portable draw API unchanged. The specialized Metal selector now uses
+the same direct initial-domain, overflow, range, same-device, and retention
+checks as the general selector.
+
+The 300-frame isolated retained Scene3 lane reported 11,442.64 allocated
+bytes/frame, 288 bytes/frame below the committed 11,730.64 baseline. It retained
+exact canonical pixels, zero measurement upload, 300 retained-plan hits and
+executions, and a 2,450-created/2,450-released native-handle balance. Promoted
+allocation was 4.45 bytes/frame. The 8 KiB final visible-workspace gate remains
+open.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,

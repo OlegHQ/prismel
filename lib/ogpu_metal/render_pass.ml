@@ -4,7 +4,7 @@ type index_type=Uint16|Uint32
 type buffer_binding={stage:stage;index:int;buffer:Buffer.t;offset:int64}
 type texture_binding={stage:stage;index:int;texture:Texture.t}
 type sampler_binding={stage:stage;index:int;sampler:Sampler.t}
-type draw={pipeline:Pipeline.t;buffers:buffer_binding list;textures:texture_binding list;samplers:sampler_binding list;primitive:primitive;vertex_start:int;vertex_count:int;index:(index_type*Buffer.t*int64*int)option}
+type draw={pipeline:Pipeline.t;buffers:buffer_binding list;textures:texture_binding list;samplers:sampler_binding list;primitive:primitive;vertex_start:int;vertex_count:int;index:(index_type*Buffer.t*int64*int64)option}
 type indirect_resources={vertex_resources:Metal.Render_encoder.prepared_resources;
   fragment_resources:Metal.Render_encoder.prepared_resources;
   texture_resources:Metal.Render_encoder.prepared_resources}
@@ -121,7 +121,7 @@ let create device pass ~attachments draw=let op="Ogpu_metal.Render_pass.create"i
         Ok{device;pass;color=target;resolve;depth;stencil;draws=[draw];
           owned_samplers=[];native_pass=None;depth_state=None;indirect=None;
           retention;releases;persistent=false;dead=false}in
-      match draw.index with None->finish()|Some(kind,buffer,offset,count)->match Buffer.descriptor device buffer with Error _ as e->e|Ok bd->let stride=match kind with Uint16->2L|Uint32->4L in if count<=0||offset<0L||Int64.rem offset stride<>0L||Int64.of_int count>Int64.div(Int64.sub bd.size offset)stride then error op Ogpu.Error.Invalid_argument"index range is invalid"else finish())
+      match draw.index with None->finish()|Some(kind,buffer,offset,count)->match Buffer.descriptor device buffer with Error _ as e->e|Ok bd->let stride=match kind with Uint16->2L|Uint32->4L in if count<=0L||offset<0L||Int64.rem offset stride<>0L||count>Int64.div(Int64.sub bd.size offset)stride then error op Ogpu.Error.Invalid_argument"index range is invalid"else finish())
 let create_empty device pass ~attachments =
   let op="Ogpu_metal.Render_pass.create_empty"in
   let descriptor=Ogpu.Render_pass.descriptor pass in
@@ -188,7 +188,7 @@ let validate_batch_draw device draw =
     and samplers=function []->Ok()|(b:sampler_binding)::rest->
       (match slot 2 b.stage b.index,Sampler.descriptor device b.sampler with Error e,_->Error e|_,Error e->Error e|Ok(),Ok _->samplers rest)in
     match buffers draw.buffers with Error _ as e->e|Ok()->match textures draw.textures with Error _ as e->e|Ok()->match samplers draw.samplers with Error _ as e->e|Ok()->
-    match draw.index with None->Ok()|Some(kind,buffer,offset,count)->match Buffer.descriptor device buffer with Error _ as e->e|Ok descriptor->let stride=match kind with Uint16->2L|Uint32->4L in if count<=0||offset<0L||Int64.rem offset stride<>0L||Int64.of_int count>Int64.div(Int64.sub descriptor.size offset)stride then error op Ogpu.Error.Invalid_argument"index range is invalid"else Ok()
+    match draw.index with None->Ok()|Some(kind,buffer,offset,count)->match Buffer.descriptor device buffer with Error _ as e->e|Ok descriptor->let stride=match kind with Uint16->2L|Uint32->4L in if count<=0L||offset<0L||Int64.rem offset stride<>0L||count>Int64.div(Int64.sub descriptor.size offset)stride then error op Ogpu.Error.Invalid_argument"index range is invalid"else Ok()
 let create_batch ?(owned_samplers=[]) device pass ~attachments draws =
   let op="Ogpu_metal.Render_pass.create_batch" in
   let count=List.length draws in
@@ -270,12 +270,12 @@ let issue_draw op encoder draw=
   |None->adapt_metal op(Metal.Render_encoder.draw_triangles encoder
       ~first:draw.vertex_start~count:draw.vertex_count())
   |Some(kind,buffer,offset,count)->
-      adapt_metal op(Metal.Render_encoder.draw_indexed encoder
+      adapt_metal op(Metal.Render_encoder.draw_indexed_basic encoder
         ~primitive:(match draw.primitive with Triangle_list->Metal.Render_encoder.Triangle
           |Triangle_strip->Triangle_strip)
         ~index_type:(match kind with Uint16->Metal.Render_encoder.Uint16
           |Uint32->Uint32)~index_buffer:(Buffer.Private.metal buffer)
-        ~index_offset:offset~index_count:(Int64.of_int count)())
+        ~index_offset:offset~index_count:count)
 let encode_draw op encoder draw=
   let native=match Pipeline.Private.native draw.pipeline with
     |Render pipeline->pipeline|Compute _->assert false in
@@ -404,7 +404,7 @@ module Private=struct
             let* ()=bind_stage encoder Vertex draw in
             let* ()=bind_stage encoder Fragment draw in
             let primitive=match draw.primitive with Triangle_list->Metal.Command4.Render_encoder.Triangle|Triangle_strip->Triangle_strip in
-            let issued=match draw.index with None->Metal.Command4.Render_encoder.draw_primitives encoder primitive~vertex_start:draw.vertex_start~vertex_count:draw.vertex_count|Some(kind,buffer,offset,count)->Metal.Command4.Render_encoder.draw_indexed_primitives encoder primitive(match kind with Uint16->Metal.Command4.Render_encoder.Uint16|Uint32->Uint32)~index_buffer:(Buffer.Private.metal buffer)~index_offset:offset~index_count:count in
+            let issued=match draw.index with None->Metal.Command4.Render_encoder.draw_primitives encoder primitive~vertex_start:draw.vertex_start~vertex_count:draw.vertex_count|Some(kind,buffer,offset,count)->Metal.Command4.Render_encoder.draw_indexed_primitives encoder primitive(match kind with Uint16->Metal.Command4.Render_encoder.Uint16|Uint32->Uint32)~index_buffer:(Buffer.Private.metal buffer)~index_offset:offset~index_count:(Int64.to_int count) in
             let* ()=issued in draws rest
         in draws value.draws)
 end
