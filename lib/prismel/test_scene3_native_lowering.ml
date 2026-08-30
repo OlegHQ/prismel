@@ -25,6 +25,9 @@ let () =
     retained_frame)in
   if retained_first != retained_second then
     failwith"resource-free retained frame did not reuse native staging";
+  (match retained_first.retained with
+   |Some(identity,1L)when identity<>""->()
+   |_->failwith"resource-free retained frame has no stable submission identity");
   let reusable_view=Scene.[view3d~camera scene]in
   let before_release=Result.get_ok(Scene.Private.stage_native~width:16~height:16
     reusable_view)in
@@ -46,9 +49,12 @@ let () =
   let texture=Texture.init~width:2~height:2(fun~x~y->if x=y then Color.red else Color.blue)|>Texture.generate_mipmaps in
   let textured=Scene3.create[Scene3.mesh~texture:(Scene3.textured~filter:Texture.Trilinear texture)mesh]in
   let textured_frame=Scene.[clear Color.black;view3d~camera textured]in
-  if Result.get_ok(Scene.Private.stage_native~width:16~height:16 textured_frame)
-      == Result.get_ok(Scene.Private.stage_native~width:16~height:16 textured_frame)
-  then failwith"resource-bearing retained frame reused stale native staging";
+  let textured_first=Result.get_ok(Scene.Private.stage_native~width:16~height:16
+    textured_frame)and textured_second=Result.get_ok(Scene.Private.stage_native
+      ~width:16~height:16 textured_frame)in
+  if textured_first==textured_second||textured_first.retained<>None||
+      textured_second.retained<>None then
+    failwith"resource-bearing retained frame reused stale native staging";
   let textured_stage=Result.get_ok(Scene.Private.stage_native~width:16~height:16[Scene.view3d~camera textured])in
   let textured_entry=(List.hd textured_stage.scene3).entries.(0)in
   (match textured_entry.family,textured_entry.texture with Scene_execution.Scene3_textured,Some value when Array.length value.levels=2&&Bytes.length value.levels.(0).bytes=16->()|_->failwith"native texture mip/sampler staging");

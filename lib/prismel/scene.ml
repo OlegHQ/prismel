@@ -211,7 +211,8 @@ module Private=struct
   |Scene3_layer of Scene_execution.prepared_scene3
  type staged_native={clear:float*float*float*float;scene2:Scene_command.Render_ir.t;
    resources:(int*Prismel_next_execution.resource)list;
-   scene3:Scene_execution.prepared_scene3 list;layers:native_layer list}
+   scene3:Scene_execution.prepared_scene3 list;layers:native_layer list;
+   retained:(string*int64)option}
  let renderer=ref(fun(_ : t)->())let install_renderer value=renderer:=value
  let text_image ?(density=1) (node : text_node) =
    match node.rendered with
@@ -355,13 +356,14 @@ module Private=struct
        (Scene_command.Render_ir.Private.commands_readonly ir))layers;
    match!failure with Some message->Error message|None->
    let scene3=List.filter_map(function Scene3_layer prepared->Some prepared|_->None)layers in
-   Ok{clear= !clear;scene2;resources;scene3;layers}
+   Ok{clear= !clear;scene2;resources;scene3;layers;retained=None}
 
  type native_stage_cache_entry={cached_scene:t;cached_density:int;
    cached_width:int;cached_height:int;cached_stage:staged_native}
  let native_stage_cache_capacity=16
  let native_stage_cache_byte_capacity=256*1024*1024
  let native_stage_caches=Domain.DLS.new_key(fun()->ref[])
+ let next_native_stage_identity=ref 0L
  let native_stage_bytes stage=List.fold_left(fun total->function
    |Scene2_layer(ir,_)->total+Array.fold_left(fun total->function
        |Scene_command.Render_ir.Geometry geometry->total+
@@ -396,11 +398,14 @@ module Private=struct
    |None->
        match stage_native_uncached~density~width~height scene with
        |Error _ as error->error
-       |Ok stage as result->
+       |Ok stage->
+           next_native_stage_identity:=Int64.succ!next_native_stage_identity;
+           let stage={stage with retained=Some
+             ("scene-stage:"^Int64.to_string!next_native_stage_identity,1L)}in
            cache:={cached_scene=scene;cached_density=density;cached_width=width;
              cached_height=height;cached_stage=stage}::!cache;
            cache:=trim_native_stage_cache!cache;
-           result
+           Ok stage
 
  let to_ir scene = Result.map fst (stage ~width:640 ~height:480 scene)
  let resources scene =

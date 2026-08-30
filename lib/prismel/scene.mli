@@ -39,6 +39,7 @@ module Private : sig
     resources : (int * Prismel_next_execution.resource) list;
     scene3 : Scene_execution.prepared_scene3 list;
     layers : native_layer list;
+    retained : (string * int64) option;
   }
   val stage_native : ?density:int -> width:int -> height:int -> t -> (staged_native,string) result
   val to_ir : t -> (Scene_command.Render_ir.t,string) result

@@ -39,6 +39,29 @@ let draw_of_scene3_entry (entry : Scene_execution.scene3_entry) =
     ?texture:entry.texture ?auxiliary:entry.auxiliary ~samples:entry.samples
     entry.draw
 
+type retained_draws={staged:Scene.Private.staged_native;
+  draws:Prismel_next_execution.draw list}
+let retained_draw_capacity=16
+let retained_draw_caches=Domain.DLS.new_key(fun()->ref[])
+let draws_of_prepared (staged:Scene.Private.staged_native) prepared=
+  match staged.retained with
+  |None->Array.to_list prepared.Scene_execution.entries|>List.map draw_of_scene3_entry
+  |Some _->
+      let cache=Domain.DLS.get retained_draw_caches in
+      match List.find_opt(fun cached->cached.staged==staged)!cache with
+      |Some cached->cached.draws
+      |None->
+          let entries=prepared.Scene_execution.entries in
+          let rec build index reversed=
+            if index=Array.length entries then List.rev reversed
+            else build(index+1)(draw_of_scene3_entry
+              (Array.unsafe_get entries index)::reversed)in
+          let draws=build 0[]in
+          cache:={staged;draws}::!cache;
+          if List.length!cache>retained_draw_capacity then
+            cache:=List.filteri(fun index _->index<retained_draw_capacity)!cache;
+          draws
+
 let render ~execution ~density ~width ~height scene =
   let active_submission=ref None in
   let prepared = try
@@ -54,7 +77,8 @@ let render ~execution ~density ~width ~height scene =
                 active_submission:=Some submission;
                     let rec lower reversed = function
                       | [] ->
-                          Ok (submission, staged.clear, List.rev reversed)
+                          Ok (submission, staged.retained, staged.clear,
+                            List.rev reversed)
                       | Scene.Private.Scene2_layer (ir, resources) :: rest -> (
                           match
                             Prismel_next_execution.Private.lower_scene2 submission
@@ -65,10 +89,7 @@ let render ~execution ~density ~width ~height scene =
                           | Error error -> Error (Lower error)
                           | Ok batch -> lower (batch::reversed) rest)
                       | Scene.Private.Scene3_layer prepared :: rest ->
-                          let draws =
-                            Array.to_list prepared.Scene_execution.entries
-                            |> List.map draw_of_scene3_entry
-                          in
+                          let draws = draws_of_prepared staged prepared in
                           (match Prismel_next_execution.Private.adopt_draws
                             submission draws with
                           |Error error->Error(Lower error)
@@ -85,7 +106,11 @@ let render ~execution ~density ~width ~height scene =
   in
   match prepared with
   | Error _ as error -> error
-  | Ok (submission, clear, batches) -> (
-      match Prismel_next_execution.Private.step ~clear submission batches with
+  | Ok (submission, retained, clear, batches) -> (
+      let stepped=match retained with
+      |None->Prismel_next_execution.Private.step ~clear submission batches
+      |Some(identity,version)->Prismel_next_execution.Private.step ~clear
+          ~identity ~version submission batches in
+      match stepped with
       | Ok facts -> Ok facts
       | Error error -> Error (Step error))
