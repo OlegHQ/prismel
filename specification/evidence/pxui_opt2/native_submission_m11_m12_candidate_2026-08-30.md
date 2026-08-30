@@ -359,6 +359,23 @@ difference between direct array fill and retained slot storage matches the
 eliminated three-command array itself. M11 still requires the higher-level
 draw/payload/resource arrays and a substantially lower native lifecycle floor.
 
+Uniform-cache lookup no longer allocates captured equality predicates or
+reverses the cache to find its oldest reusable slot. Direct recursive scans
+retain exact byte comparison, reservation exclusion, and deterministic oldest
+selection. OGPU submission preparation now reuses validated resource and
+pipeline token graphs independently of command-wrapper identity; all cache
+searches are non-capturing direct recursion, and stale/cross-device validation
+still runs before admission.
+
+Allocation profiling no longer lists `Scene_execution.prepare_uniform.same` or
+the paired `List.map` calls in `Ogpu.Backend.prepare_submission` among its top
+sites. The 300-frame isolated retained lane reported 25,106.64 bytes/frame,
+exact pixels, zero replacement upload, 300 retained-plan hits, and zero native
+handle delta. A full visible diagnostic reported 190 frames, 10,091,360 bytes
+(approximately 51.9 KiB/frame), a 9.96 ms median, and 12.37 ms p95. Periodic UI
+invalidation still makes short full-workload samples variable; neither result
+closes M11.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,

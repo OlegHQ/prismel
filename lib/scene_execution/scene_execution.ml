@@ -276,10 +276,20 @@ let scene2_native_affine bytes=
     Bytes.set_int32_le native(index*4)
       (Int32.bits_of_float(Int64.float_of_bits(Bytes.get_int64_le bytes(index*8))))
   done;native
+let rec find_same_uniform bytes=function
+|[]->None
+|(item:cached)::rest->
+    (match item.uniform_bytes with
+     |Some retained when Bytes.equal bytes retained->Some item
+     |Some _|None->find_same_uniform bytes rest)
+let find_reusable_uniform bytes reserved values=
+  let length=Bytes.length bytes in
+  let rec loop found=function
+  |[]->found
+  |(item:cached)::rest->
+      loop(if item.bytes=length&&not(reserved item)then Some item else found)rest in
+  loop None values
 let prepare_uniform value ~defer:_ ~reserved ?preferred bytes=
-  let available item=
-    item.bytes=Bytes.length bytes&&not(reserved item)in
-  let same item=Option.fold~none:false~some:(Bytes.equal bytes)item.uniform_bytes in
   let update item=
     match item.uniform_bytes with
     |None->assert false
@@ -291,14 +301,14 @@ let prepare_uniform value ~defer:_ ~reserved ?preferred bytes=
         value.uploaded<-Int64.add value.uploaded(Int64.of_int(Bytes.length bytes));item)
         (Ogpu.Backend.write_buffer item.buffer~offset:0L bytes)in
   match preferred with
-  |Some item when item.bytes=Bytes.length bytes&&same item->Ok item
-  |Some item when available item->update item
-  |_->match List.find_opt(fun(item:cached)->same item)value.uniform_cache with
+  |Some item when item.bytes=Bytes.length bytes&&
+      (match item.uniform_bytes with
+       |Some retained->Bytes.equal bytes retained|None->false)->Ok item
+  |Some item when item.bytes=Bytes.length bytes&&not(reserved item)->update item
+  |_->match find_same_uniform bytes value.uniform_cache with
   |Some item->Ok item
   |None->
-      let reusable=List.find_opt(fun item->item.bytes=Bytes.length bytes&&
-          not(reserved item))
-          (List.rev value.uniform_cache)in
+      let reusable=find_reusable_uniform bytes reserved value.uniform_cache in
       (match reusable with
       |Some item->update item
       |None when List.length value.uniform_cache>=uniform_cache_capacity->

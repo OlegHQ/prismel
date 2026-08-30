@@ -78,6 +78,21 @@ let rec same_pipelines left right=match left,right with
   |[],[]->true
   |left::lefts,right::rights when left==right->same_pipelines lefts rights
   |_->false
+let rec find_cached_command cache command index=
+  if index=Array.length cache then None
+  else match Array.unsafe_get cache index with
+  |Some entry when entry.cached_command==command->Some entry
+  |None|Some _->find_cached_command cache command(index+1)
+let rec find_cached_resources cache resources index=
+  if index=Array.length cache then None
+  else match Array.unsafe_get cache index with
+  |Some entry when same_resources resources entry.cached_resources->Some entry
+  |None|Some _->find_cached_resources cache resources(index+1)
+let rec find_cached_pipelines cache pipelines index=
+  if index=Array.length cache then None
+  else match Array.unsafe_get cache index with
+  |Some entry when same_pipelines pipelines entry.cached_pipelines->Some entry
+  |None|Some _->find_cached_pipelines cache pipelines(index+1)
 type prepared_submission=
   { prepared_resources:submitted_resource list
   ; prepared_pairs:(int64*resource)list
@@ -91,17 +106,13 @@ let prepare_submission op (queue:queue) command ~resources ~pipelines=
   match live op queue.device with Error _ as e->e
   |Ok()when queue.dead->error op Error.Stale_handle"queue is destroyed"
   |Ok()->
-      let rec find index=if index=Array.length queue.submission_cache then None
-        else match Array.unsafe_get queue.submission_cache index with
-        |Some entry when entry.cached_command==command->Some entry
-        |None|Some _->find(index+1)in
-      let cached_entry=find 0 in
-      let cached_resources=Option.fold~none:[]
-        ~some:(fun entry->entry.cached_resources)cached_entry in
-      let reused_resources=Option.is_some cached_entry&&
-        same_resources resources cached_resources in
+      let cached_entry=find_cached_command queue.submission_cache command 0 in
+      let resource_entry=match cached_entry with
+        |Some entry when same_resources resources entry.cached_resources->Some entry
+        |Some _|None->find_cached_resources queue.submission_cache resources 0 in
+      let reused_resources=Option.is_some resource_entry in
       let pairs=if reused_resources then
-          (Option.get cached_entry).cached_pairs
+          (Option.get resource_entry).cached_pairs
         else List.map resource_pair resources in
       if List.exists(fun(_,r:token*resource)->r.dead)pairs||
          List.exists(fun(p:pipeline)->p.dead)pipelines then
@@ -111,14 +122,14 @@ let prepare_submission op (queue:queue) command ~resources ~pipelines=
         error op Error.Cross_device"submitted graph contains a foreign object"
       else
         let resource_tokens=if reused_resources then
-          (Option.get cached_entry).cached_tokens else
+          (Option.get resource_entry).cached_tokens else
           List.map(fun(id,(resource:resource))->id,resource.raw.token)pairs in
-        let cached_pipelines=Option.fold~none:[]
-          ~some:(fun entry->entry.cached_pipelines)cached_entry in
-        let reused_pipelines=Option.is_some cached_entry&&
-          same_pipelines pipelines cached_pipelines in
+        let pipeline_entry=match cached_entry with
+          |Some entry when same_pipelines pipelines entry.cached_pipelines->Some entry
+          |Some _|None->find_cached_pipelines queue.submission_cache pipelines 0 in
+        let reused_pipelines=Option.is_some pipeline_entry in
         let pipeline_tokens=if reused_pipelines then
-          (Option.get cached_entry).cached_pipeline_tokens
+          (Option.get pipeline_entry).cached_pipeline_tokens
           else List.map(fun(pipeline:pipeline)->pipeline.pipeline_driver.pipeline_token)
             pipelines in
         Ok{prepared_resources=resources;prepared_pairs=pairs;
