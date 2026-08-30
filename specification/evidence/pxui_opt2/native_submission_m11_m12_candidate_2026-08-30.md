@@ -453,6 +453,22 @@ pixels, zero measurement upload, 300 retained-plan hits and executions, and a
 7.73 bytes/frame, median was 8.32 ms, and p95 was 9.67 ms. The 8 KiB final
 visible-workspace gate remains open.
 
+SDL3 initial-domain preflight is now reusable, and the two authoritative window
+size queries avoid nested per-call `live`/`on_main` callbacks. More importantly,
+the bounded SDL finalizer drain owns four persistent staging queues instead of
+constructing four empty queues for every SDL call; it still transfers under the
+mutex and destroys outside it. Classic render-encoder teardown likewise uses
+direct checked control flow. Synchronous presentation now skips retired-plan
+partitioning entirely when the bounded retired list is empty.
+
+The 300-frame isolated retained Scene3 lane first reported 12,122.64 and then
+11,730.64 allocated bytes/frame after the empty-retirement fast path, 608
+bytes/frame below the committed 12,338.64 baseline. The final run retained exact
+canonical pixels, zero measurement upload, 300 retained-plan hits and
+executions, and a 2,450-created/2,450-released native-handle balance. Promoted
+allocation was 7.92 bytes/frame, median was 8.35 ms, and p95 was 10.29 ms. The
+8 KiB final visible-workspace gate remains open.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,

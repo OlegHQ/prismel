@@ -148,6 +148,10 @@ module Release_queue = struct
   let metal_views = Queue.create ()
   let windows = Queue.create ()
   let cursors = Queue.create ()
+  let pending_surfaces = Queue.create ()
+  let pending_metal_views = Queue.create ()
+  let pending_windows = Queue.create ()
+  let pending_cursors = Queue.create ()
   let dropped = Atomic.make 0
 
   let enqueue queue token =
@@ -167,30 +171,31 @@ module Release_queue = struct
 
   let drain () =
     Mutex.lock mutex;
-    let pending_surfaces = Queue.create () in
-    let views = Queue.create () and pending_windows = Queue.create () in
-    let pending_cursors = Queue.create () in
     Queue.transfer surfaces pending_surfaces;
-    Queue.transfer metal_views views;
+    Queue.transfer metal_views pending_metal_views;
     Queue.transfer windows pending_windows;
     Queue.transfer cursors pending_cursors;
     Mutex.unlock mutex;
-    Queue.iter (function
-      | Surface_token raw -> Private_raw.destroy_surface raw
-      | Metal_view_token _ | Window_token _ | Cursor_token _ ->
-          assert false) pending_surfaces;
-    Queue.iter (function
-      | Metal_view_token raw -> Private_raw.destroy_metal_view raw
-      | Surface_token _ | Window_token _ | Cursor_token _ ->
-          assert false) views;
-    Queue.iter (function
-      | Window_token raw -> Private_raw.destroy_window raw
-      | Surface_token _ | Metal_view_token _ -> assert false
-      | Cursor_token _ -> assert false) pending_windows;
-    Queue.iter (function
-      | Cursor_token raw -> Private_raw.destroy_cursor raw
-      | Surface_token _ | Metal_view_token _ | Window_token _ -> assert false)
-      pending_cursors
+    while not(Queue.is_empty pending_surfaces)do
+      match Queue.take pending_surfaces with
+      |Surface_token raw->Private_raw.destroy_surface raw
+      |Metal_view_token _|Window_token _|Cursor_token _->assert false
+    done;
+    while not(Queue.is_empty pending_metal_views)do
+      match Queue.take pending_metal_views with
+      |Metal_view_token raw->Private_raw.destroy_metal_view raw
+      |Surface_token _|Window_token _|Cursor_token _->assert false
+    done;
+    while not(Queue.is_empty pending_windows)do
+      match Queue.take pending_windows with
+      |Window_token raw->Private_raw.destroy_window raw
+      |Surface_token _|Metal_view_token _|Cursor_token _->assert false
+    done;
+    while not(Queue.is_empty pending_cursors)do
+      match Queue.take pending_cursors with
+      |Cursor_token raw->Private_raw.destroy_cursor raw
+      |Surface_token _|Metal_view_token _|Window_token _->assert false
+    done
 end
 
 let dropped_release_tokens () = Atomic.get Release_queue.dropped
@@ -200,10 +205,14 @@ let drain_release_queue () =
   | Error _ as failure -> failure
   | Ok () -> Release_queue.drain (); Ok ()
 
-let on_main operation callback =
+let before_main operation =
   match Thread.require operation with
   | Error _ as failure -> failure
-  | Ok () -> Release_queue.drain (); callback ()
+  | Ok () -> Release_queue.drain (); Ok ()
+
+let on_main operation callback =
+  match before_main operation with
+  |Error _ as failure->failure|Ok()->callback()
 
 module Init = struct
   type subsystem =
@@ -417,15 +426,21 @@ end = struct
           end) value;
         Ok value)
 
-  let size value = live "SDL3.Window.size" value (fun raw ->
-    match Private_raw.window_size raw with
+  let size value =
+    let operation="SDL3.Window.size"in
+    match before_main operation with Error _ as failure->failure|Ok()->
+    if value.destroyed then error operation Destroyed"window is destroyed"
+    else match Private_raw.window_size value.raw with
     | Some size -> Ok size
-    | None -> sdl_error "SDL3.Window.size")
+    | None -> sdl_error operation
 
-  let size_in_pixels value = live "SDL3.Window.size_in_pixels" value (fun raw ->
-    match Private_raw.window_size_in_pixels raw with
+  let size_in_pixels value =
+    let operation="SDL3.Window.size_in_pixels"in
+    match before_main operation with Error _ as failure->failure|Ok()->
+    if value.destroyed then error operation Destroyed"window is destroyed"
+    else match Private_raw.window_size_in_pixels value.raw with
     | Some size -> Ok size
-    | None -> sdl_error "SDL3.Window.size_in_pixels")
+    | None -> sdl_error operation
 
   let id value = live "SDL3.Window.id" value (fun raw ->
     Private_raw.clear_error ();

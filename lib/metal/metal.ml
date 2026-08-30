@@ -19095,7 +19095,9 @@ module Render_encoder = struct
 
   let end_encoding (value : t) =
     let operation = "Metal.Render_encoder.end_encoding" in
-    on_main operation (fun () ->
+    match before_main operation with
+    |Error _ as failure->failure
+    |Ok()->
       match ensure_live operation value.lifetime with
       | Error _ as failure -> failure
       | Ok () ->
@@ -19106,7 +19108,7 @@ module Render_encoder = struct
                  ignore (Metal_raw.destroy value.raw);
                  detach value.command_buffer.lifetime
                end;
-               Ok ()))
+               Ok ())
 end
 
 module Compute_encoder = struct

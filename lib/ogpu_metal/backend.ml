@@ -503,10 +503,15 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64) ()=
               Option.iter(fun active->Surface.Private.complete_presentations_through
                   active.presentations(Queue.completed_epoch active.queue))active;
               Hashtbl.replace c.completed_epochs queue receipt.epoch;
-              let ready,later=List.partition(fun(retired:retired)->
-                retired.queue_token=queue&&retired.epoch<=receipt.epoch)c.retired in
-              c.retired<-later;
-              List.iter(fun retired->record_cleanup(destroy_retired retired))ready;
+              (match c.retired with
+               |[]->()
+               |retired->
+                   let ready,later=List.partition(fun(retired:retired)->
+                     retired.queue_token=queue&&retired.epoch<=receipt.epoch)
+                     retired in
+                   c.retired<-later;
+                   List.iter(fun retired->record_cleanup(destroy_retired retired))
+                     ready);
               Ok{Ogpu.Backend.receipt;completion}in
         Ok{Ogpu.Backend.surface_token;configure=(fun x->Surface.configure surface x);acquire;acquire_sync;present;submit_present;submit_present_sync;discard=take Surface.discard;destroy_surface=(fun()->if Hashtbl.length frames<>0 then error"Ogpu_metal.Backend.destroy_surface"Ogpu.Error.Invalid_state"surface has outstanding frames"else if Surface.in_flight_presentations surface<>0 then error"Ogpu_metal.Backend.destroy_surface"Ogpu.Error.Invalid_state"surface has presentations in flight"else(Surface.destroy surface;Ok()))}in
     let destroy_device()=if Hashtbl.length c.active_queues<>0 then error"Ogpu_metal.Backend.destroy_device"Ogpu.Error.Invalid_state"device has active queues"else(Option.iter(fun cache->record_cleanup(match Metal.Retained_render_plan.destroy cache with Ok()->None|Error e->Some e))c.plan_cache;c.plan_cache<-None;List.iter(fun retired->record_cleanup(destroy_retired retired))c.retired;c.retired<-[];Hashtbl.iter(fun _ owner->record_cleanup(destroy_owner owner))c.plan_owners;Hashtbl.clear c.plan_owners;Hashtbl.iter(fun _ sampler->ignore(Sampler.destroy sampler))c.sampler_cache;Hashtbl.clear c.sampler_cache;let destroyed=Device.destroy device in match destroyed,c.cleanup_error with Error _ as e,_->e|Ok(),Some e->Error(Adapter.error~operation:"Ogpu_metal.Backend.destroy_device"e)|Ok(),None->c.device_live<-false;Ok())in
