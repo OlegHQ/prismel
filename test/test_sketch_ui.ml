@@ -220,5 +220,8 @@ let () =
   check (Easy_camera2.control_area (Sketch_ui.Environment2.camera environment2)
       = Some (0, 0, hidden_frame.width, hidden_frame.height))
     "hidden 2D sketch UI still reserved invisible workspace bounds";
+  let hidden_scene = Sketch_ui.Environment2.scene environment2 hidden_frame in
+  check (Sketch_ui.Environment2.scene environment2 (frame 12) == hidden_scene)
+    "unchanged hidden 2D scene composition was rebuilt";
   Sketch_ui.Environment2.close environment2;
   print_endline "sketch ui tests passed"

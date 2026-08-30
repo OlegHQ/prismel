@@ -864,6 +864,17 @@ module Environment2 = struct
     rendered : Scene.t option;
     render_status : string option;
     background : Color.t;
+    mutable hidden_scene_cache : hidden_scene2_cache option;
+  }
+
+  and hidden_scene2_cache = {
+    hidden_width : int;
+    hidden_height : int;
+    hidden_rendered : Scene.t option;
+    hidden_camera : Easy_camera2.t;
+    hidden_background : Color.t;
+    hidden_view_visible : bool;
+    hidden_scene : Scene.t;
   }
 
   let create ?(layout = default_layout) ?factories
@@ -879,7 +890,8 @@ module Environment2 = struct
         |> Pxui.Camera2_control.append camera_control ~camera in
       let camera_runtime = Pxui.Runtime.create (Pxui.Spec.of_canvas camera_ui) in
       { core; camera; camera_control; camera_ui; camera_runtime; scene2; overlay;
-        rendered = None; render_status = None; background })
+        rendered = None; render_status = None; background;
+        hidden_scene_cache = None })
       (Core.create ~layout ?factories ?seed ?grain ?domains ?max_entries
         ?max_payload_bytes ~graph ~prepare ())
 
@@ -907,10 +919,12 @@ module Environment2 = struct
       Pxui.Camera2_control.update ~control_area:viewport ~viewport
         ~panel_visible:camera_panel value.camera_control
         ~ui:camera_ui ~camera:value.camera frame in
-    ignore (Pxui.Runtime.reconcile value.camera_runtime camera_ui);
-    Pxui.Runtime.set_visible value.camera_runtime
-      (Pxui.Camera2_control.ui_visible camera_control && camera_panel);
-    Pxui.Runtime.run_passes value.camera_runtime;
+    if predicted then begin
+      ignore (Pxui.Runtime.reconcile value.camera_runtime camera_ui);
+      Pxui.Runtime.set_visible value.camera_runtime
+        (Pxui.Camera2_control.ui_visible camera_control && camera_panel);
+      Pxui.Runtime.run_passes value.camera_runtime
+    end else Pxui.Runtime.set_visible value.camera_runtime false;
     let rendered = if update.prepared_changed || update.effects.view
         || update.effects.export then
         Option.map (value.scene2 (Core.displayed_node core)) (Core.prepared core)
@@ -928,6 +942,31 @@ module Environment2 = struct
 
   let scene value frame =
     let all_ui_visible = Pxui.Camera2_control.ui_visible value.camera_control in
+    if not all_ui_visible then begin
+      let view_visible = Core.column_visible value.core Workspace.View in
+      match value.hidden_scene_cache with
+      | Some cached when cached.hidden_width = frame.Frame.width
+          && cached.hidden_height = frame.height
+          && cached.hidden_rendered == value.rendered
+          && cached.hidden_camera == value.camera
+          && cached.hidden_background = value.background
+          && cached.hidden_view_visible = view_visible ->
+          cached.hidden_scene
+      | _ ->
+          let world = match value.rendered with
+            | Some rendered when view_visible ->
+                Easy_camera2.scene
+                  ~viewport:(0, 0, frame.width, frame.height)
+                  value.camera rendered
+            | Some _ | None -> [] in
+          let scene = Scene.clear value.background :: world in
+          value.hidden_scene_cache <- Some
+            { hidden_width = frame.width; hidden_height = frame.height;
+              hidden_rendered = value.rendered; hidden_camera = value.camera;
+              hidden_background = value.background;
+              hidden_view_visible = view_visible; hidden_scene = scene };
+          scene
+    end else
     let panes = Core.panes value.core frame in
     let viewport = if all_ui_visible then panes.view
       else 0, 0, frame.Frame.width, frame.height in
