@@ -3,6 +3,35 @@ type visibility=Visible|Hidden
 type window_facts={pixel_density:float;display_scale:float;drawable_width:int;drawable_height:int}
 type acceptance_artifact={pieces:int;triangles:int;render_vertices:int;cook_seconds:float;cook_seconds_four:float;pack_seconds:float;topology_hash:string;attribute_hash:string;order_hash:string;render_hash:string;vertices:bytes;indices:bytes}
 
+module Allocation_profile=struct
+  let enabled=Sys.getenv_opt"PRISMEL_RENDERER_MEMPROF"=Some"1"
+  let sampling_rate=1e-4
+  let samples:(string,int)Hashtbl.t=Hashtbl.create 128
+  let lock=Mutex.create()
+  let name allocation=match Printexc.backtrace_slots allocation.Gc.Memprof.callstack with
+    |None->"unknown"
+    |Some slots->Array.to_list slots|>List.filter_map Printexc.Slot.name
+      |>List.filter(fun name->not(String.starts_with~prefix:"camlGc__Memprof"name))
+      |>List.to_seq|>Seq.take 5|>List.of_seq|>function
+      |[]->"unknown"|names->String.concat" <- "names
+  let record allocation=
+    let name=name allocation in
+    Mutex.lock lock;
+    Hashtbl.replace samples name(allocation.Gc.Memprof.n_samples+
+      Option.value(Hashtbl.find_opt samples name)~default:0);
+    Mutex.unlock lock;None
+  let start()=if enabled then Some(Gc.Memprof.start~sampling_rate
+      ~callstack_size:32{Gc.Memprof.null_tracker with
+        alloc_minor=record;alloc_major=record})else None
+  let stop=function None->()|Some profile->
+    Gc.Memprof.stop();Gc.Memprof.discard profile;
+    Hashtbl.fold(fun name count entries->(count,name)::entries)samples[]
+    |>List.sort(fun(a,_)(b,_)->Int.compare b a)
+    |>List.iteri(fun index(count,name)->if index<30 then
+      Printf.eprintf"memprof %.1f KiB %s\n%!"
+        (float count/.sampling_rate*.float(Sys.word_size/8)/.1024.)name)
+end
+
 type counters = {
   mutable buffer_creates : int;
   mutable buffer_bytes : int64;
@@ -337,9 +366,11 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
   next_rss_sample:=Sdl3.Time.monotonic_seconds()+.rss_sample_seconds;
   let before=Result.get_ok(stats())and canvas_before=canvas_stats()in
   Gc.full_major();let gc0=Gc.quick_stat()and allocated0=Gc.allocated_bytes()and cpu0=Unix.times()in
+  let allocation_profile=Allocation_profile.start()in
   let walls,total=match sample_seconds with
   |None->let values=Array.init samples(fun _->let started=Sdl3.Time.monotonic_seconds()in ignore(execution(render()));Sdl3.Time.monotonic_seconds()-.started)in values,Array.fold_left(+.)0. values
   |Some duration->run_for duration true in
+  Allocation_profile.stop allocation_profile;
   let measured=Array.length walls in
   let after=Result.get_ok(stats())and canvas_after=canvas_stats()
   and gc1=Gc.quick_stat()and cpu1=Unix.times()and allocated=Gc.allocated_bytes()-.allocated0 in

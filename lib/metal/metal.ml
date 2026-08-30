@@ -2064,18 +2064,14 @@ let release_command4_argument_bindings buffers textures samplers id_resources =
     samplers;
   release_argument_binding_array Fun.id id_resources
 
+let rec command_resources_retain_buffer lifetime=function
+    |[]->false
+    |Command_buffer_buffer candidate::_->candidate.lifetime==lifetime
+    |_::rest->command_resources_retain_buffer lifetime rest
+
 let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buffer) =
-  let already_retained =
-    List.exists
-      (function
-        | Command_buffer_buffer retained -> retained.lifetime == buffer.lifetime
-        | Command_buffer_prepared_resources _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _ | Command_buffer_sampler _ | Command_buffer_render_pipeline _
-        | Command_buffer_indirect _ -> false
-        | Command_residency_set _ | Command_buffer_fence _ | Command_buffer_heap _
-        | Command_buffer_drawable _ | Command_buffer_depth_stencil _
-        | Command_buffer_visible_table _ | Command_buffer_intersection_table _ -> false)
-      !(command_buffer.resources)
-  in
+  let already_retained=command_resources_retain_buffer buffer.lifetime
+      !(command_buffer.resources)in
   if not already_retained then begin
     attach buffer.lifetime;
     Option.iter (fun heap -> Atomic.incr heap.active_uses)
@@ -2210,14 +2206,16 @@ let retain_command_buffer_indirect (command_buffer : command_buffer)
       Command_buffer_indirect value :: !(command_buffer.resources)
   end
 
-let retain_command_buffer_render_pipeline (command_buffer : command_buffer)
-    (pipeline : render_pipeline) =
-  let rec retained=function
+let rec command_resources_retain_render_pipeline lifetime=function
   |[]->false
   |Command_buffer_render_pipeline candidate::_->
-      candidate.lifetime==pipeline.lifetime
-  |_::rest->retained rest in
-  if not(retained!(command_buffer.resources))then begin
+      candidate.lifetime==lifetime
+  |_::rest->command_resources_retain_render_pipeline lifetime rest
+
+let retain_command_buffer_render_pipeline (command_buffer : command_buffer)
+    (pipeline : render_pipeline) =
+  if not(command_resources_retain_render_pipeline pipeline.lifetime
+      !(command_buffer.resources))then begin
     attach pipeline.lifetime;
     command_buffer.resources :=
       Command_buffer_render_pipeline pipeline :: !(command_buffer.resources)
@@ -6765,7 +6763,34 @@ module Drawable = struct
   let acquire layer=acquire_owned ~finalize:true layer
   let layer (value:t)=value.layer
   let checked_layer(value:t)=let operation="Metal.Drawable.checked_layer"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.drawable_native_layer value.raw with Error m->native_error operation m|Ok raw->let native=Metal_raw.layer_native_snapshot raw and expected=Metal_raw.layer_native_snapshot value.layer.raw in ignore(Metal_raw.destroy raw);match native,expected with Ok left,Ok right when left=right->Ok value.layer|Error m,_->native_error operation m|_,Error m->native_error operation m|_->error operation Native_error "drawable parent layer metadata changed")
-  let texture_owned ~finalize (value:t)=let operation="Metal.Drawable.texture" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match value.drawable_texture with Some texture->Ok texture|None->match Metal_raw.drawable_texture value.raw with Error m->native_error operation m|Ok(raw,width,height,format_code)->match (match format_code with 80->Some Texture.Bgra8_unorm|81->Some Texture.Bgra8_unorm_srgb|115->Some Texture.Rgba16_float|_->None) with None->ignore(Metal_raw.destroy raw);error operation Unsupported "drawable returned an unsupported pixel format"|Some format->let descriptor=match value.layer.drawable_descriptor with Some descriptor when descriptor.width=width&&descriptor.height=height&&descriptor.format=format->descriptor|_->let descriptor=Texture.descriptor_2d ~storage:Buffer.Private ~usage:[Texture.Render_target] ~format ~width ~height()in value.layer.drawable_descriptor<-Some descriptor;descriptor in let texture:texture={raw;lifetime=lifetime();device=value.layer.device;descriptor;parent=Texture_drawable_resource value;heap_offset=None;placement_sparse_page_size=None;allocation=None;state={relinquished=Atomic.make false;purgeable=Atomic.make Nonvolatile};placement_mappings=ref[]}in attach value.lifetime;if finalize then attach_finalizer texture texture.lifetime value.lifetime;value.drawable_texture<-Some texture;Ok texture)
+  let texture_owned ~finalize (value:t)=
+    let operation="Metal.Drawable.texture"in
+    match before_main operation with Error _ as failure->failure|Ok()->
+    match ensure_live operation value.lifetime with Error _ as failure->failure
+    |Ok()->match value.drawable_texture with Some texture->Ok texture|None->
+    match Metal_raw.drawable_texture value.raw with
+    |Error message->native_error operation message
+    |Ok(raw,width,height,format_code)->
+        match(match format_code with 80->Some Texture.Bgra8_unorm
+          |81->Some Texture.Bgra8_unorm_srgb|115->Some Texture.Rgba16_float
+          |_->None)with
+        |None->ignore(Metal_raw.destroy raw);error operation Unsupported
+            "drawable returned an unsupported pixel format"
+        |Some format->
+            let descriptor=match value.layer.drawable_descriptor with
+              |Some descriptor when descriptor.width=width&&
+                  descriptor.height=height&&descriptor.format=format->descriptor
+              |_->let descriptor=Texture.descriptor_2d ~storage:Buffer.Private
+                    ~usage:[Texture.Render_target]~format~width~height()in
+                  value.layer.drawable_descriptor<-Some descriptor;descriptor in
+            let texture:texture={raw;lifetime=lifetime();device=value.layer.device;
+              descriptor;parent=Texture_drawable_resource value;heap_offset=None;
+              placement_sparse_page_size=None;allocation=None;
+              state={relinquished=Atomic.make false;purgeable=Atomic.make Nonvolatile};
+              placement_mappings=ref[]}in
+            attach value.lifetime;
+            if finalize then attach_finalizer texture texture.lifetime value.lifetime;
+            value.drawable_texture<-Some texture;Ok texture
   let texture value=texture_owned ~finalize:true value
   module Private = struct
     let acquire_scoped layer=acquire_owned ~finalize:false layer
@@ -18056,7 +18081,9 @@ module Render_encoder = struct
       ?(clear = (0., 0., 0., 1.)) ?(depth : Texture.t option)
       ?(stencil : Texture.t option) () =
     let operation = "Metal.Render_encoder.create" in
-    on_main operation (fun () ->
+    match before_main operation with
+    |Error _ as failure->failure
+    |Ok()->
       match ensure_live operation command_buffer.lifetime with
       | Error _ as failure -> failure
       | Ok () when command_buffer.phase <> Recording ->
@@ -18119,7 +18146,7 @@ module Render_encoder = struct
                      Option.iter (retain_command_buffer_texture command_buffer) stencil;
                      if finalize then
                        attach_lifetime_finalizer value.lifetime command_buffer.lifetime;
-                     Ok value)))
+                     Ok value))
 
   let create command_buffer ~target ?clear ?depth ?stencil () =
     create_owned ~finalize:true command_buffer ~target ?clear ?depth ?stencil ()
@@ -18255,14 +18282,18 @@ module Render_encoder = struct
                      with
                      | Error message -> native_error operation message
                      | Ok () ->
-                         value.pipeline <- Some pipeline;
+                         (match value.pipeline with
+                          |Some current when current==pipeline->()
+                          |None|Some _->value.pipeline<-Some pipeline);
                          retain_command_buffer_render_pipeline
                            value.command_buffer pipeline;
                          Ok ())))
 
   let set_buffer operation raw_call (value : t) ~index ~offset
       (buffer : Buffer.t) =
-    on_main operation (fun () ->
+    match before_main operation with
+    |Error _ as failure->failure
+    |Ok()->
       match ensure_live operation value.lifetime with
       | Error _ as failure -> failure
       | Ok () ->
@@ -18283,7 +18314,7 @@ module Render_encoder = struct
                      | Error message -> native_error operation message
                      | Ok () ->
                          retain_command_buffer_buffer value.command_buffer buffer;
-                         Ok ()))))
+                         Ok ())))
 
   let set_vertex_buffer =
     set_buffer "Metal.Render_encoder.set_vertex_buffer"
@@ -18879,10 +18910,17 @@ module Render_encoder = struct
   let index_type_code = function Uint16->0|Uint32->1
   let index_width = function Uint16->2L|Uint32->4L
   let validate_draw_buffer operation (value:t) (buffer:buffer) ~offset ~required =
-    Result.bind(ensure_buffer_usable operation buffer)(fun()->
-    Result.bind(ensure_same_device operation value.command_buffer.queue.device buffer.device)(fun()->
-    if offset<0L||required<0L||offset>buffer.length||required>Int64.sub buffer.length offset
-    then error operation Invalid_argument "draw buffer range is outside the resource" else Ok()))
+    match ensure_buffer_usable operation buffer with
+    |Error _ as failure->failure
+    |Ok()->match ensure_same_device operation value.command_buffer.queue.device
+        buffer.device with
+      |Error _ as failure->failure
+      |Ok()->
+          if offset<0L||required<0L||offset>buffer.length||
+             required>Int64.sub buffer.length offset
+          then error operation Invalid_argument
+              "draw buffer range is outside the resource"
+          else Ok()
   let checked_product operation a b =
     if a<0L||b<0L||(a<>0L&&b>Int64.div Int64.max_int a)
     then error operation Invalid_argument "draw range overflows" else Ok(Int64.mul a b)
@@ -18890,16 +18928,24 @@ module Render_encoder = struct
   let draw_indexed (value:t) ~primitive ~index_type ~(index_buffer:Buffer.t)
       ~index_offset ~index_count ?(instances=1L) ?(base_vertex=0L) ?(base_instance=0L) () =
     let operation="Metal.Render_encoder.draw_indexed" in
-    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+    match before_main operation with
+    |Error _ as failure->failure
+    |Ok()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
       if Option.is_none value.pipeline then error operation Invalid_state "no render pipeline is bound"
       else if index_count<=0L||instances<=0L||base_instance<0L then error operation Invalid_argument "draw counts must be positive"
       else let width=index_width index_type in
       if index_offset<0L||Int64.rem index_offset width<>0L then error operation Invalid_argument "index offset is misaligned"
-      else Result.bind(checked_product operation index_count width)(fun required->
-      Result.bind(validate_draw_buffer operation value index_buffer ~offset:index_offset ~required)(fun()->
-      match Metal_raw.render_draw_indexed value.raw(primitive_code primitive)index_count(index_type_code index_type)
-              index_buffer.raw index_offset instances base_vertex base_instance with
-      | Error m->native_error operation m|Ok()->retain_command_buffer_buffer value.command_buffer index_buffer;Ok())))
+      else if index_count<>0L&&width>Int64.div Int64.max_int index_count
+      then error operation Invalid_argument "draw range overflows"
+      else let required=Int64.mul index_count width in
+        match validate_draw_buffer operation value index_buffer
+          ~offset:index_offset~required with
+        |Error _ as failure->failure
+        |Ok()->match Metal_raw.render_draw_indexed value.raw
+            (primitive_code primitive)index_count(index_type_code index_type)
+            index_buffer.raw index_offset instances base_vertex base_instance with
+          |Error message->native_error operation message
+          |Ok()->retain_command_buffer_buffer value.command_buffer index_buffer;Ok()
 
   let draw_indirect (value:t) ~primitive ~(buffer:Buffer.t) ~offset =
     let operation="Metal.Render_encoder.draw_indirect" in

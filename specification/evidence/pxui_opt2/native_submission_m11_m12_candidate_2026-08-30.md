@@ -409,6 +409,32 @@ hits and executions, and a 2,450-created/2,450-released native-handle balance.
 Median was 8.35 ms and p95 was 10.27 ms. The final M11 allocation gate remains
 open.
 
+The native benchmark now supports opt-in measured-window allocation call-stack
+sampling through `PRISMEL_RENDERER_MEMPROF=1`. Sampling begins only after
+warmup and stops before capture, canonical replay, or teardown, so setup and
+readback allocation cannot obscure the steady render owners. It is disabled in
+ordinary measurement and qualification runs.
+
+That profile identified closure construction in classic indexed-draw range
+validation, buffer binding, and command-buffer resource membership as the
+dominant steady owners. The hot indexed draw and buffer-binding calls now use
+direct initial-domain checks and explicit result control flow. Buffer and render
+pipeline membership scans are global non-capturing recursion, repeated binding
+of the same pipeline does not allocate another option wrapper, the common draw
+range multiplication is validated inline, and classic encoder/drawable texture
+setup no longer wraps its initial-domain check in a per-call closure. Typed
+failure order, same-device checks, resource retention, and native call order are
+unchanged.
+
+After the indexed-draw/buffer pass, the 300-frame isolated retained Scene3 lane
+reported 17,066.64 allocated bytes/frame. After the remaining membership and
+presentation setup changes it reported 14,578.64 bytes/frame, 10,264 bytes/frame
+below the committed 24,842.64 baseline and below the 16 KiB interim continuous
+Scene threshold. The final run retained exact canonical pixels, zero measurement
+upload, 300 retained-plan hits and executions, and a
+2,450-created/2,450-released native-handle balance. Median was 8.36 ms and p95
+was 10.44 ms. This does not close the 8 KiB final visible-workspace gate.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,
