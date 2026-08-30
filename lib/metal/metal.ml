@@ -18321,45 +18321,46 @@ module Render_encoder = struct
                 | Ok () -> Ok ()
                 | Error message -> native_error operation message))
 
-  let set_viewport =
-    set_validated "Metal.Render_encoder.set_viewport"
-      (fun value (viewport : viewport) ->
-        let values =
-          [ viewport.x; viewport.y; viewport.width; viewport.height
-          ; viewport.znear; viewport.zfar ]
-        in
-        if not (List.for_all Float.is_finite values) then
-          error "Metal.Render_encoder.set_viewport" Invalid_argument
-            "viewport values must be finite"
-        else if viewport.x < 0. || viewport.y < 0. || viewport.width <= 0.
-             || viewport.height <= 0.
-             || viewport.x +. viewport.width > float value.target.descriptor.width
-             || viewport.y +. viewport.height > float value.target.descriptor.height
-             || viewport.znear < 0. || viewport.znear > 1.
-             || viewport.zfar < 0. || viewport.zfar > 1.
-             || viewport.znear > viewport.zfar then
-          error "Metal.Render_encoder.set_viewport" Invalid_argument
-            "viewport is outside the render target or depth range"
-        else Ok (viewport.x, viewport.y, viewport.width, viewport.height,
-                 viewport.znear, viewport.zfar))
-      Metal_raw.render_encoder_set_viewport
+  let set_viewport (value:t) (viewport:viewport)=
+    let operation="Metal.Render_encoder.set_viewport" in
+    match before_main operation with Error _ as failure->failure|Ok()->
+    match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()->
+    if not(Float.is_finite viewport.x&&Float.is_finite viewport.y&&
+      Float.is_finite viewport.width&&Float.is_finite viewport.height&&
+      Float.is_finite viewport.znear&&Float.is_finite viewport.zfar)then
+      error operation Invalid_argument"viewport values must be finite"
+    else if viewport.x<0.||viewport.y<0.||viewport.width<=0.||
+      viewport.height<=0.||
+      viewport.x+.viewport.width>float value.target.descriptor.width||
+      viewport.y+.viewport.height>float value.target.descriptor.height||
+      viewport.znear<0.||viewport.znear>1.||viewport.zfar<0.||
+      viewport.zfar>1.||viewport.znear>viewport.zfar then
+      error operation Invalid_argument
+        "viewport is outside the render target or depth range"
+    else match Metal_raw.render_encoder_set_viewport value.raw
+      (viewport.x,viewport.y,viewport.width,viewport.height,
+       viewport.znear,viewport.zfar)with
+      |Ok()->Ok()|Error message->native_error operation message
 
-  let set_scissor =
-    set_validated "Metal.Render_encoder.set_scissor"
-      (fun value (scissor : scissor) ->
-        if scissor.x < 0 || scissor.y < 0 || scissor.width <= 0
-           || scissor.height <= 0
-           || scissor.x > value.target.descriptor.width - scissor.width
-           || scissor.y > value.target.descriptor.height - scissor.height then
-          error "Metal.Render_encoder.set_scissor" Invalid_argument
-            "scissor rectangle is outside the render target"
-        else Ok (scissor.x, scissor.y, scissor.width, scissor.height))
-      Metal_raw.render_encoder_set_scissor
+  let set_scissor (value:t) (scissor:scissor)=
+    let operation="Metal.Render_encoder.set_scissor" in
+    match before_main operation with Error _ as failure->failure|Ok()->
+    match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()->
+    if scissor.x<0||scissor.y<0||scissor.width<=0||scissor.height<=0||
+      scissor.x>value.target.descriptor.width-scissor.width||
+      scissor.y>value.target.descriptor.height-scissor.height then
+      error operation Invalid_argument"scissor rectangle is outside the render target"
+    else match Metal_raw.render_encoder_set_scissor value.raw
+      (scissor.x,scissor.y,scissor.width,scissor.height)with
+      |Ok()->Ok()|Error message->native_error operation message
 
-  let set_cull_mode =
-    set_validated "Metal.Render_encoder.set_cull_mode"
-      (fun _ mode -> Ok (match mode with No_cull -> 0 | Cull_front -> 1 | Cull_back -> 2))
-      Metal_raw.render_encoder_set_cull_mode
+  let set_cull_mode (value:t) mode=
+    let operation="Metal.Render_encoder.set_cull_mode" in
+    match before_main operation with Error _ as failure->failure|Ok()->
+    match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()->
+    let mode=match mode with No_cull->0|Cull_front->1|Cull_back->2 in
+    match Metal_raw.render_encoder_set_cull_mode value.raw mode with
+    |Ok()->Ok()|Error message->native_error operation message
 
   let set_front_facing_winding =
     set_validated "Metal.Render_encoder.set_front_facing_winding"

@@ -245,6 +245,16 @@ This removes approximately 8.5% from the preceding 97.6 KiB/frame result and
 proves that changing a UI segment no longer rematerializes unrelated Scene2
 payloads. M11 remains open against the final allocation gate.
 
+The classic Metal encoder hot path now validates viewport, scissor, and cull
+state with direct control flow. It preserves the checked safe API and exact
+error classifications while removing higher-order validation closures and the
+temporary six-element float list previously allocated for every viewport.
+Five isolated retained Scene3 runs of 300 measured frames each reported an
+exactly repeatable 27,330.64 allocated bytes/frame and 23.17--23.36 promoted
+bytes/frame. Median frame time ranged from 8.45 to 8.57 ms and p95 from 9.37 to
+10.48 ms. The preceding diagnostic was 27,911.92 bytes/frame; this is a small
+native-wrapper reduction, not evidence that the M11 final gate is complete.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,
