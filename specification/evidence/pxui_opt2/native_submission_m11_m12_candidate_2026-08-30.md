@@ -255,6 +255,27 @@ bytes/frame. Median frame time ranged from 8.45 to 8.57 ms and p95 from 9.37 to
 10.48 ms. The preceding diagnostic was 27,911.92 bytes/frame; this is a small
 native-wrapper reduction, not evidence that the M11 final gate is complete.
 
+`Procedural.Graph.inspect` now retains immutable input-before-consumer metadata
+by physical graph-root identity. The domain-local cache is bounded to 64 entries
+and 8 MiB of accounted metadata; weak root keys prevent it from extending graph
+node or cook-closure lifetime. A rebuilt graph root misses even when logical node
+IDs remain stable, while 10,000 repeated inspections of one immutable root reuse
+the exact result at no more than 40 bytes/call.
+
+This removes the benchmark overlay's repeated hash-table traversal and metadata
+reconstruction. Phase profiling reduced visible view construction from about
+12.8 KiB to 8.7 KiB/call. Five non-profiled two-second visible samples reported
+183/186/185/185/184 frames and 14,763,424 / 16,284,304 / 16,128,384 /
+16,319,432 / 16,182,960 allocated bytes respectively. The median run is about
+85.5 KiB/frame, down from 89.3 KiB/frame; median frame time was 10.04 ms and p95
+12.67 ms across the five-run center. This remains intermediate M11 evidence.
+
+A renewed non-profiled hidden diagnostic reported 232 frames over 2.001 seconds,
+8.18 ms median, 9.82 ms p95, and 3,283,752 allocated bytes, approximately
+13.8 KiB/frame. This crosses the 16 KiB hidden interim allocation threshold for
+the first time, but it is not the required five-run final M12 qualification and
+does not meet the 4 KiB final UI/Scene target by end-to-end allocation alone.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,

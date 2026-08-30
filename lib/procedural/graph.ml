@@ -12,7 +12,7 @@ type info = {
   has_parameters : bool;
 }
 
-let inspect root =
+let inspect_uncached root =
   let seen = Hashtbl.create 32 and result = ref [] in
   let rec visit node =
     if not (Hashtbl.mem seen (Node.id node)) then begin
@@ -33,6 +33,44 @@ let inspect root =
   in
   visit root;
   List.rev !result
+
+type inspection_cache_entry={root:t Weak.t;infos:info list;bytes:int}
+let inspection_cache_capacity=64
+let inspection_cache_byte_capacity=8*1024*1024
+let inspection_caches=Domain.DLS.new_key(fun()->ref[])
+
+let inspection_bytes infos=
+  List.fold_left(fun bytes info->bytes+96+String.length info.label+
+    String.length info.operation+String.length info.parameters+
+    (16*List.length info.input_ids))0 infos
+
+let rec find_inspection root=function
+  |[]->None
+  |entry::rest->match Weak.get entry.root 0 with
+    |Some cached when cached==root->Some entry.infos
+    |None|Some _->find_inspection root rest
+
+let trim_inspections entries=
+  let rec loop count bytes kept=function
+    |[]->List.rev kept
+    |entry::rest when Weak.check entry.root 0&&
+        count<inspection_cache_capacity&&
+        entry.bytes<=inspection_cache_byte_capacity-bytes->
+        loop(count+1)(bytes+entry.bytes)(entry::kept)rest
+    |_::rest->loop count bytes kept rest in
+  loop 0 0[]entries
+
+let inspect root=
+  let cache=Domain.DLS.get inspection_caches in
+  match find_inspection root!cache with
+  |Some infos->infos
+  |None->
+      let infos=inspect_uncached root in
+      let weak=Weak.create 1 in
+      Weak.set weak 0(Some root);
+      cache:=trim_inspections({root=weak;infos;
+        bytes=inspection_bytes infos}::!cache);
+      infos
 
 let find root ~node_id =
   let seen = Hashtbl.create 32 in

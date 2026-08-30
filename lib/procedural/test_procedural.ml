@@ -96,12 +96,23 @@ let test_node_owned_parameters_and_graph_edit () =
   let graph = Sop.merge [Sop.null ~label:"left" editable;
                          Sop.null ~label:"right" editable] in
   let original_infos = Graph.inspect graph in
+  check (Graph.inspect graph == original_infos)
+    "immutable graph inspection did not reuse retained metadata";
+  Gc.full_major();
+  let inspect_before=Gc.allocated_bytes()in
+  for _=1 to 10_000 do ignore(Graph.inspect graph)done;
+  let inspect_per_call=(Gc.allocated_bytes()-.inspect_before)/.10_000. in
+  check (inspect_per_call<=40.)
+    (Printf.sprintf"retained graph inspection allocates %.1f bytes/call"
+      inspect_per_call);
   check (List.length (Node.parameter_fields editable) = 2
       && Node.has_parameters editable)
     "node-owned parameter metadata was not exposed";
   let translated, effects = Graph.apply_parameters graph
       ~node_id:(Node.id editable)
       ["translate_x", Parameter.Float_value 1.5] |> get_ok in
+  check (Graph.inspect translated != original_infos)
+    "rebuilt graph reused stale retained metadata";
   check (effects.cook && not effects.view && not effects.export)
     "graph edit lost cook impact";
   let edited = Option.get (Graph.find translated ~node_id:(Node.id editable)) in
