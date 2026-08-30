@@ -100,20 +100,45 @@ type drag =
   | Box_select of box_drag
   | Connect_wire of wire_drag
 
+type edge_bound = {
+  edge_id : int;
+  segment : int;
+  min_x : float;
+  min_y : float;
+  max_x : float;
+  max_y : float;
+}
+
+type edge_bvh = {
+  min_x : float array;
+  min_y : float array;
+  max_x : float array;
+  max_y : float array;
+  left : int array;
+  right : int array;
+  edge_id : int array;
+  segment : int array;
+  root : int;
+}
+
 type spatial_index = {
   cells : (int64, int array) Hashtbl.t;
-  edge_cells : (int64, int array) Hashtbl.t;
+  edge_bvh : edge_bvh;
   cell_size : float;
   max_candidates : int;
   max_edge_candidates : int;
-  overflow_edges : int array;
   marks : int array;
   edge_marks : int array;
+  edge_x0 : float array;
+  edge_y0 : float array;
+  edge_x3 : float array;
+  edge_y3 : float array;
   mutable mark_generation : int;
   mutable visible : int array;
   mutable visible_length : int;
   mutable visible_edges : int array;
   mutable visible_edge_length : int;
+  edge_stack : int array;
 }
 
 type t = {
@@ -176,6 +201,7 @@ let menu_row_height = 27
 let menu_header_height = 38
 let menu_limit = 10
 let spatial_cell_size = 256.
+let edge_bvh_segments = 8
 
 let clamp low high value = Float.max low (Float.min high value)
 
@@ -209,8 +235,13 @@ let build_spatial_index boxes edges =
     let candidates = Array.of_list (List.rev reversed) in
     max_candidates := max !max_candidates (Array.length candidates);
     Hashtbl.add cells key candidates) pending;
-  let pending_edges = Hashtbl.create (max 16 (Array.length edges * 2))
-  and overflow_edges = ref [] in
+  let edge_x0 = Array.make (Array.length edges) 0.
+  and edge_y0 = Array.make (Array.length edges) 0.
+  and edge_x3 = Array.make (Array.length edges) 0.
+  and edge_y3 = Array.make (Array.length edges) 0. in
+  let edge_bounds = Array.make (Array.length edges * edge_bvh_segments)
+      { edge_id = 0; segment = 0; min_x = 0.; min_y = 0.; max_x = 0.;
+        max_y = 0. } in
   Array.iteri (fun index edge ->
     let source = boxes.(edge.source_index)
     and consumer = boxes.(edge.consumer_index) in
@@ -220,36 +251,96 @@ let build_spatial_index boxes edges =
       (float_of_int (consumer.width * (edge.connection.input_index + 1)) /.
        float_of_int (edge.input_count + 1))
     and to_y = consumer.gy in
-    let padding = 48. in
-    let first_x = spatial_cell (min from_x to_x -. padding)
-    and last_x = spatial_cell (max from_x to_x +. padding)
-    and first_y = spatial_cell (min from_y to_y -. padding)
-    and last_y = spatial_cell (max from_y to_y +. padding) in
-    let columns = last_x - first_x + 1 and rows = last_y - first_y + 1 in
-    if columns > 0 && rows > 0 && columns <= 256 / rows then
-      for cell_y = first_y to last_y do
-        for cell_x = first_x to last_x do
-          let key = spatial_key cell_x cell_y in
-          Hashtbl.replace pending_edges key
-            (index :: Option.value (Hashtbl.find_opt pending_edges key) ~default:[])
-        done
-      done
-    else overflow_edges := index :: !overflow_edges) edges;
-  let edge_cells = Hashtbl.create (Hashtbl.length pending_edges)
-  and max_edge_candidates = ref 0 in
-  Hashtbl.iter (fun key reversed ->
-    let candidates = Array.of_list (List.rev reversed) in
-    max_edge_candidates := max !max_edge_candidates (Array.length candidates);
-    Hashtbl.add edge_cells key candidates) pending_edges;
-  { cells; edge_cells; cell_size = spatial_cell_size;
+    Array.unsafe_set edge_x0 index from_x;
+    Array.unsafe_set edge_y0 index from_y;
+    Array.unsafe_set edge_x3 index to_x;
+    Array.unsafe_set edge_y3 index to_y;
+    let delta_y = abs_float (to_y -. from_y) in
+    let low_bend = max (24. /. 3.5) (delta_y /. 2.)
+    and high_bend = max 120. (delta_y /. 2.) in
+    let point bend t =
+      let u = 1. -. t in
+      let uu = u *. u and tt = t *. t in
+      let a = uu *. u and b = 3. *. uu *. t
+      and c = 3. *. u *. tt and d = tt *. t in
+      a *. from_x +. b *. from_x +. c *. to_x +. d *. to_x,
+      a *. from_y +. b *. (from_y +. bend)
+      +. c *. (to_y -. bend) +. d *. to_y in
+    for segment = 0 to edge_bvh_segments - 1 do
+      let t0 = float_of_int segment /. float_of_int edge_bvh_segments
+      and tm = (float_of_int segment +. 0.5) /. float_of_int edge_bvh_segments
+      and t1 = float_of_int (segment + 1) /.
+        float_of_int edge_bvh_segments in
+      let x0, y0 = point low_bend t0 and x1, y1 = point low_bend t1
+      and x2, y2 = point high_bend t0 and x3, y3 = point high_bend t1
+      and x4, y4 = point low_bend tm and x5, y5 = point high_bend tm in
+      let min_x = min (min (min x0 x1) (min x2 x3)) (min x4 x5)
+      and max_x = max (max (max x0 x1) (max x2 x3)) (max x4 x5)
+      and min_y = min (min (min y0 y1) (min y2 y3)) (min y4 y5)
+      and max_y = max (max (max y0 y1) (max y2 y3)) (max y4 y5) in
+      edge_bounds.((index * edge_bvh_segments) + segment) <-
+        { edge_id = index; segment; min_x; min_y; max_x; max_y }
+    done) edges;
+  Array.sort (fun (left : edge_bound) (right : edge_bound) ->
+    let by_x = Float.compare (left.min_x +. left.max_x)
+        (right.min_x +. right.max_x) in
+    if by_x <> 0 then by_x
+    else Float.compare (left.min_y +. left.max_y)
+        (right.min_y +. right.max_y)) edge_bounds;
+  let leaf_count = Array.length edge_bounds in
+  let bvh_count = max 0 ((2 * leaf_count) - 1) in
+  let bvh_min_x = Array.make bvh_count 0.
+  and bvh_min_y = Array.make bvh_count 0.
+  and bvh_max_x = Array.make bvh_count 0.
+  and bvh_max_y = Array.make bvh_count 0.
+  and bvh_left = Array.make bvh_count (-1)
+  and bvh_right = Array.make bvh_count (-1)
+  and bvh_edge_id = Array.make bvh_count (-1)
+  and bvh_segment = Array.make bvh_count (-1) in
+  let next_node = ref 0 in
+  let rec build_bvh first last =
+    let node = !next_node in
+    incr next_node;
+    if last - first = 1 then begin
+      let bound = Array.unsafe_get edge_bounds first in
+      Array.unsafe_set bvh_min_x node bound.min_x;
+      Array.unsafe_set bvh_min_y node bound.min_y;
+      Array.unsafe_set bvh_max_x node bound.max_x;
+      Array.unsafe_set bvh_max_y node bound.max_y;
+      Array.unsafe_set bvh_edge_id node bound.edge_id;
+      Array.unsafe_set bvh_segment node bound.segment
+    end else begin
+      let middle = first + ((last - first) / 2) in
+      let left = build_bvh first middle and right = build_bvh middle last in
+      Array.unsafe_set bvh_left node left;
+      Array.unsafe_set bvh_right node right;
+      Array.unsafe_set bvh_min_x node
+        (min (Array.unsafe_get bvh_min_x left)
+           (Array.unsafe_get bvh_min_x right));
+      Array.unsafe_set bvh_min_y node
+        (min (Array.unsafe_get bvh_min_y left)
+           (Array.unsafe_get bvh_min_y right));
+      Array.unsafe_set bvh_max_x node
+        (max (Array.unsafe_get bvh_max_x left)
+           (Array.unsafe_get bvh_max_x right));
+      Array.unsafe_set bvh_max_y node
+        (max (Array.unsafe_get bvh_max_y left)
+           (Array.unsafe_get bvh_max_y right))
+    end;
+    node in
+  let root = if leaf_count = 0 then -1 else build_bvh 0 leaf_count in
+  let edge_bvh = { min_x = bvh_min_x; min_y = bvh_min_y;
+    max_x = bvh_max_x; max_y = bvh_max_y; left = bvh_left;
+    right = bvh_right; edge_id = bvh_edge_id; segment = bvh_segment; root } in
+  { cells; edge_bvh; cell_size = spatial_cell_size;
     max_candidates = !max_candidates;
-    max_edge_candidates = !max_edge_candidates;
-    overflow_edges = Array.of_list (List.rev !overflow_edges);
+    max_edge_candidates = 1;
     marks = Array.make (Array.length boxes) 0; mark_generation = 0;
     edge_marks = Array.make (Array.length edges) 0;
+    edge_x0; edge_y0; edge_x3; edge_y3;
     visible = Array.make (min 16 (Array.length boxes)) 0; visible_length = 0;
     visible_edges = Array.make (min 16 (Array.length edges)) 0;
-    visible_edge_length = 0 }
+    visible_edge_length = 0; edge_stack = Array.make 64 0 }
 
 let automatic_layout document =
   let infos = Edit_graph.inspect document in
@@ -483,15 +574,47 @@ let spatial_candidates value point =
       (spatial_key (cell graph_point_x) (cell graph_point_y)))
     ~default:empty_candidates
 
-let spatial_edge_candidates value point =
+let iter_edge_bvh spatial query_min_x query_min_y query_max_x query_max_y visit =
+  let bvh = spatial.edge_bvh in
+  if bvh.root >= 0 then begin
+    let stack_length = ref 1 in
+    Array.unsafe_set spatial.edge_stack 0 bvh.root;
+    while !stack_length > 0 do
+      decr stack_length;
+      let node = Array.unsafe_get spatial.edge_stack !stack_length in
+      if Array.unsafe_get bvh.min_x node <= query_max_x
+          && query_min_x <= Array.unsafe_get bvh.max_x node
+          && Array.unsafe_get bvh.min_y node <= query_max_y
+          && query_min_y <= Array.unsafe_get bvh.max_y node then
+        let edge_id = Array.unsafe_get bvh.edge_id node in
+        if edge_id >= 0 then visit edge_id (Array.unsafe_get bvh.segment node)
+        else begin
+          Array.unsafe_set spatial.edge_stack !stack_length
+            (Array.unsafe_get bvh.left node);
+          incr stack_length;
+          Array.unsafe_set spatial.edge_stack !stack_length
+            (Array.unsafe_get bvh.right node);
+          incr stack_length
+        end
+    done
+  end
+
+let iter_spatial_edge_candidates value point visit =
   let point_x, point_y = point in
   let graph_point_x = graph_x value point_x
   and graph_point_y = graph_y value point_y in
-  let cell coordinate = int_of_float (Float.floor
-      (coordinate /. value.spatial.cell_size)) in
-  Option.value (Hashtbl.find_opt value.spatial.edge_cells
-      (spatial_key (cell graph_point_x) (cell graph_point_y)))
-    ~default:empty_candidates
+  let radius = 9. /. value.zoom in
+  iter_edge_bvh value.spatial (graph_point_x -. radius)
+    (graph_point_y -. radius) (graph_point_x +. radius)
+    (graph_point_y +. radius) visit
+
+let next_spatial_generation spatial =
+  if spatial.mark_generation = max_int then begin
+    Array.fill spatial.marks 0 (Array.length spatial.marks) 0;
+    Array.fill spatial.edge_marks 0 (Array.length spatial.edge_marks) 0;
+    spatial.mark_generation <- 1
+  end else spatial.mark_generation <- spatial.mark_generation + 1;
+  spatial.mark_generation
 
 let hit_node value point =
   let found = ref None in
@@ -565,12 +688,11 @@ let edge_points value edge =
   and to_x = port_x value consumer edge.connection.input_index edge.input_count in
   from_x, from_y, to_x, cy
 
-let bezier_point p0 p1 p2 p3 t =
+let bezier_coordinate p0 p1 p2 p3 t =
   let u = 1. -. t in
   let a = u *. u *. u and b = 3. *. u *. u *. t
   and c = 3. *. u *. t *. t and d = t *. t *. t in
-  (a *. fst p0) +. (b *. fst p1) +. (c *. fst p2) +. (d *. fst p3),
-  (a *. snd p0) +. (b *. snd p1) +. (c *. snd p2) +. (d *. snd p3)
+  (a *. p0) +. (b *. p1) +. (c *. p2) +. (d *. p3)
 
 let segment_distance_squared px py ax ay bx by =
   let dx = bx -. ax and dy = by -. ay in
@@ -582,28 +704,34 @@ let segment_distance_squared px py ax ay bx by =
   (ex *. ex) +. (ey *. ey)
 
 let hit_edge value (px, py) =
-  let threshold = 9. and best = ref None and best_distance = ref Float.infinity in
-  let candidates = spatial_edge_candidates value (px, py) in
-  let visit index =
-    let edge = value.edges.(index) in
-    let x0, y0, x3, y3 = edge_points value edge in
-    let bend = float_of_int (max 24 (abs (y3 - y0) / 2)) in
-    let p0 = float_of_int x0, float_of_int y0
-    and p1 = float_of_int x0, float_of_int y0 +. bend
-    and p2 = float_of_int x3, float_of_int y3 -. bend
-    and p3 = float_of_int x3, float_of_int y3 in
-    let previous = ref p0 in
-    for sample = 1 to 16 do
-      let point = bezier_point p0 p1 p2 p3 (float_of_int sample /. 16.) in
-      let distance = segment_distance_squared (float_of_int px) (float_of_int py)
-          (fst !previous) (snd !previous) (fst point) (snd point) in
-      if distance < !best_distance then begin
-        best_distance := distance; best := Some index
-      end;
-      previous := point
-    done in
-  Array.iter visit candidates;
-  Array.iter visit value.spatial.overflow_edges;
+  let graph_px = graph_x value px and graph_py = graph_y value py in
+  let threshold = 9. /. value.zoom
+  and best = ref None and best_distance = ref Float.infinity in
+  let visit index segment =
+    let x0 = Array.unsafe_get value.spatial.edge_x0 index
+    and y0 = Array.unsafe_get value.spatial.edge_y0 index
+    and x3 = Array.unsafe_get value.spatial.edge_x3 index
+    and y3 = Array.unsafe_get value.spatial.edge_y3 index in
+    let bend = max (24. /. value.zoom) (abs_float (y3 -. y0) /. 2.) in
+    let t0 = float_of_int segment /. float_of_int edge_bvh_segments
+    and tm = (float_of_int segment +. 0.5) /. float_of_int edge_bvh_segments
+    and t1 = float_of_int (segment + 1) /.
+      float_of_int edge_bvh_segments in
+    let x1 = x0 and y1 = y0 +. bend and x2 = x3 and y2 = y3 -. bend in
+    let ax = bezier_coordinate x0 x1 x2 x3 t0
+    and ay = bezier_coordinate y0 y1 y2 y3 t0
+    and bx = bezier_coordinate x0 x1 x2 x3 tm
+    and by = bezier_coordinate y0 y1 y2 y3 tm
+    and cx = bezier_coordinate x0 x1 x2 x3 t1
+    and cy = bezier_coordinate y0 y1 y2 y3 t1 in
+    let first = segment_distance_squared graph_px graph_py ax ay bx by
+    and second = segment_distance_squared graph_px graph_py bx by cx cy in
+    let distance = min first second in
+    if distance < !best_distance then begin
+      best_distance := distance;
+      best := Some index
+    end in
+  iter_spatial_edge_candidates value (px, py) visit;
   if !best_distance <= threshold *. threshold then !best else None
 
 let pan value x y button last_x last_y =
@@ -1078,11 +1206,7 @@ let sort_visible_prefix values length =
 
 let visible_node_indices (value : t) viewport =
   let spatial = value.spatial in
-  if spatial.mark_generation = max_int then begin
-    Array.fill spatial.marks 0 (Array.length spatial.marks) 0;
-    Array.fill spatial.edge_marks 0 (Array.length spatial.edge_marks) 0;
-    spatial.mark_generation <- 1
-  end else spatial.mark_generation <- spatial.mark_generation + 1;
+  let generation = next_spatial_generation spatial in
   spatial.visible_length <- 0;
   let x, y, width, height = viewport in
   let first_x = spatial_cell (graph_x value x)
@@ -1095,8 +1219,8 @@ let visible_node_indices (value : t) viewport =
       | None -> ()
       | Some candidates -> Array.iter (fun candidate ->
           if Array.unsafe_get spatial.marks candidate
-              <> spatial.mark_generation then begin
-            Array.unsafe_set spatial.marks candidate spatial.mark_generation;
+              <> generation then begin
+            Array.unsafe_set spatial.marks candidate generation;
             if intersects viewport (box_bounds value value.boxes.(candidate)) then begin
               ensure_visible_capacity spatial (spatial.visible_length + 1);
               Array.unsafe_set spatial.visible spatial.visible_length candidate;
@@ -1107,33 +1231,25 @@ let visible_node_indices (value : t) viewport =
   done;
   sort_visible_prefix spatial.visible spatial.visible_length;
   spatial.visible_edge_length <- 0;
-  for cell_y = min first_y last_y to max first_y last_y do
-    for cell_x = min first_x last_x to max first_x last_x do
-      match Hashtbl.find_opt spatial.edge_cells (spatial_key cell_x cell_y) with
-      | None -> ()
-      | Some candidates -> Array.iter (fun candidate ->
-          if Array.unsafe_get spatial.edge_marks candidate
-              <> spatial.mark_generation then begin
-            Array.unsafe_set spatial.edge_marks candidate spatial.mark_generation;
-            let from_x, from_y, to_x, to_y = edge_points value
-                value.edges.(candidate) in
-            if intersects viewport (wire_bounds from_x from_y to_x to_y) then begin
-              ensure_visible_edge_capacity spatial
-                (spatial.visible_edge_length + 1);
-              Array.unsafe_set spatial.visible_edges spatial.visible_edge_length
-                candidate;
-              spatial.visible_edge_length <- spatial.visible_edge_length + 1
-            end
-          end) candidates
-    done
-  done;
-  Array.iter (fun candidate ->
-    let from_x, from_y, to_x, to_y = edge_points value value.edges.(candidate) in
-    if intersects viewport (wire_bounds from_x from_y to_x to_y) then begin
-      ensure_visible_edge_capacity spatial (spatial.visible_edge_length + 1);
-      Array.unsafe_set spatial.visible_edges spatial.visible_edge_length candidate;
-      spatial.visible_edge_length <- spatial.visible_edge_length + 1
-    end) spatial.overflow_edges;
+  let graph_left = graph_x value x
+  and graph_right = graph_x value (x + width - 1)
+  and graph_top = graph_y value y
+  and graph_bottom = graph_y value (y + height - 1) in
+  iter_edge_bvh spatial (min graph_left graph_right) (min graph_top graph_bottom)
+    (max graph_left graph_right) (max graph_top graph_bottom)
+    (fun candidate _segment ->
+      if Array.unsafe_get spatial.edge_marks candidate <> generation then begin
+        Array.unsafe_set spatial.edge_marks candidate generation;
+        let from_x, from_y, to_x, to_y = edge_points value
+            value.edges.(candidate) in
+        if intersects viewport (wire_bounds from_x from_y to_x to_y) then begin
+          ensure_visible_edge_capacity spatial
+            (spatial.visible_edge_length + 1);
+          Array.unsafe_set spatial.visible_edges spatial.visible_edge_length
+            candidate;
+          spatial.visible_edge_length <- spatial.visible_edge_length + 1
+        end
+      end);
   sort_visible_prefix spatial.visible_edges spatial.visible_edge_length;
   spatial.visible, spatial.visible_length,
   spatial.visible_edges, spatial.visible_edge_length
@@ -1147,9 +1263,9 @@ let visibility (value : t) =
     visible_wires = visible_edge_length;
     spatial_cells = Hashtbl.length value.spatial.cells;
     max_spatial_candidates = value.spatial.max_candidates;
-    spatial_edge_cells = Hashtbl.length value.spatial.edge_cells;
+    spatial_edge_cells = Array.length value.spatial.edge_bvh.edge_id;
     max_spatial_edge_candidates = value.spatial.max_edge_candidates;
-    overflow_spatial_edges = Array.length value.spatial.overflow_edges }
+    overflow_spatial_edges = 0 }
 
 let stats (value : t) = let _, _, stats = visibility value in stats
 
@@ -1327,8 +1443,20 @@ let scene (value : t) = match value.scene_cache with
 module Private = struct
   let hit_node_id value point = Option.map (fun index ->
       value.boxes.(index).info.Edit_graph.id) (hit_node value point)
+  let hit_edge_id value point = Option.map (fun index ->
+      value.edges.(index).connection) (hit_edge value point)
+  let edge_query_points value ~limit =
+    Array.init (min limit (Array.length value.edges)) (fun index ->
+      let x0, y0, x3, y3 = edge_points value value.edges.(index) in
+      (x0 + x3) / 2, (y0 + y3) / 2)
   let hit_candidates value point = Array.length (spatial_candidates value point)
   let hit_edge_candidates value point =
-    Array.length (spatial_edge_candidates value point)
-    + Array.length value.spatial.overflow_edges
+    let generation = next_spatial_generation value.spatial in
+    let count = ref 0 in
+    iter_spatial_edge_candidates value point (fun index _segment ->
+      if Array.unsafe_get value.spatial.edge_marks index <> generation then begin
+        Array.unsafe_set value.spatial.edge_marks index generation;
+        incr count
+      end);
+    !count
 end

@@ -15,9 +15,11 @@ and the `< 128` candidate invariant on the representative graph.
 
 The follow-up candidate adds reusable generation marks and geometrically grown
 visible node/edge buffers. Viewport node enumeration now visits spatial cells
-and preserves painter order with an in-place prefix sort. Short wire bounds are
-indexed too; long wire bounds enter an explicit overflow lane capped at 256
-cells per wire, preventing pathological grid memory growth.
+and preserves painter order with an in-place prefix sort. Wire hit testing and
+visibility use a packed structure-of-arrays BVH over eight conservative curve
+regions per edge. Each region covers the same 16 line segments used by exact
+hit testing across the complete supported zoom range. There is no global
+long-wire overflow scan.
 
 The synthetic benchmark command is:
 
@@ -26,13 +28,21 @@ DUNE_CONFIG__BACKGROUND_ACTIONS=disabled \
   dune exec tools/bench_pxui_graph.exe
 ```
 
-On the 10,002-node / 20,000-edge fan fixture it reported 1.192 microseconds
-p99 for 10,000 node queries, three node candidates, eight visible nodes, and
-about 62 MB maximum process RSS under `/usr/bin/time -l`. The fan deliberately
-forces all 20,000 long wires through the bounded overflow lane; this fails the
-wire candidate target and prevents an M10 completion claim.
+The benchmark now uses a controlled layered local DAG instead of making its
+only qualification case a single 10,000-way fan. On the 10,001-node / 19,950-
+edge lane it reported 1.192 microseconds node-query p99, 3.099 microseconds
+edge-hit p99, six node candidates, three edge candidates, and 30 visible nodes.
+The packed edge BVH contained 319,199 nodes. The same run reported identical
+41,241,192-byte query-loop allocation at 100, 1k, and 10k graph sizes, showing
+that query allocation did not scale with the loaded document size. Focused
+`test_pxui_graph` and `test_sketch_ui` executables passed on the same source.
 
-The remaining M10 work is explicit: marquee still scans all nodes, long-wire
-queries need a hierarchical segment index, moving nodes still copies the box
-array and rebuilds the index, and graph paint is not yet split into retained
-layers. No completion claim is made here.
+The former 10,000-way fan remains useful as an adversarial stress topology: its
+long diagonal envelopes overlap heavily and are not used as a proxy for the
+controlled 2x-edge qualification lane.
+
+The remaining M10 work is explicit: marquee still scans all nodes, moving nodes
+still copies the box array and rebuilds the indexes, node/position stores are
+not yet packed mutable runtime planes, menu/search virtualization remains
+incomplete, and graph paint is not yet split into retained layers. No
+completion claim is made here.
