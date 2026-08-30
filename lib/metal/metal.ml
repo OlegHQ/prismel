@@ -2060,8 +2060,11 @@ let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buf
   end
 
 let retain_command_buffer_prepared_resources command_buffer lifetime=
-  if not(List.exists(function Command_buffer_prepared_resources retained->
-    retained==lifetime|_->false)!(command_buffer.resources))then begin
+  let rec retained=function
+  |[]->false
+  |Command_buffer_prepared_resources candidate::_->candidate==lifetime
+  |_::rest->retained rest in
+  if not(retained!(command_buffer.resources))then begin
     attach lifetime;
     command_buffer.resources:=Command_buffer_prepared_resources lifetime::
       !(command_buffer.resources)
@@ -2155,19 +2158,11 @@ let retain_command_buffer_residency_set (command_buffer : command_buffer)
 
 let retain_command_buffer_indirect (command_buffer : command_buffer)
     (value : indirect_command_buffer) =
-  let already_retained =
-    List.exists
-      (function
-        | Command_buffer_indirect retained -> retained.lifetime == value.lifetime
-        | Command_buffer_buffer _ | Command_buffer_prepared_resources _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _
-        | Command_buffer_sampler _
-        | Command_buffer_render_pipeline _
-        | Command_residency_set _ | Command_buffer_fence _ | Command_buffer_heap _
-        | Command_buffer_drawable _ | Command_buffer_depth_stencil _
-        | Command_buffer_visible_table _ | Command_buffer_intersection_table _ -> false)
-      !(command_buffer.resources)
-  in
-  if not already_retained then begin
+  let rec retained=function
+  |[]->false
+  |Command_buffer_indirect candidate::_->candidate.lifetime==value.lifetime
+  |_::rest->retained rest in
+  if not(retained!(command_buffer.resources))then begin
     attach value.lifetime;
     command_buffer.resources :=
       Command_buffer_indirect value :: !(command_buffer.resources)
@@ -2175,20 +2170,12 @@ let retain_command_buffer_indirect (command_buffer : command_buffer)
 
 let retain_command_buffer_render_pipeline (command_buffer : command_buffer)
     (pipeline : render_pipeline) =
-  if
-    not
-      (List.exists
-         (function
-           | Command_buffer_render_pipeline retained ->
-               retained.lifetime == pipeline.lifetime
-           | Command_buffer_buffer _ | Command_buffer_prepared_resources _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _
-           | Command_buffer_sampler _
-           | Command_residency_set _ | Command_buffer_indirect _
-           | Command_buffer_fence _ | Command_buffer_heap _
-           | Command_buffer_drawable _ | Command_buffer_depth_stencil _
-           | Command_buffer_visible_table _ | Command_buffer_intersection_table _ -> false)
-         !(command_buffer.resources))
-  then begin
+  let rec retained=function
+  |[]->false
+  |Command_buffer_render_pipeline candidate::_->
+      candidate.lifetime==pipeline.lifetime
+  |_::rest->retained rest in
+  if not(retained!(command_buffer.resources))then begin
     attach pipeline.lifetime;
     command_buffer.resources :=
       Command_buffer_render_pipeline pipeline :: !(command_buffer.resources)
@@ -6718,7 +6705,21 @@ module Drawable = struct
     let cancel(value:t)=let operation="Metal.Drawable.Handler.cancel"in on_main operation(fun()->if Atomic.compare_and_set value.lifetime.destroyed false true then(Metal_raw.drawable10_handler_cancel value.token;finish_handler value.state);Ok())
     let destroyed(value:t)=is_destroyed value.lifetime
   end
-  let acquire_owned ~finalize (layer:metal_layer) = let operation="Metal.Drawable.acquire" in on_main operation(fun()->match ensure_live operation layer.lifetime with Error _ as e->e|Ok()->match Metal_raw.layer_next_drawable layer.raw with Error m->native_error operation m|Ok None->Ok(Error Timeout_or_unavailable)|Ok(Some raw)->match Metal_raw.drawable10_snapshot raw with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok(drawable_id,_)->let value:t={raw;lifetime=lifetime();layer;drawable_texture=None;drawable_id;presentation_scheduled=false}in attach layer.lifetime;if finalize then attach_finalizer value value.lifetime layer.lifetime;Ok(Ok value))
+  let acquire_owned ~finalize (layer:metal_layer) =
+    let operation="Metal.Drawable.acquire"in
+    match before_main operation with Error _ as error->error|Ok()->
+    match ensure_live operation layer.lifetime with Error _ as error->error|Ok()->
+    match Metal_raw.layer_next_drawable layer.raw with
+    |Error message->native_error operation message
+    |Ok None->Ok(Error Timeout_or_unavailable)
+    |Ok(Some raw)->match Metal_raw.drawable10_snapshot raw with
+      |Error message->ignore(Metal_raw.destroy raw);native_error operation message
+      |Ok(drawable_id,_)->
+          let value:t={raw;lifetime=lifetime();layer;drawable_texture=None;
+            drawable_id;presentation_scheduled=false}in
+          attach layer.lifetime;
+          if finalize then attach_finalizer value value.lifetime layer.lifetime;
+          Ok(Ok value)
   let acquire layer=acquire_owned ~finalize:true layer
   let layer (value:t)=value.layer
   let checked_layer(value:t)=let operation="Metal.Drawable.checked_layer"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.drawable_native_layer value.raw with Error m->native_error operation m|Ok raw->let native=Metal_raw.layer_native_snapshot raw and expected=Metal_raw.layer_native_snapshot value.layer.raw in ignore(Metal_raw.destroy raw);match native,expected with Ok left,Ok right when left=right->Ok value.layer|Error m,_->native_error operation m|_,Error m->native_error operation m|_->error operation Native_error "drawable parent layer metadata changed")
@@ -17048,13 +17049,22 @@ module Retained_render_plan = struct
   let remove value key=match Hashtbl.find_opt value.entries key with None->()|Some entry->Hashtbl.remove value.entries key;value.order<-List.filter((<>)key)value.order;value.on_evict~key:entry.key~generation:entry.generation entry.buffer
   let find_or_create value ~key ~generation ~command_count ~descriptor ~build=
     let operation="Metal.Retained_render_plan.find_or_create"in
-    on_main operation(fun()->if value.dead then error operation Destroyed"retained plan cache is destroyed"else match ensure_live operation value.device.lifetime with Error _ as e->e|Ok()when not value.enabled->error operation Unsupported"indirect command plans are unavailable"|Ok()when key=""||generation<0L||command_count<=0||command_count>65_536->error operation Invalid_argument"plan identity/generation/count is invalid"|Ok()->match Hashtbl.find_opt value.entries key with
-      |Some entry when entry.generation=generation&&entry.commands=command_count->value.order<-List.filter((<>)key)value.order@[key];Ok(entry.buffer,true)
+    match before_main operation with Error _ as error->error|Ok()->
+    if value.dead then error operation Destroyed"retained plan cache is destroyed"
+    else match ensure_live operation value.device.lifetime with
+    |Error _ as error->error
+    |Ok()when not value.enabled->
+        error operation Unsupported"indirect command plans are unavailable"
+    |Ok()when key=""||generation<0L||command_count<=0||command_count>65_536->
+        error operation Invalid_argument"plan identity/generation/count is invalid"
+    |Ok()->match Hashtbl.find_opt value.entries key with
+      |Some entry when entry.generation=generation&&entry.commands=command_count->
+          Ok(entry.buffer,true)
       |stale->Option.iter(fun _->remove value key)stale;
         match Indirect_command_buffer.create~device:value.device~storage:Buffer.Shared~max_command_count:command_count descriptor with Error _ as e->e|Ok buffer->
         (match build buffer with Error _ as e->ignore(Indirect_command_buffer.destroy buffer);e|Ok()->
           if Hashtbl.length value.entries>=value.capacity then(match value.order with oldest::_->remove value oldest|[]->());
-          Hashtbl.add value.entries key{key;generation;commands=command_count;buffer};value.order<-value.order@[key];Ok(buffer,false)))
+          Hashtbl.add value.entries key{key;generation;commands=command_count;buffer};value.order<-value.order@[key];Ok(buffer,false))
   let invalidate value key=if value.dead then error"Metal.Retained_render_plan.invalidate"Destroyed"retained plan cache is destroyed"else(remove value key;Ok())
   let destroy value=if value.dead then Ok()else(let entries=Hashtbl.to_seq_values value.entries|>List.of_seq in Hashtbl.clear value.entries;value.order<-[];value.dead<-true;List.iter(fun entry->value.on_evict~key:entry.key~generation:entry.generation entry.buffer)entries;Ok())
 end
@@ -17372,7 +17382,9 @@ module Command_buffer = struct
   let create_with_descriptor (queue:Command_queue.t)?(retained_references=true)?(error_options=0L)?log_state()=let operation="Metal.Command_buffer.create_with_descriptor"in on_main operation(fun()->match ensure_live operation queue.lifetime with Error _ as failure->failure|Ok()when error_options<0L->error operation Invalid_argument "command-buffer error options are invalid"|Ok()->match log_state with Some(log:command4_log_state)when is_destroyed log.lifetime->error operation Destroyed "log state is destroyed"|Some log when not(same_device queue.device log.device)->error operation Device_mismatch "log state belongs to another device"|_->match Metal_raw.command_queue_command_buffer queue.raw 1 retained_references error_options(Option.map(fun(log:command4_log_state)->log.raw)log_state)with Error message->native_error operation message|Ok raw->let value=wrap_queue_raw queue raw in Option.iter(fun(log:command4_log_state)->attach log.lifetime;value.presentation_events:=log.lifetime::!(value.presentation_events))log_state;Ok value)
 
   let create_owned ~finalize (queue : Command_queue.t) ?label () =
-    on_main "Metal.Command_buffer.create" (fun () ->
+    match before_main "Metal.Command_buffer.create" with
+    |Error _ as failure->failure
+    |Ok()->
       match ensure_live "Metal.Command_buffer.create" queue.lifetime with
       | Error _ as failure -> failure
       | Ok () ->
@@ -17418,7 +17430,7 @@ module Command_buffer = struct
                              ignore (Metal_raw.destroy raw);
                              if Atomic.compare_and_set value.lifetime.destroyed false true
                              then detach queue.lifetime;
-                             native_error "Metal.Command_buffer.create" message))))
+                             native_error "Metal.Command_buffer.create" message)))
 
   let create queue ?label () = create_owned ~finalize:true queue ?label ()
 
@@ -17434,7 +17446,9 @@ module Command_buffer = struct
       let operation =
         "Metal.Command_buffer.Private.release_committed_references"
       in
-      on_main operation (fun () ->
+      match before_main operation with
+      |Error _ as failure->failure
+      |Ok()->
         match ensure_live operation value.lifetime with
         | Error _ as failure -> failure
         | Ok () when value.phase <> Submitted ->
@@ -17450,7 +17464,7 @@ module Command_buffer = struct
                  release_command_resources value.resources;
                  List.iter detach !(value.presentation_events);
                  value.presentation_events := [];
-                 Ok ()))
+                 Ok ())
   end
 
   let device (value : t) = value.queue.device
@@ -17599,16 +17613,18 @@ module Command_buffer = struct
              | value -> Unknown value))
 
   let present (value:t) (drawable:metal_drawable) ?(at=Immediate) () =
-    let operation="Metal.Command_buffer.present" in on_main operation(fun()->
+    let operation="Metal.Command_buffer.present"in
+    match before_main operation with Error _ as error->error|Ok()->
       match ensure_live operation value.lifetime with Error _ as e->e|Ok() when value.phase<>Recording->error operation Invalid_state "command buffer is no longer recording"|Ok()->
       match ensure_live operation drawable.lifetime with Error _ as e->e
       | Ok() when drawable.presentation_scheduled ->
           error operation Invalid_state "drawable is already scheduled for presentation"
       | Ok()->
-      Result.bind(ensure_same_device operation value.queue.device drawable.layer.device)(fun()->
+      match ensure_same_device operation value.queue.device drawable.layer.device with
+      |Error _ as error->error|Ok()->
       let mode,time=match at with Immediate->0,0.|At_time t->1,t|After_minimum_duration t->2,t in
       if not(Float.is_finite time)||time<0. then error operation Invalid_argument "presentation time must be finite and nonnegative" else
-      match Metal_raw.command_buffer_present_drawable value.raw drawable.raw mode time with Error m->native_error operation m|Ok()->drawable.presentation_scheduled<-true;retain_command_buffer_drawable value drawable;Ok()))
+      match Metal_raw.command_buffer_present_drawable value.raw drawable.raw mode time with Error m->native_error operation m|Ok()->drawable.presentation_scheduled<-true;retain_command_buffer_drawable value drawable;Ok()
 
   let add_handler operation scheduled (value:t) callback =
     on_main operation (fun () ->
@@ -17631,7 +17647,9 @@ module Command_buffer = struct
     add_handler "Metal.Command_buffer.add_completed_handler" false value callback
 
   let commit (value : t) =
-    on_main "Metal.Command_buffer.commit" (fun () ->
+    match before_main "Metal.Command_buffer.commit" with
+    |Error _ as failure->failure
+    |Ok()->
       match ensure_live "Metal.Command_buffer.commit" value.lifetime with
       | Error _ as failure -> failure
       | Ok () when value.phase <> Recording ->
@@ -17643,10 +17661,12 @@ module Command_buffer = struct
       | Ok () ->
           (match Metal_raw.command_buffer_commit value.raw with
            | Error message -> native_error "Metal.Command_buffer.commit" message
-           | Ok () -> value.phase <- Submitted; Ok ()))
+           | Ok () -> value.phase <- Submitted; Ok ())
 
   let wait_until_completed (value : t) =
-    on_main "Metal.Command_buffer.wait_until_completed" (fun () ->
+    match before_main "Metal.Command_buffer.wait_until_completed" with
+    |Error _ as failure->failure
+    |Ok()->
       match ensure_live "Metal.Command_buffer.wait_until_completed" value.lifetime with
       | Error _ as failure -> failure
       | Ok () when value.phase <> Submitted ->
@@ -17664,7 +17684,7 @@ module Command_buffer = struct
             native_error "Metal.Command_buffer.wait_until_completed"
               (Option.value (Metal_raw.command_buffer_error value.raw)
                  ~default:
-                   (Printf.sprintf "command buffer ended with status %d" status)))
+                   (Printf.sprintf "command buffer ended with status %d" status))
 
   let destroy (value : t) =
     if value.phase = Submitted
@@ -17673,8 +17693,9 @@ module Command_buffer = struct
     then
       error "Metal.Command_buffer.destroy" Parent_has_dependents
         "submitted command buffer has not reached a terminal state"
-    else
-      on_main "Metal.Command_buffer.destroy" (fun () ->
+    else match before_main "Metal.Command_buffer.destroy" with
+      |Error _ as failure->failure
+      |Ok()->
         if is_destroyed value.lifetime then Ok ()
         else
           let dependents = dependent_count value.lifetime in
@@ -17693,7 +17714,7 @@ module Command_buffer = struct
             release_presentation_events value;
             detach value.queue.lifetime;
             Ok ()
-          end)
+          end
 end
 
 module Acceleration_encoder = struct
@@ -18053,7 +18074,9 @@ module Render_encoder = struct
   let create_from_pass_owned ~finalize (command_buffer : Command_buffer.t)
       (pass : render_pass_descriptor) =
     let operation = "Metal.Render_encoder.create_from_pass" in
-    on_main operation (fun () ->
+    match before_main operation with
+    |Error _ as failure->failure
+    |Ok()->
       match ensure_live operation command_buffer.lifetime with
       | Error _ as failure -> failure
       | Ok () when command_buffer.phase <> Recording ->
@@ -18103,7 +18126,7 @@ module Render_encoder = struct
                              if finalize then
                                attach_lifetime_finalizer value.lifetime
                                  command_buffer.lifetime;
-                             Ok value))))
+                             Ok value)))
 
   let create_from_pass command_buffer pass =
     create_from_pass_owned ~finalize:true command_buffer pass
@@ -18147,7 +18170,9 @@ module Render_encoder = struct
 
   let set_pipeline (value : t) (pipeline : Render_pipeline.t) =
     let operation = "Metal.Render_encoder.set_pipeline" in
-    on_main operation (fun () ->
+    match before_main operation with
+    |Error _ as failure->failure
+    |Ok()->
       match ensure_live operation value.lifetime with
       | Error _ as failure -> failure
       | Ok () ->
@@ -18180,7 +18205,7 @@ module Render_encoder = struct
                          value.pipeline <- Some pipeline;
                          retain_command_buffer_render_pipeline
                            value.command_buffer pipeline;
-                         Ok ()))))
+                         Ok ())))
 
   let set_buffer operation raw_call (value : t) ~index ~offset
       (buffer : Buffer.t) =
@@ -18912,7 +18937,24 @@ module Render_encoder = struct
       | Error m->native_error operation m|Ok()->retain_command_buffer_buffer value.command_buffer patch_index_buffer;retain_command_buffer_buffer value.command_buffer indirect_buffer;Ok())))
 
   let pipeline_supports_icb operation (value : t) = match value.pipeline with None->error operation Invalid_state "no render pipeline is bound"|Some p->(match Metal_raw.generated_mtl_render_pipeline_state_support_indirect_command_buffers p.raw with Error m->native_error operation m|Ok b->Ok b)
-  let execute_indirect_commands (value : t) (commands : indirect_command_buffer) ~location ~length = let operation="Metal.Render_encoder.execute_indirect_commands" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match ensure_live operation commands.lifetime with Error _ as e->e|Ok()->Result.bind(ensure_same_device operation value.command_buffer.queue.device commands.device)(fun()->Result.bind(Indirect_command_buffer.validate_range operation commands ~location ~length)(fun()->Result.bind(pipeline_supports_icb operation value)(function false->error operation Unsupported "pipeline lacks indirect-command-buffer support"|true->match Metal_raw.render_encoder_execute_icb_range value.raw commands.raw location length with Error m->native_error operation m|Ok()->retain_command_buffer_indirect value.command_buffer commands;Ok()))))
+  let execute_indirect_commands (value : t) (commands : indirect_command_buffer)
+      ~location ~length =
+    let operation="Metal.Render_encoder.execute_indirect_commands"in
+    match before_main operation with Error _ as error->error|Ok()->
+    match ensure_live operation value.lifetime with Error _ as error->error|Ok()->
+    match ensure_live operation commands.lifetime with Error _ as error->error|Ok()->
+    match ensure_same_device operation value.command_buffer.queue.device
+        commands.device with Error _ as error->error|Ok()->
+    match Indirect_command_buffer.validate_range operation commands ~location
+        ~length with Error _ as error->error|Ok()->
+    match pipeline_supports_icb operation value with
+    |Error _ as error->error
+    |Ok false->error operation Unsupported
+        "pipeline lacks indirect-command-buffer support"
+    |Ok true->match Metal_raw.render_encoder_execute_icb_range value.raw
+        commands.raw location length with
+      |Error message->native_error operation message
+      |Ok()->retain_command_buffer_indirect value.command_buffer commands;Ok()
   let execute_indirect_commands_indirect_range (value : t) (commands : indirect_command_buffer) ~(range_buffer : buffer) ~offset = let operation="Metal.Render_encoder.execute_indirect_commands_indirect_range" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match ensure_live operation commands.lifetime with Error _ as e->e|Ok()->match ensure_buffer_usable operation range_buffer with Error _ as e->e|Ok() when offset<0L||Int64.rem offset 8L<>0L||offset>Int64.sub range_buffer.length 8L->error operation Invalid_argument "indirect range offset is invalid"|Ok()->Result.bind(ensure_same_device operation value.command_buffer.queue.device commands.device)(fun()->Result.bind(ensure_same_device operation value.command_buffer.queue.device range_buffer.device)(fun()->Result.bind(pipeline_supports_icb operation value)(function false->error operation Unsupported "pipeline lacks indirect-command-buffer support"|true->match Metal_raw.render_encoder_execute_icb_indirect_range value.raw commands.raw range_buffer.raw offset with Error m->native_error operation m|Ok()->retain_command_buffer_indirect value.command_buffer commands;retain_command_buffer_buffer value.command_buffer range_buffer;Ok()))))
 
   let draw_triangles (value : t) ~first ~count ?(instances = 1) () =

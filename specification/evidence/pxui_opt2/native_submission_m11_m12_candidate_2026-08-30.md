@@ -325,6 +325,24 @@ bypass lowering and shows a best-window reduction, but the variance means it
 does not establish a new final allocation qualification. Per-submission list
 assembly and the 8 KiB/frame M11 gate remain open.
 
+The scoped native Metal submission path now uses direct checked control flow
+for command-buffer creation, retained-reference release, render-encoder
+creation, pipeline binding, ICB execution, drawable acquisition, presentation,
+commit, wait, and destruction. Resource-retention membership checks use direct
+bounded recursion instead of allocating `List.exists` predicates. Scoped OGPU
+completion also handles its one-entry hot queue without reversing lists or
+allocating `Fun.protect` callbacks. Validation order, typed errors, atomic
+rollback, and terminal cleanup remain unchanged.
+
+The isolated retained Scene3 lane improved from exactly 27,330.64 to 25,378.64
+allocated bytes/frame across 300 measured frames. It retained exact canonical
+pixels, zero replacement upload, 300 retained-plan hits and executions, and a
+2,450-created/2,450-released native-handle balance. Median frame time was
+8.32 ms and p95 was 9.54 ms. A subsequent two-second full visible diagnostic
+reported 189 frames, 10,173,744 allocated bytes (approximately 52.6 KiB/frame),
+a 9.90 ms median, and 12.25 ms p95. This is renewed native-wrapper evidence;
+the final M11 allocation threshold remains open.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,

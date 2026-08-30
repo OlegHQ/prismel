@@ -2,10 +2,13 @@ type cleanup=unit->unit
 type native_completion=Classic of Metal.Command_buffer.t|Command4 of Metal.Command4.Submission.t*Metal.Command4.Command_buffer.t*Metal.Command4.Allocator.t
 type pending={epoch:int64;command:native_completion;cleanup:cleanup list;
   mutable encode_cleanup:cleanup list}
+let rec run_cleanup=function
+|[]->()
+|release::rest->release();run_cleanup rest
 let drop_encode_cleanup pending=
   let cleanup=pending.encode_cleanup in
   pending.encode_cleanup<-[];
-  List.iter(fun release->release())cleanup
+  run_cleanup cleanup
 type presentation=Metal.Command_buffer.t -> (unit,Ogpu.Error.t) result
 type t={device:Device.t;metal:Metal.Command_queue.t;submission:Ogpu.Submission.t;mutable command4:Metal.Command4.Queue.t option;mutable pending:pending list;mutable fail_next:bool;mutable fail_next_completion:bool;mutable scoped_next_render:bool;mutable scoped_on_committed:(int64->unit)option;mutable scoped_completion:(unit,Ogpu.Error.t)result option;mutable dead:bool}
 type receipt={epoch:int64}
@@ -297,12 +300,9 @@ let wait_through value epoch =
       match first_error,portable with
       | Some failure,_ -> Error failure
       | None,result -> result
-let finish_scoped_render value receipt =
-  match List.rev value.pending with
-  |({epoch;command=Classic command;cleanup;_} as pending)::rest
-    when epoch=receipt.epoch->
+let finish_scoped_classic value receipt pending rest command cleanup=
       (* Only the classic R10 lane is detached before the blocking wait. *)
-      value.pending<-List.rev rest;
+      value.pending<-rest;
       (* Drop command-buffer resource retains first so encode-owned
          depth/sampler objects and the scoped presentation drawable can be
          destroyed.  The native command buffer still retains those objects
@@ -310,14 +310,10 @@ let finish_scoped_render value receipt =
       let released_references=
         Metal.Command_buffer.Private.release_committed_references command in
       drop_encode_cleanup pending;
-      Option.iter(fun notify->notify receipt.epoch)value.scoped_on_committed;
+      (match value.scoped_on_committed with
+       |None->()|Some notify->notify receipt.epoch);
       value.scoped_on_committed<-None;
-      let completion=
-        Fun.protect
-          ~finally:(fun()->
-            List.iter(fun release->release())cleanup;
-            ignore(Metal.Command_buffer.destroy command))
-          (fun()->
+      let completion=try
             let outcome=match Metal.Command_buffer.wait_until_completed command with
               |Error native_error->Error(Adapter.error
                   ~operation:"Ogpu_metal.Queue.submit_render_pass_sync" native_error)
@@ -332,9 +328,27 @@ let finish_scoped_render value receipt =
                 error"Ogpu_metal.Queue.submit_render_pass_sync"
                   Ogpu.Error.Device_lost"injected terminal completion failure"
               end else outcome in
-            let portable=Ogpu.Submission.complete_through value.submission epoch in
-            match outcome,portable with Error _ as e,_->e|Ok(),result->result)in
+            let portable=Ogpu.Submission.complete_through value.submission
+              receipt.epoch in
+            let result=match outcome,portable with
+              |Error _ as error,_->error|Ok(),result->result in
+            run_cleanup cleanup;
+            ignore(Metal.Command_buffer.destroy command);
+            result
+          with exn->
+            run_cleanup cleanup;
+            ignore(Metal.Command_buffer.destroy command);
+            raise exn in
       Ok{receipt;completion}
+let finish_scoped_render value receipt =
+  match value.pending with
+  |[({epoch;command=Classic command;cleanup;_}as pending)]
+    when epoch=receipt.epoch->
+      finish_scoped_classic value receipt pending[]command cleanup
+  |_->match List.rev value.pending with
+  |({epoch;command=Classic command;cleanup;_} as pending)::rest
+    when epoch=receipt.epoch->
+      finish_scoped_classic value receipt pending(List.rev rest)command cleanup
   |{epoch;command=Command4 _;_}::_ when epoch=receipt.epoch->
       (* Command4 owns a submission/command/allocator triple.  Preserve its
          established terminal teardown and injected-completion behavior. *)
