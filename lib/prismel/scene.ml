@@ -225,6 +225,20 @@ module Private=struct
    resources:(int*Prismel_next_execution.resource)list;
    scene3:Scene_execution.prepared_scene3 list;layers:native_layer list;
    retained:(string*int64)option}
+ let native_segment_version segment resources=
+   let mix stamp value=Int64.logxor(Int64.mul stamp 0x100000001b3L)
+       (Int64.of_int value)in
+   Int64.logand Int64.max_int(List.fold_left(fun stamp->function
+     |_,Prismel_next_execution.Image image->
+         mix(mix stamp(Prismel_next_resources.Image.identity image))
+           (Prismel_next_resources.Image.generation image)
+     |_,Text text->
+         mix(mix stamp(Prismel_next_resources.Text.Private.identity text))
+           (Prismel_next_resources.Text.generation text)
+     |_,Canvas canvas->
+         mix(mix stamp(Prismel_next_resources.Canvas.Private.identity canvas))
+           (Prismel_next_resources.Canvas.generation canvas))
+     (Scene_command.Display_list.version segment)resources)
  let renderer=ref(fun(_ : t)->())let install_renderer value=renderer:=value
  let text_image ?(density=1) (node : text_node) =
    match node.rendered with
@@ -471,15 +485,7 @@ module Private=struct
    let retained=match layers with
    |[Scene2_segment(segment,resources)]->Some
        ("scene2-segment:"^Int64.to_string(Scene_command.Display_list.id segment),
-        List.fold_left(fun version->function
-          |_,Prismel_next_execution.Image image->
-              Int64.logxor(Int64.mul version 0x100000001b3L)
-                (Int64.of_int(Prismel_next_resources.Image.generation image))
-          |_,Text text->Int64.logxor(Int64.mul version 0x100000001b3L)
-              (Int64.of_int(Prismel_next_resources.Text.generation text))
-          |_,Canvas canvas->Int64.logxor(Int64.mul version 0x100000001b3L)
-              (Int64.of_int(Prismel_next_resources.Canvas.generation canvas)))
-          (Scene_command.Display_list.version segment)resources)
+        native_segment_version segment resources)
    |_->None in
    Ok{clear= !clear;scene2;resources;scene3;layers;retained}
 
@@ -531,12 +537,17 @@ module Private=struct
   |[]->stamp
   |(id,Prismel_next_execution.Image image)::rest->
       resource_stamp_loop
-        (((stamp*65599)lxor id)lxor
+        ((((stamp*65599)lxor id)*65599 lxor
+          Prismel_next_resources.Image.identity image)*65599 lxor
           Prismel_next_resources.Image.generation image)rest
   |(id,Text text)::rest->resource_stamp_loop
-      (((stamp*65599)lxor id)lxor Prismel_next_resources.Text.generation text)rest
+      ((((stamp*65599)lxor id)*65599 lxor
+        Prismel_next_resources.Text.Private.identity text)*65599 lxor
+        Prismel_next_resources.Text.generation text)rest
   |(id,Canvas canvas)::rest->resource_stamp_loop
-      (((stamp*65599)lxor id)lxor Prismel_next_resources.Canvas.generation canvas)rest
+      ((((stamp*65599)lxor id)*65599 lxor
+        Prismel_next_resources.Canvas.Private.identity canvas)*65599 lxor
+        Prismel_next_resources.Canvas.generation canvas)rest
  let resource_stamp resources=resource_stamp_loop 0x345678 resources
  let rec find_native_stage aggregate scene density width height=function
   |[]->None

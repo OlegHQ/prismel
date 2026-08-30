@@ -58,6 +58,7 @@ module Canvas : sig
         [commit_write] only after the complete write succeeds. *)
     val prepare_write : t -> ((int * int * bytes),error) result
     val commit_write : t -> (unit,error) result
+    val identity : t -> int
   end
   val destroy : t -> (unit,error) result
 end
@@ -69,6 +70,9 @@ module Text : sig
   val size : t -> ((int*int),error) result
   val pixels : t -> (bytes,error) result
   val destroy : t -> (unit,error) result
+  module Private : sig
+    val identity : t -> int
+  end
 end
 
 module Font : sig

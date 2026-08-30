@@ -334,6 +334,9 @@ exception Resource_resolver_raised of exn
 type snapshot_cache_entry={snapshot_key:string;mutable snapshot_generation:int;
   snapshot_density:int;snapshot_width:int;snapshot_height:int;
   snapshot_bytes:int;snapshot_texture:Scene_execution.sampled_texture}
+type retained_scene2_segment={segment_identity:int64;segment_version:int64;
+  segment_density:int;segment_width:int;segment_height:int;
+  segment_bytes:int;segment_draws:draw list}
 let snapshot_cache_capacity=256
 let snapshot_cache_byte_capacity=64*1024*1024
 (* Full-window snapshots change frequently and already have bounded double
@@ -357,6 +360,9 @@ type t = { runtime:runtime; input:Runtime_next_input.t;
   mutable scene2_debug_cache:cached_scene2_debug list;
   mutable scene2_plan_cache:cached_scene2_plan list;
   mutable scene2_plan_candidates:scene2_plan_candidate list;
+  mutable retained_scene2_segments:retained_scene2_segment list;
+  mutable retained_scene2_segment_hits:int64;
+  mutable retained_scene2_segment_misses:int64;
   mutable submissions:submission list;
   mutable last_step_draws:draw list;
   mutable last_step_prepared:Runtime_next_orchestrator.prepared list;
@@ -385,6 +391,8 @@ let finish_create operation configuration runtime destroy_runtime=
       dead=false;snapshots=[];snapshot_bytes=0;scene2_geometry_cache=[];scene2_geometry_candidates=[];
       scene2_batch_cache=[];scene2_quad_cache=[];scene2_quad_payload_cache=[];
       scene2_debug_cache=[];scene2_plan_cache=[];scene2_plan_candidates=[];
+      retained_scene2_segments=[];
+      retained_scene2_segment_hits=0L;retained_scene2_segment_misses=0L;
       submissions=[];last_step_draws=[];last_step_prepared=[];
       scene2_out_slots=[||];scene2_out_list=[];last_presentation=None;
       canvas_keys=[];next_canvas_key=0}
@@ -1087,6 +1095,68 @@ let lower_scene2_submission submission ~density ~resource ir=
          fail"Prismel_next_execution.Private.lower_scene2"Resource
            ("resource resolver raised: "^Printexc.to_string exn)
        |exn->close_submission submission;raise exn)
+let retained_scene2_segment_capacity=256
+let retained_scene2_segment_byte_capacity=64*1024*1024
+let retained_scene2_segment_bytes draws=List.fold_left(fun total draw->
+  let value=draw.value in
+  total+Bytes.length value.Scene_execution.mesh.vertices+
+    Bytes.length value.mesh.indices+
+    Option.fold~none:0~some:Bytes.length value.state.transform_uniforms+
+    Option.fold~none:0~some:sampled_texture_bytes draw.texture+
+    Option.fold~none:0~some:(fun auxiliary->
+      Bytes.length auxiliary.Scene_execution.buffer+
+      sampled_texture_bytes auxiliary.texture)draw.auxiliary)0 draws
+let trim_retained_scene2_segments values=
+  let rec loop count bytes kept=function
+  |[]->List.rev kept
+  |entry::rest when count<retained_scene2_segment_capacity&&
+      entry.segment_bytes<=retained_scene2_segment_byte_capacity-bytes->
+      loop(count+1)(bytes+entry.segment_bytes)(entry::kept)rest
+  |_::rest->loop count bytes kept rest in
+  loop 0 0[]values
+let lower_scene2_segment submission ~identity ~version ~cacheable ~density
+    ~resource ir=
+  let operation="Prismel_next_execution.Private.lower_scene2_segment"in
+  if identity<=0L||version<0L then begin
+    close_submission submission;
+    fail operation Invalid_argument"segment identity/version is invalid"
+  end else match ensure_submission operation submission with
+  |Error _ as error->close_submission submission;error
+  |Ok()->
+      let owner=submission.owner in
+      match presentation_facts owner with
+      |Error _ as error->close_submission submission;error
+      |Ok facts->
+      let rec find=function
+      |[]->None
+      |entry::_ when entry.segment_identity=identity&&
+          entry.segment_version=version&&entry.segment_density=density&&
+          entry.segment_width=facts.logical_width&&
+          entry.segment_height=facts.logical_height->
+          Some entry.segment_draws
+      |_::rest->find rest in
+      match if cacheable then find owner.retained_scene2_segments else None with
+      |Some draws->
+          owner.retained_scene2_segment_hits<-
+            Int64.succ owner.retained_scene2_segment_hits;
+          Ok{batch_owner=submission;batch_draws=draws}
+      |None->match lower_scene2_submission submission~density~resource ir with
+        |Error _ as error->error
+        |Ok batch->
+            if cacheable then owner.retained_scene2_segment_misses<-
+              Int64.succ owner.retained_scene2_segment_misses;
+            if cacheable then begin
+              let entry={segment_identity=identity;segment_version=version;
+                segment_density=density;segment_width=facts.logical_width;
+                segment_height=facts.logical_height;
+                segment_bytes=retained_scene2_segment_bytes batch.batch_draws;
+                segment_draws=batch.batch_draws}in
+              owner.retained_scene2_segments<-entry::List.filter(fun old->
+                old.segment_identity<>identity)owner.retained_scene2_segments;
+              owner.retained_scene2_segments<-trim_retained_scene2_segments
+                owner.retained_scene2_segments
+            end;
+            Ok batch
 let adopt_draws submission draws=
   match ensure_submission"Prismel_next_execution.Private.adopt_draws"submission with
   |Error _ as error->close_submission submission;error
@@ -1131,6 +1201,7 @@ let destroy value=if value.dead then Ok()else(
     value.scene2_quad_payload_cache<-[];
     value.scene2_debug_cache<-[];
     value.scene2_plan_cache<-[];value.scene2_plan_candidates<-[];
+    value.retained_scene2_segments<-[];
     value.scene2_geometry_candidates<-[];value.last_step_draws<-[];
     value.last_step_prepared<-[];value.scene2_out_slots<-[||];
     value.scene2_out_list<-[];value.last_presentation<-None;value.canvas_keys<-[];value.dead<-true;
@@ -1143,11 +1214,15 @@ module Private=struct
   type nonrec batch=batch
   let begin_submission=begin_submission
   let lower_scene2=lower_scene2_submission
+  let lower_scene2_segment=lower_scene2_segment
   let adopt_draws=adopt_draws
   let step=step_submission
   let replay=replay_step
   let cancel=close_submission
   let draw_family_blend draw=draw.family,draw.blend
+  let retained_scene2_segment_stats value=
+    List.length value.retained_scene2_segments,
+    value.retained_scene2_segment_hits,value.retained_scene2_segment_misses
 end
 let run configuration body ~on_stop = match create configuration with Error _ as e->e|Ok value->
   let outcome=try body value with exn->fail"Prismel_next_execution.run"Backend(Printexc.to_string exn)in

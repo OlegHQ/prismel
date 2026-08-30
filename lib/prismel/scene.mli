@@ -45,6 +45,8 @@ module Private : sig
     layers : native_layer list;
     retained : (string * int64) option;
   }
+  val native_segment_version : Scene_command.Display_list.t ->
+    (int * Prismel_next_execution.resource) list -> int64
   val stage_native : ?density:int -> width:int -> height:int -> t -> (staged_native,string) result
   val stage_native_render : ?density:int -> width:int -> height:int -> t ->
     (staged_native,string) result

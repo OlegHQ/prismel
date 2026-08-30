@@ -82,6 +82,31 @@ let ()=
         render_retained 2L(scene3_draw"retained-black"0.);
         require((get(Prismel_next_execution.stats execution)).uploaded_bytes>uploaded)
           "retained version invalidation did not prepare the replacement payload";
+        let segment_ir=get_ir(Scene_command.Render_ir.create[|
+          Scene_command.Render_ir.Geometry{vertices=[|0.;0.;1.;0.;0.;1.|];
+            indices=[|0;1;2|];color=Int32.minus_one}|])in
+        let lower_segment version=
+          let submission=get(Prismel_next_execution.Private.begin_submission execution)in
+          ignore(get(Prismel_next_execution.Private.lower_scene2_segment submission
+            ~identity:77L~version~cacheable:true~density:1~resource:(fun _->None)
+            segment_ir));
+          Prismel_next_execution.Private.cancel submission in
+        lower_segment 1L;
+        lower_segment 1L;
+        let entries,hits,misses=
+          Prismel_next_execution.Private.retained_scene2_segment_stats execution in
+        require(entries=1&&hits=1L&&misses=1L)
+          "same retained Scene2 segment did not bypass lowering";
+        lower_segment 2L;
+        let entries,hits,misses=
+          Prismel_next_execution.Private.retained_scene2_segment_stats execution in
+        require(entries=1&&hits=1L&&misses=2L)
+          "retained Scene2 generation did not replace only its prior entry";
+        let invalid=get(Prismel_next_execution.Private.begin_submission execution)in
+        expect_error"invalid retained Scene2 identity was accepted"
+          (Prismel_next_execution.Private.lower_scene2_segment invalid
+            ~identity:0L~version:1L~cacheable:true~density:1
+            ~resource:(fun _->None)segment_ir);
         let incomplete=get(Prismel_next_execution.Private.begin_submission execution)in
         let incomplete_batch=get(Prismel_next_execution.Private.adopt_draws incomplete[red])in
         expect_error"retained identity without version was accepted"

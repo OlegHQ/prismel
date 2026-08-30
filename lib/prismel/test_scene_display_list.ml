@@ -83,6 +83,12 @@ let () =
          when retained == image_segment
            && resource == Image.Private.resource image -> ()
      | _ -> failwith "display-list image binding lost managed identity");
+    let peer = Image.create ~width:1 ~height:1 ~color:Color.white () in
+    Fun.protect ~finally:(fun () -> Image.destroy peer) (fun () ->
+      let rebound = Result.get_ok(Scene.Private.stage_native ~width:32 ~height:32
+          [Scene.display_list ~images:[7,peer] image_segment]) in
+      if first.retained = rebound.retained then
+        failwith "equal-generation image identities collided in retained replay");
     let replacement = Image.create ~width:1 ~height:1 ~color:Color.black () in
     Image.Private.replace image replacement;
     let second = Result.get_ok

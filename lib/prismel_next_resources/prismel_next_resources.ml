@@ -229,6 +229,7 @@ module Canvas=struct
     (* The native readback path is synchronous and initial-domain-only.  It
        obtains the Canvas-owned bank after detaching any published Image, then
        marks the generation only after a successful GPU read. *)
+    let identity x=x.identity
     let prepare_write x=live"Canvas.Private.prepare_write"x(fun()->
       detach_for_overwrite x;Ok(x.width,x.height,x.rgba))
     let commit_write x=live"Canvas.Private.commit_write"x(fun()->
@@ -245,6 +246,9 @@ module Text=struct
   let size x=live"Text.size"x(fun()->Ok(x.width,x.height))
   let pixels x=live"Text.pixels"x(fun()->Ok(Bytes.copy x.rgba))
   let destroy x=main"Text.destroy"(fun()->if x.dead then Ok()else(x.dead<-true;x.rgba<-Bytes.empty;Ok()))
+  module Private=struct
+    let identity x=x.generation
+  end
 end
 
 module Font=struct

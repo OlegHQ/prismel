@@ -301,6 +301,30 @@ The median is approximately 58.2 KiB/frame and every sample is below the
 88.54 ms p99 host outlier, so these short samples do not replace final timing
 qualification. M11 remains open against the 8 KiB/frame final gate.
 
+Display-list segment identity and generation now cross the native Scene
+lowering boundary explicitly. `Prismel_next_execution` retains the resulting
+Scene2 draw batch in a 256-entry, 64 MiB cache keyed by segment identity,
+effective generation, density, and logical extent. Admission is deliberately
+limited to resource-free and copied-text segments; canvas snapshots and image
+leases continue through the ordinary transaction path. Exact cache identity,
+generation replacement, invalid-key rejection, and transaction cancellation
+are covered by the offscreen execution test.
+
+The effective generation now includes both resource identity and resource
+generation. This closes an older whole-submission replay collision where two
+different images at the same generation could produce the same retained key.
+A focused Scene regression binds the same display list to two such images and
+proves their retained versions differ.
+
+Two non-profiled two-second visible diagnostics reported 191 and 197 frames.
+The first allocated 8,719,504 bytes, approximately 44.6 KiB/frame, with a
+9.97 ms median and 12.27 ms p95. The second caught more periodic whole-stage
+invalidations and allocated 11,495,216 bytes, approximately 57.0 KiB/frame,
+with a 9.60 ms median and 12.45 ms p95. This proves unchanged segments can now
+bypass lowering and shows a best-window reduction, but the variance means it
+does not establish a new final allocation qualification. Per-submission list
+assembly and the 8 KiB/frame M11 gate remain open.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,

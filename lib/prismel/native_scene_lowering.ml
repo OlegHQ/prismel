@@ -128,8 +128,17 @@ let render ~execution ~density ~width ~height scene =
                           | Error error -> Error (Lower error)
                           | Ok batch -> lower (batch::reversed) rest)
                       | Scene.Private.Scene2_segment (segment, resources) :: rest -> (
-                          match Prismel_next_execution.Private.lower_scene2
-                            submission ~density
+                          let cacheable=List.for_all(function
+                            |_,Prismel_next_execution.Text _->true
+                            |_,Prismel_next_execution.Image _
+                            |_,Prismel_next_execution.Canvas _->false)resources in
+                          let version=Scene.Private.native_segment_version
+                            segment resources in
+                          match Prismel_next_execution.Private.lower_scene2_segment
+                            submission
+                            ~identity:(Scene_command.Display_list.id segment)
+                            ~version
+                            ~cacheable ~density
                             ~resource:(fun id -> List.assoc_opt id resources)
                             (Scene_command.Display_list.render_ir segment) with
                           | Error error -> Error (Lower error)

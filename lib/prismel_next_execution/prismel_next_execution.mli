@@ -131,6 +131,9 @@ module Private : sig
   val lower_scene2 : submission -> density:int ->
     resource:(int -> resource option) -> Scene_command.Render_ir.t ->
     (batch,error) result
+  val lower_scene2_segment : submission -> identity:int64 -> version:int64 ->
+    cacheable:bool -> density:int -> resource:(int -> resource option) ->
+    Scene_command.Render_ir.t -> (batch,error) result
   (* Adopts already prepared non-Scene2 draws into this submission. *)
   val adopt_draws : submission -> draw list -> (batch,error) result
   (* Consumes the submission on either success or failure. *)
@@ -142,6 +145,7 @@ module Private : sig
   (* Idempotently releases an unsubmitted transaction. *)
   val cancel : submission -> unit
   val draw_family_blend : draw -> family * blend
+  val retained_scene2_segment_stats : t -> int * int64 * int64
 end
 
 (** Always destroys in resources -> coordinator -> target/extensions order.
