@@ -49,12 +49,23 @@ keyed by the complete menu state, so update and paint consumers do not repeat
 filtering, lowercase conversion, and ranking for an unchanged menu. The
 existing nested-category and generated-catalog interaction tests pass.
 
+The graph benchmark now includes ten single-node pointer moves and constructs
+the resulting Scene on every move. Before retaining the active drag transform,
+the 10k lane rebuilt the complete box store and edge BVH on every event: median
+move time was 129.036 milliseconds and ten moves allocated 1,326,080,016 bytes.
+The active-drag candidate retains one graph-space offset plus the selected node
+and incident-edge slot vectors. On the same lane, move-and-paint median is
+108.004 microseconds and ten moves allocate 2,309,784 bytes. State-only pointer
+moves allocate 8,096 bytes total for ten events and are below the timer's
+microsecond resolution. A split-frame regression verifies press, intermediate
+paint/position, release materialization, and immutable SOP connectivity.
+
 The former 10,000-way fan remains useful as an adversarial stress topology: its
 long diagonal envelopes overlap heavily and are not used as a proxy for the
 controlled 2x-edge qualification lane.
 
-The remaining M10 work is explicit: moving nodes still copies the box array and
-rebuilds the indexes, node/position stores are not yet packed mutable runtime
-planes, large match sets still need an index-backed partial ranking lane, and
-graph paint is not yet split into retained layers. No completion claim is made
-here.
+The remaining M10 work is explicit: releasing a move still materializes the
+box array and rebuilds the indexes, rather than updating persistent position
+planes and only affected edge bounds; large match sets still need an
+index-backed partial ranking lane; and graph paint is not yet split into
+retained layers. No completion claim is made here.

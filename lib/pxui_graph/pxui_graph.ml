@@ -104,7 +104,14 @@ type menu_row = Menu_category of string | Menu_entry of catalog_entry
 
 type drag =
   | Pan of { button : Input.mouse_button; last_x : int; last_y : int }
-  | Move_nodes of { indices : int array; last_x : int; last_y : int }
+  | Move_nodes of {
+      indices : int array;
+      edge_indices : int array;
+      last_x : int;
+      last_y : int;
+      offset_x : float;
+      offset_y : float;
+    }
   | View_button of int
   | Box_select of box_drag
   | Connect_wire of wire_drag
@@ -142,6 +149,7 @@ type spatial_index = {
   edge_y0 : float array;
   edge_x3 : float array;
   edge_y3 : float array;
+  incident_edges : int array array;
   mutable mark_generation : int;
   mutable visible : int array;
   mutable visible_length : int;
@@ -250,6 +258,15 @@ let build_spatial_index boxes edges =
   and edge_y0 = Array.make (Array.length edges) 0.
   and edge_x3 = Array.make (Array.length edges) 0.
   and edge_y3 = Array.make (Array.length edges) 0. in
+  let pending_incident = Array.make (Array.length boxes) [] in
+  Array.iteri (fun index edge ->
+    pending_incident.(edge.source_index) <-
+      index :: pending_incident.(edge.source_index);
+    if edge.consumer_index <> edge.source_index then
+      pending_incident.(edge.consumer_index) <-
+        index :: pending_incident.(edge.consumer_index)) edges;
+  let incident_edges = Array.map (fun reversed ->
+    Array.of_list (List.rev reversed)) pending_incident in
   let edge_bounds = Array.make (Array.length edges * edge_bvh_segments)
       { edge_id = 0; segment = 0; min_x = 0.; min_y = 0.; max_x = 0.;
         max_y = 0. } in
@@ -348,7 +365,7 @@ let build_spatial_index boxes edges =
     max_edge_candidates = 1;
     marks = Array.make (Array.length boxes) 0; mark_generation = 0;
     edge_marks = Array.make (Array.length edges) 0;
-    edge_x0; edge_y0; edge_x3; edge_y3;
+    edge_x0; edge_y0; edge_x3; edge_y3; incident_edges;
     visible = Array.make (min 16 (Array.length boxes)) 0; visible_length = 0;
     visible_edges = Array.make (min 16 (Array.length edges)) 0;
     visible_edge_length = 0; edge_stack = Array.make 64 0 }
@@ -556,7 +573,17 @@ let screen_size value size = max 1 (int_of_float (float_of_int size *. value.zoo
 let graph_x value x = (float_of_int (x - value.x) -. value.pan_x) /. value.zoom
 let graph_y value y = (float_of_int (y - value.y) -. value.pan_y) /. value.zoom
 
-let box_bounds (value : t) (box : box) = screen_x value box.gx, screen_y value box.gy,
+let box_graph_position (value : t) (box : box) = match value.drag with
+  | Some (Move_nodes { offset_x; offset_y; _ })
+      when Id_set.mem box.info.Edit_graph.id value.selected ->
+      box.gx +. offset_x, box.gy +. offset_y
+  | Some (Move_nodes _ | Pan _ | View_button _ | Box_select _
+      | Connect_wire _) | None ->
+      box.gx, box.gy
+
+let box_bounds (value : t) (box : box) =
+  let gx, gy = box_graph_position value box in
+  screen_x value gx, screen_y value gy,
   screen_size value box.width, screen_size value box.height
 
 let view_button_bounds (value : t) (box : box) =
@@ -765,16 +792,35 @@ let pan value x y button last_x last_y =
     pan_y = value.pan_y +. float_of_int dy;
     drag = Some (Pan { button; last_x = x; last_y = y }) }
 
-let move_nodes value x y indices last_x last_y =
-  let boxes = Array.copy value.boxes in
+let affected_edges spatial indices =
+  let capacity = Array.fold_left (fun count index ->
+    count + Array.length spatial.incident_edges.(index)) 0 indices in
+  let edges = Array.make capacity 0 and length = ref 0 in
+  let generation = next_spatial_generation spatial in
+  Array.iter (fun index -> Array.iter (fun edge ->
+    if Array.unsafe_get spatial.edge_marks edge <> generation then begin
+      Array.unsafe_set spatial.edge_marks edge generation;
+      Array.unsafe_set edges !length edge;
+      incr length
+    end) spatial.incident_edges.(index)) indices;
+  if !length = capacity then edges else Array.sub edges 0 !length
+
+let move_nodes value x y indices edge_indices last_x last_y offset_x offset_y =
   let dx = float_of_int (x - last_x) /. value.zoom
   and dy = float_of_int (y - last_y) /. value.zoom in
+  { value with drag = Some (Move_nodes { indices; edge_indices;
+      last_x = x; last_y = y; offset_x = offset_x +. dx;
+      offset_y = offset_y +. dy }) }
+
+let commit_node_move value indices offset_x offset_y =
+  let boxes = Array.copy value.boxes in
   Array.iter (fun index ->
     let box = boxes.(index) in
-    boxes.(index) <- { box with gx = box.gx +. dx; gy = box.gy +. dy }) indices;
+    boxes.(index) <- { box with gx = box.gx +. offset_x;
+      gy = box.gy +. offset_y }) indices;
   { value with boxes;
     spatial = build_spatial_index boxes value.edges;
-    drag = Some (Move_nodes { indices; last_x = x; last_y = y }) }
+    drag = None }
 
 let zoom_at value (mouse_x, mouse_y) delta =
   let old_zoom = value.zoom in
@@ -1122,10 +1168,12 @@ let update (value : t) frame =
                            let additive = List.mem Input.Shift frame.keys in
                            let value = select_node value ~additive index in
                            let indices = indices_of_selection value in
+                           let edge_indices = affected_edges value.spatial indices in
                            let changes = if before = value.primary then changes
                              else selection_change value :: changes in
                            { value with drag = Some (Move_nodes { indices;
-                               last_x = fst point; last_y = snd point }) }, changes
+                               edge_indices; last_x = fst point; last_y = snd point;
+                               offset_x = 0.; offset_y = 0. }) }, changes
                        | None ->
                            (match hit_edge value point with
                             | Some index ->
@@ -1148,10 +1196,12 @@ let update (value : t) frame =
             (match value.drag with
              | Some (Pan { button; last_x; last_y }) ->
                  pan value x y button last_x last_y, View_changed :: changes
-             | Some (Move_nodes { indices; last_x; last_y }) ->
+             | Some (Move_nodes { indices; edge_indices; last_x; last_y;
+                 offset_x; offset_y }) ->
                  let ids = Array.to_list (Array.map (fun index ->
                    value.boxes.(index).info.Edit_graph.id) indices) in
-                 let value = move_nodes value x y indices last_x last_y in
+                 let value = move_nodes value x y indices edge_indices
+                     last_x last_y offset_x offset_y in
                  let movement = match ids with
                    | [id] -> Node_moved id
                    | ids -> Nodes_moved ids in
@@ -1166,8 +1216,9 @@ let update (value : t) frame =
             (match value.drag with
              | Some (Pan drag) when drag.button = button ->
                  { value with drag = None }, changes
-             | Some (Move_nodes _) when button = Input.LeftButton ->
-                 { value with drag = None }, changes
+             | Some (Move_nodes { indices; offset_x; offset_y; _ })
+                 when button = Input.LeftButton ->
+                 commit_node_move value indices offset_x offset_y, changes
              | Some (Box_select drag) when button = Input.LeftButton ->
                  let before = value.primary in
                  let value = apply_marquee value drag in
@@ -1282,6 +1333,17 @@ let visible_node_indices (value : t) viewport =
           end) candidates
     done
   done;
+  (match value.drag with
+   | Some (Move_nodes { indices; _ }) -> Array.iter (fun candidate ->
+       if Array.unsafe_get spatial.marks candidate <> generation then begin
+         Array.unsafe_set spatial.marks candidate generation;
+         if intersects viewport (box_bounds value value.boxes.(candidate)) then begin
+           ensure_visible_capacity spatial (spatial.visible_length + 1);
+           Array.unsafe_set spatial.visible spatial.visible_length candidate;
+           spatial.visible_length <- spatial.visible_length + 1
+         end
+       end) indices
+   | Some (Pan _ | View_button _ | Box_select _ | Connect_wire _) | None -> ());
   sort_visible_prefix spatial.visible spatial.visible_length;
   spatial.visible_edge_length <- 0;
   let graph_left = graph_x value x
@@ -1303,6 +1365,21 @@ let visible_node_indices (value : t) viewport =
           spatial.visible_edge_length <- spatial.visible_edge_length + 1
         end
       end);
+  (match value.drag with
+   | Some (Move_nodes { edge_indices; _ }) -> Array.iter (fun candidate ->
+       if Array.unsafe_get spatial.edge_marks candidate <> generation then begin
+         Array.unsafe_set spatial.edge_marks candidate generation;
+         let from_x, from_y, to_x, to_y = edge_points value
+             value.edges.(candidate) in
+         if intersects viewport (wire_bounds from_x from_y to_x to_y) then begin
+           ensure_visible_edge_capacity spatial
+             (spatial.visible_edge_length + 1);
+           Array.unsafe_set spatial.visible_edges spatial.visible_edge_length
+             candidate;
+           spatial.visible_edge_length <- spatial.visible_edge_length + 1
+         end
+       end) edge_indices
+   | Some (Pan _ | View_button _ | Box_select _ | Connect_wire _) | None -> ());
   sort_visible_prefix spatial.visible_edges spatial.visible_edge_length;
   spatial.visible, spatial.visible_length,
   spatial.visible_edges, spatial.visible_edge_length

@@ -55,10 +55,18 @@ let () =
 
   let before = (node (Node.id source_a) view).bounds in
   let target = fst point + 45, snd point + 26 in
-  let view, changes = Pxui_graph.update view (frame ~mouse:target ~events:[
-      Event.MousePressed (Input.LeftButton, point);
-      Event.MouseMoved target;
+  let view, pressed = Pxui_graph.update view (frame ~mouse:point ~events:[
+      Event.MousePressed (Input.LeftButton, point)] ()) in
+  let view, moved = Pxui_graph.update view (frame ~mouse:target ~events:[
+      Event.MouseMoved target] ()) in
+  ignore (Pxui_graph.scene view);
+  let during = (node (Node.id source_a) view).bounds in
+  let dx, dy, _, _ = during and bx, by, _, _ = before in
+  check (dx - bx = 45 && dy - by = 26)
+    "active graph drag did not retain its presentation offset";
+  let view, released = Pxui_graph.update view (frame ~mouse:target ~events:[
       Event.MouseReleased (Input.LeftButton, target)] ()) in
+  let changes = pressed @ moved @ released in
   let after = (node (Node.id source_a) view).bounds in
   let bx, by, _, _ = before and ax, ay, _, _ = after in
   check (ax - bx = 45 && ay - by = 26)
