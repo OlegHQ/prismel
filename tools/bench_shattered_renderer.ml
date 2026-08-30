@@ -208,7 +208,11 @@ let scene3 node preview =
     | Mesh.Points | Lines | Line_strip | Line_loop ->
         Material.unlit (Color.hex_exn "#fbbf74")
     | Triangles | Triangle_strip | Triangle_fan -> material in
-  let drawing = Scene3.mesh ~cull:Scene3.Cull_none ~shading
+  let cull = match preview, primitive_mode with
+    | Pieces _, (Mesh.Triangles | Triangle_strip | Triangle_fan) ->
+        Scene3.Cull_back
+    | _ -> Scene3.Cull_none in
+  let drawing = Scene3.mesh ~cull ~shading
       ~material:preview_material mesh in
   let drawing = match primitive_mode with
     | Mesh.Points ->

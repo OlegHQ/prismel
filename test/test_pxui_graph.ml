@@ -126,7 +126,14 @@ let () =
   check (Pxui_graph.selected view = None
       && List.mem (Pxui_graph.Selected None) changes)
     "blank graph click did not restore camera-inspector selection";
-  check (Pxui_graph.scene view <> []) "visible graph produced an empty scene";
+  let stable_scene = Pxui_graph.scene view in
+  check (stable_scene <> []) "visible graph produced an empty scene";
+  check (Pxui_graph.scene view == stable_scene)
+    "unchanged graph rebuilt its scene";
+  let selected_scene = Pxui_graph.scene
+      (Pxui_graph.select (Node.id source_a) view) in
+  check (selected_scene != stable_scene)
+    "graph selection did not invalidate its scene";
   check (Pxui_graph.scene (Pxui_graph.with_visible false view) = [])
     "hidden graph still produced scene nodes";
 

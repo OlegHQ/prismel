@@ -65,9 +65,12 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal backe
   let classic_probe_command=get(Ogpu.Backend.render classic_probe_pass[draw])in
   let classic_probe_receipt=get(Ogpu.Backend.submit queue classic_probe_command~resources:[`Texture classic_probe]~pipelines:[render_pipeline])in
   get(Ogpu.Backend.complete_through queue classic_probe_receipt.epoch);
-  if Backend.classic_submission_entries control<>1 then failwith"classic attachment cache fixture";
+  let classic_entries_before_destroy=Backend.classic_submission_entries control in
+  if classic_entries_before_destroy<2 then failwith(Printf.sprintf
+    "classic attachment cache fixture: %d"classic_entries_before_destroy);
   get(Ogpu.Backend.destroy_texture classic_probe);
-  if Backend.classic_submission_entries control<>0 then failwith"destroyed classic attachment remained cached";
+  if Backend.classic_submission_entries control<>classic_entries_before_destroy-1 then
+    failwith"destroyed classic attachment invalidated unrelated entries";
   let classic_replacement=get(Ogpu.Backend.create_texture device td)in
   let replacement_texture=Ogpu.Backend.render_texture classic_replacement~format:Rgba8~usage:Render_target in
   let replacement_color={color with texture=replacement_texture}in

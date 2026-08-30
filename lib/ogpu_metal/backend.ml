@@ -14,7 +14,7 @@ type active_queue=
       (Ogpu.Backend.receipt,Ogpu.Error.t) result
   ; presentations:Surface.Private.pending_presentation array
   }
-type control={resources:(int64,resource)Hashtbl.t;pipelines:(string,Pipeline.t)Hashtbl.t;pipeline_tokens:(int64,Pipeline.t)Hashtbl.t;sampler_cache:(Ogpu.Types.sampler_descriptor,Sampler.t)Hashtbl.t;plan_owners:(string,plan_owner)Hashtbl.t;classic_invalidators:(int64,(int64->unit)*(int64->unit)*(unit->bool)*(unit->unit))Hashtbl.t;active_queues:(int64,active_queue)Hashtbl.t;completed_epochs:(int64,int64)Hashtbl.t;mutable retired:retired list;mutable plan_cache:Metal.Retained_render_plan.t option;mutable cleanup_error:Metal.error option;mutable device_live:bool;mutable next:int64;mutable plan_builds:int64;mutable plan_hits:int64;mutable plan_misses:int64;mutable plan_evictions:int64;mutable plan_executions:int64;plan_capacity:int;layer:Metal.Metal_layer.t option}
+type control={resources:(int64,resource)Hashtbl.t;pipelines:(string,Pipeline.t)Hashtbl.t;pipeline_tokens:(int64,Pipeline.t)Hashtbl.t;sampler_cache:(Ogpu.Types.sampler_descriptor,Sampler.t)Hashtbl.t;plan_owners:(string,plan_owner)Hashtbl.t;classic_invalidators:(int64,(int64->unit)*(int64->unit)*(unit->int)*(unit->unit))Hashtbl.t;active_queues:(int64,active_queue)Hashtbl.t;completed_epochs:(int64,int64)Hashtbl.t;mutable retired:retired list;mutable plan_cache:Metal.Retained_render_plan.t option;mutable cleanup_error:Metal.error option;mutable device_live:bool;mutable next:int64;mutable plan_builds:int64;mutable plan_hits:int64;mutable plan_misses:int64;mutable plan_evictions:int64;mutable plan_executions:int64;plan_capacity:int;layer:Metal.Metal_layer.t option}
 let error op kind text=Error(Ogpu.Error.make op kind text)
 let token c=let x=c.next in c.next<-Int64.succ x;x
 let register_pipeline c pipeline=Hashtbl.replace c.pipelines(Pipeline.key pipeline)pipeline
@@ -27,7 +27,8 @@ let pending_presentation_capacity=3
 let submit_native_render ~presenting presentation queue pass=
   if presenting then Queue.submit_render_pass_present queue presentation pass
   else Queue.submit_render_pass queue pass
-let classic_submission_entries c=Hashtbl.fold(fun _ (_,_,live,_) total->if live()then total+1 else total)c.classic_invalidators 0
+let classic_submission_entries c=Hashtbl.fold(fun _ (_,_,entries,_) total->
+  total+entries())c.classic_invalidators 0
 let classic_invalidator_entries c=Hashtbl.length c.classic_invalidators
 let disable_retained_plans_for_test c=Option.iter(fun cache->ignore(Metal.Retained_render_plan.destroy cache))c.plan_cache;c.plan_cache<-None
 let with_only_active_queue c action=
@@ -78,12 +79,21 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64) ()=
     let native_resource token=Hashtbl.find_opt c.resources token in
     let create_queue()=match Queue.create device with Error _ as e->e|Ok queue->let queue_token=token c in
       (* A prepared Scene_execution command is immutable and may be submitted
-         for many frames.  Retain one fully converted classic descriptor per
-         queue; resource/pipeline token lists and physical command identity
-         make replacement exact while keeping lifetime bounded by the queue. *)
-      let classic_submission=ref None in
-      let invalidate_classic_resource id=match !classic_submission with Some(_,resources,_,_)when List.exists(fun(_,token)->token=id)resources->classic_submission:=None|_->()and invalidate_classic_pipeline id=match !classic_submission with Some(_,_,pipelines,_)when List.mem id pipelines->classic_submission:=None|_->()in
-      Hashtbl.add c.classic_invalidators queue_token(invalidate_classic_resource,invalidate_classic_pipeline,(fun()->Option.is_some!classic_submission),(fun()->classic_submission:=None));
+         for many frames.  Retain a bounded set of fully converted classic
+         descriptors per queue; exact portable commands and resource/pipeline
+         token lists make reuse safe across freshly allocated wrappers. *)
+      let classic_submission_capacity=256 in
+      let classic_submissions=ref[]in
+      let invalidate_classic_resource id=
+        classic_submissions:=List.filter(fun(_,resources,_,_)->
+          not(List.exists(fun(_,token)->token=id)resources))!classic_submissions
+      and invalidate_classic_pipeline id=
+        classic_submissions:=List.filter(fun(_,_,pipelines,_)->
+          not(List.mem id pipelines))!classic_submissions in
+      Hashtbl.add c.classic_invalidators queue_token
+        (invalidate_classic_resource,invalidate_classic_pipeline,
+         (fun()->List.length!classic_submissions),
+         (fun()->classic_submissions:=[]));
       let rec same_resources left right=match left,right with
         |[],[]->true|(left_id,left_token)::left,(right_id,right_token)::right->
           Int64.equal left_id right_id&&Int64.equal left_token right_token&&
@@ -184,7 +194,7 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64) ()=
             in
             (match Metal.Retained_render_plan.find_or_create cache~key~generation~command_count:(List.length native_draws)~descriptor:icb_descriptor~build with Error e->c.plan_misses<-Int64.succ c.plan_misses;Error(Adapter.error~operation:"Ogpu_metal.Backend.render_plan"e)|Ok(icb,hit)->if hit then c.plan_hits<-Int64.succ c.plan_hits else(c.plan_misses<-Int64.succ c.plan_misses;c.plan_builds<-Int64.succ c.plan_builds;Option.iter(fun owner->Hashtbl.replace c.plan_owners key owner)!made);let owner=Hashtbl.find c.plan_owners key in Ok(Render_pass.with_indirect encoded icb~vertex_buffers:owner.vertex_buffers~fragment_buffers:owner.buffers~textures:owner.textures,Some key))in
           let has_argument=List.exists argument_pipeline native_draws in
-          let rendered=if has_argument&&not(List.for_all exact_argument_abi native_draws)then error"Ogpu_metal.Backend.render"Ogpu.Error.Invalid_argument"argument-buffer render batch has mixed or noncanonical bindings"else if has_argument&&not retained_plans_enabled then error"Ogpu_metal.Backend.render"Ogpu.Error.Unsupported"argument-buffer rendering requires retained ICB support"else match !classic_submission with Some(old_command,old_resources,old_pipelines,encoded)when old_command==command&&same_resources old_resources resources&&same_pipelines old_pipelines pipelines->submit_native_render~presenting presentation queue encoded|_->match native_render_descriptor descriptor with Error _ as e->e|Ok descriptor->match Ogpu.Render_pass.create~raster_state:(Ogpu.Render_pass.raster_state portable_pass)?stencil_state:(Ogpu.Render_pass.stencil_state portable_pass)(Device.Private.handle device)descriptor with Error _ as e->e|Ok pass->match (if native_draws=[]then Render_pass.create_empty device pass~attachments else Render_pass.create_batch device pass~attachments native_draws)with Error _ as e->e|Ok encoded->match maybe_indirect encoded with Error _ as e->e|Ok(encoded,key)->(match key with None->classic_submission:=Some(command,resources,pipelines,encoded)|Some _->());match submit_native_render~presenting presentation queue encoded with Error _ as e->e|Ok receipt->Option.iter(fun key->c.plan_executions<-Int64.succ c.plan_executions;Option.iter(fun(owner:plan_owner)->owner.last_epoch<-receipt.epoch)(Hashtbl.find_opt c.plan_owners key))key;Ok receipt in rendered in
+          let rendered=if has_argument&&not(List.for_all exact_argument_abi native_draws)then error"Ogpu_metal.Backend.render"Ogpu.Error.Invalid_argument"argument-buffer render batch has mixed or noncanonical bindings"else if has_argument&&not retained_plans_enabled then error"Ogpu_metal.Backend.render"Ogpu.Error.Unsupported"argument-buffer rendering requires retained ICB support"else match List.find_opt(fun(old_command,old_resources,old_pipelines,_)->old_command=command&&same_resources old_resources resources&&same_pipelines old_pipelines pipelines)!classic_submissions with Some(_,_,_,encoded)->submit_native_render~presenting presentation queue encoded|None->match native_render_descriptor descriptor with Error _ as e->e|Ok descriptor->match Ogpu.Render_pass.create~raster_state:(Ogpu.Render_pass.raster_state portable_pass)?stencil_state:(Ogpu.Render_pass.stencil_state portable_pass)(Device.Private.handle device)descriptor with Error _ as e->e|Ok pass->match (if native_draws=[]then Render_pass.create_empty device pass~attachments else Render_pass.create_batch device pass~attachments native_draws)with Error _ as e->e|Ok encoded->match maybe_indirect encoded with Error _ as e->e|Ok(encoded,key)->(match key with None->classic_submissions:=(command,resources,pipelines,encoded)::!classic_submissions;if List.length!classic_submissions>classic_submission_capacity then classic_submissions:=List.filteri(fun index _->index<classic_submission_capacity)!classic_submissions|Some _->());match submit_native_render~presenting presentation queue encoded with Error _ as e->e|Ok receipt->Option.iter(fun key->c.plan_executions<-Int64.succ c.plan_executions;Option.iter(fun(owner:plan_owner)->owner.last_epoch<-receipt.epoch)(Hashtbl.find_opt c.plan_owners key))key;Ok receipt in rendered in
         Result.map(fun(receipt:Queue.receipt)->{Ogpu.Backend.epoch=receipt.epoch})result in
       let submit command ~resources ~pipelines=submit_with~presenting:false
         unused_presentation command~resources~pipelines in

@@ -122,6 +122,7 @@ type t = {
   catalog : catalog_entry array;
   visible : bool;
   theme : Pxui.theme;
+  mutable scene_cache : (t * Scene.t) option;
 }
 
 type node_view = {
@@ -246,7 +247,7 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
     selected_edge = None; viewed; x; y; width; height;
     pan_x = float_of_int (width / 2); pan_y = 18.; zoom = 1.; drag = None;
     menu = None; clipboard = None; catalog = catalog_array catalog;
-    visible = true; theme }
+    visible = true; theme; scene_cache = None }
 
 let create ?x ?y ?width ?height ?theme ?selected ?catalog graph =
   let value = create_document ?x ?y ?width ?height ?theme ?selected ?catalog
@@ -946,7 +947,7 @@ let menu_scene (value : t) menu =
    Scene.text_input_region ~at:(x + 7, y + 7) ~w:(width - 14) ~h:27
      ~focused:true ()] @ row_scenes
 
-let scene (value : t) =
+let scene_uncached (value : t) =
   if not value.visible then Scene.empty else
   let viewport = value.x, value.y, value.width, value.height in
   let visible_nodes, _ = visibility value in
@@ -1057,3 +1058,21 @@ let scene (value : t) =
       (grid @ wires @ List.concat (List.rev !ordinary)
         @ List.concat (List.rev !selected_nodes) @ drag_scene)] in
   base @ Option.fold ~none:[] ~some:(menu_scene value) value.menu
+
+let same_scene_state (left : t) (right : t) =
+  left.boxes == right.boxes && left.edges == right.edges
+  && left.selected = right.selected && left.primary = right.primary
+  && left.selected_edge = right.selected_edge && left.viewed = right.viewed
+  && left.x = right.x && left.y = right.y && left.width = right.width
+  && left.height = right.height && left.pan_x = right.pan_x
+  && left.pan_y = right.pan_y && left.zoom = right.zoom
+  && left.drag = right.drag && left.menu = right.menu
+  && left.catalog == right.catalog && left.visible = right.visible
+  && left.theme = right.theme
+
+let scene (value : t) = match value.scene_cache with
+  | Some (snapshot, scene) when same_scene_state snapshot value -> scene
+  | _ ->
+      let scene = scene_uncached value in
+      value.scene_cache <- Some ({ value with scene_cache = None }, scene);
+      scene

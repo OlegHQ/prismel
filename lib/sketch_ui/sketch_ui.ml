@@ -514,6 +514,8 @@ module Core = struct
       | _ -> inspector_ui, [] in
     let document, inspector_ui, parameter_effects, edit_error =
       match inspector, inspector_ui with
+      | Some _, Some ui when inspector_changes = [] ->
+          document, Some ui, Parameter.no_effects, edit_error
       | Some inspector, Some ui ->
           let node_id = Sop_ui.Node_inspector.node_id inspector in
           (match Edit_graph.find document ~node_id with
@@ -534,11 +536,15 @@ module Core = struct
     let graph_view = Pxui_graph.with_document document graph_view in
     let displayed_id = Pxui_graph.viewed graph_view in
     let display_changed = displayed_id <> value.displayed_id in
-    let graph, edit_error = match Edit_graph.compile document with
+    let document_changed = document != value.document in
+    let graph, edit_error = if not document_changed then value.graph, edit_error
+      else match Edit_graph.compile document with
       | Ok graph -> graph, edit_error
       | Error message -> value.graph, Some message in
     let displayed_graph, edit_error =
-      match Edit_graph.compile_node document ~node_id:displayed_id with
+      if not document_changed && not display_changed
+      then value.displayed_graph, edit_error
+      else match Edit_graph.compile_node document ~node_id:displayed_id with
       | Ok graph -> graph, edit_error
       | Error message -> value.displayed_graph, Some message in
     let completion = Sketch_support.Reactive_sop.poll value.worker in

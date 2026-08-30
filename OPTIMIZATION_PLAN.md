@@ -32,6 +32,53 @@ compare results from different profiles as one series.
 
 ## Current optimization priorities
 
+## 2026-08-30 profile and candidate result
+
+The screenshot captured the settled application at 29 FPS after a 15.791 s
+cook with the graph and inspector visible.  The profiling host was a 16 GiB
+Apple M1 Mac mini (`Macmini9,1`), macOS 26.4.1, OCaml 5.3.0, Dune 3.20.2,
+release profile, one cook domain, a 1920x1080 display, and a 1200x760 logical
+and physical benchmark drawable (scale 1).  Source baseline was `8472baf7`.
+
+One diagnostic baseline and candidate run used the exact cardinality-checked
+visible workload (18,278 pieces, 278,368 triangles, 835,104 render vertices),
+a two-second warmup, and an eight-second measurement:
+
+| Metric | Baseline | Candidate |
+| --- | ---: | ---: |
+| FPS | 54.48 | 61.87 |
+| median frame | 11.83 ms | 13.13 ms |
+| p95 frame | 29.17 ms | 24.30 ms |
+| p99 frame | 31.05 ms | 25.50 ms |
+| allocated | 1.703 GB | 1.865 GB |
+| allocation/frame | 3.90 MB | 3.76 MB |
+
+These are single diagnostic runs, not the required five-run qualification.
+The FPS/p95 improvement comes primarily from restoring back-face culling for
+the closed packed-piece preview while retaining two-sided arbitrary
+intermediate meshes.  A five-second hidden-UI diagnostic reached 117.47 FPS,
+8.49 ms median, 9.95 ms p95, and about 166 KiB/frame, proving that the dense
+Scene3 path is no longer the only limit and that visible Scene2/PXUI lowering
+still owns most allocation and jitter.
+
+The candidate additionally preserves immutable editor-document identity on
+idle frames, caches an unchanged `Pxui_graph` scene, and replaces the Metal
+adapter's single classic-descriptor slot with a bounded 256-entry cache with
+selective resource/pipeline invalidation.  Exact equivalent portable commands
+may reuse their native descriptors.  Focused graph, Sketch UI, and OGPU Metal
+tests cover invalidation and teardown.
+
+Before this candidate can close R10:
+
+- reproduce the screenshot's Retina-scale visible drawable and prove a stable
+  60 FPS median/p95 result there;
+- reduce the remaining roughly 3.76 MB/frame visible allocation, principally
+  in Scene2 lowering and submission, rather than hiding it with GC tuning;
+- run five interleaved release samples for visible and hidden modes and record
+  native GPU timing, upload, retained-plan, and classic-descriptor counters;
+- renew R9 and the 30-minute R12/O6 stability qualification because native
+  descriptor-cache ownership changed.
+
 ### P0: on-demand scheduling
 
 The application lifecycle must distinguish continuous animation from static

@@ -148,11 +148,15 @@ let scene3 node preview =
     | Mesh.Points | Lines | Line_strip | Line_loop ->
         Material.unlit (Color.hex_exn "#fbbf74")
     | Triangles | Triangle_strip | Triangle_fan -> material in
+  let cull = match preview, primitive_mode with
+    | Pieces _, (Mesh.Triangles | Triangle_strip | Triangle_fan) ->
+        Scene3.Cull_back
+    | _ -> Scene3.Cull_none in
   let drawing =
     (* Intermediate sheet SOPs need to remain inspectable from either side,
        like a modelling viewport. Primitive sources use their exact face
        winding instead of an interpolated preview normal. *)
-    Scene3.mesh ~cull:Scene3.Cull_none ~shading ~material:preview_material mesh
+    Scene3.mesh ~cull ~shading ~material:preview_material mesh
   in
   let drawing = match primitive_mode with
     | Mesh.Points ->

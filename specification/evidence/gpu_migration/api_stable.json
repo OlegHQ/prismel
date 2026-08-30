@@ -681,13 +681,13 @@
       "source_sha256": "3d003d8e1a5eb9786ba600c61729604e516b4c7e182fa95b6b3f035c1a6b12eb"
     },
     {
-      "api_sha256": "1af9f5cce187bb25156b94fb77896d619dc92f2f1ef791447d32ac5f01661d73",
+      "api_sha256": "eb8124ddd620663d1e79c136cb7825966c75f7b30acde62bb5c4b289a3d1c643",
       "excluded_legacy_symbols": [],
       "library": "prismel",
       "module": "Event",
       "source": "lib/prismel/event.mli",
-      "source_bytes": 1344,
-      "source_sha256": "57524773798a08f5f6e9d69b1fad9da55e2634ad8e2087492efe21463b680497"
+      "source_bytes": 1478,
+      "source_sha256": "e896f2d9362a97327bcdef693f23ea9ac11952e587c7ffe89b0c8d01201ff95b"
     },
     {
       "api_sha256": "ad62ad9ff4b2dc8aed9b97d9436ec5203c79f7a90d44504fb6a08416fe053e0a",
@@ -699,7 +699,7 @@
       "source_sha256": "c2f882087efb3d55d07d2be24227681c5a55b0efd289930b377c9458d591997a"
     },
     {
-      "api_sha256": "bae0139f3f4b5d58bdea10b675e97c7e570ca3ab9092d74ce22cee19efe3206e",
+      "api_sha256": "ea481c7a6e066011bf9c67828c2f814689ee6953f2113a0a229de38077cafadc",
       "excluded_legacy_symbols": [
         "module:Private",
         "value:release_renderer"
@@ -707,8 +707,8 @@
       "library": "prismel",
       "module": "Font",
       "source": "lib/prismel/font.mli",
-      "source_bytes": 2203,
-      "source_sha256": "7cd7f6e00708d01525f4d2d9056f8c2b01a1a1dd90fb83f56bd79a3ce731c07f"
+      "source_bytes": 2265,
+      "source_sha256": "e82ba46cd631eeabb30d9a039c4deac6321965079e2ef4f6d7c095d4437c8755"
     },
     {
       "api_sha256": "ffb3db727241e424d47e14f0583ea73e8954500728f48e06ab187153665d67eb",
@@ -866,13 +866,13 @@
       "source_sha256": "74b90ec75bbe4b2ebad22d581cac659ad9e528b00f8efe41f93c2c06fc1972a3"
     },
     {
-      "api_sha256": "d28e7e991b9e30f672264df537809a89f7ae165afc528088c6450b5338e01c53",
+      "api_sha256": "5802a01ffea2597e612e4de6f8ae62b537c0d27ea4d20bf3091d3ea54ff21697",
       "excluded_legacy_symbols": [],
       "library": "prismel",
       "module": "Scene",
       "source": "lib/prismel/scene.mli",
-      "source_bytes": 3234,
-      "source_sha256": "0c8a10234ca7a2b4acd0734742a65b3ad4def3173f7d68de6daa3d19472655d9"
+      "source_bytes": 3266,
+      "source_sha256": "c20c0d0a91229ebc2890039c4c51d2f71e44df122af91557995afb638ece1341"
     },
     {
       "api_sha256": "838f3925623b5708ffbc449b2fb30d995bacb3ac609333749bbae6bcf4359019",

@@ -10,6 +10,41 @@ The migration completes only when every gate below is green on one final clean
 commit, legacy code/dependencies are deleted, and named evidence is recorded.
 Compilation or one rendered frame is not completion evidence.
 
+## Current completion isolation (2026-08-30)
+
+The production architecture is structurally native Metal-only.  That is not
+the same claim as release completion.  The latest committed authoritative
+ledger is
+`specification/evidence/gpu_migration/current_gate_status_2026-08-29.md`:
+11 gates strict, 27 provisional, one pending-local gate, and eight
+pending-external gates.  Strict completion remains 11/47 (23.40%).
+
+The remaining work is isolated as follows:
+
+1. **Local critical path: R10.** Run the workload-equivalent five-round native
+   performance protocol.  The shattered-cube visible path must sustain the
+   required frame envelope on a Retina drawable and eliminate its measured
+   multi-megabyte per-frame Scene2/submission allocation.  A single 61.87 FPS
+   scale-1 diagnostic is useful optimization evidence, not qualification.
+2. **Renewed local evidence after renderer ownership changes.** Re-run R9
+   stable-upload/cache evidence and the 30-minute R12/O6 changing-resource,
+   resize, capture, and teardown qualification.  The 2026-08-30 candidate
+   changes classic native descriptor caching, so the earlier clean-commit
+   lifetime reports cannot qualify the final commit by themselves.
+3. **Final integrated release commit.** Renew every provisional S/M/O/R/D
+   result, run D2/D3/D8 audits, twice-clean `@all`/`runtest`/finite-native
+   suites, clean installation, generated-drift checks, and record the exact
+   source and artifact hashes on that same commit.
+4. **External critical path.** Obtain the required alternate Apple-Silicon/OS
+   lanes, M3+ ray-tracing and Metal 4/MetalFX coverage, GPU capture/counters,
+   sanitizer/Guard Malloc/Leaks diagnostics, clean-host packaging, and
+   independent license review.  These are not locally waivable.
+
+No other architectural fallback is authorized while these gates are open.
+The critical-path list above is the completion boundary: do not describe this
+plan as finished until all four items have committed evidence and all 47 gates
+are strict on one clean commit.
+
 ## Decision and scope
 
 Prismel has four native layers:
