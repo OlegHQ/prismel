@@ -392,6 +392,23 @@ executions, and a 2,450-created/2,450-released native-handle balance. Median was
 is deliberately not claimed as the remaining M11 reusable resource-array work
 or as closure of the final allocation gate.
 
+Classic scoped render submissions now complete directly from their local
+command, retained-resource, and encoder-cleanup values after commit. They no
+longer allocate a queue-owned pending record, append a pending list node, scan
+and detach that node, or allocate the intermediate synchronous-admission record
+used by the public API. Asynchronous classic work and scoped Command4 work keep
+the established bounded pending queue. The existing backend regression covers
+successful scoped completion, commit notification, injected terminal failure,
+immediate surface reconfiguration, subsequent queue reuse, and 600 iterations
+with zero incremental promotion and zero native-handle delta.
+
+The 300-frame isolated retained Scene3 lane then reported 24,842.64 allocated
+bytes/frame, exactly 240 bytes/frame below the preceding 25,082.64 result. It
+retained exact canonical pixels, zero measurement upload, 300 retained-plan
+hits and executions, and a 2,450-created/2,450-released native-handle balance.
+Median was 8.35 ms and p95 was 10.27 ms. The final M11 allocation gate remains
+open.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,

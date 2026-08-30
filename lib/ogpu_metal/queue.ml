@@ -1,14 +1,10 @@
 type cleanup=unit->unit
 type native_completion=Classic of Metal.Command_buffer.t|Command4 of Metal.Command4.Submission.t*Metal.Command4.Command_buffer.t*Metal.Command4.Allocator.t
 type pending={epoch:int64;command:native_completion;cleanup:cleanup list;
-  mutable encode_cleanup:cleanup list}
+  encode_cleanup:cleanup list}
 let rec run_cleanup=function
 |[]->()
 |release::rest->release();run_cleanup rest
-let drop_encode_cleanup pending=
-  let cleanup=pending.encode_cleanup in
-  pending.encode_cleanup<-[];
-  run_cleanup cleanup
 type presentation=Metal.Command_buffer.t -> (unit,Ogpu.Error.t) result
 type t={device:Device.t;metal:Metal.Command_queue.t;submission:Ogpu.Submission.t;mutable command4:Metal.Command4.Queue.t option;mutable pending:pending list;mutable fail_next:bool;mutable fail_next_completion:bool;mutable scoped_next_render:bool;mutable scoped_on_committed:(int64->unit)option;mutable scoped_completion:(unit,Ogpu.Error.t)result option;mutable dead:bool}
 type receipt={epoch:int64}
@@ -78,7 +74,37 @@ let submit value command =let op="Ogpu_metal.Queue.submit"in if value.dead then 
 match Ogpu.Submission.Private.submit_epoch value.submission(Command.Private.portable command)~resources:[]with Error _ as e->rollback e|Ok epoch->match Metal.Command_buffer.create value.metal()with Error e->rollback(Error(Adapter.error~operation:op e))|Ok native->match encode native operations with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error e)|Ok cleanup->match Metal.Command_buffer.commit native with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error(Adapter.error~operation:op e))|Ok()->value.pending<-value.pending@[{epoch=epoch;command=Classic native;cleanup=retained@cleanup;encode_cleanup=[]}];Ok{epoch=epoch}
 let command4_queue value=match value.command4 with Some queue->Ok queue|None->match Metal.Command4.Queue.create_default(Device.Private.metal value.device)with Error e->Error(Adapter.error~operation:"Ogpu_metal.Queue.command4" e)|Ok queue->value.command4<-Some queue;Ok queue
 let no_presentation _=assert false
-let submit_render_pass_common ~presenting presentation value pass =
+let finish_direct_scoped_classic value epoch command retained encode_cleanup=
+  let op="Ogpu_metal.Queue.submit_render_pass_sync"in
+  let released_references=
+    Metal.Command_buffer.Private.release_committed_references command in
+  run_cleanup encode_cleanup;
+  (match value.scoped_on_committed with
+   |None->()|Some notify->notify epoch);
+  value.scoped_on_committed<-None;
+  try
+    let outcome=match Metal.Command_buffer.wait_until_completed command with
+      |Error native_error->Error(Adapter.error~operation:op native_error)
+      |Ok()->Ok()in
+    let outcome=match released_references,outcome with
+      |Error native_error,_->Error(Adapter.error~operation:op native_error)
+      |Ok(),outcome->outcome in
+    let outcome=if value.fail_next_completion then begin
+        value.fail_next_completion<-false;
+        error op Ogpu.Error.Device_lost
+          "injected terminal completion failure"
+      end else outcome in
+    let portable=Ogpu.Submission.complete_through value.submission epoch in
+    let result=match outcome,portable with
+      |Error _ as failure,_->failure|Ok(),result->result in
+    run_cleanup retained;
+    ignore(Metal.Command_buffer.destroy command);
+    result
+  with exn->
+    run_cleanup retained;
+    ignore(Metal.Command_buffer.destroy command);
+    raise exn
+let submit_render_pass_common ~scoped ~presenting presentation value pass =
   let op = "Ogpu_metal.Queue.submit_render_pass" in
   let requires_command4 = Render_pass.Private.requires_command4 pass in
   if value.dead then
@@ -208,15 +234,21 @@ let submit_render_pass_common ~presenting presentation value pass =
                                           abort
                                             (Error (Adapter.error ~operation:op native_error))
                                       | Ok () ->
-                                          value.pending <- value.pending @
-                                            [{epoch;command=Classic native;
-                                              cleanup=retained;
-                                              encode_cleanup=cleanup}];
+                                          if scoped then
+                                            value.scoped_completion<-Some
+                                              (finish_direct_scoped_classic
+                                                 value epoch native retained
+                                                 cleanup)
+                                          else value.pending <- value.pending @
+                                              [{epoch;command=Classic native;
+                                                cleanup=retained;
+                                                encode_cleanup=cleanup}];
                                           Ok {epoch}))))))
 let submit_render_pass_async value pass=
-  submit_render_pass_common~presenting:false no_presentation value pass
+  submit_render_pass_common~scoped:false~presenting:false no_presentation
+    value pass
 let submit_render_pass_present_async value presentation pass=
-  submit_render_pass_common~presenting:true presentation value pass
+  submit_render_pass_common~scoped:false~presenting:true presentation value pass
 let submit_typed value op retain encode=if value.dead then error op Ogpu.Error.Stale_handle"queue is destroyed"else match retain()with Error _ as e->e|Ok retained->let rollback e=List.iter(fun f->f())retained;e in match Metal.Command_buffer.create value.metal()with Error e->rollback(Error(Adapter.error~operation:op e))|Ok native->match encode native with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error e)|Ok()->let portable=Ogpu.Command.begin_encoder()in(match Ogpu.Command.end_encoder portable with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error e)|Ok()->match Ogpu.Submission.Private.submit_epoch value.submission portable~resources:[]with Error _ as e->ignore(Metal.Command_buffer.destroy native);rollback e|Ok epoch->match Metal.Command_buffer.commit native with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error(Adapter.error~operation:op e))|Ok()->value.pending<-value.pending@[{epoch=epoch;command=Classic native;cleanup=retained;encode_cleanup=[]}];Ok{epoch=epoch})
 let submit_transfer_pass value pass=submit_typed value"Ogpu_metal.Queue.submit_transfer_pass"(fun()->Transfer_pass.Private.retain pass)(fun command->Transfer_pass.Private.encode command pass)
 let submit_compute_pass value pass=submit_typed value"Ogpu_metal.Queue.submit_compute_pass"(fun()->Compute_pass.Private.retain pass)(fun command->Compute_pass.Private.encode command pass)
@@ -300,82 +332,52 @@ let wait_through value epoch =
       match first_error,portable with
       | Some failure,_ -> Error failure
       | None,result -> result
-let finish_scoped_classic value receipt pending rest command cleanup=
-      (* Only the classic R10 lane is detached before the blocking wait. *)
-      value.pending<-rest;
-      (* Drop command-buffer resource retains first so encode-owned
-         depth/sampler objects and the scoped presentation drawable can be
-         destroyed.  The native command buffer still retains those objects
-         through terminal completion. *)
-      let released_references=
-        Metal.Command_buffer.Private.release_committed_references command in
-      drop_encode_cleanup pending;
-      (match value.scoped_on_committed with
-       |None->()|Some notify->notify receipt.epoch);
-      value.scoped_on_committed<-None;
-      let completion=try
-            let outcome=match Metal.Command_buffer.wait_until_completed command with
-              |Error native_error->Error(Adapter.error
-                  ~operation:"Ogpu_metal.Queue.submit_render_pass_sync" native_error)
-              |Ok()->Ok()in
-            let outcome=match released_references,outcome with
-              |Error native_error,_->Error(Adapter.error
-                  ~operation:"Ogpu_metal.Queue.submit_render_pass_sync"
-                  native_error)
-              |Ok(),outcome->outcome in
-            let outcome=if value.fail_next_completion then begin
-                value.fail_next_completion<-false;
-                error"Ogpu_metal.Queue.submit_render_pass_sync"
-                  Ogpu.Error.Device_lost"injected terminal completion failure"
-              end else outcome in
-            let portable=Ogpu.Submission.complete_through value.submission
-              receipt.epoch in
-            let result=match outcome,portable with
-              |Error _ as error,_->error|Ok(),result->result in
-            run_cleanup cleanup;
-            ignore(Metal.Command_buffer.destroy command);
-            result
-          with exn->
-            run_cleanup cleanup;
-            ignore(Metal.Command_buffer.destroy command);
-            raise exn in
-      Ok{receipt;completion}
 let finish_scoped_render value receipt =
-  match value.pending with
-  |[({epoch;command=Classic command;cleanup;_}as pending)]
-    when epoch=receipt.epoch->
-      finish_scoped_classic value receipt pending[]command cleanup
-  |_->match List.rev value.pending with
-  |({epoch;command=Classic command;cleanup;_} as pending)::rest
-    when epoch=receipt.epoch->
-      finish_scoped_classic value receipt pending(List.rev rest)command cleanup
+  match List.rev value.pending with
   |{epoch;command=Command4 _;_}::_ when epoch=receipt.epoch->
       (* Command4 owns a submission/command/allocator triple.  Preserve its
          established terminal teardown and injected-completion behavior. *)
       Ok{receipt;completion=wait_through value epoch}
   |_->error"Ogpu_metal.Queue.submit_render_pass_sync"Ogpu.Error.Invalid_state
       "render admission was not the terminal pending command"
+let ensure_scoped_completion value receipt=
+  match value.scoped_completion with
+  |Some _->Ok receipt
+  |None->match finish_scoped_render value receipt with
+    |Error _ as failure->failure
+    |Ok admitted->value.scoped_completion<-Some admitted.completion;Ok receipt
+let take_scoped_admission value receipt=
+  match ensure_scoped_completion value receipt with
+  |Error _ as failure->failure
+  |Ok receipt->match value.scoped_completion with
+    |None->error"Ogpu_metal.Queue.submit_render_pass_sync"
+        Ogpu.Error.Invalid_state"scoped completion is unavailable"
+    |Some completion->value.scoped_completion<-None;Ok{receipt;completion}
 let submit_render_pass_sync value pass=
-  match submit_render_pass_async value pass with Error _ as e->e|Ok receipt->
-    finish_scoped_render value receipt
+  match submit_render_pass_common~scoped:true~presenting:false no_presentation
+      value pass with
+  |Error _ as failure->failure
+  |Ok receipt->take_scoped_admission value receipt
 let submit_render_pass_present_sync value presentation pass=
-  match submit_render_pass_present_async value presentation pass with Error _ as e->e
-  |Ok receipt->finish_scoped_render value receipt
+  match submit_render_pass_common~scoped:true~presenting:true presentation
+      value pass with
+  |Error _ as failure->failure
+  |Ok receipt->take_scoped_admission value receipt
 let submit_render_pass value pass=
   if value.scoped_next_render then begin
     value.scoped_next_render<-false;
-    match submit_render_pass_sync value pass with
-    |Error _ as e->e
-    |Ok admitted->value.scoped_completion<-Some admitted.completion;
-        Ok admitted.receipt
+    match submit_render_pass_common~scoped:true~presenting:false no_presentation
+        value pass with
+    |Error _ as failure->failure
+    |Ok receipt->ensure_scoped_completion value receipt
   end else submit_render_pass_async value pass
 let submit_render_pass_present value presentation pass=
   if value.scoped_next_render then begin
     value.scoped_next_render<-false;
-    match submit_render_pass_present_sync value presentation pass with
-    |Error _ as e->e
-    |Ok admitted->value.scoped_completion<-Some admitted.completion;
-        Ok admitted.receipt
+    match submit_render_pass_common~scoped:true~presenting:true presentation
+        value pass with
+    |Error _ as failure->failure
+    |Ok receipt->ensure_scoped_completion value receipt
   end else submit_render_pass_present_async value presentation pass
 let destroy value=let op="Ogpu_metal.Queue.destroy"in if value.dead then Ok()else if value.pending<>[]then error op Ogpu.Error.Invalid_state"queue has commands in flight"else match Metal.Command_queue.destroy value.metal with Error e->Error(Adapter.error~operation:op e)|Ok()->(match value.command4 with None->()|Some queue->ignore(Metal.Command4.Queue.destroy queue));let id=Device.id value.device in (match Hashtbl.find_opt gpu_timings id with Some timing when timing.queues>1->timing.queues<-timing.queues-1|Some _->Hashtbl.remove gpu_timings id|None->());value.dead<-true;Device.Private.detach_resource value.device;Ok()
 module Private=struct
