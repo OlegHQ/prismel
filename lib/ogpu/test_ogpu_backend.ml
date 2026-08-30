@@ -38,6 +38,18 @@ let run ()=
     failwith(Printf.sprintf"stable queue wrapper allocated %.0f bytes/frame"allocated);
   if promoted>100_000. then
     failwith(Printf.sprintf"stable queue wrapper promoted %.0f bytes"promoted);
+  for _=0 to 300 do
+    let pass=Ogpu.Transfer_pass.create(Ogpu.Backend.device_handle device)in
+    get(Ogpu.Transfer_pass.copy_buffer pass~src:portable_source~src_offset:0L
+      ~dst:portable_destination~dst_offset:0L~length:16L);
+    let distinct=get(Ogpu.Backend.transfer pass)in
+    let receipt=get(Ogpu.Backend.submit queue distinct~resources~pipelines:[])in
+    get(Ogpu.Backend.complete_through queue receipt.epoch)
+  done;
+  let entries,capacity=Ogpu.Backend.Private.submission_cache_stats queue in
+  if entries<>256||capacity<>256 then
+    failwith(Printf.sprintf"submission cache bound changed: %d/%d"entries capacity);
+  Ogpu.Backend_mock.clear_trace control;
   let config : Ogpu.Surface.configuration={logical_width=2;logical_height=2;physical_width=4;physical_height=4;format=Rgba8_unorm;present_mode=Fifo;max_acquired=2}in
   let surface=get(Ogpu.Backend.create_surface device config)in
   let presentation_descriptor={attachment_descriptor with

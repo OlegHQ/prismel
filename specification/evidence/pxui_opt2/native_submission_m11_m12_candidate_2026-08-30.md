@@ -109,10 +109,37 @@ two-second diagnostic reported:
 This is another 4.9% reduction from the immediately preceding run. It remains
 intermediate evidence and does not satisfy the M11 allocation gate.
 
+Retained Metal replay now reuses the complete typed native pass when its exact
+attachment ID/token vector still matches. Attachment replacement and resize
+take the checked reconstruction path and refresh the cached template only after
+successful submission. The corresponding two-second diagnostic reported:
+
+- 182 frames over 2.002 seconds, 90.91 FPS;
+- 10.34 ms median, 12.59 ms p95, 23.40 ms p99;
+- 30,377,936 allocated bytes, approximately 163.0 KiB/frame;
+- 1,738,672 promoted bytes total.
+
+The portable queue now retains checked resource/pipeline translations per
+physical command instead of retaining only the preceding pass. Its storage is
+a fixed 256-slot ring: lookup and eviction allocate no list spine, failed
+driver admission does not mutate an entry, and dead/cross-device resources are
+still checked on every use. A 301-distinct-command regression proves the exact
+256-entry bound. The next two-second diagnostic reported:
+
+- 181 frames over 2.005 seconds, 90.27 FPS;
+- 10.47 ms median, 14.03 ms p95, 20.25 ms p99;
+- 25,299,544 allocated bytes, approximately 136.5 KiB/frame;
+- 1,993,840 promoted bytes total.
+
+The complete-pass reuse and per-command translation cache remove about 30.3%
+from the preceding 195.8 KiB/frame result. The M11 allocation gate remains open.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,
   retained-plan queues/surface, zero native handle delta.
 - `lib/metal/test_metal_render_encoder_safe.exe`: prepared-resource duplicate
   rejection, command use, retained lifetime, idempotent release, and teardown.
+- `lib/ogpu/test_ogpu_backend.exe`: deterministic submit/loss/lifetime
+  conformance, stable translation allocation, and exact 256-entry cache bound.
 - `test/test_sketch_ui.exe`: passed.

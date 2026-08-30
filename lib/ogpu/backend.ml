@@ -16,12 +16,16 @@ and buffer={resource:resource;buffer_descriptor:Types.buffer_descriptor}
 and texture={resource:resource;texture_descriptor:Types.texture_descriptor}
 and pipeline={pipeline_driver:driver_pipeline;device:device;mutable dead:bool}
 and submitted_resource=[`Buffer of buffer|`Texture of texture]
+and submission_cache_entry=
+  { cached_command:command
+  ; mutable cached_resources:submitted_resource list
+  ; mutable cached_pairs:(int64*resource)list
+  ; mutable cached_tokens:(int64*token)list
+  ; mutable cached_pipelines:pipeline list
+  ; mutable cached_pipeline_tokens:token list }
 and queue={raw:driver_queue;device:device;mutable dead:bool;
-  mutable submitted_resources:submitted_resource list;
-  mutable submitted_pairs:(int64*resource)list;
-  mutable submitted_tokens:(int64*token)list;
-  mutable submitted_pipelines:pipeline list;
-  mutable submitted_pipeline_tokens:token list}
+  submission_cache:submission_cache_entry option array;
+  mutable submission_cache_next:int}
 type surface={raw:driver_surface;device:device;mutable dead:bool;mutable frames:int;
   mutable configuration:Surface.configuration}
 type frame={raw:driver_frame;surface:surface;mutable consumed:bool}
@@ -37,7 +41,8 @@ let create_texture device descriptor=match live"Backend.create_texture"device wi
 let create_depth_texture device descriptor=match live"Backend.create_depth_texture"device with Error _ as e->e|Ok()->match Types.validate_texture device.raw.capabilities descriptor with Error _ as e->e|Ok() when not(List.mem Types.Render_attachment descriptor.usage)||List.exists(fun usage->usage<>Types.Render_attachment)descriptor.usage->error"Backend.create_depth_texture"Error.Invalid_argument"depth textures are render-attachment only"|Ok()->match device.raw.create_depth_texture descriptor with Error _ as e->e|Ok raw->device.children<-device.children+1;Ok{resource=make_resource device raw;texture_descriptor=descriptor}
 let create_stencil_texture device descriptor=match live"Backend.create_stencil_texture"device with Error _ as e->e|Ok()->match Types.validate_texture device.raw.capabilities descriptor with Error _ as e->e|Ok() when not(List.mem Types.Render_attachment descriptor.usage)||List.exists(fun usage->usage<>Types.Render_attachment)descriptor.usage->error"Backend.create_stencil_texture"Error.Invalid_argument"stencil textures are render-attachment only"|Ok()->match device.raw.create_stencil_texture descriptor with Error _ as e->e|Ok raw->device.children<-device.children+1;Ok{resource=make_resource device raw;texture_descriptor=descriptor}
 let adopt_pipeline device portable=match live"Backend.adopt_pipeline"device with Error _ as e->e|Ok()->match device.raw.create_pipeline portable with Error _ as e->e|Ok pipeline_driver->device.children<-device.children+1;Ok{pipeline_driver;device;dead=false}
-let create_queue device=match live"Backend.create_queue"device with Error _ as e->e|Ok()->match device.raw.create_queue()with Error _ as e->e|Ok raw->device.children<-device.children+1;Ok{raw;device;dead=false;submitted_resources=[];submitted_pairs=[];submitted_tokens=[];submitted_pipelines=[];submitted_pipeline_tokens=[]}
+let submission_cache_capacity=256
+let create_queue device=match live"Backend.create_queue"device with Error _ as e->e|Ok()->match device.raw.create_queue()with Error _ as e->e|Ok raw->device.children<-device.children+1;Ok{raw;device;dead=false;submission_cache=Array.make submission_cache_capacity None;submission_cache_next=0}
 let create_surface device configuration=match live"Backend.create_surface"device with Error _ as e->e|Ok()->match Surface.create device.handle configuration with Error _ as e->e|Ok portable->Surface.destroy portable;(match device.raw.create_surface configuration with Error _ as e->e|Ok raw->device.children<-device.children+1;Ok{raw;device;dead=false;frames=0;configuration})
 let transfer_buffer (value:buffer)=Transfer_pass.buffer~device:value.resource.device.handle value.resource.handle value.buffer_descriptor
 let transfer_texture (value:texture)=Transfer_pass.texture~device:value.resource.device.handle value.resource.handle value.texture_descriptor
@@ -80,13 +85,23 @@ type prepared_submission=
   ; prepared_pipelines:pipeline list
   ; prepared_pipeline_tokens:token list
   ; reused_resources:bool
-  ; reused_pipelines:bool }
-let prepare_submission op (queue:queue) ~resources ~pipelines=
+  ; reused_pipelines:bool
+  ; cached_entry:submission_cache_entry option }
+let prepare_submission op (queue:queue) command ~resources ~pipelines=
   match live op queue.device with Error _ as e->e
   |Ok()when queue.dead->error op Error.Stale_handle"queue is destroyed"
   |Ok()->
-      let reused_resources=same_resources resources queue.submitted_resources in
-      let pairs=if reused_resources then queue.submitted_pairs
+      let rec find index=if index=Array.length queue.submission_cache then None
+        else match Array.unsafe_get queue.submission_cache index with
+        |Some entry when entry.cached_command==command->Some entry
+        |None|Some _->find(index+1)in
+      let cached_entry=find 0 in
+      let cached_resources=Option.fold~none:[]
+        ~some:(fun entry->entry.cached_resources)cached_entry in
+      let reused_resources=Option.is_some cached_entry&&
+        same_resources resources cached_resources in
+      let pairs=if reused_resources then
+          (Option.get cached_entry).cached_pairs
         else List.map resource_pair resources in
       if List.exists(fun(_,r:token*resource)->r.dead)pairs||
          List.exists(fun(p:pipeline)->p.dead)pipelines then
@@ -95,49 +110,65 @@ let prepare_submission op (queue:queue) ~resources ~pipelines=
               List.exists(fun(p:pipeline)->p.device!=queue.device)pipelines then
         error op Error.Cross_device"submitted graph contains a foreign object"
       else
-        let resource_tokens=if reused_resources then queue.submitted_tokens else
+        let resource_tokens=if reused_resources then
+          (Option.get cached_entry).cached_tokens else
           List.map(fun(id,(resource:resource))->id,resource.raw.token)pairs in
-        let reused_pipelines=same_pipelines pipelines queue.submitted_pipelines in
-        let pipeline_tokens=if reused_pipelines then queue.submitted_pipeline_tokens
+        let cached_pipelines=Option.fold~none:[]
+          ~some:(fun entry->entry.cached_pipelines)cached_entry in
+        let reused_pipelines=Option.is_some cached_entry&&
+          same_pipelines pipelines cached_pipelines in
+        let pipeline_tokens=if reused_pipelines then
+          (Option.get cached_entry).cached_pipeline_tokens
           else List.map(fun(pipeline:pipeline)->pipeline.pipeline_driver.pipeline_token)
             pipelines in
         Ok{prepared_resources=resources;prepared_pairs=pairs;
           prepared_tokens=resource_tokens;prepared_pipelines=pipelines;
           prepared_pipeline_tokens=pipeline_tokens;reused_resources;
-          reused_pipelines}
+          reused_pipelines;cached_entry}
 let mark_submitted queue resource=match resource.last_submitted_queue with
   |Some previous when previous==queue->()
   |None|Some _->resource.last_submitted_queue<-Some queue
-let commit_submission (queue:queue) prepared=
-  if not prepared.reused_resources then begin
-    queue.submitted_resources<-prepared.prepared_resources;
-    queue.submitted_pairs<-prepared.prepared_pairs;
-    queue.submitted_tokens<-prepared.prepared_tokens
-  end;
-  if not prepared.reused_pipelines then begin
-    queue.submitted_pipelines<-prepared.prepared_pipelines;
-    queue.submitted_pipeline_tokens<-prepared.prepared_pipeline_tokens
-  end;
+let commit_submission (queue:queue) command prepared=
+  (match prepared.cached_entry with
+   |Some entry->
+       if not prepared.reused_resources then begin
+         entry.cached_resources<-prepared.prepared_resources;
+         entry.cached_pairs<-prepared.prepared_pairs;
+         entry.cached_tokens<-prepared.prepared_tokens
+       end;
+       if not prepared.reused_pipelines then begin
+         entry.cached_pipelines<-prepared.prepared_pipelines;
+         entry.cached_pipeline_tokens<-prepared.prepared_pipeline_tokens
+       end
+   |None->
+       let entry={cached_command=command;
+         cached_resources=prepared.prepared_resources;
+         cached_pairs=prepared.prepared_pairs;cached_tokens=prepared.prepared_tokens;
+         cached_pipelines=prepared.prepared_pipelines;
+         cached_pipeline_tokens=prepared.prepared_pipeline_tokens}in
+       Array.unsafe_set queue.submission_cache queue.submission_cache_next(Some entry);
+       queue.submission_cache_next<-(queue.submission_cache_next+1)mod
+         Array.length queue.submission_cache);
   List.iter(fun(_,resource)->mark_submitted queue resource)
     prepared.prepared_pairs
 let submit (queue:queue) command ~resources ~pipelines=
   let op="Backend.submit"in
-  match prepare_submission op queue~resources~pipelines with
+  match prepare_submission op queue command~resources~pipelines with
   |Error _ as e->e
   |Ok prepared->match queue.raw.submit command
       ~resources:prepared.prepared_tokens
       ~pipelines:prepared.prepared_pipeline_tokens with
       |Error _ as e->e
-      |Ok receipt->commit_submission queue prepared;Ok receipt
+      |Ok receipt->commit_submission queue command prepared;Ok receipt
 let submit_sync (queue:queue) command ~resources ~pipelines=
   let op="Backend.submit_sync" in
-  match prepare_submission op queue~resources~pipelines with
+  match prepare_submission op queue command~resources~pipelines with
   |Error _ as e->e
   |Ok prepared->match queue.raw.submit_sync command
       ~resources:prepared.prepared_tokens
       ~pipelines:prepared.prepared_pipeline_tokens with
     |Error _ as e->e
-    |Ok admitted->commit_submission queue prepared;Ok admitted
+    |Ok admitted->commit_submission queue command prepared;Ok admitted
 let complete_through (queue:queue) epoch=if queue.dead then error"Backend.complete_through"Error.Stale_handle"queue is destroyed"else queue.raw.complete_through epoch
 let configure (surface:surface) value=
   if surface.dead then error"Backend.configure"Error.Stale_handle"surface is destroyed"
@@ -190,7 +221,7 @@ let submit_present (queue:queue) command ~resources ~pipelines
   let op="Backend.submit_present"in
   match validate_present op queue source frame with
   |Error _ as e->e
-  |Ok()->match prepare_submission op queue~resources~pipelines with
+  |Ok()->match prepare_submission op queue command~resources~pipelines with
     |Error _ as e->e
     |Ok prepared->match frame.surface.raw.submit_present
         ~queue:queue.raw.queue_token~source:source.resource.raw.token command
@@ -198,7 +229,7 @@ let submit_present (queue:queue) command ~resources ~pipelines
         ~pipelines:prepared.prepared_pipeline_tokens frame.raw with
       |Error _ as e->e
       |Ok receipt->
-          commit_submission queue prepared;
+          commit_submission queue command prepared;
           mark_submitted queue source.resource;
           consume_present frame;
           Ok receipt
@@ -207,7 +238,7 @@ let submit_present_sync (queue:queue) command ~resources ~pipelines
   let op="Backend.submit_present_sync" in
   match validate_present op queue source frame with
   |Error _ as e->e
-  |Ok()->match prepare_submission op queue~resources~pipelines with
+  |Ok()->match prepare_submission op queue command~resources~pipelines with
     |Error _ as e->e
     |Ok prepared->match frame.surface.raw.submit_present_sync
         ~queue:queue.raw.queue_token~source:source.resource.raw.token command
@@ -217,7 +248,7 @@ let submit_present_sync (queue:queue) command ~resources ~pipelines
       |Ok admitted->
           (* Admission, not successful completion, commits portable ownership
              and consumes the presentation exactly once. *)
-          commit_submission queue prepared;
+          commit_submission queue command prepared;
           mark_submitted queue source.resource;
           consume_present frame;
           Ok admitted
@@ -226,6 +257,12 @@ let destroy_resource (resource:resource)=if resource.dead then Ok()else match re
 let destroy_buffer (value:buffer)=destroy_resource value.resource
 let destroy_texture (value:texture)=destroy_resource value.resource
 let destroy_pipeline (value:pipeline)=if value.dead then Ok()else match value.pipeline_driver.destroy_pipeline()with Error _ as e->e|Ok()->value.dead<-true;value.device.children<-value.device.children-1;Ok()
-let destroy_queue (value:queue)=if value.dead then Ok()else match value.raw.destroy_queue()with Error _ as e->e|Ok()->value.dead<-true;value.submitted_resources<-[];value.submitted_pairs<-[];value.submitted_tokens<-[];value.submitted_pipelines<-[];value.submitted_pipeline_tokens<-[];value.device.children<-value.device.children-1;Ok()
+let destroy_queue (value:queue)=if value.dead then Ok()else match value.raw.destroy_queue()with Error _ as e->e|Ok()->value.dead<-true;Array.fill value.submission_cache 0(Array.length value.submission_cache)None;value.device.children<-value.device.children-1;Ok()
 let destroy_surface (value:surface)=if value.dead then Ok()else if value.frames<>0 then error"Backend.destroy_surface"Error.Invalid_state"surface has acquired frames"else match value.raw.destroy_surface()with Error _ as e->e|Ok()->value.dead<-true;value.device.children<-value.device.children-1;Ok()
 let destroy_device (value:device)=if value.dead then Ok()else if value.children<>0 then error"Backend.destroy_device"Error.Invalid_state"device has live children"else match value.raw.destroy_device()with Error _ as e->e|Ok()->value.dead<-true;Ok()
+module Private=struct
+  let submission_cache_stats queue=
+    Array.fold_left(fun count->function None->count|Some _->count+1)0
+      queue.submission_cache,
+    Array.length queue.submission_cache
+end

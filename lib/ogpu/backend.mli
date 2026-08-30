@@ -100,3 +100,7 @@ val destroy_pipeline : pipeline -> (unit,Error.t) result
 val destroy_queue : queue -> (unit,Error.t) result
 val destroy_surface : surface -> (unit,Error.t) result
 val destroy_device : device -> (unit,Error.t) result
+
+module Private : sig
+  val submission_cache_stats : queue -> int * int
+end
