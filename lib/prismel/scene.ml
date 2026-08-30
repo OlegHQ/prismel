@@ -4,8 +4,10 @@ type text_node={x:int;y:int;value:string;color:Color.t;size:int;wrap:int option;
 and debug_text_node={x:int;y:int;value:string;color:Color.t}
 and view3d_node={viewport:(int*int*int*int)option;camera:Camera.t;scene:Scene3.t;mutable rendered3d:Image.t option}
 and image_node={image:Image.t;x:int;y:int;scale:float;angle:float;center:(int*int)option;flip_x:bool}
+and display_list_node={segment:Scene_command.Display_list.t;
+  resources:(int*Prismel_next_execution.resource)list}
 and node=Group of t|Clear of Color.t|Primitive of primitive|Geometry of Scene_command.Render_ir.geometry|Text of text_node|Debug_text of debug_text_node|Image of image_node
- |Display_list of Scene_command.Display_list.t
+ |Display_list of display_list_node
  |View3d of view3d_node|Region of int*int*int*int*bool|Layer_break
  |Translate of int*int*t|Rotate of float*t|Scale of float*float*t|Clip of int*int*int*int*t|Blend of blend*t
 and t=node list
@@ -20,11 +22,7 @@ let geometry_of_mesh color (mesh:Scene_command.Path.mesh)=
 let path_error operation=function
   |Ok mesh->mesh|Error Scene_command.Path.Empty_path->{Scene_command.Path.vertices=[||];indices=[||]}
   |Error _->invalid_arg operation
-let fill_path color path=geometry_of_mesh color(path_error"Scene path fill"(Scene_command.Path.tessellate~tolerance:0.25~fill_rule:Scene_command.Path.Non_zero path))
 let stroke_path ?(width=1.) color path=geometry_of_mesh color(path_error"Scene path stroke"(Scene_command.Path.stroke~tolerance:0.25~width~cap:Scene_command.Path.Butt~join:Scene_command.Path.Miter~miter_limit:4. path))
-let styled_path ?fill ?stroke path=
-  let fill=match fill,stroke with None,None->Some default_color|_->fill in
-  Group(Option.to_list(Option.map(fun color->fill_path color path)fill)@Option.to_list(Option.map(fun color->stroke_path color path)stroke))
 type path_geometry_key={points:(int*int)list;closed:bool;stroke_width:int64;
   fill_rgba:int32 option;stroke_rgba:int32 option}
 module Path_geometry_key=struct
@@ -72,41 +70,30 @@ let rounded_cached key make=
         |oldest::rest->Hashtbl.remove cache.table oldest;cache.order<-List.rev rest);
       Hashtbl.replace cache.table key value;cache.order<-key::cache.order;value
 let point ~at ?(color=default_color)()=Primitive{points=[at];closed=false;fill=None;stroke=Some color}
-let path_of_points ~closed points=
-  match points with
-  |[]->Scene_command.Path.of_commands[||]
-  |first::rest->
-      let commands=Scene_command.Path.Move_to(point2 first)::
-        List.map(fun point->Scene_command.Path.Line_to(point2 point))rest@
-        (if closed then[Scene_command.Path.Close]else[])in
-      Scene_command.Path.of_commands(Array.of_list commands)
 let line ~from_ ~to_ ?(color=default_color)?(width=1)()=
   let width=float(max 1 width)and points=[from_;to_]in
   let key=path_geometry_key~points~closed:false~width~fill:None~stroke:(Some color)in
-  path_geometry_cached key(fun()->stroke_path~width color(path_of_points~closed:false points))
+  path_geometry_cached key(fun()->Geometry(Scene_command.Shape2.line ~from_
+    ~to_ ~width:(int_of_float width) ~color:(rgba color)))
 let polygon points ?fill ?stroke()=
   let fill=match fill,stroke with None,None->Some default_color|_->fill in
   let key=path_geometry_key~points~closed:true~width:1.~fill~stroke in
-  path_geometry_cached key(fun()->styled_path?fill?stroke(path_of_points~closed:true points))
+  path_geometry_cached key(fun()->Group(Array.to_list(Array.map(fun geometry->
+    Geometry geometry)(Scene_command.Shape2.polygon points
+      ~fill:(Option.map rgba fill) ~stroke:(Option.map rgba stroke)))))
 let polyline points ?(color=default_color)()=
   let key=path_geometry_key~points~closed:false~width:1.~fill:None~stroke:(Some color)in
-  path_geometry_cached key(fun()->stroke_path color(path_of_points~closed:false points))
+  path_geometry_cached key(fun()->Geometry(Scene_command.Shape2.polyline points
+    ~color:(rgba color)))
 let rect ~at:(x,y)~w~h ?fill ?stroke()=polygon[x,y;x+w,y;x+w,y+h;x,y+h]?fill?stroke()
 let square ~at ~size ?fill ?stroke()=rect~at~w:size~h:size?fill?stroke()
 let rounded_rect ~at:(x,y) ~w ~h ~radius ?fill ?stroke()=
   let radius=max 0(min radius(min(abs w)(abs h)/2))in
   let key=w,h,radius,Option.map rgba fill,Option.map rgba stroke in
   let geometry=rounded_cached key(fun()->
-    let r=float radius and w=float w and h=float h in
-    let k=0.5522847498307936*.r in
-    let p x y={Scene_command.Path.x;y}in
-    let path=Scene_command.Path.of_commands[|
-      Scene_command.Path.Move_to(p r 0.);Line_to(p(w-.r)0.);
-      Cubic_to(p(w-.r+.k)0.,p w(r-.k),p w r);
-      Line_to(p w(h-.r));Cubic_to(p w(h-.r+.k),p(w-.r+.k)h,p(w-.r)h);
-      Line_to(p r h);Cubic_to(p(r-.k)h,p 0.(h-.r+.k),p 0.(h-.r));
-      Line_to(p 0. r);Cubic_to(p 0.(r-.k),p(r-.k)0.,p r 0.);Close|]in
-    [styled_path?fill?stroke path])in
+    Array.to_list(Array.map(fun geometry->Geometry geometry)
+      (Scene_command.Shape2.rounded_rect ~width:w ~height:h ~radius
+        ~fill:(Option.map rgba fill) ~stroke:(Option.map rgba stroke))))in
   Translate(x,y,geometry)
 type ellipse_cache={table:((int*int*int*int*int32 option*int32 option),node)Hashtbl.t;
   mutable order:(int*int*int*int*int32 option*int32 option)list}
@@ -124,10 +111,11 @@ let ellipse_cached key make=
         |[]->()
         |oldest::rest->Hashtbl.remove cache.table oldest;cache.order<-List.rev rest);
       Hashtbl.replace cache.table key value;cache.order<-key::cache.order;value
-let ellipse_points (cx,cy) rx ry=List.init 32(fun i->let a=(2.*.Float.pi)*.float i/.32. in cx+int_of_float(float rx*.cos a),cy+int_of_float(float ry*.sin a))
 let ellipse ~at:(cx,cy as at) ~rx ~ry ?fill ?stroke()=
   let key=cx,cy,rx,ry,Option.map rgba fill,Option.map rgba stroke in
-  ellipse_cached key(fun()->polygon(ellipse_points at rx ry)?fill?stroke())
+  ellipse_cached key(fun()->Group(Array.to_list(Array.map(fun geometry->
+    Geometry geometry)(Scene_command.Shape2.ellipse ~center:at ~rx ~ry
+      ~fill:(Option.map rgba fill) ~stroke:(Option.map rgba stroke)))))
 let circle ~at ~radius ?fill ?stroke()=ellipse~at~rx:radius~ry:radius?fill?stroke()
 let triangle a b c ?fill ?stroke()=polygon[a;b;c]?fill?stroke()
 let quad a b c d ?fill ?stroke()=polygon[a;b;c;d]?fill?stroke()
@@ -172,7 +160,27 @@ let image image ~at:(x,y) ?(scale=1.) ?(angle=0.) ?center ?(flip_x=false)()=
   if not(Float.is_finite scale&&Float.is_finite angle)||scale<=0. then invalid_arg"Scene.image: invalid transform";
   Image{image;x;y;scale;angle;center;flip_x}
 let view3d ?viewport ~camera scene=View3d{viewport;camera;scene;rendered3d=None}
-let display_list value=Display_list value
+let display_list ?(images=[]) segment=
+  let images=Array.of_list images in
+  let bound=Hashtbl.create(Array.length images)in
+  Array.iter(fun(id,image)->
+    if id<=0 then invalid_arg"Scene.display_list: resource ID must be positive";
+    if Hashtbl.mem bound id then
+      invalid_arg"Scene.display_list: duplicate resource ID";
+    Hashtbl.add bound id image)images;
+  Array.iter(function
+    |Scene_command.Render_ir.Image image->
+        if not(Hashtbl.mem bound image.resource_id)then
+          invalid_arg"Scene.display_list: unbound image resource"
+    |Glyphs glyphs->
+        if not(Hashtbl.mem bound glyphs.resource_id)then
+          invalid_arg"Scene.display_list: unbound glyph resource"
+    |_->())(Scene_command.Render_ir.Private.commands_readonly
+      (Scene_command.Display_list.render_ir segment));
+  let resources=Array.fold_right(fun(id,image) rest->
+    (id,Prismel_next_execution.Image(Image.Private.resource image))::rest)
+    images[]in
+  Display_list{segment;resources}
 let text_input_region ~at:(x,y)~w~h ?(focused=false)()=Region(x,y,w,h,focused)
 let translate x y nodes=Translate(x,y,nodes)let rotate a nodes=Rotate(a,nodes)let scale x y nodes=Scale(x,y,nodes)
 let clip ~at:(x,y)~w~h nodes=Clip(x,y,w,h,nodes)let blend mode nodes=Blend(mode,nodes)
@@ -210,7 +218,8 @@ module Private=struct
  let layer_break=Layer_break
  type native_layer=
   |Scene2_layer of Scene_command.Render_ir.t*(int*Prismel_next_execution.resource)list
-  |Scene2_segment of Scene_command.Display_list.t
+  |Scene2_segment of Scene_command.Display_list.t*
+      (int*Prismel_next_execution.resource)list
   |Scene3_layer of Scene_execution.prepared_scene3
  type staged_native={clear:float*float*float*float;scene2:Scene_command.Render_ir.t;
    resources:(int*Prismel_next_execution.resource)list;
@@ -257,9 +266,9 @@ module Private=struct
    |Primitive p::xs->emit builder(geometry p);nodes xs
    |Geometry g::xs->emit builder(Scene_command.Render_ir.Geometry g);nodes xs
    |Debug_text node::xs->emit builder(Scene_command.Render_ir.Debug_text{x=float node.x;y=float node.y;text=node.value;color=rgba node.color});nodes xs
-   |Display_list segment::xs->
+   |Display_list node::xs->
        Array.iter (emit builder) (Scene_command.Render_ir.Private.commands_readonly
-         (Scene_command.Display_list.render_ir segment));
+         (Scene_command.Display_list.render_ir node.segment));
        nodes xs
    |Image node::xs->image_command builder node.image node.x node.y node.scale node.angle node.center node.flip_x;nodes xs
    |Text node::xs->
@@ -279,6 +288,7 @@ module Private=struct
     |[]->acc
     |Image node::rest->nodes((Image.Private.identity node.image,Prismel_next_execution.Image(Image.Private.resource node.image))::acc)rest
     |Text node::rest->let image=text_image ~density node in nodes((Image.Private.identity image,Prismel_next_execution.Image(Image.Private.resource image))::acc)rest
+    |Display_list node::rest->nodes(List.rev_append node.resources acc)rest
     |Group nested::rest|Translate(_,_,nested)::rest|Rotate(_,nested)::rest
     |Scale(_,_,nested)::rest|Clip(_,_,_,_,nested)::rest|Blend(_,nested)::rest->
         nodes(nodes acc nested)rest
@@ -287,7 +297,8 @@ module Private=struct
 
  let stage_materialized ?(density=1) scene =
    match scene with
-   |[Display_list segment]->Ok(Scene_command.Display_list.render_ir segment,[])
+   |[Display_list node]->Ok(Scene_command.Display_list.render_ir node.segment,
+      node.resources)
    |_->
       try
         match Scene_command.Render_ir.Private.create_owned
@@ -310,12 +321,12 @@ module Private=struct
    float(channel 24)/.255.,float(channel 16)/.255.,
    float(channel 8)/.255.,float(channel 0)/.255.
 
- type layer_item=Two_node of node|Segment_node of Scene_command.Display_list.t
+ type layer_item=Two_node of node|Segment_node of display_list_node
    |Three_node of view3d_node|Break
  let ordered_items scene=
    let rec add wrap direct acc nodes=List.fold_left(fun acc node->match node with
      |View3d view->Three_node view::acc
-     |Display_list segment when direct->Segment_node segment::acc
+     |Display_list node when direct->Segment_node node::acc
      |Layer_break->Break::acc
      |Group nodes->add wrap direct acc nodes
      |Translate(x,y,nodes)->add(fun node->wrap(Translate(x,y,[node])))false acc nodes
@@ -331,7 +342,7 @@ module Private=struct
    let rec loop nodes acc=function
      |[]->List.rev(flush nodes acc)
      |Two_node node::rest->loop(node::nodes)acc rest
-     |Segment_node segment::rest->loop[](`Segment segment::flush nodes acc)rest
+     |Segment_node node::rest->loop[](`Segment node::flush nodes acc)rest
      |Three_node view::rest->loop[](`Three view::flush nodes acc)rest
      |Break::rest->loop[](flush nodes acc)rest in
    loop[][]items
@@ -351,7 +362,7 @@ module Private=struct
        |`Two nodes->(match stage_materialized ~density nodes with
          |Ok(ir,resources)->Some(Scene2_layer(ir,resources))
          |Error message->failure:=Some message;None)
-       |`Segment segment->Some(Scene2_segment segment)
+       |`Segment node->Some(Scene2_segment(node.segment,node.resources))
        |`Three node->
          let viewport=Option.value node.viewport~default:(0,0,width,height)in
          (match Scene3_native_lowering.prepare~resources:callbacks~camera:node.camera
@@ -361,7 +372,7 @@ module Private=struct
    let clear=ref(0.,0.,0.,0.)and seen_draw=ref false in
    List.iter(function
      |Scene3_layer _->seen_draw:=true
-     |Scene2_segment segment->
+     |Scene2_segment(segment,_)->
          Array.iter(function
            |Scene_command.Render_ir.Clear color->
                if!seen_draw then failure:=Some"native Clear after drawing is unsupported"
@@ -380,20 +391,29 @@ module Private=struct
    match!failure with Some message->Error message|None->
    let scene3=List.filter_map(function Scene3_layer prepared->Some prepared|_->None)layers in
    let retained=match layers with
-   |[Scene2_segment segment]->Some
+   |[Scene2_segment(segment,resources)]->Some
        ("scene2-segment:"^Int64.to_string(Scene_command.Display_list.id segment),
-        Scene_command.Display_list.version segment)
+        List.fold_left(fun version->function
+          |_,Prismel_next_execution.Image image->
+              Int64.logxor(Int64.mul version 0x100000001b3L)
+                (Int64.of_int(Prismel_next_resources.Image.generation image))
+          |_,Text text->Int64.logxor(Int64.mul version 0x100000001b3L)
+              (Int64.of_int(Prismel_next_resources.Text.generation text))
+          |_,Canvas canvas->Int64.logxor(Int64.mul version 0x100000001b3L)
+              (Int64.of_int(Prismel_next_resources.Canvas.generation canvas)))
+          (Scene_command.Display_list.version segment)resources)
    |_->None in
    Ok{clear= !clear;scene2;resources;scene3;layers;retained}
 
  type native_stage_cache_entry={cached_scene:t;cached_density:int;
-   cached_width:int;cached_height:int;cached_stage:staged_native}
+   cached_width:int;cached_height:int;cached_resource_stamp:int;
+   cached_stage:staged_native}
  let native_stage_cache_capacity=16
  let native_stage_cache_byte_capacity=256*1024*1024
  let native_stage_caches=Domain.DLS.new_key(fun()->ref[])
  let next_native_stage_identity=ref 0L
  let native_stage_bytes stage=List.fold_left(fun total->function
-   |Scene2_segment segment->total+Scene_command.Display_list.source_bytes segment
+   |Scene2_segment(segment,_)->total+Scene_command.Display_list.source_bytes segment
    |Scene2_layer(ir,_)->total+Array.fold_left(fun total->function
        |Scene_command.Render_ir.Geometry geometry->total+
            Array.length geometry.vertices*(Sys.word_size/8)+
@@ -414,25 +434,61 @@ module Private=struct
        then loop(count+1)(bytes+size)(entry::kept)rest
        else loop count bytes kept rest in
    loop 0 0[]values
+ let rec resource_stamp_loop stamp=function
+  |[]->stamp
+  |(id,Prismel_next_execution.Image image)::rest->
+      resource_stamp_loop
+        (((stamp*65599)lxor id)lxor
+          Prismel_next_resources.Image.generation image)rest
+  |(id,Text text)::rest->resource_stamp_loop
+      (((stamp*65599)lxor id)lxor Prismel_next_resources.Text.generation text)rest
+  |(id,Canvas canvas)::rest->resource_stamp_loop
+      (((stamp*65599)lxor id)lxor Prismel_next_resources.Canvas.generation canvas)rest
+ let resource_stamp resources=resource_stamp_loop 0x345678 resources
+ let rec find_native_stage scene density width height=function
+  |[]->None
+  |entry::rest->
+      if entry.cached_scene==scene&&entry.cached_density=density&&
+         entry.cached_width=width&&entry.cached_height=height&&
+         entry.cached_resource_stamp=resource_stamp entry.cached_stage.resources
+      then Some entry else find_native_stage scene density width height rest
+ let retained_scene scene=
+   let found=ref false in
+   let rec nodes=function
+    |[]->true
+    |Display_list _::rest->found:=true;nodes rest
+    |Region _::rest|Layer_break::rest|Clear _::rest->nodes rest
+    |Group nested::rest|Translate(_,_,nested)::rest|Rotate(_,nested)::rest
+    |Scale(_,_,nested)::rest|Clip(_,_,_,_,nested)::rest|Blend(_,nested)::rest->
+        nodes nested&&nodes rest
+    |Primitive _::_|Geometry _::_|Text _::_|Debug_text _::_|Image _::_
+    |View3d _::_->false in
+   nodes scene&& !found
  let stage_native ?(density=1) ~width ~height scene =
    let cacheable=match scene with
    |[Clear _;View3d view]->Scene3.Private.cacheable view.scene
-   |_->false in
+   |_->retained_scene scene in
    if not cacheable then stage_native_uncached~density~width~height scene else
    let cache=Domain.DLS.get native_stage_caches in
-   match List.find_opt(fun entry->entry.cached_scene==scene&&
-       entry.cached_density=density&&entry.cached_width=width&&
-       entry.cached_height=height)!cache with
+   match find_native_stage scene density width height !cache with
    |Some entry->Ok entry.cached_stage
    |None->
        match stage_native_uncached~density~width~height scene with
        |Error _ as error->error
        |Ok stage->
-           next_native_stage_identity:=Int64.succ!next_native_stage_identity;
-           let stage={stage with retained=Some
-             ("scene-stage:"^Int64.to_string!next_native_stage_identity,1L)}in
+           let stage=match stage.retained with
+           |Some _->stage
+           |None->
+               next_native_stage_identity:=Int64.succ!next_native_stage_identity;
+               {stage with retained=Some
+                 ("scene-stage:"^Int64.to_string!next_native_stage_identity,1L)}in
+           let stamp=resource_stamp stage.resources in
+           cache:=List.filter(fun entry->not(entry.cached_scene==scene&&
+             entry.cached_density=density&&entry.cached_width=width&&
+             entry.cached_height=height))!cache;
            cache:={cached_scene=scene;cached_density=density;cached_width=width;
-             cached_height=height;cached_stage=stage}::!cache;
+             cached_height=height;cached_resource_stamp=stamp;
+             cached_stage=stage}::!cache;
            cache:=trim_native_stage_cache!cache;
            Ok stage
 

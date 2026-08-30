@@ -248,6 +248,11 @@ module Private : sig
       paint_visits : int;
       compose_visits : int;
       accessibility_visits : int;
+      display_list_builds : int;
+      display_list_reuses : int;
+      display_list_evictions : int;
+      display_list_entries : int;
+      display_list_bytes : int;
     }
     val create : canvas -> t
     val reconcile : t -> canvas -> int
@@ -271,6 +276,7 @@ module Private : sig
       (int * int * int * int * int * int * int * int) option
     val hit_test : t -> int * int -> id option
     val update : t -> Prismel.Event.t list -> change list
+    val scene : ?density:int -> t -> canvas -> Prismel.Scene.t
     val stats : t -> stats
     val destroy : t -> unit
     val destroyed : t -> bool

@@ -186,6 +186,37 @@ type widget_runtime = {
   mutable int_values : int array;
   mutable text_values : string option array;
   mutable labels : string option array;
+  mutable paint_builders : Scene_command.Display_list.Builder.t option array;
+  mutable paint_nodes : Prismel.Scene.node option array;
+  mutable paint_text : Prismel.Font.Private.retained_text list array;
+  mutable paint_segment_ids : int64 array;
+  mutable paint_segment_versions : int64 array;
+  mutable paint_source_bytes : int array;
+  paint_cache_slots : int array;
+  mutable paint_cache_next : int;
+  mutable paint_cache_count : int;
+  mutable paint_cache_bytes : int;
+  mutable display_list_builds : int;
+  mutable display_list_reuses : int;
+  mutable display_list_evictions : int;
+  panel_builder : Scene_command.Display_list.Builder.t;
+  panel_segment_id : int64;
+  mutable panel_segment_version : int64;
+  mutable panel_node : Prismel.Scene.node option;
+  scrollbar_builder : Scene_command.Display_list.Builder.t;
+  scrollbar_segment_id : int64;
+  mutable scrollbar_segment_version : int64;
+  mutable scrollbar_node : Prismel.Scene.node option;
+  mutable scrollbar_valid : bool;
+  mutable composed_scene : Prismel.Scene.t option;
+  mutable composed_layout_generation : int64;
+  mutable composed_paint_generation : int64;
+  mutable composed_scroll_y : int;
+  mutable paint_density : int;
+  mutable paint_font : Prismel.Font.t option;
+  mutable paint_font_generation : int;
+  mutable paint_font_size : int;
+  mutable paint_theme_signature : int64;
   mutable spec_widgets : widget array;
   mutable structure_generation : int64;
   mutable layout_generation : int64;
@@ -196,6 +227,10 @@ type widget_runtime = {
   mutable focus_id : Stable_store.id option;
   mutable active_id : Stable_store.id option;
   mutable hover_id : Stable_store.id option;
+  mutable numeric_edit_id : Stable_store.id option;
+  mutable numeric_edit_text : string;
+  mutable numeric_edit_valid : bool;
+  mutable composition_text : string;
   reconcile_queue : id_queue;
   style_queue : id_queue;
   layout_queue : id_queue;
@@ -250,6 +285,14 @@ let default_theme = {
   track = Prismel.Color.rgb 48 61 72;
   accent = Prismel.Color.rgb 36 218 181;
 }
+
+let next_display_segment_id = ref 1L
+let fresh_display_segment_id () =
+  let value = !next_display_segment_id in
+  if value = Int64.max_int then
+    invalid_arg "Pxui: display-list identity space exhausted";
+  next_display_segment_id := Int64.succ value;
+  value
 
 type range_handle = Low | High
 
@@ -486,9 +529,32 @@ let make_widget_runtime capacity =
     float_values = Array.make capacity 0.;
     float_values2 = Array.make capacity 0.; int_values = Array.make capacity 0;
     text_values = Array.make capacity None; labels = Array.make capacity None;
+    paint_builders = Array.make capacity None;
+    paint_nodes = Array.make capacity None;
+    paint_text = Array.make capacity [];
+    paint_segment_ids = Array.make capacity 0L;
+    paint_segment_versions = Array.make capacity 0L;
+    paint_source_bytes = Array.make capacity 0;
+    paint_cache_slots = Array.make 256 (-1); paint_cache_next = 0;
+    paint_cache_count = 0; paint_cache_bytes = 0;
+    display_list_builds = 0; display_list_reuses = 0;
+    display_list_evictions = 0;
+    panel_builder = Scene_command.Display_list.Builder.create ~capacity:8 ();
+    panel_segment_id = fresh_display_segment_id ();
+    panel_segment_version = 0L; panel_node = None;
+    scrollbar_builder = Scene_command.Display_list.Builder.create ~capacity:4 ();
+    scrollbar_segment_id = fresh_display_segment_id ();
+    scrollbar_segment_version = 0L; scrollbar_node = None;
+    scrollbar_valid = false;
+    composed_scene = None; composed_layout_generation = -1L;
+    composed_paint_generation = -1L; composed_scroll_y = -1;
+    paint_density = 0; paint_font = None; paint_font_generation = 0;
+    paint_font_size = 0; paint_theme_signature = 0L;
     spec_widgets = [||]; structure_generation = 0L; layout_generation = 0L;
     paint_generation = 0L; mutations = 0; created = 0; removed = 0;
     focus_id = None; active_id = None; hover_id = None;
+    numeric_edit_id = None; numeric_edit_text = "";
+    numeric_edit_valid = true; composition_text = "";
     reconcile_queue = make_id_queue capacity;
     style_queue = make_id_queue capacity;
     layout_queue = make_id_queue capacity;
@@ -548,11 +614,36 @@ let ensure_runtime_capacity runtime =
     runtime.int_values <- extend_array runtime.int_values 0;
     runtime.text_values <- extend_array runtime.text_values None;
     runtime.labels <- extend_array runtime.labels None;
+    runtime.paint_builders <- extend_array runtime.paint_builders None;
+    runtime.paint_nodes <- extend_array runtime.paint_nodes None;
+    runtime.paint_text <- extend_array runtime.paint_text [];
+    runtime.paint_segment_ids <- extend_array runtime.paint_segment_ids 0L;
+    runtime.paint_segment_versions <- extend_array runtime.paint_segment_versions 0L;
+    runtime.paint_source_bytes <- extend_array runtime.paint_source_bytes 0;
     List.iter extend_queue
       [ runtime.reconcile_queue; runtime.style_queue; runtime.layout_queue;
         runtime.prepaint_queue; runtime.text_queue; runtime.paint_queue;
         runtime.compose_queue; runtime.accessibility_queue ]
   end
+
+let clear_runtime_paint_slot runtime slot =
+  if Array.unsafe_get runtime.paint_nodes slot <> None then begin
+    runtime.paint_cache_count <- max 0 (runtime.paint_cache_count - 1);
+    runtime.paint_cache_bytes <- max 0
+      (runtime.paint_cache_bytes
+       - Array.unsafe_get runtime.paint_source_bytes slot)
+  end;
+  List.iter Prismel.Font.Private.release_retained
+    (Array.unsafe_get runtime.paint_text slot);
+  Array.unsafe_set runtime.paint_text slot [];
+  Array.unsafe_set runtime.paint_nodes slot None;
+  Option.iter Scene_command.Display_list.Builder.reset
+    (Array.unsafe_get runtime.paint_builders slot);
+  Array.unsafe_set runtime.paint_builders slot None;
+  Array.unsafe_set runtime.paint_segment_ids slot 0L;
+  Array.unsafe_set runtime.paint_segment_versions slot 0L;
+  Array.unsafe_set runtime.paint_source_bytes slot 0;
+  runtime.composed_scene <- None
 
 
 let enqueue_id queue id =
@@ -775,6 +866,7 @@ let reconcile_widget_runtime runtime widgets =
         && Bytes.unsafe_get !used slot = '\001' in
       if Stable_store.valid runtime.slots id && not retained then begin
         ignore (Stable_store.remove runtime.slots id);
+        clear_runtime_paint_slot runtime slot;
         Array.unsafe_set runtime.labels slot None;
         Array.unsafe_set runtime.text_values slot None;
         Bytes.unsafe_set runtime.dirty slot '\000';
@@ -2509,6 +2601,8 @@ let load canvas filename =
     decode canvas encoded
   with Sys_error message -> Error message
 
+let compatibility_scene = scene
+
 module Private = struct
   module Store = Stable_store
 
@@ -2532,7 +2626,29 @@ module Private = struct
       paint_visits : int;
       compose_visits : int;
       accessibility_visits : int;
+      display_list_builds : int;
+      display_list_reuses : int;
+      display_list_evictions : int;
+      display_list_entries : int;
+      display_list_bytes : int;
     }
+
+    let packed_color (color : Prismel.Color.t) =
+      Int32.logor (Int32.shift_left (Int32.of_int color.r) 24)
+        (Int32.logor (Int32.shift_left (Int32.of_int color.g) 16)
+          (Int32.logor (Int32.shift_left (Int32.of_int color.b) 8)
+            (Int32.of_int color.a)))
+
+    let theme_signature (theme : theme) =
+      let mix hash color = Int64.logxor
+          (Int64.mul hash 0x100000001b3L)
+          (Int64.of_int32 (packed_color color)) in
+      let hash = mix 0xcbf29ce484222325L theme.panel in
+      let hash = mix hash theme.foreground in
+      let hash = mix hash theme.control in
+      let hash = mix hash theme.input in
+      let hash = mix hash theme.track in
+      mix hash theme.accent
 
     let configure ?(initial = false) runtime canvas =
       let geometry_changed = runtime.panel_x <> canvas.x || runtime.panel_y <> canvas.y
@@ -2542,6 +2658,13 @@ module Private = struct
         || runtime.panel_max_height <> canvas.max_height
         || runtime.panel_frame_max_height <> canvas.frame_max_height in
       let scroll_changed = runtime.panel_scroll_y <> canvas.scroll_y in
+      let font_generation = Option.fold ~none:0
+          ~some:Prismel.Font.Private.generation canvas.font in
+      let theme_signature = theme_signature canvas.theme in
+      let style_changed = runtime.paint_font != canvas.font
+        || runtime.paint_font_generation <> font_generation
+        || runtime.paint_font_size <> canvas.font_size
+        || runtime.paint_theme_signature <> theme_signature in
       runtime.panel_x <- canvas.x; runtime.panel_y <- canvas.y;
       runtime.panel_width <- canvas.width;
       runtime.panel_row_height <- canvas.row_height;
@@ -2549,14 +2672,66 @@ module Private = struct
       runtime.panel_max_height <- canvas.max_height;
       runtime.panel_frame_max_height <- canvas.frame_max_height;
       runtime.panel_scroll_y <- canvas.scroll_y;
+      runtime.paint_font <- canvas.font;
+      runtime.paint_font_generation <- font_generation;
+      runtime.paint_font_size <- canvas.font_size;
+      runtime.paint_theme_signature <- theme_signature;
       if geometry_changed && not initial then begin
+        runtime.panel_node <- None;
+        runtime.scrollbar_valid <- false;
         runtime.layout_generation <- Int64.succ runtime.layout_generation;
         for index = 0 to runtime.order_length - 1 do
           mark_runtime_dirty runtime (Array.unsafe_get runtime.order index)
             (dirty_layout lor dirty_hitboxes lor dirty_paint lor dirty_compose)
         done
       end else if scroll_changed && not initial then
-        runtime.layout_generation <- Int64.succ runtime.layout_generation
+        runtime.layout_generation <- Int64.succ runtime.layout_generation;
+      if style_changed && not initial then begin
+        runtime.panel_node <- None;
+        runtime.scrollbar_node <- None;
+        runtime.scrollbar_valid <- false;
+        for index = 0 to runtime.order_length - 1 do
+          mark_runtime_dirty runtime (Array.unsafe_get runtime.order index)
+            (dirty_text lor dirty_paint)
+        done
+      end;
+      let id_at_index index = if index < 0 || index >= runtime.order_length
+        then None else Some (Array.unsafe_get runtime.order index) in
+      let hover = Option.bind canvas.hover id_at_index in
+      let active = match canvas.active with
+        | Some (Armed index) | Some (Drag_slider index)
+        | Some (Drag_range (index, _)) | Some (Drag_xy index) ->
+            id_at_index index
+        | None -> None in
+      let focus = Option.bind canvas.focus
+          (fun name -> Hashtbl.find_opt runtime.names name) in
+      let numeric_id, numeric_text, numeric_valid = match canvas.numeric_edit with
+        | None -> None, "", true
+        | Some edit -> id_at_index edit.index, edit.text, edit.valid in
+      let dirty_transition effects before after =
+        if not initial && before <> after then begin
+          Option.iter (fun id -> if Stable_store.valid runtime.slots id then
+            mark_runtime_dirty runtime id effects) before;
+          Option.iter (fun id -> if Stable_store.valid runtime.slots id then
+            mark_runtime_dirty runtime id effects) after
+        end in
+      dirty_transition dirty_paint runtime.hover_id hover;
+      dirty_transition dirty_paint runtime.active_id active;
+      dirty_transition (dirty_text lor dirty_paint) runtime.focus_id focus;
+      dirty_transition (dirty_text lor dirty_paint) runtime.numeric_edit_id numeric_id;
+      if not initial && (runtime.numeric_edit_text <> numeric_text
+          || runtime.numeric_edit_valid <> numeric_valid
+          || runtime.composition_text <> canvas.composition) then
+        Option.iter (fun id -> if Stable_store.valid runtime.slots id then
+          mark_runtime_dirty runtime id (dirty_text lor dirty_paint))
+          (match numeric_id with Some _ -> numeric_id | None -> focus);
+      runtime.hover_id <- hover;
+      runtime.active_id <- active;
+      runtime.focus_id <- focus;
+      runtime.numeric_edit_id <- numeric_id;
+      runtime.numeric_edit_text <- numeric_text;
+      runtime.numeric_edit_valid <- numeric_valid;
+      runtime.composition_text <- canvas.composition
 
     let create canvas =
       let widgets = ordered_widget_array canvas in
@@ -2586,13 +2761,39 @@ module Private = struct
         else Some (Stable_store.make_id parent
           (Array.unsafe_get runtime.slots.generations parent))
     let set_focus runtime = function
-      | None -> runtime.focus_id <- None; true
-      | Some id when valid runtime id -> runtime.focus_id <- Some id; true
+      | None ->
+          if runtime.focus_id <> None then begin
+            Option.iter (fun id -> mark_runtime_dirty runtime id
+              (dirty_text lor dirty_paint)) runtime.focus_id;
+            runtime.focus_id <- None
+          end;
+          true
+      | Some id when valid runtime id ->
+          if runtime.focus_id <> Some id then begin
+            Option.iter (fun old -> mark_runtime_dirty runtime old
+              (dirty_text lor dirty_paint)) runtime.focus_id;
+            mark_runtime_dirty runtime id (dirty_text lor dirty_paint);
+            runtime.focus_id <- Some id
+          end;
+          true
       | Some _ -> false
     let focus runtime = runtime.focus_id
     let set_active runtime = function
-      | None -> runtime.active_id <- None; true
-      | Some id when valid runtime id -> runtime.active_id <- Some id; true
+      | None ->
+          if runtime.active_id <> None then begin
+            Option.iter (fun id -> mark_runtime_dirty runtime id dirty_paint)
+              runtime.active_id;
+            runtime.active_id <- None
+          end;
+          true
+      | Some id when valid runtime id ->
+          if runtime.active_id <> Some id then begin
+            Option.iter (fun old -> mark_runtime_dirty runtime old dirty_paint)
+              runtime.active_id;
+            mark_runtime_dirty runtime id dirty_paint;
+            runtime.active_id <- Some id
+          end;
+          true
       | Some _ -> false
     let active runtime = runtime.active_id
     let dirty runtime id =
@@ -2788,7 +2989,7 @@ module Private = struct
         | Prismel.Event.MousePressed (Prismel.Input.LeftButton, (x, y)) ->
             let hit = hit_test runtime (x, y) in
             set_hover runtime hit;
-            runtime.active_id <- hit;
+            ignore (set_active runtime hit);
             Option.iter (fun id -> emit (update_slider runtime id x)) hit
         | Prismel.Event.MouseMoved (x, y) ->
             set_hover runtime (hit_test runtime (x, y));
@@ -2797,14 +2998,540 @@ module Private = struct
         | Prismel.Event.MouseReleased (Prismel.Input.LeftButton, (x, y)) ->
             Option.iter (fun id -> emit (update_slider runtime id x))
               runtime.active_id;
-            runtime.active_id <- None;
+            ignore (set_active runtime None);
             set_hover runtime (hit_test runtime (x, y))
         | Prismel.Event.PointerCancelled Prismel.Input.LeftButton
         | Prismel.Event.WindowFocusLost ->
-            runtime.active_id <- None;
+            ignore (set_active runtime None);
             set_hover runtime None
         | _ -> ()) events;
       List.rev !reversed
+
+    let add_geometries builder geometries =
+      Array.iter (Scene_command.Display_list.Builder.geometry builder) geometries
+
+    let add_rounded builder ~x ~y ~width ~height ~radius ~fill ~stroke =
+      Scene_command.Display_list.Builder.push_transform builder
+        { xx = 1.; xy = 0.; yx = 0.; yy = 1.; tx = float x; ty = float y };
+      add_geometries builder
+        (Scene_command.Shape2.rounded_rect ~width ~height ~radius
+           ~fill:(Option.map packed_color fill)
+           ~stroke:(Option.map packed_color stroke));
+      Scene_command.Display_list.Builder.pop_transform builder
+
+    let add_line builder ~from_ ~to_ ~width ~color =
+      Scene_command.Display_list.Builder.geometry builder
+        (Scene_command.Shape2.line ~from_ ~to_ ~width
+           ~color:(packed_color color))
+
+    let add_rect builder ~x ~y ~width ~height ~color =
+      add_geometries builder (Scene_command.Shape2.rect ~x ~y ~width ~height
+        ~fill:(Some (packed_color color)) ~stroke:None)
+
+    let add_circle builder ~x ~y ~radius ~fill ~stroke =
+      add_geometries builder (Scene_command.Shape2.ellipse ~center:(x, y)
+        ~rx:radius ~ry:radius ~fill:(Option.map packed_color fill)
+        ~stroke:(Option.map packed_color stroke))
+
+    let add_text runtime canvas builder ~density ~x ~y ?size
+        ~color text =
+      let size = match canvas.font with Some font -> Prismel.Font.get_size font
+        | None -> Option.value ~default:canvas.font_size size in
+      match Prismel.Font.Private.retain_text ?font:canvas.font ~density ~size
+          text (Prismel.Font.Solid color) with
+      | Error _ -> Error ()
+      | Ok handle ->
+          let image = Prismel.Font.Private.retained_image handle in
+          let width, height = Prismel.Image.get_size image in
+          let resource_id = Prismel.Image.Private.identity image in
+          let scale = float (max 1 density) in
+          Scene_command.Display_list.Builder.image builder ~resource_id
+            ~source:{ x = 0.; y = 0.; width = float width; height = float height }
+            ~destination:{ x = float x; y = float y;
+              width = float width /. scale; height = float height /. scale };
+          ignore runtime;
+          Ok (handle, image, resource_id)
+
+    let paint_cache_byte_capacity = 64 * 1024 * 1024
+
+    let evict_cold_paint runtime ~except =
+      let capacity = Array.length runtime.paint_cache_slots in
+      let rec search attempts =
+        if attempts = capacity then false
+        else
+          let position = runtime.paint_cache_next in
+          runtime.paint_cache_next <- (position + 1) mod capacity;
+          let slot = Array.unsafe_get runtime.paint_cache_slots position in
+          if slot < 0 || slot = except
+              || slot >= Array.length runtime.paint_nodes
+              || Array.unsafe_get runtime.paint_nodes slot = None
+              || Char.code (Bytes.unsafe_get runtime.flags slot) land 1 <> 0
+          then search (attempts + 1)
+          else begin
+            clear_runtime_paint_slot runtime slot;
+            runtime.display_list_evictions <- runtime.display_list_evictions + 1;
+            Array.unsafe_set runtime.paint_cache_slots position (-1);
+            true
+          end in
+      search 0
+
+    let reserve_paint_cache runtime slot bytes =
+      if bytes > paint_cache_byte_capacity then false
+      else
+        let old_bytes = Array.unsafe_get runtime.paint_source_bytes slot in
+        let existing = Array.unsafe_get runtime.paint_nodes slot <> None in
+        let required_count () = runtime.paint_cache_count
+          + if existing then 0 else 1 in
+        let required_bytes () = runtime.paint_cache_bytes - old_bytes + bytes in
+        let rec make_room () =
+          if required_count () <= Array.length runtime.paint_cache_slots
+              && required_bytes () <= paint_cache_byte_capacity then true
+          else if evict_cold_paint runtime ~except:slot then make_room ()
+          else false in
+        if not (make_room ()) then false
+        else if existing then begin
+          runtime.paint_cache_bytes <- required_bytes ();
+          true
+        end else begin
+          let capacity = Array.length runtime.paint_cache_slots in
+          let rec find attempts =
+            if attempts = capacity then None
+            else
+              let position = runtime.paint_cache_next in
+              runtime.paint_cache_next <- (position + 1) mod capacity;
+              let cached = Array.unsafe_get runtime.paint_cache_slots position in
+              if cached < 0 || cached >= Array.length runtime.paint_nodes
+                  || Array.unsafe_get runtime.paint_nodes cached = None
+              then Some position else find (attempts + 1) in
+          match find 0 with
+          | None -> false
+          | Some position ->
+              Array.unsafe_set runtime.paint_cache_slots position slot;
+              runtime.paint_cache_count <- runtime.paint_cache_count + 1;
+              runtime.paint_cache_bytes <- runtime.paint_cache_bytes + bytes;
+              true
+        end
+
+    let paint_widget (runtime : t) canvas ~density id =
+      let slot = Stable_store.slot id in
+      let builder = match Array.unsafe_get runtime.paint_builders slot with
+        | Some builder -> builder
+        | None ->
+            let builder = Scene_command.Display_list.Builder.create ~capacity:16 () in
+            Array.unsafe_set runtime.paint_builders slot (Some builder);
+            builder in
+      Scene_command.Display_list.Builder.reset builder;
+      let row_width = Array.unsafe_get runtime.row_width slot
+      and row_height = Array.unsafe_get runtime.row_height slot
+      and control_x = Array.unsafe_get runtime.control_x slot
+        - Array.unsafe_get runtime.row_x slot
+      and control_y = Array.unsafe_get runtime.control_y slot
+        - Array.unsafe_get runtime.row_y slot
+      and control_width = Array.unsafe_get runtime.control_width slot
+      and control_height = Array.unsafe_get runtime.control_height slot in
+      let theme = canvas.theme in
+      let border = Prismel.Color.with_alpha theme.foreground 34
+      and faint_border = Prismel.Color.with_alpha theme.foreground 20
+      and hover_fill = Prismel.Color.lighten theme.input 0.075
+      and pressed_fill = Prismel.Color.blend theme.control theme.accent ~pct:0.18 in
+      let hovered = runtime.hover_id = Some id
+      and pressed = runtime.active_id = Some id in
+      if hovered then add_rounded builder ~x:0 ~y:2 ~width:row_width
+        ~height:(max 1 (row_height - 4)) ~radius:5
+        ~fill:(Some (Prismel.Color.with_alpha hover_fill 150)) ~stroke:None;
+      let label_y = max 5 ((row_height - canvas.font_size - 3) / 2) in
+      let text = ref [] in
+      let set_text_at x y ?size color value =
+        match add_text runtime canvas builder ~density ~x ~y
+            ?size ~color value with
+        | Error () -> false
+        | Ok asset -> text := asset :: !text; true in
+      let set_text x ?size color value =
+        set_text_at x label_y ?size color value in
+      let muted = Prismel.Color.blend theme.foreground theme.panel ~pct:0.48 in
+      let numeric_editor label =
+        if runtime.numeric_edit_id <> Some id then None else
+        let shown = runtime.numeric_edit_text ^ runtime.composition_text ^ "│" in
+        let first = set_text 0 theme.accent label in
+        add_rounded builder ~x:control_x ~y:control_y ~width:control_width
+          ~height:control_height ~radius:4 ~fill:(Some theme.input)
+          ~stroke:(Some (if runtime.numeric_edit_valid then theme.accent
+            else Prismel.Color.hex_exn "#fb7185"));
+        Some (first && set_text (control_x + 8) theme.foreground shown) in
+      let painted = match Stable_store.get runtime.slots id with
+        | Some (Label label) ->
+            add_rect builder ~x:0 ~y:7 ~width:3
+              ~height:(max 1 (row_height - 14)) ~color:theme.accent;
+            let painted = set_text 10 ~size:(max 1 (canvas.font_size - 1))
+                theme.foreground label in
+            if painted then add_line builder ~from_:(10, row_height - 2)
+              ~to_:(row_width, row_height - 2) ~width:1 ~color:faint_border;
+            painted
+        | Some (Button button) ->
+            let fill = if pressed then pressed_fill
+              else if hovered then Prismel.Color.lighten theme.control 0.08
+              else theme.control in
+            add_rounded builder ~x:control_x ~y:control_y
+              ~width:control_width ~height:control_height ~radius:5
+              ~fill:(Some fill)
+              ~stroke:(Some (if hovered || pressed then theme.accent else border));
+            add_rect builder ~x:(control_x + 1) ~y:(control_y + 6) ~width:2
+              ~height:(max 1 (control_height - 12)) ~color:theme.accent;
+            set_text (control_x + 12) theme.foreground button.label
+        | Some (Accordion accordion) ->
+            let fill = if pressed then pressed_fill
+              else if hovered then Prismel.Color.lighten theme.control 0.08
+              else theme.control in
+            add_rounded builder ~x:control_x ~y:(control_y + 2)
+              ~width:control_width ~height:(max 1 (control_height - 4))
+              ~radius:5 ~fill:(Some fill)
+              ~stroke:(Some (if hovered || pressed then theme.accent else border));
+            set_text (control_x + 9) ~size:11 theme.accent
+              (if accordion.expanded then "▾" else "▸")
+            && set_text (control_x + 27) theme.foreground accordion.label
+        | Some (Toggle toggle) ->
+            let track = if toggle.value then
+                Prismel.Color.blend theme.accent theme.input ~pct:0.28
+              else if hovered then Prismel.Color.lighten theme.control 0.08
+              else theme.control in
+            let knob_x = if toggle.value then control_x + control_width - 10
+              else control_x + 9 in
+            let first = set_text 0
+                (if toggle.value then theme.foreground else muted) toggle.label in
+            add_rounded builder ~x:control_x ~y:control_y ~width:control_width
+              ~height:control_height ~radius:9 ~fill:(Some track)
+              ~stroke:(Some (if hovered || pressed then theme.accent else border));
+            add_circle builder ~x:knob_x ~y:(control_y + (control_height / 2))
+              ~radius:6
+              ~fill:(Some (if toggle.value then theme.accent else muted))
+              ~stroke:None;
+            first
+        | Some (Slider slider) ->
+            (match numeric_editor slider.label with Some painted -> painted
+             | None ->
+                 let fraction = (slider.value -. slider.min)
+                   /. (slider.max -. slider.min) in
+                 let marker = position
+                     { x = control_x; y = control_y; w = control_width;
+                       h = control_height } fraction in
+                 let fill_width = max 1 (marker - control_x + 1) in
+                 let first = set_text 0 theme.foreground slider.label in
+                 add_rounded builder ~x:control_x ~y:(control_y + 4)
+                   ~width:control_width ~height:(max 1 (control_height - 8))
+                   ~radius:4 ~fill:(Some theme.track) ~stroke:(Some border);
+                 add_rounded builder ~x:control_x ~y:(control_y + 4)
+                   ~width:fill_width ~height:(max 1 (control_height - 8))
+                   ~radius:4
+                   ~fill:(Some (Prismel.Color.with_alpha theme.accent
+                     (if pressed then 220 else 175))) ~stroke:None;
+                 add_line builder ~from_:(marker, control_y + 2)
+                   ~to_:(marker, control_y + control_height - 2) ~width:2
+                   ~color:theme.foreground;
+                 first && set_text_at (control_x + 6) (control_y + 6)
+                   ~size:11 theme.foreground (compact_float slider.value))
+        | Some (Int_slider slider) ->
+            (match numeric_editor slider.label with Some painted -> painted
+             | None ->
+                 let fraction = float_of_int (slider.value - slider.min)
+                   /. float_of_int (slider.max - slider.min) in
+                 let marker = position
+                     { x = control_x; y = control_y; w = control_width;
+                       h = control_height } fraction in
+                 let fill_width = max 1 (marker - control_x + 1) in
+                 let first = set_text 0 theme.foreground slider.label in
+                 add_rounded builder ~x:control_x ~y:(control_y + 4)
+                   ~width:control_width ~height:(max 1 (control_height - 8))
+                   ~radius:4 ~fill:(Some theme.track) ~stroke:(Some border);
+                 add_rounded builder ~x:control_x ~y:(control_y + 4)
+                   ~width:fill_width ~height:(max 1 (control_height - 8))
+                   ~radius:4
+                   ~fill:(Some (Prismel.Color.with_alpha theme.accent
+                     (if pressed then 220 else 175))) ~stroke:None;
+                 add_line builder ~from_:(marker, control_y + 2)
+                   ~to_:(marker, control_y + control_height - 2) ~width:2
+                   ~color:theme.foreground;
+                 first && set_text_at (control_x + 6) (control_y + 6)
+                   ~size:11 theme.foreground (string_of_int slider.value))
+        | Some (Text_field field) ->
+            let focused = runtime.focus_id = Some id in
+            let shown = if focused then
+                field.value ^ runtime.composition_text ^ "│" else field.value in
+            let first = set_text 0
+                (if focused then theme.foreground else muted) field.label in
+            add_rounded builder ~x:control_x ~y:control_y ~width:control_width
+              ~height:control_height ~radius:4
+              ~fill:(Some (if hovered then hover_fill else theme.input))
+              ~stroke:(Some (if focused then theme.accent else border));
+            first && set_text (control_x + 8) theme.foreground shown
+        | Some (Choice choice) ->
+            let first = set_text 0 theme.foreground choice.label in
+            add_rounded builder ~x:control_x ~y:control_y ~width:control_width
+              ~height:control_height ~radius:4
+              ~fill:(Some (if pressed then pressed_fill
+                else if hovered then hover_fill else theme.input))
+              ~stroke:(Some (if hovered || pressed then theme.accent else border));
+            first
+            && set_text (control_x + 7) ~size:11 theme.accent "‹"
+            && set_text (control_x + 21) theme.foreground
+                 choice.options.(choice.selected)
+            && set_text (control_x + control_width - 13) ~size:11
+                 theme.accent "›"
+        | Some (Range range) ->
+            let low_x = position
+                { x = control_x; y = control_y; w = control_width;
+                  h = control_height }
+                ((range.low -. range.min) /. (range.max -. range.min)) in
+            let high_x = position
+                { x = control_x; y = control_y; w = control_width;
+                  h = control_height }
+                ((range.high -. range.min) /. (range.max -. range.min)) in
+            let first = set_text 0 theme.foreground range.label in
+            add_rounded builder ~x:control_x ~y:(control_y + 7)
+              ~width:control_width ~height:(max 1 (control_height - 14))
+              ~radius:3 ~fill:(Some theme.track) ~stroke:(Some border);
+            add_rect builder ~x:low_x ~y:(control_y + 7)
+              ~width:(max 1 (high_x - low_x + 1))
+              ~height:(max 1 (control_height - 14))
+              ~color:(Prismel.Color.with_alpha theme.accent 185);
+            add_line builder ~from_:(low_x, control_y + 3)
+              ~to_:(low_x, control_y + control_height - 3) ~width:2
+              ~color:theme.foreground;
+            add_line builder ~from_:(high_x, control_y + 3)
+              ~to_:(high_x, control_y + control_height - 3) ~width:2
+              ~color:theme.foreground;
+            first && set_text_at (control_x + 5) (control_y + 6) ~size:10
+              theme.foreground
+              (compact_float range.low ^ " — " ^ compact_float range.high)
+        | Some (Xy point) ->
+            let px = position
+                { x = control_x; y = control_y; w = control_width;
+                  h = control_height }
+                ((point.x -. point.x_min) /. (point.x_max -. point.x_min)) in
+            let py = control_y + int_of_float
+                (((point.y -. point.y_min) /. (point.y_max -. point.y_min)
+                  *. float (max 1 (control_height - 1))) +. 0.5) in
+            let first = set_text 0 theme.foreground point.label in
+            add_rounded builder ~x:control_x ~y:control_y ~width:control_width
+              ~height:control_height ~radius:4
+              ~fill:(Some (if hovered then hover_fill else theme.input))
+              ~stroke:(Some border);
+            add_line builder
+              ~from_:(control_x + (control_width / 2), control_y + 3)
+              ~to_:(control_x + (control_width / 2),
+                control_y + control_height - 3) ~width:1 ~color:faint_border;
+            add_line builder
+              ~from_:(control_x + 3, control_y + (control_height / 2))
+              ~to_:(control_x + control_width - 3,
+                control_y + (control_height / 2)) ~width:1 ~color:faint_border;
+            add_circle builder ~x:px ~y:py ~radius:(if pressed then 6 else 5)
+              ~fill:(Some theme.accent) ~stroke:(Some theme.foreground);
+            first
+        | Some Accordion_end -> true
+        | None -> false in
+      if not painted then begin
+        List.iter (fun (handle, _, _) ->
+          Prismel.Font.Private.release_retained handle) !text;
+        false
+      end else
+        let segment_id = match Array.unsafe_get runtime.paint_segment_ids slot with
+          | 0L ->
+              let id = fresh_display_segment_id () in
+              Array.unsafe_set runtime.paint_segment_ids slot id; id
+          | id -> id in
+        let version = Int64.succ
+            (Array.unsafe_get runtime.paint_segment_versions slot) in
+        match Scene_command.Display_list.Builder.publish builder
+            ~id:segment_id ~version with
+        | Error _ ->
+            List.iter (fun (handle, _, _) ->
+              Prismel.Font.Private.release_retained handle) !text;
+            false
+        | Ok segment ->
+            let images = List.map (fun (_, image, resource_id) ->
+              resource_id, image) !text in
+            let image_bytes = List.fold_left (fun total (_, image, _) ->
+              let width, height = Prismel.Image.get_size image in
+              total + (width * height * 4)) 0 !text in
+            let source_bytes = Scene_command.Display_list.source_bytes segment
+              + image_bytes in
+            if not (reserve_paint_cache runtime slot source_bytes) then begin
+              List.iter (fun (handle, _, _) ->
+                Prismel.Font.Private.release_retained handle) !text;
+              false
+            end else begin
+              let node = Prismel.Scene.display_list ~images segment in
+              List.iter Prismel.Font.Private.release_retained
+                (Array.unsafe_get runtime.paint_text slot);
+              Array.unsafe_set runtime.paint_text slot
+                (List.map (fun (handle, _, _) -> handle) !text);
+              Array.unsafe_set runtime.paint_nodes slot (Some node);
+              Array.unsafe_set runtime.paint_segment_versions slot version;
+              Array.unsafe_set runtime.paint_source_bytes slot source_bytes;
+              let flags = Char.code (Bytes.unsafe_get runtime.flags slot) lor 2 in
+              Bytes.unsafe_set runtime.flags slot (Char.chr flags);
+              true
+            end
+
+    let paint_panel (runtime : t) canvas =
+      let builder = runtime.panel_builder in
+      Scene_command.Display_list.Builder.reset builder;
+      let height = runtime.panel_height and width = runtime.panel_width in
+      let border = Prismel.Color.with_alpha canvas.theme.foreground 34
+      and glow = Prismel.Color.with_alpha canvas.theme.accent 56 in
+      add_rounded builder ~x:4 ~y:5 ~width ~height ~radius:8
+        ~fill:(Some (Prismel.Color.rgba 0 0 0 105)) ~stroke:None;
+      add_rounded builder ~x:0 ~y:0 ~width ~height ~radius:8
+        ~fill:(Some canvas.theme.panel) ~stroke:(Some border);
+      add_line builder ~from_:(12, 1) ~to_:(width - 12, 1) ~width:1 ~color:glow;
+      let version = Int64.succ runtime.panel_segment_version in
+      match Scene_command.Display_list.Builder.publish builder
+          ~id:runtime.panel_segment_id ~version with
+      | Error _ -> false
+      | Ok segment ->
+          runtime.panel_segment_version <- version;
+          runtime.panel_node <- Some (Prismel.Scene.display_list segment);
+          true
+
+    let paint_scrollbar (runtime : t) canvas =
+      if runtime.max_scroll = 0 then begin
+        runtime.scrollbar_node <- None;
+        runtime.scrollbar_valid <- true;
+        true
+      end else
+        let builder = runtime.scrollbar_builder in
+        Scene_command.Display_list.Builder.reset builder;
+        let track_x = runtime.panel_width - runtime.panel_padding - 5
+        and track_y = runtime.panel_padding
+        and track_height = max 1
+            (runtime.panel_height - (2 * runtime.panel_padding)) in
+        let thumb_height = max 20
+            (track_height * runtime.panel_height / max 1 runtime.content_height)
+          |> min track_height in
+        let travel = track_height - thumb_height in
+        let thumb_y = track_y + runtime.panel_scroll_y * travel
+            / max 1 runtime.max_scroll in
+        add_rounded builder ~x:track_x ~y:track_y ~width:4
+          ~height:track_height ~radius:2
+          ~fill:(Some (Prismel.Color.with_alpha canvas.theme.track 180))
+          ~stroke:None;
+        add_rounded builder ~x:track_x ~y:thumb_y ~width:4
+          ~height:thumb_height ~radius:2
+          ~fill:(Some (Prismel.Color.with_alpha canvas.theme.accent 210))
+          ~stroke:None;
+        let version = Int64.succ runtime.scrollbar_segment_version in
+        match Scene_command.Display_list.Builder.publish builder
+            ~id:runtime.scrollbar_segment_id ~version with
+        | Error _ -> false
+        | Ok segment ->
+            runtime.scrollbar_segment_version <- version;
+            runtime.scrollbar_node <- Some (Prismel.Scene.display_list segment);
+            runtime.scrollbar_valid <- true;
+            true
+
+    let retained_slice_supported (runtime : t) =
+      ignore runtime;
+      true
+
+    let scene ?(density = 1) (runtime : t) canvas =
+      if runtime.dead then invalid_arg "Pxui.Runtime.scene: destroyed runtime";
+      if density <= 0 then invalid_arg "Pxui.Runtime.scene: invalid density";
+      if not runtime.visible then []
+      else if not (retained_slice_supported runtime) then compatibility_scene canvas
+      else begin
+        if runtime.paint_density <> density then begin
+          runtime.paint_density <- density;
+          runtime.panel_node <- None;
+          runtime.scrollbar_node <- None;
+          runtime.scrollbar_valid <- false;
+          for index = 0 to runtime.order_length - 1 do
+            let id = Array.unsafe_get runtime.order index in
+            let slot = Stable_store.slot id in
+            let flags = Char.code (Bytes.unsafe_get runtime.flags slot) land 0xfd in
+            Bytes.unsafe_set runtime.flags slot (Char.chr flags)
+          done
+        end;
+        let builds = ref 0 and reuses = ref 0 in
+        if runtime.panel_node = None then begin
+          if paint_panel runtime canvas then incr builds
+        end else incr reuses;
+        for index = runtime.layout_first_visible to runtime.layout_last_visible - 1 do
+          let id = Array.unsafe_get runtime.visible_order index in
+          let slot = Stable_store.slot id in
+          if Char.code (Bytes.unsafe_get runtime.flags slot) land 2 = 0 then begin
+            if paint_widget runtime canvas ~density id then incr builds
+          end else incr reuses
+        done;
+        if ((not runtime.scrollbar_valid)
+            || runtime.composed_scroll_y <> runtime.panel_scroll_y)
+            && paint_scrollbar runtime canvas then incr builds
+        else incr reuses;
+        runtime.display_list_builds <- runtime.display_list_builds + !builds;
+        runtime.display_list_reuses <- runtime.display_list_reuses + !reuses;
+        if !builds > 0 then begin
+          runtime.paint_generation <- Int64.succ runtime.paint_generation;
+          runtime.composed_scene <- None
+        end;
+        match runtime.composed_scene with
+        | Some scene when runtime.composed_layout_generation
+              = runtime.committed_layout_generation
+            && runtime.composed_paint_generation = runtime.paint_generation
+            && runtime.composed_scroll_y = runtime.panel_scroll_y -> scene
+        | _ ->
+            let reversed = ref [] in
+            for index = runtime.layout_first_visible
+                to runtime.layout_last_visible - 1 do
+              let id = Array.unsafe_get runtime.visible_order index in
+              let slot = Stable_store.slot id in
+              match Array.unsafe_get runtime.paint_nodes slot with
+              | None -> ()
+              | Some node ->
+                  reversed := Prismel.Scene.translate
+                    (Array.unsafe_get runtime.row_x slot)
+                    (Array.unsafe_get runtime.row_y slot) [node] :: !reversed
+            done;
+            let widgets = List.rev !reversed in
+            let regions = ref [] in
+            for index = runtime.layout_first_visible
+                to runtime.layout_last_visible - 1 do
+              let id = Array.unsafe_get runtime.visible_order index in
+              let slot = Stable_store.slot id in
+              let focused = match Stable_store.get runtime.slots id with
+                | Some (Text_field _) -> runtime.focus_id = Some id
+                | Some (Slider _ | Int_slider _) ->
+                    runtime.numeric_edit_id = Some id
+                | Some _ | None -> false in
+              if focused then regions := Prismel.Scene.text_input_region
+                ~at:(Array.unsafe_get runtime.control_x slot,
+                  Array.unsafe_get runtime.control_y slot)
+                ~w:(Array.unsafe_get runtime.control_width slot)
+                ~h:(Array.unsafe_get runtime.control_height slot)
+                ~focused:true () :: !regions
+            done;
+            let widgets = List.rev_append !regions widgets in
+            let content = Prismel.Scene.clip
+                ~at:(runtime.panel_x + runtime.panel_padding,
+                  runtime.panel_y + runtime.panel_padding)
+                ~w:(max 1 (runtime.panel_width - (2 * runtime.panel_padding)))
+                ~h:(max 1 (runtime.panel_height - (2 * runtime.panel_padding)))
+                widgets in
+            let scene = match runtime.panel_node, runtime.scrollbar_node with
+              | Some panel, Some scrollbar ->
+                  [Prismel.Scene.translate runtime.panel_x runtime.panel_y [panel];
+                   content;
+                   Prismel.Scene.translate runtime.panel_x runtime.panel_y
+                     [scrollbar]]
+              | Some panel, None ->
+                  [Prismel.Scene.translate runtime.panel_x runtime.panel_y [panel];
+                   content]
+              | None, Some _ | None, None -> [content] in
+            runtime.composed_scene <- Some scene;
+            runtime.composed_layout_generation <-
+              runtime.committed_layout_generation;
+            runtime.composed_paint_generation <- runtime.paint_generation;
+            runtime.composed_scroll_y <- runtime.panel_scroll_y;
+            scene
+      end
+
     let drain_paint runtime =
       if runtime.phase <> 0 then
         invalid_arg "Pxui.Runtime: re-entrant paint execution";
@@ -2818,7 +3545,6 @@ module Private = struct
             Bytes.unsafe_set runtime.paint_queue.queued_members slot '\000';
             let flags = Char.code (Bytes.unsafe_get runtime.flags slot) in
             if flags land 1 <> 0 then begin
-              Bytes.unsafe_set runtime.flags slot (Char.chr (flags lor 2));
               incr visited
             end;
             let dirty = Char.code (Bytes.unsafe_get runtime.dirty slot) in
@@ -2872,12 +3598,18 @@ module Private = struct
         text_visits = runtime.text_visits;
         paint_visits = runtime.paint_visits;
         compose_visits = runtime.compose_visits;
-        accessibility_visits = runtime.accessibility_visits }
+        accessibility_visits = runtime.accessibility_visits;
+        display_list_builds = runtime.display_list_builds;
+        display_list_reuses = runtime.display_list_reuses;
+        display_list_evictions = runtime.display_list_evictions;
+        display_list_entries = runtime.paint_cache_count;
+        display_list_bytes = runtime.paint_cache_bytes }
     let destroy runtime =
       if not runtime.dead then begin
         for index = 0 to runtime.order_length - 1 do
-          ignore (Stable_store.remove runtime.slots
-            (Array.unsafe_get runtime.order index))
+          let id = Array.unsafe_get runtime.order index in
+          clear_runtime_paint_slot runtime (Stable_store.slot id);
+          ignore (Stable_store.remove runtime.slots id)
         done;
         runtime.order_length <- 0;
         runtime.visible_length <- 0;
@@ -2885,6 +3617,11 @@ module Private = struct
         runtime.spec_widgets <- [||];
         Array.fill runtime.labels 0 (Array.length runtime.labels) None;
         Array.fill runtime.text_values 0 (Array.length runtime.text_values) None;
+        runtime.panel_node <- None;
+        runtime.scrollbar_node <- None;
+        runtime.composed_scene <- None;
+        Scene_command.Display_list.Builder.reset runtime.panel_builder;
+        Scene_command.Display_list.Builder.reset runtime.scrollbar_builder;
         clear_dirty runtime;
         runtime.focus_id <- None;
         runtime.active_id <- None;

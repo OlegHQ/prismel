@@ -88,9 +88,10 @@ let render ~execution ~density ~width ~height scene =
                           with
                           | Error error -> Error (Lower error)
                           | Ok batch -> lower (batch::reversed) rest)
-                      | Scene.Private.Scene2_segment segment :: rest -> (
+                      | Scene.Private.Scene2_segment (segment, resources) :: rest -> (
                           match Prismel_next_execution.Private.lower_scene2
-                            submission ~density ~resource:(fun _ -> None)
+                            submission ~density
+                            ~resource:(fun id -> List.assoc_opt id resources)
                             (Scene_command.Display_list.render_ir segment) with
                           | Error error -> Error (Lower error)
                           | Ok batch -> lower (batch :: reversed) rest)

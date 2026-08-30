@@ -2,6 +2,80 @@ open Prismel
 
 let require condition message = if not condition then failwith message
 
+let compose (a : Scene_command.Render_ir.transform)
+    (b : Scene_command.Render_ir.transform) =
+  { Scene_command.Render_ir.xx = a.xx *. b.xx +. a.yx *. b.xy;
+    xy = a.xy *. b.xx +. a.yy *. b.xy;
+    yx = a.xx *. b.yx +. a.yx *. b.yy;
+    yy = a.xy *. b.yx +. a.yy *. b.yy;
+    tx = a.xx *. b.tx +. a.yx *. b.ty +. a.tx;
+    ty = a.xy *. b.tx +. a.yy *. b.ty +. a.ty }
+
+let flattened_draws ir =
+  let open Scene_command.Render_ir in
+  let identity = { xx = 1.; xy = 0.; yx = 0.; yy = 1.; tx = 0.; ty = 0. } in
+  let transforms = ref [identity] and reversed = ref [] in
+  let point transform x y =
+    transform.xx *. x +. transform.yx *. y +. transform.tx,
+    transform.xy *. x +. transform.yy *. y +. transform.ty in
+  Array.iter (function
+    | Push_transform transform ->
+        transforms := compose (List.hd !transforms) transform :: !transforms
+    | Pop_transform -> transforms := List.tl !transforms
+    | Geometry geometry ->
+        let transform = List.hd !transforms in
+        let vertices = Array.copy geometry.vertices in
+        for index = 0 to (Array.length vertices / 2) - 1 do
+          let x, y = point transform vertices.(index * 2)
+              vertices.(index * 2 + 1) in
+          vertices.(index * 2) <- x;
+          vertices.(index * 2 + 1) <- y
+        done;
+        reversed := Geometry { geometry with vertices } :: !reversed
+    | Image image ->
+        let transform = List.hd !transforms in
+        require (transform.xx = 1. && transform.xy = 0.
+          && transform.yx = 0. && transform.yy = 1.)
+          "label/button parity encountered a non-translation image transform";
+        let x, y = point transform image.destination.x image.destination.y in
+        reversed := Image { image with destination = { image.destination with x; y } }
+          :: !reversed
+    | Glyphs run ->
+        let transform = List.hd !transforms in
+        let glyph_array = Array.map (fun (glyph : glyph) ->
+          let x, y = point transform glyph.x glyph.y in { glyph with x; y })
+            run.glyphs in
+        reversed := Glyphs { run with glyphs = glyph_array } :: !reversed
+    | Debug_text debug ->
+        let x, y = point (List.hd !transforms) debug.x debug.y in
+        reversed := Debug_text { debug with x; y } :: !reversed
+    | (Clear _ | Set_blend _ | Push_clip _ | Pop_clip) as command ->
+        reversed := command :: !reversed)
+    (Scene_command.Render_ir.Private.commands_readonly ir);
+  List.rev !reversed
+
+let command_kind = function
+  | Scene_command.Render_ir.Clear _ -> "clear"
+  | Set_blend _ -> "blend" | Push_clip _ -> "push-clip" | Pop_clip -> "pop-clip"
+  | Push_transform _ -> "push-transform" | Pop_transform -> "pop-transform"
+  | Geometry _ -> "geometry" | Image _ -> "image" | Glyphs _ -> "glyphs"
+  | Debug_text _ -> "debug-text"
+
+let require_draw_parity label retained compatibility =
+  let retained = flattened_draws retained
+  and compatibility = flattened_draws compatibility in
+  if retained <> compatibility then begin
+    let rec first index left right = match left, right with
+      | l :: _, r :: _ when l <> r ->
+          failwith (Printf.sprintf "%s first draw drift at %d (%s/%s)" label index
+            (command_kind l) (command_kind r))
+      | _ :: left, _ :: right -> first (index + 1) left right
+      | [], [] -> assert false
+      | _ -> failwith (Printf.sprintf "%s draw cardinality drift %d/%d" label
+          (List.length retained) (List.length compatibility)) in
+    first 0 retained compatibility
+  end
+
 let panel count =
   let value = ref (Pxui.create ()) in
   for index = 0 to count - 1 do
@@ -235,3 +309,162 @@ let () =
   require (Runtime.destroyed runtime)
     "owned retained runtime did not enter destroyed state";
   Printf.printf "PXUI retained drag1000=%.0f B\n" allocated
+
+let () =
+  let module Runtime = Pxui.Runtime in
+  let spec = Pxui.create ~max_height:160 ()
+    |> Pxui.label ~text:"Retained label"
+    |> Pxui.button ~name:"apply" ~label:"Apply" in
+  let runtime = Runtime.create spec in
+  Runtime.run_passes runtime;
+  let _, _, references_before = Font.Private.automatic_counts () in
+  let first = Runtime.scene runtime spec in
+  let _, _, references_painted = Font.Private.automatic_counts () in
+  require (references_painted = references_before + 2)
+    "retained label/button did not own two automatic text leases";
+  let compatibility_scene = Pxui.scene spec in
+  let retained_ir, _ = Result.get_ok
+      (Scene.Private.stage ~density:1 ~width:320 ~height:200 first)
+  and compatibility_ir, _ = Result.get_ok
+      (Scene.Private.stage ~density:1 ~width:320 ~height:200
+         compatibility_scene) in
+  let retained_draws = flattened_draws retained_ir
+  and compatibility_draws = flattened_draws compatibility_ir in
+  if retained_draws <> compatibility_draws then begin
+    Printf.eprintf "retained kinds: %s\ncompatibility kinds: %s\n"
+      (String.concat "," (List.map command_kind retained_draws))
+      (String.concat "," (List.map command_kind compatibility_draws))
+    ; let rec first index left right = match left, right with
+        | l :: _, r :: _ when l <> r ->
+            (match l, r with
+             | Scene_command.Render_ir.Geometry l,
+               Scene_command.Render_ir.Geometry r ->
+                 Printf.eprintf
+                   "first drift %d geometry colors=%lx/%lx vertices=%b indices=%b\n"
+                   index l.color r.color (l.vertices = r.vertices)
+                   (l.indices = r.indices)
+             | Scene_command.Render_ir.Image l,
+               Scene_command.Render_ir.Image r ->
+                 Printf.eprintf
+                   "first drift %d image ids=%d/%d source=%b destination=%b\n"
+                   index l.resource_id r.resource_id (l.source = r.source)
+                   (l.destination = r.destination)
+             | _ -> Printf.eprintf "first drift %d kinds=%s/%s\n" index
+                 (command_kind l) (command_kind r))
+        | _ :: left, _ :: right -> first (index + 1) left right
+        | _ -> () in
+      first 0 retained_draws compatibility_draws
+  end;
+  require (retained_draws = compatibility_draws)
+    "retained label/button command stream drifted from compatibility paint";
+  Scene.Private.release compatibility_scene;
+  ignore (Result.get_ok
+    (Scene.Private.stage_native ~density:1 ~width:320 ~height:200 first));
+  let second = Runtime.scene runtime spec in
+  require (first == second)
+    "unchanged retained label/button panel recomposed its Scene";
+  Gc.full_major ();
+  let before = Gc.allocated_bytes () in
+  for _ = 1 to 10_000 do ignore (Runtime.scene runtime spec) done;
+  let unchanged_allocated = Gc.allocated_bytes () -. before in
+  require (unchanged_allocated <= 512.)
+    (Printf.sprintf "unchanged retained Scene allocated %.0f bytes"
+      unchanged_allocated);
+  let button = Option.get (Runtime.find runtime "apply") in
+  let _, y, _, height, _, _, _, _ = Option.get (Runtime.bounds runtime button) in
+  let before_hover = Runtime.stats runtime in
+  ignore (Runtime.update runtime [Event.MouseMoved (30, y + (height / 2))]);
+  Runtime.run_passes runtime;
+  let hovered = Runtime.scene runtime spec in
+  let after_hover = Runtime.stats runtime in
+  require (hovered != first
+    && after_hover.paint_visits = before_hover.paint_visits + 1
+    && after_hover.paint_generation = Int64.succ before_hover.paint_generation)
+    "button hover did not rebuild exactly one retained paint segment";
+  Runtime.destroy runtime;
+  let _, _, references_after = Font.Private.automatic_counts () in
+  require (references_after = references_before)
+    "retained label/button teardown leaked automatic text references";
+  Printf.printf "PXUI retained label/button unchanged=%.0f B/10k calls\n"
+    unchanged_allocated
+
+let () =
+  let module Runtime = Pxui.Runtime in
+  let panel = ref (Pxui.create ~max_height:320 ()) in
+  for index = 0 to 9_999 do
+    panel := Pxui.label ~text:("Label " ^ string_of_int index) !panel
+  done;
+  let runtime = Runtime.create !panel in
+  Runtime.run_passes runtime;
+  let _, _, references_before = Font.Private.automatic_counts () in
+  ignore (Runtime.scene runtime !panel);
+  for _ = 1 to 80 do
+    let updated, _ = Pxui.update !panel
+        [Event.MouseMoved (20, 100); Event.MouseScrolled (0, -8)] in
+    panel := updated;
+    ignore (Runtime.reconcile runtime updated);
+    Runtime.run_passes runtime;
+    ignore (Runtime.scene runtime updated)
+  done;
+  let stats = Runtime.stats runtime in
+  require (stats.display_list_entries <= 256
+    && stats.display_list_bytes <= 64 * 1024 * 1024
+    && stats.display_list_evictions > 0)
+    (Printf.sprintf
+      "retained display-list cache bounds drift entries=%d bytes=%d evictions=%d"
+      stats.display_list_entries stats.display_list_bytes
+      stats.display_list_evictions);
+  Runtime.destroy runtime;
+  let _, _, references_after = Font.Private.automatic_counts () in
+  require (references_after = references_before)
+    "10k retained display-list churn leaked automatic text references"
+
+let () =
+  let module Runtime = Pxui.Runtime in
+  let spec = Pxui.create ~width:360 ~max_height:640 ()
+    |> Pxui.accordion ~name:"section" ~label:"Section" ~expanded:true
+         (fun ui -> ui |> Pxui.label ~text:"Inside")
+    |> Pxui.button ~name:"button" ~label:"Button"
+    |> Pxui.toggle ~name:"toggle" ~label:"Toggle" ~value:true
+    |> Pxui.slider ~name:"slider" ~label:"Slider" ~min:(-1.) ~max:2.
+         ~value:0.625
+    |> Pxui.int_slider ~name:"integer" ~label:"Integer" ~min:(-5) ~max:12
+         ~value:3
+    |> Pxui.text_field ~name:"text" ~label:"Text" ~value:"value"
+    |> Pxui.choice ~name:"choice" ~label:"Choice"
+         ~options:["first"; "second"; "third"] ~selected:1
+    |> Pxui.range ~name:"range" ~label:"Range" ~min:0. ~max:1.
+         ~low:0.2 ~high:0.8
+    |> Pxui.xy ~name:"xy" ~label:"XY" ~x_range:(-1., 1.)
+         ~y_range:(-2., 2.) ~value:(0.25, -0.5) in
+  let runtime = Runtime.create spec in
+  Runtime.run_passes runtime;
+  let retained_scene = Runtime.scene runtime spec
+  and compatibility_scene = Pxui.scene spec in
+  let retained_ir, _ = Result.get_ok
+      (Scene.Private.stage ~density:1 ~width:480 ~height:720 retained_scene)
+  and compatibility_ir, _ = Result.get_ok
+      (Scene.Private.stage ~density:1 ~width:480 ~height:720 compatibility_scene) in
+  require_draw_parity "all-widget retained paint" retained_ir compatibility_ir;
+  Scene.Private.release compatibility_scene;
+  let staged = Result.get_ok
+      (Scene.Private.stage_native ~density:1 ~width:480 ~height:720
+         retained_scene) in
+  let staged_again = Result.get_ok
+      (Scene.Private.stage_native ~density:1 ~width:480 ~height:720
+         retained_scene) in
+  require (staged == staged_again)
+    "unchanged retained workspace missed native-stage identity cache";
+  Gc.full_major ();
+  let before = Gc.allocated_bytes () in
+  for _ = 1 to 10_000 do
+    ignore (Scene.Private.stage_native ~density:1 ~width:480 ~height:720
+      retained_scene)
+  done;
+  let stage_allocated = Gc.allocated_bytes () -. before in
+  require (stage_allocated <= 960_000.)
+    (Printf.sprintf "retained native staging allocated %.0f B/10k calls"
+      stage_allocated);
+  Printf.printf "PXUI retained native-stage=%.1f B/call\n"
+    (stage_allocated /. 10_000.);
+  Runtime.destroy runtime

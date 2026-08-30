@@ -20,7 +20,8 @@ val debug_text : at:(int*int) -> ?color:Color.t -> string -> node
 val font_text : Font.t -> at:(int*int) -> ?color:Color.t -> ?wrap:int -> ?align:Font.alignment -> string -> node
 val image : Image.t -> at:(int*int) -> ?scale:float -> ?angle:float -> ?center:(int*int) -> ?flip_x:bool -> unit -> node
 val view3d : ?viewport:(int*int*int*int) -> camera:Camera.t -> Scene3.t -> node
-val display_list : Scene_command.Display_list.t -> node
+val display_list : ?images:(int * Image.t) list ->
+  Scene_command.Display_list.t -> node
 val text_input_region : at:(int*int) -> w:int -> h:int -> ?focused:bool -> unit -> node
 val translate : int -> int -> t -> node
 val rotate : float -> t -> node
@@ -33,7 +34,8 @@ module Private : sig
   type native_layer =
     | Scene2_layer of Scene_command.Render_ir.t *
         (int * Prismel_next_execution.resource) list
-    | Scene2_segment of Scene_command.Display_list.t
+    | Scene2_segment of Scene_command.Display_list.t *
+        (int * Prismel_next_execution.resource) list
     | Scene3_layer of Scene_execution.prepared_scene3
   type staged_native = {
     clear : float * float * float * float;

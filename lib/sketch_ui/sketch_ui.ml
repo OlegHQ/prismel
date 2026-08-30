@@ -671,9 +671,13 @@ module Core = struct
       Workspace.scene value.workspace frame
       @ (if Pxui_graph.visible value.graph_view
           then Pxui_graph.scene value.graph_view else [])
-      @ (match value.inspector_ui with
-         | Some ui when not (Workspace.collapsed value.workspace Workspace.Inspector) ->
-             Pxui.scene ui
+      @ (match value.inspector_ui, value.inspector_runtime with
+         | Some ui, Some runtime
+             when not (Workspace.collapsed value.workspace Workspace.Inspector) ->
+             let scale_x, scale_y = frame.pixel_scale in
+             let density = max 1
+                 (int_of_float (Float.round (Float.max scale_x scale_y))) in
+             Pxui.Runtime.scene ~density runtime ui
          | _ -> camera_scene)
       @ [Scene.Private.layer_break]
       @ status_scene value frame ~render_status
@@ -817,7 +821,13 @@ module Environment3 = struct
     let world = if Core.column_visible value.core Workspace.View then world else [] in
     let camera_scene = if Core.selected_node value.core = None
         && Core.column_visible value.core Workspace.Inspector
-      then Pxui.Camera_control.scene value.camera_control value.camera_ui else [] in
+      then
+        let scale_x, scale_y = frame.pixel_scale in
+        let density = max 1
+            (int_of_float (Float.round (Float.max scale_x scale_y))) in
+        Pxui.Camera_control.overlay value.camera_control
+          (Pxui.Runtime.scene ~density value.camera_runtime value.camera_ui)
+      else [] in
     Scene.clear value.background :: world @ overlay
     @ Core.machinery value.core frame ~all_ui_visible
         ~camera_scene
@@ -932,7 +942,13 @@ module Environment2 = struct
     let world = if Core.column_visible value.core Workspace.View then world else [] in
     let camera_scene = if Core.selected_node value.core = None
         && Core.column_visible value.core Workspace.Inspector
-      then Pxui.Camera2_control.scene value.camera_control value.camera_ui else [] in
+      then
+        let scale_x, scale_y = frame.pixel_scale in
+        let density = max 1
+            (int_of_float (Float.round (Float.max scale_x scale_y))) in
+        Pxui.Camera2_control.overlay value.camera_control
+          (Pxui.Runtime.scene ~density value.camera_runtime value.camera_ui)
+      else [] in
     Scene.clear value.background :: world @ overlay
     @ Core.machinery value.core frame ~all_ui_visible
         ~camera_scene

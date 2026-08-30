@@ -12,11 +12,17 @@ val render_text:?density:int->t->string->render_mode->(Image.t,[`Msg of string])
 val cached_text : ?wrap:int -> ?align:alignment -> ?density:int -> t -> string -> render_mode -> (Image.t,[`Msg of string]) result
 module Private : sig
   type automatic
+  type retained_text
   val cached_text : ?wrap:int -> ?align:alignment -> ?density:int -> t -> string -> render_mode -> (Image.t,[`Msg of string]) result
   val borrow_automatic : ?wrap:int -> ?align:alignment -> ?density:int -> size:int -> string -> render_mode -> (automatic,[`Msg of string]) result
   val automatic_image : automatic -> Image.t
   val release_automatic : automatic -> unit
   val automatic_counts : unit -> int * int * int
+  val retain_text : ?font:t -> ?density:int -> size:int -> string ->
+    render_mode -> (retained_text,[`Msg of string]) result
+  val retained_image : retained_text -> Image.t
+  val release_retained : retained_text -> unit
+  val generation : t -> int
 end
 val cache_count:t->int
 val clear_cache:t->unit

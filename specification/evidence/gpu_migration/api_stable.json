@@ -707,8 +707,8 @@
       "library": "prismel",
       "module": "Font",
       "source": "lib/prismel/font.mli",
-      "source_bytes": 2265,
-      "source_sha256": "e82ba46cd631eeabb30d9a039c4deac6321965079e2ef4f6d7c095d4437c8755"
+      "source_bytes": 2537,
+      "source_sha256": "a1eb5fddedcc84a1b0f06e500b8f8ebffcb71e6c5ee49ca54f8adfa04338d6bb"
     },
     {
       "api_sha256": "ffb3db727241e424d47e14f0583ea73e8954500728f48e06ab187153665d67eb",
@@ -866,13 +866,13 @@
       "source_sha256": "74b90ec75bbe4b2ebad22d581cac659ad9e528b00f8efe41f93c2c06fc1972a3"
     },
     {
-      "api_sha256": "666a287fff2b93e1128570eb25bc146c078cd8bc0a000e3736f2a5b62e1139a2",
+      "api_sha256": "3ac226c19b88d08d3ee64bd7022c3d1d3216d817370754d1eae737985f640c30",
       "excluded_legacy_symbols": [],
       "library": "prismel",
       "module": "Scene",
       "source": "lib/prismel/scene.mli",
-      "source_bytes": 3440,
-      "source_sha256": "482de1c8df2ae2388d652dffdf1ca17c0e5840a287ab358acd99157b6466678f"
+      "source_bytes": 3529,
+      "source_sha256": "d99876b97b6242ecea16e213ce724382a648afb937cfb51d4905dd180642fd2f"
     },
     {
       "api_sha256": "f5f7e207387260bc531eefeaab7ad9e10333d34343e4b93b374962bc9aae010e",
@@ -1082,13 +1082,13 @@
       "source_sha256": "85c5fc09b894b4a9f4534d0e4dc9fd268e657646bd2171a1f327aa5344d0d111"
     },
     {
-      "api_sha256": "62583260a954fc849d7f6d8cb47cf2ce92861df1c8a93b8620e1506abfe7d42d",
+      "api_sha256": "cf38e47c07e2c912177e35ee09c86f9188265a40ef4138ce8060eef50ffe82a9",
       "excluded_legacy_symbols": [],
       "library": "pxui",
       "module": "Pxui",
       "source": "lib/pxui/pxui.mli",
-      "source_bytes": 9893,
-      "source_sha256": "5948aad84825cc5fda1cc81518264e58973612f9002d3156f775ad8ca75e2535"
+      "source_bytes": 10124,
+      "source_sha256": "33c2e03cab42da8cd7a9f7445577e22e98aca48bb9d24ec6748b9bbcdd4db6fd"
     },
     {
       "api_sha256": "d2d8e8f8c6244b0fcbe26bc7a112eb1c891a4e22ac523643613be230b53c6f1d",
