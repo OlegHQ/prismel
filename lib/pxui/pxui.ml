@@ -87,6 +87,28 @@ type numeric_edit = {
   replace_on_input : bool;
 }
 
+type bounds = { x : int; y : int; w : int; h : int }
+
+type layout = {
+  index : int;
+  row : bounds;
+  control : bounds;
+}
+
+type displayed = {
+  source_index : int;
+  row_index : int;
+  widget : widget;
+}
+
+type layout_snapshot = {
+  displayed : displayed array;
+  layouts : layout option array;
+  content_height : int;
+  panel_height : int;
+  max_scroll : int;
+}
+
 type t = {
   x : int;
   y : int;
@@ -105,6 +127,7 @@ type t = {
   (* Reverse display order keeps both functional and compatibility builders O(1). *)
   mutable widgets : widget list;
   mutable ordered_cache : widget array option;
+  mutable layout_cache : layout_snapshot option;
   mutable focus : string option;
   mutable composition : string;
   mutable pointer : (int * int) option;
@@ -143,6 +166,7 @@ let create ?(x = 12) ?(y = 12) ?(width = 280) ?(row_height = 32)
     widget_count = 0;
     widgets = [];
     ordered_cache = None;
+    layout_cache = None;
     focus = None;
     composition = "";
     pointer = None;
@@ -156,13 +180,15 @@ let create ?(x = 12) ?(y = 12) ?(width = 280) ?(row_height = 32)
 let append canvas widget =
   canvas.widgets <- widget :: canvas.widgets;
   canvas.widget_count <- canvas.widget_count + 1;
-  canvas.ordered_cache <- None
+  canvas.ordered_cache <- None;
+  canvas.layout_cache <- None
 
 let with_widget canvas widget =
   { canvas with
     widget_count = canvas.widget_count + 1;
     widgets = widget :: canvas.widgets;
     ordered_cache = None;
+    layout_cache = None;
   }
 
 let ordered_widget_array canvas =
@@ -252,21 +278,7 @@ let int_slider ~name ~label ~min ~max ~value canvas =
     invalid_arg "Pxui.int_slider: max must be greater than min";
   with_widget canvas (Int_slider { name; label; min; max; value })
 
-type bounds = { x : int; y : int; w : int; h : int }
-
-type layout = {
-  index : int;
-  row : bounds;
-  control : bounds;
-}
-
-type displayed = {
-  source_index : int;
-  row_index : int;
-  widget : widget;
-}
-
-let displayed_widgets canvas =
+let compute_displayed_widgets canvas =
   let widgets = ordered_widget_array canvas in
   let hidden_depth = ref 0 and row_index = ref 0 and reversed = ref [] in
   Array.iteri (fun source_index widget ->
@@ -285,37 +297,14 @@ let displayed_widgets canvas =
     | _ -> ()) widgets;
   Array.of_list (List.rev !reversed)
 
-let content_height canvas =
-  (Array.length (displayed_widgets canvas) * canvas.row_height)
-  + (2 * canvas.padding)
-
-let panel_height canvas =
-  let height = content_height canvas in
-  let height = Option.fold ~none:height ~some:(min height) canvas.max_height in
-  Option.fold ~none:height ~some:(min height) canvas.frame_max_height
-
-let max_scroll canvas = max 0 (content_height canvas - panel_height canvas)
-
-let clamp_scroll canvas =
-  let scroll_y = clamp 0 (max_scroll canvas) canvas.scroll_y in
-  if scroll_y = canvas.scroll_y then canvas else { canvas with scroll_y }
-
-let scrollable canvas = max_scroll canvas > 0
-
-let row_y (canvas : t) index =
-  canvas.y + canvas.padding + (index * canvas.row_height) - canvas.scroll_y
-
-let contains bounds (x, y) =
-  x >= bounds.x && x < bounds.x + bounds.w
-  && y >= bounds.y && y < bounds.y + bounds.h
-
-let layout (canvas : t) displayed =
+let raw_layout (canvas : t) ~scrollable displayed =
   let index = displayed.source_index and widget = displayed.widget in
   let inner_x = canvas.x + canvas.padding in
-  let scrollbar_gutter = if scrollable canvas then 10 else 0 in
+  let scrollbar_gutter = if scrollable then 10 else 0 in
   let inner_width = Stdlib.max 1
       (canvas.width - (2 * canvas.padding) - scrollbar_gutter) in
-  let y = row_y canvas displayed.row_index in
+  let y = canvas.y + canvas.padding + (displayed.row_index * canvas.row_height)
+      - canvas.scroll_y in
   let row = { x = inner_x; y; w = inner_width; h = canvas.row_height } in
   let desired_label_width = min 96 (max 72 (inner_width / 3)) in
   let label_width = min desired_label_width (inner_width / 2) in
@@ -337,6 +326,48 @@ let layout (canvas : t) displayed =
           h = Stdlib.max 1 (canvas.row_height - 6) }
   in
   { index; row; control }
+
+let compute_layout_snapshot canvas =
+  let displayed = compute_displayed_widgets canvas in
+  let content_height =
+    (Array.length displayed * canvas.row_height) + (2 * canvas.padding) in
+  let panel_height =
+    let height = Option.fold ~none:content_height ~some:(min content_height)
+        canvas.max_height in
+    Option.fold ~none:height ~some:(min height) canvas.frame_max_height in
+  let max_scroll = max 0 (content_height - panel_height) in
+  let scrollable = max_scroll > 0 in
+  let layouts = Array.make canvas.widget_count None in
+  Array.iter (fun displayed ->
+    layouts.(displayed.source_index) <-
+      Some (raw_layout canvas ~scrollable displayed)) displayed;
+  { displayed; layouts; content_height; panel_height; max_scroll }
+
+let layout_snapshot canvas = match canvas.layout_cache with
+  | Some snapshot -> snapshot
+  | None ->
+      let snapshot = compute_layout_snapshot canvas in
+      canvas.layout_cache <- Some snapshot;
+      snapshot
+
+let displayed_widgets canvas = (layout_snapshot canvas).displayed
+let content_height canvas = (layout_snapshot canvas).content_height
+let panel_height canvas = (layout_snapshot canvas).panel_height
+let max_scroll canvas = (layout_snapshot canvas).max_scroll
+
+let clamp_scroll canvas =
+  let scroll_y = clamp 0 (max_scroll canvas) canvas.scroll_y in
+  if scroll_y = canvas.scroll_y then canvas
+  else { canvas with scroll_y; layout_cache = None }
+
+let contains (bounds : bounds) (x, y) =
+  x >= bounds.x && x < bounds.x + bounds.w
+  && y >= bounds.y && y < bounds.y + bounds.h
+
+let layout (canvas : t) displayed =
+  match (layout_snapshot canvas).layouts.(displayed.source_index) with
+  | Some layout -> layout
+  | None -> invalid_arg "Pxui.layout: widget is not visible"
 
 let text_node (canvas : t) ?color ?size x y text =
   let color = Option.value ~default:canvas.theme.foreground color in
@@ -372,7 +403,7 @@ let active_index (canvas : t) index =
   | Some (Drag_xy active) -> active = index
   | None -> false
 
-let position bounds fraction =
+let position (bounds : bounds) fraction =
   bounds.x
   + int_of_float
       ((clamp 0. 1. fraction
@@ -719,7 +750,8 @@ let layout_at (canvas : t) index =
   | None -> invalid_arg "PXUI widget index outside visible layout"
 
 let replace_widgets canvas widgets =
-  let canvas = clamp_scroll { canvas with widgets; ordered_cache = None } in
+  let canvas = clamp_scroll
+      { canvas with widgets; ordered_cache = None; layout_cache = None } in
   match canvas.numeric_edit with
   | Some edit when not (Array.exists
       (fun displayed -> displayed.source_index = edit.index)
@@ -729,8 +761,12 @@ let replace_widgets canvas widgets =
 
 let update_at index transform count widgets =
   let stored_index = count - index - 1 in
-  List.mapi (fun current widget ->
-    if current = stored_index then transform widget else widget) widgets
+  let rec loop current = function
+    | [] -> []
+    | widget :: rest when current = stored_index -> transform widget :: rest
+    | widget :: rest -> widget :: loop (current + 1) rest
+  in
+  loop 0 widgets
 
 let slider_at (canvas : t) index x =
   let layout = layout_at canvas index in
@@ -1072,7 +1108,7 @@ let update_one ?time canvas event =
               h = panel_height canvas } point
         | None -> false) ->
       let scroll_y = canvas.scroll_y - (vertical * canvas.row_height) in
-      clamp_scroll { canvas with scroll_y; active = None }, []
+      clamp_scroll { canvas with scroll_y; active = None; layout_cache = None }, []
   | Prismel.Event.PointerCancelled Prismel.Input.LeftButton ->
       { canvas with active = None }, []
   | Prismel.Event.TextInput text ->
@@ -1135,6 +1171,7 @@ let handle_event canvas = function
       let updated, changes = update_one canvas event in
       canvas.widgets <- updated.widgets;
       canvas.ordered_cache <- None;
+      canvas.layout_cache <- None;
       canvas.focus <- updated.focus;
       canvas.composition <- updated.composition;
       canvas.pointer <- updated.pointer;
@@ -1154,6 +1191,21 @@ let find_map name extract canvas =
   done;
   !result
 
+type widget_update = Skip | Keep | Replace of widget
+
+let update_widget canvas update =
+  let rec loop reversed = function
+    | [] -> canvas
+    | widget :: rest ->
+        (match update widget with
+         | Skip -> loop (widget :: reversed) rest
+         | Keep -> canvas
+         | Replace widget ->
+             let widgets = List.rev_append reversed (widget :: rest) in
+             { canvas with widgets; ordered_cache = None; layout_cache = None })
+  in
+  loop [] canvas.widgets
+
 let toggle_value canvas name =
   find_map name
     (fun expected -> function
@@ -1162,10 +1214,11 @@ let toggle_value canvas name =
     canvas
 
 let set_toggle_value canvas name value =
-  let widgets = List.map (function
-    | Toggle toggle when toggle.name = name -> Toggle { toggle with value }
-    | widget -> widget) canvas.widgets in
-  { canvas with widgets; ordered_cache = None }
+  update_widget canvas (function
+    | Toggle toggle when toggle.name = name ->
+        if toggle.value = value then Keep
+        else Replace (Toggle { toggle with value })
+    | _ -> Skip)
 
 let slider_value canvas name =
   find_map name
@@ -1177,11 +1230,11 @@ let slider_value canvas name =
 let set_slider_value canvas name value =
   if not (Float.is_finite value) then
     invalid_arg "Pxui.set_slider_value: value must be finite";
-  let widgets = List.map (function
+  update_widget canvas (function
     | Slider slider when slider.name = name ->
-        Slider { slider with value }
-    | widget -> widget) canvas.widgets in
-  { canvas with widgets; ordered_cache = None }
+        if slider.value = value then Keep
+        else Replace (Slider { slider with value })
+    | _ -> Skip)
 
 let int_slider_value canvas name =
   find_map name
@@ -1191,11 +1244,11 @@ let int_slider_value canvas name =
     canvas
 
 let set_int_slider_value canvas name value =
-  let widgets = List.map (function
+  update_widget canvas (function
     | Int_slider slider when slider.name = name ->
-        Int_slider { slider with value }
-    | widget -> widget) canvas.widgets in
-  { canvas with widgets; ordered_cache = None }
+        if slider.value = value then Keep
+        else Replace (Int_slider { slider with value })
+    | _ -> Skip)
 
 let text_value canvas name =
   find_map name
@@ -1205,10 +1258,11 @@ let text_value canvas name =
     canvas
 
 let set_text_value canvas name value =
-  let widgets = List.map (function
-    | Text_field field when field.name = name -> Text_field { field with value }
-    | widget -> widget) canvas.widgets in
-  { canvas with widgets; ordered_cache = None }
+  update_widget canvas (function
+    | Text_field field when field.name = name ->
+        if field.value = value then Keep
+        else Replace (Text_field { field with value })
+    | _ -> Skip)
 
 let choice_value canvas name =
   find_map name
@@ -1219,14 +1273,14 @@ let choice_value canvas name =
     canvas
 
 let set_choice_value canvas name value =
-  let widgets = List.map (function
+  update_widget canvas (function
     | Choice choice when choice.name = name ->
         (match Array.find_index (( = ) value) choice.options with
-         | Some selected -> Choice { choice with selected }
+         | Some selected when selected = choice.selected -> Keep
+         | Some selected -> Replace (Choice { choice with selected })
          | None -> invalid_arg (Printf.sprintf
              "Pxui.set_choice_value: %S is not an option for %S" value name))
-    | widget -> widget) canvas.widgets in
-  { canvas with widgets; ordered_cache = None }
+    | _ -> Skip)
 
 let range_value canvas name =
   find_map name
@@ -1251,20 +1305,21 @@ let accordion_expanded canvas name =
     canvas
 
 let set_accordion_expanded canvas name expanded =
-  let widgets = List.map (function
+  let canvas = update_widget canvas (function
     | Accordion accordion when accordion.name = name ->
-        Accordion { accordion with expanded }
-    | widget -> widget) canvas.widgets in
-  replace_widgets { canvas with active = None } widgets
+        if accordion.expanded = expanded then Keep
+        else Replace (Accordion { accordion with expanded })
+    | _ -> Skip) in
+  if Option.is_none canvas.active then canvas else { canvas with active = None }
 
 let with_position ~x ~y (canvas : t) =
   if x = canvas.x && y = canvas.y then canvas
-  else { canvas with x; y; active = None; hover = None }
+  else { canvas with x; y; active = None; hover = None; layout_cache = None }
 
 let with_width width (canvas : t) =
   if width <= 0 then invalid_arg "Pxui.with_width: width must be positive";
   if width = canvas.width then canvas
-  else { canvas with width; active = None; hover = None }
+  else { canvas with width; active = None; hover = None; layout_cache = None }
 
 let with_max_height max_height (canvas : t) =
   Option.iter (fun height ->
@@ -1272,7 +1327,8 @@ let with_max_height max_height (canvas : t) =
       invalid_arg "Pxui.with_max_height: height is too small for one row")
     max_height;
   if max_height = canvas.max_height then canvas
-  else clamp_scroll { canvas with max_height; active = None; hover = None }
+  else clamp_scroll
+      { canvas with max_height; active = None; hover = None; layout_cache = None }
 
 let with_frame_max_height frame_max_height (canvas : t) =
   Option.iter (fun height ->
@@ -1282,7 +1338,7 @@ let with_frame_max_height frame_max_height (canvas : t) =
   if frame_max_height = canvas.frame_max_height then canvas
   else
     let previous_height = panel_height canvas in
-    let updated = clamp_scroll { canvas with frame_max_height } in
+    let updated = clamp_scroll { canvas with frame_max_height; layout_cache = None } in
     if panel_height updated = previous_height then updated
     else { updated with active = None; hover = None }
 
@@ -1808,7 +1864,8 @@ let decode canvas encoded =
         match !error with
         | Some message -> Error message
         | None -> Ok {
-            canvas with widgets; ordered_cache = None; composition = "";
+            canvas with widgets; ordered_cache = None; layout_cache = None;
+            composition = "";
           })
   | _ -> Error "PXUI settings: unsupported or missing PXUI1 header"
 

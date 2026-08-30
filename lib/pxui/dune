@@ -1,4 +1,10 @@
 (library
  (name pxui)
  (public_name prismel.pxui)
+ (modules pxui)
  (libraries prismel))
+
+(test
+ (name test_pxui_layout_snapshot)
+ (modules test_pxui_layout_snapshot)
+ (libraries prismel pxui))
