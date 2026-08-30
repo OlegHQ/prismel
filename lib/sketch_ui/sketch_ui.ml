@@ -329,6 +329,7 @@ module Core = struct
     displayed_id : int;
     inspector : Sop_ui.Node_inspector.t option;
     inspector_ui : Pxui.t option;
+    inspector_runtime : Pxui.Runtime.t option;
     workspace : Workspace.t;
     timeline : Sketch_support.Timeline.t;
     worker : 'prepared Sketch_support.Reactive_sop.t;
@@ -378,6 +379,7 @@ module Core = struct
         { graph; displayed_graph = graph; document; factories; graph_view;
           displayed_id = Node.id graph;
           inspector = None; inspector_ui = None; workspace;
+          inspector_runtime = None;
           timeline = Sketch_support.Timeline.create (); worker;
           schedule = Sketch_support.Reactive_sop.schedule_initial; prepare;
           prepared = None; edit_error = None; cook_error = None;
@@ -550,6 +552,26 @@ module Core = struct
           && not (Workspace.collapsed workspace Workspace.Inspector) ->
           let ui, changes = Pxui.update_frame ui frame in Some ui, changes
       | _ -> inspector_ui, [] in
+    let inspector_runtime = match inspector_ui with
+      | None ->
+          Option.iter Pxui.Runtime.destroy value.inspector_runtime;
+          None
+      | Some ui ->
+          let same_owner = match inspector, value.inspector with
+            | Some left, Some right -> Sop_ui.Node_inspector.node_id left
+                = Sop_ui.Node_inspector.node_id right
+            | _ -> false in
+          let runtime = match value.inspector_runtime with
+            | Some runtime when same_owner ->
+                ignore (Pxui.Runtime.reconcile runtime ui); runtime
+            | previous ->
+                Option.iter Pxui.Runtime.destroy previous;
+                Pxui.Runtime.create (Pxui.Spec.of_canvas ui) in
+          Pxui.Runtime.set_visible runtime
+            (all_ui_visible
+             && not (Workspace.collapsed workspace Workspace.Inspector));
+          Pxui.Runtime.run_passes runtime;
+          Some runtime in
     let document, inspector_ui, parameter_effects, edit_error =
       match inspector, inspector_ui with
       | Some _, Some ui when inspector_changes = [] ->
@@ -610,6 +632,7 @@ module Core = struct
       then Some (int_of_float (Float.round frame.fps)) else None in
     { core = { value with graph; displayed_graph; document; graph_view; displayed_id;
         inspector; inspector_ui;
+        inspector_runtime;
         workspace; timeline; schedule; prepared; edit_error; cook_error; cook_seconds;
         status_fps };
       effects; prepared_changed }
@@ -655,7 +678,9 @@ module Core = struct
       @ [Scene.Private.layer_break]
       @ status_scene value frame ~render_status
 
-  let close value = Sketch_support.Reactive_sop.close value.worker
+  let close value =
+    Option.iter Pxui.Runtime.destroy value.inspector_runtime;
+    Sketch_support.Reactive_sop.close value.worker
 end
 
 module Environment3 = struct
@@ -667,6 +692,7 @@ module Environment3 = struct
     camera : Easy_camera.t;
     camera_control : Pxui.Camera_control.t;
     camera_ui : Pxui.t;
+    camera_runtime : Pxui.Runtime.t;
     scene3 : Graph.t -> 'prepared -> Scene3.t;
     overlay : Graph.t -> 'prepared option -> Frame.t -> Scene.t;
     rendered : Scene3.t option;
@@ -696,7 +722,8 @@ module Environment3 = struct
       let x, y, width, height = Core.pane_ui bounds in
       let camera_ui = Pxui.create ~x ~y ~width ~max_height:height ()
         |> Pxui.Camera_control.append camera_control ~camera in
-      { core; camera; camera_control; camera_ui; scene3; overlay;
+      let camera_runtime = Pxui.Runtime.create (Pxui.Spec.of_canvas camera_ui) in
+      { core; camera; camera_control; camera_ui; camera_runtime; scene3; overlay;
         rendered = None; render_status = None; background;
         hidden_scene_cache = None })
       (Core.create ~layout ?factories ?seed ?grain ?domains ?max_entries
@@ -726,6 +753,10 @@ module Environment3 = struct
       Pxui.Camera_control.update ~control_area
         ~panel_visible:camera_panel value.camera_control
         ~ui:camera_ui ~camera:value.camera frame in
+    ignore (Pxui.Runtime.reconcile value.camera_runtime camera_ui);
+    Pxui.Runtime.set_visible value.camera_runtime
+      (Pxui.Camera_control.ui_visible camera_control && camera_panel);
+    Pxui.Runtime.run_passes value.camera_runtime;
     let rendered = if update.prepared_changed || update.effects.view
         || update.effects.export then
         Option.map (value.scene3 (Core.displayed_node core)) (Core.prepared core)
@@ -792,7 +823,9 @@ module Environment3 = struct
         ~camera_scene
         ~render_status:value.render_status
 
-  let close value = Core.close value.core
+  let close value =
+    Pxui.Runtime.destroy value.camera_runtime;
+    Core.close value.core
 
   let run ?layout ?factories ?camera ?background ?seed ?grain ?domains ?max_entries
       ?max_payload_bytes ~config ~graph ~prepare ~scene3
@@ -812,6 +845,7 @@ module Environment2 = struct
     camera : Easy_camera2.t;
     camera_control : Pxui.Camera2_control.t;
     camera_ui : Pxui.t;
+    camera_runtime : Pxui.Runtime.t;
     scene2 : Graph.t -> 'prepared -> Scene.t;
     overlay : Graph.t -> 'prepared option -> Frame.t -> Scene.t;
     rendered : Scene.t option;
@@ -830,7 +864,8 @@ module Environment2 = struct
       let x, y, width, height = Core.pane_ui bounds in
       let camera_ui = Pxui.create ~x ~y ~width ~max_height:height ()
         |> Pxui.Camera2_control.append camera_control ~camera in
-      { core; camera; camera_control; camera_ui; scene2; overlay;
+      let camera_runtime = Pxui.Runtime.create (Pxui.Spec.of_canvas camera_ui) in
+      { core; camera; camera_control; camera_ui; camera_runtime; scene2; overlay;
         rendered = None; render_status = None; background })
       (Core.create ~layout ?factories ?seed ?grain ?domains ?max_entries
         ?max_payload_bytes ~graph ~prepare ())
@@ -859,6 +894,10 @@ module Environment2 = struct
       Pxui.Camera2_control.update ~control_area:viewport ~viewport
         ~panel_visible:camera_panel value.camera_control
         ~ui:camera_ui ~camera:value.camera frame in
+    ignore (Pxui.Runtime.reconcile value.camera_runtime camera_ui);
+    Pxui.Runtime.set_visible value.camera_runtime
+      (Pxui.Camera2_control.ui_visible camera_control && camera_panel);
+    Pxui.Runtime.run_passes value.camera_runtime;
     let rendered = if update.prepared_changed || update.effects.view
         || update.effects.export then
         Option.map (value.scene2 (Core.displayed_node core)) (Core.prepared core)
@@ -899,7 +938,9 @@ module Environment2 = struct
         ~camera_scene
         ~render_status:value.render_status
 
-  let close value = Core.close value.core
+  let close value =
+    Pxui.Runtime.destroy value.camera_runtime;
+    Core.close value.core
 
   let run ?layout ?factories ?camera ?background ?seed ?grain ?domains ?max_entries
       ?max_payload_bytes ~config ~graph ~prepare ~scene2

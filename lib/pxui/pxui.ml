@@ -148,9 +148,89 @@ module Stable_store = struct
     end
 end
 
+type id_queue = {
+  mutable queued_ids : Stable_store.id array;
+  mutable queued_length : int;
+  mutable queued_members : bytes;
+}
+
+let make_id_queue capacity =
+  { queued_ids = Array.make (max 8 capacity) 0L; queued_length = 0;
+    queued_members = Bytes.make capacity '\000' }
+
 type widget_runtime = {
   slots : widget Stable_store.t;
-  names : (string, Stable_store.id) Hashtbl.t;
+  mutable names : (string, Stable_store.id) Hashtbl.t;
+  mutable order : Stable_store.id array;
+  mutable order_length : int;
+  mutable visible_order : Stable_store.id array;
+  mutable visible_length : int;
+  mutable kinds : bytes;
+  mutable parents : int array;
+  mutable first_children : int array;
+  mutable next_siblings : int array;
+  mutable depths : int array;
+  mutable z_orders : int array;
+  mutable flags : bytes;
+  mutable dirty : bytes;
+  mutable row_x : int array;
+  mutable row_y : int array;
+  mutable row_width : int array;
+  mutable row_height : int array;
+  mutable control_x : int array;
+  mutable control_y : int array;
+  mutable control_width : int array;
+  mutable control_height : int array;
+  mutable float_values : float array;
+  mutable float_values2 : float array;
+  mutable int_values : int array;
+  mutable text_values : string option array;
+  mutable labels : string option array;
+  mutable spec_widgets : widget array;
+  mutable structure_generation : int64;
+  mutable layout_generation : int64;
+  mutable paint_generation : int64;
+  mutable mutations : int;
+  mutable created : int;
+  mutable removed : int;
+  mutable focus_id : Stable_store.id option;
+  mutable active_id : Stable_store.id option;
+  mutable hover_id : Stable_store.id option;
+  reconcile_queue : id_queue;
+  style_queue : id_queue;
+  layout_queue : id_queue;
+  prepaint_queue : id_queue;
+  text_queue : id_queue;
+  paint_queue : id_queue;
+  compose_queue : id_queue;
+  accessibility_queue : id_queue;
+  mutable visible : bool;
+  mutable phase : int;
+  mutable reconcile_visits : int;
+  mutable style_visits : int;
+  mutable layout_visits : int;
+  mutable prepaint_visits : int;
+  mutable text_visits : int;
+  mutable paint_visits : int;
+  mutable compose_visits : int;
+  mutable accessibility_visits : int;
+  mutable panel_x : int;
+  mutable panel_y : int;
+  mutable panel_width : int;
+  mutable panel_row_height : int;
+  mutable panel_padding : int;
+  mutable panel_max_height : int option;
+  mutable panel_frame_max_height : int option;
+  mutable panel_scroll_y : int;
+  mutable content_height : int;
+  mutable panel_height : int;
+  mutable max_scroll : int;
+  mutable layout_visible_count : int;
+  mutable layout_first_visible : int;
+  mutable layout_last_visible : int;
+  mutable layout_visited : int;
+  mutable committed_layout_generation : int64;
+  mutable dead : bool;
 }
 
 type theme = {
@@ -316,21 +396,422 @@ let widget_name = function
   | Xy value -> Some value.name
   | Label _ | Accordion_end -> None
 
+let widget_kind = function
+  | Label _ -> 0
+  | Accordion _ -> 1
+  | Accordion_end -> 2
+  | Button _ -> 3
+  | Toggle _ -> 4
+  | Slider _ -> 5
+  | Int_slider _ -> 6
+  | Text_field _ -> 7
+  | Choice _ -> 8
+  | Range _ -> 9
+  | Xy _ -> 10
+
+let widget_label = function
+  | Label text -> Some text
+  | Accordion value -> Some value.label
+  | Button value -> Some value.label
+  | Toggle value -> Some value.label
+  | Slider value -> Some value.label
+  | Int_slider value -> Some value.label
+  | Text_field value -> Some value.label
+  | Choice value -> Some value.label
+  | Range value -> Some value.label
+  | Xy value -> Some value.label
+  | Accordion_end -> None
+
+let widget_float_values = function
+  | Slider value -> value.value, 0.
+  | Range value -> value.low, value.high
+  | Xy value -> value.x, value.y
+  | _ -> 0., 0.
+
+let widget_int_value = function
+  | Int_slider value -> value.value
+  | Choice value -> value.selected
+  | Accordion value -> if value.expanded then 1 else 0
+  | Toggle value -> if value.value then 1 else 0
+  | _ -> 0
+
+let widget_text_value = function
+  | Text_field value -> Some value.value
+  | _ -> None
+
+let same_widget left right = match left, right with
+  | Label left, Label right -> String.equal left right
+  | Accordion left, Accordion right -> left.name = right.name
+      && left.label = right.label && left.expanded = right.expanded
+  | Accordion_end, Accordion_end -> true
+  | Button left, Button right -> left.name = right.name && left.label = right.label
+  | Toggle left, Toggle right -> left.name = right.name
+      && left.label = right.label && left.value = right.value
+  | Slider left, Slider right -> left.name = right.name
+      && left.label = right.label && left.min = right.min && left.max = right.max
+      && left.value = right.value
+  | Int_slider left, Int_slider right -> left.name = right.name
+      && left.label = right.label && left.min = right.min && left.max = right.max
+      && left.value = right.value
+  | Text_field left, Text_field right -> left.name = right.name
+      && left.label = right.label && left.value = right.value
+  | Choice left, Choice right -> left.name = right.name
+      && left.label = right.label && left.options = right.options
+      && left.selected = right.selected
+  | Range left, Range right -> left.name = right.name
+      && left.label = right.label && left.min = right.min && left.max = right.max
+      && left.low = right.low && left.high = right.high
+  | Xy left, Xy right -> left.name = right.name && left.label = right.label
+      && left.x_min = right.x_min && left.x_max = right.x_max
+      && left.y_min = right.y_min && left.y_max = right.y_max
+      && left.x = right.x && left.y = right.y
+  | _ -> false
+
+let make_widget_runtime capacity =
+  let slots = Stable_store.create ~capacity () in
+  let capacity = Stable_store.capacity slots in
+  { slots; names = Hashtbl.create (max 8 capacity);
+    order = Array.make capacity 0L; order_length = 0;
+    visible_order = Array.make capacity 0L; visible_length = 0;
+    kinds = Bytes.make capacity '\000';
+    parents = Array.make capacity (-1);
+    first_children = Array.make capacity (-1);
+    next_siblings = Array.make capacity (-1);
+    depths = Array.make capacity 0; z_orders = Array.make capacity 0;
+    flags = Bytes.make capacity '\000'; dirty = Bytes.make capacity '\000';
+    row_x = Array.make capacity 0; row_y = Array.make capacity 0;
+    row_width = Array.make capacity 0; row_height = Array.make capacity 0;
+    control_x = Array.make capacity 0; control_y = Array.make capacity 0;
+    control_width = Array.make capacity 0; control_height = Array.make capacity 0;
+    float_values = Array.make capacity 0.;
+    float_values2 = Array.make capacity 0.; int_values = Array.make capacity 0;
+    text_values = Array.make capacity None; labels = Array.make capacity None;
+    spec_widgets = [||]; structure_generation = 0L; layout_generation = 0L;
+    paint_generation = 0L; mutations = 0; created = 0; removed = 0;
+    focus_id = None; active_id = None; hover_id = None;
+    reconcile_queue = make_id_queue capacity;
+    style_queue = make_id_queue capacity;
+    layout_queue = make_id_queue capacity;
+    prepaint_queue = make_id_queue capacity;
+    text_queue = make_id_queue capacity;
+    paint_queue = make_id_queue capacity;
+    compose_queue = make_id_queue capacity;
+    accessibility_queue = make_id_queue capacity;
+    visible = true; phase = 0;
+    reconcile_visits = 0; style_visits = 0; layout_visits = 0;
+    prepaint_visits = 0; text_visits = 0; paint_visits = 0;
+    compose_visits = 0; accessibility_visits = 0;
+    panel_x = 0; panel_y = 0; panel_width = 280; panel_row_height = 32;
+    panel_padding = 8; panel_max_height = None;
+    panel_frame_max_height = None; panel_scroll_y = 0;
+    content_height = 0; panel_height = 0; max_scroll = 0;
+    layout_visible_count = 0; layout_first_visible = 0;
+    layout_last_visible = 0; layout_visited = 0;
+    committed_layout_generation = 0L; dead = false }
+
+let ensure_runtime_capacity runtime =
+  let capacity = Stable_store.capacity runtime.slots in
+  let old_capacity = Bytes.length runtime.kinds in
+  if capacity > old_capacity then begin
+    let extend_array old initial =
+      let values = Array.make capacity initial in
+      Array.blit old 0 values 0 old_capacity;
+      values in
+    let extend_bytes old =
+      let values = Bytes.make capacity '\000' in
+      Bytes.blit old 0 values 0 old_capacity;
+      values in
+    let extend_queue queue =
+      let members = Bytes.make capacity '\000' in
+      Bytes.blit queue.queued_members 0 members 0 old_capacity;
+      queue.queued_members <- members in
+    runtime.order <- extend_array runtime.order 0L;
+    runtime.visible_order <- extend_array runtime.visible_order 0L;
+    runtime.kinds <- extend_bytes runtime.kinds;
+    runtime.parents <- extend_array runtime.parents (-1);
+    runtime.first_children <- extend_array runtime.first_children (-1);
+    runtime.next_siblings <- extend_array runtime.next_siblings (-1);
+    runtime.depths <- extend_array runtime.depths 0;
+    runtime.z_orders <- extend_array runtime.z_orders 0;
+    runtime.flags <- extend_bytes runtime.flags;
+    runtime.dirty <- extend_bytes runtime.dirty;
+    runtime.row_x <- extend_array runtime.row_x 0;
+    runtime.row_y <- extend_array runtime.row_y 0;
+    runtime.row_width <- extend_array runtime.row_width 0;
+    runtime.row_height <- extend_array runtime.row_height 0;
+    runtime.control_x <- extend_array runtime.control_x 0;
+    runtime.control_y <- extend_array runtime.control_y 0;
+    runtime.control_width <- extend_array runtime.control_width 0;
+    runtime.control_height <- extend_array runtime.control_height 0;
+    runtime.float_values <- extend_array runtime.float_values 0.;
+    runtime.float_values2 <- extend_array runtime.float_values2 0.;
+    runtime.int_values <- extend_array runtime.int_values 0;
+    runtime.text_values <- extend_array runtime.text_values None;
+    runtime.labels <- extend_array runtime.labels None;
+    List.iter extend_queue
+      [ runtime.reconcile_queue; runtime.style_queue; runtime.layout_queue;
+        runtime.prepaint_queue; runtime.text_queue; runtime.paint_queue;
+        runtime.compose_queue; runtime.accessibility_queue ]
+  end
+
+
+let enqueue_id queue id =
+  let slot = Stable_store.slot id in
+  if Bytes.unsafe_get queue.queued_members slot = '\000' then begin
+    if queue.queued_length = Array.length queue.queued_ids then begin
+      let grown = Array.make (queue.queued_length * 2) 0L in
+      Array.blit queue.queued_ids 0 grown 0 queue.queued_length;
+      queue.queued_ids <- grown
+    end;
+    Array.unsafe_set queue.queued_ids queue.queued_length id;
+    queue.queued_length <- queue.queued_length + 1;
+    Bytes.unsafe_set queue.queued_members slot '\001'
+  end
+
+let dirty_structure = 1
+let dirty_layout = 2
+let dirty_hitboxes = 4
+let dirty_text = 8
+let dirty_paint = 16
+let dirty_compose = 32
+let dirty_accessibility = 64
+
+let mark_runtime_dirty runtime id effects =
+  let slot = Stable_store.slot id in
+  let previous = Char.code (Bytes.unsafe_get runtime.dirty slot) in
+  Bytes.unsafe_set runtime.dirty slot (Char.chr (previous lor effects));
+  if effects land dirty_paint <> 0 then begin
+    let flags = Char.code (Bytes.unsafe_get runtime.flags slot) land 0xfd in
+    Bytes.unsafe_set runtime.flags slot (Char.chr flags)
+  end;
+  if effects land dirty_structure <> 0 then begin
+    enqueue_id runtime.reconcile_queue id;
+    enqueue_id runtime.style_queue id
+  end;
+  if effects land dirty_layout <> 0 then enqueue_id runtime.layout_queue id;
+  if effects land (dirty_layout lor dirty_hitboxes) <> 0 then
+    enqueue_id runtime.prepaint_queue id;
+  if effects land dirty_text <> 0 then enqueue_id runtime.text_queue id;
+  if effects land dirty_paint <> 0 then enqueue_id runtime.paint_queue id;
+  if effects land dirty_compose <> 0 then enqueue_id runtime.compose_queue id;
+  if effects land dirty_accessibility <> 0 then
+    enqueue_id runtime.accessibility_queue id
+
+let widget_dirty_effects previous widget = match previous, widget with
+  | Accordion before, Accordion after when before.expanded <> after.expanded ->
+      dirty_structure lor dirty_layout lor dirty_hitboxes lor dirty_text
+      lor dirty_paint lor dirty_compose lor dirty_accessibility
+  | _ -> dirty_text lor dirty_paint lor dirty_accessibility
+
+let set_runtime_widget runtime id widget =
+  let slot = Stable_store.slot id in
+  Bytes.unsafe_set runtime.kinds slot (Char.chr (widget_kind widget));
+  Array.unsafe_set runtime.labels slot (widget_label widget);
+  let first, second = widget_float_values widget in
+  Array.unsafe_set runtime.float_values slot first;
+  Array.unsafe_set runtime.float_values2 slot second;
+  Array.unsafe_set runtime.int_values slot (widget_int_value widget);
+  Array.unsafe_set runtime.text_values slot (widget_text_value widget)
+
+let rebuild_runtime_hierarchy runtime =
+  let capacity = Bytes.length runtime.kinds in
+  Array.fill runtime.parents 0 capacity (-1);
+  Array.fill runtime.first_children 0 capacity (-1);
+  Array.fill runtime.next_siblings 0 capacity (-1);
+  let stack = Array.make (max 1 runtime.order_length) (-1) in
+  let stack_length = ref 0 in
+  let last_children = Array.make capacity (-1) in
+  for index = 0 to runtime.order_length - 1 do
+    let id = Array.unsafe_get runtime.order index in
+    let slot = Stable_store.slot id in
+    let parent = if !stack_length = 0 then -1
+      else Array.unsafe_get stack (!stack_length - 1) in
+    Array.unsafe_set runtime.parents slot parent;
+    Array.unsafe_set runtime.depths slot !stack_length;
+    Array.unsafe_set runtime.z_orders slot index;
+    if parent >= 0 then begin
+      let previous = Array.unsafe_get last_children parent in
+      if previous < 0 then Array.unsafe_set runtime.first_children parent slot
+      else Array.unsafe_set runtime.next_siblings previous slot;
+      Array.unsafe_set last_children parent slot
+    end;
+    match Char.code (Bytes.unsafe_get runtime.kinds slot) with
+    | 1 ->
+        Array.unsafe_set stack !stack_length slot;
+        incr stack_length
+    | 2 when !stack_length > 0 -> decr stack_length
+    | _ -> ()
+  done
+
+let rebuild_runtime_visible_order runtime =
+  runtime.visible_length <- 0;
+  let hidden_depth = ref 0 in
+  for index = 0 to runtime.order_length - 1 do
+    let id = Array.unsafe_get runtime.order index in
+    let slot = Stable_store.slot id in
+    let kind = Char.code (Bytes.unsafe_get runtime.kinds slot) in
+    if kind = 1 then begin
+      if !hidden_depth = 0 then begin
+        Array.unsafe_set runtime.visible_order runtime.visible_length id;
+        runtime.visible_length <- runtime.visible_length + 1;
+        if Array.unsafe_get runtime.int_values slot = 0 then hidden_depth := 1
+      end else incr hidden_depth
+    end else if kind = 2 then begin
+      if !hidden_depth > 0 then decr hidden_depth
+    end else if !hidden_depth = 0 then begin
+      Array.unsafe_set runtime.visible_order runtime.visible_length id;
+      runtime.visible_length <- runtime.visible_length + 1
+    end
+  done
+
+let populate_widget_runtime runtime widgets =
+  runtime.spec_widgets <- widgets;
+  runtime.order_length <- 0;
+  Array.iter (fun widget ->
+    let id = Stable_store.add runtime.slots widget in
+    ensure_runtime_capacity runtime;
+    Array.unsafe_set runtime.order runtime.order_length id;
+    runtime.order_length <- runtime.order_length + 1;
+    set_runtime_widget runtime id widget;
+    mark_runtime_dirty runtime id
+      (dirty_structure lor dirty_layout lor dirty_hitboxes lor dirty_text
+       lor dirty_paint lor dirty_compose lor dirty_accessibility);
+    Option.iter (fun name ->
+      if not (Hashtbl.mem runtime.names name) then Hashtbl.add runtime.names name id)
+      (widget_name widget);
+    runtime.created <- runtime.created + 1) widgets;
+  runtime.structure_generation <- Int64.succ runtime.structure_generation;
+  runtime.layout_generation <- Int64.succ runtime.layout_generation;
+  runtime.paint_generation <- Int64.succ runtime.paint_generation;
+  rebuild_runtime_hierarchy runtime;
+  rebuild_runtime_visible_order runtime
+
 let widget_runtime canvas =
   match canvas.runtime_cache with
   | Some runtime -> runtime
   | None ->
       let widgets = ordered_widget_array canvas in
-      let slots = Stable_store.create ~capacity:(Array.length widgets) () in
-      let names = Hashtbl.create (max 8 (Array.length widgets)) in
-      Array.iter (fun widget ->
-        let id = Stable_store.add slots widget in
-        Option.iter (fun name ->
-          if not (Hashtbl.mem names name) then Hashtbl.add names name id)
-          (widget_name widget)) widgets;
-      let runtime = { slots; names } in
+      let runtime = make_widget_runtime (Array.length widgets) in
+      populate_widget_runtime runtime widgets;
       canvas.runtime_cache <- Some runtime;
       runtime
+
+let reconcile_widget_runtime runtime widgets =
+  if widgets == runtime.spec_widgets then 0
+  else begin
+    let old_order = runtime.order and old_length = runtime.order_length in
+    let old_widgets = runtime.spec_widgets in
+    let used = ref (Bytes.make (Stable_store.capacity runtime.slots) '\000') in
+    let next_order = ref (Array.make (max 8 (Array.length widgets)) 0L) in
+    let next_names = Hashtbl.create (max 8 (Array.length widgets)) in
+    let changed = ref 0 and created = ref 0
+    and structural_value_change = ref false in
+    let ensure_order index =
+      if index = Array.length !next_order then begin
+        let grown = Array.make (index * 2) 0L in
+        Array.blit !next_order 0 grown 0 index;
+        next_order := grown
+      end in
+    Array.iteri (fun index widget ->
+      let kind = widget_kind widget in
+      let candidate = match widget_name widget with
+        | Some name -> Hashtbl.find_opt runtime.names name
+        | None when index < old_length && index < Array.length old_widgets
+            && Option.is_none (widget_name (Array.unsafe_get old_widgets index)) ->
+            Some (Array.unsafe_get old_order index)
+        | None -> None in
+      let candidate = match candidate with
+        | Some id when Stable_store.valid runtime.slots id ->
+            let slot = Stable_store.slot id in
+            if slot < Bytes.length !used
+                && Bytes.unsafe_get !used slot = '\000'
+                && Char.code (Bytes.unsafe_get runtime.kinds slot) = kind
+            then Some id else None
+        | Some _ | None -> None in
+      let id = match candidate with
+        | Some id ->
+            let slot = Stable_store.slot id in
+            Bytes.unsafe_set !used slot '\001';
+            let previous = Option.get (Stable_store.get runtime.slots id) in
+            if not (same_widget previous widget) then begin
+              let effects = widget_dirty_effects previous widget in
+              ignore (Stable_store.set runtime.slots id widget);
+              set_runtime_widget runtime id widget;
+              mark_runtime_dirty runtime id effects;
+              if effects land dirty_structure <> 0 then
+                structural_value_change := true;
+              incr changed;
+              runtime.mutations <- runtime.mutations + 1
+            end;
+            id
+        | None ->
+            let id = Stable_store.add runtime.slots widget in
+            ensure_runtime_capacity runtime;
+            let slot = Stable_store.slot id in
+            if slot >= Bytes.length !used then begin
+              let grown = Bytes.make (Stable_store.capacity runtime.slots) '\000' in
+              Bytes.blit !used 0 grown 0 (Bytes.length !used);
+              used := grown
+            end;
+            Bytes.unsafe_set !used slot '\001';
+            set_runtime_widget runtime id widget;
+            mark_runtime_dirty runtime id
+              (dirty_structure lor dirty_layout lor dirty_hitboxes lor dirty_text
+               lor dirty_paint lor dirty_compose lor dirty_accessibility);
+            incr created;
+            runtime.created <- runtime.created + 1;
+            runtime.mutations <- runtime.mutations + 1;
+            id in
+      ensure_order index;
+      Array.unsafe_set !next_order index id;
+      Option.iter (fun name ->
+        if not (Hashtbl.mem next_names name) then Hashtbl.add next_names name id)
+        (widget_name widget)) widgets;
+    let removed = ref 0 in
+    for index = 0 to old_length - 1 do
+      let id = Array.unsafe_get old_order index in
+      let slot = Stable_store.slot id in
+      let retained = slot < Bytes.length !used
+        && Bytes.unsafe_get !used slot = '\001' in
+      if Stable_store.valid runtime.slots id && not retained then begin
+        ignore (Stable_store.remove runtime.slots id);
+        Array.unsafe_set runtime.labels slot None;
+        Array.unsafe_set runtime.text_values slot None;
+        Bytes.unsafe_set runtime.dirty slot '\000';
+        List.iter (fun queue ->
+          Bytes.unsafe_set queue.queued_members slot '\000')
+          [ runtime.reconcile_queue; runtime.style_queue; runtime.layout_queue;
+            runtime.prepaint_queue; runtime.text_queue; runtime.paint_queue;
+            runtime.compose_queue; runtime.accessibility_queue ];
+        incr removed;
+        runtime.removed <- runtime.removed + 1;
+        runtime.mutations <- runtime.mutations + 1
+      end
+    done;
+    let structure_changed = !created > 0 || !removed > 0
+      || !structural_value_change
+      || old_length <> Array.length widgets
+      || let rec differs index = index < Array.length widgets
+          && (Array.unsafe_get old_order index <> Array.unsafe_get !next_order index
+              || differs (index + 1)) in differs 0 in
+    runtime.order <- !next_order;
+    runtime.order_length <- Array.length widgets;
+    runtime.names <- next_names;
+    runtime.spec_widgets <- widgets;
+    if structure_changed then begin
+      runtime.structure_generation <- Int64.succ runtime.structure_generation;
+      runtime.layout_generation <- Int64.succ runtime.layout_generation
+    end;
+    if structure_changed || !changed > 0 then
+      runtime.paint_generation <- Int64.succ runtime.paint_generation;
+    Option.iter (fun id -> if not (Stable_store.valid runtime.slots id) then
+      runtime.focus_id <- None) runtime.focus_id;
+    Option.iter (fun id -> if not (Stable_store.valid runtime.slots id) then
+      runtime.active_id <- None) runtime.active_id;
+    rebuild_runtime_hierarchy runtime;
+    rebuild_runtime_visible_order runtime;
+    !changed + !created + !removed
+  end
 
 let widget_at canvas index =
   if index < 0 || index >= canvas.widget_count then None
@@ -2030,4 +2511,392 @@ let load canvas filename =
 
 module Private = struct
   module Store = Stable_store
+
+  module Runtime = struct
+    type id = Stable_store.id
+    type nonrec t = widget_runtime
+    type stats = {
+      live : int;
+      capacity : int;
+      created : int;
+      removed : int;
+      mutations : int;
+      structure_generation : int64;
+      layout_generation : int64;
+      paint_generation : int64;
+      reconcile_visits : int;
+      style_visits : int;
+      layout_visits : int;
+      prepaint_visits : int;
+      text_visits : int;
+      paint_visits : int;
+      compose_visits : int;
+      accessibility_visits : int;
+    }
+
+    let configure ?(initial = false) runtime canvas =
+      let geometry_changed = runtime.panel_x <> canvas.x || runtime.panel_y <> canvas.y
+        || runtime.panel_width <> canvas.width
+        || runtime.panel_row_height <> canvas.row_height
+        || runtime.panel_padding <> canvas.padding
+        || runtime.panel_max_height <> canvas.max_height
+        || runtime.panel_frame_max_height <> canvas.frame_max_height in
+      let scroll_changed = runtime.panel_scroll_y <> canvas.scroll_y in
+      runtime.panel_x <- canvas.x; runtime.panel_y <- canvas.y;
+      runtime.panel_width <- canvas.width;
+      runtime.panel_row_height <- canvas.row_height;
+      runtime.panel_padding <- canvas.padding;
+      runtime.panel_max_height <- canvas.max_height;
+      runtime.panel_frame_max_height <- canvas.frame_max_height;
+      runtime.panel_scroll_y <- canvas.scroll_y;
+      if geometry_changed && not initial then begin
+        runtime.layout_generation <- Int64.succ runtime.layout_generation;
+        for index = 0 to runtime.order_length - 1 do
+          mark_runtime_dirty runtime (Array.unsafe_get runtime.order index)
+            (dirty_layout lor dirty_hitboxes lor dirty_paint lor dirty_compose)
+        done
+      end else if scroll_changed && not initial then
+        runtime.layout_generation <- Int64.succ runtime.layout_generation
+
+    let create canvas =
+      let widgets = ordered_widget_array canvas in
+      let runtime = make_widget_runtime (Array.length widgets) in
+      populate_widget_runtime runtime widgets;
+      configure ~initial:true runtime canvas;
+      runtime
+
+    let reconcile runtime canvas =
+      if runtime.dead then invalid_arg "Pxui.Runtime.reconcile: destroyed runtime";
+      let changes = reconcile_widget_runtime runtime (ordered_widget_array canvas) in
+      configure runtime canvas;
+      changes
+
+    let find runtime name = Hashtbl.find_opt runtime.names name
+    let valid runtime id = Stable_store.valid runtime.slots id
+    let length runtime = runtime.order_length
+    let id_at runtime index =
+      if index < 0 || index >= runtime.order_length then None
+      else Some (Array.unsafe_get runtime.order index)
+    let parent runtime id =
+      if not (valid runtime id) then None
+      else
+        let slot = Stable_store.slot id in
+        let parent = Array.unsafe_get runtime.parents slot in
+        if parent < 0 then None
+        else Some (Stable_store.make_id parent
+          (Array.unsafe_get runtime.slots.generations parent))
+    let set_focus runtime = function
+      | None -> runtime.focus_id <- None; true
+      | Some id when valid runtime id -> runtime.focus_id <- Some id; true
+      | Some _ -> false
+    let focus runtime = runtime.focus_id
+    let set_active runtime = function
+      | None -> runtime.active_id <- None; true
+      | Some id when valid runtime id -> runtime.active_id <- Some id; true
+      | Some _ -> false
+    let active runtime = runtime.active_id
+    let dirty runtime id =
+      if not (valid runtime id) then 0
+      else Char.code (Bytes.unsafe_get runtime.dirty (Stable_store.slot id))
+    let queues runtime =
+      [ runtime.reconcile_queue; runtime.style_queue; runtime.layout_queue;
+        runtime.prepaint_queue; runtime.text_queue; runtime.paint_queue;
+        runtime.compose_queue; runtime.accessibility_queue ]
+    let clear_dirty runtime =
+      Bytes.fill runtime.dirty 0 (Bytes.length runtime.dirty) '\000';
+      List.iter (fun queue ->
+        queue.queued_length <- 0;
+        Bytes.fill queue.queued_members 0
+          (Bytes.length queue.queued_members) '\000') (queues runtime)
+    let set_visible runtime visible = runtime.visible <- visible
+    let visible runtime = runtime.visible
+    let drain runtime phase queue effects =
+      if runtime.phase <> 0 then
+        invalid_arg "Pxui.Runtime: re-entrant pass execution";
+      runtime.phase <- phase;
+      let visited = ref 0 in
+      for index = 0 to queue.queued_length - 1 do
+        let id = Array.unsafe_get queue.queued_ids index in
+        if Stable_store.valid runtime.slots id then begin
+          let slot = Stable_store.slot id in
+          if Bytes.unsafe_get queue.queued_members slot = '\001' then begin
+            Bytes.unsafe_set queue.queued_members slot '\000';
+            let dirty = Char.code (Bytes.unsafe_get runtime.dirty slot) in
+            Bytes.unsafe_set runtime.dirty slot
+              (Char.chr (dirty land (lnot effects) land 0xff));
+            incr visited
+          end
+        end
+      done;
+      queue.queued_length <- 0;
+      runtime.phase <- 0;
+      !visited
+    let commit_layout (runtime : t) =
+      if not runtime.visible then 0
+      else if runtime.layout_queue.queued_length = 0
+          && runtime.prepaint_queue.queued_length = 0
+          && runtime.committed_layout_generation = runtime.layout_generation then 0
+      else begin
+        let row_height = runtime.panel_row_height
+        and padding = runtime.panel_padding in
+        let content_height = runtime.visible_length * row_height + (2 * padding) in
+        let capped = Option.fold ~none:content_height ~some:(min content_height)
+            runtime.panel_max_height in
+        let panel_height = Option.fold ~none:capped ~some:(min capped)
+            runtime.panel_frame_max_height in
+        let max_scroll = max 0 (content_height - panel_height) in
+        runtime.panel_scroll_y <- max 0 (min max_scroll runtime.panel_scroll_y);
+        runtime.content_height <- content_height;
+        runtime.panel_height <- panel_height;
+        runtime.max_scroll <- max_scroll;
+        for index = 0 to runtime.order_length - 1 do
+          let slot = Stable_store.slot (Array.unsafe_get runtime.order index) in
+          let flags = Char.code (Bytes.unsafe_get runtime.flags slot) land 0xfe in
+          Bytes.unsafe_set runtime.flags slot (Char.chr flags)
+        done;
+        let first = max 0 ((runtime.panel_scroll_y - padding) / row_height) in
+        let last = min runtime.visible_length
+            (((runtime.panel_scroll_y + panel_height) / row_height) + 2) in
+        let scrollbar_gutter = if max_scroll > 0 then 10 else 0 in
+        let inner_x = runtime.panel_x + padding in
+        let inner_width = max 1
+            (runtime.panel_width - (2 * padding) - scrollbar_gutter) in
+        let desired_label_width = min 96 (max 72 (inner_width / 3)) in
+        let label_width = min desired_label_width (inner_width / 2) in
+        let value_x = inner_x + label_width in
+        let value_width = max 1 (inner_width - label_width) in
+        for row_index = first to last - 1 do
+          let id = Array.unsafe_get runtime.visible_order row_index in
+          let slot = Stable_store.slot id in
+          let y = runtime.panel_y + padding + (row_index * row_height)
+              - runtime.panel_scroll_y in
+          Array.unsafe_set runtime.row_x slot inner_x;
+          Array.unsafe_set runtime.row_y slot y;
+          Array.unsafe_set runtime.row_width slot inner_width;
+          Array.unsafe_set runtime.row_height slot row_height;
+          let kind = Char.code (Bytes.unsafe_get runtime.kinds slot) in
+          let x, cy, width, height = match kind with
+            | 0 | 1 -> inner_x, y, inner_width, row_height
+            | 3 -> inner_x, y + 3, inner_width, max 1 (row_height - 6)
+            | 4 ->
+                let width = min 40 inner_width in
+                inner_x + inner_width - width, y + 7, width, 18
+            | _ -> value_x, y + 3, value_width, max 1 (row_height - 6) in
+          Array.unsafe_set runtime.control_x slot x;
+          Array.unsafe_set runtime.control_y slot cy;
+          Array.unsafe_set runtime.control_width slot width;
+          Array.unsafe_set runtime.control_height slot height;
+          let flags = Char.code (Bytes.unsafe_get runtime.flags slot) lor 1 in
+          Bytes.unsafe_set runtime.flags slot (Char.chr flags);
+          if flags land 2 = 0 then enqueue_id runtime.paint_queue id
+        done;
+        runtime.layout_visible_count <- max 0 (last - first);
+        runtime.layout_first_visible <- first;
+        runtime.layout_last_visible <- last;
+        runtime.layout_visited <- runtime.layout_visited
+          + runtime.layout_visible_count;
+        runtime.committed_layout_generation <- runtime.layout_generation;
+        ignore (drain runtime 3 runtime.layout_queue dirty_layout);
+        ignore (drain runtime 4 runtime.prepaint_queue
+          (dirty_layout lor dirty_hitboxes));
+        runtime.layout_visible_count
+      end
+    let layout_metrics (runtime : t) =
+      runtime.content_height, runtime.panel_height, runtime.max_scroll,
+      runtime.layout_visible_count
+    let bounds runtime id =
+      if not (valid runtime id) then None
+      else
+        let slot = Stable_store.slot id in
+        if Char.code (Bytes.unsafe_get runtime.flags slot) land 1 = 0 then None
+        else Some
+          (Array.unsafe_get runtime.row_x slot,
+           Array.unsafe_get runtime.row_y slot,
+           Array.unsafe_get runtime.row_width slot,
+           Array.unsafe_get runtime.row_height slot,
+           Array.unsafe_get runtime.control_x slot,
+           Array.unsafe_get runtime.control_y slot,
+           Array.unsafe_get runtime.control_width slot,
+           Array.unsafe_get runtime.control_height slot)
+    let hit_test runtime (x, y) =
+      let found = ref None and index = ref (runtime.layout_last_visible - 1) in
+      while !index >= runtime.layout_first_visible && Option.is_none !found do
+        let id = Array.unsafe_get runtime.visible_order !index in
+        let slot = Stable_store.slot id in
+        let kind = Char.code (Bytes.unsafe_get runtime.kinds slot) in
+        if kind <> 0 && kind <> 2 then begin
+          let left = Array.unsafe_get runtime.control_x slot
+          and top = Array.unsafe_get runtime.control_y slot
+          and width = Array.unsafe_get runtime.control_width slot
+          and height = Array.unsafe_get runtime.control_height slot in
+          if x >= left && x < left + width && y >= top && y < top + height then
+            found := Some id
+        end;
+        decr index
+      done;
+      !found
+    let set_hover runtime hover =
+      if hover <> runtime.hover_id then begin
+        Option.iter (fun id -> if valid runtime id then
+          mark_runtime_dirty runtime id dirty_paint) runtime.hover_id;
+        Option.iter (fun id -> if valid runtime id then
+          mark_runtime_dirty runtime id dirty_paint) hover;
+        runtime.hover_id <- hover
+      end
+    let update_slider runtime id x =
+      if not (valid runtime id) then None
+      else
+        let slot = Stable_store.slot id in
+        let left = Array.unsafe_get runtime.control_x slot
+        and width = max 1 (Array.unsafe_get runtime.control_width slot - 1) in
+        let fraction = max 0. (min 1.
+          (float_of_int (x - left) /. float_of_int width)) in
+        match Stable_store.get runtime.slots id with
+        | Some (Slider slider) ->
+            let value = slider.min +. fraction *. (slider.max -. slider.min) in
+            if value = slider.value then None
+            else begin
+              let widget = Slider { slider with value } in
+              ignore (Stable_store.set runtime.slots id widget);
+              Array.unsafe_set runtime.float_values slot value;
+              mark_runtime_dirty runtime id
+                (dirty_text lor dirty_paint lor dirty_accessibility);
+              runtime.mutations <- runtime.mutations + 1;
+              Some (Slid (slider.name, value))
+            end
+        | Some (Int_slider slider) ->
+            let span = slider.max - slider.min in
+            let value = slider.min
+              + int_of_float (fraction *. float_of_int span +. 0.5)
+              |> max slider.min |> min slider.max in
+            if value = slider.value then None
+            else begin
+              let widget = Int_slider { slider with value } in
+              ignore (Stable_store.set runtime.slots id widget);
+              Array.unsafe_set runtime.int_values slot value;
+              mark_runtime_dirty runtime id
+                (dirty_text lor dirty_paint lor dirty_accessibility);
+              runtime.mutations <- runtime.mutations + 1;
+              Some (Int_slid (slider.name, value))
+            end
+        | Some _ | None -> None
+    let update runtime events =
+      if runtime.dead then invalid_arg "Pxui.Runtime.update: destroyed runtime";
+      let reversed = ref [] in
+      let emit = function None -> () | Some change -> reversed := change :: !reversed in
+      List.iter (function
+        | Prismel.Event.MousePressed (Prismel.Input.LeftButton, (x, y)) ->
+            let hit = hit_test runtime (x, y) in
+            set_hover runtime hit;
+            runtime.active_id <- hit;
+            Option.iter (fun id -> emit (update_slider runtime id x)) hit
+        | Prismel.Event.MouseMoved (x, y) ->
+            set_hover runtime (hit_test runtime (x, y));
+            Option.iter (fun id -> emit (update_slider runtime id x))
+              runtime.active_id
+        | Prismel.Event.MouseReleased (Prismel.Input.LeftButton, (x, y)) ->
+            Option.iter (fun id -> emit (update_slider runtime id x))
+              runtime.active_id;
+            runtime.active_id <- None;
+            set_hover runtime (hit_test runtime (x, y))
+        | Prismel.Event.PointerCancelled Prismel.Input.LeftButton
+        | Prismel.Event.WindowFocusLost ->
+            runtime.active_id <- None;
+            set_hover runtime None
+        | _ -> ()) events;
+      List.rev !reversed
+    let drain_paint runtime =
+      if runtime.phase <> 0 then
+        invalid_arg "Pxui.Runtime: re-entrant paint execution";
+      runtime.phase <- 6;
+      let visited = ref 0 in
+      for index = 0 to runtime.paint_queue.queued_length - 1 do
+        let id = Array.unsafe_get runtime.paint_queue.queued_ids index in
+        if Stable_store.valid runtime.slots id then begin
+          let slot = Stable_store.slot id in
+          if Bytes.unsafe_get runtime.paint_queue.queued_members slot = '\001' then begin
+            Bytes.unsafe_set runtime.paint_queue.queued_members slot '\000';
+            let flags = Char.code (Bytes.unsafe_get runtime.flags slot) in
+            if flags land 1 <> 0 then begin
+              Bytes.unsafe_set runtime.flags slot (Char.chr (flags lor 2));
+              incr visited
+            end;
+            let dirty = Char.code (Bytes.unsafe_get runtime.dirty slot) in
+            Bytes.unsafe_set runtime.dirty slot
+              (Char.chr (dirty land (lnot dirty_paint) land 0xff))
+          end
+        end
+      done;
+      runtime.paint_queue.queued_length <- 0;
+      runtime.phase <- 0;
+      !visited
+    let run_passes runtime =
+      if runtime.dead then invalid_arg "Pxui.Runtime.run_passes: destroyed runtime"
+      else if not runtime.visible then ()
+      else begin
+        runtime.reconcile_visits <- runtime.reconcile_visits
+          + drain runtime 1 runtime.reconcile_queue dirty_structure;
+        runtime.style_visits <- runtime.style_visits
+          + drain runtime 2 runtime.style_queue dirty_structure;
+        let visited = commit_layout runtime in
+        runtime.layout_visits <- runtime.layout_visits + visited;
+        runtime.prepaint_visits <- runtime.prepaint_visits + visited;
+        runtime.text_visits <- runtime.text_visits
+          + drain runtime 5 runtime.text_queue dirty_text;
+        runtime.paint_visits <- runtime.paint_visits
+          + drain_paint runtime;
+        runtime.compose_visits <- runtime.compose_visits
+          + drain runtime 7 runtime.compose_queue dirty_compose;
+        runtime.accessibility_visits <- runtime.accessibility_visits
+          + drain runtime 8 runtime.accessibility_queue dirty_accessibility
+      end
+    let pending runtime =
+      runtime.reconcile_queue.queued_length,
+      runtime.layout_queue.queued_length,
+      runtime.prepaint_queue.queued_length,
+      runtime.text_queue.queued_length,
+      runtime.paint_queue.queued_length,
+      runtime.compose_queue.queued_length
+    let stats runtime =
+      { live = Stable_store.length runtime.slots;
+        capacity = Stable_store.capacity runtime.slots;
+        created = runtime.created; removed = runtime.removed;
+        mutations = runtime.mutations;
+        structure_generation = runtime.structure_generation;
+        layout_generation = runtime.layout_generation;
+        paint_generation = runtime.paint_generation;
+        reconcile_visits = runtime.reconcile_visits;
+        style_visits = runtime.style_visits;
+        layout_visits = runtime.layout_visits;
+        prepaint_visits = runtime.prepaint_visits;
+        text_visits = runtime.text_visits;
+        paint_visits = runtime.paint_visits;
+        compose_visits = runtime.compose_visits;
+        accessibility_visits = runtime.accessibility_visits }
+    let destroy runtime =
+      if not runtime.dead then begin
+        for index = 0 to runtime.order_length - 1 do
+          ignore (Stable_store.remove runtime.slots
+            (Array.unsafe_get runtime.order index))
+        done;
+        runtime.order_length <- 0;
+        runtime.visible_length <- 0;
+        runtime.names <- Hashtbl.create 0;
+        runtime.spec_widgets <- [||];
+        Array.fill runtime.labels 0 (Array.length runtime.labels) None;
+        Array.fill runtime.text_values 0 (Array.length runtime.text_values) None;
+        clear_dirty runtime;
+        runtime.focus_id <- None;
+        runtime.active_id <- None;
+        runtime.dead <- true
+      end
+    let destroyed runtime = runtime.dead
+  end
 end
+
+module Spec = struct
+  type nonrec t = t
+  let of_canvas value = value
+end
+
+module Runtime = Private.Runtime

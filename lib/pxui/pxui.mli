@@ -227,4 +227,59 @@ module Private : sig
     val set : 'a t -> id -> 'a -> bool
     val remove : 'a t -> id -> bool
   end
+
+  module Runtime : sig
+    type id = Store.id
+    type t
+    type stats = {
+      live : int;
+      capacity : int;
+      created : int;
+      removed : int;
+      mutations : int;
+      structure_generation : int64;
+      layout_generation : int64;
+      paint_generation : int64;
+      reconcile_visits : int;
+      style_visits : int;
+      layout_visits : int;
+      prepaint_visits : int;
+      text_visits : int;
+      paint_visits : int;
+      compose_visits : int;
+      accessibility_visits : int;
+    }
+    val create : canvas -> t
+    val reconcile : t -> canvas -> int
+    val find : t -> string -> id option
+    val valid : t -> id -> bool
+    val length : t -> int
+    val id_at : t -> int -> id option
+    val parent : t -> id -> id option
+    val set_focus : t -> id option -> bool
+    val focus : t -> id option
+    val set_active : t -> id option -> bool
+    val active : t -> id option
+    val dirty : t -> id -> int
+    val clear_dirty : t -> unit
+    val set_visible : t -> bool -> unit
+    val visible : t -> bool
+    val run_passes : t -> unit
+    val pending : t -> int * int * int * int * int * int
+    val layout_metrics : t -> int * int * int * int
+    val bounds : t -> id ->
+      (int * int * int * int * int * int * int * int) option
+    val hit_test : t -> int * int -> id option
+    val update : t -> Prismel.Event.t list -> change list
+    val stats : t -> stats
+    val destroy : t -> unit
+    val destroyed : t -> bool
+  end
 end
+
+module Spec : sig
+  type nonrec t = t
+  val of_canvas : t -> t
+end
+
+module Runtime : module type of Private.Runtime

@@ -54,4 +54,16 @@ let () =
           Event.MouseReleased (Input.LeftButton, (240, y)) ]
     in
     List.length changes);
+  let runtime = Pxui.Runtime.create (Pxui.Spec.of_canvas canvas) in
+  Pxui.Runtime.run_passes runtime;
+  measure "pxui_reconcile_unchanged" (fun () ->
+    Pxui.Runtime.reconcile runtime canvas);
+  measure "pxui_retained_drag" (fun () ->
+    let changes = Pxui.Runtime.update runtime
+      [ Event.MousePressed (Input.LeftButton, (180, y));
+        Event.MouseMoved (240, y);
+        Event.MouseReleased (Input.LeftButton, (240, y)) ] in
+    Pxui.Runtime.run_passes runtime;
+    List.length changes);
+  Pxui.Runtime.destroy runtime;
   if !sink = min_int then Printf.eprintf "unreachable\n"
