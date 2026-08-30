@@ -166,6 +166,7 @@ module Private=struct
     Option.fold~none:false~some:(fun(d:Ogpu.Render_pass.depth)->d.load<>Clear||d.store<>Store||d.clear<>1.)descriptor.depth
   let requires_command4 value=
     Option.is_none value.indirect&&portable_requires_command4 value.pass
+  let validation_retained value=Option.is_some value.indirect
   let encode_portable value command=Ogpu.Render_pass.encode value.pass command
   let retain value=
     let rec loop index=

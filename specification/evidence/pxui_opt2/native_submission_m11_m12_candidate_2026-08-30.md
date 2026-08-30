@@ -95,6 +95,20 @@ The safe Metal layer rejects destruction while a command owns the set, releases
 that ownership on completion, and keeps destruction idempotent. M11 remains
 open because the final allocation gate is not met.
 
+Once a retained native ICB plan has passed generation/resource validation, the
+Metal queue now advances the portable epoch tracker with an empty command rather
+than rebuilding the already-validated portable draw stream. Ordinary and
+Command4 passes retain their full portable validation path. The resulting
+two-second diagnostic reported:
+
+- 180 frames over 2.011 seconds, 89.52 FPS;
+- 10.50 ms median, 13.00 ms p95, 26.05 ms p99;
+- 36,084,056 allocated bytes, approximately 195.8 KiB/frame;
+- 1,895,296 promoted bytes total.
+
+This is another 4.9% reduction from the immediately preceding run. It remains
+intermediate evidence and does not satisfy the M11 allocation gate.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,

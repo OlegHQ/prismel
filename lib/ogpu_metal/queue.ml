@@ -185,7 +185,9 @@ let submit_render_pass_common ~presenting presentation value pass =
                       abort failure
                   | Ok () ->
                       let portable = Ogpu.Command.begin_encoder () in
-                      (match Render_pass.Private.encode_portable pass portable with
+                      let encoded=if Render_pass.Private.validation_retained pass
+                        then Ok() else Render_pass.Private.encode_portable pass portable in
+                      (match encoded with
                        | Error submission_error ->
                            abort (Error submission_error)
                        | Ok () ->
