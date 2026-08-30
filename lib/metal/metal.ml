@@ -17947,6 +17947,11 @@ module Render_encoder = struct
   type barrier_scope = Buffers | Textures | Render_targets
   type resource_usage = Read | Write | Sample
   type resource = Buffer_resource of Buffer.t | Texture_resource of Texture.t
+  type prepared_resources=
+    { device:device
+    ; resources:resource array
+    ; raws:Metal_raw.handle array
+    ; mutable dead:bool }
   type primitive = Point | Line | Line_strip | Triangle | Triangle_strip
   type index_type = Uint16 | Uint32
 
@@ -18430,6 +18435,31 @@ module Render_encoder = struct
     | Buffer_resource b -> retain_command_buffer_buffer command_buffer b
     | Texture_resource t -> retain_command_buffer_texture command_buffer t
 
+  let prepare_resources (device:Device.t) resources =
+    let operation="Metal.Render_encoder.prepare_resources" in
+    on_main operation(fun()->
+      match ensure_live operation device.lifetime with Error _ as e->e|Ok()->
+      match validate_nonempty operation "resources" resources with Error _ as e->e|Ok()->
+      if has_duplicate_lifetimes(List.map resource_lifetime resources)then
+        error operation Invalid_argument "resources contain duplicate identities"
+      else
+        let rec validate=function
+          |[]->Ok()
+          |resource::rest->match validate_resource operation device resource with
+            |Error _ as e->e|Ok()->validate rest in
+        match validate resources with Error _ as e->e|Ok()->
+        let resources=Array.of_list resources in
+        Array.iter(fun resource->attach(resource_lifetime resource))resources;
+        Ok{device;resources;raws=Array.map resource_raw resources;dead=false})
+
+  let destroy_prepared_resources value=
+    let operation="Metal.Render_encoder.destroy_prepared_resources" in
+    on_main operation(fun()->if value.dead then Ok()else begin
+      value.dead<-true;
+      Array.iter(fun resource->detach(resource_lifetime resource))value.resources;
+      Ok()
+    end)
+
   let memory_barrier (value : t) ~scope ~after ~before =
     let operation="Metal.Render_encoder.memory_barrier" in on_main operation (fun()->
       match ensure_live operation value.lifetime with Error _ as e->e | Ok()->
@@ -18476,6 +18506,18 @@ module Render_encoder = struct
   let use_heap value heap ~stages = use_heaps value [heap] ~stages
   let use_resources (value : t) resources ~usage ~stages = let operation="Metal.Render_encoder.use_resources" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->Result.bind(validate_nonempty operation "resources" resources)(fun()->Result.bind(validate_nonempty operation "usage" usage)(fun()->Result.bind(validate_nonempty operation "stages" stages)(fun()->let device=value.command_buffer.queue.device in if has_duplicate_lifetimes(List.map resource_lifetime resources)then error operation Invalid_argument "resources contain duplicate identities" else match List.find_map(fun r->match validate_resource operation device r with Ok()->None|Error e->Some e)resources with Some e->Error e|None->match Metal_raw.render_encoder_use_resources value.raw(Array.of_list(List.map resource_raw resources))(bits usage_code usage)(bits stage_code stages)with Error m->native_error operation m|Ok()->List.iter(retain_resource value.command_buffer)resources;Ok()))))
   let use_resource value resource ~usage ~stages=use_resources value [resource] ~usage ~stages
+  let use_prepared_resources (value:t) prepared ~usage ~stages=
+    let operation="Metal.Render_encoder.use_prepared_resources" in
+    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+      if prepared.dead then error operation Destroyed "prepared resource set is destroyed"
+      else match validate_nonempty operation "usage" usage with Error _ as e->e|Ok()->
+      match validate_nonempty operation "stages" stages with Error _ as e->e|Ok()->
+      match ensure_same_device operation value.command_buffer.queue.device prepared.device with
+      |Error _ as e->e|Ok()->
+      match Metal_raw.render_encoder_use_resources value.raw prepared.raws
+        (bits usage_code usage)(bits stage_code stages)with
+      |Error message->native_error operation message
+      |Ok()->Array.iter(retain_resource value.command_buffer)prepared.resources;Ok())
 
   let binding_stage_code = function Vertex->0 | Fragment->1 | Tile->2 | Object->3 | Mesh->4
 

@@ -3637,6 +3637,7 @@ module Render_encoder : sig
   type barrier_scope = Buffers | Textures | Render_targets
   type resource_usage = Read | Write | Sample
   type resource = Buffer_resource of Buffer.t | Texture_resource of Texture.t
+  type prepared_resources
   type primitive = Point | Line | Line_strip | Triangle | Triangle_strip
   type index_type = Uint16 | Uint32
   type viewport =
@@ -3700,6 +3701,9 @@ module Render_encoder : sig
   val use_heaps : t -> Heap.t list -> stages:stage list -> (unit,error) result
   val use_resource : t -> resource -> usage:resource_usage list -> stages:stage list -> (unit,error) result
   val use_resources : t -> resource list -> usage:resource_usage list -> stages:stage list -> (unit,error) result
+  val prepare_resources : Device.t -> resource list -> (prepared_resources,error) result
+  val use_prepared_resources : t -> prepared_resources -> usage:resource_usage list -> stages:stage list -> (unit,error) result
+  val destroy_prepared_resources : prepared_resources -> (unit,error) result
   val set_stage_buffer : t -> stage:stage -> index:int -> offset:int64 -> ?stride:int64 -> Buffer.t option -> (unit,error) result
   val set_stage_texture : t -> stage:stage -> index:int -> Texture.t option -> (unit,error) result
   val set_stage_textures : t -> stage:stage -> start:int -> Texture.t option list -> (unit,error) result

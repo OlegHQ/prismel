@@ -77,6 +77,12 @@ let () =
        [ Render_encoder.Texture_resource sampled
        ; Render_encoder.Texture_resource sampled ]
        ~after:[ Render_encoder.Vertex ] ~before:[ Render_encoder.Fragment ]);
+  expect Invalid_argument
+    (Render_encoder.prepare_resources device
+       [ Render_encoder.Texture_resource sampled
+       ; Render_encoder.Texture_resource sampled ]);
+  let prepared = get (Render_encoder.prepare_resources device
+    [ Render_encoder.Texture_resource sampled ]) in
   let after = get (Release_queue.stats ()) in
   if after.total_created <> before.total_created
      || after.live_handles <> before.live_handles then
@@ -131,6 +137,9 @@ let () =
   get (Render_encoder.use_resource encoder (Render_encoder.Texture_resource sampled)
          ~usage:[ Render_encoder.Read; Render_encoder.Sample ]
          ~stages:[ Render_encoder.Fragment ]);
+  get (Render_encoder.use_prepared_resources encoder prepared
+         ~usage:[ Render_encoder.Read; Render_encoder.Sample ]
+         ~stages:[ Render_encoder.Fragment ]);
   get (Render_encoder.update_fence encoder fence ~after:[ Render_encoder.Fragment ]);
   expect Parent_has_dependents (Texture.destroy sampled);
   expect Parent_has_dependents (Sampler.destroy sampler);
@@ -143,6 +152,9 @@ let () =
   expect Destroyed (Render_encoder.set_cull_mode encoder Render_encoder.Cull_back);
   get (Command_buffer.commit commands);
   get (Command_buffer.wait_until_completed commands);
+  expect Parent_has_dependents (Texture.destroy sampled);
+  get (Render_encoder.destroy_prepared_resources prepared);
+  get (Render_encoder.destroy_prepared_resources prepared);
   get (Texture.destroy sampled);
   get (Sampler.destroy sampler);
   get (Fence.destroy fence);

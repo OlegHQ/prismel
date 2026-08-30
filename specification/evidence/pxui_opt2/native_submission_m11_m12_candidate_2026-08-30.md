@@ -9,6 +9,9 @@ M11, M12, or final qualification complete.
   aggregate `Render_ir` before staging its native layers.
 - The Metal backend checks the bounded classic submission cache before native
   draw conversion and memoizes bounded retained-plan structural identities.
+- Retained ICB owners now hold safe prepared resource sets. Creation validates,
+  deduplicates, and retains each invariant resource once; replay reuses the raw
+  resource arrays while preserving command-buffer completion ownership.
 - Sketch UI suppresses inspector and camera reconciliation/pass execution while
   the complete UI is hidden. Retained runtime state is reconciled when shown.
 - Opt-in `PRISMEL_RENDERER_PHASE_PROFILE=1` counters isolate view, native
@@ -66,8 +69,22 @@ candidate and now clears the 60 Hz timing envelope in this shortened run. It
 still fails the interim 64 KiB/frame and final 8 KiB/frame allocation gates, so
 M11 remains open.
 
+After moving invariant ICB resource validation and raw-array construction into
+the retained plan owner, the same two-second diagnostic reported:
+
+- 175 frames over 2.003 seconds, 87.37 FPS;
+- 10.98 ms median, 13.68 ms p95, 22.97 ms p99;
+- 40,137,136 allocated bytes, approximately 229.4 KiB/frame;
+- 2,011,640 promoted bytes total.
+
+Compared with the immediately preceding 174-frame run at approximately
+278.8 KiB/frame, this removes about 17.7% of steady visible allocation. The
+result remains above both M11 allocation gates and is intermediate evidence.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,
   retained-plan queues/surface, zero native handle delta.
+- `lib/metal/test_metal_render_encoder_safe.exe`: prepared-resource duplicate
+  rejection, command use, retained lifetime, idempotent release, and teardown.
 - `test/test_sketch_ui.exe`: passed.

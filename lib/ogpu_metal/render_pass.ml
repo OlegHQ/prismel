@@ -5,9 +5,9 @@ type buffer_binding={stage:stage;index:int;buffer:Buffer.t;offset:int64}
 type texture_binding={stage:stage;index:int;texture:Texture.t}
 type sampler_binding={stage:stage;index:int;sampler:Sampler.t}
 type draw={pipeline:Pipeline.t;buffers:buffer_binding list;textures:texture_binding list;samplers:sampler_binding list;primitive:primitive;vertex_start:int;vertex_count:int;index:(index_type*Buffer.t*int64*int)option}
-type indirect_resources={vertex_resources:Metal.Render_encoder.resource list;
-  fragment_resources:Metal.Render_encoder.resource list;
-  texture_resources:Metal.Render_encoder.resource list}
+type indirect_resources={vertex_resources:Metal.Render_encoder.prepared_resources;
+  fragment_resources:Metal.Render_encoder.prepared_resources;
+  texture_resources:Metal.Render_encoder.prepared_resources}
 type retention={retain:unit->(unit,Ogpu.Error.t)result;release:unit->unit}
 type t={pass:Ogpu.Render_pass.t;color:Texture.t;resolve:Texture.t option;depth:Texture.t option;stencil:Texture.t option;draws:draw list;owned_samplers:Sampler.t list;indirect:(Metal.Indirect_command_buffer.t*indirect_resources)option;retention:retention array;releases:(unit->unit)list}
 let error op kind message=Error(Ogpu.Error.make op kind message)
@@ -149,14 +149,10 @@ let create_batch ?(owned_samplers=[]) device pass ~attachments draws =
         |[]->let draws=List.rev rev in let retention,releases=retention~color:first.color~resolve:first.resolve~depth:first.depth~stencil:first.stencil draws in Ok{first with draws;owned_samplers;retention;releases}
         |draw::rest->match validate_batch_draw device draw with Error _ as e->e|Ok()->validate(draw::rev)rest in
       validate[first_draw]rest
-let with_indirect value indirect ~vertex_buffers ~fragment_buffers ~textures=
-  {value with indirect=Some(indirect,{
-    vertex_resources=List.map(fun buffer->Metal.Render_encoder.Buffer_resource buffer)
-      vertex_buffers;
-    fragment_resources=List.map(fun buffer->Metal.Render_encoder.Buffer_resource buffer)
-      fragment_buffers;
-    texture_resources=List.map(fun texture->Metal.Render_encoder.Texture_resource texture)
-      textures})}
+let with_indirect value indirect ~vertex_resources ~fragment_resources
+    ~texture_resources=
+  {value with indirect=Some(indirect,
+    {vertex_resources;fragment_resources;texture_resources})}
 let replay_indirect value ~template={value with draws=template.draws;
   indirect=template.indirect}
 module Private=struct
@@ -206,7 +202,7 @@ module Private=struct
     let rec all f=function []->Ok()|x::xs->match f x with Error e->Error(Adapter.error~operation:op e)|Ok()->all f xs in
     let encode_draw draw=let native=match Pipeline.Private.native draw.pipeline with Render p->p|Compute _->assert false in let primitive=match draw.primitive with Triangle_list->Metal.Render_encoder.Triangle|Triangle_strip->Triangle_strip in let issue()=match draw.index with None->Metal.Render_encoder.draw_triangles encoder~first:draw.vertex_start~count:draw.vertex_count()|Some(kind,buffer,offset,count)->Metal.Render_encoder.draw_indexed encoder~primitive~index_type:(match kind with Uint16->Metal.Render_encoder.Uint16|Uint32->Uint32)~index_buffer:(Buffer.Private.metal buffer)~index_offset:offset~index_count:(Int64.of_int count)()in match Metal.Render_encoder.set_pipeline encoder native with Error e->Error(Adapter.error~operation:op e)|Ok()->match all bind_buffer draw.buffers with Error _ as e->e|Ok()->match all bind_texture draw.textures with Error _ as e->e|Ok()->match all bind_sampler draw.samplers with Error _ as e->e|Ok()->Result.map_error(Adapter.error~operation:op)(issue())in
     let rec all_draws=function []->Ok()|draw::draws->match encode_draw draw with Error _ as e->e|Ok()->all_draws draws in
-    let encode_all()=match value.indirect,value.draws with Some(indirect,resources),first::_->let native=match Pipeline.Private.native first.pipeline with Render p->p|Compute _->assert false in let use values usage stages=Metal.Render_encoder.use_resources encoder values~usage~stages in(match use resources.vertex_resources[Metal.Render_encoder.Read][Metal.Render_encoder.Vertex]with Error e->Error(Adapter.error~operation:op e)|Ok()->match use resources.fragment_resources[Metal.Render_encoder.Read][Metal.Render_encoder.Fragment]with Error e->Error(Adapter.error~operation:op e)|Ok()->match use resources.texture_resources[Metal.Render_encoder.Sample][Metal.Render_encoder.Fragment]with Error e->Error(Adapter.error~operation:op e)|Ok()->match Metal.Render_encoder.set_pipeline encoder native with Error e->Error(Adapter.error~operation:op e)|Ok()->Result.map_error(Adapter.error~operation:op)(Metal.Render_encoder.execute_indirect_commands encoder indirect~location:0~length:(List.length value.draws)))|_->all_draws value.draws in
+    let encode_all()=match value.indirect,value.draws with Some(indirect,resources),first::_->let native=match Pipeline.Private.native first.pipeline with Render p->p|Compute _->assert false in let use values usage stages=Metal.Render_encoder.use_prepared_resources encoder values~usage~stages in(match use resources.vertex_resources[Metal.Render_encoder.Read][Metal.Render_encoder.Vertex]with Error e->Error(Adapter.error~operation:op e)|Ok()->match use resources.fragment_resources[Metal.Render_encoder.Read][Metal.Render_encoder.Fragment]with Error e->Error(Adapter.error~operation:op e)|Ok()->match use resources.texture_resources[Metal.Render_encoder.Sample][Metal.Render_encoder.Fragment]with Error e->Error(Adapter.error~operation:op e)|Ok()->match Metal.Render_encoder.set_pipeline encoder native with Error e->Error(Adapter.error~operation:op e)|Ok()->Result.map_error(Adapter.error~operation:op)(Metal.Render_encoder.execute_indirect_commands encoder indirect~location:0~length:(List.length value.draws)))|_->all_draws value.draws in
     match references with Error _ as e->abort e|Ok()->match Metal.Render_encoder.set_viewport encoder{x=float descriptor.viewport.x;y=float descriptor.viewport.y;width=float descriptor.viewport.width;height=float descriptor.viewport.height;znear=0.;zfar=1.}with Error e->abort(Error(Adapter.error~operation:op e))|Ok()->match Metal.Render_encoder.set_scissor encoder{x=descriptor.scissor.x;y=descriptor.scissor.y;width=descriptor.scissor.width;height=descriptor.scissor.height}with Error e->abort(Error(Adapter.error~operation:op e))|Ok()->match encode_all()with Error _ as e->abort e|Ok()->match Metal.Render_encoder.end_encoding encoder with Error e->abort(Error(Adapter.error~operation:op e))|Ok()->scoped_depth:=None;Ok((fun()->ignore(Metal.Render_pass_descriptor.destroy native_pass))::(match depth_state with None->[]|Some state->[fun()->ignore(Metal.Depth_stencil.destroy state)])@List.map(fun sampler->fun()->ignore(Sampler.destroy sampler))value.owned_samplers)
 
   let encode_command4 command value =

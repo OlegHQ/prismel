@@ -24,7 +24,7 @@ val create_empty : Device.t -> Ogpu.Render_pass.t -> attachments:Texture.t list 
   (t,Ogpu.Error.t) result
 val create_batch : ?owned_samplers:Sampler.t list -> Device.t -> Ogpu.Render_pass.t -> attachments:Texture.t list ->
   draw list -> (t,Ogpu.Error.t) result
-val with_indirect : t -> Metal.Indirect_command_buffer.t -> vertex_buffers:Metal.Buffer.t list -> fragment_buffers:Metal.Buffer.t list -> textures:Metal.Texture.t list -> t
+val with_indirect : t -> Metal.Indirect_command_buffer.t -> vertex_resources:Metal.Render_encoder.prepared_resources -> fragment_resources:Metal.Render_encoder.prepared_resources -> texture_resources:Metal.Render_encoder.prepared_resources -> t
 val replay_indirect : t -> template:t -> t
 
 module Private : sig
