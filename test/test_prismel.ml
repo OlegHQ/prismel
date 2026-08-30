@@ -675,6 +675,11 @@ let () =
      || Pxui.Camera_control.overlay hidden_control
           Scene.[text ~at:(0, 0) "label"] <> Scene.empty
   then fail "camera control H shortcut did not hide all UI";
+  let _, hidden_idle_ui, _, _, _ =
+    Pxui.Camera_control.update hidden_control ~ui:hidden_ui ~camera:panned
+      { shortcut_frame with events = [] } in
+  if hidden_idle_ui != hidden_ui then
+    fail "hidden camera control rebuilt presentation state on an idle frame";
   let shown_control, shown_ui, _, _, _ =
     Pxui.Camera_control.update hidden_control ~ui:hidden_ui ~camera:panned
       { shortcut_frame with

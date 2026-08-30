@@ -106,6 +106,10 @@ let () =
      || Pxui.Camera2_control.overlay hidden Scene.[text ~at:(0, 0) "label"]
         <> Scene.empty
   then fail "2D camera H shortcut did not hide controls and labels";
+  let _, hidden_idle_ui, _, _, _ = Pxui.Camera2_control.update hidden
+      ~ui:hidden_ui ~camera:controlled (frame ()) in
+  if hidden_idle_ui != hidden_ui then
+    fail "hidden 2D camera control rebuilt presentation state on an idle frame";
   let rotated = Easy_camera2.create ~viewport ~center:(Vec2.create 10. 20.)
       ~zoom:2. ~rotation:0.4 () in
   let projected = Easy_camera2.world_to_screen ~viewport rotated world in

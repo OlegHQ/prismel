@@ -214,3 +214,17 @@ val save : t -> string -> (unit, string) result
 val load : t -> string -> (t, string) result
 (** Versioned persistence for toggle, slider, and text-field values. Unknown
     saved names are ignored; malformed or type-mismatched entries are errors. *)
+
+module Private : sig
+  module Store : sig
+    type id
+    type 'a t
+    val create : ?capacity:int -> unit -> 'a t
+    val capacity : 'a t -> int
+    val length : 'a t -> int
+    val add : 'a t -> 'a -> id
+    val get : 'a t -> id -> 'a option
+    val set : 'a t -> id -> 'a -> bool
+    val remove : 'a t -> id -> bool
+  end
+end

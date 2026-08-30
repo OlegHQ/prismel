@@ -47,3 +47,34 @@ let () =
   require (unchanged == stable) "unchanged slider setter rebuilt the panel";
   Printf.printf "PXUI layout snapshot: drag100=%.0f B drag1000=%.0f B\n"
     small large
+
+let () =
+  let module Store = Pxui.Private.Store in
+  let store = Store.create ~capacity:1 () in
+  let stale = ref None in
+  for _cycle = 0 to 99_999 do
+    let id = Store.add store (Bytes.make 32 'x') in
+    require (Store.length store = 1 && Store.get store id <> None)
+      "packed store lost a live slot";
+    Option.iter (fun old ->
+      require (Store.get store old = None
+        && not (Store.set store old Bytes.empty)
+        && not (Store.remove store old))
+        "packed store accepted a stale generation") !stale;
+    require (Store.remove store id && Store.get store id = None
+      && Store.length store = 0)
+      "packed store failed to clear a removed payload";
+    stale := Some id
+  done;
+  require (Store.capacity store = 8)
+    "packed store grew while repeatedly reusing one free slot";
+  let bulk = Store.create ~capacity:1 () in
+  let ids = Array.init 100_000 (fun index -> Store.add bulk index) in
+  require (Store.length bulk = 100_000 && Store.capacity bulk = 131_072)
+    "packed store geometric capacity drift";
+  Array.iteri (fun index id ->
+    require (Store.get bulk id = Some index) "packed store payload drift") ids;
+  Array.iter (fun id ->
+    require (Store.remove bulk id) "packed store bulk removal failed") ids;
+  require (Store.length bulk = 0 && Store.capacity bulk = 131_072)
+    "packed store capacity changed while releasing cold payloads"

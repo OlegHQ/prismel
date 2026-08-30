@@ -54,6 +54,105 @@ type widget =
       y : float;
     }
 
+module Stable_store = struct
+  type id = int64
+
+  type 'a t = {
+    mutable generations : int array;
+    mutable occupied : bytes;
+    mutable free_next : int array;
+    mutable payloads : 'a option array;
+    mutable free_head : int;
+    mutable next_slot : int;
+    mutable live : int;
+  }
+
+  let minimum_capacity = 8
+  let create ?(capacity = minimum_capacity) () =
+    let capacity = max minimum_capacity capacity in
+    { generations = Array.make capacity 1;
+      occupied = Bytes.make capacity '\000';
+      free_next = Array.make capacity (-1);
+      payloads = Array.make capacity None;
+      free_head = -1; next_slot = 0; live = 0 }
+
+  let capacity store = Array.length store.generations
+  let length store = store.live
+  let slot id = Int64.to_int (Int64.logand id 0xffff_ffffL)
+  let generation id = Int64.to_int (Int64.shift_right_logical id 32)
+  let make_id slot generation =
+    Int64.logor (Int64.shift_left (Int64.of_int generation) 32)
+      (Int64.of_int slot)
+
+  let grow store =
+    let old_capacity = capacity store in
+    let new_capacity = old_capacity * 2 in
+    let extend old initial =
+      let fresh = Array.make new_capacity initial in
+      Array.blit old 0 fresh 0 old_capacity;
+      fresh in
+    store.generations <- extend store.generations 1;
+    let occupied = Bytes.make new_capacity '\000' in
+    Bytes.blit store.occupied 0 occupied 0 old_capacity;
+    store.occupied <- occupied;
+    store.free_next <- extend store.free_next (-1);
+    store.payloads <- extend store.payloads None
+
+  let add store payload =
+    let slot =
+      if store.free_head >= 0 then begin
+        let slot = store.free_head in
+        store.free_head <- Array.unsafe_get store.free_next slot;
+        Array.unsafe_set store.free_next slot (-1);
+        slot
+      end else begin
+        if store.next_slot = capacity store then grow store;
+        let slot = store.next_slot in
+        store.next_slot <- slot + 1;
+        slot
+      end in
+    Bytes.unsafe_set store.occupied slot '\001';
+    Array.unsafe_set store.payloads slot (Some payload);
+    store.live <- store.live + 1;
+    make_id slot (Array.unsafe_get store.generations slot)
+
+  let valid store id =
+    let slot = slot id in
+    slot >= 0 && slot < store.next_slot
+    && Bytes.unsafe_get store.occupied slot = '\001'
+    && Array.unsafe_get store.generations slot = generation id
+
+  let get store id =
+    if valid store id then Array.unsafe_get store.payloads (slot id) else None
+
+  let set store id payload =
+    if not (valid store id) then false
+    else begin
+      Array.unsafe_set store.payloads (slot id) (Some payload);
+      true
+    end
+
+  let remove store id =
+    if not (valid store id) then false
+    else begin
+      let slot = slot id in
+      Array.unsafe_set store.payloads slot None;
+      Bytes.unsafe_set store.occupied slot '\000';
+      let generation = Array.unsafe_get store.generations slot in
+      Array.unsafe_set store.generations slot
+        (if generation = Int32.to_int Int32.max_int then 1 else generation + 1);
+      Array.unsafe_set store.free_next slot store.free_head;
+      store.free_head <- slot;
+      store.live <- store.live - 1;
+      true
+    end
+end
+
+type widget_runtime = {
+  slots : widget Stable_store.t;
+  names : (string, Stable_store.id) Hashtbl.t;
+}
+
 type theme = {
   panel : Prismel.Color.t;
   foreground : Prismel.Color.t;
@@ -127,6 +226,7 @@ type t = {
   (* Reverse display order keeps both functional and compatibility builders O(1). *)
   mutable widgets : widget list;
   mutable ordered_cache : widget array option;
+  mutable runtime_cache : widget_runtime option;
   mutable layout_cache : layout_snapshot option;
   mutable focus : string option;
   mutable composition : string;
@@ -166,6 +266,7 @@ let create ?(x = 12) ?(y = 12) ?(width = 280) ?(row_height = 32)
     widget_count = 0;
     widgets = [];
     ordered_cache = None;
+    runtime_cache = None;
     layout_cache = None;
     focus = None;
     composition = "";
@@ -181,6 +282,7 @@ let append canvas widget =
   canvas.widgets <- widget :: canvas.widgets;
   canvas.widget_count <- canvas.widget_count + 1;
   canvas.ordered_cache <- None;
+  canvas.runtime_cache <- None;
   canvas.layout_cache <- None
 
 let with_widget canvas widget =
@@ -188,6 +290,7 @@ let with_widget canvas widget =
     widget_count = canvas.widget_count + 1;
     widgets = widget :: canvas.widgets;
     ordered_cache = None;
+    runtime_cache = None;
     layout_cache = None;
   }
 
@@ -200,6 +303,34 @@ let ordered_widget_array canvas =
       widgets
 
 let ordered_widgets canvas = Array.to_list (ordered_widget_array canvas)
+
+let widget_name = function
+  | Accordion value -> Some value.name
+  | Button value -> Some value.name
+  | Toggle value -> Some value.name
+  | Slider value -> Some value.name
+  | Int_slider value -> Some value.name
+  | Text_field value -> Some value.name
+  | Choice value -> Some value.name
+  | Range value -> Some value.name
+  | Xy value -> Some value.name
+  | Label _ | Accordion_end -> None
+
+let widget_runtime canvas =
+  match canvas.runtime_cache with
+  | Some runtime -> runtime
+  | None ->
+      let widgets = ordered_widget_array canvas in
+      let slots = Stable_store.create ~capacity:(Array.length widgets) () in
+      let names = Hashtbl.create (max 8 (Array.length widgets)) in
+      Array.iter (fun widget ->
+        let id = Stable_store.add slots widget in
+        Option.iter (fun name ->
+          if not (Hashtbl.mem names name) then Hashtbl.add names name id)
+          (widget_name widget)) widgets;
+      let runtime = { slots; names } in
+      canvas.runtime_cache <- Some runtime;
+      runtime
 
 let widget_at canvas index =
   if index < 0 || index >= canvas.widget_count then None
@@ -751,7 +882,8 @@ let layout_at (canvas : t) index =
 
 let replace_widgets canvas widgets =
   let canvas = clamp_scroll
-      { canvas with widgets; ordered_cache = None; layout_cache = None } in
+      { canvas with widgets; ordered_cache = None; runtime_cache = None;
+        layout_cache = None } in
   match canvas.numeric_edit with
   | Some edit when not (Array.exists
       (fun displayed -> displayed.source_index = edit.index)
@@ -1169,9 +1301,10 @@ let update_frame canvas (frame : Prismel.Frame.t) =
 let handle_event canvas = function
   | event ->
       let updated, changes = update_one canvas event in
-      canvas.widgets <- updated.widgets;
-      canvas.ordered_cache <- None;
-      canvas.layout_cache <- None;
+  canvas.widgets <- updated.widgets;
+  canvas.ordered_cache <- None;
+  canvas.runtime_cache <- None;
+  canvas.layout_cache <- None;
       canvas.focus <- updated.focus;
       canvas.composition <- updated.composition;
       canvas.pointer <- updated.pointer;
@@ -1183,13 +1316,10 @@ let handle_event canvas = function
       changes
 
 let find_map name extract canvas =
-  let widgets = ordered_widget_array canvas in
-  let index = ref 0 and result = ref None in
-  while !index < Array.length widgets && Option.is_none !result do
-    result := extract name widgets.(!index);
-    incr index
-  done;
-  !result
+  let runtime = widget_runtime canvas in
+  match Hashtbl.find_opt runtime.names name with
+  | None -> None
+  | Some id -> Option.bind (Stable_store.get runtime.slots id) (extract name)
 
 type widget_update = Skip | Keep | Replace of widget
 
@@ -1202,7 +1332,8 @@ let update_widget canvas update =
          | Keep -> canvas
          | Replace widget ->
              let widgets = List.rev_append reversed (widget :: rest) in
-             { canvas with widgets; ordered_cache = None; layout_cache = None })
+             { canvas with widgets; ordered_cache = None; runtime_cache = None;
+               layout_cache = None })
   in
   loop [] canvas.widgets
 
@@ -1482,14 +1613,18 @@ module Camera_control = struct
       | None -> 0, 0, frame.width, frame.height in
     let camera = Prismel.Easy_camera.with_control_area (Some area) camera
       |> Fun.flip Prismel.Easy_camera.update frame in
-    let ui = set_slider_value ui (name control "fov")
-        (Prismel.Easy_camera.fov_y camera *. 180. /. Float.pi) in
-    let ui = set_slider_value ui (name control "distance")
-        (Prismel.Easy_camera.distance camera) in
-    let ui = set_slider_value ui (name control "near")
-        (Prismel.Easy_camera.near camera) in
-    let ui = set_slider_value ui (name control "far")
-        (Prismel.Easy_camera.far camera) in
+    let ui =
+      if control.ui_visible && panel_visible then
+        ui
+        |> fun ui -> set_slider_value ui (name control "fov")
+             (Prismel.Easy_camera.fov_y camera *. 180. /. Float.pi)
+        |> fun ui -> set_slider_value ui (name control "distance")
+             (Prismel.Easy_camera.distance camera)
+        |> fun ui -> set_slider_value ui (name control "near")
+             (Prismel.Easy_camera.near camera)
+        |> fun ui -> set_slider_value ui (name control "far")
+             (Prismel.Easy_camera.far camera)
+      else ui in
     let requests = if clicked (name control "save") changes then
         let filename = value "prismel-render.png"
             (text_value ui (name control "filename")) in
@@ -1641,13 +1776,16 @@ module Camera2_control = struct
       | None -> 0, 0, frame.width, frame.height in
     let camera = Prismel.Easy_camera2.with_control_area (Some area) camera
       |> Fun.flip Prismel.Easy_camera2.update frame in
-    let center = Prismel.Easy_camera2.center camera in
-    let ui = set_slider_value ui (name control "center-x") center.x
-      |> fun ui -> set_slider_value ui (name control "center-y") center.y
-      |> fun ui -> set_slider_value ui (name control "zoom")
-           (Prismel.Easy_camera2.zoom camera)
-      |> fun ui -> set_slider_value ui (name control "rotation")
-           (Prismel.Easy_camera2.rotation camera *. 180. /. Float.pi) in
+    let ui =
+      if control.ui_visible && panel_visible then
+        let center = Prismel.Easy_camera2.center camera in
+        set_slider_value ui (name control "center-x") center.x
+        |> fun ui -> set_slider_value ui (name control "center-y") center.y
+        |> fun ui -> set_slider_value ui (name control "zoom")
+             (Prismel.Easy_camera2.zoom camera)
+        |> fun ui -> set_slider_value ui (name control "rotation")
+             (Prismel.Easy_camera2.rotation camera *. 180. /. Float.pi)
+      else ui in
     let requests = if clicked (name control "save") changes then
         let filename = value "prismel-render.png"
             (text_value ui (name control "filename")) in
@@ -1864,7 +2002,8 @@ let decode canvas encoded =
         match !error with
         | Some message -> Error message
         | None -> Ok {
-            canvas with widgets; ordered_cache = None; layout_cache = None;
+            canvas with widgets; ordered_cache = None; runtime_cache = None;
+            layout_cache = None;
             composition = "";
           })
   | _ -> Error "PXUI settings: unsupported or missing PXUI1 header"
@@ -1888,3 +2027,7 @@ let load canvas filename =
     in
     decode canvas encoded
   with Sys_error message -> Error message
+
+module Private = struct
+  module Store = Stable_store
+end
