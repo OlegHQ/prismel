@@ -58,14 +58,24 @@ and incident-edge slot vectors. On the same lane, move-and-paint median is
 108.004 microseconds and ten moves allocate 2,309,784 bytes. State-only pointer
 moves allocate 8,096 bytes total for ten events and are below the timer's
 microsecond resolution. A split-frame regression verifies press, intermediate
-paint/position, release materialization, and immutable SOP connectivity.
+paint/position, release retention, and immutable SOP connectivity.
+
+Release no longer materializes the full box array or rebuilds the base grid and
+edge BVH. Immutable position overrides are keyed by node ID, while moved-node
+and affected-edge slot sets suppress stale base-index entries and feed exact
+delta visibility/hit lanes. On the 10k lane, release plus Scene construction is
+189.066 microseconds and 244,768 allocated bytes; the allocation is identical
+at 1k and 10k, rather than scaling with the loaded graph. Regressions query the
+released node and its moved wire at their retained positions. Explicit layout
+optimization and document replacement intentionally materialize/rebase once
+and clear the delta sets.
 
 The former 10,000-way fan remains useful as an adversarial stress topology: its
 long diagonal envelopes overlap heavily and are not used as a proxy for the
 controlled 2x-edge qualification lane.
 
-The remaining M10 work is explicit: releasing a move still materializes the
-box array and rebuilds the indexes, rather than updating persistent position
-planes and only affected edge bounds; large match sets still need an
-index-backed partial ranking lane; and graph paint is not yet split into
-retained layers. No completion claim is made here.
+The remaining M10 work is explicit: accumulated moved-node and affected-edge
+deltas still need their own spatial hierarchy so queries do not scan the full
+edited set; large match sets still need an index-backed partial ranking lane;
+and graph paint is not yet split into retained layers. No completion claim is
+made here.

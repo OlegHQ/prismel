@@ -79,6 +79,16 @@ let () =
   check (topology.spatial_cells > 0
       && topology.max_spatial_candidates < 128)
     "graph spatial hit index exceeded its candidate bound";
+  let moved_center = center (node (Node.id source_a) view).bounds in
+  check (Pxui_graph.Private.hit_node_id view moved_center = Some (Node.id source_a))
+    "released graph node was not queryable at its retained position";
+  let moved_wire_hit = Pxui_graph.Private.edge_query_points view ~limit:4
+    |> Array.exists (fun point ->
+      match Pxui_graph.Private.hit_edge_id view point with
+      | Some connection -> connection.Edit_graph.source = Node.id source_a
+      | None -> false) in
+  check moved_wire_hit
+    "released graph wire was not queryable through the affected-edge lane";
 
   let before = (node (Node.id source_b) view).bounds in
   let view, _ = Pxui_graph.update view (frame ~mouse:(140, 125) ~events:[

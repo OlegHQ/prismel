@@ -91,17 +91,28 @@ let measure count =
     moving := next
   done;
   let move_allocated = Gc.allocated_bytes () -. move_before in
+  Gc.full_major ();
+  let release_before = Gc.allocated_bytes () in
+  let release_started = Unix.gettimeofday () in
+  let released, _ = Pxui_graph.update !moving
+      (frame ~mouse:(fst start + move_repeats, snd start + move_repeats)
+        ~events:[Prismel.Event.MouseReleased (Prismel.Input.LeftButton,
+          (fst start + move_repeats, snd start + move_repeats))] ()) in
+  ignore (Pxui_graph.scene released);
+  let release_seconds = Unix.gettimeofday () -. release_started
+  and release_allocated = Gc.allocated_bytes () -. release_before in
   let stats = Pxui_graph.stats view in
   Printf.printf
-    "pxui_graph,%d,%d,%d,%d,%.9f,%.9f,%.9f,%.0f,%.9f,%.0f,%d,%d,%d,%d,%d\n%!"
+    "pxui_graph,%d,%d,%d,%d,%.9f,%.9f,%.9f,%.0f,%.9f,%.0f,%.9f,%.0f,%d,%d,%d,%d,%d\n%!"
     count stats.nodes stats.wires !hits
     (percentile (Array.copy samples) 0.5)
     (percentile samples 0.99) (percentile edge_samples 0.99) allocated
-    (percentile move_samples 0.5) move_allocated stats.visible_nodes
+    (percentile move_samples 0.5) move_allocated release_seconds
+    release_allocated stats.visible_nodes
     !max_candidates !max_edge_candidates stats.spatial_cells
     stats.spatial_edge_cells
 
 let () =
   Printf.printf
-    "benchmark,requested_nodes,nodes,wires,hits,median_seconds,p99_seconds,edge_p99_seconds,allocated_bytes,move_median_seconds,move_10_allocated_bytes,visible_nodes,max_candidates,max_edge_candidates,spatial_cells,spatial_edge_cells\n%!";
+    "benchmark,requested_nodes,nodes,wires,hits,median_seconds,p99_seconds,edge_p99_seconds,allocated_bytes,move_median_seconds,move_10_allocated_bytes,release_seconds,release_allocated_bytes,visible_nodes,max_candidates,max_edge_candidates,spatial_cells,spatial_edge_cells\n%!";
   List.iter measure [100; 1_000; 10_000]

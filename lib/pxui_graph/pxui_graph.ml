@@ -2,6 +2,7 @@ open Prismel
 open Procedural
 
 module Id_set = Set.Make (Int)
+module Id_map = Map.Make (Int)
 module String_set = Set.Make (String)
 
 type catalog_entry = {
@@ -164,6 +165,9 @@ type t = {
   boxes : box array;
   edges : edge array;
   slots : (int, int) Hashtbl.t;
+  positions : (float * float) Id_map.t;
+  moved_nodes : Id_set.t;
+  moved_edges : Id_set.t;
   spatial : spatial_index;
   selected : Id_set.t;
   primary : int option;
@@ -408,10 +412,12 @@ let automatic_layout document =
         width = node_width; height = node_height } :: !boxes) row) rows;
   Array.of_list (List.rev !boxes)
 
-let preserve_positions previous boxes =
+let preserve_positions overrides previous boxes =
   let positions = Hashtbl.create (Array.length previous) in
   Array.iter (fun (box : box) ->
-    Hashtbl.replace positions box.info.Edit_graph.id (box.gx, box.gy)) previous;
+    let position = Option.value (Id_map.find_opt box.info.Edit_graph.id overrides)
+        ~default:(box.gx, box.gy) in
+    Hashtbl.replace positions box.info.Edit_graph.id position) previous;
   Array.map (fun box -> match Hashtbl.find_opt positions box.info.Edit_graph.id with
     | None -> box
     | Some (gx, gy) -> { box with gx; gy }) boxes
@@ -471,6 +477,8 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
     | Some id -> id
     | None -> Option.value ~default:0 primary in
   { source_graph = None; document; boxes; edges; slots;
+    positions = Id_map.empty; moved_nodes = Id_set.empty;
+    moved_edges = Id_set.empty;
     spatial = build_spatial_index boxes edges; selected; primary;
     selected_edge = None; viewed; x; y; width; height;
     pan_x = float_of_int (width / 2); pan_y = 18.; zoom = 1.; drag = None;
@@ -493,7 +501,8 @@ let connection_exists document connection =
 
 let with_document document value =
   if document == value.document then value else
-    let boxes = automatic_layout document |> preserve_positions value.boxes in
+    let boxes = automatic_layout document
+        |> preserve_positions value.positions value.boxes in
     let edges = build_edges boxes in
     let slots = build_slots boxes in
     let selected = Id_set.filter (fun id ->
@@ -506,6 +515,8 @@ let with_document document value =
     let viewed = if Edit_graph.find document ~node_id:value.viewed <> None
       then value.viewed else Option.value ~default:0 (Edit_graph.root document) in
     { value with source_graph = None; document; boxes; edges; slots;
+      positions = Id_map.empty; moved_nodes = Id_set.empty;
+      moved_edges = Id_set.empty;
       spatial = build_spatial_index boxes edges;
       selected; primary;
       selected_edge; viewed }
@@ -557,7 +568,11 @@ let view node_id value =
   { value with viewed = node_id }
 
 let place_node ~node_id ~x ~y value =
-  let boxes = Array.copy value.boxes and found = ref false in
+  let boxes = Array.map (fun box ->
+    match Id_map.find_opt box.info.Edit_graph.id value.positions with
+    | None -> box
+    | Some (gx, gy) -> { box with gx; gy }) value.boxes
+  and found = ref false in
   Array.iteri (fun index box -> if box.info.Edit_graph.id = node_id then begin
     boxes.(index) <- { box with gx = x; gy = y }; found := true
   end) boxes;
@@ -565,7 +580,8 @@ let place_node ~node_id ~x ~y value =
       "Pxui_graph.place_node: graph has no node #%d" node_id);
   let edges = build_edges boxes in
   { value with boxes; edges;
-    spatial = build_spatial_index boxes edges }
+    positions = Id_map.empty; moved_nodes = Id_set.empty;
+    moved_edges = Id_set.empty; spatial = build_spatial_index boxes edges }
 
 let screen_x value gx = value.x + int_of_float (value.pan_x +. (gx *. value.zoom))
 let screen_y value gy = value.y + int_of_float (value.pan_y +. (gy *. value.zoom))
@@ -573,13 +589,16 @@ let screen_size value size = max 1 (int_of_float (float_of_int size *. value.zoo
 let graph_x value x = (float_of_int (x - value.x) -. value.pan_x) /. value.zoom
 let graph_y value y = (float_of_int (y - value.y) -. value.pan_y) /. value.zoom
 
-let box_graph_position (value : t) (box : box) = match value.drag with
+let box_graph_position (value : t) (box : box) =
+  let gx, gy = Option.value (Id_map.find_opt box.info.Edit_graph.id value.positions)
+      ~default:(box.gx, box.gy) in
+  match value.drag with
   | Some (Move_nodes { offset_x; offset_y; _ })
       when Id_set.mem box.info.Edit_graph.id value.selected ->
-      box.gx +. offset_x, box.gy +. offset_y
+      gx +. offset_x, gy +. offset_y
   | Some (Move_nodes _ | Pan _ | View_button _ | Box_select _
       | Connect_wire _) | None ->
-      box.gx, box.gy
+      gx, gy
 
 let box_bounds (value : t) (box : box) =
   let gx, gy = box_graph_position value box in
@@ -674,10 +693,17 @@ let hit_node value point =
   let index = ref (Array.length candidates - 1) in
   while !index >= 0 && !found = None do
     let candidate = Array.unsafe_get candidates !index in
-    let x, y, width, height = box_bounds value value.boxes.(candidate) in
-    if contains ~x ~y ~width ~height point then found := Some candidate;
+    if not (Id_set.mem candidate value.moved_nodes) then begin
+      let x, y, width, height = box_bounds value value.boxes.(candidate) in
+      if contains ~x ~y ~width ~height point then found := Some candidate
+    end;
     decr index
   done;
+  Id_set.iter (fun candidate ->
+    let x, y, width, height = box_bounds value value.boxes.(candidate) in
+    if contains ~x ~y ~width ~height point
+        && Option.fold ~none:true ~some:(fun current -> candidate > current) !found
+    then found := Some candidate) value.moved_nodes;
   !found
 
 let hit_view_button value point =
@@ -686,10 +712,17 @@ let hit_view_button value point =
   let index = ref (Array.length candidates - 1) in
   while !index >= 0 && !found = None do
     let candidate = Array.unsafe_get candidates !index in
-    let x, y, width, height = view_button_bounds value value.boxes.(candidate) in
-    if contains ~x ~y ~width ~height point then found := Some candidate;
+    if not (Id_set.mem candidate value.moved_nodes) then begin
+      let x, y, width, height = view_button_bounds value value.boxes.(candidate) in
+      if contains ~x ~y ~width ~height point then found := Some candidate
+    end;
     decr index
   done;
+  Id_set.iter (fun candidate ->
+    let x, y, width, height = view_button_bounds value value.boxes.(candidate) in
+    if contains ~x ~y ~width ~height point
+        && Option.fold ~none:true ~some:(fun current -> candidate > current) !found
+    then found := Some candidate) value.moved_nodes;
   !found
 
 let port_x (value : t) (box : box) input_index input_count =
@@ -702,14 +735,23 @@ let hit_output value point =
   let candidates = spatial_candidates value point and cursor = ref 0 in
   while !cursor < Array.length candidates && !found = None do
     let index = Array.unsafe_get candidates !cursor in
+    if not (Id_set.mem index value.moved_nodes) then begin
+      let box = Array.unsafe_get value.boxes index in
+      let x, y, width, height = box_bounds value box in
+      let px = x + width / 2 and py = y + height in
+      let dx = fst point - px and dy = snd point - py in
+      if (dx * dx) + (dy * dy) <= radius * radius then found := Some index
+    end;
+    incr cursor
+  done;
+  Id_set.iter (fun index ->
     let box = Array.unsafe_get value.boxes index in
     let x, y, width, height = box_bounds value box in
     let px = x + width / 2 and py = y + height in
     let dx = fst point - px and dy = snd point - py in
-    if !found = None && (dx * dx) + (dy * dy) <= radius * radius then
-      found := Some index;
-    incr cursor
-  done;
+    if (dx * dx) + (dy * dy) <= radius * radius
+        && Option.fold ~none:true ~some:(fun current -> index < current) !found
+    then found := Some index) value.moved_nodes;
   !found
 
 let hit_input value point =
@@ -718,17 +760,31 @@ let hit_input value point =
   let candidates = spatial_candidates value point and cursor = ref 0 in
   while !cursor < Array.length candidates && !found = None do
     let index = Array.unsafe_get candidates !cursor in
+    if not (Id_set.mem index value.moved_nodes) then begin
+      let box = Array.unsafe_get value.boxes index in
+      let _, y, _, _ = box_bounds value box in
+      let count = Array.length box.info.Edit_graph.inputs in
+      for input_index = 0 to count - 1 do
+        let px = port_x value box input_index count in
+        let dx = fst point - px and dy = snd point - y in
+        if !found = None && (dx * dx) + (dy * dy) <= radius * radius then
+          found := Some (index, input_index)
+      done
+    end;
+    incr cursor
+  done;
+  Id_set.iter (fun index ->
     let box = Array.unsafe_get value.boxes index in
     let _, y, _, _ = box_bounds value box in
     let count = Array.length box.info.Edit_graph.inputs in
     for input_index = 0 to count - 1 do
       let px = port_x value box input_index count in
       let dx = fst point - px and dy = snd point - y in
-      if !found = None && (dx * dx) + (dy * dy) <= radius * radius then
-        found := Some (index, input_index)
-    done;
-    incr cursor
-  done;
+      if (dx * dx) + (dy * dy) <= radius * radius
+          && Option.fold ~none:true
+            ~some:(fun (current, _) -> index < current) !found
+      then found := Some (index, input_index)
+    done) value.moved_nodes;
   !found
 
 let edge_points value edge =
@@ -755,15 +811,29 @@ let segment_distance_squared px py ax ay bx by =
   let ex = px -. x and ey = py -. y in
   (ex *. ex) +. (ey *. ey)
 
+let edge_graph_points value edge =
+  let source = value.boxes.(edge.source_index)
+  and consumer = value.boxes.(edge.consumer_index) in
+  let source_x, source_y = box_graph_position value source
+  and consumer_x, consumer_y = box_graph_position value consumer in
+  source_x +. (float_of_int source.width /. 2.),
+  source_y +. float_of_int source.height,
+  consumer_x +.
+    (float_of_int (consumer.width * (edge.connection.input_index + 1)) /.
+     float_of_int (edge.input_count + 1)),
+  consumer_y
+
 let hit_edge value (px, py) =
   let graph_px = graph_x value px and graph_py = graph_y value py in
   let threshold = 9. /. value.zoom
   and best = ref None and best_distance = ref Float.infinity in
   let visit index segment =
-    let x0 = Array.unsafe_get value.spatial.edge_x0 index
-    and y0 = Array.unsafe_get value.spatial.edge_y0 index
-    and x3 = Array.unsafe_get value.spatial.edge_x3 index
-    and y3 = Array.unsafe_get value.spatial.edge_y3 index in
+    let x0, y0, x3, y3 = if Id_set.mem index value.moved_edges
+      then edge_graph_points value value.edges.(index)
+      else Array.unsafe_get value.spatial.edge_x0 index,
+        Array.unsafe_get value.spatial.edge_y0 index,
+        Array.unsafe_get value.spatial.edge_x3 index,
+        Array.unsafe_get value.spatial.edge_y3 index in
     let bend = max (24. /. value.zoom) (abs_float (y3 -. y0) /. 2.) in
     let t0 = float_of_int segment /. float_of_int edge_bvh_segments
     and tm = (float_of_int segment +. 0.5) /. float_of_int edge_bvh_segments
@@ -783,7 +853,11 @@ let hit_edge value (px, py) =
       best_distance := distance;
       best := Some index
     end in
-  iter_spatial_edge_candidates value (px, py) visit;
+  iter_spatial_edge_candidates value (px, py) (fun index segment ->
+    if not (Id_set.mem index value.moved_edges) then visit index segment);
+  Id_set.iter (fun index ->
+    for segment = 0 to edge_bvh_segments - 1 do visit index segment done)
+    value.moved_edges;
   if !best_distance <= threshold *. threshold then !best else None
 
 let pan value x y button last_x last_y =
@@ -812,15 +886,19 @@ let move_nodes value x y indices edge_indices last_x last_y offset_x offset_y =
       last_x = x; last_y = y; offset_x = offset_x +. dx;
       offset_y = offset_y +. dy }) }
 
-let commit_node_move value indices offset_x offset_y =
-  let boxes = Array.copy value.boxes in
-  Array.iter (fun index ->
-    let box = boxes.(index) in
-    boxes.(index) <- { box with gx = box.gx +. offset_x;
-      gy = box.gy +. offset_y }) indices;
-  { value with boxes;
-    spatial = build_spatial_index boxes value.edges;
-    drag = None }
+let commit_node_move value indices edge_indices offset_x offset_y =
+  let positions = Array.fold_left (fun positions index ->
+    let box = Array.unsafe_get value.boxes index in
+    let gx, gy = Option.value
+        (Id_map.find_opt box.info.Edit_graph.id positions)
+        ~default:(box.gx, box.gy) in
+    Id_map.add box.info.Edit_graph.id
+      (gx +. offset_x, gy +. offset_y) positions) value.positions indices in
+  let moved_nodes = Array.fold_left (fun moved index ->
+    Id_set.add index moved) value.moved_nodes indices
+  and moved_edges = Array.fold_left (fun moved index ->
+    Id_set.add index moved) value.moved_edges edge_indices in
+  { value with positions; moved_nodes; moved_edges; drag = None }
 
 let zoom_at value (mouse_x, mouse_y) delta =
   let old_zoom = value.zoom in
@@ -839,9 +917,10 @@ let frame_boxes value boxes =
   let min_x = ref Float.infinity and min_y = ref Float.infinity
   and max_x = ref Float.neg_infinity and max_y = ref Float.neg_infinity in
   Array.iter (fun (box : box) ->
-    min_x := min !min_x box.gx; min_y := min !min_y box.gy;
-    max_x := max !max_x (box.gx +. float_of_int box.width);
-    max_y := max !max_y (box.gy +. float_of_int box.height)) boxes;
+    let gx, gy = box_graph_position value box in
+    min_x := min !min_x gx; min_y := min !min_y gy;
+    max_x := max !max_x (gx +. float_of_int box.width);
+    max_y := max !max_y (gy +. float_of_int box.height)) boxes;
   let graph_width = max 1. (!max_x -. !min_x)
   and graph_height = max 1. (!max_y -. !min_y) in
   let padding = 38. in
@@ -1038,7 +1117,8 @@ let selected_positions (value : t) ids =
     | None -> None
     | Some index ->
         let box = Array.unsafe_get value.boxes index in
-        Some (id, box.gx, box.gy)) ids
+        let gx, gy = box_graph_position value box in
+        Some (id, gx, gy)) ids
 
 let copy_selection (value : t) =
   let ids = selected_nodes value in
@@ -1106,7 +1186,8 @@ let apply_marquee (value : t) (drag : box_drag) =
       match Hashtbl.find_opt value.spatial.cells (spatial_key cell_x cell_y) with
       | None -> ()
       | Some candidates -> Array.iter (fun candidate ->
-          if Array.unsafe_get value.spatial.marks candidate <> generation then begin
+          if not (Id_set.mem candidate value.moved_nodes)
+              && Array.unsafe_get value.spatial.marks candidate <> generation then begin
             Array.unsafe_set value.spatial.marks candidate generation;
             let box = Array.unsafe_get value.boxes candidate in
             if intersects bounds (box_bounds value box) then
@@ -1114,6 +1195,13 @@ let apply_marquee (value : t) (drag : box_drag) =
           end) candidates
     done
   done;
+  Id_set.iter (fun candidate ->
+    if Array.unsafe_get value.spatial.marks candidate <> generation then begin
+      Array.unsafe_set value.spatial.marks candidate generation;
+      let box = Array.unsafe_get value.boxes candidate in
+      if intersects bounds (box_bounds value box) then
+        selected := Id_set.add box.info.Edit_graph.id !selected
+    end) value.moved_nodes;
   let selected = !selected in
   let primary = if Id_set.is_empty selected then None
     else Some (Id_set.max_elt selected) in
@@ -1146,6 +1234,8 @@ let update (value : t) frame =
             let boxes = automatic_layout value.document in
             let edges = build_edges boxes in
             let value = { value with boxes; edges;
+              positions = Id_map.empty; moved_nodes = Id_set.empty;
+              moved_edges = Id_set.empty;
               spatial = build_spatial_index boxes edges } |> frame_all in
             value, Layout_optimized :: View_changed :: changes
         | Event.KeyPressed (Input.Delete | Input.Backspace) ->
@@ -1216,9 +1306,10 @@ let update (value : t) frame =
             (match value.drag with
              | Some (Pan drag) when drag.button = button ->
                  { value with drag = None }, changes
-             | Some (Move_nodes { indices; offset_x; offset_y; _ })
+             | Some (Move_nodes { indices; edge_indices; offset_x; offset_y; _ })
                  when button = Input.LeftButton ->
-                 commit_node_move value indices offset_x offset_y, changes
+                 commit_node_move value indices edge_indices offset_x offset_y,
+                 changes
              | Some (Box_select drag) when button = Input.LeftButton ->
                  let before = value.primary in
                  let value = apply_marquee value drag in
@@ -1322,7 +1413,8 @@ let visible_node_indices (value : t) viewport =
       match Hashtbl.find_opt spatial.cells (spatial_key cell_x cell_y) with
       | None -> ()
       | Some candidates -> Array.iter (fun candidate ->
-          if Array.unsafe_get spatial.marks candidate
+          if not (Id_set.mem candidate value.moved_nodes)
+              && Array.unsafe_get spatial.marks candidate
               <> generation then begin
             Array.unsafe_set spatial.marks candidate generation;
             if intersects viewport (box_bounds value value.boxes.(candidate)) then begin
@@ -1333,6 +1425,15 @@ let visible_node_indices (value : t) viewport =
           end) candidates
     done
   done;
+  Id_set.iter (fun candidate ->
+    if Array.unsafe_get spatial.marks candidate <> generation then begin
+      Array.unsafe_set spatial.marks candidate generation;
+      if intersects viewport (box_bounds value value.boxes.(candidate)) then begin
+        ensure_visible_capacity spatial (spatial.visible_length + 1);
+        Array.unsafe_set spatial.visible spatial.visible_length candidate;
+        spatial.visible_length <- spatial.visible_length + 1
+      end
+    end) value.moved_nodes;
   (match value.drag with
    | Some (Move_nodes { indices; _ }) -> Array.iter (fun candidate ->
        if Array.unsafe_get spatial.marks candidate <> generation then begin
@@ -1353,7 +1454,8 @@ let visible_node_indices (value : t) viewport =
   iter_edge_bvh spatial (min graph_left graph_right) (min graph_top graph_bottom)
     (max graph_left graph_right) (max graph_top graph_bottom)
     (fun candidate _segment ->
-      if Array.unsafe_get spatial.edge_marks candidate <> generation then begin
+      if not (Id_set.mem candidate value.moved_edges)
+          && Array.unsafe_get spatial.edge_marks candidate <> generation then begin
         Array.unsafe_set spatial.edge_marks candidate generation;
         let from_x, from_y, to_x, to_y = edge_points value
             value.edges.(candidate) in
@@ -1365,6 +1467,18 @@ let visible_node_indices (value : t) viewport =
           spatial.visible_edge_length <- spatial.visible_edge_length + 1
         end
       end);
+  Id_set.iter (fun candidate ->
+    if Array.unsafe_get spatial.edge_marks candidate <> generation then begin
+      Array.unsafe_set spatial.edge_marks candidate generation;
+      let from_x, from_y, to_x, to_y = edge_points value
+          value.edges.(candidate) in
+      if intersects viewport (wire_bounds from_x from_y to_x to_y) then begin
+        ensure_visible_edge_capacity spatial
+          (spatial.visible_edge_length + 1);
+        Array.unsafe_set spatial.visible_edges spatial.visible_edge_length candidate;
+        spatial.visible_edge_length <- spatial.visible_edge_length + 1
+      end
+    end) value.moved_edges;
   (match value.drag with
    | Some (Move_nodes { edge_indices; _ }) -> Array.iter (fun candidate ->
        if Array.unsafe_get spatial.edge_marks candidate <> generation then begin
@@ -1554,6 +1668,9 @@ let scene_uncached (value : t) =
 
 let same_scene_state (left : t) (right : t) =
   left.boxes == right.boxes && left.edges == right.edges
+  && left.positions == right.positions
+  && left.moved_nodes == right.moved_nodes
+  && left.moved_edges == right.moved_edges
   && left.selected = right.selected && left.primary = right.primary
   && left.selected_edge = right.selected_edge && left.viewed = right.viewed
   && left.x = right.x && left.y = right.y && left.width = right.width
