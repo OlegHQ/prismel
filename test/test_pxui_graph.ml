@@ -68,6 +68,9 @@ let () =
   let topology = Pxui_graph.stats view in
   check (topology.nodes = 5 && topology.wires = 4)
     "moving a graph tile changed immutable SOP connectivity";
+  check (topology.spatial_cells > 0
+      && topology.max_spatial_candidates < 128)
+    "graph spatial hit index exceeded its candidate bound";
 
   let before = (node (Node.id source_b) view).bounds in
   let view, _ = Pxui_graph.update view (frame ~mouse:(140, 125) ~events:[

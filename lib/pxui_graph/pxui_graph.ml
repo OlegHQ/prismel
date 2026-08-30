@@ -100,11 +100,18 @@ type drag =
   | Box_select of box_drag
   | Connect_wire of wire_drag
 
+type spatial_index = {
+  cells : (int64, int array) Hashtbl.t;
+  cell_size : float;
+  max_candidates : int;
+}
+
 type t = {
   source_graph : Graph.t option;
   document : Edit_graph.t;
   boxes : box array;
   edges : edge array;
+  spatial : spatial_index;
   selected : Id_set.t;
   primary : int option;
   selected_edge : Edit_graph.connection option;
@@ -142,6 +149,8 @@ type stats = {
   wires : int;
   visible_nodes : int;
   visible_wires : int;
+  spatial_cells : int;
+  max_spatial_candidates : int;
 }
 
 let node_width = 196
@@ -153,8 +162,41 @@ let menu_width = 286
 let menu_row_height = 27
 let menu_header_height = 38
 let menu_limit = 10
+let spatial_cell_size = 256.
 
 let clamp low high value = Float.max low (Float.min high value)
+
+let spatial_key cell_x cell_y =
+  Int64.logxor (Int64.shift_left (Int64.of_int cell_x) 32)
+    (Int64.logand (Int64.of_int cell_y) 0xffff_ffffL)
+
+let spatial_cell coordinate = int_of_float (Float.floor
+    (coordinate /. spatial_cell_size))
+
+let build_spatial_index boxes =
+  let pending = Hashtbl.create (max 16 (Array.length boxes * 2)) in
+  Array.iteri (fun index (box : box) ->
+    let padding = 24. in
+    let first_x = spatial_cell (box.gx -. padding)
+    and last_x = spatial_cell
+        (box.gx +. float_of_int (max 0 (box.width - 1)) +. padding)
+    and first_y = spatial_cell (box.gy -. padding)
+    and last_y = spatial_cell
+        (box.gy +. float_of_int (max 0 (box.height - 1)) +. padding) in
+    for cell_y = first_y to last_y do
+      for cell_x = first_x to last_x do
+        let key = spatial_key cell_x cell_y in
+        Hashtbl.replace pending key
+          (index :: Option.value (Hashtbl.find_opt pending key) ~default:[])
+      done
+    done) boxes;
+  let cells = Hashtbl.create (Hashtbl.length pending) in
+  let max_candidates = ref 0 in
+  Hashtbl.iter (fun key reversed ->
+    let candidates = Array.of_list (List.rev reversed) in
+    max_candidates := max !max_candidates (Array.length candidates);
+    Hashtbl.add cells key candidates) pending;
+  { cells; cell_size = spatial_cell_size; max_candidates = !max_candidates }
 
 let automatic_layout document =
   let infos = Edit_graph.inspect document in
@@ -243,7 +285,8 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
   let viewed = match Edit_graph.root document with
     | Some id -> id
     | None -> Option.value ~default:0 primary in
-  { source_graph = None; document; boxes; edges = build_edges boxes; selected; primary;
+  { source_graph = None; document; boxes; edges = build_edges boxes;
+    spatial = build_spatial_index boxes; selected; primary;
     selected_edge = None; viewed; x; y; width; height;
     pan_x = float_of_int (width / 2); pan_y = 18.; zoom = 1.; drag = None;
     menu = None; clipboard = None; catalog = catalog_array catalog;
@@ -276,6 +319,7 @@ let with_document document value =
     let viewed = if Edit_graph.find document ~node_id:value.viewed <> None
       then value.viewed else Option.value ~default:0 (Edit_graph.root document) in
     { value with source_graph = None; document; boxes; edges = build_edges boxes;
+      spatial = build_spatial_index boxes;
       selected; primary;
       selected_edge; viewed }
 
@@ -331,7 +375,8 @@ let place_node ~node_id ~x ~y value =
   end) boxes;
   if not !found then invalid_arg (Printf.sprintf
       "Pxui_graph.place_node: graph has no node #%d" node_id);
-  { value with boxes; edges = build_edges boxes }
+  { value with boxes; edges = build_edges boxes;
+    spatial = build_spatial_index boxes }
 
 let screen_x value gx = value.x + int_of_float (value.pan_x +. (gx *. value.zoom))
 let screen_y value gy = value.y + int_of_float (value.pan_y +. (gy *. value.zoom))
@@ -370,22 +415,39 @@ let normalize_rect x0 y0 x1 y1 =
 let inside value point = contains ~x:value.x ~y:value.y
     ~width:value.width ~height:value.height point
 
+let empty_candidates = [||]
+
+let spatial_candidates value point =
+  let point_x, point_y = point in
+  let graph_point_x = graph_x value point_x
+  and graph_point_y = graph_y value point_y in
+  let cell coordinate = int_of_float (Float.floor
+      (coordinate /. value.spatial.cell_size)) in
+  Option.value (Hashtbl.find_opt value.spatial.cells
+      (spatial_key (cell graph_point_x) (cell graph_point_y)))
+    ~default:empty_candidates
+
 let hit_node value point =
   let found = ref None in
-  for index = Array.length value.boxes - 1 downto 0 do
-    if !found = None then
-      let x, y, width, height = box_bounds value value.boxes.(index) in
-      if contains ~x ~y ~width ~height point then found := Some index
+  let candidates = spatial_candidates value point in
+  let index = ref (Array.length candidates - 1) in
+  while !index >= 0 && !found = None do
+    let candidate = Array.unsafe_get candidates !index in
+    let x, y, width, height = box_bounds value value.boxes.(candidate) in
+    if contains ~x ~y ~width ~height point then found := Some candidate;
+    decr index
   done;
   !found
 
 let hit_view_button value point =
   if value.zoom < 0.45 then None else
-  let found = ref None in
-  for index = Array.length value.boxes - 1 downto 0 do
-    if !found = None then
-      let x, y, width, height = view_button_bounds value value.boxes.(index) in
-      if contains ~x ~y ~width ~height point then found := Some index
+  let found = ref None and candidates = spatial_candidates value point in
+  let index = ref (Array.length candidates - 1) in
+  while !index >= 0 && !found = None do
+    let candidate = Array.unsafe_get candidates !index in
+    let x, y, width, height = view_button_bounds value value.boxes.(candidate) in
+    if contains ~x ~y ~width ~height point then found := Some candidate;
+    decr index
   done;
   !found
 
@@ -396,18 +458,26 @@ let port_x (value : t) (box : box) input_index input_count =
 let hit_output value point =
   if value.zoom < 0.4 then None else
   let radius = max 7 (screen_size value 8) and found = ref None in
-  Array.iteri (fun index box ->
+  let candidates = spatial_candidates value point and cursor = ref 0 in
+  while !cursor < Array.length candidates && !found = None do
+    let index = Array.unsafe_get candidates !cursor in
+    let box = Array.unsafe_get value.boxes index in
     let x, y, width, height = box_bounds value box in
     let px = x + width / 2 and py = y + height in
     let dx = fst point - px and dy = snd point - py in
     if !found = None && (dx * dx) + (dy * dy) <= radius * radius then
-      found := Some index) value.boxes;
+      found := Some index;
+    incr cursor
+  done;
   !found
 
 let hit_input value point =
   if value.zoom < 0.4 then None else
   let radius = max 8 (screen_size value 9) and found = ref None in
-  Array.iteri (fun index box ->
+  let candidates = spatial_candidates value point and cursor = ref 0 in
+  while !cursor < Array.length candidates && !found = None do
+    let index = Array.unsafe_get candidates !cursor in
+    let box = Array.unsafe_get value.boxes index in
     let _, y, _, _ = box_bounds value box in
     let count = Array.length box.info.Edit_graph.inputs in
     for input_index = 0 to count - 1 do
@@ -415,7 +485,9 @@ let hit_input value point =
       let dx = fst point - px and dy = snd point - y in
       if !found = None && (dx * dx) + (dy * dy) <= radius * radius then
         found := Some (index, input_index)
-    done) value.boxes;
+    done;
+    incr cursor
+  done;
   !found
 
 let edge_points value edge =
@@ -478,6 +550,7 @@ let move_nodes value x y indices last_x last_y =
     let box = boxes.(index) in
     boxes.(index) <- { box with gx = box.gx +. dx; gy = box.gy +. dy }) indices;
   { value with boxes;
+    spatial = build_spatial_index boxes;
     drag = Some (Move_nodes { indices; last_x = x; last_y = y }) }
 
 let zoom_at value (mouse_x, mouse_y) delta =
@@ -774,7 +847,8 @@ let update (value : t) frame =
             open_menu value frame.mouse, changes
         | Event.KeyPressed (Input.KeyChar ('o' | 'O')) ->
             let boxes = automatic_layout value.document in
-            let value = { value with boxes; edges = build_edges boxes } |> frame_all in
+            let value = { value with boxes; edges = build_edges boxes;
+              spatial = build_spatial_index boxes } |> frame_all in
             value, Layout_optimized :: View_changed :: changes
         | Event.KeyPressed (Input.Delete | Input.Backspace) ->
             let value, emitted = delete_selection value in
@@ -906,7 +980,9 @@ let visibility (value : t) =
     then incr wire_count) value.edges;
   visible_nodes, { nodes = Array.length value.boxes;
     wires = Array.length value.edges; visible_nodes = !node_count;
-    visible_wires = !wire_count }
+    visible_wires = !wire_count;
+    spatial_cells = Hashtbl.length value.spatial.cells;
+    max_spatial_candidates = value.spatial.max_candidates }
 
 let stats (value : t) = snd (visibility value)
 

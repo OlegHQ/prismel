@@ -68,6 +68,8 @@ type stats = {
   wires : int;
   visible_nodes : int;
   visible_wires : int;
+  spatial_cells : int;
+  max_spatial_candidates : int;
 }
 
 val create :
