@@ -134,10 +134,49 @@ still checked on every use. A 301-distinct-command regression proves the exact
 The complete-pass reuse and per-command translation cache remove about 30.3%
 from the preceding 195.8 KiB/frame result. The M11 allocation gate remains open.
 
+Stable automatic batches now compare exact render-pass state, resource IDs,
+draw values, and retained pipeline identities against the admitted preceding
+submission. A focused two-batch regression changes only the second batch and
+proves that the first command is reused while the second is rebuilt. The
+visible benchmark after this slice reported 25,179,096 bytes over 183 frames,
+approximately 134.4 KiB/frame; the behavioral isolation is proven, but this
+slice did not improve the aggregate allocation result.
+
+Sketch UI status painting now keeps the long status prefix and the short FPS
+suffix in separate retained display-list segments. FPS updates therefore
+rasterize and replace only the suffix. The next controlled run reported
+24,829,952 bytes over 184 frames, approximately 131.8 KiB/frame, with a
+10.20 ms median and 13.24 ms p95.
+
+Classic native passes now lazily prepare one validated Metal render-pass
+descriptor and optional depth/stencil state after backend cache admission, then
+reuse them across unchanged submissions. Direct and Command4 paths preserve
+their prior completion-owned or non-classic lifetimes. Cache/resource
+invalidation destroys prepared pass metadata atomically, attachment replacement
+does not make the attachment an ICB dependency, and ICB preparation failures
+release state before ownership transfer. The controlled two-second run
+reported:
+
+- 186 frames over 2.005 seconds, 92.77 FPS;
+- 9.93 ms median, 13.45 ms p95, 24.35 ms p99;
+- 23,852,104 allocated bytes, approximately 125.2 KiB/frame;
+- 2,377,152 promoted bytes total.
+
+This is a further 8.3% allocation reduction from the committed 136.5 KiB/frame
+candidate, but it still fails the interim and final M11 allocation gates.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,
   retained-plan queues/surface, zero native handle delta.
+- `lib/ogpu_metal/test_ogpu_metal_render_pass.exe`: list/strip, MSAA,
+  Command4 stencil/depth, atomic rejection, and zero native handle delta.
+- `lib/ogpu_metal/test_ogpu_metal_submission.exe`: transfer/compute/clear,
+  bounded ordering, and zero native handle delta.
+- `lib/ogpu_metal/test_scene_execution_metal.exe`: SDL-free exact-pixel draw and
+  resize with zero native handle delta.
+- `lib/ogpu_metal/test_ogpu_metal_portable_passes.exe`: portable transfer and
+  compute graph with zero native handle delta.
 - `lib/metal/test_metal_render_encoder_safe.exe`: prepared-resource duplicate
   rejection, command use, retained lifetime, idempotent release, and teardown.
 - `lib/ogpu/test_ogpu_backend.exe`: deterministic submit/loss/lifetime

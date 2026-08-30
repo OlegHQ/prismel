@@ -28,6 +28,8 @@ val with_indirect : t -> Metal.Indirect_command_buffer.t -> vertex_resources:Met
 val replay_indirect : t -> template:t -> t
 
 module Private : sig
+  val destroy : t -> (unit,Ogpu.Error.t) result
+  val retain_encoding : t -> unit
   val encode_portable : t -> Ogpu.Command.t -> (unit,Ogpu.Error.t) result
   val retain : t -> ((unit -> unit) list,Ogpu.Error.t) result
   val encode : Metal.Command_buffer.t -> t -> ((unit -> unit) list,Ogpu.Error.t) result

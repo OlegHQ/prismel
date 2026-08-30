@@ -320,13 +320,20 @@ module Workspace = struct
 end
 
 module Core = struct
-  type status_cache = {
+  type status_segment_cache = {
     builder : Scene_command.Display_list.Builder.t;
     segment_id : int64;
     mutable version : int64;
-    mutable key : ((int * int * int * int) * string * int) option;
+    mutable key : (int * int * int * int * int * string) option;
     mutable scene : Scene.t;
     mutable retained_text : Font.Private.retained_text option;
+    mutable text_width : int;
+  }
+
+  type status_cache = {
+    base : status_segment_cache;
+    fps : status_segment_cache;
+    mutable scene : Scene.t;
   }
 
   type 'prepared t = {
@@ -386,9 +393,11 @@ module Core = struct
         let graph_view = Pxui_graph.create_document ~x:gx ~y:gy
             ~width:(max 1 gw) ~height:(max 1 gh)
             ~catalog:(Pxui_graph.catalog_of_factories factories) document in
-        let status_cache={builder=Scene_command.Display_list.Builder.create
-            ~capacity:2();segment_id=Scene_command.Display_list.fresh_id();
-          version=0L;key=None;scene=[];retained_text=None}in
+        let status_segment ()={
+          builder=Scene_command.Display_list.Builder.create ~capacity:2();
+          segment_id=Scene_command.Display_list.fresh_id();version=0L;key=None;
+          scene=[];retained_text=None;text_width=0}in
+        let status_cache={base=status_segment();fps=status_segment();scene=[]}in
         { graph; displayed_graph = graph; document; factories; graph_view;
           displayed_id = Node.id graph;
           inspector = None; inspector_ui = None; workspace;
@@ -677,46 +686,78 @@ module Core = struct
            | None, None, None -> "Waiting for first cook") in
     let render = match render_status with None -> "" | Some status -> " · " ^ status in
     let viewing = Node.label (displayed_node value) in
-    let fps = match value.status_fps with
+    let fps_text = match value.status_fps with
       | Some fps -> Printf.sprintf " · %d fps" fps
       | None -> "" in
-    let text=cook ^ " · viewing " ^ viewing ^ render ^ fps in
+    let text=cook ^ " · viewing " ^ viewing ^ render in
     let scale_x,scale_y=frame.pixel_scale in
     let density=max 1(int_of_float(Float.round(Float.max scale_x scale_y)))in
-    let key=((x,y,width,height),text,density)in
     let cache=value.status_cache in
-    match cache.key with Some old when old=key->cache.scene|None|Some _->
-      let foreground=Color.hex_exn "#cbd5e1" in
-      match Font.Private.retain_text ~density ~size:11 text(Font.Solid foreground)with
-      |Error _->[Scene.rect ~at:(x,y)~w:width~h:height
-          ~fill:(Color.hex_exn "#101318")();
-        Scene.text ~at:(x+10,y+8)~size:11~color:foreground text]
-      |Ok retained->
-          let image=Font.Private.retained_image retained in
-          let image_width,image_height=Image.get_size image in
-          let resource_id=Image.Private.identity image in
-          let builder=cache.builder in
-          Scene_command.Display_list.Builder.reset builder;
-          Scene_command.Display_list.Builder.solid_rect builder~x:(float x)
-            ~y:(float y)~width:(float width)~height:(float height)
-            ~color:(packed_color(Color.hex_exn "#101318"));
-          let scale=float density in
-          Scene_command.Display_list.Builder.image builder~resource_id
-            ~source:{x=0.;y=0.;width=float image_width;height=float image_height}
-            ~destination:{x=float(x+10);y=float(y+8);
-              width=float image_width/.scale;height=float image_height/.scale};
-          let version=Int64.succ cache.version in
-          (match Scene_command.Display_list.Builder.publish builder
-              ~id:cache.segment_id~version with
-           |Error _->Font.Private.release_retained retained;
-               [Scene.rect ~at:(x,y)~w:width~h:height
-                  ~fill:(Color.hex_exn "#101318")();
-                Scene.text ~at:(x+10,y+8)~size:11~color:foreground text]
-           |Ok segment->
-               let scene=[Scene.display_list~images:[resource_id,image]segment]in
-               Option.iter Font.Private.release_retained cache.retained_text;
-               cache.version<-version;cache.key<-Some key;cache.scene<-scene;
-               cache.retained_text<-Some retained;scene)
+    let foreground=Color.hex_exn "#cbd5e1" in
+    let update_segment segment ~background ~at:(text_x,text_y) text=
+      let key=text_x,text_y,width,height,density,text in
+      if segment.key=Some key then false else begin
+        Option.iter Font.Private.release_retained segment.retained_text;
+        segment.retained_text<-None;
+        if text="" then begin
+          segment.key<-Some key;segment.scene<-[];segment.text_width<-0;true
+        end else begin
+          let text_width=ref(String.length text*7)in
+          (match Font.Private.retain_text ~density ~size:11 text
+              (Font.Solid foreground)with
+          |Error _->segment.scene<-(if background then
+              [Scene.rect ~at:(x,y)~w:width~h:height
+                 ~fill:(Color.hex_exn "#101318")();
+               Scene.text ~at:(text_x,text_y)~size:11~color:foreground text]
+              else [Scene.text ~at:(text_x,text_y)~size:11
+                ~color:foreground text])
+          |Ok retained->
+              let image=Font.Private.retained_image retained in
+              let image_width,image_height=Image.get_size image in
+              text_width:=image_width/density;
+              let resource_id=Image.Private.identity image in
+              let builder=segment.builder in
+              Scene_command.Display_list.Builder.reset builder;
+              if background then
+                Scene_command.Display_list.Builder.solid_rect builder
+                  ~x:(float x)~y:(float y)~width:(float width)
+                  ~height:(float height)
+                  ~color:(packed_color(Color.hex_exn "#101318"));
+              let scale=float density in
+              Scene_command.Display_list.Builder.image builder~resource_id
+                ~source:{x=0.;y=0.;width=float image_width;
+                  height=float image_height}
+                ~destination:{x=float text_x;y=float text_y;
+                  width=float image_width/.scale;
+                  height=float image_height/.scale};
+              let version=Int64.succ segment.version in
+              (match Scene_command.Display_list.Builder.publish builder
+                  ~id:segment.segment_id~version with
+               |Error _->
+                   Font.Private.release_retained retained;
+                   segment.scene<-(if background then
+                     [Scene.rect ~at:(x,y)~w:width~h:height
+                        ~fill:(Color.hex_exn "#101318")();
+                      Scene.text ~at:(text_x,text_y)~size:11
+                        ~color:foreground text]
+                     else [Scene.text ~at:(text_x,text_y)~size:11
+                       ~color:foreground text])
+               |Ok published->
+                   segment.version<-version;
+                   segment.scene<-[Scene.display_list
+                     ~images:[resource_id,image]published];
+                   segment.retained_text<-Some retained));
+          segment.key<-Some key;segment.text_width<- !text_width;true
+        end
+      end in
+    let base_changed=update_segment cache.base ~background:true
+        ~at:(x+10,y+8) text in
+    let fps_x=x+10+cache.base.text_width in
+    let fps_changed=update_segment cache.fps ~background:false
+        ~at:(fps_x,y+8) fps_text in
+    if base_changed||fps_changed then
+      cache.scene<-cache.base.scene@cache.fps.scene;
+    cache.scene
 
   let machinery value frame ~all_ui_visible ~camera_scene ~render_status =
     if not all_ui_visible then [] else
@@ -736,10 +777,12 @@ module Core = struct
 
   let close value =
     Option.iter Pxui.Runtime.destroy value.inspector_runtime;
-    Option.iter Font.Private.release_retained value.status_cache.retained_text;
-    value.status_cache.retained_text<-None;
+    let release segment=
+      Option.iter Font.Private.release_retained segment.retained_text;
+      segment.retained_text<-None;segment.scene<-[];
+      Scene_command.Display_list.Builder.reset segment.builder in
+    release value.status_cache.base;release value.status_cache.fps;
     value.status_cache.scene<-[];
-    Scene_command.Display_list.Builder.reset value.status_cache.builder;
     Sketch_support.Reactive_sop.close value.worker
 end
 
