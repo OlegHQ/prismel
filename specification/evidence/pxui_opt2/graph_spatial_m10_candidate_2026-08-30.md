@@ -43,11 +43,18 @@ covered graph-space grid cells with reusable generation marks, then applies the
 exact screen-space rectangle test only to unique candidates. Neither path scans
 the complete node table for a local selection gesture.
 
+Catalog ingestion now retains lowercase key, label, and breadcrumb text once.
+Menu search reuses those normalized values and retains exactly one row result
+keyed by the complete menu state, so update and paint consumers do not repeat
+filtering, lowercase conversion, and ranking for an unchanged menu. The
+existing nested-category and generated-catalog interaction tests pass.
+
 The former 10,000-way fan remains useful as an adversarial stress topology: its
 long diagonal envelopes overlap heavily and are not used as a proxy for the
 controlled 2x-edge qualification lane.
 
 The remaining M10 work is explicit: moving nodes still copies the box array and
 rebuilds the indexes, node/position stores are not yet packed mutable runtime
-planes, menu/search virtualization remains incomplete, and graph paint is not
-yet split into retained layers. No completion claim is made here.
+planes, large match sets still need an index-backed partial ranking lane, and
+graph paint is not yet split into retained layers. No completion claim is made
+here.

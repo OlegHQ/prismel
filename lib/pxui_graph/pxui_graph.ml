@@ -93,6 +93,15 @@ type clipboard = {
   paste_generation : int;
 }
 
+type catalog_item = {
+  entry : catalog_entry;
+  lower_key : string;
+  lower_label : string;
+  lower_category : string;
+}
+
+type menu_row = Menu_category of string | Menu_entry of catalog_entry
+
 type drag =
   | Pan of { button : Input.mouse_button; last_x : int; last_y : int }
   | Move_nodes of { indices : int array; last_x : int; last_y : int }
@@ -162,10 +171,11 @@ type t = {
   drag : drag option;
   menu : menu option;
   clipboard : clipboard option;
-  catalog : catalog_entry array;
+  catalog : catalog_item array;
   visible : bool;
   theme : Pxui.theme;
   mutable scene_cache : (t * Scene.t) option;
+  mutable menu_rows_cache : (menu * menu_row array) option;
 }
 
 type node_view = {
@@ -422,6 +432,11 @@ let catalog_array catalog =
         || List.exists (fun item -> String.trim item = "") entry.category
         || entry.arity < 0 || Hashtbl.mem seen entry.key then false
     else begin Hashtbl.add seen entry.key (); true end)
+  |> List.map (fun entry -> { entry;
+      lower_key = String.lowercase_ascii entry.key;
+      lower_label = String.lowercase_ascii entry.label;
+      lower_category = String.lowercase_ascii
+          (String.concat " / " entry.category) })
   |> Array.of_list
 
 let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
@@ -443,7 +458,7 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
     selected_edge = None; viewed; x; y; width; height;
     pan_x = float_of_int (width / 2); pan_y = 18.; zoom = 1.; drag = None;
     menu = None; clipboard = None; catalog = catalog_array catalog;
-    visible = true; theme; scene_cache = None }
+    visible = true; theme; scene_cache = None; menu_rows_cache = None }
 
 let create ?x ?y ?width ?height ?theme ?selected ?catalog graph =
   let value = create_document ?x ?y ?width ?height ?theme ?selected ?catalog
@@ -483,7 +498,8 @@ let with_graph graph value = match value.source_graph with
   | Some _ | None ->
       let value = with_document (Edit_graph.of_graph graph) value in
       { value with source_graph = Some graph }
-let with_catalog catalog value = { value with catalog = catalog_array catalog }
+let with_catalog catalog value = { value with catalog = catalog_array catalog;
+  menu_rows_cache = None }
 
 let with_bounds ~x ~y ~width ~height value =
   if width <= 0 || height <= 0 then invalid_arg
@@ -802,30 +818,25 @@ let frame_selected (value : t) =
   if Array.length boxes = 0 then frame_all value else frame_boxes value boxes
 
 let lower value = String.lowercase_ascii value
-let contains_text text query =
-  let text = lower text and query = lower query in
+let contains_lowered text query =
   let text_length = String.length text and query_length = String.length query in
   let rec search at = query_length = 0 || at + query_length <= text_length
       && (String.sub text at query_length = query || search (at + 1)) in
   search 0
 
-type menu_row = Menu_category of string | Menu_entry of catalog_entry
-
 let category_text category = String.concat " / " category
 
-let search_rank query (entry : catalog_entry) =
-  let query = lower query and key = lower entry.key
-  and label = lower entry.label in
-  if String.equal query key then 0
-  else if String.equal query label then 1
-  else if String.length query <= String.length key
-      && String.sub key 0 (String.length query) = query then 2
-  else if String.length query <= String.length label
-      && String.sub label 0 (String.length query) = query then 3
+let search_rank query (item : catalog_item) =
+  if String.equal query item.lower_key then 0
+  else if String.equal query item.lower_label then 1
+  else if String.length query <= String.length item.lower_key
+      && String.sub item.lower_key 0 (String.length query) = query then 2
+  else if String.length query <= String.length item.lower_label
+      && String.sub item.lower_label 0 (String.length query) = query then 3
   else 4
 
-let eligible menu (entry : catalog_entry) =
-  menu.insertion = None || entry.arity = 1
+let eligible menu (item : catalog_item) =
+  menu.insertion = None || item.entry.arity = 1
 
 let rec category_remainder path category = match path, category with
   | [], category -> Some category
@@ -833,21 +844,24 @@ let rec category_remainder path category = match path, category with
       category_remainder path category
   | _ -> None
 
-let menu_rows (value : t) menu =
+let menu_rows_uncached (value : t) menu =
   let entries = Array.to_list value.catalog |> List.filter (eligible menu) in
-  if menu.query <> "" then
-    entries |> List.filter (fun (entry : catalog_entry) ->
-      contains_text entry.label menu.query
-      || contains_text (category_text entry.category) menu.query
-      || contains_text entry.key menu.query)
-    |> List.sort (fun (left : catalog_entry) (right : catalog_entry) ->
-      let order = Int.compare (search_rank menu.query left)
-          (search_rank menu.query right) in
-      if order <> 0 then order else String.compare left.label right.label)
-    |> List.map (fun entry -> Menu_entry entry) |> Array.of_list
-  else
+  if menu.query <> "" then begin
+    let query = lower menu.query in
+    entries |> List.filter (fun item ->
+      contains_lowered item.lower_label query
+      || contains_lowered item.lower_category query
+      || contains_lowered item.lower_key query)
+    |> List.sort (fun left right ->
+      let order = Int.compare (search_rank query left)
+          (search_rank query right) in
+      if order <> 0 then order
+      else String.compare left.entry.label right.entry.label)
+    |> List.map (fun item -> Menu_entry item.entry) |> Array.of_list
+  end else
     let categories, exact = List.fold_left
-        (fun (categories, exact) (entry : catalog_entry) ->
+        (fun (categories, exact) item ->
+      let entry = item.entry in
       match category_remainder menu.path entry.category with
       | Some (child :: _) -> String_set.add child categories, exact
       | Some [] -> categories, entry :: exact
@@ -859,6 +873,13 @@ let menu_rows (value : t) menu =
           String.compare left.label right.label)
         exact |> List.map (fun entry -> Menu_entry entry) in
     Array.of_list (categories @ exact)
+
+let menu_rows (value : t) menu = match value.menu_rows_cache with
+  | Some (cached_menu, rows) when cached_menu = menu -> rows
+  | Some _ | None ->
+      let rows = menu_rows_uncached value menu in
+      value.menu_rows_cache <- Some (menu, rows);
+      rows
 
 let visible_rows rows cursor =
   let count = Array.length rows in
