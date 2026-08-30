@@ -18108,6 +18108,34 @@ module Render_encoder = struct
       create_owned ~finalize:false command_buffer ~target ?clear ?depth ?stencil ()
     let create_from_pass_scoped command_buffer pass =
       create_from_pass_owned ~finalize:false command_buffer pass
+
+    let use_retained_argument_resources (value:t) ~vertex ~fragment ~textures=
+      let operation="Metal.Render_encoder.Private.use_retained_argument_resources"in
+      on_main operation(fun()->
+        match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+        if vertex.dead||fragment.dead||textures.dead then
+          error operation Destroyed "prepared resource set is destroyed"
+        else
+          let device=value.command_buffer.queue.device in
+          match ensure_same_device operation device vertex.device with
+          |Error _ as e->e|Ok()->
+          match ensure_same_device operation device fragment.device with
+          |Error _ as e->e|Ok()->
+          match ensure_same_device operation device textures.device with
+          |Error _ as e->e|Ok()->
+          match Metal_raw.render_encoder_use_resources value.raw vertex.raws 1 1
+          with Error message->native_error operation message|Ok()->
+          match Metal_raw.render_encoder_use_resources value.raw fragment.raws 1 2
+          with Error message->native_error operation message|Ok()->
+          match Metal_raw.render_encoder_use_resources value.raw textures.raws 4 2
+          with Error message->native_error operation message|Ok()->
+          retain_command_buffer_prepared_resources value.command_buffer
+            vertex.lifetime;
+          retain_command_buffer_prepared_resources value.command_buffer
+            fragment.lifetime;
+          retain_command_buffer_prepared_resources value.command_buffer
+            textures.lifetime;
+          Ok())
   end
 
   let destroyed (value : t) = is_destroyed value.lifetime

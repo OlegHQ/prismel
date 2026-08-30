@@ -3749,6 +3749,11 @@ module Render_encoder : sig
     (* Creates an explicitly-ended pass encoder without an OCaml finalizer. *)
     val create_from_pass_scoped :
       Command_buffer.t -> Render_pass_descriptor.t -> (t, error) result
+    (* Binds the three immutable resource sets used by a retained indirect
+       render plan after validating their lifetime and device together. *)
+    val use_retained_argument_resources :
+      t -> vertex:prepared_resources -> fragment:prepared_resources ->
+      textures:prepared_resources -> (unit, error) result
   end
 end
 

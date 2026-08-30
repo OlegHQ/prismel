@@ -93,6 +93,14 @@ module Workspace = struct
 
   type splitter = First | Second
 
+  type scene_cache = {
+    cached_panes : panes;
+    cached_scene_view_collapsed : bool;
+    cached_scene_graph_collapsed : bool;
+    cached_scene_inspector_collapsed : bool;
+    workspace_scene : Scene.t;
+  }
+
   type t = {
     layout : layout;
     view_ratio : float;
@@ -104,6 +112,7 @@ module Workspace = struct
     drag : (splitter * int) option;
     armed : column option;
     mutable geometry_cache : geometry_cache option;
+    mutable scene_cache : scene_cache option;
   }
 
   let validate (layout : layout) =
@@ -124,7 +133,7 @@ module Workspace = struct
       inspector_ratio = layout.inspector_ratio /. total;
       view_collapsed = false; graph_collapsed = false;
       inspector_collapsed = false; drag = None; armed = None;
-      geometry_cache = None }
+      geometry_cache = None; scene_cache = None }
 
   let collapsed value = function
     | View -> value.view_collapsed
@@ -298,6 +307,13 @@ module Workspace = struct
 
   let scene value frame =
     let panes = geometry value frame in
+    match value.scene_cache with
+    |Some cached when cached.cached_panes=panes&&
+        cached.cached_scene_view_collapsed=value.view_collapsed&&
+        cached.cached_scene_graph_collapsed=value.graph_collapsed&&
+        cached.cached_scene_inspector_collapsed=value.inspector_collapsed->
+        cached.workspace_scene
+    |Some _|None->
     let theme = Pxui.default_theme in
     let header column title bounds =
       let x, y, width, height = bounds in
@@ -312,11 +328,16 @@ module Workspace = struct
         ~w:width ~h:height ~fill:(Color.hex_exn "#171b22") () in
     let panel (x, y, width, height) = Scene.rect ~at:(x, y) ~w:width ~h:height
         ~fill:theme.panel () in
-    [panel panes.graph; panel panes.inspector; splitter_scene first;
+    let workspace_scene=[panel panes.graph; panel panes.inspector; splitter_scene first;
       splitter_scene second]
     @ header View "VIEW" panes.view_header
     @ header Graph "GRAPH" panes.graph_header
-    @ header Inspector "INSPECTOR" panes.inspector_header
+    @ header Inspector "INSPECTOR" panes.inspector_header in
+    value.scene_cache<-Some{cached_panes=panes;
+      cached_scene_view_collapsed=value.view_collapsed;
+      cached_scene_graph_collapsed=value.graph_collapsed;
+      cached_scene_inspector_collapsed=value.inspector_collapsed;workspace_scene};
+    workspace_scene
 end
 
 module Core = struct

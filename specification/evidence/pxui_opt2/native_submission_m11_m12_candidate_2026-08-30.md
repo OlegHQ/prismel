@@ -184,6 +184,26 @@ The cache remains exactly bounded and preserves immediate destruction of
 rejected pass metadata, but the stable UI submission still exceeds the M11
 final allocation gate.
 
+Retained indirect passes now bind their immutable vertex, fragment, and texture
+prepared-resource sets through one private typed Metal transaction. It checks
+all three lifetimes and devices before issuing any binding, uses fixed usage and
+stage masks, and transfers completion ownership only after all native calls
+succeed. This removes three independent validation/result chains without
+exposing an unsafe public entry point. The Sketch UI workspace also retains its
+header, panel, and splitter scene for an exact pane/collapse state instead of
+reconstructing identical Scene nodes on every frame. The controlled combined
+run reported:
+
+- 186 frames over 2.008 seconds, 92.65 FPS;
+- 9.97 ms median, 12.77 ms p95, 24.60 ms p99;
+- 19,439,352 allocated bytes, approximately 102.1 KiB/frame;
+- 2,205,000 promoted bytes total.
+
+This removes approximately 6.8% from the preceding 109.5 KiB/frame result.
+Exact UI-state cache keys preserve resize and collapse invalidation, while the
+ordinary Scene release pass continues to bound automatic text lifetimes. M11
+remains open.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,
