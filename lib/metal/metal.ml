@@ -18077,6 +18077,27 @@ module Render_encoder = struct
 
   type scissor = { x : int; y : int; width : int; height : int }
 
+  let depth_attachment_formats =
+    [Texture.Depth16_unorm;Texture.Depth32_float;
+     Texture.Depth24_unorm_stencil8;Texture.Depth32_float_stencil8]
+  let stencil_attachment_formats =
+    [Texture.Stencil8;Texture.Depth24_unorm_stencil8;
+     Texture.Depth32_float_stencil8]
+  let validate_attachment operation (command_buffer:command_buffer)
+      (target:texture) formats (texture:texture)=
+    match ensure_texture_usable operation texture with
+    |Error _ as failure->failure
+    |Ok()when not(List.mem Render_target texture.descriptor.usage)->
+        error operation Invalid_argument"attachment lacks Render_target usage"
+    |Ok()when not(List.mem texture.descriptor.format formats)->
+        error operation Invalid_argument"attachment pixel format is incompatible"
+    |Ok()when texture.descriptor.width<>target.descriptor.width||
+        texture.descriptor.height<>target.descriptor.height||
+        texture.descriptor.sample_count<>target.descriptor.sample_count->
+        error operation Invalid_argument
+          "attachment dimensions or sample count differ"
+    |Ok()->ensure_same_device operation command_buffer.queue.device texture.device
+
   let create_owned ~finalize (command_buffer : Command_buffer.t) ~(target : Texture.t)
       ?(clear = (0., 0., 0., 1.)) ?(depth : Texture.t option)
       ?(stencil : Texture.t option) () =
@@ -18105,26 +18126,17 @@ module Render_encoder = struct
                error operation Device_mismatch
                  "render target belongs to another device"
            | Ok () ->
-               let valid_attachment texture formats =
-                 match ensure_texture_usable operation texture with
-                 | Error _ as failure -> failure
-                 | Ok () when not (List.mem Render_target texture.descriptor.usage) ->
-                     error operation Invalid_argument "attachment lacks Render_target usage"
-                 | Ok () when not (List.mem texture.descriptor.format formats) ->
-                     error operation Invalid_argument "attachment pixel format is incompatible"
-                 | Ok () when texture.descriptor.width <> target.descriptor.width
-                              || texture.descriptor.height <> target.descriptor.height
-                              || texture.descriptor.sample_count <> target.descriptor.sample_count ->
-                     error operation Invalid_argument "attachment dimensions or sample count differ"
-                 | Ok () -> ensure_same_device operation command_buffer.queue.device texture.device
-               in
-               let depth_formats = [ Texture.Depth16_unorm; Texture.Depth32_float; Texture.Depth24_unorm_stencil8; Texture.Depth32_float_stencil8 ] in
-               let stencil_formats = [ Texture.Stencil8; Texture.Depth24_unorm_stencil8; Texture.Depth32_float_stencil8 ] in
                let attachment_check =
-                 match depth with Some texture -> valid_attachment texture depth_formats | None -> Ok ()
+                 match depth with Some texture ->validate_attachment operation
+                   command_buffer target depth_attachment_formats texture
+                 |None->Ok()
                in
-               let attachment_check = Result.bind attachment_check (fun () -> match stencil with Some texture -> valid_attachment texture stencil_formats | None -> Ok ()) in
-               Result.bind attachment_check (fun () ->
+               let attachment_check=match attachment_check with
+                 |Error _ as failure->failure
+                 |Ok()->match stencil with Some texture->validate_attachment
+                     operation command_buffer target stencil_attachment_formats
+                     texture|None->Ok()in
+               match attachment_check with Error _ as failure->failure|Ok()->
                let r, g, b, a = clear in
                if not (List.for_all Float.is_finite [ r; g; b; a ]) then
                  error operation Invalid_argument "clear color must be finite"
@@ -18146,7 +18158,7 @@ module Render_encoder = struct
                      Option.iter (retain_command_buffer_texture command_buffer) stencil;
                      if finalize then
                        attach_lifetime_finalizer value.lifetime command_buffer.lifetime;
-                     Ok value))
+                     Ok value)
 
   let create command_buffer ~target ?clear ?depth ?stencil () =
     create_owned ~finalize:true command_buffer ~target ?clear ?depth ?stencil ()
@@ -18834,11 +18846,20 @@ module Render_encoder = struct
             Ok())))
 
   let set_depth_stencil_state (value:t) (state:Depth_stencil.t option) =
-    let operation="Metal.Render_encoder.set_depth_stencil_state" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+    let operation="Metal.Render_encoder.set_depth_stencil_state"in
+    match before_main operation with Error _ as failure->failure|Ok()->
+    match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
     match state with
-    | Some x->Result.bind(ensure_live operation x.lifetime)(fun()->Result.bind(ensure_same_device operation value.command_buffer.queue.device x.device)(fun()->
-        match Metal_raw.render_depth_stencil value.raw(Some x.raw)with Error m->native_error operation m|Ok()->retain_command_buffer_depth_stencil value.command_buffer x;Ok()))
-    | None->match Metal_raw.render_depth_stencil value.raw None with Error m->native_error operation m|Ok()->Ok())
+    |Some x->(match ensure_live operation x.lifetime with
+      |Error _ as failure->failure
+      |Ok()->match ensure_same_device operation value.command_buffer.queue.device
+          x.device with
+        |Error _ as failure->failure
+        |Ok()->match Metal_raw.render_depth_stencil value.raw(Some x.raw)with
+          |Error message->native_error operation message
+          |Ok()->retain_command_buffer_depth_stencil value.command_buffer x;Ok())
+    |None->match Metal_raw.render_depth_stencil value.raw None with
+      |Error message->native_error operation message|Ok()->Ok()
 
   let set_stage_bytes (value : t) ~stage ~index bytes =
     let operation="Metal.Render_encoder.set_stage_bytes" in
@@ -19058,7 +19079,9 @@ module Render_encoder = struct
 
   let draw_triangles (value : t) ~first ~count ?(instances = 1) () =
     let operation = "Metal.Render_encoder.draw_triangles" in
-    on_main operation (fun () ->
+    match before_main operation with
+    |Error _ as failure->failure
+    |Ok()->
       match ensure_live operation value.lifetime with
       | Error _ as failure -> failure
       | Ok () when Option.is_none value.pipeline ->
@@ -19068,7 +19091,7 @@ module Render_encoder = struct
       | Ok () ->
           (match Metal_raw.render_encoder_draw value.raw first count instances with
            | Ok () -> Ok ()
-           | Error message -> native_error operation message))
+           | Error message -> native_error operation message)
 
   let end_encoding (value : t) =
     let operation = "Metal.Render_encoder.end_encoding" in

@@ -435,6 +435,24 @@ upload, 300 retained-plan hits and executions, and a
 2,450-created/2,450-released native-handle balance. Median was 8.36 ms and p95
 was 10.44 ms. This does not close the 8 KiB final visible-workspace gate.
 
+The next measured pass removed per-frame classic attachment validator/list
+construction, direct-wired depth/stencil state and presentation triangle calls,
+and moved retained-resource admission and native draw/binding traversal to
+global non-capturing recursion. Persistent immutable native render passes now
+also reuse the typed validation established at construction and retention;
+transient passes continue to encode and validate their portable command graph
+on every submission. Native error adaptation, rollback, same-device checks,
+and resource liveness checks remain at their established boundaries.
+
+The isolated 300-frame lane progressed from the committed 14,578.64 baseline
+through 14,122.64 after Metal/pass setup flattening and 13,410.64 after native
+traversal extraction, then reached 12,338.64 allocated bytes/frame after
+persistent portable-validation reuse. The final run retained exact canonical
+pixels, zero measurement upload, 300 retained-plan hits and executions, and a
+2,450-created/2,450-released native-handle balance. Promoted allocation was
+7.73 bytes/frame, median was 8.32 ms, and p95 was 9.67 ms. The 8 KiB final
+visible-workspace gate remains open.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,

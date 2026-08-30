@@ -223,6 +223,92 @@ let destroy value=
     match failure with None->Ok()|Some error->
       Error(Adapter.error~operation:"Ogpu_metal.Render_pass.destroy" error)
   end
+let rec retain_at value index=
+  if index=Array.length value.retention then Ok value.releases
+  else match value.retention.(index).retain()with
+  |Ok()->retain_at value(index+1)
+  |Error _ as failure->
+      for release=0 to index-1 do value.retention.(release).release()done;
+      failure
+let adapt_metal op=function
+  |Ok value->Ok value|Error error->Error(Adapter.error~operation:op error)
+let bind_buffer encoder (binding:buffer_binding)=
+  match binding.stage with
+  |Vertex->Metal.Render_encoder.set_vertex_buffer encoder~index:binding.index
+      ~offset:binding.offset(Buffer.Private.metal binding.buffer)
+  |Fragment->Metal.Render_encoder.set_fragment_buffer encoder~index:binding.index
+      ~offset:binding.offset(Buffer.Private.metal binding.buffer)
+let bind_texture encoder (binding:texture_binding)=
+  match binding.stage with
+  |Vertex->Metal.Render_encoder.set_vertex_texture encoder~index:binding.index
+      (Texture.Private.metal binding.texture)
+  |Fragment->Metal.Render_encoder.set_fragment_texture encoder~index:binding.index
+      (Texture.Private.metal binding.texture)
+let bind_sampler encoder (binding:sampler_binding)=
+  match binding.stage with
+  |Vertex->Metal.Render_encoder.set_vertex_sampler encoder~index:binding.index
+      (Sampler.Private.metal binding.sampler)
+  |Fragment->Metal.Render_encoder.set_fragment_sampler encoder~index:binding.index
+      (Sampler.Private.metal binding.sampler)
+let rec bind_buffers op encoder=function
+  |[]->Ok()
+  |binding::rest->match bind_buffer encoder binding with
+    |Error error->Error(Adapter.error~operation:op error)
+    |Ok()->bind_buffers op encoder rest
+let rec bind_textures op encoder=function
+  |[]->Ok()
+  |binding::rest->match bind_texture encoder binding with
+    |Error error->Error(Adapter.error~operation:op error)
+    |Ok()->bind_textures op encoder rest
+let rec bind_samplers op encoder=function
+  |[]->Ok()
+  |binding::rest->match bind_sampler encoder binding with
+    |Error error->Error(Adapter.error~operation:op error)
+    |Ok()->bind_samplers op encoder rest
+let issue_draw op encoder draw=
+  match draw.index with
+  |None->adapt_metal op(Metal.Render_encoder.draw_triangles encoder
+      ~first:draw.vertex_start~count:draw.vertex_count())
+  |Some(kind,buffer,offset,count)->
+      adapt_metal op(Metal.Render_encoder.draw_indexed encoder
+        ~primitive:(match draw.primitive with Triangle_list->Metal.Render_encoder.Triangle
+          |Triangle_strip->Triangle_strip)
+        ~index_type:(match kind with Uint16->Metal.Render_encoder.Uint16
+          |Uint32->Uint32)~index_buffer:(Buffer.Private.metal buffer)
+        ~index_offset:offset~index_count:(Int64.of_int count)())
+let encode_draw op encoder draw=
+  let native=match Pipeline.Private.native draw.pipeline with
+    |Render pipeline->pipeline|Compute _->assert false in
+  match Metal.Render_encoder.set_pipeline encoder native with
+  |Error error->Error(Adapter.error~operation:op error)
+  |Ok()->match bind_buffers op encoder draw.buffers with
+    |Error _ as failure->failure
+    |Ok()->match bind_textures op encoder draw.textures with
+      |Error _ as failure->failure
+      |Ok()->match bind_samplers op encoder draw.samplers with
+        |Error _ as failure->failure|Ok()->issue_draw op encoder draw
+let rec encode_draws op encoder=function
+  |[]->Ok()
+  |draw::rest->match encode_draw op encoder draw with
+    |Error _ as failure->failure|Ok()->encode_draws op encoder rest
+let encode_draws_or_indirect op value encoder=
+  match value.indirect,value.draws with
+  |Some(indirect,resources),first::_->
+      let native=match Pipeline.Private.native first.pipeline with
+        |Render pipeline->pipeline|Compute _->assert false in
+      (match Metal.Render_encoder.Private.use_retained_argument_resources encoder
+          ~vertex:resources.vertex_resources~fragment:resources.fragment_resources
+          ~textures:resources.texture_resources with
+       |Error error->Error(Adapter.error~operation:op error)
+       |Ok()->match Metal.Render_encoder.set_pipeline encoder native with
+         |Error error->Error(Adapter.error~operation:op error)
+         |Ok()->adapt_metal op(Metal.Render_encoder.execute_indirect_commands
+             encoder indirect~location:0~length:(List.length value.draws)))
+  |_->encode_draws op encoder value.draws
+let abort_encoding value encoder failure=
+  ignore(Metal.Render_encoder.end_encoding encoder);
+  if not value.persistent then ignore(destroy value);
+  failure
 module Private=struct
   let destroy=destroy
   let retain_encoding value=value.persistent<-true
@@ -236,15 +322,9 @@ module Private=struct
     Option.fold~none:false~some:(fun(d:Ogpu.Render_pass.depth)->d.load<>Clear||d.store<>Store||d.clear<>1.)descriptor.depth
   let requires_command4 value=
     Option.is_none value.indirect&&portable_requires_command4 value.pass
-  let validation_retained value=Option.is_some value.indirect
+  let validation_retained value=value.persistent||Option.is_some value.indirect
   let encode_portable value command=Ogpu.Render_pass.encode value.pass command
-  let retain value=
-    let rec loop index=
-      if index=Array.length value.retention then Ok value.releases
-      else match value.retention.(index).retain()with
-      |Ok()->loop(index+1)
-      |Error _ as failure->for release=0 to index-1 do value.retention.(release).release()done;failure
-    in loop 0
+  let retain value=retain_at value 0
   let encode command value=let op="Ogpu_metal.Render_pass.encode"in
     if value.dead then error op Ogpu.Error.Stale_handle"render pass is destroyed"else
     let descriptor=Ogpu.Render_pass.descriptor value.pass in
@@ -260,25 +340,12 @@ module Private=struct
         (Metal.Render_encoder.Private.create_from_pass_scoped command
           native_pass)in
     match encoder with Error _ as error->error|Ok encoder->
-    let abort failure=
-      (* A scoped encoder has no finalizer.  Always detach it from the command
-         before returning the failure. *)
-      ignore(Metal.Render_encoder.end_encoding encoder);
-      if not value.persistent then ignore(destroy value);
-      failure in
     let raster=Ogpu.Render_pass.raster_state value.pass in
     let stencil_state=Ogpu.Render_pass.stencil_state value.pass in
     let store=match Metal.Render_encoder.set_cull_mode encoder(metal_cull raster.cull)with Error e->Error(Adapter.error~operation:op e)|Ok()->let depth_bound=match value.depth_state with None->Ok()|Some state->Metal.Render_encoder.set_depth_stencil_state encoder(Some state)in match depth_bound with Error e->Error(Adapter.error~operation:op e)|Ok()->Ok()in
-    match store with Error _ as e->abort e|Ok()->
+    match store with Error _ as e->abort_encoding value encoder e|Ok()->
     let references=match stencil_state with None->Ok()|Some state->Result.map_error(Adapter.error~operation:op)(Metal.Render_encoder.set_stencil_reference_values encoder~front:state.front_reference~back:state.back_reference)in
-    let bind_buffer (b:buffer_binding)=match b.stage with Vertex->Metal.Render_encoder.set_vertex_buffer encoder~index:b.index~offset:b.offset(Buffer.Private.metal b.buffer)|Fragment->Metal.Render_encoder.set_fragment_buffer encoder~index:b.index~offset:b.offset(Buffer.Private.metal b.buffer)in
-    let bind_texture (b:texture_binding)=match b.stage with Vertex->Metal.Render_encoder.set_vertex_texture encoder~index:b.index(Texture.Private.metal b.texture)|Fragment->Metal.Render_encoder.set_fragment_texture encoder~index:b.index(Texture.Private.metal b.texture)in
-    let bind_sampler (b:sampler_binding)=match b.stage with Vertex->Metal.Render_encoder.set_vertex_sampler encoder~index:b.index(Sampler.Private.metal b.sampler)|Fragment->Metal.Render_encoder.set_fragment_sampler encoder~index:b.index(Sampler.Private.metal b.sampler)in
-    let rec all f=function []->Ok()|x::xs->match f x with Error e->Error(Adapter.error~operation:op e)|Ok()->all f xs in
-    let encode_draw draw=let native=match Pipeline.Private.native draw.pipeline with Render p->p|Compute _->assert false in let primitive=match draw.primitive with Triangle_list->Metal.Render_encoder.Triangle|Triangle_strip->Triangle_strip in let issue()=match draw.index with None->Metal.Render_encoder.draw_triangles encoder~first:draw.vertex_start~count:draw.vertex_count()|Some(kind,buffer,offset,count)->Metal.Render_encoder.draw_indexed encoder~primitive~index_type:(match kind with Uint16->Metal.Render_encoder.Uint16|Uint32->Uint32)~index_buffer:(Buffer.Private.metal buffer)~index_offset:offset~index_count:(Int64.of_int count)()in match Metal.Render_encoder.set_pipeline encoder native with Error e->Error(Adapter.error~operation:op e)|Ok()->match all bind_buffer draw.buffers with Error _ as e->e|Ok()->match all bind_texture draw.textures with Error _ as e->e|Ok()->match all bind_sampler draw.samplers with Error _ as e->e|Ok()->Result.map_error(Adapter.error~operation:op)(issue())in
-    let rec all_draws=function []->Ok()|draw::draws->match encode_draw draw with Error _ as e->e|Ok()->all_draws draws in
-    let encode_all()=match value.indirect,value.draws with Some(indirect,resources),first::_->let native=match Pipeline.Private.native first.pipeline with Render p->p|Compute _->assert false in(match Metal.Render_encoder.Private.use_retained_argument_resources encoder~vertex:resources.vertex_resources~fragment:resources.fragment_resources~textures:resources.texture_resources with Error e->Error(Adapter.error~operation:op e)|Ok()->match Metal.Render_encoder.set_pipeline encoder native with Error e->Error(Adapter.error~operation:op e)|Ok()->Result.map_error(Adapter.error~operation:op)(Metal.Render_encoder.execute_indirect_commands encoder indirect~location:0~length:(List.length value.draws)))|_->all_draws value.draws in
-    match references with Error _ as e->abort e|Ok()->match Metal.Render_encoder.set_viewport encoder{x=float descriptor.viewport.x;y=float descriptor.viewport.y;width=float descriptor.viewport.width;height=float descriptor.viewport.height;znear=0.;zfar=1.}with Error e->abort(Error(Adapter.error~operation:op e))|Ok()->match Metal.Render_encoder.set_scissor encoder{x=descriptor.scissor.x;y=descriptor.scissor.y;width=descriptor.scissor.width;height=descriptor.scissor.height}with Error e->abort(Error(Adapter.error~operation:op e))|Ok()->match encode_all()with Error _ as e->abort e|Ok()->match Metal.Render_encoder.end_encoding encoder with Error e->abort(Error(Adapter.error~operation:op e))|Ok()->if value.persistent then Ok[]else Ok[fun()->ignore(destroy value)]
+    match references with Error _ as e->abort_encoding value encoder e|Ok()->match Metal.Render_encoder.set_viewport encoder{x=float descriptor.viewport.x;y=float descriptor.viewport.y;width=float descriptor.viewport.width;height=float descriptor.viewport.height;znear=0.;zfar=1.}with Error e->abort_encoding value encoder(Error(Adapter.error~operation:op e))|Ok()->match Metal.Render_encoder.set_scissor encoder{x=descriptor.scissor.x;y=descriptor.scissor.y;width=descriptor.scissor.width;height=descriptor.scissor.height}with Error e->abort_encoding value encoder(Error(Adapter.error~operation:op e))|Ok()->match encode_draws_or_indirect op value encoder with Error _ as e->abort_encoding value encoder e|Ok()->match Metal.Render_encoder.end_encoding encoder with Error e->abort_encoding value encoder(Error(Adapter.error~operation:op e))|Ok()->if value.persistent then Ok[]else Ok[fun()->ignore(destroy value)]
 
   let encode_command4 command value =
     let op="Ogpu_metal.Render_pass.encode_command4" in
