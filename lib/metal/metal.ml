@@ -379,7 +379,7 @@ module Thread = struct
     else Ok ()
 end
 
-let on_main operation callback =
+let before_main operation =
   match Thread.require operation with
   | Error _ as failure -> failure
   | Ok () ->
@@ -390,7 +390,12 @@ let on_main operation callback =
           (Printf.sprintf
              "the bounded Metal finalizer queue overflowed and dropped %d token(s)"
              dropped)
-      else callback ()
+      else Ok ()
+
+let on_main operation callback =
+  match before_main operation with
+  |Error _ as failure->failure
+  |Ok()->callback()
 
 module Release_queue = struct
   type stats =
@@ -18111,8 +18116,8 @@ module Render_encoder = struct
 
     let use_retained_argument_resources (value:t) ~vertex ~fragment ~textures=
       let operation="Metal.Render_encoder.Private.use_retained_argument_resources"in
-      on_main operation(fun()->
-        match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+      match before_main operation with Error _ as e->e|Ok()->
+      match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
         if vertex.dead||fragment.dead||textures.dead then
           error operation Destroyed "prepared resource set is destroyed"
         else
@@ -18135,7 +18140,7 @@ module Render_encoder = struct
             fragment.lifetime;
           retain_command_buffer_prepared_resources value.command_buffer
             textures.lifetime;
-          Ok())
+          Ok()
   end
 
   let destroyed (value : t) = is_destroyed value.lifetime
@@ -18303,7 +18308,9 @@ module Render_encoder = struct
          Metal_raw.render_encoder_set_fragment_sampler_lod)
 
   let set_validated operation validate raw_call (value : t) argument =
-    on_main operation (fun () ->
+    match before_main operation with
+    |Error _ as failure->failure
+    |Ok()->
       match ensure_live operation value.lifetime with
       | Error _ as failure -> failure
       | Ok () ->
@@ -18312,7 +18319,7 @@ module Render_encoder = struct
            | Ok raw_argument ->
                (match raw_call value.raw raw_argument with
                 | Ok () -> Ok ()
-                | Error message -> native_error operation message)))
+                | Error message -> native_error operation message))
 
   let set_viewport =
     set_validated "Metal.Render_encoder.set_viewport"

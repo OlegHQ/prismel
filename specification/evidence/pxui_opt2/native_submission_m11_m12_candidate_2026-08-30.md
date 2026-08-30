@@ -204,6 +204,15 @@ Exact UI-state cache keys preserve resize and collapse invalidation, while the
 ordinary Scene release pass continues to bound automatic text lifetimes. M11
 remains open.
 
+The shared Metal initial-domain/main-thread/release-queue preflight now has a
+result-returning form used by hot validated encoder setters and retained-set
+binding. The public callback form delegates to the same preflight, so error
+ordering and release draining are unchanged, while the retained render path no
+longer allocates one callback closure per fixed-state call. The next controlled
+run reported 19,211,368 allocated bytes over 185 frames, approximately
+101.4 KiB/frame, at 92.40 FPS with a 9.94 ms median and 14.14 ms p95. This is a
+small additional reduction; M11 remains open.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,
