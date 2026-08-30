@@ -213,6 +213,15 @@ run reported 19,211,368 allocated bytes over 185 frames, approximately
 101.4 KiB/frame, at 92.40 FPS with a 9.94 ms median and 14.14 ms p95. This is a
 small additional reduction; M11 remains open.
 
+Status text formatting now follows semantic invalidation instead of preceding
+it. Idle cook state, selected-node label, render status, and the 30-frame FPS
+sample are compared before any `Printf` or concatenation work; active cook
+elapsed time remains part of the key and continues to update. The next
+controlled run reported 18,483,408 allocated bytes over 185 frames,
+approximately 97.6 KiB/frame, at 92.49 FPS with a 10.10 ms median and 12.50 ms
+p95. Allocation profiling no longer reports FPS/status formatting among the top
+sites. M11 remains open.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,

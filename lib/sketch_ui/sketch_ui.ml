@@ -355,6 +355,12 @@ module Core = struct
     base : status_segment_cache;
     fps : status_segment_cache;
     mutable scene : Scene.t;
+    mutable base_source :
+      (Async_cook.status * string option * string option * float option *
+       string * string option) option;
+    mutable base_text : string;
+    mutable fps_source : int option option;
+    mutable fps_text : string;
   }
 
   type 'prepared t = {
@@ -418,7 +424,8 @@ module Core = struct
           builder=Scene_command.Display_list.Builder.create ~capacity:2();
           segment_id=Scene_command.Display_list.fresh_id();version=0L;key=None;
           scene=[];retained_text=None;text_width=0}in
-        let status_cache={base=status_segment();fps=status_segment();scene=[]}in
+        let status_cache={base=status_segment();fps=status_segment();scene=[];
+          base_source=None;base_text="";fps_source=None;fps_text=""}in
         { graph; displayed_graph = graph; document; factories; graph_view;
           displayed_id = Node.id graph;
           inspector = None; inspector_ui = None; workspace;
@@ -694,26 +701,36 @@ module Core = struct
     let bounds = (Workspace.geometry value.workspace frame).status in
     let x, y, width, height = bounds in
     if height = 0 then [] else
-    let cook = match Sketch_support.Reactive_sop.status value.worker with
-      | Async_cook.Cooking { seconds; queued; _ } ->
-          Printf.sprintf "Cooking… %.1fs%s" seconds
-            (if queued then " · latest queued" else "")
-      | Idle ->
-          (match value.edit_error, value.cook_error, value.cook_seconds with
-           | Some error, _, _ -> "Graph edit rejected: " ^ truncate 49 error
-           | None, Some error, _ -> "Cook rejected: " ^ truncate 54 error
-           | None, None, Some seconds ->
-               Printf.sprintf "Cook complete · %.3fs" seconds
-           | None, None, None -> "Waiting for first cook") in
-    let render = match render_status with None -> "" | Some status -> " · " ^ status in
     let viewing = Node.label (displayed_node value) in
-    let fps_text = match value.status_fps with
-      | Some fps -> Printf.sprintf " · %d fps" fps
-      | None -> "" in
-    let text=cook ^ " · viewing " ^ viewing ^ render in
     let scale_x,scale_y=frame.pixel_scale in
     let density=max 1(int_of_float(Float.round(Float.max scale_x scale_y)))in
     let cache=value.status_cache in
+    let worker_status=Sketch_support.Reactive_sop.status value.worker in
+    let source=worker_status,value.edit_error,value.cook_error,
+      value.cook_seconds,viewing,render_status in
+    if cache.base_source<>Some source then begin
+      let cook=match worker_status with
+        |Async_cook.Cooking{seconds;queued;_}->
+            Printf.sprintf "Cooking… %.1fs%s" seconds
+              (if queued then " · latest queued"else "")
+        |Idle->
+            (match value.edit_error,value.cook_error,value.cook_seconds with
+             |Some error,_,_->"Graph edit rejected: "^truncate 49 error
+             |None,Some error,_->"Cook rejected: "^truncate 54 error
+             |None,None,Some seconds->
+                 Printf.sprintf "Cook complete · %.3fs"seconds
+             |None,None,None->"Waiting for first cook")in
+      let render=match render_status with
+        |None->""|Some status->" · "^status in
+      cache.base_source<-Some source;
+      cache.base_text<-cook^" · viewing "^viewing^render
+    end;
+    if cache.fps_source<>Some value.status_fps then begin
+      cache.fps_source<-Some value.status_fps;
+      cache.fps_text<-(match value.status_fps with
+        |Some fps->Printf.sprintf " · %d fps"fps|None->"")
+    end;
+    let text=cache.base_text and fps_text=cache.fps_text in
     let foreground=Color.hex_exn "#cbd5e1" in
     let update_segment segment ~background ~at:(text_x,text_y) text=
       let key=text_x,text_y,width,height,density,text in
