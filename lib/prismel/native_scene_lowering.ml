@@ -45,7 +45,7 @@ let render ~execution ~density ~width ~height scene =
       let outcome=Fun.protect
         ~finally:(fun () -> Scene.Private.release scene)
         (fun () ->
-        match Scene.Private.stage_native ~width ~height scene with
+        match Scene.Private.stage_native ~density ~width ~height scene with
         | Error message -> Error (Stage message)
         | Ok staged -> (
             match Prismel_next_execution.Private.begin_submission execution with

@@ -55,4 +55,31 @@ let () =
   let encoded=strip_prepared.entries.(0).draw.mesh.indices in
   let actual=Array.init 6(fun index->Int32.to_int(Bytes.get_int32_le encoded(index*4)))in
   if actual<>[|0;1;2;2;1;3|]then failwith"native triangle strip winding";
-  print_endline"native Scene3 lowering: exact released View3d reuse, geometry, uniforms, texture mips, shadow"
+  let first=prepare ~width:16 ~height:16 scene in
+  let second=prepare ~width:16 ~height:16 scene in
+  if first.entries.(0).draw.mesh.vertices != second.entries.(0).draw.mesh.vertices
+    || first.entries.(0).draw.mesh.key <> second.entries.(0).draw.mesh.key then
+    failwith"stable Scene3 mesh was repacked for a camera-only prepare";
+  ();
+  let canvas=Canvas.create_exn~width:64~height:64 in
+  Fun.protect~finally:(fun()->Canvas.destroy canvas)(fun()->
+    let count=4096 in
+    let points=List.init count(fun i->
+      Vec3.create(float(i mod 64)/.32.-.1.)(float(i/64)/.32.-.1.)0.)in
+    let normals=List.init count(fun _->Vec3.unit_z)in
+    let indices=List.init((count-2)*3)(fun i->
+      if i mod 3=0 then 0 else i/3+(i mod 3))in
+    let heavy=Mesh.create_exn~indices~normals points in
+    let world=Scene3.create[Scene3.mesh~material:(Material.unlit Color.red)heavy]in
+    let cam_at position=
+      Camera.orthographic~height:2.~at:position~target:Vec3.zero()in
+    Canvas.render canvas Scene.[clear Color.black;
+      view3d~viewport:(0,0,64,64)~camera:(cam_at(Vec3.create 0. 0. 2.))world];
+    let after_first=(Canvas.Private.native_stats canvas).uploaded_bytes in
+    Canvas.render canvas Scene.[clear Color.black;
+      view3d~viewport:(0,0,64,64)~camera:(cam_at(Vec3.create 0.2 0. 2.))world];
+    let delta=Int64.sub(Canvas.Private.native_stats canvas).uploaded_bytes after_first in
+    if delta>32_768L then
+      failwith(Printf.sprintf
+        "camera orbit reuploaded Scene3 vertices (%Ld bytes)" delta));
+  print_endline"native Scene3 lowering: exact released View3d reuse, geometry, uniforms, texture mips, shadow, stable orbit pack"

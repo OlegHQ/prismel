@@ -39,9 +39,9 @@ module Private : sig
     scene3 : Scene_execution.prepared_scene3 list;
     layers : native_layer list;
   }
-  val stage_native : width:int -> height:int -> t -> (staged_native,string) result
+  val stage_native : ?density:int -> width:int -> height:int -> t -> (staged_native,string) result
   val to_ir : t -> (Scene_command.Render_ir.t,string) result
-  val stage : width:int -> height:int -> t ->
+  val stage : ?density:int -> width:int -> height:int -> t ->
     (Scene_command.Render_ir.t * (int * Prismel_next_execution.resource) list, string) result
   val install_renderer : (t -> unit) -> unit
   val text_regions : t -> (int*int*int*int*bool) list

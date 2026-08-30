@@ -212,13 +212,13 @@ module Private=struct
    resources:(int*Prismel_next_execution.resource)list;
    scene3:Scene_execution.prepared_scene3 list;layers:native_layer list}
  let renderer=ref(fun(_ : t)->())let install_renderer value=renderer:=value
- let text_image (node : text_node) =
+ let text_image ?(density=1) (node : text_node) =
    match node.rendered with
    | Some image -> image
    | None ->
        let image=match node.provided_font with
-       |Some font->Result.get_ok(Font.cached_text?wrap:node.wrap~align:node.align font node.value(Font.Solid node.color))
-       |None->let automatic=Result.get_ok(Font.Private.borrow_automatic?wrap:node.wrap~align:node.align~size:node.size node.value(Font.Solid node.color))in
+       |Some font->Result.get_ok(Font.cached_text?wrap:node.wrap~align:node.align~density font node.value(Font.Solid node.color))
+       |None->let automatic=Result.get_ok(Font.Private.borrow_automatic?wrap:node.wrap~align:node.align~density~size:node.size node.value(Font.Solid node.color))in
          node.automatic<-Some automatic;Font.Private.automatic_image automatic in
        node.rendered <- Some image;
        image
@@ -244,7 +244,7 @@ module Private=struct
       emit builder(Scene_command.Render_ir.Push_transform{xx;xy;yx;yy;tx=px-.xx*.px-.xy*.py;ty=py-.yx*.px-.yy*.py});
       emit builder command;emit builder Scene_command.Render_ir.Pop_transform)
     else emit builder command
- let commands scene=
+ let commands ?(density=1) scene=
   let builder=command_builder()in
   let rec nodes=function
    |[]->()
@@ -253,7 +253,9 @@ module Private=struct
    |Geometry g::xs->emit builder(Scene_command.Render_ir.Geometry g);nodes xs
    |Debug_text node::xs->emit builder(Scene_command.Render_ir.Debug_text{x=float node.x;y=float node.y;text=node.value;color=rgba node.color});nodes xs
    |Image node::xs->image_command builder node.image node.x node.y node.scale node.angle node.center node.flip_x;nodes xs
-   |Text node::xs->image_command builder(text_image node)node.x node.y 1. 0. None false;nodes xs
+   |Text node::xs->
+       let scale=1./.float(max 1 density)in
+       image_command builder(text_image~density node)node.x node.y scale 0. None false;nodes xs
    |Group g::xs->nodes g;nodes xs
    |Translate(x,y,g)::xs->emit builder(Scene_command.Render_ir.Push_transform{xx=1.;xy=0.;yx=0.;yy=1.;tx=float x;ty=float y});nodes g;emit builder Scene_command.Render_ir.Pop_transform;nodes xs
    |Scale(x,y,g)::xs->emit builder(Scene_command.Render_ir.Push_transform{xx=x;xy=0.;yx=0.;yy=y;tx=0.;ty=0.});nodes g;emit builder Scene_command.Render_ir.Pop_transform;nodes xs
@@ -263,31 +265,31 @@ module Private=struct
    |(View3d _|Region _)::xs->nodes xs in
   nodes scene;Array.sub builder.values 0 builder.length
  let rec text_regions scene=List.concat_map(function Region(x,y,w,h,f)->[x,y,w,h,f]|Group g|Translate(_,_,g)|Rotate(_,g)|Scale(_,_,g)|Clip(_,_,_,_,g)|Blend(_,g)->text_regions g|_->[])scene
- let image_resources scene=
+ let image_resources ?(density=1) scene=
    let rec nodes acc=function
     |[]->acc
     |Image node::rest->nodes((Image.Private.identity node.image,Prismel_next_execution.Image(Image.Private.resource node.image))::acc)rest
-    |Text node::rest->let image=text_image node in nodes((Image.Private.identity image,Prismel_next_execution.Image(Image.Private.resource image))::acc)rest
+    |Text node::rest->let image=text_image ~density node in nodes((Image.Private.identity image,Prismel_next_execution.Image(Image.Private.resource image))::acc)rest
     |Group nested::rest|Translate(_,_,nested)::rest|Rotate(_,nested)::rest
     |Scale(_,_,nested)::rest|Clip(_,_,_,_,nested)::rest|Blend(_,nested)::rest->
         nodes(nodes acc nested)rest
     |_::rest->nodes acc rest in
    List.rev(nodes[]scene)
 
- let stage_materialized scene =
+ let stage_materialized ?(density=1) scene =
    try
      match Scene_command.Render_ir.Private.create_owned
-       (commands scene)with
+       (commands ~density scene)with
      |Error _->Error "invalid scene description"
-     |Ok ir->Ok(ir,image_resources scene)
+     |Ok ir->Ok(ir,image_resources ~density scene)
    with
    |Failure message->Error message
    |Invalid_argument message->Error message
 
- let stage ~width ~height scene =
+ let stage ?(density=1) ~width ~height scene =
    if width <= 0 || height <= 0 then Error "invalid scene extent"
    else
-     try stage_materialized scene with
+     try stage_materialized ~density scene with
      |Failure message->Error message
      |Invalid_argument message->Error message
 
@@ -317,9 +319,9 @@ module Private=struct
      |Three_node view::rest->loop[](`Three view::flush nodes acc)rest in
    loop[][]items
 
- let stage_native ~width ~height scene =
+ let stage_native ?(density=1) ~width ~height scene =
    if width<=0||height<=0 then Error "invalid scene extent"else
-   match stage_materialized scene with Error _ as error->error
+   match stage_materialized ~density scene with Error _ as error->error
    |Ok(scene2,resources)->
    let failure=ref None in
    let callbacks:Scene3_native_lowering.resources={
@@ -329,7 +331,7 @@ module Private=struct
    let layers=match grouped with
    |[`Two _]->[Scene2_layer(scene2,resources)]
    |_->List.filter_map(fun item->if!failure<>None then None else match item with
-       |`Two nodes->(match stage_materialized nodes with
+       |`Two nodes->(match stage_materialized ~density nodes with
          |Ok(ir,resources)->Some(Scene2_layer(ir,resources))
          |Error message->failure:=Some message;None)
        |`Three node->

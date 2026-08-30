@@ -585,11 +585,13 @@ module Core = struct
            | None, None, None -> "Waiting for first cook") in
     let render = match render_status with None -> "" | Some status -> " · " ^ status in
     let viewing = Node.label (displayed_node value) in
+    let fps = if frame.Frame.fps > 0. && Float.is_finite frame.fps
+      then Printf.sprintf " · %.0f fps" frame.fps else "" in
     [Scene.rect ~at:(x, y) ~w:width ~h:height
        ~fill:(Color.hex_exn "#101318") ();
      Scene.text ~at:(x + 10, y + 8) ~size:11
        ~color:(Color.hex_exn "#cbd5e1")
-       (cook ^ " · viewing " ^ viewing ^ render)]
+       (cook ^ " · viewing " ^ viewing ^ render ^ fps)]
 
   let machinery value frame ~all_ui_visible ~camera_scene ~render_status =
     if not all_ui_visible then [] else

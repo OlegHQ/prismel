@@ -16,12 +16,13 @@ let rgba=function Solid c|Blended c|Shaded(c,_)->c.Color.r,c.g,c.b,c.a
 let image_of_text text=match Prismel_next_resources.Text.size text,Prismel_next_resources.Text.pixels text with
   |Ok(width,height),Ok rgba->begin match Prismel_next_resources.Image.create ~width ~height ~rgba with Ok image->Ok(Image.Private.of_resource image)|Error error->Error(message"Font.image"error)end
   |Error error,_->Error(message"Font.size"error)|_,Error error->Error(message"Font.pixels"error)
-let render_text font text mode=match Prismel_next_resources.Font.render font.resource ~density:1 ~color:(rgba mode)text with
+let paint ?(density=1) ?wrap font text mode=match Prismel_next_resources.Font.render font.resource ?wrap_width:wrap ~density ~color:(rgba mode)text with
   |Error error->Error(message"Font.render_text"error)|Ok None->Ok(Image.create ~width:1 ~height:1())
   |Ok(Some value)->let result=image_of_text value in ignore(Prismel_next_resources.Text.destroy value);result
-let key ?wrap ?(align=Left) text mode=Marshal.to_string(text,wrap,align,rgba mode)[]
-let cached_text ?wrap ?(align=Left) font text mode=let key=key ?wrap ~align text mode in match Hashtbl.find_opt font.cache key with Some image->Ok image|None->
-  match render_text font text mode with Error _ as error->error|Ok image->
+let render_text ?(density=1) font text mode=paint ~density font text mode
+let key ?wrap ?(align=Left) ?(density=1) text mode=Marshal.to_string(density,text,wrap,align,rgba mode)[]
+let cached_text ?wrap ?(align=Left) ?(density=1) font text mode=let key=key ?wrap ~align ~density text mode in match Hashtbl.find_opt font.cache key with Some image->Ok image|None->
+  match paint ~density ?wrap font text mode with Error _ as error->error|Ok image->
     if Hashtbl.length font.cache=256 then begin
       let oldest=Queue.pop font.order in
       match Hashtbl.find_opt font.cache oldest with
@@ -62,8 +63,8 @@ module Private=struct
  let automatic_references=ref 0
  let clock=ref 0
  let next_stamp()=incr clock;!clock
- let automatic_key ?wrap ?(align=Left) ~size text mode=
-   Marshal.to_string(size,text,wrap,align,rgba mode)[]
+ let automatic_key ?wrap ?(align=Left) ?(density=1) ~size text mode=
+   Marshal.to_string(density,size,text,wrap,align,rgba mode)[]
  let evict_entry()=
    let oldest=ref None in
    Hashtbl.iter(fun key entry->if entry.references=0 then match!oldest with
@@ -78,14 +79,14 @@ module Private=struct
       Option.iter(fun(key,value,_)->Hashtbl.remove automatic_fonts key;destroy value)!oldest
      end;
      match system~size()with Error _ as error->error|Ok value->Hashtbl.add automatic_fonts size(value,next_stamp());Ok value
- let borrow_automatic ?wrap ?(align=Left) ~size text mode=
-   let key=automatic_key?wrap~align~size text mode in
+ let borrow_automatic ?wrap ?(align=Left) ?(density=1) ~size text mode=
+   let key=automatic_key?wrap~align~density~size text mode in
    match Hashtbl.find_opt automatic_cache key with
    |Some entry->
      entry.references<-entry.references+1;incr automatic_references;
      entry.stamp<-next_stamp();Ok{entry;released=false}
    |None->match font size with Error _ as error->error|Ok font->
-     match render_text font text mode with Error _ as error->error|Ok image->
+     match paint ~density ?wrap font text mode with Error _ as error->error|Ok image->
       let can_cache=Hashtbl.length automatic_cache<capacity||evict_entry()in
       let entry={image;references=1;stamp=next_stamp();cached=can_cache}in
       if can_cache then Hashtbl.add automatic_cache key entry;

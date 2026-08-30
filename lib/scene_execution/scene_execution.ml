@@ -179,7 +179,7 @@ let trim_cache cache =
     | item :: rest -> loop entries bytes keep (item :: evict) rest
   in
   loop 0 0 [] [] cache
-let prepare value ~defer ~trusted_key ~reserved ~uniforms ~nonindexed ~canonical_plain (mesh:mesh)=
+let prepare value ~defer ~trusted_key ~reserved ~uniforms ?(vertex_stable=false) ~nonindexed ~canonical_plain (mesh:mesh)=
   let uniform_bytes=Option.value uniforms~default:Bytes.empty in
   let valid_uniforms=Option.fold~none:true~some:(fun bytes->
     if Bytes.length bytes=48 then
@@ -187,10 +187,27 @@ let prepare value ~defer ~trusted_key ~reserved ~uniforms ~nonindexed ~canonical
         if not(Float.is_finite(Int64.float_of_bits(Bytes.get_int64_le bytes(index*8))))then valid:=false
       done;!valid
     else (Bytes.length bytes=24||Bytes.length bytes=208||Bytes.length bytes=5456)&&let valid=ref true in for index=0 to Bytes.length bytes/4-1 do if not(Float.is_finite(Int32.float_of_bits(Bytes.get_int32_le bytes(index*4))))then valid:=false done;let lights=if Bytes.length bytes=5456 then Int32.float_of_bits(Bytes.get_int32_le bytes(73*4))else 0. in !valid&&lights>=0.&&lights<=64.&&Float.is_integer lights)uniforms in
-  let key=mesh.key^(if canonical_plain then ":canonical-scene2" else if nonindexed then ":nonindexed" else "")^(if Bytes.length uniform_bytes=0 then""else":"^Digest.to_hex(Digest.bytes uniform_bytes))in
-  let trusted=if trusted_key then List.find_opt(fun(x:cached)->x.key=key)value.cache else None in
-  match trusted with Some item->Ok item|None->
-  let payload_hash=String.concat":"[
+  let key_base=mesh.key^(if canonical_plain then ":canonical-scene2" else if nonindexed then ":nonindexed" else "")in
+  let key=key_base^(if vertex_stable||Bytes.length uniform_bytes=0 then""else":"^Digest.to_hex(Digest.bytes uniform_bytes))in
+  let trusted=if trusted_key||vertex_stable then
+      List.find_opt(fun(x:cached)->x.key=key)value.cache else None in
+  match trusted with
+  |Some item when vertex_stable&&Bytes.length uniform_bytes>0->
+      let uniform_hash=Digest.to_hex(Digest.bytes uniform_bytes)in
+      if item.payload_hash=uniform_hash then Ok item
+      else
+        (match item.uniform_offset with
+         |None->Ok item
+         |Some offset->
+             match Ogpu.Backend.write_buffer item.buffer~offset uniform_bytes with
+             |Error _ as error->error
+             |Ok()->item.payload_hash<-uniform_hash;
+                 value.uploaded<-Int64.add value.uploaded
+                   (Int64.of_int(Bytes.length uniform_bytes));Ok item)
+  |Some item->Ok item
+  |None->
+  let payload_hash=if vertex_stable then Digest.to_hex(Digest.bytes uniform_bytes)
+    else String.concat":"[
     Digest.to_hex(Digest.bytes mesh.vertices);
     Digest.to_hex(Digest.bytes mesh.indices);
     Digest.to_hex(Digest.bytes uniform_bytes)]in
@@ -337,7 +354,7 @@ let image_or_canvas_key key=
   String.starts_with~prefix:"canvas:"key||String.starts_with~prefix:"image:"key
 let prepare_texture value ~defer(source:sampled_texture)=
   match List.find_opt(fun item->item.texture_key=source.key)value.texture_cache with
-  |Some item when not(String.starts_with~prefix:"canvas:"source.key)->
+  |Some item when String.starts_with~prefix:"image:"source.key->
       item.texture_in_use<-true;Ok item
   |_->
   let hash,known_reusable=
@@ -771,8 +788,11 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
     let canonical_plain=value.canonical_scene2_argument&&family=Scene2 in
     let affine=scene2&&Option.fold~none:false~some:(fun bytes->
       Bytes.length bytes=24||Bytes.length bytes=48)draw.state.transform_uniforms in
+    let scene3_transform=Option.fold~none:false~some:(fun bytes->
+      Bytes.length bytes=5456)draw.state.transform_uniforms in
     match prepare value~defer~trusted_key~reserved:(scratch_mem_mesh scratch)
       ~uniforms:(if canonical_scene2||affine then None else draw.state.transform_uniforms)
+      ~vertex_stable:scene3_transform
       ~nonindexed:(family=Scene2_textured||canonical_scene2)~canonical_plain draw.mesh with
     |Error _ as result->result
     |Ok mesh->

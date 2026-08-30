@@ -52,7 +52,9 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
     logical_width:=facts.logical_width;logical_height:=facts.logical_height);
   Scene.Private.install_renderer(fun scene->
     let facts=get(Prismel_next_execution.presentation_facts coordinator)in
-    let density=max 1(int_of_float(Float.round facts.pixel_density))in
+    let density=
+      let from_drawable=float facts.drawable_width/.float(max 1 facts.logical_width)in
+      max 1(int_of_float(Float.round(max facts.pixel_density from_drawable)))in
     match Native_scene_lowering.render~execution:coordinator~density
       ~width:facts.logical_width~height:facts.logical_height scene with
     |Ok _->()
