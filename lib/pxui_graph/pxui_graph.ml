@@ -3,6 +3,7 @@ open Procedural
 
 module Id_set = Set.Make (Int)
 module Id_map = Map.Make (Int)
+module Cell_map = Map.Make (Int64)
 module String_set = Set.Make (String)
 
 type catalog_entry = {
@@ -167,6 +168,7 @@ type t = {
   slots : (int, int) Hashtbl.t;
   positions : (float * float) Id_map.t;
   moved_nodes : Id_set.t;
+  moved_cells : Id_set.t Cell_map.t;
   moved_edges : Id_set.t;
   spatial : spatial_index;
   selected : Id_set.t;
@@ -235,23 +237,29 @@ let spatial_key cell_x cell_y =
 let spatial_cell coordinate = int_of_float (Float.floor
     (coordinate /. spatial_cell_size))
 
+let fold_box_cells (box : box) gx gy initial visit =
+  let padding = 24. in
+  let first_x = spatial_cell (gx -. padding)
+  and last_x = spatial_cell
+      (gx +. float_of_int (max 0 (box.width - 1)) +. padding)
+  and first_y = spatial_cell (gy -. padding)
+  and last_y = spatial_cell
+      (gy +. float_of_int (max 0 (box.height - 1)) +. padding) in
+  let result = ref initial in
+  for cell_y = first_y to last_y do
+    for cell_x = first_x to last_x do
+      result := visit !result (spatial_key cell_x cell_y)
+    done
+  done;
+  !result
+
 let build_spatial_index boxes edges =
   let pending = Hashtbl.create (max 16 (Array.length boxes * 2)) in
   Array.iteri (fun index (box : box) ->
-    let padding = 24. in
-    let first_x = spatial_cell (box.gx -. padding)
-    and last_x = spatial_cell
-        (box.gx +. float_of_int (max 0 (box.width - 1)) +. padding)
-    and first_y = spatial_cell (box.gy -. padding)
-    and last_y = spatial_cell
-        (box.gy +. float_of_int (max 0 (box.height - 1)) +. padding) in
-    for cell_y = first_y to last_y do
-      for cell_x = first_x to last_x do
-        let key = spatial_key cell_x cell_y in
-        Hashtbl.replace pending key
-          (index :: Option.value (Hashtbl.find_opt pending key) ~default:[])
-      done
-    done) boxes;
+    ignore (fold_box_cells box box.gx box.gy () (fun () key ->
+      Hashtbl.replace pending key
+        (index :: Option.value (Hashtbl.find_opt pending key) ~default:[]))))
+    boxes;
   let cells = Hashtbl.create (Hashtbl.length pending) in
   let max_candidates = ref 0 in
   Hashtbl.iter (fun key reversed ->
@@ -478,6 +486,7 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
     | None -> Option.value ~default:0 primary in
   { source_graph = None; document; boxes; edges; slots;
     positions = Id_map.empty; moved_nodes = Id_set.empty;
+    moved_cells = Cell_map.empty;
     moved_edges = Id_set.empty;
     spatial = build_spatial_index boxes edges; selected; primary;
     selected_edge = None; viewed; x; y; width; height;
@@ -516,6 +525,7 @@ let with_document document value =
       then value.viewed else Option.value ~default:0 (Edit_graph.root document) in
     { value with source_graph = None; document; boxes; edges; slots;
       positions = Id_map.empty; moved_nodes = Id_set.empty;
+      moved_cells = Cell_map.empty;
       moved_edges = Id_set.empty;
       spatial = build_spatial_index boxes edges;
       selected; primary;
@@ -581,6 +591,7 @@ let place_node ~node_id ~x ~y value =
   let edges = build_edges boxes in
   { value with boxes; edges;
     positions = Id_map.empty; moved_nodes = Id_set.empty;
+    moved_cells = Cell_map.empty;
     moved_edges = Id_set.empty; spatial = build_spatial_index boxes edges }
 
 let screen_x value gx = value.x + int_of_float (value.pan_x +. (gx *. value.zoom))
@@ -645,6 +656,14 @@ let spatial_candidates value point =
       (spatial_key (cell graph_point_x) (cell graph_point_y)))
     ~default:empty_candidates
 
+let moved_spatial_candidates value point =
+  let point_x, point_y = point in
+  let graph_point_x = graph_x value point_x
+  and graph_point_y = graph_y value point_y in
+  Cell_map.find_opt
+    (spatial_key (spatial_cell graph_point_x) (spatial_cell graph_point_y))
+    value.moved_cells
+
 let iter_edge_bvh spatial query_min_x query_min_y query_max_x query_max_y visit =
   let bvh = spatial.edge_bvh in
   if bvh.root >= 0 then begin
@@ -699,11 +718,11 @@ let hit_node value point =
     end;
     decr index
   done;
-  Id_set.iter (fun candidate ->
+  Option.iter (Id_set.iter (fun candidate ->
     let x, y, width, height = box_bounds value value.boxes.(candidate) in
     if contains ~x ~y ~width ~height point
         && Option.fold ~none:true ~some:(fun current -> candidate > current) !found
-    then found := Some candidate) value.moved_nodes;
+    then found := Some candidate)) (moved_spatial_candidates value point);
   !found
 
 let hit_view_button value point =
@@ -718,11 +737,11 @@ let hit_view_button value point =
     end;
     decr index
   done;
-  Id_set.iter (fun candidate ->
+  Option.iter (Id_set.iter (fun candidate ->
     let x, y, width, height = view_button_bounds value value.boxes.(candidate) in
     if contains ~x ~y ~width ~height point
         && Option.fold ~none:true ~some:(fun current -> candidate > current) !found
-    then found := Some candidate) value.moved_nodes;
+    then found := Some candidate)) (moved_spatial_candidates value point);
   !found
 
 let port_x (value : t) (box : box) input_index input_count =
@@ -744,14 +763,14 @@ let hit_output value point =
     end;
     incr cursor
   done;
-  Id_set.iter (fun index ->
+  Option.iter (Id_set.iter (fun index ->
     let box = Array.unsafe_get value.boxes index in
     let x, y, width, height = box_bounds value box in
     let px = x + width / 2 and py = y + height in
     let dx = fst point - px and dy = snd point - py in
     if (dx * dx) + (dy * dy) <= radius * radius
         && Option.fold ~none:true ~some:(fun current -> index < current) !found
-    then found := Some index) value.moved_nodes;
+    then found := Some index)) (moved_spatial_candidates value point);
   !found
 
 let hit_input value point =
@@ -773,7 +792,7 @@ let hit_input value point =
     end;
     incr cursor
   done;
-  Id_set.iter (fun index ->
+  Option.iter (Id_set.iter (fun index ->
     let box = Array.unsafe_get value.boxes index in
     let _, y, _, _ = box_bounds value box in
     let count = Array.length box.info.Edit_graph.inputs in
@@ -784,7 +803,7 @@ let hit_input value point =
           && Option.fold ~none:true
             ~some:(fun (current, _) -> index < current) !found
       then found := Some (index, input_index)
-    done) value.moved_nodes;
+    done)) (moved_spatial_candidates value point);
   !found
 
 let edge_points value edge =
@@ -887,18 +906,33 @@ let move_nodes value x y indices edge_indices last_x last_y offset_x offset_y =
       offset_y = offset_y +. dy }) }
 
 let commit_node_move value indices edge_indices offset_x offset_y =
-  let positions = Array.fold_left (fun positions index ->
+  let positions, moved_nodes, moved_cells = Array.fold_left
+      (fun (positions, moved_nodes, moved_cells) index ->
     let box = Array.unsafe_get value.boxes index in
     let gx, gy = Option.value
         (Id_map.find_opt box.info.Edit_graph.id positions)
         ~default:(box.gx, box.gy) in
-    Id_map.add box.info.Edit_graph.id
-      (gx +. offset_x, gy +. offset_y) positions) value.positions indices in
-  let moved_nodes = Array.fold_left (fun moved index ->
-    Id_set.add index moved) value.moved_nodes indices
-  and moved_edges = Array.fold_left (fun moved index ->
+    let moved_cells = if Id_set.mem index moved_nodes then
+        fold_box_cells box gx gy moved_cells (fun cells key ->
+          match Cell_map.find_opt key cells with
+          | None -> cells
+          | Some members ->
+              let members = Id_set.remove index members in
+              if Id_set.is_empty members then Cell_map.remove key cells
+              else Cell_map.add key members cells)
+      else moved_cells in
+    let next_x = gx +. offset_x and next_y = gy +. offset_y in
+    let moved_cells = fold_box_cells box next_x next_y moved_cells
+        (fun cells key ->
+          let members = Option.value (Cell_map.find_opt key cells)
+              ~default:Id_set.empty in
+          Cell_map.add key (Id_set.add index members) cells) in
+    Id_map.add box.info.Edit_graph.id (next_x, next_y) positions,
+    Id_set.add index moved_nodes, moved_cells)
+      (value.positions, value.moved_nodes, value.moved_cells) indices in
+  let moved_edges = Array.fold_left (fun moved index ->
     Id_set.add index moved) value.moved_edges edge_indices in
-  { value with positions; moved_nodes; moved_edges; drag = None }
+  { value with positions; moved_nodes; moved_cells; moved_edges; drag = None }
 
 let zoom_at value (mouse_x, mouse_y) delta =
   let old_zoom = value.zoom in
@@ -1181,27 +1215,24 @@ let apply_marquee (value : t) (drag : box_drag) =
   and last_y = spatial_cell (graph_y value (y + height - 1)) in
   let generation = next_spatial_generation value.spatial in
   let selected = ref (if drag.additive then value.selected else Id_set.empty) in
-  for cell_y = min first_y last_y to max first_y last_y do
-    for cell_x = min first_x last_x to max first_x last_x do
-      match Hashtbl.find_opt value.spatial.cells (spatial_key cell_x cell_y) with
-      | None -> ()
-      | Some candidates -> Array.iter (fun candidate ->
-          if not (Id_set.mem candidate value.moved_nodes)
-              && Array.unsafe_get value.spatial.marks candidate <> generation then begin
-            Array.unsafe_set value.spatial.marks candidate generation;
-            let box = Array.unsafe_get value.boxes candidate in
-            if intersects bounds (box_bounds value box) then
-              selected := Id_set.add box.info.Edit_graph.id !selected
-          end) candidates
-    done
-  done;
-  Id_set.iter (fun candidate ->
+  let visit candidate =
     if Array.unsafe_get value.spatial.marks candidate <> generation then begin
       Array.unsafe_set value.spatial.marks candidate generation;
       let box = Array.unsafe_get value.boxes candidate in
       if intersects bounds (box_bounds value box) then
         selected := Id_set.add box.info.Edit_graph.id !selected
-    end) value.moved_nodes;
+    end in
+  for cell_y = min first_y last_y to max first_y last_y do
+    for cell_x = min first_x last_x to max first_x last_x do
+      let key = spatial_key cell_x cell_y in
+      (match Hashtbl.find_opt value.spatial.cells key with
+      | None -> ()
+      | Some candidates -> Array.iter (fun candidate ->
+          if not (Id_set.mem candidate value.moved_nodes)
+          then visit candidate) candidates);
+      Option.iter (Id_set.iter visit) (Cell_map.find_opt key value.moved_cells)
+    done
+  done;
   let selected = !selected in
   let primary = if Id_set.is_empty selected then None
     else Some (Id_set.max_elt selected) in
@@ -1235,6 +1266,7 @@ let update (value : t) frame =
             let edges = build_edges boxes in
             let value = { value with boxes; edges;
               positions = Id_map.empty; moved_nodes = Id_set.empty;
+              moved_cells = Cell_map.empty;
               moved_edges = Id_set.empty;
               spatial = build_spatial_index boxes edges } |> frame_all in
             value, Layout_optimized :: View_changed :: changes
@@ -1408,24 +1440,7 @@ let visible_node_indices (value : t) viewport =
   and last_x = spatial_cell (graph_x value (x + width - 1))
   and first_y = spatial_cell (graph_y value y)
   and last_y = spatial_cell (graph_y value (y + height - 1)) in
-  for cell_y = min first_y last_y to max first_y last_y do
-    for cell_x = min first_x last_x to max first_x last_x do
-      match Hashtbl.find_opt spatial.cells (spatial_key cell_x cell_y) with
-      | None -> ()
-      | Some candidates -> Array.iter (fun candidate ->
-          if not (Id_set.mem candidate value.moved_nodes)
-              && Array.unsafe_get spatial.marks candidate
-              <> generation then begin
-            Array.unsafe_set spatial.marks candidate generation;
-            if intersects viewport (box_bounds value value.boxes.(candidate)) then begin
-              ensure_visible_capacity spatial (spatial.visible_length + 1);
-              Array.unsafe_set spatial.visible spatial.visible_length candidate;
-              spatial.visible_length <- spatial.visible_length + 1
-            end
-          end) candidates
-    done
-  done;
-  Id_set.iter (fun candidate ->
+  let visit_node candidate =
     if Array.unsafe_get spatial.marks candidate <> generation then begin
       Array.unsafe_set spatial.marks candidate generation;
       if intersects viewport (box_bounds value value.boxes.(candidate)) then begin
@@ -1433,17 +1448,21 @@ let visible_node_indices (value : t) viewport =
         Array.unsafe_set spatial.visible spatial.visible_length candidate;
         spatial.visible_length <- spatial.visible_length + 1
       end
-    end) value.moved_nodes;
+    end in
+  for cell_y = min first_y last_y to max first_y last_y do
+    for cell_x = min first_x last_x to max first_x last_x do
+      let key = spatial_key cell_x cell_y in
+      (match Hashtbl.find_opt spatial.cells key with
+      | None -> ()
+      | Some candidates -> Array.iter (fun candidate ->
+          if not (Id_set.mem candidate value.moved_nodes)
+          then visit_node candidate) candidates);
+      Option.iter (Id_set.iter visit_node)
+        (Cell_map.find_opt key value.moved_cells)
+    done
+  done;
   (match value.drag with
-   | Some (Move_nodes { indices; _ }) -> Array.iter (fun candidate ->
-       if Array.unsafe_get spatial.marks candidate <> generation then begin
-         Array.unsafe_set spatial.marks candidate generation;
-         if intersects viewport (box_bounds value value.boxes.(candidate)) then begin
-           ensure_visible_capacity spatial (spatial.visible_length + 1);
-           Array.unsafe_set spatial.visible spatial.visible_length candidate;
-           spatial.visible_length <- spatial.visible_length + 1
-         end
-       end) indices
+   | Some (Move_nodes { indices; _ }) -> Array.iter visit_node indices
    | Some (Pan _ | View_button _ | Box_select _ | Connect_wire _) | None -> ());
   sort_visible_prefix spatial.visible spatial.visible_length;
   spatial.visible_edge_length <- 0;
@@ -1670,6 +1689,7 @@ let same_scene_state (left : t) (right : t) =
   left.boxes == right.boxes && left.edges == right.edges
   && left.positions == right.positions
   && left.moved_nodes == right.moved_nodes
+  && left.moved_cells == right.moved_cells
   && left.moved_edges == right.moved_edges
   && left.selected = right.selected && left.primary = right.primary
   && left.selected_edge = right.selected_edge && left.viewed = right.viewed

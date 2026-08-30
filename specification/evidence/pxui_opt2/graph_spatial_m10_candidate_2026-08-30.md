@@ -70,12 +70,20 @@ released node and its moved wire at their retained positions. Explicit layout
 optimization and document replacement intentionally materialize/rebase once
 and clear the delta sets.
 
+Accumulated moved nodes now have a persistent delta grid. Each release removes
+the selected slots from their prior delta cells and inserts them at their new
+graph-space bounds. Node/body/port hit tests, marquee, and viewport visibility
+query those cells alongside the unchanged base grid while suppressing stale
+base entries; they no longer scan every node edited since the last document
+replacement. The 10k single-node release-and-paint lane remains 215.054
+microseconds with 246,472 allocated bytes, versus 112.057 microseconds and the
+same allocation at 1k.
+
 The former 10,000-way fan remains useful as an adversarial stress topology: its
 long diagonal envelopes overlap heavily and are not used as a proxy for the
 controlled 2x-edge qualification lane.
 
-The remaining M10 work is explicit: accumulated moved-node and affected-edge
-deltas still need their own spatial hierarchy so queries do not scan the full
-edited set; large match sets still need an index-backed partial ranking lane;
-and graph paint is not yet split into retained layers. No completion claim is
-made here.
+The remaining M10 work is explicit: accumulated affected-edge deltas still need
+their own spatial hierarchy so queries do not scan the full edited edge set;
+large match sets still need an index-backed partial ranking lane; and graph
+paint is not yet split into retained layers. No completion claim is made here.
