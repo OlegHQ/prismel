@@ -18,6 +18,13 @@ let () =
     ~colors:[Color.red;Color.green;Color.blue]
     [Vec3.create(-0.5)(-0.5)0.;Vec3.create 0.5(-0.5)0.;Vec3.create 0. 0.5 0.]in
   let scene=Scene3.create[Scene3.mesh~material:(Material.unlit Color.white)mesh]in
+  let retained_frame=Scene.[clear Color.black;view3d~camera scene]in
+  let retained_first=Result.get_ok(Scene.Private.stage_native~width:16~height:16
+    retained_frame)in
+  let retained_second=Result.get_ok(Scene.Private.stage_native~width:16~height:16
+    retained_frame)in
+  if retained_first != retained_second then
+    failwith"resource-free retained frame did not reuse native staging";
   let reusable_view=Scene.[view3d~camera scene]in
   let before_release=Result.get_ok(Scene.Private.stage_native~width:16~height:16
     reusable_view)in
@@ -38,6 +45,10 @@ let () =
     failwith"View3d did not reach structured native staging";
   let texture=Texture.init~width:2~height:2(fun~x~y->if x=y then Color.red else Color.blue)|>Texture.generate_mipmaps in
   let textured=Scene3.create[Scene3.mesh~texture:(Scene3.textured~filter:Texture.Trilinear texture)mesh]in
+  let textured_frame=Scene.[clear Color.black;view3d~camera textured]in
+  if Result.get_ok(Scene.Private.stage_native~width:16~height:16 textured_frame)
+      == Result.get_ok(Scene.Private.stage_native~width:16~height:16 textured_frame)
+  then failwith"resource-bearing retained frame reused stale native staging";
   let textured_stage=Result.get_ok(Scene.Private.stage_native~width:16~height:16[Scene.view3d~camera textured])in
   let textured_entry=(List.hd textured_stage.scene3).entries.(0)in
   (match textured_entry.family,textured_entry.texture with Scene_execution.Scene3_textured,Some value when Array.length value.levels=2&&Bytes.length value.levels.(0).bytes=16->()|_->failwith"native texture mip/sampler staging");
@@ -57,6 +68,8 @@ let () =
   if actual<>[|0;1;2;2;1;3|]then failwith"native triangle strip winding";
   let first=prepare ~width:16 ~height:16 scene in
   let second=prepare ~width:16 ~height:16 scene in
+  if first != second then
+    failwith"stable texture-free Scene3 did not reuse its prepared payload";
   if first.entries.(0).draw.mesh.vertices != second.entries.(0).draw.mesh.vertices
     || first.entries.(0).draw.mesh.key <> second.entries.(0).draw.mesh.key then
     failwith"stable Scene3 mesh was repacked for a camera-only prepare";

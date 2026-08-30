@@ -322,7 +322,7 @@ module Private=struct
      |Break::rest->loop[](flush nodes acc)rest in
    loop[][]items
 
- let stage_native ?(density=1) ~width ~height scene =
+ let stage_native_uncached ?(density=1) ~width ~height scene =
    if width<=0||height<=0 then Error "invalid scene extent"else
    match stage_materialized ~density scene with Error _ as error->error
    |Ok(scene2,resources)->
@@ -356,6 +356,51 @@ module Private=struct
    match!failure with Some message->Error message|None->
    let scene3=List.filter_map(function Scene3_layer prepared->Some prepared|_->None)layers in
    Ok{clear= !clear;scene2;resources;scene3;layers}
+
+ type native_stage_cache_entry={cached_scene:t;cached_density:int;
+   cached_width:int;cached_height:int;cached_stage:staged_native}
+ let native_stage_cache_capacity=16
+ let native_stage_cache_byte_capacity=256*1024*1024
+ let native_stage_caches=Domain.DLS.new_key(fun()->ref[])
+ let native_stage_bytes stage=List.fold_left(fun total->function
+   |Scene2_layer(ir,_)->total+Array.fold_left(fun total->function
+       |Scene_command.Render_ir.Geometry geometry->total+
+           Array.length geometry.vertices*(Sys.word_size/8)+
+           Array.length geometry.indices*(Sys.word_size/8)
+       |_->total+32)0(Scene_command.Render_ir.Private.commands_readonly ir)
+   |Scene3_layer prepared->total+Array.fold_left(fun total entry->
+       total+Bytes.length entry.Scene_execution.draw.mesh.vertices+
+       Bytes.length entry.draw.mesh.indices+
+       Option.fold~none:0~some:Bytes.length entry.draw.state.transform_uniforms)
+       0 prepared.Scene_execution.entries)0 stage.layers
+ let trim_native_stage_cache values=
+   let rec loop count bytes kept=function
+   |[]->List.rev kept
+   |entry::rest->
+       let size=native_stage_bytes entry.cached_stage in
+       if count<native_stage_cache_capacity&&
+          size<=native_stage_cache_byte_capacity-bytes
+       then loop(count+1)(bytes+size)(entry::kept)rest
+       else loop count bytes kept rest in
+   loop 0 0[]values
+ let stage_native ?(density=1) ~width ~height scene =
+   let cacheable=match scene with
+   |[Clear _;View3d view]->Scene3.Private.cacheable view.scene
+   |_->false in
+   if not cacheable then stage_native_uncached~density~width~height scene else
+   let cache=Domain.DLS.get native_stage_caches in
+   match List.find_opt(fun entry->entry.cached_scene==scene&&
+       entry.cached_density=density&&entry.cached_width=width&&
+       entry.cached_height=height)!cache with
+   |Some entry->Ok entry.cached_stage
+   |None->
+       match stage_native_uncached~density~width~height scene with
+       |Error _ as error->error
+       |Ok stage as result->
+           cache:={cached_scene=scene;cached_density=density;cached_width=width;
+             cached_height=height;cached_stage=stage}::!cache;
+           cache:=trim_native_stage_cache!cache;
+           result
 
  let to_ir scene = Result.map fst (stage ~width:640 ~height:480 scene)
  let resources scene =

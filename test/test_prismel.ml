@@ -588,6 +588,11 @@ let () =
     ];
   } in
   let camera_control = Pxui.Camera_control.create () in
+  if Easy_camera.camera easy != Easy_camera.camera easy then
+    fail "easy camera did not retain an unchanged derived camera";
+  if Easy_camera.camera (Easy_camera.with_distance 6. easy)
+      == Easy_camera.camera easy then
+    fail "easy camera reused a derived camera after a parameter change";
   let camera_ui = Pxui.create ~x:0 ~y:0 ~width:240 ()
       |> Pxui.Camera_control.append camera_control ~camera:easy in
   let capped_ui = Pxui.with_max_height (Some 120) camera_ui in

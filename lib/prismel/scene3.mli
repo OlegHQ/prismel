@@ -217,6 +217,7 @@ module Private : sig
   }
 
   val drawings : t -> drawing list
+  val cacheable : t -> bool
   val iter_drawings : (drawing -> unit) -> t -> unit
   (* Iterate one descriptor per mesh node. [Some transforms] is a borrowed
      instance batch composed after the descriptor's parent transform. *)

@@ -77,16 +77,17 @@ let pan_sensitivity value = value.pan_sensitivity
 let zoom_sensitivity value = value.zoom_sensitivity
 let translation_key value = value.translation_key
 
-let with_center center value = { value with center }
+let with_center center value =
+  if center = value.center then value else { value with center }
 
 let with_zoom zoom value =
   validate_zoom zoom;
-  { value with zoom }
+  if zoom = value.zoom then value else { value with zoom }
 
 let with_rotation rotation value =
   if not (Float.is_finite rotation) then
     invalid_arg "Easy_camera2: rotation must be finite";
-  { value with rotation }
+  if rotation = value.rotation then value else { value with rotation }
 
 let set_enabled enabled value =
   { value with enabled;
@@ -95,7 +96,7 @@ let set_enabled enabled value =
 
 let with_viewport viewport value =
   validate_area "viewport" viewport;
-  { value with viewport }
+  if viewport = value.viewport then value else { value with viewport }
 
 let with_control_area control_area value =
   validate_area "control-area" control_area;
@@ -103,7 +104,8 @@ let with_control_area control_area value =
   else { value with control_area; drag = None }
 
 let with_inertia inertia value =
-  { value with inertia; velocity = if inertia then value.velocity else None }
+  if inertia = value.inertia then value
+  else { value with inertia; velocity = if inertia then value.velocity else None }
 
 let with_drag_coefficient drag_coefficient value =
   validate_drag_coefficient drag_coefficient;
@@ -118,7 +120,8 @@ let with_zoom_sensitivity zoom_sensitivity value =
   { value with zoom_sensitivity }
 
 let with_translation_key translation_key value =
-  { value with translation_key }
+  if translation_key = value.translation_key then value
+  else { value with translation_key }
 
 let reset value =
   { value with center = value.initial.center; zoom = value.initial.zoom;

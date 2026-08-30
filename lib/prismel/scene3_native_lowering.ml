@@ -50,8 +50,26 @@ type packed_mesh={
   index_count:int;
 }
 let packed_mesh_capacity=16
+let retained_payload_byte_capacity=256*1024*1024
 let packed_meshes=ref[]
 let next_packed_id=ref 0
+type prepared_cache_entry={scene:Scene3.t;camera:Camera.t;
+  viewport:int*int*int*int;prepared:prepared}
+let prepared_cache_capacity=16
+let prepared_cache=ref[]
+let packed_bytes packed=Bytes.length packed.vertices+Bytes.length packed.indices
+let prepared_bytes prepared=Array.fold_left(fun total entry->
+  total+Bytes.length entry.Scene_execution.draw.mesh.vertices+
+  Bytes.length entry.draw.mesh.indices+
+  Option.fold~none:0~some:Bytes.length entry.draw.state.transform_uniforms)
+  0 prepared.Scene_execution.entries
+let trim_retained ~capacity bytes values=
+  let rec loop count total kept=function
+  |[]->List.rev kept
+  |value::rest when count<capacity&&bytes value<=retained_payload_byte_capacity-total->
+      loop(count+1)(total+bytes value)(value::kept)rest
+  |_::rest->loop count total kept rest in
+  loop 0 0[]values
 let pack_vertices (view:Mesh.Private.view)=
   let count=Array.length view.vertices in
   let normals=match view.normals with Some values when Array.length values=count->Some values|_->None in
@@ -80,19 +98,36 @@ let packed_of_mesh mesh=
             vertex_count=Array.length view.vertices;
             index_count=Array.length native_indices}in
           packed_meshes:=packed::!packed_meshes;
-          if List.length!packed_meshes>packed_mesh_capacity then
-            packed_meshes:=List.filteri(fun index _->index<packed_mesh_capacity)
-              !packed_meshes;
+          packed_meshes:=trim_retained~capacity:packed_mesh_capacity packed_bytes
+            !packed_meshes;
           Ok packed
       |_->Error Invalid_mesh
 let prepare ~resources ~camera ~viewport:(x,y,width,height as viewport) scene =
   if width<=0||height<=0 then Error Invalid_viewport
-  else if List.exists(fun(d:Scene3.Private.drawing)->Option.is_some d.shader)
-      (Scene3.Private.drawings scene)then Error Unsupported_shader
-  else let failure=ref None and entries=ref[]in List.iteri(fun _number(drawing:Scene3.Private.drawing)->if !failure=None then match drawing.mode,packed_of_mesh drawing.mesh with
+  else match List.find_opt(fun cached->cached.scene==scene&&cached.camera==camera&&
+      cached.viewport=viewport)!prepared_cache with
+  |Some cached->Ok cached.prepared
+  |None->
+  let drawings=Scene3.Private.drawings scene in
+  if List.exists(fun(d:Scene3.Private.drawing)->Option.is_some d.shader)drawings
+  then Error Unsupported_shader
+  else let cacheable=ref(Scene3.Private.shadows scene=[])
+    and failure=ref None and entries=ref[]in
+  List.iteri(fun _number(drawing:Scene3.Private.drawing)->
+    if Option.is_some drawing.texture then cacheable:=false;
+    if !failure=None then match drawing.mode,packed_of_mesh drawing.mesh with
     |Scene3.Faces,Ok packed->let texture=match drawing.texture with None->Ok None|Some value->Result.map Option.some(resources.texture value)in let shadow=match Scene3.Private.shadows scene with []->Ok None|value::_->Result.map Option.some(resources.shadow value)in(match texture,shadow with Error error,_|_,Error error->failure:=Some error|Ok texture,Ok auxiliary->let mesh:Scene_execution.mesh={key=packed.key;vertices=packed.vertices;vertex_count=packed.vertex_count;indices=packed.indices;index_count=packed.index_count}in let state:Scene_execution.state={viewport=(x,y,width,height);scissor=(x,y,width,height);cull=cull drawing.cull;depth_compare=comparison drawing.depth.comparison;depth_write=drawing.depth.write;depth_load=Ogpu.Render_pass.Clear;depth_clear=Scene3.Private.depth_clear scene;transform_uniforms=Some(uniforms~camera~viewport scene drawing);stencil_state=None;stencil_load=Ogpu.Render_pass.Load;stencil_clear=Scene3.Private.stencil_clear scene}in let family=match auxiliary,texture with Some _,_->Scene_execution.Scene3_shadow|None,Some _->Scene3_textured|None,None->Scene3 in entries:={Scene_execution.family;blend=blend drawing.blend;texture;auxiliary;samples=Scene3.Private.samples scene;draw={mesh;state}}::!entries)
-    |_->failure:=Some Invalid_mesh)(Scene3.Private.drawings scene);
+    |_->failure:=Some Invalid_mesh)drawings;
     match!failure with Some error->Error error|None->match Scene_execution.prepare_scene3 ~clear:(0.,0.,0.,0.)
       ~clear_depth:(Scene3.Private.depth_clear scene)
       ~clear_stencil:(Scene3.Private.stencil_clear scene)(Array.of_list(List.rev!entries))with
-    |Ok value->Ok value|Error _->Error Invalid_mesh
+    |Ok prepared->
+        if !cacheable then begin
+          prepared_cache:={scene;camera;viewport;prepared}::
+            List.filter(fun cached->cached.scene!=scene||cached.camera!=camera||
+              cached.viewport<>viewport)!prepared_cache;
+          prepared_cache:=trim_retained~capacity:prepared_cache_capacity
+            (fun cached->prepared_bytes cached.prepared)!prepared_cache
+        end;
+        Ok prepared
+    |Error _->Error Invalid_mesh

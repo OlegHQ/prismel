@@ -212,6 +212,23 @@ module Private = struct
     transform : Mat4.t;
   }
 
+  let cacheable scene =
+    let rec nodes = function
+      | [] -> true
+      | Mesh (_, _, None, None, _, _, _) :: rest -> nodes rest
+      | Instances (_, _, None, None, _, _, _, _) :: rest -> nodes rest
+      | Group nested :: rest
+      | Transform (_, nested) :: rest
+      | Depth_state (_, nested) :: rest
+      | Stencil_state (_, nested) :: rest
+      | Raster_state (_, nested) :: rest
+      | Blend_state (_, nested) :: rest -> nodes nested && nodes rest
+      | Mesh (_, _, (Some _), _, _, _, _) :: _
+      | Mesh (_, _, _, (Some _), _, _, _) :: _
+      | Instances (_, _, (Some _), _, _, _, _, _) :: _
+      | Instances (_, _, _, (Some _), _, _, _, _) :: _ -> false in
+    scene.shadows = [] && nodes scene.nodes
+
   let drawings scene =
     let rec flatten parent depth stencil raster blend acc = function
       | [] -> acc

@@ -79,6 +79,18 @@ module Workspace = struct
     inspector_header : bounds;
   }
 
+  type geometry_cache = {
+    frame_width : int;
+    frame_height : int;
+    cached_view_ratio : float;
+    cached_graph_ratio : float;
+    cached_inspector_ratio : float;
+    cached_view_collapsed : bool;
+    cached_graph_collapsed : bool;
+    cached_inspector_collapsed : bool;
+    panes : panes;
+  }
+
   type splitter = First | Second
 
   type t = {
@@ -91,6 +103,7 @@ module Workspace = struct
     inspector_collapsed : bool;
     drag : (splitter * int) option;
     armed : column option;
+    mutable geometry_cache : geometry_cache option;
   }
 
   let validate (layout : layout) =
@@ -110,7 +123,8 @@ module Workspace = struct
       graph_ratio = layout.graph_ratio /. total;
       inspector_ratio = layout.inspector_ratio /. total;
       view_collapsed = false; graph_collapsed = false;
-      inspector_collapsed = false; drag = None; armed = None }
+      inspector_collapsed = false; drag = None; armed = None;
+      geometry_cache = None }
 
   let collapsed value = function
     | View -> value.view_collapsed
@@ -178,20 +192,43 @@ module Workspace = struct
     widths
 
   let geometry value frame =
-    let widths = distribute value frame.Frame.width in
-    let splitter = value.layout.splitter_width in
-    let x0 = 0 and x1 = widths.(0) + splitter
-    and x2 = widths.(0) + splitter + widths.(1) + splitter in
-    let header = min value.layout.header_height (max 0 (frame.height - 1)) in
-    let content_height = max 1 (frame.height - header) in
-    let status_height = min value.layout.status_height (max 0 (content_height - 1)) in
-    { view = x0, header, widths.(0), content_height - status_height;
-      graph = x1, header, widths.(1), content_height;
-      inspector = x2, header, widths.(2), content_height;
-      status = x0, frame.height - status_height, widths.(0), status_height;
-      view_header = x0, 0, widths.(0), header;
-      graph_header = x1, 0, widths.(1), header;
-      inspector_header = x2, 0, widths.(2), header }
+    match value.geometry_cache with
+    | Some cached when cached.frame_width = frame.Frame.width
+        && cached.frame_height = frame.height
+        && cached.cached_view_ratio = value.view_ratio
+        && cached.cached_graph_ratio = value.graph_ratio
+        && cached.cached_inspector_ratio = value.inspector_ratio
+        && cached.cached_view_collapsed = value.view_collapsed
+        && cached.cached_graph_collapsed = value.graph_collapsed
+        && cached.cached_inspector_collapsed = value.inspector_collapsed ->
+        cached.panes
+    | _ ->
+        let widths = distribute value frame.Frame.width in
+        let splitter = value.layout.splitter_width in
+        let x0 = 0 and x1 = widths.(0) + splitter
+        and x2 = widths.(0) + splitter + widths.(1) + splitter in
+        let header = min value.layout.header_height (max 0 (frame.height - 1)) in
+        let content_height = max 1 (frame.height - header) in
+        let status_height = min value.layout.status_height
+            (max 0 (content_height - 1)) in
+        let panes =
+          { view = x0, header, widths.(0), content_height - status_height;
+            graph = x1, header, widths.(1), content_height;
+            inspector = x2, header, widths.(2), content_height;
+            status = x0, frame.height - status_height, widths.(0), status_height;
+            view_header = x0, 0, widths.(0), header;
+            graph_header = x1, 0, widths.(1), header;
+            inspector_header = x2, 0, widths.(2), header } in
+        value.geometry_cache <- Some
+          { frame_width = frame.width; frame_height = frame.height;
+            cached_view_ratio = value.view_ratio;
+            cached_graph_ratio = value.graph_ratio;
+            cached_inspector_ratio = value.inspector_ratio;
+            cached_view_collapsed = value.view_collapsed;
+            cached_graph_collapsed = value.graph_collapsed;
+            cached_inspector_collapsed = value.inspector_collapsed;
+            panes };
+        panes
 
   let splitter_bounds value frame =
     let panes = geometry value frame in
@@ -635,6 +672,17 @@ module Environment3 = struct
     rendered : Scene3.t option;
     render_status : string option;
     background : Color.t;
+    mutable hidden_scene_cache : hidden_scene_cache option;
+  }
+
+  and hidden_scene_cache = {
+    hidden_width : int;
+    hidden_height : int;
+    hidden_rendered : Scene3.t option;
+    hidden_camera : Camera.t;
+    hidden_background : Color.t;
+    hidden_view_visible : bool;
+    hidden_scene : Scene.t;
   }
 
   let create ?(layout = default_layout) ?factories
@@ -649,7 +697,8 @@ module Environment3 = struct
       let camera_ui = Pxui.create ~x ~y ~width ~max_height:height ()
         |> Pxui.Camera_control.append camera_control ~camera in
       { core; camera; camera_control; camera_ui; scene3; overlay;
-        rendered = None; render_status = None; background })
+        rendered = None; render_status = None; background;
+        hidden_scene_cache = None })
       (Core.create ~layout ?factories ?seed ?grain ?domains ?max_entries
         ?max_payload_bytes ~graph ~prepare ())
 
@@ -694,6 +743,31 @@ module Environment3 = struct
 
   let scene value frame =
     let all_ui_visible = Pxui.Camera_control.ui_visible value.camera_control in
+    if not all_ui_visible then begin
+      let camera = Easy_camera.camera value.camera in
+      let view_visible = Core.column_visible value.core Workspace.View in
+      match value.hidden_scene_cache with
+      | Some cached when cached.hidden_width = frame.Frame.width
+          && cached.hidden_height = frame.height
+          && cached.hidden_rendered == value.rendered
+          && cached.hidden_camera == camera
+          && cached.hidden_background = value.background
+          && cached.hidden_view_visible = view_visible ->
+          cached.hidden_scene
+      | _ ->
+          let world = match value.rendered with
+            | Some rendered when view_visible ->
+                [Scene.view3d ~viewport:(0, 0, frame.width, frame.height)
+                   ~camera rendered]
+            | Some _ | None -> [] in
+          let scene = Scene.clear value.background :: world in
+          value.hidden_scene_cache <- Some
+            { hidden_width = frame.width; hidden_height = frame.height;
+              hidden_rendered = value.rendered; hidden_camera = camera;
+              hidden_background = value.background;
+              hidden_view_visible = view_visible; hidden_scene = scene };
+          scene
+    end else
     let panes = Core.panes value.core frame in
     let viewport = if all_ui_visible then panes.view
       else 0, 0, frame.Frame.width, frame.height in

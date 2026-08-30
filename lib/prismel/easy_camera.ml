@@ -19,6 +19,18 @@ type motion = {
   dy : float;
 }
 
+type camera_snapshot = {
+  snapshot_target : Vec3.t;
+  snapshot_distance : float;
+  snapshot_azimuth : float;
+  snapshot_elevation : float;
+  snapshot_fov_y : float;
+  snapshot_near : float;
+  snapshot_far : float;
+  snapshot_up_axis : Vec3.t;
+  snapshot_camera : Camera.t;
+}
+
 type t = {
   target : Vec3.t;
   distance : float;
@@ -45,6 +57,7 @@ type t = {
   velocity : motion option;
   last_press : (Input.mouse_button * (int * int) * float) option;
   initial : settings;
+  mutable camera_cache : camera_snapshot option;
 }
 
 let validate_distance distance =
@@ -133,6 +146,7 @@ let create ?(target = Vec3.zero) ?(distance = 10.) ?(azimuth = 0.)
     velocity = None;
     last_press = None;
     initial = { target; distance; azimuth; elevation };
+    camera_cache = None;
   }
 
 let orbit_basis up =
@@ -148,21 +162,44 @@ let orbit_basis up =
   right, forward
 
 let camera value =
-  let up = value.up_axis in
-  let right, forward = orbit_basis up in
-  let cosine = cos value.elevation in
-  let horizontal =
-    Vec3.add
-      (Vec3.scale right (cosine *. sin value.azimuth))
-      (Vec3.scale forward (cosine *. cos value.azimuth))
-  in
-  let offset =
-    Vec3.add horizontal (Vec3.scale up (sin value.elevation))
-    |> Fun.flip Vec3.scale value.distance
-  in
-  Camera.perspective ~fov_y:value.fov_y ~near:value.near ~far:value.far
-    ~at:(Vec3.add value.target offset) ~target:value.target ()
-  |> Camera.with_up up
+  match value.camera_cache with
+  | Some cached when cached.snapshot_target = value.target
+      && cached.snapshot_distance = value.distance
+      && cached.snapshot_azimuth = value.azimuth
+      && cached.snapshot_elevation = value.elevation
+      && cached.snapshot_fov_y = value.fov_y
+      && cached.snapshot_near = value.near
+      && cached.snapshot_far = value.far
+      && cached.snapshot_up_axis = value.up_axis ->
+      cached.snapshot_camera
+  | _ ->
+      let up = value.up_axis in
+      let right, forward = orbit_basis up in
+      let cosine = cos value.elevation in
+      let horizontal =
+        Vec3.add
+          (Vec3.scale right (cosine *. sin value.azimuth))
+          (Vec3.scale forward (cosine *. cos value.azimuth))
+      in
+      let offset =
+        Vec3.add horizontal (Vec3.scale up (sin value.elevation))
+        |> Fun.flip Vec3.scale value.distance
+      in
+      let camera =
+        Camera.perspective ~fov_y:value.fov_y ~near:value.near ~far:value.far
+          ~at:(Vec3.add value.target offset) ~target:value.target ()
+        |> Camera.with_up up in
+      value.camera_cache <- Some
+        { snapshot_target = value.target;
+          snapshot_distance = value.distance;
+          snapshot_azimuth = value.azimuth;
+          snapshot_elevation = value.elevation;
+          snapshot_fov_y = value.fov_y;
+          snapshot_near = value.near;
+          snapshot_far = value.far;
+          snapshot_up_axis = value.up_axis;
+          snapshot_camera = camera };
+      camera
 
 let target value = value.target
 let distance value = value.distance
@@ -182,23 +219,30 @@ let middle_button_enabled value = value.middle_button_enabled
 let translation_key value = value.translation_key
 let auto_distance value = value.auto_distance
 let interactions value = value.interactions
-let with_target target value = { value with target }
+let with_target target value =
+  if target = value.target then value else { value with target }
 
 let with_distance distance value =
   validate_distance distance;
-  { value with distance }
+  if distance = value.distance then value else { value with distance }
 
 let with_fov_y fov_y value =
-  ignore
-    (Camera.perspective ~fov_y ~near:value.near ~far:value.far
-       ~at:(Vec3.create 0. 0. value.distance) ~target:Vec3.zero ());
-  { value with fov_y }
+  if fov_y = value.fov_y then value
+  else begin
+    ignore
+      (Camera.perspective ~fov_y ~near:value.near ~far:value.far
+         ~at:(Vec3.create 0. 0. value.distance) ~target:Vec3.zero ());
+    { value with fov_y }
+  end
 
 let with_clip ~near ~far value =
-  ignore
-    (Camera.perspective ~fov_y:value.fov_y ~near ~far
-       ~at:(Vec3.create 0. 0. value.distance) ~target:Vec3.zero ());
-  { value with near; far }
+  if near = value.near && far = value.far then value
+  else begin
+    ignore
+      (Camera.perspective ~fov_y:value.fov_y ~near ~far
+         ~at:(Vec3.create 0. 0. value.distance) ~target:Vec3.zero ());
+    { value with near; far }
+  end
 
 let set_enabled enabled value =
   {
@@ -214,7 +258,8 @@ let with_control_area area value =
   else { value with control_area = area; drag = None }
 
 let with_inertia inertia value =
-  { value with inertia; velocity = if inertia then value.velocity else None }
+  if inertia = value.inertia then value
+  else { value with inertia; velocity = if inertia then value.velocity else None }
 
 let with_drag_coefficient drag_coefficient value =
   validate_drag_coefficient drag_coefficient;
@@ -250,7 +295,8 @@ let with_middle_button_enabled middle_button_enabled value =
   }
 
 let with_translation_key translation_key value =
-  { value with translation_key }
+  if translation_key = value.translation_key then value
+  else { value with translation_key }
 
 let with_auto_distance auto_distance value =
   {
