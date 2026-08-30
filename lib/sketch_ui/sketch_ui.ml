@@ -383,6 +383,7 @@ module Core = struct
     cook_error : string option;
     cook_seconds : float option;
     status_fps : int option;
+    status_fps_at : float;
     status_cache : status_cache;
   }
 
@@ -433,7 +434,8 @@ module Core = struct
           timeline = Sketch_support.Timeline.create (); worker;
           schedule = Sketch_support.Reactive_sop.schedule_initial; prepare;
           prepared = None; edit_error = None; cook_error = None;
-          cook_seconds = None; status_fps = None; status_cache })
+          cook_seconds = None; status_fps = None;
+          status_fps_at = Float.neg_infinity; status_cache })
         (Sketch_support.Reactive_sop.create ~seed ~grain ?domains ~max_entries
           ~max_payload_bytes ())
 
@@ -677,15 +679,17 @@ module Core = struct
       | Ok _ -> None
       | Error message -> Some message
       else cook_error in
-    let status_fps =
-      if frame.Frame.count mod 30 <> 0 then value.status_fps
-      else if frame.fps > 0. && Float.is_finite frame.fps
-      then Some (int_of_float (Float.round frame.fps)) else None in
+    let sample_fps=frame.time<value.status_fps_at||
+      frame.time-.value.status_fps_at>=1. in
+    let status_fps,status_fps_at=if not sample_fps then
+      value.status_fps,value.status_fps_at
+      else(if frame.fps>0.&&Float.is_finite frame.fps
+        then Some(int_of_float(Float.round frame.fps))else None),frame.time in
     { core = { value with graph; displayed_graph; document; graph_view; displayed_id;
         inspector; inspector_ui;
         inspector_runtime;
         workspace; timeline; schedule; prepared; edit_error; cook_error; cook_seconds;
-        status_fps };
+        status_fps;status_fps_at };
       effects; prepared_changed }
 
   let truncate limit text = if String.length text <= limit then text

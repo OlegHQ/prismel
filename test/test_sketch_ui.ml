@@ -70,6 +70,26 @@ let () =
     | None -> fail "sketch environment did not publish its initial async cook"
   in
   let environment = wait 0 environment in
+  let fps_segment_version environment frame=
+    let scene=Sketch_ui.Environment3.scene environment frame in
+    let staged=Scene.Private.stage_native_render ~width:frame.Frame.width
+      ~height:frame.height scene|>Result.get_ok in
+    let version=List.fold_left(fun found->function
+      |Scene.Private.Scene2_segment(segment,_)->
+          Some(Scene_command.Display_list.version segment)
+      |Scene.Private.Scene2_layer _|Scene.Private.Scene3_layer _->found)
+      None staged.layers|>Option.get in
+    Scene.Private.release scene;
+    version in
+  let at count fps={ (frame count) with fps }in
+  let environment=Sketch_ui.Environment3.update environment(at 1_000 60.)in
+  let fps_initial=fps_segment_version environment(at 1_000 60.)in
+  let environment=Sketch_ui.Environment3.update environment(at 1_030 120.)in
+  let fps_before_deadline=fps_segment_version environment(at 1_030 120.)in
+  let environment=Sketch_ui.Environment3.update environment(at 1_061 120.)in
+  let fps_after_deadline=fps_segment_version environment(at 1_061 120.)in
+  check(fps_before_deadline=fps_initial&&fps_after_deadline>fps_initial)
+    "FPS status segment ignored its one-second invalidation deadline";
   check (Sketch_ui.Environment3.selected_node environment = None)
     "camera/render controls should own an unselected inspector";
   let current_frame = frame 10 in

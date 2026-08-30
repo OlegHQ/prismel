@@ -276,6 +276,31 @@ A renewed non-profiled hidden diagnostic reported 232 frames over 2.001 seconds,
 the first time, but it is not the required five-run final M12 qualification and
 does not meet the 4 KiB final UI/Scene target by end-to-end allocation alone.
 
+The status FPS diagnostic now uses a one-second `Frame.time` deadline instead
+of sampling every 30 rendered frames. It samples immediately, resamples after a
+time reset, and otherwise cannot republish its retained display-list segment
+before the deadline. A focused Sketch UI regression proves that a changed FPS
+value at 0.5 seconds preserves the exact segment version and that the same
+change after 1.0 seconds advances it.
+
+This decouples status invalidation from uncapped render throughput. Phase
+profiling reduced whole-stage misses from 350/3,190 to 262/3,115 and reported a
+59.2 KiB/frame visible diagnostic. Five non-profiled two-second visible runs
+reported:
+
+| frames | allocated bytes | bytes/frame | median ms | p95 ms |
+| ---: | ---: | ---: | ---: | ---: |
+| 192 | 11,220,584 | 58,440 | 9.85 | 12.43 |
+| 188 | 11,079,656 | 58,934 | 10.07 | 12.43 |
+| 190 | 11,390,912 | 59,952 | 9.95 | 12.44 |
+| 163 | 10,104,280 | 61,990 | 10.25 | 13.05 |
+| 190 | 11,330,664 | 59,635 | 10.10 | 12.34 |
+
+The median is approximately 58.2 KiB/frame and every sample is below the
+64 KiB/frame visible interim allocation gate. The fourth run had an unrelated
+88.54 ms p99 host outlier, so these short samples do not replace final timing
+qualification. M11 remains open against the 8 KiB/frame final gate.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,
