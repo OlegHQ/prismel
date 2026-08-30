@@ -301,6 +301,7 @@ module Core = struct
     edit_error : string option;
     cook_error : string option;
     cook_seconds : float option;
+    status_fps : int option;
   }
 
   type 'prepared update = {
@@ -343,7 +344,7 @@ module Core = struct
           timeline = Sketch_support.Timeline.create (); worker;
           schedule = Sketch_support.Reactive_sop.schedule_initial; prepare;
           prepared = None; edit_error = None; cook_error = None;
-          cook_seconds = None })
+          cook_seconds = None; status_fps = None })
         (Sketch_support.Reactive_sop.create ~seed ~grain ?domains ~max_entries
           ~max_payload_bytes ())
 
@@ -566,9 +567,14 @@ module Core = struct
       | Ok _ -> None
       | Error message -> Some message
       else cook_error in
+    let status_fps =
+      if frame.Frame.count mod 30 <> 0 then value.status_fps
+      else if frame.fps > 0. && Float.is_finite frame.fps
+      then Some (int_of_float (Float.round frame.fps)) else None in
     { core = { value with graph; displayed_graph; document; graph_view; displayed_id;
         inspector; inspector_ui;
-        workspace; timeline; schedule; prepared; edit_error; cook_error; cook_seconds };
+        workspace; timeline; schedule; prepared; edit_error; cook_error; cook_seconds;
+        status_fps };
       effects; prepared_changed }
 
   let truncate limit text = if String.length text <= limit then text
@@ -591,8 +597,9 @@ module Core = struct
            | None, None, None -> "Waiting for first cook") in
     let render = match render_status with None -> "" | Some status -> " · " ^ status in
     let viewing = Node.label (displayed_node value) in
-    let fps = if frame.Frame.fps > 0. && Float.is_finite frame.fps
-      then Printf.sprintf " · %.0f fps" frame.fps else "" in
+    let fps = match value.status_fps with
+      | Some fps -> Printf.sprintf " · %d fps" fps
+      | None -> "" in
     [Scene.rect ~at:(x, y) ~w:width ~h:height
        ~fill:(Color.hex_exn "#101318") ();
      Scene.text ~at:(x + 10, y + 8) ~size:11
@@ -608,6 +615,7 @@ module Core = struct
          | Some ui when not (Workspace.collapsed value.workspace Workspace.Inspector) ->
              Pxui.scene ui
          | _ -> camera_scene)
+      @ [Scene.Private.layer_break]
       @ status_scene value frame ~render_status
 
   let close value = Sketch_support.Reactive_sop.close value.worker

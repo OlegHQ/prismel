@@ -5,7 +5,7 @@ and debug_text_node={x:int;y:int;value:string;color:Color.t}
 and view3d_node={viewport:(int*int*int*int)option;camera:Camera.t;scene:Scene3.t;mutable rendered3d:Image.t option}
 and image_node={image:Image.t;x:int;y:int;scale:float;angle:float;center:(int*int)option;flip_x:bool}
 and node=Group of t|Clear of Color.t|Primitive of primitive|Geometry of Scene_command.Render_ir.geometry|Text of text_node|Debug_text of debug_text_node|Image of image_node
- |View3d of view3d_node|Region of int*int*int*int*bool
+ |View3d of view3d_node|Region of int*int*int*int*bool|Layer_break
  |Translate of int*int*t|Rotate of float*t|Scale of float*float*t|Clip of int*int*int*int*t|Blend of blend*t
 and t=node list
 let empty=[]let one n=[n]let group x=Group x let clear c=Clear c
@@ -205,6 +205,7 @@ let geometry p=
       cache.primitive_order<-p::cache.primitive_order;
       command
 module Private=struct
+ let layer_break=Layer_break
  type native_layer=
   |Scene2_layer of Scene_command.Render_ir.t*(int*Prismel_next_execution.resource)list
   |Scene3_layer of Scene_execution.prepared_scene3
@@ -262,7 +263,7 @@ module Private=struct
    |Rotate(a,g)::xs->let c=cos a and s=sin a in emit builder(Scene_command.Render_ir.Push_transform{xx=c;xy=s;yx=(-.s);yy=c;tx=0.;ty=0.});nodes g;emit builder Scene_command.Render_ir.Pop_transform;nodes xs
    |Clip(x,y,w,h,g)::xs->emit builder(Scene_command.Render_ir.Push_clip{x=float x;y=float y;width=float w;height=float h});nodes g;emit builder Scene_command.Render_ir.Pop_clip;nodes xs
    |Blend(mode,g)::xs->let mode=match mode with Replace->Scene_command.Render_ir.Replace|Alpha->Alpha|Add->Add|Multiply->Multiply in emit builder(Scene_command.Render_ir.Set_blend mode);nodes g;emit builder(Scene_command.Render_ir.Set_blend Scene_command.Render_ir.Alpha);nodes xs
-   |(View3d _|Region _)::xs->nodes xs in
+   |(View3d _|Region _|Layer_break)::xs->nodes xs in
   nodes scene;Array.sub builder.values 0 builder.length
  let rec text_regions scene=List.concat_map(function Region(x,y,w,h,f)->[x,y,w,h,f]|Group g|Translate(_,_,g)|Rotate(_,g)|Scale(_,_,g)|Clip(_,_,_,_,g)|Blend(_,g)->text_regions g|_->[])scene
  let image_resources ?(density=1) scene=
@@ -298,10 +299,11 @@ module Private=struct
    float(channel 24)/.255.,float(channel 16)/.255.,
    float(channel 8)/.255.,float(channel 0)/.255.
 
- type layer_item=Two_node of node|Three_node of view3d_node
+ type layer_item=Two_node of node|Three_node of view3d_node|Break
  let ordered_items scene=
    let rec add wrap acc nodes=List.fold_left(fun acc node->match node with
      |View3d view->Three_node view::acc
+     |Layer_break->Break::acc
      |Group nodes->add wrap acc nodes
      |Translate(x,y,nodes)->add(fun node->wrap(Translate(x,y,[node])))acc nodes
      |Rotate(angle,nodes)->add(fun node->wrap(Rotate(angle,[node])))acc nodes
@@ -316,7 +318,8 @@ module Private=struct
    let rec loop nodes acc=function
      |[]->List.rev(flush nodes acc)
      |Two_node node::rest->loop(node::nodes)acc rest
-     |Three_node view::rest->loop[](`Three view::flush nodes acc)rest in
+     |Three_node view::rest->loop[](`Three view::flush nodes acc)rest
+     |Break::rest->loop[](flush nodes acc)rest in
    loop[][]items
 
  let stage_native ?(density=1) ~width ~height scene =
@@ -373,7 +376,8 @@ module Private=struct
        | Group nodes | Translate (_, _, nodes) | Rotate (_, nodes)
        | Scale (_, _, nodes) | Clip (_, _, _, _, nodes) | Blend (_, nodes) ->
            release nodes
-       | Clear _ | Primitive _ | Geometry _ | Debug_text _ | Image _ | Region _ -> ())
+       | Clear _ | Primitive _ | Geometry _ | Debug_text _ | Image _ | Region _
+       | Layer_break -> ())
      scene
 end
 let render scene=(!Private.renderer) scene

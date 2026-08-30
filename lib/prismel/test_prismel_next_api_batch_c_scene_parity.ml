@@ -66,6 +66,21 @@ let () =
        require(resources==staged_scene2_only.resources)
          "Scene2-only native staging duplicated its resource table"
    |_->failwith"Scene2-only native staging split one ordered layer");
+  let split_scene2=Scene.[
+    rect~at:(1,2)~w:8~h:6~fill:Color.red();
+    Private.layer_break;
+    debug_text~at:(2,3)"dynamic"]in
+  let staged_split=Result.get_ok
+    (Scene.Private.stage_native~width:16~height:12 split_scene2)in
+  (match staged_split.layers with
+   |[Scene.Private.Scene2_layer(first,_);Scene.Private.Scene2_layer(second,_)]->
+       (match Array.to_list(Scene_command.Render_ir.commands first),
+              Array.to_list(Scene_command.Render_ir.commands second)with
+        |[Geometry _],[Debug_text{text="dynamic";_}]->()
+        |_->failwith"Scene2 layer break changed command ordering")
+   |_->failwith"Scene2 layer break did not isolate dynamic commands");
+  require(Array.length(Scene_command.Render_ir.commands staged_split.scene2)=2)
+    "Scene2 layer break leaked into compatibility IR";
   let styled=Scene.[polygon[0,0;8,0;8,8]~fill:Color.red~stroke:Color.white()]in
   let styled_ir,_=Result.get_ok(Scene.Private.stage~width:16~height:16 styled)in
   (match Array.to_list(Scene_command.Render_ir.commands styled_ir)with

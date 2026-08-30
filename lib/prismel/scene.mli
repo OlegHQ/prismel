@@ -28,6 +28,7 @@ val clip : at:(int*int) -> w:int -> h:int -> t -> node
 val blend : blend -> t -> node
 val render : t -> unit
 module Private : sig
+  val layer_break : node
   type native_layer =
     | Scene2_layer of Scene_command.Render_ir.t *
         (int * Prismel_next_execution.resource) list

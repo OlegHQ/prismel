@@ -34,6 +34,51 @@ type result = {
   p99_frame_seconds : float;
 }
 
+module Allocation_profile = struct
+  let enabled = Sys.getenv_opt "PRISMEL_RENDERER_MEMPROF" = Some "1"
+  let sampling_rate = 1e-4
+  let samples : (string, int) Hashtbl.t = Hashtbl.create 128
+  let lock = Mutex.create ()
+  let profile = ref None
+
+  let name allocation =
+    match Printexc.backtrace_slots allocation.Gc.Memprof.callstack with
+    | None -> "unknown"
+    | Some slots ->
+        Array.to_list slots
+        |> List.filter_map Printexc.Slot.name
+        |> List.find_opt (fun name ->
+          not (String.starts_with ~prefix:"camlGc__Memprof" name))
+        |> Option.value ~default:"unknown"
+
+  let record allocation =
+    let name = name allocation in
+    Mutex.lock lock;
+    Hashtbl.replace samples name
+      (allocation.Gc.Memprof.n_samples
+       + Option.value (Hashtbl.find_opt samples name) ~default:0);
+    Mutex.unlock lock;
+    None
+
+  let start () = if enabled && Option.is_none !profile then
+    profile := Some (Gc.Memprof.start ~sampling_rate ~callstack_size:24 {
+      Gc.Memprof.null_tracker with alloc_minor = record; alloc_major = record })
+
+  let stop () = match !profile with
+    | None -> ()
+    | Some value ->
+        Gc.Memprof.stop ();
+        Gc.Memprof.discard value;
+        profile := None;
+        let entries = Hashtbl.fold (fun name count values ->
+          (count, name) :: values) samples []
+          |> List.sort (fun (left, _) (right, _) -> Int.compare right left) in
+        List.iteri (fun index (count, name) -> if index < 20 then
+          Printf.eprintf "memprof %.1f MiB %s\n%!"
+            (float_of_int count /. sampling_rate
+             *. float_of_int (Sys.word_size / 8) /. 1_048_576.) name) entries
+end
+
 type model = {
   environment : preview Sketch_ui.Environment3.t;
   launched_at : float;
@@ -289,6 +334,7 @@ let init frame =
   }
 
 let finish model now =
+  Allocation_profile.stop ();
   let started_gc = Option.get model.started_gc
   and started_times = Option.get model.started_times in
   let ending_gc = gc_snapshot () and ending_times = Unix.times () in
@@ -342,6 +388,7 @@ let update model frame =
   | Some ready_at when not model.measuring
       && now -. ready_at >= warmup_seconds ->
       Gc.full_major ();
+      Allocation_profile.start ();
       let rss = resident_kib () in
       { model with measuring = true; started_at = now;
         started_times = Some (Unix.times ()); started_gc = Some (gc_snapshot ());

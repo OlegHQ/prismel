@@ -79,6 +79,45 @@ Before this candidate can close R10:
 - renew R9 and the 30-minute R12/O6 stability qualification because native
   descriptor-cache ownership changed.
 
+### 2026-08-30 retained-layer follow-up
+
+The supplied 2624x1808 screenshot was downloaded and inspected as
+`5546c0d56c05761be862b39a858269fe1947ff37a5af16f3542857afe69c199c`.
+It shows the 1312x904 logical, scale-2 visible workspace at 29 FPS.  Allocation
+sampling on the scale-1 reproduction attributed the largest avoidable churn to
+re-lowering the entire stable graph and inspector whenever the status FPS text
+changed.
+
+Native scene staging now has a private, non-drawing Scene2 layer boundary.  The
+Sketch UI places the status strip after that boundary and samples its displayed
+integer FPS every 30 frames.  The stable workspace can therefore reuse its
+bounded retained plan; a status update invalidates only the small final layer.
+The public Scene drawing model and ordering are unchanged, and culling remains
+a Scene3 render-state choice lowered through OGPU to Metal.
+
+Five independent release runs used the exact cardinality-checked visible
+workload, a two-second warmup and five-second measurement at 1200x760 scale 1:
+
+| Metric | Five-run range | Five-run median |
+| --- | ---: | ---: |
+| FPS | 62.19-63.29 | 62.82 |
+| median frame | 15.60-15.82 ms | 15.73 ms |
+| p95 frame | 18.87-20.22 ms | 19.06 ms |
+| p99 frame | 23.02-25.99 ms | 24.34 ms |
+| allocation/frame | 1.23-1.24 MB | 1.24 MB |
+
+Compared with the original candidate this reduces allocation/frame by about
+67% (3.76 MB to 1.24 MB) while preserving per-frame rendering and eliminating
+the earlier 30-frame full-workspace invalidation spike.  A separate eight-second
+run measured 62.47 FPS, 15.96 ms median, 18.67 ms p95 and 23.37 ms p99.
+
+This evidence does not close R10: it is scale 1, p95 remains above the strict
+16.67 ms frame envelope, and native GPU counters are unavailable.  The next
+measured allocation targets are submission list/payload construction and
+uniform lookup; they must be optimized without weakening validation or making
+caches unbounded.  Retina qualification and the renewed R9/R12/O6 lifetime
+lanes remain the local critical path.
+
 ### P0: on-demand scheduling
 
 The application lifecycle must distinguish continuous animation from static

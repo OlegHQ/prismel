@@ -21,11 +21,13 @@ pending-external gates.  Strict completion remains 11/47 (23.40%).
 
 The remaining work is isolated as follows:
 
-1. **Local critical path: R10.** Run the workload-equivalent five-round native
-   performance protocol.  The shattered-cube visible path must sustain the
-   required frame envelope on a Retina drawable and eliminate its measured
-   multi-megabyte per-frame Scene2/submission allocation.  A single 61.87 FPS
-   scale-1 diagnostic is useful optimization evidence, not qualification.
+1. **Local critical path: R10.** The final scale-1 five-run candidate now
+   sustains 62.19-63.29 FPS and reduces visible allocation from 3.76 MB/frame
+   to 1.23-1.24 MB/frame by isolating the dynamic status layer from the stable
+   workspace.  Its 18.87-20.22 ms p95 still misses the strict 16.67 ms envelope.
+   Run the workload-equivalent protocol on the supplied screenshot's scale-2
+   Retina drawable, capture native GPU counters, and remove the remaining
+   submission/uniform allocation before promoting R10 from provisional.
 2. **Renewed local evidence after renderer ownership changes.** Re-run R9
    stable-upload/cache evidence and the 30-minute R12/O6 changing-resource,
    resize, capture, and teardown qualification.  The 2026-08-30 candidate

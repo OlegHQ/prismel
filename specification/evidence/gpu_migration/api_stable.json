@@ -866,13 +866,13 @@
       "source_sha256": "74b90ec75bbe4b2ebad22d581cac659ad9e528b00f8efe41f93c2c06fc1972a3"
     },
     {
-      "api_sha256": "5802a01ffea2597e612e4de6f8ae62b537c0d27ea4d20bf3091d3ea54ff21697",
+      "api_sha256": "fa8f31401fdc42d55f7602df38aa1dbcb7c9846af28c00708cfead5fee778f77",
       "excluded_legacy_symbols": [],
       "library": "prismel",
       "module": "Scene",
       "source": "lib/prismel/scene.mli",
-      "source_bytes": 3266,
-      "source_sha256": "c20c0d0a91229ebc2890039c4c51d2f71e44df122af91557995afb638ece1341"
+      "source_bytes": 3291,
+      "source_sha256": "c8dd7aa5c7d105ce3abdf523709945755880c4e755d406f4c0827e7ef551dbaa"
     },
     {
       "api_sha256": "838f3925623b5708ffbc449b2fb30d995bacb3ac609333749bbae6bcf4359019",

@@ -357,9 +357,6 @@ type t = { runtime:runtime; input:Runtime_next_input.t;
   mutable scene2_debug_cache:cached_scene2_debug list;
   mutable scene2_plan_cache:cached_scene2_plan list;
   mutable scene2_plan_candidates:scene2_plan_candidate list;
-  mutable scene2_probe_count:int;mutable scene2_probe_density:int;
-  mutable scene2_probe_fingerprint:int;
-  mutable scene2_probe_cooldown:int;
   mutable submissions:submission list;
   mutable last_step_draws:draw list;
   mutable last_step_prepared:Runtime_next_orchestrator.prepared list;
@@ -388,8 +385,7 @@ let finish_create operation configuration runtime destroy_runtime=
       dead=false;snapshots=[];snapshot_bytes=0;scene2_geometry_cache=[];scene2_geometry_candidates=[];
       scene2_batch_cache=[];scene2_quad_cache=[];scene2_quad_payload_cache=[];
       scene2_debug_cache=[];scene2_plan_cache=[];scene2_plan_candidates=[];
-      scene2_probe_count=(-1);scene2_probe_density=0;scene2_probe_fingerprint=0;
-      scene2_probe_cooldown=0;submissions=[];last_step_draws=[];last_step_prepared=[];
+      submissions=[];last_step_draws=[];last_step_prepared=[];
       scene2_out_slots=[||];scene2_out_list=[];last_presentation=None;
       canvas_keys=[];next_canvas_key=0}
 let create (configuration:configuration) =
@@ -903,16 +899,6 @@ let lower_scene2_with_policy value ~lease_policy ~density ~resource:resolve ir =
     |_->()
   done;
   let fingerprint= !fingerprint in
-  let same_probe=value.scene2_probe_count=command_count&&
-    value.scene2_probe_density=density in
-  if same_probe&&value.scene2_probe_cooldown>0 then(
-    value.scene2_probe_cooldown<-value.scene2_probe_cooldown-1;
-    lower_scene2_uncached value~lease_policy~density~resource:resolve ir)else
-  if same_probe&&value.scene2_probe_fingerprint<>fingerprint then(
-    value.scene2_probe_fingerprint<-fingerprint;value.scene2_probe_cooldown<-120;
-    lower_scene2_uncached value~lease_policy~density~resource:resolve ir)else begin
-  value.scene2_probe_count<-command_count;value.scene2_probe_density<-density;
-  value.scene2_probe_fingerprint<-fingerprint;
   let cacheable,resources=scene2_resource_stamps resolve commands in
   let facts=presentation_facts value|>Result.get_ok in
   let extent=facts.logical_width,facts.logical_height,
@@ -954,7 +940,7 @@ let lower_scene2_with_policy value ~lease_policy ~density ~resource:resolve ir =
           plan_ir=ir;plan_draws=draws}in
         value.scene2_plan_cache<-trim_scene2_entries~capacity:16
           (fun plan->plan.plan_source_bytes)(plan::value.scene2_plan_cache));result)
-  else lower_scene2_uncached value~lease_policy~density~resource:resolve ir end
+  else lower_scene2_uncached value~lease_policy~density~resource:resolve ir
 let lower_scene2 value ~density ~resource ir=
   lower_scene2_with_policy value~lease_policy:Copy_image_snapshots
     ~density~resource ir

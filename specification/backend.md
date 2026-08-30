@@ -54,6 +54,13 @@ pool, but all results join before crossing the native boundary.
    drawables remain framebuffer-only; only the focused backend test creates a
    readable layer.
 
+Private scene staging may split consecutive Scene2 commands into multiple
+ordered native layers so independently changing UI regions do not invalidate a
+stable retained plan.  A staging boundary emits no rendering command, does not
+alter transform, clip, blend, or clear semantics, and is not part of the public
+scene-construction API.  Each layer is lowered through the same checked OGPU
+path and submitted in original scene order.
+
 `Canvas.render` uses the same lowering, pipeline variants, validation, and
 completion path against a layerless owned Metal texture. A Canvas creates its
 offscreen coordinator lazily, reuses it for all subsequent renders, reads the
