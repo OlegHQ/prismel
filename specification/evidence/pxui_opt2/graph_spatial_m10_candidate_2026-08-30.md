@@ -47,7 +47,9 @@ Catalog ingestion now retains lowercase key, label, and breadcrumb text once.
 Menu search reuses those normalized values and retains exactly one row result
 keyed by the complete menu state, so update and paint consumers do not repeat
 filtering, lowercase conversion, and ranking for an unchanged menu. The
-existing nested-category and generated-catalog interaction tests pass.
+visible menu window is an index range rather than an `Array.sub`; paint and hit
+testing materialize at most ten rows. The existing nested-category and
+generated-catalog interaction tests pass.
 
 The graph benchmark now includes ten single-node pointer moves and constructs
 the resulting Scene on every move. Before retaining the active drag transform,
@@ -91,10 +93,21 @@ edges edited since document publication. A 100-node move/release/paint lane at
 changed/affected set rather than loaded graph cardinality. The single-node 10k
 release remains 199.080 microseconds with 259,288 allocated bytes.
 
+Graph paint now retains one stable grid Scene plus final-screen-space node and
+wire Scene entries. Node and wire caches each have a hard 256-entry clock bound;
+tests inspect those live entry counts. Paint keys include all dynamic geometry,
+selection/view state, zoom-dependent detail, and theme facts, while document
+replacement publishes fresh caches. On the warmed 10k drag lane, ten
+move-and-Scene frames allocate 800,416 bytes and take 56.982 microseconds median,
+down from 2,462,504 bytes and 110.149 microseconds before paint retention. The
+same 800,416-byte result at 1k establishes that stable paint work is independent
+of loaded graph cardinality.
+
 The former 10,000-way fan remains useful as an adversarial stress topology: its
 long diagonal envelopes overlap heavily and are not used as a proxy for the
 controlled 2x-edge qualification lane.
 
-The remaining M10 work is explicit: large menu match sets still need an
-index-backed partial ranking lane, and graph paint is not yet split into
-retained layers. No completion claim is made here.
+The remaining M10 work is explicit: large menu match sets still retain a full
+ranked index array, and cached graph Scene entries are not yet published as
+independent native display-list segments with a root composition transform. No
+completion claim is made here.

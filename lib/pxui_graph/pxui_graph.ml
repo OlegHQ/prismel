@@ -170,6 +170,53 @@ type spatial_index = {
   edge_stack : int array;
 }
 
+type node_paint_entry = {
+  node_index : int;
+  node_x : int;
+  node_y : int;
+  node_width : int;
+  node_height : int;
+  node_zoom : float;
+  node_selected : bool;
+  node_viewed : bool;
+  node_theme : Pxui.theme;
+  node_label : string;
+  node_scene : Scene.t;
+}
+
+type wire_paint_entry = {
+  wire_index : int;
+  wire_from_x : int;
+  wire_from_y : int;
+  wire_to_x : int;
+  wire_to_y : int;
+  wire_selected : bool;
+  wire_theme : Pxui.theme;
+  wire_scene : Scene.node;
+}
+
+type grid_paint_entry = {
+  grid_x : int;
+  grid_y : int;
+  grid_width : int;
+  grid_height : int;
+  grid_pan_x : float;
+  grid_pan_y : float;
+  grid_zoom : float;
+  grid_theme : Pxui.theme;
+  grid_scene : Scene.t;
+}
+
+type paint_cache = {
+  node_entries : (int, node_paint_entry) Hashtbl.t;
+  node_order : int option array;
+  mutable node_next : int;
+  wire_entries : (int, wire_paint_entry) Hashtbl.t;
+  wire_order : int option array;
+  mutable wire_next : int;
+  mutable grid_entry : grid_paint_entry option;
+}
+
 type t = {
   source_graph : Graph.t option;
   document : Edit_graph.t;
@@ -203,6 +250,7 @@ type t = {
   theme : Pxui.theme;
   mutable scene_cache : (t * Scene.t) option;
   mutable menu_rows_cache : (menu * menu_row array) option;
+  paint_cache : paint_cache;
 }
 
 type node_view = {
@@ -240,6 +288,15 @@ let menu_header_height = 38
 let menu_limit = 10
 let spatial_cell_size = 256.
 let edge_bvh_segments = 8
+let paint_cache_capacity = 256
+
+let create_paint_cache () = {
+  node_entries = Hashtbl.create paint_cache_capacity;
+  node_order = Array.make paint_cache_capacity None; node_next = 0;
+  wire_entries = Hashtbl.create paint_cache_capacity;
+  wire_order = Array.make paint_cache_capacity None; wire_next = 0;
+  grid_entry = None;
+}
 
 let clamp low high value = Float.max low (Float.min high value)
 
@@ -595,7 +652,8 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
     selected_edge = None; viewed; x; y; width; height;
     pan_x = float_of_int (width / 2); pan_y = 18.; zoom = 1.; drag = None;
     menu = None; clipboard = None; catalog = catalog_array catalog;
-    visible = true; theme; scene_cache = None; menu_rows_cache = None }
+    visible = true; theme; scene_cache = None; menu_rows_cache = None;
+    paint_cache = create_paint_cache () }
 
 let create ?x ?y ?width ?height ?theme ?selected ?catalog graph =
   let value = create_document ?x ?y ?width ?height ?theme ?selected ?catalog
@@ -633,7 +691,7 @@ let with_document document value =
       edge_delta_tree = Edge_delta_empty; edge_delta_entries = 0;
       spatial = build_spatial_index boxes edges;
       selected; primary;
-      selected_edge; viewed }
+      selected_edge; viewed; paint_cache = create_paint_cache () }
 
 let with_graph graph value = match value.source_graph with
   | Some current when current == graph -> value
@@ -1174,7 +1232,7 @@ let visible_rows rows cursor =
   let length = min menu_limit count in
   let start = if length = count then 0
     else max 0 (min (count - length) (cursor - (length / 2))) in
-  start, Array.sub rows start length
+  start, length
 
 let open_menu (value : t) (x, y) =
   let x = min (value.x + value.width - menu_width - 8) (max (value.x + 8) x) in
@@ -1204,9 +1262,9 @@ let menu_request (value : t) menu entry =
         else take entry.arity (selected_nodes value) in
       Add_requested { factory_key = entry.key; inputs; at }
 
-let menu_bounds (menu : menu) visible =
+let menu_bounds (menu : menu) visible_length =
   menu.x, menu.y, menu_width,
-  menu_header_height + (Array.length visible * menu_row_height) + 8
+  menu_header_height + (visible_length * menu_row_height) + 8
 
 let parent_path path = match List.rev path with
   | [] -> [] | _ :: rest -> List.rev rest
@@ -1223,7 +1281,7 @@ let update_menu (value : t) frame menu =
     let rows = menu_rows value current in
     let count = Array.length rows in
     let cursor = if count = 0 then 0 else min (count - 1) current.cursor in
-    let start, visible = visible_rows rows cursor in
+    let start, visible_length = visible_rows rows cursor in
     match event with
     | Event.TextInput text ->
         menu_ref := { current with query = current.query ^ text; cursor = 0 }
@@ -1249,12 +1307,12 @@ let update_menu (value : t) frame menu =
         menu_ref := { current with path = parent_path current.path; cursor = 0 }
     | Event.KeyPressed Input.Escape -> close := true
     | Event.MousePressed (Input.LeftButton, point) ->
-        let x, y, width, height = menu_bounds current visible in
+        let x, y, width, height = menu_bounds current visible_length in
         if not (contains ~x ~y ~width ~height point) then close := true
         else if snd point >= current.y + menu_header_height then
           let visible_index =
             (snd point - current.y - menu_header_height) / menu_row_height in
-          if visible_index >= 0 && visible_index < Array.length visible then
+          if visible_index >= 0 && visible_index < visible_length then
             (match activate_menu_row value current
                 rows.(start + visible_index) with
              | `Continue menu -> menu_ref := menu
@@ -1647,11 +1705,12 @@ let menu_scene (value : t) menu =
   let rows = menu_rows value menu in
   let count = Array.length rows in
   let cursor = if count = 0 then 0 else min (count - 1) menu.cursor in
-  let start, visible = visible_rows rows cursor in
-  let x, y, width, height = menu_bounds menu visible in
+  let start, visible_length = visible_rows rows cursor in
+  let x, y, width, height = menu_bounds menu visible_length in
   let theme = value.theme in
-  let row_scenes = Array.to_list (Array.mapi (fun visible_index row ->
+  let row_scenes = List.init visible_length (fun visible_index ->
     let index = start + visible_index in
+    let row = Array.unsafe_get rows index in
     let row_y = y + menu_header_height + (visible_index * menu_row_height) in
     let label, detail, color = match row with
       | Menu_category category -> category, "›", theme.accent
@@ -1667,8 +1726,7 @@ let menu_scene (value : t) menu =
        ~color label;
      Scene.text ~at:(x + width - 94, row_y + 8) ~size:9
        ~color:(darken theme.foreground 65)
-       detail]) visible)
-    |> List.concat in
+       detail]) |> List.concat in
   let breadcrumb = match menu.path with
     | [] -> "SOPs" | path -> "SOPs / " ^ category_text path in
   [Scene.rect ~at:(x, y) ~w:width ~h:height ~fill:theme.panel
@@ -1680,40 +1738,92 @@ let menu_scene (value : t) menu =
    Scene.text_input_region ~at:(x + 7, y + 7) ~w:(width - 14) ~h:27
      ~focused:true ()] @ row_scenes
 
+let cache_node_scene cache entry =
+  if not (Hashtbl.mem cache.node_entries entry.node_index) then begin
+    Option.iter (Hashtbl.remove cache.node_entries)
+      cache.node_order.(cache.node_next);
+    cache.node_order.(cache.node_next) <- Some entry.node_index;
+    cache.node_next <- (cache.node_next + 1) mod paint_cache_capacity
+  end;
+  Hashtbl.replace cache.node_entries entry.node_index entry;
+  entry.node_scene
+
+let cache_wire_scene cache entry =
+  if not (Hashtbl.mem cache.wire_entries entry.wire_index) then begin
+    Option.iter (Hashtbl.remove cache.wire_entries)
+      cache.wire_order.(cache.wire_next);
+    cache.wire_order.(cache.wire_next) <- Some entry.wire_index;
+    cache.wire_next <- (cache.wire_next + 1) mod paint_cache_capacity
+  end;
+  Hashtbl.replace cache.wire_entries entry.wire_index entry;
+  entry.wire_scene
+
 let scene_uncached (value : t) =
   if not value.visible then Scene.empty else
   let visible_nodes, visible_edges, visibility_stats = visibility value in
-  let grid =
-    let spacing = max 18 (screen_size value 32) in
-    let color = darken value.theme.control 20 in
-    let offset_x = int_of_float value.pan_x mod spacing
-    and offset_y = int_of_float value.pan_y mod spacing in
-    let start_x = value.x + offset_x - spacing
-    and start_y = value.y + offset_y - spacing in
-    let rec vertical x nodes = if x >= value.x + value.width then nodes else
-      vertical (x + spacing) (Scene.line ~from_:(x, value.y)
-        ~to_:(x, value.y + value.height) ~color () :: nodes) in
-    let rec horizontal y nodes = if y >= value.y + value.height then nodes else
-      horizontal (y + spacing) (Scene.line ~from_:(value.x, y)
-        ~to_:(value.x + value.width, y) ~color () :: nodes) in
-    horizontal start_y (vertical start_x []) in
+  let grid = match value.paint_cache.grid_entry with
+    | Some cached when cached.grid_x = value.x && cached.grid_y = value.y
+        && cached.grid_width = value.width && cached.grid_height = value.height
+        && cached.grid_pan_x = value.pan_x && cached.grid_pan_y = value.pan_y
+        && cached.grid_zoom = value.zoom && cached.grid_theme = value.theme ->
+        cached.grid_scene
+    | Some _ | None ->
+        let spacing = max 18 (screen_size value 32) in
+        let color = darken value.theme.control 20 in
+        let offset_x = int_of_float value.pan_x mod spacing
+        and offset_y = int_of_float value.pan_y mod spacing in
+        let start_x = value.x + offset_x - spacing
+        and start_y = value.y + offset_y - spacing in
+        let rec vertical x nodes = if x >= value.x + value.width then nodes else
+          vertical (x + spacing) (Scene.line ~from_:(x, value.y)
+            ~to_:(x, value.y + value.height) ~color () :: nodes) in
+        let rec horizontal y nodes = if y >= value.y + value.height then nodes else
+          horizontal (y + spacing) (Scene.line ~from_:(value.x, y)
+            ~to_:(value.x + value.width, y) ~color () :: nodes) in
+        let grid_scene = horizontal start_y (vertical start_x []) in
+        value.paint_cache.grid_entry <- Some { grid_x = value.x;
+          grid_y = value.y; grid_width = value.width; grid_height = value.height;
+          grid_pan_x = value.pan_x; grid_pan_y = value.pan_y;
+          grid_zoom = value.zoom; grid_theme = value.theme; grid_scene };
+        grid_scene in
   let wires = ref [] in
   for visible_index = 0 to visibility_stats.visible_wires - 1 do
-    let edge = value.edges.(Array.unsafe_get visible_edges visible_index) in
+    let edge_index = Array.unsafe_get visible_edges visible_index in
+    let edge = value.edges.(edge_index) in
     let from_x, from_y, to_x, to_y = edge_points value edge in
     let selected = value.selected_edge = Some edge.connection in
-    let bend = max 24 (abs (to_y - from_y) / 2) in
-    wires := Scene.bezier [from_x, from_y; from_x, from_y + bend;
-        to_x, to_y - bend; to_x, to_y] ~steps:16
-        ~color:(if selected then Color.hex_exn "#fbbf24"
-          else darken value.theme.accent 18) () :: !wires
+    let wire_scene = match Hashtbl.find_opt value.paint_cache.wire_entries
+        edge_index with
+      | Some cached when cached.wire_from_x = from_x
+          && cached.wire_from_y = from_y && cached.wire_to_x = to_x
+          && cached.wire_to_y = to_y && cached.wire_selected = selected
+          && cached.wire_theme = value.theme -> cached.wire_scene
+      | Some _ | None ->
+          let bend = max 24 (abs (to_y - from_y) / 2) in
+          let wire_scene = Scene.bezier
+              [from_x, from_y; from_x, from_y + bend;
+               to_x, to_y - bend; to_x, to_y]
+              ~steps:16 ~color:(if selected then Color.hex_exn "#fbbf24"
+                else darken value.theme.accent 18) () in
+          cache_wire_scene value.paint_cache { wire_index = edge_index;
+            wire_from_x = from_x; wire_from_y = from_y; wire_to_x = to_x;
+            wire_to_y = to_y; wire_selected = selected;
+            wire_theme = value.theme; wire_scene } in
+    wires := wire_scene :: !wires
   done;
   let wires = !wires in
   let connector_radius = max 2 (screen_size value 4) in
-  let render_box box =
+  let render_box index box =
     let x, y, width, height = box_bounds value box in
     let selected = Id_set.mem box.info.Edit_graph.id value.selected
     and viewed = value.viewed = box.info.Edit_graph.id in
+    match Hashtbl.find_opt value.paint_cache.node_entries index with
+    | Some cached when cached.node_x = x && cached.node_y = y
+        && cached.node_width = width && cached.node_height = height
+        && cached.node_zoom = value.zoom && cached.node_selected = selected
+        && cached.node_viewed = viewed && cached.node_theme = value.theme
+        && cached.node_label == box.info.label -> cached.node_scene
+    | Some _ | None ->
     let view_color = Color.hex_exn "#fbbf24" in
     let stroke = if viewed then view_color
       else if selected then value.theme.accent else value.theme.control in
@@ -1762,14 +1872,18 @@ let scene_uncached (value : t) =
         ~size:detail_size ~color:(darken value.theme.foreground 55)
         (box.info.operation ^ " · " ^ dependency)]
       @ connectors @ input_labels @ parameter_badge @ view_button in
-    shell @ content in
+    let node_scene = shell @ content in
+    cache_node_scene value.paint_cache { node_index = index; node_x = x;
+      node_y = y; node_width = width; node_height = height;
+      node_zoom = value.zoom; node_selected = selected; node_viewed = viewed;
+      node_theme = value.theme; node_label = box.info.label; node_scene } in
   let ordinary = ref [] and selected_nodes = ref [] in
   for visible_index = 0 to visibility_stats.visible_nodes - 1 do
     let index = Array.unsafe_get visible_nodes visible_index in
     let box = Array.unsafe_get value.boxes index in
     if Id_set.mem box.info.Edit_graph.id value.selected
-    then selected_nodes := render_box box :: !selected_nodes
-    else ordinary := render_box box :: !ordinary
+    then selected_nodes := render_box index box :: !selected_nodes
+    else ordinary := render_box index box :: !ordinary
   done;
   let drag_scene = match value.drag with
     | Some (Box_select drag) ->
@@ -1830,6 +1944,9 @@ module Private = struct
     Array.init (min limit (Array.length value.edges)) (fun index ->
       let x0, y0, x3, y3 = edge_points value value.edges.(index) in
       (x0 + x3) / 2, (y0 + y3) / 2)
+  let paint_cache_entries value =
+    Hashtbl.length value.paint_cache.node_entries,
+    Hashtbl.length value.paint_cache.wire_entries
   let hit_candidates value point =
     let count = ref 0 in
     Array.iter (fun index ->

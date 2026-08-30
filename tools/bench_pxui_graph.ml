@@ -84,6 +84,7 @@ let measure count =
       (frame ~mouse:start ~events:[Prismel.Event.MousePressed
         (Prismel.Input.LeftButton, start)] ()) in
   let moving = ref moving and move_samples = Array.make move_repeats 0. in
+  ignore (Pxui_graph.scene !moving);
   Gc.full_major ();
   let move_before = Gc.allocated_bytes () in
   for index = 0 to move_repeats - 1 do

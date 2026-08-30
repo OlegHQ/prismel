@@ -353,4 +353,8 @@ let () =
   check (stats.visible_nodes < stats.nodes)
     "large graph visibility culling did not reject off-screen nodes";
   ignore (Pxui_graph.scene dense_view);
+  let node_entries, wire_entries =
+    Pxui_graph.Private.paint_cache_entries dense_view in
+  check (node_entries <= 256 && wire_entries <= 256)
+    "graph paint caches exceeded their explicit entry bounds";
   print_endline "pxui graph tests passed"
