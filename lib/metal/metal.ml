@@ -1635,6 +1635,7 @@ type indirect_compute_command =
 
 type command_resource =
   | Command_buffer_buffer of buffer
+  | Command_buffer_prepared_resources of lifetime
   | Command_buffer_acceleration_structure of acceleration_structure
   | Command_buffer_texture of texture
   | Command_buffer_sampler of sampler
@@ -1786,6 +1787,7 @@ let attach_lifetime_finalizer ?(on_finalize = fun () -> ()) lifetime parent =
 
 let command_resource_lifetime = function
   | Command_buffer_buffer buffer -> buffer.lifetime
+  | Command_buffer_prepared_resources lifetime -> lifetime
   | Command_buffer_acceleration_structure value -> value.lifetime
   | Command_buffer_texture texture -> texture.lifetime
   | Command_buffer_sampler sampler -> sampler.lifetime
@@ -1815,6 +1817,7 @@ let command_resource_heap = function
   | Command_buffer_buffer { parent = Heap_resource heap; _ } -> Some heap
   | Command_buffer_buffer
       { parent = (Device_resource _ | External_resource _); _ } -> None
+  | Command_buffer_prepared_resources _ -> None
   | Command_buffer_acceleration_structure _ -> None
   | Command_buffer_texture texture -> command_texture_heap texture
   | Command_buffer_sampler _ -> None
@@ -2034,7 +2037,7 @@ let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buf
     List.exists
       (function
         | Command_buffer_buffer retained -> retained.lifetime == buffer.lifetime
-        | Command_buffer_acceleration_structure _ | Command_buffer_texture _ | Command_buffer_sampler _ | Command_buffer_render_pipeline _
+        | Command_buffer_prepared_resources _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _ | Command_buffer_sampler _ | Command_buffer_render_pipeline _
         | Command_buffer_indirect _ -> false
         | Command_residency_set _ | Command_buffer_fence _ | Command_buffer_heap _
         | Command_buffer_drawable _ | Command_buffer_depth_stencil _
@@ -2051,6 +2054,14 @@ let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buf
       Command_buffer_buffer buffer :: !(command_buffer.resources)
   end
 
+let retain_command_buffer_prepared_resources command_buffer lifetime=
+  if not(List.exists(function Command_buffer_prepared_resources retained->
+    retained==lifetime|_->false)!(command_buffer.resources))then begin
+    attach lifetime;
+    command_buffer.resources:=Command_buffer_prepared_resources lifetime::
+      !(command_buffer.resources)
+  end
+
 let retain_command_buffer_acceleration_structure
     (command_buffer : command_buffer) (value : acceleration_structure) =
   let already_retained =
@@ -2058,7 +2069,7 @@ let retain_command_buffer_acceleration_structure
       (function
         | Command_buffer_acceleration_structure retained ->
             retained.lifetime == value.lifetime
-        | Command_buffer_buffer _ | Command_buffer_texture _ | Command_buffer_sampler _
+        | Command_buffer_buffer _ | Command_buffer_prepared_resources _ | Command_buffer_texture _ | Command_buffer_sampler _
         | Command_buffer_render_pipeline _ | Command_residency_set _
         | Command_buffer_indirect _ | Command_buffer_fence _ | Command_buffer_heap _
         | Command_buffer_drawable _ | Command_buffer_depth_stencil _
@@ -2078,7 +2089,7 @@ let retain_command_buffer_texture (command_buffer : command_buffer)
       (function
         | Command_buffer_texture retained ->
             retained.lifetime == texture.lifetime
-        | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_sampler _ | Command_buffer_render_pipeline _
+        | Command_buffer_buffer _ | Command_buffer_prepared_resources _ | Command_buffer_acceleration_structure _ | Command_buffer_sampler _ | Command_buffer_render_pipeline _
         | Command_residency_set _
         | Command_buffer_indirect _ | Command_buffer_fence _ | Command_buffer_heap _
         | Command_buffer_drawable _ | Command_buffer_depth_stencil _
@@ -2123,7 +2134,7 @@ let retain_command_buffer_residency_set (command_buffer : command_buffer)
       (function
         | Command_residency_set retained ->
             retained.lifetime == residency_set.lifetime
-        | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _
+        | Command_buffer_buffer _ | Command_buffer_prepared_resources _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _
         | Command_buffer_sampler _
         | Command_buffer_render_pipeline _
         | Command_buffer_indirect _ | Command_buffer_fence _ | Command_buffer_heap _
@@ -2143,7 +2154,7 @@ let retain_command_buffer_indirect (command_buffer : command_buffer)
     List.exists
       (function
         | Command_buffer_indirect retained -> retained.lifetime == value.lifetime
-        | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _
+        | Command_buffer_buffer _ | Command_buffer_prepared_resources _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _
         | Command_buffer_sampler _
         | Command_buffer_render_pipeline _
         | Command_residency_set _ | Command_buffer_fence _ | Command_buffer_heap _
@@ -2165,7 +2176,7 @@ let retain_command_buffer_render_pipeline (command_buffer : command_buffer)
          (function
            | Command_buffer_render_pipeline retained ->
                retained.lifetime == pipeline.lifetime
-           | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _
+           | Command_buffer_buffer _ | Command_buffer_prepared_resources _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _
            | Command_buffer_sampler _
            | Command_residency_set _ | Command_buffer_indirect _
            | Command_buffer_fence _ | Command_buffer_heap _
@@ -17501,7 +17512,7 @@ module Command_buffer = struct
       (function
         | Command_residency_set retained ->
             retained.lifetime == residency_set.lifetime
-        | Command_buffer_buffer _ | Command_buffer_acceleration_structure _
+        | Command_buffer_buffer _ | Command_buffer_prepared_resources _ | Command_buffer_acceleration_structure _
         | Command_buffer_texture _ | Command_buffer_sampler _
         | Command_buffer_render_pipeline _ | Command_buffer_indirect _
         | Command_buffer_fence _ | Command_buffer_heap _
@@ -17949,6 +17960,7 @@ module Render_encoder = struct
   type resource = Buffer_resource of Buffer.t | Texture_resource of Texture.t
   type prepared_resources=
     { device:device
+    ; lifetime:lifetime
     ; resources:resource array
     ; raws:Metal_raw.handle array
     ; mutable dead:bool }
@@ -18450,12 +18462,18 @@ module Render_encoder = struct
         match validate resources with Error _ as e->e|Ok()->
         let resources=Array.of_list resources in
         Array.iter(fun resource->attach(resource_lifetime resource))resources;
-        Ok{device;resources;raws=Array.map resource_raw resources;dead=false})
+        Ok{device;lifetime=lifetime();resources;
+          raws=Array.map resource_raw resources;dead=false})
 
   let destroy_prepared_resources value=
     let operation="Metal.Render_encoder.destroy_prepared_resources" in
-    on_main operation(fun()->if value.dead then Ok()else begin
+    on_main operation(fun()->if value.dead then Ok()
+      else if dependent_count value.lifetime<>0 then
+        error operation Parent_has_dependents
+          "prepared resources belong to an active command buffer"
+      else begin
       value.dead<-true;
+      Atomic.set value.lifetime.destroyed true;
       Array.iter(fun resource->detach(resource_lifetime resource))value.resources;
       Ok()
     end)
@@ -18517,7 +18535,8 @@ module Render_encoder = struct
       match Metal_raw.render_encoder_use_resources value.raw prepared.raws
         (bits usage_code usage)(bits stage_code stages)with
       |Error message->native_error operation message
-      |Ok()->Array.iter(retain_resource value.command_buffer)prepared.resources;Ok())
+      |Ok()->retain_command_buffer_prepared_resources value.command_buffer
+          prepared.lifetime;Ok())
 
   let binding_stage_code = function Vertex->0 | Fragment->1 | Tile->2 | Object->3 | Mesh->4
 

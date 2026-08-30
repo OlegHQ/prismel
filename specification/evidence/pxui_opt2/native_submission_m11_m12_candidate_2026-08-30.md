@@ -81,6 +81,20 @@ Compared with the immediately preceding 174-frame run at approximately
 278.8 KiB/frame, this removes about 17.7% of steady visible allocation. The
 result remains above both M11 allocation gates and is intermediate evidence.
 
+Prepared sets now also carry one completion-owned lifetime into each command
+buffer instead of expanding back into one OCaml retention node per resource.
+The next two-second diagnostic reported:
+
+- 180 frames over 2.010 seconds, 89.54 FPS;
+- 10.61 ms median, 13.66 ms p95, 23.54 ms p99;
+- 37,927,960 allocated bytes, approximately 205.8 KiB/frame;
+- 1,929,976 promoted bytes total.
+
+This removes another 8.1% from the immediately preceding prepared-array result.
+The safe Metal layer rejects destruction while a command owns the set, releases
+that ownership on completion, and keeps destruction idempotent. M11 remains
+open because the final allocation gate is not met.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,
