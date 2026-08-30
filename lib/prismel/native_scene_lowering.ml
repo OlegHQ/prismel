@@ -88,6 +88,12 @@ let render ~execution ~density ~width ~height scene =
                           with
                           | Error error -> Error (Lower error)
                           | Ok batch -> lower (batch::reversed) rest)
+                      | Scene.Private.Scene2_segment segment :: rest -> (
+                          match Prismel_next_execution.Private.lower_scene2
+                            submission ~density ~resource:(fun _ -> None)
+                            (Scene_command.Display_list.render_ir segment) with
+                          | Error error -> Error (Lower error)
+                          | Ok batch -> lower (batch :: reversed) rest)
                       | Scene.Private.Scene3_layer prepared :: rest ->
                           let draws = draws_of_prepared staged prepared in
                           (match Prismel_next_execution.Private.adopt_draws

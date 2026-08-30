@@ -1,0 +1,30 @@
+(** Packed, renderer-neutral retained 2D command segments. *)
+
+type t
+type segment = t
+
+type stats = {
+  command_capacity : int;
+  command_length : int;
+  high_water : int;
+  growths : int;
+}
+
+module Builder : sig
+  type t
+  val create : ?capacity:int -> unit -> t
+  val reset : t -> unit
+  val solid_rect : t -> x:float -> y:float -> width:float -> height:float ->
+    color:int32 -> unit
+  val push_clip : t -> x:float -> y:float -> width:float -> height:float -> unit
+  val pop_clip : t -> unit
+  val debug_text : t -> x:float -> y:float -> color:int32 -> string -> unit
+  val publish : t -> id:int64 -> version:int64 ->
+    (segment, Render_ir.error) result
+  val stats : t -> stats
+end
+
+val id : t -> int64
+val version : t -> int64
+val source_bytes : t -> int
+val render_ir : t -> Render_ir.t

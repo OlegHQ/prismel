@@ -268,6 +268,10 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
         |Prismel_next_api.Scene.Private.Scene2_layer(ir,resources)->
             Result.get_ok(Prismel_next_execution.lower_scene2 execution~density
               ~resource:(fun id->List.assoc_opt id resources)ir)
+        |Scene2_segment segment->
+            Result.get_ok(Prismel_next_execution.lower_scene2 execution~density
+              ~resource:(fun _->None)
+              (Scene_command.Display_list.render_ir segment))
         |Scene3_layer prepared->Array.to_list prepared.entries|>List.map scene3_draw)
         staged.layers in
       let render_full_scene()=

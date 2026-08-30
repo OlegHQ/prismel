@@ -5,6 +5,7 @@ and debug_text_node={x:int;y:int;value:string;color:Color.t}
 and view3d_node={viewport:(int*int*int*int)option;camera:Camera.t;scene:Scene3.t;mutable rendered3d:Image.t option}
 and image_node={image:Image.t;x:int;y:int;scale:float;angle:float;center:(int*int)option;flip_x:bool}
 and node=Group of t|Clear of Color.t|Primitive of primitive|Geometry of Scene_command.Render_ir.geometry|Text of text_node|Debug_text of debug_text_node|Image of image_node
+ |Display_list of Scene_command.Display_list.t
  |View3d of view3d_node|Region of int*int*int*int*bool|Layer_break
  |Translate of int*int*t|Rotate of float*t|Scale of float*float*t|Clip of int*int*int*int*t|Blend of blend*t
 and t=node list
@@ -171,6 +172,7 @@ let image image ~at:(x,y) ?(scale=1.) ?(angle=0.) ?center ?(flip_x=false)()=
   if not(Float.is_finite scale&&Float.is_finite angle)||scale<=0. then invalid_arg"Scene.image: invalid transform";
   Image{image;x;y;scale;angle;center;flip_x}
 let view3d ?viewport ~camera scene=View3d{viewport;camera;scene;rendered3d=None}
+let display_list value=Display_list value
 let text_input_region ~at:(x,y)~w~h ?(focused=false)()=Region(x,y,w,h,focused)
 let translate x y nodes=Translate(x,y,nodes)let rotate a nodes=Rotate(a,nodes)let scale x y nodes=Scale(x,y,nodes)
 let clip ~at:(x,y)~w~h nodes=Clip(x,y,w,h,nodes)let blend mode nodes=Blend(mode,nodes)
@@ -208,6 +210,7 @@ module Private=struct
  let layer_break=Layer_break
  type native_layer=
   |Scene2_layer of Scene_command.Render_ir.t*(int*Prismel_next_execution.resource)list
+  |Scene2_segment of Scene_command.Display_list.t
   |Scene3_layer of Scene_execution.prepared_scene3
  type staged_native={clear:float*float*float*float;scene2:Scene_command.Render_ir.t;
    resources:(int*Prismel_next_execution.resource)list;
@@ -254,6 +257,10 @@ module Private=struct
    |Primitive p::xs->emit builder(geometry p);nodes xs
    |Geometry g::xs->emit builder(Scene_command.Render_ir.Geometry g);nodes xs
    |Debug_text node::xs->emit builder(Scene_command.Render_ir.Debug_text{x=float node.x;y=float node.y;text=node.value;color=rgba node.color});nodes xs
+   |Display_list segment::xs->
+       Array.iter (emit builder) (Scene_command.Render_ir.Private.commands_readonly
+         (Scene_command.Display_list.render_ir segment));
+       nodes xs
    |Image node::xs->image_command builder node.image node.x node.y node.scale node.angle node.center node.flip_x;nodes xs
    |Text node::xs->
        let scale=1./.float(max 1 density)in
@@ -279,14 +286,17 @@ module Private=struct
    List.rev(nodes[]scene)
 
  let stage_materialized ?(density=1) scene =
-   try
-     match Scene_command.Render_ir.Private.create_owned
-       (commands ~density scene)with
-     |Error _->Error "invalid scene description"
-     |Ok ir->Ok(ir,image_resources ~density scene)
-   with
-   |Failure message->Error message
-   |Invalid_argument message->Error message
+   match scene with
+   |[Display_list segment]->Ok(Scene_command.Display_list.render_ir segment,[])
+   |_->
+      try
+        match Scene_command.Render_ir.Private.create_owned
+          (commands ~density scene)with
+        |Error _->Error "invalid scene description"
+        |Ok ir->Ok(ir,image_resources ~density scene)
+      with
+      |Failure message->Error message
+      |Invalid_argument message->Error message
 
  let stage ?(density=1) ~width ~height scene =
    if width <= 0 || height <= 0 then Error "invalid scene extent"
@@ -300,25 +310,28 @@ module Private=struct
    float(channel 24)/.255.,float(channel 16)/.255.,
    float(channel 8)/.255.,float(channel 0)/.255.
 
- type layer_item=Two_node of node|Three_node of view3d_node|Break
+ type layer_item=Two_node of node|Segment_node of Scene_command.Display_list.t
+   |Three_node of view3d_node|Break
  let ordered_items scene=
-   let rec add wrap acc nodes=List.fold_left(fun acc node->match node with
+   let rec add wrap direct acc nodes=List.fold_left(fun acc node->match node with
      |View3d view->Three_node view::acc
+     |Display_list segment when direct->Segment_node segment::acc
      |Layer_break->Break::acc
-     |Group nodes->add wrap acc nodes
-     |Translate(x,y,nodes)->add(fun node->wrap(Translate(x,y,[node])))acc nodes
-     |Rotate(angle,nodes)->add(fun node->wrap(Rotate(angle,[node])))acc nodes
-     |Scale(x,y,nodes)->add(fun node->wrap(Scale(x,y,[node])))acc nodes
-     |Clip(x,y,w,h,nodes)->add(fun node->wrap(Clip(x,y,w,h,[node])))acc nodes
-     |Blend(mode,nodes)->add(fun node->wrap(Blend(mode,[node])))acc nodes
+     |Group nodes->add wrap direct acc nodes
+     |Translate(x,y,nodes)->add(fun node->wrap(Translate(x,y,[node])))false acc nodes
+     |Rotate(angle,nodes)->add(fun node->wrap(Rotate(angle,[node])))false acc nodes
+     |Scale(x,y,nodes)->add(fun node->wrap(Scale(x,y,[node])))false acc nodes
+     |Clip(x,y,w,h,nodes)->add(fun node->wrap(Clip(x,y,w,h,[node])))false acc nodes
+     |Blend(mode,nodes)->add(fun node->wrap(Blend(mode,[node])))false acc nodes
      |node->Two_node(wrap node)::acc)acc nodes in
-   List.rev(add Fun.id[]scene)
+   List.rev(add Fun.id true[]scene)
 
  let grouped_items items=
    let flush nodes acc=if nodes=[]then acc else `Two(List.rev nodes)::acc in
    let rec loop nodes acc=function
      |[]->List.rev(flush nodes acc)
      |Two_node node::rest->loop(node::nodes)acc rest
+     |Segment_node segment::rest->loop[](`Segment segment::flush nodes acc)rest
      |Three_node view::rest->loop[](`Three view::flush nodes acc)rest
      |Break::rest->loop[](flush nodes acc)rest in
    loop[][]items
@@ -338,6 +351,7 @@ module Private=struct
        |`Two nodes->(match stage_materialized ~density nodes with
          |Ok(ir,resources)->Some(Scene2_layer(ir,resources))
          |Error message->failure:=Some message;None)
+       |`Segment segment->Some(Scene2_segment segment)
        |`Three node->
          let viewport=Option.value node.viewport~default:(0,0,width,height)in
          (match Scene3_native_lowering.prepare~resources:callbacks~camera:node.camera
@@ -347,6 +361,15 @@ module Private=struct
    let clear=ref(0.,0.,0.,0.)and seen_draw=ref false in
    List.iter(function
      |Scene3_layer _->seen_draw:=true
+     |Scene2_segment segment->
+         Array.iter(function
+           |Scene_command.Render_ir.Clear color->
+               if!seen_draw then failure:=Some"native Clear after drawing is unsupported"
+               else clear:=unpack_clear color
+           |Geometry _|Debug_text _|Image _|Glyphs _->seen_draw:=true
+           |Set_blend _|Push_clip _|Pop_clip|Push_transform _|Pop_transform->())
+           (Scene_command.Render_ir.Private.commands_readonly
+             (Scene_command.Display_list.render_ir segment))
      |Scene2_layer(ir,_)->Array.iter(function
        |Scene_command.Render_ir.Clear color->
           if!seen_draw then failure:=Some"native Clear after drawing is unsupported"
@@ -356,7 +379,12 @@ module Private=struct
        (Scene_command.Render_ir.Private.commands_readonly ir))layers;
    match!failure with Some message->Error message|None->
    let scene3=List.filter_map(function Scene3_layer prepared->Some prepared|_->None)layers in
-   Ok{clear= !clear;scene2;resources;scene3;layers;retained=None}
+   let retained=match layers with
+   |[Scene2_segment segment]->Some
+       ("scene2-segment:"^Int64.to_string(Scene_command.Display_list.id segment),
+        Scene_command.Display_list.version segment)
+   |_->None in
+   Ok{clear= !clear;scene2;resources;scene3;layers;retained}
 
  type native_stage_cache_entry={cached_scene:t;cached_density:int;
    cached_width:int;cached_height:int;cached_stage:staged_native}
@@ -365,6 +393,7 @@ module Private=struct
  let native_stage_caches=Domain.DLS.new_key(fun()->ref[])
  let next_native_stage_identity=ref 0L
  let native_stage_bytes stage=List.fold_left(fun total->function
+   |Scene2_segment segment->total+Scene_command.Display_list.source_bytes segment
    |Scene2_layer(ir,_)->total+Array.fold_left(fun total->function
        |Scene_command.Render_ir.Geometry geometry->total+
            Array.length geometry.vertices*(Sys.word_size/8)+
@@ -426,7 +455,8 @@ module Private=struct
        | Group nodes | Translate (_, _, nodes) | Rotate (_, nodes)
        | Scale (_, _, nodes) | Clip (_, _, _, _, nodes) | Blend (_, nodes) ->
            release nodes
-       | Clear _ | Primitive _ | Geometry _ | Debug_text _ | Image _ | Region _
+       | Clear _ | Primitive _ | Geometry _ | Debug_text _ | Image _
+       | Display_list _ | Region _
        | Layer_break -> ())
      scene
 end

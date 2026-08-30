@@ -1,4 +1,9 @@
 (library
  (name scene_command)
  (public_name prismel.scene_command)
- (modules path render_ir debug_font))
+ (modules path render_ir display_list debug_font))
+
+(test
+ (name test_display_list)
+ (modules test_display_list)
+ (libraries scene_command))
