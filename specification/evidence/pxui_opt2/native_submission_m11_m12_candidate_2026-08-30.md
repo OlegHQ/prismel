@@ -343,6 +343,22 @@ reported 189 frames, 10,173,744 allocated bytes (approximately 52.6 KiB/frame),
 a 9.90 ms median, and 12.25 ms p95. This is renewed native-wrapper evidence;
 the final M11 allocation threshold remains open.
 
+Portable OGPU command descriptions now fill one exact array directly instead
+of allocating a reversed intermediate list. More importantly, the bounded
+`Submission` ring retains one geometrically sized command array per pending
+slot with an explicit live length. Completion clears the live length rather
+than discarding storage; private renderer epoch submission fills that storage
+in place, while the public receipt API still returns an isolated exact copy.
+A focused submission regression proves completed slots retain their bounded
+storage and that public receipt mutation cannot affect pending state.
+
+The same 300-frame retained Scene3 lane reported 25,122.64 allocated
+bytes/frame after this change, with zero replacement upload, exact pixels,
+300/300 retained-plan hits, and zero native-handle delta. The 40-byte/frame
+difference between direct array fill and retained slot storage matches the
+eliminated three-command array itself. M11 still requires the higher-level
+draw/payload/resource arrays and a substantially lower native lifecycle floor.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,

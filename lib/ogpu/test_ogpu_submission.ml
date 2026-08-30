@@ -12,5 +12,8 @@ let ()=
   if retained.(0)=Ogpu.Command.Present then fail"public receipt mutated pending storage";
   ignore(ok(Ogpu.Submission.submit q(ended())~resources:[]));expect Ogpu.Error.Capacity(Ogpu.Submission.submit q(ended())~resources:[]);
   Ogpu.Handle.destroy resource;if Ogpu.Submission.retained_resource_count q<>1 then fail"submitted resource released early";ignore(ok(Ogpu.Submission.complete_through q first.id));if Ogpu.Submission.retained_resource_count q<>0 then fail"completion did not release resource";
+  let capacities=Ogpu.Submission.Private.command_storage_capacities q in
+  if Array.exists((=)0)capacities then
+    fail"completion discarded reusable command storage";
   expect Ogpu.Error.Invalid_argument(Ogpu.Submission.complete_through q 0L);Ogpu.Submission.drain q;if Ogpu.Submission.in_flight q<>0 then fail"drain left submissions";Ogpu.Submission.lose_device q;expect Ogpu.Error.Device_lost(Ogpu.Submission.submit q(ended())~resources:[]);
   let sequential=sequence()and parallel=Domain.spawn sequence|>Domain.join in if sequential<>parallel then fail"submission ordering differs across domains";print_endline"OGPU bounded submission epochs and deferred release passed"

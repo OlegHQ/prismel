@@ -20,5 +20,32 @@ let declare_resource value ~resource_id ~access ~stages=match value.state with
   |_->state_error"Ogpu.Command.declare_resource""resource access requires an active pass"
 let end_encoder value=match value.state,value.debug with Recording,[]->value.state<-Ended;append value End_encoder;Ok()|Recording,_->state_error"Ogpu.Command.end_encoder""debug groups remain open"|In_pass _,_->state_error"Ogpu.Command.end_encoder""a pass remains open"|(Ended|Presented|Submitted),_->state_error"Ogpu.Command.end_encoder""encoder has already ended"
 let present value=match value.state with Ended->value.state<-Presented;append value Present;Ok()|_->state_error"Ogpu.Command.present""present requires one newly ended encoder"
-let descriptions value=Array.of_list(List.rev value.commands)
+let descriptions value=
+  let length=List.length value.commands in
+  let result=Array.make length Begin_encoder in
+  let rec fill index=function
+  |[]->()
+  |command::rest->
+      Array.unsafe_set result index command;
+      fill(index-1)rest in
+  fill(length-1)value.commands;
+  result
 let take_for_submission value=match value.state with Ended->value.state<-Submitted;Ok(descriptions value)|_->state_error"Ogpu.Command.take_for_submission""submission requires one newly ended encoder"
+module Private=struct
+  let take_for_submission_reusing value storage=
+    match value.state with
+    |Ended->
+        let length=List.length value.commands in
+        let storage=if Array.length storage>=length then storage
+          else Array.make(max 8 length)Begin_encoder in
+        let rec fill index=function
+        |[]->()
+        |command::rest->
+            Array.unsafe_set storage index command;
+            fill(index-1)rest in
+        fill(length-1)value.commands;
+        value.state<-Submitted;
+        Ok(storage,length)
+    |_->state_error"Ogpu.Command.take_for_submission"
+        "submission requires one newly ended encoder"
+end

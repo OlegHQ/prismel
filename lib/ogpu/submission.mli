@@ -12,4 +12,5 @@ val pending_descriptions : t -> (int64 * Command.description array) array
 module Private : sig
   val submit_epoch : t -> Command.t -> resources:'a Handle.t list ->
     (int64,Error.t) result
+  val command_storage_capacities : t -> int array
 end

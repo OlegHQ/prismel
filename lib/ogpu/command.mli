@@ -17,3 +17,7 @@ val end_encoder : t -> (unit,Error.t) result
 val present : t -> (unit,Error.t) result
 val descriptions : t -> description array
 val take_for_submission : t -> (description array,Error.t) result
+module Private : sig
+  val take_for_submission_reusing : t -> description array ->
+    ((description array * int),Error.t) result
+end
