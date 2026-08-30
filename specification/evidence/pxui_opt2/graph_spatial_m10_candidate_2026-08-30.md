@@ -79,11 +79,22 @@ replacement. The 10k single-node release-and-paint lane remains 215.054
 microseconds with 246,472 allocated bytes, versus 112.057 microseconds and the
 same allocation at 1k.
 
+Affected wires now use a deterministic persistent interval treap over the same
+eight conservative curve regions as the packed base BVH. Releasing a move
+removes prior regions for each affected edge, inserts its new graph-space
+regions, and retains an exact entry count; base leaves for changed edges remain
+suppressed. Hit testing and viewport visibility query the delta hierarchy and
+deduplicate edge IDs with the existing generation plane instead of scanning all
+edges edited since document publication. A 100-node move/release/paint lane at
+10k nodes takes 1.288 milliseconds and allocates 2,593,800 bytes, compared with
+1.215 milliseconds and 3,066,376 bytes at 1k, demonstrating dependence on the
+changed/affected set rather than loaded graph cardinality. The single-node 10k
+release remains 199.080 microseconds with 259,288 allocated bytes.
+
 The former 10,000-way fan remains useful as an adversarial stress topology: its
 long diagonal envelopes overlap heavily and are not used as a proxy for the
 controlled 2x-edge qualification lane.
 
-The remaining M10 work is explicit: accumulated affected-edge deltas still need
-their own spatial hierarchy so queries do not scan the full edited edge set;
-large match sets still need an index-backed partial ranking lane; and graph
-paint is not yet split into retained layers. No completion claim is made here.
+The remaining M10 work is explicit: large menu match sets still need an
+index-backed partial ranking lane, and graph paint is not yet split into
+retained layers. No completion claim is made here.

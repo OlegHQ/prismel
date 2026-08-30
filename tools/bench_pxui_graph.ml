@@ -17,6 +17,11 @@ let percentile values fraction =
     (max 0 (int_of_float (Float.ceil
       (fraction *. float_of_int (Array.length values))) - 1)))
 
+let rec take count values = match count, values with
+  | count, _ when count <= 0 -> []
+  | _, [] -> []
+  | count, value :: rest -> value :: take (count - 1) rest
+
 let graph count =
   let rec divisor candidate =
     if candidate <= 2 || count mod candidate = 0 then candidate
@@ -101,18 +106,38 @@ let measure count =
   ignore (Pxui_graph.scene released);
   let release_seconds = Unix.gettimeofday () -. release_started
   and release_allocated = Gc.allocated_bytes () -. release_before in
+  let bulk_count = min 100 (List.length nodes) in
+  let bulk_ids = first_node.id :: (nodes
+      |> List.filter (fun (node : Pxui_graph.node_view) ->
+        node.id <> first_node.id)
+      |> take (bulk_count - 1)
+      |> List.map (fun (node : Pxui_graph.node_view) -> node.id)) in
+  let bulk, _ = Pxui_graph.update (Pxui_graph.select_nodes bulk_ids view)
+      (frame ~mouse:start ~events:[Prismel.Event.MousePressed
+        (Prismel.Input.LeftButton, start)] ()) in
+  let bulk_target = fst start + 2, snd start + 2 in
+  let bulk, _ = Pxui_graph.update bulk
+      (frame ~mouse:bulk_target ~events:[Prismel.Event.MouseMoved bulk_target] ()) in
+  Gc.full_major ();
+  let bulk_before = Gc.allocated_bytes () and bulk_started = Unix.gettimeofday () in
+  let bulk, _ = Pxui_graph.update bulk
+      (frame ~mouse:bulk_target ~events:[Prismel.Event.MouseReleased
+        (Prismel.Input.LeftButton, bulk_target)] ()) in
+  ignore (Pxui_graph.scene bulk);
+  let bulk_seconds = Unix.gettimeofday () -. bulk_started
+  and bulk_allocated = Gc.allocated_bytes () -. bulk_before in
   let stats = Pxui_graph.stats view in
   Printf.printf
-    "pxui_graph,%d,%d,%d,%d,%.9f,%.9f,%.9f,%.0f,%.9f,%.0f,%.9f,%.0f,%d,%d,%d,%d,%d\n%!"
+    "pxui_graph,%d,%d,%d,%d,%.9f,%.9f,%.9f,%.0f,%.9f,%.0f,%.9f,%.0f,%d,%.9f,%.0f,%d,%d,%d,%d,%d\n%!"
     count stats.nodes stats.wires !hits
     (percentile (Array.copy samples) 0.5)
     (percentile samples 0.99) (percentile edge_samples 0.99) allocated
     (percentile move_samples 0.5) move_allocated release_seconds
-    release_allocated stats.visible_nodes
+    release_allocated bulk_count bulk_seconds bulk_allocated stats.visible_nodes
     !max_candidates !max_edge_candidates stats.spatial_cells
     stats.spatial_edge_cells
 
 let () =
   Printf.printf
-    "benchmark,requested_nodes,nodes,wires,hits,median_seconds,p99_seconds,edge_p99_seconds,allocated_bytes,move_median_seconds,move_10_allocated_bytes,release_seconds,release_allocated_bytes,visible_nodes,max_candidates,max_edge_candidates,spatial_cells,spatial_edge_cells\n%!";
+    "benchmark,requested_nodes,nodes,wires,hits,median_seconds,p99_seconds,edge_p99_seconds,allocated_bytes,move_median_seconds,move_10_allocated_bytes,release_seconds,release_allocated_bytes,bulk_nodes,bulk_release_seconds,bulk_release_allocated_bytes,visible_nodes,max_candidates,max_edge_candidates,spatial_cells,spatial_edge_cells\n%!";
   List.iter measure [100; 1_000; 10_000]
