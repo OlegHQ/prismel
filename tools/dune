@@ -62,6 +62,10 @@
  (libraries prismel pxui unix))
 
 (executable
+ (name bench_pxui_graph)
+ (libraries prismel procedural pxui pxui_graph unix))
+
+(executable
  (name bench_pdk_ops)
  (libraries prismel pdk procedural unix))
 

@@ -70,6 +70,9 @@ type stats = {
   visible_wires : int;
   spatial_cells : int;
   max_spatial_candidates : int;
+  spatial_edge_cells : int;
+  max_spatial_edge_candidates : int;
+  overflow_spatial_edges : int;
 }
 
 val create :
@@ -118,3 +121,9 @@ val stats : t -> stats
       atomic insertion. *)
 val update : t -> Prismel.Frame.t -> t * change list
 val scene : t -> Prismel.Scene.t
+
+module Private : sig
+  val hit_node_id : t -> int * int -> int option
+  val hit_candidates : t -> int * int -> int
+  val hit_edge_candidates : t -> int * int -> int
+end

@@ -102,8 +102,18 @@ type drag =
 
 type spatial_index = {
   cells : (int64, int array) Hashtbl.t;
+  edge_cells : (int64, int array) Hashtbl.t;
   cell_size : float;
   max_candidates : int;
+  max_edge_candidates : int;
+  overflow_edges : int array;
+  marks : int array;
+  edge_marks : int array;
+  mutable mark_generation : int;
+  mutable visible : int array;
+  mutable visible_length : int;
+  mutable visible_edges : int array;
+  mutable visible_edge_length : int;
 }
 
 type t = {
@@ -151,6 +161,9 @@ type stats = {
   visible_wires : int;
   spatial_cells : int;
   max_spatial_candidates : int;
+  spatial_edge_cells : int;
+  max_spatial_edge_candidates : int;
+  overflow_spatial_edges : int;
 }
 
 let node_width = 196
@@ -173,7 +186,7 @@ let spatial_key cell_x cell_y =
 let spatial_cell coordinate = int_of_float (Float.floor
     (coordinate /. spatial_cell_size))
 
-let build_spatial_index boxes =
+let build_spatial_index boxes edges =
   let pending = Hashtbl.create (max 16 (Array.length boxes * 2)) in
   Array.iteri (fun index (box : box) ->
     let padding = 24. in
@@ -196,7 +209,47 @@ let build_spatial_index boxes =
     let candidates = Array.of_list (List.rev reversed) in
     max_candidates := max !max_candidates (Array.length candidates);
     Hashtbl.add cells key candidates) pending;
-  { cells; cell_size = spatial_cell_size; max_candidates = !max_candidates }
+  let pending_edges = Hashtbl.create (max 16 (Array.length edges * 2))
+  and overflow_edges = ref [] in
+  Array.iteri (fun index edge ->
+    let source = boxes.(edge.source_index)
+    and consumer = boxes.(edge.consumer_index) in
+    let from_x = source.gx +. (float_of_int source.width /. 2.)
+    and from_y = source.gy +. float_of_int source.height
+    and to_x = consumer.gx +.
+      (float_of_int (consumer.width * (edge.connection.input_index + 1)) /.
+       float_of_int (edge.input_count + 1))
+    and to_y = consumer.gy in
+    let padding = 48. in
+    let first_x = spatial_cell (min from_x to_x -. padding)
+    and last_x = spatial_cell (max from_x to_x +. padding)
+    and first_y = spatial_cell (min from_y to_y -. padding)
+    and last_y = spatial_cell (max from_y to_y +. padding) in
+    let columns = last_x - first_x + 1 and rows = last_y - first_y + 1 in
+    if columns > 0 && rows > 0 && columns <= 256 / rows then
+      for cell_y = first_y to last_y do
+        for cell_x = first_x to last_x do
+          let key = spatial_key cell_x cell_y in
+          Hashtbl.replace pending_edges key
+            (index :: Option.value (Hashtbl.find_opt pending_edges key) ~default:[])
+        done
+      done
+    else overflow_edges := index :: !overflow_edges) edges;
+  let edge_cells = Hashtbl.create (Hashtbl.length pending_edges)
+  and max_edge_candidates = ref 0 in
+  Hashtbl.iter (fun key reversed ->
+    let candidates = Array.of_list (List.rev reversed) in
+    max_edge_candidates := max !max_edge_candidates (Array.length candidates);
+    Hashtbl.add edge_cells key candidates) pending_edges;
+  { cells; edge_cells; cell_size = spatial_cell_size;
+    max_candidates = !max_candidates;
+    max_edge_candidates = !max_edge_candidates;
+    overflow_edges = Array.of_list (List.rev !overflow_edges);
+    marks = Array.make (Array.length boxes) 0; mark_generation = 0;
+    edge_marks = Array.make (Array.length edges) 0;
+    visible = Array.make (min 16 (Array.length boxes)) 0; visible_length = 0;
+    visible_edges = Array.make (min 16 (Array.length edges)) 0;
+    visible_edge_length = 0 }
 
 let automatic_layout document =
   let infos = Edit_graph.inspect document in
@@ -282,11 +335,12 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
     | _ -> Id_set.empty in
   let primary = if Id_set.is_empty selected then None else Some (Id_set.choose selected) in
   let boxes = automatic_layout document in
+  let edges = build_edges boxes in
   let viewed = match Edit_graph.root document with
     | Some id -> id
     | None -> Option.value ~default:0 primary in
-  { source_graph = None; document; boxes; edges = build_edges boxes;
-    spatial = build_spatial_index boxes; selected; primary;
+  { source_graph = None; document; boxes; edges;
+    spatial = build_spatial_index boxes edges; selected; primary;
     selected_edge = None; viewed; x; y; width; height;
     pan_x = float_of_int (width / 2); pan_y = 18.; zoom = 1.; drag = None;
     menu = None; clipboard = None; catalog = catalog_array catalog;
@@ -309,6 +363,7 @@ let connection_exists document connection =
 let with_document document value =
   if document == value.document then value else
     let boxes = automatic_layout document |> preserve_positions value.boxes in
+    let edges = build_edges boxes in
     let selected = Id_set.filter (fun id ->
       Edit_graph.find document ~node_id:id <> None) value.selected in
     let primary = match value.primary with
@@ -318,8 +373,8 @@ let with_document document value =
       if connection_exists document connection then Some connection else None) in
     let viewed = if Edit_graph.find document ~node_id:value.viewed <> None
       then value.viewed else Option.value ~default:0 (Edit_graph.root document) in
-    { value with source_graph = None; document; boxes; edges = build_edges boxes;
-      spatial = build_spatial_index boxes;
+    { value with source_graph = None; document; boxes; edges;
+      spatial = build_spatial_index boxes edges;
       selected; primary;
       selected_edge; viewed }
 
@@ -375,8 +430,9 @@ let place_node ~node_id ~x ~y value =
   end) boxes;
   if not !found then invalid_arg (Printf.sprintf
       "Pxui_graph.place_node: graph has no node #%d" node_id);
-  { value with boxes; edges = build_edges boxes;
-    spatial = build_spatial_index boxes }
+  let edges = build_edges boxes in
+  { value with boxes; edges;
+    spatial = build_spatial_index boxes edges }
 
 let screen_x value gx = value.x + int_of_float (value.pan_x +. (gx *. value.zoom))
 let screen_y value gy = value.y + int_of_float (value.pan_y +. (gy *. value.zoom))
@@ -424,6 +480,16 @@ let spatial_candidates value point =
   let cell coordinate = int_of_float (Float.floor
       (coordinate /. value.spatial.cell_size)) in
   Option.value (Hashtbl.find_opt value.spatial.cells
+      (spatial_key (cell graph_point_x) (cell graph_point_y)))
+    ~default:empty_candidates
+
+let spatial_edge_candidates value point =
+  let point_x, point_y = point in
+  let graph_point_x = graph_x value point_x
+  and graph_point_y = graph_y value point_y in
+  let cell coordinate = int_of_float (Float.floor
+      (coordinate /. value.spatial.cell_size)) in
+  Option.value (Hashtbl.find_opt value.spatial.edge_cells
       (spatial_key (cell graph_point_x) (cell graph_point_y)))
     ~default:empty_candidates
 
@@ -517,7 +583,9 @@ let segment_distance_squared px py ax ay bx by =
 
 let hit_edge value (px, py) =
   let threshold = 9. and best = ref None and best_distance = ref Float.infinity in
-  Array.iteri (fun index edge ->
+  let candidates = spatial_edge_candidates value (px, py) in
+  let visit index =
+    let edge = value.edges.(index) in
     let x0, y0, x3, y3 = edge_points value edge in
     let bend = float_of_int (max 24 (abs (y3 - y0) / 2)) in
     let p0 = float_of_int x0, float_of_int y0
@@ -533,7 +601,9 @@ let hit_edge value (px, py) =
         best_distance := distance; best := Some index
       end;
       previous := point
-    done) value.edges;
+    done in
+  Array.iter visit candidates;
+  Array.iter visit value.spatial.overflow_edges;
   if !best_distance <= threshold *. threshold then !best else None
 
 let pan value x y button last_x last_y =
@@ -550,7 +620,7 @@ let move_nodes value x y indices last_x last_y =
     let box = boxes.(index) in
     boxes.(index) <- { box with gx = box.gx +. dx; gy = box.gy +. dy }) indices;
   { value with boxes;
-    spatial = build_spatial_index boxes;
+    spatial = build_spatial_index boxes value.edges;
     drag = Some (Move_nodes { indices; last_x = x; last_y = y }) }
 
 let zoom_at value (mouse_x, mouse_y) delta =
@@ -847,8 +917,9 @@ let update (value : t) frame =
             open_menu value frame.mouse, changes
         | Event.KeyPressed (Input.KeyChar ('o' | 'O')) ->
             let boxes = automatic_layout value.document in
-            let value = { value with boxes; edges = build_edges boxes;
-              spatial = build_spatial_index boxes } |> frame_all in
+            let edges = build_edges boxes in
+            let value = { value with boxes; edges;
+              spatial = build_spatial_index boxes edges } |> frame_all in
             value, Layout_optimized :: View_changed :: changes
         | Event.KeyPressed (Input.Delete | Input.Backspace) ->
             let value, emitted = delete_selection value in
@@ -965,26 +1036,122 @@ let wire_bounds from_x from_y to_x to_y =
   min from_x to_x, min from_y to_y,
   abs (to_x - from_x) + 1, abs (to_y - from_y) + 1
 
+let ensure_visible_capacity (spatial : spatial_index) needed =
+  if needed > Array.length spatial.visible then begin
+    let capacity = ref (max 16 (Array.length spatial.visible)) in
+    while !capacity < needed do capacity := !capacity * 2 done;
+    let grown = Array.make !capacity 0 in
+    Array.blit spatial.visible 0 grown 0 spatial.visible_length;
+    spatial.visible <- grown
+  end
+
+let ensure_visible_edge_capacity (spatial : spatial_index) needed =
+  if needed > Array.length spatial.visible_edges then begin
+    let capacity = ref (max 16 (Array.length spatial.visible_edges)) in
+    while !capacity < needed do capacity := !capacity * 2 done;
+    let grown = Array.make !capacity 0 in
+    Array.blit spatial.visible_edges 0 grown 0 spatial.visible_edge_length;
+    spatial.visible_edges <- grown
+  end
+
+let sort_visible_prefix values length =
+  let swap left right =
+    let value = Array.unsafe_get values left in
+    Array.unsafe_set values left (Array.unsafe_get values right);
+    Array.unsafe_set values right value in
+  let rec sift root limit =
+    let child = (root * 2) + 1 in
+    if child < limit then begin
+      let child = if child + 1 < limit
+          && Array.unsafe_get values child < Array.unsafe_get values (child + 1)
+        then child + 1 else child in
+      if Array.unsafe_get values root < Array.unsafe_get values child then begin
+        swap root child;
+        sift child limit
+      end
+    end in
+  for root = (length / 2) - 1 downto 0 do sift root length done;
+  for limit = length - 1 downto 1 do
+    swap 0 limit;
+    sift 0 limit
+  done
+
+let visible_node_indices (value : t) viewport =
+  let spatial = value.spatial in
+  if spatial.mark_generation = max_int then begin
+    Array.fill spatial.marks 0 (Array.length spatial.marks) 0;
+    Array.fill spatial.edge_marks 0 (Array.length spatial.edge_marks) 0;
+    spatial.mark_generation <- 1
+  end else spatial.mark_generation <- spatial.mark_generation + 1;
+  spatial.visible_length <- 0;
+  let x, y, width, height = viewport in
+  let first_x = spatial_cell (graph_x value x)
+  and last_x = spatial_cell (graph_x value (x + width - 1))
+  and first_y = spatial_cell (graph_y value y)
+  and last_y = spatial_cell (graph_y value (y + height - 1)) in
+  for cell_y = min first_y last_y to max first_y last_y do
+    for cell_x = min first_x last_x to max first_x last_x do
+      match Hashtbl.find_opt spatial.cells (spatial_key cell_x cell_y) with
+      | None -> ()
+      | Some candidates -> Array.iter (fun candidate ->
+          if Array.unsafe_get spatial.marks candidate
+              <> spatial.mark_generation then begin
+            Array.unsafe_set spatial.marks candidate spatial.mark_generation;
+            if intersects viewport (box_bounds value value.boxes.(candidate)) then begin
+              ensure_visible_capacity spatial (spatial.visible_length + 1);
+              Array.unsafe_set spatial.visible spatial.visible_length candidate;
+              spatial.visible_length <- spatial.visible_length + 1
+            end
+          end) candidates
+    done
+  done;
+  sort_visible_prefix spatial.visible spatial.visible_length;
+  spatial.visible_edge_length <- 0;
+  for cell_y = min first_y last_y to max first_y last_y do
+    for cell_x = min first_x last_x to max first_x last_x do
+      match Hashtbl.find_opt spatial.edge_cells (spatial_key cell_x cell_y) with
+      | None -> ()
+      | Some candidates -> Array.iter (fun candidate ->
+          if Array.unsafe_get spatial.edge_marks candidate
+              <> spatial.mark_generation then begin
+            Array.unsafe_set spatial.edge_marks candidate spatial.mark_generation;
+            let from_x, from_y, to_x, to_y = edge_points value
+                value.edges.(candidate) in
+            if intersects viewport (wire_bounds from_x from_y to_x to_y) then begin
+              ensure_visible_edge_capacity spatial
+                (spatial.visible_edge_length + 1);
+              Array.unsafe_set spatial.visible_edges spatial.visible_edge_length
+                candidate;
+              spatial.visible_edge_length <- spatial.visible_edge_length + 1
+            end
+          end) candidates
+    done
+  done;
+  Array.iter (fun candidate ->
+    let from_x, from_y, to_x, to_y = edge_points value value.edges.(candidate) in
+    if intersects viewport (wire_bounds from_x from_y to_x to_y) then begin
+      ensure_visible_edge_capacity spatial (spatial.visible_edge_length + 1);
+      Array.unsafe_set spatial.visible_edges spatial.visible_edge_length candidate;
+      spatial.visible_edge_length <- spatial.visible_edge_length + 1
+    end) spatial.overflow_edges;
+  sort_visible_prefix spatial.visible_edges spatial.visible_edge_length;
+  spatial.visible, spatial.visible_length,
+  spatial.visible_edges, spatial.visible_edge_length
+
 let visibility (value : t) =
   let viewport = value.x, value.y, value.width, value.height in
-  let visible_nodes = Array.make (Array.length value.boxes) false in
-  let node_count = ref 0 in
-  Array.iteri (fun index box ->
-    let visible = intersects viewport (box_bounds value box) in
-    visible_nodes.(index) <- visible;
-    if visible then incr node_count) value.boxes;
-  let wire_count = ref 0 in
-  Array.iter (fun edge ->
-    let from_x, from_y, to_x, to_y = edge_points value edge in
-    if intersects viewport (wire_bounds from_x from_y to_x to_y)
-    then incr wire_count) value.edges;
-  visible_nodes, { nodes = Array.length value.boxes;
-    wires = Array.length value.edges; visible_nodes = !node_count;
-    visible_wires = !wire_count;
+  let visible_nodes, visible_length, visible_edges, visible_edge_length =
+    visible_node_indices value viewport in
+  visible_nodes, visible_edges, { nodes = Array.length value.boxes;
+    wires = Array.length value.edges; visible_nodes = visible_length;
+    visible_wires = visible_edge_length;
     spatial_cells = Hashtbl.length value.spatial.cells;
-    max_spatial_candidates = value.spatial.max_candidates }
+    max_spatial_candidates = value.spatial.max_candidates;
+    spatial_edge_cells = Hashtbl.length value.spatial.edge_cells;
+    max_spatial_edge_candidates = value.spatial.max_edge_candidates;
+    overflow_spatial_edges = Array.length value.spatial.overflow_edges }
 
-let stats (value : t) = snd (visibility value)
+let stats (value : t) = let _, _, stats = visibility value in stats
 
 let menu_scene (value : t) menu =
   let rows = menu_rows value menu in
@@ -1025,8 +1192,7 @@ let menu_scene (value : t) menu =
 
 let scene_uncached (value : t) =
   if not value.visible then Scene.empty else
-  let viewport = value.x, value.y, value.width, value.height in
-  let visible_nodes, _ = visibility value in
+  let visible_nodes, visible_edges, visibility_stats = visibility value in
   let grid =
     let spacing = max 18 (screen_size value 32) in
     let color = darken value.theme.control 20 in
@@ -1041,16 +1207,18 @@ let scene_uncached (value : t) =
       horizontal (y + spacing) (Scene.line ~from_:(value.x, y)
         ~to_:(value.x + value.width, y) ~color () :: nodes) in
     horizontal start_y (vertical start_x []) in
-  let wires = Array.fold_left (fun nodes edge ->
+  let wires = ref [] in
+  for visible_index = 0 to visibility_stats.visible_wires - 1 do
+    let edge = value.edges.(Array.unsafe_get visible_edges visible_index) in
     let from_x, from_y, to_x, to_y = edge_points value edge in
-    if not (intersects viewport (wire_bounds from_x from_y to_x to_y)) then nodes
-    else
-      let selected = value.selected_edge = Some edge.connection in
-      let bend = max 24 (abs (to_y - from_y) / 2) in
-      Scene.bezier [from_x, from_y; from_x, from_y + bend;
+    let selected = value.selected_edge = Some edge.connection in
+    let bend = max 24 (abs (to_y - from_y) / 2) in
+    wires := Scene.bezier [from_x, from_y; from_x, from_y + bend;
         to_x, to_y - bend; to_x, to_y] ~steps:16
         ~color:(if selected then Color.hex_exn "#fbbf24"
-          else darken value.theme.accent 18) () :: nodes) [] value.edges in
+          else darken value.theme.accent 18) () :: !wires
+  done;
+  let wires = !wires in
   let connector_radius = max 2 (screen_size value 4) in
   let render_box box =
     let x, y, width, height = box_bounds value box in
@@ -1106,10 +1274,13 @@ let scene_uncached (value : t) =
       @ connectors @ input_labels @ parameter_badge @ view_button in
     shell @ content in
   let ordinary = ref [] and selected_nodes = ref [] in
-  Array.iteri (fun index box -> if visible_nodes.(index) then
+  for visible_index = 0 to visibility_stats.visible_nodes - 1 do
+    let index = Array.unsafe_get visible_nodes visible_index in
+    let box = Array.unsafe_get value.boxes index in
     if Id_set.mem box.info.Edit_graph.id value.selected
     then selected_nodes := render_box box :: !selected_nodes
-    else ordinary := render_box box :: !ordinary) value.boxes;
+    else ordinary := render_box box :: !ordinary
+  done;
   let drag_scene = match value.drag with
     | Some (Box_select drag) ->
         let x, y, width, height = normalize_rect drag.start_x drag.start_y
@@ -1152,3 +1323,12 @@ let scene (value : t) = match value.scene_cache with
       let scene = scene_uncached value in
       value.scene_cache <- Some ({ value with scene_cache = None }, scene);
       scene
+
+module Private = struct
+  let hit_node_id value point = Option.map (fun index ->
+      value.boxes.(index).info.Edit_graph.id) (hit_node value point)
+  let hit_candidates value point = Array.length (spatial_candidates value point)
+  let hit_edge_candidates value point =
+    Array.length (spatial_edge_candidates value point)
+    + Array.length value.spatial.overflow_edges
+end
