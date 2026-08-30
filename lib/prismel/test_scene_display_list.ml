@@ -43,6 +43,21 @@ let () =
         Scene.rect ~at:(3, 4) ~w:13 ~h:9 ~fill:Color.white ()]) in
   if changed == first_equivalent then
     failwith "changed shallow scene composition reused stale native stage";
+  let layered width = [
+    Scene.rect ~at:(1, 1) ~w:8 ~h:8 ~fill:Color.white ();
+    Scene.Private.layer_break;
+    Scene.rect ~at:(16, 1) ~w:width ~h:8 ~fill:Color.red ()] in
+  let first_layered = Result.get_ok (Scene.Private.stage_native_render
+      ~width:32 ~height:32 (layered 8))
+  and changed_layered = Result.get_ok (Scene.Private.stage_native_render
+      ~width:32 ~height:32 (layered 9)) in
+  (match first_layered.layers, changed_layered.layers with
+   | [Scene.Private.Scene2_layer (stable, []);
+      Scene.Private.Scene2_layer (first_dynamic, [])],
+     [Scene.Private.Scene2_layer (reused, []);
+      Scene.Private.Scene2_layer (changed_dynamic, [])]
+       when stable == reused && first_dynamic != changed_dynamic -> ()
+   | _ -> failwith "changed layer invalidated unrelated retained Scene2 IR");
 
   let image_builder = Scene_command.Display_list.Builder.create () in
   Scene_command.Display_list.Builder.image image_builder ~resource_id:7

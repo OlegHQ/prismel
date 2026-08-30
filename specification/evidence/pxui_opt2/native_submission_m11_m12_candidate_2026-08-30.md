@@ -222,6 +222,29 @@ approximately 97.6 KiB/frame, at 92.49 FPS with a 10.10 ms median and 12.50 ms
 p95. Allocation profiling no longer reports FPS/status formatting among the top
 sites. M11 remains open.
 
+Native Scene staging now retains Scene2 layers independently in a 64-entry,
+64 MiB cache keyed by structural scene state and renderer density. A later
+layer change therefore reuses the exact immutable IR of unrelated layers; a
+focused two-layer regression proves both stable-object reuse and changed-layer
+replacement. Only IR is retained. Automatic text/image resources are rebound
+from the current frame on every hit, preserving snapshot lease lifetimes and
+resource generation checks rather than extending a released text snapshot.
+
+The phase profiler now reports whole-stage hit/miss counts and direct hit-path
+bytes only when enabled. A diagnostic run measured 112 bytes for an exact
+whole-stage hit and showed that the remaining periodic FPS changes were causing
+whole-scene misses. After independent Scene2 layer reuse, the controlled
+non-profiled run reported:
+
+- 186 frames over 2.010 seconds, 92.54 FPS;
+- 10.12 ms median, 12.93 ms p95, 22.87 ms p99;
+- 17,001,904 allocated bytes, approximately 89.3 KiB/frame;
+- 1,535,288 promoted bytes total.
+
+This removes approximately 8.5% from the preceding 97.6 KiB/frame result and
+proves that changing a UI segment no longer rematerializes unrelated Scene2
+payloads. M11 remains open against the final allocation gate.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,
