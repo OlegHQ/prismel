@@ -8,6 +8,9 @@ type plan_owner={queue_token:int64;mutable last_epoch:int64;dependencies:int64 a
 type classic_submission={classic_command:Ogpu.Backend.command;
   classic_resources:(int64*int64)list;classic_pipelines:int64 list;
   classic_pass:Render_pass.t}
+type retained_replay={replay_command:Ogpu.Backend.command;
+  replay_pipelines:int64 list;replay_key:string;mutable replay_pass:Render_pass.t;
+  replay_attachment_ids:int64 array;mutable replay_attachment_tokens:int64 array}
 type retired={queue_token:int64;epoch:int64;icb:Metal.Indirect_command_buffer.t;owner:plan_owner option}
 type retained_plan_stats={builds:int64;hits:int64;misses:int64;evictions:int64;executions:int64;entries:int;capacity:int}
 type active_queue=
@@ -48,6 +51,17 @@ end
 let first_error current=function
   |Ok()->current
   |Error error->(match current with Some _->current|None->Some error)
+let rec token_in_resources dependency=function
+  |[]->false
+  |(_,token)::rest->Int64.equal token dependency||
+      token_in_resources dependency rest
+let dependencies_live dependencies resources=
+  let index=ref 0 in
+  while !index<Array.length dependencies&&
+        token_in_resources(Array.unsafe_get dependencies !index)resources do
+    incr index
+  done;
+  !index=Array.length dependencies
 let destroy_owner_front owner=List.iter(fun(pass,_)->ignore(Render_pass.Private.destroy pass))owner.passes;let failure=List.fold_left(fun e command->first_error e(Metal.Indirect_command_buffer.Render_command.destroy command))None owner.commands in let failure=List.fold_left(fun e encoder->first_error e(Metal.Shader_argument_encoder.destroy encoder))failure owner.encoders in List.fold_left(fun e resources->first_error e(Metal.Render_encoder.destroy_prepared_resources resources))failure owner.resource_sets
 let destroy_owner_back owner failure=let failure=List.fold_left(fun e buffer->first_error e(Metal.Buffer.destroy buffer))failure owner.buffers in List.fold_left(fun e sampler->first_error e(Metal.Sampler.destroy sampler))failure owner.samplers
 let destroy_owner owner=destroy_owner_back owner(destroy_owner_front owner)
@@ -95,16 +109,29 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64) ()=
       let retained_identity_capacity=256 in
       let retained_identities=ref[]in
       let retained_replay_capacity=256 in
-      let retained_replays=ref[]in
+      let retained_replays=Array.make retained_replay_capacity None in
+      let retained_replay_length=ref 0 in
+      let retire_replay entry=
+        Option.iter(fun(owner:plan_owner)->
+          owner.passes<-List.filter(fun(candidate,_)->
+            candidate!=entry.replay_pass)owner.passes)
+          (Hashtbl.find_opt c.plan_owners entry.replay_key);
+        ignore(Render_pass.Private.destroy entry.replay_pass)in
       let drop_retained_replays keep=
-        let retained,rejected=List.partition keep!retained_replays in
-        retained_replays:=retained;
-        List.iter(fun(_,_,key,pass,_,_)->
-          Option.iter(fun(owner:plan_owner)->
-            owner.passes<-List.filter(fun(candidate,_)->candidate!=pass)
-              owner.passes)
-            (Hashtbl.find_opt c.plan_owners key);
-          ignore(Render_pass.Private.destroy pass))rejected in
+        let write=ref 0 in
+        for read=0 to !retained_replay_length-1 do
+          match Array.unsafe_get retained_replays read with
+          |Some entry when keep entry->
+              if !write<>read then
+                Array.unsafe_set retained_replays !write(Some entry);
+              incr write
+          |Some entry->retire_replay entry
+          |None->assert false
+        done;
+        for index= !write to !retained_replay_length-1 do
+          Array.unsafe_set retained_replays index None
+        done;
+        retained_replay_length:= !write in
       let invalidate_owner_attachments id=
         Hashtbl.iter(fun _ (owner:plan_owner)->
           let kept,rejected=List.partition(fun(_,tokens)->
@@ -115,8 +142,8 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64) ()=
       let invalidate_classic_resource id=
         filter_classics(fun entry->not(List.exists(fun(_,token)->token=id)
           entry.classic_resources));
-        drop_retained_replays(fun(_,_,_,_,_,tokens)->
-          not(Array.exists(Int64.equal id)tokens));
+        drop_retained_replays(fun entry->
+          not(Array.exists(Int64.equal id)entry.replay_attachment_tokens));
         invalidate_owner_attachments id
       and invalidate_classic_pipeline id=
         filter_classics(fun entry->not(List.mem id entry.classic_pipelines))in
@@ -184,28 +211,23 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64) ()=
               submit_native_render~presenting presentation queue
                 entry.classic_pass
           |None->
-          let rec find_retained=function
-            |[]->None
-            |((old_command,old_pipelines,key,_,_,_)as entry)::rest->
-                if old_command==command&&same_pipelines old_pipelines pipelines&&
-                   Hashtbl.mem c.plan_owners key then Some entry
-                else find_retained rest in
-          let cached_retained=find_retained!retained_replays in
+          let rec find_retained index=
+            if index= !retained_replay_length then None else
+            match Array.unsafe_get retained_replays index with
+            |Some entry when entry.replay_command==command&&
+                same_pipelines entry.replay_pipelines pipelines&&
+                Hashtbl.mem c.plan_owners entry.replay_key->Some entry
+            |Some _->find_retained(index+1)
+            |None->assert false in
+          let cached_retained=find_retained 0 in
           (match cached_retained with
-          |Some(_,_,key,template,attachment_ids,attachment_tokens)->
+          |Some replay->
+              let key=replay.replay_key and template=replay.replay_pass
+              and attachment_ids=replay.replay_attachment_ids
+              and attachment_tokens=replay.replay_attachment_tokens in
               let owner=Hashtbl.find c.plan_owners key in
-              let token_live dependency=
-                let rec loop=function
-                  |[]->false
-                  |(_,token)::rest->Int64.equal token dependency||loop rest in
-                loop resources in
-              let rec all_live index=
-                index=Array.length owner.dependencies||
-                token_live owner.dependencies.(index)&&all_live(index+1)in
-              let dependencies_live=all_live 0 in
-              if not dependencies_live then begin
-                retained_replays:=List.filter(fun(_,_,stored,_,_,_)->stored<>key)
-                  !retained_replays;
+              if not(dependencies_live owner.dependencies resources)then begin
+                drop_retained_replays(fun entry->entry.replay_key<>key);
                 error"Ogpu_metal.Backend.render"Ogpu.Error.Stale_handle
                   "retained render dependencies changed without invalidation"
               end else if same_attachment_tokens attachment_ids
@@ -237,13 +259,9 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64) ()=
                   |Ok receipt->
                       let tokens=resolve_attachment_tokens attachment_ids resources in
                       owner.passes<-(encoded,tokens)::owner.passes;
-                      retained_replays:=List.map
-                        (function
-                          |stored_command,stored_pipelines,stored_key,_,stored_ids,_
-                              when stored_key=key->
-                            stored_command,stored_pipelines,stored_key,encoded,
-                            stored_ids,tokens
-                          |entry->entry)!retained_replays;
+                      retire_replay replay;
+                      replay.replay_pass<-encoded;
+                      replay.replay_attachment_tokens<-tokens;
                       c.plan_hits<-Int64.succ c.plan_hits;
                       c.plan_executions<-Int64.succ c.plan_executions;
                       owner.last_epoch<-receipt.epoch;
@@ -356,12 +374,19 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64) ()=
                 let ids=attachment_ids submission in
                 let tokens=resolve_attachment_tokens ids resources in
                 owner.passes<-(encoded,tokens)::owner.passes;
-                retained_replays:=(command,pipelines,key,encoded,ids,tokens)::!retained_replays;
-                if List.length!retained_replays>retained_replay_capacity then
-                  let index=ref 0 in
-                  drop_retained_replays(fun _->
-                    let keep= !index<retained_replay_capacity in
-                    incr index;keep)
+                if !retained_replay_length=retained_replay_capacity then begin
+                  let last=retained_replay_capacity-1 in
+                  Option.iter retire_replay(Array.unsafe_get retained_replays last);
+                  retained_replay_length:=last
+                end;
+                if !retained_replay_length>0 then
+                  Array.blit retained_replays 0 retained_replays 1
+                    !retained_replay_length;
+                Array.unsafe_set retained_replays 0(Some{
+                  replay_command=command;replay_pipelines=pipelines;
+                  replay_key=key;replay_pass=encoded;replay_attachment_ids=ids;
+                  replay_attachment_tokens=tokens});
+                incr retained_replay_length
             |Some _,None->assert false);
             match submit_native_render~presenting presentation queue encoded with Error _ as e->e|Ok receipt->
               (match key with

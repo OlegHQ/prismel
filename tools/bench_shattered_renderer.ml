@@ -47,9 +47,10 @@ module Allocation_profile = struct
     | Some slots ->
         Array.to_list slots
         |> List.filter_map Printexc.Slot.name
-        |> List.find_opt (fun name ->
+        |> List.filter (fun name ->
           not (String.starts_with ~prefix:"camlGc__Memprof" name))
-        |> Option.value ~default:"unknown"
+        |> List.to_seq |> Seq.take 4 |> List.of_seq
+        |> function [] -> "unknown" | names -> String.concat " <- " names
 
   let record allocation =
     let name = name allocation in

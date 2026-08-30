@@ -165,6 +165,25 @@ reported:
 This is a further 8.3% allocation reduction from the committed 136.5 KiB/frame
 candidate, but it still fails the interim and final M11 allocation gates.
 
+The retained native replay cache now uses a fixed 256-slot array with an exact
+live length. Lookup, replacement, capacity eviction, resource invalidation, and
+stale-plan rejection compact that array in place instead of rebuilding list
+spines through `List.partition`, `List.filter`, `List.map`, and
+`List.rev_append`. Dependency liveness also runs through a top-level indexed
+scan rather than allocating nested per-submission closures. An allocation-stack
+profile confirms that the replay-cache partition/reversal sites disappeared.
+The following non-profiled controlled run reported:
+
+- 184 frames over 2.009 seconds, 91.58 FPS;
+- 10.04 ms median, 14.24 ms p95, 22.74 ms p99;
+- 20,630,368 allocated bytes, approximately 109.5 KiB/frame;
+- 2,221,480 promoted bytes total.
+
+This removes approximately 12.5% from the preceding 125.2 KiB/frame result.
+The cache remains exactly bounded and preserves immediate destruction of
+rejected pass metadata, but the stable UI submission still exceeds the M11
+final allocation gate.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,
