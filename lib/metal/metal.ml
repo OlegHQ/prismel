@@ -1654,12 +1654,20 @@ type command_resource =
   | Command_buffer_heap of heap
   | Command_buffer_drawable of metal_drawable
 
+type prepared_resource_slot =
+  { mutable prepared_active : bool
+  ; mutable prepared_lifetime : lifetime
+  }
+
 type command_buffer =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
   ; queue : command_queue
   ; mutable phase : command_phase
   ; resources : command_resource list ref
+  ; prepared_resource : prepared_resource_slot option
+  ; mutable scoped_prepared_active : bool
+  ; mutable scoped_prepared_lifetime : lifetime
   ; callback_tokens : nativeint list ref
   ; presentation_events : lifetime list ref
   ; mutable debug_depth : int
@@ -1842,6 +1850,25 @@ let release_command_resources resources =
       Option.iter (fun heap -> Atomic.decr heap.active_uses)
         (command_resource_heap resource))
     retained
+
+let release_prepared_resource slot =
+  if slot.prepared_active then begin
+    slot.prepared_active <- false;
+    detach slot.prepared_lifetime
+  end
+
+let release_finalized_command_buffer_resources resources prepared_resource =
+  release_command_resources resources;
+  release_prepared_resource prepared_resource
+
+let release_command_buffer_resources command_buffer =
+  release_command_resources command_buffer.resources;
+  match command_buffer.prepared_resource with
+  | Some slot -> release_prepared_resource slot
+  | None when command_buffer.scoped_prepared_active ->
+      command_buffer.scoped_prepared_active <- false;
+      detach command_buffer.scoped_prepared_lifetime
+  | None -> ()
 
 let command4_resource_lifetime = function
   | Command4_argument_table table -> table.lifetime
@@ -2059,16 +2086,31 @@ let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buf
       Command_buffer_buffer buffer :: !(command_buffer.resources)
   end
 
-let retain_command_buffer_prepared_resources command_buffer lifetime=
-  let rec retained=function
-  |[]->false
-  |Command_buffer_prepared_resources candidate::_->candidate==lifetime
-  |_::rest->retained rest in
-  if not(retained!(command_buffer.resources))then begin
+let retain_command_buffer_prepared_overflow command_buffer lifetime =
+  if not (List.exists (function
+      | Command_buffer_prepared_resources candidate -> candidate == lifetime
+      | _ -> false) !(command_buffer.resources)) then begin
     attach lifetime;
-    command_buffer.resources:=Command_buffer_prepared_resources lifetime::
+    command_buffer.resources := Command_buffer_prepared_resources lifetime ::
       !(command_buffer.resources)
   end
+
+let retain_command_buffer_prepared_resources command_buffer lifetime=
+  match command_buffer.prepared_resource with
+  |Some primary when primary.prepared_active->
+      if primary.prepared_lifetime!=lifetime then
+        retain_command_buffer_prepared_overflow command_buffer lifetime
+  |Some primary->
+      attach lifetime;
+      primary.prepared_lifetime<-lifetime;
+      primary.prepared_active<-true
+  |None when command_buffer.scoped_prepared_active->
+      if command_buffer.scoped_prepared_lifetime!=lifetime then
+        retain_command_buffer_prepared_overflow command_buffer lifetime
+  |None->
+      attach lifetime;
+      command_buffer.scoped_prepared_lifetime<-lifetime;
+      command_buffer.scoped_prepared_active<-true
 
 let retain_command_buffer_acceleration_structure
     (command_buffer : command_buffer) (value : acceleration_structure) =
@@ -17375,8 +17417,9 @@ module Command_buffer = struct
     List.iter Metal_raw.command_buffer_cancel_handler retained
 
   let wrap_queue_raw (queue:Command_queue.t) raw =
-    let value:t={raw;lifetime=lifetime();queue;phase=Recording;resources=ref[];callback_tokens=ref[];presentation_events=ref[];debug_depth=0;explicitly_enqueued=false}in
-    attach queue.lifetime;let resources=value.resources and callback_tokens=value.callback_tokens and presentation_events=value.presentation_events in attach_lifetime_finalizer~on_finalize:(fun()->release_command_resources resources;release_callback_tokens callback_tokens;List.iter detach !presentation_events;presentation_events:=[])value.lifetime queue.lifetime;value
+    let prepared_resource={prepared_active=false;prepared_lifetime=queue.lifetime}in
+    let value:t={raw;lifetime=lifetime();queue;phase=Recording;resources=ref[];prepared_resource=Some prepared_resource;scoped_prepared_active=false;scoped_prepared_lifetime=queue.lifetime;callback_tokens=ref[];presentation_events=ref[];debug_depth=0;explicitly_enqueued=false}in
+    attach queue.lifetime;let resources=value.resources and callback_tokens=value.callback_tokens and presentation_events=value.presentation_events in attach_lifetime_finalizer~on_finalize:(fun()->release_finalized_command_buffer_resources resources prepared_resource;release_callback_tokens callback_tokens;List.iter detach !presentation_events;presentation_events:=[])value.lifetime queue.lifetime;value
 
   let create_unretained (queue:Command_queue.t)=let operation="Metal.Command_buffer.create_unretained"in on_main operation(fun()->match ensure_live operation queue.lifetime with Error _ as failure->failure|Ok()->match Metal_raw.command_queue_command_buffer queue.raw 0 false 0L None with Error message->native_error operation message|Ok raw->Ok(wrap_queue_raw queue raw))
   let create_with_descriptor (queue:Command_queue.t)?(retained_references=true)?(error_options=0L)?log_state()=let operation="Metal.Command_buffer.create_with_descriptor"in on_main operation(fun()->match ensure_live operation queue.lifetime with Error _ as failure->failure|Ok()when error_options<0L->error operation Invalid_argument "command-buffer error options are invalid"|Ok()->match log_state with Some(log:command4_log_state)when is_destroyed log.lifetime->error operation Destroyed "log state is destroyed"|Some log when not(same_device queue.device log.device)->error operation Device_mismatch "log state belongs to another device"|_->match Metal_raw.command_queue_command_buffer queue.raw 1 retained_references error_options(Option.map(fun(log:command4_log_state)->log.raw)log_state)with Error message->native_error operation message|Ok raw->let value=wrap_queue_raw queue raw in Option.iter(fun(log:command4_log_state)->attach log.lifetime;value.presentation_events:=log.lifetime::!(value.presentation_events))log_state;Ok value)
@@ -17397,12 +17440,20 @@ module Command_buffer = struct
                | Error message ->
                    native_error "Metal.Command_buffer.create" message
                | Ok raw ->
+                   let prepared_resource =
+                     if finalize then Some
+                       { prepared_active = false
+                       ; prepared_lifetime = queue.lifetime }
+                     else None in
                    let value : t =
                      { raw
                      ; lifetime = lifetime ()
                      ; queue
                      ; phase = Recording
                      ; resources = ref []
+                     ; prepared_resource
+                     ; scoped_prepared_active = false
+                     ; scoped_prepared_lifetime = queue.lifetime
                      ; callback_tokens = ref []
                      ; presentation_events = ref []
                      ; debug_depth = 0
@@ -17416,7 +17467,9 @@ module Command_buffer = struct
                    if finalize then
                      attach_lifetime_finalizer
                        ~on_finalize:(fun () ->
-                         release_command_resources resources;
+                         Option.iter
+                           (release_finalized_command_buffer_resources resources)
+                           prepared_resource;
                          release_callback_tokens callback_tokens;
                          List.iter detach !presentation_events;
                          presentation_events:=[])
@@ -17461,7 +17514,7 @@ module Command_buffer = struct
                  error operation Invalid_state
                    "native command buffer does not retain referenced resources"
              | Ok (_, _, _, _, _, _, _, true) ->
-                 release_command_resources value.resources;
+                 release_command_buffer_resources value;
                  List.iter detach !(value.presentation_events);
                  value.presentation_events := [];
                  Ok ())
@@ -17595,7 +17648,7 @@ module Command_buffer = struct
       | Ok () ->
           let status = Metal_raw.command_buffer_status value.raw in
           if status = 4 || status = 5 then begin
-            release_command_resources value.resources;
+            release_command_buffer_resources value;
             release_callback_tokens value.callback_tokens;
             release_presentation_events value
           end;
@@ -17676,7 +17729,7 @@ module Command_buffer = struct
           Metal_raw.command_buffer_wait value.raw;
           let status = Metal_raw.command_buffer_status value.raw in
           if status = 4 || status = 5 then begin
-            release_command_resources value.resources;
+            release_command_buffer_resources value;
             release_callback_tokens value.callback_tokens;
             release_presentation_events value
           end;
@@ -17710,7 +17763,7 @@ module Command_buffer = struct
                harmless no-ops instead of re-entering the OCaml runtime. *)
             release_callback_tokens value.callback_tokens;
             ignore (Metal_raw.destroy value.raw);
-            release_command_resources value.resources;
+            release_command_buffer_resources value;
             release_presentation_events value;
             detach value.queue.lifetime;
             Ok ()

@@ -376,6 +376,22 @@ handle delta. A full visible diagnostic reported 190 frames, 10,091,360 bytes
 invalidation still makes short full-workload samples variable; neither result
 closes M11.
 
+The common completion-owned prepared-resource lifetime now occupies a dedicated
+command-buffer slot rather than allocating a tagged resource node and list cell
+for every frame. Scoped renderer command buffers keep that slot inline; public
+finalized buffers retain a separate finalizer-owned slot so GC cleanup does not
+capture and keep the command-buffer handle alive. Additional distinct prepared
+resource graphs still use the established overflow list, preserving multi-graph
+ownership semantics and atomic teardown.
+
+The 300-frame isolated retained lane reported 25,082.64 allocated bytes/frame,
+24 bytes/frame below the preceding committed 25,106.64 baseline. It retained
+exact canonical pixels, zero measurement upload, 300 retained-plan hits and
+executions, and a 2,450-created/2,450-released native-handle balance. Median was
+8.29 ms and p95 was 9.73 ms. This removes one recurring resource-list owner but
+is deliberately not claimed as the remaining M11 reusable resource-array work
+or as closure of the final allocation gate.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,
