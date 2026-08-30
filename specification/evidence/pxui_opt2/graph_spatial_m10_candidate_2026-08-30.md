@@ -37,12 +37,17 @@ The packed edge BVH contained 319,199 nodes. The same run reported identical
 that query allocation did not scale with the loaded document size. Focused
 `test_pxui_graph` and `test_sketch_ui` executables passed on the same source.
 
+Node IDs now map directly to stable array slots for selected-node gesture
+preparation and clipboard position lookup. Marquee selection enumerates the
+covered graph-space grid cells with reusable generation marks, then applies the
+exact screen-space rectangle test only to unique candidates. Neither path scans
+the complete node table for a local selection gesture.
+
 The former 10,000-way fan remains useful as an adversarial stress topology: its
 long diagonal envelopes overlap heavily and are not used as a proxy for the
 controlled 2x-edge qualification lane.
 
-The remaining M10 work is explicit: marquee still scans all nodes, moving nodes
-still copies the box array and rebuilds the indexes, node/position stores are
-not yet packed mutable runtime planes, menu/search virtualization remains
-incomplete, and graph paint is not yet split into retained layers. No
-completion claim is made here.
+The remaining M10 work is explicit: moving nodes still copies the box array and
+rebuilds the indexes, node/position stores are not yet packed mutable runtime
+planes, menu/search virtualization remains incomplete, and graph paint is not
+yet split into retained layers. No completion claim is made here.

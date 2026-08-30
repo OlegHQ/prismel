@@ -146,6 +146,7 @@ type t = {
   document : Edit_graph.t;
   boxes : box array;
   edges : edge array;
+  slots : (int, int) Hashtbl.t;
   spatial : spatial_index;
   selected : Id_set.t;
   primary : int option;
@@ -407,6 +408,12 @@ let build_edges boxes =
       box.info.inputs) boxes;
   Array.of_list (List.rev !reversed)
 
+let build_slots boxes =
+  let slots = Hashtbl.create (Array.length boxes) in
+  Array.iteri (fun index box ->
+    Hashtbl.replace slots box.info.Edit_graph.id index) boxes;
+  slots
+
 let catalog_array catalog =
   let seen = Hashtbl.create (List.length catalog) in
   catalog |> List.filter (fun entry ->
@@ -427,10 +434,11 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
   let primary = if Id_set.is_empty selected then None else Some (Id_set.choose selected) in
   let boxes = automatic_layout document in
   let edges = build_edges boxes in
+  let slots = build_slots boxes in
   let viewed = match Edit_graph.root document with
     | Some id -> id
     | None -> Option.value ~default:0 primary in
-  { source_graph = None; document; boxes; edges;
+  { source_graph = None; document; boxes; edges; slots;
     spatial = build_spatial_index boxes edges; selected; primary;
     selected_edge = None; viewed; x; y; width; height;
     pan_x = float_of_int (width / 2); pan_y = 18.; zoom = 1.; drag = None;
@@ -455,6 +463,7 @@ let with_document document value =
   if document == value.document then value else
     let boxes = automatic_layout document |> preserve_positions value.boxes in
     let edges = build_edges boxes in
+    let slots = build_slots boxes in
     let selected = Id_set.filter (fun id ->
       Edit_graph.find document ~node_id:id <> None) value.selected in
     let primary = match value.primary with
@@ -464,7 +473,7 @@ let with_document document value =
       if connection_exists document connection then Some connection else None) in
     let viewed = if Edit_graph.find document ~node_id:value.viewed <> None
       then value.viewed else Option.value ~default:0 (Edit_graph.root document) in
-    { value with source_graph = None; document; boxes; edges;
+    { value with source_graph = None; document; boxes; edges; slots;
       spatial = build_spatial_index boxes edges;
       selected; primary;
       selected_edge; viewed }
@@ -948,16 +957,21 @@ let update_menu (value : t) frame menu =
 let selection_change (value : t) = Selected value.primary
 
 let indices_of_selection (value : t) =
-  Array.to_list (Array.mapi (fun index box ->
-    if Id_set.mem box.info.Edit_graph.id value.selected then Some index else None)
-    value.boxes) |> List.filter_map Fun.id |> Array.of_list
+  let indices = Array.make (Id_set.cardinal value.selected) 0 in
+  let length = ref 0 in
+  Id_set.iter (fun id -> match Hashtbl.find_opt value.slots id with
+    | None -> ()
+    | Some index ->
+        Array.unsafe_set indices !length index;
+        incr length) value.selected;
+  if !length = Array.length indices then indices else Array.sub indices 0 !length
 
 let selected_positions (value : t) ids =
-  let selected = List.fold_left (fun selected id -> Id_set.add id selected)
-      Id_set.empty ids in
-  Array.to_list value.boxes |> List.filter_map (fun box ->
-    let id = box.info.Edit_graph.id in
-    if Id_set.mem id selected then Some (id, box.gx, box.gy) else None)
+  List.filter_map (fun id -> match Hashtbl.find_opt value.slots id with
+    | None -> None
+    | Some index ->
+        let box = Array.unsafe_get value.boxes index in
+        Some (id, box.gx, box.gy)) ids
 
 let copy_selection (value : t) =
   let ids = selected_nodes value in
@@ -1013,11 +1027,29 @@ let select_node (value : t) ~additive index =
 
 let apply_marquee (value : t) (drag : box_drag) =
   let bounds = normalize_rect drag.start_x drag.start_y drag.current_x drag.current_y in
-  let selected = Array.fold_left (fun selected box ->
-    if intersects bounds (box_bounds value box)
-    then Id_set.add box.info.Edit_graph.id selected else selected)
-      (if drag.additive then value.selected else Id_set.empty) value.boxes in
-  let primary = if Id_set.is_empty selected then None else Some (Id_set.max_elt selected) in
+  let x, y, width, height = bounds in
+  let first_x = spatial_cell (graph_x value x)
+  and last_x = spatial_cell (graph_x value (x + width - 1))
+  and first_y = spatial_cell (graph_y value y)
+  and last_y = spatial_cell (graph_y value (y + height - 1)) in
+  let generation = next_spatial_generation value.spatial in
+  let selected = ref (if drag.additive then value.selected else Id_set.empty) in
+  for cell_y = min first_y last_y to max first_y last_y do
+    for cell_x = min first_x last_x to max first_x last_x do
+      match Hashtbl.find_opt value.spatial.cells (spatial_key cell_x cell_y) with
+      | None -> ()
+      | Some candidates -> Array.iter (fun candidate ->
+          if Array.unsafe_get value.spatial.marks candidate <> generation then begin
+            Array.unsafe_set value.spatial.marks candidate generation;
+            let box = Array.unsafe_get value.boxes candidate in
+            if intersects bounds (box_bounds value box) then
+              selected := Id_set.add box.info.Edit_graph.id !selected
+          end) candidates
+    done
+  done;
+  let selected = !selected in
+  let primary = if Id_set.is_empty selected then None
+    else Some (Id_set.max_elt selected) in
   { value with selected; primary; selected_edge = None; drag = None }
 
 let update (value : t) frame =
