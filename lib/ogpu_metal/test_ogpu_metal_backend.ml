@@ -98,7 +98,8 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal backe
   let argument_draw:Ogpu.Render_pass.draw={pipeline_key=Pipeline.key native_argument;buffers=[{stage=Ogpu.Command.Vertex;index=0;buffer_id=Ogpu.Backend.buffer_id vertex;offset=0L}];textures=[{stage=Ogpu.Command.Fragment;index=0;texture_id=sampled_id}];samplers=[{stage=Ogpu.Command.Fragment;index=1;sampler}];primitive=Triangle_list;vertex_start=0;vertex_count=3;index=None}in
   let wrong_abi={argument_draw with samplers=[{stage=Ogpu.Command.Fragment;index=0;sampler}]}in
   let qa=get(Ogpu.Backend.create_queue device)and qb=get(Ogpu.Backend.create_queue device)in
-  let submit_argument q=Ogpu.Backend.submit q(get(Ogpu.Backend.render rp[argument_draw]))~resources:[`Texture target;`Texture sampled;`Buffer vertex]~pipelines:[argument_pipeline]in
+  let argument_command=get(Ogpu.Backend.render rp[argument_draw])in
+  let submit_argument q=Ogpu.Backend.submit q argument_command~resources:[`Texture target;`Texture sampled;`Buffer vertex]~pipelines:[argument_pipeline]in
   let stats0=Backend.retained_plan_stats control in if stats0.capacity<>1||stats0.entries<>0||stats0.builds<>0L||stats0.hits<>0L||stats0.misses<>0L||stats0.evictions<>0L||stats0.executions<>0L then failwith"retained plan initial statistics";
   let unchanged=get(Ogpu.Backend.read_texture target~bytes_per_row:16)in(match Ogpu.Backend.submit qa(get(Ogpu.Backend.render rp[wrong_abi]))~resources:[`Texture target;`Texture sampled;`Buffer vertex]~pipelines:[argument_pipeline]with Error e when e.Ogpu.Error.kind=Ogpu.Error.Invalid_argument||e.Ogpu.Error.kind=Ogpu.Error.Unsupported->()|_->failwith"wrong argument ABI accepted at native submit");if Backend.retained_plan_entries control<>0||get(Ogpu.Backend.read_texture target~bytes_per_row:16)<>unchanged then failwith"wrong argument ABI rejection was not atomic";
   if Backend.retained_plan_stats control<>stats0 then failwith"rejected retained plan changed statistics";

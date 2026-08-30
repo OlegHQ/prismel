@@ -977,6 +977,34 @@ let event_of_input=function Runtime_next_input.Pointer_moved(x,y)->Pointer_moved
   |Wheel(x,y)->Wheel(x,y)|Key_pressed k->Key_pressed{name=k.key;modifiers=List.map mod_of_input k.modifiers;repeat=k.repeat}|Key_released k->Key_released{name=k.key;modifiers=List.map mod_of_input k.modifiers;repeat=k.repeat}
   |Text_input s->Text_input s|Text_editing{text;start;length}->Text_editing{text;start;length}|Focus_lost->Focus_lost|Focus_gained->Focus_gained
   |Visibility_changed x->Visibility_changed x|Quit->Quit|Resized(x,y)->Resized(x,y)|File_dropped{name;contents}->File_dropped{name;contents}
+let finish_step value f=
+  let now=Unix.gettimeofday()in
+  let dt=match value.timing with Fixed dt->dt|Variable->max 0.(now-.value.last_clock)in
+  value.last_clock<-now;value.elapsed<-value.elapsed+.dt;
+  value.frame<-Int64.succ value.frame;
+  let events=List.map event_of_input(Runtime_next_input.drain value.input)
+  and input=Runtime_next_input.snapshot value.input in
+  {frame=value.frame;time=value.elapsed;dt;logical_width=f.logical_width;
+   logical_height=f.logical_height;drawable_width=f.drawable_width;
+   drawable_height=f.drawable_height;pixel_scale=f.pixel_density;
+   events;pointer=input.pointer;mouse_delta=input.mouse_delta;
+   wheel_delta=input.wheel_delta;dropped_events=input.dropped_events}
+let replay_step ?clear ~identity ~version value=
+  match ensure"Prismel_next_execution.Private.replay"value with
+  |Error _ as error->error
+  |Ok()->
+      Runtime_next_input.begin_frame value.input;
+      match presentation_facts value with
+      |Error _ as error->error
+      |Ok facts->
+          let replayed=match value.runtime with
+          |Window runtime->Runtime_next_orchestrator.replay_retained ?clear
+              ~identity ~version runtime
+          |Offscreen _->Ok None in
+          (match replayed with
+          |Error error->backend"Prismel_next_execution.Private.replay"error
+          |Ok None->Ok None
+          |Ok(Some _)->Ok(Some(finish_step value facts)))
 let step_core ?after_prepare ?clear ?identity ?version value draws=
   let after_prepare=Option.value after_prepare ~default:Fun.id in
   match ensure"Prismel_next_execution.step"value with Error _ as e->e|Ok()->
@@ -1039,13 +1067,8 @@ let step_core ?after_prepare ?clear ?identity ?version value draws=
         state.logical_passes<-Int64.succ state.logical_passes;
         state.logical_submissions<-Int64.succ state.logical_submissions
       |Error _->());result in
-    match rendered with Error e->backend"Prismel_next_execution.step"e|Ok _->
-      let now=Unix.gettimeofday()in let dt=match value.timing with Fixed dt->dt|Variable->max 0.(now-.value.last_clock)in
-      value.last_clock<-now;value.elapsed<-value.elapsed+.dt;value.frame<-Int64.succ value.frame;
-      let events=List.map event_of_input(Runtime_next_input.drain value.input)and input=Runtime_next_input.snapshot value.input in
-      Ok{frame=value.frame;time=value.elapsed;dt;logical_width=f.logical_width;logical_height=f.logical_height;
-        drawable_width=f.drawable_width;drawable_height=f.drawable_height;pixel_scale=f.pixel_density;
-        events;pointer=input.pointer;mouse_delta=input.mouse_delta;wheel_delta=input.wheel_delta;dropped_events=input.dropped_events}
+    match rendered with Error e->backend"Prismel_next_execution.step"e
+    |Ok _->Ok(finish_step value f)
 let step ?clear value draws=step_core ?clear value draws
 let lower_scene2_submission submission ~density ~resource ir=
   match ensure_submission"Prismel_next_execution.Private.lower_scene2"submission with
@@ -1122,6 +1145,7 @@ module Private=struct
   let lower_scene2=lower_scene2_submission
   let adopt_draws=adopt_draws
   let step=step_submission
+  let replay=replay_step
   let cancel=close_submission
   let draw_family_blend draw=draw.family,draw.blend
 end

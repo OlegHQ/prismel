@@ -95,6 +95,18 @@ let render ~execution ~density ~width ~height scene =
         match staged with
         | Error message -> Error (Stage message)
         | Ok staged -> (
+            let replayed=match staged.retained with
+            |None->Ok None
+            |Some(identity,version)->
+                let before=Phase_profile.before()in
+                let replayed=Prismel_next_execution.Private.replay
+                    ~clear:staged.clear ~identity ~version execution in
+                Phase_profile.add Phase_profile.step before;
+                replayed in
+            match replayed with
+            |Error error->Error(Step error)
+            |Ok(Some facts)->Ok(`Replayed facts)
+            |Ok None->
             let before=Phase_profile.before()in
             match Prismel_next_execution.Private.begin_submission execution with
             | Error error ->
@@ -104,8 +116,8 @@ let render ~execution ~density ~width ~height scene =
                 active_submission:=Some submission;
                     let rec lower reversed = function
                       | [] ->
-                          Ok (submission, staged.retained, staged.clear,
-                            List.rev reversed)
+                          Ok (`Prepared (submission, staged.retained, staged.clear,
+                            List.rev reversed))
                       | Scene.Private.Scene2_layer (ir, resources) :: rest -> (
                           match
                             Prismel_next_execution.Private.lower_scene2 submission
@@ -142,7 +154,10 @@ let render ~execution ~density ~width ~height scene =
   in
   match prepared with
   | Error _ as error -> error
-  | Ok (submission, retained, clear, batches) -> (
+  | Ok (`Replayed facts) ->
+      if Phase_profile.enabled then incr Phase_profile.calls;
+      Ok facts
+  | Ok (`Prepared (submission, retained, clear, batches)) -> (
       let before=Phase_profile.before()in
       let stepped=match retained with
       |None->Prismel_next_execution.Private.step ~clear submission batches

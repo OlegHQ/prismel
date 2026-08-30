@@ -137,6 +137,8 @@ module Private : sig
   val step : ?clear:(float * float * float * float) -> ?identity:string ->
     ?version:int64 -> submission ->
     batch list -> (facts,error) result
+  val replay : ?clear:(float * float * float * float) -> identity:string ->
+    version:int64 -> t -> (facts option,error) result
   (* Idempotently releases an unsubmitted transaction. *)
   val cancel : submission -> unit
   val draw_family_blend : draw -> family * blend

@@ -30,6 +30,19 @@ let () =
            Scene_command.Render_ir.Pop_transform] -> ()
         | _ -> failwith "transformed display-list command order drift")
    | _ -> failwith "transformed display list bypassed retained transform lowering");
+  let equivalent () = [Scene.clear Color.black;
+    Scene.rect ~at:(3, 4) ~w:12 ~h:9 ~fill:Color.white ()] in
+  let first_equivalent = Result.get_ok
+      (Scene.Private.stage_native_render ~width:32 ~height:32 (equivalent ()))
+  and second_equivalent = Result.get_ok
+      (Scene.Private.stage_native_render ~width:32 ~height:32 (equivalent ())) in
+  if first_equivalent != second_equivalent then
+    failwith "equivalent shallow scene composition missed native stage reuse";
+  let changed = Result.get_ok (Scene.Private.stage_native_render
+      ~width:32 ~height:32 [Scene.clear Color.black;
+        Scene.rect ~at:(3, 4) ~w:13 ~h:9 ~fill:Color.white ()]) in
+  if changed == first_equivalent then
+    failwith "changed shallow scene composition reused stale native stage";
 
   let image_builder = Scene_command.Display_list.Builder.create () in
   Scene_command.Display_list.Builder.image image_builder ~resource_id:7

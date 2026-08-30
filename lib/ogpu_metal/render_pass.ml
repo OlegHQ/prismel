@@ -148,6 +148,8 @@ let create_batch ?(owned_samplers=[]) device pass ~attachments draws =
         |draw::rest->match validate_batch_draw device draw with Error _ as e->e|Ok()->validate(draw::rev)rest in
       validate[first_draw]rest
 let with_indirect value indirect ~vertex_buffers ~fragment_buffers ~textures={value with indirect=Some(indirect,{vertex_buffers;fragment_buffers;textures})}
+let replay_indirect value ~template={value with draws=template.draws;
+  indirect=template.indirect}
 module Private=struct
   let portable_requires_command4 pass=
     let descriptor=Ogpu.Render_pass.descriptor pass in

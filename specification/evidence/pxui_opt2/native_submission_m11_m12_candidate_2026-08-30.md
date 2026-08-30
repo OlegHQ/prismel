@@ -39,9 +39,35 @@ above the final 8 KiB/frame gate. Memprof attributes the visible remainder
 primarily to list assembly, Scene staging, retained argument-buffer validation,
 and Metal render-pass submission. No final performance claim is made.
 
+## Retained replay follow-up
+
+Fresh shallow composition spines now match bounded cached native stages through
+an explicit Scene-vocabulary comparator. Embedded Scene3 values remain eligible
+only when `Scene3.Private.cacheable` accepts them, and every Scene2 resource
+generation is rechecked before reuse. A retained replay is attempted before
+Scene2/Scene3 lowering; misses fall back to the checked lowering transaction.
+
+The Metal adapter also retains a bounded mapping from a physically reused
+portable render command to its validated ICB plan. On a hit it validates that
+the plan owner and dependency tokens remain live, creates the current drawable
+attachment pass, and reuses the retained draw metadata and ICB. The focused
+backend test reuses one physical command for 600 frames and verifies exact
+pixels, attachment replacement, invalidation, cache statistics, and zero native
+handle delta.
+
+A shortened native visible diagnostic after these changes reported:
+
+- 265 frames over 3.006 seconds, 88.17 FPS;
+- 10.92 ms median, 14.27 ms p95;
+- 76,657,168 allocated bytes, approximately 282.5 KiB/frame.
+
+This is a substantial improvement over the earlier approximately 1.12 MiB/frame
+candidate and now clears the 60 Hz timing envelope in this shortened run. It
+still fails the interim 64 KiB/frame and final 8 KiB/frame allocation gates, so
+M11 remains open.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,
   retained-plan queues/surface, zero native handle delta.
 - `test/test_sketch_ui.exe`: passed.
-

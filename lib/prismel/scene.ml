@@ -455,31 +455,67 @@ module Private=struct
   |(id,Canvas canvas)::rest->resource_stamp_loop
       (((stamp*65599)lxor id)lxor Prismel_next_resources.Canvas.generation canvas)rest
  let resource_stamp resources=resource_stamp_loop 0x345678 resources
+ let rec same_native_scene left right=
+   left==right||match left,right with
+   |[],[]->true
+   |left::lefts,right::rights->same_native_node left right&&
+       same_native_scene lefts rights
+   |_ ->false
+ and same_native_node left right=
+   left==right||match left,right with
+   |Clear left,Clear right->left=right
+   |Primitive left,Primitive right->left==right||left=right
+   |Geometry left,Geometry right->left==right||left=right
+   |Debug_text left,Debug_text right->left=right
+   |Display_list left,Display_list right->
+       left.segment==right.segment&&left.resources==right.resources
+   |Image left,Image right->left.image==right.image&&left.x=right.x&&
+       left.y=right.y&&left.scale=right.scale&&left.angle=right.angle&&
+       left.center=right.center&&left.flip_x=right.flip_x
+   |Text left,Text right->left.x=right.x&&left.y=right.y&&
+       left.value=right.value&&left.color=right.color&&left.size=right.size&&
+       left.wrap=right.wrap&&left.align=right.align&&
+       left.provided_font==right.provided_font
+   |Group left,Group right->same_native_scene left right
+   |Translate(lx,ly,left),Translate(rx,ry,right)->lx=rx&&ly=ry&&
+       same_native_scene left right
+   |Rotate(la,left),Rotate(ra,right)->la=ra&&same_native_scene left right
+   |Scale(lx,ly,left),Scale(rx,ry,right)->lx=rx&&ly=ry&&
+       same_native_scene left right
+   |Clip(lx,ly,lw,lh,left),Clip(rx,ry,rw,rh,right)->
+       lx=rx&&ly=ry&&lw=rw&&lh=rh&&same_native_scene left right
+   |Blend(lm,left),Blend(rm,right)->lm=rm&&same_native_scene left right
+   |View3d left,View3d right->left.viewport=right.viewport&&
+       left.camera==right.camera&&left.scene==right.scene
+   |Region(lx,ly,lw,lh,lf),Region(rx,ry,rw,rh,rf)->
+       lx=rx&&ly=ry&&lw=rw&&lh=rh&&lf=rf
+   |Layer_break,Layer_break->true
+   |_ ->false
  let rec find_native_stage aggregate scene density width height=function
   |[]->None
   |entry::rest->
-      if entry.cached_aggregate=aggregate&&entry.cached_scene==scene&&
+      if entry.cached_aggregate=aggregate&&
+         same_native_scene entry.cached_scene scene&&
          entry.cached_density=density&&
          entry.cached_width=width&&entry.cached_height=height&&
          entry.cached_resource_stamp=resource_stamp entry.cached_stage.resources
       then Some entry else
         find_native_stage aggregate scene density width height rest
- let retained_scene scene=
-   let found=ref false in
+ let native_scene_cacheable scene=
    let rec nodes=function
     |[]->true
-    |Display_list _::rest->found:=true;nodes rest
-    |Region _::rest|Layer_break::rest|Clear _::rest->nodes rest
+    |View3d view::rest->Scene3.Private.cacheable view.scene&&nodes rest
     |Group nested::rest|Translate(_,_,nested)::rest|Rotate(_,nested)::rest
     |Scale(_,_,nested)::rest|Clip(_,_,_,_,nested)::rest|Blend(_,nested)::rest->
         nodes nested&&nodes rest
-    |Primitive _::_|Geometry _::_|Text _::_|Debug_text _::_|Image _::_
-    |View3d _::_->false in
-   nodes scene&& !found
+    |Display_list _::rest|Region _::rest|Layer_break::rest|Clear _::rest
+    |Primitive _::rest|Geometry _::rest|Text _::rest|Debug_text _::rest
+    |Image _::rest->nodes rest in
+   nodes scene
  let stage_native_internal ~aggregate ?(density=1) ~width ~height scene =
    let cacheable=match scene with
    |[Clear _;View3d view]->Scene3.Private.cacheable view.scene
-   |_->retained_scene scene in
+   |_->native_scene_cacheable scene in
    let uncached=if aggregate then stage_native_uncached
      else stage_native_render_uncached in
    if not cacheable then uncached~density~width~height scene else
@@ -497,7 +533,7 @@ module Private=struct
                {stage with retained=Some
                  ("scene-stage:"^Int64.to_string!next_native_stage_identity,1L)}in
            let stamp=resource_stamp stage.resources in
-           cache:=List.filter(fun entry->not(entry.cached_scene==scene&&
+           cache:=List.filter(fun entry->not(same_native_scene entry.cached_scene scene&&
              entry.cached_aggregate=aggregate&&
              entry.cached_density=density&&entry.cached_width=width&&
              entry.cached_height=height))!cache;
