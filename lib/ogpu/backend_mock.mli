@@ -1,6 +1,7 @@
 type control
 val create : ?capabilities:Capabilities.t -> unit -> Backend.driver * control
 val inject_device_loss : control -> unit
+val fail_next_submission : control -> unit
 val fail_texture_allocation_after : control -> int -> unit
 val fail_depth_allocation_after : control -> int -> unit
 val fail_next_configure : control -> unit

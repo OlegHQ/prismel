@@ -5,19 +5,41 @@ type buffer_binding={stage:stage;index:int;buffer:Buffer.t;offset:int64}
 type texture_binding={stage:stage;index:int;texture:Texture.t}
 type sampler_binding={stage:stage;index:int;sampler:Sampler.t}
 type draw={pipeline:Pipeline.t;buffers:buffer_binding list;textures:texture_binding list;samplers:sampler_binding list;primitive:primitive;vertex_start:int;vertex_count:int;index:(index_type*Buffer.t*int64*int64)option}
-type indirect_resources={vertex_resources:Metal.Render_encoder.prepared_resources;
-  fragment_resources:Metal.Render_encoder.prepared_resources;
-  texture_resources:Metal.Render_encoder.prepared_resources}
+type indirect_resources=
+  {resource_uses:Metal.Render_encoder.prepared_resource_use array}
+type prepared_render_pass=
+  |Prepared_indexed of Metal.Render_encoder.Private.prepared_indexed_render_pass
+  |Prepared_indirect of Metal.Render_encoder.Private.prepared_indirect_render_pass
 type retention={retain:unit->(unit,Ogpu.Error.t)result;release:unit->unit}
-type t={device:Device.t;pass:Ogpu.Render_pass.t;color:Texture.t;resolve:Texture.t option;
+type t={device:Device.t;pass:Ogpu.Render_pass.t;
+  descriptor:Ogpu.Render_pass.descriptor;color:Texture.t;resolve:Texture.t option;
   depth:Texture.t option;stencil:Texture.t option;draws:draw list;
   owned_samplers:Sampler.t list;
   mutable native_pass:Metal.Render_pass_descriptor.t option;
   mutable depth_state:Metal.Depth_stencil.t option;
+  mutable prepared_render_pass:prepared_render_pass option;
   indirect:(Metal.Indirect_command_buffer.t*indirect_resources)option;
   retention:retention array;releases:(unit->unit)list;
-  mutable persistent:bool;mutable dead:bool}
+  retained_bytes:int64;draw_count:int;indexed_preparable:bool;
+  mutable persistent:bool;mutable destroying:bool;mutable dead:bool}
 let error op kind message=Error(Ogpu.Error.make op kind message)
+let retained_byte_capacity=Int64.mul 8L 1_048_576L
+let saturating_add left right=
+  if left>Int64.sub Int64.max_int right then Int64.max_int
+  else Int64.add left right
+let accounted_bytes count per_item=
+  let count=Int64.of_int count in
+  if count>Int64.div Int64.max_int per_item then Int64.max_int
+  else Int64.mul count per_item
+let accounted_draw_bytes(draw:draw)=
+  512L|>saturating_add(accounted_bytes(List.length draw.buffers)192L)
+  |>saturating_add(accounted_bytes(List.length draw.textures)128L)
+  |>saturating_add(accounted_bytes(List.length draw.samplers)128L)
+let accounted_retained_bytes draws=
+  List.fold_left(fun bytes draw->saturating_add bytes
+    (accounted_draw_bytes draw))2_048L draws
+let indexed_preparable_draw draw=
+  draw.textures=[]&&draw.samplers=[]&&Option.is_some draw.index
 let metal_compare=function
   |Ogpu.Render_pass.Never->Metal.Depth_stencil.Never|Less->Less|Equal->Equal
   |Less_equal->Less_equal|Greater->Greater|Not_equal->Not_equal
@@ -118,9 +140,12 @@ let create device pass ~attachments draw=let op="Ogpu_metal.Render_pass.create"i
       match depth,stencil with Error e,_->Error e|_,Error e->Error e|Ok depth,Ok stencil->
       let finish()=
         let retention,releases=retention~color:target~resolve~depth~stencil[draw]in
-        Ok{device;pass;color=target;resolve;depth;stencil;draws=[draw];
+        Ok{device;pass;descriptor;color=target;resolve;depth;stencil;draws=[draw];
           owned_samplers=[];native_pass=None;depth_state=None;indirect=None;
-          retention;releases;persistent=false;dead=false}in
+          prepared_render_pass=None;
+          retention;releases;retained_bytes=accounted_retained_bytes[draw];
+          draw_count=1;indexed_preparable=indexed_preparable_draw draw;
+          persistent=false;destroying=false;dead=false}in
       match draw.index with None->finish()|Some(kind,buffer,offset,count)->match Buffer.descriptor device buffer with Error _ as e->e|Ok bd->let stride=match kind with Uint16->2L|Uint32->4L in if count<=0L||offset<0L||Int64.rem offset stride<>0L||count>Int64.div(Int64.sub bd.size offset)stride then error op Ogpu.Error.Invalid_argument"index range is invalid"else finish())
 let create_empty device pass ~attachments =
   let op="Ogpu_metal.Render_pass.create_empty"in
@@ -164,9 +189,12 @@ let create_empty device pass ~attachments =
                 "native color attachment metadata differs from the portable pass"
               else
                 let retention,releases=retention~color:target~resolve~depth~stencil[]in
-                Ok{device;pass;color=target;resolve;depth;stencil;draws=[];
+                Ok{device;pass;descriptor;color=target;resolve;depth;stencil;draws=[];
                   owned_samplers=[];native_pass=None;depth_state=None;
-                  indirect=None;retention;releases;persistent=false;dead=false}
+                  prepared_render_pass=None;indirect=None;retention;releases;
+                  retained_bytes=accounted_retained_bytes[];
+                  draw_count=0;indexed_preparable=false;persistent=false;
+                  destroying=false;dead=false}
 let validate_batch_draw device draw =
   let op="Ogpu_metal.Render_pass.create_batch"in
   match Pipeline.validate device draw.pipeline with Error _ as e->e|Ok()->
@@ -199,29 +227,56 @@ let create_batch ?(owned_samplers=[]) device pass ~attachments draws =
     |[]->assert false
     |first_draw::rest->match create device pass~attachments first_draw with Error _ as e->e|Ok first->
       let rec validate rev=function
-        |[]->let draws=List.rev rev in let retention,releases=retention~color:first.color~resolve:first.resolve~depth:first.depth~stencil:first.stencil draws in Ok{first with draws;owned_samplers;retention;releases}
+        |[]->let draws=List.rev rev in let retention,releases=retention~color:first.color~resolve:first.resolve~depth:first.depth~stencil:first.stencil draws in Ok{first with draws;owned_samplers;retention;releases;retained_bytes=accounted_retained_bytes draws;draw_count=count;indexed_preparable=List.for_all indexed_preparable_draw draws}
         |draw::rest->match validate_batch_draw device draw with
           |Error _ as error->error
           |Ok()->validate(draw::rev)rest in
       validate[first_draw]rest
 let with_indirect value indirect ~vertex_resources ~fragment_resources
     ~texture_resources=
+  let use resources usage stages:Metal.Render_encoder.prepared_resource_use=
+    {resources;usage;stages}in
+  let resource_uses=
+    [|use vertex_resources[Metal.Render_encoder.Read][Metal.Render_encoder.Vertex];
+      use fragment_resources[Metal.Render_encoder.Read][Metal.Render_encoder.Fragment];
+      use texture_resources[Metal.Render_encoder.Sample][Metal.Render_encoder.Fragment]|]in
   {value with indirect=Some(indirect,
-    {vertex_resources;fragment_resources;texture_resources})}
-let replay_indirect value ~template={value with draws=template.draws;
-  indirect=template.indirect}
+    {resource_uses});
+    prepared_render_pass=None}
+let replay_indirect ?persistent value ~template={value with draws=template.draws;
+  indirect=template.indirect;retained_bytes=template.retained_bytes;
+  draw_count=template.draw_count;indexed_preparable=template.indexed_preparable;
+  persistent=Option.value persistent~default:template.persistent;
+  prepared_render_pass=None}
 let destroy value=
   if value.dead then Ok()else begin
-    value.dead<-true;
-    let failure=match value.native_pass with None->None|Some native_pass->
-      (match Metal.Render_pass_descriptor.destroy native_pass with
-       |Ok()->None|Error error->Some error)in
-    let failure=match value.depth_state with None->failure|Some state->
-      (match Metal.Depth_stencil.destroy state,failure with
-       |Error error,None->Some error|Ok(),_|Error _,Some _->failure)in
-    List.iter(fun sampler->ignore(Sampler.destroy sampler))value.owned_samplers;
-    match failure with None->Ok()|Some error->
-      Error(Adapter.error~operation:"Ogpu_metal.Render_pass.destroy" error)
+    value.destroying<-true;
+    value.prepared_render_pass<-None;
+    let failure=ref None in
+    let record=function
+      |Ok()->true
+      |Error error->
+          if Option.is_none !failure then failure:=Some error;
+          false in
+    (match value.native_pass with
+     |None->()
+     |Some native_pass->
+         if record(Result.map_error
+             (Adapter.error~operation:"Ogpu_metal.Render_pass.destroy")
+             (Metal.Render_pass_descriptor.destroy native_pass))then
+           value.native_pass<-None);
+    (match value.depth_state with
+     |None->()
+     |Some state->
+         if record(Result.map_error
+             (Adapter.error~operation:"Ogpu_metal.Render_pass.destroy")
+             (Metal.Depth_stencil.destroy state))then
+           value.depth_state<-None);
+    List.iter(fun sampler->ignore(record(Sampler.destroy sampler)))
+      value.owned_samplers;
+    match !failure with
+    |Some error->Error error
+    |None->value.dead<-true;Ok()
   end
 let rec retain_at value index=
   if index=Array.length value.retention then Ok value.releases
@@ -296,38 +351,135 @@ let encode_draws_or_indirect op value encoder=
   |Some(indirect,resources),first::_->
       let native=match Pipeline.Private.native first.pipeline with
         |Render pipeline->pipeline|Compute _->assert false in
-      (match Metal.Render_encoder.Private.use_retained_argument_resources encoder
-          ~vertex:resources.vertex_resources~fragment:resources.fragment_resources
-          ~textures:resources.texture_resources with
-       |Error error->Error(Adapter.error~operation:op error)
-       |Ok()->match Metal.Render_encoder.set_pipeline encoder native with
+      (match Metal.Render_encoder.use_prepared_resource_sets encoder
+          resources.resource_uses with
          |Error error->Error(Adapter.error~operation:op error)
-         |Ok()->adapt_metal op(Metal.Render_encoder.execute_indirect_commands
-             encoder indirect~location:0~length:(List.length value.draws)))
+         |Ok()->match Metal.Render_encoder.set_pipeline encoder native with
+           |Error error->Error(Adapter.error~operation:op error)
+           |Ok()->adapt_metal op(Metal.Render_encoder.execute_indirect_commands
+             encoder indirect~location:0~length:value.draw_count))
   |_->encode_draws op encoder value.draws
 let abort_encoding value encoder failure=
   ignore(Metal.Render_encoder.end_encoding encoder);
   if not value.persistent then ignore(destroy value);
   failure
+let prepared_pass_eligible value=
+  value.persistent&&
+  value.retained_bytes<=retained_byte_capacity&&match value.indirect with
+  |Some _->value.draw_count<>0
+  |None->value.indexed_preparable
+let prepare_indexed_draw (draw:draw)=
+  let prepared_pipeline=match Pipeline.Private.native draw.pipeline with
+    |Render pipeline->pipeline|Compute _->assert false in
+  let prepared_bindings=draw.buffers|>List.map(fun(binding:buffer_binding)->
+    ({Metal.Render_encoder.Private.prepared_stage=(match binding.stage with
+       |Vertex->Metal.Render_encoder.Vertex|Fragment->Fragment);
+      prepared_index=binding.index;prepared_offset=binding.offset;
+      prepared_buffer=Buffer.Private.metal binding.buffer}
+      :Metal.Render_encoder.Private.prepared_indexed_binding))|>Array.of_list in
+  let kind,index_buffer,prepared_index_offset,prepared_index_count=
+    Option.get draw.index in
+  ({Metal.Render_encoder.Private.prepared_pipeline;prepared_bindings;
+    prepared_primitive=(match draw.primitive with
+      |Triangle_list->Metal.Render_encoder.Triangle
+      |Triangle_strip->Triangle_strip);
+    prepared_index_type=(match kind with
+      |Uint16->Metal.Render_encoder.Uint16|Uint32->Uint32);
+    prepared_index_buffer=Buffer.Private.metal index_buffer;
+    prepared_index_offset;prepared_index_count}
+    :Metal.Render_encoder.Private.prepared_indexed_draw)
+let prepare_indexed_draw_array value=
+  match value.draws with
+  |[]->[||]
+  |first::rest->
+      let draws=Array.make value.draw_count(prepare_indexed_draw first)in
+      let rec fill index=function
+        |[]->draws
+        |draw::remaining->
+            Array.unsafe_set draws index(prepare_indexed_draw draw);
+            fill(index+1)remaining in
+      fill 1 rest
+let prepared_viewport(value:t)=
+  let viewport=value.descriptor.viewport in
+  ({Metal.Render_encoder.x=float viewport.x;y=float viewport.y;
+    width=float viewport.width;height=float viewport.height;znear=0.;zfar=1.}
+    :Metal.Render_encoder.viewport)
+let prepared_scissor(value:t)=
+  let scissor=value.descriptor.scissor in
+  ({Metal.Render_encoder.x=scissor.x;y=scissor.y;width=scissor.width;
+    height=scissor.height}:Metal.Render_encoder.scissor)
+let prepare_render_pass op value native_pass=
+  let device=Device.Private.metal value.device in
+  let raster=Ogpu.Render_pass.raster_state value.pass
+  and stencil=Ogpu.Render_pass.stencil_state value.pass in
+  let stencil_references=Option.map(fun state->
+    state.Ogpu.Render_pass.front_reference,state.back_reference)stencil in
+  let prepare_indexed()=
+    let draws=prepare_indexed_draw_array value in
+    match Metal.Render_encoder.Private.prepare_indexed_draws device draws with
+    |Error error->Error(Adapter.error~operation:op error)
+    |Ok draws->match Metal.Render_encoder.Private.prepare_indexed_render_pass
+        device native_pass~cull:(metal_cull raster.cull)
+        ?depth_stencil:value.depth_state ?stencil_references
+        ~viewport:(prepared_viewport value)~scissor:(prepared_scissor value)draws with
+      |Error error->Error(Adapter.error~operation:op error)
+      |Ok prepared->Ok(Prepared_indexed prepared)in
+  match value.indirect,value.draws with
+  |Some(commands,resources),first::_->
+      let pipeline=match Pipeline.Private.native first.pipeline with
+        |Render pipeline->pipeline|Compute _->assert false in
+      (match Metal.Render_encoder.Private.prepare_indirect_render_pass
+          device native_pass~cull:(metal_cull raster.cull)
+          ?depth_stencil:value.depth_state ?stencil_references
+          ~viewport:(prepared_viewport value)~scissor:(prepared_scissor value)
+          ~pipeline~commands~location:0~length:value.draw_count
+          ~resource_uses:resources.resource_uses()with
+       |Error error->Error(Adapter.error~operation:op error)
+       |Ok prepared->Ok(Prepared_indirect prepared))
+  |None,_->prepare_indexed()
+  |Some _,[]->error op Ogpu.Error.Invalid_state
+      "indirect render pass has no draw commands"
+let encode_prepared_render_pass op command value native_pass=
+  let prepared=match value.prepared_render_pass with
+    |Some prepared->Ok prepared
+    |None->match prepare_render_pass op value native_pass with
+      |Error _ as failure->failure
+      |Ok prepared->value.prepared_render_pass<-Some prepared;Ok prepared in
+  match prepared with
+  |Error _ as failure->failure
+  |Ok(Prepared_indexed prepared)->adapt_metal op
+      (Metal.Render_encoder.Private.execute_prepared_indexed_render_pass
+        command prepared)
+  |Ok(Prepared_indirect prepared)->adapt_metal op
+      (Metal.Render_encoder.Private.execute_prepared_indirect_render_pass
+        command prepared)
 module Private=struct
   let destroy=destroy
+  let retained_bytes value=value.retained_bytes
   let retain_encoding value=value.persistent<-true
-  let portable_requires_command4 pass=
-    let descriptor=Ogpu.Render_pass.descriptor pass in
+  let descriptor_requires_command4
+      (descriptor:Ogpu.Render_pass.descriptor)=
     (* The classic descriptor path implements all color load actions.  Keep
        Metal 4 only for depth/stencil state that the classic path cannot
        represent exactly; otherwise ordinary overlay passes would rebuild
        Command4 argument tables every frame. *)
     Option.is_some descriptor.stencil||
     Option.fold~none:false~some:(fun(d:Ogpu.Render_pass.depth)->d.load<>Clear||d.store<>Store||d.clear<>1.)descriptor.depth
+  let portable_requires_command4 pass=
+    descriptor_requires_command4(Ogpu.Render_pass.descriptor pass)
   let requires_command4 value=
-    Option.is_none value.indirect&&portable_requires_command4 value.pass
+    Option.is_none value.indirect&&descriptor_requires_command4 value.descriptor
   let validation_retained value=value.persistent||Option.is_some value.indirect
   let encode_portable value command=Ogpu.Render_pass.encode value.pass command
-  let retain value=retain_at value 0
+  let retain value=
+    if value.dead||value.destroying then
+      error"Ogpu_metal.Render_pass.retain"Ogpu.Error.Stale_handle
+        "render pass is being destroyed"
+    else retain_at value 0
   let encode command value=let op="Ogpu_metal.Render_pass.encode"in
-    if value.dead then error op Ogpu.Error.Stale_handle"render pass is destroyed"else
-    let descriptor=Ogpu.Render_pass.descriptor value.pass in
+    if value.dead||value.destroying then
+      error op Ogpu.Error.Stale_handle"render pass is being destroyed"else
+    let descriptor=value.descriptor in
     let prepared=match value.native_pass with
       |Some native_pass->Ok native_pass
       |None->match prepare_native value.device value.pass~color:value.color
@@ -335,21 +487,28 @@ module Private=struct
         |Error _ as error->error
         |Ok(native_pass,depth_state)->value.native_pass<-Some native_pass;
             value.depth_state<-depth_state;Ok native_pass in
-    let encoder=match prepared with Error _ as error->error|Ok native_pass->
-      Result.map_error(Adapter.error~operation:op)
-        (Metal.Render_encoder.Private.create_from_pass_scoped command
-          native_pass)in
-    match encoder with Error _ as error->error|Ok encoder->
-    let raster=Ogpu.Render_pass.raster_state value.pass in
-    let stencil_state=Ogpu.Render_pass.stencil_state value.pass in
-    let store=match Metal.Render_encoder.set_cull_mode encoder(metal_cull raster.cull)with Error e->Error(Adapter.error~operation:op e)|Ok()->let depth_bound=match value.depth_state with None->Ok()|Some state->Metal.Render_encoder.set_depth_stencil_state encoder(Some state)in match depth_bound with Error e->Error(Adapter.error~operation:op e)|Ok()->Ok()in
-    match store with Error _ as e->abort_encoding value encoder e|Ok()->
-    let references=match stencil_state with None->Ok()|Some state->Result.map_error(Adapter.error~operation:op)(Metal.Render_encoder.set_stencil_reference_values encoder~front:state.front_reference~back:state.back_reference)in
-    match references with Error _ as e->abort_encoding value encoder e|Ok()->match Metal.Render_encoder.set_viewport encoder{x=float descriptor.viewport.x;y=float descriptor.viewport.y;width=float descriptor.viewport.width;height=float descriptor.viewport.height;znear=0.;zfar=1.}with Error e->abort_encoding value encoder(Error(Adapter.error~operation:op e))|Ok()->match Metal.Render_encoder.set_scissor encoder{x=descriptor.scissor.x;y=descriptor.scissor.y;width=descriptor.scissor.width;height=descriptor.scissor.height}with Error e->abort_encoding value encoder(Error(Adapter.error~operation:op e))|Ok()->match encode_draws_or_indirect op value encoder with Error _ as e->abort_encoding value encoder e|Ok()->match Metal.Render_encoder.end_encoding encoder with Error e->abort_encoding value encoder(Error(Adapter.error~operation:op e))|Ok()->if value.persistent then Ok[]else Ok[fun()->ignore(destroy value)]
+    match prepared with
+    |Error _ as error->error
+    |Ok native_pass when prepared_pass_eligible value->
+        (match encode_prepared_render_pass op command value native_pass with
+         |Error _ as failure->failure|Ok()->Ok[])
+    |Ok native_pass->
+        let encoder=Result.map_error(Adapter.error~operation:op)
+          (Metal.Render_encoder.Private.create_from_pass_scoped command
+            native_pass)in
+        match encoder with Error _ as error->error|Ok encoder->
+        let raster=Ogpu.Render_pass.raster_state value.pass in
+        let stencil_state=Ogpu.Render_pass.stencil_state value.pass in
+        let store=match Metal.Render_encoder.set_cull_mode encoder(metal_cull raster.cull)with Error e->Error(Adapter.error~operation:op e)|Ok()->let depth_bound=match value.depth_state with None->Ok()|Some state->Metal.Render_encoder.set_depth_stencil_state encoder(Some state)in match depth_bound with Error e->Error(Adapter.error~operation:op e)|Ok()->Ok()in
+        match store with Error _ as e->abort_encoding value encoder e|Ok()->
+        let references=match stencil_state with None->Ok()|Some state->Result.map_error(Adapter.error~operation:op)(Metal.Render_encoder.set_stencil_reference_values encoder~front:state.front_reference~back:state.back_reference)in
+        match references with Error _ as e->abort_encoding value encoder e|Ok()->match Metal.Render_encoder.set_viewport encoder{x=float descriptor.viewport.x;y=float descriptor.viewport.y;width=float descriptor.viewport.width;height=float descriptor.viewport.height;znear=0.;zfar=1.}with Error e->abort_encoding value encoder(Error(Adapter.error~operation:op e))|Ok()->match Metal.Render_encoder.set_scissor encoder{x=descriptor.scissor.x;y=descriptor.scissor.y;width=descriptor.scissor.width;height=descriptor.scissor.height}with Error e->abort_encoding value encoder(Error(Adapter.error~operation:op e))|Ok()->match encode_draws_or_indirect op value encoder with Error _ as e->abort_encoding value encoder e|Ok()->match Metal.Render_encoder.end_encoding encoder with Error e->abort_encoding value encoder(Error(Adapter.error~operation:op e))|Ok()->if value.persistent then Ok[]else Ok[fun()->ignore(destroy value)]
 
   let encode_command4 command value =
     let op="Ogpu_metal.Render_pass.encode_command4" in
-    let descriptor=Ogpu.Render_pass.descriptor value.pass in
+    if value.dead||value.destroying then
+      error op Ogpu.Error.Stale_handle"render pass is being destroyed"else
+    let descriptor=value.descriptor in
     let color=List.hd(Array.to_list descriptor.colors|>List.filter_map Fun.id)in
     let c=Metal.Command4.Render_encoder.color~red:(let r,_,_,_=color.clear in r)~green:(let _,g,_,_=color.clear in g)~blue:(let _,_,b,_=color.clear in b)~alpha:(let _,_,_,a=color.clear in a)in
     let load=match color.load with Ogpu.Render_pass.Clear->Metal.Command4.Render_encoder.Clear c|Load->Load|Dont_care->Load_dont_care

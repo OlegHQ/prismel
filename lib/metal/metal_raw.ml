@@ -1499,6 +1499,28 @@ external render_encoder_set_vertex_buffer :
 external render_encoder_set_fragment_buffer :
   handle -> handle -> int64 -> int -> (unit, string) result =
   "caml_prismel_metal_render_encoder_set_fragment_buffer"
+external render_encoder_execute_indexed_draws :
+  handle -> handle array -> handle array array -> int array array ->
+  int64 array array -> int array array -> int array -> int64 array ->
+  int array -> handle array -> int64 array -> (unit,string) result =
+  "caml_prismel_metal_render_encoder_execute_indexed_draws_bytecode"
+  "caml_prismel_metal_render_encoder_execute_indexed_draws"
+type prepared_render_pass_state =
+  int * handle option * (int32 * int32) option *
+  (float * float * float * float * float * float) *
+  (int * int * int * int)
+external command_buffer_execute_prepared_indexed_render_pass :
+  handle -> handle -> prepared_render_pass_state -> handle array ->
+  handle array array -> int array array -> int64 array array -> int array array ->
+  int array -> int64 array -> int array -> handle array -> int64 array ->
+  (unit,string) result =
+  "caml_prismel_metal_command_buffer_execute_prepared_indexed_render_pass_bytecode"
+  "caml_prismel_metal_command_buffer_execute_prepared_indexed_render_pass"
+external command_buffer_execute_prepared_indirect_render_pass :
+  handle -> handle -> prepared_render_pass_state -> handle -> handle -> int ->
+  int -> handle array array -> int array -> int array -> (unit,string) result =
+  "caml_prismel_metal_command_buffer_execute_prepared_indirect_render_pass_bytecode"
+  "caml_prismel_metal_command_buffer_execute_prepared_indirect_render_pass"
 external render_encoder_set_vertex_texture :
   handle -> handle -> int -> (unit, string) result =
   "caml_prismel_metal_render_encoder_set_vertex_texture"

@@ -1,10 +1,14 @@
 type token = int64
-type command =
-  | Transfer of Transfer_pass.description array
-  | Compute of Compute_pass.description
-  | Render of Render_pass.submission
+type command
 type receipt = { epoch:int64 }
 type synchronous_submission = { receipt:receipt; completion:(unit,Error.t) result }
+(* The byte count covers cache-owned numeric identity/token metadata. Commands,
+   resources, pipelines, and driver payloads remain externally owned. *)
+type submission_cache_stats =
+  { entries:int
+  ; retained_bytes:int64
+  ; entry_capacity:int
+  ; byte_capacity:int64 }
 type driver_resource = { token:token; write:int64 -> bytes -> (unit,Error.t) result;
   read:int64 -> int -> (bytes,Error.t) result;
   read_into:int64 -> bytes -> int -> int -> (unit,Error.t) result;
@@ -60,7 +64,8 @@ val create_texture : device -> Types.texture_descriptor -> (texture,Error.t) res
 val create_depth_texture : device -> Types.texture_descriptor -> (texture,Error.t) result
 val create_stencil_texture : device -> Types.texture_descriptor -> (texture,Error.t) result
 val adopt_pipeline : device -> Pipeline.t -> (pipeline,Error.t) result
-val create_queue : device -> (queue,Error.t) result
+val create_queue : ?submission_cache_byte_capacity:int64 -> device ->
+  (queue,Error.t) result
 val create_surface : device -> Surface.configuration -> (surface,Error.t) result
 val transfer_buffer : buffer -> Transfer_pass.buffer
 val transfer_texture : texture -> Transfer_pass.texture
@@ -102,5 +107,17 @@ val destroy_surface : surface -> (unit,Error.t) result
 val destroy_device : device -> (unit,Error.t) result
 
 module Private : sig
-  val submission_cache_stats : queue -> int * int
+  type command_view =
+    | Transfer of Transfer_pass.description array
+    | Compute of Compute_pass.description
+    | Render of Render_pass.submission
+  (** This view is borrowed and immutable. Driver implementations must not
+      mutate reachable arrays or retain the view beyond the driver call. *)
+  val command_view : command -> command_view
+  val snapshot_command : command_view -> command
+  val command_retained_bytes : command -> int64
+  val submission_cache_stats : queue -> submission_cache_stats
+  val submission_cache_contains : queue -> command ->
+    resources:[ `Buffer of buffer | `Texture of texture ] list ->
+    pipelines:pipeline list -> bool
 end

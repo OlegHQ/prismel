@@ -954,8 +954,8 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
       |[]->None
       |((command,old_resources,old_pipelines)as entry)::rest->
           previous_commands:=rest;
-          match command with
-          |Ogpu.Backend.Render submission
+          match Ogpu.Backend.Private.command_view command with
+          |Ogpu.Backend.Private.Render submission
               when Ogpu.Render_pass.same
                 (Ogpu.Render_pass.submission_pass submission)pass&&
                 same_draws(Ogpu.Render_pass.submission_draws submission)payload&&

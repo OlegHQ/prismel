@@ -5926,7 +5926,8 @@ extern "C" CAMLprim value caml_prismel_metal_indirect_command_buffer_size(value 
   CAMLparam1(raw);
   id<MTLIndirectCommandBuffer> buffer =
       object_of_handle(raw, Handle_kind::Indirect_command_buffer);
-  CAMLreturn(caml_copy_int64(static_cast<std::int64_t>(buffer.size)));
+  CAMLreturn(caml_copy_int64(
+      static_cast<std::int64_t>(buffer.allocatedSize)));
 }
 
 extern "C" CAMLprim value caml_prismel_metal_indirect_command_buffer_gpu_resource_id(value raw) {
@@ -14278,7 +14279,44 @@ extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_depth_store_opti
 extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_stencil_store_action(value re,value ra){CAMLparam2(re,ra);[object_of_handle(re,Handle_kind::Render_encoder) setStencilStoreAction:(MTLStoreAction)Long_val(ra)];CAMLreturn(result_unit());}
 extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_stencil_store_options(value re,value ro){CAMLparam2(re,ro);[object_of_handle(re,Handle_kind::Render_encoder) setStencilStoreActionOptions:(MTLStoreActionOptions)Long_val(ro)];CAMLreturn(result_unit());}
 extern "C" CAMLprim value caml_prismel_metal_render_encoder_use_heaps(value re,value rh,value rs){CAMLparam3(re,rh,rs);@try{id<MTLRenderCommandEncoder>e=object_of_handle(re,Handle_kind::Render_encoder);mlsize_t n=Wosize_val(rh);std::vector<id<MTLHeap>>v;v.reserve(n);for(mlsize_t i=0;i<n;i++)v.push_back(object_of_handle(Field(rh,i),Handle_kind::Heap));[e useHeaps:v.data() count:n stages:(MTLRenderStages)Long_val(rs)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_render_encoder_use_resources(value re,value rr,value ru,value rs){CAMLparam4(re,rr,ru,rs);@try{id<MTLRenderCommandEncoder>e=object_of_handle(re,Handle_kind::Render_encoder);mlsize_t n=Wosize_val(rr);std::vector<id<MTLResource>>v;v.reserve(n);for(mlsize_t i=0;i<n;i++)v.push_back(resource_of_handle(Field(rr,i)));[e useResources:v.data() count:n usage:(MTLResourceUsage)Long_val(ru) stages:(MTLRenderStages)Long_val(rs)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+static std::atomic<int> test_render_encoder_resource_failure_countdown{-1};
+
+extern "C" CAMLprim value
+caml_prismel_test_metal_fail_render_encoder_use_resources_after(value count) {
+  CAMLparam1(count);
+  test_render_encoder_resource_failure_countdown.store(Int_val(count));
+  CAMLreturn(Val_unit);
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_render_encoder_use_resources(value re, value rr, value ru,
+                                                  value rs) {
+  CAMLparam4(re, rr, ru, rs);
+  int remaining = test_render_encoder_resource_failure_countdown.load();
+  if (remaining >= 0) {
+    remaining = test_render_encoder_resource_failure_countdown.fetch_sub(1);
+    if (remaining == 0) {
+      test_render_encoder_resource_failure_countdown.store(-1);
+      CAMLreturn(result_error(@"injected render resource-use failure"));
+    }
+  }
+  @try {
+    id<MTLRenderCommandEncoder> e =
+        object_of_handle(re, Handle_kind::Render_encoder);
+    mlsize_t n = Wosize_val(rr);
+    std::vector<id<MTLResource>> v;
+    v.reserve(n);
+    for (mlsize_t i = 0; i < n; i++)
+      v.push_back(resource_of_handle(Field(rr, i)));
+    [e useResources:v.data()
+              count:n
+              usage:(MTLResourceUsage)Long_val(ru)
+             stages:(MTLRenderStages)Long_val(rs)];
+    CAMLreturn(result_unit());
+  } @catch (NSException *x) {
+    CAMLreturn(result_error(x.reason));
+  }
+}
 extern "C" CAMLprim value caml_prismel_metal_render_encoder_execute_icb_range(value re,value ri,value rl,value rn){CAMLparam4(re,ri,rl,rn);@try{[object_of_handle(re,Handle_kind::Render_encoder) executeCommandsInBuffer:object_of_handle(ri,Handle_kind::Indirect_command_buffer) withRange:NSMakeRange(Long_val(rl),Long_val(rn))];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 extern "C" CAMLprim value caml_prismel_metal_render_encoder_execute_icb_indirect_range(value re,value ri,value rb,value ro){CAMLparam4(re,ri,rb,ro);@try{[object_of_handle(re,Handle_kind::Render_encoder) executeCommandsInBuffer:object_of_handle(ri,Handle_kind::Indirect_command_buffer) indirectBuffer:object_of_handle(rb,Handle_kind::Buffer) indirectBufferOffset:(NSUInteger)Int64_val(ro)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 
@@ -14323,6 +14361,396 @@ extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_fragment_buffer(
   }
   [encoder setFragmentBuffer:buffer offset:(NSUInteger)offset atIndex:(NSUInteger)index];
   CAMLreturn(result_unit());
+}
+
+static const char *validate_indexed_draw_batch(
+    value raw_pipelines, value raw_buffers, value raw_stages,
+    value raw_offsets, value raw_slots, value raw_primitives, value raw_counts,
+    value raw_index_types, value raw_index_buffers, value raw_index_offsets,
+    id<MTLDevice> expected_device) {
+  const mlsize_t draw_count = Wosize_val(raw_pipelines);
+  if (draw_count == 0 || Wosize_val(raw_buffers) != draw_count ||
+      Wosize_val(raw_stages) != draw_count ||
+      Wosize_val(raw_offsets) != draw_count ||
+      Wosize_val(raw_slots) != draw_count ||
+      Wosize_val(raw_primitives) != draw_count ||
+      Wosize_val(raw_counts) != draw_count ||
+      Wosize_val(raw_index_types) != draw_count ||
+      Wosize_val(raw_index_buffers) != draw_count ||
+      Wosize_val(raw_index_offsets) != draw_count)
+    return "indexed draw batch cardinality differs";
+  for (mlsize_t draw = 0; draw < draw_count; ++draw) {
+    value buffers = Field(raw_buffers, draw);
+    value stages = Field(raw_stages, draw);
+    value offsets = Field(raw_offsets, draw);
+    value slots = Field(raw_slots, draw);
+    const mlsize_t binding_count = Wosize_val(buffers);
+    if (Wosize_val(stages) != binding_count ||
+        Wosize_val(offsets) != binding_count ||
+        Wosize_val(slots) != binding_count)
+      return "indexed draw binding cardinality differs";
+    id<MTLRenderPipelineState> pipeline = object_of_handle(
+        Field(raw_pipelines, draw), Handle_kind::Render_pipeline);
+    const intnat primitive = Long_val(Field(raw_primitives, draw));
+    const std::int64_t count = Int64_val(Field(raw_counts, draw));
+    const intnat index_type = Long_val(Field(raw_index_types, draw));
+    id<MTLBuffer> index_buffer = object_of_handle(
+        Field(raw_index_buffers, draw), Handle_kind::Buffer);
+    const std::int64_t index_offset = Int64_val(Field(raw_index_offsets, draw));
+    const std::uint64_t index_width = index_type == 0 ? 2 : 4;
+    if ((expected_device != nil &&
+         (pipeline.device.registryID != expected_device.registryID ||
+          index_buffer.device.registryID != expected_device.registryID)) ||
+        primitive < 0 || primitive > 4 || count <= 0 ||
+        (index_type != 0 && index_type != 1) || index_offset < 0 ||
+        static_cast<std::uint64_t>(index_offset) % index_width != 0 ||
+        static_cast<std::uint64_t>(count) >
+            std::numeric_limits<std::uint64_t>::max() / index_width ||
+        static_cast<std::uint64_t>(index_offset) > index_buffer.length ||
+        static_cast<std::uint64_t>(count) * index_width >
+            index_buffer.length - static_cast<std::uint64_t>(index_offset))
+      return "indexed draw range or device is invalid";
+    for (mlsize_t binding = 0; binding < binding_count; ++binding) {
+      id<MTLBuffer> buffer =
+          object_of_handle(Field(buffers, binding), Handle_kind::Buffer);
+      const std::int64_t offset = Int64_val(Field(offsets, binding));
+      const intnat slot = Long_val(Field(slots, binding));
+      const intnat stage = Long_val(Field(stages, binding));
+      if ((expected_device != nil &&
+           buffer.device.registryID != expected_device.registryID) ||
+          (stage != 0 && stage != 1) || slot < 0 || slot >= 31 || offset < 0 ||
+          static_cast<std::uint64_t>(offset) > buffer.length)
+        return "indexed draw binding is invalid";
+    }
+  }
+  return nullptr;
+}
+
+static void encode_indexed_draw_batch(
+    id<MTLRenderCommandEncoder> encoder, value raw_pipelines,
+    value raw_buffers, value raw_stages, value raw_offsets, value raw_slots,
+    value raw_primitives, value raw_counts, value raw_index_types,
+    value raw_index_buffers, value raw_index_offsets) {
+  const mlsize_t draw_count = Wosize_val(raw_pipelines);
+  for (mlsize_t draw = 0; draw < draw_count; ++draw) {
+    value buffers = Field(raw_buffers, draw);
+    value stages = Field(raw_stages, draw);
+    value offsets = Field(raw_offsets, draw);
+    value slots = Field(raw_slots, draw);
+    const mlsize_t binding_count = Wosize_val(buffers);
+    [encoder setRenderPipelineState:
+        object_of_handle(Field(raw_pipelines, draw),
+                         Handle_kind::Render_pipeline)];
+    for (mlsize_t binding = 0; binding < binding_count; ++binding) {
+      id<MTLBuffer> buffer =
+          object_of_handle(Field(buffers, binding), Handle_kind::Buffer);
+      const NSUInteger offset = (NSUInteger)Int64_val(Field(offsets, binding));
+      const NSUInteger slot = (NSUInteger)Long_val(Field(slots, binding));
+      if (Long_val(Field(stages, binding)) == 0)
+        [encoder setVertexBuffer:buffer offset:offset atIndex:slot];
+      else
+        [encoder setFragmentBuffer:buffer offset:offset atIndex:slot];
+    }
+    [encoder drawIndexedPrimitives:
+        (MTLPrimitiveType)Long_val(Field(raw_primitives, draw))
+                            indexCount:(NSUInteger)Int64_val(Field(raw_counts, draw))
+                             indexType:(MTLIndexType)Long_val(Field(raw_index_types, draw))
+                           indexBuffer:object_of_handle(
+                               Field(raw_index_buffers, draw), Handle_kind::Buffer)
+                     indexBufferOffset:(NSUInteger)Int64_val(
+                               Field(raw_index_offsets, draw))];
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_render_encoder_execute_indexed_draws(
+    value raw_encoder, value raw_pipelines, value raw_buffers,
+    value raw_stages, value raw_offsets, value raw_slots,
+    value raw_primitives, value raw_counts, value raw_index_types,
+    value raw_index_buffers, value raw_index_offsets) {
+  CAMLparam5(raw_encoder, raw_pipelines, raw_buffers, raw_stages, raw_offsets);
+  CAMLxparam5(raw_slots, raw_primitives, raw_counts, raw_index_types,
+              raw_index_buffers);
+  CAMLxparam1(raw_index_offsets);
+  @try {
+    const char *error = validate_indexed_draw_batch(
+        raw_pipelines, raw_buffers, raw_stages, raw_offsets, raw_slots,
+        raw_primitives, raw_counts, raw_index_types, raw_index_buffers,
+        raw_index_offsets, nil);
+    if (error != nullptr) CAMLreturn(result_error_text(error));
+    id<MTLRenderCommandEncoder> encoder =
+        object_of_handle(raw_encoder, Handle_kind::Render_encoder);
+    encode_indexed_draw_batch(
+        encoder, raw_pipelines, raw_buffers, raw_stages, raw_offsets, raw_slots,
+        raw_primitives, raw_counts, raw_index_types, raw_index_buffers,
+        raw_index_offsets);
+    CAMLreturn(result_unit());
+  } @catch (NSException *exception) {
+    CAMLreturn(result_error(exception.reason));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_render_encoder_execute_indexed_draws_bytecode(
+    value *arguments, int count) {
+  (void)count;
+  return caml_prismel_metal_render_encoder_execute_indexed_draws(
+      arguments[0], arguments[1], arguments[2], arguments[3], arguments[4],
+      arguments[5], arguments[6], arguments[7], arguments[8], arguments[9],
+      arguments[10]);
+}
+
+struct Prepared_render_pass_state {
+  id<MTLCommandBuffer> command;
+  MTLRenderPassDescriptor *pass;
+  id<MTLTexture> target;
+  id<MTLDepthStencilState> depth;
+  MTLCullMode cull;
+  bool has_stencil_references;
+  uint32_t front_stencil_reference;
+  uint32_t back_stencil_reference;
+  MTLViewport viewport;
+  MTLScissorRect scissor;
+};
+
+static const char *decode_prepared_render_pass_state(
+    value raw_command, value raw_pass, value raw_state,
+    Prepared_render_pass_state *state) {
+  state->command =
+      object_of_handle(raw_command, Handle_kind::Command_buffer);
+  state->pass =
+      object_of_handle(raw_pass, Handle_kind::Render_pass_descriptor);
+  state->target = state->pass.colorAttachments[0].texture;
+  const intnat cull = Long_val(Field(raw_state, 0));
+  state->depth = optional_object(
+      Field(raw_state, 1), Handle_kind::Depth_stencil);
+  value raw_viewport = Field(raw_state, 3);
+  value raw_scissor = Field(raw_state, 4);
+  const double x = Double_val(Field(raw_viewport, 0));
+  const double y = Double_val(Field(raw_viewport, 1));
+  const double width = Double_val(Field(raw_viewport, 2));
+  const double height = Double_val(Field(raw_viewport, 3));
+  const double znear = Double_val(Field(raw_viewport, 4));
+  const double zfar = Double_val(Field(raw_viewport, 5));
+  const intnat sx = Long_val(Field(raw_scissor, 0));
+  const intnat sy = Long_val(Field(raw_scissor, 1));
+  const intnat sw = Long_val(Field(raw_scissor, 2));
+  const intnat sh = Long_val(Field(raw_scissor, 3));
+  if (state->target == nil || cull < 0 || cull > 2 ||
+      state->target.device.registryID != state->command.device.registryID ||
+      (state->depth != nil &&
+       state->depth.device.registryID != state->command.device.registryID) ||
+      !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(width) ||
+      !std::isfinite(height) || !std::isfinite(znear) ||
+      !std::isfinite(zfar) || x < 0.0 || y < 0.0 || width <= 0.0 ||
+      height <= 0.0 || x + width > (double)state->target.width ||
+      y + height > (double)state->target.height || znear < 0.0 ||
+      znear > 1.0 || zfar < 0.0 || zfar > 1.0 || znear > zfar ||
+      sx < 0 || sy < 0 || sw <= 0 || sh <= 0 ||
+      (NSUInteger)sw > state->target.width ||
+      (NSUInteger)sh > state->target.height ||
+      (NSUInteger)sx > state->target.width - (NSUInteger)sw ||
+      (NSUInteger)sy > state->target.height - (NSUInteger)sh)
+    return "prepared render-pass state is invalid";
+  static const MTLCullMode cull_modes[] = {
+      MTLCullModeNone, MTLCullModeFront, MTLCullModeBack};
+  state->cull = cull_modes[cull];
+  value raw_stencil = Field(raw_state, 2);
+  state->has_stencil_references = Is_block(raw_stencil);
+  if (state->has_stencil_references) {
+    value references = Field(raw_stencil, 0);
+    state->front_stencil_reference =
+        (uint32_t)Int32_val(Field(references, 0));
+    state->back_stencil_reference =
+        (uint32_t)Int32_val(Field(references, 1));
+  } else {
+    state->front_stencil_reference = 0;
+    state->back_stencil_reference = 0;
+  }
+  state->viewport = MTLViewport{x, y, width, height, znear, zfar};
+  state->scissor = MTLScissorRect{
+      (NSUInteger)sx, (NSUInteger)sy, (NSUInteger)sw, (NSUInteger)sh};
+  return nullptr;
+}
+
+static void apply_prepared_render_pass_state(
+    id<MTLRenderCommandEncoder> encoder,
+    const Prepared_render_pass_state &state) {
+  [encoder setCullMode:state.cull];
+  if (state.depth != nil) [encoder setDepthStencilState:state.depth];
+  if (state.has_stencil_references) {
+    [encoder setStencilFrontReferenceValue:state.front_stencil_reference
+                        backReferenceValue:state.back_stencil_reference];
+  }
+  [encoder setViewport:state.viewport];
+  [encoder setScissorRect:state.scissor];
+}
+
+static const char *validate_prepared_resource_array(
+    value raw_resources, id<MTLDevice> expected_device) {
+  const mlsize_t count = Wosize_val(raw_resources);
+  if (count == 0) return "prepared resource set is empty";
+  for (mlsize_t index = 0; index < count; ++index) {
+    id<MTLResource> resource = resource_of_handle(Field(raw_resources, index));
+    if (resource.device.registryID != expected_device.registryID)
+      return "prepared resource belongs to another device";
+  }
+  return nullptr;
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command_buffer_execute_prepared_indexed_render_pass(
+    value raw_command, value raw_pass, value raw_state, value raw_pipelines,
+    value raw_buffers, value raw_stages, value raw_offsets, value raw_slots,
+    value raw_primitives, value raw_counts, value raw_index_types,
+    value raw_index_buffers, value raw_index_offsets) {
+  CAMLparam5(raw_command, raw_pass, raw_state, raw_pipelines, raw_buffers);
+  CAMLxparam5(raw_stages, raw_offsets, raw_slots, raw_primitives, raw_counts);
+  CAMLxparam3(raw_index_types, raw_index_buffers, raw_index_offsets);
+  id<MTLRenderCommandEncoder> encoder = nil;
+  bool encoding_open = false;
+  @autoreleasepool {
+    @try {
+      Prepared_render_pass_state state;
+      const char *error = decode_prepared_render_pass_state(
+          raw_command, raw_pass, raw_state, &state);
+      if (error != nullptr) CAMLreturn(result_error_text(error));
+      error = validate_indexed_draw_batch(
+          raw_pipelines, raw_buffers, raw_stages, raw_offsets, raw_slots,
+          raw_primitives, raw_counts, raw_index_types, raw_index_buffers,
+          raw_index_offsets, state.command.device);
+      if (error != nullptr) CAMLreturn(result_error_text(error));
+      encoder = [state.command renderCommandEncoderWithDescriptor:state.pass];
+      if (encoder == nil)
+        CAMLreturn(result_error_text(
+            "Metal failed to create the prepared render encoder"));
+      encoding_open = true;
+      apply_prepared_render_pass_state(encoder, state);
+      encode_indexed_draw_batch(
+          encoder, raw_pipelines, raw_buffers, raw_stages, raw_offsets, raw_slots,
+          raw_primitives, raw_counts, raw_index_types, raw_index_buffers,
+          raw_index_offsets);
+      [encoder endEncoding];
+      encoding_open = false;
+      encoder = nil;
+      CAMLreturn(result_unit());
+    } @catch (NSException *exception) {
+      if (encoding_open && encoder != nil) {
+        @try { [encoder endEncoding]; } @catch (NSException *) {}
+      }
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command_buffer_execute_prepared_indexed_render_pass_bytecode(
+    value *arguments, int count) {
+  (void)count;
+  return caml_prismel_metal_command_buffer_execute_prepared_indexed_render_pass(
+      arguments[0], arguments[1], arguments[2], arguments[3], arguments[4],
+      arguments[5], arguments[6], arguments[7], arguments[8], arguments[9],
+      arguments[10], arguments[11], arguments[12]);
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command_buffer_execute_prepared_indirect_render_pass(
+    value raw_command, value raw_pass, value raw_state, value raw_pipeline,
+    value raw_commands, value raw_location, value raw_length,
+    value raw_resource_sets, value raw_usage_bits,
+    value raw_stage_bits) {
+  CAMLparam5(raw_command, raw_pass, raw_state, raw_pipeline, raw_commands);
+  CAMLxparam5(raw_location, raw_length, raw_resource_sets,
+              raw_usage_bits, raw_stage_bits);
+  id<MTLRenderCommandEncoder> encoder = nil;
+  bool encoding_open = false;
+  @autoreleasepool {
+    @try {
+      Prepared_render_pass_state state;
+      const char *error = decode_prepared_render_pass_state(
+          raw_command, raw_pass, raw_state, &state);
+      if (error != nullptr) CAMLreturn(result_error_text(error));
+      id<MTLRenderPipelineState> pipeline = object_of_handle(
+          raw_pipeline, Handle_kind::Render_pipeline);
+      id<MTLIndirectCommandBuffer> commands = object_of_handle(
+          raw_commands, Handle_kind::Indirect_command_buffer);
+      const intnat location = Long_val(raw_location);
+      const intnat length = Long_val(raw_length);
+      if (pipeline.device.registryID != state.command.device.registryID ||
+          commands.device.registryID != state.command.device.registryID ||
+          location < 0 || length <= 0 ||
+          (uintnat)location >
+              std::numeric_limits<NSUInteger>::max() - (uintnat)length)
+        CAMLreturn(result_error_text(
+            "prepared indirect render-pass payload is invalid"));
+      const mlsize_t group_count = Wosize_val(raw_resource_sets);
+      if (Wosize_val(raw_usage_bits) != group_count ||
+          Wosize_val(raw_stage_bits) != group_count)
+        CAMLreturn(result_error_text(
+            "prepared resource-use cardinalities differ"));
+      for (mlsize_t group_index = 0; group_index < group_count; ++group_index) {
+        value raw_resources = Field(raw_resource_sets, group_index);
+        error = validate_prepared_resource_array(
+            raw_resources, state.command.device);
+        if (error != nullptr) CAMLreturn(result_error_text(error));
+        const intnat usage = Long_val(Field(raw_usage_bits, group_index));
+        const intnat stages = Long_val(Field(raw_stage_bits, group_index));
+        if (usage <= 0 || (usage & ~7) != 0 ||
+            stages <= 0 || (stages & ~31) != 0)
+          CAMLreturn(result_error_text(
+              "prepared resource usage or stages are invalid"));
+      }
+      id<MTLResource> inline_resources[64] = {};
+      encoder = [state.command renderCommandEncoderWithDescriptor:state.pass];
+      if (encoder == nil)
+        CAMLreturn(result_error_text(
+            "Metal failed to create the prepared render encoder"));
+      encoding_open = true;
+      apply_prepared_render_pass_state(encoder, state);
+      for (mlsize_t group_index = 0; group_index < group_count; ++group_index) {
+        value raw_resources = Field(raw_resource_sets, group_index);
+        const mlsize_t resource_count = Wosize_val(raw_resources);
+        const MTLResourceUsage usage = (MTLResourceUsage)Long_val(
+            Field(raw_usage_bits, group_index));
+        const MTLRenderStages stages = (MTLRenderStages)Long_val(
+            Field(raw_stage_bits, group_index));
+        for (mlsize_t offset = 0; offset < resource_count; offset += 64) {
+          const mlsize_t chunk_count = std::min(
+              (mlsize_t)64, resource_count - offset);
+          for (mlsize_t chunk_index = 0;
+               chunk_index < chunk_count; ++chunk_index)
+            inline_resources[chunk_index] = resource_of_handle(
+                Field(raw_resources, offset + chunk_index));
+          [encoder useResources:inline_resources
+                           count:(NSUInteger)chunk_count
+                           usage:usage
+                          stages:stages];
+        }
+      }
+      [encoder setRenderPipelineState:pipeline];
+      [encoder executeCommandsInBuffer:commands
+                              withRange:NSMakeRange((NSUInteger)location,
+                                                    (NSUInteger)length)];
+      [encoder endEncoding];
+      encoding_open = false;
+      encoder = nil;
+      CAMLreturn(result_unit());
+    } @catch (NSException *exception) {
+      if (encoding_open && encoder != nil) {
+        @try { [encoder endEncoding]; } @catch (NSException *) {}
+      }
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command_buffer_execute_prepared_indirect_render_pass_bytecode(
+    value *arguments, int count) {
+  (void)count;
+  return caml_prismel_metal_command_buffer_execute_prepared_indirect_render_pass(
+      arguments[0], arguments[1], arguments[2], arguments[3], arguments[4],
+      arguments[5], arguments[6], arguments[7], arguments[8], arguments[9]);
 }
 
 extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_vertex_texture(

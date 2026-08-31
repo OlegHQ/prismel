@@ -483,6 +483,69 @@ executions, and a 2,450-created/2,450-released native-handle balance. Promoted
 allocation was 4.45 bytes/frame. The 8 KiB final visible-workspace gate remains
 open.
 
+## Generic prepared submission and bounded retention, 2026-08-31
+
+Metal now prepares generic indexed or indirect render work rather than a
+Prismel-specific scene command. The immutable prepared value contains checked
+pass state, indexed draws or an ICB range, and typed resource-use groups. Scene
+visibility, culling, batching, and Scene2/Scene3 lowering remain in Prismel;
+OGPU-Metal alone adapts those checked values to the generic Metal surface.
+Successful command buffers retain one aggregate root through completion, while
+native rejection closes the encoder, marks the command uncommittable, and
+retains no roots.
+
+The portable submission cache and OGPU-Metal classic cache now have both entry
+and byte capacities. Retained identity/replay metadata, Metal ICB storage, the
+adapter's safe owner graph, and evicted in-flight plans also have explicit byte
+accounting. Oversized owner graphs reject before Metal admission, so they do
+not evict an existing valid plan. Metal ICB accounting uses the private
+resource's native `allocatedSize`; completion, invalidation, queue destruction,
+and device destruction drain the corresponding cached or retired ledgers.
+
+Three explicit release-profile runs used:
+
+```text
+DUNE_CONFIG__BACKGROUND_ACTIONS=disabled \
+dune exec --profile release \
+  tools/runtime_next_native_benchmark/runtime_next_native_benchmark.exe -- \
+  scene3 --visibility visible --warmup-seconds 1 --samples 300 \
+  --width 64 --height 64
+```
+
+The generated JSON reported `"profile":"release"`. All three runs allocated
+exactly 2,103,272 bytes, or 7,010.9067 bytes/frame, and promoted exactly 648
+bytes, or 2.16 bytes/frame. They performed zero measurement upload and produced
+the canonical
+`bf2cf26d7974c7fe60547aee97e1e7df` framebuffer digest, 300 retained-plan hits
+and executions, one retained entry, and balanced native handle counts in every
+run. Median frame time ranged from 8.12 to 8.30 ms; p95 ranged from 9.55 to
+10.32 ms. This is a 38.7% allocation reduction from the committed
+11,442.64-byte isolated lane and is below the frozen 8 KiB end-to-end ceiling
+for that lane.
+
+A separate 1,000-frame release stability run reported 7,008.872 allocated
+bytes/frame, 5.192 promoted bytes/frame, an 8.30 ms median, a 9.76 ms p95,
+zero measurement upload, 1,000 retained-plan hits and executions, and a
+5,694-created/5,694-released native-handle balance. It is a stability
+diagnostic, not the required five-run application qualification.
+
+An opt-in 1,000-frame Memprof run attributed the remaining short-lived
+allocation primarily to per-frame Metal command-buffer/drawable wrappers,
+presentation bookkeeping, window/input facts, and small epoch/result values.
+The profiler itself perturbs allocation, so its totals are not qualification
+measurements. The explicit release runs show that almost none of the measured
+allocation survives: only 2.16 bytes/frame was promoted.
+
+The complete 18,278-piece, 278,368-triangle visible Sketch UI diagnostic remains
+above the application-wide final gate. An explicit release-profile diagnostic
+used `--profile release`, `PRISMEL_BENCH_PROFILE=release`, one warmup second,
+and two measured seconds. It rendered 192 frames over 2.005 seconds at 95.76
+FPS, with a 9.75 ms median and 12.34 ms p95. It allocated 6,983,808 bytes
+(36,374 bytes/frame) and promoted 454,056 bytes (2,364.875 bytes/frame). This is
+not a five-run qualification and does not close M11: the remaining allocation
+belongs to higher-level UI/Scene staging and periodic invalidation, not the
+generic Metal prepared-pass boundary.
+
 ## Focused verification
 
 - `lib/ogpu_metal/test_ogpu_metal_backend.exe`: transfer/compute/render 1000,

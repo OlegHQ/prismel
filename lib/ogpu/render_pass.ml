@@ -125,3 +125,12 @@ let submit pass draws =
   loop draws
 let submission_pass value=value.pass
 let submission_draws value=value.draws
+module Private=struct
+  let snapshot_submission value=
+    let pass=value.pass in
+    let descriptor=pass.descriptor in
+    {pass={pass with
+       descriptor={descriptor with colors=Array.copy descriptor.colors};
+       resources=Array.copy pass.resources};
+     draws=value.draws}
+end

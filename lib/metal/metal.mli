@@ -3384,12 +3384,31 @@ end
 
 module Retained_render_plan : sig
   type t
-  (* Retained plans are populated by the OCaml [build] callback and therefore
-      allocate shared-storage indirect command buffers. *)
-  val create : device:Device.t -> ?capacity:int -> ?enabled:bool ->
+  type candidate
+  type prepared=Hit of Indirect_command_buffer.t|Candidate of candidate
+  type stats=
+    { entries:int
+    ; retained_bytes:int64
+    ; entry_capacity:int
+    ; byte_capacity:int64 }
+  (* Retained plans are populated through Metal indirect-command wrappers and
+     own private-storage command buffers with exact allocated-size accounting. *)
+  val create : device:Device.t -> ?capacity:int -> ?byte_capacity:int64 ->
+    ?enabled:bool ->
     ?on_evict:(key:string -> generation:int64 -> Indirect_command_buffer.t -> unit) ->
     unit -> (t,error) result
   val length : t -> int
+  val stats : t -> stats
+  (* A miss candidate owns its private ICB until [admit] transfers it into the
+     cache or [discard] destroys it. Preparation never mutates active entries,
+     order, accounting, or eviction callbacks. *)
+  val prepare : t -> key:string -> generation:int64 -> command_count:int ->
+    descriptor:Indirect_command_buffer.descriptor ->
+    build:(Indirect_command_buffer.t -> (unit,error) result) ->
+    (prepared,error) result
+  val candidate_buffer : candidate -> Indirect_command_buffer.t
+  val admit : t -> candidate -> (unit,error) result
+  val discard : candidate -> (unit,error) result
   val find_or_create : t -> key:string -> generation:int64 -> command_count:int ->
     descriptor:Indirect_command_buffer.descriptor ->
     build:(Indirect_command_buffer.t -> (unit,error) result) ->
@@ -3637,9 +3656,13 @@ module Render_encoder : sig
   type barrier_scope = Buffers | Textures | Render_targets
   type resource_usage = Read | Write | Sample
   type resource = Buffer_resource of Buffer.t | Texture_resource of Texture.t
-  type prepared_resources
   type primitive = Point | Line | Line_strip | Triangle | Triangle_strip
   type index_type = Uint16 | Uint32
+  type prepared_resources
+  type prepared_resource_use =
+    { resources : prepared_resources
+    ; usage : resource_usage list
+    ; stages : stage list }
   type viewport =
     { x : float; y : float; width : float; height : float
     ; znear : float; zfar : float }
@@ -3703,6 +3726,8 @@ module Render_encoder : sig
   val use_resources : t -> resource list -> usage:resource_usage list -> stages:stage list -> (unit,error) result
   val prepare_resources : Device.t -> resource list -> (prepared_resources,error) result
   val use_prepared_resources : t -> prepared_resources -> usage:resource_usage list -> stages:stage list -> (unit,error) result
+  val use_prepared_resource_sets :
+    t -> prepared_resource_use array -> (unit,error) result
   val destroy_prepared_resources : prepared_resources -> (unit,error) result
   val set_stage_buffer : t -> stage:stage -> index:int -> offset:int64 -> ?stride:int64 -> Buffer.t option -> (unit,error) result
   val set_stage_texture : t -> stage:stage -> index:int -> Texture.t option -> (unit,error) result
@@ -3740,6 +3765,23 @@ module Render_encoder : sig
   val destroyed : t -> bool
 
   module Private : sig
+    type prepared_indexed_binding=
+      { prepared_stage:stage
+      ; prepared_index:int
+      ; prepared_offset:int64
+      ; prepared_buffer:Buffer.t }
+    type prepared_indexed_draw=
+      { prepared_pipeline:Render_pipeline.t
+      ; prepared_bindings:prepared_indexed_binding array
+      ; prepared_primitive:primitive
+      ; prepared_index_type:index_type
+      ; prepared_index_buffer:Buffer.t
+      ; prepared_index_offset:int64
+      ; prepared_index_count:int64 }
+    type prepared_indexed_draws
+    type prepared_indexed_render_pass
+    type prepared_indirect_render_pass
+
     (** Creates an explicitly-ended attachment encoder without an OCaml
         finalizer. *)
     val create_scoped :
@@ -3749,11 +3791,31 @@ module Render_encoder : sig
     (* Creates an explicitly-ended pass encoder without an OCaml finalizer. *)
     val create_from_pass_scoped :
       Command_buffer.t -> Render_pass_descriptor.t -> (t, error) result
-    (* Binds the three immutable resource sets used by a retained indirect
-       render plan after validating their lifetime and device together. *)
-    val use_retained_argument_resources :
-      t -> vertex:prepared_resources -> fragment:prepared_resources ->
-      textures:prepared_resources -> (unit, error) result
+    val prepare_indexed_draws :
+      Device.t -> prepared_indexed_draw array ->
+      (prepared_indexed_draws,error) result
+    val prepared_indexed_root_counts : prepared_indexed_draws -> int * int
+    val execute_prepared_indexed_draws :
+      t -> prepared_indexed_draws -> (unit,error) result
+    val prepare_indexed_render_pass :
+      Device.t -> Render_pass_descriptor.t -> cull:cull_mode ->
+      ?depth_stencil:Depth_stencil.t ->
+      ?stencil_references:(int32 * int32) -> viewport:viewport ->
+      scissor:scissor -> prepared_indexed_draws ->
+      (prepared_indexed_render_pass,error) result
+    val execute_prepared_indexed_render_pass :
+      Command_buffer.t -> prepared_indexed_render_pass -> (unit,error) result
+    val prepare_indirect_render_pass :
+      Device.t -> Render_pass_descriptor.t -> cull:cull_mode ->
+      ?depth_stencil:Depth_stencil.t ->
+      ?stencil_references:(int32 * int32) -> viewport:viewport ->
+      scissor:scissor -> pipeline:Render_pipeline.t ->
+      commands:Indirect_command_buffer.t -> location:int -> length:int ->
+      resource_uses:prepared_resource_use array ->
+      unit ->
+      (prepared_indirect_render_pass,error) result
+    val execute_prepared_indirect_render_pass :
+      Command_buffer.t -> prepared_indirect_render_pass -> (unit,error) result
   end
 end
 

@@ -34,3 +34,6 @@ val encode : t -> Command.t -> (unit,Error.t) result
 val submit : t -> draw list -> (submission,Error.t) result
 val submission_pass : submission -> t
 val submission_draws : submission -> draw list
+module Private : sig
+  val snapshot_submission : submission -> submission
+end

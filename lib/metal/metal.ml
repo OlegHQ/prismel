@@ -446,12 +446,25 @@ module Release_queue = struct
 end
 
 type lifetime =
-  { destroyed : bool Atomic.t
+  { identity : int
+  ; destroyed : bool Atomic.t
   ; dependents : int Atomic.t
   }
 
+let lifetime_identity_counter=Atomic.make 0
+
+let rec next_lifetime_identity () =
+  let identity=Atomic.get lifetime_identity_counter in
+  if identity=Stdlib.max_int then
+    failwith"Metal lifetime identity space exhausted"
+  else if Atomic.compare_and_set lifetime_identity_counter identity(identity+1)
+  then identity
+  else next_lifetime_identity()
+
 let lifetime () =
-  { destroyed = Atomic.make false; dependents = Atomic.make 0 }
+  { identity=next_lifetime_identity()
+  ; destroyed=Atomic.make false
+  ; dependents=Atomic.make 0 }
 
 let is_destroyed lifetime = Atomic.get lifetime.destroyed
 let dependent_count lifetime = Atomic.get lifetime.dependents
@@ -836,7 +849,11 @@ and render_pass_descriptor =
   ; pass_samples : render_pass_sample_state option array }
 
 and render_pass_sample_state =
-  { sample_buffer_lifetime : lifetime; sample_buffer_device : device }
+  { sample_buffer : resource100_sample_buffer }
+
+and resource100_sample_buffer =
+  { raw : Metal_raw.handle; lifetime : lifetime; device : device
+  ; sample_count : int64; label : string option }
 
 and command4_render_pass_descriptor =
   { raw : Metal_raw.handle; lifetime : lifetime; device : device
@@ -1579,6 +1596,7 @@ type capture_descriptor={mutable raw:Metal_raw.handle;lifetime:lifetime;mutable 
 type command_phase =
   | Recording
   | Submitted
+  | Failed
 
 type indirect_command_kind =
   | Indirect_draw
@@ -1638,6 +1656,34 @@ type indirect_compute_command =
   ; parent : indirect_command_buffer
   }
 
+type render_encoder_prepared_resources=
+  { device:device
+  ; lifetime:lifetime
+  ; prepared_buffers:buffer array
+  ; prepared_textures:texture array
+  ; raws:Metal_raw.handle array
+  ; mutable dead:bool }
+
+type prepared_command_resources=
+  { prepared_pipeline_roots:render_pipeline array
+  ; prepared_buffer_roots:buffer array
+  ; prepared_texture_roots:texture array
+  ; prepared_depth_stencil_roots:depth_stencil array
+  ; prepared_rate_map_roots:rasterization_rate_map array
+  ; prepared_sample_roots:resource100_sample_buffer array
+  ; prepared_indirect_roots:indirect_command_buffer array
+  ; prepared_resource_roots:render_encoder_prepared_resources array }
+
+let empty_prepared_command_resources=
+  { prepared_pipeline_roots=[||]
+  ; prepared_buffer_roots=[||]
+  ; prepared_texture_roots=[||]
+  ; prepared_depth_stencil_roots=[||]
+  ; prepared_rate_map_roots=[||]
+  ; prepared_sample_roots=[||]
+  ; prepared_indirect_roots=[||]
+  ; prepared_resource_roots=[||] }
+
 type command_resource =
   | Command_buffer_buffer of buffer
   | Command_buffer_prepared_resources of lifetime
@@ -1653,19 +1699,26 @@ type command_resource =
   | Command_buffer_fence of fence
   | Command_buffer_heap of heap
   | Command_buffer_drawable of metal_drawable
+  | Command_buffer_prepared_command of prepared_command_resources
 
 type prepared_resource_slot =
   { mutable prepared_active : bool
   ; mutable prepared_lifetime : lifetime
   }
 
+type prepared_command_slot=
+  { mutable prepared_command_active:bool
+  ; mutable prepared_command:prepared_command_resources }
+
 type command_buffer =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
   ; queue : command_queue
+  ; retained_references : bool
   ; mutable phase : command_phase
   ; resources : command_resource list ref
   ; prepared_resource : prepared_resource_slot option
+  ; prepared_command_slot:prepared_command_slot
   ; mutable scoped_prepared_active : bool
   ; mutable scoped_prepared_lifetime : lifetime
   ; callback_tokens : nativeint list ref
@@ -1722,10 +1775,6 @@ type resource100_sample_attachment =
   { raw : Metal_raw.handle; lifetime : lifetime
   ; mutable start_index : int64; mutable end_index : int64
   ; mutable sample_buffer : resource100_sample_buffer option }
-
-and resource100_sample_buffer =
-  { raw : Metal_raw.handle; lifetime : lifetime; device : device
-  ; sample_count : int64; label : string option }
 type counter_sample_buffer = resource100_sample_buffer
 
 type acceleration_pass =
@@ -1813,6 +1862,8 @@ let command_resource_lifetime = function
   | Command_buffer_fence value -> value.lifetime
   | Command_buffer_heap value -> value.lifetime
   | Command_buffer_drawable value -> value.lifetime
+  | Command_buffer_prepared_command _ ->
+      invalid_arg "prepared command has multiple resource lifetimes"
 
 let rec command_texture_heap (value : texture) =
   match value.parent with
@@ -1840,15 +1891,64 @@ let command_resource_heap = function
   | Command_buffer_indirect _ | Command_buffer_fence _ -> None
   | Command_buffer_heap heap -> Some heap
   | Command_buffer_drawable _ -> None
+  | Command_buffer_prepared_command _ -> None
+
+let release_prepared_command_resources prepared =
+  for index = 0 to Array.length prepared.prepared_pipeline_roots - 1 do
+    detach (Array.unsafe_get prepared.prepared_pipeline_roots index).lifetime
+  done;
+  for index = 0 to Array.length prepared.prepared_buffer_roots - 1 do
+    let buffer = Array.unsafe_get prepared.prepared_buffer_roots index in
+    detach buffer.lifetime;
+    match buffer.parent with
+    | Device_resource _ | External_resource _ -> ()
+    | Heap_resource heap -> Atomic.decr heap.active_uses
+  done;
+  for index = 0 to Array.length prepared.prepared_texture_roots - 1 do
+    let texture = Array.unsafe_get prepared.prepared_texture_roots index in
+    detach texture.lifetime;
+    Option.iter (fun heap -> Atomic.decr heap.active_uses)
+      (command_texture_heap texture)
+  done;
+  for index = 0 to Array.length prepared.prepared_depth_stencil_roots - 1 do
+    detach
+      (Array.unsafe_get prepared.prepared_depth_stencil_roots index).lifetime
+  done;
+  for index = 0 to Array.length prepared.prepared_rate_map_roots - 1 do
+    detach (Array.unsafe_get prepared.prepared_rate_map_roots index).lifetime
+  done;
+  for index = 0 to Array.length prepared.prepared_sample_roots - 1 do
+    detach (Array.unsafe_get prepared.prepared_sample_roots index).lifetime
+  done;
+  for index = 0 to Array.length prepared.prepared_indirect_roots - 1 do
+    detach (Array.unsafe_get prepared.prepared_indirect_roots index).lifetime
+  done;
+  for index = 0 to Array.length prepared.prepared_resource_roots - 1 do
+    let resources=Array.unsafe_get prepared.prepared_resource_roots index in
+    for buffer_index=0 to Array.length resources.prepared_buffers-1 do
+      match (Array.unsafe_get resources.prepared_buffers buffer_index).parent with
+      |Device_resource _|External_resource _->()
+      |Heap_resource heap->Atomic.decr heap.active_uses
+    done;
+    for texture_index=0 to Array.length resources.prepared_textures-1 do
+      Option.iter(fun heap->Atomic.decr heap.active_uses)
+        (command_texture_heap
+          (Array.unsafe_get resources.prepared_textures texture_index))
+    done;
+    detach resources.lifetime
+  done
 
 let release_command_resources resources =
   let retained = !resources in
   resources := [];
   List.iter
-    (fun resource ->
-      detach (command_resource_lifetime resource);
-      Option.iter (fun heap -> Atomic.decr heap.active_uses)
-        (command_resource_heap resource))
+    (function
+      | Command_buffer_prepared_command prepared ->
+          release_prepared_command_resources prepared
+      | resource ->
+          detach (command_resource_lifetime resource);
+          Option.iter (fun heap -> Atomic.decr heap.active_uses)
+            (command_resource_heap resource))
     retained
 
 let release_prepared_resource slot =
@@ -1857,18 +1957,29 @@ let release_prepared_resource slot =
     detach slot.prepared_lifetime
   end
 
-let release_finalized_command_buffer_resources resources prepared_resource =
+let release_prepared_command_slot slot =
+  if slot.prepared_command_active then begin
+    let prepared=slot.prepared_command in
+    slot.prepared_command_active<-false;
+    slot.prepared_command<-empty_prepared_command_resources;
+    release_prepared_command_resources prepared
+  end
+
+let release_finalized_command_buffer_resources resources prepared_resource
+    prepared_command_slot =
   release_command_resources resources;
-  release_prepared_resource prepared_resource
+  release_prepared_resource prepared_resource;
+  release_prepared_command_slot prepared_command_slot
 
 let release_command_buffer_resources command_buffer =
   release_command_resources command_buffer.resources;
-  match command_buffer.prepared_resource with
+  (match command_buffer.prepared_resource with
   | Some slot -> release_prepared_resource slot
   | None when command_buffer.scoped_prepared_active ->
       command_buffer.scoped_prepared_active <- false;
       detach command_buffer.scoped_prepared_lifetime
-  | None -> ()
+  | None -> ());
+  release_prepared_command_slot command_buffer.prepared_command_slot
 
 let command4_resource_lifetime = function
   | Command4_argument_table table -> table.lifetime
@@ -2108,6 +2219,76 @@ let retain_command_buffer_prepared_resources command_buffer lifetime=
       command_buffer.scoped_prepared_lifetime<-lifetime;
       command_buffer.scoped_prepared_active<-true
 
+let rec command_resources_retain_prepared_command prepared = function
+  | [] -> false
+  | Command_buffer_prepared_command candidate :: _ -> candidate == prepared
+  | _ :: rest -> command_resources_retain_prepared_command prepared rest
+
+let retain_prepared_command_resources prepared =
+  for index = 0 to Array.length prepared.prepared_pipeline_roots - 1 do
+    attach (Array.unsafe_get prepared.prepared_pipeline_roots index).lifetime
+  done;
+  for index = 0 to Array.length prepared.prepared_buffer_roots - 1 do
+    let buffer = Array.unsafe_get prepared.prepared_buffer_roots index in
+    attach buffer.lifetime;
+    match buffer.parent with
+    | Device_resource _ | External_resource _ -> ()
+    | Heap_resource heap -> Atomic.incr heap.active_uses
+  done;
+  for index = 0 to Array.length prepared.prepared_texture_roots - 1 do
+    let texture = Array.unsafe_get prepared.prepared_texture_roots index in
+    attach texture.lifetime;
+    Option.iter (fun heap -> Atomic.incr heap.active_uses)
+      (command_texture_heap texture)
+  done;
+  for index = 0 to Array.length prepared.prepared_depth_stencil_roots - 1 do
+    attach (Array.unsafe_get prepared.prepared_depth_stencil_roots index).lifetime
+  done;
+  for index = 0 to Array.length prepared.prepared_rate_map_roots - 1 do
+    attach (Array.unsafe_get prepared.prepared_rate_map_roots index).lifetime
+  done;
+  for index = 0 to Array.length prepared.prepared_sample_roots - 1 do
+    attach (Array.unsafe_get prepared.prepared_sample_roots index).lifetime
+  done;
+  for index = 0 to Array.length prepared.prepared_indirect_roots - 1 do
+    attach (Array.unsafe_get prepared.prepared_indirect_roots index).lifetime
+  done;
+  for index = 0 to Array.length prepared.prepared_resource_roots - 1 do
+    let resources=Array.unsafe_get prepared.prepared_resource_roots index in
+    attach resources.lifetime;
+    for buffer_index=0 to Array.length resources.prepared_buffers-1 do
+      match (Array.unsafe_get resources.prepared_buffers buffer_index).parent with
+      |Device_resource _|External_resource _->()
+      |Heap_resource heap->Atomic.incr heap.active_uses
+    done;
+    for texture_index=0 to Array.length resources.prepared_textures-1 do
+      Option.iter(fun heap->Atomic.incr heap.active_uses)
+        (command_texture_heap
+          (Array.unsafe_get resources.prepared_textures texture_index))
+    done
+  done
+
+let retain_command_buffer_prepared_command_overflow command_buffer prepared =
+  if not
+      (command_resources_retain_prepared_command prepared
+         !(command_buffer.resources))
+  then begin
+    retain_prepared_command_resources prepared;
+    command_buffer.resources :=
+      Command_buffer_prepared_command prepared :: !(command_buffer.resources)
+  end
+
+let retain_command_buffer_prepared_command command_buffer prepared =
+  let primary=command_buffer.prepared_command_slot in
+  if primary.prepared_command_active then begin
+    if primary.prepared_command!=prepared then
+      retain_command_buffer_prepared_command_overflow command_buffer prepared
+  end else begin
+    retain_prepared_command_resources prepared;
+    primary.prepared_command<-prepared;
+    primary.prepared_command_active<-true
+  end
+
 let retain_command_buffer_acceleration_structure
     (command_buffer : command_buffer) (value : acceleration_structure) =
   let already_retained =
@@ -2119,7 +2300,8 @@ let retain_command_buffer_acceleration_structure
         | Command_buffer_render_pipeline _ | Command_residency_set _
         | Command_buffer_indirect _ | Command_buffer_fence _ | Command_buffer_heap _
         | Command_buffer_drawable _ | Command_buffer_depth_stencil _
-        | Command_buffer_visible_table _ | Command_buffer_intersection_table _ -> false)
+        | Command_buffer_visible_table _ | Command_buffer_intersection_table _
+        | Command_buffer_prepared_command _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
@@ -2139,7 +2321,8 @@ let retain_command_buffer_texture (command_buffer : command_buffer)
         | Command_residency_set _
         | Command_buffer_indirect _ | Command_buffer_fence _ | Command_buffer_heap _
         | Command_buffer_drawable _ | Command_buffer_depth_stencil _
-        | Command_buffer_visible_table _ | Command_buffer_intersection_table _ -> false)
+        | Command_buffer_visible_table _ | Command_buffer_intersection_table _
+        | Command_buffer_prepared_command _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
@@ -2185,7 +2368,8 @@ let retain_command_buffer_residency_set (command_buffer : command_buffer)
         | Command_buffer_render_pipeline _
         | Command_buffer_indirect _ | Command_buffer_fence _ | Command_buffer_heap _
         | Command_buffer_drawable _ | Command_buffer_depth_stencil _
-        | Command_buffer_visible_table _ | Command_buffer_intersection_table _ -> false)
+        | Command_buffer_visible_table _ | Command_buffer_intersection_table _
+        | Command_buffer_prepared_command _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
@@ -7003,14 +7187,19 @@ module Render_pass_descriptor = struct
         | None->
             (match Metal_raw.render_pass_sample_set value.raw(Int64.of_int index)None(-1L)(-1L)(-1L)(-1L)with
              | Error message->native_error operation message
-             | Ok()->Option.iter(fun state->detach state.sample_buffer_lifetime)value.pass_samples.(index);value.pass_samples.(index)<-None;Ok())
+             | Ok()->Option.iter(fun (state:render_pass_sample_state)->
+                 detach state.sample_buffer.lifetime)value.pass_samples.(index);
+                 value.pass_samples.(index)<-None;Ok())
         | Some buffer when is_destroyed buffer.lifetime->error operation Destroyed "counter sample buffer is destroyed"
         | Some buffer when option_exists(fun(texture:texture)->not(same_device texture.device buffer.device))value.pass_color->error operation Device_mismatch "counter sample buffer belongs to another device"
         | Some buffer when List.exists(fun x->x<0L||x>=buffer.sample_count)[start_vertex;end_vertex;start_fragment;end_fragment]||start_vertex>end_vertex||start_fragment>end_fragment->error operation Invalid_argument "counter sample indices are outside the buffer or reversed"
         | Some buffer->
             (match Metal_raw.render_pass_sample_set value.raw(Int64.of_int index)(Some buffer.raw)start_vertex end_vertex start_fragment end_fragment with
              | Error message->native_error operation message
-             | Ok()->attach buffer.lifetime;Option.iter(fun state->detach state.sample_buffer_lifetime)value.pass_samples.(index);value.pass_samples.(index)<-Some{sample_buffer_lifetime=buffer.lifetime;sample_buffer_device=buffer.device};Ok()))
+             | Ok()->attach buffer.lifetime;
+                 Option.iter(fun (state:render_pass_sample_state)->
+                   detach state.sample_buffer.lifetime)value.pass_samples.(index);
+                 value.pass_samples.(index)<-Some{sample_buffer=buffer};Ok()))
   let resolve_texture(value:t)=value.pass_resolve
   let set_resolve_texture(value:t)(next:texture option)=
     let operation="Metal.Render_pass_descriptor.set_resolve_texture" in
@@ -7104,7 +7293,7 @@ module Render_pass_descriptor = struct
                     not (same_device device texture.device)) textures then
                  error operation Device_mismatch
                    "render pass attachments belong to different devices"
-               else if option_exists(fun(texture:texture)->not(same_device device texture.device))value.pass_resolve||Array.exists(fun state->match state with None->false|Some state->not(same_device device state.sample_buffer_device))value.pass_samples then
+               else if option_exists(fun(texture:texture)->not(same_device device texture.device))value.pass_resolve||Array.exists(function None->false|Some(state:render_pass_sample_state)->not(same_device device state.sample_buffer.device))value.pass_samples then
                  error operation Device_mismatch "retained resolve/counter attachments belong to another device"
                else
                  (match visibility_result with
@@ -7189,7 +7378,8 @@ module Render_pass_descriptor = struct
         detach_option (fun (buffer : buffer) -> buffer.lifetime) value.pass_visibility;
         detach_option (fun (map:rasterization_rate_map)->map.lifetime) value.pass_rate_map;
         detach_option (fun (texture:texture)->texture.lifetime) value.pass_resolve;
-        Array.iter(Option.iter(fun state->detach state.sample_buffer_lifetime))value.pass_samples)
+        Array.iter(Option.iter(fun (state:render_pass_sample_state)->
+          detach state.sample_buffer.lifetime))value.pass_samples)
 end
 
 module Fence = struct
@@ -16966,6 +17156,12 @@ module Indirect_command_buffer = struct
       error operation Invalid_argument "range exceeds the indirect command buffer"
     else Ok ()
 
+  let validate_nonempty_range operation (value:t) ~location ~length =
+    if length=0 then
+      error operation Invalid_argument
+        "indirect command range must be nonempty"
+    else validate_range operation value ~location ~length
+
   let reset (value : t) ~location ~length =
     let operation = "Metal.Indirect_command_buffer.reset" in
     on_main operation (fun () ->
@@ -17107,33 +17303,219 @@ module Indirect_command_buffer = struct
 end
 
 module Retained_render_plan = struct
-  type entry={key:string;generation:int64;commands:int;buffer:Indirect_command_buffer.t}
-  type t={device:Device.t;capacity:int;enabled:bool;on_evict:key:string->generation:int64->Indirect_command_buffer.t->unit;entries:(string,entry)Hashtbl.t;mutable order:string list;mutable dead:bool}
-  let create ~(device:Device.t) ?(capacity=64) ?(enabled=true) ?(on_evict=(fun~key:_~generation:_ buffer->ignore(Indirect_command_buffer.destroy buffer))) ()=
+  type entry=
+    { key:string
+    ; generation:int64
+    ; commands:int
+    ; bytes:int64
+    ; buffer:Indirect_command_buffer.t }
+  type stats=
+    { entries:int
+    ; retained_bytes:int64
+    ; entry_capacity:int
+    ; byte_capacity:int64 }
+  type t=
+    { device:Device.t
+    ; entry_capacity:int
+    ; byte_capacity:int64
+    ; enabled:bool
+    ; on_evict:
+        key:string->generation:int64->Indirect_command_buffer.t->unit
+    ; entries:(string,entry)Hashtbl.t
+    ; mutable order:string list
+    ; mutable retained_bytes:int64
+    ; mutable dead:bool }
+  type candidate_state=Prepared_candidate|Admitted_candidate|Discarded_candidate
+  type candidate=
+    { candidate_cache:t
+    ; candidate_entry:entry
+    ; mutable candidate_state:candidate_state }
+  type prepared=Hit of Indirect_command_buffer.t|Candidate of candidate
+
+  let default_byte_capacity=Int64.mul 64L 1_048_576L
+
+  let create ~(device:Device.t) ?(capacity=64)
+      ?(byte_capacity=default_byte_capacity) ?(enabled=true)
+      ?(on_evict=(fun~key:_~generation:_ buffer->
+        ignore(Indirect_command_buffer.destroy buffer))) () =
     let operation="Metal.Retained_render_plan.create"in
-    on_main operation(fun()->match ensure_live operation device.lifetime with Error _ as e->e|Ok()when capacity<=0||capacity>1024->error operation Invalid_argument"capacity must be in [1,1024]"|Ok()->Ok{device;capacity;enabled;on_evict;entries=Hashtbl.create capacity;order=[];dead=false})
+    on_main operation(fun()->
+      match ensure_live operation device.lifetime with
+      |Error _ as failure->failure
+      |Ok()when capacity<=0||capacity>1024->
+          error operation Invalid_argument"capacity must be in [1,1024]"
+      |Ok()when byte_capacity<=0L->
+          error operation Invalid_argument"byte capacity must be positive"
+      |Ok()->Ok{device;entry_capacity=capacity;byte_capacity;enabled;on_evict;
+        entries=Hashtbl.create capacity;order=[];retained_bytes=0L;dead=false})
+
   let length value=Hashtbl.length value.entries
-  let remove value key=match Hashtbl.find_opt value.entries key with None->()|Some entry->Hashtbl.remove value.entries key;value.order<-List.filter((<>)key)value.order;value.on_evict~key:entry.key~generation:entry.generation entry.buffer
-  let find_or_create value ~key ~generation ~command_count ~descriptor ~build=
-    let operation="Metal.Retained_render_plan.find_or_create"in
-    match before_main operation with Error _ as error->error|Ok()->
-    if value.dead then error operation Destroyed"retained plan cache is destroyed"
+
+  let stats value=
+    { entries=Hashtbl.length value.entries
+    ; retained_bytes=value.retained_bytes
+    ; entry_capacity=value.entry_capacity
+    ; byte_capacity=value.byte_capacity }
+
+  let remove value key =
+    match Hashtbl.find_opt value.entries key with
+    |None->()
+    |Some entry->
+        Hashtbl.remove value.entries key;
+        value.order<-List.filter((<>)key)value.order;
+        value.retained_bytes<-Int64.sub value.retained_bytes entry.bytes;
+        value.on_evict~key:entry.key~generation:entry.generation entry.buffer
+
+  let cleanup_candidate buffer=ignore(Indirect_command_buffer.destroy buffer)
+
+  let admission_evictions operation value stale candidate_bytes =
+    let stale_key=Option.map(fun entry->entry.key)stale in
+    let entry_count=Hashtbl.length value.entries-(if Option.is_some stale then 1 else 0)
+    and retained_bytes=Int64.sub value.retained_bytes
+        (match stale with None->0L|Some entry->entry.bytes)in
+    let rec select entry_count retained_bytes reversed = function
+      |_ when entry_count<value.entry_capacity&&
+          candidate_bytes<=Int64.sub value.byte_capacity retained_bytes->
+          Ok(List.rev reversed)
+      |[]->error operation Invalid_state
+          "retained plan accounting cannot satisfy configured capacities"
+      |key::rest when Some key=stale_key->
+          select entry_count retained_bytes reversed rest
+      |key::rest->
+          match Hashtbl.find_opt value.entries key with
+          |None->error operation Invalid_state
+              "retained plan order differs from its entries"
+          |Some entry->select(entry_count-1)
+              (Int64.sub retained_bytes entry.bytes)(key::reversed)rest
+    in
+    select entry_count retained_bytes[]value.order
+
+  let prepare_with_operation operation value ~key ~generation ~command_count
+      ~descriptor ~build =
+    match before_main operation with Error _ as failure->failure|Ok()->
+    if value.dead then
+      error operation Destroyed"retained plan cache is destroyed"
     else match ensure_live operation value.device.lifetime with
-    |Error _ as error->error
+    |Error _ as failure->failure
     |Ok()when not value.enabled->
         error operation Unsupported"indirect command plans are unavailable"
     |Ok()when key=""||generation<0L||command_count<=0||command_count>65_536->
         error operation Invalid_argument"plan identity/generation/count is invalid"
     |Ok()->match Hashtbl.find_opt value.entries key with
       |Some entry when entry.generation=generation&&entry.commands=command_count->
-          Ok(entry.buffer,true)
-      |stale->Option.iter(fun _->remove value key)stale;
-        match Indirect_command_buffer.create~device:value.device~storage:Buffer.Shared~max_command_count:command_count descriptor with Error _ as e->e|Ok buffer->
-        (match build buffer with Error _ as e->ignore(Indirect_command_buffer.destroy buffer);e|Ok()->
-          if Hashtbl.length value.entries>=value.capacity then(match value.order with oldest::_->remove value oldest|[]->());
-          Hashtbl.add value.entries key{key;generation;commands=command_count;buffer};value.order<-value.order@[key];Ok(buffer,false))
-  let invalidate value key=if value.dead then error"Metal.Retained_render_plan.invalidate"Destroyed"retained plan cache is destroyed"else(remove value key;Ok())
-  let destroy value=if value.dead then Ok()else(let entries=Hashtbl.to_seq_values value.entries|>List.of_seq in Hashtbl.clear value.entries;value.order<-[];value.dead<-true;List.iter(fun entry->value.on_evict~key:entry.key~generation:entry.generation entry.buffer)entries;Ok())
+          Ok(Hit entry.buffer)
+      |Some _|None->
+          match Indirect_command_buffer.create~device:value.device
+              ~storage:Buffer.Private~max_command_count:command_count descriptor with
+          |Error _ as failure->failure
+          |Ok buffer->
+              let bytes=Indirect_command_buffer.allocated_size buffer in
+              if bytes<0L then begin
+                cleanup_candidate buffer;
+                error operation Native_error
+                  "indirect command buffer reported a negative allocated size"
+              end else if bytes>value.byte_capacity then begin
+                cleanup_candidate buffer;
+                error operation Invalid_argument
+                  "indirect command buffer exceeds the retained byte capacity"
+              end else
+                let built=
+                  try build buffer with raised->
+                    cleanup_candidate buffer;raise raised
+                in
+                match built with
+                |Error _ as failure->cleanup_candidate buffer;failure
+                |Ok()->
+                    let candidate_entry=
+                      {key;generation;commands=command_count;bytes;buffer}in
+                    Ok(Candidate{candidate_cache=value;candidate_entry;
+                      candidate_state=Prepared_candidate})
+
+  let prepare value ~key ~generation ~command_count ~descriptor ~build =
+    prepare_with_operation"Metal.Retained_render_plan.prepare"value~key
+      ~generation~command_count~descriptor~build
+
+  let candidate_buffer candidate=candidate.candidate_entry.buffer
+
+  let admit_with_operation operation value candidate =
+    match before_main operation with Error _ as failure->failure|Ok()->
+    if value.dead then
+      error operation Destroyed"retained plan cache is destroyed"
+    else if candidate.candidate_cache!=value then
+      error operation Invalid_argument"candidate belongs to another cache"
+    else match candidate.candidate_state with
+    |Admitted_candidate|Discarded_candidate->
+        error operation Invalid_state"candidate was already consumed"
+    |Prepared_candidate->
+        let entry=candidate.candidate_entry in
+        match ensure_live operation value.device.lifetime with
+        |Error _ as failure->failure
+        |Ok()->match ensure_live operation entry.buffer.lifetime with
+          |Error _ as failure->failure
+          |Ok()->match Hashtbl.find_opt value.entries entry.key with
+            |Some existing when existing.generation=entry.generation&&
+                existing.commands=entry.commands->
+                error operation Invalid_state
+                  "an exact plan was admitted after candidate preparation"
+            |stale->match admission_evictions operation value stale entry.bytes with
+              |Error _ as failure->failure
+              |Ok evictions->
+                  Option.iter(fun old->remove value old.key)stale;
+                  List.iter(remove value)evictions;
+                  Hashtbl.add value.entries entry.key entry;
+                  value.order<-value.order@[entry.key];
+                  value.retained_bytes<-Int64.add value.retained_bytes entry.bytes;
+                  candidate.candidate_state<-Admitted_candidate;
+                  Ok()
+
+  let admit value candidate=
+    admit_with_operation"Metal.Retained_render_plan.admit"value candidate
+
+  let discard candidate =
+    let operation="Metal.Retained_render_plan.discard"in
+    match before_main operation with Error _ as failure->failure|Ok()->
+    match candidate.candidate_state with
+    |Admitted_candidate|Discarded_candidate->
+        error operation Invalid_state"candidate was already consumed"
+    |Prepared_candidate->
+        match Indirect_command_buffer.destroy candidate.candidate_entry.buffer with
+        |Error _ as failure->failure
+        |Ok()->candidate.candidate_state<-Discarded_candidate;Ok()
+
+  let find_or_create value ~key ~generation ~command_count ~descriptor ~build =
+    let operation="Metal.Retained_render_plan.find_or_create"in
+    match prepare_with_operation operation value~key~generation~command_count
+        ~descriptor~build with
+    |Error _ as failure->failure
+    |Ok(Hit buffer)->Ok(buffer,true)
+    |Ok(Candidate candidate)->
+        let buffer=candidate_buffer candidate in
+        match admit_with_operation operation value candidate with
+        |Ok()->Ok(buffer,false)
+        |Error _ as failure->ignore(discard candidate);failure
+
+  let invalidate value key =
+    let operation="Metal.Retained_render_plan.invalidate"in
+    match before_main operation with Error _ as failure->failure|Ok()->
+    if value.dead then
+      error operation Destroyed"retained plan cache is destroyed"
+    else(remove value key;Ok())
+
+  let destroy value =
+    let operation="Metal.Retained_render_plan.destroy"in
+    match before_main operation with Error _ as failure->failure|Ok()->
+    if value.dead then Ok()
+    else begin
+      let entries=List.filter_map
+        (Hashtbl.find_opt value.entries)value.order in
+      Hashtbl.clear value.entries;
+      value.order<-[];
+      value.retained_bytes<-0L;
+      value.dead<-true;
+      List.iter(fun entry->value.on_evict~key:entry.key
+        ~generation:entry.generation entry.buffer)entries;
+      Ok()
+    end
 end
 
 module Function_log = struct
@@ -17441,13 +17823,21 @@ module Command_buffer = struct
     tokens := [];
     List.iter Metal_raw.command_buffer_cancel_handler retained
 
-  let wrap_queue_raw (queue:Command_queue.t) raw =
+  let wrap_queue_raw (queue:Command_queue.t) ~retained_references raw =
     let prepared_resource={prepared_active=false;prepared_lifetime=queue.lifetime}in
-    let value:t={raw;lifetime=lifetime();queue;phase=Recording;resources=ref[];prepared_resource=Some prepared_resource;scoped_prepared_active=false;scoped_prepared_lifetime=queue.lifetime;callback_tokens=ref[];presentation_events=ref[];debug_depth=0;explicitly_enqueued=false}in
-    attach queue.lifetime;let resources=value.resources and callback_tokens=value.callback_tokens and presentation_events=value.presentation_events in attach_lifetime_finalizer~on_finalize:(fun()->release_finalized_command_buffer_resources resources prepared_resource;release_callback_tokens callback_tokens;List.iter detach !presentation_events;presentation_events:=[])value.lifetime queue.lifetime;value
+    let prepared_command_slot=
+      {prepared_command_active=false;
+       prepared_command=empty_prepared_command_resources}in
+    let value:t={raw;lifetime=lifetime();queue;retained_references;
+      phase=Recording;resources=ref[];prepared_resource=Some prepared_resource;
+      prepared_command_slot;
+      scoped_prepared_active=false;scoped_prepared_lifetime=queue.lifetime;
+      callback_tokens=ref[];presentation_events=ref[];debug_depth=0;
+      explicitly_enqueued=false}in
+    attach queue.lifetime;let resources=value.resources and callback_tokens=value.callback_tokens and presentation_events=value.presentation_events in attach_lifetime_finalizer~on_finalize:(fun()->release_finalized_command_buffer_resources resources prepared_resource prepared_command_slot;release_callback_tokens callback_tokens;List.iter detach !presentation_events;presentation_events:=[])value.lifetime queue.lifetime;value
 
-  let create_unretained (queue:Command_queue.t)=let operation="Metal.Command_buffer.create_unretained"in on_main operation(fun()->match ensure_live operation queue.lifetime with Error _ as failure->failure|Ok()->match Metal_raw.command_queue_command_buffer queue.raw 0 false 0L None with Error message->native_error operation message|Ok raw->Ok(wrap_queue_raw queue raw))
-  let create_with_descriptor (queue:Command_queue.t)?(retained_references=true)?(error_options=0L)?log_state()=let operation="Metal.Command_buffer.create_with_descriptor"in on_main operation(fun()->match ensure_live operation queue.lifetime with Error _ as failure->failure|Ok()when error_options<0L->error operation Invalid_argument "command-buffer error options are invalid"|Ok()->match log_state with Some(log:command4_log_state)when is_destroyed log.lifetime->error operation Destroyed "log state is destroyed"|Some log when not(same_device queue.device log.device)->error operation Device_mismatch "log state belongs to another device"|_->match Metal_raw.command_queue_command_buffer queue.raw 1 retained_references error_options(Option.map(fun(log:command4_log_state)->log.raw)log_state)with Error message->native_error operation message|Ok raw->let value=wrap_queue_raw queue raw in Option.iter(fun(log:command4_log_state)->attach log.lifetime;value.presentation_events:=log.lifetime::!(value.presentation_events))log_state;Ok value)
+  let create_unretained (queue:Command_queue.t)=let operation="Metal.Command_buffer.create_unretained"in on_main operation(fun()->match ensure_live operation queue.lifetime with Error _ as failure->failure|Ok()->match Metal_raw.command_queue_command_buffer queue.raw 0 false 0L None with Error message->native_error operation message|Ok raw->Ok(wrap_queue_raw queue~retained_references:false raw))
+  let create_with_descriptor (queue:Command_queue.t)?(retained_references=true)?(error_options=0L)?log_state()=let operation="Metal.Command_buffer.create_with_descriptor"in on_main operation(fun()->match ensure_live operation queue.lifetime with Error _ as failure->failure|Ok()when error_options<0L->error operation Invalid_argument "command-buffer error options are invalid"|Ok()->match log_state with Some(log:command4_log_state)when is_destroyed log.lifetime->error operation Destroyed "log state is destroyed"|Some log when not(same_device queue.device log.device)->error operation Device_mismatch "log state belongs to another device"|_->match Metal_raw.command_queue_command_buffer queue.raw 1 retained_references error_options(Option.map(fun(log:command4_log_state)->log.raw)log_state)with Error message->native_error operation message|Ok raw->let value=wrap_queue_raw queue~retained_references raw in Option.iter(fun(log:command4_log_state)->attach log.lifetime;value.presentation_events:=log.lifetime::!(value.presentation_events))log_state;Ok value)
 
   let create_owned ~finalize (queue : Command_queue.t) ?label () =
     match before_main "Metal.Command_buffer.create" with
@@ -17470,13 +17860,18 @@ module Command_buffer = struct
                        { prepared_active = false
                        ; prepared_lifetime = queue.lifetime }
                      else None in
+                   let prepared_command_slot=
+                     { prepared_command_active=false
+                     ; prepared_command=empty_prepared_command_resources }in
                    let value : t =
                      { raw
                      ; lifetime = lifetime ()
                      ; queue
+                     ; retained_references = true
                      ; phase = Recording
                      ; resources = ref []
                      ; prepared_resource
+                     ; prepared_command_slot
                      ; scoped_prepared_active = false
                      ; scoped_prepared_lifetime = queue.lifetime
                      ; callback_tokens = ref []
@@ -17493,7 +17888,9 @@ module Command_buffer = struct
                      attach_lifetime_finalizer
                        ~on_finalize:(fun () ->
                          Option.iter
-                           (release_finalized_command_buffer_resources resources)
+                           (fun prepared_resource ->
+                             release_finalized_command_buffer_resources resources
+                               prepared_resource prepared_command_slot)
                            prepared_resource;
                          release_callback_tokens callback_tokens;
                          List.iter detach !presentation_events;
@@ -17532,17 +17929,14 @@ module Command_buffer = struct
         | Ok () when value.phase <> Submitted ->
             error operation Invalid_state
               "command buffer must be committed before releasing references"
+        | Ok () when not value.retained_references ->
+            error operation Invalid_state
+              "native command buffer does not retain referenced resources"
         | Ok () ->
-            (match Metal_raw.presentation_command_snapshot value.raw with
-             | Error message -> native_error operation message
-             | Ok (_, _, _, _, _, _, _, false) ->
-                 error operation Invalid_state
-                   "native command buffer does not retain referenced resources"
-             | Ok (_, _, _, _, _, _, _, true) ->
-                 release_command_buffer_resources value;
-                 List.iter detach !(value.presentation_events);
-                 value.presentation_events := [];
-                 Ok ())
+            release_command_buffer_resources value;
+            List.iter detach !(value.presentation_events);
+            value.presentation_events := [];
+            Ok ()
   end
 
   let device (value : t) = value.queue.device
@@ -17614,7 +18008,8 @@ module Command_buffer = struct
         | Command_buffer_render_pipeline _ | Command_buffer_indirect _
         | Command_buffer_fence _ | Command_buffer_heap _
         | Command_buffer_drawable _ | Command_buffer_depth_stencil _
-        | Command_buffer_visible_table _ | Command_buffer_intersection_table _ -> false)
+        | Command_buffer_visible_table _ | Command_buffer_intersection_table _
+        | Command_buffer_prepared_command _ -> false)
       !(value.resources)
 
   let use operation ~bulk (value : t) residency_sets =
@@ -18061,21 +18456,45 @@ module Render_encoder = struct
   type stage = Vertex | Fragment | Tile | Object | Mesh
   type barrier_scope = Buffers | Textures | Render_targets
   type resource_usage = Read | Write | Sample
-  type resource = Buffer_resource of Buffer.t | Texture_resource of Texture.t
-  type prepared_resources=
-    { device:device
-    ; lifetime:lifetime
-    ; resources:resource array
-    ; raws:Metal_raw.handle array
-    ; mutable dead:bool }
+  type resource =
+    | Buffer_resource of Buffer.t
+    | Texture_resource of Texture.t
   type primitive = Point | Line | Line_strip | Triangle | Triangle_strip
   type index_type = Uint16 | Uint32
-
+  type prepared_resources=render_encoder_prepared_resources
+  type prepared_resource_use=
+    { resources:prepared_resources
+    ; usage:resource_usage list
+    ; stages:stage list }
   type viewport =
     { x : float; y : float; width : float; height : float
     ; znear : float; zfar : float }
 
   type scissor = { x : int; y : int; width : int; height : int }
+
+  let bits code values=List.fold_left(fun mask value->mask lor code value)0 values
+  let stage_code=function Vertex->1|Fragment->2|Tile->4|Object->8|Mesh->16
+  let scope_code=function Buffers->1|Textures->2|Render_targets->4
+  let usage_code=function Read->1|Write->2|Sample->4
+
+  let validate_prepared_resource_use operation device
+      (resource_use:prepared_resource_use) =
+    let prepared=resource_use.resources in
+    if prepared.dead then
+      error operation Destroyed"prepared resource set is destroyed"
+    else if resource_use.usage=[]||resource_use.stages=[] then
+      error operation Invalid_argument
+        "prepared resource usage and stages must be nonempty"
+    else match ensure_live operation prepared.lifetime with
+      |Error _ as failure->failure
+      |Ok()->ensure_same_device operation device prepared.device
+
+  let rec validate_prepared_resource_uses operation device resource_uses index =
+    if index=Array.length resource_uses then Ok()
+    else match validate_prepared_resource_use operation device
+        (Array.unsafe_get resource_uses index)with
+      |Error _ as failure->failure
+      |Ok()->validate_prepared_resource_uses operation device resource_uses(index+1)
 
   let depth_attachment_formats =
     [Texture.Depth16_unorm;Texture.Depth32_float;
@@ -18207,12 +18626,13 @@ module Render_encoder = struct
                                pass.pass_visibility;
                              Option.iter (retain_command_buffer_texture command_buffer)
                                pass.pass_resolve;
-                             Array.iter (Option.iter (fun state ->
-                               if not (List.exists ((==) state.sample_buffer_lifetime)
+                             Array.iter (Option.iter (fun
+                                 (state:render_pass_sample_state) ->
+                               if not (List.exists ((==) state.sample_buffer.lifetime)
                                          !(command_buffer.presentation_events)) then begin
-                                 attach state.sample_buffer_lifetime;
+                                 attach state.sample_buffer.lifetime;
                                  command_buffer.presentation_events :=
-                                   state.sample_buffer_lifetime ::
+                                   state.sample_buffer.lifetime ::
                                    !(command_buffer.presentation_events)
                                end)) pass.pass_samples;
                              if finalize then
@@ -18224,38 +18644,763 @@ module Render_encoder = struct
     create_from_pass_owned ~finalize:true command_buffer pass
 
   module Private = struct
+    type prepared_indexed_binding=
+      { prepared_stage:stage
+      ; prepared_index:int
+      ; prepared_offset:int64
+      ; prepared_buffer:Buffer.t }
+    type prepared_indexed_draw=
+      { prepared_pipeline:Render_pipeline.t
+      ; prepared_bindings:prepared_indexed_binding array
+      ; prepared_primitive:primitive
+      ; prepared_index_type:index_type
+      ; prepared_index_buffer:Buffer.t
+      ; prepared_index_offset:int64
+      ; prepared_index_count:int64 }
+    type prepared_indexed_draws=
+      { prepared_device:device
+      ; prepared_draws:prepared_indexed_draw array
+      ; prepared_pipeline_raws:Metal_raw.handle array
+      ; prepared_buffer_raws:Metal_raw.handle array array
+      ; prepared_stages:int array array
+      ; prepared_offsets:int64 array array
+      ; prepared_slots:int array array
+      ; prepared_primitives:int array
+      ; prepared_counts:int64 array
+      ; prepared_index_types:int array
+      ; prepared_index_raws:Metal_raw.handle array
+      ; prepared_index_offsets:int64 array
+      ; prepared_command_resources:prepared_command_resources }
+    type prepared_render_pass_header=
+      { prepared_pass_device:device
+      ; prepared_pass:render_pass_descriptor
+      ; prepared_pass_color:texture
+      ; prepared_pass_depth:texture option
+      ; prepared_pass_stencil:texture option
+      ; prepared_pass_resolve:texture option
+      ; prepared_pass_visibility:buffer option
+      ; prepared_pass_rate_map:rasterization_rate_map option
+      ; prepared_pass_samples:render_pass_sample_state option array
+      ; prepared_pass_depth_stencil:depth_stencil option
+      ; prepared_pass_state:
+          int * Metal_raw.handle option * (int32 * int32) option *
+          (float * float * float * float * float * float) *
+          (int * int * int * int)
+      ; prepared_pass_command_resources:prepared_command_resources }
+    type prepared_indexed_render_pass=
+      { prepared_pass_header:prepared_render_pass_header
+      ; prepared_pass_draws:prepared_indexed_draws }
+    type prepared_indirect_render_pass=
+      { prepared_indirect_header:prepared_render_pass_header
+      ; prepared_indirect_pipeline:render_pipeline
+      ; prepared_indirect_commands:indirect_command_buffer
+      ; prepared_indirect_location:int
+      ; prepared_indirect_length:int
+      ; prepared_indirect_resource_uses:prepared_resource_use array
+      ; prepared_indirect_resource_raws:Metal_raw.handle array array
+      ; prepared_indirect_usage_bits:int array
+      ; prepared_indirect_stage_bits:int array }
+
+    let distinct_roots lifetime_of values =
+      let length=Array.length values in
+      if length=0 then[||]
+      else
+        let seen=Hashtbl.create length
+        and roots=Array.make length(Array.unsafe_get values 0)
+        and root_count=ref 0 in
+        Array.iter(fun value->
+          let identity=(lifetime_of value).identity in
+          if not(Hashtbl.mem seen identity)then begin
+            Hashtbl.add seen identity();
+            Array.unsafe_set roots !root_count value;
+            incr root_count
+          end)values;
+        Array.sub roots 0 !root_count
+
     let create_scoped command_buffer ~target ?clear ?depth ?stencil () =
       create_owned ~finalize:false command_buffer ~target ?clear ?depth ?stencil ()
     let create_from_pass_scoped command_buffer pass =
       create_from_pass_owned ~finalize:false command_buffer pass
 
-    let use_retained_argument_resources (value:t) ~vertex ~fragment ~textures=
-      let operation="Metal.Render_encoder.Private.use_retained_argument_resources"in
-      match before_main operation with Error _ as e->e|Ok()->
-      match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
-        if vertex.dead||fragment.dead||textures.dead then
-          error operation Destroyed "prepared resource set is destroyed"
+    let prepare_indexed_draws (device:Device.t)
+        (draws:prepared_indexed_draw array)=
+      let operation="Metal.Render_encoder.Private.prepare_indexed_draws"in
+      match before_main operation with Error _ as failure->failure|Ok()->
+      match ensure_live operation device.lifetime with
+      |Error _ as failure->failure
+      |Ok()when Array.length draws=0->
+          error operation Invalid_argument"indexed draw array is empty"
+      |Ok()->
+          let draws=Array.map(fun draw->{draw with
+            prepared_bindings=Array.copy draw.prepared_bindings})draws in
+          let duplicate_binding bindings index =
+            let candidate = Array.unsafe_get bindings index in
+            let rec scan other =
+              if other = index then false
+              else
+                let binding = Array.unsafe_get bindings other in
+                (binding.prepared_stage = candidate.prepared_stage &&
+                 binding.prepared_index = candidate.prepared_index) ||
+                scan (other + 1)
+            in
+            scan 0
+          in
+          let validate_binding bindings index =
+            let binding : prepared_indexed_binding =
+              Array.unsafe_get bindings index
+            in
+            if binding.prepared_stage<>Vertex&&binding.prepared_stage<>Fragment
+            then error operation Invalid_argument
+                "indexed draw binding must target vertex or fragment"
+            else if binding.prepared_index<0||binding.prepared_index>=31 then
+              error operation Invalid_argument"buffer index must be in [0, 31)"
+            else if duplicate_binding bindings index
+            then error operation Invalid_argument"buffer binding is duplicated"
+            else match ensure_buffer_usable operation binding.prepared_buffer with
+              |Error _ as failure->failure
+              |Ok()when binding.prepared_offset<0L||
+                  binding.prepared_offset>binding.prepared_buffer.length->
+                  error operation Invalid_argument
+                    "buffer offset is outside the resource"
+              |Ok()->ensure_same_device operation device
+                  binding.prepared_buffer.device in
+          let validate_draw draw=
+            match ensure_live operation draw.prepared_pipeline.lifetime with
+            |Error _ as failure->failure
+            |Ok()when draw.prepared_pipeline.kind<>Render->
+                error operation Invalid_argument"pipeline is not renderable"
+            |Ok()->match ensure_same_device operation device
+                draw.prepared_pipeline.device with
+              |Error _ as failure->failure
+              |Ok()->
+                  let rec bindings index=
+                    if index=Array.length draw.prepared_bindings then Ok()
+                    else match validate_binding draw.prepared_bindings index with
+                      |Error _ as failure->failure|Ok()->bindings(index+1)in
+                  match bindings 0 with Error _ as failure->failure|Ok()->
+                  match ensure_buffer_usable operation
+                      draw.prepared_index_buffer with
+                  |Error _ as failure->failure
+                  |Ok()->match ensure_same_device operation device
+                      draw.prepared_index_buffer.device with
+                    |Error _ as failure->failure
+                    |Ok()->
+                        let width=match draw.prepared_index_type with
+                          |Uint16->2L|Uint32->4L in
+                        if draw.prepared_index_count<=0L||
+                           draw.prepared_index_offset<0L||
+                           Int64.rem draw.prepared_index_offset width<>0L||
+                           width>Int64.div Int64.max_int
+                             draw.prepared_index_count then
+                          error operation Invalid_argument
+                            "indexed draw range is invalid"
+                        else
+                          let required=Int64.mul width
+                              draw.prepared_index_count in
+                          if draw.prepared_index_offset>
+                               draw.prepared_index_buffer.length||
+                             required>Int64.sub
+                               draw.prepared_index_buffer.length
+                               draw.prepared_index_offset then
+                            error operation Invalid_argument
+                              "indexed draw exceeds the index buffer"
+                          else Ok()in
+          let rec validate index=
+            if index=Array.length draws then Ok()
+            else match validate_draw draws.(index)with
+              |Error _ as failure->failure|Ok()->validate(index+1)in
+          match validate 0 with Error _ as failure->failure|Ok()->
+          let rec count_resources draw_index count =
+            if draw_index = Array.length draws then Ok count
+            else
+              let draw = Array.unsafe_get draws draw_index in
+              let additional = Array.length draw.prepared_bindings + 2 in
+              if count > Sys.max_array_length - additional then
+                error operation Invalid_argument
+                  "indexed draw resources exceed the supported array size"
+              else count_resources (draw_index + 1) (count + additional)
+          in
+          match count_resources 0 0 with
+          | Error _ as failure -> failure
+          | Ok resource_count ->
+          let prepared_buffer_raws=Array.map(fun draw->Array.map
+            (fun binding->binding.prepared_buffer.raw)draw.prepared_bindings)draws
+          and prepared_stages=Array.map(fun draw->Array.map
+            (fun binding->if binding.prepared_stage=Vertex then 0 else 1)
+            draw.prepared_bindings)draws
+          and prepared_offsets=Array.map(fun draw->Array.map
+            (fun binding->binding.prepared_offset)draw.prepared_bindings)draws
+          and prepared_slots=Array.map(fun draw->Array.map
+            (fun binding->binding.prepared_index)draw.prepared_bindings)draws in
+          let prepared_pipeline_roots = distinct_roots
+              (fun (pipeline:render_pipeline)->pipeline.lifetime)
+              (Array.map(fun draw->draw.prepared_pipeline)draws)
+          and all_buffer_roots =
+            Array.make (resource_count - Array.length draws)
+              draws.(0).prepared_index_buffer
+          in
+          let buffer_index = ref 0 in
+          let add_buffer_root buffer =
+            Array.unsafe_set all_buffer_roots !buffer_index buffer;
+            incr buffer_index
+          in
+          for draw_index = 0 to Array.length draws - 1 do
+            let draw = Array.unsafe_get draws draw_index in
+            for binding_index = 0 to Array.length draw.prepared_bindings - 1 do
+              let buffer =
+                (Array.unsafe_get draw.prepared_bindings binding_index).
+                  prepared_buffer
+              in
+              add_buffer_root buffer;
+            done;
+            let index_buffer = draw.prepared_index_buffer in
+            add_buffer_root index_buffer
+          done;
+          let prepared_buffer_roots=distinct_roots
+              (fun (buffer:buffer)->buffer.lifetime)all_buffer_roots in
+          let prepared_command_resources =
+            { prepared_pipeline_roots; prepared_buffer_roots
+            ; prepared_texture_roots=[||]
+            ; prepared_depth_stencil_roots=[||]
+            ; prepared_rate_map_roots=[||]
+            ; prepared_sample_roots=[||]
+            ; prepared_indirect_roots=[||]
+            ; prepared_resource_roots=[||] }
+          in
+          Ok{prepared_device=device;prepared_draws=draws;
+            prepared_pipeline_raws=Array.map
+              (fun draw->draw.prepared_pipeline.raw)draws;
+            prepared_buffer_raws;prepared_stages;prepared_offsets;prepared_slots;
+            prepared_primitives=Array.map(fun draw->match
+              draw.prepared_primitive with Point->0|Line->1|Line_strip->2
+              |Triangle->3|Triangle_strip->4)draws;
+            prepared_counts=Array.map(fun draw->draw.prepared_index_count)draws;
+            prepared_index_types=Array.map(fun draw->match
+              draw.prepared_index_type with Uint16->0|Uint32->1)draws;
+            prepared_index_raws=Array.map
+              (fun draw->draw.prepared_index_buffer.raw)draws;
+            prepared_index_offsets=Array.map
+              (fun draw->draw.prepared_index_offset)draws;
+            prepared_command_resources}
+
+    let prepared_indexed_root_counts prepared =
+      let resources=prepared.prepared_command_resources in
+      Array.length resources.prepared_pipeline_roots,
+      Array.length resources.prepared_buffer_roots
+
+    let rec validate_prepared_bindings operation bindings index=
+      if index=Array.length bindings then Ok()
+      else match ensure_buffer_usable operation
+          bindings.(index).prepared_buffer with
+        |Error _ as failure->failure
+        |Ok()->validate_prepared_bindings operation bindings(index+1)
+
+    let rec validate_prepared_execution operation (target:texture) draws index=
+      if index=Array.length draws then Ok()
+      else let draw=draws.(index)in
+        match ensure_live operation draw.prepared_pipeline.lifetime with
+        |Error _ as failure->failure
+        |Ok()when draw.prepared_pipeline.raster_sample_count<>
+            target.descriptor.sample_count||
+            draw.prepared_pipeline.color_formats=[]||
+            List.hd draw.prepared_pipeline.color_formats<>
+              target.descriptor.format->
+            error operation Invalid_argument
+              "pipeline differs from the render target"
+        |Ok()->match ensure_buffer_usable operation draw.prepared_index_buffer with
+          |Error _ as failure->failure
+          |Ok()->match validate_prepared_bindings operation
+              draw.prepared_bindings 0 with
+            |Error _ as failure->failure
+            |Ok()->validate_prepared_execution operation target draws(index+1)
+
+    let same_optional_lifetime get left right =
+      match left,right with
+      |None,None->true
+      |Some left,Some right->get left==get right
+      |None,Some _|Some _,None->false
+
+    let same_sample_graph (left:render_pass_sample_state option array)
+        (right:render_pass_sample_state option array) =
+      let length=Array.length left in
+      if length<>Array.length right then false
+      else
+        let rec loop index=
+          if index=length then true
+          else
+            match Array.unsafe_get left index,Array.unsafe_get right index with
+            |None,None->loop(index+1)
+            |Some left,Some right when
+                left.sample_buffer.lifetime==right.sample_buffer.lifetime->
+                loop(index+1)
+            |None,Some _|Some _,None|Some _,Some _->false
+        in
+        loop 0
+
+    let prepared_pass_graph_matches (prepared:prepared_render_pass_header) =
+      same_optional_lifetime (fun(texture:texture)->texture.lifetime)
+        (Some prepared.prepared_pass_color) prepared.prepared_pass.pass_color&&
+      same_optional_lifetime (fun(texture:texture)->texture.lifetime)
+        prepared.prepared_pass_depth prepared.prepared_pass.pass_depth&&
+      same_optional_lifetime (fun(texture:texture)->texture.lifetime)
+        prepared.prepared_pass_stencil prepared.prepared_pass.pass_stencil&&
+      same_optional_lifetime (fun(texture:texture)->texture.lifetime)
+        prepared.prepared_pass_resolve prepared.prepared_pass.pass_resolve&&
+      same_optional_lifetime (fun(buffer:buffer)->buffer.lifetime)
+        prepared.prepared_pass_visibility prepared.prepared_pass.pass_visibility&&
+      same_optional_lifetime
+        (fun(map:rasterization_rate_map)->map.lifetime)
+        prepared.prepared_pass_rate_map prepared.prepared_pass.pass_rate_map&&
+      same_sample_graph prepared.prepared_pass_samples
+        prepared.prepared_pass.pass_samples
+
+    let validate_optional_texture operation device = function
+      |None->Ok()
+      |Some(texture:texture)->
+          match ensure_texture_usable operation texture with
+          |Error _ as failure->failure
+          |Ok()->ensure_same_device operation device texture.device
+
+    let validate_optional_buffer operation device = function
+      |None->Ok()
+      |Some(buffer:buffer)->
+          match ensure_buffer_usable operation buffer with
+          |Error _ as failure->failure
+          |Ok()->ensure_same_device operation device buffer.device
+
+    let validate_pass_samples operation device
+        (samples:render_pass_sample_state option array) =
+      let rec loop index=
+        if index=Array.length samples then Ok()
         else
-          let device=value.command_buffer.queue.device in
-          match ensure_same_device operation device vertex.device with
-          |Error _ as e->e|Ok()->
-          match ensure_same_device operation device fragment.device with
-          |Error _ as e->e|Ok()->
-          match ensure_same_device operation device textures.device with
-          |Error _ as e->e|Ok()->
-          match Metal_raw.render_encoder_use_resources value.raw vertex.raws 1 1
-          with Error message->native_error operation message|Ok()->
-          match Metal_raw.render_encoder_use_resources value.raw fragment.raws 1 2
-          with Error message->native_error operation message|Ok()->
-          match Metal_raw.render_encoder_use_resources value.raw textures.raws 4 2
-          with Error message->native_error operation message|Ok()->
-          retain_command_buffer_prepared_resources value.command_buffer
-            vertex.lifetime;
-          retain_command_buffer_prepared_resources value.command_buffer
-            fragment.lifetime;
-          retain_command_buffer_prepared_resources value.command_buffer
-            textures.lifetime;
-          Ok()
+          match Array.unsafe_get samples index with
+          |None->loop(index+1)
+          |Some state->
+              match ensure_live operation state.sample_buffer.lifetime with
+              |Error _ as failure->failure
+              |Ok()->match ensure_same_device operation device
+                  state.sample_buffer.device with
+                |Error _ as failure->failure|Ok()->loop(index+1)
+      in
+      loop 0
+
+    let validate_pass_resources operation device pass color =
+      match ensure_texture_usable operation color with
+      |Error _ as failure->failure
+      |Ok()->match ensure_same_device operation device color.device with
+        |Error _ as failure->failure
+        |Ok()when color.descriptor.width<>pass.pass_width||
+            color.descriptor.height<>pass.pass_height||
+            color.descriptor.sample_count<>pass.pass_sample_count->
+            error operation Invalid_state
+              "render pass target metadata changed after preparation"
+        |Ok()->match validate_optional_texture operation device pass.pass_depth with
+          |Error _ as failure->failure
+          |Ok()->match validate_optional_texture operation device
+              pass.pass_stencil with
+            |Error _ as failure->failure
+            |Ok()->match validate_optional_texture operation device
+                pass.pass_resolve with
+              |Error _ as failure->failure
+              |Ok()->match validate_optional_buffer operation device
+                  pass.pass_visibility with
+                |Error _ as failure->failure
+                |Ok()->match pass.pass_rate_map with
+                  |Some map->(match ensure_live operation map.lifetime with
+                    |Error _ as failure->failure
+                    |Ok()->match ensure_same_device operation device map.device with
+                      |Error _ as failure->failure
+                      |Ok()->validate_pass_samples operation device
+                          pass.pass_samples)
+                  |None->validate_pass_samples operation device pass.pass_samples
+
+    let validate_render_area operation (target:texture) (viewport:viewport)
+        (scissor:scissor) =
+      if not(Float.is_finite viewport.x&&Float.is_finite viewport.y&&
+        Float.is_finite viewport.width&&Float.is_finite viewport.height&&
+        Float.is_finite viewport.znear&&Float.is_finite viewport.zfar)then
+        error operation Invalid_argument"viewport values must be finite"
+      else if viewport.x<0.||viewport.y<0.||viewport.width<=0.||
+        viewport.height<=0.||
+        viewport.x+.viewport.width>float target.descriptor.width||
+        viewport.y+.viewport.height>float target.descriptor.height||
+        viewport.znear<0.||viewport.znear>1.||viewport.zfar<0.||
+        viewport.zfar>1.||viewport.znear>viewport.zfar then
+        error operation Invalid_argument
+          "viewport is outside the render target or depth range"
+      else if scissor.x<0||scissor.y<0||scissor.width<=0||scissor.height<=0||
+        scissor.x>target.descriptor.width-scissor.width||
+        scissor.y>target.descriptor.height-scissor.height then
+        error operation Invalid_argument
+          "scissor rectangle is outside the render target"
+      else Ok()
+
+    let prepared_pass_texture_roots (color:texture) (depth:texture option)
+        (stencil:texture option) (resolve:texture option) =
+      let roots=Array.make 4 color and length=ref 0 in
+      let add (texture:texture)=
+        let rec present index=
+          index< !length&&
+          ((Array.unsafe_get roots index).lifetime==texture.lifetime||
+           present(index+1))
+        in
+        if not(present 0)then begin
+          Array.unsafe_set roots !length texture;incr length
+        end
+      in
+      add color;Option.iter add depth;Option.iter add stencil;Option.iter add resolve;
+      Array.sub roots 0 !length
+
+    let prepared_pass_buffer_roots (buffers:buffer array)
+        (visibility:buffer option) =
+      let buffers=distinct_roots(fun (buffer:buffer)->buffer.lifetime)buffers in
+      match visibility with
+      |None->buffers
+      |Some buffer->
+          let rec present index=
+            index<Array.length buffers&&
+            ((Array.unsafe_get buffers index).lifetime==buffer.lifetime||
+             present(index+1))
+          in
+          if present 0 then buffers
+          else
+            let roots=Array.make(Array.length buffers+1)buffer in
+            Array.blit buffers 0 roots 0(Array.length buffers);roots
+
+    let prepared_pass_sample_roots
+        (samples:render_pass_sample_state option array) =
+      let roots=ref[]in
+      Array.iter(Option.iter(fun (state:render_pass_sample_state)->
+        if not(List.exists(fun (sample:resource100_sample_buffer)->
+            sample.lifetime==state.sample_buffer.lifetime)
+            !roots)then roots:=state.sample_buffer::!roots))samples;
+      Array.of_list(List.rev!roots)
+
+    let prepared_pass_command_resources ~pipelines ~buffers ~indirect
+        ~prepared_resources (pass:render_pass_descriptor) (color:texture)
+        (depth_stencil:depth_stencil option) =
+      { prepared_pipeline_roots=distinct_roots
+          (fun (pipeline:render_pipeline)->pipeline.lifetime)pipelines
+      ; prepared_buffer_roots=prepared_pass_buffer_roots buffers
+          pass.pass_visibility
+      ; prepared_texture_roots=prepared_pass_texture_roots color
+          pass.pass_depth pass.pass_stencil pass.pass_resolve
+      ; prepared_depth_stencil_roots=(match depth_stencil with
+          |None->[||]|Some state->[|state|])
+      ; prepared_rate_map_roots=(match pass.pass_rate_map with
+          |None->[||]|Some map->[|map|])
+      ; prepared_sample_roots=prepared_pass_sample_roots pass.pass_samples
+      ; prepared_indirect_roots=distinct_roots
+          (fun (commands:indirect_command_buffer)->commands.lifetime)indirect
+      ; prepared_resource_roots=distinct_roots
+          (fun (resources:render_encoder_prepared_resources)->resources.lifetime)
+          prepared_resources }
+
+    let prepare_render_pass_header operation (device:Device.t)
+        (pass:Render_pass_descriptor.t) ~cull
+        ~(depth_stencil:depth_stencil option) ~stencil_references
+        ~(viewport:viewport) ~(scissor:scissor)
+        ~pipelines ~buffers ~indirect
+        ~prepared_resources =
+      match ensure_live operation device.lifetime with
+      |Error _ as failure->failure
+      |Ok()->match ensure_live operation pass.lifetime with
+        |Error _ as failure->failure
+        |Ok()->match pass.pass_color with
+          |None->error operation Invalid_state
+              "render pass has no color attachment"
+          |Some color->match validate_pass_resources operation device pass color with
+            |Error _ as failure->failure
+            |Ok()->match validate_render_area operation color viewport scissor with
+              |Error _ as failure->failure
+              |Ok()->match depth_stencil with
+                |Some state->(match ensure_live operation state.lifetime with
+                  |Error _ as failure->failure
+                  |Ok()->match ensure_same_device operation device state.device with
+                    |Error _ as failure->failure
+                    |Ok()->
+                        let prepared_pass_command_resources=
+                          prepared_pass_command_resources ~pipelines ~buffers
+                            ~indirect ~prepared_resources pass color depth_stencil in
+                        Ok{prepared_pass_device=device;prepared_pass=pass;
+                          prepared_pass_color=color;
+                          prepared_pass_depth=pass.pass_depth;
+                          prepared_pass_stencil=pass.pass_stencil;
+                          prepared_pass_resolve=pass.pass_resolve;
+                          prepared_pass_visibility=pass.pass_visibility;
+                          prepared_pass_rate_map=pass.pass_rate_map;
+                          prepared_pass_samples=Array.copy pass.pass_samples;
+                          prepared_pass_depth_stencil=depth_stencil;
+                          prepared_pass_state=((match cull with No_cull->0
+                            |Cull_front->1|Cull_back->2),Some state.raw,
+                            stencil_references,
+                            (viewport.x,viewport.y,viewport.width,
+                             viewport.height,viewport.znear,viewport.zfar),
+                            (scissor.x,scissor.y,scissor.width,scissor.height));
+                          prepared_pass_command_resources})
+                |None->
+                    let prepared_pass_command_resources=
+                      prepared_pass_command_resources ~pipelines ~buffers
+                        ~indirect ~prepared_resources pass color depth_stencil in
+                    Ok{prepared_pass_device=device;prepared_pass=pass;
+                      prepared_pass_color=color;
+                      prepared_pass_depth=pass.pass_depth;
+                      prepared_pass_stencil=pass.pass_stencil;
+                      prepared_pass_resolve=pass.pass_resolve;
+                      prepared_pass_visibility=pass.pass_visibility;
+                      prepared_pass_rate_map=pass.pass_rate_map;
+                      prepared_pass_samples=Array.copy pass.pass_samples;
+                      prepared_pass_depth_stencil=depth_stencil;
+                      prepared_pass_state=((match cull with No_cull->0
+                        |Cull_front->1|Cull_back->2),None,stencil_references,
+                        (viewport.x,viewport.y,viewport.width,
+                         viewport.height,viewport.znear,viewport.zfar),
+                        (scissor.x,scissor.y,scissor.width,scissor.height));
+                      prepared_pass_command_resources}
+
+    let prepare_indexed_render_pass (device:Device.t)
+        (pass:Render_pass_descriptor.t) ~cull
+        ?(depth_stencil:depth_stencil option)
+        ?stencil_references ~viewport ~scissor prepared_draws =
+      let operation="Metal.Render_encoder.Private.prepare_indexed_render_pass"in
+      match before_main operation with Error _ as failure->failure|Ok()->
+      match ensure_same_device operation device prepared_draws.prepared_device with
+      |Error _ as failure->failure
+      |Ok()->
+          let resources=prepared_draws.prepared_command_resources in
+          match prepare_render_pass_header operation device pass ~cull
+              ~depth_stencil ~stencil_references ~viewport ~scissor
+              ~pipelines:resources.prepared_pipeline_roots
+              ~buffers:resources.prepared_buffer_roots ~indirect:[||]
+              ~prepared_resources:[||] with
+          |Error _ as failure->failure
+          |Ok prepared_pass_header->
+              match validate_prepared_execution operation
+                  prepared_pass_header.prepared_pass_color
+                  prepared_draws.prepared_draws 0 with
+              |Error _ as failure->failure
+              |Ok()->Ok{prepared_pass_header;prepared_pass_draws=prepared_draws}
+
+    let validate_prepared_render_pass_header operation (command:command_buffer)
+        (prepared:prepared_render_pass_header) =
+      match ensure_live operation command.lifetime with
+      |Error _ as failure->failure
+      |Ok()when command.phase<>Recording->
+          error operation Invalid_state"command buffer is no longer recording"
+      |Ok()when dependent_count command.lifetime<>0->
+          error operation Invalid_state"command buffer already has an open encoder"
+      |Ok()->match ensure_live operation prepared.prepared_pass.lifetime with
+        |Error _ as failure->failure
+        |Ok()->match ensure_same_device operation command.queue.device
+            prepared.prepared_pass_device with
+          |Error _ as failure->failure
+          |Ok()when not(prepared_pass_graph_matches prepared)->
+              error operation Invalid_state
+                "render pass attachment graph changed after preparation"
+          |Ok()->match validate_pass_resources operation
+              prepared.prepared_pass_device prepared.prepared_pass
+              prepared.prepared_pass_color with
+            |Error _ as failure->failure
+            |Ok()->match prepared.prepared_pass_depth_stencil with
+              |Some state->(match ensure_live operation state.lifetime with
+                |Error _ as failure->failure
+                |Ok()->match ensure_same_device operation
+                    prepared.prepared_pass_device state.device with
+                  |Error _ as failure->failure|Ok()->Ok())
+              |None->Ok()
+
+    let validate_prepared_render_pipeline operation device (target:texture)
+        (pipeline:render_pipeline) =
+      match ensure_live operation pipeline.lifetime with
+      |Error _ as failure->failure
+      |Ok()when pipeline.kind<>Render->
+          error operation Invalid_argument"pipeline is not renderable"
+      |Ok()->match ensure_same_device operation device pipeline.device with
+        |Error _ as failure->failure
+        |Ok()->match pipeline.color_formats with
+          |format::_ when pipeline.raster_sample_count=
+              target.descriptor.sample_count&&format=target.descriptor.format->Ok()
+          |_->error operation Invalid_argument
+              "pipeline differs from the render target"
+
+    let validate_prepared_indirect_execution operation
+        (prepared:prepared_indirect_render_pass) =
+      let header=prepared.prepared_indirect_header in
+      match validate_prepared_render_pipeline operation
+          header.prepared_pass_device header.prepared_pass_color
+          prepared.prepared_indirect_pipeline with
+      |Error _ as failure->failure
+      |Ok()->match ensure_live operation
+          prepared.prepared_indirect_commands.lifetime with
+        |Error _ as failure->failure
+        |Ok()->match ensure_same_device operation header.prepared_pass_device
+            prepared.prepared_indirect_commands.device with
+          |Error _ as failure->failure
+          |Ok()->match Indirect_command_buffer.validate_nonempty_range operation
+              prepared.prepared_indirect_commands
+              ~location:prepared.prepared_indirect_location
+              ~length:prepared.prepared_indirect_length with
+            |Error _ as failure->failure
+            |Ok()->validate_prepared_resource_uses operation
+                header.prepared_pass_device
+                prepared.prepared_indirect_resource_uses 0
+
+    let prepare_indirect_render_pass (device:Device.t)
+        (pass:Render_pass_descriptor.t) ~cull
+        ?(depth_stencil:depth_stencil option)
+        ?stencil_references ~viewport ~scissor ~(pipeline:Render_pipeline.t)
+        ~(commands:Indirect_command_buffer.t) ~location ~length
+        ~(resource_uses:prepared_resource_use array) () =
+      let operation="Metal.Render_encoder.Private.prepare_indirect_render_pass"in
+      match before_main operation with Error _ as failure->failure|Ok()->
+      let resource_uses=Array.copy resource_uses in
+      match ensure_live operation device.lifetime with
+      |Error _ as failure->failure
+      |Ok()->match ensure_live operation pipeline.lifetime with
+        |Error _ as failure->failure
+        |Ok()when pipeline.kind<>Render->
+            error operation Invalid_argument"pipeline is not renderable"
+        |Ok()->match ensure_same_device operation device pipeline.device with
+          |Error _ as failure->failure
+          |Ok()->match ensure_live operation commands.lifetime with
+            |Error _ as failure->failure
+            |Ok()->match ensure_same_device operation device commands.device with
+              |Error _ as failure->failure
+              |Ok()when not(List.exists(function Indirect_draw|Indirect_draw_indexed->
+                    true|Indirect_concurrent_dispatch|
+                    Indirect_concurrent_dispatch_threads->false)
+                  commands.command_types)->
+                  error operation Invalid_argument
+                    "indirect command buffer has no render commands"
+              |Ok()->match Indirect_command_buffer.validate_nonempty_range operation commands
+                  ~location ~length with
+                |Error _ as failure->failure
+                |Ok()->match validate_prepared_resource_uses operation device
+                    resource_uses 0 with
+                      |Error _ as failure->failure
+                      |Ok()->match Metal_raw.
+                          generated_mtl_render_pipeline_state_support_indirect_command_buffers
+                          pipeline.raw with
+                        |Error message->native_error operation message
+                        |Ok false->error operation Unsupported
+                            "pipeline lacks indirect-command-buffer support"
+                        |Ok true->
+                            match prepare_render_pass_header operation device pass
+                                ~cull ~depth_stencil ~stencil_references ~viewport
+                                ~scissor ~pipelines:[|pipeline|] ~buffers:[||]
+                                ~indirect:[|commands|]
+                                ~prepared_resources:(Array.map(fun resource_use->
+                                  resource_use.resources)resource_uses) with
+                            |Error _ as failure->failure
+                            |Ok prepared_indirect_header->
+                                match validate_prepared_render_pipeline operation
+                                    device
+                                    prepared_indirect_header.prepared_pass_color
+                                    pipeline with
+                                |Error _ as failure->failure
+                                |Ok()->Ok{prepared_indirect_header;
+                                  prepared_indirect_pipeline=pipeline;
+                                  prepared_indirect_commands=commands;
+                                  prepared_indirect_location=location;
+                                  prepared_indirect_length=length;
+                                  prepared_indirect_resource_uses=resource_uses;
+                                  prepared_indirect_resource_raws=Array.map
+                                    (fun resource_use->resource_use.resources.raws)
+                                    resource_uses;
+                                  prepared_indirect_usage_bits=Array.map
+                                    (fun resource_use->bits usage_code
+                                      resource_use.usage)resource_uses;
+                                  prepared_indirect_stage_bits=Array.map
+                                    (fun resource_use->bits stage_code
+                                      resource_use.stages)resource_uses}
+
+    let execute_prepared_indirect_render_pass (command:command_buffer)
+        (prepared:prepared_indirect_render_pass) =
+      let operation=
+        "Metal.Render_encoder.Private.execute_prepared_indirect_render_pass"in
+      match before_main operation with Error _ as failure->failure|Ok()->
+      let header=prepared.prepared_indirect_header in
+      match validate_prepared_render_pass_header operation command header with
+      |Error _ as failure->failure
+      |Ok()->match validate_prepared_indirect_execution operation prepared with
+        |Error _ as failure->failure
+        |Ok()->
+            match Metal_raw.command_buffer_execute_prepared_indirect_render_pass
+                command.raw header.prepared_pass.raw header.prepared_pass_state
+                prepared.prepared_indirect_pipeline.raw
+                prepared.prepared_indirect_commands.raw
+                prepared.prepared_indirect_location
+                prepared.prepared_indirect_length
+                prepared.prepared_indirect_resource_raws
+                prepared.prepared_indirect_usage_bits
+                prepared.prepared_indirect_stage_bits with
+            |Error message->command.phase<-Failed;native_error operation message
+            |Ok()->
+                retain_command_buffer_prepared_command command
+                  header.prepared_pass_command_resources;
+                Ok()
+
+    let execute_prepared_indexed_render_pass (command:command_buffer)
+        (prepared:prepared_indexed_render_pass) =
+      let operation="Metal.Render_encoder.Private.execute_prepared_indexed_render_pass"in
+      match before_main operation with Error _ as failure->failure|Ok()->
+      let header=prepared.prepared_pass_header in
+      match validate_prepared_render_pass_header operation command header with
+      |Error _ as failure->failure
+      |Ok()->match validate_prepared_execution operation
+          header.prepared_pass_color prepared.prepared_pass_draws.prepared_draws 0 with
+        |Error _ as failure->failure
+        |Ok()->
+          let draws=prepared.prepared_pass_draws in
+          match Metal_raw.command_buffer_execute_prepared_indexed_render_pass
+              command.raw header.prepared_pass.raw header.prepared_pass_state
+              draws.prepared_pipeline_raws draws.prepared_buffer_raws
+              draws.prepared_stages draws.prepared_offsets draws.prepared_slots
+              draws.prepared_primitives draws.prepared_counts
+              draws.prepared_index_types draws.prepared_index_raws
+              draws.prepared_index_offsets with
+          |Error message->command.phase<-Failed;native_error operation message
+          |Ok()->
+              retain_command_buffer_prepared_command command
+                header.prepared_pass_command_resources;
+              Ok()
+
+    let close_failed_prepared_encoder (value:t) =
+      ignore (Metal_raw.render_encoder_end value.raw);
+      if Atomic.compare_and_set value.lifetime.destroyed false true then begin
+        ignore (Metal_raw.destroy value.raw);
+        detach value.command_buffer.lifetime
+      end;
+      value.command_buffer.phase <- Failed
+
+    let execute_prepared_indexed_draws (value:t) prepared=
+      let operation=
+        "Metal.Render_encoder.Private.execute_prepared_indexed_draws"in
+      match before_main operation with Error _ as failure->failure|Ok()->
+      match ensure_live operation value.lifetime with
+      |Error _ as failure->failure
+      |Ok()->match ensure_same_device operation value.command_buffer.queue.device
+          prepared.prepared_device with
+        |Error _ as failure->failure
+        |Ok()->
+            match validate_prepared_execution operation value.target
+                prepared.prepared_draws 0 with
+            |Error _ as failure->failure|Ok()->
+            match Metal_raw.render_encoder_execute_indexed_draws value.raw
+                prepared.prepared_pipeline_raws prepared.prepared_buffer_raws
+                prepared.prepared_stages prepared.prepared_offsets
+                prepared.prepared_slots prepared.prepared_primitives
+                prepared.prepared_counts prepared.prepared_index_types
+                prepared.prepared_index_raws prepared.prepared_index_offsets with
+            |Error message->
+                close_failed_prepared_encoder value;
+                native_error operation message
+            |Ok()->
+                retain_command_buffer_prepared_command value.command_buffer
+                  prepared.prepared_command_resources;
+                value.pipeline<-Some prepared.prepared_draws.
+                  (Array.length prepared.prepared_draws-1).prepared_pipeline;
+                Ok()
   end
 
   let destroyed (value : t) = is_destroyed value.lifetime
@@ -18580,10 +19725,6 @@ module Render_encoder = struct
                   (if custom_sample_positions then 1 else 0) attachment with
           | Ok () -> Ok () | Error message -> native_error operation message)
 
-  let bits code values = List.fold_left (fun mask value -> mask lor code value) 0 values
-  let stage_code = function Vertex->1 | Fragment->2 | Tile->4 | Object->8 | Mesh->16
-  let scope_code = function Buffers->1 | Textures->2 | Render_targets->4
-  let usage_code = function Read->1 | Write->2 | Sample->4
   let validate_nonempty operation what values =
     if values=[] then error operation Invalid_argument (what ^ " must be nonempty") else Ok ()
   let validate_resource operation device = function
@@ -18617,9 +19758,18 @@ module Render_encoder = struct
           |resource::rest->match validate_resource operation device resource with
             |Error _ as e->e|Ok()->validate rest in
         match validate resources with Error _ as e->e|Ok()->
-        let resources=Array.of_list resources in
-        Array.iter(fun resource->attach(resource_lifetime resource))resources;
-        Ok{device;lifetime=lifetime();resources;
+        let buffers,textures=List.fold_left(function
+          |buffers,textures->function
+            |Buffer_resource buffer->buffer::buffers,textures
+            |Texture_resource texture->buffers,texture::textures)
+          ([],[])resources in
+        let prepared_buffers=Array.of_list(List.rev buffers)
+        and prepared_textures=Array.of_list(List.rev textures)
+        and resources=Array.of_list resources in
+        Array.iter(fun (buffer:buffer)->attach buffer.lifetime)prepared_buffers;
+        Array.iter(fun (texture:texture)->attach texture.lifetime)
+          prepared_textures;
+        Ok{device;lifetime=lifetime();prepared_buffers;prepared_textures;
           raws=Array.map resource_raw resources;dead=false})
 
   let destroy_prepared_resources value=
@@ -18631,7 +19781,10 @@ module Render_encoder = struct
       else begin
       value.dead<-true;
       Atomic.set value.lifetime.destroyed true;
-      Array.iter(fun resource->detach(resource_lifetime resource))value.resources;
+      Array.iter(fun (buffer:buffer)->detach buffer.lifetime)
+        value.prepared_buffers;
+      Array.iter(fun (texture:texture)->detach texture.lifetime)
+        value.prepared_textures;
       Ok()
     end)
 
@@ -18694,6 +19847,36 @@ module Render_encoder = struct
       |Error message->native_error operation message
       |Ok()->retain_command_buffer_prepared_resources value.command_buffer
           prepared.lifetime;Ok())
+
+  let use_prepared_resource_sets (value:t)
+      (resource_uses:prepared_resource_use array) =
+    let operation="Metal.Render_encoder.use_prepared_resource_sets" in
+    on_main operation(fun()->
+      match ensure_live operation value.lifetime with
+      |Error _ as failure->failure
+      |Ok()->
+          let device=value.command_buffer.queue.device in
+          match validate_prepared_resource_uses operation device resource_uses 0 with
+          |Error _ as failure->failure
+          |Ok()->
+              let rec encode index =
+                if index=Array.length resource_uses then Ok()
+                else
+                  let resource_use=Array.unsafe_get resource_uses index in
+                  match Metal_raw.render_encoder_use_resources value.raw
+                      resource_use.resources.raws
+                      (bits usage_code resource_use.usage)
+                      (bits stage_code resource_use.stages) with
+                  |Error message->native_error operation message
+                  |Ok()->
+                      (* The native encoder has consumed this set even when a
+                         later set fails. Root each successful use at the same
+                         boundary instead of waiting for the whole batch. *)
+                      retain_command_buffer_prepared_resources value.command_buffer
+                        resource_use.resources.lifetime;
+                      encode(index+1)
+              in
+              encode 0)
 
   let binding_stage_code = function Vertex->0 | Fragment->1 | Tile->2 | Object->3 | Mesh->4
 

@@ -140,8 +140,13 @@ let () =
   get (Render_encoder.use_prepared_resources encoder prepared
          ~usage:[ Render_encoder.Read; Render_encoder.Sample ]
          ~stages:[ Render_encoder.Fragment ]);
-  get (Render_encoder.Private.use_retained_argument_resources encoder
-         ~vertex:prepared ~fragment:prepared ~textures:prepared);
+  let prepared_uses:Render_encoder.prepared_resource_use array=[|
+    {resources=prepared;usage=[Render_encoder.Read];
+     stages=[Render_encoder.Vertex]};
+    {resources=prepared;usage=[Render_encoder.Read;Render_encoder.Sample];
+     stages=[Render_encoder.Fragment]}
+  |]in
+  get(Render_encoder.use_prepared_resource_sets encoder prepared_uses);
   get (Render_encoder.update_fence encoder fence ~after:[ Render_encoder.Fragment ]);
   expect Parent_has_dependents (Texture.destroy sampled);
   expect Parent_has_dependents (Sampler.destroy sampler);

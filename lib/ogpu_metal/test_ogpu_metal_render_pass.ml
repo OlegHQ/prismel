@@ -2,6 +2,7 @@ open Ogpu_metal
 let get=function Ok x->x|Error e->failwith(Ogpu.Error.to_string e)
 let get_metal=function Ok x->x|Error e->failwith(Format.asprintf"%a"Metal.pp_error e)
 let expect kind=function Error e when e.Ogpu.Error.kind=kind->()|_->failwith"wrong render-pass rejection"
+let expect_metal kind=function Error e when e.Metal.kind=kind->()|_->failwith"wrong Metal prepared-draw rejection"
 let source={|#include <metal_stdlib>
 using namespace metal;
 struct V { float4 position [[position]]; };
@@ -91,5 +92,195 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal rende
   List.iter(fun samples->if samples<=limits.max_sample_count then let pipeline=get(Pipeline.create_render cache device{descriptor with sample_count=samples;vertex_entry="msaa_vertex"})in let target_descriptor={texture_descriptor with label=Some(Printf.sprintf"msaa-%d"samples);sample_count=samples;usage=[Render_attachment]}in let target=get(Texture.create device~memory:(if samples=1 then Texture.Shared else Device_local)~format:Texture.Rgba8_unorm target_descriptor)in let resolve=if samples=1 then target else get(Texture.create device~memory:Texture.Shared~format:Texture.Rgba8_unorm{texture_descriptor with label=Some(Printf.sprintf"resolve-%d"samples)})in msaa_resources:=(target,resolve,pipeline)::!msaa_resources;let stable=ref None in List.iter(fun _frame->let pass=msaa_pass device target(if samples=1 then None else Some resolve)samples in let msaa_draw={Render_pass.pipeline;buffers=[];textures=[];samplers=[];primitive=Render_pass.Triangle_list;vertex_start=0;vertex_count=3;index=None}in let encoded=get(Render_pass.create device pass~attachments:(if samples=1 then[target]else[target;resolve])msaa_draw)in let receipt=get(Queue.submit_render_pass queue encoded)in get(Queue.wait_through queue receipt.epoch);let pixels=get(Texture.read_bytes device resolve~mip_level:0~bytes_per_row:16)in let now=Bytes.copy pixels in(match!stable with None->stable:=Some now|Some expected when expected=now->()|Some _->failwith"multisample resolve frame drift");if samples>1 then let partial=ref false in for y=0 to 3 do for x=0 to 3 do let green=byte pixels x y 1 in if green>0&&green<255 then partial:=true done done;if not!partial then failwith"multisample diagonal edge was not resolved";if samples=4&&(byte pixels 1 1 0<>128||byte pixels 1 1 1<>128)then failwith"four-sample diagonal resolve pixel changed") [1;2;60;600]) [1;4;9;16];
   let bad=portable_pass device target~clear:(1.,0.,0.,1.)in expect Ogpu.Error.Invalid_argument(Render_pass.create device bad~attachments:[](draw Triangle_list None));
   List.iter(fun(msaa,resolve,_)->get(Texture.destroy msaa);if resolve!=msaa then get(Texture.destroy resolve))!msaa_resources;
-  get(Buffer.destroy indices);get(Texture.destroy target);Pipeline.clear_cache cache;get(Queue.destroy queue);get(Device.destroy device);ignore(get_metal(Metal.Release_queue.drain()));let after=get_metal(Metal.Release_queue.stats())in if after.live_handles<>before.live_handles-1 then failwith"render-pass live-handle delta";
-  print_endline"ogpu_metal render pass: list/strip, MSAA resolve frames1/2/60/600, atomic rejection, zero live-handle delta"
+  let persistent_indexed=get(Render_pass.create device
+    (portable_pass device target~clear:(1.,0.,0.,1.))~attachments:[target]
+    (draw Triangle_strip(Some(Uint16,indices,0L,3L))))in
+  Render_pass.Private.retain_encoding persistent_indexed;
+  for _=1 to 2 do
+    let receipt=get(Queue.submit_render_pass queue persistent_indexed)in
+    get(Queue.wait_through queue receipt.epoch);
+    verify(get(Texture.read_bytes device target~mip_level:0~bytes_per_row:16))
+  done;
+  get(Render_pass.Private.destroy persistent_indexed);
+  let depth_pipeline=get(Pipeline.create_render cache device
+    {descriptor with label=Some"prepared-depth";depth_format=Depth32_float})in
+  let depth_texture=get(Texture.create device~memory:Texture.Device_local
+    ~format:Texture.Depth32_float
+    {texture_descriptor with label=Some"prepared-depth";
+      usage=[Render_attachment]})in
+  let color_attachment=get(Render_pass.attachment device target
+    ~usage:Ogpu.Render_pass.Render_target)
+  and depth_attachment=get(Render_pass.attachment device depth_texture
+    ~usage:Ogpu.Render_pass.Render_target)in
+  let depth_pass=get(Ogpu.Render_pass.create(Device.Private.handle device)
+    {colors=[|Some{Ogpu.Render_pass.texture=color_attachment;resolve=None;
+       load=Clear;store=Store;clear=(1.,0.,0.,1.)}|];
+     depth=Some{Ogpu.Render_pass.texture=depth_attachment;load=Clear;
+       store=Store;clear=1.};stencil=None;
+     viewport={x=0;y=0;width=4;height=4};
+     scissor={x=2;y=0;width=2;height=4}})in
+  let depth_draw={Render_pass.pipeline=depth_pipeline;buffers=[];textures=[];
+    samplers=[];primitive=Triangle_strip;vertex_start=0;vertex_count=3;
+    index=Some(Uint16,indices,0L,3L)}in
+  let persistent_depth=get(Render_pass.create device depth_pass
+    ~attachments:[target;depth_texture]depth_draw)in
+  Render_pass.Private.retain_encoding persistent_depth;
+  let depth_receipt=get(Queue.submit_render_pass queue persistent_depth)in
+  expect Ogpu.Error.Invalid_state(Render_pass.Private.destroy persistent_depth);
+  expect Ogpu.Error.Stale_handle
+    (Queue.submit_render_pass queue persistent_depth);
+  get(Queue.wait_through queue depth_receipt.epoch);
+  get(Render_pass.Private.destroy persistent_depth);
+  get(Render_pass.Private.destroy persistent_depth);
+  verify(get(Texture.read_bytes device target~mip_level:0~bytes_per_row:16));
+  get(Texture.destroy depth_texture);
+  let icb_pipeline=get(Pipeline.create_render_argument_buffer cache device
+    {descriptor with label=Some"typed-pass-icb"})in
+  let native_icb_pipeline=match Pipeline.Private.native icb_pipeline with
+    |Pipeline.Private.Render pipeline->pipeline|Compute _->assert false in
+  let icb_descriptor=Metal.Indirect_command_buffer.descriptor
+    ~inherit_buffers:false~inherit_pipeline_state:false
+    ~command_types:[Indirect_draw]()in
+  let icb=get_metal(Metal.Indirect_command_buffer.create
+    ~device:(Device.Private.metal device)~storage:Metal.Buffer.Shared
+    ~max_command_count:1 icb_descriptor)in
+  let icb_command=get_metal(Metal.Indirect_command_buffer.Render_command.at icb 0)in
+  get_metal(Metal.Indirect_command_buffer.Render_command.set_pipeline
+    icb_command native_icb_pipeline);
+  get_metal(Metal.Indirect_command_buffer.Render_command.draw_primitives
+    icb_command~primitive:Triangle~vertex_start:0~vertex_count:3());
+  let dummy_texture=get(Texture.create device~memory:Texture.Shared
+    ~format:Texture.Rgba8_unorm
+    {texture_descriptor with label=Some"prepared-icb-resource";width=1;height=1;
+      usage=[Texture_binding]})in
+  let prepare resources=get_metal(Metal.Render_encoder.prepare_resources
+    (Device.Private.metal device)resources)in
+  let vertex_resources=prepare[Metal.Render_encoder.Buffer_resource
+    (Buffer.Private.metal indices)]
+  and fragment_resources=prepare[Metal.Render_encoder.Buffer_resource
+    (Buffer.Private.metal indices)]
+  and texture_resources=prepare[Metal.Render_encoder.Texture_resource
+    (Texture.Private.metal dummy_texture)]in
+  let indirect_draw={Render_pass.pipeline=icb_pipeline;buffers=[];textures=[];
+    samplers=[];primitive=Triangle_list;vertex_start=0;vertex_count=3;index=None}in
+  let indirect=get(Render_pass.create device
+    (portable_pass device target~clear:(1.,0.,0.,1.))~attachments:[target]
+    indirect_draw)|>fun pass->Render_pass.with_indirect pass icb
+      ~vertex_resources~fragment_resources~texture_resources in
+  Render_pass.Private.retain_encoding indirect;
+  for _=1 to 2 do
+    let receipt=get(Queue.submit_render_pass queue indirect)in
+    get(Queue.wait_through queue receipt.epoch);
+    verify(get(Texture.read_bytes device target~mip_level:0~bytes_per_row:16))
+  done;
+  let replay_target=get(Texture.create device~memory:Texture.Shared
+    ~format:Texture.Rgba8_unorm
+    {texture_descriptor with label=Some"prepared-icb-replay"})in
+  let replay_base=get(Render_pass.create_empty device
+    (portable_pass device replay_target~clear:(1.,0.,0.,1.))
+    ~attachments:[replay_target])in
+  let replay=Render_pass.replay_indirect replay_base~template:indirect in
+  for _=1 to 2 do
+    let receipt=get(Queue.submit_render_pass queue replay)in
+    get(Queue.wait_through queue receipt.epoch);
+    verify(get(Texture.read_bytes device replay_target~mip_level:0
+      ~bytes_per_row:16))
+  done;
+  get(Render_pass.Private.destroy replay);
+  get(Render_pass.Private.destroy indirect);
+  get_metal(Metal.Render_encoder.destroy_prepared_resources vertex_resources);
+  get_metal(Metal.Render_encoder.destroy_prepared_resources fragment_resources);
+  get_metal(Metal.Render_encoder.destroy_prepared_resources texture_resources);
+  get_metal(Metal.Indirect_command_buffer.Render_command.destroy icb_command);
+  get_metal(Metal.Indirect_command_buffer.destroy icb);
+  get(Texture.destroy replay_target);
+  get(Texture.destroy dummy_texture);
+  let native_pipeline=match Pipeline.Private.native pipeline with
+    |Pipeline.Private.Render pipeline->pipeline|Compute _->assert false in
+  let native_indices=Buffer.Private.metal indices in
+  let binding:Metal.Render_encoder.Private.prepared_indexed_binding=
+    {prepared_stage=Vertex;prepared_index=0;prepared_offset=0L;
+     prepared_buffer=native_indices}in
+  let prepared_draw:Metal.Render_encoder.Private.prepared_indexed_draw=
+    {Metal.Render_encoder.Private.prepared_pipeline=native_pipeline;
+     prepared_bindings=[||];
+     prepared_primitive=Triangle;prepared_index_type=Uint16;
+     prepared_index_buffer=native_indices;prepared_index_offset=0L;
+     prepared_index_count=3L}in
+  expect_metal Metal.Invalid_argument
+    (Metal.Render_encoder.Private.prepare_indexed_draws
+       (Device.Private.metal device)
+       [|{prepared_draw with prepared_bindings=[|binding;binding|]}|]);
+  expect_metal Metal.Invalid_argument
+    (Metal.Render_encoder.Private.prepare_indexed_draws
+       (Device.Private.metal device)
+       [|{prepared_draw with prepared_index_offset=2L}|]);
+  let fragment_binding={binding with prepared_stage=Fragment;
+    prepared_index=1}in
+  let copied_bindings=[|binding;fragment_binding|]in
+  let bound_draw={prepared_draw with prepared_bindings=copied_bindings}in
+  let prepared=get_metal(Metal.Render_encoder.Private.prepare_indexed_draws
+    (Device.Private.metal device)[|bound_draw;bound_draw|])in
+  copied_bindings.(0)<-{binding with prepared_index=31};
+  let stale_indices=get(Buffer.create device~memory:Buffer.Shared
+    {label=Some"stale-indices";size=6L;usage=[Index;Copy_dst]})in
+  get(Buffer.write_bytes device stale_indices~dst_offset:0L bytes);
+  let stale_draw={prepared_draw with
+    prepared_index_buffer=Buffer.Private.metal stale_indices}in
+  let stale_batch=get_metal(Metal.Render_encoder.Private.prepare_indexed_draws
+    (Device.Private.metal device)[|prepared_draw;stale_draw|])in
+  let native_queue=get_metal(Metal.Command_queue.create(Device.Private.metal device))in
+  let native_commands=get_metal(Metal.Command_buffer.create native_queue())in
+  let native_encoder=get_metal(Metal.Render_encoder.create native_commands
+    ~target:(Texture.Private.metal target)())in
+  get(Buffer.destroy stale_indices);
+  expect_metal Metal.Destroyed
+    (Metal.Render_encoder.Private.execute_prepared_indexed_draws
+       native_encoder stale_batch);
+  get_metal(Metal.Render_encoder.Private.execute_prepared_indexed_draws
+    native_encoder prepared);
+  expect_metal Metal.Parent_has_dependents
+    (Metal.Buffer.destroy native_indices);
+  get_metal(Metal.Render_encoder.end_encoding native_encoder);
+  get_metal(Metal.Command_buffer.commit native_commands);
+  get_metal(Metal.Command_buffer.wait_until_completed native_commands);
+  let prepared_pixels=get(Texture.read_bytes device target~mip_level:0
+    ~bytes_per_row:16)in
+  if byte prepared_pixels 0 0 0<>0||byte prepared_pixels 0 0 1<>255||
+     byte prepared_pixels 0 0 3<>255 then
+    failwith"prepared indexed draw pixel mismatch";
+  get(Buffer.destroy indices);
+  get_metal(Metal.Command_buffer.destroy native_commands);
+  let unretained_commands,unretained_buffer=
+    let native_indices=get_metal(Metal.Buffer.create_copy
+      ~device:(Device.Private.metal device)~storage:Metal.Buffer.Shared bytes)in
+    let weak=Weak.create 1 in
+    Weak.set weak 0(Some native_indices);
+    let draw={prepared_draw with prepared_index_buffer=native_indices}in
+    let prepared=get_metal(Metal.Render_encoder.Private.prepare_indexed_draws
+      (Device.Private.metal device)[|draw|])in
+    let commands=get_metal(Metal.Command_buffer.create_with_descriptor
+      native_queue~retained_references:false())in
+    let encoder=get_metal(Metal.Render_encoder.create commands
+      ~target:(Texture.Private.metal target)())in
+    get_metal(Metal.Render_encoder.Private.execute_prepared_indexed_draws
+      encoder prepared);
+    get_metal(Metal.Render_encoder.end_encoding encoder);
+    commands,weak in
+  Gc.full_major();
+  if Weak.get unretained_buffer 0=None then
+    failwith"unretained prepared command dropped its resource roots";
+  get_metal(Metal.Command_buffer.commit unretained_commands);
+  expect_metal Metal.Invalid_state
+    (Metal.Command_buffer.Private.release_committed_references
+       unretained_commands);
+  Gc.full_major();
+  if Weak.get unretained_buffer 0=None then
+    failwith"unretained committed command dropped its resource roots";
+  get_metal(Metal.Command_buffer.wait_until_completed unretained_commands);
+  (match Weak.get unretained_buffer 0 with
+   |None->()|Some buffer->get_metal(Metal.Buffer.destroy buffer));
+  get_metal(Metal.Command_buffer.destroy unretained_commands);
+  get_metal(Metal.Command_queue.destroy native_queue);
+  get(Texture.destroy target);Pipeline.clear_cache cache;get(Queue.destroy queue);get(Device.destroy device);ignore(get_metal(Metal.Release_queue.drain()));let after=get_metal(Metal.Release_queue.stats())in if after.live_handles<>before.live_handles-1 then failwith"render-pass live-handle delta";
+  print_endline"ogpu_metal render pass: list/strip, MSAA resolve frames1/2/60/600, prepared indexed/ICB/depth teardown, atomicity/unretained roots, zero live-handle delta"
