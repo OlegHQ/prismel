@@ -88,6 +88,7 @@ Prismel aims to make graphics programming in OCaml accessible and enjoyable by p
 │   ├── geom_subdivision/  # Loop, Butterfly, Catmull-Clark, Doo-Sabin
 │   ├── geom_physics/      # Immutable Verlet spring cloth
 │   ├── generative/        # Generative art demo
+│   ├── recursive_rectangles/ # Mouse-driven recursive rectangle composition
 │   ├── procedural_terrain/# SOP terrain, caching, and packed mesh bridge
 │   ├── procedural_modeling/# Sweep, extrusion, attributes, and copy to points
 │   ├── remesh/            # Isotropic packed remeshing and diagnostics
