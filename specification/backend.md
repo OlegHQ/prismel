@@ -37,6 +37,9 @@ queue now owns its bounded submission epochs and reusable command storage,
 instead of carrying the separate `Ogpu.Submission` state object. The live
 command and resource contracts remain until the G1 virtual-library split
 gives the Metal and mock implementations one conformance surface.
+`Ogpu.Caps` now owns the portable feature matrix and typed `Unsupported`
+check. Metal probes populate that profile in `ogpu_metal.Device`; the Metal
+adapter retains only limit conversion and native error translation.
 
 Qualification code reads the runtime and Metal counters at their owning
 boundaries. Sketch does not retain a process-global diagnostics snapshot after

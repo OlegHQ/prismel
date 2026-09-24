@@ -2,7 +2,7 @@ type t =
   { metal : Metal.Device.t
   ; handle : Ogpu.Handle.device
   ; capabilities : Ogpu.Capabilities.t
-  ; profile : Adapter.profile
+  ; profile : Ogpu.Caps.t
   ; mutable generation : int64
   ; mutable live_resources : int
   }
@@ -38,7 +38,10 @@ let system_default () =
              ; metal_fx = false
              }
            in
-           match Adapter.profile source ~timestamp_queries ~sparse_memory:false
+           match Adapter.capabilities source with
+           | Error _ as failure -> ignore (Metal.Device.destroy metal); failure
+           | Ok capabilities ->
+           match Ogpu.Caps.create capabilities ~timestamp_queries ~sparse_memory:false
              ~conservative_limits:["max_texture_dimension_2d=16384";"max_bind_groups=4";"max_sample_count=probed(1/4/9/16)";"metal_fx=false:no backend dependency";"sparse_memory=false:not implemented"] with
            | Error _ as failure -> ignore (Metal.Device.destroy metal); failure
            | Ok profile ->
@@ -49,7 +52,7 @@ let id value = Ogpu.Handle.device_id value.handle
 let generation value = value.generation
 let capabilities value = value.capabilities
 let capability_profile value=value.profile
-let supports value operation=if Ogpu.Handle.device_destroyed value.handle then error"Ogpu_metal.Device.supports"Ogpu.Error.Stale_handle"device is destroyed"else Adapter.supports value.profile operation
+let supports value feature=if Ogpu.Handle.device_destroyed value.handle then error"Ogpu_metal.Device.supports"Ogpu.Error.Stale_handle"device is destroyed"else Ogpu.Caps.require ~operation:"Ogpu_metal.Device.supports" value.profile feature
 let destroyed value = Ogpu.Handle.device_destroyed value.handle
 
 let destroy value =
