@@ -28,9 +28,6 @@ let run () =
           -. density) > 0.01 then
       fail "logical/drawable sizes disagree with the reported pixel density";
     ignore (get (Window.display_scale window));
-    let native_display = get (Window.display window) in
-    ignore (get (Display.name native_display));
-    ignore (get (Display.refresh_rate native_display));
     get (Window.set_size window ~width:80 ~height:60);
     get (Window.sync window);
     if get (Window.size window) <> (80, 60) then
@@ -88,15 +85,6 @@ let run () =
     get (Window.restore window);
     get (Window.sync window);
     await_flag ~label:"restore from maximize" 0x80L false;
-    let displays = get (Display.all ()) in
-    (match displays with
-     | _current :: target :: _ ->
-         let bounds = get (Display.bounds target) in
-         get (Window.set_position window ~x:(bounds.x + 16) ~y:(bounds.y + 16));
-         get (Window.sync window);
-         if Display.id (get (Window.display window)) <> Display.id target then
-           fail "native monitor move did not update the window display"
-     | [] | [_] -> ());
     get (Window.hide window);
     get (Window.sync window);
     let view = get (Metal_view.create window) in

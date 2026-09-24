@@ -15,5 +15,5 @@
  (action (run %{exe:test_main.exe} test_pathtracer)))
 
 (rule
- (aliases runtest test_gpu_film)
+ (aliases runtest-native test_gpu_film)
  (action (run %{exe:test_main.exe} test_gpu_film)))

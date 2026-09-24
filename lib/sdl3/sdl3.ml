@@ -259,56 +259,6 @@ module Init = struct
       Ok ())
 end
 
-module Display = struct
-  type t = int64
-
-  let id value = value
-
-  let rect (x, y, width, height) = { x; y; width; height }
-
-  let all () = on_main "SDL3.Display.all" (fun () ->
-    Private_raw.clear_error ();
-    match Private_raw.displays () with
-    | Some displays -> Ok (Array.to_list displays)
-    | None -> sdl_error "SDL3.Display.all")
-
-  let primary () = on_main "SDL3.Display.primary" (fun () ->
-    Private_raw.clear_error ();
-    let display = Private_raw.primary_display () in
-    if display = 0L then sdl_error "SDL3.Display.primary" else Ok display)
-
-  let name display = on_main "SDL3.Display.name" (fun () ->
-    Private_raw.clear_error ();
-    match Private_raw.display_name display with
-    | Some name -> Ok name
-    | None -> sdl_error "SDL3.Display.name")
-
-  let bounds display = on_main "SDL3.Display.bounds" (fun () ->
-    Private_raw.clear_error ();
-    match Private_raw.display_bounds display false with
-    | Some bounds -> Ok (rect bounds)
-    | None -> sdl_error "SDL3.Display.bounds")
-
-  let usable_bounds display = on_main "SDL3.Display.usable_bounds" (fun () ->
-    Private_raw.clear_error ();
-    match Private_raw.display_bounds display true with
-    | Some bounds -> Ok (rect bounds)
-    | None -> sdl_error "SDL3.Display.usable_bounds")
-
-  let content_scale display = on_main "SDL3.Display.content_scale" (fun () ->
-    Private_raw.clear_error ();
-    let scale = Private_raw.display_content_scale display in
-    if Float.is_finite scale && scale > 0. then Ok scale
-    else sdl_error "SDL3.Display.content_scale")
-
-  let refresh_rate display = on_main "SDL3.Display.refresh_rate" (fun () ->
-    Private_raw.clear_error ();
-    match Private_raw.display_refresh_rate display with
-    | Some rate -> Ok rate
-    | None -> error "SDL3.Display.refresh_rate" Unsupported
-        "the video driver does not expose a current display refresh rate")
-end
-
 module rec Window : sig
   type flag =
     | Fullscreen | Hidden | Borderless | Resizable | High_pixel_density
@@ -330,7 +280,6 @@ module rec Window : sig
   val generation : t -> int
   val destroyed : t -> bool
   val id : t -> (int64, error) result
-  val display : t -> (Display.t, error) result
   val size : t -> (int * int, error) result
   val size_in_pixels : t -> (int * int, error) result
   val pixel_density : t -> (float, error) result
@@ -525,10 +474,7 @@ end = struct
         display_scale value, display value with
     | Ok (logical_width, logical_height), Ok (drawable_width, drawable_height),
       Ok pixel_density, Ok display_scale, Ok display ->
-        let refresh_rate = match Display.refresh_rate display with
-          | Ok value -> Some value | Error { kind = Unsupported; _ } -> None
-          | Error _ -> None
-        in
+        let refresh_rate = Private_raw.display_refresh_rate display in
         Ok { logical_width; logical_height; drawable_width; drawable_height;
           pixel_density; display_scale; refresh_rate; vsync }
     | Error error, _, _, _, _ | _, Error error, _, _, _

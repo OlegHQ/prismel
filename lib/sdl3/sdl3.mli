@@ -81,19 +81,6 @@ module Init : sig
   val quit : unit -> (unit, error) result
 end
 
-module Display : sig
-  type t
-
-  val all : unit -> (t list, error) result
-  val primary : unit -> (t, error) result
-  val id : t -> int64
-  val name : t -> (string, error) result
-  val bounds : t -> (rect, error) result
-  val usable_bounds : t -> (rect, error) result
-  val content_scale : t -> (float, error) result
-  val refresh_rate : t -> (float, error) result
-end
-
 module Window : sig
   type t
 
@@ -120,7 +107,6 @@ module Window : sig
   val generation : t -> int
   val destroyed : t -> bool
   val id : t -> (int64, error) result
-  val display : t -> (Display.t, error) result
   val size : t -> (int * int, error) result
   val size_in_pixels : t -> (int * int, error) result
   val pixel_density : t -> (float, error) result

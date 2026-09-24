@@ -89,19 +89,6 @@ let run () =
   if abs_float (pixel_density -. 1.) > 0.000_001
       || pixel_width <> 96 || pixel_height <> 64 then
     fail "dummy-video window is not a 1x logical/drawable fixture";
-  let displays = get (Display.all ()) in
-  if displays = [] then fail "dummy video reported no displays";
-  let primary = get (Display.primary ()) in
-  let display = get (Window.display window) in
-  if not (List.exists (fun candidate -> Display.id candidate = Display.id display)
-      displays) then fail "window display is absent from display inventory";
-  ignore (get (Display.name primary));
-  let bounds = get (Display.bounds primary) in
-  let usable = get (Display.usable_bounds primary) in
-  if bounds.width <= 0 || bounds.height <= 0
-      || usable.width <= 0 || usable.height <= 0
-      || get (Display.content_scale primary) <= 0. then
-    fail "display bounds or scale are invalid";
   get (Window.set_position window ~x:11 ~y:13);
   ignore (get (Window.position window));
   get (Window.center window);
@@ -194,8 +181,9 @@ let run () =
     (Domain.spawn (fun () -> Init.init [Init.Events]) |> Domain.join);
   expect_wrong_domain "init query"
     (Domain.spawn (fun () -> Init.initialized [Init.Events]) |> Domain.join);
-  expect_wrong_domain "display query"
-    (Domain.spawn Display.all |> Domain.join);
+  expect_wrong_domain "presentation facts"
+    (Domain.spawn (fun () -> Window.presentation_facts window ~vsync:true)
+     |> Domain.join);
   expect_wrong_domain "clipboard query"
     (Domain.spawn Clipboard.has_text |> Domain.join);
   expect_wrong_domain "text-input query"

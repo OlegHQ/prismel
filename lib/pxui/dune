@@ -14,7 +14,7 @@
  (action (run %{exe:test_main.exe} test_pxui_undo)))
 
 (rule
- (aliases runtest test_ui_parity)
+ (aliases runtest-native test_ui_parity)
  (deps fixtures/kit_panel_2x.png fixtures/kit_overlays_2x.png)
  (action
   (setenv PRISMEL_UI_FONT %{dep:../../assets/fonts/DepartureMono-Regular.otf}

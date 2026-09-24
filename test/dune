@@ -31,7 +31,7 @@
  (action (run %{exe:test_main.exe} test_pxui_graph)))
 
 (rule
- (aliases runtest test_sketch_ui)
+ (aliases runtest-native test_sketch_ui)
  (action (run %{exe:test_main.exe} test_sketch_ui)))
 
 (rule

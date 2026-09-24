@@ -68,14 +68,6 @@ external minimize_window : nativeint -> bool = "caml_sdl3_minimize_window"
 external restore_window : nativeint -> bool = "caml_sdl3_restore_window"
 external sync_window : nativeint -> bool = "caml_sdl3_sync_window"
 
-external displays : unit -> int64 array option = "caml_sdl3_displays"
-external primary_display : unit -> int64 = "caml_sdl3_primary_display"
-external display_name : int64 -> string option = "caml_sdl3_display_name"
-external display_bounds : int64 -> bool -> (int * int * int * int) option
-  = "caml_sdl3_display_bounds"
-external display_content_scale : int64 -> float
-  = "caml_sdl3_display_content_scale"
-
 external clipboard_set_text : string -> bool = "caml_sdl3_clipboard_set_text"
 external clipboard_get_text : unit -> string option = "caml_sdl3_clipboard_get_text"
 external clipboard_has_text : unit -> bool = "caml_sdl3_clipboard_has_text"
