@@ -64,7 +64,7 @@ let reach graph =
   go
 
 let gpu = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu"; "ogpu_metal";
-           "runtime"; "runtime_next"; "runtime_next_orchestrator"; "scene_execution"]
+           "runtime_next"; "runtime_next_orchestrator"; "scene_execution"]
 let upper = ["prismel"; "pxui"; "pxui_graph"; "sop_ui"; "procedural"; "pdk"; "geom";
              "sop_catalog"; "sketch_support"; "sketch_ui"]
 let foundational = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu";
@@ -72,10 +72,10 @@ let foundational = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "og
 
 (* (library, libraries it may never reach) *)
 let rules =
-  List.map (fun lib -> lib, "runtime" :: "runtime_next" :: "runtime_next_orchestrator"
+  List.map (fun lib -> lib, "runtime_next" :: "runtime_next_orchestrator"
                             :: "prismel_next_execution" :: upper) foundational
   @ [ "ogpu", ["sdl3"; "metal"; "ogpu_metal"; "native_layer_token"];
-      "ogpu_metal", ["sdl3"; "runtime"; "runtime_next"; "prismel"; "scene_execution"];
+      "ogpu_metal", ["sdl3"; "runtime_next"; "prismel"; "scene_execution"];
       "runtime_next", upper; "runtime_next_input", upper;
       "prismel_next_execution", ["runtime_next_input"];
       "prismel", ["pxui"; "pxui_graph"; "sop_ui"; "procedural"; "pdk"; "geom";

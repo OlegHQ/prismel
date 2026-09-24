@@ -6,12 +6,6 @@
  (libraries sdl3 metal ogpu ogpu_metal scene_execution))
 
 (library
- (name runtime)
- (public_name prismel.runtime)
- (modules runtime)
- (libraries runtime_next))
-
-(library
  (name runtime_next_orchestrator)
  (public_name prismel.runtime_next_orchestrator)
  (modules runtime_next_orchestrator)

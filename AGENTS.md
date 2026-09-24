@@ -20,7 +20,7 @@ when behavior or architecture changes materially.
 | `sdl3`, `sdl3_image/ttf/mixer` | SDL3 bindings (foundational) |
 | `metal` | Metal bindings: safe layer over a handwritten bridge (foundational) |
 | `ogpu` | Backend-agnostic GPU API; `ogpu_metal` implements it |
-| `runtime` | SDL3 lifecycle, Metal presentation, typed event translation |
+| `runtime_next`, `runtime_next_orchestrator`, `runtime_next_input` | SDL3 lifecycle, Metal presentation, typed event translation |
 | `scene_command`, `scene_execution` | Renderer-neutral commands and their GPU execution |
 | `prismel` | `Sketch`, `Frame`, pure `Scene`, `Event`/`Input`, resources, renderer behavior |
 | `prismel_pathtracer` | Hardware ray-traced path tracer |
@@ -48,7 +48,7 @@ graph, and enforces "may never reach" rules plus a token scan. Known
 violations are listed there with the plan item that removes them.
 
 - Foundational libraries (`sdl3*`, `metal`, `ogpu`, `native_layer_token`,
-  `scene_command`) never reach `runtime`, `prismel`, or anything above.
+  `scene_command`) never reach `runtime_next`, `prismel`, or anything above.
   `ogpu` depends on nothing in the repo; `ogpu_metal` only on `ogpu` + `metal`.
 - `Metal.`/`Ogpu_metal.` appear only in `lib/metal` and `lib/ogpu_metal`.
 - `prismel` never depends on `pxui`, geometry, sketch libraries, or examples.

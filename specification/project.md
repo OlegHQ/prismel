@@ -20,7 +20,7 @@ model updates, `Frame` facts, and pure `Scene` construction.
 ## Native foundation
 
 ```text
-prismel -> runtime -> SDL3 lifecycle and Metal view
+prismel -> runtime_next -> SDL3 lifecycle and Metal view
 prismel -> ogpu -> ogpu_metal -> metal
 ```
 

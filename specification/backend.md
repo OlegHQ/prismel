@@ -14,7 +14,7 @@ examples / sketches / pxui / procedural / pdk
                       prismel
                          |
                          v
-                      runtime ----------> sdl3
+                      runtime_next ------> sdl3
                          |
                          v
                     ogpu_metal --------> ogpu
@@ -23,7 +23,7 @@ examples / sketches / pxui / procedural / pdk
                        metal
 ```
 
-`runtime` owns process setup, initial-domain lifecycle, the SDL3 window, its
+`runtime_next` owns process setup, initial-domain lifecycle, the SDL3 window, its
 Metal view, resize scheduling, and presentation. `ogpu_metal` owns the
 translation from the checked high-level GPU interface to typed Metal bindings.
 `metal` owns the safe Metal resource and command API. Prismel owns pure scene

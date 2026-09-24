@@ -177,14 +177,14 @@ examples / sketches / pxui / procedural / pdk
                          |                        ^
                          |                        |
                          v                        |
-                      runtime -----------> ogpu_metal --------> metal
+                      runtime_next ------> ogpu_metal --------> metal
                          |
                          +----> sdl3 / sdl3_image / sdl3_ttf / sdl3_mixer
 ```
 
 - `prismel` owns public application semantics, pure scenes, resources, and
   renderer behavior.
-- `runtime` owns the initial-domain SDL3 lifecycle, Metal view, drawable
+- `runtime_next` owns the initial-domain SDL3 lifecycle, Metal view, drawable
   presentation, and event translation.
 - `ogpu` is the checked renderer-facing command vocabulary.
 - `ogpu_metal` translates OGPU commands to the safe Metal library.

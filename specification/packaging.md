@@ -12,8 +12,8 @@ The root package installs:
 - foundational native libraries `prismel.sdl3`, `prismel.sdl3_image`,
   `prismel.sdl3_ttf`, `prismel.sdl3_mixer`, `prismel.metal`, `prismel.ogpu`,
   and `prismel.ogpu_metal`;
-- native runtime/command libraries including `prismel.runtime`,
-  `prismel.runtime_native`, `prismel.scene_command`, and
+- native runtime/command libraries including `prismel.runtime_native`,
+  `prismel.scene_command`, and
   `prismel.scene_execution`;
 - ordinary feature libraries such as `prismel.geom`, `prismel.pdk`,
   `prismel.procedural`, and the UI/sketch adapters.
