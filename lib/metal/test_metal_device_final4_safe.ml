@@ -13,7 +13,7 @@ vertex Device4_out device4_vertex(uint id [[vertex_id]]) {
 }
 |}
 
-let () =
+let run () =
   match Device.system_default () with
   | Error _ -> print_endline "metal device final4 safe: skipped (no device)"
   | Ok device ->

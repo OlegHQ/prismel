@@ -6,7 +6,7 @@ let source={|
 using namespace metal;
 kernel void constructors3(device uint *out [[buffer(0)]]) { out[0]=3; }
 |}
-let ()=match Device.system_default()with
+let run ()=match Device.system_default()with
 |Error _->print_endline"metal device constructors3: skipped (no device)"
 |Ok device->
   let library=get(Library.compile_source~device source)in

@@ -24,7 +24,7 @@ fragment float4 fragment_solid(O o [[stage_in]]) { return float4(.25,.5,.75,1.);
 fragment float4 fragment_direct(O o [[stage_in]],texture2d<float> image [[texture(0)]],sampler sampling [[sampler(1)]]) { return image.sample(sampling,float2(.5)); }
 |}
 
-let () =
+let run () =
   let device=get(Device.system_default()) in
   let before=get(Release_queue.stats()) in
   let library=get(Library.compile_source~device source) in

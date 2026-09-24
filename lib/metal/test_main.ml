@@ -61,6 +61,15 @@ let tests = [
   "test_metal_library8_safe", Test_metal_library8_safe.run;
   "test_metal_function_log_safe", Test_metal_function_log_safe.run;
   "test_metal_command_queue_safe", Test_metal_command_queue_safe.run;
+  "test_metal_device_value25_safe", Test_metal_device_value25_safe.run;
+  "test_metal_device_metadata7_safe", Test_metal_device_metadata7_safe.run;
+  "test_metal_device_capability13_safe", Test_metal_device_capability13_safe.run;
+  "test_metal_device_final4_safe", Test_metal_device_final4_safe.run;
+  "test_metal_device_async9_safe", Test_metal_device_async9_safe.run;
+  "test_metal_device_final_constructors3_safe", Test_metal_device_final_constructors3_safe.run;
+  "test_metal_device_spatial_timestamp6_safe", Test_metal_device_spatial_timestamp6_safe.run;
+  "test_metal_retained_render_plan", Test_metal_retained_render_plan.run;
+  "test_metal_render_icb_argument", Test_metal_render_icb_argument.run;
 ]
 
 let () =

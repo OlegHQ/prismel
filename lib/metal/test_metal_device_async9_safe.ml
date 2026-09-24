@@ -17,7 +17,7 @@ using M = mesh<V, void, 3, 1, topology::triangle>;
 }
 kernel void async9_tile(ushort2 p [[thread_position_in_threadgroup]]) {(void)p;}
 |}
-let ()=match Device.system_default()with
+let run ()=match Device.system_default()with
 |Error _->print_endline"metal device async9: skipped (no device)"
 |Ok device->
   let library=get(Device_async.library_source device source)in

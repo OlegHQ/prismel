@@ -1,6 +1,6 @@
 open Metal
 let get=function Ok value->value|Error e->failwith(Format.asprintf "%a" pp_error e)
-let ()=
+let run ()=
   let callbacks=ref 0 in
   let observer,devices=get(Device_observer.create(fun device _notification->
     incr callbacks;ignore(Device.destroy device)))in

@@ -1,6 +1,6 @@
 open Metal
 let get=function Ok x->x|Error e->failwith(Format.asprintf"%a"pp_error e)
-let ()=match Device.system_default()with Error _->print_endline"device capability13: skipped"|Ok device->
+let run ()=match Device.system_default()with Error _->print_endline"device capability13: skipped"|Ok device->
   let before=get(Device.capability_snapshot device)in
   get(Device.set_maximize_concurrent_compilation device(not before.maximize_concurrent_compilation));
   let changed=get(Device.capability_snapshot device)in

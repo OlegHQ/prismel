@@ -30,7 +30,7 @@ fragment float4 fragment_main(O o [[stage_in]]) {
 }
 |}
 
-let () =
+let run () =
   let device=get(Device.system_default())in
   let descriptor=plan_descriptor()in
   let probe=get(Indirect_command_buffer.create~device~storage:Buffer.Private

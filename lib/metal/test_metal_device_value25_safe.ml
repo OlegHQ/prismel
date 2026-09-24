@@ -1,6 +1,6 @@
 open Metal
 let get=function Ok x->x|Error e->failwith(Format.asprintf"%a"pp_error e)
-let ()=
+let run ()=
   match Device.system_default()with Error _->print_endline"device value25: skipped"|Ok device->
   let architecture=get(Device.architecture device)in
   if Architecture.name architecture="" then failwith"empty architecture name";

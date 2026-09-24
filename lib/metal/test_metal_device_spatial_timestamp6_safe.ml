@@ -2,7 +2,7 @@ open Metal
 let fail message=raise(Failure message)
 let get=function Ok value->value|Error error->fail error.message
 let expect_invalid=function Error{kind=Invalid_argument;_}->()|_->fail"expected invalid argument"
-let ()=
+let run ()=
   let device=get(Device.system_default())in
   expect_invalid(Device.default_sample_positions device ~count:0);
   let positions=get(Device.default_sample_positions device ~count:1)in
