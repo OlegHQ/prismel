@@ -2,25 +2,15 @@ open Prismel
 
 type model = {
   phase : float;
-  frames_left : int option;
 }
 
 let init _frame =
   {
     phase = 0.;
-    frames_left = None;
   }
 
 let update model (frame : Frame.t) =
-  let frames_left =
-    match model.frames_left with
-    | Some 1 ->
-        Sketch.quit ();
-        Some 0
-    | Some count -> Some (count - 1)
-    | None -> None
-  in
-  { phase = model.phase +. frame.dt; frames_left }
+  { phase = model.phase +. frame.dt }
 
 let view model (frame : Frame.t) =
   let radius = 42 + int_of_float (10. *. sin (model.phase *. 2.)) in

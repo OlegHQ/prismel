@@ -5,7 +5,6 @@ type model = {
   session : Session.t;
   meshes : Mesh.t list;
   camera : Easy_camera.t;
-  frames_left : int option;
 }
 
 let cook session frame graph =
@@ -685,15 +684,10 @@ let init frame =
   { session;
     meshes = List.map (cook session frame) (graphs ());
     camera = Easy_camera.create ~target:(Vec3.create 0. 0.5 0.)
-        ~distance:9. ~azimuth:0.7 ~elevation:0.45 ();
-    frames_left = None; }
+        ~distance:9. ~azimuth:0.7 ~elevation:0.45 (); }
 
 let update model frame =
-  let frames_left = match model.frames_left with
-    | Some 1 -> Sketch.quit (); Some 0
-    | Some count -> Some (count - 1)
-    | None -> None in
-  { model with camera = Easy_camera.update model.camera frame; frames_left }
+  { model with camera = Easy_camera.update model.camera frame }
 
 let view model _frame =
   let lights = [Light.directional ~direction:(Vec3.create (-1.) (-2.) (-1.))

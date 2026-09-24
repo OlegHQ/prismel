@@ -15,4 +15,4 @@ depends: [
 depexts: [
   ["sdl3_image"] {os-distribution = "homebrew"}
 ]
-build: [["pkg-config" "--exact-version=3.4.4" "sdl3-image"]]
+build: [["pkg-config" "--atleast-version=3.4.4" "sdl3-image"]]

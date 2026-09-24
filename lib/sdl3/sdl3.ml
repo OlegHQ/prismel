@@ -142,7 +142,6 @@ type release_token =
   | Cursor_token of nativeint
 
 module Release_queue = struct
-  let capacity = 1_024
   let mutex = Mutex.create ()
   let surfaces = Queue.create ()
   let metal_views = Queue.create ()
@@ -154,14 +153,11 @@ module Release_queue = struct
   let pending_cursors = Queue.create ()
   let dropped = Atomic.make 0
 
+  (* Unbounded: a finalized native object must never leak because the main
+     domain has not drained yet; [before_main] drains on every SDL call. *)
   let enqueue queue token =
     Mutex.lock mutex;
-    if
-      Queue.length surfaces + Queue.length metal_views
-      + Queue.length windows + Queue.length cursors
-        >= capacity then
-      Atomic.incr dropped
-    else Queue.add token queue;
+    Queue.add token queue;
     Mutex.unlock mutex
 
   let surface raw = enqueue surfaces (Surface_token raw)
@@ -1274,40 +1270,33 @@ module Event = struct
     | _ -> false
 
   let poll_coalesced () = on_main "SDL3.Event.poll_coalesced" (fun () ->
-    let rec loop last_motion last_size events =
+    (* [sizes] keeps the latest event of each window-size kind (first-seen
+       order, newest kind first): Resized and Pixel_size_changed both matter. *)
+    let flush last_motion sizes events =
+      let events = List.fold_left (fun events (_, size) -> of_raw size :: events)
+          events (List.rev sizes) in
+      match last_motion with None -> events | Some motion -> of_raw motion :: events
+    in
+    let rec loop last_motion sizes events =
       match Private_raw.poll_event () with
-      | None ->
-          let events = match last_size with
-            | None -> events
-            | Some event -> of_raw event :: events
-          in
-          let events = match last_motion with
-            | None -> events
-            | Some event -> of_raw event :: events
-          in
-          Ok (List.rev events)
+      | None -> Ok (List.rev (flush last_motion sizes events))
       | Some (Private_raw.Mouse_motion (t, w, which, buttons, x, y, dx, dy)) ->
           (* Keep the latest position but the summed relative motion. *)
           let event = match last_motion with
             | Some (Private_raw.Mouse_motion (_, _, _, _, _, _, px, py)) ->
                 Private_raw.Mouse_motion (t, w, which, buttons, x, y, dx +. px, dy +. py)
             | _ -> Private_raw.Mouse_motion (t, w, which, buttons, x, y, dx, dy) in
-          loop (Some event) last_size events
+          loop (Some event) sizes events
       | Some (Private_raw.Window (event_type, _, _, _, _) as event)
         when size_event_type event_type ->
-          loop last_motion (Some event) events
-      | Some event ->
-          let events = match last_size with
-            | None -> events
-            | Some size -> of_raw size :: events
-          in
-          let events = match last_motion with
-            | None -> events
-            | Some motion -> of_raw motion :: events
-          in
-          loop None None (of_raw event :: events)
+          let sizes =
+            if List.mem_assoc event_type sizes then
+              List.map (fun (kind, old) -> kind, if kind = event_type then event else old) sizes
+            else (event_type, event) :: sizes in
+          loop last_motion sizes events
+      | Some event -> loop None [] (of_raw event :: flush last_motion sizes events)
     in
-    loop None None [])
+    loop None [] [])
 
   let wait ~timeout_ms =
     if timeout_ms < -1 || Int64.of_int timeout_ms > Int64.of_int32 Int32.max_int then

@@ -58,6 +58,8 @@ external raw_get_font_hinting : nativeint -> int
   = "caml_sdl3_ttf_get_font_hinting"
 external raw_set_font_kerning : nativeint -> bool -> unit
   = "caml_sdl3_ttf_set_font_kerning"
+external raw_set_font_wrap_alignment : nativeint -> int -> unit
+  = "caml_sdl3_ttf_set_font_wrap_alignment"
 external raw_get_font_kerning : nativeint -> bool
   = "caml_sdl3_ttf_get_font_kerning"
 external raw_font_has_glyph : nativeint -> int -> bool
@@ -121,15 +123,13 @@ module Version = struct
 end
 
 module Release_queue = struct
-  let capacity = 1_024
   let mutex = Mutex.create ()
   let fonts = Queue.create ()
   let dropped = Atomic.make 0
 
   let enqueue raw =
     Mutex.lock mutex;
-    if Queue.length fonts >= capacity then Atomic.incr dropped
-    else Queue.add raw fonts;
+    Queue.add raw fonts; (* unbounded: never leak a finalized font *)
     Mutex.unlock mutex
 
   let drain () =
@@ -206,6 +206,7 @@ module Font = struct
   }
 
   type style = Normal | Bold | Italic | Underline | Strikethrough
+  type alignment = Left | Center | Right
   type hinting = Normal_hinting | Light_hinting | Mono_hinting
     | None_hinting | Light_subpixel_hinting
   type glyph_metrics = {
@@ -422,6 +423,11 @@ module Font = struct
 
   let kerning value = live "SDL3_ttf.Font.kerning" value (fun raw ->
     Ok (raw_get_font_kerning raw))
+
+  let set_wrap_alignment value alignment =
+    let code = match alignment with Left -> 0 | Center -> 1 | Right -> 2 in
+    mutate value "SDL3_ttf.Font.set_wrap_alignment" (fun raw ->
+      raw_set_font_wrap_alignment raw code; Ok ())
 
   let valid_codepoint value = value >= 0 && value <= 0x10ffff
     && not (value >= 0xd800 && value <= 0xdfff)

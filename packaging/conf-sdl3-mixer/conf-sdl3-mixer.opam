@@ -15,4 +15,4 @@ depends: [
 depexts: [
   ["sdl3_mixer"] {os-distribution = "homebrew"}
 ]
-build: [["pkg-config" "--exact-version=3.2.4" "sdl3-mixer"]]
+build: [["pkg-config" "--atleast-version=3.2.4" "sdl3-mixer"]]

@@ -148,7 +148,7 @@ let () =
     "node VIEW button did not change display independently of inspection";
 
   let view, changes = update view
-      (frame ~mouse:(400, 250) ~events:[Event.MouseScrolled (0, 2)] ()) in
+      (frame ~mouse:(400, 250) ~events:[Event.MouseScrolled (0., 2.)] ()) in
   check (List.mem Pxui_graph.View_changed changes)
     "graph wheel zoom was not reported";
   let moved = (node (Node.id source_a) view).bounds in

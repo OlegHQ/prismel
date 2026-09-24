@@ -4,7 +4,6 @@ type model = {
   noise : Noise.t;
   color_scheme : int;
   x_control : float;
-  frames_left : int option;
 }
 
 type box = {
@@ -51,7 +50,6 @@ let init _frame =
     noise = Noise.create 451;
     color_scheme = 0;
     x_control = 0.5;
-    frames_left = None;
   }
 
 let update model (frame : Frame.t) =
@@ -75,13 +73,7 @@ let update model (frame : Frame.t) =
   in
   let damping = 1. -. exp (-.10. *. max 0. frame.dt) in
   let x_control = model.x_control +. ((target_x -. model.x_control) *. damping) in
-  let frames_left =
-    match model.frames_left with
-    | Some 1 -> Sketch.quit (); Some 0
-    | Some count -> Some (count - 1)
-    | None -> None
-  in
-  { model with color_scheme; x_control; frames_left }
+  { model with color_scheme; x_control }
 
 let view model (frame : Frame.t) =
   let _, mouse_y = frame.mouse in

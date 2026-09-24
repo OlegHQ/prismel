@@ -6,7 +6,6 @@ type model = {
   curves : Mesh.t;
   cuts : Mesh.t;
   camera : Easy_camera.t;
-  frames_left : int option;
 }
 
 let source () =
@@ -73,15 +72,10 @@ let init frame =
     curves = cook session frame (curve_graph source);
     cuts = cook session frame (cut_graph source);
     camera = Easy_camera.create ~target:Vec3.zero ~distance:6.2
-      ~azimuth:0.15 ~elevation:0.25 ();
-    frames_left = None }
+      ~azimuth:0.15 ~elevation:0.25 () }
 
 let update model frame =
-  let frames_left = match model.frames_left with
-    | Some 1 -> Sketch.quit (); Some 0
-    | Some count -> Some (count - 1)
-    | None -> None in
-  { model with camera = Easy_camera.update model.camera frame; frames_left }
+  { model with camera = Easy_camera.update model.camera frame }
 
 let view model _ =
   let camera = Easy_camera.camera model.camera in

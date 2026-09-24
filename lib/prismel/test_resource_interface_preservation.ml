@@ -16,6 +16,9 @@ let () =
   require (Audio.Sample.is_playing channel) "sample playing";
   Audio.Sample.stop channel;
   require (not (Audio.Sample.is_playing channel)) "sample stopped";
+  let channel = Result.get_ok (Audio.Sample.play sample) in
+  Unix.sleepf 0.25;
+  require (not (Audio.Sample.is_playing channel)) "finished sample still playing";
   Audio.Sample.destroy sample;
   Audio.shutdown ();
 

@@ -1,9 +1,7 @@
 # Graphics and scene drawing
 
-New code should build immutable `Scene.t` values and let `Sketch` present them.
-`Low.Graphics` remains an immediate-mode compatibility surface for older code,
-but both entry points lower into the same SDL3-windowed OGPU/Metal renderer.
-The native Metal renderer is the only execution path.
+Code builds immutable `Scene.t` values and lets `Sketch` present them through
+the SDL3-windowed OGPU/Metal renderer, the only execution path.
 
 ## Drawing vocabulary
 
@@ -32,8 +30,7 @@ boundary. Capture and export are the explicit backing-pixel operations.
 
 ## Images and text
 
-`Scene.image` and the `Low.Graphics.draw_image*` family reference owned
-`Image.t` values. The renderer snapshots identity and generation, uploads only
+`Scene.image` references owned `Image.t` values. The renderer snapshots identity and generation, uploads only
 changed content, validates resource lifetime/device identity, and retains the
 sampled texture until command completion.
 
@@ -43,13 +40,13 @@ points; glyphs rasterize at native density and draw at logical dimensions.
 Renderer-local text textures use a bounded 256-entry LRU. Empty strings are
 safe no-ops.
 
-`Scene.debug_text` and `Low.Graphics.draw_gfx_text` use Prismel's independent
+`Scene.debug_text` uses Prismel's independent
 fixed 8×8 diagnostic bitmap. They do not load a system font or depend on a
 third-party primitive-font table.
 
 ## Native effect boundary
 
-Scene construction is pure. `Scene.render`, `Sketch`, and `Low.App` are effect
+Scene construction is pure. `Scene.render` and `Sketch` are effect
 boundaries that stage checked render commands, resolve resources, encode Metal
 work through OGPU, and present one SDL3 Metal drawable. Native Metal or drawable
 unavailability is a typed startup/runtime error; it never selects another

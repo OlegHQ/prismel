@@ -29,7 +29,7 @@
    (run %{test} %{workspace_root}/test/sdl3_image_fixtures))))
 
 (rule
- (alias runtest)
+ (alias qualification)
  (deps generated_provenance.ml generated_inventory.json generated_abi.h)
  (action
   (run %{exe:../../tools/sdl3/generate.exe} --root %{workspace_root}

@@ -5,7 +5,6 @@ type model = {
   meshes : (string * string * Mesh.t) list;
   camera : Easy_camera.t;
   phase : float;
-  frames_left : int option;
 }
 
 let result_or_fail = function Ok value -> value | Error message -> failwith message
@@ -20,14 +19,12 @@ let init _frame =
       "Doo-Sabin", "#a78bfa", Mesh3.doo_sabin source |> result_or_fail;
     ];
     camera = Easy_camera.create ~target:Vec3.zero ~distance:11.8 ~elevation:0.12 ();
-    phase = 0.; frames_left = None;
+    phase = 0.;
   }
 
 let update model (frame : Frame.t) =
-  let frames_left = match model.frames_left with
-    | Some 1 -> Sketch.quit (); Some 0 | Some count -> Some (count - 1) | None -> None in
   { model with phase = model.phase +. frame.dt *. 0.4;
-               camera = Easy_camera.update model.camera frame; frames_left }
+               camera = Easy_camera.update model.camera frame }
 
 let view model _frame =
   let positions = [-3.75; -1.25; 1.25; 3.75] in

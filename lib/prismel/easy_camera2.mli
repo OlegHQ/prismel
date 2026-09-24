@@ -36,7 +36,6 @@ val inertia : t -> bool
 val drag_coefficient : t -> float
 val pan_sensitivity : t -> float
 val zoom_sensitivity : t -> float
-val translation_key : t -> Input.key option
 
 val with_center : Vec2.t -> t -> t
 val with_zoom : float -> t -> t

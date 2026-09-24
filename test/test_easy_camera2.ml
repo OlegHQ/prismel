@@ -41,14 +41,14 @@ let () =
   let before_anchor = Easy_camera2.screen_to_world ~viewport middle_panned
       (Vec2.of_pair pointer) in
   let zoomed = Easy_camera2.update middle_panned (frame ~mouse:pointer
-      ~events:[Event.MouseScrolled (0, 2)] ()) in
+      ~events:[Event.MouseScrolled (0., 2.)] ()) in
   let after_anchor = Easy_camera2.screen_to_world ~viewport zoomed
       (Vec2.of_pair pointer) in
   if Easy_camera2.zoom zoomed <= Easy_camera2.zoom middle_panned
      || not (Vec2.nearly_equal before_anchor after_anchor ~eps:1e-8)
   then fail "2D camera wheel zoom was not pointer anchored";
   let horizontal = Easy_camera2.update zoomed (frame ~mouse:pointer
-      ~events:[Event.MouseScrolled (3, 0)] ()) in
+      ~events:[Event.MouseScrolled (3., 0.)] ()) in
   if Easy_camera2.zoom horizontal <> Easy_camera2.zoom zoomed
      || not (Vec2.nearly_equal (Easy_camera2.center horizontal)
         (Easy_camera2.center zoomed) ~eps:1e-9)
@@ -94,7 +94,7 @@ let () =
   if Easy_camera2.control_area controlled <> Some (248, 0, 392, 360)
   then fail "2D camera controls did not reserve the area beside the panel";
   let control, zoomed, _ = run control controlled (frame ~mouse:(400, 180)
-      ~events:[Event.MouseScrolled (0, 2)] ()) in
+      ~events:[Event.MouseScrolled (0., 2.)] ()) in
   let control, zoomed_idle, _ = run control zoomed (frame ~mouse:(400, 180) ()) in
   if Easy_camera2.zoom zoomed = Easy_camera2.zoom controlled
      || Easy_camera2.zoom zoomed_idle <> Easy_camera2.zoom zoomed

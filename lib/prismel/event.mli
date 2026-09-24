@@ -8,10 +8,10 @@ type t =
   | MousePressed of Input.mouse_button * (int * int)        (* button and position *)
   | MouseReleased of Input.mouse_button * (int * int)       (* button and position *)
   | PointerCancelled of Input.mouse_button                  (* browser/OS cancelled pointer *)
-  | MouseScrolled of (int * int)                             (* scroll delta x,y *)
+  | MouseScrolled of (float * float)                         (* scroll delta x,y; trackpads send fractions *)
   | TextInput of string
   | TextEditing of { text : string; start : int; length : int }
-  | FileDropped of string
+  | FileDropped of string                                   (* absolute path; not read *)
   | WindowResized of (int * int)                             (* new width and height *)
   | WindowFocusLost
   | WindowClosed                                             (* user attempted to close *)
@@ -35,5 +35,7 @@ module Private : sig
   val set_relative : bool -> unit
   (* Relative pointer motion drives [Input.mouse_delta]; see
      [Sketch.set_relative_mouse]. *)
+  val key_of_name : string -> Input.key
+  (* The runtime key-name contract; exposed for tests. *)
 end
 

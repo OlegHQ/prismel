@@ -329,3 +329,22 @@ CAMLprim value caml_sdl3_test_mutate_event_sources(value unit)
   mime_two[0] = 'x';
   return Val_unit;
 }
+
+CAMLprim value caml_sdl3_test_push_resize_burst(value unit)
+{
+  SDL_Event event;
+  bool success = true;
+  (void)unit;
+  SDL_zero(event);
+  event.window.windowID = 7;
+  event.window.type = SDL_EVENT_WINDOW_RESIZED;
+  event.window.data1 = 640; event.window.data2 = 480;
+  success = push(&event) && success;
+  event.window.type = SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED;
+  event.window.data1 = 1280; event.window.data2 = 960;
+  success = push(&event) && success;
+  event.window.type = SDL_EVENT_WINDOW_RESIZED;
+  event.window.data1 = 800; event.window.data2 = 600;
+  success = push(&event) && success;
+  return Val_bool(success);
+}

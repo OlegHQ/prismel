@@ -5,7 +5,6 @@ type model = {
   session : Session.t;
   by_edge : int array;
   by_point : int array;
-  frames_left : int option;
 }
 
 let columns = 18
@@ -35,15 +34,9 @@ let init frame =
       ~connectivity:Pdk.Ops.Graph_primitives_by_edge |> cook session frame
   and by_point = source |> Sop.graph_color
       ~connectivity:Pdk.Ops.Graph_primitives_by_point |> cook session frame in
-  {session;by_edge;by_point;
-   frames_left=None}
+  {session;by_edge;by_point}
 
-let update model _ =
-  let frames_left = match model.frames_left with
-    | Some 1 -> Sketch.quit (); Some 0
-    | Some count -> Some (count - 1)
-    | None -> None in
-  {model with frames_left}
+let update model _ = model
 
 let palette = [|
   Color.hex_exn "#22d3ee"; Color.hex_exn "#f472b6";

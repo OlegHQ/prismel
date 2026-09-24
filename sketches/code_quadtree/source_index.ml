@@ -189,8 +189,12 @@ let load ?cache_directory ~server ~root paths =
                 "version",`Int 1;"text",`String source]]);
               let result=Fun.protect ~finally:(fun () ->
                 notify c "textDocument/didClose" (`Assoc ["textDocument",`Assoc ["uri",`String document_uri]]))
-                (fun () -> request c "textDocument/documentSymbol"
-                  (`Assoc ["textDocument",`Assoc ["uri",`String document_uri]])) in
+                (fun () ->
+                  (* A file the server cannot parse (e.g. comment-only) has no
+                     symbols; it must not abort the whole index. *)
+                  try request c "textDocument/documentSymbol"
+                    (`Assoc ["textDocument",`Assoc ["uri",`String document_uri]])
+                  with Failure message when String.starts_with ~prefix:"textDocument/documentSymbol:" message -> `List []) in
               incr parsed;result in
         let tree=symbols result in
         total:= !total+count tree;

@@ -5,7 +5,6 @@ type model = {
   session : Session.t;
   cotan : float array;
   uniform : float array;
-  frames_left : int option;
 }
 
 let columns = 36
@@ -39,15 +38,9 @@ let init frame =
   let context = Context.of_frame ~seed:2026L frame |> Result.get_ok in
   let cotan = cook session context Pdk.Ops.Laplacian_cotan source
   and uniform = cook session context Pdk.Ops.Laplacian_uniform source in
-  {session;cotan;uniform;
-   frames_left=None}
+  {session;cotan;uniform}
 
-let update model _ =
-  let frames_left = match model.frames_left with
-    | Some 1 -> Sketch.quit (); Some 0
-    | Some count -> Some (count - 1)
-    | None -> None in
-  {model with frames_left}
+let update model _ = model
 
 let heatmap ~at_x values =
   let maximum = Array.fold_left max 0. values in

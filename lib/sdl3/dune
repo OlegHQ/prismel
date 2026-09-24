@@ -40,6 +40,13 @@
   (setenv SDL_VIDEODRIVER dummy
    (run %{test}))))
 
+(rule
+ (alias qualification)
+ (action
+  (setenv SDL_VIDEODRIVER dummy
+   (setenv PRISMEL_SDL3_STRESS_CYCLES 100000
+    (run %{exe:test_sdl3_stress.exe})))))
+
 (test
  (name test_sdl3_failure)
  (modules test_sdl3_failure)
@@ -61,7 +68,7 @@
    (run %{test}))))
 
 (rule
- (alias runtest)
+ (alias qualification)
  (deps generated_provenance.ml generated_inventory.json generated_layout.json
   generated_abi.h)
  (action

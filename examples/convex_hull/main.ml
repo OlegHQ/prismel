@@ -5,7 +5,6 @@ type model = {
   session : Session.t;
   hull : Mesh.t;
   camera : Easy_camera.t;
-  frames_left : int option;
 }
 
 let cloud () =
@@ -39,15 +38,10 @@ let init frame =
     hull = cook session frame (graph ());
     camera = Easy_camera.create ~target:Vec3.zero ~distance:4.8
         ~azimuth:0.7 ~elevation:0.35 ();
-    frames_left = None;
   }
 
 let update model frame =
-  let frames_left = match model.frames_left with
-    | Some 1 -> Sketch.quit (); Some 0
-    | Some count -> Some (count - 1)
-    | None -> None in
-  { model with camera = Easy_camera.update model.camera frame; frames_left }
+  { model with camera = Easy_camera.update model.camera frame }
 
 let surface = Material.create ~diffuse:(Color.hex_exn "#a5b4fc")
     ~ambient:(Color.hex_exn "#172554") ~specular:Color.white ~shininess:36. ()

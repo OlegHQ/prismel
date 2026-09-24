@@ -30,6 +30,12 @@
  (modules test_ogpu_metal_surface)
  (libraries ogpu_metal metal))
 
+(rule
+ (alias qualification)
+ (action
+  (setenv PRISMEL_SURFACE_FRAMES 600
+   (run %{exe:test_ogpu_metal_surface.exe}))))
+
 (test
  (name test_ogpu_metal_native_pass)
  (modules test_ogpu_metal_native_pass)

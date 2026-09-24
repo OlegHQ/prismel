@@ -56,7 +56,6 @@ val dolly_sensitivity : t -> float
 val up_axis : t -> Vec3.t
 val relative_y_axis : t -> bool
 val middle_button_enabled : t -> bool
-val translation_key : t -> Input.key option
 val auto_distance : t -> bool
 val interactions : t -> binding list
 
@@ -95,3 +94,10 @@ val has_interaction :
   ?key:Input.key -> button:Input.mouse_button -> interaction -> t -> bool
 
 val reset : t -> t
+
+val fly : speed:float -> t -> Frame.t -> t * float
+(** One frame of WASD fly navigation: held W/S, D/A, and Q/E move forward,
+    right, and up at [speed] units per second (Shift four times faster);
+    [Frame.mouse_delta] yaws about the up axis and pitches within 89 degrees;
+    each wheel step scales the returned speed by 1.2. The result is an
+    ordinary orbit camera, so orbiting resumes seamlessly. *)

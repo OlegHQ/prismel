@@ -7,7 +7,7 @@ let ()=
   let root=ref"."in Arg.parse["--root",Arg.Set_string root,"repository root"]
     (fun value->raise(Arg.Bad value))"check_runtime_next_licenses";
   let root=Unix.realpath!root in let at path=Filename.concat root path in
-  let manifest=Yojson.Safe.from_file(at"specification/evidence/gpu_migration/runtime_next_license_manifest.json")in
+  let manifest=Yojson.Safe.from_file(at"tools/packaging/runtime_next_license_manifest.json")in
   let open Yojson.Safe.Util in
   if manifest|>member"schema"|>to_int<>1 then fail"license manifest schema drift";
   let surfaces=manifest|>member"surfaces"|>to_list in

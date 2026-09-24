@@ -130,7 +130,7 @@ let () =
       | Some value -> value
       | None ->
           Filename.concat root
-            "specification/evidence/gpu_migration/phase2_metal_ffi_baseline.json"
+            "tools/metal/phase2_metal_ffi_baseline.json"
     in
     validate root evidence
   with

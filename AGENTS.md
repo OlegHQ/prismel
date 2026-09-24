@@ -2,661 +2,141 @@
 
 ## Purpose
 
-Prismel is an OCaml creative-coding framework. Keep its public API small,
-functional where practical, and suitable for interactive native desktop
-programs on Apple Silicon.
+Prismel is an OCaml creative-coding framework for interactive native desktop
+programs. It ships native Apple-Silicon Metal only, through OGPU, whose API is
+backend-agnostic by design. Keep the public API small and functional where
+practical. Never add a CPU raster, browser/web, SDL2/Tsdl, or OpenGL fallback;
+Metal unavailability is a typed startup error.
 
-## Native Metal-only migration override
+Nested `AGENTS.md` files hold subsystem rules: `lib/metal`, `lib/ogpu`,
+`lib/runtime`, `lib/pdk`, `lib/sketch_ui`, `lib/sop_catalog`. Read the one for
+the directory you change. Design notes live in `specification/`; update them
+when behavior or architecture changes materially.
 
-Prismel ships native Apple-Silicon Metal only. Do not add, preserve, repair, or
-introduce a CPU raster, browser, web, Wap, SDL2/Tsdl, or OpenGL fallback.
-`raster2`, `ogpu_raster2`, Wap, and alternate Runtime providers are retired
-deletion work, not compatibility surfaces. Preserve the high-level Scene,
-Canvas, Image, Font, Audio, and input APIs by lowering them to Metal/OGPU; a
-renderer-neutral command/value type extraction is acceptable, but a new CPU
-rasterizer is not.  Native Metal unavailability must fail with a typed startup
-error.  Follow `NEW_GPU_STUFF.md` as the current authority where it conflicts
-with older multi-target guidance below.
+## Libraries
 
-## Repository layout
+| Library | Owns |
+|---|---|
+| `sdl3`, `sdl3_image/ttf/mixer` | SDL3 bindings (foundational) |
+| `metal` | Metal bindings: safe layer over a handwritten bridge (foundational) |
+| `ogpu` | Backend-agnostic GPU API; `ogpu_metal` implements it |
+| `runtime` | SDL3 lifecycle, Metal presentation, typed event translation |
+| `scene_command`, `scene_execution` | Renderer-neutral commands and their GPU execution |
+| `prismel` | `Sketch`, `Frame`, pure `Scene`, `Event`/`Input`, resources, renderer behavior |
+| `prismel_pathtracer` | Hardware ray-traced path tracer |
+| `pdk` | The single packed geometry/topology compute core |
+| `geom` | Legacy functional geometry layer, being absorbed into `pdk` (plan K) |
+| `procedural` | Immutable SOP graphs over `pdk` operations |
+| `sop_catalog` | Inspectable SOP constructors registered by PPX |
+| `pxui` | The one immediate-mode UI engine (`Pxui.Ui`) |
+| `pxui_graph` | SOP-network presentation; emits typed requests, never edits |
+| `sop_ui` | Renders a node's typed parameter template through PXUI |
+| `sketch_support` (`lib/sketch`) | Target-neutral sketch helpers (reactive cooks, packed pieces) |
+| `sketch_ui` | The interactive sketch environment (`Environment3`/`2`) |
 
-- `lib/prismel/` is the main `prismel` library.
-- `lib/runtime/` owns the native SDL3 lifecycle, Metal presentation, and event
-  translation.
-- `lib/<name>/` contains sibling feature libraries. An ordinary sibling may
-  depend on `prismel`; `prismel` must never depend on one. The frozen GPU graph
-  deliberately exempts the foundational `sdl3`, `metal`, `ogpu`, and
-  `ogpu_metal` libraries described below: `prismel` may depend on `ogpu`, and
-  `runtime` may combine SDL3 with `ogpu_metal`.
-- `lib/pxui/` is the immediate-mode UI toolkit (`Pxui.Ui`) inspired by ofxUI.
-- `lib/sop_ui/` is the one-way adapter that renders typed `procedural`
-  parameter templates through PXUI; neither underlying library imports it.
-- `lib/pxui_graph/` owns SOP-network presentation and interaction. It consumes
-  immutable `Procedural.Edit_graph` metadata, retains graph-space tile
-  positions and selection, and emits typed add/delete/connect/disconnect/insert
-  requests; it never applies those requests, compiles nodes, cooks, or edits
-  geometry itself.
-- `lib/sop_catalog/` owns inspectable catalog constructors whose parameter
-  records and PPX metadata live with the SOP definition. It wraps public
-  `procedural` nodes and must not own a competing cook or geometry kernel.
-- `lib/pdk/` is the single packed geometry/topology compute core.
-- `lib/geom/` is the ergonomic functional geometry API and adapter layer; it
-  consumes `pdk` for mesh generation and modeling algorithms rather than
-  maintaining competing kernels.
-- `lib/procedural/` owns immutable SOP graphs and consumes `pdk` operations.
-- `lib/sketch/` owns reusable, target-neutral sketch orchestration helpers such
-  as background SOP reactivity and terminal packed-piece render transforms. It
-  may consume `prismel`, `pdk`, and `procedural`; those libraries never import it.
-- `lib/sketch_ui/` is the high-level interactive sketch environment over
-  `sketch_support`, `pxui`, `pxui_graph`, and `sop_ui`. It owns camera/render
-  controls for both 2D and 3D, the reusable responsive view/graph/inspector
-  workspace, one shared timeline/selection/cook lifecycle, scheduling/status,
-  and finite native smoke integration; lower layers never import it.
-- `examples/<project>/` contains self-contained example executables. Give every
-  example its own `dune` file and keep shared framework code out of examples.
-- `sketches/<project>/` contains experimental creative-coding executables.
-  Give every sketch its own `dune` file, keep experiments out of the public
-  library surface, and prefer `Sketch`, `Scene`, and immutable SOP graphs.
-  Sketches must provide an explicit finite native smoke path.
-- `test/` contains automated tests, including finite native integration tests.
-- `specification/` contains design notes. Update it when behavior or architecture
-  changes materially.
+`examples/<name>/` are short teaching programs; `sketches/<name>/` are
+experiments. Each has its own `dune`, depends only on what it shows, keeps
+framework code out, and runs finitely under `PRISMEL_MAX_FRAMES`. Scaffold an
+example with `dune exec tools/new_example.exe -- <name>`. Prefer
+`Sketch_ui.Environment3`/`2` for SOP sketches, SOP graphs for geometry, and
+deterministic seeds.
 
-## Dependency direction
+## Dependency rules
 
-```text
-examples ──> pxui ──> prismel ──> runtime
-    └────────────────> prismel
+`test/dependency_gate.ml` reads every `lib/**/dune`, builds the transitive
+graph, and enforces "may never reach" rules plus a token scan. Known
+violations are listed there with the plan item that removes them.
 
-sketches/examples ──> sop_ui ──> pxui
-                         └─────> procedural
-       sketches ──> sketch_support ──> procedural/pdk/prismel
-       sketches ──> sketch_ui ──> pxui_graph/sop_ui/sketch_support
-       sketches ──> sop_catalog ──> procedural/pdk/prismel
-```
+- Foundational libraries (`sdl3*`, `metal`, `ogpu`, `native_layer_token`,
+  `scene_command`) never reach `runtime`, `prismel`, or anything above.
+  `ogpu` depends on nothing in the repo; `ogpu_metal` only on `ogpu` + `metal`.
+- `Metal.`/`Ogpu_metal.` appear only in `lib/metal` and `lib/ogpu_metal`.
+- `prismel` never depends on `pxui`, geometry, sketch libraries, or examples.
+- `pdk` never reaches `geom`/`procedural`; `procedural` never reaches UI
+  libraries; `pxui` never reaches `procedural`; `sop_ui` and `pxui_graph`
+  never import each other or `sketch_*`; nothing imports `sketch_ui`.
+- A boundary change updates the gate, adds focused tests at each affected
+  boundary, and updates `specification/backend.md`. Do not expose raw SDL,
+  Metal, or runtime values in `Scene` or public sketch code.
 
-Never introduce a dependency from `prismel` to `pxui` or to an example.
-
-The native GPU architecture defined by `NEW_GPU_STUFF.md` uses these
-foundational libraries below `runtime` and `prismel`:
-
-```text
-examples / sketches / pxui / procedural / pdk
-                         |
-                         v
-                      prismel ----------------> ogpu
-                         |                        ^
-                         |                        |
-                         v                        |
-                      runtime -----------> ogpu_metal --------> metal
-                         |
-                         +----> sdl3 / sdl3_image / sdl3_ttf / sdl3_mixer
-```
-
-`sdl3`, its extension bindings, `metal`, optional `metal_fx`, `ogpu`, and
-`ogpu_metal` are foundational libraries rather than ordinary sibling feature
-libraries. `sdl3` must not import Metal, OGPU, Runtime, Prismel, or PXUI;
-`metal` must not import SDL3, OGPU, Runtime, Prismel, or PXUI; `ogpu` must not
-import SDL3, Metal, Runtime, Prismel, or PXUI; and `ogpu_metal` may import only
-`ogpu` and `metal`. Runtime alone combines the SDL3 Metal view with an
-`ogpu_metal` surface, while Prismel records through `ogpu` without exposing raw
-native pointers. These exceptions do not permit reverse edges: SDL3, Metal, and
-OGPU never import Runtime or Prismel, and `ogpu_metal` never imports Runtime or
-SDL3. The dependency-direction gate must check both required edges and injected
-forbidden reversals.
-
-Private scene descriptions lower directly to native render work; do not fork
-public Scene semantics. Binding generation and migration orchestration remain
-OCaml/Dune native: the GPU migration has no Python glue and must not acquire
-any.
-
-## Metal binding generation
-
-The remaining Metal SDK surface follows a hybrid OCaml/Dune code-generation
-workflow. Preserve the existing binding and migrate it incrementally; do not
-discard or replace the checked public API, ownership model, native validation,
-conformance fixtures, or committed inventory work.
-
-- Generate only mechanical binding layers: enum constants and mappings, simple
-  getters/setters, raw OCaml external declarations, availability guards, and
-  typed Objective-C++ selector calls. New generator and validation tooling must
-  be written in OCaml and run through Dune; do not introduce Python glue.
-- Keep the safe `Metal` API handwritten. Resource ownership, lifetimes,
-  same-device checks, numeric/range validation, capability policy, command
-  completion retention, complex descriptor marshalling, and GPU behavior never
-  come from an unchecked SDK-signature guess.
-- Pure value surfaces are the deliberate bulk exception: generated typed enum
-  families/constants and fixed-layout value records may be re-exported through
-  the safe `Metal` API when the pinned inventory, Objective-C++ `static_assert`
-  checks, exhaustive generated round-trip tests, availability metadata, and
-  deterministic provenance jointly prove the mapping. This exception never
-  applies to object handles, callbacks, descriptor ownership, command state,
-  or cross-object validation.
-- Generate statically typed direct Objective-C calls. Do not replace them with
-  `objc_msgSend`, stringly typed selectors, runtime signature dispatch, or a
-  public unsafe catch-all API.
-- Use one declarative binding plan as the source of truth for generated symbol
-  IDs, SDK signatures, native handle kinds, parameter/result representations,
-  availability, and validation templates. Generation must fail on an inventory
-  mismatch, duplicate OCaml/C symbol, unsupported type, or stale output.
-- Treat the current handwritten raw/native implementations as golden templates.
-  Migrate representable selectors gradually without changing their OCaml names,
-  C symbols, public call sites, error semantics, or tests. Do not hand-add a
-  mechanical raw external and native trampoline when the binding plan can
-  represent it.
-- Batch mechanical coverage at production scale. When the pinned inventory has
-  enough compatible declarations, one generation batch should cover at least
-  100 primary/companion declarations rather than qualifying one selector at a
-  time. Partition the plan and its goldens into independent OCaml modules by
-  header or API family so parallel agents can edit disjoint files. Run focused
-  deterministic checks per shard while iterating, then run the repository-wide
-  build, Metal benchmark, conformance, ownership, and sanitizer gates once for
-  the integrated large batch rather than once per declaration.
-- Report generated mechanical coverage separately from fully safe/bound
-  coverage. Raw-only generated declarations count as generator throughput but
-  remain `unreviewed`; only handwritten safe integration and the required
-  conformance evidence may move them to `bound`.
-- Record every Metal inventory-changing commit in
-  `specification/evidence/gpu_migration/metal_progress_rate.md` using the Git
-  commit timestamp, exact bound/in-scope counts, elapsed hours since the prior
-  inventory commit, declarations/hour, and percentage-points/hour. Never quote
-  a completion rate in chat without updating that ledger from committed data.
-- A generated low-level declaration is not sufficient to call an SDK feature
-  complete or mark it bound. Expose it only through the safe layer and add
-  capability, rejection, exact-behavior, no-handle-delta, and completion-owned
-  lifetime tests appropriate to that feature before updating inventory status.
-- Keep complex command encoding, resource-returning constructors, callbacks,
-  blocks, variable-size structures, nullable ownership transfer, descriptor
-  graphs, and cross-object invariants handwritten until an explicit generator
-  template models their complete semantics.
-- Generated artifacts must be deterministic Dune targets with drift/provenance
-  checks. A generator change must build bytecode/native/shared forms, retain the
-  FFI benchmark envelope, and run the relevant Metal conformance, ownership,
-  sanitizer, inventory, and frozen-plan checks.
-
-Geometry libraries follow this additional direction:
-
-```text
-procedural ──> geom ──> pdk ──> prismel
-     └────────────────> pdk
-```
-
-`procedural` may use `geom` for ergonomic curves, polygons, fields, and
-representation-neutral preparation, or call `pdk` directly for packed SOPs.
-`geom` must never depend on `procedural`; `pdk` must never depend on either.
-`sop_ui` may depend on both `procedural` and `pxui`; those libraries must never
-depend on `sop_ui` or each other.
-`sketch_support` is a leaf helper for sketches. It may depend on `procedural`,
-`pdk`, and `prismel`, but must not own widgets, renderer backends, or geometry
-kernels and must never be imported by those underlying libraries.
-`pxui_graph` and `sop_ui` are presentation adapters, not graph authorities:
-selection lives in returned immutable UI state, network topology lives in
-`Procedural.Edit_graph`, and the `sketch_ui` host applies typed editor commands
-before compiling a cookable DAG. Parameter edits replace the selected node in
-that same immutable document (or use `Graph.apply_parameters` in a compiled,
-non-editor context). `sop_catalog` may attach
-PPX-derived schemas through `Node.parameterize`, but delegates cooking to
-ordinary Procedural SOPs. `sketch_ui` composes these leaves and must not move
-widgets, camera policy, or render lifecycle into `procedural` or `pdk`.
-
-## Procedural geometry scope
-
-- Target a complete production toolset for procedural geometry modeling:
-  mesh and curve construction, topology editing, attributes and groups,
-  selections, spatial queries, subdivision, booleans, repair, remeshing,
-  reduction, instancing, and deterministic import/export.
-- Existing UV projection/flatten/relax utilities remain supported, but UV
-  feature-parity expansion is not a modeling priority until requested again.
-- Rigging/KineFX, crowds, fluids, pyro, Vellum, MPM, dynamics solvers,
-  compositing, terrain/heightfield systems, USD pipelines, and general VFX
-  simulation are explicitly out of scope until requested separately.
-- Parity claims against other modelers are made only from the external
-  comparison workspace (`../prismel-support`) and apply only to the in-scope
-  polygon/curve modeling surface; never imply parity with a full product.
-
-## Single geometry core
-
-- `pdk` is the only owner of packed mesh topology, reverse incidence,
-  half-edge/edge indexing, spatial acceleration, attribute interpolation and
-  promotion, and high-density modeling algorithms.
-- `geom` owns user-facing mathematical values such as points, bounds, curves,
-  polygons, rays, fields, and friendly functional APIs. For mesh generation or
-  topology mutation, it prepares inputs for `pdk`, invokes the shared kernel,
-  and converts the result through an explicit adapter.
-- `procedural` wraps the same `pdk` operations as immutable SOP nodes. It may
-  compose `geom` operations for high-level input preparation, but must not
-  reimplement packed geometry algorithms inside graph cooks.
-- Do not fix duplication by making `pdk` import `geom`. Move or independently
-  implement the representation-neutral algorithm in `pdk`, then adapt the
-  existing `geom` entry point to it while preserving the public API.
-- Migrate incrementally by operation. Every migrated Geom operation needs a
-  compatibility regression comparing its public result before/after where a
-  stable result was documented, plus direct PDK correctness, malformed-input,
-  cancellation, cardinality, and one-domain/multi-domain exactness tests.
-- Retire the old Geom kernel after its adapter is proven; do not leave two
-  authoritative implementations behind a permanent fallback.
-- Shared topology structures must be packed integer arrays/bytes with explicit
-  ownership and O(points + vertices + primitives + edges) storage. Public
-  immutable wrappers may expose safe queries; audited kernels may borrow
-  read-only planes through a narrow `Private` view.
-- Robust operations separate combinatorial decisions from approximate metric
-  calculations. Use adaptive/exact predicates for orientation, incircle, and
-  intersection signs where floating-point ambiguity can change topology;
-  tolerances remain explicit policy, not a substitute for robust predicates.
-- External native geometry libraries require an explicit dependency, license,
-  portability, determinism, and native-build review. Prefer a small audited
-  native OCaml kernel for core operations; reuse a mature library only when it
-  materially improves robustness and the boundary preserves PDK ownership.
-- Production mesh Booleans use an exact surface-arrangement/Weiler pipeline,
-  not BSP polygon clipping, centroid classification, voxel/SDF resampling, or
-  a tolerance-welded triangle soup. Preserve symbolic/implicit intersection
-  constructions until output materialization; all predicates involving those
-  points must be filtered exact or exact.
-- The Boolean kernel is staged and reusable: deterministic broad phase, exact
-  intersection classification, implicit seam construction, per-face
-  constrained Delaunay refinement, coincident-facet handling, radial ordering,
-  patch/cell classification, Boolean-expression extraction, ancestry-aware
-  payload transfer, one-time rounding, and bounded seam cleanup/verification.
-  Detection and floating intersection-analysis nodes are diagnostics only and
-  must never be silently reused for topology-changing decisions.
-- Standard normal payload is orientation-aware: when extraction reverses a
-  source facet, transferred point/vertex `N` must be reversed and normalized
-  with it. Terminal packed-piece expansion must preserve those authored
-  normals instead of silently replacing them with per-triangle normals.
-- Boolean product scope includes variadic expressions, union/intersection/
-  subtraction/XOR, seam, shatter, solid/surface treatment, self-intersection
-  resolution, coplanar overlap, non-manifold arrangement edges, and stable
-  source ancestry. Expose a public SOP only as each advertised mode reaches
-  exact one-domain/multi-domain parity, adversarial degeneracy coverage, and a
-  measured scale baseline.
-
-## Iterative procedural sketches
-
-- Support real-time creative feedback by letting `Sketch.run_state` own the
-  previous immutable PDK geometry and cook the next snapshot each application
-  step. This is an iterative sketch facility, not authorization to add a
-  general dynamics/VFX solver framework.
-- Keep each per-step procedural graph acyclic. Feedback crosses the frame
-  boundary explicitly through the sketch model and `Sop.snapshot`; never hide
-  mutable feedback or global geometry state inside a SOP node or session cache.
-- Custom procedural nodes may compose public SOP/Geom operations or implement a
-  typed PDK kernel. Composed nodes retain inspectable subgraphs when useful;
-  fused native nodes must declare stable parameter identity, context
-  dependencies, input ownership, cancellation behavior, and complexity.
-- Retain only current/next snapshots by default, structurally share unchanged
-  PDK components, and keep cook/mesh caches bounded. History, trails, and
-  checkpoints require explicit capacities and must not grow with frame count.
-- Keep render-only packed instances as a terminal prototype-plus-transform
-  value outside `Pdk.Geometry.t`. Do not invent fake editable packed primitives;
-  use an explicit materialization boundary before feeding per-copy topology
-  back into a solver step.
-- Iterative sketches expose reset and optional checkpoint hooks. Repeatable
-  runs use `Sketch.Fixed dt`, explicit immutable seeds, stable input streams,
-  and exact one-domain/multi-domain state and framebuffer regressions.
-
-## Library ownership boundaries
-
-- `prismel` owns target-independent application semantics: `Sketch`, immutable
-  `Frame` facts, pure `Scene` data, public `Event`/`Input`, resource APIs, and
-  renderer behavior. It may call the narrow `runtime` lifecycle/presentation
-  boundary, but it must not implement HTTP, WebSocket, DOM, or browser policy.
-- `runtime` owns SDL3 subsystem lifetime, native environment setup/restoration,
-  Metal surface presentation scheduling, and typed event translation. It must
-  not own widgets, scene constructors, or application models.
-- Sibling libraries such as `pxui` depend only on public `prismel` semantics.
-  PXUI represents text-entry intent as pure `Scene` metadata; it must never
-  call Runtime or inspect platform internals.
-- Cross-library communication uses narrow typed functions. Do not expose raw
-  SDL, Metal, or runtime internals in `Scene` or public sketch code.
-- A boundary change must include a Dune dependency-direction check, focused
-  tests at each affected boundary, and an update to `specification/backend.md`.
-
-## Native runtime contract
-
-- Runtime has one native Metal lifecycle: initialize SDL3 on the initial
-  domain, create the high-DPI Metal view and `ogpu_metal` surface, translate
-  events, acquire/present drawables, drain completion/deferred release, then
-  destroy GPU resources before the view/window/SDL.
-- Native fixed-pipeline `Scene3` meshes render through Metal with hardware
-  transforms, depth/stencil, lighting, culling, blending, and window MSAA.
-  Functional shaders require typed MSL/IR support or return a typed
-  unsupported-feature error.
-- Native GPU access and packed mesh caches belong to `prismel`, stay on the
-  initial domain, submit through `ogpu_metal`, and remain strictly bounded
-  under changing procedural meshes. Verify more than the first presented frame.
-- A compatible native Metal device and surface are required. Their absence must
-  return a typed startup error.
-- Any automated application-loop test must arrange its own termination.
-- Keep SDL3, Metal, texture, font, audio, event, and cache operations on the
-  initial domain. Never create a domain or thread per frame.
-
-## High-DPI and coordinate contract
-
-- Treat `Sketch` configuration sizes, `Frame.width`/`height`, `Scene`
-  coordinates, `Input.mouse_pos`, mouse event positions, and PXUI layout as
-  logical points in one shared coordinate system.
-- Keep SDL3 logical size synchronized with the actual window size.
-  `SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED` is authoritative.
-- Do not manually scale mouse events for Retina displays. SDL3 logical event
-  coordinates keep drawing and hit testing aligned.
-- Query Metal drawable size for physical backing pixels. Preserve
-  `Frame.drawable_width`, `drawable_height`, `drawable_size`, and
-  `pixel_scale` as the explicit native-pixel boundary.
-- Convert a logical `Scene.view3d` sub-viewport to physical drawable edges
-  exactly once inside the native GPU backend before configuring a Metal viewport
-  or scissor. Never pass logical Retina coordinates directly to Metal.
-- `Canvas.capture` and `Canvas.save_screen_png` read and preserve the full native
-  framebuffer. Never allocate their readback from logical window dimensions.
-- Keep `Scene.text` on an installed platform UI font and interpret `?size` in
-  logical points. Font texture caches must include renderer density and
-  rerasterize at native resolution. `PRISMEL_UI_FONT` remains the portable
-  override; do not bundle Apple system fonts.
-- Keep automatic scene text memory-bounded with the per-renderer 256-entry LRU
-  without shortening the documented lifetime of explicit
-  `Font.cached_text` images. Preserve empty text as a safe no-op rather than an
-  SDL_ttf error.
-- Keep renderer-local text caches LRU-bounded to 256 textures, including for
-  rapidly changing labels, and preserve empty text as a valid no-op.
-- Keep diagnostic text inside the native scene command path; do not reintroduce
-  a legacy bitmap-font dependency.
-
-## Public sketch API
-
-- New user-facing examples should start with `Sketch`, `Frame`, and `Scene`.
-  `Low.App` and `Low.Graphics` are the compatibility/escape-hatch layer.
-- Thread immutable user models through `Sketch.run_state`; do not add global
-  user-state refs to make an API shorter.
-- A `view` returns `Scene.t`. Scene constructors must remain pure data
-  constructors, and `Scene.render` is the effect boundary.
-- Put current canvas, time, input, and ordered event facts in `Frame.t` so
-  sketches do not need to synchronize several global modules.
-- Keep `Frame.mouse_delta` equal to the sum of all logical pointer motion in one
-  application frame, and reset it before polling the next frame.
-- Prefer a five-minute-sketch path with sensible defaults, while keeping
-  explicit configuration available for larger programs.
-- Use `at:(x, y)` for positions, radians for angles, radius for circles, and
-  `Color.t` for colors. Keep common constructor names short.
-- Update `specification/api.md`, at least one complete example, and public API
-  tests when changing the high-level design.
-- Resource-owning models must release textures, fonts, and canvases with
-  `Sketch.run_state ~on_stop` while SDL is still active.
-- Prefer `Sketch.run_assets` for ordinary asset-owning sketches. Values returned
-  by `Assets` are borrowed and must not be destroyed individually.
-- Watched image reload must preserve the borrowed `Image.t` identity and retain
-  the previous valid texture after a failed decode.
-- `Scene.font_text` uses renderer-local textures owned by its `Font.t`. Preserve
-  cache invalidation on font mutation and release offscreen-renderer entries
-  before destroying their renderer.
-- Preserve path contour boundaries through flattening, fill, and stroke.
-  Even-odd and non-zero behavior must be tested with transparent holes rather
-  than simulated background-colored shapes.
-- Directly loaded or synthesized `Audio` values are owned resources and belong
-  in `on_stop`. Audio remains SDL3_mixer-backed on the native lifecycle and
-  must not silently become a no-op.
-- Do not add fake polymorphic placeholders for planned operations. Implement a
-  real result-returning boundary or leave the operation out of the public API.
-
-## Multicore and determinism
-
-- SDL window, renderer, event, texture, image, and font operations must execute
-  on the initial domain. `Scene.render` enforces this boundary.
-- Use the reusable `Parallel` Domainslib pool for coarse CPU work. Never spawn a
-  domain per frame or per collection item.
-- Functions submitted to `Parallel` must operate on immutable or independently
-  owned data. Do not mutate shared refs, arrays, stacks, or SDL objects without
-  an explicitly reviewed synchronization design.
-- Use immutable `Rand.t` values for new generative APIs. Do not use the global
-  `Stdlib.Random` state in parallel-capable code.
-- A seed must reproduce the same values, palettes, geometry, and noise across
-  runs. Split generators before independent parallel work.
-- Use `Sketch.Fixed dt` for repeatable simulation and export. The timestep must
-  be finite and positive; time is derived from frame count rather than wall
-  time.
-- Keep `Sketch.export` artifact-deterministic: fixed inputs must produce
-  byte-identical numbered PNG sequences across repeated runs on the same
-  backend.
-- Keep scheduling grain configurable and retain a sequential path for small
-  collections, where parallel overhead costs more than the work.
-- Parallel asset preparation may read ordinary bytes only. SDL_image decode,
-  texture upload, and cache mutation join back onto the initial domain.
-
-## Production performance contract
-
-Prismel targets interactive procedural graphics and high-density offline mesh
-generation. Performance is a correctness property for hot paths, not a later
-cleanup step.
-
-- Establish a benchmark and allocation baseline before changing a hot path.
-  Report wall time, promoted/major allocations, peak live memory when
-  practical, input size, domain count, compiler profile, and machine details.
-- Document asymptotic time and auxiliary-memory complexity for public
-  geometry algorithms. A green functional test is not evidence that a
-  million-element workload is production-ready.
-- Keep immutable public values, but use locally owned mutation internally:
-  pre-sized arrays, growable buffers, hash tables, bitsets, and disjoint output
-  slices are preferred over allocation-heavy persistent rebuilding inside an
-  algorithm.
-- Use packed numeric storage (`float array`, integer arrays, Bigarray, or
-  structure-of-arrays layouts) for high-density geometry. Do not represent a
-  million-element hot buffer as boxed lists or repeatedly convert it between
-  lists and arrays. Public list conveniences must stay outside inner loops.
-- Never use `List.nth`, repeated `List.length`, `@`, `Array.append`, nested
-  `List.concat_map`, or per-element `Option` boxes in a measured hot loop.
-  Linear builders must be amortized O(1) per append and materialize once.
-- Mesh generators must compute output cardinality up front when topology makes
-  it knowable, allocate once, and fill by index. For variable output, use a
-  geometric-growth builder. Avoid generate-list → reverse → convert-array
-  pipelines for dense output.
-- Spatial and topology algorithms must use integer/index keys and compact
-  adjacency storage where possible. Avoid polymorphic comparison/hash in hot
-  paths when a specialized integer key is available. Avoid repeated global
-  scans for local queries.
-- Reuse the process-wide Domainslib pool. Never create or tear down domains per
-  frame, algorithm iteration, collection, or asset. Parallel APIs must expose a
-  tunable grain, retain a benchmarked sequential cutoff, and write only to
-  disjoint owned output ranges.
-- Split deterministic work by stable index ranges. Parallel execution must
-  produce byte-identical ordered results to the sequential path for fixed
-  inputs; do not let work-stealing order leak into mesh indices, hashes,
-  palettes, random streams, exports, or diagnostics.
-- Every parallel refactor needs a regression that compares one-domain and
-  multi-domain results exactly. For geometry, compare vertex attributes,
-  indices, primitive modes, and ordering; for rendering, compare captured
-  native-framebuffer pixels or byte-identical exported PNGs.
-- Run representative visual scenes in both one-domain and multi-domain modes.
-  Treat unexplained pixel drift, missing primitives, changed winding, seams,
-  or nondeterministic frame artifacts as correctness failures, not acceptable
-  performance tradeoffs.
-- Do not parallelize SDL, renderer, texture, image decode/upload, font, audio,
-  event, or cache mutation. Parallelize pure sampling, field evaluation,
-  transforms, classification, and independently owned geometry preparation,
-  then join before the backend boundary.
-- Frame hot paths must avoid work proportional to unchanged scene/resource
-  size. Cache immutable derived data by stable identity with bounded lifetime;
-  invalidate precisely on source mutation or renderer-density changes.
-- Rendering inner loops must not allocate per pixel, sample, light, fragment,
-  or triangle edge. Reuse scratch storage and precompute invariant material,
-  light, transform, clipping, and texture state outside raster loops.
-- Long-running workloads must be memory-bounded. Every cache needs an explicit
-  capacity/eviction policy; temporary arenas/builders must become unreachable
-  after a job; resource destruction remains explicit at the owning boundary.
-- Prefer algorithmic wins over micro-optimization: eliminate quadratic scans,
-  reduce topology passes, cull early, stream where possible, and avoid storing
-  derivable duplicates before tuning arithmetic.
-- Add scale tests for regressions in output cardinality and auxiliary storage.
-  Add or update `tools/bench_*` for any new high-density path. Timing thresholds
-  in CI must be broad and diagnostic; deterministic allocation/cardinality
-  ceilings may be strict.
-- A performance-sensitive handoff must include the benchmark command and
-  before/after evidence. Do not claim “zero allocation”, “linear”, “parallel”,
-  or “production-ready” without measurement or code-level proof.
-
-## Development workflow
-
-Bootstrap a checkout with a repository-local OCaml 5 switch:
+## Loops
 
 ```sh
-opam init
-opam switch create . 5.3.0 --no-install
-opam pin add --no-action --yes --recursive ./packaging
-direnv allow
-opam install . --deps-only --with-test --with-doc
-```
-
-`--no-install` prevents opam from resolving `prismel` before the checkout-local
-SDL3 `conf-*` packages have been registered. The packages below `packaging/`
-only probe native dependencies; all implementation code remains in the Dune
-libraries below `lib/`.
-
-The checked-in `.envrc` evaluates `opam env --switch=. --set-switch`. If
-direnv is unavailable, evaluate that command manually before using Dune.
-
-Run these before handing off a change:
-
-```sh
-dune build @all
-dune runtest
-dune exec examples/basic/main.exe
-dune exec examples/particles/main.exe
-dune exec examples/noise/main.exe
-dune exec examples/canvas/main.exe
-dune exec examples/audio/main.exe
-dune exec examples/pxui/main.exe
-dune exec examples/generative/main.exe
+dune build @check                 # inner loop: typecheck only
+dune build @lib/<name>/runtest    # focused tests
+dune build @all && dune runtest && dune build @smoke && git diff --check  # pre-commit
 dune build @doc
 ```
 
-If a native example would otherwise run forever, give it an explicit finite
-frame count for smoke testing.
+Default `runtest` is green on a clean checkout. Display-dependent tests live in
+`@runtest-native`; long, SDK-, driver-, or machine-specific checks in
+`@qualification`. A public `.mli` change shows as a diff of
+`tools/api_manifest/api_stable.json`; accept an intended change with
+`dune promote`. Warnings are errors. Automated application loops arrange
+their own termination. Build, generation, and validation glue is OCaml under
+Dune, never Python; external-tool comparisons belong in `../prismel-support`.
 
-## OCaml conventions
+Bootstrap: `opam switch create . 5.3.0 --no-install`, then `opam pin add
+--no-action --yes --recursive ./packaging`, `direnv allow` (or
+`eval "$(opam env --switch=. --set-switch)"`), and `opam install . --deps-only
+--with-test --with-doc`. `packaging/` only probes native SDL3 dependencies.
 
-- Add an `.mli` for public modules.
-- Write new repository-native build, code-generation, validation, migration,
-  and benchmark glue in OCaml and integrate it with Dune. Do not introduce
-  Python merely for process orchestration, file generation, parsing, or test
-  harnesses when OCaml can perform the work. External-tool comparison
-  harnesses belong in `../prismel-support`, not in this repository.
-- Prefer explicit result/error handling at backend boundaries.
-- Avoid exposing additional SDL values in new public APIs.
-- Keep sibling libraries wrapped, so their modules remain namespaced.
-- Add focused tests for pure behavior and a finite native integration test for
-  renderer or lifecycle changes.
-- High-DPI changes need coverage for renderer logical/output size, native
-  capture dimensions, logical mouse alignment, per-frame delta reset, and PXUI
-  press/drag/release behavior at simulated backing scales.
-- Treat compiler warnings as errors and run `git diff --check`.
+## Public API
 
-## Adding an ordinary sibling library
+- User-facing code starts with `Sketch`, `Frame`, and `Scene`; thread an
+  immutable model through `Sketch.run_state`; no global user-state refs.
+- A `view` returns `Scene.t`. Scene constructors are pure data;
+  `Scene.render` is the effect boundary.
+- `Frame.t` carries canvas, time, input, and ordered events.
+  `Frame.mouse_delta` sums one frame's pointer motion and resets each frame.
+- Conventions: `at:(x, y)` positions, radians, radius for circles, `Color.t`
+  colors, short constructor names, sensible defaults with explicit config.
+- Resources (textures, fonts, canvases, audio) are owned: release them in
+  `Sketch.run_state ~on_stop` while SDL is alive. `Sketch.run_assets` values
+  are borrowed; watched reloads keep the `Image.t` identity and the last good
+  texture. Audio is SDL3_mixer-backed and never silently a no-op.
+- No fake placeholders: implement a real `result`-returning boundary or leave
+  the operation out. Prefer explicit `result` errors at backend boundaries.
+- Every public module has an `.mli`; sibling libraries stay wrapped. Changing
+  the high-level design updates `specification/api.md`, an example, and tests.
 
-Create `lib/<name>/dune` with a wrapped library named `<name>` and declare
-`(libraries prismel ...)`. Add its tests under `test/` or beside the library
-only when they are genuinely library-specific. Document the library in the
-README. Foundational GPU libraries instead follow the frozen dependency graph
-above and must not use this ordinary-sibling template.
+## Coordinates and native runtime
 
-`Pxui.Ui` is the only PXUI engine: build widgets every frame inside
-`Ui.frame`, keep their values in the immutable sketch model, compose
-`Ui.scene` into the view, and destroy the handle from `on_stop`. Every PXUI
-host (panels, `sop_ui`, `sketch_ui` chrome, the `pxui_graph` canvas) builds
-boxes in that one frame and shares its capture, focus, hit list, and
-instance renderer; do not add a second hit-test, capture, text-entry, or
-painting path. New widgets are functions over `Ui.box`/`Ui.signal`/`Ui.draw`,
-not new variant cases. Preserve the design kit (`Pxui.Theme` palette,
-DepartureMono face, 24-point rows, label column, control geometry) pixel for
-pixel; `lib/pxui/test_ui_parity` guards it.
+Sketch sizes, `Frame` sizes, Scene coordinates, mouse positions, and PXUI
+layout are logical points. `Frame.drawable_*`/`pixel_scale` are the explicit
+native-pixel boundary; conversion to drawable pixels happens once, inside the
+GPU backend. Details: `lib/runtime/AGENTS.md`.
 
-For SOP-backed inspectors, declare typed templates beside each operator with
-`Procedural.Parameter` (or `[@@deriving sop_params]`) and attach them to that
-node. Use `Procedural.Custom.node/create/map` for custom parameterized nodes,
-and `Sop_ui.Node_inspector` plus `Graph.apply_parameters` for selected-node
-editing. Do not recreate a sketch-wide shadow parameter record, copy
-names/defaults/ranges into hand-built widgets, or make `procedural` import
-PXUI.
+## Determinism and domains
 
-- Preserve visual feedback for hover, armed, and actively dragged controls in
-  both the default theme and custom themes.
-- Buttons, toggles, and choices commit only after a press and release inside
-  the same control.
-- Sliders, ranges, and XY controls capture the pointer from left-button press
-  through release. They update continuously outside their bounds and clamp
-  values to their configured ranges.
-- `WindowFocusLost` must clear held input and cancel PXUI pointer capture, text
-  focus, and IME composition.
-- PXUI text uses the kit face (DepartureMono or `PRISMEL_UI_FONT`) through
-  a density-aware glyph atlas that reproduces SDL_ttf string rendering;
-  `Ui.create ~font` borrows a supplied font and `~font_size` selects the
-  logical size of kit text.
+- SDL, Metal, texture, font, audio, event, and cache operations run on the
+  initial domain. Never create a domain or thread per frame or item.
+- Use the shared `Parallel` Domainslib pool for coarse pure work on immutable
+  or disjointly owned data, with a tunable grain and a sequential cutoff.
+- Parallel results are byte-identical to the sequential path; every parallel
+  change has an exact one-domain vs multi-domain regression.
+- Use immutable `Rand.t`, never global `Stdlib.Random`, in parallel-capable
+  code; split generators before independent work. `Sketch.Fixed dt` and
+  `Sketch.export` are artifact-deterministic.
 
-## Adding an example
+## Performance
 
-Create `examples/<name>/dune` and `examples/<name>/main.ml`. Depend only on the
-libraries the example demonstrates. Examples are teaching material: keep them
-short, readable, independently runnable, and finite in native smoke runs.
+Performance is correctness on hot paths. Measure before changing one (wall
+time, allocations, input size, domains, profile, machine) and hand off with the
+benchmark command and before/after numbers. Packed arrays, not lists, for dense
+data; no `List.nth`, `@`, or repeated `List.length` in hot loops; pre-size or
+grow geometrically; int keys over polymorphic hash. Every cache has an explicit
+capacity. Frame work must not scale with unchanged scene size. Never claim
+"linear", "zero allocation", or "production-ready" without evidence. Full
+contract: `lib/pdk/AGENTS.md`.
 
-Use the repository scaffold for the standard shape:
+## UI
 
-```sh
-dune exec tools/new_example.exe -- <name>
-```
-
-## Adding a sketch
-
-Create `sketches/<name>/dune` and `sketches/<name>/main.ml`. Sketches are the
-repository's workspace for visual and procedural experiments: they may be more
-exploratory than examples, but must respect library dependency direction and
-must not hide reusable framework code in the sketch directory. Prefer SOP
-graphs for procedural geometry, deterministic seeds for generative work, an
-`Easy_camera` for interactive 3D views, and explicit termination when running
-native smoke runs.
-
-Prefer `Sketch_ui.Environment3` for 3D SOP scenes and
-`Sketch_ui.Environment2` for 2D SOP scenes. Both own leader-key (`Space`)
-playback, timeline, visibility, and preset bindings (`Sketch_ui.Leader.keymap`),
-selected-node inspection, reactive cooking, camera/render
-controls, resize handling, status, export, and finite native termination;
-sketch source should primarily define its graph and scene preparation.
-
-Keep the standard sketch workspace as three independently collapsible columns:
-view, graph, and inspector, with default flexible proportions 45/35/20.
-Splitters retain ratios across window resize. An empty graph selection shows
-camera/render controls in the inspector; selecting a node shows only that
-node's generated SOP parameters. Graph tile dragging is presentation-only and
-must preserve connectivity, stable IDs, caches, and cook state. Right/middle
-drag pans, wheel/trackpad motion zooms at the pointer, [Home] frames all, and
-leader `f` frames the selected tile ([F] frames the viewport camera on it).
-The node menu (leader `Space a`) must allow every SOP to be
-created even when its inputs are not yet connected. Categories are non-empty
-paths rendered as nested submenus; typed search remains global and matches the
-full breadcrumb. A visual row limit must window the complete result set, never
-truncate accessible SOPs. Command/Ctrl-C/V/X and
-Command/Ctrl-D copy, paste, cut, and duplicate selected induced subgraphs with
-fresh IDs, retained internal wires and relative positions, and disconnected
-external inputs. Delete and Backspace remove selected nodes or wires.
-Inspection selection and display selection are
-independent: every tile exposes a VIEW button, the displayed tile is visibly
-flagged, and switching it submits that node through the bounded cook worker
-while retaining the prior successful preview.
-
-Define an inspectable editor SOP once in `sop_catalog`: keep its parameter
-record, stable node key, runtime operation identity, display label, category
-path, input arity, defaults, and rebuild closure together through
-`[@@deriving sop_params, sop_node]`, then
-mark the module `[@@sop.register]`. The PPX-generated deterministic manifest is
-the only node-menu registry. Do not add a parallel hand-written factory list,
-mutable registration initializer, or menu-only parameter defaults. Catalog
-tests must reject duplicate keys, instantiate every registered factory with
-disconnected input placeholders, and prove that the resulting `Node.operation`
-matches the descriptor identity. The workspace must obtain its
-`Pxui_graph.catalog_entry` values only through
-`Pxui_graph.catalog_of_factories`; tests must search the node menu by every
-generated stable key and receive that exact factory request. Use
-`[@@sop.node_operation "..."]` only when
-the menu key intentionally differs from the runtime operation; otherwise it
-defaults to the key.
-
-Model SOP ports as required/optional signatures rather than forcing every node
-into a fixed required arity. Use `[@@sop.node_optional "..."]` for optional
-zero-based slots. An absent optional slot must compile as an omitted operator
-argument; connecting or disconnecting it must preserve the logical node ID,
-parameter values, graph position, and deterministic input order.
+`Pxui.Ui` is the only UI engine: build widgets each frame inside `Ui.frame`,
+keep their values in the immutable model, destroy the handle in `on_stop`.
+Every host shares its capture, focus, hit list, and renderer; never add a
+second hit-test, capture, text-entry, or painting path. New widgets are
+functions over `Ui.box`/`Ui.signal`/`Ui.draw`. UI code returns intents and does
+not mutate the model during `Ui.frame`. Preserve the design kit (`Pxui.Theme`,
+DepartureMono, 24-point rows) pixel for pixel; `lib/pxui/test_ui_parity`
+guards it. Host and editor rules: `lib/sketch_ui/AGENTS.md`.

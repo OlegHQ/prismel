@@ -67,11 +67,8 @@ let pump value =
   match Sdl3.Event.poll_coalesced () with
   | Error error -> Error (Format.asprintf "%a" Sdl3.pp_error error)
   | Ok events ->
-      let rec loop = function
-        | [] -> Ok ()
-        | event :: rest ->
-            (match push value event with
-             | Error _ as error -> error
-             | Ok () -> loop rest)
-      in
-      loop events
+      (* One bad event never drops the rest of the batch; report the first. *)
+      List.fold_left (fun first event ->
+        match push value event, first with
+        | Error _ as error, Ok () -> error
+        | _ -> first) (Ok ()) events

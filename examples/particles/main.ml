@@ -9,7 +9,6 @@ type particle = {
 
 type model = {
   particles : particle list;
-  frames_left : int option;
 }
 
 let make_particle index =
@@ -24,7 +23,6 @@ let make_particle index =
 let init _frame =
   {
     particles = List.init 10_000 make_particle;
-    frames_left = None;
   }
 
 let step frame particle =
@@ -35,16 +33,7 @@ let step frame particle =
   { x; y; vx; vy }
 
 let update model frame =
-  let frames_left =
-    match model.frames_left with
-    | Some 1 -> Sketch.quit (); Some 0
-    | Some count -> Some (count - 1)
-    | None -> None
-  in
-  {
-    particles = Parallel.map ~grain:256 (step frame) model.particles;
-    frames_left;
-  }
+  { particles = Parallel.map ~grain:256 (step frame) model.particles }
 
 let view model _frame =
   let particles =

@@ -2,8 +2,7 @@
 
 Prismel ships one application runtime: SDL3 window/input/audio lifecycle with an
 SDL Metal view, checked OGPU command recording, and Metal presentation on Apple
-Silicon. `Sketch` is the normal public entry point; `Low.Window` and `Low.App`
-are compatibility/escape-hatch surfaces over the same runtime.
+Silicon. `Sketch` is the public entry point.
 
 ## Startup and ownership
 
@@ -68,8 +67,8 @@ cancels capture. File-drop strings are copied before SDL3 releases its payload.
 
 The authoritative SDL3 size-change notification updates logical window facts,
 refreshes drawable size, resizes the Metal surface, and emits one
-`WindowResized` event. Programmatic `Sketch.resize` and `Low.Window.set_size`
-follow the same synchronization path. Fullscreen, show/hide, minimize,
+`WindowResized` event. Programmatic `Sketch.resize` follows the same
+synchronization path. Fullscreen, show/hide, minimize,
 maximize, restore, title, and position operations delegate to the owned native
 window.
 

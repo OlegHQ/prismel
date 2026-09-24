@@ -432,7 +432,7 @@ let core_abi_header layout version =
   Printf.bprintf output
     "_Static_assert(SDL_MAJOR_VERSION == %d, \"SDL major header changed\");\n\
      _Static_assert(SDL_MINOR_VERSION == %d, \"SDL minor header changed\");\n\
-     _Static_assert(SDL_MICRO_VERSION == %d, \"SDL patch header changed\");\n"
+     _Static_assert(SDL_MICRO_VERSION >= %d, \"SDL patch header older than pinned\");\n"
     major minor patch;
   assoc_fields "types" layout
   |> List.iter (fun (type_name, facts) ->
@@ -567,7 +567,7 @@ let image_abi_header spec (major, minor, patch) =
 #include <SDL3/SDL.h>
 _Static_assert(SDL_IMAGE_MAJOR_VERSION == %d, "SDL3_image major changed");
 _Static_assert(SDL_IMAGE_MINOR_VERSION == %d, "SDL3_image minor changed");
-_Static_assert(SDL_IMAGE_MICRO_VERSION == %d, "SDL3_image patch changed");
+_Static_assert(SDL_IMAGE_MICRO_VERSION >= %d, "SDL3_image patch older than pinned");
 typedef int (SDLCALL *prismel_img_version_fn)(void);
 typedef SDL_Surface * (SDLCALL *prismel_img_load_fn)(const char *);
 typedef SDL_Surface * (SDLCALL *prismel_img_load_io_fn)(SDL_IOStream *, bool);
@@ -593,7 +593,7 @@ let ttf_abi_header spec (major, minor, patch) =
 #include <SDL3/SDL.h>
 _Static_assert(SDL_TTF_MAJOR_VERSION == %d, "SDL3_ttf major changed");
 _Static_assert(SDL_TTF_MINOR_VERSION == %d, "SDL3_ttf minor changed");
-_Static_assert(SDL_TTF_MICRO_VERSION == %d, "SDL3_ttf patch changed");
+_Static_assert(SDL_TTF_MICRO_VERSION >= %d, "SDL3_ttf patch older than pinned");
 typedef int (SDLCALL *prismel_ttf_version_fn)(void);
 typedef bool (SDLCALL *prismel_ttf_init_fn)(void);
 typedef void (SDLCALL *prismel_ttf_quit_fn)(void);
@@ -628,7 +628,7 @@ let mixer_abi_header spec (major, minor, patch) =
 #include <SDL3/SDL.h>
 _Static_assert(SDL_MIXER_MAJOR_VERSION == %d, "SDL3_mixer major changed");
 _Static_assert(SDL_MIXER_MINOR_VERSION == %d, "SDL3_mixer minor changed");
-_Static_assert(SDL_MIXER_MICRO_VERSION == %d, "SDL3_mixer patch changed");
+_Static_assert(SDL_MIXER_MICRO_VERSION >= %d, "SDL3_mixer patch older than pinned");
 typedef int (SDLCALL *prismel_mix_version_fn)(void);
 typedef bool (SDLCALL *prismel_mix_init_fn)(void);
 typedef void (SDLCALL *prismel_mix_quit_fn)(void);

@@ -529,7 +529,8 @@ module Core = struct
         let document = seed_document factories (Edit_graph.of_graph graph) in
         let graph_view = Pxui_graph.create_document ~x:gx ~y:gy
             ~width:(max 1 gw) ~height:(max 1 gh)
-            ~catalog:(Pxui_graph.catalog_of_factories factories) document in
+            ~catalog:(Pxui_graph.catalog_of_factories factories)
+            ~flaggable:(fun info -> info.Edit_graph.operation = "camera") document in
         let presets = match presets with
           | Some directory -> directory
           | None -> Filename.concat (Filename.concat
@@ -539,7 +540,7 @@ module Core = struct
           graph; displayed_graph = graph; document; factories; graph_view;
           displayed_id = Node.id graph; inspector = None;
           ui = Pxui.Ui.create (); workspace;
-          timeline = Sketch_support.Timeline.create ~shortcuts:None (); worker;
+          timeline = Sketch_support.Timeline.create (); worker;
           displayed_bounds = None; framing = None;
           schedule = Sketch_support.Reactive_sop.schedule_initial; prepare;
           prepared = None; edit_error = None; cook_error = None;
@@ -672,7 +673,7 @@ module Core = struct
              document, graph_view, None,
              Parameter.union_effects effects cook_effects)
     | Selected _ | Viewed _ | View_changed | Node_moved _ | Nodes_moved _
-    | Connection_selected _ | Active_camera_changed _ | Frame_camera_requested _ ->
+    | Connection_selected _ | Flag_requested _ | Frame_camera_requested _ ->
         document, graph_view, error, effects
 
   let truncate limit text = if String.length text <= limit then text
@@ -895,7 +896,7 @@ module Core = struct
                    ~sketch:value.name ~document
                    ~positions:(Pxui_graph.node_positions graph_view)
                    ~display:(Some (Pxui_graph.viewed graph_view))
-                   ~active_camera:(Pxui_graph.active_camera graph_view)
+                   ~active_camera:(Pxui_graph.flagged graph_view)
                    ~view:(view_state ()) with
                  | Ok path -> "Saved preset " ^ Filename.basename path
                  | Error message -> "Preset not saved: " ^ message)
@@ -956,7 +957,7 @@ module Core = struct
           let graph_view = match preset.display with
             | Some id -> Pxui_graph.view id graph_view | None -> graph_view in
           preset.document,
-          Pxui_graph.with_active_camera preset.active_camera graph_view, None, None in
+          Pxui_graph.with_flagged preset.active_camera graph_view, None, None in
     (* Shared undo stack: every document change (graph edits, node creation,
        paste, inspector commits) becomes one history entry; Command/Ctrl-Z
        undoes, Shift-Command/Ctrl-Z or Ctrl-Y redoes. *)
@@ -1152,7 +1153,7 @@ module Environment3 = struct
       | Perspective a, Perspective b -> Float.abs (a.fov_y -. b.fov_y) < 1e-6
       | _ -> false)
 
-  let active_node (core : _ Core.t) = Option.bind (Pxui_graph.active_camera core.graph_view)
+  let active_node (core : _ Core.t) = Option.bind (Pxui_graph.flagged core.graph_view)
       (fun node_id -> Edit_graph.find core.document ~node_id)
 
   (* A default camera, following the viewport, when the catalog offers one. *)
@@ -1177,11 +1178,11 @@ module Environment3 = struct
         | Some document -> Core.environment_edit core mode document
         | None -> core in
     let ids = camera_ids core.document in
-    let active = match Pxui_graph.active_camera core.graph_view with
+    let active = match Pxui_graph.flagged core.graph_view with
       | Some id when List.mem id ids -> Some id
       | Some _ | None -> (match ids with id :: _ -> Some id | [] -> None) in
-    if active = Pxui_graph.active_camera core.graph_view then core
-    else { core with graph_view = Pxui_graph.with_active_camera active core.graph_view }
+    if active = Pxui_graph.flagged core.graph_view then core
+    else { core with graph_view = Pxui_graph.with_flagged active core.graph_view }
 
   let render_camera_of core easy = match active_node core with
     | Some node -> Option.value (node_camera node) ~default:(Easy_camera.camera easy)
@@ -1304,8 +1305,8 @@ module Environment3 = struct
         Some (Float.max 0.5 (Easy_camera.distance !camera *. 0.5))
       end else fly in
     let core = if core.document == value.core.document
-        && Pxui_graph.active_camera core.graph_view
-           = Pxui_graph.active_camera value.core.graph_view
+        && Pxui_graph.flagged core.graph_view
+           = Pxui_graph.flagged value.core.graph_view
       then core else sync_cameras ~mode:`Amend core !camera in
     let active = active_node core in
     let following = Option.fold ~none:false ~some:follows active in
@@ -1316,7 +1317,7 @@ module Environment3 = struct
     let camera, fly = match fly with
       | _ when look_through && active <> None && not following -> !camera, fly
       | Some speed ->
-          let camera, speed = CC.fly ~speed !camera raw_frame in camera, Some speed
+          let camera, speed = Easy_camera.fly ~speed !camera raw_frame in camera, Some speed
       | None -> CC.navigate ~control_area control !camera update.input, None in
     let camera = match update.framed with
       | Some (Some (min, max)) -> Easy_camera.frame_bounds ~min ~max camera
@@ -1359,12 +1360,11 @@ module Environment3 = struct
 
   let update value frame = fst (update_with value frame ~inspector:ignore)
 
-  let after_present value frame =
+  let after_present value _frame =
     match value.pending_render, value.rendered with
-    | Some request, Some rendered ->
-        value.render_status := Some (match CC.save request
-            ~frame ~camera:value.camera ~background:value.background rendered with
-          | Ok () -> Printf.sprintf "Saved %s at %d×" request.filename request.factor
+    | Some request, Some _ ->
+        value.render_status := Some (match CC.save request with
+          | Ok () -> "Saved " ^ request.filename
           | Error message -> "Render failed: " ^ message)
     | _ -> ()
 
@@ -1537,12 +1537,11 @@ module Environment2 = struct
       value.render_status := Some "Render unavailable until the first cook completes";
     { value with core; camera; camera_control = control; rendered; pending_render }
 
-  let after_present value frame =
+  let after_present value _frame =
     match value.pending_render, value.rendered with
-    | Some request, Some rendered ->
-        value.render_status := Some (match CC2.save request
-            ~frame ~camera:value.camera ~background:value.background rendered with
-          | Ok () -> Printf.sprintf "Saved %s at %d×" request.filename request.factor
+    | Some request, Some _ ->
+        value.render_status := Some (match CC2.save request with
+          | Ok () -> "Saved " ^ request.filename
           | Error message -> "Render failed: " ^ message)
     | _ -> ()
 
@@ -1607,3 +1606,5 @@ module Environment2 = struct
     ignore (Sketch.run_state ~config ~init ~update ~view:scene
       ~after_present ~on_stop:close ())
 end
+
+module Private = struct module Workspace = Workspace module Leader = Leader end

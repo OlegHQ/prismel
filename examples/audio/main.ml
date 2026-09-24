@@ -3,7 +3,6 @@ open Prismel
 type model = {
   notes : Audio.Sample.t array;
   active : int option;
-  frames_left : int option;
 }
 
 let frequencies =
@@ -16,11 +15,11 @@ let make_note frequency =
   | Error message -> failwith message
 
 let init _frame =
+  (match Audio.init () with Ok () -> () | Error message -> failwith message);
   let notes = Array.map make_note frequencies in
   {
     notes;
     active = None;
-    frames_left = None;
   }
 
 let pressed_note (frame : Frame.t) =
@@ -38,13 +37,7 @@ let update model (frame : Frame.t) =
   let active = pressed_note frame in
   Option.iter (fun index ->
     ignore (Audio.Sample.play model.notes.(index))) active;
-  let frames_left =
-    match model.frames_left with
-    | Some 1 -> Sketch.quit (); Some 0
-    | Some count -> Some (count - 1)
-    | None -> None
-  in
-  { model with active; frames_left }
+  { model with active }
 
 let view model _frame =
   let keys =
@@ -62,7 +55,9 @@ let view model _frame =
   :: Scene.text ~at:(40, 60) "Press 1–8 or click a key"
   :: keys
 
-let stop model = Array.iter Audio.Sample.destroy model.notes
+let stop model =
+  Array.iter Audio.Sample.destroy model.notes;
+  Audio.shutdown ()
 
 let () =
   ignore

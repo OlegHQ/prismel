@@ -50,7 +50,7 @@ type change =
   | Add_requested of add_request
   | Insert_requested of insert_request
   | Paste_requested of paste_request
-  | Active_camera_changed of int
+  | Flag_requested of int
   | Frame_camera_requested of int
 
 type box = {
@@ -192,7 +192,8 @@ type t = {
   primary : int option;
   selected_edge : Edit_graph.connection option;
   viewed : int;
-  active_camera : int option;
+  flagged : int option;
+  flaggable : Edit_graph.node_info -> bool;
   x : int;
   y : int;
   width : int;
@@ -582,7 +583,8 @@ let catalog_array catalog =
   |> Array.of_list
 
 let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
-    ?(theme = Pxui.default_theme) ?selected ?(catalog = []) document =
+    ?(theme = Pxui.default_theme) ?selected ?(catalog = [])
+    ?(flaggable = fun _ -> false) document =
   if width <= 0 || height <= 0 then invalid_arg
       "Pxui_graph.create_document: width and height must be positive";
   let selected = match selected with
@@ -601,13 +603,13 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
     moved_edges = Id_set.empty; edge_delta_bounds = Id_map.empty;
     edge_delta_tree = Edge_delta_empty; edge_delta_entries = 0;
     spatial = build_spatial_index boxes edges; selected; primary;
-    selected_edge = None; viewed; active_camera = None; x; y; width; height;
+    selected_edge = None; viewed; flagged = None; flaggable; x; y; width; height;
     pan_x = float_of_int (width / 2); pan_y = 18.; zoom = 1.; drag = None;
     menu = None; context = None; clipboard = None; catalog = catalog_array catalog;
     visible = true; theme; menu_rows_cache = None }
 
-let create ?x ?y ?width ?height ?theme ?selected ?catalog graph =
-  let value = create_document ?x ?y ?width ?height ?theme ?selected ?catalog
+let create ?x ?y ?width ?height ?theme ?selected ?catalog ?flaggable graph =
+  let value = create_document ?x ?y ?width ?height ?theme ?selected ?catalog ?flaggable
       (Edit_graph.of_graph graph) in
   { value with source_graph = Some graph }
 
@@ -686,8 +688,8 @@ let selected (value : t) = value.primary
 let selected_nodes (value : t) = Id_set.elements value.selected
 let selected_connection (value : t) = value.selected_edge
 let viewed (value : t) = value.viewed
-let active_camera (value : t) = value.active_camera
-let with_active_camera active_camera (value : t) = { value with active_camera }
+let flagged (value : t) = value.flagged
+let with_flagged flagged (value : t) = { value with flagged }
 
 let select node_id value =
   if Edit_graph.find value.document ~node_id = None then invalid_arg
@@ -763,9 +765,8 @@ let view_button_bounds (value : t) (box : box) =
   y + height - button_height - max 5 (screen_size value 7),
   button_width, button_height
 
-(* Camera tiles carry an ACTIVE flag button left of VIEW. *)
-let camera_operation = "camera"
-let is_camera (box : box) = box.info.Edit_graph.operation = camera_operation
+(* Tiles the host marks [flaggable] carry a flag button left of VIEW. *)
+let is_flaggable (value : t) (box : box) = value.flaggable box.info
 
 let active_button_bounds (value : t) (box : box) =
   let x, y, _, height = view_button_bounds value box in
@@ -778,8 +779,8 @@ let node_views value = Array.to_list value.boxes |> List.map (fun box ->
     depth = box.depth; bounds = box_bounds value box;
     view_bounds = view_button_bounds value box;
     selected = Id_set.mem info.id value.selected; viewed = value.viewed = info.id;
-    active = value.active_camera = Some info.id;
-    active_bounds = if is_camera box then Some (active_button_bounds value box) else None;
+    active = value.flagged = Some info.id;
+    active_bounds = if is_flaggable value box then Some (active_button_bounds value box) else None;
     has_parameters = info.has_parameters })
 
 let contains ~x ~y ~width ~height (px, py) =
@@ -1499,8 +1500,8 @@ let paint_node (value : t) paint (box : box) =
       text paint ~at:(bx + max 4 (screen_size value 7), by + 3)
         ~size:(max 8 (min 10 (screen_size value 9)))
         ~color:(if viewed then theme.input else theme.foreground) "VIEW";
-      if is_camera box then begin
-        let active = value.active_camera = Some box.info.Edit_graph.id in
+      if is_flaggable value box then begin
+        let active = value.flagged = Some box.info.Edit_graph.id in
         let ax, ay, aw, ah = active_button_bounds value box in
         framed paint ax ay aw ah ~fill:(if active then theme.accent else theme.control)
           ~stroke:theme.foreground;
@@ -1586,9 +1587,9 @@ let build_menu (value : t) ui (frame : Frame.t) menu =
 let context_items (value : t) = function
   | On_canvas -> ["Add node…", value.catalog <> [||]; "Layout", true; "Frame all", true]
   | On_tile id ->
-      let camera = match Hashtbl.find_opt value.slots id with
-        | Some index -> is_camera value.boxes.(index) | None -> false in
-      ["View", true; "Set active camera", camera; "Duplicate", true; "Delete", true;
+      let flaggable = match Hashtbl.find_opt value.slots id with
+        | Some index -> is_flaggable value value.boxes.(index) | None -> false in
+      ["View", true; "Set active", flaggable; "Duplicate", true; "Delete", true;
        "Frame camera", true]
   | On_wire _ -> ["Insert node…", value.catalog <> [||]; "Delete", true]
 
@@ -1601,7 +1602,7 @@ let apply_context (value : t) context index emit =
   | On_canvas, 1 -> emit View_changed; optimize_layout value
   | On_canvas, _ -> emit View_changed; frame_all value
   | On_tile id, 0 -> emit (Viewed id); { value with viewed = id }
-  | On_tile id, 1 -> emit (Active_camera_changed id); { value with active_camera = Some id }
+  | On_tile id, 1 -> emit (Flag_requested id); { value with flagged = Some id }
   | On_tile id, 2 ->
       let value = select id value in
       let value, emitted = duplicate_selection value in List.iter emit emitted; value
@@ -1667,7 +1668,7 @@ let update (value : t) ui (frame : Frame.t) =
             ~h:(Ui.Px (float_of_int (2 * radius)))
             ~at:(float_of_int (width / 2 - radius), float_of_int (height - radius))
             "output") in
-        let active = if value.zoom < 0.45 || not (is_camera box) then None else
+        let active = if value.zoom < 0.45 || not (is_flaggable value box) then None else
           let bx, by, bw, bh = active_button_bounds value box in
           Some (Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px (float_of_int bw))
             ~h:(Ui.Px (float_of_int bh)) ~at:(float_of_int (bx - x), float_of_int (by - y))
@@ -1756,7 +1757,7 @@ let update (value : t) ui (frame : Frame.t) =
         | Some _ | None -> value in
       let value = match active with
         | Some active when (Ui.signal ui active).clicked ->
-            emit (Active_camera_changed id); { value with active_camera = Some id }
+            emit (Flag_requested id); { value with flagged = Some id }
         | Some _ | None -> value in
       let value = match output with
         | Some output ->

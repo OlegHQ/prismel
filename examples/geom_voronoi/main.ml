@@ -4,7 +4,6 @@ open Geom
 type model = {
   sites : Vec2.t list;
   phase : float;
-  frames_left : int option;
 }
 
 let rec random_sites count generator points =
@@ -18,21 +17,10 @@ let init _frame =
   {
     sites = random_sites 64 (Rand.seed 0x6e6f6465) [];
     phase = 0.;
-    frames_left = None;
   }
 
 let update model (frame : Frame.t) =
-  let frames_left =
-    match model.frames_left with
-    | Some 1 -> Sketch.quit (); Some 0
-    | Some count -> Some (count - 1)
-    | None -> None
-  in
-  {
-    model with
-    phase = model.phase +. frame.dt;
-    frames_left;
-  }
+  { model with phase = model.phase +. frame.dt }
 
 let animated_sites phase sites =
   List.mapi

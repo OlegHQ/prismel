@@ -49,8 +49,8 @@ type change =
   | Add_requested of add_request
   | Insert_requested of insert_request
   | Paste_requested of paste_request
-  | Active_camera_changed of int
-      (** ACTIVE on a camera tile (operation ["camera"]) or its context menu *)
+  | Flag_requested of int
+      (** the flag button (or "Set active" menu item) on a [flaggable] tile *)
   | Frame_camera_requested of int
       (** frame the host's viewport camera on this node's cooked bounds *)
 
@@ -83,12 +83,16 @@ type stats = {
 val create :
   ?x:int -> ?y:int -> ?width:int -> ?height:int ->
   ?theme:Pxui.theme -> ?selected:int ->
-  ?catalog:catalog_entry list -> Procedural.Graph.t -> t
+  ?catalog:catalog_entry list -> ?flaggable:(Procedural.Edit_graph.node_info -> bool) ->
+  Procedural.Graph.t -> t
 
 val create_document :
   ?x:int -> ?y:int -> ?width:int -> ?height:int ->
   ?theme:Pxui.theme -> ?selected:int ->
-  ?catalog:catalog_entry list -> Procedural.Edit_graph.t -> t
+  ?catalog:catalog_entry list -> ?flaggable:(Procedural.Edit_graph.node_info -> bool) ->
+  Procedural.Edit_graph.t -> t
+(** [flaggable] marks tiles that get a flag button (default: none); the
+    graph never interprets operation names itself. *)
 
 val document : t -> Procedural.Edit_graph.t
 val with_document : Procedural.Edit_graph.t -> t -> t
@@ -102,9 +106,9 @@ val selected : t -> int option
 val selected_nodes : t -> int list
 val selected_connection : t -> Procedural.Edit_graph.connection option
 val viewed : t -> int
-val active_camera : t -> int option
-val with_active_camera : int option -> t -> t
-(** The flagged render camera. The host owns which camera is active and
+val flagged : t -> int option
+val with_flagged : int option -> t -> t
+(** The flagged tile (e.g. the active render camera). The host owns it and
     re-applies it every frame, like the document. *)
 
 val select : int -> t -> t

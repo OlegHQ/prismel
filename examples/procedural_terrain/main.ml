@@ -8,7 +8,6 @@ type model = {
   graph : Node.t;
   mesh : Mesh.t;
   camera : Easy_camera.t;
-  frames_left : int option;
 }
 
 let fail error = failwith (Diagnostic.error_to_string error)
@@ -35,19 +34,13 @@ let init frame =
     mesh = cook session graph frame;
     camera = Easy_camera.create ~target:(Vec3.create 0. 0. 0.)
         ~distance:11. ~azimuth:0.65 ~elevation:0.52 ();
-    frames_left = None;
   }
 
 let update model frame =
-  let frames_left = match model.frames_left with
-    | Some 1 -> Sketch.quit (); Some 0
-    | Some count -> Some (count - 1)
-    | None -> None in
   {
     model with
     mesh = cook model.session model.graph frame;
     camera = Easy_camera.update model.camera frame;
-    frames_left;
   }
 
 let lights = [

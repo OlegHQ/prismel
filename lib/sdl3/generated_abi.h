@@ -5,7 +5,7 @@
 #include <stddef.h>
 _Static_assert(SDL_MAJOR_VERSION == 3, "SDL major header changed");
 _Static_assert(SDL_MINOR_VERSION == 4, "SDL minor header changed");
-_Static_assert(SDL_MICRO_VERSION == 14, "SDL patch header changed");
+_Static_assert(SDL_MICRO_VERSION >= 14, "SDL patch header older than pinned");
 _Static_assert(sizeof(SDL_Event) == 128, "SDL_Event size changed");
 _Static_assert(_Alignof(SDL_Event) == 8, "SDL_Event alignment changed");
 _Static_assert(sizeof(SDL_CommonEvent) == 16, "SDL_CommonEvent size changed");

@@ -1,7 +1,7 @@
 # Metal global declaration audit
 
 Source: the pinned schema-2 Metal inventory generated from the active Xcode SDK.
-This audit does not change `NEW_GPU_STUFF.md` and does not itself change an
+This audit does not itself change an
 inventory classification.
 
 ## Functions (14 unreviewed)

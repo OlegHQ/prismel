@@ -83,6 +83,8 @@ module Font : sig
   type hinting = Normal_hinting | Light_hinting | Mono_hinting
     | None_hinting | Light_subpixel_hinting
   type glyph_metrics = { min_x:int; max_x:int; min_y:int; max_y:int; advance:int }
+  type alignment = Left | Center | Right
+  type metrics = { height:int; ascent:int; descent:int; line_skip:int }
   val open_file : path:string -> size:float -> (t,error) result
   val open_system : size:float -> (t,error) result
   val generation : t -> int
@@ -92,8 +94,12 @@ module Font : sig
   val set_hinting : t -> hinting -> (unit,error) result
   val set_kerning : t -> bool -> (unit,error) result
   val glyph_metrics : t -> int -> (glyph_metrics,error) result
+  val metrics : t -> (metrics,error) result
+  val size_text : t -> ?wrap_width:int -> string -> (int*int,error) result
+  val family_name : t -> (string option,error) result
+  val style_name : t -> (string option,error) result
   val glyph_metrics_at : t -> density:int -> int -> (glyph_metrics,error) result
-  val render : t -> ?wrap_width:int -> density:int ->
+  val render : t -> ?wrap_width:int -> ?align:alignment -> density:int ->
     color:int*int*int*int -> string -> (Text.t option,error) result
   val cached_text : t -> ?wrap_width:int -> density:int ->
     color:int*int*int*int -> string -> (Text.t option,error) result
@@ -109,6 +115,11 @@ module Audio : sig
   type sample
   type generated = { mixed_bytes:int; pcm_f32:bytes }
   val create_memory : sample_rate:int -> channels:int -> max_channels:int -> (t,error) result
+  (* Mixes into memory only; drive it with [generate]. *)
+  val create_device : max_channels:int -> (t,error) result
+  (* Mixes to the default playback device. *)
+  val channel_count : t -> int
+  val channel_playing : t -> int -> (bool,error) result
   val load_sample_bytes : t -> bytes -> (sample,error) result
   val reload_sample_bytes : sample -> bytes -> (unit,error) result
   val sample_identity : sample -> string

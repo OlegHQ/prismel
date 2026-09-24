@@ -6,7 +6,9 @@ let get = function
   | Ok value -> value
   | Error error -> fail (Format.asprintf "%a" pp_error error)
 
-let iterations = 100_000
+(* PRISMEL_SDL3_STRESS_CYCLES=100000 under @qualification. *)
+let iterations = Option.value ~default:5_000
+    (Option.bind (Sys.getenv_opt "PRISMEL_SDL3_STRESS_CYCLES") int_of_string_opt)
 
 let () =
   get (Init.init [ Init.Video; Init.Events ]);

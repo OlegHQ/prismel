@@ -75,8 +75,6 @@ let inertia value = value.inertia
 let drag_coefficient value = value.drag_coefficient
 let pan_sensitivity value = value.pan_sensitivity
 let zoom_sensitivity value = value.zoom_sensitivity
-let translation_key value = value.translation_key
-
 let with_center center value =
   if center = value.center then value else { value with center }
 
@@ -161,13 +159,13 @@ let pan value dx dy =
   { value with center = Vec2.sub value.center delta }
 
 let zoom_at value ~viewport point vertical =
-  if vertical = 0 then value
+  if vertical = 0. then value
   else
     let point = Vec2.of_pair point in
     let anchored_world = screen_to_world ~viewport value point in
     let zoom = Float.max 1e-6
         (value.zoom *. exp
-          (float_of_int vertical *. value.zoom_sensitivity *. 12.)) in
+          (vertical *. value.zoom_sensitivity *. 12.)) in
     let zoomed = { value with zoom } in
     let after = screen_to_world ~viewport zoomed point in
     { zoomed with center = Vec2.add zoomed.center

@@ -1,4 +1,4 @@
-type render_mode=Solid of Color.t|Shaded of Color.t*Color.t|Blended of Color.t
+type render_mode=Blended of Color.t
 type style=Normal|Bold|Italic|Underline|Strikethrough
 type hinting=Normal_hinting|Light_hinting|Mono_hinting|None_hinting
 type alignment=Left|Center|Right
@@ -11,19 +11,26 @@ let make ?source size=function Ok resource->let value={resource;size;source;styl
 let load path size=make ~source:path size(Prismel_next_resources.Font.open_file ~path ~size:(float size))
 let system_path()=match Sys.getenv_opt"PRISMEL_UI_FONT"with Some path when Sys.file_exists path->Some path|_->List.find_opt Sys.file_exists["/System/Library/Fonts/SFNSMono.ttf";"/System/Library/Fonts/SFNS.ttf";"/Library/Fonts/Arial.ttf";"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
 let system ?(size=16)()=make size(Prismel_next_resources.Font.open_system ~size:(float size))
-let load_dpi path size hdpi vdpi=if hdpi<>vdpi then Error(`Msg"Font.load_dpi: non-uniform DPI")else load path size
 let resize font size=match font.source with Some path->load path size|None->system ~size()
-let rgba=function Solid c|Blended c|Shaded(c,_)->c.Color.r,c.g,c.b,c.a
+let rgba(Blended c)=c.Color.r,c.g,c.b,c.a
+(* Invalid UTF-8 becomes U+FFFD rather than failing mid-frame. *)
+let sanitize text=if String.is_valid_utf_8 text then text else begin
+  let buffer=Buffer.create(String.length text)in
+  let rec loop i=if i<String.length text then begin
+    let d=String.get_utf_8_uchar text i in
+    Buffer.add_utf_8_uchar buffer(Uchar.utf_decode_uchar d);loop(i+Uchar.utf_decode_length d)end in
+  loop 0;Buffer.contents buffer end
+let resource_align=function Left->Prismel_next_resources.Font.Left|Center->Center|Right->Right
 let image_of_text text=match Prismel_next_resources.Text.size text,Prismel_next_resources.Text.pixels text with
   |Ok(width,height),Ok rgba->begin match Prismel_next_resources.Image.create ~width ~height ~rgba with Ok image->Ok(Image.Private.of_resource image)|Error error->Error(message"Font.image"error)end
   |Error error,_->Error(message"Font.size"error)|_,Error error->Error(message"Font.pixels"error)
-let paint ?(density=1) ?wrap font text mode=match Prismel_next_resources.Font.render font.resource ?wrap_width:wrap ~density ~color:(rgba mode)text with
+let paint ?(density=1) ?wrap ?(align=Left) font text mode=match Prismel_next_resources.Font.render font.resource ?wrap_width:wrap ~align:(resource_align align) ~density ~color:(rgba mode)(sanitize text)with
   |Error error->Error(message"Font.render_text"error)|Ok None->Ok(Image.create ~width:1 ~height:1())
   |Ok(Some value)->let result=image_of_text value in ignore(Prismel_next_resources.Text.destroy value);result
 let render_text ?(density=1) font text mode=paint ~density font text mode
 let key ?wrap ?(align=Left) ?(density=1) text mode=Marshal.to_string(density,text,wrap,align,rgba mode)[]
 let cached_text ?wrap ?(align=Left) ?(density=1) font text mode=let key=key ?wrap ~align ~density text mode in match Hashtbl.find_opt font.cache key with Some image->Ok image|None->
-  match paint ~density ?wrap font text mode with Error _ as error->error|Ok image->
+  match paint ~density ?wrap ~align font text mode with Error _ as error->error|Ok image->
     if Hashtbl.length font.cache=256 then begin
       let oldest=Queue.pop font.order in
       match Hashtbl.find_opt font.cache oldest with
@@ -39,16 +46,16 @@ let resource_styles styles=List.map(function
   |Italic->Prismel_next_resources.Font.Italic
   |Underline->Prismel_next_resources.Font.Underline
   |Strikethrough->Prismel_next_resources.Font.Strikethrough)styles
-let set_style font styles=match Prismel_next_resources.Font.set_style font.resource(resource_styles styles)with Ok()->clear_cache font;font.styles<-styles;font.generation<-font.generation+1|Error _->()
+let set_style font styles=match Prismel_next_resources.Font.set_style font.resource(resource_styles styles)with Ok()->clear_cache font;font.styles<-styles;font.generation<-font.generation+1;Ok()|Error e->Error(message"Font.set_style"e)
 let get_style font=font.styles
 let resource_hinting=function
   |Normal_hinting->Prismel_next_resources.Font.Normal_hinting
   |Light_hinting->Prismel_next_resources.Font.Light_hinting
   |Mono_hinting->Prismel_next_resources.Font.Mono_hinting
   |None_hinting->Prismel_next_resources.Font.None_hinting
-let set_hinting font value=match Prismel_next_resources.Font.set_hinting font.resource(resource_hinting value)with Ok()->clear_cache font;font.hinting<-value;font.generation<-font.generation+1|Error _->()
+let set_hinting font value=match Prismel_next_resources.Font.set_hinting font.resource(resource_hinting value)with Ok()->clear_cache font;font.hinting<-value;font.generation<-font.generation+1;Ok()|Error e->Error(message"Font.set_hinting"e)
 let get_hinting font=font.hinting
-let set_kerning font value=match Prismel_next_resources.Font.set_kerning font.resource value with Ok()->clear_cache font;font.kerning<-value;font.generation<-font.generation+1|Error _->()
+let set_kerning font value=match Prismel_next_resources.Font.set_kerning font.resource value with Ok()->clear_cache font;font.kerning<-value;font.generation<-font.generation+1;Ok()|Error e->Error(message"Font.set_kerning"e)
 let get_kerning font=font.kerning
 let get_size font=font.size
 let destroy font=
@@ -87,7 +94,7 @@ module Private=struct
      entry.references<-entry.references+1;incr automatic_references;
      entry.stamp<-next_stamp();Ok{entry;released=false}
    |None->match font size with Error _ as error->error|Ok font->
-     match paint ~density ?wrap font text mode with Error _ as error->error|Ok image->
+     match paint ~density ?wrap ~align font text mode with Error _ as error->error|Ok image->
       let can_cache=Hashtbl.length automatic_cache<capacity||evict_entry()in
       let entry={image;references=1;stamp=next_stamp();cached=can_cache}in
       if can_cache then Hashtbl.add automatic_cache key entry;
@@ -149,21 +156,15 @@ module Private=struct
 end
 let release_renderer _renderer=List.iter clear_cache!fonts;Private.clear_automatic()
 let shutdown()=Private.clear_automatic();let owned= !fonts in fonts:=[];List.iter destroy owned
-let text_size font text=match render_text font text(Blended Color.white)with Error _ as e->e|Ok image->let size=Image.get_size image in Image.destroy image;Ok size
-let render_wrapped font text mode width=
-  let words=String.split_on_char ' ' text in
-  let rec build line acc=function []->List.rev(line::acc)|word::rest->let candidate=if line=""then word else line^" "^word in if fst(Result.value(text_size font candidate)~default:(0,0))<=width then build candidate acc rest else build word(line::acc)rest in
-  let lines=if text=""then[""]else build""[]words in
-  let rec render acc=function []->Ok(List.rev acc)|line::rest->match render_text font line mode with Error _ as e->e|Ok image->render(image::acc)rest in render[]lines
-let render_multiline font text mode align=cached_text ~align font text mode
+let text_size ?wrap font text=match Prismel_next_resources.Font.size_text font.resource ?wrap_width:wrap(sanitize text)with Ok size->Ok size|Error e->Error(message"Font.text_size"e)
 let text_width font text=Result.map fst(text_size font text)
 let text_height font text=Result.map snd(text_size font text)
-let get_height font=font.size
-let get_ascent font=font.size
-let get_descent _font=0
-let get_line_skip font=font.size
-let get_family_name _=None
-let get_style_name _=None
-let is_fixed_width _=false
+let metrics font=match Prismel_next_resources.Font.metrics font.resource with
+  |Ok m->m|Error e->let `Msg text=message"Font.metrics"e in invalid_arg text
+let get_height font=(metrics font).height
+let get_ascent font=(metrics font).ascent
+let get_descent font=(metrics font).descent
+let get_line_skip font=(metrics font).line_skip
+let get_family_name font=Result.value(Prismel_next_resources.Font.family_name font.resource)~default:None
+let get_style_name font=Result.value(Prismel_next_resources.Font.style_name font.resource)~default:None
 let glyph_metrics font code=match Prismel_next_resources.Font.glyph_metrics font.resource code with Ok m->Ok(m.min_x,m.max_x,m.min_y,m.max_y,m.advance)|Error e->Error(message"Font.glyph_metrics"e)
-let glyph_provided font code=Result.is_ok(glyph_metrics font code)

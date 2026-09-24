@@ -27,8 +27,8 @@ let ui_bytes scene =
       | _ -> None) staged.layers)
 
 let () =
-  let workspace = Sketch_ui.Workspace.create Sketch_ui.default_layout in
-  let initial = Sketch_ui.Workspace.geometry workspace (frame ~width:1000 0) in
+  let workspace = Sketch_ui.Private.Workspace.create Sketch_ui.default_layout in
+  let initial = Sketch_ui.Private.Workspace.geometry workspace (frame ~width:1000 0) in
   check (initial.view_header = (0, 0, width initial.view, 22))
     "workspace header is not a compact single line";
   check (abs (width initial.view - 415) <= 1
@@ -38,43 +38,43 @@ let () =
   let splitter_x = width initial.view + 2 in
   let ui = Pxui.Ui.create () in
   let workspace_step workspace frame =
-    Pxui.Ui.frame ui frame (fun ui -> Sketch_ui.Workspace.update workspace ui frame) in
+    Pxui.Ui.frame ui frame (fun ui -> Sketch_ui.Private.Workspace.update workspace ui frame) in
   let workspace = workspace_step workspace (frame ~width:1000 0) in
   let resized = workspace_step workspace
       (frame ~width:1000 ~events:[
         Event.MousePressed (Input.LeftButton, (splitter_x, 200));
         MouseMoved (splitter_x + 80, 200);
         MouseReleased (Input.LeftButton, (splitter_x + 80, 200))] 1) in
-  let resized_panes = Sketch_ui.Workspace.geometry resized (frame ~width:1000 2) in
+  let resized_panes = Sketch_ui.Private.Workspace.geometry resized (frame ~width:1000 2) in
   check (width resized_panes.view > width initial.view
       && width resized_panes.graph < width initial.graph)
     "workspace splitter did not resize its adjacent columns";
-  let wider = Sketch_ui.Workspace.geometry resized (frame ~width:1200 3) in
+  let wider = Sketch_ui.Private.Workspace.geometry resized (frame ~width:1200 3) in
   check (width wider.view > width resized_panes.view)
     "workspace splitter ratio did not survive a window resize";
   let collapsed = workspace_step
-      (Sketch_ui.Workspace.toggle Sketch_ui.Workspace.Inspector resized) (frame 4) in
+      (Sketch_ui.Private.Workspace.toggle Sketch_ui.Private.Workspace.Inspector resized) (frame 4) in
   Pxui.Ui.destroy ui;
-  let collapsed_panes = Sketch_ui.Workspace.geometry collapsed (frame 5) in
+  let collapsed_panes = Sketch_ui.Private.Workspace.geometry collapsed (frame 5) in
   check (width collapsed_panes.inspector
       = Sketch_ui.default_layout.collapsed_width)
     "inspector toggle did not collapse the third column";
 
   (* Leader: Space arms it, the next key resolves global or focused-pane
      bindings, Escape cancels, and a focused text field keeps its Space. *)
-  let module L = Sketch_ui.Leader in
+  let module L = Sketch_ui.Private.Leader in
   let keys events = frame ~events:(List.map (fun key -> Event.KeyPressed key) events) 0 in
-  let step ?(focus = Sketch_ui.Workspace.View) ?(text_focus = false) state events =
+  let step ?(focus = Sketch_ui.Private.Workspace.View) ?(text_focus = false) state events =
     L.step L.keymap ~focus ~text_focus ~frame:(keys events) state in
   let state, actions, passed = step L.Idle [Input.Space; Input.KeyChar 'g'] in
   check (state = L.Idle && actions = [L.Toggle_graph] && passed.Frame.events = [])
     "Space g did not toggle the graph and consume both keys";
-  let state, actions, _ = L.step L.keymap ~focus:Sketch_ui.Workspace.View
+  let state, actions, _ = L.step L.keymap ~focus:Sketch_ui.Private.Workspace.View
       ~text_focus:false ~frame:(frame ~events:[Event.KeyPressed Input.Space;
         Event.TextInput " "] 0) L.Idle in
   check (state = L.Pending && actions = [])
     "the native text event after Space cancelled the leader";
-  let state, actions, passed = L.step L.keymap ~focus:Sketch_ui.Workspace.View
+  let state, actions, passed = L.step L.keymap ~focus:Sketch_ui.Private.Workspace.View
       ~text_focus:false ~frame:(frame ~events:[Event.KeyPressed (Input.KeyChar 'g');
         Event.TextInput "g"] 0) state in
   check (state = L.Idle && actions = [L.Toggle_graph] && passed.events = [])
@@ -86,7 +86,7 @@ let () =
     "Escape did not cancel the leader";
   let _, actions, _ = step L.Idle [Input.Space; Input.KeyChar 'l'] in
   check (actions = []) "graph-scoped leader key ran while the view was focused";
-  let _, actions, _ = step ~focus:Sketch_ui.Workspace.Graph L.Idle
+  let _, actions, _ = step ~focus:Sketch_ui.Private.Workspace.Graph L.Idle
       [Input.Space; Input.KeyChar 'l'] in
   check (actions = [L.Layout]) "graph-scoped leader key ignored the focused graph";
   let state, actions, passed = step ~text_focus:true L.Idle [Input.Space] in
@@ -546,6 +546,11 @@ let () =
   check (Filename.basename saved = "my_wall_1.json"
       && List.map fst (Sketch_ui.Preset.list ~directory) = ["my_wall_1"])
     "preset save did not sanitize the name or list the file";
+  (match Yojson.Safe.from_file saved with
+   | `Assoc fields -> check (List.assoc_opt "prismel" fields = Some (`Int 1)
+       && List.assoc_opt "kind" fields = Some (`String "preset"))
+       "preset lacks the prismel save envelope"
+   | _ -> check false "preset is not a JSON object");
   let loaded = Sketch_ui.Preset.load ~path:saved ~code:code_graph
       ~factories:Sop_catalog.Editor.factories |> Result.get_ok in
   let describe document = Edit_graph.inspect document |> List.map (fun info ->

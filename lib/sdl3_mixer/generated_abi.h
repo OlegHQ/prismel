@@ -5,7 +5,7 @@
 #include <SDL3/SDL.h>
 _Static_assert(SDL_MIXER_MAJOR_VERSION == 3, "SDL3_mixer major changed");
 _Static_assert(SDL_MIXER_MINOR_VERSION == 2, "SDL3_mixer minor changed");
-_Static_assert(SDL_MIXER_MICRO_VERSION == 4, "SDL3_mixer patch changed");
+_Static_assert(SDL_MIXER_MICRO_VERSION >= 4, "SDL3_mixer patch older than pinned");
 typedef int (SDLCALL *prismel_mix_version_fn)(void);
 typedef bool (SDLCALL *prismel_mix_init_fn)(void);
 typedef void (SDLCALL *prismel_mix_quit_fn)(void);

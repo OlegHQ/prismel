@@ -15,7 +15,7 @@ type t =
   | MousePressed of Input.mouse_button * (int * int)
   | MouseReleased of Input.mouse_button * (int * int)
   | PointerCancelled of Input.mouse_button
-  | MouseScrolled of int * int
+  | MouseScrolled of float * float
   | TextInput of string
   | TextEditing of { text : string; start : int; length : int }
   | FileDropped of string
@@ -74,7 +74,9 @@ the OCaml runtime only inside the audited SDL3 binding and reacquire it before
 constructing an OCaml value.
 
 No user handler receives native pointers. File-drop and text values survive
-after the poll iteration because they are owned copies.
+after the poll iteration because they are owned copies. `FileDropped` carries
+the full dropped path; the event pump never reads the file, and one bad event
+never discards the rest of a batch.
 
 ## Regression requirements
 

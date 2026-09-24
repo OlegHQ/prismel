@@ -53,7 +53,10 @@ let to_json ~sketch ~document ~positions ~display ~active_camera ~view =
             `List [ `String field.name; value_json field.current ])
             (Node.parameter_fields info.node));
           "x", `Float x; "y", `Float y ]) in
-  `Assoc [ "version", `Int version; "sketch", `String sketch;
+  (* The shared Prismel save envelope ("prismel"/"kind"), so presets stay
+     loadable when settings join the same format. *)
+  `Assoc [ "prismel", `Int 1; "kind", `String "preset";
+           "version", `Int version; "sketch", `String sketch;
            "nodes", `List (List.map node (Edit_graph.inspect document));
            "display", optional_int display; "active_camera", optional_int active_camera;
            "view", view ]

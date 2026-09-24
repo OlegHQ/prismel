@@ -7,7 +7,7 @@
 
 module Camera_control : sig
   type t
-  type render_request = { filename : string; factor : int }
+  type render_request = { filename : string }
 
   val create : ?prefix:string -> unit -> t
 
@@ -34,23 +34,14 @@ module Camera_control : sig
 
   val ui_visible : t -> bool
   val overlay : t -> Prismel.Scene.t -> Prismel.Scene.t
-  val save :
-    ?background:Prismel.Color.t -> render_request -> frame:Prismel.Frame.t ->
-    camera:Prismel.Easy_camera.t -> Prismel.Scene3.t -> (unit, string) result
+  val save : render_request -> (unit, string) result
+  (** Save the full native framebuffer to [request.filename]. *)
 
-  val fly :
-    speed:float -> Prismel.Easy_camera.t -> Prismel.Frame.t ->
-    Prismel.Easy_camera.t * float
-  (** One frame of WASD fly navigation: held W/S, D/A, and Q/E move forward,
-      right, and up at [speed] units per second (Shift four times faster);
-      [Frame.mouse_delta] yaws about the up axis and pitches within 89 degrees;
-      each wheel step scales the returned speed by 1.2. The result is an
-      ordinary orbit camera, so orbiting resumes seamlessly. *)
 end
 
 module Camera2_control : sig
   type t
-  type render_request = { filename : string; factor : int }
+  type render_request = { filename : string }
 
   val create : ?prefix:string -> unit -> t
   val toggle_ui : t -> t
@@ -71,7 +62,5 @@ module Camera2_control : sig
 
   val ui_visible : t -> bool
   val overlay : t -> Prismel.Scene.t -> Prismel.Scene.t
-  val save :
-    ?background:Prismel.Color.t -> render_request -> frame:Prismel.Frame.t ->
-    camera:Prismel.Easy_camera2.t -> Prismel.Scene.t -> (unit, string) result
+  val save : render_request -> (unit, string) result
 end

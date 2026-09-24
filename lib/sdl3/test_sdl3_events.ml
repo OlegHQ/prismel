@@ -1,6 +1,7 @@
 open Sdl3
 
 external push_event_trace : unit -> bool = "caml_sdl3_test_push_event_trace"
+external push_resize_burst : unit -> bool = "caml_sdl3_test_push_resize_burst"
 external mutate_event_sources : unit -> unit
   = "caml_sdl3_test_mutate_event_sources"
 
@@ -127,6 +128,14 @@ let () =
       || source_copy <> "event-test" || path_copy <> "/tmp/žaba.png"
       || mime_copy <> ["text/plain"; "image/png"] then
     fail "an SDL-borrowed pointer escaped without an OCaml copy";
+
+  (* Coalescing keeps the latest event of each size kind, not one overall. *)
+  if not (push_resize_burst ()) then fail "SDL rejected a resize event";
+  (match get (Event.poll_coalesced ()) with
+   | [ Event.Window { change = Event.Resized (800, 600); _ };
+       Event.Window { change = Event.Pixel_size_changed (1280, 960); _ } ] -> ()
+   | events -> fail (Printf.sprintf "coalesced resize burst lost a kind (%d events)"
+       (List.length events)));
 
   get (Init.quit ());
   Printf.printf "SDL3 copied typed event trace passed (%d events)\n%!"

@@ -15,7 +15,6 @@ type model = {
   color_index : int;
   brush_width : int;
   status : string;
-  frames_left : int option;
 }
 
 let palette = [|
@@ -153,18 +152,10 @@ let init _frame = {
   color_index = 0;
   brush_width = 10;
   status = "Drag to draw";
-  frames_left = None;
 }
 
 let update model (frame : Frame.t) =
-  let model = List.fold_left update_event model frame.events in
-  let frames_left =
-    match model.frames_left with
-    | Some 1 -> Sketch.quit (); Some 0
-    | Some count -> Some (count - 1)
-    | None -> None
-  in
-  { model with frames_left }
+  List.fold_left update_event model frame.events
 
 let stroke_scene stroke =
   let points = List.rev stroke.points in

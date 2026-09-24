@@ -66,8 +66,8 @@ let translate = function
           if down then Event.MousePressed (button, (point x, point y))
           else Event.MouseReleased (button, (point x, point y)))
         (button native_button)
-  | Native.Mouse_wheel { integer_x; integer_y; _ } ->
-      Some (Event.MouseScrolled (integer_x, integer_y))
+  | Native.Mouse_wheel { x; y; _ } ->
+      Some (Event.MouseScrolled (x, y))
   | Native.Touch { phase = Native.Cancelled; _ } ->
       Some (Event.PointerCancelled Input.LeftButton)
   | Native.Drop { change = Native.File path; _ } -> Some (Event.FileDropped path)
@@ -168,7 +168,7 @@ let () =
     ; Event.MouseMoved (10, 10)
     ; Event.MouseMoved (13, 17)
     ; Event.MousePressed (Input.LeftButton, (13, 17))
-    ; Event.MouseScrolled (0, 1)
+    ; Event.MouseScrolled (0., 1.)
     ; Event.FileDropped "/tmp/žaba.png"
     ; Event.WindowResized (80, 60)
     ; Event.PointerCancelled Input.LeftButton

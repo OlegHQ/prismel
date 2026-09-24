@@ -39,10 +39,10 @@
  (name test_r10_native_protocol)
  (modules test_r10_native_protocol)
  (libraries r10_native_protocol_lib)
- (deps ../../specification/evidence/gpu_migration/phase0_performance.json)
+ (deps phase0_performance.json)
  (action
   (run %{test}
-   %{dep:../../specification/evidence/gpu_migration/phase0_performance.json})))
+   %{dep:phase0_performance.json})))
 
 (executable
  (name r10_native_scene2_correctness)
@@ -62,10 +62,14 @@
  (modules test_r10_scene2_legacy_equivalent)
  (libraries r10_workload_descriptor))
 
-(test
+(executable
  (name test_r10_canvas_phase0_workload)
  (modules test_r10_canvas_phase0_workload)
  (libraries r10_scene2_candidate_lib prismel_next_execution))
+
+(rule
+ (alias qualification)
+ (action (run %{exe:test_r10_canvas_phase0_workload.exe})))
 
 (test
  (name test_r10_scene3_legacy_equivalent)

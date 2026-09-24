@@ -1,14 +1,14 @@
-type state={audio:Prismel_next_resources.Audio.t;playing:(int,unit)Hashtbl.t;mutable music_playing:bool}
+type state={audio:Prismel_next_resources.Audio.t;mutable music_playing:bool}
 let engine:state option ref=ref None
 let message operation error=Format.asprintf"%s: %a"operation Prismel_next_resources.pp_error error
 let current operation=match!engine with Some value->Ok value|None->Error(operation^": not initialized")
-let init ?(frequency=48000)?(channels=2)?chunk_size:_ ()=match!engine with Some _->Ok()|None->
-  begin match Prismel_next_resources.Audio.create_memory ~sample_rate:frequency ~channels ~max_channels:32 with
-  |Ok audio->engine:=Some{audio;playing=Hashtbl.create 32;music_playing=false};Ok()|Error error->Error(message"Audio.init"error)end
+let init ()=match!engine with Some _->Ok()|None->
+  begin match Prismel_next_resources.Audio.create_device ~max_channels:32 with
+  |Ok audio->engine:=Some{audio;music_playing=false};Ok()|Error error->Error(message"Audio.init"error)end
 let is_initialized()=Option.is_some!engine
 let shutdown()=match!engine with None->()|Some value->ignore(Prismel_next_resources.Audio.destroy value.audio);engine:=None
 let set_master_volume volume=match current"Audio.set_master_volume"with Ok value->ignore(Prismel_next_resources.Audio.set_master_volume value.audio volume)|Error _->()
-let stop_all()=match!engine with None->()|Some value->List.init 32 Fun.id|>List.iter(fun channel->ignore(Prismel_next_resources.Audio.stop_channel value.audio channel()));Hashtbl.clear value.playing;value.music_playing<-false
+let stop_all()=match!engine with None->()|Some value->List.init(Prismel_next_resources.Audio.channel_count value.audio)Fun.id|>List.iter(fun channel->ignore(Prismel_next_resources.Audio.stop_channel value.audio channel()));value.music_playing<-false
 let read path=let input=open_in_bin path in Fun.protect~finally:(fun()->close_in_noerr input)(fun()->really_input_string input(in_channel_length input)|>Bytes.of_string)
 module Sample=struct
   type waveform=Sine|Square|Saw|Triangle
@@ -26,12 +26,12 @@ module Sample=struct
     let pi=4. *. atan 1. in for i=0 to frames-1 do let phase=frequency *. float i /. float sample_rate in let x=match waveform with Sine->sin(2. *. pi *. phase)|Square->if sin(2. *. pi *. phase)>=0. then 1. else -1.|Saw->2. *. (phase -. floor(phase +. 0.5))|Triangle->2. *. Float.abs(2. *. (phase -. floor(phase +. 0.5))) -. 1. in let scaled=Float.max (-1.) (Float.min 1. (volume *. x)) in p16(44+i*2)(int_of_float(scaled *. 32767.)land 0xffff)done;
     match Prismel_next_resources.Audio.load_sample_bytes state.audio bytes with Ok resource->Ok{resource;destroyed=false;volume=1.}|Error e->Error(message"Audio.Sample.synth"e)
   let play ?loops ?volume sample=match current"Audio.Sample.play"with Error _ as error->error|Ok state->
-    begin match Prismel_next_resources.Audio.play_sample state.audio ?loops ~volume:(Option.value volume~default:sample.volume) sample.resource with Ok channel->Hashtbl.replace state.playing channel();Ok channel|Error error->Error(message"Audio.Sample.play"error)end
+    begin match Prismel_next_resources.Audio.play_sample state.audio ?loops ~volume:(Option.value volume~default:sample.volume) sample.resource with Ok channel->Ok channel|Error error->Error(message"Audio.Sample.play"error)end
   let set_volume sample value=sample.volume<-max 0. (min 1. value)
-  let stop channel=match!engine with Some value->ignore(Prismel_next_resources.Audio.stop_channel value.audio channel());Hashtbl.remove value.playing channel|None->()
+  let stop channel=match!engine with Some value->ignore(Prismel_next_resources.Audio.stop_channel value.audio channel())|None->()
   let pause channel=match!engine with Some value->ignore(Prismel_next_resources.Audio.pause_channel value.audio channel)|None->()
   let resume channel=match!engine with Some value->ignore(Prismel_next_resources.Audio.resume_channel value.audio channel)|None->()
-  let is_playing channel=match!engine with Some value->Hashtbl.mem value.playing channel|None->false
+  let is_playing channel=match!engine with Some value->Prismel_next_resources.Audio.channel_playing value.audio channel=Ok true|None->false
   let destroy sample=if not sample.destroyed then(ignore(Prismel_next_resources.Audio.destroy_sample sample.resource);sample.destroyed<-true)
 end
 module Music=struct

@@ -13,8 +13,6 @@ model updates, `Frame` facts, and pure `Scene` construction.
   boundary, not a side effect of construction.
 - `Image`, `Font`, `Canvas`, `Texture`, and `Audio` expose owned or explicitly
   borrowed resources with deterministic teardown.
-- `Low.App` and `Low.Graphics` preserve the immediate-mode compatibility path
-  while recording into the same native scene execution.
 - `Pxui` and the graph/inspector adapters remain sibling libraries above the
   public Prismel API.
 - `Pdk` owns packed geometry/topology; `Geom` and `Procedural` adapt it.
@@ -78,5 +76,5 @@ ordinary build has no offline shader-artifact pipeline.
 
 Architecture claims require dependency-direction, build, focused behavior,
 ownership, multi-frame, performance, stability, packaging, and documentation
-evidence appropriate to the change. `NEW_GPU_STUFF.md` defines the active GPU
-migration gates; evidence records the exact committed source and environment.
+evidence appropriate to the change; release-only checks live in
+`@qualification`.

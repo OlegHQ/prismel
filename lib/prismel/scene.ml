@@ -1,5 +1,4 @@
 type blend=Replace|Alpha|Add|Multiply
-type primitive={points:(int*int)list;closed:bool;fill:Color.t option;stroke:Color.t option}
 type text_node={x:int;y:int;value:string;color:Color.t;size:int;wrap:int option;align:Font.alignment;provided_font:Font.t option;mutable automatic:Font.Private.automatic option;mutable rendered:Image.t option}
 and debug_text_node={x:int;y:int;value:string;color:Color.t}
 and view3d_node={viewport:(int*int*int*int)option;camera:Camera.t;scene:Scene3.t;mutable rendered3d:Image.t option}
@@ -8,7 +7,7 @@ and display_list_node={segment:Scene_command.Display_list.t;
   resources:(int*Prismel_next_execution.resource)list}
 and ui_node={ui:Scene_command.Ui_batch.t;
   ui_resources:(int*Prismel_next_execution.resource)list}
-and node=Group of t|Clear of Color.t|Primitive of primitive|Geometry of Scene_command.Render_ir.geometry|Text of text_node|Debug_text of debug_text_node|Image of image_node
+and node=Group of t|Clear of Color.t|Geometry of Scene_command.Render_ir.geometry|Text of text_node|Debug_text of debug_text_node|Image of image_node
  |Display_list of display_list_node|Ui of ui_node
  |View3d of view3d_node|Region of int*int*int*int*bool|Layer_break
  |Translate of int*int*t|Rotate of float*t|Scale of float*float*t|Clip of int*int*int*int*t|Blend of blend*t
@@ -71,7 +70,6 @@ let rounded_cached key make=
         |[]->()
         |oldest::rest->Hashtbl.remove cache.table oldest;cache.order<-List.rev rest);
       Hashtbl.replace cache.table key value;cache.order<-key::cache.order;value
-let point ~at ?(color=default_color)()=Primitive{points=[at];closed=false;fill=None;stroke=Some color}
 let line ~from_ ~to_ ?(color=default_color)?(width=1)()=
   let width=float(max 1 width)and points=[from_;to_]in
   let key=path_geometry_key~points~closed:false~width~fill:None~stroke:(Some color)in
@@ -87,6 +85,7 @@ let polyline points ?(color=default_color)()=
   let key=path_geometry_key~points~closed:false~width:1.~fill:None~stroke:(Some color)in
   path_geometry_cached key(fun()->Geometry(Scene_command.Shape2.polyline points
     ~color:(rgba color)))
+let point ~at:(x,y) ?(color=default_color)()=polygon[x,y;x+1,y;x+1,y+1;x,y+1]~fill:color()
 let rect ~at:(x,y)~w~h ?fill ?stroke()=polygon[x,y;x+w,y;x+w,y+h;x,y+h]?fill?stroke()
 let square ~at ~size ?fill ?stroke()=rect~at~w:size~h:size?fill?stroke()
 let rounded_rect ~at:(x,y) ~w ~h ~radius ?fill ?stroke()=
@@ -121,8 +120,9 @@ let ellipse ~at:(cx,cy as at) ~rx ~ry ?fill ?stroke()=
 let circle ~at ~radius ?fill ?stroke()=ellipse~at~rx:radius~ry:radius?fill?stroke()
 let triangle a b c ?fill ?stroke()=polygon[a;b;c]?fill?stroke()
 let quad a b c d ?fill ?stroke()=polygon[a;b;c;d]?fill?stroke()
-let arc ~at:(cx,cy)~radius~from_~to_ ?(color=default_color)()=let points=List.init 33(fun i->let a=from_+.(to_-.from_)*.float i/.32. in cx+int_of_float(float radius*.cos a),cy+int_of_float(float radius*.sin a))in polyline points~color()
-let pie ~at ~radius ~from_ ~to_ ?fill ?stroke()=match arc~at~radius~from_~to_()with Primitive p->polygon(at::p.points)?fill?stroke()|_->assert false
+let arc_points (cx,cy) radius from_ to_=List.init 33(fun i->let a=from_+.(to_-.from_)*.float i/.32. in cx+int_of_float(float radius*.cos a),cy+int_of_float(float radius*.sin a))
+let arc ~at~radius~from_~to_ ?(color=default_color)()=polyline(arc_points at radius from_ to_)~color()
+let pie ~at ~radius ~from_ ~to_ ?fill ?stroke()=polygon(at::arc_points at radius from_ to_)?fill?stroke()
 type bezier_cache={table:(((int*int)list*int*int32),node)Hashtbl.t;
   mutable order:((int*int)list*int*int32)list}
 let bezier_cache_capacity=256
@@ -154,7 +154,7 @@ let bezier points ?(steps=20)?(color=default_color)()=
         let x,y=values.(0)in {Scene_command.Path.x;y})in
       let commands=Array.of_list(Scene_command.Path.Move_to(point2 first)::List.map(fun p->Scene_command.Path.Line_to p)(List.tl sampled))in
       ignore rest;stroke_path color(Scene_command.Path.of_commands commands))
-let path ?(steps=20)?(fill_rule=Path.Non_zero)?fill?stroke value=ignore fill_rule;Primitive{points=Path.points~steps value;closed=Path.is_closed value;fill;stroke}
+let path ?(steps=20)?(fill_rule=Path.Non_zero)?fill?stroke value=ignore fill_rule;let points=Path.points~steps value in if Path.is_closed value then polygon points?fill?stroke()else polyline points?color:stroke()
 let text ~at:(x,y) ?(color=default_color) ?(size=16) value=Text{x;y;value;color;size;wrap=None;align=Font.Left;provided_font=None;automatic=None;rendered=None}
 let debug_text ~at:(x,y) ?(color=default_color) value=Debug_text{x;y;value;color}
 let font_text font ~at:(x,y) ?(color=default_color) ?wrap ?(align=Font.Left) value=Text{x;y;value;color;size=Font.get_size font;wrap;align;provided_font=Some font;automatic=None;rendered=None}
@@ -186,33 +186,6 @@ let display_list ?(images=[]) segment=
 let text_input_region ~at:(x,y)~w~h ?(focused=false)()=Region(x,y,w,h,focused)
 let translate x y nodes=Translate(x,y,nodes)let rotate a nodes=Rotate(a,nodes)let scale x y nodes=Scale(x,y,nodes)
 let clip ~at:(x,y)~w~h nodes=Clip(x,y,w,h,nodes)let blend mode nodes=Blend(mode,nodes)
-let geometry_uncached (p:primitive)=
- let n=List.length p.points in
- let vertices=Array.make(n*2)0. in
- let rec fill index=function
-  |[]->()
-  |(x,y)::rest->vertices.(index)<-float x;vertices.(index+1)<-float y;
-      fill(index+2)rest in
- fill 0 p.points;
- let indices=if p.closed&&n>=3 then Array.init((n-2)*3)(fun i->let t=i/3 and k=i mod 3 in if k=0 then 0 else t+k)else if n=1 then[|0|]else Array.init(max 0((n-1)*2))(fun i->if i mod 2=0 then i/2 else i/2+1)in
- Scene_command.Render_ir.Geometry{vertices;indices;color=rgba(Option.value p.fill~default:(Option.value p.stroke~default:default_color))}
-(* FIFO eviction: [primitive_order] holds each cached key exactly once. *)
-type primitive_cache={primitive_table:(primitive,Scene_command.Render_ir.command)Hashtbl.t;
-  primitive_order:primitive Queue.t}
-let primitive_cache_capacity=256
-let primitive_caches=Domain.DLS.new_key(fun()->
-  {primitive_table=Hashtbl.create primitive_cache_capacity;primitive_order=Queue.create()})
-let geometry p=
-  let cache=Domain.DLS.get primitive_caches in
-  match Hashtbl.find_opt cache.primitive_table p with
-  |Some command->command
-  |None->
-      let command=geometry_uncached p in
-      if Hashtbl.length cache.primitive_table>=primitive_cache_capacity then
-        Hashtbl.remove cache.primitive_table(Queue.pop cache.primitive_order);
-      Hashtbl.replace cache.primitive_table p command;
-      Queue.push p cache.primitive_order;
-      command
 module Private=struct
  let layer_break=Layer_break
  let ui ?(images=[]) batch=
@@ -252,8 +225,8 @@ module Private=struct
    | Some image -> image
    | None ->
        let image=match node.provided_font with
-       |Some font->Result.get_ok(Font.cached_text?wrap:node.wrap~align:node.align~density font node.value(Font.Solid node.color))
-       |None->let automatic=Result.get_ok(Font.Private.borrow_automatic?wrap:node.wrap~align:node.align~density~size:node.size node.value(Font.Solid node.color))in
+       |Some font->Result.get_ok(Font.cached_text?wrap:node.wrap~align:node.align~density font node.value(Font.Blended node.color))
+       |None->let automatic=Result.get_ok(Font.Private.borrow_automatic?wrap:node.wrap~align:node.align~density~size:node.size node.value(Font.Blended node.color))in
          node.automatic<-Some automatic;Font.Private.automatic_image automatic in
        node.rendered <- Some image;
        image
@@ -284,7 +257,6 @@ module Private=struct
   let rec nodes=function
    |[]->()
    |Clear c::xs->emit builder(Scene_command.Render_ir.Clear(rgba c));nodes xs
-   |Primitive p::xs->emit builder(geometry p);nodes xs
    |Geometry g::xs->emit builder(Scene_command.Render_ir.Geometry g);nodes xs
    |Debug_text node::xs->emit builder(Scene_command.Render_ir.Debug_text{x=float node.x;y=float node.y;text=node.value;color=rgba node.color});nodes xs
    |Display_list node::xs->
@@ -324,7 +296,12 @@ module Private=struct
       try
         match Scene_command.Render_ir.Private.create_owned
           (commands ~density scene)with
-        |Error _->Error "invalid scene description"
+        |Error e->Error("invalid scene description: "^Scene_command.Render_ir.(match e with
+          |Non_finite->"non-finite value"|Invalid_extent->"negative extent"
+          |Invalid_cardinality->"bad vertex/index count"|Invalid_index i->"index "^string_of_int i
+          |Invalid_resource_id i->"resource id "^string_of_int i|Invalid_glyph_id i->"glyph id "^string_of_int i
+          |Invalid_debug_text->"debug text too long"|Unbalanced_clip->"unbalanced clip"
+          |Unbalanced_transform->"unbalanced transform"|Complexity_limit->"over 1,048,576 commands"))
         |Ok ir->Ok(ir,image_resources ~density scene)
       with
       |Failure message->Error message
@@ -379,7 +356,6 @@ module Private=struct
  and same_native_node left right=
    left==right||match left,right with
    |Clear left,Clear right->left=right
-   |Primitive left,Primitive right->left==right||left=right
    |Geometry left,Geometry right->left==right||left=right
    |Debug_text left,Debug_text right->left=right
    |Display_list left,Display_list right->
@@ -584,7 +560,7 @@ module Private=struct
     |Scale(_,_,nested)::rest|Clip(_,_,_,_,nested)::rest|Blend(_,nested)::rest->
         nodes nested&&nodes rest
     |Display_list _::rest|Ui _::rest|Region _::rest|Layer_break::rest|Clear _::rest
-    |Primitive _::rest|Geometry _::rest|Text _::rest|Debug_text _::rest
+    |Geometry _::rest|Text _::rest|Debug_text _::rest
     |Image _::rest->nodes rest in
    nodes scene
  let stage_native_internal ~aggregate ?(density=1) ~width ~height scene =
@@ -652,7 +628,7 @@ module Private=struct
        | Group nodes | Translate (_, _, nodes) | Rotate (_, nodes)
        | Scale (_, _, nodes) | Clip (_, _, _, _, nodes) | Blend (_, nodes) ->
            release nodes
-       | Clear _ | Primitive _ | Geometry _ | Debug_text _ | Image _
+       | Clear _ | Geometry _ | Debug_text _ | Image _
        | Display_list _ | Ui _ | Region _
        | Layer_break -> ())
      scene

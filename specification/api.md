@@ -17,8 +17,7 @@ The high-level API is functional:
 - effects and mutable renderer state stay behind `Sketch.run` and
   `Scene.render`.
 
-Mutable backend modules live under the explicit `Low` escape hatch. New
-sketches start with `Sketch`; direct rendering experiments use `Preview`.
+New sketches start with `Sketch`; direct rendering experiments use `Preview`.
 
 ## Design evidence
 
@@ -569,7 +568,7 @@ lifecycle.
 #### Sketch workspace keys
 
 `Space` (with no text field focused) opens a centered which-key panel; the
-next key runs a binding from `Sketch_ui.Leader.keymap`, the single table that
+next key runs a binding from the leader keymap, the single table that
 drives both dispatch and the panel. Global bindings always apply; the others
 belong to the focused pane (the last one clicked, outlined in the accent
 colour). Escape, Space, an unknown key, a click, or focus loss cancel it.
@@ -651,7 +650,7 @@ never published. Only target-neutral CPU preparation runs in the worker.
 - cleanup is exception-safe.
 - `Sketch.quit ()` requests graceful termination.
 - `Sketch.resize ~width ~height` resizes the active native runtime and updates
-  subsequent logical `Frame` facts without crossing through `Low.Window`.
+  subsequent logical `Frame` facts.
 - `Sketch.render_target ()` returns the sole `Native` target.
 
 The native runtime uses the ordinary `Event.t`, `Input`, and logical `Frame`

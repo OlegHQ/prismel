@@ -146,7 +146,6 @@ let live_audios = Atomic.make 0
 let live_tracks = Atomic.make 0
 
 module Release_queue = struct
-  let capacity = 1_024
   let mutex = Mutex.create ()
   let mixers = Queue.create ()
   let audios = Queue.create ()
@@ -155,9 +154,7 @@ module Release_queue = struct
 
   let enqueue queue raw =
     Mutex.lock mutex;
-    if Queue.length mixers + Queue.length audios + Queue.length tracks
-        >= capacity then Atomic.incr dropped
-    else Queue.add raw queue;
+    Queue.add raw queue; (* unbounded: never leak a finalized object *)
     Mutex.unlock mutex
 
   let mixer raw = enqueue mixers raw

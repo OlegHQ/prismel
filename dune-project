@@ -24,8 +24,6 @@
  (depends
   (ocaml (>= 5.2))
   (dune (>= 3.17))
-  ctypes
-  ctypes-foreign
   digestif
   dune-configurator
   ppxlib

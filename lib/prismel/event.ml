@@ -1,12 +1,12 @@
 type t = KeyPressed of Input.key | KeyReleased of Input.key | MouseMoved of (int*int)
   | MousePressed of Input.mouse_button*(int*int) | MouseReleased of Input.mouse_button*(int*int)
-  | PointerCancelled of Input.mouse_button | MouseScrolled of (int*int) | TextInput of string
+  | PointerCancelled of Input.mouse_button | MouseScrolled of (float*float) | TextInput of string
   | TextEditing of {text:string;start:int;length:int} | FileDropped of string
   | WindowResized of (int*int) | WindowFocusLost | WindowClosed
 let source=match Runtime_next_input.create~max_events:4096~max_file_bytes:(16*1024*1024)~logical_width:1~logical_height:1 with Ok x->x|Error e->failwith e
 let button=function Runtime_next_input.Left->Input.LeftButton|Right->RightButton|Middle->MiddleButton|X1->MouseX1|X2->MouseX2
 let key text=match String.lowercase_ascii text with
-  |"up"->Input.ArrowUp|"down"->ArrowDown|"left"->ArrowLeft|"right"->ArrowRight
+  |"arrowup"->Input.ArrowUp|"arrowdown"->ArrowDown|"arrowleft"->ArrowLeft|"arrowright"->ArrowRight
   |"space"->Space|"enter"->Enter|"escape"->Escape|"backspace"->Backspace|"tab"->Tab
   |"shift"|"left shift"|"right shift"->Shift|"ctrl"|"control"|"left ctrl"|"right ctrl"->Ctrl
   |"alt"|"left alt"|"right alt"->Alt|"meta"|"gui"|"left gui"|"right gui"->Meta
@@ -20,7 +20,7 @@ let convert=function
   | Runtime_next_input.Pointer_moved(x,y)->Some(MouseMoved(int_of_float x,int_of_float y))
   | Pointer_pressed(b,x,y)->Some(MousePressed(button b,(int_of_float x,int_of_float y)))
   | Pointer_released(b,x,y)->Some(MouseReleased(button b,(int_of_float x,int_of_float y)))
-  | Pointer_cancelled b->Some(PointerCancelled(button b))|Wheel(x,y)->Some(MouseScrolled(int_of_float x,int_of_float y))
+  | Pointer_cancelled b->Some(PointerCancelled(button b))|Wheel(x,y)->Some(MouseScrolled(x,y))
   | Key_pressed e->Some(KeyPressed(key e.key))|Key_released e->Some(KeyReleased(key e.key))
   | Text_input s->Some(TextInput s)|Text_editing{text;start;length}->Some(TextEditing{text;start;length})
   | File_dropped{name;_}->Some(FileDropped name)|Resized(w,h)->Some(WindowResized(w,h))
@@ -41,7 +41,7 @@ let poll_events()=
     Input.set_mouse_delta(int_of_float(Float.round dx),int_of_float(Float.round dy))
   end;
   events
-module Private=struct let set_relative enabled=Runtime_next_input.set_relative source enabled end
+module Private=struct let set_relative enabled=Runtime_next_input.set_relative source enabled let key_of_name=key end
 let process_events events state handler=match handler with None->state|Some f->List.fold_left f state events
 let handle_events state handler=let events=poll_events()in process_events events state handler,events
 let event_to_string=function
@@ -51,7 +51,7 @@ let event_to_string=function
   |MousePressed(button,(x,y))->Printf.sprintf"MousePressed(%s, (%d, %d))"(Input.mouse_button_to_string button)x y
   |MouseReleased(button,(x,y))->Printf.sprintf"MouseReleased(%s, (%d, %d))"(Input.mouse_button_to_string button)x y
   |PointerCancelled button->Printf.sprintf"PointerCancelled(%s)"(Input.mouse_button_to_string button)
-  |MouseScrolled(dx,dy)->Printf.sprintf"MouseScrolled(%d, %d)"dx dy
+  |MouseScrolled(dx,dy)->Printf.sprintf"MouseScrolled(%g, %g)"dx dy
   |TextInput text->Printf.sprintf"TextInput(%S)"text
   |TextEditing{text;start;length}->Printf.sprintf"TextEditing(%S, %d, %d)"text start length
   |FileDropped path->Printf.sprintf"FileDropped(%S)"path

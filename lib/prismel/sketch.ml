@@ -15,6 +15,9 @@ let resize ~width ~height =
 let frame config count time dt events={Frame.width=config.width;height=config.height;size=(config.width,config.height);drawable_width=config.width;drawable_height=config.height;drawable_size=(config.width,config.height);pixel_scale=(1.,1.);time;dt;fps=(if dt > 0. then 1. /. dt else 0.);count;mouse=Input.mouse_pos();mouse_delta=Input.mouse_delta();keys=Input.keys_down();mouse_buttons=Input.mouse_buttons_down();events}
 let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _ _->())~init~update~view ?(on_stop=fun _->())()=
   if config.width<=0||config.height<=0 then invalid_arg"Sketch: dimensions must be positive";
+  let max_frames=match max_frames,Sys.getenv_opt"PRISMEL_MAX_FRAMES"with
+    |Some _,_|None,(None|Some"")->max_frames
+    |None,Some text->(match int_of_string_opt text with Some _ as n->n|None->invalid_arg"Sketch: PRISMEL_MAX_FRAMES must be an integer")in
   Option.iter(fun frames->if frames<=0 then invalid_arg"Sketch: max_frames must be positive")max_frames;
   Option.iter(fun fps->if fps<=0 then invalid_arg"Sketch: fps must be positive")config.fps;
   Option.iter(fun domains->if domains<=0 then invalid_arg"Sketch: domains must be positive")config.domains;

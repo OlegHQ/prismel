@@ -1,3 +1,7 @@
-(test
+(executable
  (name runtime_next_native_qualification)
  (libraries runtime_next runtime_next_input scene_execution metal ogpu sdl3 unix yojson))
+
+(rule
+ (alias qualification)
+ (action (run %{exe:runtime_next_native_qualification.exe})))

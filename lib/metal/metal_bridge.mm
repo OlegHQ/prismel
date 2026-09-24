@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <deque>
 #include <atomic>
 #include <cmath>
 #include <cstddef>
@@ -1097,10 +1098,9 @@ struct Handle {
   Handle_kind kind;
 };
 
-constexpr std::size_t release_capacity = 65'536;
-std::array<void *, release_capacity> release_queue{};
-std::size_t release_head = 0;
-std::size_t release_count = 0;
+// Unbounded on purpose: a finalizer must never leak a Metal object because
+// the main domain has not drained yet. Drained every frame on the main domain.
+std::deque<void *> release_queue;
 std::mutex release_mutex;
 std::mutex handle_mutex;
 std::atomic<std::uint64_t> next_generation{1};
@@ -1128,13 +1128,7 @@ void enqueue_release(void *pointer) {
     return;
   }
   std::lock_guard<std::mutex> lock(release_mutex);
-  if (release_count == release_capacity) {
-    dropped_releases.fetch_add(1, std::memory_order_relaxed);
-    return;
-  }
-  const std::size_t tail = (release_head + release_count) % release_capacity;
-  release_queue[tail] = pointer;
-  ++release_count;
+  release_queue.push_back(pointer);
 }
 
 void finalize_handle(value raw) {
@@ -3035,13 +3029,11 @@ extern "C" CAMLprim value caml_prismel_metal_drain_releases(value unit) {
     void *pointer = nullptr;
     {
       std::lock_guard<std::mutex> lock(release_mutex);
-      if (release_count == 0) {
+      if (release_queue.empty()) {
         break;
       }
-      pointer = release_queue[release_head];
-      release_queue[release_head] = nullptr;
-      release_head = (release_head + 1) % release_capacity;
-      --release_count;
+      pointer = release_queue.front();
+      release_queue.pop_front();
     }
     release_pointer(pointer);
     ++drained;
@@ -3054,7 +3046,7 @@ extern "C" CAMLprim value caml_prismel_metal_pending_releases(value unit) {
   std::size_t pending = 0;
   {
     std::lock_guard<std::mutex> lock(release_mutex);
-    pending = release_count;
+    pending = release_queue.size();
   }
   CAMLreturn(Val_long(pending));
 }

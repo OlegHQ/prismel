@@ -140,7 +140,7 @@ let measure count =
   (* Zoom fully out, then pan: every frame re-describes the canvas. *)
   let centre = 600, 380 in
   let zoomed, _ = step (paint view (frame ~mouse:centre ())) (frame ~mouse:centre
-      ~events:(List.init 20 (fun _ -> Prismel.Event.MouseScrolled (0, -1))) ()) in
+      ~events:(List.init 20 (fun _ -> Prismel.Event.MouseScrolled (0., (-1.)))) ()) in
   let panning, _ = step zoomed (frame ~mouse:centre
       ~events:[Prismel.Event.MousePressed (Prismel.Input.RightButton, centre)] ()) in
   let panning = ref panning and pan_samples = Array.make move_repeats 0. in

@@ -13,19 +13,7 @@ val create :
   unit ->
   ('prepared t, string) result
 
-val submit :
-  'prepared t ->
-  frame:Prismel.Frame.t ->
-  node:Procedural.Node.t ->
-  prepare:(Procedural.Session.output -> ('prepared, string) result) ->
-  (int, string) result
 
-val submit_context :
-  'prepared t ->
-  context:Procedural.Context.t ->
-  node:Procedural.Node.t ->
-  prepare:(Procedural.Session.output -> ('prepared, string) result) ->
-  (int, string) result
 
 val submit_timeline :
   'prepared t ->
@@ -36,7 +24,6 @@ val submit_timeline :
 
 val poll : 'prepared t -> 'prepared Procedural.Async_cook.completion option
 val status : 'prepared t -> Procedural.Async_cook.status
-val cancel : 'prepared t -> unit
 val close : 'prepared t -> unit
 val error_to_string : Procedural.Async_cook.error -> string
 

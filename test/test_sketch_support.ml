@@ -45,26 +45,25 @@ let test_timeline_and_schedule () =
      || Sketch_support.Timeline.frame timeline <> 1L
      || not (Sketch_support.Timeline.changed_context changes)
   then fail "sketch timeline did not advance deterministically";
-  let timeline, _ = Sketch_support.Timeline.update timeline
-      (timeline_frame ~events:[Event.KeyPressed (Input.KeyChar 'p')] ()) in
+  let timeline, _ = Sketch_support.Timeline.toggle_pause timeline in
+  let timeline, _ = Sketch_support.Timeline.update timeline (timeline_frame ()) in
   if Sketch_support.Timeline.mode timeline <> Sketch_support.Timeline.Paused
      || Sketch_support.Timeline.time timeline <> 0.25
-  then fail "sketch timeline pause shortcut did not freeze time";
-  let timeline, _ = Sketch_support.Timeline.update timeline
-      (timeline_frame ~events:[Event.KeyPressed (Input.KeyChar 's')] ()) in
+  then fail "sketch timeline pause did not freeze time";
+  let timeline, _ = Sketch_support.Timeline.stop timeline in
   if Sketch_support.Timeline.mode timeline <> Sketch_support.Timeline.Stopped
      || Sketch_support.Timeline.time timeline <> 0.
      || Sketch_support.Timeline.frame timeline <> 0L
-  then fail "sketch timeline stop shortcut did not rewind";
-  let timeline, reset_changes = Sketch_support.Timeline.update timeline
-      (timeline_frame ~events:[Event.KeyPressed (Input.KeyChar 'r')] ()) in
+  then fail "sketch timeline stop did not rewind";
+  let timeline, reset_changes = Sketch_support.Timeline.reset timeline in
+  let timeline, _ = Sketch_support.Timeline.update timeline (timeline_frame ()) in
   if Sketch_support.Timeline.mode timeline <> Sketch_support.Timeline.Playing
      || Sketch_support.Timeline.time timeline <> 0.25
      || not (Sketch_support.Timeline.changed_context reset_changes)
-  then fail "sketch timeline reset shortcut did not restart playback";
+  then fail "sketch timeline reset did not restart playback";
   ignore (Sketch_support.Timeline.context timeline |> string_ok);
   (* Seek jumps at the mean observed step (0.25 s), pauses, and changes the
-     cook context; without shortcuts, keys no longer drive the clock. *)
+     cook context; keys never drive the clock directly. *)
   let module T = Sketch_support.Timeline in
   let sought, seek_changes = T.seek timeline ~frame:8L in
   if T.frame sought <> 8L || T.time sought <> 2. || T.mode sought <> T.Paused
@@ -72,9 +71,9 @@ let test_timeline_and_schedule () =
   then fail "sketch timeline seek did not jump, pause, and change the context";
   if T.frame (fst (T.seek timeline ~frame:(-3L))) <> 0L then
     fail "sketch timeline seek did not clamp at frame 0";
-  let quiet, _ = T.update (T.create ~shortcuts:None ())
+  let quiet, _ = T.update (T.create ())
       (timeline_frame ~events:[Event.KeyPressed (Input.KeyChar 'p')] ()) in
-  if T.mode quiet <> T.Playing then fail "timeline without shortcuts reacted to P";
+  if T.mode quiet <> T.Playing then fail "timeline reacted to a key press";
 
   let static_graph = Sop.points [|0., 0., 0.|] in
   let dynamic_graph = Sop.custom ~operation:"timeline_test"

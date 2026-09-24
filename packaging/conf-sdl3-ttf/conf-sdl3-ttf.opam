@@ -15,4 +15,4 @@ depends: [
 depexts: [
   ["sdl3_ttf"] {os-distribution = "homebrew"}
 ]
-build: [["pkg-config" "--exact-version=3.2.2" "sdl3-ttf"]]
+build: [["pkg-config" "--atleast-version=3.2.2" "sdl3-ttf"]]

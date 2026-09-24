@@ -277,8 +277,10 @@ module Font=struct
   type hinting=Normal_hinting|Light_hinting|Mono_hinting|None_hinting|Light_subpixel_hinting
   type glyph_metrics={min_x:int;max_x:int;min_y:int;max_y:int;advance:int}
   type cache_entry={key:string;text:Text.t option}
+  type alignment=Sdl3_ttf.Font.alignment=Left|Center|Right
+  type metrics=Sdl3_ttf.Font.metrics={height:int;ascent:int;descent:int;line_skip:int}
   type t={raw:Sdl3_ttf.Font.t;base_size:float;mutable generation:int;
-    mutable density:int;mutable caches:(int*cache_entry list)list;mutable dead:bool}
+    mutable density:int;mutable align:alignment;mutable caches:(int*cache_entry list)list;mutable dead:bool}
   let users=ref 0
   let generation x=x.generation and destroyed x=x.dead
   let live op x f=main op(fun()->if x.dead then error op Destroyed"font is destroyed"else f())
@@ -289,7 +291,7 @@ module Font=struct
   let open_file ~path ~size=main"Font.open_file"(fun()->
     if not(Float.is_finite size)||size<=0. then error"Font.open_file"Invalid_argument"font size must be finite and positive"
     else match ensure_init"Font.open_file"with Error _ as e->e|Ok()->match ttf"Font.open_file"(Sdl3_ttf.Font.open_file~path~size)with
-      |Error _ as e->e|Ok raw->incr users;Ok{raw;base_size=size;generation=1;density=1;caches=[];dead=false})
+      |Error _ as e->e|Ok raw->incr users;Ok{raw;base_size=size;generation=1;density=1;align=Left;caches=[];dead=false})
   let open_system ~size=main"Font.open_system"(fun()->match ttf"Font.open_system"(Sdl3_ttf.Font.system_path())with Error _ as e->e|Ok path->open_file~path~size)
   let destroy_entries entries=List.iter(fun e->Option.iter(fun text->ignore(Text.destroy text))e.text)entries
   let invalidate x=List.iter(fun(_,entries)->destroy_entries entries)x.caches;x.caches<-[];x.generation<-x.generation+1
@@ -309,18 +311,29 @@ module Font=struct
       else if c>=0xf0&&c<=0xf4&&continuation(i+1)&&continuation(i+2)&&continuation(i+3)then let c1=Char.code text.[i+1]in if(c=0xf0&&c1<0x90)||(c=0xf4&&c1>=0x90)then false else loop(i+4)else false in loop 0
   let set_density x density=
     if density=x.density then Ok()else match ttf"Font.render"(Sdl3_ttf.Font.set_size_dpi x.raw~size:x.base_size~horizontal:(72*density)~vertical:(72*density))with Error _ as e->e|Ok()->x.density<-density;Ok()
-  let render x ?wrap_width ~density ~color text=live"Font.render"x(fun()->
+  let set_align x align=
+    if align=x.align then Ok()else match ttf"Font.render"(Sdl3_ttf.Font.set_wrap_alignment x.raw align)with Error _ as e->e|Ok()->x.align<-align;Ok()
+  (* Logical-point measurements: density 1, matching [render ~density:1]. *)
+  let metrics x=live"Font.metrics"x(fun()->match set_density x 1 with Error _ as e->e|Ok()->ttf"Font.metrics"(Sdl3_ttf.Font.metrics x.raw))
+  let size_text x ?wrap_width text=live"Font.size_text"x(fun()->
+    if not(valid_utf8 text)then error"Font.size_text"Invalid_argument"text is not strict UTF-8"
+    else match set_density x 1 with Error _ as e->e|Ok()->ttf"Font.size_text"(match wrap_width with
+      |None->Sdl3_ttf.Font.size_text x.raw text|Some wrap_width->Sdl3_ttf.Font.size_text_wrapped x.raw~wrap_width text))
+  let family_name x=live"Font.family_name"x(fun()->ttf"Font.family_name"(Sdl3_ttf.Font.family_name x.raw))
+  let style_name x=live"Font.style_name"x(fun()->ttf"Font.style_name"(Sdl3_ttf.Font.style_name x.raw))
+  let render x ?wrap_width ?(align=Left) ~density ~color text=live"Font.render"x(fun()->
     if density<=0||density>16 then error"Font.render"Invalid_argument"density must be in 1..16"
     else if not(valid_utf8 text)then error"Font.render"Invalid_argument"text is not strict UTF-8"
     else match wrap_width with Some width when width<=0->error"Font.render"Invalid_argument"wrap width must be positive"|_->
       match set_density x density with Error _ as e->e|Ok()->
+      match set_align x align with Error _ as e->e|Ok()->
       let rendered=match wrap_width with None->Sdl3_ttf.Font.render_blended x.raw~color text|Some width->Sdl3_ttf.Font.render_blended_wrapped x.raw~color~wrap_width:(width*density) text in
       match ttf"Font.render"rendered with Error _ as e->e|Ok None->Ok None|Ok(Some surface)->Fun.protect~finally:(fun()->ignore(Sdl3.Surface.destroy surface))(fun()->match Sdl3.Surface.copy_rgba surface with Error e->error"Font.render"Decode(Format.asprintf"%a"Sdl3.pp_error e)|Ok s->Ok(Some(Text.owned s.width s.height s.pixels))))
   (* Metrics at the backing density a matching [render] rasterizes with. *)
   let glyph_metrics_at x ~density glyph=live"Font.glyph_metrics_at"x(fun()->
     if density<=0||density>16 then error"Font.glyph_metrics_at"Invalid_argument"density must be in 1..16"
     else match set_density x density with Error _ as e->e|Ok()->glyph_metrics x glyph)
-  let cached_text=render
+  let cached_text x ?wrap_width ~density ~color text=render x ?wrap_width ~density ~color text
   let cache_key x density wrap color text=Marshal.to_string(x.generation,density,wrap,color,text)[]
   let render_cached x ~renderer ?wrap_width ~density ~color text=live"Font.render_cached"x(fun()->
     let key=cache_key x density wrap_width color text in let entries=Option.value(List.assoc_opt renderer x.caches)~default:[]in
@@ -342,11 +355,16 @@ module Audio=struct
   let result op=function Ok x->Ok x|Error e->mix_error op e
   let live op x f=main op(fun()->if x.dead then error op Destroyed"audio owner is destroyed"else f())
   let sample_live op x f=live op x.owner(fun()->if x.dead then error op Destroyed"audio sample is destroyed"else f())
-  let create_memory ~sample_rate ~channels ~max_channels=main"Audio.create_memory"(fun()->
-    match result"Audio.create_memory"(Sdl3_mixer.Init.init())with Error _ as e->e|Ok()->
-    match result"Audio.create_memory"(Sdl3_mixer.Mixer.create_memory~sample_rate~channels)with Error _ as e->e|Ok mixer->
-    match result"Audio.create_memory"(Sdl3_mixer.Channels.create mixer~count:max_channels)with Error e->ignore(Sdl3_mixer.Mixer.destroy mixer);Error e|Ok channel_bank->
-    match result"Audio.create_memory"(Sdl3_mixer.Music.create mixer)with Error e->ignore(Sdl3_mixer.Channels.destroy channel_bank);ignore(Sdl3_mixer.Mixer.destroy mixer);Error e|Ok music->Ok{mixer;channels=channel_bank;music;master=1.;music_volume=1.;dead=false})
+  let attach op ~max_channels mixer=
+    match result op(Sdl3_mixer.Channels.create mixer~count:max_channels)with Error e->ignore(Sdl3_mixer.Mixer.destroy mixer);Error e|Ok channel_bank->
+    match result op(Sdl3_mixer.Music.create mixer)with Error e->ignore(Sdl3_mixer.Channels.destroy channel_bank);ignore(Sdl3_mixer.Mixer.destroy mixer);Error e|Ok music->Ok{mixer;channels=channel_bank;music;master=1.;music_volume=1.;dead=false}
+  let create op ~max_channels mixer=main op(fun()->
+    match result op(Sdl3_mixer.Init.init())with Error _ as e->e|Ok()->
+    match result op(mixer())with Error _ as e->e|Ok mixer->attach op~max_channels mixer)
+  let create_memory ~sample_rate ~channels ~max_channels=create"Audio.create_memory"~max_channels(fun()->Sdl3_mixer.Mixer.create_memory~sample_rate~channels)
+  let create_device ~max_channels=create"Audio.create_device"~max_channels Sdl3_mixer.Mixer.create_device
+  let channel_count x=Sdl3_mixer.Channels.count x.channels
+  let channel_playing x channel=live"Audio.channel_playing"x(fun()->result"Audio.channel_playing"(Sdl3_mixer.Channels.playing x.channels channel))
   let load_sample_bytes x bytes=live"Audio.load_sample_bytes"x(fun()->match result"Audio.load_sample_bytes"(Sdl3_mixer.Audio.load_bytes x.mixer(Bytes.copy bytes))with Error _ as e->e|Ok raw->Ok{owner=x;identity=Printf.sprintf"sample-%x"(fresh_identity());generation=1;raw;encoded=Bytes.copy bytes;dead=false})
   let reload_sample_bytes x bytes=sample_live"Audio.reload_sample_bytes"x(fun()->match result"Audio.reload_sample_bytes"(Sdl3_mixer.Audio.reload_bytes x.raw(Bytes.copy bytes))with Error _ as e->e|Ok replacement->ignore(Sdl3_mixer.Audio.destroy x.raw);x.raw<-replacement;x.encoded<-Bytes.copy bytes;x.generation<-x.generation+1;Ok())
   let sample_identity(x:sample)=x.identity and sample_generation(x:sample)=x.generation and sample_destroyed(x:sample)=x.dead

@@ -326,10 +326,14 @@
  (modules test_metal_build_config)
  (libraries metal_build_config))
 
-(test
+(executable
  (name test_metal)
  (modules test_metal)
  (libraries metal))
+
+(rule
+ (alias qualification)
+ (action (run %{exe:test_metal.exe})))
 
 (test
  (name test_metal_enum_generated)
@@ -346,10 +350,14 @@
  (modules test_metal_value_record_generated)
  (libraries metal))
 
-(test
+(executable
  (name test_metal_global_generated)
  (modules test_metal_global_generated)
  (libraries metal))
+
+(rule
+ (alias qualification)
+ (action (run %{exe:test_metal_global_generated.exe})))
 
 (test
  (name test_metal_argument_reflection_snapshot)
@@ -364,7 +372,14 @@
 (test
  (name test_metal_presentation_10k)
  (modules test_metal_presentation_10k)
- (libraries metal unix))
+ (libraries metal unix)
+ (action
+  (setenv PRISMEL_METAL_PRESENTATION_CYCLES 200
+   (run %{test}))))
+
+(rule
+ (alias qualification)
+ (action (run %{exe:test_metal_presentation_10k.exe})))
 
 (test
  (name test_metal_m1_ray_query)
@@ -731,6 +746,7 @@
 
 (rule
  (alias runtest)
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (deps generated_api_inventory.json generated_provenance.ml)
  (action
   (run %{exe:../../tools/metal/generate_inventory.exe}

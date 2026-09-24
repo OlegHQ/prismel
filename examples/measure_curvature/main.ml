@@ -5,7 +5,6 @@ type model = {
   session : Session.t;
   mean : float array;
   gaussian : float array;
-  frames_left : int option;
 }
 
 let columns = 36
@@ -36,15 +35,9 @@ let init frame =
   let mean,gaussian = match Session.cook session ~context node with
     | Ok output -> fields output.geometry
     | Error error -> failwith (Diagnostic.error_to_string error) in
-  {session;mean;gaussian;
-   frames_left=None}
+  {session;mean;gaussian}
 
-let update model _ =
-  let frames_left = match model.frames_left with
-    | Some 1 -> Sketch.quit (); Some 0
-    | Some count -> Some (count - 1)
-    | None -> None in
-  {model with frames_left}
+let update model _ = model
 
 let heatmap ~at_x values =
   let maximum = Array.fold_left (fun found value ->

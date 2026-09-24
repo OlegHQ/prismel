@@ -6,7 +6,6 @@ type model = {
   metaballs : Mesh.t;
   camera : Easy_camera.t;
   phase : float;
-  frames_left : int option;
 }
 
 let result_or_fail = function
@@ -57,21 +56,13 @@ let init _frame =
       Easy_camera.create ~target:Vec3.zero
         ~distance:7.8 ~elevation:0.12 ();
     phase = 0.;
-    frames_left = None;
   }
 
 let update model (frame : Frame.t) =
-  let frames_left =
-    match model.frames_left with
-    | Some 1 -> Sketch.quit (); Some 0
-    | Some count -> Some (count - 1)
-    | None -> None
-  in
   {
     model with
     camera = Easy_camera.update model.camera frame;
     phase = model.phase +. frame.dt *. 0.4;
-    frames_left;
   }
 
 let shiny color =

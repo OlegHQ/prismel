@@ -1932,36 +1932,38 @@ module Mountain = struct
     roughness : float [@sop.default 0.5] [@sop.label "Roughness"]
       [@sop.folder "Fractal"] [@sop.min 0.] [@sop.max 1.]
       [@sop.hard_min 0.];
+    recompute_normals : bool [@sop.default false]
+      [@sop.label "Recompute normals"];
   } [@@sop.node_key "mountain"] [@@sop.node_label "Mountain"]
     [@@sop.node_category "Deform"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
   let rec build ~group ~direction_attribute ~mask_attribute ~height_attribute
-      ~recompute_normals ~label ~inputs parameters = match inputs with
+      ~label ~inputs parameters = match inputs with
     | [input] ->
         Sop.mountain ~label ?group ~seed:parameters.seed ?direction_attribute
           ?mask_attribute ~height:parameters.height
           ~frequency:(Vec3.create parameters.frequency_x parameters.frequency_y
             parameters.frequency_z) ~octaves:parameters.octaves
           ~lacunarity:parameters.lacunarity ~roughness:parameters.roughness
-          ?height_attribute ~recompute_normals input
+          ?height_attribute ~recompute_normals:parameters.recompute_normals input
         |> Node.parameterize ~schema:parameters_schema ~values:parameters
              ~rebuild:(build ~group ~direction_attribute ~mask_attribute
-               ~height_attribute ~recompute_normals)
+               ~height_attribute)
     | _ -> invalid_arg "Sop_catalog.Mountain expects one input"
 
   let factory = parameters_factory
       (build ~group:None ~direction_attribute:None ~mask_attribute:None
-         ~height_attribute:None ~recompute_normals:true)
+         ~height_attribute:None)
 
   let create ?label:node_label ?group ?direction_attribute ?mask_attribute
       ?height_attribute ?(recompute_normals = false) ~seed ~height ~frequency
       ~octaves ~lacunarity ~roughness input =
     build ~group ~direction_attribute ~mask_attribute ~height_attribute
-      ~recompute_normals ~label:(label "mountain" node_label) ~inputs:[input] {
+      ~label:(label "mountain" node_label) ~inputs:[input] {
         seed; height; frequency_x = frequency.Vec3.x;
         frequency_y = frequency.y; frequency_z = frequency.z;
-        octaves; lacunarity; roughness }
+        octaves; lacunarity; roughness; recompute_normals }
 end [@@sop.register]
 
 module Peak = struct
@@ -3084,14 +3086,16 @@ module Attribute_noise_quaternion = struct
              ~rebuild:(build ~group ~location ~range ~owner ~name)
     | _ -> invalid_arg "Sop_catalog.Attribute_noise_quaternion expects one input"
 
+  (* One set of defaults for the node menu and [create]. *)
+  let default_location = Pdk.Attribute_ops.Noise_element_number
+  let default_range = Pdk.Attribute_ops.Noise_zero_centered
+
   let factory = parameters_factory
-      (build ~group:None ~location:Pdk.Attribute_ops.Noise_element_number
-         ~range:Pdk.Attribute_ops.Noise_zero_centered
+      (build ~group:None ~location:default_location ~range:default_range
          ~owner:Pdk.Attribute.Point ~name:"orient")
 
   let create ?label:node_label ?group
-      ?(location = Pdk.Attribute_ops.Noise_position)
-      ?(range = Pdk.Attribute_ops.Noise_positive) ~owner ~name ~seed ~frequency
+      ?(location = default_location) ?(range = default_range) ~owner ~name ~seed ~frequency
       ~octaves input =
     build ~group ~location ~range ~owner ~name
       ~label:(label "attribute-noise-quaternion" node_label) ~inputs:[input] {

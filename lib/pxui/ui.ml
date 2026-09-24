@@ -619,8 +619,8 @@ let route ui (frame : Frame.t) =
         let target = scroll_target ui ui.pointer in
         if target <> 0 then begin
           let value = accumulator ui target in
-          value.scroll_x <- value.scroll_x +. float horizontal;
-          value.scroll_y_steps <- value.scroll_y_steps +. float vertical
+          value.scroll_x <- value.scroll_x +. horizontal;
+          value.scroll_y_steps <- value.scroll_y_steps +. vertical
         end
     | Event.PointerCancelled button ->
         if ui.active <> 0 && button = ui.active_button then begin

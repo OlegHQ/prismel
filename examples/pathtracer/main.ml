@@ -69,7 +69,7 @@ let update m (frame : Frame.t) =
         { m with yaw = m.yaw -. (float dx *. 0.006)
         ; pitch = Float.min 1.4 (Float.max (-0.6) (m.pitch +. (float dy *. 0.006))) }
     | Event.MouseScrolled (_, dy) ->
-        { m with distance = Float.min 40. (Float.max 3. (m.distance *. (1. -. (float dy *. 0.08)))) }
+        { m with distance = Float.min 40. (Float.max 3. (m.distance *. (1. -. (dy *. 0.08)))) }
     | _ -> m) m frame.events in
   (match P.render m.tracer (camera m) with Ok () -> () | Error e -> prerr_endline e);
   if frames > 0 && frame.count + 1 >= frames then begin

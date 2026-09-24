@@ -238,16 +238,14 @@ rendering.
 
 ## Qualification
 
-`NEW_GPU_STUFF.md` is the active migration plan. Its S, M, O, R, and D gates
-require focused correctness, ownership, conformance, and performance evidence
-before a surface is declared complete. The dependency-direction gate and the
+A surface is complete when focused correctness, ownership, conformance, and
+performance tests pass. The dependency-direction gate and the
 native link audit are release requirements: production artifacts may link only
 the declared SDL3, Metal, OGPU, and platform frameworks for this backend.
 
-Evidence is recorded under `specification/evidence/gpu_migration/`. A record
-names the exact commit, command, profile, machine context, and artifact hash;
-historical records are qualification evidence rather than a substitute for the
-final clean-tree gate run.
+Long-running, SDK-, driver- and machine-specific checks run under
+`dune build @qualification`; they are release evidence, not the pre-commit
+gate.
 # Native UI input and export
 
 The native window starts SDL3 text input for its lifetime. PXUI applies text
@@ -269,5 +267,5 @@ sums SDL `xrel`/`yrel` (the event pump reports them through
 motion of the samples it drops) instead of absolute differences that stop at
 the window edge. No SDL value crosses into Prismel's public API, the sketch
 loop turns it off when it stops, and the library dependency graph is
-unchanged (`test/dependency_direction.ml`). Sketch UI fly mode is its only
+unchanged (`test/dependency_gate.ml`). Sketch UI fly mode is its only
 in-tree user.

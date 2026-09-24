@@ -157,16 +157,8 @@ let snapshot value =
 
 let queued_count value = Queue.length value.events
 
+(* The full path only: reading happens in the application, never in the
+   event pump, so one unreadable file cannot stall or abort a batch. *)
 let push_file_path value path =
   if path="" || String.contains path '\000' then Error"file-drop path is malformed"
-  else
-    try
-      let input=open_in_bin path in
-      Fun.protect~finally:(fun()->close_in_noerr input)(fun()->
-        let length=in_channel_length input in
-        if length>value.max_file_bytes then Error"file drop exceeds max_file_bytes"
-        else
-          let contents=Bytes.create length in
-          really_input input contents 0 length;
-          push value(File_dropped{name=Filename.basename path;contents=Some contents}))
-    with Sys_error message->Error("file drop: "^message)
+  else push value(File_dropped{name=path;contents=None})

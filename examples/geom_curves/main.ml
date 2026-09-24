@@ -3,7 +3,6 @@ open Geom
 
 type model = {
   phase : float;
-  frames_left : int option;
 }
 
 let palette =
@@ -13,20 +12,10 @@ let palette =
 let init _frame =
   {
     phase = 0.;
-    frames_left = None;
   }
 
 let update model (frame : Frame.t) =
-  let frames_left =
-    match model.frames_left with
-    | Some 1 -> Sketch.quit (); Some 0
-    | Some count -> Some (count - 1)
-    | None -> None
-  in
-  {
-    phase = model.phase +. frame.dt *. 0.35;
-    frames_left;
-  }
+  { phase = model.phase +. frame.dt *. 0.35 }
 
 let control_curve phase center =
   List.init 16 (fun index ->

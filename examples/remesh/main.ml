@@ -6,7 +6,6 @@ type model = {
   input : Mesh.t;
   remeshed : Mesh.t;
   camera : Easy_camera.t;
-  frames_left : int option;
 }
 
 let cook session frame graph =
@@ -37,15 +36,10 @@ let init frame =
     remeshed = cook session frame remeshed_graph;
     camera = Easy_camera.create ~target:Vec3.zero ~distance:5.2
         ~azimuth:0.55 ~elevation:0.32 ();
-    frames_left = None;
   }
 
 let update model frame =
-  let frames_left = match model.frames_left with
-    | Some 1 -> Sketch.quit (); Some 0
-    | Some count -> Some (count - 1)
-    | None -> None in
-  { model with camera = Easy_camera.update model.camera frame; frames_left }
+  { model with camera = Easy_camera.update model.camera frame }
 
 let wire = Material.unlit (Color.hex_exn "#67e8f9")
 let surface = Material.create ~diffuse:(Color.hex_exn "#f59e0b")

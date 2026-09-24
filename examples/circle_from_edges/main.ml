@@ -6,7 +6,6 @@ type model = {
   source : Mesh.t;
   fitted : Mesh.t;
   camera : Easy_camera.t;
-  frames_left : int option;
 }
 
 let source_geometry () =
@@ -60,15 +59,10 @@ let init frame =
   { session; source = cook session frame original;
     fitted = cook session frame circles;
     camera = Easy_camera.create ~target:Vec3.zero ~distance:8.
-      ~azimuth:0.1 ~elevation:0.35 ();
-    frames_left = None }
+      ~azimuth:0.1 ~elevation:0.35 () }
 
 let update model frame =
-  let frames_left = match model.frames_left with
-    | Some 1 -> Sketch.quit (); Some 0
-    | Some count -> Some (count - 1)
-    | None -> None in
-  { model with camera = Easy_camera.update model.camera frame; frames_left }
+  { model with camera = Easy_camera.update model.camera frame }
 
 let view model _ =
   let camera = Easy_camera.camera model.camera in

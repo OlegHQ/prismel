@@ -1,4 +1,5 @@
-val init : ?frequency:int -> ?channels:int -> ?chunk_size:int -> unit -> (unit,string) result
+val init : unit -> (unit,string) result
+(* Opens the default playback device. *)
 val is_initialized:unit->bool
 val shutdown:unit->unit
 val set_master_volume:float->unit

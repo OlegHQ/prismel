@@ -216,7 +216,6 @@ let dolly_sensitivity value = value.dolly_sensitivity
 let up_axis value = value.up_axis
 let relative_y_axis value = value.relative_y_axis
 let middle_button_enabled value = value.middle_button_enabled
-let translation_key value = value.translation_key
 let auto_distance value = value.auto_distance
 let interactions value = value.interactions
 let with_target target value =
@@ -547,7 +546,7 @@ let update value frame =
                   Float.max 1e-4
                     (value.distance
                      *. exp
-                          (-.float_of_int vertical
+                          (-.vertical
                            *. value.dolly_sensitivity *. 12.));
                 velocity = None;
               }
@@ -557,3 +556,38 @@ let update value frame =
         value frame.events
     in
     apply_inertia frame value
+
+(* One fly-camera step: held W/S/A/D/Q/E move along view forward, right,
+   and the up axis at [speed] units/s (Shift x4); pointer motion yaws about
+   the up axis and pitches within +-89 degrees; each wheel step scales the
+   speed by 1.2. The orbit target stays [distance] ahead. *)
+let fly ~speed value (frame : Frame.t) =
+  let view = camera value and up = up_axis value in
+  let eye = Camera.position view in
+  let forward = Vec3.normalize (Vec3.sub (Camera.target view) eye) in
+  let dx, dy = frame.mouse_delta in
+  let yaw = -0.003 *. float dx and pitch = -0.003 *. float dy in
+  let along = Vec3.dot up forward in
+  let yawed = Vec3.add (Vec3.add (Vec3.scale forward (cos yaw))
+      (Vec3.scale (Vec3.cross up forward) (sin yaw)))
+      (Vec3.scale up (along *. (1. -. cos yaw))) in
+  let limit = 89. *. Float.pi /. 180. in
+  let elevation = Float.max (-.limit) (Float.min limit
+      (asin (Float.max (-1.) (Float.min 1. (Vec3.dot yawed up))) +. pitch)) in
+  let horizontal = Vec3.normalize
+      (Vec3.sub yawed (Vec3.scale up (Vec3.dot yawed up))) in
+  let forward = Vec3.add (Vec3.scale horizontal (cos elevation))
+      (Vec3.scale up (sin elevation)) in
+  let right = Vec3.normalize (Vec3.cross forward up) in
+  let held key = List.mem (Input.KeyChar key) frame.keys in
+  let axis positive negative =
+    (if held positive then 1. else 0.) -. (if held negative then 1. else 0.) in
+  let move = Vec3.add (Vec3.add (Vec3.scale forward (axis 'w' 's'))
+      (Vec3.scale right (axis 'd' 'a'))) (Vec3.scale up (axis 'q' 'e')) in
+  let step = speed *. frame.dt *. (if List.mem Input.Shift frame.keys then 4. else 1.) in
+  let eye = if Float.is_finite step then Vec3.add eye (Vec3.scale move step) else eye in
+  let wheel = List.fold_left (fun total -> function
+    | Event.MouseScrolled (_, steps) -> total +. steps | _ -> total) 0. frame.events in
+  let speed = Float.max 0.01 (Float.min 1e4 (speed *. Float.pow 1.2 wheel)) in
+  let target = Vec3.add eye (Vec3.scale forward (distance value)) in
+  of_view ~eye ~target value, speed

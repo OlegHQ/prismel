@@ -132,6 +132,12 @@ let packed_of_mesh mode mesh=
   |Some packed->Ok packed
   |None->
       let view=Mesh.Private.view mesh in
+      (* Lit faces need normals; derive them once here (the pack is cached by
+         mesh identity) rather than rejecting procedural meshes without N. *)
+      let view=match mode,view.mode,view.normals with
+        |Faces,(Mesh.Triangles|Triangle_strip|Triangle_fan),None->
+            Mesh.Private.view(Mesh.recalculate_normals mesh)
+        |_->view in
       let native=match mode with
         |Scene3.Vertices->Some(Ogpu.Render_pass.Point_list,
             Array.init(Array.length view.vertices)Fun.id)

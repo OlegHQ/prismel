@@ -5,7 +5,6 @@ type model = {
   session : Session.t;
   mesh : Mesh.t;
   camera : Easy_camera.t;
-  frames_left : int option;
 }
 
 let cook session frame graph =
@@ -50,15 +49,10 @@ let init frame =
     mesh = cook session frame (graph ());
     camera = Easy_camera.create ~target:Vec3.zero ~distance:5.8
         ~azimuth:0.7 ~elevation:0.38 ();
-    frames_left = None;
   }
 
 let update model frame =
-  let frames_left = match model.frames_left with
-    | Some 1 -> Sketch.quit (); Some 0
-    | Some count -> Some (count - 1)
-    | None -> None in
-  { model with camera = Easy_camera.update model.camera frame; frames_left }
+  { model with camera = Easy_camera.update model.camera frame }
 
 let material = Material.create ~diffuse:Color.white
     ~ambient:(Color.hex_exn "#172554") ~specular:Color.white ~shininess:30. ()

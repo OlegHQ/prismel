@@ -32,7 +32,8 @@ val run_state :
   unit -> 'model
 (** Run a sketch with immutable user state threaded through every frame.
     [max_frames] keeps one runtime alive for exactly that many frames unless
-    [quit] is requested first. [after_present] runs after the native frame is
+    [quit] is requested first; it defaults to [PRISMEL_MAX_FRAMES] when that
+    environment variable is set, for finite smoke runs. [after_present] runs after the native frame is
     rendered and can capture that frame. *)
 
 val run_assets :

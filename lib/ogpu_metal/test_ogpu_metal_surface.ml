@@ -150,11 +150,14 @@ let () =
       get (Surface.present_from surface first ~queue ~source:source4);
       expect Ogpu.Error.Invalid_state (Surface.discard surface first);
 
-      for frame_index = 2 to 600 do
+      (* PRISMEL_SURFACE_FRAMES=600 for the long qualification run. *)
+      let frames = Option.value ~default:10
+          (Option.bind (Sys.getenv_opt "PRISMEL_SURFACE_FRAMES") int_of_string_opt) in
+      for frame_index = 2 to frames do
         match get (Surface.acquire surface) with
         | Acquired frame ->
             get (Surface.present_from surface frame ~queue ~source:source4);
-            if frame_index=2 || frame_index=60 || frame_index=600 then
+            if frame_index=2 || frame_index=60 || frame_index=frames then
               expect Ogpu.Error.Invalid_state (Surface.discard surface frame)
         | _ -> failwith "drawable unavailable"
       done;
@@ -192,4 +195,4 @@ let () =
       get_metal (Metal.Metal_layer.destroy layer);
       get (Device.destroy device);
       print_endline
-        "ogpu_metal surface: exact RGBA/BGRA drawable, frames 1/2/60/600/resize, zero handle delta"
+        "ogpu_metal surface: exact RGBA/BGRA drawable, frames 1/2/60/N/resize, zero handle delta"

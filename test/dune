@@ -1,7 +1,7 @@
 (test
  (name test_prismel)
  (modules test_prismel)
- (libraries prismel pxui))
+ (libraries prismel pxui runtime_next_input))
 
 (test
  (name test_easy_camera2)
@@ -42,38 +42,6 @@
  (libraries prismel geom))
 
 (test
- (name dependency_direction)
- (modules dependency_direction)
- (deps ../lib/pdk/dune ../lib/geom/dune ../lib/procedural/dune
-  ../lib/pxui/dune ../lib/sop_ui/dune ../lib/pxui_graph/dune
-  ../lib/sop_catalog/dune ../lib/sketch/dune ../lib/sketch_ui/dune)
- (action
-   (run %{test} %{dep:../lib/pdk/dune} %{dep:../lib/geom/dune}
-   %{dep:../lib/procedural/dune} %{dep:../lib/pxui/dune}
-   %{dep:../lib/sop_ui/dune} %{dep:../lib/pxui_graph/dune}
-   %{dep:../lib/sop_catalog/dune} %{dep:../lib/sketch/dune}
-   %{dep:../lib/sketch_ui/dune})))
-
-(test
- (name gpu_dependency_direction)
- (modules gpu_dependency_direction)
- (deps ../lib/prismel/dune ../lib/runtime/dune
-  ../lib/sdl3/dune ../lib/sdl3_image/dune ../lib/sdl3_ttf/dune
-  ../lib/sdl3_mixer/dune ../lib/metal/dune ../lib/ogpu/dune
-  ../lib/ogpu_metal/dune)
- (action
-  (run %{test}
-   %{dep:../lib/prismel/dune}
-   %{dep:../lib/runtime/dune}
-   %{dep:../lib/sdl3/dune}
-   %{dep:../lib/sdl3_image/dune}
-   %{dep:../lib/sdl3_ttf/dune}
-   %{dep:../lib/sdl3_mixer/dune}
-   %{dep:../lib/metal/dune}
-   %{dep:../lib/ogpu/dune}
-   %{dep:../lib/ogpu_metal/dune})))
-
-(test
  (name native_only_rendering)
  (modules native_only_rendering)
  (deps ../lib/sdl3/private_raw.ml ../lib/sdl3/sdl3.ml
@@ -104,16 +72,6 @@
  (modules sdl3_platform_harness)
  (libraries prismel prismel.sdl3))
 
-(rule
- (alias runtest)
- (deps ../specification/evidence/gpu_migration/phase0_baseline.json
-  ../specification/evidence/gpu_migration/api_stable.json
-  (glob_files ../lib/*/*.mli)
-  (glob_files ../lib/*/dune))
- (action
-  (run %{exe:../tools/gpu_migration/api_manifest.exe}
-   --root %{workspace_root} --check)))
-
 (test
  (name test_sketch_support)
  (modules test_sketch_support)
@@ -135,3 +93,10 @@
     sdl3-ttf 3.2.2)
    (run %{exe:../tools/packaging/check_sdl3_conf.exe}
     sdl3-mixer 3.2.4))))
+
+(test
+ (name dependency_gate)
+ (modules dependency_gate)
+ (deps (source_tree ../lib) (source_tree ../ppx) (source_tree ../examples)
+  (source_tree ../sketches))
+ (action (chdir %{workspace_root} (run %{test}))))

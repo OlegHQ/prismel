@@ -27,7 +27,8 @@ the checkout-local probe packages are known and correctly reports them as
 unknown. The ordering above is therefore part of the supported bootstrap, not
 an optional workaround.
 
-The package probes use `pkg-config --exact-version`. An OCaml/Dune repository
+The package probes use `pkg-config --atleast-version`; patch releases are
+accepted and the generated layout asserts catch ABI drift. An OCaml/Dune repository
 test also compiles, links, and executes a version probe for each library, which
 catches header/runtime mismatches that `pkg-config` alone cannot detect.
 

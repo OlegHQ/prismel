@@ -229,7 +229,7 @@ drawable pixels, and `Frame.pixel_scale` marks the conversion boundary. Do not
 manually scale ordinary drawing or input coordinates.
 
 Scenes are pure values. Rendering lowers them to checked native commands only
-at `Scene.render`, `Sketch`, or `Low.App`. Image generations upload when their
+at `Scene.render` or `Sketch`. Image generations upload when their
 content changes; immutable mesh and retained command data use bounded native
 caches. Submitted resources stay alive until Metal completion.
 
@@ -270,11 +270,9 @@ Native integration tests must arrange their own termination. Performance work
 records wall time, allocation, memory, input size, profile, machine, and domain
 count; deterministic multicore paths compare ordered results exactly.
 
-`NEW_GPU_STUFF.md` is the active native migration and qualification plan.
-Machine-specific evidence lives under
-`specification/evidence/gpu_migration/`. A feature is complete only when its
-required correctness, ownership, conformance, stability, performance, and
-packaging gates pass from a clean committed source tree.
+Default `dune runtest` is the green pre-commit suite; display-dependent tests run
+under `@runtest-native` and machine-, SDK- or evidence-dependent checks under
+`@qualification`. `dune build @smoke` runs every example and sketch finitely.
 
 Metal binding expansion uses hybrid OCaml/Dune generation. The generator owns
 mechanical declarations and typed direct selector calls; the safe API,

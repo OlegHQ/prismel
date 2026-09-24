@@ -4,7 +4,6 @@ open Procedural
 type model = {
   session : Session.t;
   geometry : Pdk.Geometry.t;
-  frames_left : int option;
 }
 
 let authored_geometry () =
@@ -50,15 +49,9 @@ let init frame =
   let geometry = match Session.cook session ~context node with
     | Ok output -> output.geometry
     | Error error -> failwith (Diagnostic.error_to_string error) in
-  {session;geometry;
-   frames_left=None}
+  {session;geometry}
 
-let update model _ =
-  let frames_left = match model.frames_left with
-    | Some 1 -> Sketch.quit (); Some 0
-    | Some count -> Some (count - 1)
-    | None -> None in
-  {model with frames_left}
+let update model _ = model
 
 let palette = [|
   Color.hex_exn "#164e63"; Color.hex_exn "#831843";

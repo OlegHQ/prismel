@@ -74,14 +74,9 @@ with rationale rather than represented by placeholder APIs.
 
 ## Low-level API debt
 
-`App`, `Window`, `Graphics`, and `Backend` are private implementation modules
-re-exported through the explicit `Low` compatibility namespace. `Image.t` is
+The pre-`Sketch` `Low` App/Graphics/Window namespace was removed. `Image.t` is
 abstract; renderer/texture hooks are isolated under `Image.Private`. Generated
 API documentation builds through `dune build @doc`.
-
-Remaining backend debt is implementation hardening rather than a missing sketch
-capability. The compatibility namespace remains available for older programs,
-but it records into the same native command path and owns no alternate renderer.
 
 ## Scope decisions and hardening
 
@@ -90,6 +85,4 @@ target: OCaml closures, changed types, and native resource handles cannot be saf
 marshalled across a relink. `Preview`, watched images, PXUI settings codecs, and
 process restart cover the productive workflow without pretending otherwise.
 
-Ignored error returns remain isolated to the legacy `Low` compatibility layer;
-the high-level sketch contract uses contextual errors or controlled exceptions.
-They are hardening work, not a missing high-level capability.
+The high-level sketch contract uses contextual errors or controlled exceptions.

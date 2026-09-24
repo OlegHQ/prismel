@@ -141,7 +141,7 @@ let with_scale scale =
     time := !time +. 0.5;
     Ui.frame ui (frame ~scale ~time:!time events) scrolled in
   scroll_step [];
-  scroll_step [move (100, 40); Event.MouseScrolled (0, -2)];
+  scroll_step [move (100, 40); Event.MouseScrolled (0., (-2.))];
   (* 102 points of rows in an 80-point panel scroll by at most 22. *)
   scroll_step [press (210, 40); release (210, 40)];
   if not toggles.(2) || toggles.(0) || toggles.(1) then

@@ -3,7 +3,7 @@ let () =
     let benchmark = ref
         "_build/default/tools/runtime_next_native_benchmark/runtime_next_native_benchmark.exe"
     and baseline = ref
-        "specification/evidence/gpu_migration/phase0_performance.json"
+        "tools/r10_performance/phase0_performance.json"
     and historical_benchmark = ref ""
     and historical_commit = ref "57e1078952b62a39452665cea68d3629530b45b6"
     and output = ref "_build/r10-native-performance.json"

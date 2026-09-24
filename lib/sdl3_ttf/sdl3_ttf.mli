@@ -48,6 +48,7 @@ module Font : sig
     line_skip : int;
   }
   type style = Normal | Bold | Italic | Underline | Strikethrough
+  type alignment = Left | Center | Right
   type hinting = Normal_hinting | Light_hinting | Mono_hinting
     | None_hinting | Light_subpixel_hinting
   type glyph_metrics = {
@@ -76,6 +77,9 @@ module Font : sig
   val hinting : t -> (hinting, error) result
   val set_kerning : t -> bool -> (unit, error) result
   val kerning : t -> (bool, error) result
+  val set_wrap_alignment : t -> alignment -> (unit, error) result
+  (** Line alignment inside [render_blended_wrapped] output. *)
+
   val has_glyph : t -> int -> (bool, error) result
   val glyph_metrics : t -> int -> (glyph_metrics, error) result
   val size_text : t -> string -> (int * int, error) result

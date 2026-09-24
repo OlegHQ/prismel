@@ -300,7 +300,7 @@ let () =
   if Easy_camera.fov_y widened = Easy_camera.fov_y controlled
   then fail "camera control open_camera did not open its FOV slider";
   let scroll_frame = { idle with mouse = 320, 100;
-    events = [Event.MouseScrolled (0, 2)] } in
+    events = [Event.MouseScrolled (0., 2.)] } in
   let camera_control, zoomed, _ = run camera_control controlled scroll_frame in
   let camera_control, zoomed_idle, _ = run camera_control zoomed
       { scroll_frame with events = [] } in
@@ -308,7 +308,7 @@ let () =
      || Easy_camera.distance zoomed_idle <> Easy_camera.distance zoomed
   then fail "camera control undid or failed to apply trackpad zoom";
   let horizontal_scroll_frame = { idle with mouse = 320, 100;
-    events = [Event.MouseScrolled (2, 0)] } in
+    events = [Event.MouseScrolled (2., 0.)] } in
   let camera_control, horizontal_ignored, _ =
     run camera_control zoomed_idle horizontal_scroll_frame in
   if not (Vec3.nearly_equal (Easy_camera.target horizontal_ignored)
@@ -382,12 +382,12 @@ let () =
      right; a wheel step scales the speed. *)
   let fly_start = Easy_camera.create ~distance:5. ~inertia:false () in
   let still = { frame with dt = 0.5; mouse_delta = (0, 0); events = []; keys = [] } in
-  let flown, speed = Pxui.Camera_control.fly ~speed:2. fly_start
+  let flown, speed = Easy_camera.fly ~speed:2. fly_start
       { still with keys = [Input.KeyChar 'w'] } in
   if not (Vec3.nearly_equal (Camera.position (Easy_camera.camera flown))
       (Vec3.create 0. 0. 4.) ~eps:1e-9) || speed <> 2.
   then fail "fly W did not move forward by speed * dt";
-  let turned, _ = Pxui.Camera_control.fly ~speed:2. fly_start
+  let turned, _ = Easy_camera.fly ~speed:2. fly_start
       { still with mouse_delta = (100, 0) } in
   let look camera = let view = Easy_camera.camera camera in
     Vec3.sub (Camera.target view) (Camera.position view) in
@@ -395,8 +395,8 @@ let () =
      || not (Vec3.nearly_equal (Camera.position (Easy_camera.camera turned))
        (Vec3.create 0. 0. 5.) ~eps:1e-9)
   then fail "fly pointer motion did not yaw right in place";
-  let _, faster = Pxui.Camera_control.fly ~speed:2. fly_start
-      { still with events = [Event.MouseScrolled (0, 1)] } in
+  let _, faster = Easy_camera.fly ~speed:2. fly_start
+      { still with events = [Event.MouseScrolled (0., 1.)] } in
   if Float.abs (faster -. 2.4) > 1e-12 then fail "fly wheel did not scale speed";
   let translated_frame = { frame with keys = [Input.Space] } in
   let translated =
@@ -959,3 +959,55 @@ let () =
          || String.sub little 0 4 <> "\000\000\128\191"
          || String.sub big 0 4 <> "\191\128\000\000"
       then fail "binary PLY float output did not honor its declared endianness")
+
+(* Runtime key names must reach the Input keys hosts match on. *)
+let () =
+  List.iter (fun (scancode, expected) ->
+    let name = Runtime_next_input_sdl3.key_name ~scancode 0 in
+    if Prismel.Event.Private.key_of_name name <> expected then
+      fail ("runtime key " ^ name ^ " did not map to its Input key"))
+    Prismel.Input.[ 79, ArrowRight; 80, ArrowLeft; 81, ArrowDown; 82, ArrowUp;
+            40, Enter; 41, Escape; 224, Ctrl; 227, Meta; 75, PageUp ]
+
+(* Every 2D constructor must lower to a valid Render_ir (triangle lists). *)
+let () =
+  let open Prismel in
+  let open_path = Path.(empty |> move_to 0. 0. |> line_to 10. 5. |> line_to 20. 0.) in
+  List.iter (fun (name, node) ->
+    match Scene.Private.to_ir [node] with
+    | Ok _ -> ()
+    | Error message -> fail (name ^ " did not lower: " ^ message))
+    [ "point", Scene.point ~at:(3, 4) ();
+      "open path", Scene.path ~stroke:Color.white open_path;
+      "closed path", Scene.path ~fill:Color.white Path.(close open_path);
+      "arc", Scene.arc ~at:(20, 20) ~radius:8 ~from_:0. ~to_:3. ();
+      "pie", Scene.pie ~at:(20, 20) ~radius:8 ~from_:0. ~to_:3. ~fill:Color.white () ]
+
+(* Procedural triangle meshes often arrive without normals; lit faces derive them. *)
+let () =
+  let open Prismel in
+  let mesh = Mesh.create_exn ~indices:[0; 1; 2]
+      [Vec3.create 0. 0. 0.; Vec3.create 1. 0. 0.; Vec3.create 0. 1. 0.] in
+  let camera = Camera.perspective ~at:(Vec3.create 0. 0. 5.) ~target:Vec3.zero () in
+  match Scene.Private.stage_native ~width:64 ~height:64
+      [Scene.view3d ~camera (Scene3.create [Scene3.mesh mesh])] with
+  | Ok _ -> ()
+  | Error message -> fail ("normal-less mesh did not stage: " ^ message)
+
+(* Font metrics, measuring and alignment come from SDL_ttf, not placeholders. *)
+let () =
+  let open Prismel in
+  let msg = function Ok v -> v | Error (`Msg m) -> fail m in
+  let font = msg (Font.system ~size:20 ()) in
+  if Font.get_ascent font <= 0 || Font.get_line_skip font < Font.get_ascent font
+     || Font.get_descent font > 0 then fail "font vertical metrics are placeholders";
+  let w, h = msg (Font.text_size font "Hello") in
+  if w <= 0 || h <= 0 then fail "text_size measured nothing";
+  ignore (msg (Font.text_size font "bad \xff utf-8"));
+  let text = "short\na much longer second line" in
+  let pixels align =
+    let image = msg (Font.cached_text ~wrap:400 ~align font text (Font.Blended Color.white)) in
+    match Image.Private.pixels image with Ok p -> p | Error m -> fail m in
+  if Bytes.equal (pixels Font.Left) (pixels Font.Center) then
+    fail "Font alignment is ignored";
+  Font.destroy font

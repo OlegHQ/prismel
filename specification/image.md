@@ -42,9 +42,7 @@ Scene.image image ~at:(x, y) ~scale:2. ~angle ()
 
 `Scene.image` records image identity and generation in the immutable scene.
 The effect boundary resolves that snapshot into a checked OGPU sampled resource
-and retains it through Metal command completion. The `Low.Graphics` compatibility
-functions `draw_image`, `draw_sub_image`, and `draw_image_ex` record into the
-same native command path; they do not own a second renderer.
+and retains it through Metal command completion.
 
 `Canvas.to_image` returns a new owned image snapshot. Internal stable-identity
 copying can refresh an existing same-sized image without allocating another

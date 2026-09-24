@@ -1,3 +1,5 @@
+; tools/metal checks run only with PRISMEL_METAL_DEV=1 (plan P0-5; M3 deletes
+; this directory). lib/metal still builds the generator and sources here.
 (library
  (name metal_inventory_classification)
  (wrapped false)
@@ -180,22 +182,23 @@
   binding_plan_resource
   binding_plan
   classification)
- (libraries gpu_migration_support yojson))
+ (libraries tool_support yojson))
 
 (executable
  (name generate_bindings)
  (modules generate_bindings)
  (libraries
   compiler-libs.common
-  gpu_migration_support
+  tool_support
   metal_inventory_classification
   yojson))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_generate_bindings)
  (modules test_generate_bindings)
  (libraries
-  gpu_migration_support
+  tool_support
   metal_inventory_classification
   unix
   yojson)
@@ -319,10 +322,11 @@
    --safe-tests %{dep:../../lib/metal/test_metal.ml})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_enum_plan)
  (modules test_binding_enum_plan)
  (libraries
-  gpu_migration_support
+  tool_support
   metal_inventory_classification
   yojson)
  (deps ../../lib/metal/generated_api_inventory.json)
@@ -331,6 +335,7 @@
    --inventory %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_enum_implicit)
  (modules test_binding_enum_implicit)
  (libraries metal_inventory_classification yojson)
@@ -339,9 +344,10 @@
   (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_enum_bound_evidence)
  (modules test_binding_enum_bound_evidence)
- (libraries gpu_migration_support metal_inventory_classification yojson)
+ (libraries tool_support metal_inventory_classification yojson)
  (deps
   ../../lib/metal/generated_api_inventory.json
   ../../lib/metal/metal_enum_generated.ml
@@ -355,11 +361,13 @@
    --exhaustive-test %{dep:../../lib/metal/test_metal_enum_generated.ml})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_struct_native_codegen)
  (modules test_binding_struct_native_codegen)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_value_records)
  (modules test_binding_value_records)
  (libraries metal_inventory_classification yojson)
@@ -367,6 +375,7 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_value_record_evidence)
  (modules test_binding_value_record_evidence)
  (libraries metal_inventory_classification yojson)
@@ -374,25 +383,29 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_global_strings)
  (modules test_binding_global_strings)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_global_string_evidence)
  (modules test_binding_global_string_evidence)
- (libraries gpu_migration_support metal_inventory_classification yojson)
+ (libraries tool_support metal_inventory_classification yojson)
  (deps ../../lib/metal/generated_api_inventory.json)
  (action
   (run %{test}
    --inventory %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_string_codegen)
  (modules test_binding_string_codegen)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_descriptor_properties)
  (modules test_binding_descriptor_properties)
  (libraries metal_inventory_classification yojson)
@@ -401,6 +414,7 @@
   (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_argument_reflection)
  (modules test_binding_argument_reflection)
  (libraries metal_inventory_classification yojson)
@@ -409,6 +423,7 @@
   (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_acceleration_scalar)
  (modules test_binding_acceleration_scalar)
  (libraries metal_inventory_classification yojson)
@@ -416,6 +431,7 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_acceleration_ownership)
  (modules test_binding_acceleration_ownership)
  (libraries metal_inventory_classification yojson)
@@ -423,11 +439,13 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_acceleration_ownership_adapter)
  (modules test_binding_acceleration_ownership_adapter)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_acceleration_ownership_materializers)
  (modules test_binding_acceleration_ownership_materializers)
  (libraries metal_inventory_classification yojson)
@@ -435,6 +453,7 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_acceleration_operations)
  (modules test_binding_acceleration_operations)
  (libraries metal_inventory_classification yojson)
@@ -442,15 +461,17 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_acceleration_operations_adapter)
  (modules test_binding_acceleration_operations_adapter)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_direct_plan)
  (modules test_binding_direct_plan)
  (libraries
-  gpu_migration_support
+  tool_support
   metal_inventory_classification
   yojson)
  (deps ../../lib/metal/generated_api_inventory.json)
@@ -459,10 +480,11 @@
    --inventory %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_struct_plan)
  (modules test_binding_struct_plan)
  (libraries
-  gpu_migration_support
+  tool_support
   metal_inventory_classification
   yojson)
  (deps ../../lib/metal/generated_api_inventory.json)
@@ -471,6 +493,7 @@
    --inventory %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_string_properties)
  (modules test_binding_string_properties)
  (libraries metal_inventory_classification yojson)
@@ -479,10 +502,11 @@
   (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_receiver_catalog)
  (modules test_binding_receiver_catalog)
  (libraries
-  gpu_migration_support
+  tool_support
   metal_inventory_classification
   yojson)
  (deps
@@ -494,21 +518,25 @@
    --bridge %{dep:../../lib/metal/metal_bridge.mm})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_availability)
  (modules test_binding_availability)
  (libraries metal_inventory_classification yojson))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_render_encoder_resource_plan)
  (modules test_binding_render_encoder_resource_plan)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_render_encoder_resource_adapter)
  (modules test_render_encoder_resource_adapter)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_presentation_foundation)
  (modules test_binding_presentation_foundation)
  (libraries metal_inventory_classification yojson)
@@ -516,26 +544,31 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_presentation_adapter)
  (modules test_binding_presentation_adapter)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_presentation_complete)
  (modules test_binding_presentation_complete)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_presentation_public_audit)
  (modules test_binding_presentation_public_audit)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_resource_safe_reachability)
  (modules test_binding_resource_safe_reachability)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_rasterization_rate_reachability)
  (modules test_binding_rasterization_rate_reachability)
  (libraries metal_inventory_classification yojson)
@@ -543,11 +576,13 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_rasterization_rate_safe_handoff)
  (modules test_binding_rasterization_rate_safe_handoff)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_tensor_mechanical_native)
  (modules test_tensor_mechanical_native)
  (deps metal_layout_header_mechanical_generated.mm
@@ -559,16 +594,19 @@
        %{dep:../../lib/metal/metal_raw.ml} %{dep:../../lib/metal/metal_raw.mli})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_tensor_safe_handoff)
  (modules test_binding_tensor_safe_handoff)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_tensor3_safe_closure)
  (modules test_binding_tensor3_safe_closure)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_function_stitching_handoff)
  (modules test_binding_function_stitching_handoff)
  (libraries metal_inventory_classification yojson)
@@ -576,41 +614,49 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_function_stitching_safe_package)
  (modules test_binding_function_stitching_safe_package binding_function_stitching_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_rasterization_rate_safe_package)
  (modules test_binding_rasterization_rate_safe_package binding_rasterization_rate_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_rasterization_rate5_safe_closure)
  (modules test_binding_rasterization_rate5_safe_closure)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_stage_compute_type6_safe_closure)
  (modules test_binding_stage_compute_type6_safe_closure)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_mtl4_tail14_safe_closure)
  (modules test_binding_mtl4_tail14_safe_closure)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_metal4_stitched3_safe_closure)
  (modules test_binding_metal4_stitched3_safe_closure)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_tensor_safe_package)
  (modules test_binding_tensor_safe_package binding_tensor_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_library_header_handoff)
  (modules test_binding_library_header_handoff)
  (libraries metal_inventory_classification yojson)
@@ -618,11 +664,13 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_library_safe_package)
  (modules test_binding_library_safe_package binding_library_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_library42_native_closure)
  (modules test_binding_library42_native_closure)
  (libraries metal_inventory_classification yojson)
@@ -630,52 +678,62 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_compute_encoder35_native_closure)
  (modules test_binding_compute_encoder35_native_closure)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_compute_encoder35_safe_closure)
  (modules test_binding_compute_encoder35_safe_closure)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_render_encoder33_native_closure)
  (modules test_binding_render_encoder33_native_closure)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_render_encoder33_safe_package)
  (modules test_binding_render_encoder33_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_render_pass24_safe_closure)
  (modules test_binding_render_pass24_safe_closure)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_layer10_safe_closure)
  (modules test_binding_layer10_safe_closure)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_render_pipeline93_native_closure)
  (modules test_binding_render_pipeline93_native_closure)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_acceleration_command32_native_closure)
  (modules test_binding_acceleration_command32_native_closure)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_acceleration_command32_safe_package)
  (modules test_binding_acceleration_command32_safe_package
   binding_acceleration_command32_safe_package)
  (libraries metal_inventory_classification))
 
 (rule
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (targets test_compute_encoder35_native.exe)
  (deps test_compute_encoder35_native.mm)
  (action
@@ -684,6 +742,7 @@
    %{dep:test_compute_encoder35_native.mm} -o %{targets})))
 
 (rule
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (alias runtest)
  (deps test_compute_encoder35_native.exe)
  (action
@@ -691,6 +750,7 @@
    "status=0; ./test_compute_encoder35_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
 
 (rule
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (targets test_render_encoder33_native.exe)
  (deps test_render_encoder33_native.mm)
  (action
@@ -699,6 +759,7 @@
    %{dep:test_render_encoder33_native.mm} -o %{targets})))
 
 (rule
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (alias runtest)
  (deps test_render_encoder33_native.exe)
  (action
@@ -706,6 +767,7 @@
    "status=0; ./test_render_encoder33_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
 
 (rule
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (targets test_render_pipeline93_native.exe)
  (deps test_render_pipeline93_native.mm)
  (action
@@ -714,6 +776,7 @@
    %{dep:test_render_pipeline93_native.mm} -o %{targets})))
 
 (rule
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (alias runtest)
  (deps test_render_pipeline93_native.exe)
  (action
@@ -721,6 +784,7 @@
    "status=0; ./test_render_pipeline93_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_argument_encoder_handoff)
  (modules test_binding_argument_encoder_handoff)
  (libraries metal_inventory_classification yojson)
@@ -728,11 +792,13 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_argument_encoder_safe_package)
  (modules test_binding_argument_encoder_safe_package binding_argument_encoder_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_acceleration_command_handoff)
  (modules test_binding_acceleration_command_handoff)
  (libraries metal_inventory_classification yojson)
@@ -740,6 +806,7 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_acceleration_structure_header_handoff)
  (modules test_binding_acceleration_structure_header_handoff)
  (libraries metal_inventory_classification yojson)
@@ -747,17 +814,20 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_acceleration_structure_constructor_safe_package)
  (modules test_binding_acceleration_structure_constructor_safe_package binding_acceleration_structure_constructor_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_acceleration_structure23_safe_closure)
  (modules test_binding_acceleration_structure23_safe_closure
   binding_acceleration_structure_constructor_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_data_type_tail_handoff)
  (modules test_binding_data_type_tail_handoff)
  (libraries metal_inventory_classification yojson)
@@ -765,6 +835,7 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_blit_command_tail_handoff)
  (modules test_binding_blit_command_tail_handoff)
  (libraries metal_inventory_classification yojson)
@@ -772,11 +843,13 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_blit_command_safe_package)
  (modules test_binding_blit_command_safe_package binding_blit_command_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_capture_manager_tail_handoff)
  (modules test_binding_capture_manager_tail_handoff)
  (libraries metal_inventory_classification yojson)
@@ -784,11 +857,13 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_capture_manager_safe_package)
  (modules test_binding_capture_manager_safe_package binding_capture_manager_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_capture_manager_safe_closure)
  (modules test_binding_capture_manager_safe_closure)
  (libraries metal_inventory_classification yojson)
@@ -796,6 +871,7 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_compute_pass_tail_handoff)
  (modules test_binding_compute_pass_tail_handoff)
  (libraries metal_inventory_classification yojson)
@@ -803,11 +879,13 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_compute_pass_safe_package)
  (modules test_binding_compute_pass_safe_package binding_compute_pass_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_function_log_tail_handoff)
  (modules test_binding_function_log_tail_handoff)
  (libraries metal_inventory_classification yojson)
@@ -815,16 +893,19 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_function_log_safe_package)
  (modules test_binding_function_log_safe_package binding_function_log_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_function_log2_protocol_safe_closure)
  (modules test_binding_function_log2_protocol_safe_closure)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_command_encoder_tail_handoff)
  (modules test_binding_command_encoder_tail_handoff)
  (libraries metal_inventory_classification yojson)
@@ -832,6 +913,7 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_command_queue_tail_handoff)
  (modules test_binding_command_queue_tail_handoff)
  (libraries metal_inventory_classification yojson)
@@ -839,11 +921,13 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_command_queue_safe_package)
  (modules test_binding_command_queue_safe_package binding_command_queue_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_indirect_command_tail_handoff)
  (modules test_binding_indirect_command_tail_handoff)
  (libraries metal_inventory_classification yojson)
@@ -851,51 +935,61 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_indirect_command_safe_package)
  (modules test_binding_indirect_command_safe_package binding_indirect_command_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_indirect_command14_safe_package)
  (modules test_binding_indirect_command14_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_intersection_table7_safe_package)
  (modules test_binding_intersection_table7_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_function_stitching7_safe_package)
  (modules test_binding_function_stitching7_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_device_descriptor_value_safe_package)
  (modules test_binding_device_descriptor_value_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_device_metadata7_safe_plan)
  (modules test_binding_device_metadata7_safe_plan)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_device_capability13_safe_package)
  (modules test_binding_device_capability13_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_device_spatial_timestamp6_safe_closure)
  (modules test_binding_device_spatial_timestamp6_safe_closure)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_small_header_safe24)
  (modules test_binding_small_header_safe24)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_capture_scope_tail_handoff)
  (modules test_binding_capture_scope_tail_handoff)
  (libraries metal_inventory_classification yojson)
@@ -903,11 +997,13 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_capture_scope_safe_package)
  (modules test_binding_capture_scope_safe_package binding_capture_scope_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_event_tail_handoff)
  (modules test_binding_event_tail_handoff)
  (libraries metal_inventory_classification yojson)
@@ -915,21 +1011,25 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_event_safe_package)
  (modules test_binding_event_safe_package binding_event_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_event10_callback_stress)
  (modules test_binding_event10_callback_stress binding_event10_safe_closure)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_event4_safe_closure)
  (modules test_binding_event4_safe_closure)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_acceleration_value_tail_handoff)
  (modules test_binding_acceleration_value_tail_handoff)
  (libraries metal_inventory_classification yojson)
@@ -937,6 +1037,7 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_pixel_format_tail_handoff)
  (modules test_binding_pixel_format_tail_handoff)
  (libraries metal_inventory_classification yojson)
@@ -944,6 +1045,7 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_ten_id_tails)
  (modules test_binding_ten_id_tails)
  (libraries yojson)
@@ -951,18 +1053,22 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_stage_input_output_safe_package)
  (modules test_binding_stage_input_output_safe_package binding_stage_input_output_safe_package))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_blit_pass_safe_package)
  (modules test_binding_blit_pass_safe_package binding_blit_pass_safe_package))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_drawable_safe_package)
  (modules test_binding_drawable_safe_package binding_drawable_safe_package))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_drawable8_safe_closure)
  (modules test_binding_drawable8_safe_closure binding_drawable_safe_package)
  (libraries yojson)
@@ -970,6 +1076,7 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_log_state_handoff)
  (modules test_binding_log_state_handoff binding_log_state_handoff)
  (libraries yojson)
@@ -977,15 +1084,18 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_log_state_safe_package)
  (modules test_binding_log_state_safe_package binding_log_state_safe_package binding_log_state_handoff))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_log_state7_safe_reachability)
  (modules test_binding_log_state7_safe_reachability
    binding_log_state7_safe_reachability binding_log_state_handoff))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_linked_functions_handoff)
  (modules test_binding_linked_functions_handoff)
  (libraries yojson)
@@ -993,10 +1103,12 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_linked_functions_safe_package)
  (modules test_binding_linked_functions_safe_package binding_linked_functions_safe_package))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_parallel_render_handoff)
  (modules test_binding_parallel_render_handoff)
  (libraries yojson)
@@ -1004,15 +1116,18 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_parallel_render_safe_package)
  (modules test_binding_parallel_render_safe_package binding_parallel_render_safe_package))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_compute_pipeline11_safe_closure)
  (modules test_binding_compute_pipeline11_safe_closure)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_intersection_table_handoff)
  (modules test_binding_intersection_table_handoff)
  (libraries yojson)
@@ -1020,6 +1135,7 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_function_handle_handoff)
  (modules test_binding_function_handle_handoff)
  (libraries yojson)
@@ -1027,10 +1143,12 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_function_handle_safe_package)
  (modules test_binding_function_handle_safe_package binding_function_handle_safe_package))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_small_tail_handoffs)
  (modules test_binding_small_tail_handoffs)
  (libraries yojson)
@@ -1038,6 +1156,7 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_five_plus_tails)
  (modules test_binding_five_plus_tails)
  (libraries yojson)
@@ -1045,6 +1164,7 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_four_id_tails)
  (modules test_binding_four_id_tails)
  (libraries metal_inventory_classification yojson)
@@ -1052,15 +1172,18 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_pipeline4_buffer_descriptor_safe_closure)
  (modules test_binding_pipeline4_buffer_descriptor_safe_closure)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_metal4_command_queue_safe_package)
  (modules test_binding_metal4_command_queue_safe_package binding_metal4_command_queue_safe_package))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_three_id_tails)
  (modules test_binding_three_id_tails)
  (libraries yojson)
@@ -1068,35 +1191,42 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_function_constant_values_safe_package)
  (modules test_binding_function_constant_values_safe_package binding_function_constant_values_safe_package))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_metal4_stitched_function_safe_package)
  (modules test_binding_metal4_stitched_function_safe_package binding_metal4_stitched_function_safe_package))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_metal4_render_pipeline_safe_package)
  (modules test_binding_metal4_render_pipeline_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_metal4_command_encoder_safe_package)
  (modules test_binding_metal4_command_encoder_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_metal4_argument_table_safe_package)
  (modules test_binding_metal4_argument_table_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_device_residual_safe_package)
  (modules test_binding_device_residual_safe_package)
  (libraries metal_inventory_classification)
  (deps ../../lib/metal/generated_api_inventory.json))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_device_residual11_evidence)
  (modules test_binding_device_residual11_evidence)
  (libraries metal_inventory_classification)
@@ -1109,95 +1239,115 @@
        ../../lib/metal/test_metal4_render_pass7_safe.ml))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_device_library5_safe_package)
  (modules test_binding_device_library5_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_device_final4_safe_package)
  (modules test_binding_device_final4_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_device_async9_safe_package)
  (modules test_binding_device_async9_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_device_final_constructors3_safe_package)
  (modules test_binding_device_final_constructors3_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_metal4_compute_pipeline_safe_package)
  (modules test_binding_metal4_compute_pipeline_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_binary_archive_safe_package)
  (modules test_binding_binary_archive_safe_package binding_binary_archive_safe_package))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_binary_archive3_safe_closure)
  (modules test_binding_binary_archive3_safe_closure)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_metal4_compiler2_safe_closure)
  (modules test_binding_metal4_compiler2_safe_closure)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_function_descriptor4_safe_package)
  (modules test_binding_function_descriptor4_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_fence6_safe_package)
  (modules test_binding_fence6_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_indirect_command_buffer4_safe_package)
  (modules test_binding_indirect_command_buffer4_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_argument8_safe_package)
  (modules test_binding_argument8_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_library8_safe_package)
  (modules test_binding_library8_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_metal4_counters2_safe_package)
  (modules test_binding_metal4_counters2_safe_package)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_metal4_ml_pipeline_safe_package)
  (modules test_binding_metal4_ml_pipeline_safe_package binding_metal4_ml_pipeline_safe_package))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_metal4_compute_encoder_safe_package)
  (modules test_binding_metal4_compute_encoder_safe_package binding_metal4_compute_encoder_safe_package))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_metal4_render_pass_safe_package)
  (modules test_binding_metal4_render_pass_safe_package binding_metal4_render_pass_safe_package))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_metal4_command_buffer_safe_package)
  (modules test_binding_metal4_command_buffer_safe_package binding_metal4_command_buffer_safe_package))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_io_compressor_safe_package)
  (modules test_binding_io_compressor_safe_package binding_io_compressor_safe_package))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_one_two_id_tails)
  (modules test_binding_one_two_id_tails)
  (libraries yojson)
@@ -1205,6 +1355,7 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_pure_tail_plan)
  (modules test_binding_pure_tail_plan)
  (libraries metal_inventory_classification yojson)
@@ -1212,100 +1363,119 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_render_command_safe_reachability)
  (modules test_binding_render_command_safe_reachability)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_pipeline_state_safe_reachability)
  (modules test_binding_pipeline_state_safe_reachability)
- (libraries gpu_migration_support metal_inventory_classification yojson)
+ (libraries tool_support metal_inventory_classification yojson)
  (deps ../../lib/metal/generated_api_inventory.json)
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_pipeline_expanded_reachability)
  (modules test_binding_pipeline_expanded_reachability)
- (libraries gpu_migration_support metal_inventory_classification yojson)
+ (libraries tool_support metal_inventory_classification yojson)
  (deps ../../lib/metal/generated_api_inventory.json)
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_shader_safe_reachability)
  (modules test_binding_shader_safe_reachability)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_mesh_tile_safe_reachability)
  (modules test_binding_mesh_tile_safe_reachability)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_command_support_safe_reachability)
  (modules test_binding_command_support_safe_reachability)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_io_safe_reachability)
  (modules test_binding_io_safe_reachability)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_io_command_queue17_safe_reachability)
  (modules test_binding_io_command_queue17_safe_reachability)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_io_command_queue7_safe_reachability)
  (modules test_binding_io_command_queue7_safe_reachability)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_io_command_queue10_safe_reachability)
  (modules test_binding_io_command_queue10_safe_reachability)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_io_counter_scalar_reachability)
  (modules test_binding_io_counter_scalar_reachability)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_io_counter_type_reachability)
  (modules test_binding_io_counter_type_reachability)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_metal4_callable_safe_reachability)
  (modules test_binding_metal4_callable_safe_reachability)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_mesh_tile_compile_reachability)
  (modules test_binding_mesh_tile_compile_reachability)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_metal4_second_slice_reachability)
  (modules test_binding_metal4_second_slice_reachability)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_metal4_native32_reachability)
  (modules test_binding_metal4_native32_reachability)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_metal4_final9_reachability)
  (modules test_binding_metal4_final9_reachability)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_metal4_pending41_reachability)
  (modules test_binding_metal4_pending41_reachability)
  (libraries metal_inventory_classification))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_presentation_native_codegen)
  (modules test_binding_presentation_native_codegen)
  (libraries metal_inventory_classification)
@@ -1314,23 +1484,27 @@
                     %{dep:metal_presentation_raw_generated.ml})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_resource_descriptor_generated_symbols)
  (modules test_resource_descriptor_generated_symbols)
  (deps metal_resource_descriptor_owned_generated.inc)
  (action (run %{test} %{dep:metal_resource_descriptor_owned_generated.inc})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_resource_ownership_generated_symbols)
  (modules test_resource_ownership_generated_symbols)
  (deps metal_resource_ownership_generated.inc)
  (action (run %{test} %{dep:metal_resource_ownership_generated.inc})))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_resource_scalar_generated_symbols)
  (modules test_resource_scalar_generated_symbols)
  (deps metal_resource_scalar_generated.inc))
 
 (rule
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (targets test_resource100_conformance_native.exe)
  (deps test_resource100_conformance_native.mm)
  (action
@@ -1339,6 +1513,7 @@
    -o %{targets})))
 
 (rule
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (alias runtest)
  (deps test_resource100_conformance_native.exe)
  (action
@@ -1346,6 +1521,7 @@
    "status=0; ./test_resource100_conformance_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
 
 (rule
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (targets test_library42_callback_race_native.exe)
  (deps test_library42_callback_race_native.cc)
  (action
@@ -1353,11 +1529,13 @@
    -o %{targets})))
 
 (rule
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (alias runtest)
  (deps test_library42_callback_race_native.exe)
  (action (run ./test_library42_callback_race_native.exe)))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_binding_command_buffer19_safe_closure)
  (modules test_binding_command_buffer19_safe_closure)
  (libraries metal_inventory_classification)
@@ -1366,7 +1544,7 @@
 (executable
  (name generate_inventory)
  (modules generate_inventory)
- (libraries gpu_migration_support metal_inventory_classification unix yojson))
+ (libraries tool_support metal_inventory_classification unix yojson))
 
 (library
  (name metal_memory_check_rules)
@@ -1379,6 +1557,7 @@
  (libraries unix metal_memory_check_rules))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_check_memory_rules)
  (modules test_check_memory_rules)
  (libraries metal_memory_check_rules))
@@ -1386,22 +1565,24 @@
 (executable
  (name validate_ffi_evidence)
  (modules validate_ffi_evidence)
- (libraries gpu_migration_support unix yojson))
+ (libraries tool_support unix yojson))
 
 (test
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (name test_validate_ffi_evidence)
  (modules test_validate_ffi_evidence)
  (libraries unix yojson)
  (deps
   validate_ffi_evidence.exe
-  ../../specification/evidence/gpu_migration/phase2_metal_ffi_baseline.json)
+  phase2_metal_ffi_baseline.json)
  (action
   (run %{test}
    %{exe:validate_ffi_evidence.exe}
    %{workspace_root}
-   %{workspace_root}/specification/evidence/gpu_migration/phase2_metal_ffi_baseline.json)))
+   %{workspace_root}/tools/metal/phase2_metal_ffi_baseline.json)))
 
 (rule
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (alias runtest)
  (deps
   generate_inventory.exe
@@ -1458,8 +1639,9 @@
  (action (run %{dep:generate_inventory.exe} --root %{workspace_root} --check)))
 
 (rule
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
  (alias runtest)
- (deps ../../specification/evidence/gpu_migration/phase2_metal_ffi_baseline.json)
+ (deps phase2_metal_ffi_baseline.json)
  (action
   (run %{exe:validate_ffi_evidence.exe} --root %{workspace_root}
-   --evidence %{dep:../../specification/evidence/gpu_migration/phase2_metal_ffi_baseline.json})))
+   --evidence %{dep:phase2_metal_ffi_baseline.json})))

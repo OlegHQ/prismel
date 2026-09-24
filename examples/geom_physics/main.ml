@@ -1,7 +1,7 @@
 open Prismel
 open Geom
 
-type model = { world : Verlet2.t; frames_left : int option }
+type model = { world : Verlet2.t }
 
 let columns = 26
 let rows = 15
@@ -36,12 +36,10 @@ let init _frame =
       ~behaviors:[Verlet2.gravity (Vec2.create 0. 650.)]
       ~constraints:[Verlet2.inside_bounds bounds]
       particles !springs |> function Ok value -> value | Error message -> failwith message in
-  { world; frames_left = None }
+  { world }
 
 let update model (frame : Frame.t) =
-  let frames_left = match model.frames_left with
-    | Some 1 -> Sketch.quit (); Some 0 | Some count -> Some (count - 1) | None -> None in
-  { world = Verlet2.step ~dt:frame.dt model.world; frames_left }
+  { world = Verlet2.step ~dt:frame.dt model.world }
 
 let view model _frame =
   let particles = Array.of_list (Verlet2.particles model.world) in

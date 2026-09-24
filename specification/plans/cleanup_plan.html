@@ -1,0 +1,1207 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Prismel Cleanup Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+:root{
+  --bg:#F4F5F7;--surface:#FFFFFF;--sunk:#ECEEF1;--ink:#14171C;--muted:#5A6170;--rule:#D9DCE2;
+  --accent:#0B6E78;--accent-soft:#DDEFF0;
+  --crit:#B42318;--crit-soft:#FBE4E1;--high:#B8500A;--high-soft:#FCEBDD;--med:#7E6200;--med-soft:#F6EFD2;--low:#5A6170;--low-soft:#E8EAEE;--ok:#2F7D32;--ok-soft:#E0F0E0;
+  --display:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;--bg:#0F1216;--surface:#161A20;--sunk:#1C2128;--ink:#E6E8EC;--muted:#9AA1AE;--rule:#2A3039;
+  --accent:#55BCC6;--accent-soft:#12323A;
+  --crit:#F2766B;--crit-soft:#3A1715;--high:#F09A57;--high-soft:#3A2412;--med:#D8B53E;--med-soft:#322A0E;--low:#9AA1AE;--low-soft:#232830;--ok:#72C276;--ok-soft:#16301A;}}
+:root[data-theme="dark"]{
+  color-scheme:dark;--bg:#0F1216;--surface:#161A20;--sunk:#1C2128;--ink:#E6E8EC;--muted:#9AA1AE;--rule:#2A3039;
+  --accent:#55BCC6;--accent-soft:#12323A;
+  --crit:#F2766B;--crit-soft:#3A1715;--high:#F09A57;--high-soft:#3A2412;--med:#D8B53E;--med-soft:#322A0E;--low:#9AA1AE;--low-soft:#232830;--ok:#72C276;--ok-soft:#16301A;}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.6 var(--body);padding-inline:16px;padding-block:0 64px}
+a{color:var(--accent)}
+code,.mono{font-family:var(--mono);font-size:.86em}
+code{background:var(--sunk);padding:.08em .35em;border-radius:3px;overflow-wrap:anywhere}
+h1,h2,h3,h4{font-family:var(--display);text-wrap:balance;line-height:1.15;margin:0}
+h1{font-size:clamp(2rem,4.5vw,3rem);font-weight:700;letter-spacing:-.01em}
+h2{font-size:1.75rem;font-weight:600;padding-top:8px}
+h3{font-size:1.2rem;font-weight:600}
+h4{font-size:1rem;font-weight:600}
+p{margin:0}
+.wrap{max-width:1240px;margin:0 auto}
+.layout{display:grid;gap:40px}
+@media(min-width:1040px){.layout{grid-template-columns:220px minmax(0,1fr)}}
+nav.toc{display:none}
+@media(min-width:1040px){nav.toc{display:block;position:sticky;top:calc(env(safe-area-inset-top,0px) + 24px);align-self:start;font-size:.88rem;max-height:calc(100vh - 48px);overflow:auto}}
+nav.toc ol{list-style:none;padding:0;margin:0;display:grid;gap:2px}
+nav.toc a{display:block;padding:5px 10px;border-radius:4px;color:var(--muted);text-decoration:none}
+nav.toc a:hover,nav.toc a:focus-visible{background:var(--sunk);color:var(--ink)}
+nav.toc .sub a{padding-left:22px;font-size:.84rem}
+.eyebrow{font:500 .72rem/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+header.top{padding-block:40px 28px;display:grid;gap:16px;border-bottom:1px solid var(--rule);margin-bottom:32px}
+header.top .lede{max-width:72ch;font-size:1.05rem;color:var(--ink)}
+.meta{display:flex;flex-wrap:wrap;gap:8px 20px;color:var(--muted);font-size:.85rem}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:6px;overflow:hidden}
+.stat{background:var(--surface);padding:16px 18px;display:grid;gap:4px}
+.stat b{font:600 1.7rem/1.1 var(--display);font-variant-numeric:tabular-nums}
+.stat span{color:var(--muted);font-size:.86rem;line-height:1.4}
+section{display:grid;gap:18px;padding-block:28px;border-bottom:1px solid var(--rule);scroll-margin-top:16px}
+section > p,.prose{max-width:74ch}
+.prose{display:grid;gap:12px}
+.callout{background:var(--accent-soft);border-left:3px solid var(--accent);padding:14px 16px;border-radius:0 6px 6px 0;max-width:80ch;display:grid;gap:8px}
+.chip{display:inline-flex;align-items:center;font:600 .68rem/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:4px 7px;border-radius:3px;white-space:nowrap}
+.crit{background:var(--crit-soft);color:var(--crit)}.high{background:var(--high-soft);color:var(--high)}.med{background:var(--med-soft);color:var(--med)}.low{background:var(--low-soft);color:var(--low)}.ok{background:var(--ok-soft);color:var(--ok)}
+.tag{display:inline-flex;font:500 .7rem/1 var(--mono);padding:4px 6px;border:1px solid var(--rule);border-radius:3px;color:var(--muted);white-space:nowrap}
+.tbl{overflow-x:auto;border:1px solid var(--rule);border-radius:6px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font:600 .72rem/1.2 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--sunk)}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bars{display:grid;gap:8px;background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:16px}
+.bar{display:grid;grid-template-columns:minmax(120px,210px) 1fr 70px;gap:12px;align-items:center;font-size:.86rem}
+.bar .track{height:14px;background:var(--sunk);border-radius:2px;position:relative}
+.bar .fill{position:absolute;inset:0 auto 0 0;background:var(--accent);border-radius:2px}
+.bar .num{text-align:right;font-family:var(--mono);font-size:.8rem;font-variant-numeric:tabular-nums}
+.axis{display:grid;grid-template-columns:minmax(120px,210px) 1fr 70px;gap:12px;font:500 .7rem var(--mono);color:var(--muted)}
+.axis .ticks{display:flex;justify-content:space-between}
+@media(max-width:560px){.bar,.axis{grid-template-columns:100px 1fr 54px;gap:8px}}
+.phase{display:grid;gap:14px}
+.phase-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 16px;justify-content:space-between}
+.progress{font:500 .8rem var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.items{display:grid;gap:10px}
+details.item{background:var(--surface);border:1px solid var(--rule);border-radius:6px}
+details.item[open]{border-color:color-mix(in srgb,var(--accent) 45%,var(--rule))}
+details.item summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:auto auto 1fr auto;gap:10px;align-items:center;padding:11px 14px}
+details.item summary::-webkit-details-marker{display:none}
+details.item summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.iid{font:500 .75rem var(--mono);color:var(--muted);min-width:42px}
+.ititle{font-weight:500}
+.imeta{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.done .ititle{text-decoration:line-through;color:var(--muted)}
+input[type=checkbox]{width:17px;height:17px;accent-color:var(--accent);margin:0}
+.ibody{padding:4px 16px 16px 16px;display:grid;gap:10px;border-top:1px solid var(--rule)}
+.ibody dl{display:grid;grid-template-columns:88px 1fr;gap:6px 14px;margin:10px 0 0}
+.ibody dt{font:600 .7rem/1.9 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.ibody dd{margin:0;max-width:78ch}
+.ibody ul{margin:0;padding-left:18px}
+@media(max-width:600px){details.item summary{grid-template-columns:auto auto 1fr}.imeta{grid-column:1/-1;justify-content:flex-start}.ibody dl{grid-template-columns:1fr}.ibody dt{line-height:1.2;margin-top:6px}}
+pre{background:var(--sunk);padding:12px 14px;border-radius:6px;overflow-x:auto;font:.82rem/1.55 var(--mono);margin:0}
+.cols{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:16px;display:grid;gap:8px;align-content:start}
+.card ul{margin:0;padding-left:18px;display:grid;gap:4px;font-size:.9rem}
+.tiers{display:grid;gap:0;border:1px solid var(--rule);border-radius:6px;overflow:hidden;background:var(--surface)}
+.tier{display:grid;grid-template-columns:150px 1fr 120px;gap:16px;padding:14px 16px;border-bottom:1px solid var(--rule);align-items:start}
+.tier:last-child{border-bottom:0}
+.tier h4{font-size:.95rem}
+.tier .t{font:600 .9rem var(--mono);text-align:right;color:var(--accent);font-variant-numeric:tabular-nums}
+@media(max-width:640px){.tier{grid-template-columns:1fr}.tier .t{text-align:left}}
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font:500 .8rem var(--mono)}
+.flow span.n{background:var(--surface);border:1px solid var(--rule);padding:5px 8px;border-radius:4px}
+.flow span.cut{border-style:dashed;color:var(--muted);text-decoration:line-through}
+.flow i{color:var(--muted);font-style:normal}
+.filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.filters button{font:500 .8rem var(--body);background:var(--surface);color:var(--ink);border:1px solid var(--rule);border-radius:999px;padding:6px 12px;cursor:pointer}
+.filters button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.filters button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.decision{display:grid;grid-template-columns:auto 1fr;gap:12px;background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:14px 16px}
+.decision .q{font-weight:600}
+.decision .rec{color:var(--muted);font-size:.9rem}
+.decision .num{font:600 1.1rem var(--display);color:var(--accent);min-width:28px}
+.small{font-size:.85rem;color:var(--muted)}
+footer{padding-top:24px;color:var(--muted);font-size:.85rem;max-width:74ch}
+@media (prefers-reduced-motion:no-preference){details.item summary{transition:background .12s}details.item summary:hover{background:var(--sunk)}}
+</style>
+<style>
+.stack{display:grid;gap:4px;background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:12px}
+.layer{display:grid;grid-template-columns:62px minmax(150px,220px) 1fr;gap:12px;align-items:start;padding:10px 12px;border-radius:4px;background:var(--sunk);font-size:.88rem}
+.layer .lv{font:600 .72rem/1.6 var(--mono);color:var(--muted)}
+.layer .nm{font:600 .9rem/1.4 var(--mono);color:var(--accent)}
+.layer.new .nm::after{content:" new";font:600 .62rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ok);margin-left:6px}
+.layer.gone{opacity:.7}
+.layer.gone .nm{text-decoration:line-through;color:var(--muted)}
+@media(max-width:640px){.layer{grid-template-columns:1fr}}
+.arch{display:grid;gap:16px;padding:18px;background:var(--surface);border:1px solid var(--rule);border-radius:8px}
+.arch > h3{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.rules{margin:0;padding-left:18px;display:grid;gap:4px;font-size:.9rem;max-width:84ch}
+pre.mermaid{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:12px;overflow-x:auto}
+.waves{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.wave{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:14px;display:grid;gap:8px;align-content:start}
+.wave h4{display:flex;justify-content:space-between;gap:8px}
+.wave h4 span{font:500 .75rem var(--mono);color:var(--muted)}
+.wave ul{margin:0;padding-left:18px;font-size:.88rem;display:grid;gap:3px}
+.ws-head{display:grid;gap:6px}
+.ws-head .small{max-width:80ch}
+.dec{display:grid;grid-template-columns:28px 1fr;gap:10px 12px;align-items:start;background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:12px 14px}
+.dec .num{font:600 1rem var(--display);color:var(--accent)}
+.dec .q{font-weight:600}
+.dec .a{color:var(--muted);font-size:.9rem}
+.declist{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+</style>
+
+<div class="wrap">
+<header class="top">
+  <div class="eyebrow">Prismel · architecture &amp; delivery plan · revision 2 · 24 Sep 2026</div>
+  <h1>Prismel Cleanup Plan</h1>
+  <p class="lede">Ten audits and four design studies over every library, the build, the tests and the agent instructions. Revision 2 records your decisions and adds four target architectures: Metal bindings generated from a registry, a Metal-modelled full-capability OGPU that the path tracer runs on, a layered editor stack under the sketch environment, and a PDK split into sublibraries that absorbs and then deletes <code>geom</code>. Net effect: roughly <b>130,000 fewer lines</b> (plus a 3.7 MB inventory JSON), a green three-minute pre-commit loop, and one owner for every concept.</p>
+  <div class="meta"><span>Branch <code>dev</code> @ <code>cae67594</code> + uncommitted leader/presets work (since committed as <code>621bcb1a</code>)</span><span>M1, 8 cores, 16 GB, dune 3.24.2, OCaml 5.3.0</span><span>Nothing in the repo was edited</span></div>
+  <div class="stats">
+    <div class="stat"><b>423 s → &lt;3 min</b><span>pre-commit: today <code>runtest</code> alone is 423 s and red on a clean checkout</span></div>
+    <div class="stat"><b>~95k lines</b><span>Metal binding and tooling removed by the registry (plus 111k-line inventory JSON)</span></div>
+    <div class="stat"><b>12.7k → 0</b><span><code>pdk/ops.ml</code> god module, split into family modules across 8 sublibraries</span></div>
+    <div class="stat"><b>~43 agent-days</b><span>for full-capability OGPU; the path tracer is on it after the first ~11</span></div>
+  </div>
+</header>
+
+<div class="layout">
+<nav class="toc" aria-label="Contents">
+  <ol>
+    <li><a href="#decided">Decisions recorded</a></li>
+    <li><a href="#progress">Progress log</a></li>
+    <li><a href="#first">Do these first</a></li>
+    <li><a href="#bugs">Live bugs</a></li>
+    <li><a href="#arch">Target architecture</a></li>
+    <li class="sub"><a href="#arch-graph">Library graph</a></li>
+    <li class="sub"><a href="#arch-metal">Metal registry</a></li>
+    <li class="sub"><a href="#arch-ogpu">OGPU</a></li>
+    <li class="sub"><a href="#arch-ui">Editor stack</a></li>
+    <li class="sub"><a href="#arch-pdk">PDK and geom</a></li>
+    <li><a href="#order">Order of work</a></li>
+    <li><a href="#plan">Plan items</a></li>
+    <li class="sub"><a href="#p0">P0 · Fast, green loop</a></li>
+    <li class="sub"><a href="#p1">P1 · User-visible bugs</a></li>
+    <li class="sub"><a href="#p2">P2 · Pure deletions</a></li>
+    <li class="sub"><a href="#p3">P3 · Frame performance</a></li>
+    <li class="sub"><a href="#wg">G · OGPU</a></li>
+    <li class="sub"><a href="#wm">M · Metal registry</a></li>
+    <li class="sub"><a href="#wu">U · Editor stack</a></li>
+    <li class="sub"><a href="#wk">K · PDK split, geom out</a></li>
+    <li class="sub"><a href="#ws">S · Single source of truth</a></li>
+    <li><a href="#harness">Delivery harness</a></li>
+    <li><a href="#agents">Agent rules and skills</a></li>
+    <li><a href="#deletions">Deletion budget</a></li>
+    <li><a href="#subsystems">Findings by subsystem</a></li>
+    <li><a href="#clean">Already clean</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<section id="decided" style="padding-top:0">
+  <h2>Decisions recorded</h2>
+  <p>Your answers from this round. Each one is reflected in the architecture and plan below.</p>
+  <div class="declist">
+    <div class="dec"><span class="num">1</span><div><p class="q">Metal: generate only what is registered</p><p class="a">A typed registry lists every generated binding; nothing else is generated. It is seeded from what OGPU's target API needs. Adding a binding follows a written rule and the <code>add-metal-binding</code> skill.</p></div></div>
+    <div class="dec"><span class="num">2</span><div><p class="q">OGPU: Metal-modelled, no compromises, backend-agnostic</p><p class="a">Full modern Metal capability (hardware ray tracing, bindless, ICBs, mesh/tile shaders, events, counters, sparse, MetalFX), each feature gated through <code>Caps</code>. The path tracer runs on OGPU. A Vulkan backend can be added later without changing callers.</p></div></div>
+    <div class="dec"><span class="num">3</span><div><p class="q">Sketch environment: layered and composable</p><p class="a">Foundations (commands, undo, keymaps, routing, focus, persistence) in a pure <code>editor</code> library; PXUI stays the one UI engine; a reusable <code>pxui_shell</code> for panes and chrome; <code>sketch_ui</code> becomes thin composition.</p></div></div>
+    <div class="dec"><span class="num">4</span><div><p class="q">PDK: proper split</p><p class="a">Eight enforced sublibraries under one <code>Pdk</code> facade; <code>ops.ml</code> and <code>attribute_ops.ml</code> broken into family modules; one API style guide.</p></div></div>
+    <div class="dec"><span class="num">5</span><div><p class="q">Geom: port what's missing, then delete it</p><p class="a">Everything geom offers exists in pdk (or <code>prismel_math</code>) first, verified against fixtures of geom's current output. Then <code>lib/geom</code> is removed.</p></div></div>
+    <div class="dec"><span class="num">6</span><div><p class="q">Delete NEW_GPU_STUFF.md</p><p class="a">Along with <code>tools/gpu_migration</code> (which reads it) and the migration evidence. Release checks live in <code>@qualification</code>.</p></div></div>
+    <div class="dec"><span class="num">7</span><div><p class="q">Delete Prismel.Low</p><p class="a">It was the pre-<code>Sketch</code> imperative App/Graphics API (global window and graphics refs). Nothing uses it.</p></div></div>
+    <div class="dec"><span class="num">8</span><div><p class="q">SOP examples → one gallery</p><p class="a">The 13 near-identical SOP examples and the 7 geom examples become one <code>examples/sop_gallery</code> on <code>Sketch_ui.Environment3</code>, plus two short teaching examples.</p></div></div>
+    <div class="dec"><span class="num">9</span><div><p class="q">OxCaml: not now</p><p class="a">Removed from the plan. One optional upstream flambda <code>-O3</code> experiment remains, after the frame-performance fixes.</p></div></div>
+    <div class="dec"><span class="num">10</span><div><p class="q">What <code>sop_ui</code> is</p><p class="a">A ~100-line adapter that turns a selected SOP node's typed parameter template into PXUI widgets: the Inspector panel's contents. It stays a small library beside <code>pxui_graph</code> (they share no code, and merging only saves a dune stanza).</p></div></div>
+  </div>
+</section>
+
+<section id="progress">
+  <h2>Progress log</h2>
+  <p class="small">Written by the implementing agent as work lands; items listed here are ticked below for every viewer. Working tree on <code>dev</code>, not yet committed unless noted.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Item</th><th>Status</th><th>What changed / evidence</th></tr></thead>
+    <tbody id="log">
+<!--LOG-->
+      <tr><td>handoff</td><td><span class="chip ok">done</span></td><td>This page is exported to <code>specification/plans/cleanup_plan.html</code> in the repo, so agents without claude.ai access can track progress. Update the Progress log table and the <code>SHIPPED</code> list in the script when you land an item. Not started: P0-4 (one test runner per directory), P2-3, P2-5, P2-10, P3, G, M, U1+, K, S.</td></tr>
+      <tr><td><a href="#P2-1,2,6,7">P2-1,2,6,7</a></td><td><span class="chip med">partial</span></td><td>A subagent is doing these PDK deletions in a separate git worktree. <b>Not merged into this commit</b>; its diff lands in a follow-up.</td></tr>
+      <tr><td><a href="#P2-9">P2-9</a></td><td><span class="chip med">partial</span></td><td>Checked with remove-and-rebuild: <code>Event.wait</code>, <code>Event.poll_all</code>, <code>Event.mouse_delta</code>, <code>Display</code> are still used by the SDL3 binding tests (<code>test_sdl3</code>, <code>test_sdl3_events</code>), so they stay for now. Remaining candidates (image <code>Retained/decode_*</code>, mixer <code>Track</code>, <code>Version.*</code> copies) and the Clipboard/IME/Cursor wiring are not done.</td></tr>
+      <tr><td><a href="#P2-8">P2-8</a></td><td><span class="chip med">partial</span></td><td>Removed (compiler-verified dead): <code>Reactive_sop.submit/submit_context/cancel</code>, <code>Easy_camera(2).translation_key</code> getters, the whole <code>Timeline.shortcuts</code> family (Timeline now reads no keys; host drives it), <code>Camera_control/Camera2_control.save</code>’s four ignored arguments and the always-1 <code>render_request.factor</code>. <b>Kept</b>, because their tests are the only coverage of real logic: <code>Camera_control.panel/overlay</code> (camera navigation, gesture area, FOV, zoom, pan), <code>Reactive_sop.gate/clean</code>, <code>Node_inspector.graph_widgets/reset</code>. <code>camera_area</code>/<code>fitted_panel</code> no longer exist. Manifest promoted; runtest green.</td></tr>
+      <tr><td>loop</td><td><span class="chip ok">done</span></td><td><b>Pre-commit now ≈ 1 minute warm.</b> Forced <code>dune runtest</code>: <b>28 s</b> (was 423 s red). Trace-driven: <code>test_sdl3_stress</code> 55 s → 5k cycles by default (100k under <code>@qualification</code>); surface test default 10 frames (600 under <code>@qualification</code>). Forced <code>@smoke</code>: <b>17 s</b> (was 173 s): <code>code_quadtree</code> spent 130 s LSP-indexing the whole build tree, so its smoke run uses <code>--root sketches/code_quadtree</code>. Slowest remaining: <code>procedural_parallel_exact</code> ≈ 37 s CPU (exhaustive 1-vs-N-domain exactness; kept).</td></tr>
+      <tr><td><a href="#P0-5">P0-5</a></td><td><span class="chip ok">done</span></td><td>All 180 test/rule stanzas in <code>tools/metal/dune</code> and the <code>lib/metal</code> inventory check carry <code>(enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))</code>; the generator executables stay because <code>lib/metal</code> runs them at build time. <code>PRISMEL_METAL_DEV=1 dune build @tools/metal/runtest</code> still runs them.</td></tr>
+      <tr><td><a href="#P0-10">P0-10</a></td><td><span class="chip med">partial</span></td><td>Added <code>.claude/skills/</code> <code>focused-test</code>, <code>smoke</code>, <code>promote-manifests</code>. <code>add-sop</code>, <code>add-pdk-op</code>, <code>add-metal-binding</code>, <code>add-ogpu-feature</code> land with S1/K/M/G as planned.</td></tr>
+      <tr><td><a href="#P0-8">P0-8</a></td><td><span class="chip ok">done</span></td><td>Root <code>AGENTS.md</code> 651 → <b>142 lines</b> (1,046 words): purpose, library table, gate-backed dependency rules, loops, public API, coordinates, determinism, performance summary, UI. Nested files carry the moved rules verbatim: <code>lib/pdk</code> (geometry scope, single core, Boolean exactness, full performance contract), <code>lib/runtime</code> (runtime contract, high-DPI), <code>lib/sketch_ui</code> (editor layering target, workspace UX, PXUI host behavior, iterative sketches), <code>lib/sop_catalog</code> (PPX registration, ports, inspectors), new <code>lib/metal</code> (registry rules + "tools/metal is frozen" until M3) and <code>lib/ogpu</code> (Caps-gated, typed Unsupported, conformance). Removed: NEW_GPU_STUFF authority, rate ledger, whole-SDK Metal mandate, Low, duplicate LRU bullet.</td></tr>
+      <tr><td><a href="#P0-9">P0-9</a></td><td><span class="chip ok">done</span></td><td><code>test/dependency_gate.ml</code> (~170 lines, OCaml) replaces both old checkers: parses every <code>lib/**/dune</code> and <code>ppx/**/dune</code> with a tiny s-expression reader (31 libraries), computes transitive reach, enforces 21 "may never reach" rules, and scans .ml/.mli (comments and strings stripped) for <code>Metal.</code>/<code>Ogpu_metal.</code>/<code>open Metal</code> outside the two backends. 28 known violations are listed with their plan items (pdk/procedural → GPU stack: K1; runtime and pathtracer Metal use: G3/G4; leak-check tests: G4/S5). Self-tests inject five forbidden edges and two Metal references and assert a comment/string mention is not flagged. KeyPressed scan deferred until <code>editor</code> exists (U1).</td></tr>
+      <tr><td><a href="#U0">U0</a></td><td><span class="chip ok">done</span></td><td>(1) <code>Easy_camera.fly</code> holds the pure fly math (moved from <code>Pxui.Camera_control.fly</code>; callers and tests updated). (2) <code>pxui_graph</code> no longer matches <code>"camera"</code>: host passes <code>?flaggable</code> to <code>create/create_document</code>; <code>Active_camera_changed</code> → <code>Flag_requested</code>, <code>active_camera/with_active_camera</code> → <code>flagged/with_flagged</code>, menu item "Set active". (3) <code>Leader</code> and <code>Workspace</code> live under <code>Sketch_ui.Private</code> (unstable until U6). (4) Preset JSON carries <code>"prismel":1,"kind":"preset"</code>; test asserts it. <b>Found while promoting:</b> the API-manifest gate used <code>(glob_files ../lib/*/*.mli)</code>, which dune does not expand across directories, so it had never tracked .mli edits. Now <code>glob_files_rec</code>; the diff fired for all 9 changed modules. runtest green.</td></tr>
+      <tr><td>flaky</td><td><span class="chip med">partial</span></td><td><code>test_runtime_next_scene2_argument_shader</code> fails ~1 in 6 <b>at clean HEAD too</b>: argument-buffer path draws nothing or samples black. Not GC-related (same rate with huge/tiny minor heap). Added the missing <code>useResource</code> for the indirectly sampled texture (correct per Metal, not the fix) and a message showing both pixels; moved to <code>@runtest-native</code>. Suspect the MTL4 compiler on M1 (same family as the <code>test_metal</code> AGX crash). Follow up in G4.</td></tr>
+      <tr><td><a href="#P0-7">P0-7</a></td><td><span class="chip med">partial</span></td><td>Deleted <code>NEW_GPU_STUFF.md</code>, <code>tools/gpu_migration</code> (incl. <code>phase1_evidence</code>), <code>specification/evidence/gpu_migration*</code> (git history keeps them). Files still consumed moved beside their consumers: license manifest → <code>tools/packaging/</code>, api manifest + baseline → <code>tools/api_manifest/</code> (lib renamed <code>tool_support</code>), r10 perf baseline → <code>tools/r10_performance/</code>, Metal FFI baseline → <code>tools/metal/</code>. References removed from AGENTS.md, README, backend.md, project.md. <code>OPT2.md</code>/<code>OPTIMIZATION_PLAN.md</code> → <code>specification/plans/</code>; <code>PLAN.md</code> deleted (48/48 ticked); empty <code>bin/</code> removed; report merged into <code>research_notes/</code>; unused <code>ctypes</code>/<code>ctypes-foreign</code> dropped. <b>Skipped:</b> r10 tools (R10 not closed), <code>_out/</code> default (root outputs are already git-ignored), bench <code>.sh</code> → dune (they take args and wrap <code>/usr/bin/time</code>; no gain). <code>utop</code> kept: <code>api-audit.md</code> documents the <code>dune utop</code> REPL.</td></tr>
+      <tr><td><a href="#P0-6">P0-6</a></td><td><span class="chip ok">done</span></td><td><code>api_stable.json</code> is generated into <code>_build</code> (<code>api_manifest.exe --print</code>) and compared with a dune <code>diff</code> rule in <code>tools/api_manifest/dune</code>; an intended API change is accepted with <code>dune promote</code> (used for this batch: Audio, Event, Font, Sketch). Removed the tool’s write/check/contraction modes. The rate ledger went with the evidence (P0-7). Authority hashes were already moved to <code>@qualification</code> in P0-1.</td></tr>
+      <tr><td><a href="#P1-5">P1-5</a></td><td><span class="chip ok">done</span></td><td>New binding <code>Sdl3_ttf.Font.set_wrap_alignment</code> (TTF_SetFontWrapAlignment); resources <code>Font.render ?align</code>, <code>metrics</code>, <code>size_text</code>, <code>family_name</code>, <code>style_name</code>. Public <code>Font</code>: <code>align</code> honoured (Scene.font_text/cached_text), <code>text_size ?wrap</code> measures via TTF_GetStringSize (no image), ascent/descent/line_skip/height and family/style names are real, invalid UTF-8 becomes U+FFFD instead of raising mid-frame, <code>set_style/set_hinting/set_kerning</code> return errors. Deleted unused placeholders: <code>load_dpi</code>, <code>Solid</code>/<code>Shaded</code> modes (all rendering was blended), <code>render_wrapped</code>, <code>render_multiline</code>, <code>is_fixed_width</code>, <code>glyph_provided</code>. Native test: real metrics, invalid UTF-8 measures, centered ≠ left pixels.</td></tr>
+      <tr><td><a href="#P1-7">P1-7</a></td><td><span class="chip med">partial</span></td><td>Mountain: <code>recompute_normals</code> is now a schema field (default false, matching <code>Sop.mountain</code> and <code>create</code>; the menu used true). Attribute_noise_quaternion: <code>create</code> defaults now equal the menu (Element_number, Zero_centered; every caller already passed these). Not done: group/mask/owner/piece arguments captured outside the schema in Point_jitter, Boolean_fracture, etc. That is S1 (PPX-generated factories).</td></tr>
+      <tr><td><a href="#P1-9">P1-9</a></td><td><span class="chip ok">done</span></td><td>Generated ABI asserts accept patch releases (<code>MICRO_VERSION &gt;= pinned</code>, generator and the four checked-in headers edited identically; layout asserts unchanged); conf opam probes use <code>--atleast-version</code>; packaging README updated. <code>check_sdl3_conf</code> already used minimums.</td></tr>
+      <tr><td><a href="#P1-8">P1-8</a></td><td><span class="chip ok">done</span></td><td>Metal bridge release queue: fixed 65,536-slot ring → <code>std::deque</code>; SDL3, SDL3_ttf and SDL3_mixer finalizer queues: 1,024 cap removed. A finalized object is always queued and drained on the main domain, never dropped. (<code>dropped_*</code> counters now always 0; remove with P2-9.) SDL3/ttf/mixer runtests, the 100k lifecycle stress and 10k presentation pass.</td></tr>
+      <tr><td><a href="#P1-4">P1-4</a></td><td><span class="chip ok">done</span></td><td><code>push_file_path</code> queues <code>File_dropped{name=full path; contents=None}</code> with no I/O; <code>pump</code> processes the whole batch and reports the first error. <code>FileDropped</code> now carries the absolute path (doc in <code>event.mli</code>, <code>specification/event.md</code>). The <code>contents</code> field and <code>max_file_bytes</code> stay until the coordinator goes (P2-5).</td></tr>
+      <tr><td><a href="#P1-6">P1-6</a></td><td><span class="chip ok">done</span></td><td><code>Sdl3.Event.poll_coalesced</code> keeps the latest event of <i>each</i> size kind (Moved/Resized/Pixel_size_changed/…) instead of one overall. Native test pushes Resized, PixelSizeChanged, Resized and gets both kinds, latest Resized.</td></tr>
+      <tr><td>smoke</td><td><span class="chip ok">done</span></td><td><code>dune build @smoke</code>: <b>35/35 examples and sketches pass</b> at 30 frames. It surfaced four crashes, all fixed at the root: (1) <code>Scene.point</code> emitted a 1-index "triangle list" and open <code>Scene.path</code> emitted line-pair indices, both rejected by Render_ir; <code>pie</code> hit <code>assert false</code>. Now lowered through Shape2 polygon/polyline; the dead <code>Primitive</code> variant and its FIFO cache were deleted. (2) Native View3d rejected triangle meshes without normals (every procedural terrain/modeling cook); lowering now derives them once via <code>Mesh.recalculate_normals</code>, cached by mesh identity. (3) <code>code_quadtree</code> aborted its whole LSP index on one comment-only file; now that file has no symbols. (4) Render_ir errors now name the reason instead of "invalid scene description". Regressions in <code>test/test_prismel.ml</code>. <code>runtest</code> still exits 0; <code>git diff --check</code> clean.</td></tr>
+      <tr><td><a href="#P2-4">P2-4</a></td><td><span class="chip ok">done</span></td><td>Deleted <code>lib/prismel/low.ml(i)</code>, <code>lib/prismel_low_core</code> (incl. LOW_COMPATIBILITY.md, its failing test). Removed Low from <code>specification/{api,api-audit,graphics,image,project,window}.md</code>, README, AGENTS.md, <code>tools/packaging/dune</code> (also dropped the nonexistent <code>lib/runtime_next</code> source_tree).</td></tr>
+      <tr><td><a href="#P0-3">P0-3</a></td><td><span class="chip ok">done</span></td><td>Verified by the <code>@smoke</code> row above. <code>Sketch</code> reads <code>PRISMEL_MAX_FRAMES</code> as the default <code>max_frames</code> (all entry points route through it). <code>frames_left</code> counters removed from 27 examples (−152 lines). Root <code>dune</code> defines <code>@smoke</code> (every example and sketch at 30 frames). AGENTS.md workflow now uses <code>runtest</code>/<code>@smoke</code>/<code>@doc</code> (dropped the nonexistent <code>examples/canvas</code>). <code>examples/audio</code> now inits audio.</td></tr>
+      <tr><td><a href="#P0-1">P0-1</a></td><td><span class="chip ok">done</span></td><td><code>dune runtest</code> exits 0 in <b>105 s</b> (was 423 s, red). Moved, not fixed: <code>@runtest-native</code> ← runtime_next ×3 (hard-coded 1× pixel math; <b>still red on Retina</b>), canvas_native. <code>@qualification</code> ← test_metal (M1 AGX driver NSException in MTL4 static linking), metal_global_generated (macOS 26.4), SDL3 ×4 generator checks (provenance embeds the OS triple, so regenerating only moves the red to the other machine), native qualification, r10 phase0, native dimensions. Helper stanzas: <code>(executable)</code> + <code>(rule (alias …))</code>. Memory note updated.</td></tr>
+      <tr><td><a href="#P0-2">P0-2</a></td><td><span class="chip ok">done</span></td><td>Surface test frame count from <code>PRISMEL_SURFACE_FRAMES</code> (default 60; 600 under <code>@qualification</code>); 10k presentation runs 200 cycles in <code>runtest</code>, full 10k under <code>@qualification</code>.</td></tr>
+      <tr><td>runtest</td><td><span class="chip ok">done</span></td><td>Full <code>dune runtest</code> after P1-1..3: only the known baseline failures (metal global 26.4, runtime read_bytes ×3, sdl3* generator checks, low_core, canvas_native, native qualification/r10/benchmark).</td></tr>
+      <tr><td><a href="#P1-3">P1-3</a></td><td><span class="chip med">partial</span></td><td><code>MouseScrolled of float * float</code> end to end (Event, Easy_camera, Easy_camera2, PXUI scroll, fly speed, pathtracer, code_quadtree, tests, <code>specification/event.md</code>). Pointer positions stay int logical points: not changed; add if sub-point precision is needed.</td></tr>
+      <tr><td><a href="#P1-2">P1-2</a></td><td><span class="chip ok">done</span></td><td><code>Prismel_next_resources.Audio.create_device</code> (default playback device) shares channel/music setup with <code>create_memory</code>; <code>Audio.init ()</code> uses it (inert <code>?frequency/?channels/?chunk_size</code> dropped). <code>is_playing</code> asks the mixer (<code>Channels.playing</code>); <code>stop_all</code> uses the real channel count. <code>examples/audio</code> now calls <code>Audio.init</code>/<code>shutdown</code>. Native test asserts a finished sample stops reporting playing. Not done: <code>Music.is_playing</code> still a flag.</td></tr>
+      <tr><td><a href="#P1-1">P1-1</a></td><td><span class="chip ok">done</span></td><td>Root cause was the key-name table in <code>lib/prismel/event.ml</code>: it matched <code>"up"</code> but runtime emits <code>"ArrowUp"</code>. Runtime cannot import <code>Input</code> (it sits below prismel), so the table now matches the runtime names. Regression: <code>test/test_prismel.ml</code> feeds <code>Runtime_next_input_sdl3.key_name</code> scancodes through <code>Event.Private.key_of_name</code>.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="first">
+  <h2>Do these first</h2>
+  <p>Ordered by leverage. The first four make every later change cheaper; the next two are cheap before the uncommitted UI work lands.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>#</th><th>Action</th><th>Why now</th><th class="num">Effort</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><a href="#P0-1">Green default <code>runtest</code>; <code>@qualification</code> for the rest</a></td><td>No pass/fail signal today</td><td class="num">½ day</td></tr>
+      <tr><td>2</td><td><a href="#P0-2">Shorten the two slow presentation tests</a></td><td>398 of 423 runtest seconds</td><td class="num">1 h</td></tr>
+      <tr><td>3</td><td><a href="#P1-1">Fix arrow keys, audio, trackpad scroll</a></td><td>Broken for every user today</td><td class="num">½ day</td></tr>
+      <tr><td>4</td><td><a href="#P0-4">One test runner per directory</a></td><td>Foundational edit + tests: ~110 s → 15–25 s</td><td class="num">2–3 days</td></tr>
+      <tr><td>5</td><td><a href="#U0">Four API fixes before committing the leader/presets work</a></td><td>New public API in the diff; free to change now, costly later</td><td class="num">½ day</td></tr>
+      <tr><td>6</td><td><a href="#P0-7">Delete NEW_GPU_STUFF.md; trim AGENTS.md</a></td><td>~5k tokens saved per session and subagent; removes rules that conflict with the new direction</td><td class="num">½ day</td></tr>
+      <tr><td>7</td><td><a href="#G1">OGPU virtual-library split + gate</a></td><td>Unblocks the path tracer, the Metal registry and the render cleanup</td><td class="num">~3 days</td></tr>
+      <tr><td>8</td><td><a href="#K1">Extract <code>prismel_math</code></a></td><td>First step of the PDK split; geometry stops linking the GPU stack</td><td class="num">1–2 days</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="bugs">
+  <h2>Live bugs</h2>
+  <p>User-visible defects found during the audit. The first three were re-checked by hand against the source.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Bug</th><th>Where</th><th>Cause</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td><b>Arrow keys never arrive</b></td><td><code>lib/prismel/event.ml:9</code></td><td>Runtime emits <code>"ArrowUp"</code>; Event lowercases to <code>"arrowup"</code> but matches <code>"up"</code></td><td><span class="chip ok">verified</span></td></tr>
+      <tr><td><b>Audio is silent</b></td><td><code>prismel_next_resources.ml:347</code></td><td><code>MIX_CreateMixer</code> (no device) instead of <code>MIX_CreateMixerDevice</code></td><td><span class="chip ok">verified</span></td></tr>
+      <tr><td><b>Trackpad scroll lost</b></td><td><code>lib/prismel/event.ml:23</code></td><td><code>int_of_float</code> on sub-unit deltas</td><td><span class="chip ok">verified</span></td></tr>
+      <tr><td>File drop reads 16 MB twice, passes only the basename, can drop the rest of the batch</td><td><code>runtime_next_input.ml</code>, <code>event.ml:25,37</code></td><td>I/O in the event pump</td><td><span class="chip med">reported</span></td></tr>
+      <tr><td><code>Scene.text ~align</code> ignored; font metrics fake</td><td><code>lib/prismel/font.ml</code></td><td>Placeholders; real ttf bindings unused</td><td><span class="chip med">reported</span></td></tr>
+      <tr><td>Invalid UTF-8 in <code>Scene.text</code> raises mid-frame</td><td><code>scene.ml:255</code></td><td><code>Result.get_ok</code></td><td><span class="chip med">reported</span></td></tr>
+      <tr><td><code>WindowResized</code> often lost</td><td><code>sdl3.ml:1272-1310</code></td><td>Coalescer merges four window event kinds</td><td><span class="chip med">reported</span></td></tr>
+      <tr><td><code>Sample.is_playing</code> stays true</td><td><code>lib/prismel/audio.ml</code></td><td>Finished channels never removed</td><td><span class="chip med">reported</span></td></tr>
+      <tr><td>Mountain defaults differ between menu and <code>create</code></td><td><code>sop_catalog.ml:1939-1960</code></td><td><code>recompute_normals</code> true vs false</td><td><span class="chip med">reported</span></td></tr>
+      <tr><td>Normals handled differently across copies of remap code</td><td><code>poly_extrude.ml:160</code> vs <code>ops.ml:4138</code></td><td>Copy-paste drift</td><td><span class="chip med">reported</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="arch">
+  <h2>Target architecture</h2>
+  <p>Four designs, each grounded in the current code. Every rule listed under an architecture goes into AGENTS.md (root or nested) and, where it is mechanical, into the dependency gate.</p>
+
+  <div class="arch" id="arch-graph">
+    <h3>Library graph after the plan</h3>
+    <p class="small">Arrows point from a library to what it depends on. Dashed boxes are backends selected at link time. <code>geom</code>, <code>prismel_low_core</code>, <code>runtime_next_orchestrator</code> and <code>tools/metal</code> are gone; the <code>_next</code> names are dropped.</p>
+<pre class="mermaid">
+flowchart BT
+  math[prismel_math]
+  pdkcore[pdk.core] --> math
+  pdkexact[pdk.exact] --> pdkcore
+  pdkspatial[pdk.spatial] --> pdkexact
+  pdkattrib[pdk.attrib] --> pdkspatial
+  pdkgen[pdk.gen] --> pdkattrib
+  pdkcurve[pdk.curve] --> pdkspatial
+  pdkmesh[pdk.mesh] --> pdkcurve
+  pdkmesh --> pdkattrib
+  pdkbool[pdk.boolean] --> pdkmesh
+  pdkio[pdk.io] --> pdkcore
+  pdk[pdk facade] --> pdkbool
+  pdk --> pdkgen
+  pdk --> pdkio
+  procedural --> pdk
+  sop_catalog --> procedural
+  ogpu[ogpu · virtual]
+  ogpu_metal[[ogpu_metal]] -.implements.-> ogpu
+  ogpu_mock[[ogpu_mock]] -.implements.-> ogpu
+  ogpu_metal --> metal
+  runtime --> sdl3
+  runtime --> ogpu
+  prismel --> runtime
+  prismel --> ogpu
+  prismel --> math
+  pathtracer --> prismel
+  pathtracer --> ogpu
+  pdk_prismel --> pdk
+  pdk_prismel --> prismel
+  editor --> prismel
+  pxui --> prismel
+  pxui_shell --> pxui
+  pxui_shell --> editor
+  pxui_graph --> pxui
+  pxui_graph --> editor
+  pxui_graph --> procedural
+  sop_ui --> pxui
+  sop_ui --> procedural
+  sketch_support --> procedural
+  sketch_support --> prismel
+  sketch_ui --> pxui_shell
+  sketch_ui --> pxui_graph
+  sketch_ui --> sop_ui
+  sketch_ui --> sketch_support
+  sketch_ui --> sop_catalog
+</pre>
+    <ul class="rules">
+      <li>Only <code>ogpu_metal</code> (and <code>lib/metal</code>) may reference <code>Metal</code>. No <code>Metal.</code> or <code>Ogpu_metal.</code> token in any <code>.ml</code>/<code>.mli</code> elsewhere.</li>
+      <li><code>runtime</code> depends on <code>sdl3</code> + <code>ogpu</code> only; the SDL Metal view reaches OGPU through <code>Native_layer_token</code>.</li>
+      <li>Geometry (<code>pdk.*</code>, <code>procedural</code>) never links <code>prismel</code>, <code>ogpu</code> or SDL; <code>pdk_prismel</code> is the only bridge to <code>Prismel.Mesh</code>.</li>
+      <li>The gate reads all <code>lib/*/dune</code>, builds the transitive graph and checks it against one allowed-edge table; the diagram above is generated from that table.</li>
+    </ul>
+  </div>
+
+  <div class="arch" id="arch-metal">
+    <h3>Metal bindings from a registry <span class="chip high">decision 1</span></h3>
+    <div class="prose">
+      <p><b>Today.</b> The "binding plan" is a whole-SDK coverage project: 529 <code>binding_*</code> files in <code>tools/metal</code> (47 plans, each with spec/codegen/evidence/adapter), a 2,686-line generator, a clang-dumped 3.7 MB inventory of 5,286 symbols hand-classified in <code>classification.ml</code> (2,221 lines), 5,248 marked bound. The generator only emits 147 raw externals against 1,029 handwritten ones, and the bridge build depends on 179 checked-in <code>.inc</code>/<code>.mm</code> files that nothing regenerates.</p>
+      <p><b>Target.</b> One typed OCaml list is the registry. The generator emits into <code>_build</code> only; the installed SDK compiling with <code>-Werror</code> is the oracle. The registry is seeded from <b>OGPU's feature map</b> (each <code>Caps.feature</code> lists the Metal symbols it needs), so bindings for planned OGPU features stay even before OGPU uses them; everything else goes.</p>
+    </div>
+<pre>(* lib/metal/gen/registry.ml *)
+type scalar = Bool | Int | Nsuint | Nsint | Float | Double | Enum of string | Handle of string
+type entry =
+  | Enum     of { sdk : string; cases : string list; feature : string }
+  | Record   of { sdk : string; fields : (string * scalar) list; feature : string }
+  | Selector of { recv : string; sel : string; args : scalar list; ret : scalar option;
+                  ocaml : string; since : (int * int) option; feature : string }
+let entries : entry list = [ (* alphabetical by ocaml name *) ]</pre>
+    <div class="cols">
+      <div class="card"><h4>Generation and checks</h4><ul>
+        <li>One rule: <code>gen/generate.exe</code> → <code>metal_gen.ml/.mli</code>, <code>metal_gen_stubs.inc</code> in <code>_build</code>. Nothing generated is checked in, so there is no drift to check.</li>
+        <li>Typed direct Objective-C calls; enums as <code>switch</code>; records with <code>static_assert(offsetof/sizeof)</code>; <code>since</code> emits an <code>@available</code> guard returning the typed unavailable error.</li>
+        <li>Unknown selector, wrong type, unguarded availability: clang error. Duplicate OCaml or C name: generator error.</li>
+        <li>Every registry entry and every <code>external</code> in <code>metal_raw.mli</code> must be referenced from <code>metal.ml</code>, and every entry names a <code>feature</code> present in OGPU's feature map. About 10 lines; the tokenizer already exists.</li></ul></div>
+      <div class="card"><h4>What stays handwritten</h4><ul>
+        <li>Encoders with resources, descriptors, blocks/callbacks, ownership transfer: <code>metal_bridge.mm</code> + <code>metal_raw.ml</code>. The generator does not grow to model them.</li>
+        <li>The safe <code>Metal</code> layer: validation, typed errors, no raw pointers.</li>
+        <li>Each new safe function lands with its first <code>ogpu_metal</code> call site and one test.</li></ul></div>
+      <div class="card"><h4>Removed</h4><ul>
+        <li><code>tools/metal</code> entirely (~46.8k lines, 177 executables, 186 test stanzas).</li>
+        <li>Inventory JSON, <code>generated_provenance.ml</code>, <code>classification.ml</code>, the inventory check, <code>metal_progress_rate.md</code>, Metal evidence files.</li>
+        <li>Unreachable safe/raw/bridge code after trimming to the feature map: <code>metal.ml</code> 23.8k → ~8–10k, bridge 15.5k → ~6k, raw 5.9k → ~2k, tests 18.4k → ~5k (larger than a pure "used today" trim because OGPU's roadmap is kept).</li></ul></div>
+    </div>
+  </div>
+
+  <div class="arch" id="arch-ogpu">
+    <h3>OGPU: Metal-modelled, full capability, backend-agnostic <span class="chip high">decision 2</span></h3>
+    <div class="prose">
+      <p><b>Shape.</b> The API mirrors Metal's object model with immediate-mode encoders. Nothing is cut to a lowest common denominator: every non-baseline feature is checked with <code>Caps.require</code> and otherwise returns <code>Error.Unsupported feature</code>, never a silent no-op. A future Vulkan backend maps what it can and reports the rest.</p>
+      <p><b>Plumbing.</b> <code>ogpu</code> becomes a dune <b>virtual library</b>: <code>Error</code>, <code>Caps</code>, descriptors and validation are concrete; Device, Buffer, Texture, … Surface are <code>virtual_modules</code>. <code>ogpu_metal</code> and <code>ogpu_mock</code> implement it now, <code>ogpu_vulkan</code> later. Handles are the implementation's abstract types, so no closure tables, no tokens, no <code>Obj</code>. One backend per executable, <code>(default_implementation ogpu_metal)</code>; tests link <code>ogpu_mock</code>.</p>
+    </div>
+    <div class="tbl"><table>
+      <thead><tr><th>Module</th><th>Covers</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><code>Caps</code>, <code>Error</code></td><td>limits; feature variant; <code>has</code>/<code>require</code>; <code>Unsupported</code>, <code>Device_lost</code>, <code>Out_of_memory</code></td><td>rework (replaces <code>Capabilities</code>/<code>Adapter</code>)</td></tr>
+        <tr><td><code>Device</code></td><td><code>create ?window:Native_layer_token.t ()</code>, <code>caps</code>, <code>stats</code></td><td>new</td></tr>
+        <tr><td><code>Buffer</code>, <code>Texture</code>, <code>Sampler</code></td><td>storage modes, <code>gpu_address</code>/<code>resource_id</code>, all dimensions/MSAA/views, full pixel-format enum, sampler objects</td><td>rework</td></tr>
+        <tr><td><code>Heap</code>, <code>Residency</code></td><td>placement/aliasing heaps; residency sets</td><td>new, gated</td></tr>
+        <tr><td><code>Library</code></td><td><code>of_metallib</code>, <code>of_source</code>, later <code>of_spirv</code>; function constants; dynamic libraries; binary archives</td><td>replaces <code>Shader</code></td></tr>
+        <tr><td><code>Pipeline</code></td><td>render (vertex/fragment or object/mesh), tile, compute, depth-stencil, linked functions, typed interface for reflection checks</td><td>rework</td></tr>
+        <tr><td><code>Argument</code></td><td>argument layouts; bindless tier 2 by <code>resource_id</code>/address</td><td>new</td></tr>
+        <tr><td><code>Queue</code>, <code>Command_buffer</code></td><td>non-blocking <code>completed_epoch</code>, <code>status</code>, event signal/wait, <code>present</code></td><td>new</td></tr>
+        <tr><td><code>Render_encoder</code>, <code>Compute_encoder</code>, <code>Blit_encoder</code></td><td>setters, <code>use_resources</code>/<code>use_heap</code>, draw/dispatch/indirect, <code>draw_mesh_threadgroups</code>, <code>dispatch_tile</code>, <code>execute_icb</code>, barriers, fences, counter samples, <code>set_accel</code>, <code>set_function_table</code></td><td>replaces pass-description lists (and their per-draw allocation)</td></tr>
+        <tr><td><code>Accel</code></td><td>triangles, bounding boxes, curves, motion; instances with transform, mask, user id, function-table offset, motion keyframes; build, refit, copy, compact</td><td>replaces metadata-only <code>Acceleration</code></td></tr>
+        <tr><td><code>Function_table</code>, <code>Icb</code></td><td>intersection and visible function tables; indirect command buffers (CPU and GPU encoded)</td><td>new, gated</td></tr>
+        <tr><td><code>Sync</code>, <code>Counters</code>, <code>Sparse</code></td><td>fences, shared events; timestamp/stage sampling; sparse textures and tile mapping</td><td>rework / new</td></tr>
+        <tr><td><code>Surface</code>, <code>Upscale</code></td><td>configure/acquire/present from a native layer token; MetalFX spatial and temporal</td><td>simplify / new optional</td></tr>
+      </tbody>
+    </table></div>
+    <div class="cols">
+      <div class="card"><h4>Shaders</h4><ul>
+        <li>MSL is canonical. Sources move to <code>.metal</code> files compiled by a dune rule (<code>xcrun metal</code> → <code>metallib</code>) and embedded; <code>of_source</code> stays for tests.</li>
+        <li><code>Library.descriptor</code> is a per-backend table <code>{msl; spirv option}</code>; a missing entry is <code>Unsupported</code>. Vulkan later adds GLSL/HLSL → SPIR-V dune rules.</li>
+        <li>Each entry point carries an OCaml interface (bindings, constants) checked against Metal reflection at pipeline creation.</li>
+        <li>Single-source Slang rejected for now: its Metal target lags on intersection functions, tile shaders and imageblocks.</li></ul></div>
+      <div class="card"><h4>Vulkan mapping (for later)</h4><ul>
+        <li>Argument buffers → descriptor buffers or descriptor indexing; per-kind binding ranges keep Metal's separate index spaces.</li>
+        <li>Barriers: Metal's contract (tracked resources are automatic; heaps need fences). The backend tracks last access and emits <code>vkCmdPipelineBarrier2</code>.</li>
+        <li>Intersectors → ray query; function tables → SBT; motion → NV extension or Unsupported; tile shaders, imageblocks, MetalFX → Unsupported.</li>
+        <li>Residency sets are a no-op on Vulkan.</li></ul></div>
+      <div class="card"><h4>Enforcement</h4><ul>
+        <li><code>ogpu/dune</code> has empty <code>(libraries)</code>.</li>
+        <li><code>Ogpu_metal.Interop</code> is the only escape hatch to Metal handles, allowed inside <code>lib/ogpu_metal</code> and its tests.</li>
+        <li><code>test/ogpu_conformance</code>: one suite over <code>Ogpu</code>, run against mock and Metal (later Vulkan). If <code>Caps.has f</code>, exact-behaviour checks; otherwise assert the typed <code>Unsupported</code>. Covers lifetime, round trips, compute/render exact output, bindless, ICB, ray-query hits, refit/compact/motion, intersection functions, events, counters, sparse, surface, no handle leaks.</li></ul></div>
+    </div>
+  </div>
+
+  <div class="arch" id="arch-ui">
+    <h3>Editor stack under the sketch environment <span class="chip high">decision 3</span></h3>
+    <div class="prose">
+      <p><b>Root cause of today's tangle.</b> Panes mutate state during <code>Ui.frame</code> instead of returning what they want. That single habit produces the six refs in <code>Core.update</code>, the 6-tuples, five separate action matches, keys that bypass the leader table, and the Environment2/3 copy. Fix: panes return <b>intents</b>; one dispatcher applies them; undo, keys and persistence live in a pure foundation.</p>
+    </div>
+    <div class="stack" aria-label="Editor layers, top to bottom">
+      <div class="layer"><span class="lv">L4</span><span class="nm">sketch_ui</span><span>Thin composition: <code>Doc</code> (document + edit commands), <code>Cook</code> (worker, scheduling, framing), <code>Presets</code>, <code>Cameras</code>, <code>Viewport3</code>, <code>Viewport2</code>, and one generic <code>Environment</code>. <code>Environment3</code>/<code>2</code> keep their public signatures.</span></div>
+      <div class="layer"><span class="lv">L3</span><span class="nm">pxui_graph · sop_ui</span><span>Domain adapters, presentation only. <code>pxui_graph</code> exports its commands and default key bindings as data and stops reading keys; the <code>"camera"</code> special case becomes a host <code>?flaggable</code> predicate. <code>sop_ui</code> is the inspector.</span></div>
+      <div class="layer new"><span class="lv">L3</span><span class="nm">pxui_shell</span><span>Editor chrome with no SOP knowledge: <code>Pane</code>, <code>Layout</code> (columns, splitters), <code>Chrome</code> (headers, focus outline), <code>Which_key</code>, <code>Prompt</code> (name prompt, picker), <code>Status_bar</code>, <code>Timeline_bar</code>, and <code>Shell.frame</code>, the only caller of <code>Ui.frame</code>.</span></div>
+      <div class="layer"><span class="lv">L2</span><span class="nm">pxui</span><span>The one UI engine plus kit widgets. Loses <code>Undo</code> and <code>Settings</code>; gains a single <code>Ui.popup</code> that owns press-outside-to-close (replacing three copies). Pixel parity guarded by <code>test_ui_parity</code>.</span></div>
+      <div class="layer new"><span class="lv">L1</span><span class="nm">editor</span><span>Pure, no PXUI, no Scene: <code>History</code> (undo with merge rules), <code>Keymap</code> (chords and leader sequences as data), <code>Router</code> (key → action ids, mode layers), <code>Action</code>, <code>Focus</code>, <code>Store</code> (the one save format).</span></div>
+      <div class="layer"><span class="lv">L0</span><span class="nm">prismel · procedural</span><span><code>Easy_camera</code> gains pure <code>fly</code>; <code>Edit_graph</code> remains the document.</span></div>
+    </div>
+<pre>(* editor/history.mli *)
+type merge =
+  | Step                                               (* discrete edit, preset load *)
+  | Gesture of int                                     (* amend until [seal]: slider drags *)
+  | Burst of { key : string; at : float; window : float } (* wheel, follow-viewport *)
+  | Repair                                             (* invariant fix-up, never its own step *)
+val record : ?merge:merge -&gt; 'a -&gt; 'a t -&gt; 'a t
+val seal : 'a t -&gt; 'a t
+val undo : 'a t -&gt; 'a t option
+val redo : 'a t -&gt; 'a t option
+
+(* editor/keymap.mli: one table drives dispatch and the which-key panel *)
+type trigger = Chord of { key : Input.key; mods : Input.key list } | Leader of char list
+type scope = Global | Pane of string | Mode of string   (* "fly", "prompt" *)
+type binding = { trigger : trigger; action : string; scope : scope; label : string }
+
+(* pxui_shell/pane.mli *)
+type ('m, 'i) t = {
+  id : string; title : string;
+  keymap : Keymap.t; actions : 'm Action.t list;
+  view : 'm -&gt; Ui.t -&gt; rect -&gt; 'i list;          (* builds boxes, returns intents *)
+  section : ('m -&gt; Yojson.Safe.t) * (Yojson.Safe.t -&gt; 'm -&gt; 'm) option;
+}</pre>
+    <div class="cols">
+      <div class="card"><h4>One dispatch path</h4><ol style="margin:0;padding-left:18px;font-size:.9rem;display:grid;gap:4px">
+        <li><code>Router.route</code>, in priority: text entry or open prompt → mode layer (fly) → leader sequence → chords.</li>
+        <li><code>Action.run</code> for each routed action id.</li>
+        <li><code>Shell.frame</code> returns this frame's pane intents.</li>
+        <li>Fold intents into the model; document changes go through <code>Doc.apply</code> and <code>History.record ~merge</code>.</li></ol>
+        <p class="small">Focus: the focused pane is whichever pane root box was pressed, read from PXUI's own signal, so there is no second hit-test path.</p></div>
+      <div class="card"><h4>State</h4><ul>
+        <li>Model: <code>{doc : Doc.t History.t; shell; graph_view; timeline; cook; viewport; notice}</code>.</li>
+        <li><code>Ui.t</code> keeps only per-widget memory keyed by box (drafts, open sections, scroll).</li>
+        <li>No refs written inside <code>Ui.frame</code>. <code>Sketch.run_state ~after_present</code> returns the model, removing the last ref.</li></ul></div>
+      <div class="card"><h4>Persistence</h4><ul>
+        <li>One JSON envelope via <code>Editor.Store</code>: <code>{"prismel":1,"kind":"preset"|"settings","sketch":…,"sections":{…}}</code>, written atomically.</li>
+        <li>Each pane contributes its own <code>section</code>; viewport JSON stops being hand-written twice.</li>
+        <li><code>Pxui.Settings</code> becomes <code>Editor.Store.Settings</code> with a read-only decoder for the old <code>PXUI1</code> files used by two sketches.</li></ul></div>
+    </div>
+    <ul class="rules">
+      <li><code>editor</code> imports only <code>prismel</code> and <code>yojson</code>. <code>pxui</code> imports none of editor, shell, procedural, adapters, runtime. <code>pxui_shell</code> imports only <code>pxui</code>, <code>editor</code>, <code>prismel</code>.</li>
+      <li>Adapters (<code>pxui_graph</code>, <code>sop_ui</code>) may import <code>editor</code>, never <code>pxui_shell</code> or <code>sketch_ui</code>. <code>sketch_ui</code> may import <code>sop_catalog</code>; never the reverse.</li>
+      <li>Keys become actions only through <code>Editor.Router</code> and data keymaps; panes never match <code>KeyPressed</code> for commands.</li>
+      <li>Code inside <code>Ui.frame</code> returns intents and never mutates the model or refs. Every document change is recorded with an explicit merge rule. Camera math lives in <code>prismel</code>. <code>pxui_graph</code> never matches operation names.</li>
+    </ul>
+  </div>
+
+  <div class="arch" id="arch-pdk">
+    <h3>PDK in sublibraries; geom absorbed and deleted <span class="chip high">decisions 4–5</span></h3>
+    <div class="prose">
+      <p><b>Graph facts.</b> 126 library modules, 991 internal edges, already acyclic, longest chain 20. The only upward reference is <code>boolean_materialization</code> calling <code>Ops.delete_primitives/edge_collapse/dissolve</code>. Only 17 modules are used outside pdk (<code>Ops</code> 2,821 references, <code>Attribute</code> 1,119, <code>Geometry</code> 867, <code>Attribute_ops</code> 514). Links to the GPU stack come from three places only: <code>prismel_mesh</code>, <code>Ops.color_by_height</code>, <code>Kernel.transform</code>.</p>
+      <p><b>Mechanism.</b> Separate dune libraries in subdirectories (<code>lib/pdk/core/dune</code> → <code>pdk_core</code>, public name <code>prismel.pdk.core</code>). That is the only mechanism dune enforces; <code>include_subdirs qualified</code> gives no layering. A ~25-line <code>Pdk</code> facade keeps <code>Pdk.X</code> paths stable, so <code>procedural</code> and <code>sop_catalog</code> don't churn.</p>
+    </div>
+    <div class="stack" aria-label="PDK sublibraries, top to bottom">
+      <div class="layer new"><span class="lv">facade</span><span class="nm">pdk</span><span>Module aliases (~25 lines) and a temporary <code>Ops</code> shim (~780 lines instead of 12,687) until an optional codemod retires it.</span></div>
+      <div class="layer new"><span class="lv">~9.7k</span><span class="nm">pdk.boolean</span><span>The 18 <code>boolean_*</code> stages plus <code>Boolean</code>. Depends on mesh once <code>Edge_collapse</code>, <code>Deletion</code>, <code>Dissolve</code> are real modules.</span></div>
+      <div class="layer new"><span class="lv">~34k</span><span class="nm">pdk.mesh</span><span>Topology edits, poly ops, subdivide (gains Butterfly and Doo-Sabin), remesh, smooth, clean (gains manifold report, T-junction repair, consistent orientation), curvature, convex hull, UV, and the <code>ops.ml</code> pieces: merge, fuse, edge_collapse, triangulate, transform, copy, clean.</span></div>
+      <div class="layer new"><span class="lv">~8.5k</span><span class="nm">pdk.curve</span><span>Curve ops, sweep, polywire, poly_path, resample, revolve, sweep_circle; gains Bézier and Catmull-Rom generators from geom.</span></div>
+      <div class="layer new"><span class="lv">~5.7k</span><span class="nm">pdk.gen</span><span>Grid, Box, Sphere, Torus, Tube, Platonic, Line, Spiral, scatter, point generators, one shared <code>Gen_frame</code>; gains <code>Iso_surface</code> (metaballs, gyroid, marching cubes) from geom.</span></div>
+      <div class="layer new"><span class="lv">~15k</span><span class="nm">pdk.attrib</span><span>Attribute generate/lifecycle/copy/combine/interpolate/fade/composite/mirror, promote, enumerate, blur, transfer, blend shapes, group ops.</span></div>
+      <div class="layer new"><span class="lv">~4.4k</span><span class="nm">pdk.spatial</span><span>Spatial, surface, proximity and linear-piece indices (sharing one new <code>Bounds3_index</code>), clusters, snap, triangle and curve intersection.</span></div>
+      <div class="layer new"><span class="lv">~7.4k</span><span class="nm">pdk.exact</span><span>Dyadic arithmetic, predicates, implicit points, Delaunay, planar CDT/constraints/refinement, contour triangulation; gains Voronoi cells from geom.</span></div>
+      <div class="layer new"><span class="lv">~6.5k</span><span class="nm">pdk.core</span><span>Geometry, attributes, groups, topology and its index, remap, kernel, analysis, normals, deform, error, cancel; shared <code>Disjoint_set</code>, <code>Int_pair_table</code>, <code>Util</code>, <code>Relation</code>.</span></div>
+      <div class="layer new"><span class="lv">~0.4k</span><span class="nm">pdk.io</span><span>Deterministic STL (ASCII/binary), OFF, OBJ, ported from geom's <code>mesh_io</code>.</span></div>
+      <div class="layer new"><span class="lv">leaf</span><span class="nm">prismel_math</span><span>Vec2/3, Mat4, Quat, Rand, Noise, Parallel, Bounds2/3. No dependencies. <code>Prismel</code> re-exports it.</span></div>
+      <div class="layer gone"><span class="lv">−9.2k</span><span class="nm">geom</span><span>Deleted after the ports below pass fixture comparisons.</span></div>
+    </div>
+    <h4>geom → pdk mapping</h4>
+    <div class="tbl"><table>
+      <thead><tr><th>geom module</th><th>pdk equivalent</th><th>Action</th></tr></thead>
+      <tbody>
+        <tr><td><code>csg3</code> (BSP boolean)</td><td><code>Pdk.Boolean</code></td><td>map; BSP is banned anyway</td></tr>
+        <tr><td><code>delaunay2</code></td><td><code>Pdk.Delaunay2</code> (exact), <code>triangulate_2d</code></td><td>map; <b>port</b> Voronoi cells to pdk.exact (~150)</td></tr>
+        <tr><td><code>mesh3</code> extrude/lathe/sweep/loop/catmull-clark</td><td><code>poly_extrude</code>, <code>revolve</code>, <code>sweep</code>, <code>subdivide</code></td><td>map</td></tr>
+        <tr><td><code>mesh3</code> Butterfly, Doo-Sabin</td><td>none</td><td><b>port</b> as Subdivide schemes (~450 packed lines)</td></tr>
+        <tr><td><code>mesh_repair</code></td><td><code>fuse</code>, <code>clean</code>, <code>edge_collapse</code>, <code>poly_fill</code></td><td>map; <b>port</b> manifold report, T-junction repair, consistent orientation (~500)</td></tr>
+        <tr><td><code>mesh_io</code> STL/OFF</td><td>none</td><td><b>port</b> to pdk.io, add OBJ (~400)</td></tr>
+        <tr><td><code>iso3</code> metaballs, gyroid, marching cubes</td><td>none</td><td><b>port</b> as pdk.gen <code>Iso_surface</code> (~600) + bench</td></tr>
+        <tr><td><code>curve2</code>/<code>curve3</code></td><td><code>Resample</code>, <code>Curve_subdivide</code></td><td>map; <b>port</b> Bézier and Catmull-Rom (~250); rose/superformula into the gallery</td></tr>
+        <tr><td><code>polygon2</code></td><td><code>Analysis</code>, <code>Plane_clip</code>, <code>Polygon_triangulation</code>, <code>circle</code>, <code>poly_extrude</code> inset</td><td>map; star shape into the gallery</td></tr>
+        <tr><td><code>mesh_topology</code>, <code>mesh_attrib</code>, <code>polyhedra3</code>, <code>transport3</code>, <code>util</code></td><td><code>Topology_index</code>, <code>uv_project</code>, <code>platonic</code>, <code>Edge_transport</code>/<code>Polyframe</code>, <code>Analysis</code></td><td>map</td></tr>
+        <tr><td><code>bounds2</code>, <code>bounds3</code></td><td>—</td><td>move to <code>prismel_math</code></td></tr>
+        <tr><td><code>octree</code>, <code>quadtree</code></td><td><code>Spatial_index</code>, <code>Point_index</code></td><td>delete</td></tr>
+        <tr><td>primitives (<code>circle2</code>, <code>ray3</code>, <code>plane3</code>, <code>triangle3</code>, …), <code>intersect2/3</code>, <code>affine2</code></td><td><code>Predicates</code>, <code>Surface_index.raycast</code>, <code>Triangle_intersection</code></td><td>delete (test-only users)</td></tr>
+        <tr><td><code>voxel3</code>, <code>svo3</code>, <code>contour2</code></td><td>none</td><td>delete (outside modeling scope; bench/test users only)</td></tr>
+        <tr><td><code>verlet2</code>, <code>verlet3</code></td><td>none</td><td>delete (dynamics are out of scope); physics example removed or kept tiny and inline</td></tr>
+        <tr><td><code>svg</code>, <code>svg3</code>, <code>svg_path</code>, <code>viz</code>, <code>render2</code></td><td><code>Scene</code></td><td>delete; drawing helpers inline into the gallery; SVG export added to pdk.io only when needed</td></tr>
+      </tbody>
+    </table></div>
+    <div class="cols">
+      <div class="card"><h4>Breaking up <code>ops.ml</code></h4><ul>
+        <li>Lines 3–634: 111 type re-exports deleted; each type lives in its family module.</li>
+        <li>669–3245: generators to pdk.gen; the per-generator rotation/frame helpers become one <code>Gen_frame</code>.</li>
+        <li>3258–9033: merge, fuse, edge_collapse, snap, triangulate, reduce, flip, mirror, copy, transform, distance, bound, deform, clean into their own modules.</li>
+        <li>9260–9404: <code>poly_extrude_legacy</code> deleted after an equivalence regression.</li>
+        <li>9489–11345: resample, revolve, sweep_circle to pdk.curve.</li>
+        <li>11346–12687: 51 <code>foo_raw</code> rebinds and ~90 wrappers replaced by one <code>Error.guard ~operation ~code f</code>.</li></ul></div>
+      <div class="card"><h4>Breaking up <code>attribute_ops.ml</code></h4><ul>
+        <li>Generic relation/radix code → <code>pdk.core Relation</code>; promote → <code>Attribute_promote</code>.</li>
+        <li>rename/delete/swap → existing <code>Attribute_lifecycle</code>; enumerate, blur, transfer → their own modules.</li>
+        <li>Thin wrappers over generate/copy/combine/interpolate deleted; callers use those modules.</li>
+        <li>Six <code>transfer_*</code> entry points → one <code>transfer ~owner</code>.</li></ul></div>
+      <div class="card"><h4>PDK API style guide</h4><ul>
+        <li>One module per operation family; every module has an <code>.mli</code> (31 lack one today, including <code>subdivide</code> at 4.6k lines).</li>
+        <li><code>Family.run ?cancel ?grain ~required geometry</code> or a named verb (<code>Box.make</code>); geometry last so functions pipe.</li>
+        <li>Every public function returns <code>(_, Error.t) result</code> with stable error codes; no <code>_raw</code>, <code>_legacy</code>, <code>_exn</code> twins; no type re-exports.</li>
+        <li>The <code>.mli</code> states time and memory complexity, grain, determinism and cancellation. Internal plane access through <code>Private</code>.</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<section id="order">
+  <h2>Order of work</h2>
+  <p>Dependencies between workstreams, then a suggested sequence in four waves. Several streams run in parallel; the critical path is OGPU → path tracer → Metal registry.</p>
+<pre class="mermaid">
+flowchart LR
+  P0[P0 fast green loop] --> P2[P2 deletions]
+  P0 --> G1
+  P0 --> K1
+  P0 --> U1
+  P1[P1 bugs]
+  U0[U0 fix WIP API] --> U1[U1–U3 editor, popup, graph keys]
+  U1 --> U4[U4–U5 Doc, Cook, intents] --> U6[U6–U8 shell, Environment, Store] --> U9[U9 typed camera]
+  G1[G1 virtual ogpu + gate] --> G2[G2 core modules] --> G3[G3 path tracer on OGPU]
+  G3 --> M1[M1–M3 Metal registry, prune]
+  G2 --> G4[G4 render path on encoders] --> G5[G5–G7 advanced features]
+  G4 --> S3[S3 fold orchestrator, rename]
+  P3a[P3-1..3 caches, uniforms] --> G4
+  K1[K1 prismel_math] --> K3[K3–K5 carve ops, attribute_ops, shared primitives] --> K6[K6 sublibraries] --> K7[K7 geom ports] --> K8[K8 gallery rewrite] --> K9[K9 delete geom]
+  S1[S1 SOP params via PPX] --> K8
+</pre>
+  <div class="waves">
+    <div class="wave"><h4>Wave 1 <span>week 1</span></h4><ul><li>All of P0 and P1</li><li>U0 before the WIP is committed</li><li>P2 deletions</li></ul></div>
+    <div class="wave"><h4>Wave 2 <span>weeks 2–3</span></h4><ul><li>P3-1…P3-3 (uniform ring, identity caches, one LRU)</li><li>G1–G2</li><li>K1–K2</li><li>U1–U3</li><li>S1 (SOP params from PPX)</li></ul></div>
+    <div class="wave"><h4>Wave 3 <span>weeks 4–6</span></h4><ul><li>G3 path tracer on OGPU, then M1–M4</li><li>K3–K6 PDK carve and split</li><li>U4–U8</li><li>S2</li></ul></div>
+    <div class="wave"><h4>Wave 4 <span>weeks 7–10</span></h4><ul><li>G4 render path; S3</li><li>G5–G7 advanced OGPU features</li><li>K7–K9 geom ports and deletion; S4 gallery</li><li>U9, S5</li></ul></div>
+  </div>
+</section>
+
+<section id="plan">
+  <h2>Plan items</h2>
+  <div class="prose"><p>Each item lists evidence, the change, and how to verify it. Ticks are saved in this browser only.</p></div>
+  <div class="filters" role="group" aria-label="Filter items">
+    <span class="small">Show:</span>
+    <button type="button" data-f="all" aria-pressed="true">All</button>
+    <button type="button" data-f="crit" aria-pressed="false">Critical</button>
+    <button type="button" data-f="high" aria-pressed="false">High</button>
+    <button type="button" data-f="open" aria-pressed="false">Not done</button>
+    <button type="button" id="expand">Expand all</button>
+  </div>
+
+  <!-- P0 -->
+  <div class="phase" id="p0">
+    <div class="phase-head"><h3>P0 · Make the loop fast and green</h3><span class="progress" data-phase="P0"></span></div>
+    <p class="small">Goal: pre-commit under 3 minutes on a clean checkout; a foundational edit plus focused tests under 25 s. No product code changes.</p>
+    <div class="items">
+
+<details class="item" id="P0-1" data-sev="crit"><summary><input type="checkbox" aria-label="Done"><span class="iid">P0-1</span><span class="ititle">Default <code>runtest</code> green; environment- and evidence-dependent tests move to <code>@qualification</code></span><span class="imeta"><span class="chip crit">critical</span><span class="tag">S</span></span></summary><div class="ibody"><dl>
+<dt>Evidence</dt><dd>10 tests abort at clean HEAD (runtime_next ×3, canvas_native, prismel_low_core, metal_global_generated, native_qualification, r10 ×2, native_dimensions); 4 SDL3 generator <code>--check</code> rules report stale; <code>test_metal</code> hits an NSException.</dd>
+<dt>Do</dt><dd><ul><li><code>(alias qualification)</code> for r10/qualification/authority-hash, macOS-26-only API, native-dimension and stress tests.</li><li>Regenerate or fix the SDL3 generator outputs so <code>--check</code> passes.</li><li><code>@runtest-native</code> for tests that need a display (<code>test_ui_parity</code>, <code>test_sdl3_metal</code>, the live smoke in <code>test_sketch_ui.ml:640</code>).</li><li>Tests that only exist because <code>prismel_low_core</code> exists go with P2-4.</li></ul></dd>
+<dt>Verify</dt><dd><code>dune runtest</code> exits 0 on a clean checkout; then delete the "runtest baseline failures" memory.</dd></dl></div></details>
+
+<details class="item" id="P0-2" data-sev="crit"><summary><input type="checkbox" aria-label="Done"><span class="iid">P0-2</span><span class="ititle">Shorten the 600-frame surface test and the 10k presentation test</span><span class="imeta"><span class="chip crit">critical</span><span class="tag">XS</span></span></summary><div class="ibody"><dl>
+<dt>Evidence</dt><dd><code>test_ogpu_metal_surface.exe</code> 311 s (600 frames, ~0.5 s per drawable); <code>test_metal_presentation_10k</code> 87 s.</dd>
+<dt>Do</dt><dd>Default: frames 1, 2, 60 plus one resize; frame count from an env var; long runs and <code>sdl3_stress</code> under <code>@qualification</code>.</dd>
+<dt>Verify</dt><dd><code>time dune runtest --force</code> ≈ 110 s or less.</dd></dl></div></details>
+
+<details class="item" id="P0-3" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">P0-3</span><span class="ititle"><code>PRISMEL_MAX_FRAMES</code> in <code>Sketch</code>; one <code>@smoke</code> alias</span><span class="imeta"><span class="chip high">high</span><span class="tag">S</span><span class="tag">−180 lines</span></span></summary><div class="ibody"><dl>
+<dt>Evidence</dt><dd>23 examples carry a <code>frames_left</code> counter set to <code>None</code>; <code>?max_frames</code> exists (<code>sketch.mli:26</code>) but is never passed. AGENTS.md runs a nonexistent <code>examples/canvas</code>.</dd>
+<dt>Do</dt><dd><code>Sketch</code> reads <code>PRISMEL_MAX_FRAMES</code> once as the default; delete the counters; <code>@smoke</code> runs every example and sketch at 30 frames. Optional <code>Sketch.cli</code> for shared <code>--export/--domains</code> flags.</dd>
+<dt>Verify</dt><dd><code>dune build @smoke</code> exits 0 (expect <code>particles</code> and <code>audio</code> to surface first).</dd></dl></div></details>
+
+<details class="item" id="P0-4" data-sev="crit"><summary><input type="checkbox" aria-label="Done"><span class="iid">P0-4</span><span class="ititle">One test runner executable per directory</span><span class="imeta"><span class="chip crit">critical</span><span class="tag">M</span></span></summary><div class="ibody"><dl>
+<dt>Evidence</dt><dd>604 test executables, 4.9 GB. A <code>scene.ml</code> body edit relinks 272 (40.8 s); <code>@lib/pdk/runtest</code> 75.6 s vs 3.5 s for one test.</dd>
+<dt>Do</dt><dd><code>let () =</code> → <code>let run () =</code>; one <code>main.ml</code> with a name table; per-test aliases via <code>(run %{exe:main.exe} x)</code>. Order: pdk (group by future sublibrary, see K2) → lib/metal → rest. <code>tools/metal</code> is skipped: M3 deletes it.</dd>
+<dt>Verify</dt><dd>After a content edit to <code>lib/pdk/geometry.ml</code>, <code>@lib/pdk/runtest</code> &lt; 20 s.</dd></dl></div></details>
+
+<details class="item" id="P0-5" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">P0-5</span><span class="ititle">Metal tooling built only on request until M3 removes it</span><span class="imeta"><span class="chip high">high</span><span class="tag">XS</span></span></summary><div class="ibody"><dl>
+<dt>Evidence</dt><dd>About 80% of test time is Metal binding and migration work (tools/metal 444 s, lib/metal 397 s, ogpu_metal 361 s summed).</dd>
+<dt>Do</dt><dd><code>(enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))</code> on <code>tools/metal</code> and the heavy <code>lib/metal</code> test stanzas. Temporary; M3 deletes <code>tools/metal</code>.</dd></dl></div></details>
+
+<details class="item" id="P0-6" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">P0-6</span><span class="ititle">Bookkeeping gates become <code>dune promote</code>; delete the rate ledger rule</span><span class="imeta"><span class="chip high">high</span><span class="tag">S</span></span></summary><div class="ibody"><dl>
+<dt>Do</dt><dd><ul><li><code>api_stable.json</code>: generated into <code>_build</code> and compared with <code>(diff …)</code>; fixing it is <code>dune promote</code>.</li><li>Delete the per-commit <code>metal_progress_rate.md</code> rule and file.</li><li>Authority hashes run in <code>@qualification</code> only.</li></ul></dd>
+<dt>Verify</dt><dd>Change a public <code>.mli</code>; <code>dune runtest</code> shows a diff; <code>dune promote</code> makes it green.</dd></dl></div></details>
+
+<details class="item" id="P0-7" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">P0-7</span><span class="ititle">Delete NEW_GPU_STUFF.md, migration tooling and evidence; clear the repo root</span><span class="imeta"><span class="chip high">high</span><span class="tag">S</span><span class="tag">−12k lines</span></span></summary><div class="ibody"><dl>
+<dt>Do</dt><dd><ul>
+<li>Delete <code>NEW_GPU_STUFF.md</code> and <code>tools/gpu_migration</code> (its <code>phase1_evidence.ml</code> reads the plan). Remove references in <code>AGENTS.md</code>, <code>README.md</code>, <code>specification/backend.md</code>, <code>specification/project.md</code>, <code>tools/metal/binding_global_audit.md</code>.</li>
+<li>Delete <code>specification/evidence/gpu_migration*</code> (104 files, 980 KB). Git history keeps them. If you want one record, tag the commit before deletion.</li>
+<li>After R10 closes: delete <code>tools/r10_performance</code>, runtime benchmark/stability tools, <code>phase5_metal_local_qualification</code>; keep one frame benchmark (<code>tools/bench_frame</code>) that P3 uses.</li>
+<li>Move <code>OPT2.md</code>, <code>OPTIMIZATION_PLAN.md</code> into <code>specification/plans/</code> or delete; delete <code>PLAN.md</code> when the leader/presets work lands; delete empty <code>bin/</code>; keep one of <code>reports/</code>/<code>research_notes/</code>.</li>
+<li>Default sketch output to <code>_out/</code>. Fix <code>tools/packaging/dune:28</code> (<code>source_tree</code> of a nonexistent <code>lib/runtime_next</code>). Drop unused <code>ctypes</code>, <code>ctypes-foreign</code>, <code>utop</code>. Replace the three <code>tools/bench_*.sh</code> with dune rules.</li></ul></dd></dl></div></details>
+
+<details class="item" id="P0-8" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">P0-8</span><span class="ititle">AGENTS.md to ~150 lines; nested AGENTS.md per subsystem with the new architecture rules</span><span class="imeta"><span class="chip high">high</span><span class="tag">S</span><span class="tag">−500 lines</span></span></summary><div class="ibody"><dl>
+<dt>Do</dt><dd>Root keeps cross-cutting rules (outline in <a href="#agents">Agent rules and skills</a>). Nested files: <code>lib/metal/AGENTS.md</code> (registry rules), <code>lib/ogpu/AGENTS.md</code> (OGPU contract), <code>lib/pdk/AGENTS.md</code> (geometry core, Boolean, style guide, performance), <code>lib/sketch_ui/AGENTS.md</code> (editor layering and UX rules), <code>lib/sop_catalog/AGENTS.md</code> (PPX registration). Remove stale text: "older multi-target guidance", duplicate LRU bullet, raster wording, <code>Low.App</code>, NEW_GPU_STUFF authority, the rate ledger, the Metal whole-SDK mandate.</dd>
+<dt>Verify</dt><dd><code>wc -w AGENTS.md</code> &lt; 1,500; every command in it terminates.</dd></dl></div></details>
+
+<details class="item" id="P0-9" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">P0-9</span><span class="ititle">One dependency gate over the real, transitive graph, with token scans</span><span class="imeta"><span class="chip high">high</span><span class="tag">S</span><span class="tag">−180 lines</span></span></summary><div class="ibody"><dl>
+<dt>Evidence</dt><dd>The GPU checker keys on the unused <code>runtime</code> facade; real libraries fall through to "no rules"; it forbids <code>runtime→ogpu</code>, which the target requires. The other checker matches exact strings. Unchecked violations today: <code>prismel_next_resources→sdl3*</code>, <code>prismel/time.ml→Sdl3</code>, orchestrator→<code>metal</code>, pathtracer→<code>metal</code>, <code>pxui→scene_command</code>/<code>Image.Private</code>.</dd>
+<dt>Do</dt><dd>~100 lines: read all <code>lib/*/dune</code>, compute the transitive closure, check one allowed-edge table (the <a href="#arch-graph">library graph</a>). Token scans: <code>Metal.</code>/<code>Ogpu_metal.</code> outside <code>lib/metal</code> and <code>lib/ogpu_metal</code>; <code>KeyPressed</code> matches outside <code>editor</code>/<code>pxui</code>. Known violations are listed as commented exceptions until their plan item removes them. Injected-violation fixtures prove each rule fires.</dd></dl></div></details>
+
+<details class="item" id="P0-10" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">P0-10</span><span class="ititle">Project skills for the recurring loops</span><span class="imeta"><span class="chip med">medium</span><span class="tag">S</span></span></summary><div class="ibody"><dl>
+<dt>Do</dt><dd>Add <code>focused-test</code>, <code>smoke</code>, <code>promote-manifests</code>, <code>add-sop</code>, <code>add-pdk-op</code>, <code>add-metal-binding</code>, <code>add-ogpu-feature</code> under <code>.claude/skills/</code>. Content in <a href="#agents">Agent rules and skills</a>. Land each with the workstream it serves.</dd></dl></div></details>
+
+    </div>
+  </div>
+
+  <!-- P1 -->
+  <div class="phase" id="p1">
+    <div class="phase-head"><h3>P1 · Fix user-visible bugs</h3><span class="progress" data-phase="P1"></span></div>
+    <p class="small">Small and independent; each ships with a regression test.</p>
+    <div class="items">
+
+<details class="item" id="P1-1" data-sev="crit"><summary><input type="checkbox" aria-label="Done"><span class="iid">P1-1</span><span class="ititle">Arrow keys: runtime emits <code>Input.key</code> directly</span><span class="imeta"><span class="chip crit">critical</span><span class="tag">XS</span><span class="tag">−30 lines</span></span></summary><div class="ibody"><dl>
+<dt>Where</dt><dd><code>lib/prismel/event.ml:8-18</code>, <code>runtime_next_input_sdl3.ml:21-22</code></dd>
+<dt>Do</dt><dd>Translate scancode → <code>Input.key</code> once in the runtime and delete both string tables.</dd>
+<dt>Verify</dt><dd>A raw arrow scancode reaches <code>KeyPressed ArrowUp</code>; PXUI menu keyboard test.</dd></dl></div></details>
+
+<details class="item" id="P1-2" data-sev="crit"><summary><input type="checkbox" aria-label="Done"><span class="iid">P1-2</span><span class="ititle">Audio: open the default playback device; correct <code>is_playing</code></span><span class="imeta"><span class="chip crit">critical</span><span class="tag">XS</span></span></summary><div class="ibody"><dl>
+<dt>Do</dt><dd><code>Mixer.create_device ()</code>; drop the inert <code>?frequency</code>/<code>?chunk_size</code>; remove finished channels via <code>Channels.playing</code>; no hard-coded 32 in <code>stop_all</code>.</dd>
+<dt>Verify</dt><dd>Native test: device open, generated tone plays then stops; <code>examples/audio</code> audible.</dd></dl></div></details>
+
+<details class="item" id="P1-3" data-sev="crit"><summary><input type="checkbox" aria-label="Done"><span class="iid">P1-3</span><span class="ititle">Float wheel and pointer positions end to end</span><span class="imeta"><span class="chip crit">critical</span><span class="tag">S</span></span></summary><div class="ibody"><dl>
+<dt>Do</dt><dd><code>MouseScrolled of float * float</code> and float positions in <code>Event</code>/<code>Frame</code>; update <code>easy_camera.ml:541</code>, <code>ui.ml:618</code>, <code>specification/api.md</code>; <code>dune promote</code> the manifest.</dd>
+<dt>Verify</dt><dd>Wheel (0.3, 0.) arrives as 0.3; camera zoom changes on sub-unit deltas.</dd></dl></div></details>
+
+<details class="item" id="P1-4" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">P1-4</span><span class="ititle">File drop: full path, no I/O in the pump, never abort the batch</span><span class="imeta"><span class="chip high">high</span><span class="tag">XS</span><span class="tag">−25 lines</span></span></summary><div class="ibody"><dl><dd>Carry the path only; remove the error path from <code>pump</code> (<code>runtime_next_input_sdl3.ml:67-77</code>).</dd></dl></div></details>
+
+<details class="item" id="P1-5" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">P1-5</span><span class="ititle">Fonts: real metrics, working alignment, cheap measuring, surfaced errors</span><span class="imeta"><span class="chip high">high</span><span class="tag">S</span></span></summary><div class="ibody"><dl><dd><ul>
+<li>Wire metrics/family/style/fixed-width to <code>Sdl3_ttf</code>, or delete them; same for <code>load_dpi</code>, <code>Shaded</code>, <code>Solid</code>.</li>
+<li>Honour <code>align</code>; <code>text_size</code> → <code>size_text</code>; wrapping → <code>size_text_wrapped</code>.</li>
+<li><code>Scene.text</code> replaces invalid UTF-8 instead of raising; setters return errors.</li></ul></dd><dt>Verify</dt><dd>Centered vs left text produce different captured bounds; <code>text_size</code> allocates no image.</dd></dl></div></details>
+
+<details class="item" id="P1-6" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">P1-6</span><span class="ititle">Event coalescer per event type</span><span class="imeta"><span class="chip med">medium</span><span class="tag">XS</span></span></summary><div class="ibody"><dl><dd>Keep the last of each of <code>0x205..0x208</code> separately (<code>sdl3.ml:1272-1310</code>). Test: Resized then PixelSizeChanged yields both.</dd></dl></div></details>
+
+<details class="item" id="P1-7" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">P1-7</span><span class="ititle">SOP catalog: one set of defaults; no hidden parameters</span><span class="imeta"><span class="chip med">medium</span><span class="tag">S</span></span></summary><div class="ibody"><dl><dd>Mountain (1939-1960), Attribute_noise_quaternion (3076), Point_jitter (3121), Boolean_fracture (3161): shared default record; captured group/attribute/owner arguments move into the schema. S1 removes this class of bug structurally.</dd></dl></div></details>
+
+<details class="item" id="P1-8" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">P1-8</span><span class="ititle">Release queues never silently leak when full</span><span class="imeta"><span class="chip med">medium</span><span class="tag">XS</span></span></summary><div class="ibody"><dl><dd>Metal bridge queue (65,536) and SDL release queue (1,024): grow, or drain synchronously on the main domain when full.</dd></dl></div></details>
+
+<details class="item" id="P1-9" data-sev="low"><summary><input type="checkbox" aria-label="Done"><span class="iid">P1-9</span><span class="ititle">SDL3 version pin accepts patch releases</span><span class="imeta"><span class="chip low">low</span><span class="tag">XS</span></span></summary><div class="ibody"><dl><dd><code>generated_abi.h:7</code> and conf opam <code>--exact-version=3.4.14</code> → minimum version plus the existing layout asserts.</dd></dl></div></details>
+
+    </div>
+  </div>
+
+  <!-- P2 -->
+  <div class="phase" id="p2">
+    <div class="phase-head"><h3>P2 · Pure deletions</h3><span class="progress" data-phase="P2"></span></div>
+    <p class="small">Dead or unreachable code; no behaviour change. Gate: <code>dune build @all &amp;&amp; dune runtest</code> green.</p>
+    <div class="items">
+
+<details class="item" id="P2-1" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">P2-1</span><span class="ititle">Unreachable legacy CDT and its no-op options</span><span class="imeta"><span class="chip high">high</span><span class="tag">XS</span><span class="tag">−790 lines</span></span></summary><div class="ibody"><dl><dt>Evidence</dt><dd>Fallback at <code>boolean_face_cdt.ml:1045</code> matches a message <code>planar_cdt.ml</code> never produces (verified). <code>build_legacy</code>, <code>Edge_table/Ordered_keys/Key_heap</code>, <code>?point_location</code>, <code>?constraint_recovery</code> are dead; the test and bench compare identical code.</dd><dt>Do</dt><dd>Delete, including the <code>boolean_kernel.mli</code> copies and vacuous test/bench cases.</dd></dl></div></details>
+
+<details class="item" id="P2-2" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">P2-2</span><span class="ititle"><code>Boolean_coincident</code> (duplicate of <code>Boolean_complex</code> grouping)</span><span class="imeta"><span class="chip high">high</span><span class="tag">XS</span><span class="tag">−320 lines</span></span></summary><div class="ibody"><dl><dd>Only its own test and a re-export use it.</dd></dl></div></details>
+
+<details class="item" id="P2-3" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">P2-3</span><span class="ititle">23 unbuilt render smokes → one table-driven parity test</span><span class="imeta"><span class="chip high">high</span><span class="tag">S</span><span class="tag">−3,000 lines</span></span></summary><div class="ibody"><dl><dd><code>grep -c render_smoke test/dune</code> = 0 (verified). Replace with <code>test/sop_render_parity.ml</code>: rows of <code>(name, graph, check)</code>, cook on 1 and 4 domains, export, compare bytes. In <code>@runtest-native</code>.</dd></dl></div></details>
+
+<details class="item" id="P2-4" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">P2-4</span><span class="ititle">Delete <code>Prismel.Low</code> and <code>prismel_low_core</code></span><span class="imeta"><span class="chip high">high</span><span class="tag">XS</span><span class="tag">−820 lines</span></span></summary><div class="ibody"><dl><dd>Zero callers; global-ref design. Also delete <code>LOW_COMPATIBILITY.md</code>; update <code>specification/api.md</code>, <code>graphics.md</code>, <code>window.md</code>, <code>project.md</code>, <code>README.md</code>, <code>tools/packaging/dune</code>.</dd></dl></div></details>
+
+<details class="item" id="P2-5" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">P2-5</span><span class="ititle">Render stack dead surface</span><span class="imeta"><span class="chip med">medium</span><span class="tag">S</span><span class="tag">−500 lines</span></span></summary><div class="ibody"><dl><dd><ul>
+<li><code>Scene2_command</code> (second 2D IR, test-only).</li>
+<li>Coordinator's own event queue, clock and input facts (<code>prismel_next_execution.ml:1040-1080</code>).</li>
+<li>Unused <code>runtime</code> facade; <code>prismel_next_api</code> (rewrite 14 users to <code>Prismel</code>).</li>
+<li><code>Preview</code>, <code>Runtime_diagnostics.snapshot/native_release_queue</code>, <code>run</code>, <code>*_cache_entries</code>, dead <code>Private</code> accessors, <code>Phase_profile</code>, <code>handle_window_event</code>, <code>Sdl3.Event.mouse_delta</code>, <code>Prismel_next_resources.Font.render_cached</code>.</li></ul></dd></dl></div></details>
+
+<details class="item" id="P2-6" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">P2-6</span><span class="ititle">Boolean test-only switches and dead exports</span><span class="imeta"><span class="chip med">medium</span><span class="tag">S</span><span class="tag">−700 lines</span></span></summary><div class="ibody"><dl><dd><code>broad_phase</code> variants, <code>?axis_fast_path</code>, <code>?component_index</code>; ~30 <code>Implicit_point</code> reference/arena variants (keep one dyadic reference in tests); dead exports in <code>Boolean_solid</code>, <code>Boolean_materialization</code>, <code>Boolean_refinement</code>, <code>Boolean_weiler</code>, <code>Boolean_constraints</code>, <code>approximate_point</code> ×4.</dd></dl></div></details>
+
+<details class="item" id="P2-7" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">P2-7</span><span class="ititle">PDK dead exports; move the stray bench</span><span class="imeta"><span class="chip med">medium</span><span class="tag">XS</span><span class="tag">−140 lines</span></span></summary><div class="ibody"><dl><dd><code>Analysis.primitive_*</code>, <code>with_primitive_area</code>, <code>Edge_group.replicate_offsets</code>, <code>Planar_refinement.point_generation/generation_count/limit_reached</code>, <code>Attribute.key_owner</code>. <code>lib/pdk/bench_pdk.ml</code> → <code>tools/bench_pdk_ops.ml</code>.</dd></dl></div></details>
+
+<details class="item" id="P2-8" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">P2-8</span><span class="ititle">UI dead public surface</span><span class="imeta"><span class="chip med">medium</span><span class="tag">S</span><span class="tag">−175 lines</span></span></summary><div class="ibody"><dl><dd><code>Camera_control</code>/<code>Camera2_control</code> <code>panel/overlay</code>, <code>camera_area</code>, <code>fitted_panel</code>, the arg-ignoring <code>save</code>, <code>render_request.factor</code>, <code>Timeline.shortcuts</code> family, <code>Reactive_sop.submit/submit_context/cancel/gate/clean</code>, <code>translation_key</code> ×2, <code>Node_inspector.graph_widgets/reset</code>.</dd></dl></div></details>
+
+<details class="item" id="P2-9" data-sev="low"><summary><input type="checkbox" aria-label="Done"><span class="iid">P2-9</span><span class="ititle">Unused SDL3 binding surface</span><span class="imeta"><span class="chip low">low</span><span class="tag">S</span><span class="tag">−600 lines</span></span></summary><div class="ibody"><dl><dd>233 exported, 86 used. Delete <code>Display</code>, <code>Event.poll_all/wait/mouse_delta</code>, image <code>Retained/decode_*</code>, most mixer <code>Track</code>, four <code>Version.*</code> copies. Wire instead: <code>Clipboard</code> (PXUI copy/paste), <code>Text_input.set_area</code> (IME), <code>Cursor</code> (splitters).</dd></dl></div></details>
+
+<details class="item" id="P2-10" data-sev="low"><summary><input type="checkbox" aria-label="Done"><span class="iid">P2-10</span><span class="ititle">Harness code out of sketches</span><span class="imeta"><span class="chip low">low</span><span class="tag">XS</span><span class="tag">−300 lines</span></span></summary><div class="ibody"><dl><dd><code>sketches/shattered_cube/main.ml:1-180</code> and <code>r11_native.ml</code> are an acceptance harness; delete with the migration tooling (P0-7) or move to the frame benchmark. <code>examples/voxel_wall</code> → <code>sketches/</code>.</dd></dl></div></details>
+
+    </div>
+  </div>
+
+  <!-- P3 -->
+  <div class="phase" id="p3">
+    <div class="phase-head"><h3>P3 · Frame performance</h3><span class="progress" data-phase="P3"></span></div>
+    <div class="callout"><p><b>Root cause.</b> Scene lowering builds fresh, content-identical arrays every frame, and nothing carries identity, so four layers rediscover "unchanged" by hashing or comparing whole-scene content.</p>
+    <p class="small">Protocol: frame benchmark, <code>bench_instances</code>, <code>bench_pxui</code>, <code>bench_pxui_graph</code> before and after; record p50/p95, bytes/frame, and a 1-domain vs N-domain framebuffer comparison. Target: p95 ≤ 16.67 ms at scale 1 and 2. P3-1…P3-3 touch <code>scene_execution</code>/<code>scene</code> code that survives the OGPU rework; per-draw OGPU validation is fixed by G4 instead.</p></div>
+    <div class="items">
+
+<details class="item" id="P3-1" data-sev="crit"><summary><input type="checkbox" aria-label="Done"><span class="iid">P3-1</span><span class="ititle">Per-frame uniform ring replaces the 65,536-entry list cache</span><span class="imeta"><span class="chip crit">critical</span><span class="tag">M</span><span class="tag">−80 lines</span></span></summary><div class="ibody"><dl><dt>Evidence</dt><dd><code>scene_execution.ml:287-358</code> (capacity verified): linear <code>Bytes.equal</code> scan, second reuse pass, <code>List.filter</code> move-to-front, a GPU buffer per miss.</dd><dt>Do</dt><dd>Triple-buffered, 256-byte aligned bump ring reset on completion; ≤ 4 KB uniforms via <code>set_bytes</code>. On OGPU encoders this becomes <code>Render_encoder.set_bytes</code> plus the ring.</dd></dl></div></details>
+
+<details class="item" id="P3-2" data-sev="crit"><summary><input type="checkbox" aria-label="Done"><span class="iid">P3-2</span><span class="ititle">Stable identity on Scene/Render_ir values; caches keyed by int identity</span><span class="imeta"><span class="chip crit">critical</span><span class="tag">L</span><span class="tag">−250 lines</span></span></summary><div class="ibody"><dl><dt>Evidence</dt><dd><code>scene.ml:425-445</code> structural compare; <code>prismel_next_execution.ml:763-800, 978-1034</code> list caches, whole-array <code>=</code>, sampling <code>Hashtbl.hash</code>; <code>scene_execution.ml:205-232,428,492,513</code> MD5 per draw per frame; <code>scene_attachment_pool.ml:44</code> <code>@</code> in lookup.</dd><dt>Do</dt><dd>Int id assigned at construction; int-keyed tables; content hash once at upload only for values without identity; delete admission-candidate lists.</dd><dt>Verify</dt><dd>Static scene: near-zero bytes/frame. One changing mesh among many: cost O(changed).</dd></dl></div></details>
+
+<details class="item" id="P3-3" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">P3-3</span><span class="ititle">One int-keyed LRU for every bounded cache</span><span class="imeta"><span class="chip high">high</span><span class="tag">S</span><span class="tag">−150 lines</span></span></summary><div class="ibody"><dl><dd>~50 lines (Hashtbl + intrusive list over arrays; count and byte capacity). Replaces three copies in <code>scene.ml</code>, lowering caches, seven in <code>prismel_next_execution</code>, the mesh cache, FIFO <code>Font.cached_text</code> (with <code>Marshal</code> keys), the automatic text cache, and <code>procedural/session.ml</code> mesh eviction.</dd></dl></div></details>
+
+<details class="item" id="P3-4" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">P3-4</span><span class="ititle">One pipeline family/blend type; array-indexed pipeline lookup</span><span class="imeta"><span class="chip high">high</span><span class="tag">S</span><span class="tag">−60 lines</span></span></summary><div class="ibody"><dl><dd>Three enum copies with four per-draw mappings; <code>List.find_opt</code> over 240 variants (<code>scene_execution.ml:960</code>); a 6-tuple repeated ~10× in <code>runtime_next.mli</code>. One type, a record, an array lookup. Folds naturally into G4.</dd></dl></div></details>
+
+<details class="item" id="P3-5" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">P3-5</span><span class="ititle">Canvas shares the window device and stays on the GPU</span><span class="imeta"><span class="chip high">high</span><span class="tag">M</span></span></summary><div class="ibody"><dl><dd>Each canvas creates a <code>Device.system_default</code> and backend, reads back per render, re-uploads when drawn; <code>set_pixel</code>/<code>draw_image</code> is a CPU blitter. Target: an <code>Ogpu.Texture</code> on the shared device, sampled directly; readback only for <code>capture</code>/<code>save_png</code>. Lands with G4.</dd></dl></div></details>
+
+<details class="item" id="P3-6" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">P3-6</span><span class="ititle">Smaller frame-path allocations</span><span class="imeta"><span class="chip med">medium</span><span class="tag">S</span></span></summary><div class="ibody"><dl><dd><ul>
+<li>Retina draw-list rebuild per frame (<code>runtime_next.ml:178-179</code>) → convert once at encode.</li>
+<li>Text bytes handed to <code>Image</code> without three further copies.</li>
+<li>pxui_graph: one scratch partition instead of list conversions (<code>pxui_graph.ml:1637-1641</code>); cached tile ids/detail strings; visibility once per frame.</li>
+<li>SDL events matched raw in the runtime (≈8 allocations per motion event today).</li></ul></dd></dl></div></details>
+
+<details class="item" id="P3-7" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">P3-7</span><span class="ititle">Geometry hot spots</span><span class="imeta"><span class="chip med">medium</span><span class="tag">M</span></span></summary><div class="ibody"><dl><dd><ul>
+<li><code>planar_refinement.ml:458-466, 552-564</code>: boxed Int64 tuple keys → int-keyed open addressing.</li>
+<li><code>boolean_cells.ml:283-317</code>: per-component 2D BVH or bbox reject; add a shatter scale case.</li>
+<li>Sort comparators rebuilding tuples (<code>boolean_materialization.ml:862</code>, <code>boolean_payload.ml:251</code>, <code>boolean_corner_payload.ml:556</code>) → precomputed int keys.</li>
+<li><code>convex_hull.ml:487-497</code> per-merge table; <code>planar_cdt.ml:934</code> per-strip table.</li>
+<li><code>remesh.ml:897-947</code> rebuilds geometry and topology each pass; needs a local-edit edge structure.</li></ul></dd></dl></div></details>
+
+<details class="item" id="P3-8" data-sev="low"><summary><input type="checkbox" aria-label="Done"><span class="iid">P3-8</span><span class="ititle">Optional: upstream flambda <code>-O3</code> release profile</span><span class="imeta"><span class="chip low">low</span><span class="tag">XS</span></span></summary><div class="ibody"><dl><dd>After P3-1…P3-3 land. Scratch switch with <code>ocaml-option-flambda</code>, <code>(ocamlopt_flags (:standard -O3 -unbox-closures))</code> in a <code>release</code> profile; run pdk and frame benches; adopt if outputs are byte-identical and gains are real. OxCaml is not on the plan.</dd></dl></div></details>
+
+    </div>
+  </div>
+
+  <!-- G -->
+  <div class="phase" id="wg">
+    <div class="phase-head"><h3>G · OGPU: full capability, path tracer on it</h3><span class="progress" data-phase="G"></span></div>
+    <p class="small">Design: <a href="#arch-ogpu">OGPU architecture</a>. About 43 agent-days total; the path tracer is on OGPU after G1–G3 (~11).</p>
+    <div class="items">
+
+<details class="item" id="G1" data-sev="crit"><summary><input type="checkbox" aria-label="Done"><span class="iid">G1</span><span class="ititle">Virtual-library split, <code>Caps</code>/<code>Error</code>, <code>ogpu_mock</code>, conformance scaffold, gate</span><span class="imeta"><span class="chip crit">critical</span><span class="tag">~3 d</span></span></summary><div class="ibody"><dl>
+<dt>Do</dt><dd><ul><li><code>ogpu</code> declares <code>virtual_modules</code>; <code>ogpu_metal</code> and <code>ogpu_mock</code> implement; <code>default_implementation ogpu_metal</code>.</li><li><code>Caps.feature</code> and <code>Error.Unsupported</code>; merge <code>Capabilities</code>/<code>Adapter</code>.</li><li>Delete the six dead modules (Frame_graph, Descriptor_arena, Transfer_ring, Instance, Device_lifecycle, Acceleration_pass) and the metadata-only <code>Native_pass</code>, <code>Submission</code>, <code>Query_pass</code>.</li><li><code>test/ogpu_conformance</code> skeleton linked against mock and Metal. Gate rules from <a href="#arch-graph">the graph</a>, with current leaks as listed exceptions.</li></ul></dd>
+<dt>Verify</dt><dd>Conformance runs on both backends; the gate fails on an injected <code>Metal.</code> reference in <code>lib/prismel</code>.</dd></dl></div></details>
+
+<details class="item" id="G2" data-sev="crit"><summary><input type="checkbox" aria-label="Done"><span class="iid">G2</span><span class="ititle">Core modules the path tracer needs</span><span class="imeta"><span class="chip crit">critical</span><span class="tag">~5 d</span></span></summary><div class="ibody"><dl>
+<dt>Do</dt><dd>Device, Buffer, Texture, Library (dune <code>metallib</code> rule; function constants), Compute pipeline and encoder, Queue, Command_buffer with non-blocking <code>status</code>/<code>completed_epoch</code>, Accel (triangle primitive + instance; sizes, build, refit). Conformance: buffer/texture round trip, exact compute output, ray-query hits returning primitive id and <code>t</code>, refit.</dd></dl></div></details>
+
+<details class="item" id="G3" data-sev="crit"><summary><input type="checkbox" aria-label="Done"><span class="iid">G3</span><span class="ititle">Path tracer on OGPU, sharing the runtime device</span><span class="imeta"><span class="chip crit">critical</span><span class="tag">~3 d</span></span></summary><div class="ibody"><dl>
+<dt>Evidence</dt><dd>117 <code>Metal.</code> refs; own device and queue (<code>:847-852</code>); blocking waits (<code>:827,1041,1050</code>); <code>Private.active_window_runtime</code> (<code>:879</code>); per-float <code>Bytes.create 4</code> in <code>add_f32</code> (<code>:566</code>).</dd>
+<dt>Do</dt><dd><ul><li><code>Prismel_next_execution.gpu : unit -&gt; Ogpu.Device.t * Ogpu.Queue.t</code> (window device, or lazily headless); <code>gpu_film_texture</code> returns <code>Ogpu.Texture.t</code>.</li><li>Shader → <code>pathtrace.metal</code> metallib; <code>INSTANCED</code> → function constant (one library, two pipelines).</li><li>Encoders with the same slots; two encoders in one command buffer; <code>status</code>-based poll; blocking only in <code>flush</code>/<code>replace_mesh</code>.</li><li><code>rgb</code> → <code>Color.t</code>, <code>camera</code> → <code>Camera.t</code>; PBR material and area lights stay local (Prismel's material is Phong).</li><li><code>add_f32</code> → <code>Buffer.add_int32_le</code>. Dune: no <code>metal</code>, no orchestrator.</li></ul></dd>
+<dt>Verify</dt><dd><code>examples/pathtracer</code> image byte-identical to before at a fixed seed and sample count; gate exception for the path tracer removed.</dd></dl></div></details>
+
+<details class="item" id="G4" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">G4</span><span class="ititle">Render path on encoders; runtime depends on <code>sdl3</code> + <code>ogpu</code> only</span><span class="imeta"><span class="chip high">high</span><span class="tag">~8 d</span></span></summary><div class="ibody"><dl>
+<dt>Do</dt><dd>Render and Blit encoders, Surface from <code>Native_layer_token</code>, sampler objects, <code>Argument</code>, ICB. Move <code>scene_execution</code> and runtime off <code>Backend</code>; retained-plan ICB caching into <code>scene_execution</code>; delete old <code>Backend</code>, description types (and their per-draw allocation) and every <code>ogpu_metal</code> <code>Private</code> leak; runtime <code>.mli</code>s expose no Metal type. Includes P3-4 and P3-5.</dd>
+<dt>Verify</dt><dd>Exact-pixel render conformance; frame benchmark no worse than after P3; gate has no remaining Metal exceptions.</dd></dl></div></details>
+
+<details class="item" id="G5" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">G5</span><span class="ititle">Advanced ray tracing</span><span class="imeta"><span class="chip med">medium</span><span class="tag">~6 d</span></span></summary><div class="ibody"><dl><dd>Motion acceleration structures, curves and bounding-box geometry, compaction and copy, intersection and visible function tables, instance masks and user ids. Conformance per feature. Then path-tracer upgrades: bindless materials, compaction, curve/sphere primitives, motion blur.</dd></dl></div></details>
+
+<details class="item" id="G6" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">G6</span><span class="ititle">Heaps, residency sets, fences, shared events, counters</span><span class="imeta"><span class="chip med">medium</span><span class="tag">~5 d</span></span></summary><div class="ibody"><dl><dd>Aliasing heaps, residency sets, intra-queue fences, shared events for async compute and CPU/GPU sync, timestamp and stage-boundary counters resolved into buffers.</dd></dl></div></details>
+
+<details class="item" id="G7" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">G7</span><span class="ititle">Mesh/object/tile shaders, imageblocks, dynamic libraries, binary archives, sparse textures, MetalFX</span><span class="imeta"><span class="chip med">medium</span><span class="tag">~13 d</span></span></summary><div class="ibody"><dl><dd>Mesh and tile pipelines and dispatch; dynamic libraries and binary archives on <code>Library</code>/<code>Pipeline</code>; sparse textures with tile mapping; a separately linked MetalFX binding (first registry addition via <code>add-metal-binding</code>) behind <code>Upscale</code>.</dd></dl></div></details>
+
+    </div>
+  </div>
+
+  <!-- M -->
+  <div class="phase" id="wm">
+    <div class="phase-head"><h3>M · Metal bindings from a registry</h3><span class="progress" data-phase="M"></span></div>
+    <p class="small">Design: <a href="#arch-metal">Metal registry</a>. Starts after G3, when only <code>ogpu_metal</code> and runtime consume Metal.</p>
+    <div class="items">
+
+<details class="item" id="M1" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">M1</span><span class="ititle">OGPU feature map and new generator in <code>lib/metal/gen</code></span><span class="imeta"><span class="chip high">high</span><span class="tag">~3 d</span></span></summary><div class="ibody"><dl><dd>A checked table <code>Caps.feature → Metal symbols</code>. <code>registry.ml</code> seeded from the surviving generated enums/records/selectors plus the feature map. New ~700-line generator emitting typed direct calls into <code>_build</code>; bridge compiled with <code>-Werror</code>; duplicate and unreferenced-entry checks.</dd></dl></div></details>
+
+<details class="item" id="M2" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">M2</span><span class="ititle">Trim the safe layer to current consumers ∪ feature map</span><span class="imeta"><span class="chip high">high</span><span class="tag">~3 d</span><span class="tag">−40k lines</span></span></summary><div class="ibody"><dl><dd>Trim <code>metal.mli</code>; warning 32 lists dead implementations in <code>metal.ml</code>; temporarily drop <code>metal_raw.mli</code> to surface unused externals; delete bridge functions without an external. The compile-driven trim is authoritative (grep misses <code>let open Metal.X in</code> uses such as <code>ogpu_metal/pipeline.ml:30</code>).</dd></dl></div></details>
+
+<details class="item" id="M3" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">M3</span><span class="ititle">Delete <code>tools/metal</code>, the inventory, classification and Metal evidence</span><span class="imeta"><span class="chip high">high</span><span class="tag">~1 d</span><span class="tag">−50k lines</span></span></summary><div class="ibody"><dl><dd><code>tools/metal</code> (1,033 files), <code>generated_api_inventory.json</code> (3.7 MB), <code>generated_provenance.ml</code>, <code>classification.ml</code>, the inventory check at <code>lib/metal/dune:736</code>, remaining Metal evidence. <code>lib/metal/dune</code> 1,590 → ~100 lines; tests keep a trimmed <code>test_metal.ml</code> plus stress and presentation tests. SDK minimum version checked in <code>discover.ml</code>. Rewrite <code>specification/metal.md</code>.</dd></dl></div></details>
+
+<details class="item" id="M4" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">M4</span><span class="ititle"><code>lib/metal/AGENTS.md</code> and the <code>add-metal-binding</code> skill</span><span class="imeta"><span class="chip med">medium</span><span class="tag">XS</span></span></summary><div class="ibody"><dl><dd>Text in <a href="#agents">Agent rules and skills</a>. Apply the same registry approach to the SDL3 bindings later if their 26k-line inventories keep causing churn.</dd></dl></div></details>
+
+    </div>
+  </div>
+
+  <!-- U -->
+  <div class="phase" id="wu">
+    <div class="phase-head"><h3>U · Editor stack under the sketch environment</h3><span class="progress" data-phase="U"></span></div>
+    <p class="small">Design: <a href="#arch-ui">Editor stack</a>. Each step keeps <code>test_ui_parity</code> and the <code>voxel_wall</code>/<code>shattered_cube</code> native smokes green.</p>
+    <div class="items">
+
+<details class="item" id="U0" data-sev="crit"><summary><input type="checkbox" aria-label="Done"><span class="iid">U0</span><span class="ititle">Before committing the leader/presets/fly work: four API fixes</span><span class="imeta"><span class="chip crit">critical</span><span class="tag">½ d</span></span></summary><div class="ibody"><dl><dd><ol style="margin:0;padding-left:18px"><li>Move <code>Camera_control.fly</code> into <code>Easy_camera.fly</code> (pure camera math).</li><li>Replace the <code>"camera"</code> string in <code>pxui_graph.ml:767</code> with a host <code>?flaggable</code> predicate; rename <code>Active_camera_changed</code> → <code>Flag_requested</code>.</li><li>Make <code>Leader</code> and <code>Workspace</code> private in <code>sketch_ui.mli</code>.</li><li>Add the <code>"prismel": 1</code> envelope to preset JSON so old files stay loadable after U8.</li></ol></dd></dl></div></details>
+
+<details class="item" id="U1" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">U1</span><span class="ititle">Create <code>editor</code>: History, Keymap, Router, Action, Focus</span><span class="imeta"><span class="chip high">high</span><span class="tag">~2 d</span></span></summary><div class="ibody"><dl><dd>Move <code>Pxui.Undo</code> into <code>Editor.History</code> (alias for one commit, then delete). Add merge rules. Move <code>Leader.step</code> and its tests into <code>Keymap</code>/<code>Router</code>. Pure unit tests only.</dd></dl></div></details>
+
+<details class="item" id="U2" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">U2</span><span class="ititle"><code>Ui.popup</code> replaces three dismiss copies</span><span class="imeta"><span class="chip med">medium</span><span class="tag">½ d</span></span></summary><div class="ibody"><dl><dd><code>ui.ml:1360</code>, <code>ui.ml:1787</code>, <code>pxui_graph.ml:1568</code> (which tests a computed height, not the laid-out rect). One search semantics (<code>Ui.fuzzy_match</code>) for the node menu and presets.</dd></dl></div></details>
+
+<details class="item" id="U3" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">U3</span><span class="ititle"><code>pxui_graph</code> exports bindings and commands; host routes keys</span><span class="imeta"><span class="chip high">high</span><span class="tag">1 d</span></span></summary><div class="ibody"><dl><dd>Keyboard handling at <code>pxui_graph.ml:1527-1543</code> becomes <code>Pxui_graph.bindings</code> + <code>copy_selection</code>, <code>delete_selection</code>, <code>frame_all</code>… Camera widget <code>h</code>/<code>c</code> keys and Cmd-Z/Y become bindings. The which-key panel now shows every key.</dd></dl></div></details>
+
+<details class="item" id="U4" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">U4</span><span class="ititle">Extract <code>Doc</code> and <code>Cook</code> from <code>Core</code></span><span class="imeta"><span class="chip high">high</span><span class="tag">1 d</span></span></summary><div class="ibody"><dl><dd>Pure moves: <code>instantiate</code>/<code>apply_editor_change</code> (<code>sketch_ui.ml:570-676</code>) → <code>Doc.apply</code>; compile/poll/schedule/framing (<code>:979-1057</code>) → <code>Cook</code>. Simplify framing: F frames the displayed node from cached bounds (−45 lines of scheduler).</dd></dl></div></details>
+
+<details class="item" id="U5" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">U5</span><span class="ititle">Panes return intents; remove every ref written in <code>Ui.frame</code></span><span class="imeta"><span class="chip high">high</span><span class="tag">2 d</span></span></summary><div class="ibody"><dl><dd>Timeline first (<code>Play | Stop | Reset | Seek</code>), then prompt (<code>Submit | Pick | Delete</code>), then the frame request; camera panel returns <code>'cam * intent list</code>. Change <code>Sketch.run_state ~after_present</code> to return the model (small Prismel API change) to remove <code>render_status</code>.</dd></dl></div></details>
+
+<details class="item" id="U6" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">U6</span><span class="ititle">Create <code>pxui_shell</code></span><span class="imeta"><span class="chip high">high</span><span class="tag">2 d</span></span></summary><div class="ibody"><dl><dd>Move <code>Workspace</code> (<code>:58-315</code>) → <code>Layout</code> + <code>Chrome</code>; <code>Leader.panel</code> → <code>Which_key</code>; prompt panel → <code>Prompt</code>; status → <code>Status_bar</code>; timeline bar → <code>Timeline_bar</code>; <code>Shell.frame</code>. Delete <code>pane_at</code> (pane root signals decide focus). Reconcile <code>default_layout</code> (0.42/0.33/0.25) with the documented 45/35/20.</dd></dl></div></details>
+
+<details class="item" id="U7" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">U7</span><span class="ititle">One <code>Environment</code>, parameterised by <code>Viewport3</code>/<code>Viewport2</code></span><span class="imeta"><span class="chip high">high</span><span class="tag">2 d</span><span class="tag">−250 lines</span></span></summary><div class="ibody"><dl><dd>Viewport record: <code>pane</code>, <code>navigate</code>, <code>panel</code>, <code>scene</code>, <code>on_doc</code>, <code>save_png</code>, <code>section</code>. Environment2 gains the features it lacks (<code>update_with</code>, <code>rerender</code>, <code>can_undo</code>) for free. Fly becomes the Router's <code>"fly"</code> mode.</dd></dl></div></details>
+
+<details class="item" id="U8" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">U8</span><span class="ititle">One persistence format: <code>Editor.Store</code></span><span class="imeta"><span class="chip med">medium</span><span class="tag">1 d</span></span></summary><div class="ibody"><dl><dd>Envelope with per-pane sections; atomic writes; <code>Pxui.Settings</code> → <code>Editor.Store.Settings</code> with a read-only <code>PXUI1</code> decoder. Replaces the two hand-written viewport JSON codecs. Fix the O(n²) lookups in <code>preset.ml:42,186</code>.</dd></dl></div></details>
+
+<details class="item" id="U9" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">U9</span><span class="ititle">Typed camera node accessors</span><span class="imeta"><span class="chip med">medium</span><span class="tag">½ d</span></span></summary><div class="ibody"><dl><dd><code>Sop_catalog.Camera.of_node</code> / <code>to_values</code> next to the record replace the string field reads (<code>sketch_ui.ml:1114-1188</code>) and the duplicated defaults; add the <code>sketch_ui → sop_catalog</code> edge.</dd></dl></div></details>
+
+    </div>
+  </div>
+
+  <!-- K -->
+  <div class="phase" id="wk">
+    <div class="phase-head"><h3>K · PDK split; geom absorbed and deleted</h3><span class="progress" data-phase="K"></span></div>
+    <p class="small">Design: <a href="#arch-pdk">PDK and geom</a>. Every step keeps pdk outputs byte-identical, with one-domain vs multi-domain comparisons.</p>
+    <div class="items">
+
+<details class="item" id="K1" data-sev="crit"><summary><input type="checkbox" aria-label="Done"><span class="iid">K1</span><span class="ititle">Extract <code>prismel_math</code>; pdk stops linking the GPU stack</span><span class="imeta"><span class="chip crit">critical</span><span class="tag">1–2 d</span></span></summary><div class="ibody"><dl><dd>Leaf library: Vec2/3, Mat4, Quat, Rand, Noise, Parallel, Bounds2/3 (from geom). <code>Prismel</code> re-exports, so public paths don't change. pdk depends on it; <code>color_by_height</code> takes RGBA floats; <code>Kernel.transform</code> takes <code>Prismel_math.Mat4</code>; <code>prismel_mesh</code> moves to <code>pdk_prismel</code>. Gate asserts pdk no longer reaches <code>prismel</code>.</dd></dl></div></details>
+
+<details class="item" id="K2" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">K2</span><span class="ititle">PDK tests: one runner per future sublibrary</span><span class="imeta"><span class="chip high">high</span><span class="tag">1 d</span></span></summary><div class="ibody"><dl><dd>The 123 pdk test executables become ~9 runners (this is the pdk part of P0-4). Same assertions pass.</dd></dl></div></details>
+
+<details class="item" id="K3" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">K3</span><span class="ititle">Carve <code>ops.ml</code> into family modules, one family per commit</span><span class="imeta"><span class="chip high">high</span><span class="tag">~5 d</span><span class="tag">−1,500 lines</span></span></summary><div class="ibody"><dl><dd>Start with <code>Edge_collapse</code>, <code>Deletion</code>, <code>Dissolve</code> and repoint <code>boolean_materialization</code> (removes the only upward reference). Introduce <code>Error.guard</code>; delete the <code>_raw</code>/<code>detailed</code>/<code>protected</code> doubles as each family adopts it. Delete <code>poly_extrude_legacy</code> after an equivalence regression. <code>Ops</code> keeps aliases (<code>let box = Box.make</code>) so callers compile throughout.</dd></dl></div></details>
+
+<details class="item" id="K4" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">K4</span><span class="ititle">Carve <code>attribute_ops.ml</code></span><span class="imeta"><span class="chip high">high</span><span class="tag">~2 d</span><span class="tag">−300 lines</span></span></summary><div class="ibody"><dl><dd><code>Relation</code> into core; <code>Attribute_promote</code>, <code>Attribute_enumerate</code>, <code>Attribute_blur</code>, <code>Attribute_transfer ~owner</code>; delete thin wrappers and re-exports.</dd></dl></div></details>
+
+<details class="item" id="K5" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">K5</span><span class="ititle">Shared primitives; one remap, one face normal</span><span class="imeta"><span class="chip high">high</span><span class="tag">~4 d</span><span class="tag">−1,800 lines</span></span></summary><div class="ibody"><dl><dd><ul>
+<li><code>Topology_remap</code> with owner-map and drop-list replaces <code>select_array</code> ×7, <code>remap_attribute</code> ×12, <code>remap_group</code> ×10, <code>remap_edge_groups</code> ×7, interpolate ×3. Normal policy (orientation-aware) lives here only.</li>
+<li><code>Face_normals.compute</code> + <code>polygon_area_vector</code> replace ~20 inline cross-product passes.</li>
+<li><code>Bounds3_index</code> for the three median-split trees; <code>Disjoint_set</code> for 15 union-finds; <code>Int_pair_table</code>, <code>String_index</code>; the edge table exposed from <code>Topology_index</code>; one <code>Util</code> (<code>finite</code> ×31, <code>get_ok</code> ×14, <code>run_ranges</code> ×5, <code>ceiling_div</code> ×5, growable buffers ×7).</li>
+<li>One rotation-order and one orientation enum for generators; <code>poly_fill</code> uses <code>Polygon_triangulation</code>.</li></ul></dd></dl></div></details>
+
+<details class="item" id="K6" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">K6</span><span class="ititle">Move modules into sublibraries, bottom-up, behind the <code>Pdk</code> facade</span><span class="imeta"><span class="chip high">high</span><span class="tag">~3 d</span></span></summary><div class="ibody"><dl><dd>Order: core, exact, spatial, attrib, gen/curve, mesh, boolean, io. Add <code>.mli</code> to the 31 modules without one as they move. Sublibrary edges (allowed and injected-forbidden) join the gate. Update <code>specification/pdk.md</code> and the new <code>lib/pdk/AGENTS.md</code> with the style guide.</dd></dl></div></details>
+
+<details class="item" id="K7" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">K7</span><span class="ititle">Port geom's missing features into pdk, verified against fixtures</span><span class="imeta"><span class="chip high">high</span><span class="tag">~6 d</span><span class="tag">+2.4k ported</span></span></summary><div class="ibody"><dl><dd>Before deleting anything, capture geom's current outputs (points, indices, ordering) as fixtures. Port: Butterfly and Doo-Sabin subdivision; <code>Iso_surface</code>; manifold report, T-junction repair and consistent orientation; <code>pdk.io</code> STL/OFF/OBJ; Voronoi cells; Bézier and Catmull-Rom curves. Each port adds malformed-input, cancellation, cardinality and one-domain vs multi-domain tests, and a bench file for high-density paths (<code>bench_pdk_iso</code>, <code>bench_pdk_subdivide</code>).</dd></dl></div></details>
+
+<details class="item" id="K8" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">K8</span><span class="ititle">Geom examples become gallery entries on pdk</span><span class="imeta"><span class="chip med">medium</span><span class="tag">~2 d</span></span></summary><div class="ibody"><dl><dd>The 7 <code>examples/geom_*</code> become rows in <code>examples/sop_gallery</code> (S4): <code>geom_csg</code> → <code>Pdk.Boolean</code>, curves/meshes/subdivision/isosurface/voronoi → the ported ops; rose, superformula and star shapes live in the gallery. The Verlet physics example is dropped.</dd></dl></div></details>
+
+<details class="item" id="K9" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">K9</span><span class="ititle">Delete <code>lib/geom</code></span><span class="imeta"><span class="chip high">high</span><span class="tag">XS</span><span class="tag">−10.6k lines</span></span></summary><div class="ibody"><dl><dd><code>lib/geom</code>, <code>test/test_geom.ml</code>, <code>tools/bench_geom.ml</code>, <code>tools/bench_iso_stream.ml</code>, <code>specification/geom.md</code>, the geom line in the gate, and the AGENTS.md text describing geom as the ergonomic layer.</dd></dl></div></details>
+
+<details class="item" id="K10" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">K10</span><span class="ititle">Boolean internals: drop the hand-copied <code>Boolean_kernel.mli</code>; one declaration per enum</span><span class="imeta"><span class="chip med">medium</span><span class="tag">~2 d</span><span class="tag">−1,500 lines</span></span></summary><div class="ibody"><dl><dd>Stages exposed as hidden modules inside <code>pdk.boolean</code> instead of a 519-line copied signature; <code>side</code> ×4, <code>point_conflict</code> ×3, <code>operation/treatment</code> ×2, <code>detriangulation</code> ×2 declared once; <code>piece_attribute</code> → <code>Boolean_extract.piece_ids</code>; 10 stage benches merged into <code>bench_boolean_pipeline</code>.</dd></dl></div></details>
+
+<details class="item" id="K11" data-sev="low"><summary><input type="checkbox" aria-label="Done"><span class="iid">K11</span><span class="ititle">Optional: codemod <code>Pdk.Ops.*</code> to family modules and delete the shim</span><span class="imeta"><span class="chip low">low</span><span class="tag">~2 d</span><span class="tag">−780 lines</span></span></summary><div class="ibody"><dl><dd>A constructor-to-module table generated from the old type block drives a mechanical rewrite of 73 external files and 104 pdk test files; then delete <code>Ops</code>.</dd></dl></div></details>
+
+    </div>
+  </div>
+
+  <!-- S -->
+  <div class="phase" id="ws">
+    <div class="phase-head"><h3>S · Single source of truth elsewhere</h3><span class="progress" data-phase="S"></span></div>
+    <div class="items">
+
+<details class="item" id="S1" data-sev="high"><summary><input type="checkbox" aria-label="Done"><span class="iid">S1</span><span class="ititle">SOP parameters defined once: PPX generates factory, <code>create</code>, arity check and cache key</span><span class="imeta"><span class="chip high">high</span><span class="tag">L</span><span class="tag">−3,800 lines</span></span></summary><div class="ibody"><dl>
+<dt>Evidence</dt><dd>Parameters exist in <code>sop.ml</code> (955 lines of hand-built cache-key strings), <code>sop.mli</code> (2,547 lines) and <code>sop_catalog.ml</code> (160 records, 9,709 lines, 147 identical <code>build</code> blocks). The cache key is hand-written, so a missed field is a silent stale hit. <code>Procedural.Custom.node</code> exists for this and is used 0 times; 13 of 157 exported <code>create</code>s have external users.</dd>
+<dt>Do</dt><dd>Extend <code>sop_node</code> in <code>ppx/ppx_prismel</code> to emit <code>factory</code>, <code>create</code> and the input match from <code>[@@sop.node_inputs]</code> (~25 lines per node); derive the cache key from schema values; drop unused <code>create</code>s from the <code>.mli</code>.</dd>
+<dt>Verify</dt><dd>Existing catalog tests plus: changing any schema field changes the cache key.</dd></dl></div></details>
+
+<details class="item" id="S2" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">S2</span><span class="ititle">Procedural duplicate nodes and hidden graph cache</span><span class="imeta"><span class="chip med">medium</span><span class="tag">S</span><span class="tag">−400 lines</span></span></summary><div class="ibody"><dl><dd>Keep one of each pair: <code>rename_attribute(s)</code>, <code>delete_attribute(s)</code>, <code>promote_attribute(s)</code>, <code>rename_group/group_rename</code>, <code>bound/bounding_box</code>, <code>group_promote/group_promotions</code>. Move the <code>Domain.DLS</code> inspection cache (<code>graph.ml:37-75</code>) into <code>Session</code>. <code>Graph.apply_parameters</code> via <code>Edit_graph</code>.</dd></dl></div></details>
+
+<details class="item" id="S3" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">S3</span><span class="ititle">Render stack: fold the orchestrator; drop <code>_next</code> names; SDL services behind runtime</span><span class="imeta"><span class="chip med">medium</span><span class="tag">M</span><span class="tag">−300 lines</span></span></summary><div class="ibody"><dl><dd>Fold <code>Runtime_next_orchestrator</code> into runtime (one stats record instead of four). Rename <code>runtime_next*</code> → <code>runtime</code>, <code>prismel_next_*</code> → Prismel-internal names. PXUI uses a public <code>Image.upload_rgba</code> instead of <code>Image.Private</code>; drop <code>pxui→scene_command</code>. Image/ttf/mixer services behind runtime; <code>prismel/time.ml</code> uses <code>Unix.sleepf</code>.</dd></dl></div></details>
+
+<details class="item" id="S4" data-sev="med"><summary><input type="checkbox" aria-label="Done"><span class="iid">S4</span><span class="ititle"><code>examples/sop_gallery</code> replaces 13 SOP examples and the geom examples</span><span class="imeta"><span class="chip med">medium</span><span class="tag">S</span><span class="tag">−1,300 lines</span></span></summary><div class="ibody"><dl><dd>One <code>Sketch_ui.Environment3</code> host with a table of graphs (attribute_laplacian, boolean, boolean_detect, circle_from_edges, convex_hull, extract_*, graph_color, intersection_analysis, measure_curvature, remesh, triangulate_2d, procedural_terrain, plus K8's rows). Keep two short teaching examples. Finite under <code>@smoke</code>.</dd></dl></div></details>
+
+<details class="item" id="S5" data-sev="low"><summary><input type="checkbox" aria-label="Done"><span class="iid">S5</span><span class="ititle">Tidy-ups</span><span class="imeta"><span class="chip low">low</span><span class="tag">S</span></span></summary><div class="ibody"><dl><dd><ul>
+<li><code>git mv lib/sketch lib/sketch_support</code>.</li>
+<li>pxui_graph: rebuild the edge BVH on drag release instead of the persistent treap (134-390); <code>Array.sort</code> for the hand-rolled heapsort. Benchmark with <code>bench_pxui_graph</code>.</li>
+<li><code>ocamlformat</code> over <code>metal.ml</code>, <code>ogpu_metal/backend.ml</code>, runtime and path tracer files (hundreds of lines over 200 chars).</li>
+<li><code>sketches/code_quadtree/packed_ink.ml</code>: promote into prismel or stop bypassing Scene; its test links raw <code>metal</code>.</li>
+<li>Finalizers: keep the custom-block finalizer; drop the OCaml <code>Gc.finalise</code> layer in <code>metal.ml</code> (part of M2).</li></ul></dd></dl></div></details>
+
+    </div>
+  </div>
+</section>
+
+<section id="harness">
+  <h2>Delivery harness</h2>
+  <h3>Measured today</h3>
+  <p class="small">M1, dune 3.24.2, <code>dev</code> profile. Content edits timed on a scratch copy (dune hashes contents, so <code>touch</code> alone rebuilds nothing).</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Loop step</th><th class="num">Wall</th><th>What happened</th></tr></thead>
+    <tbody>
+      <tr><td>No-op <code>dune build @all</code></td><td class="num">1.5–1.9 s</td><td></td></tr>
+      <tr><td>Leaf edit (<code>sketch_ui.ml</code>) → <code>@all</code></td><td class="num">3.4 s</td><td>8 actions, 4 links</td></tr>
+      <tr><td><code>prismel/scene.ml</code> body edit → <code>@all</code></td><td class="num">40.8 s</td><td>272 executables relinked</td></tr>
+      <tr><td><code>prismel/color.mli</code> edit → <code>@all</code></td><td class="num">80.3 s</td><td>16 compiles, 272 links</td></tr>
+      <tr><td><code>pdk/geometry.ml</code> body edit → <code>@all</code></td><td class="num">35.1 s</td><td>228 links</td></tr>
+      <tr><td><code>pdk/geometry.mli</code> → <code>@check</code> / <code>@all</code></td><td class="num">27.0 / 75.4 s</td><td>397 compiles</td></tr>
+      <tr><td><code>pdk</code> body edit → <code>@check</code></td><td class="num">8.7 s</td><td>no linking</td></tr>
+      <tr><td>One test</td><td class="num">3.5 s</td><td></td></tr>
+      <tr><td><code>@lib/pdk/runtest</code> after a pdk edit</td><td class="num">75.6 s</td><td>123 executables</td></tr>
+      <tr><td><code>dune runtest --force</code> (warm)</td><td class="num">422.9 s</td><td>exit 1; 612 processes</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Target tiers</h3>
+  <div class="tiers">
+    <div class="tier"><h4>Inner loop</h4><div><code>dune build @check</code>, then <code>dune build @lib/&lt;x&gt;/runtest</code> (one runner per directory or sublibrary).</div><div class="t">~10–25 s</div></div>
+    <div class="tier"><h4>Pre-commit</h4><div><code>dune build @all &amp;&amp; dune runtest &amp;&amp; dune build @smoke &amp;&amp; git diff --check</code>. Green on a clean checkout.</div><div class="t">&lt; 3 min</div></div>
+    <div class="tier"><h4>CI / nightly</h4><div><code>@doc</code>, <code>@runtest-native</code>, <code>@qualification</code> (long presentation, stress, authority hashes, OGPU conformance on hardware lanes).</div><div class="t">as needed</div></div>
+    <div class="tier"><h4>Release</h4><div>30-minute stability run, M3+ ray-tracing lane, sanitizers, clean install, license review. A short checklist in <code>specification/release.md</code> replaces NEW_GPU_STUFF.md.</div><div class="t">per release</div></div>
+  </div>
+  <h3>Gate verdicts</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Gate</th><th>Cost</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td><code>dune build @all</code></td><td>2–80 s</td><td><span class="chip ok">keep</span> pre-commit; <code>@check</code> in the inner loop</td></tr>
+      <tr><td><code>dune runtest</code></td><td>423 s, red</td><td><span class="chip high">split</span> green default + <code>@qualification</code></td></tr>
+      <tr><td>7× <code>dune exec examples/…</code></td><td>never exits</td><td><span class="chip high">replace</span> with <code>@smoke</code></td></tr>
+      <tr><td><code>api_manifest --check</code></td><td>manual rewrite</td><td><span class="chip med">keep</span> as diff + <code>dune promote</code></td></tr>
+      <tr><td>Metal generator/inventory checks</td><td>~175 processes</td><td><span class="chip crit">delete</span> with <code>tools/metal</code> (M3); the SDK compile is the check</td></tr>
+      <tr><td>47 NEW_GPU_STUFF gates, rate ledger</td><td>hours, extra commits</td><td><span class="chip crit">delete</span>; short release checklist</td></tr>
+      <tr><td>Dependency direction</td><td>&lt; 1 s</td><td><span class="chip ok">keep</span> after P0-9 makes it real</td></tr>
+      <tr><td>OGPU conformance (mock + Metal)</td><td>seconds</td><td><span class="chip ok">new</span> in <code>runtest</code> (mock) and <code>@runtest-native</code> (Metal)</td></tr>
+      <tr><td><code>test_ui_parity</code>, <code>git diff --check</code></td><td>small</td><td><span class="chip ok">keep</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="agents">
+  <h2>Agent rules and skills</h2>
+  <div class="cols">
+    <div class="card"><h4>Root AGENTS.md (~150 lines)</h4><ol style="margin:0;padding-left:18px;font-size:.9rem;display:grid;gap:4px">
+      <li>Purpose; native Metal today through OGPU, backend-agnostic by design (5)</li>
+      <li>Library table, one line each (25)</li>
+      <li>Dependency rules, generated from the gate's edge table (15)</li>
+      <li>Inner loop, pre-commit, smoke commands (10)</li>
+      <li>Public API: Sketch/Frame/Scene, immutable models, <code>on_stop</code>, no fake placeholders (20)</li>
+      <li>Determinism and initial-domain rule (10)</li>
+      <li>Performance summary (10)</li>
+      <li>PXUI one engine; UI code returns intents (10)</li>
+      <li>Pointers to nested files and <code>specification/</code> (10)</li></ol></div>
+    <div class="card"><h4>Nested AGENTS.md</h4><ul>
+      <li><code>lib/metal/</code>: registry rules (below).</li>
+      <li><code>lib/ogpu/</code>: Metal-modelled API; <code>Caps</code>-gate every non-baseline feature; typed <code>Unsupported</code>, never a silent no-op; no Metal above backends; every feature has conformance tests on all backends.</li>
+      <li><code>lib/pdk/</code>: single geometry core, sublibrary layering, style guide, Boolean exactness, performance contract.</li>
+      <li><code>lib/sketch_ui/</code>: editor layering, intents, keymap-only commands, one Store format, workspace UX rules.</li>
+      <li><code>lib/sop_catalog/</code>: PPX registration and optional ports.</li></ul></div>
+  </div>
+  <h3>lib/metal/AGENTS.md</h3>
+<pre># lib/metal rules
+Metal bindings exist only because ogpu_metal or runtime needs them.
+- Generated bindings come solely from gen/registry.ml (Enum, Record, Selector).
+  Every entry names the OGPU Caps.feature it serves. Nothing else is generated.
+- Outputs live in _build only. Never check in generated code, SDK dumps,
+  inventories or coverage ledgers.
+- The installed SDK is the oracle: typed direct calls compiled with -Werror, so
+  unknown selectors, wrong types and unguarded availability fail the build.
+- The generator fails on duplicate OCaml/C names and on any registry entry or
+  metal_raw external not referenced from metal.ml.
+- Every new safe Metal function lands with its first ogpu_metal call site and
+  one test in test_metal.ml.
+- Encoders with resources, descriptors, blocks, ownership transfer: handwritten
+  in metal_bridge.mm + metal_raw.ml. Do not grow the generator for them.
+- Delete bindings when their last consumer goes away.
+- Workflow: the add-metal-binding skill.</pre>
+  <h3>Project skills (<code>.claude/skills/</code>)</h3>
+  <div class="cols">
+    <div class="card"><h4>add-metal-binding</h4><ol style="margin:0;padding-left:18px;font-size:.88rem;display:grid;gap:3px">
+      <li>Name the <code>ogpu_metal</code> call site and <code>Caps.feature</code>. No call site, no binding.</li>
+      <li>Grep <code>gen/registry.ml</code> and <code>metal_raw.mli</code> first.</li>
+      <li>Plain enum, fixed struct, scalar-arg selector → registry entry (alphabetical; <code>since</code> if newer than the deployment target). Handles, blocks, descriptors, ownership → handwritten trampoline + external.</li>
+      <li>Safe wrapper in <code>metal.ml/.mli</code>: validate, typed <code>result</code>, no raw pointers.</li>
+      <li>Use it from <code>ogpu_metal</code> in the same change; one success and one rejection test.</li>
+      <li>Run <code>dune build @lib/metal/runtest @lib/ogpu_metal/runtest</code>, then <code>@all</code> and <code>git diff --check</code>. Clang error = wrong selector/type/availability.</li></ol></div>
+    <div class="card"><h4>add-ogpu-feature</h4><ol style="margin:0;padding-left:18px;font-size:.88rem;display:grid;gap:3px">
+      <li>Add or reuse a <code>Caps.feature</code>; add the module or function to the <code>ogpu</code> virtual interface.</li>
+      <li>Implement in <code>ogpu_metal</code> (bindings via add-metal-binding) and in <code>ogpu_mock</code> (behaviour or typed <code>Unsupported</code>).</li>
+      <li>Add conformance cases: exact behaviour when supported, typed <code>Unsupported</code> otherwise.</li>
+      <li>Update the feature map and <code>specification/ogpu.md</code>.</li></ol></div>
+    <div class="card"><h4>add-pdk-op</h4><ol style="margin:0;padding-left:18px;font-size:.88rem;display:grid;gap:3px">
+      <li>Pick the sublibrary by dependency; one family module with <code>.mli</code> stating complexity, grain, determinism, cancellation.</li>
+      <li><code>Family.run ?cancel ?grain ~required geometry</code> returning <code>(_, Error.t) result</code>.</li>
+      <li>Tests: correctness, malformed input, cancellation, cardinality, 1 vs N domains exact. Bench if high-density.</li>
+      <li>Facade alias; then <code>add-sop</code> if it needs a node.</li></ol></div>
+    <div class="card"><h4>add-sop</h4><ol style="margin:0;padding-left:18px;font-size:.88rem;display:grid;gap:3px">
+      <li>Record with <code>[@@deriving sop_params, sop_node]</code>, <code>[@@sop.register]</code>, stable key, category, inputs.</li>
+      <li>One <code>Sop.x</code> call to the pdk op; no hand-written factory or cache key.</li>
+      <li>Run the catalog tests (duplicate keys, instantiate, key search).</li></ol></div>
+    <div class="card"><h4>focused-test · smoke · promote-manifests</h4><ul>
+      <li><b>focused-test &lt;path&gt;</b>: map path → library, <code>@check</code>, then that runner; report new failures only.</li>
+      <li><b>smoke &lt;example&gt;</b>: run with <code>PRISMEL_MAX_FRAMES=30</code>, save a PNG to the scratch dir.</li>
+      <li><b>promote-manifests</b>: <code>dune promote</code> with a summary of public API changes.</li></ul></div>
+  </div>
+</section>
+
+<section id="deletions">
+  <h2>Deletion budget</h2>
+  <p>Midpoint estimates of lines removed, net of code ported in. Metal is shown separately because it is an order of magnitude larger than everything else.</p>
+  <div class="cols">
+    <div class="card"><h4>Metal registry (M1–M3)</h4>
+      <p><b style="font:600 1.6rem var(--display)">~90k lines</b></p>
+      <p class="small"><code>tools/metal</code> ~47k, safe/raw/bridge trim ~30k, tests ~13k, plus the 111k-line inventory JSON. Smaller than a pure "used today" trim because bindings on OGPU's roadmap are kept.</p></div>
+  </div>
+  <div class="bars" id="bars"></div>
+  <p class="small">Everything except Metal: ≈ <b id="total"></b> lines. Combined with Metal, roughly 130k lines.</p>
+</section>
+
+<section id="subsystems">
+  <h2>Findings by subsystem</h2>
+  <div class="cols">
+    <div class="card"><h4>Render / runtime</h4><ul>
+      <li>Five lowering layers with duplicated types (P3-4, S3).</li>
+      <li>Whole-scene hashing each frame; 65k list uniform cache (P3-1, P3-2).</li>
+      <li>Canvas: own Metal device, GPU→CPU→GPU per render (P3-5).</li>
+      <li>Unused coordinator input queue; <code>Low</code> unused (P2-5, P2-4).</li></ul></div>
+    <div class="card"><h4>Metal / OGPU / path tracer</h4><ul>
+      <li>Whole-SDK binding project; ~5% used (M).</li>
+      <li>179 checked-in generated fragments with no generator (M3).</li>
+      <li>OGPU is metadata validators plus one backend; Metal types leak upward (G1, G4).</li>
+      <li>Path tracer on raw Metal with its own device (G3).</li></ul></div>
+    <div class="card"><h4>SDL3 and resources</h4><ul>
+      <li>Audio silent, arrows dead, scroll truncated (P1).</li>
+      <li>Nine hops per event; coalescer loses resizes (P3-6, P1-6).</li>
+      <li>Four text caches, FIFO not LRU (P3-3).</li>
+      <li>C stubs are sound.</li></ul></div>
+    <div class="card"><h4>PDK</h4><ul>
+      <li><code>ops.ml</code> 12.7k-line god module with doubled wrappers (K3).</li>
+      <li>~35 remap copies drifted on normals; legacy poly_extrude (K5, K3).</li>
+      <li>Unreachable legacy CDT; duplicate coincident grouping (P2-1, P2-2).</li>
+      <li>Hand-copied 519-line Boolean signature (K10).</li></ul></div>
+    <div class="card"><h4>Geom and procedural</h4><ul>
+      <li>Geom is a retired second kernel with no library users (K7–K9).</li>
+      <li>SOP parameters in three places, one of them the cache key (S1).</li>
+      <li>Duplicate node pairs; hidden DLS cache (S2).</li></ul></div>
+    <div class="card"><h4>UI and sketch</h4><ul>
+      <li>Panes mutate during the frame instead of returning intents (U5).</li>
+      <li>Environment2/3 copy-paste; stringly camera node (U7, U9).</li>
+      <li>Keys bypass the leader table (U3).</li></ul></div>
+    <div class="card"><h4>Repo and process</h4><ul>
+      <li>Red, slow <code>runtest</code>; 604 test executables (P0).</li>
+      <li>23 dead render smokes; examples that never exit (P2-3, P0-3).</li>
+      <li>Dependency gates check the wrong libraries (P0-9).</li>
+      <li>980 KB evidence, 47-gate completion plan (P0-7).</li></ul></div>
+  </div>
+</section>
+
+<section id="clean">
+  <h2>Already clean</h2>
+  <div class="cols">
+    <div class="card"><ul>
+      <li>Geometry dependency direction holds and is tested; procedural's 167 SOP wrappers delegate to pdk.</li>
+      <li>PDK's internal graph is already acyclic, so the split is a move, not a redesign.</li>
+      <li>Boolean exactness: epsilons are filter bounds only; diagnostics never drive topology.</li></ul></div>
+    <div class="card"><ul>
+      <li>One cached Domainslib pool, disjoint output ranges, per-range errors.</li>
+      <li><code>ogpu</code> has no library deps; <code>native_layer_token</code> already exists for the surface handoff.</li>
+      <li>The Metal SDK surface OGPU needs is already bound; the work is organisation, not new binding.</li></ul></div>
+    <div class="card"><ul>
+      <li>PXUI: one engine; pxui_graph never edits or cooks.</li>
+      <li>SDL C stubs are GC-safe; finalizers only enqueue.</li>
+      <li>No Python; live code free of raster2/Tsdl/OpenGL/Wap.</li></ul></div>
+  </div>
+</section>
+
+<footer>Revision 2, 24 Sep 2026. Built from ten read-only audits and four design studies against <code>dev</code> with uncommitted work present; line numbers refer to that tree. Three bugs were re-verified by hand; effort figures are rough agent-day estimates.</footer>
+</main>
+</div>
+</div>
+
+<script>
+(function(){
+  var data=[
+    ["Evidence, tooling, root docs",12000],["Geom (net of ports)",8200],["PDK core and split",4400],
+    ["SOP params single-source",4200],["PDK Boolean",3300],["Dead render smokes",3000],
+    ["Render/runtime stack",1900],["Examples and gallery",1500],["Prismel.Low",820],
+    ["UI and editor stack",700],["SDL3 bindings",650],["AGENTS.md",500]
+  ];
+  var max=12000,host=document.getElementById('bars'),total=0,html='';
+  data.forEach(function(d){total+=d[1];html+='<div class="bar"><span>'+d[0]+'</span><span class="track"><span class="fill" style="width:'+(d[1]/max*100)+'%"></span></span><span class="num">'+d[1].toLocaleString('en-US')+'</span></div>';});
+  html+='<div class="axis"><span></span><span class="ticks"><span>0</span><span>3k</span><span>6k</span><span>9k</span><span>12k</span></span><span></span></div>';
+  host.innerHTML=html;
+  document.getElementById('total').textContent='~'+Math.round(total/1000)+'k';
+
+  var KEY='prismel-cleanup-done-v2';
+  var done={};
+  try{done=JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(e){done={};}
+  /*SHIPPED*/var SHIPPED=["P1-1", "P1-2", "runtest", "P0-2", "P0-1", "P0-3", "P2-4", "smoke", "P1-6", "P1-4", "P1-8", "P1-9", "P1-5", "P0-6", "U0", "P0-9", "P0-8", "P0-5", "loop", "handoff"];
+  SHIPPED.forEach(function(id){done[id]=true;});
+  var items=[].slice.call(document.querySelectorAll('details.item'));
+  function save(){try{localStorage.setItem(KEY,JSON.stringify(done));}catch(e){}}
+  function phaseOf(id){return id.indexOf('-')>0?id.split('-')[0]:id.charAt(0);}
+  function progress(){
+    document.querySelectorAll('.progress').forEach(function(p){
+      var ph=p.getAttribute('data-phase');
+      var its=items.filter(function(i){return phaseOf(i.id)===ph;});
+      var n=its.filter(function(i){return done[i.id];}).length;
+      p.textContent=n+' / '+its.length+' done';
+    });
+  }
+  var filter='all';
+  function applyFilter(){
+    items.forEach(function(it){
+      var show=filter==='all'||(filter==='open'?!done[it.id]:it.getAttribute('data-sev')===filter);
+      it.hidden=!show;
+    });
+  }
+  items.forEach(function(it){
+    var cb=it.querySelector('input[type=checkbox]');
+    if(done[it.id]){cb.checked=true;it.classList.add('done');}
+    cb.addEventListener('click',function(e){e.stopPropagation();});
+    cb.addEventListener('change',function(){done[it.id]=cb.checked;it.classList.toggle('done',cb.checked);save();progress();applyFilter();});
+  });
+  progress();
+  document.querySelectorAll('.filters button[data-f]').forEach(function(b){
+    b.addEventListener('click',function(){
+      filter=b.getAttribute('data-f');
+      document.querySelectorAll('.filters button[data-f]').forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});
+      applyFilter();
+    });
+  });
+  var ex=document.getElementById('expand'),open=false;
+  ex.addEventListener('click',function(){open=!open;items.forEach(function(i){if(!i.hidden)i.open=open;});ex.textContent=open?'Collapse all':'Expand all';});
+  function openHash(){var h=location.hash.slice(1);var el=h&&document.getElementById(h);if(el&&el.tagName==='DETAILS'){el.open=true;}}
+  window.addEventListener('hashchange',openHash);openHash();
+  document.querySelectorAll('a[href^="#"]').forEach(function(a){a.addEventListener('click',function(){var el=document.getElementById(a.getAttribute('href').slice(1));if(el&&el.tagName==='DETAILS')el.open=true;});});
+})();
+</script>
+
+<!--claude-mermaid-runtime-begin:3477-->
+<style>.mermaid-diagram{margin-block:4px}.mermaid-diagram svg{display:block;margin:0 auto;max-width:100%;height:auto}</style>
+<script src="/_runtime/mermaid-11.16.1.min.js"></script>
+<script>(function(){
+var CFG={"palettes":{"light":{"surface":"#f4efe4","text":"#42392e","line":"#8a7f6d","border":"#7a6c52","bg":"#fffdf8"},"dark":{"surface":"#262b34","text":"#f2f3f5","line":"#a8adb8","border":"#9aa4b8","bg":"#1f232b"}}};
+if(typeof mermaid==='undefined')return;
+var pres=Array.prototype.slice.call(document.querySelectorAll('pre.mermaid')).filter(function(p){if(p.hasAttribute('data-claude-mermaid-claimed'))return false;p.setAttribute('data-claude-mermaid-claimed','1');return true;});
+if(!pres.length)return;
+var mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
+var root=document.documentElement;
+var items=pres.map(function(pre){
+var mount=document.createElement('div');mount.className='mermaid-diagram';
+return {pre:pre,mount:mount,src:pre.textContent||''};
+});
+var seq=0;
+var renderGen=0;
+var lastKey='';
+function pageBg(fallback){
+var els=[document.body,document.documentElement];
+for(var i=0;i<els.length;i++){
+var c=els[i]&&getComputedStyle(els[i]).backgroundColor;
+if(c&&c!=='transparent'&&c!=='rgba(0, 0, 0, 0)')return c;
+}
+return fallback;
+}
+function render(){
+var theme=root.getAttribute('data-theme');
+var dark=theme==='dark'||(!!(mq&&mq.matches)&&theme!=='light');
+var pal=dark?CFG.palettes.dark:CFG.palettes.light;
+var bg=pageBg(pal.bg);
+var key=(dark?'d':'l')+'|'+bg;
+if(key===lastKey)return;
+lastKey=key;
+var gen=++renderGen;
+var font=getComputedStyle(document.body).fontFamily||'sans-serif';
+var nat={useMaxWidth:false};
+mermaid.initialize({
+startOnLoad:false,securityLevel:'strict',theme:'base',
+flowchart:nat,sequence:nat,er:nat,state:nat,class:nat,pie:nat,
+gantt:nat,journey:nat,timeline:nat,gitGraph:nat,mindmap:nat,xyChart:nat,
+quadrantChart:nat,sankey:nat,c4:nat,requirement:nat,block:nat,
+packet:nat,kanban:nat,architecture:nat,radar:nat,
+themeVariables:{background:bg,mainBkg:pal.surface,primaryColor:pal.surface,
+primaryTextColor:pal.text,lineColor:pal.line,primaryBorderColor:pal.border,
+nodeBorder:pal.border,clusterBorder:pal.border,edgeLabelBackground:bg,
+clusterBkg:'rgba(127,127,127,0.07)',titleColor:pal.text,
+darkMode:dark,rowOdd:bg,rowEven:'rgba(127,127,127,0.07)',
+attributeBackgroundColorOdd:bg,attributeBackgroundColorEven:'rgba(127,127,127,0.07)',
+fontSize:'16px',fontFamily:font},
+themeCSS:'.node rect, .node circle, .node polygon, .node path, .cluster rect { stroke-width: 2px; }'
+});
+items.forEach(function(it){
+var id='claude-mermaid-'+seq++;
+mermaid.render(id,it.src).then(function(r){
+if(gen!==renderGen)return;
+var prev=it.pre.previousElementSibling;
+if(prev&&prev.className==='mermaid-diagram'&&prev!==it.mount)return;
+it.mount.innerHTML=r.svg;
+if(!it.mount.parentNode)it.pre.parentNode.insertBefore(it.mount,it.pre);
+it.pre.style.display='none';
+},function(){
+var scratch=document.getElementById(id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+scratch=document.getElementById('d'+id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+if(gen!==renderGen)return;
+if(it.mount.parentNode)it.mount.parentNode.removeChild(it.mount);
+it.pre.style.display='';
+});
+});
+}
+render();
+if(mq&&mq.addEventListener)mq.addEventListener('change',render);
+if(typeof MutationObserver!=='undefined')new MutationObserver(render).observe(root,{attributes:true,attributeFilter:['data-theme']});
+})();</script>
+<!--claude-mermaid-runtime-end-->
+
+</body></html>

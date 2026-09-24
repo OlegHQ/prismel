@@ -234,10 +234,10 @@ let update m (f:Frame.t) =
         target_x := 0.5; target_y := 0.5; target_zoom := 1.
     | Event.KeyPressed (Input.KeyChar 's') ->
         ignore (Canvas.save_screen_png "code-quadtree.png")
-    | Event.MouseScrolled (_,dy) when dy <> 0 && in_art f f.mouse ->
+    | Event.MouseScrolled (_,dy) when dy <> 0. && in_art f f.mouse ->
         let mx,my = f.mouse in
         let wx,wy = world m f mx my in
-        let next = clamp 0.65 180. (!target_zoom *. exp (-.float dy *. 0.17)) in
+        let next = clamp 0.65 180. (!target_zoom *. exp (-.dy *. 0.17)) in
         target_x := wx -. (float mx -. ox)/.(world_size f *. next);
         target_y := wy -. (float my -. oy)/.(world_size f *. next);
         target_zoom := next

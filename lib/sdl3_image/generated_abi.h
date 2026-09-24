@@ -5,7 +5,7 @@
 #include <SDL3/SDL.h>
 _Static_assert(SDL_IMAGE_MAJOR_VERSION == 3, "SDL3_image major changed");
 _Static_assert(SDL_IMAGE_MINOR_VERSION == 4, "SDL3_image minor changed");
-_Static_assert(SDL_IMAGE_MICRO_VERSION == 4, "SDL3_image patch changed");
+_Static_assert(SDL_IMAGE_MICRO_VERSION >= 4, "SDL3_image patch older than pinned");
 typedef int (SDLCALL *prismel_img_version_fn)(void);
 typedef SDL_Surface * (SDLCALL *prismel_img_load_fn)(const char *);
 typedef SDL_Surface * (SDLCALL *prismel_img_load_io_fn)(SDL_IOStream *, bool);

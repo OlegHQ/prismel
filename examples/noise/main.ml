@@ -3,7 +3,6 @@ open Prismel
 type model = {
   noise : Noise.t;
   phase : float;
-  frames_left : int option;
 }
 
 let palette =
@@ -14,17 +13,10 @@ let init _frame =
   {
     noise = Noise.create 2026;
     phase = 0.;
-    frames_left = None;
   }
 
 let update model (frame : Frame.t) =
-  let frames_left =
-    match model.frames_left with
-    | Some 1 -> Sketch.quit (); Some 0
-    | Some count -> Some (count - 1)
-    | None -> None
-  in
-  { model with phase = model.phase +. frame.dt *. 0.15; frames_left }
+  { model with phase = model.phase +. frame.dt *. 0.15 }
 
 let view model (frame : Frame.t) =
   let cell = 10 in

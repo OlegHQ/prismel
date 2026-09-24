@@ -5,10 +5,10 @@
   node3 path parallel texture shader3 compute3 input event frame time image
   canvas canvas_runtime font audio assets mesh camera easy_camera transform_feedback3 shadow3
   scene3 scene3_native_lowering
-  scene native_scene_lowering preview runtime_diagnostics sketch easy_camera2 low)
+  scene native_scene_lowering preview runtime_diagnostics sketch easy_camera2)
  (private_modules canvas_runtime scene3_native_lowering native_scene_lowering)
  (libraries domainslib prismel_next_resources runtime_next_input scene_command unix
-  prismel_next_execution prismel_low_core
+  prismel_next_execution
   runtime_next_orchestrator))
 
 ; Transitional module identity for native-only validation clients. It
@@ -90,9 +90,13 @@
 (test
  (name test_resource_interface_preservation)
  (modules test_resource_interface_preservation)
- (libraries prismel))
+ (libraries prismel unix))
 
-(test
+(executable
  (name test_canvas_native)
  (modules test_canvas_native)
  (libraries prismel metal))
+
+(rule
+ (alias runtest-native)
+ (action (run %{exe:test_canvas_native.exe})))

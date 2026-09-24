@@ -270,6 +270,15 @@ CAMLprim value caml_sdl3_ttf_set_font_kerning(value raw, value enabled)
   return Val_unit;
 }
 
+CAMLprim value caml_sdl3_ttf_set_font_wrap_alignment(value raw, value code)
+{
+  static const TTF_HorizontalAlignment alignments[] = {
+    TTF_HORIZONTAL_ALIGN_LEFT, TTF_HORIZONTAL_ALIGN_CENTER, TTF_HORIZONTAL_ALIGN_RIGHT
+  };
+  TTF_SetFontWrapAlignment(font_of_value(raw), alignments[Int_val(code)]);
+  return Val_unit;
+}
+
 CAMLprim value caml_sdl3_ttf_get_font_kerning(value raw)
 {
   return Val_bool(TTF_GetFontKerning(font_of_value(raw)));

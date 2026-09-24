@@ -20,7 +20,7 @@ let ()=
   require(Input.keys_down()=[Space]&&Input.mouse_buttons_down()=[MouseX2]
     &&Input.mouse_delta()=(3,6))"input state semantics";
   let open Event in
-  let events=[KeyPressed Space;MouseMoved(4,8);MouseScrolled(1,-2);
+  let events=[KeyPressed Space;MouseMoved(4,8);MouseScrolled (1., (-2.));
     TextEditing{text="ime";start=0;length=3};WindowResized(8,9);WindowClosed]in
   require(Event.process_events events 0(Some(fun count _->count+1))=List.length events)
     "event order";
