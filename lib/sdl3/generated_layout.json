@@ -122,7 +122,7 @@
     "patch": 14
   },
   "schema": 1,
-  "target_triple": "arm64-apple-darwin25.4.0",
+  "target_triple": "arm64-apple-darwin25",
   "types": {
     "SDL_AudioDeviceEvent": {
       "alignment": 8,

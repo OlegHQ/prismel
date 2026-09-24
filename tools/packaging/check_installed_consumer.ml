@@ -113,13 +113,13 @@ let () =
   (match Sdl3.Version.check ~release:true () with
    | Ok () -> ()
    | Error error -> fail "SDL3" Sdl3.pp_error error);
-  (match Sdl3_image.Version.check ~release:true () with
+  (match Sdl3_image.check_version ~release:true () with
    | Ok () -> ()
    | Error error -> fail "SDL3_image" Sdl3_image.pp_error error);
-  (match Sdl3_ttf.Version.check ~release:true () with
+  (match Sdl3_ttf.check_version ~release:true () with
    | Ok () -> ()
    | Error error -> fail "SDL3_ttf" Sdl3_ttf.pp_error error);
-  (match Sdl3_mixer.Version.check ~release:true () with
+  (match Sdl3_mixer.check_version ~release:true () with
    | Ok () -> ()
    | Error error -> fail "SDL3_mixer" Sdl3_mixer.pp_error error);
   print_endline "installed SDL3 consumer passed"

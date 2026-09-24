@@ -1264,7 +1264,6 @@ module Private=struct
   let step=step_submission
   let replay=replay_step
   let cancel=close_submission
-  let draw_family_blend draw=draw.family,draw.blend
   let retained_scene2_segment_stats value=
     List.length value.retained_scene2_segments,
     value.retained_scene2_segment_hits,value.retained_scene2_segment_misses

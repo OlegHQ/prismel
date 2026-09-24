@@ -15,16 +15,8 @@ type error = private {
 
 val pp_error : Format.formatter -> error -> unit
 
-module Version : sig
-  type t = { major : int; minor : int; patch : int }
-
-  val compiled : t
-  val linked : unit -> t
-  val stable_headers : bool
-  val function_count : int
-  val safe_function_count : int
-  val check : ?release:bool -> unit -> (unit, error) result
-end
+val linked_version : unit -> Sdl3.Version.t
+val check_version : ?release:bool -> unit -> (unit, error) result
 
 val load_file : string -> (Sdl3.Surface.t, error) result
 

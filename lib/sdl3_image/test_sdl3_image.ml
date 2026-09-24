@@ -131,11 +131,11 @@ let () =
   if Array.length Sys.argv <> 2 || not (Sys.file_exists Sys.argv.(1)) then
     fail "expected the SDL3_image fixture directory";
   let root = Sys.argv.(1) in
-  let compiled = Version.compiled and linked = Version.linked () in
-  if compiled <> { Version.major = 3; minor = 4; patch = 4 }
-      || linked <> compiled || not Version.stable_headers
-      || Version.function_count < 10 || Version.safe_function_count <> 3 then
-    fail "generated or linked SDL3_image provenance changed";
+  let linked = linked_version () in
+  if linked <> { Sdl3.Version.major = 3; minor = 4; patch = 4 } then
+    fail "linked SDL3_image version changed";
+  (match check_version ~release:true () with
+   | Ok () -> () | Error error -> fail (Format.asprintf "%a" pp_error error));
   get_sdl (Init.init [Init.Events]);
   List.iter (check_fixture root) fixtures;
 

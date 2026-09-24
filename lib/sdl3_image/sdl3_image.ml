@@ -26,45 +26,21 @@ external linked_version_number : unit -> int = "caml_sdl3_image_version"
 external decode_bytes_raw : bytes -> string option -> (decoded, string) result
   = "caml_sdl3_image_decode_bytes"
 
-module Version = struct
-  type t = { major : int; minor : int; patch : int }
+let linked_version () : Sdl3.Version.t =
+  let number = linked_version_number () in
+  { major = number / 1_000_000;
+    minor = (number / 1_000) mod 1_000; patch = number mod 1_000 }
 
-  let compiled =
-    let value = Generated_provenance.header_version in
-    { major = value.major; minor = value.minor; patch = value.patch }
-
-  let of_number value = {
-    major = value / 1_000_000;
-    minor = (value / 1_000) mod 1_000;
-    patch = value mod 1_000;
-  }
-
-  let number value =
-    (value.major * 1_000_000) + (value.minor * 1_000) + value.patch
-
-  let stable value = value.minor mod 2 = 0 && value.patch mod 2 = 0
-  let linked () = of_number (linked_version_number ())
-  let stable_headers = Generated_provenance.stable_headers
-  let function_count = Generated_provenance.function_count
-  let safe_function_count = Generated_provenance.safe_function_count
-
-  let string value =
-    Printf.sprintf "%d.%d.%d" value.major value.minor value.patch
-
-  let check ?(release = true) () =
-    let linked = linked () in
-    if release && not stable_headers then
-      error "SDL3_image.Version.check" Incompatible_version
-        ("compiled against prerelease SDL3_image headers " ^ string compiled)
-    else if number linked < number compiled then
-      error "SDL3_image.Version.check" Incompatible_version
-        (Printf.sprintf "linked SDL3_image %s is older than compiled headers %s"
-          (string linked) (string compiled))
-    else if release && not (stable linked) then
-      error "SDL3_image.Version.check" Incompatible_version
-        ("linked SDL3_image is a development release: " ^ string linked)
-    else Ok ()
-end
+let check_version ?(release=true) () =
+  let value = Generated_provenance.header_version in
+  let compiled : Sdl3.Version.t =
+    { major=value.major; minor=value.minor; patch=value.patch } in
+  match Sdl3.Version.validate ~library:"SDL3_image" ~compiled
+      ~stable_headers:Generated_provenance.stable_headers ~release
+      ~linked:(linked_version ()) () with
+  | Ok () -> Ok ()
+  | Error source -> error "SDL3_image.check_version" Incompatible_version
+      source.message
 
 let contains_nul value =
   try ignore (String.index value '\x00'); true with Not_found -> false
@@ -266,7 +242,7 @@ let on_main operation callback =
     error operation Wrong_domain
       "SDL3_image decoding must run on the initial OCaml domain and SDL main thread"
   else
-    match Version.check () with
+    match check_version () with
     | Error _ as failure -> failure
     | Ok () -> callback ()
 

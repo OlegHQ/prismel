@@ -49,9 +49,14 @@ let run () =
   if not Version.stable_headers || Version.function_count < 1_200
       || Version.safe_function_count < 20 then
     fail "generated inventory is incomplete or prerelease";
-  (match Version.validate ~release:true ~linked:{ major = 3; minor = 4; patch = 12 } with
+  (match Version.validate ~release:true ~linked:{ major = 3; minor = 4; patch = 12 } () with
    | Error { kind = Incompatible_version; _ } -> ()
    | Ok () | Error _ -> fail "older linked version was not rejected");
+  (match Version.validate ~library:"SDL3_ttf"
+      ~compiled:{ major = 3; minor = 2; patch = 2 } ~stable_headers:false
+      ~release:true ~linked:{ major = 3; minor = 2; patch = 2 } () with
+   | Error { kind = Incompatible_version; _ } -> ()
+   | Ok () | Error _ -> fail "prerelease extension headers were not rejected");
   get (Init.init [Init.Video; Init.Events]);
   if not (get (Init.initialized [Init.Video; Init.Events])) then
     fail "initialized subsystem mask was not retained";

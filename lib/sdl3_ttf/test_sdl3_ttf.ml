@@ -69,11 +69,11 @@ let run () =
   let font_path = get_ttf (Font.system_path ()) in
   if not (Sys.file_exists font_path) then
     fail "installed system font discovery returned a missing path";
-  let compiled = Version.compiled and linked = Version.linked () in
-  if compiled <> { Version.major = 3; minor = 2; patch = 2 }
-      || linked <> compiled || not Version.stable_headers
-      || Version.function_count < 100 || Version.safe_function_count <> 29 then
-    fail "generated or linked SDL3_ttf provenance changed";
+  let linked = linked_version () in
+  if linked <> { Sdl3.Version.major = 3; minor = 2; patch = 2 } then
+    fail "linked SDL3_ttf version changed";
+  (match check_version ~release:true () with
+   | Ok () -> () | Error error -> fail (Format.asprintf "%a" pp_error error));
   (match Font.open_file ~path:font_path ~size:18. with
    | Error { kind = Not_initialized; _ } -> ()
    | Ok font -> ignore (Font.destroy font); fail "font opened before TTF init"
@@ -95,7 +95,7 @@ let run () =
   (match Font.open_file ~path:"/definitely/missing/font.ttf" ~size:18. with
    | Error ({ kind = Ttf_error; message; _ } as captured) when message <> "" ->
        let original = captured.message in
-       ignore (Version.linked ());
+       ignore (linked_version ());
        if captured.message <> original then
          fail "TTF error text changed after a subsequent native call"
    | Ok font -> ignore (Font.destroy font); fail "missing font opened"

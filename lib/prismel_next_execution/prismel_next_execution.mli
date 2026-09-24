@@ -105,6 +105,5 @@ module Private : sig
     version:int64 -> t -> (unit option,error) result
   (* Idempotently releases an unsubmitted transaction. *)
   val cancel : submission -> unit
-  val draw_family_blend : draw -> family * blend
   val retained_scene2_segment_stats : t -> int * int64 * int64
 end

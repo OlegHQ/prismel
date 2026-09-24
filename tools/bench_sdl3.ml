@@ -168,7 +168,7 @@ let () =
   sdl (Sdl3.Init.quit ());
   sdl (Sdl3.drain_release_queue ());
   let linked = Sdl3.Version.linked () in
-  let mixer_linked = Mixer3.Version.linked () in
+  let mixer_linked = Mixer3.linked_version () in
   let output =
     `Assoc
       [ "schema", `Int 1

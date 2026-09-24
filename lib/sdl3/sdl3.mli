@@ -27,7 +27,8 @@ module Version : sig
   val stable_headers : bool
   val function_count : int
   val safe_function_count : int
-  val validate : release:bool -> linked:t -> (unit, error) result
+  val validate : ?library:string -> ?compiled:t -> ?stable_headers:bool ->
+    release:bool -> linked:t -> unit -> (unit, error) result
   val check : ?release:bool -> unit -> (unit, error) result
 end
 

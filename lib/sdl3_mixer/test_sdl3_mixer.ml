@@ -44,11 +44,11 @@ let any_nonzero bytes =
   loop 0
 
 let run () =
-  let compiled = Version.compiled and linked = Version.linked () in
-  if compiled <> { Version.major = 3; minor = 2; patch = 4 }
-      || linked <> compiled || not Version.stable_headers
-      || Version.function_count < 90 || Version.safe_function_count <> 30 then
-    fail "generated or linked SDL3_mixer provenance changed";
+  let linked = linked_version () in
+  if linked <> { Sdl3.Version.major = 3; minor = 2; patch = 4 } then
+    fail "linked SDL3_mixer version changed";
+  (match check_version ~release:true () with
+   | Ok () -> () | Error error -> fail (Format.asprintf "%a" pp_error error));
   (match Mixer.create_memory ~sample_rate:48_000 ~channels:2 with
    | Error { kind = Not_initialized; _ } -> ()
    | Ok mixer -> ignore (Mixer.destroy mixer); fail "mixer created before init"
@@ -98,7 +98,7 @@ let run () =
   (match Audio.load_file mixer ~path:"/definitely/missing/audio.wav" () with
    | Error ({ kind = Mixer_error; message; _ } as captured) when message <> "" ->
        let original = captured.message in
-       ignore (Version.linked ());
+       ignore (linked_version ());
        if captured.message <> original then
          fail "mixer error text changed after a subsequent native call"
    | Ok audio -> ignore (Audio.destroy audio); fail "missing audio loaded"

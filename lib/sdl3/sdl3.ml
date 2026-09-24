@@ -53,20 +53,21 @@ module Version = struct
   let string value =
     Printf.sprintf "%d.%d.%d" value.major value.minor value.patch
 
-  let validate ~release ~linked =
+  let validate ?(library="SDL") ?(compiled=compiled)
+      ?(stable_headers=stable_headers) ~release ~linked () =
     if release && not stable_headers then
       error "SDL3.Version.validate" Incompatible_version
-        ("compiled against prerelease SDL headers " ^ string compiled)
+        ("compiled against prerelease " ^ library ^ " headers " ^ string compiled)
     else if number linked < number compiled then
       error "SDL3.Version.validate" Incompatible_version
-        (Printf.sprintf "linked SDL %s is older than compiled headers %s"
-          (string linked) (string compiled))
+        (Printf.sprintf "linked %s %s is older than compiled headers %s"
+          library (string linked) (string compiled))
     else if release && not (stable linked) then
       error "SDL3.Version.validate" Incompatible_version
-        ("linked SDL is a development release: " ^ string linked)
+        ("linked " ^ library ^ " is a development release: " ^ string linked)
     else Ok ()
 
-  let check ?(release = true) () = validate ~release ~linked:(linked ())
+  let check ?(release = true) () = validate ~release ~linked:(linked ()) ()
 end
 
 module Time = struct

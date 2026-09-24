@@ -332,8 +332,13 @@ let check_safe_functions safe_functions groups subject =
       (String.concat ", " missing)
 
 let compiler_facts clang =
+  let target = command_text clang [ "-dumpmachine" ] |> String.trim in
+  (* The host Darwin minor version changes without an SDK or ABI change. *)
+  let target = match String.index_opt target '.' with
+    | Some index -> String.sub target 0 index
+    | None -> target in
   ( command_text clang [ "--version" ] |> first_line
-  , command_text clang [ "-dumpmachine" ] |> String.trim )
+  , target )
 
 let layout_probe_source () =
   let output = Buffer.create 16384 in

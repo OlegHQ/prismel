@@ -958,7 +958,7 @@
   ],
   "schema": 1,
   "stable_headers": true,
-  "target_triple": "arm64-apple-darwin25.4.0",
+  "target_triple": "arm64-apple-darwin25",
   "typedefs": [
     {
       "classification": "raw-only",
