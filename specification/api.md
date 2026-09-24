@@ -731,7 +731,7 @@ covered:
 5. deterministic random/noise, palettes, interpolation and easing;
 6. audio playback and simple synthesis;
 7. PXUI controls and parameter persistence;
-8. live reload or a documented utop/dune watch feedback loop.
+8. live reload or a documented Dune watch feedback loop.
 9. coarse-grained multicore helpers and background asset jobs with main-domain
    handoff.
 

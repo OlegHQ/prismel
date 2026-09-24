@@ -128,7 +128,12 @@ malformed, foreign, and destroyed GPU textures.
 
 ## Performance
 
-An earlier `tools/bench_pathtracer.sh` run (default Dune profile) measured
+Run the finite native throughput probe with `dune build --force @tools/bench-pathtracer`.
+Set `PRISMEL_PATHTRACER_FRAMES`, `PRISMEL_PATHTRACER_SCALE`, or
+`PRISMEL_PATHTRACER_SPP` to override its defaults (240, 1, and 1). This alias
+opens a native window.
+
+An earlier path-tracer benchmark run (default Dune profile) measured
 roughly 35 ms/frame on an Apple M1 (no hardware ray tracing) for the example
 scene (seven round-cornered cubes, two rectangle lights, one dome panel) at
 480×840, one sample per pixel per frame, five bounces, four round-corner probes

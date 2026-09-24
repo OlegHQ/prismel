@@ -41,6 +41,66 @@
   (run %{exe:bench_metal_ffi.exe} --iterations 1000000 --samples 5
    --profile test --check)))
 
+; Opt-in native benchmarks. PRISMEL_BENCH_FRAMES defaults to 120.
+(rule
+ (alias bench-code-quadtree-tour)
+ (action
+  (chdir %{workspace_root}
+   (progn
+    (run %{exe:../sketches/code_quadtree/main.exe} --index-only)
+    (run /usr/bin/time -l %{exe:../sketches/code_quadtree/main.exe}
+     --smoke --bench --frames %{env:PRISMEL_BENCH_FRAMES=120} --reference-draws)
+    (run /usr/bin/time -l %{exe:../sketches/code_quadtree/main.exe}
+     --smoke --bench --frames %{env:PRISMEL_BENCH_FRAMES=120})))))
+
+(rule
+ (alias bench-code-quadtree-hover)
+ (action
+  (chdir %{workspace_root}
+   (progn
+    (run %{exe:../sketches/code_quadtree/main.exe} --index-only)
+    (run /usr/bin/time -l %{exe:../sketches/code_quadtree/main.exe}
+     --hover-bench --zoom 1.45 --bench --frames %{env:PRISMEL_BENCH_FRAMES=120}
+     --rebuild-art)
+    (run /usr/bin/time -l %{exe:../sketches/code_quadtree/main.exe}
+     --hover-bench --zoom 1.45 --bench --frames %{env:PRISMEL_BENCH_FRAMES=120})))))
+
+(rule
+ (alias bench-code-quadtree-renderer)
+ (action
+  (chdir %{workspace_root}
+   (progn
+    (run %{exe:../sketches/code_quadtree/main.exe} --index-only)
+    (setenv PRISMEL_SCENE2_DENSE_RUNS 0
+     (run /usr/bin/time -l %{exe:../sketches/code_quadtree/main.exe}
+      --smoke --bench --frames %{env:PRISMEL_BENCH_FRAMES=120}))
+    (run /usr/bin/time -l %{exe:../sketches/code_quadtree/main.exe}
+     --smoke --bench --frames %{env:PRISMEL_BENCH_FRAMES=120})))))
+
+; Geometry-only benchmark: no native window.
+(rule
+ (alias bench-pastel-flow)
+ (action
+  (chdir %{workspace_root}
+   (progn
+    (run uname -sm)
+    (run sysctl -n machdep.cpu.brand_string)
+    (run ocamlc -version)
+    (run /bin/echo preset=waves profile=dev geometry_domains=1)
+    (run %{exe:../sketches/pastel_flow/main.exe} --preset waves --bench)
+    (run /bin/echo preset=silk profile=dev geometry_domains=1)
+    (run %{exe:../sketches/pastel_flow/main.exe} --preset silk --bench)))))
+
+; Finite native path-tracer benchmark. Override the three variables as needed.
+(rule
+ (alias bench-pathtracer)
+ (action
+  (chdir %{workspace_root}
+   (setenv PRISMEL_PATHTRACER_FRAMES %{env:PRISMEL_PATHTRACER_FRAMES=240}
+    (setenv PRISMEL_PATHTRACER_SCALE %{env:PRISMEL_PATHTRACER_SCALE=1}
+     (setenv PRISMEL_PATHTRACER_SPP %{env:PRISMEL_PATHTRACER_SPP=1}
+      (run %{exe:../examples/pathtracer/main.exe})))))))
+
 (executable
  (name bench_instances)
  (libraries prismel unix))

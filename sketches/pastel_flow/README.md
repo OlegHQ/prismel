@@ -66,8 +66,7 @@ Validation:
 dune runtest sketches/pastel_flow
 dune exec sketches/pastel_flow/main.exe -- --smoke
 dune exec sketches/pastel_flow/main.exe -- --preset silk --smoke --domains 4
-dune exec sketches/pastel_flow/main.exe -- --bench
-dune exec sketches/pastel_flow/main.exe -- --preset silk --bench
+dune build --force @tools/bench-pastel-flow  # geometry only; no window
 ```
 
 The finite smoke path changes rotation and texture across eight native frames.

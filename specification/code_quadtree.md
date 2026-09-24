@@ -102,12 +102,16 @@ dune exec sketches/code_quadtree/test_source_index.exe -- --live
 dune exec sketches/code_quadtree/main.exe -- --verify
 dune exec sketches/code_quadtree/main.exe -- --index-only
 dune exec sketches/code_quadtree/main.exe -- --smoke --frames 600
-tools/bench_code_quadtree.sh 120
-tools/bench_code_quadtree.sh 60 hover
-tools/bench_code_quadtree.sh 120 renderer
+dune build --force @tools/bench-code-quadtree-tour
+PRISMEL_BENCH_FRAMES=60 dune build --force @tools/bench-code-quadtree-hover
+dune build --force @tools/bench-code-quadtree-renderer
 dune exec sketches/code_quadtree/main.exe -- --tour --frames 12 --domains 1 --export /tmp/strata-one
 dune exec sketches/code_quadtree/main.exe -- --tour --frames 12 --domains 4 --export /tmp/strata-four
 ```
+
+The three benchmark aliases open a native window; run them only on a desktop
+where that is wanted. `PRISMEL_BENCH_FRAMES` overrides their 120-frame default.
+Use `--force` for every measurement so Dune reruns the alias action.
 
 The pure fixture checks 1–9-file boundaries, exact coverage/picking, determinism,
 and nonuniform depth for 1,024 files. The live LSP fixture checks nested scopes,
@@ -138,8 +142,8 @@ a clean-commit GPU release qualification. Apple M1, arm64, macOS 26.2
 window: 1440×1000 logical points; the desktop constrained the actual viewport
 to 1440×802, captured at 2880×1604 native pixels.
 
-The initial packing stage, before the later zoom/hover refinement,
-`tools/bench_code_quadtree.sh 120`, one consecutive run per producer, used the
+The initial packing stage, before the later zoom/hover refinement, used the
+former `bench_code_quadtree.sh 120` protocol with one consecutive run per producer on the
 same 1,866-file snapshot: 1,853 OCaml files, 13 unindexed files, 96,727 LSP
 symbols. Both used the same tour, scene reuse policy, dimensions, and native
 Metal backend. Warm LSP indexing took 0.45–0.51 seconds. The earlier cold
