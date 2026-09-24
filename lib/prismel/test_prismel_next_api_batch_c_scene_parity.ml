@@ -131,4 +131,4 @@ let run () =
     |identity,Prismel_next_execution.Image image when Some identity= !automatic_text_id->
       require(Result.is_error(Prismel_next_resources.Image.pixels image))"automatic image survived shutdown"
     |_->())first_resources;
-  print_endline "Prismel_next_api Scene text/View3d parity passed"
+  print_endline "Prismel Scene text/View3d parity passed"

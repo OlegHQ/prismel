@@ -1,6 +1,6 @@
 type public_workload = {
-  camera : Prismel_next_api.Camera.t;
-  scene : Prismel_next_api.Scene3.t;
+  camera : Prismel.Camera.t;
+  scene : Prismel.Scene3.t;
 }
 
 type proof = {

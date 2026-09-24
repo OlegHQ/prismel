@@ -15,4 +15,4 @@ let run () =
     Scene.text_input_region~at:(1,1)~w:2~h:1~focused:true()]in
   let ir=Result.get_ok(Scene.Private.to_ir scene)in
   if Array.length(Scene_command.Render_ir.commands ir)<>2||Scene.Private.text_regions scene<>[1,1,2,1,true]then failwith"scene lowering";
-  print_endline"prismel_next_api batch C: Event/Input/Frame/Time/Scene fixtures passed"
+  print_endline"Prismel batch C: Event/Input/Frame/Time/Scene fixtures passed"

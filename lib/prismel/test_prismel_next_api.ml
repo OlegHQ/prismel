@@ -10,4 +10,4 @@ let run () =
     if Vec3.to_triple (Vec3.lerp Vec3.zero Vec3.unit_x 0.5)<>(0.5,0.,0.)
     then failwith "Vec3 deterministic drift"
   done;
-  print_endline "Prismel_next_api exact Vec2/Vec3 facade passed"
+  print_endline "Prismel exact Vec2/Vec3 API passed"

@@ -21,4 +21,4 @@ let run () =
   let exact=ref(Array.length values=100_000)in Array.iteri(fun index value->if index<>value then exact:=false)values;
   check !exact"Compute3 exact 100k";
   Parallel.release_current_domain_pools();
-  print_endline"Prismel_next_api batch D path/parallel/texture/shader/compute passed"
+  print_endline"Prismel batch D path/parallel/texture/shader/compute passed"

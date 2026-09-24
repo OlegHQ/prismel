@@ -8,14 +8,14 @@
  (name r10_scene2_candidate_lib)
  (wrapped false)
  (modules r10_scene2_candidate)
- (libraries prismel_next_api prismel_next_resources pxui prismel_next_execution
+ (libraries prismel prismel_next_resources pxui prismel_next_execution
   r10_workload_descriptor))
 
 (library
  (name r10_scene3_candidate_lib)
  (wrapped false)
  (modules r10_scene3_legacy_equivalent r10_scene3_equivalence_bridge)
- (libraries prismel_next_api scene_execution ogpu))
+ (libraries prismel scene_execution ogpu))
 
 (library
  (name r10_native_protocol_lib)
@@ -48,7 +48,7 @@
  (name r10_native_scene2_correctness)
  (modules r10_native_scene2_correctness)
  (libraries r10_scene2_candidate_lib r10_workload_descriptor
-  prismel_next_execution prismel_next_api unix yojson))
+  prismel_next_execution prismel unix yojson))
 
 (test
  (name test_r10_native_scene2_correctness)
@@ -74,9 +74,9 @@
 (test
  (name test_r10_scene3_legacy_equivalent)
  (modules test_r10_scene3_legacy_equivalent)
- (libraries r10_scene3_candidate_lib prismel_next_api scene_execution ogpu))
+ (libraries r10_scene3_candidate_lib prismel scene_execution ogpu))
 
 (test
  (name test_r10_scene3_equivalence_bridge)
  (modules test_r10_scene3_equivalence_bridge)
- (libraries r10_scene3_candidate_lib prismel_next_api scene_execution ogpu))
+ (libraries r10_scene3_candidate_lib prismel scene_execution ogpu))

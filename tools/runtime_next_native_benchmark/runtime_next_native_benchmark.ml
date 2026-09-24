@@ -82,7 +82,7 @@ let retained_plan_counters (before : Prismel_next_execution.stats)
     "executions", difference after.retained_plan_executions before.retained_plan_executions;
     "entries", `Int after.retained_plan_entries;
     "capacity", `Int after.retained_plan_capacity]
-let canvas_stats_json(stats:Prismel_next_api.Canvas.Private.native_stats)=`Assoc[
+let canvas_stats_json(stats:Prismel.Canvas.Private.native_stats)=`Assoc[
   "frames",`String(Int64.to_string stats.frames);
   "draws",`String(Int64.to_string stats.logical_draws);
   "passes",`String(Int64.to_string stats.logical_passes);
@@ -90,8 +90,8 @@ let canvas_stats_json(stats:Prismel_next_api.Canvas.Private.native_stats)=`Assoc
   "uploaded_bytes",`String(Int64.to_string stats.uploaded_bytes);
   "cache_entries",`Int stats.cache_entries]
 let canvas_stats_delta before after=match before,after with
-  |Some(before:Prismel_next_api.Canvas.Private.native_stats),
-   Some(after:Prismel_next_api.Canvas.Private.native_stats)->
+  |Some(before:Prismel.Canvas.Private.native_stats),
+   Some(after:Prismel.Canvas.Private.native_stats)->
       let delta current initial=Int64.to_string(Int64.sub current initial)in
       `Assoc["frames",`String(delta after.frames before.frames);
         "draws",`String(delta after.logical_draws before.logical_draws);
@@ -268,11 +268,11 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
       let canonical=R10_scene3_legacy_equivalent.create~width~height in
       ignore(Result.get_ok(R10_scene3_equivalence_bridge.prove~width~height canonical));
       let public=R10_scene3_equivalence_bridge.public_workload()in
-      let scene=Prismel_next_api.Scene.[
-        clear(Prismel_next_api.Color.hex_exn"#020617");
+      let scene=Prismel.Scene.[
+        clear(Prismel.Color.hex_exn"#020617");
         view3d~camera:public.camera public.scene;
         text~at:(22,18)~size:16"Stable Scene3 instance baseline"]in
-      let staged=Result.get_ok(Prismel_next_api.Scene.Private.stage_native
+      let staged=Result.get_ok(Prismel.Scene.Private.stage_native
         ~width~height scene)in
       let prepared=match staged.scene3 with
         |[prepared]when Array.length prepared.Scene_execution.entries=12->prepared
@@ -297,7 +297,7 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
       let facts=Result.get_ok(Prismel_next_execution.presentation_facts execution)in
       let density=max 1(int_of_float(Float.round facts.pixel_density))in
       let draws=List.concat_map(function
-        |Prismel_next_api.Scene.Private.Scene2_layer(ir,resources)->
+        |Prismel.Scene.Private.Scene2_layer(ir,resources)->
             Result.get_ok(Prismel_next_execution.lower_scene2 execution~density
               ~resource:(fun id->List.assoc_opt id resources)ir)
         |Scene2_segment(segment,resources)->
@@ -325,7 +325,7 @@ let run_public selected warmup_seconds samples sample_seconds visibility width h
       (fun()->Prismel_next_execution.visible execution),
       (fun()->None),
       (fun()->None),
-      (fun()->Prismel_next_api.Scene.Private.release scene;
+      (fun()->Prismel.Scene.Private.release scene;
         Prismel_next_execution.destroy execution)
   |Shattered->assert false in
   let requested_visible=visibility=Visible in

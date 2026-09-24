@@ -1,4 +1,4 @@
-open Prismel_next_api
+open Prismel
 
 type t = {
   software_draws : Scene_execution.draw list;

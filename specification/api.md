@@ -148,6 +148,8 @@ Scene vocabulary. Their lowering, resource snapshots, and orchestration remain
 private implementation machinery behind the same immutable `Scene`/`Scene3`
 values. Native Metal is the only renderer and is not selected through public
 scene data or an environment flag.
+The transitional `Prismel_next_api` re-export is gone; native callers use
+`Prismel` directly.
 
 `Scene.text_input_region` is pure scene data. At the render boundary its
 transformed, clipped logical bounds describe where native text focus may be

@@ -25,4 +25,4 @@ let run () =
     require(Vec3.nearly_equal(Node3.global_position child)(Vec3.create 2. 1. 0.)
       ~eps:1e-12)"batch B deterministic plateau"
   done;
-  print_endline"Prismel_next_api batch B camera/light/mesh facade passed"
+  print_endline"Prismel batch B camera/light/mesh API passed"

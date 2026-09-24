@@ -25,4 +25,4 @@ let run () =
   let workers=Array.init 4(fun domain->Domain.spawn(fun()->let first=domain*25_000 in Noise.Private.sample2_into noise~first~last:(first+25_000)~frequency:0.5~x:xs~y:ys~output:parallel))in
   Array.iter Domain.join workers;check(sequential=parallel&&Array.for_all finite parallel)"Noise one/four-domain 100k";
   check(Noise.sample3 noise~x:0.25~y:0.5~z:0.75=Noise.sample3(Noise.create 42)~x:0.25~y:0.5~z:0.75)"Noise seed";
-  print_endline"Prismel_next_api batch A exact deterministic facade passed"
+  print_endline"Prismel batch A exact deterministic API passed"

@@ -1,4 +1,4 @@
-open Prismel_next_api
+open Prismel
 open R10_scene2_legacy_equivalent
 let execution_ok=function Ok value->value|Error error->failwith(Format.asprintf"%a"Prismel_next_execution.pp_error error)
 type t={execution:Prismel_next_execution.t;scenario:R10_scene2_legacy_equivalent.scenario;

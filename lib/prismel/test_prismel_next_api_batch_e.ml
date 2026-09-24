@@ -33,4 +33,4 @@ let run () =let open Prismel in
   begin match Audio.init()with Error message->failwith message|Ok()->()end;
   for _=1 to 100_000 do require(Image.Private.identity image>0)"stable image identity"done;
   Assets.destroy assets;Image.destroy captured;Canvas.destroy canvas;Image.destroy image;Audio.shutdown();
-  print_endline"Prismel_next_api batch E resource ownership passed"
+  print_endline"Prismel batch E resource ownership passed"

@@ -11,15 +11,6 @@
   prismel_next_execution
   runtime_next_orchestrator))
 
-; Transitional module identity for native-only validation clients. It
-; re-exports the promoted facade and owns no renderer implementation.
-(library
- (name prismel_next_api)
- (public_name prismel.prismel_next_api)
- (wrapped false)
- (modules prismel_next_api)
- (libraries prismel))
-
 (executable
  (name test_main)
  (modules test_main test_prismel_next_api test_prismel_next_api_batch_d test_prismel_next_api_batch_a test_prismel_next_api_batch_b test_prismel_next_api_batch_c test_prismel_next_api_batch_c_scene_parity test_scene_rounded_cache test_automatic_text_cache test_prismel_next_api_batch_e test_scene3_native_lowering test_scene_display_list test_core_interface_preservation test_resource_interface_preservation test_canvas_native)

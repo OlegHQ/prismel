@@ -8,7 +8,7 @@ let () =
     ~finally:(fun () -> R10_scene2_candidate.destroy candidate)
     (fun () ->
       let identity () =
-        Prismel_next_api.Image.Private.identity (Option.get candidate.image)
+        Prismel.Image.Private.identity (Option.get candidate.image)
       in
       let first_identity = identity () in
       R10_scene2_candidate.render candidate ~width:640 ~height:480;

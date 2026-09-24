@@ -152,6 +152,8 @@ let violations graph ~scan =
 let run () =
   let graph = graph ["lib"; "ppx"] in
   if List.length graph < 20 then failwith "dependency gate found too few libraries (wrong cwd?)";
+  List.iter (fun name -> if List.mem_assoc name graph then
+    failwith ("retired facade returned: " ^ name)) ["runtime"; "prismel_next_api"];
   (* injected violations must fire *)
   let inject lib dep = List.map (fun (l, d) -> l, if l = lib then dep :: d else d) graph in
   List.iter (fun (lib, dep) ->

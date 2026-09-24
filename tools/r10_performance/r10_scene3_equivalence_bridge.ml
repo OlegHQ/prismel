@@ -1,4 +1,4 @@
-open Prismel_next_api
+open Prismel
 
 type public_workload = { camera : Camera.t; scene : Scene3.t }
 
