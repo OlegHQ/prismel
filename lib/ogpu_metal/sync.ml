@@ -114,14 +114,12 @@ let execute_query_pass device (value:query_set) ~first ~count ~destination ~dest
     error operation Ogpu.Error.Invalid_argument "query range is out of bounds"
   else
   match value.samples with None -> error operation Ogpu.Error.Unsupported "Metal timestamp queries are unavailable" | Some samples ->
-  let portable_command = Ogpu.Command.begin_encoder () in
-  match Ogpu.Command.begin_pass portable_command Ogpu.Command.Transfer with Error _ as failure -> failure | Ok () ->
-  match Ogpu.Command.end_pass portable_command with Error _ as failure -> failure | Ok () ->
-  match Ogpu.Command.end_encoder portable_command with Error _ as failure -> failure | Ok () ->
-  let descriptor : Ogpu.Query_pass.descriptor = {pass=Ogpu.Command.Transfer;queries=value.portable;first;count;
-    destination=Buffer.Private.resource_handle destination;destination_resource_id=Buffer.id destination;
-    destination_size=destination_descriptor.size;destination_offset;completion_epoch} in
-  match Ogpu.Query_pass.create (Device.Private.handle device) ~timestamp_queries:true descriptor with Error _ as failure -> failure | Ok pass ->
+  match Ogpu.Sync.resolve (Device.Private.handle device) value.portable
+      ~destination:(Buffer.Private.resource_handle destination)
+      ~destination_size:destination_descriptor.size ~first ~count
+      ~destination_offset ~completion_epoch with
+  | Error _ as failure -> failure
+  | Ok description ->
   match Metal.Command_queue.create (Device.Private.metal device) with Error metal -> Error (Adapter.error ~operation metal) | Ok queue ->
   let finish result = ignore (Metal.Command_queue.destroy queue); result in
   match Metal.Command_buffer.create queue () with Error metal -> finish (Error (Adapter.error ~operation metal)) | Ok command ->
@@ -136,7 +134,7 @@ let execute_query_pass device (value:query_set) ~first ~count ~destination ~dest
    match Metal.Counters.resolve samples ~first:(Int64.of_int first) ~count:(Int64.of_int count) with
    | Error metal -> finish_command (Error (Adapter.error ~operation metal))
    | Ok bytes -> match Buffer.write_bytes device destination ~dst_offset:destination_offset bytes with
-     | Error _ as failure -> finish_command failure | Ok () -> finish_command (Ok (Ogpu.Query_pass.describe pass)))
+     | Error _ as failure -> finish_command failure | Ok () -> finish_command (Ok description))
 
 let destroy_query_set (value:query_set) =
   if value.dead then Ok () else

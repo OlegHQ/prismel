@@ -8,7 +8,7 @@ type capability_source =
   }
 
 type operation = Buffer | Texture | Sampler | Compute_pipeline | Render_pipeline
-  | Queue | Surface | Memory | Native_pass | Event_synchronization
+  | Queue | Surface | Memory | Event_synchronization
   | Timeline_fence | Timestamp_queries | Ray_tracing | Metal_fx | Sparse_memory
   | Unknown of string
 type profile =

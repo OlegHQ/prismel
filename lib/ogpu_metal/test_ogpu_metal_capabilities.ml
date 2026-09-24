@@ -2,7 +2,7 @@ open Ogpu_metal
 let get=function Ok value->value|Error value->failwith(Ogpu.Error.to_string value)
 let get_metal=function Ok value->value|Error value->failwith(Format.asprintf"%a"Metal.pp_error value)
 let outcome=function Ok()->"supported"|Error value when value.Ogpu.Error.kind=Ogpu.Error.Unsupported->"unsupported"|Error value->"error:"^Ogpu.Error.to_string value
-let operations=[Adapter.Buffer;Texture;Sampler;Compute_pipeline;Render_pipeline;Queue;Surface;Memory;Native_pass;Event_synchronization;Timeline_fence;Timestamp_queries;Ray_tracing;Metal_fx;Sparse_memory;Unknown"future"]
+let operations=[Adapter.Buffer;Texture;Sampler;Compute_pipeline;Render_pipeline;Queue;Surface;Memory;Event_synchronization;Timeline_fence;Timestamp_queries;Ray_tracing;Metal_fx;Sparse_memory;Unknown"future"]
 let source ray_tracing metal_fx : Adapter.capability_source={max_buffer_size=1_073_741_824L;max_texture_dimension_2d=16384;max_bind_groups=4;max_sample_count=4;ray_tracing;metal_fx}
 let profile source ~timestamp_queries ~sparse_memory=get(Adapter.profile source~timestamp_queries~sparse_memory~conservative_limits:[])
 let matrix value=List.map(fun operation->outcome(Adapter.supports value operation))operations
@@ -26,4 +26,4 @@ let run () =
   if outcome(Device.supports device Adapter.Metal_fx)<>"unsupported"then failwith"MetalFX semantic fallback";
   if outcome(Device.supports device Adapter.Timeline_fence)<>"unsupported"then failwith"timeline fence semantic fallback";
   if List.length profile.conservative_limits<>5 then failwith"conservative evidence drift";
-  get(Device.destroy device);print_endline"ogpu_metal capability truth: 16 operations x4 profiles, real probes consistent, no fallback"
+  get(Device.destroy device);print_endline"ogpu_metal capability truth: 15 operations x4 profiles, real probes consistent, no fallback"

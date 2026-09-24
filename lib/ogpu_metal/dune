@@ -1,13 +1,13 @@
 (library
  (name ogpu_metal)
  (public_name prismel.ogpu_metal)
- (modules Adapter Device Buffer Texture Sampler Pipeline Command Render_pass Transfer_pass Compute_pass Queue Presentation Surface Native_pass Sync Memory Acceleration Diagnostics Backend)
+ (modules Adapter Device Buffer Texture Sampler Pipeline Command Render_pass Transfer_pass Compute_pass Queue Presentation Surface Sync Memory Acceleration Diagnostics Backend)
  (private_modules Presentation)
  (libraries ogpu metal))
 
 (executable
  (name test_main)
- (modules test_main test_ogpu_metal_foundation test_ogpu_metal_texture test_ogpu_metal_submission test_ogpu_metal_pipeline test_ogpu_metal_surface test_ogpu_metal_native_pass test_ogpu_metal_sync test_ogpu_metal_memory test_ogpu_metal_acceleration test_ogpu_metal_diagnostics test_ogpu_metal_capabilities test_ogpu_metal_render_pass test_ogpu_metal_portable_passes test_ogpu_metal_backend test_ogpu_metal_sampler_pixels test_scene_execution_metal test_pipeline_argument_buffer)
+ (modules test_main test_ogpu_metal_foundation test_ogpu_metal_texture test_ogpu_metal_submission test_ogpu_metal_pipeline test_ogpu_metal_surface test_ogpu_metal_sync test_ogpu_metal_memory test_ogpu_metal_acceleration test_ogpu_metal_diagnostics test_ogpu_metal_capabilities test_ogpu_metal_render_pass test_ogpu_metal_portable_passes test_ogpu_metal_backend test_ogpu_metal_sampler_pixels test_scene_execution_metal test_pipeline_argument_buffer)
  (libraries scene_execution ogpu_metal metal))
 
 (rule
@@ -29,10 +29,6 @@
 (rule
  (aliases runtest test_ogpu_metal_surface)
  (action (run %{exe:test_main.exe} test_ogpu_metal_surface)))
-
-(rule
- (aliases runtest test_ogpu_metal_native_pass)
- (action (run %{exe:test_main.exe} test_ogpu_metal_native_pass)))
 
 (rule
  (aliases runtest test_ogpu_metal_sync)

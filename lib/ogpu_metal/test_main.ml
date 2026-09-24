@@ -4,7 +4,6 @@ let tests = [
   "test_ogpu_metal_submission", Test_ogpu_metal_submission.run;
   "test_ogpu_metal_pipeline", Test_ogpu_metal_pipeline.run;
   "test_ogpu_metal_surface", Test_ogpu_metal_surface.run;
-  "test_ogpu_metal_native_pass", Test_ogpu_metal_native_pass.run;
   "test_ogpu_metal_sync", Test_ogpu_metal_sync.run;
   "test_ogpu_metal_memory", Test_ogpu_metal_memory.run;
   "test_ogpu_metal_acceleration", Test_ogpu_metal_acceleration.run;

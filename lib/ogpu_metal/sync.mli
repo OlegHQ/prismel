@@ -16,6 +16,6 @@ val create_query_set : Device.t -> kind:Ogpu.Sync.query_kind -> count:int ->
   (query_set, Ogpu.Error.t) result
 val execute_query_pass : Device.t -> query_set -> first:int -> count:int ->
   destination:Buffer.t -> destination_offset:int64 -> completion_epoch:int64 ->
-  (Ogpu.Query_pass.description, Ogpu.Error.t) result
+  (Ogpu.Sync.description, Ogpu.Error.t) result
 val query_supported : query_set -> bool
 val destroy_query_set : query_set -> (unit, Ogpu.Error.t) result

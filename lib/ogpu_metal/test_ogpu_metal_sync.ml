@@ -22,7 +22,7 @@ let run () =
     if not (Sync.query_supported queries) then failwith "created query set is unsupported";
     let description = get (Sync.execute_query_pass device queries ~first:0 ~count:2 ~destination
       ~destination_offset:0L ~completion_epoch:1L) in
-    (match description.Ogpu.Query_pass.resolve with Ogpu.Sync.Resolve value when value.count=2 && value.first=0 -> () | _ -> failwith "query description drift");
+    (match description with Ogpu.Sync.Resolve value when value.count=2 && value.first=0 -> () | _ -> failwith "query description drift");
     let bytes = get (Buffer.read_bytes device destination ~offset:0L ~length:16) in
     if Bytes.length bytes <> 16 then failwith "timestamp result length drift";
     expect Ogpu.Error.Invalid_argument (Sync.execute_query_pass device queries ~first:1 ~count:2 ~destination
