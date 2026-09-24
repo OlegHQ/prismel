@@ -4,8 +4,6 @@ module Native = Sdl3.Event
 
 let fail message = failwith ("SDL3 platform harness: " ^ message)
 
-let point value = int_of_float value
-
 let key ~scancode ~keycode =
   if keycode >= Char.code 'a' && keycode <= Char.code 'z' then
     Input.KeyChar (Char.chr keycode)
@@ -59,12 +57,12 @@ let translate = function
   | Native.Text_editing { text; start; length; _ } ->
       Some (Event.TextEditing { text; start; length })
   | Native.Mouse_motion { x; y; _ } ->
-      Some (Event.MouseMoved (point x, point y))
+      Some (Event.MouseMoved (x, y))
   | Native.Mouse_button { button = native_button; down; x; y; _ } ->
       Option.map
         (fun button ->
-          if down then Event.MousePressed (button, (point x, point y))
-          else Event.MouseReleased (button, (point x, point y)))
+          if down then Event.MousePressed (button, (x, y))
+          else Event.MouseReleased (button, (x, y)))
         (button native_button)
   | Native.Mouse_wheel { x; y; _ } ->
       Some (Event.MouseScrolled (x, y))
@@ -121,20 +119,20 @@ let events =
       { timestamp_ns = 4L; window_id; text = "č"; start = 1; length = 2 }
   ; Native.Mouse_motion
       { timestamp_ns = 5L; window_id; which = 1L; buttons = 0L
-      ; x = 10.; y = 10.; dx = 10.; dy = 10.
+      ; x = 10.25; y = 10.5; dx = 10.25; dy = 10.5
       }
   ; Native.Mouse_motion
       { timestamp_ns = 6L; window_id; which = 1L; buttons = 0L
-      ; x = 13.; y = 17.; dx = 3.; dy = 7.
+      ; x = 13.5; y = 17.25; dx = 3.25; dy = 6.75
       }
   ; Native.Mouse_button
       { timestamp_ns = 7L; window_id; which = 1L; button = 1; down = true
-      ; clicks = 1; x = 13.; y = 17.
+      ; clicks = 1; x = 13.5; y = 17.25
       }
   ; Native.Mouse_wheel
-      { timestamp_ns = 8L; window_id; which = 1L; x = 0.; y = 1.
-      ; direction = Native.Normal; mouse_x = 13.; mouse_y = 17.
-      ; integer_x = 0; integer_y = 1
+      { timestamp_ns = 8L; window_id; which = 1L; x = 0.3; y = 0.
+      ; direction = Native.Normal; mouse_x = 13.5; mouse_y = 17.25
+      ; integer_x = 0; integer_y = 0
       }
   ; Native.Drop
       { timestamp_ns = 9L; window_id; x = 13.; y = 17.; source = Some "test"
@@ -157,7 +155,7 @@ let events =
   ]
 
 let run () =
-  Input.reset ~mouse:(0, 0);
+  Input.reset ~mouse:(0., 0.);
   Input.begin_frame ();
   let translated = List.filter_map translate events in
   List.iter apply_input translated;
@@ -165,10 +163,10 @@ let run () =
     [ Event.KeyPressed (Input.KeyChar 'a')
     ; Event.TextInput "Žaba"
     ; Event.TextEditing { text = "č"; start = 1; length = 2 }
-    ; Event.MouseMoved (10, 10)
-    ; Event.MouseMoved (13, 17)
-    ; Event.MousePressed (Input.LeftButton, (13, 17))
-    ; Event.MouseScrolled (0., 1.)
+    ; Event.MouseMoved (10.25, 10.5)
+    ; Event.MouseMoved (13.5, 17.25)
+    ; Event.MousePressed (Input.LeftButton, (13.5, 17.25))
+    ; Event.MouseScrolled (0.3, 0.)
     ; Event.FileDropped "/tmp/žaba.png"
     ; Event.WindowResized (80, 60)
     ; Event.PointerCancelled Input.LeftButton
@@ -180,11 +178,11 @@ let run () =
     fail
       (Printf.sprintf "translated trace changed:\n%s"
          (String.concat "\n" (List.map Event.event_to_string translated)));
-  if Input.mouse_pos () <> (13, 17) || Input.mouse_delta () <> (13, 17) then
+  if Input.mouse_pos () <> (13.5, 17.25) || Input.mouse_delta () <> (13.5, 17.25) then
     fail "logical mouse position/delta changed";
   if Input.keys_down () <> [] || Input.mouse_buttons_down () <> [] then
     fail "focus loss/pointer cancellation left held input";
   Input.begin_frame ();
-  if Input.mouse_delta () <> (0, 0) then
+  if Input.mouse_delta () <> (0., 0.) then
     fail "per-frame mouse delta did not reset";
   print_endline "SDL3 Runtime-shaped Prismel event/input trace passed"

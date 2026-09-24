@@ -572,7 +572,7 @@ let route ui (frame : Frame.t) =
   ui.command_down <- List.mem Input.Meta frame.keys || List.mem Input.Ctrl frame.keys;
   ui.shift_down <- List.mem Input.Shift frame.keys;
   ui.view_w <- float frame.width; ui.view_h <- float frame.height;
-  let set_pointer (x, y) = ui.pointer <- (float x, float y) in
+  let set_pointer point = ui.pointer <- point in
   List.iter (fun (event : Event.t) -> match event with
     | Event.MouseMoved point ->
         let px, py = ui.pointer in
@@ -662,7 +662,7 @@ let route ui (frame : Frame.t) =
   Int_table.iter (fun _ value -> value.keys <- List.rev value.keys) ui.signals;
   let mouse_x, mouse_y = frame.mouse in
   if not (Float.is_finite (fst ui.pointer)) then
-    ui.pointer <- (float mouse_x, float mouse_y);
+    ui.pointer <- (mouse_x, mouse_y);
   ui.hot <- (if List.exists (function Event.WindowFocusLost -> true | _ -> false)
       frame.events then 0 else topmost ui ui.pointer)
 
@@ -1388,7 +1388,7 @@ let modal ui ?(width = 320.) label f =
   let dismissed = List.exists (function
     | Event.KeyPressed Input.Escape | Event.WindowFocusLost -> true
     | Event.MousePressed (_, (px, py)) ->
-        slot >= 0 && not (contains rect (float px, float py))
+        slot >= 0 && not (contains rect (px, py))
     | _ -> false) ui.frame_events in
   if dismissed then None else
     let x = Float.round (Float.max 0. ((ui.view_w -. width) /. 2.))
@@ -1962,7 +1962,7 @@ let context_menu ui ~at:(x, y) label items =
     else x, y, width, height in
   let dismissed = List.exists (function
     | Event.KeyPressed Input.Escape | Event.WindowFocusLost -> true
-    | Event.MousePressed (_, (px, py)) -> not (contains rect (float px, float py))
+    | Event.MousePressed (_, (px, py)) -> not (contains rect (px, py))
     | _ -> false) ui.frame_events in
   if dismissed then `Dismiss else
     let picked = panel_with ~stroke:ui.theme.accent ui ~x ~y ~width label (fun () ->

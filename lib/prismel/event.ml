@@ -1,5 +1,5 @@
-type t = KeyPressed of Input.key | KeyReleased of Input.key | MouseMoved of (int*int)
-  | MousePressed of Input.mouse_button*(int*int) | MouseReleased of Input.mouse_button*(int*int)
+type t = KeyPressed of Input.key | KeyReleased of Input.key | MouseMoved of (float*float)
+  | MousePressed of Input.mouse_button*(float*float) | MouseReleased of Input.mouse_button*(float*float)
   | PointerCancelled of Input.mouse_button | MouseScrolled of (float*float) | TextInput of string
   | TextEditing of {text:string;start:int;length:int} | FileDropped of string
   | WindowResized of (int*int) | WindowFocusLost | WindowClosed
@@ -17,9 +17,9 @@ let key text=match String.lowercase_ascii text with
   |value when String.length value=1->KeyChar value.[0]
   |_->Unknown(Hashtbl.hash text)
 let convert=function
-  | Runtime_next_input.Pointer_moved(x,y)->Some(MouseMoved(int_of_float x,int_of_float y))
-  | Pointer_pressed(b,x,y)->Some(MousePressed(button b,(int_of_float x,int_of_float y)))
-  | Pointer_released(b,x,y)->Some(MouseReleased(button b,(int_of_float x,int_of_float y)))
+  | Runtime_next_input.Pointer_moved(x,y)->Some(MouseMoved(x,y))
+  | Pointer_pressed(b,x,y)->Some(MousePressed(button b,(x,y)))
+  | Pointer_released(b,x,y)->Some(MouseReleased(button b,(x,y)))
   | Pointer_cancelled b->Some(PointerCancelled(button b))|Wheel(x,y)->Some(MouseScrolled(x,y))
   | Key_pressed e->Some(KeyPressed(key e.key))|Key_released e->Some(KeyReleased(key e.key))
   | Text_input s->Some(TextInput s)|Text_editing{text;start;length}->Some(TextEditing{text;start;length})
@@ -38,7 +38,7 @@ let poll_events()=
   let events=Runtime_next_input.drain source|>List.filter_map convert|>List.map(fun e->apply e;e)in
   if Runtime_next_input.relative source then begin
     let dx,dy=(Runtime_next_input.snapshot source).mouse_delta in
-    Input.set_mouse_delta(int_of_float(Float.round dx),int_of_float(Float.round dy))
+    Input.set_mouse_delta(dx,dy)
   end;
   events
 module Private=struct let set_relative enabled=Runtime_next_input.set_relative source enabled let key_of_name=key end
@@ -47,9 +47,9 @@ let handle_events state handler=let events=poll_events()in process_events events
 let event_to_string=function
   |KeyPressed key->"KeyPressed("^Input.key_to_string key^")"
   |KeyReleased key->"KeyReleased("^Input.key_to_string key^")"
-  |MouseMoved(x,y)->Printf.sprintf"MouseMoved(%d, %d)"x y
-  |MousePressed(button,(x,y))->Printf.sprintf"MousePressed(%s, (%d, %d))"(Input.mouse_button_to_string button)x y
-  |MouseReleased(button,(x,y))->Printf.sprintf"MouseReleased(%s, (%d, %d))"(Input.mouse_button_to_string button)x y
+  |MouseMoved(x,y)->Printf.sprintf"MouseMoved(%g, %g)"x y
+  |MousePressed(button,(x,y))->Printf.sprintf"MousePressed(%s, (%g, %g))"(Input.mouse_button_to_string button)x y
+  |MouseReleased(button,(x,y))->Printf.sprintf"MouseReleased(%s, (%g, %g))"(Input.mouse_button_to_string button)x y
   |PointerCancelled button->Printf.sprintf"PointerCancelled(%s)"(Input.mouse_button_to_string button)
   |MouseScrolled(dx,dy)->Printf.sprintf"MouseScrolled(%g, %g)"dx dy
   |TextInput text->Printf.sprintf"TextInput(%S)"text

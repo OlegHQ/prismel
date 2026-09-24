@@ -47,7 +47,7 @@ let run () =
   let frame time events : Prismel.Frame.t = { width = 320; height = 240;
     size = 320, 240; drawable_width = 320; drawable_height = 240;
     drawable_size = 320, 240; pixel_scale = 1., 1.; time; dt = 0.; fps = 0.;
-    count = 0; mouse = 0, 0; mouse_delta = 0, 0; keys = []; mouse_buttons = [];
+    count = 0; mouse = 0., 0.; mouse_delta = 0., 0.; keys = []; mouse_buttons = [];
     events } in
   let step graph time events =
     Pxui.Ui.frame ui (frame time events) (fun ui ->
@@ -61,8 +61,8 @@ let run () =
   (* Rows: node label, Geometry, count, enabled, mode, Look. The Enabled
      toggle occupies x in [217, 257) on row 3. *)
   let row index = 3 + (index * 24) + 12 in
-  let click x y = [Prismel.Event.MousePressed (Prismel.Input.LeftButton, (x, y));
-    Prismel.Event.MouseReleased (Prismel.Input.LeftButton, (x, y))] in
+  let click x y = [Prismel.Event.MousePressed (Prismel.Input.LeftButton, (float x, float y));
+    Prismel.Event.MouseReleased (Prismel.Input.LeftButton, (float x, float y))] in
   let graph, effects = step graph 0.5 (click 230 (row 3)) in
   let field graph name = Node.parameter_fields graph
     |> List.find (fun field -> field.Parameter.name = name) in
@@ -72,9 +72,9 @@ let run () =
   if (field graph "mode").current <> Parameter.Choice_value "Sphere"
   then fail "inspector choice did not apply";
   let graph, _ = step graph 1.5
-      [Prismel.Event.MousePressed (Prismel.Input.LeftButton, (140, row 2));
-       Prismel.Event.MouseMoved (400, row 2);
-       Prismel.Event.MouseReleased (Prismel.Input.LeftButton, (400, row 2))] in
+      [Prismel.Event.MousePressed (Prismel.Input.LeftButton, (140., float (row 2)));
+       Prismel.Event.MouseMoved (400., float (row 2));
+       Prismel.Event.MouseReleased (Prismel.Input.LeftButton, (400., float (row 2)))] in
   if (field graph "count").current <> Parameter.Int_value 5
   then fail "inspector integer drag did not clamp to the soft range";
   let changes = Node.parameter_fields graph

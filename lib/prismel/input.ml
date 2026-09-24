@@ -32,18 +32,18 @@ end)
 
 (* Mutable state for input tracking *)
 let pressed_keys = ref KeySet.empty
-let current_mouse_pos = ref (0, 0)
-let frame_mouse_delta = ref (0, 0)
+let current_mouse_pos = ref (0., 0.)
+let frame_mouse_delta = ref (0., 0.)
 let pressed_mouse_buttons = ref MouseButtonSet.empty
 
 let reset ~mouse =
   pressed_keys := KeySet.empty;
   pressed_mouse_buttons := MouseButtonSet.empty;
   current_mouse_pos := mouse;
-  frame_mouse_delta := (0, 0)
+  frame_mouse_delta := (0., 0.)
 
 let begin_frame () =
-  frame_mouse_delta := (0, 0)
+  frame_mouse_delta := (0., 0.)
 
 (* Internal functions for updating state (called by event system) *)
 let press_key key =
@@ -56,7 +56,7 @@ let update_mouse_pos x y =
   let current_x, current_y = !current_mouse_pos in
   let delta_x, delta_y = !frame_mouse_delta in
   frame_mouse_delta :=
-    (delta_x + x - current_x, delta_y + y - current_y);
+    (delta_x +. x -. current_x, delta_y +. y -. current_y);
   current_mouse_pos := (x, y)
 
 let set_mouse_delta delta = frame_mouse_delta := delta
@@ -135,4 +135,3 @@ let mouse_button_to_string = function
   | MiddleButton -> "MiddleButton"
   | MouseX1 -> "MouseX1"
   | MouseX2 -> "MouseX2"
-

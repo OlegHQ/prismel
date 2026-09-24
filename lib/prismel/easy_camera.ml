@@ -53,9 +53,9 @@ type t = {
   auto_distance : bool;
   auto_distance_pending : bool;
   interactions : binding list;
-  drag : (Input.mouse_button * interaction * (int * int)) option;
+  drag : (Input.mouse_button * interaction * (float * float)) option;
   velocity : motion option;
-  last_press : (Input.mouse_button * (int * int) * float) option;
+  last_press : (Input.mouse_button * (float * float) * float) option;
   initial : settings;
   mutable camera_cache : camera_snapshot option;
 }
@@ -379,7 +379,8 @@ let contains value (x, y) =
   match value.control_area with
   | None -> true
   | Some (left, top, width, height) ->
-      x >= left && y >= top && x < left + width && y < top + height
+      x >= float left && y >= float top
+      && x < float (left + width) && y < float (top + height)
 
 let pan_axes value =
   let camera = camera value in
@@ -456,8 +457,8 @@ let double_click value button point time =
       previous_button = button
       && time >= previous_time
       && time -. previous_time <= 0.3
-      && ((x - previous_x) * (x - previous_x))
-         + ((y - previous_y) * (y - previous_y)) <= 25
+      && ((x -. previous_x) *. (x -. previous_x))
+         +. ((y -. previous_y) *. (y -. previous_y)) <= 25.
   | None -> false
 
 let apply_inertia frame value =
@@ -519,8 +520,8 @@ let update value frame =
               (match value.drag with
                | None -> value
                | Some (button, interaction, (previous_x, previous_y)) ->
-                   let dx = float_of_int (x - previous_x)
-                   and dy = float_of_int (y - previous_y) in
+                   let dx = x -. previous_x
+                   and dy = y -. previous_y in
                    apply_delta frame value interaction dx dy
                    |> fun value ->
                    {
@@ -566,7 +567,7 @@ let fly ~speed value (frame : Frame.t) =
   let eye = Camera.position view in
   let forward = Vec3.normalize (Vec3.sub (Camera.target view) eye) in
   let dx, dy = frame.mouse_delta in
-  let yaw = -0.003 *. float dx and pitch = -0.003 *. float dy in
+  let yaw = -0.003 *. dx and pitch = -0.003 *. dy in
   let along = Vec3.dot up forward in
   let yawed = Vec3.add (Vec3.add (Vec3.scale forward (cos yaw))
       (Vec3.scale (Vec3.cross up forward) (sin yaw)))

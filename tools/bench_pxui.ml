@@ -35,8 +35,8 @@ let measure name operation =
 let frame ?(time = 0.) events : Frame.t =
   { width = 1200; height = 800; size = 1200, 800; drawable_width = 2400;
     drawable_height = 1600; drawable_size = 2400, 1600; pixel_scale = 2., 2.;
-    time; dt = 1. /. 60.; fps = 60.; count = 0; mouse = 0, 0;
-    mouse_delta = 0, 0; keys = []; mouse_buttons = []; events }
+    time; dt = 1. /. 60.; fps = 60.; count = 0; mouse = 0., 0.;
+    mouse_delta = 0., 0.; keys = []; mouse_buttons = []; events }
 
 (* One full UI frame over [widget_count] sliders in a bounded panel: route,
    build, layout, paint, and publish. Returns how many values changed. *)
@@ -56,9 +56,10 @@ let step events =
    after the 120-point label column. *)
 let row_y index = 12 + 3 + (index * 24) + 12
 let target = 10
-let press x = Event.MousePressed (Input.LeftButton, (x, row_y target))
-let moved x = Event.MouseMoved (x, row_y target)
-let released x = Event.MouseReleased (Input.LeftButton, (x, row_y target))
+let point x = float x, float (row_y target)
+let press x = Event.MousePressed (Input.LeftButton, point x)
+let moved x = Event.MouseMoved (point x)
+let released x = Event.MouseReleased (Input.LeftButton, point x)
 
 let batches scene =
   match Scene.Private.stage_native_render ~width:1200 ~height:800 scene with

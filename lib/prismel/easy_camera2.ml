@@ -21,9 +21,9 @@ type t = {
   pan_sensitivity : float;
   zoom_sensitivity : float;
   translation_key : Input.key option;
-  drag : (Input.mouse_button * (int * int)) option;
+  drag : (Input.mouse_button * (float * float)) option;
   velocity : motion option;
-  last_press : (Input.mouse_button * (int * int) * float) option;
+  last_press : (Input.mouse_button * (float * float) * float) option;
   initial : settings;
 }
 
@@ -128,7 +128,8 @@ let reset value =
 let contains area (x, y) = match area with
   | None -> true
   | Some (left, top, width, height) ->
-      x >= left && y >= top && x < left + width && y < top + height
+      x >= float left && y >= float top
+      && x < float (left + width) && y < float (top + height)
 
 let effective_viewport value frame = match value.viewport with
   | Some viewport -> viewport
@@ -161,7 +162,7 @@ let pan value dx dy =
 let zoom_at value ~viewport point vertical =
   if vertical = 0. then value
   else
-    let point = Vec2.of_pair point in
+    let point = Vec2.create (fst point) (snd point) in
     let anchored_world = screen_to_world ~viewport value point in
     let zoom = Float.max 1e-6
         (value.zoom *. exp
@@ -183,8 +184,8 @@ let double_click value button point time = match value.last_press with
       let x, y = point in
       previous_button = button
       && time >= previous_time && time -. previous_time <= 0.3
-      && ((x - previous_x) * (x - previous_x))
-         + ((y - previous_y) * (y - previous_y)) <= 25
+      && ((x -. previous_x) *. (x -. previous_x))
+         +. ((y -. previous_y) *. (y -. previous_y)) <= 25.
   | None -> false
 
 let apply_inertia frame value = match value.drag, value.velocity with
@@ -218,8 +219,8 @@ let update value frame =
           (match value.drag with
            | None -> value
            | Some (button, (previous_x, previous_y)) ->
-               let dx = float_of_int (x - previous_x)
-               and dy = float_of_int (y - previous_y) in
+               let dx = x -. previous_x
+               and dy = y -. previous_y in
                let value = pan value dx dy in
                { value with drag = Some (button, point);
                  velocity = Some { dx; dy } })

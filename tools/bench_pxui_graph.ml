@@ -1,4 +1,8 @@
 open Procedural
+let pointer (x, y) = float x, float y
+let mouse_press (button, point) = Prismel.Event.MousePressed (button, pointer point)
+let mouse_release (button, point) = Prismel.Event.MouseReleased (button, pointer point)
+let mouse_move point = Prismel.Event.MouseMoved (pointer point)
 
 let repeats = 10_000
 let move_repeats = 10
@@ -8,7 +12,8 @@ let frame ?(mouse = 0, 0) ?(events = []) () : Prismel.Frame.t = {
   drawable_width = 1_200; drawable_height = 760;
   drawable_size = 1_200, 760; pixel_scale = 1., 1.;
   time = 0.; dt = 1. /. 60.; fps = 60.; count = 0;
-  mouse; mouse_delta = 0, 0; keys = []; mouse_buttons = []; events;
+  mouse = (float (fst mouse), float (snd mouse));
+  mouse_delta = 0., 0.; keys = []; mouse_buttons = []; events;
 }
 
 let percentile values fraction =
@@ -90,7 +95,7 @@ let measure count =
   let start = node_x + (node_width / 2), node_y + (node_height / 2) in
   let moving, _ = step (paint (Pxui_graph.select first_node.id view)
       (frame ~mouse:start ()))
-      (frame ~mouse:start ~events:[Prismel.Event.MousePressed
+      (frame ~mouse:start ~events:[mouse_press
         (Prismel.Input.LeftButton, start)] ()) in
   let moving = ref moving and move_samples = Array.make move_repeats 0. in
   ignore (paint !moving (frame ~mouse:start ()));
@@ -100,7 +105,7 @@ let measure count =
     let point = fst start + index + 1, snd start + index + 1 in
     let started = Unix.gettimeofday () in
     let next, _ = step !moving
-        (frame ~mouse:point ~events:[Prismel.Event.MouseMoved point] ()) in
+        (frame ~mouse:point ~events:[mouse_move point] ()) in
     ignore (Sys.opaque_identity (Pxui.Ui.scene ui));
     move_samples.(index) <- Unix.gettimeofday () -. started;
     moving := next
@@ -111,7 +116,7 @@ let measure count =
   let release_started = Unix.gettimeofday () in
   let _, _ = step !moving
       (frame ~mouse:(fst start + move_repeats, snd start + move_repeats)
-        ~events:[Prismel.Event.MouseReleased (Prismel.Input.LeftButton,
+        ~events:[mouse_release (Prismel.Input.LeftButton,
           (fst start + move_repeats, snd start + move_repeats))] ()) in
   ignore (Sys.opaque_identity (Pxui.Ui.scene ui));
   let release_seconds = Unix.gettimeofday () -. release_started
@@ -124,15 +129,15 @@ let measure count =
       |> List.map (fun (node : Pxui_graph.node_view) -> node.id)) in
   let bulk, _ = step (paint (Pxui_graph.select_nodes bulk_ids view)
       (frame ~mouse:start ()))
-      (frame ~mouse:start ~events:[Prismel.Event.MousePressed
+      (frame ~mouse:start ~events:[mouse_press
         (Prismel.Input.LeftButton, start)] ()) in
   let bulk_target = fst start + 2, snd start + 2 in
   let bulk, _ = step bulk
-      (frame ~mouse:bulk_target ~events:[Prismel.Event.MouseMoved bulk_target] ()) in
+      (frame ~mouse:bulk_target ~events:[mouse_move bulk_target] ()) in
   Gc.full_major ();
   let bulk_before = Gc.allocated_bytes () and bulk_started = Unix.gettimeofday () in
   let _, _ = step bulk
-      (frame ~mouse:bulk_target ~events:[Prismel.Event.MouseReleased
+      (frame ~mouse:bulk_target ~events:[mouse_release
         (Prismel.Input.LeftButton, bulk_target)] ()) in
   ignore (Sys.opaque_identity (Pxui.Ui.scene ui));
   let bulk_seconds = Unix.gettimeofday () -. bulk_started
@@ -142,7 +147,7 @@ let measure count =
   let zoomed, _ = step (paint view (frame ~mouse:centre ())) (frame ~mouse:centre
       ~events:(List.init 20 (fun _ -> Prismel.Event.MouseScrolled (0., (-1.)))) ()) in
   let panning, _ = step zoomed (frame ~mouse:centre
-      ~events:[Prismel.Event.MousePressed (Prismel.Input.RightButton, centre)] ()) in
+      ~events:[mouse_press (Prismel.Input.RightButton, centre)] ()) in
   let panning = ref panning and pan_samples = Array.make move_repeats 0. in
   ignore (paint !panning (frame ~mouse:centre ()));
   Gc.full_major ();
@@ -151,7 +156,7 @@ let measure count =
     let point = fst centre + (3 * (index + 1)), snd centre + (2 * (index + 1)) in
     let started = Unix.gettimeofday () in
     let next, _ = step !panning
-        (frame ~mouse:point ~events:[Prismel.Event.MouseMoved point] ()) in
+        (frame ~mouse:point ~events:[mouse_move point] ()) in
     ignore (Sys.opaque_identity (Pxui.Ui.scene ui));
     pan_samples.(index) <- Unix.gettimeofday () -. started;
     panning := next

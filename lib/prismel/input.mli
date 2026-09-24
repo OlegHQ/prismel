@@ -20,12 +20,12 @@ type mouse_button =
   | MouseX2
 
 (* Internal functions for updating state (called by event system) *)
-val reset : mouse:int * int -> unit
+val reset : mouse:float * float -> unit
 val begin_frame : unit -> unit
 val press_key : key -> unit
 val release_key : key -> unit
-val update_mouse_pos : int -> int -> unit
-val set_mouse_delta : int * int -> unit
+val update_mouse_pos : float -> float -> unit
+val set_mouse_delta : float * float -> unit
 val press_mouse_button : mouse_button -> unit
 val release_mouse_button : mouse_button -> unit
 val clear_all_input : unit -> unit
@@ -42,10 +42,10 @@ val is_key_up : key -> bool
 val keys_down : unit -> key list
 
 (* Get current mouse position *)
-val mouse_pos : unit -> (int * int)
+val mouse_pos : unit -> (float * float)
 
 (* Get mouse movement delta since last frame *)
-val mouse_delta : unit -> (int * int)
+val mouse_delta : unit -> (float * float)
 
 (* Check if a mouse button is currently pressed *)
 val is_mouse_button_down : mouse_button -> bool
@@ -56,4 +56,3 @@ val mouse_buttons_down : unit -> mouse_button list
 (* Utility functions for debugging and display *)
 val key_to_string : key -> string
 val mouse_button_to_string : mouse_button -> string 
-

@@ -1,13 +1,18 @@
 open Prismel
 
 let fail message = raise (Failure message)
+let pointer (x, y) = float x, float y
+let mouse_press (button, point) = Event.MousePressed (button, pointer point)
+let mouse_release (button, point) = Event.MouseReleased (button, pointer point)
+let mouse_move point = Event.MouseMoved (pointer point)
 
 let frame ?(time = 0.) ?(dt = 1. /. 60.) ?(mouse = (320, 180))
     ?(keys = []) ?(mouse_buttons = []) ?(events = []) () : Frame.t = {
   width = 640; height = 360; size = 640, 360;
   drawable_width = 640; drawable_height = 360;
   drawable_size = 640, 360; pixel_scale = 1., 1.;
-  time; dt; fps = 60.; count = 0; mouse; mouse_delta = 0, 0;
+  time; dt; fps = 60.; count = 0;
+  mouse = (float (fst mouse), float (snd mouse)); mouse_delta = 0., 0.;
   keys; mouse_buttons; events;
 }
 
@@ -23,16 +28,16 @@ let run () =
     fail "2D camera screen/world transforms did not round-trip";
   let right_panned = Easy_camera2.update camera (frame
       ~mouse:(350, 205) ~mouse_buttons:[Input.RightButton]
-      ~events:[Event.MousePressed (Input.RightButton, (320, 180));
-        MouseMoved (350, 205); MouseReleased (Input.RightButton, (350, 205))]
+      ~events:[mouse_press (Input.RightButton, (320, 180));
+        mouse_move (350, 205); mouse_release (Input.RightButton, (350, 205))]
       ()) in
   if Vec2.nearly_equal (Easy_camera2.center right_panned) Vec2.zero ~eps:1e-9
      || Easy_camera2.zoom right_panned <> 1.
   then fail "2D camera right-drag did not pan without changing zoom";
   let middle_panned = Easy_camera2.update right_panned (frame
       ~mouse:(365, 195) ~mouse_buttons:[Input.MiddleButton]
-      ~events:[Event.MousePressed (Input.MiddleButton, (350, 205));
-        MouseMoved (365, 195); MouseReleased (Input.MiddleButton, (365, 195))]
+      ~events:[mouse_press (Input.MiddleButton, (350, 205));
+        mouse_move (365, 195); mouse_release (Input.MiddleButton, (365, 195))]
       ()) in
   if Vec2.nearly_equal (Easy_camera2.center middle_panned)
       (Easy_camera2.center right_panned) ~eps:1e-9
@@ -47,6 +52,11 @@ let run () =
   if Easy_camera2.zoom zoomed <= Easy_camera2.zoom middle_panned
      || not (Vec2.nearly_equal before_anchor after_anchor ~eps:1e-8)
   then fail "2D camera wheel zoom was not pointer anchored";
+  let fractional = Easy_camera2.update middle_panned
+      { (frame ~events:[Event.MouseScrolled (0., 0.3)] ()) with
+        mouse = 500.25, 100.5 } in
+  if Easy_camera2.zoom fractional <= Easy_camera2.zoom middle_panned then
+    fail "2D camera ignored a fractional wheel delta";
   let horizontal = Easy_camera2.update zoomed (frame ~mouse:pointer
       ~events:[Event.MouseScrolled (3., 0.)] ()) in
   if Easy_camera2.zoom horizontal <> Easy_camera2.zoom zoomed
@@ -56,22 +66,22 @@ let run () =
   let captured = Easy_camera2.create ~viewport ~control_area:(0, 0, 100, 100)
       ~inertia:false ()
     |> Fun.flip Easy_camera2.update (frame ~mouse:(300, 250)
-      ~events:[Event.MousePressed (Input.RightButton, (50, 50));
-        MouseMoved (300, 250); MouseReleased (Input.RightButton, (300, 250))]
+      ~events:[mouse_press (Input.RightButton, (50, 50));
+        mouse_move (300, 250); mouse_release (Input.RightButton, (300, 250))]
       ()) in
   if Vec2.nearly_equal (Easy_camera2.center captured) Vec2.zero ~eps:1e-9 then
     fail "2D camera did not continue a captured pan outside its area";
   let outside = Easy_camera2.create ~viewport ~control_area:(0, 0, 40, 40)
       ~inertia:false ()
     |> Fun.flip Easy_camera2.update (frame
-      ~events:[Event.MousePressed (Input.RightButton, (50, 50));
-        MouseMoved (90, 90); MouseReleased (Input.RightButton, (90, 90))] ()) in
+      ~events:[mouse_press (Input.RightButton, (50, 50));
+        mouse_move (90, 90); mouse_release (Input.RightButton, (90, 90))] ()) in
   if not (Vec2.nearly_equal (Easy_camera2.center outside) Vec2.zero ~eps:1e-9)
   then fail "2D camera accepted a press outside its control area";
   let cancelled = Easy_camera2.create ~viewport ~inertia:false ()
     |> Fun.flip Easy_camera2.update (frame
-      ~events:[Event.MousePressed (Input.RightButton, (100, 100));
-        Event.PointerCancelled Input.RightButton; MouseMoved (180, 180)] ()) in
+      ~events:[mouse_press (Input.RightButton, (100, 100));
+        Event.PointerCancelled Input.RightButton; mouse_move (180, 180)] ()) in
   if not (Vec2.nearly_equal (Easy_camera2.center cancelled) Vec2.zero ~eps:1e-9)
   then fail "2D camera pointer cancellation did not release capture";
   let module Control = Pxui.Camera2_control in
@@ -87,8 +97,8 @@ let run () =
     control, Control.navigate ~control_area:area control camera frame,
     requests in
   let click point = frame ~mouse:point ~events:[
-      Event.MousePressed (Input.LeftButton, point);
-      MouseReleased (Input.LeftButton, point)] () in
+      mouse_press (Input.LeftButton, point);
+      mouse_release (Input.LeftButton, point)] () in
   let control = Control.create () in
   let control, _, _ = run control camera (frame ()) in
   (* Open Render (row 1), then press its save button (row 3). *)

@@ -690,13 +690,13 @@
       "source_sha256": "aa6d5d26a78c0836ce353cedebbfa63676cf077656f85b48ad363ca650b41f51"
     },
     {
-      "api_sha256": "1981b78619581c9f2b29cb750f2714450400bef47002774c33913c079bc4d0a4",
+      "api_sha256": "f658d56bff3833ebc50a3a38f3b5d1898cec367c78220a1d3f0c9e94fba0f1ca",
       "excluded_legacy_symbols": [],
       "library": "prismel",
       "module": "Event",
       "source": "lib/prismel/event.mli",
-      "source_bytes": 1823,
-      "source_sha256": "ba4941b8c40194735d66515fb28a9ee4ed26905206616e7883e615f06cbb4042"
+      "source_bytes": 1826,
+      "source_sha256": "c5514df49d514e2bc49355fd6c2584d3d16e2197db22c835277a2cced17d0fce"
     },
     {
       "api_sha256": "ad62ad9ff4b2dc8aed9b97d9436ec5203c79f7a90d44504fb6a08416fe053e0a",
@@ -720,13 +720,13 @@
       "source_sha256": "77cf612868cc600d3829670a7d3d59e31596e05aaed6d63f680daa84ab313ebf"
     },
     {
-      "api_sha256": "ffb3db727241e424d47e14f0583ea73e8954500728f48e06ab187153665d67eb",
+      "api_sha256": "f8ccec57565d14b96f71177f803f79882331ee3f0726709882c3586bedfc51c7",
       "excluded_legacy_symbols": [],
       "library": "prismel",
       "module": "Frame",
       "source": "lib/prismel/frame.mli",
-      "source_bytes": 801,
-      "source_sha256": "9cdee2df1c85d93248eba916ab4f82016cba311165f8fff94391160c6b72a37d"
+      "source_bytes": 808,
+      "source_sha256": "a00e90bdf49cb4d88646acc49bce52a4b6a23c30c55b692a45d39bca66a2b659"
     },
     {
       "api_sha256": "90735fabb728a8125fb90c689d5799d9acb8a6cff01c0e4111703d49f3c5332e",
@@ -740,13 +740,13 @@
       "source_sha256": "6656215b18b2d6eb101d1487ce6d8c2b609ac8cefad85b269f6718e41f10b22e"
     },
     {
-      "api_sha256": "a1023a6094f53e784af82f1dc37e8c6672e70525ba9068a54f335c262fae757b",
+      "api_sha256": "910213df621eb555346e3d9dad1b8320ff419bdf403e88181abb03c115628d87",
       "excluded_legacy_symbols": [],
       "library": "prismel",
       "module": "Input",
       "source": "lib/prismel/input.mli",
-      "source_bytes": 1729,
-      "source_sha256": "d0126cdf7dc0add98b7ae666bee9a1c0b669e7b121d72dc5eda1f10b55130099"
+      "source_bytes": 1748,
+      "source_sha256": "faca8d62430ef59d40eef2dc9bb2baf3d2975ca2b25b6425f5c2aa8732ed319c"
     },
     {
       "api_sha256": "462469ed4e8b2ddd45acceb51d7e2603ea20a8bf448fac73c0e6794bd706116d",

@@ -115,9 +115,10 @@ OS-cancelled pointer and stops pointer capture without clearing an
 otherwise valid text-field focus.
 
 `Frame.mouse`, all mouse event coordinates, and scene positions use the same
-logical-point space as `width` and `height`. `mouse_delta` is the sum of every
-pointer motion received during that application frame; it is zero in the next
-frame unless new motion arrives. Sketches normally ignore `pixel_scale`.
+logical-point space as `width` and `height`. Pointer positions and wheel deltas
+retain fractional values. `mouse_delta` is the float sum of every pointer
+motion received during that application frame; it is zero in the next frame
+unless new motion arrives. Sketches normally ignore `pixel_scale`.
 Framebuffer inspection, native-resolution capture, and deliberately
 pixel-density-aware effects use the `drawable_*` fields instead.
 

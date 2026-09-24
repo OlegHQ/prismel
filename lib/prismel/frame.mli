@@ -15,8 +15,8 @@ type t = {
   dt : float;
   fps : float;
   count : int;
-  mouse : int * int;
-  mouse_delta : int * int;
+  mouse : float * float;
+  mouse_delta : float * float;
   (** Logical pointer position and accumulated movement for this frame. *)
   keys : Input.key list;
   mouse_buttons : Input.mouse_button list;
@@ -26,4 +26,3 @@ type t = {
 val key_down : Input.key -> t -> bool
 val mouse_down : Input.mouse_button -> t -> bool
 val has_event : (Event.t -> bool) -> t -> bool
-

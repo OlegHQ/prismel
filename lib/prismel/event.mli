@@ -4,9 +4,9 @@
 type t =
   | KeyPressed of Input.key
   | KeyReleased of Input.key
-  | MouseMoved of (int * int)                                (* new mouse position *)
-  | MousePressed of Input.mouse_button * (int * int)        (* button and position *)
-  | MouseReleased of Input.mouse_button * (int * int)       (* button and position *)
+  | MouseMoved of (float * float)                            (* logical-point position *)
+  | MousePressed of Input.mouse_button * (float * float)    (* button and position *)
+  | MouseReleased of Input.mouse_button * (float * float)   (* button and position *)
   | PointerCancelled of Input.mouse_button                  (* browser/OS cancelled pointer *)
   | MouseScrolled of (float * float)                         (* scroll delta x,y; trackpads send fractions *)
   | TextInput of string
@@ -38,4 +38,3 @@ module Private : sig
   val key_of_name : string -> Input.key
   (* The runtime key-name contract; exposed for tests. *)
 end
-

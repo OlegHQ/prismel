@@ -28,6 +28,7 @@ let toolbar_height = 92
 let maximum_strokes = 128
 let maximum_points = 4_096
 let output_png = "_out/prismel-drawing.png"
+let pixel (x, y) = int_of_float x, int_of_float y
 
 let rec take count values =
   match count, values with
@@ -126,7 +127,8 @@ let handle_key model key =
   | _ -> model
 
 let update_event model = function
-  | Event.MousePressed (Input.LeftButton, ((_, y) as point)) ->
+  | Event.MousePressed (Input.LeftButton, point) ->
+      let (_, y) as point = pixel point in
       if y < toolbar_height then choose_toolbar_action model point
       else
         {
@@ -140,8 +142,8 @@ let update_event model = function
           status = "Drawing";
         }
   | Event.MouseMoved point ->
-      { model with active = Option.map (fun stroke -> add_point stroke point) model.active }
-  | Event.MouseReleased (Input.LeftButton, point) -> finish_stroke model point
+      { model with active = Option.map (fun stroke -> add_point stroke (pixel point)) model.active }
+  | Event.MouseReleased (Input.LeftButton, point) -> finish_stroke model (pixel point)
   | Event.PointerCancelled Input.LeftButton | Event.WindowFocusLost ->
       cancel_stroke model
   | Event.KeyPressed (Input.KeyChar key) -> handle_key model key

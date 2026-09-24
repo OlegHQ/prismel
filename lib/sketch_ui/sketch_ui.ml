@@ -40,8 +40,8 @@ let initial_frame : Frame.t = {
   width = 1024; height = 720; size = 1024, 720;
   drawable_width = 1024; drawable_height = 720;
   drawable_size = 1024, 720; pixel_scale = 1., 1.;
-  time = 0.; dt = 0.; fps = 0.; count = 0; mouse = 0, 0;
-  mouse_delta = 0, 0; keys = []; mouse_buttons = []; events = [];
+  time = 0.; dt = 0.; fps = 0.; count = 0; mouse = 0., 0.;
+  mouse_delta = 0., 0.; keys = []; mouse_buttons = []; events = [];
 }
 
 let viewport_frame (x, y, width, height) (frame : Frame.t) =
@@ -53,7 +53,7 @@ let viewport_frame (x, y, width, height) (frame : Frame.t) =
     drawable_size =
       (int_of_float (Float.round (float_of_int width *. scale_x)),
        int_of_float (Float.round (float_of_int height *. scale_y)));
-    mouse = (fst frame.mouse - x, snd frame.mouse - y) }
+    mouse = (fst frame.mouse -. float x, snd frame.mouse -. float y) }
 
 module Workspace = struct
   type column = View | Graph | Inspector | Timeline
@@ -721,7 +721,8 @@ module Core = struct
      the inspector while no node is selected. *)
   let pane_at (panes : Workspace.panes) point =
     let px, py = point in
-    let inside (x, y, w, h) = px >= x && py >= y && px < x + w && py < y + h in
+    let inside (x, y, w, h) = px >= float x && py >= float y &&
+      px < float (x + w) && py < float (y + h) in
     if inside panes.timeline then Some Workspace.Timeline
     else if inside panes.graph then Some Workspace.Graph
     else if inside panes.inspector then Some Workspace.Inspector
@@ -750,8 +751,10 @@ module Core = struct
     | Add_node ->
         let gx, gy, gw, gh = (Workspace.geometry workspace frame).graph in
         let mx, my = frame.mouse in
-        let at = if mx >= gx && my >= gy && mx < gx + gw && my < gy + gh
-          then frame.mouse else gx + (gw / 3), gy + (gh / 3) in
+        let at = if mx >= float gx && my >= float gy &&
+            mx < float (gx + gw) && my < float (gy + gh)
+          then int_of_float mx, int_of_float my
+          else gx + (gw / 3), gy + (gh / 3) in
         Workspace.expand Workspace.Graph workspace,
         Pxui_graph.open_menu_at at graph_view, timeline, changes
     | Layout -> workspace, Pxui_graph.optimize_layout graph_view, timeline, changes

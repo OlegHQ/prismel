@@ -3,14 +3,19 @@ open Procedural
 
 let fail message = raise (Failure message)
 let check condition message = if not condition then fail message
+let pointer (x, y) = float x, float y
+let mouse_press (button, point) = Event.MousePressed (button, pointer point)
+let mouse_release (button, point) = Event.MouseReleased (button, pointer point)
+let mouse_move point = Event.MouseMoved (pointer point)
 
 let frame ?(width = 900) ?(height = 640) ?mouse ?(events = []) count : Frame.t = {
   width; height; size = width, height;
   drawable_width = width; drawable_height = height;
   drawable_size = width, height; pixel_scale = 1., 1.;
   time = float_of_int count /. 60.; dt = 1. /. 60.; fps = 60.; count;
-  mouse = Option.value ~default:(width / 2, height / 2) mouse;
-  mouse_delta = 0, 0;
+  mouse = (let x, y = Option.value ~default:(width / 2, height / 2) mouse in
+    float x, float y);
+  mouse_delta = 0., 0.;
   keys = []; mouse_buttons = []; events;
 }
 
@@ -42,9 +47,9 @@ let run () =
   let workspace = workspace_step workspace (frame ~width:1000 0) in
   let resized = workspace_step workspace
       (frame ~width:1000 ~events:[
-        Event.MousePressed (Input.LeftButton, (splitter_x, 200));
-        MouseMoved (splitter_x + 80, 200);
-        MouseReleased (Input.LeftButton, (splitter_x + 80, 200))] 1) in
+        mouse_press (Input.LeftButton, (splitter_x, 200));
+        mouse_move (splitter_x + 80, 200);
+        mouse_release (Input.LeftButton, (splitter_x + 80, 200))] 1) in
   let resized_panes = Sketch_ui.Private.Workspace.geometry resized (frame ~width:1000 2) in
   check (width resized_panes.view > width initial.view
       && width resized_panes.graph < width initial.graph)
@@ -147,27 +152,27 @@ let run () =
   let camera_header = inspector_x + 32, inspector_y + 15 in
   let collapsed_scene = ui_bytes (Sketch_ui.Environment3.scene environment current_frame) in
   let environment = Sketch_ui.Environment3.update environment
-      (frame ~events:[Event.MousePressed (Input.LeftButton, camera_header)] 11) in
+      (frame ~events:[mouse_press (Input.LeftButton, camera_header)] 11) in
   let environment = Sketch_ui.Environment3.update environment
-      (frame ~events:[Event.MouseReleased (Input.LeftButton, camera_header)] 12) in
+      (frame ~events:[mouse_release (Input.LeftButton, camera_header)] 12) in
   let environment = Sketch_ui.Environment3.update environment
-      (frame ~events:[Event.MouseMoved (10, 100)] 13) in
+      (frame ~events:[mouse_move (10, 100)] 13) in
   let expanded_scene = ui_bytes (Sketch_ui.Environment3.scene environment (frame 13)) in
   check (expanded_scene <> collapsed_scene)
     "workspace camera accordion lost its armed press before the release frame";
   let environment = Sketch_ui.Environment3.update environment
-      (frame ~events:[Event.MousePressed (Input.LeftButton, camera_header)] 14) in
+      (frame ~events:[mouse_press (Input.LeftButton, camera_header)] 14) in
   let environment = Sketch_ui.Environment3.update environment
-      (frame ~events:[Event.MouseReleased (Input.LeftButton, camera_header)] 15) in
+      (frame ~events:[mouse_release (Input.LeftButton, camera_header)] 15) in
   let environment = Sketch_ui.Environment3.update environment
-      (frame ~events:[Event.MouseMoved (10, 100)] 16) in
+      (frame ~events:[mouse_move (10, 100)] 16) in
   let render_header = inspector_x + 32, inspector_y + 39 in
   let environment = Sketch_ui.Environment3.update environment
-      (frame ~events:[Event.MousePressed (Input.LeftButton, render_header)] 17) in
+      (frame ~events:[mouse_press (Input.LeftButton, render_header)] 17) in
   let environment = Sketch_ui.Environment3.update environment
-      (frame ~events:[Event.MouseReleased (Input.LeftButton, render_header)] 18) in
+      (frame ~events:[mouse_release (Input.LeftButton, render_header)] 18) in
   let environment = Sketch_ui.Environment3.update environment
-      (frame ~events:[Event.MouseMoved (10, 100)] 19) in
+      (frame ~events:[mouse_move (10, 100)] 19) in
   check (ui_bytes (Sketch_ui.Environment3.scene environment (frame 19)) <> collapsed_scene)
     "workspace render accordion lost its armed press before the release frame";
   (match Sys.getenv_opt "PRISMEL_UI_PREVIEW" with
@@ -178,8 +183,8 @@ let run () =
   let graph_tile = List.hd (Sketch_ui.Environment3.graph_nodes environment) in
   let point = center graph_tile.Pxui_graph.bounds in
   let selection_frame = frame ~events:[
-      Event.MousePressed (Input.LeftButton, point);
-      MouseReleased (Input.LeftButton, point)] 20 in
+      mouse_press (Input.LeftButton, point);
+      mouse_release (Input.LeftButton, point)] 20 in
   let environment = Sketch_ui.Environment3.update environment selection_frame in
   check (Option.map Node.id (Sketch_ui.Environment3.selected_node environment)
       = Some graph_tile.id)
@@ -198,8 +203,8 @@ let run () =
       (Sketch_ui.Environment3.graph_nodes environment) in
   let view_point = center source_tile.view_bounds in
   let view_frame = frame ~events:[
-      Event.MousePressed (Input.LeftButton, view_point);
-      MouseReleased (Input.LeftButton, view_point)] 22 in
+      mouse_press (Input.LeftButton, view_point);
+      mouse_release (Input.LeftButton, view_point)] 22 in
   let environment = Sketch_ui.Environment3.update environment view_frame in
   check (Node.id (Sketch_ui.Environment3.displayed_node environment)
       = Node.id source)
@@ -210,8 +215,8 @@ let run () =
   let before = tiles environment in
   let source_point = center source_tile.Pxui_graph.bounds in
   let environment = Sketch_ui.Environment3.update environment (frame ~events:[
-      Event.MousePressed (Input.LeftButton, source_point);
-      MouseReleased (Input.LeftButton, source_point)] 23) in
+      mouse_press (Input.LeftButton, source_point);
+      mouse_release (Input.LeftButton, source_point)] 23) in
   let chord ?(shift = false) key count =
     { (frame ~events:[Event.KeyPressed (Input.KeyChar key)] count) with
       keys = Input.Meta :: (if shift then [Input.Shift] else []) } in
@@ -273,8 +278,8 @@ let run () =
   let source_point = center source_tile.bounds in
   let environment = Sketch_ui.Environment3.update environment
       (frame ~mouse:source_point ~events:[
-        Event.MousePressed (Input.LeftButton, source_point);
-        MouseReleased (Input.LeftButton, source_point)] 31) in
+        mouse_press (Input.LeftButton, source_point);
+        mouse_release (Input.LeftButton, source_point)] 31) in
   let environment = Sketch_ui.Environment3.update environment
       (frame ~mouse:source_point ~events:[Event.KeyPressed Input.Space;
         Event.KeyPressed (Input.KeyChar 'a')] 32) in
@@ -307,10 +312,10 @@ let run () =
   let environment = Sketch_ui.Environment3.update environment (frame 37) in
   let scrub_y = ty + (th / 2) and scrub_x = tx + tw - 60 in
   let environment = Sketch_ui.Environment3.update environment
-      (frame ~events:[Event.MousePressed (Input.LeftButton, (scrub_x, scrub_y))] 38) in
+      (frame ~events:[mouse_press (Input.LeftButton, (scrub_x, scrub_y))] 38) in
   let environment = Sketch_ui.Environment3.update environment
-      (frame ~events:[Event.MouseMoved (tx + tw - 10, scrub_y);
-        Event.MouseReleased (Input.LeftButton, (tx + tw - 10, scrub_y))] 39) in
+      (frame ~events:[mouse_move (tx + tw - 10, scrub_y);
+        mouse_release (Input.LeftButton, (tx + tw - 10, scrub_y))] 39) in
   let clock = Sketch_ui.Environment3.timeline environment in
   check (Sketch_support.Timeline.mode clock = Sketch_support.Timeline.Paused
       && Sketch_support.Timeline.frame clock >= 200L)
@@ -359,12 +364,12 @@ let run () =
       Sketch_ui.Environment3.update environment
         { (frame ~events count) with mouse_buttons = [Input.LeftButton] })
     environment [
-      4, [Event.MousePressed (Input.LeftButton, (px, py))];
-      5, [Event.MouseMoved (px + 30, py)];
-      6, [Event.MouseMoved (px + 60, py + 10)];
-      7, [Event.MouseMoved (px + 90, py + 20)]] in
+      4, [mouse_press (Input.LeftButton, (px, py))];
+      5, [mouse_move (px + 30, py)];
+      6, [mouse_move (px + 60, py + 10)];
+      7, [mouse_move (px + 90, py + 20)]] in
   let environment = Sketch_ui.Environment3.update environment
-      (frame ~events:[Event.MouseReleased (Input.LeftButton, (px + 90, py + 20))] 8) in
+      (frame ~events:[mouse_release (Input.LeftButton, (px + 90, py + 20))] 8) in
   check (not (near (eye environment) start_eye)
       && near (eye environment) (viewport_eye environment))
     "the following camera did not track a viewport orbit";
@@ -382,14 +387,14 @@ let run () =
   (* The title bar: at this zoom the ACTIVE/VIEW buttons cover the center. *)
   let at = let x, y, w, _ = camera_tile.bounds in x + (w / 3), y + 5 in
   let environment = Sketch_ui.Environment3.update environment (frame ~events:[
-      Event.MousePressed (Input.LeftButton, at); MouseReleased (Input.LeftButton, at)] 11) in
+      mouse_press (Input.LeftButton, at); mouse_release (Input.LeftButton, at)] 11) in
   let environment = Sketch_ui.Environment3.update environment (command 'd' 12) in
   check (List.length (cameras environment) = 2 && List.length (active environment) = 1)
     "duplicating a camera broke the single ACTIVE flag";
   let environment = Sketch_ui.Environment3.update environment (command 'z' 13) in
   let environment = Sketch_ui.Environment3.update environment (frame 14) in
   let environment = Sketch_ui.Environment3.update environment (frame ~events:[
-      Event.MousePressed (Input.LeftButton, at); MouseReleased (Input.LeftButton, at)] 15) in
+      mouse_press (Input.LeftButton, at); mouse_release (Input.LeftButton, at)] 15) in
   let environment = Sketch_ui.Environment3.update environment
       (frame ~events:[Event.KeyPressed Input.Delete] 16) in
   check (List.length (cameras environment) = 1 && List.length (active environment) = 1
@@ -404,8 +409,8 @@ let run () =
   let fly_view environment = let vx, vy, _, _ = (Sketch_ui.Environment3.panes
       environment (frame 18)).view in vx + 20, vy + 20 in
   let environment = Sketch_ui.Environment3.update environment (frame ~events:[
-      Event.MousePressed (Input.RightButton, fly_view environment);
-      MouseReleased (Input.RightButton, fly_view environment)] 18) in
+      mouse_press (Input.RightButton, fly_view environment);
+      mouse_release (Input.RightButton, fly_view environment)] 18) in
   let environment = Sketch_ui.Environment3.update environment
       (frame ~events:[key Input.Space; key (Input.KeyChar 'w')] 18) in
   check (Sketch_ui.Environment3.flying environment) "Space w did not enter fly mode";
@@ -437,7 +442,7 @@ let run () =
         (Sketch_ui.Environment3.graph_nodes environment) in
     let at = let x, y, w, _ = tile.bounds in x + (w / 3), y + 5 in
     let environment = Sketch_ui.Environment3.update environment (frame ~events:[
-        Event.MousePressed (Input.LeftButton, at); MouseReleased (Input.LeftButton, at)]
+        mouse_press (Input.LeftButton, at); mouse_release (Input.LeftButton, at)]
         count) in
     Sketch_ui.Environment3.update environment
       (frame ~events:[Event.KeyPressed (Input.KeyChar 'f')] (count + 1)) in

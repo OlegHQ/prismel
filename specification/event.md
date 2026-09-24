@@ -11,9 +11,9 @@ through `Frame.events`.
 type t =
   | KeyPressed of Input.key
   | KeyReleased of Input.key
-  | MouseMoved of int * int
-  | MousePressed of Input.mouse_button * (int * int)
-  | MouseReleased of Input.mouse_button * (int * int)
+  | MouseMoved of float * float
+  | MousePressed of Input.mouse_button * (float * float)
+  | MouseReleased of Input.mouse_button * (float * float)
   | PointerCancelled of Input.mouse_button
   | MouseScrolled of float * float
   | TextInput of string
@@ -33,8 +33,8 @@ event payload.
   key meaning and text entry remain separate; committed text comes from the
   text-input event.
 - Pointer motion, button, and wheel events preserve poll order. Positions are
-  logical points and motion contributes to the current frame's aggregate
-  delta.
+  fractional logical points and motion contributes to the current frame's
+  float aggregate delta. Wheel deltas retain sub-unit values.
 - The authoritative SDL3 pixel-size/window transition updates logical and
   drawable runtime facts coherently and emits one logical `WindowResized` fact.
 - Focus loss clears held `Input` state before user update and emits

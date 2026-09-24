@@ -1,17 +1,21 @@
 let fail message = raise (Failure message)
+let pointer (x, y) = float x, float y
+let mouse_press (button, point) = Prismel.Event.MousePressed (button, pointer point)
+let mouse_release (button, point) = Prismel.Event.MouseReleased (button, pointer point)
+let mouse_move point = Prismel.Event.MouseMoved (pointer point)
 
 let run_1 () =
   if not Prismel.Sketch.default_config.resizable then
     fail "high-level sketch windows are not resizable by default";
-  Prismel.Input.reset ~mouse:(10, 10);
+  Prismel.Input.reset ~mouse:(10., 10.);
   Prismel.Input.begin_frame ();
-  Prismel.Input.update_mouse_pos 13 14;
-  Prismel.Input.update_mouse_pos 20 25;
-  if Prismel.Input.mouse_pos () <> (20, 25)
-     || Prismel.Input.mouse_delta () <> (10, 15)
+  Prismel.Input.update_mouse_pos 13. 14.;
+  Prismel.Input.update_mouse_pos 20. 25.;
+  if Prismel.Input.mouse_pos () <> (20., 25.)
+     || Prismel.Input.mouse_delta () <> (10., 15.)
   then fail "mouse delta did not accumulate every event in the frame";
   Prismel.Input.begin_frame ();
-  if Prismel.Input.mouse_delta () <> (0, 0) then
+  if Prismel.Input.mouse_delta () <> (0., 0.) then
     fail "mouse delta remained stale on an idle frame";
   let squares = Prismel.Parallel.map ~grain:1 (fun x -> x * x) [1; 2; 3; 4] in
   if squares <> [1; 4; 9; 16] then
@@ -252,14 +256,14 @@ let run_1 () =
     dt = 1. /. 60.;
     fps = 60.;
     count = 0;
-    mouse = 130, 80;
-    mouse_delta = 30, 30;
+    mouse = 130., 80.;
+    mouse_delta = 30., 30.;
     keys = [];
     mouse_buttons = [Input.LeftButton];
     events = [
-      Event.MousePressed (Input.LeftButton, (100, 50));
-      MouseMoved (130, 80);
-      MouseReleased (Input.LeftButton, (130, 80));
+      mouse_press (Input.LeftButton, (100, 50));
+      mouse_move (130, 80);
+      mouse_release (Input.LeftButton, (130, 80));
     ];
   } in
   if Easy_camera.camera easy != Easy_camera.camera easy then
@@ -282,9 +286,9 @@ let run_1 () =
     control, Camera_control.navigate ~control_area:area control camera frame,
     requests in
   let idle = { frame with mouse_buttons = []; events = [] } in
-  let click point = { frame with mouse = point; mouse_buttons = [];
-    events = [Event.MousePressed (Input.LeftButton, point);
-      MouseReleased (Input.LeftButton, point)] } in
+  let click point = { frame with mouse = pointer point; mouse_buttons = [];
+    events = [mouse_press (Input.LeftButton, point);
+      mouse_release (Input.LeftButton, point)] } in
   let camera_control = Camera_control.create () in
   let camera_control, _, _ = run camera_control easy idle in
   (* Rows: Camera, Render; opening Render adds Output and the save button. *)
@@ -300,21 +304,26 @@ let run_1 () =
   then fail "camera control did not reserve the gesture area beside its panel";
   let camera_control, _, _ = run camera_control controlled idle in
   (* The Camera section is open: its FOV slider is the second row. *)
-  let fov_frame = { idle with mouse = 200, 39;
-    events = [Event.MousePressed (Input.LeftButton, (200, 39));
-      MouseReleased (Input.LeftButton, (200, 39))] } in
+  let fov_frame = { idle with mouse = 200., 39.;
+    events = [mouse_press (Input.LeftButton, (200, 39));
+      mouse_release (Input.LeftButton, (200, 39))] } in
   let camera_control, widened, _ = run camera_control controlled fov_frame in
   if Easy_camera.fov_y widened = Easy_camera.fov_y controlled
   then fail "camera control open_camera did not open its FOV slider";
-  let scroll_frame = { idle with mouse = 320, 100;
+  let scroll_frame = { idle with mouse = 320., 100.;
     events = [Event.MouseScrolled (0., 2.)] } in
   let camera_control, zoomed, _ = run camera_control controlled scroll_frame in
+  let _, fractional_zoom, _ = run camera_control controlled
+      { scroll_frame with mouse = 320.25, 100.5;
+        events = [Event.MouseScrolled (0., 0.3)] } in
+  if Easy_camera.distance fractional_zoom = Easy_camera.distance controlled then
+    fail "camera ignored a fractional wheel delta";
   let camera_control, zoomed_idle, _ = run camera_control zoomed
       { scroll_frame with events = [] } in
   if Easy_camera.distance zoomed = Easy_camera.distance controlled
      || Easy_camera.distance zoomed_idle <> Easy_camera.distance zoomed
   then fail "camera control undid or failed to apply trackpad zoom";
-  let horizontal_scroll_frame = { idle with mouse = 320, 100;
+  let horizontal_scroll_frame = { idle with mouse = 320., 100.;
     events = [Event.MouseScrolled (2., 0.)] } in
   let camera_control, horizontal_ignored, _ =
     run camera_control zoomed_idle horizontal_scroll_frame in
@@ -322,9 +331,9 @@ let run_1 () =
       (Easy_camera.target zoomed_idle) ~eps:1e-9)
      || Easy_camera.distance horizontal_ignored <> Easy_camera.distance zoomed_idle
   then fail "horizontal trackpad scrolling unexpectedly moved the camera";
-  let drag button = { frame with mouse = 330, 90; mouse_buttons = [button];
-    events = [Event.MousePressed (button, (300, 60)); MouseMoved (330, 90);
-      MouseReleased (button, (330, 90))] } in
+  let drag button = { frame with mouse = 330., 90.; mouse_buttons = [button];
+    events = [mouse_press (button, (300, 60)); mouse_move (330, 90);
+      mouse_release (button, (330, 90))] } in
   let camera_control, right_panned, _ =
     run camera_control horizontal_ignored (drag Input.RightButton) in
   if Vec3.nearly_equal (Easy_camera.target right_panned)
@@ -386,14 +395,14 @@ let run_1 () =
   (* One fly frame: W moves forward speed*dt; pointer motion right turns
      right; a wheel step scales the speed. *)
   let fly_start = Easy_camera.create ~distance:5. ~inertia:false () in
-  let still = { frame with dt = 0.5; mouse_delta = (0, 0); events = []; keys = [] } in
+  let still = { frame with dt = 0.5; mouse_delta = (0., 0.); events = []; keys = [] } in
   let flown, speed = Easy_camera.fly ~speed:2. fly_start
       { still with keys = [Input.KeyChar 'w'] } in
   if not (Vec3.nearly_equal (Camera.position (Easy_camera.camera flown))
       (Vec3.create 0. 0. 4.) ~eps:1e-9) || speed <> 2.
   then fail "fly W did not move forward by speed * dt";
   let turned, _ = Easy_camera.fly ~speed:2. fly_start
-      { still with mouse_delta = (100, 0) } in
+      { still with mouse_delta = (100., 0.) } in
   let look camera = let view = Easy_camera.camera camera in
     Vec3.sub (Camera.target view) (Camera.position view) in
   if (look turned).x <= 0.
@@ -424,13 +433,13 @@ let run_1 () =
     {
       frame with
       time = 1.;
-      mouse = 130, 80;
+      mouse = 130., 80.;
       mouse_buttons = [];
       events = [
-        Event.MousePressed (Input.LeftButton, (130, 80));
-        MouseReleased (Input.LeftButton, (130, 80));
-        MousePressed (Input.LeftButton, (130, 80));
-        MouseReleased (Input.LeftButton, (130, 80));
+        mouse_press (Input.LeftButton, (130, 80));
+        mouse_release (Input.LeftButton, (130, 80));
+        mouse_press (Input.LeftButton, (130, 80));
+        mouse_release (Input.LeftButton, (130, 80));
       ];
     }
   in
@@ -445,8 +454,8 @@ let run_1 () =
       frame with
       time = 2.;
       events = [
-        Event.MousePressed (Input.LeftButton, (100, 50));
-        MouseMoved (120, 50);
+        mouse_press (Input.LeftButton, (100, 50));
+        mouse_move (120, 50);
       ];
     }
   in
@@ -454,10 +463,10 @@ let run_1 () =
     {
       frame with
       time = 2. +. (1. /. 60.);
-      mouse = 120, 50;
-      mouse_delta = 0, 0;
+      mouse = 120., 50.;
+      mouse_delta = 0., 0.;
       mouse_buttons = [];
-      events = [Event.MouseReleased (Input.LeftButton, (120, 50))];
+      events = [mouse_release (Input.LeftButton, (120, 50))];
     }
   in
   let inertial = Easy_camera.create ~distance:5. () in

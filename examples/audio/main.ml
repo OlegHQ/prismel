@@ -28,8 +28,8 @@ let pressed_note (frame : Frame.t) =
       | Event.KeyPressed (Input.KeyChar key) when key >= '1' && key <= '8' ->
           Some (Char.code key - Char.code '1')
       | Event.MousePressed (Input.LeftButton, (x, y))
-        when y >= 150 && y < 310 && x >= 40 && x < 600 ->
-          Some (min 7 ((x - 40) / 70))
+        when y >= 150. && y < 310. && x >= 40. && x < 600. ->
+          Some (min 7 (int_of_float ((x -. 40.) /. 70.)))
       | _ -> None)
     frame.events
 

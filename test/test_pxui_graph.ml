@@ -3,13 +3,18 @@ open Procedural
 
 let fail message = raise (Failure message)
 let check condition message = if not condition then fail message
+let pointer (x, y) = float x, float y
+let mouse_press (button, point) = Event.MousePressed (button, pointer point)
+let mouse_release (button, point) = Event.MouseReleased (button, pointer point)
+let mouse_move point = Event.MouseMoved (pointer point)
 
 let frame ?(mouse = 0, 0) ?(keys = []) ?(events = []) () : Frame.t = {
   width = 1000; height = 700; size = 1000, 700;
   drawable_width = 1000; drawable_height = 700;
   drawable_size = 1000, 700; pixel_scale = 1., 1.;
   time = 0.; dt = 1. /. 60.; fps = 60.; count = 0;
-  mouse; mouse_delta = 0, 0; keys; mouse_buttons = []; events;
+  mouse = (float (fst mouse), float (snd mouse));
+  mouse_delta = 0., 0.; keys; mouse_buttons = []; events;
 }
 
 let center (x, y, width, height) = x + (width / 2), y + (height / 2)
@@ -65,8 +70,8 @@ let run () =
 
   let point = center (node (Node.id source_a) view).bounds in
   let view, changes = update view
-      (frame ~mouse:point ~events:[Event.MousePressed (Input.LeftButton, point);
-        MouseReleased (Input.LeftButton, point)] ()) in
+      (frame ~mouse:point ~events:[mouse_press (Input.LeftButton, point);
+        mouse_release (Input.LeftButton, point)] ()) in
   check (Pxui_graph.selected view = Some (Node.id source_a)
       && changes = [Pxui_graph.Selected (Some (Node.id source_a))])
     "graph node click did not update selection";
@@ -74,16 +79,16 @@ let run () =
   let before = (node (Node.id source_a) view).bounds in
   let target = fst point + 45, snd point + 26 in
   let view, pressed = update view (frame ~mouse:point ~events:[
-      Event.MousePressed (Input.LeftButton, point)] ()) in
+      mouse_press (Input.LeftButton, point)] ()) in
   let view, moved = update view (frame ~mouse:target ~events:[
-      Event.MouseMoved target] ()) in
+      mouse_move target] ()) in
   ignore (graph_scene view);
   let during = (node (Node.id source_a) view).bounds in
   let dx, dy, _, _ = during and bx, by, _, _ = before in
   check (dx - bx = 45 && dy - by = 26)
     "active graph drag did not retain its presentation offset";
   let view, released = update view (frame ~mouse:target ~events:[
-      Event.MouseReleased (Input.LeftButton, target)] ()) in
+      mouse_release (Input.LeftButton, target)] ()) in
   let changes = pressed @ moved @ released in
   let after = (node (Node.id source_a) view).bounds in
   let bx, by, _, _ = before and ax, ay, _, _ = after in
@@ -110,9 +115,9 @@ let run () =
 
   let before = (node (Node.id source_b) view).bounds in
   let view, _ = update view (frame ~mouse:(140, 125) ~events:[
-      Event.MousePressed (Input.RightButton, (100, 100));
-      Event.MouseMoved (140, 125);
-      Event.MouseReleased (Input.RightButton, (140, 125))] ()) in
+      mouse_press (Input.RightButton, (100, 100));
+      mouse_move (140, 125);
+      mouse_release (Input.RightButton, (140, 125))] ()) in
   let after = (node (Node.id source_b) view).bounds in
   let bx, by, _, _ = before and ax, ay, _, _ = after in
   check (ax - bx = 40 && ay - by = 25)
@@ -120,15 +125,15 @@ let run () =
 
   let before = (node (Node.id source_b) view).bounds in
   let view, _ = update view (frame ~mouse:(180, 180)
-      ~events:[Event.MousePressed (Input.RightButton, (180, 180))] ()) in
+      ~events:[mouse_press (Input.RightButton, (180, 180))] ()) in
   let visible_view = Pxui_graph.with_visible true view in
   check (visible_view == view)
     "unchanged graph visibility discarded active pointer capture";
   let view, changes = update visible_view
-      (frame ~mouse:(215, 202) ~events:[Event.MouseMoved (215, 202)] ()) in
+      (frame ~mouse:(215, 202) ~events:[mouse_move (215, 202)] ()) in
   let view, _ = update view
       (frame ~mouse:(215, 202)
-        ~events:[Event.MouseReleased (Input.RightButton, (215, 202))] ()) in
+        ~events:[mouse_release (Input.RightButton, (215, 202))] ()) in
   let after = (node (Node.id source_b) view).bounds in
   let bx, by, _, _ = before and ax, ay, _, _ = after in
   check (ax - bx = 35 && ay - by = 22
@@ -140,8 +145,8 @@ let run () =
   let selected_before = Pxui_graph.selected view in
   let view, changes = update view
       (frame ~mouse:view_button ~events:[
-        Event.MousePressed (Input.LeftButton, view_button);
-        MouseReleased (Input.LeftButton, view_button)] ()) in
+        mouse_press (Input.LeftButton, view_button);
+        mouse_release (Input.LeftButton, view_button)] ()) in
   check (Pxui_graph.viewed view = Node.id source_b
       && Pxui_graph.selected view = selected_before
       && changes = [Pxui_graph.Viewed (Node.id source_b)])
@@ -160,8 +165,8 @@ let run () =
 
   let blank = 30, 535 in
   let view, changes = update view
-      (frame ~mouse:blank ~events:[Event.MousePressed (Input.LeftButton, blank);
-        MouseReleased (Input.LeftButton, blank)] ()) in
+      (frame ~mouse:blank ~events:[mouse_press (Input.LeftButton, blank);
+        mouse_release (Input.LeftButton, blank)] ()) in
   check (Pxui_graph.selected view = None
       && List.mem (Pxui_graph.Selected None) changes)
     "blank graph click did not restore camera-inspector selection";
@@ -177,8 +182,8 @@ let run () =
   let click_shift view id =
     let point = center (node id view).bounds in
     fst (update view (frame ~mouse:point ~keys:[Input.Shift]
-      ~events:[Event.MousePressed (Input.LeftButton, point);
-        MouseReleased (Input.LeftButton, point)] ())) in
+      ~events:[mouse_press (Input.LeftButton, point);
+        mouse_release (Input.LeftButton, point)] ())) in
   let edit_view = click_shift edit_view (Node.id source_a)
     |> fun view -> click_shift view (Node.id source_b) in
   check (List.length (Pxui_graph.selected_nodes edit_view) = 2)
@@ -189,8 +194,8 @@ let run () =
   and before_b = (node (Node.id source_b) edit_view).bounds in
   let edit_view, changes = update edit_view
       (frame ~mouse:target ~events:[
-        Event.MousePressed (Input.LeftButton, source_point);
-        MouseMoved target; MouseReleased (Input.LeftButton, target)] ()) in
+        mouse_press (Input.LeftButton, source_point);
+        mouse_move target; mouse_release (Input.LeftButton, target)] ()) in
   let moved_by before after =
     let x0, y0, _, _ = before and x1, y1, _, _ = after in x1 - x0, y1 - y0 in
   check (moved_by before_a (node (Node.id source_a) edit_view).bounds = (31, 19)
@@ -299,8 +304,8 @@ let run () =
       (unary_input_port (node (Node.id moved_a) chain_view)) in
   let chain_view, changes = update chain_view
       (frame ~mouse:wire_point
-        ~events:[Event.MousePressed (Input.LeftButton, wire_point);
-          MouseReleased (Input.LeftButton, wire_point)] ()) in
+        ~events:[mouse_press (Input.LeftButton, wire_point);
+          mouse_release (Input.LeftButton, wire_point)] ()) in
   check (Option.is_some (Pxui_graph.selected_connection chain_view)
       && List.exists (function Pxui_graph.Connection_selected (Some _) -> true
         | _ -> false) changes)
@@ -327,8 +332,8 @@ let run () =
   let from_ = output_port (node (Node.id source_b) connect_view)
   and to_ = unary_input_port (node (Node.id moved_b) connect_view) in
   let _, changes = update connect_view
-      (frame ~mouse:to_ ~events:[Event.MousePressed (Input.LeftButton, from_);
-        MouseMoved to_; MouseReleased (Input.LeftButton, to_)] ()) in
+      (frame ~mouse:to_ ~events:[mouse_press (Input.LeftButton, from_);
+        mouse_move to_; mouse_release (Input.LeftButton, to_)] ()) in
   check (List.exists (function Pxui_graph.Connect_requested connection ->
       connection.source = Node.id source_b
       && connection.consumer = Node.id moved_b && connection.input_index = 0
@@ -345,11 +350,11 @@ let run () =
   (* Context menus: a right click opens one, a right drag only pans, and rows
      emit the ordinary typed changes. *)
   let right_click (x, y) = frame ~mouse:(x, y) ~events:[
-      Event.MousePressed (Input.RightButton, (x, y));
-      MouseReleased (Input.RightButton, (x, y))] () in
+      mouse_press (Input.RightButton, (x, y));
+      mouse_release (Input.RightButton, (x, y))] () in
   let left_click (x, y) = frame ~mouse:(x, y) ~events:[
-      Event.MousePressed (Input.LeftButton, (x, y));
-      MouseReleased (Input.LeftButton, (x, y))] () in
+      mouse_press (Input.LeftButton, (x, y));
+      mouse_release (Input.LeftButton, (x, y))] () in
   let menu_row (x, y) index = x + 60, y + 3 + (index * 24) + 12 in
   let tile = node (Node.id source_a) view in
   let tile_point = center tile.bounds in
@@ -363,8 +368,8 @@ let run () =
   check (List.mem Pxui_graph.View_changed changes)
     "canvas context menu Frame all did not reframe the graph";
   let dragged_view, changes = update view (frame ~mouse:(780, 490) ~events:[
-      Event.MousePressed (Input.RightButton, blank); MouseMoved (780, 490);
-      MouseReleased (Input.RightButton, (780, 490))] ()) in
+      mouse_press (Input.RightButton, blank); mouse_move (780, 490);
+      mouse_release (Input.RightButton, (780, 490))] ()) in
   check (List.mem Pxui_graph.View_changed changes) "right drag did not pan";
   let _, changes = update dragged_view (left_click (menu_row (780, 490) 2)) in
   check (changes = []) "a right drag opened a context menu";

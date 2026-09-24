@@ -30,7 +30,7 @@ let frame mouse_buttons = {
   Frame.width = 100; height = 100; size = 100, 100;
   drawable_width = 100; drawable_height = 100; drawable_size = 100, 100;
   pixel_scale = 1., 1.; time = 0.; dt = 1. /. 60.; fps = 60.; count = 0;
-  mouse = 0, 0; mouse_delta = 0, 0; keys = []; mouse_buttons; events = [];
+  mouse = 0., 0.; mouse_delta = 0., 0.; keys = []; mouse_buttons; events = [];
 }
 
 let timeline_frame ?(dt = 0.25) ?(events = []) ?(buttons = []) () = {

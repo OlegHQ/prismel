@@ -66,8 +66,8 @@ let update m (frame : Frame.t) =
     | Event.MouseReleased (Input.LeftButton, _) | Event.WindowFocusLost -> { m with dragging = false }
     | Event.MouseMoved _ when m.dragging ->
         let dx, dy = frame.mouse_delta in
-        { m with yaw = m.yaw -. (float dx *. 0.006)
-        ; pitch = Float.min 1.4 (Float.max (-0.6) (m.pitch +. (float dy *. 0.006))) }
+        { m with yaw = m.yaw -. (dx *. 0.006)
+        ; pitch = Float.min 1.4 (Float.max (-0.6) (m.pitch +. (dy *. 0.006))) }
     | Event.MouseScrolled (_, dy) ->
         { m with distance = Float.min 40. (Float.max 3. (m.distance *. (1. -. (dy *. 0.08)))) }
     | _ -> m) m frame.events in

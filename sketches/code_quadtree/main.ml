@@ -180,9 +180,9 @@ let pick_symbol glyph x y = Option.bind (pick_glyph glyph x y) (fun glyph->glyph
 
 type model = { tree : node; files : int; total_lines : int; cx : float; cy : float;
   zoom : float; target_x : float; target_y : float; target_zoom : float;
-  hover : node option; show_ui : bool; press : (int * int) option;
+  hover : node option; show_ui : bool; press : (float * float) option;
   dragged : bool; index : Source_index.report; show_cells:bool;
-  scene_cache:((int*int*float*float*float*bool*bool*(int*int))*Scene.t) option;
+  scene_cache:((int*int*float*float*float*bool*bool*(float*float))*Scene.t) option;
   art_cache:((int*int*float*float*float*bool)*Scene.node) option;
   art_builds:int;
   preview_source:Symbol_preview.source option;
@@ -191,7 +191,8 @@ type model = { tree : node; files : int; total_lines : int; cx : float; cy : flo
 let sidebar f = if f.Frame.width >= 1100 then 302 else 0
 let footer_top f = max 0 (f.Frame.height-132)
 let art_bottom f = footer_top f-12
-let in_art f (x,y) = x>=24 && x<f.Frame.width-sidebar f-22 && y>=74 && y<art_bottom f
+let in_art f (x,y) = x>=24. && x<float(f.Frame.width-sidebar f-22)
+  && y>=74. && y<float(art_bottom f)
 let world_size f = float (max 64 (min (f.Frame.width-sidebar f-88) (art_bottom f-84)))
 let center f = float (f.Frame.width-sidebar f) *. 0.5, float (74+art_bottom f)*.0.5
 let screen m f x y =
@@ -201,7 +202,7 @@ let screen m f x y =
 let world m f sx sy =
   let s = world_size f *. m.zoom in
   let ox,oy=center f in
-  (m.cx +. (float sx-.ox)/.s, m.cy +. (float sy-.oy)/.s)
+  (m.cx +. (sx-.ox)/.s, m.cy +. (sy-.oy)/.s)
 let rec pick node x y =
   if x < node.x || y < node.y || x >= node.x+.node.size || y >= node.y+.node.size
   then None else
@@ -238,14 +239,15 @@ let update m (f:Frame.t) =
         let mx,my = f.mouse in
         let wx,wy = world m f mx my in
         let next = clamp 0.65 180. (!target_zoom *. exp (-.dy *. 0.17)) in
-        target_x := wx -. (float mx -. ox)/.(world_size f *. next);
-        target_y := wy -. (float my -. oy)/.(world_size f *. next);
+        target_x := wx -. (mx -. ox)/.(world_size f *. next);
+        target_y := wy -. (my -. oy)/.(world_size f *. next);
         target_zoom := next
     | Event.MousePressed (Input.LeftButton,pos) when in_art f pos ->
         press := Some pos; dragged := false
     | Event.MouseReleased (Input.LeftButton,(mx,my)) ->
         (match !press with
-         | Some (px,py) when in_art f (mx,my) && not !dragged && abs(mx-px)+abs(my-py)<8 ->
+         | Some (px,py) when in_art f (mx,my) && not !dragged
+             && abs_float(mx-.px)+.abs_float(my-.py)<8. ->
              let wx,wy = world m f mx my in
              (match pick m.tree wx wy with
               | Some n -> target_x := n.x+.n.size*.0.5;
@@ -257,11 +259,12 @@ let update m (f:Frame.t) =
     | _ -> ()) f.events;
   if (Frame.mouse_down Input.MiddleButton f && in_art f f.mouse ||
       Frame.mouse_down Input.LeftButton f && Option.is_some !press)
-     && f.mouse_delta <> (0,0) then begin
+     && f.mouse_delta <> (0.,0.) then begin
     let dx,dy = f.mouse_delta in
-    if Frame.mouse_down Input.LeftButton f && abs dx + abs dy > 2 then dragged := true;
-    target_x := !target_x -. float dx /. (world_size f *. m.zoom);
-    target_y := !target_y -. float dy /. (world_size f *. m.zoom)
+    if Frame.mouse_down Input.LeftButton f && abs_float dx +. abs_float dy > 2.
+    then dragged := true;
+    target_x := !target_x -. dx /. (world_size f *. m.zoom);
+    target_y := !target_y -. dy /. (world_size f *. m.zoom)
   end;
   if !smoke || !tour then begin
     let duration=if !frames>0 then !frames else 120 in
@@ -281,8 +284,8 @@ let update m (f:Frame.t) =
   let cx = ease m.cx !target_x and cy = ease m.cy !target_y in
   let mx,my = f.mouse in
   let hover = if not (in_art f f.mouse) then None else pick m.tree
-    (cx +. (float mx-.ox)/.(world_size f*.zoom))
-    (cy +. (float my-.oy)/.(world_size f*.zoom)) in
+    (cx +. (mx-.ox)/.(world_size f*.zoom))
+    (cy +. (my-.oy)/.(world_size f*.zoom)) in
   let preview_source=match hover with
     |Some {file=Some file;_}->Some (Symbol_preview.load ~root:!root_dir ~path:file.path m.preview_source)
     |_->m.preview_source in
@@ -456,8 +459,8 @@ let view m (f:Frame.t) =
       let inset=size*.0.025 in
       let mx,my=f.mouse in
       let glyph=Option.bind file.glyph (fun glyph -> pick_glyph glyph
-        ((float mx-.x-.inset)/.(size-.2.*.inset))
-        ((float my-.y-.inset)/.(size-.2.*.inset))) in
+        ((mx-.x-.inset)/.(size-.2.*.inset))
+        ((my-.y-.inset)/.(size-.2.*.inset))) in
       n,file,glyph) n.file) in
   (match inspected with
    |Some (n,_,glyph) ->
@@ -623,11 +626,12 @@ let () =
   if !index_only then () else
   let init=init files index in
   let prepare m (f:Frame.t) =
-    let f=if !hover_bench then {f with Frame.mouse=(f.width/2+(f.count*17 mod 320)-160,
-      f.height/2+(f.count*11 mod 240)-120)} else f in
+    let f=if !hover_bench then {f with Frame.mouse=
+      (float(f.width/2+(f.count*17 mod 320)-160),
+       float(f.height/2+(f.count*11 mod 240)-120))} else f in
     let m=update m f in
     let mouse=if !hover_bench || not (!smoke || !tour || !export<>"")
-      then f.Frame.mouse else (0,0) in
+      then f.Frame.mouse else (0.,0.) in
     let key=(f.width,f.height,m.cx,m.cy,m.zoom,m.show_ui,m.show_cells,mouse) in
     match m.scene_cache with
     |Some (previous,_) when previous=key -> m

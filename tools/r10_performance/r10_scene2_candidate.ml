@@ -61,7 +61,7 @@ let create ~width ~height scenario =
       let ui=Pxui.Ui.create()in
       let frame:Frame.t={width;height;size=width,height;drawable_width=width;
         drawable_height=height;drawable_size=width,height;pixel_scale=1.,1.;
-        time=0.;dt=1./.60.;fps=60.;count=0;mouse=0,0;mouse_delta=0,0;keys=[];
+        time=0.;dt=1./.60.;fps=60.;count=0;mouse=0.,0.;mouse_delta=0.,0.;keys=[];
         mouse_buttons=[];events=[]}in
       Pxui.Ui.frame ui frame(fun ui->Pxui.Ui.panel ui~x:348.~y:16.~width:276.
         ~row_height:29~padding:8~max_height:448."r10"(fun()->

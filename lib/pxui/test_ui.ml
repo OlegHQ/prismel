@@ -5,9 +5,10 @@ open Prismel
 module Ui = Pxui.Ui
 
 let fail message = raise (Failure message)
-let press point = Event.MousePressed (Input.LeftButton, point)
-let release point = Event.MouseReleased (Input.LeftButton, point)
-let move point = Event.MouseMoved point
+let pointer (x, y) = float x, float y
+let press point = Event.MousePressed (Input.LeftButton, pointer point)
+let release point = Event.MouseReleased (Input.LeftButton, pointer point)
+let move point = Event.MouseMoved (pointer point)
 
 let frame ~scale ~time events : Frame.t =
   { width = 320; height = 240; size = 320, 240;
@@ -15,7 +16,7 @@ let frame ~scale ~time events : Frame.t =
     drawable_height = int_of_float (240. *. scale);
     drawable_size = int_of_float (320. *. scale), int_of_float (240. *. scale);
     pixel_scale = scale, scale; time; dt = 1. /. 60.; fps = 60.; count = 0;
-    mouse = 0, 0; mouse_delta = 0, 0; keys = []; mouse_buttons = []; events }
+    mouse = 0., 0.; mouse_delta = 0., 0.; keys = []; mouse_buttons = []; events }
 
 (* A panel at the origin, 240 wide: rows start at y = 3 and are 24 tall; the
    value column starts at x = 120 (half the 234-point inner width) and

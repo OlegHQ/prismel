@@ -69,7 +69,8 @@ let update model (frame : Frame.t) =
   in
   let mouse_x, _ = frame.mouse in
   let target_x =
-    float (clamp 0 frame.width mouse_x) /. float (max 1 frame.width)
+    Float.max 0. (Float.min (float frame.width) mouse_x)
+    /. float (max 1 frame.width)
   in
   let damping = 1. -. exp (-.10. *. max 0. frame.dt) in
   let x_control = model.x_control +. ((target_x -. model.x_control) *. damping) in
@@ -79,7 +80,8 @@ let view model (frame : Frame.t) =
   let _, mouse_y = frame.mouse in
   let x_control = model.x_control
   and y_control =
-    float (clamp 0 frame.height mouse_y) /. float (max 1 frame.height)
+    Float.max 0. (Float.min (float frame.height) mouse_y)
+    /. float (max 1 frame.height)
   in
   let iterations = 4 + int_of_float (y_control *. 12.) in
   let field_offset = x_control *. 8. in

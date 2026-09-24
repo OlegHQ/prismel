@@ -792,9 +792,6 @@ let intersects (ax, ay, aw, ah) (bx, by, bw, bh) =
 let normalize_rect x0 y0 x1 y1 =
   min x0 x1, min y0 y1, abs (x1 - x0) + 1, abs (y1 - y0) + 1
 
-let inside value point = contains ~x:value.x ~y:value.y
-    ~width:value.width ~height:value.height point
-
 let empty_candidates = [||]
 
 let spatial_candidates value point =
@@ -1040,14 +1037,14 @@ let commit_node_move value indices edge_indices offset_x offset_y =
 let zoom_at value (mouse_x, mouse_y) delta =
   let old_zoom = value.zoom in
   let zoom = clamp 0.2 3.5
-      (old_zoom *. Float.pow 1.12 (float_of_int delta)) in
+      (old_zoom *. Float.pow 1.12 delta) in
   if zoom = old_zoom then value else
-    let local_x = float_of_int (mouse_x - value.x) -. value.pan_x
-    and local_y = float_of_int (mouse_y - value.y) -. value.pan_y in
+    let local_x = mouse_x -. float value.x -. value.pan_x
+    and local_y = mouse_y -. float value.y -. value.pan_y in
     let ratio = zoom /. old_zoom in
     { value with zoom;
-      pan_x = float_of_int (mouse_x - value.x) -. (local_x *. ratio);
-      pan_y = float_of_int (mouse_y - value.y) -. (local_y *. ratio) }
+      pan_x = mouse_x -. float value.x -. (local_x *. ratio);
+      pan_y = mouse_y -. float value.y -. (local_y *. ratio) }
 
 let frame_boxes value boxes =
   if Array.length boxes = 0 then value else
@@ -1567,8 +1564,9 @@ let build_menu (value : t) ui (frame : Frame.t) menu =
         (picker_rows value menu)) in
   let menu = { menu with query } in
   let outside = List.exists (function
-    | Event.MousePressed (_, point) ->
-        not (contains ~x ~y ~width:menu_width ~height point)
+    | Event.MousePressed (_, (px, py)) ->
+        px < float x || py < float y || px >= float (x + menu_width)
+        || py >= float (y + height)
     | Event.WindowFocusLost -> true
     | _ -> false) frame.events in
   let menu, requests = match pick with
@@ -1742,8 +1740,12 @@ let update (value : t) ui (frame : Frame.t) =
         if dx <> 0. || dy <> 0. then emit View_changed;
         pan value dx dy
       end in
-    let scroll = int_of_float (snd canvas_signal.scroll) in
-    let value = if scroll <> 0 && inside value frame.mouse then begin
+    let scroll = snd canvas_signal.scroll in
+    let mx, my = frame.mouse in
+    let value = if scroll <> 0. &&
+        mx >= float value.x && my >= float value.y &&
+        mx < float (value.x + value.width) &&
+        my < float (value.y + value.height) then begin
         emit View_changed; zoom_at value frame.mouse scroll
       end else value in
     Array.fold_left (fun value (index, tile, view, output) ->
