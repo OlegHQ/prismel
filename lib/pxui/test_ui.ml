@@ -139,6 +139,12 @@ let with_scale scale =
       command_step ui 'v' build;
       step ui [Event.KeyPressed Input.Enter] build;
       if !count <> 31 then fail (label "numeric editor did not paste valid text"));
+  step ui [press (20, row 0); release (20, row 0)] build;
+  fast_step ui [press (20, row 0); release (20, row 0)] build;
+  step ui [Event.KeyPressed Input.ArrowRight;
+    Event.KeyPressed Input.ArrowLeft; Event.TextInput "2";
+    Event.KeyPressed Input.Enter] build;
+  if !count <> 321 then fail (label "numeric editor ignored its insertion caret");
 
   let amount = ref 0.25 in
   let build ui = amount := Ui.slider ui "Amount" ~range:(0., 1.) !amount in
@@ -231,6 +237,19 @@ let with_scale scale =
   if !title <> "!aéz" then fail (label "mouse click did not place the text caret");
   step ui [press (300, 200)] build;
   if Ui.text_input_focused ui then fail (label "an outside press kept text focus");
+  Ui.destroy ui;
+
+  let short = ref "x" and long = ref "long text" in
+  let build ui =
+    short := Ui.text_field ui "Short" !short;
+    long := Ui.text_field ui "Long" !long in
+  let ui = Ui.create () in
+  settle ui build;
+  step ui [press (150, row 1); release (150, row 1)] build;
+  step ui [] build;
+  if !short <> "x" || !long <> "long text" then
+    fail (label "unfocused short field reused the longer field caret");
+  Ui.destroy ui;
 
   (* Choice, range, and XY controls. *)
   let mode = ref 0 and band = ref (0.25, 0.75) and point = ref (0., 0.) in
@@ -354,10 +373,11 @@ let run () =
   let rows query = Array.of_list (List.filter
       (fun (label, _) -> Ui.fuzzy_match ~query label) (Array.to_list items)) in
   let ui = Ui.create () and query = ref "" and last = ref `None in
-  let pick ?(command=false) events =
+  let pick ?(command=false) ?(shift=false) events =
     Ui.frame ui
       { (frame ~scale:1. ~time:0. events) with
-        keys = (if command then [Input.Meta] else []) } (fun ui ->
+        keys = (if command then [Input.Meta]
+          else if shift then [Input.Shift] else []) } (fun ui ->
       Ui.panel ui ~x:0. ~y:0. ~width:240. "p" (fun () ->
         let edited, result = Ui.picker ui "Search" ~query:!query rows in
         query := edited; last := result)) in
@@ -382,7 +402,18 @@ let run () =
       if Clipboard.get_text () <> Ok "del" then
         fail "picker did not copy the search query";
       pick ~command:true [key (Input.KeyChar 'x')];
-      if !query <> "" then fail "picker did not cut the search query");
+      if !query <> "" then fail "picker did not cut the search query";
+      query := "delta";
+      pick [];
+      pick [key Input.ArrowLeft];
+      pick ~shift:true [key Input.ArrowLeft];
+      pick ~command:true [key (Input.KeyChar 'c')];
+      if Clipboard.get_text () <> Ok "t" then
+        fail "picker did not copy the selected query character";
+      pick ~command:true [key (Input.KeyChar 'x')];
+      if !query <> "dela" then fail "picker did not cut the selection";
+      pick ~command:true [key (Input.KeyChar 'v')];
+      if !query <> "delta" then fail "picker pasted outside the caret");
   query := "dla";
   pick [key Input.Delete];
   if !last <> `None then fail "picker deleted on the first Delete";

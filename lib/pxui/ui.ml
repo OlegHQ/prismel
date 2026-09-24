@@ -1442,13 +1442,6 @@ let toggle ui text value =
       (if value then theme.accent else Theme.muted theme));
   value
 
-let drop_last_utf8 text =
-  let rec find index =
-    if index <= 0 then 0
-    else if Char.code text.[index] land 0xc0 <> 0x80 then index
-    else find (index - 1) in
-  if text = "" then text else String.sub text 0 (find (String.length text - 1))
-
 let previous_utf8 text index =
   let rec seek index =
     if index <= 0 then 0
@@ -1489,18 +1482,122 @@ let clipboard_command ui = function
       Some (Char.lowercase_ascii key)
   | _ -> None
 
+type text_edit = { mutable text : string; mutable caret : int; mutable anchor : int }
+
+let load_text_edit ui key text =
+  if ui.edit_focus <> key || ui.edit_value <> text then begin
+    ui.edit_focus <- key; ui.edit_value <- text;
+    ui.edit_caret <- String.length text; ui.edit_anchor <- ui.edit_caret
+  end;
+  { text; caret = ui.edit_caret; anchor = ui.edit_anchor }
+
+let save_text_edit ui edit =
+  ui.edit_value <- edit.text;
+  ui.edit_caret <- edit.caret;
+  ui.edit_anchor <- edit.anchor
+
+let text_selection edit =
+  min edit.caret edit.anchor, max edit.caret edit.anchor
+
+let replace_text edit inserted =
+  let start, stop = text_selection edit in
+  edit.text <- String.sub edit.text 0 start ^ inserted ^
+    String.sub edit.text stop (String.length edit.text - stop);
+  edit.caret <- start + String.length inserted;
+  edit.anchor <- edit.caret
+
+let point_text_caret ui edit signal ~x =
+  let at (px, _) = text_caret_at ui edit.text (max 0. (px -. x)) in
+  if signal.pressed then begin
+    let caret = at signal.press_point in
+    edit.caret <- caret;
+    if not ui.shift_down then edit.anchor <- caret
+  end;
+  if signal.dragging then edit.caret <- at signal.pointer
+
+let edit_text_event ui edit ~accept event =
+  let selected () = edit.caret <> edit.anchor in
+  let move target =
+    edit.caret <- target;
+    if not ui.shift_down then edit.anchor <- target in
+  match event with
+  | event when clipboard_command ui event = Some 'a' ->
+      edit.anchor <- 0; edit.caret <- String.length edit.text; false
+  | event when clipboard_command ui event = Some 'c' ->
+      let start, stop = text_selection edit in
+      ignore (Clipboard.set_text (if selected () then
+        String.sub edit.text start (stop - start) else edit.text)); false
+  | event when clipboard_command ui event = Some 'x' ->
+      let start, stop = text_selection edit in
+      let copied = if selected () then
+        String.sub edit.text start (stop - start) else edit.text in
+      if Clipboard.set_text copied = Ok () then begin
+        if selected () then replace_text edit "" else begin
+          edit.text <- ""; edit.caret <- 0; edit.anchor <- 0
+        end;
+        true
+      end else false
+  | event when clipboard_command ui event = Some 'v' ->
+      (match Clipboard.get_text () with
+       | Ok text when accept text -> replace_text edit text; true
+       | Ok _ | Error _ -> false)
+  | Event.TextInput text when accept text -> replace_text edit text; true
+  | Event.KeyPressed Input.Backspace ->
+      if not (selected ()) then edit.anchor <- previous_utf8 edit.text edit.caret;
+      replace_text edit ""; true
+  | Event.KeyPressed Input.Delete ->
+      if not (selected ()) then edit.anchor <- next_utf8 edit.text edit.caret;
+      replace_text edit ""; true
+  | Event.KeyPressed Input.ArrowLeft ->
+      move (if ui.command_down then 0 else if selected () && not ui.shift_down
+        then fst (text_selection edit) else previous_utf8 edit.text edit.caret);
+      false
+  | Event.KeyPressed Input.ArrowRight ->
+      move (if ui.command_down then String.length edit.text
+        else if selected () && not ui.shift_down then snd (text_selection edit)
+        else next_utf8 edit.text edit.caret);
+      false
+  | Event.KeyPressed Input.Home -> move 0; false
+  | Event.KeyPressed Input.End -> move (String.length edit.text); false
+  | _ -> false
+
+let paint_text_edit paint ~control:(cx, cy, cw, ch) ~y ~composition edit =
+  let theme = paint.owner.theme in
+  let width text = Paint.text_width paint text /. paint.scale in
+  let before = String.sub edit.text 0 edit.caret in
+  let caret_x = float (cx + 8) +. width before in
+  Paint.input_region paint ~x:(float cx) ~y:(float cy) ~w:(float cw)
+    ~h:(float ch) ~focused:true ~cursor:(caret_x -. float cx) ();
+  if edit.caret <> edit.anchor then begin
+    let start, stop = text_selection edit in
+    Paint.fill paint
+      ~x:(float (cx + 8) +. width (String.sub edit.text 0 start))
+      ~y:(float (cy + 2))
+      ~w:(width (String.sub edit.text start (stop - start)))
+      ~h:(float (max 1 (ch - 4))) (Color.with_alpha theme.accent 100)
+  end;
+  if composition = "" then kit_text paint (cx + 8) y edit.text
+  else begin
+    kit_text paint (cx + 8) y before;
+    Paint.text paint ~at:(caret_x, float y) composition;
+    Paint.text paint ~at:(caret_x +. width composition, float y)
+      (String.sub edit.text edit.caret
+        (String.length edit.text - edit.caret))
+  end;
+  Paint.line paint ~from_:(caret_x, float (cy + 2))
+    ~to_:(caret_x, float (cy + ch - 2)) ~width:1. theme.accent
+
 (* Numeric label editing shared by float and integer sliders. The retained
-   state packs [valid] (bit 0) and [replace_on_input] (bit 1); the retained
-   text is the edit buffer. [parse] validates typed text. *)
+   state records validity; [parse] validates the edit buffer. *)
 let numeric_editor ui row signal ~current ~parse =
   let bounds = ints (rect ui row) in
   let control = value_control bounds in
   let inside_control point = contains (floats control) point in
   let editing = text_state ui row in
   let state = state ui row ~default:1 in
-  let set text ~valid ~replace =
+  let set text ~valid =
     set_text_state ui row (Some text);
-    set_state ui row ((if valid then 1 else 0) lor (if replace then 2 else 0)) in
+    set_state ui row (if valid then 1 else 0) in
   let finish () = set_text_state ui row None; set_state ui row 1 in
   match editing with
   | Some text when not (focused ui row) || (signal.pressed
@@ -1510,43 +1607,35 @@ let numeric_editor ui row signal ~current ~parse =
       if focused ui row then unfocus ui;
       (match parse text with Some value -> Some value | None -> None), false
   | Some text ->
-      let committed = ref None and text = ref text and state = ref state
+      let edit = load_text_edit ui row.box_key text in
+      let committed = ref None and state = ref state
       and cancelled = ref false in
+      let (cx, _, _, _) = control in
+      point_text_caret ui edit signal ~x:(float (cx + 8));
       List.iter (fun (event : Event.t) -> match event with
-        | event when clipboard_command ui event = Some 'c' ->
-            ignore (Clipboard.set_text !text)
-        | event when clipboard_command ui event = Some 'x' ->
-            if Clipboard.set_text !text = Ok () then begin
-              text := ""; state := (if parse "" <> None then 1 else 0)
-            end
-        | event when clipboard_command ui event = Some 'v' ->
-            (match Clipboard.get_text () with
-             | Ok pasted when String.for_all numeric_character pasted ->
-                 text := (if !state land 2 <> 0 then pasted else !text ^ pasted);
-                 state := (if parse !text <> None then 1 else 0)
-             | Ok _ | Error _ -> ())
-        | Event.TextInput typed when String.for_all numeric_character typed ->
-            text := (if !state land 2 <> 0 then typed else !text ^ typed);
-            state := (if parse !text <> None then 1 else 0)
-        | Event.KeyPressed (Input.Backspace | Input.Delete) ->
-            text := (if !state land 2 <> 0 then "" else drop_last_utf8 !text);
-            state := (if parse !text <> None then 1 else 0)
         | Event.KeyPressed Input.Enter ->
-            (match parse !text with
+            (match parse edit.text with
              | Some value -> committed := Some value
              | None -> state := 0)
         | Event.KeyPressed Input.Escape -> cancelled := true
-        | _ -> ()) signal.keys;
+        | event ->
+            if edit_text_event ui edit
+                ~accept:(String.for_all numeric_character) event then
+              state := if parse edit.text <> None then 1 else 0) signal.keys;
       if !cancelled then (finish (); unfocus ui; None, false)
       else (match !committed with
         | Some value -> finish (); unfocus ui; Some value, false
         | None ->
-            set !text ~valid:(!state land 1 <> 0) ~replace:(!state land 2 <> 0);
+            save_text_edit ui edit;
+            set edit.text ~valid:(!state land 1 <> 0);
             None, true)
   | None ->
       if signal.double_clicked && not (inside_control signal.press_point) then begin
-        set (current ()) ~valid:true ~replace:true;
+        let text = current () in
+        set text ~valid:true;
         focus ui row;
+        ui.edit_focus <- row.box_key; ui.edit_value <- text;
+        ui.edit_caret <- String.length text; ui.edit_anchor <- 0;
         None, true
       end else None, false
 
@@ -1575,6 +1664,7 @@ let slider_row ui text ~draw_value ~value_text ~fraction_of ~from_fraction ~pars
   let pressed = dragging && signal.held in
   let edit = text_state ui row and valid = state ui row ~default:1 land 1 <> 0 in
   let composition = ui.composition and focused = focused ui row in
+  let edit_caret = ui.edit_caret and edit_anchor = ui.edit_anchor in
   draw ui row (fun paint rect ->
     let (x, y, _, h) as bounds = ints rect in
     let (cx, cy, cw, ch) as control = value_control bounds in
@@ -1584,11 +1674,9 @@ let slider_row ui text ~draw_value ~value_text ~fraction_of ~from_fraction ~pars
         kit_text paint ~color:theme.accent x (label_y ui y h) shown;
         framed paint control ~fill:theme.input
           ~stroke:(if valid then theme.accent else Theme.invalid);
-        kit_text paint (cx + 8) (label_y ui y h)
-          (text ^ (if focused then composition else "") ^ "│");
-        Paint.input_region paint ~x:(float cx) ~y:(float cy) ~w:(float cw)
-          ~h:(float ch) ~focused:true
-          ~cursor:(8. +. (Paint.text_width paint text /. paint.scale)) ()
+        if focused then paint_text_edit paint ~control ~y:(label_y ui y h)
+          ~composition { text; caret = edit_caret; anchor = edit_anchor }
+        else kit_text paint (cx + 8) (label_y ui y h) text
     | None ->
         let marker = position control (fraction_of value) in
         let fill_width = max 1 (marker - cx + 1) in
@@ -1628,101 +1716,33 @@ let text_field ui text value =
       ~hit:(control_hit value_control) text in
   let signal = signal ui row in
   let focused = focused ui row in
-  if focused && (ui.edit_focus <> row.box_key || ui.edit_value <> value) then begin
-    ui.edit_focus <- row.box_key; ui.edit_value <- value;
-    ui.edit_caret <- String.length value; ui.edit_anchor <- ui.edit_caret
-  end;
-  let value = ref value and caret = ref ui.edit_caret and anchor = ref ui.edit_anchor in
+  let edit = if focused then load_text_edit ui row.box_key value else
+    let end_ = String.length value in
+    { text = value; caret = end_; anchor = end_ } in
   if focused then begin
-    let selected () = !caret <> !anchor in
-    let bounds () = min !caret !anchor, max !caret !anchor in
-    let replace typed =
-      let start, stop = bounds () in
-      value := String.sub !value 0 start ^ typed ^
-        String.sub !value stop (String.length !value - stop);
-      caret := start + String.length typed; anchor := !caret in
-    let move target =
-      caret := target;
-      if not ui.shift_down then anchor := target in
     let (cx, _, _, _) = value_control (ints (rect ui row)) in
-    let point_caret (x, _) =
-      text_caret_at ui !value (max 0. (x -. float (cx + 8))) in
-    if signal.pressed then begin
-      caret := point_caret signal.press_point; anchor := !caret
-    end;
-    if signal.dragging then caret := point_caret signal.pointer;
-    List.iter (fun (event : Event.t) -> match event with
-      | event when clipboard_command ui event = Some 'a' ->
-          anchor := 0; caret := String.length !value
-      | event when clipboard_command ui event = Some 'c' ->
-          let start, stop = bounds () in
-          ignore (Clipboard.set_text (if selected () then
-            String.sub !value start (stop - start) else !value))
-      | event when clipboard_command ui event = Some 'x' ->
-          let start, stop = bounds () in
-          let copied = if selected () then
-            String.sub !value start (stop - start) else !value in
-          if Clipboard.set_text copied = Ok () then begin
-            if selected () then replace "" else begin
-              value := ""; caret := 0; anchor := 0
-            end
-          end
-      | event when clipboard_command ui event = Some 'v' ->
-          (match Clipboard.get_text () with Ok text -> replace text
-           | Error _ -> ())
-      | Event.TextInput typed -> replace typed
-      | Event.KeyPressed Input.Backspace ->
-          if not (selected ()) then anchor := previous_utf8 !value !caret;
-          replace ""
-      | Event.KeyPressed Input.Delete ->
-          if not (selected ()) then anchor := next_utf8 !value !caret;
-          replace ""
-      | Event.KeyPressed Input.ArrowLeft ->
-          move (if ui.command_down then 0 else if selected () && not ui.shift_down
-            then fst (bounds ()) else previous_utf8 !value !caret)
-      | Event.KeyPressed Input.ArrowRight ->
-          move (if ui.command_down then String.length !value
-            else if selected () && not ui.shift_down then snd (bounds ())
-            else next_utf8 !value !caret)
-      | Event.KeyPressed Input.Home -> move 0
-      | Event.KeyPressed Input.End -> move (String.length !value)
-      | _ -> ()) signal.keys;
-    ui.edit_value <- !value; ui.edit_caret <- !caret; ui.edit_anchor <- !anchor
+    point_text_caret ui edit signal ~x:(float (cx + 8));
+    List.iter (fun event -> ignore (edit_text_event ui edit
+      ~accept:(fun _ -> true) event)) signal.keys;
+    save_text_edit ui edit
   end;
-  let value = !value and caret = !caret and anchor = !anchor in
+  let value = edit.text in
   let theme = ui.theme and shown = display text and composition = ui.composition in
   let hovered = signal.hovered in
   draw ui row (fun paint rect ->
     let (x, y, _, h) as bounds = ints rect in
     let (cx, cy, cw, ch) as control = value_control bounds in
-    let before = String.sub value 0 caret in
-    let text_width text = Paint.text_width paint text /. paint.scale in
-    let caret_x = float (cx + 8) +. text_width before in
     if hovered then hover_row paint ui bounds;
-    Paint.input_region paint ~x:(float cx) ~y:(float cy) ~w:(float cw)
-      ~h:(float ch) ~focused
-      ~cursor:(if focused then caret_x -. float cx else 0.) ();
     kit_text paint ~color:(if focused then theme.foreground else Theme.muted theme)
       x (label_y ui y h) shown;
     framed paint control ~fill:(if hovered then Theme.hover_fill theme else theme.input)
       ~stroke:(if focused then theme.accent else Theme.border theme);
-    if focused && caret <> anchor then begin
-      let start = min caret anchor and stop = max caret anchor in
-      let left = float (cx + 8) +. text_width (String.sub value 0 start) in
-      let width = text_width (String.sub value start (stop - start)) in
-      Paint.fill paint ~x:left ~y:(float (cy + 2)) ~w:width
-        ~h:(float (max 1 (ch - 4))) (Color.with_alpha theme.accent 100)
-    end;
-    if focused && composition <> "" then begin
-      kit_text paint (cx + 8) (label_y ui y h) before;
-      Paint.text paint ~at:(caret_x, float (label_y ui y h)) composition;
-      Paint.text paint
-        ~at:(caret_x +. text_width composition, float (label_y ui y h))
-        (String.sub value caret (String.length value - caret))
-    end else kit_text paint (cx + 8) (label_y ui y h) value;
-    if focused then begin
-      Paint.line paint ~from_:(caret_x, float (cy + 2))
-        ~to_:(caret_x, float (cy + ch - 2)) ~width:1. theme.accent
+    if focused then paint_text_edit paint ~control ~y:(label_y ui y h)
+      ~composition edit
+    else begin
+      Paint.input_region paint ~x:(float cx) ~y:(float cy) ~w:(float cw)
+        ~h:(float ch) ~focused:false ();
+      kit_text paint (cx + 8) (label_y ui y h) value
     end);
   value
 
@@ -1855,56 +1875,50 @@ let picker ui ?(limit = 10) label ~query rows_of =
   let search = kit_row ui ~flags:(clickable lor focusable lor blocking) label in
   focus ui search;
   let list = box ui ~w:Grow ~h:Fit ~axis:Column (label ^ "##rows") in
-  let keys = (signal ui search).keys in
+  let search_signal = signal ui search in
+  let keys = search_signal.keys in
   let clamp cursor = if count () = 0 then 0 else max 0 (min (count () - 1) cursor) in
   let cursor = ref (clamp (state ui search ~default:0))
   and armed = ref (state ui list ~default:(-1)) and query = ref query
   and result = ref `None in
+  let edit = load_text_edit ui search.box_key !query in
+  let (sx, _, _, _) = ints (rect ui search) in
+  point_text_caret ui edit search_signal ~x:(float (sx + 8));
   let set_query text = query := text; rows := rows_of text; cursor := 0; armed := -1 in
   List.iter (fun (event : Event.t) -> let count = count () in
     if !result = `None then match event with
-    | event when clipboard_command ui event = Some 'c' ->
-        ignore (Clipboard.set_text !query)
-    | event when clipboard_command ui event = Some 'x' ->
-        if Clipboard.set_text !query = Ok () then set_query ""
-    | event when clipboard_command ui event = Some 'v' ->
-        (match Clipboard.get_text () with
-         | Ok text -> set_query (!query ^ text) | Error _ -> ())
-    | Event.TextInput typed -> set_query (!query ^ typed)
-    | Event.KeyPressed Input.Backspace when !query = "" -> result := `Back
-    | Event.KeyPressed Input.Backspace -> set_query (drop_last_utf8 !query)
-    | Event.KeyPressed Input.ArrowLeft when !query = "" -> result := `Back
+    | Event.KeyPressed Input.Backspace when edit.text = "" -> result := `Back
+    | Event.KeyPressed Input.ArrowLeft when edit.text = "" -> result := `Back
     | Event.KeyPressed Input.ArrowDown when count > 0 ->
         cursor := (!cursor + 1) mod count; armed := -1
     | Event.KeyPressed Input.ArrowUp when count > 0 ->
         cursor := (!cursor + count - 1) mod count; armed := -1
     | Event.KeyPressed Input.Enter ->
         result := if count > 0 then `Pick !cursor else `Submit
-    | Event.KeyPressed Input.Delete when count > 0 ->
+    | Event.KeyPressed Input.Delete when count > 0 &&
+        edit.caret = edit.anchor ->
         if !armed = !cursor then (result := `Delete !cursor; armed := -1)
         else armed := !cursor
     | Event.KeyPressed Input.Escape -> result := `Cancel
-    | _ -> ()) keys;
+    | event ->
+        ignore (edit_text_event ui edit ~accept:(fun _ -> true) event);
+        if edit.text <> !query then set_query edit.text) keys;
+  save_text_edit ui edit;
   let count = count () and rows = !rows in
   let length = min limit count in
   let start = if length = count then 0
     else max 0 (min (count - length) (!cursor - (length / 2))) in
   let theme = ui.theme and composition = ui.composition in
-  let shown_query = !query and placeholder = display label in
+  let placeholder = display label in
   draw ui search (fun paint rect ->
     let (x, y, w, h) = ints rect in
     let control = x, y + 3, w, max 1 (h - 6) in
-    let cx, cy, cw, ch = control in
-    Paint.input_region paint ~x:(float cx) ~y:(float cy) ~w:(float cw) ~h:(float ch)
-      ~focused:true
-      ~cursor:(8. +. (Paint.text_width paint shown_query /. paint.scale)) ();
+    let cx, _, _, _ = control in
     framed paint control ~fill:theme.input ~stroke:theme.accent;
-    if shown_query = "" then begin
-      kit_text paint ~color:(Theme.muted theme) (cx + 8) (label_y ui y h) placeholder;
-      kit_text paint (cx + 8 + int_of_float (Paint.text_width paint placeholder))
-        (label_y ui y h) (composition ^ "│")
-    end else
-      kit_text paint (cx + 8) (label_y ui y h) (shown_query ^ composition ^ "│"));
+    if edit.text = "" then
+      kit_text paint ~color:(Theme.muted theme) (cx + 8)
+        (label_y ui y h) placeholder;
+    paint_text_edit paint ~control ~y:(label_y ui y h) ~composition edit);
   within ui list (fun () ->
     for visible = 0 to length - 1 do
       let index = start + visible in

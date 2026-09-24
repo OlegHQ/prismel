@@ -263,9 +263,9 @@ gate.
 The native window starts SDL3 text input for its lifetime. PXUI emits a focused
 text region in logical points; Sketch forwards it to SDL3's IME candidate area
 on each render and clears the area when focus leaves. PXUI measures the text
-run and sends its caret offset in logical points to SDL3. Text fields support
-movable carets and selection; numeric editors and picker search still append
-at the end. PXUI applies text events only to a focused editor; Sketch UI
+run and sends its caret offset in logical points to SDL3. Text fields, numeric
+editors, and picker search share UTF-8 caret and selection editing. PXUI
+applies text events only to a focused editor; Sketch UI
 suppresses workspace and graph keyboard shortcuts while an editor has focus,
 and its leader key (Space) only
 arms while no editor is focused. Camera PNG requests capture the

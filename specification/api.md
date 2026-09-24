@@ -159,10 +159,10 @@ Ordinary canvas and control presses do not implicitly start text input.
 `Clipboard.set_text` and `Clipboard.get_text` expose native system clipboard
 text as explicit results on the initial domain. PXUI text fields, numeric
 editors, and picker search support Command/Ctrl-C, X, and V while focused;
-text fields copy and cut the selection when one exists, and paste at the caret.
-Without a selection, copy and cut retain the whole-value behavior. Numeric
-editors and picker search still use whole values and append-only insertion.
-Cut clears text only after the clipboard write succeeds.
+each uses UTF-8 caret and selection editing. Copy and cut use the selection
+when one exists, retaining whole-value behavior otherwise, and paste inserts
+at the caret. Cut clears text only after the clipboard write succeeds. The
+picker reserves Delete for its selected row when no text is selected.
 
 `Scene.text ?size` resolves an installed platform UI font and treats `size` as
 a logical point size. `PRISMEL_UI_FONT` overrides the platform font search.
