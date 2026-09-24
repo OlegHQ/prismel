@@ -74,8 +74,8 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
     (* ponytail: scan scene metadata each frame; move the focused region into
        staged scene facts if large retained scenes make this measurable. *)
     let area=Scene.Private.text_regions scene
-      |>List.find_opt(fun(_,_,_,_,focused)->focused)
-      |>Option.map(fun(x,y,w,h,_)->x,y,w,h)in
+      |>List.find_opt(fun(_,_,_,_,focused,_)->focused)
+      |>Option.map(fun(x,y,w,h,_,cursor)->(x,y,w,h),cursor)in
     get(Prismel_next_execution.set_text_input_area coordinator area);
     let facts=get(Prismel_next_execution.presentation_facts coordinator)in
     let density=

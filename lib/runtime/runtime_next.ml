@@ -240,10 +240,9 @@ let set_cursor value shape=live_window"Runtime_next.set_cursor"value(fun _->
     match sdl"Runtime_next.set_cursor"(Sdl3.Cursor.set cursor)with
     |Error _ as error->error|Ok()->value.cursor_shape<-Some shape;Ok())
 let set_text_input_area value area=window_call"Runtime_next.set_text_input_area"
-  (* ponytail: the IME cursor stays at the region origin until PXUI exposes
-     caret offsets in its scene metadata. *)
   (fun window->Sdl3.Text_input.set_area window
-    (Option.map(fun(x,y,width,height)->{Sdl3.x;y;width;height})area)~cursor:0)value
+    (Option.map(fun((x,y,width,height),_)->{Sdl3.x;y;width;height})area)
+    ~cursor:(Option.fold ~none:0 ~some:snd area))value
 let show (value:t)=if value.dead then Error(Ogpu.Error.make"Runtime_next.show"Stale_handle"runtime is destroyed")else
   match sdl"Runtime_next.show"(reveal value.window)with Error _ as error->error|Ok()->sync_window_facts value
 let hide=window_call"Runtime_next.hide" Sdl3.Window.hide

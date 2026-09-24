@@ -22,7 +22,10 @@ val image : Image.t -> at:(int*int) -> ?scale:float -> ?angle:float -> ?center:(
 val view3d : ?viewport:(int*int*int*int) -> camera:Camera.t -> Scene3.t -> node
 val display_list : ?images:(int * Image.t) list ->
   Scene_command.Display_list.t -> node
-val text_input_region : at:(int*int) -> w:int -> h:int -> ?focused:bool -> unit -> node
+
+(** Pure IME metadata in logical points; [cursor] is the non-negative caret
+    offset from the region's left edge. *)
+val text_input_region : at:(int*int) -> w:int -> h:int -> ?focused:bool -> ?cursor:int -> unit -> node
 val translate : int -> int -> t -> node
 val rotate : float -> t -> node
 val scale : float -> float -> t -> node
@@ -62,7 +65,7 @@ module Private : sig
   val stage : ?density:int -> width:int -> height:int -> t ->
     (Scene_command.Render_ir.t * (int * Prismel_next_execution.resource) list, string) result
   val install_renderer : (t -> unit) -> unit
-  val text_regions : t -> (int*int*int*int*bool) list
+  val text_regions : t -> (int*int*int*int*bool*int) list
   val resources : t -> (int * Prismel_next_execution.resource) list
   val release : t -> unit
 end

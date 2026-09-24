@@ -1124,12 +1124,13 @@ module Paint = struct
   let text_width paint ?size text =
     float (text_width_px paint.owner ?size text) /. float paint.owner.density
 
-  let input_region paint ~x ~y ~w ~h ~focused =
+  let input_region paint ?(cursor=0.) ~x ~y ~w ~h ~focused () =
     let sx = (x *. paint.scale) +. paint.tx and sy = (y *. paint.scale) +. paint.ty in
     paint.owner.regions <- Scene.text_input_region
         ~at:(int_of_float sx, int_of_float sy)
         ~w:(int_of_float (w *. paint.scale)) ~h:(int_of_float (h *. paint.scale))
-        ~focused () :: paint.owner.regions
+        ~focused ~cursor:(int_of_float (Float.round (cursor *. paint.scale))) ()
+        :: paint.owner.regions
 end
 
 let record_hit ui index (x, y, w, h) =
@@ -1541,6 +1542,7 @@ let slider_row ui text ~draw_value ~value_text ~fraction_of ~from_fraction ~pars
           (text ^ (if focused then composition else "") ^ "│");
         Paint.input_region paint ~x:(float cx) ~y:(float cy) ~w:(float cw)
           ~h:(float ch) ~focused:true
+          ~cursor:(8. +. (Paint.text_width paint text /. paint.scale)) ()
     | None ->
         let marker = position control (fraction_of value) in
         let fill_width = max 1 (marker - cx + 1) in
@@ -1599,7 +1601,9 @@ let text_field ui text value =
     let (cx, cy, cw, ch) as control = value_control bounds in
     if hovered then hover_row paint ui bounds;
     Paint.input_region paint ~x:(float cx) ~y:(float cy) ~w:(float cw)
-      ~h:(float ch) ~focused;
+      ~h:(float ch) ~focused
+      ~cursor:(if focused then
+        8. +. (Paint.text_width paint value /. paint.scale) else 0.) ();
     kit_text paint ~color:(if focused then theme.foreground else Theme.muted theme)
       x (label_y ui y h) shown;
     framed paint control ~fill:(if hovered then Theme.hover_fill theme else theme.input)
@@ -1778,7 +1782,8 @@ let picker ui ?(limit = 10) label ~query rows_of =
     let control = x, y + 3, w, max 1 (h - 6) in
     let cx, cy, cw, ch = control in
     Paint.input_region paint ~x:(float cx) ~y:(float cy) ~w:(float cw) ~h:(float ch)
-      ~focused:true;
+      ~focused:true
+      ~cursor:(8. +. (Paint.text_width paint shown_query /. paint.scale)) ();
     framed paint control ~fill:theme.input ~stroke:theme.accent;
     if shown_query = "" then begin
       kit_text paint ~color:(Theme.muted theme) (cx + 8) (label_y ui y h) placeholder;

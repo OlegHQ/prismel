@@ -51,7 +51,7 @@ val set_fullscreen : t -> bool -> (unit,Ogpu.Error.t) result
 val set_relative_mouse : t -> bool -> (unit,Ogpu.Error.t) result
 val set_cursor : t -> [`Default|`Horizontal_resize|`Vertical_resize] ->
   (unit,Ogpu.Error.t) result
-val set_text_input_area : t -> (int * int * int * int) option ->
+val set_text_input_area : t -> ((int * int * int * int) * int) option ->
   (unit,Ogpu.Error.t) result
 val show : t -> (unit,Ogpu.Error.t) result
 val hide : t -> (unit,Ogpu.Error.t) result

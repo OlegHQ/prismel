@@ -9,7 +9,7 @@ and ui_node={ui:Scene_command.Ui_batch.t;
   ui_resources:(int*Prismel_next_execution.resource)list}
 and node=Group of t|Clear of Color.t|Geometry of Scene_command.Render_ir.geometry|Text of text_node|Debug_text of debug_text_node|Image of image_node
  |Display_list of display_list_node|Ui of ui_node
- |View3d of view3d_node|Region of int*int*int*int*bool|Layer_break
+ |View3d of view3d_node|Region of int*int*int*int*bool*int|Layer_break
  |Translate of int*int*t|Rotate of float*t|Scale of float*float*t|Clip of int*int*int*int*t|Blend of blend*t
 and t=node list
 let empty=[]let one n=[n]let group x=Group x let clear c=Clear c
@@ -183,7 +183,9 @@ let display_list ?(images=[]) segment=
     (id,Prismel_next_execution.Image(Image.Private.resource image))::rest)
     images[]in
   Display_list{segment;resources}
-let text_input_region ~at:(x,y)~w~h ?(focused=false)()=Region(x,y,w,h,focused)
+let text_input_region ~at:(x,y)~w~h ?(focused=false) ?(cursor=0)()=
+  if cursor<0 then invalid_arg"Scene.text_input_region: negative cursor offset";
+  Region(x,y,w,h,focused,cursor)
 let translate x y nodes=Translate(x,y,nodes)let rotate a nodes=Rotate(a,nodes)let scale x y nodes=Scale(x,y,nodes)
 let clip ~at:(x,y)~w~h nodes=Clip(x,y,w,h,nodes)let blend mode nodes=Blend(mode,nodes)
 module Private=struct
@@ -275,7 +277,7 @@ module Private=struct
    |Blend(mode,g)::xs->let mode=match mode with Replace->Scene_command.Render_ir.Replace|Alpha->Alpha|Add->Add|Multiply->Multiply in emit builder(Scene_command.Render_ir.Set_blend mode);nodes g;emit builder(Scene_command.Render_ir.Set_blend Scene_command.Render_ir.Alpha);nodes xs
    |(View3d _|Ui _|Region _|Layer_break)::xs->nodes xs in
   nodes scene;Array.sub builder.values 0 builder.length
- let rec text_regions scene=List.concat_map(function Region(x,y,w,h,f)->[x,y,w,h,f]|Group g|Translate(_,_,g)|Rotate(_,g)|Scale(_,_,g)|Clip(_,_,_,_,g)|Blend(_,g)->text_regions g|_->[])scene
+ let rec text_regions scene=List.concat_map(function Region(x,y,w,h,f,c)->[x,y,w,h,f,c]|Group g|Translate(_,_,g)|Rotate(_,g)|Scale(_,_,g)|Clip(_,_,_,_,g)|Blend(_,g)->text_regions g|_->[])scene
  let image_resources ?(density=1) scene=
    let rec nodes acc=function
     |[]->acc
@@ -379,8 +381,8 @@ module Private=struct
    |Blend(lm,left),Blend(rm,right)->lm=rm&&same_native_scene left right
    |View3d left,View3d right->left.viewport=right.viewport&&
        left.camera==right.camera&&left.scene==right.scene
-   |Region(lx,ly,lw,lh,lf),Region(rx,ry,rw,rh,rf)->
-       lx=rx&&ly=ry&&lw=rw&&lh=rh&&lf=rf
+   |Region(lx,ly,lw,lh,lf,lc),Region(rx,ry,rw,rh,rf,rc)->
+       lx=rx&&ly=ry&&lw=rw&&lh=rh&&lf=rf&&lc=rc
    |Layer_break,Layer_break->true
    |_ ->false
 

@@ -152,7 +152,8 @@ The transitional `Prismel_next_api` re-export is gone; native callers use
 `Prismel` directly.
 
 `Scene.text_input_region` is pure scene data. At the render boundary its
-logical bounds describe the native IME candidate area for a focused editor.
+logical bounds describe the native IME candidate area for a focused editor;
+its non-negative `cursor` offset locates the caret from the region's left edge.
 Ordinary canvas and control presses do not implicitly start text input.
 
 `Clipboard.set_text` and `Clipboard.get_text` expose native system clipboard

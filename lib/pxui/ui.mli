@@ -208,8 +208,9 @@ module Paint : sig
   val text_width : t -> ?size:int -> string -> float
 
   val input_region :
-    t -> x:float -> y:float -> w:float -> h:float -> focused:bool -> unit
-  (** Text-input metadata for on-screen keyboards and IME placement. *)
+    t -> ?cursor:float -> x:float -> y:float -> w:float -> h:float -> focused:bool -> unit -> unit
+  (** Text-input metadata for on-screen keyboards and IME placement. [cursor]
+      is the caret offset in the paint's local points. *)
 end
 
 val draw :

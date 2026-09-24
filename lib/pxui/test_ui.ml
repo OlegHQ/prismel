@@ -175,8 +175,15 @@ let with_scale scale =
     Event.TextEditing { text = "e"; start = 0; length = 1 };
     Event.TextInput "hé"; Event.KeyPressed Input.Backspace] build;
   if !title <> "h" then fail (label "text field did not accept UTF-8 input and backspace");
+  let ime_cursor () = match Scene.Private.text_regions (Ui.scene ui) with
+    | [(_, _, _, _, true, cursor)] -> cursor
+    | _ -> fail (label "focused text field lost its IME region") in
+  let cursor_after_h = ime_cursor () in
+  if cursor_after_h <= 8 then fail (label "IME cursor stayed at the field origin");
   step ui [Event.PointerCancelled Input.LeftButton; Event.TextInput "!"] build;
   if !title <> "h!" then fail (label "pointer cancellation dismissed text focus");
+  if ime_cursor () <= cursor_after_h then
+    fail (label "IME cursor did not follow the inserted text");
   step ui [Event.TextInput " two words"; Event.KeyPressed Input.Delete;
     Event.TextInput "!"] build;
   if !title <> "h! two word!" || not (Ui.text_input_focused ui) then
@@ -257,8 +264,14 @@ let run () =
       let child = Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px 10.) ~h:(Ui.Px 10.)
           ~at:(3., 4.) "child" in
       child_rect := Ui.rect ui child;
+      Ui.draw ui child (fun paint _ ->
+        Ui.Paint.input_region paint ~x:0. ~y:0. ~w:10. ~h:10.
+          ~focused:true ~cursor:5. ());
       if (Ui.signal ui child).clicked then clicked := true) in
   Ui.frame ui (frame ~scale:1. ~time:0. []) build;
+  (match Scene.Private.text_regions (Ui.scene ui) with
+   | [(_, _, _, _, true, 10)] -> ()
+   | _ -> fail "canvas transform did not scale the IME caret offset");
   Ui.frame ui (frame ~scale:1. ~time:0.1 []) build;
   (* origin (10, 20) + (3, 4) * 2 + (5, 0) = (21, 28), 20 points square *)
   if !child_rect <> (21., 28., 20., 20.) then fail "canvas transform misplaced a child";

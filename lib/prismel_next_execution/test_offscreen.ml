@@ -47,7 +47,7 @@ let run () =
       try
         expect_error "offscreen execution accepted a native IME area"
           (Prismel_next_execution.set_text_input_area execution
-            (Some (1, 1, 2, 1)));
+            (Some ((1, 1, 2, 1), 1)));
         expect_error "offscreen execution accepted a native cursor"
           (Prismel_next_execution.set_cursor execution `Horizontal_resize);
         ignore(get(Prismel_next_execution.step~clear:(1.,0.,0.,1.)execution[]));

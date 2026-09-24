@@ -14,7 +14,10 @@ let run () =
   Time.init();Time.set_time_scale 0.5;Unix.sleepf 0.001;Time.update();if Time.get_delta_time()<=0.||Time.get_time_scale()<>0.5 then failwith"time";
   let fired=ref false in Time.Scheduler.delay_call 0.(fun()->fired:=true);Time.Scheduler.update();if not !fired then failwith"scheduler";
   let scene=[Scene.clear Color.black;Scene.rect~at:(0,0)~w:4~h:3~fill:Color.red();
-    Scene.text_input_region~at:(1,1)~w:2~h:1~focused:true()]in
+    Scene.text_input_region~at:(1,1)~w:2~h:1~focused:true~cursor:1()]in
   let ir=Result.get_ok(Scene.Private.to_ir scene)in
-  if Array.length(Scene_command.Render_ir.commands ir)<>2||Scene.Private.text_regions scene<>[1,1,2,1,true]then failwith"scene lowering";
+  if Array.length(Scene_command.Render_ir.commands ir)<>2||Scene.Private.text_regions scene<>[1,1,2,1,true,1]then failwith"scene lowering";
+  (match Scene.text_input_region~at:(0,0)~w:1~h:1~cursor:(-1)() with
+   | _ -> failwith"negative IME cursor accepted"
+   | exception Invalid_argument _ -> ());
   print_endline"Prismel batch C: Event/Input/Frame/Time/Scene fixtures passed"
