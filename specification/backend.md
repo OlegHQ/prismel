@@ -32,9 +32,11 @@ native handles in its public API.
 OGPU's dormant Frame_graph, Descriptor_arena, Transfer_ring, Instance,
 Device_lifecycle, and Acceleration_pass modules have no production callers and
 are removed. Query validation stays in `Ogpu.Sync.resolve`; the redundant
-Query_pass and scoped Native_pass metadata wrappers are removed. The live
-command, resource, and queue contracts remain until the G1 virtual-library
-split gives the Metal and mock implementations one conformance surface.
+Query_pass and scoped Native_pass metadata wrappers are removed. The Metal
+queue now owns its bounded submission epochs and reusable command storage,
+instead of carrying the separate `Ogpu.Submission` state object. The live
+command and resource contracts remain until the G1 virtual-library split
+gives the Metal and mock implementations one conformance surface.
 
 Qualification code reads the runtime and Metal counters at their owning
 boundaries. Sketch does not retain a process-global diagnostics snapshot after

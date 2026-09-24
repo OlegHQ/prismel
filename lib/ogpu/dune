@@ -1,11 +1,11 @@
 (library
  (name ogpu)
  (public_name prismel.ogpu)
- (modules Error Handle Capabilities Validation Types Command Mock Submission Shader Surface Binding Sync Pipeline Acceleration Cache Memory Render_pass Diagnostics Compute_pass Transfer_pass Backend Backend_mock))
+ (modules Error Handle Capabilities Validation Types Command Mock Shader Surface Binding Sync Pipeline Acceleration Cache Memory Render_pass Diagnostics Compute_pass Transfer_pass Backend Backend_mock))
 
 (executable
  (name test_main)
- (modules test_main test_ogpu_foundation test_ogpu_command test_ogpu_mock test_ogpu_submission test_ogpu_shader test_ogpu_backend test_ogpu_surface test_ogpu_binding test_ogpu_sync test_ogpu_pipeline test_ogpu_acceleration test_ogpu_cache test_ogpu_memory test_ogpu_render_pass test_ogpu_diagnostics test_ogpu_compute_pass test_ogpu_transfer_pass test_ogpu_validation)
+ (modules test_main test_ogpu_foundation test_ogpu_command test_ogpu_mock test_ogpu_shader test_ogpu_backend test_ogpu_surface test_ogpu_binding test_ogpu_sync test_ogpu_pipeline test_ogpu_acceleration test_ogpu_cache test_ogpu_memory test_ogpu_render_pass test_ogpu_diagnostics test_ogpu_compute_pass test_ogpu_transfer_pass test_ogpu_validation)
  (libraries ogpu))
 
 (rule
@@ -19,10 +19,6 @@
 (rule
  (aliases runtest test_ogpu_mock)
  (action (run %{exe:test_main.exe} test_ogpu_mock)))
-
-(rule
- (aliases runtest test_ogpu_submission)
- (action (run %{exe:test_main.exe} test_ogpu_submission)))
 
 (rule
  (aliases runtest test_ogpu_shader)

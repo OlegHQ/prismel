@@ -2,7 +2,6 @@ let tests = [
   "test_ogpu_foundation", Test_ogpu_foundation.run;
   "test_ogpu_command", Test_ogpu_command.run;
   "test_ogpu_mock", Test_ogpu_mock.run;
-  "test_ogpu_submission", Test_ogpu_submission.run;
   "test_ogpu_shader", Test_ogpu_shader.run;
   "test_ogpu_backend", Test_ogpu_backend.run;
   "test_ogpu_surface", Test_ogpu_surface.run;

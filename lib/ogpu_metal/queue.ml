@@ -6,7 +6,14 @@ let rec run_cleanup=function
 |[]->()
 |release::rest->release();run_cleanup rest
 type presentation=Metal.Command_buffer.t -> (unit,Ogpu.Error.t) result
-type t={device:Device.t;metal:Metal.Command_queue.t;submission:Ogpu.Submission.t;mutable command4:Metal.Command4.Queue.t option;mutable pending:pending list;mutable fail_next:bool;mutable fail_next_completion:bool;mutable scoped_next_render:bool;mutable scoped_on_committed:(int64->unit)option;mutable scoped_completion:(unit,Ogpu.Error.t)result option;mutable dead:bool}
+type t={device:Device.t;metal:Metal.Command_queue.t;max_frames:int;
+  mutable next_epoch:int64;mutable completed:int64;mutable active:int;
+  command_storage:Ogpu.Command.description array array;
+  mutable command4:Metal.Command4.Queue.t option;mutable pending:pending list;
+  mutable fail_next:bool;mutable fail_next_completion:bool;
+  mutable scoped_next_render:bool;
+  mutable scoped_on_committed:(int64->unit)option;
+  mutable scoped_completion:(unit,Ogpu.Error.t)result option;mutable dead:bool}
 type receipt={epoch:int64}
 type synchronous_submission={receipt:receipt;completion:(unit,Ogpu.Error.t)result}
 type gpu_timing={supported:bool;duration_seconds:float;sample_count:int64}
@@ -29,11 +36,38 @@ let record_gpu_duration device duration=
   |Some value when valid_gpu_duration duration->value.supported<-true;value.duration_seconds<-value.duration_seconds+.duration;value.sample_count<-Int64.succ value.sample_count
   |_->()
 let error op kind message=Error(Ogpu.Error.make op kind message)
-let create ?(max_frames=3) device=let op="Ogpu_metal.Queue.create"in if Device.destroyed device then error op Ogpu.Error.Stale_handle"device is destroyed"else
-  match Ogpu.Submission.create~max_frames(Device.Private.handle device)with Error _ as e->e|Ok submission->match Metal.Command_queue.create(Device.Private.metal device)with Error e->Error(Adapter.error~operation:op e)|Ok metal->let id=Device.id device in (match Hashtbl.find_opt gpu_timings id with Some timing->timing.queues<-timing.queues+1|None->Hashtbl.add gpu_timings id{supported=false;duration_seconds=0.;sample_count=0L;queues=1});Device.Private.attach_resource device;Ok{device;metal;submission;command4=None;pending=[];fail_next=false;fail_next_completion=false;scoped_next_render=false;scoped_on_committed=None;scoped_completion=None;dead=false}
+let admit value command =
+  let operation="Ogpu_metal.Queue.submit" in
+  if Device.destroyed value.device then
+    error operation Ogpu.Error.Device_lost "queue device is lost"
+  else if value.active >= value.max_frames then
+    error operation Ogpu.Error.Capacity "frames-in-flight capacity reached"
+  else
+    let slot=Int64.to_int(Int64.rem(Int64.pred value.next_epoch)
+      (Int64.of_int value.max_frames)) in
+    match Ogpu.Command.Private.take_for_submission_reusing command
+        value.command_storage.(slot) with
+    | Error _ as failure -> failure
+    | Ok (storage,_) ->
+        value.command_storage.(slot)<-storage;
+        let epoch=value.next_epoch in
+        value.next_epoch<-Int64.succ epoch;
+        value.active<-value.active+1;
+        Ok epoch
+let complete_epoch value epoch =
+  let operation="Ogpu_metal.Queue.complete_through" in
+  if epoch < value.completed || epoch >= value.next_epoch then
+    error operation Ogpu.Error.Invalid_argument "completion epoch is invalid"
+  else begin
+    value.active<-max 0 (value.active-Int64.to_int(Int64.sub epoch value.completed));
+    value.completed<-epoch;
+    Ok ()
+  end
+let create ?(max_frames=3) device=let op="Ogpu_metal.Queue.create"in if Device.destroyed device then error op Ogpu.Error.Stale_handle"device is destroyed"else if max_frames<1||max_frames>3 then error op Ogpu.Error.Invalid_argument"frames in flight must be between 1 and 3"else
+  match Metal.Command_queue.create(Device.Private.metal device)with Error e->Error(Adapter.error~operation:op e)|Ok metal->let id=Device.id device in (match Hashtbl.find_opt gpu_timings id with Some timing->timing.queues<-timing.queues+1|None->Hashtbl.add gpu_timings id{supported=false;duration_seconds=0.;sample_count=0L;queues=1});Device.Private.attach_resource device;Ok{device;metal;max_frames;next_epoch=1L;completed=0L;active=0;command_storage=Array.make max_frames [||];command4=None;pending=[];fail_next=false;fail_next_completion=false;scoped_next_render=false;scoped_on_committed=None;scoped_completion=None;dead=false}
 let destroyed value=value.dead
-let in_flight value=Ogpu.Submission.in_flight value.submission
-let completed_epoch value=Ogpu.Submission.completed_epoch value.submission
+let in_flight value=value.active
+let completed_epoch value=value.completed
 let inject_next_error value=value.fail_next<-true
 let inject_next_completion_error value=value.fail_next_completion<-true
 let validate_buffer device buffer=match Buffer.descriptor device buffer with Ok _->Ok()|Error e->Error e
@@ -71,7 +105,7 @@ let encode command operations =
 let submit value command =let op="Ogpu_metal.Queue.submit"in if value.dead then error op Ogpu.Error.Stale_handle"queue is destroyed"else if value.fail_next then(value.fail_next<-false;error op Ogpu.Error.Device_lost"injected submission failure")else let operations=Command.Private.operations command in
   match validate_all value.device operations with Error _ as e->e|Ok()->match retain_all operations with Error _ as e->e|Ok retained->
   let rollback failure=List.iter(fun release->release())retained;failure in
-match Ogpu.Submission.Private.submit_epoch value.submission(Command.Private.portable command)~resources:[]with Error _ as e->rollback e|Ok epoch->match Metal.Command_buffer.create value.metal()with Error e->rollback(Error(Adapter.error~operation:op e))|Ok native->match encode native operations with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error e)|Ok cleanup->match Metal.Command_buffer.commit native with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error(Adapter.error~operation:op e))|Ok()->value.pending<-value.pending@[{epoch=epoch;command=Classic native;cleanup=retained@cleanup;encode_cleanup=[]}];Ok{epoch=epoch}
+match admit value (Command.Private.portable command) with Error _ as e->rollback e|Ok epoch->match Metal.Command_buffer.create value.metal()with Error e->rollback(Error(Adapter.error~operation:op e))|Ok native->match encode native operations with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error e)|Ok cleanup->match Metal.Command_buffer.commit native with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error(Adapter.error~operation:op e))|Ok()->value.pending<-value.pending@[{epoch=epoch;command=Classic native;cleanup=retained@cleanup;encode_cleanup=[]}];Ok{epoch=epoch}
 let command4_queue value=match value.command4 with Some queue->Ok queue|None->match Metal.Command4.Queue.create_default(Device.Private.metal value.device)with Error e->Error(Adapter.error~operation:"Ogpu_metal.Queue.command4" e)|Ok queue->value.command4<-Some queue;Ok queue
 let no_presentation _=assert false
 let finish_direct_scoped_classic value epoch command retained encode_cleanup=
@@ -94,7 +128,7 @@ let finish_direct_scoped_classic value epoch command retained encode_cleanup=
         error op Ogpu.Error.Device_lost
           "injected terminal completion failure"
       end else outcome in
-    let portable=Ogpu.Submission.complete_through value.submission epoch in
+    let portable=complete_epoch value epoch in
     let result=match outcome,portable with
       |Error _ as failure,_->failure|Ok(),result->result in
     run_cleanup retained;
@@ -163,8 +197,7 @@ let submit_render_pass_common ~scoped ~presenting presentation value pass =
                                      | Error submission_error ->
                                          abort (Error submission_error)
                                      | Ok () ->
-                                         (match Ogpu.Submission.Private.submit_epoch
-                                                  value.submission portable ~resources:[] with
+                                         (match admit value portable with
                                           | Error _ as failure ->
                                               abort failure
                                           | Ok epoch ->
@@ -224,8 +257,7 @@ let submit_render_pass_common ~scoped ~presenting presentation value pass =
                             | Error submission_error ->
                                 abort (Error submission_error)
                             | Ok () ->
-                                (match Ogpu.Submission.Private.submit_epoch
-                                         value.submission portable ~resources:[] with
+                                (match admit value portable with
                                  | Error _ as failure ->
                                      abort failure
                                  | Ok epoch ->
@@ -249,7 +281,7 @@ let submit_render_pass_async value pass=
     value pass
 let submit_render_pass_present_async value presentation pass=
   submit_render_pass_common~scoped:false~presenting:true presentation value pass
-let submit_typed value op retain encode=if value.dead then error op Ogpu.Error.Stale_handle"queue is destroyed"else match retain()with Error _ as e->e|Ok retained->let rollback e=List.iter(fun f->f())retained;e in match Metal.Command_buffer.create value.metal()with Error e->rollback(Error(Adapter.error~operation:op e))|Ok native->match encode native with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error e)|Ok()->let portable=Ogpu.Command.begin_encoder()in(match Ogpu.Command.end_encoder portable with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error e)|Ok()->match Ogpu.Submission.Private.submit_epoch value.submission portable~resources:[]with Error _ as e->ignore(Metal.Command_buffer.destroy native);rollback e|Ok epoch->match Metal.Command_buffer.commit native with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error(Adapter.error~operation:op e))|Ok()->value.pending<-value.pending@[{epoch=epoch;command=Classic native;cleanup=retained;encode_cleanup=[]}];Ok{epoch=epoch})
+let submit_typed value op retain encode=if value.dead then error op Ogpu.Error.Stale_handle"queue is destroyed"else match retain()with Error _ as e->e|Ok retained->let rollback e=List.iter(fun f->f())retained;e in match Metal.Command_buffer.create value.metal()with Error e->rollback(Error(Adapter.error~operation:op e))|Ok native->match encode native with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error e)|Ok()->let portable=Ogpu.Command.begin_encoder()in(match Ogpu.Command.end_encoder portable with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error e)|Ok()->match admit value portable with Error _ as e->ignore(Metal.Command_buffer.destroy native);rollback e|Ok epoch->match Metal.Command_buffer.commit native with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error(Adapter.error~operation:op e))|Ok()->value.pending<-value.pending@[{epoch=epoch;command=Classic native;cleanup=retained;encode_cleanup=[]}];Ok{epoch=epoch})
 let submit_transfer_pass value pass=submit_typed value"Ogpu_metal.Queue.submit_transfer_pass"(fun()->Transfer_pass.Private.retain pass)(fun command->Transfer_pass.Private.encode command pass)
 let submit_compute_pass value pass=submit_typed value"Ogpu_metal.Queue.submit_compute_pass"(fun()->Compute_pass.Private.retain pass)(fun command->Compute_pass.Private.encode command pass)
 let wait_through value epoch =
@@ -328,7 +360,7 @@ let wait_through value epoch =
       in
       let first_error = complete_all None ready in
       value.pending <- later;
-      let portable = Ogpu.Submission.complete_through value.submission epoch in
+      let portable = complete_epoch value epoch in
       match first_error,portable with
       | Some failure,_ -> Error failure
       | None,result -> result

@@ -11,6 +11,8 @@ kernel void add_one(device uint *values [[buffer(0)]], uint i [[thread_position_
 let ended f=let command=Command.create()in get(f command);get(Command.end_ command);command
 let run () =match Device.system_default()with Error _->print_endline"ogpu_metal submission: skipped (no device)"|Ok device->
   let other=get(Device.system_default())in let before=get_metal(Metal.Release_queue.stats())in
+  expect Ogpu.Error.Invalid_argument (Queue.create ~max_frames:0 device);
+  expect Ogpu.Error.Invalid_argument (Queue.create ~max_frames:4 device);
   let queue=get(Queue.create~max_frames:3 device)in
   let initial_timing=Queue.gpu_timing_for_device device in
   if initial_timing.supported||initial_timing.duration_seconds<>0.||initial_timing.sample_count<>0L then
@@ -30,6 +32,8 @@ let run () =match Device.system_default()with Error _->print_endline"ogpu_metal 
   if(r1.epoch,r2.epoch,r3.epoch)<>(1L,2L,3L)||Queue.in_flight queue<>3 then failwith"three-frame epoch ordering drift";
   let capacity=ended(fun _->Ok())in expect Ogpu.Error.Capacity(Queue.submit queue capacity);
   get(Queue.wait_through queue r3.epoch);
+  if Queue.in_flight queue<>0 || Queue.completed_epoch queue<>3L then
+    failwith"completed queue did not release frame capacity";
   let timing_before_second=Queue.gpu_timing_for_device device in
   if not timing_before_second.supported||timing_before_second.duration_seconds<=0.
      ||timing_before_second.sample_count<=0L then
@@ -41,7 +45,10 @@ let run () =match Device.system_default()with Error _->print_endline"ogpu_metal 
   if Queue.gpu_timing_for_device device<>timing_before_second||Queue.Private.gpu_timing_entry_count()<>1 then failwith"second queue destroy removed shared GPU timing state";
   let actual=get(Buffer.read_bytes device destination~offset:0L~length:16)in for i=0 to 3 do if Bytes.get_int32_le actual(i*4)<>Int32.of_int(i*10+1)then failwith"copy/compute result mismatch"done;
   let pixels=get(Texture.read_bytes device target~mip_level:0~bytes_per_row:8)in if Bytes.length pixels<>16||Char.code(Bytes.get pixels 0)<>64||Char.code(Bytes.get pixels 1)<>128||Char.code(Bytes.get pixels 2)<>191||Char.code(Bytes.get pixels 3)<>255 then failwith"render clear result mismatch";
-  let fourth=get(Queue.submit queue capacity)in expect Ogpu.Error.Invalid_state(Queue.submit queue capacity);get(Queue.wait_through queue fourth.epoch);
+  let fourth=get(Queue.submit queue capacity)in
+  if fourth.epoch<>4L then failwith"capacity rejection consumed an epoch";
+  expect Ogpu.Error.Invalid_state(Queue.submit queue capacity);
+  get(Queue.wait_through queue fourth.epoch);
   let foreign=get(Buffer.create other~memory:Buffer.Shared buffer_descriptor)in let wrong=ended(fun c->Command.copy_buffer c~source:foreign~source_offset:0L~destination~destination_offset:0L~length:4L)in expect Ogpu.Error.Cross_device(Queue.submit queue wrong);
   let stale=get(Buffer.create device~memory:Buffer.Shared buffer_descriptor)in let stale_command=ended(fun c->Command.copy_buffer c~source:stale~source_offset:0L~destination~destination_offset:0L~length:4L)in get(Buffer.destroy stale);expect Ogpu.Error.Stale_handle(Queue.submit queue stale_command);
   let injected=ended(fun _->Ok())in Queue.inject_next_error queue;expect Ogpu.Error.Device_lost(Queue.submit queue injected);
