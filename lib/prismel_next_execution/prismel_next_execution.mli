@@ -98,14 +98,6 @@ type presentation_facts = {
 }
 (* Read-only production-window facts for native qualification tooling. *)
 val presentation_facts : t -> (presentation_facts,error) result
-type diagnostics = { active:bool; resource_count:int; cache_entries:int;
-  release_queue_pending:int option; release_queue_live_handles:int option;
-  release_queue_total_created:int64 option;
-  release_queue_total_released:int64 option }
-val diagnostics : t -> diagnostics
-(* Actual coordinator, owned-resource, renderer-cache, and native release
-   queue state.  This remains readable after [destroy]. *)
-val native_release_queue : unit -> (int * int * int64 * int64) option
 val show : t -> (unit,error) result
 val hide : t -> (unit,error) result
 val set_relative_mouse : t -> bool -> (unit,error) result

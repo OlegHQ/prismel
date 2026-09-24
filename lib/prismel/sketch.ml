@@ -35,7 +35,6 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
    |Ok facts->Event.configure~logical_width:facts.logical_width
        ~logical_height:facts.logical_height
    |Error _->());
-  Runtime_diagnostics.Private.install coordinator;
   let logical_width=ref config.width and logical_height=ref config.height in
   let capture ()=
     let facts=get(Prismel_next_execution.presentation_facts coordinator)in
@@ -75,7 +74,7 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
   let cleanup()=Fun.protect~finally:(fun()->
       (* Never leave the pointer captured after the sketch stops. *)
       Option.iter(fun set->ignore(set false))!relative_current;
-      relative_current:=None;resize_current:=None;Canvas_runtime.clear();ignore(Prismel_next_execution.destroy coordinator);Runtime_diagnostics.Private.record coordinator)(fun()->on_stop!model)in
+      relative_current:=None;resize_current:=None;Canvas_runtime.clear();ignore(Prismel_next_execution.destroy coordinator))(fun()->on_stop!model)in
   Fun.protect~finally:cleanup(fun()->
     let limit=max_frames in let count=ref 0 in while not !stopped&&Option.fold~none:true~some:(fun limit-> !count<limit)limit do
       Time.update();let events=Event.poll_events()in

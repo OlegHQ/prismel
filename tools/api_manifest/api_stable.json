@@ -3,7 +3,7 @@
   "baseline_plan_sha256": "6f95e5738ae263386bbc414299f598f25ba9f604b48a8c2ef9bee84f974e2954",
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 131,
+  "module_count": 130,
   "modules": [
     {
       "api_sha256": "69403004e55a49667961f98b7879af4b3786d561307ea8812bb014b262ce5a72",
@@ -846,15 +846,6 @@
       "source": "lib/prismel/rand.mli",
       "source_bytes": 1179,
       "source_sha256": "736e6f0f6c8779bfa67b1d0007005c821cc35ade01b467fd93c4e83374597ced"
-    },
-    {
-      "api_sha256": "0ac9948633f9092cd5a623ddc912f381707168d3ece5709eec9a51cb40dba7ec",
-      "excluded_legacy_symbols": [],
-      "library": "prismel",
-      "module": "Runtime_diagnostics",
-      "source": "lib/prismel/runtime_diagnostics.mli",
-      "source_bytes": 858,
-      "source_sha256": "74b90ec75bbe4b2ebad22d581cac659ad9e528b00f8efe41f93c2c06fc1972a3"
     },
     {
       "api_sha256": "876d42e9050afcc33142457e348bdfb2ad25cf3c59ded454f6b22f3ebcc5a6cf",

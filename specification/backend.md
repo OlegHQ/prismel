@@ -30,6 +30,10 @@ translation from the checked high-level GPU interface to typed Metal bindings.
 values and records rendering through the narrow GPU boundary; it never exposes
 native handles in its public API.
 
+Qualification code reads the runtime and Metal counters at their owning
+boundaries. Sketch does not retain a process-global diagnostics snapshot after
+teardown; its coordinator is destroyed during `on_stop` cleanup.
+
 Scene visibility, culling, batch selection, and Scene2/Scene3 lowering remain
 Prismel responsibilities. The Metal binding does not contain Prismel vertex
 layouts, fixed Scene binding slots, or scene-cache keys. Its private prepared

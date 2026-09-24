@@ -531,10 +531,6 @@ let presentation_facts value=match ensure"Prismel_next_execution.presentation_fa
                refresh_rate=facts.refresh_rate;vsync=facts.vsync}in
                value.last_presentation<-Some p;Ok p))
     |Offscreen state->Ok state.facts
-type diagnostics={active:bool;resource_count:int;cache_entries:int;
-  release_queue_pending:int option;release_queue_live_handles:int option;
-  release_queue_total_created:int64 option;release_queue_total_released:int64 option}
-let native_release_queue=Runtime_next_orchestrator.native_release_queue
 let window operation call value=match ensure operation value with Error _ as e->e|Ok()->
   match value.runtime with
   |Offscreen _->fail operation Unsupported"operation requires a presentation window"
@@ -545,30 +541,6 @@ let hide value=window"Prismel_next_execution.hide"Runtime_next_orchestrator.hide
 let set_relative_mouse value enabled=window"Prismel_next_execution.set_relative_mouse"
   (fun runtime->Runtime_next_orchestrator.set_relative_mouse runtime enabled) value
 let visible value=window"Prismel_next_execution.visible"Runtime_next_orchestrator.visible value
-let diagnostics value=
-  let active,cache_entries,release_queue_pending,release_queue_live_handles,
-      release_queue_total_created,release_queue_total_released=
-    match value.runtime with
-    |Window runtime->let diagnostic=Runtime_next_orchestrator.diagnostics runtime in
-      diagnostic.active,diagnostic.cache_entries,diagnostic.release_queue_pending,
-      diagnostic.release_queue_live_handles,diagnostic.release_queue_total_created,
-      diagnostic.release_queue_total_released
-    |Offscreen state->
-      let native=Runtime_next.offscreen_stats state.runtime in
-      let release=Runtime_next_orchestrator.native_release_queue()in
-      true,native.mesh_cache_entries+native.pipeline_cache_entries,
-      Option.map(fun(a,_,_,_)->a)release,Option.map(fun(_,a,_,_)->a)release,
-      Option.map(fun(_,_,a,_)->a)release,Option.map(fun(_,_,_,a)->a)release in
-  {active=not value.dead&&active;
-   resource_count=Prismel_next_resources.Assets.count value.assets;
-   cache_entries=cache_entries+List.length value.snapshots+
-     List.length value.scene2_geometry_cache+
-     List.length value.scene2_geometry_candidates+List.length value.scene2_batch_cache+
-     List.length value.scene2_quad_cache+List.length value.scene2_debug_cache+
-     List.length value.scene2_plan_cache+List.length value.scene2_plan_candidates+
-     List.length value.canvas_keys;
-   release_queue_pending;release_queue_live_handles;release_queue_total_created;
-   release_queue_total_released}
 let snapshot value ~lease_policy ~density source =
   let operation="Prismel_next_execution.lower_scene2"in
   if density<=0 then fail operation Invalid_argument"density must be positive"else

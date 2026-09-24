@@ -14,10 +14,6 @@ type stats = { frames:int64; presented:int64; logical_draws:int64;
   retained_plan_misses:int64; retained_plan_evictions:int64;
   retained_plan_executions:int64; retained_plan_entries:int;
   retained_plan_capacity:int }
-type diagnostics = { active:bool; cache_entries:int;
-  release_queue_pending:int option; release_queue_live_handles:int option;
-  release_queue_total_created:int64 option;
-  release_queue_total_released:int64 option }
 type family = Scene2 | Scene2_textured | Scene3 | Scene3_points | Scene3_textured | Scene3_shadow |
   Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil | Ui
 type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
@@ -33,11 +29,6 @@ val create : configuration -> (t,Ogpu.Error.t) result
 val facts : t -> (facts,Ogpu.Error.t) result
 val pacing : t -> (pacing,Ogpu.Error.t) result
 val stats : t -> (stats,Ogpu.Error.t) result
-val diagnostics : t -> diagnostics
-(* Read-only teardown diagnostics for the native Metal target. *)
-val native_release_queue : unit -> (int * int * int64 * int64) option
-(* [(pending, live_handles, total_created, total_released)] when the typed
-   Metal counter source is available. *)
 val render : t -> Scene_execution.draw list -> (bool,Ogpu.Error.t) result
 val render_prepared : ?after_prepare:(unit -> unit) -> ?clear:(float * float * float * float) -> t ->
   prepared list -> (bool,Ogpu.Error.t) result

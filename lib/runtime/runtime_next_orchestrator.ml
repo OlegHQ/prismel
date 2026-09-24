@@ -10,9 +10,6 @@ type stats={frames:int64;presented:int64;logical_draws:int64;logical_passes:int6
   retained_plan_builds:int64;retained_plan_hits:int64;retained_plan_misses:int64;
   retained_plan_evictions:int64;retained_plan_executions:int64;
   retained_plan_entries:int;retained_plan_capacity:int}
-type diagnostics={active:bool;cache_entries:int;release_queue_pending:int option;
-  release_queue_live_handles:int option;release_queue_total_created:int64 option;
-  release_queue_total_released:int64 option}
 type family=Scene2|Scene2_textured|Scene3|Scene3_points|Scene3_textured|Scene3_shadow|Scene3_stencil
   |Scene3_textured_stencil|Scene3_shadow_stencil|Ui
 type blend=Replace|Alpha|Add|Multiply|Screen|Subtract
@@ -49,18 +46,6 @@ let stats value=match ensure"Runtime_next_orchestrator.stats"value with Error _ 
   let uploaded_bytes,cache_entries,gpu_timing_supported,gpu_duration_seconds,gpu_sample_count,retained_plan_builds,retained_plan_hits,retained_plan_misses,retained_plan_evictions,retained_plan_executions,retained_plan_entries,retained_plan_capacity=s.uploaded_bytes,s.mesh_cache_entries,s.gpu_timing_supported,s.gpu_duration_seconds,s.gpu_sample_count,s.retained_plan_builds,s.retained_plan_hits,s.retained_plan_misses,s.retained_plan_evictions,s.retained_plan_executions,s.retained_plan_entries,s.retained_plan_capacity in
   Ok{frames=value.pacing.frames;presented=value.pacing.presented;logical_draws=value.logical_draws;
     logical_passes=value.logical_passes;logical_submissions=value.logical_submissions;uploaded_bytes;cache_entries;gpu_timing_supported;gpu_duration_seconds;gpu_sample_count;retained_plan_builds;retained_plan_hits;retained_plan_misses;retained_plan_evictions;retained_plan_executions;retained_plan_entries;retained_plan_capacity}
-let native_release_queue()=match Metal.Release_queue.stats()with
-  |Ok stats->Some(stats.pending,stats.live_handles,stats.total_created,stats.total_released)
-  |Error _->None
-let diagnostics value=
-  let s=Runtime_next.stats value.runtime in
-  let cache_entries=s.mesh_cache_entries+s.pipeline_cache_entries in
-  let release_queue=native_release_queue() in
-  {active=not value.dead;cache_entries;
-   release_queue_pending=Option.map(fun(pending,_,_,_)->pending)release_queue;
-   release_queue_live_handles=Option.map(fun(_,live,_,_)->live)release_queue;
-   release_queue_total_created=Option.map(fun(_,_,created,_)->created)release_queue;
-   release_queue_total_released=Option.map(fun(_,_,_,released)->released)release_queue}
 let account value draw_count result =
   (match result with Ok presented->
     let p=value.pacing in
