@@ -219,6 +219,9 @@ release, and preserve same-device validation. Sketch-owned resources are
 released through `Sketch.run_state ~on_stop` while the SDL3 and Metal runtime
 is still live. Command completion retains any referenced resources until their
 submitted work completes.
+Resource-level font rendering returns an owned text snapshot. Automatic scene
+text and explicit high-level font caches are bounded by their Prismel owners;
+the resource font has no second renderer-keyed cache.
 
 `Scene`, `Canvas`, `Image`, `Font`, and `Audio` remain high-level Prismel
 interfaces. Their implementation lowers to the native GPU stack without

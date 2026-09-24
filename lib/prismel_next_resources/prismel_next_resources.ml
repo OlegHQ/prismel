@@ -276,11 +276,10 @@ module Font=struct
   type style=Normal|Bold|Italic|Underline|Strikethrough
   type hinting=Normal_hinting|Light_hinting|Mono_hinting|None_hinting|Light_subpixel_hinting
   type glyph_metrics={min_x:int;max_x:int;min_y:int;max_y:int;advance:int}
-  type cache_entry={key:string;text:Text.t option}
   type alignment=Sdl3_ttf.Font.alignment=Left|Center|Right
   type metrics=Sdl3_ttf.Font.metrics={height:int;ascent:int;descent:int;line_skip:int}
   type t={raw:Sdl3_ttf.Font.t;base_size:float;mutable generation:int;
-    mutable density:int;mutable align:alignment;mutable caches:(int*cache_entry list)list;mutable dead:bool}
+    mutable density:int;mutable align:alignment;mutable dead:bool}
   let users=ref 0
   let generation x=x.generation and destroyed x=x.dead
   let live op x f=main op(fun()->if x.dead then error op Destroyed"font is destroyed"else f())
@@ -291,10 +290,9 @@ module Font=struct
   let open_file ~path ~size=main"Font.open_file"(fun()->
     if not(Float.is_finite size)||size<=0. then error"Font.open_file"Invalid_argument"font size must be finite and positive"
     else match ensure_init"Font.open_file"with Error _ as e->e|Ok()->match ttf"Font.open_file"(Sdl3_ttf.Font.open_file~path~size)with
-      |Error _ as e->e|Ok raw->incr users;Ok{raw;base_size=size;generation=1;density=1;align=Left;caches=[];dead=false})
+      |Error _ as e->e|Ok raw->incr users;Ok{raw;base_size=size;generation=1;density=1;align=Left;dead=false})
   let open_system ~size=main"Font.open_system"(fun()->match ttf"Font.open_system"(Sdl3_ttf.Font.system_path())with Error _ as e->e|Ok path->open_file~path~size)
-  let destroy_entries entries=List.iter(fun e->Option.iter(fun text->ignore(Text.destroy text))e.text)entries
-  let invalidate x=List.iter(fun(_,entries)->destroy_entries entries)x.caches;x.caches<-[];x.generation<-x.generation+1
+  let invalidate x=x.generation<-x.generation+1
   let mutate op x call=live op x(fun()->match ttf op(call())with Error _ as e->e|Ok()->invalidate x;Ok())
   let style=function Normal->Sdl3_ttf.Font.Normal|Bold->Bold|Italic->Italic|Underline->Underline|Strikethrough->Strikethrough
   let hinting=function Normal_hinting->Sdl3_ttf.Font.Normal_hinting|Light_hinting->Light_hinting|Mono_hinting->Mono_hinting|None_hinting->None_hinting|Light_subpixel_hinting->Light_subpixel_hinting
@@ -334,14 +332,7 @@ module Font=struct
     if density<=0||density>16 then error"Font.glyph_metrics_at"Invalid_argument"density must be in 1..16"
     else match set_density x density with Error _ as e->e|Ok()->glyph_metrics x glyph)
   let cached_text x ?wrap_width ~density ~color text=render x ?wrap_width ~density ~color text
-  let cache_key x density wrap color text=Marshal.to_string(x.generation,density,wrap,color,text)[]
-  let render_cached x ~renderer ?wrap_width ~density ~color text=live"Font.render_cached"x(fun()->
-    let key=cache_key x density wrap_width color text in let entries=Option.value(List.assoc_opt renderer x.caches)~default:[]in
-    match List.find_opt(fun e->e.key=key)entries with Some e->Ok e.text|None->match render x ?wrap_width~density~color text with Error _ as e->e|Ok text_snapshot->
-      let entries={key;text=text_snapshot}::entries in let kept,evicted=if List.length entries<=256 then entries,[]else let rec split i acc=function []->List.rev acc,[]|rest when i=256->List.rev acc,rest|v::vs->split(i+1)(v::acc)vs in split 0[]entries in destroy_entries evicted;x.caches<-(renderer,kept)::List.remove_assoc renderer x.caches;Ok text_snapshot)
-  let cache_entries x ~renderer=List.assoc_opt renderer x.caches|>Option.fold~none:0~some:List.length
-  let release_renderer x ~renderer=live"Font.release_renderer"x(fun()->let entries=Option.value(List.assoc_opt renderer x.caches)~default:[]in destroy_entries entries;x.caches<-List.remove_assoc renderer x.caches;Ok())
-  let destroy x=main"Font.destroy"(fun()->if x.dead then Ok()else(destroy_entries(List.concat_map snd x.caches);x.caches<-[];match ttf"Font.destroy"(Sdl3_ttf.Font.destroy x.raw)with Error _ as e->e|Ok()->x.dead<-true;decr users;if!users=0 then ignore(Sdl3_ttf.Init.quit());Ok()))
+  let destroy x=main"Font.destroy"(fun()->if x.dead then Ok()else(match ttf"Font.destroy"(Sdl3_ttf.Font.destroy x.raw)with Error _ as e->e|Ok()->x.dead<-true;decr users;if!users=0 then ignore(Sdl3_ttf.Init.quit());Ok()))
 end
 
 module Audio=struct

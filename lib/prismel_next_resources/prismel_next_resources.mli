@@ -103,10 +103,6 @@ module Font : sig
     color:int*int*int*int -> string -> (Text.t option,error) result
   val cached_text : t -> ?wrap_width:int -> density:int ->
     color:int*int*int*int -> string -> (Text.t option,error) result
-  val render_cached : t -> renderer:int -> ?wrap_width:int -> density:int ->
-    color:int*int*int*int -> string -> (Text.t option,error) result
-  val cache_entries : t -> renderer:int -> int
-  val release_renderer : t -> renderer:int -> (unit,error) result
   val destroy : t -> (unit,error) result
 end
 
