@@ -20,7 +20,6 @@ val build :
     callers that separately certify the omitted local vertex fans. *)
 
 val point_count : t -> int
-val approximate_point : t -> int -> float * float * float
 val constraint_count : t -> int
 val constraint_kind : t -> int -> constraint_kind
 val constraint_first : t -> int -> int

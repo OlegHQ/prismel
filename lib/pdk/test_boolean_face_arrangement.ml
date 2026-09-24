@@ -3,6 +3,8 @@ open Pdk
 module Constraints = Boolean_kernel.Constraints
 module Coplanar = Boolean_kernel.Coplanar
 module Arrangement = Boolean_kernel.Arrangement
+let approximate_point value point =
+  Boolean_kernel.Private.approximate (Arrangement.Private.point value point)
 
 let fail format = Printf.ksprintf failwith format
 let check condition message = if not condition then fail "%s" message
@@ -33,7 +35,7 @@ let crossing_plan () =
 
 let sorted_points arrangement =
   let points = Array.init (Arrangement.point_count arrangement)
-      (Arrangement.approximate_point arrangement) in
+      (approximate_point arrangement) in
   Array.sort Stdlib.compare points;
   points
 
@@ -48,7 +50,7 @@ let test_proper_crossing () =
   Array.iteri (fun point (x,y,z) ->
     if close x 0. && close y 0. && close z 0. then origin := point)
     (Array.init (Arrangement.point_count arrangement)
-       (Arrangement.approximate_point arrangement));
+       (approximate_point arrangement));
   check (!origin >= 0) "TPI origin is missing";
   let incident = ref 0 in
   for segment = 0 to Arrangement.segment_count arrangement - 1 do
@@ -95,7 +97,7 @@ let test_multiway_crossing () =
     "three-way crossing did not split all incident constraints";
   let origin = ref (-1) in
   for point = 0 to Arrangement.point_count arrangement - 1 do
-    let x,y,z = Arrangement.approximate_point arrangement point in
+    let x,y,z = approximate_point arrangement point in
     if close x 0. && close y 0. && close z 0. then origin := point
   done;
   let incident = ref 0 in
@@ -143,7 +145,7 @@ let test_mixed_coplanar_noncoplanar_crossing () =
     "mixed overlap did not split both crossing constraints";
   let crossing = ref (-1) and incident = ref 0 in
   for point = 0 to Arrangement.point_count arrangement - 1 do
-    let x, y, z = Arrangement.approximate_point arrangement point in
+    let x, y, z = approximate_point arrangement point in
     if close x 2. && close y 3. && close z 0. then crossing := point
   done;
   check (!crossing >= 0) "mixed exact crossing at (2,3,0) is missing";
@@ -178,7 +180,7 @@ let many_parallel_plan ~count ~point_contact =
 
 let arrangement_signature arrangement =
   Array.init (Arrangement.point_count arrangement)
-    (Arrangement.approximate_point arrangement),
+    (approximate_point arrangement),
   Array.init (Arrangement.segment_count arrangement) (fun segment ->
     Arrangement.segment_first arrangement segment,
     Arrangement.segment_second arrangement segment)

@@ -2,6 +2,8 @@ open Prismel
 open Pdk
 
 module Constraints = Boolean_kernel.Constraints
+let approximate_point plan point =
+  Boolean_kernel.Private.approximate (Constraints.Private.point plan point)
 
 let integer_env name default =
   match Sys.getenv_opt name with
@@ -75,7 +77,7 @@ let mix hash value = ((hash * 65_599) lxor value) land max_int
 let plan_hash plan =
   let hash = ref 17 in
   for point = 0 to Constraints.point_count plan - 1 do
-    let x, y, z = Constraints.approximate_point plan point in
+    let x, y, z = approximate_point plan point in
     hash := mix !hash (Int64.to_int (Int64.bits_of_float x));
     hash := mix !hash (Int64.to_int (Int64.bits_of_float y));
     hash := mix !hash (Int64.to_int (Int64.bits_of_float z))

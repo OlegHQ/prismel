@@ -1,6 +1,8 @@
 open Pdk
 
 module Constraints = Boolean_kernel.Constraints
+let approximate_point plan point =
+  Boolean_kernel.Private.approximate (Constraints.Private.point plan point)
 
 let fail format = Printf.ksprintf failwith format
 let check condition message = if not condition then fail "%s" message
@@ -28,7 +30,7 @@ let crossing_triangle () = geometry
 
 let signature plan =
   let points = Array.init (Constraints.point_count plan)
-      (Constraints.approximate_point plan) in
+      (approximate_point plan) in
   let constraints = Array.init (Constraints.constraint_count plan) (fun index ->
       Constraints.constraint_kind plan index,
       Constraints.constraint_first plan index,
@@ -56,8 +58,8 @@ let test_crossing () =
   let first = Constraints.constraint_first plan 0
   and second = Constraints.constraint_second plan 0 in
   check (first <> second) "crossing segment endpoints collapsed";
-  let endpoints = [Constraints.approximate_point plan first;
-                   Constraints.approximate_point plan second]
+  let endpoints = [approximate_point plan first;
+                   approximate_point plan second]
       |> List.sort Stdlib.compare in
   (match endpoints with
    | [(x0,y0,z0); (x1,y1,z1)] ->
@@ -82,7 +84,7 @@ let test_point_contact () =
   check (Constraints.constraint_kind plan 0 = Constraints.Point)
     "point contact became a segment";
   check (Constraints.point_count plan = 1) "point contact was not deduplicated";
-  let x,y,z = Constraints.approximate_point plan 0 in
+  let x,y,z = approximate_point plan 0 in
   check (close x 0. && close y 0. && close z 0.)
     "point contact coordinate is wrong"
 
@@ -128,7 +130,7 @@ let test_cross_face_deduplication () =
       incr segment_count
   done;
   check (!segment_count = 2) "split square should produce two segment constraints";
-  let points = Array.init 3 (Constraints.approximate_point plan) in
+  let points = Array.init 3 (approximate_point plan) in
   Array.sort (fun (_, left_y, _) (_, right_y, _) ->
       Float.compare left_y right_y) points;
   Array.iteri (fun index (x,y,z) ->

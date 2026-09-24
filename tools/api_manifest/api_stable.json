@@ -438,13 +438,13 @@
       "source_sha256": "b16cef07e85b6f68d4e3ac5f35be557f5b3e7dbfeb63cd5a3cd3dcca64c42631"
     },
     {
-      "api_sha256": "5933e5d508db97af33eaf0c3efb5a953e690644990fce7af475c8837d72d1afe",
+      "api_sha256": "72770c859f88d25b53dbd3ec62d237214aa75f59f15e2fd557d11539a8e2e9d5",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Boolean_kernel",
       "source": "lib/pdk/boolean_kernel.mli",
-      "source_bytes": 18775,
-      "source_sha256": "bbfb882c0f51abb76c86c502253f9359bf480ff215d226545b1cb191c84cfb31"
+      "source_bytes": 18796,
+      "source_sha256": "0c691de360b2d67acf87722a628186f5eeade0abd57cbdb550268eb959dfa494"
     },
     {
       "api_sha256": "e5072e0fc2c715dc9ecfe063559b85257b4f9e31368632d7c136a45821be40f2",

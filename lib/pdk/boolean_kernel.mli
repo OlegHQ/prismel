@@ -148,7 +148,9 @@ module Constraints : sig
     grain:int -> left:Geometry.t -> right:Geometry.t ->
     unit -> (t, Error.t) result
   val point_count : t -> int
-  val approximate_point : t -> int -> float * float * float
+  module Private : sig
+    val point : t -> int -> Private.t
+  end
   val constraint_count : t -> int
   val constraint_kind : t -> int -> constraint_kind
   val constraint_first : t -> int -> int
@@ -190,7 +192,9 @@ module Coplanar : sig
   val right_triangle : t -> int -> int
   val kind : t -> int -> overlap_kind
   val point_count : t -> int -> int
-  val approximate_point : t -> int -> int -> float * float * float
+  module Private : sig
+    val point : t -> int -> int -> Private.t
+  end
   val boundary_count : t -> int -> int
   val boundary_first : t -> int -> int -> int
   val boundary_second : t -> int -> int -> int
@@ -204,7 +208,9 @@ module Arrangement : sig
     Constraints.t -> side:side -> triangle:int ->
     (t, Error.t) result
   val point_count : t -> int
-  val approximate_point : t -> int -> float * float * float
+  module Private : sig
+    val point : t -> int -> Private.t
+  end
   val segment_count : t -> int
   val segment_first : t -> int -> int
   val segment_second : t -> int -> int

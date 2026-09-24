@@ -3,6 +3,8 @@ open Pdk
 
 module Constraints = Boolean_kernel.Constraints
 module Coplanar = Boolean_kernel.Coplanar
+let approximate_point value pair point =
+  Boolean_kernel.Private.approximate (Coplanar.Private.point value pair point)
 
 let integer_env name default = match Sys.getenv_opt name with
   | None -> default | Some value -> max 1 (int_of_string value)
@@ -48,7 +50,7 @@ let overlap_hash value =
     hash := mix !hash (Coplanar.point_count value pair);
     hash := mix !hash (Coplanar.boundary_count value pair);
     for point = 0 to Coplanar.point_count value pair - 1 do
-      let x, y, z = Coplanar.approximate_point value pair point in
+      let x, y, z = approximate_point value pair point in
       hash := mix !hash (Int64.to_int (Int64.bits_of_float x));
       hash := mix !hash (Int64.to_int (Int64.bits_of_float y));
       hash := mix !hash (Int64.to_int (Int64.bits_of_float z))

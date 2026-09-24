@@ -38,8 +38,6 @@ let right_triangle value pair =
   Boolean_constraints.coplanar_right_triangle value.constraints pair
 let kind value pair = value.overlaps.(pair).kind
 let point_count value pair = Array.length value.overlaps.(pair).points
-let approximate_point value pair point =
-  Implicit_point.approximate value.overlaps.(pair).points.(point)
 
 let boundary_count value pair = match kind value pair with
   | Empty | Point -> 0

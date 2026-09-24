@@ -18,7 +18,6 @@ val left_triangle : t -> int -> int
 val right_triangle : t -> int -> int
 val kind : t -> int -> overlap_kind
 val point_count : t -> int -> int
-val approximate_point : t -> int -> int -> float * float * float
 val boundary_count : t -> int -> int
 val boundary_first : t -> int -> int -> int
 val boundary_second : t -> int -> int -> int

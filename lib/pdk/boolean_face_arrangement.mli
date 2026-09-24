@@ -25,7 +25,6 @@ val build :
     one exact event. *)
 
 val point_count : t -> int
-val approximate_point : t -> int -> float * float * float
 val segment_count : t -> int
 val segment_first : t -> int -> int
 val segment_second : t -> int -> int

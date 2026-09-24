@@ -2,6 +2,8 @@ open Pdk
 
 module Constraints = Boolean_kernel.Constraints
 module Coplanar = Boolean_kernel.Coplanar
+let approximate_point value pair point =
+  Boolean_kernel.Private.approximate (Coplanar.Private.point value pair point)
 
 let fail format = Printf.ksprintf failwith format
 let check condition message = if not condition then fail "%s" message
@@ -31,7 +33,7 @@ let arrange left right =
 
 let sorted_points result =
   let points = Array.init (Coplanar.point_count result 0)
-      (Coplanar.approximate_point result 0) in
+      (approximate_point result 0) in
   Array.sort Stdlib.compare points;
   points
 
@@ -64,8 +66,8 @@ let test_six_edge_overlap () =
   for edge = 0 to Coplanar.boundary_count result 0 - 1 do
     let first = Coplanar.boundary_first result 0 edge
     and second = Coplanar.boundary_second result 0 edge in
-    let ax, ay, _ = Coplanar.approximate_point result 0 first
-    and bx, by, _ = Coplanar.approximate_point result 0 second in
+    let ax, ay, _ = approximate_point result 0 first
+    and bx, by, _ = approximate_point result 0 second in
     area := !area +. ((ax *. by) -. (ay *. bx))
   done;
   check (!area > 0.) "coplanar polygon boundary is not projected CCW"
@@ -161,7 +163,7 @@ let signature result =
     Coplanar.right_triangle result pair,
     Coplanar.kind result pair,
     Array.init (Coplanar.point_count result pair)
-      (Coplanar.approximate_point result pair))
+      (approximate_point result pair))
 
 let test_domain_exactness () =
   let left = repeated 257 [|0.,0.,0.; 4.,0.,0.; 2.,4.,0.|]

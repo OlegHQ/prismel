@@ -11,7 +11,6 @@ let operation = "boolean_face_arrangement"
 let error code message = Error (Error.make ~operation ~code message)
 
 let point_count value = Array.length value.points
-let approximate_point value point = Implicit_point.approximate value.points.(point)
 let segment_count value = Array.length value.segment_first
 let segment_first value segment = value.segment_first.(segment)
 let segment_second value segment = value.segment_second.(segment)

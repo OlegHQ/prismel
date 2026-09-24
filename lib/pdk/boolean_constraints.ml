@@ -40,7 +40,6 @@ type t = {
 let error code message = Error (Error.make ~operation ~code message)
 
 let point_count value = Array.length value.points
-let approximate_point value point = Implicit_point.approximate value.points.(point)
 let constraint_count value = Array.length value.first
 let constraint_kind value constraint_index =
   if Bytes.unsafe_get value.kinds constraint_index = '\000' then Point else Segment

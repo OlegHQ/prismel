@@ -3,6 +3,8 @@ open Pdk
 
 module Constraints = Boolean_kernel.Constraints
 module Arrangement = Boolean_kernel.Arrangement
+let approximate_point value point =
+  Boolean_kernel.Private.approximate (Arrangement.Private.point value point)
 
 let integer_env name default = match Sys.getenv_opt name with
   | None -> default | Some value -> max 1 (int_of_string value)
@@ -71,7 +73,7 @@ let mix hash value = ((hash * 65_599) lxor value) land max_int
 let arrangement_hash arrangement =
   let hash = ref 17 in
   for point = 0 to Arrangement.point_count arrangement - 1 do
-    let x,y,z = Arrangement.approximate_point arrangement point in
+    let x,y,z = approximate_point arrangement point in
     hash := mix !hash (Int64.to_int (Int64.bits_of_float x));
     hash := mix !hash (Int64.to_int (Int64.bits_of_float y));
     hash := mix !hash (Int64.to_int (Int64.bits_of_float z))
