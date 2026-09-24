@@ -5,22 +5,23 @@
  (private_modules scene_attachment_pool)
  (libraries ogpu))
 
-(test
- (name test_prepared_scene3)
- (modules test_prepared_scene3)
- (libraries scene_execution ogpu))
-
-(test
- (name test_automatic_scratch)
- (modules test_automatic_scratch)
- (libraries scene_execution ogpu))
-
-(test
- (name test_retained_eviction)
- (modules test_retained_eviction)
- (libraries scene_execution ogpu))
-
-(test
- (name test_offscreen_metal)
- (modules test_offscreen_metal)
+(executable
+ (name test_main)
+ (modules test_main test_prepared_scene3 test_automatic_scratch test_retained_eviction test_offscreen_metal)
  (libraries scene_execution ogpu ogpu_metal metal))
+
+(rule
+ (aliases runtest test_prepared_scene3)
+ (action (run %{exe:test_main.exe} test_prepared_scene3)))
+
+(rule
+ (aliases runtest test_automatic_scratch)
+ (action (run %{exe:test_main.exe} test_automatic_scratch)))
+
+(rule
+ (aliases runtest test_retained_eviction)
+ (action (run %{exe:test_main.exe} test_retained_eviction)))
+
+(rule
+ (aliases runtest test_offscreen_metal)
+ (action (run %{exe:test_main.exe} test_offscreen_metal)))

@@ -54,7 +54,7 @@ let expect_only_points_moved source output expected delta_x delta_y delta_z =
       fail (Printf.sprintf "unselected point %d moved" point)
   done
 
-let () =
+let run () =
   let quad_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|-1.; 1.; 1.; -1.|] ~y:[|0.; 0.; 0.; 0.|]
       ~z:[|-1.; -1.; 1.; 1.|] in

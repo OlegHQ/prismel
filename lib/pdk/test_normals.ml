@@ -255,7 +255,7 @@ let test_parallel_and_errors () =
        "normal cancellation code"
    | Ok _ -> fail "Normals ignored cancellation")
 
-let () =
+let run () =
   test_owners_and_weighting ();
   test_vertex_cusp ();
   test_selection_and_existing_values ();

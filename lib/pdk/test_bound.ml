@@ -186,7 +186,7 @@ let check_parallel_exact () =
       && Geometry.primitive_count sphere_one = 261_120)
     "Bound sphere scale cardinality"
 
-let () =
+let run () =
   check_divided_box ();
   check_typed_selection ();
   check_sphere ();

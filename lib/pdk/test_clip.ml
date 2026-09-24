@@ -698,7 +698,7 @@ let check_validation () =
   expect_code "invalid_geometry" (Ops.clip ~clip_attribute:"field"
       ~origin:Vec3.zero ~normal:Vec3.unit_x non_finite)
 
-let () =
+let run () =
   check_custom_clip_attribute ();
   check_distance ();
   check_clipped_edge_group ();

@@ -1,7 +1,7 @@
 let fail message=raise(Failure message)
 let ok=function Ok value->value|Error e->fail(Ogpu.Error.to_string e)
 let expect kind=function Error(e:Ogpu.Error.t)when e.kind=kind->()|_->fail"unexpected native-pass result"
-let ()=
+let run () =
   let d1=Ogpu.Handle.create_device()and d2=Ogpu.Handle.create_device()in let resource=Ogpu.Handle.create ~device:d1 in
   let declaration={Ogpu.Native_pass.resource_id=1L;resource;access=Ogpu.Command.Read_write;stages=[Compute_stage];owner=Native;resulting_state=Shader_write}in let transition={Ogpu.Native_pass.resource_id=1L;before=Undefined;after=Shader_write}in
   let plan=ok(Ogpu.Native_pass.create d1 ~declarations:[|declaration|]~transitions:[|transition|])in if Ogpu.Native_pass.declarations plan<>[|declaration|]||Ogpu.Native_pass.transitions plan<>[|transition|]then fail"plan snapshot changed";ok(Ogpu.Native_pass.execute plan{run=(fun _->Ok())});

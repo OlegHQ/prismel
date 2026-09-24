@@ -4,7 +4,7 @@ let state viewport scissor : Scene_execution.state =
    depth_load=Ogpu.Render_pass.Load;depth_clear=1.;transform_uniforms=None;
    stencil_state=None;stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}
 
-let () =
+let run () =
   let mesh:Scene_execution.mesh={key="scale";vertices=Bytes.empty;
     vertex_count=1;indices=Bytes.empty;index_count=1;
     primitive=Ogpu.Render_pass.Triangle_list}in

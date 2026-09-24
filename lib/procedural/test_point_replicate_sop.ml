@@ -33,7 +33,7 @@ let cook evaluator domains graph =
   | Ok output -> output.geometry
   | Error error -> fail (Diagnostic.error_to_string error)
 
-let () =
+let run () =
   let custom = Sop.points [|(0.,0.,0.); (0.,0.,1.)|] in
   let graph = Sop.snapshot (source ())
       |> Sop.point_replicate ~label:"replicate-test" ~group:"emit" ~seed:71

@@ -19,21 +19,22 @@
  (c_library_flags (:include c_library_flags.sexp))
  (libraries sdl3 threads))
 
-(test
- (name test_sdl3_ttf)
- (modules test_sdl3_ttf)
- (libraries sdl3 sdl3_ttf)
+(executable
+ (name test_main)
+ (modules test_main test_sdl3_ttf test_sdl3_ttf_discovery_failure)
+ (libraries sdl3 sdl3_ttf))
+
+(rule
+ (aliases runtest test_sdl3_ttf)
  (action
   (setenv SDL_VIDEODRIVER dummy
-   (run %{test}))))
+   (run %{exe:test_main.exe} test_sdl3_ttf))))
 
-(test
- (name test_sdl3_ttf_discovery_failure)
- (modules test_sdl3_ttf_discovery_failure)
- (libraries sdl3_ttf)
+(rule
+ (aliases runtest test_sdl3_ttf_discovery_failure)
  (action
   (setenv PRISMEL_UI_FONT /definitely/missing/prismel-font.ttf
-   (run %{test}))))
+   (run %{exe:test_main.exe} test_sdl3_ttf_discovery_failure))))
 
 (rule
  (alias qualification)

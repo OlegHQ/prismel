@@ -38,7 +38,7 @@ let unary_input_port node =
 
 let midpoint (ax, ay) (bx, by) = (ax + bx) / 2, (ay + by) / 2
 
-let () =
+let run () =
   let source_a = Sop.points ~label:"Source A" [|0., 0., 0.|]
   and source_b = Sop.points ~label:"Source B" [|1., 0., 0.|] in
   let moved_a = Sop.transform ~label:"Move A"

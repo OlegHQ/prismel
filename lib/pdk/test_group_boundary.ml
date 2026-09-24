@@ -236,7 +236,7 @@ let test_parallel_scale_exactness () =
   check (Edge_group.cardinality one = (3 * 120 * 90) - 120 - 90)
     "Group from Attribute Boundary scale cardinality"
 
-let () =
+let run () =
   test_primitive_boundaries_and_outputs ();
   test_numeric_tolerance_and_patterns ();
   test_vertex_seam ();

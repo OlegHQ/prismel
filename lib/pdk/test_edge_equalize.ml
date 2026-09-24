@@ -104,7 +104,7 @@ let all_edge_lengths geometry =
     and dz = p.z.(b) -. p.z.(a) in
     sqrt (dx *. dx +. dy *. dy +. dz *. dz))
 
-let () =
+let run () =
   let source = disjoint () in
   let average = Ops.edge_equalize ~grain:1 ~output_group:"equalized" source
       |> get_pdk in

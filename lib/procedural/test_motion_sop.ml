@@ -22,7 +22,7 @@ let float3 name geometry =
        | _ -> fail (name ^ " has wrong storage"))
   | None -> fail ("missing " ^ name)
 
-let () =
+let run () =
   let previous = Sop.points [|(0.,0.,0.); (1.,1.,1.)|]
   and current = Sop.points [|(1.,2.,3.); (3.,5.,7.)|] in
   let graph = current

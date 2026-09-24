@@ -71,7 +71,7 @@ let randomize ?selection ?element_selection ?seed_attribute ?fraction_attribute
     distribution geometry
   |> get_ok
 
-let () =
+let run () =
   let geometry = Ops.grid ~columns:1 ~rows:1 ~size:2. () |> get_ok in
   let selected = Group.init ~owner:Group.Point ~name:"selected" 4
       (fun point -> point land 1 = 0) in

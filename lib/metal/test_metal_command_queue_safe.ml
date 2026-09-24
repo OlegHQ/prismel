@@ -7,7 +7,7 @@ let expect kind = function
   | Error error -> fail "unexpected error: %s" error.message
   | Ok _ -> fail "expected rejection"
 
-let () =
+let run () =
   let device = get (Device.system_default ()) in
   let queue = get (Command_queue.create device) in
   get (Command_queue.set_label queue (Some "classic queue"));

@@ -15,7 +15,7 @@ vertex V mapped_vertex(uint i [[vertex_id]]) { constexpr float2 p[3]={{-1.,-1.},
 fragment float4 mapped_fragment() { return float4(0.125,0.5,0.875,1.); }
 |}
 let ended f=let command=Command.create()in get(f command);get(Command.end_ command);command
-let ()=match Device.system_default()with Error _->print_endline"ogpu_metal pipeline: skipped (no device)"|Ok device->
+let run () =match Device.system_default()with Error _->print_endline"ogpu_metal pipeline: skipped (no device)"|Ok device->
   let other=get(Device.system_default())in let before=get_metal(Metal.Release_queue.stats())in let cache=get(Pipeline.create_cache~capacity:2)in
   let compute_binding : Ogpu.Shader.binding={group=0;binding=0;kind=Storage_buffer;visibility=[Compute]}in
   let compute_shader=shader~label:"mapped-compute"~bytes:compute_source~entries:[{name="mapped_compute";stage=Compute}]~bindings:[compute_binding]in

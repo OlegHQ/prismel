@@ -127,7 +127,7 @@ let many_bends count =
     ~attributes:[attribute Attribute.Point "id"
       (Attribute.Int (Array.init point_count Fun.id))] () |> get_ok
 
-let () =
+let run () =
   let source = decorated_bend () in
   let bend = Geometry.find_edge_group "bend" source |> Option.get
   and first = Geometry.find_edge_group "first" source |> Option.get in

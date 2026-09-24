@@ -82,7 +82,7 @@ let run_case count=
     (Printf.sprintf"%d-draw mock handle delta"count);
   allocated,promoted
 
-let ()=
+let run () =
   let allocated10,promoted10=run_case 10
   and allocated84,promoted84=run_case 84 in
   (* The mock backend deliberately formats a complete render trace each frame;

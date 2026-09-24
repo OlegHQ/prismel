@@ -337,7 +337,7 @@ let test_scale_exactness () =
          <> float_values ~owner:Attribute.Point ~name:"sample" four then
     fail "20k point multi-owner transfer scale/domain exactness"
 
-let () =
+let run () =
   test_source_kernels ();
   test_blend_falloff ();
   test_multi_owner_exactness ();

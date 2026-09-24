@@ -9,7 +9,7 @@ let expect kind = function
   | Error error -> fail "unexpected error: %s" (Format.asprintf "%a" pp_error error)
   | Ok _ -> fail "expected rejection"
 
-let () =
+let run () =
   let device = get (Device.system_default ()) in
   let rate_layer=get(Rasterization_rate_layer.create~horizontal:[|1.|]~vertical:[|1.|])in
   get(Rasterization_rate_layer.set_sample rate_layer~vertical:false~index:0L 0.75);

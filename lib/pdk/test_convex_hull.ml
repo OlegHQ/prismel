@@ -237,7 +237,7 @@ let test_parallel_exact () =
       && Geometry.primitive_count one = 1020) "sphere hull cardinality";
   check_closed one "sphere hull incidence"
 
-let () =
+let run () =
   test_affine_dimensions ();
   test_solid_payload_and_selection ();
   test_exact_and_errors ();

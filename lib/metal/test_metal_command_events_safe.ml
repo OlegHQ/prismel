@@ -2,7 +2,7 @@ open Metal
 let fail format=Printf.ksprintf failwith format
 let get=function Ok x->x|Error e->fail "%s"(Format.asprintf "%a" pp_error e)
 let expect kind=function Error e when e.kind=kind->()|Error e->fail "%s"(Format.asprintf "%a" pp_error e)|Ok _->fail "expected rejection"
-let ()=
+let run () =
   let device=get(Device.system_default())in
   let event=get(Device.new_event device)in
   if Event.device_registry_id event<>Device.registry_id device then fail "event device identity drift";

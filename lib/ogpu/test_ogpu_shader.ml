@@ -16,7 +16,7 @@ let snapshot value =
   Ogpu.Shader.backend value, Ogpu.Shader.label value, Ogpu.Shader.bytes value,
   Ogpu.Shader.entry_points value, Ogpu.Shader.bindings value, Ogpu.Shader.provenance_hash value
 
-let () =
+let run () =
   let source = Bytes.of_string "stable shader bytes" in
   let first = ok (Ogpu.Shader.create (descriptor source)) in
   Bytes.fill source 0 (Bytes.length source) 'x';

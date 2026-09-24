@@ -1,7 +1,7 @@
 let fail message=raise(Failure message)
 let ok=function Ok value->value|Error e->fail(Ogpu.Error.to_string e)
 let expect kind=function Error(e:Ogpu.Error.t)when e.kind=kind->()|_->fail"unexpected acceleration result"
-let ()=
+let run () =
   let d1=Ogpu.Handle.create_device()and d2=Ogpu.Handle.create_device()in let buffer=Ogpu.Handle.create ~device:d1 in
   let range={Ogpu.Acceleration.buffer;buffer_size=4096L;offset=0L;length=1024L}in
   let descriptor=Ogpu.Acceleration.Blas{geometries=[|Triangles{vertices=range;vertex_stride=12;vertex_count=3};Bounding_boxes{boxes=range;stride=24;count=1};Curves{control_points=range;radii=range;control_point_count=4};Motion{keyframes=2;geometry=Triangles{vertices=range;vertex_stride=12;vertex_count=3}}|];allow_refit=true}in

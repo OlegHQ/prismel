@@ -2,7 +2,7 @@ open Ogpu_metal
 let get = function Ok value->value|Error value->failwith(Ogpu.Error.to_string value)
 let get_metal = function Ok value->value|Error value->failwith(Format.asprintf"%a"Metal.pp_error value)
 let expect kind=function Error value when value.Ogpu.Error.kind=kind->()|Error value->failwith(Ogpu.Error.to_string value)|Ok _->failwith"unexpected acceleration success"
-let ()=
+let run () =
   let device=get(Device.system_default())and other=get(Device.system_default())in
   let before=get_metal(Metal.Release_queue.stats())in
   let planned=get(Acceleration.plan_triangle~ray_tracing:true~buffer_size:36L~offset:0L~length:36L~vertex_stride:12~vertex_count:3)in

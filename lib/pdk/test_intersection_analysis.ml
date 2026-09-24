@@ -363,7 +363,7 @@ let test_parallel_exact () =
   check (equal_output one four)
     "Intersection Analysis curve output differs across one and four domains"
 
-let () =
+let run () =
   test_crossing_and_provenance ();
   test_coplanar_and_self ();
   test_curve_intersections ();

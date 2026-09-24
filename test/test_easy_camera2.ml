@@ -13,7 +13,7 @@ let frame ?(time = 0.) ?(dt = 1. /. 60.) ?(mouse = (320, 180))
 
 let close left right = abs_float (left -. right) < 1e-8
 
-let () =
+let run () =
   let viewport = 0, 0, 640, 360 in
   let camera = Easy_camera2.create ~viewport ~inertia:false () in
   let world = Vec2.create 42. (-17.) in

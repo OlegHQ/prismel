@@ -1,7 +1,7 @@
 open Metal
 let get=function Ok value->value|Error error->failwith(Format.asprintf"%a"pp_error error)
 let expect kind=function Error error when error.kind=kind->()|Error error->failwith error.message|Ok _->failwith"expected rejection"
-let ()=match Device.system_default()with Error _->print_endline"parallel-render7: skipped"|Ok device->
+let run () =match Device.system_default()with Error _->print_endline"parallel-render7: skipped"|Ok device->
   let queue=get(Command_queue.create device)in
   for iteration=0 to 255 do
     let texture=get(Texture.create ~device(Texture.descriptor_2d ~storage:Buffer.Shared ~usage:[Texture.Render_target] ~format:Texture.Bgra8_unorm ~width:4 ~height:4()))in

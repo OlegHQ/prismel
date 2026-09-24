@@ -48,7 +48,7 @@ let malformed () =
   if(Session.stats session).retained_meshes<>0 then failwith"malformed N mutated mesh cache";
   Session.close session
 
-let () =
+let run () =
   let one=snapshot 1 and four=snapshot 4 in
   if one<>four then failwith"terminal normal domain drift";
   let workers=Array.init 4(fun _->Domain.spawn(fun()->snapshot 4))in

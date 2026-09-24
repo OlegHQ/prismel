@@ -241,7 +241,7 @@ let test_cancellation () =
   | Error error -> fail "unexpected cancellation error: %s" (Error.to_string error)
   | Ok _ -> fail "cancelled face arrangement completed"
 
-let () =
+let run () =
   test_proper_crossing ();
   test_single_segment ();
   test_multiway_crossing ();

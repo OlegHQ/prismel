@@ -3,7 +3,7 @@ let get = function
   | Error error ->
       failwith (Format.asprintf "%a" Prismel_next_execution.pp_error error)
 
-let () =
+let run () =
   let open Scene_execution.Scene2_command in
   let geometry =
     { vertices = [| 2.; 2.; 30.; 2.; 2.; 30. |];

@@ -4561,7 +4561,7 @@ let test_edge_transport_contract () =
   check (Pdk.Geometry.topology parent_one == Pdk.Geometry.topology parent_geometry)
     "procedural Edge Transport Parent rebuilt topology"
 
-let () =
+let run () =
   test_node_owned_parameters_and_graph_edit ();
   test_encoded_parameter ();
   test_async_cook_latest_request ();

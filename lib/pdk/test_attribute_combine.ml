@@ -320,7 +320,7 @@ let test_errors_cancellation_and_scale () =
   if one.x <> four.x || one.y <> four.y || one.z <> four.z || one.w <> four.w
   then fail "200k Attribute Combine one/four-domain exactness"
 
-let () =
+let run () =
   test_operations ();
   test_processing_and_blend ();
   test_tuple_conversion_and_creation ();

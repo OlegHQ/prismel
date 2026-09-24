@@ -18,7 +18,7 @@ let cook graph =
     | Error error -> fail (Diagnostic.error_to_string error) in
   Session.close session; output
 
-let () =
+let run () =
   let graph = Sop.grid ~counts:Pdk.Ops.Grid_point_counts
       ~connectivity:Pdk.Ops.Grid_alternating_triangles
       ~columns:32 ~rows:24 ~size:8. ()

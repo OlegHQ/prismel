@@ -4,7 +4,7 @@ let u16 b o v=Bytes.set_uint8 b o(v land 255);Bytes.set_uint8 b(o+1)((v lsr 8)la
 let u32 b o v=u16 b o(v land 65535);u16 b(o+2)((v lsr 16)land 65535)
 let wav()=let n=800 in let b=Bytes.make(44+n*2)'\000'in Bytes.blit_string"RIFF"0 b 0 4;u32 b 4(36+n*2);Bytes.blit_string"WAVEfmt "0 b 8 8;u32 b 16 16;u16 b 20 1;u16 b 22 1;u32 b 24 8000;u32 b 28 16000;u16 b 32 2;u16 b 34 16;Bytes.blit_string"data"0 b 36 4;u32 b 40(n*2);for i=0 to n-1 do u16 b(44+i*2)((if i land 8=0 then 8000 else -8000)land 65535)done;b
 let nonzero b=let yes=ref false in Bytes.iter(fun c->if c<>'\000'then yes:=true)b;!yes
-let ()=
+let run () =
   let owner=get(Audio.create_memory~sample_rate:48000~channels:2~max_channels:16)in
   let encoded=wav()in let sample=get(Audio.load_sample_bytes owner encoded)in Bytes.fill encoded 0(Bytes.length encoded)'\000';
   let generation=Audio.sample_generation sample in

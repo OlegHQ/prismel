@@ -204,7 +204,7 @@ let curve_chain_geometry segments =
   Geometry.create ~positions ~topology
     ~attributes:[point_sample; vertex_sample; primitive_sample] () |> get_ok
 
-let () =
+let run () =
   let generated_line = Sop.line ~points:500_001
       ~origin:(Vec3.create (-10.) 2. 3.)
       ~direction:(Vec3.create 1. 2. 3.) ~length:25. () in

@@ -52,7 +52,7 @@ let signature geometry =
   colors, Array.copy topology.vertex_points,
   Array.copy topology.primitive_offsets, Bytes.copy topology.primitive_kinds
 
-let () =
+let run () =
   let source = Sop.snapshot (colored_source 20_000) in
   let graph = source |> Sop.graph_color ~label:"schedule-points"
       ~selection:(Sop.Primitive_group "selected")

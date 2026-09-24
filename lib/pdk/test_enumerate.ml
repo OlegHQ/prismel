@@ -46,7 +46,7 @@ let fixture () =
   |> add_attribute Attribute.Primitive "face_piece"
        (Attribute.Int [|42; 42|])
 
-let () =
+let run () =
   let source = fixture () in
   let point_elements = Attribute_ops.enumerate ~grain:1 ~start:5 ~step:2
       ~piece_attribute:"piece"

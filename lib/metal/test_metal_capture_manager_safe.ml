@@ -7,7 +7,7 @@ let expect kind = function
   | Error error -> fail "unexpected error: %s" error.message
   | Ok _ -> fail "expected rejection"
 
-let () =
+let run () =
   let device = get (Device.system_default ()) in
   let manager = get (Capture.Manager.shared ()) in
   let source = Capture.Capture_device device in

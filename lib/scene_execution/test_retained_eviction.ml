@@ -69,7 +69,7 @@ let run name count entry =
   Printf.printf "retained eviction: %s, %d draws, 60 frames, zero handle delta\n%!"
     name count
 
-let () =
+let run () =
   run "mesh-overflow" 257 (fun index ->
     Scene_execution.Scene2,
     (if index land 1=0 then Ogpu.Pipeline.Replace else Alpha),

@@ -13,7 +13,7 @@ let entry : Scene_execution.scene3_entry =
   {family=Scene3;blend=Ogpu.Pipeline.Replace;texture=None;auxiliary=None;
    samples=1;draw={mesh;state}}
 
-let () =
+let run () =
   let source=[|entry|]in
   let prepared=Result.get_ok(Scene_execution.prepare_scene3
     ~clear:(0.,0.,0.,1.)~clear_depth:1.~clear_stencil:0 source)in

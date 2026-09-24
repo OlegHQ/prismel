@@ -83,7 +83,7 @@ let expect_square bytes ~width ~height ~x ~y ~size message =
        "%s: expected square %dx%d at (%d,%d), got %dx%d at (%d,%d)"
        message size size x y bw bh bx by)
 
-let () =
+let run () =
   let run ~logical_width ~logical_height ~drawable_width ~drawable_height ~scale =
     with_target ~logical_width ~logical_height ~drawable_width ~drawable_height
       (fun execution ->

@@ -39,7 +39,7 @@ let signature geometry =
   positions.x, positions.y, positions.z, topology.vertex_points,
   topology.primitive_offsets, topology.primitive_kinds, quality
 
-let () =
+let run () =
   let graph = graph () in
   check (Node.operation graph = "remesh"
       && Node.cook_mode graph = Node.Duplicate_input 0

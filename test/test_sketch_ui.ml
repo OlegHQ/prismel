@@ -26,7 +26,7 @@ let ui_bytes scene =
           Some (Bytes.to_string (Scene_command.Ui_batch.instances batch))
       | _ -> None) staged.layers)
 
-let () =
+let run () =
   let workspace = Sketch_ui.Private.Workspace.create Sketch_ui.default_layout in
   let initial = Sketch_ui.Private.Workspace.geometry workspace (frame ~width:1000 0) in
   check (initial.view_header = (0, 0, width initial.view, 22))

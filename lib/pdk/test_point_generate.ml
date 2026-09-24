@@ -305,7 +305,7 @@ let test_parallel_exact () =
   check (geometry_hash one = geometry_hash four)
     "Point Generate one/four-domain output differs"
 
-let () =
+let run () =
   test_total ();
   test_per_point_and_probability ();
   test_keep_input_patterns_groups_and_edges ();

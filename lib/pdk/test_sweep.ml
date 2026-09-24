@@ -452,7 +452,7 @@ let check_validation_and_parallel () =
       && Geometry.primitive_count one = ((count - 1) * sides * 2) + 2)
     "dense Sweep cardinality"
 
-let () =
+let run () =
   check_basic_surface ();
   check_connectivity ();
   check_payload_and_groups ();

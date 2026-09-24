@@ -10,7 +10,7 @@ let build()=
   let declared={declared with id=bound_id}in
   let result=ok(Ogpu.Compute_pass.create device ~limits:caps.limits ~pipeline ~layout:pipeline_layout ~groups:[|0,group|]~resources:[|declared|]~dispatch:(Direct{x=4;y=2;z=1}))|>Ogpu.Compute_pass.describe in
   let commands=Array.map(function Ogpu.Command.Declare_resource value->Ogpu.Command.Declare_resource{value with resource_id=7L}|other->other)result.commands in {result with commands}
-let ()=
+let run () =
   let sequential=build()and parallel=Domain.spawn build|>Domain.join in if sequential<>parallel then fail"compute descriptions differ across domains";
   let device=Ogpu.Handle.create_device()and caps=Ogpu.Capabilities.minimum_m1 in let buffer=Ogpu.Handle.create ~device in
   let shader=ok(Ogpu.Shader.create{backend="mock";label=None;bytes=Bytes.of_string"c";entry_points=[{name="main";stage=Compute}];bindings=[]})in let layout=ok(Ogpu.Binding.create_pipeline_layout ~device ~capabilities:caps[])in let pipeline=ok(Ogpu.Pipeline.create_compute caps{backend="mock";label=None;layout;shader;entry="main"})in

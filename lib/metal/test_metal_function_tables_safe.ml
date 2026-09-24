@@ -3,7 +3,7 @@ open Metal
 let get = function Ok value -> value | Error error -> failwith (Format.asprintf "%a" pp_error error)
 let check condition message = if not condition then failwith message
 
-let () =
+let run () =
   let device = get (Device.system_default ()) in
   let library =
     get (Library.compile_source ~device

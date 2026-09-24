@@ -444,7 +444,7 @@ let check_parallel_multi_exact () =
   check (Array.for_all (fun distance -> distance >= 0.)
       (point_float one "dist")) "multi-sample Ray scale fixture unexpectedly missed"
 
-let () =
+let run () =
   check_basic_projection ();
   check_direction_policies ();
   check_multi_samples ();

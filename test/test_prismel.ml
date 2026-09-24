@@ -1,6 +1,6 @@
 let fail message = raise (Failure message)
 
-let () =
+let run_1 () =
   if not Prismel.Sketch.default_config.resizable then
     fail "high-level sketch windows are not resizable by default";
   Prismel.Input.reset ~mouse:(10, 10);
@@ -961,7 +961,7 @@ let () =
       then fail "binary PLY float output did not honor its declared endianness")
 
 (* Runtime key names must reach the Input keys hosts match on. *)
-let () =
+let run_2 () =
   List.iter (fun (scancode, expected) ->
     let name = Runtime_next_input_sdl3.key_name ~scancode 0 in
     if Prismel.Event.Private.key_of_name name <> expected then
@@ -970,7 +970,7 @@ let () =
             40, Enter; 41, Escape; 224, Ctrl; 227, Meta; 75, PageUp ]
 
 (* Every 2D constructor must lower to a valid Render_ir (triangle lists). *)
-let () =
+let run_3 () =
   let open Prismel in
   let open_path = Path.(empty |> move_to 0. 0. |> line_to 10. 5. |> line_to 20. 0.) in
   List.iter (fun (name, node) ->
@@ -984,7 +984,7 @@ let () =
       "pie", Scene.pie ~at:(20, 20) ~radius:8 ~from_:0. ~to_:3. ~fill:Color.white () ]
 
 (* Procedural triangle meshes often arrive without normals; lit faces derive them. *)
-let () =
+let run_4 () =
   let open Prismel in
   let mesh = Mesh.create_exn ~indices:[0; 1; 2]
       [Vec3.create 0. 0. 0.; Vec3.create 1. 0. 0.; Vec3.create 0. 1. 0.] in
@@ -995,7 +995,7 @@ let () =
   | Error message -> fail ("normal-less mesh did not stage: " ^ message)
 
 (* Font metrics, measuring and alignment come from SDL_ttf, not placeholders. *)
-let () =
+let run_5 () =
   let open Prismel in
   let msg = function Ok v -> v | Error (`Msg m) -> fail m in
   let font = msg (Font.system ~size:20 ()) in
@@ -1011,3 +1011,10 @@ let () =
   if Bytes.equal (pixels Font.Left) (pixels Font.Center) then
     fail "Font alignment is ignored";
   Font.destroy font
+
+let run () =
+  run_1 ();
+  run_2 ();
+  run_3 ();
+  run_4 ();
+  run_5 ()

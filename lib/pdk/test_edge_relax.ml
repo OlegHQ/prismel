@@ -45,7 +45,7 @@ let equal_geometry left right =
   let left = positions left and right = positions right in
   left.x = right.x && left.y = right.y && left.z = right.z
 
-let () =
+let run () =
   let source = disjoint [|1.;2.;3.|]
   and reference = disjoint [|2.;1.;4.|] in
   let output = Ops.edge_relax ~reference source |> get_pdk in

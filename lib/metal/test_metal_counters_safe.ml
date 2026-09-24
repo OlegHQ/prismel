@@ -1,6 +1,6 @@
 open Metal
 let get=function Ok x->x|Error e->failwith(Format.asprintf"%a"pp_error e)
-let ()=match Device.system_default()with Error _->print_endline"counters22: skipped"|Ok device->
+let run () =match Device.system_default()with Error _->print_endline"counters22: skipped"|Ok device->
  let sets=get(Counters.sets device)in
  if List.exists(fun(s:Counters.set)->s.name=""||s.counters=[])sets then failwith"empty counter metadata";
  match sets with []->print_endline"counters22: no sets"|set::_->

@@ -270,7 +270,7 @@ let check_parallel_exact () =
     [Ops.Two_edges; Ops.Texture_uv "uv"; Ops.Texture_uv_gradient "uv";
      Ops.Attribute_gradient "uv"]
 
-let () =
+let run () =
   check_point_styles ();
   check_gradient_styles ();
   check_selection ();

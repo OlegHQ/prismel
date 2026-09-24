@@ -2,7 +2,7 @@ open Ogpu_metal
 let get=function Ok value->value|Error value->failwith(Ogpu.Error.to_string value)
 let get_metal=function Ok value->value|Error value->failwith(Format.asprintf"%a"Metal.pp_error value)
 let expect kind=function Error value when value.Ogpu.Error.kind=kind->()|Error value->failwith(Ogpu.Error.to_string value)|Ok _->failwith"unexpected diagnostic success"
-let ()=
+let run () =
   let device=get(Device.system_default())in let before=get_metal(Metal.Release_queue.stats())in
   let source=get(Buffer.create device~memory:Buffer.Shared{Ogpu.Types.size=16L;usage=[Copy_src];label=Some"source"})in
   let destination=get(Buffer.create device~memory:Buffer.Readback{Ogpu.Types.size=16L;usage=[Copy_dst];label=Some"destination"})in

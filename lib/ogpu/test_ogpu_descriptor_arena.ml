@@ -7,7 +7,7 @@ let sequence()=
   let a=get(allocate device arena~count:3)and b=get(allocate device arena~count:2)in
   let result=Array.to_list(slots a),Array.to_list(slots b)in
   ignore(get(reset arena~completed_epoch:0L));ignore(get(destroy arena));Ogpu.Handle.destroy_device device;result
-let ()=
+let run () =
   let expected=sequence()in let workers=Array.init 4(fun _->Domain.spawn sequence)in Array.iter(fun worker->if Domain.join worker<>expected then failwith"descriptor slot domain drift")workers;
   let device=Ogpu.Handle.create_device()and foreign=Ogpu.Handle.create_device()in let arena=get(create~device~capacity:4)in
   expect Ogpu.Error.Invalid_argument(allocate device arena~count:0);expect Ogpu.Error.Invalid_argument(allocate device arena~count:5);

@@ -41,7 +41,7 @@ let values geometry =
        | _ -> fail "Attribute Laplacian output storage")
   | None -> fail "Attribute Laplacian output missing"
 
-let () =
+let run () =
   let geometry = source () in
   let node = Sop.snapshot geometry
       |> Sop.attribute_laplacian ~label:"surface-laplacian"

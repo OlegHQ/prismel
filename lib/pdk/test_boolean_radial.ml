@@ -101,7 +101,7 @@ let test_cancellation () =
   | Error error -> fail "unexpected cancellation error: %s" (Error.to_string error)
   | Ok _ -> fail "cancelled radial ordering completed"
 
-let () =
+let run () =
   test_exact_radial_dot ();
   test_transverse_cyclic_order ();
   test_domain_exactness ();

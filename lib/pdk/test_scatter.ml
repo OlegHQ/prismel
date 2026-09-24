@@ -344,7 +344,7 @@ let check_parallel_scale () =
       || (point_float3 one "N").x <> (point_float3 many "N").x then
     fail "Scatter differs between one and four domains"
 
-let () =
+let run () =
   check_payload_and_provenance ();
   check_selection_and_density ();
   check_ngon_provenance ();

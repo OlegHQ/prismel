@@ -4,7 +4,7 @@ let expect_invalid = function
   | Error (error : Ogpu.Error.t) when error.kind = Invalid_argument -> ()
   | _ -> fail "expected invalid argument"
 
-let () =
+let run () =
   expect_invalid (Ogpu.Cache.create ~capacity:0 ~on_evict:(fun ~key:_ _ _ -> ()));
   let events = ref [] in
   let cache = ok (Ogpu.Cache.create ~capacity:3 ~on_evict:(fun ~key value reason ->

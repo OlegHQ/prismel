@@ -1,7 +1,7 @@
 open Metal
 let get=function Ok value->value|Error error->failwith(Format.asprintf"%a"pp_error error)
 let reject kind=function Error error when error.kind=kind->()|Error error->failwith(Format.asprintf"%a"pp_error error)|Ok _->failwith"expected MTL4 compute reset rejection"
-let ()=match Metal4_compute_pipeline_descriptor.create()with
+let run () =match Metal4_compute_pipeline_descriptor.create()with
 |Error error when error.kind=Unsupported||error.kind=Native_error->print_endline"MTL4ComputePipeline reset1 safe: skipped (macOS26 unavailable)"
 |Error error->failwith(Format.asprintf"%a"pp_error error)
 |Ok descriptor->

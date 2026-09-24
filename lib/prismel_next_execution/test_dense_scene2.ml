@@ -25,7 +25,7 @@ let scene ~reference ~count ~phase =
   add Pop_transform;add Pop_clip;
   Result.get_ok (create (Array.of_list (List.rev !commands)))
 
-let () =
+let run () =
   let baseline=Result.get_ok (Metal.Release_queue.stats ()) in
   List.iter (fun scale ->
     let execution=get (Prismel_next_execution.create_offscreen

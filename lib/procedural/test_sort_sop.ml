@@ -45,7 +45,7 @@ let same_int_array left right =
      done;
      !same
 
-let () =
+let run () =
   let graph = Sop.snapshot (source ())
       |> Sop.sort ~owner:Pdk.Ops.Points ~key:(Pdk.Ops.Random 73421L)
       |> Sop.sort ~owner:Pdk.Ops.Points ~key:Pdk.Ops.X

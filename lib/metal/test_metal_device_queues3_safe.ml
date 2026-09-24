@@ -3,7 +3,7 @@ open Metal
 let get = function Ok value -> value | Error error -> failwith (Format.asprintf "%a" pp_error error)
 let reject kind = function Error error when error.kind=kind -> () | Error error -> failwith(Format.asprintf "%a" pp_error error)|Ok _->failwith"expected queue rejection"
 
-let () = match Device.system_default() with
+let run () = match Device.system_default() with
 | Error _ -> print_endline "Device queue3: skipped (no device)"
 | Ok device ->
   reject Invalid_argument(Command_queue.create_with_max device 0L);

@@ -104,7 +104,7 @@ let scaled_coordinate index salt =
   let mantissa = if signed = 0 then 1. else float_of_int signed /. 1024. in
   Float.ldexp mantissa exponent
 
-let () =
+let run () =
   check_orient2d Predicates.Positive (0., 0.) (1., 0.) (0., 1.)
     "ordinary orient2d";
   check_orient2d Predicates.Zero (0., 0.) (1., 1.) (2., 2.)

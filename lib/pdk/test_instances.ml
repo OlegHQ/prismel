@@ -102,7 +102,7 @@ let legacy_materialize matrices source =
   |> Ops.merge ~grain:1
   |> get_pdk
 
-let () =
+let run () =
   let source = source_geometry () in
   let matrices = transforms 17 in
   let expected = legacy_materialize matrices source in

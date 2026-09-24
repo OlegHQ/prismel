@@ -148,7 +148,7 @@ let test_parallel_exact () =
   check (Geometry.point_count one = columns * rows)
     "scale output cardinality"
 
-let () =
+let run () =
   test_detail_methods ();
   test_planar_and_solid_hull_centers ();
   test_primitive_and_piece_modes ();

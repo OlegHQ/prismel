@@ -2,7 +2,7 @@ open Metal
 let get=function Ok x->x|Error e->failwith(Format.asprintf "%a" pp_error e)
 let expect kind=function Error e when e.kind=kind->()|Error e->failwith(Format.asprintf "%a" pp_error e)|Ok _->failwith"expected rejection"
 let all predicate array=Array.for_all predicate array
-let ()=
+let run () =
   let open Render_pipeline.Mesh_tile in
   let render=get(descriptor Render_descriptor)and mesh=get(descriptor Mesh_descriptor)and tile=get(descriptor Tile_descriptor)in
   if not(all Option.is_none(get(descriptor_color_formats render)))then failwith"render color defaults";

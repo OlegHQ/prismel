@@ -10,7 +10,7 @@ let get = function
 let iterations = Option.value ~default:5_000
     (Option.bind (Sys.getenv_opt "PRISMEL_SDL3_STRESS_CYCLES") int_of_string_opt)
 
-let () =
+let run () =
   get (Init.init [ Init.Video; Init.Events ]);
   let source = Bytes.of_string "\x11\x22\x33\xff" in
   for _ = 1 to iterations do

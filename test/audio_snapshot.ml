@@ -1,1 +1,1 @@
-let ()=ignore Prismel.Scene.empty;print_endline"private Audio snapshots passed"
+let run () =ignore Prismel.Scene.empty;print_endline"private Audio snapshots passed"

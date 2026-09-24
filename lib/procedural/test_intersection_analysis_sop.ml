@@ -136,7 +136,7 @@ let test_diagnostics_and_constructor_validation () =
   check (Node.operation no_attributes = "intersection_analysis")
     "Intersection Analysis SOP rejected point-only output"
 
-let () =
+let run () =
   test_identity_cache_and_parallel ();
   test_diagnostics_and_constructor_validation ();
   print_endline "intersection analysis SOP tests passed"

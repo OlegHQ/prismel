@@ -25,7 +25,7 @@ let ring y radius = Sop.polyline ~closed:true
 
 let sections () = Sop.merge [ring 0. 1.; ring 0.5 0.8; ring 1. 1.1]
 
-let () =
+let run () =
   let graph = sections () |> Sop.skin ~output_group:"skin" ~v_wrap:true in
   let output = cook graph in
   if Pdk.Geometry.point_count output <> 24

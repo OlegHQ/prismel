@@ -148,7 +148,7 @@ let test_parallel_exactness () =
   check (Geometry.primitive_count one = 95 * 257
       && Geometry.vertex_count one = 95 * 257 * 4) "large cardinality"
 
-let () =
+let run () =
   test_quads_and_payload ();
   test_unequal_wrap_and_errors ();
   test_parallel_exactness ();

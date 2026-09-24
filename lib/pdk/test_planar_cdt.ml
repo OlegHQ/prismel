@@ -473,7 +473,7 @@ let test_validation_and_cancellation () =
   check (signature recovered = signature reference)
     "workspace did not recover after cancellation"
 
-let () =
+let run () =
   test_forced_square_diagonal ();
   test_long_recovery_and_domains ();
   test_workspace_reuse_and_result_ownership ();

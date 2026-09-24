@@ -20,83 +20,71 @@
  (modules prismel_next_api)
  (libraries prismel))
 
-(test
- (name test_prismel_next_api)
- (modules test_prismel_next_api)
- (libraries prismel))
+(executable
+ (name test_main)
+ (modules test_main test_prismel_next_api test_prismel_next_api_batch_d test_prismel_next_api_batch_a test_prismel_next_api_batch_b test_prismel_next_api_batch_c test_prismel_next_api_batch_c_scene_parity test_scene_rounded_cache test_automatic_text_cache test_prismel_next_api_batch_e test_scene3_native_lowering test_scene_display_list test_core_interface_preservation test_resource_interface_preservation test_canvas_native)
+ (libraries prismel prismel_next_resources runtime_next_input scene_command unix metal))
 
-(test
- (name test_prismel_next_api_batch_d)
- (modules test_prismel_next_api_batch_d)
- (libraries prismel prismel_next_resources))
+(rule
+ (aliases runtest test_prismel_next_api)
+ (action (run %{exe:test_main.exe} test_prismel_next_api)))
 
-(test
- (name test_prismel_next_api_batch_a)
- (modules test_prismel_next_api_batch_a)
- (libraries prismel))
+(rule
+ (aliases runtest test_prismel_next_api_batch_d)
+ (action (run %{exe:test_main.exe} test_prismel_next_api_batch_d)))
 
-(test
- (name test_prismel_next_api_batch_b)
- (modules test_prismel_next_api_batch_b)
- (libraries prismel))
+(rule
+ (aliases runtest test_prismel_next_api_batch_a)
+ (action (run %{exe:test_main.exe} test_prismel_next_api_batch_a)))
 
-(test
- (name test_prismel_next_api_batch_c)
- (modules test_prismel_next_api_batch_c)
- (libraries prismel runtime_next_input unix))
+(rule
+ (aliases runtest test_prismel_next_api_batch_b)
+ (action (run %{exe:test_main.exe} test_prismel_next_api_batch_b)))
 
-(test
- (name test_prismel_next_api_batch_c_scene_parity)
- (modules test_prismel_next_api_batch_c_scene_parity)
- (libraries prismel))
+(rule
+ (aliases runtest test_prismel_next_api_batch_c)
+ (action (run %{exe:test_main.exe} test_prismel_next_api_batch_c)))
 
-(test
- (name test_scene_rounded_cache)
- (modules test_scene_rounded_cache)
- (libraries prismel scene_command))
+(rule
+ (aliases runtest test_prismel_next_api_batch_c_scene_parity)
+ (action (run %{exe:test_main.exe} test_prismel_next_api_batch_c_scene_parity)))
 
-(test
- (name test_automatic_text_cache)
- (modules test_automatic_text_cache)
- (libraries prismel prismel_next_resources))
+(rule
+ (aliases runtest test_scene_rounded_cache)
+ (action (run %{exe:test_main.exe} test_scene_rounded_cache)))
 
-(test
- (name test_prismel_next_api_batch_e)
- (modules test_prismel_next_api_batch_e)
- (libraries prismel)
- (action (setenv SDL_AUDIODRIVER dummy (run %{test}))))
+(rule
+ (aliases runtest test_automatic_text_cache)
+ (action (run %{exe:test_main.exe} test_automatic_text_cache)))
 
-(test
- (name test_scene3_native_lowering)
- (modules test_scene3_native_lowering)
- (libraries prismel))
+(rule
+ (aliases runtest test_prismel_next_api_batch_e)
+ (action
+  (setenv SDL_AUDIODRIVER dummy
+   (run %{exe:test_main.exe} test_prismel_next_api_batch_e))))
 
-(test
- (name test_scene_display_list)
- (modules test_scene_display_list)
- (libraries prismel scene_command))
+(rule
+ (aliases runtest test_scene3_native_lowering)
+ (action (run %{exe:test_main.exe} test_scene3_native_lowering)))
 
-(test
- (name test_core_interface_preservation)
- (modules test_core_interface_preservation)
- (libraries prismel)
+(rule
+ (aliases runtest test_scene_display_list)
+ (action (run %{exe:test_main.exe} test_scene_display_list)))
+
+(rule
+ (aliases runtest test_core_interface_preservation)
  (deps ../prismel/event.mli ../prismel/input.mli ../prismel/frame.mli
   ../prismel/time.mli event.mli input.mli frame.mli time.mli)
  (action
-  (run %{test} %{dep:../prismel/event.mli} %{dep:../prismel/input.mli}
+  (run %{exe:test_main.exe} test_core_interface_preservation
+   %{dep:../prismel/event.mli} %{dep:../prismel/input.mli}
    %{dep:../prismel/frame.mli} %{dep:../prismel/time.mli}
    %{dep:event.mli} %{dep:input.mli} %{dep:frame.mli} %{dep:time.mli})))
 
-(test
- (name test_resource_interface_preservation)
- (modules test_resource_interface_preservation)
- (libraries prismel unix))
-
-(executable
- (name test_canvas_native)
- (modules test_canvas_native)
- (libraries prismel metal))
+(rule
+ (aliases runtest test_resource_interface_preservation)
+ (action (run %{exe:test_main.exe} test_resource_interface_preservation)))
 
 (rule
- (alias runtest-native)
- (action (run %{exe:test_canvas_native.exe})))
+ (aliases runtest-native test_canvas_native)
+ (action (run %{exe:test_main.exe} test_canvas_native)))

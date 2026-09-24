@@ -2,7 +2,7 @@ open Metal
 let fail f=Printf.ksprintf failwith f
 let get=function Ok x->x|Error e->fail "%s"(Format.asprintf"%a"pp_error e)
 let reject=function Error _->()|Ok _->failwith"expected rejection"
-let ()=
+let run () =
  let texture_reference=get(Resource100.Texture_reference_type.of_reflection
    (Reflection.Texture_reference{data_type=Data_type.to_int64 Data_type.mtl_data_type_float;access=0L;texture_type=2L;depth=false}))in
  if texture_reference.texture_type<>Texture.Texture_2d||texture_reference.access<>Binding.Read_only then failwith"texture reference type mapping";

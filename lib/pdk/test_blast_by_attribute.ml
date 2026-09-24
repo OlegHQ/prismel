@@ -277,7 +277,7 @@ let test_dense_parallel_exactness () =
   check (equal_geometry (run_primitive 1) (run_primitive 4))
     "dense Blast delete one/four-domain exactness"
 
-let () =
+let run () =
   test_modes_groups_and_base ();
   test_delete_and_shared_planner ();
   test_errors_and_cancellation ();

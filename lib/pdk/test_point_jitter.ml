@@ -52,7 +52,7 @@ let source () =
   |> add_attribute ~owner:Attribute.Detail ~name:"tag"
        (Attribute.Text [|"preserve"|])
 
-let () =
+let run () =
   let input = source () in
   let selected = Group.init ~grain:1 ~owner:Group.Point ~name:"selected" 4
       (fun point -> point < 3) in

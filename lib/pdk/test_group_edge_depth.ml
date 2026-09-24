@@ -129,7 +129,7 @@ let test_parallel_exactness_and_scale () =
   check (Group.cardinality one > 1 && Group.cardinality one < count)
     "Group Edge Depth scale fixture cardinality"
 
-let () =
+let run () =
   test_depth_and_disconnected_components ();
   test_merge_algebra ();
   test_failures_and_cancellation ();

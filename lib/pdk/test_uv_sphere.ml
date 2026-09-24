@@ -368,7 +368,7 @@ let check_parallel_exact () =
     check (equal_geometry one many)
       "one-domain and four-domain UV Sphere geometry differ") cases
 
-let () =
+let run () =
   check_default_compatibility ();
   check_connectivity_and_poles ();
   check_uv_normals_and_winding ();

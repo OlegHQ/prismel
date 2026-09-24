@@ -205,7 +205,7 @@ let check_parallel_exact () =
     check (Geometry.point_count one >= 500_000)
       "Circle scale fixture cardinality") arcs
 
-let () =
+let run () =
   check_default_compatibility ();
   check_arc_modes ();
   check_orientation_and_ellipse ();

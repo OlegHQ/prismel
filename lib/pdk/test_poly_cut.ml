@@ -469,7 +469,7 @@ let test_dense_parallel_exactness () =
   check (Mesh.Private.packed_view one_mesh = Mesh.Private.packed_view four_mesh)
     "PolyCut one/four-domain render mesh differs"
 
-let () =
+let run () =
   test_edge_remove_and_cut ();
   test_change_subdivision ();
   test_edge_cut_boundary_semantics ();

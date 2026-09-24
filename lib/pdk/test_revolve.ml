@@ -279,7 +279,7 @@ let check_selection_validation_and_parallel () =
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "Revolve ignored cancellation")
 
-let () =
+let run () =
   check_full_surface ();
   check_connectivity_and_arcs ();
   check_poles_caps_and_reverse ();

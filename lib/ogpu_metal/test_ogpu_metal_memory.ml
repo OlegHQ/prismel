@@ -6,7 +6,7 @@ let expect kind = function
   | Error value -> failwith ("unexpected memory error: " ^ Ogpu.Error.to_string value)
   | Ok _ -> failwith "unexpected memory success"
 let descriptor storage = {Ogpu.Memory.size=65536L;alignment=256L;storage;max_allocations=8}
-let () =
+let run () =
   let device=get(Device.system_default()) and other=get(Device.system_default()) in
   let before=get_metal(Metal.Release_queue.stats()) in
   expect Ogpu.Error.Unsupported (Memory.create_sparse device (descriptor Ogpu.Memory.Private));

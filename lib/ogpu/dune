@@ -3,132 +3,111 @@
  (public_name prismel.ogpu)
  (modules Error Handle Capabilities Validation Types Command Mock Submission Shader Surface Binding Sync Pipeline Acceleration Cache Native_pass Instance Memory Frame_graph Transfer_ring Render_pass Diagnostics Compute_pass Acceleration_pass Transfer_pass Query_pass Descriptor_arena Device_lifecycle Backend Backend_mock))
 
-(test
- (name test_ogpu_foundation)
- (modules test_ogpu_foundation)
+(executable
+ (name test_main)
+ (modules test_main test_ogpu_foundation test_ogpu_command test_ogpu_mock test_ogpu_submission test_ogpu_shader test_ogpu_backend test_ogpu_surface test_ogpu_binding test_ogpu_sync test_ogpu_pipeline test_ogpu_acceleration test_ogpu_cache test_ogpu_native_pass test_ogpu_instance test_ogpu_memory test_ogpu_frame_graph test_ogpu_transfer_ring test_ogpu_render_pass test_ogpu_diagnostics test_ogpu_compute_pass test_ogpu_acceleration_pass test_ogpu_transfer_pass test_ogpu_query_pass test_ogpu_descriptor_arena test_ogpu_validation test_ogpu_device_lifecycle)
  (libraries ogpu))
 
-(test
- (name test_ogpu_command)
- (modules test_ogpu_command)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_foundation)
+ (action (run %{exe:test_main.exe} test_ogpu_foundation)))
 
-(test
- (name test_ogpu_mock)
- (modules test_ogpu_mock)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_command)
+ (action (run %{exe:test_main.exe} test_ogpu_command)))
 
-(test
- (name test_ogpu_submission)
- (modules test_ogpu_submission)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_mock)
+ (action (run %{exe:test_main.exe} test_ogpu_mock)))
 
-(test
- (name test_ogpu_shader)
- (modules test_ogpu_shader)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_submission)
+ (action (run %{exe:test_main.exe} test_ogpu_submission)))
 
-(test
- (name test_ogpu_backend)
- (modules test_ogpu_backend)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_shader)
+ (action (run %{exe:test_main.exe} test_ogpu_shader)))
 
-(test
- (name test_ogpu_surface)
- (modules test_ogpu_surface)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_backend)
+ (action (run %{exe:test_main.exe} test_ogpu_backend)))
 
-(test
- (name test_ogpu_binding)
- (modules test_ogpu_binding)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_surface)
+ (action (run %{exe:test_main.exe} test_ogpu_surface)))
 
-(test
- (name test_ogpu_sync)
- (modules test_ogpu_sync)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_binding)
+ (action (run %{exe:test_main.exe} test_ogpu_binding)))
 
-(test
- (name test_ogpu_pipeline)
- (modules test_ogpu_pipeline)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_sync)
+ (action (run %{exe:test_main.exe} test_ogpu_sync)))
 
-(test
- (name test_ogpu_acceleration)
- (modules test_ogpu_acceleration)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_pipeline)
+ (action (run %{exe:test_main.exe} test_ogpu_pipeline)))
 
-(test
- (name test_ogpu_cache)
- (modules test_ogpu_cache)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_acceleration)
+ (action (run %{exe:test_main.exe} test_ogpu_acceleration)))
 
-(test
- (name test_ogpu_native_pass)
- (modules test_ogpu_native_pass)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_cache)
+ (action (run %{exe:test_main.exe} test_ogpu_cache)))
 
-(test
- (name test_ogpu_instance)
- (modules test_ogpu_instance)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_native_pass)
+ (action (run %{exe:test_main.exe} test_ogpu_native_pass)))
 
-(test
- (name test_ogpu_memory)
- (modules test_ogpu_memory)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_instance)
+ (action (run %{exe:test_main.exe} test_ogpu_instance)))
 
-(test
- (name test_ogpu_frame_graph)
- (modules test_ogpu_frame_graph)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_memory)
+ (action (run %{exe:test_main.exe} test_ogpu_memory)))
 
-(test
- (name test_ogpu_transfer_ring)
- (modules test_ogpu_transfer_ring)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_frame_graph)
+ (action (run %{exe:test_main.exe} test_ogpu_frame_graph)))
 
-(test
- (name test_ogpu_render_pass)
- (modules test_ogpu_render_pass)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_transfer_ring)
+ (action (run %{exe:test_main.exe} test_ogpu_transfer_ring)))
 
-(test
- (name test_ogpu_diagnostics)
- (modules test_ogpu_diagnostics)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_render_pass)
+ (action (run %{exe:test_main.exe} test_ogpu_render_pass)))
 
-(test
- (name test_ogpu_compute_pass)
- (modules test_ogpu_compute_pass)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_diagnostics)
+ (action (run %{exe:test_main.exe} test_ogpu_diagnostics)))
 
-(test
- (name test_ogpu_acceleration_pass)
- (modules test_ogpu_acceleration_pass)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_compute_pass)
+ (action (run %{exe:test_main.exe} test_ogpu_compute_pass)))
 
-(test
- (name test_ogpu_transfer_pass)
- (modules test_ogpu_transfer_pass)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_acceleration_pass)
+ (action (run %{exe:test_main.exe} test_ogpu_acceleration_pass)))
 
-(test
- (name test_ogpu_query_pass)
- (modules test_ogpu_query_pass)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_transfer_pass)
+ (action (run %{exe:test_main.exe} test_ogpu_transfer_pass)))
 
-(test
- (name test_ogpu_descriptor_arena)
- (modules test_ogpu_descriptor_arena)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_query_pass)
+ (action (run %{exe:test_main.exe} test_ogpu_query_pass)))
 
-(test
- (name test_ogpu_validation)
- (modules test_ogpu_validation)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_descriptor_arena)
+ (action (run %{exe:test_main.exe} test_ogpu_descriptor_arena)))
 
-(test
- (name test_ogpu_device_lifecycle)
- (modules test_ogpu_device_lifecycle)
- (libraries ogpu))
+(rule
+ (aliases runtest test_ogpu_validation)
+ (action (run %{exe:test_main.exe} test_ogpu_validation)))
+
+(rule
+ (aliases runtest test_ogpu_device_lifecycle)
+ (action (run %{exe:test_main.exe} test_ogpu_device_lifecycle)))

@@ -1,7 +1,7 @@
 open Metal
 let reject kind=function Error e when e.kind=kind->()|Error e->failwith(Format.asprintf"%a"pp_error e)|Ok f->ignore(IO.File.destroy f);failwith"expected IO rejection"
 let get=function Ok x->x|Error e->failwith(Format.asprintf"%a"pp_error e)
-let ()=match Device.system_default()with
+let run () =match Device.system_default()with
 |Error _->print_endline"Device legacy IO2: skipped (no device)"
 |Ok device->
   reject Invalid_argument(Device.open_io_handle_legacy device "");

@@ -5,212 +5,175 @@
  (modules context diagnostic parameter node session async_cook select instances
   sop custom graph edit_graph inspect bridge))
 
-(test
- (name test_procedural)
- (modules test_procedural)
+(executable
+ (name test_main)
+ (modules test_main test_procedural test_edit_graph test_procedural_parallel_exact test_terminal_boolean_normals test_motion_sop test_dissolve_sop test_poly_loft_sop test_skin_sop test_poly_bridge_sop test_poly_reduce_sop test_remesh_sop test_convex_hull_sop test_extract_centroid_sop test_extract_point_curve_sop test_circle_from_edges_sop test_graph_color_sop test_measure_curvature_sop test_attribute_laplacian_sop test_triangulate2d_sop test_boolean_detect_sop test_boolean_sop test_intersection_analysis_sop test_poly_bevel_sop test_point_split_sop test_point_generate_sop test_point_replicate_sop test_ends_sop test_duplicate_sop test_transform_sop test_soft_transform_sop test_distance_along_geometry_sop test_distance_from_geometry_sop test_distance_from_target_sop test_sort_sop test_blast_by_attribute_sop test_crease_sop test_attribute_fade_sop test_attribute_mirror_sop test_rewire_vertices_sop test_poly_cut_sop test_separate_pieces_sop test_polywire_sop)
  (libraries procedural prismel pdk))
 
-(test
- (name test_edit_graph)
- (modules test_edit_graph)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_procedural)
+ (action (run %{exe:test_main.exe} test_procedural)))
 
-(test
- (name test_procedural_parallel_exact)
- (modules test_procedural_parallel_exact)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_edit_graph)
+ (action (run %{exe:test_main.exe} test_edit_graph)))
 
-(test
- (name test_terminal_boolean_normals)
- (modules test_terminal_boolean_normals)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_procedural_parallel_exact)
+ (action (run %{exe:test_main.exe} test_procedural_parallel_exact)))
 
-(test
- (name test_motion_sop)
- (modules test_motion_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_terminal_boolean_normals)
+ (action (run %{exe:test_main.exe} test_terminal_boolean_normals)))
 
-(test
- (name test_dissolve_sop)
- (modules test_dissolve_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_motion_sop)
+ (action (run %{exe:test_main.exe} test_motion_sop)))
 
-(test
- (name test_poly_loft_sop)
- (modules test_poly_loft_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_dissolve_sop)
+ (action (run %{exe:test_main.exe} test_dissolve_sop)))
 
-(test
- (name test_skin_sop)
- (modules test_skin_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_poly_loft_sop)
+ (action (run %{exe:test_main.exe} test_poly_loft_sop)))
 
-(test
- (name test_poly_bridge_sop)
- (modules test_poly_bridge_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_skin_sop)
+ (action (run %{exe:test_main.exe} test_skin_sop)))
 
-(test
- (name test_poly_reduce_sop)
- (modules test_poly_reduce_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_poly_bridge_sop)
+ (action (run %{exe:test_main.exe} test_poly_bridge_sop)))
 
-(test
- (name test_remesh_sop)
- (modules test_remesh_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_poly_reduce_sop)
+ (action (run %{exe:test_main.exe} test_poly_reduce_sop)))
 
-(test
- (name test_convex_hull_sop)
- (modules test_convex_hull_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_remesh_sop)
+ (action (run %{exe:test_main.exe} test_remesh_sop)))
 
-(test
- (name test_extract_centroid_sop)
- (modules test_extract_centroid_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_convex_hull_sop)
+ (action (run %{exe:test_main.exe} test_convex_hull_sop)))
 
-(test
- (name test_extract_point_curve_sop)
- (modules test_extract_point_curve_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_extract_centroid_sop)
+ (action (run %{exe:test_main.exe} test_extract_centroid_sop)))
 
-(test
- (name test_circle_from_edges_sop)
- (modules test_circle_from_edges_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_extract_point_curve_sop)
+ (action (run %{exe:test_main.exe} test_extract_point_curve_sop)))
 
-(test
- (name test_graph_color_sop)
- (modules test_graph_color_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_circle_from_edges_sop)
+ (action (run %{exe:test_main.exe} test_circle_from_edges_sop)))
 
-(test
- (name test_measure_curvature_sop)
- (modules test_measure_curvature_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_graph_color_sop)
+ (action (run %{exe:test_main.exe} test_graph_color_sop)))
 
-(test
- (name test_attribute_laplacian_sop)
- (modules test_attribute_laplacian_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_measure_curvature_sop)
+ (action (run %{exe:test_main.exe} test_measure_curvature_sop)))
 
-(test
- (name test_triangulate2d_sop)
- (modules test_triangulate2d_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_attribute_laplacian_sop)
+ (action (run %{exe:test_main.exe} test_attribute_laplacian_sop)))
 
-(test
- (name test_boolean_detect_sop)
- (modules test_boolean_detect_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_triangulate2d_sop)
+ (action (run %{exe:test_main.exe} test_triangulate2d_sop)))
 
-(test
- (name test_boolean_sop)
- (modules test_boolean_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_boolean_detect_sop)
+ (action (run %{exe:test_main.exe} test_boolean_detect_sop)))
 
-(test
- (name test_intersection_analysis_sop)
- (modules test_intersection_analysis_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_boolean_sop)
+ (action (run %{exe:test_main.exe} test_boolean_sop)))
 
-(test
- (name test_poly_bevel_sop)
- (modules test_poly_bevel_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_intersection_analysis_sop)
+ (action (run %{exe:test_main.exe} test_intersection_analysis_sop)))
 
-(test
- (name test_point_split_sop)
- (modules test_point_split_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_poly_bevel_sop)
+ (action (run %{exe:test_main.exe} test_poly_bevel_sop)))
 
-(test
- (name test_point_generate_sop)
- (modules test_point_generate_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_point_split_sop)
+ (action (run %{exe:test_main.exe} test_point_split_sop)))
 
-(test
- (name test_point_replicate_sop)
- (modules test_point_replicate_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_point_generate_sop)
+ (action (run %{exe:test_main.exe} test_point_generate_sop)))
 
-(test
- (name test_ends_sop)
- (modules test_ends_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_point_replicate_sop)
+ (action (run %{exe:test_main.exe} test_point_replicate_sop)))
 
-(test
- (name test_duplicate_sop)
- (modules test_duplicate_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_ends_sop)
+ (action (run %{exe:test_main.exe} test_ends_sop)))
 
-(test
- (name test_transform_sop)
- (modules test_transform_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_duplicate_sop)
+ (action (run %{exe:test_main.exe} test_duplicate_sop)))
 
-(test
- (name test_soft_transform_sop)
- (modules test_soft_transform_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_transform_sop)
+ (action (run %{exe:test_main.exe} test_transform_sop)))
 
-(test
- (name test_distance_along_geometry_sop)
- (modules test_distance_along_geometry_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_soft_transform_sop)
+ (action (run %{exe:test_main.exe} test_soft_transform_sop)))
 
-(test
- (name test_distance_from_geometry_sop)
- (modules test_distance_from_geometry_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_distance_along_geometry_sop)
+ (action (run %{exe:test_main.exe} test_distance_along_geometry_sop)))
 
-(test
- (name test_distance_from_target_sop)
- (modules test_distance_from_target_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_distance_from_geometry_sop)
+ (action (run %{exe:test_main.exe} test_distance_from_geometry_sop)))
 
-(test
- (name test_sort_sop)
- (modules test_sort_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_distance_from_target_sop)
+ (action (run %{exe:test_main.exe} test_distance_from_target_sop)))
 
-(test
- (name test_blast_by_attribute_sop)
- (modules test_blast_by_attribute_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_sort_sop)
+ (action (run %{exe:test_main.exe} test_sort_sop)))
 
-(test
- (name test_crease_sop)
- (modules test_crease_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_blast_by_attribute_sop)
+ (action (run %{exe:test_main.exe} test_blast_by_attribute_sop)))
 
-(test
- (name test_attribute_fade_sop)
- (modules test_attribute_fade_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_crease_sop)
+ (action (run %{exe:test_main.exe} test_crease_sop)))
 
-(test
- (name test_attribute_mirror_sop)
- (modules test_attribute_mirror_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_attribute_fade_sop)
+ (action (run %{exe:test_main.exe} test_attribute_fade_sop)))
 
-(test
- (name test_rewire_vertices_sop)
- (modules test_rewire_vertices_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_attribute_mirror_sop)
+ (action (run %{exe:test_main.exe} test_attribute_mirror_sop)))
 
-(test
- (name test_poly_cut_sop)
- (modules test_poly_cut_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_rewire_vertices_sop)
+ (action (run %{exe:test_main.exe} test_rewire_vertices_sop)))
 
-(test
- (name test_separate_pieces_sop)
- (modules test_separate_pieces_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_poly_cut_sop)
+ (action (run %{exe:test_main.exe} test_poly_cut_sop)))
 
-(test
- (name test_polywire_sop)
- (modules test_polywire_sop)
- (libraries procedural prismel pdk))
+(rule
+ (aliases runtest test_separate_pieces_sop)
+ (action (run %{exe:test_main.exe} test_separate_pieces_sop)))
+
+(rule
+ (aliases runtest test_polywire_sop)
+ (action (run %{exe:test_main.exe} test_polywire_sop)))

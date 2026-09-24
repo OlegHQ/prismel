@@ -9,7 +9,7 @@ let expect kind = function
   | Error error -> failwith (Format.asprintf "%a" pp_error error)
   | Ok _ -> failwith "expected StageInputOutputDescriptor rejection"
 
-let () =
+let run () =
   let descriptor = get (Shader_stage_descriptor.create ()) in
   let attributes = get (Shader_stage_descriptor.attributes descriptor) in
   let layouts = get (Shader_stage_descriptor.layouts descriptor) in

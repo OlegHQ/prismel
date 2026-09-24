@@ -349,4 +349,4 @@ let run ()=
   if Ogpu.Backend_mock.live_counts foreign_control<>(0,0,0,0,0)then
     failwith"foreign backend mock live-count delta";
   Ogpu.Backend_mock.trace control
-let ()=let a=run()and b=run()in if a<>b then failwith"backend mock trace is nondeterministic";print_endline"OGPU backend boundary: deterministic submit/loss/frame/lifetime conformance passed"
+let run () =let a=run()and b=run()in if a<>b then failwith"backend mock trace is nondeterministic";print_endline"OGPU backend boundary: deterministic submit/loss/frame/lifetime conformance passed"

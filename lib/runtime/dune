@@ -25,62 +25,42 @@
  (libraries sdl3))
 
 (executable
- (name test_runtime_next)
- (modules test_runtime_next)
- (libraries runtime_next scene_execution metal))
+ (name test_main)
+ (modules test_main test_runtime_next test_runtime_next_visibility test_runtime_next_scaling test_runtime_next_scene3_lighting test_runtime_next_scene3_instances test_runtime_next_scene2_argument_shader test_runtime_next_scene2_argument test_runtime_next_orchestrator test_runtime_next_input)
+ (libraries runtime_next runtime_next_orchestrator runtime_next_input scene_execution metal ogpu sdl3))
 
 (rule
- (alias runtest-native)
- (action (run %{exe:test_runtime_next.exe})))
-
-(test
- (name test_runtime_next_visibility)
- (modules test_runtime_next_visibility)
- (libraries runtime_next ogpu))
-
-(test
- (name test_runtime_next_scaling)
- (modules test_runtime_next_scaling)
- (libraries runtime_next scene_execution ogpu))
-
-(executable
- (name test_runtime_next_scene3_lighting)
- (modules test_runtime_next_scene3_lighting)
- (libraries runtime_next scene_execution metal ogpu))
+ (aliases runtest-native test_runtime_next)
+ (action (run %{exe:test_main.exe} test_runtime_next)))
 
 (rule
- (alias runtest-native)
- (action (run %{exe:test_runtime_next_scene3_lighting.exe})))
-
-(test
- (name test_runtime_next_scene3_instances)
- (modules test_runtime_next_scene3_instances)
- (libraries runtime_next scene_execution ogpu))
-
-(executable
- (name test_runtime_next_scene2_argument_shader)
- (modules test_runtime_next_scene2_argument_shader)
- (libraries runtime_next metal))
+ (aliases runtest test_runtime_next_visibility)
+ (action (run %{exe:test_main.exe} test_runtime_next_visibility)))
 
 (rule
- (alias runtest-native)
- (action (run %{exe:test_runtime_next_scene2_argument_shader.exe})))
-
-(executable
- (name test_runtime_next_scene2_argument)
- (modules test_runtime_next_scene2_argument)
- (libraries runtime_next scene_execution metal ogpu))
+ (aliases runtest test_runtime_next_scaling)
+ (action (run %{exe:test_main.exe} test_runtime_next_scaling)))
 
 (rule
- (alias runtest-native)
- (action (run %{exe:test_runtime_next_scene2_argument.exe})))
+ (aliases runtest-native test_runtime_next_scene3_lighting)
+ (action (run %{exe:test_main.exe} test_runtime_next_scene3_lighting)))
 
-(test
- (name test_runtime_next_orchestrator)
- (modules test_runtime_next_orchestrator)
- (libraries runtime_next_orchestrator scene_execution ogpu))
+(rule
+ (aliases runtest test_runtime_next_scene3_instances)
+ (action (run %{exe:test_main.exe} test_runtime_next_scene3_instances)))
 
-(test
- (name test_runtime_next_input)
- (modules test_runtime_next_input)
- (libraries runtime_next_input sdl3))
+(rule
+ (aliases runtest-native test_runtime_next_scene2_argument_shader)
+ (action (run %{exe:test_main.exe} test_runtime_next_scene2_argument_shader)))
+
+(rule
+ (aliases runtest-native test_runtime_next_scene2_argument)
+ (action (run %{exe:test_main.exe} test_runtime_next_scene2_argument)))
+
+(rule
+ (aliases runtest test_runtime_next_orchestrator)
+ (action (run %{exe:test_main.exe} test_runtime_next_orchestrator)))
+
+(rule
+ (aliases runtest test_runtime_next_input)
+ (action (run %{exe:test_main.exe} test_runtime_next_input)))

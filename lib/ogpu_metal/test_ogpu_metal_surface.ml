@@ -49,7 +49,7 @@ let create_source device width height =
   get (Texture.write_bytes device texture ~mip_level:0 ~bytes_per_row:(width*4) pixels);
   texture,pixels
 
-let () =
+let run () =
   match Device.system_default () with
   | Error _ -> print_endline "ogpu_metal surface: skipped (no device)"
   | Ok device ->

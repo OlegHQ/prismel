@@ -3,7 +3,7 @@ let ok=function Ok value->value|Error e->fail(Ogpu.Error.to_string e)
 let expect kind=function Error(e:Ogpu.Error.t)when e.kind=kind->()|_->fail"unexpected surface error"
 let config={Ogpu.Surface.logical_width=64;logical_height=48;physical_width=128;physical_height=96;format=Bgra8_unorm;present_mode=Fifo;max_acquired=2}
 let frame=function Ogpu.Surface.Acquired frame->frame|_->fail"expected acquired frame"
-let ()=
+let run () =
   let device=Ogpu.Handle.create_device()in expect Ogpu.Error.Invalid_argument(Ogpu.Surface.create device{config with max_acquired=0});let surface=ok(Ogpu.Surface.create device config)in
   Ogpu.Surface.set_availability surface Force_timeout;(match ok(Ogpu.Surface.acquire surface)with Timeout->()|_->fail"timeout lost");Ogpu.Surface.set_availability surface Force_occluded;(match ok(Ogpu.Surface.acquire surface)with Occluded->()|_->fail"occlusion lost");
   Ogpu.Surface.set_availability surface Available;let first=frame(ok(Ogpu.Surface.acquire surface))and second=frame(ok(Ogpu.Surface.acquire surface))in expect Ogpu.Error.Capacity(Ogpu.Surface.acquire surface);ok(Ogpu.Surface.present surface first);expect Ogpu.Error.Invalid_state(Ogpu.Surface.present surface first);ok(Ogpu.Surface.discard surface second);expect Ogpu.Error.Invalid_state(Ogpu.Surface.discard surface second);

@@ -1,6 +1,6 @@
 open Metal
 let get=function Ok x->x|Error e->failwith e.message
-let ()=
+let run () =
   let device=get(Device.system_default())in
   let before=get(Release_queue.stats())in
   let direct=get(Library.compile_source~device Runtime_next.Private.scene2_textured_direct)in

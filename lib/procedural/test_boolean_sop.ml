@@ -139,7 +139,7 @@ let test_seam_node () =
   check (Pdk.Group.cardinality group > 0)
     "Boolean Seam SOP lost between-input curves"
 
-let () =
+let run () =
   test_identity_cache_and_parallel ();
   test_surface_policy_and_diagnostic ();
   test_shatter_identity ();

@@ -223,7 +223,7 @@ let test_scale_parallel_exactness () =
       + Edge_group.payload_bytes (edge_group "edges" one) in
   check (actual = expected) "Group Random exact packed scale payload"
 
-let () =
+let run () =
   test_points_and_base ();
   test_seed_attributes_and_owners ();
   test_merge_and_failures ();

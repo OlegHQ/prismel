@@ -7,7 +7,7 @@ let get = function
 let member name members =
   List.find_opt (fun (value : Reflection.member) -> value.name = name) members
 
-let () =
+let run () =
   match Device.system_default () with
   | Error _ -> print_endline "argument8 safe: skipped"
   | Ok device ->

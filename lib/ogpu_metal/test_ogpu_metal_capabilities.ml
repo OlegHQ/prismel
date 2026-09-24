@@ -6,7 +6,7 @@ let operations=[Adapter.Buffer;Texture;Sampler;Compute_pipeline;Render_pipeline;
 let source ray_tracing metal_fx : Adapter.capability_source={max_buffer_size=1_073_741_824L;max_texture_dimension_2d=16384;max_bind_groups=4;max_sample_count=4;ray_tracing;metal_fx}
 let profile source ~timestamp_queries ~sparse_memory=get(Adapter.profile source~timestamp_queries~sparse_memory~conservative_limits:[])
 let matrix value=List.map(fun operation->outcome(Adapter.supports value operation))operations
-let ()=
+let run () =
   let profiles=[profile(source false false)~timestamp_queries:false~sparse_memory:false;
     profile(source true false)~timestamp_queries:true~sparse_memory:true;
     profile(source false true)~timestamp_queries:true~sparse_memory:false;

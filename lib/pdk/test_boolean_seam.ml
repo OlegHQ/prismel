@@ -319,7 +319,7 @@ let test_verification_scale () =
   check (run 1 = Ok () && run 4 = Ok ())
     "scale seam verification failed or differs across domain counts"
 
-let () =
+let run () =
   test_transverse_between_curve ();
   test_coincident_products ();
   test_self_kinds ();

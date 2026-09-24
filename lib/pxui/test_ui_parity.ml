@@ -101,7 +101,7 @@ let check_overlays () =
     failwith "PXUI modal/picker/context menu drifted from fixtures/kit_overlays_2x.png"
   else print_endline "PXUI overlay parity: exact"
 
-let () =
+let run () =
   check_overlays ();
   let golden = Image.load_exn "fixtures/kit_panel_2x.png" in
   let old_width, old_height = Image.get_size golden in

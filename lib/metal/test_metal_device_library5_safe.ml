@@ -7,7 +7,7 @@ let reject kind = function
       ignore (Library.destroy library);
       failwith "expected Device library-constructor rejection"
 
-let () =
+let run () =
   match Device.system_default () with
   | Error _ -> print_endline "Device library5: skipped (no Metal device)"
   | Ok device ->

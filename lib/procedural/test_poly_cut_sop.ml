@@ -71,7 +71,7 @@ let equal_geometry left right =
            (Attribute.Private.storage right))
       (Geometry.attributes left) (Geometry.attributes right)
 
-let () =
+let run () =
   let graph = graph () in
   let parameters = Node.parameters graph in
   check (contains parameters "group=selected_curves"

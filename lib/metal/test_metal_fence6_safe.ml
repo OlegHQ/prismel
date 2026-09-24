@@ -9,7 +9,7 @@ let expect kind = function
   | Error error -> failwith (Format.asprintf "unexpected error: %a" pp_error error)
   | Ok _ -> failwith "expected fence rejection"
 
-let () =
+let run () =
   match Device.system_default () with
   | Error _ -> print_endline "fence6 safe: skipped"
   | Ok device ->

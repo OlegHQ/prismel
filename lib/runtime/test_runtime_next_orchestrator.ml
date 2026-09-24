@@ -9,7 +9,7 @@ let configuration extent : Orchestrator.configuration =
     drawable_width = extent; drawable_height = extent;
     title = "orchestrator native"; vsync=true }
 
-let () =
+let run () =
   begin match Orchestrator.create (configuration 4) with
   | Error _ -> print_endline "runtime_next orchestrator: native smoke skipped"
   | Ok runtime ->

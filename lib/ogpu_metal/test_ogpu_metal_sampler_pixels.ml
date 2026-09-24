@@ -21,7 +21,7 @@ let shader entries bindings=get(Ogpu.Shader.create{backend="metal";label=Some"sa
 let rgba bytes=Char.code(Bytes.get bytes 0),Char.code(Bytes.get bytes 1),Char.code(Bytes.get bytes 2),Char.code(Bytes.get bytes 3)
 let close expected actual=List.for_all2(fun a b->abs(a-b)<=1)expected actual
 
-let ()=match Device.system_default()with Error _->print_endline"ogpu_metal sampler pixels: skipped (no device)"|Ok native_device->
+let run () =match Device.system_default()with Error _->print_endline"ogpu_metal sampler pixels: skipped (no device)"|Ok native_device->
   let before=metal(Metal.Release_queue.stats())in
   let driver,control=Backend.create~device:native_device()in
   let device=get(Ogpu.Backend.create_device driver)and cache=get(Pipeline.create_cache~capacity:8)in

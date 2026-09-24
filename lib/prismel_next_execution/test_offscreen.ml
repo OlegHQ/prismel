@@ -36,7 +36,7 @@ let scene3_draw key red=
   Prismel_next_execution.prepared_draw~family:Scene3
     {Scene_execution.mesh;state}
 
-let ()=
+let run () =
   let baseline=live_handles()in
   let configuration={Prismel_next_execution.default_configuration with
     logical_width=3;logical_height=2;drawable_width=3;drawable_height=2;

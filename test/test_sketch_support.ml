@@ -99,7 +99,7 @@ let test_timeline_and_schedule () =
       ~force:false ~busy:false ~frame:(timeline_frame ()) in
   if not fire then fail "cook scheduler lost the latest held dynamic request"
 
-let () =
+let run () =
   test_timeline_and_schedule ();
   let pieces = Sketch_support.Packed_pieces.of_geometry
       ~piece_attribute:"class" (geometry ()) |> string_ok in

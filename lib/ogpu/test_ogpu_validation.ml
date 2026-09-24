@@ -1,7 +1,7 @@
 open Ogpu.Validation
 let get=function Ok value->value|Error value->failwith(Ogpu.Error.to_string value)
 let kind=function Ok()->"ok"|Error value->(match value.Ogpu.Error.kind with Invalid_argument->"invalid"|Unsupported->"unsupported"|Capacity->"capacity"|_->"other")
-let ()=
+let run () =
   let capabilities=Ogpu.Capabilities.minimum_m1 in
   let formats=[R8_unorm;Rgba8_unorm;Bgra8_unorm;Rgba16_float;Depth32_float]and storages=[Device_local;Shared;Upload;Readback]
   and samples=[0;1;2;3;4;8]in

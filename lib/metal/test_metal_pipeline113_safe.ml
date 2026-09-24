@@ -19,7 +19,7 @@ fragment float4 pipeline113_fragment() { return float4(0.25, 0.5, 0.75, 1.0); }
 kernel void pipeline113_compute(device uint *out [[buffer(0)]]) { out[0] = 113; }
 |}
 
-let () =
+let run () =
   match Device.system_default () with
   | Error _ -> print_endline "metal pipeline113 safe: skipped (no device)"
   | Ok device ->

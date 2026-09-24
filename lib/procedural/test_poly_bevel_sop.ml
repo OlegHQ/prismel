@@ -24,7 +24,7 @@ let with_edges geometry =
       (Fun.const true) in
   Pdk.Geometry.with_edge_group group geometry |> get
 
-let () =
+let run () =
   let graph = Sop.snapshot (with_edges (source ()))
       |> Sop.poly_bevel ~group:"bevel_edges"
            ~shape:(Pdk.Ops.Bevel_round { convexity = 0.75 }) ~divisions:3

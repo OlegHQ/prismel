@@ -9,7 +9,7 @@ let reject kind = function
   | Error error -> failwith (Format.asprintf "unexpected error: %a" pp_error error)
   | Ok _ -> failwith "expected IO compressor rejection"
 
-let () =
+let run () =
   let module Compressor = IO.Compressor in
   let chunk_size = get (Compressor.default_chunk_size ()) in
   if chunk_size <= 0L then failwith "IO compressor chunk size is not positive";

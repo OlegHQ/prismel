@@ -275,7 +275,7 @@ let test_collapsed_quad_and_deterministic_failure () =
          "Pdk.Ops.triangulate: primitive 0 has degenerate projected area")
     "Triangulate did not report the stable lowest failing primitive"
 
-let () =
+let run () =
   test_grouped_mixed_geometry ();
   test_identity_and_errors ();
   test_already_triangular_identity ();

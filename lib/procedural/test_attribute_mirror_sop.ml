@@ -63,7 +63,7 @@ let make_graph geometry =
        ~attributes:"value" ~output_mapping:"pair"
        ~source_group:"mirror_source" ~destination_group:"mirror_destination"
 
-let () =
+let run () =
   let graph = make_graph (source 100_000) in
   check (Node.operation graph = "attribute_mirror"
       && Node.cook_mode graph = Node.Duplicate_input 0

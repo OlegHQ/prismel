@@ -70,7 +70,7 @@ let graph () =
        ~fade_out_ramp:[0.,1.;0.25,0.96;0.65,0.18;1.,0.]
        ~visualize:true
 
-let () =
+let run () =
   let graph = graph () in
   let parameters = Node.parameters graph in
   check (contains parameters "group=fade_points"

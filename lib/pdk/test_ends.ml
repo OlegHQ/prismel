@@ -255,7 +255,7 @@ let test_parallel_exact () =
     "parallel fixture cardinality";
   check (equal_large one four) "one/four-domain output differs"
 
-let () =
+let run () =
   test_modes_and_ancestry ();
   test_malformed_and_cancel ();
   test_shared_topology_edge_fallback ();

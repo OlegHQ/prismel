@@ -34,7 +34,7 @@ let int_values name geometry =
       | _ -> fail (name ^ " has wrong storage"))
   | None -> fail ("missing " ^ name)
 
-let () =
+let run () =
   let graph = Sop.snapshot (source ())
       |> Sop.point_generate ~label:"emit-test" ~group:"emit" ~keep_input:true
            ~seed:7 ~generated_group:"made" ~copy_point_attributes:"id"

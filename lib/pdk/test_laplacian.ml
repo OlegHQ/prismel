@@ -210,7 +210,7 @@ let test_validation_and_cancellation () =
        "Laplacian cancellation code"
    | Ok _ -> fail "cancelled Laplacian unexpectedly succeeded")
 
-let () =
+let run () =
   test_constant_linear_and_quadratic ();
   test_uniform_and_integrated ();
   test_position_scale_and_storage ();

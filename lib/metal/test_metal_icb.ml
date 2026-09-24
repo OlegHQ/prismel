@@ -16,7 +16,7 @@ using namespace metal;
 kernel void icb_increment(device uint *value [[buffer(0)]]) { *value += 7u; }
 |}
 
-let () =
+let run () =
   let device = get (Device.system_default ()) in
   let baseline = get (Release_queue.stats ()) in
   let descriptor =

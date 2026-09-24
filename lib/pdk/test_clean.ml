@@ -72,7 +72,7 @@ let make_geometry ~x ~y ~z ~vertex_points ~primitive_offsets ~primitive_kinds =
       ~vertex_points ~primitive_offsets ~primitive_kinds |> get_ok in
   Geometry.create ~positions ~topology () |> get_ok
 
-let () =
+let run () =
   let tolerance_source = make_geometry
       ~x:[|0.; 0.1; 0.; -.1e308; 1e308; 0.; 2.; 2.|]
       ~y:[|0.; 0.; 0.1; 0.; 0.; 1e308; 0.; 0.|]

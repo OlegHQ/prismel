@@ -73,7 +73,7 @@ let filtered_reference surface first second =
   done;
   output_first, output_second
 
-let () =
+let run () =
   let geometry = high_valence_surface () in
   let surface = Surface_index.create ~grain:1 geometry |> get in
   let raw_first, raw_second =

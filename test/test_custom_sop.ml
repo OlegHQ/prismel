@@ -19,7 +19,7 @@ let x geometry =
       (Pdk.Geometry.positions geometry) in
   positions.x.(0)
 
-let () =
+let run () =
   let input = Sop.points [|0., 0., 0.|] in
   let node = Custom.map ~label:"animated wrangle" ~version:2
       ~dependencies:(Context.Dependencies.one Context.Dependencies.Time)

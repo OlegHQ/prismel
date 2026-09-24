@@ -3,7 +3,7 @@ let ok=function Ok value->value|Error e->fail(Ogpu.Error.to_string e)
 let expect kind=function Error(e:Ogpu.Error.t)when e.kind=kind->()|_->fail"unexpected submission result"
 let ended()=let c=Ogpu.Command.begin_encoder()in ignore(Ogpu.Command.end_encoder c);c
 let sequence()=let d=Ogpu.Handle.create_device()in let q=ok(Ogpu.Submission.create d)in Array.init 4(fun _->let r=ok(Ogpu.Submission.submit q(ended())~resources:[])in ignore(ok(Ogpu.Submission.complete_through q r.id));r.id)
-let ()=
+let run () =
   let d1=Ogpu.Handle.create_device()and d2=Ogpu.Handle.create_device()in expect Ogpu.Error.Invalid_argument(Ogpu.Submission.create ~max_frames:0 d1);expect Ogpu.Error.Invalid_argument(Ogpu.Submission.create ~max_frames:4 d1);
   let q=ok(Ogpu.Submission.create d1)and foreign=Ogpu.Handle.create ~device:d2 in expect Ogpu.Error.Cross_device(Ogpu.Submission.submit q(ended())~resources:[foreign]);
   let resource=Ogpu.Handle.create ~device:d1 and command=ended()in let first=ok(Ogpu.Submission.submit q command ~resources:[resource])in expect Ogpu.Error.Invalid_state(Ogpu.Submission.submit q command ~resources:[]);

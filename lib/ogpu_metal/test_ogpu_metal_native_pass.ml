@@ -6,7 +6,7 @@ let source={|#include <metal_stdlib>
 using namespace metal;
 kernel void native_step(device uint *values [[buffer(0)]], uint i [[thread_position_in_grid]]) { values[i] += 11; }
 |}
-let ()=match Device.system_default()with Error _->print_endline"ogpu_metal native pass: skipped (no device)"|Ok device->
+let run () =match Device.system_default()with Error _->print_endline"ogpu_metal native pass: skipped (no device)"|Ok device->
   let other=get(Device.system_default())in let before=get_metal(Metal.Release_queue.stats())in
   let buffer_descriptor : Ogpu.Types.buffer_descriptor={label=Some"native-pass";size=16L;usage=[Storage;Copy_src;Copy_dst]}in let buffer=get(Buffer.create device~memory:Buffer.Shared buffer_descriptor)in
   let shader=get(Ogpu.Shader.create{backend="metal";label=Some"native-step";bytes=Bytes.of_string source;entry_points=[{name="native_step";stage=Compute}];bindings=[{group=0;binding=0;kind=Storage_buffer;visibility=[Compute]}]})in

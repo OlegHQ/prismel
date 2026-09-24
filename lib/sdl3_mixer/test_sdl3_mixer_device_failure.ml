@@ -6,7 +6,7 @@ let get = function
   | Ok value -> value
   | Error error -> fail (Format.asprintf "%a" pp_error error)
 
-let () =
+let run () =
   get (Init.init ());
   (match Mixer.create_device () with
    | Error { kind = Mixer_error; message; _ } when message <> "" -> ()

@@ -138,7 +138,7 @@ let exercise device path expected =
   destroy Texture.destroy texture;
   destroy IO.Queue.destroy queue
 
-let () =
+let run () =
   let path = Filename.temp_file "prismel-metal-io-" ".bin" in
   Fun.protect ~finally:(fun () -> try Sys.remove path with Sys_error _ -> ())
     (fun () ->

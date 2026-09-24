@@ -201,7 +201,7 @@ let test_errors_cancellation_and_parallel () =
       "Distance From Geometry one/four-domain exactness")
     [Ops.Distance_reference_points; Ops.Distance_reference_primitives]
 
-let () =
+let run () =
   test_point_distance ();
   test_surface_and_affected ();
   test_distance_only_indexes ();

@@ -10,7 +10,7 @@ let expect_kind kind = function
       failwith (Format.asprintf "unexpected rejection: %a" pp_error error)
   | Ok _ -> failwith "expected LogState rejection"
 
-let () =
+let run () =
   match Device.system_default () with
   | Error _ -> print_endline "metal LogState safe: skipped (no Metal device)"
   | Ok device ->

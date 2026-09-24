@@ -156,7 +156,7 @@ let disconnected_patches count =
         (b - a = 2 && local = 0) || (b - a = 1 && local = 2)) in
   geometry, cusp
 
-let () =
+let run () =
   let source = decorated_patch () in
   let cusp = Geometry.find_edge_group "cusp" source |> Option.get
   and diagonal = Geometry.find_edge_group "diagonal" source |> Option.get in

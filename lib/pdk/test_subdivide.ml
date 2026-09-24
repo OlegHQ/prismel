@@ -2391,7 +2391,7 @@ let test_mixed_surface_curve_subdivision () =
         "mixed Subdivide curve normal was not zero"
   done
 
-let () =
+let run () =
   test_local_do_not_close ();
   test_identity_validation_and_cancellation ();
   test_selected_loop_validation_scope ();

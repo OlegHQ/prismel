@@ -252,7 +252,7 @@ let test_scale_and_parallel_exactness () =
   check (Geometry.groups one_named = [] && Geometry.groups four_named = [])
     "Name from Groups scale deletion cardinality"
 
-let () =
+let run () =
   test_point_names_and_policies ();
   test_primitive_names ();
   test_conflicts_and_empty_output ();

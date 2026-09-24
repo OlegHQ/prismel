@@ -263,7 +263,7 @@ let test_parallel_exact () =
   let one = cook 1 and four = cook 4 in
   check (equal_geometry one four) "one/four-domain restricted output differs"
 
-let () =
+let run () =
   test_restricted_payload_and_groups ();
   test_identity_and_errors ();
   test_parallel_exact ();

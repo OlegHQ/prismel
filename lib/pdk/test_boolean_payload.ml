@@ -709,7 +709,7 @@ let test_surface_cut_payload () =
   check (run 1 = run 4)
     "surface cut payload differs between one and four domains"
 
-let () =
+let run () =
   test_complete_primitive_payload ();
   test_schema_and_parameter_errors ();
   test_cancellation ();

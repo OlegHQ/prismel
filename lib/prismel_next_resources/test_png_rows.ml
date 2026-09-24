@@ -24,7 +24,7 @@ let scanlines png =
     Buffer.add_substring raw z (i+5) len;
     if header land 1=0 then blocks(i+5+len)
   in blocks 2; Buffer.contents raw
-let () =
+let run () =
   let width=257 and height=129 in
   let pixels=Bytes.init (257*129*4) (fun i->Char.chr((i*37+19) land 255)) in
   let canvas=get(Canvas.create ~width ~height) in

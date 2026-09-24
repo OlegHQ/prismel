@@ -240,7 +240,7 @@ let check_parallel_exact () =
   check (equal_geometry (run 1) (run 4))
     "one-domain and four-domain Platonic geometry differ"
 
-let () =
+let run () =
   check_catalog ();
   check_normals_groups_colors_and_bridge ();
   check_orientation_rotation_and_validation ();

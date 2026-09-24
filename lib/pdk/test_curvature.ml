@@ -227,7 +227,7 @@ let test_validation_and_cancellation () =
        "curvature cancellation code"
    | Ok _ -> fail "cancelled curvature unexpectedly succeeded")
 
-let () =
+let run () =
   test_closed_surface_and_scaling ();
   test_orientation_and_saddle ();
   test_boundary_smoothing_and_selection ();

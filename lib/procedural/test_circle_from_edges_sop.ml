@@ -61,7 +61,7 @@ let signature geometry =
   Array.init (Pdk.Edge_group.length group) (fun edge ->
     Pdk.Edge_group.mem edge group)
 
-let () =
+let run () =
   let source = Sop.snapshot (loop_geometry 2_000 16) in
   let graph = source |> Sop.circle_from_edges ~label:"fit-loops"
       ~group:"loops" ~radius:1.5 ~scale:(Vec3.create 1. 0.75 1.)

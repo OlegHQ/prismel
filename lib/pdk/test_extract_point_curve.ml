@@ -262,7 +262,7 @@ let test_parallel_exact () =
   check (Geometry.point_count long_one = 200_000)
     "long-curve block output cardinality"
 
-let () =
+let run () =
   test_constant_plateau_and_closed_seam ();
   test_per_curve_target_and_selection ();
   test_open_last_endpoint ();

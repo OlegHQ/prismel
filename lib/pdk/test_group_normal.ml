@@ -218,7 +218,7 @@ let test_scale_parallel_exactness () =
       = edge_members (edge_group "edges" four))
     "Group Normal edge one/four-domain exactness"
 
-let () =
+let run () =
   test_primitive_geometric_normals ();
   test_point_geometric_normals ();
   test_attribute_and_edge_normals ();

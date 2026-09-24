@@ -6,7 +6,7 @@ let source={|
 using namespace metal;
 kernel void tile93(ushort2 p [[thread_position_in_threadgroup]]){(void)p;}
 |}
-let ()=match Device.system_default()with Error _->print_endline"RenderPipeline93 tile graph: skipped"|Ok device->
+let run () =match Device.system_default()with Error _->print_endline"RenderPipeline93 tile graph: skipped"|Ok device->
   let library=get(Library.compile_source~device source)in let tile=get(Function.find~library "tile93")in
   let open Render_pipeline.Mesh_tile in let one={width=1L;height=1L;depth=1L}in
   let descriptor=get(tile_descriptor~tile_function:tile~required_threads:one())in

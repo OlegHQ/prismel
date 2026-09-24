@@ -146,7 +146,7 @@ let test_errors_cancellation_and_parallel () =
      Ops.Distance_target_cylindrical, Ops.Distance_target_absolute;
      Ops.Distance_target_planar, Ops.Distance_target_signed]
 
-let () =
+let run () =
   test_projections ();
   test_affected_and_mask_only ();
   test_errors_cancellation_and_parallel ();

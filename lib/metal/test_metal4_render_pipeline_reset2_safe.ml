@@ -12,7 +12,7 @@ let reject_destroyed = function
 let is_default (value : Metal4_render_pipeline_reset.snapshot) =
   value.format = None && not value.blending && value.write_mask = 0xf
 
-let () =
+let run () =
   match Metal4_render_pipeline_reset.attachment () with
   | Error error when error.kind = Unsupported || error.kind = Native_error ->
       print_endline "MTL4RenderPipeline reset2 safe: skipped (macOS 26 unavailable)"

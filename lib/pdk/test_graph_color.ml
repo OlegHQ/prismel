@@ -239,7 +239,7 @@ let test_parallel_exact () =
       && detail_int_array "length" sorted_one = [|40_000;40_000;40_000|])
     "sorted Graph Color scale worksets"
 
-let () =
+let run () =
   test_connectivities ();
   test_selection_promotion ();
   test_sort_and_worksets ();

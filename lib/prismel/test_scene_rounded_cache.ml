@@ -30,7 +30,7 @@ let measure calls make =
    ((gc_after.promoted_words -. gc_before.promoted_words) *. bytes_per_word)
      /. float calls)
 
-let () =
+let run () =
   let make x y =
     Scene.[rounded_rect ~at:(x, y) ~w:84 ~h:31 ~radius:7
       ~fill:(Color.rgba 12 34 56 220) ~stroke:(Color.rgb 90 80 70) ()]

@@ -13,7 +13,7 @@ using M = mesh<V, void, 3, 1, topology::triangle>;
 }
 kernel void mesh_tile105_tile(ushort2 p [[thread_position_in_threadgroup]]) { (void)p; }
 |}
-let ()=
+let run () =
   let open Render_pipeline.Mesh_tile in
   let buffer=get(buffer_descriptor ~mutability:Mutable())in
   if buffer_mutability buffer<>Mutable then fail "buffer mutability drift";

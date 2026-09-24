@@ -48,7 +48,7 @@ let equal left right =
   && lp.x = rp.x && lp.y = rp.y && lp.z = rp.z
   && point_ids left = point_ids right
 
-let () =
+let run () =
   let graph = Sop.snapshot (source ())
       |> Sop.ends ~label:"ends-test" ~group:"selected"
            Pdk.Ops.Ends_unroll_new in

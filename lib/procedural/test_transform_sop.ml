@@ -43,7 +43,7 @@ let same_positions left right =
        !result in
   same left.x right.x && same left.y right.y && same left.z right.z
 
-let () =
+let run () =
   let graph = Sop.snapshot (source ())
       |> Sop.transform_trs ~order:Ops.Transform_str
            ~rotation_order:Ops.Transform_yzx

@@ -5,7 +5,7 @@ open Sdl3
 let fail message = failwith ("SDL3 test: " ^ message)
 let get = function Ok value -> value | Error error -> fail (Format.asprintf "%a" pp_error error)
 
-let () =
+let run () =
   let frequency=Time.performance_frequency()and before=Time.performance_counter()in
   System_thread.delay 0.001;
   let after=Time.performance_counter()in

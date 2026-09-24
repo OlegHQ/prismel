@@ -153,7 +153,7 @@ let test_cancellation () =
   | Error error -> fail "unexpected cancellation error: %s" (Error.to_string error)
   | Ok _ -> fail "cancelled cell classification completed"
 
-let () =
+let run () =
   test_disjoint_solids ();
   test_nested_solids ();
   test_domain_exactness ();

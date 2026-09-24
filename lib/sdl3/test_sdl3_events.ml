@@ -10,7 +10,7 @@ let get = function
   | Ok value -> value
   | Error error -> fail (Format.asprintf "%a" pp_error error)
 
-let () =
+let run () =
   get (Init.init [Init.Events]);
   ignore (get (Event.poll_all ()));
   if not (push_event_trace ()) then fail "SDL rejected a trace event";

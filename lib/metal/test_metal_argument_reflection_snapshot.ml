@@ -72,7 +72,7 @@ module Snapshot = Metal.Reflection.Make (Mock)
 let check condition message = if not condition then failwith message
 let no_delta before label = check (!Mock.live = before) (label ^ ": native handle delta")
 
-let () =
+let run () =
   let root = Mock.root (Struct [ "position", Array Scalar; "normal", Scalar ]) in
   let before = !Mock.live in
   (match Snapshot.reflected_type root with

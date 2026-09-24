@@ -4,11 +4,11 @@ let require condition message=if not condition then failwith message
 let read path=let channel=open_in_bin path in Fun.protect~finally:(fun()->close_in channel)
   (fun()->really_input_string channel(in_channel_length channel))
 let normalize value=String.trim value
-let ()=
-  if Array.length Sys.argv<>9 then invalid_arg"eight interface paths required";
+let run () =
+  if Array.length Sys.argv<>10 then invalid_arg"eight interface paths required";
   for index=0 to 3 do
-    let legacy=read Sys.argv.(1+index)and staged=read Sys.argv.(5+index)in
-    require(normalize legacy=normalize staged)("interface drift: "^Sys.argv.(1+index))
+    let legacy=read Sys.argv.(2+index)and staged=read Sys.argv.(6+index)in
+    require(normalize legacy=normalize staged)("interface drift: "^Sys.argv.(2+index))
   done;
   let open Input in
   let keys=[KeyChar 'a';ArrowUp;ArrowDown;ArrowLeft;ArrowRight;Space;Enter;Escape;

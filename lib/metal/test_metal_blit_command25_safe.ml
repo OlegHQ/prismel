@@ -1,7 +1,7 @@
 open Metal
 let get = function Ok value -> value | Error error -> failwith error.message
 let reject = function Error _ -> () | Ok _ -> failwith "expected rejection"
-let () =
+let run () =
   let device = get (Device.system_default ()) in
   let queue = get (Command_queue.create device) in
   let commands = get (Command_buffer.create queue ()) in

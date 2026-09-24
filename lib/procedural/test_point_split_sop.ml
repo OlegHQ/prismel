@@ -34,7 +34,7 @@ let cook evaluator graph =
   | Ok output -> output.geometry
   | Error error -> fail (Diagnostic.error_to_string error)
 
-let () =
+let run () =
   let graph = Sop.snapshot (source ())
       |> Sop.point_split ~selection:(Sop.Point_group "split_points")
            ~attributes:"uv" ~tolerance:1e-6 ~promote_attributes:true in

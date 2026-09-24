@@ -273,7 +273,7 @@ let check_parallel_exact () =
     check (Geometry.point_count one = 351_201) "Grid scale point cardinality")
     connectivities
 
-let () =
+let run () =
   check_default_compatibility ();
   check_connectivity ();
   check_orientation_and_uv ();

@@ -8,7 +8,7 @@ let ordered()=
     [Resources;Caches;Surface_frames;Transfer_rings;Submissions;Descriptor_arenas];
   let report=get(transition lifecycle~reason:Shutdown~policy:Drain)in ignore(get(destroy lifecycle));Ogpu.Handle.destroy_device device;
   !seen,report.callbacks
-let ()=
+let run () =
   let expected=ordered()in let workers=Array.init 4(fun _->Domain.spawn ordered)in Array.iter(fun worker->if Domain.join worker<>expected then failwith"lifecycle domain order drift")workers;
   let device=Ogpu.Handle.create_device()and foreign=Ogpu.Handle.create_device()in let lifecycle=get(create~device~capacity:8)in let seen=ref[]in
   let add phase label action=get(register device lifecycle~phase~label(fun policy->seen:=!seen@[label,policy];action()))in

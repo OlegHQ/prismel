@@ -2,7 +2,7 @@ open Sdl3
 
 let fail message = failwith ("SDL3 failure-injection test: " ^ message)
 
-let () =
+let run () =
   (match Init.init [Init.Events] with
    | Error error -> fail (Format.asprintf "event init failed: %a" pp_error error)
    | Ok () -> ());

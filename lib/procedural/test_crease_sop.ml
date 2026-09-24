@@ -44,7 +44,7 @@ let color_values geometry =
        | _ -> fail "Crease SOP color storage changed")
   | None -> fail "Crease SOP omitted visualization color"
 
-let () =
+let run () =
   let graph = Sop.snapshot (source ())
       |> Sop.crease ~group:"crease_edges" ~operation:Ops.Crease_add ~weight:2.
            ~add_vertex_color:true in

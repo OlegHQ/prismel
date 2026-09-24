@@ -956,7 +956,7 @@ let test_source_feature_queries source lpi tpi =
    | _ -> fail "cross-source direct axis query was accepted"
    | exception Invalid_argument _ -> ())
 
-let () =
+let run () =
   test_source_validation ();
   let source = expect_ok (Point.source ~x ~y ~z) in
   expect_error (Point.Index_out_of_bounds (-1)) (Point.explicit source (-1));

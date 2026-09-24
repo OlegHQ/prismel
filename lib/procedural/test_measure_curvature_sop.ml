@@ -50,7 +50,7 @@ let values name geometry =
        | _ -> fail (name ^ " output storage"))
   | None -> fail (name ^ " output missing")
 
-let () =
+let run () =
   let geometry = source () in
   let node = Sop.snapshot geometry
       |> Sop.measure_curvature ~label:"surface-curvature" ~point_group:"upper"

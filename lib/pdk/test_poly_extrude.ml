@@ -100,7 +100,7 @@ let int_attribute owner name geometry =
   Geometry.find_attribute ~owner name geometry |> Option.get
   |> Attribute.get (Attribute.key ~name ~owner Attribute.int) |> Option.get
 
-let () =
+let run () =
   let source = enriched_grid () in
   let connected = Ops.poly_extrude
       ~divide:Ops.Extrude_connected_components

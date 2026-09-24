@@ -1,6 +1,6 @@
 open Metal
 let get=function Ok x->x|Error e->failwith(Format.asprintf "%a" pp_error e)
-let ()=match Device.system_default()with Error _->print_endline"MTL4AccelerationStructure11 safe: skipped"|Ok dev->
+let run () =match Device.system_default()with Error _->print_endline"MTL4AccelerationStructure11 safe: skipped"|Ok dev->
  let open Acceleration_structure.Metal4_descriptor in
  match bounding_box dev with Error _->ignore(Device.destroy dev);print_endline"MTL4AccelerationStructure11 safe: skipped"|Ok first->
  let geometries=[first;get(curve dev);get(motion_bounding_box dev);get(motion_curve dev);get(motion_triangle dev);get(triangle dev)]in

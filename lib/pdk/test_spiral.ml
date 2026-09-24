@@ -317,7 +317,7 @@ let check_parallel_exact () =
       && Geometry.primitive_count one = 5)
     "advanced Spiral exactness cardinality"
 
-let () =
+let run () =
   check_default_and_extent ();
   check_radius_families_ramps_and_count ();
   check_equal_arc_spacing ();

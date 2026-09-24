@@ -301,7 +301,7 @@ let test_parallel_exact () =
   check (geometry_hash one = geometry_hash four)
     "Point Replicate one/four-domain output differs"
 
-let () =
+let run () =
   test_shapes_and_quantity ();
   test_point_shape_and_transformed_attributes ();
   test_singular_normal_selection ();

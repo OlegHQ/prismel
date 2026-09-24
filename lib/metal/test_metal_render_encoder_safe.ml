@@ -11,7 +11,7 @@ let expect kind = function
       fail "expected another error kind: %s" (Format.asprintf "%a" pp_error error)
   | Ok _ -> fail "expected Metal operation to fail"
 
-let () =
+let run () =
   let device = get (Device.system_default ()) in
   let queue = get (Command_queue.create device) in
   let target =

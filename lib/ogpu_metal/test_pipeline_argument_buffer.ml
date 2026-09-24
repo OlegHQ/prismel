@@ -8,7 +8,7 @@ struct A{texture2d<float,access::sample> image[[id(0)]];sampler sampling[[id(1)]
 vertex O scene_vertex(uint i[[vertex_id]]){O o;o.position=float4(float(i==1),float(i==2),0.,1.);return o;}
 fragment float4 scene_fragment(O o[[stage_in]],constant A&args[[buffer(1)]]){return args.image.sample(args.sampling,float2(.5));}
 |}
-let ()=match Device.system_default()with Error _->print_endline"pipeline argument buffer: skipped (no device)"|Ok device->
+let run () =match Device.system_default()with Error _->print_endline"pipeline argument buffer: skipped (no device)"|Ok device->
   let before=metal(Metal.Release_queue.stats())in
   let cache=get(Pipeline.create_cache~capacity:2)in
   let artifact bindings=get(Ogpu.Shader.create{backend="metal";label=Some"argument-pipeline";bytes=Bytes.of_string source;entry_points=[{name="scene_vertex";stage=Vertex};{name="scene_fragment";stage=Fragment}];bindings})in

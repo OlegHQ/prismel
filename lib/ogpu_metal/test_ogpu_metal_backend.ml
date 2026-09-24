@@ -35,7 +35,7 @@ vertex V backend_argument_vertex(device const float2 *p [[buffer(0)]],uint i [[v
 fragment float4 backend_argument_fragment(V v [[stage_in]],constant A&args [[buffer(1)]]) { return args.image.sample(args.sampling,float2(.5)); }
 |}
 let shader entries bindings=get(Ogpu.Shader.create{backend="metal";label=None;bytes=Bytes.of_string source;entry_points=entries;bindings})
-let ()=match Device.system_default()with Error _->print_endline"ogpu_metal backend: skipped (no device)"|Ok native_device->
+let run () =match Device.system_default()with Error _->print_endline"ogpu_metal backend: skipped (no device)"|Ok native_device->
   (match Backend.create~classic_submission_byte_capacity:0L()with
    |exception Invalid_argument _->()
    |_->failwith"nonpositive classic submission byte capacity accepted");

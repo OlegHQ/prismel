@@ -4,7 +4,7 @@ let require condition message = if not condition then failwith message
 
 let resource_ids resources = List.map fst resources
 
-let () =
+let run () =
   let camera =
     Camera.perspective ~at:(Vec3.create 0. 0. 3.) ~target:Vec3.zero ()
   in

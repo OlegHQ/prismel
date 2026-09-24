@@ -1,7 +1,7 @@
 open Metal
 let get=function Ok x->x|Error e->failwith(Format.asprintf "%a" pp_error e)
 let expect kind=function Error e when e.kind=kind->()|Error e->failwith(Format.asprintf "%a" pp_error e)|Ok _->failwith"expected rejection"
-let ()=match Device.system_default()with
+let run () =match Device.system_default()with
 |Error _->print_endline"MTL4RenderPass7 safe: skipped"
 |Ok device->
  match Command4.Render_pass_descriptor.create device~width:4~height:4()with

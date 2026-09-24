@@ -237,7 +237,7 @@ let test_cancellation () =
   | Error error -> fail "unexpected cancellation error: %s" (Error.to_string error)
   | Ok _ -> fail "cancelled constraint planning completed"
 
-let () =
+let run () =
   test_crossing ();
   test_point_contact ();
   test_coplanar_and_disjoint ();

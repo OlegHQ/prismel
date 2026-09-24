@@ -5,7 +5,7 @@ let execution=function Ok value->value|Error error->
 let metal=function Ok value->value|Error error->
   failwith(Format.asprintf"%a"Metal.pp_error error)
 
-let ()=
+let run () =
   let baseline=(metal(Metal.Release_queue.stats())).live_handles in
   let cube=get(Result.map_error Pdk.Error.to_string
     (Pdk.Ops.box ~size:(Prismel.Vec3.create 1. 1. 1.) ()))in

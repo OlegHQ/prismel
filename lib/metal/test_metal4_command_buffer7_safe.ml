@@ -1,6 +1,6 @@
 open Metal
 let get=function Ok x->x|Error e->failwith(Format.asprintf "%a" pp_error e)
-let ()=match Device.system_default()with Error _->print_endline"MTL4CommandBuffer7 safe: skipped"|Ok device->
+let run () =match Device.system_default()with Error _->print_endline"MTL4CommandBuffer7 safe: skipped"|Ok device->
  match Command4.Allocator.create device with Error _->ignore(Device.destroy device);print_endline"MTL4CommandBuffer7 safe: skipped"|Ok allocator->
  let log=get(Command4.Log_state.create device)in
  let options=get(Command4.Command_buffer_options.create device)in

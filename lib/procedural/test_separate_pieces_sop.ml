@@ -60,7 +60,7 @@ let equal_geometry left right =
          | _ -> false)
       (Geometry.attributes left) (Geometry.attributes right)
 
-let () =
+let run () =
   let source = source () in
   let graph_node = graph source in
   let parameters = Node.parameters graph_node in

@@ -103,7 +103,7 @@ let equal_geometry left right =
        (Geometry.attributes right)
   && List.equal equal_group (Geometry.groups left) (Geometry.groups right)
 
-let () =
+let run () =
   let curves = two_curves () in
   let heat = Attribute.create_owned ~name:"heat" ~owner:Attribute.Point
       (Attribute.Float [|0.; 6.; 0.; 0.; 8.; 0.|]) |> get_string_ok in

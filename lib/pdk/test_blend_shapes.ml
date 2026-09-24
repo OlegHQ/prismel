@@ -228,7 +228,7 @@ let test_parallel_scale () =
       && Geometry.point_count one = count)
     "Blend Shapes scale cardinality or topology sharing"
 
-let () =
+let run () =
   test_weights_and_selection ();
   test_masks ();
   test_ids_and_attributes ();

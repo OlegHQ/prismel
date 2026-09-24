@@ -712,7 +712,7 @@ let test_parallel_and_cancellation () =
        "Group Promote cancellation code"
    | Ok _ -> fail "cancelled Group Promote published geometry")
 
-let () =
+let run () =
   test_promote ();
   test_all_promotion_owner_pairs ();
   test_ordered_wildcard_promotions ();

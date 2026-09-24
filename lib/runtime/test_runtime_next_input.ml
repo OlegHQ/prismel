@@ -28,7 +28,7 @@ let sdl_fixture iteration =
     Window { timestamp_ns; window_id; change = Focus_lost };
   ]
 
-let () =
+let run () =
   let native = get (Input.create ~max_events:64 ~max_file_bytes:16
       ~logical_width:10 ~logical_height:10) in
   for iteration = 1 to 3 do

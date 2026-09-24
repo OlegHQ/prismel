@@ -186,7 +186,7 @@ let test_invalid_grain_and_cancellation () =
   | Error error -> fail "unexpected cancellation error: %s" (Error.to_string error)
   | Ok _ -> fail "cancelled coplanar arrangement completed"
 
-let () =
+let run () =
   test_six_edge_overlap ();
   test_containment_and_reversed_identity ();
   test_lower_dimensional_contacts ();

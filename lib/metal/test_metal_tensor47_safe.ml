@@ -6,7 +6,7 @@ let get = function
 
 let reject label = function Error _ -> () | Ok _ -> failwith ("expected rejection: "^label)
 
-let () =
+let run () =
   let dimensions = get (Tensor.Extents.create [| 4L; 8L |]) in
   let strides = get (Tensor.Extents.create [| 1L; 4L |]) in
   if Tensor.Extents.rank dimensions <> 2

@@ -30,7 +30,7 @@ let float_array_values ~owner ~name geometry =
        | _ -> fail ("unexpected non-float-array storage for " ^ name))
   | None -> fail ("missing float-array attribute " ^ name)
 
-let () =
+let run () =
   let pattern source = Attribute_pattern.compile source |> get_ok in
   let reference_glob glob name =
     let glob_length = String.length glob and name_length = String.length name in

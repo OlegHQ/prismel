@@ -6,7 +6,7 @@ let source={|#include <metal_stdlib>
 using namespace metal;
 kernel void compute35(device uint *out [[buffer(0)]], uint i [[thread_position_in_grid]]) { out[i] += 3; }
 |}
-let ()=
+let run () =
   match Device.system_default()with Error _->print_endline"compute encoder35: skipped (no device)"|Ok device->
   let queue=get(Command_queue.create device)in
   let library=get(Library.compile_source~device source)in

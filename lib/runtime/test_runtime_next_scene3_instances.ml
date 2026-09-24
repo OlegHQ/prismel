@@ -15,7 +15,7 @@ let uniform red =
   set 69 1.; set 70 1.; set 71 1.; set 72 1.;
   bytes
 
-let () = match Runtime_next.create_offscreen ~logical_width:4 ~logical_height:4
+let run () = match Runtime_next.create_offscreen ~logical_width:4 ~logical_height:4
     ~width:4 ~height:4 with
   | Error error -> failwith (Ogpu.Error.to_string error)
   | Ok runtime ->

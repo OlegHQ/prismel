@@ -48,7 +48,7 @@ let int_attribute name geometry =
        | _ -> fail (name ^ " has wrong storage"))
   | None -> fail ("missing " ^ name)
 
-let () =
+let run () =
   let graph = Sop.snapshot (source 300_000)
       |> Sop.rewire_vertices ~label:"rewire-selected"
            ~selection:(Sop.Point_group "selected") ~recursive:false

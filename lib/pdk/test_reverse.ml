@@ -195,7 +195,7 @@ let test_errors_and_cancellation () =
        "Reverse cancellation diagnostic code"
    | Ok _ -> fail "Reverse ignored cancellation")
 
-let () =
+let run () =
   test_reverse ();
   test_local_and_shift ();
   test_errors_and_cancellation ();

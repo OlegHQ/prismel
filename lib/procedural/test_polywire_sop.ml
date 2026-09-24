@@ -47,7 +47,7 @@ let equal left right =
        && Pdk.Attribute.storage left = Pdk.Attribute.storage right)
        (Pdk.Geometry.attributes left) (Pdk.Geometry.attributes right)
 
-let () =
+let run () =
   let graph = Sop.snapshot (source ())
       |> Sop.polywire ~label:"variable-wire" ~group:"first" ~sides:8
            ~divisions_attribute:"div" ~segments:3 ~segments_attribute:"seg"

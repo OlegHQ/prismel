@@ -291,7 +291,7 @@ let check_parallel_exact () =
     check (equal_geometry one many)
       "one-domain and four-domain Box geometry differ") cases
 
-let () =
+let run () =
   check_default_compatibility ();
   check_divisions_connectivity_and_groups ();
   check_point_modes ();

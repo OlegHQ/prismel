@@ -144,7 +144,7 @@ let expect_code code = function
       code (Error.code error) (Error.to_string error))
   | Ok _ -> fail ("expected error " ^ code)
 
-let () =
+let run () =
   let source = quad () in
   let collapse = Geometry.find_edge_group "collapse" source |> Option.get in
   let output = Ops.edge_collapse ~grain:1 ~edges:collapse source |> get_pdk in

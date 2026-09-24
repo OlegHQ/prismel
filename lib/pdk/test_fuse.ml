@@ -765,7 +765,7 @@ let check_parallel_exact () =
        done
    | _ -> fail "parallel snapped groups missing")
 
-let () =
+let run () =
   check_restricted_fuse ();
   check_cluster_contract ();
   check_target_policies ();

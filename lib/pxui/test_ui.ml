@@ -184,7 +184,7 @@ let with_scale scale =
   if !point = (0., 0.) then fail (label "xy pad did not update");
   Ui.destroy ui
 
-let () =
+let run () =
   with_scale 1.;
   with_scale 2.;
   (* Hover: the topmost control under the pointer, from last frame's rects. *)

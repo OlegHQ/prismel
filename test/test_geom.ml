@@ -1115,7 +1115,7 @@ let test_viz () =
     ~levels:[0.25;0.5] ~palette:[Color.red;Color.blue] matrix
     |> result_or_fail)
 
-let () =
+let run () =
   test_affine ();
   test_bounds ();
   test_segments ();

@@ -180,7 +180,7 @@ let test_errors_cancellation_and_parallel () =
            (float_attribute "mask" four))
     "Distance Along Geometry one/four-domain exactness"
 
-let () =
+let run () =
   test_distance_and_masks ();
   test_affected_and_promotion ();
   test_errors_cancellation_and_parallel ();

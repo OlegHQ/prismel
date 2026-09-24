@@ -3,7 +3,7 @@ open Metal
 let get = function Ok value -> value | Error error -> failwith (Format.asprintf "%a" pp_error error)
 let expect kind = function Error error when error.kind=kind -> () | Error error -> failwith (Format.asprintf "%a" pp_error error) | Ok _ -> failwith "expected rejection"
 
-let () =
+let run () =
   let open Render_pipeline.Mesh_tile in
   let render=get(descriptor ~label:"render93" Render_descriptor) in
   let mesh=get(descriptor Mesh_descriptor) in

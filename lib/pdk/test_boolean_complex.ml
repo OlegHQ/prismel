@@ -124,7 +124,7 @@ let test_cancellation () =
   | Error error -> fail "unexpected cancellation error: %s" (Error.to_string error)
   | Ok _ -> fail "cancelled Boolean complex assembly completed"
 
-let () =
+let run () =
   test_disjoint_closed_surfaces ();
   test_identical_facet_ownership ();
   test_partial_coplanar_overlap ();

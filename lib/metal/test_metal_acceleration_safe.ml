@@ -6,7 +6,7 @@ let get = function
 
 let check condition message = if not condition then failwith message
 
-let () =
+let run () =
   let device = get (Device.system_default ()) in
   let vertices = Bytes.make 36 '\000' in
   let vertex =

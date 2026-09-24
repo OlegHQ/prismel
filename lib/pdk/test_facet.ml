@@ -1138,7 +1138,7 @@ let check_parallel_exact () =
       && polygon_planarity_error one 1 > 0.1)
     "grouped Facet Make Planar parallel selection"
 
-let () =
+let run () =
   check_unique_points ();
   check_primitive_group_unique_points ();
   check_typed_selections ();

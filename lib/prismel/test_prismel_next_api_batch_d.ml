@@ -1,6 +1,6 @@
 open Prismel
 let check condition message=if not condition then failwith message
-let ()=
+let run () =
   let path=Path.empty|>Path.move_to 0. 0.|>Path.line_to 4. 0.|>Path.quadratic_to~control:(6.,2.)~to_:(4.,4.)|>Path.line_to 0. 4.|>Path.close in
   check(Path.is_closed path&&List.length(Path.points~steps:8 path)>8)"Path flatten";
   let sequential=Parallel.run~domains:1(fun()->Parallel.init_array~grain:64 100_000(fun i->i*i))

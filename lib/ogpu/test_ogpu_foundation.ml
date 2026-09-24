@@ -1,6 +1,6 @@
 let fail message=raise(Failure message)
 let expect kind=function Error(error:Ogpu.Error.t)when error.kind=kind->()|_->fail"unexpected result"
-let ()=
+let run () =
   let d1=Ogpu.Handle.create_device()and d2=Ogpu.Handle.create_device()in
   let h=Ogpu.Handle.create ~device:d1 in
   (match Ogpu.Handle.validate_for ~operation:"test" d1 h with Ok()->()|_->fail"live handle rejected");

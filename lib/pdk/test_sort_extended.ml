@@ -211,7 +211,7 @@ let test_dense_exactness () =
   check (same_int_array (ids (locality 1)) (ids (locality 4)))
     "dense spatial-locality Sort one/four-domain exactness"
 
-let () =
+let run () =
   test_random ();
   test_indirect ();
   test_restricted_and_errors ();

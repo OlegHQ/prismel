@@ -120,7 +120,7 @@ let test_scale_parallel_exactness () =
   check (Group.cardinality one = Geometry.primitive_count source)
     "Group Backface scale cardinality"
 
-let () =
+let run () =
   test_winding_viewpoint_and_edge_on ();
   test_extreme_coordinates ();
   test_base_merge_and_failures ();

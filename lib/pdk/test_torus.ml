@@ -396,7 +396,7 @@ let check_parallel_exact () =
     check (equal_geometry one many)
       "one-domain and four-domain Torus geometry differ") cases
 
-let () =
+let run () =
   check_default_and_connectivity ();
   check_open_sweeps_caps_and_bridge ();
   check_uv_normals_and_winding ();

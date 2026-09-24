@@ -96,7 +96,7 @@ let many_curves curve_count curve_size =
     (Array.init (curve_count + 1) (fun curve -> curve * curve_size))
     (Array.make curve_count Topology.Open_polyline) []
 
-let () =
+let run () =
   let source = fixture () in
   let transport = Ops.edge_transport ~attribute:"value" source |> get_pdk in
   check (close_array (values "value" transport)

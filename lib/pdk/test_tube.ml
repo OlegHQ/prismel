@@ -360,7 +360,7 @@ let check_parallel_exact () =
     check (equal_geometry one many)
       "one-domain and four-domain Tube geometry differ") cases
 
-let () =
+let run () =
   check_default_and_connectivity ();
   check_cones_caps_normals_and_uv ();
   check_frustum_orientation_and_rotation ();

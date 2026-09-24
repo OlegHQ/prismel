@@ -112,7 +112,7 @@ let test_cancellation () =
   | Error error -> fail "unexpected cancellation error: %s" (Error.to_string error)
   | Ok _ -> fail "cancelled Weiler construction completed"
 
-let () =
+let run () =
   test_disconnected_closed_shells ();
   test_coincident_winding_vector ();
   test_transverse_connectivity ();

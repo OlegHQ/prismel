@@ -964,7 +964,7 @@ let test_errors () =
   expect (Ops.triangulate_2d ~cancel ~refine:true
       ~maximum_area:0.01 input)
 
-let () =
+let run () =
   test_xy_payload_and_group ();
   test_best_fit_and_explicit_plane ();
   test_projected_output_positions ();

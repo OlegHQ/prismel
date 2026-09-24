@@ -216,7 +216,7 @@ let test_errors_and_parallel () =
   let one = run 1 and four = run 4 in
   check (same_geometry one four) "Transform one/four-domain exactness"
 
-let () =
+let run () =
   test_composition ();
   test_selection_and_normals ();
   test_errors_and_parallel ();

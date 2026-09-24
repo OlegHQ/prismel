@@ -31,7 +31,7 @@ let reject_without_native_work name operation =
   let after = get (Release_queue.stats ()) in
   stats_equal name before after
 
-let () =
+let run () =
   match Device.system_default () with
   | Error _ -> print_endline "Metal resource bounds: skipped (no device)"
   | Ok device ->

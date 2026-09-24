@@ -7,7 +7,7 @@ let expect kind = function
   | Error error -> fail "unexpected error: %s" error.message
   | Ok _ -> fail "expected rejection"
 
-let () =
+let run () =
   let device = get (Device.system_default ()) in
   let pass = get (Compute_pass.create device ()) in
   if Compute_pass.device pass != device

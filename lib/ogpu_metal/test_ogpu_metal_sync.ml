@@ -2,7 +2,7 @@ open Ogpu_metal
 let get = function Ok value -> value | Error value -> failwith (Ogpu.Error.to_string value)
 let get_metal = function Ok value -> value | Error value -> failwith (Format.asprintf "%a" Metal.pp_error value)
 let expect kind = function Error value when value.Ogpu.Error.kind = kind -> () | _ -> failwith "unexpected synchronization result"
-let () =
+let run () =
   let device = get (Device.system_default ()) in
   let other = get (Device.system_default ()) in
   let before = get_metal (Metal.Release_queue.stats ()) in

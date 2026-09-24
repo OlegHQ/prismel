@@ -341,7 +341,7 @@ let test_multiple_parallel_exactness () =
       && Geometry.vertex_count one = (128 * 258) + (128 * 129 * 4 * 4))
     "multiple bridge cardinality"
 
-let () =
+let run () =
   test_closed_bridge_and_payload ();
   test_divided_bridge_interpolation ();
   test_open_unequal_and_errors ();

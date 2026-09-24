@@ -11,7 +11,7 @@ fragment float4 fragment93(){return float4(1);}
 kernel void tile93(ushort2 p [[thread_position_in_threadgroup]]) { (void)p; }
 [[visible]] float4 visible93(){return float4(1);}
 |}
-let ()=match Device.system_default()with Error _->print_endline"RenderPipeline93 mesh graph: skipped"|Ok device->
+let run () =match Device.system_default()with Error _->print_endline"RenderPipeline93 mesh graph: skipped"|Ok device->
   let library=get(Library.compile_source~device source)in
   let mesh=get(Function.find~library "mesh93")and fragment=get(Function.find~library "fragment93")and tile=get(Function.find~library "tile93")and visible=get(Function.find~library "visible93")in
   let additional=get(Render_pipeline.Functions_descriptor.create())in

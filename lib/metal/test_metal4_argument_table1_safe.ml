@@ -9,7 +9,7 @@ let reject kind = function
   | Error error -> failwith (Format.asprintf "%a" pp_error error)
   | Ok _ -> failwith "expected Metal4 argument-table resource rejection"
 
-let () =
+let run () =
   match Device.system_default () with
   | Error _ -> print_endline "MTL4ArgumentTable1 safe: skipped"
   | Ok device ->

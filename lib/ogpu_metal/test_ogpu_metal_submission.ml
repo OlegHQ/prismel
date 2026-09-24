@@ -9,7 +9,7 @@ using namespace metal;
 kernel void add_one(device uint *values [[buffer(0)]], uint i [[thread_position_in_grid]]) { values[i] += 1; }
 |}
 let ended f=let command=Command.create()in get(f command);get(Command.end_ command);command
-let ()=match Device.system_default()with Error _->print_endline"ogpu_metal submission: skipped (no device)"|Ok device->
+let run () =match Device.system_default()with Error _->print_endline"ogpu_metal submission: skipped (no device)"|Ok device->
   let other=get(Device.system_default())in let before=get_metal(Metal.Release_queue.stats())in
   let queue=get(Queue.create~max_frames:3 device)in
   let initial_timing=Queue.gpu_timing_for_device device in

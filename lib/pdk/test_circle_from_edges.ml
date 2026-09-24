@@ -284,7 +284,7 @@ let test_parallel_exact () =
           |> Edge_group.cardinality) = 160_000)
     "Circle from Edges scale cardinality"
 
-let () =
+let run () =
   test_fit_radius_and_scale ();
   test_best_fit_plane ();
   test_selection_boundary_payload ();

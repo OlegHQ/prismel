@@ -5,13 +5,15 @@
  (libraries prismel metal ogpu pdk prismel_next_execution runtime_next_orchestrator
   prismel_next_resources unix))
 
-(test
- (name test_pathtracer)
- (modules test_pathtracer)
- (libraries prismel prismel_pathtracer pdk metal))
+(executable
+ (name test_main)
+ (modules test_main test_pathtracer test_gpu_film)
+ (libraries prismel prismel_pathtracer prismel_next_execution prismel_next_resources ogpu pdk metal))
 
-(test
- (name test_gpu_film)
- (modules test_gpu_film)
- (libraries prismel prismel_pathtracer prismel_next_execution
-  prismel_next_resources ogpu pdk metal))
+(rule
+ (aliases runtest test_pathtracer)
+ (action (run %{exe:test_main.exe} test_pathtracer)))
+
+(rule
+ (aliases runtest test_gpu_film)
+ (action (run %{exe:test_main.exe} test_gpu_film)))

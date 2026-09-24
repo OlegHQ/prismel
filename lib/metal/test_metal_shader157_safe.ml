@@ -4,7 +4,7 @@ let fail format = Printf.ksprintf failwith format
 let get = function Ok x -> x | Error e -> fail "%s" (Format.asprintf "%a" pp_error e)
 let expect kind = function Error e when e.kind=kind->()|Error e->fail "%s" (Format.asprintf "%a" pp_error e)|Ok _->fail "expected rejection"
 
-let () =
+let run () =
   let device=get(Device.system_default()) in
   let library=get(Library.compile_source ~device
     "#include <metal_stdlib>\nusing namespace metal; struct Args { device uint *data [[id(0)]]; uint value [[id(1)]]; }; kernel void shader157(constant Args& args [[buffer(0)]], device uint *out [[buffer(1)]]) { out[0]=args.value; }\n")in

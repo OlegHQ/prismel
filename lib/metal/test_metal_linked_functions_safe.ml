@@ -5,7 +5,7 @@ let source={|#include <metal_stdlib>
 using namespace metal;
 [[visible]] uint linked_a(uint x){return x+1;} [[visible]] uint linked_b(uint x){return x+2;}
 |}
-let ()=match Device.system_default()with Error _->print_endline"linked functions: skipped"|Ok device->
+let run () =match Device.system_default()with Error _->print_endline"linked functions: skipped"|Ok device->
  let library=get(Library.compile_source~device source)in
  let a=get(Function.find~library "linked_a")and b=get(Function.find~library "linked_b")in
  let linked=get(Linked_functions.create device)in

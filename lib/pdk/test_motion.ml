@@ -183,7 +183,7 @@ let test_domain_exactness () =
   check_array [|-2.|] [|one.y.(count - 1)|] "large velocity y cardinality";
   check_array [|4.|] [|one.z.(count - 1)|] "large velocity z cardinality"
 
-let () =
+let run () =
   test_rest ();
   test_deformation ();
   test_group_and_initializers ();

@@ -29,7 +29,7 @@ let execute device function_ =
   get (Command_queue.destroy queue);
   result
 
-let () =
+let run () =
   match Device.system_default () with
   | Error _ -> print_endline "metal function constants safe: skipped"
   | Ok device ->

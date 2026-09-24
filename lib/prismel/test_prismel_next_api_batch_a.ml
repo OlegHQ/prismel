@@ -1,7 +1,7 @@
 open Prismel
 let check condition message=if not condition then failwith message
 let finite x=Float.is_finite x
-let ()=
+let run () =
   check(Color.hex"#f08c"=Ok(Color.rgba 255 0 136 204))"Color hex";
   check(Color.gradient[Color.red;Color.blue]0.5=Color.rgba 128 0 128 255)"Color gradient";
   check(abs_float(Math.rad_to_deg Math.pi-.180.)<1e-12)"Math radians";

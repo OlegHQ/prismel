@@ -615,7 +615,7 @@ let run_worker lane =
   let executable = Unix.realpath Sys.executable_name in
   let name = lane_name lane in
   let pid =
-    Unix.create_process executable [| executable; "--lane"; name |]
+    Unix.create_process executable [| executable; "test_metal_stress"; "--lane"; name |]
       Unix.stdin Unix.stdout Unix.stderr
   in
   match snd (Unix.waitpid [] pid) with
@@ -626,14 +626,14 @@ let metal_available () =
   Sys.os_type = "Unix"
   && Sys.file_exists "/System/Library/Frameworks/Metal.framework"
 
-let () =
+let run () =
   if not (metal_available ()) then
     Printf.printf "Metal ownership stress skipped on this platform\n%!"
   else
     match Array.to_list Sys.argv with
-    | [ _ ] ->
+    | [ _; "test_metal_stress" ] ->
         List.iter run_worker lanes;
         Printf.printf "%d isolated Metal ownership lanes passed\n%!"
           (List.length lanes)
-    | [ _; "--lane"; name ] -> run_lane (lane_of_name name)
-    | _ -> fail "usage: test_metal_stress.exe [--lane LANE]"
+    | [ _; "test_metal_stress"; "--lane"; name ] -> run_lane (lane_of_name name)
+    | _ -> fail "usage: test_main.exe test_metal_stress [--lane LANE]"

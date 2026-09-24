@@ -1,4 +1,4 @@
-let () =
+let run () =
   let open Prismel in
   let a=Vec2.create 3. 4. in
   if Vec2.length a <> 5. || Vec2.to_pair (Vec2.rotate Vec2.unit_x

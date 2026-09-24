@@ -143,7 +143,7 @@ let test_errors () =
       "missing group diagnostic code"
   | Ok _ -> fail "missing primitive group accepted"
 
-let () =
+let run () =
   test_static_identity_cache_and_parallel ();
   test_selection_and_current_time ();
   test_errors ();

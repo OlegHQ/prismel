@@ -222,7 +222,7 @@ let test_parallel_exactness () =
   check (order one = order four)
     "primitive Group Find Path one/four-domain ordered exactness"
 
-let () =
+let run () =
   test_shortest_and_modes ();
   test_collision_constraints ();
   test_closure ();

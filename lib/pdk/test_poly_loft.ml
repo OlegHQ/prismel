@@ -302,7 +302,7 @@ let test_parallel () =
       && Geometry.vertex_count one = expected * 3)
     "large loft cardinality"
 
-let () =
+let run () =
   test_open_and_payload ();
   test_closed_alignment_and_v_wrap ();
   test_rest_errors_and_cancellation ();

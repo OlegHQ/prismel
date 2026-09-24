@@ -335,7 +335,7 @@ let test_parallel_scale () =
       && Geometry.payload_bytes one = Geometry.payload_bytes first)
     "Attribute Composite scale cardinality/topology sharing"
 
-let () =
+let run () =
   test_mean_patterns_owners_and_position ();
   test_identity_and_explicit_normals ();
   test_extremes_and_alpha_folds ();

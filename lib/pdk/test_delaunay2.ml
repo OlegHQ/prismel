@@ -102,7 +102,7 @@ let test_failures_and_cancellation () =
   match Delaunay2.build ~cancel ~x:[|0.;1.;0.|] ~y:[|0.;0.;1.|] () with
   | Error _ -> () | Ok _ -> fail "cancelled triangulation succeeded"
 
-let () =
+let run () =
   test_triangle ();
   test_square_and_seed ();
   test_duplicates_and_collinear ();

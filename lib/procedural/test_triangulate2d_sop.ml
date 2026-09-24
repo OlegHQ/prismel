@@ -28,7 +28,7 @@ let signature geometry =
   let topology = Pdk.Topology.Private.view (Pdk.Geometry.topology geometry) in
   Array.copy topology.vertex_points,Array.copy topology.primitive_offsets
 
-let () =
+let run () =
   let source = Sop.snapshot (input ()) in
   let node = Sop.triangulate_2d ~label:"planar"
       ~point_group:"square" ~projection:Pdk.Ops.Triangulate_2d_best_fit

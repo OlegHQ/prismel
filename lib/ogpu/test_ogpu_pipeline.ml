@@ -11,7 +11,7 @@ let layout device kind visibility =
   let group = ok (Ogpu.Binding.create_layout [ { binding = 0; kind; visibility } ]) in
   ok (Ogpu.Binding.create_pipeline_layout ~device ~capabilities:caps [ 0, group ])
 
-let () =
+let run () =
   let device = Ogpu.Handle.create_device () in
   let compute_shader = shader ~backend:"mock" ~entries:[ entry "main" Ogpu.Shader.Compute ]
     ~bindings:[ reflected 0 0 Ogpu.Shader.Storage_buffer [ Ogpu.Shader.Compute ] ] in

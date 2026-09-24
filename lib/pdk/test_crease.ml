@@ -316,7 +316,7 @@ let test_dense_parallel_exactness () =
   check (Mesh.Private.packed_view one_mesh = Mesh.Private.packed_view four_mesh)
     "Crease one/four-domain render mesh differs"
 
-let () =
+let run () =
   test_add_set_delete ();
   test_non_manifold_and_visualization ();
   test_subdivide_integration ();

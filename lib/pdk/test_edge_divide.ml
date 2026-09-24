@@ -147,7 +147,7 @@ let expect_code code = function
       code (Error.code error) (Error.to_string error))
   | Ok _ -> fail ("expected error " ^ code)
 
-let () =
+let run () =
   let source = two_quads () in
   let cut = Geometry.find_edge_group "cut" source |> Option.get in
   let shared = Ops.edge_divide ~grain:1 ~edges:cut ~divisions:3 source

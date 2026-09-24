@@ -768,7 +768,7 @@ let check_segment_seam_validation () =
   expect_invalid (Ops.sweep_circle ~segment_seam_attribute:"segment_seam"
       ~radius:0.1 wrong)
 
-let () =
+let run () =
   check_controls ();
   check_closed_frame ();
   check_validation ();

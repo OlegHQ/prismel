@@ -36,7 +36,7 @@ let cook graph =
     | Error error -> fail (Diagnostic.error_to_string error) in
   Session.close session; output
 
-let () =
+let run () =
   let graph = Sop.snapshot (bridge_source ())
       |> Sop.poly_bridge ~source_group:"source" ~destination_group:"destination"
            ~pairing:Pdk.Ops.Bridge_by_centroid ~reverse_destination:true

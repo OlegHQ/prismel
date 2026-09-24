@@ -824,7 +824,7 @@ let test_parallel_exact_scale () =
       || wq_one.z <> wq_four.z || wq_one.w <> wq_four.w then
     fail "200k weighted Attribute Interpolate one/four-domain exactness"
 
-let () =
+let run () =
   test_triangle_mixed_storage_and_position ();
   test_quad_ngon_and_curves ();
   test_destination_owners_group_blend_and_misses ();

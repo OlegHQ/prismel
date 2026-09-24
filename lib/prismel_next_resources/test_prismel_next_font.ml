@@ -1,6 +1,6 @@
 open Prismel_next_resources
 let get=function Ok x->x|Error e->failwith(Format.asprintf"%a"pp_error e)
-let ()=
+let run () =
   let font=get(Font.open_system~size:14.)in
   get(Font.set_style font[Font.Bold;Italic]);get(Font.set_outline font 0);
   get(Font.set_hinting font Font.Light_hinting);get(Font.set_kerning font true);

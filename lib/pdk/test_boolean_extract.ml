@@ -429,7 +429,7 @@ let test_materialization_validation () =
       && representatives = [|10;11;13|] && map = [|0;1;1;2;1|])
     "rounded-point coalescing lost stable representatives after duplicate gaps"
 
-let () =
+let run () =
   test_disjoint_operations ();
   test_nested_operations ();
   test_transverse_solid_operations ();

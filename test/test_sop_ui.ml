@@ -31,7 +31,7 @@ let inspectable_node values =
 
 let fail message = raise (Failure message)
 
-let () =
+let run () =
   if Sop_params_fixture.t_default.value <> 3
      || List.length (Parameter.fields Sop_params_fixture.t_schema) <> 1
   then fail "sop_params interface generation did not match implementation";

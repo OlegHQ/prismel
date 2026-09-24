@@ -5,7 +5,7 @@ open Sdl3
 let fail message = failwith ("SDL3 Metal test: " ^ message)
 let get = function Ok value -> value | Error error -> fail (Format.asprintf "%a" pp_error error)
 
-let () =
+let run () =
   if Sys.os_type <> "Unix" || not (Sys.file_exists "/System/Library/Frameworks/Metal.framework")
   then Printf.printf "SDL3 Metal bridge skipped on this platform\n%!"
   else begin

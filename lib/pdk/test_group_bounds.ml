@@ -264,7 +264,7 @@ let test_scale_parallel_exactness () =
       = edge_members (edge_group "edges" four))
     "Group Bounds edge one/four-domain exactness"
 
-let () =
+let run () =
   test_point_box_and_sphere ();
   test_vertex_and_primitive_containment ();
   test_edge_intersection_and_extremes ();

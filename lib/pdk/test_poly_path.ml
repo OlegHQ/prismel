@@ -461,7 +461,7 @@ let test_parallel_exact () =
       (Topology_index.create (Geometry.topology one)) = expected_edges)
     "PolyPath scale edge cardinality"
 
-let () =
+let run () =
   test_topology_and_payload ();
   test_endpoint_connection ();
   test_empty_and_failures ();

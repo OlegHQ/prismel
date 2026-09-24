@@ -1,6 +1,6 @@
 open Prismel
 
-let () =
+let run () =
   let builder = Scene_command.Display_list.Builder.create () in
   Scene_command.Display_list.Builder.solid_rect builder
     ~x:2. ~y:3. ~width:8. ~height:9. ~color:0xff0000ffl;

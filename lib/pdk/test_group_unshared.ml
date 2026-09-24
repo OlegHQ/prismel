@@ -149,7 +149,7 @@ let test_parallel_exactness_and_scale () =
   check (Group.cardinality (group Group.Point "loop__0" one) = 2_000)
     "boundary component grid cardinality"
 
-let () =
+let run () =
   test_unshared_owners_and_curves ();
   test_unshared_merge_and_failures ();
   test_boundary_components ();

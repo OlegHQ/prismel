@@ -230,7 +230,7 @@ let test_parallel_exactness () =
       && Geometry.primitive_count one = Geometry.primitive_count geometry)
     "Rewire Vertices scale cardinality"
 
-let () =
+let run () =
   test_point_rewire_and_edge_ancestry ();
   test_selection_promotion ();
   test_recursive_chains_and_cycles ();

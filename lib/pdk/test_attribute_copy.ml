@@ -274,7 +274,7 @@ let test_errors_and_scale () =
          <> Array.init count float_of_int then
     fail "100k Attribute Copy scale/domain exactness"
 
-let () =
+let run () =
   test_cyclic_order_and_rename ();
   test_match_modes ();
   test_cross_owner_and_detail ();

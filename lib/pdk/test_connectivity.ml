@@ -182,7 +182,7 @@ let test_parallel_exactness () =
   check (Geometry.point_count one = 150_801)
     "Connectivity scale cardinality"
 
-let () =
+let run () =
   test_point_and_primitive_modes ();
   test_seams_and_uv_islands ();
   test_attribute_output ();

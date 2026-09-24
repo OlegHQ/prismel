@@ -4,7 +4,7 @@ let get = function
   | Ok value -> value
   | Error error -> failwith (Format.asprintf "%a" pp_error error)
 
-let () =
+let run () =
   match Device.system_default () with
   | Error _ -> print_endline "library8 safe: skipped"
   | Ok device ->

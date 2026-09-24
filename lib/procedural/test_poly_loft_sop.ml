@@ -23,7 +23,7 @@ let sections () = Sop.merge [
   Sop.polyline [|0.,1.,0.; 0.6,1.,0.2; 1.4,1.,0.2; 2.,1.,0.|];
 ]
 
-let () =
+let run () =
   let graph = sections () |> Sop.poly_loft
       ~minimize:Pdk.Ops.Three_point_distance ~output_group:"loft" in
   let output = cook graph in

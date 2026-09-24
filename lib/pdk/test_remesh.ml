@@ -299,7 +299,7 @@ let test_parallel_exact () =
   check (geometry_equal one four)
     "Remesh one-domain/multi-domain geometry drift"
 
-let () =
+let run () =
   test_uniform_outputs_and_projection ();
   test_adaptive_hard_and_uv_seams ();
   test_input_points_only ();

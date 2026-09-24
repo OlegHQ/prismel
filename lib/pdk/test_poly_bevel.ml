@@ -319,7 +319,7 @@ let test_parallel_exact () =
   check (equal_geometry (cook 1) (cook 4))
     "PolyBevel one/four-domain output differs"
 
-let () =
+let run () =
   test_all_edges_and_profiles ();
   test_partial_network_and_clamping ();
   test_connected_network_flat_filter_and_normals ();

@@ -1,7 +1,7 @@
 open Metal
 let get=function Ok value->value|Error error->failwith(Format.asprintf"%a"pp_error error)
 let expect kind=function Error error when error.kind=kind->()|Error error->failwith error.message|Ok _->failwith"expected rejection"
-let ()=match Device.system_default()with Error _->print_endline"capture-scope11: skipped"|Ok device->
+let run () =match Device.system_default()with Error _->print_endline"capture-scope11: skipped"|Ok device->
   let manager=get(Capture.Manager.shared())in
   let queue=get(Command_queue.create device)in
   let scope=get(Capture.Scope.create manager(Capture.Capture_command_queue queue))in

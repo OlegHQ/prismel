@@ -4,21 +4,22 @@
  (modules pxui theme ui settings camera_controls)
  (libraries prismel scene_command))
 
-(test
- (name test_pxui_undo)
- (modules test_pxui_undo)
- (libraries prismel pxui))
+(executable
+ (name test_main)
+ (modules test_main test_pxui_undo test_ui_parity test_ui)
+ (libraries prismel pxui scene_command))
 
-(test
- (name test_ui_parity)
- (modules test_ui_parity)
+(rule
+ (aliases runtest test_pxui_undo)
+ (action (run %{exe:test_main.exe} test_pxui_undo)))
+
+(rule
+ (aliases runtest test_ui_parity)
  (deps fixtures/kit_panel_2x.png fixtures/kit_overlays_2x.png)
- (libraries prismel pxui)
  (action
   (setenv PRISMEL_UI_FONT %{dep:../../assets/fonts/DepartureMono-Regular.otf}
-   (run %{test}))))
+   (run %{exe:test_main.exe} test_ui_parity))))
 
-(test
- (name test_ui)
- (modules test_ui)
- (libraries prismel pxui scene_command))
+(rule
+ (aliases runtest test_ui)
+ (action (run %{exe:test_main.exe} test_ui)))

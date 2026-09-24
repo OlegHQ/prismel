@@ -4,7 +4,7 @@ let get = function
   | Ok value -> value
   | Error error -> failwith (Format.asprintf "%a" pp_error error)
 
-let () =
+let run () =
   if Sys.os_type <> "Unix"
      || not (Sys.file_exists "/System/Library/Frameworks/Metal.framework")
   then Printf.printf "Metal generated device capability test skipped\n%!"

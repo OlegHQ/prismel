@@ -5,27 +5,27 @@
  (libraries ogpu scene_command scene_execution runtime_next_orchestrator
   runtime_next_input prismel_next_resources unix))
 
-(test
- (name test_scene2_command)
- (modules test_scene2_command)
- (libraries prismel_next_execution))
+(executable
+ (name test_main)
+ (modules test_main test_scene2_command test_offscreen test_scene2_coordinates test_dense_scene2 test_ui_pipeline)
+ (libraries prismel_next_execution scene_command metal unix))
 
-(test
- (name test_offscreen)
- (modules test_offscreen)
- (libraries prismel_next_execution metal unix))
+(rule
+ (aliases runtest test_scene2_command)
+ (action (run %{exe:test_main.exe} test_scene2_command)))
 
-(test
- (name test_scene2_coordinates)
- (modules test_scene2_coordinates)
- (libraries prismel_next_execution scene_command metal))
+(rule
+ (aliases runtest test_offscreen)
+ (action (run %{exe:test_main.exe} test_offscreen)))
 
-(test
- (name test_dense_scene2)
- (modules test_dense_scene2)
- (libraries prismel_next_execution scene_command metal))
+(rule
+ (aliases runtest test_scene2_coordinates)
+ (action (run %{exe:test_main.exe} test_scene2_coordinates)))
 
-(test
- (name test_ui_pipeline)
- (modules test_ui_pipeline)
- (libraries prismel_next_execution scene_command))
+(rule
+ (aliases runtest test_dense_scene2)
+ (action (run %{exe:test_main.exe} test_dense_scene2)))
+
+(rule
+ (aliases runtest test_ui_pipeline)
+ (action (run %{exe:test_main.exe} test_ui_pipeline)))

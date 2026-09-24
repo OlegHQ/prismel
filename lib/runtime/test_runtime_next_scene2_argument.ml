@@ -3,7 +3,7 @@ open Ogpu.Types
 let get = function Ok value -> value | Error error -> failwith (Ogpu.Error.to_string error)
 let get_metal = function Ok value -> value | Error error -> failwith error.Metal.message
 
-let () =
+let run () =
   let before = get_metal (Metal.Release_queue.stats ()) in
   match Runtime_next.create ~width:4 ~height:4 () with
   | Error _ -> print_endline "runtime-next scene2 retained argument: skipped (no Metal device)"

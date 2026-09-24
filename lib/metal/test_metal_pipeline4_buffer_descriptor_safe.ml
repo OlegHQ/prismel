@@ -3,7 +3,7 @@ open Metal
 let get = function Ok value -> value | Error value -> failwith value.message
 let fail message = failwith message
 
-let () =
+let run () =
   let device = get (Device.system_default ()) in
   let library = get (Library.compile_source ~device
     "#include <metal_stdlib>\nusing namespace metal; kernel void p4(device uint *x [[buffer(0)]]) { x[0]=4; }") in

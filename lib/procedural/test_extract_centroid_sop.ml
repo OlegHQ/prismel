@@ -48,7 +48,7 @@ let fresh domains node =
   Fun.protect ~finally:(fun () -> Session.close session)
     (fun () -> cook session domains node)
 
-let () =
+let run () =
   let node = graph () in
   check (Node.operation node = "extract_centroid"
       && Node.cook_mode node = Node.Generic

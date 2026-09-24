@@ -29,7 +29,7 @@ vertex Out scene_vertex(uint i [[vertex_id]],const device uchar *input [[buffer(
 inline float unpack_depth(float4 c){float3 b=round(c.rgb*255.);return(b.x*65536.+b.y*256.+b.z)/16777215.;}
 fragment float4 scene_fragment(Out v [[stage_in]],const device float*p [[buffer(3)]],texture2d<float>d [[texture(4)]],sampler s [[sampler(5)]]){float4 w=float4(v.world,1.);float4 q=float4(dot(w,float4(p[0],p[1],p[2],p[3])),dot(w,float4(p[4],p[5],p[6],p[7])),dot(w,float4(p[8],p[9],p[10],p[11])),dot(w,float4(p[12],p[13],p[14],p[15])));if(q.w<=0.)return v.color;float2 uv=float2(q.x/q.w*.5+.5,.5-q.y/q.w*.5);float z=q.z/q.w;if(any(uv<0.)||any(uv>1.)||z<0.||z>1.)return v.color;float compare=z-(p[16]+p[17]*(1.-clamp(normalize(v.normal).z,0.,1.)));int radius=int(p[19]);int2 center=int2(floor(uv*float2(d.get_width(),d.get_height())));float visible=0.,count=0.;for(int y=-radius;y<=radius;y++)for(int x=-radius;x<=radius;x++){int2 a=center+int2(x,y);count+=1.;if(a.x<0||a.y<0||a.x>=int(d.get_width())||a.y>=int(d.get_height()))visible+=1.;else visible+=compare<=unpack_depth(d.sample(s,(float2(a)+.5)/float2(d.get_width(),d.get_height())))?1.:0.;}float visibility=(1.-p[18])+p[18]*visible/count;return float4(v.color.rgb*visibility,v.color.a);}
 |}
-let ()=match Device.system_default()with Error _->print_endline"scene execution Metal: skipped (no M1 device)"|Ok native_device->
+let run () =match Device.system_default()with Error _->print_endline"scene execution Metal: skipped (no M1 device)"|Ok native_device->
   let before=metal(Metal.Release_queue.stats())in
   let layer=metal(Metal.Metal_layer.create(Device.Private.metal native_device)(Metal.Metal_layer.default~width:4~height:4))in
   let driver,control=Backend.create~device:native_device~layer()in

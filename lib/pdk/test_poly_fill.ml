@@ -483,7 +483,7 @@ let test_parallel () =
       && group_cardinality Group.Primitive "patch" one = 20_000 * 4)
     "Poly Fill scale cardinality"
 
-let () =
+let run () =
   test_modes_and_payload ();
   test_unique_reverse_and_normals ();
   test_selection_and_failures ();

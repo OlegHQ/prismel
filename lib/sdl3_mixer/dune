@@ -19,21 +19,22 @@
  (c_library_flags (:include c_library_flags.sexp))
  (libraries sdl3 threads))
 
-(test
- (name test_sdl3_mixer)
- (modules test_sdl3_mixer)
- (libraries sdl3 sdl3_mixer)
+(executable
+ (name test_main)
+ (modules test_main test_sdl3_mixer test_sdl3_mixer_device_failure)
+ (libraries sdl3 sdl3_mixer))
+
+(rule
+ (aliases runtest test_sdl3_mixer)
  (action
   (setenv SDL_AUDIODRIVER dummy
-   (run %{test}))))
+   (run %{exe:test_main.exe} test_sdl3_mixer))))
 
-(test
- (name test_sdl3_mixer_device_failure)
- (modules test_sdl3_mixer_device_failure)
- (libraries sdl3_mixer)
+(rule
+ (aliases runtest test_sdl3_mixer_device_failure)
  (action
   (setenv SDL_AUDIODRIVER prismel_missing_audio_driver
-   (run %{test}))))
+   (run %{exe:test_main.exe} test_sdl3_mixer_device_failure))))
 
 (rule
  (alias qualification)

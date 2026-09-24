@@ -125,7 +125,7 @@ let test_parallel_exactness_and_scale () =
   check (Edge_group.cardinality one > 0)
     "incident-edge scale fixture selected no edges"
 
-let () =
+let run () =
   test_incident_pairwise_angles ();
   test_base_restriction_and_zero_length ();
   test_extreme_coordinates_and_failures ();

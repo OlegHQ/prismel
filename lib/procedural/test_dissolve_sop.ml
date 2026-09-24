@@ -13,7 +13,7 @@ let cook graph =
     | Error error -> fail (Diagnostic.error_to_string error) in
   Session.close session; output
 
-let () =
+let run () =
   let graph = Sop.grid ~connectivity:Pdk.Ops.Grid_quads
       ~columns:8 ~rows:6 ~size:2. ()
       |> Sop.group_edges ~name:"interior" ~incidence:Pdk.Ops.Manifold_edge

@@ -156,7 +156,7 @@ let events =
       }
   ]
 
-let () =
+let run () =
   Input.reset ~mouse:(0, 0);
   Input.begin_frame ();
   let translated = List.filter_map translate events in

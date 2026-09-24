@@ -248,7 +248,7 @@ let check_parallel_exact () =
       && Geometry.find_edge_group "spine_edges" one <> None)
     "parallel Resample cardinality/edge provenance"
 
-let () =
+let run () =
   check_length_modes ();
   check_diagnostics ();
   check_group_and_overrides ();

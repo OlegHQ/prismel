@@ -152,7 +152,7 @@ let disconnected_triangle_pairs count =
         abs (a - b) = 2 && min a b mod 4 = 0) in
   geometry, edges
 
-let () =
+let run () =
   let source = decorated_quad () in
   let flip = Geometry.find_edge_group "flip" source |> Option.get in
   let output = Ops.edge_flip ~grain:1 ~edges:flip source |> get_pdk in

@@ -27,7 +27,7 @@ let msaa_pass device target resolve samples =
   let resolve=Option.map(fun value->get(Render_pass.attachment device value~usage:Ogpu.Render_pass.Resolve_target))resolve in
   let color:Ogpu.Render_pass.color={texture;resolve;load=Clear;store=(if samples=1 then Store else Resolve);clear=(1.,0.,0.,1.)}in
   get(Ogpu.Render_pass.create(Device.Private.handle device){colors=[|Some color|];depth=None;stencil=None;viewport={x=0;y=0;width=4;height=4};scissor={x=0;y=0;width=4;height=4}})
-let ()=match Device.system_default()with Error _->print_endline"ogpu_metal render pass: skipped (no device)"|Ok device->
+let run () =match Device.system_default()with Error _->print_endline"ogpu_metal render pass: skipped (no device)"|Ok device->
   let before=get_metal(Metal.Release_queue.stats())in
   let cache=get(Pipeline.create_cache~capacity:8)in let shader=shader()in
   let descriptor : Ogpu.Pipeline.render_descriptor={backend="metal";label=Some"typed-pass";layout=layout device;vertex=shader;vertex_entry="pass_vertex";fragment=Some shader;fragment_entry=Some"pass_fragment";color_format=Rgba8_unorm;depth_format=No_depth;sample_count=1}in

@@ -269,7 +269,7 @@ let test_parallel_exact () =
   check (Array.length (int_array "self_hits" one).values > 0)
     "Boolean Detect AxA scale fixture found no intersections"
 
-let () =
+let run () =
   test_cross_and_coplanar ();
   test_restrictions_and_errors ();
   test_tolerance_and_translation ();

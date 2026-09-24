@@ -9,7 +9,7 @@ let cook session node = match Session.cook session
   | Ok output -> output.Session.geometry
   | Error error -> fail (Diagnostic.error_to_string error)
 
-let () =
+let run () =
   let source = Sop_catalog.Box.create ~label:"box"
       ~size:(Vec3.create 2. 2. 2.) ~connectivity:Pdk.Ops.Box_quads
       ~consolidate_points:true () in

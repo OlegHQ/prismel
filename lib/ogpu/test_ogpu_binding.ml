@@ -13,7 +13,7 @@ let layout () =
     ; { binding = 0; kind = Buffer; visibility = [ Vertex; Fragment ] }
     ; { binding = 1; kind = Texture; visibility = [ Fragment ] } ])
 
-let () =
+let run () =
   let caps = Ogpu.Capabilities.minimum_m1 in
   let device = Ogpu.Handle.create_device () in
   let foreign = Ogpu.Handle.create_device () in

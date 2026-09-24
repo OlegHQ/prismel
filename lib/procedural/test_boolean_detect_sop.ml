@@ -153,7 +153,7 @@ let test_diagnostics_and_constructor_validation () =
       ~self_intersecting_group:(Some "boolean_intersections") source))
     "Boolean Detect SOP accepted colliding AxA/AxB group names"
 
-let () =
+let run () =
   test_identity_cache_and_parallel ();
   test_diagnostics_and_constructor_validation ();
   print_endline "boolean detect SOP tests passed"

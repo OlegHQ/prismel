@@ -2,7 +2,7 @@ open Prismel
 
 let require condition message = if not condition then failwith message
 
-let () =
+let run () =
   let assets = Assets.create ~root:"." () in
   require (Assets.root assets = ".") "asset root";
   require (Assets.resolve assets "image.png" = "./image.png")

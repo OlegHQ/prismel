@@ -612,7 +612,7 @@ let test_transfer_parallel_exactness () =
        "Group Transfer cancellation code"
    | Ok _ -> fail "cancelled Group Transfer published geometry")
 
-let () =
+let run () =
   test_ordered_group_core ();
   test_ordered_group_topology_remap ();
   test_complement_and_combine ();

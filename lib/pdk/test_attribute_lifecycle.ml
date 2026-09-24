@@ -50,7 +50,7 @@ let names geometry =
   Geometry.attributes geometry
   |> List.map (fun value -> Attribute.owner value, Attribute.name value)
 
-let () =
+let run () =
   let applied = Attribute_pattern.compile "^bar score" |> get_ok in
   check (not (Attribute_pattern.apply ~selected:true applied "bar"))
     "pattern apply did not subtract an implicit selection";

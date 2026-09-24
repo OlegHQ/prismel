@@ -58,7 +58,7 @@ let fnv1a bytes =
 
 let destroy functions = List.iter (fun function_ -> get (function_ ())) functions
 
-let () =
+let run () =
   match Device.system_default () with
   | Error _ -> print_endline "Metal M1 ray query: skipped (no device)"
   | Ok device ->

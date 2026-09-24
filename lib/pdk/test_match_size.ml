@@ -306,7 +306,7 @@ let check_parallel_exact () =
   check (equal_geometry selected_one selected_many)
     "one-domain and four-domain incidence-selected Match Size differ"
 
-let () =
+let run () =
   check_numeric_targets ();
   check_selections ();
   check_fit_modes ();

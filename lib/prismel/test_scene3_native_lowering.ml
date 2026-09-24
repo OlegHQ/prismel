@@ -1,6 +1,6 @@
 open Prismel
 
-let () =
+let run () =
   let camera=Camera.orthographic~height:2.~at:(Vec3.create 0. 0. 2.)
     ~target:Vec3.zero()in
   let prepare ~width ~height scene =

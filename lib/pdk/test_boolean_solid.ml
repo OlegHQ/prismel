@@ -857,7 +857,7 @@ let test_certified_rounding_repair () =
   check ((repaired, result) = run 4)
     "certified rounding repair differs between one and four domains"
 
-let () =
+let run () =
   test_build_once_query_many ();
   test_domain_exactness ();
   test_shatter_products ();

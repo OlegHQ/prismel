@@ -130,7 +130,7 @@ let test_validation () =
   | Error error -> fail "unexpected cancellation error: %s" (Error.to_string error)
   | Ok _ -> fail "cancelled refinement completed"
 
-let () =
+let run () =
   test_batch ();
   test_domain_exactness ();
   test_coplanar_batch ();

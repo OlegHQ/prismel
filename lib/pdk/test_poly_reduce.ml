@@ -206,7 +206,7 @@ let test_extreme_coordinate_normalization () =
       "PolyReduce extreme-coordinate normalization produced non-finite output"
   done
 
-let () =
+let run () =
   test_reduces_and_preserves_boundary ();
   test_original_positions_and_constraints ();
   test_payload_group_and_edge_ancestry ();

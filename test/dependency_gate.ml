@@ -148,7 +148,7 @@ let violations graph ~scan =
     else None) scan in
   edge_errors @ token_errors
 
-let () =
+let run () =
   let graph = graph ["lib"; "ppx"] in
   if List.length graph < 20 then failwith "dependency gate found too few libraries (wrong cwd?)";
   (* injected violations must fire *)

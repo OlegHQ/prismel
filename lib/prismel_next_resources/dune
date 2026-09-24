@@ -4,23 +4,25 @@
  (modules prismel_next_resources)
  (libraries sdl3 sdl3_image sdl3_ttf sdl3_mixer ogpu unix))
 
-(test
- (name test_prismel_next_resources)
- (modules test_prismel_next_resources)
+(executable
+ (name test_main)
+ (modules test_main test_prismel_next_resources test_prismel_next_font test_prismel_next_audio test_png_rows)
  (libraries prismel_next_resources unix))
 
-(test
- (name test_prismel_next_font)
- (modules test_prismel_next_font)
- (libraries prismel_next_resources))
+(rule
+ (aliases runtest test_prismel_next_resources)
+ (action (run %{exe:test_main.exe} test_prismel_next_resources)))
 
-(test
- (name test_prismel_next_audio)
- (modules test_prismel_next_audio)
- (libraries prismel_next_resources)
- (action (setenv SDL_AUDIODRIVER dummy (run %{test}))))
+(rule
+ (aliases runtest test_prismel_next_font)
+ (action (run %{exe:test_main.exe} test_prismel_next_font)))
 
-(test
- (name test_png_rows)
- (modules test_png_rows)
- (libraries prismel_next_resources))
+(rule
+ (aliases runtest test_prismel_next_audio)
+ (action
+  (setenv SDL_AUDIODRIVER dummy
+   (run %{exe:test_main.exe} test_prismel_next_audio))))
+
+(rule
+ (aliases runtest test_png_rows)
+ (action (run %{exe:test_main.exe} test_png_rows)))

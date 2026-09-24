@@ -302,7 +302,7 @@ let test_parallel_scale () =
       && Geometry.topology one == Geometry.topology geometry)
     "Attribute Mirror scale cardinality/topology sharing"
 
-let () =
+let run () =
   test_explicit_mapping_all_storage ();
   test_plane_points_and_transforms ();
   test_vertex_primitive_and_plane_primitive ();

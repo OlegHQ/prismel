@@ -1,7 +1,7 @@
 open Metal
 let expect_ok = function Ok value -> value | Error error -> failwith error.message
 let expect_error = function Error _ -> () | Ok _ -> failwith "expected rejection"
-let () =
+let run () =
   let options = expect_ok (Compile_options.create [| "COUNT", "4"; "MODE", "safe" |]) in
   let macros = Compile_options.macros options in
   macros.(0) <- "CHANGED", "1";

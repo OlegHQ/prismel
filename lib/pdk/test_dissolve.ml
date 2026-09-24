@@ -270,7 +270,7 @@ let test_parallel () =
   check (Geometry.point_count one = 4 && Geometry.vertex_count one = 4
       && Geometry.primitive_count one = 1) "large grid cardinality"
 
-let () =
+let run () =
   test_interior ();
   test_boundary ();
   test_bridges ();

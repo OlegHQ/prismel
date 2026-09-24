@@ -7,7 +7,7 @@ let stage scene=
   |[identity,Prismel_next_execution.Image image]->identity,image
   |_->failwith"automatic text resource shape"
 
-let ()=
+let run () =
   Font.shutdown();
   let first_identity=ref None and first_pixels=ref None in
   Gc.full_major();let before=Gc.allocated_bytes()in

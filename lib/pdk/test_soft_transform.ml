@@ -181,7 +181,7 @@ let test_errors_and_parallel () =
       "Soft Transform one/four-domain exactness")
     [Ops.Soft_radius; Ops.Soft_edge]
 
-let () =
+let run () =
   test_radius_and_edge ();
   test_attribute ();
   test_errors_and_parallel ();

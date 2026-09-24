@@ -46,8 +46,8 @@ let verify_negative_fixture () =
   | [_] -> ()
   | _ -> failwith "injected renderer selector was not rejected"
 
-let () = match Array.to_list Sys.argv with
-  | [_; raw_path; api_path; interface_path; stubs_path; runtime_path;
+let run () = match Array.to_list Sys.argv with
+  | [_; _; raw_path; api_path; interface_path; stubs_path; runtime_path;
       orchestrator_path; execution_path] ->
       let core_paths = [raw_path; api_path; interface_path; stubs_path;
         runtime_path; orchestrator_path; execution_path] in

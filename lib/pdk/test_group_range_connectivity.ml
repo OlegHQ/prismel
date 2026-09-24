@@ -427,7 +427,7 @@ let test_multiple_ranges_parallel_exactness () =
     [Group.Point, "periodic"; Group.Point, "pieces";
      Group.Primitive, "partition"]
 
-let () =
+let run () =
   test_point_components ();
   test_region_and_primitive_modes ();
   test_attribute_components ();

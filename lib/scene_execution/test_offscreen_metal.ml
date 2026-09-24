@@ -19,7 +19,7 @@ vertex V scene_vertex(uint i [[vertex_id]]) {
 fragment float4 scene_fragment(){return float4(0.25,0.5,0.75,1.);}
 |}
 
-let () =
+let run () =
   match Device.system_default () with
   | Error _ -> print_endline "offscreen Metal execution: skipped (no device)"
   | Ok native_device ->

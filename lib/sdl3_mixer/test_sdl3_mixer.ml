@@ -43,7 +43,7 @@ let any_nonzero bytes =
   in
   loop 0
 
-let () =
+let run () =
   let compiled = Version.compiled and linked = Version.linked () in
   if compiled <> { Version.major = 3; minor = 2; patch = 4 }
       || linked <> compiled || not Version.stable_headers

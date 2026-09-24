@@ -1,4 +1,4 @@
-let () =
+let run () =
   let open Pxui.Undo in
   let h = create ~capacity:3 0 in
   let h = commit 1 h |> commit 2 |> amend 3 in

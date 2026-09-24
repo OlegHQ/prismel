@@ -1,6 +1,6 @@
 open Prismel_next_resources
 let get=function Ok x->x|Error e->failwith(Format.asprintf"%a"pp_error e)
-let ()=
+let run () =
   let original=Bytes.of_string"\x11\x22\x33\xff\x44\x55\x66\xff\x77\x88\x99\xff\xaa\xbb\xcc\xff"in
   let image=get(Image.create~width:2~height:2~rgba:original)in Bytes.fill original 0 16 '\000';
   let identity=Image.identity image and generation=Image.generation image in

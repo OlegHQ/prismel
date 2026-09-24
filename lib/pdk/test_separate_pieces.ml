@@ -258,7 +258,7 @@ let test_dense_parallel_exactness () =
   check (Mesh.Private.packed_view one_mesh = Mesh.Private.packed_view four_mesh)
     "Separate Pieces one/four-domain render mesh differs"
 
-let () =
+let run () =
   test_primitive_integer_and_move_back ();
   test_text_axis_and_point_owner ();
   test_validation_and_cancellation ();

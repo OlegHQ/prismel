@@ -228,7 +228,7 @@ let test_validation_and_cancellation () =
       ~x:[|0.;1.|] ~y:[|0.;0.|] ~segment_points:[|0;1|] () with
   | Error _ -> () | Ok _ -> fail "cancelled arrangement succeeded"
 
-let () =
+let run () =
   test_crossing_cdt ();
   test_crossing_policy ();
   test_t_junction_and_overlap ();

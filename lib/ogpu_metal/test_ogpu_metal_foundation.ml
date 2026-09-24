@@ -7,7 +7,7 @@ let expect kind = function Error error when error.Ogpu.Error.kind = kind -> () |
 let descriptor ?(size = 64L) usage : Ogpu.Types.buffer_descriptor =
   { label = Some "ogpu-metal-foundation"; size; usage }
 
-let () =
+let run () =
   let unsupported = get (Adapter.capabilities
     { max_buffer_size = 1_024L; max_texture_dimension_2d=1024;max_bind_groups=4;max_sample_count=4;ray_tracing = false; metal_fx = false }) in
   if unsupported.ray_tracing || unsupported.metal_fx then failwith "unsupported profile drift";

@@ -45,7 +45,7 @@ let group_bits owner name geometry =
   | Some group ->
       Array.init (Group.length group) (fun element -> Group.mem element group)
 
-let () =
+let run () =
   let graph = Sop.snapshot (source ())
       |> Sop.blast_by_attribute ~group:"base" ~invert:true
            ~owner:Pdk.Ops.Blast_primitives ~attribute:"class"

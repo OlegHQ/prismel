@@ -23,7 +23,7 @@ let region_has_pixel_other_than canvas ~x0 ~y0 ~x1 ~y1 expected=
   done;
   !found
 
-let ()=
+let run () =
   let baseline=live_handles()in
   let canvas=Canvas.create_exn~width:64~height:64 in
   let rendered=ref 0 in

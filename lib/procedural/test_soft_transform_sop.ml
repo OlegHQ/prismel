@@ -51,7 +51,7 @@ let same_output left right =
   && same_float_array left_p.z right_p.z
   && same_float_array (weight left) (weight right)
 
-let () =
+let run () =
   let graph = Sop.snapshot (source ())
       |> Sop.soft_transform_trs ~metric:Pdk.Ops.Soft_edge
            ~falloff:Pdk.Ops.Soft_quadratic ~radius:3.5

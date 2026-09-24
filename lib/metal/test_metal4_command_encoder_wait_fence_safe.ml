@@ -9,7 +9,7 @@ let reject kind = function
   | Error error -> failwith (Format.asprintf "%a" pp_error error)
   | Ok _ -> failwith "expected Metal 4 fence-wait rejection"
 
-let () =
+let run () =
   match Device.system_default () with
   | Error _ -> print_endline "MTL4CommandEncoder fence wait: skipped (no device)"
   | Ok device ->

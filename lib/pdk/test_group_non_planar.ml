@@ -153,7 +153,7 @@ let test_scale_parallel_exactness () =
   check (Group.cardinality one = 26_668)
     "Group Non-Planar scale cardinality"
 
-let () =
+let run () =
   test_tolerance_and_primitive_kind ();
   test_stable_support_plane ();
   test_triangle_is_planar ();

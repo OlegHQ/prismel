@@ -364,7 +364,7 @@ let test_parallel_exact () =
   check (Geometry.point_count one > Geometry.point_count source)
     "Point Split scale fixture did not split"
 
-let () =
+let run () =
   test_unique_and_selection ();
   test_attribute_clusters_and_tolerance ();
   test_group_clusters ();

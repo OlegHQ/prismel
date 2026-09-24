@@ -12,7 +12,7 @@ let texture : Ogpu.Types.texture_descriptor =
   { label = Some "mock"; width = 8; height = 8; depth = 1; mip_levels = 1
   ; sample_count = 1; usage = [ Ogpu.Types.Texture_binding ] }
 
-let () =
+let run () =
   let m1 = ok (Ogpu.Mock.create_device ~profile:M1 ~capacities) in
   expect Ogpu.Error.Invalid_state (Ogpu.Mock.require_ray_tracing m1);
   ignore (ok (Ogpu.Mock.require_metal_fx m1));

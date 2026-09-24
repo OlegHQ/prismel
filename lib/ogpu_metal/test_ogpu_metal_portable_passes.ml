@@ -5,7 +5,7 @@ let source={|#include <metal_stdlib>
 using namespace metal;
 kernel void portable_compute(device uint *v [[buffer(0)]], uint i [[thread_position_in_grid]]) { v[i] = v[i] * 3 + 1; }
 |}
-let ()=match Device.system_default()with Error _->print_endline"ogpu_metal portable passes: skipped (no device)"|Ok device->
+let run () =match Device.system_default()with Error _->print_endline"ogpu_metal portable passes: skipped (no device)"|Ok device->
   let before=get_metal(Metal.Release_queue.stats())in let queue=get(Queue.create device)in
   let bd usage size : Ogpu.Types.buffer_descriptor={label=None;size;usage}in
   let a=get(Buffer.create device~memory:Buffer.Shared(bd[Copy_src;Copy_dst]512L))and b=get(Buffer.create device~memory:Buffer.Shared(bd[Copy_src;Copy_dst]512L))in

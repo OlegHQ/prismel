@@ -314,7 +314,7 @@ let test_seam_products () =
    | Error error -> fail "unexpected seam naming error: %s" (Error.to_string error)
    | Ok _ -> fail "public Boolean seam accepted duplicate group names")
 
-let () =
+let run () =
   test_solid_products ();
   test_surface_cut_and_payload ();
   test_normal_payload_orientation ();

@@ -9,7 +9,7 @@ let expect kind = function
   | Error error -> failwith (Format.asprintf "unexpected: %a" pp_error error)
   | Ok _ -> failwith "expected rejection"
 
-let () =
+let run () =
   match Device.system_default () with
   | Error _ -> print_endline "command-buffer19: skipped"
   | Ok device ->

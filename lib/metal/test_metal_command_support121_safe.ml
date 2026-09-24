@@ -2,7 +2,7 @@ open Metal
 let fail format=Printf.ksprintf failwith format
 let get=function Ok x->x|Error e->fail "%s"(Format.asprintf "%a" pp_error e)
 let expect kind=function Error e when e.kind=kind->()|Error e->fail "%s"(Format.asprintf "%a" pp_error e)|Ok _->fail "expected rejection"
-let ()=
+let run () =
   let manager=get(Capture.Manager.shared())in
   ignore(get(Capture.Manager.supports_destination manager Capture.Developer_tools));
   ignore(get(Capture.Manager.is_capturing manager));

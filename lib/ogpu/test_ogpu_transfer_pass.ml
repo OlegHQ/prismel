@@ -2,7 +2,7 @@ open Ogpu.Transfer_pass
 let fail s=raise(Failure s)
 let ok=function Ok x->x|Error e->fail(Ogpu.Error.to_string e)
 let reject=function Error _->()|Ok _->fail"expected rejection"
-let ()=let d=Ogpu.Handle.create_device()and f=Ogpu.Handle.create_device()in
+let run () =let d=Ogpu.Handle.create_device()and f=Ogpu.Handle.create_device()in
  let bd usage:Ogpu.Types.buffer_descriptor={label=None;size=4096L;usage}and td usage:Ogpu.Types.texture_descriptor={label=None;width=8;height=8;depth=1;mip_levels=2;sample_count=1;usage}in
  let bh=Ogpu.Handle.create~device:d and dh=Ogpu.Handle.create~device:d and th=Ogpu.Handle.create~device:d and th2=Ogpu.Handle.create~device:d in
  let src=buffer~device:d bh(bd[Copy_src])and dst=buffer~device:d dh(bd[Copy_dst])and tex=texture~device:d th(td[Texture_copy_dst;Texture_copy_src])and tex2=texture~device:d th2(td[Texture_copy_dst])in

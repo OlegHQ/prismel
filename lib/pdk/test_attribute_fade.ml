@@ -249,7 +249,7 @@ let test_dense_parallel_exactness () =
   check (Mesh.Private.packed_view one_mesh = Mesh.Private.packed_view four_mesh)
     "Attribute Fade one/four-domain render mesh differs"
 
-let () =
+let run () =
   test_timing_boundaries ();
   test_selection_ramps_and_visualization ();
   test_reference_inputs_and_retime ();

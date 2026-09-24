@@ -6,7 +6,7 @@ module P = Prismel_pathtracer
 let get = function Ok v -> v | Error e -> failwith e
 let metal = function Ok v -> v | Error e -> failwith (Format.asprintf "%a" Metal.pp_error e)
 
-let () =
+let run () =
   let initial_handles = (metal (Metal.Release_queue.stats ())).live_handles in
   let sphere = get (Result.map_error Pdk.Error.to_string
     (Pdk.Ops.uv_sphere ~center:(Prismel.Vec3.create 0. 1. 0.) ~segments:24 ~rings:12 ~radius:1. ())) in

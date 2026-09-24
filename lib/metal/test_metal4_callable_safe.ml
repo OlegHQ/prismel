@@ -5,7 +5,7 @@ let ml_source={|#include <metal_stdlib>
 using namespace metal;
 kernel void metal4_ml_fixture(device uint *out [[buffer(0)]]) { out[0]=32; }
 |}
-let ()=match Device.system_default()with
+let run () =match Device.system_default()with
 |Error _->print_endline"metal4 callable safe: skipped (no device)"
 |Ok device->
  match Command4.Allocator.create device with

@@ -64,8 +64,8 @@ let cached_text cache font ~color text =
           cache.entries <- trim 0 [] (inserted :: cache.entries);
           Some surface
 
-let () =
-  if Array.length Sys.argv <> 1 then fail "unexpected command-line arguments";
+let run () =
+  if Array.length Sys.argv <> 2 then fail "unexpected command-line arguments";
   let font_path = get_ttf (Font.system_path ()) in
   if not (Sys.file_exists font_path) then
     fail "installed system font discovery returned a missing path";

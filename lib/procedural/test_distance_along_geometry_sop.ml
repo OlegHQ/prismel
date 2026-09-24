@@ -48,7 +48,7 @@ let same_float_array left right =
      done;
      !same
 
-let () =
+let run () =
   let graph = Sop.snapshot (source ())
       |> Sop.distance_along_geometry
            ~start:(Sop.Point_group "distance_start")

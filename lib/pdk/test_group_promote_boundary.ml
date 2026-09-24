@@ -275,7 +275,7 @@ let test_parallel_exactness () =
       (group Group.Point "outline_points" four))
     "Group Promote Boundary point output differs by domain count"
 
-let () =
+let run () =
   test_primitive_boundary ();
   test_point_vertex_and_edge_sources ();
   test_all_owner_pairs ();
