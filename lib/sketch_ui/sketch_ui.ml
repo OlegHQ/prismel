@@ -288,6 +288,8 @@ module Workspace = struct
       Ui.draw ui box (fun paint (x, y, w, h) ->
         Ui.Paint.fill paint ~x ~y ~w ~h theme.foreground);
       let signal = Ui.signal ui box in
+      if signal.hovered || signal.held then
+        Ui.request_cursor ui `Horizontal_resize;
       let dx, _ = signal.drag in
       if (signal.held || signal.released) && dx <> 0. then adjust value frame which dx
       else value in
@@ -1081,6 +1083,12 @@ end
 module CC = Pxui.Camera_control
 module CC2 = Pxui.Camera2_control
 
+let set_ui_cursor ui visible =
+  let shape = match if visible then Pxui.Ui.cursor ui else None with
+    | Some shape -> (shape :> [`Default|`Horizontal_resize|`Vertical_resize])
+    | None -> `Default in
+  match Sketch.set_cursor shape with Ok () -> () | Error error -> failwith error
+
 module Environment3 = struct
   type nonrec layout = layout
   let default_layout = default_layout
@@ -1434,6 +1442,10 @@ module Environment3 = struct
     let init _frame = create ?layout ~name ?presets ?timeline_frames ?factories ?camera ?background ?seed ?grain ?domains
         ?max_entries ?max_payload_bytes ~graph ~prepare ~scene3
         ?overlay () |> Result.get_ok in
+    let update value frame =
+      let value = update value frame in
+      set_ui_cursor value.core.ui (CC.ui_visible value.camera_control);
+      value in
     ignore (Sketch.run_state ~config ~init ~update ~view:scene
       ~after_present ~on_stop:close ())
 end
@@ -1603,6 +1615,10 @@ module Environment2 = struct
     let init _frame = create ?layout ~name ?presets ?timeline_frames ?factories ?camera ?background ?seed ?grain ?domains
         ?max_entries ?max_payload_bytes ~graph ~prepare ~scene2
         ?overlay () |> Result.get_ok in
+    let update value frame =
+      let value = update value frame in
+      set_ui_cursor value.core.ui (CC2.ui_visible value.camera_control);
+      value in
     ignore (Sketch.run_state ~config ~init ~update ~view:scene
       ~after_present ~on_stop:close ())
 end

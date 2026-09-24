@@ -196,6 +196,7 @@ and ui = {
   mutable focus : int;
   mutable composition : string;
   mutable command_down : bool;
+  mutable requested_cursor : [`Horizontal_resize|`Vertical_resize] option;
   (* this frame's raw events and logical size, for modal dismissal *)
   mutable frame_events : Event.t list;
   mutable view_w : float;
@@ -433,7 +434,7 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     kit_row_height = 24; kit_padding = 3;
     pointer = (Float.nan, Float.nan); hot = 0; active = 0;
     active_button = Input.LeftButton; active_press = (0., 0.); focus = 0; composition = "";
-    command_down = false;
+    command_down = false; requested_cursor = None;
     frame_events = []; view_w = 0.; view_h = 0.; modal_heights = Hashtbl.create 4;
     signals = Int_table.create 16;
     hit_count = 0; hit_keys = [||]; hit_flags_of = [||];
@@ -557,6 +558,7 @@ let scroll_target ui point =
 
 let route ui (frame : Frame.t) =
   Int_table.reset ui.signals;
+  ui.requested_cursor <- None;
   ui.frame_events <- frame.events;
   ui.command_down <- List.mem Input.Meta frame.keys || List.mem Input.Ctrl frame.keys;
   ui.view_w <- float frame.width; ui.view_h <- float frame.height;
@@ -652,6 +654,8 @@ let route ui (frame : Frame.t) =
       frame.events then 0 else topmost ui ui.pointer)
 
 let wants_pointer ui = ui.hot <> 0 || ui.active <> 0
+let cursor ui = ui.requested_cursor
+let request_cursor ui shape = ui.requested_cursor <- Some shape
 let text_input_focused ui = ui.focus <> 0
 let unfocus ui = ui.focus <- 0; ui.composition <- ""
 
@@ -1259,6 +1263,9 @@ let splitter ui ?(axis = Row) ?(thickness = 6.) label =
   let theme = ui.theme in
   draw ui divider (fun paint (x, y, w, h) -> Paint.fill paint ~x ~y ~w ~h theme.foreground);
   let signal = signal ui divider in
+  if signal.hovered || signal.held then
+    request_cursor ui (match axis with Row -> `Horizontal_resize
+      | Column -> `Vertical_resize);
   let dx, dy = signal.drag in
   if signal.held || signal.released then (match axis with Row -> dx | Column -> dy)
   else 0.

@@ -59,6 +59,10 @@ val scene : t -> Prismel.Scene.t
 val wants_pointer : t -> bool
 (** The pointer was over a UI box, or a box holds pointer capture. *)
 
+val cursor : t -> [`Horizontal_resize|`Vertical_resize] option
+val request_cursor : t -> [`Horizontal_resize|`Vertical_resize] -> unit
+(** Cursor requested by a hovered or captured PXUI control. *)
+
 val text_input_focused : t -> bool
 (** A text field or numeric editor owns keyboard input. *)
 

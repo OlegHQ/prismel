@@ -272,6 +272,12 @@ hook. The UI offers the supported native 1× export factor. PXUI copy, cut, and
 paste go through the public `Prismel.Clipboard` result boundary; failed writes
 never clear a text value.
 
+PXUI splitters request horizontal or vertical resize cursors while hovered or
+captured. The Sketch UI host sends that request through `Sketch.set_cursor` and
+the execution/runtime boundary, restoring the default cursor when no control
+requests one. `Runtime_next` creates SDL cursor handles lazily, reuses one per
+shape, and destroys them with the window. PXUI never imports SDL3.
+
 # Relative pointer mode
 
 `Sketch.set_relative_mouse` is the only public entry to SDL relative mouse

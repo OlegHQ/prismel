@@ -4,7 +4,8 @@ type window_facts={title:string;logical_width:int;logical_height:int;drawable_wi
 type t={window:Sdl3.Window.t;view:Sdl3.Metal_view.t;renderer:Scene_execution.t;
   cache:Ogpu_metal.Pipeline.cache;device:Ogpu_metal.Device.t;
   control:Ogpu_metal.Backend.control;mutable facts:frame_facts;vsync:bool;
-  mutable dead:bool}
+  mutable dead:bool;mutable cursors:([`Default|`Horizontal_resize|`Vertical_resize]*Sdl3.Cursor.t)list;
+  mutable cursor_shape:[`Default|`Horizontal_resize|`Vertical_resize] option}
 let gpu_film_texture value ~width ~height =
   let operation="Runtime_next.gpu_film_texture" in
   if value.dead then Error(Ogpu.Error.make operation Ogpu.Error.Stale_handle "runtime is destroyed")
@@ -153,7 +154,7 @@ let create ?(vsync=true) ?(hidden=true) ?(title="Prismel") ~width ~height ()=
                   |Error error->ignore(Scene_execution.destroy renderer);cleanup_sdl();
                     Error error
                   |Ok()->Ok{window;view;renderer;cache;device;control;facts;
-                    vsync;dead=false})
+                    vsync;dead=false;cursors=[];cursor_shape=None})
 let create_offscreen ~logical_width ~logical_height ~width ~height=
   let op="Runtime_next.create_offscreen"in
   if width<=0||height<=0||logical_width<=0||logical_height<=0 then
@@ -225,6 +226,19 @@ let set_resizable value enabled=window_call"Runtime_next.set_resizable"(fun wind
 let set_always_on_top value enabled=window_call"Runtime_next.set_always_on_top"(fun window->Sdl3.Window.set_always_on_top window enabled)value
 let set_fullscreen value enabled=window_call"Runtime_next.set_fullscreen"(fun window->Sdl3.Window.set_fullscreen window enabled)value
 let set_relative_mouse value enabled=window_call"Runtime_next.set_relative_mouse"(fun window->Sdl3.Window.set_relative_mouse window enabled)value
+let set_cursor value shape=live_window"Runtime_next.set_cursor"value(fun _->
+  if value.cursor_shape=Some shape then Ok()else
+  let cursor=match List.assoc_opt shape value.cursors with
+  |Some cursor->Ok cursor
+  |None->
+      let native=match shape with `Default->Sdl3.Cursor.Default
+        |`Horizontal_resize->Sdl3.Cursor.Ew_resize
+        |`Vertical_resize->Sdl3.Cursor.Ns_resize in
+      Result.map(fun cursor->value.cursors<-(shape,cursor)::value.cursors;cursor)
+        (sdl"Runtime_next.set_cursor"(Sdl3.Cursor.create native))in
+  match cursor with Error _ as error->error|Ok cursor->
+    match sdl"Runtime_next.set_cursor"(Sdl3.Cursor.set cursor)with
+    |Error _ as error->error|Ok()->value.cursor_shape<-Some shape;Ok())
 let set_text_input_area value area=window_call"Runtime_next.set_text_input_area"
   (* ponytail: the IME cursor stays at the region origin until PXUI exposes
      caret offsets in its scene metadata. *)
@@ -245,6 +259,8 @@ let destroy (value:t)=if value.dead then Ok()else(
   let record=function Ok()->()|Error error->if!failure=None then failure:=Some error in
   record(Scene_execution.destroy value.renderer);
   record(sdl"Runtime_next.destroy"(Sdl3.Text_input.stop value.window));
+  List.iter(fun(_,cursor)->record(sdl"Runtime_next.destroy"(Sdl3.Cursor.destroy cursor)))value.cursors;
+  value.cursors<-[];
   record(sdl"Runtime_next.destroy"(Sdl3.Metal_view.destroy value.view));
   record(sdl"Runtime_next.destroy"(Sdl3.Window.destroy value.window));
   record(sdl"Runtime_next.destroy"(Sdl3.Init.quit_subsystems[Sdl3.Init.Video]));

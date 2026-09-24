@@ -235,6 +235,17 @@ let run () =
   if not !hovered || not (Ui.wants_pointer ui) then fail "hover did not follow the pointer";
   Ui.frame ui (frame ~scale:2. ~time:0.2 [move (300, 200)]) build;
   if !hovered || Ui.wants_pointer ui then fail "hover outlived the pointer";
+  let divider ui =
+    let parent = Ui.box ui ~w:(Ui.Px 100.) ~h:(Ui.Px 100.)
+        ~axis:Ui.Row "divider parent" in
+    Ui.within ui parent (fun () -> ignore (Ui.splitter ui "divider")) in
+  Ui.frame ui (frame ~scale:1. ~time:0.3 []) divider;
+  Ui.frame ui (frame ~scale:1. ~time:0.4 [move (3, 12)]) divider;
+  if Ui.cursor ui <> Some `Horizontal_resize then
+    fail "splitter did not request a resize cursor on hover";
+  Ui.frame ui (frame ~scale:1. ~time:0.5 [move (300, 200)]) divider;
+  if Ui.cursor ui <> None then fail "splitter cursor outlived hover";
+  Ui.destroy ui;
   (* A canvas maps child coordinates by scale and offset, for layout,
      painting, and hit testing alike. *)
   let ui = Ui.create () in

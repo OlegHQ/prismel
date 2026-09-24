@@ -73,3 +73,7 @@ val set_relative_mouse : bool -> (unit, string) result
 (** Capture and hide the pointer: [Frame.mouse_delta] then reports device
     motion even at the window edge (fly cameras). Released when the sketch
     stops; an error when no sketch is running. *)
+
+val set_cursor : [`Default|`Horizontal_resize|`Vertical_resize] ->
+  (unit, string) result
+(** Set the active native pointer cursor; an error when no sketch is running. *)

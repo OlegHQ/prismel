@@ -524,6 +524,9 @@ Escape cancels). `WindowFocusLost` cancels capture, focus, and composition.
 Custom widgets are functions over `Ui.box`, `Ui.signal`, and `Ui.draw`;
 layout uses `Px`, `Pct`, `Rel`, `Grow`, `Fit`, and `Text` sizes, `row`/`col`
 nesting, `splitter`, floating `~at` boxes, and canvas `~xform` transforms.
+Splitters request resize pointers on hover or drag; `Sketch.set_cursor`
+accepts default, horizontal-resize, and vertical-resize shapes for native
+sketches and returns an error outside an active sketch.
 
 `Pxui.Settings` saves and loads model values in the `PXUI1` format.
 `Pxui.Camera_control` builds Camera (FOV, distance, clipping, inertia, reset)

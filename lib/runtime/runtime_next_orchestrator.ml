@@ -130,6 +130,8 @@ let set_resizable value x=native_call"Runtime_next_orchestrator.set_resizable"va
 let set_always_on_top value x=native_call"Runtime_next_orchestrator.set_always_on_top"value(fun r->Runtime_next.set_always_on_top r x)
 let set_fullscreen value x=native_call"Runtime_next_orchestrator.set_fullscreen"value(fun r->Runtime_next.set_fullscreen r x)
 let set_relative_mouse value x=native_call"Runtime_next_orchestrator.set_relative_mouse"value(fun r->Runtime_next.set_relative_mouse r x)
+let set_cursor value shape=native_call"Runtime_next_orchestrator.set_cursor"value
+  (fun r->Runtime_next.set_cursor r shape)
 let set_text_input_area value area=native_call"Runtime_next_orchestrator.set_text_input_area"value
   (fun r->Runtime_next.set_text_input_area r area)
 let show value=match native_call"Runtime_next_orchestrator.show"value Runtime_next.show with
