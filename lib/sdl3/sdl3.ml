@@ -46,11 +46,7 @@ module Version = struct
 
   let stable value = value.minor mod 2 = 0 && value.patch mod 2 = 0
   let linked () = of_number (Private_raw.linked_version_number ())
-  let revision = Private_raw.revision
   let stable_headers = Generated_provenance.stable_headers
-  let generator_version = Generated_provenance.generator_version
-  let header_sha256 = Generated_provenance.header_aggregate_sha256
-  let target_triple = Generated_provenance.target_triple
   let function_count = Generated_provenance.function_count
   let safe_function_count = Generated_provenance.safe_function_count
 

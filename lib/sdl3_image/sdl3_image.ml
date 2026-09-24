@@ -45,8 +45,6 @@ module Version = struct
   let stable value = value.minor mod 2 = 0 && value.patch mod 2 = 0
   let linked () = of_number (linked_version_number ())
   let stable_headers = Generated_provenance.stable_headers
-  let generator_version = Generated_provenance.generator_version
-  let header_sha256 = Generated_provenance.header_sha256
   let function_count = Generated_provenance.function_count
   let safe_function_count = Generated_provenance.safe_function_count
 

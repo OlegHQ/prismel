@@ -24,8 +24,6 @@ module Version : sig
   val compiled : t
   val linked : unit -> t
   val stable_headers : bool
-  val generator_version : string
-  val header_sha256 : string
   val function_count : int
   val safe_function_count : int
   val check : ?release:bool -> unit -> (unit, error) result

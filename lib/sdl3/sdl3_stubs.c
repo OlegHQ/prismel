@@ -79,14 +79,6 @@ CAMLprim value caml_sdl3_delay_precise_ns(value nanoseconds)
   CAMLreturn(Val_unit);
 }
 
-CAMLprim value caml_sdl3_revision(value unit)
-{
-  const char *revision;
-  CAMLparam1(unit);
-  revision = SDL_GetRevision();
-  CAMLreturn(caml_copy_string(revision != NULL ? revision : ""));
-}
-
 CAMLprim value caml_sdl3_get_error(value unit)
 {
   const char *message;

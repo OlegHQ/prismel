@@ -1,7 +1,6 @@
 type version = { major : int; minor : int; patch : int }
 
 external linked_version_number : unit -> int = "caml_sdl3_linked_version"
-external revision : unit -> string = "caml_sdl3_revision"
 external get_error : unit -> string = "caml_sdl3_get_error"
 external clear_error : unit -> unit = "caml_sdl3_clear_error"
 external is_main_thread : unit -> bool = "caml_sdl3_is_main_thread"
