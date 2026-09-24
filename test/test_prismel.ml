@@ -287,8 +287,8 @@ let () =
   if List.map (fun (request : Camera_control.render_request) -> request.filename)
       requests <> ["prismel-render.png"]
   then fail "camera render section did not request a PNG";
-  let shortcut_frame = { idle with events = [Event.KeyPressed (Input.KeyChar 'c')] } in
-  let camera_control, controlled, _ = run camera_control easy shortcut_frame in
+  let camera_control, controlled, _ =
+    run (Camera_control.open_camera camera_control) easy idle in
   if Easy_camera.control_area controlled <> Some (248, 0, 392, 360)
   then fail "camera control did not reserve the gesture area beside its panel";
   let camera_control, _, _ = run camera_control controlled idle in
@@ -298,7 +298,7 @@ let () =
       MouseReleased (Input.LeftButton, (200, 39))] } in
   let camera_control, widened, _ = run camera_control controlled fov_frame in
   if Easy_camera.fov_y widened = Easy_camera.fov_y controlled
-  then fail "camera control C shortcut did not open its FOV slider";
+  then fail "camera control open_camera did not open its FOV slider";
   let scroll_frame = { idle with mouse = 320, 100;
     events = [Event.MouseScrolled (0, 2)] } in
   let camera_control, zoomed, _ = run camera_control controlled scroll_frame in
@@ -329,17 +329,16 @@ let () =
   if Vec3.nearly_equal (Easy_camera.target panned)
       (Easy_camera.target right_panned) ~eps:1e-9
   then fail "camera control did not preserve default middle-drag pan";
-  let hidden_control, _, _ = run camera_control panned
-      { idle with events = [Event.KeyPressed (Input.KeyChar 'h')] } in
+  let hidden_control, _, _ = run (Camera_control.toggle_ui camera_control) panned idle in
   if Camera_control.ui_visible hidden_control
      || Pxui.Ui.scene camera_ui <> []
      || Camera_control.overlay hidden_control
           Scene.[text ~at:(0, 0) "label"] <> Scene.empty
-  then fail "camera control H shortcut did not hide all UI";
-  let shown_control, _, _ = run hidden_control panned shortcut_frame in
+  then fail "camera control toggle_ui did not hide all UI";
+  let shown_control, _, _ = run (Camera_control.open_camera hidden_control) panned idle in
   if not (Camera_control.ui_visible shown_control)
      || Pxui.Ui.scene camera_ui = []
-  then fail "camera control C shortcut did not reveal its UI";
+  then fail "camera control open_camera did not reveal its UI";
   Pxui.Ui.destroy camera_ui;
   let easy = Easy_camera.update easy frame in
   if Vec3.nearly_equal
@@ -368,6 +367,37 @@ let () =
       (Easy_camera.has_interaction ~button:Input.LeftButton Easy_camera.Pan
          panning)
   then fail "easy camera did not report its custom interaction";
+  let viewed = Easy_camera.of_view ~eye:(Vec3.create 3. 4. (-5.))
+      ~target:(Vec3.create 1. 1. 1.) (Easy_camera.create ()) in
+  if not (Vec3.nearly_equal (Camera.position (Easy_camera.camera viewed))
+      (Vec3.create 3. 4. (-5.)) ~eps:1e-9)
+     || Easy_camera.target viewed <> Vec3.create 1. 1. 1.
+  then fail "easy camera of_view did not reproduce the requested eye";
+  let framed = Easy_camera.frame_bounds ~min:(Vec3.create (-1.) (-1.) (-1.))
+      ~max:(Vec3.create 3. 1. 1.) (Easy_camera.create ~fov_y:(Float.pi /. 2.) ()) in
+  if not (Vec3.nearly_equal (Easy_camera.target framed) (Vec3.create 1. 0. 0.) ~eps:1e-12)
+     || Float.abs (Easy_camera.distance framed -. (sqrt 6. *. 1.2)) > 1e-9
+  then fail "easy camera frame_bounds did not target the center at radius/tan(fov/2)*1.2";
+  (* One fly frame: W moves forward speed*dt; pointer motion right turns
+     right; a wheel step scales the speed. *)
+  let fly_start = Easy_camera.create ~distance:5. ~inertia:false () in
+  let still = { frame with dt = 0.5; mouse_delta = (0, 0); events = []; keys = [] } in
+  let flown, speed = Pxui.Camera_control.fly ~speed:2. fly_start
+      { still with keys = [Input.KeyChar 'w'] } in
+  if not (Vec3.nearly_equal (Camera.position (Easy_camera.camera flown))
+      (Vec3.create 0. 0. 4.) ~eps:1e-9) || speed <> 2.
+  then fail "fly W did not move forward by speed * dt";
+  let turned, _ = Pxui.Camera_control.fly ~speed:2. fly_start
+      { still with mouse_delta = (100, 0) } in
+  let look camera = let view = Easy_camera.camera camera in
+    Vec3.sub (Camera.target view) (Camera.position view) in
+  if (look turned).x <= 0.
+     || not (Vec3.nearly_equal (Camera.position (Easy_camera.camera turned))
+       (Vec3.create 0. 0. 5.) ~eps:1e-9)
+  then fail "fly pointer motion did not yaw right in place";
+  let _, faster = Pxui.Camera_control.fly ~speed:2. fly_start
+      { still with events = [Event.MouseScrolled (0, 1)] } in
+  if Float.abs (faster -. 2.4) > 1e-12 then fail "fly wheel did not scale speed";
   let translated_frame = { frame with keys = [Input.Space] } in
   let translated =
     Easy_camera.create ~distance:5. ~inertia:false

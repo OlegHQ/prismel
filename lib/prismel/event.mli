@@ -29,5 +29,11 @@ val process_events : t list -> 'a -> ('a -> t -> 'a) option -> 'a
 val handle_events : 'a -> ('a -> t -> 'a) option -> 'a * t list
 
 (* Utility function for debugging *)
-val event_to_string : t -> string 
+val event_to_string : t -> string
+
+module Private : sig
+  val set_relative : bool -> unit
+  (* Relative pointer motion drives [Input.mouse_delta]; see
+     [Sketch.set_relative_mouse]. *)
+end
 

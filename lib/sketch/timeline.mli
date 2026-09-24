@@ -2,7 +2,8 @@
 
     The runtime frame clock always advances, while this clock can pause, stop,
     and reset without touching global state. Default shortcuts are [P]
-    pause/resume, [S] stop, and [R] reset-and-play. *)
+    pause/resume, [S] stop, and [R] reset-and-play; [~shortcuts:None] leaves
+    them to the host, which drives {!val-toggle_pause}, {!val-stop}, and {!val-reset}. *)
 
 type mode = Playing | Paused | Stopped
 type t
@@ -13,11 +14,18 @@ type shortcuts = {
   reset : Prismel.Input.key;
 }
 
-type change = Advanced | Paused_now | Resumed | Stopped_now | Reset_now
+type change = Advanced | Paused_now | Resumed | Stopped_now | Reset_now | Seeked
 
 val default_shortcuts : shortcuts
-val create : ?shortcuts:shortcuts -> unit -> t
+val create : ?shortcuts:shortcuts option -> unit -> t
 val update : t -> Prismel.Frame.t -> t * change list
+val toggle_pause : t -> t * change list
+val stop : t -> t * change list
+val reset : t -> t * change list
+
+val seek : t -> frame:int64 -> t * change list
+(** Jump to [frame] (clamped at 0) and pause; time is [frame] times the mean
+    step observed so far, or 1/60 s before any. [Seeked] changes the context. *)
 
 val mode : t -> mode
 val time : t -> float

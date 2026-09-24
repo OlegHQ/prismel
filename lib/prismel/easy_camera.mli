@@ -61,6 +61,15 @@ val auto_distance : t -> bool
 val interactions : t -> binding list
 
 val with_target : Vec3.t -> t -> t
+val of_view : eye:Vec3.t -> target:Vec3.t -> t -> t
+(** Orbit to look from [eye] at [target] about the current up axis (elevation
+    clamps just short of the poles). Lens, clipping, and input settings are
+    kept; inertia stops. *)
+
+val frame_bounds : min:Vec3.t -> max:Vec3.t -> t -> t
+(** Target the box center at [radius / tan (fov_y / 2) * 1.2] (radius: half
+    the box diagonal), keeping the viewing direction. *)
+
 val with_distance : float -> t -> t
 val with_fov_y : float -> t -> t
 val with_clip : near:float -> far:float -> t -> t

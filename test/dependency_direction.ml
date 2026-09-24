@@ -60,7 +60,7 @@ let () = match Array.to_list Sys.argv with
       if not (contains sop_catalog "(libraries prismel pdk procedural)") then
         failwith "Sop_catalog must wrap Procedural/PDK without UI dependencies";
       if not (contains sketch_ui
-          "(libraries prismel procedural pxui pxui_graph sop_ui sketch_support)")
+          "(libraries prismel procedural pxui pxui_graph sop_ui sketch_support yojson unix)")
       then failwith "Sketch_ui must compose only public leaf libraries";
       print_endline "geometry dependency direction passed"
   | _ -> invalid_arg

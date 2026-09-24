@@ -25,6 +25,7 @@ val begin_frame : unit -> unit
 val press_key : key -> unit
 val release_key : key -> unit
 val update_mouse_pos : int -> int -> unit
+val set_mouse_delta : int * int -> unit
 val press_mouse_button : mouse_button -> unit
 val release_mouse_button : mouse_button -> unit
 val clear_all_input : unit -> unit

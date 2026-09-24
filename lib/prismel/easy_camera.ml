@@ -222,6 +222,29 @@ let interactions value = value.interactions
 let with_target target value =
   if target = value.target then value else { value with target }
 
+(* Inverse of [camera]'s orbit placement; keeps the up axis, lens, and input
+   settings and drops any in-flight inertia. *)
+let of_view ~eye ~target value =
+  let offset = Vec3.sub eye target in
+  let distance = Vec3.length offset in
+  if not (Float.is_finite distance) || distance <= 1e-9 then
+    { value with target; drag = None; velocity = None }
+  else
+    let unit = Vec3.scale offset (1. /. distance) in
+    let right, forward = orbit_basis value.up_axis in
+    let height = Float.max (-1.) (Float.min 1. (Vec3.dot unit value.up_axis)) in
+    { value with target; distance; elevation = clamp_elevation (asin height);
+      azimuth = atan2 (Vec3.dot unit right) (Vec3.dot unit forward);
+      drag = None; velocity = None }
+
+(* Aim at the box center from the current direction, far enough that the
+   bounding sphere fills the vertical field of view with 20% margin. *)
+let frame_bounds ~min ~max value =
+  let center = Vec3.scale (Vec3.add min max) 0.5 in
+  let radius = 0.5 *. Vec3.length (Vec3.sub max min) in
+  let distance = Float.max 1e-3 (radius /. tan (value.fov_y /. 2.) *. 1.2) in
+  { value with target = center; distance; drag = None; velocity = None }
+
 let with_distance distance value =
   validate_distance distance;
   if distance = value.distance then value else { value with distance }

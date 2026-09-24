@@ -59,6 +59,8 @@ let update_mouse_pos x y =
     (delta_x + x - current_x, delta_y + y - current_y);
   current_mouse_pos := (x, y)
 
+let set_mouse_delta delta = frame_mouse_delta := delta
+
 let press_mouse_button button =
   pressed_mouse_buttons := MouseButtonSet.add button !pressed_mouse_buttons
 

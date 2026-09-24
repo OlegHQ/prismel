@@ -144,6 +144,7 @@ let set_bordered value x=native_call"Runtime_next_orchestrator.set_bordered"valu
 let set_resizable value x=native_call"Runtime_next_orchestrator.set_resizable"value(fun r->Runtime_next.set_resizable r x)
 let set_always_on_top value x=native_call"Runtime_next_orchestrator.set_always_on_top"value(fun r->Runtime_next.set_always_on_top r x)
 let set_fullscreen value x=native_call"Runtime_next_orchestrator.set_fullscreen"value(fun r->Runtime_next.set_fullscreen r x)
+let set_relative_mouse value x=native_call"Runtime_next_orchestrator.set_relative_mouse"value(fun r->Runtime_next.set_relative_mouse r x)
 let show value=match native_call"Runtime_next_orchestrator.show"value Runtime_next.show with
   |Error _ as error->error|Ok()->pull_window_facts value;Ok()
 let hide value=native_call"Runtime_next_orchestrator.hide"value Runtime_next.hide

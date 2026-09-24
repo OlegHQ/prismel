@@ -1286,7 +1286,12 @@ module Event = struct
             | Some event -> of_raw event :: events
           in
           Ok (List.rev events)
-      | Some (Private_raw.Mouse_motion _ as event) ->
+      | Some (Private_raw.Mouse_motion (t, w, which, buttons, x, y, dx, dy)) ->
+          (* Keep the latest position but the summed relative motion. *)
+          let event = match last_motion with
+            | Some (Private_raw.Mouse_motion (_, _, _, _, _, _, px, py)) ->
+                Private_raw.Mouse_motion (t, w, which, buttons, x, y, dx +. px, dy +. py)
+            | _ -> Private_raw.Mouse_motion (t, w, which, buttons, x, y, dx, dy) in
           loop (Some event) last_size events
       | Some (Private_raw.Window (event_type, _, _, _, _) as event)
         when size_event_type event_type ->

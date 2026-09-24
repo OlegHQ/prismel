@@ -11,19 +11,11 @@ let make prefix =
   if prefix = "" then invalid_arg "Pxui camera control: prefix is empty";
   { prefix; ui_visible = true; filename = "prismel-render.png"; open_camera = None }
 
-let key_pressed character frame =
-  Frame.has_event (function
-    | Event.KeyPressed (Input.KeyChar key) -> Char.lowercase_ascii key = character
-    | _ -> false) frame
+let toggle_ui control = { control with ui_visible = not control.ui_visible }
 
-(* [H] toggles all UI; [C] shows it and toggles (or opens) the Camera section. *)
-let shortcuts ?(text_focus = false) control frame =
-  if text_focus then control else
-  let h = key_pressed 'h' frame and c = key_pressed 'c' frame in
-  let was_visible = control.ui_visible in
-  let ui_visible = if h then not was_visible else if c then true else was_visible in
-  let open_camera = if c then Some (h || not was_visible) else None in
-  { control with ui_visible; open_camera }
+(* Show the UI and toggle the Camera section, or open it if the UI was hidden. *)
+let open_camera control =
+  { control with ui_visible = true; open_camera = Some (not control.ui_visible) }
 
 let render_section control ui =
   let filename, save = Option.value ~default:(control.filename, false)
@@ -33,8 +25,8 @@ let render_section control ui =
   { control with filename },
   if save then [filename] else []
 
-(* The Camera section opens on [C]: explicitly after [H] or while hidden,
-   otherwise it toggles. *)
+(* [open_camera] opens the section explicitly while hidden, otherwise it
+   toggles. *)
 let camera_section control ui build =
   let set_expanded = match control.open_camera with
     | None -> None
@@ -64,7 +56,8 @@ module Camera_control = struct
   type render_request = { filename : string; factor : int }
 
   let create ?(prefix = "camera") () = make prefix
-  let shortcuts = shortcuts
+  let toggle_ui = toggle_ui
+  let open_camera = open_camera
 
   let widgets control ui ~camera =
     Ui.scope ui control.prefix (fun () ->
@@ -94,12 +87,10 @@ module Camera_control = struct
   let navigate ?control_area (_ : t) camera (frame : Frame.t) =
     let area = Option.value control_area ~default:(0, 0, frame.width, frame.height) in
     camera
-    |> Easy_camera.with_translation_key (Some Input.Space)
     |> Easy_camera.with_control_area (Some area)
     |> Fun.flip Easy_camera.update frame
 
   let panel ?(x = 12.) ?(y = 12.) ?(width = 280.) control ui ~camera frame =
-    let control = shortcuts ~text_focus:(Ui.text_input_focused ui) control frame in
     let control, camera, requests =
       if control.ui_visible then
         fitted_panel ui ~x ~y ~width frame (fun () -> widgets control ui ~camera)
@@ -114,6 +105,41 @@ module Camera_control = struct
   let save ?background request ~frame ~camera scene =
     ignore (background, frame, camera, scene);
     save_screen request.factor request.filename
+
+  (* One fly-camera step: held W/S/A/D/Q/E move along view forward, right,
+     and the up axis at [speed] units/s (Shift x4); pointer motion yaws about
+     the up axis and pitches within +-89 degrees; each wheel step scales the
+     speed by 1.2. The orbit target stays [distance] ahead. *)
+  let fly ~speed camera (frame : Frame.t) =
+    let view = Easy_camera.camera camera and up = Easy_camera.up_axis camera in
+    let eye = Camera.position view in
+    let forward = Vec3.normalize (Vec3.sub (Camera.target view) eye) in
+    let dx, dy = frame.mouse_delta in
+    let yaw = -0.003 *. float dx and pitch = -0.003 *. float dy in
+    let along = Vec3.dot up forward in
+    let yawed = Vec3.add (Vec3.add (Vec3.scale forward (cos yaw))
+        (Vec3.scale (Vec3.cross up forward) (sin yaw)))
+        (Vec3.scale up (along *. (1. -. cos yaw))) in
+    let limit = 89. *. Float.pi /. 180. in
+    let elevation = Float.max (-.limit) (Float.min limit
+        (asin (Float.max (-1.) (Float.min 1. (Vec3.dot yawed up))) +. pitch)) in
+    let horizontal = Vec3.normalize
+        (Vec3.sub yawed (Vec3.scale up (Vec3.dot yawed up))) in
+    let forward = Vec3.add (Vec3.scale horizontal (cos elevation))
+        (Vec3.scale up (sin elevation)) in
+    let right = Vec3.normalize (Vec3.cross forward up) in
+    let held key = List.mem (Input.KeyChar key) frame.keys in
+    let axis positive negative =
+      (if held positive then 1. else 0.) -. (if held negative then 1. else 0.) in
+    let move = Vec3.add (Vec3.add (Vec3.scale forward (axis 'w' 's'))
+        (Vec3.scale right (axis 'd' 'a'))) (Vec3.scale up (axis 'q' 'e')) in
+    let step = speed *. frame.dt *. (if List.mem Input.Shift frame.keys then 4. else 1.) in
+    let eye = if Float.is_finite step then Vec3.add eye (Vec3.scale move step) else eye in
+    let wheel = List.fold_left (fun total -> function
+      | Event.MouseScrolled (_, steps) -> total + steps | _ -> total) 0 frame.events in
+    let speed = Float.max 0.01 (Float.min 1e4 (speed *. Float.pow 1.2 (float wheel))) in
+    let target = Vec3.add eye (Vec3.scale forward (Easy_camera.distance camera)) in
+    Easy_camera.of_view ~eye ~target camera, speed
 end
 
 module Camera2_control = struct
@@ -121,7 +147,8 @@ module Camera2_control = struct
   type render_request = { filename : string; factor : int }
 
   let create ?(prefix = "camera2") () = make prefix
-  let shortcuts = shortcuts
+  let toggle_ui = toggle_ui
+  let open_camera = open_camera
 
   let widgets control ui ~camera =
     Ui.scope ui control.prefix (fun () ->
@@ -150,13 +177,11 @@ module Camera2_control = struct
     let full = 0, 0, frame.width, frame.height in
     let area = Option.value control_area ~default:full in
     camera
-    |> Easy_camera2.with_translation_key (Some Input.Space)
     |> Easy_camera2.with_viewport (Some (Option.value viewport ~default:full))
     |> Easy_camera2.with_control_area (Some area)
     |> Fun.flip Easy_camera2.update frame
 
   let panel ?(x = 12.) ?(y = 12.) ?(width = 280.) ?viewport control ui ~camera frame =
-    let control = shortcuts ~text_focus:(Ui.text_input_focused ui) control frame in
     let control, camera, requests =
       if control.ui_visible then
         fitted_panel ui ~x ~y ~width frame (fun () -> widgets control ui ~camera)

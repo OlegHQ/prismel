@@ -9563,6 +9563,51 @@ module Null = struct
         | _ -> invalid_arg "Null SOP expects one input")
 end [@@sop.register]
 
+(* A render camera: parameters only, cooking to empty geometry. Sketch_ui
+   reads the ACTIVE camera's fields by name to drive look-through, PNG export,
+   and sketch renderers. ponytail: no frustum gizmo in the viewport; add a
+   wireframe overlay if users ask. *)
+module Camera = struct
+  type parameters = {
+    eye_x : float [@sop.default 0.] [@sop.label "Eye X"] [@sop.folder "Eye"]
+      [@sop.min (-100.)] [@sop.max 100.];
+    eye_y : float [@sop.default 0.] [@sop.label "Eye Y"] [@sop.folder "Eye"]
+      [@sop.min (-100.)] [@sop.max 100.];
+    eye_z : float [@sop.default 7.] [@sop.label "Eye Z"] [@sop.folder "Eye"]
+      [@sop.min (-100.)] [@sop.max 100.];
+    target_x : float [@sop.default 0.] [@sop.label "Target X"] [@sop.folder "Target"]
+      [@sop.min (-100.)] [@sop.max 100.];
+    target_y : float [@sop.default 0.] [@sop.label "Target Y"] [@sop.folder "Target"]
+      [@sop.min (-100.)] [@sop.max 100.];
+    target_z : float [@sop.default 0.] [@sop.label "Target Z"] [@sop.folder "Target"]
+      [@sop.min (-100.)] [@sop.max 100.];
+    up_x : float [@sop.default 0.] [@sop.label "Up X"] [@sop.folder "Up"]
+      [@sop.min (-1.)] [@sop.max 1.];
+    up_y : float [@sop.default 1.] [@sop.label "Up Y"] [@sop.folder "Up"]
+      [@sop.min (-1.)] [@sop.max 1.];
+    up_z : float [@sop.default 0.] [@sop.label "Up Z"] [@sop.folder "Up"]
+      [@sop.min (-1.)] [@sop.max 1.];
+    fov : float [@sop.default 60.] [@sop.label "FOV (degrees)"]
+      [@sop.min 5.] [@sop.max 150.] [@sop.hard_min 1.] [@sop.hard_max 179.];
+    near : float [@sop.default 0.1] [@sop.label "Near clip"]
+      [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.0001];
+    far : float [@sop.default 1000.] [@sop.label "Far clip"]
+      [@sop.min 10.] [@sop.max 10000.] [@sop.hard_min 0.001];
+    follow_viewport : bool [@sop.default false] [@sop.label "Follow viewport"];
+  } [@@sop.node_key "camera"] [@@sop.node_label "Camera"]
+    [@@sop.node_category "Scene"] [@@sop.node_inputs 0]
+    [@@deriving sop_params, sop_node]
+
+  let empty = Pdk.Ops.points [||]
+
+  let rec build ~label ~inputs:_ parameters =
+    Sop.custom ~label ~operation:"camera" [] (fun ~context:_ _ -> Ok empty)
+    |> Node.parameterize ~schema:parameters_schema ~values:parameters
+         ~rebuild:build
+
+  let factory = parameters_factory build
+end [@@sop.register]
+
 module Normal = struct
   let owner_parameter = Parameter.choice ~equal:( = ) [
       "Point", Pdk.Attribute.Point;

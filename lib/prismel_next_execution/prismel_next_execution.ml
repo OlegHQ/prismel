@@ -582,6 +582,8 @@ let window operation call value=match ensure operation value with Error _ as e->
       message=Ogpu.Error.to_string error})(call runtime)
 let show value=window"Prismel_next_execution.show"Runtime_next_orchestrator.show value
 let hide value=window"Prismel_next_execution.hide"Runtime_next_orchestrator.hide value
+let set_relative_mouse value enabled=window"Prismel_next_execution.set_relative_mouse"
+  (fun runtime->Runtime_next_orchestrator.set_relative_mouse runtime enabled) value
 let visible value=window"Prismel_next_execution.visible"Runtime_next_orchestrator.visible value
 let diagnostics value=
   let active,cache_entries,release_queue_pending,release_queue_live_handles,

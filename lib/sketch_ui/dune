@@ -1,4 +1,4 @@
 (library
  (name sketch_ui)
  (public_name prismel.sketch_ui)
- (libraries prismel procedural pxui pxui_graph sop_ui sketch_support))
+ (libraries prismel procedural pxui pxui_graph sop_ui sketch_support yojson unix))

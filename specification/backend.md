@@ -252,6 +252,22 @@ final clean-tree gate run.
 
 The native window starts SDL3 text input for its lifetime. PXUI applies text
 events only to a focused editor; Sketch UI suppresses workspace and graph
-keyboard shortcuts while an editor has focus. Camera PNG requests capture the
+keyboard shortcuts while an editor has focus, and its leader key (Space) only
+arms while no editor is focused. Camera PNG requests capture the
 just-presented native framebuffer through `Sketch.run_state`'s `after_present`
 hook. The UI offers the supported native 1× export factor.
+
+# Relative pointer mode
+
+`Sketch.set_relative_mouse` is the only public entry to SDL relative mouse
+mode: it runs `Prismel_next_execution.set_relative_mouse` →
+`Runtime_next_orchestrator.set_relative_mouse` → `Runtime_next.set_relative_mouse`
+(`Sdl3.Window.set_relative_mouse`) and switches the shared
+`Runtime_next_input` source to relative accounting, so `Frame.mouse_delta`
+sums SDL `xrel`/`yrel` (the event pump reports them through
+`Runtime_next_input.add_motion`; `Sdl3.Event.poll_coalesced` sums the relative
+motion of the samples it drops) instead of absolute differences that stop at
+the window edge. No SDL value crosses into Prismel's public API, the sketch
+loop turns it off when it stops, and the library dependency graph is
+unchanged (`test/dependency_direction.ml`). Sketch UI fly mode is its only
+in-tree user.

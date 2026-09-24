@@ -248,6 +248,13 @@ val panel :
 (** A light panel at [(x, y)] (default [(12, 12)], width 280). Rows beyond
     [max_height] scroll with the wheel by one row per step. *)
 
+val modal : t -> ?width:float -> string -> (unit -> 'a) -> 'a option
+(** A kit panel centered in the frame, outlined in the accent colour. Build it
+    last, at the root level, so it is topmost. Escape, window focus loss, or a
+    press outside it dismisses it: the builder is skipped and [None] is
+    returned, so the host drops its open state. Keys still reach the host and
+    focused children; the host decides what the modal blocks. *)
+
 val label : t -> string -> unit
 val button : t -> string -> bool
 (** [true] on the frame a press and release both land inside the button. *)
@@ -270,6 +277,35 @@ val range_slider :
 val xy :
   t -> string -> x_range:float * float -> y_range:float * float ->
   float * float -> float * float
+
+type pick = [ `None | `Pick of int | `Delete of int | `Submit | `Back | `Cancel ]
+
+val fuzzy_match : query:string -> string -> bool
+(** Case-insensitive subsequence match. *)
+
+val picker :
+  t -> ?limit:int -> string -> query:string ->
+  (string -> (string * string) array) -> string * pick
+(** A focused search row (the label is its placeholder and key) over the
+    [(label, detail)] rows for the current query, windowed to [limit] (default
+    10) around the cursor. Rows are recomputed as typing changes the query, so
+    indices refer to the rows of the returned query. Returns the edited query
+    and at most one result: [`Pick] on Enter or a
+    row click, [`Submit] on Enter with no rows, [`Delete] on a second Delete
+    over the same (red, armed) row, [`Back] on Backspace or Left with an empty
+    query, and [`Cancel] on Escape. Build it inside a panel or {!modal}. *)
+
+val context_clicked : signal -> bool
+(** A right press and release that moved less than 4 points: open a context
+    menu rather than pan. *)
+
+val context_menu :
+  t -> at:float * float -> string -> (string * bool) list ->
+  [ `Open | `Pick of int | `Dismiss ]
+(** A floating menu at [at] with [(label, enabled)] rows. The host keeps it
+    open while this returns [`Open]; a row commits on press and release inside
+    it, and Escape, focus loss, or a press outside return [`Dismiss]. Build it
+    last, at the root level. *)
 
 val accordion :
   t -> ?expanded:bool -> ?set_expanded:bool -> string -> (unit -> 'a) ->

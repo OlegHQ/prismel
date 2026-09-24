@@ -3,7 +3,7 @@
   "baseline_plan_sha256": "6f95e5738ae263386bbc414299f598f25ba9f604b48a8c2ef9bee84f974e2954",
   "generator": "tools/gpu_migration/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 127,
+  "module_count": 132,
   "modules": [
     {
       "api_sha256": "69403004e55a49667961f98b7879af4b3786d561307ea8812bb014b262ce5a72",
@@ -663,13 +663,13 @@
       "source_sha256": "e4434ed7cb8495dccfdc6777f4543fdcaec49d0e992d487e22921ed758675b9c"
     },
     {
-      "api_sha256": "4d429f8315513b4e60edb76e40f6621221276a3e16063d8ea54d074a956ebadc",
+      "api_sha256": "9aba60adb3edd259f9a6962d1a2a3aa78f9a026b2875f8c5a7be165bb2b19d7d",
       "excluded_legacy_symbols": [],
       "library": "prismel",
       "module": "Easy_camera",
       "source": "lib/prismel/easy_camera.mli",
-      "source_bytes": 2880,
-      "source_sha256": "c5d2a0cf82b6354e43c5a4e9316db3e8d31e903ec310aa9807723a861dba1e8a"
+      "source_bytes": 3303,
+      "source_sha256": "05f75acd0d35ae1f80035253ae06afe756637abe5d649adeff7019b2c047a4f5"
     },
     {
       "api_sha256": "05e153d3a7cb467e297d1bca90b5b5871da0a8f15fb165863c31167084f408e4",
@@ -681,13 +681,13 @@
       "source_sha256": "3d003d8e1a5eb9786ba600c61729604e516b4c7e182fa95b6b3f035c1a6b12eb"
     },
     {
-      "api_sha256": "eb8124ddd620663d1e79c136cb7825966c75f7b30acde62bb5c4b289a3d1c643",
+      "api_sha256": "3144bc3ae686a17a511e59778cd76481e28b8f51c8f8dcfa4d406c3b5ab1e3fa",
       "excluded_legacy_symbols": [],
       "library": "prismel",
       "module": "Event",
       "source": "lib/prismel/event.mli",
-      "source_bytes": 1478,
-      "source_sha256": "e896f2d9362a97327bcdef693f23ea9ac11952e587c7ffe89b0c8d01201ff95b"
+      "source_bytes": 1636,
+      "source_sha256": "e4c2acb7aeffd7164f1e1cf3f9161a28253bdd65ccdad7f40f490b10bc78f60c"
     },
     {
       "api_sha256": "ad62ad9ff4b2dc8aed9b97d9436ec5203c79f7a90d44504fb6a08416fe053e0a",
@@ -707,8 +707,8 @@
       "library": "prismel",
       "module": "Font",
       "source": "lib/prismel/font.mli",
-      "source_bytes": 2537,
-      "source_sha256": "a1eb5fddedcc84a1b0f06e500b8f8ebffcb71e6c5ee49ca54f8adfa04338d6bb"
+      "source_bytes": 2920,
+      "source_sha256": "4c8088b32552c931f3887cc4863a016a07457f99130e3af4dcb50a7b3de8e0fe"
     },
     {
       "api_sha256": "ffb3db727241e424d47e14f0583ea73e8954500728f48e06ab187153665d67eb",
@@ -731,13 +731,13 @@
       "source_sha256": "6656215b18b2d6eb101d1487ce6d8c2b609ac8cefad85b269f6718e41f10b22e"
     },
     {
-      "api_sha256": "4f0e4c89722aee961bf0e6357ef0174f0d930b0e120a69e39c258f278254f358",
+      "api_sha256": "a1023a6094f53e784af82f1dc37e8c6672e70525ba9068a54f335c262fae757b",
       "excluded_legacy_symbols": [],
       "library": "prismel",
       "module": "Input",
       "source": "lib/prismel/input.mli",
-      "source_bytes": 1689,
-      "source_sha256": "aafb578251e3ecf41f56dcbaad88daae795bc803b41ab269756c135cad722d07"
+      "source_bytes": 1729,
+      "source_sha256": "d0126cdf7dc0add98b7ae666bee9a1c0b669e7b121d72dc5eda1f10b55130099"
     },
     {
       "api_sha256": "462469ed4e8b2ddd45acceb51d7e2603ea20a8bf448fac73c0e6794bd706116d",
@@ -866,13 +866,13 @@
       "source_sha256": "74b90ec75bbe4b2ebad22d581cac659ad9e528b00f8efe41f93c2c06fc1972a3"
     },
     {
-      "api_sha256": "3ac226c19b88d08d3ee64bd7022c3d1d3216d817370754d1eae737985f640c30",
+      "api_sha256": "876d42e9050afcc33142457e348bdfb2ad25cf3c59ded454f6b22f3ebcc5a6cf",
       "excluded_legacy_symbols": [],
       "library": "prismel",
       "module": "Scene",
       "source": "lib/prismel/scene.mli",
-      "source_bytes": 3529,
-      "source_sha256": "d99876b97b6242ecea16e213ce724382a648afb937cfb51d4905dd180642fd2f"
+      "source_bytes": 4133,
+      "source_sha256": "eaa9521f29a432895ca9c822e1daaaaec2698e0f16610c209d26f19b86d3ab37"
     },
     {
       "api_sha256": "f5f7e207387260bc531eefeaab7ad9e10333d34343e4b93b374962bc9aae010e",
@@ -902,13 +902,13 @@
       "source_sha256": "bd3fec239106de569f8fb27d6f3982aa8eb4fdeb569fdaf5500c177821b5bdb0"
     },
     {
-      "api_sha256": "315ce1c8c391ab77f5980eb1643d8748ef2c2a1c97f859f2537c5458d7231280",
+      "api_sha256": "54aa360b20d9faf65c542d977b09f5d07727aafdd7c0f38e73aecd8f090f7f19",
       "excluded_legacy_symbols": [],
       "library": "prismel",
       "module": "Sketch",
       "source": "lib/prismel/sketch.mli",
-      "source_bytes": 1869,
-      "source_sha256": "476d4f3ed56159786d843859fd563388adb06f0c840e4182d7370b19fc6a925c"
+      "source_bytes": 2260,
+      "source_sha256": "b17c5eb64ca7de235e8ceefe2ee8d81f834cfca7ed8f2539dc9fc3ee5c240498"
     },
     {
       "api_sha256": "01086afcf1c63d71139bcc9d48fee9cfb6c3c3e9243b76476636852e1801adb5",
@@ -1001,13 +1001,13 @@
       "source_sha256": "d797796998ec4ac6fbd55753b0ded8f9b7df2750c5cef479a4b97a4acfe2a7b7"
     },
     {
-      "api_sha256": "9c21d7c5ff49964ffb638aafaf51b6283d831da43928e0b6c8787433cf18395d",
+      "api_sha256": "6f5a8719bc0963cec78c4e10a654e46b637b360317f1bfa45f16b8da3b6efed3",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Edit_graph",
       "source": "lib/procedural/edit_graph.mli",
-      "source_bytes": 3371,
-      "source_sha256": "8866942642e07c428f1ef9f683640eefbee6d61796005bfe82696b270e6be148"
+      "source_bytes": 3543,
+      "source_sha256": "cb6a3710fef61442825460f14225d0e3e1493b2ac3fae00d37aa3b04d21cd7d4"
     },
     {
       "api_sha256": "18eba87c3f33cde659ecd65ce3939dc04a92f6450c4fb2cf2960fa125ddc0fb2",
@@ -1082,22 +1082,58 @@
       "source_sha256": "85c5fc09b894b4a9f4534d0e4dc9fd268e657646bd2171a1f327aa5344d0d111"
     },
     {
-      "api_sha256": "cf38e47c07e2c912177e35ee09c86f9188265a40ef4138ce8060eef50ffe82a9",
+      "api_sha256": "d5b73e78ccdbb303cf5167a4b999b4f4bb8d15836a9e2d210987af64c6df6a04",
+      "excluded_legacy_symbols": [],
+      "library": "pxui",
+      "module": "Camera_controls",
+      "source": "lib/pxui/camera_controls.mli",
+      "source_bytes": 3082,
+      "source_sha256": "ddfe37876daceb27d846c9e1875fa14a2457fed8cd7680c470f81518a42cfbc7"
+    },
+    {
+      "api_sha256": "28aa6f55ca046f0192fa8fd566b5c22f3705b3f2d116c5961f7fae2f3fc0b3c6",
       "excluded_legacy_symbols": [],
       "library": "pxui",
       "module": "Pxui",
       "source": "lib/pxui/pxui.mli",
-      "source_bytes": 10124,
-      "source_sha256": "33c2e03cab42da8cd7a9f7445577e22e98aca48bb9d24ec6748b9bbcdd4db6fd"
+      "source_bytes": 1489,
+      "source_sha256": "bdd56d23eb1662cf6f14a51a0236dc0f2e9af564bbb97f56dd0dbcac70d2947d"
     },
     {
-      "api_sha256": "d2d8e8f8c6244b0fcbe26bc7a112eb1c891a4e22ac523643613be230b53c6f1d",
+      "api_sha256": "988703a0f4afb2c884f1bae0ed37143726df43f864484261f55a5964847f8704",
+      "excluded_legacy_symbols": [],
+      "library": "pxui",
+      "module": "Settings",
+      "source": "lib/pxui/settings.mli",
+      "source_bytes": 949,
+      "source_sha256": "80dcfb6145ec997bbd25136b543265f78dd6adb6403e67d4534a4ec7f7634f91"
+    },
+    {
+      "api_sha256": "7eade6236511dc81668cd404b3b26d10b344a4904e9aa4506be95f1e700f9720",
+      "excluded_legacy_symbols": [],
+      "library": "pxui",
+      "module": "Theme",
+      "source": "lib/pxui/theme.mli",
+      "source_bytes": 776,
+      "source_sha256": "bfc069b942e36543b59173b9d23d82e4a6d165bf1d7852299821ce8bc9045fa7"
+    },
+    {
+      "api_sha256": "0564d7d424e49d8d27e87f106a4aa57f5dd50d39b552898394206d8b42e80b06",
+      "excluded_legacy_symbols": [],
+      "library": "pxui",
+      "module": "Ui",
+      "source": "lib/pxui/ui.mli",
+      "source_bytes": 12878,
+      "source_sha256": "c164f32019b7cf2341f189fbc02d60ee5a184ed9d72349d5c6bb3643953287c4"
+    },
+    {
+      "api_sha256": "dfbea837ae39137e9999f43f7329987e8be8a483fe392ef2666236a23f4d3cb8",
       "excluded_legacy_symbols": [],
       "library": "pxui_graph",
       "module": "Pxui_graph",
       "source": "lib/pxui_graph/pxui_graph.mli",
-      "source_bytes": 3803,
-      "source_sha256": "6437a610a3d4e7f900a96aab5da90360c654bb4fbb0e5454d7e2233d5be31c77"
+      "source_bytes": 5686,
+      "source_sha256": "a6eedafaee544023d6ba0beb2489bc6a531f3cbbcf135d247f0005c082bd75c5"
     },
     {
       "api_sha256": "8d4d7d634c1b362e582e6a485c8a7341f9151e5f34752d972f85db879693bdef",
@@ -1118,22 +1154,31 @@
       "source_sha256": "8001c047e36b3a0c10eb5d22ce5dae4b04459d663e1d2afb61ba6df0a0ddb642"
     },
     {
-      "api_sha256": "c15c1b454549833f6a6c975353116cb7cb3ea558777beb8282bf2d272493c42c",
+      "api_sha256": "a19d95b0e27472eec4b070350d215e2a4009612a76275e1b06602f378720ba2e",
       "excluded_legacy_symbols": [],
       "library": "sketch",
       "module": "Timeline",
       "source": "lib/sketch/timeline.mli",
-      "source_bytes": 943,
-      "source_sha256": "9e6c99b9c0354ef6543ce2634c687c08f04f4e48dd7d3e559db8041d5432c19a"
+      "source_bytes": 1370,
+      "source_sha256": "db0161125c4970839f5406800ea03f706bf2da0b781eed89cef9b328733ab94f"
     },
     {
-      "api_sha256": "32e9529cc90759be13ad8fc95a525b02ee6d860628fb38294ce21a20a2034c05",
+      "api_sha256": "54f505717fa9da4a93f3101aceaf47d47fe8edddeb940fc002939f6555780164",
+      "excluded_legacy_symbols": [],
+      "library": "sketch_ui",
+      "module": "Preset",
+      "source": "lib/sketch_ui/preset.mli",
+      "source_bytes": 2085,
+      "source_sha256": "e25456c97b813c3aa400a95b288c4f83b9b75c1f0f5540ee2519e600e8a930e2"
+    },
+    {
+      "api_sha256": "fadecd8246f5a720aca855d0a45fe57e9b34a20b46814331d0364b46399a5ed6",
       "excluded_legacy_symbols": [],
       "library": "sketch_ui",
       "module": "Sketch_ui",
       "source": "lib/sketch_ui/sketch_ui.mli",
-      "source_bytes": 5551,
-      "source_sha256": "898669544bc5c32704d0cbb3b4a5eb4aaef089e77c20adc840dda896d97af44a"
+      "source_bytes": 10084,
+      "source_sha256": "cfdba723d15ef7efd7212599e900dc4118a8e21fa1fbec389a89049cb3967b7c"
     },
     {
       "api_sha256": "5d8c652d71bb9e519ee99dd513327f27761aac103db134289a8c5f5c8d9732b1",
@@ -1145,13 +1190,13 @@
       "source_sha256": "d8197fe3b7835b9811b5c594cde9f00c72254a94eb7c49d54efa9fc5c9ffd69d"
     },
     {
-      "api_sha256": "78cf04e34333c4952938e1cec63e05eab6ed1b2a589f12767430d522d673c914",
+      "api_sha256": "0346d55b9591bcfe86ba18fe37ce0623973bb20cd4a10a0ff152993d0d0e6f43",
       "excluded_legacy_symbols": [],
       "library": "sop_ui",
       "module": "Sop_ui",
       "source": "lib/sop_ui/sop_ui.mli",
-      "source_bytes": 1372,
-      "source_sha256": "910369c3921294c59d9e43583a49bf149897f188dc5eceaf928b211612c912ae"
+      "source_bytes": 1488,
+      "source_sha256": "2c4e5c0becba994cfe57e9fca7b181dadcfe059221132b0e548701d23394bfcf"
     }
   ],
   "schema": 1

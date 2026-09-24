@@ -6,8 +6,12 @@
    copy, so topology is never multiplied; the rasterizer draws it with
    Scene3 instancing and a Metal instance acceleration structure for tracing.
    Select a node to edit it; Command-Z / Shift-Command-Z undo and
-   redo every edit. Orbit in the view pane with the mouse.
-   PRISMEL_VOXEL_RENDERER=wireframe|raster selects a startup mode.
+   redo every edit. Orbit in the view pane with the mouse; Space opens the
+   leader keys (Space w flies, Space s / Space b save and browse presets in
+   ~/.prismel/voxel_wall). The ACTIVE camera node drives the path tracer.
+   PRISMEL_VOXEL_RENDERER=wireframe|raster selects a startup mode;
+   PRISMEL_VOXEL_SWITCH=wireframe|raster switches to it halfway through a
+   finite smoke, exercising the live renderer change.
    PRISMEL_PATHTRACER_FRAMES=N runs a finite smoke; PRISMEL_PATHTRACER_PNG=path
    saves the final window. *)
 open Prismel
@@ -133,6 +137,9 @@ let initial_renderer = match Sys.getenv_opt "PRISMEL_VOXEL_RENDERER" with
   | Some "raster" -> Raster | Some "wireframe" -> Wireframe
   | _ -> Path_traced
 let renderer_ref = Atomic.make initial_renderer
+let switch_to = match Sys.getenv_opt "PRISMEL_VOXEL_SWITCH" with
+  | Some "raster" -> Some Raster | Some "wireframe" -> Some Wireframe
+  | Some "path" -> Some Path_traced | _ -> None
 
 type prepared = { traced : P.mesh option; raster : Scene3.node option; wire : Scene3.node option;
   triangles : int; instances : int }
@@ -292,7 +299,7 @@ let init _frame =
     with Ok tracer -> tracer | Error message -> failwith message in
   tracer_ref := Some tracer;
   let env =
-    match Sketch_ui.Environment3.create
+    match Sketch_ui.Environment3.create ~name:"voxel_wall"
       ~camera:(Easy_camera.create ~target:(v 0. 0. 1.) ~distance:19. ~azimuth:(-0.22)
         ~elevation:0.08 ~fov_y:0.7 ~inertia:false ())
       ~background:(Color.rgb 8 8 10) ~seed:7L ~grain:2 ~max_entries:24
@@ -308,6 +315,9 @@ let update m (frame : Frame.t) =
         (match m.renderer with Path_traced -> 0 | Raster -> 1 | Wireframe -> 2) in
     List.nth renderers index) in
   let renderer = Option.value chosen ~default:m.renderer in
+  let renderer = match switch_to with
+    | Some target when frames > 0 && frame.count = frames / 2 -> target
+    | _ -> renderer in
   let env = if renderer <> m.renderer then begin
       Atomic.set renderer_ref renderer; Sketch_ui.Environment3.rerender env end else env in
   let shown = match Sketch_ui.Environment3.prepared env with
@@ -316,16 +326,18 @@ let update m (frame : Frame.t) =
           | Ok () -> () | Error e -> prerr_endline e) prepared.traced;
         Some prepared
     | _ -> m.shown in
+  (* The ACTIVE camera node drives the trace; the default one follows the
+     viewport, so orbiting still steers it. *)
   if renderer = Path_traced then begin
-    let easy = Sketch_ui.Environment3.camera env in
-    let camera = Easy_camera.camera easy in
+    let camera = Sketch_ui.Environment3.render_camera env in
     let target = Camera.target camera in
+    let fov = match Camera.projection camera with
+      | Camera.Perspective { fov_y; _ } -> fov_y | _ -> 0.7 in
     let eye = if orbit then
       let angle = 0.5 *. sin (float frame.count *. 0.05) in
       v (target.x +. 19. *. sin angle) (target.y +. 1.5) (target.z +. 19. *. cos angle)
       else Camera.position camera in
-    match P.render m.tracer
-      { P.eye = eye; target; fov = Easy_camera.fov_y easy }
+    match P.render m.tracer { P.eye = eye; target; fov }
     with Ok () -> () | Error e -> prerr_endline e
   end;
   if frames > 0 && frame.count + 1 >= frames then begin

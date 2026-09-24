@@ -112,6 +112,7 @@ val diagnostics : t -> diagnostics
 val native_release_queue : unit -> (int * int * int64 * int64) option
 val show : t -> (unit,error) result
 val hide : t -> (unit,error) result
+val set_relative_mouse : t -> bool -> (unit,error) result
 val visible : t -> (bool,error) result
 val push_event : t -> event -> (unit,error) result
 val resize : t -> logical_width:int -> logical_height:int ->

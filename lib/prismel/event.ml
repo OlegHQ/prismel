@@ -30,10 +30,18 @@ let configure ~logical_width ~logical_height =
   match Runtime_next_input.set_extent source ~logical_width ~logical_height with
   | Ok () -> ()
   | Error message -> invalid_arg ("Event.configure: " ^ message)
+(* In relative mode the frame's [mouse_delta] is the summed device motion
+   rather than absolute differences, which stop at the window edge. *)
 let poll_events()=
-  Input.begin_frame();
+  Input.begin_frame();Runtime_next_input.begin_frame source;
   (match Runtime_next_input_sdl3.pump source with Ok()->()|Error _->());
-  Runtime_next_input.drain source|>List.filter_map convert|>List.map(fun e->apply e;e)
+  let events=Runtime_next_input.drain source|>List.filter_map convert|>List.map(fun e->apply e;e)in
+  if Runtime_next_input.relative source then begin
+    let dx,dy=(Runtime_next_input.snapshot source).mouse_delta in
+    Input.set_mouse_delta(int_of_float(Float.round dx),int_of_float(Float.round dy))
+  end;
+  events
+module Private=struct let set_relative enabled=Runtime_next_input.set_relative source enabled end
 let process_events events state handler=match handler with None->state|Some f->List.fold_left f state events
 let handle_events state handler=let events=poll_events()in process_events events state handler,events
 let event_to_string=function

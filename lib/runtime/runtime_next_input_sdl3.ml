@@ -9,7 +9,9 @@ let button = function
   | _ -> None
 
 let key_name ~scancode keycode =
-  if keycode>=32 && keycode<=126 then
+  (* Space (32) is a named key, not a printable character: hosts match
+     [Input.Space]. *)
+  if keycode>32 && keycode<=126 then
     String.make 1(Char.lowercase_ascii(Char.chr keycode))
   else match scancode with
     |40->"Enter"|41->"Escape"|42->"Backspace"|43->"Tab"|44->"Space"
@@ -55,6 +57,10 @@ let translate = function
 let push value event =
   match event with
   |Sdl3.Event.Drop{change=File path;_}->Runtime_next_input.push_file_path value path
+  |Sdl3.Event.Mouse_motion { dx; dy; _ } ->
+      Runtime_next_input.add_motion value ~dx ~dy;
+      (match translate event with
+       | None -> Ok () | Some event -> Runtime_next_input.push value event)
   |_->match translate event with None -> Ok () | Some event -> Runtime_next_input.push value event
 
 let pump value =

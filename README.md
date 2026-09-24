@@ -147,6 +147,24 @@ dune exec examples/voxel_wall/main.exe
 Examples and sketches intended for automation must provide an explicit finite
 native smoke path; the runtime does not impose an implicit frame limit.
 
+### Sketch workspace keys
+
+`Sketch_ui` environments (for example `examples/voxel_wall`) use a leader key:
+press `Space`, read the which-key panel, then press one key. Pane-scoped keys
+apply to the pane you clicked last.
+
+| Keys | Action |
+|---|---|
+| `Space s` / `Space b` | save / browse presets (`~/.prismel/<sketch>/`) |
+| `Space t` / `g` / `i` | toggle timeline / graph / inspector |
+| `Space h` / `Space c` | hide all UI / camera section |
+| `Space p` / `r` / `x` | play-pause / reset / stop |
+| `Space a` / `l` / `f` (graph) | add node / layout / frame selected tile |
+| `Space w` / `Space v` (3D view) | fly (WASD, Q/E, Shift, wheel; Esc) / look through render camera |
+| `F` (graph) | frame the viewport on the selected node |
+| `Home`, Delete, Cmd/Ctrl-C/V/X/D/Z | frame all tiles, delete, clipboard, undo |
+| right click | context menu (right drag pans) |
+
 ## Architecture
 
 ```text

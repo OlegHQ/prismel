@@ -67,3 +67,8 @@ val export_state :
 val quit : unit -> unit
 val resize : width:int -> height:int -> unit
 (* Resize the active sketch through its native runtime. *)
+
+val set_relative_mouse : bool -> (unit, string) result
+(** Capture and hide the pointer: [Frame.mouse_delta] then reports device
+    motion even at the window edge (fly cameras). Released when the sketch
+    stops; an error when no sketch is running. *)

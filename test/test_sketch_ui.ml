@@ -52,13 +52,47 @@ let () =
   let wider = Sketch_ui.Workspace.geometry resized (frame ~width:1200 3) in
   check (width wider.view > width resized_panes.view)
     "workspace splitter ratio did not survive a window resize";
-  let collapsed = workspace_step resized
-      (frame ~events:[Event.KeyPressed (Input.KeyChar 'i')] 4) in
+  let collapsed = workspace_step
+      (Sketch_ui.Workspace.toggle Sketch_ui.Workspace.Inspector resized) (frame 4) in
   Pxui.Ui.destroy ui;
   let collapsed_panes = Sketch_ui.Workspace.geometry collapsed (frame 5) in
   check (width collapsed_panes.inspector
       = Sketch_ui.default_layout.collapsed_width)
-    "inspector shortcut did not collapse the third column";
+    "inspector toggle did not collapse the third column";
+
+  (* Leader: Space arms it, the next key resolves global or focused-pane
+     bindings, Escape cancels, and a focused text field keeps its Space. *)
+  let module L = Sketch_ui.Leader in
+  let keys events = frame ~events:(List.map (fun key -> Event.KeyPressed key) events) 0 in
+  let step ?(focus = Sketch_ui.Workspace.View) ?(text_focus = false) state events =
+    L.step L.keymap ~focus ~text_focus ~frame:(keys events) state in
+  let state, actions, passed = step L.Idle [Input.Space; Input.KeyChar 'g'] in
+  check (state = L.Idle && actions = [L.Toggle_graph] && passed.Frame.events = [])
+    "Space g did not toggle the graph and consume both keys";
+  let state, actions, _ = L.step L.keymap ~focus:Sketch_ui.Workspace.View
+      ~text_focus:false ~frame:(frame ~events:[Event.KeyPressed Input.Space;
+        Event.TextInput " "] 0) L.Idle in
+  check (state = L.Pending && actions = [])
+    "the native text event after Space cancelled the leader";
+  let state, actions, passed = L.step L.keymap ~focus:Sketch_ui.Workspace.View
+      ~text_focus:false ~frame:(frame ~events:[Event.KeyPressed (Input.KeyChar 'g');
+        Event.TextInput "g"] 0) state in
+  check (state = L.Idle && actions = [L.Toggle_graph] && passed.events = [])
+    "a leader key with its text event did not resolve cleanly";
+  let state, actions, _ = step L.Idle [Input.Space] in
+  check (state = L.Pending && actions = []) "Space did not arm the leader";
+  let state, actions, passed = step state [Input.Escape] in
+  check (state = L.Idle && actions = [] && passed.events = [])
+    "Escape did not cancel the leader";
+  let _, actions, _ = step L.Idle [Input.Space; Input.KeyChar 'l'] in
+  check (actions = []) "graph-scoped leader key ran while the view was focused";
+  let _, actions, _ = step ~focus:Sketch_ui.Workspace.Graph L.Idle
+      [Input.Space; Input.KeyChar 'l'] in
+  check (actions = [L.Layout]) "graph-scoped leader key ignored the focused graph";
+  let state, actions, passed = step ~text_focus:true L.Idle [Input.Space] in
+  check (state = L.Idle && actions = []
+      && passed.events = [Event.KeyPressed Input.Space])
+    "Space in a focused text field did not reach the field";
 
   let source = Sop.box ~label:"Inspectable source"
       ~size:(Vec3.create 2. 2. 2.) () in
@@ -155,10 +189,11 @@ let () =
        ~frames:1 ~config:{ Sketch.default_config with width=900; height=640 }
        (Sketch_ui.Environment3.scene environment)
    | None -> ());
-  let camera_frame = frame ~events:[Event.KeyPressed (Input.KeyChar 'c')] 21 in
+  let camera_frame = frame ~events:[Event.KeyPressed Input.Space;
+      Event.KeyPressed (Input.KeyChar 'c')] 21 in
   let environment = Sketch_ui.Environment3.update environment camera_frame in
   check (Sketch_ui.Environment3.selected_node environment = None)
-    "C did not restore the camera/render inspector";
+    "Space c did not restore the camera/render inspector";
   let source_tile = List.find (fun tile -> tile.Pxui_graph.id = Node.id source)
       (Sketch_ui.Environment3.graph_nodes environment) in
   let view_point = center source_tile.view_bounds in
@@ -220,7 +255,8 @@ let () =
     (Sketch_ui.Environment3.panes environment (frame 29)).graph in
   let menu_point = graph_x + (graph_width / 2), graph_y + (graph_height / 2) in
   let environment = Sketch_ui.Environment3.update environment
-      (frame ~mouse:menu_point ~events:[Event.KeyPressed Input.Space] 29) in
+      (frame ~mouse:menu_point ~events:[Event.KeyPressed Input.Space;
+        Event.KeyPressed (Input.KeyChar 'a')] 29) in
   let environment = Sketch_ui.Environment3.update environment
       (frame ~mouse:menu_point ~events:[Event.TextInput "null";
         Event.KeyPressed Input.Enter] 30) in
@@ -240,14 +276,15 @@ let () =
         Event.MousePressed (Input.LeftButton, source_point);
         MouseReleased (Input.LeftButton, source_point)] 31) in
   let environment = Sketch_ui.Environment3.update environment
-      (frame ~mouse:source_point ~events:[Event.KeyPressed Input.Space] 32) in
+      (frame ~mouse:source_point ~events:[Event.KeyPressed Input.Space;
+        Event.KeyPressed (Input.KeyChar 'a')] 32) in
   let environment = Sketch_ui.Environment3.update environment
       (frame ~mouse:source_point ~events:[Event.TextInput "null";
         Event.KeyPressed Input.Enter] 33) in
   check (List.length (Edit_graph.inspect
       (Sketch_ui.Environment3.document environment)) = 4
       && Node.operation (Sketch_ui.Environment3.displayed_node environment) = "null")
-    "workspace did not apply and display a Space-menu graph edit";
+    "workspace did not apply and display a leader add-node graph edit";
   let environment = Sketch_ui.Environment3.update environment
       (frame ~events:[Event.KeyPressed (Input.KeyChar 'd')]
         ~mouse:source_point 34 |> fun frame ->
@@ -260,6 +297,188 @@ let () =
   check (List.length (Edit_graph.inspect
       (Sketch_ui.Environment3.document environment)) = 4)
     "Backspace did not delete the duplicated node";
+  (* Space t shows the timeline bar; dragging its scrub slider seeks and
+     pauses the shared clock. *)
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[Event.KeyPressed Input.Space;
+        Event.KeyPressed (Input.KeyChar 't')] 36) in
+  let tx, ty, tw, th = (Sketch_ui.Environment3.panes environment (frame 37)).timeline in
+  check (th > 0 && tw = 900) "Space t did not show the full-width timeline bar";
+  let environment = Sketch_ui.Environment3.update environment (frame 37) in
+  let scrub_y = ty + (th / 2) and scrub_x = tx + tw - 60 in
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[Event.MousePressed (Input.LeftButton, (scrub_x, scrub_y))] 38) in
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[Event.MouseMoved (tx + tw - 10, scrub_y);
+        Event.MouseReleased (Input.LeftButton, (tx + tw - 10, scrub_y))] 39) in
+  let clock = Sketch_ui.Environment3.timeline environment in
+  check (Sketch_support.Timeline.mode clock = Sketch_support.Timeline.Paused
+      && Sketch_support.Timeline.frame clock >= 200L)
+    "dragging the timeline scrub did not seek and pause";
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[Event.KeyPressed Input.Space] 40) in
+  (match Sys.getenv_opt "PRISMEL_UI_PREVIEW" with
+   | Some directory -> Sketch.export ~directory ~prefix:"workspace-leader"
+       ~frames:1 ~config:{ Sketch.default_config with width=900; height=640 }
+       (Sketch_ui.Environment3.scene environment)
+   | None -> ());
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[Event.KeyPressed Input.Escape] 41) in
+  Sketch_ui.Environment3.close environment;
+
+  (* Camera nodes: a default camera following the viewport joins a document
+     without one, exactly one is ACTIVE, deleting the last re-adds it inside
+     the same undo entry, and a viewport drag is one coalesced undo entry. *)
+  let cameras environment = List.filter (fun info -> info.Edit_graph.operation = "camera")
+      (Edit_graph.inspect (Sketch_ui.Environment3.document environment)) in
+  let active environment = List.filter (fun tile -> tile.Pxui_graph.active)
+      (Sketch_ui.Environment3.graph_nodes environment) in
+  let environment = Sketch_ui.Environment3.create ~graph
+      ~camera:(Easy_camera.create ~distance:6. ~inertia:false ())
+      ~factories:Sop_catalog.Editor.factories
+      ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
+      ~prepare:(fun output -> Bridge.to_mesh output.Session.geometry
+        |> Result.map_error Pdk.Error.to_string)
+      ~scene3:(fun _graph mesh -> Scene3.create [Scene3.mesh mesh]) ()
+    |> Result.get_ok in
+  let near a b = Vec3.nearly_equal a b ~eps:1e-6 in
+  let eye environment = Camera.position (Sketch_ui.Environment3.render_camera environment) in
+  let viewport_eye environment =
+    Camera.position (Easy_camera.camera (Sketch_ui.Environment3.camera environment)) in
+  check (List.length (cameras environment) = 1 && List.length (active environment) = 1)
+    "Environment3 did not add one ACTIVE default camera";
+  let environment = List.fold_left (fun environment count ->
+      Sketch_ui.Environment3.update environment (frame count)) environment [0; 1; 2] in
+  check (not (Sketch_ui.Environment3.can_undo environment)
+      && near (eye environment) (viewport_eye environment))
+    "an idle following camera wrote undo entries or drifted from the viewport";
+  let start_eye = eye environment in
+  let vx, vy, vw, vh = (Sketch_ui.Environment3.panes environment (frame 3)).view in
+  let px, py = vx + (vw / 2), vy + (vh / 2) in
+  let environment = List.fold_left (fun environment (count, events) ->
+      Sketch_ui.Environment3.update environment
+        { (frame ~events count) with mouse_buttons = [Input.LeftButton] })
+    environment [
+      4, [Event.MousePressed (Input.LeftButton, (px, py))];
+      5, [Event.MouseMoved (px + 30, py)];
+      6, [Event.MouseMoved (px + 60, py + 10)];
+      7, [Event.MouseMoved (px + 90, py + 20)]] in
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[Event.MouseReleased (Input.LeftButton, (px + 90, py + 20))] 8) in
+  check (not (near (eye environment) start_eye)
+      && near (eye environment) (viewport_eye environment))
+    "the following camera did not track a viewport orbit";
+  let command key count = { (frame ~events:[Event.KeyPressed (Input.KeyChar key)] count)
+    with keys = [Input.Meta] } in
+  let environment = Sketch_ui.Environment3.update environment (command 'z' 9) in
+  let environment = Sketch_ui.Environment3.update environment (frame 10) in
+  check (near (eye environment) start_eye && near (viewport_eye environment) start_eye
+      && not (Sketch_ui.Environment3.can_undo environment))
+    "one undo did not revert the whole drag and move the viewport back";
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[Event.KeyPressed Input.Home] 10) in
+  let environment = Sketch_ui.Environment3.update environment (frame 10) in
+  let camera_tile = List.hd (active environment) in
+  (* The title bar: at this zoom the ACTIVE/VIEW buttons cover the center. *)
+  let at = let x, y, w, _ = camera_tile.bounds in x + (w / 3), y + 5 in
+  let environment = Sketch_ui.Environment3.update environment (frame ~events:[
+      Event.MousePressed (Input.LeftButton, at); MouseReleased (Input.LeftButton, at)] 11) in
+  let environment = Sketch_ui.Environment3.update environment (command 'd' 12) in
+  check (List.length (cameras environment) = 2 && List.length (active environment) = 1)
+    "duplicating a camera broke the single ACTIVE flag";
+  let environment = Sketch_ui.Environment3.update environment (command 'z' 13) in
+  let environment = Sketch_ui.Environment3.update environment (frame 14) in
+  let environment = Sketch_ui.Environment3.update environment (frame ~events:[
+      Event.MousePressed (Input.LeftButton, at); MouseReleased (Input.LeftButton, at)] 15) in
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[Event.KeyPressed Input.Delete] 16) in
+  check (List.length (cameras environment) = 1 && List.length (active environment) = 1
+      && (List.hd (cameras environment)).id <> camera_tile.id)
+    "deleting the last camera did not re-add an ACTIVE default";
+  let environment = Sketch_ui.Environment3.update environment (command 'z' 17) in
+  check (List.map (fun info -> info.Edit_graph.id) (cameras environment) = [camera_tile.id])
+    "undo after deleting the camera did not restore the original in one step";
+  (* Fly: Space w (view focused) flies, held W moves forward, Escape exits;
+     Space exits and arms the leader in the same frame. *)
+  let key k = Event.KeyPressed k in
+  let fly_view environment = let vx, vy, _, _ = (Sketch_ui.Environment3.panes
+      environment (frame 18)).view in vx + 20, vy + 20 in
+  let environment = Sketch_ui.Environment3.update environment (frame ~events:[
+      Event.MousePressed (Input.RightButton, fly_view environment);
+      MouseReleased (Input.RightButton, fly_view environment)] 18) in
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[key Input.Space; key (Input.KeyChar 'w')] 18) in
+  check (Sketch_ui.Environment3.flying environment) "Space w did not enter fly mode";
+  let before = viewport_eye environment in
+  let environment = Sketch_ui.Environment3.update environment
+      { (frame ~events:[key (Input.KeyChar 'w')] 18) with keys = [Input.KeyChar 'w'] } in
+  check (not (near (viewport_eye environment) before)
+      && Sketch_ui.Environment3.selected_node environment = None)
+    "held W did not fly the viewport";
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[key Input.Escape] 18) in
+  check (not (Sketch_ui.Environment3.flying environment)) "Escape did not exit fly mode";
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[key Input.Space; key (Input.KeyChar 'w')] 18) in
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[key Input.Space] 18) in
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[key (Input.KeyChar 'g')] 18) in
+  check (not (Sketch_ui.Environment3.flying environment)
+      && width (Sketch_ui.Environment3.panes environment (frame 18)).graph
+         = Sketch_ui.default_layout.collapsed_width)
+    "Space did not exit fly mode into the leader";
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[key Input.Space; key (Input.KeyChar 'g')] 18) in
+  (* F with the graph focused frames the viewport camera on the selected node:
+     the source through the worker, the displayed output immediately. *)
+  let select_and_frame label count environment =
+    let tile = List.find (fun tile -> tile.Pxui_graph.label = label)
+        (Sketch_ui.Environment3.graph_nodes environment) in
+    let at = let x, y, w, _ = tile.bounds in x + (w / 3), y + 5 in
+    let environment = Sketch_ui.Environment3.update environment (frame ~events:[
+        Event.MousePressed (Input.LeftButton, at); MouseReleased (Input.LeftButton, at)]
+        count) in
+    Sketch_ui.Environment3.update environment
+      (frame ~events:[Event.KeyPressed (Input.KeyChar 'f')] (count + 1)) in
+  let target environment = Easy_camera.target (Sketch_ui.Environment3.camera environment) in
+  let environment = select_and_frame "Inspectable source" 18 environment in
+  let deadline = Unix.gettimeofday () +. 2. in
+  let framed_distance environment =
+    let camera = Sketch_ui.Environment3.camera environment in
+    sqrt 3. /. tan (Easy_camera.fov_y camera /. 2.) *. 1.2 in
+  let rec wait_frame count environment =
+    if near (target environment) Vec3.zero && Float.abs (Easy_camera.distance
+        (Sketch_ui.Environment3.camera environment) -. framed_distance environment) < 1e-6
+    then environment
+    else if Unix.gettimeofday () < deadline then begin
+      Unix.sleepf 0.001;
+      wait_frame (count + 1) (Sketch_ui.Environment3.update environment (frame count))
+    end else fail "F did not frame the viewport on the selected source" in
+  let environment = wait_frame 20 environment in
+  let environment = select_and_frame "Inspectable output" 300 environment in
+  check (near (target environment) (Vec3.create 5. 0. 0.))
+    "F on the displayed node did not frame its cached bounds immediately";
+  Sketch_ui.Environment3.close environment;
+
+  (* [rerender] must re-run [prepare]: a sketch-owned mode read by [prepare]
+     (voxel_wall's renderer switch) otherwise keeps the stale prepared value. *)
+  let mode = Atomic.make 0 in
+  let environment = Sketch_ui.Environment3.create ~graph
+      ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
+      ~prepare:(fun _ -> Ok (Atomic.get mode))
+      ~scene3:(fun _ _ -> Scene3.create []) () |> Result.get_ok in
+  let deadline = Unix.gettimeofday () +. 2. in
+  let rec wait_mode expected count environment =
+    let environment = Sketch_ui.Environment3.update environment (frame count) in
+    if Sketch_ui.Environment3.prepared environment = Some expected then environment
+    else if Unix.gettimeofday () < deadline then
+      (Unix.sleepf 0.001; wait_mode expected (count + 1) environment)
+    else fail "rerender did not re-run prepare for a changed render mode" in
+  let environment = wait_mode 0 0 environment in
+  Atomic.set mode 1;
+  let environment = wait_mode 1 100
+      (Sketch_ui.Environment3.rerender environment) in
   Sketch_ui.Environment3.close environment;
 
   let environment2 = Sketch_ui.Environment2.create ~graph
@@ -288,7 +507,10 @@ let () =
     "2D sketch environment produced an empty composed scene";
   check (Sketch_support.Timeline.time (Sketch_ui.Environment2.timeline environment2)
       > 0.) "shared 2D sketch lifecycle did not advance playback time";
-  let hidden_frame = frame ~events:[Event.KeyPressed (Input.KeyChar 'h')] 11 in
+  let hidden_frame = frame ~events:[Event.KeyPressed Input.Space;
+      Event.KeyPressed (Input.KeyChar 'h')] 11 in
+  let environment2 = Sketch_ui.Environment2.update environment2 hidden_frame in
+  let hidden_frame = frame 11 in
   let environment2 = Sketch_ui.Environment2.update environment2 hidden_frame in
   check (Easy_camera2.control_area (Sketch_ui.Environment2.camera environment2)
       = Some (0, 0, hidden_frame.width, hidden_frame.height))
@@ -297,4 +519,136 @@ let () =
   check (Sketch_ui.Environment2.scene environment2 (frame 12) == hidden_scene)
     "unchanged hidden 2D scene composition was rebuilt";
   Sketch_ui.Environment2.close environment2;
+  (* Presets: a custom node, an added catalog node, a moved tile, and an
+     edited parameter survive save -> load; a sketch whose code graph lacks
+     the custom node, or corrupt JSON, is rejected. *)
+  let depth_schema = Parameter.schema ~name:"test_depth" ~default:2.
+      [Parameter.field ~name:"amount" ~label:"Amount"
+         ~kind:(Parameter.floating ~min:0. ~max:10. ()) ~default:2.
+         ~get:Fun.id ~set:(fun amount _ -> amount) ()] in
+  let code () =
+    let grid = Sop_catalog.Grid.create ~label:"code-grid" ~columns:2 ~rows:2 ~size:1. () in
+    Custom.map ~label:"code-depth" ~operation:"test_depth" ~schema:depth_schema
+      ~values:2. grid (fun ~parameters:_ ~context:_ geometry -> Ok geometry) in
+  let code_graph = code () in
+  let box = List.find (fun factory -> Edit_graph.factory_key factory = "box")
+      Sop_catalog.Editor.factories in
+  let added = Result.get_ok (Edit_graph.instantiate box []) in
+  let document = Edit_graph.of_graph code_graph
+    |> Edit_graph.add_node ~factory:box added |> Result.get_ok in
+  let document, _ = Edit_graph.apply_parameters document ~node_id:(Node.id code_graph)
+      ["amount", Parameter.Float_value 7.25] |> Result.get_ok in
+  let directory = Filename.temp_dir "sketch-ui-presets" "" in
+  let positions = [Node.id added, 123.5, -40.] in
+  let saved = Sketch_ui.Preset.save ~directory ~name:"my wall/1" ~sketch:"test"
+      ~document ~positions ~display:(Some (Node.id code_graph)) ~active_camera:None
+      ~view:(`Assoc ["fov", `Float 0.5]) |> Result.get_ok in
+  check (Filename.basename saved = "my_wall_1.json"
+      && List.map fst (Sketch_ui.Preset.list ~directory) = ["my_wall_1"])
+    "preset save did not sanitize the name or list the file";
+  let loaded = Sketch_ui.Preset.load ~path:saved ~code:code_graph
+      ~factories:Sop_catalog.Editor.factories |> Result.get_ok in
+  let describe document = Edit_graph.inspect document |> List.map (fun info ->
+    let label id = (Option.get (Edit_graph.find document ~node_id:id) |> Node.label) in
+    info.Edit_graph.label, info.operation, info.parameters,
+    Array.map (Option.map label) info.inputs) in
+  check (describe loaded.document = describe document
+      && loaded.view = `Assoc ["fov", `Float 0.5]
+      && loaded.display = Some (Node.id code_graph)
+      && List.exists (fun (_, x, y) -> x = 123.5 && y = -40.) loaded.positions)
+    "preset round trip changed the document, view, display, or tile positions";
+  check (Result.is_error (Sketch_ui.Preset.load ~path:saved ~code:(code ())
+      ~factories:Sop_catalog.Editor.factories))
+    "a preset loaded into a sketch without its custom node";
+  let corrupt = Filename.concat directory "corrupt.json" in
+  Out_channel.with_open_text corrupt (fun channel -> output_string channel "{nope");
+  check (Result.is_error (Sketch_ui.Preset.load ~path:corrupt ~code:code_graph
+      ~factories:Sop_catalog.Editor.factories)) "corrupt preset JSON loaded";
+  check (Sketch_ui.Preset.delete ~directory ~name:"corrupt" = Ok ()
+      && List.map fst (Sketch_ui.Preset.list ~directory) = ["my_wall_1"])
+    "preset delete did not remove the file";
+
+  (* Workspace presets: Space s + Enter saves; Space b loads a preset whose
+     camera does not follow the viewport, as one undo step, and looking
+     through it renders exactly the render camera's framebuffer. *)
+  let presets = Filename.temp_dir "sketch-ui-workspace-presets" "" in
+  let mesh_scene mesh = Scene3.create [Scene3.mesh mesh] in
+  let environment = Sketch_ui.Environment3.create ~graph ~presets
+      ~camera:(Easy_camera.create ~distance:6. ~inertia:false ())
+      ~factories:Sop_catalog.Editor.factories
+      ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
+      ~prepare:(fun output -> Bridge.to_mesh output.Session.geometry
+        |> Result.map_error Pdk.Error.to_string)
+      ~scene3:(fun _graph mesh -> mesh_scene mesh) () |> Result.get_ok in
+  let environment = wait 0 environment in
+  let key k = Event.KeyPressed k in
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[key Input.Space; key (Input.KeyChar 's')] 50) in
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[key Input.Enter] 51) in
+  check (List.length (Sketch_ui.Preset.list ~directory:presets) = 1)
+    "Space s + Enter did not save a preset";
+  let document = Sketch_ui.Environment3.document environment in
+  let camera_id = (List.hd (cameras environment)).id in
+  let document, _ = Edit_graph.apply_parameters document ~node_id:camera_id
+      [ "follow_viewport", Parameter.Bool_value false;
+        "eye_x", Parameter.Float_value 6.; "eye_y", Parameter.Float_value 2.;
+        "eye_z", Parameter.Float_value 6. ] |> Result.get_ok in
+  ignore (Sketch_ui.Preset.save ~directory:presets ~name:"fixed" ~sketch:"test" ~document
+      ~positions:[] ~display:None ~active_camera:(Some camera_id)
+      ~view:(`Assoc ["look_through", `Bool true]) |> Result.get_ok);
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[key Input.Space; key (Input.KeyChar 'b')] 52) in
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[Event.TextInput "fixed"; key Input.Enter] 53) in
+  let environment = Sketch_ui.Environment3.update environment (frame 54) in
+  check (near (eye environment) (Vec3.create 6. 2. 6.)
+      && Sketch_ui.Environment3.look_through environment
+      && not (near (viewport_eye environment) (Vec3.create 6. 2. 6.)))
+    "loading a preset did not restore its fixed render camera and look-through";
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[key Input.Space; key (Input.KeyChar 'h')] 55) in
+  let deadline = Unix.gettimeofday () +. 2. in
+  let rec wait_cook count environment =
+    let environment = Sketch_ui.Environment3.update environment (frame count) in
+    if Sketch_ui.Environment3.prepared environment <> None
+        && Sketch_ui.Environment3.displayed_node environment != graph
+        || Unix.gettimeofday () > deadline then environment
+    else (Unix.sleepf 0.001; wait_cook (count + 1) environment) in
+  let environment = wait_cook 56 environment in
+  let export prefix view =
+    let directory = Filename.temp_dir "sketch-ui-look" "" in
+    Sketch.export ~directory ~prefix ~frames:1
+      ~config:{ Sketch.default_config with width = 200; height = 150 } view;
+    In_channel.with_open_bin (Filename.concat directory (prefix ^ "-000000.png"))
+      In_channel.input_all in
+  let mesh = Option.get (Sketch_ui.Environment3.prepared environment) in
+  let direct camera frame = [Scene.clear (Color.hex_exn "#09090b");
+      Scene.view3d ~viewport:(0, 0, frame.Frame.width, frame.height) ~camera
+        (mesh_scene mesh)] in
+  let looked = export "look" (Sketch_ui.Environment3.scene environment) in
+  check (looked = export "render" (direct (Sketch_ui.Environment3.render_camera environment))
+      && looked <> export "viewport" (direct (Easy_camera.camera
+        (Sketch_ui.Environment3.camera environment))))
+    "look-through framebuffer differs from the render camera's";
+  let environment = Sketch_ui.Environment3.update environment (command 'z' 90) in
+  let environment = Sketch_ui.Environment3.update environment (frame 91) in
+  check (not (near (eye environment) (Vec3.create 6. 2. 6.)))
+    "one undo did not revert the loaded preset";
+  Sketch_ui.Environment3.close environment;
+
+  (* Finite native smoke: the relative-pointer boundary toggles on a live
+     window and is released when the sketch stops. *)
+  let toggled = ref [] in
+  let directory = Filename.temp_dir "sketch-ui-fly" "" in
+  ignore (Sketch.export_state ~directory ~frames:3
+      ~config:{ Sketch.default_config with width = 120; height = 80 }
+      ~init:(fun _ -> ())
+      ~update:(fun () (frame : Frame.t) ->
+        if frame.count <= 2 then
+          toggled := Sketch.set_relative_mouse (frame.count = 1) :: !toggled)
+      ~view:(fun () _ -> [Scene.clear Color.black]) ());
+  check (!toggled = [Ok (); Ok ()]
+      && Sketch.set_relative_mouse true <> Ok ())
+    "native relative-pointer toggle failed or outlived the sketch";
   print_endline "sketch ui tests passed"
