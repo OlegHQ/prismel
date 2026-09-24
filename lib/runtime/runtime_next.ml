@@ -223,6 +223,11 @@ let set_resizable value enabled=window_call"Runtime_next.set_resizable"(fun wind
 let set_always_on_top value enabled=window_call"Runtime_next.set_always_on_top"(fun window->Sdl3.Window.set_always_on_top window enabled)value
 let set_fullscreen value enabled=window_call"Runtime_next.set_fullscreen"(fun window->Sdl3.Window.set_fullscreen window enabled)value
 let set_relative_mouse value enabled=window_call"Runtime_next.set_relative_mouse"(fun window->Sdl3.Window.set_relative_mouse window enabled)value
+let set_text_input_area value area=window_call"Runtime_next.set_text_input_area"
+  (* ponytail: the IME cursor stays at the region origin until PXUI exposes
+     caret offsets in its scene metadata. *)
+  (fun window->Sdl3.Text_input.set_area window
+    (Option.map(fun(x,y,width,height)->{Sdl3.x;y;width;height})area)~cursor:0)value
 let show (value:t)=if value.dead then Error(Ogpu.Error.make"Runtime_next.show"Stale_handle"runtime is destroyed")else
   match sdl"Runtime_next.show"(reveal value.window)with Error _ as error->error|Ok()->sync_window_facts value
 let hide=window_call"Runtime_next.hide" Sdl3.Window.hide

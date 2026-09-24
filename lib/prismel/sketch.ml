@@ -62,6 +62,12 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
     let facts=get(Prismel_next_execution.presentation_facts coordinator)in
     logical_width:=facts.logical_width;logical_height:=facts.logical_height);
   Scene.Private.install_renderer(fun scene->
+    (* ponytail: scan scene metadata each frame; move the focused region into
+       staged scene facts if large retained scenes make this measurable. *)
+    let area=Scene.Private.text_regions scene
+      |>List.find_opt(fun(_,_,_,_,focused)->focused)
+      |>Option.map(fun(x,y,w,h,_)->x,y,w,h)in
+    get(Prismel_next_execution.set_text_input_area coordinator area);
     let facts=get(Prismel_next_execution.presentation_facts coordinator)in
     let density=
       let from_drawable=float facts.drawable_width/.float(max 1 facts.logical_width)in

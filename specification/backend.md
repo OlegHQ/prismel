@@ -260,7 +260,10 @@ Long-running, SDK-, driver- and machine-specific checks run under
 gate.
 # Native UI input and export
 
-The native window starts SDL3 text input for its lifetime. PXUI applies text
+The native window starts SDL3 text input for its lifetime. PXUI emits a focused
+text region in logical points; Sketch forwards it to SDL3's IME candidate area
+on each render and clears the area when focus leaves. The IME cursor currently
+uses the region origin. PXUI applies text
 events only to a focused editor; Sketch UI suppresses workspace and graph
 keyboard shortcuts while an editor has focus, and its leader key (Space) only
 arms while no editor is focused. Camera PNG requests capture the

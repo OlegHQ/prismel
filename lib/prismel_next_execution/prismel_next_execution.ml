@@ -510,6 +510,8 @@ let show value=window"Prismel_next_execution.show"Runtime_next_orchestrator.show
 let hide value=window"Prismel_next_execution.hide"Runtime_next_orchestrator.hide value
 let set_relative_mouse value enabled=window"Prismel_next_execution.set_relative_mouse"
   (fun runtime->Runtime_next_orchestrator.set_relative_mouse runtime enabled) value
+let set_text_input_area value area=window"Prismel_next_execution.set_text_input_area"
+  (fun runtime->Runtime_next_orchestrator.set_text_input_area runtime area)value
 let visible value=window"Prismel_next_execution.visible"Runtime_next_orchestrator.visible value
 let snapshot value ~lease_policy ~density source =
   let operation="Prismel_next_execution.lower_scene2"in

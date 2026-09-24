@@ -135,6 +135,10 @@ let uses_metal text =
 
 let violations graph ~scan =
   let reach = reach graph in
+  let direct_errors =
+    if List.mem "sdl3" (Option.value ~default:[] (List.assoc_opt "pxui" graph))
+    then ["pxui depends directly on sdl3 (text input belongs to Scene/runtime)"]
+    else [] in
   let edge_errors = List.concat_map (fun (lib, forbidden) ->
     List.filter_map (fun target ->
       if List.mem target (reach lib)
@@ -147,7 +151,7 @@ let violations graph ~scan =
       || List.exists (fun (prefix, _) -> String.starts_with ~prefix path) metal_exceptions in
     if not allowed && uses_metal text then Some (path ^ " uses Metal outside lib/metal and lib/ogpu_metal")
     else None) scan in
-  edge_errors @ token_errors
+  direct_errors @ edge_errors @ token_errors
 
 let run () =
   let graph = graph ["lib"; "ppx"] in
@@ -159,7 +163,7 @@ let run () =
   List.iter (fun (lib, dep) ->
     if violations (inject lib dep) ~scan:[] = [] then
       failwith (Printf.sprintf "gate accepted injected edge %s -> %s" lib dep))
-    ["ogpu", "metal"; "prismel", "pxui"; "pxui", "procedural"; "sdl3", "prismel";
+    ["ogpu", "metal"; "prismel", "pxui"; "pxui", "procedural"; "pxui", "sdl3"; "sdl3", "prismel";
      "pdk", "geom"; "prismel_next_execution", "runtime_next_input"];
   if violations graph ~scan:["lib/prismel/injected.ml", "let x = Metal.Device.system_default"] = []
      || violations graph ~scan:["lib/prismel/injected.ml", "open Ogpu_metal"] = [] then

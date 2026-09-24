@@ -45,6 +45,9 @@ let run () =
   |Error _->print_endline"Prismel offscreen: skipped (no native Metal device)"
   |Ok execution->
       try
+        expect_error "offscreen execution accepted a native IME area"
+          (Prismel_next_execution.set_text_input_area execution
+            (Some (1, 1, 2, 1)));
         ignore(get(Prismel_next_execution.step~clear:(1.,0.,0.,1.)execution[]));
         let first=get(Prismel_next_execution.capture execution)in
         require(Bytes.length first=3*2*4)"offscreen initial extent";

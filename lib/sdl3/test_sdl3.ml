@@ -146,6 +146,7 @@ let run () =
   (match get (Text_input.area window) with
    | { x = 3; y = 4; width = 40; height = 16 }, 7 -> ()
    | _ -> fail "text-input logical area changed");
+  get (Text_input.set_area window None ~cursor:0);
   get (Text_input.start window);
   if not (get (Text_input.active window)) then fail "text input did not start";
   get (Text_input.stop window);
