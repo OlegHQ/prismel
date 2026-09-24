@@ -28,7 +28,7 @@
  (action (run %{exe:test_main.exe} test_runtime_next)))
 
 (rule
- (aliases runtest test_runtime_next_visibility)
+ (aliases runtest-native test_runtime_next_visibility)
  (action (run %{exe:test_main.exe} test_runtime_next_visibility)))
 
 (rule
@@ -52,7 +52,7 @@
  (action (run %{exe:test_main.exe} test_runtime_next_scene2_argument)))
 
 (rule
- (aliases runtest test_runtime_next_orchestrator)
+ (aliases runtest-native test_runtime_next_orchestrator)
  (action (run %{exe:test_main.exe} test_runtime_next_orchestrator)))
 
 (rule

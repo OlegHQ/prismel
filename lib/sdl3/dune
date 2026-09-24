@@ -34,7 +34,7 @@
   (run %{exe:test_main.exe} test_sdl3))))
 
 (rule
- (aliases runtest test_sdl3_metal)
+ (aliases runtest-native test_sdl3_metal)
  (action (run %{exe:test_main.exe} test_sdl3_metal)))
 
 (rule
