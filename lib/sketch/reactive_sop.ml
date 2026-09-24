@@ -28,15 +28,6 @@ let status value = Async_cook.status value.worker
 let close value = Async_cook.close value.worker
 let error_to_string = Async_cook.error_to_string
 
-type gate = Clean | Dirty
-let clean = Clean
-
-let gate state ~effects ~frame =
-  let state = if effects.Parameter.cook then Dirty else state in
-  match state with
-  | Dirty when not (Frame.mouse_down Input.LeftButton frame) -> Clean, true
-  | Clean | Dirty -> state, false
-
 type schedule = {
   initialized : bool;
   dirty : bool;

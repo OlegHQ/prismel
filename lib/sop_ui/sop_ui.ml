@@ -83,19 +83,4 @@ module Node_inspector = struct
       | [] -> Ok (node, Parameter.no_effects)
       | changes -> Node.apply_parameters node changes
 
-  let graph_widgets ?expanded inspector ui ~graph =
-    match Graph.find graph ~node_id:inspector.node_id with
-    | None -> missing ui; Ok (graph, Parameter.no_effects)
-    | Some node ->
-        match rows ?expanded inspector ui node with
-        | [] -> Ok (graph, Parameter.no_effects)
-        | changes -> Graph.apply_parameters graph ~node_id:inspector.node_id changes
-
-  let reset inspector ~graph = match Graph.find graph ~node_id:inspector.node_id with
-    | None -> Error (Printf.sprintf "procedural graph has no node #%d"
-        inspector.node_id)
-    | Some node ->
-        Graph.apply_parameters graph ~node_id:inspector.node_id
-          (Node.parameter_fields node
-           |> List.map (fun field -> field.Parameter.name, field.default))
 end

@@ -2,8 +2,8 @@
 
     This is the sole SOP inspector path: Procedural nodes own schemas and
     immutable values, this leaf library builds kit widgets from them every
-    frame, and edits go back through [Procedural.Node.apply_parameters] or
-    [Procedural.Graph.apply_parameters]. Widgets read the node's current
+    frame, and edits go back through [Procedural.Node.apply_parameters].
+    Widgets read the node's current
     values each frame, so nothing is synchronized back. *)
 
 module Node_inspector : sig
@@ -21,13 +21,4 @@ module Node_inspector : sig
       normalized; without edits the node is returned unchanged with no
       effects. A node with another id renders an explanatory label. *)
 
-  val graph_widgets :
-    ?expanded:string list -> t -> Pxui.Ui.t -> graph:Procedural.Graph.t ->
-    (Procedural.Graph.t * Procedural.Parameter.effects, string) result
-  (** [widgets] for the node with this inspector's id inside [graph]. *)
-
-  val reset :
-    t -> graph:Procedural.Graph.t ->
-    (Procedural.Graph.t * Procedural.Parameter.effects, string) result
-  (** Restore every exposed parameter to its default. *)
 end

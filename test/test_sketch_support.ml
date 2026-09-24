@@ -127,15 +127,6 @@ let run () =
       ~noise_amount:0.4 ~noise_frequency:1.3 ~noise_seed:19 pieces |> positions in
   if noisy_a.x <> noisy_b.x || noisy_a.y <> noisy_b.y || noisy_a.z <> noisy_b.z
   then fail "Packed_pieces noise is not deterministic";
-  let cook_effect = { Procedural.Parameter.cook = true; view = false;
-    export = false } in
-  let gate, fire = Sketch_support.Reactive_sop.gate
-      Sketch_support.Reactive_sop.clean ~effects:cook_effect
-      ~frame:(frame [Input.LeftButton]) in
-  if fire then fail "Reactive_sop fired while a slider was held";
-  let _, fire = Sketch_support.Reactive_sop.gate gate
-      ~effects:Procedural.Parameter.no_effects ~frame:(frame []) in
-  if not fire then fail "Reactive_sop did not commit once on pointer release";
   let source = Sop.box ~size:(Vec3.create 2. 2. 2.)
       ~connectivity:Pdk.Ops.Box_quads ~consolidate_points:true
       ~normals:Pdk.Ops.Box_no_normals () in

@@ -34,20 +34,6 @@ let camera_section control ui build =
     | Some false -> Some (not (Option.value ~default:false (Ui.expanded ui "Camera"))) in
   Ui.accordion ui ?set_expanded "Camera" build
 
-(* Navigate on the larger side beside the panel. *)
-let camera_area (panel_x, panel_width) (frame : Frame.t) =
-  let left_width = max 0 (panel_x - 8) and right_x = panel_x + panel_width + 8 in
-  let right_width = max 0 (frame.width - right_x) in
-  if right_width >= left_width then right_x, 0, right_width, frame.height
-  else 0, 0, left_width, frame.height
-
-let fitted_panel ui ~x ~y ~width (frame : Frame.t) build =
-  let row = float (Ui.row_height ui) in
-  Ui.panel ui ~x ~y ~width
-    ~max_height:(Float.max (row +. 6.) (float frame.height -. y -. 8.))
-    "camera-panel" build
-
-
 module Camera_control = struct
   type t = visibility
   type render_request = { filename : string }
@@ -87,18 +73,7 @@ module Camera_control = struct
     |> Easy_camera.with_control_area (Some area)
     |> Fun.flip Easy_camera.update frame
 
-  let panel ?(x = 12.) ?(y = 12.) ?(width = 280.) control ui ~camera frame =
-    let control, camera, requests =
-      if control.ui_visible then
-        fitted_panel ui ~x ~y ~width frame (fun () -> widgets control ui ~camera)
-      else { control with open_camera = None }, camera, [] in
-    let area = if control.ui_visible
-      then camera_area (int_of_float x, int_of_float (Float.max 180. width)) frame
-      else 0, 0, frame.width, frame.height in
-    control, navigate ~control_area:area control camera frame, requests
-
   let ui_visible (control : t) = control.ui_visible
-  let overlay (control : t) scene = if control.ui_visible then scene else Scene.empty
   let save request = Canvas.save_screen_png request.filename
 
 end
@@ -142,17 +117,6 @@ module Camera2_control = struct
     |> Easy_camera2.with_control_area (Some area)
     |> Fun.flip Easy_camera2.update frame
 
-  let panel ?(x = 12.) ?(y = 12.) ?(width = 280.) ?viewport control ui ~camera frame =
-    let control, camera, requests =
-      if control.ui_visible then
-        fitted_panel ui ~x ~y ~width frame (fun () -> widgets control ui ~camera)
-      else { control with open_camera = None }, camera, [] in
-    let area = if control.ui_visible
-      then camera_area (int_of_float x, int_of_float (Float.max 180. width)) frame
-      else 0, 0, frame.width, frame.height in
-    control, navigate ~control_area:area ?viewport control camera frame, requests
-
   let ui_visible (control : t) = control.ui_visible
-  let overlay (control : t) scene = if control.ui_visible then scene else Scene.empty
   let save request = Canvas.save_screen_png request.filename
 end

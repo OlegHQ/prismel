@@ -42,7 +42,6 @@ let run () =
      || List.length (Parameter.fields parameters_schema) <> 5
   then fail "sop_params defaults or ignored-field policy is incorrect";
   let graph = inspectable_node parameters_default in
-  let node_id = Node.id graph in
   let inspector = Sop_ui.Node_inspector.create ~prefix:"selected" graph in
   let ui = Pxui.Ui.create () in
   let frame time events : Prismel.Frame.t = { width = 320; height = 240;
@@ -53,8 +52,8 @@ let run () =
   let step graph time events =
     Pxui.Ui.frame ui (frame time events) (fun ui ->
       Pxui.Ui.panel ui ~x:0. ~y:0. ~width:260. "inspector" (fun () ->
-        match Sop_ui.Node_inspector.graph_widgets ~expanded:["Geometry"]
-            inspector ui ~graph with
+        match Sop_ui.Node_inspector.widgets ~expanded:["Geometry"]
+            inspector ui ~node:graph with
         | Ok value -> value | Error message -> fail message)) in
   let unchanged, effects = step graph 0. [] in
   if unchanged != graph || effects.cook then
@@ -65,8 +64,8 @@ let run () =
   let click x y = [Prismel.Event.MousePressed (Prismel.Input.LeftButton, (x, y));
     Prismel.Event.MouseReleased (Prismel.Input.LeftButton, (x, y))] in
   let graph, effects = step graph 0.5 (click 230 (row 3)) in
-  let field graph name = Graph.find graph ~node_id |> Option.get
-    |> Node.parameter_fields |> List.find (fun field -> field.Parameter.name = name) in
+  let field graph name = Node.parameter_fields graph
+    |> List.find (fun field -> field.Parameter.name = name) in
   if not effects.cook || (field graph "enabled").current <> Parameter.Bool_value false
   then fail "inspector toggle did not apply through the node schema";
   let graph, _ = step graph 1. (click 200 (row 4)) in
@@ -78,7 +77,9 @@ let run () =
        Prismel.Event.MouseReleased (Prismel.Input.LeftButton, (400, row 2))] in
   if (field graph "count").current <> Parameter.Int_value 5
   then fail "inspector integer drag did not clamp to the soft range";
-  let graph, effects = match Sop_ui.Node_inspector.reset inspector ~graph with
+  let changes = Node.parameter_fields graph
+    |> List.map (fun field -> field.Parameter.name, field.default) in
+  let graph, effects = match Node.apply_parameters graph changes with
     | Ok value -> value | Error message -> fail message in
   if not effects.cook
      || (field graph "count").current <> Parameter.Int_value 2

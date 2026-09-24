@@ -27,18 +27,6 @@ val status : 'prepared t -> Procedural.Async_cook.status
 val close : 'prepared t -> unit
 val error_to_string : Procedural.Async_cook.error -> string
 
-type gate
-val clean : gate
-
-val gate :
-  gate ->
-  effects:Procedural.Parameter.effects ->
-  frame:Prismel.Frame.t ->
-  gate * bool
-(** Accumulate cook-affecting parameter changes while the primary pointer is
-    held. The returned Boolean fires once on release, or immediately for a
-    non-pointer change. View/export effects never dirty the gate. *)
-
 (** Effect- and dependency-aware cook scheduler. It fires initially, after a
     committed cook parameter change, after [force], and whenever the sketch
     clock changed and any reachable node declares [Time] or [Frame]. While a

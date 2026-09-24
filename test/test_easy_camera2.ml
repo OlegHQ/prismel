@@ -77,8 +77,15 @@ let run () =
   let module Control = Pxui.Camera2_control in
   let ui = Pxui.Ui.create () in
   let run control camera (frame : Frame.t) =
-    Pxui.Ui.frame ui frame (fun ui ->
-      Control.panel ~x:0. ~y:0. ~width:240. control ui ~camera frame) in
+    let control, camera, requests = Pxui.Ui.frame ui frame (fun ui ->
+      if Control.ui_visible control then
+        Pxui.Ui.panel ui ~x:0. ~y:0. ~width:240. "camera-panel"
+          (fun () -> Control.widgets control ui ~camera)
+      else control, camera, []) in
+    let area = if Control.ui_visible control then 248, 0, 392, 360
+      else 0, 0, frame.width, frame.height in
+    control, Control.navigate ~control_area:area control camera frame,
+    requests in
   let click point = frame ~mouse:point ~events:[
       Event.MousePressed (Input.LeftButton, point);
       MouseReleased (Input.LeftButton, point)] () in
@@ -101,7 +108,6 @@ let run () =
   then fail "2D camera control undid gesture-driven zoom";
   let hidden, _, _ = run (Control.toggle_ui control) zoomed_idle (frame ()) in
   if Control.ui_visible hidden || Pxui.Ui.scene ui <> []
-     || Control.overlay hidden Scene.[text ~at:(0, 0) "label"] <> Scene.empty
   then fail "2D camera toggle_ui did not hide controls and labels";
   Pxui.Ui.destroy ui;
   let rotated = Easy_camera2.create ~viewport ~center:(Vec2.create 10. 20.)

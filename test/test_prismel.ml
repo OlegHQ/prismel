@@ -272,8 +272,15 @@ let run_1 () =
   let module Camera_control = Pxui.Camera_control in
   let camera_ui = Pxui.Ui.create () in
   let run control camera (frame : Frame.t) =
-    Pxui.Ui.frame camera_ui frame (fun ui ->
-      Camera_control.panel ~x:0. ~y:0. ~width:240. control ui ~camera frame) in
+    let control, camera, requests = Pxui.Ui.frame camera_ui frame (fun ui ->
+      if Camera_control.ui_visible control then
+        Pxui.Ui.panel ui ~x:0. ~y:0. ~width:240. "camera-panel"
+          (fun () -> Camera_control.widgets control ui ~camera)
+      else control, camera, []) in
+    let area = if Camera_control.ui_visible control then 248, 0, 392, 360
+      else 0, 0, frame.width, frame.height in
+    control, Camera_control.navigate ~control_area:area control camera frame,
+    requests in
   let idle = { frame with mouse_buttons = []; events = [] } in
   let click point = { frame with mouse = point; mouse_buttons = [];
     events = [Event.MousePressed (Input.LeftButton, point);
@@ -332,8 +339,6 @@ let run_1 () =
   let hidden_control, _, _ = run (Camera_control.toggle_ui camera_control) panned idle in
   if Camera_control.ui_visible hidden_control
      || Pxui.Ui.scene camera_ui <> []
-     || Camera_control.overlay hidden_control
-          Scene.[text ~at:(0, 0) "label"] <> Scene.empty
   then fail "camera control toggle_ui did not hide all UI";
   let shown_control, _, _ = run (Camera_control.open_camera hidden_control) panned idle in
   if not (Camera_control.ui_visible shown_control)

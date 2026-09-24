@@ -533,12 +533,12 @@ sketches and returns an error outside an active sketch.
 
 `Pxui.Settings` saves and loads model values in the `PXUI1` format.
 `Pxui.Camera_control` builds Camera (FOV, distance, clipping, inertia, reset)
-and Render (output name, save) sections, exposes `open_camera` and
-`toggle_ui` (whole-overlay visibility, `overlay`) for hosts to bind, and
-navigates `Easy_camera` in a control area with middle/right drag pan and
+and Render (output name, save) sections through `widgets`. Hosts decide when
+to build them using `ui_visible`, `open_camera`, and `toggle_ui`, and call
+`navigate` with their viewport control area. Navigation uses middle/right
+drag pan and
 vertical trackpad zoom (horizontal motion is ignored); render requests are
-explicit values. `Camera_control.fly` is one pure WASD/QE fly step (Shift ×4,
-pointer yaw/pitch, wheel speed) returning an ordinary orbit camera.
+explicit values.
 `Pxui.Ui.modal`, `Ui.picker` (fuzzy windowed list with Enter/click pick and
 double-Delete), and `Ui.context_menu` (host-held open state, right click
 under 4 points via `Ui.context_clicked`) are the shared overlay widgets.
@@ -557,9 +557,10 @@ library depend on the other:
 let inspector = Sop_ui.Node_inspector.create selected_node
 
 (* inside Pxui.Ui.frame *)
-let graph, effects =
+let selected_node, effects =
   Pxui.Ui.panel ui "inspector" (fun () ->
-    Sop_ui.Node_inspector.graph_widgets ~expanded:["Geometry"] inspector ui ~graph)
+    Sop_ui.Node_inspector.widgets ~expanded:["Geometry"] inspector ui
+      ~node:selected_node)
   |> Result.get_ok
 ```
 
