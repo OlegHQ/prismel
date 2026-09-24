@@ -108,7 +108,7 @@ let run scenario =
 let () =
   let synthetic:Runtime_next.frame_facts={logical_width=10;logical_height=10;drawable_width=15;drawable_height=15;pixel_scale_x=1.5;pixel_scale_y=1.5}in
   if Runtime_next.map_logical_rect synthetic(1,1,3,3)<>(1,1,5,5)then failwith"synthetic logical/drawable edge mapping drift";
-  let input=match Runtime_next_input.create~max_events:8~max_file_bytes:8~logical_width:10~logical_height:10 with Ok value->value|Error message->failwith message in
+  let input=match Runtime_next_input.create~max_events:8~logical_width:10~logical_height:10 with Ok value->value|Error message->failwith message in
   ignore(Runtime_next_input_sdl3.push input(Sdl3.Event.Mouse_motion{timestamp_ns=0L;window_id=1L;which=1L;buttons=0L;x=3.25;y=4.5;dx=0.;dy=0.}));
   if (Runtime_next_input.snapshot input).pointer<>(3.25,4.5)then failwith"SDL3 logical pointer was double-scaled";
   let before = metal (Metal.Release_queue.stats ()) and rss_before = rss_kib () in

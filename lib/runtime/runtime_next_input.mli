@@ -17,7 +17,7 @@ type event =
   | Visibility_changed of bool
   | Quit
   | Resized of int * int
-  | File_dropped of { name : string; contents : bytes option }
+  | File_dropped of string
 
 type snapshot = {
   pointer : float * float;
@@ -33,7 +33,7 @@ type snapshot = {
 
 type t
 
-val create : max_events:int -> max_file_bytes:int ->
+val create : max_events:int ->
   logical_width:int -> logical_height:int -> (t, string) result
 val push : t -> event -> (unit, string) result
 val drain : t -> event list
@@ -48,4 +48,3 @@ val add_motion : t -> dx:float -> dy:float -> unit
 val set_extent : t -> logical_width:int -> logical_height:int -> (unit, string) result
 val snapshot : t -> snapshot
 val queued_count : t -> int
-val push_file_path : t -> string -> (unit,string) result

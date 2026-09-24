@@ -29,7 +29,7 @@ let sdl_fixture iteration =
   ]
 
 let run () =
-  let native = get (Input.create ~max_events:64 ~max_file_bytes:16
+  let native = get (Input.create ~max_events:64
       ~logical_width:10 ~logical_height:10) in
   for iteration = 1 to 3 do
     List.iter (fun event -> get (Runtime_next_input_sdl3.push native event))
@@ -106,8 +106,14 @@ let run () =
   get(Runtime_next_input_sdl3.push native(Sdl3.Event.Drop{timestamp_ns;
     window_id;change=File drop;x=0.;y=0.;source=None}));
   (match Input.drain native with
-   |[File_dropped{name;contents=None}] when name=drop->()
+   |[File_dropped name] when name=drop->()
    |_->failwith"native file drop must carry the full path without reading it");
+  if Result.is_ok (Input.push native (File_dropped "")) then
+    failwith "empty file-drop path passed input validation";
+  get (Input.push native (File_dropped drop));
+  (match Input.drain native with
+   | [File_dropped name] when name = drop -> ()
+   | _ -> failwith "rejected file drop corrupted the next event");
   let key_events=Array.of_list(List.map(fun(scancode,_)->Sdl3.Event.Key{
     timestamp_ns;window_id;which;scancode;keycode=1 lsl 30 lor scancode;
     modifiers=0;raw_scancode=scancode;down=true;repeat=false})named)in
@@ -116,7 +122,7 @@ let run () =
   let domains=Array.init 4(fun _->Domain.spawn translate_all)in
   Array.iter(fun domain->if Domain.join domain<>sequential then
     failwith"one/four-domain key translation drift")domains;
-  let bounded = get (Input.create ~max_events:8 ~max_file_bytes:0
+  let bounded = get (Input.create ~max_events:8
       ~logical_width:1 ~logical_height:1) in
   for index = 1 to 100_000 do
     get(Runtime_next_input_sdl3.push bounded(Sdl3.Event.Mouse_motion{

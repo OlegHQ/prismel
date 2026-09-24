@@ -36,6 +36,10 @@ teardown; its coordinator is destroyed during `on_stop` cleanup.
 `Sketch` owns frame time and ordered input events. The execution coordinator
 owns GPU submissions and presentation facts; its step result carries no second
 event queue, clock, or input snapshot.
+SDL3 file-drop events enter `Runtime_next_input` as validated full paths only.
+The pump never reads file bytes; the sketch receives the same path through
+`Event.FileDropped` and decides when to perform I/O. The input queue retains
+its event-count bound, with no separate file-size limit or byte payload.
 
 Scene visibility, culling, batch selection, and Scene2/Scene3 lowering remain
 Prismel responsibilities. The Metal binding does not contain Prismel vertex

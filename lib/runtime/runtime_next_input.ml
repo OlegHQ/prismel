@@ -17,7 +17,7 @@ type event =
   | Visibility_changed of bool
   | Quit
   | Resized of int * int
-  | File_dropped of { name : string; contents : bytes option }
+  | File_dropped of string
 
 type snapshot = {
   pointer : float * float;
@@ -33,7 +33,6 @@ type snapshot = {
 
 type t = {
   max_events : int;
-  max_file_bytes : int;
   events : event Queue.t;
   mutable pointer : float * float;
   mutable mouse_delta : float * float;
@@ -49,13 +48,12 @@ type t = {
   mutable relative : bool;
 }
 
-let create ~max_events ~max_file_bytes ~logical_width ~logical_height =
+let create ~max_events ~logical_width ~logical_height =
   if max_events <= 0 then Error "max_events must be positive"
-  else if max_file_bytes < 0 then Error "max_file_bytes must be non-negative"
   else if logical_width <= 0 || logical_height <= 0 then
     Error "logical dimensions must be positive"
   else
-    Ok { max_events; max_file_bytes; events = Queue.create (); pointer = (0., 0.);
+    Ok { max_events; events = Queue.create (); pointer = (0., 0.);
       mouse_delta = (0., 0.); wheel_delta = (0., 0.); buttons = []; keys = [];
       pointer_captured = false; logical_width; logical_height;
       dropped_events = 0; relative = false }
@@ -64,18 +62,6 @@ let add_unique value values =
   if List.mem value values then values else values @ [ value ]
 
 let remove value values = List.filter (( <> ) value) values
-
-let copy_event value event =
-  match event with
-  | File_dropped { name; contents = Some contents } ->
-      if Bytes.length contents > value.max_file_bytes then
-        Error "file drop exceeds max_file_bytes"
-      else
-        Ok (File_dropped { name;
-             contents = Some (Bytes.copy contents) })
-  | File_dropped { name; contents = None } ->
-      Ok (File_dropped { name; contents = None })
-  | event -> Ok event
 
 let apply value = function
   | Pointer_moved (x, y) ->
@@ -109,19 +95,18 @@ let apply value = function
 
 let push value event =
   match event with
+  | File_dropped path when path = "" || String.contains path '\000' ->
+      Error "file-drop path is malformed"
   | Resized (width, height) when width <= 0 || height <= 0 ->
       Error "resize dimensions must be positive"
   | _ ->
-      match copy_event value event with
-      | Error _ as error -> error
-      | Ok owned ->
-          apply value owned;
-          if Queue.length value.events = value.max_events then begin
-            ignore (Queue.take value.events);
-            value.dropped_events <- value.dropped_events + 1
-          end;
-          Queue.add owned value.events;
-          Ok ()
+      apply value event;
+      if Queue.length value.events = value.max_events then begin
+        ignore (Queue.take value.events);
+        value.dropped_events <- value.dropped_events + 1
+      end;
+      Queue.add event value.events;
+      Ok ()
 
 let drain value =
   let events = List.of_seq (Queue.to_seq value.events) in
@@ -156,9 +141,3 @@ let snapshot value =
     dropped_events = value.dropped_events }
 
 let queued_count value = Queue.length value.events
-
-(* The full path only: reading happens in the application, never in the
-   event pump, so one unreadable file cannot stall or abort a batch. *)
-let push_file_path value path =
-  if path="" || String.contains path '\000' then Error"file-drop path is malformed"
-  else push value(File_dropped{name=path;contents=None})
