@@ -15,9 +15,6 @@ type t = {
   provenance_weight_first : float array;
   provenance_weight_second : float array;
   provenance_weight_third : float array;
-  generations : int array;
-  generation_total : int;
-  reached_limit : bool;
 }
 
 let point_count value = Array.length value.points
@@ -27,8 +24,6 @@ let constraint_points value = Array.copy value.constraints
 let constraint_winding value = Array.copy value.winding
 let approximate_x value = Array.copy value.x
 let approximate_y value = Array.copy value.y
-let generation_count value = value.generation_total
-let limit_reached value = value.reached_limit
 
 let check_new value point =
   if point < value.initial_point_count || point >= point_count value then
@@ -52,7 +47,6 @@ let provenance_parent_weights value node =
   check_provenance value node;
   value.provenance_weight_first.(node),value.provenance_weight_second.(node),
   value.provenance_weight_third.(node)
-let point_generation value point = value.generations.(check_new value point)
 
 module Private = struct
   let point value point =
@@ -443,15 +437,13 @@ let build ?cancel ~grain ~initial_points ~initial_triangle_points
       let px,py,_ = Implicit_point.approximate value in x.(point) <- px; y.(point) <- py)
       initial_points;
     let point_roots = Array.make maximum_new_points 0
-    and provenance = provenance_builder maximum_new_points
-    and generations = Array.make maximum_new_points 0 in
+    and provenance = provenance_builder maximum_new_points in
     let point_count = ref (Array.length initial_points)
     and constraints = ref (Array.copy constraint_points)
     and winding = ref (if Array.length constraint_winding = 0 then
         Array.make (Array.length constraint_points / 2) 0
       else Array.copy constraint_winding)
-    and triangles = ref (Array.copy initial_triangle_points)
-    and generation = ref 0 and reached_limit = ref false in
+    and triangles = ref (Array.copy initial_triangle_points) in
     let cdt_workspace = Planar_cdt.Private.create_workspace
         ~point_capacity:capacity
         ~triangle_capacity:(max 1 (Array.length initial_triangle_points / 3)) () in
@@ -486,10 +478,9 @@ let build ?cancel ~grain ~initial_points ~initial_triangle_points
       for triangle = 0 to triangle_count - 1 do
         if Bytes.unsafe_get bad triangle <> '\000' then incr bad_count
       done;
-      if !bad_count = 0 then ()
-      else if !point_count - Array.length initial_points >= maximum_new_points then
-        reached_limit := true
-      else begin
+      if !bad_count > 0
+          && !point_count - Array.length initial_points < maximum_new_points
+      then begin
         let candidate_points = Array.make !bad_count dummy
         and candidate_a = Array.make !bad_count 0
         and candidate_b = Array.make !bad_count 0
@@ -565,9 +556,7 @@ let build ?cancel ~grain ~initial_points ~initial_triangle_points
             end
           end
         done;
-        if !selected_count = 0 then reached_limit := true
-        else begin
-          incr generation;
+        if !selected_count > 0 then begin
           let first_new_point = !point_count in
           for candidate = 0 to !bad_count - 1 do
             if Bytes.unsafe_get selected candidate <> '\000' then begin
@@ -588,7 +577,6 @@ let build ?cancel ~grain ~initial_points ~initial_triangle_points
                   ~first:(value_ref a) ~second:(value_ref b)
                   ~third:(value_ref c) ~wa ~wb ~wc in
               point_roots.(generated) <- Array.length initial_points + node;
-              generations.(generated) <- !generation;
               incr point_count; add_bucket output
             end
           done;
@@ -802,8 +790,6 @@ let build ?cancel ~grain ~initial_points ~initial_triangle_points
       provenance_weight_first = Array.sub provenance.weight_first 0 provenance.length;
       provenance_weight_second = Array.sub provenance.weight_second 0 provenance.length;
       provenance_weight_third = Array.sub provenance.weight_third 0 provenance.length;
-      generations = Array.sub generations 0 new_count;
-      generation_total = !generation; reached_limit = !reached_limit;
     }
   with
   | Cancel.Cancelled -> Error "Planar refinement was cancelled"

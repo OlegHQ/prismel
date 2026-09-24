@@ -3903,7 +3903,7 @@ let () =
     fail "concave polygon area/perimeter";
   let bow_tie = polygon_geometry
       [|(0.,0.,0.); (1.,1.,0.); (0.,1.,0.); (1.,0.,0.)|] in
-  (match Analysis.primitive_area bow_tie with
+  (match Analysis.surface_area bow_tie with
    | Error _ -> ()
    | Ok _ -> fail "measure accepted a self-intersecting polygon");
   let open_curve = Ops.polyline

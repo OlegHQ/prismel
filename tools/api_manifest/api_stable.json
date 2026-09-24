@@ -393,22 +393,22 @@
       "source_sha256": "0fa7e86b83a3d85444929dbebdc9976a75badc3f47a95422693ed10cabdb905b"
     },
     {
-      "api_sha256": "0ea3d957c84c554f8bd09410342b1fbce38c19fa0ec208a5e5581110f2a29ece",
+      "api_sha256": "1414f0c5a8bcbf1f9415dec7ecdd89b62e7feabff173d81b91c524b1eb64b3b6",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Analysis",
       "source": "lib/pdk/analysis.mli",
-      "source_bytes": 4686,
-      "source_sha256": "c371d0294e6b0cbf98127e4e37b5d0fd539f03536aaa47c73004afdc6403a048"
+      "source_bytes": 3962,
+      "source_sha256": "76aa34fd781a2e7c50a5b7718a9b3d95a86db367dcc04ea96342c7a00c7c7241"
     },
     {
-      "api_sha256": "7a2c526b30660ea21ffe84b0f228d81e60643007650aea3ba7cf72980a6b1c91",
+      "api_sha256": "6699d7072b639102eff8e1eab25bfbc9dd2fd35c897149f1b77ca22964a41181",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Attribute",
       "source": "lib/pdk/attribute.mli",
-      "source_bytes": 2031,
-      "source_sha256": "dd21dd6f29c66daee506134116484eab6139be21b8c8a49a34278275b3136726"
+      "source_bytes": 1999,
+      "source_sha256": "bb180f248c2f2bb2476114f49e2f6a7c1e32d170b9dd293c832724e80d7aa67a"
     },
     {
       "api_sha256": "6c09f04143a34cad68fd10cec71aa57e47335b6ba20c6ed53a1b594275c1ead5",
@@ -438,13 +438,13 @@
       "source_sha256": "b16cef07e85b6f68d4e3ac5f35be557f5b3e7dbfeb63cd5a3cd3dcca64c42631"
     },
     {
-      "api_sha256": "7f6ad445211a115c05992ae8fa0eb21b4ee7a6aace6b41731be2c38f201f1ca9",
+      "api_sha256": "5933e5d508db97af33eaf0c3efb5a953e690644990fce7af475c8837d72d1afe",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Boolean_kernel",
       "source": "lib/pdk/boolean_kernel.mli",
-      "source_bytes": 20119,
-      "source_sha256": "e1c2b0032d6f0ba810769a2314445b03ea6ce820cb677887c01074f3ef4a14e8"
+      "source_bytes": 18775,
+      "source_sha256": "bbfb882c0f51abb76c86c502253f9359bf480ff215d226545b1cb191c84cfb31"
     },
     {
       "api_sha256": "e5072e0fc2c715dc9ecfe063559b85257b4f9e31368632d7c136a45821be40f2",
@@ -465,13 +465,13 @@
       "source_sha256": "b11640496b0515056a8edba5073c15fa020540c08b30dbf7b4c6e8da929caf9b"
     },
     {
-      "api_sha256": "a2e46931007da7ede91f52647c940a33b9fd3f89dd49ca66a7a9adb9bbcec100",
+      "api_sha256": "0b94cfc5d68450574ce8a75c883170f288087a5d1c10e27bebc0554c66c42203",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Edge_group",
       "source": "lib/pdk/edge_group.mli",
-      "source_bytes": 2960,
-      "source_sha256": "d7d1f51c14ff8e8890512fb1c01617a8e3adc1be36bf1a566aaf79127e2d3a47"
+      "source_bytes": 2609,
+      "source_sha256": "102618f1df43284ea5064b3ff438838d40df7db6c1c5231d073cabfb2248b162"
     },
     {
       "api_sha256": "be06e0f6342e3ab019e419103f0b954011f0676a511e296fe179834479c03ece",

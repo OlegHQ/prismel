@@ -845,12 +845,6 @@ let compare_z = compare_component
     (fun point -> point.hz) (fun point -> point.z_lower)
     (fun point -> point.z_upper)
 
-let compare_component_arena component left right =
-  ensure_same_source left right;
-  let left_h = exact_homogeneous left and right_h = exact_homogeneous right in
-  Exact.Scratch.compare_products
-    (component left_h) right_h.hw (component right_h) left_h.hw
-
 let compare_component_reference component left right =
   ensure_same_source left right;
   let left_h = exact_homogeneous left and right_h = exact_homogeneous right in
@@ -858,9 +852,6 @@ let compare_component_reference component left right =
       (Exact.multiply (component left_h) right_h.hw)
       (Exact.multiply (component right_h) left_h.hw))
 
-let compare_arena_x = compare_component_arena (fun point -> point.hx)
-let compare_arena_y = compare_component_arena (fun point -> point.hy)
-let compare_arena_z = compare_component_arena (fun point -> point.hz)
 let compare_reference_x = compare_component_reference (fun point -> point.hx)
 let compare_reference_y = compare_component_reference (fun point -> point.hy)
 let compare_reference_z = compare_component_reference (fun point -> point.hz)
@@ -977,12 +968,6 @@ let exact_orient2d_components_reference first_component second_component a b c =
       (Exact.multiply ac_first bc_second)
       (Exact.multiply ac_second bc_first))
 
-let orient2d_arena_xy a b c =
-  sign_of_comparison (exact_orient2d_components x y a b c)
-let orient2d_arena_yz a b c =
-  sign_of_comparison (exact_orient2d_components y z a b c)
-let orient2d_arena_zx a b c =
-  sign_of_comparison (exact_orient2d_components z x a b c)
 let orient2d_reference_xy a b c =
   sign_of_comparison (exact_orient2d_components_reference x y a b c)
 let orient2d_reference_yz a b c =
@@ -1774,12 +1759,6 @@ let barycentric a b c point =
       (Exact.multiply numerator base_denominator)
       (Exact.multiply base_numerator denominator) in
   (weight b c point, weight c a point, weight a b point)
-
-let barycentric_source_triangle_reference source ~a ~b ~c point =
-  let explicit index = match explicit source index with
-    | Ok point -> point
-    | Error _ -> invalid_arg "implicit source triangle index is out of bounds" in
-  barycentric (explicit a) (explicit b) (explicit c) point
 
 let incircle_components_reference first_component second_component a b c d =
   ensure_same_source a b;

@@ -9,8 +9,6 @@ val build :
 
 val half_facet_count : t -> int
 val half_facet : int -> side -> int
-val half_facet_facet : int -> int
-val half_facet_side : int -> side
 val neighbor : t -> half_facet:int -> local_edge:int -> int
 
 val shell_count : t -> int

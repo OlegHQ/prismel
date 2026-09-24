@@ -13,8 +13,6 @@ let operation = "boolean_weiler"
 let error code message = Error (Error.make ~operation ~code message)
 
 let half_facet facet side = (facet * 2) + match side with Negative -> 0 | Positive -> 1
-let half_facet_facet half_facet = half_facet lsr 1
-let half_facet_side half_facet = if half_facet land 1 = 0 then Negative else Positive
 let half_facet_count value = Array.length value.shells
 let neighbor value ~half_facet ~local_edge =
   if local_edge < 0 || local_edge > 2 then

@@ -393,8 +393,7 @@ it cannot progress. Default constraint recovery walks the first endpoint's
 incident triangle fan, traces the constraint through the crossed triangle
 chain, and flips the smallest-key convex crossing in that chain. This preserves
 the earlier deterministic recovery order while making the common work local.
-A stable sorted key plane is built only for the exhaustive `Edge_scan`
-compatibility oracle. A bounded minimum-key dirty-edge heap scans packed table
+A bounded minimum-key dirty-edge heap scans packed table
 slots on refill and rechecks only the two changed triangles during Delaunay
 repair. Constraint-edge tests use certified projected interval rejection
 before exact orientation; neither a walk nor an interval filter makes a

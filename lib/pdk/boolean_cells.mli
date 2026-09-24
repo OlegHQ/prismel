@@ -3,16 +3,13 @@
 type t
 
 val build :
-  ?cancel:Cancel.t -> ?axis_fast_path:bool -> ?component_index:bool ->
+  ?cancel:Cancel.t -> ?axis_fast_path:bool ->
   ?track_left:bool -> ?track_right:bool ->
   Boolean_complex.t -> Boolean_weiler.t ->
   (t, Error.t) result
 (** [axis_fast_path=false] forces the exact positive-infinitesimal classifier.
     It is an internal differential-test/benchmark switch; production keeps the
     six cheaper exact axis attempts.
-
-    [component_index=false] retains an exhaustive component-AABB scan solely as
-    a differential-test oracle for the packed component index.
 
     An operand whose [track_*] flag is false remains part of the arrangement,
     but contributes zero to volumetric winding. This is the exact surface

@@ -39,9 +39,6 @@ let candidate_detail = boolean_env "PRISMEL_BOOLEAN_CANDIDATE_DETAIL" false
 let force_symbolic_cells = match Sys.getenv_opt "PRISMEL_BOOLEAN_SYMBOLIC_CELLS" with
   | Some ("1" | "true" | "yes") -> true
   | None | Some _ -> false
-let component_index = match Sys.getenv_opt "PRISMEL_BOOLEAN_COMPONENT_INDEX" with
-  | Some ("0" | "false" | "no") -> false
-  | None | Some _ -> true
 let get_string = function Ok value -> value | Error message -> failwith message
 let get = function Ok value -> value | Error error -> failwith (Error.to_string error)
 
@@ -334,7 +331,7 @@ let () =
       let weiler = measure 5 (fun () -> Weiler.build complex radial |> get) in
       let cells = measure 6 (fun () ->
           Cells.build ~axis_fast_path:(not force_symbolic_cells)
-            ~component_index ~track_left:(not left_surface)
+            ~track_left:(not left_surface)
             ~track_right:(not right_surface)
             complex weiler |> get) in
       let result = measure 7 (fun () ->
@@ -350,13 +347,12 @@ let () =
       symbolic_seeds := Cells.symbolic_seed_count cells
     done);
   Printf.printf
-    "self_resolution,cell_seed_mode,component_query,pairs,domains,grain,repeats,median_seconds,current_domain_allocated_bytes,promoted_bytes,major_bytes,constraints_seconds,coplanar_seconds,refinement_seconds,complex_seconds,radial_seconds,weiler_seconds,cells_seconds,extract_seconds,constraints_allocated,complex_allocated,cells_allocated,symbolic_seeds,points,facets,hash,candidate_pairs\n";
-  Printf.printf "%s,%s,%s,%d,%d,%d,%d,%.6f,%.0f,%.0f,%.0f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.0f,%.0f,%.0f,%d,%d,%d,%d,%d\n%!"
+    "self_resolution,cell_seed_mode,pairs,domains,grain,repeats,median_seconds,current_domain_allocated_bytes,promoted_bytes,major_bytes,constraints_seconds,coplanar_seconds,refinement_seconds,complex_seconds,radial_seconds,weiler_seconds,cells_seconds,extract_seconds,constraints_allocated,complex_allocated,cells_allocated,symbolic_seeds,points,facets,hash,candidate_pairs\n";
+  Printf.printf "%s,%s,%d,%d,%d,%d,%.6f,%.0f,%.0f,%.0f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.0f,%.0f,%.0f,%d,%d,%d,%d,%d\n%!"
     (match resolve_left, resolve_right with
      | false, false -> "off" | true, true -> "both"
      | true, false -> "left" | false, true -> "right")
     (if force_symbolic_cells then "symbolic" else "axis_then_symbolic")
-    (if component_index then "indexed" else "exhaustive")
     pair_count domains grain repeats (median times) (median allocations)
     (median promoted) (median major)
     (median phase_times.(0)) (median phase_times.(1))

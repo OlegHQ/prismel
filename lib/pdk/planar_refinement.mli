@@ -52,9 +52,6 @@ val provenance_parent_first : t -> int -> int
 val provenance_parent_second : t -> int -> int
 val provenance_parent_third : t -> int -> int
 val provenance_parent_weights : t -> int -> float * float * float
-val point_generation : t -> int -> int
-val generation_count : t -> int
-val limit_reached : t -> bool
 
 module Private : sig
   val point : t -> int -> Implicit_point.t

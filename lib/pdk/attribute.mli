@@ -27,7 +27,6 @@ val float4 : Packed.Float4.t kind
 val text : string array kind
 val key : name:string -> owner:owner -> 'a kind -> 'a key
 val key_name : 'a key -> string
-val key_owner : 'a key -> owner
 val create_key_owned : 'a key -> 'a -> (t, string) result
 val get : 'a key -> t -> 'a option
 (** Scalar, integer, and text planes are returned as copies. Packed tuple and

@@ -259,28 +259,7 @@ let query_components_indexed components query =
   done;
   !found
 
-let query_components_exhaustive components query =
-  let (x_lower, x_upper), (y_lower, y_upper), (z_lower, z_upper) =
-    Implicit_point.bounds query in
-  let found = ref 0 in
-  for component = 0 to Array.length components.min_x - 1 do
-    if components.max_x.(component) >= x_lower
-        && components.min_x.(component) <= x_upper
-        && components.max_y.(component) >= y_lower
-        && components.min_y.(component) <= y_upper
-        && components.max_z.(component) >= z_lower
-        && components.min_z.(component) <= z_upper then begin
-      components.query_candidates.(!found) <- component;
-      incr found
-    end
-  done;
-  !found
-
-let query_components ~component_index components query =
-  if component_index then query_components_indexed components query
-  else query_components_exhaustive components query
-
-let classify_operand ?cancel ~component_index constraints components side query axis
+let classify_operand ?cancel constraints components side query axis
     ~positive skip =
   let triangle_point = match side with
     | Boolean_complex.Left ->
@@ -289,7 +268,7 @@ let classify_operand ?cancel ~component_index constraints components side query 
         Boolean_constraints.Private.right_triangle_point in
   let source = Boolean_constraints.Private.source constraints
   and axis = axis_index axis and winding = ref 0 and ambiguous = ref false in
-  let component_count = query_components ~component_index components query in
+  let component_count = query_components_indexed components query in
   for candidate = 0 to component_count - 1 do
     let component = components.query_candidates.(candidate) in
     for slot = components.offsets.(component) to components.offsets.(component + 1) - 1 do
@@ -316,7 +295,7 @@ type symbolic_operand_classification =
   | Symbolic_seed_boundary of int
   | Symbolic_source_degenerate of int
 
-let classify_operand_symbolic ?cancel ~component_index constraints components side query
+let classify_operand_symbolic ?cancel constraints components side query
     skip =
   let triangle_point = match side with
     | Boolean_complex.Left ->
@@ -325,7 +304,7 @@ let classify_operand_symbolic ?cancel ~component_index constraints components si
         Boolean_constraints.Private.right_triangle_point in
   let source = Boolean_constraints.Private.source constraints
   and winding = ref 0 and boundary = ref (-1) and degenerate = ref (-1) in
-  let component_count = query_components ~component_index components query in
+  let component_count = query_components_indexed components query in
   for candidate = 0 to component_count - 1 do
     let component = components.query_candidates.(candidate) in
     for slot = components.offsets.(component)
@@ -354,7 +333,7 @@ let classify_operand_symbolic ?cancel ~component_index constraints components si
 
 exception Ambiguous_classification of int * string
 
-let build ?cancel ?(axis_fast_path = true) ?(component_index = true)
+let build ?cancel ?(axis_fast_path = true)
     ?(track_left = true) ?(track_right = true) complex weiler =
   try
     Cancel.check_opt cancel;
@@ -451,12 +430,12 @@ let build ?cancel ?(axis_fast_path = true) ?(component_index = true)
         | [] ->
             incr symbolic_seeds;
             (match (if track_left then
-                      classify_operand_symbolic ?cancel ~component_index constraints
+                      classify_operand_symbolic ?cancel constraints
                         (Option.get left_components) Boolean_complex.Left query
                         (skip Boolean_complex.Left)
                     else Symbolic_winding 0),
                   (if track_right then
-                     classify_operand_symbolic ?cancel ~component_index constraints
+                     classify_operand_symbolic ?cancel constraints
                        (Option.get right_components) Boolean_complex.Right query
                        (skip Boolean_complex.Right)
                    else Symbolic_winding 0) with
@@ -495,13 +474,13 @@ let build ?cancel ?(axis_fast_path = true) ?(component_index = true)
             if normal = Predicates.Zero then choose rest
             else
               match (if track_left then
-                       classify_operand ?cancel ~component_index constraints
+                       classify_operand ?cancel constraints
                          (Option.get left_components)
                          Boolean_complex.Left query axis ~positive
                          (skip Boolean_complex.Left)
                      else Some 0),
                     (if track_right then
-                       classify_operand ?cancel ~component_index constraints
+                       classify_operand ?cancel constraints
                          (Option.get right_components)
                          Boolean_complex.Right query axis ~positive
                          (skip Boolean_complex.Right)

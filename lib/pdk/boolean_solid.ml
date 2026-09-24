@@ -4,9 +4,7 @@ type treatment = Solid | Surface
 type operation = Union | Intersection | Difference | Reverse_difference | Xor
 
 type t = {
-  constraints : Boolean_constraints.t;
   complex : Boolean_complex.t;
-  radial : Boolean_radial.t;
   weiler : Boolean_weiler.t;
   cells : Boolean_cells.t;
   left_treatment : treatment;
@@ -18,13 +16,7 @@ let facet_count value = Boolean_complex.facet_count value.complex
 let shell_count value = Boolean_cells.shell_count value.cells
 
 module Private = struct
-  let constraints value = value.constraints
-  let complex value = value.complex
-  let radial value = value.radial
   let weiler value = value.weiler
-  let cells value = value.cells
-  let left_treatment value = value.left_treatment
-  let right_treatment value = value.right_treatment
 end
 
 let bind result next = match result with Ok value -> next value | Error _ as error -> error
@@ -58,7 +50,7 @@ let prepare ?cancel ?resolve_left_self_intersections
                               ~track_right:(right_treatment = Solid)
                               complex weiler)
                               (fun cells ->
-                                Ok { constraints; complex; radial; weiler; cells;
+                                Ok { complex; weiler; cells;
                                   left_treatment; right_treatment })))))))
 
 let extract ?cancel ?require_closed ~expression value =

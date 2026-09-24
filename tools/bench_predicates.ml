@@ -167,9 +167,6 @@ let () =
   measure "implicit_source_barycentric_exact_arena" fallback_count (fun _ ->
     Point.barycentric_source_triangle construction_source
       ~a:0 ~b:1 ~c:7 lpi |> barycentric_code);
-  measure "implicit_source_barycentric_reference" fallback_count (fun _ ->
-    Point.barycentric_source_triangle_reference construction_source
-      ~a:0 ~b:1 ~c:7 lpi |> barycentric_code);
   measure "implicit_ray_edge_exact_arena" fallback_count (fun _ ->
     Point.ray_edge ~query:origin ~first:lpi ~second:tpi
       ~dx:1. ~dy:0.25 ~dz:(-0.5) |> sign_code);
@@ -192,8 +189,8 @@ let () =
     Point.normal_dot_symbolic origin lpi tpi |> sign_code);
   measure "implicit_normal_symbolic_reference" fallback_count (fun _ ->
     Point.normal_dot_symbolic_reference origin lpi tpi |> sign_code);
-  measure "implicit_radial_dot_exact_arena" fallback_count (fun _ ->
-    Point.radial_dot_arena_exact origin x_axis lpi tpi |> sign_code);
+  measure "implicit_radial_dot" fallback_count (fun _ ->
+    Point.radial_dot origin x_axis lpi tpi |> sign_code);
   measure "implicit_radial_dot_exact_reference" fallback_count (fun _ ->
     Point.radial_dot_reference origin x_axis lpi tpi |> sign_code);
   if !sink = min_int then Printf.eprintf "unreachable\n"

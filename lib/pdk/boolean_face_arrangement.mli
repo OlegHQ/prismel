@@ -1,12 +1,10 @@
 (** Exact planar splitting of one face's non-coplanar Boolean constraints. *)
 
 type side = Left | Right
-type broad_phase = Sweep | Stable_bvh | Exact_oracle
 type t
 
 val build :
   ?cancel:Cancel.t -> ?coplanar:Boolean_coplanar.t ->
-  ?broad_phase:broad_phase ->
   Boolean_constraints.t -> side:side -> triangle:int ->
   (t, Error.t) result
 (** Insert exact T-junction and proper segment/segment intersections, using a
@@ -24,9 +22,7 @@ val build :
     point canonicalization is O(p log p); constructed events are interned in a
     packed exact-coordinate AVL index and per-segment split incidences are
     deduplicated in an integer pair set. Repeated multi-way observations reuse
-    one exact event. [Stable_bvh] forces the indexed path and [Exact_oracle]
-    retains the unculled quadratic traversal for differential regression and
-    benchmarking; production callers use adaptive [Sweep]. *)
+    one exact event. *)
 
 val point_count : t -> int
 val approximate_point : t -> int -> float * float * float

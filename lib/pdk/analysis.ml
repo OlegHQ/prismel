@@ -227,23 +227,16 @@ let total values =
   done;
   !result
 
-let primitive_area ?cancel ?grain ?primitives geometry =
-  primitive_measure ?cancel ?grain ?primitives Area geometry
-
 let surface_area ?cancel ?grain ?primitives geometry =
-  Result.map total (primitive_area ?cancel ?grain ?primitives geometry)
-
-let primitive_perimeter ?cancel ?grain ?primitives geometry =
-  primitive_measure ?cancel ?grain ?primitives Perimeter geometry
+  Result.map total (primitive_measure ?cancel ?grain ?primitives Area geometry)
 
 let perimeter ?cancel ?grain ?primitives geometry =
-  Result.map total (primitive_perimeter ?cancel ?grain ?primitives geometry)
-
-let primitive_signed_volume ?cancel ?grain ?primitives geometry =
-  primitive_measure ?cancel ?grain ?primitives Signed_volume geometry
+  Result.map total
+    (primitive_measure ?cancel ?grain ?primitives Perimeter geometry)
 
 let signed_volume ?cancel ?grain ?primitives geometry =
-  Result.map total (primitive_signed_volume ?cancel ?grain ?primitives geometry)
+  Result.map total
+    (primitive_measure ?cancel ?grain ?primitives Signed_volume geometry)
 
 type disjoint_set = { parent : int array; rank : bytes }
 
@@ -541,9 +534,6 @@ let with_measure ?cancel ?grain ?primitives ?accumulation ?name ?total_name
       "measurement was cancelled")
   | Invalid_argument message -> Error (Error.make ~operation:"measure"
       ~code:"invalid_parameter" message)
-
-let with_primitive_area ?(name = "area") geometry =
-  Result.map_error Error.to_string (with_measure ~name Area geometry)
 
 let with_connectivity ?cancel ?(grain = 16_384) ?primitives ?points ?seams
     ?uv_attribute ?(owner = Connectivity_primitives) ?(name = "class")

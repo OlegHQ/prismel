@@ -11,12 +11,6 @@ let integer_env name default = match Sys.getenv_opt name with
 let segment_count = integer_env "PRISMEL_BOOLEAN_SEGMENTS" 500
 let repeats = integer_env "PRISMEL_BOOLEAN_REPEATS" 3
 let domains = integer_env "PRISMEL_BENCH_DOMAINS" (Parallel.recommended_domains ())
-let exact_scan = match Sys.getenv_opt "PRISMEL_BOOLEAN_POINT_SCAN" with
-  | Some ("1" | "true" | "yes") -> true
-  | None | Some _ -> false
-let edge_scan = match Sys.getenv_opt "PRISMEL_BOOLEAN_EDGE_SCAN" with
-  | Some ("1" | "true" | "yes") -> true
-  | None | Some _ -> false
 let get_string = function Ok value -> value | Error message -> failwith message
 let get = function Ok value -> value | Error error -> failwith (Error.to_string error)
 
@@ -82,10 +76,6 @@ let () =
     let before = Gc.quick_stat () and allocated_before = Gc.allocated_bytes ()
     and started = Unix.gettimeofday () in
     let triangulation = Triangulation.build
-        ~point_location:(if exact_scan then Triangulation.Exact_scan
-          else Triangulation.Walk)
-        ~constraint_recovery:(if edge_scan then Triangulation.Edge_scan
-          else Triangulation.Trace)
         constraints arrangement
         ~side:Arrangement.Left ~triangle:0 |> get in
     times.(repeat) <- Unix.gettimeofday () -. started;
@@ -99,9 +89,7 @@ let () =
     hash := triangulation_hash triangulation
   done;
   Printf.printf
-    "point_location,constraint_recovery,input_segments,domains,repeats,median_seconds,current_domain_allocated_bytes,promoted_bytes,major_bytes,points,triangles,constraints,hash\n";
-  Printf.printf "%s,%s,%d,%d,%d,%.6f,%.0f,%.0f,%.0f,%d,%d,%d,%d\n%!"
-    (if exact_scan then "exact_scan" else "walk")
-    (if edge_scan then "edge_scan" else "trace")
+    "input_segments,domains,repeats,median_seconds,current_domain_allocated_bytes,promoted_bytes,major_bytes,points,triangles,constraints,hash\n";
+  Printf.printf "%d,%d,%d,%.6f,%.0f,%.0f,%.0f,%d,%d,%d,%d\n%!"
     segment_count domains repeats (median times) (median allocations)
     (median promoted) (median major) !points !triangles !constraints_out !hash

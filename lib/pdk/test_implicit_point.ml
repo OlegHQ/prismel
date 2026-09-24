@@ -304,25 +304,25 @@ let test_mixed_predicates source lpi tpi =
     (Point.orient3d tpi explicit_tpi origin x_axis);
   let compare arena reference message =
     if arena <> reference then fail "%s" message in
-  compare (Point.compare_arena_x lpi explicit_lpi)
+  compare (Point.compare_x lpi explicit_lpi)
     (Point.compare_reference_x lpi explicit_lpi)
     "packed exact X comparison differs from reference";
-  compare (Point.compare_arena_y tpi explicit_tpi)
+  compare (Point.compare_y tpi explicit_tpi)
     (Point.compare_reference_y tpi explicit_tpi)
     "packed exact Y comparison differs from reference";
-  compare (Point.compare_arena_z tpi explicit_tpi)
+  compare (Point.compare_z tpi explicit_tpi)
     (Point.compare_reference_z tpi explicit_tpi)
     "packed exact Z comparison differs from reference";
-  compare (Point.orient2d_arena_xy origin lpi x_axis)
+  compare (Point.orient2d_xy origin lpi x_axis)
     (Point.orient2d_reference_xy origin lpi x_axis)
     "packed exact XY orientation differs from reference";
-  compare (Point.orient2d_arena_yz lpi upper_right upper_left)
+  compare (Point.orient2d_yz lpi upper_right upper_left)
     (Point.orient2d_reference_yz lpi upper_right upper_left)
     "packed exact YZ orientation differs from reference";
-  compare (Point.orient2d_arena_zx tpi explicit_tpi unit)
+  compare (Point.orient2d_zx tpi explicit_tpi unit)
     (Point.orient2d_reference_zx tpi explicit_tpi unit)
     "packed exact ZX orientation differs from reference";
-  compare (Point.orient3d_arena_exact tpi explicit_tpi origin x_axis)
+  compare (Point.orient3d tpi explicit_tpi origin x_axis)
     (Point.orient3d_reference tpi explicit_tpi origin x_axis)
     "packed exact 3D orientation differs from reference"
 
@@ -359,7 +359,7 @@ let evaluate_line_plane_case index =
   if Point.orient2d_yz lpi plane_b plane_c <> expected_2d
       || Point.orient2d_yz explicit plane_b plane_c <> expected_2d then
     fail "randomized LPI %d changed a filtered projected orientation" index;
-  if Point.orient2d_arena_yz lpi plane_b plane_c
+  if Point.orient2d_yz lpi plane_b plane_c
       <> Point.orient2d_reference_yz lpi plane_b plane_c then
     fail "randomized packed exact projected orientation differed at %d" index;
   let expected_3d = Pdk.Predicates.orient3d
@@ -370,12 +370,12 @@ let evaluate_line_plane_case index =
   if Point.orient3d lpi plane_a plane_b line_start <> expected_3d
       || Point.orient3d explicit plane_a plane_b line_start <> expected_3d then
     fail "randomized LPI %d changed a filtered 3D orientation" index;
-  if Point.orient3d_arena_exact lpi plane_a plane_b line_start
+  if Point.orient3d lpi plane_a plane_b line_start
       <> Point.orient3d_reference lpi plane_a plane_b line_start then
     fail "randomized packed exact 3D orientation differed at %d" index;
-  if Point.compare_arena_x lpi explicit <> Point.compare_reference_x lpi explicit
-      || Point.compare_arena_y lpi explicit <> Point.compare_reference_y lpi explicit
-      || Point.compare_arena_z lpi explicit <> Point.compare_reference_z lpi explicit then
+  if Point.compare_x lpi explicit <> Point.compare_reference_x lpi explicit
+      || Point.compare_y lpi explicit <> Point.compare_reference_y lpi explicit
+      || Point.compare_z lpi explicit <> Point.compare_reference_z lpi explicit then
     fail "randomized packed exact comparison differed at %d" index;
   (Point.compare_x lpi explicit * 31)
   + (Point.compare_y lpi explicit * 17)
@@ -569,7 +569,7 @@ let test_exact_ray_direction () =
     if Point.normal_dot_symbolic a b c
         <> Point.normal_dot_symbolic_reference a b c then
       fail "packed symbolic normal predicate differed at %d" index;
-    if Point.radial_dot_arena_exact a b query c
+    if Point.radial_dot a b query c
         <> Point.radial_dot_reference a b query c then
       fail "packed exact radial predicate differed at %d" index
   done;
@@ -731,7 +731,7 @@ let test_mixed_ray_radial_differential source lpi tpi =
     and second = points.((index * 3 + 1) mod Array.length points)
     and third = points.((index * 5 + 2) mod Array.length points)
     and fourth = points.((index * 7 + 3) mod Array.length points) in
-    if Point.radial_dot_arena_exact first second third fourth
+    if Point.radial_dot first second third fourth
         <> Point.radial_dot_reference first second third fourth then
       fail "mixed implicit packed radial predicate differed at %d" index;
     let component multiplier offset =
@@ -778,7 +778,7 @@ let ray_radial_signature domains source lpi tpi =
         let sign = function Pdk.Predicates.Negative -> -1
           | Pdk.Predicates.Zero -> 0 | Pdk.Predicates.Positive -> 1 in
         output.(index) <-
-          (31 * sign (Point.radial_dot_arena_exact a b c d))
+          (31 * sign (Point.radial_dot a b c d))
           + (17 * sign (Point.ray_edge
               ~query:a ~first:b ~second:c ~dx ~dy ~dz))
           + (13 * sign (Point.normal_dot_direction a b c ~dx ~dy ~dz))

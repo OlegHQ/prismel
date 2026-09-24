@@ -177,29 +177,6 @@ let remap ?cancel ~source_index ~target_topology ~target_index ~point_map value 
     Ok (Builder.freeze builder)
   end
 
-let replicate_offsets ?cancel ~source_index ~target_topology ~target_index
-    ~point_offsets value =
-  if value.topology_id <> Topology_index.topology_data_id source_index then
-    Error "Edge_group.replicate_offsets: source index does not match group topology"
-  else if Topology.data_id target_topology
-      <> Topology_index.topology_data_id target_index then
-    Error "Edge_group.replicate_offsets: target index does not match target topology"
-  else begin
-    let selected_count = cardinality value in
-    let selected = Array.make selected_count 0 and at = ref 0 in
-    iter (fun edge -> selected.(!at) <- edge; incr at) value;
-    let builder = Builder.create ~topology:target_topology ~index:target_index
-        ~name:value.name in
-    Array.iteri (fun copy offset ->
-      if copy land 255 = 0 then Cancel.check_opt cancel;
-      Array.iter (fun edge ->
-        let a, b = Topology_index.edge_points source_index edge in
-        match Topology_index.find_edge target_index ~a:(a + offset) ~b:(b + offset) with
-        | None -> ()
-        | Some target -> Builder.set builder target true) selected) point_offsets;
-    Ok (Builder.freeze builder)
-  end
-
 let replicate_exact_copies ?cancel ~source_topology ~source_index
     ~target_topology ~copies value =
   if copies < 0 then Error "Edge_group.replicate_exact_copies: negative copy count"

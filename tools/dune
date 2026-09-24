@@ -74,6 +74,10 @@
  (libraries prismel pdk procedural unix))
 
 (executable
+ (name bench_pdk_kernel)
+ (libraries prismel pdk unix))
+
+(executable
  (name bench_predicates)
  (libraries pdk unix))
 

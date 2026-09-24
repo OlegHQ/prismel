@@ -10,12 +10,6 @@ let integer_env name default = match Sys.getenv_opt name with
 let segment_count = integer_env "PRISMEL_BOOLEAN_SEGMENTS" 2_000
 let repeats = integer_env "PRISMEL_BOOLEAN_REPEATS" 3
 let domains = integer_env "PRISMEL_BENCH_DOMAINS" (Parallel.recommended_domains ())
-let oracle = match Sys.getenv_opt "PRISMEL_BOOLEAN_ORACLE" with
-  | Some ("1" | "true" | "yes") -> true
-  | None | Some _ -> false
-let stable_bvh = match Sys.getenv_opt "PRISMEL_BOOLEAN_STABLE_BVH" with
-  | Some ("1" | "true" | "yes") -> true
-  | None | Some _ -> false
 let fixture = match Sys.getenv_opt "PRISMEL_BOOLEAN_FIXTURE" with
   | None | Some "sparse" -> "sparse"
   | Some "multiway" -> "multiway"
@@ -102,8 +96,6 @@ let () =
     let before = Gc.quick_stat () and allocated_before = Gc.allocated_bytes ()
     and started = Unix.gettimeofday () in
     let arrangement = Arrangement.build
-        ~broad_phase:(if oracle then Arrangement.Exact_oracle
-          else if stable_bvh then Arrangement.Stable_bvh else Arrangement.Sweep)
         constraints
         ~side:Arrangement.Left ~triangle:0 |> get in
     times.(repeat) <- Unix.gettimeofday () -. started;
@@ -116,9 +108,8 @@ let () =
     hash := arrangement_hash arrangement
   done;
   Printf.printf
-    "fixture,broad_phase,input_segments,domains,repeats,median_seconds,current_domain_allocated_bytes,promoted_bytes,major_bytes,points,segments,hash\n";
-  Printf.printf "%s,%s,%d,%d,%d,%.6f,%.0f,%.0f,%.0f,%d,%d,%d\n%!"
-    fixture (if oracle then "exact_oracle"
-      else if stable_bvh then "stable_bvh" else "sweep")
+    "fixture,input_segments,domains,repeats,median_seconds,current_domain_allocated_bytes,promoted_bytes,major_bytes,points,segments,hash\n";
+  Printf.printf "%s,%d,%d,%d,%.6f,%.0f,%.0f,%.0f,%d,%d,%d\n%!"
+    fixture
     segment_count domains repeats (median times) (median allocations)
     (median promoted) (median major) !points !segments !hash

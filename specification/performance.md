@@ -300,8 +300,6 @@ is restricted to visible tiles.
   PRISMEL_BOOLEAN_SEGMENTS=500 PRISMEL_BOOLEAN_REPEATS=5 \
   PRISMEL_BENCH_DOMAINS=1 \
     dune exec --profile release tools/bench_boolean_cdt.exe
-  # Add PRISMEL_BOOLEAN_POINT_SCAN=1 for the exact point-location oracle.
-  # Add PRISMEL_BOOLEAN_EDGE_SCAN=1 for exhaustive constraint recovery.
   ```
 - Batch exact face arrangement/CDT is measured separately after the global
   constraint plan has been built. On 10,000 independent pairs (20,000 affected

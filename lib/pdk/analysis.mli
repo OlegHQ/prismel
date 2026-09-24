@@ -16,39 +16,24 @@ val bounds : ?cancel:Cancel.t -> Geometry.t -> bounds option
 (** Axis-aligned point bounds. Empty geometry has no bounds. O(points) time
     and O(1) auxiliary memory. *)
 
-val primitive_measure :
-  ?cancel:Cancel.t -> ?grain:int -> ?primitives:Group.t ->
-  measure -> Geometry.t -> (float array, string) result
-(** Measure selected primitives into a full primitive-order plane, with zeroes
-    outside the selection. [Perimeter] measures closed polygon/curve boundary
-    length or open-polyline length. [Area] and [Signed_volume] require simple
-    polygons and use deterministic ear clipping. Signed volume is the stable
-    sum of oriented tetrahedral contributions around the geometry bounds
-    center and is meaningful as a total for consistently wound closed shells.
-
-    Perimeter is O(vertices). Polygon measures are O(sum(c squared)) for corner
-    counts [c], with O(primitives + parallel chunks * max(c)) storage. Output
-    slots are disjoint and total reductions remain in primitive order. *)
-
-val primitive_area :
-  ?cancel:Cancel.t -> ?grain:int -> ?primitives:Group.t ->
-  Geometry.t -> (float array, string) result
-
 val surface_area :
   ?cancel:Cancel.t -> ?grain:int -> ?primitives:Group.t ->
   Geometry.t -> (float, string) result
-val primitive_perimeter :
-  ?cancel:Cancel.t -> ?grain:int -> ?primitives:Group.t ->
-  Geometry.t -> (float array, string) result
 val perimeter :
   ?cancel:Cancel.t -> ?grain:int -> ?primitives:Group.t ->
   Geometry.t -> (float, string) result
-val primitive_signed_volume :
-  ?cancel:Cancel.t -> ?grain:int -> ?primitives:Group.t ->
-  Geometry.t -> (float array, string) result
 val signed_volume :
   ?cancel:Cancel.t -> ?grain:int -> ?primitives:Group.t ->
   Geometry.t -> (float, string) result
+(** Total measures over the selected primitives, reduced in primitive order.
+    [perimeter] sums closed polygon/curve boundary length or open-polyline
+    length. [surface_area] and [signed_volume] require simple polygons and use
+    deterministic ear clipping. Signed volume is the stable sum of oriented
+    tetrahedral contributions around the geometry bounds center and is
+    meaningful for consistently wound closed shells.
+
+    Perimeter is O(vertices). Polygon measures are O(sum(c squared)) for corner
+    counts [c], with O(primitives + parallel chunks * max(c)) storage. *)
 
 val connectivity : Geometry.t -> int array * int
 (** Primitive connected-component IDs based on shared points, numbered by the
@@ -80,7 +65,6 @@ val classify_connectivity :
     plus the shared topology index. IDs are compact and assigned by the first
     included output element in each component. *)
 
-val with_primitive_area : ?name:string -> Geometry.t -> (Geometry.t, string) result
 val with_measure :
   ?cancel:Cancel.t ->
   ?grain:int ->

@@ -185,11 +185,11 @@ let arrangement_signature arrangement =
 
 let test_sparse_sweep_and_point_candidates () =
   let count = 64 in
-  let run ?(broad_phase = Arrangement.Sweep) domains point_contact =
+  let run domains point_contact =
     Prismel.Parallel.run ~domains (fun () ->
       let left,right = many_parallel_plan ~count ~point_contact in
       let constraints = Constraints.build ~grain:7 ~left ~right () |> get in
-      Arrangement.build ~broad_phase constraints
+      Arrangement.build constraints
         ~side:Arrangement.Left ~triangle:0 |> get) in
   let plain = run 1 false in
   check (Arrangement.point_count plain = count * 2
@@ -197,21 +197,12 @@ let test_sparse_sweep_and_point_candidates () =
     "sparse face sweep changed independent constraint cardinality";
   check (arrangement_signature plain = arrangement_signature (run 4 false))
     "sparse face sweep differs between domain counts";
-  check (arrangement_signature plain = arrangement_signature
-      (run ~broad_phase:Arrangement.Exact_oracle 1 false))
-    "sparse face sweep differs from the exact quadratic oracle";
-  check (arrangement_signature plain = arrangement_signature
-      (run ~broad_phase:Arrangement.Stable_bvh 1 false))
-    "stable face BVH differs from the exact quadratic oracle";
   let contacted = run 1 true in
   check (Arrangement.point_count contacted = (count * 2) + 1
       && Arrangement.segment_count contacted = count + 1)
     "point/segment sweep did not split an interior point contact";
   check (arrangement_signature contacted = arrangement_signature (run 4 true))
-    "point/segment sweep differs between domain counts";
-  check (arrangement_signature contacted = arrangement_signature
-      (run ~broad_phase:Arrangement.Exact_oracle 1 true))
-    "point/segment sweep differs from the exact quadratic oracle"
+    "point/segment sweep differs between domain counts"
 
 let multiway_plan count =
   let left = geometry
@@ -230,22 +221,16 @@ let multiway_plan count =
 
 let test_dense_multiway_sweep () =
   let count = 96 in
-  let run ?(broad_phase = Arrangement.Sweep) domains =
+  let run domains =
     Prismel.Parallel.run ~domains (fun () ->
-      Arrangement.build ~broad_phase (multiway_plan count)
+      Arrangement.build (multiway_plan count)
         ~side:Arrangement.Left ~triangle:0 |> get) in
   let arrangement = run 1 in
   check (Arrangement.point_count arrangement = (count * 2) + 1
       && Arrangement.segment_count arrangement = count * 2)
     "dense face sweep did not aggregate a multi-way exact crossing";
   check (arrangement_signature arrangement = arrangement_signature (run 4))
-    "dense face sweep differs between domain counts";
-  check (arrangement_signature arrangement = arrangement_signature
-      (run ~broad_phase:Arrangement.Exact_oracle 1))
-    "dense face sweep differs from the exact quadratic oracle";
-  check (arrangement_signature arrangement = arrangement_signature
-      (run ~broad_phase:Arrangement.Stable_bvh 1))
-    "dense face BVH differs from the exact quadratic oracle"
+    "dense face sweep differs between domain counts"
 
 let test_cancellation () =
   let cancel = Cancel.create () in

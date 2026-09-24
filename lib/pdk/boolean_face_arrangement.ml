@@ -1,5 +1,4 @@
 type side = Left | Right
-type broad_phase = Sweep | Stable_bvh | Exact_oracle
 
 type t = {
   points : Implicit_point.t array;
@@ -770,7 +769,7 @@ let canonicalize_points points count =
     output, old_to_new
   end
 
-let build ?cancel ?coplanar ?(broad_phase = Sweep) constraints ~side ~triangle =
+let build ?cancel ?coplanar constraints ~side ~triangle =
   try
     Cancel.check_opt cancel;
     Option.iter (fun value ->
@@ -1065,21 +1064,17 @@ let build ?cancel ?coplanar ?(broad_phase = Sweep) constraints ~side ~triangle =
             process_segment_pair left candidates.(slot)
           done
         done in
-      (match broad_phase with
-       | Exact_oracle -> scan_segment_pairs ()
-       | Stable_bvh -> indexed_segment_pairs ()
-       | Sweep ->
-           match segment_pair_candidates ?cancel segment_first segment_second
-               !raw_segment_count !points !point_count projection_axis with
-           | Small_scan -> scan_segment_pairs ()
-           | Dense -> indexed_segment_pairs ()
-           | Candidates candidates ->
-               for slot = 0 to candidates.candidate_count - 1 do
-                 if slot land 1023 = 0 then Cancel.check_opt cancel;
-                 let candidate = candidates.candidate_order.(slot) in
-                 process_segment_pair candidates.candidate_first.(candidate)
-                   candidates.candidate_second.(candidate)
-               done);
+      (match segment_pair_candidates ?cancel segment_first segment_second
+          !raw_segment_count !points !point_count projection_axis with
+      | Small_scan -> scan_segment_pairs ()
+      | Dense -> indexed_segment_pairs ()
+      | Candidates candidates ->
+          for slot = 0 to candidates.candidate_count - 1 do
+            if slot land 1023 = 0 then Cancel.check_opt cancel;
+            let candidate = candidates.candidate_order.(slot) in
+            process_segment_pair candidates.candidate_first.(candidate)
+              candidates.candidate_second.(candidate)
+          done);
       (* A point-only contact or a multi-way TPI may lie in the interior of a
          segment without participating in that segment's pair which created
          it. Insert every exact on-segment point before materializing edges. *)
@@ -1129,21 +1124,17 @@ let build ?cancel ?coplanar ?(broad_phase = Sweep) constraints ~side ~triangle =
             process_point_segment segment candidates.(slot)
           done
         done in
-      (match broad_phase with
-       | Exact_oracle -> scan_point_segments ()
-       | Stable_bvh -> indexed_point_segments ()
-       | Sweep ->
-           match point_segment_candidates ?cancel segment_first segment_second
-               !raw_segment_count !points !point_count projection_axis with
-           | Small_scan -> scan_point_segments ()
-           | Dense -> indexed_point_segments ()
-           | Candidates candidates ->
-               for slot = 0 to candidates.candidate_count - 1 do
-                 if slot land 1023 = 0 then Cancel.check_opt cancel;
-                 let candidate = candidates.candidate_order.(slot) in
-                 process_point_segment candidates.candidate_first.(candidate)
-                   candidates.candidate_second.(candidate)
-               done);
+      (match point_segment_candidates ?cancel segment_first segment_second
+          !raw_segment_count !points !point_count projection_axis with
+      | Small_scan -> scan_point_segments ()
+      | Dense -> indexed_point_segments ()
+      | Candidates candidates ->
+          for slot = 0 to candidates.candidate_count - 1 do
+            if slot land 1023 = 0 then Cancel.check_opt cancel;
+            let candidate = candidates.candidate_order.(slot) in
+            process_point_segment candidates.candidate_first.(candidate)
+              candidates.candidate_second.(candidate)
+          done);
       let counts = Array.make !raw_segment_count 0 in
       for split = 0 to !split_count - 1 do
         counts.((!split_segments).(split)) <-

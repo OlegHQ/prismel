@@ -54,8 +54,6 @@ module Private : sig
     source -> projection:projection -> first:int -> second:int -> t -> bool
   val barycentric_source_triangle :
     source -> a:int -> b:int -> c:int -> t -> float * float * float
-  val barycentric_source_triangle_reference :
-    source -> a:int -> b:int -> c:int -> t -> float * float * float
   val construction : t -> construction
   val explicit : source -> int -> (t, error) result
   val rounded : reference:t -> x:float -> y:float -> z:float -> (t, error) result
@@ -82,9 +80,6 @@ module Private : sig
   val compare_x : t -> t -> int
   val compare_y : t -> t -> int
   val compare_z : t -> t -> int
-  val compare_arena_x : t -> t -> int
-  val compare_arena_y : t -> t -> int
-  val compare_arena_z : t -> t -> int
   val compare_reference_x : t -> t -> int
   val compare_reference_y : t -> t -> int
   val compare_reference_z : t -> t -> int
@@ -92,16 +87,11 @@ module Private : sig
   val orient2d_yz : t -> t -> t -> Predicates.sign
   val orient2d_zx : t -> t -> t -> Predicates.sign
   val orient3d : t -> t -> t -> t -> Predicates.sign
-  val orient2d_arena_xy : t -> t -> t -> Predicates.sign
-  val orient2d_arena_yz : t -> t -> t -> Predicates.sign
-  val orient2d_arena_zx : t -> t -> t -> Predicates.sign
   val orient2d_reference_xy : t -> t -> t -> Predicates.sign
   val orient2d_reference_yz : t -> t -> t -> Predicates.sign
   val orient2d_reference_zx : t -> t -> t -> Predicates.sign
-  val orient3d_arena_exact : t -> t -> t -> t -> Predicates.sign
   val orient3d_reference : t -> t -> t -> t -> Predicates.sign
   val radial_dot : t -> t -> t -> t -> Predicates.sign
-  val radial_dot_arena_exact : t -> t -> t -> t -> Predicates.sign
   val radial_dot_reference : t -> t -> t -> t -> Predicates.sign
   val ray_edge :
     query:t -> first:t -> second:t -> dx:float -> dy:float -> dz:float ->
@@ -208,11 +198,9 @@ end
 
 module Arrangement : sig
   type side = Left | Right
-  type broad_phase = Sweep | Stable_bvh | Exact_oracle
   type t
   val build :
     ?cancel:Cancel.t -> ?coplanar:Coplanar.t ->
-    ?broad_phase:broad_phase ->
     Constraints.t -> side:side -> triangle:int ->
     (t, Error.t) result
   val point_count : t -> int
@@ -224,17 +212,13 @@ end
 
 module Triangulation : sig
   type t
-  type point_location = Walk | Exact_scan
-  type constraint_recovery = Trace | Edge_scan
   type workspace
   val create_workspace : unit -> workspace
   val build :
-    ?cancel:Cancel.t -> ?workspace:workspace -> ?point_location:point_location ->
-    ?constraint_recovery:constraint_recovery ->
+    ?cancel:Cancel.t -> ?workspace:workspace ->
     Constraints.t -> Arrangement.t ->
     side:Arrangement.side -> triangle:int -> (t, Error.t) result
   val point_count : t -> int
-  val approximate_point : t -> int -> float * float * float
   val triangle_count : t -> int
   val triangle_point : t -> int -> int -> int
   val constraint_count : t -> int
@@ -253,20 +237,6 @@ module Refinement : sig
   val right_face : t -> int -> Triangulation.t option
   val refined_left_count : t -> int
   val refined_right_count : t -> int
-end
-
-module Coincident : sig
-  type side = Left | Right
-  type t
-  val build :
-    ?cancel:Cancel.t -> Constraints.t -> Coplanar.t -> Refinement.t ->
-    (t, Error.t) result
-  val group_count : t -> int
-  val member_range : t -> int -> int * int
-  val member_side : t -> int -> side
-  val member_face : t -> int -> int
-  val member_triangle : t -> int -> int
-  val member_winding : t -> int -> int
 end
 
 module Complex : sig
@@ -307,8 +277,6 @@ module Weiler : sig
     ?cancel:Cancel.t -> Complex.t -> Radial.t -> (t, Error.t) result
   val half_facet_count : t -> int
   val half_facet : int -> side -> int
-  val half_facet_facet : int -> int
-  val half_facet_side : int -> side
   val neighbor : t -> half_facet:int -> local_edge:int -> int
   val shell_count : t -> int
   val half_facet_shell : t -> int -> int
@@ -319,7 +287,7 @@ end
 module Cells : sig
   type t
   val build :
-    ?cancel:Cancel.t -> ?axis_fast_path:bool -> ?component_index:bool ->
+    ?cancel:Cancel.t -> ?axis_fast_path:bool ->
     ?track_left:bool -> ?track_right:bool ->
     Complex.t -> Weiler.t -> (t, Error.t) result
   val shell_count : t -> int

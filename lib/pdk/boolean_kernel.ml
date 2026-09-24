@@ -4,7 +4,6 @@ module Coplanar = Boolean_coplanar
 module Arrangement = Boolean_face_arrangement
 module Triangulation = Boolean_face_cdt
 module Refinement = Boolean_refinement
-module Coincident = Boolean_coincident
 module Complex = Boolean_complex
 module Radial = Boolean_radial
 module Weiler = Boolean_weiler

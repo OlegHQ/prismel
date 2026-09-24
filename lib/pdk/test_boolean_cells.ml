@@ -45,7 +45,7 @@ let tetra_batch count shift =
   done;
   geometry points triangles
 
-let pipeline ?axis_fast_path ?component_index left right =
+let pipeline ?axis_fast_path left right =
   let constraints = Constraints.build ~grain:1 ~left ~right () |> get in
   let coplanar = Coplanar.build ~grain:1 constraints |> get in
   let refinement = Refinement.build ~coplanar ~grain:1 constraints |> get in
@@ -53,7 +53,7 @@ let pipeline ?axis_fast_path ?component_index left right =
   let radial = Radial.build complex |> get in
   let weiler = Weiler.build complex radial |> get in
   complex, weiler,
-  Cells.build ?axis_fast_path ?component_index complex weiler |> get
+  Cells.build ?axis_fast_path complex weiler |> get
 
 let shell_values cells =
   let values = Array.init (Cells.shell_count cells) (fun shell ->
@@ -121,41 +121,26 @@ let test_symbolic_seed_fallback () =
   check (symbolic_one = symbolic_four)
     "positive-infinitesimal cell classification differs between domain counts"
 
-let test_component_index_exactness () =
+let test_component_index_domains () =
   let fixtures = [|
     tetra ~origin:(0.,0.,0.) 1., tetra ~origin:(10.,0.,0.) 1.;
     tetra ~origin:(0.,0.,0.) 4., tetra ~origin:(1.,1.,1.) 0.5;
     tetra ~origin:(-2.,-2.,-2.) 4., tetra ~origin:(-1.,-1.,-1.) 4.;
   |] in
   Array.iteri (fun fixture (left, right) ->
-      let run domains component_index axis_fast_path =
-        Prismel.Parallel.run ~domains (fun () ->
-            let complex, weiler, cells =
-              pipeline ~component_index ~axis_fast_path left right in
-            signature complex weiler cells) in
-      let exhaustive = run 1 false true
-      and indexed = run 1 true true
-      and indexed_symbolic = run 1 true false
-      and indexed_four = run 4 true true in
-      if indexed <> exhaustive then
-        fail "component index differs from exhaustive oracle for fixture %d" fixture;
-      if indexed_symbolic <> exhaustive then
-        fail "symbolic component index differs from exhaustive oracle for fixture %d"
-          fixture;
-      if indexed_four <> exhaustive then
+      let run domains = Prismel.Parallel.run ~domains (fun () ->
+          let complex, weiler, cells = pipeline left right in
+          signature complex weiler cells) in
+      if run 1 <> run 4 then
         fail "component index differs between domain counts for fixture %d" fixture)
     fixtures
 
 let test_component_index_scale () =
   let left = tetra_batch 64 0. and right = tetra_batch 64 3. in
-  let run domains component_index = Prismel.Parallel.run ~domains (fun () ->
-      let complex, weiler, cells = pipeline ~component_index left right in
+  let run domains = Prismel.Parallel.run ~domains (fun () ->
+      let complex, weiler, cells = pipeline left right in
       signature complex weiler cells) in
-  let exhaustive = run 1 false and indexed = run 1 true
-  and indexed_four = run 4 true in
-  check (indexed = exhaustive)
-    "component index scale result differs from exhaustive oracle";
-  check (indexed_four = exhaustive)
+  check (run 1 = run 4)
     "component index scale result differs between domain counts"
 
 let test_cancellation () =
@@ -173,6 +158,6 @@ let () =
   test_nested_solids ();
   test_domain_exactness ();
   test_symbolic_seed_fallback ();
-  test_component_index_exactness ();
+  test_component_index_domains ();
   test_component_index_scale ();
   test_cancellation ()

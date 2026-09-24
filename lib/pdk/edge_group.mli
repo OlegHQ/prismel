@@ -45,17 +45,6 @@ val remap :
     a target point, or [-1] when deleted. Collapsed or absent target edges are
     omitted and many source edges may merge into one target edge. *)
 
-val replicate_offsets :
-  ?cancel:Cancel.t ->
-  source_index:Topology_index.t ->
-  target_topology:Topology.t ->
-  target_index:Topology_index.t ->
-  point_offsets:int array ->
-  t ->
-  (t, string) result
-(** Replicate the selected source edges into point-offset copies. Membership
-    is gathered once and the target bitset is materialized once. *)
-
 val replicate_exact_copies :
   ?cancel:Cancel.t ->
   source_topology:Topology.t ->

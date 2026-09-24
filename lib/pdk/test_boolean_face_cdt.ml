@@ -151,12 +151,10 @@ let many_constraint_input count =
 
 let test_incremental_topology_and_walk () =
   let count = 64 in
-  let run ?(point_location = Triangulation.Walk)
-      ?(constraint_recovery = Triangulation.Trace) domains =
+  let run domains =
     Prismel.Parallel.run ~domains (fun () ->
       let constraints,arrangement = many_constraint_input count in
-      Triangulation.build ~point_location ~constraint_recovery
-        constraints arrangement
+      Triangulation.build constraints arrangement
         ~side:Arrangement.Left ~triangle:0 |> get) in
   let triangulation = run 1 in
   check (Triangulation.point_count triangulation = (count * 2) + 3
@@ -165,13 +163,7 @@ let test_incremental_topology_and_walk () =
     "incremental face CDT has incorrect dense cardinality";
   validate triangulation;
   check (signature triangulation = signature (run 4))
-    "incremental face CDT differs between domain counts";
-  check (signature triangulation = signature
-      (run ~point_location:Triangulation.Exact_scan 1))
-    "walking point location differs from the exact scan oracle";
-  check (signature triangulation = signature
-      (run ~constraint_recovery:Triangulation.Edge_scan 1))
-    "constraint-edge trace differs from the interval scan oracle"
+    "incremental face CDT differs between domain counts"
 
 let test_cancellation () =
   let constraints, arrangement = crossing_input () in

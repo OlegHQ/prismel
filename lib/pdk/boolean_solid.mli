@@ -60,11 +60,5 @@ val facet_count : t -> int
 val shell_count : t -> int
 
 module Private : sig
-  val constraints : t -> Boolean_constraints.t
-  val complex : t -> Boolean_complex.t
-  val radial : t -> Boolean_radial.t
   val weiler : t -> Boolean_weiler.t
-  val cells : t -> Boolean_cells.t
-  val left_treatment : t -> treatment
-  val right_treatment : t -> treatment
 end

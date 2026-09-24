@@ -38,7 +38,6 @@ let float4 = K_float4
 let text = K_text
 let key ~name ~owner key_kind = { key_name = name; key_owner = owner; key_kind }
 let key_name value = value.key_name
-let key_owner value = value.key_owner
 
 let storage_of_kind : type a. a kind -> a -> storage = fun kind value ->
   match kind with

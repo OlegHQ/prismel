@@ -67,10 +67,6 @@ val barycentric_source_triangle :
 (** Exact-construction barycentric weights against three explicit source
     points without retaining temporary explicit point objects. *)
 
-val barycentric_source_triangle_reference :
-  source -> a:int -> b:int -> c:int -> t -> float * float * float
-(** Allocation-heavy explicit-point oracle retained for differential tests and
-    benchmarks. *)
 
 val explicit : source -> int -> (t, error) result
 
@@ -134,27 +130,19 @@ val orient3d : t -> t -> t -> t -> Predicates.sign
 (** Exact predicates supporting any mixture of explicit, LPI, and TPI points
     created from the same packed source. *)
 
-val compare_arena_x : t -> t -> int
-val compare_arena_y : t -> t -> int
-val compare_arena_z : t -> t -> int
 val compare_reference_x : t -> t -> int
 val compare_reference_y : t -> t -> int
 val compare_reference_z : t -> t -> int
-val orient2d_arena_xy : t -> t -> t -> Predicates.sign
-val orient2d_arena_yz : t -> t -> t -> Predicates.sign
-val orient2d_arena_zx : t -> t -> t -> Predicates.sign
 val orient2d_reference_xy : t -> t -> t -> Predicates.sign
 val orient2d_reference_yz : t -> t -> t -> Predicates.sign
 val orient2d_reference_zx : t -> t -> t -> Predicates.sign
-val orient3d_arena_exact : t -> t -> t -> t -> Predicates.sign
 val orient3d_reference : t -> t -> t -> t -> Predicates.sign
-(** Forced packed-arena and immutable-dyadic differential oracles. *)
+(** Immutable-dyadic differential oracles for the packed exact arena. *)
 
 val radial_dot : t -> t -> t -> t -> Predicates.sign
 (** Exact sign of the dot product between the last two vectors after
     projection perpendicular to the directed first-two-point edge. *)
 
-val radial_dot_arena_exact : t -> t -> t -> t -> Predicates.sign
 val radial_dot_reference : t -> t -> t -> t -> Predicates.sign
 
 val ray_edge :
