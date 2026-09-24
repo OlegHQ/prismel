@@ -40,19 +40,17 @@ let run () =
   if delay_elapsed > 0.5 then fail "precise delay overslept absurdly";
   get (Domain.spawn (fun () -> Time.delay_precise_seconds 0.0001)
     |> Domain.join);
-  let compiled = Version.compiled and linked = Version.linked () in
+  let compiled = compiled_version and linked = linked_version () in
   if compiled.major <> 3 || compiled.minor <> 4 || compiled.patch <> 14 then
     fail "generated header version changed without fixture review";
   if linked.major < compiled.major
       || (linked.major = compiled.major && linked.minor < compiled.minor) then
     fail "linked SDL is older than the generated headers";
-  if not Version.stable_headers || Version.function_count < 1_200
-      || Version.safe_function_count < 20 then
-    fail "generated inventory is incomplete or prerelease";
-  (match Version.validate ~release:true ~linked:{ major = 3; minor = 4; patch = 12 } () with
+  get (check_version ~release:true ());
+  (match validate_version ~release:true ~linked:{ major = 3; minor = 4; patch = 12 } () with
    | Error { kind = Incompatible_version; _ } -> ()
    | Ok () | Error _ -> fail "older linked version was not rejected");
-  (match Version.validate ~library:"SDL3_ttf"
+  (match validate_version ~library:"SDL3_ttf"
       ~compiled:{ major = 3; minor = 2; patch = 2 } ~stable_headers:false
       ~release:true ~linked:{ major = 3; minor = 2; patch = 2 } () with
    | Error { kind = Incompatible_version; _ } -> ()
@@ -247,5 +245,5 @@ let run () =
    | Ok _ | Error _ -> fail "stale window access was not rejected");
   get (Init.quit ());
   get (drain_release_queue ());
-  Printf.printf "SDL3 %d.%d.%d (%d inventoried functions) ownership test passed\n%!"
-    linked.major linked.minor linked.patch Version.function_count
+  Printf.printf "SDL3 %d.%d.%d ownership test passed\n%!"
+    linked.major linked.minor linked.patch

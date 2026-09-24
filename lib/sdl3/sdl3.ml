@@ -28,47 +28,43 @@ let sdl_error operation =
   let message = if message = "" then "SDL call failed without an error" else message in
   error operation Sdl_error message
 
-module Version = struct
-  type t = { major : int; minor : int; patch : int }
+type version = { major : int; minor : int; patch : int }
 
-  let compiled =
-    let value = Generated_provenance.header_version in
-    { major = value.major; minor = value.minor; patch = value.patch }
+let compiled_version : version =
+  let value = Generated_provenance.header_version in
+  { major = value.major; minor = value.minor; patch = value.patch }
 
-  let of_number value = {
-    major = value / 1_000_000;
-    minor = (value / 1_000) mod 1_000;
-    patch = value mod 1_000;
-  }
+let version_of_number value = {
+  major = value / 1_000_000;
+  minor = (value / 1_000) mod 1_000;
+  patch = value mod 1_000;
+}
 
-  let number value =
-    (value.major * 1_000_000) + (value.minor * 1_000) + value.patch
+let version_number value =
+  (value.major * 1_000_000) + (value.minor * 1_000) + value.patch
 
-  let stable value = value.minor mod 2 = 0 && value.patch mod 2 = 0
-  let linked () = of_number (Private_raw.linked_version_number ())
-  let stable_headers = Generated_provenance.stable_headers
-  let function_count = Generated_provenance.function_count
-  let safe_function_count = Generated_provenance.safe_function_count
+let stable_version value = value.minor mod 2 = 0 && value.patch mod 2 = 0
+let linked_version () = version_of_number (Private_raw.linked_version_number ())
 
-  let string value =
-    Printf.sprintf "%d.%d.%d" value.major value.minor value.patch
+let version_string value =
+  Printf.sprintf "%d.%d.%d" value.major value.minor value.patch
 
-  let validate ?(library="SDL") ?(compiled=compiled)
-      ?(stable_headers=stable_headers) ~release ~linked () =
-    if release && not stable_headers then
-      error "SDL3.Version.validate" Incompatible_version
-        ("compiled against prerelease " ^ library ^ " headers " ^ string compiled)
-    else if number linked < number compiled then
-      error "SDL3.Version.validate" Incompatible_version
-        (Printf.sprintf "linked %s %s is older than compiled headers %s"
-          library (string linked) (string compiled))
-    else if release && not (stable linked) then
-      error "SDL3.Version.validate" Incompatible_version
-        ("linked " ^ library ^ " is a development release: " ^ string linked)
-    else Ok ()
+let validate_version ?(library="SDL") ?(compiled=compiled_version)
+    ?(stable_headers=Generated_provenance.stable_headers) ~release ~linked () =
+  if release && not stable_headers then
+    error "SDL3.validate_version" Incompatible_version
+      ("compiled against prerelease " ^ library ^ " headers " ^ version_string compiled)
+  else if version_number linked < version_number compiled then
+    error "SDL3.validate_version" Incompatible_version
+      (Printf.sprintf "linked %s %s is older than compiled headers %s"
+        library (version_string linked) (version_string compiled))
+  else if release && not (stable_version linked) then
+    error "SDL3.validate_version" Incompatible_version
+      ("linked " ^ library ^ " is a development release: " ^ version_string linked)
+  else Ok ()
 
-  let check ?(release = true) () = validate ~release ~linked:(linked ()) ()
-end
+let check_version ?(release = true) () =
+  validate_version ~release ~linked:(linked_version ()) ()
 
 module Time = struct
   let performance_counter = Private_raw.performance_counter
@@ -229,7 +225,7 @@ module Init = struct
 
   let init ?(release = true) subsystems =
     on_main "SDL3.Init.init" (fun () ->
-      match Version.check ~release () with
+      match check_version ~release () with
       | Error _ as failure -> failure
       | Ok () ->
           Private_raw.clear_error ();

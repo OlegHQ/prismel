@@ -15,7 +15,7 @@ type error = private {
 
 val pp_error : Format.formatter -> error -> unit
 
-val linked_version : unit -> Sdl3.Version.t
+val linked_version : unit -> Sdl3.version
 val check_version : ?release:bool -> unit -> (unit, error) result
 
 val load_file : string -> (Sdl3.Surface.t, error) result

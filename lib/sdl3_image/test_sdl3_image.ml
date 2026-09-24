@@ -132,7 +132,7 @@ let () =
     fail "expected the SDL3_image fixture directory";
   let root = Sys.argv.(1) in
   let linked = linked_version () in
-  if linked <> { Sdl3.Version.major = 3; minor = 4; patch = 4 } then
+  if linked <> { Sdl3.major = 3; minor = 4; patch = 4 } then
     fail "linked SDL3_image version changed";
   (match check_version ~release:true () with
    | Ok () -> () | Error error -> fail (Format.asprintf "%a" pp_error error));

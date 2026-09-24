@@ -19,18 +19,13 @@ type rect = { x : int; y : int; width : int; height : int }
 
 val pp_error : Format.formatter -> error -> unit
 
-module Version : sig
-  type t = { major : int; minor : int; patch : int }
-
-  val compiled : t
-  val linked : unit -> t
-  val stable_headers : bool
-  val function_count : int
-  val safe_function_count : int
-  val validate : ?library:string -> ?compiled:t -> ?stable_headers:bool ->
-    release:bool -> linked:t -> unit -> (unit, error) result
-  val check : ?release:bool -> unit -> (unit, error) result
-end
+type version = { major : int; minor : int; patch : int }
+val compiled_version : version
+val linked_version : unit -> version
+val validate_version : ?library:string -> ?compiled:version ->
+  ?stable_headers:bool -> release:bool -> linked:version ->
+  unit -> (unit, error) result
+val check_version : ?release:bool -> unit -> (unit, error) result
 
 module Time : sig
   val performance_counter : unit -> int64

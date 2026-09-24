@@ -110,7 +110,7 @@ let fail label printer error =
   failwith (Format.asprintf "%s: %a" label printer error)
 
 let () =
-  (match Sdl3.Version.check ~release:true () with
+  (match Sdl3.check_version ~release:true () with
    | Ok () -> ()
    | Error error -> fail "SDL3" Sdl3.pp_error error);
   (match Sdl3_image.check_version ~release:true () with

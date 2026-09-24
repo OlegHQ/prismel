@@ -26,16 +26,16 @@ external linked_version_number : unit -> int = "caml_sdl3_image_version"
 external decode_bytes_raw : bytes -> string option -> (decoded, string) result
   = "caml_sdl3_image_decode_bytes"
 
-let linked_version () : Sdl3.Version.t =
+let linked_version () : Sdl3.version =
   let number = linked_version_number () in
   { major = number / 1_000_000;
     minor = (number / 1_000) mod 1_000; patch = number mod 1_000 }
 
 let check_version ?(release=true) () =
   let value = Generated_provenance.header_version in
-  let compiled : Sdl3.Version.t =
+  let compiled : Sdl3.version =
     { major=value.major; minor=value.minor; patch=value.patch } in
-  match Sdl3.Version.validate ~library:"SDL3_image" ~compiled
+  match Sdl3.validate_version ~library:"SDL3_image" ~compiled
       ~stable_headers:Generated_provenance.stable_headers ~release
       ~linked:(linked_version ()) () with
   | Ok () -> Ok ()

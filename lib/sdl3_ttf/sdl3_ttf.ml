@@ -80,16 +80,16 @@ external raw_render_blended_wrapped :
   = "caml_sdl3_ttf_render_blended_wrapped_bytecode"
     "caml_sdl3_ttf_render_blended_wrapped"
 
-let linked_version () : Sdl3.Version.t =
+let linked_version () : Sdl3.version =
   let number = raw_version () in
   { major = number / 1_000_000;
     minor = (number / 1_000) mod 1_000; patch = number mod 1_000 }
 
 let check_version ?(release=true) () =
   let value = Generated_provenance.header_version in
-  let compiled : Sdl3.Version.t =
+  let compiled : Sdl3.version =
     { major=value.major; minor=value.minor; patch=value.patch } in
-  match Sdl3.Version.validate ~library:"SDL3_ttf" ~compiled
+  match Sdl3.validate_version ~library:"SDL3_ttf" ~compiled
       ~stable_headers:Generated_provenance.stable_headers ~release
       ~linked:(linked_version ()) () with
   | Ok () -> Ok ()

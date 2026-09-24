@@ -114,7 +114,7 @@ let () =
   let version =
     measure ~name:"version_and_init_query" ~iterations:arguments.iterations
       ~calls_per_iteration:2 (fun _ ->
-        ignore (Sdl3.Version.linked ());
+        ignore (Sdl3.linked_version ());
         ignore (sdl (Sdl3.Init.initialized [ Sdl3.Init.Events ])))
   in
   let events =
@@ -167,7 +167,7 @@ let () =
   mixer (Mixer3.Init.quit ());
   sdl (Sdl3.Init.quit ());
   sdl (Sdl3.drain_release_queue ());
-  let linked = Sdl3.Version.linked () in
+  let linked = Sdl3.linked_version () in
   let mixer_linked = Mixer3.linked_version () in
   let output =
     `Assoc

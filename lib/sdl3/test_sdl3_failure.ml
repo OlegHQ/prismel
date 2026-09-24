@@ -16,7 +16,7 @@ let run () =
     | Error _ -> fail "window constructor returned the wrong failure kind"
   in
   let captured = window_error.message in
-  ignore (Version.linked ());
+  ignore (linked_version ());
   if window_error.message <> captured || captured = "" then
     fail "SDL error text was not captured before a subsequent SDL call";
   (match Init.quit () with

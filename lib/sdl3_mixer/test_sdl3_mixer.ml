@@ -45,7 +45,7 @@ let any_nonzero bytes =
 
 let run () =
   let linked = linked_version () in
-  if linked <> { Sdl3.Version.major = 3; minor = 2; patch = 4 } then
+  if linked <> { Sdl3.major = 3; minor = 2; patch = 4 } then
     fail "linked SDL3_mixer version changed";
   (match check_version ~release:true () with
    | Ok () -> () | Error error -> fail (Format.asprintf "%a" pp_error error));
