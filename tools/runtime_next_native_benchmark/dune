@@ -4,6 +4,13 @@
   (with-stdout-to %{targets}
    (echo "let value = \"%{profile}\""))))
 
+(library
+ (name r11_benchmark)
+ (wrapped false)
+ (modules r11_benchmark r11_native)
+ (libraries unix yojson prismel procedural sketch_support
+  prismel_next_execution scene_execution ogpu))
+
 (executable
  (name runtime_next_native_benchmark)
  (modules runtime_next_native_benchmark runtime_next_native_profile)

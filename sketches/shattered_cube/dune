@@ -1,5 +1,5 @@
 (executable
  (name main)
- (modules main r11_native)
- (libraries unix yojson prismel procedural pdk sop_catalog sketch_support sketch_ui
-  prismel_next_execution scene_execution))
+ (modules main)
+ (libraries prismel procedural pdk sop_catalog sketch_support sketch_ui
+  r11_benchmark))

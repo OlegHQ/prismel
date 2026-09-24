@@ -59,18 +59,17 @@ let validate_actual_report ~run ~sketch ~artifact report=
         failwith(Printf.sprintf"R11 child %d fabricated unsupported GPU counters"run)
   |status->failwith(Printf.sprintf"R11 child %d unknown GPU counter status %S"run status)
 let ()=
-  let sketch=ref None and benchmark=ref None and artifact=ref None and output_dir=ref None
+  let sketch=ref None and artifact=ref None and output_dir=ref None
   and validate_only=ref None and visibility=ref"hidden"and seconds=ref 30. and runs=ref 5 in
-  Arg.parse["--sketch",Arg.String(fun x->sketch:=Some x),"sketches/shattered_cube/main.exe";"--benchmark",Arg.String(fun x->benchmark:=Some x),"deprecated compatibility argument; actual sketch is measured";"--artifact",Arg.String(fun x->artifact:=Some x),"acceptance artifact";"--output-dir",Arg.String(fun x->output_dir:=Some x),"report directory";"--validate-only",Arg.String(fun x->validate_only:=Some x),"validate one existing report without running";"--visibility",Arg.Symbol(["visible";"hidden"],fun x->visibility:=x),"mode";"--seconds",Arg.Set_float seconds,"sample duration";"--runs",Arg.Set_int runs,"sample count"]ignore"runtime_next_native_r11_protocol";
+  Arg.parse["--sketch",Arg.String(fun x->sketch:=Some x),"sketches/shattered_cube/main.exe";"--artifact",Arg.String(fun x->artifact:=Some x),"acceptance artifact";"--output-dir",Arg.String(fun x->output_dir:=Some x),"report directory";"--validate-only",Arg.String(fun x->validate_only:=Some x),"validate one existing report without running";"--visibility",Arg.Symbol(["visible";"hidden"],fun x->visibility:=x),"mode";"--seconds",Arg.Set_float seconds,"sample duration";"--runs",Arg.Set_int runs,"sample count"]ignore"runtime_next_native_r11_protocol";
   if !seconds <= 0. || !runs <= 0 then invalid_arg"positive protocol counts required";
   let sketch=canonical_path(Option.get!sketch)and artifact=canonical_path(Option.get!artifact) in
   (match!validate_only with Some report->validate_actual_report~run:1~sketch~artifact report;exit 0|None->());
-  let benchmark=Option.value!benchmark~default:sketch in
   let output_dir=Option.get!output_dir in
   let commit=clean_commit()in
   for run=1 to!runs do
     let report=Filename.concat output_dir(Printf.sprintf"shattered-%s-%02d.json"!visibility run)in
-    let arguments=[|sketch;"--r11-renderer";benchmark;"--r11-artifact";artifact;"--r11-visibility";!visibility;"--r11-seconds";string_of_float!seconds;"--r11-report";report|]in
+    let arguments=[|sketch;"--r11-artifact";artifact;"--r11-visibility";!visibility;"--r11-seconds";string_of_float!seconds;"--r11-report";report|]in
     let pid=Unix.create_process sketch arguments Unix.stdin Unix.stdout Unix.stderr in
     (match snd(Unix.waitpid[]pid)with Unix.WEXITED 0->()|WEXITED code->failwith(Printf.sprintf"R11 child %d exited %d"run code)|WSIGNALED signal|WSTOPPED signal->failwith(Printf.sprintf"R11 child %d signaled %d"run signal));
     validate_actual_report~run~sketch~artifact report;
