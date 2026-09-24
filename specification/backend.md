@@ -33,6 +33,9 @@ native handles in its public API.
 Qualification code reads the runtime and Metal counters at their owning
 boundaries. Sketch does not retain a process-global diagnostics snapshot after
 teardown; its coordinator is destroyed during `on_stop` cleanup.
+`Sketch` owns frame time and ordered input events. The execution coordinator
+owns GPU submissions and presentation facts; its step result carries no second
+event queue, clock, or input snapshot.
 
 Scene visibility, culling, batch selection, and Scene2/Scene3 lowering remain
 Prismel responsibilities. The Metal binding does not contain Prismel vertex

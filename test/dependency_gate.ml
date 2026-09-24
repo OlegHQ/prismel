@@ -77,6 +77,7 @@ let rules =
   @ [ "ogpu", ["sdl3"; "metal"; "ogpu_metal"; "native_layer_token"];
       "ogpu_metal", ["sdl3"; "runtime"; "runtime_next"; "prismel"; "scene_execution"];
       "runtime_next", upper; "runtime_next_input", upper;
+      "prismel_next_execution", ["runtime_next_input"];
       "prismel", ["pxui"; "pxui_graph"; "sop_ui"; "procedural"; "pdk"; "geom";
                   "sop_catalog"; "sketch_support"; "sketch_ui"];
       "pdk", "geom" :: "procedural" :: "pxui" :: "sop_ui" :: "sop_catalog" :: gpu;
@@ -156,7 +157,8 @@ let run () =
   List.iter (fun (lib, dep) ->
     if violations (inject lib dep) ~scan:[] = [] then
       failwith (Printf.sprintf "gate accepted injected edge %s -> %s" lib dep))
-    ["ogpu", "metal"; "prismel", "pxui"; "pxui", "procedural"; "sdl3", "prismel"; "pdk", "geom"];
+    ["ogpu", "metal"; "prismel", "pxui"; "pxui", "procedural"; "sdl3", "prismel";
+     "pdk", "geom"; "prismel_next_execution", "runtime_next_input"];
   if violations graph ~scan:["lib/prismel/injected.ml", "let x = Metal.Device.system_default"] = []
      || violations graph ~scan:["lib/prismel/injected.ml", "open Ogpu_metal"] = [] then
     failwith "gate accepted injected Metal reference";

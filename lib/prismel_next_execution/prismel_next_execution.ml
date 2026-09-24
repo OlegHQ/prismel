@@ -8,27 +8,10 @@ let backend operation value =
 let resource operation value =
   Error { operation; kind=Resource; message=Format.asprintf "%a" Prismel_next_resources.pp_error value }
 
-type timing = Fixed of float | Variable
 type configuration = { logical_width:int; logical_height:int;
-  drawable_width:int; drawable_height:int; title:string; timing:timing;
-  max_events:int; max_file_bytes:int;vsync:bool }
+  drawable_width:int; drawable_height:int; title:string;vsync:bool }
 let default_configuration = { logical_width=640; logical_height=480;
-  drawable_width=640; drawable_height=480; title="Prismel"; timing=Fixed (1. /. 60.);
-  max_events=4096; max_file_bytes=16*1024*1024;vsync=true }
-
-type mouse_button = Left | Middle | Right | X1 | X2
-type modifier = Shift | Control | Alt | Meta | Num_lock | Caps_lock | Scroll_lock
-type key = { name:string; modifiers:modifier list; repeat:bool }
-type event = Pointer_moved of float*float | Pointer_pressed of mouse_button*float*float
-  | Pointer_released of mouse_button*float*float | Pointer_cancelled of mouse_button
-  | Wheel of float*float | Key_pressed of key | Key_released of key
-  | Text_input of string | Text_editing of {text:string;start:int;length:int}
-  | Focus_lost | Focus_gained | Visibility_changed of bool | Quit
-  | Resized of int*int | File_dropped of {name:string;contents:bytes option}
-type facts = { frame:int64; time:float; dt:float; logical_width:int; logical_height:int;
-  drawable_width:int; drawable_height:int; pixel_scale:float; events:event list;
-  pointer:float*float; mouse_delta:float*float; wheel_delta:float*float;
-  dropped_events:int }
+  drawable_width=640; drawable_height=480; title="Prismel";vsync=true }
 type family = Scene2 | Scene2_textured | Scene3 | Scene3_points | Scene3_textured | Scene3_shadow |
   Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil | Ui
 type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
@@ -73,7 +56,6 @@ let default_state viewport scissor = { Scene_execution.viewport; scissor;
   depth_write=false; depth_load=Ogpu.Render_pass.Load; depth_clear=1.;
   transform_uniforms=None; stencil_state=None; stencil_load=Ogpu.Render_pass.Load;
   stencil_clear=0 }
-let finite value = Float.is_finite value
 let put_float bytes offset value = Bytes.set_int64_le bytes offset (Int64.bits_of_float value)
 (* Scene2 keeps affine coefficients as f64 through command lowering.  The
    native execution boundary narrows these values to the six-f32 Metal ABI. *)
@@ -358,9 +340,8 @@ let sampled_texture_bytes (texture:Scene_execution.sampled_texture)=
     let bytes=Bytes.length level.Scene_execution.bytes in
     if total>snapshot_cache_entry_byte_capacity-bytes then
       snapshot_cache_entry_byte_capacity+1 else total+bytes)0 texture.levels
-type t = { runtime:runtime; input:Runtime_next_input.t;
-  assets:Prismel_next_resources.Assets.t; timing:timing; mutable frame:int64;
-  mutable elapsed:float; mutable last_clock:float; mutable dead:bool;
+type t = { runtime:runtime;
+  assets:Prismel_next_resources.Assets.t; mutable dead:bool;
   mutable snapshots:snapshot_cache_entry list;mutable snapshot_bytes:int;
   mutable scene2_geometry_cache:cached_scene2_geometry list;
   mutable scene2_geometry_candidates:scene2_geometry_candidate list;
@@ -390,17 +371,11 @@ type lease_policy=Copy_image_snapshots|Retain_image_snapshots of submission
 let valid_configuration operation (configuration:configuration)=
   let positive x=x>0 in
   if not(List.for_all positive[configuration.logical_width;configuration.logical_height;
-      configuration.drawable_width;configuration.drawable_height;configuration.max_events;
-      configuration.max_file_bytes])then fail operation Invalid_argument"dimensions and bounds must be positive"
-  else(match configuration.timing with Fixed dt when not(finite dt&&dt>0.)->
-      fail operation Invalid_argument"fixed dt must be finite and positive"|_->Ok())
-let finish_create operation configuration runtime destroy_runtime=
-  match Runtime_next_input.create~max_events:configuration.max_events
-    ~max_file_bytes:configuration.max_file_bytes~logical_width:configuration.logical_width
-    ~logical_height:configuration.logical_height with
-  |Error message->ignore(destroy_runtime());fail operation Backend message
-  |Ok input->Ok{runtime;input;assets=Prismel_next_resources.Assets.create();
-      timing=configuration.timing;frame=0L;elapsed=0.;last_clock=Unix.gettimeofday();
+      configuration.drawable_width;configuration.drawable_height])then
+    fail operation Invalid_argument"dimensions must be positive"
+  else Ok()
+let finish_create runtime=
+  {runtime;assets=Prismel_next_resources.Assets.create();
       dead=false;snapshots=[];snapshot_bytes=0;scene2_geometry_cache=[];scene2_geometry_candidates=[];
       scene2_batch_cache=[];scene2_quad_cache=[];scene2_quad_payload_cache=[];
       scene2_debug_cache=[];scene2_plan_cache=[];scene2_plan_candidates=[];
@@ -417,10 +392,8 @@ let create (configuration:configuration) =
       drawable_width=configuration.drawable_width;drawable_height=configuration.drawable_height;
       title=configuration.title;vsync=configuration.vsync}in
     match Runtime_next_orchestrator.create config with Error e->backend operation e|Ok runtime->
-      (match finish_create operation configuration(Window runtime)
-        (fun()->Runtime_next_orchestrator.destroy runtime) with
-      |Ok value as success->active_window:=Some value;success
-      |Error _ as failure->failure)
+      let value=finish_create(Window runtime) in
+      active_window:=Some value;Ok value
 let create_offscreen (configuration:configuration)=
   let operation="Prismel_next_execution.create_offscreen"in
   match valid_configuration operation configuration with Error _ as error->error|Ok()->
@@ -441,12 +414,9 @@ let create_offscreen (configuration:configuration)=
         display_scale=pixel_density;refresh_rate=None;vsync=false}in
       let state={runtime;facts;frames=0L;logical_draws=0L;logical_passes=0L;
         logical_submissions=0L}in
-      finish_create operation configuration(Offscreen state)
-        (fun()->Runtime_next.destroy_offscreen runtime)
+      Ok(finish_create(Offscreen state))
 let assets value=value.assets
 let snapshot_cache_entries value=List.length value.snapshots
-let scene2_geometry_cache_entries value=
-  List.length value.scene2_geometry_cache,List.length value.scene2_geometry_candidates
 let ensure operation value=if value.dead then fail operation Destroyed"coordinator is destroyed"else Ok()
 let release_image_leases leases=
   List.iter Prismel_next_resources.Image.Private.release_snapshot leases
@@ -968,17 +938,6 @@ let lower_scene2_with_policy value ~lease_policy ~density ~resource:resolve ir =
 let lower_scene2 value ~density ~resource ir=
   lower_scene2_with_policy value~lease_policy:Copy_image_snapshots
     ~density~resource ir
-let mb_to_input=function Left->Runtime_next_input.Left|Middle->Middle|Right->Right|X1->X1|X2->X2
-let mod_to_input=function Shift->Runtime_next_input.Shift|Control->Control|Alt->Alt|Meta->Meta|Num_lock->Num_lock|Caps_lock->Caps_lock|Scroll_lock->Scroll_lock
-let to_input=function Pointer_moved(x,y)->Runtime_next_input.Pointer_moved(x,y)
-  |Pointer_pressed(b,x,y)->Pointer_pressed(mb_to_input b,x,y)|Pointer_released(b,x,y)->Pointer_released(mb_to_input b,x,y)
-  |Pointer_cancelled b->Pointer_cancelled(mb_to_input b)|Wheel(x,y)->Wheel(x,y)
-  |Key_pressed k->Key_pressed{Runtime_next_input.key=k.name;modifiers=List.map mod_to_input k.modifiers;repeat=k.repeat}
-  |Key_released k->Key_released{Runtime_next_input.key=k.name;modifiers=List.map mod_to_input k.modifiers;repeat=k.repeat}
-  |Text_input s->Text_input s|Text_editing{text;start;length}->Text_editing{text;start;length}|Focus_lost->Focus_lost|Focus_gained->Focus_gained
-  |Visibility_changed x->Visibility_changed x|Quit->Quit|Resized(x,y)->Resized(x,y)|File_dropped{name;contents}->File_dropped{name;contents}
-let push_event value event=match ensure"Prismel_next_execution.push_event"value with Error _ as e->e|Ok()->
-  (match Runtime_next_input.push value.input(to_input event)with Ok()->Ok()|Error message->fail"Prismel_next_execution.push_event"Backend message)
 let resize value ~logical_width ~logical_height ~drawable_width ~drawable_height =
   match ensure"Prismel_next_execution.resize"value with Error _ as e->e|Ok()->
   let resized=match value.runtime with
@@ -991,36 +950,15 @@ let resize value ~logical_width ~logical_height ~drawable_width ~drawable_height
     |Ok()->let pixel_density=float drawable_width/.float logical_width in
       state.facts<-{state.facts with logical_width;logical_height;drawable_width;
         drawable_height;pixel_density;display_scale=pixel_density};Ok()in
-  match resized with
-  |Ok()->push_event value(Resized(logical_width,logical_height))
-  |Error e->backend"Prismel_next_execution.resize"e
-let mod_of_input=function Runtime_next_input.Shift->Shift|Control->Control|Alt->Alt|Meta->Meta|Num_lock->Num_lock|Caps_lock->Caps_lock|Scroll_lock->Scroll_lock
-let event_of_input=function Runtime_next_input.Pointer_moved(x,y)->Pointer_moved(x,y)|Pointer_pressed(b,x,y)->Pointer_pressed((match b with Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2),x,y)
-  |Pointer_released(b,x,y)->Pointer_released((match b with Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2),x,y)
-  |Pointer_cancelled b->Pointer_cancelled(match b with Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2)
-  |Wheel(x,y)->Wheel(x,y)|Key_pressed k->Key_pressed{name=k.key;modifiers=List.map mod_of_input k.modifiers;repeat=k.repeat}|Key_released k->Key_released{name=k.key;modifiers=List.map mod_of_input k.modifiers;repeat=k.repeat}
-  |Text_input s->Text_input s|Text_editing{text;start;length}->Text_editing{text;start;length}|Focus_lost->Focus_lost|Focus_gained->Focus_gained
-  |Visibility_changed x->Visibility_changed x|Quit->Quit|Resized(x,y)->Resized(x,y)|File_dropped{name;contents}->File_dropped{name;contents}
-let finish_step value f=
-  let now=Unix.gettimeofday()in
-  let dt=match value.timing with Fixed dt->dt|Variable->max 0.(now-.value.last_clock)in
-  value.last_clock<-now;value.elapsed<-value.elapsed+.dt;
-  value.frame<-Int64.succ value.frame;
-  let events=List.map event_of_input(Runtime_next_input.drain value.input)
-  and input=Runtime_next_input.snapshot value.input in
-  {frame=value.frame;time=value.elapsed;dt;logical_width=f.logical_width;
-   logical_height=f.logical_height;drawable_width=f.drawable_width;
-   drawable_height=f.drawable_height;pixel_scale=f.pixel_density;
-   events;pointer=input.pointer;mouse_delta=input.mouse_delta;
-   wheel_delta=input.wheel_delta;dropped_events=input.dropped_events}
+  Result.map_error (fun e->{operation="Prismel_next_execution.resize";
+      kind=Backend;message=Ogpu.Error.to_string e}) resized
 let replay_step ?clear ~identity ~version value=
   match ensure"Prismel_next_execution.Private.replay"value with
   |Error _ as error->error
   |Ok()->
-      Runtime_next_input.begin_frame value.input;
       match presentation_facts value with
       |Error _ as error->error
-      |Ok facts->
+      |Ok _->
           let replayed=match value.runtime with
           |Window runtime->Runtime_next_orchestrator.replay_retained ?clear
               ~identity ~version runtime
@@ -1028,11 +966,10 @@ let replay_step ?clear ~identity ~version value=
           (match replayed with
           |Error error->backend"Prismel_next_execution.Private.replay"error
           |Ok None->Ok None
-          |Ok(Some _)->Ok(Some(finish_step value facts)))
+          |Ok(Some _)->Ok(Some()))
 let step_core ?after_prepare ?clear ?identity ?version value draws=
   let after_prepare=Option.value after_prepare ~default:Fun.id in
   match ensure"Prismel_next_execution.step"value with Error _ as e->e|Ok()->
-  Runtime_next_input.begin_frame value.input;
   match presentation_facts value with Error _ as error->after_prepare();error|Ok f->
     let family=function Scene2->Runtime_next_orchestrator.Scene2|Scene2_textured->Scene2_textured|Scene3->Scene3|Scene3_points->Scene3_points
       |Scene3_textured->Scene3_textured|Scene3_shadow->Scene3_shadow|Scene3_stencil->Scene3_stencil
@@ -1092,7 +1029,7 @@ let step_core ?after_prepare ?clear ?identity ?version value draws=
         state.logical_submissions<-Int64.succ state.logical_submissions
       |Error _->());result in
     match rendered with Error e->backend"Prismel_next_execution.step"e
-    |Ok _->Ok(finish_step value f)
+    |Ok _->Ok()
 let step ?clear value draws=step_core ?clear value draws
 let lower_scene2_submission submission ~density ~resource ir=
   match ensure_submission"Prismel_next_execution.Private.lower_scene2"submission with
@@ -1328,11 +1265,3 @@ module Private=struct
     List.length value.retained_scene2_segments,
     value.retained_scene2_segment_hits,value.retained_scene2_segment_misses
 end
-let run configuration body ~on_stop = match create configuration with Error _ as e->e|Ok value->
-  let outcome=try body value with exn->fail"Prismel_next_execution.run"Backend(Printexc.to_string exn)in
-  let stopped=try on_stop value with exn->fail"Prismel_next_execution.on_stop"Backend(Printexc.to_string exn)in
-  let closed=destroy value in match outcome,stopped,closed with
-  |(Error _ as e),_,_->e
-  |Ok _,(Error _ as e),_->e
-  |Ok _,Ok(),(Error _ as e)->e
-  |Ok x,Ok(),Ok()->Ok x

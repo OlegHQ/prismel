@@ -5,51 +5,15 @@ type error_kind = Invalid_argument | Unsupported | Backend | Resource | Destroye
 type error = private { operation : string; kind : error_kind; message : string }
 val pp_error : Format.formatter -> error -> unit
 
-type timing = Fixed of float | Variable
 type configuration = {
   logical_width : int;
   logical_height : int;
   drawable_width : int;
   drawable_height : int;
   title : string;
-  timing : timing;
-  max_events : int;
-  max_file_bytes : int;
   vsync : bool;
 }
 val default_configuration : configuration
-
-type mouse_button = Left | Middle | Right | X1 | X2
-type modifier = Shift | Control | Alt | Meta | Num_lock | Caps_lock | Scroll_lock
-type key = { name : string; modifiers : modifier list; repeat : bool }
-type event =
-  | Pointer_moved of float * float
-  | Pointer_pressed of mouse_button * float * float
-  | Pointer_released of mouse_button * float * float
-  | Pointer_cancelled of mouse_button
-  | Wheel of float * float
-  | Key_pressed of key | Key_released of key
-  | Text_input of string
-  | Text_editing of { text : string; start : int; length : int }
-  | Focus_lost | Focus_gained | Visibility_changed of bool | Quit
-  | Resized of int * int
-  | File_dropped of { name : string; contents : bytes option }
-
-type facts = {
-  frame : int64;
-  time : float;
-  dt : float;
-  logical_width : int;
-  logical_height : int;
-  drawable_width : int;
-  drawable_height : int;
-  pixel_scale : float;
-  events : event list;
-  pointer : float * float;
-  mouse_delta : float * float;
-  wheel_delta : float * float;
-  dropped_events : int;
-}
 
 type family = Scene2 | Scene2_textured | Scene3 | Scene3_points | Scene3_textured | Scene3_shadow |
   Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil | Ui
@@ -74,7 +38,6 @@ val assets : t -> Prismel_next_resources.Assets.t
 val lower_scene2 : t -> density:int -> resource:(int -> resource option) ->
   Scene_command.Render_ir.t -> (draw list,error) result
 val snapshot_cache_entries : t -> int
-val scene2_geometry_cache_entries : t -> int * int
 type stats = Runtime_next_orchestrator.stats = { frames:int64; presented:int64;
   logical_draws:int64; logical_passes:int64; logical_submissions:int64;
   uploaded_bytes:int64; cache_entries:int; gpu_timing_supported:bool;
@@ -102,11 +65,10 @@ val show : t -> (unit,error) result
 val hide : t -> (unit,error) result
 val set_relative_mouse : t -> bool -> (unit,error) result
 val visible : t -> (bool,error) result
-val push_event : t -> event -> (unit,error) result
 val resize : t -> logical_width:int -> logical_height:int ->
   drawable_width:int -> drawable_height:int -> (unit,error) result
 val step : ?clear:(float * float * float * float) -> t -> draw list ->
-  (facts,error) result
+  (unit,error) result
 val capture : t -> (bytes,error) result
 val capture_into : t -> destination:bytes -> (unit,error) result
 val destroy : t -> (unit,error) result
@@ -134,16 +96,11 @@ module Private : sig
   (* Consumes the submission on either success or failure. *)
   val step : ?clear:(float * float * float * float) -> ?identity:string ->
     ?version:int64 -> submission ->
-    batch list -> (facts,error) result
+    batch list -> (unit,error) result
   val replay : ?clear:(float * float * float * float) -> identity:string ->
-    version:int64 -> t -> (facts option,error) result
+    version:int64 -> t -> (unit option,error) result
   (* Idempotently releases an unsubmitted transaction. *)
   val cancel : submission -> unit
   val draw_family_blend : draw -> family * blend
   val retained_scene2_segment_stats : t -> int * int64 * int64
 end
-
-(** Always destroys in resources -> coordinator -> target/extensions order.
-    [on_stop] runs while resources and the target are still alive. *)
-val run : configuration -> (t -> ('a,error) result) ->
-  on_stop:(t -> (unit,error) result) -> ('a,error) result

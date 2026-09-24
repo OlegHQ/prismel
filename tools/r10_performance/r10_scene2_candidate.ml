@@ -42,9 +42,9 @@ let generated_image () =
       Result.get_ok(Canvas.to_image canvas),Canvas.Private.native_stats canvas)
 let create ~width ~height scenario =
   let descriptor=R10_scene2_legacy_equivalent.describe scenario~width~height in
-  let configuration={Prismel_next_execution.default_configuration with
+  let configuration={Prismel_next_execution.
     logical_width=width;logical_height=height;drawable_width=width;drawable_height=height;
-    timing=Fixed(1./.60.);vsync=false;title="R10 candidate"}in
+    vsync=false;title="R10 candidate"}in
   let execution=Prismel_next_execution.create configuration|>Result.get_ok in
   match scenario with
   |Basic->let image,setup_canvas_stats=generated_image()in

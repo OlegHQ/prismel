@@ -16,10 +16,10 @@ let execution value=
   |Some execution->execution
   |None->
       let width,height=size value in
-      let configuration={Prismel_next_execution.default_configuration with
+      let configuration={Prismel_next_execution.
         logical_width=width;logical_height=height;drawable_width=width;
         drawable_height=height;title="Prismel Canvas";
-        timing=Prismel_next_execution.Fixed(1./.60.);vsync=false}in
+        vsync=false}in
       match Prismel_next_execution.create_offscreen configuration with
       |Error error->failwith(execution_message"Canvas.render"error)
       |Ok execution->value.execution<-Some execution;execution

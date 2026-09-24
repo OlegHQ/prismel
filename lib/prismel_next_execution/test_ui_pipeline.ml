@@ -81,7 +81,7 @@ let first_difference density width left right =
 
 let run () =
   List.iter (fun density ->
-    let configuration = { Prismel_next_execution.default_configuration with
+    let configuration = { Prismel_next_execution.
       logical_width = 64; logical_height = 40;
       drawable_width = 64 * density; drawable_height = 40 * density;
       title = "ui-pipeline"; vsync = false } in

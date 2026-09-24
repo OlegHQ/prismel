@@ -493,15 +493,6 @@ module Private=struct
  let native_stage_cache_capacity=16
  let native_stage_cache_byte_capacity=256*1024*1024
  let native_stage_caches=Domain.DLS.new_key(fun()->ref[])
- let native_stage_hits=ref 0 and native_stage_misses=ref 0
- let native_stage_hit_bytes=ref 0.
- let native_stage_profile_enabled=
-   Sys.getenv_opt"PRISMEL_RENDERER_PHASE_PROFILE"=Some"1"
- let ()=at_exit(fun()->if native_stage_profile_enabled
-   then Printf.eprintf"native-stage-cache hits %d misses %d hit-bytes %.1f\n%!"
-     !native_stage_hits !native_stage_misses
-     (if !native_stage_hits=0 then 0. else
-       !native_stage_hit_bytes/.float!native_stage_hits))
  let next_native_stage_identity=ref 0L
  let native_stage_bytes stage=List.fold_left(fun total->function
    |Scene2_segment(segment,_)->total+Scene_command.Display_list.source_bytes segment
@@ -564,8 +555,6 @@ module Private=struct
     |Image _::rest->nodes rest in
    nodes scene
  let stage_native_internal ~aggregate ?(density=1) ~width ~height scene =
-   let profile=native_stage_profile_enabled in
-   let before=if profile then Gc.allocated_bytes()else 0. in
    let cacheable=match scene with
    |[Clear _;View3d view]->Scene3.Private.cacheable view.scene
    |_->native_scene_cacheable scene in
@@ -574,15 +563,8 @@ module Private=struct
    if not cacheable then uncached~density~width~height scene else
    let cache=Domain.DLS.get native_stage_caches in
    match find_native_stage aggregate scene density width height !cache with
-   |Some entry->
-       if profile then begin
-         incr native_stage_hits;
-         native_stage_hit_bytes:= !native_stage_hit_bytes+.
-           Gc.allocated_bytes()-.before
-       end;
-       Ok entry.cached_stage
+   |Some entry->Ok entry.cached_stage
    |None->
-       if profile then incr native_stage_misses;
        match uncached~density~width~height scene with
        |Error _ as error->error
        |Ok stage->

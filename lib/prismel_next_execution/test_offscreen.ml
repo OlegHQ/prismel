@@ -38,7 +38,7 @@ let scene3_draw key red=
 
 let run () =
   let baseline=live_handles()in
-  let configuration={Prismel_next_execution.default_configuration with
+  let configuration={Prismel_next_execution.
     logical_width=3;logical_height=2;drawable_width=3;drawable_height=2;
     title="offscreen-test";vsync=false}in
   match Prismel_next_execution.create_offscreen configuration with

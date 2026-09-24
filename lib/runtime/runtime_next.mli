@@ -36,7 +36,6 @@ val stats : t -> stats
 val frame_facts : t -> frame_facts
 val map_logical_rect : frame_facts -> int * int * int * int ->
   int * int * int * int
-val handle_window_event : t -> Sdl3.Event.t -> (bool, Ogpu.Error.t) result
 val window_facts : t -> vsync:bool -> (window_facts, Ogpu.Error.t) result
 val set_title : t -> string -> (unit, Ogpu.Error.t) result
 val set_position : t -> x:int -> y:int -> (unit, Ogpu.Error.t) result

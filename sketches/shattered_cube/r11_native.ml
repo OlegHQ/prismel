@@ -49,7 +49,7 @@ let run ~visibility ~seconds ~report ~metadata mesh =
     failwith"actual-sketch R11 packed mesh cardinality drift";
   let configuration={Prismel_next_execution.default_configuration with
     logical_width=width;logical_height=height;
-    drawable_width=width;drawable_height=height;timing=Variable;
+    drawable_width=width;drawable_height=height;
     title="Prismel shattered cube · R11 actual sketch"}in
   let execution=get"create"(Prismel_next_execution.create configuration)in
   Fun.protect~finally:(fun()->ignore(Prismel_next_execution.destroy execution))(fun()->

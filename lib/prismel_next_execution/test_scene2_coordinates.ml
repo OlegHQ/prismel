@@ -7,10 +7,9 @@ let get_ir = function
   | Error _ -> failwith "scene2 coordinate IR"
 
 let configuration ~logical_width ~logical_height ~drawable_width ~drawable_height =
-  { Prismel_next_execution.default_configuration with
+  { Prismel_next_execution.
     logical_width; logical_height; drawable_width; drawable_height;
-    title = "scene2-coordinates"; vsync = false;
-    timing = Prismel_next_execution.Fixed (1. /. 60.) }
+    title = "scene2-coordinates"; vsync = false }
 
 let rgba bytes ~width x y =
   let offset = (y * width + x) * 4 in

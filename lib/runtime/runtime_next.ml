@@ -212,10 +212,6 @@ let read_pixels_into (value:t)~bytes_per_row~destination=
   else Scene_execution.read_pixels_into value.renderer~bytes_per_row~destination
 let stats (value:t)=let timing=Ogpu_metal.Queue.gpu_timing_for_device value.device and retained=Ogpu_metal.Backend.retained_plan_stats value.control in {pipeline_cache_entries=Ogpu_metal.Pipeline.cache_length value.cache;mesh_cache_entries=Scene_execution.cache_entries value.renderer;uploaded_bytes=Scene_execution.upload_bytes value.renderer;gpu_timing_supported=timing.supported;gpu_duration_seconds=timing.duration_seconds;gpu_sample_count=timing.sample_count;retained_plan_builds=retained.builds;retained_plan_hits=retained.hits;retained_plan_misses=retained.misses;retained_plan_evictions=retained.evictions;retained_plan_executions=retained.executions;retained_plan_entries=retained.entries;retained_plan_capacity=retained.capacity}
 let frame_facts (value:t)=value.facts
-let handle_window_event (value:t)=function
-  |Sdl3.Event.Window{change=Resized _;_}|Sdl3.Event.Window{change=Pixel_size_changed _;_}->
-      Result.map(fun()->true)(Result.bind(facts value.window)(apply_facts value))
-  |_->Ok false
 let live_window operation (value:t) callback=if value.dead then Error(Ogpu.Error.make operation Stale_handle"runtime is destroyed")else callback value.window
 let window_facts (value:t)~vsync:_=live_window"Runtime_next.window_facts"value(fun window->match sdl"Runtime_next.window_facts"(Sdl3.Window.presentation_facts window~vsync:value.vsync),sdl"Runtime_next.window_facts"(Sdl3.Window.title window),sdl"Runtime_next.window_facts"(Sdl3.Window.position window)with Ok facts,Ok title,Ok position->Ok({title;logical_width=facts.logical_width;logical_height=facts.logical_height;drawable_width=facts.drawable_width;drawable_height=facts.drawable_height;position;pixel_density=facts.pixel_density;display_scale=facts.display_scale;refresh_rate=facts.refresh_rate;vsync=facts.vsync}:window_facts)|Error e,_,_|_,Error e,_|_,_,Error e->Error e)
 let window_call operation call value=live_window operation value(fun window->sdl operation(call window))

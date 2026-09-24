@@ -4,24 +4,6 @@ type error =
   | Lower of Prismel_next_execution.error
   | Step of Prismel_next_execution.error
 
-module Phase_profile = struct
-  let enabled = Sys.getenv_opt "PRISMEL_RENDERER_PHASE_PROFILE" = Some "1"
-  let calls = ref 0
-  let stage = ref 0.
-  let lower = ref 0.
-  let step = ref 0.
-  let release = ref 0.
-  let before () = if enabled then Gc.allocated_bytes () else 0.
-  let add target before = if enabled then
-    target := !target +. Gc.allocated_bytes () -. before
-  let () = at_exit (fun () -> if enabled && !calls > 0 then
-    let count = float !calls in
-    Printf.eprintf
-      "phase-profile native-stage %.1f B/call lower %.1f B/call step %.1f B/call release %.1f B/call (%d calls)\n%!"
-      (!stage /. count) (!lower /. count) (!step /. count) (!release /. count)
-      !calls)
-end
-
 let pp_error formatter = function
   | Stage message -> Format.fprintf formatter "native Scene staging: %s" message
   | Begin error ->
@@ -86,34 +68,23 @@ let render ~execution ~density ~width ~height scene =
   let active_submission=ref None in
   let prepared = try
       let outcome=Fun.protect
-        ~finally:(fun () ->
-          let before=Phase_profile.before()in
-          Scene.Private.release scene;
-          Phase_profile.add Phase_profile.release before)
+        ~finally:(fun () -> Scene.Private.release scene)
         (fun () ->
-        let before=Phase_profile.before()in
         let staged=Scene.Private.stage_native_render ~density ~width ~height scene in
-        Phase_profile.add Phase_profile.stage before;
         match staged with
         | Error message -> Error (Stage message)
         | Ok staged -> (
             let replayed=match staged.retained with
             |None->Ok None
             |Some(identity,version)->
-                let before=Phase_profile.before()in
-                let replayed=Prismel_next_execution.Private.replay
+                Prismel_next_execution.Private.replay
                     ~clear:staged.clear ~identity ~version execution in
-                Phase_profile.add Phase_profile.step before;
-                replayed in
             match replayed with
             |Error error->Error(Step error)
-            |Ok(Some facts)->Ok(`Replayed facts)
+            |Ok(Some ())->Ok `Replayed
             |Ok None->
-            let before=Phase_profile.before()in
             match Prismel_next_execution.Private.begin_submission execution with
-            | Error error ->
-                Phase_profile.add Phase_profile.lower before;
-                Error (Begin error)
+            | Error error -> Error (Begin error)
             | Ok submission ->
                 active_submission:=Some submission;
                     let rec lower reversed = function
@@ -158,9 +129,7 @@ let render ~execution ~density ~width ~height scene =
                           |Error error->Error(Lower error)
                           |Ok batch->lower(batch::reversed)rest)
                     in
-                    let outcome=lower [] staged.layers in
-                    Phase_profile.add Phase_profile.lower before;
-                    outcome)) in
+                    lower [] staged.layers)) in
       (match outcome with
       |Error _->Option.iter Prismel_next_execution.Private.cancel !active_submission
       |Ok _->());
@@ -171,17 +140,12 @@ let render ~execution ~density ~width ~height scene =
   in
   match prepared with
   | Error _ as error -> error
-  | Ok (`Replayed facts) ->
-      if Phase_profile.enabled then incr Phase_profile.calls;
-      Ok facts
+  | Ok `Replayed -> Ok ()
   | Ok (`Prepared (submission, retained, clear, batches)) -> (
-      let before=Phase_profile.before()in
       let stepped=match retained with
       |None->Prismel_next_execution.Private.step ~clear submission batches
       |Some(identity,version)->Prismel_next_execution.Private.step ~clear
           ~identity ~version submission batches in
-      Phase_profile.add Phase_profile.step before;
-      if Phase_profile.enabled then incr Phase_profile.calls;
       match stepped with
-      | Ok facts -> Ok facts
+      | Ok () -> Ok ()
       | Error error -> Error (Step error))

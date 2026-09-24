@@ -29,7 +29,7 @@ let run () =
   let baseline=Result.get_ok (Metal.Release_queue.stats ()) in
   List.iter (fun scale ->
     let execution=get (Prismel_next_execution.create_offscreen
-      {Prismel_next_execution.default_configuration with
+      {Prismel_next_execution.
         logical_width=64;logical_height=48;drawable_width=64*scale;drawable_height=48*scale;
         title="dense-scene2";vsync=false}) in
     Fun.protect ~finally:(fun () -> ignore (get (Prismel_next_execution.destroy execution)))
