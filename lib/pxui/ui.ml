@@ -196,6 +196,11 @@ and ui = {
   mutable focus : int;
   mutable composition : string;
   mutable command_down : bool;
+  mutable shift_down : bool;
+  mutable edit_focus : int;
+  mutable edit_value : string;
+  mutable edit_caret : int;
+  mutable edit_anchor : int;
   mutable requested_cursor : [`Horizontal_resize|`Vertical_resize] option;
   (* this frame's raw events and logical size, for modal dismissal *)
   mutable frame_events : Event.t list;
@@ -434,7 +439,9 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     kit_row_height = 24; kit_padding = 3;
     pointer = (Float.nan, Float.nan); hot = 0; active = 0;
     active_button = Input.LeftButton; active_press = (0., 0.); focus = 0; composition = "";
-    command_down = false; requested_cursor = None;
+    command_down = false; shift_down = false;
+    edit_focus = 0; edit_value = ""; edit_caret = 0; edit_anchor = 0;
+    requested_cursor = None;
     frame_events = []; view_w = 0.; view_h = 0.; modal_heights = Hashtbl.create 4;
     signals = Int_table.create 16;
     hit_count = 0; hit_keys = [||]; hit_flags_of = [||];
@@ -504,7 +511,9 @@ let prune ui =
       ui.text_values.(slot) <- None;
       ui.caches.(slot) <- None;
       ui.free <- slot :: ui.free;
-      if ui.focus = key then (ui.focus <- 0; ui.composition <- "");
+      if ui.focus = key then begin
+        ui.focus <- 0; ui.composition <- ""; ui.edit_focus <- 0
+      end;
       if ui.active = key then ui.active <- 0
     end
   done
@@ -561,6 +570,7 @@ let route ui (frame : Frame.t) =
   ui.requested_cursor <- None;
   ui.frame_events <- frame.events;
   ui.command_down <- List.mem Input.Meta frame.keys || List.mem Input.Ctrl frame.keys;
+  ui.shift_down <- List.mem Input.Shift frame.keys;
   ui.view_w <- float frame.width; ui.view_h <- float frame.height;
   let set_pointer (x, y) = ui.pointer <- (float x, float y) in
   List.iter (fun (event : Event.t) -> match event with
@@ -582,7 +592,9 @@ let route ui (frame : Frame.t) =
         let flags = flags_of_key ui target in
         if button = Input.LeftButton then begin
           let focus = if flags land focusable <> 0 then target else 0 in
-          if focus <> ui.focus then ui.composition <- "";
+          if focus <> ui.focus then begin
+            ui.composition <- ""; ui.edit_focus <- 0
+          end;
           ui.focus <- focus
         end;
         if flags land clickable <> 0 && ui.active = 0 then begin
@@ -634,7 +646,8 @@ let route ui (frame : Frame.t) =
         end
     | Event.WindowFocusLost ->
         if ui.active <> 0 then (accumulator ui ui.active).released <- true;
-        ui.active <- 0; ui.focus <- 0; ui.hot <- 0; ui.composition <- ""
+        ui.active <- 0; ui.focus <- 0; ui.hot <- 0; ui.composition <- "";
+        ui.edit_focus <- 0
     | Event.KeyPressed _ | Event.KeyReleased _ | Event.TextInput _
     | Event.TextEditing _ ->
         if ui.focus <> 0 then begin
@@ -657,7 +670,7 @@ let wants_pointer ui = ui.hot <> 0 || ui.active <> 0
 let cursor ui = ui.requested_cursor
 let request_cursor ui shape = ui.requested_cursor <- Some shape
 let text_input_focused ui = ui.focus <> 0
-let unfocus ui = ui.focus <- 0; ui.composition <- ""
+let unfocus ui = ui.focus <- 0; ui.composition <- ""; ui.edit_focus <- 0
 
 (* -------------------------------------------------------------- boxes *)
 
@@ -815,7 +828,9 @@ let signal ui box =
 
 let focused ui box = ui.focus = box.box_key
 let focus ui box =
-  if ui.focus <> box.box_key then ui.composition <- "";
+  if ui.focus <> box.box_key then begin
+    ui.composition <- ""; ui.edit_focus <- 0
+  end;
   ui.focus <- box.box_key
 let active ui box = ui.active = box.box_key
 
@@ -1240,7 +1255,9 @@ let frame ui (frame : Frame.t) f =
   arrange ui;
   let batch = paint_all ui frame in
   prune ui;
-  if ui.focus <> 0 && Table.find ui.table ui.focus < 0 then ui.focus <- 0;
+  if ui.focus <> 0 && Table.find ui.table ui.focus < 0 then begin
+    ui.focus <- 0; ui.edit_focus <- 0
+  end;
   publish_atlas ui.atlas;
   let images = match ui.atlas.image with
     | Some image when Batch.textures batch <> [] -> [1, image]
@@ -1432,13 +1449,42 @@ let drop_last_utf8 text =
     else find (index - 1) in
   if text = "" then text else String.sub text 0 (find (String.length text - 1))
 
+let previous_utf8 text index =
+  let rec seek index =
+    if index <= 0 then 0
+    else if Char.code text.[index] land 0xc0 <> 0x80 then index
+    else seek (index - 1) in
+  if index <= 0 then 0 else seek (index - 1)
+
+let next_utf8 text index =
+  let length = String.length text in
+  let rec seek index =
+    if index >= length then length
+    else if Char.code text.[index] land 0xc0 <> 0x80 then index
+    else seek (index + 1) in
+  if index >= length then length else seek (index + 1)
+
+let text_caret_at ui text x =
+  match face ui None with
+  | None -> String.length text
+  | Some font ->
+      let length = String.length text and density = float ui.density in
+      let rec seek index width =
+        if index >= length then length else
+          let decoded = String.get_utf_8_uchar text index in
+          let code = Uchar.to_int (Uchar.utf_decode_uchar decoded) in
+          let advance = match glyph ui.atlas font ~density:ui.density code with
+            | Some glyph -> float glyph.advance /. density
+            | None -> 0. in
+          if x < width +. (advance /. 2.) then index
+          else seek (index + Uchar.utf_decode_length decoded) (width +. advance) in
+      seek 0 0.
+
 let numeric_character = function
   | '0' .. '9' | '+' | '-' | '.' | 'e' | 'E' -> true
   | _ -> false
 
 let clipboard_command ui = function
-  (* ponytail: text controls have no selection/caret model yet; copy/cut use
-     the whole value and paste appends until selection editing lands. *)
   | Event.KeyPressed (Input.KeyChar key) when ui.command_down ->
       Some (Char.lowercase_ascii key)
   | _ -> None
@@ -1582,34 +1628,102 @@ let text_field ui text value =
       ~hit:(control_hit value_control) text in
   let signal = signal ui row in
   let focused = focused ui row in
-  let value = if not focused then value else
-    List.fold_left (fun value (event : Event.t) -> match event with
+  if focused && (ui.edit_focus <> row.box_key || ui.edit_value <> value) then begin
+    ui.edit_focus <- row.box_key; ui.edit_value <- value;
+    ui.edit_caret <- String.length value; ui.edit_anchor <- ui.edit_caret
+  end;
+  let value = ref value and caret = ref ui.edit_caret and anchor = ref ui.edit_anchor in
+  if focused then begin
+    let selected () = !caret <> !anchor in
+    let bounds () = min !caret !anchor, max !caret !anchor in
+    let replace typed =
+      let start, stop = bounds () in
+      value := String.sub !value 0 start ^ typed ^
+        String.sub !value stop (String.length !value - stop);
+      caret := start + String.length typed; anchor := !caret in
+    let move target =
+      caret := target;
+      if not ui.shift_down then anchor := target in
+    let (cx, _, _, _) = value_control (ints (rect ui row)) in
+    let point_caret (x, _) =
+      text_caret_at ui !value (max 0. (x -. float (cx + 8))) in
+    if signal.pressed then begin
+      caret := point_caret signal.press_point; anchor := !caret
+    end;
+    if signal.dragging then caret := point_caret signal.pointer;
+    List.iter (fun (event : Event.t) -> match event with
+      | event when clipboard_command ui event = Some 'a' ->
+          anchor := 0; caret := String.length !value
       | event when clipboard_command ui event = Some 'c' ->
-          ignore (Clipboard.set_text value); value
+          let start, stop = bounds () in
+          ignore (Clipboard.set_text (if selected () then
+            String.sub !value start (stop - start) else !value))
       | event when clipboard_command ui event = Some 'x' ->
-          if Clipboard.set_text value = Ok () then "" else value
+          let start, stop = bounds () in
+          let copied = if selected () then
+            String.sub !value start (stop - start) else !value in
+          if Clipboard.set_text copied = Ok () then begin
+            if selected () then replace "" else begin
+              value := ""; caret := 0; anchor := 0
+            end
+          end
       | event when clipboard_command ui event = Some 'v' ->
-          (match Clipboard.get_text () with Ok text -> value ^ text
-           | Error _ -> value)
-      | Event.TextInput typed -> value ^ typed
-      | Event.KeyPressed (Input.Backspace | Input.Delete) -> drop_last_utf8 value
-      | _ -> value) value signal.keys in
+          (match Clipboard.get_text () with Ok text -> replace text
+           | Error _ -> ())
+      | Event.TextInput typed -> replace typed
+      | Event.KeyPressed Input.Backspace ->
+          if not (selected ()) then anchor := previous_utf8 !value !caret;
+          replace ""
+      | Event.KeyPressed Input.Delete ->
+          if not (selected ()) then anchor := next_utf8 !value !caret;
+          replace ""
+      | Event.KeyPressed Input.ArrowLeft ->
+          move (if ui.command_down then 0 else if selected () && not ui.shift_down
+            then fst (bounds ()) else previous_utf8 !value !caret)
+      | Event.KeyPressed Input.ArrowRight ->
+          move (if ui.command_down then String.length !value
+            else if selected () && not ui.shift_down then snd (bounds ())
+            else next_utf8 !value !caret)
+      | Event.KeyPressed Input.Home -> move 0
+      | Event.KeyPressed Input.End -> move (String.length !value)
+      | _ -> ()) signal.keys;
+    ui.edit_value <- !value; ui.edit_caret <- !caret; ui.edit_anchor <- !anchor
+  end;
+  let value = !value and caret = !caret and anchor = !anchor in
   let theme = ui.theme and shown = display text and composition = ui.composition in
   let hovered = signal.hovered in
   draw ui row (fun paint rect ->
     let (x, y, _, h) as bounds = ints rect in
     let (cx, cy, cw, ch) as control = value_control bounds in
+    let before = String.sub value 0 caret in
+    let text_width text = Paint.text_width paint text /. paint.scale in
+    let caret_x = float (cx + 8) +. text_width before in
     if hovered then hover_row paint ui bounds;
     Paint.input_region paint ~x:(float cx) ~y:(float cy) ~w:(float cw)
       ~h:(float ch) ~focused
-      ~cursor:(if focused then
-        8. +. (Paint.text_width paint value /. paint.scale) else 0.) ();
+      ~cursor:(if focused then caret_x -. float cx else 0.) ();
     kit_text paint ~color:(if focused then theme.foreground else Theme.muted theme)
       x (label_y ui y h) shown;
     framed paint control ~fill:(if hovered then Theme.hover_fill theme else theme.input)
       ~stroke:(if focused then theme.accent else Theme.border theme);
-    kit_text paint (cx + 8) (label_y ui y h)
-      (if focused then value ^ composition ^ "│" else value));
+    if focused && caret <> anchor then begin
+      let start = min caret anchor and stop = max caret anchor in
+      let left = float (cx + 8) +. text_width (String.sub value 0 start) in
+      let width = text_width (String.sub value start (stop - start)) in
+      Paint.fill paint ~x:left ~y:(float (cy + 2)) ~w:width
+        ~h:(float (max 1 (ch - 4))) (Color.with_alpha theme.accent 100)
+    end;
+    if focused && composition <> "" then begin
+      kit_text paint (cx + 8) (label_y ui y h) before;
+      Paint.text paint ~at:(caret_x, float (label_y ui y h)) composition;
+      Paint.text paint
+        ~at:(caret_x +. text_width composition, float (label_y ui y h))
+        (String.sub value caret (String.length value - caret))
+    end else kit_text paint (cx + 8) (label_y ui y h) value;
+    if focused then begin
+      Paint.line paint ~from_:(caret_x, float (cy + 2))
+        ~to_:(caret_x, float (cy + ch - 2)) ~width:1. theme.accent
+    end);
   value
 
 let choice ui text options selected =

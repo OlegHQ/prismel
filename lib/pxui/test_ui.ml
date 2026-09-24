@@ -32,13 +32,15 @@ let with_scale scale =
     time := !time +. 0.1;
     Ui.frame ui (frame ~scale ~time:!time events) (fun ui ->
       Ui.panel ui ~x:0. ~y:0. ~width:240. "panel" (fun () -> build ui)) in
-  let command_step ui key build =
+  let modified_step ui modifiers key build =
     time := !time +. 0.5;
     Ui.frame ui
-      { (frame ~scale ~time:!time [Event.KeyPressed (Input.KeyChar key)])
-        with keys = [Input.Meta] }
+      { (frame ~scale ~time:!time [Event.KeyPressed key])
+        with keys = modifiers }
       (fun ui -> Ui.panel ui ~x:0. ~y:0. ~width:240. "panel"
         (fun () -> build ui)) in
+  let command_step ui key build =
+    modified_step ui [Input.Meta] (Input.KeyChar key) build in
   let settle ui build = ignore (step ui [] build) in
   let label = Printf.sprintf "%gx: %s" scale in
 
@@ -186,8 +188,15 @@ let with_scale scale =
     fail (label "IME cursor did not follow the inserted text");
   step ui [Event.TextInput " two words"; Event.KeyPressed Input.Delete;
     Event.TextInput "!"] build;
-  if !title <> "h! two word!" || not (Ui.text_input_focused ui) then
-    fail (label "focused text input lost spaces or Delete editing");
+  if !title <> "h! two words!" || not (Ui.text_input_focused ui) then
+    fail (label "focused text input lost spaces or changed at-end Delete");
+  step ui [Event.KeyPressed Input.ArrowLeft; Event.KeyPressed Input.Backspace] build;
+  if !title <> "h! two word!" then
+    fail (label "Backspace ignored the moved caret");
+  let cursor_before_end = ime_cursor () in
+  step ui [Event.KeyPressed Input.End] build;
+  if ime_cursor () <= cursor_before_end then
+    fail (label "IME cursor ignored keyboard caret movement");
   let previous_clipboard = Clipboard.get_text () in
   Fun.protect ~finally:(fun () ->
     match previous_clipboard with
@@ -203,7 +212,23 @@ let with_scale scale =
         fail (label "Command-C did not copy the focused text field");
       command_step ui 'x' build;
       if !title <> "" || Clipboard.get_text () <> Ok "h! two word! pasted" then
-        fail (label "Command-X did not cut the focused text field"));
+        fail (label "Command-X did not cut the focused text field");
+      step ui [Event.TextInput "aé中z";
+        Event.KeyPressed Input.ArrowLeft;
+        Event.KeyPressed Input.ArrowLeft;
+        Event.KeyPressed Input.Delete] build;
+      if !title <> "aéz" then
+        fail (label "Delete did not remove one UTF-8 character at the caret");
+      modified_step ui [Input.Shift] Input.ArrowLeft build;
+      command_step ui 'c' build;
+      if Clipboard.get_text () <> Ok "é" then
+        fail (label "Command-C ignored the selected UTF-8 character");
+      command_step ui 'x' build;
+      if !title <> "az" then fail (label "Command-X ignored selection bounds");
+      command_step ui 'v' build;
+      if !title <> "aéz" then fail (label "paste ignored the insertion caret"));
+  step ui [press (125, row 0); release (125, row 0); Event.TextInput "!"] build;
+  if !title <> "!aéz" then fail (label "mouse click did not place the text caret");
   step ui [press (300, 200)] build;
   if Ui.text_input_focused ui then fail (label "an outside press kept text focus");
 
