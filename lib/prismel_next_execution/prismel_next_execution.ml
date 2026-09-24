@@ -80,7 +80,7 @@ let put_float bytes offset value = Bytes.set_int64_le bytes offset (Int64.bits_o
 let identity_affine_uniforms=let bytes=Bytes.make 24 '\000'in
   Bytes.set_int32_le bytes 0(Int32.bits_of_float 1.);
   Bytes.set_int32_le bytes 16(Int32.bits_of_float 1.);bytes
-module Command = Scene_execution.Scene2_command
+module Command = Scene_command.Render_ir
 let write_affine bytes (transform:Scene_command.Render_ir.transform)=
   let put index value=Bytes.set_int32_le bytes(index*4)(Int32.bits_of_float value)in
   put 0 transform.xx;put 1 transform.yx;put 2 transform.tx;
@@ -194,10 +194,6 @@ let debug_text_geometry (transform:Command.transform) (debug:Command.debug_text)
     done
   done;
   Command.{vertices;indices;color=debug.color}
-let compose (a:Command.transform) (b:Command.transform) = Command.{xx=a.xx*.b.xx+.a.yx*.b.xy;
-  xy=a.xy*.b.xx+.a.yy*.b.xy; yx=a.xx*.b.yx+.a.yx*.b.yy;
-  yy=a.xy*.b.yx+.a.yy*.b.yy; tx=a.xx*.b.tx+.a.yx*.b.ty+.a.tx;
-  ty=a.xy*.b.tx+.a.yy*.b.ty+.a.ty }
 let compose_raster (a:Scene_command.Render_ir.transform) (b:Scene_command.Render_ir.transform)=
   if b.xx=1.&&b.xy=0.&&b.yx=0.&&b.yy=1.&&b.tx=0.&&b.ty=0. then a
   else if a.xx=1.&&a.xy=0.&&a.yx=0.&&a.yy=1.&&a.tx=0.&&a.ty=0. then b
@@ -205,42 +201,6 @@ let compose_raster (a:Scene_command.Render_ir.transform) (b:Scene_command.Render
   xy=a.xy*.b.xx+.a.yy*.b.xy;yx=a.xx*.b.yx+.a.yx*.b.yy;
   yy=a.xy*.b.yx+.a.yy*.b.yy;tx=a.xx*.b.tx+.a.yx*.b.ty+.a.tx;
   ty=a.xy*.b.tx+.a.yy*.b.ty+.a.ty}
-let command_transform_of_raster (value:Scene_command.Render_ir.transform):Command.transform=
-  {xx=value.xx;xy=value.xy;yx=value.yx;yy=value.yy;tx=value.tx;ty=value.ty}
-let command_geometry_of_raster (value:Scene_command.Render_ir.geometry):Command.geometry=
-  {vertices=value.vertices;indices=value.indices;color=value.color}
-let scene2_commands commands =
-  let identity=Command.{xx=1.;xy=0.;yx=0.;yy=1.;tx=0.;ty=0.} in
-  let transforms=ref[identity] and clips=ref[(0,0,-1,-1)]
-  and blend=ref Alpha and draws=ref[] and number=ref 0 and failure=ref None in
-  Array.iter(fun command->if !failure=None then match command with
-    |Command.Clear _->()
-    |Set_blend mode->blend:=(match mode with Command.Replace->Replace|Alpha->Alpha
-        |Add->Add|Multiply->Multiply|Screen->Screen|Subtract->Subtract)
-    |Push_transform value->transforms:=compose(List.hd!transforms)value::!transforms
-    |Pop_transform->(match !transforms with _::(_::_ as rest)->transforms:=rest|_->())
-    |Push_clip rect->
-        if not(List.for_all finite[rect.x;rect.y;rect.width;rect.height])then failure:=Some"non-finite clip"
-        else let x=int_of_float(floor rect.x)and y=int_of_float(floor rect.y)
-          and w=max 0(int_of_float(ceil rect.width))and h=max 0(int_of_float(ceil rect.height))in
-          clips:=(x,y,w,h)::!clips
-    |Pop_clip->(match !clips with _::(_::_ as rest)->clips:=rest|_->())
-    |Geometry geometry->
-        let clip=List.hd!clips in
-        let draw=mesh_of_geometry !number(List.hd!transforms)~viewport:clip clip geometry in
-        draws:={draw with blend= !blend}::!draws;incr number
-    |Debug_text debug->
-        let geometry=debug_text_geometry(List.hd!transforms)debug in
-        if Array.length geometry.indices>0 then begin
-          let clip=List.hd!clips in
-          let draw=mesh_of_geometry !number identity~viewport:clip clip geometry in
-          draws:={draw with blend= !blend}::!draws;
-          incr number
-        end
-    ) commands;
-  match !failure with Some message->fail"Prismel_next_execution.scene2_commands"Unsupported message
-  |None->Ok(List.rev!draws)
-
 let batch_fingerprint draws =
   List.fold_left (fun fingerprint (draw:draw) ->
     let mesh=draw.value.mesh in
@@ -771,9 +731,9 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
         write_affine cached.uniform_bytes transform;
         cached.in_use<-true;cached.draw
     |None->
-        let draw=mesh_of_geometry number(command_transform_of_raster transform)
+        let draw=mesh_of_geometry number transform
           ~viewport:framebuffer clip
-          (command_geometry_of_raster geometry)in
+          geometry in
         (* Admission candidates deliberately retain metadata, not the source
            arrays.  Scene construction commonly creates fresh arrays and an
            animated transform can make every prepared mesh unique.  Retaining
@@ -894,7 +854,7 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
         if dense_scene2_runs && !stop-first>64 then begin
           cursor:= !stop;
           if clip_live() then emit (mesh_of_geometry_run !number
-            (command_transform_of_raster (render_transform (List.hd !transforms)))
+            (render_transform (List.hd !transforms))
             ~viewport:framebuffer (List.hd !clips) commands first !stop)
         end else if clip_live() then
           emit (geometry_draw !number (render_transform (List.hd !transforms))
@@ -906,10 +866,9 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
           value.scene2_debug_cache with
         |Some cached->cached.debug_draw
         |None->
-            let geometry=debug_text_geometry(command_transform_of_raster transform)
-              Command.{x=debug.x;y=debug.y;text=debug.text;color=debug.color}in
+            let geometry=debug_text_geometry transform debug in
             let draw=if Array.length geometry.indices=0 then None else
-              Some(mesh_of_geometry!number(command_transform_of_raster identity)
+              Some(mesh_of_geometry!number identity
                 ~viewport:framebuffer clip geometry)in
             value.scene2_debug_cache<-{debug_source=debug;debug_transform=transform;
               debug_clip=clip;debug_draw=draw}::value.scene2_debug_cache;

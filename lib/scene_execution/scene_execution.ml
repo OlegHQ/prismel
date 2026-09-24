@@ -10,16 +10,6 @@ type shadow_kernel=Tap1|Tap4|Tap9|Tap25
 type shadow_bias={constant:float;slope:float}
 type shadow_snapshot={width:int;height:int;depths:float array;matrix:float array;
   bias:shadow_bias;kernel:shadow_kernel;strength:float}
-module Scene2_command = struct
-  type rect={x:float;y:float;width:float;height:float}
-  type transform={xx:float;xy:float;yx:float;yy:float;tx:float;ty:float}
-  type geometry={vertices:float array;indices:int array;color:int32}
-  type debug_text={x:float;y:float;text:string;color:int32}
-  type blend=Replace|Alpha|Add|Multiply|Screen|Subtract
-  type t=Clear of int32|Set_blend of blend|Push_clip of rect|Pop_clip
-    |Push_transform of transform|Pop_transform|Geometry of geometry
-    |Debug_text of debug_text
-end
 type auxiliary_resource={key:string;buffer:bytes;texture:sampled_texture}
 type scene3_entry={family:pipeline_family;blend:Ogpu.Pipeline.blend;
   texture:sampled_texture option;auxiliary:auxiliary_resource option;

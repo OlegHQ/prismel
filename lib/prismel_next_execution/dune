@@ -7,12 +7,8 @@
 
 (executable
  (name test_main)
- (modules test_main test_scene2_command test_offscreen test_scene2_coordinates test_dense_scene2 test_ui_pipeline)
+ (modules test_main test_offscreen test_scene2_coordinates test_dense_scene2 test_ui_pipeline)
  (libraries prismel_next_execution scene_command metal unix))
-
-(rule
- (aliases runtest test_scene2_command)
- (action (run %{exe:test_main.exe} test_scene2_command)))
 
 (rule
  (aliases runtest test_offscreen)
