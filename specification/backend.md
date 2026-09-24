@@ -40,6 +40,10 @@ gives the Metal and mock implementations one conformance surface.
 `Ogpu.Caps` now owns the portable feature matrix and typed `Unsupported`
 check. Metal probes populate that profile in `ogpu_metal.Device`; the Metal
 adapter retains only limit conversion and native error translation.
+The shared `test/ogpu_conformance` runner now exercises capabilities, buffer
+round trips, submissions, lifetime rejection, and teardown on both the mock
+and Metal drivers. It uses the current `Ogpu.Backend.driver` boundary while
+the virtual-library implementation split is pending.
 
 Qualification code reads the runtime and Metal counters at their owning
 boundaries. Sketch does not retain a process-global diagnostics snapshot after

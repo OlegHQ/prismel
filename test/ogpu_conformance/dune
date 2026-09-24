@@ -1,0 +1,22 @@
+(library
+ (name ogpu_conformance)
+ (modules conformance)
+ (libraries ogpu))
+
+(executable
+ (name test_mock)
+ (modules test_mock)
+ (libraries ogpu_conformance ogpu))
+
+(executable
+ (name test_metal)
+ (modules test_metal)
+ (libraries ogpu_conformance ogpu_metal metal))
+
+(rule
+ (aliases runtest ogpu_conformance_mock)
+ (action (run %{exe:test_mock.exe})))
+
+(rule
+ (aliases runtest ogpu_conformance_metal)
+ (action (run %{exe:test_metal.exe})))
