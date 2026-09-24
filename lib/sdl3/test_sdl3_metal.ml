@@ -4,6 +4,8 @@ open Sdl3
 
 let fail message = failwith ("SDL3 Metal test: " ^ message)
 let get = function Ok value -> value | Error error -> fail (Format.asprintf "%a" pp_error error)
+let rec drain_events () = match get (Event.poll ()) with
+  | None -> () | Some _ -> drain_events ()
 
 let run () =
   if Sys.os_type <> "Unix" || not (Sys.file_exists "/System/Library/Frameworks/Metal.framework")
@@ -60,7 +62,7 @@ let run () =
     let await_flag ~label flag expected =
       let deadline = Unix.gettimeofday () +. 3. in
       let rec loop () =
-        ignore (get (Event.poll_all ()));
+        drain_events ();
         let actual = has_flag flag (get (Window.flags window)) in
         if actual = expected then ()
         else if Unix.gettimeofday () >= deadline then

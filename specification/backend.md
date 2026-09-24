@@ -275,7 +275,11 @@ mode: it runs `Prismel_next_execution.set_relative_mouse` →
 sums SDL `xrel`/`yrel` (the event pump reports them through
 `Runtime_next_input.add_motion`; `Sdl3.Event.poll_coalesced` sums the relative
 motion of the samples it drops) instead of absolute differences that stop at
-the window edge. No SDL value crosses into Prismel's public API, the sketch
+the window edge. Frame aggregation lives in this shared input source; the SDL3
+binding exposes no second mouse-delta reduction helper. No SDL value crosses
+into Prismel's public API, the sketch
 loop turns it off when it stops, and the library dependency graph is
 unchanged (`test/dependency_gate.ml`). Sketch UI fly mode is its only
 in-tree user.
+The SDL3 boundary exposes single-event polling and the coalescing poller;
+the runtime uses the latter to keep input floods bounded.

@@ -471,7 +471,6 @@ module Event : sig
     | Unknown of { timestamp_ns : int64; event_type : int }
 
   val poll : unit -> (t option, error) result
-  val poll_all : unit -> (t list, error) result
 
   (** Drain the native queue without building a motion/resize flood. Pointer
       motion and window-size events keep only the latest sample (motion sums
@@ -479,12 +478,6 @@ module Event : sig
       text, focus, and quit stay ordered. *)
   val poll_coalesced : unit -> (t list, error) result
 
-  (** [wait ~timeout_ms] uses [-1] for an unbounded wait. The OCaml runtime
-      lock is released only while SDL blocks on its independently owned event
-      storage. *)
-  val wait : timeout_ms:int -> (t option, error) result
-
-  val mouse_delta : t list -> float * float
 end
 
 module Surface : sig

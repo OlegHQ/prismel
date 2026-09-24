@@ -9,12 +9,15 @@ let fail message = failwith ("SDL3 event test: " ^ message)
 let get = function
   | Ok value -> value
   | Error error -> fail (Format.asprintf "%a" pp_error error)
+let rec poll_all reversed = match get (Event.poll ()) with
+  | None -> List.rev reversed
+  | Some event -> poll_all (event :: reversed)
 
 let run () =
   get (Init.init [Init.Events]);
-  ignore (get (Event.poll_all ()));
+  ignore (poll_all []);
   if not (push_event_trace ()) then fail "SDL rejected a trace event";
-  let event_list = get (Event.poll_all ()) in
+  let event_list = poll_all [] in
   let events = Array.of_list event_list in
   if Array.length events <> 33 then
     fail (Printf.sprintf "expected 33 ordered events, received %d"
@@ -45,8 +48,6 @@ let run () =
     | _ -> fail "IME candidates payload changed"
   in
 
-  if Event.mouse_delta event_list <> (7., 3.) then
-    fail "mouse delta did not sum all ordered motion";
   (match events.(5), events.(6), events.(7), events.(8) with
    | Event.Mouse_motion { dx = 3.; dy = -2.; buttons; _ },
      Event.Mouse_motion { dx = 4.; dy = 5.; _ },

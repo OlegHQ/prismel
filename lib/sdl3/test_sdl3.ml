@@ -4,6 +4,8 @@ open Sdl3
 
 let fail message = failwith ("SDL3 test: " ^ message)
 let get = function Ok value -> value | Error error -> fail (Format.asprintf "%a" pp_error error)
+let rec drain_events () = match get (Event.poll ()) with
+  | None -> () | Some _ -> drain_events ()
 
 let run () =
   let frequency=Time.performance_frequency()and before=Time.performance_counter()in
@@ -183,24 +185,7 @@ let run () =
    | Ok () -> get (Mouse.capture false)
    | Error { kind = Unsupported; message; _ } when message <> "" -> ()
    | Error _ -> fail "mouse capture capability returned an untyped error");
-  ignore (get (Event.poll_all ()));
-  (match get (Event.wait ~timeout_ms:0) with
-   | None -> ()
-   | Some _ -> fail "zero-timeout wait returned an unexpected event");
-  (match Event.wait ~timeout_ms:(-2) with
-   | Error { kind = Invalid_argument; _ } -> ()
-   | Ok _ | Error _ -> fail "invalid event timeout was not rejected");
-  let worker_may_run = Atomic.make false in
-  let begin_wait = Atomic.make false in
-  let worker = System_thread.create (fun () ->
-    while not (Atomic.get begin_wait) do System_thread.yield () done;
-    System_thread.delay 0.01;
-    Atomic.set worker_may_run true) () in
-  Atomic.set begin_wait true;
-  ignore (get (Event.wait ~timeout_ms:50));
-  if not (Atomic.get worker_may_run) then
-    fail "blocking event wait retained the OCaml runtime lock";
-  System_thread.join worker;
+  drain_events ();
   let expect_wrong_domain label = function
     | Error { kind = Wrong_domain; _ } -> ()
     | Ok _ | Error _ -> fail (label ^ " was not rejected on a worker domain")

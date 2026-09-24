@@ -141,8 +141,6 @@ type raw_event =
   | Unknown of int * int64
 
 external poll_event : unit -> raw_event option = "caml_sdl3_poll_event"
-external wait_event_timeout : int -> raw_event option
-  = "caml_sdl3_wait_event_timeout"
 
 external create_surface_rgba : int -> int -> nativeint
   = "caml_sdl3_create_surface_rgba"

@@ -1257,14 +1257,6 @@ module Event = struct
   let poll () = on_main "SDL3.Event.poll" (fun () ->
     Ok (Option.map of_raw (Private_raw.poll_event ())))
 
-  let poll_all () = on_main "SDL3.Event.poll_all" (fun () ->
-    let rec loop events =
-      match Private_raw.poll_event () with
-      | None -> Ok (List.rev events)
-      | Some event -> loop (of_raw event :: events)
-    in
-    loop [])
-
   let size_event_type = function
     | 0x205 | 0x206 | 0x207 | 0x208 -> true
     | _ -> false
@@ -1298,23 +1290,6 @@ module Event = struct
     in
     loop None [] [])
 
-  let wait ~timeout_ms =
-    if timeout_ms < -1 || Int64.of_int timeout_ms > Int64.of_int32 Int32.max_int then
-      error "SDL3.Event.wait" Invalid_argument
-        "timeout must be -1 or fit in a signed 32-bit millisecond count"
-    else on_main "SDL3.Event.wait" (fun () ->
-      Private_raw.clear_error ();
-      match Private_raw.wait_event_timeout timeout_ms with
-      | Some event -> Ok (Some (of_raw event))
-      | None ->
-          let message = Private_raw.get_error () in
-          if message = "" then Ok None
-          else error "SDL3.Event.wait" Sdl_error message)
-
-  let mouse_delta events =
-    List.fold_left (fun (total_x, total_y) -> function
-      | Mouse_motion { dx; dy; _ } -> total_x +. dx, total_y +. dy
-      | _ -> total_x, total_y) (0., 0.) events
 end
 
 module Surface = struct

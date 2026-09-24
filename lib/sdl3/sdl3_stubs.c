@@ -1162,26 +1162,3 @@ CAMLprim value caml_sdl3_poll_event(value unit)
   Store_field(some, 0, raw);
   CAMLreturn(some);
 }
-
-CAMLprim value caml_sdl3_wait_event_timeout(value timeout_value)
-{
-  bool received;
-  int timeout;
-  CAMLparam1(timeout_value);
-  CAMLlocal2(raw, some);
-  timeout = Int_val(timeout_value);
-  if (timeout == 0) {
-    received = SDL_WaitEventTimeout(&prismel_sdl3_event, 0);
-  } else {
-    caml_release_runtime_system();
-    received = SDL_WaitEventTimeout(&prismel_sdl3_event, timeout);
-    caml_acquire_runtime_system();
-  }
-  if (!received) {
-    CAMLreturn(Val_none);
-  }
-  raw = copy_sdl_event(&prismel_sdl3_event);
-  some = caml_alloc(1, 0);
-  Store_field(some, 0, raw);
-  CAMLreturn(some);
-}
