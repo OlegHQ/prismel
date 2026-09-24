@@ -1910,6 +1910,11 @@ end [@@sop.register]
 
 module Mountain = struct
   type parameters = {
+    group : string [@sop.default ""] [@sop.label "Group"];
+    direction_attribute : string [@sop.default ""]
+      [@sop.label "Direction attribute"];
+    mask_attribute : string [@sop.default ""] [@sop.label "Mask attribute"];
+    height_attribute : string [@sop.default ""] [@sop.label "Height attribute"];
     seed : int [@sop.default 0] [@sop.label "Seed"] [@sop.min 0]
       [@sop.max 9999];
     height : float [@sop.default 1.] [@sop.label "Height"]
@@ -1938,29 +1943,32 @@ module Mountain = struct
     [@@sop.node_category "Deform"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~group ~direction_attribute ~mask_attribute ~height_attribute
-      ~label ~inputs parameters = match inputs with
+  let rec build ~label ~inputs parameters = match inputs with
     | [input] ->
-        Sop.mountain ~label ?group ~seed:parameters.seed ?direction_attribute
-          ?mask_attribute ~height:parameters.height
+        Sop.mountain ~label ?group:(optional_text parameters.group)
+          ~seed:parameters.seed
+          ?direction_attribute:(optional_text parameters.direction_attribute)
+          ?mask_attribute:(optional_text parameters.mask_attribute)
+          ~height:parameters.height
           ~frequency:(Vec3.create parameters.frequency_x parameters.frequency_y
             parameters.frequency_z) ~octaves:parameters.octaves
           ~lacunarity:parameters.lacunarity ~roughness:parameters.roughness
-          ?height_attribute ~recompute_normals:parameters.recompute_normals input
+          ?height_attribute:(optional_text parameters.height_attribute)
+          ~recompute_normals:parameters.recompute_normals input
         |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:(build ~group ~direction_attribute ~mask_attribute
-               ~height_attribute)
+             ~rebuild:build
     | _ -> invalid_arg "Sop_catalog.Mountain expects one input"
 
-  let factory = parameters_factory
-      (build ~group:None ~direction_attribute:None ~mask_attribute:None
-         ~height_attribute:None)
+  let factory = parameters_factory build
 
   let create ?label:node_label ?group ?direction_attribute ?mask_attribute
       ?height_attribute ?(recompute_normals = false) ~seed ~height ~frequency
       ~octaves ~lacunarity ~roughness input =
-    build ~group ~direction_attribute ~mask_attribute ~height_attribute
-      ~label:(label "mountain" node_label) ~inputs:[input] {
+    build ~label:(label "mountain" node_label) ~inputs:[input] {
+        group = Option.value ~default:"" group;
+        direction_attribute = Option.value ~default:"" direction_attribute;
+        mask_attribute = Option.value ~default:"" mask_attribute;
+        height_attribute = Option.value ~default:"" height_attribute;
         seed; height; frequency_x = frequency.Vec3.x;
         frequency_y = frequency.y; frequency_z = frequency.z;
         octaves; lacunarity; roughness; recompute_normals }
@@ -3056,6 +3064,10 @@ end [@@sop.register]
 
 module Attribute_noise_quaternion = struct
   type parameters = {
+    group : string [@sop.default ""] [@sop.label "Group"];
+    owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
+      [@sop.label "Owner"] [@sop.kind attribute_owner_parameter];
+    name : string [@sop.default "orient"] [@sop.label "Attribute"];
     seed : int [@sop.default 0] [@sop.label "Seed"] [@sop.min 0]
       [@sop.max 9999];
     frequency_x : float [@sop.default 1.] [@sop.label "Frequency X"]
@@ -3075,15 +3087,17 @@ module Attribute_noise_quaternion = struct
     [@@sop.node_category "Attribute/Noise"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~group ~location ~range ~owner ~name ~label ~inputs parameters =
+  let rec build ~location ~range ~label ~inputs parameters =
     match inputs with
     | [input] ->
-        Sop.attribute_noise ~label ?group ~seed:parameters.seed ~location ~range
+        Sop.attribute_noise ~label ?group:(optional_text parameters.group)
+          ~seed:parameters.seed ~location ~range
           ~frequency:(Vec3.create parameters.frequency_x parameters.frequency_y
-            parameters.frequency_z) ~octaves:parameters.octaves ~owner ~name
+            parameters.frequency_z) ~octaves:parameters.octaves
+          ~owner:parameters.owner ~name:parameters.name
           Pdk.Attribute_ops.Noise_quaternion input
         |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:(build ~group ~location ~range ~owner ~name)
+             ~rebuild:(build ~location ~range)
     | _ -> invalid_arg "Sop_catalog.Attribute_noise_quaternion expects one input"
 
   (* One set of defaults for the node menu and [create]. *)
@@ -3091,20 +3105,23 @@ module Attribute_noise_quaternion = struct
   let default_range = Pdk.Attribute_ops.Noise_zero_centered
 
   let factory = parameters_factory
-      (build ~group:None ~location:default_location ~range:default_range
-         ~owner:Pdk.Attribute.Point ~name:"orient")
+      (build ~location:default_location ~range:default_range)
 
   let create ?label:node_label ?group
       ?(location = default_location) ?(range = default_range) ~owner ~name ~seed ~frequency
       ~octaves input =
-    build ~group ~location ~range ~owner ~name
+    build ~location ~range
       ~label:(label "attribute-noise-quaternion" node_label) ~inputs:[input] {
+        group = Option.value ~default:"" group; owner; name;
         seed; frequency_x = frequency.Vec3.x; frequency_y = frequency.y;
         frequency_z = frequency.z; octaves }
 end [@@sop.register]
 
 module Point_jitter = struct
   type parameters = {
+    group : string [@sop.default ""] [@sop.label "Group"];
+    mask_attribute : string [@sop.default ""] [@sop.label "Mask attribute"];
+    id_attribute : string [@sop.default ""] [@sop.label "ID attribute"];
     seed : int [@sop.default 0] [@sop.label "Seed"] [@sop.min 0]
       [@sop.max 9999];
     scale : float [@sop.default 1.] [@sop.label "Scale"]
@@ -3122,30 +3139,47 @@ module Point_jitter = struct
     [@@sop.node_category "Point"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~group ~mask_attribute ~id_attribute ~label ~inputs parameters =
+  let rec build ~label ~inputs parameters =
     match inputs with
     | [input] ->
-        Sop.point_jitter ~label ?group ?mask_attribute ?id_attribute
+        Sop.point_jitter ~label ?group:(optional_text parameters.group)
+          ?mask_attribute:(optional_text parameters.mask_attribute)
+          ?id_attribute:(optional_text parameters.id_attribute)
           ~seed:parameters.seed ~scale:parameters.scale
           ~axis_scales:(Vec3.create parameters.axis_x parameters.axis_y
             parameters.axis_z) input
         |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:(build ~group ~mask_attribute ~id_attribute)
+             ~rebuild:build
     | _ -> invalid_arg "Sop_catalog.Point_jitter expects one input"
 
-  let factory = parameters_factory
-      (build ~group:None ~mask_attribute:None ~id_attribute:None)
+  let factory = parameters_factory build
 
   let create ?label:node_label ?group ?mask_attribute ?id_attribute ~seed ~scale
       ?(axis_scales = Vec3.create 1. 1. 1.) input =
-    build ~group ~mask_attribute ~id_attribute
-      ~label:(label "point-jitter" node_label) ~inputs:[input] {
+    build ~label:(label "point-jitter" node_label) ~inputs:[input] {
+        group = Option.value ~default:"" group;
+        mask_attribute = Option.value ~default:"" mask_attribute;
+        id_attribute = Option.value ~default:"" id_attribute;
         seed; scale; axis_x = axis_scales.Vec3.x; axis_y = axis_scales.y;
         axis_z = axis_scales.z }
 end [@@sop.register]
 
 module Boolean_fracture = struct
+  let detriangulation_parameter = Parameter.choice ~equal:( = ) [
+      "Triangles", Pdk.Boolean.Triangles;
+      "Unchanged polygons", Pdk.Boolean.Unchanged_polygons;
+      "All polygons", Pdk.Boolean.All_polygons;
+    ]
+
   type parameters = {
+    resolve_cutter_self_intersections : bool [@sop.default false]
+      [@sop.label "Resolve cutter self-intersections"];
+    detriangulation : Pdk.Boolean.detriangulation
+      [@sop.default Pdk.Boolean.Triangles]
+      [@sop.label "Polygons"] [@sop.kind detriangulation_parameter];
+    require_closed : bool [@sop.default true] [@sop.label "Require closed"];
+    piece_attribute : string [@sop.default "piece"]
+      [@sop.label "Piece attribute"];
     point_tolerance : float [@sop.default 0.] [@sop.label "Point tolerance"]
       [@sop.folder "Robustness"] [@sop.min 0.] [@sop.max 0.001]
       [@sop.hard_min 0.];
@@ -3162,32 +3196,32 @@ module Boolean_fracture = struct
     [@@sop.node_category "Boolean"] [@@sop.node_inputs 2]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~resolve_cutter_self_intersections ~detriangulation
-      ~require_closed ~piece_attribute ~label ~inputs parameters =
+  let rec build ~label ~inputs parameters =
     match inputs with
     | [source; cutters] ->
-        Sop.boolean_fracture ~label ~resolve_cutter_self_intersections
+        Sop.boolean_fracture ~label
+          ~resolve_cutter_self_intersections:
+            parameters.resolve_cutter_self_intersections
           ~point_tolerance:parameters.point_tolerance
           ~tiny_seam_threshold:parameters.tiny_seam_threshold
           ~cleanup_max_batches:parameters.cleanup_max_batches
-          ~strict_cleanup:parameters.strict_cleanup ~detriangulation
-          ~require_closed ~piece_attribute ~cutters source
+          ~strict_cleanup:parameters.strict_cleanup
+          ~detriangulation:parameters.detriangulation
+          ~require_closed:parameters.require_closed
+          ~piece_attribute:parameters.piece_attribute ~cutters source
         |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:(build ~resolve_cutter_self_intersections ~detriangulation
-               ~require_closed ~piece_attribute)
+             ~rebuild:build
     | _ -> invalid_arg "Sop_catalog.Boolean_fracture expects source and cutters"
 
-  let factory = parameters_factory
-      (build ~resolve_cutter_self_intersections:false
-         ~detriangulation:Pdk.Boolean.Triangles ~require_closed:true
-         ~piece_attribute:"piece")
+  let factory = parameters_factory build
 
   let create ?label:node_label ?(resolve_cutter_self_intersections = false)
       ?(detriangulation = Pdk.Boolean.Triangles) ?(require_closed = true)
       ?(piece_attribute = "piece") ~cutters source =
-    build ~resolve_cutter_self_intersections ~detriangulation ~require_closed
-      ~piece_attribute ~label:(label "boolean-fracture" node_label)
-      ~inputs:[source; cutters] parameters_default
+    build ~label:(label "boolean-fracture" node_label)
+      ~inputs:[source; cutters]
+      { parameters_default with resolve_cutter_self_intersections;
+        detriangulation; require_closed; piece_attribute }
 end [@@sop.register]
 
 module Boolean = struct

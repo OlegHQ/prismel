@@ -36,6 +36,22 @@ let run () =
   let graph = Sop_catalog.Boolean_fracture.create ~label:"fracture"
       ~cutters source
     |> Sop_catalog.Exploded_view.create in
+  let fracture = List.hd (Node.inputs graph) in
+  let orient = List.hd (Node.inputs targets) in
+  List.iter (fun (node, field, expected) ->
+    let before = List.find (fun value -> value.Parameter.name = field)
+        (Node.parameter_fields node) in
+    check (before.current = Parameter.Text_value expected)
+      ("catalog hidden parameter has wrong default: " ^ field);
+    let edited, effects = Node.apply_parameters node
+        [field, Parameter.Text_value "edited"] |> Result.get_ok in
+    let after = List.find (fun value -> value.Parameter.name = field)
+        (Node.parameter_fields edited) in
+    check (effects.cook && Node.id edited = Node.id node
+        && after.current = Parameter.Text_value "edited")
+      ("catalog field did not rebuild: " ^ field))
+    [plane, "height_attribute", ""; targets, "id_attribute", "";
+     orient, "name", "orient"; fracture, "piece_attribute", "piece"];
   let parameterized = Graph.inspect graph
       |> List.filter (fun info -> info.Graph.has_parameters)
       |> List.map (fun info -> info.Graph.label) in
