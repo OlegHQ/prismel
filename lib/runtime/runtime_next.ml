@@ -23,6 +23,8 @@ type offscreen={renderer:Scene_execution.t;cache:Ogpu_metal.Pipeline.cache;
   mutable facts:frame_facts;mutable dead:bool}
 let error op text=Error(Ogpu.Error.make op Ogpu.Error.Invalid_state text)
 let sdl op=function Ok x->Ok x|Error e->error op(Format.asprintf"%a"Sdl3.pp_error e)
+let clipboard_set_text text=sdl"Runtime_next.clipboard_set_text"(Sdl3.Clipboard.set_text text)
+let clipboard_get_text()=sdl"Runtime_next.clipboard_get_text"(Sdl3.Clipboard.get_text())
 let metal op=function Ok x->Ok x|Error e->error op(Format.asprintf"%a"Metal.pp_error e)
 let facts window=match Sdl3.Window.size window,Sdl3.Window.size_in_pixels window with Ok(lw,lh),Ok(dw,dh)when lw>0&&lh>0&&dw>0&&dh>0->Ok{logical_width=lw;logical_height=lh;drawable_width=dw;drawable_height=dh;pixel_scale_x=float dw/.float lw;pixel_scale_y=float dh/.float lh}|Error e,_->sdl"Runtime_next.facts"(Error e)|_,Error e->sdl"Runtime_next.facts"(Error e)|_->error"Runtime_next.facts""window dimensions are invalid"
 let source_scene3_header={|#include <metal_stdlib>

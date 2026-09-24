@@ -7,7 +7,7 @@
 (executable
  (name test_main)
  (modules test_main test_pxui_undo test_ui_parity test_ui)
- (libraries prismel pxui scene_command))
+ (libraries prismel pxui scene_command sdl3))
 
 (rule
  (aliases runtest test_pxui_undo)
@@ -22,4 +22,5 @@
 
 (rule
  (aliases runtest test_ui)
- (action (run %{exe:test_main.exe} test_ui)))
+ (action (setenv SDL_VIDEODRIVER dummy
+  (run %{exe:test_main.exe} test_ui))))

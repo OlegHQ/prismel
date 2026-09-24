@@ -40,6 +40,7 @@ let update model (frame : Frame.t) =
         (Pxui.Ui.accordion ui "Appearance" (fun () ->
           let band = Pxui.Ui.range_slider ui "Band" ~range:(0., 1.) model.band in
           let palette = Pxui.Ui.choice ui "Palette" palettes model.palette in
+          (* Focus Caption to try Command/Ctrl-C, X, and V. *)
           let caption = Pxui.Ui.text_field ui "Caption" model.caption in
           { model with band; palette; caption })) in
     if Pxui.Ui.button ui "Quit" then Sketch.quit ();

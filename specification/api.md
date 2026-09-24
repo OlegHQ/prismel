@@ -152,9 +152,14 @@ The transitional `Prismel_next_api` re-export is gone; native callers use
 `Prismel` directly.
 
 `Scene.text_input_region` is pure scene data. At the render boundary its
-transformed, clipped logical bounds describe where native text focus may be
-activated. Ordinary canvas and control presses do not implicitly start text
-input.
+logical bounds describe the native IME candidate area for a focused editor.
+Ordinary canvas and control presses do not implicitly start text input.
+
+`Clipboard.set_text` and `Clipboard.get_text` expose native system clipboard
+text as explicit results on the initial domain. PXUI text fields, numeric
+editors, and picker search support Command/Ctrl-C, X, and V while focused;
+copy and cut use the whole value, while paste appends to it. Cut clears the
+value only after the clipboard write succeeds.
 
 `Scene.text ?size` resolves an installed platform UI font and treats `size` as
 a logical point size. `PRISMEL_UI_FONT` overrides the platform font search.

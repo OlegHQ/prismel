@@ -268,7 +268,9 @@ events only to a focused editor; Sketch UI suppresses workspace and graph
 keyboard shortcuts while an editor has focus, and its leader key (Space) only
 arms while no editor is focused. Camera PNG requests capture the
 just-presented native framebuffer through `Sketch.run_state`'s `after_present`
-hook. The UI offers the supported native 1× export factor.
+hook. The UI offers the supported native 1× export factor. PXUI copy, cut, and
+paste go through the public `Prismel.Clipboard` result boundary; failed writes
+never clear a text value.
 
 # Relative pointer mode
 

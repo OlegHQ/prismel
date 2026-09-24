@@ -195,6 +195,7 @@ and ui = {
   mutable active_press : float * float;
   mutable focus : int;
   mutable composition : string;
+  mutable command_down : bool;
   (* this frame's raw events and logical size, for modal dismissal *)
   mutable frame_events : Event.t list;
   mutable view_w : float;
@@ -432,6 +433,7 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     kit_row_height = 24; kit_padding = 3;
     pointer = (Float.nan, Float.nan); hot = 0; active = 0;
     active_button = Input.LeftButton; active_press = (0., 0.); focus = 0; composition = "";
+    command_down = false;
     frame_events = []; view_w = 0.; view_h = 0.; modal_heights = Hashtbl.create 4;
     signals = Int_table.create 16;
     hit_count = 0; hit_keys = [||]; hit_flags_of = [||];
@@ -556,6 +558,7 @@ let scroll_target ui point =
 let route ui (frame : Frame.t) =
   Int_table.reset ui.signals;
   ui.frame_events <- frame.events;
+  ui.command_down <- List.mem Input.Meta frame.keys || List.mem Input.Ctrl frame.keys;
   ui.view_w <- float frame.width; ui.view_h <- float frame.height;
   let set_pointer (x, y) = ui.pointer <- (float x, float y) in
   List.iter (fun (event : Event.t) -> match event with
@@ -1425,6 +1428,13 @@ let numeric_character = function
   | '0' .. '9' | '+' | '-' | '.' | 'e' | 'E' -> true
   | _ -> false
 
+let clipboard_command ui = function
+  (* ponytail: text controls have no selection/caret model yet; copy/cut use
+     the whole value and paste appends until selection editing lands. *)
+  | Event.KeyPressed (Input.KeyChar key) when ui.command_down ->
+      Some (Char.lowercase_ascii key)
+  | _ -> None
+
 (* Numeric label editing shared by float and integer sliders. The retained
    state packs [valid] (bit 0) and [replace_on_input] (bit 1); the retained
    text is the edit buffer. [parse] validates typed text. *)
@@ -1449,6 +1459,18 @@ let numeric_editor ui row signal ~current ~parse =
       let committed = ref None and text = ref text and state = ref state
       and cancelled = ref false in
       List.iter (fun (event : Event.t) -> match event with
+        | event when clipboard_command ui event = Some 'c' ->
+            ignore (Clipboard.set_text !text)
+        | event when clipboard_command ui event = Some 'x' ->
+            if Clipboard.set_text !text = Ok () then begin
+              text := ""; state := (if parse "" <> None then 1 else 0)
+            end
+        | event when clipboard_command ui event = Some 'v' ->
+            (match Clipboard.get_text () with
+             | Ok pasted when String.for_all numeric_character pasted ->
+                 text := (if !state land 2 <> 0 then pasted else !text ^ pasted);
+                 state := (if parse !text <> None then 1 else 0)
+             | Ok _ | Error _ -> ())
         | Event.TextInput typed when String.for_all numeric_character typed ->
             text := (if !state land 2 <> 0 then typed else !text ^ typed);
             state := (if parse !text <> None then 1 else 0)
@@ -1553,6 +1575,13 @@ let text_field ui text value =
   let focused = focused ui row in
   let value = if not focused then value else
     List.fold_left (fun value (event : Event.t) -> match event with
+      | event when clipboard_command ui event = Some 'c' ->
+          ignore (Clipboard.set_text value); value
+      | event when clipboard_command ui event = Some 'x' ->
+          if Clipboard.set_text value = Ok () then "" else value
+      | event when clipboard_command ui event = Some 'v' ->
+          (match Clipboard.get_text () with Ok text -> value ^ text
+           | Error _ -> value)
       | Event.TextInput typed -> value ^ typed
       | Event.KeyPressed (Input.Backspace | Input.Delete) -> drop_last_utf8 value
       | _ -> value) value signal.keys in
@@ -1709,6 +1738,13 @@ let picker ui ?(limit = 10) label ~query rows_of =
   let set_query text = query := text; rows := rows_of text; cursor := 0; armed := -1 in
   List.iter (fun (event : Event.t) -> let count = count () in
     if !result = `None then match event with
+    | event when clipboard_command ui event = Some 'c' ->
+        ignore (Clipboard.set_text !query)
+    | event when clipboard_command ui event = Some 'x' ->
+        if Clipboard.set_text !query = Ok () then set_query ""
+    | event when clipboard_command ui event = Some 'v' ->
+        (match Clipboard.get_text () with
+         | Ok text -> set_query (!query ^ text) | Error _ -> ())
     | Event.TextInput typed -> set_query (!query ^ typed)
     | Event.KeyPressed Input.Backspace when !query = "" -> result := `Back
     | Event.KeyPressed Input.Backspace -> set_query (drop_last_utf8 !query)

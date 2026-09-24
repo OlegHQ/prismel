@@ -3,7 +3,7 @@
   "baseline_plan_sha256": "6f95e5738ae263386bbc414299f598f25ba9f604b48a8c2ef9bee84f974e2954",
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 130,
+  "module_count": 131,
   "modules": [
     {
       "api_sha256": "69403004e55a49667961f98b7879af4b3786d561307ea8812bb014b262ce5a72",
@@ -643,6 +643,15 @@
       "source": "lib/prismel/canvas.mli",
       "source_bytes": 1191,
       "source_sha256": "02013e0376d112d7963e02922f02c2d8b16916569ef9bf105ef651a25c86b9fa"
+    },
+    {
+      "api_sha256": "e6fc3b440ea896706d408cd6b3bd3f5da5ab09ca96715005ca4a6558f0cbff94",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Clipboard",
+      "source": "lib/prismel/clipboard.mli",
+      "source_bytes": 170,
+      "source_sha256": "7c5c5ef2dcf0b9c061b9e2a39235d5015c2ef7c1e79efd7299cf6775e9872b5c"
     },
     {
       "api_sha256": "79f27f4c6bfe422e1bccd3059d53bdc8dbd202cf0a304c97de5443247051a61f",

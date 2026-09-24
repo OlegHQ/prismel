@@ -1,4 +1,6 @@
 type t
+val clipboard_set_text : string -> (unit, Ogpu.Error.t) result
+val clipboard_get_text : unit -> (string, Ogpu.Error.t) result
 val gpu_film_texture : t -> width:int -> height:int ->
   (Ogpu.Backend.texture * Metal.Texture.t,Ogpu.Error.t) result
 type stats = { pipeline_cache_entries:int; mesh_cache_entries:int;

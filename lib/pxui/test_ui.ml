@@ -32,6 +32,13 @@ let with_scale scale =
     time := !time +. 0.1;
     Ui.frame ui (frame ~scale ~time:!time events) (fun ui ->
       Ui.panel ui ~x:0. ~y:0. ~width:240. "panel" (fun () -> build ui)) in
+  let command_step ui key build =
+    time := !time +. 0.5;
+    Ui.frame ui
+      { (frame ~scale ~time:!time [Event.KeyPressed (Input.KeyChar key)])
+        with keys = [Input.Meta] }
+      (fun ui -> Ui.panel ui ~x:0. ~y:0. ~width:240. "panel"
+        (fun () -> build ui)) in
   let settle ui build = ignore (step ui [] build) in
   let label = Printf.sprintf "%gx: %s" scale in
 
@@ -118,6 +125,18 @@ let with_scale scale =
   step ui [Event.KeyPressed Input.Escape; Event.TextInput "4"] build;
   if !count <> 27 || Ui.text_input_focused ui then
     fail (label "Escape did not cancel numeric editing");
+  step ui [press (20, row 0); release (20, row 0)] build;
+  fast_step ui [press (20, row 0); release (20, row 0)] build;
+  let previous_clipboard = Clipboard.get_text () in
+  Fun.protect ~finally:(fun () ->
+    match previous_clipboard with
+    | Ok text -> ignore (Clipboard.set_text text)
+    | Error _ -> ()) (fun () ->
+      (match Clipboard.set_text "31" with Ok () -> ()
+       | Error message -> fail message);
+      command_step ui 'v' build;
+      step ui [Event.KeyPressed Input.Enter] build;
+      if !count <> 31 then fail (label "numeric editor did not paste valid text"));
 
   let amount = ref 0.25 in
   let build ui = amount := Ui.slider ui "Amount" ~range:(0., 1.) !amount in
@@ -162,6 +181,22 @@ let with_scale scale =
     Event.TextInput "!"] build;
   if !title <> "h! two word!" || not (Ui.text_input_focused ui) then
     fail (label "focused text input lost spaces or Delete editing");
+  let previous_clipboard = Clipboard.get_text () in
+  Fun.protect ~finally:(fun () ->
+    match previous_clipboard with
+    | Ok text -> ignore (Clipboard.set_text text)
+    | Error _ -> ()) (fun () ->
+      (match Clipboard.set_text " pasted" with
+       | Ok () -> () | Error message -> fail message);
+      command_step ui 'v' build;
+      if !title <> "h! two word! pasted" then
+        fail (label "Command-V did not paste into the focused text field");
+      command_step ui 'c' build;
+      if Clipboard.get_text () <> Ok !title then
+        fail (label "Command-C did not copy the focused text field");
+      command_step ui 'x' build;
+      if !title <> "" || Clipboard.get_text () <> Ok "h! two word! pasted" then
+        fail (label "Command-X did not cut the focused text field"));
   step ui [press (300, 200)] build;
   if Ui.text_input_focused ui then fail (label "an outside press kept text focus");
 
@@ -185,6 +220,8 @@ let with_scale scale =
   Ui.destroy ui
 
 let run () =
+  (match Sdl3.Init.init [Sdl3.Init.Video] with
+   | Ok () -> () | Error error -> fail (Format.asprintf "%a" Sdl3.pp_error error));
   with_scale 1.;
   with_scale 2.;
   (* Hover: the topmost control under the pointer, from last frame's rects. *)
@@ -268,8 +305,10 @@ let run () =
   let rows query = Array.of_list (List.filter
       (fun (label, _) -> Ui.fuzzy_match ~query label) (Array.to_list items)) in
   let ui = Ui.create () and query = ref "" and last = ref `None in
-  let pick events =
-    Ui.frame ui (frame ~scale:1. ~time:0. events) (fun ui ->
+  let pick ?(command=false) events =
+    Ui.frame ui
+      { (frame ~scale:1. ~time:0. events) with
+        keys = (if command then [Input.Meta] else []) } (fun ui ->
       Ui.panel ui ~x:0. ~y:0. ~width:240. "p" (fun () ->
         let edited, result = Ui.picker ui "Search" ~query:!query rows in
         query := edited; last := result)) in
@@ -280,6 +319,22 @@ let run () =
   pick [Event.TextInput "dla"; key Input.Enter];
   if !query <> "dla" || !last <> `Pick 0 || fst (rows !query).(0) <> "delta" then
     fail "picker typing did not filter rows before Enter";
+  let previous_clipboard = Clipboard.get_text () in
+  Fun.protect ~finally:(fun () ->
+    match previous_clipboard with
+    | Ok text -> ignore (Clipboard.set_text text)
+    | Error _ -> ()) (fun () ->
+      query := "";
+      (match Clipboard.set_text "del" with Ok () -> ()
+       | Error message -> fail message);
+      pick ~command:true [key (Input.KeyChar 'v')];
+      if !query <> "del" then fail "picker did not paste the search query";
+      pick ~command:true [key (Input.KeyChar 'c')];
+      if Clipboard.get_text () <> Ok "del" then
+        fail "picker did not copy the search query";
+      pick ~command:true [key (Input.KeyChar 'x')];
+      if !query <> "" then fail "picker did not cut the search query");
+  query := "dla";
   pick [key Input.Delete];
   if !last <> `None then fail "picker deleted on the first Delete";
   pick [key Input.Delete];
@@ -334,4 +389,6 @@ let run () =
   modal [press (5, 5)];
   if !shown <> None then fail "a press outside did not dismiss the modal";
   Ui.destroy ui;
+  (match Sdl3.Init.quit () with
+   | Ok () -> () | Error error -> fail (Format.asprintf "%a" Sdl3.pp_error error));
   print_endline "PXUI Ui interaction contract passed at 1x and 2x"
