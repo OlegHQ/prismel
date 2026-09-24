@@ -12,6 +12,7 @@ let tests = [
   "sdl3_platform_harness", Sdl3_platform_harness.run;
   "test_sketch_support", Test_sketch_support.run;
   "dependency_gate", Dependency_gate.run;
+  "sop_render_parity", Sop_render_parity.run;
 ]
 
 let () =

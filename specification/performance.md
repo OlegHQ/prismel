@@ -3363,28 +3363,12 @@ including source/output geometry, benchmark hashing, Dune, and the OCaml heap.
 Its shared-point accumulation is intentionally sequential for byte-exact
 floating-point order; face construction, normalization, fBm, displacement,
 and independent output fills use the reusable domain pool.
-The finite native `test/procedural_render_smoke.exe` scene exercises Mountain,
-Point Jitter with group/mask/stable-ID/`pscale`, Peak, atomic pattern Attribute
-Delete/Rename feeding a visible promoted color,
-Edge Divide with a selected native edge group and four shared segments,
-Edge Collapse with a seeded native edge group, cleanup, and normal rebuild,
-Edge Flip with a selected manifold diagonal and normal rebuild,
-Edge Cusp with a selected path, point-fan duplication, and normal rebuild,
-Edge Straighten with a selected curved path and output native edge group,
-Group Range/Combine/Invert/Delete, Group Expand/Promote, boundary-only
-Group Promote with attribute seams, Group Normal,
-Group Non-Planar, Group Backface, Group Edge Depth, pairwise Incident-Edge
-Angle, Group Unshared, boundary-component groups, connected-region Poly
-Extrude with divisions and output groups, Clean winding/group cleanup,
-position-independent second-input crease topology with resulting sharpness,
-stencil-contributing subdivision holes with visible openings,
-and a
-Groups-from-Name-selected plus bounds-restricted random
-primitive deformation driving visible geometry, sphere-volume
-jitter, direction sampling, and inverse-CDF color variation on lit textured
-meshes; its one/four-domain 160x120 PNGs are byte-identical (SHA-256
+The former procedural render smoke produced byte-identical one/four-domain
+160x120 PNGs (SHA-256
 `fc98b7188ca058d286a08a819da4c0a4553cad69a447da9eb6ee4a0b12941d7f`,
-17,441 bytes).
+17,441 bytes). That unbuilt file was removed with the other render smokes;
+`test/sop_render_parity.ml` now runs native one/four-domain PNG parity for 23
+named SOP graphs under `@runtest-native`.
 
 ```sh
 PRISMEL_PDK_OPS_FILTER=peak PRISMEL_PDK_OPS_REPEATS=5 \
