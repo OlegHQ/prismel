@@ -270,20 +270,6 @@ CAMLprim value caml_sdl3_mixer_track_gain(value raw)
   CAMLreturn(caml_copy_double(MIX_GetTrackGain(track_of_value(raw))));
 }
 
-CAMLprim value caml_sdl3_mixer_set_track_loops(value raw, value loops)
-{
-  CAMLparam2(raw, loops);
-  if (!MIX_SetTrackLoops(track_of_value(raw), Int_val(loops))) {
-    CAMLreturn(string_error());
-  }
-  CAMLreturn(unit_success());
-}
-
-CAMLprim value caml_sdl3_mixer_track_loops(value raw)
-{
-  return Val_int(MIX_GetTrackLoops(track_of_value(raw)));
-}
-
 CAMLprim value caml_sdl3_mixer_play_track(
     value raw, value loops, value fade_in_ms)
 {

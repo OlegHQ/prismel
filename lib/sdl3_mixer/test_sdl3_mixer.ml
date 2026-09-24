@@ -134,23 +134,21 @@ let run () =
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok audio -> ignore (Audio.destroy audio); fail "zero-duration sine succeeded"
    | Error _ -> fail "zero-duration sine returned the wrong error");
-  let track = get (Track.create mixer) in
-  get (Track.set_audio track sine);
-  get (Track.set_gain track 0.5);
-  if get (Track.gain track) <> 0.5 then fail "track gain changed";
-  get (Track.play track ~loops:1 ~fade_in_ms:5 ());
-  if not (get (Track.playing track)) then fail "memory track did not start";
+  let track = get (Music.create mixer) in
+  get (Music.set_audio track sine);
+  get (Music.set_volume track 0.5);
+  if get (Music.volume track) <> 0.5 then fail "track gain changed";
+  get (Music.play track ~loops:1 ~fade_in_ms:5 ());
+  if not (get (Music.playing track)) then fail "memory track did not start";
   let generated = get (Mixer.generate mixer ~frames:256) in
   if Bytes.length generated.pcm_f32 <> 256 * 2 * 4
       || generated.mixed_bytes <= 0 || not (any_nonzero generated.pcm_f32) then
     fail "memory mixer did not generate finite non-silent float32 PCM";
-  get (Track.pause track);
-  if not (get (Track.paused track)) then fail "track did not pause";
-  get (Track.resume track);
-  if get (Track.paused track) then fail "track did not resume";
-  get (Track.set_loops track 0);
-  if get (Track.loops track) <> 0 then fail "live loop update changed";
-  get (Track.stop track ~fade_out_ms:2 ());
+  get (Music.pause track);
+  if not (get (Music.paused track)) then fail "track did not pause";
+  get (Music.resume track);
+  if get (Music.paused track) then fail "track did not resume";
+  get (Music.stop track ~fade_out_ms:2 ());
 
   let channels = get (Channels.create mixer ~count:32) in
   if Channels.count channels <> 32 || get (Channels.allocate channels) <> 0 then
@@ -197,16 +195,16 @@ let run () =
   get (Music.destroy music);
 
   for _cycle = 1 to 10_000 do
-    let transient = get (Track.create mixer) in
-    get (Track.destroy transient)
+    let transient = get (Music.create mixer) in
+    get (Music.destroy transient)
   done;
 
   let other = get (Mixer.create_memory ~sample_rate:48_000 ~channels:2) in
-  let foreign = get (Track.create other) in
-  (match Track.set_audio foreign sine with
+  let foreign = get (Music.create other) in
+  (match Music.set_audio foreign sine with
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok () | Error _ -> fail "cross-mixer audio attachment was accepted");
-  get (Track.destroy foreign); get (Mixer.destroy other);
+  get (Music.destroy foreign); get (Mixer.destroy other);
 
   (match Mixer.destroy mixer with
    | Error { kind = Parent_has_dependents; _ } -> ()
@@ -215,33 +213,33 @@ let run () =
   (match wrong_domain with
    | Error { kind = Wrong_domain; _ } -> ()
    | Ok _ | Error _ -> fail "wrong-domain mixer access was not rejected");
-  get (Track.destroy track);
-  get (Track.destroy track);
+  get (Music.destroy track);
+  get (Music.destroy track);
   get (Audio.destroy sine);
   get (Audio.destroy memory_audio);
   get (Audio.destroy reloaded_audio);
   get (Audio.destroy file_audio);
-  (match Track.playing track with
+  (match Music.playing track with
    | Error { kind = Destroyed; _ } -> ()
    | Ok _ | Error _ -> fail "stale track access was not rejected");
   get (Mixer.destroy mixer);
   get (Mixer.destroy mixer);
-  (match Track.create mixer with
+  (match Music.create mixer with
    | Error { kind = Destroyed; _ } -> ()
-   | Ok track -> ignore (Track.destroy track); fail "track used destroyed mixer"
+   | Ok track -> ignore (Music.destroy track); fail "track used destroyed mixer"
    | Error _ -> fail "destroyed-mixer track returned the wrong error");
 
   let device = get (Mixer.create_device ()) in
   if Mixer.mode device <> Mixer.Device then fail "device mixer mode changed";
   let device_audio = get (Audio.create_sine device ~frequency:220 ~amplitude:0.1
       ~duration_ms:25) in
-  let device_track = get (Track.create device) in
-  get (Track.set_audio device_track device_audio);
-  get (Track.play device_track ());
-  get (Track.pause device_track);
-  get (Track.resume device_track);
+  let device_track = get (Music.create device) in
+  get (Music.set_audio device_track device_audio);
+  get (Music.play device_track ());
+  get (Music.pause device_track);
+  get (Music.resume device_track);
   get (Mixer.stop_all device ());
-  get (Track.destroy device_track);
+  get (Music.destroy device_track);
   get (Audio.destroy device_audio);
   get (Mixer.destroy device);
 

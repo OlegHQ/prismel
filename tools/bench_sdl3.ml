@@ -154,13 +154,13 @@ let () =
             (Mixer3.Audio.create_sine mixer_value ~frequency:440 ~amplitude:0.1
                ~duration_ms:1)
         in
-        let track = mixer (Mixer3.Track.create mixer_value) in
-        mixer (Mixer3.Track.set_audio track audio_value);
-        mixer (Mixer3.Track.play track ());
+        let track = mixer (Mixer3.Music.create mixer_value) in
+        mixer (Mixer3.Music.set_audio track audio_value);
+        mixer (Mixer3.Music.play track ());
         ignore (mixer (Mixer3.Mixer.generate mixer_value ~frames:8));
-        ignore (mixer (Mixer3.Track.playing track));
-        mixer (Mixer3.Track.stop track ());
-        mixer (Mixer3.Track.destroy track);
+        ignore (mixer (Mixer3.Music.playing track));
+        mixer (Mixer3.Music.stop track ());
+        mixer (Mixer3.Music.destroy track);
         mixer (Mixer3.Audio.destroy audio_value);
         mixer (Mixer3.Mixer.destroy mixer_value))
   in

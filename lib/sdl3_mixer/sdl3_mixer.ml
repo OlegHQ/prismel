@@ -56,9 +56,6 @@ external raw_set_track_audio : nativeint -> nativeint -> (unit, string) result
 external raw_set_track_gain : nativeint -> float -> (unit, string) result
   = "caml_sdl3_mixer_set_track_gain"
 external raw_track_gain : nativeint -> float = "caml_sdl3_mixer_track_gain"
-external raw_set_track_loops : nativeint -> int -> (unit, string) result
-  = "caml_sdl3_mixer_set_track_loops"
-external raw_track_loops : nativeint -> int = "caml_sdl3_mixer_track_loops"
 external raw_play_track : nativeint -> int -> int -> (unit, string) result
   = "caml_sdl3_mixer_play_track"
 external raw_stop_track : nativeint -> int -> (unit, string) result
@@ -134,7 +131,6 @@ type audio_handle = {
 
 type track_handle = {
   raw : nativeint;
-  mutable generation : int;
   mixer : mixer_handle;
   mutable destroyed : bool;
 }
@@ -428,16 +424,11 @@ module Track = struct
   type t = track_handle
   type status = Stopped | Playing | Paused
 
-  let generation (value : t) = value.generation
-  let destroyed (value : t) = value.destroyed
-
-  let bump (value : t) = value.generation <- fresh_generation ()
-
   let owned mixer raw =
     Atomic.incr live_tracks;
     Atomic.incr mixer.tracks;
     let value : track_handle = {
-      raw; generation = fresh_generation (); mixer; destroyed = false;
+      raw; mixer; destroyed = false;
     } in
     Gc.finalise (fun (value : track_handle) ->
       if not value.destroyed then begin
@@ -458,9 +449,7 @@ module Track = struct
       | Ok () -> callback value.raw)
 
   let mutate operation value call = live operation value (fun raw ->
-    match mixer_result operation (call raw) with
-    | Error _ as failure -> failure
-    | Ok () -> bump value; Ok ())
+    mixer_result operation (call raw))
 
   let create mixer = Mixer.live "SDL3_mixer.Track.create" mixer (fun raw ->
     match raw_create_track raw with
@@ -484,15 +473,6 @@ module Track = struct
     Ok (raw_track_gain raw))
 
   let valid_loops loops = loops >= -1
-
-  let set_loops (value : t) loops =
-    let operation = "SDL3_mixer.Track.set_loops" in
-    if not (valid_loops loops) then
-      error operation Invalid_argument "loop count must be -1 or non-negative"
-    else mutate operation value (fun raw -> raw_set_track_loops raw loops)
-
-  let loops (value : t) = live "SDL3_mixer.Track.loops" value (fun raw ->
-    Ok (raw_track_loops raw))
 
   let play (value : t) ?(loops = 0) ?(fade_in_ms = 0) () =
     let operation = "SDL3_mixer.Track.play" in
