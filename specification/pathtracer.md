@@ -145,7 +145,7 @@ was hoisted out of the instance loop; the same single-run probe measured
 5.5–6.1 ms and about 0.79 million minor words afterward. The flattened
 24,780-triangle upload and synchronous Metal acceleration build still took
 6.2 ms in that probe. `PRISMEL_PATHTRACER_FRAMES=90 PRISMEL_PATHTRACER_ORBIT=1
-dune exec examples/voxel_wall/main.exe` measured 19.9–29.4 ms per application
+dune exec sketches/voxel_wall/main.exe` measured 19.9–29.4 ms per application
 frame on warm/cold runs with full-resolution moving visibility; these totals
 include startup, cook, presentation, and GPU work, so they do not isolate ray
 dispatch. A stationary 90-frame run measured 37.0 ms/frame and 63 accumulated
@@ -200,7 +200,7 @@ on RGBA8 (signed mean 0.004). The mean difference fell from 2.195 at twelve
 samples, consistent with stochastic variance. This is a visual and throughput
 comparison, not byte-identical output parity.
 `PRISMEL_PATHTRACER_PROFILE=1 PRISMEL_PATHTRACER_FRAMES=90
-PRISMEL_PATHTRACER_ORBIT=1 dune exec examples/voxel_wall/main.exe` logs the
+PRISMEL_PATHTRACER_ORBIT=1 dune exec sketches/voxel_wall/main.exe` logs the
 completed path-tracer command buffer's Metal GPU time per frame. On this M1,
 89 completed frames had median 11.43 ms, p95 12.31 ms, mean 11.44 ms, and
 maximum 19.42 ms; the 90-frame application mean was 20.4 ms. GPU timestamps
@@ -211,7 +211,7 @@ attributing the remaining time to a single phase.
 
 ## SOP workflow example
 
-`examples/voxel_wall/` is the Houdini-style network Grid → Wall Depth → Copy
+`sketches/voxel_wall/` is the Houdini-style network Grid → Wall Depth → Copy
 Cubes (cube prototype), hosted in the `Sketch_ui.Environment3` workspace with
 the tracer painted into the view pane by the overlay hook. `wall_depth` is a
 `Procedural.Custom.map` node whose typed `Parameter.schema` (frequency,

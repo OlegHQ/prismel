@@ -184,7 +184,7 @@
  (alias smoke)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
-   (run %{exe:examples/voxel_wall/main.exe}))))
+   (run %{exe:sketches/voxel_wall/main.exe}))))
 
 (rule
  (alias smoke)

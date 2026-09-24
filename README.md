@@ -141,15 +141,17 @@ dune exec examples/pxui/main.exe
 dune exec examples/procedural_modeling/main.exe
 dune exec examples/boolean/main.exe
 dune exec examples/pathtracer/main.exe
-dune exec examples/voxel_wall/main.exe
 ```
+
+The larger editable voxel-wall sketch runs with
+`dune exec sketches/voxel_wall/main.exe`.
 
 Examples and sketches intended for automation must provide an explicit finite
 native smoke path; the runtime does not impose an implicit frame limit.
 
 ### Sketch workspace keys
 
-`Sketch_ui` environments (for example `examples/voxel_wall`) use a leader key:
+`Sketch_ui` environments (for example `sketches/voxel_wall`) use a leader key:
 press `Space`, read the which-key panel, then press one key. Pane-scoped keys
 apply to the pane you clicked last.
 
