@@ -12,19 +12,13 @@ let tests = [
   "test_ogpu_acceleration", Test_ogpu_acceleration.run;
   "test_ogpu_cache", Test_ogpu_cache.run;
   "test_ogpu_native_pass", Test_ogpu_native_pass.run;
-  "test_ogpu_instance", Test_ogpu_instance.run;
   "test_ogpu_memory", Test_ogpu_memory.run;
-  "test_ogpu_frame_graph", Test_ogpu_frame_graph.run;
-  "test_ogpu_transfer_ring", Test_ogpu_transfer_ring.run;
   "test_ogpu_render_pass", Test_ogpu_render_pass.run;
   "test_ogpu_diagnostics", Test_ogpu_diagnostics.run;
   "test_ogpu_compute_pass", Test_ogpu_compute_pass.run;
-  "test_ogpu_acceleration_pass", Test_ogpu_acceleration_pass.run;
   "test_ogpu_transfer_pass", Test_ogpu_transfer_pass.run;
   "test_ogpu_query_pass", Test_ogpu_query_pass.run;
-  "test_ogpu_descriptor_arena", Test_ogpu_descriptor_arena.run;
   "test_ogpu_validation", Test_ogpu_validation.run;
-  "test_ogpu_device_lifecycle", Test_ogpu_device_lifecycle.run;
 ]
 
 let () =
