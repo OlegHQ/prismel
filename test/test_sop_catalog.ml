@@ -38,6 +38,39 @@ let run () =
     |> Sop_catalog.Exploded_view.create in
   let fracture = List.hd (Node.inputs graph) in
   let orient = List.hd (Node.inputs targets) in
+  let custom_noise = Sop_catalog.Attribute_noise_quaternion.create
+      ~owner:Pdk.Attribute.Point ~name:"orient" ~seed:4
+      ~frequency:(Vec3.create 0.2 0.2 0.2) ~octaves:2
+      ~location:(Pdk.Attribute_ops.Noise_attribute "rest position")
+      ~range:(Pdk.Attribute_ops.Noise_min_max
+        (Pdk.Attribute_ops.Vec4 (0., 0.1, 0.2, 0.3),
+         Pdk.Attribute_ops.Vec4 (0.7, 0.8, 0.9, 1.)))
+      (List.hd (Node.inputs orient)) in
+  let field node name = List.find (fun value -> value.Parameter.name = name)
+      (Node.parameter_fields node) in
+  List.iter (fun (node, names) -> List.iter (fun name ->
+    let value = field node name in
+    check (value.current = value.default)
+      ("catalog create/menu default differs: " ^ name)) names)
+    [plane, ["group"; "direction_attribute"; "mask_attribute";
+             "height_attribute"; "recompute_normals"];
+     orient, ["group"; "owner"; "name"; "location"; "range"];
+     targets, ["group"; "mask_attribute"; "id_attribute";
+               "axis_x"; "axis_y"; "axis_z"];
+     fracture, ["resolve_cutter_self_intersections";
+                "detriangulation"; "require_closed"; "piece_attribute"]];
+  let changed_graph, effects = Graph.apply_parameters targets
+      ~node_id:(Node.id orient)
+      ["location", (field custom_noise "location").current;
+       "range", (field custom_noise "range").current] |> Result.get_ok in
+  let changed = Graph.find changed_graph ~node_id:(Node.id orient)
+      |> Option.get in
+  check (effects.cook && Node.id changed = Node.id orient
+      && (field changed "location").current
+         = (field custom_noise "location").current
+      && (field changed "range").current
+         = (field custom_noise "range").current)
+    "quaternion noise location/range were not editable schema fields";
   List.iter (fun (node, field, expected) ->
     let before = List.find (fun value -> value.Parameter.name = field)
         (Node.parameter_fields node) in

@@ -1962,13 +1962,18 @@ module Mountain = struct
   let factory = parameters_factory build
 
   let create ?label:node_label ?group ?direction_attribute ?mask_attribute
-      ?height_attribute ?(recompute_normals = false) ~seed ~height ~frequency
+      ?height_attribute
+      ?(recompute_normals = parameters_default.recompute_normals)
+      ~seed ~height ~frequency
       ~octaves ~lacunarity ~roughness input =
     build ~label:(label "mountain" node_label) ~inputs:[input] {
-        group = Option.value ~default:"" group;
-        direction_attribute = Option.value ~default:"" direction_attribute;
-        mask_attribute = Option.value ~default:"" mask_attribute;
-        height_attribute = Option.value ~default:"" height_attribute;
+        group = Option.value ~default:parameters_default.group group;
+        direction_attribute = Option.value
+          ~default:parameters_default.direction_attribute direction_attribute;
+        mask_attribute = Option.value
+          ~default:parameters_default.mask_attribute mask_attribute;
+        height_attribute = Option.value
+          ~default:parameters_default.height_attribute height_attribute;
         seed; height; frequency_x = frequency.Vec3.x;
         frequency_y = frequency.y; frequency_z = frequency.z;
         octaves; lacunarity; roughness; recompute_normals }
@@ -3063,11 +3068,78 @@ module Point_generate = struct
 end [@@sop.register]
 
 module Attribute_noise_quaternion = struct
+  let encode_location = function
+    | Pdk.Attribute_ops.Noise_position -> "position"
+    | Noise_element_number -> "element-number"
+    | Noise_attribute name -> "attribute:" ^ name
+
+  let decode_location = function
+    | "position" -> Ok Pdk.Attribute_ops.Noise_position
+    | "element-number" -> Ok Noise_element_number
+    | value when String.starts_with ~prefix:"attribute:" value ->
+        Ok (Noise_attribute (String.sub value 10 (String.length value - 10)))
+    | _ -> Error "location must be position, element-number, or attribute:name"
+
+  let location_parameter = Parameter.encoded ~equal:( = )
+      ~encode:encode_location ~decode:decode_location
+
+  let encode_numeric value = String.concat "," (match value with
+    | Pdk.Attribute_ops.Scalar x -> ["scalar"; string_of_float x]
+    | Vec2 value -> ["vec2"; string_of_float value.Vec2.x;
+        string_of_float value.y]
+    | Vec3 value -> ["vec3"; string_of_float value.Vec3.x;
+        string_of_float value.y; string_of_float value.z]
+    | Vec4 (x, y, z, w) -> ["vec4"; string_of_float x;
+        string_of_float y; string_of_float z; string_of_float w])
+
+  let decode_numeric value = match String.split_on_char ',' value with
+    | ["scalar"; x] -> Option.map (fun x -> Pdk.Attribute_ops.Scalar x)
+        (float_of_string_opt x)
+    | ["vec2"; x; y] ->
+        (match float_of_string_opt x, float_of_string_opt y with
+         | Some x, Some y -> Some (Vec2 (Vec2.create x y)) | _ -> None)
+    | ["vec3"; x; y; z] ->
+        (match float_of_string_opt x, float_of_string_opt y,
+            float_of_string_opt z with
+         | Some x, Some y, Some z -> Some (Vec3 (Vec3.create x y z))
+         | _ -> None)
+    | ["vec4"; x; y; z; w] ->
+        (match float_of_string_opt x, float_of_string_opt y,
+            float_of_string_opt z, float_of_string_opt w with
+         | Some x, Some y, Some z, Some w -> Some (Vec4 (x, y, z, w))
+         | _ -> None)
+    | _ -> None
+
+  let encode_range = function
+    | Pdk.Attribute_ops.Noise_positive -> "positive"
+    | Noise_zero_centered -> "zero-centered"
+    | Noise_min_max (minimum, maximum) ->
+        String.concat ";" ["min-max"; encode_numeric minimum;
+          encode_numeric maximum]
+
+  let decode_range value = match String.split_on_char ';' value with
+    | ["positive"] -> Ok Pdk.Attribute_ops.Noise_positive
+    | ["zero-centered"] -> Ok Noise_zero_centered
+    | ["min-max"; minimum; maximum] ->
+        (match decode_numeric minimum, decode_numeric maximum with
+         | Some minimum, Some maximum -> Ok (Noise_min_max (minimum, maximum))
+         | _ -> Error "invalid noise range bounds")
+    | _ -> Error "range must be positive, zero-centered, or min-max bounds"
+
+  let range_parameter = Parameter.encoded ~equal:( = )
+      ~encode:encode_range ~decode:decode_range
+
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Group"];
     owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
       [@sop.label "Owner"] [@sop.kind attribute_owner_parameter];
     name : string [@sop.default "orient"] [@sop.label "Attribute"];
+    location : Pdk.Attribute_ops.noise_location
+      [@sop.default Pdk.Attribute_ops.Noise_element_number]
+      [@sop.label "Location"] [@sop.kind location_parameter];
+    range : Pdk.Attribute_ops.noise_range
+      [@sop.default Pdk.Attribute_ops.Noise_zero_centered]
+      [@sop.label "Range"] [@sop.kind range_parameter];
     seed : int [@sop.default 0] [@sop.label "Seed"] [@sop.min 0]
       [@sop.max 9999];
     frequency_x : float [@sop.default 1.] [@sop.label "Frequency X"]
@@ -3087,32 +3159,30 @@ module Attribute_noise_quaternion = struct
     [@@sop.node_category "Attribute/Noise"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
 
-  let rec build ~location ~range ~label ~inputs parameters =
+  let rec build ~label ~inputs parameters =
     match inputs with
     | [input] ->
         Sop.attribute_noise ~label ?group:(optional_text parameters.group)
-          ~seed:parameters.seed ~location ~range
+          ~seed:parameters.seed ~location:parameters.location
+          ~range:parameters.range
           ~frequency:(Vec3.create parameters.frequency_x parameters.frequency_y
             parameters.frequency_z) ~octaves:parameters.octaves
           ~owner:parameters.owner ~name:parameters.name
           Pdk.Attribute_ops.Noise_quaternion input
         |> Node.parameterize ~schema:parameters_schema ~values:parameters
-             ~rebuild:(build ~location ~range)
+             ~rebuild:build
     | _ -> invalid_arg "Sop_catalog.Attribute_noise_quaternion expects one input"
 
-  (* One set of defaults for the node menu and [create]. *)
-  let default_location = Pdk.Attribute_ops.Noise_element_number
-  let default_range = Pdk.Attribute_ops.Noise_zero_centered
-
-  let factory = parameters_factory
-      (build ~location:default_location ~range:default_range)
+  let factory = parameters_factory build
 
   let create ?label:node_label ?group
-      ?(location = default_location) ?(range = default_range) ~owner ~name ~seed ~frequency
+      ?(location = parameters_default.location)
+      ?(range = parameters_default.range) ~owner ~name ~seed ~frequency
       ~octaves input =
-    build ~location ~range
-      ~label:(label "attribute-noise-quaternion" node_label) ~inputs:[input] {
-        group = Option.value ~default:"" group; owner; name;
+    build ~label:(label "attribute-noise-quaternion" node_label)
+      ~inputs:[input] {
+        group = Option.value ~default:parameters_default.group group;
+        owner; name; location; range;
         seed; frequency_x = frequency.Vec3.x; frequency_y = frequency.y;
         frequency_z = frequency.z; octaves }
 end [@@sop.register]
@@ -3155,11 +3225,14 @@ module Point_jitter = struct
   let factory = parameters_factory build
 
   let create ?label:node_label ?group ?mask_attribute ?id_attribute ~seed ~scale
-      ?(axis_scales = Vec3.create 1. 1. 1.) input =
+      ?(axis_scales = Vec3.create parameters_default.axis_x
+          parameters_default.axis_y parameters_default.axis_z) input =
     build ~label:(label "point-jitter" node_label) ~inputs:[input] {
-        group = Option.value ~default:"" group;
-        mask_attribute = Option.value ~default:"" mask_attribute;
-        id_attribute = Option.value ~default:"" id_attribute;
+        group = Option.value ~default:parameters_default.group group;
+        mask_attribute = Option.value
+          ~default:parameters_default.mask_attribute mask_attribute;
+        id_attribute = Option.value
+          ~default:parameters_default.id_attribute id_attribute;
         seed; scale; axis_x = axis_scales.Vec3.x; axis_y = axis_scales.y;
         axis_z = axis_scales.z }
 end [@@sop.register]
@@ -3215,9 +3288,12 @@ module Boolean_fracture = struct
 
   let factory = parameters_factory build
 
-  let create ?label:node_label ?(resolve_cutter_self_intersections = false)
-      ?(detriangulation = Pdk.Boolean.Triangles) ?(require_closed = true)
-      ?(piece_attribute = "piece") ~cutters source =
+  let create ?label:node_label
+      ?(resolve_cutter_self_intersections =
+          parameters_default.resolve_cutter_self_intersections)
+      ?(detriangulation = parameters_default.detriangulation)
+      ?(require_closed = parameters_default.require_closed)
+      ?(piece_attribute = parameters_default.piece_attribute) ~cutters source =
     build ~label:(label "boolean-fracture" node_label)
       ~inputs:[source; cutters]
       { parameters_default with resolve_cutter_self_intersections;
