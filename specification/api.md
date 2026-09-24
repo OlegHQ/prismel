@@ -520,10 +520,15 @@ nesting, `splitter`, floating `~at` boxes, and canvas `~xform` transforms.
 
 `Pxui.Settings` saves and loads model values in the `PXUI1` format.
 `Pxui.Camera_control` builds Camera (FOV, distance, clipping, inertia, reset)
-and Render (output name, save) sections, maps `C` to the camera section and
-`H` to whole-overlay visibility (`overlay`), and navigates `Easy_camera` in a
-control area with middle/right/Space-primary drag pan and vertical trackpad
-zoom (horizontal motion is ignored); render requests are explicit values.
+and Render (output name, save) sections, exposes `open_camera` and
+`toggle_ui` (whole-overlay visibility, `overlay`) for hosts to bind, and
+navigates `Easy_camera` in a control area with middle/right drag pan and
+vertical trackpad zoom (horizontal motion is ignored); render requests are
+explicit values. `Camera_control.fly` is one pure WASD/QE fly step (Shift ×4,
+pointer yaw/pitch, wheel speed) returning an ordinary orbit camera.
+`Pxui.Ui.modal`, `Ui.picker` (fuzzy windowed list with Enter/click pick and
+double-Delete), and `Ui.context_menu` (host-held open state, right click
+under 4 points via `Ui.context_clicked`) are the shared overlay widgets.
 `Pxui.Camera2_control` does the same for `Easy_camera2` with center, zoom,
 rotation, inertia, and reset.
 
@@ -560,6 +565,42 @@ retaining the previous successful preview. Overlay callbacks receive a
 view-local frame. Both environments retain one shared pause/stop/reset,
 dependency-aware cooking, status, selection, inspection, and finite native
 lifecycle.
+
+#### Sketch workspace keys
+
+`Space` (with no text field focused) opens a centered which-key panel; the
+next key runs a binding from `Sketch_ui.Leader.keymap`, the single table that
+drives both dispatch and the panel. Global bindings always apply; the others
+belong to the focused pane (the last one clicked, outlined in the accent
+colour). Escape, Space, an unknown key, a click, or focus loss cancel it.
+
+| Key | Scope | Action |
+|---|---|---|
+| `s` / `b` | global | save preset (name prompt) / preset browser |
+| `t` / `g` / `i` | global | toggle timeline / graph / inspector |
+| `h` / `c` | global | hide all UI / camera section |
+| `p` / `r` / `x` | global | play-pause / reset / stop |
+| `a` / `l` / `f` | graph | add-node menu / layout / frame selected tile |
+| `w` / `v` | view (3D) | fly mode / look through render camera |
+
+Direct keys remain: `Home` frames all tiles, `F` with the graph focused frames
+the viewport camera on the selected node's cooked bounds (through the shared
+cook worker), Delete/Backspace, Command/Ctrl-C/V/X/D/Z, and Escape. A right
+click (not a drag) opens graph context menus that emit the ordinary typed
+graph changes. The timeline bar (hidden by default) has play/pause, stop,
+reset, a frame/time readout, and a scrub slider that seeks (`Timeline.seek`)
+and recooks.
+
+`Environment3` keeps camera nodes (`Sop_catalog.Camera`, operation `camera`)
+in the document: a default one following the viewport is added when the
+catalog offers it, exactly one is ACTIVE (tile button or context menu), and
+`render_camera` drives look-through, PNG export, and sketch renderers such as
+the voxel wall's path tracer. Follow-viewport writes coalesce into one undo
+entry per gesture. Fly mode captures the pointer with
+`Sketch.set_relative_mouse`; Escape exits and Space exits into the leader.
+Presets (`Sketch_ui.Preset`) save the full document to
+`~/.prismel/<sketch>/<name>.json`; loading rebinds code-graph nodes by id,
+recreates catalog nodes from their factories, and is one undo entry.
 
 `Easy_camera2` is the immutable 2D view transform. It supplies resize-safe
 viewports and gesture areas, world/screen conversion, captured pan, inertia,

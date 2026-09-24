@@ -48,6 +48,24 @@ let () =
   let reset = Input.snapshot native in
   if reset.mouse_delta <> (0., 0.) || reset.wheel_delta <> (0., 0.) then
     failwith "frame deltas did not reset";
+  get (Runtime_next_input_sdl3.push native (Sdl3.Event.Key { timestamp_ns = 0L;
+    window_id = 1L; which = 2L; scancode = 44; keycode = 32; modifiers = 0;
+    raw_scancode = 44; down = true; repeat = false }));
+  (match Input.drain native with
+   | [Key_pressed { key = "Space"; _ }] -> ()
+   | _ -> failwith "the space bar did not arrive as the named Space key");
+  (* Relative mode sums SDL relative motion; the clamped absolute position
+     at the window edge no longer contributes. *)
+  Input.set_relative native true;
+  let edge x dx = Sdl3.Event.Mouse_motion { timestamp_ns = 0L; window_id = 1L;
+    which = 2L; buttons = 0L; x; y = 5.; dx; dy = -1. } in
+  List.iter (fun event -> get (Runtime_next_input_sdl3.push native event))
+    [edge 10. 25.; edge 10. 30.; edge 10. 5.];
+  if (Input.snapshot native).mouse_delta <> (60., -3.) then
+    failwith "relative mode did not accumulate SDL relative motion";
+  Input.set_relative native false;
+  Input.begin_frame native;
+  ignore (Input.drain native);
   get (Input.push native (Pointer_pressed (Left, 1., 1.)));
   get (Input.push native Focus_lost);
   if not (Input.snapshot native).pointer_captured then

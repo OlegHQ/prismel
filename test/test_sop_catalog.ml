@@ -95,8 +95,8 @@ let () =
   Session.close session;
   let factory_keys = List.map Edit_graph.factory_key
       Sop_catalog.Editor.factories in
-  check (List.length factory_keys = 159
-      && List.length (List.sort_uniq String.compare factory_keys) = 159)
+  check (List.length factory_keys = 160
+      && List.length (List.sort_uniq String.compare factory_keys) = 160)
     "PPX SOP manifest has a missing or duplicate factory key";
   List.iter (fun key -> check (List.mem key factory_keys)
       ("SOP editor catalog is missing " ^ key))

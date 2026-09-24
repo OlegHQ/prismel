@@ -611,8 +611,9 @@ graphs for procedural geometry, deterministic seeds for generative work, an
 native smoke runs.
 
 Prefer `Sketch_ui.Environment3` for 3D SOP scenes and
-`Sketch_ui.Environment2` for 2D SOP scenes. Both own P/S/R playback,
-G/I/C/H visibility, selected-node inspection, reactive cooking, camera/render
+`Sketch_ui.Environment2` for 2D SOP scenes. Both own leader-key (`Space`)
+playback, timeline, visibility, and preset bindings (`Sketch_ui.Leader.keymap`),
+selected-node inspection, reactive cooking, camera/render
 controls, resize handling, status, export, and finite native termination;
 sketch source should primarily define its graph and scene preparation.
 
@@ -623,7 +624,8 @@ camera/render controls in the inspector; selecting a node shows only that
 node's generated SOP parameters. Graph tile dragging is presentation-only and
 must preserve connectivity, stable IDs, caches, and cook state. Right/middle
 drag pans, wheel/trackpad motion zooms at the pointer, [Home] frames all, and
-[F] frames the selected node. The Space catalog must allow every SOP to be
+leader `f` frames the selected tile ([F] frames the viewport camera on it).
+The node menu (leader `Space a`) must allow every SOP to be
 created even when its inputs are not yet connected. Categories are non-empty
 paths rendered as nested submenus; typed search remains global and matches the
 full breadcrumb. A visual row limit must window the complete result set, never
@@ -641,13 +643,13 @@ record, stable node key, runtime operation identity, display label, category
 path, input arity, defaults, and rebuild closure together through
 `[@@deriving sop_params, sop_node]`, then
 mark the module `[@@sop.register]`. The PPX-generated deterministic manifest is
-the only Space-menu registry. Do not add a parallel hand-written factory list,
+the only node-menu registry. Do not add a parallel hand-written factory list,
 mutable registration initializer, or menu-only parameter defaults. Catalog
 tests must reject duplicate keys, instantiate every registered factory with
 disconnected input placeholders, and prove that the resulting `Node.operation`
 matches the descriptor identity. The workspace must obtain its
 `Pxui_graph.catalog_entry` values only through
-`Pxui_graph.catalog_of_factories`; tests must search the Space menu by every
+`Pxui_graph.catalog_of_factories`; tests must search the node menu by every
 generated stable key and receive that exact factory request. Use
 `[@@sop.node_operation "..."]` only when
 the menu key intentionally differs from the runtime operation; otherwise it

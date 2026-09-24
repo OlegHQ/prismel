@@ -63,6 +63,18 @@ let test_timeline_and_schedule () =
      || not (Sketch_support.Timeline.changed_context reset_changes)
   then fail "sketch timeline reset shortcut did not restart playback";
   ignore (Sketch_support.Timeline.context timeline |> string_ok);
+  (* Seek jumps at the mean observed step (0.25 s), pauses, and changes the
+     cook context; without shortcuts, keys no longer drive the clock. *)
+  let module T = Sketch_support.Timeline in
+  let sought, seek_changes = T.seek timeline ~frame:8L in
+  if T.frame sought <> 8L || T.time sought <> 2. || T.mode sought <> T.Paused
+     || not (T.changed_context seek_changes)
+  then fail "sketch timeline seek did not jump, pause, and change the context";
+  if T.frame (fst (T.seek timeline ~frame:(-3L))) <> 0L then
+    fail "sketch timeline seek did not clamp at frame 0";
+  let quiet, _ = T.update (T.create ~shortcuts:None ())
+      (timeline_frame ~events:[Event.KeyPressed (Input.KeyChar 'p')] ()) in
+  if T.mode quiet <> T.Playing then fail "timeline without shortcuts reacted to P";
 
   let static_graph = Sop.points [|0., 0., 0.|] in
   let dynamic_graph = Sop.custom ~operation:"timeline_test"

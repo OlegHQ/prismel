@@ -41,7 +41,7 @@ let capture prefix ~init ~update ~view =
     ~view ());
   let image = Image.load_exn (Filename.concat directory (prefix ^ "-000001.png")) in
   let width, height = Image.get_size image in
-  width, height, Result.get_ok (Image.Private.pixels image)
+  width, height, Result.get_ok (Image.Private.pixels image), directory
 
 (* Control rectangles of the stroked widgets, in logical points. *)
 let stroked_controls () =
@@ -74,11 +74,39 @@ let permitted density (x, y) =
     (near cx lx || near (cx + cw) lx) && (near cy ly || near (cy + ch) ly))
     (stroked_controls ())
 
+(* Overlay widgets have no retired counterpart; their golden is this kit's own
+   2x rendering, refreshed deliberately with PRISMEL_UPDATE_FIXTURES=<dir>. *)
+let overlays ui =
+  ignore (Pxui.Ui.modal ui ~width:220. "modal" (fun () ->
+    Pxui.Ui.label ui "Presets";
+    Pxui.Ui.picker ui ~limit:3 "Search presets" ~query:""
+      (fun _ -> [| "wall", "09-24"; "tower", "09-23"; "arch", "09-20";
+                   "dome", "09-19" |])));
+  ignore (Pxui.Ui.context_menu ui ~at:(12., 200.) "context"
+    ["View", true; "Set active camera", false; "Delete", true])
+
+let check_overlays () =
+  let width, height, actual, directory =
+    capture "overlays" ~init:(fun _ -> Pxui.Ui.create ())
+      ~update:(fun ui frame -> Pxui.Ui.frame ui frame overlays; ui)
+      ~view:(fun ui _ -> Scene.clear background :: Pxui.Ui.scene ui) in
+  (match Sys.getenv_opt "PRISMEL_UPDATE_FIXTURES" with
+   | Some target -> Sys.rename (Filename.concat directory "overlays-000001.png")
+       (Filename.concat target "kit_overlays_2x.png")
+   | None -> ());
+  let golden = Image.load_exn "fixtures/kit_overlays_2x.png" in
+  if Image.get_size golden <> (width, height) then
+    print_endline "PXUI overlay parity: skipped (golden is 2x)"
+  else if Result.get_ok (Image.Private.pixels golden) <> actual then
+    failwith "PXUI modal/picker/context menu drifted from fixtures/kit_overlays_2x.png"
+  else print_endline "PXUI overlay parity: exact"
+
 let () =
+  check_overlays ();
   let golden = Image.load_exn "fixtures/kit_panel_2x.png" in
   let old_width, old_height = Image.get_size golden in
   let expected = Result.get_ok (Image.Private.pixels golden) in
-  let width, height, actual =
+  let width, height, actual, _ =
     capture "new" ~init:(fun _ -> Pxui.Ui.create ())
       ~update:(fun ui frame -> Pxui.Ui.frame ui frame new_panel; ui)
       ~view:(fun ui _ -> Scene.clear background :: Pxui.Ui.scene ui) in

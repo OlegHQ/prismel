@@ -1,7 +1,8 @@
 (** Reusable camera and render panels for 3D and 2D sketches.
 
-    [H] hides every PXUI element and overlay; [C] shows the UI and toggles the
-    Camera section. Sliders read the camera every frame, so the panel never
+    {!Camera_control.toggle_ui} hides every PXUI element and overlay;
+    {!Camera_control.open_camera} shows the UI and toggles the Camera section.
+    Hosts bind them to keys (Sketch_ui uses its leader). Sliders read the camera every frame, so the panel never
     writes values back. *)
 
 module Camera_control : sig
@@ -10,8 +11,8 @@ module Camera_control : sig
 
   val create : ?prefix:string -> unit -> t
 
-  val shortcuts : ?text_focus:bool -> t -> Prismel.Frame.t -> t
-  (** Apply [H]/[C] unless [text_focus]. *)
+  val toggle_ui : t -> t
+  val open_camera : t -> t
 
   val widgets :
     t -> Ui.t -> camera:Prismel.Easy_camera.t ->
@@ -22,14 +23,13 @@ module Camera_control : sig
   val navigate :
     ?control_area:int * int * int * int -> t -> Prismel.Easy_camera.t ->
     Prismel.Frame.t -> Prismel.Easy_camera.t
-  (** Orbit, pan (middle/right drag), zoom, and Space translation inside
-      [control_area]. *)
+  (** Orbit, pan (middle/right drag), and zoom inside [control_area]. *)
 
   val panel :
     ?x:float -> ?y:float -> ?width:float -> t -> Ui.t ->
     camera:Prismel.Easy_camera.t -> Prismel.Frame.t ->
     t * Prismel.Easy_camera.t * render_request list
-  (** Shortcuts, a panel fitted to the frame height, and navigation in the
+  (** A panel fitted to the frame height, and navigation in the
       larger area beside it. Call inside [Ui.frame]. *)
 
   val ui_visible : t -> bool
@@ -37,6 +37,15 @@ module Camera_control : sig
   val save :
     ?background:Prismel.Color.t -> render_request -> frame:Prismel.Frame.t ->
     camera:Prismel.Easy_camera.t -> Prismel.Scene3.t -> (unit, string) result
+
+  val fly :
+    speed:float -> Prismel.Easy_camera.t -> Prismel.Frame.t ->
+    Prismel.Easy_camera.t * float
+  (** One frame of WASD fly navigation: held W/S, D/A, and Q/E move forward,
+      right, and up at [speed] units per second (Shift four times faster);
+      [Frame.mouse_delta] yaws about the up axis and pitches within 89 degrees;
+      each wheel step scales the returned speed by 1.2. The result is an
+      ordinary orbit camera, so orbiting resumes seamlessly. *)
 end
 
 module Camera2_control : sig
@@ -44,7 +53,8 @@ module Camera2_control : sig
   type render_request = { filename : string; factor : int }
 
   val create : ?prefix:string -> unit -> t
-  val shortcuts : ?text_focus:bool -> t -> Prismel.Frame.t -> t
+  val toggle_ui : t -> t
+  val open_camera : t -> t
   val widgets :
     t -> Ui.t -> camera:Prismel.Easy_camera2.t ->
     t * Prismel.Easy_camera2.t * render_request list

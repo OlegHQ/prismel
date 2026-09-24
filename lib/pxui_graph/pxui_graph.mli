@@ -14,7 +14,7 @@ type catalog_entry = {
 }
 
 (** Convert define-once SOP descriptors into the exact entries consumed by
-    the Space menu. Category paths become nested submenus; no second catalog
+    the node menu. Category paths become nested submenus; no second catalog
     is maintained by the sketch host. *)
 val catalog_of_factories :
   Procedural.Edit_graph.factory list -> catalog_entry list
@@ -49,7 +49,10 @@ type change =
   | Add_requested of add_request
   | Insert_requested of insert_request
   | Paste_requested of paste_request
-  | Layout_optimized
+  | Active_camera_changed of int
+      (** ACTIVE on a camera tile (operation ["camera"]) or its context menu *)
+  | Frame_camera_requested of int
+      (** frame the host's viewport camera on this node's cooked bounds *)
 
 type node_view = {
   id : int;
@@ -60,6 +63,8 @@ type node_view = {
   view_bounds : int * int * int * int;
   selected : bool;
   viewed : bool;
+  active : bool;
+  active_bounds : (int * int * int * int) option;  (** camera tiles only *)
   has_parameters : bool;
 }
 
@@ -97,12 +102,31 @@ val selected : t -> int option
 val selected_nodes : t -> int list
 val selected_connection : t -> Procedural.Edit_graph.connection option
 val viewed : t -> int
+val active_camera : t -> int option
+val with_active_camera : int option -> t -> t
+(** The flagged render camera. The host owns which camera is active and
+    re-applies it every frame, like the document. *)
+
 val select : int -> t -> t
 val select_nodes : int list -> t -> t
 val clear_selection : t -> t
 val view : int -> t -> t
 val place_node : node_id:int -> x:float -> y:float -> t -> t
 val node_views : t -> node_view list
+
+val node_positions : t -> (int * float * float) list
+(** Graph-space tile positions of every node, the inverse of {!place_node}. *)
+
+val open_menu_at : int * int -> t -> t
+(** Open the hierarchical node menu at a screen point (clamped inside the
+    canvas). With a selected wire it offers one-input nodes for insertion. *)
+
+val optimize_layout : t -> t
+(** Re-run automatic layout, dropping manual tile positions, and frame all. *)
+
+val frame_selected : t -> t
+(** Frame the selected tiles, or all tiles when nothing is selected. *)
+
 val stats : t -> stats
 
 (** Interaction contract:
@@ -114,8 +138,9 @@ val stats : t -> stats
     - Delete/Backspace removes selected nodes or the selected wire;
     - Command/Ctrl-C, -V, and -X copy, paste, and cut selected subgraphs;
       Command/Ctrl-D duplicates them with fresh logical node IDs;
-    - [O] optimizes and frames layout, [Home] frames all, [F] frames selection;
-    - Space opens the hierarchical node menu. Category paths form submenus,
+    - [Home] frames all; the host binds {!optimize_layout},
+      {!frame_selected}, and {!open_menu_at} (Sketch_ui: leader [l], [f], [a]);
+    - the hierarchical node menu: category paths form submenus,
       while typed search matches labels, keys, and complete breadcrumbs across
       the entire catalog; on a selected wire it offers one-input nodes for
       atomic insertion. *)

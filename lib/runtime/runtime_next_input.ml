@@ -44,6 +44,9 @@ type t = {
   mutable logical_width : int;
   mutable logical_height : int;
   mutable dropped_events : int;
+  (* Relative (captured) pointer mode: motion deltas come from the device's
+     relative motion, since absolute positions stop at the window edge. *)
+  mutable relative : bool;
 }
 
 let create ~max_events ~max_file_bytes ~logical_width ~logical_height =
@@ -55,7 +58,7 @@ let create ~max_events ~max_file_bytes ~logical_width ~logical_height =
     Ok { max_events; max_file_bytes; events = Queue.create (); pointer = (0., 0.);
       mouse_delta = (0., 0.); wheel_delta = (0., 0.); buttons = []; keys = [];
       pointer_captured = false; logical_width; logical_height;
-      dropped_events = 0 }
+      dropped_events = 0; relative = false }
 
 let add_unique value values =
   if List.mem value values then values else values @ [ value ]
@@ -79,7 +82,8 @@ let apply value = function
       let old_x, old_y = value.pointer in
       let dx, dy = value.mouse_delta in
       value.pointer <- (x, y);
-      value.mouse_delta <- (dx +. x -. old_x, dy +. y -. old_y)
+      if not value.relative then
+        value.mouse_delta <- (dx +. x -. old_x, dy +. y -. old_y)
   | Pointer_pressed (button, x, y) ->
       value.pointer <- (x, y);
       value.buttons <- add_unique button value.buttons;
@@ -123,6 +127,13 @@ let drain value =
   let events = List.of_seq (Queue.to_seq value.events) in
   Queue.clear value.events;
   events
+
+let set_relative value relative = value.relative <- relative
+let relative value = value.relative
+
+let add_motion value ~dx ~dy =
+  if value.relative then
+    let x, y = value.mouse_delta in value.mouse_delta <- (x +. dx, y +. dy)
 
 let begin_frame value =
   value.mouse_delta <- (0., 0.);

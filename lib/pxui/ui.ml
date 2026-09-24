@@ -195,6 +195,12 @@ and ui = {
   mutable active_press : float * float;
   mutable focus : int;
   mutable composition : string;
+  (* this frame's raw events and logical size, for modal dismissal *)
+  mutable frame_events : Event.t list;
+  mutable view_w : float;
+  mutable view_h : float;
+  (* last laid-out height per modal key, kept while the modal is closed *)
+  modal_heights : (int, float) Hashtbl.t;
   signals : accumulator Int_table.t;
   (* previous frame's hit list, in paint order *)
   mutable hit_count : int;
@@ -426,6 +432,7 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     kit_row_height = 24; kit_padding = 3;
     pointer = (Float.nan, Float.nan); hot = 0; active = 0;
     active_button = Input.LeftButton; active_press = (0., 0.); focus = 0; composition = "";
+    frame_events = []; view_w = 0.; view_h = 0.; modal_heights = Hashtbl.create 4;
     signals = Int_table.create 16;
     hit_count = 0; hit_keys = [||]; hit_flags_of = [||];
     hit_x = [||]; hit_y = [||]; hit_w = [||]; hit_h = [||];
@@ -548,6 +555,8 @@ let scroll_target ui point =
 
 let route ui (frame : Frame.t) =
   Int_table.reset ui.signals;
+  ui.frame_events <- frame.events;
+  ui.view_w <- float frame.width; ui.view_h <- float frame.height;
   let set_pointer (x, y) = ui.pointer <- (float x, float y) in
   List.iter (fun (event : Event.t) -> match event with
     | Event.MouseMoved point ->
@@ -1298,8 +1307,8 @@ let hover_row paint ui (x, y, w, h) =
   fill paint (x, y + 2, w, max 1 (h - 4))
     (Color.with_alpha (Theme.hover_fill ui.theme) 150)
 
-let panel ui ?(x = 12.) ?(y = 12.) ?(width = 280.) ?max_height ?(row_height = 24)
-    ?(padding = 3) label f =
+let panel_with ?stroke ui ?(x = 12.) ?(y = 12.) ?(width = 280.) ?max_height
+    ?(row_height = 24) ?(padding = 3) label f =
   if row_height < 24 then invalid_arg "Ui.panel: row_height must be at least 24";
   if padding < 0 then invalid_arg "Ui.panel: padding must be non-negative";
   let width = Float.max 180. width in
@@ -1312,6 +1321,8 @@ let panel ui ?(x = 12.) ?(y = 12.) ?(width = 280.) ?max_height ?(row_height = 24
   let theme = ui.theme and index = panel.index in
   draw ui panel (fun paint (x, y, w, h) -> Paint.fill paint ~x ~y ~w ~h theme.panel);
   draw_over ui panel (fun paint rect ->
+    Option.iter (fun color -> let x, y, w, h = rect in
+      Paint.stroke paint ~x ~y ~w ~h ~width:1. color) stroke;
     let x, y, width, height = ints rect in
     let content = int_of_float ui.l_content.(index) in
     let maximum = max 0 (content - height) in
@@ -1333,6 +1344,29 @@ let panel ui ?(x = 12.) ?(y = 12.) ?(width = 280.) ?max_height ?(row_height = 24
   Fun.protect ~finally:(fun () ->
     ui.kit_row_height <- previous_row; ui.kit_padding <- previous_padding)
     (fun () -> within ui panel f)
+
+let panel ui = panel_with ui
+
+(* A centered panel from last frame's height. Esc, window focus loss, or a
+   press outside it dismisses it: the builder is skipped and [None] returned,
+   so the host drops its open state. *)
+let modal ui ?(width = 320.) label f =
+  let key = key_of (current_seed ui) label in
+  let slot = Table.find ui.table key in
+  let rect = if slot >= 0 then ui.rx.(slot), ui.ry.(slot), ui.rw.(slot), ui.rh.(slot)
+    else 0., 0., 0., 0. in
+  if slot >= 0 then Hashtbl.replace ui.modal_heights key ui.rh.(slot);
+  let height = Option.value ~default:0. (Hashtbl.find_opt ui.modal_heights key) in
+  let dismissed = List.exists (function
+    | Event.KeyPressed Input.Escape | Event.WindowFocusLost -> true
+    | Event.MousePressed (_, (px, py)) ->
+        slot >= 0 && not (contains rect (float px, float py))
+    | _ -> false) ui.frame_events in
+  if dismissed then None else
+    let x = Float.round (Float.max 0. ((ui.view_w -. width) /. 2.))
+    and y = Float.round (Float.max 0. ((ui.view_h -. height) /. 2.)) in
+    Some (panel_with ~stroke:ui.theme.accent ui ~x ~y ~width
+      ~max_height:(Float.max 48. (ui.view_h -. 32.)) label f)
 
 let label ui text =
   let row = kit_row ui ~flags:none text in
@@ -1645,6 +1679,131 @@ let xy ui text ~x_range:(x_min, x_max) ~y_range:(y_min, y_max) (px, py) =
       ~radius:(if pressed then 6. else 5.) ~fill:theme.accent
       ~stroke:theme.foreground ());
   px, py
+
+type pick = [ `None | `Pick of int | `Delete of int | `Submit | `Back | `Cancel ]
+
+(* ponytail: case-insensitive subsequence match, no scoring; swap for
+   fzf-style ranking if lists grow long. *)
+let fuzzy_match ~query text =
+  let query = String.lowercase_ascii query and text = String.lowercase_ascii text in
+  let length = String.length text in
+  let rec walk at index =
+    index = String.length query
+    || (at < length && walk (at + 1) (if text.[at] = query.[index] then index + 1 else index)) in
+  walk 0 0
+
+(* A focused search row over a windowed list. The cursor (search box state)
+   and an armed delete row (list box state) are retained; the host keeps the
+   query and applies the result. *)
+let picker ui ?(limit = 10) label ~query rows_of =
+  let rows = ref (rows_of query) in
+  let count () = Array.length !rows in
+  let search = kit_row ui ~flags:(clickable lor focusable lor blocking) label in
+  focus ui search;
+  let list = box ui ~w:Grow ~h:Fit ~axis:Column (label ^ "##rows") in
+  let keys = (signal ui search).keys in
+  let clamp cursor = if count () = 0 then 0 else max 0 (min (count () - 1) cursor) in
+  let cursor = ref (clamp (state ui search ~default:0))
+  and armed = ref (state ui list ~default:(-1)) and query = ref query
+  and result = ref `None in
+  let set_query text = query := text; rows := rows_of text; cursor := 0; armed := -1 in
+  List.iter (fun (event : Event.t) -> let count = count () in
+    if !result = `None then match event with
+    | Event.TextInput typed -> set_query (!query ^ typed)
+    | Event.KeyPressed Input.Backspace when !query = "" -> result := `Back
+    | Event.KeyPressed Input.Backspace -> set_query (drop_last_utf8 !query)
+    | Event.KeyPressed Input.ArrowLeft when !query = "" -> result := `Back
+    | Event.KeyPressed Input.ArrowDown when count > 0 ->
+        cursor := (!cursor + 1) mod count; armed := -1
+    | Event.KeyPressed Input.ArrowUp when count > 0 ->
+        cursor := (!cursor + count - 1) mod count; armed := -1
+    | Event.KeyPressed Input.Enter ->
+        result := if count > 0 then `Pick !cursor else `Submit
+    | Event.KeyPressed Input.Delete when count > 0 ->
+        if !armed = !cursor then (result := `Delete !cursor; armed := -1)
+        else armed := !cursor
+    | Event.KeyPressed Input.Escape -> result := `Cancel
+    | _ -> ()) keys;
+  let count = count () and rows = !rows in
+  let length = min limit count in
+  let start = if length = count then 0
+    else max 0 (min (count - length) (!cursor - (length / 2))) in
+  let theme = ui.theme and composition = ui.composition in
+  let shown_query = !query and placeholder = display label in
+  draw ui search (fun paint rect ->
+    let (x, y, w, h) = ints rect in
+    let control = x, y + 3, w, max 1 (h - 6) in
+    let cx, cy, cw, ch = control in
+    Paint.input_region paint ~x:(float cx) ~y:(float cy) ~w:(float cw) ~h:(float ch)
+      ~focused:true;
+    framed paint control ~fill:theme.input ~stroke:theme.accent;
+    if shown_query = "" then begin
+      kit_text paint ~color:(Theme.muted theme) (cx + 8) (label_y ui y h) placeholder;
+      kit_text paint (cx + 8 + int_of_float (Paint.text_width paint placeholder))
+        (label_y ui y h) (composition ^ "│")
+    end else
+      kit_text paint (cx + 8) (label_y ui y h) (shown_query ^ composition ^ "│"));
+  within ui list (fun () ->
+    for visible = 0 to length - 1 do
+      let index = start + visible in
+      let row = kit_row ui ~flags:(clickable lor blocking)
+          (Printf.sprintf "row###%d" visible) in
+      let row_signal = signal ui row in
+      if !result = `None && row_signal.clicked then result := `Pick index;
+      let current = index = !cursor and hovered = row_signal.hovered in
+      let doomed = index = !armed in
+      let text, detail = rows.(index) in
+      draw ui row (fun paint rect ->
+        let (x, y, w, h) as bounds = ints rect in
+        if current || doomed then
+          fill paint (x, y + 1, w, max 1 (h - 2))
+            (if doomed then Theme.invalid else theme.foreground)
+        else if hovered then hover_row paint ui bounds;
+        let color = if current || doomed then theme.input else theme.foreground in
+        kit_text paint ~color (x + 8) (label_y ui y h) text;
+        let detail_width = int_of_float (Paint.text_width paint detail) in
+        kit_text paint ~color:(if current || doomed then theme.input else Theme.muted theme)
+          (x + w - detail_width - 8) (label_y ui y h) detail)
+    done);
+  set_state ui search !cursor; set_state ui list !armed;
+  !query, !result
+
+let context_clicked (signal : signal) =
+  let (px, py), (rx, ry) = signal.press_point, signal.release_point in
+  signal.released && signal.button = Some Input.RightButton
+  && ((px -. rx) *. (px -. rx)) +. ((py -. ry) *. (py -. ry)) < 16.
+
+(* A floating kit menu at [at], kept inside the frame. The host holds whether
+   it is open; rows commit on press and release inside, disabled rows are
+   inert, and Escape, focus loss, or a press outside dismiss it. *)
+let context_menu ui ~at:(x, y) label items =
+  let width = 200. and row_height = float ui.kit_row_height in
+  let height = (float (List.length items) *. row_height) +. 6. in
+  let x = Float.max 0. (Float.min x (ui.view_w -. width))
+  and y = Float.max 0. (Float.min y (ui.view_h -. height)) in
+  let slot = Table.find ui.table (key_of (current_seed ui) label) in
+  let rect = if slot >= 0 then ui.rx.(slot), ui.ry.(slot), ui.rw.(slot), ui.rh.(slot)
+    else x, y, width, height in
+  let dismissed = List.exists (function
+    | Event.KeyPressed Input.Escape | Event.WindowFocusLost -> true
+    | Event.MousePressed (_, (px, py)) -> not (contains rect (float px, float py))
+    | _ -> false) ui.frame_events in
+  if dismissed then `Dismiss else
+    let picked = panel_with ~stroke:ui.theme.accent ui ~x ~y ~width label (fun () ->
+      List.mapi (fun index (text, enabled) ->
+        let row = kit_row ui ~flags:(if enabled then clickable lor blocking else blocking)
+            text in
+        let signal = signal ui row in
+        let theme = ui.theme and shown = display text in
+        draw ui row (fun paint rect ->
+          let (_, y, _, h) as bounds = ints rect in
+          let rx, _, _, _ = bounds in
+          if enabled && signal.hovered then hover_row paint ui bounds;
+          kit_text paint ~color:(if enabled then theme.foreground else Theme.muted theme)
+            (rx + 8) (label_y ui y h) shown);
+        if enabled && signal.clicked then Some index else None) items
+      |> List.find_map Fun.id) in
+    match picked with Some index -> `Pick index | None -> `Open
 
 let accordion ui ?(expanded = false) ?set_expanded text f =
   let row = kit_row ui text in

@@ -35,6 +35,11 @@ val set_root : int -> t -> (t, string) result
 val inspect : t -> node_info list
 val find : t -> node_id:int -> Node.t option
 val inputs : t -> node_id:int -> int option array option
+
+val node_factory_key : t -> node_id:int -> string option
+(** The catalog factory a node was added from; [None] for nodes that came from
+    a code graph ([of_graph]). *)
+
 val connections : t -> connection list
 
 (** Compile the document root, or a specific display node. Disconnected slots,

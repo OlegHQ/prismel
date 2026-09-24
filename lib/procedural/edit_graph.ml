@@ -77,6 +77,10 @@ let inspect value = List.filter_map (fun id ->
 let find value ~node_id = Option.map (fun (entry : entry) -> entry.node)
     (Id_map.find_opt node_id value.entries)
 
+let node_factory_key value ~node_id =
+  Option.bind (Id_map.find_opt node_id value.entries)
+    (fun (entry : entry) -> Option.map (fun factory -> factory.key) entry.factory)
+
 let inputs value ~node_id = Option.map (fun (entry : entry) ->
     Array.copy entry.inputs)
     (Id_map.find_opt node_id value.entries)

@@ -474,7 +474,8 @@ module Event : sig
   val poll_all : unit -> (t list, error) result
 
   (** Drain the native queue without building a motion/resize flood. Pointer
-      motion and window-size events keep only the latest sample; clicks, keys,
+      motion and window-size events keep only the latest sample (motion sums
+      the dropped samples' relative [dx]/[dy]); clicks, keys,
       text, focus, and quit stay ordered. *)
   val poll_coalesced : unit -> (t list, error) result
 

@@ -1,6 +1,8 @@
 open Prismel
 open Procedural
 
+module Preset = Preset
+
 type layout = {
   view_ratio : float;
   graph_ratio : float;
@@ -26,13 +28,6 @@ let default_layout = {
   min_graph_width = 180;
   min_inspector_width = 120;
 }
-
-let key_pressed character frame = Frame.has_event (function
-  | Event.KeyPressed (Input.KeyChar key) ->
-      Char.lowercase_ascii key = character
-      && not (List.mem Input.Meta frame.Frame.keys)
-      && not (List.mem Input.Ctrl frame.keys)
-  | _ -> false) frame
 
 let expanded_folders node =
   Node.parameter_fields node
@@ -61,14 +56,18 @@ let viewport_frame (x, y, width, height) (frame : Frame.t) =
     mouse = (fst frame.mouse - x, snd frame.mouse - y) }
 
 module Workspace = struct
-  type column = View | Graph | Inspector
+  type column = View | Graph | Inspector | Timeline
   type bounds = int * int * int * int
+
+  (* One kit row plus panel padding. *)
+  let timeline_height = 30
 
   type panes = {
     view : bounds;
     graph : bounds;
     inspector : bounds;
     status : bounds;
+    timeline : bounds;
     view_header : bounds;
     graph_header : bounds;
     inspector_header : bounds;
@@ -83,6 +82,7 @@ module Workspace = struct
     cached_view_collapsed : bool;
     cached_graph_collapsed : bool;
     cached_inspector_collapsed : bool;
+    cached_timeline_collapsed : bool;
     panes : panes;
   }
 
@@ -98,6 +98,7 @@ module Workspace = struct
     view_collapsed : bool;
     graph_collapsed : bool;
     inspector_collapsed : bool;
+    timeline_collapsed : bool;
     mutable geometry_cache : geometry_cache option;
   }
 
@@ -118,17 +119,20 @@ module Workspace = struct
       graph_ratio = layout.graph_ratio /. total;
       inspector_ratio = layout.inspector_ratio /. total;
       view_collapsed = false; graph_collapsed = false;
-      inspector_collapsed = false; geometry_cache = None }
+      inspector_collapsed = false; timeline_collapsed = true;
+      geometry_cache = None }
 
   let collapsed value = function
     | View -> value.view_collapsed
     | Graph -> value.graph_collapsed
     | Inspector -> value.inspector_collapsed
+    | Timeline -> value.timeline_collapsed
 
   let with_collapsed column state value = match column with
     | View -> { value with view_collapsed = state }
     | Graph -> { value with graph_collapsed = state }
     | Inspector -> { value with inspector_collapsed = state }
+    | Timeline -> { value with timeline_collapsed = state }
 
   let toggle column value = with_collapsed column (not (collapsed value column)) value
   let expand column value = with_collapsed column false value
@@ -193,7 +197,8 @@ module Workspace = struct
         && cached.cached_inspector_ratio = value.inspector_ratio
         && cached.cached_view_collapsed = value.view_collapsed
         && cached.cached_graph_collapsed = value.graph_collapsed
-        && cached.cached_inspector_collapsed = value.inspector_collapsed ->
+        && cached.cached_inspector_collapsed = value.inspector_collapsed
+        && cached.cached_timeline_collapsed = value.timeline_collapsed ->
         cached.panes
     | _ ->
         let widths = distribute value frame.Frame.width in
@@ -201,14 +206,18 @@ module Workspace = struct
         let x0 = 0 and x1 = widths.(0) + splitter
         and x2 = widths.(0) + splitter + widths.(1) + splitter in
         let header = min value.layout.header_height (max 0 (frame.height - 1)) in
-        let content_height = max 1 (frame.height - header) in
+        let timeline = if value.timeline_collapsed then 0
+          else min timeline_height (max 0 (frame.height - header - 1)) in
+        let bottom = frame.height - timeline in
+        let content_height = max 1 (bottom - header) in
         let status_height = min value.layout.status_height
             (max 0 (content_height - 1)) in
         let panes =
           { view = x0, header, widths.(0), content_height - status_height;
             graph = x1, header, widths.(1), content_height;
             inspector = x2, header, widths.(2), content_height;
-            status = x0, frame.height - status_height, widths.(0), status_height;
+            status = x0, bottom - status_height, widths.(0), status_height;
+            timeline = 0, bottom, frame.width, timeline;
             view_header = x0, 0, widths.(0), header;
             graph_header = x1, 0, widths.(1), header;
             inspector_header = x2, 0, widths.(2), header } in
@@ -220,6 +229,7 @@ module Workspace = struct
             cached_view_collapsed = value.view_collapsed;
             cached_graph_collapsed = value.graph_collapsed;
             cached_inspector_collapsed = value.inspector_collapsed;
+            cached_timeline_collapsed = value.timeline_collapsed;
             panes };
         panes
 
@@ -234,7 +244,8 @@ module Workspace = struct
     let x, y, width, height = match column with
       | View -> panes.view_header
       | Graph -> panes.graph_header
-      | Inspector -> panes.inspector_header in
+      | Inspector -> panes.inspector_header
+      | Timeline -> panes.timeline in
     let size = min height 26 in
     x + max 0 (width - size), y + ((height - size) / 2), size, size
 
@@ -263,8 +274,6 @@ module Workspace = struct
      pane backgrounds, splitters, and header bars with collapse buttons. *)
   let update value ui (frame : Frame.t) =
     let final = ref value in
-    let value = if key_pressed 'g' frame then toggle Graph value else value in
-    let value = if key_pressed 'i' frame then toggle Inspector value else value in
     let module Ui = Pxui.Ui in
     let panes = geometry value frame in
     let theme = Ui.theme ui in
@@ -305,8 +314,144 @@ module Workspace = struct
     value
 end
 
+module Leader = struct
+  type action =
+    | Save_preset | Browse_presets
+    | Toggle_timeline | Toggle_graph | Toggle_inspector | Hide_ui | Open_camera
+    | Play_pause | Reset | Stop
+    | Add_node | Layout | Frame_tile
+    | Look_through | Fly
+
+  type binding = {
+    key : char;
+    label : string;
+    scope : Workspace.column option;
+    action : action;
+  }
+
+  type state = Idle | Pending
+
+  (* One table drives both dispatch and the which-key panel. *)
+  let keymap = [
+    { key = 's'; label = "save preset"; scope = None; action = Save_preset };
+    { key = 'b'; label = "browse presets"; scope = None; action = Browse_presets };
+    { key = 't'; label = "toggle timeline"; scope = None; action = Toggle_timeline };
+    { key = 'g'; label = "toggle graph"; scope = None; action = Toggle_graph };
+    { key = 'i'; label = "toggle inspector"; scope = None; action = Toggle_inspector };
+    { key = 'h'; label = "hide all UI"; scope = None; action = Hide_ui };
+    { key = 'c'; label = "camera section"; scope = None; action = Open_camera };
+    { key = 'p'; label = "play / pause"; scope = None; action = Play_pause };
+    { key = 'r'; label = "reset"; scope = None; action = Reset };
+    { key = 'x'; label = "stop"; scope = None; action = Stop };
+    { key = 'a'; label = "add node"; scope = Some Workspace.Graph; action = Add_node };
+    { key = 'l'; label = "layout"; scope = Some Workspace.Graph; action = Layout };
+    { key = 'f'; label = "frame selected tile"; scope = Some Workspace.Graph;
+      action = Frame_tile };
+  ]
+
+  (* Bindings only the 3D environment has. *)
+  let keymap3 = keymap @ [
+    { key = 'w'; label = "fly (WASD, Q/E, Esc)"; scope = Some Workspace.View; action = Fly };
+    { key = 'v'; label = "look through render camera"; scope = Some Workspace.View;
+      action = Look_through };
+  ]
+
+  let visible keymap focus = List.filter (fun binding ->
+    binding.scope = None || binding.scope = Some focus) keymap
+
+  let modifier = function
+    | Input.Shift | Input.Ctrl | Input.Alt | Input.Meta -> true
+    | _ -> false
+
+  (* Space (no text focus, no command modifier) arms the leader; the next key
+     resolves it. Leader keys, and text typed while pending, are consumed. *)
+  let step keymap ~focus ~text_focus ~(frame : Frame.t) state =
+    let command = List.mem Input.Meta frame.keys || List.mem Input.Ctrl frame.keys in
+    let state, actions, passed = List.fold_left (fun (state, actions, passed) event ->
+      match state, event with
+      | Idle, Event.KeyPressed Input.Space when not text_focus && not command ->
+          Pending, actions, passed
+      | Idle, _ -> Idle, actions, event :: passed
+      | Pending, Event.KeyPressed key when modifier key -> Pending, actions, passed
+      | Pending, Event.KeyPressed (Input.KeyChar character) ->
+          let character = Char.lowercase_ascii character in
+          let actions = match List.find_opt (fun binding -> binding.key = character)
+              (visible keymap focus) with
+            | Some binding -> binding.action :: actions
+            | None -> actions in
+          Idle, actions, passed
+      (* The native window keeps text input on, so Space and letters also
+         produce text events: swallow them without resolving. *)
+      | Pending, (Event.TextInput _ | Event.TextEditing _) -> Pending, actions, passed
+      | Pending, (Event.KeyPressed _ | Event.MousePressed _) -> Idle, actions, passed
+      | Pending, Event.WindowFocusLost -> Idle, actions, event :: passed
+      | Pending, _ -> Pending, actions, event :: passed)
+      (state, [], []) frame.events in
+    (* A text event produced by the resolving key arrives after it. *)
+    let passed = if state = Idle && actions <> [] then List.filter (function
+        | Event.TextInput _ -> false | _ -> true) passed else passed in
+    state, List.rev actions, { frame with events = List.rev passed }
+
+  let pane_name = function
+    | Workspace.View -> "View" | Graph -> "Graph" | Inspector -> "Inspector"
+    | Timeline -> "Timeline"
+
+  (* The which-key panel, built last so it is topmost. *)
+  let panel ui keymap focus =
+    let module Ui = Pxui.Ui in
+    let theme = Ui.theme ui in
+    let row binding =
+      let box = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px (float_of_int (Ui.row_height ui)))
+          ("leader-" ^ String.make 1 binding.key) in
+      Ui.draw ui box (fun paint (x, y, _, h) ->
+        let y = y +. Float.max 5. ((h -. float_of_int (Ui.font_size ui) -. 3.) /. 2.) in
+        Ui.Paint.text paint ~at:(x +. 8., y) ~color:theme.accent
+          (String.make 1 binding.key);
+        Ui.Paint.text paint ~at:(x +. 40., y) ~color:theme.foreground binding.label) in
+    let section title scope =
+      match List.filter (fun binding -> binding.scope = scope) keymap with
+      | [] -> ()
+      | bindings -> Ui.label ui title; List.iter row bindings in
+    ignore (Ui.modal ui ~width:300. "leader" (fun () ->
+      section "Leader · global" None;
+      section (pane_name focus) (Some focus)))
+end
+
 module Core = struct
+  type bounds = Vec3.t * Vec3.t
+
+  (* The one worker serves display cooks and framing requests; display cooks
+     also report their geometry bounds so [F] on the displayed node is
+     immediate. *)
+  type 'prepared cooked =
+    | Displayed of 'prepared * bounds option
+    | Framed of bounds option
+
+  let geometry_bounds geometry =
+    let points = Pdk.Geometry.positions geometry in
+    let count = Pdk.Packed.Float3.length points in
+    if count = 0 then None else begin
+      let x, y, z = Pdk.Packed.Float3.get points 0 in
+      let lo = [| x; y; z |] and hi = [| x; y; z |] in
+      for index = 1 to count - 1 do
+        let x, y, z = Pdk.Packed.Float3.get points index in
+        lo.(0) <- Float.min lo.(0) x; lo.(1) <- Float.min lo.(1) y;
+        lo.(2) <- Float.min lo.(2) z; hi.(0) <- Float.max hi.(0) x;
+        hi.(1) <- Float.max hi.(1) y; hi.(2) <- Float.max hi.(2) z
+      done;
+      Some (Vec3.create lo.(0) lo.(1) lo.(2), Vec3.create hi.(0) hi.(1) hi.(2))
+    end
+
+  type prompt =
+    | Saving of string
+    | Browsing of { query : string; presets : (string * float) list }
+
   type 'prepared t = {
+    code_graph : Graph.t;
+    presets : string;  (* preset directory *)
+    name : string;  (* sketch name recorded in presets *)
+    prompt : prompt option;
+    notice : string option;
     graph : Graph.t;
     displayed_graph : Graph.t;
     document : Edit_graph.t;
@@ -317,7 +462,11 @@ module Core = struct
     ui : Pxui.Ui.t;
     workspace : Workspace.t;
     timeline : Sketch_support.Timeline.t;
-    worker : 'prepared Sketch_support.Reactive_sop.t;
+    worker : 'prepared cooked Sketch_support.Reactive_sop.t;
+    displayed_bounds : bounds option;
+    (* A framing job is in flight; [true] when it superseded a display cook
+       that must be resubmitted afterwards. *)
+    framing : bool option;
     schedule : Sketch_support.Reactive_sop.schedule;
     prepare : Session.output -> ('prepared, string) result;
     prepared : 'prepared option;
@@ -330,12 +479,29 @@ module Core = struct
     (* An inspector edit made while the primary button is held amends the
        open undo entry instead of adding one per frame. *)
     drag_edit : bool;
+    (* Re-run [prepare] on the next update even when the graph is unchanged,
+       for sketch-owned render modes that [prepare] reads. *)
+    force_cook : bool;
+    focus : Workspace.column;
+    leader : Leader.state;
+    keymap : Leader.binding list;
+    timeline_frames : int;
+    (* Time of the last coalescable environment view edit (follow viewport). *)
+    view_edit_at : float;
   }
 
   type 'prepared update = {
     core : 'prepared t;
     effects : Parameter.effects;
     prepared_changed : bool;
+    framed : bounds option option;
+    (** A framing request finished: [Some None] had no geometry. *)
+    loaded_view : Yojson.Safe.t option;
+    (** A preset loaded this frame; its environment view settings. *)
+    actions : Leader.action list;
+    (* The frame without leader-consumed events, for the environment's own
+       input handling. *)
+    input : Frame.t;
   }
 
   let pane_ui bounds =
@@ -349,7 +515,9 @@ module Core = struct
       ~width:(float_of_int width) ~max_height:(float_of_int height)
       "workspace-inspector-panel" build
 
-  let create ?(layout = default_layout) ?(factories = [])
+  let create ?(keymap = Leader.keymap) ?(seed_document = fun _ document -> document)
+      ?(name = "sketch") ?presets ?(timeline_frames = 240)
+      ?(layout = default_layout) ?(factories = [])
       ?(seed = 0L) ?(grain = 16_384)
       ?domains ?(max_entries = 32)
       ?(max_payload_bytes = 256 * 1024 * 1024)
@@ -358,19 +526,29 @@ module Core = struct
         let workspace = Workspace.create layout in
         let panes = Workspace.geometry workspace initial_frame in
         let gx, gy, gw, gh = panes.graph in
-        let document = Edit_graph.of_graph graph in
+        let document = seed_document factories (Edit_graph.of_graph graph) in
         let graph_view = Pxui_graph.create_document ~x:gx ~y:gy
             ~width:(max 1 gw) ~height:(max 1 gh)
             ~catalog:(Pxui_graph.catalog_of_factories factories) document in
-        { graph; displayed_graph = graph; document; factories; graph_view;
+        let presets = match presets with
+          | Some directory -> directory
+          | None -> Filename.concat (Filename.concat
+              (Option.value ~default:"." (Sys.getenv_opt "HOME")) ".prismel")
+              (Preset.sanitize name) in
+        { code_graph = graph; presets; name; prompt = None; notice = None;
+          graph; displayed_graph = graph; document; factories; graph_view;
           displayed_id = Node.id graph; inspector = None;
           ui = Pxui.Ui.create (); workspace;
-          timeline = Sketch_support.Timeline.create (); worker;
+          timeline = Sketch_support.Timeline.create ~shortcuts:None (); worker;
+          displayed_bounds = None; framing = None;
           schedule = Sketch_support.Reactive_sop.schedule_initial; prepare;
           prepared = None; edit_error = None; cook_error = None;
           cook_seconds = None; status_fps = None;
           status_fps_at = Float.neg_infinity;
-          history = Pxui.Undo.create document; drag_edit = false })
+          history = Pxui.Undo.create document; drag_edit = false;
+          force_cook = false; focus = Workspace.View; leader = Leader.Idle;
+          keymap; timeline_frames = max 1 timeline_frames;
+          view_edit_at = Float.neg_infinity })
         (Sketch_support.Reactive_sop.create ~seed ~grain ?domains ~max_entries
           ~max_payload_bytes ())
 
@@ -494,7 +672,7 @@ module Core = struct
              document, graph_view, None,
              Parameter.union_effects effects cook_effects)
     | Selected _ | Viewed _ | View_changed | Node_moved _ | Nodes_moved _
-    | Connection_selected _ | Layout_optimized ->
+    | Connection_selected _ | Active_camera_changed _ | Frame_camera_requested _ ->
         document, graph_view, error, effects
 
   let truncate limit text = if String.length text <= limit then text
@@ -510,6 +688,7 @@ module Core = struct
           (match value.edit_error, value.cook_error, value.cook_seconds with
            | Some error, _, _ -> "Graph edit rejected: " ^ truncate 49 error
            | None, Some error, _ -> "Cook rejected: " ^ truncate 54 error
+           | None, None, _ when value.notice <> None -> Option.get value.notice
            | None, None, Some seconds -> Printf.sprintf "Cook complete · %.3fs" seconds
            | None, None, None -> "Waiting for first cook") in
     cook ^ " · viewing " ^ viewing
@@ -537,8 +716,55 @@ module Core = struct
 
   (* Build the workspace in [ui] and apply its edits. [camera_panel] fills
      the inspector while no node is selected. *)
+  let pane_at (panes : Workspace.panes) point =
+    let px, py = point in
+    let inside (x, y, w, h) = px >= x && py >= y && px < x + w && py < y + h in
+    if inside panes.timeline then Some Workspace.Timeline
+    else if inside panes.graph then Some Workspace.Graph
+    else if inside panes.inspector then Some Workspace.Inspector
+    else if inside panes.view || inside panes.status then Some Workspace.View
+    else None
+
+  (* Leader actions owned by the workspace; the environment handles the rest
+     from [update.actions]. *)
+  let apply_action (frame : Frame.t) (workspace, graph_view, timeline, changes) action =
+    let module T = Sketch_support.Timeline in
+    let timeline_step step = let timeline, more = step timeline in
+      workspace, graph_view, timeline, changes @ more in
+    match action with
+    | Leader.Toggle_timeline ->
+        Workspace.toggle Workspace.Timeline workspace, graph_view, timeline, changes
+    | Toggle_graph ->
+        Workspace.toggle Workspace.Graph workspace, graph_view, timeline, changes
+    | Toggle_inspector ->
+        Workspace.toggle Workspace.Inspector workspace, graph_view, timeline, changes
+    | Open_camera ->
+        Workspace.expand Workspace.Inspector workspace,
+        Pxui_graph.clear_selection graph_view, timeline, changes
+    | Play_pause -> timeline_step T.toggle_pause
+    | Reset -> timeline_step T.reset
+    | Stop -> timeline_step T.stop
+    | Add_node ->
+        let gx, gy, gw, gh = (Workspace.geometry workspace frame).graph in
+        let mx, my = frame.mouse in
+        let at = if mx >= gx && my >= gy && mx < gx + gw && my < gy + gh
+          then frame.mouse else gx + (gw / 3), gy + (gh / 3) in
+        Workspace.expand Workspace.Graph workspace,
+        Pxui_graph.open_menu_at at graph_view, timeline, changes
+    | Layout -> workspace, Pxui_graph.optimize_layout graph_view, timeline, changes
+    | Frame_tile -> workspace, Pxui_graph.frame_selected graph_view, timeline, changes
+    | Hide_ui | Look_through | Fly | Save_preset | Browse_presets ->
+        workspace, graph_view, timeline, changes
+
   let update value ~all_ui_visible ~text_focus ~camera_panel ~render_status
-      (frame : Frame.t) =
+      ~view_state (frame : Frame.t) =
+    let panes = Workspace.geometry value.workspace frame in
+    let focus = List.fold_left (fun focus -> function
+      | Event.MousePressed (_, point) when all_ui_visible ->
+          Option.value ~default:focus (pane_at panes point)
+      | _ -> focus) value.focus frame.events in
+    let leader, actions, frame = Leader.step value.keymap ~focus ~text_focus ~frame
+        value.leader in
     let sample_fps = frame.time < value.status_fps_at
       || frame.time -. value.status_fps_at >= 1. in
     let status_fps, status_fps_at = if not sample_fps then
@@ -552,10 +778,40 @@ module Core = struct
       else frame in
     let timeline, timeline_changes = Sketch_support.Timeline.update
         value.timeline shortcut_frame in
-    let workspace = if key_pressed 'c' shortcut_frame then
-        Workspace.expand Workspace.Inspector value.workspace else value.workspace in
-    let graph_view = if key_pressed 'c' shortcut_frame
-        then Pxui_graph.clear_selection value.graph_view else value.graph_view in
+    let workspace, graph_view, timeline, timeline_changes = List.fold_left
+        (apply_action frame)
+        (value.workspace, value.graph_view, timeline, timeline_changes) actions in
+    let timeline = ref timeline and timeline_changes = ref timeline_changes in
+    (* ponytail: seeking recooks the pure graph at the target frame; state a
+       sketch threads through [run_state] outside the graph is not replayed. *)
+    let timeline_bar ui (x, y, width, height) =
+      let module T = Sketch_support.Timeline in
+      let module Ui = Pxui.Ui in
+      let current = !timeline in
+      let step action = let next, changes = action current in
+        timeline := next; timeline_changes := !timeline_changes @ changes in
+      Ui.panel ui ~x:(float_of_int x) ~y:(float_of_int y) ~width:(float_of_int width)
+        ~max_height:(float_of_int height) "workspace-timeline" (fun () ->
+        Ui.row ui ~gap:6. "timeline-row" (fun () ->
+          if Ui.button ui (if T.mode current = T.Playing then "Pause###timeline-play"
+            else "Play###timeline-play") then step T.toggle_pause;
+          if Ui.button ui "Stop###timeline-stop" then step T.stop;
+          if Ui.button ui "Reset###timeline-reset" then step T.reset;
+          let frame = T.frame current in
+          Ui.label ui (Printf.sprintf "f %Ld  %.2fs###timeline-readout" frame
+            (T.time current));
+          let range = Float.max (Int64.to_float frame) (float_of_int value.timeline_frames) in
+          let scrub = Ui.slider ui "Frame###timeline-scrub" ~range:(0., range)
+              (Int64.to_float frame) in
+          if scrub <> Int64.to_float frame then
+            step (T.seek ~frame:(Int64.of_float (Float.round scrub))))) in
+    (* [F] with the graph focused frames the viewport on the selected node. *)
+    let frame_request = ref (if focus = Workspace.Graph && all_ui_visible
+        && not (List.mem Input.Meta frame.keys || List.mem Input.Ctrl frame.keys)
+        && Frame.has_event (function
+          | Event.KeyPressed (Input.KeyChar ('f' | 'F')) -> true | _ -> false)
+          shortcut_frame
+      then Pxui_graph.selected value.graph_view else None) in
     let build ui =
       let workspace = Workspace.update workspace ui shortcut_frame in
       let panes = Workspace.geometry workspace frame in
@@ -566,6 +822,9 @@ module Core = struct
              (not (Workspace.collapsed workspace Workspace.Graph)) in
       let graph_view, graph_changes = if Pxui_graph.visible graph_view
         then Pxui_graph.update graph_view ui shortcut_frame else graph_view, [] in
+      List.iter (function
+        | Pxui_graph.Frame_camera_requested id -> frame_request := Some id
+        | _ -> ()) graph_changes;
       let document, graph_view, edit_error, editor_effects = List.fold_left
           (apply_editor_change value.factories)
           (value.document, graph_view, value.edit_error, Parameter.no_effects)
@@ -595,17 +854,109 @@ module Core = struct
                  | Error message -> Some inspector, document, Parameter.no_effects,
                      Some message
                  | Ok document -> Some inspector, document, effects, edit_error) in
+      if not (Workspace.collapsed workspace Workspace.Timeline) then
+        timeline_bar ui panes.timeline;
+      (* The focused pane's accent outline. *)
+      let theme = Pxui.Ui.theme ui in
+      let bounds = match focus with
+        | Workspace.View -> panes.view | Graph -> panes.graph
+        | Inspector -> panes.inspector | Timeline -> panes.timeline in
+      let x, y, w, h = bounds in
+      if w > 2 && h > 2 then
+        Pxui.Ui.draw ui (Workspace.floating ui bounds "workspace-focus")
+          (fun paint _ -> Pxui.Ui.Paint.stroke paint ~x:(float_of_int x +. 0.5)
+            ~y:(float_of_int y +. 0.5) ~w:(float_of_int (w - 1))
+            ~h:(float_of_int (h - 1)) ~width:1. theme.accent);
       workspace, graph_view, document, edit_error, inspector,
       Parameter.union_effects editor_effects parameter_effects in
+    let leader_panel ui = if leader = Leader.Pending then
+        Leader.panel ui value.keymap focus in
+    (* Presets: Space s names and saves the document, Space b browses, loads
+       (Enter), and deletes (Delete twice). A load replaces the document below
+       as one undo entry. *)
+    let prompt = List.fold_left (fun prompt -> function
+      | Leader.Save_preset -> Some (Saving (Preset.default_name ()))
+      | Browse_presets ->
+          Some (Browsing { query = ""; presets = Preset.list ~directory:value.presets })
+      | _ -> prompt) value.prompt actions in
+    let prompt = ref prompt and notice = ref value.notice and loaded = ref None in
+    let prompt_panel ui graph_view document =
+      let module Ui = Pxui.Ui in
+      (match !prompt with
+      | None -> ()
+      | Some (Saving name) ->
+          (match Ui.modal ui ~width:360. "preset-save" (fun () ->
+              Ui.label ui "Save preset";
+              Ui.picker ui "Preset name" ~query:name (fun _ -> [||])) with
+           | None | Some (_, `Cancel) -> prompt := None
+           | Some (name, `Submit) ->
+               prompt := None;
+               notice := Some (match Preset.save ~directory:value.presets ~name
+                   ~sketch:value.name ~document
+                   ~positions:(Pxui_graph.node_positions graph_view)
+                   ~display:(Some (Pxui_graph.viewed graph_view))
+                   ~active_camera:(Pxui_graph.active_camera graph_view)
+                   ~view:(view_state ()) with
+                 | Ok path -> "Saved preset " ^ Filename.basename path
+                 | Error message -> "Preset not saved: " ^ message)
+           | Some (name, _) -> prompt := Some (Saving name))
+      | Some (Browsing { query; presets }) ->
+          let rows query = List.filter (fun (name, _) -> Ui.fuzzy_match ~query name) presets
+            |> List.map (fun (name, time) ->
+              let tm = Unix.localtime time in
+              name, Printf.sprintf "%02d-%02d %02d:%02d" (tm.tm_mon + 1) tm.tm_mday
+                tm.tm_hour tm.tm_min) |> Array.of_list in
+          (match Ui.modal ui ~width:420. "preset-browse" (fun () ->
+              Ui.label ui (Printf.sprintf "Presets · %d" (List.length presets));
+              Ui.picker ui "Search presets" ~query rows) with
+           | None | Some (_, `Cancel) -> prompt := None
+           | Some (query, `Pick index) ->
+               let name = fst (rows query).(index) in
+               prompt := None;
+               (match Preset.load ~path:(Preset.path ~directory:value.presets ~name)
+                   ~code:value.code_graph ~factories:value.factories with
+                | Ok preset -> loaded := Some preset;
+                    notice := Some ("Loaded preset " ^ name)
+                | Error message -> notice := Some ("Preset rejected: " ^ message))
+           | Some (query, `Delete index) ->
+               let name = fst (rows query).(index) in
+               notice := Some (match Preset.delete ~directory:value.presets ~name with
+                 | Ok () -> "Deleted preset " ^ name
+                 | Error message -> "Preset not deleted: " ^ message);
+               prompt := Some (Browsing { query;
+                 presets = Preset.list ~directory:value.presets })
+           | Some (query, _) -> prompt := Some (Browsing { query; presets })));
+      (* A closed prompt must not keep keyboard focus into the next frame. *)
+      if !prompt = None && value.prompt <> None then Ui.unfocus ui in
     let workspace, graph_view, document, edit_error, inspector, effects =
       if all_ui_visible then
         Pxui.Ui.frame value.ui frame (fun ui ->
           let result = build ui in
           let (workspace, _, _, _, _, _) = result in
-          status_box { value with workspace; status_fps } ui frame ~render_status;
+          status_box { value with workspace; status_fps; notice = !notice } ui frame
+            ~render_status;
+          let (_, graph_view, document, _, _, _) = result in
+          prompt_panel ui graph_view document;
+          leader_panel ui;
           result)
-      else workspace, graph_view, value.document, value.edit_error,
-        value.inspector, Parameter.no_effects in
+      else begin
+        if leader = Leader.Pending then Pxui.Ui.frame value.ui frame leader_panel;
+        workspace, graph_view, value.document, value.edit_error,
+        value.inspector, Parameter.no_effects
+      end in
+    let timeline = !timeline and timeline_changes = !timeline_changes in
+    let prompt = !prompt and notice = !notice in
+    let document, graph_view, inspector, edit_error = match !loaded with
+      | None -> document, graph_view, inspector, edit_error
+      | Some (preset : Preset.loaded) ->
+          let graph_view = List.fold_left (fun view (node_id, x, y) ->
+              Pxui_graph.place_node ~node_id ~x ~y view)
+            (Pxui_graph.with_document preset.document graph_view |> Pxui_graph.clear_selection)
+            preset.positions in
+          let graph_view = match preset.display with
+            | Some id -> Pxui_graph.view id graph_view | None -> graph_view in
+          preset.document,
+          Pxui_graph.with_active_camera preset.active_camera graph_view, None, None in
     (* Shared undo stack: every document change (graph edits, node creation,
        paste, inspector commits) becomes one history entry; Command/Ctrl-Z
        undoes, Shift-Command/Ctrl-Z or Ctrl-Y redoes. *)
@@ -644,31 +995,82 @@ module Core = struct
       | Ok graph -> graph, edit_error
       | Error message -> value.displayed_graph, Some message in
     let completion = Sketch_support.Reactive_sop.poll value.worker in
-    let prepared, cook_error, cook_seconds, prepared_changed = match completion with
-      | None -> value.prepared, value.cook_error, value.cook_seconds, false
-      | Some { Async_cook.result = Ok prepared; seconds; _ } ->
-          Some prepared, None, Some seconds, true
+    (* Latest-request publishing: while framing, a completion is the framing
+       job's. *)
+    let resume = value.framing = Some true in
+    let prepared, cook_error, cook_seconds, prepared_changed, displayed_bounds,
+        framed, framing, force_next = match completion with
+      | None -> value.prepared, value.cook_error, value.cook_seconds, false,
+          value.displayed_bounds, None, value.framing, false
+      | Some { Async_cook.result = Ok (Displayed (prepared, bounds)); seconds; _ } ->
+          Some prepared, None, Some seconds, true, bounds, None, None, false
+      | Some { result = Ok (Framed bounds); _ } ->
+          value.prepared, value.cook_error, value.cook_seconds, false,
+          value.displayed_bounds, Some bounds, None, resume
+      | Some { result = Error _; _ } when value.framing <> None ->
+          value.prepared, value.cook_error, value.cook_seconds, false,
+          value.displayed_bounds, Some None, None, resume
       | Some { result = Error error; seconds; _ } ->
           value.prepared,
           Some (Sketch_support.Reactive_sop.error_to_string error),
-          Some seconds, false in
+          Some seconds, false, value.displayed_bounds, None, None, false in
     let schedule, submit = Sketch_support.Reactive_sop.schedule value.schedule
         ~graph:displayed_graph ~effects
         ~context_changed:(Sketch_support.Timeline.changed_context timeline_changes)
-        ~force:display_changed ~busy:(busy value.worker) ~frame in
-    let cook_error = if submit then match
+        ~force:(display_changed || value.force_cook)
+        ~busy:(busy value.worker || framing <> None) ~frame in
+    let prepare_display output = Result.map (fun prepared ->
+      Displayed (prepared, geometry_bounds output.Session.geometry))
+      (value.prepare output) in
+    let cook_error, framing = if submit then match
         Sketch_support.Reactive_sop.submit_timeline value.worker
-          ~timeline ~node:displayed_graph ~prepare:value.prepare with
-      | Ok _ -> None
-      | Error message -> Some message
-      else cook_error in
+          ~timeline ~node:displayed_graph ~prepare:prepare_display with
+      | Ok _ -> None, None
+      | Error message -> Some message, None
+      else cook_error, framing in
+    let framed, framing = match !frame_request with
+      | None -> framed, framing
+      | Some node_id when node_id = displayed_id && displayed_bounds <> None
+          && not document_changed -> Some displayed_bounds, framing
+      | Some node_id ->
+          (match Edit_graph.compile_node document ~node_id with
+           | Error _ -> Some None, framing
+           | Ok node ->
+               let was_busy = busy value.worker && framing = None in
+               match Sketch_support.Reactive_sop.submit_timeline value.worker
+                   ~timeline ~node ~prepare:(fun output ->
+                     Ok (Framed (geometry_bounds output.Session.geometry))) with
+               | Ok _ -> framed, Some (was_busy || Option.value ~default:false framing)
+               | Error _ -> Some None, framing) in
     { core = { value with graph; displayed_graph; document; graph_view; displayed_id;
         inspector; workspace; timeline; schedule; prepared; edit_error; cook_error;
-        cook_seconds; status_fps; status_fps_at; history; drag_edit };
-      effects; prepared_changed }
+        cook_seconds; status_fps; status_fps_at; history; drag_edit;
+        force_cook = force_next; focus; leader; displayed_bounds; framing; prompt;
+        notice = if document_changed && Option.is_none !loaded then None else notice;
+        view_edit_at = if document_changed then Float.neg_infinity
+          else value.view_edit_at };
+      effects; prepared_changed; framed;
+      loaded_view = Option.map (fun (preset : Preset.loaded) -> preset.view) !loaded;
+      actions; input = frame }
+
+  (* Environment-owned document edits (camera bookkeeping, follow viewport).
+     They never affect the displayed cook: [`Reset] starts the history,
+     [`Amend] folds into the present entry, and [`View time] coalesces a burst
+     of view edits (a drag, a wheel gesture) into one undo entry. *)
+  let environment_edit value mode document =
+    let history = match mode with
+      | `Reset -> Pxui.Undo.create document
+      | `Amend -> Pxui.Undo.amend document value.history
+      | `View time when time -. value.view_edit_at < 0.25 ->
+          Pxui.Undo.amend document value.history
+      | `View _ -> Pxui.Undo.commit document value.history in
+    { value with document; history;
+      graph_view = Pxui_graph.with_document document value.graph_view;
+      view_edit_at = (match mode with `View time -> time | _ -> value.view_edit_at) }
 
   let machinery value ~all_ui_visible =
-    if all_ui_visible then Pxui.Ui.scene value.ui else []
+    if all_ui_visible || value.leader = Leader.Pending then Pxui.Ui.scene value.ui
+    else []
 
   let close value =
     Pxui.Ui.destroy value.ui;
@@ -692,6 +1094,10 @@ module Environment3 = struct
     render_status : string option ref;
     pending_render : CC.render_request option;
     background : Color.t;
+    look_through : bool;
+    fly : float option;  (* flying at this speed, with relative pointer *)
+    (* The active camera node's view, refreshed each update. *)
+    render_camera : Camera.t;
     mutable hidden_scene_cache : hidden_scene_cache option;
   }
 
@@ -705,51 +1111,240 @@ module Environment3 = struct
     hidden_scene : Scene.t;
   }
 
-  let create ?(layout = default_layout) ?factories
+  (* ---- camera nodes: SOPs with operation "camera" (Sop_catalog.Camera),
+     read by parameter name so this library needs no catalog dependency. *)
+
+  let camera_ids document = Edit_graph.inspect document
+    |> List.filter_map (fun (info : Edit_graph.node_info) ->
+      if info.operation = "camera" then Some info.id else None)
+
+  let field node name = List.find_map (fun (field : Parameter.field_view) ->
+    if field.name = name then Some field.current else None) (Node.parameter_fields node)
+
+  let number node name default = match field node name with
+    | Some (Parameter.Float_value value) -> value | _ -> default
+
+  let follows node = field node "follow_viewport" = Some (Parameter.Bool_value true)
+
+  let node_camera node =
+    let vector prefix (default : Vec3.t) = Vec3.create
+        (number node (prefix ^ "_x") default.x) (number node (prefix ^ "_y") default.y)
+        (number node (prefix ^ "_z") default.z) in
+    match Camera.perspective ~fov_y:(number node "fov" 60. *. Float.pi /. 180.)
+        ~near:(number node "near" 0.1) ~far:(number node "far" 1000.)
+        ~at:(vector "eye" (Vec3.create 0. 0. 7.)) ~target:(vector "target" Vec3.zero) ()
+        |> Camera.with_up (vector "up" Vec3.unit_y) with
+    | camera -> Some camera
+    | exception Invalid_argument _ -> None
+
+  let view_parameters easy =
+    let camera = Easy_camera.camera easy in
+    let eye = Camera.position camera and target = Camera.target camera in
+    let float name value = name, Parameter.Float_value value in
+    [ float "eye_x" eye.x; float "eye_y" eye.y; float "eye_z" eye.z;
+      float "target_x" target.x; float "target_y" target.y; float "target_z" target.z;
+      float "fov" (Easy_camera.fov_y easy *. 180. /. Float.pi) ]
+
+  let same_view a b =
+    Vec3.nearly_equal (Camera.position a) (Camera.position b) ~eps:1e-6
+    && Vec3.nearly_equal (Camera.target a) (Camera.target b) ~eps:1e-6
+    && (match Camera.projection a, Camera.projection b with
+      | Perspective a, Perspective b -> Float.abs (a.fov_y -. b.fov_y) < 1e-6
+      | _ -> false)
+
+  let active_node (core : _ Core.t) = Option.bind (Pxui_graph.active_camera core.graph_view)
+      (fun node_id -> Edit_graph.find core.document ~node_id)
+
+  (* A default camera, following the viewport, when the catalog offers one. *)
+  let add_default_camera ~factories document easy =
+    let ( let* ) = Result.bind in
+    match List.find_opt (fun factory -> Edit_graph.factory_key factory = "camera")
+        factories with
+    | None -> None
+    | Some factory ->
+        Result.to_option (
+          let* node = Edit_graph.instantiate factory [] in
+          let* document = Edit_graph.add_node ~factory node document in
+          let* document, _ = Edit_graph.apply_parameters document ~node_id:(Node.id node)
+              (("follow_viewport", Parameter.Bool_value true) :: view_parameters easy) in
+          Ok document)
+
+  (* One ACTIVE camera whenever any exists; losing the last one re-adds the
+     default within the same undo entry. *)
+  let sync_cameras ~mode (core : _ Core.t) easy =
+    let core = if camera_ids core.document <> [] then core
+      else match add_default_camera ~factories:core.factories core.document easy with
+        | Some document -> Core.environment_edit core mode document
+        | None -> core in
+    let ids = camera_ids core.document in
+    let active = match Pxui_graph.active_camera core.graph_view with
+      | Some id when List.mem id ids -> Some id
+      | Some _ | None -> (match ids with id :: _ -> Some id | [] -> None) in
+    if active = Pxui_graph.active_camera core.graph_view then core
+    else { core with graph_view = Pxui_graph.with_active_camera active core.graph_view }
+
+  let render_camera_of core easy = match active_node core with
+    | Some node -> Option.value (node_camera node) ~default:(Easy_camera.camera easy)
+    | None -> Easy_camera.camera easy
+
+  let create ?(layout = default_layout) ?name ?presets ?timeline_frames ?factories
       ?(camera = Easy_camera.create ~target:Vec3.zero ~distance:7. ())
       ?(background = Color.hex_exn "#09090b") ?seed ?grain ?domains
       ?max_entries ?max_payload_bytes ~graph ~prepare ~scene3
       ?(overlay = fun _ _ _ -> Scene.empty) () =
     Result.map (fun core ->
+      let core = sync_cameras ~mode:`Reset core camera in
       { core; camera; camera_control = CC.create (); scene3; overlay;
         rendered = None; render_status = ref None; pending_render = None;
-        background; hidden_scene_cache = None })
-      (Core.create ~layout ?factories ?seed ?grain ?domains ?max_entries
-        ?max_payload_bytes ~graph ~prepare ())
+        background; look_through = false; fly = None;
+        render_camera = render_camera_of core camera; hidden_scene_cache = None })
+      (Core.create ~keymap:Leader.keymap3
+        ~seed_document:(fun factories document ->
+          if camera_ids document <> [] then document
+          else Option.value ~default:document
+              (add_default_camera ~factories document camera))
+        ~layout ?name ?presets ?timeline_frames ?factories ?seed
+        ?grain ?domains ?max_entries ?max_payload_bytes ~graph ~prepare ())
 
   let graph value = Core.graph value.core
   let document value = Core.document value.core
   let prepared value = Core.prepared value.core
   let camera value = value.camera
+  let render_camera value = value.render_camera
+  let flying value = value.fly <> None
+  let look_through value = value.look_through
   let timeline value = Core.timeline value.core
   let selected_node value = Core.selected_node value.core
   let displayed_node value = Core.displayed_node value.core
   let panes value frame = Core.panes value.core frame
   let graph_nodes value = Pxui_graph.node_views value.core.graph_view
   let rerender value =
-    { value with rendered = Option.map (value.scene3 (Core.displayed_node value.core))
+    { value with core = { value.core with Core.force_cook = true };
+      rendered = Option.map (value.scene3 (Core.displayed_node value.core))
           (Core.prepared value.core) }
   let can_undo value = Pxui.Undo.can_undo value.core.Core.history
   let can_redo value = Pxui.Undo.can_redo value.core.Core.history
 
+  (* Fly mode owns the keyboard: Escape or focus loss ends it; Space ends it
+     and reaches the workspace, arming the leader in the same frame. *)
+  let fly_input value (frame : Frame.t) =
+    match value.fly with
+    | None -> value.fly, frame
+    | Some _ as fly ->
+        let ends = List.exists (function
+          | Event.KeyPressed (Input.Escape | Input.Space) | Event.WindowFocusLost -> true
+          | _ -> false) frame.events in
+        (if ends then None else fly),
+        { frame with events = List.filter (function
+            | Event.KeyPressed Input.Space | Event.WindowFocusLost -> true
+            | Event.KeyPressed _ | Event.KeyReleased _ | Event.TextInput _
+            | Event.TextEditing _ -> false
+            | _ -> true) frame.events }
+
+  let set_relative enabled = ignore (Sketch.set_relative_mouse enabled)
+
+  (* Preset view settings: the viewport camera and look-through. *)
+  let view_json easy look_through =
+    let camera = Easy_camera.camera easy in
+    let vector (v : Vec3.t) = `List [`Float v.x; `Float v.y; `Float v.z] in
+    `Assoc [ "eye", vector (Camera.position camera); "target", vector (Camera.target camera);
+             "fov", `Float (Easy_camera.fov_y easy); "look_through", `Bool look_through ]
+
+  let load_view easy json =
+    let number = function `Float v -> Some v | `Int v -> Some (float_of_int v) | _ -> None in
+    let vector = function
+      | Some (`List [x; y; z]) ->
+          (match number x, number y, number z with
+           | Some x, Some y, Some z -> Some (Vec3.create x y z) | _ -> None)
+      | _ -> None in
+    match json with
+    | `Assoc fields ->
+        let field name = List.assoc_opt name fields in
+        let easy = match vector (field "eye"), vector (field "target") with
+          | Some eye, Some target -> Easy_camera.of_view ~eye ~target easy
+          | _ -> easy in
+        let easy = match Option.bind (field "fov") number with
+          | Some fov when fov > 0. && fov < Float.pi -> Easy_camera.with_fov_y fov easy
+          | _ -> easy in
+        easy, field "look_through" = Some (`Bool true)
+    | _ -> easy, false
+
   let update_with value frame ~inspector =
     let ui = value.core.Core.ui in
-    let control = CC.shortcuts ~text_focus:(Pxui.Ui.text_input_focused ui)
-        value.camera_control frame in
-    let visible = CC.ui_visible control in
-    let control = ref control and camera = ref value.camera
-    and requests = ref [] and inspected = ref None in
+    let raw_frame = frame in
+    let fly, frame = fly_input value frame in
+    if value.fly <> None && fly = None then set_relative false;
+    let visible = CC.ui_visible value.camera_control in
+    let control = ref value.camera_control and camera = ref value.camera
+    and requests = ref [] and inspected = ref None
+    and look_through = ref value.look_through in
     let camera_panel () =
       let next, edited, saves = CC.widgets !control ui ~camera:!camera in
       control := next; camera := edited; requests := saves;
+      look_through := Pxui.Ui.toggle ui "Look through render camera" !look_through;
       inspected := Some (inspector ui) in
     let update = Core.update value.core ~all_ui_visible:visible
         ~text_focus:(Pxui.Ui.text_input_focused ui) ~camera_panel
-        ~render_status:!(value.render_status) frame in
+        ~render_status:!(value.render_status)
+        ~view_state:(fun () -> view_json !camera !look_through) frame in
     let core = update.core and panes = Core.panes update.core frame in
+    let control = List.fold_left (fun control -> function
+      | Leader.Hide_ui -> CC.toggle_ui control
+      | Open_camera -> CC.open_camera control
+      | _ -> control) !control update.actions in
+    (match Option.map (load_view !camera) update.loaded_view with
+     | Some (loaded, look) -> camera := loaded; look_through := look
+     | None -> ());
+    let look_through = List.fold_left (fun look -> function
+      | Leader.Look_through -> not look | _ -> look) !look_through update.actions in
+    let fly = if fly = None && List.mem Leader.Fly update.actions then begin
+        set_relative true;
+        value.render_status :=
+          Some "Flying: WASD/QE move, Shift x4, wheel speed, Esc exits";
+        Some (Float.max 0.5 (Easy_camera.distance !camera *. 0.5))
+      end else fly in
+    let core = if core.document == value.core.document
+        && Pxui_graph.active_camera core.graph_view
+           = Pxui_graph.active_camera value.core.graph_view
+      then core else sync_cameras ~mode:`Amend core !camera in
+    let active = active_node core in
+    let following = Option.fold ~none:false ~some:follows active in
+    (* Looking through a camera that does not follow the viewport freezes
+       orbit input: the view shows exactly the render camera. *)
     let control_area = if visible then panes.view
       else 0, 0, frame.Frame.width, frame.height in
-    let camera = CC.navigate ~control_area !control !camera frame in
+    let camera, fly = match fly with
+      | _ when look_through && active <> None && not following -> !camera, fly
+      | Some speed ->
+          let camera, speed = CC.fly ~speed !camera raw_frame in camera, Some speed
+      | None -> CC.navigate ~control_area control !camera update.input, None in
+    let camera = match update.framed with
+      | Some (Some (min, max)) -> Easy_camera.frame_bounds ~min ~max camera
+      | Some None -> value.render_status := Some "Nothing to frame: no cooked points";
+          camera
+      | None -> camera in
+    (* Follow viewport: viewport motion writes the node (one coalesced undo
+       entry per gesture); otherwise node edits and undo move the viewport. *)
+    let core, camera = match active with
+      | Some node when following ->
+          let moved = not (same_view (Easy_camera.camera value.camera)
+              (Easy_camera.camera camera)) in
+          (match node_camera node with
+           | Some node_view when moved || not (same_view node_view (Easy_camera.camera camera)) ->
+               if moved then
+                 match Edit_graph.apply_parameters core.document ~node_id:(Node.id node)
+                     (view_parameters camera) with
+                 | Ok (document, _) ->
+                     Core.environment_edit core (`View frame.Frame.time) document, camera
+                 | Error _ -> core, camera
+               else core,
+                 (match Camera.projection node_view with
+                  | Perspective { fov_y; _ } -> Easy_camera.with_fov_y fov_y camera
+                  | _ -> camera)
+                 |> Easy_camera.of_view ~eye:(Camera.position node_view)
+                      ~target:(Camera.target node_view)
+           | Some _ | None -> core, camera)
+      | Some _ | None -> core, camera in
     let rendered = if update.prepared_changed || update.effects.view
         || update.effects.export then
         Option.map (value.scene3 (Core.displayed_node core)) (Core.prepared core)
@@ -758,7 +1353,8 @@ module Environment3 = struct
       | request :: _ -> Some request | [] -> None in
     if pending_render <> None && rendered = None then
       value.render_status := Some "Render unavailable until the first cook completes";
-    { value with core; camera; camera_control = !control; rendered; pending_render },
+    { value with core; camera; camera_control = control; rendered; pending_render;
+      look_through; fly; render_camera = render_camera_of core camera },
     !inspected
 
   let update value frame = fst (update_with value frame ~inspector:ignore)
@@ -772,10 +1368,24 @@ module Environment3 = struct
           | Error message -> "Render failed: " ^ message)
     | _ -> ()
 
+  (* The view shows the render camera while looking through it and on the
+     frame whose framebuffer a PNG request captures. *)
+  let view_camera value =
+    if value.look_through || value.pending_render <> None then value.render_camera
+    else Easy_camera.camera value.camera
+
   let scene value frame =
     let all_ui_visible = CC.ui_visible value.camera_control in
-    if not all_ui_visible then begin
-      let camera = Easy_camera.camera value.camera in
+    if not all_ui_visible && value.core.Core.leader = Leader.Pending then
+      Scene.clear value.background
+      :: (match value.rendered with
+        | Some rendered when Core.column_visible value.core Workspace.View ->
+            [Scene.view3d ~viewport:(0, 0, frame.Frame.width, frame.height)
+               ~camera:(view_camera value) rendered]
+        | Some _ | None -> [])
+      @ Core.machinery value.core ~all_ui_visible
+    else if not all_ui_visible then begin
+      let camera = view_camera value in
       let view_visible = Core.column_visible value.core Workspace.View in
       match value.hidden_scene_cache with
       | Some cached when cached.hidden_width = frame.Frame.width
@@ -803,7 +1413,7 @@ module Environment3 = struct
     let viewport = panes.view in
     let world = match value.rendered with
       | Some rendered when Core.column_visible value.core Workspace.View ->
-          [Scene.view3d ~viewport ~camera:(Easy_camera.camera value.camera) rendered]
+          [Scene.view3d ~viewport ~camera:(view_camera value) rendered]
       | Some _ | None -> [] in
     let x, y, width, height = viewport in
     let overlay = [Scene.clip ~at:(x, y) ~w:width ~h:height
@@ -813,12 +1423,15 @@ module Environment3 = struct
     Scene.clear value.background :: world @ overlay
     @ Core.machinery value.core ~all_ui_visible
 
-  let close value = Core.close value.core
+  let close value =
+    if value.fly <> None then set_relative false;
+    Core.close value.core
 
-  let run ?layout ?factories ?camera ?background ?seed ?grain ?domains ?max_entries
+  let run ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background ?seed ?grain ?domains ?max_entries
       ?max_payload_bytes ~config ~graph ~prepare ~scene3
       ?overlay () =
-    let init _frame = create ?layout ?factories ?camera ?background ?seed ?grain ?domains
+    let name = Option.value name ~default:(String.lowercase_ascii config.Sketch.title) in
+    let init _frame = create ?layout ~name ?presets ?timeline_frames ?factories ?camera ?background ?seed ?grain ?domains
         ?max_entries ?max_payload_bytes ~graph ~prepare ~scene3
         ?overlay () |> Result.get_ok in
     ignore (Sketch.run_state ~config ~init ~update ~view:scene
@@ -852,7 +1465,7 @@ module Environment2 = struct
     hidden_scene : Scene.t;
   }
 
-  let create ?(layout = default_layout) ?factories
+  let create ?(layout = default_layout) ?name ?presets ?timeline_frames ?factories
       ?(camera = Easy_camera2.create ())
       ?(background = Color.hex_exn "#09090b") ?seed ?grain ?domains
       ?max_entries ?max_payload_bytes ~graph ~prepare ~scene2
@@ -861,7 +1474,8 @@ module Environment2 = struct
       { core; camera; camera_control = CC2.create (); scene2; overlay;
         rendered = None; render_status = ref None; pending_render = None; background;
         hidden_scene_cache = None })
-      (Core.create ~layout ?factories ?seed ?grain ?domains ?max_entries
+      (Core.create ~layout ?name ?presets ?timeline_frames ?factories ?seed ?grain
+        ?domains ?max_entries
         ?max_payload_bytes ~graph ~prepare ())
 
   let graph value = Core.graph value.core
@@ -876,20 +1490,43 @@ module Environment2 = struct
 
   let update value frame =
     let ui = value.core.Core.ui in
-    let control = CC2.shortcuts ~text_focus:(Pxui.Ui.text_input_focused ui)
-        value.camera_control frame in
-    let visible = CC2.ui_visible control in
-    let control = ref control and camera = ref value.camera and requests = ref [] in
+    let visible = CC2.ui_visible value.camera_control in
+    let control = ref value.camera_control and camera = ref value.camera
+    and requests = ref [] in
     let camera_panel () =
       let next, edited, saves = CC2.widgets !control ui ~camera:!camera in
       control := next; camera := edited; requests := saves in
     let update = Core.update value.core ~all_ui_visible:visible
         ~text_focus:(Pxui.Ui.text_input_focused ui) ~camera_panel
-        ~render_status:!(value.render_status) frame in
+        ~render_status:!(value.render_status)
+        ~view_state:(fun () -> let center = Easy_camera2.center !camera in
+          `Assoc [ "center", `List [`Float center.Vec2.x; `Float center.y];
+                   "zoom", `Float (Easy_camera2.zoom !camera);
+                   "rotation", `Float (Easy_camera2.rotation !camera) ]) frame in
     let core = update.core and panes = Core.panes update.core frame in
+    (match update.loaded_view with
+     | Some (`Assoc fields) ->
+         let number = function Some (`Float v) -> Some v
+           | Some (`Int v) -> Some (float_of_int v) | _ -> None in
+         (match List.assoc_opt "center" fields with
+          | Some (`List [x; y]) ->
+              (match number (Some x), number (Some y) with
+               | Some x, Some y -> camera := Easy_camera2.with_center (Vec2.create x y) !camera
+               | _ -> ())
+          | _ -> ());
+         Option.iter (fun zoom -> if zoom > 0. then camera := Easy_camera2.with_zoom zoom !camera)
+           (number (List.assoc_opt "zoom" fields));
+         Option.iter (fun rotation -> camera := Easy_camera2.with_rotation rotation !camera)
+           (number (List.assoc_opt "rotation" fields))
+     | Some _ | None -> ());
+    let control = List.fold_left (fun control -> function
+      | Leader.Hide_ui -> CC2.toggle_ui control
+      | Open_camera -> CC2.open_camera control
+      | _ -> control) !control update.actions in
     let viewport = if visible then panes.view
       else 0, 0, frame.Frame.width, frame.height in
-    let camera = CC2.navigate ~control_area:viewport ~viewport !control !camera frame in
+    let camera = CC2.navigate ~control_area:viewport ~viewport control !camera
+        update.input in
     let rendered = if update.prepared_changed || update.effects.view
         || update.effects.export then
         Option.map (value.scene2 (Core.displayed_node core)) (Core.prepared core)
@@ -898,7 +1535,7 @@ module Environment2 = struct
       | request :: _ -> Some request | [] -> None in
     if pending_render <> None && rendered = None then
       value.render_status := Some "Render unavailable until the first cook completes";
-    { value with core; camera; camera_control = !control; rendered; pending_render }
+    { value with core; camera; camera_control = control; rendered; pending_render }
 
   let after_present value frame =
     match value.pending_render, value.rendered with
@@ -911,7 +1548,15 @@ module Environment2 = struct
 
   let scene value frame =
     let all_ui_visible = CC2.ui_visible value.camera_control in
-    if not all_ui_visible then begin
+    if not all_ui_visible && value.core.Core.leader = Leader.Pending then
+      Scene.clear value.background
+      :: (match value.rendered with
+        | Some rendered when Core.column_visible value.core Workspace.View ->
+            Easy_camera2.scene ~viewport:(0, 0, frame.Frame.width, frame.height)
+              value.camera rendered
+        | Some _ | None -> [])
+      @ Core.machinery value.core ~all_ui_visible
+    else if not all_ui_visible then begin
       let view_visible = Core.column_visible value.core Workspace.View in
       match value.hidden_scene_cache with
       | Some cached when cached.hidden_width = frame.Frame.width
@@ -952,10 +1597,11 @@ module Environment2 = struct
 
   let close value = Core.close value.core
 
-  let run ?layout ?factories ?camera ?background ?seed ?grain ?domains ?max_entries
+  let run ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background ?seed ?grain ?domains ?max_entries
       ?max_payload_bytes ~config ~graph ~prepare ~scene2
       ?overlay () =
-    let init _frame = create ?layout ?factories ?camera ?background ?seed ?grain ?domains
+    let name = Option.value name ~default:(String.lowercase_ascii config.Sketch.title) in
+    let init _frame = create ?layout ~name ?presets ?timeline_frames ?factories ?camera ?background ?seed ?grain ?domains
         ?max_entries ?max_payload_bytes ~graph ~prepare ~scene2
         ?overlay () |> Result.get_ok in
     ignore (Sketch.run_state ~config ~init ~update ~view:scene

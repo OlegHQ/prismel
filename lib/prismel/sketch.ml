@@ -3,6 +3,10 @@ type config={width:int;height:int;title:string;fps:int option;domains:int option
 let default_config={width=800;height=600;title="Prismel sketch";fps=Some 60;domains=None;clock=Realtime;resizable=true;fullscreen=false}
 let stopped=ref false let quit()=stopped:=true
 let resize_current : (width:int -> height:int -> unit) option ref = ref None
+let relative_current : (bool -> (unit, string) result) option ref = ref None
+let set_relative_mouse enabled = match !relative_current with
+  |None->Error"Sketch.set_relative_mouse: no sketch is running"
+  |Some set->set enabled
 let resize ~width ~height =
   if width<=0||height<=0 then invalid_arg"Sketch.resize: dimensions must be positive";
   match !resize_current with
@@ -45,6 +49,10 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
             Prismel_next_resources.Canvas.save_png canvas filename
             |>Result.map_error(fun error->Format.asprintf"%a"Prismel_next_resources.pp_error error)))in
   Canvas_runtime.install~capture~save;
+  relative_current:=Some(fun enabled->
+    match Prismel_next_execution.set_relative_mouse coordinator enabled with
+    |Ok()->Event.Private.set_relative enabled;Ok()
+    |Error error->Error(Format.asprintf"%a"Prismel_next_execution.pp_error error));
   resize_current:=Some(fun~width~height->
     get(Prismel_next_execution.resize coordinator~logical_width:width
       ~logical_height:height~drawable_width:width~drawable_height:height);
@@ -61,7 +69,10 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
     |Error error->
         failwith(Format.asprintf"Sketch.render: %a"Native_scene_lowering.pp_error error));
   let model=ref(init first)in
-  let cleanup()=Fun.protect~finally:(fun()->resize_current:=None;Canvas_runtime.clear();ignore(Prismel_next_execution.destroy coordinator);Runtime_diagnostics.Private.record coordinator)(fun()->on_stop!model)in
+  let cleanup()=Fun.protect~finally:(fun()->
+      (* Never leave the pointer captured after the sketch stops. *)
+      Option.iter(fun set->ignore(set false))!relative_current;
+      relative_current:=None;resize_current:=None;Canvas_runtime.clear();ignore(Prismel_next_execution.destroy coordinator);Runtime_diagnostics.Private.record coordinator)(fun()->on_stop!model)in
   Fun.protect~finally:cleanup(fun()->
     let limit=max_frames in let count=ref 0 in while not !stopped&&Option.fold~none:true~some:(fun limit-> !count<limit)limit do
       Time.update();let events=Event.poll_events()in

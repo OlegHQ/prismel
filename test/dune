@@ -28,8 +28,8 @@
 (test
  (name test_sketch_ui)
  (modules test_sketch_ui)
- (libraries prismel pdk procedural pxui pxui_graph sop_ui sketch_support
-  sketch_ui unix))
+ (libraries prismel pdk procedural pxui pxui_graph sop_ui sop_catalog
+  sketch_support sketch_ui unix))
 
 (test
  (name test_sop_catalog)

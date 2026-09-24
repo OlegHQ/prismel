@@ -198,15 +198,15 @@ let () =
       && List.exists (function Pxui_graph.Nodes_moved ids -> List.length ids = 2
         | _ -> false) changes)
     "dragging a multi-selection did not move and report the whole selection";
-  let edit_view, changes = update edit_view
-      (frame ~events:[Event.KeyPressed (Input.KeyChar 'o')] ()) in
-  check (List.mem Pxui_graph.Layout_optimized changes)
-    "O did not optimize the graph layout";
+  let moved = (node (Node.id source_a) edit_view).bounds in
+  let edit_view = Pxui_graph.optimize_layout edit_view in
+  check ((node (Node.id source_a) edit_view).bounds <> moved)
+    "optimize_layout did not re-run the automatic layout";
 
   let edit_view = Pxui_graph.select (Node.id source_a) edit_view in
   let menu_point = 400, 250 in
-  let edit_view, _ = update edit_view
-      (frame ~mouse:menu_point ~events:[Event.KeyPressed Input.Space] ()) in
+  let edit_view, _ = update (Pxui_graph.open_menu_at menu_point edit_view)
+      (frame ~mouse:menu_point ()) in
   let edit_view, changes = update edit_view
       (frame ~mouse:menu_point ~events:[Event.TextInput "null";
         Event.KeyPressed Input.Enter] ()) in
@@ -216,8 +216,8 @@ let () =
       | _ -> false) changes)
     "Space search did not emit a connected node-add request";
   let empty_view = Pxui_graph.clear_selection edit_view in
-  let empty_view, _ = update empty_view
-      (frame ~mouse:menu_point ~events:[Event.KeyPressed Input.Space] ()) in
+  let empty_view, _ = update (Pxui_graph.open_menu_at menu_point empty_view)
+      (frame ~mouse:menu_point ()) in
   let _, changes = update empty_view
       (frame ~mouse:menu_point ~events:[Event.TextInput "null";
         Event.KeyPressed Input.Enter] ()) in
@@ -229,14 +229,17 @@ let () =
       category = ["Create"; "Primitive"]; arity = 0 }] in
   let nested_view = Pxui_graph.create ~x:20 ~y:30 ~width:800 ~height:520
       ~catalog:nested_catalog graph in
-  let nested_view, _ = update nested_view
-      (frame ~mouse:menu_point ~events:[Event.KeyPressed Input.Space] ()) in
-  let _, changes = update nested_view
-      (frame ~mouse:menu_point ~events:[Event.KeyPressed Input.Enter;
-        Event.KeyPressed Input.Enter; Event.KeyPressed Input.Enter] ()) in
+  let nested_view, _ = update (Pxui_graph.open_menu_at menu_point nested_view)
+      (frame ~mouse:menu_point ()) in
+  (* Each Enter descends one level; the picker re-keys on the breadcrumb. *)
+  let enter view = update view
+      (frame ~mouse:menu_point ~events:[Event.KeyPressed Input.Enter] ()) in
+  let nested_view, _ = enter nested_view in
+  let nested_view, _ = enter nested_view in
+  let _, changes = enter nested_view in
   check (List.exists (function Pxui_graph.Add_requested request ->
       request.factory_key = "box" | _ -> false) changes)
-    "Space menu did not navigate category submenus to a SOP";
+    "node menu did not navigate category submenus to a SOP";
 
   let scrolling_catalog = List.init 15 (fun index -> {
       Pxui_graph.key = Printf.sprintf "node_%02d" index;
@@ -244,8 +247,8 @@ let () =
       category = ["Utility"]; arity = 0 }) in
   let scrolling_view = Pxui_graph.create ~x:20 ~y:30 ~width:800 ~height:520
       ~catalog:scrolling_catalog graph in
-  let scrolling_view, _ = update scrolling_view
-      (frame ~mouse:menu_point ~events:[Event.KeyPressed Input.Space] ()) in
+  let scrolling_view, _ = update (Pxui_graph.open_menu_at menu_point scrolling_view)
+      (frame ~mouse:menu_point ()) in
   let scrolling_view, _ = update scrolling_view
       (frame ~mouse:menu_point ~events:[Event.KeyPressed Input.Enter] ()) in
   let arrows = List.init 12 (fun _ -> Event.KeyPressed Input.ArrowDown) in
@@ -257,8 +260,8 @@ let () =
 
   let search_view, _ = update
       (Pxui_graph.create ~x:20 ~y:30 ~width:800 ~height:520
-         ~catalog:nested_catalog graph)
-      (frame ~mouse:menu_point ~events:[Event.KeyPressed Input.Space] ()) in
+         ~catalog:nested_catalog graph |> Pxui_graph.open_menu_at menu_point)
+      (frame ~mouse:menu_point ()) in
   let _, changes = update search_view
       (frame ~mouse:menu_point ~events:[Event.TextInput "primitive";
         Event.KeyPressed Input.Enter] ()) in
@@ -302,8 +305,8 @@ let () =
       && List.exists (function Pxui_graph.Connection_selected (Some _) -> true
         | _ -> false) changes)
     "clicking a wire did not select its connection";
-  let chain_view, _ = update chain_view
-      (frame ~mouse:wire_point ~events:[Event.KeyPressed Input.Space] ()) in
+  let chain_view, _ = update (Pxui_graph.open_menu_at wire_point chain_view)
+      (frame ~mouse:wire_point ()) in
   let chain_view, changes = update chain_view
       (frame ~mouse:wire_point ~events:[Event.TextInput "null";
         Event.KeyPressed Input.Enter] ()) in
@@ -339,6 +342,33 @@ let () =
   check (List.mem (Pxui_graph.Delete_nodes_requested [Node.id source_a]) changes)
     "Delete did not request removal of selected nodes";
 
+  (* Context menus: a right click opens one, a right drag only pans, and rows
+     emit the ordinary typed changes. *)
+  let right_click (x, y) = frame ~mouse:(x, y) ~events:[
+      Event.MousePressed (Input.RightButton, (x, y));
+      MouseReleased (Input.RightButton, (x, y))] () in
+  let left_click (x, y) = frame ~mouse:(x, y) ~events:[
+      Event.MousePressed (Input.LeftButton, (x, y));
+      MouseReleased (Input.LeftButton, (x, y))] () in
+  let menu_row (x, y) index = x + 60, y + 3 + (index * 24) + 12 in
+  let tile = node (Node.id source_a) view in
+  let tile_point = center tile.bounds in
+  let context_view, _ = update view (right_click tile_point) in
+  let _, changes = update context_view (left_click (menu_row tile_point 3)) in
+  check (List.mem (Pxui_graph.Delete_nodes_requested [Node.id source_a]) changes)
+    "tile context menu Delete did not request node removal";
+  let blank = 780, 520 in
+  let context_view, _ = update view (right_click blank) in
+  let _, changes = update context_view (left_click (menu_row blank 2)) in
+  check (List.mem Pxui_graph.View_changed changes)
+    "canvas context menu Frame all did not reframe the graph";
+  let dragged_view, changes = update view (frame ~mouse:(780, 490) ~events:[
+      Event.MousePressed (Input.RightButton, blank); MouseMoved (780, 490);
+      MouseReleased (Input.RightButton, (780, 490))] ()) in
+  check (List.mem Pxui_graph.View_changed changes) "right drag did not pan";
+  let _, changes = update dragged_view (left_click (menu_row (780, 490) 2)) in
+  check (changes = []) "a right drag opened a context menu";
+
   let full_catalog = Pxui_graph.catalog_of_factories
       Sop_catalog.Editor.factories in
   check (List.length full_catalog = List.length Sop_catalog.Editor.factories)
@@ -346,8 +376,8 @@ let () =
   List.iter (fun (entry : Pxui_graph.catalog_entry) ->
     let menu_view = Pxui_graph.create ~x:20 ~y:30 ~width:800 ~height:520
         ~catalog:full_catalog graph in
-    let menu_view, _ = update menu_view
-        (frame ~mouse:menu_point ~events:[Event.KeyPressed Input.Space] ()) in
+    let menu_view, _ = update (Pxui_graph.open_menu_at menu_point menu_view)
+        (frame ~mouse:menu_point ()) in
     let _, changes = update menu_view
         (frame ~mouse:menu_point ~events:[Event.TextInput entry.key;
           Event.KeyPressed Input.Enter] ()) in

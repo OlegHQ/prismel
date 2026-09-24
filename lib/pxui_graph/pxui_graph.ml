@@ -50,7 +50,8 @@ type change =
   | Add_requested of add_request
   | Insert_requested of insert_request
   | Paste_requested of paste_request
-  | Layout_optimized
+  | Active_camera_changed of int
+  | Frame_camera_requested of int
 
 type box = {
   info : Edit_graph.node_info;
@@ -75,9 +76,15 @@ type menu = {
   gy : float;
   query : string;
   path : string list;
-  cursor : int;
   insertion : Edit_graph.connection option;
 }
+
+type context_target =
+  | On_canvas
+  | On_tile of int
+  | On_wire of Edit_graph.connection
+
+type context = { at : int * int; target : context_target }
 
 type box_drag = {
   start_x : int;
@@ -185,6 +192,7 @@ type t = {
   primary : int option;
   selected_edge : Edit_graph.connection option;
   viewed : int;
+  active_camera : int option;
   x : int;
   y : int;
   width : int;
@@ -194,6 +202,7 @@ type t = {
   zoom : float;
   drag : drag option;
   menu : menu option;
+  context : context option;
   clipboard : clipboard option;
   catalog : catalog_item array;
   visible : bool;
@@ -210,6 +219,8 @@ type node_view = {
   view_bounds : int * int * int * int;
   selected : bool;
   viewed : bool;
+  active : bool;
+  active_bounds : (int * int * int * int) option;
   has_parameters : bool;
 }
 
@@ -231,8 +242,6 @@ let horizontal_gap = 34
 let vertical_gap = 74
 let margin = 34
 let menu_width = 286
-let menu_row_height = 27
-let menu_header_height = 38
 let menu_limit = 10
 let spatial_cell_size = 256.
 let edge_bvh_segments = 1
@@ -592,9 +601,9 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
     moved_edges = Id_set.empty; edge_delta_bounds = Id_map.empty;
     edge_delta_tree = Edge_delta_empty; edge_delta_entries = 0;
     spatial = build_spatial_index boxes edges; selected; primary;
-    selected_edge = None; viewed; x; y; width; height;
+    selected_edge = None; viewed; active_camera = None; x; y; width; height;
     pan_x = float_of_int (width / 2); pan_y = 18.; zoom = 1.; drag = None;
-    menu = None; clipboard = None; catalog = catalog_array catalog;
+    menu = None; context = None; clipboard = None; catalog = catalog_array catalog;
     visible = true; theme; menu_rows_cache = None }
 
 let create ?x ?y ?width ?height ?theme ?selected ?catalog graph =
@@ -667,16 +676,18 @@ let with_bounds ~x ~y ~width ~height value =
   then value else { value with x; y; width; height;
     pan_x = value.pan_x +. (float_of_int (width - value.width) /. 2.);
     pan_y = value.pan_y +. (float_of_int (height - value.height) /. 2.);
-    drag = None; menu = None }
+    drag = None; menu = None; context = None }
 
 let with_visible visible value =
   if visible = value.visible then value
-  else { value with visible; drag = None; menu = None }
+  else { value with visible; drag = None; menu = None; context = None }
 let visible (value : t) = value.visible
 let selected (value : t) = value.primary
 let selected_nodes (value : t) = Id_set.elements value.selected
 let selected_connection (value : t) = value.selected_edge
 let viewed (value : t) = value.viewed
+let active_camera (value : t) = value.active_camera
+let with_active_camera active_camera (value : t) = { value with active_camera }
 
 let select node_id value =
   if Edit_graph.find value.document ~node_id = None then invalid_arg
@@ -752,12 +763,23 @@ let view_button_bounds (value : t) (box : box) =
   y + height - button_height - max 5 (screen_size value 7),
   button_width, button_height
 
+(* Camera tiles carry an ACTIVE flag button left of VIEW. *)
+let camera_operation = "camera"
+let is_camera (box : box) = box.info.Edit_graph.operation = camera_operation
+
+let active_button_bounds (value : t) (box : box) =
+  let x, y, _, height = view_button_bounds value box in
+  let width = max 40 (screen_size value 58) in
+  x - width - max 4 (screen_size value 6), y, width, height
+
 let node_views value = Array.to_list value.boxes |> List.map (fun box ->
   let info = box.info in
   { id = info.id; label = info.label; operation = info.operation;
     depth = box.depth; bounds = box_bounds value box;
     view_bounds = view_button_bounds value box;
     selected = Id_set.mem info.id value.selected; viewed = value.viewed = info.id;
+    active = value.active_camera = Some info.id;
+    active_bounds = if is_camera box then Some (active_button_bounds value box) else None;
     has_parameters = info.has_parameters })
 
 let contains ~x ~y ~width ~height (px, py) =
@@ -1120,26 +1142,12 @@ let menu_rows (value : t) menu = match value.menu_rows_cache with
       value.menu_rows_cache <- Some (menu, rows);
       rows
 
-let visible_rows rows cursor =
-  let count = Array.length rows in
-  let length = min menu_limit count in
-  let start = if length = count then 0
-    else max 0 (min (count - length) (cursor - (length / 2))) in
-  start, length
-
 let open_menu (value : t) (x, y) =
   let x = min (value.x + value.width - menu_width - 8) (max (value.x + 8) x) in
-  let y = min (value.y + value.height - menu_header_height
-      - (menu_row_height * 3)) (max (value.y + 8) y) in
+  let y = max (value.y + 8) y in
   { value with menu = Some { x; y; gx = graph_x value x; gy = graph_y value y;
-    query = ""; path = []; cursor = 0; insertion = value.selected_edge };
-    drag = None }
-
-let utf8_backspace text =
-  let rec start index = if index <= 0 then 0 else
-    let byte = Char.code text.[index - 1] in
-    if byte land 0xc0 <> 0x80 then index - 1 else start (index - 1) in
-  String.sub text 0 (start (String.length text))
+    query = ""; path = []; insertion = value.selected_edge };
+    drag = None; context = None }
 
 let menu_request (value : t) menu entry =
   let at = menu.gx, menu.gy in
@@ -1155,17 +1163,8 @@ let menu_request (value : t) menu entry =
         else take entry.arity (selected_nodes value) in
       Add_requested { factory_key = entry.key; inputs; at }
 
-let menu_bounds (menu : menu) visible_length =
-  menu.x, menu.y, menu_width,
-  menu_header_height + (visible_length * menu_row_height) + 8
-
 let parent_path path = match List.rev path with
   | [] -> [] | _ :: rest -> List.rev rest
-
-let activate_menu_row value current = function
-  | Menu_category category ->
-      `Continue { current with path = current.path @ [category]; cursor = 0 }
-  | Menu_entry entry -> `Request (menu_request value current entry)
 
 let indices_of_selection (value : t) =
   let indices = Array.make (Id_set.cardinal value.selected) 0 in
@@ -1184,6 +1183,9 @@ let selected_positions (value : t) ids =
         let box = Array.unsafe_get value.boxes index in
         let gx, gy = box_graph_position value box in
         Some (id, gx, gy)) ids
+
+let node_positions (value : t) = Array.to_list value.boxes |> List.map (fun box ->
+  let gx, gy = box_graph_position value box in box.info.Edit_graph.id, gx, gy)
 
 let copy_selection (value : t) =
   let ids = selected_nodes value in
@@ -1496,47 +1498,34 @@ let paint_node (value : t) paint (box : box) =
         ~stroke:theme.foreground;
       text paint ~at:(bx + max 4 (screen_size value 7), by + 3)
         ~size:(max 8 (min 10 (screen_size value 9)))
-        ~color:(if viewed then theme.input else theme.foreground) "VIEW"
+        ~color:(if viewed then theme.input else theme.foreground) "VIEW";
+      if is_camera box then begin
+        let active = value.active_camera = Some box.info.Edit_graph.id in
+        let ax, ay, aw, ah = active_button_bounds value box in
+        framed paint ax ay aw ah ~fill:(if active then theme.accent else theme.control)
+          ~stroke:theme.foreground;
+        text paint ~at:(ax + max 4 (screen_size value 7), ay + 3)
+          ~size:(max 8 (min 10 (screen_size value 9)))
+          ~color:(if active then theme.input else theme.foreground) "ACTIVE"
+      end
     end
   end
 
-let paint_menu (value : t) paint menu =
-  let theme = value.theme in
-  let rows = menu_rows value menu in
-  let count = Array.length rows in
-  let cursor = if count = 0 then 0 else min (count - 1) menu.cursor in
-  let start, visible_length = visible_rows rows cursor in
-  let x, y, width, height = menu_bounds menu visible_length in
-  let breadcrumb = match menu.path with
-    | [] -> "SOPs" | path -> "SOPs / " ^ category_text path in
-  framed paint x y width height ~fill:theme.panel ~stroke:theme.accent;
-  framed paint (x + 7) (y + 7) (width - 14) 27 ~fill:theme.input ~stroke:theme.control;
-  text paint ~at:(x + 15, y + 14) ~size:11 ~color:theme.foreground
-    ((if menu.query = "" then breadcrumb else menu.query) ^ "│");
-  Ui.Paint.input_region paint ~x:(float_of_int (x + 7)) ~y:(float_of_int (y + 7))
-    ~w:(float_of_int (width - 14)) ~h:27. ~focused:true;
-  for visible_index = 0 to visible_length - 1 do
-    let index = start + visible_index in
-    let row_y = y + menu_header_height + (visible_index * menu_row_height) in
-    let label, detail, color = match Array.unsafe_get rows index with
-      | Menu_category category -> category, "›", theme.accent
-      | Menu_entry entry ->
-          entry.label,
-          (if menu.query = "" then Printf.sprintf "%d in" entry.arity
-           else Printf.sprintf "%s · %d in" (category_text entry.category) entry.arity),
-          theme.foreground in
-    let current = index = cursor in
-    fill paint (x + 6) row_y (width - 12) menu_row_height
-      (if current then theme.foreground else theme.input);
-    text paint ~at:(x + 14, row_y + 7) ~size:11
-      ~color:(if current then theme.input else color) label;
-    text paint ~at:(x + width - 94, row_y + 8) ~size:9
-      ~color:(if current then theme.input else darken theme.foreground 65) detail
-  done
-
 (* ----------------------------------------------------------- interaction *)
 
-let keyboard (value : t) (frame : Frame.t) pointer_inside emit =
+let optimize_layout (value : t) =
+  let boxes = automatic_layout value.document in
+  let edges = build_edges boxes in
+  { value with boxes; edges;
+    positions = Id_map.empty; moved_nodes = Id_set.empty;
+    moved_cells = Cell_map.empty;
+    moved_edges = Id_set.empty; edge_delta_bounds = Id_map.empty;
+    edge_delta_tree = Edge_delta_empty; edge_delta_entries = 0;
+    spatial = build_spatial_index boxes edges } |> frame_all
+
+let open_menu_at point value = open_menu value point
+
+let keyboard (value : t) (frame : Frame.t) emit =
   List.fold_left (fun value event -> match event with
     | Event.KeyPressed (Input.KeyChar character) when command_modifier frame ->
         (match Char.lowercase_ascii character with
@@ -1547,85 +1536,92 @@ let keyboard (value : t) (frame : Frame.t) pointer_inside emit =
          | 'v' -> let value, emitted = paste_clipboard value in List.iter emit emitted; value
          | 'd' -> let value, emitted = duplicate_selection value in List.iter emit emitted; value
          | _ -> value)
-    | Event.KeyPressed Input.Space when pointer_inside -> open_menu value frame.mouse
-    | Event.KeyPressed (Input.KeyChar ('o' | 'O')) ->
-        let boxes = automatic_layout value.document in
-        let edges = build_edges boxes in
-        let value = { value with boxes; edges;
-          positions = Id_map.empty; moved_nodes = Id_set.empty;
-          moved_cells = Cell_map.empty;
-          moved_edges = Id_set.empty; edge_delta_bounds = Id_map.empty;
-          edge_delta_tree = Edge_delta_empty; edge_delta_entries = 0;
-          spatial = build_spatial_index boxes edges } |> frame_all in
-        emit View_changed; emit Layout_optimized; value
     | Event.KeyPressed (Input.Delete | Input.Backspace) ->
         let value, emitted = delete_selection value in List.iter emit emitted; value
     | Event.KeyPressed Input.Home -> emit View_changed; frame_all value
-    | Event.KeyPressed (Input.KeyChar ('f' | 'F')) -> emit View_changed; frame_selected value
     | _ -> value) value frame.events
 
 let ints (x, y) = int_of_float x, int_of_float y
 
-let menu_update (value : t) ui (frame : Frame.t) menu search rows_boxes =
-  let changes = ref [] and menu_ref = ref menu and close = ref false in
-  let signal = Ui.signal ui search in
-  List.iter (fun (event : Event.t) ->
-    let current = !menu_ref in
-    let rows = menu_rows value current in
-    let count = Array.length rows in
-    let cursor = if count = 0 then 0 else min (count - 1) current.cursor in
-    match event with
-    | Event.TextInput typed ->
-        menu_ref := { current with query = current.query ^ typed; cursor = 0 }
-    | Event.KeyPressed Input.Backspace ->
-        menu_ref := if current.query <> ""
-          then { current with query = utf8_backspace current.query; cursor = 0 }
-          else { current with path = parent_path current.path; cursor = 0 }
-    | Event.KeyPressed Input.ArrowDown when count > 0 ->
-        menu_ref := { current with cursor = (current.cursor + 1) mod count }
-    | Event.KeyPressed Input.ArrowUp when count > 0 ->
-        menu_ref := { current with cursor = (current.cursor + count - 1) mod count }
-    | Event.KeyPressed Input.Enter when count > 0 ->
-        (match activate_menu_row value current rows.(cursor) with
-         | `Continue menu -> menu_ref := menu
-         | `Request request -> changes := request :: !changes; close := true)
-    | Event.KeyPressed Input.ArrowRight when count > 0 ->
-        (match rows.(cursor) with
+let picker_rows value menu query =
+  menu_rows value { menu with query } |> Array.map (function
+    | Menu_category category -> category, "›"
+    | Menu_entry entry ->
+        entry.label,
+        if query = "" then Printf.sprintf "%d in" entry.arity
+        else Printf.sprintf "%s · %d in" (category_text entry.category) entry.arity)
+
+(* The node menu: a kit panel with a picker, kept inside the canvas. A press
+   outside it or window focus loss closes it like Escape. *)
+let build_menu (value : t) ui (frame : Frame.t) menu =
+  let row = Ui.row_height ui in
+  let count = Array.length (menu_rows value menu) in
+  let height = ((1 + min menu_limit count) * row) + 6 in
+  let x = menu.x and y = max value.y (min menu.y (value.y + value.height - height)) in
+  let breadcrumb = match menu.path with
+    | [] -> "SOPs" | path -> "SOPs / " ^ category_text path in
+  let query, pick = Ui.panel ui ~x:(float_of_int x) ~y:(float_of_int y)
+      ~width:(float_of_int menu_width) "pxui-graph-menu" (fun () ->
+      Ui.picker ui ~limit:menu_limit breadcrumb ~query:menu.query
+        (picker_rows value menu)) in
+  let menu = { menu with query } in
+  let outside = List.exists (function
+    | Event.MousePressed (_, point) ->
+        not (contains ~x ~y ~width:menu_width ~height point)
+    | Event.WindowFocusLost -> true
+    | _ -> false) frame.events in
+  let menu, requests = match pick with
+    | `Cancel -> None, []
+    | `Back -> Some { menu with path = parent_path menu.path; query = "" }, []
+    | `Pick index ->
+        (match (menu_rows value menu).(index) with
          | Menu_category category ->
-             menu_ref := { current with path = current.path @ [category]; cursor = 0 }
-         | Menu_entry _ -> ())
-    | Event.KeyPressed Input.ArrowLeft when current.query = "" && current.path <> [] ->
-        menu_ref := { current with path = parent_path current.path; cursor = 0 }
-    | Event.KeyPressed Input.Escape -> close := true
-    | _ -> ()) signal.keys;
-  (* A row commits on release inside it. *)
-  List.iter (fun (index, row) ->
-    if not !close && (Ui.signal ui row).clicked then begin
-      let rows = menu_rows value !menu_ref in
-      if index < Array.length rows then
-        match activate_menu_row value !menu_ref rows.(index) with
-        | `Continue menu -> menu_ref := menu
-        | `Request request -> changes := request :: !changes; close := true
-    end) rows_boxes;
-  let rows = menu_rows value menu in
-  let cursor = if Array.length rows = 0 then 0 else min (Array.length rows - 1) menu.cursor in
-  let _, visible_length = visible_rows rows cursor in
-  let x, y, width, height = menu_bounds menu visible_length in
-  if List.exists (function
-      | Event.MousePressed (_, point) -> not (contains ~x ~y ~width ~height point)
-      | Event.WindowFocusLost -> true
-      | _ -> false) frame.events then close := true;
-  if !close then Ui.unfocus ui else Ui.focus ui search;
-  { value with menu = if !close then None else Some !menu_ref }, List.rev !changes
+             Some { menu with path = menu.path @ [category]; query = "" }, []
+         | Menu_entry entry -> None, [menu_request value menu entry])
+    | `None | `Submit | `Delete _ -> Some menu, [] in
+  let menu = if outside then None else menu in
+  if menu = None then Ui.unfocus ui;
+  { value with menu }, requests
+
+let context_items (value : t) = function
+  | On_canvas -> ["Add node…", value.catalog <> [||]; "Layout", true; "Frame all", true]
+  | On_tile id ->
+      let camera = match Hashtbl.find_opt value.slots id with
+        | Some index -> is_camera value.boxes.(index) | None -> false in
+      ["View", true; "Set active camera", camera; "Duplicate", true; "Delete", true;
+       "Frame camera", true]
+  | On_wire _ -> ["Insert node…", value.catalog <> [||]; "Delete", true]
+
+(* Context-menu rows emit the same typed changes as the keyboard and pointer
+   paths. *)
+let apply_context (value : t) context index emit =
+  let value = { value with context = None } in
+  match context.target, index with
+  | On_canvas, 0 -> open_menu value context.at
+  | On_canvas, 1 -> emit View_changed; optimize_layout value
+  | On_canvas, _ -> emit View_changed; frame_all value
+  | On_tile id, 0 -> emit (Viewed id); { value with viewed = id }
+  | On_tile id, 1 -> emit (Active_camera_changed id); { value with active_camera = Some id }
+  | On_tile id, 2 ->
+      let value = select id value in
+      let value, emitted = duplicate_selection value in List.iter emit emitted; value
+  | On_tile id, 4 -> emit (Frame_camera_requested id); value
+  | On_tile id, _ ->
+      emit (Delete_nodes_requested [id]);
+      if Id_set.mem id value.selected then clear_selection value else value
+  | On_wire connection, 0 ->
+      open_menu { value with selected_edge = Some connection;
+        selected = Id_set.empty; primary = None } context.at
+  | On_wire connection, _ ->
+      emit (Disconnect_requested connection);
+      { value with selected_edge = None }
 
 let update (value : t) ui (frame : Frame.t) =
-  if not value.visible then { value with drag = None; menu = None }, [] else
+  if not value.visible then { value with drag = None; menu = None; context = None }, []
+  else
   let changes = ref [] in
   let emit change = changes := change :: !changes in
-  (* Keyboard commands first: a menu opened by Space is built, and takes
-     focus, in this same frame. *)
-  let value = if value.menu = None
-    then keyboard value frame (inside value frame.mouse) emit else value in
+  let value = if value.menu = None then keyboard value frame emit else value in
   let final = ref value in
   let canvas = Ui.box ui ~flags:Ui.(clickable + scroll + clip + blocking)
       ~w:(Ui.Px (float_of_int value.width)) ~h:(Ui.Px (float_of_int value.height))
@@ -1643,7 +1639,7 @@ let update (value : t) ui (frame : Frame.t) =
       (Array.of_list (List.filter (fun index -> not (is_selected index)) (Array.to_list order)))
       (Array.of_list (List.filter is_selected (Array.to_list order))) in
   let local (x, y) = float_of_int (x - value.x), float_of_int (y - value.y) in
-  let tiles, menu_boxes = Ui.within ui canvas (fun () ->
+  let tiles = Ui.within ui canvas (fun () ->
     let layer = Ui.box ui ~w:(Ui.Px (float_of_int value.width))
         ~h:(Ui.Px (float_of_int value.height)) ~at:(0., 0.) "wires" in
     Ui.draw ui layer (fun paint _ -> paint_background !final paint);
@@ -1671,7 +1667,12 @@ let update (value : t) ui (frame : Frame.t) =
             ~h:(Ui.Px (float_of_int (2 * radius)))
             ~at:(float_of_int (width / 2 - radius), float_of_int (height - radius))
             "output") in
-        view, output) in
+        let active = if value.zoom < 0.45 || not (is_camera box) then None else
+          let bx, by, bw, bh = active_button_bounds value box in
+          Some (Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px (float_of_int bw))
+            ~h:(Ui.Px (float_of_int bh)) ~at:(float_of_int (bx - x), float_of_int (by - y))
+            "active") in
+        (view, active), output) in
       index, tile, view, output) order in
     let overlay = Ui.box ui ~w:(Ui.Px (float_of_int value.width))
         ~h:(Ui.Px (float_of_int value.height)) ~at:(0., 0.) "overlay" in
@@ -1691,38 +1692,39 @@ let update (value : t) ui (frame : Frame.t) =
                paint_wire value paint (sx + sw / 2, sy + sh) (ints canvas_signal.pointer)
                  value.theme.accent)
       | Some (Move_nodes _) | None -> ());
-    let menu_boxes = match value.menu with
-      | None -> None
-      | Some menu ->
-          let rows = menu_rows value menu in
-          let cursor = if Array.length rows = 0 then 0
-            else min (Array.length rows - 1) menu.cursor in
-          let start, visible_length = visible_rows rows cursor in
-          let x, y, width, height = menu_bounds menu visible_length in
-          let box = Ui.box ui ~flags:Ui.(clickable + blocking)
-              ~w:(Ui.Px (float_of_int width)) ~h:(Ui.Px (float_of_int height))
-              ~at:(local (x, y)) "menu" in
-          Ui.draw ui box (fun paint _ ->
-            Option.iter (paint_menu !final paint) !final.menu);
-          Some (Ui.within ui box (fun () ->
-            let search = Ui.box ui ~flags:Ui.(clickable + focusable)
-                ~w:(Ui.Px (float_of_int (width - 14))) ~h:(Ui.Px 27.) ~at:(7., 7.)
-                "search" in
-            search, List.init visible_length (fun visible_index ->
-              start + visible_index,
-              Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px (float_of_int (width - 12)))
-                ~h:(Ui.Px (float_of_int menu_row_height))
-                ~at:(6., float_of_int (menu_header_height + (visible_index * menu_row_height)))
-                (Printf.sprintf "row%d" visible_index)))) in
-    tiles, menu_boxes) in
+    tiles) in
   let cancelled = List.exists (function
     | Event.PointerCancelled Input.LeftButton | Event.WindowFocusLost -> true
     | _ -> false) frame.events in
-  let value = match value.menu, menu_boxes with
-    | Some menu, Some (search, rows) ->
-        let value, emitted = menu_update value ui frame menu search rows in
+  (* A right click (under the drag threshold) on a tile, wire, or blank canvas
+     opens its context menu; a longer right drag only pans. *)
+  let clicked_context =
+    if value.menu <> None || value.context <> None then None else
+    match Array.find_map (fun (index, tile, _, _) ->
+        let signal = Ui.signal ui tile in
+        if Ui.context_clicked signal then
+          Some { at = ints signal.release_point;
+                 target = On_tile value.boxes.(index).info.Edit_graph.id }
+        else None) tiles with
+    | Some context -> Some context
+    | None when Ui.context_clicked canvas_signal ->
+        let at = ints canvas_signal.release_point in
+        Some { at; target = match hit_edge value at with
+          | Some edge -> On_wire value.edges.(edge).connection
+          | None -> On_canvas }
+    | None -> None in
+  let value = match value.menu, value.context with
+    | Some menu, _ ->
+        let value, emitted = build_menu value ui frame menu in
         List.iter emit emitted; value
-    | _ ->
+    | None, Some context ->
+        let x, y = context.at in
+        (match Ui.context_menu ui ~at:(float_of_int x, float_of_int y)
+            "pxui-graph-context" (context_items value context.target) with
+         | `Open -> value
+         | `Dismiss -> { value with context = None }
+         | `Pick index -> apply_context value context index emit)
+    | None, None ->
     (* Right and middle drags pan from anywhere on the canvas. *)
     let panning = Array.exists (fun (_, tile, _, _) ->
       let signal = Ui.signal ui tile in
@@ -1747,9 +1749,14 @@ let update (value : t) ui (frame : Frame.t) =
       let id = value.boxes.(index).info.Edit_graph.id in
       let tile_signal = Ui.signal ui tile in
       let left signal = signal.Ui.button = Some Input.LeftButton in
+      let view, active = view in
       let value = match view with
         | Some view when (Ui.signal ui view).clicked ->
             emit (Viewed id); { value with viewed = id }
+        | Some _ | None -> value in
+      let value = match active with
+        | Some active when (Ui.signal ui active).clicked ->
+            emit (Active_camera_changed id); { value with active_camera = Some id }
         | Some _ | None -> value in
       let value = match output with
         | Some output ->
@@ -1836,6 +1843,9 @@ let update (value : t) ui (frame : Frame.t) =
       | Some (Box_select _) when not canvas_signal.held -> { value with drag = None }
       | Some (Connect_wire _) when cancelled -> { value with drag = None }
       | _ -> value in
+  let value = match clicked_context with
+    | Some context -> { value with context = Some context; drag = None }
+    | None -> value in
   final := value;
   value, List.rev !changes
 

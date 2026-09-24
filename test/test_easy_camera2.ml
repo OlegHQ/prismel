@@ -90,8 +90,7 @@ let () =
   let control, _, requests = run control camera (click (30, 87)) in
   if List.length requests <> 1 then
     fail "2D camera render section did not request a PNG";
-  let control, controlled, _ = run control camera
-      (frame ~events:[Event.KeyPressed (Input.KeyChar 'c')] ()) in
+  let control, controlled, _ = run (Control.open_camera control) camera (frame ()) in
   if Easy_camera2.control_area controlled <> Some (248, 0, 392, 360)
   then fail "2D camera controls did not reserve the area beside the panel";
   let control, zoomed, _ = run control controlled (frame ~mouse:(400, 180)
@@ -100,11 +99,10 @@ let () =
   if Easy_camera2.zoom zoomed = Easy_camera2.zoom controlled
      || Easy_camera2.zoom zoomed_idle <> Easy_camera2.zoom zoomed
   then fail "2D camera control undid gesture-driven zoom";
-  let hidden, _, _ = run control zoomed_idle
-      (frame ~events:[Event.KeyPressed (Input.KeyChar 'h')] ()) in
+  let hidden, _, _ = run (Control.toggle_ui control) zoomed_idle (frame ()) in
   if Control.ui_visible hidden || Pxui.Ui.scene ui <> []
      || Control.overlay hidden Scene.[text ~at:(0, 0) "label"] <> Scene.empty
-  then fail "2D camera H shortcut did not hide controls and labels";
+  then fail "2D camera toggle_ui did not hide controls and labels";
   Pxui.Ui.destroy ui;
   let rotated = Easy_camera2.create ~viewport ~center:(Vec2.create 10. 20.)
       ~zoom:2. ~rotation:0.4 () in

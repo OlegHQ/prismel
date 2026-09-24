@@ -260,4 +260,78 @@ let () =
          fail (Printf.sprintf "panel painted in %d batches" batches)
    | Error message -> fail message);
   Ui.destroy ui;
+  (* Picker: typing filters, arrows move the cursor, Enter picks an index of
+     the filtered rows, Delete arms then deletes, Backspace on an empty query
+     goes back, Escape cancels. *)
+  let key k = Event.KeyPressed k in
+  let items = [| "alpha", "1"; "beta", "2"; "gamma", "3"; "delta", "4" |] in
+  let rows query = Array.of_list (List.filter
+      (fun (label, _) -> Ui.fuzzy_match ~query label) (Array.to_list items)) in
+  let ui = Ui.create () and query = ref "" and last = ref `None in
+  let pick events =
+    Ui.frame ui (frame ~scale:1. ~time:0. events) (fun ui ->
+      Ui.panel ui ~x:0. ~y:0. ~width:240. "p" (fun () ->
+        let edited, result = Ui.picker ui "Search" ~query:!query rows in
+        query := edited; last := result)) in
+  pick [];
+  if not (Ui.text_input_focused ui) then fail "picker did not take keyboard focus";
+  pick [key Input.ArrowDown; key Input.ArrowDown; key Input.Enter];
+  if !last <> `Pick 2 then fail "picker arrows did not move the cursor";
+  pick [Event.TextInput "dla"; key Input.Enter];
+  if !query <> "dla" || !last <> `Pick 0 || fst (rows !query).(0) <> "delta" then
+    fail "picker typing did not filter rows before Enter";
+  pick [key Input.Delete];
+  if !last <> `None then fail "picker deleted on the first Delete";
+  pick [key Input.Delete];
+  if !last <> `Delete 0 then fail "picker did not delete on the second Delete";
+  pick [Event.TextInput "zzz"; key Input.Enter];
+  if !last <> `Submit then fail "picker Enter with no rows did not submit";
+  query := "";
+  pick [key Input.Backspace];
+  if !last <> `Back then fail "picker Backspace on an empty query did not go back";
+  pick [key Input.Escape];
+  if !last <> `Cancel then fail "picker Escape did not cancel";
+  (* The second row sits at y = 3 + 24 + 24 (search row, first row). *)
+  query := "";
+  pick [];
+  pick [press (60, 3 + 48 + 12)];
+  if !last <> `None then fail "picker row committed on press";
+  pick [release (60, 3 + 48 + 12)];
+  if !last <> `Pick 1 then fail "picker row did not commit on release inside";
+  Ui.destroy ui;
+  (* Context menu: rows commit on release inside, disabled rows are inert,
+     a press outside dismisses; the host keeps it open on `Open. *)
+  let ui = Ui.create () and result = ref `Open in
+  let menu events =
+    Ui.frame ui (frame ~scale:1. ~time:0. events) (fun ui ->
+      result := Ui.context_menu ui ~at:(20., 20.) "ctx"
+        ["One", true; "Two", false; "Three", true]) in
+  let row index = 60, 20 + 3 + (index * 24) + 12 in
+  menu [];
+  menu [press (row 0)];
+  if !result <> `Open then fail "context menu committed on press";
+  menu [release (row 0)];
+  if !result <> `Pick 0 then fail "context menu did not commit on release";
+  menu [press (row 1); release (row 1)];
+  if !result <> `Open then fail "disabled context menu row committed";
+  menu [press (row 2); release (300, 200)];
+  if !result <> `Open then fail "context menu committed after release outside";
+  menu [press (300, 200)];
+  if !result <> `Dismiss then fail "press outside did not dismiss the context menu";
+  Ui.destroy ui;
+  (* Modal: centered, and Escape or a press outside dismisses it. *)
+  let ui = Ui.create () and shown = ref None in
+  let modal events = Ui.frame ui (frame ~scale:1. ~time:0. events) (fun ui ->
+    shown := Ui.modal ui ~width:200. "modal" (fun () -> Ui.label ui "Hello")) in
+  modal [];
+  modal [];
+  if !shown <> Some () then fail "modal did not build its content";
+  modal [press (160, 120); release (160, 120)];
+  if !shown <> Some () then fail "a press inside dismissed the modal";
+  modal [key Input.Escape];
+  if !shown <> None then fail "Escape did not dismiss the modal";
+  modal [];
+  modal [press (5, 5)];
+  if !shown <> None then fail "a press outside did not dismiss the modal";
+  Ui.destroy ui;
   print_endline "PXUI Ui interaction contract passed at 1x and 2x"

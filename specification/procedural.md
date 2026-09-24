@@ -139,7 +139,8 @@ connecting or disconnecting them rebuilds the physical SOP input list and
 retains the document node's identity and parameter values. Match Size exercises
 this path with one required geometry input and one optional target input.
 
-The Space menu consumes category paths as real nested submenus. Typing searches
+The node menu (leader `Space a`, or the canvas context menu) consumes category
+paths as real nested submenus. Typing searches
 the entire manifest by stable key, display label, or breadcrumb. Its ten visible
 rows form a moving window over the complete result set rather than truncating
 node accessibility. Catalog tests require unique keys, instantiate every
@@ -148,7 +149,7 @@ registered factory with disconnected placeholders, and compare the constructed
 enter an editable graph or points at the wrong SOP fails the test suite.
 `Pxui_graph.catalog_of_factories` is the single adapter from descriptors to
 menu entries. Exact stable-key matches rank before partial label/category
-matches, and a reachability regression opens the real Space menu for every
+matches, and a reachability regression opens the real node menu for every
 generated descriptor and requires the corresponding add request.
 
 Structured immutable parameters use `Parameter.encoded` when a SOP owns an
@@ -188,11 +189,12 @@ immutable DAG for the existing deterministic Session cook path.
 `prismel.pxui_graph` presents that document. It lays nodes deterministically,
 renders ordered ports and selectable curved wires, retains manual positions,
 supports Shift/marquee multi-selection and group dragging, and emits typed
-commands for Delete/Backspace, port connections, the searchable Space-menu
+commands for Delete/Backspace, port connections, the searchable node-menu
 catalog, and Command/Ctrl copy, paste, cut, and duplicate. Catalog nodes may be
 created with disconnected input slots. Copy/paste preserves induced-subgraph
 wiring, allocates fresh node IDs, and leaves external inputs disconnected.
-[O] optimizes layout; [Home]/[F] frame all/selection. A separate VIEW button
+`optimize_layout` and `frame_selected` are host-bound (leader `l`/`f`);
+[Home] frames all. A separate VIEW button
 chooses the document node compiled and submitted by `sketch_ui` without changing
 inspector selection. The canvas never mutates the document or cooks geometry;
 `sketch_ui` applies commands, reports validation errors, and retains the prior
