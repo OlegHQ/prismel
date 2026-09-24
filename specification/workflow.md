@@ -1,18 +1,7 @@
 # Live sketch workflow
 
-Prismel supports three feedback loops with different state tradeoffs.
-
-## Scene REPL
-
-`dune utop lib/prismel` loads the real library and native SDL3/Metal stack.
-`Preview.show scene` starts one persistent window and presents each subsequently
-evaluated `Scene.t`. `Preview.step` additionally returns ordered input events.
-`Preview.stop` owns backend shutdown and must run before leaving a session that
-created extra SDL resources.
-
-This is the closest loop to Lisp-style image construction: redefine a helper,
-evaluate one scene expression, and see it immediately without an application
-lifecycle or executable rebuild.
+Prismel supports compiled sketch restart and watched media. For finite visual
+experiments, `Sketch.export` writes deterministic frames from a pure scene.
 
 ## Compiled sketch restart
 
@@ -32,6 +21,5 @@ replaces changed textures in place. Borrowed `Image.t` identities remain
 stable, so media iteration does not require rebuilding or reconstructing the
 model. Failed replacement keeps the last valid texture.
 
-These loops deliberately compose: use `Preview` for direct scene exploration,
-watched assets for visual media, and restart a full sketch when compiled
-behavior changes.
+These loops compose: use `Sketch.export` for finite scenes, watched assets for
+visual media, and restart a full sketch when compiled behavior changes.

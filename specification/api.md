@@ -17,7 +17,8 @@ The high-level API is functional:
 - effects and mutable renderer state stay behind `Sketch.run` and
   `Scene.render`.
 
-New sketches start with `Sketch`; direct rendering experiments use `Preview`.
+New sketches start with `Sketch`; finite direct-render experiments can use
+`Sketch.export`.
 
 ## Design evidence
 

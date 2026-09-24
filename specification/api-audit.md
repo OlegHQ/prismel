@@ -19,7 +19,7 @@ with rationale rather than represented by placeholder APIs.
 | Deterministic generative tools | Implemented | `Rand`, `Noise`, color palettes, `examples/noise` |
 | Safe multicore acceleration | Implemented | `Parallel`, initial-domain guards, `examples/particles` |
 | One-command project scaffold | Implemented | `tools/new_example.exe`, scaffold smoke check |
-| Reliable edit/compile/restart | Implemented workflow | `Preview`, watched media, `watchexec --restart`, explicit settings codecs |
+| Reliable edit/compile/restart | Implemented workflow | Watched media, `watchexec --restart`, explicit settings codecs |
 | Native graphics and audio | Implemented | SDL3 window/input/audio plus Metal/OGPU presentation and integration tests |
 
 ## Drawing and composition
@@ -70,7 +70,7 @@ with rationale rather than represented by placeholder APIs.
 | Text input, dropdown, range/2D controls | Implemented | UTF-8/IME text, choice, dual-handle range, and 2D value controls |
 | Parameter save/load | Implemented | pure encode/decode and file save/load with versioned typed format |
 | Native hot reload preserving model | Outside initial target | arbitrary typed model/code migration is unsafe; explicit codecs plus REPL/watch/restart workflow documented |
-| REPL scene iteration | Implemented | `dune utop lib/prismel`, persistent native `Preview.show/step/stop` lifecycle test |
+| Finite scene iteration | Implemented | `Sketch.export` produces deterministic frames from pure `Scene.t` values |
 
 ## Low-level API debt
 
@@ -82,7 +82,7 @@ API documentation builds through `dune build @doc`.
 
 Native arbitrary model migration is explicitly excluded from the initial 2D
 target: OCaml closures, changed types, and native resource handles cannot be safely
-marshalled across a relink. `Preview`, watched images, PXUI settings codecs, and
+marshalled across a relink. `Sketch.export`, watched images, PXUI settings codecs, and
 process restart cover the productive workflow without pretending otherwise.
 
 The high-level sketch contract uses contextual errors or controlled exceptions.
