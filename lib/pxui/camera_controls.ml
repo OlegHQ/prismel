@@ -9,7 +9,7 @@ type visibility = {
 
 let make prefix =
   if prefix = "" then invalid_arg "Pxui camera control: prefix is empty";
-  { prefix; ui_visible = true; filename = "prismel-render.png"; open_camera = None }
+  { prefix; ui_visible = true; filename = "_out/prismel-render.png"; open_camera = None }
 
 let toggle_ui control = { control with ui_visible = not control.ui_visible }
 

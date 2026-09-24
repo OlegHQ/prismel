@@ -121,8 +121,7 @@ let export_state ?(config=default_config)?(fps=60)?(prefix="frame")~directory~fr
   if frames<=0 then invalid_arg"Sketch.export_state: frames must be positive";
   if fps<=0 then invalid_arg"Sketch.export_state: fps must be positive";
   if prefix=""||prefix="."||prefix=".."||Filename.basename prefix<>prefix then invalid_arg"Sketch.export_state: invalid prefix";
-  let rec ensure path=if path=""||path="."||Sys.file_exists path then()else(let parent=Filename.dirname path in if parent<>path then ensure parent;try Unix.mkdir path 0o755 with Unix.Unix_error(Unix.EEXIST,_,_)->())in
-  ensure directory;let index=ref 0 in
+  Canvas_runtime.ensure_directory directory;let index=ref 0 in
   let after_present _ _=let filename=Filename.concat directory(Printf.sprintf"%s-%06d.png"prefix !index)in match Canvas.save_screen_png filename with Ok()->incr index|Error message->failwith("Frame export failed: "^message)in
   let config={config with clock=Fixed(1./.float fps);fps=None}in
   Parallel.run ?domains:config.domains(fun()->run_state_internal~config~max_frames:frames~after_present~init~update~view~on_stop())

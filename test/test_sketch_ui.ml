@@ -646,14 +646,20 @@ let run () =
      window and is released when the sketch stops. *)
   let toggled = ref [] in
   let directory = Filename.temp_dir "sketch-ui-fly" "" in
+  let nested_capture = Filename.concat directory "nested/capture.png" in
   ignore (Sketch.export_state ~directory ~frames:3
       ~config:{ Sketch.default_config with width = 120; height = 80 }
       ~init:(fun _ -> ())
       ~update:(fun () (frame : Frame.t) ->
         if frame.count <= 2 then
-          toggled := Sketch.set_relative_mouse (frame.count = 1) :: !toggled)
+          toggled := Sketch.set_relative_mouse (frame.count = 1) :: !toggled;
+        if frame.count = 2 then
+          check (Canvas.save_screen_png nested_capture = Ok ())
+            "native capture did not create its output directory")
       ~view:(fun () _ -> [Scene.clear Color.black]) ());
   check (!toggled = [Ok (); Ok ()]
       && Sketch.set_relative_mouse true <> Ok ())
     "native relative-pointer toggle failed or outlived the sketch";
+  check (Sys.file_exists nested_capture)
+    "native capture did not write its nested PNG";
   print_endline "sketch ui tests passed"

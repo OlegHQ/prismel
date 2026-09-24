@@ -5,7 +5,7 @@ The visual reference is a dense monochrome field of small marks, recursive
 branches, and irregular clusters. `T` switches between branching connections
 and visible quadtree cells. Scroll zooms around the pointer, click dives into a
 file, drag pans, right click backs out, `R` resets, `H` hides the chrome, and
-`S` captures the full native framebuffer to `code-quadtree.png`.
+`S` captures the full native framebuffer to `_out/code-quadtree.png`.
 
 ## Data and interpretation
 

@@ -1096,8 +1096,8 @@
       "library": "pxui",
       "module": "Settings",
       "source": "lib/pxui/settings.mli",
-      "source_bytes": 949,
-      "source_sha256": "80dcfb6145ec997bbd25136b543265f78dd6adb6403e67d4534a4ec7f7634f91"
+      "source_bytes": 1007,
+      "source_sha256": "1d67ede00c99e2e307caf6fb050419162560abb20d8af178b137a04acff84f3b"
     },
     {
       "api_sha256": "7eade6236511dc81668cd404b3b26d10b344a4904e9aa4506be95f1e700f9720",

@@ -27,6 +27,7 @@ let palette = [|
 let toolbar_height = 92
 let maximum_strokes = 128
 let maximum_points = 4_096
+let output_png = "_out/prismel-drawing.png"
 
 let rec take count values =
   match count, values with
@@ -82,9 +83,9 @@ let choose_toolbar_action model point =
     }
   else if inside ~x:144 ~y:8 ~w:62 ~h:34 point then
     let status =
-      match Canvas.save_screen_png "prismel-drawing.png" with
+      match Canvas.save_screen_png output_png with
       | Ok () ->
-          "Saved prismel-drawing.png"
+          "Saved " ^ output_png
       | Error message -> message
     in
     { model with active = None; status }
@@ -116,9 +117,9 @@ let handle_key model key =
   | ']' -> { model with brush_width = min 32 (model.brush_width + 2) }
   | 's' ->
       let status =
-        match Canvas.save_screen_png "prismel-drawing.png" with
+        match Canvas.save_screen_png output_png with
         | Ok () ->
-            "Saved prismel-drawing.png"
+            "Saved " ^ output_png
         | Error message -> message
       in
       { model with status }

@@ -661,6 +661,8 @@ never published. Only target-neutral CPU preparation runs in the worker.
   bound, including finite native integration runs.
 - `Sketch.export` and `Sketch.export_state` render deterministic numbered PNG
   sequences using a fixed clock and no realtime frame limiter.
+- Built-in sketch PNG saves default to `_out/`; `Canvas.save_screen_png` creates
+  a missing output directory and honors an explicitly supplied path.
 - width, height, title, FPS and window behavior are optional configuration.
 - cleanup is exception-safe.
 - `Sketch.quit ()` requests graceful termination.

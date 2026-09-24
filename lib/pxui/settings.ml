@@ -88,13 +88,22 @@ let decode encoded =
       parse 2 [] entries
   | _ -> Error "PXUI settings: unsupported or missing PXUI1 header"
 
+let rec ensure_directory path =
+  if path <> "" && path <> "." && not (Sys.file_exists path) then (
+    let parent = Filename.dirname path in
+    if parent <> path then ensure_directory parent;
+    try Unix.mkdir path 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ())
+
 let save filename settings =
   try
+    ensure_directory (Filename.dirname filename);
     let channel = open_out_bin filename in
     Fun.protect ~finally:(fun () -> close_out channel)
       (fun () -> output_string channel (encode settings));
     Ok ()
-  with Sys_error message -> Error message
+  with
+  | Sys_error message -> Error message
+  | Unix.Unix_error (error, _, _) -> Error (Unix.error_message error)
 
 let load filename =
   try

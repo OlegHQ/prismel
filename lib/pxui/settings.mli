@@ -18,6 +18,7 @@ val encode : t -> string
 val decode : string -> (t, string) result
 (** Malformed lines are errors; later duplicates replace earlier ones. *)
 
+(** Creates missing parent directories before writing. *)
 val save : string -> t -> (unit, string) result
 val load : string -> (t, string) result
 

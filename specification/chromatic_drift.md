@@ -17,7 +17,7 @@ palettes are Afterglow, Lagoon, Ember and Orchid.
 “Surprise me” deterministically remixes shape, palette and motion from the next
 seed. “New composition” changes only the seed. Reset restores launch defaults
 and time. Tab hides controls/status; Escape quits. Save/load buttons use
-`chromatic-drift.json` (override with `--settings FILE`). Loading resets time;
+`_out/chromatic-drift.json` (override with `--settings FILE`). Loading resets time;
 saving stores controls, not phase. Bounded displacements keep bands ordered.
 
 The default composition uses unequal sheet widths and a large sweeping curve,

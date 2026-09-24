@@ -29,10 +29,13 @@ let () =
       [c.lo;c.hi]) Artwork.controls;
   List.iter(fun high->ignore(validate(List.fold_left(fun ui (c:Artwork.control)->
     Artwork.set ui c.key (if high then c.hi else c.lo)) ui Artwork.controls))) [false;true];
-  let path=Filename.temp_file "pastel-flow" ".json" in
-  Fun.protect ~finally:(fun()->Sys.remove path) (fun()->
+  let root=Filename.temp_dir "pastel-flow" "" in
+  let path=Filename.concat root "nested/settings.json" in
+  Fun.protect ~finally:(fun()->
+    Sys.remove path; Unix.rmdir (Filename.dirname path); Unix.rmdir root) (fun()->
     let settings = List.map (fun (key, value) -> key, Pxui.Settings.Float value) ui in
     assert(Pxui.Settings.save path settings=Ok());
+    assert(Sys.file_exists path);
     match Pxui.Settings.load path with Error e->failwith e | Ok loaded->
       let loaded = List.map (fun (c:Artwork.control) ->
         c.key, Option.get (Pxui.Settings.float loaded c.key)) Artwork.controls in

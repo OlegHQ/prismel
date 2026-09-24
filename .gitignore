@@ -28,6 +28,7 @@
 _opam
 
 # Runtime outputs of sketches (render button, settings saves)
+/_out/
 /prismel-render.png
 /code-quadtree.png
 /chromatic-drift.json

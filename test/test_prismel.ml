@@ -292,7 +292,7 @@ let run_1 () =
   let camera_control, _, _ = run camera_control easy idle in
   let camera_control, _, requests = run camera_control easy (click (30, 87)) in
   if List.map (fun (request : Camera_control.render_request) -> request.filename)
-      requests <> ["prismel-render.png"]
+      requests <> ["_out/prismel-render.png"]
   then fail "camera render section did not request a PNG";
   let camera_control, controlled, _ =
     run (Camera_control.open_camera camera_control) easy idle in

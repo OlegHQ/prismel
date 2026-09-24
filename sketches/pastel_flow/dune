@@ -12,4 +12,4 @@
 (test
  (name check)
  (modules check)
- (libraries pastel_artwork prismel pxui))
+ (libraries pastel_artwork prismel pxui unix))

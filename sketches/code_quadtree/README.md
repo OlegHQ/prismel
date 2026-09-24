@@ -14,7 +14,7 @@ dune exec sketches/code_quadtree/main.exe -- --root /path/to/repository
 
 Scroll to zoom toward the pointer. Click a cell to dive into it, drag with the
 left or middle button to pan, and right click to step back. `R` or Space resets
-the view; `H` or Tab hides the overlay; `S` saves `code-quadtree.png`; Escape
+the view; `H` or Tab hides the overlay; `S` saves `_out/code-quadtree.png`; Escape
 quits. For a clean recording, hide the overlay after an introductory shot.
 
 Finite native validation and one-frame export:

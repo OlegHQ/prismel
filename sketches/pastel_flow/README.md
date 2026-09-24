@@ -32,7 +32,7 @@ restarted by relaunching. Animation is off by default.
   bit-identical across seeds (aside from grain); raising chaos reshapes the
   field, ribbons, and folds from the seed.
 
-Save/Load controls use `pastel-flow.json`, or `--settings PATH`. An existing
+Save/Load controls use `_out/pastel-flow.json`, or `--settings PATH`. An existing
 settings file takes precedence over the initial preset. Rendering clamps typed
 values to the supported slider ranges, including integer-valued counts and seed.
 
