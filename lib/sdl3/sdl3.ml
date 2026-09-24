@@ -151,7 +151,6 @@ module Release_queue = struct
   let pending_metal_views = Queue.create ()
   let pending_windows = Queue.create ()
   let pending_cursors = Queue.create ()
-  let dropped = Atomic.make 0
 
   (* Unbounded: a finalized native object must never leak because the main
      domain has not drained yet; [before_main] drains on every SDL call. *)
@@ -193,8 +192,6 @@ module Release_queue = struct
       |Surface_token _|Metal_view_token _|Window_token _->assert false
     done
 end
-
-let dropped_release_tokens () = Atomic.get Release_queue.dropped
 
 let drain_release_queue () =
   match Thread.require "SDL3.drain_release_queue" with

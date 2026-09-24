@@ -125,7 +125,6 @@ end
 module Release_queue = struct
   let mutex = Mutex.create ()
   let fonts = Queue.create ()
-  let dropped = Atomic.make 0
 
   let enqueue raw =
     Mutex.lock mutex;
@@ -139,8 +138,6 @@ module Release_queue = struct
     Mutex.unlock mutex;
     Queue.iter raw_close_font pending
 end
-
-let dropped_release_tokens () = Atomic.get Release_queue.dropped
 
 let require_main operation =
   if not (Sdl3.Thread.is_initial_domain ())

@@ -182,7 +182,6 @@ let () =
         , `String
             (Printf.sprintf "%d.%d.%d" mixer_linked.major mixer_linked.minor
                mixer_linked.patch) )
-      ; "dropped_release_tokens", `Int (Sdl3.dropped_release_tokens ())
       ; ( "measurements"
         , `List
             (List.map measurement_json

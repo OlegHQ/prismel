@@ -274,8 +274,6 @@ let run () =
     let transient = get_ttf (Font.open_file ~path:font_path ~size:8.) in
     get_ttf (Font.destroy transient)
   done;
-  if dropped_release_tokens () <> 0 then
-    fail "explicit 10k font lifecycle overflowed the release queue";
   get_ttf (Init.quit ());
   get_ttf (Init.quit ());
   Printf.printf "SDL3_ttf %d.%d.%d CPU font conformance passed\n%!"

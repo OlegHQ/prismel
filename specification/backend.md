@@ -219,6 +219,8 @@ release, and preserve same-device validation. Sketch-owned resources are
 released through `Sketch.run_state ~on_stop` while the SDL3 and Metal runtime
 is still live. Command completion retains any referenced resources until their
 submitted work completes.
+SDL3, TTF, and mixer finalizer tokens queue until the initial domain drains
+them; no token is discarded when the queue grows.
 Resource-level font rendering returns an owned text snapshot. Automatic scene
 text and explicit high-level font caches are bounded by their Prismel owners;
 the resource font has no second renderer-keyed cache.

@@ -150,7 +150,6 @@ module Release_queue = struct
   let mixers = Queue.create ()
   let audios = Queue.create ()
   let tracks = Queue.create ()
-  let dropped = Atomic.make 0
 
   let enqueue queue raw =
     Mutex.lock mutex;
@@ -174,8 +173,6 @@ module Release_queue = struct
     Queue.iter raw_destroy_audio pending_audios;
     Queue.iter raw_destroy_mixer pending_mixers
 end
-
-let dropped_release_tokens () = Atomic.get Release_queue.dropped
 
 let require_main operation =
   if not (Sdl3.Thread.is_initial_domain ())

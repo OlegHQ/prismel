@@ -100,4 +100,3 @@ module Font : sig
 end
 
 val drain_release_queue : unit -> (unit, error) result
-val dropped_release_tokens : unit -> int
