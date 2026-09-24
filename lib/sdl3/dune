@@ -1,0 +1,69 @@
+(executable
+ (name discover)
+ (modules discover)
+ (libraries sdl3_discovery))
+
+(rule
+ (targets c_flags.sexp c_library_flags.sexp)
+ (action (run ./discover.exe)))
+
+(library
+ (name sdl3)
+ (public_name prismel.sdl3)
+ (modules Sdl3 Private_raw Generated_provenance)
+ (private_modules Private_raw Generated_provenance)
+ (foreign_stubs
+  (language c)
+  (names sdl3_stubs)
+  (flags (:include c_flags.sexp)))
+ (c_library_flags (:include c_library_flags.sexp))
+ (libraries threads native_layer_token))
+
+(test
+ (name test_sdl3)
+ (modules test_sdl3)
+ (libraries sdl3)
+ (action
+  (setenv SDL_VIDEODRIVER dummy
+   (run %{test}))))
+
+(test
+ (name test_sdl3_metal)
+ (modules test_sdl3_metal)
+ (libraries sdl3))
+
+(test
+ (name test_sdl3_stress)
+ (modules test_sdl3_stress)
+ (libraries sdl3)
+ (action
+  (setenv SDL_VIDEODRIVER dummy
+   (run %{test}))))
+
+(test
+ (name test_sdl3_failure)
+ (modules test_sdl3_failure)
+ (libraries sdl3)
+ (action
+  (setenv SDL_VIDEODRIVER prismel_missing_video_driver
+   (run %{test}))))
+
+(test
+ (name test_sdl3_events)
+ (modules test_sdl3_events)
+ (libraries sdl3)
+ (foreign_stubs
+  (language c)
+  (names test_sdl3_events_stubs)
+  (flags (:include c_flags.sexp)))
+ (action
+  (setenv SDL_VIDEODRIVER dummy
+   (run %{test}))))
+
+(rule
+ (alias runtest)
+ (deps generated_provenance.ml generated_inventory.json generated_layout.json
+  generated_abi.h)
+ (action
+  (run %{exe:../../tools/sdl3/generate.exe} --root %{workspace_root}
+   --extension core --check)))

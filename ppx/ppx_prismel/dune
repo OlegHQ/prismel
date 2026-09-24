@@ -1,0 +1,5 @@
+(library
+ (name ppx_prismel)
+ (public_name prismel.ppx)
+ (kind ppx_rewriter)
+ (libraries ppxlib))

@@ -1,0 +1,12 @@
+type buffer_range={resource_id:int64;buffer:unit Handle.t;buffer_size:int64;offset:int64;length:int64}
+type operation=Build of Acceleration.t|Refit of Acceleration.t|Copy of Acceleration.t|Compact of Acceleration.t
+type operation_kind=Build_op|Refit_op|Copy_op|Compact_op
+type result={kind:operation_kind;copied:Acceleration.t option;commands:Command.description array}
+let invalid text=Error(Error.make"Ogpu.Acceleration_pass.execute"Error.Invalid_argument text)
+let validate_range device range=match Handle.validate_for ~operation:"Ogpu.Acceleration_pass.execute"device range.buffer with Error _ as e->e|Ok()when range.resource_id<=0L||range.buffer_size<0L||range.offset<0L||range.length<=0L||Int64.rem range.offset 256L<>0L||Int64.rem range.length 256L<>0L->invalid"buffer range id/size/alignment is invalid"|Ok()when range.offset>Int64.sub range.buffer_size range.length->invalid"buffer range is out of bounds"|Ok()->Ok()
+let execute device ~ray_tracing operation ~scratch ~auxiliary=
+  if not ray_tracing then Error(Error.make"Ogpu.Acceleration_pass.execute"Error.Unsupported"ray tracing is unsupported")else
+  let validation=Result.bind(validate_range device scratch)(fun()->match auxiliary with Some range when range.resource_id=scratch.resource_id->invalid"scratch and auxiliary declarations alias"|Some range->validate_range device range|None->Ok())in
+  Result.bind validation(fun()->
+    let lifecycle=match operation with Build value->Result.map(fun _->Build_op,None)(Acceleration.build device value)|Refit value->Result.map(fun _->Refit_op,None)(Acceleration.refit device value)|Copy value->Result.map(fun(target,_)->Copy_op,Some target)(Acceleration.copy device value)|Compact value->Result.map(fun _->Compact_op,None)(Acceleration.compact device value)in
+    Result.bind lifecycle(fun(kind,copied)->let command=Command.begin_encoder()in Result.bind(Command.begin_pass command Command.Acceleration)(fun()->Result.bind(Command.declare_resource command ~resource_id:scratch.resource_id ~access:Command.Read_write ~stages:[Command.Acceleration_stage])(fun()->let auxiliary_result=match auxiliary with None->Ok()|Some range->Command.declare_resource command ~resource_id:range.resource_id ~access:Command.Read_write ~stages:[Command.Acceleration_stage]in Result.bind auxiliary_result(fun()->Result.bind(Command.end_pass command)(fun()->Result.map(fun()->{kind;copied;commands=Command.descriptions command})(Command.end_encoder command)))))))

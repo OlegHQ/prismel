@@ -1,0 +1,40 @@
+(executable
+ (name main)
+ (modules main)
+ (libraries prismel unix code_quadtree_index code_quadtree_ink))
+
+(library
+ (name code_quadtree_index)
+ (wrapped false)
+ (modules source_index symbol_preview)
+ (libraries unix yojson))
+
+(library
+ (name code_quadtree_ink)
+ (wrapped false)
+ (modules packed_ink mark_field)
+ (libraries prismel scene_command))
+
+(test
+ (name test_source_index)
+ (modules test_source_index)
+ (libraries code_quadtree_index unix yojson))
+
+(test
+ (name test_packed_ink)
+ (modules test_packed_ink)
+ (libraries code_quadtree_ink prismel metal))
+
+(test
+ (name test_mark_field)
+ (modules test_mark_field)
+ (libraries code_quadtree_ink))
+
+(test
+ (name test_symbol_preview)
+ (modules test_symbol_preview)
+ (libraries code_quadtree_index))
+
+(rule
+ (alias runtest)
+ (action (run %{exe:main.exe} --verify)))

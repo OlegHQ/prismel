@@ -1,0 +1,59 @@
+{
+  "all_repeated_artifacts_byte_identical": true,
+  "artifacts": [
+    {
+      "bytes": 37694,
+      "command": "dune exec --profile release test/gpu_baseline_renderer.exe -- <png> <trace>",
+      "comparison": "frozen_native_tolerance",
+      "expected": "640x480 Apple-Silicon Metal reference; repeated captures are exact.",
+      "height": 480,
+      "id": "renderer-native-m1",
+      "kind": "png",
+      "ownership": "Committed native Metal reference owned by renderer parity tests.",
+      "path": "test/gpu_migration/golden/renderer_native_m1.png",
+      "pixel_sha256": "f585b815c3aed9a4a126c996968c266625d8e22844b8075162bb35e765b28f6d",
+      "sha256": "bde861e55b139dca2181397da9ee561ad9e14dac83e65aec630c91082adf3562",
+      "target": "native-metal",
+      "width": 640
+    },
+    {
+      "bytes": 371,
+      "command": "Emitted with renderer-native-m1.",
+      "comparison": "byte_exact",
+      "expected": "Ordered Canvas, capture, and Image teardown trace.",
+      "id": "renderer-native-m1-lifecycle",
+      "kind": "json",
+      "ownership": "Committed lifecycle trace owned by native resource tests.",
+      "path": "test/gpu_migration/traces/renderer_native_m1.json",
+      "sha256": "f3ce6b367a265ac4536bfecee9d6c6ff7572f7b0621090a42190591256f6f5fb",
+      "target": "native-metal"
+    }
+  ],
+  "baseline_commit": "4622091a65bc9a8816a1f10bcc83c1a625ca7522",
+  "capture_commit": "aab2337b6aab57b453514b4171bcc44a3dcaef37",
+  "capture_dirty": false,
+  "kind": "native_metal_fixtures",
+  "native_environment": {
+    "display": "1x external 1920x1080 baseline display",
+    "gpu": "Apple M1",
+    "machine_model": "Macmini9,1",
+    "os": {
+      "build": "25E253",
+      "name": "macOS",
+      "version": "26.4.1"
+    }
+  },
+  "native_tolerance": {
+    "alpha_mismatch_fraction_max": 0.0,
+    "authority": "Frozen native Metal reference.",
+    "clear_and_axis_aligned_interior_regions": "exact",
+    "dimensions_must_match": true,
+    "mean_absolute_error_per_channel_max": 1.5,
+    "pixel_format": "RGBA8",
+    "pixels_with_any_rgb_error_over_16_fraction_max": 0.02,
+    "rasterized_edges": "measured by aggregate bounds above; thresholds may not be loosened"
+  },
+  "profile": "release",
+  "repeat_count": 2,
+  "schema": 1
+}

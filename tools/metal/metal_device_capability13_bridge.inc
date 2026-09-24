@@ -1,0 +1,11 @@
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+extern "C" CAMLprim value caml_prismel_metal_device_capability_snapshot(value rh){CAMLparam1(rh);CAMLlocal2(v,r);@try{id<MTLDevice>d=object_of_handle(rh,Handle_kind::Device);MTLSize s=d.maxThreadsPerThreadgroup;v=caml_alloc_tuple(7);Store_field(v,0,Val_bool(d.areBarycentricCoordsSupported));Store_field(v,1,caml_copy_int64(s.width));Store_field(v,2,caml_copy_int64(s.height));Store_field(v,3,caml_copy_int64(s.depth));Store_field(v,4,Val_bool(d.shouldMaximizeConcurrentCompilation));Store_field(v,5,Val_bool(d.supportsBCTextureCompression));Store_field(v,6,Val_int(d.counterSets.count));r=result_ok(v);CAMLreturn(r);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+extern "C" CAMLprim value caml_prismel_metal_device_set_maximize_compilation(value rh,value rb){CAMLparam2(rh,rb);@try{id<MTLDevice>d=object_of_handle(rh,Handle_kind::Device);d.shouldMaximizeConcurrentCompilation=Bool_val(rb);CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+extern "C" CAMLprim value caml_prismel_metal_device_supports_counter_sampling_exact(value rh,value rs){CAMLparam2(rh,rs);@try{id<MTLDevice>d=object_of_handle(rh,Handle_kind::Device);CAMLreturn(result_ok(Val_bool([d supportsCounterSampling:(MTLCounterSamplingPoint)Int64_val(rs)])));}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+extern "C" CAMLprim value caml_prismel_metal_device_supports_feature_set_exact(value rh,value rf){CAMLparam2(rh,rf);@try{id<MTLDevice>d=object_of_handle(rh,Handle_kind::Device);CAMLreturn(result_ok(Val_bool([d supportsFeatureSet:(MTLFeatureSet)Int64_val(rf)])));}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+#pragma clang diagnostic pop
+extern "C" CAMLprim value caml_prismel_metal_device_supports_rate_layers(value rh,value rl){CAMLparam2(rh,rl);int64_t n=Int64_val(rl);if(n<=0)CAMLreturn(result_error_text("layer count must be positive"));@try{id<MTLDevice>d=object_of_handle(rh,Handle_kind::Device);CAMLreturn(result_ok(Val_bool([d supportsRasterizationRateMapWithLayerCount:(NSUInteger)n])));}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+#pragma clang diagnostic pop

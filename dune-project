@@ -1,5 +1,7 @@
 (lang dune 3.17)
 
+(using directory-targets 0.1)
+
 (name prismel)
 
 (generate_opam_files true)
@@ -22,20 +24,19 @@
  (depends
   (ocaml (>= 5.2))
   (dune (>= 3.17))
-  tsdl
-  tsdl-image
-  tsdl-ttf
-  tsdl-mixer
   ctypes
   ctypes-foreign
+  digestif
   dune-configurator
+  ppxlib
   (odoc :with-doc)
   (utop :with-test)
   domainslib
-  conf-sdl2
-  conf-sdl2-image
-  conf-sdl2-ttf
-  conf-sdl2-mixer)
+  yojson
+  conf-sdl3
+  conf-sdl3-image
+  conf-sdl3-ttf
+  conf-sdl3-mixer)
  (tags
   ("ocaml" "graphics" "framework" "creative-coding" "gamedev")))
 

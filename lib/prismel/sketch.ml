@@ -1,198 +1,99 @@
-type clock =
-  | Realtime
-  | Fixed of float
-
-type config = {
-  width : int;
-  height : int;
-  title : string;
-  fps : int option;
-  domains : int option;
-  clock : clock;
-  resizable : bool;
-  fullscreen : bool;
-}
-
-let default_config = {
-  width = 800;
-  height = 600;
-  title = "Prismel sketch";
-  fps = Some 60;
-  domains = None;
-  clock = Realtime;
-  resizable = false;
-  fullscreen = false;
-}
-
-type 'model runtime = {
-  model : 'model;
-  frame : Frame.t;
-  pending_events_rev : Event.t list;
-}
-
-let snapshot ~clock ~count ~events =
-  let width, height = Window.size () in
-  let drawable_width, drawable_height = Window.drawable_size () in
-  let time, dt, fps =
-    match clock with
-    | Realtime -> Time.now (), Time.get_delta_time (), Time.get_frame_rate ()
-    | Fixed dt ->
-        if not (Float.is_finite dt) || dt <= 0. then
-          invalid_arg "Sketch.Fixed: timestep must be finite and positive";
-        float_of_int count *. dt, dt, 1. /. dt
-  in
-  {
-    Frame.width;
-    height;
-    size = (width, height);
-    drawable_width;
-    drawable_height;
-    drawable_size = (drawable_width, drawable_height);
-    pixel_scale =
-      ( float_of_int drawable_width /. float_of_int width,
-        float_of_int drawable_height /. float_of_int height );
-    time;
-    dt;
-    fps;
-    count;
-    mouse = Input.mouse_pos ();
-    mouse_delta = Input.mouse_delta ();
-    keys = Input.keys_down ();
-    mouse_buttons = Input.mouse_buttons_down ();
-    events;
-  }
-
-let window_config config =
-  {
-    Window.default_config with
-    width = config.width;
-    height = config.height;
-    title = config.title;
-    resizable = config.resizable;
-    fullscreen = config.fullscreen;
-    vsync = Option.is_none config.fps;
-  }
-
-let run_state_internal ?(config = default_config) ~init ~update ~view
-    ?after_draw ?on_stop () =
-  Option.iter Time.set_frame_rate config.fps;
-  let init_runtime () =
-    let frame = snapshot ~clock:config.clock ~count:0 ~events:[] in
-    { model = init frame; frame; pending_events_rev = [] }
-  in
-  let on_event runtime event =
-    { runtime with pending_events_rev = event :: runtime.pending_events_rev }
-  in
-  let update_runtime runtime _dt =
-    let events = List.rev runtime.pending_events_rev in
-    let frame =
-      snapshot ~clock:config.clock ~count:(runtime.frame.count + 1) ~events
-    in
-    {
-      model = update runtime.model frame;
-      frame;
-      pending_events_rev = [];
-    }
-  in
-  let draw_runtime runtime = Scene.render (view runtime.model runtime.frame) in
-  let final =
-    Parallel.run ?domains:config.domains (fun () ->
-      App.run ~config:(window_config config)
-        ~init:init_runtime ~update:update_runtime ~draw:draw_runtime
-        ?after_draw:(Option.map
-          (fun callback runtime -> callback runtime.model runtime.frame)
-          after_draw)
-        ~on_event
-        ?on_stop:(Option.map
-          (fun stop runtime -> stop runtime.model)
-          on_stop)
-        ())
-  in
-  final.model
-
-let run_state ?config ~init ~update ~view ?on_stop () =
-  run_state_internal ?config ~init ~update ~view ?on_stop ()
-
-let run ?config view =
-  ignore
-    (run_state ?config
-      ~init:(fun _ -> ())
-      ~update:(fun () _ -> ())
-      ~view:(fun () frame -> view frame)
-      ())
-
-type 'model with_assets = {
-  assets : Assets.t;
-  user_model : 'model;
-}
-
-let run_assets ?config ?root ?(watch = false) ~init ~update ~view () =
-  let initialize frame =
-    let assets = Assets.create ?root ~watch () in
-    try { assets; user_model = init assets frame }
-    with error ->
-      Assets.destroy assets;
-      raise error
-  in
-  let update_model model frame =
-    (match Assets.refresh model.assets with
-     | Ok _ -> ()
-     | Error errors ->
-         List.iter
-           (fun message ->
-             Printf.eprintf "Prismel asset reload warning: %s\n%!" message)
-           errors);
-    { model with
-      user_model = update model.assets model.user_model frame;
-    }
-  in
-  let view_model model frame = view model.assets model.user_model frame in
-  let stop model = Assets.destroy model.assets in
-  let final =
-    run_state ?config ~init:initialize ~update:update_model ~view:view_model
-      ~on_stop:stop ()
-  in
-  final.user_model
-
-let quit = App.request_quit
-let is_headless = Backend.is_headless
-
-let rec ensure_directory path =
-  if path = "" || path = "." || Sys.file_exists path then ()
-  else begin
-    let parent = Filename.dirname path in
-    if parent <> path then ensure_directory parent;
-    try Unix.mkdir path 0o755
-    with Unix.Unix_error (Unix.EEXIST, _, _) -> ()
-  end
-
-let export_state ?(config = default_config) ?(fps = 60) ?(prefix = "frame")
-    ~directory ~frames ~init ~update ~view ?on_stop () =
-  if frames <= 0 then invalid_arg "Sketch.export_state: frames must be positive";
-  if fps <= 0 then invalid_arg "Sketch.export_state: fps must be positive";
-  if prefix = "" || prefix = "." || prefix = ".."
-     || Filename.basename prefix <> prefix
-  then
-    invalid_arg "Sketch.export_state: prefix must be a non-empty filename stem";
-  ensure_directory directory;
-  let index = ref 0 in
-  let after_draw _model _frame =
-    let filename =
-      Filename.concat directory (Printf.sprintf "%s-%06d.png" prefix !index)
-    in
-    (match Canvas.save_screen_png filename with
-     | Ok () -> ()
-     | Error message -> failwith ("Frame export failed: " ^ message));
-    incr index;
-    if !index >= frames then quit ()
-  in
-  let config = { config with clock = Fixed (1. /. float_of_int fps); fps = None } in
-  run_state_internal ~config ~init ~update ~view ~after_draw ?on_stop ()
-
-let export ?config ?fps ?prefix ~directory ~frames view =
-  ignore
-    (export_state ?config ?fps ?prefix ~directory ~frames
-       ~init:(fun _ -> ())
-       ~update:(fun () _ -> ())
-       ~view:(fun () frame -> view frame)
-       ())
+type clock=Realtime|Fixed of float
+type config={width:int;height:int;title:string;fps:int option;domains:int option;clock:clock;resizable:bool;fullscreen:bool}
+let default_config={width=800;height=600;title="Prismel sketch";fps=Some 60;domains=None;clock=Realtime;resizable=true;fullscreen=false}
+let stopped=ref false let quit()=stopped:=true
+let resize_current : (width:int -> height:int -> unit) option ref = ref None
+let resize ~width ~height =
+  if width<=0||height<=0 then invalid_arg"Sketch.resize: dimensions must be positive";
+  match !resize_current with
+  |None->invalid_arg"Sketch.resize: no sketch is running"
+  |Some resize->resize~width~height
+let frame config count time dt events={Frame.width=config.width;height=config.height;size=(config.width,config.height);drawable_width=config.width;drawable_height=config.height;drawable_size=(config.width,config.height);pixel_scale=(1.,1.);time;dt;fps=(if dt > 0. then 1. /. dt else 0.);count;mouse=Input.mouse_pos();mouse_delta=Input.mouse_delta();keys=Input.keys_down();mouse_buttons=Input.mouse_buttons_down();events}
+let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _ _->())~init~update~view ?(on_stop=fun _->())()=
+  if config.width<=0||config.height<=0 then invalid_arg"Sketch: dimensions must be positive";
+  Option.iter(fun frames->if frames<=0 then invalid_arg"Sketch: max_frames must be positive")max_frames;
+  Option.iter(fun fps->if fps<=0 then invalid_arg"Sketch: fps must be positive")config.fps;
+  Option.iter(fun domains->if domains<=0 then invalid_arg"Sketch: domains must be positive")config.domains;
+  stopped:=false;Time.init();
+  Time.set_frame_rate(Option.value config.fps~default:0);
+  let vsync=match config.clock with Fixed _->false|Realtime->true in
+  Time.set_vsync vsync;
+  let first=frame config 0 0. 0.[]in
+  let timing=match config.clock with Realtime->Prismel_next_execution.Variable|Fixed dt when Float.is_finite dt&&dt>0.->Fixed dt|Fixed _->invalid_arg"fixed dt must be finite and positive"in
+  let configuration={Prismel_next_execution.default_configuration with logical_width=config.width;logical_height=config.height;drawable_width=config.width;drawable_height=config.height;title=config.title;timing;vsync}in
+  let get=function Ok x->x|Error e->failwith(Format.asprintf"%a"Prismel_next_execution.pp_error e)in
+  let coordinator=get(Prismel_next_execution.create configuration)in
+  get(Prismel_next_execution.show coordinator);
+  (match Prismel_next_execution.presentation_facts coordinator with
+   |Ok facts->Event.configure~logical_width:facts.logical_width
+       ~logical_height:facts.logical_height
+   |Error _->());
+  Runtime_diagnostics.Private.install coordinator;
+  let logical_width=ref config.width and logical_height=ref config.height in
+  let capture ()=
+    let facts=get(Prismel_next_execution.presentation_facts coordinator)in
+    Prismel_next_execution.capture coordinator
+    |>Result.map(fun bytes->facts.drawable_width,facts.drawable_height,bytes)
+    |>Result.map_error(fun error->Format.asprintf"%a"Prismel_next_execution.pp_error error)in
+  let save filename=Result.bind(capture())(fun(width,height,bytes)->
+        match Prismel_next_resources.Canvas.create~width~height with
+        |Error error->Error(Format.asprintf"%a"Prismel_next_resources.pp_error error)
+        |Ok canvas->Fun.protect~finally:(fun()->ignore(Prismel_next_resources.Canvas.destroy canvas))(fun()->
+            for y=0 to height-1 do for x=0 to width-1 do let o=(y*width+x)*4 in
+              let packed=Int32.logor(Int32.shift_left(Int32.of_int(Char.code(Bytes.get bytes o)))24)(Int32.logor(Int32.shift_left(Int32.of_int(Char.code(Bytes.get bytes(o+1))))16)(Int32.logor(Int32.shift_left(Int32.of_int(Char.code(Bytes.get bytes(o+2))))8)(Int32.of_int(Char.code(Bytes.get bytes(o+3))))))in
+              Prismel_next_resources.Canvas.set_pixel canvas~x~y packed|>Result.get_ok done done;
+            Prismel_next_resources.Canvas.save_png canvas filename
+            |>Result.map_error(fun error->Format.asprintf"%a"Prismel_next_resources.pp_error error)))in
+  Canvas_runtime.install~capture~save;
+  resize_current:=Some(fun~width~height->
+    get(Prismel_next_execution.resize coordinator~logical_width:width
+      ~logical_height:height~drawable_width:width~drawable_height:height);
+    let facts=get(Prismel_next_execution.presentation_facts coordinator)in
+    logical_width:=facts.logical_width;logical_height:=facts.logical_height);
+  Scene.Private.install_renderer(fun scene->
+    let facts=get(Prismel_next_execution.presentation_facts coordinator)in
+    let density=
+      let from_drawable=float facts.drawable_width/.float(max 1 facts.logical_width)in
+      max 1(int_of_float(Float.round(max facts.pixel_density from_drawable)))in
+    match Native_scene_lowering.render~execution:coordinator~density
+      ~width:facts.logical_width~height:facts.logical_height scene with
+    |Ok _->()
+    |Error error->
+        failwith(Format.asprintf"Sketch.render: %a"Native_scene_lowering.pp_error error));
+  let model=ref(init first)in
+  let cleanup()=Fun.protect~finally:(fun()->resize_current:=None;Canvas_runtime.clear();ignore(Prismel_next_execution.destroy coordinator);Runtime_diagnostics.Private.record coordinator)(fun()->on_stop!model)in
+  Fun.protect~finally:cleanup(fun()->
+    let limit=max_frames in let count=ref 0 in while not !stopped&&Option.fold~none:true~some:(fun limit-> !count<limit)limit do
+      Time.update();let events=Event.poll_events()in
+      if List.exists(function Event.WindowClosed->true|_->false)events then quit();
+      incr count;let dt=match config.clock with Realtime->Time.get_delta_time()|Fixed value->value in
+      let base=frame config !count(match config.clock with Realtime->Time.now()|Fixed _->float !count*.dt)dt events in
+      let presentation=get(Prismel_next_execution.presentation_facts coordinator)in
+      if presentation.logical_width<> !logical_width
+          ||presentation.logical_height<> !logical_height then
+        Event.configure~logical_width:presentation.logical_width
+          ~logical_height:presentation.logical_height;
+      logical_width:=presentation.logical_width;logical_height:=presentation.logical_height;
+      let scale_x=float presentation.drawable_width/.float presentation.logical_width
+      and scale_y=float presentation.drawable_height/.float presentation.logical_height in
+      let facts={base with width=presentation.logical_width;height=presentation.logical_height;
+        size=(presentation.logical_width,presentation.logical_height);
+        drawable_width=presentation.drawable_width;drawable_height=presentation.drawable_height;
+        drawable_size=(presentation.drawable_width,presentation.drawable_height);
+        pixel_scale=(scale_x,scale_y)}in
+      model:=update !model facts;Scene.render(view !model facts);
+      after_present !model facts;Time.limit_frame_rate()done;!model)
+let run_state ?config ?max_frames ~init~update~view ?after_present ?on_stop()=
+  Parallel.run ?domains:(Option.bind config(fun value->value.domains))(fun()->run_state_internal?config?max_frames?after_present~init~update~view?on_stop())
+let run ?config view=ignore(run_state?config~init:(fun _->())~update:(fun()_->())~view:(fun()frame->view frame)())
+let run_assets ?config ?(root=".") ?(watch=false)~init~update~view()=let assets=Assets.create~root~watch()in Fun.protect~finally:(fun()->Assets.destroy assets)(fun()->run_state?config~init:(init assets)~update:(update assets)~view:(view assets)())
+let export_state ?(config=default_config)?(fps=60)?(prefix="frame")~directory~frames~init~update~view ?(on_stop=fun _->())()=
+  if frames<=0 then invalid_arg"Sketch.export_state: frames must be positive";
+  if fps<=0 then invalid_arg"Sketch.export_state: fps must be positive";
+  if prefix=""||prefix="."||prefix=".."||Filename.basename prefix<>prefix then invalid_arg"Sketch.export_state: invalid prefix";
+  let rec ensure path=if path=""||path="."||Sys.file_exists path then()else(let parent=Filename.dirname path in if parent<>path then ensure parent;try Unix.mkdir path 0o755 with Unix.Unix_error(Unix.EEXIST,_,_)->())in
+  ensure directory;let index=ref 0 in
+  let after_present _ _=let filename=Filename.concat directory(Printf.sprintf"%s-%06d.png"prefix !index)in match Canvas.save_screen_png filename with Ok()->incr index|Error message->failwith("Frame export failed: "^message)in
+  let config={config with clock=Fixed(1./.float fps);fps=None}in
+  Parallel.run ?domains:config.domains(fun()->run_state_internal~config~max_frames:frames~after_present~init~update~view~on_stop())
+let export ?config ?fps ?prefix ~directory ~frames view=ignore(export_state?config?fps?prefix~directory~frames~init:(fun _->())~update:(fun()_->())~view:(fun()frame->view frame)())

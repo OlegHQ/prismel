@@ -26,3 +26,4 @@ type t = {
 val key_down : Input.key -> t -> bool
 val mouse_down : Input.mouse_button -> t -> bool
 val has_event : (Event.t -> bool) -> t -> bool
+

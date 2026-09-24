@@ -1,229 +1,86 @@
-open Tsdl
-
-type t = {
-  surface : Sdl.surface;
-  renderer : Sdl.renderer;
-  width : int;
-  height : int;
-  mutable destroyed : bool;
-}
-
-let require_main_domain () =
-  if not (Domain.is_main_domain ()) then
-    invalid_arg "Canvas operations must run on the main domain"
-
-let ensure canvas =
-  require_main_domain ();
-  if canvas.destroyed then invalid_arg "Canvas has been destroyed"
-
-let result_message prefix = function
-  | Ok value -> Ok value
-  | Error (`Msg message) -> Error (prefix ^ ": " ^ message)
-
-let create ~width ~height =
-  require_main_domain ();
-  if width <= 0 || height <= 0 then
-    Error "Canvas.create: dimensions must be positive"
-  else
-    match Sdl.create_rgb_surface_with_format ~w:width ~h:height ~depth:32
-        Sdl.Pixel.format_rgba32 with
-    | Error (`Msg message) -> Error ("Canvas surface creation failed: " ^ message)
-    | Ok surface ->
-        (match Sdl.create_software_renderer surface with
-         | Error (`Msg message) ->
-             Sdl.free_surface surface;
-             Error ("Canvas renderer creation failed: " ^ message)
-         | Ok renderer ->
-             ignore (Sdl.set_render_draw_blend_mode renderer Sdl.Blend.mode_blend);
-             ignore (Sdl.set_render_draw_color renderer 0 0 0 0);
-             ignore (Sdl.render_clear renderer);
-             Ok { surface; renderer; width; height; destroyed = false })
-
-let create_exn ~width ~height =
-  match create ~width ~height with
-  | Ok canvas -> canvas
-  | Error message -> failwith message
-
-let width canvas = ensure canvas; canvas.width
-let height canvas = ensure canvas; canvas.height
-let size canvas = width canvas, height canvas
-
-let restore_sdl_clip renderer clip =
-  let rect =
-    Option.map
-      (fun (x, y, w, h) -> Sdl.Rect.create ~x ~y ~w ~h)
-      clip
-  in
-  ignore (Sdl.render_set_clip_rect renderer rect)
-
-let render canvas scene =
-  ensure canvas;
-  let previous = !Graphics.graphics_state in
-  let previous_image_renderer = !Image.Private.current_renderer in
-  Graphics.graphics_state := {
-    renderer = Some canvas.renderer;
-    current_color = Color.white;
-    transform_stack = Stack.create ();
-    current_transform = Mat3.identity;
-    current_clip = None;
-  };
-  Image.Private.set_renderer canvas.renderer;
-  Fun.protect
-    ~finally:(fun () ->
-      Graphics.graphics_state := previous;
-      Image.Private.current_renderer := previous_image_renderer;
-      Option.iter
-        (fun renderer -> restore_sdl_clip renderer previous.current_clip)
-        previous.renderer)
-    (fun () ->
-      Scene.render scene;
-      Sdl.render_present canvas.renderer)
-
-let with_pixels canvas operation =
-  ensure canvas;
-  match Sdl.lock_surface canvas.surface with
-  | Error (`Msg message) -> failwith ("Canvas pixel lock failed: " ^ message)
-  | Ok () ->
-      Fun.protect
-        ~finally:(fun () -> Sdl.unlock_surface canvas.surface)
-        (fun () ->
-          operation
-            (Sdl.get_surface_pixels canvas.surface Bigarray.int32)
-            (Sdl.get_surface_pitch canvas.surface / 4))
-
-let with_format operation =
-  match Sdl.alloc_format Sdl.Pixel.format_rgba32 with
-  | Error (`Msg message) -> failwith ("Canvas pixel format failed: " ^ message)
-  | Ok format -> Fun.protect ~finally:(fun () -> Sdl.free_format format)
-      (fun () -> operation format)
-
-let color_of_pixel format pixel =
-  let r, g, b, a = Sdl.get_rgba format pixel in
-  Color.rgba r g b a
-
-let pixel_of_color format color =
-  let r, g, b, a = Color.to_tuple color in
-  Sdl.map_rgba format r g b a
-
-let pixel canvas ~x ~y =
-  ensure canvas;
-  if x < 0 || y < 0 || x >= canvas.width || y >= canvas.height then None
-  else
-    with_format (fun format ->
-      with_pixels canvas (fun values stride ->
-        Some (color_of_pixel format values.{(y * stride) + x})))
-
-let pixels canvas =
-  with_format (fun format ->
-    with_pixels canvas (fun values stride ->
-      Array.init (canvas.width * canvas.height) (fun index ->
-        let x = index mod canvas.width and y = index / canvas.width in
-        color_of_pixel format values.{(y * stride) + x})))
-
-let set_pixel canvas ~x ~y color =
-  ensure canvas;
-  if x < 0 || y < 0 || x >= canvas.width || y >= canvas.height then
-    invalid_arg "Canvas.set_pixel: coordinate outside canvas";
-  with_format (fun format ->
-    with_pixels canvas (fun values stride ->
-      values.{(y * stride) + x} <- pixel_of_color format color))
-
-let map_pixels canvas transform =
-  with_format (fun format ->
-    with_pixels canvas (fun values stride ->
-      for y = 0 to canvas.height - 1 do
-        for x = 0 to canvas.width - 1 do
-          let index = (y * stride) + x in
-          values.{index} <-
-            pixel_of_color format
-              (transform ~x ~y (color_of_pixel format values.{index}))
-        done
-      done))
-
-let apply_mask ~source ~mask =
-  ensure source;
-  ensure mask;
-  if source.width <> mask.width || source.height <> mask.height then
-    invalid_arg "Canvas.apply_mask: canvas dimensions must match";
-  with_format (fun format ->
-    with_pixels source (fun source_values source_stride ->
-      with_pixels mask (fun mask_values mask_stride ->
-        for y = 0 to source.height - 1 do
-          for x = 0 to source.width - 1 do
-            let source_index = (y * source_stride) + x in
-            let mask_index = (y * mask_stride) + x in
-            let source_color =
-              color_of_pixel format source_values.{source_index}
-            in
-            let mask_alpha =
-              (color_of_pixel format mask_values.{mask_index}).a
-            in
-            source_values.{source_index} <-
-              pixel_of_color format
-                { source_color with
-                  a = (source_color.a * mask_alpha + 127) / 255;
-                }
-          done
-        done)))
-
-let to_image canvas =
-  ensure canvas;
-  match Image.Private.get_renderer () with
-  | Error message -> Error message
-  | Ok renderer ->
-      (match Sdl.create_texture_from_surface renderer canvas.surface with
-       | Error (`Msg message) -> Error ("Canvas texture upload failed: " ^ message)
-       | Ok texture -> Ok (Image.Private.from_texture texture canvas.width canvas.height))
-
-let save_png canvas filename =
-  ensure canvas;
-  if Tsdl_image.Image.save_png canvas.surface filename = 0 then Ok ()
-  else Error ("PNG save failed: " ^ Sdl.get_error ())
-
-let capture () =
-  require_main_domain ();
-  (* SDL reads the complete native render target here, which is larger than
-     the logical window on high-DPI displays. *)
-  let width, height = Window.drawable_size () in
-  match create ~width ~height with
-  | Error _ as error -> error
-  | Ok canvas ->
-      (match Image.Private.get_renderer () with
-       | Error message ->
-           Sdl.destroy_renderer canvas.renderer;
-           Sdl.free_surface canvas.surface;
-           Error message
-       | Ok renderer ->
-           let read_result =
-             with_pixels canvas (fun values _stride ->
-               result_message "Screen capture failed"
-                 (Sdl.render_read_pixels renderer None
-                    (Some Sdl.Pixel.format_rgba32) values
-                    (Sdl.get_surface_pitch canvas.surface)))
-           in
-           match read_result with
-           | Ok () -> Ok canvas
-           | Error message ->
-               Sdl.destroy_renderer canvas.renderer;
-               Sdl.free_surface canvas.surface;
-               Error message)
-
-let save_screen_png filename =
-  match capture () with
-  | Error _ as error -> error
-  | Ok canvas ->
-      Fun.protect ~finally:(fun () ->
-        Font.release_renderer canvas.renderer;
-        Sdl.destroy_renderer canvas.renderer;
-        Sdl.free_surface canvas.surface;
-        canvas.destroyed <- true)
-        (fun () -> save_png canvas filename)
-
-let destroy canvas =
-  require_main_domain ();
-  if not canvas.destroyed then begin
-    Font.release_renderer canvas.renderer;
-    Sdl.destroy_renderer canvas.renderer;
-    Sdl.free_surface canvas.surface;
-    canvas.destroyed <- true
-  end
+type t={resource:Prismel_next_resources.Canvas.t;
+  mutable execution:Prismel_next_execution.t option;mutable destroyed:bool}
+let message operation error=Format.asprintf"%s: %a"operation Prismel_next_resources.pp_error error
+let create ~width ~height=match Prismel_next_resources.Canvas.create ~width ~height with
+  |Ok resource->Ok{resource;execution=None;destroyed=false}
+  |Error error->Error(message"Canvas.create"error)
+let create_exn ~width ~height=match create ~width ~height with Ok value->value|Error value->failwith value
+let size value=match Prismel_next_resources.Canvas.size value.resource with Ok value->value|Error error->failwith(message"Canvas.size"error)
+let width value=fst(size value)
+let height value=snd(size value)
+let execution_message operation error=
+  Format.asprintf"%s: %a"operation Prismel_next_execution.pp_error error
+let execution value=
+  if value.destroyed then invalid_arg"Canvas.render: canvas is destroyed";
+  match value.execution with
+  |Some execution->execution
+  |None->
+      let width,height=size value in
+      let configuration={Prismel_next_execution.default_configuration with
+        logical_width=width;logical_height=height;drawable_width=width;
+        drawable_height=height;title="Prismel Canvas";
+        timing=Prismel_next_execution.Fixed(1./.60.);vsync=false}in
+      match Prismel_next_execution.create_offscreen configuration with
+      |Error error->failwith(execution_message"Canvas.render"error)
+      |Ok execution->value.execution<-Some execution;execution
+let render value scene=
+  let execution=execution value and width,height=size value in
+  (match Native_scene_lowering.render~execution~density:1~width~height scene with
+  |Ok _->()
+  |Error error->
+      failwith(Format.asprintf"Canvas.render: %a"Native_scene_lowering.pp_error error));
+    match Prismel_next_resources.Canvas.Private.prepare_write value.resource with
+    |Error error->failwith(message"Canvas.render"error)
+    |Ok(_,_,destination)->
+      (match Prismel_next_execution.capture_into execution~destination with
+       |Error error->failwith(execution_message"Canvas.render"error)
+       |Ok()->match Prismel_next_resources.Canvas.Private.commit_write value.resource with
+         |Ok()->()|Error error->failwith(message"Canvas.render"error))
+let packed color=Int32.logor(Int32.shift_left(Int32.of_int color.Color.r)24)
+  (Int32.logor(Int32.shift_left(Int32.of_int color.g)16)
+    (Int32.logor(Int32.shift_left(Int32.of_int color.b)8)(Int32.of_int color.a)))
+let snapshot value=match Prismel_next_resources.Canvas.capture value.resource with
+  |Error error->failwith(message"Canvas.capture"error)|Ok image->
+    let bytes=match Prismel_next_resources.Image.pixels image with Ok value->value|Error error->failwith(message"Canvas.pixels"error)in
+    ignore(Prismel_next_resources.Image.destroy image);bytes
+let pixel value ~x ~y=let w,h=size value in if x<0||y<0||x>=w||y>=h then None else
+  let bytes=snapshot value and offset=(y*w+x)*4 in Some(Color.rgba(Char.code(Bytes.get bytes offset))
+    (Char.code(Bytes.get bytes(offset+1)))(Char.code(Bytes.get bytes(offset+2)))(Char.code(Bytes.get bytes(offset+3))))
+let pixels value=let w,h=size value and bytes=snapshot value in Array.init(w*h)(fun index->let offset=index*4 in
+  Color.rgba(Char.code(Bytes.get bytes offset))(Char.code(Bytes.get bytes(offset+1)))
+    (Char.code(Bytes.get bytes(offset+2)))(Char.code(Bytes.get bytes(offset+3))))
+let set_pixel value ~x ~y color=ignore(Prismel_next_resources.Canvas.set_pixel value.resource ~x ~y(packed color))
+let map_pixels value operation=let w,h=size value in for y=0 to h-1 do for x=0 to w-1 do match pixel value ~x ~y with None->()|Some old->set_pixel value ~x ~y(operation ~x ~y old)done done
+let apply_mask ~source ~mask=let sw,sh=size source and mw,mh=size mask in if(sw,sh)<>(mw,mh)then invalid_arg"Canvas.apply_mask";
+  for y=0 to sh-1 do for x=0 to sw-1 do match pixel source ~x ~y,pixel mask ~x ~y with
+  |Some src,Some m->set_pixel source ~x ~y(Color.with_alpha src(src.a*m.a/255))|_->()done done
+let to_image value=match Prismel_next_resources.Canvas.capture value.resource with
+  |Ok image->Ok(Image.Private.of_resource image)
+  |Error error->Error(message"Canvas.to_image"error)
+module Private=struct
+  type native_stats={frames:int64;logical_draws:int64;logical_passes:int64;
+    logical_submissions:int64;uploaded_bytes:int64;cache_entries:int}
+  let copy_to_image value image=
+    match Prismel_next_resources.Canvas.copy_to_image value.resource(Image.Private.resource image)with
+    |Ok()->Ok()|Error error->Error(message"Canvas.Private.copy_to_image"error)
+  let native_stats value=match value.execution with
+    |None->{frames=0L;logical_draws=0L;logical_passes=0L;
+        logical_submissions=0L;uploaded_bytes=0L;cache_entries=0}
+    |Some execution->match Prismel_next_execution.stats execution with
+      |Error error->failwith(execution_message"Canvas.Private.native_stats"error)
+      |Ok stats->{frames=stats.frames;logical_draws=stats.logical_draws;
+          logical_passes=stats.logical_passes;
+          logical_submissions=stats.logical_submissions;
+          uploaded_bytes=stats.uploaded_bytes;cache_entries=stats.cache_entries}
+end
+let save_png value path=match Prismel_next_resources.Canvas.save_png value.resource path with Ok()->Ok()|Error error->Error(message"Canvas.save_png"error)
+let write_bytes value bytes=match Prismel_next_resources.Canvas.replace_pixels value.resource bytes with
+ |Ok()->()|Error error->invalid_arg(message"Canvas.write_bytes"error)
+let capture()=match Canvas_runtime.capture()with Error _ as error->error|Ok(w,h,bytes)->let value=create_exn~width:w~height:h in(try write_bytes value bytes;Ok value with exn->ignore(Prismel_next_resources.Canvas.destroy value.resource);Error(Printexc.to_string exn))
+let save_screen_png=Canvas_runtime.save
+let destroy value=if not value.destroyed then(
+  Option.iter(fun execution->ignore(Prismel_next_execution.destroy execution))
+    value.execution;
+  value.execution<-None;
+  ignore(Prismel_next_resources.Canvas.destroy value.resource);
+  value.destroyed<-true)

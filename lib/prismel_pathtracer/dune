@@ -1,0 +1,17 @@
+(library
+ (name prismel_pathtracer)
+ (public_name prismel.pathtracer)
+ (modules prismel_pathtracer)
+ (libraries prismel metal ogpu pdk prismel_next_execution runtime_next_orchestrator
+  prismel_next_resources unix))
+
+(test
+ (name test_pathtracer)
+ (modules test_pathtracer)
+ (libraries prismel prismel_pathtracer pdk metal))
+
+(test
+ (name test_gpu_film)
+ (modules test_gpu_film)
+ (libraries prismel prismel_pathtracer prismel_next_execution
+  prismel_next_resources ogpu pdk metal))

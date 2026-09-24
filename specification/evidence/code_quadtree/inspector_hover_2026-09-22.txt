@@ -1,0 +1,20 @@
+OCaml LSP 1.23.1: 96799 symbols, 1 parsed / 1857 cached / 13 non-OCaml, 0.60s
+native run (includes window startup/teardown): frames=60 domains=1 art_builds=1 wall=1.149s allocated=92432232B promoted=8984440B major=47341280B heap_peak=251492592B
+        2.29 real         1.05 user         0.26 sys
+           376143872  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               27734  page reclaims
+                2620  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                2331  voluntary context switches
+                5963  involuntary context switches
+         10269948498  instructions retired
+          3383736592  cycles elapsed
+           369249216  peak memory footprint

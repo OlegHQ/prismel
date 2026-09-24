@@ -14,24 +14,26 @@ type config = {
   resizable : bool;
   fullscreen : bool;
 }
+(** [default_config] enables native resizing. *)
 
 val default_config : config
 
-val run :
-  ?config:config ->
-  (Frame.t -> Scene.t) ->
-  unit
+val run : ?config:config -> (Frame.t -> Scene.t) -> unit
 (** Run a sketch with no user model. *)
 
 val run_state :
   ?config:config ->
+  ?max_frames:int ->
   init:(Frame.t -> 'model) ->
   update:('model -> Frame.t -> 'model) ->
   view:('model -> Frame.t -> Scene.t) ->
+  ?after_present:('model -> Frame.t -> unit) ->
   ?on_stop:('model -> unit) ->
-  unit ->
-  'model
-(** Run a sketch with immutable user state threaded through every frame. *)
+  unit -> 'model
+(** Run a sketch with immutable user state threaded through every frame.
+    [max_frames] keeps one runtime alive for exactly that many frames unless
+    [quit] is requested first. [after_present] runs after the native frame is
+    rendered and can capture that frame. *)
 
 val run_assets :
   ?config:config ->
@@ -40,21 +42,14 @@ val run_assets :
   init:(Assets.t -> Frame.t -> 'model) ->
   update:(Assets.t -> 'model -> Frame.t -> 'model) ->
   view:(Assets.t -> 'model -> Frame.t -> Scene.t) ->
-  unit ->
-  'model
+  unit -> 'model
 (** Run a stateful sketch with an automatically owned asset cache. *)
 
 val export :
-  ?config:config ->
-  ?fps:int ->
-  ?prefix:string ->
-  directory:string ->
-  frames:int ->
-  (Frame.t -> Scene.t) ->
-  unit
-(** Render a deterministic PNG sequence named [prefix-NNNNNN.png]. Captured
-    frames use the renderer's native backing dimensions; headless output has
-    one backing pixel per logical point. *)
+  ?config:config -> ?fps:int -> ?prefix:string -> directory:string ->
+  frames:int -> (Frame.t -> Scene.t) -> unit
+(** Renders a deterministic PNG sequence named [prefix-NNNNNN.png]. Captured
+    frames use the renderer's native backing dimensions. *)
 
 val export_state :
   ?config:config ->
@@ -66,9 +61,9 @@ val export_state :
   update:('model -> Frame.t -> 'model) ->
   view:('model -> Frame.t -> Scene.t) ->
   ?on_stop:('model -> unit) ->
-  unit ->
-  'model
+  unit -> 'model
 (** Stateful deterministic PNG-sequence export. *)
 
 val quit : unit -> unit
-val is_headless : unit -> bool
+val resize : width:int -> height:int -> unit
+(* Resize the active sketch through its native runtime. *)

@@ -1,0 +1,350 @@
+{
+  "schema": 2,
+  "benchmark": "metal_ffi",
+  "source_commit": "27a7009e8df16ad0c5daa8e1d64111476ef650bf",
+  "source_dirty": false,
+  "source_commit_after": "27a7009e8df16ad0c5daa8e1d64111476ef650bf",
+  "source_dirty_after": false,
+  "profile": "release",
+  "ocaml_version": "5.3.0",
+  "word_size": 64,
+  "machine": "arm64",
+  "macos_version": "26.4.1",
+  "sdk_version": "26.5",
+  "deployment_target": "14.0",
+  "device": "Apple M1",
+  "iterations": 1000000,
+  "sample_count": 7,
+  "batch_to_native_ratio": 1.0046676988773298,
+  "maximum_batch_to_native_ratio": 1.05,
+  "measurements": [
+    {
+      "name": "direct_ocaml_ffi_query",
+      "iterations": 1000000,
+      "ffi_calls": 1000000,
+      "sample_count": 7,
+      "median_wall_seconds": 0.0189058780670166,
+      "median_nanoseconds_per_iteration": 18.9058780670166,
+      "median_allocated_bytes": 24000144.0,
+      "median_allocated_bytes_per_iteration": 24.000144,
+      "samples": [
+        {
+          "wall_seconds": 0.021803855895996094,
+          "allocated_bytes": 24000144.0,
+          "minor_bytes": 23068584.0,
+          "promoted_bytes": 208.0,
+          "major_bytes": 208.0,
+          "major_collections": 0,
+          "checksum": "4295467296323296",
+          "native_nanoseconds": null
+        },
+        {
+          "wall_seconds": 0.01879405975341797,
+          "allocated_bytes": 24000144.0,
+          "minor_bytes": 23068584.0,
+          "promoted_bytes": 208.0,
+          "major_bytes": 208.0,
+          "major_collections": 0,
+          "checksum": "4295467296323296",
+          "native_nanoseconds": null
+        },
+        {
+          "wall_seconds": 0.019430160522460938,
+          "allocated_bytes": 24000144.0,
+          "minor_bytes": 23068584.0,
+          "promoted_bytes": 208.0,
+          "major_bytes": 208.0,
+          "major_collections": 0,
+          "checksum": "4295467296323296",
+          "native_nanoseconds": null
+        },
+        {
+          "wall_seconds": 0.019551992416381836,
+          "allocated_bytes": 24000144.0,
+          "minor_bytes": 23068584.0,
+          "promoted_bytes": 208.0,
+          "major_bytes": 208.0,
+          "major_collections": 0,
+          "checksum": "4295467296323296",
+          "native_nanoseconds": null
+        },
+        {
+          "wall_seconds": 0.01868605613708496,
+          "allocated_bytes": 24000144.0,
+          "minor_bytes": 23068584.0,
+          "promoted_bytes": 208.0,
+          "major_bytes": 208.0,
+          "major_collections": 0,
+          "checksum": "4295467296323296",
+          "native_nanoseconds": null
+        },
+        {
+          "wall_seconds": 0.018740177154541016,
+          "allocated_bytes": 24000144.0,
+          "minor_bytes": 23068584.0,
+          "promoted_bytes": 208.0,
+          "major_bytes": 208.0,
+          "major_collections": 0,
+          "checksum": "4295467296323296",
+          "native_nanoseconds": null
+        },
+        {
+          "wall_seconds": 0.0189058780670166,
+          "allocated_bytes": 24000144.0,
+          "minor_bytes": 23068584.0,
+          "promoted_bytes": 208.0,
+          "major_bytes": 208.0,
+          "major_collections": 0,
+          "checksum": "4295467296323296",
+          "native_nanoseconds": null
+        }
+      ]
+    },
+    {
+      "name": "batched_ocaml_ffi_query",
+      "iterations": 1000000,
+      "ffi_calls": 1,
+      "sample_count": 7,
+      "median_wall_seconds": 0.0019540786743164062,
+      "median_nanoseconds_per_iteration": 1.9540786743164062,
+      "median_allocated_bytes": 144.0,
+      "median_allocated_bytes_per_iteration": 0.000144,
+      "samples": [
+        {
+          "wall_seconds": 0.0019440650939941406,
+          "allocated_bytes": 144.0,
+          "minor_bytes": 0.0,
+          "promoted_bytes": 0.0,
+          "major_bytes": 0.0,
+          "major_collections": 0,
+          "checksum": "4295467296323296",
+          "native_nanoseconds": null
+        },
+        {
+          "wall_seconds": 0.0019600391387939453,
+          "allocated_bytes": 144.0,
+          "minor_bytes": 0.0,
+          "promoted_bytes": 0.0,
+          "major_bytes": 0.0,
+          "major_collections": 0,
+          "checksum": "4295467296323296",
+          "native_nanoseconds": null
+        },
+        {
+          "wall_seconds": 0.0019540786743164062,
+          "allocated_bytes": 144.0,
+          "minor_bytes": 0.0,
+          "promoted_bytes": 0.0,
+          "major_bytes": 0.0,
+          "major_collections": 0,
+          "checksum": "4295467296323296",
+          "native_nanoseconds": null
+        },
+        {
+          "wall_seconds": 0.002006053924560547,
+          "allocated_bytes": 144.0,
+          "minor_bytes": 0.0,
+          "promoted_bytes": 0.0,
+          "major_bytes": 0.0,
+          "major_collections": 0,
+          "checksum": "4295467296323296",
+          "native_nanoseconds": null
+        },
+        {
+          "wall_seconds": 0.001981973648071289,
+          "allocated_bytes": 144.0,
+          "minor_bytes": 0.0,
+          "promoted_bytes": 0.0,
+          "major_bytes": 0.0,
+          "major_collections": 0,
+          "checksum": "4295467296323296",
+          "native_nanoseconds": null
+        },
+        {
+          "wall_seconds": 0.0019500255584716797,
+          "allocated_bytes": 144.0,
+          "minor_bytes": 0.0,
+          "promoted_bytes": 0.0,
+          "major_bytes": 0.0,
+          "major_collections": 0,
+          "checksum": "4295467296323296",
+          "native_nanoseconds": null
+        },
+        {
+          "wall_seconds": 0.0019440650939941406,
+          "allocated_bytes": 144.0,
+          "minor_bytes": 0.0,
+          "promoted_bytes": 0.0,
+          "major_bytes": 0.0,
+          "major_collections": 0,
+          "checksum": "4295467296323296",
+          "native_nanoseconds": null
+        }
+      ]
+    },
+    {
+      "name": "native_objective_c_loop",
+      "iterations": 1000000,
+      "ffi_calls": 1,
+      "sample_count": 7,
+      "median_wall_seconds": 0.0019450187683105469,
+      "median_nanoseconds_per_iteration": 1.9450187683105469,
+      "median_allocated_bytes": 208.0,
+      "median_allocated_bytes_per_iteration": 0.000208,
+      "samples": [
+        {
+          "wall_seconds": 0.0019421577453613281,
+          "allocated_bytes": 208.0,
+          "minor_bytes": 0.0,
+          "promoted_bytes": 0.0,
+          "major_bytes": 0.0,
+          "major_collections": 0,
+          "checksum": "4295467296323296",
+          "native_nanoseconds": "1942291"
+        },
+        {
+          "wall_seconds": 0.0019450187683105469,
+          "allocated_bytes": 208.0,
+          "minor_bytes": 0.0,
+          "promoted_bytes": 0.0,
+          "major_bytes": 0.0,
+          "major_collections": 0,
+          "checksum": "4295467296323296",
+          "native_nanoseconds": "1945000"
+        },
+        {
+          "wall_seconds": 0.0019500255584716797,
+          "allocated_bytes": 208.0,
+          "minor_bytes": 0.0,
+          "promoted_bytes": 0.0,
+          "major_bytes": 0.0,
+          "major_collections": 0,
+          "checksum": "4295467296323296",
+          "native_nanoseconds": "1949500"
+        },
+        {
+          "wall_seconds": 0.0019600391387939453,
+          "allocated_bytes": 208.0,
+          "minor_bytes": 0.0,
+          "promoted_bytes": 0.0,
+          "major_bytes": 0.0,
+          "major_collections": 0,
+          "checksum": "4295467296323296",
+          "native_nanoseconds": "1959958"
+        },
+        {
+          "wall_seconds": 0.0019578933715820312,
+          "allocated_bytes": 208.0,
+          "minor_bytes": 0.0,
+          "promoted_bytes": 0.0,
+          "major_bytes": 0.0,
+          "major_collections": 0,
+          "checksum": "4295467296323296",
+          "native_nanoseconds": "1957750"
+        },
+        {
+          "wall_seconds": 0.0019068717956542969,
+          "allocated_bytes": 208.0,
+          "minor_bytes": 0.0,
+          "promoted_bytes": 0.0,
+          "major_bytes": 0.0,
+          "major_collections": 0,
+          "checksum": "4295467296323296",
+          "native_nanoseconds": "1907083"
+        },
+        {
+          "wall_seconds": 0.0019068717956542969,
+          "allocated_bytes": 208.0,
+          "minor_bytes": 0.0,
+          "promoted_bytes": 0.0,
+          "major_bytes": 0.0,
+          "major_collections": 0,
+          "checksum": "4295467296323296",
+          "native_nanoseconds": "1906208"
+        }
+      ]
+    },
+    {
+      "name": "safe_device_info",
+      "iterations": 50000,
+      "ffi_calls": 700000,
+      "sample_count": 7,
+      "median_wall_seconds": 0.09467601776123047,
+      "median_nanoseconds_per_iteration": 1893.5203552246094,
+      "median_allocated_bytes": 15600144.0,
+      "median_allocated_bytes_per_iteration": 312.00288,
+      "samples": [
+        {
+          "wall_seconds": 0.09587192535400391,
+          "allocated_bytes": 15600144.0,
+          "minor_bytes": 14679752.0,
+          "promoted_bytes": 1104.0,
+          "major_bytes": 928.0,
+          "major_collections": 0,
+          "checksum": "214749615737304",
+          "native_nanoseconds": null
+        },
+        {
+          "wall_seconds": 0.09440898895263672,
+          "allocated_bytes": 15600144.0,
+          "minor_bytes": 14679752.0,
+          "promoted_bytes": 1104.0,
+          "major_bytes": 928.0,
+          "major_collections": 0,
+          "checksum": "214749615737304",
+          "native_nanoseconds": null
+        },
+        {
+          "wall_seconds": 0.09465503692626953,
+          "allocated_bytes": 15600144.0,
+          "minor_bytes": 14679752.0,
+          "promoted_bytes": 1104.0,
+          "major_bytes": 928.0,
+          "major_collections": 0,
+          "checksum": "214749615737304",
+          "native_nanoseconds": null
+        },
+        {
+          "wall_seconds": 0.09444093704223633,
+          "allocated_bytes": 15600144.0,
+          "minor_bytes": 14679752.0,
+          "promoted_bytes": 1104.0,
+          "major_bytes": 928.0,
+          "major_collections": 0,
+          "checksum": "214749615737304",
+          "native_nanoseconds": null
+        },
+        {
+          "wall_seconds": 0.09467601776123047,
+          "allocated_bytes": 15600144.0,
+          "minor_bytes": 14679752.0,
+          "promoted_bytes": 1104.0,
+          "major_bytes": 928.0,
+          "major_collections": 0,
+          "checksum": "214749615737304",
+          "native_nanoseconds": null
+        },
+        {
+          "wall_seconds": 0.09468603134155273,
+          "allocated_bytes": 15600144.0,
+          "minor_bytes": 14679752.0,
+          "promoted_bytes": 1104.0,
+          "major_bytes": 928.0,
+          "major_collections": 0,
+          "checksum": "214749615737304",
+          "native_nanoseconds": null
+        },
+        {
+          "wall_seconds": 0.09469819068908691,
+          "allocated_bytes": 15600144.0,
+          "minor_bytes": 14679752.0,
+          "promoted_bytes": 1104.0,
+          "major_bytes": 928.0,
+          "major_collections": 0,
+          "checksum": "214749615737304",
+          "native_nanoseconds": null
+        }
+      ]
+    }
+  ]
+}

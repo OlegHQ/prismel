@@ -1,0 +1,2 @@
+let ids=["method:-[MTLFunctionHandle device]";"method:-[MTLFunctionHandle functionType]";"method:-[MTLFunctionHandle gpuResourceID]";"method:-[MTLFunctionHandle name]";"property:MTLFunctionHandle:device";"property:MTLFunctionHandle:functionType";"property:MTLFunctionHandle:gpuResourceID";"property:MTLFunctionHandle:name"]
+let ()=if List.length ids<>8||List.length(List.sort_uniq String.compare ids)<>8 then failwith"FunctionHandle8 closure drift"

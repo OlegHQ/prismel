@@ -1,0 +1,6 @@
+{
+  "schema": 1,
+  "stack": "legacy",
+  "available": false,
+  "blocker": "Failure(\"SDL initialization failed: \")"
+}

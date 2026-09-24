@@ -1,0 +1,3 @@
+(executable
+ (name main)
+ (libraries prismel prismel_pathtracer pdk procedural sop_catalog sketch_ui pxui unix))

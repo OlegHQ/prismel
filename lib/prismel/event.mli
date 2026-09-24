@@ -7,6 +7,7 @@ type t =
   | MouseMoved of (int * int)                                (* new mouse position *)
   | MousePressed of Input.mouse_button * (int * int)        (* button and position *)
   | MouseReleased of Input.mouse_button * (int * int)       (* button and position *)
+  | PointerCancelled of Input.mouse_button                  (* browser/OS cancelled pointer *)
   | MouseScrolled of (int * int)                             (* scroll delta x,y *)
   | TextInput of string
   | TextEditing of { text : string; start : int; length : int }
@@ -15,7 +16,10 @@ type t =
   | WindowFocusLost
   | WindowClosed                                             (* user attempted to close *)
 
-(* Poll all pending events and update Input state *)
+(* Bind the event stream to the running window's logical size. *)
+val configure : logical_width:int -> logical_height:int -> unit
+
+(* Poll pending native events and update Input state *)
 val poll_events : unit -> t list
 
 (* Process events through optional user event handler *)
@@ -26,3 +30,4 @@ val handle_events : 'a -> ('a -> t -> 'a) option -> 'a * t list
 
 (* Utility function for debugging *)
 val event_to_string : t -> string 
+

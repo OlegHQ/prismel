@@ -1,0 +1,8 @@
+(library
+ (name native_layer_token)
+ (public_name prismel.native_layer_token)
+ (foreign_stubs
+  (language c)
+  (names native_layer_token_stubs)
+  (flags -I%{project_root}/lib/native_layer_token))
+ (c_library_flags -framework CoreFoundation))

@@ -1,0 +1,15 @@
+(library
+ (name pastel_artwork)
+ (wrapped false)
+ (modules artwork)
+ (libraries prismel))
+
+(executable
+ (name main)
+ (modules main)
+ (libraries pastel_artwork prismel pxui unix))
+
+(test
+ (name check)
+ (modules check)
+ (libraries pastel_artwork prismel pxui))

@@ -1,0 +1,1590 @@
+(library
+ (name metal_build_config)
+ (wrapped false)
+ (modules Metal_build_config))
+
+(executable
+ (name discover)
+ (modules discover)
+ (libraries metal_build_config))
+
+(executable
+ (name build_bridge)
+ (modules build_bridge)
+ (libraries metal_build_config unix))
+
+(executable
+ (name build_xpc_bundle)
+ (modules build_xpc_bundle)
+ (libraries unix))
+
+(rule
+ (targets c_library_flags.sexp)
+ (action
+  (run ./discover.exe --sanitizers %{env:PRISMEL_METAL_SANITIZERS=}
+   --output %{targets})))
+
+(rule
+ (targets
+  metal_raw_generated.ml
+  metal_raw_generated.mli
+  metal_bridge_generated.inc
+  generated_binding_manifest.json
+  metal_enum_generated.ml
+  metal_enum_generated.mli
+  test_metal_enum_generated.ml
+  metal_value_record_generated.ml
+  metal_value_record_generated.mli
+  test_metal_value_record_generated.ml
+  metal_global_generated.ml
+  metal_global_generated.mli
+  test_metal_global_generated.ml
+  metal_descriptor_generated.ml
+  metal_descriptor_generated.mli
+  test_metal_descriptor_generated.ml
+  test_metal_descriptor_native.mm)
+ (deps
+  generated_api_inventory.json
+  metal_bridge.mm
+  ../native_layer_token/native_layer_token.h
+  metal.ml
+  metal_raw.ml
+  metal_raw.mli
+  test_metal.ml
+  ../../tools/metal/binding_spec.ml
+  ../../tools/metal/binding_spec.mli
+  ../../tools/metal/binding_enum_stage_device.ml
+  ../../tools/metal/binding_enum_stage_device.mli
+  ../../tools/metal/binding_enum_acceleration_pipeline.ml
+  ../../tools/metal/binding_enum_acceleration_pipeline.mli
+  ../../tools/metal/binding_enum_misc.ml
+  ../../tools/metal/binding_enum_misc.mli
+  ../../tools/metal/binding_enum_plan.ml
+  ../../tools/metal/binding_enum_plan.mli
+  ../../tools/metal/binding_enum_codegen.ml
+  ../../tools/metal/binding_enum_codegen.mli
+  ../../tools/metal/binding_enum_implicit_plan.ml
+  ../../tools/metal/binding_enum_implicit_plan.mli
+  ../../tools/metal/binding_enum_implicit_codegen.ml
+  ../../tools/metal/binding_enum_implicit_codegen.mli
+  ../../tools/metal/binding_enum_bound_evidence.ml
+  ../../tools/metal/binding_enum_bound_evidence.mli
+  ../../tools/metal/binding_enum_public_codegen.ml
+  ../../tools/metal/binding_enum_public_codegen.mli
+  ../../tools/metal/binding_value_record_plan.ml
+  ../../tools/metal/binding_value_record_plan.mli
+  ../../tools/metal/binding_value_record_codegen.ml
+  ../../tools/metal/binding_value_record_codegen.mli
+  ../../tools/metal/binding_value_record_evidence.ml
+  ../../tools/metal/binding_value_record_evidence.mli
+  ../../tools/metal/binding_global_string_spec.ml
+  ../../tools/metal/binding_global_string_spec.mli
+  ../../tools/metal/binding_global_string_codegen.ml
+  ../../tools/metal/binding_global_string_codegen.mli
+  ../../tools/metal/binding_global_string_evidence.ml
+  ../../tools/metal/binding_global_string_evidence.mli
+  ../../tools/metal/binding_global_string_conformance_codegen.ml
+  ../../tools/metal/binding_global_string_conformance_codegen.mli
+  ../../tools/metal/binding_descriptor_property_spec.ml
+  ../../tools/metal/binding_descriptor_property_spec.mli
+  ../../tools/metal/binding_descriptor_property_plan.ml
+  ../../tools/metal/binding_descriptor_property_plan.mli
+  ../../tools/metal/binding_descriptor_property_codegen.ml
+  ../../tools/metal/binding_descriptor_property_codegen.mli
+  ../../tools/metal/binding_descriptor_property_evidence.ml
+  ../../tools/metal/binding_descriptor_property_evidence.mli
+  ../../tools/metal/binding_descriptor_default_evidence.ml
+  ../../tools/metal/binding_descriptor_default_evidence.mli
+  ../../tools/metal/binding_render_pipeline_scalar_plan.ml
+  ../../tools/metal/binding_render_pipeline_scalar_plan.mli
+  ../../tools/metal/binding_render_pipeline_scalar_codegen.ml
+  ../../tools/metal/binding_render_pipeline_scalar_codegen.mli
+  ../../tools/metal/binding_render_pipeline_scalar_evidence.ml
+  ../../tools/metal/binding_render_pipeline_scalar_evidence.mli
+  ../../tools/metal/binding_render_encoder_resource_plan.ml
+  ../../tools/metal/binding_render_encoder_resource_plan.mli
+  ../../tools/metal/render_encoder_resource_adapter.ml
+  ../../tools/metal/render_encoder_resource_adapter.mli
+  ../../tools/metal/binding_struct_native_codegen.ml
+  ../../tools/metal/binding_struct_native_codegen.mli
+  ../../tools/metal/binding_struct_spec.ml
+  ../../tools/metal/binding_struct_spec.mli
+  ../../tools/metal/binding_struct_plan.ml
+  ../../tools/metal/binding_struct_plan.mli
+  ../../tools/metal/binding_string_spec.ml
+  ../../tools/metal/binding_string_spec.mli
+  ../../tools/metal/binding_string_properties.ml
+  ../../tools/metal/binding_string_properties.mli
+  ../../tools/metal/binding_string_codegen.ml
+  ../../tools/metal/binding_string_codegen.mli
+  ../../tools/metal/binding_availability.ml
+  ../../tools/metal/binding_availability.mli
+  ../../tools/metal/binding_receiver_catalog.ml
+  ../../tools/metal/binding_receiver_catalog.mli
+  ../../tools/metal/binding_direct_spec.ml
+  ../../tools/metal/binding_direct_spec.mli
+  ../../tools/metal/binding_direct_methods.ml
+  ../../tools/metal/binding_direct_methods.mli
+  ../../tools/metal/binding_direct_properties.ml
+  ../../tools/metal/binding_direct_properties.mli
+  ../../tools/metal/binding_direct_plan.ml
+  ../../tools/metal/binding_direct_plan.mli
+  ../../tools/metal/binding_plan.ml
+  ../../tools/metal/binding_plan.mli
+  ../../tools/metal/binding_plan_render.ml
+  ../../tools/metal/binding_plan_compute.ml
+  ../../tools/metal/binding_plan_resource.ml
+  ../../tools/metal/generate_bindings.ml)
+ (action
+  (run %{exe:../../tools/metal/generate_bindings.exe}
+   --inventory %{dep:generated_api_inventory.json}
+   --plan-root %{workspace_root}
+   --generator-source %{dep:../../tools/metal/generate_bindings.ml}
+   --manual-native %{dep:metal_bridge.mm}
+   --manual-raw-ml %{dep:metal_raw.ml}
+   --manual-raw-mli %{dep:metal_raw.mli}
+   --safe-source %{dep:metal.ml}
+   --safe-tests %{dep:test_metal.ml}
+   --output-raw-ml metal_raw_generated.ml
+   --output-raw-mli metal_raw_generated.mli
+   --output-native metal_bridge_generated.inc
+   --output-manifest generated_binding_manifest.json
+   --output-public-enum-ml metal_enum_generated.ml
+   --output-public-enum-mli metal_enum_generated.mli
+   --output-public-enum-test test_metal_enum_generated.ml
+   --output-public-value-ml metal_value_record_generated.ml
+   --output-public-value-mli metal_value_record_generated.mli
+   --output-public-value-test test_metal_value_record_generated.ml
+   --output-public-global-ml metal_global_generated.ml
+   --output-public-global-mli metal_global_generated.mli
+   --output-public-global-test test_metal_global_generated.ml
+   --output-public-descriptor-ml metal_descriptor_generated.ml
+   --output-public-descriptor-mli metal_descriptor_generated.mli
+   --output-public-descriptor-test test_metal_descriptor_generated.ml
+   --output-native-descriptor-test test_metal_descriptor_native.mm)))
+
+(rule
+ (targets test_metal_descriptor_native.exe)
+ (deps test_metal_descriptor_native.mm)
+ (action
+  (run clang++ -std=c++20 -framework Foundation -framework Metal
+   %{dep:test_metal_descriptor_native.mm} -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_descriptor_native.exe)
+ (action (run ./test_metal_descriptor_native.exe)))
+
+(rule
+ (targets test_metal_render_pipeline_scalar_native.exe)
+ (deps test_metal_render_pipeline_scalar_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:test_metal_render_pipeline_scalar_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_render_pipeline_scalar_native.exe)
+ (action (run ./test_metal_render_pipeline_scalar_native.exe)))
+
+(rule
+ (targets metal_bridge.o libmetal_bridge_stubs.a dllmetal_bridge_stubs.so)
+ (deps
+  metal_bridge.mm
+  metal_bridge_generated.inc
+  ../../tools/metal/metal_resource_descriptor_owned_generated.inc
+  ../../tools/metal/metal_resource_ownership_generated.inc
+  ../../tools/metal/metal_resource_scalar_generated.inc
+  ../../tools/metal/metal_render_command_mechanical_generated.inc
+  ../../tools/metal/metal_render_command_sample_descriptor.inc
+  ../../tools/metal/metal_render_command_stage_bindings.inc
+  ../../tools/metal/metal_render_command_draw_state.inc
+  ../../tools/metal/metal_pipeline_header_mechanical_generated.mm
+  ../../tools/metal/metal_pipeline_ownership_materializers.inc
+  ../../tools/metal/metal_shader_callable_bridge.inc
+  ../../tools/metal/metal_mesh_tile_ownership_materializers.inc
+  ../../tools/metal/metal_io_counter_ownership_materializers.inc
+  ../../tools/metal/metal_mesh_tile_counter_callable_bridge.inc
+  ../../tools/metal/metal4_lifecycle_materializers.inc
+  ../../tools/metal/metal4_lifecycle_callable_bridge.inc
+  ../../tools/metal/metal4_compute_owner_generated.inc
+  ../../tools/metal/metal4_counter_command_callable_bridge.inc
+  ../../tools/metal/metal4_compute_callable_bridge.inc
+  ../../tools/metal/metal4_remaining_callable_bridge.inc
+  ../../tools/metal/metal4_ml_callable_bridge.inc
+  ../../tools/metal/metal4_specialized_callable_bridge.inc
+  ../../tools/metal/metal4_render_pass_callable_bridge.inc
+  ../../tools/metal/metal4_command_buffer7_callable_bridge.inc
+  ../../tools/metal/metal4_acceleration_structure11_callable_bridge.inc
+  ../../tools/metal/metal4_stitched_callable_bridge.inc
+  ../../tools/metal/metal4_compute_pipeline_reset1_callable_bridge.inc
+  ../../tools/metal/metal4_argument_table_resource_bridge.inc
+  ../../tools/metal/metal4_command_encoder_wait_fence_bridge.inc
+  ../../tools/metal/metal_device_residual_library5_bridge.inc
+  ../../tools/metal/metal_device_residual_queues3_bridge.inc
+  ../../tools/metal/metal_presentation_render_pass_advanced.inc
+  ../../tools/metal/metal_presentation_layer_snapshot.inc
+  ../../tools/metal/metal_layer10_residual_bridge.inc
+  ../../tools/metal/metal_presentation_command_snapshot.inc
+  ../../tools/metal/metal_command_support_mechanical.inc
+  ../../tools/metal/metal_command_support_callable_bridge.inc
+  ../../tools/metal/metal_mesh_tile_mechanical_generated.mm
+  ../../tools/metal/metal_mesh_tile_mechanical_callable_bridge.inc
+  ../../tools/metal/metal_command_event_constructors.inc
+  ../../tools/metal/metal_io_constructors.inc
+  ../../tools/metal/metal_io_counter_callable_tail.inc
+  ../../tools/metal/metal_tensor_mechanical_callable_bridge.inc
+  ../../tools/metal/metal_tensor_ownership_callable_bridge.inc
+  ../../tools/metal/metal_resource_remaining16_bridge.inc
+  ../../tools/metal/metal_compute_encoder35_bindings.inc
+  ../../tools/metal/metal_compute_encoder35_commands.inc
+  ../../tools/metal/metal_device_residual_io2_bridge.inc
+  ../../tools/metal/metal_device_residual_final4_bridge.inc
+  ../../tools/metal/metal_device_async_compute3_bridge.inc
+  ../../tools/metal/metal_device_async_library2_bridge.inc
+  ../../tools/metal/metal_device_async_render4_bridge.inc
+  ../../tools/metal/metal_device_final_constructors3_bridge.inc
+  ../../tools/metal/metal_device_architecture5_bridge.inc
+  ../../tools/metal/metal4_ml_compiler_async_bridge.inc
+  ../../tools/metal/metal_device_metadata7_observer_bridge.inc
+  ../../tools/metal/metal_device_capability13_bridge.inc
+  ../../tools/metal/metal_device_spatial_timestamp6_bridge.inc
+  ../../tools/metal/metal_rasterization_rate_callable_bridge.inc
+  ../../tools/metal/metal_function_stitching_callable_bridge.inc
+  ../../tools/metal/metal_library42_callable_bridge.inc
+  ../../tools/metal/metal_argument_encoder34_callable_bridge.inc
+  ../../tools/metal/metal_acceleration_command32_callable_bridge.inc
+  ../../tools/metal/metal_blit_command25_callable_bridge.inc
+  ../../tools/metal/metal_capture_manager21_callable_bridge.inc
+  ../../tools/metal/metal_compute_pass20_callable_bridge.inc
+  ../../tools/metal/metal_function_log18_callable_bridge.inc
+  ../../tools/metal/metal_command_encoder9_callable_bridge.inc
+  ../../tools/metal/metal_command_queue15_callable_bridge.inc
+  ../../tools/metal/metal_compute_pipeline11_callable_bridge.inc
+  ../../tools/metal/metal_command_buffer19_encoder_info.inc
+  ../../tools/metal/metal_indirect_command14_callable_bridge.inc
+  ../../tools/metal/metal_capture_scope12_callable_bridge.inc
+  ../../tools/metal/metal_event14_callable_bridge.inc
+  ../../tools/metal/metal_acceleration_structure28_callable_bridge.inc
+  ../../tools/metal/metal_log_state9_callable_bridge.inc
+  ../../tools/metal/metal_log_state7_handler_lifetime.hpp
+  ../../tools/metal/metal_parallel_render8_callable_bridge.inc
+  ../../tools/metal/metal_function_handle8_callable_bridge.inc
+  ../../tools/metal/metal_linked_functions9_callable_bridge.inc
+  ../../tools/metal/metal_linked_functions9_constructor_bridge.inc
+  ../../tools/metal/metal4_command_queue8_callable_bridge.inc
+  ../../tools/metal/metal_render_pipeline93_descriptor_bridge.inc
+  ../../tools/metal/metal_render_pipeline93_linked_graph_bridge.inc
+  ../../tools/metal/metal_render_pipeline93_function_handle_bridge.inc
+  ../../tools/metal/metal_render_pipeline93_function_tables_bridge.inc
+  ../../tools/metal/metal_render_pipeline93_functions_descriptor_bridge.inc
+  ../../tools/metal/metal_render_pipeline93_state_factories_bridge.inc
+  ../../tools/metal/metal_render_pipeline93_vertex_reflection_bridge.inc
+  ../../tools/metal/metal_intersection_table8_callable_bridge.inc
+  ../../tools/metal/metal_stage_input_output10_callable_bridge.inc
+  ../../tools/metal/metal_blit_pass10_callable_bridge.inc
+  ../../tools/metal/metal_drawable10_callable_bridge.inc
+  ../../tools/metal/metal_function_constant_values3_callable_bridge.inc
+  ../../tools/metal/metal4_stitched_descriptor3_callable_bridge.inc
+  ../../tools/metal/metal4_render_pipeline3_callable_bridge.inc
+  ../../tools/metal/metal_binary_archive5_callable_bridge.inc
+  ../../tools/metal/metal4_ml_pipeline5_callable_bridge.inc
+  ../../tools/metal/metal_mesh_tile_pipeline_compile.inc
+  ../../tools/metal/metal_pipeline_ownership_callable_bridge.inc
+  ../../tools/metal/metal_pipeline_descriptor_mechanical_callable_bridge.inc
+  c_library_flags.sexp)
+ (action
+  (run ./build_bridge.exe
+   --sanitizers %{env:PRISMEL_METAL_SANITIZERS=}
+   --profile %{profile}
+   --ocaml-include %{ocaml-config:standard_library}
+   --source %{dep:metal_bridge.mm}
+   --object metal_bridge.o
+   --archive libmetal_bridge_stubs.a
+   --shared dllmetal_bridge_stubs.so)))
+
+(library
+ (name metal)
+ (public_name prismel.metal)
+ (modules Metal Metal_argument_reflection_snapshot Metal_format Metal_raw Metal_raw_generated Metal_enum_generated Metal_value_record_generated Metal_global_generated Metal_descriptor_generated Generated_provenance)
+ (private_modules
+  Metal_format
+  Metal_raw
+  Metal_raw_generated
+  Metal_enum_generated
+  Metal_value_record_generated
+  Metal_global_generated
+  Metal_descriptor_generated
+  Generated_provenance)
+ (libraries threads native_layer_token)
+ (foreign_archives metal_bridge_stubs)
+ (c_library_flags (:include c_library_flags.sexp)))
+
+(test
+ (name test_metal_build_config)
+ (modules test_metal_build_config)
+ (libraries metal_build_config))
+
+(test
+ (name test_metal)
+ (modules test_metal)
+ (libraries metal))
+
+(test
+ (name test_metal_enum_generated)
+ (modules test_metal_enum_generated)
+ (libraries metal))
+
+(test
+ (name test_metal_descriptor_generated)
+ (modules test_metal_descriptor_generated)
+ (libraries metal))
+
+(test
+ (name test_metal_value_record_generated)
+ (modules test_metal_value_record_generated)
+ (libraries metal))
+
+(test
+ (name test_metal_global_generated)
+ (modules test_metal_global_generated)
+ (libraries metal))
+
+(test
+ (name test_metal_argument_reflection_snapshot)
+ (modules test_metal_argument_reflection_snapshot)
+ (libraries metal))
+
+(test
+ (name test_metal_presentation_safe)
+ (modules test_metal_presentation_safe)
+ (libraries metal unix))
+
+(test
+ (name test_metal_presentation_10k)
+ (modules test_metal_presentation_10k)
+ (libraries metal unix))
+
+(test
+ (name test_metal_m1_ray_query)
+ (modules test_metal_m1_ray_query)
+ (libraries metal))
+
+(test
+ (name test_metal_resource100_safe)
+ (modules test_metal_resource100_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_resource_bounds)
+ (modules test_metal_resource_bounds)
+ (libraries metal))
+
+(test
+ (name test_metal_tensor47_safe)
+ (modules test_metal_tensor47_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_pipeline113_safe)
+ (modules test_metal_pipeline113_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_shader157_safe)
+ (modules test_metal_shader157_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_library42_safe)
+ (modules test_metal_library42_safe)
+ (libraries metal unix))
+
+(test
+ (name test_metal_blit_command25_safe)
+ (modules test_metal_blit_command25_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_io_compressor_safe)
+ (modules test_metal_io_compressor_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_mesh_tile105_safe)
+ (modules test_metal_mesh_tile105_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_command_events_safe)
+ (modules test_metal_command_events_safe)
+ (libraries metal unix))
+
+(test
+ (name test_metal_command_support121_safe)
+ (modules test_metal_command_support121_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_io_safe)
+ (modules test_metal_io_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_log_state7_safe)
+ (modules test_metal_log_state7_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_function_constant_values3_safe)
+ (modules test_metal_function_constant_values3_safe)
+ (libraries metal))
+
+(test
+ (name test_metal4_callable_safe)
+ (modules test_metal4_callable_safe)
+ (libraries metal))
+
+(test
+ (name test_metal4_render_pass7_safe)
+ (modules test_metal4_render_pass7_safe)
+ (libraries metal))
+
+(test
+ (name test_metal4_msaa_render_safe)
+ (modules test_metal4_msaa_render_safe)
+ (libraries metal))
+
+(test
+ (name test_metal4_command_buffer7_safe)
+ (modules test_metal4_command_buffer7_safe)
+ (libraries metal))
+
+(test
+ (name test_metal4_command_queue6_safe)
+ (modules test_metal4_command_queue6_safe)
+ (libraries metal))
+
+(test
+ (name test_metal4_argument_table1_safe)
+ (modules test_metal4_argument_table1_safe)
+ (libraries metal))
+
+(test
+ (name test_metal4_render_pipeline_reset2_safe)
+ (modules test_metal4_render_pipeline_reset2_safe)
+ (libraries metal))
+
+(test
+ (name test_metal4_compute_pipeline_reset1_safe)
+ (modules test_metal4_compute_pipeline_reset1_safe)
+ (libraries metal))
+
+(test
+ (name test_metal4_command_encoder_wait_fence_safe)
+ (modules test_metal4_command_encoder_wait_fence_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_device_library5_safe)
+ (modules test_metal_device_library5_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_device_queues3_safe)
+ (modules test_metal_device_queues3_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_device_io2_safe)
+ (modules test_metal_device_io2_safe)
+ (libraries metal))
+
+(rule
+ (targets test_metal4_compute_pipeline_reset_native.exe)
+ (deps ../../tools/metal/test_metal4_compute_pipeline_reset_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal %{deps} -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal4_compute_pipeline_reset_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal4_compute_pipeline_reset_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(test
+ (name test_render_pipeline93_descriptor_safe)
+ (modules test_render_pipeline93_descriptor_safe)
+ (libraries metal))
+
+(test
+ (name test_render_pipeline93_mesh_graph_safe)
+ (modules test_render_pipeline93_mesh_graph_safe)
+ (libraries metal))
+
+(test
+ (name test_render_pipeline93_tile_graph_safe)
+ (modules test_render_pipeline93_tile_graph_safe)
+ (libraries metal))
+
+(test
+ (name test_render_pipeline93_arrays_safe)
+ (modules test_render_pipeline93_arrays_safe)
+ (libraries metal))
+
+(test
+ (name test_metal4_acceleration_structure11_safe)
+ (modules test_metal4_acceleration_structure11_safe)
+ (libraries metal))
+
+(rule
+ (targets test_presentation_lifecycle_native.exe)
+ (deps ../../tools/metal/test_presentation_lifecycle_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal -framework QuartzCore -framework CoreGraphics
+   %{dep:../../tools/metal/test_presentation_lifecycle_native.mm} -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_presentation_lifecycle_native.exe)
+ (action (run ./test_presentation_lifecycle_native.exe)))
+
+(rule
+ (targets test_presentation_callback_token_prototype.exe)
+ (deps ../../tools/metal/test_presentation_callback_token_prototype.mm
+       ../../tools/metal/presentation_callback_token_prototype.mm)
+ (action
+  (run clang++ -std=c++17 -pthread
+   %{dep:../../tools/metal/test_presentation_callback_token_prototype.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_presentation_callback_token_prototype.exe)
+ (action (run ./test_presentation_callback_token_prototype.exe)))
+
+(rule
+ (targets test_metal_render_encoder_sync_native.exe test_metal_render_encoder_store_native.exe test_metal_render_encoder_residency_native.exe test_metal_render_encoder_icb_native.exe)
+ (deps test_metal_render_encoder_sync_native.mm test_metal_render_encoder_store_native.mm test_metal_render_encoder_residency_native.mm test_metal_render_encoder_icb_native.mm)
+ (action
+  (progn
+   (run clang++ -std=c++17 -fobjc-arc -framework Foundation -framework Metal %{dep:test_metal_render_encoder_sync_native.mm} -o test_metal_render_encoder_sync_native.exe)
+   (run clang++ -std=c++17 -fobjc-arc -framework Foundation -framework Metal %{dep:test_metal_render_encoder_store_native.mm} -o test_metal_render_encoder_store_native.exe)
+   (run clang++ -std=c++17 -fobjc-arc -framework Foundation -framework Metal %{dep:test_metal_render_encoder_residency_native.mm} -o test_metal_render_encoder_residency_native.exe)
+   (run clang++ -std=c++17 -fobjc-arc -framework Foundation -framework Metal %{dep:test_metal_render_encoder_icb_native.mm} -o test_metal_render_encoder_icb_native.exe))))
+
+(rule
+ (alias runtest)
+ (deps test_metal_render_encoder_sync_native.exe test_metal_render_encoder_store_native.exe test_metal_render_encoder_residency_native.exe test_metal_render_encoder_icb_native.exe)
+ (action
+  (progn
+   (run ./test_metal_render_encoder_sync_native.exe)
+   (run ./test_metal_render_encoder_store_native.exe)
+   (run ./test_metal_render_encoder_residency_native.exe)
+   (run ./test_metal_render_encoder_icb_native.exe))))
+
+(rule
+ (targets test_metal_argument_reflection_native.exe)
+ (deps test_metal_argument_reflection_native.mm metal_argument_reflection_generated.inc)
+ (action
+  (run clang++ -std=c++17 -Wno-deprecated-declarations -Wno-unused-function
+   -fno-objc-arc -framework Foundation -framework Metal -I .
+   %{dep:test_metal_argument_reflection_native.mm} -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_argument_reflection_native.exe)
+ (action (run ./test_metal_argument_reflection_native.exe)))
+
+(rule
+ (targets test_metal_acceleration_scalar_native.exe)
+ (deps test_metal_acceleration_scalar_native.mm)
+ (action
+  (run clang++ -std=c++17 -Wno-deprecated-declarations -fobjc-arc
+   -framework Foundation -framework Metal
+   %{dep:test_metal_acceleration_scalar_native.mm} -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_acceleration_scalar_native.exe)
+ (action (run ./test_metal_acceleration_scalar_native.exe)))
+
+(rule
+ (targets test_metal_acceleration_ownership_native.exe)
+ (deps test_metal_acceleration_ownership_native.mm)
+ (action
+  (run clang++ -std=c++17 -Wno-deprecated-declarations -fobjc-arc
+   -framework Foundation -framework Metal
+   %{dep:test_metal_acceleration_ownership_native.mm} -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_acceleration_ownership_native.exe)
+ (action (run ./test_metal_acceleration_ownership_native.exe)))
+
+(rule
+ (targets test_metal_acceleration_operations_native.exe)
+ (deps test_metal_acceleration_operations_native.mm)
+ (action
+  (run clang++ -std=c++17 -Werror -Wno-deprecated-declarations -fobjc-arc
+   -framework Foundation -framework Metal
+   %{dep:test_metal_acceleration_operations_native.mm} -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_acceleration_operations_native.exe)
+ (action (run ./test_metal_acceleration_operations_native.exe)))
+
+(test
+ (name test_metal_acceleration_safe)
+ (modules test_metal_acceleration_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_function_tables_safe)
+ (modules test_metal_function_tables_safe)
+ (libraries metal))
+
+(test
+ (name test_device_generated_capabilities)
+ (modules test_device_generated_capabilities)
+ (libraries metal))
+
+(test
+ (name test_metal_stress)
+ (modules test_metal_stress)
+ (libraries metal unix))
+
+(test
+ (name test_metal_icb)
+ (modules test_metal_icb)
+ (libraries metal))
+
+(test
+ (name test_metal_render_encoder_safe)
+ (modules test_metal_render_encoder_safe)
+ (libraries metal))
+
+(library
+ (name metal_xpc_test_support)
+ (wrapped false)
+ (modules Metal_xpc_test_support)
+ (libraries metal))
+
+(executable
+ (name test_metal_xpc_service)
+ (modules test_metal_xpc_service)
+ (libraries metal metal_xpc_test_support unix))
+
+(executable
+ (name test_metal_xpc_client)
+ (modules test_metal_xpc_client)
+ (libraries metal metal_xpc_test_support unix))
+
+(executable
+ (name test_metal_io_surface_xpc_service)
+ (modules test_metal_io_surface_xpc_service)
+ (libraries metal metal_xpc_test_support unix))
+
+(executable
+ (name test_metal_io_surface_xpc_client)
+ (modules test_metal_io_surface_xpc_client)
+ (libraries metal metal_xpc_test_support unix))
+
+(rule
+ (targets (dir metal_xpc_conformance.app))
+ (deps test_metal_xpc_client.exe test_metal_xpc_service.exe)
+ (action
+  (run ./build_xpc_bundle.exe
+   --client test_metal_xpc_client.exe
+   --service test_metal_xpc_service.exe
+   --output metal_xpc_conformance.app
+   --service-name org.prismel.metal.xpc-conformance)))
+
+(rule
+ (targets (dir metal_io_surface_xpc_conformance.app))
+ (deps
+  test_metal_io_surface_xpc_client.exe
+  test_metal_io_surface_xpc_service.exe)
+ (action
+  (run ./build_xpc_bundle.exe
+   --client test_metal_io_surface_xpc_client.exe
+   --service test_metal_io_surface_xpc_service.exe
+   --output metal_io_surface_xpc_conformance.app
+   --service-name org.prismel.metal.io-surface-xpc-conformance)))
+
+(rule
+ (alias runtest)
+ (deps metal_xpc_conformance.app)
+ (action
+  (run ./metal_xpc_conformance.app/Contents/MacOS/test_metal_xpc_client)))
+
+(rule
+ (alias runtest)
+ (deps metal_io_surface_xpc_conformance.app)
+ (action
+  (run ./metal_io_surface_xpc_conformance.app/Contents/MacOS/test_metal_io_surface_xpc_client)))
+
+(rule
+ (alias runtest)
+ (deps generated_api_inventory.json generated_provenance.ml)
+ (action
+  (run %{exe:../../tools/metal/generate_inventory.exe}
+   --root %{workspace_root} --check)))
+
+(rule
+ (targets test_metal_render_command102_native.exe)
+ (deps test_metal_render_command102_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:test_metal_render_command102_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_render_command102_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_render_command102_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_pipeline113_state_native.exe)
+ (deps
+  test_metal_pipeline113_state_native.mm
+  ../../tools/metal/metal_pipeline_header_mechanical_generated.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:test_metal_pipeline113_state_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_pipeline113_state_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_pipeline113_state_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_pipeline113_descriptor_native.exe)
+ (deps
+  test_metal_pipeline113_descriptor_native.mm
+  ../../tools/metal/metal_pipeline_header_mechanical_generated.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:test_metal_pipeline113_descriptor_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_pipeline113_descriptor_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_pipeline113_descriptor_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal4_compute_counter_native.exe)
+ (deps test_metal4_compute_counter_native.mm
+  ../../tools/metal/metal4_compute_owner_generated.inc)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:test_metal4_compute_counter_native.mm} -o %{targets})))
+(rule
+ (alias runtest)
+ (deps test_metal4_compute_counter_native.exe)
+ (action (bash "status=0; ./test_metal4_compute_counter_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_shader157_callable_native.exe)
+ (deps test_metal_shader157_callable_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:test_metal_shader157_callable_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_shader157_callable_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_shader157_callable_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_command_support121_native.exe)
+ (deps test_metal_command_support121_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:test_metal_command_support121_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_command_support121_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_command_support121_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_mesh_tile105_descriptor_native.exe)
+ (deps
+  test_metal_mesh_tile105_descriptor_native.mm
+  ../../tools/metal/metal_mesh_tile_ownership_materializers.inc)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:test_metal_mesh_tile105_descriptor_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_mesh_tile105_descriptor_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_mesh_tile105_descriptor_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_command_events_native.exe)
+ (deps test_metal_command_events_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:test_metal_command_events_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_command_events_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_command_events_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_io_load_buffer_native.exe)
+ (deps
+  test_metal_io_load_buffer_native.mm
+  ../../tools/metal/metal_io_counter_ownership_materializers.inc)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:test_metal_io_load_buffer_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_io_load_buffer_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_io_load_buffer_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_io_counter_ownership_native.exe)
+ (deps
+  ../../tools/metal/test_io_counter_ownership_materializers.mm
+  ../../tools/metal/metal_io_counter_ownership_materializers.inc)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wno-unused-function
+   -framework Foundation -framework Metal
+   %{dep:../../tools/metal/test_io_counter_ownership_materializers.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_io_counter_ownership_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_io_counter_ownership_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_rasterization_rate55_native.exe)
+ (deps ../../tools/metal/test_rasterization_rate55_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:../../tools/metal/test_rasterization_rate55_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_rasterization_rate55_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_rasterization_rate55_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_function_stitching43_native.exe)
+ (deps ../../tools/metal/test_function_stitching43_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:../../tools/metal/test_function_stitching43_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_function_stitching43_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_function_stitching43_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_library42_native.exe)
+ (deps ../../tools/metal/test_library42_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:../../tools/metal/test_library42_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_library42_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_library42_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_argument_encoder34_native.exe)
+ (deps ../../tools/metal/test_argument_encoder34_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:../../tools/metal/test_argument_encoder34_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_argument_encoder34_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_argument_encoder34_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_acceleration_command32_native.exe)
+ (deps ../../tools/metal/test_acceleration_command32_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:../../tools/metal/test_acceleration_command32_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_acceleration_command32_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_acceleration_command32_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_blit_command25_native.exe)
+ (deps ../../tools/metal/test_blit_command25_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:../../tools/metal/test_blit_command25_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_blit_command25_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_blit_command25_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_capture_manager21_native.exe)
+ (deps ../../tools/metal/test_capture_manager21_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:../../tools/metal/test_capture_manager21_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_capture_manager21_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_capture_manager21_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(test
+ (name test_metal_capture_manager_safe)
+ (modules test_metal_capture_manager_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_compute_pass_safe)
+ (modules test_metal_compute_pass_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_compute_encoder35_safe)
+ (modules test_metal_compute_encoder35_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_linked_functions_safe)
+ (modules test_metal_linked_functions_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_stage_input_output_safe)
+ (modules test_metal_stage_input_output_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_blit_pass_safe)
+ (modules test_metal_blit_pass_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_counters_safe)
+ (modules test_metal_counters_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_command_buffer19_safe)
+ (modules test_metal_command_buffer19_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_capture_scope11_safe)
+ (modules test_metal_capture_scope11_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_parallel_render7_safe)
+ (modules test_metal_parallel_render7_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_compute_pipeline11_safe)
+ (modules test_metal_compute_pipeline11_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_command_encoder9_safe)
+ (modules test_metal_command_encoder9_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_pipeline4_buffer_descriptor_safe)
+ (modules test_metal_pipeline4_buffer_descriptor_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_binary_archive5_safe)
+ (modules test_metal_binary_archive5_safe)
+ (libraries metal unix))
+
+(test
+ (name test_metal_function_descriptor4_safe)
+ (modules test_metal_function_descriptor4_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_fence6_safe)
+ (modules test_metal_fence6_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_indirect_command_buffer4_safe)
+ (modules test_metal_indirect_command_buffer4_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_argument8_safe)
+ (modules test_metal_argument8_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_library8_safe)
+ (modules test_metal_library8_safe)
+ (libraries metal))
+
+(rule
+ (targets test_metal_compute_pass20_native.exe)
+ (deps ../../tools/metal/test_compute_pass20_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:../../tools/metal/test_compute_pass20_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_compute_pass20_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_compute_pass20_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_function_log18_native.exe)
+ (deps ../../tools/metal/test_function_log18_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:../../tools/metal/test_function_log18_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_function_log18_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_function_log18_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(test
+ (name test_metal_function_log_safe)
+ (modules test_metal_function_log_safe)
+ (libraries metal))
+
+(rule
+ (targets test_metal_command_encoder9_native.exe)
+ (deps ../../tools/metal/test_command_encoder9_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:../../tools/metal/test_command_encoder9_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_command_encoder9_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_command_encoder9_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_command_queue15_native.exe)
+ (deps ../../tools/metal/test_command_queue15_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal
+   %{dep:../../tools/metal/test_command_queue15_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_command_queue15_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_command_queue15_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(test
+ (name test_metal_command_queue_safe)
+ (modules test_metal_command_queue_safe)
+ (libraries metal))
+
+(rule
+ (targets test_metal_indirect_command14_native.exe)
+ (deps ../../tools/metal/test_indirect_command14_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal
+   %{dep:../../tools/metal/test_indirect_command14_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_indirect_command14_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_indirect_command14_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_capture_scope12_native.exe)
+ (deps ../../tools/metal/test_capture_scope12_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal
+   %{dep:../../tools/metal/test_capture_scope12_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_capture_scope12_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_capture_scope12_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_event14_native.exe)
+ (deps ../../tools/metal/test_event14_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal
+   %{dep:../../tools/metal/test_event14_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_event14_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_event14_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_acceleration_structure28_native.exe)
+ (deps ../../tools/metal/test_acceleration_structure28_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal
+   %{dep:../../tools/metal/test_acceleration_structure28_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_acceleration_structure28_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_acceleration_structure28_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_log_state9_native.exe)
+ (deps ../../tools/metal/test_log_state9_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal
+   %{dep:../../tools/metal/test_log_state9_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_log_state9_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_log_state9_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_parallel_render8_native.exe)
+ (deps ../../tools/metal/test_parallel_render8_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal
+   %{dep:../../tools/metal/test_parallel_render8_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_parallel_render8_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_parallel_render8_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_function_handle8_native.exe)
+ (deps ../../tools/metal/test_function_handle8_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal
+   %{dep:../../tools/metal/test_function_handle8_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_function_handle8_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_function_handle8_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_linked_functions9_native.exe)
+ (deps ../../tools/metal/test_linked_functions9_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal
+   %{dep:../../tools/metal/test_linked_functions9_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_linked_functions9_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_linked_functions9_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal4_command_queue8_native.exe)
+ (deps ../../tools/metal/test_metal4_command_queue8_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal
+   %{dep:../../tools/metal/test_metal4_command_queue8_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal4_command_queue8_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal4_command_queue8_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_intersection_table8_native.exe)
+ (deps ../../tools/metal/test_intersection_table8_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal
+   %{dep:../../tools/metal/test_intersection_table8_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_intersection_table8_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_intersection_table8_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_stage_input_output10_native.exe)
+ (deps ../../tools/metal/test_stage_input_output10_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal
+   %{dep:../../tools/metal/test_stage_input_output10_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_stage_input_output10_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_stage_input_output10_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_blit_pass10_native.exe)
+ (deps ../../tools/metal/test_blit_pass10_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal
+   %{dep:../../tools/metal/test_blit_pass10_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_blit_pass10_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_blit_pass10_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_drawable10_native.exe)
+ (deps ../../tools/metal/test_drawable10_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal
+   %{dep:../../tools/metal/test_drawable10_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_drawable10_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_drawable10_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_function_constant_values3_native.exe)
+ (deps ../../tools/metal/test_function_constant_values3_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal
+   %{dep:../../tools/metal/test_function_constant_values3_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_function_constant_values3_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_function_constant_values3_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal4_stitched_descriptor3_native.exe)
+ (deps ../../tools/metal/test_metal4_stitched_descriptor3_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal
+   %{dep:../../tools/metal/test_metal4_stitched_descriptor3_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal4_stitched_descriptor3_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal4_stitched_descriptor3_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal4_render_pipeline3_native.exe)
+ (deps ../../tools/metal/test_metal4_render_pipeline3_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal
+   %{dep:../../tools/metal/test_metal4_render_pipeline3_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal4_render_pipeline3_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal4_render_pipeline3_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal4_command_encoder_wait_fence_native.exe)
+ (deps ../../tools/metal/test_metal4_command_encoder_wait_fence_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal %{deps} -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal4_command_encoder_wait_fence_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal4_command_encoder_wait_fence_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal4_render_pipeline_reset2_lifecycle_native.exe)
+ (deps ../../tools/metal/test_metal4_render_pipeline_reset2_lifecycle_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal %{deps} -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal4_render_pipeline_reset2_lifecycle_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal4_render_pipeline_reset2_lifecycle_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_binary_archive5_native.exe)
+ (deps ../../tools/metal/test_binary_archive5_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal
+   %{dep:../../tools/metal/test_binary_archive5_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_binary_archive5_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_binary_archive5_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal4_ml_pipeline5_native.exe)
+ (deps ../../tools/metal/test_metal4_ml_pipeline5_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal
+   %{dep:../../tools/metal/test_metal4_ml_pipeline5_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal4_ml_pipeline5_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal4_ml_pipeline5_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_mesh_tile_pipeline_native.exe)
+ (deps ../../tools/metal/test_mesh_tile_pipeline_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:../../tools/metal/test_mesh_tile_pipeline_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_mesh_tile_pipeline_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_mesh_tile_pipeline_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_pipeline113_ownership_native.exe)
+ (deps
+  test_metal_pipeline113_ownership_native.mm
+  ../../tools/metal/metal_pipeline_ownership_materializers.inc)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:test_metal_pipeline113_ownership_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_pipeline113_ownership_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_pipeline113_ownership_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_render_pipeline93_function_tables_native.exe)
+ (deps ../../tools/metal/test_render_pipeline93_function_tables_native.mm)
+ (action (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+  -framework Foundation -framework Metal %{deps} -o %{targets})))
+(rule
+ (alias runtest)
+ (deps test_render_pipeline93_function_tables_native.exe)
+ (action (run ./test_render_pipeline93_function_tables_native.exe)))
+
+(rule
+ (targets test_render_pipeline93_state_factories_native.exe)
+ (deps ../../tools/metal/test_render_pipeline93_state_factories_native.mm)
+ (action (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+  -framework Foundation -framework Metal %{deps} -o %{targets})))
+(rule
+ (alias runtest)
+ (deps test_render_pipeline93_state_factories_native.exe)
+ (action (run ./test_render_pipeline93_state_factories_native.exe)))
+
+(rule
+ (targets test_render_pipeline93_vertex_reflection_native.exe)
+ (deps ../../tools/metal/test_render_pipeline93_vertex_reflection_native.mm)
+ (action (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+  -Wno-deprecated-declarations -framework Foundation -framework Metal %{deps}
+  -o %{targets})))
+(rule
+ (alias runtest)
+ (deps test_render_pipeline93_vertex_reflection_native.exe)
+ (action (run ./test_render_pipeline93_vertex_reflection_native.exe)))
+
+(executable
+ (name test_metal_device_value25_safe)
+ (modules test_metal_device_value25_safe)
+ (libraries metal))
+
+(executable
+ (name test_metal_device_metadata7_safe)
+ (modules test_metal_device_metadata7_safe)
+ (libraries metal))
+
+(executable
+ (name test_metal_device_capability13_safe)
+ (modules test_metal_device_capability13_safe)
+ (libraries metal))
+
+(executable
+ (name test_metal_device_final4_safe)
+ (modules test_metal_device_final4_safe)
+ (libraries metal))
+
+(executable
+ (name test_metal_device_async9_safe)
+ (modules test_metal_device_async9_safe)
+ (libraries metal))
+
+(executable
+ (name test_metal_device_final_constructors3_safe)
+ (modules test_metal_device_final_constructors3_safe)
+ (libraries metal))
+
+(executable
+ (name test_metal_device_spatial_timestamp6_safe)
+ (modules test_metal_device_spatial_timestamp6_safe)
+ (libraries metal))
+
+(executable
+ (name test_metal_retained_render_plan)
+ (modules test_metal_retained_render_plan)
+ (libraries metal))
+
+(executable
+ (name test_metal_render_icb_argument)
+ (modules test_metal_render_icb_argument)
+ (libraries metal))

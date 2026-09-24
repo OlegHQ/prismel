@@ -1,0 +1,41 @@
+OCaml LSP 1.23.1: 96772 symbols, 1 parsed / 1855 cached / 13 non-OCaml, 0.78s
+OCaml LSP 1.23.1: 96772 symbols, 0 parsed / 1856 cached / 13 non-OCaml, 0.55s
+native run (includes window startup/teardown): frames=120 domains=1 art_builds=92 wall=10.957s allocated=17786719776B promoted=2269928320B major=5028669400B heap_peak=1240990288B
+       12.03 real         9.85 user         1.04 sys
+          2078081024  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              234303  page reclaims
+                 974  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 173  voluntary context switches
+               12580  involuntary context switches
+        100755253949  instructions retired
+         29689507195  cycles elapsed
+          3223659520  peak memory footprint
+OCaml LSP 1.23.1: 96772 symbols, 0 parsed / 1856 cached / 13 non-OCaml, 0.71s
+native run (includes window startup/teardown): frames=120 domains=1 art_builds=92 wall=7.405s allocated=7269074232B promoted=818797736B major=3541179376B heap_peak=1177942408B
+        8.72 real         6.46 user         1.08 sys
+          2186280960  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              231186  page reclaims
+                1832  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                1972  voluntary context switches
+               11477  involuntary context switches
+         61164191964  instructions retired
+         18124514998  cycles elapsed
+          3268862848  peak memory footprint

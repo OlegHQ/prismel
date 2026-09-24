@@ -4,7 +4,7 @@ Prismel supports three feedback loops with different state tradeoffs.
 
 ## Scene REPL
 
-`dune utop lib/prismel` loads the real library and native SDL2_gfx binding.
+`dune utop lib/prismel` loads the real library and native SDL3/Metal stack.
 `Preview.show scene` starts one persistent window and presents each subsequently
 evaluated `Scene.t`. `Preview.step` additionally returns ordered input events.
 `Preview.stop` owns backend shutdown and must run before leaving a session that
@@ -22,7 +22,7 @@ Dune's own `exec --watch` does not restart a still-running executable.
 
 Model state does not survive a native-code restart automatically. Sketches that
 need continuity should use an explicit, versioned model codec; silently
-marshalling arbitrary closures, SDL handles, or changed OCaml types is outside
+marshalling arbitrary closures, native handles, or changed OCaml types is outside
 the safe public contract.
 
 ## Watched media

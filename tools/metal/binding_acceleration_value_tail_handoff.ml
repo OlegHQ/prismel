@@ -1,0 +1,5 @@
+type package=Packed_float3|Packed_quaternion|Packed_float4x3|Bounding_box|Component_transform
+type item={id:string;package:package;public_value:string;tests:string list}
+let contains s n=let l=String.length n in let rec f i=i+l<=String.length s&&(String.sub s i l=n||f(i+1))in f 0
+let classify id=let package,public_value=if contains id "Float3"then Packed_float3,"Metal.Value.Packed_float3"else if contains id "Quaternion"then Packed_quaternion,"Metal.Value.Packed_quaternion"else if contains id "Float4x3"then Packed_float4x3,"Metal.Value.Packed_float4x3"else if contains id "AxisAligned"then Bounding_box,"Metal.Value.Axis_aligned_bounding_box"else Component_transform,"Metal.Value.Component_transform"in{id;package;public_value;tests=["sizeof/alignof/offsetof static_assert";"finite constructor round trip";"byte layout provenance"]}
+let validate items=let count p=List.length(List.filter(fun x->x.package=p)items)in if List.length items<>12||List.map count[Packed_float3;Packed_quaternion;Packed_float4x3;Bounding_box;Component_transform]<>[7;2;1;1;1]||List.exists(fun x->x.public_value=""||List.length x.tests<>3)items then failwith"AccelerationValue12 tail drift"

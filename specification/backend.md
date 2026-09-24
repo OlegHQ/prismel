@@ -1,100 +1,257 @@
-## Backend Integration Details (Tsdl, Tsdl_image, Tsdl_mixer, etc.)
+# Native backend
 
-Our framework is built atop the SDL2 library via OCaml bindings, taking advantage of SDL’s cross-platform capabilities for windowing, graphics, and audio. Here we summarize how we use these backend libraries and any important integration points:
+Prismel ships one backend: the native Metal runtime on Apple Silicon. The supported host is
+macOS on Apple Silicon with Metal available. Backend initialization either
+creates that native stack or returns a typed startup error; applications do
+not select an alternate renderer through environment variables or public API.
 
-- **Tsdl (SDL2):** Tsdl provides low-level functions to create windows, render graphics, and handle events in OCaml. We rely on Tsdl for:
+## Ownership and dependency direction
 
-  - Initializing subsystems: `Sdl.init` with flags (video, audio, events).
-  - Creating the main window (`Sdl.create_window`) and setting its properties (size, title, fullscreen). Tsdl maps directly to SDL functions and constants, e.g., `Sdl.Window.resizable` flag corresponds to `SDL_WINDOW_RESIZABLE`.
-  - Creating an SDL renderer (`Sdl.create_renderer`) which we use for all 2D drawing. We request hardware acceleration and vsync by default, as mentioned, which yields smooth rendering on most systems.
-  - Event handling: Tsdl provides an event type and functions to poll events. For example, `Sdl.poll_event (Some event)` fills an `Sdl.Event.t` structure. We then use `Sdl.Event.get` to extract fields (type, key code, etc.) and translate them to our `Event.t`. Tsdl’s event constants and types align with SDL’s; e.g., a key down event is identified by `Sdl.Event.key_down` tag and you can get the scancode or key symbol from the event. We carefully map those to our Input.key variant. Notably, Tsdl delivers event data as `Sdl.Event.*` functions, and uses `Error (`Msg e)`for some operations if needed. We have to handle the case where certain events (like text input or controller events) exist but we haven't defined a corresponding variant; those we simply ignore or treat as`Event.Unknown\` if we had such.
-  - Window functions: we use `Sdl.set_window_title`, `Sdl.set_window_fullscreen`, etc., from Tsdl when the user calls our Window module functions. Tsdl’s naming conventions made these available in `Sdl.Window` submodule. We follow those (e.g., `Sdl.set_window_title win "Title"`).
-  - Clean up: `Sdl.destroy_renderer` and `Sdl.destroy_window` free the window and context, and `Sdl.quit` shuts down all SDL subsystems. Tsdl covers all that.
+```text
+examples / sketches / pxui / procedural / pdk
+                         |
+                         v
+                      prismel
+                         |
+                         v
+                      runtime ----------> sdl3
+                         |
+                         v
+                    ogpu_metal --------> ogpu
+                         |
+                         v
+                       metal
+```
 
-- **Tsdl_image (SDL2_image):** Tsdl_image is the OCaml binding for SDL_image, which loads image files of various formats. We utilize it for:
+`runtime` owns process setup, initial-domain lifecycle, the SDL3 window, its
+Metal view, resize scheduling, and presentation. `ogpu_metal` owns the
+translation from the checked high-level GPU interface to typed Metal bindings.
+`metal` owns the safe Metal resource and command API. Prismel owns pure scene
+values and records rendering through the narrow GPU boundary; it never exposes
+native handles in its public API.
 
-  - Loading surfaces from files: `Img.load "file.ext"` returns a surface (wrapped in OCaml as `Sdl.surface`). Tsdl_image’s `Img.load` will automatically detect format by extension or file content and use the appropriate decoder (PNG, JPEG, etc.). We check the result: if `Error (`Msg e)`, we propagate that e in our `Image.load\` result.
-  - Initializing image library: We call `Img.init (Img.Init.png + Img.Init.jpg)` to ensure support for PNG and JPEG at least. Tsdl_image’s `Img.Init` flags correspond to SDL_image flags like `IMG_INIT_PNG`. If `Img.init` returns a subset of those flags (meaning some failed), we know a codec might not be available. We might still proceed, but image load of that format would error. We could log a warning if, say, PNG init failed.
-  - There is `Img.quit` to deinitialize if needed (we call it on shutdown).
-  - The binding closely mirrors SDL_image, so for save we would use `Img.save_png` or similar if present. The doc snippet suggests binding covers interface closely, so likely functions like `Img.save_png` or `Img.save` exist. We'll use those in Image.save if available.
+Scene visibility, culling, batch selection, and Scene2/Scene3 lowering remain
+Prismel responsibilities. The Metal binding does not contain Prismel vertex
+layouts, fixed Scene binding slots, or scene-cache keys. Its private prepared
+submission surface snapshots only generic Metal pass state, typed resource
+sets, indexed draws or indirect-command ranges, and completion-owned resource
+roots. OGPU-Metal is the only layer that maps checked OGPU render values onto
+that generic surface.
 
-- **Tsdl_mixer (SDL2_mixer):** Tsdl_mixer binds SDL_mixer for audio. We use it to:
+`Scene3.instances_array` lowers each instance batch to one indexed Metal draw.
+Prismel keeps one mesh and one material/light uniform block, then appends 48
+float32 values per instance (model-view-projection, world, and normal matrices).
+The vertex shader indexes that table with Metal's instance ID. OGPU carries a
+checked positive instance count; OGPU-Metal uses an indexed instanced draw and
+keeps the transform buffer alive through completion. Scene3 uses
+counterclockwise front faces, matching PDK mesh winding. Other scene paths
+retain their existing winding. Scene3 indexed draws use the classic encoder
+until the prepared indexed pass supports instance counts and winding.
 
-  - Initialize audio: `Mix.open_audio frequency format channels chunk_size`. For example, `Mix.open_audio 44100 Mix.default_format 2 1024` to open at 44.1 kHz, signed 16-bit stereo, chunk of 1024 samples. Tsdl_mixer’s `Mix.default_format` might be the AUDIO_S16LSB which is typical. We check the result (should be Ok or unit). If `Error (`Msg e)\`, we fail (audio device problem).
-  - Init codecs: `Mix.init (Mix.Init.mp3 + Mix.Init.ogg)` to enable those decoders. If not all bits returned, possibly some codec missing (we could warn the user if they try to load that format).
-  - Load sounds:
+Scene3 raster accepts indexed triangles, lines, and points. Lines use native
+Metal line draws; points use a point-topology pipeline with an explicit
+one-pixel point size. Line strips and loops become indexed line pairs once
+per immutable mesh. `Scene3.Wireframe` extracts unique edges from triangle
+meshes, while callers with polygon topology can pass PDK's unique topology
+edges as `Mesh.Lines` to avoid triangulation diagonals. Mesh packing is cached
+by mesh identity and render mode with a bounded cache. The catalog Box SOP
+defaults to quad faces, matching its inspector parameter default.
 
-    - `Mix.load_wav "file.wav"` returns a `Mix.chunk`. Tsdl_mixer likely has `Mixer.load_wav` binding.
-    - `Mix.load_music "file.ogg"` returns a `Mix.music`. Bound as `Mixer.load_music`.
-      These return `Error (`Msg e)\` on failure which we propagate in Sound.load result.
+The initial domain owns every window, event, layer, drawable, and resource
+operation. Pure geometry and scene preparation may use the shared parallel
+pool, but all results join before crossing the native boundary.
 
-  - Play sounds:
+`prismel_pathtracer` is the one ordinary sibling library that consumes the
+safe `metal` API directly: it owns its own device, queue, acceleration
+structures, and compute pipelines. Its packed-mesh path builds one primitive
+structure and a top-level instance structure; unchanged prototypes retain
+their GPU buffers and primitive structure across transform edits. It hands
+results back to Prismel only as
+an ordinary `Image.t` with a stable identity. It never exposes native handles
+and nothing below it imports it. See `specification/pathtracer.md`.
 
-    - `Mix.play_channel (-1) chunk loops` plays on first free channel. Tsdl_mixer’s `Mixer.play_channel` likely returns the channel number or -1 on failure. We'll call it and perhaps ignore the channel number except maybe store if we want to manage specifically. We could log if returns -1 (means no free channel).
-    - `Mix.play_music music loops` to play music. Returns Ok or an error code maybe; SDL_mixer might not fail play unless something is wrong with the music pointer.
+## Frame lifecycle
 
-  - Control:
+1. Runtime creates an SDL3 Metal view and obtains its `CAMetalLayer`.
+2. The layer supplies a drawable for each presented frame; resize updates the
+   drawable extent before recording work.
+3. Prismel lowers immutable `Scene` data into checked OGPU commands. Native
+   implementation code validates device identity, resource lifetime, numeric
+   ranges, and command ordering before encoding Metal commands.
+4. Scene passes render into one owned RGBA8 texture, which remains the exact
+   native capture/readback source.
+5. A typed OGPU presentation operation uses the same producer queue to render
+   that RGBA8 texture into the acquired BGRA8 `CAMetalDrawable`. Classic final
+   passes append conversion and drawable scheduling to their existing command
+   buffer. A final pass that requires Command4 completes first and uses the
+   ordered same-queue classic presentation fallback until Command4 exposes a
+   bounded submission-scoped drawable lifetime. Both paths keep
+   completion-owned state alive until Metal reports completion. Production
+   drawables remain framebuffer-only; only the focused backend test creates a
+   readable layer.
 
-    - Volume: `Mix.volume_chunk chunk volume` sets volume for that chunk. `Mix.volume_music vol` sets music volume.
-    - Halt: `Mix.halt_channel channel` stops channel, `Mix.halt_music` stops music.
-    - Pause/Resume: `Mix.pause channel`, `Mix.resume channel`, `Mix.pause_music`, `Mix.resume_music`.
-    - Query: `Mix.playing channel` returns whether channel is active, `Mix.playing_music` for music.
-    - We use these to implement Sound.is_playing or internal checks for stop all (e.g., `Mix.halt_channel (-1)` stops all channels).
+Unchanged portable submissions may reuse an exact immutable command/resource/
+pipeline identity tuple. Public commands snapshot every reachable mutable array
+once and are abstract; generic drivers receive only a borrowed, read-only view.
+The generic queue validates the current resource and pipeline wrappers on every
+hit, but caches only the command identity and numeric identity/token maps. It
+never retains command graphs, public resource or pipeline wrappers, or arbitrary
+driver closures. Destroying a resource or pipeline purges matching numeric
+entries. The queue keeps at most 256 entries and 64 MiB of this mapping metadata
+per queue by default; the fixed 256-slot array is bounded independently from
+the byte ledger, and retained-byte statistics cover entry metadata only.
+Oversized maps remain one-shot. OGPU-Metal applies a
+separate 256-entry and 64-MiB default per-queue bound to retained classic pass
+descriptors and accounts any command graph it deliberately owns. Both byte
+limits are configurable, use conservative saturating accounting, mutate only
+after native admission, and release their accounting on eviction and queue
+teardown.
 
-  - We also allocate channels: `Mix.allocate_channels n`. We'll call that after open_audio to ensure we have, say, 32 channels. (If user’s config or usage hints more channels, we could allow config for that, but 32 is fine default).
-  - On shutdown: `Mix.close_audio` to close device, `Mix.quit` to deinit mixer (free codecs, etc.).
-  - Tsdl_mixer functions usually return unit or result. We handle accordingly.
+Scene execution's retained commands borrow the bounded mesh, texture, and
+auxiliary caches. Resources evicted while preparing a frame remain alive until
+that synchronous submission completes. Before releasing any deferred resource,
+execution invalidates both explicit prepared replay and automatic command
+replay, including their admission candidate, on success and failure paths.
+The next frame rebuilds from the immutable CPU description. A dense scene may
+exceed cache capacity without retaining a graph that refers to destroyed GPU
+objects or increasing the cache bounds. Regressions cover 257 meshes, 257
+textures, 65 auxiliary buffers, replay, resize, native pixels, and teardown.
 
-- **Tsdl_ttf (SDL2_ttf):** If we incorporate font rendering:
+A prepared-run cache hit does not make local mesh labels globally unique.
+The trusted mesh lookup must also match the exact immutable source uploaded
+into that slot; otherwise it checks the payload hash and uploads as needed.
+Each slot remembers at most one source, only when its CPU payload fits within
+the slot's already bounded GPU byte budget. Replacing the upload replaces
+that source identity. Alternating retained light/dark scenes with identical
+local keys is checked pixel-for-pixel at 1× and 2× backing resolution, including
+returning to the older prepared scene. This guards against geometry vanishing
+or taking another scene's contents when a hover revisits an earlier scene.
 
-  - We call `Ttf.init ()` at start.
-  - Use `Ttf.open_font file ptsize` to get a `Ttf.font`.
-  - Use `Ttf.render_utf8_solid font text color` to get an `Sdl.surface` with rendered text.
-  - Then like images, create a texture from that surface.
-  - Manage caching if needed (like we might not want to re-render static text each frame, so user might keep an Image.t for some text).
-  - At end, call `Ttf.quit ()`.
-  - Tsdl_ttf’s API will match C API closely, just result-wrapped.
-  - We’d integrate this in our Font and Graphics.text functions.
+Dense Scene2 runs of more than 64 consecutive geometry commands pack directly
+into one native vertex/index mesh, including each primitive's RGBA values.
+This avoids preparing and caching thousands of temporary draws only to copy
+them into a batch afterward. Clip, transform, blend, image, and text commands
+end a run; painter order is preserved. Packing takes two passes with
+O(commands + vertices + indices) work and final-buffer storage. Ordinary small
+runs retain independent geometry caching, and immutable display-list/IR caches
+retain their existing bounds. The diagnostic environment variable
+`PRISMEL_SCENE2_DENSE_RUNS=0` measures the existing per-geometry preparation path.
+Retained batch matching includes pipeline family, blend mode, and sample count
+as well as mesh contents and render state; identical geometry must not reuse a
+batch from a different blend mode. Native regressions compare 63, 64, 65, and
+1,024 primitives with identity-barrier reference preparation, alpha/additive
+overlap, fractional transforms, clipping, repeated frames, 1×/2× backing sizes,
+and zero handle deltas.
 
-- **OCaml GC and finalizers:** Some integration details:
+Retained OGPU-Metal identity and replay metadata have independent 256-entry
+limits and share a configurable 64-MiB default byte capacity per queue. Metal's
+retained render-plan cache has its own entry limit and configurable 64-MiB
+default capacity, measured from each private-storage indirect command buffer's
+native `allocatedSize`. The adapter separately bounds the safe owner graph that
+keeps commands, argument encoders and buffers, samplers, prepared resource
+sets, pipelines, and dependency tokens alive. Evicted in-flight plans move
+their exact ICB bytes and conservative owner bytes to an explicit retired-byte
+ledger until completion; teardown drains every ledger to zero.
 
-  - Tsdl uses Ctypes under the hood and allocates memory for e.g. Sdl.window, Sdl.renderer, etc. It likely sets up finalizers to free them if GC collects them, but we cannot rely on that for timely destruction (we call destroy explicitly).
-  - We must ensure not to double free (if Tsdl finalizer also frees). Usually, Tsdl’s documentation says when you call `Sdl.destroy_window`, it nullifies its internal pointer and disables finalizer. So safe.
-  - We should wrap any raw pointers (like mix chunk pointers) carefully. Tsdl_mixer might represent Mix.chunk as an abstract type with finalizer that calls Mix.free_chunk when GC collects. Actually, from the Tsdl_mixer snippet, it likely has similar structure (maybe not finalizing automatically since audio often persistent).
-  - Regardless, we explicitly free things via our destroy to avoid waiting for GC.
+A prepared Metal pass is an immutable generic snapshot. It roots the typed safe
+wrappers needed for revalidation, but owns no command buffer or native encoder
+while idle. Execution first revalidates its descriptor graph, resource
+lifetimes, device identity, render area, and draw or ICB range. A successful
+command buffer then owns one typed aggregate of the referenced resources until
+terminal completion. Unexpected native failure closes any opened encoder and
+makes that command buffer uncommittable; it never falls back to a CPU or
+alternate renderer.
 
-- **Thread main requirement:** On some platforms (macOS/Cocoa), SDL requires events and window creation on main thread. Our design runs everything on main thread (OCaml programs by default single-threaded unless using threads). So that’s fine. If user uses domains/threads (OCaml 5), they must still ensure not to call SDL from other domains; we should mention the requirement that all SDL interactions should happen in the main domain. We do not inherently support multi-domain parallelism, as SDL isn't thread-safe for most calls.
+Private scene staging may split consecutive Scene2 commands into multiple
+ordered native layers so independently changing UI regions do not invalidate a
+stable retained plan.  A staging boundary emits no rendering command, does not
+alter transform, clip, blend, or clear semantics, and is not part of the public
+scene-construction API.  Each layer is lowered through the same checked OGPU
+path and submitted in original scene order.
 
-- **Precision of timers:** We use `Sdl.get_performance_counter` and `Sdl.get_performance_frequency` behind `Time.now()`. If Tsdl provides a convenience for high-precision time, we use it. Otherwise, `Unix.gettimeofday` or `Sdl.get_ticks` (ms resolution) could be used. For smooth animation, performance counter is best (microsecond resolution). We likely use `Sdl.get_ticks` for simplicity (ms int) given moderate requirement, but since we wrote aiming at high quality, perhaps use performance counters:
+PXUI paints through a native-only instance layer. `Scene.Private.ui` wraps a
+renderer-neutral `Scene_command.Ui_batch` (64-byte rect, textured, Bézier
+wire-segment, and dot-grid instances grouped by clip, canvas transform, and
+texture) and its bound textures. Staging keeps it as its own
+`Ui_layer`, like `view3d`: the Render_ir materializer skips it, and enclosing
+Scene transforms and clips do not apply. `Prismel_next_execution.Private
+.lower_ui` turns each batch into one indexed draw of the `Ui` pipeline family:
+vertex pulling reads the instances, a 24-byte affine uniform maps logical
+canvas units to clip space, and the logical scissor is scaled to physical
+pixels once, with the other draws. `Ui` draws bind their texture directly,
+so the executor gives the family its own attachment class; it never shares
+an argument-buffer render pass with Scene2 draws. Instance and index bytes
+go through the digest-keyed mesh cache, so an unchanged UI re-uploads
+nothing. The glyph atlas is an ordinary image resource whose generation
+changes only when new glyphs are rasterized.
 
-  - Tsdl might not directly expose `SDL_GetPerformanceCounter` (though it might).
-  - If not, we can use `Mtime_clock.now ()` from ocaml’s monotonic clock as alternative. But to avoid new dependency, maybe just `Unix.gettimeofday` (gives float seconds with microsecond resolution on many systems).
-  - We'll specify we measure time in seconds as float using a high-precision source (e.g., performance counter if available, else fall back to tick). In results, we mention dt usage is fine either way because \~1ms resolution is enough for game stepping (60fps \~16ms frame).
+`Canvas.render` uses the same lowering, pipeline variants, validation, and
+completion path against a layerless owned Metal texture. A Canvas creates its
+offscreen coordinator lazily, reuses it for all subsequent renders, reads the
+completed texture back into the public Canvas snapshot, and destroys the
+coordinator with `Canvas.destroy`. Offscreen submission never creates a hidden
+window, acquires a drawable, presents, or waits for display pacing.
 
-- **Safety and error messages:** Tsdl functions often return `Error (`Msg e)`with e coming from SDL’s`SDL_GetError`string when something fails. We propagate these to the user in our error results. For example, if`Image.load\` fails due to an unsupported format, SDL_image might set error "Unsupported image format" which Tsdl_image passes to us. We include that in Error so user sees something like "SDL_Image error: Unsupported format".
+Windowed runtime configuration selects FIFO presentation when vsync is enabled
+and Immediate presentation otherwise. The selected mode is retained across
+surface resize and is the mode reported in presentation facts. Layerless
+Canvas targets always report `vsync = false` and `presented = 0`.
 
-  - We avoid exposing raw pointers or the need for user to call any Tsdl function directly. They can entirely use our higher-level API.
+Drawable dimensions are physical pixels. `Frame.width`, `Frame.height`, scene
+coordinates, input positions, and PXUI layout remain logical points; the
+backend performs the logical-to-drawable conversion exactly once at the native
+viewport boundary. Captures read the owned drawable-sized RGBA8 Metal target;
+they do not masquerade as a read of the BGRA window drawable. Exact
+presentation tests separately probe the acquired drawable through a GPU blit.
 
-- **Resource Limits:** Under the hood, SDL might have limits (max texture size, as said, or limited channels for audio, etc.). We try to handle gracefully:
+## Resource rules
 
-  - If `Sdl.create_texture_from_surface` fails, it could be because image too large or out of GPU memory. We propagate error. We might in future add image resizing fallback if too large (not doing now).
-  - If `Mix.play_channel` returns -1 (no free channel), perhaps allocate more channels or warn user to allocate more via Sound.set_channel_count. We could auto-allocate one more channel when needed (not trivial to expand constantly). Simpler: we allocate a fixed high number up front.
+Images, fonts, canvases, meshes, pipelines, and command resources are owned
+native resources. Safe APIs make destruction idempotent, reject use after
+release, and preserve same-device validation. Sketch-owned resources are
+released through `Sketch.run_state ~on_stop` while the SDL3 and Metal runtime
+is still live. Command completion retains any referenced resources until their
+submitted work completes.
 
-- **Integration testing:**
+`Scene`, `Canvas`, `Image`, `Font`, and `Audio` remain high-level Prismel
+interfaces. Their implementation lowers to the native GPU stack without
+changing public scene semantics. Native framebuffer capture and export use
+the same checked readback path as presentation diagnostics.
 
-  - Because our code is layered on Tsdl etc., if an issue arises it might come from either our logic or underlying library.
-  - For instance, memory leak: if we forget to destroy textures, GPU memory leaks; Tsdl won't auto free textures unless finalizer runs (and if we keep reference in Image.t, finalizer won't run until GC collects Image).
-  - Or if audio is choppy: maybe we chose a too small chunk size. Could adjust if needed.
-  - We rely on Tsdl design decisions (like event polling scheme, and results carrying SDL_GetError message as `Msg`). That is convenient because we can take that message directly to user.
+An image whose CPU pixels are replaced behind a stable identity (watched
+reload or `Image.replace`) carries its generation in the sampled-texture key;
+the executor re-uploads a changed generation into same-shape GPU storage.
+The path tracer instead publishes one of two borrowed OGPU film textures on
+completion. Scene samples that texture directly without image staging or a
+per-frame CPU readback. The tracer writes the other texture while rendering;
+explicit `Image.pixels` and capture remain checked readback boundaries.
+Scene rejects malformed, destroyed, and foreign-device GPU image sources.
+An independent offscreen Canvas renderer snapshots the image once into its
+own device, preserving `Canvas.render` and `Image.pixels` behavior across that
+device boundary.
 
-In summary, our framework stands on the shoulders of these libraries:
+Canvas pixel storage is a compatibility/readback snapshot, not a renderer.
+`Canvas.render` replaces it only with completed native Metal output. The
+snapshot continues to support `pixels`, `capture`, `to_image`, `save_png`, and
+explicit resource destruction; no CPU raster fallback participates in scene
+rendering.
 
-- **SDL2 (via Tsdl)** for core cross-platform tasks (window, input, 2D rendering).
-- **SDL2_image (via Tsdl_image)** to easily load various image formats (so the user doesn’t worry about decoding PNG, etc.).
-- **SDL2_mixer (via Tsdl_mixer)** to handle audio decoding and mixing for multiple sound channels, simplifying audio playback a lot.
-- **SDL2_ttf (via Tsdl_ttf)** if we use it for fonts, to generate text surfaces for drawing.
+## Qualification
 
-Using these libraries means our small framework inherits a lot of capability:
-cross-platform support (Windows, Mac, Linux, etc.), support for many media formats, and hardware acceleration, without us writing platform-specific code or implementing complex decoders ourselves. It does mean our performance and limitations are tied to SDL's. For example, the renderer is not as flexible as OpenGL for certain tasks (like custom shaders or 3D), but it’s robust for 2D and very much in line with openFrameworks’ default renderer (which also uses OpenGL under the hood, but in immediate mode style).
+`NEW_GPU_STUFF.md` is the active migration plan. Its S, M, O, R, and D gates
+require focused correctness, ownership, conformance, and performance evidence
+before a surface is declared complete. The dependency-direction gate and the
+native link audit are release requirements: production artifacts may link only
+the declared SDL3, Metal, OGPU, and platform frameworks for this backend.
 
-We ensure to keep the integration details hidden from the user behind our safer abstractions (e.g., user deals with `Image.t` not `Sdl.texture`, and with `Sound.t` not raw Mix_Chunk pointers), but we pass through any meaningful errors and handle resource management carefully as guided by SDL’s API. This approach lets the user focus on creative aspects while we handle the glue to the SDL world.
+Evidence is recorded under `specification/evidence/gpu_migration/`. A record
+names the exact commit, command, profile, machine context, and artifact hash;
+historical records are qualification evidence rather than a substitute for the
+final clean-tree gate run.
+# Native UI input and export
+
+The native window starts SDL3 text input for its lifetime. PXUI applies text
+events only to a focused editor; Sketch UI suppresses workspace and graph
+keyboard shortcuts while an editor has focus. Camera PNG requests capture the
+just-presented native framebuffer through `Sketch.run_state`'s `after_present`
+hook. The UI offers the supported native 1× export factor.

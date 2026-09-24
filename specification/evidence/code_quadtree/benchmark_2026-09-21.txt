@@ -1,0 +1,41 @@
+OCaml LSP 1.23.1: 96727 symbols, 0 parsed / 1853 cached / 13 non-OCaml, 0.49s
+OCaml LSP 1.23.1: 96727 symbols, 0 parsed / 1853 cached / 13 non-OCaml, 0.45s
+native run (includes window startup/teardown): frames=120 domains=1 wall=15.168s allocated=30722521496B promoted=3480538320B major=5036640320B heap_peak=1274896296B
+       15.94 real        14.26 user         0.80 sys
+          1512538112  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              189937  page reclaims
+                 985  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 157  voluntary context switches
+               12078  involuntary context switches
+        169532520397  instructions retired
+         46621178537  cycles elapsed
+          2773163648  peak memory footprint
+OCaml LSP 1.23.1: 96727 symbols, 0 parsed / 1853 cached / 13 non-OCaml, 0.51s
+native run (includes window startup/teardown): frames=120 domains=1 wall=4.278s allocated=6878831392B promoted=539903032B major=2462345928B heap_peak=1030161440B
+        5.21 real         3.63 user         0.65 sys
+          1793572864  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              177693  page reclaims
+                1803  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                1958  voluntary context switches
+                7551  involuntary context switches
+         43998701957  instructions retired
+         12852407087  cycles elapsed
+          2647907776  peak memory footprint

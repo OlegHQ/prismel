@@ -1,0 +1,11 @@
+(library
+ (name prismel_low_core)
+ (public_name prismel.low_core)
+ (modules prismel_low_core)
+ (libraries ogpu scene_command runtime_next_orchestrator prismel_next_resources
+  prismel_next_execution))
+
+(test
+ (name test_prismel_low_core)
+ (modules test_prismel_low_core)
+ (libraries prismel_low_core scene_command))

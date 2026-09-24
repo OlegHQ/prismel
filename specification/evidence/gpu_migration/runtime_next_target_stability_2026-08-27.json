@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "harness_commit": "69af680",
+  "profile": "release",
+  "machine": "Apple M1, 16 GiB, Darwin 25.4.0 arm64, OCaml 5.3.0",
+  "criterion": {
+    "retained_observation_capacity": 256,
+    "maximum_final_ring_rss_range_percent": 5.0,
+    "font_capacity": 256,
+    "backend_trace_capacity": 256,
+    "required_backend_live_after_teardown": [0, 0, 0, 0, 0]
+  },
+  "runs": [
+    {
+      "target": "headless",
+      "status": "pass",
+      "frames": 118193229,
+      "wall_seconds": 1800.0716631412506,
+      "hash": "e112181f2b775d99",
+      "image_generation": 118549,
+      "failed_reloads": 119147,
+      "observations": 196988,
+      "retained_observations": 256,
+      "rss_overall_min_kib": 18496,
+      "rss_overall_max_kib": 22016,
+      "final_ring_rss_min_kib": 18640,
+      "final_ring_rss_max_kib": 18640,
+      "final_ring_rss_range_percent": 0.0,
+      "max_font_entries": 256,
+      "max_backend_trace_entries": 256,
+      "live_before_teardown": [4, 1, 1, 1, 1],
+      "live_after_teardown": [0, 0, 0, 0, 0],
+      "report_path": "_build/runtime-next-headless-30m.json",
+      "report_sha256": "e279880f87ff3a6c4fcc75c4b3799edf978474ce97374149915f27a0aff4b9aa"
+    },
+    {
+      "target": "web",
+      "status": "pass",
+      "frames": 118198468,
+      "wall_seconds": 1800.0687341690063,
+      "hash": "b26b61d9a43dd904",
+      "image_generation": 118555,
+      "failed_reloads": 119152,
+      "observations": 196997,
+      "retained_observations": 256,
+      "rss_overall_min_kib": 14624,
+      "rss_overall_max_kib": 16928,
+      "final_ring_rss_min_kib": 14864,
+      "final_ring_rss_max_kib": 14864,
+      "final_ring_rss_range_percent": 0.0,
+      "max_font_entries": 256,
+      "max_backend_trace_entries": 256,
+      "last_sampled_wap_frames_submitted": 118198200,
+      "live_before_teardown": [4, 1, 1, 1, 1],
+      "live_after_teardown": [0, 0, 0, 0, 0],
+      "report_path": "_build/runtime-next-web-30m.json",
+      "report_sha256": "b66775adee2f11792a5ed6c69f2c208621361f96c2ef41af0c179c85bdde2cb7"
+    }
+  ],
+  "native": "separate qualification lane; not claimed here"
+}

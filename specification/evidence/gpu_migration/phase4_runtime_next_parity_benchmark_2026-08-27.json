@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-08-27",
+  "source_commit": "250cee20a9e820ce2d1b52d26b2c6ad4c1dfbbbf",
+  "profile": "release",
+  "machine": {
+    "cpu": "Apple M1",
+    "memory_bytes": 17179869184,
+    "os": "Darwin 25.4.0 arm64",
+    "ocaml": "5.3.0"
+  },
+  "protocol": {
+    "warmup_iterations": 1,
+    "samples": 3,
+    "frames_per_sample": 10,
+    "shattered_frames_per_sample": 2,
+    "hidden_frames_per_sample": 1000,
+    "counter_scope": "measured samples after prepared warmup"
+  },
+  "runtime_next": [
+    {"scenario":"basic","visibility":"visible","backend":"ogpu-raster2","median_frame_seconds":0.00003180503845214844,"p95_frame_seconds":0.000031900405883789065,"frames_per_second":31410.164752870693,"cpu_percent":100.30312611083376,"allocated_bytes_per_sample":477672,"peak_sampled_rss_kib":4224,"prepared_upload_bytes":1584,"replacement_upload_bytes":0,"draw_count":30,"pass_count":30,"ffi_boundary_calls":30,"pieces":1,"triangles":128},
+    {"scenario":"pxui-like","visibility":"visible","backend":"ogpu-raster2","median_frame_seconds":0.00011789798736572266,"p95_frame_seconds":0.00011970996856689454,"frames_per_second":8446.041079339509,"cpu_percent":100.17004720096658,"allocated_bytes_per_sample":1309272,"peak_sampled_rss_kib":5072,"prepared_upload_bytes":4608,"replacement_upload_bytes":0,"draw_count":1920,"pass_count":30,"ffi_boundary_calls":30,"pieces":64,"triangles":128},
+    {"scenario":"canvas","visibility":"visible","backend":"ogpu-raster2","median_frame_seconds":0.000057196617126464845,"p95_frame_seconds":0.00005779266357421875,"frames_per_second":17503.00737237446,"cpu_percent":100.2338888857977,"allocated_bytes_per_sample":1000152,"peak_sampled_rss_kib":4768,"prepared_upload_bytes":3456,"replacement_upload_bytes":0,"draw_count":240,"pass_count":30,"ffi_boundary_calls":30,"pieces":8,"triangles":256},
+    {"scenario":"scene3","visibility":"visible","backend":"ogpu-raster2","median_frame_seconds":0.018502187728881837,"p95_frame_seconds":0.01854729652404785,"frames_per_second":54.02807607522334,"cpu_percent":99.9966039487187,"allocated_bytes_per_sample":371781912,"peak_sampled_rss_kib":22016,"prepared_upload_bytes":1327680,"replacement_upload_bytes":0,"draw_count":360,"pass_count":30,"ffi_boundary_calls":30,"pieces":12,"triangles":110592},
+    {"scenario":"basic","visibility":"hidden","backend":"ogpu-raster2","median_frame_seconds":2.1457672119140623e-9,"p95_frame_seconds":2.1457672119140623e-9,"scheduler_iterations_per_second":483958153.84615386,"allocated_bytes_per_sample":1112,"peak_sampled_rss_kib":3760,"prepared_upload_bytes":0,"replacement_upload_bytes":0,"draw_count":0,"pass_count":0,"ffi_boundary_calls":0,"pieces":1,"triangles":128},
+    {"scenario":"shattered-cube","visibility":"visible","backend":"backend-mock","median_frame_seconds":2.827421545982361,"p95_frame_seconds":3.8995360136032104,"frames_per_second":0.314073838744233,"cpu_percent":92.16153410552491,"allocated_bytes_per_sample":90278984,"peak_sampled_rss_kib":65424,"prepared_upload_bytes":4217760,"replacement_upload_bytes":0,"draw_count":109668,"pass_count":6,"ffi_boundary_calls":6,"pieces":18278,"triangles":278368}
+  ],
+  "legacy_local_run": {
+    "status": "unavailable",
+    "attempted_target": "headless",
+    "reason": "the legacy SDL2 executable failed SDL initialization under the local dummy video environment",
+    "frozen_reference": "phase0_performance.json",
+    "same_run_comparison": false
+  },
+  "native_gpu_counters": null,
+  "native_gpu_counter_note": "No supported native GPU duration/utilization counter was available; none was inferred from CPU timing."
+}

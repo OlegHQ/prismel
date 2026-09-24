@@ -1,0 +1,14 @@
+(library
+ (name chromatic_art)
+ (modules drift)
+ (libraries prismel))
+
+(executable
+ (name main)
+ (modules main)
+ (libraries chromatic_art prismel pxui unix))
+
+(test
+ (name check)
+ (modules check)
+ (libraries chromatic_art prismel))

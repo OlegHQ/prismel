@@ -28,12 +28,15 @@ Under the hood, if vsync is off and target FPS is set, we do:
 ```ocaml
 let target_dt = 1.0 /. fps in
 if dt < target_dt then
-  Sdl.delay (Uint32 of ((target_dt - dt) * 1000.0))
+  Sdl3.Time.delay_precise_seconds (target_dt -. dt)
 ```
 
-This simple mechanism will sleep the main thread for the remaining time slice. The actual dt next frame might be a bit more or less than target due to OS scheduling, but on average it achieves the cap.
+This uses SDL3's pinned `SDL_DelayPrecise` nanosecond timer and sleeps without
+retaining the OCaml runtime lock. The safe binding rejects negative, non-finite,
+and unrepresentable durations before they reach SDL. The actual dt next frame
+might still exceed the target due to OS scheduling.
 
-If vsync is on, Sdl.delay is not needed because Present waits.
+If vsync is on, the explicit delay is not needed because Present waits.
 
 We also provide:
 

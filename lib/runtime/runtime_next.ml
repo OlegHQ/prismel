@@ -1,0 +1,301 @@
+type stats={pipeline_cache_entries:int;mesh_cache_entries:int;uploaded_bytes:int64;gpu_timing_supported:bool;gpu_duration_seconds:float;gpu_sample_count:int64;retained_plan_builds:int64;retained_plan_hits:int64;retained_plan_misses:int64;retained_plan_evictions:int64;retained_plan_executions:int64;retained_plan_entries:int;retained_plan_capacity:int}
+type frame_facts={logical_width:int;logical_height:int;drawable_width:int;drawable_height:int;pixel_scale_x:float;pixel_scale_y:float}
+type window_facts={title:string;logical_width:int;logical_height:int;drawable_width:int;drawable_height:int;position:int*int;pixel_density:float;display_scale:float;refresh_rate:float option;vsync:bool}
+type t={window:Sdl3.Window.t;view:Sdl3.Metal_view.t;renderer:Scene_execution.t;
+  cache:Ogpu_metal.Pipeline.cache;device:Ogpu_metal.Device.t;
+  control:Ogpu_metal.Backend.control;mutable facts:frame_facts;vsync:bool;
+  mutable dead:bool}
+let gpu_film_texture value ~width ~height =
+  let operation="Runtime_next.gpu_film_texture" in
+  if value.dead then Error(Ogpu.Error.make operation Ogpu.Error.Stale_handle "runtime is destroyed")
+  else
+    let descriptor:Ogpu.Types.texture_descriptor={label=Some"pathtracer-film";
+      width;height;depth=1;mip_levels=1;sample_count=1;
+      usage=[Texture_binding;Storage_binding;Texture_copy_src]} in
+    let device=Scene_execution.device value.renderer in
+    match Ogpu.Backend.create_texture device descriptor with
+    |Error _ as failure->failure
+    |Ok texture->(match Ogpu_metal.Backend.Private.native_texture value.control texture with
+      |Ok native->Ok(texture,native)
+      |Error error->ignore(Ogpu.Backend.destroy_texture texture);Error error)
+type offscreen={renderer:Scene_execution.t;cache:Ogpu_metal.Pipeline.cache;
+  device:Ogpu_metal.Device.t;control:Ogpu_metal.Backend.control;
+  mutable facts:frame_facts;mutable dead:bool}
+let error op text=Error(Ogpu.Error.make op Ogpu.Error.Invalid_state text)
+let sdl op=function Ok x->Ok x|Error e->error op(Format.asprintf"%a"Sdl3.pp_error e)
+let metal op=function Ok x->Ok x|Error e->error op(Format.asprintf"%a"Metal.pp_error e)
+let facts window=match Sdl3.Window.size window,Sdl3.Window.size_in_pixels window with Ok(lw,lh),Ok(dw,dh)when lw>0&&lh>0&&dw>0&&dh>0->Ok{logical_width=lw;logical_height=lh;drawable_width=dw;drawable_height=dh;pixel_scale_x=float dw/.float lw;pixel_scale_y=float dh/.float lh}|Error e,_->sdl"Runtime_next.facts"(Error e)|_,Error e->sdl"Runtime_next.facts"(Error e)|_->error"Runtime_next.facts""window dimensions are invalid"
+let source_scene3_header={|#include <metal_stdlib>
+using namespace metal;
+struct Out { float4 position [[position]];
+#ifdef PRISMEL_POINTS
+float point_size [[point_size]];
+#endif
+float4 color; float2 uv; float3 world; float3 normal; };
+inline float scene_double(const device uchar *p){uint lo=*reinterpret_cast<const device uint*>(p);uint hi=*reinterpret_cast<const device uint*>(p+4);ulong bits=(ulong(hi)<<32)|ulong(lo);float sign=(hi>>31)==0?1.:-1.;int exponent=int((bits>>52)&0x7fful);ulong fraction=bits&0xffffffffffffful;if(exponent==0)return sign*ldexp(float(fraction)/4503599627370496.,-1022);return sign*ldexp(1.+float(fraction)/4503599627370496.,exponent-1023);}
+inline float4 scene_mul(const device float *m,float4 v){return float4(dot(v,float4(m[0],m[1],m[2],m[3])),dot(v,float4(m[4],m[5],m[6],m[7])),dot(v,float4(m[8],m[9],m[10],m[11])),dot(v,float4(m[12],m[13],m[14],m[15])));}
+vertex Out scene_vertex(uint i [[vertex_id]],uint instance_id [[instance_id]],const device uchar *input [[buffer(0)]],const device float *surface [[buffer(6)]],const device float *instances [[buffer(7)]]){const device uchar*p=input+i*68;const device float*transform=surface[83]>.5?instances+instance_id*48:surface;Out v;float4 local=float4(scene_double(p),scene_double(p+8),scene_double(p+16),1.);float4 normal=float4(scene_double(p+24),scene_double(p+32),scene_double(p+40),0.);v.world=scene_mul(transform+16,local).xyz;v.normal=normalize(scene_mul(transform+32,normal).xyz);v.position=scene_mul(transform,local);
+#ifdef PRISMEL_POINTS
+v.point_size=1.;
+#endif
+v.color=unpack_unorm4x8_to_float(*reinterpret_cast<const device uint*>(p+48)).abgr;v.uv=float2(scene_double(p+52),scene_double(p+60));return v;}
+inline void scene_light(Out v,const device float*l,thread float3&direction,thread float&strength){strength=l[8];if(l[0]<.5){direction=normalize(-float3(l[1],l[2],l[3]));}else if(l[0]<2.5){float3 delta=float3(l[1],l[2],l[3])-v.world;float distance=length(delta);direction=distance>0.?delta/distance:float3(0.);float attenuation=l[0]<1.5?l[9]+l[10]*distance+l[11]*distance*distance:l[15]+l[16]*distance+l[17]*distance*distance;strength=attenuation>0.?strength/attenuation:0.;if(l[0]>=1.5){float cosine=dot(-direction,normalize(float3(l[9],l[10],l[11])));strength*=cosine<l[13]?0.:pow(max(cosine,0.),l[14]);}}else{float3 axis=normalize(float3(l[9],l[10],l[11]));float3 reference=abs(axis.z)<.999?float3(0.,0.,1.):float3(0.,1.,0.);float3 u=normalize(cross(reference,axis));float3 w=cross(axis,u);int side=max(1,int(round(sqrt(l[14]))));float3 weighted=float3(0.);float total=0.;for(int row=0;row<side;row++)for(int column=0;column<side;column++){float a=(float(column)+.5)/float(side)-.5,b=(float(row)+.5)/float(side)-.5;float3 delta=float3(l[1],l[2],l[3])+a*l[12]*u+b*l[13]*w-v.world;float distance=length(delta);if(distance>0.){float3 ray=delta/distance;float facing=max(dot(axis,-ray),0.);float attenuation=l[15]+l[16]*distance+l[17]*distance*distance;float weight=attenuation>0.?l[8]*facing/(float(side*side)*attenuation):0.;weighted+=ray*weight;total+=weight;}}direction=length(weighted)>0.?normalize(weighted):float3(0.);strength=total;}}
+inline float4 scene_surface(Out v,const device float*p,float4 tex,bool front,thread const float*visibility){float3 n=normalize(v.normal);if(p[74]>.5&&!front)n=-n;float3 view=normalize(float3(p[48],p[49],p[50])-v.world);float3 primary=float3(p[64],p[65],p[66])+float3(p[52],p[53],p[54])*float3(p[69],p[70],p[71]);float3 spec=float3(0.);int count=min(int(p[73]),64);for(int i=0;i<count;i++){const device float*l=p+84+i*20;float3 direction;float strength;scene_light(v,l,direction,strength);strength*=visibility[i];float diffuse=max(dot(n,direction),0.)*strength;primary+=float3(p[56],p[57],p[58])*float3(l[4],l[5],l[6])*diffuse;if(diffuse>0.){float3 halfv=normalize(direction+view);float shine=pow(max(dot(n,halfv),0.),p[68])*strength;spec+=float3(p[60],p[61],p[62])*float3(l[4],l[5],l[6])*shine;}}float3 modulation=v.color.rgb*tex.rgb;float3 rgb=p[75]>.5?primary*modulation+spec:(primary+spec)*modulation;float distance=length(float3(p[48],p[49],p[50])-v.world);float fog=0.;if(p[76]>.5&&p[76]<1.5)fog=clamp((distance-p[81])/(p[82]-p[81]),0.,1.);else if(p[76]>=1.5&&p[76]<2.5)fog=1.-clamp(exp(-p[81]*distance),0.,1.);else if(p[76]>=2.5){float scaled=p[81]*distance;fog=1.-clamp(exp(-scaled*scaled),0.,1.);}rgb=mix(rgb,float3(p[77],p[78],p[79]),fog);return float4(rgb,p[59]*v.color.a*tex.a);}
+|}
+let source_scene3=source_scene3_header^{|fragment float4 scene_fragment(Out value [[stage_in]],const device float*p [[buffer(6)]],bool front [[front_facing]]){float visibility[64];for(int i=0;i<64;i++)visibility[i]=1.;return scene_surface(value,p,float4(1.),front,visibility);}
+|}
+let source_scene3_textured=source_scene3_header^{|fragment float4 scene_fragment(Out value [[stage_in]],texture2d<float> image [[texture(1)]],sampler sampling [[sampler(2)]],const device float*p [[buffer(6)]],bool front [[front_facing]]){float visibility[64];for(int i=0;i<64;i++)visibility[i]=1.;return scene_surface(value,p,image.sample(sampling,value.uv),front,visibility);}
+|}
+let source_scene3_shadow=source_scene3_header^{|
+inline float scene_shadow_depth(float4 c){float3 b=round(c.rgb*255.);return (b.x*65536.+b.y*256.+b.z)/16777215.;}
+inline float scene_shadow_visibility(Out value,const device float*m,float constant_bias,float slope_bias,float strength,int radius,int2 origin,int2 extent,texture2d<float>depth_map,sampler depth_sampler,float3 light_direction){
+  float4 world=float4(value.world,1.);float4 clip=float4(dot(world,float4(m[0],m[1],m[2],m[3])),dot(world,float4(m[4],m[5],m[6],m[7])),dot(world,float4(m[8],m[9],m[10],m[11])),dot(world,float4(m[12],m[13],m[14],m[15])));if(clip.w<=0.)return 1.;
+  float2 uv=float2(clip.x/clip.w*.5+.5,.5-clip.y/clip.w*.5);float z=clip.z/clip.w;if(any(uv<0.)||any(uv>1.)||z<0.||z>1.)return 1.;float facing=clamp(dot(normalize(value.normal),light_direction),0.,1.);float compare_depth=z-(constant_bias+slope_bias*(1.-facing));int2 center=origin+int2(floor(uv*float2(extent)));float visible=0.;float count=0.;
+  for(int y=-radius;y<=radius;y++)for(int x=-radius;x<=radius;x++){int2 q=center+int2(x,y);count+=1.;if(q.x<origin.x||q.y<origin.y||q.x>=origin.x+extent.x||q.y>=origin.y+extent.y)visible+=1.;else{float2 sample_uv=(float2(q)+.5)/float2(depth_map.get_width(),depth_map.get_height());visible+=compare_depth<=scene_shadow_depth(depth_map.sample(depth_sampler,sample_uv))?1.:0.;}}return(1.-strength)+strength*(visible/count);
+}
+fragment float4 scene_fragment(Out value [[stage_in]],texture2d<float> image [[texture(1)]],sampler sampling [[sampler(2)]],const device float *p [[buffer(3)]],texture2d<float> depth_map [[texture(4)]],sampler depth_sampler [[sampler(5)]],const device float*surface [[buffer(6)]],bool front [[front_facing]]){
+  float visibility[64];for(int i=0;i<64;i++)visibility[i]=1.;if(p[3]==1357911.){int entries=min(int(p[2]),64);for(int i=0;i<entries;i++){const device float*entry=p+4+i*25;if(entry[0]>.5){int light_index=i;float3 direction;float light_strength;scene_light(value,surface+84+light_index*20,direction,light_strength);visibility[light_index]=scene_shadow_visibility(value,entry+5,entry[21],entry[22],entry[23],int(entry[24]),int2(entry[1],entry[2]),int2(entry[3],entry[4]),depth_map,depth_sampler,direction);}}}else{float3 direction;float light_strength;scene_light(value,surface+84,direction,light_strength);visibility[0]=scene_shadow_visibility(value,p,p[16],p[17],p[18],int(p[19]),int2(0),int2(depth_map.get_width(),depth_map.get_height()),depth_map,depth_sampler,direction);}return scene_surface(value,surface,image.sample(sampling,value.uv),front,visibility);
+}
+|}
+let create_renderer ~offscreen ~device ~driver ~control ~configuration
+    ~before_device_destroy =
+  let supported=List.filter(fun samples->samples<=(Ogpu_metal.Device.capabilities device).Ogpu.Capabilities.limits.max_sample_count)[1;4;9;16]in let cache=match Ogpu_metal.Pipeline.create_cache~capacity:(Scene_execution.pipeline_variants_per_sample*List.length supported)with Ok x->x|Error e->raise(Failure(Ogpu.Error.to_string e))in let make_pipeline backend_device family blend samples=let source,extra=match family with Scene_execution.Scene2|Scene2_textured->Runtime_next_shaders.scene2_textured_argument,[{Ogpu.Shader.group=0;binding=1;kind=Storage_buffer;visibility=[Fragment]}]|Scene3|Scene3_stencil->source_scene3,[]|Scene3_points->"#define PRISMEL_POINTS\n"^source_scene3,[]|Scene3_textured|Scene3_textured_stencil->source_scene3_textured,[{Ogpu.Shader.group=0;binding=1;kind=Sampled_texture;visibility=[Fragment]};{group=0;binding=2;kind=Sampler;visibility=[Fragment]}]|Scene3_shadow|Scene3_shadow_stencil->source_scene3_shadow,[{Ogpu.Shader.group=0;binding=1;kind=Sampled_texture;visibility=[Fragment]};{group=0;binding=2;kind=Sampler;visibility=[Fragment]};{group=0;binding=3;kind=Storage_buffer;visibility=[Fragment]};{group=0;binding=4;kind=Sampled_texture;visibility=[Fragment]};{group=0;binding=5;kind=Sampler;visibility=[Fragment]}]|Ui->Runtime_next_shaders.ui,[{Ogpu.Shader.group=0;binding=1;kind=Sampled_texture;visibility=[Fragment]};{group=0;binding=2;kind=Sampler;visibility=[Fragment]}]in let artifact bindings=Ogpu.Shader.create{backend="metal";label=Some"runtime-next";bytes=Bytes.of_string source;entry_points=[{name="scene_vertex";stage=Vertex};{name=(if family=Scene2||family=Scene2_textured then "scene_fragment_argument" else "scene_fragment");stage=Fragment}];bindings}in let vertex_schema={Ogpu.Shader.group=0;binding=0;kind=Storage_buffer;visibility=[Vertex]}::(match family with Scene_execution.Scene2|Scene2_textured|Ui->[{Ogpu.Shader.group=0;binding=6;kind=Storage_buffer;visibility=[Vertex]}]|Scene3|Scene3_points|Scene3_textured|Scene3_shadow|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->[{Ogpu.Shader.group=0;binding=6;kind=Storage_buffer;visibility=[Vertex;Fragment]};{Ogpu.Shader.group=0;binding=7;kind=Storage_buffer;visibility=[Vertex]}])in match artifact vertex_schema,artifact extra with Error e,_->Error e|_,Error e->Error e|Ok vertex,Ok fragment->let entries={Ogpu.Binding.binding=0;kind=Buffer;visibility=[Vertex]}::(match family with Scene_execution.Scene2|Scene2_textured|Ui->[{Ogpu.Binding.binding=6;kind=Buffer;visibility=[Vertex]}]|Scene3|Scene3_points|Scene3_textured|Scene3_shadow|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->[{Ogpu.Binding.binding=6;kind=Buffer;visibility=[Vertex;Fragment]};{Ogpu.Binding.binding=7;kind=Buffer;visibility=[Vertex]}])in let bindings=match family with Scene2|Scene2_textured->entries@[{Ogpu.Binding.binding=1;kind=Buffer;visibility=[Fragment]}]|Ui->entries@[{Ogpu.Binding.binding=1;kind=Texture;visibility=[Fragment]};{binding=2;kind=Sampler;visibility=[Fragment]}]|Scene3|Scene3_points|Scene3_stencil->entries|Scene3_textured|Scene3_textured_stencil->entries@[{Ogpu.Binding.binding=1;kind=Texture;visibility=[Fragment]};{binding=2;kind=Sampler;visibility=[Fragment]}]|Scene3_shadow|Scene3_shadow_stencil->entries@[{Ogpu.Binding.binding=1;kind=Texture;visibility=[Fragment]};{binding=2;kind=Sampler;visibility=[Fragment]};{binding=3;kind=Buffer;visibility=[Fragment]};{binding=4;kind=Texture;visibility=[Fragment]};{binding=5;kind=Sampler;visibility=[Fragment]}]in match Ogpu.Binding.create_layout bindings with Error e->Error e|Ok bindings->let groups=[0,bindings]in match Ogpu.Binding.create_pipeline_layout~device:(Ogpu.Backend.device_handle backend_device)~capabilities:(Ogpu.Backend.capabilities backend_device)groups with Error _ as e->e|Ok layout->let descriptor:Ogpu.Pipeline.render_descriptor={backend="metal";label=Some"runtime-next";layout;vertex;vertex_entry="scene_vertex";fragment=Some fragment;fragment_entry=Some(if family=Scene2||family=Scene2_textured then "scene_fragment_argument" else "scene_fragment");color_format=Rgba8_unorm;depth_format=(match family with Scene_execution.Scene2|Scene2_textured|Ui->Ogpu.Pipeline.No_depth|Scene3|Scene3_points|Scene3_textured|Scene3_shadow->Depth32_float|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->Depth32_float_stencil8);sample_count=samples}in match (if family=Scene2||family=Scene2_textured then Ogpu_metal.Pipeline.create_render_argument_buffer~blend cache device descriptor else Ogpu_metal.Pipeline.create_render_runtime_msl~primitive_topology:(if family=Scene3_points then Metal.Render_pipeline.Point else Triangle)~blend cache device descriptor) with Error _ as e->e|Ok native->Ogpu_metal.Backend.register_pipeline control native;Ok(Ogpu_metal.Pipeline.Private.portable native) in
+  let destroy_native ()=
+    Ogpu_metal.Pipeline.clear_cache cache;
+    before_device_destroy()in
+  let create_renderer=if offscreen then
+    Scene_execution.create_offscreen_with_sampled_pipeline_variants
+  else Scene_execution.create_with_sampled_pipeline_variants in
+  match create_renderer driver configuration ~canonical_scene2_argument:true
+      ~before_device_destroy:destroy_native make_pipeline with
+  |Error error->Ogpu_metal.Pipeline.clear_cache cache;Error error
+  |Ok renderer->Ok(renderer,cache)
+
+let present_mode vsync=if vsync then Ogpu.Surface.Fifo else Immediate
+let configuration ~vsync ~width ~height : Ogpu.Surface.configuration =
+  {logical_width=width;logical_height=height;physical_width=width;
+   physical_height=height;format=Bgra8_unorm;present_mode=present_mode vsync;
+   max_acquired=2}
+
+let reveal window=
+  match Sdl3.Window.show window with Error _ as error->error|Ok()->
+    ignore(Sdl3.Window.restore window);
+    ignore(Sdl3.Window.raise_window window);
+    ignore(Sdl3.Window.center window);
+    ignore(Sdl3.Window.sync window);
+    Ok()
+let create ?(vsync=true) ?(hidden=true) ?(title="Prismel") ~width ~height ()=
+  let op="Runtime_next.create"in
+  if width<=0||height<=0 then
+    Error(Ogpu.Error.make op Invalid_argument"dimensions must be positive")
+  else
+    match sdl op(Sdl3.Init.init[Sdl3.Init.Video])with
+    |Error _ as error->error
+    |Ok()->
+      let flags:Sdl3.Window.flag list=
+        Metal::High_pixel_density::(if hidden then[Hidden]else[])in
+      match sdl op(Sdl3.Window.create~title~width~height~flags())with
+      |Error _ as error->ignore(Sdl3.Init.quit_subsystems[Sdl3.Init.Video]);error
+      |Ok window->
+        let text_input = sdl op (Sdl3.Text_input.start window) in
+        (match text_input with Error _ as error ->
+          ignore (Sdl3.Window.destroy window);
+          ignore (Sdl3.Init.quit_subsystems [Sdl3.Init.Video]); error
+        | Ok () ->
+        match (if hidden then Ok() else sdl op(reveal window)) with
+        |Error _ as error->ignore(Sdl3.Window.destroy window);
+          ignore(Sdl3.Init.quit_subsystems[Sdl3.Init.Video]);error
+        |Ok()->
+        match sdl op(Sdl3.Metal_view.create window)with
+        |Error error->ignore(Sdl3.Window.destroy window);
+          ignore(Sdl3.Init.quit_subsystems[Sdl3.Init.Video]);Error error
+        |Ok view->
+          let cleanup_sdl()=ignore(Sdl3.Metal_view.destroy view);
+            ignore(Sdl3.Window.destroy window);
+            ignore(Sdl3.Init.quit_subsystems[Sdl3.Init.Video])in
+          match sdl op(Sdl3.Metal_view.layer view)with
+          |Error _ as error->cleanup_sdl();error
+          |Ok token->match Ogpu_metal.Device.system_default()with
+          |Error _ as error->cleanup_sdl();error
+          |Ok device->
+            let config=Metal.Metal_layer.default~width~height in
+            match metal op(Metal.Metal_layer.adopt_borrowed
+              (Ogpu_metal.Device.Private.metal device)token config)with
+            |Error _ as error->ignore(Ogpu_metal.Device.destroy device);
+              cleanup_sdl();error
+            |Ok layer->
+              let driver,control=Ogpu_metal.Backend.create~device~layer
+                ~retained_plan_capacity:256()in
+              let configuration=configuration~vsync~width~height in
+              let destroy_layer()=match Metal.Metal_layer.destroy layer with
+                |Ok()->Ok()
+                |Error native_error->
+                  error op(Format.asprintf"%a"Metal.pp_error native_error)in
+              match create_renderer~offscreen:false~device~driver~control
+                  ~configuration~before_device_destroy:destroy_layer with
+              |Error _ as result->
+                ignore(destroy_layer());
+                cleanup_sdl();
+                result
+              |Ok(renderer,cache)->
+                match facts window with
+                |Error error->ignore(Scene_execution.destroy renderer);cleanup_sdl();
+                  Error error
+                |Ok facts->
+                  let actual={configuration with
+                    logical_width=facts.logical_width;
+                    logical_height=facts.logical_height;
+                    physical_width=facts.drawable_width;
+                    physical_height=facts.drawable_height}in
+                  match Scene_execution.resize renderer actual with
+                  |Error error->ignore(Scene_execution.destroy renderer);cleanup_sdl();
+                    Error error
+                  |Ok()->Ok{window;view;renderer;cache;device;control;facts;
+                    vsync;dead=false})
+let create_offscreen ~logical_width ~logical_height ~width ~height=
+  let op="Runtime_next.create_offscreen"in
+  if width<=0||height<=0||logical_width<=0||logical_height<=0 then
+    Error(Ogpu.Error.make op Invalid_argument"dimensions must be positive")
+  else match Ogpu_metal.Device.system_default()with
+    |Error _ as error->error
+    |Ok device->
+        let driver,control=Ogpu_metal.Backend.create~device
+          ~retained_plan_capacity:256()in
+        let configuration=configuration~vsync:false~width~height in
+        match create_renderer~offscreen:true~device~driver~control~configuration
+          ~before_device_destroy:(fun()->Ok())with
+        |Error _ as error->error
+        |Ok(renderer,cache)->
+            let facts={logical_width;logical_height;
+              drawable_width=width;drawable_height=height;
+              pixel_scale_x=float width/.float logical_width;
+              pixel_scale_y=float height/.float logical_height}in
+            Ok{renderer;cache;device;control;facts;dead=false}
+let scale_rect (facts:frame_facts)(x,y,w,h)=let edge value logical drawable=value*drawable/logical in let l=edge x facts.logical_width facts.drawable_width and t=edge y facts.logical_height facts.drawable_height and r=edge(x+w)facts.logical_width facts.drawable_width and b=edge(y+h)facts.logical_height facts.drawable_height in(l,t,r-l,b-t)
+let map_logical_rect=scale_rect
+let scale_required(facts:frame_facts)=facts.logical_width<>facts.drawable_width||facts.logical_height<>facts.drawable_height
+let scale_draw(facts:frame_facts)(draw:Scene_execution.draw)=let viewport=scale_rect facts draw.state.viewport and scissor=scale_rect facts draw.state.scissor in if viewport=draw.state.viewport&&scissor=draw.state.scissor then draw else{draw with state={draw.state with viewport;scissor}}
+let scale_draws(facts:frame_facts)draws=if not(scale_required facts)then draws else List.map(scale_draw facts)draws
+let scale_sampled_resources(facts:frame_facts)draws=if not(scale_required facts)then draws else List.map(fun((family,blend,texture,auxiliary,samples,draw)as entry)->let scaled=scale_draw facts draw in if scaled==draw then entry else family,blend,texture,auxiliary,samples,scaled)draws
+let apply_facts (value:t) (facts:frame_facts)=let configuration:Ogpu.Surface.configuration={logical_width=facts.logical_width;logical_height=facts.logical_height;physical_width=facts.drawable_width;physical_height=facts.drawable_height;format=Bgra8_unorm;present_mode=present_mode value.vsync;max_acquired=2}in match Scene_execution.resize value.renderer configuration with Error _ as e->e|Ok()->value.facts<-facts;Ok()
+let sync_window_facts (value:t)=
+  if value.dead then Ok()
+  else match facts value.window with
+    |Error _ as error->error
+    |Ok live when live.logical_width=value.facts.logical_width&&
+        live.logical_height=value.facts.logical_height&&
+        live.drawable_width=value.facts.drawable_width&&
+        live.drawable_height=value.facts.drawable_height->Ok()
+    |Ok live->apply_facts value live
+let render ?clear (value:t) draws=if value.dead then Error(Ogpu.Error.make"Runtime_next.render"Stale_handle"runtime is destroyed")else
+  match sync_window_facts value with Error _ as error->error
+  |Ok()->Scene_execution.render ?clear value.renderer(scale_draws value.facts draws)
+let render_sampled_resources ?after_prepare ?clear (value:t) draws=if value.dead then(Option.iter(fun f->f())after_prepare;Error(Ogpu.Error.make"Runtime_next.render_sampled_resources"Stale_handle"runtime is destroyed"))else
+  match sync_window_facts value with Error _ as error->Option.iter(fun f->f())after_prepare;error
+  |Ok()->Scene_execution.render_sampled_resources ?after_prepare ?clear value.renderer(scale_sampled_resources value.facts draws)
+let render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version (value:t) draws=
+  if value.dead then(Option.iter(fun f->f())after_prepare;Error(Ogpu.Error.make"Runtime_next.render_prepared_sampled_resources"Stale_handle"runtime is destroyed"))
+  else match sync_window_facts value with Error _ as error->Option.iter(fun f->f())after_prepare;error
+  |Ok()->Scene_execution.render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version
+    value.renderer(scale_sampled_resources value.facts draws)
+let replay_prepared_sampled_resources ?clear ~identity ~version (value:t)=
+  if value.dead then Error(Ogpu.Error.make
+      "Runtime_next.replay_prepared_sampled_resources" Stale_handle
+      "runtime is destroyed")
+  else match sync_window_facts value with Error _ as error->error
+  |Ok()->Scene_execution.replay_prepared_sampled_resources ?clear ~identity ~version
+    value.renderer
+let resize (value:t) ~width ~height=if value.dead then Error(Ogpu.Error.make"Runtime_next.resize"Stale_handle"runtime is destroyed")else match sdl"Runtime_next.resize"(Sdl3.Window.set_size value.window~width~height)with Error _ as e->e|Ok()->Result.bind(facts value.window)(apply_facts value)
+let read_pixels (value:t)=Scene_execution.read_pixels value.renderer
+let read_pixels_into (value:t)~bytes_per_row~destination=
+  if value.dead then Error(Ogpu.Error.make"Runtime_next.read_pixels_into"Stale_handle"runtime is destroyed")
+  else Scene_execution.read_pixels_into value.renderer~bytes_per_row~destination
+let stats (value:t)=let timing=Ogpu_metal.Queue.gpu_timing_for_device value.device and retained=Ogpu_metal.Backend.retained_plan_stats value.control in {pipeline_cache_entries=Ogpu_metal.Pipeline.cache_length value.cache;mesh_cache_entries=Scene_execution.cache_entries value.renderer;uploaded_bytes=Scene_execution.upload_bytes value.renderer;gpu_timing_supported=timing.supported;gpu_duration_seconds=timing.duration_seconds;gpu_sample_count=timing.sample_count;retained_plan_builds=retained.builds;retained_plan_hits=retained.hits;retained_plan_misses=retained.misses;retained_plan_evictions=retained.evictions;retained_plan_executions=retained.executions;retained_plan_entries=retained.entries;retained_plan_capacity=retained.capacity}
+let frame_facts (value:t)=value.facts
+let handle_window_event (value:t)=function
+  |Sdl3.Event.Window{change=Resized _;_}|Sdl3.Event.Window{change=Pixel_size_changed _;_}->
+      Result.map(fun()->true)(Result.bind(facts value.window)(apply_facts value))
+  |_->Ok false
+let live_window operation (value:t) callback=if value.dead then Error(Ogpu.Error.make operation Stale_handle"runtime is destroyed")else callback value.window
+let window_facts (value:t)~vsync:_=live_window"Runtime_next.window_facts"value(fun window->match sdl"Runtime_next.window_facts"(Sdl3.Window.presentation_facts window~vsync:value.vsync),sdl"Runtime_next.window_facts"(Sdl3.Window.title window),sdl"Runtime_next.window_facts"(Sdl3.Window.position window)with Ok facts,Ok title,Ok position->Ok({title;logical_width=facts.logical_width;logical_height=facts.logical_height;drawable_width=facts.drawable_width;drawable_height=facts.drawable_height;position;pixel_density=facts.pixel_density;display_scale=facts.display_scale;refresh_rate=facts.refresh_rate;vsync=facts.vsync}:window_facts)|Error e,_,_|_,Error e,_|_,_,Error e->Error e)
+let window_call operation call value=live_window operation value(fun window->sdl operation(call window))
+let set_title value title=window_call"Runtime_next.set_title"(fun window->Sdl3.Window.set_title window title)value
+let set_position value~x~y=window_call"Runtime_next.set_position"(fun window->Sdl3.Window.set_position window~x~y)value
+let center=window_call"Runtime_next.center" Sdl3.Window.center
+let set_bordered value enabled=window_call"Runtime_next.set_bordered"(fun window->Sdl3.Window.set_bordered window enabled)value
+let set_resizable value enabled=window_call"Runtime_next.set_resizable"(fun window->Sdl3.Window.set_resizable window enabled)value
+let set_always_on_top value enabled=window_call"Runtime_next.set_always_on_top"(fun window->Sdl3.Window.set_always_on_top window enabled)value
+let set_fullscreen value enabled=window_call"Runtime_next.set_fullscreen"(fun window->Sdl3.Window.set_fullscreen window enabled)value
+let show (value:t)=if value.dead then Error(Ogpu.Error.make"Runtime_next.show"Stale_handle"runtime is destroyed")else
+  match sdl"Runtime_next.show"(reveal value.window)with Error _ as error->error|Ok()->sync_window_facts value
+let hide=window_call"Runtime_next.hide" Sdl3.Window.hide
+let visible value=live_window"Runtime_next.visible"value(fun window->
+  Result.map(fun flags->Int64.logand flags 0x8L=0L)
+    (sdl"Runtime_next.visible"(Sdl3.Window.flags window)))
+let minimize=window_call"Runtime_next.minimize" Sdl3.Window.minimize
+let maximize=window_call"Runtime_next.maximize" Sdl3.Window.maximize
+let restore=window_call"Runtime_next.restore" Sdl3.Window.restore
+let destroy (value:t)=if value.dead then Ok()else(
+  value.dead<-true;
+  let failure=ref None in
+  let record=function Ok()->()|Error error->if!failure=None then failure:=Some error in
+  record(Scene_execution.destroy value.renderer);
+  record(sdl"Runtime_next.destroy"(Sdl3.Text_input.stop value.window));
+  record(sdl"Runtime_next.destroy"(Sdl3.Metal_view.destroy value.view));
+  record(sdl"Runtime_next.destroy"(Sdl3.Window.destroy value.window));
+  record(sdl"Runtime_next.destroy"(Sdl3.Init.quit_subsystems[Sdl3.Init.Video]));
+  match!failure with None->Ok()|Some error->Error error)
+let render_offscreen ?after_prepare ?clear value draws=if value.dead then
+  (Option.iter(fun f->f())after_prepare;Error(Ogpu.Error.make"Runtime_next.render_offscreen"Stale_handle
+    "offscreen target is destroyed"))
+  else Scene_execution.render_sampled_resources ?after_prepare ?clear value.renderer
+    (scale_sampled_resources value.facts draws)
+let render_offscreen_prepared ?after_prepare ?clear ~identity ~version value draws=if value.dead then
+  (Option.iter(fun f->f())after_prepare;Error(Ogpu.Error.make"Runtime_next.render_offscreen_prepared"Stale_handle
+    "offscreen target is destroyed"))
+  else Scene_execution.render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version
+    value.renderer (scale_sampled_resources value.facts draws)
+let read_offscreen value~bytes_per_row=if value.dead then
+  Error(Ogpu.Error.make"Runtime_next.read_offscreen"Stale_handle
+    "offscreen target is destroyed")
+  else Scene_execution.read_pixels value.renderer~bytes_per_row
+let read_offscreen_into value~bytes_per_row~destination=if value.dead then
+  Error(Ogpu.Error.make"Runtime_next.read_offscreen_into"Stale_handle
+    "offscreen target is destroyed")
+  else Scene_execution.read_pixels_into value.renderer~bytes_per_row~destination
+let resize_offscreen value ~logical_width ~logical_height ~width ~height=
+  if value.dead then Error(Ogpu.Error.make"Runtime_next.resize_offscreen"
+    Stale_handle"offscreen target is destroyed")
+  else if width<=0||height<=0||logical_width<=0||logical_height<=0 then
+    Error(Ogpu.Error.make"Runtime_next.resize_offscreen"Invalid_argument
+      "dimensions must be positive")
+  else
+    let configuration=configuration~vsync:false~width~height in
+    match Scene_execution.resize value.renderer configuration with
+    |Error _ as error->error
+    |Ok()->value.facts<-{logical_width;logical_height;
+        drawable_width=width;drawable_height=height;
+        pixel_scale_x=float width/.float logical_width;
+        pixel_scale_y=float height/.float logical_height};Ok()
+let offscreen_stats value=let timing=Ogpu_metal.Queue.gpu_timing_for_device value.device
+  and retained=Ogpu_metal.Backend.retained_plan_stats value.control in
+  {pipeline_cache_entries=Ogpu_metal.Pipeline.cache_length value.cache;
+   mesh_cache_entries=Scene_execution.cache_entries value.renderer;
+   uploaded_bytes=Scene_execution.upload_bytes value.renderer;
+   gpu_timing_supported=timing.supported;
+   gpu_duration_seconds=timing.duration_seconds;
+   gpu_sample_count=timing.sample_count;retained_plan_builds=retained.builds;
+   retained_plan_hits=retained.hits;retained_plan_misses=retained.misses;
+   retained_plan_evictions=retained.evictions;
+   retained_plan_executions=retained.executions;
+   retained_plan_entries=retained.entries;
+   retained_plan_capacity=retained.capacity}
+let offscreen_facts value=value.facts
+let destroy_offscreen value=if value.dead then Ok()else(
+  value.dead<-true;Scene_execution.destroy value.renderer)
+module Private=struct
+  let scene2_textured_direct=Runtime_next_shaders.scene2_textured_direct
+  let scene2_textured_argument=Runtime_next_shaders.scene2_textured_argument
+  let scale_draws=scale_draws
+  let scale_sampled_resources=scale_sampled_resources
+end

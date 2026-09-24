@@ -1,0 +1,1 @@
+let ()=Binding_render_encoder33_native_closure.validate();Printf.printf"RenderEncoder33 native closure: exact%d (%d typed selectors + 3 metadata)\n%!"(List.length Binding_render_encoder33_native_closure.ids)(List.length Binding_render_encoder33_native_closure.callable_ids)

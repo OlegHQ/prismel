@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "target": "native",
+  "captured_presented_frame": 3,
+  "logical_size": [640, 480],
+  "drawable_size": [640, 480],
+  "pixel_scale": [1.000000, 1.000000],
+  "lifecycle": [
+    "canvas.create",
+    "canvas.render",
+    "canvas.to_image",
+    "canvas.destroy",
+    "capture.create",
+    "capture.save_png",
+    "capture.destroy",
+    "image.destroy"
+  ]
+}

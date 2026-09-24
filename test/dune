@@ -1,10 +1,137 @@
 (test
  (name test_prismel)
+ (modules test_prismel)
  (libraries prismel pxui))
 
 (test
- (name headless_smoke)
- (libraries prismel pxui tsdl)
+ (name test_easy_camera2)
+ (modules test_easy_camera2)
+ (libraries prismel pxui))
+
+(test
+ (name test_sop_ui)
+ (modules test_sop_ui sop_params_fixture)
+ (libraries procedural sop_ui pxui)
+ (preprocess (pps prismel.ppx)))
+
+(test
+ (name test_custom_sop)
+ (modules test_custom_sop)
+ (libraries procedural prismel pdk)
+ (preprocess (pps prismel.ppx)))
+
+(test
+ (name test_pxui_graph)
+ (modules test_pxui_graph)
+ (libraries prismel procedural pxui pxui_graph sop_catalog scene_command))
+
+(test
+ (name test_sketch_ui)
+ (modules test_sketch_ui)
+ (libraries prismel pdk procedural pxui pxui_graph sop_ui sketch_support
+  sketch_ui unix))
+
+(test
+ (name test_sop_catalog)
+ (modules test_sop_catalog)
+ (libraries prismel pdk procedural sop_catalog sketch_support))
+
+(test
+ (name test_geom)
+ (modules test_geom)
+ (libraries prismel geom))
+
+(test
+ (name dependency_direction)
+ (modules dependency_direction)
+ (deps ../lib/pdk/dune ../lib/geom/dune ../lib/procedural/dune
+  ../lib/pxui/dune ../lib/sop_ui/dune ../lib/pxui_graph/dune
+  ../lib/sop_catalog/dune ../lib/sketch/dune ../lib/sketch_ui/dune)
  (action
-  (setenv HEADLESS 1
-   (run %{test}))))
+   (run %{test} %{dep:../lib/pdk/dune} %{dep:../lib/geom/dune}
+   %{dep:../lib/procedural/dune} %{dep:../lib/pxui/dune}
+   %{dep:../lib/sop_ui/dune} %{dep:../lib/pxui_graph/dune}
+   %{dep:../lib/sop_catalog/dune} %{dep:../lib/sketch/dune}
+   %{dep:../lib/sketch_ui/dune})))
+
+(test
+ (name gpu_dependency_direction)
+ (modules gpu_dependency_direction)
+ (deps ../lib/prismel/dune ../lib/runtime/dune
+  ../lib/sdl3/dune ../lib/sdl3_image/dune ../lib/sdl3_ttf/dune
+  ../lib/sdl3_mixer/dune ../lib/metal/dune ../lib/ogpu/dune
+  ../lib/ogpu_metal/dune)
+ (action
+  (run %{test}
+   %{dep:../lib/prismel/dune}
+   %{dep:../lib/runtime/dune}
+   %{dep:../lib/sdl3/dune}
+   %{dep:../lib/sdl3_image/dune}
+   %{dep:../lib/sdl3_ttf/dune}
+   %{dep:../lib/sdl3_mixer/dune}
+   %{dep:../lib/metal/dune}
+   %{dep:../lib/ogpu/dune}
+   %{dep:../lib/ogpu_metal/dune})))
+
+(test
+ (name native_only_rendering)
+ (modules native_only_rendering)
+ (deps ../lib/sdl3/private_raw.ml ../lib/sdl3/sdl3.ml
+  ../lib/sdl3/sdl3.mli ../lib/sdl3/sdl3_stubs.c
+  ../lib/runtime/runtime_next.ml ../lib/runtime/runtime_next_orchestrator.ml
+  ../lib/prismel_next_execution/prismel_next_execution.ml)
+ (action
+  (run %{test}
+   %{dep:../lib/sdl3/private_raw.ml}
+   %{dep:../lib/sdl3/sdl3.ml}
+   %{dep:../lib/sdl3/sdl3.mli}
+   %{dep:../lib/sdl3/sdl3_stubs.c}
+   %{dep:../lib/runtime/runtime_next.ml}
+   %{dep:../lib/runtime/runtime_next_orchestrator.ml}
+   %{dep:../lib/prismel_next_execution/prismel_next_execution.ml})))
+
+(test
+ (name audio_snapshot)
+ (modules audio_snapshot)
+ (libraries prismel)
+ (link_flags -linkall)
+ (action
+  (setenv SDL_AUDIODRIVER dummy
+   (setenv PRISMEL_TEST_AUDIO_SNAPSHOT 1 (run %{test})))))
+
+(test
+ (name sdl3_platform_harness)
+ (modules sdl3_platform_harness)
+ (libraries prismel prismel.sdl3))
+
+(rule
+ (alias runtest)
+ (deps ../specification/evidence/gpu_migration/phase0_baseline.json
+  ../specification/evidence/gpu_migration/api_stable.json
+  (glob_files ../lib/*/*.mli)
+  (glob_files ../lib/*/dune))
+ (action
+  (run %{exe:../tools/gpu_migration/api_manifest.exe}
+   --root %{workspace_root} --check)))
+
+(test
+ (name test_sketch_support)
+ (modules test_sketch_support)
+ (libraries prismel pdk procedural sketch_support))
+
+(rule
+ (alias runtest)
+ (deps
+  ../packaging/conf-sdl3/conf-sdl3.opam
+  ../packaging/conf-sdl3-image/conf-sdl3-image.opam
+  ../packaging/conf-sdl3-ttf/conf-sdl3-ttf.opam
+  ../packaging/conf-sdl3-mixer/conf-sdl3-mixer.opam)
+ (action
+  (progn
+   (run %{exe:../tools/packaging/check_sdl3_conf.exe} sdl3 3.4.14)
+   (run %{exe:../tools/packaging/check_sdl3_conf.exe}
+    sdl3-image 3.4.4)
+   (run %{exe:../tools/packaging/check_sdl3_conf.exe}
+    sdl3-ttf 3.2.2)
+   (run %{exe:../tools/packaging/check_sdl3_conf.exe}
+    sdl3-mixer 3.2.4))))

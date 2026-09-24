@@ -63,7 +63,8 @@ For the same Prismel version, seed, inputs, and parameters:
 - `Rand` produces the same sample sequence;
 - `Noise` produces the same field;
 - parallel scheduling does not change ordered results;
-- a headless sketch and a visible sketch calculate the same scene data.
+- native scheduling and window visibility do not change calculated scene data.
 
-Render backend differences may still affect pixel-level antialiasing. Exact
-framebuffer comparisons should be scoped to one SDL/backend version.
+Exact framebuffer comparisons are scoped to a recorded Metal device/OS/runtime
+qualification tuple; geometry and scene-data comparisons remain exact across
+supported domain counts.

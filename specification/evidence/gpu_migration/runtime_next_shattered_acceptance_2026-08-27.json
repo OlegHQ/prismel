@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "result": "pass",
+  "pieces": 18278,
+  "triangles": 278368,
+  "render_vertices": 835104,
+  "cook_seconds_one_domain": 19.212594032287598,
+  "cook_seconds_four_domains": 7.788913011550903,
+  "pack_seconds_one_domain": 0.11778593063354492,
+  "one_four_domain_exact": true,
+  "topology_hash": "f7df96ba5de50db4f964caa418ac4a90",
+  "attribute_hash": "a34503939b89dcd5f6d8503f58b3fd8d",
+  "order_hash": "2a4f0c8756d6abc4c0f8cec85c10dc10",
+  "render_hash": "681eacdabdce457de462c3f4fc01a761",
+  "artifact_sha256": "e635cbe84c566db90792b7e1c0aa7e4125da6f664fa37015718e85aeed1f3119",
+  "native_smoke": {
+    "warmup_frames": 1,
+    "sample_frames": 1,
+    "prepared_upload_bytes": 60127488,
+    "replacement_upload_bytes": 0,
+    "draws": 1,
+    "passes": 1,
+    "backend_calls": 1,
+    "allocated_bytes": 18128,
+    "raw_json_sha256": "ad3915f932607b821d672c9d366d2823070cc67318a9b021aef98ac72c5051e8"
+  }
+}

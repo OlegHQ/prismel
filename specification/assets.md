@@ -19,7 +19,7 @@ the same key returns the same borrowed resource. Errors include the asset kind,
 resolved path, and backend message.
 
 `Assets.preload` accepts a list of typed requests and attempts all of them,
-returning every error. It intentionally performs SDL decoding/upload on the
+returning every error. It intentionally performs SDL3 decoding/upload on the
 initial domain. `Assets.preload_parallel` implements a safe two-phase variant:
 image bytes are read concurrently through `Parallel`, then decoded and uploaded
 in request order after joining on the initial domain. Font/audio requests stay
@@ -63,14 +63,14 @@ model initialized once continues to draw the new file. `Sketch.run_assets
 ~watch:true` refreshes before each user update and retains the previous valid
 texture when decode fails.
 
-The headless integration test overwrites a cached PNG with a differently sized
-image, refreshes it, and verifies both object identity and new dimensions.
+The finite native integration test overwrites a cached PNG with a differently
+sized image, refreshes it, and verifies both object identity and new dimensions.
 Font/audio hot replacement remains separate because their active playback and
 render-cache lifetimes need different handoff rules.
 
 ## Future decode extensions
 
 Future background decoders must return plain CPU-owned buffers. They may not
-touch SDL_image, SDL_ttf, renderers, textures, or cache tables. Main-domain
+touch SDL3_image, SDL3_ttf, renderers, textures, or cache tables. Main-domain
 polling turns completed buffers into borrowed render resources. Cancellation
 and invalidation must remain structured; detached domains are not permitted.

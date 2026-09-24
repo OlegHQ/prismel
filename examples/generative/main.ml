@@ -8,7 +8,6 @@ let update time (frame : Frame.t) =
         | _ -> false)
       frame
   then Sketch.quit ();
-  if Sketch.is_headless () && frame.count >= 3 then Sketch.quit ();
   time +. frame.dt
 
 let view time (frame : Frame.t) =

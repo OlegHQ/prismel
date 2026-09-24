@@ -1,136 +1,39 @@
-open Tsdl
-
-(* -------------------------------------------------------------------------
-   Public type
-   ------------------------------------------------------------------------- *)
-
-type t = {
-  mutable texture : Sdl.texture;
-  mutable width   : int;
-  mutable height  : int;
-}
-
-(* -------------------------------------------------------------------------
-   Global renderer state
-   ------------------------------------------------------------------------- *)
-
-let current_renderer : Sdl.renderer option ref = ref None
-
-let set_renderer r = current_renderer := Some r
-
-let get_renderer () =
-  match !current_renderer with
-  | Some r -> Ok r
-  | None   -> Error "No renderer set – call Image.set_renderer first."
-
-(* -------------------------------------------------------------------------
-   Loading helpers
-   ------------------------------------------------------------------------- *)
-
-let load filename =
-  match get_renderer () with
-  | Error _ as e -> e
-  | Ok renderer ->
-      begin
-        match Tsdl_image.Image.load_texture renderer filename with
-        | Error (`Msg e) -> Error ("Failed to load image: " ^ e)
-        | Ok texture ->
-            begin
-              match Sdl.query_texture texture with
-              | Error (`Msg e) ->
-                  Sdl.destroy_texture texture;
-                  Error ("Failed to query texture: " ^ e)
-              | Ok (_, _, (w, h)) ->
-                  Ok { texture; width = w; height = h }
-            end
-      end
-
-let load_exn f = match load f with Ok x -> x | Error e -> failwith e
-
-let load_memory bytes =
-  match get_renderer () with
-  | Error _ as error -> error
-  | Ok renderer ->
-      (match Sdl.rw_from_const_mem bytes with
-       | Error (`Msg message) ->
-           Error ("Failed to open image memory: " ^ message)
-       | Ok rw ->
-           match Tsdl_image.Image.load_texture_rw renderer rw true with
-           | Error (`Msg message) ->
-               Error ("Failed to decode image memory: " ^ message)
-           | Ok texture ->
-               match Sdl.query_texture texture with
-               | Error (`Msg message) ->
-                   Sdl.destroy_texture texture;
-                   Error ("Failed to query image texture: " ^ message)
-               | Ok (_, _, (width, height)) ->
-                   Ok { texture; width; height })
-
-(* -------------------------------------------------------------------------
-   In-memory creation
-   ------------------------------------------------------------------------- *)
-
-let create ~width ~height ?(color = Color.transparent) () =
-  match get_renderer () with
-  | Error e -> failwith e
-  | Ok renderer ->
-      (* create a 32-bit RGBA software surface *)
-      begin
-        match Sdl.create_rgb_surface ~w:width ~h:height ~depth:32 0l 0l 0l 0l with
-        | Error (`Msg e) -> failwith ("Surface create failed: " ^ e)
-        | Ok surface ->
-            (* optional fill *)
-            (if not (Color.equal color Color.transparent) then
-               match Sdl.alloc_format Sdl.Pixel.format_rgba8888 with
-               | Error (`Msg e) ->
-                   Sdl.free_surface surface;
-                   failwith ("alloc_format failed: " ^ e)
-               | Ok pf ->
-                   let r, g, b, a = Color.to_tuple color in
-                   let px = Sdl.map_rgba pf r g b a in
-                   Sdl.free_format pf;
-                   match Sdl.fill_rect surface None px with
-                   | Error (`Msg e) ->
-                       Sdl.free_surface surface;
-                       failwith ("fill_rect failed: " ^ e)
-                   | Ok () -> ());
-            (* promote to texture *)
-            begin
-              match Sdl.create_texture_from_surface renderer surface with
-              | Error (`Msg e) ->
-                  Sdl.free_surface surface;
-                  failwith ("Texture create failed: " ^ e)
-              | Ok texture ->
-                  Sdl.free_surface surface;
-                  { texture; width; height }
-            end
-      end
-
-(* -------------------------------------------------------------------------
-   Misc helpers
-   ------------------------------------------------------------------------- *)
-
-let destroy img           = Sdl.destroy_texture img.texture
-let get_width img         = img.width
-let get_height img        = img.height
-let get_size img          = (img.width, img.height)
-let get_texture img       = img.texture
-let from_texture texture width height = { texture; width; height }
-
-let replace target replacement =
-  if target != replacement then begin
-    Sdl.destroy_texture target.texture;
-    target.texture <- replacement.texture;
-    target.width <- replacement.width;
-    target.height <- replacement.height
-  end
-
-module Private = struct
-  let current_renderer = current_renderer
-  let set_renderer = set_renderer
-  let get_renderer = get_renderer
-  let get_texture = get_texture
-  let from_texture = from_texture
-  let load_memory = load_memory
-  let replace = replace
+type t = Prismel_next_resources.Image.t
+let message operation error=Format.asprintf"%s: %a"operation Prismel_next_resources.pp_error error
+let map operation=function Ok value->Ok value|Error error->Error(message operation error)
+let load path=map"Image.load"(Prismel_next_resources.Image.load_file path)
+let load_exn path=match load path with Ok value->value|Error message->failwith message
+let create ~width ~height ?(color=Color.transparent) () =
+  let rgba=Bytes.create(max 0(width*height*4))in
+  for index=0 to width*height-1 do let offset=index*4 in
+    Bytes.set rgba offset(Char.chr color.Color.r);
+    Bytes.set rgba(offset+1)(Char.chr color.g);
+    Bytes.set rgba(offset+2)(Char.chr color.b);
+    Bytes.set rgba(offset+3)(Char.chr color.a)done;
+  match Prismel_next_resources.Image.create ~width ~height ~rgba with
+  | Ok value->value|Error error->failwith(message"Image.create"error)
+let destroy value=ignore(Prismel_next_resources.Image.destroy value)
+let get_size value=match Prismel_next_resources.Image.size value with
+  | Ok size->size|Error error->failwith(message"Image.get_size"error)
+let get_width value=fst(get_size value)
+let get_height value=snd(get_size value)
+module Private=struct
+  type renderer=int
+  type texture=t
+  let current_renderer:renderer option ref=ref None
+  let set_renderer renderer=current_renderer:=Some renderer
+  let get_renderer()=match!current_renderer with Some renderer->Ok renderer|None->Error"Image.Private.get_renderer: renderer unavailable"
+  let get_texture image=image
+  let from_texture image _width _height=image
+  let load_memory contents=map"Image.Private.load_memory"(Prismel_next_resources.Image.load_bytes(Bytes.of_string contents))
+  let replace target source=
+    match Prismel_next_resources.Image.replace_owned target source with
+    |Ok()->()
+    |Error error->failwith(message"Image.Private.replace"error)
+  let identity=Prismel_next_resources.Image.identity
+  let generation=Prismel_next_resources.Image.generation
+  let reload value path=map"Image.reload"(Prismel_next_resources.Image.reload_file value path)
+  let pixels value=map"Image.pixels"(Prismel_next_resources.Image.pixels value)
+  let of_resource image=image
+  let resource image=image
 end

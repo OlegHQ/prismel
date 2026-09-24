@@ -1,0 +1,4 @@
+(library
+ (name pxui_graph)
+ (public_name prismel.pxui_graph)
+ (libraries prismel procedural pxui))

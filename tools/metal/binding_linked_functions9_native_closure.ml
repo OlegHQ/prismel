@@ -1,0 +1,2 @@
+let ids=["method:-[MTLLinkedFunctions binaryFunctions]";"method:-[MTLLinkedFunctions groups]";"method:-[MTLLinkedFunctions privateFunctions]";"method:-[MTLLinkedFunctions setBinaryFunctions:]";"method:-[MTLLinkedFunctions setGroups:]";"method:-[MTLLinkedFunctions setPrivateFunctions:]";"property:MTLLinkedFunctions:binaryFunctions";"property:MTLLinkedFunctions:groups";"property:MTLLinkedFunctions:privateFunctions"]
+let ()=if List.length ids<>9||List.length(List.sort_uniq String.compare ids)<>9 then failwith"LinkedFunctions9 closure drift"

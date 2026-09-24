@@ -1,0 +1,117 @@
+let expected_layout_digest = "a8d1eeebc45edb6043faf80261f32b2d"
+
+let is_bound_identifier identifier =
+  List.mem identifier Binding_value_record_plan.acceleration_type_ids
+  || List.mem identifier Binding_value_record_plan.pure_tail_ids
+  || List.exists
+    (fun name ->
+      String.equal identifier ("record:" ^ name)
+      || String.starts_with ~prefix:("field:" ^ name ^ ":") identifier)
+    Binding_value_record_plan.record_names
+
+let fail format =
+  Printf.ksprintf
+    (fun message -> invalid_arg ("Metal value-record evidence: " ^ message))
+    format
+
+let contains needle haystack =
+  let needle_length = String.length needle in
+  let haystack_length = String.length haystack in
+  let rec search offset =
+    offset + needle_length <= haystack_length
+    && (String.sub haystack offset needle_length = needle || search (offset + 1))
+  in
+  search 0
+
+let snake value =
+  let output = Buffer.create (String.length value + 8) in
+  String.iteri
+    (fun index character ->
+      if Char.uppercase_ascii character = character
+         && Char.lowercase_ascii character <> character
+      then begin
+        if index > 0 then Buffer.add_char output '_';
+        Buffer.add_char output (Char.lowercase_ascii character)
+      end else Buffer.add_char output character)
+    value;
+  Buffer.contents output
+
+let public_name name =
+  if String.length name > 0 && name.[0] = '_' then
+    String.sub name 1 (String.length name - 1)
+  else name
+
+let public_marker (record : Binding_value_record_plan.record) =
+  "module " ^ public_name record.name
+
+let test_marker (record : Binding_value_record_plan.record) =
+  "test_metal_value_record_" ^ snake (public_name record.name)
+
+let layout_digest (selection : Binding_value_record_plan.selection) =
+  let canonical = Buffer.create 16384 in
+  List.iter
+    (fun (record : Binding_value_record_plan.record) ->
+      Printf.bprintf canonical "R\t%s\t%s\t%s\t%s\n" record.id record.name
+        record.header (Option.value ~default:"-" record.introduced);
+      List.iter
+        (fun (field : Binding_value_record_plan.field) ->
+          Printf.bprintf canonical "F\t%s\t%s\t%s\t%s\n" field.id field.owner
+            field.name field.objc_type)
+        record.fields)
+    selection.records;
+  Digest.string (Buffer.contents canonical) |> Digest.to_hex
+
+let require_markers ~kind markers source =
+  List.iter
+    (fun marker ->
+      if not (contains marker source) then fail "missing %s marker %s" kind marker)
+    markers
+
+let bound_ids ~inventory ~public_interface ~test_source =
+  let selection = Binding_value_record_plan.select inventory in
+  let digest = layout_digest selection in
+  if not (String.equal digest expected_layout_digest) then
+    fail "layout digest drift: expected %s, got %s" expected_layout_digest digest;
+  require_markers ~kind:"public" (List.map public_marker selection.records)
+    public_interface;
+  require_markers ~kind:"test" (List.map test_marker selection.records) test_source;
+  require_markers ~kind:"public"
+    [ "module MTLPackedFloat3"; "module MTLPackedFloatQuaternion"
+    ; "module MTLPackedFloat4x3"; "module MTLAxisAlignedBoundingBox"
+    ; "module MTLComponentTransform"; "val packed_float3_make"
+    ; "val packed_float_quaternion_make" ]
+    public_interface;
+  require_markers ~kind:"test"
+    [ "MTLPackedFloat3Make"; "MTLPackedFloatQuaternionMake" ] test_source;
+  require_markers ~kind:"public"
+    [ "module MTLArgumentAccess"; "module MTLIndexType"; "module MTLTimestamp"
+    ; "module MTLCoordinate2D"; "val buffer_range_make"
+    ; "val coordinate2d_make"; "val indirect_command_buffer_execution_range_make"
+    ; "val region_make_1d"; "val region_make_2d"; "val sample_position_make" ]
+    public_interface;
+  require_markers ~kind:"test"
+    [ "MTLArgumentAccess"; "MTLIndexType"; "MTLTimestamp"; "MTL4BufferRangeMake"
+    ; "MTLCoordinate2DMake"; "MTLIndirectCommandBufferExecutionRangeMake"
+    ; "MTLRegionMake1D"; "MTLRegionMake2D"; "MTLSamplePositionMake" ] test_source;
+  let classifications = Hashtbl.create (List.length selection.ids) in
+  (match inventory with
+   | `Assoc members ->
+       (match List.assoc_opt "symbols" members with
+        | Some (`List symbols) ->
+            List.iter
+              (function
+                | `Assoc fields ->
+                    (match List.assoc_opt "id" fields, List.assoc_opt "classification" fields with
+                     | Some (`String id), Some (`String classification) ->
+                         Hashtbl.replace classifications id classification
+                     | _ -> ())
+                | _ -> ()) symbols
+        | _ -> ())
+   | _ -> ());
+  List.filter
+    (fun id -> String.equal (Option.value ~default:"" (Hashtbl.find_opt classifications id)) "bound")
+    selection.ids
+
+let () =
+  if List.length Binding_value_record_plan.record_names <> Binding_value_record_plan.expected_record_count then
+    invalid_arg "Metal value-record evidence family cardinality drift"

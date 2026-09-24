@@ -13,6 +13,12 @@ val split : t -> t * t
 val bits : t -> int64 * t
 (* Uniform sample in [0, 1). *)
 val float : t -> float * t
+val float_at : t -> index:int -> float
+(** Stateless uniform sample greater than or equal to zero and less than one,
+    keyed by [index]. This is the
+    allocation-free deterministic path for disjoint parallel element ranges;
+    it does not advance or mutate the base generator. *)
+
 val range : min:float -> max:float -> t -> float * t
 (* Uniform integer in [0, bound). *)
 val int : bound:int -> t -> int * t

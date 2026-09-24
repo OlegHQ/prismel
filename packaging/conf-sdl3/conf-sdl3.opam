@@ -1,0 +1,15 @@
+opam-version: "2.0"
+synopsis: "Virtual package relying on the audited stable SDL3 release"
+description: "Checks the exact SDL3 release qualified by Prismel's generated ABI inventory."
+maintainer: ["Oleg Pustovit <oleg@nexo.sh>"]
+authors: ["Prismel contributors"]
+license: "MIT"
+homepage: "https://github.com/nexo-tech/prismel"
+bug-reports: "https://github.com/nexo-tech/prismel/issues"
+dev-repo: "git+https://github.com/nexo-tech/prismel.git"
+flags: conf
+depends: ["conf-pkg-config" {build}]
+depexts: [
+  ["sdl3"] {os-distribution = "homebrew"}
+]
+build: [["pkg-config" "--exact-version=3.4.14" "sdl3"]]

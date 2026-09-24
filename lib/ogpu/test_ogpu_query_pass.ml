@@ -1,0 +1,8 @@
+let fail message=raise(Failure message)
+let ok=function Ok value->value|Error e->fail(Ogpu.Error.to_string e)
+let expect kind=function Error(e:Ogpu.Error.t)when e.kind=kind->()|_->fail"unexpected query-pass result"
+let build()=let device=Ogpu.Handle.create_device()in let queries=ok(Ogpu.Sync.create_query_set device ~supported:true ~kind:Timestamp ~count:8)and destination=Ogpu.Handle.create ~device in ok(Ogpu.Query_pass.create device ~timestamp_queries:true{pass=Ogpu.Command.Compute;queries;first=1;count=2;destination;destination_resource_id=9L;destination_size=64L;destination_offset=8L;completion_epoch=3L})|>Ogpu.Query_pass.describe
+let ()=
+  let device=Ogpu.Handle.create_device()in let queries=ok(Ogpu.Sync.create_query_set device ~supported:true ~kind:Timestamp ~count:4)and destination=Ogpu.Handle.create ~device in let descriptor={Ogpu.Query_pass.pass=Ogpu.Command.Transfer;queries;first=0;count=1;destination;destination_resource_id=5L;destination_size=32L;destination_offset=0L;completion_epoch=1L}in
+  expect Ogpu.Error.Unsupported(Ogpu.Query_pass.create device ~timestamp_queries:false descriptor);expect Ogpu.Error.Invalid_argument(Ogpu.Query_pass.create device ~timestamp_queries:true{descriptor with count=0});expect Ogpu.Error.Invalid_argument(Ogpu.Query_pass.create device ~timestamp_queries:true{descriptor with destination_offset=1L});Ogpu.Handle.destroy destination;expect Ogpu.Error.Stale_handle(Ogpu.Query_pass.create device ~timestamp_queries:true descriptor);
+  let sequential=build()and parallel=Domain.spawn build|>Domain.join in if sequential<>parallel then fail"query-pass descriptions differ across domains";print_endline"OGPU query/timestamp pass contract passed"

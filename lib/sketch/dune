@@ -1,0 +1,4 @@
+(library
+ (name sketch_support)
+ (public_name prismel.sketch_support)
+ (libraries prismel pdk procedural))

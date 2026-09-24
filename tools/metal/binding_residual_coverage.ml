@@ -1,0 +1,8 @@
+let inventory_unreviewed_count=1710
+let inventory_unreviewed_digest="7377af5d4cf7758c8624bf455f1db7901d67b6e099c017dbbc1992471fe9ac41"
+let static_manifest_unreviewed=1099
+let final_residual=87
+let routed_active=524
+let validate()=
+ if static_manifest_unreviewed+final_residual+routed_active<>inventory_unreviewed_count
+ then invalid_arg"unreviewed coverage arithmetic drift"

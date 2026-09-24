@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "captured_utc": "2026-08-27T17:20:00Z",
+  "rollback_commit": "20e03d03ddf1ff160b3c643dff18399a9815188d",
+  "new_gpu_sha256": "75cb47632aa2b26199677560c6382b8b94786af5f704867b40d306ccefbe19d3",
+  "legacy_api_sha256": "ca6861c5dfbfafd6ea64d1c9837bc218e2af0dfe83a5b9589183384ffefcb7e2",
+  "acceptance_trees": {
+    "examples/basic": "5cd9326da180b84b9fd1b166a6b4562b26ef7545",
+    "examples/pxui": "fc80b706bd109238bc16e0fa942969892cf38af3",
+    "examples/canvas": "69bf7def6d290681af5506fbac9f2159e7632df4",
+    "sketches/shattered_cube": "7f84e92e46bd0395d6c4fc9d202e6fda10e7244e"
+  },
+  "framebuffer_corpus": [
+    {"name":"basic","width":4,"height":4,"frames":[1,2,60,600],"legacy_or_software_hash":"183be222f2a9499335f80e49bab17f24","native_hash":"183be222f2a9499335f80e49bab17f24","tolerance":0,"prepared_upload_bytes":60},
+    {"name":"pxui","width":4,"height":4,"frames":[1,2,60,600],"legacy_or_software_hash":"c28fb438cfaf0381adc6b8dddec9d6cf","native_hash":"c28fb438cfaf0381adc6b8dddec9d6cf","tolerance":0,"prepared_upload_bytes":480},
+    {"name":"canvas","width":4,"height":4,"frames":[1,2,60,600],"legacy_or_software_hash":"6669327647bf796bcc136e62a62f7c95","native_hash":"6669327647bf796bcc136e62a62f7c95","tolerance":0,"prepared_upload_bytes":180},
+    {"name":"scene3","width":4,"height":4,"frames":[1,2,60,600],"legacy_or_software_hash":"52462b7485ced3177c5f7bf2fda8a7ae","native_hash":"52462b7485ced3177c5f7bf2fda8a7ae","tolerance":3,"prepared_upload_bytes":240}
+  ],
+  "backend_neutral_snapshots": {
+    "image_rgba": "1122337f",
+    "image_reload_rgba": "c8643240",
+    "canvas_first_pixel_rgba": "01020304",
+    "canvas_pitch_bytes": 28,
+    "font_text_nonempty": true,
+    "font_cache_capacity": 256,
+    "empty_text_noop": true
+  },
+  "future_api_break_allowlist": [
+    "Prismel.Low private Tsdl handle types",
+    "Prismel.Private private Tsdl handle types"
+  ]
+}

@@ -2,41 +2,41 @@
 
 ## Lifecycle
 
-Prismel initializes SDL_mixer with the application and closes it before SDL
-shutdown. The backend configures SDL's dummy audio driver under `HEADLESS`, so
-loading, decoding, channel allocation, and playback calls execute in CI without
-a physical audio device.
+Prismel initializes SDL3_mixer inside the native application lifecycle and
+closes it before SDL3 shutdown. Loading, decoding, channel allocation, and
+playback use the selected macOS audio device; device or format failures are
+returned explicitly.
 
 Audio initialization failure does not prevent a visual sketch from starting;
 the application prints one warning. Explicit audio loads then return the
 underlying initialization error.
 
-All audio control and resource operations are initial-domain-only. SDL_mixer
+All audio control and resource operations are initial-domain-only. SDL3_mixer
 callbacks and raw buffers are intentionally not exposed in the high-level API.
 
 ## Samples
 
 `Audio.Sample` represents a decoded short sound:
 
-- load WAV and SDL_mixer-supported sample files;
+- load WAV and SDL3_mixer-supported sample files;
 - synthesize sine, square, saw, or triangle tones;
 - play with repeat count and normalized volume;
 - pause, resume, query, or stop a returned channel;
 - destroy explicitly, or borrow through `Assets`.
 
-`loops` follows SDL_mixer semantics: zero plays once, a positive value repeats
+`loops` follows SDL3_mixer semantics: zero plays once, a positive value repeats
 that many additional times, and `-1` loops indefinitely.
 
 ## Music
 
 `Audio.Music` represents a streamed track:
 
-- load formats enabled by the host SDL_mixer build;
+- load formats enabled by the host SDL3_mixer build;
 - play or stop with optional millisecond fades;
 - pause, resume, query, and set normalized volume.
 
-SDL_mixer owns one global music stream. Starting another music value replaces
-the current stream according to SDL_mixer behavior.
+SDL3_mixer owns one global music stream. Starting another music value replaces
+the current stream according to SDL3_mixer behavior.
 
 ## Ownership
 

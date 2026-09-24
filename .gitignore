@@ -1,5 +1,6 @@
 # Dune build output
 /_build/
+/_build-packaging-check-*/
 /_install/
 /dist/
 
@@ -25,3 +26,8 @@
 *~
 .DS_Store
 _opam
+
+# Runtime outputs of sketches (render button, settings saves)
+/prismel-render.png
+/code-quadtree.png
+/chromatic-drift.json

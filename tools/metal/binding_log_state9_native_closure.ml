@@ -1,0 +1,2 @@
+let ids=["class:MTLLogStateDescriptor";"method:-[MTLLogState addLogHandler:]";"method:-[MTLLogStateDescriptor bufferSize]";"method:-[MTLLogStateDescriptor level]";"method:-[MTLLogStateDescriptor setBufferSize:]";"method:-[MTLLogStateDescriptor setLevel:]";"property:MTLLogStateDescriptor:bufferSize";"property:MTLLogStateDescriptor:level";"protocol:MTLLogState"]
+let ()=if List.length ids<>9||List.length(List.sort_uniq String.compare ids)<>9 then failwith"LogState9 closure drift"
