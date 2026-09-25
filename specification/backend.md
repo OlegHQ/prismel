@@ -56,6 +56,12 @@ exact bytes after padded-row, mip-level, and subregion transfers on mock and
 Metal. The Metal adapter gives copy-only textures an explicit native usage bit
 because Metal expands an empty usage mask during creation. Compute, ray-query,
 refit, and the remaining encoder surface still need G2 conformance.
+The virtual mock now reports `Compute_pipeline = false`: it validates compute
+descriptions but cannot execute MSL. Pipeline creation, adoption, and raw
+compute submissions reject with typed `Unsupported`; Metal keeps compute
+enabled. The generic mock cache test no longer pretends that a metadata-only
+compute pipeline exercises executable GPU work. Shared exact-output compute
+conformance needs the portable library/pipeline creation path from G2.
 `Ogpu.Caps` now owns the portable feature matrix and typed `Unsupported`
 check. Metal probes populate that profile in `ogpu_metal_native.Device`, which also
 translates native Metal errors to typed OGPU errors.

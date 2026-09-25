@@ -45,6 +45,7 @@ let system_default () =
                  ; max_texture_dimension_2d = 16_384
                  ; max_bind_groups = 4
                  ; max_sample_count }
+             ; compute_pipeline = true
              ; ray_tracing = info.raytracing
              ; metal_fx = false
              ; timestamp_queries = false

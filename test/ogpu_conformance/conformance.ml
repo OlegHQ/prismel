@@ -15,6 +15,10 @@ let run driver =
   (match Caps.require profile (Caps.Unknown "future") with
    | Error { Error.kind = Unsupported; _ } -> ()
    | _ -> failwith "unknown feature was not typed Unsupported");
+  if not (Caps.has profile Caps.Compute_pipeline) then
+    (match Caps.require profile Caps.Compute_pipeline with
+     | Error { Error.kind = Unsupported; _ } -> ()
+     | _ -> failwith "unavailable compute was not typed Unsupported");
   let descriptor : Types.buffer_descriptor =
     { label = Some "conformance"; size = 16L; usage = [Copy_src; Copy_dst] } in
   let source = get (Backend.create_buffer device descriptor) in

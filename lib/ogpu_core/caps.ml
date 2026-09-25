@@ -12,6 +12,7 @@ type limits =
 
 type t =
   { limits : limits
+  ; compute_pipeline : bool
   ; ray_tracing : bool
   ; metal_fx : bool
   ; timestamp_queries : bool
@@ -24,7 +25,7 @@ let minimum_m1 =
              ; max_texture_dimension_2d = 16_384
              ; max_bind_groups = 4
              ; max_sample_count = 4 }
-  ; ray_tracing = false; metal_fx = false; timestamp_queries = false
+  ; compute_pipeline = true; ray_tracing = false; metal_fx = false; timestamp_queries = false
   ; sparse_memory = false; conservative_limits = [] }
 
 let validate value =
@@ -41,8 +42,9 @@ let create value ~timestamp_queries ~sparse_memory ~conservative_limits =
     (validate value)
 
 let has value = function
-  | Buffer | Texture | Sampler | Compute_pipeline | Render_pipeline | Queue
+  | Buffer | Texture | Sampler | Render_pipeline | Queue
   | Surface | Memory | Event_synchronization -> true
+  | Compute_pipeline -> value.compute_pipeline
   | Timeline_fence -> false
   | Timestamp_queries -> value.timestamp_queries
   | Ray_tracing -> value.ray_tracing

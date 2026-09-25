@@ -18,27 +18,6 @@ let cache_and_destroy_large_resource device queue weak=
   let purged=Ogpu.Backend.Private.submission_cache_stats queue in
   if purged.entries<>0||purged.retained_bytes<>0L then
     failwith"destroyed resource did not purge portable cache"
-let cache_and_destroy_pipeline device queue command resources weak=
-  let shader=get(Ogpu.Shader.create
-    {backend="mock";label=None;bytes=Bytes.of_string"pipeline";
-     entry_points=[{name="main";stage=Ogpu.Shader.Compute}];bindings=[]})in
-  let layout=get(Ogpu.Binding.create_pipeline_layout
-    ~device:(Ogpu.Backend.device_handle device)
-    ~capabilities:(Ogpu.Backend.capabilities device)[])in
-  let portable=get(Ogpu.Pipeline.create_compute(Ogpu.Backend.capabilities device)
-    {backend="mock";label=Some"portable-cache-pipeline";layout;shader;
-     entry="main"})in
-  let pipeline=get(Ogpu.Backend.adopt_pipeline device portable)in
-  Weak.set weak 0(Some pipeline);
-  let receipt=get(Ogpu.Backend.submit queue command~resources
-    ~pipelines:[pipeline])in
-  get(Ogpu.Backend.complete_through queue receipt.epoch);
-  if (Ogpu.Backend.Private.submission_cache_stats queue).entries<>1 then
-    failwith"pipeline submission was not cached";
-  get(Ogpu.Backend.destroy_pipeline pipeline);
-  let purged=Ogpu.Backend.Private.submission_cache_stats queue in
-  if purged.entries<>0||purged.retained_bytes<>0L then
-    failwith"destroyed pipeline did not purge portable cache"
 let run ()=
   let driver,control=Ogpu.Backend_mock.create()in let device=get(Ogpu.Backend.create_device driver)in
   let descriptor : Ogpu.Types.buffer_descriptor={label=Some"portable";size=64L;usage=[Copy_src;Copy_dst]}in
@@ -189,14 +168,31 @@ let run ()=
   Gc.full_major();Gc.full_major();
   if Weak.check retained_weak 0 then
     failwith"portable cache retained a destroyed driver resource closure";
-  let pipeline_weak=Weak.create 1 in
-  cache_and_destroy_pipeline device retention_queue command bounded_resources
-    pipeline_weak;
-  Gc.full_major();Gc.full_major();
-  if Weak.check pipeline_weak 0 then
-    failwith"portable cache retained a destroyed driver pipeline closure";
   get(Ogpu.Backend.destroy_queue retention_queue);
-  let queue=get(Ogpu.Backend.create_queue device)in expect Ogpu.Error.Invalid_argument(Ogpu.Backend.submit queue command~resources:[]~pipelines:[]);
+  let queue=get(Ogpu.Backend.create_queue device)in
+  if Ogpu.Caps.has (Ogpu.Backend.capabilities device)
+       Ogpu.Caps.Compute_pipeline then
+    failwith"mock advertises compute execution";
+  let shader=get(Ogpu.Shader.create
+    {backend="mock";label=None;bytes=Bytes.of_string"pipeline";
+     entry_points=[{name="main";stage=Ogpu.Shader.Compute}];bindings=[]})in
+  let layout=get(Ogpu.Binding.create_pipeline_layout
+    ~device:(Ogpu.Backend.device_handle device)
+    ~capabilities:(Ogpu.Backend.capabilities device)[])in
+  let compute_descriptor:Ogpu.Pipeline.compute_descriptor=
+    {backend="mock";label=None;layout;shader;entry="main"}in
+  expect Ogpu.Error.Unsupported
+    (Ogpu.Pipeline.create_compute (Ogpu.Backend.capabilities device)
+       compute_descriptor);
+  let portable=get(Ogpu.Pipeline.create_compute Ogpu.Caps.minimum_m1
+    compute_descriptor)in
+  expect Ogpu.Error.Unsupported(Ogpu.Backend.adopt_pipeline device portable);
+  let unbound_compute=Ogpu.Backend.Private.snapshot_command
+    (Compute {pipeline_key="unbound";groups=[||];
+      dispatch=Direct{x=1;y=1;z=1};commands=[||]})in
+  expect Ogpu.Error.Unsupported(Ogpu.Backend.submit queue unbound_compute
+    ~resources:[]~pipelines:[]);
+  expect Ogpu.Error.Invalid_argument(Ogpu.Backend.submit queue command~resources:[]~pipelines:[]);
   ignore portable_source;ignore portable_destination;
   let resources=[`Buffer source;`Buffer destination]in
   let receipt=get(Ogpu.Backend.submit queue command~resources~pipelines:[])in get(Ogpu.Backend.complete_through queue receipt.epoch);

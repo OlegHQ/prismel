@@ -32,7 +32,7 @@ let capabilities_for = function
   | M3_plus | Future_unknown ->
       { Caps.limits =
           { Caps.minimum_m1.limits with max_buffer_size = Int64.shift_left 1L 34 }
-      ; ray_tracing = true; metal_fx = true; timestamp_queries = false
+      ; compute_pipeline = true; ray_tracing = true; metal_fx = true; timestamp_queries = false
       ; sparse_memory = false; conservative_limits = [] }
 
 let create_device ~profile ~(capacities : capacities) =

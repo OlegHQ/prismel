@@ -12,6 +12,7 @@ type limits =
 
 type t =
   { limits : limits
+  ; compute_pipeline : bool
   ; ray_tracing : bool
   ; metal_fx : bool
   ; timestamp_queries : bool

@@ -113,7 +113,8 @@ let create_render ?(blend=Replace) capabilities (descriptor : render_descriptor)
 
 let create_compute capabilities (descriptor : compute_descriptor) =
   let operation = "Ogpu.Pipeline.create_compute" in
-  match Caps.validate capabilities with
+  match Result.bind (Caps.validate capabilities)
+          (fun () -> Caps.require ~operation capabilities Caps.Compute_pipeline) with
   | Error _ as error -> error
   | Ok () -> match validate_label operation descriptor.label with
     | Error _ as error -> error
