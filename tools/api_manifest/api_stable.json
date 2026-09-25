@@ -1181,13 +1181,13 @@
       "source_sha256": "412d0c7639dee55ba5e35d7b650522d013ba654fe8b8d1840be824a20b7e0640"
     },
     {
-      "api_sha256": "13a37133e9ba45a8859fe584184c4d55ef03bf6fc6f3a8d938e08e8cc531c193",
+      "api_sha256": "db04aafdb8a35efdf451141e52fd86aa2ba7d18bb998871ca773457b178e165e",
       "excluded_legacy_symbols": [],
       "library": "sketch_ui",
       "module": "Sketch_ui",
       "source": "lib/sketch_ui/sketch_ui.mli",
-      "source_bytes": 10223,
-      "source_sha256": "eb6a7e899dc67567e30e5f736a815d10a721cc91adb361769cc2840ccd349512"
+      "source_bytes": 10731,
+      "source_sha256": "e29942e9832efce336bad8a6132ce04fad60bf934fa5510edae5ce4ecdad30d3"
     },
     {
       "api_sha256": "8058e4e2e745777f32eeee700e6e7dd24c6e9b966a9e2c79e945559be853733b",

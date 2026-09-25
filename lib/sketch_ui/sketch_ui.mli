@@ -164,7 +164,7 @@ module Environment3 : sig
 
   val flying : 'prepared t -> bool
   (** [Space w] with the view focused: held W/S/A/D/Q/E fly the viewport
-      camera ([Pxui.Camera_control.fly]) with the pointer captured through
+      camera ([Easy_camera.fly]) with the pointer captured through
       [Sketch.set_relative_mouse]. Escape or focus loss exits; Space exits and
       opens the leader. *)
 
@@ -226,9 +226,20 @@ module Environment2 : sig
     ('prepared t, string) result
 
   val update : 'prepared t -> Prismel.Frame.t -> 'prepared t
+  val update_with :
+    'prepared t -> Prismel.Frame.t -> inspector:(Pxui.Ui.t -> 'a) ->
+    'prepared t * 'a option
+  (** [update], also building sketch-owned widgets in the unselected inspector.
+      The result is [None] when that panel is not built. *)
+
   (* Call from [Sketch.run_state ~after_present] when driving the environment
       manually so PNG requests save the completed frame. *)
   val after_present : 'prepared t -> Prismel.Frame.t -> 'prepared t
+  (* Re-evaluates [scene2] now and forces [prepare] to run again for
+      sketch-owned render settings outside graph parameter effects. *)
+  val rerender : 'prepared t -> 'prepared t
+  val can_undo : 'prepared t -> bool
+  val can_redo : 'prepared t -> bool
   val scene : 'prepared t -> Prismel.Frame.t -> Prismel.Scene.t
   val close : 'prepared t -> unit
   val graph : 'prepared t -> Procedural.Graph.t

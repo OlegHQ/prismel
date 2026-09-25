@@ -602,7 +602,9 @@ parameters with a selection. Display selection cooks the flagged node while
 retaining the previous successful preview. Overlay callbacks receive a
 view-local frame. Both environments retain one shared pause/stop/reset,
 dependency-aware cooking, status, selection, inspection, and finite native
-lifecycle.
+lifecycle. Both expose `update_with` for sketch-owned inspector widgets,
+`rerender` to force a cook when an external render setting changes, and
+`can_undo`/`can_redo` for the shared document history.
 
 #### Sketch workspace keys
 

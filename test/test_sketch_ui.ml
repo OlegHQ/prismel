@@ -497,11 +497,13 @@ let run () =
       (Sketch_ui.Environment3.rerender environment) in
   Sketch_ui.Environment3.close environment;
 
+  let cooks2 = Atomic.make 0 and scenes2 = Atomic.make 0 in
   let environment2 = Sketch_ui.Environment2.create ~graph
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
-      ~prepare:(fun output -> Bridge.to_mesh output.Session.geometry
+      ~prepare:(fun output -> Atomic.incr cooks2;
+        Bridge.to_mesh output.Session.geometry
         |> Result.map_error Pdk.Error.to_string)
-      ~scene2:(fun _graph _mesh -> Scene.[
+      ~scene2:(fun _graph _mesh -> Atomic.incr scenes2; Scene.[
         rect ~at:(-60, -40) ~w:120 ~h:80
           ~fill:(Color.hex_exn "#5eead4") ()
       ]) ()
@@ -517,6 +519,24 @@ let run () =
     | None -> fail "2D sketch environment did not publish its initial cook"
   in
   let environment2 = wait2 0 environment2 in
+  check (not (Sketch_ui.Environment2.can_undo environment2)
+      && not (Sketch_ui.Environment2.can_redo environment2))
+    "new 2D environment has an unexpected undo history";
+  let environment2, inspected = Sketch_ui.Environment2.update_with
+      environment2 (frame 10) ~inspector:(fun _ui -> 7) in
+  check (inspected = Some 7) "2D update_with omitted the unselected inspector";
+  let prior_cooks = Atomic.get cooks2 and prior_scenes = Atomic.get scenes2 in
+  let environment2 = Sketch_ui.Environment2.rerender environment2 in
+  check (Atomic.get scenes2 = prior_scenes + 1)
+    "2D rerender did not rebuild the prepared scene immediately";
+  let deadline = Unix.gettimeofday () +. 2. in
+  let rec wait_reprepare count environment =
+    let environment = Sketch_ui.Environment2.update environment (frame count) in
+    if Atomic.get cooks2 > prior_cooks then environment
+    else if Unix.gettimeofday () < deadline then
+      (Unix.sleepf 0.001; wait_reprepare (count + 1) environment)
+    else fail "2D rerender did not force a new cook" in
+  let environment2 = wait_reprepare 11 environment2 in
   check (Sketch_ui.Environment2.selected_node environment2 = None)
     "2D camera/render controls should own an unselected inspector";
   check (Sketch_ui.Environment2.scene environment2 (frame 10) <> [])

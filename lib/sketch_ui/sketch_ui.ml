@@ -830,6 +830,10 @@ module Environment = struct
     scene : Scene.t;
   }
 
+  let rerender core draw =
+    let core = { core with Core.cook = Cook.force core.Core.cook } in
+    core, Option.map (draw (Core.displayed_node core)) (Core.prepared core)
+
   let scene ~ui_visible ~background ~rendered ~camera ~paint_view ~overlay
       ~cache core (frame : Frame.t) =
     let view_visible = Core.column_visible core Workspace.View in
@@ -981,9 +985,8 @@ module Environment3 = struct
   let panes value frame = Core.panes value.core frame
   let graph_nodes value = Pxui_graph.node_views value.core.graph_view
   let rerender value =
-    { value with core = { value.core with Core.cook = Cook.force value.core.cook };
-      rendered = Option.map (value.scene3 (Core.displayed_node value.core))
-          (Core.prepared value.core) }
+    let core, rendered = Environment.rerender value.core value.scene3 in
+    { value with core; rendered }
   let can_undo value = Editor.History.can_undo value.core.Core.history
   let can_redo value = Editor.History.can_redo value.core.Core.history
 
@@ -1018,26 +1021,24 @@ module Environment3 = struct
       | Some panel -> let control, camera, requests, look, inspected = panel in
           control, camera, requests, look, Some inspected
       | None -> value.camera_control, value.camera, [], value.look_through, None in
-    let control = ref control and camera = ref camera
-    and look_through = ref look_through in
+    let camera, look_through = match update.loaded_view with
+      | Some json -> Editor.Store.Viewport.decode3 camera json
+      | None -> camera, look_through in
     let control = List.fold_left (fun control -> function
       | Leader.Hide_ui -> CC.toggle_ui control
       | Open_camera -> CC.open_camera control
-      | _ -> control) !control update.actions in
-    (match Option.map (Editor.Store.Viewport.decode3 !camera) update.loaded_view with
-     | Some (loaded, look) -> camera := loaded; look_through := look
-     | None -> ());
+      | _ -> control) control update.actions in
     let look_through = List.fold_left (fun look -> function
-      | Leader.Look_through -> not look | _ -> look) !look_through update.actions in
+      | Leader.Look_through -> not look | _ -> look) look_through update.actions in
     let fly, render_status = if fly = None && List.mem Leader.Fly update.actions then begin
         set_relative true;
-        Some (Float.max 0.5 (Easy_camera.distance !camera *. 0.5)),
+        Some (Float.max 0.5 (Easy_camera.distance camera *. 0.5)),
         Some "Flying: WASD/QE move, Shift x4, wheel speed, Esc exits"
       end else fly, value.render_status in
     let core = if core.document == value.core.document
         && Pxui_graph.flagged core.graph_view
            = Pxui_graph.flagged value.core.graph_view
-      then core else sync_cameras ~mode:`Amend core !camera in
+      then core else sync_cameras ~mode:`Amend core camera in
     let active = active_node core in
     let following = Option.fold ~none:false ~some:follows active in
     (* Looking through a camera that does not follow the viewport freezes
@@ -1045,10 +1046,10 @@ module Environment3 = struct
     let control_area = if visible then panes.view
       else 0, 0, frame.Frame.width, frame.height in
     let camera, fly = match fly with
-      | _ when look_through && active <> None && not following -> !camera, fly
+      | _ when look_through && active <> None && not following -> camera, fly
       | Some speed ->
-          let camera, speed = Easy_camera.fly ~speed !camera raw_frame in camera, Some speed
-      | None -> CC.navigate ~control_area control !camera update.input, None in
+          let camera, speed = Easy_camera.fly ~speed camera raw_frame in camera, Some speed
+      | None -> CC.navigate ~control_area control camera update.input, None in
     let camera, render_status = match update.framed with
       | Some (Some (min, max)) -> Easy_camera.frame_bounds ~min ~max camera, render_status
       | Some None -> camera, Some "Nothing to frame: no cooked points"
@@ -1176,32 +1177,41 @@ module Environment2 = struct
   let panes value frame = Core.panes value.core frame
   let graph_nodes value = Pxui_graph.node_views value.core.graph_view
 
-  let update value frame =
+  let rerender value =
+    let core, rendered = Environment.rerender value.core value.scene2 in
+    { value with core; rendered }
+  let can_undo value = Editor.History.can_undo value.core.Core.history
+  let can_redo value = Editor.History.can_redo value.core.Core.history
+
+  let update_with value frame ~inspector =
     let ui = value.core.Core.ui in
     let visible = CC2.ui_visible value.camera_control in
     let camera_panel () =
-      CC2.widgets value.camera_control ui ~camera:value.camera in
+      let control, camera, requests =
+        CC2.widgets value.camera_control ui ~camera:value.camera in
+      control, camera, requests, inspector ui in
     let update = Core.update value.core ~all_ui_visible:visible
         ~text_focus:(Pxui.Ui.text_input_focused ui) ~camera_panel
         ~render_status:value.render_status
         ~view_state:(fun panel ->
           let camera = match panel with
-            | Some (_, camera, _) -> camera | None -> value.camera in
+            | Some (_, camera, _, _) -> camera | None -> value.camera in
           Editor.Store.Viewport.encode2 camera) frame in
     let core = update.core and panes = Core.panes update.core frame in
-    let control, camera, requests = match update.panel with
-      | Some panel -> panel
-      | None -> value.camera_control, value.camera, [] in
-    let control = ref control and camera = ref camera in
-    Option.iter (fun json ->
-      camera := Editor.Store.Viewport.decode2 !camera json) update.loaded_view;
+    let control, camera, requests, inspected = match update.panel with
+      | Some (control, camera, requests, inspected) ->
+          control, camera, requests, Some inspected
+      | None -> value.camera_control, value.camera, [], None in
+    let camera = match update.loaded_view with
+      | Some json -> Editor.Store.Viewport.decode2 camera json
+      | None -> camera in
     let control = List.fold_left (fun control -> function
       | Leader.Hide_ui -> CC2.toggle_ui control
       | Open_camera -> CC2.open_camera control
-      | _ -> control) !control update.actions in
+      | _ -> control) control update.actions in
     let viewport = if visible then panes.view
       else 0, 0, frame.Frame.width, frame.height in
-    let camera = CC2.navigate ~control_area:viewport ~viewport control !camera
+    let camera = CC2.navigate ~control_area:viewport ~viewport control camera
         update.input in
     let rendered = if update.prepared_changed || update.effects.view
         || update.effects.export then
@@ -1212,7 +1222,9 @@ module Environment2 = struct
     let render_status = if pending_render <> None && rendered = None then
       Some "Render unavailable until the first cook completes" else value.render_status in
     { value with core; camera; camera_control = control; rendered; pending_render;
-      render_status }
+      render_status }, inspected
+
+  let update value frame = fst (update_with value frame ~inspector:ignore)
 
   let after_present value _frame =
     match value.pending_render, value.rendered with
