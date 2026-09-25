@@ -8,6 +8,10 @@
  (modules pdk_ops_codemod))
 
 (executable
+ (name pdk_ops_move_block)
+ (modules pdk_ops_move_block))
+
+(executable
  (name bench_sdl3)
  (modules bench_sdl3)
  (libraries prismel.sdl3 prismel.sdl3_mixer unix yojson))
