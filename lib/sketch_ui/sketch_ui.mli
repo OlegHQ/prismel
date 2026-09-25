@@ -9,7 +9,7 @@
 
 module Preset = Preset
 
-type layout = {
+type layout = Pxui_shell.Layout.config = {
   view_ratio : float;
   graph_ratio : float;
   inspector_ratio : float;
@@ -22,11 +22,11 @@ type layout = {
   min_inspector_width : int;
 }
 
-(** Default 42% view, 33% graph, and 25% inspector proportions. *)
+(** Default 45% view, 35% graph, and 20% inspector proportions. *)
 val default_layout : layout
 
-(** Workspace layout and leader-key internals, exposed for tests. Unstable:
-    they move to [pxui_shell] (plan U6); sketches use [Environment3]/[2]. *)
+(** Workspace compatibility facade and leader-key internals, exposed for tests.
+    Layout and chrome live in [Pxui_shell]; sketches use [Environment3]/[2]. *)
 module Private : sig
   module Workspace : sig
     type column = View | Graph | Inspector | Timeline

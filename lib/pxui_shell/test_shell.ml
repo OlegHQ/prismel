@@ -37,6 +37,17 @@ let status_instances height =
       | _ -> total) 0 staged.layers
 
 let () =
+  let layout = Pxui_shell.Layout.create Pxui_shell.Layout.default in
+  let panes = Pxui_shell.Layout.geometry layout { frame with width = 1000;
+    size = 1000, 300; drawable_width = 1000; drawable_size = 1000, 300 } in
+  let _, _, view_width, _ = panes.view
+  and _, _, graph_width, _ = panes.graph
+  and _, _, inspector_width, _ = panes.inspector in
+  if (view_width, graph_width, inspector_width) <> (444, 345, 199) then
+    failwith "shell layout defaults are not 45/35/20";
+  let collapsed = Pxui_shell.Layout.toggle Pxui_shell.Layout.Inspector layout in
+  if not (Pxui_shell.Layout.collapsed collapsed Pxui_shell.Layout.Inspector) then
+    failwith "shell layout did not collapse inspector";
   if instances "view" <= instances "other" then
     failwith "focused leader bindings were not drawn";
   if status_instances 28 <= 0 || status_instances 0 <> 0 then
