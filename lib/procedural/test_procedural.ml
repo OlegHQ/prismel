@@ -2546,9 +2546,10 @@ let test_generators_selections_and_delete () =
            ~step_attribute:"group_step"
            ~primitive_connectivity:Pdk.Ops.Primitive_share_edges
            ~owner:Pdk.Ops.Group_primitives ~group:"seed_face"
-      |> Sop.group_promote ~name:"component_points" ~keep_original:true
+      |> Sop.group_promotions [Pdk.Ops.group_promote_rule
+           ~new_name:"component_points" ~keep_original:true
            ~source:Pdk.Ops.Group_primitives
-           ~destination:Pdk.Ops.Group_points ~group:"component"
+           ~destination:Pdk.Ops.Group_points ~pattern:"component" ()]
       |> cook_ok evaluator current in
   (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive "component"
       expanded_groups.geometry,
@@ -2617,9 +2618,10 @@ let test_generators_selections_and_delete () =
    | Ok _ -> fail "procedural Group Expand cooked a missing collision group");
   let promoted_mask = Sop.grid ~columns:2 ~rows:1 ~size:2. ()
       |> Sop.group ~name:"seed" (Select.point_indices [|0; 1|])
-      |> Sop.group_promote ~output_attribute:"face_mask"
+      |> Sop.group_promotions [Pdk.Ops.group_promote_rule
+           ~new_name:"face_mask" ~output_as_attribute:true
            ~source:Pdk.Ops.Group_points
-           ~destination:Pdk.Ops.Group_primitives ~group:"seed"
+           ~destination:Pdk.Ops.Group_primitives ~pattern:"seed" ()]
       |> cook_ok evaluator current in
   check (Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive
       "face_mask" promoted_mask.geometry <> None
@@ -2726,12 +2728,12 @@ let test_generators_selections_and_delete () =
        "procedural incident-edge angle selection"
    | None -> fail "procedural incident-edge angle group missing");
   let missing_group_promote = Sop.grid ~columns:1 ~rows:1 ~size:1. ()
-      |> Sop.group_promote ~source:Pdk.Ops.Group_points
-           ~destination:Pdk.Ops.Group_primitives ~group:"missing" in
-  (match Session.cook evaluator ~context:current missing_group_promote with
-   | Error error -> check (error.code = "invalid_group")
-       "Group Promote missing-group diagnostic"
-   | Ok _ -> fail "Group Promote accepted a missing source group");
+      |> Sop.group_promotions [Pdk.Ops.group_promote_rule
+           ~source:Pdk.Ops.Group_points
+           ~destination:Pdk.Ops.Group_primitives ~pattern:"missing" ()]
+      |> cook_ok evaluator current in
+  check (Pdk.Geometry.groups missing_group_promote.geometry = [])
+    "Group Promotions unmatched pattern changed groups";
   let group_catalog = Sop.points (Array.init 10 (fun point ->
       float_of_int point, 0., 0.))
       |> Sop.group ~name:"ends" (Select.point_indices [|0; 9|])

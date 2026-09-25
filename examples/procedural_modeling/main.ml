@@ -290,9 +290,10 @@ let graphs () =
     |> Sop.group_delete ~rules:[
          { Pdk.Ops.delete_owner = Some Pdk.Ops.Group_points;
            delete_pattern = "discard copied_* near_* seed" }]
-    |> Sop.group_promote ~keep_original:true ~name:"grown_faces"
+    |> Sop.group_promotions [Pdk.Ops.group_promote_rule
+         ~keep_original:true ~new_name:"grown_faces"
          ~mode:Pdk.Ops.Include_shared_edge ~source:Pdk.Ops.Group_points
-         ~destination:Pdk.Ops.Group_primitives ~group:"selection"
+         ~destination:Pdk.Ops.Group_primitives ~pattern:"selection" ()]
     |> Sop.peak ~selection:(Sop.Primitive_group "grown_faces") ~distance:0.32
          ~recompute_normals:true
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#a78bfa")

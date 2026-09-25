@@ -185,12 +185,6 @@ let attribute_promotion_method_parameter = Parameter.choice ~equal:( = ) [
     "Unique values", Pdk.Attribute_ops.Unique_values;
   ]
 
-let group_promote_mode_parameter = Parameter.choice ~equal:( = ) [
-    "Include any", Pdk.Ops.Include_any;
-    "Include all", Pdk.Ops.Include_all;
-    "Include shared edge", Pdk.Ops.Include_shared_edge;
-  ]
-
 let group_rename_conflict_parameter = Parameter.choice ~equal:( = ) [
     "Skip", Pdk.Ops.Rename_skip; "Error", Pdk.Ops.Rename_error;
     "Overwrite", Pdk.Ops.Rename_overwrite; "Union", Pdk.Ops.Rename_union;
@@ -5767,40 +5761,6 @@ module Name_from_groups = struct
   let factory = parameters_factory build
   let create ?label:node_label input = build
       ~label:(label "name-from-groups" node_label) ~inputs:[input]
-      parameters_default
-end [@@sop.register]
-
-module Group_promote = struct
-  type parameters = {
-    source : Pdk.Ops.group_owner [@sop.default Pdk.Ops.Group_points]
-      [@sop.label "Source owner"] [@sop.kind group_owner_parameter];
-    destination : Pdk.Ops.group_owner
-      [@sop.default Pdk.Ops.Group_primitives]
-      [@sop.label "Destination owner"] [@sop.kind group_owner_parameter];
-    group : string [@sop.default "group"] [@sop.label "Source group"];
-    name : string [@sop.default ""] [@sop.label "New group name"];
-    keep_original : bool [@sop.default false]
-      [@sop.label "Keep original group"];
-    output_attribute : string [@sop.default ""]
-      [@sop.label "Output mask attribute"] [@sop.folder "Output"];
-    mode : Pdk.Ops.group_promote_mode [@sop.default Pdk.Ops.Include_any]
-      [@sop.label "Promotion mode"] [@sop.kind group_promote_mode_parameter];
-  } [@@sop.node_key "group_promote"] [@@sop.node_label "Group Promote"]
-    [@@sop.node_category "Group/Convert"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.group_promote ~label
-        ?name:(optional_text parameters.name)
-        ~keep_original:parameters.keep_original
-        ?output_attribute:(optional_text parameters.output_attribute)
-        ~mode:parameters.mode ~source:parameters.source
-        ~destination:parameters.destination ~group:parameters.group input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Group_promote expects one input"
-  let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "group-promote" node_label) ~inputs:[input]
       parameters_default
 end [@@sop.register]
 

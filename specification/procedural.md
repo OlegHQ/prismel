@@ -661,10 +661,10 @@ The first coherent set includes:
   bounded shortest-edge growth from a point group; Group Unshared selects
   one-sided topology as points, primitives, or native edges, while Group
   Boundary Components emits stable, bounded point groups for each connected
-  polygon-surface boundary; Group Promote
+  polygon-surface boundary; Group Promotions
   converts among every point/vertex/primitive/native-edge owner using touching,
   complete-containment, or shared-edge rules and can emit an ordinary-owner
-  integer mask instead of a group; ordered Group Promotions compile wildcard
+  integer mask instead of a group. Ordered rules compile wildcard
   selection/capture rewrites, safely snapshot same-rule sources, allow later
   rules to re-promote earlier outputs, and bound output count/payload; Group
   Promote Boundary retains only the
@@ -936,7 +936,7 @@ UV, mixed-owner collision, and boundary constraints, Group from Attribute
 Boundary base-group conversion and degenerate-bridge cleanup, reversible
 `encodeattrib` naming for Groups from Name, direct assignment/string-edit modes
 for Name from Groups,
-Group Promote degenerate-bridge cleanup and indexed-capture substitution,
+Group Promotions degenerate-bridge cleanup and indexed-capture substitution,
 Group Expand constrained vertex/edge targets, shared-point primitive seam
 semantics, group patterns/type inference, edge-owned distance output (edge
 groups intentionally have no attribute owner), and parallel component

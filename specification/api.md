@@ -498,6 +498,9 @@ equal lower and upper padding for symmetric expansion. The editor exposes the
 same operation as `Bound`.
 `Procedural.Sop.group_rename` applies ordered owner-scoped rename rules with
 an explicit conflict policy, including the single-group case.
+`Procedural.Sop.group_promotions` uses one ordered rule list for single and
+multiple group conversions. A rule may emit a group or a named integer mask;
+patterns that match no source group leave the geometry unchanged.
 `Procedural.Sop.delete` accepts typed point, vertex, or primitive selections;
 `blast` resolves an existing typed group; and `split` returns selected and
 remainder branches. All three use the same packed destroy/heal/compaction

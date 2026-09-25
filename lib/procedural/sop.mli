@@ -2195,20 +2195,6 @@ val ordered_group :
 (** Materialize unique element indices in their supplied traversal order.
     The source array is copied when the node is constructed. *)
 
-val group_promote :
-  ?label:string ->
-  ?name:string ->
-  ?keep_original:bool ->
-  ?output_attribute:string ->
-  ?mode:Pdk.Ops.group_promote_mode ->
-  source:Pdk.Ops.group_owner ->
-  destination:Pdk.Ops.group_owner ->
-  group:string ->
-  Node.t -> Node.t
-(** Convert a named point, vertex, primitive, or native edge group through the
-    packed PDK topology kernel. [output_attribute] emits an ordinary-owner 0/1
-    integer mask instead of a group. *)
-
 val group_promotions :
   ?label:string ->
   ?max_outputs:int ->

@@ -5923,30 +5923,6 @@ let group_promote_mode_key = function
   | Pdk.Ops.Include_all -> "include_all"
   | Pdk.Ops.Include_shared_edge -> "include_shared_edge"
 
-let group_promote ?label ?name ?(keep_original = false) ?output_attribute
-    ?(mode = Pdk.Ops.Include_any) ~source ~destination ~group input =
-  if String.trim group = "" then invalid_arg "Sop.group_promote: empty group name";
-  Option.iter (fun name -> if String.trim name = "" then
-    invalid_arg "Sop.group_promote: empty output name") name;
-  Option.iter (fun name -> if String.trim name = "" then
-    invalid_arg "Sop.group_promote: empty output attribute name") output_attribute;
-  Node.Private.make ?label ~operation:"group_promote" ~version:1
-    ~parameters:(String.concat ";" [
-      "source=" ^ topology_group_owner_key source;
-      "destination=" ^ topology_group_owner_key destination;
-      "group=" ^ Printf.sprintf "%S" group;
-      "name=" ^ option_string_key name;
-      "keep_original=" ^ string_of_bool keep_original;
-      "output_attribute=" ^ option_string_key output_attribute;
-      "mode=" ^ group_promote_mode_key mode])
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Ops.group_promote ~cancel:(Context.cancel_token context)
-          ~grain:(Context.grain context) ?name ~keep_original ?output_attribute
-          ~mode ~source ~destination ~group inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
-
 let group_promote_operation_key destination = function
   | Pdk.Ops.Promote_elements mode ->
       "elements:" ^ group_promote_mode_key mode

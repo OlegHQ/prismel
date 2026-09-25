@@ -494,10 +494,6 @@ module Name_from_groups : sig
   val create : ?label:string -> Procedural.Node.t -> Procedural.Node.t
 end
 
-module Group_promote : sig
-  val create : ?label:string -> Procedural.Node.t -> Procedural.Node.t
-end
-
 module Group_promote_boundary : sig
   val create : ?label:string -> Procedural.Node.t -> Procedural.Node.t
 end
