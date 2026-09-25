@@ -41,7 +41,11 @@ let acquire_many value keys =
     let rec loop made textures=function
       |[]->value.entries<-List.rev_append made value.entries;Ok(List.rev textures)
       |(kind,samples)::rest->
-          match List.find_opt(fun entry->entry.kind=kind&&entry.samples=samples)(made@value.entries)with
+          let matches entry=entry.kind=kind&&entry.samples=samples in
+          let found=match List.find_opt matches made with
+            |Some _ as entry->entry
+            |None->List.find_opt matches value.entries in
+          match found with
           |Some entry->loop made(entry.texture::textures)rest
           |None->match allocate value value.configuration kind samples with
             |Error failure->destroy_entries made;Error failure
