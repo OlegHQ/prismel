@@ -414,7 +414,7 @@ let farthest_outside (positions : positions) faces face =
   done;
   !chosen
 
-let expand_hull ?cancel ~grain (positions : positions) faces queue generation
+let expand_hull ?cancel ~grain (positions : positions) faces queue radial generation
     seed_face eye =
   let visible_faces = buffer () and stack = buffer () in
   buffer_add stack seed_face;
@@ -484,7 +484,7 @@ let expand_hull ?cancel ~grain (positions : positions) faces queue generation
     set_face_neighbor faces neighbor slot face;
     new_faces.(output) <- face
   done;
-  let radial = Hashtbl.create (Array.length new_faces * 4) in
+  Hashtbl.clear radial;
   Array.iter (fun face ->
     for edge = 1 to 2 do
       let a, b = face_edge faces face edge in
@@ -514,7 +514,7 @@ let three_dimensional_hull ?cancel ~grain (positions : positions) unique a b c d
   end) unique;
   if !count <> Array.length candidates then
     invalid_arg (operation ^ ": initial simplex point accounting failed");
-  let queue = queue () in
+  let queue = queue () and radial = Hashtbl.create 64 in
   assign_points ?cancel ~grain positions faces [|0; 1; 2; 3|] candidates queue;
   let generation = ref 0 and continue = ref true in
   while !continue do
@@ -527,7 +527,7 @@ let three_dimensional_hull ?cancel ~grain (positions : positions) unique a b c d
         if !generation = max_int then
           invalid_arg (operation ^ ": hull expansion counter overflowed");
         let eye = farthest_outside positions faces face in
-        expand_hull ?cancel ~grain positions faces queue !generation face eye
+        expand_hull ?cancel ~grain positions faces queue radial !generation face eye
   done;
   let output = buffer () in
   for face = 0 to faces.face_count - 1 do

@@ -865,6 +865,7 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
       end in
     let strip_marks = Bytes.make triangle_capacity '\000'
     and boundary_stamps = Array.make point_count 0
+    and boundary_edges = Hashtbl.create 16
     and boundary_generation = ref 0 in
     let recover_constraint a b =
       let strip = Array.make !triangle_count 0 and strip_count = ref 0
@@ -931,7 +932,7 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
           || boundary_stamps.(b) <> !boundary_generation then
         invalid_arg "Planar CDT constraint endpoints are absent from the strip boundary";
       let directed_key first second = (first * point_count) + second in
-      let boundary_edges = Hashtbl.create (max 4 (!boundary_count * 2)) in
+      Hashtbl.clear boundary_edges;
       for edge = 0 to !boundary_count - 1 do
         Hashtbl.replace boundary_edges
           (directed_key boundary_u.(edge) boundary_v.(edge)) edge
