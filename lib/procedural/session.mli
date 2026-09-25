@@ -31,6 +31,11 @@ type output = {
 }
 
 val create : max_entries:int -> max_payload_bytes:int -> (t, string) result
+
+(** Bounded graph-inspection reuse for repeated queries within a session.
+    [clear] and [close] discard the retained metadata. *)
+val inspect : t -> Graph.t -> Graph.info list
+
 val cook : t -> context:Context.t -> Node.t -> (output, Diagnostic.error) result
 
 (** Convert and cache a render mesh by immutable geometry identity. The cache

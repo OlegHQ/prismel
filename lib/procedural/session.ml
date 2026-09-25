@@ -38,12 +38,26 @@ type mesh_entry = {
   mutable stamp : int;
 }
 
+type inspection_entry = { root : Graph.t Weak.t; infos : Graph.info list;
+  bytes : int }
+
+let inspection_capacity = 64
+let inspection_byte_capacity = 8 * 1024 * 1024
+
+let rec find_inspection root = function
+  | [] -> None
+  | entry :: rest ->
+      (match Weak.get entry.root 0 with
+       | Some cached when cached == root -> Some entry.infos
+       | None | Some _ -> find_inspection root rest)
+
 type t = {
   max_entries : int;
   max_payload_bytes : int;
   cache : (string, entry) Hashtbl.t;
   payload_refs : (int, int * int) Hashtbl.t;
   mesh_cache : (int, mesh_entry) Hashtbl.t;
+  mutable inspection_cache : inspection_entry list;
   mutable newest : entry option;
   mutable oldest : entry option;
   mutable retained_payload_bytes : int;
@@ -68,11 +82,35 @@ let create ~max_entries ~max_payload_bytes =
     cache = Hashtbl.create (min max_entries 1024);
     payload_refs = Hashtbl.create (min (max_entries * 4) 4096);
     mesh_cache = Hashtbl.create (min max_entries 256);
+    inspection_cache = [];
     newest = None; oldest = None; retained_payload_bytes = 0;
     retained_mesh_bytes = 0; mesh_clock = 0; mesh_hits = 0; mesh_misses = 0;
     cooks = 0; hits = 0; misses = 0; evictions = 0;
     last_node = None; closed = false;
   }
+
+let inspect session root =
+  if session.closed then invalid_arg "Session.inspect: session is closed";
+  match find_inspection root session.inspection_cache with
+  | Some infos -> infos
+  | None ->
+      let infos = Graph.inspect root in
+      let bytes = List.fold_left (fun bytes (info : Graph.info) ->
+          bytes + 96 + String.length info.label +
+          String.length info.operation + String.length info.parameters +
+          (16 * List.length info.input_ids)) 0 infos in
+      let weak = Weak.create 1 in
+      Weak.set weak 0 (Some root);
+      let rec trim count bytes kept = function
+        | [] -> List.rev kept
+        | entry :: rest when Weak.check entry.root 0 &&
+            count < inspection_capacity &&
+            entry.bytes <= inspection_byte_capacity - bytes ->
+            trim (count + 1) (bytes + entry.bytes) (entry :: kept) rest
+        | _ :: rest -> trim count bytes kept rest in
+      session.inspection_cache <- trim 0 0 []
+          ({ root = weak; infos; bytes } :: session.inspection_cache);
+      infos
 
 let detach session entry =
   (match entry.newer with
@@ -299,6 +337,7 @@ let stats session = {
 }
 
 let clear session =
+  session.inspection_cache <- [];
   Hashtbl.clear session.cache;
   Hashtbl.clear session.payload_refs;
   session.newest <- None;

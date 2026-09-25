@@ -12,7 +12,8 @@ type info = {
   has_parameters : bool;
 }
 
-(** Deterministic input-before-consumer order. Shared nodes appear once. *)
+(** Deterministic input-before-consumer order. Shared nodes appear once.
+    [Session.inspect] caches repeated queries when a session owns the work. *)
 val inspect : t -> info list
 val find : t -> node_id:int -> Node.t option
 

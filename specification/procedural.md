@@ -65,6 +65,11 @@ node IDs and shared DAG identity. A `Cook` field
 replaces that node's cook closure and cache-key parameters; `View` and `Export`
 fields update metadata without invalidating cooked geometry.
 
+`Graph.inspect` is an uncached traversal. Repeated inspection can use the
+bounded `Session.inspect` cache, whose lifetime follows the owning session.
+The sketch cook scheduler retains one graph's dependency summary in its
+immutable schedule state, so an unchanged graph needs no traversal per frame.
+
 SOPs and sketches attach schemas to individual nodes. There is no sketch-wide
 promoted record that shadows the graph; `Edit_graph` owns document edits.
 

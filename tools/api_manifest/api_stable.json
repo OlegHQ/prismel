@@ -1006,8 +1006,8 @@
       "library": "procedural",
       "module": "Graph",
       "source": "lib/procedural/graph.mli",
-      "source_bytes": 631,
-      "source_sha256": "e7a31e46d9f916e75b6bf9326161755a208e6c3a831a722912452e3c9edb7777"
+      "source_bytes": 707,
+      "source_sha256": "bc25609a70c559ef699bc44b3ff3accb147172e72ac4d2028c1c05a6428bad65"
     },
     {
       "api_sha256": "4dc1e85828fd27487cb2b4f4114d2246dba369f5db684446d7a9bfefc8008b68",
@@ -1055,13 +1055,13 @@
       "source_sha256": "2f5307040595a00bc34b2ae95e77bd11dce61c4cb764f33d46f486890de9a65c"
     },
     {
-      "api_sha256": "8b0b1e0d9dd87395c0fb6d3d644eb35e7604c77220738518a68546be143bb603",
+      "api_sha256": "ccddcdef93e78df0d2f011e59b5efaa458d2c011880b8f13454eaf53f9b44364",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Session",
       "source": "lib/procedural/session.mli",
-      "source_bytes": 1167,
-      "source_sha256": "a92f16eb22a0e72a2301656e1ecbb4052019b53bd815ae1497ec3e1056106fa1"
+      "source_bytes": 1347,
+      "source_sha256": "83afa2e5b95fc2188298d383ada3f628368e0dba3aa1f7ac67738f4086cfee52"
     },
     {
       "api_sha256": "b7271553049cf7c90ab3c220a84d828c8a3279553c19b8e64a92f9e154eeab95",

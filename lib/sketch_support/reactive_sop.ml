@@ -31,13 +31,18 @@ let error_to_string = Async_cook.error_to_string
 type schedule = {
   initialized : bool;
   dirty : bool;
+  graph : Graph.t option;
+  dependencies : Context.Dependencies.t;
 }
 
-let schedule_initial = { initialized = false; dirty = false }
+let schedule_initial = { initialized = false; dirty = false;
+  graph = None; dependencies = Context.Dependencies.static }
 
 let schedule value ~graph ~effects ~context_changed ~force ~busy ~frame =
   let dirty = value.dirty || effects.Parameter.cook || force in
-  let dependencies = Graph.dependencies graph in
+  let dependencies = match value.graph with
+    | Some previous when previous == graph -> value.dependencies
+    | None | Some _ -> Graph.dependencies graph in
   let dynamic = context_changed
       && (Context.Dependencies.mem Context.Dependencies.Time dependencies
           || Context.Dependencies.mem Context.Dependencies.Frame dependencies) in
@@ -46,4 +51,4 @@ let schedule value ~graph ~effects ~context_changed ~force ~busy ~frame =
   let urgent = not value.initialized || effects.Parameter.cook || force in
   let fire = not held && desired && (not busy || urgent) in
   { initialized = value.initialized || fire;
-    dirty = desired && not fire }, fire
+    dirty = desired && not fire; graph = Some graph; dependencies }, fire

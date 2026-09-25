@@ -99,15 +99,20 @@ let test_node_owned_parameters_and_graph_edit () =
   let editable = inspectable_transform ~label:"move" source inspectable_default in
   let graph = Sop.merge [Sop.null ~label:"left" editable;
                          Sop.null ~label:"right" editable] in
-  let original_infos = Graph.inspect graph in
-  check (Graph.inspect graph == original_infos)
-    "immutable graph inspection did not reuse retained metadata";
+  let evaluator = session () in
+  let original_infos = Session.inspect evaluator graph in
+  check (Session.inspect evaluator graph == original_infos)
+    "session graph inspection did not reuse retained metadata";
+  let other = session () in
+  check (Session.inspect other graph != original_infos)
+    "graph inspection cache leaked across sessions";
+  Session.close other;
   Gc.full_major();
   let inspect_before=Gc.allocated_bytes()in
-  for _=1 to 10_000 do ignore(Graph.inspect graph)done;
+  for _=1 to 10_000 do ignore(Session.inspect evaluator graph)done;
   let inspect_per_call=(Gc.allocated_bytes()-.inspect_before)/.10_000. in
   check (inspect_per_call<=40.)
-    (Printf.sprintf"retained graph inspection allocates %.1f bytes/call"
+    (Printf.sprintf"session graph inspection allocates %.1f bytes/call"
       inspect_per_call);
   check (List.length (Node.parameter_fields editable) = 2
       && Node.has_parameters editable)
@@ -115,13 +120,13 @@ let test_node_owned_parameters_and_graph_edit () =
   let translated, effects = edit_parameters graph
       ~node_id:(Node.id editable)
       ["translate_x", Parameter.Float_value 1.5] |> get_ok in
-  check (Graph.inspect translated != original_infos)
+  check (Session.inspect evaluator translated != original_infos)
     "rebuilt graph reused stale retained metadata";
   check (effects.cook && not effects.view && not effects.export)
     "graph edit lost cook impact";
   let edited = Option.get (Graph.find translated ~node_id:(Node.id editable)) in
   check (Node.id edited = Node.id editable
-      && List.map (fun info -> info.Graph.id) (Graph.inspect translated)
+      && List.map (fun info -> info.Graph.id) (Session.inspect evaluator translated)
          = List.map (fun info -> info.Graph.id) original_infos)
     "graph edit did not preserve logical node identities";
   let merge_inputs = Node.inputs translated in
@@ -129,7 +134,7 @@ let test_node_owned_parameters_and_graph_edit () =
   and right_input = Node.inputs (List.nth merge_inputs 1) |> List.hd in
   check (left_input == right_input && Node.id left_input = Node.id editable)
     "graph edit duplicated a shared subgraph";
-  let evaluator = session () and current = context () in
+  let current = context () in
   ignore (cook_ok evaluator current graph);
   let before_edit = Session.stats evaluator in
   let output = cook_ok evaluator current translated in
@@ -155,6 +160,9 @@ let test_node_owned_parameters_and_graph_edit () =
       (Node.parameter_fields view_node) in
   check (display.current = Parameter.Float_value 1.75)
     "view-only node value was not retained for the inspector";
+  Session.clear evaluator;
+  check (Session.inspect evaluator graph != original_infos)
+    "clearing a session retained graph inspection metadata";
   Session.close evaluator
 
 let test_encoded_parameter () =
