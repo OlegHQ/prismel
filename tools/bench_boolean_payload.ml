@@ -15,10 +15,15 @@ let grain = integer_env "PRISMEL_BOOLEAN_GRAIN" 256
 let include_edge_groups = match Sys.getenv_opt "PRISMEL_BOOLEAN_EDGE_GROUPS" with
   | Some ("0" | "false" | "no") -> false
   | None | Some _ -> true
+let ordered_groups = Sys.getenv_opt "PRISMEL_BOOLEAN_ORDERED" = Some "1"
 let get_string = function Ok value -> value | Error message -> failwith message
 let get = function Ok value -> value | Error error -> failwith (Error.to_string error)
 
 let geometry ~right =
+  let group ~owner ~name length contains =
+    if not ordered_groups then Group.init ~owner ~name length contains else
+    let members=Array.of_list(List.rev(List.filter contains(List.init length Fun.id)))in
+    Group.ordered ~owner ~name ~length members|>get_string in
   let point_count = pair_count * 4 and primitive_count = pair_count * 4 in
   let x = Array.make point_count 0. and y = Array.make point_count 0.
   and z = Array.make point_count 0. and vertices = Array.make (pair_count * 12) 0 in
@@ -84,11 +89,11 @@ let geometry ~right =
         ~offsets:vertex_offsets ~values:vertex_values)) |> get_string;
   ] in
   let groups = [
-    Group.init ~owner:Group.Primitive ~name:"alternating" primitive_count
+    group ~owner:Group.Primitive ~name:"alternating" primitive_count
       (fun primitive -> (primitive land 1 = 0) <> right);
-    Group.init ~owner:Group.Point ~name:"point_alternating" point_count
+    group ~owner:Group.Point ~name:"point_alternating" point_count
       (fun point -> point land 1 = 0);
-    Group.init ~owner:Group.Vertex ~name:"vertex_alternating" (Array.length vertices)
+    group ~owner:Group.Vertex ~name:"vertex_alternating" (Array.length vertices)
       (fun vertex -> vertex land 1 = 1);
   ] in
   let topology_index = Topology_index.create topology in

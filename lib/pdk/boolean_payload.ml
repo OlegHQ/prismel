@@ -241,15 +241,18 @@ let copy_primitives ?cancel ~grain ancestry =
             output in
           let left_ranks = ranks (Geometry.primitive_count left) pair.left_group
           and right_ranks = ranks (Geometry.primitive_count right) pair.right_group
-          and elements = Array.make (Group.cardinality group) 0 and next = ref 0 in
-          Group.iter (fun primitive -> elements.(!next) <- primitive; incr next) group;
+          and keyed = Array.make (Group.cardinality group) (0, 0, 0)
+          and next = ref 0 in
           let key primitive =
             let face = Boolean_extract.primitive_face ancestry primitive in
             match Boolean_extract.primitive_side ancestry primitive with
             | Boolean_complex.Left -> 0, left_ranks.(face), primitive
             | Boolean_complex.Right -> 1, right_ranks.(face), primitive in
-          Array.sort (fun first second -> Stdlib.compare (key first) (key second)) elements;
-          Group.Private.with_owned_order elements group
+          Group.iter (fun primitive ->
+            keyed.(!next) <- key primitive; incr next) group;
+          Array.sort Stdlib.compare keyed;
+          Group.Private.with_owned_order
+            (Array.map (fun (_, _, primitive) -> primitive) keyed) group
         end)
           group_pairs in
       let retained_attributes = List.filter

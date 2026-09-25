@@ -850,25 +850,25 @@ let paired_rounded_slivers ?cancel ~grain geometry =
       if rounded_triangle_degenerate positions topology primitive then
         incr degenerate_count
     done;
-    let primitives = Array.make !degenerate_count 0 and cursor = ref 0 in
+    let keyed = Array.make !degenerate_count ((0, 0, 0), 0)
+    and cursor = ref 0 in
     for primitive = 0 to Geometry.primitive_count geometry - 1 do
       if primitive land 4095 = 0 then Cancel.check_opt cancel;
       if rounded_triangle_degenerate positions topology primitive then begin
-        primitives.(!cursor) <- primitive;
+        keyed.(!cursor) <- sorted_triangle_points topology primitive, primitive;
         incr cursor
       end
     done;
-    let key primitive = sorted_triangle_points topology primitive in
-    Array.sort (fun left right -> Stdlib.compare (key left) (key right)) primitives;
+    Array.sort (fun (left, _) (right, _) -> Stdlib.compare left right) keyed;
     let bits = Bytes.make ((Geometry.primitive_count geometry + 7) / 8) '\000'
     and removed = ref 0 and first = ref 0 in
-    while !first < Array.length primitives do
+    while !first < Array.length keyed do
       let last = ref (!first + 1) in
-      while !last < Array.length primitives
-          && key primitives.(!last) = key primitives.(!first) do incr last done;
+      while !last < Array.length keyed
+          && fst keyed.(!last) = fst keyed.(!first) do incr last done;
       let paired_last = !first + (((!last - !first) / 2) * 2) in
       for slot = !first to paired_last - 1 do
-        bit_set bits primitives.(slot);
+        bit_set bits (snd keyed.(slot));
         incr removed
       done;
       first := !last

@@ -544,8 +544,8 @@ let copy_group ?cancel ~grain ancestry view topology point_count representatives
     and right_geometry = Boolean_extract.Private.right_geometry ancestry in
     let left_ranks = ranks (source_count left_geometry) pair.left_group
     and right_ranks = ranks (source_count right_geometry) pair.right_group
-    and elements = Array.make (Group.cardinality group) 0 and next = ref 0 in
-    Group.iter (fun element -> elements.(!next) <- element; incr next) group;
+    and keyed = Array.make (Group.cardinality group) (0, 0, 0)
+    and next = ref 0 in
     let key element =
       let corner = representative element in
       let primitive = corner / 3 and local = dominant_corner view corner in
@@ -553,8 +553,11 @@ let copy_group ?cancel ~grain ancestry view topology point_count representatives
       if Bytes.unsafe_get view.Boolean_extract.Private.primitive_sides primitive = '\000'
       then 0, left_ranks.(source), element
       else 1, right_ranks.(source), element in
-    Array.sort (fun first second -> Stdlib.compare (key first) (key second)) elements;
-    Group.Private.with_owned_order elements group
+    Group.iter (fun element ->
+      keyed.(!next) <- key element; incr next) group;
+    Array.sort Stdlib.compare keyed;
+    Group.Private.with_owned_order
+      (Array.map (fun (_, _, element) -> element) keyed) group
   end
 
 let assert_no_promotion_collisions point_conflict point_attributes vertex_attributes
