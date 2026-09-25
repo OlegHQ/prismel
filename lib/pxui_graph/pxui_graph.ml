@@ -197,7 +197,6 @@ type t = {
   catalog : catalog_item array;
   visible : bool;
   theme : Pxui.theme;
-  mutable menu_rows_cache : (menu * menu_row array) option;
 }
 
 type node_view = {
@@ -527,7 +526,7 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
     selected_edge = None; viewed; flagged = None; flaggable; x; y; width; height;
     pan_x = float_of_int (width / 2); pan_y = 18.; zoom = 1.; drag = None;
     menu = None; context = None; clipboard = None; catalog = catalog_array catalog;
-    visible = true; theme; menu_rows_cache = None }
+    visible = true; theme }
 
 let create ?x ?y ?width ?height ?theme ?selected ?catalog ?flaggable graph =
   let value = create_document ?x ?y ?width ?height ?theme ?selected ?catalog ?flaggable
@@ -588,8 +587,7 @@ let with_graph graph value = match value.source_graph with
   | Some _ | None ->
       let value = with_document (Edit_graph.of_graph graph) value in
       { value with source_graph = Some graph }
-let with_catalog catalog value = { value with catalog = catalog_array catalog;
-  menu_rows_cache = None }
+let with_catalog catalog value = { value with catalog = catalog_array catalog }
 
 let with_bounds ~x ~y ~width ~height value =
   if width <= 0 || height <= 0 then invalid_arg
@@ -984,7 +982,7 @@ let rec category_remainder path category = match path, category with
       category_remainder path category
   | _ -> None
 
-let menu_rows_uncached (value : t) menu =
+let menu_rows (value : t) menu =
   let entries = Array.to_list value.catalog |> List.filter (eligible menu) in
   if menu.query <> "" then begin
     let query = lower menu.query in
@@ -1013,13 +1011,6 @@ let menu_rows_uncached (value : t) menu =
           String.compare left.label right.label)
         exact |> List.map (fun entry -> Menu_entry entry) in
     Array.of_list (categories @ exact)
-
-let menu_rows (value : t) menu = match value.menu_rows_cache with
-  | Some (cached_menu, rows) when cached_menu = menu -> rows
-  | Some _ | None ->
-      let rows = menu_rows_uncached value menu in
-      value.menu_rows_cache <- Some (menu, rows);
-      rows
 
 let open_menu (value : t) (x, y) =
   let x = min (value.x + value.width - menu_width - 8) (max (value.x + 8) x) in
