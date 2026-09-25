@@ -645,6 +645,9 @@ module Core = struct
     | Saving of string
     | Browsing of { query : string; presets : (string * float) list }
 
+  type prompt_intent = Save_preset_file of string | Load_preset_file of string
+    | Delete_preset_file of { name : string; query : string }
+
   type timeline_intent = Pause_toggle | Stop_playback | Reset_playback
     | Seek_playback of int64
 
@@ -657,6 +660,8 @@ module Core = struct
     effects : Parameter.effects;
     timeline_intents : timeline_intent list;
     frame_request : int option;
+    prompt : prompt option;
+    prompt_intent : prompt_intent option;
   }
 
   type 'prepared t = {
@@ -963,38 +968,28 @@ module Core = struct
             ~h:(float_of_int (h - 1)) ~width:1. theme.accent);
       { workspace; graph_view; document; edit_error; inspector;
         effects = Parameter.union_effects editor_effects parameter_effects;
-        timeline_intents; frame_request } in
+        timeline_intents; frame_request; prompt = None; prompt_intent = None } in
     let leader_panel ui = if leader = Leader.Pending then
         Leader.panel ui keymap focus in
     (* Presets: Space s names and saves the document, Space b browses, loads
        (Enter), and deletes (Delete twice). A load replaces the document below
        as one undo entry. *)
-    let prompt = List.fold_left (fun prompt -> function
+    let initial_prompt = List.fold_left (fun prompt -> function
       | Leader.Save_preset -> Some (Saving (Preset.default_name ()))
       | Browse_presets ->
           Some (Browsing { query = ""; presets = Preset.list ~directory:value.presets })
       | _ -> prompt) value.prompt actions in
-    let prompt = ref prompt and notice = ref value.notice and loaded = ref None in
-    let prompt_panel ui graph_view document =
+    let prompt_panel ui prompt =
       let module Ui = Pxui.Ui in
-      (match !prompt with
-      | None -> ()
+      let next = match prompt with
+      | None -> None, None
       | Some (Saving name) ->
           (match Ui.modal ui ~width:360. "preset-save" (fun () ->
               Ui.label ui "Save preset";
               Ui.picker ui "Preset name" ~query:name (fun _ -> [||])) with
-           | None | Some (_, `Cancel) -> prompt := None
-           | Some (name, `Submit) ->
-               prompt := None;
-               notice := Some (match Preset.save ~directory:value.presets ~name
-                   ~sketch:value.name ~document
-                   ~positions:(Pxui_graph.node_positions graph_view)
-                   ~display:(Some (Pxui_graph.viewed graph_view))
-                   ~active_camera:(Pxui_graph.flagged graph_view)
-                   ~view:(view_state ()) with
-                 | Ok path -> "Saved preset " ^ Filename.basename path
-                 | Error message -> "Preset not saved: " ^ message)
-           | Some (name, _) -> prompt := Some (Saving name))
+           | None | Some (_, `Cancel) -> None, None
+           | Some (name, `Submit) -> None, Some (Save_preset_file name)
+           | Some (name, _) -> Some (Saving name), None)
       | Some (Browsing { query; presets }) ->
           let rows query = List.filter (fun (name, _) -> Ui.fuzzy_match ~query name) presets
             |> List.map (fun (name, time) ->
@@ -1004,41 +999,35 @@ module Core = struct
           (match Ui.modal ui ~width:420. "preset-browse" (fun () ->
               Ui.label ui (Printf.sprintf "Presets · %d" (List.length presets));
               Ui.picker ui "Search presets" ~query rows) with
-           | None | Some (_, `Cancel) -> prompt := None
+           | None | Some (_, `Cancel) -> None, None
            | Some (query, `Pick index) ->
                let name = fst (rows query).(index) in
-               prompt := None;
-               (match Preset.load ~path:(Preset.path ~directory:value.presets ~name)
-                   ~code:value.code_graph ~factories:value.factories with
-                | Ok preset -> loaded := Some preset;
-                    notice := Some ("Loaded preset " ^ name)
-                | Error message -> notice := Some ("Preset rejected: " ^ message))
+               None, Some (Load_preset_file name)
            | Some (query, `Delete index) ->
                let name = fst (rows query).(index) in
-               notice := Some (match Preset.delete ~directory:value.presets ~name with
-                 | Ok () -> "Deleted preset " ^ name
-                 | Error message -> "Preset not deleted: " ^ message);
-               prompt := Some (Browsing { query;
-                 presets = Preset.list ~directory:value.presets })
-           | Some (query, _) -> prompt := Some (Browsing { query; presets })));
+               Some (Browsing { query; presets }),
+               Some (Delete_preset_file { name; query })
+           | Some (query, _) -> Some (Browsing { query; presets }), None) in
       (* A closed prompt must not keep keyboard focus into the next frame. *)
-      if !prompt = None && value.prompt <> None then Ui.unfocus ui in
+      if fst next = None && value.prompt <> None then Ui.unfocus ui;
+      next in
     let result =
       if all_ui_visible then
         Pxui.Ui.frame value.ui frame (fun ui ->
           let result = build ui in
           status_box { value with workspace = result.workspace;
-              status_fps; notice = !notice } ui frame
+              status_fps } ui frame
             ~render_status;
-          prompt_panel ui result.graph_view result.document;
+          let prompt, prompt_intent = prompt_panel ui initial_prompt in
           leader_panel ui;
-          result)
+          { result with prompt; prompt_intent })
       else begin
         if leader = Leader.Pending then Pxui.Ui.frame value.ui frame leader_panel;
         { workspace; graph_view; document = value.document;
           edit_error = value.edit_error; inspector = value.inspector;
           effects = Parameter.no_effects; timeline_intents = [];
-          frame_request = initial_frame_request }
+          frame_request = initial_frame_request; prompt = initial_prompt;
+          prompt_intent = None }
       end in
     let timeline, timeline_changes = List.fold_left (fun (timeline, changes) intent ->
       let next, emitted = match intent with
@@ -1047,8 +1036,30 @@ module Core = struct
         | Reset_playback -> Sketch_support.Timeline.reset timeline
         | Seek_playback frame -> Sketch_support.Timeline.seek timeline ~frame in
       next, changes @ emitted) (timeline, timeline_changes) result.timeline_intents in
-    let prompt = !prompt and notice = !notice in
-    let document, graph_view, inspector, edit_error = match !loaded with
+    let prompt, notice, loaded = match result.prompt_intent with
+      | None -> result.prompt, value.notice, None
+      | Some (Save_preset_file name) ->
+          let notice = match Preset.save ~directory:value.presets ~name
+              ~sketch:value.name ~document:result.document
+              ~positions:(Pxui_graph.node_positions result.graph_view)
+              ~display:(Some (Pxui_graph.viewed result.graph_view))
+              ~active_camera:(Pxui_graph.flagged result.graph_view)
+              ~view:(view_state ()) with
+            | Ok path -> "Saved preset " ^ Filename.basename path
+            | Error message -> "Preset not saved: " ^ message in
+          result.prompt, Some notice, None
+      | Some (Load_preset_file name) ->
+          (match Preset.load ~path:(Preset.path ~directory:value.presets ~name)
+              ~code:value.code_graph ~factories:value.factories with
+           | Ok preset -> result.prompt, Some ("Loaded preset " ^ name), Some preset
+           | Error message -> result.prompt, Some ("Preset rejected: " ^ message), None)
+      | Some (Delete_preset_file { name; query }) ->
+          let notice = match Preset.delete ~directory:value.presets ~name with
+            | Ok () -> "Deleted preset " ^ name
+            | Error message -> "Preset not deleted: " ^ message in
+          Some (Browsing { query; presets = Preset.list ~directory:value.presets }),
+          Some notice, None in
+    let document, graph_view, inspector, edit_error = match loaded with
       | None -> result.document, result.graph_view, result.inspector, result.edit_error
       | Some (preset : Preset.loaded) ->
           let graph_view = List.fold_left (fun view (node_id, x, y) ->
@@ -1091,10 +1102,10 @@ module Core = struct
         inspector; workspace = result.workspace; timeline; cook = cooked.cook;
         edit_error = cooked.edit_error;
         status_fps; status_fps_at; history; focus; leader; prompt;
-        notice = if document_changed && Option.is_none !loaded then None else notice };
+        notice = if document_changed && Option.is_none loaded then None else notice };
       effects; prepared_changed = cooked.prepared_changed;
       framed = cooked.framed;
-      loaded_view = Option.map (fun (preset : Preset.loaded) -> preset.view) !loaded;
+      loaded_view = Option.map (fun (preset : Preset.loaded) -> preset.view) loaded;
       actions; input = frame }
 
   (* Environment-owned document edits (camera bookkeeping, follow viewport).

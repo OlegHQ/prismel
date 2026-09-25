@@ -629,7 +629,8 @@ graph changes. The timeline bar (hidden by default) has play/pause, stop,
 reset, a frame/time readout, and a scrub slider that seeks (`Timeline.seek`)
 and recooks. Its widgets return playback intents, and graph camera-framing
 requests return in the workspace frame result; the host applies both after
-`Ui.frame` completes.
+`Ui.frame` completes. Preset prompts likewise return save/load/delete intents;
+file I/O runs after the UI frame.
 
 `Environment3` keeps camera nodes (`Sop_catalog.Camera`, operation `camera`)
 in the document: a default one following the viewport is added when the
