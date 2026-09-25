@@ -36,7 +36,9 @@ let percentile values fraction =
 
 let () =
   let driver, control = Ogpu.Backend_mock.create () in
-  let renderer = get (Scene_execution.create driver configuration) in
+  let renderer = get (if Sys.getenv_opt "PRISMEL_UNIFORM_BENCH_VARIANTS" = Some "all"
+    then Scene_execution.create_variants driver configuration
+    else Scene_execution.create driver configuration) in
   let stable = draws 0 in
   print_endline "mode,draws,frames,p50_s,p95_s,allocated_bytes_per_frame,uploaded_bytes_per_frame,peak_buffers";
   let measure name make_draws =

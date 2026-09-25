@@ -61,6 +61,7 @@ type t={device:Ogpu.Backend.device;queue:Ogpu.Backend.queue;
   surface:Ogpu.Backend.surface option;mutable target:Ogpu.Backend.texture;
   mutable configuration:Ogpu.Surface.configuration;
   mutable attachments:Scene_attachment_pool.t;pipelines:pipeline_variant list;
+  pipeline_lookup:pipeline_variant option array;
   canonical_scene2_argument:bool;mutable cache:cached list;
   uniform_pages:uniform_page option array;mutable next_uniform_page:int;
   mutable previous_uniforms:uniform_slice option array;
@@ -139,7 +140,20 @@ let pipeline device family blend samples=let capabilities=Ogpu.Backend.capabilit
 let texture_descriptor configuration:Ogpu.Types.texture_descriptor={label=Some"scene-execution-target";width=configuration.Ogpu.Surface.physical_width;height=configuration.physical_height;depth=1;mip_levels=1;sample_count=1;usage=[Texture_binding;Render_attachment;Texture_copy_src]}
 let blends=[Ogpu.Pipeline.Replace;Alpha;Add;Multiply;Screen;Subtract]
 let families=[Scene2;Scene2_textured;Scene3;Scene3_points;Scene3_textured;Scene3_shadow;Scene3_stencil;Scene3_textured_stencil;Scene3_shadow_stencil;Ui]
-let pipeline_variants_per_sample=List.length families*List.length blends
+let blend_count=List.length blends
+let pipeline_variants_per_sample=List.length families*blend_count
+let pipeline_slot family blend samples=
+  let family=match family with
+    |Scene2->0|Scene2_textured->1|Scene3->2|Scene3_points->3
+    |Scene3_textured->4|Scene3_shadow->5|Scene3_stencil->6
+    |Scene3_textured_stencil->7|Scene3_shadow_stencil->8|Ui->9 in
+  let blend=match blend with
+    |Ogpu.Pipeline.Replace->0|Alpha->1|Add->2|Multiply->3|Screen->4|Subtract->5 in
+  let samples=match samples with 1->0|4->1|9->2|16->3|_-> -1 in
+  if samples<0 then -1 else (family*blend_count+blend)*4+samples
+let find_pipeline value family blend samples=
+  let slot=pipeline_slot family blend samples in
+  if slot<0 then None else value.pipeline_lookup.(slot)
 let sample_counts device=List.filter(fun samples->samples<=(Ogpu.Backend.capabilities device).Ogpu.Caps.limits.max_sample_count)[1;4;9;16]
 let allocate_target device configuration=Ogpu.Backend.create_texture device(texture_descriptor configuration)
 let create_common ?(canonical_scene2_argument=false) ?(offscreen=false) driver configuration before_device_destroy families_to_make variants_to_make samples_to_make supplied=match Ogpu.Backend.create_device driver with Error _ as e->e|Ok device->
@@ -155,7 +169,11 @@ let create_common ?(canonical_scene2_argument=false) ?(offscreen=false) driver c
     let destroy_surface()=Option.iter(fun surface->ignore(Ogpu.Backend.destroy_surface surface))surface in
     match variants[]requested with Error e->destroy_surface();ignore(Ogpu.Backend.destroy_queue queue);cleanup();Error e|Ok pipelines->
     (match allocate_target device configuration with
-      |Ok target->let attachments=Scene_attachment_pool.create~device~configuration~sample_counts:samples in Ok{device;queue;surface;target;configuration;attachments;pipelines;canonical_scene2_argument;cache=[];uniform_pages=Array.make 3 None;next_uniform_page=0;previous_uniforms=[||];prepared_cache=[];prepared_submission=None;automatic_submission=None;automatic_candidate=None;prepared_scratch={scratch_slots=[||];scratch_length=0};auxiliary_cache=[];texture_cache=[];texture_upload_scratch=None;retained_batch_builds=0L;retained_batch_reuses=0L;uploaded=0L;dead=false;before_device_destroy}
+      |Ok target->let attachments=Scene_attachment_pool.create~device~configuration~sample_counts:samples in
+        let pipeline_lookup=Array.make(pipeline_variants_per_sample*4)None in
+        List.iter(fun variant->let slot=pipeline_slot variant.family variant.blend variant.samples in
+          if slot>=0 then pipeline_lookup.(slot)<-Some variant)pipelines;
+        Ok{device;queue;surface;target;configuration;attachments;pipelines;pipeline_lookup;canonical_scene2_argument;cache=[];uniform_pages=Array.make 3 None;next_uniform_page=0;previous_uniforms=[||];prepared_cache=[];prepared_submission=None;automatic_submission=None;automatic_candidate=None;prepared_scratch={scratch_slots=[||];scratch_length=0};auxiliary_cache=[];texture_cache=[];texture_upload_scratch=None;retained_batch_builds=0L;retained_batch_reuses=0L;uploaded=0L;dead=false;before_device_destroy}
       |Error e->List.iter(fun x->ignore(Ogpu.Backend.destroy_pipeline x.pipeline))pipelines;destroy_surface();ignore(Ogpu.Backend.destroy_queue queue);cleanup();Error e)
 let one_sample _=[1]
 let create driver configuration=create_common driver configuration(fun()->Ok())[Scene2]blends one_sample None
@@ -801,7 +819,8 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
   let prepared_key=prepared in
   match resolve_prepared value prepared draws with Error _ as result ->after_prepare();result | Ok(draws,trusted_key) ->
   let valid_mesh(mesh:mesh)=mesh.key<>""&&mesh.vertex_count>0&&mesh.index_count>0&&Bytes.length mesh.vertices+Bytes.length mesh.indices>0 in
-  let supported=List.for_all(fun(family,blend,_,_,samples,_)->List.exists(fun variant->variant.family=family&&variant.blend=blend&&variant.samples=samples)value.pipelines)draws in
+  let supported=List.for_all(fun(family,blend,_,_,samples,_)->
+    Option.is_some(find_pipeline value family blend samples))draws in
   let valid=List.for_all(fun(_,_,texture,auxiliary,samples,(draw:draw))->List.mem samples[1;4;9;16]&&valid_mesh draw.mesh&&Option.fold~none:true~some:valid_texture texture&&Option.fold~none:true~some:(fun(source:auxiliary_resource)->source.key<>""&&Bytes.length source.buffer>0&&valid_texture source.texture)auxiliary)draws in
   if not supported then(after_prepare();error"Scene_execution.render"Ogpu.Error.Unsupported"pipeline family/blend variant is unavailable")else
   if not valid then(after_prepare();error"Scene_execution.render"Ogpu.Error.Invalid_argument"draw resource preflight failed")else
@@ -935,15 +954,13 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
           (slot.slot_family=Scene2_textured)=retained)&&
         same_pass_state class_ state(slot_state slot)do incr index done;
       !index in
-    let variant family blend samples=List.find_opt(fun value->
-      value.family=family&&value.blend=blend&&value.samples=samples)value.pipelines in
     let payload_entry slot=
       let family=slot.slot_family and blend=slot.slot_blend
       and samples=slot.slot_samples and item=slot_mesh slot in
       let canonical_scene2=value.canonical_scene2_argument&&
         (family=Scene2||family=Scene2_textured)in
       let pipeline_family=if canonical_scene2&&family=Scene2 then Scene2_textured else family in
-      let variant=Option.get(variant pipeline_family blend samples)in
+      let variant=Option.get(find_pipeline value pipeline_family blend samples)in
       let texture_index,sampler_index=if canonical_scene2 then 0,1 else 1,2 in
       let textures,samplers=match slot.slot_texture with
         |None->[],[]
