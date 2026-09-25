@@ -76,6 +76,10 @@ second exact-output path for both Boolean constant values, compiled from
 source MSL and mock compiled-pipeline `Unsupported`; compiled-output validation needs a full
 Xcode toolchain. Acceleration/refit and the remaining encoder contract remain
 in G2.
+The path tracer's MSL now lives in `lib/prismel_pathtracer/pathtrace.metal` and
+is embedded by an OCaml/Dune rule; its runtime compilation and raw Metal
+ownership remain until G3 migrates it to OGPU. The M1 fixed-image
+qualification covers flat and instanced renders after this source move.
 `Ogpu.Caps` now owns the portable feature matrix and typed `Unsupported`
 check. Metal probes populate that profile in `ogpu_metal_native.Device`, which also
 translates native Metal errors to typed OGPU errors.

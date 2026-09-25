@@ -1,7 +1,17 @@
+(executable
+ (name embed_metal)
+ (modules embed_metal))
+
+(rule
+ (target pathtrace_source.ml)
+ (deps pathtrace.metal)
+ (action (with-stdout-to %{target}
+  (run %{exe:embed_metal.exe} %{dep:pathtrace.metal}))))
+
 (library
  (name prismel_pathtracer)
  (public_name prismel.pathtracer)
- (modules prismel_pathtracer)
+ (modules prismel_pathtracer pathtrace_source)
  (libraries prismel metal ogpu pdk prismel_next_execution runtime_next_orchestrator
   prismel_next_resources unix))
 
@@ -13,6 +23,13 @@
 (rule
  (aliases runtest test_pathtracer)
  (action (run %{exe:test_main.exe} test_pathtracer)))
+
+(rule
+ (enabled_if (= %{env:PRISMEL_PATH_TRACER_EXACT_M1=0} 1))
+ (alias qualification)
+ (action
+  (setenv PRISMEL_PATH_TRACER_EXACT_M1 1
+   (run %{exe:test_main.exe} test_pathtracer))))
 
 (rule
  (aliases runtest-native test_gpu_film)

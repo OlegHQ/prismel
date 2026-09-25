@@ -7,6 +7,7 @@ let get = function Ok v -> v | Error e -> failwith e
 let metal = function Ok v -> v | Error e -> failwith (Format.asprintf "%a" Metal.pp_error e)
 
 let run () =
+  let exact_m1 = Sys.getenv_opt "PRISMEL_PATH_TRACER_EXACT_M1" = Some "1" in
   let initial_handles = (metal (Metal.Release_queue.stats ())).live_handles in
   let sphere = get (Result.map_error Pdk.Error.to_string
     (Pdk.Ops.uv_sphere ~center:(Prismel.Vec3.create 0. 1. 0.) ~segments:24 ~rings:12 ~radius:1. ())) in
@@ -29,6 +30,9 @@ let run () =
       let camera = { P.eye = Prismel.Vec3.create 0. 2. 6.; target = Prismel.Vec3.create 0. 0.8 0.; fov = 0.9 } in
       let run () = P.reset tracer; get (P.render tracer camera); get (P.flush tracer); get (P.render tracer camera); get (P.flush tracer); Bytes.copy (P.pixels tracer) in
       let first = run () and second = run () in
+      if exact_m1 then
+        assert (Digest.to_hex (Digest.bytes first) =
+          "84c5cb3002a37d05a0b2f66b49d4d6f0");
       assert (P.samples tracer = 4);
       assert (Bytes.equal first second);
       let distinct = Hashtbl.create 64 in
@@ -72,6 +76,9 @@ let run () =
       get (P.render tracer camera); get (P.flush tracer);
       get (P.render tracer camera); get (P.flush tracer);
       let instanced_pixels = Bytes.copy (P.pixels tracer) in
+      if exact_m1 then
+        assert (Digest.to_hex (Digest.bytes instanced_pixels) =
+          "8aaf15f3d0b2f4b16e46342612ca8328");
       let transformed = Pdk.Ops.transform matrix sphere in
       get (P.replace_mesh tracer (get (P.mesh [transformed, P.material (0.7, 0.5, 0.3)])));
       get (P.render tracer camera); get (P.flush tracer);
