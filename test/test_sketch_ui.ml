@@ -534,7 +534,7 @@ let run () =
   let document, _ = Edit_graph.apply_parameters document ~node_id:(Node.id code_graph)
       ["amount", Parameter.Float_value 7.25] |> Result.get_ok in
   let directory = Filename.temp_dir "sketch-ui-presets" "" in
-  let positions = [Node.id added, 123.5, -40.] in
+  let positions = [Node.id added, 123.5, -40.; Node.id added, 999., 999.] in
   let saved = Sketch_ui.Preset.save ~directory ~name:"my wall/1" ~sketch:"test"
       ~document ~positions ~display:(Some (Node.id code_graph)) ~active_camera:None
       ~view:(`Assoc ["fov", `Float 0.5]) |> Result.get_ok in

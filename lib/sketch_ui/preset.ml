@@ -40,8 +40,12 @@ let value_of_json : Yojson.Safe.t -> (Parameter.value, string) result = function
 let optional_int = function Some value -> `Int value | None -> `Null
 
 let to_json ~sketch ~document ~positions ~display ~active_camera ~view =
+  let positions_by_id = Hashtbl.create (List.length positions) in
+  List.iter (fun (id, x, y) ->
+    if not (Hashtbl.mem positions_by_id id) then
+      Hashtbl.add positions_by_id id (x, y)) positions;
   let position id = Option.value ~default:(0., 0.)
-      (List.find_map (fun (node, x, y) -> if node = id then Some (x, y) else None) positions) in
+      (Hashtbl.find_opt positions_by_id id) in
   let node (info : Edit_graph.node_info) =
     let x, y = position info.id in
     `Assoc ([ "id", `Int info.id ]
@@ -162,12 +166,17 @@ let decode path = match Yojson.Safe.from_file path with
 let load ~path ~code ~factories =
   let* nodes, display, active_camera, view = decode path in
   let code_document = Edit_graph.of_graph code in
+  let factories_by_key = Hashtbl.create (List.length factories) in
+  List.iter (fun factory ->
+    let key = Edit_graph.factory_key factory in
+    if not (Hashtbl.mem factories_by_key key) then
+      Hashtbl.add factories_by_key key factory) factories;
   (* Catalog nodes are recreated with fresh ids; code nodes rebind by id. *)
   let* document, mapping = List.fold_left (fun state (node : saved) ->
     let* document, mapping = state in
     match node.factory_key with
     | Some key ->
-        (match List.find_opt (fun factory -> Edit_graph.factory_key factory = key) factories with
+        (match Hashtbl.find_opt factories_by_key key with
          | None -> Error (Printf.sprintf "preset node %S uses unknown SOP %S" node.label key)
          | Some factory ->
              let arity = Edit_graph.factory_arity factory in
@@ -180,12 +189,17 @@ let load ~path ~code ~factories =
     | None -> Error (Printf.sprintf
         "preset node %S (#%d) is not in this sketch's code graph" node.label node.id))
     (Ok (code_document, [])) nodes in
-  let target id = match List.assoc_opt id mapping with
+  let mapping_by_id = Hashtbl.create (List.length mapping) in
+  let kept = Hashtbl.create (List.length mapping) in
+  List.iter (fun (old_id, new_id) ->
+    if not (Hashtbl.mem mapping_by_id old_id) then
+      Hashtbl.add mapping_by_id old_id new_id;
+    Hashtbl.replace kept new_id ()) mapping;
+  let target id = match Hashtbl.find_opt mapping_by_id id with
     | Some id -> Ok id | None -> Error (Printf.sprintf "preset references missing node #%d" id) in
-  let kept = List.map snd mapping in
   let document = Edit_graph.remove_nodes (Edit_graph.inspect document
     |> List.filter_map (fun (info : Edit_graph.node_info) ->
-      if List.mem info.id kept then None else Some info.id)) document in
+      if Hashtbl.mem kept info.id then None else Some info.id)) document in
   let* document = List.fold_left (fun state (node : saved) ->
     let* document = state in
     let* consumer = target node.id in
