@@ -1297,26 +1297,11 @@ let ensure_visible_edge_capacity (spatial : spatial_index) needed =
   end
 
 let sort_visible_prefix values length =
-  let swap left right =
-    let value = Array.unsafe_get values left in
-    Array.unsafe_set values left (Array.unsafe_get values right);
-    Array.unsafe_set values right value in
-  let rec sift root limit =
-    let child = (root * 2) + 1 in
-    if child < limit then begin
-      let child = if child + 1 < limit
-          && Array.unsafe_get values child < Array.unsafe_get values (child + 1)
-        then child + 1 else child in
-      if Array.unsafe_get values root < Array.unsafe_get values child then begin
-        swap root child;
-        sift child limit
-      end
-    end in
-  for root = (length / 2) - 1 downto 0 do sift root length done;
-  for limit = length - 1 downto 1 do
-    swap 0 limit;
-    sift 0 limit
-  done
+  if length > 1 then begin
+    let sorted = Array.sub values 0 length in
+    Array.sort Int.compare sorted;
+    Array.blit sorted 0 values 0 length
+  end
 
 let visible_node_indices (value : t) viewport =
   let spatial = value.spatial in
