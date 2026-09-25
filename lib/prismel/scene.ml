@@ -189,6 +189,7 @@ let text_input_region ~at:(x,y)~w~h ?(focused=false) ?(cursor=0)()=
 let translate x y nodes=Translate(x,y,nodes)let rotate a nodes=Rotate(a,nodes)let scale x y nodes=Scale(x,y,nodes)
 let clip ~at:(x,y)~w~h nodes=Clip(x,y,w,h,nodes)let blend mode nodes=Blend(mode,nodes)
 module Private=struct
+  module Ui_batch = Scene_command.Ui_batch
  let layer_break=Layer_break
  let ui ?(images=[]) batch=
    List.iter(fun id->

@@ -1,7 +1,7 @@
 open Prismel
 
 module Int_table = Hashtbl.Make (Int)
-module Batch = Scene_command.Ui_batch
+module Batch = Scene.Private.Ui_batch
 
 (* ---------------------------------------------------------------- keys *)
 

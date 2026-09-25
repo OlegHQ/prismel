@@ -255,7 +255,9 @@ PXUI paints through a native-only instance layer. `Scene.Private.ui` wraps a
 renderer-neutral `Scene_command.Ui_batch` (64-byte rect, textured, Bézier
 wire-segment, and dot-grid instances grouped by clip, canvas transform, and
 texture) and its bound textures. Staging keeps it as its own
-`Ui_layer`, like `view3d`: the Render_ir materializer skips it, and enclosing
+`Ui_layer`. PXUI reaches the batch builder through `Scene.Private.Ui_batch`,
+so its library depends on `prismel` without a direct `scene_command` edge.
+Like `view3d`, the Render_ir materializer skips it, and enclosing
 Scene transforms and clips do not apply. `Prismel_next_execution.Private
 .lower_ui` turns each batch into one indexed draw of the `Ui` pipeline family:
 vertex pulling reads the instances, a 24-byte affine uniform maps logical

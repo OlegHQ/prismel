@@ -33,9 +33,10 @@ val clip : at:(int*int) -> w:int -> h:int -> t -> node
 val blend : blend -> t -> node
 val render : t -> unit
 module Private : sig
+  module Ui_batch = Scene_command.Ui_batch
   val layer_break : node
 
-  val ui : ?images:(int * Image.t) list -> Scene_command.Ui_batch.t -> node
+  val ui : ?images:(int * Image.t) list -> Ui_batch.t -> node
   (** A native-only PXUI instance layer. Like [view3d], it ignores enclosing
       Scene transforms and clips: the batch carries its own. Every batch
       texture id must be bound in [images]. *)
@@ -46,7 +47,7 @@ module Private : sig
     | Scene2_segment of Scene_command.Display_list.t *
         (int * Prismel_next_execution.resource) list
     | Scene3_layer of Scene_execution.prepared_scene3
-    | Ui_layer of Scene_command.Ui_batch.t *
+    | Ui_layer of Ui_batch.t *
         (int * Prismel_next_execution.resource) list
   type staged_native = {
     clear : float * float * float * float;
