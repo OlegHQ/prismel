@@ -1,6 +1,6 @@
 type mouse_button = Left | Middle | Right | X1 | X2
 type modifier = Shift | Control | Alt | Meta | Num_lock | Caps_lock | Scroll_lock
-type key_event = { key:string; modifiers:modifier list; repeat:bool }
+type key_event = { key : string; modifiers : modifier list; repeat : bool }
 
 type event =
   | Pointer_moved of float * float
@@ -50,17 +50,25 @@ type t = {
 
 let create ~max_events ~logical_width ~logical_height =
   if max_events <= 0 then Error "max_events must be positive"
-  else if logical_width <= 0 || logical_height <= 0 then
-    Error "logical dimensions must be positive"
+  else if logical_width <= 0 || logical_height <= 0 then Error "logical dimensions must be positive"
   else
-    Ok { max_events; events = Queue.create (); pointer = (0., 0.);
-      mouse_delta = (0., 0.); wheel_delta = (0., 0.); buttons = []; keys = [];
-      pointer_captured = false; logical_width; logical_height;
-      dropped_events = 0; relative = false }
+    Ok
+      {
+        max_events;
+        events = Queue.create ();
+        pointer = (0., 0.);
+        mouse_delta = (0., 0.);
+        wheel_delta = (0., 0.);
+        buttons = [];
+        keys = [];
+        pointer_captured = false;
+        logical_width;
+        logical_height;
+        dropped_events = 0;
+        relative = false;
+      }
 
-let add_unique value values =
-  if List.mem value values then values else values @ [ value ]
-
+let add_unique value values = if List.mem value values then values else values @ [ value ]
 let remove value values = List.filter (( <> ) value) values
 
 let apply value = function
@@ -68,8 +76,7 @@ let apply value = function
       let old_x, old_y = value.pointer in
       let dx, dy = value.mouse_delta in
       value.pointer <- (x, y);
-      if not value.relative then
-        value.mouse_delta <- (dx +. x -. old_x, dy +. y -. old_y)
+      if not value.relative then value.mouse_delta <- (dx +. x -. old_x, dy +. y -. old_y)
   | Pointer_pressed (button, x, y) ->
       value.pointer <- (x, y);
       value.buttons <- add_unique button value.buttons;
@@ -90,8 +97,8 @@ let apply value = function
   | Resized (width, height) ->
       value.logical_width <- width;
       value.logical_height <- height
-  | Text_input _ | Text_editing _ | File_dropped _ | Focus_gained
-  | Visibility_changed _ | Quit -> ()
+  | Text_input _ | Text_editing _ | File_dropped _ | Focus_gained | Visibility_changed _ | Quit ->
+      ()
 
 let push value event =
   match event with
@@ -118,15 +125,15 @@ let relative value = value.relative
 
 let add_motion value ~dx ~dy =
   if value.relative then
-    let x, y = value.mouse_delta in value.mouse_delta <- (x +. dx, y +. dy)
+    let x, y = value.mouse_delta in
+    value.mouse_delta <- (x +. dx, y +. dy)
 
 let begin_frame value =
   value.mouse_delta <- (0., 0.);
   value.wheel_delta <- (0., 0.)
 
 let set_extent value ~logical_width ~logical_height =
-  if logical_width <= 0 || logical_height <= 0 then
-    Error "logical dimensions must be positive"
+  if logical_width <= 0 || logical_height <= 0 then Error "logical dimensions must be positive"
   else begin
     value.logical_width <- logical_width;
     value.logical_height <- logical_height;
@@ -134,10 +141,16 @@ let set_extent value ~logical_width ~logical_height =
   end
 
 let snapshot value =
-  { pointer = value.pointer; mouse_delta = value.mouse_delta;
-    wheel_delta = value.wheel_delta; buttons = value.buttons; keys = value.keys;
+  {
+    pointer = value.pointer;
+    mouse_delta = value.mouse_delta;
+    wheel_delta = value.wheel_delta;
+    buttons = value.buttons;
+    keys = value.keys;
     pointer_captured = value.pointer_captured;
-    logical_width = value.logical_width; logical_height = value.logical_height;
-    dropped_events = value.dropped_events }
+    logical_width = value.logical_width;
+    logical_height = value.logical_height;
+    dropped_events = value.dropped_events;
+  }
 
 let queued_count value = Queue.length value.events
