@@ -873,28 +873,7 @@ let set_ui_cursor ui visible =
     | None -> `Default in
   match Sketch.set_cursor shape with Ok () -> () | Error error -> failwith error
 
-module Environment3 = struct
-  type nonrec layout = layout
-  let default_layout = default_layout
-
-  type 'prepared t = {
-    core : 'prepared Core.t;
-    camera : Easy_camera.t;
-    camera_control : CC.t;
-    scene3 : Graph.t -> 'prepared -> Scene3.t;
-    overlay : Graph.t -> 'prepared option -> Frame.t -> Scene.t;
-    rendered : Scene3.t option;
-    render_status : string option;
-    pending_render : CC.render_request option;
-    background : Color.t;
-    look_through : bool;
-    fly : float option;  (* flying at this speed, with relative pointer *)
-    (* The active camera node's view, refreshed each update. *)
-    render_camera : Camera.t;
-    mutable hidden_scene_cache :
-      (Scene3.t, Camera.t) Environment.hidden_scene_cache option;
-  }
-
+module Viewport3 = struct
   (* ---- camera nodes: SOPs with operation "camera" (Sop_catalog.Camera). *)
 
   let camera_ids document = Edit_graph.inspect document
@@ -935,6 +914,11 @@ module Environment3 = struct
               (("follow_viewport", Parameter.Bool_value true) :: view_parameters easy) in
           Ok document)
 
+  let seed_document easy factories document =
+    if camera_ids document <> [] then document
+    else Option.value ~default:document
+        (add_default_camera ~factories document easy)
+
   (* One ACTIVE camera whenever any exists; losing the last one re-adds the
      default within the same undo entry. *)
   let sync_cameras ~mode (core : _ Core.t) easy =
@@ -953,6 +937,65 @@ module Environment3 = struct
     | Some node -> Option.value (node_camera node) ~default:(Easy_camera.camera easy)
     | None -> Easy_camera.camera easy
 
+  let navigate ~control_area ~control ~camera ~raw_frame ~input ~fly
+      ~look_through ~active =
+    let following = Option.fold ~none:false ~some:follows active in
+    (* A fixed render camera owns the view while look-through is enabled. *)
+    if look_through && active <> None && not following then camera, fly
+    else match fly with
+      | Some speed ->
+          let camera, speed = Easy_camera.fly ~speed camera raw_frame in
+          camera, Some speed
+      | None -> CC.navigate ~control_area control camera input, None
+
+  (* Follow-viewport motion changes the camera node in the same undo burst;
+     node edits and undo pull the viewport back to the document. *)
+  let on_view ~active ~previous ~core ~camera ~time =
+    match active with
+    | Some node when follows node ->
+        let moved = not (same_view (Easy_camera.camera previous)
+            (Easy_camera.camera camera)) in
+        (match node_camera node with
+         | Some node_view when moved || not (same_view node_view (Easy_camera.camera camera)) ->
+             if moved then
+               match Edit_graph.apply_parameters core.Core.document ~node_id:(Node.id node)
+                   (view_parameters camera) with
+               | Ok (document, _) ->
+                   Core.environment_edit core (`View time) document, camera
+               | Error _ -> core, camera
+             else core,
+               (match Camera.projection node_view with
+                | Perspective { fov_y; _ } -> Easy_camera.with_fov_y fov_y camera
+                | _ -> camera)
+               |> Easy_camera.of_view ~eye:(Camera.position node_view)
+                    ~target:(Camera.target node_view)
+         | Some _ | None -> core, camera)
+    | Some _ | None -> core, camera
+end
+
+module Environment3 = struct
+  open Viewport3
+  type nonrec layout = layout
+  let default_layout = default_layout
+
+  type 'prepared t = {
+    core : 'prepared Core.t;
+    camera : Easy_camera.t;
+    camera_control : CC.t;
+    scene3 : Graph.t -> 'prepared -> Scene3.t;
+    overlay : Graph.t -> 'prepared option -> Frame.t -> Scene.t;
+    rendered : Scene3.t option;
+    render_status : string option;
+    pending_render : CC.render_request option;
+    background : Color.t;
+    look_through : bool;
+    fly : float option;  (* flying at this speed, with relative pointer *)
+    (* The active camera node's view, refreshed each update. *)
+    render_camera : Camera.t;
+    mutable hidden_scene_cache :
+      (Scene3.t, Camera.t) Environment.hidden_scene_cache option;
+  }
+
   let create ?(layout = default_layout) ?name ?presets ?timeline_frames ?factories
       ?(camera = Easy_camera.create ~target:Vec3.zero ~distance:7. ())
       ?(background = Color.hex_exn "#09090b") ?seed ?grain ?domains
@@ -965,10 +1008,7 @@ module Environment3 = struct
         background; look_through = false; fly = None;
         render_camera = render_camera_of core camera; hidden_scene_cache = None })
       (Core.create ~keymap:Leader.keymap3
-        ~seed_document:(fun factories document ->
-          if camera_ids document <> [] then document
-          else Option.value ~default:document
-              (add_default_camera ~factories document camera))
+        ~seed_document:(Viewport3.seed_document camera)
         ~layout ?name ?presets ?timeline_frames ?factories ?seed
         ?grain ?domains ?max_entries ?max_payload_bytes ~graph ~prepare ())
 
@@ -1040,42 +1080,16 @@ module Environment3 = struct
            = Pxui_graph.flagged value.core.graph_view
       then core else sync_cameras ~mode:`Amend core camera in
     let active = active_node core in
-    let following = Option.fold ~none:false ~some:follows active in
-    (* Looking through a camera that does not follow the viewport freezes
-       orbit input: the view shows exactly the render camera. *)
     let control_area = if visible then panes.view
       else 0, 0, frame.Frame.width, frame.height in
-    let camera, fly = match fly with
-      | _ when look_through && active <> None && not following -> camera, fly
-      | Some speed ->
-          let camera, speed = Easy_camera.fly ~speed camera raw_frame in camera, Some speed
-      | None -> CC.navigate ~control_area control camera update.input, None in
+    let camera, fly = Viewport3.navigate ~control_area ~control ~camera
+        ~raw_frame ~input:update.input ~fly ~look_through ~active in
     let camera, render_status = match update.framed with
       | Some (Some (min, max)) -> Easy_camera.frame_bounds ~min ~max camera, render_status
       | Some None -> camera, Some "Nothing to frame: no cooked points"
       | None -> camera, render_status in
-    (* Follow viewport: viewport motion writes the node (one coalesced undo
-       entry per gesture); otherwise node edits and undo move the viewport. *)
-    let core, camera = match active with
-      | Some node when following ->
-          let moved = not (same_view (Easy_camera.camera value.camera)
-              (Easy_camera.camera camera)) in
-          (match node_camera node with
-           | Some node_view when moved || not (same_view node_view (Easy_camera.camera camera)) ->
-               if moved then
-                 match Edit_graph.apply_parameters core.document ~node_id:(Node.id node)
-                     (view_parameters camera) with
-                 | Ok (document, _) ->
-                     Core.environment_edit core (`View frame.Frame.time) document, camera
-                 | Error _ -> core, camera
-               else core,
-                 (match Camera.projection node_view with
-                  | Perspective { fov_y; _ } -> Easy_camera.with_fov_y fov_y camera
-                  | _ -> camera)
-                 |> Easy_camera.of_view ~eye:(Camera.position node_view)
-                      ~target:(Camera.target node_view)
-           | Some _ | None -> core, camera)
-      | Some _ | None -> core, camera in
+    let core, camera = Viewport3.on_view ~active ~previous:value.camera
+        ~core ~camera ~time:frame.Frame.time in
     let rendered = if update.prepared_changed || update.effects.view
         || update.effects.export then
         Option.map (value.scene3 (Core.displayed_node core)) (Core.prepared core)
