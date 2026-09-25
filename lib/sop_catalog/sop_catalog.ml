@@ -9430,27 +9430,6 @@ module Set_color = struct
       ~inputs:[input] parameters_default
 end [@@sop.register]
 
-module Rename_attribute = struct
-  type parameters = {
-    owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
-      [@sop.label "Owner"] [@sop.kind attribute_owner_parameter];
-    from : string [@sop.default "value"] [@sop.label "From"];
-    into : string [@sop.default "renamed"] [@sop.label "To"];
-  } [@@sop.node_key "rename_attribute"] [@@sop.node_label "Rename Attribute"]
-    [@@sop.node_category "Attribute/Manage"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.rename_attribute ~label ~owner:parameters.owner
-        ~from:parameters.from ~into:parameters.into input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Rename_attribute expects one input"
-  let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "rename-attribute" node_label) ~inputs:[input]
-      parameters_default
-end [@@sop.register]
-
 module Rest_position = struct
   let mode_parameter = Parameter.choice ~equal:( = ) [
       "Store", Pdk.Motion.Store_rest; "Extract", Pdk.Motion.Extract_rest;

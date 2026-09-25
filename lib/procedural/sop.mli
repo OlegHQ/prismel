@@ -1751,9 +1751,6 @@ val set_transform : ?label:string -> Prismel.Mat4.t -> Node.t -> Node.t
 val set_color :
   ?label:string -> owner:Pdk.Attribute.owner -> Prismel.Color.t ->
   Node.t -> Node.t
-val rename_attribute :
-  ?label:string -> owner:Pdk.Attribute.owner -> from:string -> into:string ->
-  Node.t -> Node.t
 (* Delete or keep ordinary attributes with owner-specific compiled patterns.
     Optional reference geometry prepends its attribute names to each owner
     selection, matching Attribute Delete SOP reference semantics. *)

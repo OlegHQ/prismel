@@ -491,6 +491,8 @@ input rather than an internal file-loader boundary.
 `Procedural.Sop.delete_attributes` is the attribute removal entry point. Its
 owner-specific patterns can select one literal name or multiple names; the
 editor exposes the same operation as `Delete Attributes`.
+`Procedural.Sop.rename_attributes` applies ordered owner-scoped pattern rules,
+including a single exact name, with an explicit destination conflict policy.
 `Procedural.Sop.bound` creates a bounding box with its default shape; use
 equal lower and upper padding for symmetric expansion. The editor exposes the
 same operation as `Bound`.

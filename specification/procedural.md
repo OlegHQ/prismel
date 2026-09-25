@@ -26,6 +26,9 @@ HDK vocabulary remains available in the expert PDK namespace.
 Use `Sop.delete_attributes ~point_pattern:"tint"` to delete one point
 attribute, or set patterns for several owners in one node. The editor uses the
 same `Delete Attributes` node; the old single-name node is removed.
+`Sop.rename_attributes ~rules:[...]` handles exact names and wildcard
+captures with owner and conflict rules; an unmatched rule leaves geometry
+unchanged. The editor uses `Rename Attributes`.
 Use `Sop.group_rename ~rules:[...]` for owner-scoped or multiple group renames;
 the editor exposes the same rule-based `Group Rename` node.
 

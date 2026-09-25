@@ -5656,16 +5656,6 @@ let set_color ?label ~owner value input =
       (Pdk.Packed.Float4.of_owned ~x:(Array.make count r) ~y:(Array.make count g)
         ~z:(Array.make count b) ~w:(Array.make count a))) input
 
-let rename_attribute ?label ~owner ~from ~into input =
-  Node.Private.make ?label ~operation:"rename_attribute" ~version:1
-    ~parameters:(Printf.sprintf "owner=%s;from=%S;into=%S"
-      (attribute_owner_key owner) from into)
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
-      match Pdk.Geometry.rename_attribute ~owner ~from ~into inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error message -> pdk_error "rename_attribute" message)
-
 let validate_attribute_pattern operation = function
   | None -> ()
   | Some value when String.trim value = "" -> ()

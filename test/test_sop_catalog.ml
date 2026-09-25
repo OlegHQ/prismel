@@ -148,8 +148,8 @@ let run () =
   Session.close session;
   let factory_keys = List.map Edit_graph.factory_key
       Sop_catalog.Editor.factories in
-  check (List.length factory_keys = 157
-      && List.length (List.sort_uniq String.compare factory_keys) = 157)
+  check (List.length factory_keys = 156
+      && List.length (List.sort_uniq String.compare factory_keys) = 156)
     "PPX SOP manifest has a missing or duplicate factory key";
   check (not (List.mem "delete_attribute" factory_keys))
     "duplicate Delete Attribute factory remains registered";
@@ -157,6 +157,8 @@ let run () =
     "duplicate Bounding Box factory remains registered";
   check (not (List.mem "rename_group" factory_keys))
     "duplicate Rename Group factory remains registered";
+  check (not (List.mem "rename_attribute" factory_keys))
+    "duplicate Rename Attribute factory remains registered";
   List.iter (fun key -> check (List.mem key factory_keys)
       ("SOP editor catalog is missing " ^ key))
     ["box"; "grid"; "platonic"; "points"; "switch";
@@ -198,7 +200,6 @@ let run () =
       ("SOP editor attribute catalog is missing " ^ key))
     ["measure"; "connectivity"; "set_float"; "set_int"; "set_vector";
      "set_orient"; "set_transform"; "set_color";
-     "rename_attribute";
      "rest_position"; "enumerate"; "attribute_blur"];
   List.iter (fun key -> check (List.mem key factory_keys)
       ("SOP editor UV catalog is missing " ^ key))

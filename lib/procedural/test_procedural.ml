@@ -3027,7 +3027,11 @@ let test_generators_selections_and_delete () =
            (Vec3.create 1. 2. 1.)
       |> Sop.set_orient (Quat.axis_angle ~axis:Vec3.unit_y 0.5)
       |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#f97316")
-      |> Sop.rename_attribute ~owner:Pdk.Attribute.Point ~from:"Cd" ~into:"tint"
+      |> Sop.rename_attributes ~rules:[{
+           Pdk.Attribute_ops.rename_attribute_owner = Some Pdk.Attribute.Point;
+           rename_attribute_pattern = "Cd";
+           rename_attribute_replacement = "tint";
+           rename_attribute_conflict = Pdk.Attribute_ops.Attribute_rename_error }]
       |> Sop.delete_attributes ~point_pattern:"tint"
       |> cook_ok evaluator current in
   check (Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point "pscale"

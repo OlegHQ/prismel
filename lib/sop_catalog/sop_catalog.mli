@@ -729,10 +729,6 @@ module Set_color : sig
   val create : ?label:string -> Procedural.Node.t -> Procedural.Node.t
 end
 
-module Rename_attribute : sig
-  val create : ?label:string -> Procedural.Node.t -> Procedural.Node.t
-end
-
 module Rest_position : sig
   val create : ?label:string -> ?reference:Procedural.Node.t ->
     Procedural.Node.t -> Procedural.Node.t
