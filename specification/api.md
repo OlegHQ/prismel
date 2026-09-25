@@ -639,8 +639,12 @@ The leader-key panel is `Pxui_shell.Which_key`; the sketch host supplies its
 bindings and focused-pane name. `Pxui_shell.Status_bar` paints the common kit
 strip from host-provided status text, FPS, and pane bounds.
 `Pxui_shell.Layout` computes the standard 45/35/20 pane geometry, and
-`Pxui_shell.Chrome` builds its headers and splitters; `Sketch_ui.Private.Workspace`
+`Pxui_shell.Chrome` builds its headers, splitters, and focus outline;
+`Sketch_ui.Private.Workspace`
 remains a compatibility facade for tests.
+`Pxui_shell.Timeline_bar` returns playback intents from display values, and
+`Pxui_shell.Prompt` builds name and search modals; the host interprets their
+results and performs file I/O after the frame.
 
 `Environment3` keeps camera nodes (`Sop_catalog.Camera`, operation `camera`)
 in the document: a default one following the viewport is added when the

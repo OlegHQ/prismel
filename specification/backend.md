@@ -38,9 +38,10 @@ rules and key routing. Sketch hosts use `Editor.History` and `Editor.Router`;
 `pxui_graph` exports editor bindings and graph commands without handling key
 events. `editor` depends on `prismel` for frame and event values, never on UI
 or geometry libraries. `pxui_shell` owns editor chrome over the shared PXUI
-handle; `Layout` computes pane geometry and `Chrome` handles standard splitters
-and headers. Its which-key panel reads generic editor bindings without depending
-on SOP or graph libraries. `sketch_ui` supplies the host binding table and focus.
+handle; `Layout` computes pane geometry and `Chrome` handles standard splitters,
+headers, and focus outline. Its which-key panel reads generic editor bindings, while its
+timeline and prompt widgets return requests without knowing about SOPs or
+presets. `sketch_ui` supplies bindings, focus, playback state, and preset data.
 OGPU's dormant Frame_graph, Descriptor_arena, Transfer_ring, Instance,
 Device_lifecycle, and Acceleration_pass modules have no production callers and
 are removed. Query validation stays in `Ogpu.Sync.resolve`; the redundant

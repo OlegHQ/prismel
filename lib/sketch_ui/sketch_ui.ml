@@ -47,7 +47,6 @@ let viewport_frame (x, y, width, height) (frame : Frame.t) =
 module Workspace = struct
   include Pxui_shell.Layout
   let update = Pxui_shell.Chrome.update
-  let floating = Pxui_shell.Chrome.floating
 end
 
 module Leader = struct
@@ -352,8 +351,8 @@ module Core = struct
   type prompt_intent = Save_preset_file of string | Load_preset_file of string
     | Delete_preset_file of { name : string; query : string }
 
-  type timeline_intent = Pause_toggle | Stop_playback | Reset_playback
-    | Seek_playback of int64
+  type timeline_intent = Pxui_shell.Timeline_bar.intent =
+    Pause_toggle | Stop_playback | Reset_playback | Seek_playback of int64
 
   type 'panel frame_result = {
     workspace : Workspace.t;
@@ -581,29 +580,6 @@ module Core = struct
       | _ -> graph_view, changes) (graph_view, []) actions in
     (* ponytail: seeking recooks the pure graph at the target frame; state a
        sketch threads through [run_state] outside the graph is not replayed. *)
-    let timeline_bar ui (x, y, width, height) timeline =
-      let module T = Sketch_support.Timeline in
-      let module Ui = Pxui.Ui in
-      Ui.panel ui ~x:(float_of_int x) ~y:(float_of_int y) ~width:(float_of_int width)
-        ~max_height:(float_of_int height) "workspace-timeline" (fun () ->
-        Ui.row ui ~gap:6. "timeline-row" (fun () ->
-          let pause = Ui.button ui (if T.mode timeline = T.Playing then "Pause###timeline-play"
-            else "Play###timeline-play") in
-          let stop = Ui.button ui "Stop###timeline-stop" in
-          let reset = Ui.button ui "Reset###timeline-reset" in
-          let frame = T.frame timeline in
-          Ui.label ui (Printf.sprintf "f %Ld  %.2fs###timeline-readout" frame
-            (T.time timeline));
-          let range = Float.max (Int64.to_float frame) (float_of_int value.timeline_frames) in
-          let scrub = Ui.slider ui "Frame###timeline-scrub" ~range:(0., range)
-            (Int64.to_float frame) in
-          List.filter_map Fun.id [
-            (if pause then Some Pause_toggle else None);
-            (if stop then Some Stop_playback else None);
-            (if reset then Some Reset_playback else None);
-            (if scrub <> Int64.to_float frame
-              then Some (Seek_playback (Int64.of_float (Float.round scrub)))
-              else None)])) in
     let initial_frame_request = if List.mem Leader.Frame_camera actions
       then Pxui_graph.selected graph_view else None in
     let build ui =
@@ -651,18 +627,16 @@ module Core = struct
                      Some message
                  | Ok document -> None, Some inspector, document, effects, edit_error) in
       let timeline_intents = if Workspace.collapsed workspace Workspace.Timeline
-        then [] else timeline_bar ui panes.timeline timeline in
+        then [] else Pxui_shell.Timeline_bar.draw ui ~bounds:panes.timeline
+          ~playing:(Sketch_support.Timeline.mode timeline = Sketch_support.Timeline.Playing)
+          ~frame:(Sketch_support.Timeline.frame timeline)
+          ~time:(Sketch_support.Timeline.time timeline)
+          ~max_frame:value.timeline_frames in
       (* The focused pane's accent outline. *)
-      let theme = Pxui.Ui.theme ui in
       let bounds = match focus with
         | Workspace.View -> panes.view | Graph -> panes.graph
         | Inspector -> panes.inspector | Timeline -> panes.timeline in
-      let x, y, w, h = bounds in
-      if w > 2 && h > 2 then
-        Pxui.Ui.draw ui (Workspace.floating ui bounds "workspace-focus")
-          (fun paint _ -> Pxui.Ui.Paint.stroke paint ~x:(float_of_int x +. 0.5)
-            ~y:(float_of_int y +. 0.5) ~w:(float_of_int (w - 1))
-            ~h:(float_of_int (h - 1)) ~width:1. theme.accent);
+      Pxui_shell.Chrome.focus ui ~bounds;
       { workspace; graph_view; document; edit_error; inspector;
         effects = Parameter.union_effects editor_effects parameter_effects;
         timeline_intents; frame_request; prompt = None; prompt_intent = None;
@@ -683,9 +657,8 @@ module Core = struct
       let next = match prompt with
       | None -> None, None
       | Some (Saving name) ->
-          (match Ui.modal ui ~width:360. "preset-save" (fun () ->
-              Ui.label ui "Save preset";
-              Ui.picker ui "Preset name" ~query:name (fun _ -> [||])) with
+          (match Pxui_shell.Prompt.name ui ~key:"preset-save"
+              ~title:"Save preset" ~label:"Preset name" ~query:name with
            | None | Some (_, `Cancel) -> None, None
            | Some (name, `Submit) -> None, Some (Save_preset_file name)
            | Some (name, _) -> Some (Saving name), None)
@@ -695,9 +668,9 @@ module Core = struct
               let tm = Unix.localtime time in
               name, Printf.sprintf "%02d-%02d %02d:%02d" (tm.tm_mon + 1) tm.tm_mday
                 tm.tm_hour tm.tm_min) |> Array.of_list in
-          (match Ui.modal ui ~width:420. "preset-browse" (fun () ->
-              Ui.label ui (Printf.sprintf "Presets · %d" (List.length presets));
-              Ui.picker ui "Search presets" ~query rows) with
+          (match Pxui_shell.Prompt.search ui ~key:"preset-browse"
+              ~title:(Printf.sprintf "Presets · %d" (List.length presets))
+              ~label:"Search presets" ~query ~rows with
            | None | Some (_, `Cancel) -> None, None
            | Some (query, `Pick index) ->
                let name = fst (rows query).(index) in

@@ -52,4 +52,14 @@ let () =
     failwith "focused leader bindings were not drawn";
   if status_instances 28 <= 0 || status_instances 0 <> 0 then
     failwith "status strip visibility or drawing failed";
+  let ui = Pxui.Ui.create () in
+  let intents = Pxui.Ui.frame ui frame (fun ui ->
+    Pxui_shell.Timeline_bar.draw ui ~bounds:(0, 270, 400, 30)
+      ~playing:false ~frame:12L ~time:0.2 ~max_frame:240) in
+  if intents <> [] then failwith "idle timeline emitted a playback request";
+  let query = Pxui.Ui.frame ui frame (fun ui ->
+    Pxui_shell.Prompt.name ui ~key:"name" ~title:"Save" ~label:"Name"
+      ~query:"draft") in
+  if query <> Some ("draft", `None) then
+    failwith "name prompt lost its initial query";
   print_endline "pxui shell tests passed"

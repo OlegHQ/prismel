@@ -288,6 +288,16 @@ module Chrome = struct
           ~size:11 ~color:theme.accent glyph))
       [view_header; graph_header; inspector_header];
     value
+
+  let focus ui ~bounds:(x, y, width, height) =
+    if width > 2 && height > 2 then begin
+      let theme = Pxui.Ui.theme ui in
+      Pxui.Ui.draw ui (floating ui (x, y, width, height) "workspace-focus")
+        (fun paint _ -> Pxui.Ui.Paint.stroke paint
+          ~x:(float_of_int x +. 0.5) ~y:(float_of_int y +. 0.5)
+          ~w:(float_of_int (width - 1)) ~h:(float_of_int (height - 1))
+          ~width:1. theme.accent)
+    end
 end
 
 module Which_key = struct
@@ -341,4 +351,43 @@ module Status_bar = struct
           ~at:(fst at +. Ui.Paint.text_width paint ~size:11 text, snd at)
           ~size:11 ~color:theme.input fps)
     end
+end
+
+module Timeline_bar = struct
+  type intent = Pause_toggle | Stop_playback | Reset_playback
+    | Seek_playback of int64
+
+  let draw ui ~bounds:(x, y, width, height) ~playing ~frame ~time ~max_frame =
+    let module Ui = Pxui.Ui in
+    Ui.panel ui ~x:(float_of_int x) ~y:(float_of_int y)
+      ~width:(float_of_int width) ~max_height:(float_of_int height)
+      "workspace-timeline" (fun () ->
+      Ui.row ui ~gap:6. "timeline-row" (fun () ->
+        let pause = Ui.button ui (if playing then "Pause###timeline-play"
+          else "Play###timeline-play") in
+        let stop = Ui.button ui "Stop###timeline-stop" in
+        let reset = Ui.button ui "Reset###timeline-reset" in
+        Ui.label ui (Printf.sprintf "f %Ld  %.2fs###timeline-readout" frame time);
+        let range = Float.max (Int64.to_float frame) (float_of_int max_frame) in
+        let scrub = Ui.slider ui "Frame###timeline-scrub" ~range:(0., range)
+          (Int64.to_float frame) in
+        List.filter_map Fun.id [
+          (if pause then Some Pause_toggle else None);
+          (if stop then Some Stop_playback else None);
+          (if reset then Some Reset_playback else None);
+          (if scrub <> Int64.to_float frame
+            then Some (Seek_playback (Int64.of_float (Float.round scrub)))
+            else None)]))
+end
+
+module Prompt = struct
+  let name ui ~key ~title ~label ~query =
+    Pxui.Ui.modal ui ~width:360. key (fun () ->
+      Pxui.Ui.label ui title;
+      Pxui.Ui.picker ui label ~query (fun _ -> [||]))
+
+  let search ui ~key ~title ~label ~query ~rows =
+    Pxui.Ui.modal ui ~width:420. key (fun () ->
+      Pxui.Ui.label ui title;
+      Pxui.Ui.picker ui label ~query rows)
 end

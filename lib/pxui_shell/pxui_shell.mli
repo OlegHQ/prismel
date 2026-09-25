@@ -43,6 +43,7 @@ module Chrome : sig
   val update : Layout.t -> Pxui.Ui.t -> Prismel.Frame.t -> Layout.t
   val floating : Pxui.Ui.t -> ?flags:Pxui.Ui.flags -> Layout.bounds -> string ->
     Pxui.Ui.box
+  val focus : Pxui.Ui.t -> bounds:Layout.bounds -> unit
 end
 
 module Which_key : sig
@@ -55,4 +56,22 @@ module Status_bar : sig
   val draw : Pxui.Ui.t -> bounds:(int * int * int * int) ->
     text:string -> fps:int option -> unit
   (** Paint the standard status strip in logical-point bounds. *)
+end
+
+module Timeline_bar : sig
+  type intent = Pause_toggle | Stop_playback | Reset_playback
+    | Seek_playback of int64
+
+  val draw : Pxui.Ui.t -> bounds:(int * int * int * int) -> playing:bool ->
+    frame:int64 -> time:float -> max_frame:int -> intent list
+  (** Draw timeline controls and return playback requests. *)
+end
+
+module Prompt : sig
+  val name : Pxui.Ui.t -> key:string -> title:string -> label:string ->
+    query:string -> (string * Pxui.Ui.pick) option
+  val search : Pxui.Ui.t -> key:string -> title:string -> label:string ->
+    query:string -> rows:(string -> (string * string) array) ->
+    (string * Pxui.Ui.pick) option
+  (** Standard name and searchable-picker modals; hosts interpret the result. *)
 end
