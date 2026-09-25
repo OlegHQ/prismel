@@ -641,9 +641,9 @@ module Core = struct
         effects = Parameter.union_effects editor_effects parameter_effects;
         timeline_intents; frame_request; prompt = None; prompt_intent = None;
         panel } in
-    let leader_panel ui = if leader = Leader.Pending then
-        Pxui_shell.Which_key.panel ui keymap ~focus
-          ~focus_name:(Leader.pane_name focus) in
+    let leader_panel = if leader = Leader.Pending then Some (fun ui ->
+      Pxui_shell.Which_key.panel ui keymap ~focus
+        ~focus_name:(Leader.pane_name focus)) else None in
     (* Presets: Space s names and saves the document, Space b browses, loads
        (Enter), and deletes (Delete twice). A load replaces the document below
        as one undo entry. *)
@@ -683,24 +683,22 @@ module Core = struct
       (* A closed prompt must not keep keyboard focus into the next frame. *)
       if fst next = None && value.prompt <> None then Ui.unfocus ui;
       next in
-    let result =
-      if all_ui_visible then
-        Pxui.Ui.frame value.ui frame (fun ui ->
+    let result = match Pxui_shell.Shell.frame value.ui frame
+        ~visible:all_ui_visible ~overlay:leader_panel
+        ~body:(fun ui ->
           let result = build ui in
           status_box { value with workspace = result.workspace;
               status_fps } ui frame
             ~render_status;
           let prompt, prompt_intent = prompt_panel ui initial_prompt in
-          leader_panel ui;
-          { result with prompt; prompt_intent })
-      else begin
-        if leader = Leader.Pending then Pxui.Ui.frame value.ui frame leader_panel;
+          { result with prompt; prompt_intent }) with
+      | Some result -> result
+      | None ->
         { workspace; graph_view; document = value.document;
           edit_error = value.edit_error; inspector = value.inspector;
           effects = Parameter.no_effects; timeline_intents = [];
           frame_request = initial_frame_request; prompt = initial_prompt;
-          prompt_intent = None; panel = None }
-      end in
+          prompt_intent = None; panel = None } in
     let timeline, timeline_changes = List.fold_left (fun (timeline, changes) intent ->
       let next, emitted = match intent with
         | Pause_toggle -> Sketch_support.Timeline.toggle_pause timeline

@@ -75,3 +75,9 @@ module Prompt : sig
     (string * Pxui.Ui.pick) option
   (** Standard name and searchable-picker modals; hosts interpret the result. *)
 end
+
+module Shell : sig
+  val frame : Pxui.Ui.t -> Prismel.Frame.t -> visible:bool ->
+    body:(Pxui.Ui.t -> 'a) -> overlay:(Pxui.Ui.t -> unit) option -> 'a option
+  (** Build editor content when visible, and a pending overlay when hidden. *)
+end

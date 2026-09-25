@@ -62,4 +62,18 @@ let () =
       ~query:"draft") in
   if query <> Some ("draft", `None) then
     failwith "name prompt lost its initial query";
+  let shell = Pxui.Ui.create () in
+  if Pxui_shell.Shell.frame shell frame ~visible:false
+      ~body:(fun _ -> 7) ~overlay:None <> None then
+    failwith "hidden shell built editor content";
+  if Pxui_shell.Shell.frame shell frame ~visible:true
+      ~body:(fun _ -> 7) ~overlay:None <> Some 7 then
+    failwith "visible shell lost editor result";
+  let hidden = Pxui.Ui.create () in
+  ignore (Pxui_shell.Shell.frame hidden frame ~visible:false
+    ~body:(fun _ -> ())
+    ~overlay:(Some (fun ui -> Pxui_shell.Status_bar.draw ui
+      ~bounds:(0, 272, 400, 28) ~text:"Overlay" ~fps:None)));
+  if Pxui.Ui.scene hidden = [] then
+    failwith "hidden shell did not draw its pending overlay";
   print_endline "pxui shell tests passed"

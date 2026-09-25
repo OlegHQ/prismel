@@ -32,7 +32,7 @@ when behavior or architecture changes materially.
 | `sop_catalog` | Inspectable SOP constructors registered by PPX |
 | `editor` | Pure shared editor state, starting with bounded history |
 | `pxui` | The one immediate-mode UI engine (`Pxui.Ui`) |
-| `pxui_shell` | Editor chrome over PXUI; layout, headers, keys, status, timeline, prompts |
+| `pxui_shell` | Editor chrome over PXUI; layout, headers, keys, status, timeline, prompts, frame |
 | `pxui_graph` | SOP-network presentation; emits typed requests, never edits |
 | `sop_ui` | Renders a node's typed parameter template through PXUI |
 | `sketch_support` | Target-neutral sketch helpers (reactive cooks, packed pieces) |

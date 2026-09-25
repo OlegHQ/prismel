@@ -645,6 +645,8 @@ remains a compatibility facade for tests.
 `Pxui_shell.Timeline_bar` returns playback intents from display values, and
 `Pxui_shell.Prompt` builds name and search modals; the host interprets their
 results and performs file I/O after the frame.
+`Pxui_shell.Shell.frame` is the sketch workspace's `Ui.frame` caller for both
+normal chrome and a pending leader overlay while the rest of the UI is hidden.
 
 `Environment3` keeps camera nodes (`Sop_catalog.Camera`, operation `camera`)
 in the document: a default one following the viewport is added when the

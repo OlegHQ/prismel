@@ -391,3 +391,15 @@ module Prompt = struct
       Pxui.Ui.label ui title;
       Pxui.Ui.picker ui label ~query rows)
 end
+
+module Shell = struct
+  let frame ui frame ~visible ~body ~overlay =
+    if visible then Some (Pxui.Ui.frame ui frame (fun ui ->
+      let result = body ui in
+      Option.iter (fun draw -> draw ui) overlay;
+      result))
+    else begin
+      Option.iter (fun draw -> ignore (Pxui.Ui.frame ui frame draw)) overlay;
+      None
+    end
+end
