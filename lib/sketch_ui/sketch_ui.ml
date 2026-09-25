@@ -533,6 +533,7 @@ module Core = struct
 
   let update value ~all_ui_visible ~text_focus ~camera_panel ~render_status
       ~view_state (frame : Frame.t) =
+    let text_focus = text_focus || value.prompt <> None in
     let focus = if all_ui_visible then
         match Pxui.Ui.last_press_within value.ui frame
             (List.map fst value.pane_keys) with

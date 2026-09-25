@@ -617,6 +617,11 @@ let run () =
   let key k = Event.KeyPressed k in
   let environment = Sketch_ui.Environment3.update environment
       (frame ~events:[key Input.Space; key (Input.KeyChar 's')] 50) in
+  let graph_width = width (Sketch_ui.Environment3.panes environment (frame 50)).graph in
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[key Input.Space; key (Input.KeyChar 'g')] 50) in
+  check (width (Sketch_ui.Environment3.panes environment (frame 50)).graph
+      = graph_width) "open preset prompt let a workspace shortcut toggle the graph";
   let environment = Sketch_ui.Environment3.update environment
       (frame ~events:[key Input.Enter] 51) in
   check (List.length (Sketch_ui.Preset.list ~directory:presets) = 1)

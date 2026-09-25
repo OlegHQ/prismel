@@ -105,6 +105,7 @@ module Router = struct
 
   let step keymap ~focus ~text_focus ~(frame : Prismel.Frame.t) state =
     let open Prismel in
+    if text_focus then Idle, [], frame else
     let command = List.mem Input.Meta frame.keys || List.mem Input.Ctrl frame.keys in
     let state, actions, passed = List.fold_left (fun (state, actions, passed) event ->
       match state, event with

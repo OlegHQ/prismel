@@ -79,6 +79,11 @@ let () =
   let state, actions, passed = step ~text_focus:true Idle [Input.Space] in
   assert (state = Idle && actions = []
       && passed.events = [Event.KeyPressed Input.Space]);
+  let state, _, _ = step Idle [Input.Space] in
+  let state, actions, passed = step ~text_focus:true state
+      [Input.KeyChar 'g'] in
+  assert (state = Idle && actions = []
+      && passed.events = [Event.KeyPressed (Input.KeyChar 'g')]);
   let chord ?(focus = View) ?(text_focus = false) keys events =
     Editor.Router.step bindings ~focus ~text_focus
       ~frame:{ (frame events) with keys } Idle in
