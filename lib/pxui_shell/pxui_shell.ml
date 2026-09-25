@@ -44,19 +44,6 @@ module Layout = struct
     inspector_header : bounds;
   }
 
-  type geometry_cache = {
-    frame_width : int;
-    frame_height : int;
-    cached_view_ratio : float;
-    cached_graph_ratio : float;
-    cached_inspector_ratio : float;
-    cached_view_collapsed : bool;
-    cached_graph_collapsed : bool;
-    cached_inspector_collapsed : bool;
-    cached_timeline_collapsed : bool;
-    panes : panes;
-  }
-
   type splitter = First | Second
 
   (* Ratios and collapsed columns are model state; pointer capture for the
@@ -70,7 +57,6 @@ module Layout = struct
     graph_collapsed : bool;
     inspector_collapsed : bool;
     timeline_collapsed : bool;
-    mutable geometry_cache : geometry_cache option;
   }
 
   let validate (config : config) =
@@ -90,8 +76,7 @@ module Layout = struct
       graph_ratio = config.graph_ratio /. total;
       inspector_ratio = config.inspector_ratio /. total;
       view_collapsed = false; graph_collapsed = false;
-      inspector_collapsed = false; timeline_collapsed = true;
-      geometry_cache = None }
+      inspector_collapsed = false; timeline_collapsed = true }
 
   let collapsed value = function
     | View -> value.view_collapsed
@@ -159,50 +144,28 @@ module Layout = struct
     end;
     widths
 
+  (* ponytail: the layout has three columns, so recompute instead of mutating
+     a cache during Ui.frame; thread panes through the frame if this grows. *)
   let geometry value frame =
-    match value.geometry_cache with
-    | Some cached when cached.frame_width = frame.Frame.width
-        && cached.frame_height = frame.height
-        && cached.cached_view_ratio = value.view_ratio
-        && cached.cached_graph_ratio = value.graph_ratio
-        && cached.cached_inspector_ratio = value.inspector_ratio
-        && cached.cached_view_collapsed = value.view_collapsed
-        && cached.cached_graph_collapsed = value.graph_collapsed
-        && cached.cached_inspector_collapsed = value.inspector_collapsed
-        && cached.cached_timeline_collapsed = value.timeline_collapsed ->
-        cached.panes
-    | _ ->
-        let widths = distribute value frame.Frame.width in
-        let splitter = value.config.splitter_width in
-        let x0 = 0 and x1 = widths.(0) + splitter
-        and x2 = widths.(0) + splitter + widths.(1) + splitter in
-        let header = min value.config.header_height (max 0 (frame.height - 1)) in
-        let timeline = if value.timeline_collapsed then 0
-          else min timeline_height (max 0 (frame.height - header - 1)) in
-        let bottom = frame.height - timeline in
-        let content_height = max 1 (bottom - header) in
-        let status_height = min value.config.status_height
-            (max 0 (content_height - 1)) in
-        let panes =
-          { view = x0, header, widths.(0), content_height - status_height;
-            graph = x1, header, widths.(1), content_height;
-            inspector = x2, header, widths.(2), content_height;
-            status = x0, bottom - status_height, widths.(0), status_height;
-            timeline = 0, bottom, frame.width, timeline;
-            view_header = x0, 0, widths.(0), header;
-            graph_header = x1, 0, widths.(1), header;
-            inspector_header = x2, 0, widths.(2), header } in
-        value.geometry_cache <- Some
-          { frame_width = frame.width; frame_height = frame.height;
-            cached_view_ratio = value.view_ratio;
-            cached_graph_ratio = value.graph_ratio;
-            cached_inspector_ratio = value.inspector_ratio;
-            cached_view_collapsed = value.view_collapsed;
-            cached_graph_collapsed = value.graph_collapsed;
-            cached_inspector_collapsed = value.inspector_collapsed;
-            cached_timeline_collapsed = value.timeline_collapsed;
-            panes };
-        panes
+    let widths = distribute value frame.Frame.width in
+    let splitter = value.config.splitter_width in
+    let x0 = 0 and x1 = widths.(0) + splitter
+    and x2 = widths.(0) + splitter + widths.(1) + splitter in
+    let header = min value.config.header_height (max 0 (frame.height - 1)) in
+    let timeline = if value.timeline_collapsed then 0
+      else min timeline_height (max 0 (frame.height - header - 1)) in
+    let bottom = frame.height - timeline in
+    let content_height = max 1 (bottom - header) in
+    let status_height = min value.config.status_height
+        (max 0 (content_height - 1)) in
+    { view = x0, header, widths.(0), content_height - status_height;
+      graph = x1, header, widths.(1), content_height;
+      inspector = x2, header, widths.(2), content_height;
+      status = x0, bottom - status_height, widths.(0), status_height;
+      timeline = 0, bottom, frame.width, timeline;
+      view_header = x0, 0, widths.(0), header;
+      graph_header = x1, 0, widths.(1), header;
+      inspector_header = x2, 0, widths.(2), header }
 
   let splitter_bounds value frame =
     let panes = geometry value frame in

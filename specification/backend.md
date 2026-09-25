@@ -42,7 +42,8 @@ while passing Space through to arm the leader after fly exits.
 events. `editor` depends on `prismel` for frame and event values, never on UI
 or geometry libraries. `pxui_shell` owns editor chrome over the shared PXUI
 handle; `Layout` computes pane geometry and `Chrome` handles standard splitters,
-headers, and focus outline. Its which-key panel reads generic editor bindings, while its
+headers, and focus outline. Layout geometry is pure and has no mutable cache
+inside the PXUI frame. Its which-key panel reads generic editor bindings, while its
 timeline and prompt widgets return requests without knowing about SOPs or
 presets. `Shell.frame` owns the workspace's PXUI frame calls. `sketch_ui`
 supplies bindings, playback state, and preset data. PXUI hit ancestry reports

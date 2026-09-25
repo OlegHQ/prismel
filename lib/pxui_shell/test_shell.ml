@@ -94,4 +94,16 @@ let () =
       ~bounds:(0, 272, 400, 28) ~text:"Overlay" ~fps:None)));
   if Pxui.Ui.scene hidden = [] then
     failwith "hidden shell did not draw its pending overlay";
+  if Sys.getenv_opt "PRISMEL_BENCH_LAYOUT" = Some "1" then begin
+    let benchmark_frame = { frame with width = 1000; size = 1000, 300 } in
+    let start_alloc = Gc.allocated_bytes () and start = Sys.time () in
+    let width_sum = ref 0 in
+    for _ = 1 to 200_000 do
+      let panes = Pxui_shell.Layout.geometry layout benchmark_frame in
+      let _, _, width, _ = panes.view in
+      width_sum := !width_sum + width
+    done;
+    Printf.printf "layout geometry: %.4fs %.0f bytes %d\n%!"
+      (Sys.time () -. start) (Gc.allocated_bytes () -. start_alloc) !width_sum
+  end;
   print_endline "pxui shell tests passed"
