@@ -7,7 +7,7 @@ let baseline_relative =
 
 let stable_library_directories =
   [ "prismel"; "pdk"; "geom"; "procedural"; "pxui"; "pxui_graph"
-  ; "sop_catalog"; "sop_ui"; "sketch"; "sketch_ui"
+  ; "sop_catalog"; "sop_ui"; "sketch_support"; "sketch_ui"
   ]
 
 let mixed_legacy library module_name =

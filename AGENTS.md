@@ -33,7 +33,7 @@ when behavior or architecture changes materially.
 | `pxui` | The one immediate-mode UI engine (`Pxui.Ui`) |
 | `pxui_graph` | SOP-network presentation; emits typed requests, never edits |
 | `sop_ui` | Renders a node's typed parameter template through PXUI |
-| `sketch_support` (`lib/sketch`) | Target-neutral sketch helpers (reactive cooks, packed pieces) |
+| `sketch_support` | Target-neutral sketch helpers (reactive cooks, packed pieces) |
 | `sketch_ui` | The interactive sketch environment (`Environment3`/`2`) |
 
 `examples/<name>/` are short teaching programs; `sketches/<name>/` are

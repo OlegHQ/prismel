@@ -211,7 +211,8 @@ lib/pdk/              packed geometry/topology core
 lib/geom/             functional geometry adapters
 lib/procedural/       immutable SOP graphs
 lib/pxui*/            UI and graph presentation
-lib/sketch*/          reusable sketch environments
+lib/sketch_support/   target-neutral sketch helpers
+lib/sketch_ui/        interactive sketch environments
 lib/prismel_pathtracer/ Metal ray-tracing path tracer
 examples/             self-contained examples
 sketches/             experimental native applications
