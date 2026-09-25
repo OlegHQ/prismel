@@ -33,7 +33,8 @@ translation from the checked high-level GPU interface to typed Metal bindings;
 `metal` owns the safe Metal resource and command API. Prismel owns pure scene
 values and records rendering through the narrow GPU boundary; it never exposes
 native handles in its public API.
-The pure `editor` library owns bounded undo history and key routing; sketch
+The pure `editor` library owns bounded undo history with explicit edit merge
+rules and key routing; sketch
 hosts use `Editor.History` and `Editor.Router` directly. It depends on
 `prismel` for frame and event values, never on UI or geometry libraries.
 OGPU's dormant Frame_graph, Descriptor_arena, Transfer_ring, Instance,

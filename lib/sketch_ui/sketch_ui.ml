@@ -438,9 +438,6 @@ module Core = struct
     status_fps : int option;
     status_fps_at : float;
     history : Edit_graph.t Editor.History.t;
-    (* An inspector edit made while the primary button is held amends the
-       open undo entry instead of adding one per frame. *)
-    drag_edit : bool;
     (* Re-run [prepare] on the next update even when the graph is unchanged,
        for sketch-owned render modes that [prepare] reads. *)
     force_cook : bool;
@@ -448,8 +445,6 @@ module Core = struct
     leader : Leader.state;
     keymap : Leader.binding list;
     timeline_frames : int;
-    (* Time of the last coalescable environment view edit (follow viewport). *)
-    view_edit_at : float;
   }
 
   type 'prepared update = {
@@ -508,10 +503,9 @@ module Core = struct
           prepared = None; edit_error = None; cook_error = None;
           cook_seconds = None; status_fps = None;
           status_fps_at = Float.neg_infinity;
-          history = Editor.History.create document; drag_edit = false;
+          history = Editor.History.create document;
           force_cook = false; focus = Workspace.View; leader = Leader.Idle;
-          keymap; timeline_frames = max 1 timeline_frames;
-          view_edit_at = Float.neg_infinity })
+          keymap; timeline_frames = max 1 timeline_frames })
         (Sketch_support.Reactive_sop.create ~seed ~grain ?domains ~max_entries
           ~max_payload_bytes ())
 
@@ -927,10 +921,13 @@ module Core = struct
        paste, inspector commits) becomes one history entry; Command/Ctrl-Z
        undoes, Shift-Command/Ctrl-Z or Ctrl-Y redoes. *)
     let dragging = Frame.mouse_down Input.LeftButton frame in
-    let history, drag_edit =
-      if document == value.document then value.history, value.drag_edit && dragging
-      else if dragging && value.drag_edit then Editor.History.amend document value.history, true
-      else Editor.History.commit document value.history, dragging in
+    let history = if document == value.document then value.history
+      else Editor.History.record
+          ~merge:(if dragging then Gesture 0 else Step) document value.history in
+    let ended_gesture = Frame.has_event (function
+      | Event.MouseReleased (Input.LeftButton, _) | Event.WindowFocusLost -> true
+      | _ -> false) frame in
+    let history = if ended_gesture then Editor.History.seal history else history in
     let shortcut character = Frame.has_event (function
       | Event.KeyPressed (Input.KeyChar key) ->
           Char.lowercase_ascii key = character
@@ -942,7 +939,6 @@ module Core = struct
     let history, document, undone = match stepped with
       | Some history -> history, Editor.History.present history, true
       | None -> history, document, false in
-    let drag_edit = drag_edit && not undone in
     let inspector = if undone then None else inspector in
     let effects = if undone then Parameter.union_effects effects cook_effects
       else effects in
@@ -1010,11 +1006,9 @@ module Core = struct
                | Error _ -> Some None, framing) in
     { core = { value with graph; displayed_graph; document; graph_view; displayed_id;
         inspector; workspace; timeline; schedule; prepared; edit_error; cook_error;
-        cook_seconds; status_fps; status_fps_at; history; drag_edit;
+        cook_seconds; status_fps; status_fps_at; history;
         force_cook = force_next; focus; leader; displayed_bounds; framing; prompt;
-        notice = if document_changed && Option.is_none !loaded then None else notice;
-        view_edit_at = if document_changed then Float.neg_infinity
-          else value.view_edit_at };
+        notice = if document_changed && Option.is_none !loaded then None else notice };
       effects; prepared_changed; framed;
       loaded_view = Option.map (fun (preset : Preset.loaded) -> preset.view) !loaded;
       actions; input = frame }
@@ -1026,13 +1020,12 @@ module Core = struct
   let environment_edit value mode document =
     let history = match mode with
       | `Reset -> Editor.History.create document
-      | `Amend -> Editor.History.amend document value.history
-      | `View time when time -. value.view_edit_at < 0.25 ->
-          Editor.History.amend document value.history
-      | `View _ -> Editor.History.commit document value.history in
+      | `Amend -> Editor.History.record ~merge:Repair document value.history
+      | `View time -> Editor.History.record
+          ~merge:(Burst { key = "view"; at = time; window = 0.25 })
+          document value.history in
     { value with document; history;
-      graph_view = Pxui_graph.with_document document value.graph_view;
-      view_edit_at = (match mode with `View time -> time | _ -> value.view_edit_at) }
+      graph_view = Pxui_graph.with_document document value.graph_view }
 
   let machinery value ~all_ui_visible =
     if all_ui_visible || value.leader = Leader.Pending then Pxui.Ui.scene value.ui

@@ -1,9 +1,18 @@
 module History = struct
-  type 'a t = { past : 'a list; present : 'a; future : 'a list; capacity : int; depth : int }
+  type merge =
+    | Step
+    | Gesture of int
+    | Burst of { key : string; at : float; window : float }
+    | Repair
+
+  type 'a t = {
+    past : 'a list; present : 'a; future : 'a list;
+    capacity : int; depth : int; merge : merge option;
+  }
 
   let create ?(capacity = 64) present =
     if capacity < 1 then invalid_arg "Editor.History.create: capacity must be positive";
-    { past = []; present; future = []; capacity; depth = 0 }
+    { past = []; present; future = []; capacity; depth = 0; merge = None }
 
   let present t = t.present
   let can_undo t = t.past <> []
@@ -19,21 +28,35 @@ module History = struct
       let past, depth =
         if t.depth < t.capacity then past, t.depth + 1
         else List.filteri (fun index _ -> index < t.capacity) past, t.capacity in
-      { t with past; present = value; future = []; depth }
+      { t with past; present = value; future = []; depth; merge = None }
 
-  let amend value t = { t with present = value }
+  let amend value t =
+    if value == t.present then t else { t with present = value; future = [] }
+
+  let record ?(merge = Step) value t =
+    let continuation = match merge, t.merge with
+      | Repair, _ -> true
+      | Gesture id, Some (Gesture previous) -> id = previous
+      | Burst { key; at; window }, Some (Burst previous) ->
+          String.equal key previous.key && at >= previous.at
+          && at -. previous.at < window
+      | _ -> false in
+    let t = if continuation then amend value t else commit value t in
+    { t with merge = (if merge = Repair then t.merge else Some merge) }
+
+  let seal t = if t.merge = None then t else { t with merge = None }
 
   let undo t = match t.past with
     | [] -> None
     | previous :: past ->
         Some { t with past; present = previous; future = t.present :: t.future;
-               depth = t.depth - 1 }
+               depth = t.depth - 1; merge = None }
 
   let redo t = match t.future with
     | [] -> None
     | next :: future ->
         Some { t with past = t.present :: t.past; present = next; future;
-               depth = t.depth + 1 }
+               depth = t.depth + 1; merge = None }
 end
 
 module Keymap = struct
