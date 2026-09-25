@@ -273,7 +273,6 @@ module Workspace = struct
   (* Chrome of the retained workspace, painted and hit through PXUI boxes:
      pane backgrounds, splitters, and header bars with collapse buttons. *)
   let update value ui (frame : Frame.t) =
-    let final = ref value in
     let module Ui = Pxui.Ui in
     let panes = geometry value frame in
     let theme = Ui.theme ui in
@@ -297,22 +296,23 @@ module Workspace = struct
     let value = splitter second "workspace-splitter-b" Second value in
     let header column title bounds value =
       let box = floating ui bounds ("workspace-header-" ^ title) in
+      let button = floating ui ~flags:Ui.clickable (button_bounds value frame column)
+          ("workspace-collapse-" ^ title) in
+      (if (Ui.signal ui button).clicked then toggle column value else value),
+      (column, title, box) in
+    let value, view_header = header View "VIEW" panes.view_header value in
+    let value, graph_header = header Graph "GRAPH" panes.graph_header value in
+    let value, inspector_header = header Inspector "INSPECTOR" panes.inspector_header value in
+    List.iter (fun (column, title, box) ->
       Ui.draw ui box (fun paint (x, y, w, h) ->
-        let glyph = if collapsed !final column then ">" else "<" in
+        let glyph = if collapsed value column then ">" else "<" in
         Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.foreground ~stroke:theme.foreground ();
         let x = int_of_float x and y = int_of_float y and w = int_of_float w in
         Ui.Paint.text paint ~at:(float_of_int (x + 10), float_of_int (y + 4)) ~size:11
           ~color:theme.input title;
         Ui.Paint.text paint ~at:(float_of_int (x + max 7 (w - 19)), float_of_int (y + 4))
-          ~size:11 ~color:theme.accent glyph);
-      let button = floating ui ~flags:Ui.clickable (button_bounds value frame column)
-          ("workspace-collapse-" ^ title) in
-      if (Ui.signal ui button).clicked then toggle column value else value in
-    let value = value
-      |> header View "VIEW" panes.view_header
-      |> header Graph "GRAPH" panes.graph_header
-      |> header Inspector "INSPECTOR" panes.inspector_header in
-    final := value;
+          ~size:11 ~color:theme.accent glyph))
+      [view_header; graph_header; inspector_header];
     value
 end
 
