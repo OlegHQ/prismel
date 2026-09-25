@@ -53,9 +53,10 @@ reads the same PXUI hit tree before building the frame. `sketch_ui`'s shared
 supply camera and world painting, while visible/hidden composition, the
 leader overlay, and the unchanged hidden-scene cache follow one path.
 `Viewport3` owns camera-node seeding, active-camera repair, look-through
-navigation, and follow-viewport document writes; `Environment3` composes it
-with the shared editor frame. Presets use `Editor.Store` graph and viewport
-sections; `Editor.Store.Settings` saves the
+navigation, and follow-viewport document writes. `Viewport2` owns 2D panel,
+navigation, scene, and persistence operations. `Environment` shares scene
+composition, render-request completion, and PNG status handling. Presets use
+`Editor.Store` graph and viewport sections; `Editor.Store.Settings` saves the
 same envelope and reads legacy `PXUI1` settings files.
 OGPU's dormant Frame_graph, Descriptor_arena, Transfer_ring, Instance,
 Device_lifecycle, and Acceleration_pass modules have no production callers and

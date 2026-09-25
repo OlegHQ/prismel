@@ -834,6 +834,25 @@ module Environment = struct
     let core = { core with Core.cook = Cook.force core.Core.cook } in
     core, Option.map (draw (Core.displayed_node core)) (Core.prepared core)
 
+  let finish (update : (_, _) Core.update) ~core ~draw ~rendered ~requests ~status =
+    let rendered = if update.prepared_changed || update.effects.view
+        || update.effects.export then
+        Option.map (draw (Core.displayed_node core)) (Core.prepared core)
+      else rendered in
+    let pending_render = match List.rev requests with
+      | request :: _ -> Some request | [] -> None in
+    let status = if pending_render <> None && rendered = None then
+      Some "Render unavailable until the first cook completes" else status in
+    rendered, pending_render, status
+
+  let save_status ~save ~filename pending rendered =
+    match pending, rendered with
+    | Some request, Some _ ->
+        Some (match save request with
+          | Ok () -> "Saved " ^ filename request
+          | Error message -> "Render failed: " ^ message)
+    | _ -> None
+
   let scene ~ui_visible ~background ~rendered ~camera ~paint_view ~overlay
       ~cache core (frame : Frame.t) =
     let view_visible = Core.column_visible core Workspace.View in
@@ -873,8 +892,37 @@ let set_ui_cursor ui visible =
     | None -> `Default in
   match Sketch.set_cursor shape with Ok () -> () | Error error -> failwith error
 
+module Viewport2 = struct
+  let panel ui ~control ~camera ~inspector =
+    let control, camera, requests = CC2.widgets control ui ~camera in
+    control, camera, requests, inspector ui
+
+  let section = Editor.Store.Viewport.encode2
+  let restore = Editor.Store.Viewport.decode2
+
+  let navigate ~visible ~panes ~control ~camera ~input (frame : Frame.t) =
+    let viewport = if visible then panes.Workspace.view
+      else 0, 0, frame.width, frame.height in
+    CC2.navigate ~control_area:viewport ~viewport control camera input
+
+  let scene viewport camera rendered = Easy_camera2.scene ~viewport camera rendered
+  let save_png = CC2.save
+end
+
 module Viewport3 = struct
   (* ---- camera nodes: SOPs with operation "camera" (Sop_catalog.Camera). *)
+
+  let panel ui ~control ~camera ~look_through ~inspector =
+    let control, camera, requests = CC.widgets control ui ~camera in
+    let look_through = Pxui.Ui.toggle ui "Look through render camera"
+        look_through in
+    control, camera, requests, look_through, inspector ui
+
+  let section camera ~look_through =
+    Editor.Store.Viewport.encode3 camera ~look_through
+  let restore = Editor.Store.Viewport.decode3
+  let scene viewport camera rendered = [Scene.view3d ~viewport ~camera rendered]
+  let save_png = CC.save
 
   let camera_ids document = Edit_graph.inspect document
     |> List.filter_map (fun (info : Edit_graph.node_info) ->
@@ -1042,18 +1090,14 @@ module Environment3 = struct
           (if ended then None else value.fly), frame in
     if value.fly <> None && fly = None then set_relative false;
     let visible = CC.ui_visible value.camera_control in
-    let camera_panel () =
-      let control, camera, requests = CC.widgets value.camera_control ui
-          ~camera:value.camera in
-      let look_through = Pxui.Ui.toggle ui "Look through render camera"
-          value.look_through in
-      control, camera, requests, look_through, inspector ui in
+    let camera_panel () = Viewport3.panel ui ~control:value.camera_control
+        ~camera:value.camera ~look_through:value.look_through ~inspector in
     let update = Core.update value.core ~all_ui_visible:visible
         ~text_focus:(Pxui.Ui.text_input_focused ui) ~camera_panel
         ~render_status:value.render_status
         ~view_state:(function
-          | Some (_, camera, _, look, _) -> Editor.Store.Viewport.encode3 camera ~look_through:look
-          | None -> Editor.Store.Viewport.encode3 value.camera
+          | Some (_, camera, _, look, _) -> Viewport3.section camera ~look_through:look
+          | None -> Viewport3.section value.camera
               ~look_through:value.look_through) frame in
     let core = update.core and panes = Core.panes update.core frame in
     let control, camera, requests, look_through, inspected =
@@ -1062,7 +1106,7 @@ module Environment3 = struct
           control, camera, requests, look, Some inspected
       | None -> value.camera_control, value.camera, [], value.look_through, None in
     let camera, look_through = match update.loaded_view with
-      | Some json -> Editor.Store.Viewport.decode3 camera json
+      | Some json -> Viewport3.restore camera json
       | None -> camera, look_through in
     let control = List.fold_left (fun control -> function
       | Leader.Hide_ui -> CC.toggle_ui control
@@ -1090,14 +1134,9 @@ module Environment3 = struct
       | None -> camera, render_status in
     let core, camera = Viewport3.on_view ~active ~previous:value.camera
         ~core ~camera ~time:frame.Frame.time in
-    let rendered = if update.prepared_changed || update.effects.view
-        || update.effects.export then
-        Option.map (value.scene3 (Core.displayed_node core)) (Core.prepared core)
-      else value.rendered in
-    let pending_render = match List.rev requests with
-      | request :: _ -> Some request | [] -> None in
-    let render_status = if pending_render <> None && rendered = None then
-      Some "Render unavailable until the first cook completes" else render_status in
+    let rendered, pending_render, render_status = Environment.finish update
+        ~core ~draw:value.scene3 ~rendered:value.rendered ~requests
+        ~status:render_status in
     { value with core; camera; camera_control = control; rendered; pending_render;
       render_status; look_through; fly; render_camera = render_camera_of core camera },
     inspected
@@ -1105,13 +1144,11 @@ module Environment3 = struct
   let update value frame = fst (update_with value frame ~inspector:ignore)
 
   let after_present value _frame =
-    match value.pending_render, value.rendered with
-    | Some request, Some _ ->
-        let render_status = Some (match CC.save request with
-          | Ok () -> "Saved " ^ request.filename
-          | Error message -> "Render failed: " ^ message) in
-        { value with render_status; pending_render = None }
-    | _ -> value
+    match Environment.save_status ~save:Viewport3.save_png
+        ~filename:(fun request -> request.CC.filename)
+        value.pending_render value.rendered with
+    | Some status -> { value with render_status = Some status; pending_render = None }
+    | None -> value
 
   (* The view shows the render camera while looking through it and on the
      frame whose framebuffer a PNG request captures. *)
@@ -1124,8 +1161,7 @@ module Environment3 = struct
     let scene, cache = Environment.scene ~ui_visible:all_ui_visible
         ~background:value.background ~rendered:value.rendered
         ~camera:(view_camera value)
-        ~paint_view:(fun viewport camera rendered ->
-          [Scene.view3d ~viewport ~camera rendered])
+        ~paint_view:Viewport3.scene
         ~overlay:value.overlay ~cache:value.hidden_scene_cache
         value.core frame in
     value.hidden_scene_cache <- cache;
@@ -1200,62 +1236,50 @@ module Environment2 = struct
   let update_with value frame ~inspector =
     let ui = value.core.Core.ui in
     let visible = CC2.ui_visible value.camera_control in
-    let camera_panel () =
-      let control, camera, requests =
-        CC2.widgets value.camera_control ui ~camera:value.camera in
-      control, camera, requests, inspector ui in
+    let camera_panel () = Viewport2.panel ui ~control:value.camera_control
+        ~camera:value.camera ~inspector in
     let update = Core.update value.core ~all_ui_visible:visible
         ~text_focus:(Pxui.Ui.text_input_focused ui) ~camera_panel
         ~render_status:value.render_status
         ~view_state:(fun panel ->
           let camera = match panel with
             | Some (_, camera, _, _) -> camera | None -> value.camera in
-          Editor.Store.Viewport.encode2 camera) frame in
+          Viewport2.section camera) frame in
     let core = update.core and panes = Core.panes update.core frame in
     let control, camera, requests, inspected = match update.panel with
       | Some (control, camera, requests, inspected) ->
           control, camera, requests, Some inspected
       | None -> value.camera_control, value.camera, [], None in
     let camera = match update.loaded_view with
-      | Some json -> Editor.Store.Viewport.decode2 camera json
+      | Some json -> Viewport2.restore camera json
       | None -> camera in
     let control = List.fold_left (fun control -> function
       | Leader.Hide_ui -> CC2.toggle_ui control
       | Open_camera -> CC2.open_camera control
       | _ -> control) control update.actions in
-    let viewport = if visible then panes.view
-      else 0, 0, frame.Frame.width, frame.height in
-    let camera = CC2.navigate ~control_area:viewport ~viewport control camera
-        update.input in
-    let rendered = if update.prepared_changed || update.effects.view
-        || update.effects.export then
-        Option.map (value.scene2 (Core.displayed_node core)) (Core.prepared core)
-      else value.rendered in
-    let pending_render = match List.rev requests with
-      | request :: _ -> Some request | [] -> None in
-    let render_status = if pending_render <> None && rendered = None then
-      Some "Render unavailable until the first cook completes" else value.render_status in
+    let camera = Viewport2.navigate ~visible ~panes ~control ~camera
+        ~input:update.input frame in
+    let rendered, pending_render, render_status = Environment.finish update
+        ~core ~draw:value.scene2 ~rendered:value.rendered ~requests
+        ~status:value.render_status in
     { value with core; camera; camera_control = control; rendered; pending_render;
       render_status }, inspected
 
   let update value frame = fst (update_with value frame ~inspector:ignore)
 
   let after_present value _frame =
-    match value.pending_render, value.rendered with
-    | Some request, Some _ ->
-        let render_status = Some (match CC2.save request with
-          | Ok () -> "Saved " ^ request.filename
-          | Error message -> "Render failed: " ^ message) in
-        { value with render_status; pending_render = None }
-    | _ -> value
+    match Environment.save_status ~save:Viewport2.save_png
+        ~filename:(fun request -> request.CC2.filename)
+        value.pending_render value.rendered with
+    | Some status -> { value with render_status = Some status; pending_render = None }
+    | None -> value
 
   let scene value frame =
     let all_ui_visible = CC2.ui_visible value.camera_control in
     let scene, cache = Environment.scene ~ui_visible:all_ui_visible
         ~background:value.background ~rendered:value.rendered
         ~camera:value.camera
-        ~paint_view:(fun viewport camera rendered ->
-          Easy_camera2.scene ~viewport camera rendered)
+        ~paint_view:Viewport2.scene
         ~overlay:value.overlay ~cache:value.hidden_scene_cache
         value.core frame in
     value.hidden_scene_cache <- cache;
