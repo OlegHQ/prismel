@@ -2,6 +2,7 @@
    must produce a non-flat image, and two accumulations from reset must be
    byte-identical (fixed seeds, fixed camera). *)
 module P = Prismel_pathtracer
+let rgb = P.Linear_color.rgb
 
 let get = function Ok v -> v | Error e -> failwith e
 let metal = function Ok v -> v | Error e -> failwith (Format.asprintf "%a" Metal.pp_error e)
@@ -15,10 +16,10 @@ let run () =
     (Pdk.Ops.box ~center:(Prismel.Vec3.create 0. (-0.05) 0.) ~size:(Prismel.Vec3.create 20. 0.1 20.) ())) in
   let scene =
     { P.objects =
-        [ (sphere, P.material ~roughness:0.2 ~metallic:1. (0.9, 0.7, 0.4))
-        ; (floor, P.material ~roughness:0.8 (0.6, 0.6, 0.6)) ]
+        [ (sphere, P.material ~roughness:0.2 ~metallic:1. (rgb 0.9 0.7 0.4))
+        ; (floor, P.material ~roughness:0.8 (rgb 0.6 0.6 0.6)) ]
     ; environment =
-        { sky = (0.5, 0.6, 0.8); ground = (0.2, 0.2, 0.2)
+        { sky = rgb 0.5 0.6 0.8; ground = rgb 0.2 0.2 0.2
         ; panels = [ P.panel ~intensity:6. ~width:0.5 ~height:0.4 (Prismel.Vec3.create 1. 2. 1.) ] }
     ; lights = [ P.rect_light ~intensity:20. ~size:(2., 2.) ~target:(Prismel.Vec3.create 0. 0. 0.)
                    (Prismel.Vec3.create (-2.) 5. 2.) ] } in
@@ -80,7 +81,7 @@ let run () =
         (Prismel.Mat4.translation (Prismel.Vec3.create 0.3 0. 0.))
         (Prismel.Mat4.mul (Prismel.Mat4.rotation_y 0.23)
           (Prismel.Mat4.scaling (Prismel.Vec3.create 1.3 0.8 1.1))) in
-      let instanced = get (P.mesh_instanced ~prototype:(sphere, P.material (0.7, 0.5, 0.3)) [|matrix|]) in
+      let instanced = get (P.mesh_instanced ~prototype:(sphere, P.material (rgb 0.7 0.5 0.3)) [|matrix|]) in
       get (P.replace_mesh tracer instanced);
       get (P.render tracer camera); get (P.flush tracer);
       get (P.render tracer camera); get (P.flush tracer);
@@ -89,7 +90,7 @@ let run () =
         assert (Digest.to_hex (Digest.bytes instanced_pixels) =
           "8aaf15f3d0b2f4b16e46342612ca8328");
       let transformed = Pdk.Ops.transform matrix sphere in
-      get (P.replace_mesh tracer (get (P.mesh [transformed, P.material (0.7, 0.5, 0.3)])));
+      get (P.replace_mesh tracer (get (P.mesh [transformed, P.material (rgb 0.7 0.5 0.3)])));
       get (P.render tracer camera); get (P.flush tracer);
       let largest_difference = ref 0 in
       Bytes.iteri (fun i value ->
@@ -98,7 +99,7 @@ let run () =
       assert (!largest_difference <= 2);
       let expected = Bytes.copy (P.pixels tracer) in
       get (P.queue_mesh tracer instanced);
-      get (P.queue_mesh tracer (get (P.mesh [transformed, P.material (0.7, 0.5, 0.3)])));
+      get (P.queue_mesh tracer (get (P.mesh [transformed, P.material (rgb 0.7 0.5 0.3)])));
       get (P.flush tracer);
       assert (P.samples tracer = 0);
       get (P.render tracer camera); get (P.flush tracer);
@@ -109,7 +110,7 @@ let run () =
           (Prismel.Mat4.translation (Prismel.Vec3.create (float index *. 0.02) 0. 0.))
           (Prismel.Mat4.scaling (Prismel.Vec3.create 1.3 0.8 1.1)) in
         get (P.queue_mesh tracer
-          (get (P.mesh_instanced ~prototype:(sphere, P.material (0.7, 0.5, 0.3)) [|matrix|])));
+          (get (P.mesh_instanced ~prototype:(sphere, P.material (rgb 0.7 0.5 0.3)) [|matrix|])));
         get (P.flush tracer);
         if index = 1 then stable_handles := Some (metal (Metal.Release_queue.stats ())).live_handles
       done;
@@ -122,8 +123,8 @@ let run () =
          A zero-intensity panel exercises the MIS path (panel sampling plus the
          weighted BSDF escape) and must not change the mean. *)
       let furnace panels =
-        let scene = { P.objects = [ (floor, P.material ~roughness:0.8 (0.8, 0.8, 0.8)) ]
-          ; environment = { sky = (1., 1., 1.); ground = (1., 1., 1.); panels }; lights = [] } in
+        let scene = { P.objects = [ (floor, P.material ~roughness:0.8 (rgb 0.8 0.8 0.8)) ]
+          ; environment = { sky = rgb 1. 1. 1.; ground = rgb 1. 1. 1.; panels }; lights = [] } in
         let tracer = get (P.create ~spp:4 ~width:32 ~height:32 scene) in
         let camera = Prismel.Camera.perspective ~fov_y:0.5
           ~at:(Prismel.Vec3.create 0. 4. 0.001)

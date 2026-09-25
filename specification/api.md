@@ -766,7 +766,9 @@ domain exits; ordinary sketch code must not manage pool lifetime directly.
 - Use `from_`/`to_` for line endpoints.
 - Use radius for circles, never sometimes diameter and sometimes radius.
 - Angles are radians throughout.
-- Colors are `Color.t`, never polymorphic magic values.
+- Scene/UI colors are byte-channel `Color.t`. The path tracer uses
+  `Prismel_pathtracer.Linear_color.t` for floating-point linear/HDR light and
+  material values; conversion to byte colors happens only at image output.
 - Constructors return a value and therefore do not require a trailing `()`,
   except when optional arguments would otherwise be unerasable.
 - Keep common names short (`rect`, `circle`, `line`, `text`); put advanced

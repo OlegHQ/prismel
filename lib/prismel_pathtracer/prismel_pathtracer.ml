@@ -1,7 +1,19 @@
-type rgb = float * float * float
-type material = { albedo : rgb; roughness : float; metallic : float; emission : rgb; round : float }
+module Linear_color = struct
+  type t = { r : float; g : float; b : float }
 
-let material ?(roughness = 0.5) ?(metallic = 0.) ?(emission = (0., 0., 0.)) ?(round = 0.) albedo =
+  let rgb r g b = { r; g; b }
+end
+
+type material = {
+  albedo : Linear_color.t;
+  roughness : float;
+  metallic : float;
+  emission : Linear_color.t;
+  round : float;
+}
+
+let material ?(roughness = 0.5) ?(metallic = 0.)
+    ?(emission = Linear_color.rgb 0. 0. 0.) ?(round = 0.) albedo =
   { albedo; roughness; metallic; emission; round }
 
 type panel = {
@@ -9,25 +21,25 @@ type panel = {
   width : float;
   height : float;
   softness : float;
-  color : rgb;
+  color : Linear_color.t;
   intensity : float;
 }
 
-let panel ?(softness = 0.05) ?(color = (1., 1., 1.)) ~intensity ~width ~height direction =
+let panel ?(softness = 0.05) ?(color = Linear_color.rgb 1. 1. 1.) ~intensity ~width ~height direction =
   { direction; width; height; softness; color; intensity }
 
-type environment = { sky : rgb; ground : rgb; panels : panel list }
+type environment = { sky : Linear_color.t; ground : Linear_color.t; panels : panel list }
 type camera = Prismel.Camera.t
 
 type light = {
   at : Prismel.Vec3.t;
   target : Prismel.Vec3.t;
   size : float * float;
-  color : rgb;
+  color : Linear_color.t;
   intensity : float;
 }
 
-let rect_light ?(color = (1., 1., 1.)) ~intensity ~size ~target at =
+let rect_light ?(color = Linear_color.rgb 1. 1. 1.) ~intensity ~size ~target at =
   { at; target; size; color; intensity }
 
 type scene = {
@@ -113,8 +125,8 @@ type t = {
   round_samples : int;
   profile : bool;
   panel_count : int;
-  sky : rgb;
-  ground : rgb;
+  sky : Linear_color.t;
+  ground : Linear_color.t;
   mutable frame : int;
   mutable camera : camera option;
   mutable moving : bool;
@@ -136,6 +148,8 @@ let add_vec3 builder (x, y, z) =
 let add_float4 builder (x, y, z) w =
   add_vec3 builder (x, y, z);
   add_f32 builder w
+
+let color_tuple (color : Linear_color.t) = color.r, color.g, color.b
 
 (* Flattens every object into an unindexed triangle list with per-vertex
    normals and one material index per triangle. Pure: safe on a cook worker. *)
@@ -285,8 +299,8 @@ let material_bytes materials =
   let builder = Stdlib.Buffer.create 256 in
   List.iter
     (fun m ->
-      add_float4 builder m.albedo m.roughness;
-      add_float4 builder m.emission m.metallic;
+      add_float4 builder (color_tuple m.albedo) m.roughness;
+      add_float4 builder (color_tuple m.emission) m.metallic;
       add_float4 builder (m.round, 0., 0.) 0.)
     materials;
   Stdlib.Buffer.to_bytes builder
@@ -300,7 +314,7 @@ let panel_bytes panels =
   in
   List.iter
     (fun (p : panel) ->
-      let r, g, b = p.color in
+      let r, g, b = color_tuple p.color in
       add_float4 builder (normalize p.direction) 0.;
       add_float4 builder (r *. p.intensity, g *. p.intensity, b *. p.intensity) 0.;
       add_float4 builder (p.width, p.height, p.softness) 0.)
@@ -337,7 +351,7 @@ let light_bytes lights =
           (light.at.y -. ((u.y +. v.y) /. 2.))
           (light.at.z -. ((u.z +. v.z) /. 2.))
       in
-      let r, g, b = light.color in
+      let r, g, b = color_tuple light.color in
       add_float4 builder (origin.x, origin.y, origin.z) 0.;
       add_float4 builder (u.x, u.y, u.z) 0.;
       add_float4 builder (v.x, v.y, v.z) 0.;
@@ -704,7 +718,9 @@ let uniform_bytes t (camera : camera) fov =
     put_f32 bytes (offset + 8) v.z;
     put_f32 bytes (offset + 12) w
   in
-  let put_rgb offset (r, g, b) = put_vec4 offset (create r g b) 0. in
+  let put_rgb offset color =
+    let r, g, b = color_tuple color in
+    put_vec4 offset (create r g b) 0. in
   put_vec4 0 (Prismel.Camera.position camera) 0.;
   put_vec4 16 forward (tan (fov /. 2.));
   put_vec4 32 right (float_of_int t.width /. float_of_int t.height);

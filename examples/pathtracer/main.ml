@@ -4,6 +4,7 @@
    saves the final frame. *)
 open Prismel
 module P = Prismel_pathtracer
+let rgb = P.Linear_color.rgb
 
 let v = Vec3.create
 let pdk = function Ok g -> g | Error e -> failwith (Pdk.Error.to_string e)
@@ -14,7 +15,7 @@ let cube ~at ~rotation ~size =
   pdk (Pdk.Ops.box ~center:at ~rotation ~size:(v size size size) ())
 
 let concrete shade =
-  P.material ~roughness:0.62 ~round:0.045 (shade, shade *. 1.03, shade *. 1.1)
+  P.material ~roughness:0.62 ~round:0.045 (rgb shade (shade *. 1.03) (shade *. 1.1))
 
 let cubes =
   [ (v (-1.15) 6.35 0.2), (v 0.55 0.45 0.3), 0.26
@@ -29,9 +30,9 @@ let scene =
   { P.objects =
       List.map (fun (at, rotation, shade) -> (cube ~at ~rotation ~size:1.05, concrete shade)) cubes
       @ [ (pdk (Pdk.Ops.box ~center:(v 0. (-0.1) 0.) ~size:(v 400. 0.2 400.) ()),
-           P.material ~roughness:0.8 (0.16, 0.165, 0.18)) ]
+           P.material ~roughness:0.8 (rgb 0.16 0.165 0.18)) ]
   ; environment =
-      { sky = (0.008, 0.010, 0.014); ground = (0.002, 0.002, 0.003)
+      { sky = rgb 0.008 0.010 0.014; ground = rgb 0.002 0.002 0.003
       ; panels = [ P.panel ~intensity:0.25 ~width:0.9 ~height:0.6 ~softness:0.3 (v 0. 0.2 1.) ] }
   ; lights =
       [ P.rect_light ~intensity:26. ~size:(4., 4.) ~target:(v 0. 3.5 0.) (v (-6.) 12. 6.)

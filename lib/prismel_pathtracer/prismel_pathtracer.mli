@@ -6,20 +6,27 @@
     [render] call adds [spp] samples per pixel into an accumulation buffer and
     refreshes the borrowed [image]; a camera change restarts accumulation. *)
 
-type rgb = float * float * float
+(** Linear floating-point RGB for materials and light. Channels are not
+    quantized or clamped, so dim and HDR values survive GPU upload. *)
+module Linear_color : sig
+  type t = { r : float; g : float; b : float }
+
+  val rgb : float -> float -> float -> t
+end
 
 type material =
-  { albedo : rgb
+  { albedo : Linear_color.t
   ; roughness : float  (** 0 = mirror, 1 = fully rough *)
   ; metallic : float
-  ; emission : rgb
+  ; emission : Linear_color.t
   ; round : float
     (** Round-corners radius in scene units (0 = off). A render-time shading
         bevel: the normal rolls over onto adjacent faces within this distance
         of an edge, like Redshift's Round Corners, without changing geometry. *) }
 
 val material :
-  ?roughness:float -> ?metallic:float -> ?emission:rgb -> ?round:float -> rgb -> material
+  ?roughness:float -> ?metallic:float -> ?emission:Linear_color.t -> ?round:float ->
+  Linear_color.t -> material
 
 (** A soft rectangle of light painted on the dome around [direction]. Extents
     are angular half-sizes in radians; [softness] is the edge falloff. *)
@@ -28,23 +35,23 @@ type panel =
   ; width : float
   ; height : float
   ; softness : float
-  ; color : rgb
+  ; color : Linear_color.t
   ; intensity : float }
 
 val panel :
-  ?softness:float -> ?color:rgb -> intensity:float -> width:float ->
+  ?softness:float -> ?color:Linear_color.t -> intensity:float -> width:float ->
   height:float -> Prismel.Vec3.t -> panel
 
-type environment = { sky : rgb; ground : rgb; panels : panel list }
+type environment = { sky : Linear_color.t; ground : Linear_color.t; panels : panel list }
 
 (** Rectangle area light of [size] (width, height) centred at [at], facing
     [target], two-sided. Sampled with shadow rays (next-event estimation);
     lights are analytic and never appear as visible geometry. *)
 type light =
-  { at : Prismel.Vec3.t; target : Prismel.Vec3.t; size : float * float; color : rgb; intensity : float }
+  { at : Prismel.Vec3.t; target : Prismel.Vec3.t; size : float * float; color : Linear_color.t; intensity : float }
 
 val rect_light :
-  ?color:rgb -> intensity:float -> size:float * float -> target:Prismel.Vec3.t ->
+  ?color:Linear_color.t -> intensity:float -> size:float * float -> target:Prismel.Vec3.t ->
   Prismel.Vec3.t -> light
 
 type scene =

@@ -17,6 +17,7 @@
 open Prismel
 open Procedural
 module P = Prismel_pathtracer
+let rgb = P.Linear_color.rgb
 
 let v = Vec3.create
 
@@ -127,7 +128,7 @@ let graph () =
 
 (* ---- preparation (cook worker, pure) ---- *)
 
-let concrete = P.material ~roughness:0.6 ~round:0.07 (0.42, 0.42, 0.44)
+let concrete = P.material ~roughness:0.6 ~round:0.07 (rgb 0.42 0.42 0.44)
 let raster_material = Material.create ~diffuse:(Color.rgb 150 150 156)
     ~ambient:(Color.rgb 10 10 12) ~specular:(Color.rgb 40 40 40) ~shininess:24. ()
 let wire_material = Material.unlit (Color.rgb 190 215 225)
@@ -292,7 +293,7 @@ let init _frame =
   let tracer =
     match P.create ~bounces:4 ~exposure:1. ~width:w ~height:h
       { P.objects = [ (placeholder, concrete) ]
-      ; environment = { sky = (0.006, 0.007, 0.009); ground = (0.002, 0.002, 0.003); panels = [] }
+      ; environment = { sky = rgb 0.006 0.007 0.009; ground = rgb 0.002 0.002 0.003; panels = [] }
       ; lights =
           [ P.rect_light ~intensity:9. ~size:(24., 24.) ~target:(v 0. 0. 0.) (v (-34.) 40. 30.)
           ; P.rect_light ~intensity:1.2 ~size:(30., 30.) ~target:(v 0. 0. 0.) (v 30. (-10.) 26.) ] }

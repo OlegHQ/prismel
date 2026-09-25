@@ -109,6 +109,10 @@ qualification covers flat and instanced renders after this source move.
 The path-tracer camera input is now `Prismel.Camera.t`; the current ray kernel
 accepts only an unshifted perspective view. The M1 fixed-image qualification
 also covers this API migration.
+Path-tracer materials and environment light use
+`Prismel_pathtracer.Linear_color.t`, a floating-point RGB record. It preserves
+low-intensity and HDR inputs that byte-channel `Prismel.Color.t` cannot express;
+the GPU upload keeps the same float channel order and the fixed M1 image digest.
 `Ogpu.Caps` now owns the portable feature matrix and typed `Unsupported`
 check. Metal probes populate that profile in `ogpu_metal_native.Device`, which also
 translates native Metal errors to typed OGPU errors.
