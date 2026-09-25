@@ -1,0 +1,19 @@
+# Former qualified Ops path<TAB>family path; * means constructor prefix.
+Ops.torus_connectivity	Parametric_generators.torus_connectivity
+Ops.torus_normals	Parametric_generators.torus_normals
+Ops.torus_orientation	Parametric_generators.torus_orientation
+Ops.torus_rotation_order	Parametric_generators.torus_rotation_order
+Ops.tube_connectivity	Parametric_generators.tube_connectivity
+Ops.tube_normals	Parametric_generators.tube_normals
+Ops.tube_orientation	Parametric_generators.tube_orientation
+Ops.tube_rotation_order	Parametric_generators.tube_rotation_order
+Ops.platonic_kind	Parametric_generators.platonic_kind
+Ops.platonic_normals	Parametric_generators.platonic_normals
+Ops.platonic_orientation	Parametric_generators.platonic_orientation
+Ops.platonic_rotation_order	Parametric_generators.platonic_rotation_order
+Ops.Torus_*	Parametric_generators.Torus_
+Ops.Tube_*	Parametric_generators.Tube_
+Ops.Platonic_*	Parametric_generators.Platonic_
+Ops.torus	Parametric_generators.torus_checked
+Ops.tube	Parametric_generators.tube_checked
+Ops.platonic	Parametric_generators.platonic_checked

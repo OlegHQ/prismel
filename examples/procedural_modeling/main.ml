@@ -411,35 +411,35 @@ let graphs () =
       ~uv_attribute:"uv" ~segments:36 ~rings:20 ~radius:1. ()
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#38bdf8")
   and capped_torus =
-    Sop.torus ~connectivity:Pdk.Ops.Torus_alternating_triangles
-      ~normals:Pdk.Ops.Torus_vertex_normals
-      ~orientation:(Pdk.Ops.Torus_axis (Vec3.create 0.3 1. 0.2))
+    Sop.torus ~connectivity:Pdk.Parametric_generators.Torus_alternating_triangles
+      ~normals:Pdk.Parametric_generators.Torus_vertex_normals
+      ~orientation:(Pdk.Parametric_generators.Torus_axis (Vec3.create 0.3 1. 0.2))
       ~center:(Vec3.create (-1.6) 4.8 (-1.3))
       ~rotation:(Vec3.create 0.15 0.3 0.1)
-      ~rotation_order:Pdk.Ops.Torus_yzx
+      ~rotation_order:Pdk.Parametric_generators.Torus_yzx
       ~u_start:0.25 ~u_end:5.4 ~v_start:(-2.4) ~v_end:2.4
       ~u_wrap:false ~v_wrap:false ~u_end_caps:true ~v_end_cap:true
       ~uv_attribute:"uv" ~rows:48 ~columns:20
       ~major_radius:0.55 ~minor_radius:0.17 ()
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#c084fc")
   and capped_tube =
-    Sop.tube ~connectivity:Pdk.Ops.Tube_alternating_triangles
+    Sop.tube ~connectivity:Pdk.Parametric_generators.Tube_alternating_triangles
       ~end_caps:true ~consolidate_cap_points:false
-      ~normals:Pdk.Ops.Tube_vertex_normals
-      ~orientation:(Pdk.Ops.Tube_axis (Vec3.create 0.4 1. 0.25))
+      ~normals:Pdk.Parametric_generators.Tube_vertex_normals
+      ~orientation:(Pdk.Parametric_generators.Tube_axis (Vec3.create 0.4 1. 0.25))
       ~center:(Vec3.create 3.1 4.7 (-1.2))
       ~rotation:(Vec3.create 0.2 0.35 0.1)
-      ~rotation_order:Pdk.Ops.Tube_zxy ~radius_scale:1.1
+      ~rotation_order:Pdk.Parametric_generators.Tube_zxy ~radius_scale:1.1
       ~uv_attribute:"uv" ~cap_group:"tube_caps"
       ~rows:18 ~columns:28 ~top_radius:0. ~bottom_radius:0.48 ~height:1.3 ()
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#f97316")
   and soccer_ball =
-    Sop.platonic ~kind:Pdk.Ops.Platonic_soccer_ball
-      ~normals:Pdk.Ops.Platonic_vertex_normals
-      ~orientation:(Pdk.Ops.Platonic_axis (Vec3.create 0.2 1. 0.35))
+    Sop.platonic ~kind:Pdk.Parametric_generators.Platonic_soccer_ball
+      ~normals:Pdk.Parametric_generators.Platonic_vertex_normals
+      ~orientation:(Pdk.Parametric_generators.Platonic_axis (Vec3.create 0.2 1. 0.35))
       ~center:(Vec3.create (-3.1) 4.7 (-1.2))
       ~rotation:(Vec3.create 0.15 0.35 0.2)
-      ~rotation_order:Pdk.Ops.Platonic_xzy ~face_groups:"soccer_face"
+      ~rotation_order:Pdk.Parametric_generators.Platonic_xzy ~face_groups:"soccer_face"
       ~radius:0.52 ()
   and spiral_wire =
     Sop.spiral ~extent:(Pdk.Spiral.Spiral_turns { turns = 2.5; height = 1.25 })
@@ -457,8 +457,8 @@ let graphs () =
          ~up_attribute:"wire_up" ~caps:true ~radius:0.025
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#4ade80")
   and filled_tube =
-    Sop.tube ~connectivity:Pdk.Ops.Tube_quads ~end_caps:false
-      ~normals:Pdk.Ops.Tube_point_normals ~rows:8 ~columns:28
+    Sop.tube ~connectivity:Pdk.Parametric_generators.Tube_quads ~end_caps:false
+      ~normals:Pdk.Parametric_generators.Tube_point_normals ~rows:8 ~columns:28
       ~top_radius:0.34 ~bottom_radius:0.48 ~height:0.9 ()
     |> Sop.poly_fill ~mode:Pdk.Ops.Fill_triangle_fan
          ~update_point_normals:true ~patch_group:"filled_caps"

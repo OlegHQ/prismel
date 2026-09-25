@@ -20,7 +20,7 @@ let median values =
 
 let input () =
   let side = max 3 (int_of_float (sqrt (float_of_int elements))) in
-  Ops.torus ~connectivity:Ops.Torus_quads
+  Parametric_generators.torus_checked ~connectivity:Parametric_generators.Torus_quads
     ~rows:side ~columns:side ~major_radius:(float_of_int side *. 0.2)
     ~minor_radius:7. () |> get
 

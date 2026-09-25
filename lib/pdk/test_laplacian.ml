@@ -72,7 +72,7 @@ let test_constant_linear_and_quadratic () =
   check (quadratic.(4) > 0. && quadratic_sum.(4) > 0.)
     "cotangent Laplacian did not preserve positive quadratic bending";
   List.iter (fun radius ->
-    let octahedron = Ops.platonic ~kind:Ops.Platonic_octahedron ~radius ()
+    let octahedron = Parametric_generators.platonic_checked ~kind:Parametric_generators.Platonic_octahedron ~radius ()
         |> get in
     let laplacian = Ops.attribute_laplacian ~source:"P" octahedron
         |> get |> float3 "laplacian" in

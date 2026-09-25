@@ -244,7 +244,7 @@ Catmull–Rom samples, `Pdk.Iso_surface` extracts packed isosurfaces,
 `Pdk.Io` loads and saves STL, OFF, and OBJ through typed results.
 `Pdk.Group_ops`, `Pdk.Blend_shapes`, `Pdk.Attribute_composite`,
 `Pdk.Attribute_mirror`, `Pdk.Attribute_fade`, `Pdk.Fuse_reduce`, `Pdk.Normal_ops`, `Pdk.Plane_generators`,
-`Pdk.Box_generator`, `Pdk.Spiral`, `Pdk.Point_generate`,
+`Pdk.Box_generator`, `Pdk.Parametric_generators`, `Pdk.Spiral`, `Pdk.Point_generate`,
 `Pdk.Color_by_height`, `Pdk.Line_geometry`, `Pdk.Mesh_merge`,
 `Pdk.Edge_collapse`, and `Pdk.Dissolve` expose option and rule types or checked operations used
 by procedural SOPs;

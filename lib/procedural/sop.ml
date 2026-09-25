@@ -376,38 +376,38 @@ let uv_sphere ?label ?(connectivity = Pdk.Uv_sphere.Sphere_triangles)
       | Error error -> structured_pdk_error error)
 
 let torus_connectivity_key = function
-  | Pdk.Ops.Torus_triangles -> "triangles"
-  | Pdk.Ops.Torus_alternating_triangles -> "alternating_triangles"
-  | Pdk.Ops.Torus_quads -> "quads"
-  | Pdk.Ops.Torus_rows -> "rows"
-  | Pdk.Ops.Torus_columns -> "columns"
-  | Pdk.Ops.Torus_rows_and_columns -> "rows_and_columns"
-  | Pdk.Ops.Torus_points -> "points"
+  | Pdk.Parametric_generators.Torus_triangles -> "triangles"
+  | Pdk.Parametric_generators.Torus_alternating_triangles -> "alternating_triangles"
+  | Pdk.Parametric_generators.Torus_quads -> "quads"
+  | Pdk.Parametric_generators.Torus_rows -> "rows"
+  | Pdk.Parametric_generators.Torus_columns -> "columns"
+  | Pdk.Parametric_generators.Torus_rows_and_columns -> "rows_and_columns"
+  | Pdk.Parametric_generators.Torus_points -> "points"
 
 let torus_normals_key = function
-  | Pdk.Ops.Torus_no_normals -> "none"
-  | Pdk.Ops.Torus_point_normals -> "point"
-  | Pdk.Ops.Torus_vertex_normals -> "vertex"
+  | Pdk.Parametric_generators.Torus_no_normals -> "none"
+  | Pdk.Parametric_generators.Torus_point_normals -> "point"
+  | Pdk.Parametric_generators.Torus_vertex_normals -> "vertex"
 
 let torus_orientation_key = function
-  | Pdk.Ops.Torus_x -> "x" | Pdk.Ops.Torus_y -> "y"
-  | Pdk.Ops.Torus_z -> "z"
-  | Pdk.Ops.Torus_axis axis -> "axis:" ^ vec3_key axis
+  | Pdk.Parametric_generators.Torus_x -> "x" | Pdk.Parametric_generators.Torus_y -> "y"
+  | Pdk.Parametric_generators.Torus_z -> "z"
+  | Pdk.Parametric_generators.Torus_axis axis -> "axis:" ^ vec3_key axis
 
 let torus_rotation_order_key = function
-  | Pdk.Ops.Torus_xyz -> "xyz" | Pdk.Ops.Torus_xzy -> "xzy"
-  | Pdk.Ops.Torus_yxz -> "yxz" | Pdk.Ops.Torus_yzx -> "yzx"
-  | Pdk.Ops.Torus_zxy -> "zxy" | Pdk.Ops.Torus_zyx -> "zyx"
+  | Pdk.Parametric_generators.Torus_xyz -> "xyz" | Pdk.Parametric_generators.Torus_xzy -> "xzy"
+  | Pdk.Parametric_generators.Torus_yxz -> "yxz" | Pdk.Parametric_generators.Torus_yzx -> "yzx"
+  | Pdk.Parametric_generators.Torus_zxy -> "zxy" | Pdk.Parametric_generators.Torus_zyx -> "zyx"
 
-let torus ?label ?(connectivity = Pdk.Ops.Torus_triangles) ?normals
-    ?(orientation = Pdk.Ops.Torus_y) ?(center = Vec3.zero)
-    ?(rotation = Vec3.zero) ?(rotation_order = Pdk.Ops.Torus_xyz)
+let torus ?label ?(connectivity = Pdk.Parametric_generators.Torus_triangles) ?normals
+    ?(orientation = Pdk.Parametric_generators.Torus_y) ?(center = Vec3.zero)
+    ?(rotation = Vec3.zero) ?(rotation_order = Pdk.Parametric_generators.Torus_xyz)
     ?(uniform_scale = 1.) ?(u_start = 0.) ?(u_end = 2. *. Float.pi)
     ?(v_start = 0.) ?(v_end = 2. *. Float.pi) ?(u_wrap = true)
     ?(v_wrap = true) ?(u_end_caps = false) ?(v_end_cap = false)
     ?uv_attribute ?(rows = 48) ?(columns = 24) ~major_radius ~minor_radius () =
   let orientation = match orientation with
-    | Pdk.Ops.Torus_axis axis -> Pdk.Ops.Torus_axis (vec3_copy axis)
+    | Pdk.Parametric_generators.Torus_axis axis -> Pdk.Parametric_generators.Torus_axis (vec3_copy axis)
     | value -> value in
   let center = vec3_copy center and rotation = vec3_copy rotation in
   let parameters = String.concat ";" [
@@ -429,7 +429,7 @@ let torus ?label ?(connectivity = Pdk.Ops.Torus_triangles) ?normals
   Node.Private.make ?label ~operation:"torus" ~version:1 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ context _inputs ->
-      match Pdk.Ops.torus ~cancel:(Context.cancel_token context)
+      match Pdk.Parametric_generators.torus_checked ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~connectivity ?normals ~orientation
           ~center ~rotation ~rotation_order ~uniform_scale ~u_start ~u_end
           ~v_start ~v_end ~u_wrap ~v_wrap ~u_end_caps ~v_end_cap ?uv_attribute
@@ -438,37 +438,37 @@ let torus ?label ?(connectivity = Pdk.Ops.Torus_triangles) ?normals
       | Error error -> structured_pdk_error error)
 
 let tube_connectivity_key = function
-  | Pdk.Ops.Tube_triangles -> "triangles"
-  | Pdk.Ops.Tube_alternating_triangles -> "alternating_triangles"
-  | Pdk.Ops.Tube_quads -> "quads"
-  | Pdk.Ops.Tube_rows -> "rows"
-  | Pdk.Ops.Tube_columns -> "columns"
-  | Pdk.Ops.Tube_rows_and_columns -> "rows_and_columns"
-  | Pdk.Ops.Tube_points -> "points"
+  | Pdk.Parametric_generators.Tube_triangles -> "triangles"
+  | Pdk.Parametric_generators.Tube_alternating_triangles -> "alternating_triangles"
+  | Pdk.Parametric_generators.Tube_quads -> "quads"
+  | Pdk.Parametric_generators.Tube_rows -> "rows"
+  | Pdk.Parametric_generators.Tube_columns -> "columns"
+  | Pdk.Parametric_generators.Tube_rows_and_columns -> "rows_and_columns"
+  | Pdk.Parametric_generators.Tube_points -> "points"
 
 let tube_normals_key = function
-  | Pdk.Ops.Tube_no_normals -> "none"
-  | Pdk.Ops.Tube_point_normals -> "point"
-  | Pdk.Ops.Tube_vertex_normals -> "vertex"
+  | Pdk.Parametric_generators.Tube_no_normals -> "none"
+  | Pdk.Parametric_generators.Tube_point_normals -> "point"
+  | Pdk.Parametric_generators.Tube_vertex_normals -> "vertex"
 
 let tube_orientation_key = function
-  | Pdk.Ops.Tube_x -> "x" | Pdk.Ops.Tube_y -> "y"
-  | Pdk.Ops.Tube_z -> "z"
-  | Pdk.Ops.Tube_axis axis -> "axis:" ^ vec3_key axis
+  | Pdk.Parametric_generators.Tube_x -> "x" | Pdk.Parametric_generators.Tube_y -> "y"
+  | Pdk.Parametric_generators.Tube_z -> "z"
+  | Pdk.Parametric_generators.Tube_axis axis -> "axis:" ^ vec3_key axis
 
 let tube_rotation_order_key = function
-  | Pdk.Ops.Tube_xyz -> "xyz" | Pdk.Ops.Tube_xzy -> "xzy"
-  | Pdk.Ops.Tube_yxz -> "yxz" | Pdk.Ops.Tube_yzx -> "yzx"
-  | Pdk.Ops.Tube_zxy -> "zxy" | Pdk.Ops.Tube_zyx -> "zyx"
+  | Pdk.Parametric_generators.Tube_xyz -> "xyz" | Pdk.Parametric_generators.Tube_xzy -> "xzy"
+  | Pdk.Parametric_generators.Tube_yxz -> "yxz" | Pdk.Parametric_generators.Tube_yzx -> "yzx"
+  | Pdk.Parametric_generators.Tube_zxy -> "zxy" | Pdk.Parametric_generators.Tube_zyx -> "zyx"
 
-let tube ?label ?(connectivity = Pdk.Ops.Tube_quads) ?(end_caps = false)
+let tube ?label ?(connectivity = Pdk.Parametric_generators.Tube_quads) ?(end_caps = false)
     ?(consolidate_cap_points = true) ?normals
-    ?(orientation = Pdk.Ops.Tube_y) ?(center = Vec3.zero)
-    ?(rotation = Vec3.zero) ?(rotation_order = Pdk.Ops.Tube_xyz)
+    ?(orientation = Pdk.Parametric_generators.Tube_y) ?(center = Vec3.zero)
+    ?(rotation = Vec3.zero) ?(rotation_order = Pdk.Parametric_generators.Tube_xyz)
     ?(radius_scale = 1.) ?uv_attribute ?cap_group ?(rows = 2) ?(columns = 32)
     ~top_radius ~bottom_radius ~height () =
   let orientation = match orientation with
-    | Pdk.Ops.Tube_axis axis -> Pdk.Ops.Tube_axis (vec3_copy axis)
+    | Pdk.Parametric_generators.Tube_axis axis -> Pdk.Parametric_generators.Tube_axis (vec3_copy axis)
     | value -> value in
   let center = vec3_copy center and rotation = vec3_copy rotation in
   let parameters = String.concat ";" [
@@ -489,7 +489,7 @@ let tube ?label ?(connectivity = Pdk.Ops.Tube_quads) ?(end_caps = false)
   Node.Private.make ?label ~operation:"tube" ~version:1 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ context _inputs ->
-      match Pdk.Ops.tube ~cancel:(Context.cancel_token context)
+      match Pdk.Parametric_generators.tube_checked ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~connectivity ~end_caps
           ~consolidate_cap_points ?normals ~orientation ~center ~rotation
           ~rotation_order ~radius_scale ?uv_attribute ?cap_group ~rows ~columns
@@ -498,35 +498,35 @@ let tube ?label ?(connectivity = Pdk.Ops.Tube_quads) ?(end_caps = false)
       | Error error -> structured_pdk_error error)
 
 let platonic_kind_key = function
-  | Pdk.Ops.Platonic_tetrahedron -> "tetrahedron"
-  | Pdk.Ops.Platonic_cube -> "cube"
-  | Pdk.Ops.Platonic_octahedron -> "octahedron"
-  | Pdk.Ops.Platonic_icosahedron -> "icosahedron"
-  | Pdk.Ops.Platonic_dodecahedron -> "dodecahedron"
-  | Pdk.Ops.Platonic_soccer_ball -> "soccer_ball"
+  | Pdk.Parametric_generators.Platonic_tetrahedron -> "tetrahedron"
+  | Pdk.Parametric_generators.Platonic_cube -> "cube"
+  | Pdk.Parametric_generators.Platonic_octahedron -> "octahedron"
+  | Pdk.Parametric_generators.Platonic_icosahedron -> "icosahedron"
+  | Pdk.Parametric_generators.Platonic_dodecahedron -> "dodecahedron"
+  | Pdk.Parametric_generators.Platonic_soccer_ball -> "soccer_ball"
 
 let platonic_normals_key = function
-  | Pdk.Ops.Platonic_no_normals -> "none"
-  | Pdk.Ops.Platonic_point_normals -> "point"
-  | Pdk.Ops.Platonic_vertex_normals -> "vertex"
+  | Pdk.Parametric_generators.Platonic_no_normals -> "none"
+  | Pdk.Parametric_generators.Platonic_point_normals -> "point"
+  | Pdk.Parametric_generators.Platonic_vertex_normals -> "vertex"
 
 let platonic_orientation_key = function
-  | Pdk.Ops.Platonic_x -> "x" | Pdk.Ops.Platonic_y -> "y"
-  | Pdk.Ops.Platonic_z -> "z"
-  | Pdk.Ops.Platonic_axis axis -> "axis:" ^ vec3_key axis
+  | Pdk.Parametric_generators.Platonic_x -> "x" | Pdk.Parametric_generators.Platonic_y -> "y"
+  | Pdk.Parametric_generators.Platonic_z -> "z"
+  | Pdk.Parametric_generators.Platonic_axis axis -> "axis:" ^ vec3_key axis
 
 let platonic_rotation_order_key = function
-  | Pdk.Ops.Platonic_xyz -> "xyz" | Pdk.Ops.Platonic_xzy -> "xzy"
-  | Pdk.Ops.Platonic_yxz -> "yxz" | Pdk.Ops.Platonic_yzx -> "yzx"
-  | Pdk.Ops.Platonic_zxy -> "zxy" | Pdk.Ops.Platonic_zyx -> "zyx"
+  | Pdk.Parametric_generators.Platonic_xyz -> "xyz" | Pdk.Parametric_generators.Platonic_xzy -> "xzy"
+  | Pdk.Parametric_generators.Platonic_yxz -> "yxz" | Pdk.Parametric_generators.Platonic_yzx -> "yzx"
+  | Pdk.Parametric_generators.Platonic_zxy -> "zxy" | Pdk.Parametric_generators.Platonic_zyx -> "zyx"
 
-let platonic ?label ?(kind = Pdk.Ops.Platonic_tetrahedron)
-    ?(normals = Pdk.Ops.Platonic_point_normals)
-    ?(orientation = Pdk.Ops.Platonic_y) ?(center = Vec3.zero)
-    ?(rotation = Vec3.zero) ?(rotation_order = Pdk.Ops.Platonic_xyz)
+let platonic ?label ?(kind = Pdk.Parametric_generators.Platonic_tetrahedron)
+    ?(normals = Pdk.Parametric_generators.Platonic_point_normals)
+    ?(orientation = Pdk.Parametric_generators.Platonic_y) ?(center = Vec3.zero)
+    ?(rotation = Vec3.zero) ?(rotation_order = Pdk.Parametric_generators.Platonic_xyz)
     ?face_groups ~radius () =
   let orientation = match orientation with
-    | Pdk.Ops.Platonic_axis axis -> Pdk.Ops.Platonic_axis (vec3_copy axis)
+    | Pdk.Parametric_generators.Platonic_axis axis -> Pdk.Parametric_generators.Platonic_axis (vec3_copy axis)
     | value -> value in
   let center = vec3_copy center and rotation = vec3_copy rotation in
   let parameters = String.concat ";" [
@@ -540,7 +540,7 @@ let platonic ?label ?(kind = Pdk.Ops.Platonic_tetrahedron)
   Node.Private.make ?label ~operation:"platonic" ~version:1 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ context _inputs ->
-      match Pdk.Ops.platonic ~cancel:(Context.cancel_token context) ~kind
+      match Pdk.Parametric_generators.platonic_checked ~cancel:(Context.cancel_token context) ~kind
           ~normals ~orientation ~center ~rotation ~rotation_order ?face_groups
           ~radius () with
       | Ok geometry -> cooked geometry

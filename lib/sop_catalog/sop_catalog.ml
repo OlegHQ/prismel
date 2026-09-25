@@ -371,18 +371,18 @@ module Platonic = struct
   type orientation_mode = Axis_x | Axis_y | Axis_z | Axis_custom
 
   let kind_parameter = Parameter.choice ~equal:( = ) [
-      "Tetrahedron", Pdk.Ops.Platonic_tetrahedron;
-      "Cube", Pdk.Ops.Platonic_cube;
-      "Octahedron", Pdk.Ops.Platonic_octahedron;
-      "Icosahedron", Pdk.Ops.Platonic_icosahedron;
-      "Dodecahedron", Pdk.Ops.Platonic_dodecahedron;
-      "Soccer ball", Pdk.Ops.Platonic_soccer_ball;
+      "Tetrahedron", Pdk.Parametric_generators.Platonic_tetrahedron;
+      "Cube", Pdk.Parametric_generators.Platonic_cube;
+      "Octahedron", Pdk.Parametric_generators.Platonic_octahedron;
+      "Icosahedron", Pdk.Parametric_generators.Platonic_icosahedron;
+      "Dodecahedron", Pdk.Parametric_generators.Platonic_dodecahedron;
+      "Soccer ball", Pdk.Parametric_generators.Platonic_soccer_ball;
     ]
 
   let normals_parameter = Parameter.choice ~equal:( = ) [
-      "None", Pdk.Ops.Platonic_no_normals;
-      "Point", Pdk.Ops.Platonic_point_normals;
-      "Vertex", Pdk.Ops.Platonic_vertex_normals;
+      "None", Pdk.Parametric_generators.Platonic_no_normals;
+      "Point", Pdk.Parametric_generators.Platonic_point_normals;
+      "Vertex", Pdk.Parametric_generators.Platonic_vertex_normals;
     ]
 
   let orientation_parameter = Parameter.choice ~equal:( = ) [
@@ -391,17 +391,17 @@ module Platonic = struct
     ]
 
   let rotation_order_parameter = Parameter.choice ~equal:( = ) [
-      "XYZ", Pdk.Ops.Platonic_xyz; "XZY", Pdk.Ops.Platonic_xzy;
-      "YXZ", Pdk.Ops.Platonic_yxz; "YZX", Pdk.Ops.Platonic_yzx;
-      "ZXY", Pdk.Ops.Platonic_zxy; "ZYX", Pdk.Ops.Platonic_zyx;
+      "XYZ", Pdk.Parametric_generators.Platonic_xyz; "XZY", Pdk.Parametric_generators.Platonic_xzy;
+      "YXZ", Pdk.Parametric_generators.Platonic_yxz; "YZX", Pdk.Parametric_generators.Platonic_yzx;
+      "ZXY", Pdk.Parametric_generators.Platonic_zxy; "ZYX", Pdk.Parametric_generators.Platonic_zyx;
     ]
 
   type parameters = {
-    kind : Pdk.Ops.platonic_kind
-      [@sop.default Pdk.Ops.Platonic_dodecahedron]
+    kind : Pdk.Parametric_generators.platonic_kind
+      [@sop.default Pdk.Parametric_generators.Platonic_dodecahedron]
       [@sop.label "Type"] [@sop.kind kind_parameter];
-    normals : Pdk.Ops.platonic_normals
-      [@sop.default Pdk.Ops.Platonic_vertex_normals]
+    normals : Pdk.Parametric_generators.platonic_normals
+      [@sop.default Pdk.Parametric_generators.Platonic_vertex_normals]
       [@sop.label "Normals"] [@sop.kind normals_parameter];
     radius : float [@sop.default 1.] [@sop.label "Radius"]
       [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.];
@@ -429,8 +429,8 @@ module Platonic = struct
     rotation_z : float [@sop.default 0.] [@sop.label "Rotate Z"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
       [@sop.max 3.14159];
-    rotation_order : Pdk.Ops.platonic_rotation_order
-      [@sop.default Pdk.Ops.Platonic_xyz]
+    rotation_order : Pdk.Parametric_generators.platonic_rotation_order
+      [@sop.default Pdk.Parametric_generators.Platonic_xyz]
       [@sop.label "Rotation order"] [@sop.folder "Transform/Rotate"]
       [@sop.kind rotation_order_parameter];
     face_groups : string [@sop.default ""] [@sop.label "Face group prefix"]
@@ -440,10 +440,10 @@ module Platonic = struct
     [@@deriving sop_params, sop_node]
 
   let pdk_orientation parameters = match parameters.orientation with
-    | Axis_x -> Pdk.Ops.Platonic_x
-    | Axis_y -> Pdk.Ops.Platonic_y
-    | Axis_z -> Pdk.Ops.Platonic_z
-    | Axis_custom -> Pdk.Ops.Platonic_axis (Vec3.create parameters.axis_x
+    | Axis_x -> Pdk.Parametric_generators.Platonic_x
+    | Axis_y -> Pdk.Parametric_generators.Platonic_y
+    | Axis_z -> Pdk.Parametric_generators.Platonic_z
+    | Axis_custom -> Pdk.Parametric_generators.Platonic_axis (Vec3.create parameters.axis_x
         parameters.axis_y parameters.axis_z)
 
   let rec build ~label ~inputs:_ parameters =
@@ -460,16 +460,16 @@ module Platonic = struct
 
   let factory = parameters_factory build
 
-  let create ?label:node_label ?(kind = Pdk.Ops.Platonic_tetrahedron)
-      ?(normals = Pdk.Ops.Platonic_no_normals)
-      ?(orientation = Pdk.Ops.Platonic_y) ?(center = Vec3.zero)
-      ?(rotation = Vec3.zero) ?(rotation_order = Pdk.Ops.Platonic_xyz)
+  let create ?label:node_label ?(kind = Pdk.Parametric_generators.Platonic_tetrahedron)
+      ?(normals = Pdk.Parametric_generators.Platonic_no_normals)
+      ?(orientation = Pdk.Parametric_generators.Platonic_y) ?(center = Vec3.zero)
+      ?(rotation = Vec3.zero) ?(rotation_order = Pdk.Parametric_generators.Platonic_xyz)
       ?(face_groups = "") ~radius () =
     let orientation, axis = match orientation with
-      | Pdk.Ops.Platonic_x -> Axis_x, Vec3.create 1. 0. 0.
-      | Pdk.Ops.Platonic_y -> Axis_y, Vec3.create 0. 1. 0.
-      | Pdk.Ops.Platonic_z -> Axis_z, Vec3.create 0. 0. 1.
-      | Pdk.Ops.Platonic_axis axis -> Axis_custom, axis in
+      | Pdk.Parametric_generators.Platonic_x -> Axis_x, Vec3.create 1. 0. 0.
+      | Pdk.Parametric_generators.Platonic_y -> Axis_y, Vec3.create 0. 1. 0.
+      | Pdk.Parametric_generators.Platonic_z -> Axis_z, Vec3.create 0. 0. 1.
+      | Pdk.Parametric_generators.Platonic_axis axis -> Axis_custom, axis in
     build ~label:(label "platonic" node_label) ~inputs:[] {
       kind; normals; radius; orientation;
       axis_x = axis.x; axis_y = axis.y; axis_z = axis.z;
@@ -986,36 +986,36 @@ end [@@sop.register]
 
 module Torus = struct
   let connectivity_parameter = Parameter.choice ~equal:( = ) [
-      "Triangles", Pdk.Ops.Torus_triangles;
-      "Alternating triangles", Pdk.Ops.Torus_alternating_triangles;
-      "Quads", Pdk.Ops.Torus_quads;
-      "Rows", Pdk.Ops.Torus_rows;
-      "Columns", Pdk.Ops.Torus_columns;
-      "Rows and columns", Pdk.Ops.Torus_rows_and_columns;
-      "Points", Pdk.Ops.Torus_points;
+      "Triangles", Pdk.Parametric_generators.Torus_triangles;
+      "Alternating triangles", Pdk.Parametric_generators.Torus_alternating_triangles;
+      "Quads", Pdk.Parametric_generators.Torus_quads;
+      "Rows", Pdk.Parametric_generators.Torus_rows;
+      "Columns", Pdk.Parametric_generators.Torus_columns;
+      "Rows and columns", Pdk.Parametric_generators.Torus_rows_and_columns;
+      "Points", Pdk.Parametric_generators.Torus_points;
     ]
 
   let normals_parameter = Parameter.choice ~equal:( = ) [
-      "None", Pdk.Ops.Torus_no_normals;
-      "Point", Pdk.Ops.Torus_point_normals;
-      "Vertex", Pdk.Ops.Torus_vertex_normals;
+      "None", Pdk.Parametric_generators.Torus_no_normals;
+      "Point", Pdk.Parametric_generators.Torus_point_normals;
+      "Vertex", Pdk.Parametric_generators.Torus_vertex_normals;
     ]
 
   let orientation_parameter = Parameter.choice ~equal:( = ) [
-      "X axis", Pdk.Ops.Torus_x;
-      "Y axis", Pdk.Ops.Torus_y;
-      "Z axis", Pdk.Ops.Torus_z;
+      "X axis", Pdk.Parametric_generators.Torus_x;
+      "Y axis", Pdk.Parametric_generators.Torus_y;
+      "Z axis", Pdk.Parametric_generators.Torus_z;
     ]
 
   type parameters = {
-    connectivity : Pdk.Ops.torus_connectivity
-      [@sop.default Pdk.Ops.Torus_triangles]
+    connectivity : Pdk.Parametric_generators.torus_connectivity
+      [@sop.default Pdk.Parametric_generators.Torus_triangles]
       [@sop.label "Connectivity"] [@sop.kind connectivity_parameter];
-    normals : Pdk.Ops.torus_normals
-      [@sop.default Pdk.Ops.Torus_point_normals]
+    normals : Pdk.Parametric_generators.torus_normals
+      [@sop.default Pdk.Parametric_generators.Torus_point_normals]
       [@sop.label "Normals"] [@sop.kind normals_parameter];
-    orientation : Pdk.Ops.torus_orientation
-      [@sop.default Pdk.Ops.Torus_y]
+    orientation : Pdk.Parametric_generators.torus_orientation
+      [@sop.default Pdk.Parametric_generators.Torus_y]
       [@sop.label "Hole axis"] [@sop.kind orientation_parameter];
     major_radius : float [@sop.default 1.] [@sop.label "Major radius"]
       [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.]
@@ -1095,36 +1095,36 @@ end [@@sop.register]
 
 module Tube = struct
   let connectivity_parameter = Parameter.choice ~equal:( = ) [
-      "Triangles", Pdk.Ops.Tube_triangles;
-      "Alternating triangles", Pdk.Ops.Tube_alternating_triangles;
-      "Quads", Pdk.Ops.Tube_quads;
-      "Rows", Pdk.Ops.Tube_rows;
-      "Columns", Pdk.Ops.Tube_columns;
-      "Rows and columns", Pdk.Ops.Tube_rows_and_columns;
-      "Points", Pdk.Ops.Tube_points;
+      "Triangles", Pdk.Parametric_generators.Tube_triangles;
+      "Alternating triangles", Pdk.Parametric_generators.Tube_alternating_triangles;
+      "Quads", Pdk.Parametric_generators.Tube_quads;
+      "Rows", Pdk.Parametric_generators.Tube_rows;
+      "Columns", Pdk.Parametric_generators.Tube_columns;
+      "Rows and columns", Pdk.Parametric_generators.Tube_rows_and_columns;
+      "Points", Pdk.Parametric_generators.Tube_points;
     ]
 
   let normals_parameter = Parameter.choice ~equal:( = ) [
-      "None", Pdk.Ops.Tube_no_normals;
-      "Point", Pdk.Ops.Tube_point_normals;
-      "Vertex", Pdk.Ops.Tube_vertex_normals;
+      "None", Pdk.Parametric_generators.Tube_no_normals;
+      "Point", Pdk.Parametric_generators.Tube_point_normals;
+      "Vertex", Pdk.Parametric_generators.Tube_vertex_normals;
     ]
 
   let orientation_parameter = Parameter.choice ~equal:( = ) [
-      "X axis", Pdk.Ops.Tube_x;
-      "Y axis", Pdk.Ops.Tube_y;
-      "Z axis", Pdk.Ops.Tube_z;
+      "X axis", Pdk.Parametric_generators.Tube_x;
+      "Y axis", Pdk.Parametric_generators.Tube_y;
+      "Z axis", Pdk.Parametric_generators.Tube_z;
     ]
 
   type parameters = {
-    connectivity : Pdk.Ops.tube_connectivity
-      [@sop.default Pdk.Ops.Tube_triangles]
+    connectivity : Pdk.Parametric_generators.tube_connectivity
+      [@sop.default Pdk.Parametric_generators.Tube_triangles]
       [@sop.label "Connectivity"] [@sop.kind connectivity_parameter];
-    normals : Pdk.Ops.tube_normals
-      [@sop.default Pdk.Ops.Tube_point_normals]
+    normals : Pdk.Parametric_generators.tube_normals
+      [@sop.default Pdk.Parametric_generators.Tube_point_normals]
       [@sop.label "Normals"] [@sop.kind normals_parameter];
-    orientation : Pdk.Ops.tube_orientation
-      [@sop.default Pdk.Ops.Tube_y]
+    orientation : Pdk.Parametric_generators.tube_orientation
+      [@sop.default Pdk.Parametric_generators.Tube_y]
       [@sop.label "Primary axis"] [@sop.kind orientation_parameter];
     top_radius : float [@sop.default 1.] [@sop.label "Top radius"]
       [@sop.folder "Size"] [@sop.min 0.] [@sop.max 10.]

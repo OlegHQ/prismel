@@ -19,11 +19,11 @@ end
 module Platonic : sig
   val create :
     ?label:string ->
-    ?kind:Pdk.Ops.platonic_kind ->
-    ?normals:Pdk.Ops.platonic_normals ->
-    ?orientation:Pdk.Ops.platonic_orientation ->
+    ?kind:Pdk.Parametric_generators.platonic_kind ->
+    ?normals:Pdk.Parametric_generators.platonic_normals ->
+    ?orientation:Pdk.Parametric_generators.platonic_orientation ->
     ?center:Prismel.Vec3.t -> ?rotation:Prismel.Vec3.t ->
-    ?rotation_order:Pdk.Ops.platonic_rotation_order ->
+    ?rotation_order:Pdk.Parametric_generators.platonic_rotation_order ->
     ?face_groups:string ->
     radius:float -> unit -> Procedural.Node.t
 end

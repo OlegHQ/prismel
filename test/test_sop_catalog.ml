@@ -107,7 +107,7 @@ let run () =
     "catalog point count did not enforce its PPX hard maximum";
   let cube = Sop_catalog.Box.create ~label:"cube" ()
   and dodecahedron = Sop_catalog.Platonic.create ~label:"dodecahedron"
-      ~kind:Pdk.Ops.Platonic_dodecahedron ~radius:1. () in
+      ~kind:Pdk.Parametric_generators.Platonic_dodecahedron ~radius:1. () in
   let switched = Sop_catalog.Switch.create ~label:"source-switch"
       [cube; dodecahedron] in
   check (Node.operation switched = "switch" && Node.has_parameters switched)

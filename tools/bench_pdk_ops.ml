@@ -443,30 +443,30 @@ let run_torus_reference_benchmark () =
 
 let run_torus_generator_benchmarks () =
   measure ~input_points:1_000_000 "torus_generator_triangles" (fun () ->
-    Ops.torus ~grain ~rows:1_000 ~columns:1_000
+    Parametric_generators.torus_checked ~grain ~rows:1_000 ~columns:1_000
       ~major_radius:25. ~minor_radius:8. () |> get_ok) geometry_output;
   measure ~input_points:500_000 "torus_generator_quads_uv" (fun () ->
-    Ops.torus ~grain ~connectivity:Ops.Torus_quads
-      ~normals:Ops.Torus_vertex_normals ~uv_attribute:"uv"
-      ~orientation:(Ops.Torus_axis (Vec3.create 1. 2. 3.))
+    Parametric_generators.torus_checked ~grain ~connectivity:Parametric_generators.Torus_quads
+      ~normals:Parametric_generators.Torus_vertex_normals ~uv_attribute:"uv"
+      ~orientation:(Parametric_generators.Torus_axis (Vec3.create 1. 2. 3.))
       ~center:(Vec3.create 3. (-2.) 5.)
       ~rotation:(Vec3.create 0.3 0.5 0.7)
-      ~rotation_order:Ops.Torus_yzx ~rows:1_000 ~columns:500
+      ~rotation_order:Parametric_generators.Torus_yzx ~rows:1_000 ~columns:500
       ~major_radius:25. ~minor_radius:8. () |> get_ok) geometry_output;
   measure ~input_points:500_000 "torus_generator_partial_caps" (fun () ->
-    Ops.torus ~grain ~connectivity:Ops.Torus_alternating_triangles
-      ~normals:Ops.Torus_vertex_normals ~uv_attribute:"uv"
+    Parametric_generators.torus_checked ~grain ~connectivity:Parametric_generators.Torus_alternating_triangles
+      ~normals:Parametric_generators.Torus_vertex_normals ~uv_attribute:"uv"
       ~u_start:(-0.7) ~u_end:4.8 ~v_start:(-1.2) ~v_end:2.1
       ~u_wrap:false ~v_wrap:false ~u_end_caps:true ~v_end_cap:true
       ~rows:1_000 ~columns:500 ~major_radius:25. ~minor_radius:8. ()
     |> get_ok) geometry_output;
   measure ~input_points:1_000_000 "torus_generator_rows_columns" (fun () ->
-    Ops.torus ~grain ~connectivity:Ops.Torus_rows_and_columns
-      ~normals:Ops.Torus_vertex_normals ~uv_attribute:"uv"
+    Parametric_generators.torus_checked ~grain ~connectivity:Parametric_generators.Torus_rows_and_columns
+      ~normals:Parametric_generators.Torus_vertex_normals ~uv_attribute:"uv"
       ~rows:1_000 ~columns:1_000 ~major_radius:25. ~minor_radius:8. ()
     |> get_ok) geometry_output;
   measure ~input_points:1_000_000 "torus_generator_points" (fun () ->
-    Ops.torus ~grain ~connectivity:Ops.Torus_points ~uv_attribute:"uv"
+    Parametric_generators.torus_checked ~grain ~connectivity:Parametric_generators.Torus_points ~uv_attribute:"uv"
       ~rows:1_000 ~columns:1_000 ~major_radius:25. ~minor_radius:8. ()
     |> get_ok) geometry_output
 
@@ -480,30 +480,30 @@ let run_tube_reference_benchmark () =
 
 let run_tube_generator_benchmarks () =
   measure ~input_points:1_000_000 "tube_generator_open_quads" (fun () ->
-    Ops.tube ~grain ~connectivity:Ops.Tube_quads ~uv_attribute:"uv"
+    Parametric_generators.tube_checked ~grain ~connectivity:Parametric_generators.Tube_quads ~uv_attribute:"uv"
       ~rows:1_000 ~columns:1_000 ~top_radius:8. ~bottom_radius:8. ~height:50. ()
     |> get_ok) geometry_output;
   measure ~input_points:500_000 "tube_generator_capped_frustum" (fun () ->
-    Ops.tube ~grain ~connectivity:Ops.Tube_quads ~end_caps:true
-      ~consolidate_cap_points:true ~normals:Ops.Tube_vertex_normals
-      ~orientation:(Ops.Tube_axis (Vec3.create 1. 2. 3.))
+    Parametric_generators.tube_checked ~grain ~connectivity:Parametric_generators.Tube_quads ~end_caps:true
+      ~consolidate_cap_points:true ~normals:Parametric_generators.Tube_vertex_normals
+      ~orientation:(Parametric_generators.Tube_axis (Vec3.create 1. 2. 3.))
       ~center:(Vec3.create 3. (-2.) 5.)
       ~rotation:(Vec3.create 0.3 0.5 0.7)
-      ~rotation_order:Ops.Tube_yzx ~uv_attribute:"uv" ~cap_group:"caps"
+      ~rotation_order:Parametric_generators.Tube_yzx ~uv_attribute:"uv" ~cap_group:"caps"
       ~rows:1_000 ~columns:500 ~top_radius:5. ~bottom_radius:8. ~height:50. ()
     |> get_ok) geometry_output;
   measure ~input_points:499_501 "tube_generator_capped_cone" (fun () ->
-    Ops.tube ~grain ~connectivity:Ops.Tube_alternating_triangles ~end_caps:true
-      ~consolidate_cap_points:false ~normals:Ops.Tube_vertex_normals
+    Parametric_generators.tube_checked ~grain ~connectivity:Parametric_generators.Tube_alternating_triangles ~end_caps:true
+      ~consolidate_cap_points:false ~normals:Parametric_generators.Tube_vertex_normals
       ~uv_attribute:"uv" ~cap_group:"caps" ~rows:1_000 ~columns:500
       ~top_radius:0. ~bottom_radius:8. ~height:50. () |> get_ok) geometry_output;
   measure ~input_points:1_000_000 "tube_generator_rows_columns" (fun () ->
-    Ops.tube ~grain ~connectivity:Ops.Tube_rows_and_columns
-      ~normals:Ops.Tube_vertex_normals ~uv_attribute:"uv"
+    Parametric_generators.tube_checked ~grain ~connectivity:Parametric_generators.Tube_rows_and_columns
+      ~normals:Parametric_generators.Tube_vertex_normals ~uv_attribute:"uv"
       ~rows:1_000 ~columns:1_000 ~top_radius:5. ~bottom_radius:8. ~height:50. ()
     |> get_ok) geometry_output;
   measure ~input_points:1_000_000 "tube_generator_points" (fun () ->
-    Ops.tube ~grain ~connectivity:Ops.Tube_points ~uv_attribute:"uv"
+    Parametric_generators.tube_checked ~grain ~connectivity:Parametric_generators.Tube_points ~uv_attribute:"uv"
       ~rows:1_000 ~columns:1_000 ~top_radius:5. ~bottom_radius:8. ~height:50. ()
     |> get_ok) geometry_output
 
@@ -542,19 +542,19 @@ let run_platonic_reference_benchmark () =
 let run_platonic_generator_benchmarks () =
   measure ~input_points:(platonic_batch * 12)
     "platonic_generator_icosahedron_batch" (fun () ->
-      let make () = Ops.platonic ~kind:Ops.Platonic_icosahedron
-          ~normals:Ops.Platonic_no_normals ~radius:3. () |> get_ok in
+      let make () = Parametric_generators.platonic_checked ~kind:Parametric_generators.Platonic_icosahedron
+          ~normals:Parametric_generators.Platonic_no_normals ~radius:3. () |> get_ok in
       let output = ref (make ()) in
       for _ = 2 to platonic_batch do output := make () done;
       !output) geometry_output;
   let soccer_batch = max 1 (platonic_batch / 5) in
   measure ~input_points:(soccer_batch * 60)
     "platonic_generator_soccer_vertex_normals_batch" (fun () ->
-      let make () = Ops.platonic ~kind:Ops.Platonic_soccer_ball
-          ~normals:Ops.Platonic_vertex_normals
-          ~orientation:(Ops.Platonic_axis (Vec3.create 1. 2. 3.))
+      let make () = Parametric_generators.platonic_checked ~kind:Parametric_generators.Platonic_soccer_ball
+          ~normals:Parametric_generators.Platonic_vertex_normals
+          ~orientation:(Parametric_generators.Platonic_axis (Vec3.create 1. 2. 3.))
           ~rotation:(Vec3.create 0.3 0.5 0.7)
-          ~rotation_order:Ops.Platonic_yzx ~face_groups:"face" ~radius:3. ()
+          ~rotation_order:Parametric_generators.Platonic_yzx ~face_groups:"face" ~radius:3. ()
         |> get_ok in
       let output = ref (make ()) in
       for _ = 2 to soccer_batch do output := make () done;

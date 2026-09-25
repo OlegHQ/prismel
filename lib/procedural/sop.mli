@@ -114,12 +114,12 @@ val uv_sphere :
 
 val torus :
   ?label:string ->
-  ?connectivity:Pdk.Ops.torus_connectivity ->
-  ?normals:Pdk.Ops.torus_normals ->
-  ?orientation:Pdk.Ops.torus_orientation ->
+  ?connectivity:Pdk.Parametric_generators.torus_connectivity ->
+  ?normals:Pdk.Parametric_generators.torus_normals ->
+  ?orientation:Pdk.Parametric_generators.torus_orientation ->
   ?center:Prismel.Vec3.t ->
   ?rotation:Prismel.Vec3.t ->
-  ?rotation_order:Pdk.Ops.torus_rotation_order ->
+  ?rotation_order:Pdk.Parametric_generators.torus_rotation_order ->
   ?uniform_scale:float ->
   ?u_start:float ->
   ?u_end:float ->
@@ -141,14 +141,14 @@ val torus :
 
 val tube :
   ?label:string ->
-  ?connectivity:Pdk.Ops.tube_connectivity ->
+  ?connectivity:Pdk.Parametric_generators.tube_connectivity ->
   ?end_caps:bool ->
   ?consolidate_cap_points:bool ->
-  ?normals:Pdk.Ops.tube_normals ->
-  ?orientation:Pdk.Ops.tube_orientation ->
+  ?normals:Pdk.Parametric_generators.tube_normals ->
+  ?orientation:Pdk.Parametric_generators.tube_orientation ->
   ?center:Prismel.Vec3.t ->
   ?rotation:Prismel.Vec3.t ->
-  ?rotation_order:Pdk.Ops.tube_rotation_order ->
+  ?rotation_order:Pdk.Parametric_generators.tube_rotation_order ->
   ?radius_scale:float ->
   ?uv_attribute:string ->
   ?cap_group:string ->
@@ -164,12 +164,12 @@ val tube :
 
 val platonic :
   ?label:string ->
-  ?kind:Pdk.Ops.platonic_kind ->
-  ?normals:Pdk.Ops.platonic_normals ->
-  ?orientation:Pdk.Ops.platonic_orientation ->
+  ?kind:Pdk.Parametric_generators.platonic_kind ->
+  ?normals:Pdk.Parametric_generators.platonic_normals ->
+  ?orientation:Pdk.Parametric_generators.platonic_orientation ->
   ?center:Prismel.Vec3.t ->
   ?rotation:Prismel.Vec3.t ->
-  ?rotation_order:Pdk.Ops.platonic_rotation_order ->
+  ?rotation_order:Pdk.Parametric_generators.platonic_rotation_order ->
   ?face_groups:string ->
   radius:float ->
   unit -> Node.t

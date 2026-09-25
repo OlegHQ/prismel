@@ -36,8 +36,8 @@ let graph () =
       ~size:(Vec3.create 2.6 2.6 2.6) ~connectivity:Pdk.Ops.Box_quads
       ~consolidate_points:true ~normals:Pdk.Ops.Box_vertex_normals ()
   and dodecahedron = Sop_catalog.Platonic.create ~label:"dodecahedron"
-      ~kind:Pdk.Ops.Platonic_dodecahedron
-      ~normals:Pdk.Ops.Platonic_vertex_normals
+      ~kind:Pdk.Parametric_generators.Platonic_dodecahedron
+      ~normals:Pdk.Parametric_generators.Platonic_vertex_normals
       ~rotation:(Vec3.create 0.173 0.291 0.113) ~radius:2.25 () in
   let source = Sop_catalog.Switch.create ~label:"source-switch"
       [cube; dodecahedron] in

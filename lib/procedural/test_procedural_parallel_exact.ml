@@ -327,11 +327,11 @@ let run () =
       && Geometry.primitive_count one = 65_024)
     "advanced UV Sphere exactness fixture cardinality";
   let generated_torus = Sop.torus
-      ~connectivity:Ops.Torus_alternating_triangles
-      ~normals:Ops.Torus_vertex_normals ~uv_attribute:"uv"
-      ~orientation:(Ops.Torus_axis (Vec3.create 1. 2. 3.))
+      ~connectivity:Parametric_generators.Torus_alternating_triangles
+      ~normals:Parametric_generators.Torus_vertex_normals ~uv_attribute:"uv"
+      ~orientation:(Parametric_generators.Torus_axis (Vec3.create 1. 2. 3.))
       ~center:(Vec3.create 3. (-2.) 5.)
-      ~rotation:(Vec3.create 0.3 0.5 0.7) ~rotation_order:Ops.Torus_yzx
+      ~rotation:(Vec3.create 0.3 0.5 0.7) ~rotation_order:Parametric_generators.Torus_yzx
       ~u_start:(-0.7) ~u_end:4.8 ~v_start:(-1.2) ~v_end:2.1
       ~u_wrap:false ~v_wrap:false ~u_end_caps:true ~v_end_cap:true
       ~rows:256 ~columns:128 ~major_radius:3. ~minor_radius:1. () in
@@ -343,11 +343,11 @@ let run () =
       && Geometry.primitive_count one = 65_282)
     "advanced Torus exactness fixture cardinality";
   let generated_tube = Sop.tube
-      ~connectivity:Ops.Tube_alternating_triangles ~end_caps:true
-      ~consolidate_cap_points:false ~normals:Ops.Tube_vertex_normals
-      ~orientation:(Ops.Tube_axis (Vec3.create 1. 2. 3.))
+      ~connectivity:Parametric_generators.Tube_alternating_triangles ~end_caps:true
+      ~consolidate_cap_points:false ~normals:Parametric_generators.Tube_vertex_normals
+      ~orientation:(Parametric_generators.Tube_axis (Vec3.create 1. 2. 3.))
       ~center:(Vec3.create 3. (-2.) 5.)
-      ~rotation:(Vec3.create 0.3 0.5 0.7) ~rotation_order:Ops.Tube_yzx
+      ~rotation:(Vec3.create 0.3 0.5 0.7) ~rotation_order:Parametric_generators.Tube_yzx
       ~radius_scale:1.2 ~uv_attribute:"uv" ~cap_group:"caps"
       ~rows:256 ~columns:128 ~top_radius:0. ~bottom_radius:3. ~height:5. () in
   let one = cook 1 generated_tube and many = cook 4 generated_tube in
@@ -358,11 +358,11 @@ let run () =
       && Geometry.primitive_count one = 65_153)
     "advanced Tube exactness fixture cardinality";
   let generated_platonic = Sop.platonic
-      ~kind:Ops.Platonic_soccer_ball ~normals:Ops.Platonic_vertex_normals
-      ~orientation:(Ops.Platonic_axis (Vec3.create 1. 2. 3.))
+      ~kind:Parametric_generators.Platonic_soccer_ball ~normals:Parametric_generators.Platonic_vertex_normals
+      ~orientation:(Parametric_generators.Platonic_axis (Vec3.create 1. 2. 3.))
       ~center:(Vec3.create 3. (-2.) 5.)
       ~rotation:(Vec3.create 0.3 0.5 0.7)
-      ~rotation_order:Ops.Platonic_yzx ~face_groups:"face" ~radius:4. () in
+      ~rotation_order:Parametric_generators.Platonic_yzx ~face_groups:"face" ~radius:4. () in
   let one = cook 1 generated_platonic and many = cook 4 generated_platonic in
   check (equal_geometry one many)
     "one-domain and four-domain advanced Platonic geometry differ";

@@ -79,7 +79,7 @@ let equal_geometry left right =
 
 let make ?kind ?normals ?orientation ?center ?rotation ?rotation_order
     ?face_groups ?(radius = 2.) () =
-  Ops.platonic ?kind ?normals ?orientation ?center ?rotation ?rotation_order
+  Parametric_generators.platonic_checked ?kind ?normals ?orientation ?center ?rotation ?rotation_order
     ?face_groups ~radius () |> get_ok
 
 let check_outward_and_regular name radius geometry =
@@ -120,12 +120,12 @@ let check_outward_and_regular name radius geometry =
 
 let check_catalog () =
   let cases = [
-    "tetrahedron", Ops.Platonic_tetrahedron, 4, 12, 4, 6;
-    "cube", Ops.Platonic_cube, 8, 24, 6, 12;
-    "octahedron", Ops.Platonic_octahedron, 6, 24, 8, 12;
-    "icosahedron", Ops.Platonic_icosahedron, 12, 60, 20, 30;
-    "dodecahedron", Ops.Platonic_dodecahedron, 20, 60, 12, 30;
-    "soccer ball", Ops.Platonic_soccer_ball, 60, 180, 32, 90;
+    "tetrahedron", Parametric_generators.Platonic_tetrahedron, 4, 12, 4, 6;
+    "cube", Parametric_generators.Platonic_cube, 8, 24, 6, 12;
+    "octahedron", Parametric_generators.Platonic_octahedron, 6, 24, 8, 12;
+    "icosahedron", Parametric_generators.Platonic_icosahedron, 12, 60, 20, 30;
+    "dodecahedron", Parametric_generators.Platonic_dodecahedron, 20, 60, 12, 30;
+    "soccer ball", Parametric_generators.Platonic_soccer_ball, 60, 180, 32, 90;
   ] in
   List.iter (fun (name, kind, points, vertices, primitives, edges) ->
     let geometry = make ~kind () in
@@ -142,12 +142,12 @@ let check_catalog () =
     done) cases
 
 let check_normals_groups_colors_and_bridge () =
-  let none = make ~normals:Ops.Platonic_no_normals () in
+  let none = make ~normals:Parametric_generators.Platonic_no_normals () in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" none = None
       && Geometry.find_attribute ~owner:Attribute.Vertex "N" none = None)
     "Platonic_no_normals emitted N";
-  let smooth = make ~kind:Ops.Platonic_dodecahedron
-      ~normals:Ops.Platonic_point_normals () in
+  let smooth = make ~kind:Parametric_generators.Platonic_dodecahedron
+      ~normals:Parametric_generators.Platonic_point_normals () in
   let point = positions smooth
   and normal = float3_attribute smooth Attribute.Point "N" in
   for p = 0 to Geometry.point_count smooth - 1 do
@@ -156,8 +156,8 @@ let check_normals_groups_colors_and_bridge () =
         && near normal.z.(p) (point.z.(p) /. 2.))
       "Platonic point normal is not radial"
   done;
-  let soccer = make ~kind:Ops.Platonic_soccer_ball
-      ~normals:Ops.Platonic_vertex_normals ~face_groups:"face" () in
+  let soccer = make ~kind:Parametric_generators.Platonic_soccer_ball
+      ~normals:Parametric_generators.Platonic_vertex_normals ~face_groups:"face" () in
   let normal = float3_attribute soccer Attribute.Vertex "N"
   and color = float3_attribute soccer Attribute.Primitive "Cd" in
   for primitive = 0 to 31 do
@@ -190,21 +190,21 @@ let check_orientation_rotation_and_validation () =
   let rotation = Vec3.create 0.3 0.5 0.7 and center = Vec3.create 3. (-2.) 5. in
   let source = Vec3.scale (Vec3.create 1. 1. 1.) (2. /. sqrt 3.) in
   let first order =
-    let p = make ~kind:Ops.Platonic_tetrahedron ~rotation
+    let p = make ~kind:Parametric_generators.Platonic_tetrahedron ~rotation
         ~rotation_order:order ~center () |> positions in
     Vec3.create p.x.(0) p.y.(0) p.z.(0) in
   let cases = [
-    Ops.Platonic_xyz, Mat4.mul (Mat4.rotation_z rotation.z)
+    Parametric_generators.Platonic_xyz, Mat4.mul (Mat4.rotation_z rotation.z)
       (Mat4.mul (Mat4.rotation_y rotation.y) (Mat4.rotation_x rotation.x));
-    Ops.Platonic_xzy, Mat4.mul (Mat4.rotation_y rotation.y)
+    Parametric_generators.Platonic_xzy, Mat4.mul (Mat4.rotation_y rotation.y)
       (Mat4.mul (Mat4.rotation_z rotation.z) (Mat4.rotation_x rotation.x));
-    Ops.Platonic_yxz, Mat4.mul (Mat4.rotation_z rotation.z)
+    Parametric_generators.Platonic_yxz, Mat4.mul (Mat4.rotation_z rotation.z)
       (Mat4.mul (Mat4.rotation_x rotation.x) (Mat4.rotation_y rotation.y));
-    Ops.Platonic_yzx, Mat4.mul (Mat4.rotation_x rotation.x)
+    Parametric_generators.Platonic_yzx, Mat4.mul (Mat4.rotation_x rotation.x)
       (Mat4.mul (Mat4.rotation_z rotation.z) (Mat4.rotation_y rotation.y));
-    Ops.Platonic_zxy, Mat4.mul (Mat4.rotation_y rotation.y)
+    Parametric_generators.Platonic_zxy, Mat4.mul (Mat4.rotation_y rotation.y)
       (Mat4.mul (Mat4.rotation_x rotation.x) (Mat4.rotation_z rotation.z));
-    Ops.Platonic_zyx, Mat4.mul (Mat4.rotation_x rotation.x)
+    Parametric_generators.Platonic_zyx, Mat4.mul (Mat4.rotation_x rotation.x)
       (Mat4.mul (Mat4.rotation_y rotation.y) (Mat4.rotation_z rotation.z));
   ] in
   List.iter (fun (order, matrix) ->
@@ -212,37 +212,48 @@ let check_orientation_rotation_and_validation () =
     and actual = first order in
     check (near actual.x expected.x && near actual.y expected.y
         && near actual.z expected.z) "Platonic Euler rotation order") cases;
-  let custom = make ~orientation:(Ops.Platonic_axis
+  let custom = make ~orientation:(Parametric_generators.Platonic_axis
       (Vec3.create 0. max_float 0.)) () in
   check_outward_and_regular "custom-axis tetrahedron" 2. custom;
-  expect_code "invalid_parameter" (Ops.platonic ~radius:0. ());
-  expect_code "invalid_parameter" (Ops.platonic ~radius:Float.nan ());
-  expect_code "invalid_parameter" (Ops.platonic ~radius:max_float
+  expect_code "invalid_parameter" (Parametric_generators.platonic_checked ~radius:0. ());
+  expect_code "invalid_parameter" (Parametric_generators.platonic_checked ~radius:Float.nan ());
+  expect_code "invalid_parameter" (Parametric_generators.platonic_checked ~radius:max_float
       ~center:(Vec3.create max_float 0. 0.) ());
-  expect_code "invalid_parameter" (Ops.platonic ~radius:1.
+  expect_code "invalid_parameter" (Parametric_generators.platonic_checked ~radius:1.
       ~rotation:(Vec3.create Float.infinity 0. 0.) ());
-  expect_code "invalid_parameter" (Ops.platonic ~radius:1.
-      ~orientation:(Ops.Platonic_axis Vec3.zero) ());
-  expect_code "invalid_parameter" (Ops.platonic ~radius:1. ~face_groups:"" ());
+  expect_code "invalid_parameter" (Parametric_generators.platonic_checked ~radius:1.
+      ~orientation:(Parametric_generators.Platonic_axis Vec3.zero) ());
+  expect_code "invalid_parameter" (Parametric_generators.platonic_checked ~radius:1. ~face_groups:"" ());
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  expect_code "cancelled" (Ops.platonic ~cancel:cancelled ~radius:1. ())
+  expect_code "cancelled" (Parametric_generators.platonic_checked ~cancel:cancelled ~radius:1. ())
 
 let check_parallel_exact () =
   let run domains = Parallel.run ~domains (fun () ->
-    Ops.platonic ~kind:Ops.Platonic_soccer_ball
-      ~normals:Ops.Platonic_vertex_normals
-      ~orientation:(Ops.Platonic_axis (Vec3.create 1. 2. 3.))
+    Parametric_generators.platonic_checked ~kind:Parametric_generators.Platonic_soccer_ball
+      ~normals:Parametric_generators.Platonic_vertex_normals
+      ~orientation:(Parametric_generators.Platonic_axis (Vec3.create 1. 2. 3.))
       ~center:(Vec3.create 3. (-2.) 5.)
       ~rotation:(Vec3.create 0.3 0.5 0.7)
-      ~rotation_order:Ops.Platonic_yzx ~face_groups:"face" ~radius:4. ()
+      ~rotation_order:Parametric_generators.Platonic_yzx ~face_groups:"face" ~radius:4. ()
     |> get_ok) in
   check (equal_geometry (run 1) (run 4))
     "one-domain and four-domain Platonic geometry differ"
+
+let check_family_boundary () =
+  let family = Parametric_generators.platonic_checked ~radius:1. () |> get_ok
+  and compat = Ops.platonic ~radius:1. () |> get_ok in
+  check (equal_geometry family compat)
+    "Platonic family differs from compatibility path";
+  let code = function Error error -> Error.code error | Ok _ -> "ok" in
+  check (code (Parametric_generators.platonic_checked ~radius:0. ()) =
+    code (Ops.platonic ~radius:0. ()))
+    "Platonic family error code differs from compatibility path"
 
 let run () =
   check_catalog ();
   check_normals_groups_colors_and_bridge ();
   check_orientation_rotation_and_validation ();
   check_parallel_exact ();
+  check_family_boundary ();
   print_endline "Platonic tests passed"

@@ -397,11 +397,11 @@ let test_uv_sphere_generator_contract () =
 let test_torus_generator_contract () =
   let evaluator = session () and current = context ~domains:4 ~grain:7 () in
   let graph = Sop.torus ~label:"capped-torus"
-      ~connectivity:Pdk.Ops.Torus_alternating_triangles
-      ~normals:Pdk.Ops.Torus_vertex_normals
-      ~orientation:(Pdk.Ops.Torus_axis (Vec3.create 1. 2. 3.))
+      ~connectivity:Pdk.Parametric_generators.Torus_alternating_triangles
+      ~normals:Pdk.Parametric_generators.Torus_vertex_normals
+      ~orientation:(Pdk.Parametric_generators.Torus_axis (Vec3.create 1. 2. 3.))
       ~center:(Vec3.create 2. 3. 4.) ~rotation:(Vec3.create 0.2 0.3 0.4)
-      ~rotation_order:Pdk.Ops.Torus_zxy ~uniform_scale:1.5
+      ~rotation_order:Pdk.Parametric_generators.Torus_zxy ~uniform_scale:1.5
       ~u_start:0.2 ~u_end:2.4 ~v_start:(-.Float.pi /. 2.)
       ~v_end:(Float.pi /. 2.) ~u_wrap:false ~v_wrap:false
       ~u_end_caps:true ~v_end_cap:true ~uv_attribute:"uv"
@@ -420,7 +420,7 @@ let test_torus_generator_contract () =
       && Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Vertex "uv"
          output.geometry <> None)
     "procedural capped Torus output contract";
-  let points = Sop.torus ~connectivity:Pdk.Ops.Torus_points
+  let points = Sop.torus ~connectivity:Pdk.Parametric_generators.Torus_points
       ~uv_attribute:"uv" ~rows:8 ~columns:5
       ~major_radius:3. ~minor_radius:1. () |> cook_ok evaluator current in
   check (Pdk.Geometry.point_count points.geometry = 40
@@ -429,7 +429,7 @@ let test_torus_generator_contract () =
          points.geometry <> None)
     "procedural Torus point lattice";
   let invalid = Sop.torus ~label:"bad-torus-axis"
-      ~orientation:(Pdk.Ops.Torus_axis Vec3.zero)
+      ~orientation:(Pdk.Parametric_generators.Torus_axis Vec3.zero)
       ~major_radius:2. ~minor_radius:1. () in
   (match Session.cook evaluator ~context:current invalid with
    | Ok _ -> fail "procedural Torus accepted a zero hole axis"
@@ -444,11 +444,11 @@ let test_torus_generator_contract () =
 let test_tube_generator_contract () =
   let evaluator = session () and current = context ~domains:4 ~grain:7 () in
   let graph = Sop.tube ~label:"capped-cone"
-      ~connectivity:Pdk.Ops.Tube_alternating_triangles ~end_caps:true
-      ~consolidate_cap_points:false ~normals:Pdk.Ops.Tube_vertex_normals
-      ~orientation:(Pdk.Ops.Tube_axis (Vec3.create 1. 2. 3.))
+      ~connectivity:Pdk.Parametric_generators.Tube_alternating_triangles ~end_caps:true
+      ~consolidate_cap_points:false ~normals:Pdk.Parametric_generators.Tube_vertex_normals
+      ~orientation:(Pdk.Parametric_generators.Tube_axis (Vec3.create 1. 2. 3.))
       ~center:(Vec3.create 2. 3. 4.) ~rotation:(Vec3.create 0.2 0.3 0.4)
-      ~rotation_order:Pdk.Ops.Tube_zxy ~radius_scale:1.5
+      ~rotation_order:Pdk.Parametric_generators.Tube_zxy ~radius_scale:1.5
       ~uv_attribute:"uv" ~cap_group:"caps" ~rows:8 ~columns:5
       ~top_radius:0. ~bottom_radius:3. ~height:4. () in
   check (contains (Node.parameters graph) "connectivity=alternating_triangles"
@@ -467,7 +467,7 @@ let test_tube_generator_contract () =
       && Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive "caps"
          output.geometry <> None)
     "procedural capped Tube output contract";
-  let points = Sop.tube ~connectivity:Pdk.Ops.Tube_points
+  let points = Sop.tube ~connectivity:Pdk.Parametric_generators.Tube_points
       ~uv_attribute:"uv" ~rows:8 ~columns:5
       ~top_radius:0. ~bottom_radius:3. ~height:4. ()
       |> cook_ok evaluator current in
@@ -477,7 +477,7 @@ let test_tube_generator_contract () =
          points.geometry <> None)
     "procedural Tube point lattice";
   let invalid = Sop.tube ~label:"bad-tube-axis"
-      ~orientation:(Pdk.Ops.Tube_axis Vec3.zero)
+      ~orientation:(Pdk.Parametric_generators.Tube_axis Vec3.zero)
       ~top_radius:1. ~bottom_radius:1. ~height:2. () in
   (match Session.cook evaluator ~context:current invalid with
    | Ok _ -> fail "procedural Tube accepted a zero primary axis"
@@ -492,11 +492,11 @@ let test_tube_generator_contract () =
 let test_platonic_generator_contract () =
   let evaluator = session () and current = context ~domains:4 ~grain:7 () in
   let graph = Sop.platonic ~label:"soccer"
-      ~kind:Pdk.Ops.Platonic_soccer_ball
-      ~normals:Pdk.Ops.Platonic_vertex_normals
-      ~orientation:(Pdk.Ops.Platonic_axis (Vec3.create 1. 2. 3.))
+      ~kind:Pdk.Parametric_generators.Platonic_soccer_ball
+      ~normals:Pdk.Parametric_generators.Platonic_vertex_normals
+      ~orientation:(Pdk.Parametric_generators.Platonic_axis (Vec3.create 1. 2. 3.))
       ~center:(Vec3.create 2. 3. 4.) ~rotation:(Vec3.create 0.2 0.3 0.4)
-      ~rotation_order:Pdk.Ops.Platonic_zxy ~face_groups:"face" ~radius:3. () in
+      ~rotation_order:Pdk.Parametric_generators.Platonic_zxy ~face_groups:"face" ~radius:3. () in
   check (contains (Node.parameters graph) "kind=soccer_ball"
       && contains (Node.parameters graph) "normals=vertex"
       && contains (Node.parameters graph) "rotation_order=zxy"
@@ -514,7 +514,7 @@ let test_platonic_generator_contract () =
          output.geometry <> None)
     "procedural Platonic output contract";
   let invalid = Sop.platonic ~label:"bad-platonic-axis"
-      ~orientation:(Pdk.Ops.Platonic_axis Vec3.zero) ~radius:1. () in
+      ~orientation:(Pdk.Parametric_generators.Platonic_axis Vec3.zero) ~radius:1. () in
   (match Session.cook evaluator ~context:current invalid with
    | Ok _ -> fail "procedural Platonic accepted a zero up axis"
    | Error error ->
@@ -3421,7 +3421,7 @@ let test_generators_selections_and_delete () =
 
 let test_poly_fill_contract () =
   let evaluator = session () and current = context ~domains:4 ~grain:7 () in
-  let graph = Sop.tube ~connectivity:Pdk.Ops.Tube_quads ~end_caps:false
+  let graph = Sop.tube ~connectivity:Pdk.Parametric_generators.Tube_quads ~end_caps:false
       ~rows:4 ~columns:8 ~top_radius:0.7 ~bottom_radius:1. ~height:2. ()
       |> Sop.poly_fill ~mode:Pdk.Ops.Fill_triangle_fan ~unique_points:true
            ~patch_group:"patch" in
