@@ -955,10 +955,9 @@ let frame_boxes value boxes =
 
 let frame_all value = frame_boxes value value.boxes
 
-let frame_selected (value : t) =
-  let boxes = Array.of_list (Array.to_list value.boxes |> List.filter (fun (box : box) ->
-    Id_set.mem box.info.Edit_graph.id value.selected)) in
-  if Array.length boxes = 0 then frame_all value else frame_boxes value boxes
+let frame_viewed (value : t) = match Hashtbl.find_opt value.slots value.viewed with
+  | Some index -> frame_boxes value [| value.boxes.(index) |]
+  | None -> frame_all value
 
 let lower value = String.lowercase_ascii value
 

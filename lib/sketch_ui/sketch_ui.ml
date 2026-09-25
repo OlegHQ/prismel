@@ -78,10 +78,13 @@ module Leader = struct
     { trigger = Leader 'x'; label = "stop"; scope = None; action = Stop };
     { trigger = Leader 'a'; label = "add node"; scope = Some Workspace.Graph; action = Add_node };
     { trigger = Leader 'l'; label = "layout"; scope = Some Workspace.Graph; action = Layout };
-    { trigger = Leader 'f'; label = "frame selected tile"; scope = Some Workspace.Graph;
+    { trigger = Leader 'f'; label = "frame displayed tile"; scope = Some Workspace.Graph;
       action = Frame_tile };
     { trigger = Chord (Input.KeyChar 'f', []);
-      label = "frame camera on tile"; scope = Some Workspace.Graph;
+      label = "frame displayed tile"; scope = Some Workspace.Graph;
+      action = Frame_tile };
+    { trigger = Chord (Input.KeyChar 'f', []);
+      label = "focus camera on displayed node"; scope = Some Workspace.View;
       action = Frame_camera };
   ] @ List.concat_map (fun modifier -> [
     { trigger = Chord (Input.KeyChar 'z', [modifier]);
@@ -526,7 +529,7 @@ module Core = struct
         Workspace.expand Workspace.Graph workspace,
         Pxui_graph.open_menu_at at graph_view, timeline, changes
     | Layout -> workspace, Pxui_graph.optimize_layout graph_view, timeline, changes
-    | Frame_tile -> workspace, Pxui_graph.frame_selected graph_view, timeline, changes
+    | Frame_tile -> workspace, Pxui_graph.frame_viewed graph_view, timeline, changes
     | Hide_ui | Look_through | Fly | Save_preset | Browse_presets
     | Graph_command _ | Frame_camera | Undo | Redo ->
         workspace, graph_view, timeline, changes
@@ -575,7 +578,7 @@ module Core = struct
     (* ponytail: seeking recooks the pure graph at the target frame; state a
        sketch threads through [run_state] outside the graph is not replayed. *)
     let initial_frame_request = if List.mem Leader.Frame_camera actions
-      then Pxui_graph.selected graph_view else None in
+      then Some (Pxui_graph.viewed graph_view) else None in
     let build ui =
       let workspace = Workspace.update workspace ui shortcut_frame in
       let panes = Workspace.geometry workspace frame in
@@ -893,6 +896,17 @@ let set_ui_cursor ui visible =
   match Sketch.set_cursor shape with Ok () -> () | Error error -> failwith error
 
 module Viewport2 = struct
+  let frame_bounds ~viewport:(_, _, width, height) ~min ~max camera =
+    let span_x = max.Vec3.x -. min.Vec3.x
+    and span_y = max.Vec3.y -. min.Vec3.y in
+    let zoom = Float.min
+        (float_of_int (Int.max 1 (width - 76)) /. Float.max 1. span_x)
+        (float_of_int (Int.max 1 (height - 76)) /. Float.max 1. span_y) in
+    camera
+    |> Easy_camera2.with_center
+         (Vec2.create ((min.x +. max.x) *. 0.5) ((min.y +. max.y) *. 0.5))
+    |> Easy_camera2.with_zoom zoom
+
   let panel ui ~control ~camera ~inspector =
     let control, camera, requests = CC2.widgets control ui ~camera in
     control, camera, requests, inspector ui
@@ -1259,9 +1273,15 @@ module Environment2 = struct
       | _ -> control) control update.actions in
     let camera = Viewport2.navigate ~visible ~panes ~control ~camera
         ~input:update.input frame in
+    let camera, render_status = match update.framed with
+      | Some (Some (min, max)) ->
+          Viewport2.frame_bounds ~viewport:panes.view ~min ~max camera,
+          value.render_status
+      | Some None -> camera, Some "Nothing to frame: no cooked points"
+      | None -> camera, value.render_status in
     let rendered, pending_render, render_status = Environment.finish update
         ~core ~draw:value.scene2 ~rendered:value.rendered ~requests
-        ~status:value.render_status in
+        ~status:render_status in
     { value with core; camera; camera_control = control; rendered; pending_render;
       render_status }, inspected
 

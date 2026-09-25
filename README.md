@@ -161,9 +161,9 @@ apply to the pane you clicked last.
 | `Space t` / `g` / `i` | toggle timeline / graph / inspector |
 | `Space h` / `Space c` | hide all UI / camera section |
 | `Space p` / `r` / `x` | play-pause / reset / stop |
-| `Space a` / `l` / `f` (graph) | add node / layout / frame selected tile |
+| `Space a` / `l` / `f` (graph) | add node / layout / frame displayed tile |
 | `Space w` / `Space v` (3D view) | fly (WASD, Q/E, Shift, wheel; Esc) / look through render camera |
-| `F` (graph) | frame the viewport on the selected node |
+| `F` (graph / viewport) | frame the displayed tile / focus the camera on the displayed node |
 | `Home`, Delete, Cmd/Ctrl-C/V/X/D/Z | frame all tiles, delete, clipboard, undo |
 | right click | context menu (right drag pans) |
 

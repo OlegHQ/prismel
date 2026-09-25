@@ -129,8 +129,8 @@ val optimize_layout : t -> t
 (** Re-run automatic layout, dropping manual tile positions, and frame all. *)
 
 val frame_all : t -> t
-val frame_selected : t -> t
-(** Frame the selected tiles, or all tiles when nothing is selected. *)
+val frame_viewed : t -> t
+(** Frame the displayed tile, or all tiles when it is unavailable. *)
 
 val copy_selection : t -> t
 val paste_clipboard : t -> t * change list
@@ -155,7 +155,7 @@ val run_command : t -> command -> t * change list
     - Command/Ctrl-C, -V, and -X copy, paste, and cut selected subgraphs;
       Command/Ctrl-D duplicates them with fresh logical node IDs;
     - [Home] frames all; the host binds {!optimize_layout},
-      {!frame_selected}, and {!open_menu_at} (Sketch_ui: leader [l], [f], [a]);
+      {!frame_viewed}, and {!open_menu_at} (Sketch_ui: leader [l], [f], [a]);
     - the hierarchical node menu: category paths form submenus,
       while typed search matches labels, keys, and complete breadcrumbs across
       the entire catalog; on a selected wire it offers one-input nodes for

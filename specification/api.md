@@ -611,7 +611,7 @@ lifecycle. Both expose `update_with` for sketch-owned inspector widgets,
 `Space` (with no text field focused) opens a centered which-key panel; the
 next key runs a binding from the editor keymap, the single table that
 drives both dispatch and the panel. Command/Ctrl chords, Delete/Backspace,
-Home, and graph-focused `F` use that same table; `pxui_graph` exports graph commands and their
+Home, and focus-dependent `F` use that same table; `pxui_graph` exports graph commands and their
 bindings without interpreting keys. Global bindings always apply; the others
 belong to the focused pane (the last one clicked, outlined in the accent
 colour). Escape, Space, an unknown key, a click, or focus loss cancel it.
@@ -622,11 +622,13 @@ colour). Escape, Space, an unknown key, a click, or focus loss cancel it.
 | `t` / `g` / `i` | global | toggle timeline / graph / inspector |
 | `h` / `c` | global | hide all UI / camera section |
 | `p` / `r` / `x` | global | play-pause / reset / stop |
-| `a` / `l` / `f` | graph | add-node menu / layout / frame selected tile |
+| `a` / `l` / `f` | graph | add-node menu / layout / frame displayed tile |
 | `w` / `v` | view (3D) | fly mode / look through render camera |
 
-Graph-focused `F` frames the viewport camera on the selected node's cooked
-bounds through the shared cook worker. Escape still dismisses UI modes. A right
+Graph-focused `F` frames the displayed tile in the editor. Viewport-focused
+`F` frames the camera on the displayed node's cooked bounds through the shared
+cook worker; in 3D it uses the orbit camera, and in 2D it centers and zooms the
+pan/zoom camera. Escape still dismisses UI modes. A right
 click (not a drag) opens graph context menus that emit the ordinary typed
 graph changes. The timeline bar (hidden by default) has play/pause, stop,
 reset, a frame/time readout, and a scrub slider that seeks (`Timeline.seek`)

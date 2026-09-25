@@ -42,7 +42,8 @@ camera/render controls in the inspector; selecting a node shows only that
 node's generated SOP parameters. Graph tile dragging is presentation-only and
 must preserve connectivity, stable IDs, caches, and cook state. Right/middle
 drag pans, wheel/trackpad motion zooms at the pointer, [Home] frames all, and
-leader `f` frames the selected tile ([F] frames the viewport camera on it).
+leader `f` and graph-focused [F] frame the displayed tile; viewport-focused [F]
+focuses the camera on the displayed node.
 The node menu (leader `Space a`) must allow every SOP to be
 created even when its inputs are not yet connected. Categories are non-empty
 paths rendered as nested submenus; typed search remains global and matches the
@@ -63,7 +64,8 @@ camera/render controls in the inspector; selecting a node shows only that
 node's generated SOP parameters. Graph tile dragging is presentation-only and
 must preserve connectivity, stable IDs, caches, and cook state. Right/middle
 drag pans, wheel/trackpad motion zooms at the pointer, [Home] frames all, and
-leader `f` frames the selected tile ([F] frames the viewport camera on it).
+leader `f` and graph-focused [F] frame the displayed tile; viewport-focused [F]
+focuses the camera on the displayed node.
 The node menu (leader `Space a`) must allow every SOP to be
 created even when its inputs are not yet connected. Categories are non-empty
 paths rendered as nested submenus; typed search remains global and matches the

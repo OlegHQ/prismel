@@ -446,35 +446,32 @@ let run () =
     "Space did not exit fly mode into the leader";
   let environment = Sketch_ui.Environment3.update environment
       (frame ~events:[key Input.Space; key (Input.KeyChar 'g')] 18) in
-  (* F with the graph focused frames the viewport camera on the selected node:
-     the source through the worker, the displayed output immediately. *)
-  let select_and_frame label count environment =
-    let tile = List.find (fun tile -> tile.Pxui_graph.label = label)
-        (Sketch_ui.Environment3.graph_nodes environment) in
-    let at = let x, y, w, _ = tile.bounds in x + (w / 3), y + 5 in
-    let environment = Sketch_ui.Environment3.update environment (frame ~events:[
-        mouse_press (Input.LeftButton, at); mouse_release (Input.LeftButton, at)]
-        count) in
-    Sketch_ui.Environment3.update environment
-      (frame ~events:[Event.KeyPressed (Input.KeyChar 'f')] (count + 1)) in
+  (* F frames the displayed tile in the graph, then the displayed geometry
+     in the viewport even when another node is selected. *)
+  let source_tile = List.find (fun tile -> tile.Pxui_graph.label = "Inspectable source")
+      (Sketch_ui.Environment3.graph_nodes environment) in
+  let at = let x, y, w, _ = source_tile.bounds in x + (w / 3), y + 5 in
+  let environment = Sketch_ui.Environment3.update environment (frame ~events:[
+      mouse_press (Input.LeftButton, at); mouse_release (Input.LeftButton, at)] 18) in
   let target environment = Easy_camera.target (Sketch_ui.Environment3.camera environment) in
-  let environment = select_and_frame "Inspectable source" 18 environment in
-  let deadline = Unix.gettimeofday () +. 2. in
-  let framed_distance environment =
-    let camera = Sketch_ui.Environment3.camera environment in
-    sqrt 3. /. tan (Easy_camera.fov_y camera /. 2.) *. 1.2 in
-  let rec wait_frame count environment =
-    if near (target environment) Vec3.zero && Float.abs (Easy_camera.distance
-        (Sketch_ui.Environment3.camera environment) -. framed_distance environment) < 1e-6
-    then environment
-    else if Unix.gettimeofday () < deadline then begin
-      Unix.sleepf 0.001;
-      wait_frame (count + 1) (Sketch_ui.Environment3.update environment (frame count))
-    end else fail "F did not frame the viewport on the selected source" in
-  let environment = wait_frame 20 environment in
-  let environment = select_and_frame "Inspectable output" 300 environment in
+  let before_target = target environment in
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[key (Input.KeyChar 'f')] 19) in
+  let displayed_tile = List.find (fun tile -> tile.Pxui_graph.label = "Inspectable output")
+      (Sketch_ui.Environment3.graph_nodes environment) in
+  let graph_center = center (Sketch_ui.Environment3.panes environment (frame 19)).graph in
+  let tile_center = center displayed_tile.bounds in
+  check (abs (fst graph_center - fst tile_center) <= 2
+      && abs (snd graph_center - snd tile_center) <= 2
+      && near (target environment) before_target)
+    "graph-focused F did not frame the displayed tile without moving the camera";
+  let view_at = fly_view environment in
+  let environment = Sketch_ui.Environment3.update environment (frame ~events:[
+      mouse_press (Input.LeftButton, view_at); mouse_release (Input.LeftButton, view_at)] 20) in
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[key (Input.KeyChar 'f')] 21) in
   check (near (target environment) (Vec3.create 5. 0. 0.))
-    "F on the displayed node did not frame its cached bounds immediately";
+    "viewport-focused F did not focus on the displayed node's cached bounds";
   Sketch_ui.Environment3.close environment;
 
   (* [rerender] must re-run [prepare]: a sketch-owned mode read by [prepare]
@@ -519,6 +516,10 @@ let run () =
     | None -> fail "2D sketch environment did not publish its initial cook"
   in
   let environment2 = wait2 0 environment2 in
+  let environment2 = Sketch_ui.Environment2.update environment2
+      (frame ~events:[Event.KeyPressed (Input.KeyChar 'f')] 9) in
+  check (Float.abs ((Easy_camera2.center (Sketch_ui.Environment2.camera environment2)).x -. 5.) < 1e-6)
+    "2D viewport-focused F did not focus on the displayed node";
   check (not (Sketch_ui.Environment2.can_undo environment2)
       && not (Sketch_ui.Environment2.can_redo environment2))
     "new 2D environment has an unexpected undo history";
