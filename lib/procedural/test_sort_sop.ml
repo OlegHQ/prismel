@@ -47,8 +47,8 @@ let same_int_array left right =
 
 let run () =
   let graph = Sop.snapshot (source ())
-      |> Sop.sort ~owner:Pdk.Ops.Points ~key:(Pdk.Ops.Random 73421L)
-      |> Sop.sort ~owner:Pdk.Ops.Points ~key:Pdk.Ops.X
+      |> Sop.sort ~owner:Pdk.Ordering.Points ~key:(Pdk.Ordering.Random 73421L)
+      |> Sop.sort ~owner:Pdk.Ordering.Points ~key:Pdk.Ordering.X
            ~output_indices:"rank" in
   let parameters = Node.parameters graph in
   let input_parameters = match Node.inputs graph with
@@ -63,8 +63,8 @@ let run () =
            (int_attribute "rank" four))
     "extended Sort SOP one/four-domain exactness";
   let missing = Sop.snapshot (source ())
-      |> Sop.sort ~owner:Pdk.Ops.Points
-           ~key:(Pdk.Ops.Index_attribute "missing") in
+      |> Sop.sort ~owner:Pdk.Ordering.Points
+           ~key:(Pdk.Ordering.Index_attribute "missing") in
   let session = Session.create ~max_entries:4 ~max_payload_bytes:80_000_000 |> get in
   (match Session.cook session ~context:(context 1) missing with
    | Error error -> check (error.code = "invalid_sort")

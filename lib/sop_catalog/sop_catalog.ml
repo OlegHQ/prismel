@@ -6669,7 +6669,7 @@ module Sort = struct
   type key = X | Y | Z | Distance | Vector | Attribute | Vertex_order
     | Primitive_index | Spatial | Random | Index_attribute | Reverse | Shift
   let owner_parameter = Parameter.choice ~equal:( = ) [
-      "Points", Pdk.Ops.Points; "Primitives", Pdk.Ops.Primitives;
+      "Points", Pdk.Ordering.Points; "Primitives", Pdk.Ordering.Primitives;
     ]
   let key_parameter = Parameter.choice ~equal:( = ) [
       "X", X; "Y", Y; "Z", Z; "Distance to point", Distance;
@@ -6680,7 +6680,7 @@ module Sort = struct
       "Shift", Shift;
     ]
   type parameters = {
-    owner : Pdk.Ops.sort_owner [@sop.default Pdk.Ops.Points]
+    owner : Pdk.Ordering.owner [@sop.default Pdk.Ordering.Points]
       [@sop.label "Entity"] [@sop.kind owner_parameter];
     key : key [@sop.default X] [@sop.label "Sort by"]
       [@sop.kind key_parameter];
@@ -6709,20 +6709,20 @@ module Sort = struct
     [@@sop.node_category "Utility"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
   let key parameters = match parameters.key with
-    | X -> Pdk.Ops.X | Y -> Pdk.Ops.Y | Z -> Pdk.Ops.Z
-    | Distance -> Pdk.Ops.Distance_to
+    | X -> Pdk.Ordering.X | Y -> Pdk.Ordering.Y | Z -> Pdk.Ordering.Z
+    | Distance -> Pdk.Ordering.Distance_to
         (Vec3.create parameters.x parameters.y parameters.z)
-    | Vector -> Pdk.Ops.Along_vector
+    | Vector -> Pdk.Ordering.Along_vector
         (Vec3.create parameters.x parameters.y parameters.z)
-    | Attribute -> Pdk.Ops.Attribute_component {
+    | Attribute -> Pdk.Ordering.Attribute_component {
         name = parameters.attribute; component = parameters.component }
-    | Vertex_order -> Pdk.Ops.By_vertex_order
-    | Primitive_index -> Pdk.Ops.By_primitive_index
-    | Spatial -> Pdk.Ops.Spatial_locality
-    | Random -> Pdk.Ops.Random (Int64.of_int parameters.seed)
-    | Index_attribute -> Pdk.Ops.Index_attribute parameters.attribute
-    | Reverse -> Pdk.Ops.Reverse
-    | Shift -> Pdk.Ops.Shift parameters.shift
+    | Vertex_order -> Pdk.Ordering.By_vertex_order
+    | Primitive_index -> Pdk.Ordering.By_primitive_index
+    | Spatial -> Pdk.Ordering.Spatial_locality
+    | Random -> Pdk.Ordering.Random (Int64.of_int parameters.seed)
+    | Index_attribute -> Pdk.Ordering.Index_attribute parameters.attribute
+    | Reverse -> Pdk.Ordering.Reverse
+    | Shift -> Pdk.Ordering.Shift parameters.shift
   let rec build ~label ~inputs parameters = match inputs with
     | [input] -> Sop.sort ~label ?group:(optional_text parameters.group)
         ~descending:parameters.descending

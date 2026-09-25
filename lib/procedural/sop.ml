@@ -6515,22 +6515,22 @@ let match_axis ?label ~from ~into input =
 
 let sort ?label ?group ?(descending = false) ?output_indices
     ?(combine_indices = false) ~owner ~key input =
-  let owner_key = match owner with Pdk.Ops.Points -> "points"
-    | Pdk.Ops.Primitives -> "primitives" in
+  let owner_key = match owner with Pdk.Ordering.Points -> "points"
+    | Pdk.Ordering.Primitives -> "primitives" in
   let key_key = match key with
-    | Pdk.Ops.X -> "x" | Pdk.Ops.Y -> "y" | Pdk.Ops.Z -> "z"
-    | Pdk.Ops.Distance_to point -> "distance:" ^ vec3_key point
-    | Pdk.Ops.Along_vector vector -> "vector:" ^ vec3_key vector
-    | Pdk.Ops.Attribute_component { name; component } ->
+    | Pdk.Ordering.X -> "x" | Pdk.Ordering.Y -> "y" | Pdk.Ordering.Z -> "z"
+    | Pdk.Ordering.Distance_to point -> "distance:" ^ vec3_key point
+    | Pdk.Ordering.Along_vector vector -> "vector:" ^ vec3_key vector
+    | Pdk.Ordering.Attribute_component { name; component } ->
         Printf.sprintf "attribute:%s:%d" (String.escaped name) component
-    | Pdk.Ops.By_vertex_order -> "vertex_order"
-    | Pdk.Ops.By_primitive_index -> "primitive_index"
-    | Pdk.Ops.Spatial_locality -> "spatial_locality"
-    | Pdk.Ops.Random seed -> "random:" ^ Int64.to_string seed
-    | Pdk.Ops.Index_attribute name ->
+    | Pdk.Ordering.By_vertex_order -> "vertex_order"
+    | Pdk.Ordering.By_primitive_index -> "primitive_index"
+    | Pdk.Ordering.Spatial_locality -> "spatial_locality"
+    | Pdk.Ordering.Random seed -> "random:" ^ Int64.to_string seed
+    | Pdk.Ordering.Index_attribute name ->
         "index_attribute:" ^ String.escaped name
-    | Pdk.Ops.Reverse -> "reverse"
-    | Pdk.Ops.Shift offset -> "shift:" ^ string_of_int offset in
+    | Pdk.Ordering.Reverse -> "reverse"
+    | Pdk.Ordering.Shift offset -> "shift:" ^ string_of_int offset in
   Node.Private.make ?label ~operation:"sort" ~version:2
     ~parameters:(String.concat ";" ["owner=" ^ owner_key; "key=" ^ key_key;
       "group=" ^ option_string_key group; "descending=" ^ string_of_bool descending;
@@ -6538,8 +6538,8 @@ let sort ?label ?group ?(descending = false) ?output_indices
       "combine_indices=" ^ string_of_bool combine_indices])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      let group_owner = match owner with Pdk.Ops.Points -> Pdk.Group.Point
-        | Pdk.Ops.Primitives -> Pdk.Group.Primitive in
+      let group_owner = match owner with Pdk.Ordering.Points -> Pdk.Group.Point
+        | Pdk.Ordering.Primitives -> Pdk.Group.Primitive in
       let selection = match group with
         | None -> Ok None
         | Some name ->
@@ -6550,7 +6550,7 @@ let sort ?label ?group ?(descending = false) ?output_indices
       match selection with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Ops.sort ~cancel:(Context.cancel_token context)
+          match Pdk.Ordering.sort_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~descending
               ?output_indices ~combine_indices ~owner ~key inputs.(0) with
           | Ok geometry -> cooked geometry

@@ -275,8 +275,8 @@ let run () =
   let point_ids = Attribute.create_owned ~name:"point_id" ~owner:Attribute.Point
       (Attribute.Int [|0; 1; 2; 3|]) |> get_ok in
   let sortable_points = Geometry.with_attribute point_ids geometry |> get_ok in
-  let sorted_points = Ops.sort ~grain:1 ~selection:selected ~descending:true
-      ~owner:Ops.Points ~key:Ops.X sortable_points |> get_ok in
+  let sorted_points = Ordering.sort_checked ~grain:1 ~selection:selected ~descending:true
+      ~owner:Ordering.Points ~key:Ordering.X sortable_points |> get_ok in
   let sorted_positions = Packed.Float3.Private.view (Geometry.positions sorted_points)
   and sorted_topology = Topology.Private.view (Geometry.topology sorted_points) in
   let sorted_ids = Geometry.find_attribute ~owner:Attribute.Point "point_id"
@@ -286,24 +286,24 @@ let run () =
      || sorted_topology.vertex_points <> [|2; 1; 0; 3|]
      || sorted_ids <> [|2; 1; 0; 3|] then
     fail "restricted stable point sort/remap";
-  let stable_points = Ops.sort ~grain:1 ~owner:Ops.Points ~key:Ops.X
+  let stable_points = Ordering.sort_checked ~grain:1 ~owner:Ordering.Points ~key:Ordering.X
       sortable_points |> get_ok in
   let stable_ids = Geometry.find_attribute ~owner:Attribute.Point "point_id"
       stable_points |> Option.get |> Attribute.get (Attribute.key ~name:"point_id"
         ~owner:Attribute.Point Attribute.int) |> Option.get in
   if stable_ids <> [|0; 3; 1; 2|] then fail "point sort stability";
-  let shifted_points = Ops.sort ~owner:Ops.Points ~key:(Ops.Shift 1)
+  let shifted_points = Ordering.sort_checked ~owner:Ordering.Points ~key:(Ordering.Shift 1)
       sortable_points |> get_ok in
   let shifted_ids = Geometry.find_attribute ~owner:Attribute.Point "point_id"
       shifted_points |> Option.get |> Attribute.get (Attribute.key ~name:"point_id"
         ~owner:Attribute.Point Attribute.int) |> Option.get in
   if shifted_ids <> [|3; 0; 1; 2|] then fail "point sort cyclic shift";
-  (match Ops.sort ~owner:Ops.Points
-      ~key:(Ops.Attribute_component { name = "missing"; component = 0 })
+  (match Ordering.sort_checked ~owner:Ordering.Points
+      ~key:(Ordering.Attribute_component { name = "missing"; component = 0 })
       sortable_points with
    | Error error when Error.code error = "invalid_sort" -> ()
    | _ -> fail "sort accepted a missing key attribute");
-  (match Ops.sort ~selection:selected ~owner:Ops.Primitives ~key:Ops.X
+  (match Ordering.sort_checked ~selection:selected ~owner:Ordering.Primitives ~key:Ordering.X
       triangle_geometry with
    | Error error when Error.code error = "invalid_sort" -> ()
    | _ -> fail "sort accepted a mismatched selection owner");
@@ -314,8 +314,8 @@ let run () =
   let sortable_primitives = triangle_geometry
       |> Geometry.with_attribute vertex_ids |> get_ok
       |> Geometry.with_attribute primitive_ids |> get_ok in
-  let sorted_primitives = Ops.sort ~grain:1 ~owner:Ops.Primitives
-      ~key:Ops.Reverse sortable_primitives |> get_ok in
+  let sorted_primitives = Ordering.sort_checked ~grain:1 ~owner:Ordering.Primitives
+      ~key:Ordering.Reverse sortable_primitives |> get_ok in
   let sorted_primitive_topology = Topology.Private.view
       (Geometry.topology sorted_primitives) in
   let sorted_vertex_ids = Geometry.find_attribute ~owner:Attribute.Vertex
@@ -2464,7 +2464,7 @@ let run () =
   if Edge_group.cardinality extruded_edge_group <> 8
      || Edge_group.length extruded_edge_group <> 12 then
     fail "poly extrude did not propagate bottom/top source edges";
-  let sorted_edge_geometry = Ops.sort ~owner:Ops.Points ~key:Ops.X quad_edges
+  let sorted_edge_geometry = Ordering.sort_checked ~owner:Ordering.Points ~key:Ordering.X quad_edges
       |> get_ok in
   let sorted_edge_group = Geometry.find_edge_group "quad_edges"
       sorted_edge_geometry |> Option.get in
@@ -2472,8 +2472,8 @@ let run () =
     fail "point sort did not remap native edge membership";
   let triangle_edges = Ops.group_edges ~name:"triangle_edges" triangle_geometry
       |> get_ok in
-  let sorted_primitives = Ops.sort ~descending:true ~owner:Ops.Primitives
-      ~key:Ops.Reverse triangle_edges |> get_ok in
+  let sorted_primitives = Ordering.sort_checked ~descending:true ~owner:Ordering.Primitives
+      ~key:Ordering.Reverse triangle_edges |> get_ok in
   if Edge_group.cardinality (Geometry.find_edge_group "triangle_edges"
       sorted_primitives |> Option.get) <> 5 then
     fail "primitive sort did not remap native edge membership";
@@ -4240,7 +4240,7 @@ let run () =
   (match Ops.match_size ~cancel:cancelled ~target:match_target match_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled match size published geometry or wrong error");
-  (match Ops.sort ~cancel:cancelled ~owner:Ops.Points ~key:Ops.X grid with
+  (match Ordering.sort_checked ~cancel:cancelled ~owner:Ordering.Points ~key:Ordering.X grid with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled sort published geometry or wrong error");
   (match Instance_copy.duplicate ~cancel:cancelled ~copies:4 grid with

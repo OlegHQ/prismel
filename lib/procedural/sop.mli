@@ -2409,7 +2409,7 @@ val match_axis :
 val sort :
   ?label:string -> ?group:string -> ?descending:bool ->
   ?output_indices:string -> ?combine_indices:bool ->
-  owner:Pdk.Ops.sort_owner -> key:Pdk.Ops.sort_key -> Node.t -> Node.t
+  owner:Pdk.Ordering.owner -> key:Pdk.Ordering.key -> Node.t -> Node.t
 val match_size :
   ?label:string ->
   ?selection:element_group ->

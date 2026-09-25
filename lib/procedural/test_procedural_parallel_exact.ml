@@ -1106,8 +1106,8 @@ let run () =
            ~piece_attribute:"piece"
            ~mode:Attribute_ops.Enumerate_piece_elements
            ~owner:Attribute.Point ~name:"selection_index"
-      |> Sop.sort ~group:"middle" ~descending:true ~owner:Ops.Points
-           ~key:(Ops.Attribute_component { name = "selection_index"; component = 0 }) in
+      |> Sop.sort ~group:"middle" ~descending:true ~owner:Ordering.Points
+           ~key:(Ordering.Attribute_component { name = "selection_index"; component = 0 }) in
   let one = cook 1 enumerated and many = cook 4 enumerated in
   check (equal_geometry one many)
     "one-domain and four-domain restricted piece enumeration/sort differ";

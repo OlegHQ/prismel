@@ -246,7 +246,7 @@ Catmull–Rom samples, `Pdk.Iso_surface` extracts packed isosurfaces,
 `Pdk.Attribute_mirror`, `Pdk.Attribute_fade`, `Pdk.Fuse_reduce`, `Pdk.Normal_ops`, `Pdk.Plane_generators`,
 `Pdk.Box_generator`, `Pdk.Parametric_generators`, `Pdk.Spiral`, `Pdk.Point_generate`,
 `Pdk.Color_by_height`, `Pdk.Line_geometry`, `Pdk.Mesh_merge`,
-`Pdk.Edge_collapse`, `Pdk.Dissolve`, and `Pdk.Instance_copy` expose option and rule types or checked operations used
+`Pdk.Edge_collapse`, `Pdk.Dissolve`, `Pdk.Ordering`, and `Pdk.Instance_copy` expose option and rule types or checked operations used
 by procedural SOPs;
 `Pdk.Ops` retains compatible operation entry points during the consumer
 migration.
