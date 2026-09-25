@@ -425,3 +425,9 @@ let sort ?cancel ?(grain = 16_384) ?selection ?(descending = false)
             (Attribute.Int ranks) |> get_ok in
         Geometry.with_attribute attribute geometry
   with Sort_error message | Invalid_argument message -> Error message
+
+let sort_checked ?cancel ?grain ?selection ?descending ?output_indices
+    ?combine_indices ~owner ~key geometry =
+  Pdk_core.Error.guard ~operation:"sort" ~code:"invalid_sort" (fun () ->
+    sort ?cancel ?grain ?selection ?descending ?output_indices
+      ?combine_indices ~owner ~key geometry)

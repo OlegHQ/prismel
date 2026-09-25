@@ -71,3 +71,10 @@ val sort :
   ?combine_indices:bool ->
   owner:owner ->
   key:key -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
+
+val sort_checked :
+  ?cancel:Pdk_core.Cancel.t -> ?grain:int ->
+  ?selection:Pdk_core.Group.t -> ?descending:bool ->
+  ?output_indices:string -> ?combine_indices:bool ->
+  owner:owner -> key:key -> Pdk_core.Geometry.t ->
+  (Pdk_core.Geometry.t, Pdk_core.Error.t) result

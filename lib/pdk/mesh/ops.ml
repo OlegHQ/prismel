@@ -3934,11 +3934,7 @@ let match_axis ?grain ~from ~into geometry =
   protected "match_axis" "invalid_axis"
     (fun () -> match_axis_raw ?grain ~from ~into geometry)
 
-let sort ?cancel ?grain ?selection ?descending ?output_indices ?combine_indices
-    ~owner ~key geometry =
-  protected "sort" "invalid_sort" (fun () ->
-    Ordering.sort ?cancel ?grain ?selection ?descending ?output_indices
-      ?combine_indices ~owner ~key geometry)
+let sort = Ordering.sort_checked
 
 let match_size_raw = match_size
 let match_size ?cancel ?grain ?selection ?source_selection ?target_selection
