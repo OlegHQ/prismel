@@ -43,7 +43,7 @@ let camera m =
   let target = v 0. 3.35 0. in
   let eye = v (target.x +. (m.distance *. cos m.pitch *. sin m.yaw))
       (target.y +. (m.distance *. sin m.pitch)) (target.z +. (m.distance *. cos m.pitch *. cos m.yaw)) in
-  { P.eye; target; fov = 0.6 }
+  Camera.perspective ~fov_y:0.6 ~at:eye ~target ()
 
 let width, height = 480, 840
 let env name default of_string = Option.value ~default (Option.bind (Sys.getenv_opt name) of_string)

@@ -614,6 +614,9 @@ catalog offers it, exactly one is ACTIVE (tile button or context menu), and
 the voxel wall's path tracer. Follow-viewport writes coalesce into one undo
 entry per gesture. Fly mode captures the pointer with
 `Sketch.set_relative_mouse`; Escape exits and Space exits into the leader.
+`Prismel_pathtracer.render` accepts `Camera.t` directly. It currently supports
+unshifted perspective cameras and returns an error for other projections,
+forced aspect, or vertical flip.
 Presets (`Sketch_ui.Preset`) save the full document to
 `~/.prismel/<sketch>/<name>.json`; loading rebinds code-graph nodes by id,
 recreates catalog nodes from their factories, and is one undo entry.

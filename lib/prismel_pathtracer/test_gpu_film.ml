@@ -12,8 +12,9 @@ let run () =
   let scene={P.objects=[cube,P.material (0.8,0.6,0.4)];
     environment={sky=(0.6,0.7,0.8);ground=(0.1,0.1,0.1);panels=[]};
     lights=[]}in
-  let camera={P.eye=Prismel.Vec3.create 0. 0. 4.;
-    target=Prismel.Vec3.create 0. 0. 0.;fov=0.9}in
+  let camera=Prismel.Camera.perspective ~fov_y:0.9
+    ~at:(Prismel.Vec3.create 0. 0. 4.)
+    ~target:(Prismel.Vec3.create 0. 0. 0.) ()in
   let reference=let tracer=get(P.create ~width:48 ~height:32 scene)in
     Fun.protect ~finally:(fun()->P.destroy tracer)(fun()->
       get(P.render tracer camera);get(P.flush tracer);Bytes.copy(P.pixels tracer))in

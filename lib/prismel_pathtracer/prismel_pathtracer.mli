@@ -37,9 +37,6 @@ val panel :
 
 type environment = { sky : rgb; ground : rgb; panels : panel list }
 
-(** [fov] is the vertical field of view in radians. *)
-type camera = { eye : Prismel.Vec3.t; target : Prismel.Vec3.t; fov : float }
-
 (** Rectangle area light of [size] (width, height) centred at [at], facing
     [target], two-sided. Sampled with shadow rays (next-event estimation);
     lights are analytic and never appear as visible geometry. *)
@@ -77,13 +74,15 @@ val create :
 (** [round_samples] (default 4) is the number of probe rays per camera-visible
     shading point for round-corner materials; secondary bounces use a quarter. *)
 
-val render : t -> camera -> (unit, string) result
-(** Publishes the previous frame's pixels to [image], then submits a new frame
+(** Accepts a perspective camera with no lens offset, forced aspect, or
+    vertical flip. Other projections return an error. Publishes the previous
+    frame's pixels to [image], then submits a new frame
     without waiting for it (one frame of latency). A frame whose camera
     differs from the previous call is an interactive preview: full-resolution
     primary visibility, direct lighting, one round-corner probe, temporal
     reprojection with disocclusion rejection, and an edge-aware spatial
     resolve. Progressive accumulation restarts as soon as the camera rests. *)
+val render : t -> Prismel.Camera.t -> (unit, string) result
 
 val replace_mesh : t -> mesh -> (unit, string) result
 (** Synchronously builds and swaps scene geometry, then restarts accumulation. *)

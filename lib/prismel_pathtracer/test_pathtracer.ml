@@ -27,7 +27,15 @@ let run () =
       Printf.printf "pathtracer: skipped (%s)\n" message
   | Error message -> failwith message
   | Ok tracer ->
-      let camera = { P.eye = Prismel.Vec3.create 0. 2. 6.; target = Prismel.Vec3.create 0. 0.8 0.; fov = 0.9 } in
+      let camera = Prismel.Camera.perspective ~fov_y:0.9
+        ~at:(Prismel.Vec3.create 0. 2. 6.)
+        ~target:(Prismel.Vec3.create 0. 0.8 0.) () in
+      let unsupported = Prismel.Camera.orthographic ~height:4.
+        ~at:(Prismel.Camera.position camera)
+        ~target:(Prismel.Camera.target camera) () in
+      (match P.render tracer unsupported with Error _ -> ()
+       | Ok () -> failwith "orthographic path-tracer camera was accepted");
+      assert (P.samples tracer = 0);
       let run () = P.reset tracer; get (P.render tracer camera); get (P.flush tracer); get (P.render tracer camera); get (P.flush tracer); Bytes.copy (P.pixels tracer) in
       let first = run () and second = run () in
       if exact_m1 then
@@ -39,7 +47,8 @@ let run () =
       Bytes.iteri (fun i c -> if i mod 4 = 0 then Hashtbl.replace distinct c ()) first;
       assert (Hashtbl.length distinct > 8);
       assert (Bytes.get first 3 = '\255');
-      let moved = { camera with eye = Prismel.Vec3.create 0.4 2. 6. } in
+      let moved = Prismel.Camera.with_position
+        (Prismel.Vec3.create 0.4 2. 6.) camera in
       get (P.render tracer moved); get (P.flush tracer);
       assert (P.samples tracer = 0);
       let preview = Bytes.copy (P.pixels tracer) in
@@ -116,7 +125,9 @@ let run () =
         let scene = { P.objects = [ (floor, P.material ~roughness:0.8 (0.8, 0.8, 0.8)) ]
           ; environment = { sky = (1., 1., 1.); ground = (1., 1., 1.); panels }; lights = [] } in
         let tracer = get (P.create ~spp:4 ~width:32 ~height:32 scene) in
-        let camera = { P.eye = Prismel.Vec3.create 0. 4. 0.001; target = Prismel.Vec3.create 0. 0. 0.; fov = 0.5 } in
+        let camera = Prismel.Camera.perspective ~fov_y:0.5
+          ~at:(Prismel.Vec3.create 0. 4. 0.001)
+          ~target:(Prismel.Vec3.create 0. 0. 0.) () in
         for _ = 1 to 16 do get (P.render tracer camera); get (P.flush tracer) done;
         get (P.flush tracer);
         let sum = ref 0 in

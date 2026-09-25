@@ -53,7 +53,8 @@ let () =
                     ~target:(v 17. 29. 0.) (v (-17.) 69. 30.)] } in
     let tracer = match P.create ~bounces:4 ~width:560 ~height:800 scene with
       | Ok value -> value | Error error -> failwith error in
-    let camera = {P.eye = v 17. (-50.) 30.; target = v 17. 29. 1.; fov = 0.7} in
+    let camera = Prismel.Camera.perspective
+      ~at:(v 17. (-50.) 30.) ~target:(v 17. 29. 1.) ~fov_y:0.7 () in
     let run name mesh =
       (match P.replace_mesh tracer mesh with Ok () -> () | Error error -> failwith error);
       let start = Unix.gettimeofday () in

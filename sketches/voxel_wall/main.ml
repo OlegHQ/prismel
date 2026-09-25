@@ -337,7 +337,7 @@ let update m (frame : Frame.t) =
       let angle = 0.5 *. sin (float frame.count *. 0.05) in
       v (target.x +. 19. *. sin angle) (target.y +. 1.5) (target.z +. 19. *. cos angle)
       else Camera.position camera in
-    match P.render m.tracer { P.eye = eye; target; fov }
+    match P.render m.tracer (Camera.perspective ~fov_y:fov ~at:eye ~target ())
     with Ok () -> () | Error e -> prerr_endline e
   end;
   if frames > 0 && frame.count + 1 >= frames then begin

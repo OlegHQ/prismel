@@ -18,7 +18,7 @@ let panel ?(softness = 0.05) ?(color = (1., 1., 1.)) ~intensity ~width ~height d
   { direction; width; height; softness; color; intensity }
 
 type environment = { sky : rgb; ground : rgb; panels : panel list }
-type camera = { eye : Prismel.Vec3.t; target : Prismel.Vec3.t; fov : float }
+type camera = Prismel.Camera.t
 
 type light =
   { at : Prismel.Vec3.t; target : Prismel.Vec3.t; size : float * float; color : rgb; intensity : float }
@@ -453,7 +453,15 @@ let create ?(spp = 1) ?(bounces = 6) ?(exposure = 1.) ?(round_samples = 4) ~widt
      ; sky = scene.environment.sky; ground = scene.environment.ground; frame = 0
      ; camera = None; moving = false; pixels }
 
-let uniform_bytes t (camera : camera) =
+let camera_fov camera =
+  match Prismel.Camera.projection camera with
+  | Perspective { fov_y; lens_offset; _ }
+    when lens_offset = Prismel.Vec2.zero
+      && not (Prismel.Camera.v_flip camera)
+      && Prismel.Camera.forced_aspect camera = None -> Ok fov_y
+  | _ -> Error "path tracer requires an unshifted perspective camera"
+
+let uniform_bytes t (camera : camera) fov =
   let open Prismel.Vec3 in
   let sub a b = create (a.x -. b.x) (a.y -. b.y) (a.z -. b.z) in
   let cross a b = create ((a.y *. b.z) -. (a.z *. b.y)) ((a.z *. b.x) -. (a.x *. b.z)) ((a.x *. b.y) -. (a.y *. b.x)) in
@@ -462,8 +470,13 @@ let uniform_bytes t (camera : camera) =
     if l = 0. then create 0. 0. 1. else create (v.x /. l) (v.y /. l) (v.z /. l)
   in
   let axes (camera : camera) =
-    let forward = normalize (sub camera.target camera.eye) in
-    let world_up = if Float.abs forward.y > 0.999 then create 0. 0. 1. else create 0. 1. 0. in
+    let forward = normalize (sub (Prismel.Camera.target camera)
+        (Prismel.Camera.position camera)) in
+    let camera_up = Prismel.Camera.up camera in
+    let world_up = if Float.abs (dot forward camera_up) > 0.999 then
+        if Float.abs forward.y > 0.999 then create 0. 0. 1.
+        else create 0. 1. 0.
+      else camera_up in
     let right = normalize (cross forward world_up) in
     forward, right, cross right forward in
   let forward, right, up = axes camera in
@@ -473,8 +486,8 @@ let uniform_bytes t (camera : camera) =
     put_f32 bytes (offset + 12) w
   in
   let put_rgb offset (r, g, b) = put_vec4 offset (create r g b) 0. in
-  put_vec4 0 camera.eye 0.;
-  put_vec4 16 forward (tan (camera.fov /. 2.));
+  put_vec4 0 (Prismel.Camera.position camera) 0.;
+  put_vec4 16 forward (tan (fov /. 2.));
   put_vec4 32 right (float_of_int t.width /. float_of_int t.height);
   put_vec4 48 up 0.;
   put_rgb 64 t.sky;
@@ -483,16 +496,18 @@ let uniform_bytes t (camera : camera) =
   put_u32 bytes 108 t.spp; put_u32 bytes 112 t.panel_count; put_u32 bytes 116 t.bounces;
   put_f32 bytes 120 t.exposure; put_u32 bytes 124 t.round_samples;
   put_u32 bytes 128 t.light_count; put_u32 bytes 132 (if t.moving then 1 else 0);
-  (match t.history_camera with
-   | None -> ()
+  let* () = match t.history_camera with
+   | None -> Ok ()
    | Some previous ->
+       let* previous_fov = camera_fov previous in
        let forward, right, up = axes previous in
        put_u32 bytes 136 1;
-       put_vec4 144 previous.eye 0.;
-       put_vec4 160 forward (tan (previous.fov /. 2.));
+       put_vec4 144 (Prismel.Camera.position previous) 0.;
+       put_vec4 160 forward (tan (previous_fov /. 2.));
        put_vec4 176 right (float_of_int t.width /. float_of_int t.height);
-       put_vec4 192 up 0.);
-  bytes
+       put_vec4 192 up 0.;
+       Ok () in
+  Ok bytes
 
 let reset_samples t =
   t.frame <- 0;
@@ -619,6 +634,7 @@ let poll t =
    [render] (or [flush]), so the CPU never waits on the GPU while the display
    pipeline runs. Both strategies share the accumulation buffer in queue order. *)
 let render t (camera : camera) =
+  let* fov = camera_fov camera in
   (* Only a change from a previous camera is a preview frame; the first frame
      after creation, reset, or a mesh swap renders at full quality. *)
   let was_moving = t.moving in
@@ -628,6 +644,7 @@ let render t (camera : camera) =
   let* free = poll t in
   if not free then Ok () else
   let* () = poll_build t in
+  let* uniforms = uniform_bytes t camera fov in
   let slot = t.next_output_slot in
   let previous_history = t.history_slot in
   let next_history = previous_history lxor 1 in
@@ -635,7 +652,6 @@ let render t (camera : camera) =
   let* commands = metal (Metal.Command_buffer.create t.queue ()) in
   let* encoder = metal (Metal.Compute_encoder.create commands) in
   let set index buffer = metal (Metal.Compute_encoder.set_buffer encoder ~index ~offset:0L buffer) in
-  let uniforms = uniform_bytes t camera in
   let* () = metal (Metal.Compute_encoder.set_pipeline encoder
     (if t.gpu.transforms = None then t.pipeline else t.instance_pipeline)) in
   let* () = metal (Metal.Compute_encoder.set_acceleration_structure encoder ~index:0 (Some t.gpu.structure)) in
