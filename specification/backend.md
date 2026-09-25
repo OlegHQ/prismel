@@ -227,6 +227,10 @@ O(commands + vertices + indices) work and final-buffer storage. Ordinary small
 runs retain independent geometry caching, and immutable display-list/IR caches
 retain their existing bounds. The diagnostic environment variable
 `PRISMEL_SCENE2_DENSE_RUNS=0` measures the existing per-geometry preparation path.
+The small-run geometry cache indexes its 256-entry, 64-MiB bounded list by an
+integer content fingerprint; a bucket hit still compares vertices, indices,
+color, clip, and viewport exactly before reuse. Eviction removes the matching
+bucket entry.
 Retained batch matching includes pipeline family, blend mode, and sample count
 as well as mesh contents and render state; identical geometry must not reuse a
 batch from a different blend mode. Native regressions compare 63, 64, 65, and

@@ -234,14 +234,14 @@ let bounded_prefix capacity entries =
   if List.compare_length_with entries capacity <= 0 then entries
   else List.filteri (fun index _ -> index < capacity) entries
 
-let trim_scene2_entries ?(capacity=256) bytes entries =
+let trim_scene2_entries ?(capacity=256) ?(on_evict=fun _->()) bytes entries =
   let rec loop count total kept = function
     | [] -> List.rev kept
     | entry::rest ->
         let size=bytes entry in
         if count<capacity&&size<=scene2_geometry_byte_capacity-total then
           loop(count+1)(total+size)(entry::kept)rest
-        else loop count total kept rest
+        else (on_evict entry;loop count total kept rest)
   in loop 0 0 [] entries
 
 let batch_scene2_draws ~cache ~set_cache draws =
@@ -340,6 +340,7 @@ type t = { runtime:runtime;
   assets:Prismel_next_resources.Assets.t; mutable dead:bool;
   mutable snapshots:snapshot_cache_entry list;mutable snapshot_bytes:int;
   mutable scene2_geometry_cache:cached_scene2_geometry list;
+  scene2_geometry_index:(int,cached_scene2_geometry list)Hashtbl.t;
   mutable scene2_geometry_candidates:scene2_geometry_candidate list;
   mutable scene2_batch_cache:cached_scene2_batch list;
   mutable scene2_quad_cache:cached_scene2_quad list;
@@ -371,7 +372,8 @@ let valid_configuration operation (configuration:configuration)=
   else Ok()
 let finish_create runtime=
   {runtime;assets=Prismel_next_resources.Assets.create();
-      dead=false;snapshots=[];snapshot_bytes=0;scene2_geometry_cache=[];scene2_geometry_candidates=[];
+      dead=false;snapshots=[];snapshot_bytes=0;scene2_geometry_cache=[];
+      scene2_geometry_index=Hashtbl.create 256;scene2_geometry_candidates=[];
       scene2_batch_cache=[];scene2_quad_cache=[];scene2_quad_payload_cache=[];
       scene2_debug_cache=[];scene2_plan_cache=[];
       retained_scene2_segments=[];
@@ -664,10 +666,12 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
     let fingerprint=Hashtbl.hash(geometry.vertices,geometry.indices)in
     let source_bytes=Array.length geometry.vertices*(Sys.word_size/8)+
       Array.length geometry.indices*(Sys.word_size/8)in
-    let same vertices indices cached_fingerprint color cached_clip viewport=
-      cached_fingerprint=fingerprint&&vertices=geometry.vertices&&indices=geometry.indices&&
+    let same vertices indices color cached_clip viewport=
+      vertices=geometry.vertices&&indices=geometry.indices&&
       color=geometry.color&&cached_clip=clip&&viewport=framebuffer in
-    match List.find_opt(fun cached->not cached.in_use&&same cached.vertices cached.indices cached.fingerprint cached.color cached.clip cached.draw.value.state.viewport)value.scene2_geometry_cache with
+    let matches=match Hashtbl.find_opt value.scene2_geometry_index fingerprint with
+      |None->[]|Some matches->matches in
+    match List.find_opt(fun cached->not cached.in_use&&same cached.vertices cached.indices cached.color cached.clip cached.draw.value.state.viewport)matches with
     |Some cached->
         write_affine cached.uniform_bytes transform;
         cached.in_use<-true;cached.draw
@@ -711,9 +715,21 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
             let cached={vertices=Array.copy geometry.vertices;indices=Array.copy geometry.indices;
               fingerprint;source_bytes;color=geometry.color;clip;uniform_bytes=uniform;
               in_use=true;draw}in
+            let bucket=match Hashtbl.find_opt value.scene2_geometry_index
+              fingerprint with None->[]|Some bucket->bucket in
+            Hashtbl.replace value.scene2_geometry_index fingerprint
+              (cached::bucket);
             value.scene2_geometry_cache<-cached::value.scene2_geometry_cache;
             value.scene2_geometry_cache<-trim_scene2_entries
-              (fun cached->cached.source_bytes)value.scene2_geometry_cache;draw
+              ~on_evict:(fun evicted->
+                let bucket=Hashtbl.find value.scene2_geometry_index
+                  evicted.fingerprint|>List.filter(fun item->item!=evicted)in
+                if bucket=[] then Hashtbl.remove value.scene2_geometry_index
+                  evicted.fingerprint
+                else Hashtbl.replace value.scene2_geometry_index
+                  evicted.fingerprint bucket)
+              (fun cached->cached.source_bytes)value.scene2_geometry_cache;
+            draw
     in
   let quad (texture:Scene_execution.sampled_texture)
       (destination:Scene_command.Render_ir.rect) (u0,v0,u1,v1 as uv) =
@@ -1212,7 +1228,8 @@ let capture_into value~destination=
 let destroy value=if value.dead then Ok()else(
   List.iter close_submission value.submissions;
   match Prismel_next_resources.Assets.destroy value.assets with Error e->resource"Prismel_next_execution.destroy"e|Ok()->
-    value.snapshots<-[];value.snapshot_bytes<-0;value.scene2_geometry_cache<-[];value.scene2_batch_cache<-[];
+    value.snapshots<-[];value.snapshot_bytes<-0;value.scene2_geometry_cache<-[];
+    Hashtbl.clear value.scene2_geometry_index;value.scene2_batch_cache<-[];
     value.scene2_quad_cache<-[];
     value.scene2_quad_payload_cache<-[];
     value.scene2_debug_cache<-[];

@@ -49,8 +49,10 @@ let run () =
                 "dense run drift: scale=%d count=%d frame=%d repeat=%d" scale count frame repeat)
             done
           done) [63;64;65;1024];
-        let colored color = scene ~reference:false ~count:65 ~phase:0.
+        let colored ?(barrier=false) color = scene ~reference:false ~count:63 ~phase:0.
           |> commands |> Array.map (function Geometry g->Geometry {g with color}|c->c)
+          |> (fun commands->if barrier then Array.append [|Set_blend Alpha|] commands
+              else commands)
           |> create |> Result.get_ok
           |> Prismel_next_execution.lower_scene2 execution ~density:scale ~resource:(fun _->None)
           |> get in
@@ -66,7 +68,14 @@ let run () =
           if retained "retained-dark" dark=expected then failwith "color fixture is ineffective";
           if retained "retained-white" white<>expected then
             failwith "retained mesh key reused another scene's payload"
-        done)) [1;2];
+        done;
+        for variant=1 to 5 do
+          let color=Int32.of_int(0x100000ff lor (variant lsl 16))in
+          ignore(colored color);
+          ignore(colored ~barrier:true color)
+        done;
+        if retained "retained-white-rebuilt" (colored ~barrier:true 0xffffffffl)
+            <>expected then failwith "evicted geometry index reused stale colors")) [1;2];
   ignore (Result.get_ok (Metal.Release_queue.drain ()));
   let after=Result.get_ok (Metal.Release_queue.stats ()) in
   if after.live_handles<>baseline.live_handles then failwith "dense scene2 handle delta";
