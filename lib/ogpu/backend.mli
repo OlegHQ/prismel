@@ -37,7 +37,7 @@ type driver_queue =
   ; complete_through:int64 -> (unit,Error.t) result
   ; destroy_queue:unit -> (unit,Error.t) result }
 type driver_device =
-  { device_token:token; device_handle:Handle.device; capabilities:Capabilities.t
+  { device_token:token; device_handle:Handle.device; capabilities:Caps.t
   ; create_buffer:Types.buffer_descriptor -> (driver_resource,Error.t) result
   ; create_texture:Types.texture_descriptor -> (driver_resource,Error.t) result
   ; create_depth_texture:Types.texture_descriptor -> (driver_resource,Error.t) result
@@ -57,7 +57,7 @@ type surface
 type frame
 
 val create_device : driver -> (device,Error.t) result
-val capabilities : device -> Capabilities.t
+val capabilities : device -> Caps.t
 val device_handle : device -> Handle.device
 val create_buffer : device -> Types.buffer_descriptor -> (buffer,Error.t) result
 val create_texture : device -> Types.texture_descriptor -> (texture,Error.t) result

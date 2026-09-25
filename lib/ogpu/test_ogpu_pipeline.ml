@@ -1,7 +1,7 @@
 let fail message = raise (Failure message)
 let ok = function Ok value -> value | Error error -> fail (Ogpu.Error.to_string error)
 let reject = function Error (error : Ogpu.Error.t) when error.kind = Invalid_argument -> () | _ -> fail "expected rejection"
-let caps = Ogpu.Capabilities.minimum_m1
+let caps = Ogpu.Caps.minimum_m1
 
 let shader ~backend ~entries ~bindings =
   ok (Ogpu.Shader.create { backend; label = None; bytes = Bytes.of_string "artifact"; entry_points = entries; bindings })

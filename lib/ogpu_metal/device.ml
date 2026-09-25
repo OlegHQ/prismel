@@ -1,7 +1,6 @@
 type t =
   { metal : Metal.Device.t
   ; handle : Ogpu.Handle.device
-  ; capabilities : Ogpu.Capabilities.t
   ; profile : Ogpu.Caps.t
   ; mutable generation : int64
   ; mutable live_resources : int
@@ -45,12 +44,12 @@ let system_default () =
              ~conservative_limits:["max_texture_dimension_2d=16384";"max_bind_groups=4";"max_sample_count=probed(1/4/9/16)";"metal_fx=false:no backend dependency";"sparse_memory=false:not implemented"] with
            | Error _ as failure -> ignore (Metal.Device.destroy metal); failure
            | Ok profile ->
-               Ok { metal; handle = Ogpu.Handle.create_device (); capabilities=profile.capabilities;profile;
+               Ok { metal; handle = Ogpu.Handle.create_device (); profile;
                     generation = 1L; live_resources = 0 })
 
 let id value = Ogpu.Handle.device_id value.handle
 let generation value = value.generation
-let capabilities value = value.capabilities
+let capabilities value = value.profile
 let capability_profile value=value.profile
 let supports value feature=if Ogpu.Handle.device_destroyed value.handle then error"Ogpu_metal.Device.supports"Ogpu.Error.Stale_handle"device is destroyed"else Ogpu.Caps.require ~operation:"Ogpu_metal.Device.supports" value.profile feature
 let destroyed value = Ogpu.Handle.device_destroyed value.handle

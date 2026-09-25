@@ -37,7 +37,7 @@ let validate_scratch_plan ~buffer_size ~offset ~required =
 let create_triangle device ~vertices ~offset ~length ~vertex_stride ~vertex_count ~allow_refit =
   let operation = "Ogpu_metal.Acceleration.create_triangle" in
   match Buffer.descriptor device vertices with Error _ as failure -> failure | Ok buffer_descriptor ->
-  let ray_tracing = (Device.capabilities device).Ogpu.Capabilities.ray_tracing in
+  let ray_tracing = (Device.capabilities device).Ogpu.Caps.ray_tracing in
   match plan_triangle ~ray_tracing ~buffer_size:buffer_descriptor.size ~offset ~length
     ~vertex_stride ~vertex_count with Error _ as failure -> failure | Ok plan ->
   let range : Ogpu.Acceleration.buffer_range =

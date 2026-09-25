@@ -3,7 +3,7 @@ type kind = Buffer | Texture | Sampler | Acceleration_structure
 type layout_entry = { binding : int; kind : kind; visibility : stage list }
 type layout = layout_entry list
 type pipeline_layout =
-  { device : Handle.device; capabilities : Capabilities.t; groups : (int * layout) list }
+  { device : Handle.device; capabilities : Caps.t; groups : (int * layout) list }
 type resource = Resource : kind * 'a Handle.t -> resource
 type group_entry = { binding : int; resource : resource }
 type bind_group =
@@ -28,7 +28,7 @@ let create_pipeline_layout ~device ~capabilities groups =
   else
     let groups = List.sort (fun (left, _) (right, _) -> Int.compare left right) groups in
     Result.map(fun()->{device;capabilities;groups})(Validation.validate_groups
-      ~operation:"Ogpu.Binding.create_pipeline_layout"~max_groups:capabilities.Capabilities.limits.max_bind_groups(List.map fst groups))
+      ~operation:"Ogpu.Binding.create_pipeline_layout"~max_groups:capabilities.Caps.limits.max_bind_groups(List.map fst groups))
 
 let pipeline_layouts value = List.map (fun (group, layout) -> group, layout) value.groups
 let buffer handle = Resource (Buffer, handle)

@@ -4,7 +4,7 @@ type capacities = { queues : int; buffers : int; textures : int }
 
 type device =
   { handle : Handle.device
-  ; capabilities : Capabilities.t
+  ; capabilities : Caps.t
   ; capacities : capacities
   ; mutable next_id : int64
   ; mutable queues : int
@@ -27,19 +27,20 @@ type texture =
 let error operation kind message = Error (Error.make operation kind message)
 
 let capabilities_for = function
-  | M1 | Missing_ray_tracing -> { Capabilities.minimum_m1 with metal_fx = true }
-  | Missing_metal_fx -> { Capabilities.minimum_m1 with ray_tracing = true; metal_fx = false }
+  | M1 | Missing_ray_tracing -> { Caps.minimum_m1 with metal_fx = true }
+  | Missing_metal_fx -> { Caps.minimum_m1 with ray_tracing = true; metal_fx = false }
   | M3_plus | Future_unknown ->
-      { Capabilities.limits =
-          { Capabilities.minimum_m1.limits with max_buffer_size = Int64.shift_left 1L 34 }
-      ; ray_tracing = true; metal_fx = true }
+      { Caps.limits =
+          { Caps.minimum_m1.limits with max_buffer_size = Int64.shift_left 1L 34 }
+      ; ray_tracing = true; metal_fx = true; timestamp_queries = false
+      ; sparse_memory = false; conservative_limits = [] }
 
 let create_device ~profile ~(capacities : capacities) =
   if capacities.queues < 0 || capacities.buffers < 0 || capacities.textures < 0 then
     error "Mock.create_device" Error.Invalid_argument "capacities must be nonnegative"
   else
     let capabilities = capabilities_for profile in
-    match Capabilities.validate capabilities with
+    match Caps.validate capabilities with
     | Error value -> Error value
     | Ok () ->
         Ok { handle = Handle.create_device (); capabilities; capacities; next_id = 1L
@@ -55,18 +56,15 @@ let live_device operation (value : device) =
     error operation Error.Stale_handle "device is destroyed"
   else Ok ()
 
-let require_feature operation enabled =
-  if enabled then Ok () else error operation Error.Invalid_state "feature is unsupported by this profile"
-
 let require_ray_tracing (value : device) =
   match live_device "Mock.require_ray_tracing" value with
   | Error _ as error -> error
-  | Ok () -> require_feature "Mock.require_ray_tracing" value.capabilities.ray_tracing
+  | Ok () -> Caps.require ~operation:"Mock.require_ray_tracing" value.capabilities Caps.Ray_tracing
 
 let require_metal_fx (value : device) =
   match live_device "Mock.require_metal_fx" value with
   | Error _ as error -> error
-  | Ok () -> require_feature "Mock.require_metal_fx" value.capabilities.metal_fx
+  | Ok () -> Caps.require ~operation:"Mock.require_metal_fx" value.capabilities Caps.Metal_fx
 
 let allocate_id (value : device) = let id = value.next_id in value.next_id <- Int64.succ id; id
 

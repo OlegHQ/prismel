@@ -33,7 +33,7 @@ let run () =match Device.system_default()with Error _->print_endline"scene execu
   let before=metal(Metal.Release_queue.stats())in
   let layer=metal(Metal.Metal_layer.create(Device.Private.metal native_device)(Metal.Metal_layer.default~width:4~height:4))in
   let driver,control=Backend.create~device:native_device~layer()in
-  let supported=List.filter(fun samples->samples<=(Device.capabilities native_device).Ogpu.Capabilities.limits.max_sample_count)[1;4;9;16]in
+  let supported=List.filter(fun samples->samples<=(Device.capabilities native_device).Ogpu.Caps.limits.max_sample_count)[1;4;9;16]in
   if Scene_execution.pipeline_variants_per_sample<>60 then failwith"pipeline family/blend cardinality drift";
   let cache=get(Pipeline.create_cache~capacity:(Scene_execution.pipeline_variants_per_sample*List.length supported))in
   let configuration:Ogpu.Surface.configuration={logical_width=4;logical_height=4;physical_width=4;physical_height=4;format=Bgra8_unorm;present_mode=Fifo;max_acquired=2}in

@@ -134,7 +134,7 @@ let texture_descriptor configuration:Ogpu.Types.texture_descriptor={label=Some"s
 let blends=[Ogpu.Pipeline.Replace;Alpha;Add;Multiply;Screen;Subtract]
 let families=[Scene2;Scene2_textured;Scene3;Scene3_points;Scene3_textured;Scene3_shadow;Scene3_stencil;Scene3_textured_stencil;Scene3_shadow_stencil;Ui]
 let pipeline_variants_per_sample=List.length families*List.length blends
-let sample_counts device=List.filter(fun samples->samples<=(Ogpu.Backend.capabilities device).Ogpu.Capabilities.limits.max_sample_count)[1;4;9;16]
+let sample_counts device=List.filter(fun samples->samples<=(Ogpu.Backend.capabilities device).Ogpu.Caps.limits.max_sample_count)[1;4;9;16]
 let allocate_target device configuration=Ogpu.Backend.create_texture device(texture_descriptor configuration)
 let create_common ?(canonical_scene2_argument=false) ?(offscreen=false) driver configuration before_device_destroy families_to_make variants_to_make samples_to_make supplied=match Ogpu.Backend.create_device driver with Error _ as e->e|Ok device->
   let cleanup()=ignore(Ogpu.Backend.destroy_device device)in

@@ -16,7 +16,7 @@ type driver_pipeline={pipeline_token:token;destroy_pipeline:unit->(unit,Error.t)
 type driver_frame={frame_token:token}
 type driver_surface={surface_token:token;configure:Surface.configuration->(unit,Error.t)result;acquire:unit->([`Acquired of driver_frame|`Timeout|`Occluded|`Device_lost],Error.t)result;acquire_sync:unit->([`Acquired of driver_frame|`Timeout|`Occluded|`Device_lost],Error.t)result;present:queue:token->source:token->driver_frame->(unit,Error.t)result;submit_present:queue:token->source:token->command->resources:(int64*token)list->pipelines:token list->driver_frame->(receipt,Error.t)result;submit_present_sync:queue:token->source:token->command->resources:(int64*token)list->pipelines:token list->driver_frame->(synchronous_submission,Error.t)result;discard:driver_frame->(unit,Error.t)result;destroy_surface:unit->(unit,Error.t)result}
 type driver_queue={queue_token:token;submit:command->resources:(int64*token)list->pipelines:token list->(receipt,Error.t)result;submit_sync:command->resources:(int64*token)list->pipelines:token list->(synchronous_submission,Error.t)result;complete_through:int64->(unit,Error.t)result;destroy_queue:unit->(unit,Error.t)result}
-type driver_device={device_token:token;device_handle:Handle.device;capabilities:Capabilities.t;create_buffer:Types.buffer_descriptor->(driver_resource,Error.t)result;create_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_depth_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_stencil_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_pipeline:Pipeline.t->(driver_pipeline,Error.t)result;create_queue:unit->(driver_queue,Error.t)result;create_surface:Surface.configuration->(driver_surface,Error.t)result;destroy_device:unit->(unit,Error.t)result}
+type driver_device={device_token:token;device_handle:Handle.device;capabilities:Caps.t;create_buffer:Types.buffer_descriptor->(driver_resource,Error.t)result;create_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_depth_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_stencil_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_pipeline:Pipeline.t->(driver_pipeline,Error.t)result;create_queue:unit->(driver_queue,Error.t)result;create_surface:Surface.configuration->(driver_surface,Error.t)result;destroy_device:unit->(unit,Error.t)result}
 type driver={create_device:unit->(driver_device,Error.t)result}
 type device={raw:driver_device;handle:Handle.device;mutable children:int;mutable dead:bool;
   mutable queues:queue list}
@@ -55,7 +55,7 @@ let fresh_private_identity ()=
     else reserve()
   in
   reserve()
-let create_device driver=match driver.create_device()with Error _ as e->e|Ok raw->match Capabilities.validate raw.capabilities with Error _ as e->e|Ok()->Ok{raw;handle=raw.device_handle;children=0;dead=false;queues=[]}
+let create_device driver=match driver.create_device()with Error _ as e->e|Ok raw->match Caps.validate raw.capabilities with Error _ as e->e|Ok()->Ok{raw;handle=raw.device_handle;children=0;dead=false;queues=[]}
 let capabilities (value:device)=value.raw.capabilities
 let device_handle (value:device)=value.handle
 let live op (device:device)=if device.dead then error op Error.Stale_handle"device is destroyed"else Ok()

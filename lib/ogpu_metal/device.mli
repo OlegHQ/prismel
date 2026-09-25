@@ -3,7 +3,7 @@ type t
 val system_default : unit -> (t, Ogpu.Error.t) result
 val id : t -> int64
 val generation : t -> int64
-val capabilities : t -> Ogpu.Capabilities.t
+val capabilities : t -> Ogpu.Caps.t
 val capability_profile : t -> Ogpu.Caps.t
 val supports : t -> Ogpu.Caps.feature -> (unit,Ogpu.Error.t) result
 val destroyed : t -> bool

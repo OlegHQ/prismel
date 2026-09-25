@@ -22,7 +22,7 @@ let storage_supported=function Device_local|Shared->true|Upload|Readback->false
 let format_storage_table=Array.of_list(List.concat_map(fun format->List.map(fun storage->format,storage,storage_supported storage)storages)formats)
 let unique values=List.sort_uniq compare values=values
 let validate_texture_profile capabilities value=
-  let operation="Ogpu.Validation.validate_texture_profile"in let limits=capabilities.Capabilities.limits in
+  let operation="Ogpu.Validation.validate_texture_profile"in let limits=capabilities.Caps.limits in
   match validate_texture_shape~operation~max_dimension:limits.max_texture_dimension_2d~max_samples:limits.max_sample_count
     ~width:value.width~height:value.height~depth:value.depth~mip_levels:value.mip_levels~sample_count:value.sample_count~usage_count:(List.length value.usage)with
   |Error _ as failure->failure|Ok()->

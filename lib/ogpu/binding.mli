@@ -11,7 +11,7 @@ type resource_snapshot = { binding : int; kind : kind; id : int64 }
 val create_layout : layout_entry list -> (layout, Error.t) result
 val layout_entries : layout -> layout_entry list
 val create_pipeline_layout :
-  device:Handle.device -> capabilities:Capabilities.t -> (int * layout) list ->
+  device:Handle.device -> capabilities:Caps.t -> (int * layout) list ->
   (pipeline_layout, Error.t) result
 val pipeline_layouts : pipeline_layout -> (int * layout_entry list) list
 

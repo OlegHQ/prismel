@@ -8,7 +8,7 @@ type capability_source =
   }
 
 let capabilities source =
-  let value : Ogpu.Capabilities.t =
+  let value : Ogpu.Caps.t =
     { limits =
         { max_buffer_size = source.max_buffer_size
         ; max_texture_dimension_2d = source.max_texture_dimension_2d
@@ -17,9 +17,12 @@ let capabilities source =
         }
     ; ray_tracing = source.ray_tracing
     ; metal_fx = source.metal_fx
+    ; timestamp_queries = false
+    ; sparse_memory = false
+    ; conservative_limits = []
     }
   in
-  Result.map (fun () -> value) (Ogpu.Capabilities.validate value)
+  Result.map (fun () -> value) (Ogpu.Caps.validate value)
 
 let error ~operation (value : Metal.error) =
   let kind =

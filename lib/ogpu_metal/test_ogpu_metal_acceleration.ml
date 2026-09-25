@@ -13,7 +13,7 @@ let run () =
   expect Ogpu.Error.Invalid_argument(Acceleration.validate_scratch_plan~buffer_size:1024L~offset:4L~required:512L);
   expect Ogpu.Error.Invalid_argument(Acceleration.validate_scratch_plan~buffer_size:1024L~offset:768L~required:512L);
   let vertices=get(Buffer.create device~memory:Buffer.Shared{Ogpu.Types.size=36L;usage=[Storage;Vertex];label=Some"triangle"})in
-  if(Device.capabilities device).Ogpu.Capabilities.ray_tracing then begin
+  if(Device.capabilities device).Ogpu.Caps.ray_tracing then begin
     let structure=get(Acceleration.create_triangle device~vertices~offset:0L~length:36L~vertex_stride:12~vertex_count:3~allow_refit:true)in
     let scratch=get(Buffer.create device~memory:Buffer.Device_local{Ogpu.Types.size=1048576L;usage=[Storage];label=Some"scratch"})in
     expect Ogpu.Error.Cross_device(Acceleration.build other structure~scratch~scratch_offset:0L);

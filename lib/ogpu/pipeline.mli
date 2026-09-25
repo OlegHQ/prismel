@@ -12,8 +12,8 @@ type compute_descriptor =
 type kind = Render | Compute
 type t
 
-val create_render : ?blend:blend -> Capabilities.t -> render_descriptor -> (t, Error.t) result
-val create_compute : Capabilities.t -> compute_descriptor -> (t, Error.t) result
+val create_render : ?blend:blend -> Caps.t -> render_descriptor -> (t, Error.t) result
+val create_compute : Caps.t -> compute_descriptor -> (t, Error.t) result
 val kind : t -> kind
 val backend : t -> string
 val label : t -> string option

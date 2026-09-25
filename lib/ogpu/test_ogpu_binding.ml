@@ -14,7 +14,7 @@ let layout () =
     ; { binding = 1; kind = Texture; visibility = [ Fragment ] } ])
 
 let run () =
-  let caps = Ogpu.Capabilities.minimum_m1 in
+  let caps = Ogpu.Caps.minimum_m1 in
   let device = Ogpu.Handle.create_device () in
   let foreign = Ogpu.Handle.create_device () in
   let pipeline = ok (Ogpu.Binding.create_pipeline_layout ~device ~capabilities:caps [ 0, layout () ]) in

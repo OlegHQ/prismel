@@ -14,13 +14,13 @@ let texture : Ogpu.Types.texture_descriptor =
 
 let run () =
   let m1 = ok (Ogpu.Mock.create_device ~profile:M1 ~capacities) in
-  expect Ogpu.Error.Invalid_state (Ogpu.Mock.require_ray_tracing m1);
+  expect Ogpu.Error.Unsupported (Ogpu.Mock.require_ray_tracing m1);
   ignore (ok (Ogpu.Mock.require_metal_fx m1));
   let missing_rt = ok (Ogpu.Mock.create_device ~profile:Missing_ray_tracing ~capacities) in
-  expect Ogpu.Error.Invalid_state (Ogpu.Mock.require_ray_tracing missing_rt);
+  expect Ogpu.Error.Unsupported (Ogpu.Mock.require_ray_tracing missing_rt);
   ignore (ok (Ogpu.Mock.require_metal_fx missing_rt));
   let missing_fx = ok (Ogpu.Mock.create_device ~profile:Missing_metal_fx ~capacities) in
-  expect Ogpu.Error.Invalid_state (Ogpu.Mock.require_metal_fx missing_fx);
+  expect Ogpu.Error.Unsupported (Ogpu.Mock.require_metal_fx missing_fx);
   ignore (ok (Ogpu.Mock.require_ray_tracing missing_fx));
   let future = ok (Ogpu.Mock.create_device ~profile:Future_unknown ~capacities) in
   ignore (ok (Ogpu.Mock.require_ray_tracing future));

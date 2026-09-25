@@ -3,7 +3,7 @@ type resource={id:int64;access:Command.access;stages:Command.stage list}
 type description={pipeline_key:string;groups:(int*(int*Binding.kind)list)array;dispatch:dispatch;commands:Command.description array}
 type t=description
 let invalid text=Error(Error.make"Ogpu.Compute_pass.create"Error.Invalid_argument text)
-let create device ~(limits:Capabilities.limits) ~pipeline ~layout ~groups ~resources ~dispatch=
+let create device ~(limits:Caps.limits) ~pipeline ~layout ~groups ~resources ~dispatch=
   if Pipeline.kind pipeline<>Pipeline.Compute then invalid"pipeline is not compute"else
   let expected=Binding.pipeline_layouts layout|>List.map fst in let actual=Array.to_list groups|>List.map fst in if actual<>List.sort_uniq compare actual||actual<>expected then invalid"bind groups are duplicate, missing, or out of order"else
   let rec validate_groups i=if i=Array.length groups then Ok()else Result.bind(Binding.validate_group layout(snd groups.(i)))(fun()->validate_groups(i+1))in

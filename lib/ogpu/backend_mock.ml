@@ -66,7 +66,7 @@ let mock_submit c ~operation ~commit command ~resources ~pipelines=
       add c(commit c.epoch);
       Ok{Backend.epoch=c.epoch}
     end
-let create ?(capabilities=Capabilities.minimum_m1)()=
+let create ?(capabilities=Caps.minimum_m1)()=
   let c={next=1L;epoch=0L;completed=0L;lost=false;fail_submission=false;fail_completion=false;fail_texture_after=None;fail_depth_after=None;fail_configure=false;trace=[];buffers=0;textures=0;pipelines=0;queues=0;surfaces=0}in
   let should_fail field=match field with Some 0->true|None|Some _->false in
   let advance field=match field with None->None|Some 0->None|Some remaining->Some(remaining-1)in

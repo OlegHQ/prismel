@@ -7,5 +7,5 @@ type capability_source =
   ; metal_fx : bool
   }
 
-val capabilities : capability_source -> (Ogpu.Capabilities.t, Ogpu.Error.t) result
+val capabilities : capability_source -> (Ogpu.Caps.t, Ogpu.Error.t) result
 val error : operation:string -> Metal.error -> Ogpu.Error.t

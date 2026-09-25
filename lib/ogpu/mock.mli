@@ -8,7 +8,7 @@ type texture
 
 val create_device : profile:profile -> capacities:capacities -> (device, Error.t) result
 val device_id : device -> int64
-val capabilities : device -> Capabilities.t
+val capabilities : device -> Caps.t
 val destroy_device : device -> unit
 val inject_fault : device -> operation -> unit
 val require_ray_tracing : device -> (unit, Error.t) result

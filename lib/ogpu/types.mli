@@ -11,6 +11,6 @@ type sampler_descriptor =
   { label:string option; min_filter:sampler_filter; mag_filter:sampler_filter
   ; mip_filter:mip_filter; address_u:address_mode; address_v:address_mode
   ; lod_min:float; lod_max:float; max_anisotropy:int }
-val validate_buffer : Capabilities.t -> buffer_descriptor -> (unit,Error.t) result
-val validate_texture : Capabilities.t -> texture_descriptor -> (unit,Error.t) result
+val validate_buffer : Caps.t -> buffer_descriptor -> (unit,Error.t) result
+val validate_texture : Caps.t -> texture_descriptor -> (unit,Error.t) result
 val validate_sampler : sampler_descriptor -> (unit,Error.t) result

@@ -86,7 +86,7 @@ let create_render ?(blend=Replace) capabilities (descriptor : render_descriptor)
   | Ok () -> match validate_backend operation descriptor.backend shaders with
     | Error _ as error -> error
     | Ok () when not(List.mem descriptor.sample_count[1;4;9;16])
-                 || descriptor.sample_count > capabilities.Capabilities.limits.max_sample_count ->
+                 || descriptor.sample_count > capabilities.Caps.limits.max_sample_count ->
         invalid operation "sample count is unsupported"
     | Ok () -> match entry operation descriptor.vertex descriptor.vertex_entry Shader.Vertex with
       | Error _ as error -> error
@@ -113,7 +113,7 @@ let create_render ?(blend=Replace) capabilities (descriptor : render_descriptor)
 
 let create_compute capabilities (descriptor : compute_descriptor) =
   let operation = "Ogpu.Pipeline.create_compute" in
-  match Capabilities.validate capabilities with
+  match Caps.validate capabilities with
   | Error _ as error -> error
   | Ok () -> match validate_label operation descriptor.label with
     | Error _ as error -> error
