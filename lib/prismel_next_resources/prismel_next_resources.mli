@@ -74,6 +74,8 @@ module Text : sig
   val destroy : t -> (unit,error) result
   module Private : sig
     val identity : t -> int
+    (* Consume the text and transfer its owned RGBA storage to an image. *)
+    val into_image : t -> (Image.t,error) result
   end
 end
 

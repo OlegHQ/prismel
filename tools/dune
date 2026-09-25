@@ -140,6 +140,11 @@
  (libraries prismel procedural pxui pxui_graph scene_command unix))
 
 (executable
+ (name bench_text_image)
+ (modules bench_text_image)
+ (libraries prismel unix))
+
+(executable
  (name bench_pdk_ops)
  (modules bench_pdk_ops)
  (libraries prismel pdk procedural unix))

@@ -21,9 +21,9 @@ let sanitize text=if String.is_valid_utf_8 text then text else begin
     Buffer.add_utf_8_uchar buffer(Uchar.utf_decode_uchar d);loop(i+Uchar.utf_decode_length d)end in
   loop 0;Buffer.contents buffer end
 let resource_align=function Left->Prismel_next_resources.Font.Left|Center->Center|Right->Right
-let image_of_text text=match Prismel_next_resources.Text.size text,Prismel_next_resources.Text.pixels text with
-  |Ok(width,height),Ok rgba->begin match Prismel_next_resources.Image.create ~width ~height ~rgba with Ok image->Ok(Image.Private.of_resource image)|Error error->Error(message"Font.image"error)end
-  |Error error,_->Error(message"Font.size"error)|_,Error error->Error(message"Font.pixels"error)
+let image_of_text text=match Prismel_next_resources.Text.Private.into_image text with
+  |Ok image->Ok(Image.Private.of_resource image)
+  |Error error->Error(message"Font.image"error)
 let paint ?(density=1) ?wrap ?(align=Left) font text mode=match Prismel_next_resources.Font.render font.resource ?wrap_width:wrap ~align:(resource_align align) ~density ~color:(rgba mode)(sanitize text)with
   |Error error->Error(message"Font.render_text"error)|Ok None->Ok(Image.create ~width:1 ~height:1())
   |Ok(Some value)->let result=image_of_text value in ignore(Prismel_next_resources.Text.destroy value);result

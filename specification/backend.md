@@ -303,6 +303,9 @@ them; no token is discarded when the queue grows.
 Resource-level font rendering returns an owned text snapshot. Automatic scene
 text and explicit high-level font caches are bounded by their Prismel owners;
 the resource font has no second renderer-keyed cache.
+High-level `Font.render_text` consumes that snapshot into an `Image`, transferring
+the copied SDL surface pixels without further RGBA copies. Public `Text.pixels`
+and `Image.pixels` remain copy-returning; a consumed text snapshot is destroyed.
 
 `Scene`, `Canvas`, `Image`, `Font`, and `Audio` remain high-level Prismel
 interfaces. Their implementation lowers to the native GPU stack without

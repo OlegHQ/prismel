@@ -21,10 +21,11 @@ module Image=struct
   type lease={owner:t;bytes:bytes;mutable released:bool}
   let identity x=x.identity and generation x=x.generation and destroyed x=x.dead
   let live op x f=main op(fun()->if x.dead then error op Destroyed"image is destroyed"else f())
+  let owned ~width ~height ~rgba={identity=fresh_identity();generation=1;width;height;rgba;gpu=None;
+    spare=None;leases=[];canvas_owner=None;canvas_returns=[];dead=false}
   let create ~width ~height ~rgba=main"Image.create"(fun()->
     if not(valid_storage width height rgba)then error"Image.create"Invalid_argument"invalid RGBA extent or storage"
-    else Ok{identity=fresh_identity();generation=1;width;height;rgba=Bytes.copy rgba;gpu=None;
-      spare=None;leases=[];canvas_owner=None;canvas_returns=[];dead=false})
+    else Ok(owned ~width ~height ~rgba:(Bytes.copy rgba)))
   let of_surface operation surface=
     match Sdl3.Surface.copy_rgba surface with
     |Error e->error operation Decode(Format.asprintf"%a"Sdl3.pp_error e)
@@ -131,6 +132,7 @@ module Image=struct
     x.rgba<-Bytes.empty;x.spare<-None;x.canvas_owner<-None;x.gpu<-None;Ok()))
   module Private=struct
     type nonrec lease=lease
+    let of_owned_rgba=owned
     let replace_gpu=replace_gpu
     let gpu_snapshot=gpu_snapshot
     let borrow_snapshot=borrow_snapshot
@@ -263,12 +265,15 @@ module Text=struct
   type t={generation:int;width:int;height:int;mutable rgba:bytes;mutable dead:bool}
   let generation x=x.generation and destroyed x=x.dead
   let live op x f=main op(fun()->if x.dead then error op Destroyed"text snapshot is destroyed"else f())
-  let owned width height rgba={generation=fresh_identity();width;height;rgba=Bytes.copy rgba;dead=false}
+  let owned width height rgba={generation=fresh_identity();width;height;rgba;dead=false}
   let size x=live"Text.size"x(fun()->Ok(x.width,x.height))
   let pixels x=live"Text.pixels"x(fun()->Ok(Bytes.copy x.rgba))
   let destroy x=main"Text.destroy"(fun()->if x.dead then Ok()else(x.dead<-true;x.rgba<-Bytes.empty;Ok()))
   module Private=struct
     let identity x=x.generation
+    let into_image x=live"Text.Private.into_image"x(fun()->
+      let image=Image.Private.of_owned_rgba ~width:x.width ~height:x.height ~rgba:x.rgba in
+      x.dead<-true;x.rgba<-Bytes.empty;Ok image)
   end
 end
 
