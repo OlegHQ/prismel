@@ -188,6 +188,80 @@ let rounded_circumcenter ~fallback points x y a b c =
 let canonical_bits value =
   if value = 0. then 0L else Int64.bits_of_float value
 
+module Coordinate_buckets = struct
+  type t = {mutable keys:int array;mutable heads:int array;
+    mutable next:int array;mutable count:int}
+
+  let capacity expected =
+    if expected < 0 || expected > Sys.max_array_length / 2 then
+      invalid_arg "Planar refinement coordinate table exceeds array limits";
+    let capacity = ref 16 in
+    while !capacity < max 16 (expected * 2) do
+      if !capacity > Sys.max_array_length / 2 then
+        invalid_arg "Planar refinement coordinate table exceeds array limits";
+      capacity := !capacity * 2
+    done;
+    !capacity
+
+  let create expected =
+    let size = capacity expected in
+    {keys=Array.make size (-1);heads=Array.make size (-1);
+     next=Array.make (max 1 expected) (-1);count=0}
+
+  let key x y =
+    (* Collisions are checked against canonical coordinates and symbolic points. *)
+    let mix value =
+      let value=(value lxor (value lsr 30))*0x3f4a7c159e3779b in
+      let value=(value lxor (value lsr 27))*0x2f1bbcdc676dfd1 in
+      value lxor (value lsr 31) in
+    (mix (Int64.to_int x) lxor (mix (Int64.to_int y) lsl 1)) land max_int
+
+  let slot keys key =
+    let mask=Array.length keys - 1 and result=ref(key land (Array.length keys - 1))in
+    while keys.(!result) <> -1 && keys.(!result) <> key do
+      result:=(!result+1)land mask
+    done;
+    !result
+
+  let grow table =
+    if Array.length table.keys > Sys.max_array_length / 2 then
+      invalid_arg "Planar refinement coordinate table exceeds array limits";
+    let keys=Array.make (Array.length table.keys * 2) (-1)
+    and heads=Array.make (Array.length table.keys * 2) (-1) in
+    Array.iteri(fun index key->if key<> -1 then(
+      let target=slot keys key in keys.(target)<-key;
+      heads.(target)<-table.heads.(index)))table.keys;
+    table.keys<-keys;table.heads<-heads
+
+  let ensure_next table index =
+    if index >= Array.length table.next then begin
+      let size=ref(Array.length table.next)in
+      while !size <= index do
+        if !size > Sys.max_array_length / 2 then
+          invalid_arg "Planar refinement coordinate chain exceeds array limits";
+        size:= !size*2
+      done;
+      let next=Array.make !size (-1)in
+      Array.blit table.next 0 next 0 (Array.length table.next);
+      table.next<-next
+    end
+
+  let find table key =
+    let index=slot table.keys key in
+    if table.keys.(index)=key then table.heads.(index) else -1
+
+  let next table index=table.next.(index)
+
+  let add table key value =
+    if table.count >= Array.length table.keys / 2 then grow table;
+    ensure_next table value;
+    let index=slot table.keys key in
+    if table.keys.(index)= -1 then(
+      table.keys.(index)<-key;table.count<-table.count+1);
+    table.next.(value)<-table.heads.(index);
+    table.heads.(index)<-value
+end
+
 let[@inline always] downward value =
   Float.next_after value Float.neg_infinity
 
@@ -447,18 +521,23 @@ let build ?cancel ~grain ~initial_points ~initial_triangle_points
     let cdt_workspace = Planar_cdt.Private.create_workspace
         ~point_capacity:capacity
         ~triangle_capacity:(max 1 (Array.length initial_triangle_points / 3)) () in
-    let buckets = Hashtbl.create (max 16 (Array.length initial_points * 2)) in
+    let buckets = Coordinate_buckets.create (Array.length initial_points) in
     let add_bucket point =
-      let key = canonical_bits x.(point),canonical_bits y.(point) in
-      let previous = Option.value (Hashtbl.find_opt buckets key) ~default:[] in
-      Hashtbl.replace buckets key (point :: previous) in
+      let key = Coordinate_buckets.key (canonical_bits x.(point))
+        (canonical_bits y.(point)) in
+      Coordinate_buckets.add buckets key point in
     for point = 0 to !point_count - 1 do add_bucket point done;
     let exists candidate =
       let px,py,_ = Implicit_point.approximate candidate in
-      match Hashtbl.find_opt buckets (canonical_bits px,canonical_bits py) with
-      | None -> false
-      | Some candidates -> List.exists
-          (fun point -> Implicit_point.equal points.(point) candidate) candidates in
+      let bx=canonical_bits px and by=canonical_bits py in
+      let point=ref(Coordinate_buckets.find buckets
+        (Coordinate_buckets.key bx by))and found=ref false in
+      while !point>=0&&not !found do
+        found:=canonical_bits x.(!point)=bx&&canonical_bits y.(!point)=by&&
+          Implicit_point.equal points.(!point) candidate;
+        point:=Coordinate_buckets.next buckets !point
+      done;
+      !found in
     let rec refine () =
       Cancel.check_opt cancel;
       let triangle_count = Array.length !triangles / 3 in
@@ -540,19 +619,24 @@ let build ?cancel ~grain ~initial_points ~initial_triangle_points
         let remaining = maximum_new_points
             - (!point_count - Array.length initial_points) in
         let selected = Bytes.make !bad_count '\000' and selected_count = ref 0
-        and candidate_buckets = Hashtbl.create (max 16 (!bad_count * 2)) in
+        and candidate_buckets = Coordinate_buckets.create !bad_count in
         for candidate = 0 to !bad_count - 1 do
           if !selected_count < remaining && not (exists candidate_points.(candidate)) then begin
             let px,py,_ = Implicit_point.approximate candidate_points.(candidate) in
-            let key = canonical_bits px,canonical_bits py in
-            let previous = Option.value
-                (Hashtbl.find_opt candidate_buckets key) ~default:[] in
-            let duplicate = List.exists (fun other ->
-                Implicit_point.equal candidate_points.(other)
-                  candidate_points.(candidate)) previous in
-            if not duplicate then begin
+            let bx=canonical_bits px and by=canonical_bits py in
+            let key=Coordinate_buckets.key bx by in
+            let other=ref(Coordinate_buckets.find candidate_buckets key)
+            and duplicate=ref false in
+            while !other>=0&&not !duplicate do
+                let ox,oy,_=Implicit_point.approximate candidate_points.(!other)in
+                duplicate:=canonical_bits ox=bx&&canonical_bits oy=by&&
+                  Implicit_point.equal candidate_points.(!other)
+                    candidate_points.(candidate);
+                other:=Coordinate_buckets.next candidate_buckets !other
+            done;
+            if not !duplicate then begin
               Bytes.unsafe_set selected candidate '\001'; incr selected_count;
-              Hashtbl.replace candidate_buckets key (candidate :: previous)
+              Coordinate_buckets.add candidate_buckets key candidate
             end
           end
         done;
