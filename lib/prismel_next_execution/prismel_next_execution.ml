@@ -40,14 +40,10 @@ type scene2_resource_stamp=
   |Image_stamp of int*Prismel_next_resources.Image.t*int
   |Text_stamp of int*Prismel_next_resources.Text.t*int
   |Canvas_stamp of int*Prismel_next_resources.Canvas.t*int
-type cached_scene2_plan={plan_fingerprint:int;plan_command_count:int;
+type cached_scene2_plan={mutable plan_ir_id:int;plan_fingerprint:int;plan_command_count:int;
   plan_source_bytes:int;plan_density:int;
   plan_extent:int*int*int*int;plan_resources:scene2_resource_stamp list;
-  plan_ir:Scene_command.Render_ir.t;plan_draws:draw list}
-type scene2_plan_candidate={candidate_plan_fingerprint:int;
-  candidate_plan_command_count:int;candidate_plan_density:int;
-  candidate_plan_extent:int*int*int*int;
-  candidate_plan_resources:scene2_resource_stamp list}
+  mutable plan_ir:Scene_command.Render_ir.t;plan_draws:draw list}
 let prepared_draw ~family ?(blend=Replace) ?texture ?auxiliary ?(samples=1) value =
   {family;blend;texture;auxiliary;samples;value}
 
@@ -350,7 +346,6 @@ type t = { runtime:runtime;
   mutable scene2_quad_payload_cache:cached_scene2_quad_payload list;
   mutable scene2_debug_cache:cached_scene2_debug list;
   mutable scene2_plan_cache:cached_scene2_plan list;
-  mutable scene2_plan_candidates:scene2_plan_candidate list;
   mutable retained_scene2_segments:retained_scene2_segment list;
   mutable retained_scene2_segment_hits:int64;
   mutable retained_scene2_segment_misses:int64;
@@ -378,7 +373,7 @@ let finish_create runtime=
   {runtime;assets=Prismel_next_resources.Assets.create();
       dead=false;snapshots=[];snapshot_bytes=0;scene2_geometry_cache=[];scene2_geometry_candidates=[];
       scene2_batch_cache=[];scene2_quad_cache=[];scene2_quad_payload_cache=[];
-      scene2_debug_cache=[];scene2_plan_cache=[];scene2_plan_candidates=[];
+      scene2_debug_cache=[];scene2_plan_cache=[];
       retained_scene2_segments=[];
       retained_scene2_segment_hits=0L;retained_scene2_segment_misses=0L;
       submissions=[];last_step_draws=[];last_step_prepared=[];
@@ -882,63 +877,60 @@ let scene2_resource_stamps resolve commands=
 let lower_scene2_with_policy value ~lease_policy ~density ~resource:resolve ir =
   if value.dead then lower_scene2_uncached value~lease_policy~density~resource:resolve ir else
   let commands=Scene_command.Render_ir.Private.commands_readonly ir in
-  let fingerprint=ref(Hashtbl.hash commands)and command_count=Array.length commands in
-  let mix value=fingerprint:=(!fingerprint*65599)lxor value in
-  for index=0 to command_count-1 do match Array.unsafe_get commands index with
-    |Scene_command.Render_ir.Push_transform transform->
-      mix(Int64.to_int(Int64.bits_of_float transform.xx));
-      mix(Int64.to_int(Int64.bits_of_float transform.xy));
-      mix(Int64.to_int(Int64.bits_of_float transform.yx));
-      mix(Int64.to_int(Int64.bits_of_float transform.yy));
-      mix(Int64.to_int(Int64.bits_of_float transform.tx));
-      mix(Int64.to_int(Int64.bits_of_float transform.ty))
-    |Geometry geometry->mix(Hashtbl.hash geometry.vertices);
-      mix(Hashtbl.hash geometry.indices);mix(Int32.to_int geometry.color)
-    |_->()
-  done;
-  let fingerprint= !fingerprint in
-  let cacheable,resources=scene2_resource_stamps resolve commands in
+  let ir_id=Scene_command.Render_ir.Private.identity ir in
   let facts=presentation_facts value|>Result.get_ok in
   let extent=facts.logical_width,facts.logical_height,
     facts.drawable_width,facts.drawable_height in
-  let exact plan=plan.plan_fingerprint=fingerprint&&
-    plan.plan_command_count=command_count&&plan.plan_density=density&&
-    plan.plan_extent=extent&&
-    same_scene2_resource_stamps plan.plan_resources resources&&
-    Scene_command.Render_ir.Private.commands_readonly plan.plan_ir=commands in
-  if cacheable then match List.find_opt exact value.scene2_plan_cache with
-  |Some plan->Ok plan.plan_draws
-  |None->
-    (match lower_scene2_uncached value~lease_policy~density~resource:resolve ir with
-    |Error _ as error->error
-    |Ok draws as result->
-      if List.exists(fun draw->match draw.texture with
-        |Some texture->sampled_texture_bytes texture>snapshot_cache_entry_byte_capacity
-        |None->false)draws then result else
-      let candidate=List.find_opt(fun candidate->
-        candidate.candidate_plan_fingerprint=fingerprint&&
-        candidate.candidate_plan_command_count=command_count&&
-        candidate.candidate_plan_density=density&&
-        candidate.candidate_plan_extent=extent&&
-        same_scene2_resource_stamps candidate.candidate_plan_resources resources)
-        value.scene2_plan_candidates in
-      (match candidate with
-      |None->value.scene2_plan_candidates<-{
-          candidate_plan_fingerprint=fingerprint;candidate_plan_command_count=command_count;
-          candidate_plan_density=density;
-          candidate_plan_extent=extent;candidate_plan_resources=resources}::
-          value.scene2_plan_candidates;
-        value.scene2_plan_candidates<-trim_scene2_entries~capacity:64(fun _->64)
-          value.scene2_plan_candidates
-      |Some candidate->
-        value.scene2_plan_candidates<-List.filter((!=)candidate)value.scene2_plan_candidates;
-        let plan={plan_fingerprint=fingerprint;plan_command_count=command_count;
+  let same_context plan=plan.plan_density=density&&plan.plan_extent=extent in
+  let slow ()=
+    let fingerprint=ref(Hashtbl.hash commands)and command_count=Array.length commands in
+    let mix value=fingerprint:=(!fingerprint*65599)lxor value in
+    for index=0 to command_count-1 do match Array.unsafe_get commands index with
+      |Scene_command.Render_ir.Push_transform transform->
+        mix(Int64.to_int(Int64.bits_of_float transform.xx));
+        mix(Int64.to_int(Int64.bits_of_float transform.xy));
+        mix(Int64.to_int(Int64.bits_of_float transform.yx));
+        mix(Int64.to_int(Int64.bits_of_float transform.yy));
+        mix(Int64.to_int(Int64.bits_of_float transform.tx));
+        mix(Int64.to_int(Int64.bits_of_float transform.ty))
+      |Geometry geometry->mix(Hashtbl.hash geometry.vertices);
+        mix(Hashtbl.hash geometry.indices);mix(Int32.to_int geometry.color)
+      |_->()
+    done;
+    let fingerprint= !fingerprint in
+    let cacheable,resources=scene2_resource_stamps resolve commands in
+    let exact plan=plan.plan_fingerprint=fingerprint&&
+      plan.plan_command_count=command_count&&same_context plan&&
+      same_scene2_resource_stamps plan.plan_resources resources&&
+      Scene_command.Render_ir.Private.commands_readonly plan.plan_ir=commands in
+    if cacheable then match List.find_opt exact value.scene2_plan_cache with
+    |Some plan->
+        if plan.plan_ir_id<>ir_id then(
+          plan.plan_ir_id<-ir_id;plan.plan_ir<-ir);
+        Ok plan.plan_draws
+    |None->
+      (match lower_scene2_uncached value~lease_policy~density~resource:resolve ir with
+      |Error _ as error->error
+      |Ok draws as result->
+        if List.exists(fun draw->match draw.texture with
+          |Some texture->sampled_texture_bytes texture>snapshot_cache_entry_byte_capacity
+          |None->false)draws then result else
+        let plan={plan_ir_id=ir_id;plan_fingerprint=fingerprint;
+          plan_command_count=command_count;
           plan_source_bytes=scene2_plan_source_bytes commands;plan_density=density;
           plan_extent=extent;plan_resources=resources;
           plan_ir=ir;plan_draws=draws}in
         value.scene2_plan_cache<-trim_scene2_entries~capacity:16
-          (fun plan->plan.plan_source_bytes)(plan::value.scene2_plan_cache));result)
-  else lower_scene2_uncached value~lease_policy~density~resource:resolve ir
+          (fun plan->plan.plan_source_bytes)(plan::value.scene2_plan_cache);
+        result)
+    else lower_scene2_uncached value~lease_policy~density~resource:resolve ir in
+  match List.find_opt(fun plan->plan.plan_ir_id=ir_id&&same_context plan)
+      value.scene2_plan_cache with
+  |None->slow()
+  |Some plan when plan.plan_resources=[]->Ok plan.plan_draws
+  |Some plan->let cacheable,resources=scene2_resource_stamps resolve commands in
+      if cacheable&&same_scene2_resource_stamps plan.plan_resources resources
+      then Ok plan.plan_draws else slow()
 let lower_scene2 value ~density ~resource ir=
   lower_scene2_with_policy value~lease_policy:Copy_image_snapshots
     ~density~resource ir
@@ -1224,7 +1216,7 @@ let destroy value=if value.dead then Ok()else(
     value.scene2_quad_cache<-[];
     value.scene2_quad_payload_cache<-[];
     value.scene2_debug_cache<-[];
-    value.scene2_plan_cache<-[];value.scene2_plan_candidates<-[];
+    value.scene2_plan_cache<-[];
     value.retained_scene2_segments<-[];
     value.scene2_geometry_candidates<-[];value.last_step_draws<-[];
     value.last_step_prepared<-[];value.scene2_out_slots<-[||];

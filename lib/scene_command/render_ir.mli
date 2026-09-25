@@ -16,6 +16,9 @@ val create : command array -> (t,error) result
 val commands : t -> command array
 val batches : t -> batch array
 module Private : sig
+  (* Unique identity assigned to each validated immutable IR at construction. *)
+  val identity : t -> int
+
   (** Borrowed validated command storage for synchronous audited consumers.
       The returned array and every nested payload must be treated as read-only
       and must not escape the dynamic extent of the consuming operation. *)

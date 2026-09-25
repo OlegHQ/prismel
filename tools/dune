@@ -150,6 +150,11 @@
  (libraries scene_execution ogpu unix))
 
 (executable
+ (name bench_scene2_ir)
+ (modules bench_scene2_ir)
+ (libraries prismel_next_execution scene_command unix))
+
+(executable
  (name bench_pdk_ops)
  (modules bench_pdk_ops)
  (libraries prismel pdk procedural unix))

@@ -10,14 +10,15 @@ let run () =
   Assets.destroy assets;
 
   require (Result.is_ok (Audio.init ())) "audio init";
+  (* Leave enough time to observe playback while parallel test processes run. *)
   let sample = Result.get_ok
-      (Audio.Sample.synth ~waveform:Sine ~frequency:440. ~duration:0.01 ()) in
+      (Audio.Sample.synth ~waveform:Sine ~frequency:440. ~duration:0.2 ()) in
   let channel = Result.get_ok (Audio.Sample.play sample) in
   require (Audio.Sample.is_playing channel) "sample playing";
   Audio.Sample.stop channel;
   require (not (Audio.Sample.is_playing channel)) "sample stopped";
   let channel = Result.get_ok (Audio.Sample.play sample) in
-  Unix.sleepf 0.25;
+  Unix.sleepf 0.45;
   require (not (Audio.Sample.is_playing channel)) "finished sample still playing";
   Audio.Sample.destroy sample;
   Audio.shutdown ();

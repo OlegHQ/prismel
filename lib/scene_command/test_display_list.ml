@@ -19,6 +19,9 @@ let () =
   require (first == same && Display_list.id first = 7L
     && Display_list.version first = 1L)
     "display-list stable publication identity drift";
+  require (Render_ir.Private.identity (Display_list.render_ir first) =
+    Render_ir.Private.identity (Display_list.render_ir same))
+    "unchanged display-list IR lost its identity";
   let commands = Render_ir.Private.commands_readonly (Display_list.render_ir first) in
   require (Array.length commands = 18)
     "display-list command cardinality drift";
@@ -32,6 +35,9 @@ let () =
     && Array.length
          (Render_ir.Private.commands_readonly (Display_list.render_ir reset)) = 0)
     "display-list reset reused a stale publication";
+  require (Render_ir.Private.identity (Display_list.render_ir reset) <>
+    Render_ir.Private.identity (Display_list.render_ir first))
+    "changed display-list IR reused its old identity";
   Display_list.Builder.debug_text builder ~x:1. ~y:2. ~color:0xff00ffffl "value";
   let second = Result.get_ok
       (Display_list.Builder.publish builder ~id:7L ~version:2L) in

@@ -242,6 +242,13 @@ per-draw tuple conversion; an unchanged 1× runtime frame preserves the list's
 identity, while Retina scaling copies only records whose viewport or scissor
 changes. Batch coalescing also requires an equal sample count.
 
+Each validated immutable Render IR has a process-local integer identity.
+Repeated lowering of that exact IR can reuse a bounded Scene2 plan by identity,
+density, extent, and resource generation without hashing its command array.
+Separately constructed but equivalent IR still uses content comparison to
+preserve cache hits. The identity does not enter serialized IR or rendered
+artifacts; the Scene2 plan cache remains capped at 16 entries and 64 MiB.
+
 Retained OGPU-Metal identity and replay metadata have independent 256-entry
 limits and share a configurable 64-MiB default byte capacity per queue. Metal's
 retained render-plan cache has its own entry limit and configurable 64-MiB

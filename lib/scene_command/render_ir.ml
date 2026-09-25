@@ -9,7 +9,8 @@ type debug_text={x:float;y:float;text:string;color:int32}
 type command=Clear of int32|Set_blend of blend|Push_clip of rect|Pop_clip|Push_transform of transform|Pop_transform|Geometry of geometry|Image of image|Glyphs of glyphs|Debug_text of debug_text
 type batch_kind=State|Geometry_batch of int32|Image_batch of int|Glyph_batch of int|Debug_text_batch of int32
 type batch={first:int;count:int;kind:batch_kind}
-type t={commands:command array;batches:batch array}
+type t={id:int;commands:command array;batches:batch array}
+let next_id=Atomic.make 1
 type error=Non_finite|Invalid_extent|Invalid_cardinality|Invalid_index of int|Invalid_resource_id of int|Invalid_glyph_id of int|Invalid_debug_text|Unbalanced_clip|Unbalanced_transform|Complexity_limit
 let finite=Float.is_finite
 let valid_rect (r:rect)=finite r.x&&finite r.y&&finite r.width&&finite r.height&&r.width>=0.&&r.height>=0.
@@ -52,11 +53,13 @@ let create_internal ~copy input=
   match !failure with Some e->Error e|None->
     let commands=if copy then Array.map copy_command input else input in
     let built=ref[]in Array.iteri(fun index command->let k=kind command in match !built with {first;count;kind=old}::rest when same_kind old k->built:={first;count=count+1;kind=old}::rest|_->built:={first=index;count=1;kind=k}::!built)commands;
-    Ok{commands;batches=Array.of_list(List.rev !built)}
+    Ok{id=Atomic.fetch_and_add next_id 1;
+      commands;batches=Array.of_list(List.rev !built)}
 let create input=create_internal~copy:true input
 let commands t=Array.map copy_command t.commands
 let batches t=Array.copy t.batches
 module Private=struct
+  let identity t=t.id
   let commands_readonly t=t.commands
   let create_owned input=create_internal~copy:false input
 end
