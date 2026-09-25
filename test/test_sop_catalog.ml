@@ -326,4 +326,22 @@ let run () =
   check (Node.operation graph = "exploded_view" && explosion.amount = 0.32
       && explosion.piece_attribute = "piece")
     "standard Exploded View node lost its operation or PPX defaults";
+  let camera_factory = List.find (fun factory ->
+      Edit_graph.factory_key factory = "camera") Sop_catalog.Editor.factories in
+  let camera_node = Edit_graph.instantiate camera_factory [] |> Result.get_ok in
+  let camera, follows = Sop_catalog.Camera.of_node camera_node |> Option.get in
+  check (not follows && Camera.position camera = Vec3.create 0. 0. 7.)
+    "camera accessor lost the catalog defaults";
+  let eye = Vec3.create 2. 3. 8. and target = Vec3.create 1. 0. 0. in
+  let edits = Sop_catalog.Camera.to_values ~eye ~target ~fov_y:0.7 in
+  let camera_node, _ = Node.apply_parameters camera_node
+      (("follow_viewport", Parameter.Bool_value true) :: edits) |> Result.get_ok in
+  let camera, follows = Sop_catalog.Camera.of_node camera_node |> Option.get in
+  check (follows && Camera.position camera = eye && Camera.target camera = target
+      && match Camera.projection camera with
+        | Camera.Perspective { fov_y; _ } -> Float.abs (fov_y -. 0.7) < 1e-12
+        | _ -> false)
+    "camera accessor failed to round-trip viewport values";
+  check (Sop_catalog.Camera.of_node source = None)
+    "camera accessor accepted a non-camera node";
   print_endline "SOP catalog tests passed"

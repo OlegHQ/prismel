@@ -1123,39 +1123,21 @@ module Environment3 = struct
     hidden_scene : Scene.t;
   }
 
-  (* ---- camera nodes: SOPs with operation "camera" (Sop_catalog.Camera),
-     read by parameter name so this library needs no catalog dependency. *)
+  (* ---- camera nodes: SOPs with operation "camera" (Sop_catalog.Camera). *)
 
   let camera_ids document = Edit_graph.inspect document
     |> List.filter_map (fun (info : Edit_graph.node_info) ->
       if info.operation = "camera" then Some info.id else None)
 
-  let field node name = List.find_map (fun (field : Parameter.field_view) ->
-    if field.name = name then Some field.current else None) (Node.parameter_fields node)
+  let follows node = match Sop_catalog.Camera.of_node node with
+    | Some (_, follow_viewport) -> follow_viewport | None -> false
 
-  let number node name default = match field node name with
-    | Some (Parameter.Float_value value) -> value | _ -> default
-
-  let follows node = field node "follow_viewport" = Some (Parameter.Bool_value true)
-
-  let node_camera node =
-    let vector prefix (default : Vec3.t) = Vec3.create
-        (number node (prefix ^ "_x") default.x) (number node (prefix ^ "_y") default.y)
-        (number node (prefix ^ "_z") default.z) in
-    match Camera.perspective ~fov_y:(number node "fov" 60. *. Float.pi /. 180.)
-        ~near:(number node "near" 0.1) ~far:(number node "far" 1000.)
-        ~at:(vector "eye" (Vec3.create 0. 0. 7.)) ~target:(vector "target" Vec3.zero) ()
-        |> Camera.with_up (vector "up" Vec3.unit_y) with
-    | camera -> Some camera
-    | exception Invalid_argument _ -> None
+  let node_camera node = Option.map fst (Sop_catalog.Camera.of_node node)
 
   let view_parameters easy =
     let camera = Easy_camera.camera easy in
     let eye = Camera.position camera and target = Camera.target camera in
-    let float name value = name, Parameter.Float_value value in
-    [ float "eye_x" eye.x; float "eye_y" eye.y; float "eye_z" eye.z;
-      float "target_x" target.x; float "target_y" target.y; float "target_z" target.z;
-      float "fov" (Easy_camera.fov_y easy *. 180. /. Float.pi) ]
+    Sop_catalog.Camera.to_values ~eye ~target ~fov_y:(Easy_camera.fov_y easy)
 
   let same_view a b =
     Vec3.nearly_equal (Camera.position a) (Camera.position b) ~eps:1e-6

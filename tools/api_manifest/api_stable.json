@@ -1172,13 +1172,13 @@
       "source_sha256": "16a987a78aaa65d5d6396014b3fc16bbe3040ac4850fc872d4d32c3a0a4e22e2"
     },
     {
-      "api_sha256": "5d8c652d71bb9e519ee99dd513327f27761aac103db134289a8c5f5c8d9732b1",
+      "api_sha256": "2d12ed4794980af8b1a0126246be0a90a15f62faf5abdcd9e3c85316bfffa9f7",
       "excluded_legacy_symbols": [],
       "library": "sop_catalog",
       "module": "Sop_catalog",
       "source": "lib/sop_catalog/sop_catalog.mli",
-      "source_bytes": 21596,
-      "source_sha256": "d8197fe3b7835b9811b5c594cde9f00c72254a94eb7c49d54efa9fc5c9ffd69d"
+      "source_bytes": 21818,
+      "source_sha256": "3e53642ded872159d59631096889a6a186592f2c599abb3bc018cc1fb8b7e480"
     },
     {
       "api_sha256": "066c13e6f40d5ace39e223d82bef47560a97d2d8a6dd75ab9bae2117d32ab5a5",

@@ -9677,10 +9677,8 @@ module Null = struct
         | _ -> invalid_arg "Null SOP expects one input")
 end [@@sop.register]
 
-(* A render camera: parameters only, cooking to empty geometry. Sketch_ui
-   reads the ACTIVE camera's fields by name to drive look-through, PNG export,
-   and sketch renderers. ponytail: no frustum gizmo in the viewport; add a
-   wireframe overlay if users ask. *)
+(* A render camera: parameters only, cooking to empty geometry.
+   ponytail: no frustum gizmo in the viewport; add a wireframe overlay if asked. *)
 module Camera = struct
   type parameters = {
     eye_x : float [@sop.default 0.] [@sop.label "Eye X"] [@sop.folder "Eye"]
@@ -9720,6 +9718,27 @@ module Camera = struct
          ~rebuild:build
 
   let factory = parameters_factory build
+
+  let of_node node =
+    if Node.operation node <> "camera" then None else
+    let values = List.map (fun (field : Parameter.field_view) ->
+      field.name, field.current) (Node.parameter_fields node) in
+    match Parameter.apply_all parameters_schema parameters_default values with
+    | Error _ -> None
+    | Ok (p, _) ->
+        let at = Prismel.Vec3.create p.eye_x p.eye_y p.eye_z
+        and target = Prismel.Vec3.create p.target_x p.target_y p.target_z
+        and up = Prismel.Vec3.create p.up_x p.up_y p.up_z in
+        (match Prismel.Camera.perspective ~fov_y:(p.fov *. Float.pi /. 180.)
+            ~near:p.near ~far:p.far ~at ~target () |> Prismel.Camera.with_up up with
+         | camera -> Some (camera, p.follow_viewport)
+         | exception Invalid_argument _ -> None)
+
+  let to_values ~(eye : Prismel.Vec3.t) ~(target : Prismel.Vec3.t) ~fov_y =
+    let float name value = name, Parameter.Float_value value in
+    [float "eye_x" eye.x; float "eye_y" eye.y; float "eye_z" eye.z;
+     float "target_x" target.x; float "target_y" target.y;
+     float "target_z" target.z; float "fov" (fov_y *. 180. /. Float.pi)]
 end [@@sop.register]
 
 module Normal = struct

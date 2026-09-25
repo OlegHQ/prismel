@@ -766,6 +766,12 @@ module Normal : sig
     Procedural.Node.t -> Procedural.Node.t
 end
 
+module Camera : sig
+  val of_node : Procedural.Node.t -> (Prismel.Camera.t * bool) option
+  val to_values : eye:Prismel.Vec3.t -> target:Prismel.Vec3.t -> fov_y:float ->
+    (string * Procedural.Parameter.value) list
+end
+
 module Exploded_view : sig
   val create :
     ?label:string -> ?amount:float -> ?scale:Prismel.Vec3.t ->
