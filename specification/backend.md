@@ -45,7 +45,8 @@ timeline and prompt widgets return requests without knowing about SOPs or
 presets. `Shell.frame` owns the workspace's PXUI frame calls. `sketch_ui`
 supplies bindings, playback state, and preset data. PXUI hit ancestry reports
 presses on child controls to their pane roots; the sketch host reads those
-signals for pane focus. Presets use
+signals for pane focus. When a click and scoped key share a frame, the router
+reads the same PXUI hit tree before building the frame. Presets use
 `Editor.Store` graph and viewport sections; `Editor.Store.Settings` saves the
 same envelope and reads legacy `PXUI1` settings files.
 OGPU's dormant Frame_graph, Descriptor_arena, Transfer_ring, Instance,

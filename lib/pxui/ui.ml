@@ -536,6 +536,13 @@ let hit_index ui key =
     else search (index - 1) in
   search (ui.hit_count - 1)
 
+let rec hit_ancestors ui key f =
+  if key <> 0 then begin
+    f key;
+    let index = hit_index ui key in
+    if index >= 0 then hit_ancestors ui ui.hit_parent.(index) f
+  end
+
 let hit_contains ui index point =
   contains (ui.hit_x.(index), ui.hit_y.(index), ui.hit_w.(index), ui.hit_h.(index))
     point
@@ -547,6 +554,15 @@ let topmost ui point =
     else if hit_contains ui index point then ui.hit_keys.(index)
     else search (index - 1) in
   search (ui.hit_count - 1)
+
+let last_press_within ui (frame : Frame.t) roots =
+  List.fold_left (fun last -> function
+    | Event.MousePressed (_, point) ->
+        let found = ref None in
+        hit_ancestors ui (topmost ui point) (fun key ->
+          if !found = None && List.mem key roots then found := Some key);
+        (match !found with Some _ as root -> root | None -> last)
+    | _ -> last) None frame.events
 
 let flags_of_key ui key =
   let index = hit_index ui key in
@@ -585,13 +601,8 @@ let route ui (frame : Frame.t) =
     | Event.MousePressed (button, point) ->
         set_pointer point;
         let target = topmost ui ui.pointer in
-        let rec mark key =
-          if key <> 0 then begin
-            (accumulator ui key).subtree_press <- Some event_index;
-            let index = hit_index ui key in
-            if index >= 0 then mark ui.hit_parent.(index)
-          end in
-        mark target;
+        hit_ancestors ui target (fun key ->
+          (accumulator ui key).subtree_press <- Some event_index);
         let flags = flags_of_key ui target in
         if button = Input.LeftButton then begin
           let focus = if flags land focusable <> 0 then target else 0 in

@@ -124,6 +124,10 @@ val rect : t -> box -> float * float * float * float
 
 val hit_rect : t -> box -> float * float * float * float
 
+val last_press_within : t -> Prismel.Frame.t -> int list -> int option
+(** Last root key pressed in [frame], using PXUI's previous hit tree.
+    The keys come from [key] on pane roots; a press on any child counts. *)
+
 type signal = {
   hovered : bool;  (** topmost box under the pointer, or captured *)
   pressed : bool;  (** a press on this box began this frame *)

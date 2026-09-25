@@ -129,6 +129,13 @@ let run () =
   let inspector_x, inspector_y, _, _ = panes.inspector in
   let camera_header = inspector_x + 32, inspector_y + 15 in
   let collapsed_scene = ui_bytes (Sketch_ui.Environment3.scene environment current_frame) in
+  let blank_inspector = inspector_x + 4, inspector_y + 200 in
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[mouse_press (Input.LeftButton, blank_inspector);
+        mouse_release (Input.LeftButton, blank_inspector);
+        Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'w')] 10) in
+  check (not (Sketch_ui.Environment3.flying environment))
+    "same-frame inspector click routed a view-only shortcut";
   let environment = Sketch_ui.Environment3.update environment
       (frame ~events:[mouse_press (Input.LeftButton, camera_header)] 11) in
   let environment = Sketch_ui.Environment3.update environment

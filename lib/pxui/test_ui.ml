@@ -52,13 +52,16 @@ let with_scale scale =
     let child = Ui.within ui root (fun () ->
       Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px 30.) ~h:(Ui.Px 30.)
         ~at:(10., 10.) "child") in
-    Ui.signal ui root, Ui.signal ui child) in
-  ignore (roots []);
-  let root, child = roots [press (15, 15)] in
+    Ui.signal ui root, Ui.signal ui child, Ui.key root) in
+  let _, _, root_key = roots [] in
+  if Ui.last_press_within ui (frame ~scale ~time:0.5 [press (15, 15)])
+      [root_key] <> Some root_key then
+    fail (label "hit-tree preview missed a child press");
+  let root, child, _ = roots [press (15, 15)] in
   if root.pressed || root.subtree_press <> Some 0
       || not child.pressed || child.subtree_press <> Some 0 then
     fail (label "child press did not reach its hit ancestor");
-  let root, child = roots [release (15, 15); press (80, 80)] in
+  let root, child, _ = roots [release (15, 15); press (80, 80)] in
   if not root.pressed || root.subtree_press <> Some 1
       || child.pressed then
     fail (label "blank root press did not select the root");

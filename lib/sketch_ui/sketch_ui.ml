@@ -357,6 +357,7 @@ module Core = struct
   type 'panel frame_result = {
     workspace : Workspace.t;
     focus : Workspace.column;
+    pane_keys : (int * Workspace.column) list;
     graph_view : Pxui_graph.t;
     document : Edit_graph.t;
     edit_error : string option;
@@ -391,6 +392,7 @@ module Core = struct
     status_fps_at : float;
     history : Edit_graph.t Editor.History.t;
     focus : Workspace.column;
+    pane_keys : (int * Workspace.column) list;
     leader : Leader.state;
     keymap : Leader.binding list;
     timeline_frames : int;
@@ -451,7 +453,7 @@ module Core = struct
           edit_error = None; status_fps = None;
           status_fps_at = Float.neg_infinity;
           history = Editor.History.create document;
-          focus = Workspace.View; leader = Leader.Idle;
+          focus = Workspace.View; pane_keys = []; leader = Leader.Idle;
           keymap; timeline_frames = max 1 timeline_frames })
         (Cook.create ~prepare ~seed ~grain ?domains ~max_entries
           ~max_payload_bytes ())
@@ -531,9 +533,13 @@ module Core = struct
 
   let update value ~all_ui_visible ~text_focus ~camera_panel ~render_status
       ~view_state (frame : Frame.t) =
-    (* ponytail: scoped keys batched with a pane press use prior focus; move
-       routing into the PXUI frame when same-frame click/key input matters. *)
-    let focus = value.focus in
+    let focus = if all_ui_visible then
+        match Pxui.Ui.last_press_within value.ui frame
+            (List.map fst value.pane_keys) with
+        | Some key -> Option.value ~default:value.focus
+            (List.assoc_opt key value.pane_keys)
+        | None -> value.focus
+      else value.focus in
     let keymap = if all_ui_visible
         && not (Workspace.collapsed value.workspace Workspace.Graph)
       then value.keymap else List.filter (fun binding ->
@@ -636,19 +642,21 @@ module Core = struct
             ~max_frame:value.timeline_frames) in
       Pxui.Ui.within ui view_root (fun () ->
         status_box { value with workspace; status_fps } ui frame ~render_status);
+      let roots = [view, view_root; graph, graph_root;
+        inspector_column, inspector_root; timeline_column, timeline_root] in
       let focus = List.fold_left (fun (latest, focus) (column, box) ->
         match (Pxui.Ui.signal ui box).subtree_press with
         | Some index when index >= latest -> index, column
-        | _ -> latest, focus) (-1, focus)
-        [view, view_root; graph, graph_root;
-         inspector_column, inspector_root; timeline_column, timeline_root]
+        | _ -> latest, focus) (-1, focus) roots
         |> snd in
+      let pane_keys = List.map (fun (column, box) -> Pxui.Ui.key box, column)
+        roots in
       (* The focused pane's accent outline. *)
       let bounds = match focus with
         | Workspace.View -> panes.view | Graph -> panes.graph
         | Inspector -> panes.inspector | Timeline -> panes.timeline in
       Pxui_shell.Chrome.focus ui ~bounds;
-      { workspace; focus; graph_view; document; edit_error; inspector;
+      { workspace; focus; pane_keys; graph_view; document; edit_error; inspector;
         effects = Parameter.union_effects editor_effects parameter_effects;
         timeline_intents; frame_request; prompt = None; prompt_intent = None;
         panel } in
@@ -702,7 +710,7 @@ module Core = struct
           { result with prompt; prompt_intent }) with
       | Some result -> result
       | None ->
-        { workspace; focus; graph_view; document = value.document;
+        { workspace; focus; pane_keys = []; graph_view; document = value.document;
           edit_error = value.edit_error; inspector = value.inspector;
           effects = Parameter.no_effects; timeline_intents = [];
           frame_request = initial_frame_request; prompt = initial_prompt;
@@ -779,7 +787,8 @@ module Core = struct
         displayed_graph = cooked.displayed_graph; document; graph_view; displayed_id;
         inspector; workspace = result.workspace; timeline; cook = cooked.cook;
         edit_error = cooked.edit_error;
-        status_fps; status_fps_at; history; focus = result.focus; leader; prompt;
+        status_fps; status_fps_at; history; focus = result.focus;
+        pane_keys = result.pane_keys; leader; prompt;
         notice = if document_changed && Option.is_none loaded then None else notice };
       effects; prepared_changed = cooked.prepared_changed;
       framed = cooked.framed;
