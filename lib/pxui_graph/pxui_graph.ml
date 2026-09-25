@@ -159,6 +159,7 @@ type spatial_index = {
   mutable mark_generation : int;
   mutable visible : int array;
   mutable visible_length : int;
+  mutable order : int array;
   mutable visible_edges : int array;
   mutable visible_edge_length : int;
   edge_stack : int array;
@@ -405,6 +406,7 @@ let build_spatial_index boxes edges =
     edge_marks = Array.make (Array.length edges) 0;
     edge_x0; edge_y0; edge_x3; edge_y3; incident_edges;
     visible = Array.make (min 16 (Array.length boxes)) 0; visible_length = 0;
+    order = Array.make (min 16 (Array.length boxes)) 0;
     visible_edges = Array.make (min 16 (Array.length edges)) 0;
     visible_edge_length = 0; edge_stack = Array.make 64 0 }
 
@@ -905,6 +907,7 @@ let commit_node_move value indices offset_x offset_y =
     edge_marks = Array.make (Array.length value.edges) 0;
     mark_generation = 0; visible_length = 0; visible_edge_length = 0;
     visible = Array.make (Array.length value.spatial.visible) 0;
+    order = Array.make (Array.length value.spatial.order) 0;
     visible_edges = Array.make (Array.length value.spatial.visible_edges) 0;
     edge_stack = Array.make 64 0 } in
   { value with positions; moved_nodes; moved_cells; spatial; drag = None }
@@ -1476,17 +1479,27 @@ let update (value : t) ui (frame : Frame.t) =
   let canvas_signal = Ui.signal ui canvas in
   (* Visible tiles become boxes keyed by node id; selected tiles on top. *)
   let visible_nodes, _, stats = visibility value in
-  let order = Array.sub visible_nodes 0 stats.visible_nodes in
   let is_selected index = Id_set.mem value.boxes.(index).info.Edit_graph.id value.selected in
-  let order = Array.append
-      (Array.of_list (List.filter (fun index -> not (is_selected index)) (Array.to_list order)))
-      (Array.of_list (List.filter is_selected (Array.to_list order))) in
+  if Array.length value.spatial.order < stats.visible_nodes then
+    value.spatial.order <- Array.make (Array.length visible_nodes) 0;
+  let order = value.spatial.order in
+  let next = ref 0 in
+  for selected = 0 to 1 do
+    for position = 0 to stats.visible_nodes - 1 do
+      let index = Array.unsafe_get visible_nodes position in
+      if is_selected index = (selected = 1) then begin
+        Array.unsafe_set order !next index;
+        incr next
+      end
+    done
+  done;
   let local (x, y) = float_of_int (x - value.x), float_of_int (y - value.y) in
   let tiles = Ui.within ui canvas (fun () ->
     let layer = Ui.box ui ~w:(Ui.Px (float_of_int value.width))
         ~h:(Ui.Px (float_of_int value.height)) ~at:(0., 0.) "wires" in
     Ui.draw ui layer (fun paint _ -> paint_background !final paint);
-    let tiles = Array.map (fun index ->
+    let tiles = Array.init stats.visible_nodes (fun position ->
+      let index = Array.unsafe_get order position in
       let box = value.boxes.(index) in
       let id = box.info.Edit_graph.id in
       let x, y, width, height = box_bounds value box in
@@ -1516,7 +1529,7 @@ let update (value : t) ui (frame : Frame.t) =
             ~h:(Ui.Px (float_of_int bh)) ~at:(float_of_int (bx - x), float_of_int (by - y))
             "active") in
         (view, active), output) in
-      index, tile, view, output) order in
+      index, tile, view, output) in
     let overlay = Ui.box ui ~w:(Ui.Px (float_of_int value.width))
         ~h:(Ui.Px (float_of_int value.height)) ~at:(0., 0.) "overlay" in
     Ui.draw ui overlay (fun paint _ ->
