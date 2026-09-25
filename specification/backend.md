@@ -48,8 +48,11 @@ presets. `Shell.frame` owns the workspace's PXUI frame calls. `sketch_ui`
 supplies bindings, playback state, and preset data. PXUI hit ancestry reports
 presses on child controls to their pane roots; the sketch host reads those
 signals for pane focus. When a click and scoped key share a frame, the router
-reads the same PXUI hit tree before building the frame. Presets use
-`Editor.Store` graph and viewport sections; `Editor.Store.Settings` saves the
+reads the same PXUI hit tree before building the frame. `sketch_ui`'s shared
+`Environment.scene` path composes both 2D and 3D views: viewport adapters
+supply camera and world painting, while visible/hidden composition, the
+leader overlay, and the unchanged hidden-scene cache follow one path. Presets
+use `Editor.Store` graph and viewport sections; `Editor.Store.Settings` saves the
 same envelope and reads legacy `PXUI1` settings files.
 OGPU's dormant Frame_graph, Descriptor_arena, Transfer_ring, Instance,
 Device_lifecycle, and Acceleration_pass modules have no production callers and

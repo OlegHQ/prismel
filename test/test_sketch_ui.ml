@@ -109,6 +109,15 @@ let run () =
          ~config:{ Sketch.default_config with width=900; height=640 }
          (Sketch_ui.Environment3.scene environment)
    | None -> ());
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[Event.KeyPressed Input.Space;
+        Event.KeyPressed (Input.KeyChar 'h')] 1) in
+  let hidden_scene = Sketch_ui.Environment3.scene environment (frame 1) in
+  check (Sketch_ui.Environment3.scene environment (frame 2) == hidden_scene)
+    "unchanged hidden 3D scene composition was rebuilt";
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[Event.KeyPressed Input.Space;
+        Event.KeyPressed (Input.KeyChar 'h')] 2) in
   let at count fps={ (frame count) with fps }in
   let status environment frame=ui_bytes(Sketch_ui.Environment3.scene environment frame)in
   let environment=Sketch_ui.Environment3.update environment(at 1_000 60.)in

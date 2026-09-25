@@ -819,6 +819,47 @@ module Core = struct
     Cook.close value.cook
 end
 
+module Environment = struct
+  type ('rendered, 'camera) hidden_scene_cache = {
+    width : int;
+    height : int;
+    rendered : 'rendered option;
+    camera : 'camera;
+    background : Color.t;
+    view_visible : bool;
+    scene : Scene.t;
+  }
+
+  let scene ~ui_visible ~background ~rendered ~camera ~paint_view ~overlay
+      ~cache core (frame : Frame.t) =
+    let view_visible = Core.column_visible core Workspace.View in
+    let world viewport = match rendered with
+      | Some image when view_visible -> paint_view viewport camera image
+      | Some _ | None -> [] in
+    if not ui_visible && core.Core.leader <> Leader.Pending then
+      match cache with
+      | Some cached when cached.width = frame.width
+          && cached.height = frame.height && cached.rendered == rendered
+          && cached.camera == camera && cached.background = background
+          && cached.view_visible = view_visible -> cached.scene, cache
+      | _ ->
+          let scene = Scene.clear background ::
+            world (0, 0, frame.width, frame.height) in
+          scene, Some { width = frame.width; height = frame.height;
+            rendered; camera; background; view_visible; scene }
+    else if not ui_visible then
+      Scene.clear background :: world (0, 0, frame.width, frame.height)
+      @ Core.machinery core ~all_ui_visible:false, cache
+    else
+      let viewport = (Core.panes core frame).view in
+      let x, y, width, height = viewport in
+      let overlay = [Scene.clip ~at:(x, y) ~w:width ~h:height
+          [Scene.translate x y (overlay (Core.graph core) (Core.prepared core)
+            (viewport_frame viewport frame))]] in
+      Scene.clear background :: world viewport @ overlay
+      @ Core.machinery core ~all_ui_visible:true, cache
+end
+
 module CC = Pxui.Camera_control
 module CC2 = Pxui.Camera2_control
 
@@ -846,17 +887,8 @@ module Environment3 = struct
     fly : float option;  (* flying at this speed, with relative pointer *)
     (* The active camera node's view, refreshed each update. *)
     render_camera : Camera.t;
-    mutable hidden_scene_cache : hidden_scene_cache option;
-  }
-
-  and hidden_scene_cache = {
-    hidden_width : int;
-    hidden_height : int;
-    hidden_rendered : Scene3.t option;
-    hidden_camera : Camera.t;
-    hidden_background : Color.t;
-    hidden_view_visible : bool;
-    hidden_scene : Scene.t;
+    mutable hidden_scene_cache :
+      (Scene3.t, Camera.t) Environment.hidden_scene_cache option;
   }
 
   (* ---- camera nodes: SOPs with operation "camera" (Sop_catalog.Camera). *)
@@ -1074,52 +1106,15 @@ module Environment3 = struct
 
   let scene value frame =
     let all_ui_visible = CC.ui_visible value.camera_control in
-    if not all_ui_visible && value.core.Core.leader = Leader.Pending then
-      Scene.clear value.background
-      :: (match value.rendered with
-        | Some rendered when Core.column_visible value.core Workspace.View ->
-            [Scene.view3d ~viewport:(0, 0, frame.Frame.width, frame.height)
-               ~camera:(view_camera value) rendered]
-        | Some _ | None -> [])
-      @ Core.machinery value.core ~all_ui_visible
-    else if not all_ui_visible then begin
-      let camera = view_camera value in
-      let view_visible = Core.column_visible value.core Workspace.View in
-      match value.hidden_scene_cache with
-      | Some cached when cached.hidden_width = frame.Frame.width
-          && cached.hidden_height = frame.height
-          && cached.hidden_rendered == value.rendered
-          && cached.hidden_camera == camera
-          && cached.hidden_background = value.background
-          && cached.hidden_view_visible = view_visible ->
-          cached.hidden_scene
-      | _ ->
-          let world = match value.rendered with
-            | Some rendered when view_visible ->
-                [Scene.view3d ~viewport:(0, 0, frame.width, frame.height)
-                   ~camera rendered]
-            | Some _ | None -> [] in
-          let scene = Scene.clear value.background :: world in
-          value.hidden_scene_cache <- Some
-            { hidden_width = frame.width; hidden_height = frame.height;
-              hidden_rendered = value.rendered; hidden_camera = camera;
-              hidden_background = value.background;
-              hidden_view_visible = view_visible; hidden_scene = scene };
-          scene
-    end else
-    let panes = Core.panes value.core frame in
-    let viewport = panes.view in
-    let world = match value.rendered with
-      | Some rendered when Core.column_visible value.core Workspace.View ->
-          [Scene.view3d ~viewport ~camera:(view_camera value) rendered]
-      | Some _ | None -> [] in
-    let x, y, width, height = viewport in
-    let overlay = [Scene.clip ~at:(x, y) ~w:width ~h:height
-        [Scene.translate x y
-           (value.overlay (Core.graph value.core) (Core.prepared value.core)
-              (viewport_frame viewport frame))]] in
-    Scene.clear value.background :: world @ overlay
-    @ Core.machinery value.core ~all_ui_visible
+    let scene, cache = Environment.scene ~ui_visible:all_ui_visible
+        ~background:value.background ~rendered:value.rendered
+        ~camera:(view_camera value)
+        ~paint_view:(fun viewport camera rendered ->
+          [Scene.view3d ~viewport ~camera rendered])
+        ~overlay:value.overlay ~cache:value.hidden_scene_cache
+        value.core frame in
+    value.hidden_scene_cache <- cache;
+    scene
 
   let close value =
     if value.fly <> None then set_relative false;
@@ -1154,17 +1149,8 @@ module Environment2 = struct
     render_status : string option;
     pending_render : CC2.render_request option;
     background : Color.t;
-    mutable hidden_scene_cache : hidden_scene2_cache option;
-  }
-
-  and hidden_scene2_cache = {
-    hidden_width : int;
-    hidden_height : int;
-    hidden_rendered : Scene.t option;
-    hidden_camera : Easy_camera2.t;
-    hidden_background : Color.t;
-    hidden_view_visible : bool;
-    hidden_scene : Scene.t;
+    mutable hidden_scene_cache :
+      (Scene.t, Easy_camera2.t) Environment.hidden_scene_cache option;
   }
 
   let create ?(layout = default_layout) ?name ?presets ?timeline_frames ?factories
@@ -1239,52 +1225,15 @@ module Environment2 = struct
 
   let scene value frame =
     let all_ui_visible = CC2.ui_visible value.camera_control in
-    if not all_ui_visible && value.core.Core.leader = Leader.Pending then
-      Scene.clear value.background
-      :: (match value.rendered with
-        | Some rendered when Core.column_visible value.core Workspace.View ->
-            Easy_camera2.scene ~viewport:(0, 0, frame.Frame.width, frame.height)
-              value.camera rendered
-        | Some _ | None -> [])
-      @ Core.machinery value.core ~all_ui_visible
-    else if not all_ui_visible then begin
-      let view_visible = Core.column_visible value.core Workspace.View in
-      match value.hidden_scene_cache with
-      | Some cached when cached.hidden_width = frame.Frame.width
-          && cached.hidden_height = frame.height
-          && cached.hidden_rendered == value.rendered
-          && cached.hidden_camera == value.camera
-          && cached.hidden_background = value.background
-          && cached.hidden_view_visible = view_visible ->
-          cached.hidden_scene
-      | _ ->
-          let world = match value.rendered with
-            | Some rendered when view_visible ->
-                Easy_camera2.scene
-                  ~viewport:(0, 0, frame.width, frame.height)
-                  value.camera rendered
-            | Some _ | None -> [] in
-          let scene = Scene.clear value.background :: world in
-          value.hidden_scene_cache <- Some
-            { hidden_width = frame.width; hidden_height = frame.height;
-              hidden_rendered = value.rendered; hidden_camera = value.camera;
-              hidden_background = value.background;
-              hidden_view_visible = view_visible; hidden_scene = scene };
-          scene
-    end else
-    let panes = Core.panes value.core frame in
-    let viewport = panes.view in
-    let world = match value.rendered with
-      | Some rendered when Core.column_visible value.core Workspace.View ->
-          Easy_camera2.scene ~viewport value.camera rendered
-      | Some _ | None -> [] in
-    let x, y, width, height = viewport in
-    let overlay = [Scene.clip ~at:(x, y) ~w:width ~h:height
-        [Scene.translate x y
-           (value.overlay (Core.graph value.core) (Core.prepared value.core)
-              (viewport_frame viewport frame))]] in
-    Scene.clear value.background :: world @ overlay
-    @ Core.machinery value.core ~all_ui_visible
+    let scene, cache = Environment.scene ~ui_visible:all_ui_visible
+        ~background:value.background ~rendered:value.rendered
+        ~camera:value.camera
+        ~paint_view:(fun viewport camera rendered ->
+          Easy_camera2.scene ~viewport camera rendered)
+        ~overlay:value.overlay ~cache:value.hidden_scene_cache
+        value.core frame in
+    value.hidden_scene_cache <- cache;
+    scene
 
   let close value = Core.close value.core
 
