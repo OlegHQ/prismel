@@ -50,6 +50,12 @@ The shared `test/ogpu_conformance` runner now exercises capabilities, buffer
 round trips, submissions, lifetime rejection, and teardown on both the mock
 and Metal drivers. It uses the current `Ogpu.Backend.driver` boundary while
 the virtual-library implementation split is pending.
+The virtual split must first move the shared portable driver types below both
+implementations, or move current native callers onto the virtual interface.
+A direct `ogpu` virtual / `ogpu_metal` implementation prototype made the
+implementation depend on native modules that themselves depend on `ogpu`;
+Dune rejected that cycle. The prototype was reverted without changing the
+working driver boundary.
 
 Qualification code reads the runtime and Metal counters at their owning
 boundaries. Sketch does not retain a process-global diagnostics snapshot after
