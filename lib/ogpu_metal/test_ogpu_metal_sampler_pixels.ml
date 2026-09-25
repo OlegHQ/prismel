@@ -1,4 +1,4 @@
-open Ogpu_metal
+open Ogpu_metal_native
 
 let get=function Ok value->value|Error error->failwith(Ogpu.Error.to_string error)
 let metal=function Ok value->value|Error error->failwith(Format.asprintf"%a"Metal.pp_error error)

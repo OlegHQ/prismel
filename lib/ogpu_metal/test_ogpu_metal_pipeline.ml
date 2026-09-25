@@ -1,4 +1,4 @@
-open Ogpu_metal
+open Ogpu_metal_native
 let get=function Ok x->x|Error e->failwith(Ogpu.Error.to_string e)
 let get_metal=function Ok x->x|Error e->failwith(Format.asprintf"%a"Metal.pp_error e)
 let expect kind=function Error e when e.Ogpu.Error.kind=kind->()|_->failwith"wrong rejection"

@@ -8,7 +8,8 @@ backend-agnostic by design. Keep the public API small and functional where
 practical. Never add a CPU raster, browser/web, SDL2/Tsdl, or OpenGL fallback;
 Metal unavailability is a typed startup error.
 
-Nested `AGENTS.md` files hold subsystem rules: `lib/metal`, `lib/ogpu`,
+Nested `AGENTS.md` files hold subsystem rules: `lib/metal`, `lib/ogpu`
+(also for `lib/ogpu_core`),
 `lib/runtime`, `lib/pdk`, `lib/sketch_ui`, `lib/sop_catalog`. Read the one for
 the directory you change. Design notes live in `specification/`; update them
 when behavior or architecture changes materially.
@@ -19,7 +20,8 @@ when behavior or architecture changes materially.
 |---|---|
 | `sdl3`, `sdl3_image/ttf/mixer` | SDL3 bindings (foundational) |
 | `metal` | Metal bindings: safe layer over a handwritten bridge (foundational) |
-| `ogpu` | Backend-agnostic GPU API; `ogpu_metal` implements it |
+| `ogpu_core`, `ogpu` | Portable GPU core and virtual public API |
+| `ogpu_metal_native`, `ogpu_metal`, `ogpu_mock` | Native Metal detail and the two OGPU implementations |
 | `runtime_next`, `runtime_next_orchestrator`, `runtime_next_input` | SDL3 lifecycle, Metal presentation, typed event translation |
 | `scene_command`, `scene_execution` | Renderer-neutral commands and their GPU execution |
 | `prismel` | `Sketch`, `Frame`, pure `Scene`, `Event`/`Input`, resources, renderer behavior |
@@ -47,10 +49,13 @@ deterministic seeds.
 graph, and enforces "may never reach" rules plus a token scan. Known
 violations are listed there with the plan item that removes them.
 
-- Foundational libraries (`sdl3*`, `metal`, `ogpu`, `native_layer_token`,
+- Foundational libraries (`sdl3*`, `metal`, `ogpu_core`, `ogpu`, `native_layer_token`,
   `scene_command`) never reach `runtime_next`, `prismel`, or anything above.
-  `ogpu` depends on nothing in the repo; `ogpu_metal` only on `ogpu` + `metal`.
-- `Metal.`/`Ogpu_metal.` appear only in `lib/metal` and `lib/ogpu_metal`.
+  `ogpu_core` depends on nothing in the repo; virtual `ogpu` depends only on
+  `ogpu_core`. `ogpu_mock` stays portable; native Metal detail depends only on
+  `ogpu_core` + `metal` until G4 removes its direct callers.
+- `Metal.`/`Ogpu_metal_native.` stay within the Metal backend except for the
+  listed runtime, path-tracer, and test exceptions scheduled for G3/G4.
 - `prismel` never depends on `pxui`, geometry, sketch libraries, or examples.
 - `pdk` never reaches `geom`/`procedural`; `procedural` never reaches UI
   libraries; `pxui` never reaches `procedural`; `sop_ui` and `pxui_graph`

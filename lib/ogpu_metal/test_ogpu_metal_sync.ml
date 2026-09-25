@@ -1,4 +1,4 @@
-open Ogpu_metal
+open Ogpu_metal_native
 let get = function Ok value -> value | Error value -> failwith (Ogpu.Error.to_string value)
 let get_metal = function Ok value -> value | Error value -> failwith (Format.asprintf "%a" Metal.pp_error value)
 let expect kind = function Error value when value.Ogpu.Error.kind = kind -> () | _ -> failwith "unexpected synchronization result"

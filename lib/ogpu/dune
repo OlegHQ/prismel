@@ -1,7 +1,10 @@
 (library
  (name ogpu)
  (public_name prismel.ogpu)
- (modules Error Handle Caps Validation Types Command Mock Shader Surface Binding Sync Pipeline Acceleration Cache Memory Render_pass Diagnostics Compute_pass Transfer_pass Backend Backend_mock))
+ (modules Ogpu Impl)
+ (libraries ogpu_core)
+ (virtual_modules Impl)
+ (default_implementation ogpu_metal))
 
 (executable
  (name test_main)

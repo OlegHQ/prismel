@@ -6,7 +6,7 @@
 (executable
  (name test_mock)
  (modules test_mock)
- (libraries ogpu_conformance ogpu))
+ (libraries ogpu_conformance ogpu_mock))
 
 (executable
  (name test_metal)

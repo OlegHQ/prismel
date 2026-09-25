@@ -20,7 +20,7 @@
 ## Native runtime contract
 
 - Runtime has one native Metal lifecycle: initialize SDL3 on the initial
-  domain, create the high-DPI Metal view and `ogpu_metal` surface, translate
+  domain, create the high-DPI Metal view and `ogpu_metal_native` surface, translate
   events, acquire/present drawables, drain completion/deferred release, then
   destroy GPU resources before the view/window/SDL.
 - Native fixed-pipeline `Scene3` meshes render through Metal with hardware
@@ -28,7 +28,7 @@
   Functional shaders require typed MSL/IR support or return a typed
   unsupported-feature error.
 - Native GPU access and packed mesh caches belong to `prismel`, stay on the
-  initial domain, submit through `ogpu_metal`, and remain strictly bounded
+  initial domain, submit through `ogpu_metal_native`, and remain strictly bounded
   under changing procedural meshes. Verify more than the first presented frame.
 - A compatible native Metal device and surface are required. Their absence must
   return a typed startup error.

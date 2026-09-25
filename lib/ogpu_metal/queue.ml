@@ -5,17 +5,17 @@ type pending={epoch:int64;command:native_completion;cleanup:cleanup list;
 let rec run_cleanup=function
 |[]->()
 |release::rest->release();run_cleanup rest
-type presentation=Metal.Command_buffer.t -> (unit,Ogpu.Error.t) result
+type presentation=Metal.Command_buffer.t -> (unit,Ogpu_core.Error.t) result
 type t={device:Device.t;metal:Metal.Command_queue.t;max_frames:int;
   mutable next_epoch:int64;mutable completed:int64;mutable active:int;
-  command_storage:Ogpu.Command.description array array;
+  command_storage:Ogpu_core.Command.description array array;
   mutable command4:Metal.Command4.Queue.t option;mutable pending:pending list;
   mutable fail_next:bool;mutable fail_next_completion:bool;
   mutable scoped_next_render:bool;
   mutable scoped_on_committed:(int64->unit)option;
-  mutable scoped_completion:(unit,Ogpu.Error.t)result option;mutable dead:bool}
+  mutable scoped_completion:(unit,Ogpu_core.Error.t)result option;mutable dead:bool}
 type receipt={epoch:int64}
-type synchronous_submission={receipt:receipt;completion:(unit,Ogpu.Error.t)result}
+type synchronous_submission={receipt:receipt;completion:(unit,Ogpu_core.Error.t)result}
 type gpu_timing={supported:bool;duration_seconds:float;sample_count:int64}
 type gpu_timing_accumulator={mutable supported:bool;mutable duration_seconds:float;mutable sample_count:int64;mutable queues:int}
 let gpu_timings:(int64,gpu_timing_accumulator)Hashtbl.t=Hashtbl.create 4
@@ -35,17 +35,17 @@ let record_gpu_duration device duration=
   match Hashtbl.find_opt gpu_timings(Device.id device)with
   |Some value when valid_gpu_duration duration->value.supported<-true;value.duration_seconds<-value.duration_seconds+.duration;value.sample_count<-Int64.succ value.sample_count
   |_->()
-let error op kind message=Error(Ogpu.Error.make op kind message)
+let error op kind message=Error(Ogpu_core.Error.make op kind message)
 let admit value command =
   let operation="Ogpu_metal.Queue.submit" in
   if Device.destroyed value.device then
-    error operation Ogpu.Error.Device_lost "queue device is lost"
+    error operation Ogpu_core.Error.Device_lost "queue device is lost"
   else if value.active >= value.max_frames then
-    error operation Ogpu.Error.Capacity "frames-in-flight capacity reached"
+    error operation Ogpu_core.Error.Capacity "frames-in-flight capacity reached"
   else
     let slot=Int64.to_int(Int64.rem(Int64.pred value.next_epoch)
       (Int64.of_int value.max_frames)) in
-    match Ogpu.Command.Private.take_for_submission_reusing command
+    match Ogpu_core.Command.Private.take_for_submission_reusing command
         value.command_storage.(slot) with
     | Error _ as failure -> failure
     | Ok (storage,_) ->
@@ -57,13 +57,13 @@ let admit value command =
 let complete_epoch value epoch =
   let operation="Ogpu_metal.Queue.complete_through" in
   if epoch < value.completed || epoch >= value.next_epoch then
-    error operation Ogpu.Error.Invalid_argument "completion epoch is invalid"
+    error operation Ogpu_core.Error.Invalid_argument "completion epoch is invalid"
   else begin
     value.active<-max 0 (value.active-Int64.to_int(Int64.sub epoch value.completed));
     value.completed<-epoch;
     Ok ()
   end
-let create ?(max_frames=3) device=let op="Ogpu_metal.Queue.create"in if Device.destroyed device then error op Ogpu.Error.Stale_handle"device is destroyed"else if max_frames<1||max_frames>3 then error op Ogpu.Error.Invalid_argument"frames in flight must be between 1 and 3"else
+let create ?(max_frames=3) device=let op="Ogpu_metal.Queue.create"in if Device.destroyed device then error op Ogpu_core.Error.Stale_handle"device is destroyed"else if max_frames<1||max_frames>3 then error op Ogpu_core.Error.Invalid_argument"frames in flight must be between 1 and 3"else
   match Metal.Command_queue.create(Device.Private.metal device)with Error e->Error(Device.of_metal_error~operation:op e)|Ok metal->let id=Device.id device in (match Hashtbl.find_opt gpu_timings id with Some timing->timing.queues<-timing.queues+1|None->Hashtbl.add gpu_timings id{supported=false;duration_seconds=0.;sample_count=0L;queues=1});Device.Private.attach_resource device;Ok{device;metal;max_frames;next_epoch=1L;completed=0L;active=0;command_storage=Array.make max_frames [||];command4=None;pending=[];fail_next=false;fail_next_completion=false;scoped_next_render=false;scoped_on_committed=None;scoped_completion=None;dead=false}
 let destroyed value=value.dead
 let in_flight value=value.active
@@ -73,7 +73,7 @@ let inject_next_completion_error value=value.fail_next_completion<-true
 let validate_buffer device buffer=match Buffer.descriptor device buffer with Ok _->Ok()|Error e->Error e
 let validate_texture device texture=match Texture.descriptor device texture with Ok _->Ok()|Error e->Error e
 let validate_operation device=function
-  |Command.Private.Copy(a,ao,b,bo,n)->(match validate_buffer device a with Error _ as e->e|Ok()->match validate_buffer device b with Error _ as e->e|Ok()->let ad=Result.get_ok(Buffer.descriptor device a)and bd=Result.get_ok(Buffer.descriptor device b)in if ao>Int64.sub ad.size n||bo>Int64.sub bd.size n then error"Ogpu_metal.Queue.submit"Ogpu.Error.Invalid_argument"copy exceeds buffer"else Ok())
+  |Command.Private.Copy(a,ao,b,bo,n)->(match validate_buffer device a with Error _ as e->e|Ok()->match validate_buffer device b with Error _ as e->e|Ok()->let ad=Result.get_ok(Buffer.descriptor device a)and bd=Result.get_ok(Buffer.descriptor device b)in if ao>Int64.sub ad.size n||bo>Int64.sub bd.size n then error"Ogpu_metal.Queue.submit"Ogpu_core.Error.Invalid_argument"copy exceeds buffer"else Ok())
   |Command.Private.Compute(_,_,b,_)->validate_buffer device b
   |Command.Private.Dispatch(p,b,_)->(match Pipeline.validate device p with Error _ as e->e|Ok()->validate_buffer device b)
   |Command.Private.Clear(t,_)->validate_texture device t
@@ -98,11 +98,11 @@ let encode command operations =
     |[]->Ok(!cleanup)
     |Command.Private.Copy(a,ao,b,bo,n)::rest->(match Metal.Blit_encoder.create command with Error e->Error(Device.of_metal_error~operation:op e)|Ok encoder->(match Metal.Blit_encoder.copy_buffer encoder~source:(Buffer.Private.metal a)~source_offset:ao~destination:(Buffer.Private.metal b)~destination_offset:bo~length:n with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->match Metal.Blit_encoder.end_encoding encoder with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->loop rest))
     |Command.Private.Compute(source,entry,buffer,threads)::rest->(match Metal.Library.compile_source~device:(Metal.Command_buffer.device command)source with Error e->Error(Device.of_metal_error~operation:op e)|Ok library->add(fun()->ignore(Metal.Library.destroy library));match Metal.Function.find~library entry with Error e->Error(Device.of_metal_error~operation:op e)|Ok function_->add(fun()->ignore(Metal.Function.destroy function_));match Metal.Compute_pipeline.create function_ with Error e->Error(Device.of_metal_error~operation:op e)|Ok pipeline->add(fun()->ignore(Metal.Compute_pipeline.destroy pipeline));match Metal.Compute_encoder.create command with Error e->Error(Device.of_metal_error~operation:op e)|Ok encoder->(match Metal.Compute_encoder.set_pipeline encoder pipeline with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->match Metal.Compute_encoder.set_buffer encoder~index:0~offset:0L(Buffer.Private.metal buffer)with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->match Metal.Compute_encoder.dispatch_threads encoder~threads:(threads,1,1)~threadgroup:(min threads 64,1,1)with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->match Metal.Compute_encoder.end_encoding encoder with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->loop rest))
-    |Command.Private.Dispatch(pipeline,buffer,threads)::rest->(match Pipeline.Private.native pipeline with Render _->error op Ogpu.Error.Invalid_argument"render pipeline used for compute dispatch"|Compute pipeline->match Metal.Compute_encoder.create command with Error e->Error(Device.of_metal_error~operation:op e)|Ok encoder->(match Metal.Compute_encoder.set_pipeline encoder pipeline with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->match Metal.Compute_encoder.set_buffer encoder~index:0~offset:0L(Buffer.Private.metal buffer)with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->match Metal.Compute_encoder.dispatch_threads encoder~threads:(threads,1,1)~threadgroup:(min threads 64,1,1)with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->match Metal.Compute_encoder.end_encoding encoder with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->loop rest))
+    |Command.Private.Dispatch(pipeline,buffer,threads)::rest->(match Pipeline.Private.native pipeline with Render _->error op Ogpu_core.Error.Invalid_argument"render pipeline used for compute dispatch"|Compute pipeline->match Metal.Compute_encoder.create command with Error e->Error(Device.of_metal_error~operation:op e)|Ok encoder->(match Metal.Compute_encoder.set_pipeline encoder pipeline with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->match Metal.Compute_encoder.set_buffer encoder~index:0~offset:0L(Buffer.Private.metal buffer)with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->match Metal.Compute_encoder.dispatch_threads encoder~threads:(threads,1,1)~threadgroup:(min threads 64,1,1)with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->match Metal.Compute_encoder.end_encoding encoder with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->loop rest))
     |Command.Private.Clear(texture,color)::rest->(match Metal.Render_encoder.create command~target:(Texture.Private.metal texture)~clear:color()with Error e->Error(Device.of_metal_error~operation:op e)|Ok encoder->match Metal.Render_encoder.end_encoding encoder with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->loop rest)
-    |Command.Private.Draw_triangle(pipeline,texture)::rest->(match Pipeline.Private.native pipeline with Compute _->error op Ogpu.Error.Invalid_argument"compute pipeline used for render draw"|Render pipeline->match Metal.Render_encoder.create command~target:(Texture.Private.metal texture)~clear:(0.,0.,0.,1.)()with Error e->Error(Device.of_metal_error~operation:op e)|Ok encoder->match Metal.Render_encoder.set_pipeline encoder pipeline with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->match Metal.Render_encoder.draw_triangles encoder~first:0~count:3()with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->match Metal.Render_encoder.end_encoding encoder with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->loop rest)
+    |Command.Private.Draw_triangle(pipeline,texture)::rest->(match Pipeline.Private.native pipeline with Compute _->error op Ogpu_core.Error.Invalid_argument"compute pipeline used for render draw"|Render pipeline->match Metal.Render_encoder.create command~target:(Texture.Private.metal texture)~clear:(0.,0.,0.,1.)()with Error e->Error(Device.of_metal_error~operation:op e)|Ok encoder->match Metal.Render_encoder.set_pipeline encoder pipeline with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->match Metal.Render_encoder.draw_triangles encoder~first:0~count:3()with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->match Metal.Render_encoder.end_encoding encoder with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->loop rest)
   in loop operations
-let submit value command =let op="Ogpu_metal.Queue.submit"in if value.dead then error op Ogpu.Error.Stale_handle"queue is destroyed"else if value.fail_next then(value.fail_next<-false;error op Ogpu.Error.Device_lost"injected submission failure")else let operations=Command.Private.operations command in
+let submit value command =let op="Ogpu_metal.Queue.submit"in if value.dead then error op Ogpu_core.Error.Stale_handle"queue is destroyed"else if value.fail_next then(value.fail_next<-false;error op Ogpu_core.Error.Device_lost"injected submission failure")else let operations=Command.Private.operations command in
   match validate_all value.device operations with Error _ as e->e|Ok()->match retain_all operations with Error _ as e->e|Ok retained->
   let rollback failure=List.iter(fun release->release())retained;failure in
 match admit value (Command.Private.portable command) with Error _ as e->rollback e|Ok epoch->match Metal.Command_buffer.create value.metal()with Error e->rollback(Error(Device.of_metal_error~operation:op e))|Ok native->match encode native operations with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error e)|Ok cleanup->match Metal.Command_buffer.commit native with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error(Device.of_metal_error~operation:op e))|Ok()->value.pending<-value.pending@[{epoch=epoch;command=Classic native;cleanup=retained@cleanup;encode_cleanup=[]}];Ok{epoch=epoch}
@@ -125,7 +125,7 @@ let finish_direct_scoped_classic value epoch command retained encode_cleanup=
       |Ok(),outcome->outcome in
     let outcome=if value.fail_next_completion then begin
         value.fail_next_completion<-false;
-        error op Ogpu.Error.Device_lost
+        error op Ogpu_core.Error.Device_lost
           "injected terminal completion failure"
       end else outcome in
     let portable=complete_epoch value epoch in
@@ -142,13 +142,13 @@ let submit_render_pass_common ~scoped ~presenting presentation value pass =
   let op = "Ogpu_metal.Queue.submit_render_pass" in
   let requires_command4 = Render_pass.Private.requires_command4 pass in
   if value.dead then
-    error op Ogpu.Error.Stale_handle "queue is destroyed"
+    error op Ogpu_core.Error.Stale_handle "queue is destroyed"
   else if presenting && requires_command4 then
-    error op Ogpu.Error.Unsupported
+    error op Ogpu_core.Error.Unsupported
       "combined presentation requires a classic render pass"
   else if value.fail_next then begin
     value.fail_next <- false;
-    error op Ogpu.Error.Device_lost "injected submission failure"
+    error op Ogpu_core.Error.Device_lost "injected submission failure"
   end else if requires_command4 then
     match command4_queue value with
     | Error _ as failure -> failure
@@ -188,12 +188,12 @@ let submit_render_pass_common ~scoped ~presenting presentation value pass =
                            | Error native_error ->
                                abort (Error (Device.of_metal_error ~operation:op native_error))
                            | Ok () ->
-                               let portable = Ogpu.Command.begin_encoder () in
+                               let portable = Ogpu_core.Command.begin_encoder () in
                                (match Render_pass.Private.encode_portable pass portable with
                                 | Error submission_error ->
                                     abort (Error submission_error)
                                 | Ok () ->
-                                    (match Ogpu.Command.end_encoder portable with
+                                    (match Ogpu_core.Command.end_encoder portable with
                                      | Error submission_error ->
                                          abort (Error submission_error)
                                      | Ok () ->
@@ -246,14 +246,14 @@ let submit_render_pass_common ~scoped ~presenting presentation value pass =
                   | Error _ as failure ->
                       abort failure
                   | Ok () ->
-                      let portable = Ogpu.Command.begin_encoder () in
+                      let portable = Ogpu_core.Command.begin_encoder () in
                       let encoded=if Render_pass.Private.validation_retained pass
                         then Ok() else Render_pass.Private.encode_portable pass portable in
                       (match encoded with
                        | Error submission_error ->
                            abort (Error submission_error)
                        | Ok () ->
-                           (match Ogpu.Command.end_encoder portable with
+                           (match Ogpu_core.Command.end_encoder portable with
                             | Error submission_error ->
                                 abort (Error submission_error)
                             | Ok () ->
@@ -281,19 +281,19 @@ let submit_render_pass_async value pass=
     value pass
 let submit_render_pass_present_async value presentation pass=
   submit_render_pass_common~scoped:false~presenting:true presentation value pass
-let submit_typed value op retain encode=if value.dead then error op Ogpu.Error.Stale_handle"queue is destroyed"else match retain()with Error _ as e->e|Ok retained->let rollback e=List.iter(fun f->f())retained;e in match Metal.Command_buffer.create value.metal()with Error e->rollback(Error(Device.of_metal_error~operation:op e))|Ok native->match encode native with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error e)|Ok()->let portable=Ogpu.Command.begin_encoder()in(match Ogpu.Command.end_encoder portable with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error e)|Ok()->match admit value portable with Error _ as e->ignore(Metal.Command_buffer.destroy native);rollback e|Ok epoch->match Metal.Command_buffer.commit native with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error(Device.of_metal_error~operation:op e))|Ok()->value.pending<-value.pending@[{epoch=epoch;command=Classic native;cleanup=retained;encode_cleanup=[]}];Ok{epoch=epoch})
+let submit_typed value op retain encode=if value.dead then error op Ogpu_core.Error.Stale_handle"queue is destroyed"else match retain()with Error _ as e->e|Ok retained->let rollback e=List.iter(fun f->f())retained;e in match Metal.Command_buffer.create value.metal()with Error e->rollback(Error(Device.of_metal_error~operation:op e))|Ok native->match encode native with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error e)|Ok()->let portable=Ogpu_core.Command.begin_encoder()in(match Ogpu_core.Command.end_encoder portable with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error e)|Ok()->match admit value portable with Error _ as e->ignore(Metal.Command_buffer.destroy native);rollback e|Ok epoch->match Metal.Command_buffer.commit native with Error e->ignore(Metal.Command_buffer.destroy native);rollback(Error(Device.of_metal_error~operation:op e))|Ok()->value.pending<-value.pending@[{epoch=epoch;command=Classic native;cleanup=retained;encode_cleanup=[]}];Ok{epoch=epoch})
 let submit_transfer_pass value pass=submit_typed value"Ogpu_metal.Queue.submit_transfer_pass"(fun()->Transfer_pass.Private.retain pass)(fun command->Transfer_pass.Private.encode command pass)
 let submit_compute_pass value pass=submit_typed value"Ogpu_metal.Queue.submit_compute_pass"(fun()->Compute_pass.Private.retain pass)(fun command->Compute_pass.Private.encode command pass)
 let wait_through value epoch =
   let op = "Ogpu_metal.Queue.wait_through" in
   if epoch <= completed_epoch value || epoch > Int64.of_int max_int then
-    error op Ogpu.Error.Invalid_argument "completion epoch is invalid"
+    error op Ogpu_core.Error.Invalid_argument "completion epoch is invalid"
   else
     let ready,later =
       List.partition (fun (pending:pending) -> pending.epoch <= epoch) value.pending
     in
     if ready = [] then
-      error op Ogpu.Error.Invalid_argument "epoch was not submitted"
+      error op Ogpu_core.Error.Invalid_argument "epoch was not submitted"
     else
       let finish pending =
         match pending.command with
@@ -346,7 +346,7 @@ let wait_through value epoch =
             let outcome =
               if !inject_completion_error then begin
                 inject_completion_error := false;
-                error op Ogpu.Error.Device_lost
+                error op Ogpu_core.Error.Device_lost
                   "injected terminal completion failure"
               end else outcome
             in
@@ -370,7 +370,7 @@ let finish_scoped_render value receipt =
       (* Command4 owns a submission/command/allocator triple.  Preserve its
          established terminal teardown and injected-completion behavior. *)
       Ok{receipt;completion=wait_through value epoch}
-  |_->error"Ogpu_metal.Queue.submit_render_pass_sync"Ogpu.Error.Invalid_state
+  |_->error"Ogpu_metal.Queue.submit_render_pass_sync"Ogpu_core.Error.Invalid_state
       "render admission was not the terminal pending command"
 let ensure_scoped_completion value receipt=
   match value.scoped_completion with
@@ -383,7 +383,7 @@ let take_scoped_admission value receipt=
   |Error _ as failure->failure
   |Ok receipt->match value.scoped_completion with
     |None->error"Ogpu_metal.Queue.submit_render_pass_sync"
-        Ogpu.Error.Invalid_state"scoped completion is unavailable"
+        Ogpu_core.Error.Invalid_state"scoped completion is unavailable"
     |Some completion->value.scoped_completion<-None;Ok{receipt;completion}
 let submit_render_pass_sync value pass=
   match submit_render_pass_common~scoped:true~presenting:false no_presentation
@@ -411,7 +411,7 @@ let submit_render_pass_present value presentation pass=
     |Error _ as failure->failure
     |Ok receipt->ensure_scoped_completion value receipt
   end else submit_render_pass_present_async value presentation pass
-let destroy value=let op="Ogpu_metal.Queue.destroy"in if value.dead then Ok()else if value.pending<>[]then error op Ogpu.Error.Invalid_state"queue has commands in flight"else match Metal.Command_queue.destroy value.metal with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->(match value.command4 with None->()|Some queue->ignore(Metal.Command4.Queue.destroy queue));let id=Device.id value.device in (match Hashtbl.find_opt gpu_timings id with Some timing when timing.queues>1->timing.queues<-timing.queues-1|Some _->Hashtbl.remove gpu_timings id|None->());value.dead<-true;Device.Private.detach_resource value.device;Ok()
+let destroy value=let op="Ogpu_metal.Queue.destroy"in if value.dead then Ok()else if value.pending<>[]then error op Ogpu_core.Error.Invalid_state"queue has commands in flight"else match Metal.Command_queue.destroy value.metal with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->(match value.command4 with None->()|Some queue->ignore(Metal.Command4.Queue.destroy queue));let id=Device.id value.device in (match Hashtbl.find_opt gpu_timings id with Some timing when timing.queues>1->timing.queues<-timing.queues-1|Some _->Hashtbl.remove gpu_timings id|None->());value.dead<-true;Device.Private.detach_resource value.device;Ok()
 module Private=struct
   let metal value=value.metal
   let gpu_timing_total=gpu_timing_total

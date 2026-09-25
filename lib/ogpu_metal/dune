@@ -1,14 +1,21 @@
 (library
- (name ogpu_metal)
- (public_name prismel.ogpu_metal)
+ (name ogpu_metal_native)
+ (public_name prismel.ogpu_metal_native)
  (modules Device Buffer Texture Sampler Pipeline Command Render_pass Transfer_pass Compute_pass Queue Presentation Surface Sync Memory Acceleration Diagnostics Backend)
  (private_modules Presentation)
- (libraries ogpu metal))
+ (libraries ogpu_core metal))
+
+(library
+ (name ogpu_metal)
+ (public_name prismel.ogpu_metal)
+ (implements ogpu)
+ (modules Impl)
+ (libraries ogpu_metal_native metal))
 
 (executable
  (name test_main)
  (modules test_main test_ogpu_metal_foundation test_ogpu_metal_texture test_ogpu_metal_submission test_ogpu_metal_pipeline test_ogpu_metal_surface test_ogpu_metal_sync test_ogpu_metal_memory test_ogpu_metal_acceleration test_ogpu_metal_diagnostics test_ogpu_metal_capabilities test_ogpu_metal_render_pass test_ogpu_metal_portable_passes test_ogpu_metal_backend test_ogpu_metal_sampler_pixels test_scene_execution_metal test_pipeline_argument_buffer)
- (libraries scene_execution ogpu_metal metal))
+ (libraries scene_execution ogpu_metal_native metal))
 
 (rule
  (aliases runtest test_ogpu_metal_foundation)

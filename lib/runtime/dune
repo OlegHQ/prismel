@@ -3,7 +3,7 @@
  (public_name prismel.runtime_native)
  (modules runtime_next runtime_next_shaders)
  (private_modules runtime_next_shaders)
- (libraries sdl3 metal ogpu ogpu_metal scene_execution))
+ (libraries sdl3 metal ogpu ogpu_metal_native scene_execution))
 
 (library
  (name runtime_next_orchestrator)

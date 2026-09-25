@@ -1,38 +1,38 @@
-let error operation kind message = Error (Ogpu.Error.make operation kind message)
+let error operation kind message = Error (Ogpu_core.Error.make operation kind message)
 
 type fence =
-  { device : Device.t; portable : Ogpu.Sync.fence; metal : Metal.Fence.t;
+  { device : Device.t; portable : Ogpu_core.Sync.fence; metal : Metal.Fence.t;
     mutable dead : bool }
 
 type event =
-  { device : Device.t; portable : Ogpu.Sync.event; metal : Metal.Shared_event.t;
+  { device : Device.t; portable : Ogpu_core.Sync.event; metal : Metal.Shared_event.t;
     mutable dead : bool }
 
 type query_set =
-  { device : Device.t; portable : Ogpu.Sync.query_set; kind : Ogpu.Sync.query_kind;
+  { device : Device.t; portable : Ogpu_core.Sync.query_set; kind : Ogpu_core.Sync.query_kind;
     count : int; descriptor : Metal.Counters.Descriptor.t option;
     samples : Metal.Resource100.Sample_buffer.t option; mutable dead : bool }
 
 let validate_device operation device owner dead =
-  if dead then error operation Ogpu.Error.Stale_handle "synchronization object is destroyed"
-  else if Device.destroyed device then error operation Ogpu.Error.Stale_handle "device is destroyed"
-  else if Device.id device <> Device.id owner then error operation Ogpu.Error.Cross_device "object belongs to another device"
+  if dead then error operation Ogpu_core.Error.Stale_handle "synchronization object is destroyed"
+  else if Device.destroyed device then error operation Ogpu_core.Error.Stale_handle "device is destroyed"
+  else if Device.id device <> Device.id owner then error operation Ogpu_core.Error.Cross_device "object belongs to another device"
   else Ok ()
 
 let create_fence device ~initial =
   let operation = "Ogpu_metal.Sync.create_fence" in
-  if initial < 0L then error operation Ogpu.Error.Invalid_argument "initial value must be nonnegative"
-  else match Ogpu.Sync.create_fence (Device.Private.handle device) ~initial with
+  if initial < 0L then error operation Ogpu_core.Error.Invalid_argument "initial value must be nonnegative"
+  else match Ogpu_core.Sync.create_fence (Device.Private.handle device) ~initial with
   | Error _ as failure -> failure
   | Ok portable -> (match Metal.Device.new_fence (Device.Private.metal device) with
-      | Error value -> Ogpu.Sync.destroy_fence portable; Error (Device.of_metal_error ~operation value)
+      | Error value -> Ogpu_core.Sync.destroy_fence portable; Error (Device.of_metal_error ~operation value)
       | Ok metal -> Device.Private.attach_resource device;
           Ok ({device; portable; metal; dead=false} : fence))
 
 let unsupported_fence operation device (value:fence) =
   match validate_device operation device value.device value.dead with
   | Error _ as failure -> failure
-  | Ok () -> error operation Ogpu.Error.Unsupported
+  | Ok () -> error operation Ogpu_core.Error.Unsupported
       "portable timeline fence operations require an active Metal encoder"
 
 let signal_fence device value _ = unsupported_fence "Ogpu_metal.Sync.signal_fence" device value
@@ -41,18 +41,18 @@ let wait_fence device value _ = unsupported_fence "Ogpu_metal.Sync.wait_fence" d
 let destroy_fence (value:fence) =
   if value.dead then Ok () else match Metal.Fence.destroy value.metal with
   | Error metal -> Error (Device.of_metal_error ~operation:"Ogpu_metal.Sync.destroy_fence" metal)
-  | Ok () -> value.dead <- true; Ogpu.Sync.destroy_fence value.portable;
+  | Ok () -> value.dead <- true; Ogpu_core.Sync.destroy_fence value.portable;
       Device.Private.detach_resource value.device; Ok ()
 
 let create_event device ~initial =
   let operation = "Ogpu_metal.Sync.create_event" in
-  if initial < 0L then error operation Ogpu.Error.Invalid_argument "initial value must be nonnegative"
-  else match Ogpu.Sync.create_event (Device.Private.handle device) ~initial with
+  if initial < 0L then error operation Ogpu_core.Error.Invalid_argument "initial value must be nonnegative"
+  else match Ogpu_core.Sync.create_event (Device.Private.handle device) ~initial with
   | Error _ as failure -> failure
   | Ok portable -> (match Metal.Device.new_shared_event (Device.Private.metal device) with
-      | Error value -> Ogpu.Sync.destroy_event portable; Error (Device.of_metal_error ~operation value)
+      | Error value -> Ogpu_core.Sync.destroy_event portable; Error (Device.of_metal_error ~operation value)
       | Ok metal -> (match Metal.Shared_event.set_signaled_value metal initial with
-          | Error value -> ignore (Metal.Shared_event.destroy metal); Ogpu.Sync.destroy_event portable;
+          | Error value -> ignore (Metal.Shared_event.destroy metal); Ogpu_core.Sync.destroy_event portable;
               Error (Device.of_metal_error ~operation value)
           | Ok () -> Device.Private.attach_resource device;
               Ok ({device; portable; metal; dead=false} : event)))
@@ -60,45 +60,45 @@ let create_event device ~initial =
 let signal_event device (value:event) next =
   let operation = "Ogpu_metal.Sync.signal_event" in
   match validate_device operation device value.device value.dead with Error _ as failure -> failure | Ok () ->
-  if next <= Ogpu.Sync.event_value value.portable then
-    error operation Ogpu.Error.Invalid_argument "event values must increase"
+  if next <= Ogpu_core.Sync.event_value value.portable then
+    error operation Ogpu_core.Error.Invalid_argument "event values must increase"
   else match Metal.Shared_event.set_signaled_value value.metal next with
   | Error metal -> Error (Device.of_metal_error ~operation metal)
-  | Ok () -> Ogpu.Sync.signal_event (Device.Private.handle device) value.portable next
+  | Ok () -> Ogpu_core.Sync.signal_event (Device.Private.handle device) value.portable next
 
 let wait_event device (value:event) target =
   let operation = "Ogpu_metal.Sync.wait_event" in
   match validate_device operation device value.device value.dead with Error _ as failure -> failure | Ok () ->
   match Metal.Shared_event.signaled_value value.metal with
   | Error metal -> Error (Device.of_metal_error ~operation metal)
-  | Ok current when current < target -> error operation Ogpu.Error.Unsupported
+  | Ok current when current < target -> error operation Ogpu_core.Error.Unsupported
       "nonblocking event wait has not yet reached the requested value"
-  | Ok _ -> Ogpu.Sync.wait_event (Device.Private.handle device) value.portable target
+  | Ok _ -> Ogpu_core.Sync.wait_event (Device.Private.handle device) value.portable target
 
 let destroy_event (value:event) =
   if value.dead then Ok () else match Metal.Shared_event.destroy value.metal with
   | Error metal -> Error (Device.of_metal_error ~operation:"Ogpu_metal.Sync.destroy_event" metal)
-  | Ok () -> value.dead <- true; Ogpu.Sync.destroy_event value.portable;
+  | Ok () -> value.dead <- true; Ogpu_core.Sync.destroy_event value.portable;
       Device.Private.detach_resource value.device; Ok ()
 
 let create_query_set device ~kind ~count =
   let operation = "Ogpu_metal.Sync.create_query_set" in
-  if count <= 0 then error operation Ogpu.Error.Invalid_argument "query count must be positive" else
+  if count <= 0 then error operation Ogpu_core.Error.Invalid_argument "query count must be positive" else
   let supported = match kind with
-    | Ogpu.Sync.Counter -> false
+    | Ogpu_core.Sync.Counter -> false
     | Timestamp -> (match Metal.Counters.supports (Device.Private.metal device) Metal.Counters.Blit_boundary with Ok value -> value | Error _ -> false)
   in
-  match Ogpu.Sync.create_query_set (Device.Private.handle device) ~supported ~kind ~count with
+  match Ogpu_core.Sync.create_query_set (Device.Private.handle device) ~supported ~kind ~count with
   | Error _ as failure -> failure
   | Ok portable ->
       match Metal.Counters.sets (Device.Private.metal device) with
-      | Error value -> Ogpu.Sync.destroy_query_set portable; Error (Device.of_metal_error ~operation value)
-      | Ok [] -> Ogpu.Sync.destroy_query_set portable; error operation Ogpu.Error.Unsupported "no Metal counter set is available"
+      | Error value -> Ogpu_core.Sync.destroy_query_set portable; Error (Device.of_metal_error ~operation value)
+      | Ok [] -> Ogpu_core.Sync.destroy_query_set portable; error operation Ogpu_core.Error.Unsupported "no Metal counter set is available"
       | Ok (set::_) -> (match Metal.Counters.Descriptor.create (Device.Private.metal device)
           ~set_name:set.name ~sample_count:(Int64.of_int count) ~storage:Metal.Buffer.Shared () with
-        | Error value -> Ogpu.Sync.destroy_query_set portable; Error (Device.of_metal_error ~operation value)
+        | Error value -> Ogpu_core.Sync.destroy_query_set portable; Error (Device.of_metal_error ~operation value)
         | Ok descriptor -> match Metal.Counters.Descriptor.create_buffer descriptor with
-          | Error value -> ignore (Metal.Counters.Descriptor.destroy descriptor); Ogpu.Sync.destroy_query_set portable;
+          | Error value -> ignore (Metal.Counters.Descriptor.destroy descriptor); Ogpu_core.Sync.destroy_query_set portable;
               Error (Device.of_metal_error ~operation value)
           | Ok samples -> Device.Private.attach_resource device;
               Ok ({device;portable;kind;count;descriptor=Some descriptor;samples=Some samples;dead=false} : query_set))
@@ -109,12 +109,12 @@ let execute_query_pass device (value:query_set) ~first ~count ~destination ~dest
   let operation = "Ogpu_metal.Sync.execute_query_pass" in
   match validate_device operation device value.device value.dead with Error _ as failure -> failure | Ok () ->
   match Buffer.descriptor device destination with Error _ as failure -> failure | Ok destination_descriptor ->
-  if value.kind <> Ogpu.Sync.Timestamp then error operation Ogpu.Error.Unsupported "only timestamp queries map to Metal counters"
+  if value.kind <> Ogpu_core.Sync.Timestamp then error operation Ogpu_core.Error.Unsupported "only timestamp queries map to Metal counters"
   else if first < 0 || count <= 0 || first > value.count || count > value.count - first then
-    error operation Ogpu.Error.Invalid_argument "query range is out of bounds"
+    error operation Ogpu_core.Error.Invalid_argument "query range is out of bounds"
   else
-  match value.samples with None -> error operation Ogpu.Error.Unsupported "Metal timestamp queries are unavailable" | Some samples ->
-  match Ogpu.Sync.resolve (Device.Private.handle device) value.portable
+  match value.samples with None -> error operation Ogpu_core.Error.Unsupported "Metal timestamp queries are unavailable" | Some samples ->
+  match Ogpu_core.Sync.resolve (Device.Private.handle device) value.portable
       ~destination:(Buffer.Private.resource_handle destination)
       ~destination_size:destination_descriptor.size ~first ~count
       ~destination_offset ~completion_epoch with
@@ -142,5 +142,5 @@ let destroy_query_set (value:query_set) =
   match sample_result with Error metal -> Error (Device.of_metal_error ~operation:"Ogpu_metal.Sync.destroy_query_set" metal) | Ok () ->
   let descriptor_result = match value.descriptor with None -> Ok () | Some descriptor -> Metal.Counters.Descriptor.destroy descriptor in
   match descriptor_result with Error metal -> Error (Device.of_metal_error ~operation:"Ogpu_metal.Sync.destroy_query_set" metal) | Ok () ->
-  value.dead <- true; Ogpu.Sync.destroy_query_set value.portable;
+  value.dead <- true; Ogpu_core.Sync.destroy_query_set value.portable;
   if value.samples <> None then Device.Private.detach_resource value.device; Ok ()

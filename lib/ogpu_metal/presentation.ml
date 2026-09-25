@@ -4,10 +4,10 @@ type t =
   ; pipeline : Metal.Render_pipeline.t
   ; mutable dead : bool
   }
-type render_result = Completed | Committed_with_error of Ogpu.Error.t
+type render_result = Completed | Committed_with_error of Ogpu_core.Error.t
 
 let operation = "Ogpu_metal.Presentation"
-let error kind message = Error (Ogpu.Error.make operation kind message)
+let error kind message = Error (Ogpu_core.Error.make operation kind message)
 let metal value = Error (Device.of_metal_error ~operation value)
 
 let fail_encode encoder value =
@@ -63,7 +63,7 @@ fragment float4 prismel_present_fragment(
 let create device =
   let native = Device.Private.metal device in
   if Device.destroyed device then
-    error Ogpu.Error.Stale_handle "device is destroyed"
+    error Ogpu_core.Error.Stale_handle "device is destroyed"
   else
     match Metal.Library.compile_source ~label:"Prismel presentation" ~device:native source with
     | Error value -> metal value
@@ -89,14 +89,14 @@ let create device =
              | Ok pipeline -> Ok {device=native; library; pipeline; dead=false})
 
 let validate_resources value ~device ~source ~target =
-  if value.dead then error Ogpu.Error.Stale_handle "presentation helper is destroyed"
+  if value.dead then error Ogpu_core.Error.Stale_handle "presentation helper is destroyed"
   else if not (Metal.Device.same value.device device) then
-    error Ogpu.Error.Cross_device "presentation command belongs to another device"
+    error Ogpu_core.Error.Cross_device "presentation command belongs to another device"
   else if Metal.Texture.destroyed source || Metal.Texture.destroyed target then
-    error Ogpu.Error.Stale_handle "presentation texture is destroyed"
+    error Ogpu_core.Error.Stale_handle "presentation texture is destroyed"
   else if not (Metal.Device.same value.device (Metal.Texture.device source)) ||
           not (Metal.Device.same value.device (Metal.Texture.device target)) then
-    error Ogpu.Error.Cross_device "presentation texture belongs to another device"
+    error Ogpu_core.Error.Cross_device "presentation texture belongs to another device"
   else
     let source_descriptor = Metal.Texture.descriptor source
     and target_descriptor = Metal.Texture.descriptor target in
@@ -104,35 +104,35 @@ let validate_resources value ~device ~source ~target =
        source_descriptor.format <> Metal.Texture.Rgba8_unorm ||
        source_descriptor.depth <> 1 || source_descriptor.mip_levels <> 1 ||
        source_descriptor.sample_count <> 1 || source_descriptor.array_length <> 1 then
-      error Ogpu.Error.Invalid_argument
+      error Ogpu_core.Error.Invalid_argument
         "presentation source must be a single-sample 2D RGBA8 texture"
     else if not (List.mem Metal.Texture.Shader_read source_descriptor.usage) then
-      error Ogpu.Error.Invalid_argument
+      error Ogpu_core.Error.Invalid_argument
         "presentation source must be shader-readable"
     else if target_descriptor.kind <> Metal.Texture.Texture_2d ||
             target_descriptor.format <> Metal.Texture.Bgra8_unorm ||
             target_descriptor.depth <> 1 || target_descriptor.mip_levels <> 1 ||
             target_descriptor.sample_count <> 1 || target_descriptor.array_length <> 1 then
-      error Ogpu.Error.Invalid_argument
+      error Ogpu_core.Error.Invalid_argument
         "presentation target must be a single-sample 2D BGRA8 texture"
     else if not (List.mem Metal.Texture.Render_target target_descriptor.usage) then
-      error Ogpu.Error.Invalid_argument
+      error Ogpu_core.Error.Invalid_argument
         "presentation target must be renderable"
     else if source_descriptor.width <> target_descriptor.width ||
             source_descriptor.height <> target_descriptor.height then
-      error Ogpu.Error.Invalid_argument
+      error Ogpu_core.Error.Invalid_argument
         "presentation source and target extents differ"
     else Ok ()
 
 let validate value ~queue ~source ~target =
   if Metal.Command_queue.destroyed queue then
-    error Ogpu.Error.Stale_handle "presentation queue is destroyed"
+    error Ogpu_core.Error.Stale_handle "presentation queue is destroyed"
   else
     validate_resources value ~device:(Metal.Command_queue.device queue) ~source ~target
 
 let encode_classic ?(scoped=false) value commands ?present ~source ~target () =
   if Metal.Command_buffer.destroyed commands then
-    error Ogpu.Error.Stale_handle "presentation command buffer is destroyed"
+    error Ogpu_core.Error.Stale_handle "presentation command buffer is destroyed"
   else
     match validate_resources value ~device:(Metal.Command_buffer.device commands)
             ~source ~target with
@@ -190,16 +190,16 @@ let render value ~queue ?present ?on_commit ~source ~target () =
                           | Ok () -> Ok Completed))))
 
 let copy value ~queue ~source ~target =
-  if value.dead then error Ogpu.Error.Stale_handle "presentation helper is destroyed"
+  if value.dead then error Ogpu_core.Error.Stale_handle "presentation helper is destroyed"
   else if Metal.Command_queue.destroyed queue then
-    error Ogpu.Error.Stale_handle "presentation queue is destroyed"
+    error Ogpu_core.Error.Stale_handle "presentation queue is destroyed"
   else if not (Metal.Device.same value.device (Metal.Command_queue.device queue)) then
-    error Ogpu.Error.Cross_device "presentation queue belongs to another device"
+    error Ogpu_core.Error.Cross_device "presentation queue belongs to another device"
   else if Metal.Texture.destroyed source || Metal.Texture.destroyed target then
-    error Ogpu.Error.Stale_handle "presentation copy texture is destroyed"
+    error Ogpu_core.Error.Stale_handle "presentation copy texture is destroyed"
   else if not (Metal.Device.same value.device (Metal.Texture.device source)) ||
           not (Metal.Device.same value.device (Metal.Texture.device target)) then
-    error Ogpu.Error.Cross_device "presentation copy texture belongs to another device"
+    error Ogpu_core.Error.Cross_device "presentation copy texture belongs to another device"
   else
     let source_descriptor = Metal.Texture.descriptor source
     and target_descriptor = Metal.Texture.descriptor target in
@@ -210,7 +210,7 @@ let copy value ~queue ~source ~target =
        source_descriptor.width <> target_descriptor.width ||
        source_descriptor.height <> target_descriptor.height ||
        source_descriptor.sample_count <> 1 || target_descriptor.sample_count <> 1 then
-      error Ogpu.Error.Invalid_argument "presentation copy textures are incompatible"
+      error Ogpu_core.Error.Invalid_argument "presentation copy textures are incompatible"
     else
       match Metal.Command_buffer.create queue ~label:"Prismel presentation readback" () with
       | Error value -> metal value

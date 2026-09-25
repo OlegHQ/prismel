@@ -63,18 +63,21 @@ let reach graph =
         Hashtbl.replace memo name set; set in
   go
 
-let gpu = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu"; "ogpu_metal";
+let gpu = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu"; "ogpu_mock"; "ogpu_metal"; "ogpu_metal_native";
            "runtime_next"; "runtime_next_orchestrator"; "scene_execution"]
 let upper = ["prismel"; "pxui"; "pxui_graph"; "sop_ui"; "procedural"; "pdk"; "geom";
              "sop_catalog"; "sketch_support"; "sketch_ui"]
-let foundational = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu";
+let foundational = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu";
                     "native_layer_token"; "scene_command"]
 
 (* (library, libraries it may never reach) *)
 let rules =
   List.map (fun lib -> lib, "runtime_next" :: "runtime_next_orchestrator"
                             :: "prismel_next_execution" :: upper) foundational
-  @ [ "ogpu", ["sdl3"; "metal"; "ogpu_metal"; "native_layer_token"];
+  @ [ "ogpu_core", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"; "native_layer_token"];
+      "ogpu", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"; "native_layer_token"];
+      "ogpu_mock", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"; "native_layer_token"];
+      "ogpu_metal_native", ["sdl3"; "runtime_next"; "prismel"; "scene_execution"];
       "ogpu_metal", ["sdl3"; "runtime_next"; "prismel"; "scene_execution"];
       "runtime_next", upper; "runtime_next_input", upper;
       "prismel_next_execution", ["runtime_next_input"];
@@ -127,8 +130,8 @@ let uses_metal text =
         let starts word = String.length code >= j + String.length word
           && String.sub code j (String.length word) = word
           && (j = 0 || not (match code.[j-1] with 'a'..'z'|'A'..'Z'|'0'..'9'|'_'|'.' -> true | _ -> false)) in
-        (starts "Metal." || starts "Ogpu_metal.") || find (j + 1) in
-  find 0 || List.exists (fun w -> List.mem w ["Metal"; "Ogpu_metal"])
+        (starts "Metal." || starts "Ogpu_metal." || starts "Ogpu_metal_native.") || find (j + 1) in
+  find 0 || List.exists (fun w -> List.mem w ["Metal"; "Ogpu_metal"; "Ogpu_metal_native"])
     (let words = String.split_on_char ' ' (String.map (function '\n'|'\t'|';' -> ' ' | c -> c) code) in
      let rec opens = function "open" :: w :: rest -> w :: opens rest | _ :: rest -> opens rest | [] -> [] in
      opens words)
@@ -154,6 +157,17 @@ let violations graph ~scan =
   direct_errors @ edge_errors @ token_errors
 
 let run () =
+  let has_library_field path name key value =
+    parse (read path) |> List.exists (function
+      | List (Atom "library" :: fields) ->
+          List.mem (List [Atom "name"; Atom name]) fields
+          && List.mem (List [Atom key; Atom value]) fields
+      | _ -> false) in
+  if not (has_library_field "lib/ogpu/dune" "ogpu" "virtual_modules" "Impl"
+      && has_library_field "lib/ogpu/dune" "ogpu" "default_implementation" "ogpu_metal"
+      && has_library_field "lib/ogpu_metal/dune" "ogpu_metal" "implements" "ogpu"
+      && has_library_field "lib/ogpu_mock/dune" "ogpu_mock" "implements" "ogpu") then
+    failwith "OGPU virtual implementations or default selection missing";
   let graph = graph ["lib"; "ppx"] in
   if List.length graph < 20 then failwith "dependency gate found too few libraries (wrong cwd?)";
   List.iter (fun name -> if List.mem_assoc name graph then
@@ -163,9 +177,10 @@ let run () =
   List.iter (fun (lib, dep) ->
     if violations (inject lib dep) ~scan:[] = [] then
       failwith (Printf.sprintf "gate accepted injected edge %s -> %s" lib dep))
-    ["ogpu", "metal"; "prismel", "pxui"; "pxui", "procedural"; "pxui", "sdl3"; "sdl3", "prismel";
+    ["ogpu_core", "metal"; "ogpu", "ogpu_metal_native"; "ogpu_mock", "metal"; "prismel", "pxui"; "pxui", "procedural"; "pxui", "sdl3"; "sdl3", "prismel";
      "pdk", "geom"; "prismel_next_execution", "runtime_next_input"];
   if violations graph ~scan:["lib/prismel/injected.ml", "let x = Metal.Device.system_default"] = []
+     || violations graph ~scan:["lib/prismel/injected.ml", "open Ogpu_metal_native"] = []
      || violations graph ~scan:["lib/prismel/injected.ml", "open Ogpu_metal"] = [] then
     failwith "gate accepted injected Metal reference";
   if violations graph ~scan:["lib/prismel/ok.ml", "(* Metal.foo *) let s = \"Metal.framework\""] <> [] then

@@ -3,7 +3,7 @@ val create : ?device:Device.t -> ?layer:Metal.Metal_layer.t ->
   ?retained_plan_capacity:int -> ?retained_plan_owner_byte_capacity:int64 ->
   ?classic_submission_byte_capacity:int64 ->
   ?retained_metadata_byte_capacity:int64 ->
-  unit -> Ogpu.Backend.driver * control
+  unit -> Ogpu_core.Backend.driver * control
 val register_pipeline : control -> Pipeline.t -> unit
 val sampler_cache_entries : control -> int
 val retained_plan_entries : control -> int
@@ -49,7 +49,7 @@ val retained_plan_stats : control -> retained_plan_stats
 module Private : sig
   (* Borrowed until the portable texture is destroyed; validates the exact
      backend control so numeric driver tokens cannot alias across devices. *)
-  val native_texture : control -> Ogpu.Backend.texture -> (Metal.Texture.t,Ogpu.Error.t) result
+  val native_texture : control -> Ogpu_core.Backend.texture -> (Metal.Texture.t,Ogpu_core.Error.t) result
   val disable_retained_plans_for_test : control -> unit
   val inject_next_active_queue_error : control -> unit
   val inject_next_active_queue_completion_error : control -> unit

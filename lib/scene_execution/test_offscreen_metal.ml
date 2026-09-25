@@ -1,4 +1,4 @@
-open Ogpu_metal
+open Ogpu_metal_native
 
 let get = function
   | Ok value -> value

@@ -15,17 +15,21 @@ examples / sketches / pxui / procedural / pdk
                          |
                          v
                       runtime_next ------> sdl3
-                         |
-                         v
-                    ogpu_metal --------> ogpu
-                         |
-                         v
-                       metal
+                         |  \
+                         v   v
+                  ogpu_metal_native    ogpu (virtual)
+                         |   |             |
+                         v   v             v
+                       metal  ogpu_core <-+
+
+                    ogpu_metal (implementation) ---> ogpu_metal_native
+                    ogpu_mock  (implementation) ---> ogpu_core
 ```
 
 `runtime_next` owns process setup, initial-domain lifecycle, the SDL3 window, its
-Metal view, resize scheduling, and presentation. `ogpu_metal` owns the
-translation from the checked high-level GPU interface to typed Metal bindings.
+Metal view, resize scheduling, and presentation. `ogpu_metal_native` owns the
+translation from the checked high-level GPU interface to typed Metal bindings;
+`ogpu_metal` selects it as the default virtual OGPU implementation.
 `metal` owns the safe Metal resource and command API. Prismel owns pure scene
 values and records rendering through the narrow GPU boundary; it never exposes
 native handles in its public API.
@@ -35,27 +39,25 @@ are removed. Query validation stays in `Ogpu.Sync.resolve`; the redundant
 Query_pass and scoped Native_pass metadata wrappers are removed. The Metal
 queue now owns its bounded submission epochs and reusable command storage,
 instead of carrying the separate `Ogpu.Submission` state object. The live
-command and resource contracts remain until the G1 virtual-library split
-gives the Metal and mock implementations one conformance surface.
+command and resource contracts remain until G4 moves render callers onto the
+virtual interface.
 `Ogpu.Caps` now owns the portable feature matrix and typed `Unsupported`
-check. Metal probes populate that profile in `ogpu_metal.Device`, which also
+check. Metal probes populate that profile in `ogpu_metal_native.Device`, which also
 translates native Metal errors to typed OGPU errors.
 The former `Ogpu.Capabilities` record is folded into `Ogpu.Caps`: limits,
 feature availability, and conservative-probe notes travel as one value.
-`Ogpu_metal.Device` stores that profile once, and the deterministic OGPU mock
+`Ogpu_metal_native.Device` stores that profile once, and the deterministic OGPU mock
 uses `Caps.require` for typed unsupported-feature results.
 The old Metal `Adapter` module is removed; it no longer duplicates feature
 decisions or wraps capability probes.
 The shared `test/ogpu_conformance` runner now exercises capabilities, buffer
 round trips, submissions, lifetime rejection, and teardown on both the mock
-and Metal drivers. It uses the current `Ogpu.Backend.driver` boundary while
-the virtual-library implementation split is pending.
-The virtual split must first move the shared portable driver types below both
-implementations, or move current native callers onto the virtual interface.
-A direct `ogpu` virtual / `ogpu_metal` implementation prototype made the
-implementation depend on native modules that themselves depend on `ogpu`;
-Dune rejected that cycle. The prototype was reverted without changing the
-working driver boundary.
+and Metal drivers. Two executables select `ogpu_mock` and `ogpu_metal` through
+Dune's virtual-library implementation mechanism. The portable types live in
+`ogpu_core`; the wrapped `ogpu` module aliases them without changing type
+identity. The native detail library depends on that core, avoiding a cycle.
+G4 will remove the remaining direct runtime and scene-execution access to
+`ogpu_metal_native`.
 
 Qualification code reads the runtime and Metal counters at their owning
 boundaries. Sketch does not retain a process-global diagnostics snapshot after

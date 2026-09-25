@@ -10,9 +10,9 @@ type indirect_resources=
 type prepared_render_pass=
   |Prepared_indexed of Metal.Render_encoder.Private.prepared_indexed_render_pass
   |Prepared_indirect of Metal.Render_encoder.Private.prepared_indirect_render_pass
-type retention={retain:unit->(unit,Ogpu.Error.t)result;release:unit->unit}
-type t={device:Device.t;pass:Ogpu.Render_pass.t;
-  descriptor:Ogpu.Render_pass.descriptor;color:Texture.t;resolve:Texture.t option;
+type retention={retain:unit->(unit,Ogpu_core.Error.t)result;release:unit->unit}
+type t={device:Device.t;pass:Ogpu_core.Render_pass.t;
+  descriptor:Ogpu_core.Render_pass.descriptor;color:Texture.t;resolve:Texture.t option;
   depth:Texture.t option;stencil:Texture.t option;draws:draw list;
   owned_samplers:Sampler.t list;
   mutable native_pass:Metal.Render_pass_descriptor.t option;
@@ -22,7 +22,7 @@ type t={device:Device.t;pass:Ogpu.Render_pass.t;
   retention:retention array;releases:(unit->unit)list;
   retained_bytes:int64;draw_count:int;indexed_preparable:bool;
   mutable persistent:bool;mutable destroying:bool;mutable dead:bool}
-let error op kind message=Error(Ogpu.Error.make op kind message)
+let error op kind message=Error(Ogpu_core.Error.make op kind message)
 let retained_byte_capacity=Int64.mul 8L 1_048_576L
 let saturating_add left right=
   if left>Int64.sub Int64.max_int right then Int64.max_int
@@ -46,20 +46,20 @@ let scene3_winding draws=
   List.exists(fun draw->List.exists(fun(binding:buffer_binding)->
     binding.stage=Vertex&&binding.index=7)draw.buffers)draws
 let metal_compare=function
-  |Ogpu.Render_pass.Never->Metal.Depth_stencil.Never|Less->Less|Equal->Equal
+  |Ogpu_core.Render_pass.Never->Metal.Depth_stencil.Never|Less->Less|Equal->Equal
   |Less_equal->Less_equal|Greater->Greater|Not_equal->Not_equal
   |Greater_equal->Greater_equal|Always->Always
 let metal_cull=function
-  |Ogpu.Render_pass.Cull_none->Metal.Render_encoder.No_cull
+  |Ogpu_core.Render_pass.Cull_none->Metal.Render_encoder.No_cull
   |Cull_front->Cull_front|Cull_back->Cull_back
 let metal_operation=function
-  |Ogpu.Render_pass.Keep->Metal.Depth_stencil.Keep|Zero->Zero|Replace->Replace
+  |Ogpu_core.Render_pass.Keep->Metal.Depth_stencil.Keep|Zero->Zero|Replace->Replace
   |Increment_clamp->Increment_clamp|Decrement_clamp->Decrement_clamp|Invert->Invert
   |Increment_wrap->Increment_wrap|Decrement_wrap->Decrement_wrap
-let metal_face(face:Ogpu.Render_pass.stencil_face)=Metal.Depth_stencil.face~compare:(metal_compare face.compare)~stencil_fail:(metal_operation face.stencil_fail)~depth_fail:(metal_operation face.depth_fail)~pass:(metal_operation face.pass)~read_mask:face.read_mask~write_mask:face.write_mask()
+let metal_face(face:Ogpu_core.Render_pass.stencil_face)=Metal.Depth_stencil.face~compare:(metal_compare face.compare)~stencil_fail:(metal_operation face.stencil_fail)~depth_fail:(metal_operation face.depth_fail)~pass:(metal_operation face.pass)~read_mask:face.read_mask~write_mask:face.write_mask()
 let prepare_native device pass ~color ~resolve ~depth ~stencil=
   let op="Ogpu_metal.Render_pass.prepare_native"in
-  let descriptor=Ogpu.Render_pass.descriptor pass in
+  let descriptor=Ogpu_core.Render_pass.descriptor pass in
   let portable=Option.get descriptor.colors.(0)in
   match Metal.Render_pass_descriptor.create~width:portable.texture.width
       ~height:portable.texture.height~sample_count:portable.texture.samples()with
@@ -73,7 +73,7 @@ let prepare_native device pass ~color ~resolve ~depth ~stencil=
           ?stencil:(Option.map Texture.Private.metal stencil)()with
         |Error error->Error error
         |Ok()->match Metal.Render_pass_descriptor.set_color_load_action native_pass
-            (match portable.load with Ogpu.Render_pass.Dont_care->Load_dont_care
+            (match portable.load with Ogpu_core.Render_pass.Dont_care->Load_dont_care
              |Load->Load|Clear->Clear)with
           |Error error->Error error
           |Ok()->match resolve with
@@ -85,24 +85,24 @@ let prepare_native device pass ~color ~resolve ~depth ~stencil=
               |Ok()->Metal.Render_pass_descriptor.set_color_store_action
                   native_pass~resolve:true in
       match configured with Error error->fail error|Ok()->
-      let raster=Ogpu.Render_pass.raster_state pass
-      and stencil_state=Ogpu.Render_pass.stencil_state pass in
+      let raster=Ogpu_core.Render_pass.raster_state pass
+      and stencil_state=Ogpu_core.Render_pass.stencil_state pass in
       match depth,stencil with
       |None,None->Ok(native_pass,None)
       |_->match Metal.Depth_stencil.create~label:"ogpu-metal-render-pass"
           ~depth_compare:(metal_compare raster.depth_compare)
           ~depth_write:raster.depth_write
-          ?front_face:(Option.map(fun state->metal_face state.Ogpu.Render_pass.front)
+          ?front_face:(Option.map(fun state->metal_face state.Ogpu_core.Render_pass.front)
             stencil_state)
-          ?back_face:(Option.map(fun state->metal_face state.Ogpu.Render_pass.back)
+          ?back_face:(Option.map(fun state->metal_face state.Ogpu_core.Render_pass.back)
             stencil_state)(Device.Private.metal device)()with
         |Error error->fail error
         |Ok state->Ok(native_pass,Some state)
-let format=function Texture.Rgba8_unorm->Some Ogpu.Render_pass.Rgba8|Bgra8_unorm->Some Bgra8|Depth32_float->Some Depth32|Stencil8->Some Stencil8|R8_unorm|Rgba16_float->None
+let format=function Texture.Rgba8_unorm->Some Ogpu_core.Render_pass.Rgba8|Bgra8_unorm->Some Bgra8|Depth32_float->Some Depth32|Stencil8->Some Stencil8|R8_unorm|Rgba16_float->None
 let attachment device texture ~usage=let op="Ogpu_metal.Render_pass.attachment"in match Texture.descriptor device texture,Texture.format device texture with
   |Error e,_->Error e|_,Error e->Error e
-  |Ok d,Ok f->match format f with None->error op Ogpu.Error.Unsupported"texture format is not a portable render attachment"|Some format->Ok({id=Texture.id texture;handle=Texture.Private.resource_handle texture;format;samples=d.sample_count;width=d.width;height=d.height;usage=[usage]}:Ogpu.Render_pass.texture)
-let validate_slot op seen stage index=if index<0||index>30 then error op Ogpu.Error.Invalid_argument"binding index is outside [0,30]"else let key=stage,index in if Hashtbl.mem seen key then error op Ogpu.Error.Invalid_argument"binding stage/index is duplicated"else(Hashtbl.add seen key();Ok())
+  |Ok d,Ok f->match format f with None->error op Ogpu_core.Error.Unsupported"texture format is not a portable render attachment"|Some format->Ok({id=Texture.id texture;handle=Texture.Private.resource_handle texture;format;samples=d.sample_count;width=d.width;height=d.height;usage=[usage]}:Ogpu_core.Render_pass.texture)
+let validate_slot op seen stage index=if index<0||index>30 then error op Ogpu_core.Error.Invalid_argument"binding index is outside [0,30]"else let key=stage,index in if Hashtbl.mem seen key then error op Ogpu_core.Error.Invalid_argument"binding stage/index is duplicated"else(Hashtbl.add seen key();Ok())
 let retention ~color ~resolve ~depth ~stencil draws =
   let seen=Hashtbl.create 32 and reversed=ref[]in
   let add key retain release=if not(Hashtbl.mem seen key)then(Hashtbl.add seen key();reversed:={retain;release}::!reversed)in
@@ -115,36 +115,36 @@ let retention ~color ~resolve ~depth ~stencil draws =
   let retention=Array.of_list(List.rev!reversed)in
   retention,Array.to_list(Array.map(fun item->item.release)retention)
 let create device pass ~attachments draw=let op="Ogpu_metal.Render_pass.create"in
-  let descriptor=Ogpu.Render_pass.descriptor pass in
+  let descriptor=Ogpu_core.Render_pass.descriptor pass in
   let colors=Array.to_list descriptor.colors|>List.filter_map Fun.id in
-  if List.length colors<>1 then error op Ogpu.Error.Unsupported"classic Metal execution requires exactly one color attachment"else
+  if List.length colors<>1 then error op Ogpu_core.Error.Unsupported"classic Metal execution requires exactly one color attachment"else
   let color=List.hd colors in
-  if (color.texture.samples=1&&(color.store<>Store||Option.is_some color.resolve))||(color.texture.samples>1&&(color.store<>Resolve||Option.is_none color.resolve))then error op Ogpu.Error.Invalid_argument"color store/resolve state differs from its sample count"else
+  if (color.texture.samples=1&&(color.store<>Store||Option.is_some color.resolve))||(color.texture.samples>1&&(color.store<>Resolve||Option.is_none color.resolve))then error op Ogpu_core.Error.Invalid_argument"color store/resolve state differs from its sample count"else
   let find id texture = if Texture.id texture=id then Some texture else None in
   let candidates=List.map(fun(b:buffer_binding)->b.buffer)draw.buffers in ignore candidates;
   match List.find_map (find color.texture.id) attachments with
-  |None->error op Ogpu.Error.Invalid_argument"color attachment texture is absent from the typed texture graph"
+  |None->error op Ogpu_core.Error.Invalid_argument"color attachment texture is absent from the typed texture graph"
   |Some target->
-    let resolve=match color.resolve with None->Ok None|Some portable->match List.find_map(find portable.id)attachments with None->error op Ogpu.Error.Invalid_argument"resolve attachment texture is absent from the typed texture graph"|Some texture->Result.map(fun _->Some texture)(Texture.descriptor device texture)in
+    let resolve=match color.resolve with None->Ok None|Some portable->match List.find_map(find portable.id)attachments with None->error op Ogpu_core.Error.Invalid_argument"resolve attachment texture is absent from the typed texture graph"|Some texture->Result.map(fun _->Some texture)(Texture.descriptor device texture)in
     (match Texture.descriptor device target,resolve,Pipeline.validate device draw.pipeline with
     |Error e,_,_->Error e|_,Error e,_->Error e|_,_,Error e->Error e|Ok td,Ok resolve,Ok()->
-      if td.width<>color.texture.width||td.height<>color.texture.height||td.sample_count<>color.texture.samples then error op Ogpu.Error.Invalid_argument"native color attachment metadata differs from the portable pass"
-      else match Pipeline.Private.native draw.pipeline with Pipeline.Private.Compute _->error op Ogpu.Error.Invalid_argument"compute pipeline cannot execute a render pass"|Render _->
+      if td.width<>color.texture.width||td.height<>color.texture.height||td.sample_count<>color.texture.samples then error op Ogpu_core.Error.Invalid_argument"native color attachment metadata differs from the portable pass"
+      else match Pipeline.Private.native draw.pipeline with Pipeline.Private.Compute _->error op Ogpu_core.Error.Invalid_argument"compute pipeline cannot execute a render pass"|Render _->
       let pipeline_samples=match Pipeline.Private.native draw.pipeline with Render pipeline->Metal.Render_pipeline.raster_sample_count pipeline|Compute _->assert false in
-      if pipeline_samples<>td.sample_count then error op Ogpu.Error.Invalid_argument"pipeline and color attachment sample counts differ"else
+      if pipeline_samples<>td.sample_count then error op Ogpu_core.Error.Invalid_argument"pipeline and color attachment sample counts differ"else
       if draw.vertex_start<0||draw.vertex_count<=0||draw.instance_count<=0||
          (draw.instance_count<>1&&Option.is_none draw.index)
-      then error op Ogpu.Error.Invalid_argument"draw vertex/instance range is invalid"else
-      if draw.primitive<>Triangle_list&&Option.is_none draw.index then error op Ogpu.Error.Unsupported"classic non-indexed execution currently exposes triangle lists"else
-      if draw.primitive=Triangle_list&&Option.is_none draw.index&&draw.vertex_count mod 3<>0 then error op Ogpu.Error.Invalid_argument"triangle-list vertex count is not divisible by three"else if draw.primitive=Triangle_strip&&draw.vertex_count<3 then error op Ogpu.Error.Invalid_argument"triangle strip requires at least three vertices"else
-      if draw.primitive=Line_list&&Option.fold ~none:false ~some:(fun(_,_,_,count)->Int64.rem count 2L<>0L) draw.index then error op Ogpu.Error.Invalid_argument"line-list index count is not divisible by two"else
+      then error op Ogpu_core.Error.Invalid_argument"draw vertex/instance range is invalid"else
+      if draw.primitive<>Triangle_list&&Option.is_none draw.index then error op Ogpu_core.Error.Unsupported"classic non-indexed execution currently exposes triangle lists"else
+      if draw.primitive=Triangle_list&&Option.is_none draw.index&&draw.vertex_count mod 3<>0 then error op Ogpu_core.Error.Invalid_argument"triangle-list vertex count is not divisible by three"else if draw.primitive=Triangle_strip&&draw.vertex_count<3 then error op Ogpu_core.Error.Invalid_argument"triangle strip requires at least three vertices"else
+      if draw.primitive=Line_list&&Option.fold ~none:false ~some:(fun(_,_,_,count)->Int64.rem count 2L<>0L) draw.index then error op Ogpu_core.Error.Invalid_argument"line-list index count is not divisible by two"else
       let buffer_slots=Hashtbl.create 16 and texture_slots=Hashtbl.create 16 and sampler_slots=Hashtbl.create 16 in
-      let rec buffers=function []->Ok()|(b:buffer_binding)::xs->(match validate_slot op buffer_slots b.stage b.index,Buffer.descriptor device b.buffer with Error e,_->Error e|_,Error e->Error e|Ok(),Ok bd when b.offset<0L||b.offset>=bd.size->error op Ogpu.Error.Invalid_argument"buffer binding offset is outside the buffer"|Ok(),Ok _->buffers xs)in
+      let rec buffers=function []->Ok()|(b:buffer_binding)::xs->(match validate_slot op buffer_slots b.stage b.index,Buffer.descriptor device b.buffer with Error e,_->Error e|_,Error e->Error e|Ok(),Ok bd when b.offset<0L||b.offset>=bd.size->error op Ogpu_core.Error.Invalid_argument"buffer binding offset is outside the buffer"|Ok(),Ok _->buffers xs)in
       let rec texture_bindings=function []->Ok()|(b:texture_binding)::xs->(match validate_slot op texture_slots b.stage b.index,Texture.descriptor device b.texture with Error e,_->Error e|_,Error e->Error e|Ok(),Ok _->texture_bindings xs)in
       let rec sampler_bindings=function []->Ok()|(b:sampler_binding)::xs->(match validate_slot op sampler_slots b.stage b.index,Sampler.descriptor device b.sampler with Error e,_->Error e|_,Error e->Error e|Ok(),Ok _->sampler_bindings xs)in
       match buffers draw.buffers with Error _ as e->e|Ok()->match texture_bindings draw.textures with Error _ as e->e|Ok()->match sampler_bindings draw.samplers with Error _ as e->e|Ok()->
-      let depth=match descriptor.depth with None->Ok None|Some d when d.store=Resolve->error op Ogpu.Error.Invalid_argument"depth attachments cannot resolve"|Some d->match List.find_map(find d.texture.id)attachments with None->error op Ogpu.Error.Invalid_argument"depth attachment texture is absent from the typed texture graph"|Some texture->Result.map(fun _->Some texture)(Texture.descriptor device texture)in
-      let stencil=match descriptor.stencil with None->Ok None|Some s when s.store=Resolve->error op Ogpu.Error.Invalid_argument"stencil attachments cannot resolve"|Some s->match List.find_map(find s.texture.id)attachments with None->error op Ogpu.Error.Invalid_argument"stencil attachment texture is absent from the typed texture graph"|Some texture->Result.map(fun _->Some texture)(Texture.descriptor device texture)in
+      let depth=match descriptor.depth with None->Ok None|Some d when d.store=Resolve->error op Ogpu_core.Error.Invalid_argument"depth attachments cannot resolve"|Some d->match List.find_map(find d.texture.id)attachments with None->error op Ogpu_core.Error.Invalid_argument"depth attachment texture is absent from the typed texture graph"|Some texture->Result.map(fun _->Some texture)(Texture.descriptor device texture)in
+      let stencil=match descriptor.stencil with None->Ok None|Some s when s.store=Resolve->error op Ogpu_core.Error.Invalid_argument"stencil attachments cannot resolve"|Some s->match List.find_map(find s.texture.id)attachments with None->error op Ogpu_core.Error.Invalid_argument"stencil attachment texture is absent from the typed texture graph"|Some texture->Result.map(fun _->Some texture)(Texture.descriptor device texture)in
       match depth,stencil with Error e,_->Error e|_,Error e->Error e|Ok depth,Ok stencil->
       let finish()=
         let retention,releases=retention~color:target~resolve~depth~stencil[draw]in
@@ -154,37 +154,37 @@ let create device pass ~attachments draw=let op="Ogpu_metal.Render_pass.create"i
           retention;releases;retained_bytes=accounted_retained_bytes[draw];
           draw_count=1;indexed_preparable=indexed_preparable_draw draw;
           persistent=false;destroying=false;dead=false}in
-      match draw.index with None->finish()|Some(kind,buffer,offset,count)->match Buffer.descriptor device buffer with Error _ as e->e|Ok bd->let stride=match kind with Uint16->2L|Uint32->4L in if count<=0L||offset<0L||Int64.rem offset stride<>0L||count>Int64.div(Int64.sub bd.size offset)stride then error op Ogpu.Error.Invalid_argument"index range is invalid"else finish())
+      match draw.index with None->finish()|Some(kind,buffer,offset,count)->match Buffer.descriptor device buffer with Error _ as e->e|Ok bd->let stride=match kind with Uint16->2L|Uint32->4L in if count<=0L||offset<0L||Int64.rem offset stride<>0L||count>Int64.div(Int64.sub bd.size offset)stride then error op Ogpu_core.Error.Invalid_argument"index range is invalid"else finish())
 let create_empty device pass ~attachments =
   let op="Ogpu_metal.Render_pass.create_empty"in
-  let descriptor=Ogpu.Render_pass.descriptor pass in
+  let descriptor=Ogpu_core.Render_pass.descriptor pass in
   let colors=Array.to_list descriptor.colors|>List.filter_map Fun.id in
   if List.length colors<>1 then
-    error op Ogpu.Error.Unsupported
+    error op Ogpu_core.Error.Unsupported
       "classic Metal execution requires exactly one color attachment"
   else
     let color=List.hd colors in
     if (color.texture.samples=1&&(color.store<>Store||Option.is_some color.resolve))||
        (color.texture.samples>1&&(color.store<>Resolve||Option.is_none color.resolve))
-    then error op Ogpu.Error.Invalid_argument
+    then error op Ogpu_core.Error.Invalid_argument
       "color store/resolve state differs from its sample count"
     else
       let find id texture=if Texture.id texture=id then Some texture else None in
       match List.find_map(find color.texture.id)attachments with
-      |None->error op Ogpu.Error.Invalid_argument
+      |None->error op Ogpu_core.Error.Invalid_argument
           "color attachment texture is absent from the typed texture graph"
       |Some target->
-          let optional role (portable:Ogpu.Render_pass.texture option)=match portable with
+          let optional role (portable:Ogpu_core.Render_pass.texture option)=match portable with
             |None->Ok None
             |Some portable->match List.find_map(find portable.id)attachments with
-              |None->error op Ogpu.Error.Invalid_argument
+              |None->error op Ogpu_core.Error.Invalid_argument
                   (role^" attachment texture is absent from the typed texture graph")
               |Some texture->Result.map(fun _->Some texture)
                   (Texture.descriptor device texture)in
           let resolve=optional"resolve"color.resolve
-          and depth=optional"depth"(Option.map(fun(value:Ogpu.Render_pass.depth)->value.texture)
+          and depth=optional"depth"(Option.map(fun(value:Ogpu_core.Render_pass.depth)->value.texture)
             descriptor.depth)
-          and stencil=optional"stencil"(Option.map(fun(value:Ogpu.Render_pass.stencil)->value.texture)
+          and stencil=optional"stencil"(Option.map(fun(value:Ogpu_core.Render_pass.stencil)->value.texture)
             descriptor.stencil)in
           match Texture.descriptor device target,resolve,depth,stencil with
           |Error e,_,_,_->Error e|_,Error e,_,_->Error e
@@ -193,7 +193,7 @@ let create_empty device pass ~attachments =
               if target_descriptor.width<>color.texture.width||
                  target_descriptor.height<>color.texture.height||
                  target_descriptor.sample_count<>color.texture.samples
-              then error op Ogpu.Error.Invalid_argument
+              then error op Ogpu_core.Error.Invalid_argument
                 "native color attachment metadata differs from the portable pass"
               else
                 let retention,releases=retention~color:target~resolve~depth~stencil[]in
@@ -208,31 +208,31 @@ let validate_batch_draw device draw =
   match Pipeline.validate device draw.pipeline with Error _ as e->e|Ok()->
   if draw.vertex_start<0||draw.vertex_count<=0||draw.instance_count<=0||
      (draw.instance_count<>1&&Option.is_none draw.index)
-  then error op Ogpu.Error.Invalid_argument"draw vertex/instance range is invalid"
-  else if draw.primitive<>Triangle_list&&Option.is_none draw.index then error op Ogpu.Error.Unsupported"classic non-indexed execution currently exposes triangle lists"
-  else if draw.primitive=Triangle_list&&Option.is_none draw.index&&draw.vertex_count mod 3<>0 then error op Ogpu.Error.Invalid_argument"triangle-list vertex count is not divisible by three"
-  else if draw.primitive=Triangle_strip&&draw.vertex_count<3 then error op Ogpu.Error.Invalid_argument"triangle strip requires at least three vertices"
-  else if draw.primitive=Line_list&&Option.fold ~none:false ~some:(fun(_,_,_,count)->Int64.rem count 2L<>0L) draw.index then error op Ogpu.Error.Invalid_argument"line-list index count is not divisible by two"
+  then error op Ogpu_core.Error.Invalid_argument"draw vertex/instance range is invalid"
+  else if draw.primitive<>Triangle_list&&Option.is_none draw.index then error op Ogpu_core.Error.Unsupported"classic non-indexed execution currently exposes triangle lists"
+  else if draw.primitive=Triangle_list&&Option.is_none draw.index&&draw.vertex_count mod 3<>0 then error op Ogpu_core.Error.Invalid_argument"triangle-list vertex count is not divisible by three"
+  else if draw.primitive=Triangle_strip&&draw.vertex_count<3 then error op Ogpu_core.Error.Invalid_argument"triangle strip requires at least three vertices"
+  else if draw.primitive=Line_list&&Option.fold ~none:false ~some:(fun(_,_,_,count)->Int64.rem count 2L<>0L) draw.index then error op Ogpu_core.Error.Invalid_argument"line-list index count is not divisible by two"
   else
     let slots=Array.make 3 0L in
     let slot kind stage index=
-      if index<0||index>30 then error op Ogpu.Error.Invalid_argument"binding index is outside [0,30]"
+      if index<0||index>30 then error op Ogpu_core.Error.Invalid_argument"binding index is outside [0,30]"
       else let offset=match stage with Vertex->0|Fragment->31 in let bit=Int64.shift_left 1L(offset+index)in
-        if Int64.logand slots.(kind)bit<>0L then error op Ogpu.Error.Invalid_argument"binding stage/index is duplicated"
+        if Int64.logand slots.(kind)bit<>0L then error op Ogpu_core.Error.Invalid_argument"binding stage/index is duplicated"
         else(slots.(kind)<-Int64.logor slots.(kind)bit;Ok())in
     let rec buffers=function []->Ok()|(b:buffer_binding)::rest->
-      (match slot 0 b.stage b.index,Buffer.descriptor device b.buffer with Error e,_->Error e|_,Error e->Error e|Ok(),Ok descriptor when b.offset<0L||b.offset>=descriptor.size->error op Ogpu.Error.Invalid_argument"buffer binding offset is outside the buffer"|Ok(),Ok _->buffers rest)
+      (match slot 0 b.stage b.index,Buffer.descriptor device b.buffer with Error e,_->Error e|_,Error e->Error e|Ok(),Ok descriptor when b.offset<0L||b.offset>=descriptor.size->error op Ogpu_core.Error.Invalid_argument"buffer binding offset is outside the buffer"|Ok(),Ok _->buffers rest)
     and textures=function []->Ok()|(b:texture_binding)::rest->
       (match slot 1 b.stage b.index,Texture.descriptor device b.texture with Error e,_->Error e|_,Error e->Error e|Ok(),Ok _->textures rest)
     and samplers=function []->Ok()|(b:sampler_binding)::rest->
       (match slot 2 b.stage b.index,Sampler.descriptor device b.sampler with Error e,_->Error e|_,Error e->Error e|Ok(),Ok _->samplers rest)in
     match buffers draw.buffers with Error _ as e->e|Ok()->match textures draw.textures with Error _ as e->e|Ok()->match samplers draw.samplers with Error _ as e->e|Ok()->
-    match draw.index with None->Ok()|Some(kind,buffer,offset,count)->match Buffer.descriptor device buffer with Error _ as e->e|Ok descriptor->let stride=match kind with Uint16->2L|Uint32->4L in if count<=0L||offset<0L||Int64.rem offset stride<>0L||count>Int64.div(Int64.sub descriptor.size offset)stride then error op Ogpu.Error.Invalid_argument"index range is invalid"else Ok()
+    match draw.index with None->Ok()|Some(kind,buffer,offset,count)->match Buffer.descriptor device buffer with Error _ as e->e|Ok descriptor->let stride=match kind with Uint16->2L|Uint32->4L in if count<=0L||offset<0L||Int64.rem offset stride<>0L||count>Int64.div(Int64.sub descriptor.size offset)stride then error op Ogpu_core.Error.Invalid_argument"index range is invalid"else Ok()
 let create_batch ?(owned_samplers=[]) device pass ~attachments draws =
   let op="Ogpu_metal.Render_pass.create_batch" in
   let count=List.length draws in
-  if count=0 then error op Ogpu.Error.Invalid_argument "render batch is empty"
-  else if count>65_536 then error op Ogpu.Error.Invalid_argument "render batch exceeds 65536 draws"
+  if count=0 then error op Ogpu_core.Error.Invalid_argument "render batch is empty"
+  else if count>65_536 then error op Ogpu_core.Error.Invalid_argument "render batch exceeds 65536 draws"
   else
     match draws with
     |[]->assert false
@@ -427,10 +427,10 @@ let prepared_scissor(value:t)=
     height=scissor.height}:Metal.Render_encoder.scissor)
 let prepare_render_pass op value native_pass=
   let device=Device.Private.metal value.device in
-  let raster=Ogpu.Render_pass.raster_state value.pass
-  and stencil=Ogpu.Render_pass.stencil_state value.pass in
+  let raster=Ogpu_core.Render_pass.raster_state value.pass
+  and stencil=Ogpu_core.Render_pass.stencil_state value.pass in
   let stencil_references=Option.map(fun state->
-    state.Ogpu.Render_pass.front_reference,state.back_reference)stencil in
+    state.Ogpu_core.Render_pass.front_reference,state.back_reference)stencil in
   let prepare_indexed()=
     let draws=prepare_indexed_draw_array value in
     match Metal.Render_encoder.Private.prepare_indexed_draws device draws with
@@ -454,7 +454,7 @@ let prepare_render_pass op value native_pass=
        |Error error->Error(Device.of_metal_error~operation:op error)
        |Ok prepared->Ok(Prepared_indirect prepared))
   |None,_->prepare_indexed()
-  |Some _,[]->error op Ogpu.Error.Invalid_state
+  |Some _,[]->error op Ogpu_core.Error.Invalid_state
       "indirect render pass has no draw commands"
 let encode_prepared_render_pass op command value native_pass=
   let prepared=match value.prepared_render_pass with
@@ -475,27 +475,27 @@ module Private=struct
   let retained_bytes value=value.retained_bytes
   let retain_encoding value=value.persistent<-true
   let descriptor_requires_command4
-      (descriptor:Ogpu.Render_pass.descriptor)=
+      (descriptor:Ogpu_core.Render_pass.descriptor)=
     (* The classic descriptor path implements all color load actions.  Keep
        Metal 4 only for depth/stencil state that the classic path cannot
        represent exactly; otherwise ordinary overlay passes would rebuild
        Command4 argument tables every frame. *)
     Option.is_some descriptor.stencil||
-    Option.fold~none:false~some:(fun(d:Ogpu.Render_pass.depth)->d.load<>Clear||d.store<>Store||d.clear<>1.)descriptor.depth
+    Option.fold~none:false~some:(fun(d:Ogpu_core.Render_pass.depth)->d.load<>Clear||d.store<>Store||d.clear<>1.)descriptor.depth
   let portable_requires_command4 pass=
-    descriptor_requires_command4(Ogpu.Render_pass.descriptor pass)
+    descriptor_requires_command4(Ogpu_core.Render_pass.descriptor pass)
   let requires_command4 value=
     Option.is_none value.indirect&&descriptor_requires_command4 value.descriptor
   let validation_retained value=value.persistent||Option.is_some value.indirect
-  let encode_portable value command=Ogpu.Render_pass.encode value.pass command
+  let encode_portable value command=Ogpu_core.Render_pass.encode value.pass command
   let retain value=
     if value.dead||value.destroying then
-      error"Ogpu_metal.Render_pass.retain"Ogpu.Error.Stale_handle
+      error"Ogpu_metal.Render_pass.retain"Ogpu_core.Error.Stale_handle
         "render pass is being destroyed"
     else retain_at value 0
   let encode command value=let op="Ogpu_metal.Render_pass.encode"in
     if value.dead||value.destroying then
-      error op Ogpu.Error.Stale_handle"render pass is being destroyed"else
+      error op Ogpu_core.Error.Stale_handle"render pass is being destroyed"else
     let descriptor=value.descriptor in
     let prepared=match value.native_pass with
       |Some native_pass->Ok native_pass
@@ -514,8 +514,8 @@ module Private=struct
           (Metal.Render_encoder.Private.create_from_pass_scoped command
             native_pass)in
         match encoder with Error _ as error->error|Ok encoder->
-        let raster=Ogpu.Render_pass.raster_state value.pass in
-        let stencil_state=Ogpu.Render_pass.stencil_state value.pass in
+        let raster=Ogpu_core.Render_pass.raster_state value.pass in
+        let stencil_state=Ogpu_core.Render_pass.stencil_state value.pass in
         let winding=if scene3_winding value.draws then Metal.Render_encoder.set_front_facing_winding encoder Metal.Render_encoder.Counter_clockwise else Ok() in
         let store=match winding with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->match Metal.Render_encoder.set_cull_mode encoder(metal_cull raster.cull)with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->let depth_bound=match value.depth_state with None->Ok()|Some state->Metal.Render_encoder.set_depth_stencil_state encoder(Some state)in match depth_bound with Error e->Error(Device.of_metal_error~operation:op e)|Ok()->Ok()in
         match store with Error _ as e->abort_encoding value encoder e|Ok()->
@@ -525,12 +525,12 @@ module Private=struct
   let encode_command4 command value =
     let op="Ogpu_metal.Render_pass.encode_command4" in
     if value.dead||value.destroying then
-      error op Ogpu.Error.Stale_handle"render pass is being destroyed"else
+      error op Ogpu_core.Error.Stale_handle"render pass is being destroyed"else
     let descriptor=value.descriptor in
     let color=List.hd(Array.to_list descriptor.colors|>List.filter_map Fun.id)in
     let c=Metal.Command4.Render_encoder.color~red:(let r,_,_,_=color.clear in r)~green:(let _,g,_,_=color.clear in g)~blue:(let _,_,b,_=color.clear in b)~alpha:(let _,_,_,a=color.clear in a)in
-    let load=match color.load with Ogpu.Render_pass.Clear->Metal.Command4.Render_encoder.Clear c|Load->Load|Dont_care->Load_dont_care
-    and store=match color.store with Ogpu.Render_pass.Store->Metal.Command4.Render_encoder.Store|Discard->Store_dont_care|Resolve->Multisample_resolve in
+    let load=match color.load with Ogpu_core.Render_pass.Clear->Metal.Command4.Render_encoder.Clear c|Load->Load|Dont_care->Load_dont_care
+    and store=match color.store with Ogpu_core.Render_pass.Store->Metal.Command4.Render_encoder.Store|Discard->Store_dont_care|Resolve->Multisample_resolve in
     let resolve_texture=Option.map Texture.Private.metal value.resolve in
     let colors=[Metal.Command4.Render_encoder.color_attachment ~load_action:load
       ~store_action:store ?resolve_texture (Texture.Private.metal value.color)]in
@@ -550,15 +550,15 @@ module Private=struct
         List.iter(fun f->f())sampler_cleanup;
         Error(Device.of_metal_error~operation:op e)
       in
-      let raster=Ogpu.Render_pass.raster_state value.pass and stencil=Ogpu.Render_pass.stencil_state value.pass in
-      (match Metal.Depth_stencil.create~label:"ogpu-metal-command4-pass"~depth_compare:(metal_compare raster.depth_compare)~depth_write:raster.depth_write?front_face:(Option.map(fun s->metal_face s.Ogpu.Render_pass.front)stencil)?back_face:(Option.map(fun s->metal_face s.Ogpu.Render_pass.back)stencil)(Metal.Command4.Command_buffer.device command)()with
+      let raster=Ogpu_core.Render_pass.raster_state value.pass and stencil=Ogpu_core.Render_pass.stencil_state value.pass in
+      (match Metal.Depth_stencil.create~label:"ogpu-metal-command4-pass"~depth_compare:(metal_compare raster.depth_compare)~depth_write:raster.depth_write?front_face:(Option.map(fun s->metal_face s.Ogpu_core.Render_pass.front)stencil)?back_face:(Option.map(fun s->metal_face s.Ogpu_core.Render_pass.back)stencil)(Metal.Command4.Command_buffer.device command)()with
       |Error e->fail e
       |Ok depth_state->cleanup:=(fun()->ignore(Metal.Depth_stencil.destroy depth_state))::!cleanup;
         let ( let* ) result f=match result with Ok value->f value|Error e->fail e in
         let* ()=Metal.Command4.Render_encoder.set_depth_stencil_state encoder(Some depth_state)in
         let* ()=match stencil with None->Ok()|Some s->Metal.Command4.Render_encoder.set_stencil_references encoder~front:s.front_reference~back:s.back_reference in
         let* ()=if scene3_winding value.draws then Metal.Command4.Render_encoder.set_front_facing_winding encoder Metal.Command4.Render_encoder.Counter_clockwise else Ok() in
-        let* ()=Metal.Command4.Render_encoder.set_cull_mode encoder(match raster.cull with Ogpu.Render_pass.Cull_none->Cull_none|Cull_front->Cull_front|Cull_back->Cull_back)in
+        let* ()=Metal.Command4.Render_encoder.set_cull_mode encoder(match raster.cull with Ogpu_core.Render_pass.Cull_none->Cull_none|Cull_front->Cull_front|Cull_back->Cull_back)in
         let* ()=Metal.Command4.Render_encoder.set_viewport encoder(Metal.Command4.Render_encoder.viewport~x:(float descriptor.viewport.x)~y:(float descriptor.viewport.y)~width:(float descriptor.viewport.width)~height:(float descriptor.viewport.height)~z_near:0.~z_far:1.)in
         let* ()=Metal.Command4.Render_encoder.set_scissor_rect encoder(Metal.Command4.Render_encoder.scissor_rect~x:descriptor.scissor.x~y:descriptor.scissor.y~width:descriptor.scissor.width~height:descriptor.scissor.height)in
         let bind_stage encoder stage draw=

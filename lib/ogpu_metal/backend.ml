@@ -14,7 +14,7 @@ type plan_owner={queue_token:int64;generation:int64;command_count:int;
   fragment_resources:Metal.Render_encoder.prepared_resources;
   texture_resources:Metal.Render_encoder.prepared_resources;
   owner_bytes:int64;mutable passes:(Render_pass.t*int64 array)list}
-type classic_submission={classic_command:Ogpu.Backend.command;
+type classic_submission={classic_command:Ogpu_core.Backend.command;
   classic_resources:(int64*int64)list;classic_pipelines:int64 list;
   classic_pass:Render_pass.t;classic_bytes:int64;mutable classic_epoch:int64;
   mutable classic_retired:bool}
@@ -32,10 +32,10 @@ type classic_cache_control=
   ; retry_cleanup:unit->unit
   ; cleanup_empty:unit->bool
   }
-type retained_identity={identity_draws:Ogpu.Render_pass.draw list;
+type retained_identity={identity_draws:Ogpu_core.Render_pass.draw list;
   identity_pipelines:int64 list;identity_key:string;identity_generation:int64;
   identity_bytes:int64}
-type retained_replay={replay_command:Ogpu.Backend.command;
+type retained_replay={replay_command:Ogpu_core.Backend.command;
   replay_pipelines:int64 list;replay_key:string;mutable replay_pass:Render_pass.t;
   replay_attachment_ids:int64 array;mutable replay_attachment_tokens:int64 array;
   replay_bytes:int64;mutable replay_epoch:int64;mutable replay_retired:bool}
@@ -45,7 +45,7 @@ type retired={queue_token:int64;epoch:int64;icb:Metal.Indirect_command_buffer.t;
   owner:plan_owner option;retired_bytes:int64}
 type cleanup_failure=
   |Metal_cleanup of Metal.error
-  |Pass_cleanup of Ogpu.Error.t
+  |Pass_cleanup of Ogpu_core.Error.t
 type retained_plan_stats=
   { builds:int64;hits:int64;misses:int64;evictions:int64;executions:int64
   ; entries:int;capacity:int
@@ -70,13 +70,13 @@ type retained_metadata_stats=
   }
 type active_queue=
   { queue:Queue.t
-  ; submit_combined:Queue.presentation -> Ogpu.Backend.command ->
+  ; submit_combined:Queue.presentation -> Ogpu_core.Backend.command ->
       resources:(int64*int64) list -> pipelines:int64 list ->
-      (Ogpu.Backend.receipt,Ogpu.Error.t) result
+      (Ogpu_core.Backend.receipt,Ogpu_core.Error.t) result
   ; presentations:Surface.Private.pending_presentation array
   }
-type control={resources:(int64,resource)Hashtbl.t;pipelines:(string,Pipeline.t)Hashtbl.t;pipeline_tokens:(int64,Pipeline.t)Hashtbl.t;sampler_cache:(Ogpu.Types.sampler_descriptor,Sampler.t)Hashtbl.t;plan_owners:(string,plan_owner)Hashtbl.t;mutable plan_owner_order:string list;mutable owner_retained_bytes:int64;classic_invalidators:(int64,classic_cache_control)Hashtbl.t;active_queues:(int64,active_queue)Hashtbl.t;completed_epochs:(int64,int64)Hashtbl.t;mutable retired:retired list;mutable retired_bytes:int64;mutable plan_cache:Metal.Retained_render_plan.t option;mutable cleanup_error:Ogpu.Error.t option;mutable device_live:bool;mutable device_id:int64 option;mutable next:int64;mutable plan_builds:int64;mutable plan_hits:int64;mutable plan_misses:int64;mutable plan_evictions:int64;mutable plan_executions:int64;plan_capacity:int;owner_byte_capacity:int64;classic_byte_capacity:int64;metadata_byte_capacity:int64;layer:Metal.Metal_layer.t option}
-let error op kind text=Error(Ogpu.Error.make op kind text)
+type control={resources:(int64,resource)Hashtbl.t;pipelines:(string,Pipeline.t)Hashtbl.t;pipeline_tokens:(int64,Pipeline.t)Hashtbl.t;sampler_cache:(Ogpu_core.Types.sampler_descriptor,Sampler.t)Hashtbl.t;plan_owners:(string,plan_owner)Hashtbl.t;mutable plan_owner_order:string list;mutable owner_retained_bytes:int64;classic_invalidators:(int64,classic_cache_control)Hashtbl.t;active_queues:(int64,active_queue)Hashtbl.t;completed_epochs:(int64,int64)Hashtbl.t;mutable retired:retired list;mutable retired_bytes:int64;mutable plan_cache:Metal.Retained_render_plan.t option;mutable cleanup_error:Ogpu_core.Error.t option;mutable device_live:bool;mutable device_id:int64 option;mutable next:int64;mutable plan_builds:int64;mutable plan_hits:int64;mutable plan_misses:int64;mutable plan_evictions:int64;mutable plan_executions:int64;plan_capacity:int;owner_byte_capacity:int64;classic_byte_capacity:int64;metadata_byte_capacity:int64;layer:Metal.Metal_layer.t option}
+let error op kind text=Error(Ogpu_core.Error.make op kind text)
 let token c=let x=c.next in c.next<-Int64.succ x;x
 let register_pipeline c pipeline=Hashtbl.replace c.pipelines(Pipeline.key pipeline)pipeline
 let sampler_cache_entries c=Hashtbl.length c.sampler_cache
@@ -142,19 +142,19 @@ let retained_plan_stats c=
    icb_retained_bytes;icb_byte_capacity;
    owner_retained_bytes=c.owner_retained_bytes;
    owner_byte_capacity=c.owner_byte_capacity;retired_bytes=c.retired_bytes}
-let retained_draw_bytes(draw:Ogpu.Render_pass.draw)=
+let retained_draw_bytes(draw:Ogpu_core.Render_pass.draw)=
   let bytes=512L|>saturating_add(accounted_string draw.pipeline_key)
     |>saturating_add(accounted_items(List.length draw.buffers)128L)
     |>saturating_add(accounted_items(List.length draw.textures)128L)in
-  let bytes=List.fold_left(fun total(binding:Ogpu.Render_pass.sampler_binding)->
+  let bytes=List.fold_left(fun total(binding:Ogpu_core.Render_pass.sampler_binding)->
     total|>saturating_add 384L
-      |>saturating_add(accounted_label binding.sampler.Ogpu.Types.label))
+      |>saturating_add(accounted_label binding.sampler.Ogpu_core.Types.label))
     bytes draw.samplers in
   if Option.is_some draw.index then saturating_add bytes 128L else bytes
 let retained_draws_bytes draws=
   List.fold_left(fun total draw->saturating_add total(retained_draw_bytes draw))
     256L draws
-let retained_command_bytes=Ogpu.Backend.Private.command_retained_bytes
+let retained_command_bytes=Ogpu_core.Backend.Private.command_retained_bytes
 let retained_identity_bytes draws pipelines key=
   retained_draws_bytes draws|>saturating_add 512L
   |>saturating_add(accounted_items(List.length pipelines)32L)
@@ -223,13 +223,13 @@ let with_only_active_queue c action=
 let inject_next_active_queue_error c=with_only_active_queue c Queue.inject_next_error
 let inject_next_active_queue_completion_error c=with_only_active_queue c Queue.inject_next_completion_error
 let native_texture control texture=
-  let device_id,token=Ogpu.Backend.Private.texture_driver_token texture in
+  let device_id,token=Ogpu_core.Backend.Private.texture_driver_token texture in
   if control.device_id<>Some device_id then
-    error"Ogpu_metal.Backend.native_texture"Ogpu.Error.Cross_device"texture belongs to another renderer"
+    error"Ogpu_metal.Backend.native_texture"Ogpu_core.Error.Cross_device"texture belongs to another renderer"
   else match Hashtbl.find_opt control.resources token with
     |Some(Texture texture) when not(Texture.destroyed texture)->
         Ok(Texture.Private.metal texture)
-    |_->error"Ogpu_metal.Backend.native_texture"Ogpu.Error.Stale_handle"texture is unavailable"
+    |_->error"Ogpu_metal.Backend.native_texture"Ogpu_core.Error.Stale_handle"texture is unavailable"
 module Private=struct
   let native_texture=native_texture
   let disable_retained_plans_for_test=disable_retained_plans_for_test
@@ -342,7 +342,7 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
         release_accounted_retired c retired;false
       end else true)c.retired in
   let obtain_device()=match provided_device with Some device->Ok device|None->Device.system_default()in
-  let create_device()=if c.device_live then error"Ogpu_metal.Backend.create_device"Ogpu.Error.Invalid_state"adapter already owns a live device"else match obtain_device()with Error _ as e->e|Ok device->c.device_live<-true;c.device_id<-Some(Ogpu.Handle.device_id(Device.Private.handle device));let device_token=token c in
+  let create_device()=if c.device_live then error"Ogpu_metal.Backend.create_device"Ogpu_core.Error.Invalid_state"adapter already owns a live device"else match obtain_device()with Error _ as e->e|Ok device->c.device_live<-true;c.device_id<-Some(Ogpu_core.Handle.device_id(Device.Private.handle device));let device_token=token c in
     let handoff~key~generation:_ icb=
       c.plan_evictions<-Int64.succ c.plan_evictions;
       let owner:plan_owner option=Hashtbl.find_opt c.plan_owners key in
@@ -368,8 +368,8 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
     let invalidate_resource id=Hashtbl.iter(fun _ cache->
       cache.invalidate_classic_resource id)c.classic_invalidators;
       match c.plan_cache with None->()|Some cache->let keys=Hashtbl.fold(fun key(owner:plan_owner) acc->if Array.exists(Int64.equal id)owner.dependencies then key::acc else acc)c.plan_owners[]in List.iter(fun key->match Metal.Retained_render_plan.invalidate cache key with Ok()->()|Error error->record_cleanup(Some error))keys in
-    let create_buffer descriptor=match Buffer.create device~memory:Buffer.Shared descriptor with Error _ as e->e|Ok buffer->let id=token c in Hashtbl.add c.resources id(Buffer buffer);let read offset length=Buffer.read_bytes device buffer~offset~length in Ok{Ogpu.Backend.token=id;write=(fun offset bytes->Buffer.write_bytes device buffer~dst_offset:offset bytes);read;read_into=(fun offset destination destination_offset length->match read offset length with Error _ as e->e|Ok bytes->if destination_offset<0||length>Bytes.length destination-destination_offset then error"Ogpu_metal.Backend.buffer.read_into"Ogpu.Error.Invalid_argument"destination range is invalid"else(Bytes.blit bytes 0 destination destination_offset length;Ok()));destroy=(fun()->invalidate_resource id;match Buffer.destroy buffer with Error _ as e->e|Ok()->Hashtbl.remove c.resources id;Ok())}in
-    let create_texture_format ~format ~host_read descriptor=match Texture.create device~memory:(if descriptor.Ogpu.Types.sample_count=1&&host_read then Texture.Shared else Device_local)~format descriptor with Error _ as e->e|Ok texture->let id=token c in Hashtbl.add c.resources id(Texture texture);let read offset length=if not host_read then error"Ogpu_metal.Backend.depth.read"Ogpu.Error.Unsupported"depth textures are not host readable"else if offset<>0L||descriptor.height<=0||length mod descriptor.height<>0 then error"Ogpu_metal.Backend.texture.read"Ogpu.Error.Invalid_argument"texture read range is invalid"else Texture.read_bytes device texture~mip_level:0~bytes_per_row:(length/descriptor.height)in let read_into offset destination destination_offset length=if not host_read then error"Ogpu_metal.Backend.depth.read_into"Ogpu.Error.Unsupported"depth textures are not host readable"else if offset<>0L||destination_offset<>0||length<>Bytes.length destination||descriptor.height<=0||length mod descriptor.height<>0 then error"Ogpu_metal.Backend.texture.read_into"Ogpu.Error.Invalid_argument"destination must exactly match the texture read range"else Texture.read_bytes_into device texture~mip_level:0~bytes_per_row:(length/descriptor.height)~destination in Ok{Ogpu.Backend.token=id;write=(fun _ _->error"Ogpu_metal.Backend.texture.write"Ogpu.Error.Unsupported"use a transfer pass for textures");read;read_into;destroy=(fun()->invalidate_resource id;match Texture.destroy texture with Error _ as e->e|Ok()->Hashtbl.remove c.resources id;Ok())}in
+    let create_buffer descriptor=match Buffer.create device~memory:Buffer.Shared descriptor with Error _ as e->e|Ok buffer->let id=token c in Hashtbl.add c.resources id(Buffer buffer);let read offset length=Buffer.read_bytes device buffer~offset~length in Ok{Ogpu_core.Backend.token=id;write=(fun offset bytes->Buffer.write_bytes device buffer~dst_offset:offset bytes);read;read_into=(fun offset destination destination_offset length->match read offset length with Error _ as e->e|Ok bytes->if destination_offset<0||length>Bytes.length destination-destination_offset then error"Ogpu_metal.Backend.buffer.read_into"Ogpu_core.Error.Invalid_argument"destination range is invalid"else(Bytes.blit bytes 0 destination destination_offset length;Ok()));destroy=(fun()->invalidate_resource id;match Buffer.destroy buffer with Error _ as e->e|Ok()->Hashtbl.remove c.resources id;Ok())}in
+    let create_texture_format ~format ~host_read descriptor=match Texture.create device~memory:(if descriptor.Ogpu_core.Types.sample_count=1&&host_read then Texture.Shared else Device_local)~format descriptor with Error _ as e->e|Ok texture->let id=token c in Hashtbl.add c.resources id(Texture texture);let read offset length=if not host_read then error"Ogpu_metal.Backend.depth.read"Ogpu_core.Error.Unsupported"depth textures are not host readable"else if offset<>0L||descriptor.height<=0||length mod descriptor.height<>0 then error"Ogpu_metal.Backend.texture.read"Ogpu_core.Error.Invalid_argument"texture read range is invalid"else Texture.read_bytes device texture~mip_level:0~bytes_per_row:(length/descriptor.height)in let read_into offset destination destination_offset length=if not host_read then error"Ogpu_metal.Backend.depth.read_into"Ogpu_core.Error.Unsupported"depth textures are not host readable"else if offset<>0L||destination_offset<>0||length<>Bytes.length destination||descriptor.height<=0||length mod descriptor.height<>0 then error"Ogpu_metal.Backend.texture.read_into"Ogpu_core.Error.Invalid_argument"destination must exactly match the texture read range"else Texture.read_bytes_into device texture~mip_level:0~bytes_per_row:(length/descriptor.height)~destination in Ok{Ogpu_core.Backend.token=id;write=(fun _ _->error"Ogpu_metal.Backend.texture.write"Ogpu_core.Error.Unsupported"use a transfer pass for textures");read;read_into;destroy=(fun()->invalidate_resource id;match Texture.destroy texture with Error _ as e->e|Ok()->Hashtbl.remove c.resources id;Ok())}in
     let create_texture descriptor=create_texture_format~format:Texture.Rgba8_unorm~host_read:true descriptor in
     let create_depth_texture descriptor=create_texture_format~format:Texture.Depth32_float~host_read:false descriptor in
     let create_stencil_texture descriptor=create_texture_format~format:Texture.Stencil8~host_read:false descriptor in
@@ -388,7 +388,7 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
         c.plan_cache;
       Hashtbl.filter_map_inplace(fun _ sampler->match Sampler.destroy sampler with Ok()->None|Error _->Some sampler)c.sampler_cache
     in
-    let create_pipeline portable=match Hashtbl.find_opt c.pipelines(Ogpu.Pipeline.cache_key portable)with None->error"Ogpu_metal.Backend.create_pipeline"Ogpu.Error.Invalid_argument"portable pipeline was not registered with the Metal adapter"|Some pipeline->let id=token c in Hashtbl.add c.pipeline_tokens id pipeline;Ok{Ogpu.Backend.pipeline_token=id;destroy_pipeline=(fun()->invalidate_pipeline(Pipeline.key pipeline)id;match Pipeline.destroy pipeline with Error _ as e->e|Ok()->Hashtbl.remove c.pipeline_tokens id;Ok())}in
+    let create_pipeline portable=match Hashtbl.find_opt c.pipelines(Ogpu_core.Pipeline.cache_key portable)with None->error"Ogpu_metal.Backend.create_pipeline"Ogpu_core.Error.Invalid_argument"portable pipeline was not registered with the Metal adapter"|Some pipeline->let id=token c in Hashtbl.add c.pipeline_tokens id pipeline;Ok{Ogpu_core.Backend.pipeline_token=id;destroy_pipeline=(fun()->invalidate_pipeline(Pipeline.key pipeline)id;match Pipeline.destroy pipeline with Error _ as e->e|Ok()->Hashtbl.remove c.pipeline_tokens id;Ok())}in
     let native_resource token=Hashtbl.find_opt c.resources token in
     let create_queue()=match Queue.create device with Error _ as e->e|Ok queue->let queue_token=token c in
       (* A prepared Scene_execution command is immutable and may be submitted
@@ -600,16 +600,16 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
         |[],[]->true|left::lefts,right::rights->Int64.equal left right&&
           same_pipelines lefts rights|_->false in
       let attachment_ids submission=
-        let descriptor=Ogpu.Render_pass.descriptor
-            (Ogpu.Render_pass.submission_pass submission)in
+        let descriptor=Ogpu_core.Render_pass.descriptor
+            (Ogpu_core.Render_pass.submission_pass submission)in
         let reversed=ref[]in
-        Array.iter(function None->()|Some(color:Ogpu.Render_pass.color)->
+        Array.iter(function None->()|Some(color:Ogpu_core.Render_pass.color)->
           reversed:=color.texture.id::!reversed;
-          Option.iter(fun(texture:Ogpu.Render_pass.texture)->
+          Option.iter(fun(texture:Ogpu_core.Render_pass.texture)->
             reversed:=texture.id::!reversed)color.resolve)descriptor.colors;
-        Option.iter(fun(depth:Ogpu.Render_pass.depth)->
+        Option.iter(fun(depth:Ogpu_core.Render_pass.depth)->
           reversed:=depth.texture.id::!reversed)descriptor.depth;
-        Option.iter(fun(stencil:Ogpu.Render_pass.stencil)->
+        Option.iter(fun(stencil:Ogpu_core.Render_pass.stencil)->
           reversed:=stencil.texture.id::!reversed)descriptor.stencil;
         Array.of_list(List.rev!reversed)in
       let resolve_attachment_tokens ids resources=
@@ -624,24 +624,24 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
         Array.length ids=Array.length tokens&&loop 0 in
       let unused_presentation _=assert false in
       let submit_with ~presenting presentation command ~resources ~pipelines=
-        let command_view=Ogpu.Backend.Private.command_view command in
+        let command_view=Ogpu_core.Backend.Private.command_view command in
         match command_view with
-        |(Ogpu.Backend.Private.Transfer _|Compute _)when presenting->error"Ogpu_metal.Backend.submit_present"Ogpu.Error.Unsupported"combined presentation requires a render command"
-        |Render submission when presenting&&Render_pass.Private.portable_requires_command4(Ogpu.Render_pass.submission_pass submission)->error"Ogpu_metal.Backend.submit_present"Ogpu.Error.Unsupported"combined presentation requires a classic render pass"
+        |(Ogpu_core.Backend.Private.Transfer _|Compute _)when presenting->error"Ogpu_metal.Backend.submit_present"Ogpu_core.Error.Unsupported"combined presentation requires a render command"
+        |Render submission when presenting&&Render_pass.Private.portable_requires_command4(Ogpu_core.Render_pass.submission_pass submission)->error"Ogpu_metal.Backend.submit_present"Ogpu_core.Error.Unsupported"combined presentation requires a classic render pass"
         |_->let find id=Option.bind(List.assoc_opt id resources)native_resource in
         let one_pipeline()=match pipelines with[id]->Hashtbl.find_opt c.pipeline_tokens id|_->None in
-        let native_render_descriptor (descriptor:Ogpu.Render_pass.descriptor)=
-          let fact usage (value:Ogpu.Render_pass.texture)=match find value.id with Some(Texture texture)->Render_pass.attachment device texture~usage|_->error"Ogpu_metal.Backend.render"Ogpu.Error.Invalid_argument"render attachment graph is incomplete"in
-          let colors=Array.map(function None->Ok None|Some(color:Ogpu.Render_pass.color)->match fact Render_target color.texture with Error _ as e->e|Ok texture->(match color.resolve with None->Ok(Some{color with texture})|Some resolve->Result.map(fun resolve->Some{color with texture;resolve=Some resolve})(fact Resolve_target resolve)))descriptor.colors in
-          if Array.exists Result.is_error colors then Array.find_opt Result.is_error colors|>Option.get|>Result.map(fun _->assert false)else let depth=match descriptor.depth with None->Ok None|Some(d:Ogpu.Render_pass.depth)->Result.map(fun texture->Some{d with texture})(fact Render_target d.texture)and stencil=match descriptor.stencil with None->Ok None|Some(s:Ogpu.Render_pass.stencil)->Result.map(fun texture->Some{s with texture})(fact Render_target s.texture)in match depth,stencil with Error e,_->Error e|_,Error e->Error e|Ok depth,Ok stencil->Ok{descriptor with colors=Array.map Result.get_ok colors;depth;stencil}in
+        let native_render_descriptor (descriptor:Ogpu_core.Render_pass.descriptor)=
+          let fact usage (value:Ogpu_core.Render_pass.texture)=match find value.id with Some(Texture texture)->Render_pass.attachment device texture~usage|_->error"Ogpu_metal.Backend.render"Ogpu_core.Error.Invalid_argument"render attachment graph is incomplete"in
+          let colors=Array.map(function None->Ok None|Some(color:Ogpu_core.Render_pass.color)->match fact Render_target color.texture with Error _ as e->e|Ok texture->(match color.resolve with None->Ok(Some{color with texture})|Some resolve->Result.map(fun resolve->Some{color with texture;resolve=Some resolve})(fact Resolve_target resolve)))descriptor.colors in
+          if Array.exists Result.is_error colors then Array.find_opt Result.is_error colors|>Option.get|>Result.map(fun _->assert false)else let depth=match descriptor.depth with None->Ok None|Some(d:Ogpu_core.Render_pass.depth)->Result.map(fun texture->Some{d with texture})(fact Render_target d.texture)and stencil=match descriptor.stencil with None->Ok None|Some(s:Ogpu_core.Render_pass.stencil)->Result.map(fun texture->Some{s with texture})(fact Render_target s.texture)in match depth,stencil with Error e,_->Error e|_,Error e->Error e|Ok depth,Ok stencil->Ok{descriptor with colors=Array.map Result.get_ok colors;depth;stencil}in
         let result=match command_view with
-        |Ogpu.Backend.Private.Transfer descriptions->let pass=Ogpu.Transfer_pass.create(Device.Private.handle device)in let b id=match find id with Some(Buffer x)->Ok x|_->error"Ogpu_metal.Backend.transfer"Ogpu.Error.Invalid_argument"buffer graph is incomplete"and t id=match find id with Some(Texture x)->Ok x|_->error"Ogpu_metal.Backend.transfer"Ogpu.Error.Invalid_argument"texture graph is incomplete"in let rec replay i=if i=Array.length descriptions then match Transfer_pass.create device pass~buffers:(List.filter_map(fun(_,tok)->match native_resource tok with Some(Buffer x)->Some x|_->None)resources)~textures:(List.filter_map(fun(_,tok)->match native_resource tok with Some(Texture x)->Some x|_->None)resources)with Error _ as e->e|Ok encoded->Queue.submit_transfer_pass queue encoded else let next=match descriptions.(i)with
-          |Ogpu.Transfer_pass.Copy_buffer(a,ao,d,do_,n)->(match b a,b d with Ok a,Ok d->Ogpu.Transfer_pass.copy_buffer pass~src:(Result.get_ok(Transfer_pass.buffer device a))~src_offset:ao~dst:(Result.get_ok(Transfer_pass.buffer device d))~dst_offset:do_~length:n|Error e,_->Error e|_,Error e->Error e)
-          |Fill_buffer(a,o,n,v)->(match b a with Error _ as e->e|Ok a->Ogpu.Transfer_pass.fill_buffer pass(Result.get_ok(Transfer_pass.buffer device a))~offset:o~length:n~value:v)
-          |Buffer_to_texture(a,o,row,image,d,mip,origin,extent)->(match b a,t d with Ok a,Ok d->Ogpu.Transfer_pass.buffer_to_texture pass~src:(Result.get_ok(Transfer_pass.buffer device a))~offset:o~bytes_per_row:row~bytes_per_image:image~dst:(Result.get_ok(Transfer_pass.texture device d))~mip~origin~extent|Error e,_->Error e|_,Error e->Error e)
-          |Texture_to_buffer(a,mip,origin,extent,d,o,row,image)->(match t a,b d with Ok a,Ok d->Ogpu.Transfer_pass.texture_to_buffer pass~src:(Result.get_ok(Transfer_pass.texture device a))~mip~origin~extent~dst:(Result.get_ok(Transfer_pass.buffer device d))~offset:o~bytes_per_row:row~bytes_per_image:image|Error e,_->Error e|_,Error e->Error e)
-          |Copy_texture(a,am,ao,d,dm,do_,extent)->(match t a,t d with Ok a,Ok d->Ogpu.Transfer_pass.copy_texture pass~src:(Result.get_ok(Transfer_pass.texture device a))~src_mip:am~src_origin:ao~dst:(Result.get_ok(Transfer_pass.texture device d))~dst_mip:dm~dst_origin:do_~extent|Error e,_->Error e|_,Error e->Error e)in match next with Error _ as e->e|Ok()->replay(i+1)in replay 0
-        |Compute description->(match one_pipeline()with None->error"Ogpu_metal.Backend.compute"Ogpu.Error.Invalid_argument"compute pipeline graph is incomplete"|Some pipeline->let slots=Array.to_list description.groups|>List.concat_map(fun(_,xs)->xs)|>List.map fst and ids=Array.to_list description.commands|>List.filter_map(function Ogpu.Command.Declare_resource r->Some r.resource_id|_->None)in if List.length slots<>List.length ids then error"Ogpu_metal.Backend.compute"Ogpu.Error.Invalid_argument"binding/resource cardinality differs"else let native_id id=match find id with Some(Buffer buffer)->Buffer.id buffer|_->id in let bindings=List.map2(fun index id->match find id with Some(Buffer buffer)->Ok{Compute_pass.id=Buffer.id buffer;index;buffer}|_->error"Ogpu_metal.Backend.compute"Ogpu.Error.Invalid_argument"compute buffer graph is incomplete")slots ids in if List.exists Result.is_error bindings then List.find Result.is_error bindings|>Result.map(fun _->assert false)else let description=Ogpu.Compute_pass.Private.map_resource_ids native_id description in match Compute_pass.create device(Ogpu.Compute_pass.Private.of_description description)~pipeline~bindings:(List.map Result.get_ok bindings)with Error _ as e->e|Ok encoded->Queue.submit_compute_pass queue encoded)
+        |Ogpu_core.Backend.Private.Transfer descriptions->let pass=Ogpu_core.Transfer_pass.create(Device.Private.handle device)in let b id=match find id with Some(Buffer x)->Ok x|_->error"Ogpu_metal.Backend.transfer"Ogpu_core.Error.Invalid_argument"buffer graph is incomplete"and t id=match find id with Some(Texture x)->Ok x|_->error"Ogpu_metal.Backend.transfer"Ogpu_core.Error.Invalid_argument"texture graph is incomplete"in let rec replay i=if i=Array.length descriptions then match Transfer_pass.create device pass~buffers:(List.filter_map(fun(_,tok)->match native_resource tok with Some(Buffer x)->Some x|_->None)resources)~textures:(List.filter_map(fun(_,tok)->match native_resource tok with Some(Texture x)->Some x|_->None)resources)with Error _ as e->e|Ok encoded->Queue.submit_transfer_pass queue encoded else let next=match descriptions.(i)with
+          |Ogpu_core.Transfer_pass.Copy_buffer(a,ao,d,do_,n)->(match b a,b d with Ok a,Ok d->Ogpu_core.Transfer_pass.copy_buffer pass~src:(Result.get_ok(Transfer_pass.buffer device a))~src_offset:ao~dst:(Result.get_ok(Transfer_pass.buffer device d))~dst_offset:do_~length:n|Error e,_->Error e|_,Error e->Error e)
+          |Fill_buffer(a,o,n,v)->(match b a with Error _ as e->e|Ok a->Ogpu_core.Transfer_pass.fill_buffer pass(Result.get_ok(Transfer_pass.buffer device a))~offset:o~length:n~value:v)
+          |Buffer_to_texture(a,o,row,image,d,mip,origin,extent)->(match b a,t d with Ok a,Ok d->Ogpu_core.Transfer_pass.buffer_to_texture pass~src:(Result.get_ok(Transfer_pass.buffer device a))~offset:o~bytes_per_row:row~bytes_per_image:image~dst:(Result.get_ok(Transfer_pass.texture device d))~mip~origin~extent|Error e,_->Error e|_,Error e->Error e)
+          |Texture_to_buffer(a,mip,origin,extent,d,o,row,image)->(match t a,b d with Ok a,Ok d->Ogpu_core.Transfer_pass.texture_to_buffer pass~src:(Result.get_ok(Transfer_pass.texture device a))~mip~origin~extent~dst:(Result.get_ok(Transfer_pass.buffer device d))~offset:o~bytes_per_row:row~bytes_per_image:image|Error e,_->Error e|_,Error e->Error e)
+          |Copy_texture(a,am,ao,d,dm,do_,extent)->(match t a,t d with Ok a,Ok d->Ogpu_core.Transfer_pass.copy_texture pass~src:(Result.get_ok(Transfer_pass.texture device a))~src_mip:am~src_origin:ao~dst:(Result.get_ok(Transfer_pass.texture device d))~dst_mip:dm~dst_origin:do_~extent|Error e,_->Error e|_,Error e->Error e)in match next with Error _ as e->e|Ok()->replay(i+1)in replay 0
+        |Compute description->(match one_pipeline()with None->error"Ogpu_metal.Backend.compute"Ogpu_core.Error.Invalid_argument"compute pipeline graph is incomplete"|Some pipeline->let slots=Array.to_list description.groups|>List.concat_map(fun(_,xs)->xs)|>List.map fst and ids=Array.to_list description.commands|>List.filter_map(function Ogpu_core.Command.Declare_resource r->Some r.resource_id|_->None)in if List.length slots<>List.length ids then error"Ogpu_metal.Backend.compute"Ogpu_core.Error.Invalid_argument"binding/resource cardinality differs"else let native_id id=match find id with Some(Buffer buffer)->Buffer.id buffer|_->id in let bindings=List.map2(fun index id->match find id with Some(Buffer buffer)->Ok{Compute_pass.id=Buffer.id buffer;index;buffer}|_->error"Ogpu_metal.Backend.compute"Ogpu_core.Error.Invalid_argument"compute buffer graph is incomplete")slots ids in if List.exists Result.is_error bindings then List.find Result.is_error bindings|>Result.map(fun _->assert false)else let description=Ogpu_core.Compute_pass.Private.map_resource_ids native_id description in match Compute_pass.create device(Ogpu_core.Compute_pass.Private.of_description description)~pipeline~bindings:(List.map Result.get_ok bindings)with Error _ as e->e|Ok encoded->Queue.submit_compute_pass queue encoded)
         |Render submission->
           let cached_classic=
             List.find_opt(fun entry->not entry.classic_retired&&
@@ -674,7 +674,7 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
               let owner=Hashtbl.find c.plan_owners key in
               if not(dependencies_live owner.dependencies resources)then begin
                 drop_retained_replays(fun entry->entry.replay_key<>key);
-                error"Ogpu_metal.Backend.render"Ogpu.Error.Stale_handle
+                error"Ogpu_metal.Backend.render"Ogpu_core.Error.Stale_handle
                   "retained render dependencies changed without invalidation"
               end else if same_attachment_tokens attachment_ids
                   attachment_tokens resources then
@@ -689,15 +689,15 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
               else
               let replace_cached=
                 replay.replay_epoch<=Queue.completed_epoch queue in
-              let descriptor=Ogpu.Render_pass.descriptor
-                  (Ogpu.Render_pass.submission_pass submission) in
-              let portable_pass=Ogpu.Render_pass.submission_pass submission in
+              let descriptor=Ogpu_core.Render_pass.descriptor
+                  (Ogpu_core.Render_pass.submission_pass submission) in
+              let portable_pass=Ogpu_core.Render_pass.submission_pass submission in
               let attachments=resources|>List.filter_map(fun(_,tok)->
                 match native_resource tok with Some(Texture x)->Some x|_->None)in
               (match native_render_descriptor descriptor with Error _ as e->e
-              |Ok descriptor->match Ogpu.Render_pass.create
-                  ~raster_state:(Ogpu.Render_pass.raster_state portable_pass)
-                  ?stencil_state:(Ogpu.Render_pass.stencil_state portable_pass)
+              |Ok descriptor->match Ogpu_core.Render_pass.create
+                  ~raster_state:(Ogpu_core.Render_pass.raster_state portable_pass)
+                  ?stencil_state:(Ogpu_core.Render_pass.stencil_state portable_pass)
                   (Device.Private.handle device)descriptor with Error _ as e->e
               |Ok pass->match Render_pass.create_empty device pass~attachments with
               |Error _ as e->e
@@ -743,19 +743,19 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
                       c.plan_executions<-Int64.succ c.plan_executions;
                       Ok receipt))
           |None->
-          let sampler_binding(s:Ogpu.Render_pass.sampler_binding)=match Hashtbl.find_opt c.sampler_cache s.sampler with Some sampler->Ok{Render_pass.stage=(match s.stage with Ogpu.Command.Vertex->Render_pass.Vertex|Fragment->Fragment|_->assert false);index=s.index;sampler}|None->(if Hashtbl.length c.sampler_cache>=64 then compact_sampler_cache();if Hashtbl.length c.sampler_cache>=64 then error"Ogpu_metal.Backend.sampler"Ogpu.Error.Invalid_state"all bounded sampler entries are referenced by in-flight retained plans"else match Sampler.create device s.sampler with Error _ as e->e|Ok sampler->Hashtbl.add c.sampler_cache s.sampler sampler;Ok{Render_pass.stage=(match s.stage with Ogpu.Command.Vertex->Render_pass.Vertex|Fragment->Fragment|_->assert false);index=s.index;sampler})in
+          let sampler_binding(s:Ogpu_core.Render_pass.sampler_binding)=match Hashtbl.find_opt c.sampler_cache s.sampler with Some sampler->Ok{Render_pass.stage=(match s.stage with Ogpu_core.Command.Vertex->Render_pass.Vertex|Fragment->Fragment|_->assert false);index=s.index;sampler}|None->(if Hashtbl.length c.sampler_cache>=64 then compact_sampler_cache();if Hashtbl.length c.sampler_cache>=64 then error"Ogpu_metal.Backend.sampler"Ogpu_core.Error.Invalid_state"all bounded sampler entries are referenced by in-flight retained plans"else match Sampler.create device s.sampler with Error _ as e->e|Ok sampler->Hashtbl.add c.sampler_cache s.sampler sampler;Ok{Render_pass.stage=(match s.stage with Ogpu_core.Command.Vertex->Render_pass.Vertex|Fragment->Fragment|_->assert false);index=s.index;sampler})in
           let pipeline_by_key key=pipelines|>List.find_map(fun id->match Hashtbl.find_opt c.pipeline_tokens id with Some p when Pipeline.key p=key->Some p|_->None)in
-          let convert(portable_draw:Ogpu.Render_pass.draw)=
-            match pipeline_by_key portable_draw.pipeline_key with None->error"Ogpu_metal.Backend.render"Ogpu.Error.Invalid_argument"render pipeline graph is incomplete"|Some pipeline->
-            let buffer_binding(b:Ogpu.Render_pass.buffer_binding)=match find b.buffer_id with Some(Buffer buffer)->Ok{Render_pass.stage=(match b.stage with Ogpu.Command.Vertex->Render_pass.Vertex|Fragment->Fragment|_->assert false);index=b.index;buffer;offset=b.offset}|_->error"Ogpu_metal.Backend.render"Ogpu.Error.Invalid_argument"render buffer graph is incomplete"and texture_binding(t:Ogpu.Render_pass.texture_binding)=match find t.texture_id with Some(Texture texture)->Ok{Render_pass.stage=(match t.stage with Ogpu.Command.Vertex->Render_pass.Vertex|Fragment->Fragment|_->assert false);index=t.index;texture}|_->error"Ogpu_metal.Backend.render"Ogpu.Error.Invalid_argument"render texture graph is incomplete"in
+          let convert(portable_draw:Ogpu_core.Render_pass.draw)=
+            match pipeline_by_key portable_draw.pipeline_key with None->error"Ogpu_metal.Backend.render"Ogpu_core.Error.Invalid_argument"render pipeline graph is incomplete"|Some pipeline->
+            let buffer_binding(b:Ogpu_core.Render_pass.buffer_binding)=match find b.buffer_id with Some(Buffer buffer)->Ok{Render_pass.stage=(match b.stage with Ogpu_core.Command.Vertex->Render_pass.Vertex|Fragment->Fragment|_->assert false);index=b.index;buffer;offset=b.offset}|_->error"Ogpu_metal.Backend.render"Ogpu_core.Error.Invalid_argument"render buffer graph is incomplete"and texture_binding(t:Ogpu_core.Render_pass.texture_binding)=match find t.texture_id with Some(Texture texture)->Ok{Render_pass.stage=(match t.stage with Ogpu_core.Command.Vertex->Render_pass.Vertex|Fragment->Fragment|_->assert false);index=t.index;texture}|_->error"Ogpu_metal.Backend.render"Ogpu_core.Error.Invalid_argument"render texture graph is incomplete"in
             let buffers=List.map buffer_binding portable_draw.buffers and textures=List.map texture_binding portable_draw.textures and samplers=List.map sampler_binding portable_draw.samplers in
-            if List.exists Result.is_error buffers||List.exists Result.is_error textures||List.exists Result.is_error samplers then error"Ogpu_metal.Backend.render"Ogpu.Error.Invalid_argument"render binding graph is invalid"else
-            let index=match portable_draw.index with None->Ok None|Some(kind,id,offset,count)->match find id with Some(Buffer buffer)->Ok(Some((match kind with Ogpu.Render_pass.Uint16->Render_pass.Uint16|Uint32->Uint32),buffer,offset,Int64.of_int count))|_->error"Ogpu_metal.Backend.render"Ogpu.Error.Invalid_argument"render index graph is incomplete"in
-            Result.map(fun index->{Render_pass.pipeline;buffers=List.map Result.get_ok buffers;textures=List.map Result.get_ok textures;samplers=List.map Result.get_ok samplers;primitive=(match portable_draw.primitive with Ogpu.Render_pass.Point_list->Render_pass.Point_list|Line_list->Line_list|Triangle_list->Triangle_list|Triangle_strip->Triangle_strip);vertex_start=portable_draw.vertex_start;vertex_count=portable_draw.vertex_count;instance_count=portable_draw.instance_count;index})index in
-          let draws=List.map convert(Ogpu.Render_pass.submission_draws submission)in
+            if List.exists Result.is_error buffers||List.exists Result.is_error textures||List.exists Result.is_error samplers then error"Ogpu_metal.Backend.render"Ogpu_core.Error.Invalid_argument"render binding graph is invalid"else
+            let index=match portable_draw.index with None->Ok None|Some(kind,id,offset,count)->match find id with Some(Buffer buffer)->Ok(Some((match kind with Ogpu_core.Render_pass.Uint16->Render_pass.Uint16|Uint32->Uint32),buffer,offset,Int64.of_int count))|_->error"Ogpu_metal.Backend.render"Ogpu_core.Error.Invalid_argument"render index graph is incomplete"in
+            Result.map(fun index->{Render_pass.pipeline;buffers=List.map Result.get_ok buffers;textures=List.map Result.get_ok textures;samplers=List.map Result.get_ok samplers;primitive=(match portable_draw.primitive with Ogpu_core.Render_pass.Point_list->Render_pass.Point_list|Line_list->Line_list|Triangle_list->Triangle_list|Triangle_strip->Triangle_strip);vertex_start=portable_draw.vertex_start;vertex_count=portable_draw.vertex_count;instance_count=portable_draw.instance_count;index})index in
+          let draws=List.map convert(Ogpu_core.Render_pass.submission_draws submission)in
           if List.exists Result.is_error draws then(List.find Result.is_error draws|>Result.map(fun _->assert false))else
-          let descriptor=Ogpu.Render_pass.descriptor(Ogpu.Render_pass.submission_pass submission)and attachments=resources|>List.filter_map(fun(_,tok)->match native_resource tok with Some(Texture x)->Some x|_->None)in
-          let portable_pass=Ogpu.Render_pass.submission_pass submission in
+          let descriptor=Ogpu_core.Render_pass.descriptor(Ogpu_core.Render_pass.submission_pass submission)and attachments=resources|>List.filter_map(fun(_,tok)->match native_resource tok with Some(Texture x)->Some x|_->None)in
+          let portable_pass=Ogpu_core.Render_pass.submission_pass submission in
           let native_draws=List.map Result.get_ok draws in
           let argument_pipeline(draw:Render_pass.draw)=Option.is_some(Pipeline.Private.argument_function draw.pipeline)in
           let exact_argument_abi(draw:Render_pass.draw)=
@@ -767,8 +767,8 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
             |_->false in
           let maybe_indirect encoded=
             let eligible draw=retained_plans_enabled&&draw.Render_pass.instance_count=1&&exact_argument_abi draw in
-            match c.plan_cache with None when List.exists argument_pipeline native_draws->error"Ogpu_metal.Backend.render"Ogpu.Error.Unsupported"retained plan cache is unavailable"|None->Ok(encoded,None,None,`None,None)|Some _ when native_draws=[]||not(List.for_all eligible native_draws)->Ok(encoded,None,None,`None,None)|Some cache->
-            let portable_draws=Ogpu.Render_pass.submission_draws submission in
+            match c.plan_cache with None when List.exists argument_pipeline native_draws->error"Ogpu_metal.Backend.render"Ogpu_core.Error.Unsupported"retained plan cache is unavailable"|None->Ok(encoded,None,None,`None,None)|Some _ when native_draws=[]||not(List.for_all eligible native_draws)->Ok(encoded,None,None,`None,None)|Some cache->
+            let portable_draws=Ogpu_core.Render_pass.submission_draws submission in
             let pending_identity=ref None in
             let key,generation=
               match List.find_opt(fun entry->
@@ -791,10 +791,10 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
             let made=ref None in
             let icb_descriptor=Metal.Indirect_command_buffer.descriptor~inherit_buffers:false~inherit_pipeline_state:false~max_vertex_buffer_bind_count:7~max_fragment_buffer_bind_count:2~command_types:[Metal.Indirect_command_buffer.Indirect_draw]()in
             let retained_resource_ids=
-              Ogpu.Render_pass.submission_draws submission
-              |>List.concat_map(fun(draw:Ogpu.Render_pass.draw)->
-                List.map(fun(binding:Ogpu.Render_pass.buffer_binding)->binding.buffer_id)draw.buffers@
-                List.map(fun(binding:Ogpu.Render_pass.texture_binding)->binding.texture_id)draw.textures@
+              Ogpu_core.Render_pass.submission_draws submission
+              |>List.concat_map(fun(draw:Ogpu_core.Render_pass.draw)->
+                List.map(fun(binding:Ogpu_core.Render_pass.buffer_binding)->binding.buffer_id)draw.buffers@
+                List.map(fun(binding:Ogpu_core.Render_pass.texture_binding)->binding.texture_id)draw.textures@
                 Option.fold~none:[]~some:(fun(_,id,_,_)->[id])draw.index)
               |>List.sort_uniq Int64.compare in
             let dependencies=resources|>List.filter_map(fun(id,token)->
@@ -900,7 +900,7 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
                   if bytes>c.owner_byte_capacity then begin
                     destroy_prepared_encoders();
                     error"Ogpu_metal.Backend.render_plan_owner"
-                      Ogpu.Error.Invalid_argument
+                      Ogpu_core.Error.Invalid_argument
                       "retained plan owner exceeds its byte capacity"
                   end else Ok(Some prepared)in
             match prepared with
@@ -952,9 +952,9 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
               match List.find_opt(fun oldest->oldest<>key&&
                   Hashtbl.mem c.plan_owners oldest)c.plan_owner_order with
               |None->
-                  record_ogpu_cleanup(Ogpu.Error.make
+                  record_ogpu_cleanup(Ogpu_core.Error.make
                     "Ogpu_metal.Backend.render_plan_owner"
-                    Ogpu.Error.Invalid_state
+                    Ogpu_core.Error.Invalid_state
                     "retained plan owner order cannot satisfy its byte capacity");
                   false
               |Some oldest->
@@ -963,7 +963,7 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
                    |Error error->record_cleanup(Some error);false)in
             make_room()in
           let has_argument=List.exists argument_pipeline native_draws in
-          let rendered=if has_argument&&not(List.for_all exact_argument_abi native_draws)then error"Ogpu_metal.Backend.render"Ogpu.Error.Invalid_argument"argument-buffer render batch has mixed or noncanonical bindings"else if has_argument&&not retained_plans_enabled then error"Ogpu_metal.Backend.render"Ogpu.Error.Unsupported"argument-buffer rendering requires retained ICB support"else match native_render_descriptor descriptor with Error _ as e->e|Ok descriptor->match Ogpu.Render_pass.create~raster_state:(Ogpu.Render_pass.raster_state portable_pass)?stencil_state:(Ogpu.Render_pass.stencil_state portable_pass)(Device.Private.handle device)descriptor with Error _ as e->e|Ok pass->match (if native_draws=[]then Render_pass.create_empty device pass~attachments else Render_pass.create_batch device pass~attachments native_draws)with Error _ as e->e|Ok encoded->match maybe_indirect encoded with Error _ as e->ignore(Render_pass.Private.destroy encoded);e|Ok(encoded,key,icb,plan_state,pending_identity)->let classic_bytes=classic_entry_bytes command encoded resources pipelines in let retain_classic=Option.is_none key&&classic_bytes<=c.classic_byte_capacity&&List.length!classic_submissions<classic_submission_capacity&& !classic_retained_bytes<=Int64.sub c.classic_byte_capacity classic_bytes in let pending_classic,pending_replay,encoding_persistent=match key,icb with
+          let rendered=if has_argument&&not(List.for_all exact_argument_abi native_draws)then error"Ogpu_metal.Backend.render"Ogpu_core.Error.Invalid_argument"argument-buffer render batch has mixed or noncanonical bindings"else if has_argument&&not retained_plans_enabled then error"Ogpu_metal.Backend.render"Ogpu_core.Error.Unsupported"argument-buffer rendering requires retained ICB support"else match native_render_descriptor descriptor with Error _ as e->e|Ok descriptor->match Ogpu_core.Render_pass.create~raster_state:(Ogpu_core.Render_pass.raster_state portable_pass)?stencil_state:(Ogpu_core.Render_pass.stencil_state portable_pass)(Device.Private.handle device)descriptor with Error _ as e->e|Ok pass->match (if native_draws=[]then Render_pass.create_empty device pass~attachments else Render_pass.create_batch device pass~attachments native_draws)with Error _ as e->e|Ok encoded->match maybe_indirect encoded with Error _ as e->ignore(Render_pass.Private.destroy encoded);e|Ok(encoded,key,icb,plan_state,pending_identity)->let classic_bytes=classic_entry_bytes command encoded resources pipelines in let retain_classic=Option.is_none key&&classic_bytes<=c.classic_byte_capacity&&List.length!classic_submissions<classic_submission_capacity&& !classic_retained_bytes<=Int64.sub c.classic_byte_capacity classic_bytes in let pending_classic,pending_replay,encoding_persistent=match key,icb with
             |None,_ when retain_classic->
                 Render_pass.Private.retain_encoding encoded;
                 Some{classic_command=command;classic_resources=resources;
@@ -1084,7 +1084,7 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
                     pending_identity
               end;
               Ok receipt in rendered)) in
-        Result.map(fun(receipt:Queue.receipt)->{Ogpu.Backend.epoch=receipt.epoch})result in
+        Result.map(fun(receipt:Queue.receipt)->{Ogpu_core.Backend.epoch=receipt.epoch})result in
       let submit command ~resources ~pipelines=submit_with~presenting:false
         unused_presentation command~resources~pipelines in
       let submit_combined presentation command ~resources ~pipelines=
@@ -1118,11 +1118,11 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
               |None->complete_through receipt.epoch in
             let completion=if Queue.completed_epoch queue>=receipt.epoch then
                 commit_completed_epoch receipt.epoch completion else completion in
-            Ok{Ogpu.Backend.receipt;completion}in
+            Ok{Ogpu_core.Backend.receipt;completion}in
       let destroy_queue()=
         if not(Array.for_all Surface.Private.pending_presentation_available
           active.presentations)then
-          error"Ogpu_metal.Backend.destroy_queue"Ogpu.Error.Invalid_state
+          error"Ogpu_metal.Backend.destroy_queue"Ogpu_core.Error.Invalid_state
             "queue has presentations in flight"
         else match Queue.destroy queue with Error _ as e->e|Ok()->
           Hashtbl.replace c.completed_epochs queue_token
@@ -1145,29 +1145,29 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
           Hashtbl.remove c.active_queues queue_token;
           Hashtbl.remove c.completed_epochs queue_token;
           (match take_cleanup_error()with None->Ok()|Some error->Error error)in
-      Ok{Ogpu.Backend.queue_token;submit;submit_sync;complete_through;destroy_queue}in
+      Ok{Ogpu_core.Backend.queue_token;submit;submit_sync;complete_through;destroy_queue}in
     let create_surface configuration=
       match c.layer with
-      |None->error"Ogpu_metal.Backend.create_surface"Ogpu.Error.Unsupported"adapter was created without a typed Metal layer"
+      |None->error"Ogpu_metal.Backend.create_surface"Ogpu_core.Error.Unsupported"adapter was created without a typed Metal layer"
       |Some layer->match Surface.create device~layer configuration with Error _ as e->e|Ok surface->
         let surface_token=token c and frames=Hashtbl.create 4 in
-        let acquire_with acquire=match acquire surface with Error _ as e->e|Ok Surface.Timeout->Ok`Timeout|Ok Occluded->Ok`Occluded|Ok Device_lost->Ok`Device_lost|Ok(Acquired frame)->let frame_token=Surface.frame_id frame in Hashtbl.add frames frame_token frame;Ok(`Acquired{Ogpu.Backend.frame_token})in
+        let acquire_with acquire=match acquire surface with Error _ as e->e|Ok Surface.Timeout->Ok`Timeout|Ok Occluded->Ok`Occluded|Ok Device_lost->Ok`Device_lost|Ok(Acquired frame)->let frame_token=Surface.frame_id frame in Hashtbl.add frames frame_token frame;Ok(`Acquired{Ogpu_core.Backend.frame_token})in
         let acquire()=acquire_with Surface.acquire
         and acquire_sync()=acquire_with Surface.Private.acquire_scoped in
-        let take f frame=match Hashtbl.find_opt frames frame.Ogpu.Backend.frame_token with None->error"Ogpu_metal.Backend.surface"Ogpu.Error.Invalid_state"frame token is stale"|Some native->match f surface native with Error _ as e->e|Ok()->Hashtbl.remove frames frame.frame_token;Ok()in
-        let take_present queue source frame=match Hashtbl.find_opt frames frame.Ogpu.Backend.frame_token with None->error"Ogpu_metal.Backend.surface"Ogpu.Error.Invalid_state"frame token is stale"|Some native->match Surface.present_from surface native~queue~source with Error _ as e->e|Ok()->Hashtbl.remove frames frame.frame_token;Ok()in
-        let present~queue~source frame=match Hashtbl.find_opt c.active_queues queue with None->error"Ogpu_metal.Backend.present"Ogpu.Error.Stale_handle"presentation queue token is stale"|Some active->match native_resource source with Some(Texture texture)->take_present active.queue texture frame|Some(Buffer _)->error"Ogpu_metal.Backend.present"Ogpu.Error.Invalid_argument"presentation source token is not a texture"|None->error"Ogpu_metal.Backend.present"Ogpu.Error.Stale_handle"presentation source token is stale"in
+        let take f frame=match Hashtbl.find_opt frames frame.Ogpu_core.Backend.frame_token with None->error"Ogpu_metal.Backend.surface"Ogpu_core.Error.Invalid_state"frame token is stale"|Some native->match f surface native with Error _ as e->e|Ok()->Hashtbl.remove frames frame.frame_token;Ok()in
+        let take_present queue source frame=match Hashtbl.find_opt frames frame.Ogpu_core.Backend.frame_token with None->error"Ogpu_metal.Backend.surface"Ogpu_core.Error.Invalid_state"frame token is stale"|Some native->match Surface.present_from surface native~queue~source with Error _ as e->e|Ok()->Hashtbl.remove frames frame.frame_token;Ok()in
+        let present~queue~source frame=match Hashtbl.find_opt c.active_queues queue with None->error"Ogpu_metal.Backend.present"Ogpu_core.Error.Stale_handle"presentation queue token is stale"|Some active->match native_resource source with Some(Texture texture)->take_present active.queue texture frame|Some(Buffer _)->error"Ogpu_metal.Backend.present"Ogpu_core.Error.Invalid_argument"presentation source token is not a texture"|None->error"Ogpu_metal.Backend.present"Ogpu_core.Error.Stale_handle"presentation source token is stale"in
         let submit_present_common ~scoped ~queue~source command~resources~pipelines frame=
           match Hashtbl.find_opt c.active_queues queue with
-          |None->error"Ogpu_metal.Backend.submit_present"Ogpu.Error.Stale_handle"presentation queue token is stale"
+          |None->error"Ogpu_metal.Backend.submit_present"Ogpu_core.Error.Stale_handle"presentation queue token is stale"
           |Some active->match native_resource source with
-            |Some(Buffer _)->error"Ogpu_metal.Backend.submit_present"Ogpu.Error.Invalid_argument"presentation source token is not a texture"
-            |None->error"Ogpu_metal.Backend.submit_present"Ogpu.Error.Stale_handle"presentation source token is stale"
-            |Some(Texture texture)->match Hashtbl.find_opt frames frame.Ogpu.Backend.frame_token with
-              |None->error"Ogpu_metal.Backend.submit_present"Ogpu.Error.Invalid_state"frame token is stale"
+            |Some(Buffer _)->error"Ogpu_metal.Backend.submit_present"Ogpu_core.Error.Invalid_argument"presentation source token is not a texture"
+            |None->error"Ogpu_metal.Backend.submit_present"Ogpu_core.Error.Stale_handle"presentation source token is stale"
+            |Some(Texture texture)->match Hashtbl.find_opt frames frame.Ogpu_core.Backend.frame_token with
+              |None->error"Ogpu_metal.Backend.submit_present"Ogpu_core.Error.Invalid_state"frame token is stale"
               |Some native->match Array.find_opt
                   Surface.Private.pending_presentation_available active.presentations with
-                |None->error"Ogpu_metal.Backend.submit_present"Ogpu.Error.Invalid_state
+                |None->error"Ogpu_metal.Backend.submit_present"Ogpu_core.Error.Invalid_state
                     "queue has the maximum presentations in flight"
                 |Some pending->match Surface.Private.prepare_present pending surface native
                     ~source:texture with
@@ -1198,7 +1198,7 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
           |Ok receipt->
               let completion=match active with
                 |None->error"Ogpu_metal.Backend.submit_present_sync"
-                    Ogpu.Error.Stale_handle"presentation queue token is stale"
+                    Ogpu_core.Error.Stale_handle"presentation queue token is stale"
                 |Some active->
                     (match Queue.Private.take_scoped_completion active.queue with
                      |Some result->result
@@ -1214,11 +1214,11 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
                 |Error _ as failure,_->failure
                 |Ok(),Some error->Error error
                 |Ok(),None->Ok()in
-              Ok{Ogpu.Backend.receipt;completion}in
-        Ok{Ogpu.Backend.surface_token;configure=(fun x->Surface.configure surface x);acquire;acquire_sync;present;submit_present;submit_present_sync;discard=take Surface.discard;destroy_surface=(fun()->if Hashtbl.length frames<>0 then error"Ogpu_metal.Backend.destroy_surface"Ogpu.Error.Invalid_state"surface has outstanding frames"else if Surface.in_flight_presentations surface<>0 then error"Ogpu_metal.Backend.destroy_surface"Ogpu.Error.Invalid_state"surface has presentations in flight"else(Surface.destroy surface;Ok()))}in
+              Ok{Ogpu_core.Backend.receipt;completion}in
+        Ok{Ogpu_core.Backend.surface_token;configure=(fun x->Surface.configure surface x);acquire;acquire_sync;present;submit_present;submit_present_sync;discard=take Surface.discard;destroy_surface=(fun()->if Hashtbl.length frames<>0 then error"Ogpu_metal.Backend.destroy_surface"Ogpu_core.Error.Invalid_state"surface has outstanding frames"else if Surface.in_flight_presentations surface<>0 then error"Ogpu_metal.Backend.destroy_surface"Ogpu_core.Error.Invalid_state"surface has presentations in flight"else(Surface.destroy surface;Ok()))}in
     let destroy_device()=
       if Hashtbl.length c.active_queues<>0 then
-        error"Ogpu_metal.Backend.destroy_device"Ogpu.Error.Invalid_state
+        error"Ogpu_metal.Backend.destroy_device"Ogpu_core.Error.Invalid_state
           "device has active queues"
       else begin
         (match c.plan_cache with
@@ -1253,5 +1253,5 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
         |Ok(),Some error->Error error
         |Ok(),None->Ok()
       end in
-    Ok{Ogpu.Backend.device_token;device_handle=Device.Private.handle device;capabilities=Device.capabilities device;create_buffer;create_texture;create_depth_texture;create_stencil_texture;create_pipeline;create_queue;create_surface;destroy_device}in
-  {Ogpu.Backend.create_device},c
+    Ok{Ogpu_core.Backend.device_token;device_handle=Device.Private.handle device;capabilities=Device.capabilities device;create_buffer;create_texture;create_depth_texture;create_stencil_texture;create_pipeline;create_queue;create_surface;destroy_device}in
+  {Ogpu_core.Backend.create_device},c

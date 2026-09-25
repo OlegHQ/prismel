@@ -1,4 +1,4 @@
-open Ogpu_metal
+open Ogpu_metal_native
 let get=function Ok value->value|Error value->failwith(Ogpu.Error.to_string value)
 let get_metal=function Ok value->value|Error value->failwith(Format.asprintf"%a"Metal.pp_error value)
 let outcome=function Ok()->"supported"|Error value when value.Ogpu.Error.kind=Ogpu.Error.Unsupported->"unsupported"|Error value->"error:"^Ogpu.Error.to_string value

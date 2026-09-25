@@ -1,0 +1,6 @@
+(library
+ (name ogpu_mock)
+ (public_name prismel.ogpu_mock)
+ (implements ogpu)
+ (modules Impl)
+ (libraries ogpu_core))
