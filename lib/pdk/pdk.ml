@@ -36,6 +36,7 @@ module Attribute_fade = Pdk_attrib.Attribute_fade
 module Color_by_height = Pdk_attrib.Color_by_height
 module Motion = Pdk_mesh.Motion
 module Ordering = Pdk_mesh.Ordering
+module Transform_ops = Pdk_mesh.Transform_ops
 module Mesh_merge = Pdk_mesh.Mesh_merge
 module Edge_collapse = Pdk_mesh.Edge_collapse
 module Dissolve = Pdk_mesh.Dissolve

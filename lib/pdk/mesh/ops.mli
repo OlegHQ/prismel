@@ -26,7 +26,7 @@ val scatter_density : owner:Attribute.owner -> string -> scatter_density
 (** Select one scalar float density field with explicit ownership. Negative
     values have zero probability. *)
 
-type deform_selection =
+type deform_selection = Transform_ops.deform_selection =
   | Selected_points of Group.t
   | Selected_vertices of Group.t
   | Selected_primitives of Group.t
@@ -36,19 +36,19 @@ type deform_selection =
     that act on primitives, including Facet, promote points/vertices/edges to
     their incident primitives as documented at that operation. *)
 
-type transform_order =
+type transform_order = Transform_ops.transform_order =
   | Transform_srt | Transform_str | Transform_rst
   | Transform_rts | Transform_tsr | Transform_trs
 (** Application order for scale/shear ([s]), Euler rotation ([r]), and
     translation ([t]). For example, [Transform_srt] applies scale/shear,
     then rotation, then translation to column-vector points. *)
 
-type transform_rotation_order =
+type transform_rotation_order = Transform_ops.transform_rotation_order =
   | Transform_xyz | Transform_xzy | Transform_yxz
   | Transform_yzx | Transform_zxy | Transform_zyx
 (** Application order for Euler rotations, in radians. *)
 
-type soft_transform_metric =
+type soft_transform_metric = Transform_ops.soft_transform_metric =
   | Soft_radius
   | Soft_edge
   | Soft_attribute of { attribute : string; apply_rolloff : bool }
@@ -57,26 +57,27 @@ type soft_transform_metric =
     Attribute mode reads a point float field. With rolloff enabled it is a raw
     distance; otherwise it is the direct transform weight. *)
 
-type soft_transform_falloff = Soft_linear | Soft_quadratic | Soft_cubic
+type soft_transform_falloff = Transform_ops.soft_transform_falloff =
+  Soft_linear | Soft_quadratic | Soft_cubic
 
-type distance_along_radius =
+type distance_along_radius = Transform_ops.distance_along_radius =
   | Distance_fixed of float
   | Distance_maximum
 (** Mask-normalization policy shared by distance-field operations. *)
 
-type distance_from_geometry_reference =
+type distance_from_geometry_reference = Transform_ops.distance_from_geometry_reference =
   | Distance_reference_points
   | Distance_reference_primitives
 (** Reference feature family for {!distance_from_geometry}. *)
 
-type distance_from_target_projection =
+type distance_from_target_projection = Transform_ops.distance_from_target_projection =
   | Distance_target_spherical
   | Distance_target_cylindrical
   | Distance_target_planar
 (** Analytic target used by {!distance_from_target}: a point, infinite axis,
     or infinite plane. *)
 
-type distance_from_target_metric =
+type distance_from_target_metric = Transform_ops.distance_from_target_metric =
   | Distance_target_absolute
   | Distance_target_signed
 (** Planar distance policy. Signed distance is positive in the supplied normal
