@@ -501,6 +501,9 @@ an explicit conflict policy, including the single-group case.
 `Procedural.Sop.group_promotions` uses one ordered rule list for single and
 multiple group conversions. A rule may emit a group or a named integer mask;
 patterns that match no source group leave the geometry unchanged.
+`Procedural.Sop.promote_attributes` handles one named attribute or a pattern.
+Aligned output and index patterns name promoted values and their contributing
+source indices; same-owner renames work without a piece partition.
 `Procedural.Sop.delete` accepts typed point, vertex, or primitive selections;
 `blast` resolves an existing typed group; and `split` returns selected and
 remainder branches. All three use the same packed destroy/heal/compaction

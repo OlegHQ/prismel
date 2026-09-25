@@ -717,6 +717,21 @@ let run () =
       |> Geometry.with_attribute overlap_a |> get_ok
       |> Geometry.with_attribute overlap_copy |> get_ok
       |> Geometry.with_attribute overlap_piece |> get_ok in
+  let same_owner = Attribute_ops.promote_pattern ~method_:Attribute_ops.First
+      ~source:Attribute.Point
+      ~destination:Attribute.Point ~pattern:"a copy_a"
+      ~into_pattern:"renamed copy_a" overlap_source |> get_ok in
+  let same_owner_values name = Geometry.find_attribute ~owner:Attribute.Point
+      name same_owner |> Option.get |> Attribute.get
+      (Attribute.key ~name ~owner:Attribute.Point Attribute.int) |> Option.get in
+  if Geometry.find_attribute ~owner:Attribute.Point "a" same_owner <> None
+      || same_owner_values "renamed" <> [|1; 2; 3|]
+      || same_owner_values "copy_a" <> [|4; 5; 6|] then
+    fail "pattern same-owner rename changed an unrenamed attribute";
+  let same_owner_noop = Attribute_ops.promote_pattern ~source:Attribute.Point
+      ~destination:Attribute.Point ~pattern:"a" overlap_source |> get_ok in
+  if Geometry.data_id same_owner_noop <> Geometry.data_id overlap_source then
+    fail "pattern same-owner identity changed geometry";
   let overlap_promoted = Attribute_ops.promote_pattern ~method_:Attribute_ops.First
       ~piece_attribute:"piece" ~source:Attribute.Point
       ~destination:Attribute.Point ~pattern:"[ac]*"

@@ -1808,25 +1808,6 @@ val point_velocity :
     samples are explicit graph inputs, so iterative sketches pass
     [Sop.snapshot previous_geometry] without creating a cycle or hidden
     retained history. *)
-val promote_attribute :
-  ?label:string ->
-  ?into:string ->
-  ?method_:Pdk.Attribute_ops.method_ ->
-  ?delete_source:bool ->
-  ?piece_attribute:string ->
-  ?index_attribute:string ->
-  source:Pdk.Attribute.owner ->
-  destination:Pdk.Attribute.owner ->
-  name:string ->
-  Node.t -> Node.t
-(* Promote/reduce an attribute through packed point/vertex/primitive incidence.
-   An integer/text destination [piece_attribute] reduces the unique ordered
-   source elements corresponding to every partition independently.
-   [index_attribute] records the stable contributing source element for
-   first/last/minimum/maximum/mode reductions; tuple values emit fixed-width
-   packed integer CSR index rows. String/index reductions follow Houdini's
-   median/concatenation/first fallback policy. [Array_all] and
-   [Unique_values] emit packed integer/float CSR rows for scalar sources. *)
 val promote_attributes :
   ?label:string ->
   ?method_:Pdk.Attribute_ops.method_ ->

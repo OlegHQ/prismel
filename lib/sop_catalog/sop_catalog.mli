@@ -685,10 +685,6 @@ module Attribute_transfer_all : sig
     target:Procedural.Node.t -> unit -> Procedural.Node.t
 end
 
-module Promote_attribute : sig
-  val create : ?label:string -> Procedural.Node.t -> Procedural.Node.t
-end
-
 module Promote_attributes : sig
   val create : ?label:string -> Procedural.Node.t -> Procedural.Node.t
 end

@@ -2203,8 +2203,8 @@ let test_generators_selections_and_delete () =
    | Ok _ -> fail "procedural Clip accepted a missing selection group");
   let promoted = Sop.grid ~columns:2 ~rows:1 ~size:2. ()
       |> Sop.set_float ~owner:Pdk.Attribute.Point ~name:"weight" 3.
-      |> Sop.promote_attribute ~source:Pdk.Attribute.Point
-           ~destination:Pdk.Attribute.Primitive ~name:"weight"
+      |> Sop.promote_attributes ~source:Pdk.Attribute.Point
+           ~destination:Pdk.Attribute.Primitive ~pattern:"weight"
       |> cook_ok evaluator current in
   check (Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point "weight"
       promoted.geometry = None
@@ -2277,11 +2277,11 @@ let test_generators_selections_and_delete () =
       |> Pdk.Geometry.with_attribute piece_values |> get_ok
       |> Pdk.Geometry.with_attribute piece_ids |> get_ok in
   let piece_promoted = Sop.snapshot piece_geometry
-      |> Sop.promote_attribute ~method_:Pdk.Attribute_ops.Mode
-           ~piece_attribute:"piece" ~into:"piece_mode" ~delete_source:false
-           ~index_attribute:"piece_source"
+      |> Sop.promote_attributes ~method_:Pdk.Attribute_ops.Mode
+           ~piece_attribute:"piece" ~into_pattern:"piece_mode"
+           ~delete_source:false ~index_pattern:"piece_source"
            ~source:Pdk.Attribute.Point ~destination:Pdk.Attribute.Point
-           ~name:"value"
+           ~pattern:"value"
       |> cook_ok evaluator current in
   let piece_modes = Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point
       "piece_mode" piece_promoted.geometry |> Option.get

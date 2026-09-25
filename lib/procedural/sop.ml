@@ -4789,31 +4789,6 @@ let promote_method_has_source_index = function
   | Average | Median | Sum | Sum_squares | Root_mean_square
   | Array_all | Unique_values -> false
 
-let promote_attribute ?label ?into ?(method_ = Pdk.Attribute_ops.Average)
-    ?(delete_source = true) ?piece_attribute ?index_attribute ~source
-    ~destination ~name input =
-  if Option.is_some index_attribute && not (promote_method_has_source_index method_)
-  then invalid_arg
-      "Sop.promote_attribute: source index requires first, last, minimum, maximum, or mode";
-  let into_key = Option.value ~default:name into in
-  Node.Private.make ?label ~operation:"attribute_promote" ~version:4
-    ~parameters:(String.concat ";" [
-      "source=" ^ attribute_owner_key source;
-      "destination=" ^ attribute_owner_key destination;
-      "name=" ^ name; "into=" ^ into_key;
-      "method=" ^ promote_method_key method_;
-      "delete_source=" ^ string_of_bool delete_source;
-      "piece_attribute=" ^ Option.value ~default:"" piece_attribute;
-      "index_attribute=" ^ Option.value ~default:"" index_attribute;
-    ]) ~cook_mode:(Node.Duplicate_input 0)
-    ~dependencies:Context.Dependencies.static ~inputs:[|input|]
-    (fun ~node_id:_ context inputs ->
-      match Pdk.Attribute_ops.promote ~cancel:(Context.cancel_token context)
-          ~grain:(Context.grain context) ?into ~method_ ~delete_source ~source
-          ~destination ~name ?piece_attribute ?index_attribute inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
-
 let promote_attributes ?label ?(method_ = Pdk.Attribute_ops.Average)
     ?(delete_source = true) ?piece_attribute ?into_pattern ?index_pattern
     ~source ~destination ~pattern input =

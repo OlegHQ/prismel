@@ -29,6 +29,10 @@ same `Delete Attributes` node; the old single-name node is removed.
 `Sop.rename_attributes ~rules:[...]` handles exact names and wildcard
 captures with owner and conflict rules; an unmatched rule leaves geometry
 unchanged. The editor uses `Rename Attributes`.
+`Sop.promote_attributes ~pattern:"weight"` handles a single source attribute;
+output and index patterns can rename its promoted values and source indices.
+The editor uses the same `Promote Attributes` node for one or many attributes.
+An unmatched pattern leaves geometry unchanged.
 Use `Sop.group_rename ~rules:[...]` for owner-scoped or multiple group renames;
 the editor exposes the same rule-based `Group Rename` node.
 

@@ -236,10 +236,11 @@ let graphs () =
          ~piece_attribute:"piece" ~delete_source:false
          ~source:Pdk.Attribute.Point ~destination:Pdk.Attribute.Vertex
          ~pattern:"source_*" ~into_pattern:"*"
-    |> Sop.promote_attribute ~method_:Pdk.Attribute_ops.Maximum
+    |> Sop.promote_attributes ~method_:Pdk.Attribute_ops.Maximum
          ~piece_attribute:"piece" ~delete_source:false
-         ~index_attribute:"weight_source" ~source:Pdk.Attribute.Point
-         ~destination:Pdk.Attribute.Vertex ~name:"input_weight" ~into:"weight"
+         ~index_pattern:"weight_source" ~source:Pdk.Attribute.Point
+         ~destination:Pdk.Attribute.Vertex ~pattern:"input_weight"
+         ~into_pattern:"weight"
     |> Sop.delete_attributes ~point_pattern:"source_Cd input_weight"
     |> Sop.transform (Mat4.translation (Vec3.create 2.8 2.2 (-1.5)))
   and transferred_corners =
@@ -247,9 +248,9 @@ let graphs () =
         |> Sop.noise_displace ~seed:93 ~amplitude:0.3 ~frequency:1.3
         |> Sop.color_by_height ~low:(Color.hex_exn "#06b6d4")
              ~high:(Color.hex_exn "#f97316")
-        |> Sop.promote_attribute ~delete_source:false
+        |> Sop.promote_attributes ~delete_source:false
              ~source:Pdk.Attribute.Point ~destination:Pdk.Attribute.Vertex
-             ~name:"Cd"
+             ~pattern:"Cd"
         |> Sop.group ~name:"transfer_surface" Select.all_primitives in
     let target = Sop.grid ~columns:20 ~rows:16 ~size:1.7 ()
         |> Sop.transform (Mat4.translation (Vec3.create 0. 0.18 0.))

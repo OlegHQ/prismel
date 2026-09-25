@@ -9049,44 +9049,6 @@ module Attribute_transfer_all = struct
       parameters_default
 end [@@sop.register]
 
-module Promote_attribute = struct
-  type parameters = {
-    source : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
-      [@sop.label "Source owner"] [@sop.kind attribute_owner_parameter];
-    destination : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Primitive]
-      [@sop.label "Destination owner"] [@sop.kind attribute_owner_parameter];
-    name : string [@sop.default "Cd"] [@sop.label "Attribute"];
-    into : string [@sop.default ""] [@sop.label "New name"];
-    method_ : Pdk.Attribute_ops.method_ [@sop.default Pdk.Attribute_ops.Average]
-      [@sop.label "Promotion method"]
-      [@sop.kind attribute_promotion_method_parameter];
-    delete_source : bool [@sop.default false] [@sop.label "Delete source"];
-    piece_attribute : string [@sop.default ""]
-      [@sop.label "Piece attribute"] [@sop.folder "Partition"];
-    index_attribute : string [@sop.default ""]
-      [@sop.label "Index attribute"] [@sop.folder "Output"];
-  } [@@sop.node_key "promote_attribute"]
-    [@@sop.node_label "Promote Attribute"]
-    [@@sop.node_category "Attribute/Promote"] [@@sop.node_inputs 1]
-    [@@sop.node_operation "attribute_promote"]
-    [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.promote_attribute ~label
-        ?into:(optional_text parameters.into) ~method_:parameters.method_
-        ~delete_source:parameters.delete_source
-        ?piece_attribute:(optional_text parameters.piece_attribute)
-        ?index_attribute:(optional_text parameters.index_attribute)
-        ~source:parameters.source ~destination:parameters.destination
-        ~name:parameters.name input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Promote_attribute expects one input"
-  let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "promote-attribute" node_label) ~inputs:[input]
-      parameters_default
-end [@@sop.register]
-
 module Promote_attributes = struct
   type parameters = {
     source : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]

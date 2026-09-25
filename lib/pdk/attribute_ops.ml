@@ -1441,8 +1441,13 @@ let promote_pattern_raw ?cancel ?(grain = 16_384) ?(method_ = Average)
               match index_attribute with None -> Ok () | Some name -> reserve name))))
         (Ok ()) selected in
     Result.bind validation (fun () ->
+    let selected = if source = destination && Option.is_none piece_attribute
+      then Array.of_list (List.filter (fun (attribute, into, _) ->
+        not (String.equal (Attribute.name attribute) into))
+        (Array.to_list selected))
+      else selected in
     if Array.length selected = 0
-       || (source = destination && Option.is_none piece_attribute) then Ok geometry
+    then Ok geometry
     else Result.bind (make_promotion_plan ?cancel ?piece_attribute
         ~source ~destination geometry) (fun plan ->
       let geometry = if delete_source then

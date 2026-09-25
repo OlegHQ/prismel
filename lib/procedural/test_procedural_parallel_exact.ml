@@ -858,17 +858,17 @@ let run () =
     "parallel detail-overridden Chaikin subdivision dropped residual creases";
   let promoted = Sop.grid ~columns:240 ~rows:160 ~size:12. ()
       |> Sop.color_by_height ~low:Color.blue ~high:Color.red
-      |> Sop.promote_attribute ~source:Attribute.Point
-           ~destination:Attribute.Primitive ~name:"Cd" in
+      |> Sop.promote_attributes ~source:Attribute.Point
+           ~destination:Attribute.Primitive ~pattern:"Cd" in
   let one = cook 1 promoted and many = cook 4 promoted in
   check (equal_geometry one many)
     "one-domain and four-domain attribute promotion differ";
   let promoted_arrays = Sop.grid ~columns:240 ~rows:160 ~size:12. ()
       |> Sop.enumerate ~owner:Attribute.Point ~name:"point_number"
-      |> Sop.promote_attribute ~method_:Attribute_ops.Array_all
+      |> Sop.promote_attributes ~method_:Attribute_ops.Array_all
            ~delete_source:false ~source:Attribute.Point
-           ~destination:Attribute.Primitive ~name:"point_number"
-           ~into:"primitive_points" in
+           ~destination:Attribute.Primitive ~pattern:"point_number"
+           ~into_pattern:"primitive_points" in
   let one = cook 1 promoted_arrays and many = cook 4 promoted_arrays in
   check (equal_geometry one many)
     "one-domain and four-domain array promotion differ";
@@ -926,10 +926,11 @@ let run () =
       |> Geometry.with_attribute piece_values |> get_ok
       |> Geometry.with_attribute piece_ids |> get_ok in
   let piece_promoted = Sop.snapshot piece_geometry
-      |> Sop.promote_attribute ~method_:Attribute_ops.Median
-           ~piece_attribute:"piece_id" ~into:"piece_median" ~delete_source:false
+      |> Sop.promote_attributes ~method_:Attribute_ops.Median
+           ~piece_attribute:"piece_id" ~into_pattern:"piece_median"
+           ~delete_source:false
            ~source:Attribute.Point ~destination:Attribute.Point
-           ~name:"piece_value" in
+           ~pattern:"piece_value" in
   let one = cook 1 piece_promoted and many = cook 4 piece_promoted in
   check (equal_geometry one many)
     "one-domain and four-domain piece median promotion differ";
