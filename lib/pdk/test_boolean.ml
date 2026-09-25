@@ -23,6 +23,22 @@ let tetra ~origin:(ox, oy, oz) size = triangles
     [|ox,oy,oz; ox+.size,oy,oz; ox,oy+.size,oz; ox,oy,oz+.size|]
     [|0;2;1; 0;1;3; 1;2;3; 2;0;3|]
 
+let tetra_batch count shift =
+  let points = Array.make (count * 4) (0., 0., 0.)
+  and indices = Array.make (count * 12) 0
+  and local = [|0;2;1; 0;1;3; 1;2;3; 2;0;3|] in
+  for item = 0 to count - 1 do
+    let first = item * 4 and x = float_of_int item *. 6. +. shift in
+    points.(first) <- x, 0., 0.;
+    points.(first + 1) <- x +. 2., 0., 0.;
+    points.(first + 2) <- x, 2., 0.;
+    points.(first + 3) <- x, 0., 2.;
+    for corner = 0 to 11 do
+      indices.(item * 12 + corner) <- first + local.(corner)
+    done
+  done;
+  triangles points indices
+
 let cube_quads ~origin:(ox, oy, oz) size = geometry
     [|ox,oy,oz; ox+.size,oy,oz; ox+.size,oy+.size,oz; ox,oy+.size,oz;
       ox,oy,oz+.size; ox+.size,oy,oz+.size;
@@ -229,6 +245,22 @@ let test_shatter () =
        (Error.to_string error)
    | Ok _ -> fail "public Boolean shatter accepted a surface operand")
 
+let test_shatter_scale () =
+  let left = tetra_batch 16 0. and right = tetra_batch 16 0.5 in
+  let run domains = Prismel.Parallel.run ~domains (fun () ->
+      let output = Boolean.run ~grain:1 ~operation:Boolean.Shatter
+          ~right left |> get in
+      let groups = [|"boolean_left"; "boolean_overlap"; "boolean_right"|]
+          |> Array.map (fun name ->
+            Geometry.find_group ~owner:Group.Primitive name output
+            |> Option.get |> Group.cardinality) in
+      signature output, groups) in
+  let one = run 1 in
+  check (Array.for_all (fun count -> count > 0) (snd one))
+    "multi-pair shatter lost a region product";
+  check (one = run 4)
+    "multi-pair shatter differs between one and four domains"
+
 let test_output_policies () =
   let left = cube_quads ~origin:(0.,0.,0.) 1.
   and right = tetra ~origin:(10.,0.,0.) 1. in
@@ -320,6 +352,7 @@ let run () =
   test_normal_payload_orientation ();
   test_surface_fracture_pieces ();
   test_shatter ();
+  test_shatter_scale ();
   test_output_policies ();
   test_errors ();
   test_bounded_cleanup ();
