@@ -1,232 +1,233 @@
-; Finite native smoke run of every example and sketch: dune build @smoke.
-; Each rule shares smoke_window so Dune never opens the example windows together.
+; Pre-commit smoke opens two representative native examples. The explicit
+; @smoke-all alias runs every example and sketch. The shared lock keeps
+; windows sequential in either target.
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/attribute_laplacian/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/audio/main.exe}))))
 
 (rule
- (alias smoke)
+ (aliases smoke smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/basic/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/boolean/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/boolean_detect/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/circle_from_edges/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/convex_hull/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/drawing/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/extract_centroid/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/extract_point_curve/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/generative/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/geom_csg/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/geom_curves/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/geom_isosurface/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/geom_meshes/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/geom_physics/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/geom_subdivision/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/geom_voronoi/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/graph_color/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/intersection_analysis/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/measure_curvature/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/noise/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/particles/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/pathtracer/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/procedural_modeling/main.exe}))))
 
 (rule
- (alias smoke)
+ (aliases smoke smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/procedural_terrain/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/pxui/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/recursive_rectangles/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/remesh/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:examples/triangulate_2d/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:sketches/voxel_wall/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:sketches/chromatic_drift/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (deps (source_tree sketches/code_quadtree))
  (action
@@ -235,14 +236,14 @@
    (run %{exe:sketches/code_quadtree/main.exe} --root sketches/code_quadtree))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:sketches/pastel_flow/main.exe}))))
 
 (rule
- (alias smoke)
+ (alias smoke-all)
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30

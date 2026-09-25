@@ -32,3 +32,6 @@ _opam
 /prismel-render.png
 /code-quadtree.png
 /chromatic-drift.json
+
+# Agentpack mirror of the tracked .claude/skills files
+/.agents/

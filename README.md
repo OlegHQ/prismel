@@ -275,7 +275,9 @@ count; deterministic multicore paths compare ordered results exactly.
 
 Default `dune runtest` is the green pre-commit suite; display-dependent tests run
 under `@runtest-native` and machine-, SDK- or evidence-dependent checks under
-`@qualification`. `dune build @smoke` runs every example and sketch finitely.
+`@qualification`. `dune build @smoke` runs two finite native examples (2D and
+3D); `dune build @smoke-all` runs every example and sketch when full native
+coverage is wanted.
 
 Metal binding expansion uses hybrid OCaml/Dune generation. The generator owns
 mechanical declarations and typed direct selector calls; the safe API,

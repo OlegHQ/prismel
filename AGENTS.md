@@ -77,6 +77,10 @@ dune build @all && dune runtest && dune build @smoke && git diff --check  # pre-
 dune build @doc
 ```
 
+`@smoke` launches two finite native examples; use `@smoke-all` for the full
+example/sketch sweep. Both open windows sequentially. For a window-free broad
+test run, set `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy` on `dune runtest`.
+
 Default `runtest` is green on a clean checkout. Display-dependent tests live in
 `@runtest-native`; long, SDK-, driver-, or machine-specific checks in
 `@qualification`. A public `.mli` change shows as a diff of
