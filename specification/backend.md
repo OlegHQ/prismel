@@ -44,8 +44,14 @@ virtual interface.
 The native queue can poll completion through an epoch without blocking. Classic
 command buffers use Metal status; Metal 4 submissions read the existing commit
 feedback callback's protected completion flag. A terminal poll uses the same
-ordered cleanup and epoch accounting as a blocking wait. G2 still needs this
-contract on the portable command-buffer API.
+ordered cleanup and epoch accounting as a blocking wait.
+The portable `Ogpu.Command_buffer.status` now polls a queue receipt and returns
+`Pending` or `Completed`; terminal GPU errors remain typed errors. Its
+`completed_epoch` query is scoped to that queue. The Metal driver passes the
+native poll through the existing retirement and presentation cleanup path;
+the mock uses independent clocks per queue and executes buffer copies/fills
+against its owned byte storage. Texture transfers and the remaining encoder
+surface still need G2 conformance.
 `Ogpu.Caps` now owns the portable feature matrix and typed `Unsupported`
 check. Metal probes populate that profile in `ogpu_metal_native.Device`, which also
 translates native Metal errors to typed OGPU errors.

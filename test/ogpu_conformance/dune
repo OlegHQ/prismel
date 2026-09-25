@@ -1,7 +1,7 @@
 (library
  (name ogpu_conformance)
  (modules conformance)
- (libraries ogpu))
+ (libraries ogpu unix))
 
 (executable
  (name test_mock)

@@ -15,7 +15,7 @@ type driver_resource={token:token;write:int64->bytes->(unit,Error.t)result;read:
 type driver_pipeline={pipeline_token:token;destroy_pipeline:unit->(unit,Error.t)result}
 type driver_frame={frame_token:token}
 type driver_surface={surface_token:token;configure:Surface.configuration->(unit,Error.t)result;acquire:unit->([`Acquired of driver_frame|`Timeout|`Occluded|`Device_lost],Error.t)result;acquire_sync:unit->([`Acquired of driver_frame|`Timeout|`Occluded|`Device_lost],Error.t)result;present:queue:token->source:token->driver_frame->(unit,Error.t)result;submit_present:queue:token->source:token->command->resources:(int64*token)list->pipelines:token list->driver_frame->(receipt,Error.t)result;submit_present_sync:queue:token->source:token->command->resources:(int64*token)list->pipelines:token list->driver_frame->(synchronous_submission,Error.t)result;discard:driver_frame->(unit,Error.t)result;destroy_surface:unit->(unit,Error.t)result}
-type driver_queue={queue_token:token;submit:command->resources:(int64*token)list->pipelines:token list->(receipt,Error.t)result;submit_sync:command->resources:(int64*token)list->pipelines:token list->(synchronous_submission,Error.t)result;complete_through:int64->(unit,Error.t)result;destroy_queue:unit->(unit,Error.t)result}
+type driver_queue={queue_token:token;submit:command->resources:(int64*token)list->pipelines:token list->(receipt,Error.t)result;submit_sync:command->resources:(int64*token)list->pipelines:token list->(synchronous_submission,Error.t)result;complete_through:int64->(unit,Error.t)result;poll_through:int64->(bool,Error.t)result;completed_epoch:unit->int64;destroy_queue:unit->(unit,Error.t)result}
 type driver_device={device_token:token;device_handle:Handle.device;capabilities:Caps.t;create_buffer:Types.buffer_descriptor->(driver_resource,Error.t)result;create_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_depth_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_stencil_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_pipeline:Pipeline.t->(driver_pipeline,Error.t)result;create_queue:unit->(driver_queue,Error.t)result;create_surface:Surface.configuration->(driver_surface,Error.t)result;destroy_device:unit->(unit,Error.t)result}
 type driver={create_device:unit->(driver_device,Error.t)result}
 type device={raw:driver_device;handle:Handle.device;mutable children:int;mutable dead:bool;
@@ -412,6 +412,8 @@ let submit_sync (queue:queue) command ~resources ~pipelines=
         |Error _ as e->e
         |Ok admitted->mark_submitted_resources queue resources;Ok admitted
 let complete_through (queue:queue) epoch=if queue.dead then error"Backend.complete_through"Error.Stale_handle"queue is destroyed"else queue.raw.complete_through epoch
+let poll_through (queue:queue) epoch=if queue.dead then error"Backend.poll_through"Error.Stale_handle"queue is destroyed"else queue.raw.poll_through epoch
+let completed_epoch (queue:queue)=queue.raw.completed_epoch()
 let configure (surface:surface) value=
   if surface.dead then error"Backend.configure"Error.Stale_handle"surface is destroyed"
   else if surface.frames<>0 then error"Backend.configure"Error.Invalid_state"surface has acquired frames"

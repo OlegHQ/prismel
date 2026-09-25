@@ -18,5 +18,6 @@ module Diagnostics = Ogpu_core.Diagnostics
 module Compute_pass = Ogpu_core.Compute_pass
 module Transfer_pass = Ogpu_core.Transfer_pass
 module Backend = Ogpu_core.Backend
+module Command_buffer = Ogpu_core.Command_buffer
 module Backend_mock = Ogpu_core.Backend_mock
 module Impl = Impl

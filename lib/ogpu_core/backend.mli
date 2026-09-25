@@ -35,6 +35,8 @@ type driver_queue =
   ; submit_sync:command -> resources:(int64*token) list -> pipelines:token list ->
       (synchronous_submission,Error.t) result
   ; complete_through:int64 -> (unit,Error.t) result
+  ; poll_through:int64 -> (bool,Error.t) result
+  ; completed_epoch:unit -> int64
   ; destroy_queue:unit -> (unit,Error.t) result }
 type driver_device =
   { device_token:token; device_handle:Handle.device; capabilities:Caps.t
@@ -87,6 +89,8 @@ val submit_sync : queue -> command ->
   resources:[ `Buffer of buffer | `Texture of texture ] list ->
   pipelines:pipeline list -> (synchronous_submission,Error.t) result
 val complete_through : queue -> int64 -> (unit,Error.t) result
+val poll_through : queue -> int64 -> (bool,Error.t) result
+val completed_epoch : queue -> int64
 val configure : surface -> Surface.configuration -> (unit,Error.t) result
 val acquire : surface -> ([ `Acquired of frame | `Timeout | `Occluded | `Device_lost ],Error.t) result
 val acquire_sync : surface -> ([ `Acquired of frame | `Timeout | `Occluded | `Device_lost ],Error.t) result

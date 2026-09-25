@@ -1108,6 +1108,16 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
         let completed=Queue.completed_epoch queue in
         Surface.Private.complete_presentations_through active.presentations completed;
         commit_completed_epoch epoch waited in
+      let poll_through epoch=
+        let polled=Queue.poll_through queue epoch in
+        let completed=Queue.completed_epoch queue in
+        if epoch>0L && completed>=epoch then begin
+          Surface.Private.complete_presentations_through
+            active.presentations completed;
+          Result.map (fun()->true)
+            (commit_completed_epoch completed
+              (Result.map (fun _->()) polled))
+        end else polled in
       let submit_sync command ~resources ~pipelines=
         Queue.Private.arm_scoped_render queue;
         match submit command~resources~pipelines with
@@ -1145,7 +1155,9 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
           Hashtbl.remove c.active_queues queue_token;
           Hashtbl.remove c.completed_epochs queue_token;
           (match take_cleanup_error()with None->Ok()|Some error->Error error)in
-      Ok{Ogpu_core.Backend.queue_token;submit;submit_sync;complete_through;destroy_queue}in
+      Ok{Ogpu_core.Backend.queue_token;submit;submit_sync;complete_through;
+        poll_through;completed_epoch=(fun()->Queue.completed_epoch queue);
+        destroy_queue}in
     let create_surface configuration=
       match c.layer with
       |None->error"Ogpu_metal.Backend.create_surface"Ogpu_core.Error.Unsupported"adapter was created without a typed Metal layer"
