@@ -2,16 +2,12 @@
  (name pxui)
  (public_name prismel.pxui)
  (modules pxui theme ui settings camera_controls)
- (libraries prismel editor unix))
+ (libraries prismel unix))
 
 (executable
  (name test_main)
- (modules test_main test_pxui_undo test_ui_parity test_ui)
- (libraries prismel editor pxui scene_command sdl3))
-
-(rule
- (aliases runtest test_pxui_undo)
- (action (run %{exe:test_main.exe} test_pxui_undo)))
+ (modules test_main test_ui_parity test_ui)
+ (libraries prismel pxui scene_command sdl3))
 
 (rule
  (aliases runtest-native test_ui_parity)

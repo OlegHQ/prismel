@@ -143,7 +143,7 @@ module Environment3 : sig
       for sketch-owned render settings (such as a renderer toggle) that live
       outside the graph's parameter effects and may be read by [prepare]. *)
 
-  (** The workspace keeps one [Pxui.Undo] history of the editable document:
+  (** The workspace keeps one [Editor.History] history of the editable document:
       graph edits and inspector commits are entries, continuous slider drags
       collapse into one, and Command/Ctrl-Z, Shift-Command/Ctrl-Z, and
       Ctrl-Y step it. *)

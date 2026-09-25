@@ -4,7 +4,7 @@
     [Ui.frame], read widget values straight back into the sketch model, and
     compose [Ui.scene] into the view. {!Theme} is the design kit's palette
     and typography, {!Settings} persists model values, the camera modules are
-    reusable panels, and {!Undo} is the shared bounded history. *)
+    reusable panels. *)
 
 type theme = Theme.t = {
   panel : Prismel.Color.t;
@@ -22,10 +22,3 @@ module Ui = Ui
 module Settings = Settings
 module Camera_control = Camera_controls.Camera_control
 module Camera2_control = Camera_controls.Camera2_control
-
-(** Bounded immutable undo history shared by every higher-level editor:
-    [commit] records the current value as undoable and installs the new one,
-    [amend] replaces the current value without a history entry so a
-    continuous pointer edit collapses into one step, and [undo]/[redo] walk
-    the stack. Committing clears the redo branch. *)
-module Undo = Editor.History

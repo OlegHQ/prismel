@@ -1,5 +1,4 @@
 let tests = [
-  "test_pxui_undo", Test_pxui_undo.run;
   "test_ui_parity", Test_ui_parity.run;
   "test_ui", Test_ui.run;
 ]

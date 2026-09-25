@@ -2,3 +2,8 @@
  (name editor)
  (public_name prismel.editor)
  (modules editor))
+
+(test
+ (name test_history)
+ (modules test_history)
+ (libraries editor))

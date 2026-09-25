@@ -33,9 +33,8 @@ translation from the checked high-level GPU interface to typed Metal bindings;
 `metal` owns the safe Metal resource and command API. Prismel owns pure scene
 values and records rendering through the narrow GPU boundary; it never exposes
 native handles in its public API.
-The leaf `editor` library owns bounded undo history. `pxui` keeps a temporary
-`Pxui.Undo` alias while sketch hosts move to `Editor.History`; `editor` does
-not depend on UI or geometry libraries.
+The leaf `editor` library owns bounded undo history; sketch hosts use
+`Editor.History` directly. It does not depend on UI or geometry libraries.
 OGPU's dormant Frame_graph, Descriptor_arena, Transfer_ring, Instance,
 Device_lifecycle, and Acceleration_pass modules have no production callers and
 are removed. Query validation stays in `Ogpu.Sync.resolve`; the redundant

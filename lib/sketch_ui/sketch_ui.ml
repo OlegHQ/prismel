@@ -477,7 +477,7 @@ module Core = struct
     cook_seconds : float option;
     status_fps : int option;
     status_fps_at : float;
-    history : Edit_graph.t Pxui.Undo.t;
+    history : Edit_graph.t Editor.History.t;
     (* An inspector edit made while the primary button is held amends the
        open undo entry instead of adding one per frame. *)
     drag_edit : bool;
@@ -548,7 +548,7 @@ module Core = struct
           prepared = None; edit_error = None; cook_error = None;
           cook_seconds = None; status_fps = None;
           status_fps_at = Float.neg_infinity;
-          history = Pxui.Undo.create document; drag_edit = false;
+          history = Editor.History.create document; drag_edit = false;
           force_cook = false; focus = Workspace.View; leader = Leader.Idle;
           keymap; timeline_frames = max 1 timeline_frames;
           view_edit_at = Float.neg_infinity })
@@ -969,18 +969,18 @@ module Core = struct
     let dragging = Frame.mouse_down Input.LeftButton frame in
     let history, drag_edit =
       if document == value.document then value.history, value.drag_edit && dragging
-      else if dragging && value.drag_edit then Pxui.Undo.amend document value.history, true
-      else Pxui.Undo.commit document value.history, dragging in
+      else if dragging && value.drag_edit then Editor.History.amend document value.history, true
+      else Editor.History.commit document value.history, dragging in
     let shortcut character = Frame.has_event (function
       | Event.KeyPressed (Input.KeyChar key) ->
           Char.lowercase_ascii key = character
           && (List.mem Input.Meta frame.Frame.keys || List.mem Input.Ctrl frame.keys)
       | _ -> false) shortcut_frame in
     let shift = List.mem Input.Shift frame.Frame.keys in
-    let stepped = if (shortcut 'z' && shift) || shortcut 'y' then Pxui.Undo.redo history
-      else if shortcut 'z' then Pxui.Undo.undo history else None in
+    let stepped = if (shortcut 'z' && shift) || shortcut 'y' then Editor.History.redo history
+      else if shortcut 'z' then Editor.History.undo history else None in
     let history, document, undone = match stepped with
-      | Some history -> history, Pxui.Undo.present history, true
+      | Some history -> history, Editor.History.present history, true
       | None -> history, document, false in
     let drag_edit = drag_edit && not undone in
     let inspector = if undone then None else inspector in
@@ -1065,11 +1065,11 @@ module Core = struct
      of view edits (a drag, a wheel gesture) into one undo entry. *)
   let environment_edit value mode document =
     let history = match mode with
-      | `Reset -> Pxui.Undo.create document
-      | `Amend -> Pxui.Undo.amend document value.history
+      | `Reset -> Editor.History.create document
+      | `Amend -> Editor.History.amend document value.history
       | `View time when time -. value.view_edit_at < 0.25 ->
-          Pxui.Undo.amend document value.history
-      | `View _ -> Pxui.Undo.commit document value.history in
+          Editor.History.amend document value.history
+      | `View _ -> Editor.History.commit document value.history in
     { value with document; history;
       graph_view = Pxui_graph.with_document document value.graph_view;
       view_edit_at = (match mode with `View time -> time | _ -> value.view_edit_at) }
@@ -1216,8 +1216,8 @@ module Environment3 = struct
     { value with core = { value.core with Core.force_cook = true };
       rendered = Option.map (value.scene3 (Core.displayed_node value.core))
           (Core.prepared value.core) }
-  let can_undo value = Pxui.Undo.can_undo value.core.Core.history
-  let can_redo value = Pxui.Undo.can_redo value.core.Core.history
+  let can_undo value = Editor.History.can_undo value.core.Core.history
+  let can_redo value = Editor.History.can_redo value.core.Core.history
 
   (* Fly mode owns the keyboard: Escape or focus loss ends it; Space ends it
      and reaches the workspace, arming the leader in the same frame. *)
