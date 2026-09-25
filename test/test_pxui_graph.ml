@@ -273,6 +273,16 @@ let run () =
   check (List.exists (function Pxui_graph.Add_requested request ->
       request.factory_key = "box" | _ -> false) changes)
     "global Space search did not match a category breadcrumb";
+  let search_view, _ = update
+      (Pxui_graph.create ~x:20 ~y:30 ~width:800 ~height:520
+         ~catalog:nested_catalog graph |> Pxui_graph.open_menu_at menu_point)
+      (frame ~mouse:menu_point ()) in
+  let _, changes = update search_view
+      (frame ~mouse:menu_point ~events:[Event.TextInput "prmtv";
+        Event.KeyPressed Input.Enter] ()) in
+  check (List.exists (function Pxui_graph.Add_requested request ->
+      request.factory_key = "box" | _ -> false) changes)
+    "node search did not use the shared fuzzy matching rule";
 
   let clipboard_view = Pxui_graph.select (Node.id source_a) edit_view in
   let clipboard_view, changes = update clipboard_view

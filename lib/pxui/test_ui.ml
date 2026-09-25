@@ -470,6 +470,17 @@ let run () =
   modal [press (5, 5)];
   if !shown <> None then fail "a press outside did not dismiss the modal";
   Ui.destroy ui;
+  let ui = Ui.create () and shown = ref None in
+  let popup events = Ui.frame ui (frame ~scale:1. ~time:0. events) (fun ui ->
+    shown := Ui.popup ui ~at:(20., 20.) ~width:200. ~height:10. "popup"
+      (fun () -> Ui.label ui "One"; Ui.label ui "Two")) in
+  popup [];
+  popup [];
+  popup [press (50, 58)];
+  if !shown <> Some () then fail "popup dismissed a press inside its laid-out rect";
+  popup [press (300, 200)];
+  if !shown <> None then fail "popup kept a press outside its laid-out rect";
+  Ui.destroy ui;
   (match Sdl3.Init.quit () with
    | Ok () -> () | Error error -> fail (Format.asprintf "%a" Sdl3.pp_error error));
   print_endline "PXUI Ui interaction contract passed at 1x and 2x"

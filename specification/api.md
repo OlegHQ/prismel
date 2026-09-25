@@ -540,8 +540,9 @@ to build them using `ui_visible`, `open_camera`, and `toggle_ui`, and call
 drag pan and
 vertical trackpad zoom (horizontal motion is ignored); render requests are
 explicit values.
-`Pxui.Ui.modal`, `Ui.picker` (fuzzy windowed list with Enter/click pick and
-double-Delete), and `Ui.context_menu` (host-held open state, right click
+`Pxui.Ui.popup` owns outside-press and Escape dismissal using the last
+laid-out panel bounds. `Ui.modal`, `Ui.picker` (fuzzy windowed list with
+Enter/click pick and double-Delete), and `Ui.context_menu` (host-held open state, right click
 under 4 points via `Ui.context_clicked`) are the shared overlay widgets.
 `Pxui.Camera2_control` does the same for `Easy_camera2` with center, zoom,
 rotation, inertia, and reset.

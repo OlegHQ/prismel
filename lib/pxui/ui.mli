@@ -253,6 +253,13 @@ val panel :
 (** A light panel at [(x, y)] (default [(12, 12)], width 280). Rows beyond
     [max_height] scroll with the wheel by one row per step. *)
 
+val popup :
+  t -> ?stroke:Prismel.Color.t -> ?max_height:float -> ?dismiss_initial:bool ->
+  at:float * float -> width:float -> height:float -> string ->
+  (unit -> 'a) -> 'a option
+(** A floating panel dismissed by Escape, focus loss, or a press outside its
+    last laid-out bounds. [height] supplies the first-frame hit area. *)
+
 val modal : t -> ?width:float -> string -> (unit -> 'a) -> 'a option
 (** A kit panel centered in the frame, outlined in the accent colour. Build it
     last, at the root level, so it is topmost. Escape, window focus loss, or a

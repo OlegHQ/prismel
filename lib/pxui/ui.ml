@@ -1375,26 +1375,30 @@ let panel_with ?stroke ui ?(x = 12.) ?(y = 12.) ?(width = 280.) ?max_height
 
 let panel ui = panel_with ui
 
-(* A centered panel from last frame's height. Esc, window focus loss, or a
-   press outside it dismisses it: the builder is skipped and [None] returned,
-   so the host drops its open state. *)
-let modal ui ?(width = 320.) label f =
+let popup ui ?stroke ?max_height ?(dismiss_initial = true)
+    ~at:(x, y) ~width ~height label f =
   let key = key_of (current_seed ui) label in
   let slot = Table.find ui.table key in
   let rect = if slot >= 0 then ui.rx.(slot), ui.ry.(slot), ui.rw.(slot), ui.rh.(slot)
-    else 0., 0., 0., 0. in
-  if slot >= 0 then Hashtbl.replace ui.modal_heights key ui.rh.(slot);
-  let height = Option.value ~default:0. (Hashtbl.find_opt ui.modal_heights key) in
+    else x, y, width, height in
   let dismissed = List.exists (function
     | Event.KeyPressed Input.Escape | Event.WindowFocusLost -> true
-    | Event.MousePressed (_, (px, py)) ->
-        slot >= 0 && not (contains rect (px, py))
+    | Event.MousePressed (_, point) ->
+        (slot >= 0 || dismiss_initial) && not (contains rect point)
     | _ -> false) ui.frame_events in
   if dismissed then None else
-    let x = Float.round (Float.max 0. ((ui.view_w -. width) /. 2.))
-    and y = Float.round (Float.max 0. ((ui.view_h -. height) /. 2.)) in
-    Some (panel_with ~stroke:ui.theme.accent ui ~x ~y ~width
-      ~max_height:(Float.max 48. (ui.view_h -. 32.)) label f)
+    Some (panel_with ?stroke ?max_height ui ~x ~y ~width label f)
+
+(* A centered panel from last frame's height. *)
+let modal ui ?(width = 320.) label f =
+  let key = key_of (current_seed ui) label in
+  let slot = Table.find ui.table key in
+  if slot >= 0 then Hashtbl.replace ui.modal_heights key ui.rh.(slot);
+  let height = Option.value ~default:0. (Hashtbl.find_opt ui.modal_heights key) in
+  let x = Float.round (Float.max 0. ((ui.view_w -. width) /. 2.))
+  and y = Float.round (Float.max 0. ((ui.view_h -. height) /. 2.)) in
+  popup ui ~stroke:ui.theme.accent ~dismiss_initial:false ~at:(x, y)
+    ~width ~height ~max_height:(Float.max 48. (ui.view_h -. 32.)) label f
 
 let label ui text =
   let row = kit_row ui ~flags:none text in
@@ -1957,15 +1961,7 @@ let context_menu ui ~at:(x, y) label items =
   let height = (float (List.length items) *. row_height) +. 6. in
   let x = Float.max 0. (Float.min x (ui.view_w -. width))
   and y = Float.max 0. (Float.min y (ui.view_h -. height)) in
-  let slot = Table.find ui.table (key_of (current_seed ui) label) in
-  let rect = if slot >= 0 then ui.rx.(slot), ui.ry.(slot), ui.rw.(slot), ui.rh.(slot)
-    else x, y, width, height in
-  let dismissed = List.exists (function
-    | Event.KeyPressed Input.Escape | Event.WindowFocusLost -> true
-    | Event.MousePressed (_, (px, py)) -> not (contains rect (px, py))
-    | _ -> false) ui.frame_events in
-  if dismissed then `Dismiss else
-    let picked = panel_with ~stroke:ui.theme.accent ui ~x ~y ~width label (fun () ->
+  match popup ui ~stroke:ui.theme.accent ~at:(x, y) ~width ~height label (fun () ->
       List.mapi (fun index (text, enabled) ->
         let row = kit_row ui ~flags:(if enabled then clickable lor blocking else blocking)
             text in
@@ -1978,8 +1974,10 @@ let context_menu ui ~at:(x, y) label items =
           kit_text paint ~color:(if enabled then theme.foreground else Theme.muted theme)
             (rx + 8) (label_y ui y h) shown);
         if enabled && signal.clicked then Some index else None) items
-      |> List.find_map Fun.id) in
-    match picked with Some index -> `Pick index | None -> `Open
+      |> List.find_map Fun.id) with
+  | None -> `Dismiss
+  | Some (Some index) -> `Pick index
+  | Some None -> `Open
 
 let accordion ui ?(expanded = false) ?set_expanded text f =
   let row = kit_row ui text in

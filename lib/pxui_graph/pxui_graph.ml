@@ -1077,11 +1077,6 @@ let frame_selected (value : t) =
   if Array.length boxes = 0 then frame_all value else frame_boxes value boxes
 
 let lower value = String.lowercase_ascii value
-let contains_lowered text query =
-  let text_length = String.length text and query_length = String.length query in
-  let rec search at = query_length = 0 || at + query_length <= text_length
-      && (String.sub text at query_length = query || search (at + 1)) in
-  search 0
 
 let category_text category = String.concat " / " category
 
@@ -1108,9 +1103,9 @@ let menu_rows_uncached (value : t) menu =
   if menu.query <> "" then begin
     let query = lower menu.query in
     entries |> List.filter (fun item ->
-      contains_lowered item.lower_label query
-      || contains_lowered item.lower_category query
-      || contains_lowered item.lower_key query)
+      Pxui.Ui.fuzzy_match ~query item.lower_label
+      || Pxui.Ui.fuzzy_match ~query item.lower_category
+      || Pxui.Ui.fuzzy_match ~query item.lower_key)
     |> List.sort (fun left right ->
       let order = Int.compare (search_rank query left)
           (search_rank query right) in
@@ -1551,25 +1546,23 @@ let picker_rows value menu query =
 
 (* The node menu: a kit panel with a picker, kept inside the canvas. A press
    outside it or window focus loss closes it like Escape. *)
-let build_menu (value : t) ui (frame : Frame.t) menu =
+let build_menu (value : t) ui menu =
   let row = Ui.row_height ui in
   let count = Array.length (menu_rows value menu) in
   let height = ((1 + min menu_limit count) * row) + 6 in
   let x = menu.x and y = max value.y (min menu.y (value.y + value.height - height)) in
   let breadcrumb = match menu.path with
     | [] -> "SOPs" | path -> "SOPs / " ^ category_text path in
-  let query, pick = Ui.panel ui ~x:(float_of_int x) ~y:(float_of_int y)
-      ~width:(float_of_int menu_width) "pxui-graph-menu" (fun () ->
+  let result = Ui.popup ui ~at:(float_of_int x, float_of_int y)
+      ~width:(float_of_int menu_width) ~height:(float_of_int height)
+      "pxui-graph-menu" (fun () ->
       Ui.picker ui ~limit:menu_limit breadcrumb ~query:menu.query
         (picker_rows value menu)) in
-  let menu = { menu with query } in
-  let outside = List.exists (function
-    | Event.MousePressed (_, (px, py)) ->
-        px < float x || py < float y || px >= float (x + menu_width)
-        || py >= float (y + height)
-    | Event.WindowFocusLost -> true
-    | _ -> false) frame.events in
-  let menu, requests = match pick with
+  let menu, requests = match result with
+    | None -> None, []
+    | Some (query, pick) ->
+      let menu = { menu with query } in
+      (match pick with
     | `Cancel -> None, []
     | `Back -> Some { menu with path = parent_path menu.path; query = "" }, []
     | `Pick index ->
@@ -1577,8 +1570,7 @@ let build_menu (value : t) ui (frame : Frame.t) menu =
          | Menu_category category ->
              Some { menu with path = menu.path @ [category]; query = "" }, []
          | Menu_entry entry -> None, [menu_request value menu entry])
-    | `None | `Submit | `Delete _ -> Some menu, [] in
-  let menu = if outside then None else menu in
+    | `None | `Submit | `Delete _ -> Some menu, []) in
   if menu = None then Ui.unfocus ui;
   { value with menu }, requests
 
@@ -1714,7 +1706,7 @@ let update (value : t) ui (frame : Frame.t) =
     | None -> None in
   let value = match value.menu, value.context with
     | Some menu, _ ->
-        let value, emitted = build_menu value ui frame menu in
+        let value, emitted = build_menu value ui menu in
         List.iter emit emitted; value
     | None, Some context ->
         let x, y = context.at in
