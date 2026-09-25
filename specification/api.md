@@ -630,7 +630,10 @@ reset, a frame/time readout, and a scrub slider that seeks (`Timeline.seek`)
 and recooks. Its widgets return playback intents, and graph camera-framing
 requests return in the workspace frame result; the host applies both after
 `Ui.frame` completes. Preset prompts likewise return save/load/delete intents;
-file I/O runs after the UI frame.
+file I/O runs after the UI frame. The 2D and 3D camera panels return their
+edited camera, control state, and render requests in that same frame result;
+preset saves use the returned camera state, and navigation and render scheduling
+run afterward.
 
 `Environment3` keeps camera nodes (`Sop_catalog.Camera`, operation `camera`)
 in the document: a default one following the viewport is added when the

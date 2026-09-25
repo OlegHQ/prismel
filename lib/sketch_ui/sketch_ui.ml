@@ -651,7 +651,7 @@ module Core = struct
   type timeline_intent = Pause_toggle | Stop_playback | Reset_playback
     | Seek_playback of int64
 
-  type frame_result = {
+  type 'panel frame_result = {
     workspace : Workspace.t;
     graph_view : Pxui_graph.t;
     document : Edit_graph.t;
@@ -662,6 +662,7 @@ module Core = struct
     frame_request : int option;
     prompt : prompt option;
     prompt_intent : prompt_intent option;
+    panel : 'panel option;
   }
 
   type 'prepared t = {
@@ -691,7 +692,7 @@ module Core = struct
     timeline_frames : int;
   }
 
-  type 'prepared update = {
+  type ('prepared, 'panel) update = {
     core : 'prepared t;
     effects : Parameter.effects;
     prepared_changed : bool;
@@ -700,6 +701,7 @@ module Core = struct
     loaded_view : Yojson.Safe.t option;
     (** A preset loaded this frame; its environment view settings. *)
     actions : Leader.action list;
+    panel : 'panel option;
     (* The frame without leader-consumed events, for the environment's own
        input handling. *)
     input : Frame.t;
@@ -931,28 +933,29 @@ module Core = struct
       let inspector_visible = not (Workspace.collapsed workspace Workspace.Inspector) in
       let selected = Option.bind (Pxui_graph.selected graph_view)
           (fun node_id -> Edit_graph.find document ~node_id) in
-      let inspector, document, parameter_effects, edit_error = match selected with
+      let panel, inspector, document, parameter_effects, edit_error = match selected with
         | None ->
-            if inspector_visible then inspector_panel ui panes.inspector camera_panel;
-            None, document, Parameter.no_effects, edit_error
+            let panel = if inspector_visible then
+              Some (inspector_panel ui panes.inspector camera_panel) else None in
+            panel, None, document, Parameter.no_effects, edit_error
         | Some node ->
             let inspector = match value.inspector with
               | Some inspector when Sop_ui.Node_inspector.node_id inspector = Node.id node ->
                   inspector
               | Some _ | None -> Sop_ui.Node_inspector.create node in
             if not inspector_visible then
-              Some inspector, document, Parameter.no_effects, edit_error
+              None, Some inspector, document, Parameter.no_effects, edit_error
             else match inspector_panel ui panes.inspector (fun () ->
                 Sop_ui.Node_inspector.widgets ~expanded:(expanded_folders node)
                   inspector ui ~node) with
-            | Error message -> Some inspector, document, Parameter.no_effects, Some message
+            | Error message -> None, Some inspector, document, Parameter.no_effects, Some message
             | Ok (edited, _) when edited == node ->
-                Some inspector, document, Parameter.no_effects, edit_error
+                None, Some inspector, document, Parameter.no_effects, edit_error
             | Ok (edited, effects) ->
                 (match Edit_graph.replace_node edited document with
-                 | Error message -> Some inspector, document, Parameter.no_effects,
+                 | Error message -> None, Some inspector, document, Parameter.no_effects,
                      Some message
-                 | Ok document -> Some inspector, document, effects, edit_error) in
+                 | Ok document -> None, Some inspector, document, effects, edit_error) in
       let timeline_intents = if Workspace.collapsed workspace Workspace.Timeline
         then [] else timeline_bar ui panes.timeline timeline in
       (* The focused pane's accent outline. *)
@@ -968,7 +971,8 @@ module Core = struct
             ~h:(float_of_int (h - 1)) ~width:1. theme.accent);
       { workspace; graph_view; document; edit_error; inspector;
         effects = Parameter.union_effects editor_effects parameter_effects;
-        timeline_intents; frame_request; prompt = None; prompt_intent = None } in
+        timeline_intents; frame_request; prompt = None; prompt_intent = None;
+        panel } in
     let leader_panel ui = if leader = Leader.Pending then
         Leader.panel ui keymap focus in
     (* Presets: Space s names and saves the document, Space b browses, loads
@@ -1027,7 +1031,7 @@ module Core = struct
           edit_error = value.edit_error; inspector = value.inspector;
           effects = Parameter.no_effects; timeline_intents = [];
           frame_request = initial_frame_request; prompt = initial_prompt;
-          prompt_intent = None }
+          prompt_intent = None; panel = None }
       end in
     let timeline, timeline_changes = List.fold_left (fun (timeline, changes) intent ->
       let next, emitted = match intent with
@@ -1044,7 +1048,7 @@ module Core = struct
               ~positions:(Pxui_graph.node_positions result.graph_view)
               ~display:(Some (Pxui_graph.viewed result.graph_view))
               ~active_camera:(Pxui_graph.flagged result.graph_view)
-              ~view:(view_state ()) with
+              ~view:(view_state result.panel) with
             | Ok path -> "Saved preset " ^ Filename.basename path
             | Error message -> "Preset not saved: " ^ message in
           result.prompt, Some notice, None
@@ -1106,7 +1110,7 @@ module Core = struct
       effects; prepared_changed = cooked.prepared_changed;
       framed = cooked.framed;
       loaded_view = Option.map (fun (preset : Preset.loaded) -> preset.view) loaded;
-      actions; input = frame }
+      actions; panel = result.panel; input = frame }
 
   (* Environment-owned document edits (camera bookkeeping, follow viewport).
      They never affect the displayed cook: [`Reset] starts the history,
@@ -1317,19 +1321,26 @@ module Environment3 = struct
     let fly, frame = fly_input value frame in
     if value.fly <> None && fly = None then set_relative false;
     let visible = CC.ui_visible value.camera_control in
-    let control = ref value.camera_control and camera = ref value.camera
-    and requests = ref [] and inspected = ref None
-    and look_through = ref value.look_through in
     let camera_panel () =
-      let next, edited, saves = CC.widgets !control ui ~camera:!camera in
-      control := next; camera := edited; requests := saves;
-      look_through := Pxui.Ui.toggle ui "Look through render camera" !look_through;
-      inspected := Some (inspector ui) in
+      let control, camera, requests = CC.widgets value.camera_control ui
+          ~camera:value.camera in
+      let look_through = Pxui.Ui.toggle ui "Look through render camera"
+          value.look_through in
+      control, camera, requests, look_through, inspector ui in
     let update = Core.update value.core ~all_ui_visible:visible
         ~text_focus:(Pxui.Ui.text_input_focused ui) ~camera_panel
         ~render_status:!(value.render_status)
-        ~view_state:(fun () -> view_json !camera !look_through) frame in
+        ~view_state:(function
+          | Some (_, camera, _, look, _) -> view_json camera look
+          | None -> view_json value.camera value.look_through) frame in
     let core = update.core and panes = Core.panes update.core frame in
+    let control, camera, requests, look_through, inspected =
+      match update.panel with
+      | Some panel -> let control, camera, requests, look, inspected = panel in
+          control, camera, requests, look, Some inspected
+      | None -> value.camera_control, value.camera, [], value.look_through, None in
+    let control = ref control and camera = ref camera
+    and look_through = ref look_through in
     let control = List.fold_left (fun control -> function
       | Leader.Hide_ui -> CC.toggle_ui control
       | Open_camera -> CC.open_camera control
@@ -1391,13 +1402,13 @@ module Environment3 = struct
         || update.effects.export then
         Option.map (value.scene3 (Core.displayed_node core)) (Core.prepared core)
       else value.rendered in
-    let pending_render = match List.rev !requests with
+    let pending_render = match List.rev requests with
       | request :: _ -> Some request | [] -> None in
     if pending_render <> None && rendered = None then
       value.render_status := Some "Render unavailable until the first cook completes";
     { value with core; camera; camera_control = control; rendered; pending_render;
       look_through; fly; render_camera = render_camera_of core camera },
-    !inspected
+    inspected
 
   let update value frame = fst (update_with value frame ~inspector:ignore)
 
@@ -1536,19 +1547,23 @@ module Environment2 = struct
   let update value frame =
     let ui = value.core.Core.ui in
     let visible = CC2.ui_visible value.camera_control in
-    let control = ref value.camera_control and camera = ref value.camera
-    and requests = ref [] in
     let camera_panel () =
-      let next, edited, saves = CC2.widgets !control ui ~camera:!camera in
-      control := next; camera := edited; requests := saves in
+      CC2.widgets value.camera_control ui ~camera:value.camera in
     let update = Core.update value.core ~all_ui_visible:visible
         ~text_focus:(Pxui.Ui.text_input_focused ui) ~camera_panel
         ~render_status:!(value.render_status)
-        ~view_state:(fun () -> let center = Easy_camera2.center !camera in
+        ~view_state:(fun panel ->
+          let camera = match panel with
+            | Some (_, camera, _) -> camera | None -> value.camera in
+          let center = Easy_camera2.center camera in
           `Assoc [ "center", `List [`Float center.Vec2.x; `Float center.y];
-                   "zoom", `Float (Easy_camera2.zoom !camera);
-                   "rotation", `Float (Easy_camera2.rotation !camera) ]) frame in
+                   "zoom", `Float (Easy_camera2.zoom camera);
+                   "rotation", `Float (Easy_camera2.rotation camera) ]) frame in
     let core = update.core and panes = Core.panes update.core frame in
+    let control, camera, requests = match update.panel with
+      | Some panel -> panel
+      | None -> value.camera_control, value.camera, [] in
+    let control = ref control and camera = ref camera in
     (match update.loaded_view with
      | Some (`Assoc fields) ->
          let number = function Some (`Float v) -> Some v
@@ -1576,7 +1591,7 @@ module Environment2 = struct
         || update.effects.export then
         Option.map (value.scene2 (Core.displayed_node core)) (Core.prepared core)
       else value.rendered in
-    let pending_render = match List.rev !requests with
+    let pending_render = match List.rev requests with
       | request :: _ -> Some request | [] -> None in
     if pending_render <> None && rendered = None then
       value.render_status := Some "Render unavailable until the first cook completes";
