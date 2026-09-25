@@ -1447,34 +1447,31 @@ let context_items (value : t) = function
 
 (* Context-menu rows emit the same typed changes as the keyboard and pointer
    paths. *)
-let apply_context (value : t) context index emit =
+let apply_context (value : t) context index =
   let value = { value with context = None } in
   match context.target, index with
-  | On_canvas, 0 -> open_menu value context.at
-  | On_canvas, 1 -> emit View_changed; optimize_layout value
-  | On_canvas, _ -> emit View_changed; frame_all value
-  | On_tile id, 0 -> emit (Viewed id); { value with viewed = id }
-  | On_tile id, 1 -> emit (Flag_requested id); { value with flagged = Some id }
+  | On_canvas, 0 -> open_menu value context.at, []
+  | On_canvas, 1 -> optimize_layout value, [View_changed]
+  | On_canvas, _ -> frame_all value, [View_changed]
+  | On_tile id, 0 -> { value with viewed = id }, [Viewed id]
+  | On_tile id, 1 -> { value with flagged = Some id }, [Flag_requested id]
   | On_tile id, 2 ->
       let value = select id value in
-      let value, emitted = duplicate_selection value in List.iter emit emitted; value
-  | On_tile id, 4 -> emit (Frame_camera_requested id); value
+      duplicate_selection value
+  | On_tile id, 4 -> value, [Frame_camera_requested id]
   | On_tile id, _ ->
-      emit (Delete_nodes_requested [id]);
-      if Id_set.mem id value.selected then clear_selection value else value
+      (if Id_set.mem id value.selected then clear_selection value else value),
+      [Delete_nodes_requested [id]]
   | On_wire connection, 0 ->
       open_menu { value with selected_edge = Some connection;
-        selected = Id_set.empty; primary = None } context.at
+        selected = Id_set.empty; primary = None } context.at, []
   | On_wire connection, _ ->
-      emit (Disconnect_requested connection);
-      { value with selected_edge = None }
+      { value with selected_edge = None }, [Disconnect_requested connection]
 
 let update (value : t) ui (frame : Frame.t) =
   if not value.visible then { value with drag = None; menu = None; context = None }, []
   else
   let initial = value in
-  let changes = ref [] in
-  let emit change = changes := change :: !changes in
   let canvas = Ui.box ui ~flags:Ui.(clickable + scroll + clip + blocking)
       ~w:(Ui.Px (float_of_int value.width)) ~h:(Ui.Px (float_of_int value.height))
       ~at:(float_of_int value.x, float_of_int value.y) "pxui-graph" in
@@ -1548,17 +1545,18 @@ let update (value : t) ui (frame : Frame.t) =
           | Some edge -> On_wire value.edges.(edge).connection
           | None -> On_canvas }
     | None -> None in
-  let value = match value.menu, value.context with
+  let value, changes = match value.menu, value.context with
     | Some menu, _ ->
         let value, emitted = build_menu value ui menu in
-        List.iter emit emitted; value
+        value, List.rev emitted
     | None, Some context ->
         let x, y = context.at in
         (match Ui.context_menu ui ~at:(float_of_int x, float_of_int y)
             "pxui-graph-context" (context_items value context.target) with
-         | `Open -> value
-         | `Dismiss -> { value with context = None }
-         | `Pick index -> apply_context value context index emit)
+         | `Open -> value, []
+         | `Dismiss -> { value with context = None }, []
+         | `Pick index -> let value, emitted = apply_context value context index in
+             value, List.rev emitted)
     | None, None ->
     (* Right and middle drags pan from anywhere on the canvas. *)
     let panning = Array.exists (fun (_, tile, _, _) ->
@@ -1568,94 +1566,97 @@ let update (value : t) ui (frame : Frame.t) =
       || ((canvas_signal.held || canvas_signal.released)
           && canvas_signal.button <> Some Input.LeftButton
           && canvas_signal.button <> None) in
-    let value = if not panning then value else begin
+    let value, changes = if not panning then value, [] else begin
         let dx, dy = if canvas_signal.held || canvas_signal.released
           then canvas_signal.drag
           else Array.fold_left (fun (dx, dy) (_, tile, _, _) ->
             let tx, ty = (Ui.signal ui tile).drag in dx +. tx, dy +. ty) (0., 0.) tiles in
-        if dx <> 0. || dy <> 0. then emit View_changed;
-        pan value dx dy
+        pan value dx dy, (if dx <> 0. || dy <> 0. then [View_changed] else [])
       end in
     let scroll = snd canvas_signal.scroll in
     let mx, my = frame.mouse in
-    let value = if scroll <> 0. &&
+    let value, changes = if scroll <> 0. &&
         mx >= float value.x && my >= float value.y &&
         mx < float (value.x + value.width) &&
         my < float (value.y + value.height) then begin
-        emit View_changed; zoom_at value frame.mouse scroll
-      end else value in
-    Array.fold_left (fun value (index, tile, view, output) ->
+        zoom_at value frame.mouse scroll, View_changed :: changes
+      end else value, changes in
+    Array.fold_left (fun (value, changes) (index, tile, view, output) ->
       let id = value.boxes.(index).info.Edit_graph.id in
       let tile_signal = Ui.signal ui tile in
       let left signal = signal.Ui.button = Some Input.LeftButton in
       let view, active = view in
-      let value = match view with
+      let value, changes = match view with
         | Some view when (Ui.signal ui view).clicked ->
-            emit (Viewed id); { value with viewed = id }
-        | Some _ | None -> value in
-      let value = match active with
+            { value with viewed = id }, Viewed id :: changes
+        | Some _ | None -> value, changes in
+      let value, changes = match active with
         | Some active when (Ui.signal ui active).clicked ->
-            emit (Flag_requested id); { value with flagged = Some id }
-        | Some _ | None -> value in
-      let value = match output with
+            { value with flagged = Some id }, Flag_requested id :: changes
+        | Some _ | None -> value, changes in
+      let value, changes = match output with
         | Some output ->
             let signal = Ui.signal ui output in
             let value = if signal.pressed && left signal
               then { value with drag = Some (Connect_wire { source = id }) } else value in
             if signal.released && left signal then begin
               let value = { value with drag = None } in
-              (if not cancelled then match hit_input value (ints signal.release_point) with
+              let changes = if not cancelled then match hit_input value (ints signal.release_point) with
                 | Some (consumer_index, input_index) ->
                     let consumer = value.boxes.(consumer_index).info.Edit_graph.id in
-                    if consumer <> id then emit (Connect_requested
-                      { Edit_graph.source = id; consumer; input_index })
-                | None -> ());
-              value
-            end else value
-        | None -> value in
+                    if consumer <> id then Connect_requested
+                      { Edit_graph.source = id; consumer; input_index } :: changes
+                    else changes
+                | None -> changes else changes in
+              value, changes
+            end else value, changes
+        | None -> value, changes in
       if tile_signal.pressed && left tile_signal then begin
         let before = value.primary in
         let value = select_node value ~additive:(List.mem Input.Shift frame.keys) index in
         let indices = indices_of_selection value in
-        if before <> value.primary then emit (Selected value.primary);
+        let changes = if before <> value.primary then
+          Selected value.primary :: changes else changes in
         { value with drag = Some (Move_nodes { node = id; indices;
             edge_indices = affected_edges value.spatial indices;
-            offset_x = 0.; offset_y = 0. }) }
-      end else value)
-      value tiles
-    |> fun value ->
+            offset_x = 0.; offset_y = 0. }) }, changes
+      end else value, changes)
+      (value, changes) tiles
+    |> fun (value, changes) ->
     (* Continue or finish the captured gesture. *)
-    let value = match value.drag with
+    let value, changes = match value.drag with
       | Some (Move_nodes { node; indices; edge_indices; offset_x; offset_y }) ->
           (match Array.find_opt (fun (index, _, _, _) ->
               value.boxes.(index).info.Edit_graph.id = node) tiles with
-           | None -> { value with drag = None }
+           | None -> { value with drag = None }, changes
            | Some (_, tile, _, _) ->
                let signal = Ui.signal ui tile in
                let dx, dy = signal.drag in
-               let value = if dx <> 0. || dy <> 0. then begin
-                   emit (match indices with
+               let value, changes = if dx <> 0. || dy <> 0. then begin
+                   let change = match indices with
                      | [|index|] -> Node_moved value.boxes.(index).info.Edit_graph.id
                      | _ -> Nodes_moved (Array.to_list (Array.map (fun index ->
-                         value.boxes.(index).info.Edit_graph.id) indices)));
-                   move_nodes value node indices edge_indices (dx, dy) offset_x offset_y
-                 end else value in
-               if cancelled then { value with drag = None }
+                         value.boxes.(index).info.Edit_graph.id) indices)) in
+                   move_nodes value node indices edge_indices (dx, dy) offset_x offset_y,
+                   change :: changes
+                 end else value, changes in
+               if cancelled then { value with drag = None }, changes
                else if signal.released then
                  match value.drag with
                  | Some (Move_nodes moved) ->
                      commit_node_move value moved.indices
-                       moved.offset_x moved.offset_y
-                 | _ -> value
-               else if signal.held then value else { value with drag = None })
-      | Some (Connect_wire _) | Some (Box_select _) | None -> value in
+                       moved.offset_x moved.offset_y, changes
+                 | _ -> value, changes
+               else if signal.held then value, changes
+               else { value with drag = None }, changes)
+      | Some (Connect_wire _) | Some (Box_select _) | None -> value, changes in
     if canvas_signal.pressed && canvas_signal.button = Some Input.LeftButton then
       match hit_edge value (ints canvas_signal.press_point) with
       | Some edge_index ->
           let connection = value.edges.(edge_index).connection in
-          emit (Connection_selected (Some connection)); emit (Selected None);
           { value with selected_edge = Some connection; selected = Id_set.empty;
-            primary = None; drag = None }
+            primary = None; drag = None },
+          Selected None :: Connection_selected (Some connection) :: changes
       | None ->
           let value = { value with selected_edge = None;
             drag = Some (Box_select { additive = List.mem Input.Shift frame.keys }) } in
@@ -1665,23 +1666,24 @@ let update (value : t) ui (frame : Frame.t) =
               ints canvas_signal.release_point in
             let value = apply_marquee value { start_x = x0; start_y = y0;
               current_x = x1; current_y = y1; additive = List.mem Input.Shift frame.keys } in
-            if before <> value.primary then emit (Selected value.primary);
-            value
-          end else value
+            value, (if before <> value.primary then
+              Selected value.primary :: changes else changes)
+          end else value, changes
     else match value.drag with
       | Some (Box_select { additive }) when canvas_signal.released ->
-          if cancelled then { value with drag = None } else begin
+          if cancelled then { value with drag = None }, changes else begin
             let before = value.primary in
             let (x0, y0), (x1, y1) = ints canvas_signal.press_point,
               ints canvas_signal.release_point in
             let value = apply_marquee value { start_x = x0; start_y = y0;
               current_x = x1; current_y = y1; additive } in
-            if before <> value.primary then emit (Selected value.primary);
-            value
+            value, (if before <> value.primary then
+              Selected value.primary :: changes else changes)
           end
-      | Some (Box_select _) when not canvas_signal.held -> { value with drag = None }
-      | Some (Connect_wire _) when cancelled -> { value with drag = None }
-      | _ -> value in
+      | Some (Box_select _) when not canvas_signal.held ->
+          { value with drag = None }, changes
+      | Some (Connect_wire _) when cancelled -> { value with drag = None }, changes
+      | _ -> value, changes in
   let value = match clicked_context with
     | Some context -> { value with context = Some context; drag = None }
     | None -> value in
@@ -1720,7 +1722,7 @@ let update (value : t) ui (frame : Frame.t) =
              paint_wire value paint (sx + sw / 2, sy + sh) (ints canvas_signal.pointer)
                value.theme.accent)
     | Some (Move_nodes _) | None -> ());
-  value, List.rev !changes
+  value, List.rev changes
 
 module Private = struct
   let hit_node_id value point = Option.map (fun index ->
