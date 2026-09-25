@@ -6,7 +6,7 @@
 (executable
  (name main)
  (modules main)
- (libraries chromatic_art prismel pxui unix))
+ (libraries chromatic_art prismel pxui editor unix))
 
 (test
  (name check)

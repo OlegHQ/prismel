@@ -80,13 +80,13 @@ let parameters ui : Drift.settings = {
   depth=get ui "depth"; curl=get ui "curl"; shadow=get ui "shadow";
   roughness=get ui "roughness"; light_angle=get ui "light_angle";
   sweep=get ui "sweep"; radiance=get ui "radiance"; color_depth=get ui "color_depth" }
-let settings values : Pxui.Settings.t =
-  ("play", Pxui.Settings.Bool values.play)
-  :: List.mapi (fun i (key,_,_,_,_) -> key, Pxui.Settings.Float values.sliders.(i)) controls
+let settings values : Editor.Store.Settings.t =
+  ("play", Editor.Store.Settings.Bool values.play)
+  :: List.mapi (fun i (key,_,_,_,_) -> key, Editor.Store.Settings.Float values.sliders.(i)) controls
 let of_settings saved =
   List.fold_left (fun values (key,_,_,_,_) ->
-    match Pxui.Settings.float saved key with Some v -> set values key v | None -> values)
-    { (defaults ()) with play = Option.value ~default:true (Pxui.Settings.bool saved "play") }
+    match Editor.Store.Settings.float saved key with Some v -> set values key v | None -> values)
+    { (defaults ()) with play = Option.value ~default:true (Editor.Store.Settings.bool saved "play") }
     controls
 
 (* One kit panel; returns the edited values and the pressed actions. *)
@@ -143,9 +143,9 @@ let update m (f:Frame.t) =
     | `Palette->set values "palette"
         (float ((int_of_float(get values "palette")+1) mod 4)),status,reset
     | `Reset->defaults (),"Reset",true
-    | `Save->values,(match Pxui.Settings.save !settings_file (settings values) with
+    | `Save->values,(match Editor.Store.Settings.save ~sketch:"chromatic_drift" !settings_file (settings values) with
         Ok()->"Saved settings"|Error e->e),reset
-    | `Load->(match Pxui.Settings.load !settings_file with
+    | `Load->(match Editor.Store.Settings.load ~sketch:"chromatic_drift" !settings_file with
         Ok saved->of_settings saved,"Loaded settings",true|Error e->values,e,reset))
     (values,m.status,false) actions in
   let p=parameters values in

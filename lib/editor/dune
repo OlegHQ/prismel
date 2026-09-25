@@ -1,10 +1,15 @@
 (library
  (name editor)
  (public_name prismel.editor)
- (modules editor)
- (libraries prismel))
+ (modules editor store)
+ (libraries prismel yojson unix))
 
 (test
  (name test_history)
  (modules test_history)
  (libraries editor prismel))
+
+(test
+ (name test_store)
+ (modules test_store)
+ (libraries editor prismel yojson unix))

@@ -548,7 +548,8 @@ Splitters request resize pointers on hover or drag; `Sketch.set_cursor`
 accepts default, horizontal-resize, and vertical-resize shapes for native
 sketches and returns an error outside an active sketch.
 
-`Pxui.Settings` saves and loads model values in the `PXUI1` format.
+`Editor.Store.Settings` saves model values in Prismel's versioned JSON
+envelope and reads existing `PXUI1` files.
 `Pxui.Camera_control` builds Camera (FOV, distance, clipping, inertia, reset)
 and Render (output name, save) sections through `widgets`. Hosts decide when
 to build them using `ui_visible`, `open_camera`, and `toggle_ui`, and call

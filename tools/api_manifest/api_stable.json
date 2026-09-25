@@ -6,13 +6,22 @@
   "module_count": 133,
   "modules": [
     {
-      "api_sha256": "a5e51a9c25447aacc512d8798506014bbbcd9b827e22785216f9de3c1ce2a23c",
+      "api_sha256": "036bba7ad4ccd76c919c872597aeb98c8264d6c1dfb177af07e146a4e8429309",
       "excluded_legacy_symbols": [],
       "library": "editor",
       "module": "Editor",
       "source": "lib/editor/editor.mli",
-      "source_bytes": 1513,
-      "source_sha256": "51f3e3bd2211231234b827902f95f79164831f9a4c04fdc84ee709ddf423f0a9"
+      "source_bytes": 1535,
+      "source_sha256": "24e8fe22858f3e11167d78d38187b02b83155ed40e2ec79c9766d808b06aa083"
+    },
+    {
+      "api_sha256": "b46696f52f8f6928015d24bee3f7cf48d237219c12f14a9bbd5895faf319f175",
+      "excluded_legacy_symbols": [],
+      "library": "editor",
+      "module": "Store",
+      "source": "lib/editor/store.mli",
+      "source_bytes": 1336,
+      "source_sha256": "0a5d52b8d4e13e9918cf344cecd2366671c75495abfd046dd46df565ec2267e4"
     },
     {
       "api_sha256": "69403004e55a49667961f98b7879af4b3786d561307ea8812bb014b262ce5a72",
@@ -1091,22 +1100,13 @@
       "source_sha256": "22a51e5f0d0ed52b1526a0db318bea73ebb8a382830a8b424d84b851c792b6c4"
     },
     {
-      "api_sha256": "887ec5acd5e95a7526939c2d8bc00700beb1f894b95f71a6b8995465b7eb87c9",
+      "api_sha256": "a2b4c095b0fb8fdf16e45c4533cbc18d02be7e8acda14fead0718d5382c6c7d6",
       "excluded_legacy_symbols": [],
       "library": "pxui",
       "module": "Pxui",
       "source": "lib/pxui/pxui.mli",
-      "source_bytes": 776,
-      "source_sha256": "84737cb7ab1dd3bb655a8c552ed68b09024e8111971feb1df0c6fda56d779871"
-    },
-    {
-      "api_sha256": "988703a0f4afb2c884f1bae0ed37143726df43f864484261f55a5964847f8704",
-      "excluded_legacy_symbols": [],
-      "library": "pxui",
-      "module": "Settings",
-      "source": "lib/pxui/settings.mli",
-      "source_bytes": 1007,
-      "source_sha256": "1d67ede00c99e2e307caf6fb050419162560abb20d8af178b137a04acff84f3b"
+      "source_bytes": 714,
+      "source_sha256": "a3bafbfa290d573092b5c0ec10d80484193e4be0a5c7a92ac4f82e5463c61e47"
     },
     {
       "api_sha256": "7eade6236511dc81668cd404b3b26d10b344a4904e9aa4506be95f1e700f9720",
@@ -1177,8 +1177,8 @@
       "library": "sketch_ui",
       "module": "Preset",
       "source": "lib/sketch_ui/preset.mli",
-      "source_bytes": 2085,
-      "source_sha256": "e25456c97b813c3aa400a95b288c4f83b9b75c1f0f5540ee2519e600e8a930e2"
+      "source_bytes": 2073,
+      "source_sha256": "412d0c7639dee55ba5e35d7b650522d013ba654fe8b8d1840be824a20b7e0640"
     },
     {
       "api_sha256": "13a37133e9ba45a8859fe584184c4d55ef03bf6fc6f3a8d938e08e8cc531c193",

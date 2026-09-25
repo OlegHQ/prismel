@@ -1,5 +1,7 @@
 (** Pure editor state shared by the sketch host and presentation adapters. *)
 
+module Store = Store
+
 (** Bounded immutable undo history with explicit edit merge rules. *)
 module History : sig
   type 'a t

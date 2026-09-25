@@ -1,8 +1,8 @@
 (library
  (name pxui)
  (public_name prismel.pxui)
- (modules pxui theme ui settings camera_controls)
- (libraries prismel unix))
+ (modules pxui theme ui camera_controls)
+ (libraries prismel))
 
 (executable
  (name test_main)

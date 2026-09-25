@@ -39,7 +39,7 @@ let value_of_json : Yojson.Safe.t -> (Parameter.value, string) result = function
 
 let optional_int = function Some value -> `Int value | None -> `Null
 
-let to_json ~sketch ~document ~positions ~display ~active_camera ~view =
+let to_sections ~document ~positions ~display ~active_camera ~view =
   let positions_by_id = Hashtbl.create (List.length positions) in
   List.iter (fun (id, x, y) ->
     if not (Hashtbl.mem positions_by_id id) then
@@ -57,33 +57,21 @@ let to_json ~sketch ~document ~positions ~display ~active_camera ~view =
             `List [ `String field.name; value_json field.current ])
             (Node.parameter_fields info.node));
           "x", `Float x; "y", `Float y ]) in
-  (* The shared Prismel save envelope ("prismel"/"kind"), so presets stay
-     loadable when settings join the same format. *)
-  `Assoc [ "prismel", `Int 1; "kind", `String "preset";
-           "version", `Int version; "sketch", `String sketch;
-           "nodes", `List (List.map node (Edit_graph.inspect document));
-           "display", optional_int display; "active_camera", optional_int active_camera;
-           "view", view ]
-
-let rec mkdir_p directory =
-  if not (Sys.file_exists directory) then begin
-    mkdir_p (Filename.dirname directory);
-    try Unix.mkdir directory 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ()
-  end
+  [ "graph", `Assoc [
+      "version", `Int version;
+      "nodes", `List (List.map node (Edit_graph.inspect document));
+      "display", optional_int display;
+      "active_camera", optional_int active_camera ];
+    "viewport", view ]
 
 (* Written to a temporary file and renamed, so a crash never leaves a torn
    preset behind. *)
 let save ~directory ~name ~sketch ~document ~positions ~display ~active_camera ~view =
   if sanitize name = "" then Error "preset name is empty" else
   let target = path ~directory ~name in
-  try
-    mkdir_p directory;
-    let temporary = target ^ ".tmp" in
-    Yojson.Safe.to_file temporary
-      (to_json ~sketch ~document ~positions ~display ~active_camera ~view);
-    Sys.rename temporary target;
-    Ok target
-  with Sys_error message | Unix.Unix_error (_, _, message) -> Error message
+  Editor.Store.save ~filename:target ~kind:Editor.Store.Preset ~sketch
+    ~sections:(to_sections ~document ~positions ~display ~active_camera ~view)
+  |> Result.map (fun () -> target)
 
 let list ~directory =
   match Sys.readdir directory with
@@ -150,6 +138,16 @@ let decode path = match Yojson.Safe.from_file path with
   | exception Yojson.Json_error message -> Error ("corrupt preset: " ^ message)
   | exception Sys_error message -> Error message
   | `Assoc fields ->
+      let* fields, view = match List.assoc_opt "sections" fields with
+        | Some (`Assoc _) ->
+            let* _, sections = Editor.Store.load ~filename:path ~kind:Editor.Store.Preset in
+            (match List.assoc_opt "graph" sections with
+             | Some (`Assoc graph) ->
+                 Ok (graph, Option.value ~default:`Null
+                   (List.assoc_opt "viewport" sections))
+             | _ -> Error "preset has no graph section")
+        | Some _ -> Error "preset sections are not an object"
+        | None -> Ok (fields, Option.value ~default:`Null (List.assoc_opt "view" fields)) in
       let field name = List.assoc_opt name fields in
       let* () = match field "version" with
         | Some (`Int v) when v = version -> Ok ()
@@ -159,8 +157,7 @@ let decode path = match Yojson.Safe.from_file path with
         | Some (`List nodes) -> all (List.map saved_node nodes)
         | _ -> Error "preset has no nodes" in
       let optional name = match field name with Some (`Int id) -> Some id | _ -> None in
-      Ok (nodes, optional "display", optional "active_camera",
-          Option.value ~default:`Null (field "view"))
+      Ok (nodes, optional "display", optional "active_camera", view)
   | _ -> Error "corrupt preset: not an object"
 
 let load ~path ~code ~factories =

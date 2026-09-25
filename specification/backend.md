@@ -34,7 +34,8 @@ translation from the checked high-level GPU interface to typed Metal bindings;
 values and records rendering through the narrow GPU boundary; it never exposes
 native handles in its public API.
 The pure `editor` library owns bounded undo history with explicit edit merge
-rules and key routing. Sketch hosts use `Editor.History` and `Editor.Router`;
+rules, key routing, and atomic JSON storage. Sketch hosts use
+`Editor.History`, `Editor.Router`, and `Editor.Store`;
 `pxui_graph` exports editor bindings and graph commands without handling key
 events. `editor` depends on `prismel` for frame and event values, never on UI
 or geometry libraries. `pxui_shell` owns editor chrome over the shared PXUI
@@ -42,7 +43,9 @@ handle; `Layout` computes pane geometry and `Chrome` handles standard splitters,
 headers, and focus outline. Its which-key panel reads generic editor bindings, while its
 timeline and prompt widgets return requests without knowing about SOPs or
 presets. `Shell.frame` owns the workspace's PXUI frame calls. `sketch_ui`
-supplies bindings, focus, playback state, and preset data.
+supplies bindings, focus, playback state, and preset data. Presets use
+`Editor.Store` graph and viewport sections; `Editor.Store.Settings` saves the
+same envelope and reads legacy `PXUI1` settings files.
 OGPU's dormant Frame_graph, Descriptor_arena, Transfer_ring, Instance,
 Device_lifecycle, and Acceleration_pass modules have no production callers and
 are removed. Query validation stays in `Ogpu.Sync.resolve`; the redundant

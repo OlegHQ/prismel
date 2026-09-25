@@ -1,3 +1,5 @@
+module Store = Store
+
 module History = struct
   type merge =
     | Step

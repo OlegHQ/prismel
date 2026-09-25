@@ -955,32 +955,6 @@ module Environment3 = struct
 
   let set_relative enabled = ignore (Sketch.set_relative_mouse enabled)
 
-  (* Preset view settings: the viewport camera and look-through. *)
-  let view_json easy look_through =
-    let camera = Easy_camera.camera easy in
-    let vector (v : Vec3.t) = `List [`Float v.x; `Float v.y; `Float v.z] in
-    `Assoc [ "eye", vector (Camera.position camera); "target", vector (Camera.target camera);
-             "fov", `Float (Easy_camera.fov_y easy); "look_through", `Bool look_through ]
-
-  let load_view easy json =
-    let number = function `Float v -> Some v | `Int v -> Some (float_of_int v) | _ -> None in
-    let vector = function
-      | Some (`List [x; y; z]) ->
-          (match number x, number y, number z with
-           | Some x, Some y, Some z -> Some (Vec3.create x y z) | _ -> None)
-      | _ -> None in
-    match json with
-    | `Assoc fields ->
-        let field name = List.assoc_opt name fields in
-        let easy = match vector (field "eye"), vector (field "target") with
-          | Some eye, Some target -> Easy_camera.of_view ~eye ~target easy
-          | _ -> easy in
-        let easy = match Option.bind (field "fov") number with
-          | Some fov when fov > 0. && fov < Float.pi -> Easy_camera.with_fov_y fov easy
-          | _ -> easy in
-        easy, field "look_through" = Some (`Bool true)
-    | _ -> easy, false
-
   let update_with value frame ~inspector =
     let ui = value.core.Core.ui in
     let raw_frame = frame in
@@ -997,8 +971,9 @@ module Environment3 = struct
         ~text_focus:(Pxui.Ui.text_input_focused ui) ~camera_panel
         ~render_status:value.render_status
         ~view_state:(function
-          | Some (_, camera, _, look, _) -> view_json camera look
-          | None -> view_json value.camera value.look_through) frame in
+          | Some (_, camera, _, look, _) -> Editor.Store.Viewport.encode3 camera ~look_through:look
+          | None -> Editor.Store.Viewport.encode3 value.camera
+              ~look_through:value.look_through) frame in
     let core = update.core and panes = Core.panes update.core frame in
     let control, camera, requests, look_through, inspected =
       match update.panel with
@@ -1011,7 +986,7 @@ module Environment3 = struct
       | Leader.Hide_ui -> CC.toggle_ui control
       | Open_camera -> CC.open_camera control
       | _ -> control) !control update.actions in
-    (match Option.map (load_view !camera) update.loaded_view with
+    (match Option.map (Editor.Store.Viewport.decode3 !camera) update.loaded_view with
      | Some (loaded, look) -> camera := loaded; look_through := look
      | None -> ());
     let look_through = List.fold_left (fun look -> function
@@ -1220,30 +1195,14 @@ module Environment2 = struct
         ~view_state:(fun panel ->
           let camera = match panel with
             | Some (_, camera, _) -> camera | None -> value.camera in
-          let center = Easy_camera2.center camera in
-          `Assoc [ "center", `List [`Float center.Vec2.x; `Float center.y];
-                   "zoom", `Float (Easy_camera2.zoom camera);
-                   "rotation", `Float (Easy_camera2.rotation camera) ]) frame in
+          Editor.Store.Viewport.encode2 camera) frame in
     let core = update.core and panes = Core.panes update.core frame in
     let control, camera, requests = match update.panel with
       | Some panel -> panel
       | None -> value.camera_control, value.camera, [] in
     let control = ref control and camera = ref camera in
-    (match update.loaded_view with
-     | Some (`Assoc fields) ->
-         let number = function Some (`Float v) -> Some v
-           | Some (`Int v) -> Some (float_of_int v) | _ -> None in
-         (match List.assoc_opt "center" fields with
-          | Some (`List [x; y]) ->
-              (match number (Some x), number (Some y) with
-               | Some x, Some y -> camera := Easy_camera2.with_center (Vec2.create x y) !camera
-               | _ -> ())
-          | _ -> ());
-         Option.iter (fun zoom -> if zoom > 0. then camera := Easy_camera2.with_zoom zoom !camera)
-           (number (List.assoc_opt "zoom" fields));
-         Option.iter (fun rotation -> camera := Easy_camera2.with_rotation rotation !camera)
-           (number (List.assoc_opt "rotation" fields))
-     | Some _ | None -> ());
+    Option.iter (fun json ->
+      camera := Editor.Store.Viewport.decode2 !camera json) update.loaded_view;
     let control = List.fold_left (fun control -> function
       | Leader.Hide_ui -> CC2.toggle_ui control
       | Open_camera -> CC2.open_camera control

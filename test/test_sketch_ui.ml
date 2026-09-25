@@ -543,8 +543,12 @@ let run () =
     "preset save did not sanitize the name or list the file";
   (match Yojson.Safe.from_file saved with
    | `Assoc fields -> check (List.assoc_opt "prismel" fields = Some (`Int 1)
-       && List.assoc_opt "kind" fields = Some (`String "preset"))
-       "preset lacks the prismel save envelope"
+       && List.assoc_opt "kind" fields = Some (`String "preset")
+       && (match List.assoc_opt "sections" fields with
+           | Some (`Assoc sections) ->
+               List.mem_assoc "graph" sections && List.mem_assoc "viewport" sections
+           | _ -> false))
+       "preset lacks the shared sectioned envelope"
    | _ -> check false "preset is not a JSON object");
   let loaded = Sketch_ui.Preset.load ~path:saved ~code:code_graph
       ~factories:Sop_catalog.Editor.factories |> Result.get_ok in
@@ -557,6 +561,23 @@ let run () =
       && loaded.display = Some (Node.id code_graph)
       && List.exists (fun (_, x, y) -> x = 123.5 && y = -40.) loaded.positions)
     "preset round trip changed the document, view, display, or tile positions";
+  let legacy = Filename.concat directory "legacy.json" in
+  let sectioned = Yojson.Safe.from_file saved in
+  (match sectioned with
+   | `Assoc fields ->
+       let sections = match List.assoc "sections" fields with `Assoc s -> s | _ -> assert false in
+       let graph = match List.assoc "graph" sections with `Assoc g -> g | _ -> assert false in
+       Yojson.Safe.to_file legacy (`Assoc (
+         ["prismel", `Int 1; "kind", `String "preset";
+          "sketch", `String "test"; "view", List.assoc "viewport" sections] @ graph))
+   | _ -> assert false);
+  let loaded_legacy = Sketch_ui.Preset.load ~path:legacy ~code:code_graph
+      ~factories:Sop_catalog.Editor.factories |> Result.get_ok in
+  check (describe loaded_legacy.document = describe document
+      && loaded_legacy.view = loaded.view)
+    "old flat preset stopped loading";
+  check (Sketch_ui.Preset.delete ~directory ~name:"legacy" = Ok ())
+    "legacy preset could not be deleted";
   check (Result.is_error (Sketch_ui.Preset.load ~path:saved ~code:(code ())
       ~factories:Sop_catalog.Editor.factories))
     "a preset loaded into a sketch without its custom node";
