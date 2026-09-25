@@ -648,6 +648,17 @@ module Core = struct
   type timeline_intent = Pause_toggle | Stop_playback | Reset_playback
     | Seek_playback of int64
 
+  type frame_result = {
+    workspace : Workspace.t;
+    graph_view : Pxui_graph.t;
+    document : Edit_graph.t;
+    edit_error : string option;
+    inspector : Sop_ui.Node_inspector.t option;
+    effects : Parameter.effects;
+    timeline_intents : timeline_intent list;
+    frame_request : int option;
+  }
+
   type 'prepared t = {
     code_graph : Graph.t;
     presets : string;  (* preset directory *)
@@ -892,8 +903,8 @@ module Core = struct
             (if scrub <> Int64.to_float frame
               then Some (Seek_playback (Int64.of_float (Float.round scrub)))
               else None)])) in
-    let frame_request = ref (if List.mem Leader.Frame_camera actions
-      then Pxui_graph.selected graph_view else None) in
+    let initial_frame_request = if List.mem Leader.Frame_camera actions
+      then Pxui_graph.selected graph_view else None in
     let build ui =
       let workspace = Workspace.update workspace ui shortcut_frame in
       let panes = Workspace.geometry workspace frame in
@@ -905,9 +916,9 @@ module Core = struct
       let graph_view, graph_changes = if Pxui_graph.visible graph_view
         then Pxui_graph.update graph_view ui shortcut_frame else graph_view, [] in
       let graph_changes = command_changes @ graph_changes in
-      List.iter (function
-        | Pxui_graph.Frame_camera_requested id -> frame_request := Some id
-        | _ -> ()) graph_changes;
+      let frame_request = List.fold_left (fun request -> function
+        | Pxui_graph.Frame_camera_requested id -> Some id
+        | _ -> request) initial_frame_request graph_changes in
       let document, graph_view, edit_error, editor_effects = List.fold_left
           (Doc.apply value.factories)
           (value.document, graph_view, value.edit_error, Parameter.no_effects)
@@ -950,8 +961,9 @@ module Core = struct
           (fun paint _ -> Pxui.Ui.Paint.stroke paint ~x:(float_of_int x +. 0.5)
             ~y:(float_of_int y +. 0.5) ~w:(float_of_int (w - 1))
             ~h:(float_of_int (h - 1)) ~width:1. theme.accent);
-      workspace, graph_view, document, edit_error, inspector,
-      Parameter.union_effects editor_effects parameter_effects, timeline_intents in
+      { workspace; graph_view; document; edit_error; inspector;
+        effects = Parameter.union_effects editor_effects parameter_effects;
+        timeline_intents; frame_request } in
     let leader_panel ui = if leader = Leader.Pending then
         Leader.panel ui keymap focus in
     (* Presets: Space s names and saves the document, Space b browses, loads
@@ -1011,22 +1023,22 @@ module Core = struct
            | Some (query, _) -> prompt := Some (Browsing { query; presets })));
       (* A closed prompt must not keep keyboard focus into the next frame. *)
       if !prompt = None && value.prompt <> None then Ui.unfocus ui in
-    let workspace, graph_view, document, edit_error, inspector, effects,
-        timeline_intents =
+    let result =
       if all_ui_visible then
         Pxui.Ui.frame value.ui frame (fun ui ->
           let result = build ui in
-          let (workspace, _, _, _, _, _, _) = result in
-          status_box { value with workspace; status_fps; notice = !notice } ui frame
+          status_box { value with workspace = result.workspace;
+              status_fps; notice = !notice } ui frame
             ~render_status;
-          let (_, graph_view, document, _, _, _, _) = result in
-          prompt_panel ui graph_view document;
+          prompt_panel ui result.graph_view result.document;
           leader_panel ui;
           result)
       else begin
         if leader = Leader.Pending then Pxui.Ui.frame value.ui frame leader_panel;
-        workspace, graph_view, value.document, value.edit_error,
-        value.inspector, Parameter.no_effects, []
+        { workspace; graph_view; document = value.document;
+          edit_error = value.edit_error; inspector = value.inspector;
+          effects = Parameter.no_effects; timeline_intents = [];
+          frame_request = initial_frame_request }
       end in
     let timeline, timeline_changes = List.fold_left (fun (timeline, changes) intent ->
       let next, emitted = match intent with
@@ -1034,10 +1046,10 @@ module Core = struct
         | Stop_playback -> Sketch_support.Timeline.stop timeline
         | Reset_playback -> Sketch_support.Timeline.reset timeline
         | Seek_playback frame -> Sketch_support.Timeline.seek timeline ~frame in
-      next, changes @ emitted) (timeline, timeline_changes) timeline_intents in
+      next, changes @ emitted) (timeline, timeline_changes) result.timeline_intents in
     let prompt = !prompt and notice = !notice in
     let document, graph_view, inspector, edit_error = match !loaded with
-      | None -> document, graph_view, inspector, edit_error
+      | None -> result.document, result.graph_view, result.inspector, result.edit_error
       | Some (preset : Preset.loaded) ->
           let graph_view = List.fold_left (fun view (node_id, x, y) ->
               Pxui_graph.place_node ~node_id ~x ~y view)
@@ -1064,22 +1076,24 @@ module Core = struct
       | Some history -> history, Editor.History.present history, true
       | None -> history, document, false in
     let inspector = if undone then None else inspector in
-    let effects = if undone then Parameter.union_effects effects Doc.cook_effects
-      else effects in
+    let effects = if undone then Parameter.union_effects result.effects Doc.cook_effects
+      else result.effects in
     let graph_view = Pxui_graph.with_document document graph_view in
     let displayed_id = Pxui_graph.viewed graph_view in
     let display_changed = displayed_id <> value.displayed_id in
     let document_changed = document != value.document in
     let cooked = Cook.update value.cook ~document ~displayed_id ~graph:value.graph
         ~displayed_graph:value.displayed_graph ~edit_error ~display_changed
-        ~document_changed ~effects ~timeline_changes ~timeline ~frame
-        ~frame_request:!frame_request in
+      ~document_changed ~effects ~timeline_changes ~timeline ~frame
+      ~frame_request:result.frame_request in
     { core = { value with graph = cooked.graph;
         displayed_graph = cooked.displayed_graph; document; graph_view; displayed_id;
-        inspector; workspace; timeline; cook = cooked.cook; edit_error = cooked.edit_error;
+        inspector; workspace = result.workspace; timeline; cook = cooked.cook;
+        edit_error = cooked.edit_error;
         status_fps; status_fps_at; history; focus; leader; prompt;
         notice = if document_changed && Option.is_none !loaded then None else notice };
-      effects; prepared_changed = cooked.prepared_changed; framed = cooked.framed;
+      effects; prepared_changed = cooked.prepared_changed;
+      framed = cooked.framed;
       loaded_view = Option.map (fun (preset : Preset.loaded) -> preset.view) !loaded;
       actions; input = frame }
 
