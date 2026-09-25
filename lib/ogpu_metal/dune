@@ -15,7 +15,7 @@
 (executable
  (name test_main)
  (modules test_main test_ogpu_metal_foundation test_ogpu_metal_texture test_ogpu_metal_submission test_ogpu_metal_pipeline test_ogpu_metal_surface test_ogpu_metal_sync test_ogpu_metal_memory test_ogpu_metal_acceleration test_ogpu_metal_diagnostics test_ogpu_metal_capabilities test_ogpu_metal_render_pass test_ogpu_metal_portable_passes test_ogpu_metal_backend test_ogpu_metal_sampler_pixels test_scene_execution_metal test_pipeline_argument_buffer)
- (libraries scene_execution ogpu_metal_native metal))
+ (libraries scene_execution ogpu_metal_native metal unix))
 
 (rule
  (aliases runtest test_ogpu_metal_foundation)

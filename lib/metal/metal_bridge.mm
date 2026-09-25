@@ -444,6 +444,7 @@ API_AVAILABLE(macos(26.0))
 - (instancetype)initWithQueue:(id<MTL4CommandQueue>)queue
                        buffers:(NSArray<PrismelMetal4CommandBufferState *> *)buffers;
 - (void)finishWithFeedback:(id<MTL4CommitFeedback>)feedback;
+- (BOOL)isCompleted;
 - (nullable NSError *)waitUntilCompleted;
 - (double)startTime;
 - (double)endTime;
@@ -489,6 +490,7 @@ API_AVAILABLE(macos(26.0))
 
 - (double)startTime { [_condition lock]; double v = _startTime; [_condition unlock]; return v; }
 - (double)endTime { [_condition lock]; double v = _endTime; [_condition unlock]; return v; }
+- (BOOL)isCompleted { [_condition lock]; BOOL v = _completed; [_condition unlock]; return v; }
 
 - (NSError *)waitUntilCompleted {
   [_condition lock];
@@ -13133,6 +13135,17 @@ extern "C" CAMLprim value caml_prismel_metal_command4_queue_commit(
       }
     }
     CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command4_submission_ready(
+    value raw) {
+  CAMLparam1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      CAMLreturn(Val_bool([submission4_state_of_handle(raw) isCompleted]));
+    }
+    CAMLreturn(Val_false);
   }
 }
 

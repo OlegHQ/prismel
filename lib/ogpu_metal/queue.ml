@@ -364,6 +364,40 @@ let wait_through value epoch =
       match first_error,portable with
       | Some failure,_ -> Error failure
       | None,result -> result
+let poll_through value epoch =
+  let op = "Ogpu_metal.Queue.poll_through" in
+  if epoch <= 0L then
+    error op Ogpu_core.Error.Invalid_argument "completion epoch is invalid"
+  else if epoch <= value.completed then Ok true
+  else if epoch >= value.next_epoch then
+    error op Ogpu_core.Error.Invalid_argument "epoch was not submitted"
+  else
+    let rec ready = function
+      | [] -> Ok true
+      | ({epoch = pending_epoch; _} : pending) :: _ when pending_epoch > epoch ->
+          Ok true
+      | pending :: rest ->
+          let status = match pending.command with
+            | Classic command ->
+                Result.map (function
+                  | Metal.Command_buffer.Completed
+                  | Metal.Command_buffer.Error _ -> true
+                  | _ -> false) (Metal.Command_buffer.status command)
+            | Command4 (submission, _, _) ->
+                (match Metal.Command4.Submission.poll submission with
+                 | Error _ when Metal.Command4.Submission.completed submission -> Ok true
+                 | result -> result)
+          in
+          (match status with
+           | Error native_error ->
+               Error (Device.of_metal_error ~operation:op native_error)
+           | Ok false -> Ok false
+           | Ok true -> ready rest)
+    in
+    match ready value.pending with
+    | Error _ as failure -> failure
+    | Ok false -> Ok false
+    | Ok true -> Result.map (fun () -> true) (wait_through value epoch)
 let finish_scoped_render value receipt =
   match List.rev value.pending with
   |{epoch;command=Command4 _;_}::_ when epoch=receipt.epoch->

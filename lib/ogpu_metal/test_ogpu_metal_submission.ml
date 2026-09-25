@@ -30,8 +30,16 @@ let run () =match Device.system_default()with Error _->print_endline"ogpu_metal 
   let clear=ended(fun c->Command.clear c target~color:(0.25,0.5,0.75,1.))in
   let r1=get(Queue.submit queue copy)and r2=get(Queue.submit queue compute)and r3=get(Queue.submit queue clear)in
   if(r1.epoch,r2.epoch,r3.epoch)<>(1L,2L,3L)||Queue.in_flight queue<>3 then failwith"three-frame epoch ordering drift";
+  expect Ogpu.Error.Invalid_argument (Queue.poll_through queue 0L);
+  expect Ogpu.Error.Invalid_argument (Queue.poll_through queue 4L);
   let capacity=ended(fun _->Ok())in expect Ogpu.Error.Capacity(Queue.submit queue capacity);
-  get(Queue.wait_through queue r3.epoch);
+  let rec poll attempts =
+    if get (Queue.poll_through queue r3.epoch) then ()
+    else if attempts = 0 then failwith "queue poll did not observe GPU completion"
+    else (Unix.sleepf 0.001; poll (attempts - 1)) in
+  poll 1000;
+  if not (get (Queue.poll_through queue r3.epoch)) then
+    failwith "completed epoch was not idempotent";
   if Queue.in_flight queue<>0 || Queue.completed_epoch queue<>3L then
     failwith"completed queue did not release frame capacity";
   let timing_before_second=Queue.gpu_timing_for_device device in

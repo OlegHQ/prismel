@@ -4763,6 +4763,8 @@ let test_metal4_render_commands device =
       (expect_error Invalid_state (Command4.Submission.destroy submission));
     get (Command4.Submission.wait submission);
     get (Command4.Submission.wait submission);
+    if not (get (Command4.Submission.poll submission)) then
+      fail "waited Metal 4 submission did not poll complete";
     if not (Command4.Submission.completed submission)
        || Command4.Command_buffer.state commands
           <> Command4.Command_buffer.Completed
@@ -4783,6 +4785,7 @@ let test_metal4_render_commands device =
       fail "destroyed render argument table remained live";
     get (Buffer.destroy tint_buffer);
     get (Command4.Submission.destroy submission);
+    ignore (expect_error Destroyed (Command4.Submission.poll submission));
     get (Command4.Command_buffer.destroy commands);
     if get (Command4.Allocator.allocated_size allocator) < 0L then
       fail "Metal 4 allocator reported a negative size";

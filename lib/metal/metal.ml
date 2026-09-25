@@ -14402,6 +14402,16 @@ module Command4 = struct
                  value.outcome <- Some outcome;
                  outcome))
 
+    let poll (value : t) =
+      let operation = "Metal.Command4.Submission.poll" in
+      match on_main operation (fun () ->
+        Result.map
+          (fun () -> Metal_raw.command4_submission_ready value.raw)
+          (ensure_live operation value.lifetime)) with
+      | Error _ as failure -> failure
+      | Ok false -> Ok false
+      | Ok true -> Result.map (fun () -> true) (wait value)
+
     let destroy (value : t) =
       let operation = "Metal.Command4.Submission.destroy" in
       on_main operation (fun () ->

@@ -17,6 +17,7 @@ val submit_render_pass_present_sync : t -> presentation -> Render_pass.t ->
 val submit_transfer_pass : t -> Transfer_pass.t -> (receipt,Ogpu_core.Error.t) result
 val submit_compute_pass : t -> Compute_pass.t -> (receipt,Ogpu_core.Error.t) result
 val wait_through : t -> int64 -> (unit,Ogpu_core.Error.t) result
+val poll_through : t -> int64 -> (bool,Ogpu_core.Error.t) result
 val in_flight : t -> int
 val completed_epoch : t -> int64
 val inject_next_error : t -> unit

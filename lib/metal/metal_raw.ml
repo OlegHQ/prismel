@@ -1274,6 +1274,8 @@ external command4_queue_commit :
 
 external command4_submission_wait : handle -> (unit, string) result =
   "caml_prismel_metal_command4_submission_wait"
+external command4_submission_ready : handle -> bool =
+  "caml_prismel_metal_command4_submission_ready"
 external command4_submission_times : handle -> ((float * float), string) result =
   "caml_prismel_metal_command4_submission_times"
 

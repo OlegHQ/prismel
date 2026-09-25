@@ -2859,6 +2859,10 @@ module Command4 : sig
     val completed : t -> bool
     val feedback : t -> (feedback,error) result
 
+    (** Checks commit feedback without waiting; a terminal result also updates
+        [completed] and releases the submission's recorded resources. *)
+    val poll : t -> (bool,error) result
+
     (** Blocks without holding the OCaml runtime lock. GPU execution errors are
         returned from Metal 4 commit feedback with their native diagnostics. *)
     val wait : t -> (unit, error) result
