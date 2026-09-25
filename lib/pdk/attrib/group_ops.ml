@@ -4414,3 +4414,15 @@ let name_from_groups_checked ?cancel ?grain ?attribute ?pattern ?default
   Error.guard ~operation:"name_from_groups" ~code:"invalid_group" (fun () ->
     name_from_groups ?cancel ?grain ?attribute ?pattern ?default ?overlap
       ?delete_groups ~owner geometry)
+
+let group_random_checked ?cancel ?grain ?seed ?seed_attribute ?base ?merge
+    ~probability ~owner ~name geometry =
+  Error.guard ~operation:"group_random" ~code:"invalid_group" (fun () ->
+    group_random ?cancel ?grain ?seed ?seed_attribute ?base ?merge
+      ~probability ~owner ~name geometry)
+
+let group_bounds_checked ?cancel ?grain ?base ?containment ?merge bounds
+    ~owner ~name geometry =
+  Error.guard ~operation:"group_bounds" ~code:"invalid_group" (fun () ->
+    group_bounds ?cancel ?grain ?base ?containment ?merge bounds
+      ~owner ~name geometry)

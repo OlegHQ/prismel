@@ -44,8 +44,8 @@ let test_points_and_base () =
   let source = Line_geometry.points (Array.init 64 (fun point ->
       float_of_int point, 0., 0.)) in
   let seed = Rand.seed 17 and probability = 0.37 in
-  let output = Ops.group_random ~grain:7 ~seed ~probability
-      ~owner:Ops.Group_points ~name:"random" source |> get_ok in
+  let output = Group_ops.group_random_checked ~grain:7 ~seed ~probability
+      ~owner:Group_ops.Group_points ~name:"random" source |> get_ok in
   let random = group Group.Point "random" output in
   for point = 0 to 63 do
     check (Group.mem point random
@@ -55,15 +55,15 @@ let test_points_and_base () =
   let even = Group.init ~grain:1 ~owner:Group.Point ~name:"even" 64
       (fun point -> point land 1 = 0) in
   let based = source |> with_group even
-      |> Ops.group_random ~probability:1. ~base:"even"
-           ~owner:Ops.Group_points ~name:"based" |> get_ok in
+      |> Group_ops.group_random_checked ~probability:1. ~base:"even"
+           ~owner:Group_ops.Group_points ~name:"based" |> get_ok in
   check (members (group Group.Point "based" based) = members even)
     "Group Random exact base restriction";
-  let empty = Ops.group_random ~probability:0. ~owner:Ops.Group_points
+  let empty = Group_ops.group_random_checked ~probability:0. ~owner:Group_ops.Group_points
       ~name:"none" source |> get_ok in
   check (Group.cardinality (group Group.Point "none" empty) = 0)
     "Group Random zero endpoint";
-  let full = Ops.group_random ~probability:1. ~owner:Ops.Group_points
+  let full = Group_ops.group_random_checked ~probability:1. ~owner:Group_ops.Group_points
       ~name:"all" source |> get_ok in
   check (Group.cardinality (group Group.Point "all" full) = 64)
     "Group Random one endpoint"
@@ -74,16 +74,16 @@ let test_seed_attributes_and_owners () =
   and primitive_count = Geometry.primitive_count source in
   let point_seeds = Array.init point_count (fun point -> point / 2) in
   let point_source = with_int Attribute.Point "seed_id" point_seeds source in
-  let points = Ops.group_random ~seed:(Rand.seed 31) ~seed_attribute:"seed_id"
-      ~probability:0.5 ~owner:Ops.Group_points ~name:"points" point_source
+  let points = Group_ops.group_random_checked ~seed:(Rand.seed 31) ~seed_attribute:"seed_id"
+      ~probability:0.5 ~owner:Group_ops.Group_points ~name:"points" point_source
       |> get_ok |> group Group.Point "points" in
   for point = 0 to point_count - 2 do
     if point_seeds.(point) = point_seeds.(point + 1) then
       check (Group.mem point points = Group.mem (point + 1) points)
         "Group Random equal point seed values"
   done;
-  let vertices = Ops.group_random ~seed:(Rand.seed 47)
-      ~seed_attribute:"seed_id" ~probability:0.5 ~owner:Ops.Group_vertices
+  let vertices = Group_ops.group_random_checked ~seed:(Rand.seed 47)
+      ~seed_attribute:"seed_id" ~probability:0.5 ~owner:Group_ops.Group_vertices
       ~name:"vertices" point_source |> get_ok |> group Group.Vertex "vertices" in
   let topology = Topology.Private.view (Geometry.topology source) in
   for left = 0 to Geometry.vertex_count source - 1 do
@@ -96,8 +96,8 @@ let test_seed_attributes_and_owners () =
   let primitive_seeds = Array.init primitive_count (fun primitive -> primitive / 3) in
   let primitive_source = with_int Attribute.Primitive "seed_id"
       primitive_seeds source in
-  let primitives = Ops.group_random ~seed:(Rand.seed 53)
-      ~seed_attribute:"seed_id" ~probability:0.5 ~owner:Ops.Group_primitives
+  let primitives = Group_ops.group_random_checked ~seed:(Rand.seed 53)
+      ~seed_attribute:"seed_id" ~probability:0.5 ~owner:Group_ops.Group_primitives
       ~name:"primitives" primitive_source |> get_ok
       |> group Group.Primitive "primitives" in
   for primitive = 0 to primitive_count - 2 do
@@ -105,8 +105,8 @@ let test_seed_attributes_and_owners () =
       check (Group.mem primitive primitives = Group.mem (primitive + 1) primitives)
         "Group Random equal primitive seed values"
   done;
-  let edges = Ops.group_random ~seed:(Rand.seed 59) ~seed_attribute:"seed_id"
-      ~probability:0.5 ~owner:Ops.Group_edges ~name:"edges" point_source
+  let edges = Group_ops.group_random_checked ~seed:(Rand.seed 59) ~seed_attribute:"seed_id"
+      ~probability:0.5 ~owner:Group_ops.Group_edges ~name:"edges" point_source
       |> get_ok |> edge_group "edges" in
   check (Edge_group.length edges
       = Topology_index.edge_count (Topology_index.create (Geometry.topology source)))
@@ -127,8 +127,8 @@ let test_seed_attributes_and_owners () =
       if point land 1 = 0 then 10_000 + (point / 2) else point / 2) in
   let left = with_int Attribute.Point "seed_id" left curves
   and right = with_int Attribute.Point "seed_id" right curves in
-  let select geometry = Ops.group_random ~seed:(Rand.seed 61)
-      ~seed_attribute:"seed_id" ~probability:0.5 ~owner:Ops.Group_edges
+  let select geometry = Group_ops.group_random_checked ~seed:(Rand.seed 61)
+      ~seed_attribute:"seed_id" ~probability:0.5 ~owner:Group_ops.Group_edges
       ~name:"edges" geometry |> get_ok |> edge_group "edges" |> edge_members in
   check (select left = select right)
     "Group Random combines native-edge endpoint seeds symmetrically"
@@ -139,49 +139,49 @@ let test_merge_and_failures () =
   let existing = Group.init ~grain:1 ~owner:Group.Point ~name:"selection" 8
       (fun point -> point < 2) in
   let source = with_group existing source in
-  let unioned = Ops.group_random ~probability:0. ~merge:Ops.Group_union
-      ~owner:Ops.Group_points ~name:"selection" source |> get_ok in
+  let unioned = Group_ops.group_random_checked ~probability:0. ~merge:Group_ops.Group_union
+      ~owner:Group_ops.Group_points ~name:"selection" source |> get_ok in
   check (members (group Group.Point "selection" unioned) = [0; 1])
     "Group Random union merge";
-  let replaced = Ops.group_random ~probability:0. ~merge:Ops.Group_replace
-      ~owner:Ops.Group_points ~name:"selection" source |> get_ok in
+  let replaced = Group_ops.group_random_checked ~probability:0. ~merge:Group_ops.Group_replace
+      ~owner:Group_ops.Group_points ~name:"selection" source |> get_ok in
   check (Group.cardinality (group Group.Point "selection" replaced) = 0)
     "Group Random replace merge";
-  let absent_intersection = Ops.group_random ~probability:1.
-      ~merge:Ops.Group_intersection ~owner:Ops.Group_points
+  let absent_intersection = Group_ops.group_random_checked ~probability:1.
+      ~merge:Group_ops.Group_intersection ~owner:Group_ops.Group_points
       ~name:"absent_intersection" source |> get_ok in
   check (Group.cardinality
       (group Group.Point "absent_intersection" absent_intersection) = 0)
     "Group Random absent destination intersection identity";
-  let absent_subtract = Ops.group_random ~probability:1.
-      ~merge:Ops.Group_subtract ~owner:Ops.Group_points
+  let absent_subtract = Group_ops.group_random_checked ~probability:1.
+      ~merge:Group_ops.Group_subtract ~owner:Group_ops.Group_points
       ~name:"absent_subtract" source |> get_ok in
   check (Group.cardinality
       (group Group.Point "absent_subtract" absent_subtract) = 0)
     "Group Random absent destination subtraction identity";
-  expect_invalid (fun () -> Ops.group_random ~probability:(-0.1)
-      ~owner:Ops.Group_points ~name:"bad" source)
+  expect_invalid (fun () -> Group_ops.group_random_checked ~probability:(-0.1)
+      ~owner:Group_ops.Group_points ~name:"bad" source)
     "Group Random negative probability";
-  expect_invalid (fun () -> Ops.group_random ~probability:Float.nan
-      ~owner:Ops.Group_points ~name:"bad" source)
+  expect_invalid (fun () -> Group_ops.group_random_checked ~probability:Float.nan
+      ~owner:Group_ops.Group_points ~name:"bad" source)
     "Group Random non-finite probability";
-  expect_invalid (fun () -> Ops.group_random ~probability:0.5 ~base:"missing"
-      ~owner:Ops.Group_points ~name:"bad" source)
+  expect_invalid (fun () -> Group_ops.group_random_checked ~probability:0.5 ~base:"missing"
+      ~owner:Group_ops.Group_points ~name:"bad" source)
     "Group Random missing base";
-  expect_invalid (fun () -> Ops.group_random ~probability:0.5
-      ~seed_attribute:"missing" ~owner:Ops.Group_points ~name:"bad" source)
+  expect_invalid (fun () -> Group_ops.group_random_checked ~probability:0.5
+      ~seed_attribute:"missing" ~owner:Group_ops.Group_points ~name:"bad" source)
     "Group Random missing seed attribute";
   let wrong = with_int Attribute.Point "ok" (Array.make 8 0) source in
   let wrong_attribute = Attribute.create_owned ~owner:Attribute.Point ~name:"wrong"
       (Attribute.Text (Array.make 8 "x")) |> Result.get_ok in
   let wrong = Geometry.with_attribute wrong_attribute wrong |> Result.get_ok in
-  expect_invalid (fun () -> Ops.group_random ~probability:0.5
-      ~seed_attribute:"wrong" ~owner:Ops.Group_points ~name:"bad" wrong)
+  expect_invalid (fun () -> Group_ops.group_random_checked ~probability:0.5
+      ~seed_attribute:"wrong" ~owner:Group_ops.Group_points ~name:"bad" wrong)
     "Group Random non-integer seed attribute";
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Ops.group_random ~cancel:cancelled ~probability:0.5
-      ~owner:Ops.Group_points ~name:"bad" source with
+  (match Group_ops.group_random_checked ~cancel:cancelled ~probability:0.5
+      ~owner:Group_ops.Group_points ~name:"bad" source with
    | Error error -> check (Error.code error = "cancelled")
        "Group Random cancellation code"
    | Ok _ -> fail "cancelled Group Random published geometry")
@@ -191,14 +191,14 @@ let test_scale_parallel_exactness () =
   let run domains = Parallel.run ~domains (fun () ->
     let seed = Rand.seed 0x514e in
     source
-    |> Ops.group_random ~grain:1_009 ~seed ~probability:0.431
-         ~owner:Ops.Group_points ~name:"points" |> get_ok
-    |> Ops.group_random ~grain:1_009 ~seed ~probability:0.377
-         ~owner:Ops.Group_vertices ~name:"vertices" |> get_ok
-    |> Ops.group_random ~grain:1_009 ~seed ~probability:0.293
-         ~owner:Ops.Group_primitives ~name:"primitives" |> get_ok
-    |> Ops.group_random ~grain:1_009 ~seed ~probability:0.217
-         ~owner:Ops.Group_edges ~name:"edges" |> get_ok) in
+    |> Group_ops.group_random_checked ~grain:1_009 ~seed ~probability:0.431
+         ~owner:Group_ops.Group_points ~name:"points" |> get_ok
+    |> Group_ops.group_random_checked ~grain:1_009 ~seed ~probability:0.377
+         ~owner:Group_ops.Group_vertices ~name:"vertices" |> get_ok
+    |> Group_ops.group_random_checked ~grain:1_009 ~seed ~probability:0.293
+         ~owner:Group_ops.Group_primitives ~name:"primitives" |> get_ok
+    |> Group_ops.group_random_checked ~grain:1_009 ~seed ~probability:0.217
+         ~owner:Group_ops.Group_edges ~name:"edges" |> get_ok) in
   let one = run 1 and four = run 4 in
   check (same_group (group Group.Point "points" one)
       (group Group.Point "points" four))
@@ -223,9 +223,41 @@ let test_scale_parallel_exactness () =
       + Edge_group.payload_bytes (edge_group "edges" one) in
   check (actual = expected) "Group Random exact packed scale payload"
 
+let test_checked_boundary () =
+  let source = Line_geometry.points [|(0., 0., 0.); (1., 0., 0.)|] in
+  let seed = Rand.seed 29 in
+  let direct = Group_ops.group_random_checked ~seed ~probability:0.5
+      ~owner:Group_ops.Group_points ~name:"selected" source |> get_ok
+  and compatibility = Ops.group_random ~seed ~probability:0.5
+      ~owner:Ops.Group_points ~name:"selected" source |> get_ok in
+  check (same_group (group Group.Point "selected" direct)
+      (group Group.Point "selected" compatibility))
+    "Group Random checked boundary changed the selection";
+  let compare_errors direct compatibility expected_code =
+    match direct, compatibility with
+    | Error direct, Error compatibility ->
+        check (Error.operation direct = "group_random"
+            && Error.code direct = expected_code
+            && Error.to_string direct = Error.to_string compatibility)
+          "Group Random checked boundary changed the typed error"
+    | _ -> fail "Group Random checked boundary accepted invalid input" in
+  compare_errors
+    (Group_ops.group_random_checked ~probability:(-1.)
+       ~owner:Group_ops.Group_points ~name:"bad" source)
+    (Ops.group_random ~probability:(-1.) ~owner:Ops.Group_points
+       ~name:"bad" source) "invalid_group";
+  let cancel = Cancel.create () in
+  Cancel.cancel cancel;
+  compare_errors
+    (Group_ops.group_random_checked ~cancel ~probability:0.5
+       ~owner:Group_ops.Group_points ~name:"bad" source)
+    (Ops.group_random ~cancel ~probability:0.5 ~owner:Ops.Group_points
+       ~name:"bad" source) "cancelled"
+
 let run () =
   test_points_and_base ();
   test_seed_attributes_and_owners ();
   test_merge_and_failures ();
   test_scale_parallel_exactness ();
+  test_checked_boundary ();
   print_endline "group random tests passed"

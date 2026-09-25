@@ -547,6 +547,18 @@ val group_random :
   probability:float ->
   owner:owner ->
   name:string -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
+(* Typed boundary with the former Ops error and cancellation behavior. *)
+val group_random_checked :
+  ?cancel:Pdk_core.Cancel.t ->
+  ?grain:int ->
+  ?seed:Prismel_math.Rand.t ->
+  ?seed_attribute:string ->
+  ?base:string ->
+  ?merge:boolean_operation ->
+  probability:float ->
+  owner:owner ->
+  name:string -> Pdk_core.Geometry.t ->
+  (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 val finite_vec3 : Prismel_math.Vec3.t -> bool
 val float_max : float -> float -> float
 val float_min : float -> float -> float
@@ -572,6 +584,17 @@ val group_bounds :
   bounds ->
   owner:owner ->
   name:string -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
+(* Typed boundary with the former Ops error and cancellation behavior. *)
+val group_bounds_checked :
+  ?cancel:Pdk_core.Cancel.t ->
+  ?grain:int ->
+  ?base:string ->
+  ?containment:containment ->
+  ?merge:boolean_operation ->
+  bounds ->
+  owner:owner ->
+  name:string -> Pdk_core.Geometry.t ->
+  (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 val combine :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->

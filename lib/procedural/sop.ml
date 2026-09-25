@@ -6713,7 +6713,7 @@ let group_random ?label ?seed ?seed_attribute ?base
           stable_identity in
       let seed = Rand.seed (Option.value ~default:(mixed_seed context identity)
           seed) in
-      match Pdk.Ops.group_random ~cancel:(Context.cancel_token context)
+      match Pdk.Group_ops.group_random_checked ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~seed ?seed_attribute ?base ~merge
           ~probability ~owner ~name inputs.(0) with
       | Ok geometry -> cooked geometry
@@ -6755,7 +6755,7 @@ let group_bounds ?label ?base ?(containment = Pdk.Group_ops.Fully_contained)
       "bounds=" ^ group_bounds_key bounds])
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Ops.group_bounds ~cancel:(Context.cancel_token context)
+      match Pdk.Group_ops.group_bounds_checked ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?base ~containment ~merge bounds
           ~owner ~name inputs.(0) with
       | Ok geometry -> cooked geometry
