@@ -48,12 +48,12 @@ let create_triangle device ~vertices ~offset ~length ~vertex_stride ~vertex_coun
   match Metal.Acceleration_structure.Triangle.create ~vertex_buffer:(Buffer.Private.metal vertices)
     ~vertex_offset:plan.offset ~vertex_stride:(Int64.of_int plan.vertex_stride)
     ~triangle_count:(Int64.of_int (plan.vertex_count/3)) () with
-  | Error metal -> Ogpu.Acceleration.destroy portable; Error (Adapter.error ~operation metal)
+  | Error metal -> Ogpu.Acceleration.destroy portable; Error (Device.of_metal_error ~operation metal)
   | Ok descriptor -> (match Metal.Acceleration_structure.sizes ~device:(Device.Private.metal device) descriptor with
-      | Error metal -> Ogpu.Acceleration.destroy portable; Error (Adapter.error ~operation metal)
+      | Error metal -> Ogpu.Acceleration.destroy portable; Error (Device.of_metal_error ~operation metal)
       | Ok sizes -> match Metal.Acceleration_structure.create ~device:(Device.Private.metal device)
           ~size:sizes.acceleration_structure_size with
-        | Error metal -> Ogpu.Acceleration.destroy portable; Error (Adapter.error ~operation metal)
+        | Error metal -> Ogpu.Acceleration.destroy portable; Error (Device.of_metal_error ~operation metal)
         | Ok metal -> Device.Private.attach_resource device;
             Ok {device;portable;descriptor;metal;sizes;allow_refit;dead=false})
 
@@ -63,15 +63,15 @@ let validate_scratch operation device value scratch scratch_offset required =
   validate_scratch_plan ~buffer_size:descriptor.size ~offset:scratch_offset ~required
 
 let with_encoder operation device encode =
-  match Metal.Command_queue.create (Device.Private.metal device) with Error metal -> Error (Adapter.error ~operation metal) | Ok queue ->
+  match Metal.Command_queue.create (Device.Private.metal device) with Error metal -> Error (Device.of_metal_error ~operation metal) | Ok queue ->
   let finish result = ignore (Metal.Command_queue.destroy queue); result in
-  match Metal.Command_buffer.create queue () with Error metal -> finish (Error (Adapter.error ~operation metal)) | Ok command ->
+  match Metal.Command_buffer.create queue () with Error metal -> finish (Error (Device.of_metal_error ~operation metal)) | Ok command ->
   let finish_command result = ignore (Metal.Command_buffer.destroy command); finish result in
-  match Metal.Acceleration_encoder.create command with Error metal -> finish_command (Error (Adapter.error ~operation metal)) | Ok encoder ->
-  match encode encoder with Error metal -> finish_command (Error (Adapter.error ~operation metal)) | Ok () ->
-  match Metal.Acceleration_encoder.end_encoding encoder with Error metal -> finish_command (Error (Adapter.error ~operation metal)) | Ok () ->
-  match Metal.Command_buffer.commit command with Error metal -> finish_command (Error (Adapter.error ~operation metal)) | Ok () ->
-  match Metal.Command_buffer.wait_until_completed command with Error metal -> finish_command (Error (Adapter.error ~operation metal)) | Ok () -> finish_command (Ok ())
+  match Metal.Acceleration_encoder.create command with Error metal -> finish_command (Error (Device.of_metal_error ~operation metal)) | Ok encoder ->
+  match encode encoder with Error metal -> finish_command (Error (Device.of_metal_error ~operation metal)) | Ok () ->
+  match Metal.Acceleration_encoder.end_encoding encoder with Error metal -> finish_command (Error (Device.of_metal_error ~operation metal)) | Ok () ->
+  match Metal.Command_buffer.commit command with Error metal -> finish_command (Error (Device.of_metal_error ~operation metal)) | Ok () ->
+  match Metal.Command_buffer.wait_until_completed command with Error metal -> finish_command (Error (Device.of_metal_error ~operation metal)) | Ok () -> finish_command (Ok ())
 
 let build device value ~scratch ~scratch_offset =
   let operation = "Ogpu_metal.Acceleration.build" in
@@ -95,7 +95,7 @@ let copy device value =
   let operation = "Ogpu_metal.Acceleration.copy" in
   match validate operation device value with Error _ as failure -> failure | Ok () ->
   match Metal.Acceleration_structure.create ~device:(Device.Private.metal device) ~size:value.sizes.acceleration_structure_size with
-  | Error metal -> Error (Adapter.error ~operation metal)
+  | Error metal -> Error (Device.of_metal_error ~operation metal)
   | Ok target -> (match with_encoder operation device (fun encoder -> Metal.Acceleration_encoder.copy encoder ~source:value.metal ~destination:target) with
       | Error _ as failure -> ignore (Metal.Acceleration_structure.destroy target); failure
       | Ok () -> match Ogpu.Acceleration.copy (Device.Private.handle device) value.portable with
@@ -108,7 +108,7 @@ let compact device value =
   let operation = "Ogpu_metal.Acceleration.compact" in
   match validate operation device value with Error _ as failure -> failure | Ok () ->
   match Metal.Acceleration_structure.create ~device:(Device.Private.metal device) ~size:value.sizes.acceleration_structure_size with
-  | Error metal -> Error (Adapter.error ~operation metal)
+  | Error metal -> Error (Device.of_metal_error ~operation metal)
   | Ok target -> (match with_encoder operation device (fun encoder -> Metal.Acceleration_encoder.copy_and_compact encoder ~source:value.metal ~destination:target) with
       | Error _ as failure -> ignore (Metal.Acceleration_structure.destroy target); failure
       | Ok () -> match Ogpu.Acceleration.compact (Device.Private.handle device) value.portable with
@@ -117,6 +117,6 @@ let compact device value =
 
 let destroy value =
   if value.dead then Ok () else match Metal.Acceleration_structure.destroy value.metal with
-  | Error metal -> Error (Adapter.error ~operation:"Ogpu_metal.Acceleration.destroy" metal)
+  | Error metal -> Error (Device.of_metal_error ~operation:"Ogpu_metal.Acceleration.destroy" metal)
   | Ok () -> value.dead <- true; Ogpu.Acceleration.destroy value.portable;
       Device.Private.detach_resource value.device; Ok ()

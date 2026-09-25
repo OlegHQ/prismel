@@ -209,7 +209,7 @@ let disable_retained_plans_for_test c=
       (match Metal.Retained_render_plan.destroy cache with
        |Error error->
            if Option.is_none c.cleanup_error then
-             c.cleanup_error<-Some(Adapter.error
+             c.cleanup_error<-Some(Device.of_metal_error
                ~operation:"Ogpu_metal.Backend.disable_retained_plans" error)
        |Ok()->
            c.plan_cache<-None;
@@ -322,7 +322,7 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
   let record_ogpu_cleanup error=
     if Option.is_none c.cleanup_error then c.cleanup_error<-Some error in
   let record_cleanup failure=Option.iter(fun error->record_ogpu_cleanup
-    (Adapter.error~operation:"Ogpu_metal.Backend.cleanup"error))failure in
+    (Device.of_metal_error~operation:"Ogpu_metal.Backend.cleanup"error))failure in
   let record_destroy_cleanup=Option.iter(function
     |Metal_cleanup error->record_cleanup(Some error)
     |Pass_cleanup error->record_ogpu_cleanup error)in
@@ -893,7 +893,7 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
               if expected_hit then Ok None else
               match prepare_argument_encoders()with
               |Error error->
-                  Error(Adapter.error
+                  Error(Device.of_metal_error
                     ~operation:"Ogpu_metal.Backend.render_plan_owner"error)
               |Ok prepared->
                   let bytes=prospective_owner_bytes prepared in
@@ -913,7 +913,7 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
                  Option.iter(fun owner->record_destroy_cleanup(destroy_owner owner))
                    !made;
                  made:=None;
-                 Error(Adapter.error~operation:"Ogpu_metal.Backend.render_plan"
+                 Error(Device.of_metal_error~operation:"Ogpu_metal.Backend.render_plan"
                    error)
              |Ok(Metal.Retained_render_plan.Hit icb)->
                  destroy_prepared_encoders();

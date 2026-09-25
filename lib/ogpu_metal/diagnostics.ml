@@ -7,7 +7,7 @@ let create device ~capacity =
     (Ogpu.Diagnostics.create ~device:(Device.Private.handle device) ~message_capacity:capacity
        ~trace_capacity:capacity ~max_label_length:256 ~max_message_length:4096)
 
-let classify_metal_error ~operation value = Adapter.error ~operation value
+let classify_metal_error ~operation value = Device.of_metal_error ~operation value
 
 let category = function
   | Ogpu.Error.Device_lost -> Ogpu.Diagnostics.Submission

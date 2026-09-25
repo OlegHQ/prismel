@@ -8,7 +8,7 @@ type render_result = Completed | Committed_with_error of Ogpu.Error.t
 
 let operation = "Ogpu_metal.Presentation"
 let error kind message = Error (Ogpu.Error.make operation kind message)
-let metal value = Error (Adapter.error ~operation value)
+let metal value = Error (Device.of_metal_error ~operation value)
 
 let fail_encode encoder value =
   Option.iter
@@ -181,12 +181,12 @@ let render value ~queue ?present ?on_commit ~source ~target () =
                      | Error value ->
                          ignore (Metal.Command_buffer.destroy commands);
                          Ok (Committed_with_error
-                               (Adapter.error ~operation value))
+                               (Device.of_metal_error ~operation value))
                      | Ok () ->
                          (match Metal.Command_buffer.destroy commands with
                           | Error value ->
                               Ok (Committed_with_error
-                                    (Adapter.error ~operation value))
+                                    (Device.of_metal_error ~operation value))
                           | Ok () -> Ok Completed))))
 
 let copy value ~queue ~source ~target =

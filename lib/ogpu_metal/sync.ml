@@ -25,7 +25,7 @@ let create_fence device ~initial =
   else match Ogpu.Sync.create_fence (Device.Private.handle device) ~initial with
   | Error _ as failure -> failure
   | Ok portable -> (match Metal.Device.new_fence (Device.Private.metal device) with
-      | Error value -> Ogpu.Sync.destroy_fence portable; Error (Adapter.error ~operation value)
+      | Error value -> Ogpu.Sync.destroy_fence portable; Error (Device.of_metal_error ~operation value)
       | Ok metal -> Device.Private.attach_resource device;
           Ok ({device; portable; metal; dead=false} : fence))
 
@@ -40,7 +40,7 @@ let wait_fence device value _ = unsupported_fence "Ogpu_metal.Sync.wait_fence" d
 
 let destroy_fence (value:fence) =
   if value.dead then Ok () else match Metal.Fence.destroy value.metal with
-  | Error metal -> Error (Adapter.error ~operation:"Ogpu_metal.Sync.destroy_fence" metal)
+  | Error metal -> Error (Device.of_metal_error ~operation:"Ogpu_metal.Sync.destroy_fence" metal)
   | Ok () -> value.dead <- true; Ogpu.Sync.destroy_fence value.portable;
       Device.Private.detach_resource value.device; Ok ()
 
@@ -50,10 +50,10 @@ let create_event device ~initial =
   else match Ogpu.Sync.create_event (Device.Private.handle device) ~initial with
   | Error _ as failure -> failure
   | Ok portable -> (match Metal.Device.new_shared_event (Device.Private.metal device) with
-      | Error value -> Ogpu.Sync.destroy_event portable; Error (Adapter.error ~operation value)
+      | Error value -> Ogpu.Sync.destroy_event portable; Error (Device.of_metal_error ~operation value)
       | Ok metal -> (match Metal.Shared_event.set_signaled_value metal initial with
           | Error value -> ignore (Metal.Shared_event.destroy metal); Ogpu.Sync.destroy_event portable;
-              Error (Adapter.error ~operation value)
+              Error (Device.of_metal_error ~operation value)
           | Ok () -> Device.Private.attach_resource device;
               Ok ({device; portable; metal; dead=false} : event)))
 
@@ -63,21 +63,21 @@ let signal_event device (value:event) next =
   if next <= Ogpu.Sync.event_value value.portable then
     error operation Ogpu.Error.Invalid_argument "event values must increase"
   else match Metal.Shared_event.set_signaled_value value.metal next with
-  | Error metal -> Error (Adapter.error ~operation metal)
+  | Error metal -> Error (Device.of_metal_error ~operation metal)
   | Ok () -> Ogpu.Sync.signal_event (Device.Private.handle device) value.portable next
 
 let wait_event device (value:event) target =
   let operation = "Ogpu_metal.Sync.wait_event" in
   match validate_device operation device value.device value.dead with Error _ as failure -> failure | Ok () ->
   match Metal.Shared_event.signaled_value value.metal with
-  | Error metal -> Error (Adapter.error ~operation metal)
+  | Error metal -> Error (Device.of_metal_error ~operation metal)
   | Ok current when current < target -> error operation Ogpu.Error.Unsupported
       "nonblocking event wait has not yet reached the requested value"
   | Ok _ -> Ogpu.Sync.wait_event (Device.Private.handle device) value.portable target
 
 let destroy_event (value:event) =
   if value.dead then Ok () else match Metal.Shared_event.destroy value.metal with
-  | Error metal -> Error (Adapter.error ~operation:"Ogpu_metal.Sync.destroy_event" metal)
+  | Error metal -> Error (Device.of_metal_error ~operation:"Ogpu_metal.Sync.destroy_event" metal)
   | Ok () -> value.dead <- true; Ogpu.Sync.destroy_event value.portable;
       Device.Private.detach_resource value.device; Ok ()
 
@@ -92,14 +92,14 @@ let create_query_set device ~kind ~count =
   | Error _ as failure -> failure
   | Ok portable ->
       match Metal.Counters.sets (Device.Private.metal device) with
-      | Error value -> Ogpu.Sync.destroy_query_set portable; Error (Adapter.error ~operation value)
+      | Error value -> Ogpu.Sync.destroy_query_set portable; Error (Device.of_metal_error ~operation value)
       | Ok [] -> Ogpu.Sync.destroy_query_set portable; error operation Ogpu.Error.Unsupported "no Metal counter set is available"
       | Ok (set::_) -> (match Metal.Counters.Descriptor.create (Device.Private.metal device)
           ~set_name:set.name ~sample_count:(Int64.of_int count) ~storage:Metal.Buffer.Shared () with
-        | Error value -> Ogpu.Sync.destroy_query_set portable; Error (Adapter.error ~operation value)
+        | Error value -> Ogpu.Sync.destroy_query_set portable; Error (Device.of_metal_error ~operation value)
         | Ok descriptor -> match Metal.Counters.Descriptor.create_buffer descriptor with
           | Error value -> ignore (Metal.Counters.Descriptor.destroy descriptor); Ogpu.Sync.destroy_query_set portable;
-              Error (Adapter.error ~operation value)
+              Error (Device.of_metal_error ~operation value)
           | Ok samples -> Device.Private.attach_resource device;
               Ok ({device;portable;kind;count;descriptor=Some descriptor;samples=Some samples;dead=false} : query_set))
 
@@ -120,27 +120,27 @@ let execute_query_pass device (value:query_set) ~first ~count ~destination ~dest
       ~destination_offset ~completion_epoch with
   | Error _ as failure -> failure
   | Ok description ->
-  match Metal.Command_queue.create (Device.Private.metal device) with Error metal -> Error (Adapter.error ~operation metal) | Ok queue ->
+  match Metal.Command_queue.create (Device.Private.metal device) with Error metal -> Error (Device.of_metal_error ~operation metal) | Ok queue ->
   let finish result = ignore (Metal.Command_queue.destroy queue); result in
-  match Metal.Command_buffer.create queue () with Error metal -> finish (Error (Adapter.error ~operation metal)) | Ok command ->
+  match Metal.Command_buffer.create queue () with Error metal -> finish (Error (Device.of_metal_error ~operation metal)) | Ok command ->
   let finish_command result = ignore (Metal.Command_buffer.destroy command); finish result in
-  match Metal.Blit_encoder.create command with Error metal -> finish_command (Error (Adapter.error ~operation metal)) | Ok encoder ->
+  match Metal.Blit_encoder.create command with Error metal -> finish_command (Error (Device.of_metal_error ~operation metal)) | Ok encoder ->
   let rec sample index = if index = first + count then Ok () else
     match Metal.Resource100.Sample_buffer.sample encoder samples ~index:(Int64.of_int index) with Error value -> Error value | Ok () -> sample (index+1) in
-  (match sample first with Error metal -> finish_command (Error (Adapter.error ~operation metal)) | Ok () ->
-   match Metal.Blit_encoder.end_encoding encoder with Error metal -> finish_command (Error (Adapter.error ~operation metal)) | Ok () ->
-   match Metal.Command_buffer.commit command with Error metal -> finish_command (Error (Adapter.error ~operation metal)) | Ok () ->
-   match Metal.Command_buffer.wait_until_completed command with Error metal -> finish_command (Error (Adapter.error ~operation metal)) | Ok () ->
+  (match sample first with Error metal -> finish_command (Error (Device.of_metal_error ~operation metal)) | Ok () ->
+   match Metal.Blit_encoder.end_encoding encoder with Error metal -> finish_command (Error (Device.of_metal_error ~operation metal)) | Ok () ->
+   match Metal.Command_buffer.commit command with Error metal -> finish_command (Error (Device.of_metal_error ~operation metal)) | Ok () ->
+   match Metal.Command_buffer.wait_until_completed command with Error metal -> finish_command (Error (Device.of_metal_error ~operation metal)) | Ok () ->
    match Metal.Counters.resolve samples ~first:(Int64.of_int first) ~count:(Int64.of_int count) with
-   | Error metal -> finish_command (Error (Adapter.error ~operation metal))
+   | Error metal -> finish_command (Error (Device.of_metal_error ~operation metal))
    | Ok bytes -> match Buffer.write_bytes device destination ~dst_offset:destination_offset bytes with
      | Error _ as failure -> finish_command failure | Ok () -> finish_command (Ok description))
 
 let destroy_query_set (value:query_set) =
   if value.dead then Ok () else
   let sample_result = match value.samples with None -> Ok () | Some samples -> Metal.Resource100.Sample_buffer.destroy samples in
-  match sample_result with Error metal -> Error (Adapter.error ~operation:"Ogpu_metal.Sync.destroy_query_set" metal) | Ok () ->
+  match sample_result with Error metal -> Error (Device.of_metal_error ~operation:"Ogpu_metal.Sync.destroy_query_set" metal) | Ok () ->
   let descriptor_result = match value.descriptor with None -> Ok () | Some descriptor -> Metal.Counters.Descriptor.destroy descriptor in
-  match descriptor_result with Error metal -> Error (Adapter.error ~operation:"Ogpu_metal.Sync.destroy_query_set" metal) | Ok () ->
+  match descriptor_result with Error metal -> Error (Device.of_metal_error ~operation:"Ogpu_metal.Sync.destroy_query_set" metal) | Ok () ->
   value.dead <- true; Ogpu.Sync.destroy_query_set value.portable;
   if value.samples <> None then Device.Private.detach_resource value.device; Ok ()

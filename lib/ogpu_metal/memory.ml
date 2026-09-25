@@ -34,7 +34,7 @@ let create device descriptor =
       let native = Metal.Heap.make_descriptor ~size:descriptor.size ~storage ~cpu_cache
         ~hazard_tracking:Metal.Heap.Untracked ~kind:Metal.Heap.Placement () in
       match Metal.Heap.create ~device:(Device.Private.metal device) native with
-      | Error value -> Ogpu.Memory.destroy portable; Error (Adapter.error ~operation value)
+      | Error value -> Ogpu.Memory.destroy portable; Error (Device.of_metal_error ~operation value)
       | Ok metal -> Device.Private.attach_resource device;
           Ok {device;portable;metal;descriptor;allocations=[];dead=false}
 
@@ -55,7 +55,7 @@ let allocate device heap ~size ~alignment =
   let storage,cpu_cache = metal_options heap.descriptor.storage in
   match Metal.Heap.buffer_size_and_align ~device:(Device.Private.metal device) ~length:size
     ~storage ~cpu_cache ~hazard_tracking:Metal.Heap.Untracked () with
-  | Error value -> Error (Adapter.error ~operation value)
+  | Error value -> Error (Device.of_metal_error ~operation value)
   | Ok layout ->
       let effective_alignment = max_i64 alignment layout.alignment in
       match Ogpu.Memory.allocate ~device:(Device.Private.handle device) heap.portable
@@ -64,7 +64,7 @@ let allocate device heap ~size ~alignment =
       | Ok portable ->
           let interval = Ogpu.Memory.allocation_interval portable in
           match Metal.Heap.create_buffer heap.metal ~offset:interval.offset ~length:size () with
-          | Error value -> ignore (Ogpu.Memory.free portable); Error (Adapter.error ~operation value)
+          | Error value -> ignore (Ogpu.Memory.free portable); Error (Device.of_metal_error ~operation value)
           | Ok metal ->
               let allocation = {heap;portable;metal;interval;aliasing=false;dead=false} in
               heap.allocations <- allocation :: heap.allocations; Ok allocation
@@ -81,19 +81,19 @@ let write_bytes device value ~offset bytes =
   let operation = "Ogpu_metal.Memory.write_bytes" in
   with_map operation device value ~access:Ogpu.Memory.Write ~offset ~length:(Bytes.length bytes) (fun () ->
     match Metal.Buffer.write_bytes value.metal ~dst_offset:offset bytes with
-    | Ok () -> Ok () | Error metal -> Error (Adapter.error ~operation metal))
+    | Ok () -> Ok () | Error metal -> Error (Device.of_metal_error ~operation metal))
 
 let read_bytes device value ~offset ~length =
   let operation = "Ogpu_metal.Memory.read_bytes" in
   with_map operation device value ~access:Ogpu.Memory.Read ~offset ~length (fun () ->
     match Metal.Buffer.read_bytes value.metal ~offset ~length with
-    | Ok bytes -> Ok bytes | Error metal -> Error (Adapter.error ~operation metal))
+    | Ok bytes -> Ok bytes | Error metal -> Error (Device.of_metal_error ~operation metal))
 
 let begin_alias device (value:allocation) =
   let operation = "Ogpu_metal.Memory.begin_alias" in
   match validate_allocation operation device value with Error _ as failure -> failure | Ok () ->
   match Metal.Buffer.make_aliasable value.metal with
-  | Error metal -> Error (Adapter.error ~operation metal)
+  | Error metal -> Error (Device.of_metal_error ~operation metal)
   | Ok () -> (match Ogpu.Memory.begin_alias value.portable with
       | Ok () -> value.aliasing <- true; Ok ()
       | Error _ as failure -> failure)
@@ -111,7 +111,7 @@ let free (value:allocation) =
   if value.dead then error operation Ogpu.Error.Stale_handle "allocation is already freed"
   else if value.aliasing then error operation Ogpu.Error.Invalid_state "end aliasing before freeing the allocation"
   else match Metal.Buffer.destroy value.metal with
-  | Error metal -> Error (Adapter.error ~operation metal)
+  | Error metal -> Error (Device.of_metal_error ~operation metal)
   | Ok () -> (match Ogpu.Memory.free value.portable with
       | Error _ as failure -> failure
       | Ok () -> value.dead <- true;
@@ -125,6 +125,6 @@ let destroy (value:heap) =
   if value.dead then Ok ()
   else if value.allocations <> [] then error operation Ogpu.Error.Invalid_state "heap still owns live allocations"
   else match Metal.Heap.destroy value.metal with
-  | Error metal -> Error (Adapter.error ~operation metal)
+  | Error metal -> Error (Device.of_metal_error ~operation metal)
   | Ok () -> Ogpu.Memory.destroy value.portable; value.dead <- true;
       Device.Private.detach_resource value.device; Ok ()

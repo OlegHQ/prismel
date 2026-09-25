@@ -3,8 +3,8 @@ let get=function Ok value->value|Error value->failwith(Ogpu.Error.to_string valu
 let get_metal=function Ok value->value|Error value->failwith(Format.asprintf"%a"Metal.pp_error value)
 let outcome=function Ok()->"supported"|Error value when value.Ogpu.Error.kind=Ogpu.Error.Unsupported->"unsupported"|Error value->"error:"^Ogpu.Error.to_string value
 let operations=Ogpu.Caps.[Buffer;Texture;Sampler;Compute_pipeline;Render_pipeline;Queue;Surface;Memory;Event_synchronization;Timeline_fence;Timestamp_queries;Ray_tracing;Metal_fx;Sparse_memory;Unknown"future"]
-let source ray_tracing metal_fx : Adapter.capability_source={max_buffer_size=1_073_741_824L;max_texture_dimension_2d=16384;max_bind_groups=4;max_sample_count=4;ray_tracing;metal_fx}
-let profile source ~timestamp_queries ~sparse_memory:_=let capabilities=get(Adapter.capabilities source)in get(Ogpu.Caps.create {capabilities with metal_fx=false}~timestamp_queries~sparse_memory:false~conservative_limits:[])
+let source ray_tracing metal_fx : Ogpu.Caps.t={Ogpu.Caps.minimum_m1 with limits={Ogpu.Caps.minimum_m1.limits with max_buffer_size=1_073_741_824L};ray_tracing;metal_fx}
+let profile source ~timestamp_queries ~sparse_memory:_=get(Ogpu.Caps.create {source with metal_fx=false}~timestamp_queries~sparse_memory:false~conservative_limits:[])
 let matrix value=List.map(fun feature->outcome(Ogpu.Caps.require value feature))operations
 let run () =
   let profiles=[profile(source false false)~timestamp_queries:false~sparse_memory:false;

@@ -1,6 +1,7 @@
 type t
 
 val system_default : unit -> (t, Ogpu.Error.t) result
+val of_metal_error : operation:string -> Metal.error -> Ogpu.Error.t
 val id : t -> int64
 val generation : t -> int64
 val capabilities : t -> Ogpu.Caps.t

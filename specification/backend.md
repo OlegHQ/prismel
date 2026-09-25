@@ -38,12 +38,14 @@ instead of carrying the separate `Ogpu.Submission` state object. The live
 command and resource contracts remain until the G1 virtual-library split
 gives the Metal and mock implementations one conformance surface.
 `Ogpu.Caps` now owns the portable feature matrix and typed `Unsupported`
-check. Metal probes populate that profile in `ogpu_metal.Device`; the Metal
-adapter retains only limit conversion and native error translation.
+check. Metal probes populate that profile in `ogpu_metal.Device`, which also
+translates native Metal errors to typed OGPU errors.
 The former `Ogpu.Capabilities` record is folded into `Ogpu.Caps`: limits,
 feature availability, and conservative-probe notes travel as one value.
 `Ogpu_metal.Device` stores that profile once, and the deterministic OGPU mock
 uses `Caps.require` for typed unsupported-feature results.
+The old Metal `Adapter` module is removed; it no longer duplicates feature
+decisions or wraps capability probes.
 The shared `test/ogpu_conformance` runner now exercises capabilities, buffer
 round trips, submissions, lifetime rejection, and teardown on both the mock
 and Metal drivers. It uses the current `Ogpu.Backend.driver` boundary while

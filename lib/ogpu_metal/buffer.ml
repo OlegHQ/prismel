@@ -37,7 +37,7 @@ let create device ~memory descriptor =
             in
             match Metal.Buffer.create ~device:(Device.Private.metal device)
                     ~length:descriptor.size ~storage ~cpu_cache ?label:descriptor.label () with
-            | Error metal -> Error (Adapter.error ~operation metal)
+            | Error metal -> Error (Device.of_metal_error ~operation metal)
             | Ok metal ->
                 let value = { metal; handle = Ogpu.Handle.create ~device:(Device.Private.handle device);
                   device; descriptor; memory;submission_uses=0;destroy_requested=false } in
@@ -62,11 +62,11 @@ let memory device value =
 
 let write_bytes device value ~dst_offset bytes =
   let operation="Ogpu_metal.Buffer.write_bytes"in match validate operation device value with Error _ as e->e|Ok()->
-  match Metal.Buffer.write_bytes value.metal~dst_offset bytes with Ok()->Ok()|Error e->Error(Adapter.error~operation e)
+  match Metal.Buffer.write_bytes value.metal~dst_offset bytes with Ok()->Ok()|Error e->Error(Device.of_metal_error~operation e)
 
 let read_bytes device value ~offset ~length =
   let operation="Ogpu_metal.Buffer.read_bytes"in match validate operation device value with Error _ as e->e|Ok()->
-  match Metal.Buffer.read_bytes value.metal~offset~length with Ok x->Ok x|Error e->Error(Adapter.error~operation e)
+  match Metal.Buffer.read_bytes value.metal~offset~length with Ok x->Ok x|Error e->Error(Device.of_metal_error~operation e)
 
 let destroy value =
   let operation = "Ogpu_metal.Buffer.destroy" in
@@ -74,7 +74,7 @@ let destroy value =
   else if value.submission_uses>0 then(Ogpu.Handle.destroy value.handle;value.destroy_requested<-true;Ok())
   else
     match Metal.Buffer.destroy value.metal with
-    | Error metal -> Error (Adapter.error ~operation metal)
+    | Error metal -> Error (Device.of_metal_error ~operation metal)
     | Ok () ->
         Ogpu.Handle.destroy value.handle;
         Device.Private.detach_resource value.device;
