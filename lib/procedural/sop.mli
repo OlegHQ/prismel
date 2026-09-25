@@ -2096,9 +2096,6 @@ val attribute_transfer_all :
     one graph node. At least one owner pattern is required. Each owner shares
     one spatial plan across all of its matching attributes; owner kernels are
     sequenced to avoid nested parallel-pool oversubscription. *)
-val rename_group :
-  ?label:string -> owner:Pdk.Group.owner -> from:string -> into:string ->
-  Node.t -> Node.t
 val delete_edge_group : ?label:string -> name:string -> Node.t -> Node.t
 val rename_edge_group :
   ?label:string -> from:string -> into:string -> Node.t -> Node.t

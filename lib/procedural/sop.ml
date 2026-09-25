@@ -5863,16 +5863,6 @@ let point_velocity ?label ?group ?previous ?next
           | Ok geometry -> cooked geometry
           | Error error -> structured_pdk_error error)
 
-let rename_group ?label ~owner ~from ~into input =
-  Node.Private.make ?label ~operation:"rename_group" ~version:1
-    ~parameters:(Printf.sprintf "owner=%s;from=%S;into=%S"
-      (group_owner_key owner) from into)
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
-      match Pdk.Geometry.rename_group ~owner ~from ~into inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error message -> pdk_error "rename_group" message)
-
 let delete_edge_group ?label ~name input =
   if String.trim name = "" then invalid_arg "Sop.delete_edge_group: empty name";
   Node.Private.make ?label ~operation:"delete_edge_group" ~version:1

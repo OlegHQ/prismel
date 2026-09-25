@@ -494,6 +494,8 @@ editor exposes the same operation as `Delete Attributes`.
 `Procedural.Sop.bound` creates a bounding box with its default shape; use
 equal lower and upper padding for symmetric expansion. The editor exposes the
 same operation as `Bound`.
+`Procedural.Sop.group_rename` applies ordered owner-scoped rename rules with
+an explicit conflict policy, including the single-group case.
 `Procedural.Sop.delete` accepts typed point, vertex, or primitive selections;
 `blast` resolves an existing typed group; and `split` returns selected and
 remainder branches. All three use the same packed destroy/heal/compaction

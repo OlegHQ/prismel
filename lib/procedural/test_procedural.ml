@@ -2527,13 +2527,19 @@ let test_generators_selections_and_delete () =
   check (custom_x = 2. && Node.version custom = 3
       && Node.parameters custom = "x=2")
     "inspectable custom PDK node";
-  let renamed = Sop.null (Sop.points [|(0., 0., 0.)|])
+  let renamed = Sop.grid ~columns:1 ~rows:1 ~size:1. ()
       |> Sop.group ~name:"old" Select.all_points
-      |> Sop.rename_group ~owner:Pdk.Group.Point ~from:"old" ~into:"new"
+      |> Sop.group ~name:"old" Select.all_primitives
+      |> Sop.group_rename ~rules:[{
+           Pdk.Ops.rename_owner = Some Pdk.Ops.Group_points;
+           rename_pattern = "old"; rename_replacement = "new";
+           rename_conflict = Pdk.Ops.Rename_error }]
       |> cook_ok evaluator current in
   check (Pdk.Geometry.find_group ~owner:Pdk.Group.Point "old" renamed.geometry = None
-      && Pdk.Geometry.find_group ~owner:Pdk.Group.Point "new" renamed.geometry <> None)
-    "group rename";
+      && Pdk.Geometry.find_group ~owner:Pdk.Group.Point "new" renamed.geometry <> None
+      && Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive "old"
+         renamed.geometry <> None)
+    "owner-scoped group rename";
   let expanded_groups = Sop.grid ~columns:2 ~rows:1 ~size:2. ()
       |> Sop.group ~name:"seed_face" (Select.primitive_indices [|0|])
       |> Sop.group_expand ~name:"component" ~flood:true
