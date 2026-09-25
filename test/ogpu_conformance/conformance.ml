@@ -148,6 +148,56 @@ let run driver =
   Bytes.blit padded 256 expected_image 36 8;
   require (get (Backend.read_texture mip_second ~bytes_per_row:16)=
     expected_image) "texture subregion changed other pixels";
+  let compute_source=Bytes.of_string
+    "#include <metal_stdlib>\nusing namespace metal;\nkernel void exact_compute(device uint *values [[buffer(0)]], uint i [[thread_position_in_grid]]) { values[i] = values[i] * 3 + 1; }\n" in
+  let shader=get (Shader.create
+    {backend="metal";label=Some"exact-compute";bytes=compute_source;
+     entry_points=[{name="exact_compute";stage=Shader.Compute}];
+     bindings=[{group=0;binding=0;kind=Shader.Storage_buffer;
+                visibility=[Shader.Compute]}]}) in
+  let group_layout=get (Binding.create_layout
+    [{binding=0;kind=Binding.Buffer;visibility=[Binding.Compute]}]) in
+  let layout=get (Binding.create_pipeline_layout
+    ~device:(Backend.device_handle device) ~capabilities
+    [0,group_layout]) in
+  let compute_descriptor : Pipeline.compute_descriptor=
+    {backend="metal";label=Some"exact-compute";layout;shader;
+     entry="exact_compute"} in
+  if Caps.has profile Caps.Compute_pipeline then begin
+    let compute_buffer=get (Backend.create_buffer device
+      {label=Some"compute-output";size=16L;
+       usage=[Storage;Copy_src;Copy_dst]}) in
+    let input=Bytes.create 16 in
+    for i=0 to 3 do Bytes.set_int32_le input (i*4) (Int32.of_int i) done;
+    get (Backend.write_buffer compute_buffer ~offset:0L input);
+    let portable=get (Pipeline.create_compute capabilities
+      compute_descriptor) in
+    let pipeline=get (Backend.create_compute_pipeline device
+      compute_descriptor) in
+    let group=get (Binding.create_group layout ~group:0
+      [{binding=0;resource=Backend.binding_buffer compute_buffer}]) in
+    let resource : Compute_pass.resource=
+      {id=Backend.buffer_id compute_buffer;access=Command.Read_write;
+       stages=[Command.Compute_stage]} in
+    let pass=get (Compute_pass.create (Backend.device_handle device)
+      ~limits:capabilities.limits ~pipeline:portable ~layout
+      ~groups:[|0,group|] ~resources:[|resource|]
+      ~dispatch:(Compute_pass.Direct{x=4;y=1;z=1})) in
+    let compute_receipt=get (Backend.submit queue (Backend.compute pass)
+      ~resources:[`Buffer compute_buffer] ~pipelines:[pipeline]) in
+    poll compute_receipt 1000;
+    let output=get (Backend.read_buffer compute_buffer ~offset:0L
+      ~length:16) in
+    for i=0 to 3 do
+      require (Bytes.get_int32_le output (i*4)=Int32.of_int(i*3+1))
+        "compute output differs"
+    done;
+    get (Backend.destroy_pipeline pipeline);
+    get (Backend.destroy_buffer compute_buffer)
+  end else
+    (match Backend.create_compute_pipeline device compute_descriptor with
+     | Error { Error.kind = Unsupported; _ } -> ()
+     | _ -> failwith "unsupported compute pipeline was accepted");
   let other_queue = get (Backend.create_queue device) in
   require (Command_buffer.completed_epoch other_queue = 0L)
     "new queue inherited another queue's completion";

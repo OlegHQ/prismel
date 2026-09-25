@@ -16,7 +16,7 @@ type driver_pipeline={pipeline_token:token;destroy_pipeline:unit->(unit,Error.t)
 type driver_frame={frame_token:token}
 type driver_surface={surface_token:token;configure:Surface.configuration->(unit,Error.t)result;acquire:unit->([`Acquired of driver_frame|`Timeout|`Occluded|`Device_lost],Error.t)result;acquire_sync:unit->([`Acquired of driver_frame|`Timeout|`Occluded|`Device_lost],Error.t)result;present:queue:token->source:token->driver_frame->(unit,Error.t)result;submit_present:queue:token->source:token->command->resources:(int64*token)list->pipelines:token list->driver_frame->(receipt,Error.t)result;submit_present_sync:queue:token->source:token->command->resources:(int64*token)list->pipelines:token list->driver_frame->(synchronous_submission,Error.t)result;discard:driver_frame->(unit,Error.t)result;destroy_surface:unit->(unit,Error.t)result}
 type driver_queue={queue_token:token;submit:command->resources:(int64*token)list->pipelines:token list->(receipt,Error.t)result;submit_sync:command->resources:(int64*token)list->pipelines:token list->(synchronous_submission,Error.t)result;complete_through:int64->(unit,Error.t)result;poll_through:int64->(bool,Error.t)result;completed_epoch:unit->int64;destroy_queue:unit->(unit,Error.t)result}
-type driver_device={device_token:token;device_handle:Handle.device;capabilities:Caps.t;create_buffer:Types.buffer_descriptor->(driver_resource,Error.t)result;create_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_depth_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_stencil_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_pipeline:Pipeline.t->(driver_pipeline,Error.t)result;create_queue:unit->(driver_queue,Error.t)result;create_surface:Surface.configuration->(driver_surface,Error.t)result;destroy_device:unit->(unit,Error.t)result}
+type driver_device={device_token:token;device_handle:Handle.device;capabilities:Caps.t;create_buffer:Types.buffer_descriptor->(driver_resource,Error.t)result;create_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_depth_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_stencil_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_pipeline:Pipeline.t->(driver_pipeline,Error.t)result;create_compute_pipeline:Pipeline.compute_descriptor->(driver_pipeline,Error.t)result;create_queue:unit->(driver_queue,Error.t)result;create_surface:Surface.configuration->(driver_surface,Error.t)result;destroy_device:unit->(unit,Error.t)result}
 type driver={create_device:unit->(driver_device,Error.t)result}
 type device={raw:driver_device;handle:Handle.device;mutable children:int;mutable dead:bool;
   mutable queues:queue list}
@@ -66,6 +66,17 @@ let create_texture device descriptor=match live"Backend.create_texture"device wi
 let create_depth_texture device descriptor=match live"Backend.create_depth_texture"device with Error _ as e->e|Ok()->match Types.validate_texture device.raw.capabilities descriptor with Error _ as e->e|Ok() when not(List.mem Types.Render_attachment descriptor.usage)||List.exists(fun usage->usage<>Types.Render_attachment)descriptor.usage->error"Backend.create_depth_texture"Error.Invalid_argument"depth textures are render-attachment only"|Ok()->match device.raw.create_depth_texture descriptor with Error _ as e->e|Ok raw->device.children<-device.children+1;Ok{resource=make_resource device raw;texture_descriptor=descriptor}
 let create_stencil_texture device descriptor=match live"Backend.create_stencil_texture"device with Error _ as e->e|Ok()->match Types.validate_texture device.raw.capabilities descriptor with Error _ as e->e|Ok() when not(List.mem Types.Render_attachment descriptor.usage)||List.exists(fun usage->usage<>Types.Render_attachment)descriptor.usage->error"Backend.create_stencil_texture"Error.Invalid_argument"stencil textures are render-attachment only"|Ok()->match device.raw.create_stencil_texture descriptor with Error _ as e->e|Ok raw->device.children<-device.children+1;Ok{resource=make_resource device raw;texture_descriptor=descriptor}
 let adopt_pipeline device portable=match live"Backend.adopt_pipeline"device with Error _ as e->e|Ok()->let feature=match Pipeline.kind portable with Compute->Caps.Compute_pipeline|Render->Caps.Render_pipeline in match Caps.require ~operation:"Backend.adopt_pipeline" device.raw.capabilities feature with Error _ as e->e|Ok()->let identity=fresh_private_identity()in match device.raw.create_pipeline portable with Error _ as e->e|Ok pipeline_driver->device.children<-device.children+1;Ok{pipeline_driver;device;identity;dead=false}
+let create_compute_pipeline device descriptor=
+  let op="Backend.create_compute_pipeline" in
+  match live op device with
+  |Error _ as failure->failure
+  |Ok()->match Pipeline.create_compute device.raw.capabilities descriptor with
+    |Error _ as failure->failure
+    |Ok _->match device.raw.create_compute_pipeline descriptor with
+      |Error _ as failure->failure
+      |Ok pipeline_driver->
+          device.children<-device.children+1;
+          Ok{pipeline_driver;device;identity=fresh_private_identity();dead=false}
 let submission_cache_capacity=256
 let default_submission_cache_byte_capacity=67_108_864L
 let create_queue

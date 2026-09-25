@@ -388,7 +388,28 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
         c.plan_cache;
       Hashtbl.filter_map_inplace(fun _ sampler->match Sampler.destroy sampler with Ok()->None|Error _->Some sampler)c.sampler_cache
     in
-    let create_pipeline portable=match Hashtbl.find_opt c.pipelines(Ogpu_core.Pipeline.cache_key portable)with None->error"Ogpu_metal.Backend.create_pipeline"Ogpu_core.Error.Invalid_argument"portable pipeline was not registered with the Metal adapter"|Some pipeline->let id=token c in Hashtbl.add c.pipeline_tokens id pipeline;Ok{Ogpu_core.Backend.pipeline_token=id;destroy_pipeline=(fun()->invalidate_pipeline(Pipeline.key pipeline)id;match Pipeline.destroy pipeline with Error _ as e->e|Ok()->Hashtbl.remove c.pipeline_tokens id;Ok())}in
+    let own_pipeline pipeline=
+      let id=token c in
+      Hashtbl.add c.pipeline_tokens id pipeline;
+      Ok{Ogpu_core.Backend.pipeline_token=id;
+        destroy_pipeline=(fun()->
+          invalidate_pipeline(Pipeline.key pipeline)id;
+          match Pipeline.destroy pipeline with
+          |Error _ as failure->failure
+          |Ok()->Hashtbl.remove c.pipeline_tokens id;Ok())}in
+    let create_pipeline portable=
+      match Hashtbl.find_opt c.pipelines
+        (Ogpu_core.Pipeline.cache_key portable) with
+      |None->error"Ogpu_metal.Backend.create_pipeline"
+        Ogpu_core.Error.Invalid_argument
+        "portable pipeline was not registered with the Metal adapter"
+      |Some pipeline->own_pipeline pipeline in
+    let create_compute_pipeline descriptor=
+      match Pipeline.create_cache~capacity:1 with
+      |Error _ as failure->failure
+      |Ok cache->match Pipeline.create_compute cache device descriptor with
+        |Error _ as failure->failure
+        |Ok pipeline->own_pipeline pipeline in
     let native_resource token=Hashtbl.find_opt c.resources token in
     let create_queue()=match Queue.create device with Error _ as e->e|Ok queue->let queue_token=token c in
       (* A prepared Scene_execution command is immutable and may be submitted
@@ -1265,5 +1286,5 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity=64)
         |Ok(),Some error->Error error
         |Ok(),None->Ok()
       end in
-    Ok{Ogpu_core.Backend.device_token;device_handle=Device.Private.handle device;capabilities=Device.capabilities device;create_buffer;create_texture;create_depth_texture;create_stencil_texture;create_pipeline;create_queue;create_surface;destroy_device}in
+    Ok{Ogpu_core.Backend.device_token;device_handle=Device.Private.handle device;capabilities=Device.capabilities device;create_buffer;create_texture;create_depth_texture;create_stencil_texture;create_pipeline;create_compute_pipeline;create_queue;create_surface;destroy_device}in
   {Ogpu_core.Backend.create_device},c

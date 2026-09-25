@@ -45,6 +45,8 @@ type driver_device =
   ; create_depth_texture:Types.texture_descriptor -> (driver_resource,Error.t) result
   ; create_stencil_texture:Types.texture_descriptor -> (driver_resource,Error.t) result
   ; create_pipeline:Pipeline.t -> (driver_pipeline,Error.t) result
+  ; create_compute_pipeline:Pipeline.compute_descriptor ->
+      (driver_pipeline,Error.t) result
   ; create_queue:unit -> (driver_queue,Error.t) result
   ; create_surface:Surface.configuration -> (driver_surface,Error.t) result
   ; destroy_device:unit -> (unit,Error.t) result }
@@ -66,6 +68,8 @@ val create_texture : device -> Types.texture_descriptor -> (texture,Error.t) res
 val create_depth_texture : device -> Types.texture_descriptor -> (texture,Error.t) result
 val create_stencil_texture : device -> Types.texture_descriptor -> (texture,Error.t) result
 val adopt_pipeline : device -> Pipeline.t -> (pipeline,Error.t) result
+val create_compute_pipeline : device -> Pipeline.compute_descriptor ->
+  (pipeline,Error.t) result
 val create_queue : ?submission_cache_byte_capacity:int64 -> device ->
   (queue,Error.t) result
 val create_surface : device -> Surface.configuration -> (surface,Error.t) result

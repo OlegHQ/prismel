@@ -282,6 +282,9 @@ let create ?(capabilities=Caps.minimum_m1)()=
         c.pipelines<-c.pipelines+1;
         add c("pipeline:"^Pipeline.cache_key p);
         Ok{pipeline_token=id;destroy_pipeline=(fun()->c.pipelines<-c.pipelines-1;Ok())});
+    create_compute_pipeline=(fun _->
+      error"Backend_mock.create_compute_pipeline"Error.Unsupported
+        "mock backend does not execute compute shaders");
     create_queue=(fun()->
       let id=token c and clock={epoch=0L;completed=0L} in
       c.queues<-c.queues+1;
