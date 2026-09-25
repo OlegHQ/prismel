@@ -23,6 +23,9 @@ One-input modifiers pipe naturally. Multi-input nodes use descriptive labels,
 for example `Sop.copy_to_points ~source:tree ~targets:points ()`. Familiar words
 are preferred in this layer (`attribute`, `primitive`, `geometry`); abbreviated
 HDK vocabulary remains available in the expert PDK namespace.
+Use `Sop.delete_attributes ~point_pattern:"tint"` to delete one point
+attribute, or set patterns for several owners in one node. The editor uses the
+same `Delete Attributes` node; the old single-name node is removed.
 
 ## Ownership and dependency boundary
 

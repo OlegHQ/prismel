@@ -1064,13 +1064,13 @@
       "source_sha256": "83afa2e5b95fc2188298d383ada3f628368e0dba3aa1f7ac67738f4086cfee52"
     },
     {
-      "api_sha256": "b7271553049cf7c90ab3c220a84d828c8a3279553c19b8e64a92f9e154eeab95",
+      "api_sha256": "570d0e5947853d678435dd678c44116550357e4431ddb5285f04b3860f44b2da",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Sop",
       "source": "lib/procedural/sop.mli",
-      "source_bytes": 100872,
-      "source_sha256": "85c5fc09b894b4a9f4534d0e4dc9fd268e657646bd2171a1f327aa5344d0d111"
+      "source_bytes": 100769,
+      "source_sha256": "2225c275f6c860254d3ab79721210361cb262733e7e2f31a2a8b058f33bc7655"
     },
     {
       "api_sha256": "a07dc249d7631da8b4e38fe93e9e43898cdc8cec6e30be0a7c921a086e386fba",
@@ -1172,13 +1172,13 @@
       "source_sha256": "16a987a78aaa65d5d6396014b3fc16bbe3040ac4850fc872d4d32c3a0a4e22e2"
     },
     {
-      "api_sha256": "2d12ed4794980af8b1a0126246be0a90a15f62faf5abdcd9e3c85316bfffa9f7",
+      "api_sha256": "089a0f528ffe675450044abf979a6b724f96d3712df62ff0b6110197da331c9e",
       "excluded_legacy_symbols": [],
       "library": "sop_catalog",
       "module": "Sop_catalog",
       "source": "lib/sop_catalog/sop_catalog.mli",
-      "source_bytes": 21818,
-      "source_sha256": "3e53642ded872159d59631096889a6a186592f2c599abb3bc018cc1fb8b7e480"
+      "source_bytes": 21712,
+      "source_sha256": "6046820125a4d7291c4e2ab6887f5f36ac466269c111bd58f102c2cb4207f52e"
     },
     {
       "api_sha256": "066c13e6f40d5ace39e223d82bef47560a97d2d8a6dd75ab9bae2117d32ab5a5",

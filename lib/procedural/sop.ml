@@ -5656,13 +5656,6 @@ let set_color ?label ~owner value input =
       (Pdk.Packed.Float4.of_owned ~x:(Array.make count r) ~y:(Array.make count g)
         ~z:(Array.make count b) ~w:(Array.make count a))) input
 
-let delete_attribute ?label ~owner ~name input =
-  Node.Private.make ?label ~operation:"delete_attribute" ~version:1
-    ~parameters:(Printf.sprintf "owner=%s;name=%S" (attribute_owner_key owner) name)
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
-      cooked (Pdk.Geometry.without_attribute ~owner name inputs.(0)))
-
 let rename_attribute ?label ~owner ~from ~into input =
   Node.Private.make ?label ~operation:"rename_attribute" ~version:1
     ~parameters:(Printf.sprintf "owner=%s;from=%S;into=%S"

@@ -737,10 +737,6 @@ module Set_color : sig
   val create : ?label:string -> Procedural.Node.t -> Procedural.Node.t
 end
 
-module Delete_attribute : sig
-  val create : ?label:string -> Procedural.Node.t -> Procedural.Node.t
-end
-
 module Rename_attribute : sig
   val create : ?label:string -> Procedural.Node.t -> Procedural.Node.t
 end

@@ -1751,8 +1751,6 @@ val set_transform : ?label:string -> Prismel.Mat4.t -> Node.t -> Node.t
 val set_color :
   ?label:string -> owner:Pdk.Attribute.owner -> Prismel.Color.t ->
   Node.t -> Node.t
-val delete_attribute :
-  ?label:string -> owner:Pdk.Attribute.owner -> name:string -> Node.t -> Node.t
 val rename_attribute :
   ?label:string -> owner:Pdk.Attribute.owner -> from:string -> into:string ->
   Node.t -> Node.t

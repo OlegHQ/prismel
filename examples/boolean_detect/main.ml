@@ -39,10 +39,10 @@ let graph () =
       |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#14b8a6") in
   (* Delete the ragged output before merging because the collision display has
      no meaningful source-to-collision rows of its own. *)
-  let surface = Sop.delete_attribute ~owner:Pdk.Attribute.Primitive
-      ~name:"collision_primitives" surface
-  and crossings = Sop.delete_attribute ~owner:Pdk.Attribute.Primitive
-      ~name:"collision_primitives" crossings in
+  let surface = Sop.delete_attributes
+      ~primitive_pattern:"collision_primitives" surface
+  and crossings = Sop.delete_attributes
+      ~primitive_pattern:"collision_primitives" crossings in
   Sop.merge [surface; crossings; collision]
 
 let init frame =

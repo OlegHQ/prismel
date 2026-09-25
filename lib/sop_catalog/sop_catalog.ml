@@ -9475,26 +9475,6 @@ module Set_color = struct
       ~inputs:[input] parameters_default
 end [@@sop.register]
 
-module Delete_attribute = struct
-  type parameters = {
-    owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
-      [@sop.label "Owner"] [@sop.kind attribute_owner_parameter];
-    name : string [@sop.default "value"] [@sop.label "Attribute"];
-  } [@@sop.node_key "delete_attribute"] [@@sop.node_label "Delete Attribute"]
-    [@@sop.node_category "Attribute/Manage"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.delete_attribute ~label ~owner:parameters.owner
-        ~name:parameters.name input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Delete_attribute expects one input"
-  let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "delete-attribute" node_label) ~inputs:[input]
-      parameters_default
-end [@@sop.register]
-
 module Rename_attribute = struct
   type parameters = {
     owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
