@@ -319,7 +319,7 @@ let test_packed_array_storage_and_structural_ops () =
          <> [|[|1;2|];[||];[|3|];[|1;2|];[||];[|3|];
               [|1;2|];[||];[|3|]|] then
     fail "Duplicate did not remap packed array rows";
-  let merged = Ops.merge [base; base] |> Result.get_ok in
+  let merged = Mesh_merge.run [base; base] |> Result.get_ok in
   let rows = int_array_values ~owner:Attribute.Point "neighbors" merged in
   if Array.init 6 (Packed.Int_array.get rows)
       <> [|[|1;2|];[||];[|3|];[|1;2|];[||];[|3|]|] then

@@ -293,8 +293,8 @@ let () =
               ; "machine", `String (command_output "uname" [ "-m" ])
               ; "macos_version",
                 `String (command_output "sw_vers" [ "-productVersion" ])
-              ; "sdk_version", `String Provenance.sdk_version
-              ; "deployment_target", `String Provenance.deployment_target
+              ; "sdk_version",
+                `String (command_output "xcrun" [ "--sdk"; "macosx"; "--show-sdk-version" ])
               ; "device", `String info.name
               ; "iterations", `Int arguments.iterations
               ; "sample_count", `Int arguments.samples

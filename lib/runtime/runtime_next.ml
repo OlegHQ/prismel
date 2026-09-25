@@ -23,6 +23,17 @@ type frame_facts = {
   pixel_scale_y : float;
 }
 
+(* The last Retina-scaled draw list, keyed by the physical identity of its
+   input list and facts. A retained scene hands the runtime the same list
+   every frame, so the scaled copy is built once instead of per frame. *)
+type scaled_cache = {
+  mutable scaled_input : Scene_execution.sampled_draw list;
+  mutable scaled_facts : frame_facts option;
+  mutable scaled_output : Scene_execution.sampled_draw list;
+}
+
+let new_scaled_cache () = { scaled_input = []; scaled_facts = None; scaled_output = [] }
+
 type window_facts = {
   title : string;
   logical_width : int;
@@ -41,6 +52,7 @@ type t = {
   view : Sdl3.Metal_view.t;
   renderer : Scene_execution.t;
   mutable facts : frame_facts;
+  scaled : scaled_cache;
   vsync : bool;
   mutable dead : bool;
   mutable cursors : ([ `Default | `Horizontal_resize | `Vertical_resize ] * Sdl3.Cursor.t) list;
@@ -56,6 +68,7 @@ let device value =
 type offscreen = {
   renderer : Scene_execution.t;
   mutable facts : frame_facts;
+  scaled : scaled_cache;
   mutable dead : bool;
 }
 
@@ -433,6 +446,7 @@ let create ?(vsync = true) ?(hidden = true) ?(title = "Prismel") ~width ~height 
                                                     vsync;
                                                     dead = false;
                                                     cursors = [];
+      scaled = new_scaled_cache ();
                                                     cursor_shape = None;
                                                   }))))))))
 
@@ -459,7 +473,7 @@ let create_offscreen ?device ~logical_width ~logical_height ~width ~height () =
                 pixel_scale_y = float height /. float logical_height;
               }
             in
-            Ok { renderer; facts; dead = false }
+            Ok { renderer; facts; scaled = new_scaled_cache (); dead = false }
 
 let scale_rect (facts : frame_facts) (x, y, w, h) =
   let edge value logical drawable = value * drawable / logical in
@@ -491,6 +505,19 @@ let scale_sampled_resources (facts : frame_facts) draws =
         let scaled = scale_draw facts entry.draw in
         if scaled == entry.draw then entry else {entry with draw=scaled})
       draws
+
+let scale_sampled_cached cache (facts : frame_facts) draws =
+  if not (scale_required facts) then draws
+  else if draws == cache.scaled_input
+          && (match cache.scaled_facts with Some cached -> cached == facts | None -> false)
+  then cache.scaled_output
+  else begin
+    let scaled = scale_sampled_resources facts draws in
+    cache.scaled_input <- draws;
+    cache.scaled_facts <- Some facts;
+    cache.scaled_output <- scaled;
+    scaled
+  end
 
 let apply_facts (value : t) (facts : frame_facts) =
   let configuration : Ogpu.Surface.configuration =
@@ -544,7 +571,7 @@ let render_sampled_resources ?after_prepare ?clear (value : t) draws =
         error
     | Ok () ->
         Scene_execution.render_sampled_resources ?after_prepare ?clear value.renderer
-          (scale_sampled_resources value.facts draws)
+          (scale_sampled_cached value.scaled value.facts draws)
 
 let render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version (value : t) draws =
   if value.dead then (
@@ -560,7 +587,7 @@ let render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version (
     | Ok () ->
         Scene_execution.render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version
           value.renderer
-          (scale_sampled_resources value.facts draws)
+          (scale_sampled_cached value.scaled value.facts draws)
 
 let replay_prepared_sampled_resources ?clear ~identity ~version (value : t) =
   if value.dead then
@@ -593,7 +620,7 @@ let stats (value : t) =
   and retained = Scene_execution.retained_stats value.renderer in
   {
     pipeline_cache_entries = Scene_execution.pipeline_count value.renderer;
-    mesh_cache_entries = Scene_execution.cache_entries value.renderer;
+    mesh_cache_entries = Scene_execution.Private.cache_count_for_report value.renderer;
     uploaded_bytes = Scene_execution.upload_bytes value.renderer;
     gpu_timing_supported = timing.timing_supported;
     gpu_duration_seconds = timing.gpu_seconds;
@@ -758,7 +785,7 @@ let render_offscreen ?after_prepare ?clear value draws =
       (Ogpu.Error.make "Runtime_next.render_offscreen" Stale_handle "offscreen target is destroyed"))
   else
     Scene_execution.render_sampled_resources ?after_prepare ?clear value.renderer
-      (scale_sampled_resources value.facts draws)
+      (scale_sampled_cached value.scaled value.facts draws)
 
 let render_offscreen_prepared ?after_prepare ?clear ~identity ~version value draws =
   if value.dead then (
@@ -769,7 +796,7 @@ let render_offscreen_prepared ?after_prepare ?clear ~identity ~version value dra
   else
     Scene_execution.render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version
       value.renderer
-      (scale_sampled_resources value.facts draws)
+      (scale_sampled_cached value.scaled value.facts draws)
 
 let read_offscreen value ~bytes_per_row =
   if value.dead then
@@ -813,7 +840,7 @@ let offscreen_stats value =
   and retained = Scene_execution.retained_stats value.renderer in
   {
     pipeline_cache_entries = Scene_execution.pipeline_count value.renderer;
-    mesh_cache_entries = Scene_execution.cache_entries value.renderer;
+    mesh_cache_entries = Scene_execution.Private.cache_count_for_report value.renderer;
     uploaded_bytes = Scene_execution.upload_bytes value.renderer;
     gpu_timing_supported = timing.timing_supported;
     gpu_duration_seconds = timing.gpu_seconds;
@@ -840,4 +867,7 @@ module Private = struct
   let scene2_textured_argument = Runtime_next_shaders.scene2_textured_argument
   let scale_draws = scale_draws
   let scale_sampled_resources = scale_sampled_resources
+  type nonrec scaled_cache = scaled_cache
+  let new_scaled_cache = new_scaled_cache
+  let scale_sampled_cached = scale_sampled_cached
 end

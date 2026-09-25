@@ -97,7 +97,7 @@ let test_affected_and_promotion () =
       && close mask.(2) 82. && close mask.(3) (1. -. (3. /. 3.5))
       && close mask.(4) 84.)
     "Distance Along Geometry affected mask preservation";
-  let isolated = Ops.points [|0., 0., 0.; 1., 0., 0.|] in
+  let isolated = Line_geometry.points [|0., 0., 0.; 1., 0., 0.|] in
   let start = point_group "start" 2 (fun point -> point = 0) in
   let zero = Ops.distance_along_geometry ~grain:1
       ~start:(Ops.Selected_points start) ~distance_attribute:None
@@ -151,7 +151,7 @@ let test_errors_cancellation_and_parallel () =
   expect_invalid (fun () -> Ops.distance_along_geometry
       ~start:(Ops.Selected_points malformed) source)
     "Distance Along Geometry malformed selection";
-  let nonfinite = Ops.points [|Float.nan, 0., 0.; 0., 0., 0.|] in
+  let nonfinite = Line_geometry.points [|Float.nan, 0., 0.; 0., 0., 0.|] in
   let nonfinite_start = point_group "start" 2 (fun point -> point = 0) in
   expect_invalid (fun () -> Ops.distance_along_geometry
       ~start:(Ops.Selected_points nonfinite_start) nonfinite)
@@ -162,7 +162,7 @@ let test_errors_cancellation_and_parallel () =
    | Error error -> check (Error.code error = "cancelled")
        "Distance Along Geometry cancellation code"
    | Ok _ -> fail "cancelled Distance Along Geometry published geometry");
-  let dense = Ops.grid ~columns:400 ~rows:240 ~size:20. () |> get_ok in
+  let dense = Plane_generators.grid_checked ~columns:400 ~rows:240 ~size:20. () |> get_ok in
   let width = 401 and count = Geometry.point_count dense in
   let dense_start = point_group "start" count (fun point ->
       point = (120 * width) + 200) in

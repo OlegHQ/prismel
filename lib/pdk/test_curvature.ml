@@ -127,7 +127,7 @@ let test_orientation_and_saddle () =
     "saddle center did not receive negative Gaussian curvature"
 
 let test_boundary_smoothing_and_selection () =
-  let grid = Ops.grid ~connectivity:Ops.Grid_quads ~columns:2 ~rows:2 ~size:2. ()
+  let grid = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:2 ~rows:2 ~size:2. ()
       |> get in
   let zero = Ops.measure_curvature ~outputs:all_outputs grid |> get in
   Array.iter (fun value -> check (near value 0.)
@@ -159,7 +159,7 @@ let test_boundary_smoothing_and_selection () =
   done
 
 let test_exact_domains_and_cardinality () =
-  let sphere = Ops.uv_sphere ~connectivity:Ops.Sphere_triangles
+  let sphere = Uv_sphere.run_checked ~connectivity:Uv_sphere.Sphere_triangles
       ~segments:192 ~rings:96 ~radius:3. () |> get in
   let run domains = Parallel.run ~domains (fun () ->
       Ops.measure_curvature ~grain:257 ~smoothing_iterations:2
@@ -199,7 +199,7 @@ let test_validation_and_cancellation () =
   let wrong = Geometry.with_attribute wrong source |> get_string in
   expect_invalid (fun () -> Ops.measure_curvature wrong)
     "wrong existing output storage";
-  let curve = Ops.polyline ~closed:true
+  let curve = Line_geometry.polyline_checked ~closed:true
       [|0.,0.,0.;1.,0.,0.;0.,1.,0.|] |> get in
   expect_invalid (fun () -> Ops.measure_curvature curve) "curve input";
   let inconsistent = geometry

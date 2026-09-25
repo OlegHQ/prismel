@@ -6,7 +6,6 @@ let tests = [
   "test_pxui_graph", Test_pxui_graph.run;
   "test_sketch_ui", Test_sketch_ui.run;
   "test_sop_catalog", Test_sop_catalog.run;
-  "test_geom", Test_geom.run;
   "native_only_rendering", Native_only_rendering.run;
   "audio_snapshot", Audio_snapshot.run;
   "sdl3_platform_harness", Sdl3_platform_harness.run;

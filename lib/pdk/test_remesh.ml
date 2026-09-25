@@ -11,8 +11,8 @@ let add_attribute ~owner ~name storage geometry =
   Geometry.with_attribute attribute geometry |> get_string
 
 let grid ?(columns = 7) ?(rows = 6) ?(size = 6.) () =
-  Ops.grid ~counts:Ops.Grid_point_counts
-    ~connectivity:Ops.Grid_alternating_triangles ~columns ~rows ~size () |> get
+  Plane_generators.grid_checked ~counts:Plane_generators.Grid_point_counts
+    ~connectivity:Plane_generators.Grid_alternating_triangles ~columns ~rows ~size () |> get
 
 let attribute_equal left right =
   Attribute.owner left = Attribute.owner right
@@ -266,6 +266,121 @@ let test_fused_split_matches_composed_reference () =
   check (Group.cardinality (vertex_group fused) = 5)
     "Remesh fused split violated endpoint-intersection vertex-group interpolation"
 
+
+(* A payload-rich fixture: split, collapse and flip all fire, attributes and
+   groups of every owner ride along. The hashes were produced by the chained
+   split/collapse/flip kernels before the local-edit structure replaced them;
+   the structure must reproduce their output byte for byte. *)
+let component_hashes geometry =
+  let mix hash value = (hash * 1_000_003) lxor value land max_int in
+  let mix_float hash value = mix hash (Hashtbl.hash (Int64.bits_of_float value)) in
+  let floats values = Array.fold_left mix_float 17 values
+  and ints values = Array.fold_left mix 17 values in
+  let positions = Packed.Float3.Private.view (Geometry.positions geometry)
+  and topology = Topology.Private.view (Geometry.topology geometry) in
+  [ "positions", mix (mix (floats positions.x) (floats positions.y)) (floats positions.z);
+    "vertex_points", ints topology.vertex_points;
+    "primitive_offsets", ints topology.primitive_offsets ]
+  @ List.map (fun attribute ->
+      let name = Printf.sprintf "attribute %s/%s"
+          (match Attribute.owner attribute with Attribute.Point -> "point"
+            | Vertex -> "vertex" | Primitive -> "primitive" | Detail -> "detail")
+          (Attribute.name attribute) in
+      name, (match Attribute.Private.storage attribute with
+        | Attribute.Float values -> floats values
+        | Attribute.Int values -> ints values
+        | Attribute.Text values -> Array.fold_left (fun h v -> mix h (Hashtbl.hash v)) 17 values
+        | Attribute.Float2 values ->
+            let values = Packed.Float2.Private.view values in
+            mix (floats values.x) (floats values.y)
+        | Attribute.Float3 values ->
+            let values = Packed.Float3.Private.view values in
+            mix (mix (floats values.x) (floats values.y)) (floats values.z)
+        | _ -> 1)) (Geometry.attributes geometry)
+  @ List.map (fun group ->
+      let members = ref 17 in
+      for element = 0 to Group.length group - 1 do
+        if Group.mem element group then members := mix !members element
+      done;
+      let order = match Group.ordered_elements group with
+        | None -> 0 | Some order -> ints order in
+      Printf.sprintf "group %s (len %d)" (Group.name group) (Group.length group),
+      mix !members order) (Geometry.groups geometry)
+  @ List.map (fun group ->
+      Printf.sprintf "edge group %s" (Edge_group.name group),
+      List.fold_left (fun h (a, b) -> mix (mix h a) b) 17 (edge_pairs geometry group))
+      (Geometry.edge_groups geometry)
+
+let fixture_hash geometry =
+  let mix hash value = (hash * 1_000_003) lxor value land max_int in
+  List.fold_left (fun hash (_, value) -> mix hash value) 17 (component_hashes geometry)
+
+let dump label geometry =
+  if Sys.getenv_opt "PRISMEL_REMESH_DUMP" <> None then
+    List.iter (fun (name, value) -> Printf.eprintf "%s %s = %d\n%!" label name value)
+      (component_hashes geometry)
+
+let payload_fixture () =
+  let source = Plane_generators.grid_checked ~counts:Plane_generators.Grid_point_counts
+      ~connectivity:Plane_generators.Grid_alternating_triangles ~uv_attribute:"uv"
+      ~columns:9 ~rows:7 ~size:6. () |> get in
+  let point_count = Geometry.point_count source
+  and vertex_count = Geometry.vertex_count source
+  and primitive_count = Geometry.primitive_count source in
+  let source = source
+    |> add_attribute ~owner:Attribute.Point ~name:"point_id"
+         (Attribute.Int (Array.init point_count (fun point -> point * 3)))
+    |> add_attribute ~owner:Attribute.Primitive ~name:"material"
+         (Attribute.Text (Array.init primitive_count (fun primitive ->
+            if primitive mod 3 = 0 then "red" else "blue")))
+    |> add_attribute ~owner:Attribute.Detail ~name:"tag"
+         (Attribute.Text [|"payload"|]) in
+  let ordered = Group.ordered ~owner:Group.Point ~name:"ordered_points"
+      ~length:point_count (Array.init (point_count / 2) (fun index ->
+        point_count - 1 - (index * 2))) |> get_string
+  and corners = Group.init ~owner:Group.Vertex ~name:"corners" vertex_count
+      (fun vertex -> vertex mod 5 <> 2)
+  and faces = Group.init ~owner:Group.Primitive ~name:"faces" primitive_count
+      (fun primitive -> primitive mod 4 < 2)
+  and pinned = Group.init ~owner:Group.Point ~name:"pinned" point_count
+      (fun point -> point = 12 || point = 40) in
+  let index = Topology_index.create (Geometry.topology source) in
+  let authored = Edge_group.init ~topology:(Geometry.topology source) ~index
+      ~name:"authored_edges" (fun edge -> edge mod 3 <> 1) in
+  let source = List.fold_left (fun geometry group ->
+      Geometry.with_group group geometry |> get_string) source
+      [ordered; corners; faces; pinned] in
+  Geometry.with_edge_group authored source |> get_string, pinned
+
+let test_local_edits_match_chained_kernels () =
+  let source, pinned = payload_fixture () in
+  let run domains = Parallel.run ~domains (fun () ->
+    Ops.remesh ~grain:13 ~iterations:2 ~smoothing:0.3 ~project:true
+      ~target_length:0.8 ~hard_points:pinned ~output_hard_edges:"hard"
+      ~output_mesh_size:"size" ~output_quality:"quality" source |> get) in
+  let output = run 1 in
+  dump "payload" output;
+  check_triangles output;
+  check (Geometry.find_group ~owner:Group.Point "ordered_points" output
+      |> Option.get |> Group.is_ordered)
+    "Remesh dropped the explicit order of a point group";
+  check (Geometry.find_edge_group "authored_edges" output <> None)
+    "Remesh dropped an authored edge group";
+  let flips_only = Ops.remesh ~grain:7 ~iterations:2 ~smoothing:0.
+      ~project:false ~use_input_points_only:true ~target_length:0.8
+      ~recompute_point_normals:false source |> get in
+  dump "flips" flips_only;
+  check (fixture_hash output = 212434250856407980)
+    (Printf.sprintf "Remesh payload fixture drifted from the chained kernels: %d"
+      (fixture_hash output));
+  check (geometry_equal output (run 4))
+    "Remesh payload fixture differs between one and four domains";
+  check (Geometry.point_count flips_only = Geometry.point_count source)
+    "Remesh input-points-only fixture changed point cardinality";
+  check (fixture_hash flips_only = 1893477268345860603)
+    (Printf.sprintf "Remesh flip-only fixture drifted from the chained kernels: %d"
+      (fixture_hash flips_only))
+
 let test_errors_and_cancellation () =
   let source = grid ~columns:4 ~rows:4 () in
   let expect code result = match result with
@@ -283,7 +398,7 @@ let test_errors_and_cancellation () =
         (fun point -> if point = 2 then Float.nan else 1.))) in
   expect "invalid_remesh"
     (Ops.remesh ~target_length:1. ~target_size_attribute:"size" bad_size);
-  let curve = Ops.polyline [|0.,0.,0.;1.,0.,0.;2.,0.,0.|] |> get in
+  let curve = Line_geometry.polyline_checked [|0.,0.,0.;1.,0.,0.;2.,0.,0.|] |> get in
   expect "invalid_remesh" (Ops.remesh ~target_length:1. curve);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
@@ -306,4 +421,5 @@ let run () =
   test_fused_split_matches_composed_reference ();
   test_errors_and_cancellation ();
   test_parallel_exact ();
+  test_local_edits_match_chained_kernels ();
   print_endline "remesh tests passed"

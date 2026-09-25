@@ -34,4 +34,7 @@ module Private : sig
   val affects : t -> Light.t -> bool
   val visibility : t -> world:Vec3.t -> normal:Vec3.t -> float
   val snapshot : t -> snapshot
+
+  (** Process-local identity of this immutable shadow map. *)
+  val identity : t -> int
 end

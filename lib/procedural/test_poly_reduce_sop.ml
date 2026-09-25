@@ -19,8 +19,8 @@ let cook graph =
   Session.close session; output
 
 let run () =
-  let graph = Sop.grid ~counts:Pdk.Ops.Grid_point_counts
-      ~connectivity:Pdk.Ops.Grid_alternating_triangles
+  let graph = Sop.grid ~counts:Pdk.Plane_generators.Grid_point_counts
+      ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
       ~columns:32 ~rows:24 ~size:8. ()
       |> Sop.poly_reduce ~target:(Pdk.Ops.Reduce_ratio 0.4)
            ~preserve_boundary:true ~equalize_lengths:1e-8
@@ -37,7 +37,7 @@ let run () =
      || not (contains (Node.parameters graph) "preserve_boundary=true")
      || not (contains (Node.parameters graph) "equalize_lengths=") then
     fail "PolyReduce cache identity";
-  let invalid = Sop.grid ~connectivity:Pdk.Ops.Grid_triangles
+  let invalid = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_triangles
       ~columns:4 ~rows:4 ~size:1. ()
       |> Sop.poly_reduce ~hard_edge_group:"missing" in
   let session = session () in

@@ -15,7 +15,7 @@ let contains text pattern =
 let context domains = Context.create ~domains ~grain:37 ~seed:73L () |> get
 
 let source () =
-  let geometry = Ops.grid ~columns:200 ~rows:120 ~size:10. ()
+  let geometry = Pdk.Plane_generators.grid_checked ~columns:200 ~rows:120 ~size:10. ()
       |> function Ok value -> value | Error error -> fail (Error.to_string error) in
   let points = Geometry.point_count geometry in
   let selected = Group.init ~grain:37 ~owner:Group.Point ~name:"checker" points

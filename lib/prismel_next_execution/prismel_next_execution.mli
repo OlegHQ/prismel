@@ -34,10 +34,8 @@ val create : configuration -> (t,error) result
 (* A true layerless native Metal target. It owns one long-lived device and
    pipeline coordinator until [destroy], without acquiring/presenting a window. *)
 val create_offscreen : configuration -> (t,error) result
-val assets : t -> Prismel_next_resources.Assets.t
 val lower_scene2 : t -> density:int -> resource:(int -> resource option) ->
   Scene_command.Render_ir.t -> (draw list,error) result
-val snapshot_cache_entries : t -> int
 type stats = Runtime_next_orchestrator.stats = { frames:int64; presented:int64;
   logical_draws:int64; logical_passes:int64; logical_submissions:int64;
   uploaded_bytes:int64; cache_entries:int; gpu_timing_supported:bool;
@@ -95,6 +93,7 @@ val gpu_queue : gpu -> Ogpu.Backend.queue
 val gpu_shared : gpu -> bool
 val release_gpu : gpu -> unit
 module Private : sig
+  val snapshot_count_for_test : t -> int
   type submission
   type batch
   (* Starts an isolated zero-copy Scene2 lowering transaction.  A later

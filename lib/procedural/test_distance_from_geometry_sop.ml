@@ -14,7 +14,7 @@ let contains text pattern =
   pattern = "" || search 0
 
 let source () =
-  let geometry = Ops.grid ~columns:220 ~rows:140 ~size:12. () |> function
+  let geometry = Pdk.Plane_generators.grid_checked ~columns:220 ~rows:140 ~size:12. () |> function
     | Ok value -> Ops.transform (Mat4.translation (Vec3.create 0. 1. 0.)) value
     | Error error -> fail (Error.to_string error) in
   let affected = Group.init ~grain:97 ~owner:Group.Point
@@ -23,7 +23,7 @@ let source () =
   Geometry.with_group affected geometry |> Result.get_ok
 
 let reference () =
-  let geometry = Ops.uv_sphere ~rings:48 ~segments:72 ~radius:4. () |> function
+  let geometry = Pdk.Uv_sphere.run_checked ~rings:48 ~segments:72 ~radius:4. () |> function
     | Ok value -> value | Error error -> fail (Error.to_string error) in
   let primitives = Group.init ~grain:97 ~owner:Group.Primitive
       ~name:"reference_surface" (Geometry.primitive_count geometry) (fun _ -> true) in

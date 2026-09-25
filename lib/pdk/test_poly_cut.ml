@@ -15,7 +15,7 @@ let with_float name values geometry =
 let with_int name values geometry =
   with_attribute Attribute.Point name (Attribute.Int values) geometry
 
-let open_curve count = Ops.polyline (Array.init count (fun point ->
+let open_curve count = Line_geometry.polyline_checked (Array.init count (fun point ->
     float_of_int point, 0., 0.)) |> get_ok
 
 let topology_view geometry = Topology.Private.view (Geometry.topology geometry)
@@ -249,7 +249,7 @@ let test_point_remove_and_cut () =
   check (identity == source) "PolyCut endpoint-only no-op lost identity"
 
 let test_closed_policy_and_restrictions () =
-  let source = Ops.polyline ~closed:true
+  let source = Line_geometry.polyline_checked ~closed:true
       [|(0.,0.,0.);(1.,0.,0.);(1.,1.,0.);(0.,1.,0.)|] |> get_ok in
   let topology = Geometry.topology source in
   let index = Topology_index.create topology in
@@ -269,7 +269,7 @@ let test_closed_policy_and_restrictions () =
       && Topology.primitive_kind (Geometry.topology closed_result) 0
            = Topology.Closed_polyline)
     "PolyCut closed fragment policy";
-  let face = Ops.grid ~connectivity:Ops.Grid_quads ~columns:1 ~rows:1
+  let face = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:1 ~rows:1
       ~size:1. () |> get_ok in
   let face_topology = Geometry.topology face in
   let face_index = Topology_index.create face_topology in
@@ -464,8 +464,8 @@ let test_dense_parallel_exactness () =
         source |> get_ok) in
   let one = cook 1 and four = cook 4 in
   check (equal_geometry one four) "PolyCut one/four-domain geometry differs";
-  let one_mesh = Prismel_mesh.to_mesh one |> get_ok
-  and four_mesh = Prismel_mesh.to_mesh four |> get_ok in
+  let one_mesh = Pdk_prismel.Prismel_mesh.to_mesh one |> get_ok
+  and four_mesh = Pdk_prismel.Prismel_mesh.to_mesh four |> get_ok in
   check (Mesh.Private.packed_view one_mesh = Mesh.Private.packed_view four_mesh)
     "PolyCut one/four-domain render mesh differs"
 

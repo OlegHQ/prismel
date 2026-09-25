@@ -222,7 +222,7 @@ let run () =
   check (Ops.edge_divide ~edges:empty ~divisions:5 source |> get_pdk == source)
     "empty edge-group Edge Divide was not an identity";
 
-  let curve = Ops.polyline [|0.,0.,0.; 2.,0.,0.; 2.,2.,0.|] |> get_pdk
+  let curve = Line_geometry.polyline_checked [|0.,0.,0.; 2.,0.,0.; 2.,2.,0.|] |> get_pdk
       |> Ops.group_edges ~name:"curve_edges" |> get_pdk in
   let curve_edges = Geometry.find_edge_group "curve_edges" curve |> Option.get in
   let curve_output = Ops.edge_divide ~edges:curve_edges ~divisions:2 curve
@@ -233,7 +233,7 @@ let run () =
       && Bytes.get curve_topology.primitive_kinds 0 = '\001')
     "open-curve Edge Divide";
 
-  let closed_curve = Ops.polyline ~closed:true
+  let closed_curve = Line_geometry.polyline_checked ~closed:true
       [|0.,0.,0.; 2.,0.,0.; 1.,2.,0.|] |> get_pdk
       |> Ops.group_edges ~name:"closed_edges" |> get_pdk in
   let closed_edges = Geometry.find_edge_group "closed_edges" closed_curve
@@ -262,7 +262,7 @@ let run () =
       && Geometry.vertex_count nonmanifold_output = 18)
     "non-manifold shared Edge Divide cardinality";
 
-  let other = Ops.box ~size:(Vec3.create 1. 1. 1.) () |> get_pdk
+  let other = Box_generator.box_checked ~size:(Vec3.create 1. 1. 1.) () |> get_pdk
       |> Ops.group_edges ~name:"other" |> get_pdk in
   let other_edges = Geometry.find_edge_group "other" other |> Option.get in
   expect_code "invalid_topology"
@@ -284,7 +284,7 @@ let run () =
   expect_code "cancelled"
     (Ops.edge_divide ~cancel:cancelled ~edges:cut ~divisions:2 source);
 
-  let large = Ops.grid ~grain:127 ~connectivity:Ops.Grid_quads
+  let large = Plane_generators.grid_checked ~grain:127 ~connectivity:Plane_generators.Grid_quads
       ~columns:160 ~rows:120 ~size:20. () |> get_pdk
       |> Ops.group_edges ~grain:127 ~name:"all" |> get_pdk in
   let all = Geometry.find_edge_group "all" large |> Option.get in

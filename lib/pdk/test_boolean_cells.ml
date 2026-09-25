@@ -1,12 +1,12 @@
 open Pdk
 
-module Constraints = Boolean_kernel.Constraints
-module Coplanar = Boolean_kernel.Coplanar
-module Refinement = Boolean_kernel.Refinement
-module Complex = Boolean_kernel.Complex
-module Radial = Boolean_kernel.Radial
-module Weiler = Boolean_kernel.Weiler
-module Cells = Boolean_kernel.Cells
+module Constraints = Pdk_boolean.Boolean_kernel.Constraints
+module Coplanar = Pdk_boolean.Boolean_kernel.Coplanar
+module Refinement = Pdk_boolean.Boolean_kernel.Refinement
+module Complex = Pdk_boolean.Boolean_kernel.Complex
+module Radial = Pdk_boolean.Boolean_kernel.Radial
+module Weiler = Pdk_boolean.Boolean_kernel.Weiler
+module Cells = Pdk_boolean.Boolean_kernel.Cells
 
 let fail format = Printf.ksprintf failwith format
 let check condition message = if not condition then fail "%s" message
@@ -45,7 +45,7 @@ let tetra_batch count shift =
   done;
   geometry points triangles
 
-let pipeline ?axis_fast_path left right =
+let pipeline left right =
   let constraints = Constraints.build ~grain:1 ~left ~right () |> get in
   let coplanar = Coplanar.build ~grain:1 constraints |> get in
   let refinement = Refinement.build ~coplanar ~grain:1 constraints |> get in
@@ -53,7 +53,7 @@ let pipeline ?axis_fast_path left right =
   let radial = Radial.build complex |> get in
   let weiler = Weiler.build complex radial |> get in
   complex, weiler,
-  Cells.build ?axis_fast_path complex weiler |> get
+  Cells.build complex weiler |> get
 
 let shell_values cells =
   let values = Array.init (Cells.shell_count cells) (fun shell ->
@@ -105,22 +105,6 @@ let test_domain_exactness () =
       signature complex weiler cells) in
   if run 1 <> run 4 then fail "cell classification differs between domain counts"
 
-let test_symbolic_seed_fallback () =
-  let left = tetra ~origin:(0.,0.,0.) 4.
-  and right = tetra ~origin:(1.,1.,1.) 0.5 in
-  let run domains axis_fast_path = Prismel.Parallel.run ~domains (fun () ->
-      let complex, weiler, cells = pipeline ~axis_fast_path left right in
-      Cells.symbolic_seed_count cells, signature complex weiler cells) in
-  let ordinary = run 1 true
-  and symbolic_one = run 1 false
-  and symbolic_four = run 4 false in
-  check (fst symbolic_one > 0)
-    "forced symbolic classification did not report its seed path";
-  check (snd ordinary = snd symbolic_one)
-    "axis and positive-infinitesimal cell classifications differ";
-  check (symbolic_one = symbolic_four)
-    "positive-infinitesimal cell classification differs between domain counts"
-
 let test_component_index_domains () =
   let fixtures = [|
     tetra ~origin:(0.,0.,0.) 1., tetra ~origin:(10.,0.,0.) 1.;
@@ -157,7 +141,6 @@ let run () =
   test_disjoint_solids ();
   test_nested_solids ();
   test_domain_exactness ();
-  test_symbolic_seed_fallback ();
   test_component_index_domains ();
   test_component_index_scale ();
   test_cancellation ()

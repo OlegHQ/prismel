@@ -35,41 +35,30 @@ module Path_geometry_key=struct
   let hash value=Hashtbl.hash(value.points,value.closed,value.stroke_width,
     value.fill_rgba,value.stroke_rgba)
 end
-module Path_geometry_table=Hashtbl.Make(Path_geometry_key)
-type path_geometry_cache={table:node Path_geometry_table.t;
-  order:path_geometry_key option array;mutable next:int}
+module Path_geometry_table=Lru.Make(Path_geometry_key)
 let path_geometry_cache_capacity=256
 let path_geometry_caches=Domain.DLS.new_key(fun()->
-  {table=Path_geometry_table.create path_geometry_cache_capacity;
-   order=Array.make path_geometry_cache_capacity None;next=0})
+  Path_geometry_table.create path_geometry_cache_capacity)
 let path_geometry_cached key make=
   let cache=Domain.DLS.get path_geometry_caches in
-  match Path_geometry_table.find_opt cache.table key with
-  |Some value->value
-  |None->
-      let value=make()in
-      Option.iter(Path_geometry_table.remove cache.table)cache.order.(cache.next);
-      Path_geometry_table.add cache.table key value;
-      cache.order.(cache.next)<-Some key;
-      cache.next<-(cache.next+1)mod path_geometry_cache_capacity;
-      value
+  match Path_geometry_table.find cache key with
+  |value->value
+  |exception Not_found->let value=make()in Path_geometry_table.add cache key value;value
+(* Small structural keys: polymorphic hash, exact equality on a hit. *)
+module Structural_key(T:sig type t end)=struct
+  type t=T.t let equal=(=) let hash=Hashtbl.hash end
 let path_geometry_key ~points ~closed ~width ~fill ~stroke=
   {points;closed;stroke_width=Int64.bits_of_float width;
    fill_rgba=Option.map rgba fill;stroke_rgba=Option.map rgba stroke}
-type rounded_cache={table:((int*int*int*int32 option*int32 option),t)Hashtbl.t;mutable order:(int*int*int*int32 option*int32 option)list}
+module Rounded_table=Lru.Make(Structural_key(struct
+  type t=int*int*int*int32 option*int32 option end))
 let rounded_cache_capacity=256
-let rounded_caches=Domain.DLS.new_key(fun()->{table=Hashtbl.create rounded_cache_capacity;order=[]})
+let rounded_caches=Domain.DLS.new_key(fun()->Rounded_table.create rounded_cache_capacity)
 let rounded_cached key make=
   let cache=Domain.DLS.get rounded_caches in
-  match Hashtbl.find_opt cache.table key with
-  |Some value->value
-  |None->
-      let value=make()in
-      (if Hashtbl.length cache.table>=rounded_cache_capacity then
-        match List.rev cache.order with
-        |[]->()
-        |oldest::rest->Hashtbl.remove cache.table oldest;cache.order<-List.rev rest);
-      Hashtbl.replace cache.table key value;cache.order<-key::cache.order;value
+  match Rounded_table.find cache key with
+  |value->value
+  |exception Not_found->let value=make()in Rounded_table.add cache key value;value
 let line ~from_ ~to_ ?(color=default_color)?(width=1)()=
   let width=float(max 1 width)and points=[from_;to_]in
   let key=path_geometry_key~points~closed:false~width~fill:None~stroke:(Some color)in
@@ -96,22 +85,15 @@ let rounded_rect ~at:(x,y) ~w ~h ~radius ?fill ?stroke()=
       (Scene_command.Shape2.rounded_rect ~width:w ~height:h ~radius
         ~fill:(Option.map rgba fill) ~stroke:(Option.map rgba stroke))))in
   Translate(x,y,geometry)
-type ellipse_cache={table:((int*int*int*int*int32 option*int32 option),node)Hashtbl.t;
-  mutable order:(int*int*int*int*int32 option*int32 option)list}
+module Ellipse_table=Lru.Make(Structural_key(struct
+  type t=int*int*int*int*int32 option*int32 option end))
 let ellipse_cache_capacity=256
-let ellipse_caches=Domain.DLS.new_key(fun()->
-  {table=Hashtbl.create ellipse_cache_capacity;order=[]})
+let ellipse_caches=Domain.DLS.new_key(fun()->Ellipse_table.create ellipse_cache_capacity)
 let ellipse_cached key make=
   let cache=Domain.DLS.get ellipse_caches in
-  match Hashtbl.find_opt cache.table key with
-  |Some value->value
-  |None->
-      let value=make()in
-      (if Hashtbl.length cache.table>=ellipse_cache_capacity then
-        match List.rev cache.order with
-        |[]->()
-        |oldest::rest->Hashtbl.remove cache.table oldest;cache.order<-List.rev rest);
-      Hashtbl.replace cache.table key value;cache.order<-key::cache.order;value
+  match Ellipse_table.find cache key with
+  |value->value
+  |exception Not_found->let value=make()in Ellipse_table.add cache key value;value
 let ellipse ~at:(cx,cy as at) ~rx ~ry ?fill ?stroke()=
   let key=cx,cy,rx,ry,Option.map rgba fill,Option.map rgba stroke in
   ellipse_cached key(fun()->Group(Array.to_list(Array.map(fun geometry->
@@ -123,22 +105,14 @@ let quad a b c d ?fill ?stroke()=polygon[a;b;c;d]?fill?stroke()
 let arc_points (cx,cy) radius from_ to_=List.init 33(fun i->let a=from_+.(to_-.from_)*.float i/.32. in cx+int_of_float(float radius*.cos a),cy+int_of_float(float radius*.sin a))
 let arc ~at~radius~from_~to_ ?(color=default_color)()=polyline(arc_points at radius from_ to_)~color()
 let pie ~at ~radius ~from_ ~to_ ?fill ?stroke()=polygon(at::arc_points at radius from_ to_)?fill?stroke()
-type bezier_cache={table:(((int*int)list*int*int32),node)Hashtbl.t;
-  mutable order:((int*int)list*int*int32)list}
+module Bezier_table=Lru.Make(Structural_key(struct type t=(int*int)list*int*int32 end))
 let bezier_cache_capacity=256
-let bezier_caches=Domain.DLS.new_key(fun()->
-  {table=Hashtbl.create bezier_cache_capacity;order=[]})
+let bezier_caches=Domain.DLS.new_key(fun()->Bezier_table.create bezier_cache_capacity)
 let bezier_cached key make=
   let cache=Domain.DLS.get bezier_caches in
-  match Hashtbl.find_opt cache.table key with
-  |Some value->value
-  |None->
-      let value=make()in
-      (if Hashtbl.length cache.table>=bezier_cache_capacity then
-        match List.rev cache.order with
-        |[]->()
-        |oldest::rest->Hashtbl.remove cache.table oldest;cache.order<-List.rev rest);
-      Hashtbl.replace cache.table key value;cache.order<-key::cache.order;value
+  match Bezier_table.find cache key with
+  |value->value
+  |exception Not_found->let value=make()in Bezier_table.add cache key value;value
 let bezier points ?(steps=20)?(color=default_color)()=
   let steps=max 1 steps in
   match points with
@@ -387,41 +361,79 @@ module Private=struct
    |Layer_break,Layer_break->true
    |_ ->false
 
- type scene2_layer_cache_entry={layer_scene:t;layer_density:int;
-   layer_ir:Scene_command.Render_ir.t;
-   layer_bytes:int}
+ (* Immutable textures and shadow maps carry an identity, so their packed
+    RGBA levels and depth resources are converted once and keyed by id. *)
+ module Id_table=Lru.Make(Int)
+ let converted_byte_capacity=64*1024*1024
+ let texture_level_tables=Domain.DLS.new_key(fun()->
+   Id_table.create 64~byte_capacity:converted_byte_capacity)
+ let texture_levels texture=
+   let cache=Domain.DLS.get texture_level_tables in
+   let id=Texture.Private.identity texture in
+   match Id_table.find cache id with
+   |levels->levels
+   |exception Not_found->
+       let levels=Texture.Private.levels texture|>Array.map(fun(w,h,pixels)->let bytes=Bytes.create(w*h*4)in Array.iteri(fun index color->Bytes.set_int32_be bytes(index*4)(Int32.of_int((color.Color.r lsl 24)lor(color.g lsl 16)lor(color.b lsl 8)lor color.a)))pixels;{Scene_execution.width=w;height=h;bytes})in
+       let bytes=Array.fold_left(fun total (level:Scene_execution.texture_level)->total+Bytes.length level.bytes)0 levels in
+       Id_table.add cache~bytes id levels;levels
+ let shadow_resource_tables=Domain.DLS.new_key(fun()->
+   Id_table.create 16~byte_capacity:converted_byte_capacity)
+ let shadow_resource shadow=
+   let cache=Domain.DLS.get shadow_resource_tables in
+   let id=Shadow3.Private.identity shadow in
+   match Id_table.find cache id with
+   |resource->Ok resource
+   |exception Not_found->
+       let source=Shadow3.Private.snapshot shadow in
+       let matrix=Array.init 16(fun index->Mat4.get source.view_projection~row:(index/4)~column:(index mod 4))in
+       let snapshot:Scene_execution.shadow_snapshot={width=source.width;height=source.height;depths=source.depths;matrix;bias={constant=source.bias;slope=source.normal_bias};kernel=(match source.filter with Hard->Tap1|Pcf_3x3->Tap9|Pcf_5x5->Tap25);strength=source.strength}in
+       match Scene_execution.shadow_resource~key:(string_of_int id)snapshot with
+       |Error _ as error->error
+       |Ok resource->Id_table.add cache~bytes:(source.width*source.height*4)id resource;Ok resource
+ (* Structural parts only: physically compared parts (geometry arrays, images,
+    fonts, cameras, Scene3 values) fall back to the exact compare on a hit. *)
+ let rec hash_native_scene nodes=List.fold_left(fun hash node->
+     hash*65599 lxor hash_native_node node)17 nodes
+ and hash_native_node=function
+   |Clear color->Hashtbl.hash(0,color)
+   |Geometry geometry->Hashtbl.hash(1,Array.length geometry.vertices,Array.length geometry.indices,geometry.color)
+   |Debug_text node->Hashtbl.hash(2,node.x,node.y,node.value,node.color)
+   |Display_list _->3
+   |Ui _->4
+   |Image node->Hashtbl.hash(5,node.x,node.y,node.scale,node.angle,node.center,node.flip_x)
+   |Text node->Hashtbl.hash(6,node.x,node.y,node.value,node.color,node.size,node.wrap,node.align)
+   |Group nodes->7 lxor hash_native_scene nodes
+   |Translate(x,y,nodes)->Hashtbl.hash(8,x,y)lxor hash_native_scene nodes
+   |Rotate(angle,nodes)->Hashtbl.hash(9,angle)lxor hash_native_scene nodes
+   |Scale(x,y,nodes)->Hashtbl.hash(10,x,y)lxor hash_native_scene nodes
+   |Clip(x,y,w,h,nodes)->Hashtbl.hash(11,x,y,w,h)lxor hash_native_scene nodes
+   |Blend(mode,nodes)->Hashtbl.hash(12,mode)lxor hash_native_scene nodes
+   |View3d node->Hashtbl.hash(13,node.viewport)
+   |Region(x,y,w,h,f,c)->Hashtbl.hash(14,x,y,w,h,f,c)
+   |Layer_break->15
+ module Layer_key=struct
+   type nonrec t=t*int
+   let equal(left,ld)(right,rd)=ld=rd&&same_native_scene left right
+   let hash(nodes,density)=hash_native_scene nodes*31+density end
+ module Layer_table=Lru.Make(Layer_key)
  let scene2_layer_cache_capacity=64
  let scene2_layer_cache_byte_capacity=64*1024*1024
- let scene2_layer_caches=Domain.DLS.new_key(fun()->ref[])
+ let scene2_layer_caches=Domain.DLS.new_key(fun()->
+   Layer_table.create scene2_layer_cache_capacity~byte_capacity:scene2_layer_cache_byte_capacity)
  let scene2_layer_bytes ir=Array.fold_left(fun total->function
    |Scene_command.Render_ir.Geometry geometry->total+
        Array.length geometry.vertices*(Sys.word_size/8)+
        Array.length geometry.indices*(Sys.word_size/8)
    |_->total+32)0(Scene_command.Render_ir.Private.commands_readonly ir)
- let trim_scene2_layer_cache values=
-   let rec loop count bytes kept=function
-   |[]->List.rev kept
-   |entry::rest when count<scene2_layer_cache_capacity&&
-       entry.layer_bytes<=scene2_layer_cache_byte_capacity-bytes->
-       loop(count+1)(bytes+entry.layer_bytes)(entry::kept)rest
-   |_::rest->loop count bytes kept rest in
-   loop 0 0[]values
  let stage_scene2_layer ~density nodes=
    let cache=Domain.DLS.get scene2_layer_caches in
-   match List.find_opt(fun entry->entry.layer_density=density&&
-       same_native_scene entry.layer_scene nodes)
-       !cache with
-   |Some entry->Ok(entry.layer_ir,image_resources~density nodes)
-   |None->
+   match Layer_table.find cache(nodes,density)with
+   |ir->Ok(ir,image_resources~density nodes)
+   |exception Not_found->
        match stage_materialized ~density nodes with
        |Error _ as error->error
        |Ok(ir,_)as result->
-           let entry={layer_scene=nodes;layer_density=density;layer_ir=ir;
-             layer_bytes=scene2_layer_bytes ir}in
-           cache:=entry::List.filter(fun old->
-             old.layer_density<>density||
-             not(same_native_scene old.layer_scene nodes))!cache;
-           cache:=trim_scene2_layer_cache!cache;
+           Layer_table.add cache~bytes:(scene2_layer_bytes ir)(nodes,density)ir;
            result
 
  let empty_ir=Result.get_ok(Scene_command.Render_ir.Private.create_owned[||])
@@ -435,8 +447,8 @@ module Private=struct
    |Ok(scene2,resources)->
    let failure=ref None in
    let callbacks:Scene3_native_lowering.resources={
-     texture=(fun value->let levels=Texture.Private.levels value.Scene3.value|>Array.map(fun(w,h,pixels)->let bytes=Bytes.create(w*h*4)in Array.iteri(fun index color->Bytes.set_int32_be bytes(index*4)(Int32.of_int((color.Color.r lsl 24)lor(color.g lsl 16)lor(color.b lsl 8)lor color.a)))pixels;{Scene_execution.width=w;height=h;bytes})in let address=function Texture.Clamp->Ogpu.Types.Clamp_to_edge|Repeat->Repeat|Mirror->Mirror_repeat in let min_filter,mag_filter,mip_filter=match value.filter with Texture.Nearest->Ogpu.Types.Nearest,Ogpu.Types.Nearest,Ogpu.Types.No_mip|Texture.Bilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.No_mip|Texture.Trilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.Linear_mip in let sampler:Ogpu.Types.sampler_descriptor={label=Some"scene3-texture";min_filter;mag_filter;mip_filter;address_u=address value.wrap_u;address_v=address value.wrap_v;lod_min=0.;lod_max=float(Array.length levels-1);max_anisotropy=1}in Ok{Scene_execution.key=Digest.to_hex(Digest.string(Marshal.to_string levels[]));levels;sampler;gpu=None});
-     shadow=(fun value->let source=Shadow3.Private.snapshot value in let matrix=Array.init 16(fun index->Mat4.get source.view_projection~row:(index/4)~column:(index mod 4))in let snapshot:Scene_execution.shadow_snapshot={width=source.width;height=source.height;depths=source.depths;matrix;bias={constant=source.bias;slope=source.normal_bias};kernel=(match source.filter with Hard->Tap1|Pcf_3x3->Tap9|Pcf_5x5->Tap25);strength=source.strength}in match Scene_execution.shadow_resource~key:(Digest.to_hex(Digest.string(Marshal.to_string snapshot[])))snapshot with Error _->Error Unsupported_shadow|Ok resource->Ok{Scene_execution.key=resource.texture.key;buffer=resource.parameters;texture=resource.texture})}in
+     texture=(fun value->let levels=texture_levels value.Scene3.value in let address=function Texture.Clamp->Ogpu.Types.Clamp_to_edge|Repeat->Repeat|Mirror->Mirror_repeat in let min_filter,mag_filter,mip_filter=match value.filter with Texture.Nearest->Ogpu.Types.Nearest,Ogpu.Types.Nearest,Ogpu.Types.No_mip|Texture.Bilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.No_mip|Texture.Trilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.Linear_mip in let sampler:Ogpu.Types.sampler_descriptor={label=Some"scene3-texture";min_filter;mag_filter;mip_filter;address_u=address value.wrap_u;address_v=address value.wrap_v;lod_min=0.;lod_max=float(Array.length levels-1);max_anisotropy=1}in Ok{Scene_execution.key="texture:"^string_of_int(Texture.Private.identity value.Scene3.value);levels;sampler;gpu=None});
+     shadow=(fun value->match shadow_resource value with Error _->Error Unsupported_shadow|Ok resource->Ok{Scene_execution.key=resource.texture.key;buffer=resource.parameters;texture=resource.texture})}in
    let layers=match grouped with
    |[`Two _]->[Scene2_layer(scene2,resources)]
    |_->List.filter_map(fun item->if!failure<>None then None else match item with
@@ -595,11 +607,6 @@ module Private=struct
    stage_native_internal ~aggregate:false ?density ~width ~height scene
 
  let to_ir scene = Result.map fst (stage ~width:640 ~height:480 scene)
- let resources scene =
-   match stage ~width:640 ~height:480 scene with
-   | Ok (_, resources) -> resources
-   | Error _ -> []
-
  let rec release scene =
    List.iter
      (function

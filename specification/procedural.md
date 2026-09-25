@@ -40,7 +40,7 @@ the editor exposes the same rule-based `Group Rename` node.
 
 Procedural owns immutable graph nodes, operator contracts, parameter/context
 dependencies, validation, diagnostics, cooking, inspection, and bounded
-session caches. It may use PDK, Geom, and public Prismel value semantics. It
+session caches. It may use PDK and public Prismel value semantics. It
 does not import Runtime, SDL3, Metal, or platform policy.
 
 Cooking produces an immutable `Pdk.Geometry.t`. An explicit bridge converts it
@@ -190,7 +190,7 @@ the immutable parameter record, declared `Context`, and immutable PDK inputs.
 `Parameter.key` encodes every current field unambiguously into the session
 cache identity, and parameter edits rebuild the callback closure while keeping
 the logical graph ID. This is not a VEX interpreter; it is the clean native
-extension point for PDK/Geom adapter code, with explicit dependency and
+extension point for PDK composition, with explicit dependency and
 cancellation contracts.
 
 ## Editable graph document and sketch environment
@@ -230,8 +230,10 @@ controls in the inspector, while node selection puts generated parameters there.
 Display selection remains independent and keeps the previous successful image
 visible while the newly flagged node cooks. Overlay scenes use view-local
 coordinates, not full-window coordinates.
-`Environment3` and `Environment2` are thin camera/scene adapters over one
-lifecycle core.
+`Environment3` and `Environment2` are one `Environment.Make` functor applied to
+the `Viewport3` and `Viewport2` adapters, which supply camera widgets,
+navigation, painting, view persistence and any mode state; the lifecycle core
+is shared.
 Reachable `Context.Time`/`Context.Frame`
 dependencies trigger external-effect recooks while static graphs remain cached.
 Long dynamic cooks finish before the newest clock snapshot is submitted;
@@ -928,8 +930,8 @@ The first coherent set includes:
   terminal `Sop.pack`/`Sop.duplicate_packed` transform instancing without
   topology multiplication, plus explicit `Sop.unpack` materialization before
   downstream per-copy topology edits;
-- expert extension: `Sop.custom` defines an inspectable node from PDK or
-  Geom/Pdk adapter composition with explicit version, parameter identity,
+- expert extension: `Sop.custom` defines an inspectable node from PDK
+  composition with explicit version, parameter identity,
   cook mode, context dependencies, and cancellation responsibility;
 - terminal conversion to Prismel mesh, instance, and scene values.
 
@@ -976,7 +978,7 @@ not used for an operation that lacks a real result contract.
 Iterative creative sketches keep feedback outside the per-frame DAG. A
 `Sketch.run_state` model owns the previous `Pdk.Geometry.t`; each fixed-timestep
 update wraps it with `Sop.snapshot`, composes ordinary SOPs or `Sop.custom`
-PDK/Geom work, cooks the next immutable value, and replaces the previous one.
+PDK work, cooks the next immutable value, and replaces the previous one.
 The graph for each step remains acyclic and independently inspectable.
 
 Only current/next snapshots are application-live by default. The associated
@@ -995,7 +997,7 @@ new snapshot, and stores only that result. Use an integer ID attribute when
 topology edits may renumber points, and derive `step_seed` from the immutable
 sketch seed and step number. A point mask or `pscale` can carry persistent
 per-point influence without allocating a history plane. The same pattern can
-replace Point Jitter with a composed Geom operation or a typed PDK custom
+replace Point Jitter with a composed SOP operation or a typed PDK custom
 kernel; feedback ownership and memory bounds do not change.
 
 Rest and motion data use the same explicit boundary. `Sop.rest_position`
@@ -1011,7 +1013,7 @@ retained previous-frame node state: the sketch model owns those snapshots.
 A reusable custom procedural node is therefore an ordinary function from
 immutable parameters and input `Node.t` values to `Node.t`. Its implementation
 composes public SOPs when possible and uses `Sop.custom` only for a missing
-PDK/Geom kernel, with an explicit operation/version/parameter key. A sketch
+PDK kernel, with an explicit operation/version/parameter key. A sketch
 solver may run one iteration per frame or several iterations until a measured
 time/work budget is exhausted, but deterministic/export runs use an explicit
 iteration count rather than a wall-clock cutoff. It commits only a complete

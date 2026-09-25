@@ -19,6 +19,18 @@ let () =
   then fail "combined sanitizer flags are incomplete";
   if profile_compile_flags "release" <> [ "-O3"; "-DNDEBUG" ] then
     fail "release bridge optimization flags changed";
+  List.iter
+    (fun version ->
+      match check_sdk_version version with
+      | Ok () -> ()
+      | Error message -> fail "supported SDK %s was rejected: %s" version message)
+    [ "26.0"; "26.0.1"; "26.5"; "27.0" ];
+  List.iter
+    (fun version ->
+      match check_sdk_version version with
+      | Error _ -> ()
+      | Ok () -> fail "unsupported SDK %S was accepted" version)
+    [ ""; "25.9"; "26"; "26.beta"; "26.0.bad"; "27.0junk" ];
   if
     not
       (List.exists

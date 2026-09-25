@@ -20,10 +20,10 @@ let cook session domains graph =
 
 let graph () =
   let left = Sop.box ~size:(Vec3.create 2. 2. 2.)
-      ~connectivity:Pdk.Ops.Box_quads ~consolidate_points:true ()
+      ~connectivity:Pdk.Box_generator.Box_quads ~consolidate_points:true ()
   and right = Sop.box ~size:(Vec3.create 2. 2. 2.)
       ~center:(Vec3.create 0.5 0.5 0.5)
-      ~connectivity:Pdk.Ops.Box_quads ~consolidate_points:true () in
+      ~connectivity:Pdk.Box_generator.Box_quads ~consolidate_points:true () in
   Sop.boolean ~label:"exact-union" ~operation:Pdk.Boolean.Union
     ~detriangulation:Pdk.Boolean.Unchanged_polygons ~right left
 
@@ -68,7 +68,7 @@ let test_identity_cache_and_parallel () =
 
 let test_surface_policy_and_diagnostic () =
   let left = Sop.box ~size:(Vec3.create 2. 2. 2.)
-      ~connectivity:Pdk.Ops.Box_triangles ~consolidate_points:true () in
+      ~connectivity:Pdk.Box_generator.Box_triangles ~consolidate_points:true () in
   let positions = Pdk.Packed.Float3.Private.of_owned_exn
       ~x:[|-2.;2.;-2.;2.|] ~y:[|0.;0.;0.;0.|] ~z:[|-0.5;-0.5;0.5;0.5|] in
   let topology = Pdk.Topology.polygons_owned ~point_count:4
@@ -87,10 +87,10 @@ let test_surface_policy_and_diagnostic () =
 
 let test_shatter_identity () =
   let left = Sop.box ~size:(Vec3.create 2. 2. 2.)
-      ~connectivity:Pdk.Ops.Box_triangles ~consolidate_points:true ()
+      ~connectivity:Pdk.Box_generator.Box_triangles ~consolidate_points:true ()
   and right = Sop.box ~size:(Vec3.create 2. 2. 2.)
       ~center:(Vec3.create 0.5 0.5 0.5)
-      ~connectivity:Pdk.Ops.Box_triangles ~consolidate_points:true () in
+      ~connectivity:Pdk.Box_generator.Box_triangles ~consolidate_points:true () in
   let graph = Sop.boolean ~operation:Pdk.Boolean.Shatter
       ~tiny_seam_threshold:1e-9 ~cleanup_max_batches:6
       ~strict_cleanup:false
@@ -119,10 +119,10 @@ let test_shatter_identity () =
 
 let test_seam_node () =
   let left = Sop.box ~size:(Vec3.create 2. 2. 2.)
-      ~connectivity:Pdk.Ops.Box_triangles ~consolidate_points:true ()
+      ~connectivity:Pdk.Box_generator.Box_triangles ~consolidate_points:true ()
   and right = Sop.box ~size:(Vec3.create 2. 2. 2.)
       ~center:(Vec3.create 0.5 0.5 0.5)
-      ~connectivity:Pdk.Ops.Box_triangles ~consolidate_points:true () in
+      ~connectivity:Pdk.Box_generator.Box_triangles ~consolidate_points:true () in
   let graph = Sop.boolean_seam ~between_group:(Some "cut_curves")
       ~left_self_group:None ~right_self_group:None ~right left in
   check (Node.operation graph = "boolean_seam"

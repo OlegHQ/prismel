@@ -113,7 +113,7 @@ let test_per_curve_target_and_selection () =
     "varying target positions"
 
 let test_open_last_endpoint () =
-  let source = Ops.polyline [|0.,0.,0.;1.,0.,0.;2.,0.,0.|] |> get
+  let source = Line_geometry.polyline_checked [|0.,0.,0.;1.,0.,0.;2.,0.,0.|] |> get
       |> with_attribute (attribute Attribute.Point "d"
           (Attribute.Float [|-1.;-1.;0.|])) in
   let output = Ops.extract_point_from_curve ~distance_attribute:"d" source |> get in
@@ -131,7 +131,7 @@ let test_empty_selection_and_extreme_scale () =
   check (Geometry.find_attribute ~owner:Attribute.Detail "author" output
       = Geometry.find_attribute ~owner:Attribute.Detail "author" source)
     "empty selection detail structural sharing";
-  let extreme = Ops.polyline
+  let extreme = Line_geometry.polyline_checked
       [|(-.Float.max_float),0.,0.; Float.max_float,0.,0.|] |> get
       |> with_attribute (attribute Attribute.Point "d"
           (Attribute.Float [|(-.Float.max_float);Float.max_float|])) in
@@ -177,7 +177,7 @@ let test_validation_and_cancellation () =
   expect "invalid_curve" (fun () -> Ops.extract_point_from_curve
       ~primitives:wrong_length ~distance_attribute:"distance" source)
     "wrong selection cardinality";
-  let polygon = Ops.grid ~connectivity:Ops.Grid_quads ~columns:1 ~rows:1
+  let polygon = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:1 ~rows:1
       ~size:1. () |> get |> with_attribute
       (attribute Attribute.Point "distance" (Attribute.Float [|0.;1.;0.;1.|])) in
   expect "invalid_curve" (fun () -> Ops.extract_point_from_curve

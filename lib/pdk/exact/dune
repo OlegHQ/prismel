@@ -1,0 +1,7 @@
+(library
+ (name pdk_exact)
+ (public_name prismel.pdk.exact)
+ (libraries pdk_core prismel_math)
+ (flags (:standard -open Pdk_core))
+ (private_modules exact_dyadic bounds2_index)
+ (modules bounds2_index exact_dyadic predicates implicit_point delaunay2 voronoi2 planar_cdt planar_constraints planar_refinement contour_triangulation))

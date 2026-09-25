@@ -34,12 +34,6 @@ let run () =
       if Shader_argument_encoder.encoded_length encoder <= 0L then
         failwith "argument encoder has empty layout";
       get (Shader_argument_encoder.destroy encoder);
-      let render = get (Pipeline_descriptor.Render.create vertex) in
-      let pipeline = get (Pipeline_descriptor.Render.compile_simple render) in
-      if Render_pipeline.kind pipeline <> Render_pipeline.Render then
-        failwith "simple render pipeline kind drift";
-      get (Render_pipeline.destroy pipeline);
-      get (Pipeline_descriptor.Render.destroy render);
       get (Function.destroy vertex);
       get (Library.destroy library);
       get (Device.destroy device);

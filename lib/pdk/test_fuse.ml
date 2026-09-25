@@ -110,9 +110,9 @@ let equal_target_output left right =
       | _ -> false)
 
 let check_target_policies () =
-  let source = Ops.points [|(0.1,0.,0.); (0.9,0.,0.); (2.,0.,0.);
+  let source = Line_geometry.points [|(0.1,0.,0.); (0.9,0.,0.); (2.,0.,0.);
       (5.,0.,0.)|]
-  and target = Ops.points [|(0.,0.,0.); (1.,0.,0.); (3.,0.,0.)|] in
+  and target = Line_geometry.points [|(0.,0.,0.); (1.,0.,0.); (3.,0.,0.)|] in
   let queries = Group.init ~owner:Group.Point ~name:"queries" 4
       (fun point -> point < 3)
   and targets = Group.init ~owner:Group.Point ~name:"targets" 3
@@ -141,9 +141,9 @@ let check_target_policies () =
   check_point_group fused "snapped" [0;1]
 
 let check_specified_targets () =
-  let source = Ops.points [|(9.,0.,0.); (9.,0.,0.); (2.,0.,0.); (5.,0.,0.)|]
+  let source = Line_geometry.points [|(9.,0.,0.); (9.,0.,0.); (2.,0.,0.); (5.,0.,0.)|]
       |> add_point_int "target_point" [|2;0;99;-1|]
-  and target = Ops.points [|(0.,0.,0.); (1.,0.,0.); (3.,0.,0.)|] in
+  and target = Line_geometry.points [|(0.,0.,0.); (1.,0.,0.); (3.,0.,0.)|] in
   let targets = Group.init ~owner:Group.Point ~name:"targets" 3
       (fun point -> point <> 1) in
   let output = Ops.fuse ~target ~target_selection:targets
@@ -157,10 +157,10 @@ let check_specified_targets () =
       ~targeting:(Ops.Specified_points "missing") source)
 
 let check_radius_and_match () =
-  let source = Ops.points [|(1.9,0.,0.); (0.9,0.,0.); (0.1,0.,0.)|]
+  let source = Line_geometry.points [|(1.9,0.,0.); (0.9,0.,0.); (0.1,0.,0.)|]
       |> add_point_float "radius" [|0.6;0.;0.|]
       |> add_point_int "piece" [|3;2;1|]
-  and target = Ops.points [|(0.,0.,0.); (1.,0.,0.); (3.,0.,0.)|]
+  and target = Line_geometry.points [|(0.,0.,0.); (1.,0.,0.); (3.,0.,0.)|]
       |> add_point_float "radius" [|0.;0.;0.5|]
       |> add_point_int "piece" [|1;2;3|] in
   let radius = Ops.fuse ~target ~tolerance:0. ~radius_attribute:"radius"
@@ -176,9 +176,9 @@ let check_radius_and_match () =
       ~using:Ops.Closest_target_point ~fuse_points:false source |> get_ok in
   check ((positions unequal).x = [|1.;0.;1.|])
     "unequal match-attribute Fuse filter";
-  let float_source = Ops.points [|(0.,0.,0.)|]
+  let float_source = Line_geometry.points [|(0.,0.,0.)|]
       |> add_point_float "key" [|1.001|]
-  and float_target = Ops.points [|(1.,0.,0.)|]
+  and float_target = Line_geometry.points [|(1.,0.,0.)|]
       |> add_point_float "key" [|1.|] in
   let tolerant = Ops.fuse ~target:float_target ~tolerance:2.
       ~match_attribute:"key" ~match_tolerance:0.01 ~fuse_points:false
@@ -186,7 +186,7 @@ let check_radius_and_match () =
   check ((positions tolerant).x = [|1.|]) "float match tolerance"
 
 let check_separate_same_geometry_groups () =
-  let source = Ops.points [|(0.,0.,0.); (0.1,0.,0.); (10.,0.,0.)|] in
+  let source = Line_geometry.points [|(0.,0.,0.); (0.1,0.,0.); (10.,0.,0.)|] in
   let queries = Group.init ~owner:Group.Point ~name:"queries" 3
       (fun point -> point = 1)
   and targets = Group.init ~owner:Group.Point ~name:"targets" 3
@@ -201,15 +201,15 @@ let check_separate_same_geometry_groups () =
 
 let check_target_scale_and_validation () =
   let center = 1e150 and scale = 1e140 in
-  let source = Ops.points [|(center +. scale, center, center)|]
-  and target = Ops.points [|(center, center, center)|] in
+  let source = Line_geometry.points [|(center +. scale, center, center)|]
+  and target = Line_geometry.points [|(center, center, center)|] in
   let output = Ops.fuse ~target ~tolerance:(2. *. scale)
       ~using:Ops.Closest_target_point ~fuse_points:false source |> get_ok in
   check ((positions output).x = [|center|])
     "large finite target Fuse normalization";
-  let invalid_radius = Ops.points [|(0.,0.,0.)|]
+  let invalid_radius = Line_geometry.points [|(0.,0.,0.)|]
       |> add_point_float "radius" [|(-1.)|] in
-  let valid_radius = Ops.points [|(0.,0.,0.)|]
+  let valid_radius = Line_geometry.points [|(0.,0.,0.)|]
       |> add_point_float "radius" [|0.|] in
   expect_code "invalid_geometry" (Ops.fuse ~target:valid_radius
       ~radius_attribute:"radius" invalid_radius);
@@ -222,7 +222,7 @@ let check_target_scale_and_validation () =
       (fun _ -> true) in
   expect_code "invalid_geometry" (Ops.fuse ~target
       ~target_selection:wrong_target_group source);
-  let nonfinite = Ops.points [|(Float.infinity,0.,0.)|] in
+  let nonfinite = Line_geometry.points [|(Float.infinity,0.,0.)|] in
   expect_code "invalid_geometry" (Ops.fuse ~target:nonfinite
       ~using:Ops.Closest_target_point source);
   let cancelled = Cancel.create () in
@@ -231,7 +231,7 @@ let check_target_scale_and_validation () =
       ~using:Ops.Closest_target_point source)
 
 let check_target_parallel_exact () =
-  let target = Ops.grid ~columns:420 ~rows:320 ~size:30. () |> get_ok in
+  let target = Plane_generators.grid_checked ~columns:420 ~rows:320 ~size:30. () |> get_ok in
   let source = target
       |> Ops.transform (Mat4.translation (Vec3.create 0.013 (-0.017) 0.009)) in
   let run domains = Parallel.run ~domains (fun () ->
@@ -241,9 +241,9 @@ let check_target_parallel_exact () =
   let one = run 1 and four = run 4 in
   check (equal_target_output one four)
     "one/four-domain target Fuse output differs";
-  let base = Ops.grid ~columns:220 ~rows:160 ~size:20. () |> get_ok in
+  let base = Plane_generators.grid_checked ~columns:220 ~rows:160 ~size:20. () |> get_ok in
   let half = Geometry.point_count base in
-  let linked = Ops.merge [base;
+  let linked = Mesh_merge.run [base;
       Ops.transform (Mat4.translation (Vec3.create 0.013 (-0.017) 0.009)) base]
       |> get_ok in
   let linked_count = Geometry.point_count linked in
@@ -293,7 +293,7 @@ let check_target_parallel_exact () =
    | _ -> fail "parallel Fuse rule group missing")
 
 let check_position_reductions () =
-  let source = Ops.points [|(0.,3.,6.); (2.,1.,4.); (4.,2.,5.)|]
+  let source = Line_geometry.points [|(0.,3.,6.); (2.,1.,4.); (4.,2.,5.)|]
       |> add_point_float "weight" [|1.;2.;3.|] in
   let position mode = Ops.fuse ~tolerance:10. ~position:mode
       ~weight_attribute:"weight" source |> get_ok |> positions in
@@ -330,26 +330,26 @@ let check_position_reductions () =
     "minimum-weight position reduction";
   check_position Ops.Maximum_weight_position (4., (2., 5.))
     "maximum-weight position reduction";
-  let mode_source = Ops.points
+  let mode_source = Line_geometry.points
       [|(0.,3.,6.); (2.,1.,4.); (2.,1.,5.); (4.,2.,5.)|] in
   let mode = Ops.fuse ~tolerance:10. ~position:Ops.Mode_position mode_source
       |> get_ok |> positions in
   check (mode.x = [|2.|] && mode.y = [|1.|] && mode.z = [|5.|])
     "component mode position reduction";
-  let huge = Ops.points [|(max_float,0.,0.); (max_float,0.,0.)|]
+  let huge = Line_geometry.points [|(max_float,0.,0.); (max_float,0.,0.)|]
       |> Ops.fuse ~tolerance:0. ~position:Ops.Average_position |> get_ok in
   check ((positions huge).x = [|max_float|]) "overflow-safe average position";
   expect_code "invalid_geometry" (Ops.fuse ~tolerance:0.
       ~position:Ops.Sum_squares_position
-      (Ops.points [|(1e200,0.,0.); (1e200,0.,0.)|]));
-  let zero_weight = Ops.points [|(0.,0.,0.); (0.,0.,0.)|]
+      (Line_geometry.points [|(1e200,0.,0.); (1e200,0.,0.)|]));
+  let zero_weight = Line_geometry.points [|(0.,0.,0.); (0.,0.,0.)|]
       |> add_point_float "weight" [|1.;(-1.)|] in
   expect_code "invalid_geometry" (Ops.fuse ~tolerance:0.
       ~position:Ops.Weighted_average_position ~weight_attribute:"weight"
       zero_weight)
 
 let check_modify_and_keep_target () =
-  let source = Ops.points [|(0.,0.,0.); (2.,0.,0.); (10.,0.,0.)|] in
+  let source = Line_geometry.points [|(0.,0.,0.); (2.,0.,0.); (10.,0.,0.)|] in
   let queries = Group.init ~owner:Group.Point ~name:"queries" 3
       (fun point -> point = 0)
   and targets = Group.init ~owner:Group.Point ~name:"targets" 3
@@ -365,7 +365,7 @@ let check_modify_and_keep_target () =
   check (Geometry.point_count snapped = 3
       && (positions snapped).x = [|1.;1.;10.|])
     "Modify Target snap-only average";
-  expect_code "invalid_geometry" (Ops.fuse ~target:(Ops.points [|(2.,0.,0.)|])
+  expect_code "invalid_geometry" (Ops.fuse ~target:(Line_geometry.points [|(2.,0.,0.)|])
       ~modify_target:true source);
   let positions_value = Packed.Float3.Private.of_owned_exn
       ~x:[|0.;0.1;1.|] ~y:[|0.;0.;0.|] ~z:[|0.;0.;0.|] in
@@ -463,7 +463,7 @@ let check_cleanup () =
     "Fuse cleanup one/four-domain output differs"
 
 let check_attribute_and_group_rules () =
-  let source = Ops.points
+  let source = Line_geometry.points
       [|(0.,0.,0.); (0.,0.,0.); (0.,0.,0.); (0.,0.,0.)|]
       |> add_point_float "f" [|1.;2.;2.;4.|]
       |> add_point_int "i" [|1;2;3;4|]
@@ -525,7 +525,7 @@ let check_attribute_and_group_rules () =
   check (text Ops.Attribute_median = [|"b"|]) "Fuse text median";
   check (text Ops.Attribute_concatenate = [|"baac"|])
     "Fuse text concatenate";
-  let row_source = Ops.points [|(0.,0.,0.); (0.,0.,0.)|]
+  let row_source = Line_geometry.points [|(0.,0.,0.); (0.,0.,0.)|]
       |> add_point_int_array "rows" ~offsets:[|0;2;3|] ~values:[|1;2;3|] in
   let row_output = Ops.fuse ~tolerance:0.
       ~attribute_rules:[ar "rows" Ops.Attribute_concatenate] row_source
@@ -533,13 +533,13 @@ let check_attribute_and_group_rules () =
   check (row_output.offsets = [|0;3|]
       && row_output.values = [|1;2;3|])
     "Fuse packed integer-array concatenate";
-  let extreme = Ops.points [|(0.,0.,0.); (0.,0.,0.)|]
+  let extreme = Line_geometry.points [|(0.,0.,0.); (0.,0.,0.)|]
       |> add_point_int "extreme" [|max_int;max_int|] in
   let extreme_average = Ops.fuse ~tolerance:0.
       ~attribute_rules:[ar "extreme" Ops.Attribute_average] extreme |> get_ok in
   check (point_int extreme_average "extreme" = [|max_int|])
     "Fuse integer average overflowed equal maximum values";
-  let overflow = Ops.points [|(0.,0.,0.); (0.,0.,0.)|]
+  let overflow = Line_geometry.points [|(0.,0.,0.); (0.,0.,0.)|]
       |> add_point_int "overflow" [|max_int;1|] in
   expect_code "invalid_geometry" (Ops.fuse ~tolerance:0.
       ~attribute_rules:[ar "overflow" Ops.Attribute_sum] overflow);
@@ -550,10 +550,10 @@ let check_attribute_and_group_rules () =
   check ((ar ~weight:"missing" "f" Ops.Attribute_average).weight_attribute = None)
     "Fuse unweighted rule retained an irrelevant cache parameter";
   expect_code "invalid_geometry" (Ops.fuse ~attribute_rules:[
-      ar "[bad" Ops.Attribute_minimum] (Ops.points [|(0.,0.,0.)|]));
+      ar "[bad" Ops.Attribute_minimum] (Line_geometry.points [|(0.,0.,0.)|]));
   expect_code "invalid_geometry" (Ops.fuse ~attribute_rules:[
       ar "f" Ops.Attribute_weighted_sum] source);
-  let pair = Ops.points [|(0.,0.,0.); (2.,0.,0.); (10.,0.,0.)|]
+  let pair = Line_geometry.points [|(0.,0.,0.); (2.,0.,0.); (10.,0.,0.)|]
       |> add_point_float "f" [|0.;10.;99.|]
       |> add_point_int "unchanged" [|3;4;5|]
       |> add_group "linked" [0]
@@ -580,10 +580,10 @@ let check_attribute_and_group_rules () =
   check (point_int metadata "destination_after_rules" = [|1;-1|])
     "Fuse output metadata was reduced by wildcard attribute rules";
   check_point_group metadata "snapped_after_rules" [0];
-  let fixed_source = Ops.points [|(0.1,0.,0.); (0.9,0.,0.)|]
+  let fixed_source = Line_geometry.points [|(0.1,0.,0.); (0.9,0.,0.)|]
       |> add_point_float "f" [|1.;2.|]
       |> add_point_int "cat" [|7;8|]
-  and fixed_target = Ops.points [|(0.,0.,0.); (1.,0.,0.)|]
+  and fixed_target = Line_geometry.points [|(0.,0.,0.); (1.,0.,0.)|]
       |> add_point_float "f" [|10.;20.|]
       |> add_point_int "cat" [|30;40|]
       |> add_point_float "tw" [|2.;3.|]
@@ -601,14 +601,14 @@ let check_attribute_and_group_rules () =
   check (fixed_cat.offsets = [|0;1;2|] && fixed_cat.values = [|30;40|])
     "fixed-target concatenate shape";
   check_point_group fixed "target_only" [1];
-  let fixed_same = Ops.points [|(0.,0.,0.); (2.,0.,0.); (10.,0.,0.)|]
+  let fixed_same = Line_geometry.points [|(0.,0.,0.); (2.,0.,0.); (10.,0.,0.)|]
       |> add_point_float "f" [|0.;10.;99.|] in
   let fixed_same_output = Ops.fuse ~selection:queries
       ~target_selection:targets ~fuse_points:false ~tolerance:3.
       ~attribute_rules:[ar "f" Ops.Attribute_average] fixed_same |> get_ok in
   check (point_float fixed_same_output "f" = [|10.;10.;99.|])
     "same-geometry fixed target copied rather than interpolated";
-  let implicit_modify = Ops.points [|(0.,0.,0.); (1.,0.,0.)|]
+  let implicit_modify = Line_geometry.points [|(0.,0.,0.); (1.,0.,0.)|]
       |> add_point_float "f" [|0.;10.|]
       |> Ops.fuse ~tolerance:2. ~fuse_points:false
           ~attribute_rules:[ar "f" Ops.Attribute_average] |> get_ok in
@@ -619,30 +619,30 @@ let check_attribute_and_group_rules () =
   check (Geometry.point_count kept = 4
       && point_float kept "f" = Array.make 4 2.25)
     "Keep Fused Points did not expand rule reduction";
-  let grid_rule = Ops.points [|(0.2,0.,0.); (0.3,0.,0.)|]
+  let grid_rule = Line_geometry.points [|(0.2,0.,0.); (0.3,0.,0.)|]
       |> add_point_float "f" [|1.;3.|]
       |> Ops.snap_to_grid ~fuse_points:true
           ~attribute_rules:[ar "f" Ops.Attribute_average] |> get_ok in
   check (Geometry.point_count grid_rule = 1
       && point_float grid_rule "f" = [|2.|])
     "Grid Snap did not apply Fuse attribute rules";
-  let incompatible_source = Ops.points [|(0.1,0.,0.)|]
+  let incompatible_source = Line_geometry.points [|(0.1,0.,0.)|]
       |> add_point_float "value" [|1.|]
-  and incompatible_target = Ops.points [|(0.,0.,0.)|]
+  and incompatible_target = Line_geometry.points [|(0.,0.,0.)|]
       |> add_point_int "value" [|1|] in
   expect_code "invalid_geometry" (Ops.fuse ~target:incompatible_target
       ~tolerance:1. ~fuse_points:false
       ~attribute_rules:[ar "value" Ops.Attribute_average]
       incompatible_source);
-  let fixed_position = Ops.fuse ~target:(Ops.points [|(2.,0.,0.)|])
+  let fixed_position = Ops.fuse ~target:(Line_geometry.points [|(2.,0.,0.)|])
       ~tolerance:3. ~position:Ops.Sum_position
-      (Ops.points [|(0.,0.,0.); (0.1,0.,0.)|]) |> get_ok in
+      (Line_geometry.points [|(0.,0.,0.); (0.1,0.,0.)|]) |> get_ok in
   check (Geometry.point_count fixed_position = 1
       && (positions fixed_position).x = [|2.|])
     "fixed-target position heuristic counted duplicate queries"
 
 let check_restricted_fuse () =
-  let source = Ops.points [|(0.,0.,0.); (0.0005,0.,0.); (0.0005,0.,0.)|] in
+  let source = Line_geometry.points [|(0.,0.,0.); (0.0005,0.,0.); (0.0005,0.,0.)|] in
   let selection = Group.init ~owner:Group.Point ~name:"query" 3
       (fun point -> point < 2) in
   let output = Ops.fuse ~selection ~tolerance:0.001
@@ -658,24 +658,24 @@ let check_restricted_fuse () =
   check (unchanged == source) "restricted Fuse no-op identity"
 
 let check_cluster_contract () =
-  let chain = Ops.points [|(0.,0.,0.); (0.009,0.,0.); (0.018,0.,0.)|]
+  let chain = Line_geometry.points [|(0.,0.,0.); (0.009,0.,0.); (0.018,0.,0.)|]
       |> Ops.fuse ~tolerance:0.01 |> get_ok in
   let chain_positions = positions chain in
   check (Geometry.point_count chain = 2
       && near chain_positions.x.(0) 0.0045
       && near chain_positions.x.(1) 0.018)
     "Fuse lost representative-bounded non-transitive clustering";
-  let signed_zero = Ops.points [|(0.,0.,0.); (-0.,0.,0.)|]
+  let signed_zero = Line_geometry.points [|(0.,0.,0.); (-0.,0.,0.)|]
       |> Ops.fuse ~tolerance:0. |> get_ok in
   check (Geometry.point_count signed_zero = 1)
     "Fuse exact hashing distinguished signed zero";
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
   expect_code "cancelled" (Ops.fuse ~cancel:cancelled ~tolerance:0.
-      (Ops.points [|(0.,0.,0.); (0.,0.,0.)|]))
+      (Line_geometry.points [|(0.,0.,0.); (0.,0.,0.)|]))
 
 let check_rounding () =
-  let source = Ops.points [|(-0.6,0.,0.); (-0.5,0.,0.); (-0.4,0.,0.);
+  let source = Line_geometry.points [|(-0.6,0.,0.); (-0.5,0.,0.); (-0.4,0.,0.);
       (0.4,0.,0.); (0.5,0.,0.); (0.6,0.,0.)|] in
   let snap rounding = Ops.snap_to_grid ~rounding source |> get_ok |> positions in
   check ((snap Ops.Grid_nearest).x = [|-1.;0.;0.;0.;1.;1.|])
@@ -686,7 +686,7 @@ let check_rounding () =
     "up grid rounding"
 
 let check_offset_tolerance_selection () =
-  let source = Ops.points [|(0.2,0.,0.); (0.8,0.,0.); (0.2,0.,0.)|] in
+  let source = Line_geometry.points [|(0.2,0.,0.); (0.8,0.,0.); (0.2,0.,0.)|] in
   let selection = Group.init ~owner:Group.Point ~name:"selected" 3
       (fun point -> point < 2) in
   let output = Ops.snap_to_grid ~selection
@@ -701,7 +701,7 @@ let check_offset_tolerance_selection () =
    | None -> fail "missing snapped output group")
 
 let check_fuse_and_payload () =
-  let source = Ops.points [|(0.2,0.,0.); (0.3,0.,0.)|] in
+  let source = Line_geometry.points [|(0.2,0.,0.); (0.3,0.,0.)|] in
   let weight = Attribute.create_owned ~owner:Attribute.Point ~name:"weight"
       (Attribute.Float [|2.;4.|]) |> get_string_ok in
   let normals = Packed.Float3.Private.of_owned_exn ~x:[|1.;1.|]
@@ -720,13 +720,13 @@ let check_fuse_and_payload () =
    | Some group -> check (Group.cardinality group = 1)
        "grid post-fuse snapped group"
    | None -> fail "grid post-fuse snapped group missing");
-  let coincident = Ops.points [|(0.,0.,0.); (0.,0.,0.)|]
+  let coincident = Line_geometry.points [|(0.,0.,0.); (0.,0.,0.)|]
       |> Ops.snap_to_grid ~fuse_points:true |> get_ok in
   check (Geometry.point_count coincident = 1)
     "grid fusion skipped already-snapped duplicates"
 
 let check_noop_and_validation () =
-  let source = Ops.points [|(0.,0.,0.)|] in
+  let source = Line_geometry.points [|(0.,0.,0.)|] in
   check (Ops.snap_to_grid source |> get_ok == source)
     "exact grid input did not preserve identity";
   let wrong = Group.init ~owner:Group.Primitive ~name:"wrong" 0
@@ -741,10 +741,10 @@ let check_noop_and_validation () =
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
   expect_code "cancelled" (Ops.snap_to_grid ~cancel:cancelled
-      (Ops.grid ~columns:10 ~rows:10 ~size:1. () |> get_ok))
+      (Plane_generators.grid_checked ~columns:10 ~rows:10 ~size:1. () |> get_ok))
 
 let check_parallel_exact () =
-  let source = Ops.grid ~columns:500 ~rows:300 ~size:20. () |> get_ok
+  let source = Plane_generators.grid_checked ~columns:500 ~rows:300 ~size:20. () |> get_ok
       |> Ops.noise_displace ~seed:81 ~amplitude:0.37 ~frequency:0.29 |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
     Ops.snap_to_grid ~grain:1024 ~spacing:(Vec3.create 0.03125 0.03125 0.03125)

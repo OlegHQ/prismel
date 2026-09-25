@@ -9,7 +9,11 @@ type t = {
   height : int;
   pixels : Color.t array;
   mipmaps : level array;
+  id : int;  (* process-local identity; textures are immutable *)
 }
+
+let next_id = Atomic.make 1
+let fresh_id () = Atomic.fetch_and_add next_id 1
 
 type filter = Nearest | Bilinear | Trilinear
 type wrap = Clamp | Repeat | Mirror
@@ -24,7 +28,7 @@ let create_owned ~width ~height pixels =
         (Printf.sprintf
            "Texture.create: expected %d pixels for %dx%d, received %d"
            expected width height (Array.length pixels))
-    else Ok { width; height; pixels; mipmaps = [||] }
+    else Ok { width; height; pixels; mipmaps = [||]; id = fresh_id () }
 
 let create ~width ~height pixels =
   create_owned ~width ~height (Array.of_list pixels)
@@ -44,6 +48,7 @@ let init ~width ~height make =
       Array.init (width * height) (fun index ->
         make ~x:(index mod width) ~y:(index / width));
     mipmaps = [||];
+    id = fresh_id ();
   }
 
 let require_main_domain () =
@@ -61,7 +66,7 @@ let load filename =
             let pixels=Array.init(width*height)(fun index->let offset=index*4 in
               Color.rgba(Char.code(Bytes.get bytes offset))(Char.code(Bytes.get bytes(offset+1)))
                 (Char.code(Bytes.get bytes(offset+2)))(Char.code(Bytes.get bytes(offset+3))))in
-            Ok{width;height;pixels;mipmaps=[||]}
+            Ok{width;height;pixels;mipmaps=[||];id=fresh_id()}
         |Error error,_|_,Error error->Error("Texture load failed: "^Format.asprintf"%a"Prismel_next_resources.pp_error error))
 
 let load_exn filename =
@@ -122,7 +127,7 @@ let generate_mipmaps texture =
     height = texture.height;
     pixels = texture.pixels;
   } in
-  { texture with mipmaps = Array.of_list (build base []) }
+  { texture with mipmaps = Array.of_list (build base []); id = fresh_id () }
 
 let has_mipmaps texture = Array.length texture.mipmaps > 0
 let mipmap_count texture = 1 + Array.length texture.mipmaps
@@ -143,6 +148,7 @@ let subsection ~x ~y ~width ~height texture =
           texture.pixels.
             (((y + target_y) * texture.width) + x + target_x));
       mipmaps = [||];
+      id = fresh_id ();
     }
 
 let subsection_exn ~x ~y ~width ~height texture =
@@ -252,6 +258,7 @@ let sample ?(filter = Bilinear) ?(wrap_u = Clamp) ?(wrap_v = Clamp)
   sample_lod ~filter ~wrap_u ~wrap_v texture ~lod:0. ~u ~v
 
 module Private = struct
+  let identity texture = texture.id
   let create_owned = create_owned
   let sample_lod_packed = sample_lod_packed
   let levels texture =

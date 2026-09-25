@@ -193,6 +193,10 @@ let test_modes_and_payload () =
     "default patch winding did not oppose the source boundary";
   let triangles = Ops.poly_fill ~mode:Ops.Fill_triangles
       ~patch_group:"patch" source |> get_pdk in
+  let triangle_vertices = Topology.Private.view (Geometry.topology triangles)
+      |> fun topology -> Array.sub topology.vertex_points 20 6 in
+  check (triangle_vertices = [|6;4;5;4;6;7|])
+    "triangle fill changed ordered ear clipping";
   check (Geometry.point_count triangles = 8
       && Geometry.vertex_count triangles = 26
       && Geometry.primitive_count triangles = 7)
@@ -324,7 +328,7 @@ let test_unique_reverse_and_normals () =
 
 let test_selection_and_failures () =
   let left = open_box () and right = open_box ~offset:4. () in
-  let merged = Ops.merge [left; right] |> get_pdk in
+  let merged = Mesh_merge.run [left; right] |> get_pdk in
   let topology = Geometry.topology merged in
   let index = Topology_index.create topology in
   let positions = Packed.Float3.Private.view (Geometry.positions merged) in
@@ -472,6 +476,16 @@ let many_open_boxes count =
 
 let test_parallel () =
   let source = many_open_boxes 20_000 in
+  let triangles domains = Parallel.run ~domains (fun () ->
+      Ops.poly_fill ~grain:257 ~mode:Ops.Fill_triangles
+        ~patch_group:"patch" source |> get_pdk) in
+  let triangles_one = triangles 1 and triangles_four = triangles 4 in
+  check (equal_geometry triangles_one triangles_four)
+    "triangle fill differs across domain counts";
+  check (Geometry.point_count triangles_one = 20_000 * 8
+      && Geometry.vertex_count triangles_one = 20_000 * 26
+      && Geometry.primitive_count triangles_one = 20_000 * 7)
+    "triangle fill scale cardinality";
   let run domains = Parallel.run ~domains (fun () ->
       Ops.poly_fill ~grain:257 ~mode:Ops.Fill_triangle_fan
         ~unique_points:true ~patch_group:"patch" source |> get_pdk) in

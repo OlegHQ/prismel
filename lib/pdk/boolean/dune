@@ -1,0 +1,6 @@
+(library
+ (name pdk_boolean)
+ (public_name prismel.pdk.boolean)
+ (libraries pdk_core pdk_exact pdk_spatial pdk_attrib pdk_gen pdk_curve pdk_mesh prismel_math)
+ (flags (:standard -open Pdk_core -open Pdk_exact -open Pdk_spatial -open Pdk_attrib -open Pdk_gen -open Pdk_curve -open Pdk_mesh))
+ (modules boolean boolean_cells boolean_complex boolean_constraints boolean_coplanar boolean_corner_payload boolean_extract boolean_face_arrangement boolean_face_cdt boolean_kernel boolean_materialization boolean_payload boolean_radial boolean_refinement boolean_seam boolean_solid boolean_weiler))

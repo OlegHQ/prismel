@@ -49,7 +49,7 @@ let box minimum maximum = Ops.Bounds_box { minimum; maximum }
 let sphere center radius = Ops.Bounds_sphere { center; radius }
 
 let test_point_box_and_sphere () =
-  let source = Ops.points
+  let source = Line_geometry.points
       [|(-1., 0., 0.); (0., 0., 0.); (1., 0., 0.); (2., 0., 0.)|] in
   let bounds = box (Vec3.create (-1.) (-0.1) (-0.1))
       (Vec3.create 1. 0.1 0.1) in
@@ -183,7 +183,7 @@ let test_randomized_segment_reference () =
   done
 
 let test_base_merge_and_failures () =
-  let source = Ops.points (Array.init 8 (fun point ->
+  let source = Line_geometry.points (Array.init 8 (fun point ->
       float_of_int point, 0., 0.)) in
   let even = Group.init ~grain:1 ~owner:Group.Point ~name:"even" 8
       (fun point -> point land 1 = 0) in
@@ -238,7 +238,7 @@ let same_group left right =
   && members left = members right
 
 let test_scale_parallel_exactness () =
-  let source = Ops.grid ~columns:500 ~rows:300 ~size:20. () |> get_ok in
+  let source = Plane_generators.grid_checked ~columns:500 ~rows:300 ~size:20. () |> get_ok in
   let region = sphere (Vec3.create 1. 0. (-2.)) 7.5 in
   let run domains = Parallel.run ~domains (fun () ->
     source

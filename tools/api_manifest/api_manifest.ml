@@ -6,13 +6,28 @@ let baseline_relative =
   "tools/api_manifest/phase0_baseline.json"
 
 let stable_library_directories =
-  [ "prismel"; "pdk"; "geom"; "procedural"; "editor"; "pxui"; "pxui_shell"; "pxui_graph"
+  [ "prismel"; "procedural"; "editor"; "pxui"; "pxui_shell"; "pxui_graph"
   ; "sop_catalog"; "sop_ui"; "sketch_support"; "sketch_ui"
   ]
 
+let pdk_sublibrary_directories =
+  [ "pdk/core"; "pdk/exact"; "pdk/spatial"; "pdk/attrib"; "pdk/gen"; "pdk/curve"
+  ; "pdk/mesh"; "pdk/boolean"; "pdk/io" ]
+
+let pdk_facade_modules root =
+  read_file (Filename.concat root "lib/pdk/pdk.ml")
+  |> String.split_on_char '\n'
+  |> List.fold_left (fun modules line ->
+    match String.split_on_char ' ' (String.trim line) with
+    | ["module"; name; "="; target] ->
+        let target_module =
+          String.split_on_char '.' target |> List.rev |> List.hd in
+        modules |> String_set.add name |> String_set.add target_module
+    | _ -> modules) String_set.empty
+
 let mixed_legacy library module_name =
   match library, module_name with
-  | "prismel", "Font" -> [ "module:Private"; "value:release_renderer" ]
+  | "prismel", "Font" -> [ "module:Private" ]
   | "prismel", "Image" -> [ "module:Private" ]
   | _ -> []
 
@@ -378,16 +393,21 @@ let baseline root =
 
 let generate root =
   let baseline = baseline root in
+  let pdk_facade_modules = pdk_facade_modules root in
   let stable_entries =
-    stable_library_directories
-    |> List.concat_map (fun directory_name ->
+    (stable_library_directories
+     |> List.map (fun directory -> directory, directory))
+    @ List.map (fun directory -> "pdk", directory) pdk_sublibrary_directories
+    |> List.concat_map (fun (library_name, directory_name) ->
       public_interfaces root directory_name
       |> List.filter_map (fun (module_name, path) ->
-        if directory_name = "prismel" && module_name = "Low" then None
+        if library_name = "prismel" && module_name = "Low" then None
+        else if library_name = "pdk"
+                && not (String_set.mem module_name pdk_facade_modules) then None
         else
           Some
-            (source_entry root directory_name module_name path
-               (mixed_legacy directory_name module_name))))
+            (source_entry root library_name module_name path
+               (mixed_legacy library_name module_name))))
     |> List.sort (fun left right ->
       let library_order = json_sort_field "library" left right in
       if library_order <> 0 then library_order

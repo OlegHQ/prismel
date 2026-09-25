@@ -305,7 +305,7 @@ let test_restrictions_translation_and_errors () =
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
   expect "cancelled" (Ops.intersection_analysis ~cancel:cancelled source);
-  let curve = Ops.line ~origin:Vec3.zero ~direction:Vec3.unit_x ~length:1. ()
+  let curve = Line_geometry.line_checked ~origin:Vec3.zero ~direction:Vec3.unit_x ~length:1. ()
       |> get in
   check (Geometry.point_count (Ops.intersection_analysis curve |> get) = 0)
     "Intersection Analysis rejected a valid polygon curve";
@@ -319,7 +319,7 @@ let test_restrictions_translation_and_errors () =
   expect "invalid_surface" (Ops.intersection_analysis nonfinite);
   expect "invalid_surface" (Ops.intersection_analysis
       (open_curve [|0.,0.,0.; Float.nan,1.,0.|]));
-  let empty = Ops.intersection_analysis (Ops.points [||]) |> get in
+  let empty = Ops.intersection_analysis (Line_geometry.points [||]) |> get in
   check (Geometry.point_count empty = 0
       && (int_rows "sourceinput" empty).offsets = [|0|]
       && (float_rows "sourceprimuv" empty).offsets = [|0|])
@@ -333,8 +333,8 @@ let test_restrictions_translation_and_errors () =
   expect "invalid_surface" (Ops.intersection_analysis quad)
 
 let test_parallel_exact () =
-  let source = Ops.grid ~grain:31 ~counts:Ops.Grid_point_counts
-      ~connectivity:Ops.Grid_alternating_triangles
+  let source = Plane_generators.grid_checked ~grain:31 ~counts:Plane_generators.Grid_point_counts
+      ~connectivity:Plane_generators.Grid_alternating_triangles
       ~columns:80 ~rows:60 ~size:20. () |> get in
   let collision = Ops.transform ~grain:31
       (Mat4.rotation_x (Float.pi /. 2.)) source in

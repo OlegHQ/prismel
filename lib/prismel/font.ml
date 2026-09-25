@@ -2,12 +2,19 @@ type render_mode=Blended of Color.t
 type style=Normal|Bold|Italic|Underline|Strikethrough
 type hinting=Normal_hinting|Light_hinting|Mono_hinting|None_hinting
 type alignment=Left|Center|Right
+(* density, size, text, wrap, align, rgba *)
+module Text_key=struct
+  type t=int*int*string*int option*alignment*(int*int*int*int)
+  let equal=(=) let hash=Hashtbl.hash end
+module Text_cache=Lru.Make(Text_key)
 type t={resource:Prismel_next_resources.Font.t;size:int;source:string option;mutable styles:style list;
   mutable hinting:hinting;mutable kerning:bool;mutable generation:int;
-  cache:(string,Image.t)Hashtbl.t;order:string Queue.t}
+  cache:Image.t Text_cache.t}
+let text_cache_capacity=256
+let text_cache()=Text_cache.create ~release:(fun _ image->Image.destroy image)text_cache_capacity
 let message operation error=`Msg(Format.asprintf"%s: %a"operation Prismel_next_resources.pp_error error)
 let fonts:t list ref=ref[]
-let make ?source size=function Ok resource->let value={resource;size;source;styles=[];hinting=Normal_hinting;kerning=true;generation=1;cache=Hashtbl.create 256;order=Queue.create()}in fonts:=value::!fonts;Ok value|Error error->Error(message"Font.load"error)
+let make ?source size=function Ok resource->let value={resource;size;source;styles=[];hinting=Normal_hinting;kerning=true;generation=1;cache=text_cache()}in fonts:=value::!fonts;Ok value|Error error->Error(message"Font.load"error)
 let load path size=make ~source:path size(Prismel_next_resources.Font.open_file ~path ~size:(float size))
 let system_path()=match Sys.getenv_opt"PRISMEL_UI_FONT"with Some path when Sys.file_exists path->Some path|_->List.find_opt Sys.file_exists["/System/Library/Fonts/SFNSMono.ttf";"/System/Library/Fonts/SFNS.ttf";"/Library/Fonts/Arial.ttf";"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
 let system ?(size=16)()=make size(Prismel_next_resources.Font.open_system ~size:(float size))
@@ -28,18 +35,11 @@ let paint ?(density=1) ?wrap ?(align=Left) font text mode=match Prismel_next_res
   |Error error->Error(message"Font.render_text"error)|Ok None->Ok(Image.create ~width:1 ~height:1())
   |Ok(Some value)->let result=image_of_text value in ignore(Prismel_next_resources.Text.destroy value);result
 let render_text ?(density=1) font text mode=paint ~density font text mode
-let key ?wrap ?(align=Left) ?(density=1) text mode=Marshal.to_string(density,text,wrap,align,rgba mode)[]
-let cached_text ?wrap ?(align=Left) ?(density=1) font text mode=let key=key ?wrap ~align ~density text mode in match Hashtbl.find_opt font.cache key with Some image->Ok image|None->
+let key ?wrap ?(align=Left) ?(density=1) ?(size=0) text mode:Text_key.t=density,size,text,wrap,align,rgba mode
+let cached_text ?wrap ?(align=Left) ?(density=1) font text mode=let key=key ?wrap ~align ~density text mode in match Text_cache.find font.cache key with image->Ok image|exception Not_found->
   match paint ~density ?wrap ~align font text mode with Error _ as error->error|Ok image->
-    if Hashtbl.length font.cache=256 then begin
-      let oldest=Queue.pop font.order in
-      match Hashtbl.find_opt font.cache oldest with
-      |Some old->Image.destroy old;Hashtbl.remove font.cache oldest
-      |None->()
-    end;
-    Hashtbl.replace font.cache key image;Queue.push key font.order;Ok image
-let cache_count font=Hashtbl.length font.cache
-let clear_cache font=Hashtbl.iter(fun _ image->Image.destroy image)font.cache;Hashtbl.clear font.cache;Queue.clear font.order
+    Text_cache.add font.cache key image;Ok image
+let clear_cache font=Text_cache.clear font.cache
 let resource_styles styles=List.map(function
   |Normal->Prismel_next_resources.Font.Normal
   |Bold->Prismel_next_resources.Font.Bold
@@ -63,41 +63,37 @@ let destroy font=
   clear_cache font;ignore(Prismel_next_resources.Font.destroy font.resource)
 module Private=struct
  let cached_text=cached_text
- type automatic_entry={image:Image.t;mutable references:int;mutable stamp:int;mutable cached:bool}
+ type automatic_entry={image:Image.t;mutable references:int;mutable cached:bool}
  type automatic={entry:automatic_entry;mutable released:bool}
  let capacity=256 and font_capacity=32
- let automatic_cache:(string,automatic_entry)Hashtbl.t=Hashtbl.create capacity
- let automatic_fonts:(int,t*int)Hashtbl.t=Hashtbl.create font_capacity
+ (* Borrowed entries are pinned: only unreferenced text can be evicted, so
+    the table may hold more than [capacity] while every entry is in use. *)
+ let automatic_cache=Text_cache.create capacity
+   ~evictable:(fun _ entry->entry.references=0)
+   ~release:(fun _ entry->entry.cached<-false;
+     if entry.references=0 then Image.destroy entry.image)
+ module Font_cache=Lru.Make(Int)
+ let automatic_fonts=Font_cache.create font_capacity ~release:(fun _ font->destroy font)
  let automatic_references=ref 0
- let clock=ref 0
- let next_stamp()=incr clock;!clock
- let automatic_key ?wrap ?(align=Left) ?(density=1) ~size text mode=
-   Marshal.to_string(density,size,text,wrap,align,rgba mode)[]
- let evict_entry()=
-   let oldest=ref None in
-   Hashtbl.iter(fun key entry->if entry.references=0 then match!oldest with
-    |None->oldest:=Some(key,entry)|Some(_,candidate)when entry.stamp<candidate.stamp->oldest:=Some(key,entry)|Some _->())automatic_cache;
-   match!oldest with None->false|Some(key,entry)->Hashtbl.remove automatic_cache key;entry.cached<-false;Image.destroy entry.image;true
  let font size=
-   match Hashtbl.find_opt automatic_fonts size with
-   |Some(value,_)->Hashtbl.replace automatic_fonts size(value,next_stamp());Ok value
-   |None->
-     if Hashtbl.length automatic_fonts>=font_capacity then begin
-      let oldest=ref None in Hashtbl.iter(fun key(value,stamp)->match!oldest with None->oldest:=Some(key,value,stamp)|Some(_,_,candidate)when stamp<candidate->oldest:=Some(key,value,stamp)|Some _->())automatic_fonts;
-      Option.iter(fun(key,value,_)->Hashtbl.remove automatic_fonts key;destroy value)!oldest
-     end;
-     match system~size()with Error _ as error->error|Ok value->Hashtbl.add automatic_fonts size(value,next_stamp());Ok value
+   match Font_cache.find automatic_fonts size with
+   |value->Ok value
+   |exception Not_found->
+     match system~size()with Error _ as error->error|Ok value->Font_cache.add automatic_fonts size value;Ok value
  let borrow_automatic ?wrap ?(align=Left) ?(density=1) ~size text mode=
-   let key=automatic_key?wrap~align~density~size text mode in
-   match Hashtbl.find_opt automatic_cache key with
-   |Some entry->
+   let key=key?wrap~align~density~size text mode in
+   match Text_cache.find automatic_cache key with
+   |entry->
      entry.references<-entry.references+1;incr automatic_references;
-     entry.stamp<-next_stamp();Ok{entry;released=false}
-   |None->match font size with Error _ as error->error|Ok font->
+     Ok{entry;released=false}
+   |exception Not_found->match font size with Error _ as error->error|Ok font->
      match paint ~density ?wrap ~align font text mode with Error _ as error->error|Ok image->
-      let can_cache=Hashtbl.length automatic_cache<capacity||evict_entry()in
-      let entry={image;references=1;stamp=next_stamp();cached=can_cache}in
-      if can_cache then Hashtbl.add automatic_cache key entry;
+      (* A full table of borrowed entries makes the new value transient
+         instead of invalidating an image an active scene still holds. *)
+      let can_cache=Text_cache.length automatic_cache<capacity||
+        Option.is_some(Text_cache.find_first automatic_cache(fun _ entry->entry.references=0))in
+      let entry={image;references=1;cached=can_cache}in
+      if can_cache then Text_cache.add automatic_cache key entry;
       incr automatic_references;
       Ok{entry;released=false}
  let automatic_image handle=handle.entry.image
@@ -107,12 +103,9 @@ module Private=struct
    if handle.entry.references=0&&not handle.entry.cached then Image.destroy handle.entry.image
   end
  let clear_automatic()=
-  Hashtbl.iter(fun _ entry->entry.cached<-false;if entry.references=0 then Image.destroy entry.image)automatic_cache;
-  Hashtbl.clear automatic_cache;
-  let owned=Hashtbl.fold(fun _ (font,_) acc->font::acc)automatic_fonts[]in
-  Hashtbl.clear automatic_fonts;List.iter destroy owned
+  Text_cache.clear automatic_cache;Font_cache.clear automatic_fonts
  let automatic_counts()=
-  Hashtbl.length automatic_cache,Hashtbl.length automatic_fonts,
+  Text_cache.length automatic_cache,Font_cache.length automatic_fonts,
     !automatic_references
  type retained_text=Owned_text of Image.t|Automatic_text of automatic
  let retain_text ?font ?(density=1) ~size text mode=match font with
@@ -154,7 +147,6 @@ module Private=struct
                    Bytes.get rgba(index*4+3))}
            |Error error,_|_,Error error->Error(message"Font.glyph"error))
 end
-let release_renderer _renderer=List.iter clear_cache!fonts;Private.clear_automatic()
 let shutdown()=Private.clear_automatic();let owned= !fonts in fonts:=[];List.iter destroy owned
 let text_size ?wrap font text=match Prismel_next_resources.Font.size_text font.resource ?wrap_width:wrap(sanitize text)with Ok size->Ok size|Error e->Error(message"Font.text_size"e)
 let text_width font text=Result.map fst(text_size font text)

@@ -28,7 +28,7 @@ let float4_attribute owner name geometry =
   | None -> fail ("missing " ^ name)
 
 let two_quads () =
-  Ops.grid ~connectivity:Ops.Grid_quads ~columns:2 ~rows:1 ~size:2. () |> get_ok
+  Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:2 ~rows:1 ~size:2. () |> get_ok
 
 let shared_edge geometry =
   let index = Topology_index.create (Geometry.topology geometry) in
@@ -133,7 +133,7 @@ let test_non_manifold_and_visualization () =
   Array.iter (fun vertex -> check (values.(vertex) = 2.)
       "non-manifold Crease missed an incident corner")
     (incident_vertices index edge);
-  let quad = Ops.grid ~connectivity:Ops.Grid_quads ~columns:1 ~rows:1 ~size:1. ()
+  let quad = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:1 ~rows:1 ~size:1. ()
       |> get_ok in
   let quad_index = Topology_index.create (Geometry.topology quad) in
   let selected = edge_group quad quad_index (fun edge -> edge = 0) in
@@ -289,7 +289,7 @@ let test_errors_and_cancellation () =
    | Ok _ -> fail "cancelled Crease published geometry")
 
 let test_dense_parallel_exactness () =
-  let source = Ops.grid ~connectivity:Ops.Grid_quads ~columns:480 ~rows:300
+  let source = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:480 ~rows:300
       ~size:20. () |> get_ok in
   let topology = Geometry.topology source in
   let index = Topology_index.create topology in
@@ -311,8 +311,8 @@ let test_dense_parallel_exactness () =
     "Crease copied unchanged core planes";
   check (equal_attributes one four)
     "Crease one/four-domain attributes differ";
-  let one_mesh = Prismel_mesh.to_mesh one |> get_ok
-  and four_mesh = Prismel_mesh.to_mesh four |> get_ok in
+  let one_mesh = Pdk_prismel.Prismel_mesh.to_mesh one |> get_ok
+  and four_mesh = Pdk_prismel.Prismel_mesh.to_mesh four |> get_ok in
   check (Mesh.Private.packed_view one_mesh = Mesh.Private.packed_view four_mesh)
     "Crease one/four-domain render mesh differs"
 

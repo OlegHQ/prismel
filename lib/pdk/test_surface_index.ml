@@ -74,6 +74,19 @@ let filtered_reference surface first second =
   output_first, output_second
 
 let run () =
+  let centroids = Array.make 9 0. in
+  let lower = Array.init 9 float_of_int
+  and upper = Array.init 9 (fun item -> float_of_int item +. 1.) in
+  let bounds = Pdk_spatial.Bounds3_index.create ~grain:16
+      ~centroid_x:centroids ~centroid_y:centroids ~centroid_z:centroids
+      ~item_min_x:lower ~item_min_y:lower ~item_min_z:lower
+      ~item_max_x:upper ~item_max_y:upper ~item_max_z:upper () in
+  if bounds.order <> Array.init 9 Fun.id
+      || bounds.left <> [|1; -1; -1|]
+      || bounds.right <> [|2; -1; -1|]
+      || bounds.first <> [|0; 0; 4|]
+      || bounds.count <> [|0; 4; 5|] then
+    fail "median-split bounds changed stable tied-centroid order";
   let geometry = high_valence_surface () in
   let surface = Surface_index.create ~grain:1 geometry |> get in
   let raw_first, raw_second =

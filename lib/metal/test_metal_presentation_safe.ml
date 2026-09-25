@@ -11,23 +11,6 @@ let expect kind = function
 
 let run () =
   let device = get (Device.system_default ()) in
-  let rate_layer=get(Rasterization_rate_layer.create~horizontal:[|1.|]~vertical:[|1.|])in
-  get(Rasterization_rate_layer.set_sample rate_layer~vertical:false~index:0L 0.75);
-  if get(Rasterization_rate_layer.sample rate_layer~vertical:false~index:0L)<>0.75 then fail "rasterization sample drift";
-  let rate_descriptor=get(Rasterization_rate_descriptor.create~width:16L~height:8L~label:"rate"[|rate_layer|])in
-  (match Rasterization_rate_map.create device rate_descriptor with
-   | Error {kind=Unsupported;_}->()
-   | Error error->fail "%s"(Format.asprintf"%a"pp_error error)
-   | Ok map->
-       if Rasterization_rate_map.layer_count map<>1 then fail "rasterization layer count drift";
-       ignore(get(Rasterization_rate_map.physical_size map~layer:0));
-       let size,alignment=Rasterization_rate_map.parameter_size_and_alignment map in
-       let storage=get(Buffer.create~device~length:(Int64.add size alignment)~storage:Buffer.Shared())in
-       get(Rasterization_rate_map.copy_parameters map storage~offset:0L);
-       get(Buffer.destroy storage);get(Rasterization_rate_map.destroy map));
-  expect Parent_has_dependents(Rasterization_rate_layer.destroy rate_layer);
-  get(Rasterization_rate_descriptor.destroy rate_descriptor);
-  get(Rasterization_rate_layer.destroy rate_layer);
   let queue = get (Command_queue.create device) in
   let layer = get (Metal_layer.create device (Metal_layer.default ~width:8 ~height:8)) in
   expect Unsupported
@@ -156,14 +139,6 @@ let run () =
          | _->fail "configured render sample attachment drift");
         Some(descriptor,samples)
   in
-  let rate_map=get(Rasterization_rate_map.create_uniform device ~width:16L ~height:8L) in
-  get(Render_pass_descriptor.set_rasterization_rate_map encoded_pass(Some rate_map));
-  (match Render_pass_descriptor.rasterization_rate_map encoded_pass with
-   | Some retained when retained==rate_map->()
-   | _->fail "rasterization-rate map ownership graph drift");
-  expect Parent_has_dependents(Rasterization_rate_map.destroy rate_map);
-  get(Render_pass_descriptor.set_rasterization_rate_map encoded_pass None);
-  get(Rasterization_rate_map.destroy rate_map);
   expect Invalid_argument(Render_pass_descriptor.set_advanced encoded_pass
     {advanced with sample_positions=[|(nan,0.)|]});
   get(Render_pass_descriptor.reset_depth_stencil encoded_pass);
@@ -172,8 +147,6 @@ let run () =
     fail "depth/stencil reset graph drift";
   let encoder = get (Render_encoder.create_from_pass commands encoded_pass) in
   get (Render_encoder.end_encoding encoder);
-  let parallel=get(Command_buffer.create_parallel_render_encoder_with_descriptor commands encoded_pass) in
-  get(Parallel_render_encoder.end_encoding parallel);
   get (Render_pass_descriptor.destroy encoded_pass);
   Option.iter(fun(_,samples)->expect Parent_has_dependents(Resource100.Sample_buffer.destroy samples))render_counter_graph;
   expect Invalid_argument
@@ -230,10 +203,6 @@ let run () =
   expect Invalid_state(Command_buffer.pop_debug_group diagnostic_commands);
   get(Command_buffer.push_debug_group diagnostic_commands "presentation");
   get(Command_buffer.pop_debug_group diagnostic_commands);
-  let event=get(Device.new_event device)in
-  get(Command_buffer.encode_signal_event diagnostic_commands event~value:1L);
-  get(Command_buffer.encode_wait_for_event diagnostic_commands event~value:1L);
-  expect Parent_has_dependents(Event.destroy event);
   let compute=get(Command_buffer.create_compute_encoder diagnostic_commands Command_buffer.Serial)in
   get(Compute_encoder.end_encoding compute);
   ignore(get(Command_buffer.logs diagnostic_commands));
@@ -242,7 +211,7 @@ let run () =
   get(Command_buffer.commit diagnostic_commands);
   get(Command_buffer.wait_until_scheduled diagnostic_commands);
   get(Command_buffer.wait_until_completed diagnostic_commands);
-  get(Event.destroy event);get(Command_buffer.destroy diagnostic_commands);
+  get(Command_buffer.destroy diagnostic_commands);
   let descriptor_commands=get(Command_buffer.create queue())in
   let descriptor_compute=get(Command_buffer.create_compute_encoder_with_descriptor descriptor_commands)in
   get(Compute_encoder.end_encoding descriptor_compute);

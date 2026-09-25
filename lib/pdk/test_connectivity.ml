@@ -169,7 +169,7 @@ let test_validation_and_cancellation () =
        Analysis.Connectivity_primitives geometry)
 
 let test_parallel_exactness () =
-  let geometry = Ops.grid ~columns:500 ~rows:300 ~size:10. () |> get_ok in
+  let geometry = Plane_generators.grid_checked ~columns:500 ~rows:300 ~size:10. () |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
     Analysis.with_connectivity ~grain:257
       ~owner:Analysis.Connectivity_points ~name:"island"

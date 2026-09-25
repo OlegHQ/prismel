@@ -91,4 +91,11 @@ module Private : sig
   val scale_draws : frame_facts -> Scene_execution.draw list -> Scene_execution.draw list
   val scale_sampled_resources : frame_facts ->
     Scene_execution.sampled_draw list -> Scene_execution.sampled_draw list
+  type scaled_cache
+  val new_scaled_cache : unit -> scaled_cache
+
+  (** [scale_sampled_resources] memoized on the physical identity of the input
+      list and facts: a retained scene passes the same list every frame. *)
+  val scale_sampled_cached : scaled_cache -> frame_facts ->
+    Scene_execution.sampled_draw list -> Scene_execution.sampled_draw list
 end

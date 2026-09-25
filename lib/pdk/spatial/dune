@@ -1,0 +1,7 @@
+(library
+ (name pdk_spatial)
+ (public_name prismel.pdk.spatial)
+ (libraries pdk_core pdk_exact prismel_math)
+ (flags (:standard -open Pdk_core -open Pdk_exact))
+ (private_modules )
+ (modules spatial_index surface_index bounds3_index proximity_index linear_piece_index point_clusters point_snap triangle_intersection curve_intersection))

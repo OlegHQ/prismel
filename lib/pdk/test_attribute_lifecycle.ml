@@ -34,7 +34,7 @@ let attribute owner name geometry =
   | None -> fail ("missing attribute " ^ name)
 
 let fixture () =
-  Ops.grid ~columns:1 ~rows:1 ~size:1. () |> get_pdk
+  Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:1. () |> get_pdk
   |> add_float Attribute.Point "keep_point" 1.
   |> add_float Attribute.Point "temporary_point" 2.
   |> add_float Attribute.Point "temporary_keep" 3.
@@ -104,10 +104,10 @@ let run () =
       && has Attribute.Detail "keep_detail" kept)
     "Attribute Delete keep-pattern mode";
 
-  let reference = Ops.points [|(0., 0., 0.)|]
+  let reference = Line_geometry.points [|(0., 0., 0.)|]
       |> add_float Attribute.Point "bar" 1.
       |> add_float Attribute.Point "foo" 2. in
-  let reference_source = Ops.points [|(0., 0., 0.)|]
+  let reference_source = Line_geometry.points [|(0., 0., 0.)|]
       |> add_float Attribute.Point "bar" 1.
       |> add_float Attribute.Point "foo" 2.
       |> add_float Attribute.Point "score" 3.
@@ -253,7 +253,7 @@ let run () =
        "Attribute Rename cancellation diagnostic"
    | Ok _ -> fail "cancelled Attribute Rename published geometry");
 
-  let swap_source = Ops.points [|(1., 2., 3.); (4., 5., 6.)|]
+  let swap_source = Line_geometry.points [|(1., 2., 3.); (4., 5., 6.)|]
       |> add_float Attribute.Point "left_weight" 10.
       |> add_float Attribute.Point "right_weight" 20.
       |> add_float Attribute.Vertex "left_corner" 30.
@@ -467,7 +467,7 @@ let run () =
        "Attribute Swap cancellation diagnostic"
    | Ok _ -> fail "cancelled Attribute Swap published geometry");
 
-  let dense_base = Ops.points [|(0., 0., 0.)|] in
+  let dense_base = Line_geometry.points [|(0., 0., 0.)|] in
   let dense_attributes = Array.init 10_000 (fun index ->
       Attribute.create_owned
         ~name:(Printf.sprintf "%s_%05d"

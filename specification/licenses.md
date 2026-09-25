@@ -8,12 +8,12 @@ release legal review.
 | Surface | Distributed material / provenance | External obligation |
 | --- | --- | --- |
 | SDL3 core/image/ttf/mixer bindings | Prismel-written bindings plus OCaml-generated inventories, ABI facts and provenance hashes. Generated modules identify generator version and pinned headers. | SDL projects use the zlib license. System/shared libraries and their notices remain external dependencies; Prismel does not vendor them here. |
-| Metal binding | Prismel-written safe/raw layers, typed Objective-C++ bridge and OCaml-generated inventory/value/direct-call artifacts. `lib/metal/generated_provenance.ml` records the SDK-derived input identity. | Apple SDK headers/frameworks are system build inputs obtainable with the Command Line Tools and are not redistributed by Prismel. Apple platform/tool terms apply to builders and shipped applications. The full IDE and offline shader toolchain are not required. |
+| Metal binding | Prismel-written safe/raw layers and typed Objective-C++ bridge. The small OCaml registry generates retained enum constants and direct calls into `_build`; the installed SDK checks their types at compile time. | Apple SDK headers/frameworks are system build inputs obtainable with the Command Line Tools and are not redistributed by Prismel. Apple platform/tool terms apply to builders and shipped applications. The full IDE and offline shader toolchain are not required. |
 | OGPU, OGPU Metal, scene execution, native runtime support, and low core | Original Prismel OCaml source under MIT. | No additional bundled third-party renderer implementation or shader binary is introduced by these libraries. |
 
-Generated binding output is mechanical Prismel source: enum/value mappings,
-typed declarations/calls, layouts, inventories and provenance. Generators fail
-on stale output and run through Dune. They do not embed SDK header bodies,
+Generated binding output is mechanical Prismel source: retained enum constants
+and typed direct calls. The Metal generator runs through Dune and writes only
+to `_build`. It does not embed SDK header bodies,
 vendor framework binaries, or invoke Python glue. Handwritten ownership,
 lifetime, validation and callback policy remains distinguishable from generated
 mechanics in the source tree.

@@ -83,7 +83,7 @@ let equal_geometry left right =
          !equal) (Geometry.edge_groups left) (Geometry.edge_groups right)
 
 let point_source () =
-  let geometry = Ops.points (Array.init 6 (fun point -> float_of_int point, 0., 0.))
+  let geometry = Line_geometry.points (Array.init 6 (fun point -> float_of_int point, 0., 0.))
       |> with_attribute Attribute.Point "value"
            (Attribute.Float [|0.; 1.; 2.; 3.; 4.; 5.|])
       |> with_attribute Attribute.Point "class"
@@ -142,7 +142,7 @@ let test_modes_groups_and_base () =
       ~output:Ops.Blast_delete source |> get_ok in
   check (no_delete == source)
     "Blast by Attribute empty deletion lost structural identity";
-  let empty = Ops.points [||]
+  let empty = Line_geometry.points [||]
       |> with_attribute Attribute.Point "value" (Attribute.Float [||]) in
   let empty_group = Ops.blast_by_attribute ~owner:Ops.Blast_points
       ~attribute:"value" ~mode:(Ops.Blast_below 0.)
@@ -225,7 +225,7 @@ let test_errors_and_cancellation () =
       ~owner:Ops.Blast_primitives ~attribute:"missing"
       ~mode:(Ops.Blast_below 0.) ~output:(Ops.Blast_group "picked") source)
     "group-output unused-point removal";
-  let non_finite = Ops.points [|0., 0., 0.; 1., 0., 0.; 2., 0., 0.|]
+  let non_finite = Line_geometry.points [|0., 0., 0.; 1., 0., 0.; 2., 0., 0.|]
       |> with_attribute Attribute.Point "value"
            (Attribute.Float [|Float.nan; 1.; Float.infinity|]) in
   let all = Group.init ~owner:Group.Point ~name:"all" 3 (fun _ -> true) in
@@ -253,7 +253,7 @@ let test_errors_and_cancellation () =
    | Ok _ -> fail "cancelled Blast published geometry")
 
 let test_dense_parallel_exactness () =
-  let source = Ops.grid ~columns:480 ~rows:300 ~size:20. () |> get_ok in
+  let source = Plane_generators.grid_checked ~columns:480 ~rows:300 ~size:20. () |> get_ok in
   let point_count = Geometry.point_count source
   and primitive_count = Geometry.primitive_count source in
   let source = source

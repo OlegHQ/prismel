@@ -145,7 +145,7 @@ let check_custom_clip_attribute () =
     [float2; float3; float4_a; float4_b; integer]
 
 let check_distance () =
-  let source = Ops.box ~size:(Vec3.create 4. 3. 2.) () |> get_ok in
+  let source = Box_generator.box_checked ~size:(Vec3.create 4. 3. 2.) () |> get_ok in
   let offset = Ops.clip ~keep:Ops.All ~distance:0.75 ~origin:Vec3.zero
       ~normal:(Vec3.create 8. 0. 0.) source |> get_ok
   and translated = Ops.clip ~keep:Ops.All
@@ -160,7 +160,7 @@ let check_distance () =
     "transform-oriented Clip differs from its effective origin/direction plane"
 
 let check_clipped_edge_group () =
-  let source = Ops.box ~connectivity:Ops.Box_quads ~consolidate_points:true
+  let source = Box_generator.box_checked ~connectivity:Box_generator.Box_quads ~consolidate_points:true
       ~size:(Vec3.create 2. 2. 2.) () |> get_ok
       |> Ops.group_edges ~name:"plane_edges" |> get_ok in
   let output = Ops.clip ~fill:true ~clipped_edge_group:"plane_edges"
@@ -276,7 +276,7 @@ let check_typed_selection_promotion () =
     "shared-edge Clip did not promote both incident primitives";
   check (clipped_count (Ops.Selected_edges boundary) source = 1)
     "boundary-edge Clip did not promote its incident primitive";
-  let foreign = Ops.box ~connectivity:Ops.Box_quads ~consolidate_points:true
+  let foreign = Box_generator.box_checked ~connectivity:Box_generator.Box_quads ~consolidate_points:true
       ~size:(Vec3.create 2. 2. 2.) () |> get_ok in
   let foreign_index = Topology_index.create (Geometry.topology foreign) in
   let foreign_edges = Edge_group.init ~topology:(Geometry.topology foreign)
@@ -286,7 +286,7 @@ let check_typed_selection_promotion () =
       ~normal:Vec3.unit_x source)
 
 let check_selected_free_points () =
-  let source = Ops.points [|(-2.,0.,0.); (-1.,0.,0.); (1.,0.,0.)|]
+  let source = Line_geometry.points [|(-2.,0.,0.); (-1.,0.,0.); (1.,0.,0.)|]
       |> with_attribute "id" (Attribute.Int [|10; 20; 30|]) in
   let selected = Group.init ~owner:Group.Point ~name:"selected_free" 3
       (fun point -> point = 0) in
@@ -297,11 +297,11 @@ let check_selected_free_points () =
     "point-selected Clip did not restrict free-point filtering"
 
 let check_selected_caps_and_edge_output () =
-  let box center = Ops.box ~connectivity:Ops.Box_quads ~consolidate_points:true
+  let box center = Box_generator.box_checked ~connectivity:Box_generator.Box_quads ~consolidate_points:true
       ~center ~size:(Vec3.create 2. 2. 2.) () |> get_ok in
   let first = box Vec3.zero and second = box (Vec3.create 5. 0. 0.) in
   let first_primitives = Geometry.primitive_count first in
-  let source = Ops.merge [first; second] |> get_ok in
+  let source = Mesh_merge.run [first; second] |> get_ok in
   let selected = Group.init ~owner:Group.Primitive ~name:"first_box"
       (Geometry.primitive_count source)
       (fun primitive -> primitive < first_primitives) in
@@ -338,7 +338,7 @@ let check_selected_caps_and_edge_output () =
    | None -> fail "selected Clip edge output missing")
 
 let check_parallel_exact () =
-  let source = Ops.grid ~connectivity:Ops.Grid_alternating_triangles
+  let source = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_alternating_triangles
       ~columns:600 ~rows:400 ~size:20. () |> get_ok in
   let positions = Packed.Float3.Private.view (Geometry.positions source) in
   let field = Attribute.create_owned ~name:"field" ~owner:Attribute.Point
@@ -564,7 +564,7 @@ let check_nested_cap_contours () =
       Ops.transform (Mat4.translation
         (Vec3.create 0. ((float_of_int component -. 3.5) *. 6.) 0.))
         (hollow_square_prism ())) in
-  let components = Ops.merge (Array.to_list components) |> get_ok in
+  let components = Mesh_merge.run (Array.to_list components) |> get_ok in
   let run_components domains = Parallel.run ~domains (fun () ->
       Ops.clip ~grain:1 ~fill:true ~cap_group:"caps" ~origin:Vec3.zero
         ~normal:Vec3.unit_x components |> get_ok) in
@@ -597,15 +597,15 @@ let cap_area_yz geometry group =
 
 let check_multiple_nested_cap_contours () =
   let box ?(center = Vec3.zero) y z =
-    Ops.box ~connectivity:Ops.Box_quads ~consolidate_points:true
-      ~normals:Ops.Box_no_normals ~center
+    Box_generator.box_checked ~connectivity:Box_generator.Box_quads ~consolidate_points:true
+      ~normals:Box_generator.Box_no_normals ~center
       ~size:(Vec3.create 2. y z) () |> get_ok in
   let outer = box 6. 4.
   and first_hole = box ~center:(Vec3.create 0. (-1.5) 0.) 1. 1.
       |> Ops.reverse |> get_ok
   and second_hole = box ~center:(Vec3.create 0. 1.5 0.) 1. 1.
       |> Ops.reverse |> get_ok in
-  let source = Ops.merge [outer; first_hole; second_hole] |> get_ok in
+  let source = Mesh_merge.run [outer; first_hole; second_hole] |> get_ok in
   let run domains keep = Parallel.run ~domains (fun () ->
       Ops.clip ~grain:1 ~keep ~fill:true ~cap_group:"caps"
         ~origin:Vec3.zero ~normal:Vec3.unit_x source |> get_ok) in
@@ -626,7 +626,7 @@ let check_multiple_nested_cap_contours () =
     "keep-all multiple-hole Clip did not cap both sides";
   let middle = box 4. 4. |> Ops.reverse |> get_ok
   and island = box 2. 2. in
-  let nested = Ops.merge [box 6. 6.; middle; island] |> get_ok
+  let nested = Mesh_merge.run [box 6. 6.; middle; island] |> get_ok
       |> Ops.clip ~grain:1 ~fill:true ~cap_group:"caps"
            ~origin:Vec3.zero ~normal:Vec3.unit_x |> get_ok in
   let nested_caps = Geometry.find_group ~owner:Group.Primitive "caps" nested
@@ -634,7 +634,7 @@ let check_multiple_nested_cap_contours () =
   check (Group.cardinality nested_caps = 9
       && near (cap_area_yz nested nested_caps) 24.)
     "depth-two nested Clip did not preserve the interior island";
-  let nested_solids = Ops.merge [box 6. 6.; box 2. 2.] |> get_ok
+  let nested_solids = Mesh_merge.run [box 6. 6.; box 2. 2.] |> get_ok
       |> Ops.clip ~grain:1 ~fill:true ~cap_group:"caps"
            ~origin:Vec3.zero ~normal:Vec3.unit_x |> get_ok in
   let solid_caps = Geometry.find_group ~owner:Group.Primitive "caps"
@@ -651,12 +651,12 @@ let check_multiple_nested_cap_contours () =
   let concave = Geometry.create ~positions:concave_positions
       ~topology:(Topology.Builder.freeze concave_topology) () |> get_string_ok
       |> Ops.poly_extrude ~distance:1. |> get_ok in
-  let concave_hole = Ops.box ~connectivity:Ops.Box_quads
-      ~consolidate_points:true ~normals:Ops.Box_no_normals
+  let concave_hole = Box_generator.box_checked ~connectivity:Box_generator.Box_quads
+      ~consolidate_points:true ~normals:Box_generator.Box_no_normals
       ~center:(Vec3.create (-1.5) 0. 0.5)
       ~size:(Vec3.create 0.5 0.5 1.) () |> get_ok
       |> Ops.reverse |> get_ok in
-  let concave_nested = Ops.merge [concave; concave_hole] |> get_ok
+  let concave_nested = Mesh_merge.run [concave; concave_hole] |> get_ok
       |> Ops.clip ~grain:1 ~fill:true ~cap_group:"caps"
            ~origin:(Vec3.create 0. 0. 0.5) ~normal:Vec3.unit_z |> get_ok in
   let concave_caps = Geometry.find_group ~owner:Group.Primitive "caps"
@@ -671,10 +671,10 @@ let check_multiple_nested_cap_contours () =
       |> Ops.reverse |> get_ok
   and overlap_b = box ~center:(Vec3.create 0. 0.3 0.) 2. 2.
       |> Ops.reverse |> get_ok in
-  let overlapping = Ops.merge [outer; overlap_a; overlap_b] |> get_ok in
+  let overlapping = Mesh_merge.run [outer; overlap_a; overlap_b] |> get_ok in
   expect_code "invalid_geometry" (Ops.clip ~grain:1 ~fill:true
       ~origin:Vec3.zero ~normal:Vec3.unit_x overlapping);
-  let same_winding_overlap = Ops.merge [outer;
+  let same_winding_overlap = Mesh_merge.run [outer;
       box ~center:(Vec3.create 0. (-0.3) 0.) 2. 2.;
       box ~center:(Vec3.create 0. 0.3 0.) 2. 2.] |> get_ok in
   expect_code "invalid_geometry" (Ops.clip ~grain:1 ~fill:true

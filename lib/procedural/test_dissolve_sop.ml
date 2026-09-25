@@ -14,7 +14,7 @@ let cook graph =
   Session.close session; output
 
 let run () =
-  let graph = Sop.grid ~connectivity:Pdk.Ops.Grid_quads
+  let graph = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_quads
       ~columns:8 ~rows:6 ~size:2. ()
       |> Sop.group_edges ~name:"interior" ~incidence:Pdk.Ops.Manifold_edge
       |> Sop.dissolve ~group:"interior" ~remove_inline_points:true
@@ -24,7 +24,7 @@ let run () =
      || Pdk.Geometry.vertex_count output <> 4
      || Pdk.Geometry.primitive_count output <> 1 then
     fail "Dissolve SOP cardinality";
-  let invalid = Sop.grid ~connectivity:Pdk.Ops.Grid_quads
+  let invalid = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_quads
       ~columns:2 ~rows:2 ~size:1. () |> Sop.dissolve ~group:"missing" in
   let session = session () in
   (match Session.cook session ~context:(context ()) invalid with

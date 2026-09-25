@@ -17,17 +17,19 @@ type sampled_draw={family:pipeline_family;blend:Ogpu.Pipeline.blend;
 type scene3_entry=sampled_draw
 type prepared_scene3={clear:float*float*float*float;clear_depth:float;
   clear_stencil:int;entries:scene3_entry array}
-type cached={mutable key:string;mutable payload_hash:string;mutable trusted_source:mesh option;buffer:Ogpu.Backend.buffer;mutable index_offset:int64;mutable uniform_offset:int64 option;mutable vertex_count:int;mutable index_count:int;mutable primitive:Ogpu.Render_pass.primitive;bytes:int}
+type cached={mutable key:string;mutable payload_hash:string;mutable trusted_source:mesh option;buffer:Ogpu.Backend.buffer;mutable index_offset:int64;mutable uniform_offset:int64 option;mutable uniform_copy:bytes;mutable vertex_count:int;mutable index_count:int;mutable primitive:Ogpu.Render_pass.primitive;bytes:int}
 type uniform_slice={uniform_buffer:Ogpu.Backend.buffer;uniform_offset:int64;
-  uniform_bytes:bytes}
+  (* The frame's staging bytes and this slice's window into them, kept for
+     next frame's unchanged-set comparison without a per-draw copy. *)
+  uniform_staging:bytes;uniform_staging_offset:int;uniform_length:int}
 type uniform_page={page_buffer:Ogpu.Backend.buffer;page_capacity:int}
-type cached_auxiliary={auxiliary_key:string;auxiliary_hash:string;auxiliary_buffer:Ogpu.Backend.buffer}
+type cached_auxiliary={auxiliary_copy:bytes;auxiliary_buffer:Ogpu.Backend.buffer}
 type cached_texture={mutable texture_key:string;mutable texture_hash:string;
   texture_shape:string;texture:Ogpu.Backend.texture;texture_bytes:int;
-  mutable texture_in_use:bool}
+  mutable texture_used:int}
 type texture_upload_scratch={scratch_buffer:Ogpu.Backend.buffer;
   scratch_bytes:bytes;scratch_size:int}
-type prepared_run={prepared_identity:string;prepared_version:int64;prepared_draws:sampled_draw list;prepared_bytes:int}
+type prepared_run={prepared_version:int64;prepared_draws:sampled_draw list;prepared_bytes:int}
 type automatic_signature={signature_family:pipeline_family;
   signature_blend:Ogpu.Pipeline.blend;signature_samples:int;
   signature_state:state;signature_texture:(int64*Ogpu.Types.sampler_descriptor)option;
@@ -70,26 +72,47 @@ type icb_stats={mutable icb_builds:int64;mutable icb_hits:int64;mutable icb_miss
 type argument_pool={argument_buffer:Ogpu.Backend.buffer;argument_stride:int;
   argument_capacity:int;slices:(int64*Ogpu.Types.sampler_descriptor,int64)Hashtbl.t;
   mutable argument_next:int}
+module String_table=Lru.Make(String)
+type retired={mutable retired_buffers:Ogpu.Backend.buffer list;
+  mutable retired_textures:Ogpu.Backend.texture list}
+let cache_byte_capacity=256*1024*1024
+let mesh_cache_entry_capacity=256
+let texture_cache_entry_capacity=256
+let texture_cache_byte_capacity=256*1024*1024
+let mesh_table retired=String_table.create mesh_cache_entry_capacity
+  ~byte_capacity:cache_byte_capacity
+  ~release:(fun _ (item:cached)->retired.retired_buffers<-item.buffer::retired.retired_buffers)
+let texture_table retired=String_table.create texture_cache_entry_capacity
+  ~byte_capacity:texture_cache_byte_capacity
+  ~release:(fun _ item->retired.retired_textures<-item.texture::retired.retired_textures)
+let auxiliary_table retired=String_table.create 64
+  ~release:(fun _ item->retired.retired_buffers<-item.auxiliary_buffer::retired.retired_buffers)
+let drain_retired retired destroy_buffer destroy_texture=
+  let buffers=retired.retired_buffers and textures=retired.retired_textures in
+  retired.retired_buffers<-[];retired.retired_textures<-[];
+  List.iter destroy_buffer buffers;List.iter destroy_texture textures
 type t={device:Ogpu.Backend.device;queue:Ogpu.Backend.queue;
   surface:Ogpu.Backend.surface option;mutable target:Ogpu.Backend.texture;
   mutable configuration:Ogpu.Surface.configuration;
   mutable attachments:Scene_attachment_pool.t;pipelines:pipeline_variant list;
   pipeline_lookup:pipeline_variant option array;
-  canonical_scene2_argument:bool;mutable cache:cached list;
+  canonical_scene2_argument:bool;cache:cached String_table.t;
   uniform_pages:uniform_page option array;mutable next_uniform_page:int;
   mutable previous_uniforms:uniform_slice option array;
-  mutable prepared_cache:prepared_run list;
+  prepared_cache:prepared_run String_table.t;
   mutable prepared_submission:prepared_submission option;
   mutable automatic_submission:replay_plan option;
   mutable automatic_candidate:automatic_candidate option;
   prepared_scratch:prepared_scratch;
-  mutable auxiliary_cache:cached_auxiliary list;
-  mutable texture_cache:cached_texture list;
+  auxiliary_cache:cached_auxiliary String_table.t;
+  texture_cache:cached_texture String_table.t;
+  (* Evicted GPU resources wait here until the frame that evicted them has
+     been submitted. *)
+  retired:retired;mutable frame:int;
   mutable texture_upload_scratch:texture_upload_scratch option;
   samplers:(Ogpu.Types.sampler_descriptor,Ogpu.Backend.sampler)Hashtbl.t;
   mutable arguments:argument_pool option;
   icb_stats:icb_stats;
-  mutable retained_batch_builds:int64;mutable retained_batch_reuses:int64;
   mutable uploaded:int64;
   mutable dead:bool;before_device_destroy:unit->(unit,Ogpu.Error.t)result;
   (* A borrowed device (shared with a window) is never destroyed here. *)
@@ -198,40 +221,40 @@ let create_common ?(canonical_scene2_argument=false) ?(offscreen=false) ?device 
         let pipeline_lookup=Array.make(pipeline_variants_per_sample*4)None in
         List.iter(fun variant->let slot=pipeline_slot variant.family variant.blend variant.samples in
           if slot>=0 then pipeline_lookup.(slot)<-Some variant)pipelines;
-        Ok{device;owns_device;queue;surface;target;configuration;attachments;pipelines;pipeline_lookup;canonical_scene2_argument;cache=[];uniform_pages=Array.make 3 None;next_uniform_page=0;previous_uniforms=[||];prepared_cache=[];prepared_submission=None;automatic_submission=None;automatic_candidate=None;prepared_scratch={scratch_slots=[||];scratch_length=0};auxiliary_cache=[];texture_cache=[];texture_upload_scratch=None;samplers=Hashtbl.create 8;arguments=None;icb_stats={icb_builds=0L;icb_hits=0L;icb_misses=0L;icb_evictions=0L;icb_executions=0L;icb_failures=0L;icb_last_failure=None};retained_batch_builds=0L;retained_batch_reuses=0L;uploaded=0L;dead=false;before_device_destroy}
+        let retired={retired_buffers=[];retired_textures=[]}in
+        Ok{device;owns_device;queue;surface;target;configuration;attachments;pipelines;pipeline_lookup;canonical_scene2_argument;cache=mesh_table retired;retired;frame=0;uniform_pages=Array.make 3 None;next_uniform_page=0;previous_uniforms=[||];prepared_cache=String_table.create 64 ~byte_capacity:cache_byte_capacity;prepared_submission=None;automatic_submission=None;automatic_candidate=None;prepared_scratch={scratch_slots=[||];scratch_length=0};auxiliary_cache=auxiliary_table retired;texture_cache=texture_table retired;texture_upload_scratch=None;samplers=Hashtbl.create 8;arguments=None;icb_stats={icb_builds=0L;icb_hits=0L;icb_misses=0L;icb_evictions=0L;icb_executions=0L;icb_failures=0L;icb_last_failure=None};uploaded=0L;dead=false;before_device_destroy}
       |Error e->List.iter(fun x->ignore(Ogpu.Backend.destroy_pipeline x.pipeline))pipelines;destroy_surface();ignore(Ogpu.Backend.destroy_queue queue);cleanup();Error e)
 let one_sample _=[1]
-let create_with_pipeline_variants driver configuration ?(before_device_destroy=fun()->Ok()) pipeline=create_common driver configuration before_device_destroy families blends one_sample(fun device family blend _->pipeline device family blend)
 let create_offscreen_with_pipeline_variants driver configuration ?(before_device_destroy=fun()->Ok()) ?(canonical_scene2_argument=false) pipeline=create_common~canonical_scene2_argument~offscreen:true driver configuration before_device_destroy families blends one_sample(fun device family blend _->pipeline device family blend)
 let create_with_sampled_pipeline_variants driver configuration ?(before_device_destroy=fun()->Ok()) ?(canonical_scene2_argument=false) pipeline=create_common~canonical_scene2_argument driver configuration before_device_destroy families blends sample_counts pipeline
 let create_offscreen_with_sampled_pipeline_variants driver configuration
     ?(before_device_destroy=fun()->Ok()) ?(canonical_scene2_argument=false) ?device pipeline=
   create_common~canonical_scene2_argument~offscreen:true ?device driver configuration
     before_device_destroy families blends sample_counts pipeline
-let create_with_pipeline driver configuration ?(before_device_destroy=fun()->Ok()) make=
-  create_common driver configuration before_device_destroy[Scene2][Ogpu.Pipeline.Replace]one_sample
-    (fun device _family _blend _samples->make device)
 let create_offscreen_with_pipeline driver configuration
     ?(before_device_destroy=fun()->Ok()) make=
   create_common~offscreen:true driver configuration before_device_destroy
     [Scene2][Ogpu.Pipeline.Replace]one_sample
     (fun device _family _blend _samples->make device)
-let cache_byte_capacity=256*1024*1024
-let mesh_cache_entry_capacity=256
-let trim_cache cache =
-  let rec loop entries bytes keep evict = function
-    | [] -> List.rev keep, List.rev evict
-    | item :: rest when entries < mesh_cache_entry_capacity && bytes <= cache_byte_capacity - item.bytes ->
-        loop (entries + 1) (bytes + item.bytes) (item :: keep) evict rest
-    | item :: rest -> loop entries bytes keep (item :: evict) rest
-  in
-  loop 0 0 [] [] cache
 let source_for_trust (mesh:mesh) bytes =
   (* Keep extra CPU retention within the already bounded GPU payload budget,
      even when an indexed mesh contains a large unused vertex plane. *)
   if Bytes.length mesh.indices<=bytes &&
      Bytes.length mesh.vertices<=bytes-Bytes.length mesh.indices then Some mesh else None
-let prepare value ~defer ~trusted_key ~reserved ~uniforms ?(vertex_stable=false) ~nonindexed ~canonical_plain (mesh:mesh)=
+let same_bytes (mesh:mesh)=function
+  |Some(source:mesh)->source.vertices==mesh.vertices&&source.indices==mesh.indices&&
+      source.vertex_count=mesh.vertex_count&&source.index_count=mesh.index_count
+  |None->false
+let content_hash (mesh:mesh) uniform_bytes=String.concat":"[
+    Digest.to_hex(Digest.bytes mesh.vertices);
+    Digest.to_hex(Digest.bytes mesh.indices);
+    Digest.to_hex(Digest.bytes uniform_bytes)]
+(* One entry per key. A hit needs no hashing: vertex-stable keys carry their
+   identity, other draws keep the exact source bytes they were uploaded from
+   and compare them physically. Content hashing happens once per upload and
+   only decides a same-key miss for fresh but equal bytes. *)
+let prepare value ~trusted_key ~reserved ~uniforms ?(vertex_stable=false) ~nonindexed ~canonical_plain (mesh:mesh)=
+  ignore trusted_key;
   let uniform_bytes=Option.value uniforms~default:Bytes.empty in
   let valid_uniforms=Option.fold~none:true~some:(fun bytes->
     if Bytes.length bytes=48 then
@@ -239,37 +262,8 @@ let prepare value ~defer ~trusted_key ~reserved ~uniforms ?(vertex_stable=false)
         if not(Float.is_finite(Int64.float_of_bits(Bytes.get_int64_le bytes(index*8))))then valid:=false
       done;!valid
     else (Bytes.length bytes=24||Bytes.length bytes=208||Bytes.length bytes=5456)&&let valid=ref true in for index=0 to Bytes.length bytes/4-1 do if not(Float.is_finite(Int32.float_of_bits(Bytes.get_int32_le bytes(index*4))))then valid:=false done;let lights=if Bytes.length bytes=5456 then Int32.float_of_bits(Bytes.get_int32_le bytes(73*4))else 0. in !valid&&lights>=0.&&lights<=64.&&Float.is_integer lights)uniforms in
-  let key_base=mesh.key^(if canonical_plain then ":canonical-scene2" else if nonindexed then ":nonindexed" else "")in
-  let key=key_base^(if vertex_stable||Bytes.length uniform_bytes=0 then""else":"^Digest.to_hex(Digest.bytes uniform_bytes))in
-  let trusted=if trusted_key||vertex_stable then
-      (* Local mesh labels recur across retained scenes. A prepared-run hit
-         only permits skipping content checks for the exact immutable source
-         currently uploaded into this slot, not any mesh with the same label. *)
-      List.find_opt(fun(x:cached)->x.key=key&&x.primitive=mesh.primitive && (vertex_stable ||
-        match x.trusted_source with Some source->source==mesh|None->false))value.cache else None in
-  match trusted with
-  |Some item when vertex_stable&&Bytes.length uniform_bytes>0->
-      let uniform_hash=Digest.to_hex(Digest.bytes uniform_bytes)in
-      if item.payload_hash=uniform_hash then Ok item
-      else
-        (match item.uniform_offset with
-         |None->Ok item
-         |Some offset->
-             match Ogpu.Backend.write_buffer item.buffer~offset uniform_bytes with
-             |Error _ as error->error
-             |Ok()->item.payload_hash<-uniform_hash;
-                 value.uploaded<-Int64.add value.uploaded
-                   (Int64.of_int(Bytes.length uniform_bytes));Ok item)
-  |Some item->Ok item
-  |None->
-  let payload_hash=if vertex_stable then Digest.to_hex(Digest.bytes uniform_bytes)
-    else String.concat":"[
-    Digest.to_hex(Digest.bytes mesh.vertices);
-    Digest.to_hex(Digest.bytes mesh.indices);
-    Digest.to_hex(Digest.bytes uniform_bytes)]in
-  match List.find_opt(fun(x:cached)->x.key=key&&x.primitive=mesh.primitive&&x.payload_hash=payload_hash)value.cache with
-  |Some item->item.trusted_source<-source_for_trust mesh item.bytes;Ok item
-  |None->
+  let key=mesh.key^(if canonical_plain then ":canonical-scene2" else if nonindexed then ":nonindexed" else "")in
+  let upload existing=
   let vertex_stride=if mesh.vertex_count=0 then 0 else Bytes.length mesh.vertices/mesh.vertex_count in
   let index_at index=Int32.to_int(Bytes.get_int32_le mesh.indices(index*4))in
   let valid_indices=ref(Bytes.length mesh.indices=mesh.index_count*4)in
@@ -305,19 +299,47 @@ let prepare value ~defer ~trusted_key ~reserved ~uniforms ?(vertex_stable=false)
     else let expanded=Bytes.create(mesh.index_count*vertex_stride)in for index=0 to mesh.index_count-1 do let source=index_at index in Bytes.blit mesh.vertices(source*vertex_stride)expanded(index*vertex_stride)vertex_stride done;expanded,Bytes.empty,mesh.index_count,0 in
   let total=Bytes.length vertices+Bytes.length indices+Bytes.length uniform_bytes in
   if mesh.key=""||vertex_count<=0||(not nonindexed&&index_count<=0)||total=0||not valid_uniforms then error"Scene_execution.prepare"Ogpu.Error.Invalid_argument"mesh payload or transform uniforms are malformed"else
-  let at_capacity=List.length value.cache>=mesh_cache_entry_capacity in
-  match List.find_opt(fun(x:cached)->x.bytes=total&&not(reserved x)&&(x.key=key||at_capacity))value.cache with
-  |Some item->
+  let payload_hash=if vertex_stable then "" else content_hash mesh uniform_bytes in
+  let uniform_offset=if uniforms=None then None else Some(Int64.of_int(Bytes.length vertices+Bytes.length indices))in
+  let uniform_copy=if Bytes.length uniform_bytes=0 then Bytes.empty else Bytes.copy uniform_bytes in
+  let rewrite (item:cached)=
     let packed=Bytes.concat Bytes.empty[vertices;indices;uniform_bytes]in
-    (match Ogpu.Backend.write_buffer item.buffer~offset:0L packed with Error _ as e->e|Ok()->item.key<-key;item.payload_hash<-payload_hash;item.trusted_source<-source_for_trust mesh item.bytes;item.index_offset<-Int64.of_int(Bytes.length vertices);item.uniform_offset<-(if uniforms=None then None else Some(Int64.of_int(Bytes.length vertices+Bytes.length indices)));item.vertex_count<-vertex_count;item.index_count<-index_count;item.primitive<-mesh.primitive;value.cache<-item::List.filter(fun old->old!=item)value.cache;value.uploaded<-Int64.add value.uploaded(Int64.of_int total);Ok item)
+    (match Ogpu.Backend.write_buffer item.buffer~offset:0L packed with Error _ as e->e|Ok()->
+      let stolen=item.key<>key in
+      if stolen then ignore(String_table.take value.cache item.key);
+      item.key<-key;item.payload_hash<-payload_hash;item.trusted_source<-source_for_trust mesh item.bytes;item.index_offset<-Int64.of_int(Bytes.length vertices);item.uniform_offset<-uniform_offset;item.uniform_copy<-uniform_copy;item.vertex_count<-vertex_count;item.index_count<-index_count;item.primitive<-mesh.primitive;
+      if stolen then String_table.add value.cache~bytes:item.bytes key item;
+      value.uploaded<-Int64.add value.uploaded(Int64.of_int total);Ok item)in
+  let reusable=match existing with
+    |Some(item:cached) when item.bytes=total&&not(reserved item)->Some item
+    |_ when String_table.length value.cache>=mesh_cache_entry_capacity->
+        String_table.find_first value.cache(fun _ (x:cached)->x.bytes=total&&not(reserved x))
+    |_->None in
+  match reusable with
+  |Some item->rewrite item
   |None->
   let descriptor:Ogpu.Types.buffer_descriptor={label=Some("scene-mesh-"^mesh.key);size=Int64.of_int total;usage=[Vertex;Index;Storage;Copy_dst]}in
   match Ogpu.Backend.create_buffer value.device descriptor with Error _ as e->e|Ok buffer->
-    let offset=Int64.of_int(Bytes.length vertices)and uniform_offset=Int64.of_int(Bytes.length vertices+Bytes.length indices)in let packed=Bytes.concat Bytes.empty[indices;uniform_bytes]in match Ogpu.Backend.write_buffer buffer~offset:0L vertices with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->match Ogpu.Backend.write_buffer buffer~offset packed with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->let item={key;payload_hash;trusted_source=source_for_trust mesh total;buffer;index_offset=offset;uniform_offset=(if uniforms=None then None else Some uniform_offset);vertex_count;index_count;primitive=mesh.primitive;bytes=total}in
-    let replaced,others=List.partition(fun(x:cached)->
-      x.key=key&&not(reserved x))value.cache in
-    List.iter(fun x->defer(fun()->ignore(Ogpu.Backend.destroy_buffer x.buffer)))replaced;
-    let keep,evict=trim_cache(item::others)in List.iter(fun x->defer(fun()->ignore(Ogpu.Backend.destroy_buffer x.buffer)))evict;value.cache<-keep;value.uploaded<-Int64.add value.uploaded(Int64.of_int total);Ok item
+    let offset=Int64.of_int(Bytes.length vertices)in let packed=Bytes.concat Bytes.empty[indices;uniform_bytes]in match Ogpu.Backend.write_buffer buffer~offset:0L vertices with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->match Ogpu.Backend.write_buffer buffer~offset packed with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->let item={key;payload_hash;trusted_source=source_for_trust mesh total;buffer;index_offset=offset;uniform_offset;uniform_copy;vertex_count;index_count;primitive=mesh.primitive;bytes=total}in
+    String_table.add value.cache~bytes:total key item;value.uploaded<-Int64.add value.uploaded(Int64.of_int total);Ok item in
+  match String_table.find value.cache key with
+  |exception Not_found->upload None
+  |item when item.primitive<>mesh.primitive->upload(Some item)
+  |item when vertex_stable->
+      if Bytes.length uniform_bytes=0||Bytes.equal uniform_bytes item.uniform_copy then Ok item
+      else(match item.uniform_offset with
+        |None->Ok item
+        |Some offset->
+            match Ogpu.Backend.write_buffer item.buffer~offset uniform_bytes with
+            |Error _ as error->error
+            |Ok()->Bytes.blit uniform_bytes 0 item.uniform_copy 0(Bytes.length uniform_bytes);
+                value.uploaded<-Int64.add value.uploaded
+                  (Int64.of_int(Bytes.length uniform_bytes));Ok item)
+  |item when same_bytes mesh item.trusted_source&&Bytes.equal uniform_bytes item.uniform_copy->Ok item
+  |item->
+      if item.payload_hash<>""&&item.payload_hash=content_hash mesh uniform_bytes then begin
+        item.trusted_source<-source_for_trust mesh item.bytes;Ok item
+      end else upload(Some item)
 let uniform_page_byte_capacity=256*1024*1024
 let align256 value=(value+255)land(lnot 255)
 let scene2_identity_affine=let bytes=Bytes.make 24 '\000'in
@@ -337,7 +359,13 @@ let prepare_uniforms value ~defer sources=
   let same=Array.length sources=Array.length previous&&
     Array.for_all2(fun source retained->match source,retained with
       |None,None->true
-      |Some bytes,Some slice->Bytes.equal bytes slice.uniform_bytes
+      |Some bytes,Some slice->
+          let length=Bytes.length bytes in
+          length=slice.uniform_length&&
+          (let index=ref 0 in
+           while !index<length&&Bytes.unsafe_get bytes !index=
+             Bytes.unsafe_get slice.uniform_staging(slice.uniform_staging_offset+ !index)do incr index done;
+           !index=length)
       |_->false)sources previous in
   if same then Ok previous else begin
     drop_plans value;
@@ -369,31 +397,21 @@ let prepare_uniforms value ~defer sources=
               (Ogpu.Backend.create_buffer value.device descriptor)in
       match page with Error _ as e->e|Ok page->
         value.next_uniform_page<-(page_index+1)mod Array.length value.uniform_pages;
-        let prepared=Array.make(Array.length sources)None and cursor=ref 0 in
-        let rec upload index=if index=Array.length sources then Ok prepared else
-          match sources.(index)with
-          |None->upload(index+1)
-          |Some bytes->
-              let offset=Int64.of_int !cursor in
-              match Ogpu.Backend.write_buffer page.page_buffer~offset bytes with
-              |Error _ as e->e
-              |Ok()->prepared.(index)<-Some{uniform_buffer=page.page_buffer;
-                  uniform_offset=offset;uniform_bytes=Bytes.copy bytes};
-                  cursor:= !cursor+align256(Bytes.length bytes);
-                  value.uploaded<-Int64.add value.uploaded(Int64.of_int(Bytes.length bytes));
-                  upload(index+1)in
-        upload 0
+        (* Pack every slice into one staging block and upload it once; the
+           page is a bump allocator, not a list of per-draw buffers. *)
+        let prepared=Array.make(Array.length sources)None and cursor=ref 0
+        and staging=Bytes.create !needed and payload=ref 0 in
+        Array.iteri(fun index->function None->()|Some bytes->
+          let length=Bytes.length bytes in
+          Bytes.blit bytes 0 staging !cursor length;
+          prepared.(index)<-Some{uniform_buffer=page.page_buffer;
+            uniform_offset=Int64.of_int !cursor;uniform_staging=staging;
+            uniform_staging_offset= !cursor;uniform_length=length};
+          cursor:= !cursor+align256 length;payload:= !payload+length)sources;
+        match Ogpu.Backend.write_buffer page.page_buffer~offset:0L staging with
+        |Error _ as e->e
+        |Ok()->value.uploaded<-Int64.add value.uploaded(Int64.of_int !payload);Ok prepared
   end
-let texture_cache_entry_capacity=256
-let texture_cache_byte_capacity=256*1024*1024
-let trim_texture_cache cache =
-  let rec loop entries bytes keep evict=function
-    |[]->List.rev keep,List.rev evict
-    |item::rest when entries<texture_cache_entry_capacity&&
-      item.texture_bytes<=texture_cache_byte_capacity-bytes->
-        loop(entries+1)(bytes+item.texture_bytes)(item::keep)evict rest
-    |item::rest->loop entries bytes keep(item::evict)rest in
-  loop 0 0 [] [] cache
 let valid_texture(source:sampled_texture)=
   source.key<>""&&Array.length source.levels>0&&
   (match Ogpu.Types.validate_sampler source.sampler with Error _->false|Ok()->true)&&
@@ -429,7 +447,8 @@ let texture_upload_scratch value total =
             previous;
           Ok scratch
 let image_or_canvas_key key=
-  String.starts_with~prefix:"canvas:"key||String.starts_with~prefix:"image:"key
+  String.starts_with~prefix:"canvas:"key||String.starts_with~prefix:"image:"key||
+  String.starts_with~prefix:"texture:"key||String.starts_with~prefix:"shadow:"key
 let prepare_texture value ~defer(source:sampled_texture)=
   match source.gpu with
   |Some texture->
@@ -442,26 +461,13 @@ let prepare_texture value ~defer(source:sampled_texture)=
         error"Scene_execution.prepare_texture"Ogpu.Error.Cross_device
           "GPU image belongs to another renderer"
       else Ok{texture_key=source.key;texture_hash="";texture_shape="";
-        texture;texture_bytes=0;texture_in_use=true}
+        texture;texture_bytes=0;texture_used=value.frame}
   |None->
-  match List.find_opt(fun item->item.texture_key=source.key)value.texture_cache with
-  |Some item when String.starts_with~prefix:"image:"source.key->
-      item.texture_in_use<-true;Ok item
-  |_->
-  (* Image and canvas keys carry their identity and generation, so their
+  let levels_hash()=
+    Digest.to_hex(Digest.string(Array.to_list source.levels|>List.map(fun (level:texture_level)->Printf.sprintf"%dx%d:%s"level.width level.height(Digest.to_hex(Digest.string(Bytes.unsafe_to_string level.bytes))))|>String.concat"|"))in
+  (* Image, canvas and texture keys carry identity and generation, so their
      bytes are never hashed; other keys are content-addressed. *)
-  let hash,known_reusable=
-    match List.find_opt(fun item->item.texture_key=source.key)value.texture_cache with
-    |Some item when String.starts_with~prefix:"canvas:"source.key->
-        "",Some item
-    |_ when image_or_canvas_key source.key->"",None
-    |_->
-        Digest.to_hex(Digest.string(Array.to_list source.levels|>List.map(fun (level:texture_level)->Printf.sprintf"%dx%d:%s"level.width level.height(Digest.to_hex(Digest.string(Bytes.unsafe_to_string level.bytes))))|>String.concat"|")),
-        None in
-  match known_reusable,List.find_opt(fun item->item.texture_key=source.key&&item.texture_hash=hash)value.texture_cache with
-  |None,Some item->item.texture_in_use<-true;Ok item
-  |_->
-    let reusable_override=known_reusable in
+  let upload ~hash ~reusable=
     if not(valid_texture source)then error"Scene_execution.prepare_texture"Ogpu.Error.Invalid_argument"texture or sampler is malformed"else
     let shape=Array.to_list source.levels|>List.map(fun (level:texture_level)->Printf.sprintf"%dx%d"level.width level.height)|>String.concat"/"in
     (* Canvas and managed-image identities are unique and lower to one
@@ -471,15 +477,11 @@ let prepare_texture value ~defer(source:sampled_texture)=
        texture; two same-shape images in one submission keep distinct
        textures because an in-use slot cannot be stolen. *)
     let reusable=
-      match reusable_override with Some _ as hit->hit
+      match reusable with Some _ as hit->hit
       |None when not(image_or_canvas_key source.key)->None
-      |None->
-        match List.find_opt(fun item->item.texture_key=source.key&&
-            item.texture_shape=shape)value.texture_cache with
-        |Some _ as hit->hit
-        |None->List.find_opt(fun item->item.texture_shape=shape&&
-            image_or_canvas_key item.texture_key&&not item.texture_in_use)
-            value.texture_cache in
+      |None->String_table.find_first value.texture_cache(fun _ item->
+          item.texture_shape=shape&&image_or_canvas_key item.texture_key&&
+          item.texture_used<>value.frame)in
     let descriptor:Ogpu.Types.texture_descriptor={label=Some("scene-texture-"^source.key);width=source.levels.(0).width;height=source.levels.(0).height;depth=1;mip_levels=Array.length source.levels;sample_count=1;usage=[Texture_binding;Texture_copy_dst]}in
     let rows=Array.map(fun (level:texture_level)->align256(level.width*4))source.levels in
     let offsets=Array.make(Array.length source.levels)0 in
@@ -501,21 +503,19 @@ let prepare_texture value ~defer(source:sampled_texture)=
       value.uploaded<-Int64.add value.uploaded(Int64.of_int total);
       match reusable with
       |Some item when item.texture==texture->
-          item.texture_key<-source.key;item.texture_hash<-hash;
-          item.texture_in_use<-true;Ok item
+          if item.texture_key<>source.key then begin
+            ignore(String_table.take value.texture_cache item.texture_key);
+            item.texture_key<-source.key;
+            String_table.add value.texture_cache~bytes:item.texture_bytes source.key item
+          end;
+          item.texture_hash<-hash;item.texture_used<-value.frame;Ok item
       |_->let item={texture_key=source.key;texture_hash=hash;texture_shape=shape;
-            texture;texture_bytes=total;texture_in_use=true}in
+            texture;texture_bytes=total;texture_used=value.frame}in
           if not cacheable then begin
             defer(fun()->ignore(Ogpu.Backend.destroy_texture texture));Ok item
-          end else
-            let replaced,others=List.partition(fun old->old.texture_key=source.key)
-              value.texture_cache in
-            List.iter(fun old->if old.texture!=texture then
-              defer(fun()->ignore(Ogpu.Backend.destroy_texture old.texture)))replaced;
-            let keep,evict=trim_texture_cache(item::others)in
-            value.texture_cache<-keep;
-            List.iter(fun old->defer(fun()->ignore(Ogpu.Backend.destroy_texture old.texture)))evict;
-            Ok item in
+          end else begin
+            String_table.add value.texture_cache~bytes:total source.key item;Ok item
+          end in
     match !failure with Some e->finish(Error e)|None->
     let uploaded=
       let ( let* )=Result.bind in
@@ -534,20 +534,30 @@ let prepare_texture value ~defer(source:sampled_texture)=
       |Error e->ignore(Ogpu.Backend.abandon commands);Error e
       |Ok receipt->Ogpu.Backend.complete_through value.queue receipt.epoch in
     finish uploaded
-let prepare_auxiliary value ~defer(source:auxiliary_resource)=
-  let hash=Digest.to_hex(Digest.bytes source.buffer)in
-  match List.find_opt(fun item->item.auxiliary_key=source.key&&item.auxiliary_hash=hash)value.auxiliary_cache with
-  |Some item->Ok item
-  |None->
+  in
+  match String_table.find value.texture_cache source.key with
+  |item when String.starts_with~prefix:"image:"source.key||
+      String.starts_with~prefix:"texture:"source.key||
+      String.starts_with~prefix:"shadow:"source.key->
+      item.texture_used<-value.frame;Ok item
+  |item when String.starts_with~prefix:"canvas:"source.key->upload~hash:""~reusable:(Some item)
+  |item->let hash=levels_hash()in
+      if item.texture_hash=hash then(item.texture_used<-value.frame;Ok item)
+      else upload~hash~reusable:None
+  |exception Not_found->
+      upload~hash:(if image_or_canvas_key source.key then""else levels_hash())~reusable:None
+let prepare_auxiliary value (source:auxiliary_resource)=
+  let upload()=
     let descriptor:Ogpu.Types.buffer_descriptor={label=Some("scene-auxiliary-"^source.key);size=Int64.of_int(Bytes.length source.buffer);usage=[Storage;Copy_dst]}in
     match Ogpu.Backend.create_buffer value.device descriptor with Error _ as e->e|Ok buffer->
     match Ogpu.Backend.write_buffer buffer~offset:0L source.buffer with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->
-    let item={auxiliary_key=source.key;auxiliary_hash=hash;auxiliary_buffer=buffer}in
-    let replaced,others=List.partition(fun old->old.auxiliary_key=source.key)value.auxiliary_cache in
-    List.iter(fun old->defer(fun()->ignore(Ogpu.Backend.destroy_buffer old.auxiliary_buffer)))replaced;
-    let cache=item::others in let keep,evict=List.mapi(fun i x->i,x)cache|>List.partition(fun(i,_)->i<64)in
-    List.iter(fun(_,old)->defer(fun()->ignore(Ogpu.Backend.destroy_buffer old.auxiliary_buffer)))evict;
-    value.auxiliary_cache<-List.map snd keep;value.uploaded<-Int64.add value.uploaded(Int64.of_int(Bytes.length source.buffer));Ok item
+    let item={auxiliary_copy=Bytes.copy source.buffer;auxiliary_buffer=buffer}in
+    String_table.add value.auxiliary_cache source.key item;
+    value.uploaded<-Int64.add value.uploaded(Int64.of_int(Bytes.length source.buffer));Ok item in
+  match String_table.find value.auxiliary_cache source.key with
+  |item when Bytes.equal item.auxiliary_copy source.buffer->Ok item
+  |_->upload()
+  |exception Not_found->upload()
 let u32_le bytes offset =
   Int32.logor (Int32.of_int (Char.code (Bytes.get bytes offset)))
     (Int32.logor
@@ -650,20 +660,15 @@ let coalesce_draws draws =
   loop [] draws
 let prepared_bytes draws=List.fold_left(fun total entry->
   total+Bytes.length entry.draw.mesh.vertices+Bytes.length entry.draw.mesh.indices)0 draws
-let trim_prepared cache =
-  let rec loop entries bytes keep = function
-    | [] -> List.rev keep
-    | item :: rest when entries < 64 && bytes <= cache_byte_capacity - item.prepared_bytes ->
-        loop (entries + 1) (bytes + item.prepared_bytes) (item :: keep) rest
-    | _ :: rest -> loop entries bytes keep rest
-  in loop 0 0 [] cache
 let resolve_prepared value prepared draws =
   match prepared with
   | Some(identity,_version) when identity=""->error"Scene_execution.prepare_run"Ogpu.Error.Invalid_argument"prepared identity is empty"
   | Some(identity,version)->
-      (match List.find_opt(fun item->item.prepared_identity=identity&&item.prepared_version=version)value.prepared_cache with
-      |Some item->Ok(item.prepared_draws,true)
-      |None->Result.map(fun prepared_draws->let item={prepared_identity=identity;prepared_version=version;prepared_draws;prepared_bytes=prepared_bytes prepared_draws}in let others=List.filter(fun old->old.prepared_identity<>identity)value.prepared_cache in value.prepared_cache<-trim_prepared(item::others);prepared_draws,false)(coalesce_draws draws))
+      let rebuild()=Result.map(fun prepared_draws->let item={prepared_version=version;prepared_draws;prepared_bytes=prepared_bytes prepared_draws}in String_table.add value.prepared_cache~bytes:item.prepared_bytes identity item;prepared_draws,false)(coalesce_draws draws)in
+      (match String_table.find value.prepared_cache identity with
+      |item when item.prepared_version=version->Ok(item.prepared_draws,true)
+      |_->rebuild()
+      |exception Not_found->rebuild())
   |None->Result.map(fun draws->draws,false)(coalesce_draws draws)
 let intersect_extent ~bound_w ~bound_h (x,y,w,h)=
   let x=max 0 x and y=max 0 y in
@@ -978,13 +983,14 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
        submission, but not through another replay. Retained plans borrow
        cache resources; drop both replay paths before releasing any of them,
        including on preparation/submission failure. *)
-    (match !deferred with
-     |[]->()
-     |_->drop_plans value);
-    List.iter(fun release->release())!deferred;result in
+    if !deferred<>[]||value.retired.retired_buffers<>[]||value.retired.retired_textures<>[]
+    then drop_plans value;
+    List.iter(fun release->release())!deferred;
+    drain_retired value.retired(fun b->ignore(Ogpu.Backend.destroy_buffer b))
+      (fun t->ignore(Ogpu.Backend.destroy_texture t));result in
   let scratch=value.prepared_scratch in
   clear_prepared_scratch scratch;
-  List.iter(fun item->item.texture_in_use<-false)value.texture_cache;
+  value.frame<-value.frame+1;
   match ensure_prepared_scratch scratch(List.length draws)with
   |Error _ as result->after_prepare();finish result
   |Ok()->Fun.protect~finally:(fun()->clear_prepared_scratch scratch)(fun()->
@@ -1016,7 +1022,7 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
     let {family;blend;texture;auxiliary;samples;draw}=entry in
     let canonical_scene2,canonical_plain,affine,scene3_transform,_=
       modes.(scratch.scratch_length)in
-    match prepare value~defer~trusted_key~reserved:(scratch_mem_mesh scratch)
+    match prepare value~trusted_key~reserved:(scratch_mem_mesh scratch)
       ~uniforms:(if canonical_scene2||affine||scene3_transform then None
         else draw.state.transform_uniforms)
       ~vertex_stable:scene3_transform
@@ -1037,7 +1043,7 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
       rest=match auxiliary with
     |None->append family blend samples draw.state texture None mesh uniform;
       prepare_all rest
-    |Some source->match prepare_auxiliary value~defer source with
+    |Some source->match prepare_auxiliary value source with
       |Error _ as result->result
       |Ok buffer->match prepare_texture value~defer source.texture with
         |Error _ as result->result
@@ -1188,7 +1194,6 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
         let plan_batches,payload_lists=List.split planned in
         let payloads=List.concat payload_lists in
         clear_prepared_scratch scratch;
-        value.retained_batch_builds<-Int64.add value.retained_batch_builds(Int64.of_int(List.length plan_batches));
         match encode_frame value frame~clear plan_batches with
         |Error _ as result->finish result
         |Ok()->
@@ -1220,9 +1225,6 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
               value.automatic_candidate<-Some{candidate_clear=clear;
                 candidate_length=List.length payloads;
                 candidate_fingerprint});
-            (* A plan retained under an identity shares its batches with the
-               automatic slot; count the retained builds once. *)
-            if retained then value.retained_batch_reuses<-Int64.succ value.retained_batch_reuses;
             finish(Ok true))
 let render_sampled_resources ?after_prepare ?clear value draws=render_sampled_resources_common ?after_prepare ?clear value draws
 let render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version value draws=render_sampled_resources_common ?after_prepare ?clear~prepared:(identity,version)value draws
@@ -1247,7 +1249,9 @@ let resize value configuration=
     Ogpu.Backend.configure surface configuration in
   match configured with Error e->ignore(Ogpu.Backend.destroy_texture target);Scene_attachment_pool.destroy attachments;Error e|Ok()->let old=value.target and old_attachments=value.attachments in value.target<-target;value.configuration<-configuration;value.attachments<-attachments;Scene_attachment_pool.destroy old_attachments;Ogpu.Backend.destroy_texture old
 let upload_bytes value=value.uploaded
-let cache_entries value=List.length value.cache
+module Private = struct
+  let cache_count_for_report value=String_table.length value.cache
+end
 type retained_stats={plan_builds:int64;plan_hits:int64;plan_misses:int64;plan_evictions:int64;
   plan_executions:int64;plan_failures:int64;plan_last_failure:string option;plan_entries:int;plan_capacity:int}
 let retained_stats value=
@@ -1258,10 +1262,6 @@ let retained_stats value=
    plan_entries=live value.automatic_submission+live(Option.map(fun s->s.submission_plan)value.prepared_submission);
    plan_capacity=2}
 let pipeline_count value=List.length value.pipelines
-module Private=struct
-  let retained_batch_stats value=
-    value.retained_batch_builds,value.retained_batch_reuses
-end
 let read_pixels value ~bytes_per_row=Ogpu.Backend.read_texture value.target~bytes_per_row
 let read_pixels_into value ~bytes_per_row ~destination=
   Ogpu.Backend.read_texture_into value.target~bytes_per_row~destination
@@ -1272,16 +1272,16 @@ let destroy value=if value.dead then Ok()else(value.dead<-true;
   let record=function Ok()->()|Error error->if !failure=None then failure:=Some error in
   let named name=function Ok()->()|Error(error:Ogpu.Error.t)->
     record(Error{error with message=error.message^" ("^name^")"})in
-  value.prepared_cache<-[];drop_plans value;
+  String_table.clear value.prepared_cache;drop_plans value;
   clear_prepared_scratch value.prepared_scratch;
   value.prepared_scratch.scratch_slots<-[||];
   List.iter(fun variant->Option.iter(fun argument->record(Ogpu.Backend.destroy_argument argument))variant.argument;variant.argument<-None)value.pipelines;
-  List.iter(fun item->named("mesh "^item.key)(Ogpu.Backend.destroy_buffer item.buffer))value.cache;value.cache<-[];
+  String_table.clear value.cache;
   value.previous_uniforms<-[||];
   Array.iteri(fun index page->Option.iter(fun page->
     named"uniform page"(Ogpu.Backend.destroy_buffer page.page_buffer))page;
     value.uniform_pages.(index)<-None)value.uniform_pages;
-  List.iter(fun item->record(Ogpu.Backend.destroy_buffer item.auxiliary_buffer))value.auxiliary_cache;value.auxiliary_cache<-[];List.iter(fun item->record(Ogpu.Backend.destroy_texture item.texture))value.texture_cache;value.texture_cache<-[];Option.iter(fun scratch->record(Ogpu.Backend.destroy_buffer scratch.scratch_buffer))value.texture_upload_scratch;value.texture_upload_scratch<-None;
+  String_table.clear value.auxiliary_cache;String_table.clear value.texture_cache;drain_retired value.retired(fun b->named"mesh or auxiliary"(Ogpu.Backend.destroy_buffer b))(fun t->record(Ogpu.Backend.destroy_texture t));Option.iter(fun scratch->record(Ogpu.Backend.destroy_buffer scratch.scratch_buffer))value.texture_upload_scratch;value.texture_upload_scratch<-None;
   Option.iter(fun pool->named"argument page"(Ogpu.Backend.destroy_buffer pool.argument_buffer))value.arguments;value.arguments<-None;
   Hashtbl.iter(fun _ sampler->record(Ogpu.Backend.destroy_sampler sampler))value.samplers;Hashtbl.reset value.samplers;
   Scene_attachment_pool.destroy value.attachments;record(Ogpu.Backend.destroy_texture value.target);List.iter(fun variant->record(Ogpu.Backend.destroy_pipeline variant.pipeline))value.pipelines;Option.iter(fun surface->record(Ogpu.Backend.destroy_surface surface))value.surface;record(Ogpu.Backend.destroy_queue value.queue);

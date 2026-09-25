@@ -110,7 +110,21 @@ let () =
   measure "orient3d_packed_exact_underflow" fallback_count (fun _ ->
     Predicates.orient3d_packed ~x:underflow_x ~y:underflow_y
       ~z:underflow_z 0 1 2 3 |> sign_code);
-  let module Point = Boolean_kernel.Private in
+  let module Point = struct
+    include Pdk_boolean.Boolean_kernel.Private
+    let sign value = match reference value with
+      | -1 -> Predicates.Negative | 0 -> Predicates.Zero
+      | 1 -> Predicates.Positive | _ -> assert false
+    let ray_edge_reference ~query ~first ~second ~dx ~dy ~dz =
+      sign (Ray_edge (query,first,second,dx,dy,dz))
+    let ray_edge_symbolic_reference ~query ~first ~second =
+      sign (Ray_edge_symbolic (query,first,second))
+    let normal_dot_direction_reference a b c ~dx ~dy ~dz =
+      sign (Normal_dot_direction (a,b,c,dx,dy,dz))
+    let normal_dot_symbolic_reference a b c =
+      sign (Normal_dot_symbolic (a,b,c))
+    let radial_dot_reference a b c d = sign (Radial_dot (a,b,c,d))
+  end in
   let construction_x = [|
     0.; 2.; 1.; 1.; 1.; 1.;
     1.; 1.; 1.; 0.; 1.; 0.; 0.; 1.; 0.; 1.

@@ -175,7 +175,7 @@ let test_closed_alignment_and_v_wrap () =
 
 let test_rest_errors_and_cancellation () =
   let source = open_sections () in
-  let mismatch = Ops.points [|0.,0.,0.|] in
+  let mismatch = Line_geometry.points [|0.,0.,0.|] in
   (match Ops.poly_loft ~rest:mismatch source with
    | Error error -> check (Error.code error = "invalid_topology")
        "rest mismatch diagnostic"

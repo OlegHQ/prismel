@@ -822,6 +822,58 @@ module Core = struct
     Cook.close value.cook
 end
 
+module CC = Pxui.Camera_control
+module CC2 = Pxui.Camera2_control
+
+let set_ui_cursor ui visible =
+  let shape = match if visible then Pxui.Ui.cursor ui else None with
+    | Some shape -> (shape :> [`Default|`Horizontal_resize|`Vertical_resize])
+    | None -> `Default in
+  match Sketch.set_cursor shape with Ok () -> () | Error error -> failwith error
+
+(* What a dimensional adapter supplies to the one environment: camera widgets
+   and navigation, still-image painting, view persistence, and any mode state
+   of its own ([extra]). Every hook is pure over the environment's values. *)
+module type VIEWPORT = sig
+  type camera
+  type control
+  type rendered
+  type request
+  type extra
+  type view  (** The camera the view paints with. *)
+
+  val keymap : Leader.binding list
+  val default_camera : unit -> camera
+  val seed_document : camera -> Edit_graph.factory list -> Edit_graph.t -> Edit_graph.t
+  val init : 'p Core.t -> camera -> 'p Core.t * extra
+  val create_control : unit -> control
+  val ui_visible : control -> bool
+  val toggle_ui : control -> control
+  val open_camera : control -> control
+  val begin_frame : extra -> Frame.t -> extra * Frame.t
+  (** Strip mode-owned input (3D fly) before the shell sees the frame. *)
+
+  val panel : Pxui.Ui.t -> control:control -> camera:camera -> extra:extra ->
+    inspector:(Pxui.Ui.t -> 'a) -> control * camera * request list * extra * 'a
+  val section : camera -> extra -> Yojson.Safe.t
+  val restore : camera -> extra -> Yojson.Safe.t -> camera * extra
+  val apply_action : camera -> extra -> Leader.action -> extra * string option
+  (** Adapter-owned leader actions; [Some status] replaces the render status. *)
+
+  val on_doc : previous:'p Core.t -> 'p Core.t -> camera -> 'p Core.t
+  val navigate : area:Workspace.bounds -> control -> camera -> extra ->
+    'p Core.t -> raw_frame:Frame.t -> input:Frame.t -> camera * extra
+  val frame_bounds : viewport:Workspace.bounds -> min:Vec3.t -> max:Vec3.t ->
+    camera -> camera
+  val on_view : 'p Core.t -> previous:camera -> camera -> extra -> time:float ->
+    'p Core.t * camera * extra
+  val view_camera : camera -> extra -> pending:bool -> view
+  val paint : Workspace.bounds -> view -> rendered -> Scene.t
+  val save : request -> (unit, string) result
+  val filename : request -> string
+  val close : extra -> unit
+end
+
 module Environment = struct
   type ('rendered, 'camera) hidden_scene_cache = {
     width : int;
@@ -832,10 +884,6 @@ module Environment = struct
     view_visible : bool;
     scene : Scene.t;
   }
-
-  let rerender core draw =
-    let core = { core with Core.cook = Cook.force core.Core.cook } in
-    core, Option.map (draw (Core.displayed_node core)) (Core.prepared core)
 
   let finish (update : (_, _) Core.update) ~core ~draw ~rendered ~requests ~status =
     let rendered = if update.prepared_changed || update.effects.view
@@ -856,7 +904,7 @@ module Environment = struct
           | Error message -> "Render failed: " ^ message)
     | _ -> None
 
-  let scene ~ui_visible ~background ~rendered ~camera ~paint_view ~overlay
+  let compose ~ui_visible ~background ~rendered ~camera ~paint_view ~overlay
       ~cache core (frame : Frame.t) =
     let view_visible = Core.column_visible core Workspace.View in
     let world viewport = match rendered with
@@ -884,18 +932,173 @@ module Environment = struct
             (viewport_frame viewport frame))]] in
       Scene.clear background :: world viewport @ overlay
       @ Core.machinery core ~all_ui_visible:true, cache
+
+  (* The one environment: [Core] plus a dimensional viewport. *)
+  module Make (V : VIEWPORT) = struct
+    type nonrec layout = layout
+    let default_layout = default_layout
+
+    type 'prepared t = {
+      core : 'prepared Core.t;
+      camera : V.camera;
+      control : V.control;
+      draw : Graph.t -> 'prepared -> V.rendered;
+      overlay : Graph.t -> 'prepared option -> Frame.t -> Scene.t;
+      rendered : V.rendered option;
+      render_status : string option;
+      pending_render : V.request option;
+      background : Color.t;
+      extra : V.extra;
+      mutable hidden_scene_cache : (V.rendered, V.view) hidden_scene_cache option;
+    }
+
+    let create ?(layout = default_layout) ?name ?presets ?timeline_frames ?factories
+        ?(camera = V.default_camera ()) ?(background = Color.hex_exn "#09090b")
+        ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~graph ~prepare ~draw
+        ?(overlay = fun _ _ _ -> Scene.empty) () =
+      Result.map (fun core ->
+        let core, extra = V.init core camera in
+        { core; camera; control = V.create_control (); draw; overlay;
+          rendered = None; render_status = None; pending_render = None;
+          background; extra; hidden_scene_cache = None })
+        (Core.create ~keymap:V.keymap ~seed_document:(V.seed_document camera)
+          ~layout ?name ?presets ?timeline_frames ?factories ?seed ?grain ?domains
+          ?max_entries ?max_payload_bytes ~graph ~prepare ())
+
+    let graph value = Core.graph value.core
+    let document value = Core.document value.core
+    let prepared value = Core.prepared value.core
+    let camera value = value.camera
+    let extra value = value.extra
+    let timeline value = Core.timeline value.core
+    let selected_node value = Core.selected_node value.core
+    let displayed_node value = Core.displayed_node value.core
+    let panes value frame = Core.panes value.core frame
+    let graph_nodes value = Pxui_graph.node_views value.core.graph_view
+    let can_undo value = Editor.History.can_undo value.core.Core.history
+    let can_redo value = Editor.History.can_redo value.core.Core.history
+
+    let rerender value =
+      let core = { value.core with Core.cook = Cook.force value.core.Core.cook } in
+      { value with core;
+        rendered = Option.map (value.draw (Core.displayed_node core))
+            (Core.prepared core) }
+
+    let update_with value frame ~inspector =
+      let ui = value.core.Core.ui in
+      let raw_frame = frame in
+      let extra, frame = V.begin_frame value.extra frame in
+      let visible = V.ui_visible value.control in
+      let camera_panel () = V.panel ui ~control:value.control ~camera:value.camera
+          ~extra ~inspector in
+      let update = Core.update value.core ~all_ui_visible:visible
+          ~text_focus:(Pxui.Ui.text_input_focused ui) ~camera_panel
+          ~render_status:value.render_status
+          ~view_state:(function
+            | Some (_, camera, _, extra, _) -> V.section camera extra
+            | None -> V.section value.camera extra) frame in
+      let core = update.core and panes = Core.panes update.core frame in
+      let control, camera, requests, extra, inspected = match update.panel with
+        | Some (control, camera, requests, extra, inspected) ->
+            control, camera, requests, extra, Some inspected
+        | None -> value.control, value.camera, [], extra, None in
+      let camera, extra = match update.loaded_view with
+        | Some json -> V.restore camera extra json
+        | None -> camera, extra in
+      let control, extra, render_status = List.fold_left
+          (fun (control, extra, status) -> function
+            | Leader.Hide_ui -> V.toggle_ui control, extra, status
+            | Open_camera -> V.open_camera control, extra, status
+            | action ->
+                let extra, notice = V.apply_action camera extra action in
+                control, extra, (if notice = None then status else notice))
+          (control, extra, value.render_status) update.actions in
+      let core = V.on_doc ~previous:value.core core camera in
+      let area = if visible then panes.view
+        else 0, 0, frame.Frame.width, frame.height in
+      let camera, extra = V.navigate ~area control camera extra core ~raw_frame
+          ~input:update.input in
+      let camera, render_status = match update.framed with
+        | Some (Some (min, max)) ->
+            V.frame_bounds ~viewport:panes.view ~min ~max camera, render_status
+        | Some None -> camera, Some "Nothing to frame: no cooked points"
+        | None -> camera, render_status in
+      let core, camera, extra = V.on_view core ~previous:value.camera camera extra
+          ~time:frame.Frame.time in
+      let rendered, pending_render, render_status = finish update
+          ~core ~draw:value.draw ~rendered:value.rendered ~requests
+          ~status:render_status in
+      { value with core; camera; control; rendered; pending_render; render_status;
+        extra }, inspected
+
+    let update value frame = fst (update_with value frame ~inspector:ignore)
+
+    let after_present value _frame =
+      match save_status ~save:V.save ~filename:V.filename
+          value.pending_render value.rendered with
+      | Some status -> { value with render_status = Some status; pending_render = None }
+      | None -> value
+
+    let scene value frame =
+      let scene, cache = compose ~ui_visible:(V.ui_visible value.control)
+          ~background:value.background ~rendered:value.rendered
+          ~camera:(V.view_camera value.camera value.extra
+            ~pending:(value.pending_render <> None))
+          ~paint_view:V.paint ~overlay:value.overlay ~cache:value.hidden_scene_cache
+          value.core frame in
+      value.hidden_scene_cache <- cache;
+      scene
+
+    let close value =
+      V.close value.extra;
+      Core.close value.core
+
+    let run ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background
+        ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~graph
+        ~prepare ~draw ?overlay () =
+      let name = Option.value name ~default:(String.lowercase_ascii config.Sketch.title) in
+      let init _frame = create ?layout ~name ?presets ?timeline_frames ?factories
+          ?camera ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
+          ~graph ~prepare ~draw ?overlay () |> Result.get_ok in
+      let update value frame =
+        let value = update value frame in
+        set_ui_cursor value.core.ui (V.ui_visible value.control);
+        value in
+      ignore (Sketch.run_state ~config ~init ~update ~view:scene
+        ~after_present ~on_stop:close ())
+  end
 end
 
-module CC = Pxui.Camera_control
-module CC2 = Pxui.Camera2_control
-
-let set_ui_cursor ui visible =
-  let shape = match if visible then Pxui.Ui.cursor ui else None with
-    | Some shape -> (shape :> [`Default|`Horizontal_resize|`Vertical_resize])
-    | None -> `Default in
-  match Sketch.set_cursor shape with Ok () -> () | Error error -> failwith error
-
 module Viewport2 = struct
+  type camera = Easy_camera2.t
+  type control = CC2.t
+  type rendered = Scene.t
+  type request = CC2.render_request
+  type extra = unit
+  type view = Easy_camera2.t
+
+  let keymap = Leader.keymap
+  let default_camera () = Easy_camera2.create ()
+  let seed_document _ _ document = document
+  let init core _ = core, ()
+  let create_control () = CC2.create ()
+  let ui_visible = CC2.ui_visible
+  let toggle_ui = CC2.toggle_ui
+  let open_camera = CC2.open_camera
+  let begin_frame () frame = (), frame
+
+  let panel ui ~control ~camera ~extra:() ~inspector =
+    let control, camera, requests = CC2.widgets control ui ~camera in
+    control, camera, requests, (), inspector ui
+
+  let section camera () = Editor.Store.Viewport.encode2 camera
+  let restore camera () json = Editor.Store.Viewport.decode2 camera json, ()
+  let apply_action _ () _ = (), None
+  let on_doc ~previous:_ core _ = core
+
+  let navigate ~area control camera () _core ~raw_frame:_ ~input =
+    CC2.navigate ~control_area:area ~viewport:area control camera input, ()
+
   let frame_bounds ~viewport:(_, _, width, height) ~min ~max camera =
     let span_x = max.Vec3.x -. min.Vec3.x
     and span_y = max.Vec3.y -. min.Vec3.y in
@@ -907,36 +1110,34 @@ module Viewport2 = struct
          (Vec2.create ((min.x +. max.x) *. 0.5) ((min.y +. max.y) *. 0.5))
     |> Easy_camera2.with_zoom zoom
 
-  let panel ui ~control ~camera ~inspector =
-    let control, camera, requests = CC2.widgets control ui ~camera in
-    control, camera, requests, inspector ui
-
-  let section = Editor.Store.Viewport.encode2
-  let restore = Editor.Store.Viewport.decode2
-
-  let navigate ~visible ~panes ~control ~camera ~input (frame : Frame.t) =
-    let viewport = if visible then panes.Workspace.view
-      else 0, 0, frame.width, frame.height in
-    CC2.navigate ~control_area:viewport ~viewport control camera input
-
-  let scene viewport camera rendered = Easy_camera2.scene ~viewport camera rendered
-  let save_png = CC2.save
+  let on_view core ~previous:_ camera () ~time:_ = core, camera, ()
+  let view_camera camera () ~pending:_ = camera
+  let paint viewport camera rendered = Easy_camera2.scene ~viewport camera rendered
+  let save = CC2.save
+  let filename request = request.CC2.filename
+  let close () = ()
 end
 
 module Viewport3 = struct
+  type camera = Easy_camera.t
+  type control = CC.t
+  type rendered = Scene3.t
+  type request = CC.render_request
+  type view = Camera.t
+
+  (* Look-through, the fly speed while the pointer is captured, and the
+     active camera node's view, refreshed each update. *)
+  type extra = { look_through : bool; fly : float option; render_camera : Camera.t }
+
+  let keymap = Leader.keymap3
+  let default_camera () = Easy_camera.create ~target:Vec3.zero ~distance:7. ()
+  let create_control () = CC.create ()
+  let ui_visible = CC.ui_visible
+  let toggle_ui = CC.toggle_ui
+  let open_camera = CC.open_camera
+  let set_relative enabled = ignore (Sketch.set_relative_mouse enabled)
+
   (* ---- camera nodes: SOPs with operation "camera" (Sop_catalog.Camera). *)
-
-  let panel ui ~control ~camera ~look_through ~inspector =
-    let control, camera, requests = CC.widgets control ui ~camera in
-    let look_through = Pxui.Ui.toggle ui "Look through render camera"
-        look_through in
-    control, camera, requests, look_through, inspector ui
-
-  let section camera ~look_through =
-    Editor.Store.Viewport.encode3 camera ~look_through
-  let restore = Editor.Store.Viewport.decode3
-  let scene viewport camera rendered = [Scene.view3d ~viewport ~camera rendered]
-  let save_png = CC.save
 
   let camera_ids document = Edit_graph.inspect document
     |> List.filter_map (fun (info : Edit_graph.node_info) ->
@@ -999,327 +1200,131 @@ module Viewport3 = struct
     | Some node -> Option.value (node_camera node) ~default:(Easy_camera.camera easy)
     | None -> Easy_camera.camera easy
 
-  let navigate ~control_area ~control ~camera ~raw_frame ~input ~fly
-      ~look_through ~active =
+  let init core camera =
+    let core = sync_cameras ~mode:`Reset core camera in
+    core, { look_through = false; fly = None;
+            render_camera = render_camera_of core camera }
+
+  let begin_frame extra frame = match extra.fly with
+    | None -> extra, frame
+    | Some _ ->
+        let ended, frame = Editor.Router.fly frame in
+        if not ended then extra, frame
+        else (set_relative false; { extra with fly = None }, frame)
+
+  let panel ui ~control ~camera ~extra ~inspector =
+    let control, camera, requests = CC.widgets control ui ~camera in
+    let look_through = Pxui.Ui.toggle ui "Look through render camera"
+        extra.look_through in
+    control, camera, requests, { extra with look_through }, inspector ui
+
+  let section camera extra =
+    Editor.Store.Viewport.encode3 camera ~look_through:extra.look_through
+  let restore camera extra json =
+    let camera, look_through = Editor.Store.Viewport.decode3 camera json in
+    camera, { extra with look_through }
+
+  let apply_action camera extra = function
+    | Leader.Look_through -> { extra with look_through = not extra.look_through }, None
+    | Fly when extra.fly = None ->
+        set_relative true;
+        { extra with fly = Some (Float.max 0.5 (Easy_camera.distance camera *. 0.5)) },
+        Some "Flying: WASD/QE move, Shift x4, wheel speed, Esc exits"
+    | _ -> extra, None
+
+  let on_doc ~previous core camera =
+    if core.Core.document == previous.Core.document
+        && Pxui_graph.flagged core.graph_view = Pxui_graph.flagged previous.graph_view
+    then core else sync_cameras ~mode:`Amend core camera
+
+  let navigate ~area control camera extra core ~raw_frame ~input =
+    let active = active_node core in
     let following = Option.fold ~none:false ~some:follows active in
     (* A fixed render camera owns the view while look-through is enabled. *)
-    if look_through && active <> None && not following then camera, fly
-    else match fly with
+    if extra.look_through && active <> None && not following then camera, extra
+    else match extra.fly with
       | Some speed ->
           let camera, speed = Easy_camera.fly ~speed camera raw_frame in
-          camera, Some speed
-      | None -> CC.navigate ~control_area control camera input, None
+          camera, { extra with fly = Some speed }
+      | None -> CC.navigate ~control_area:area control camera input, extra
+
+  let frame_bounds ~viewport:_ ~min ~max camera = Easy_camera.frame_bounds ~min ~max camera
 
   (* Follow-viewport motion changes the camera node in the same undo burst;
      node edits and undo pull the viewport back to the document. *)
-  let on_view ~active ~previous ~core ~camera ~time =
-    match active with
-    | Some node when follows node ->
-        let moved = not (same_view (Easy_camera.camera previous)
-            (Easy_camera.camera camera)) in
-        (match node_camera node with
-         | Some node_view when moved || not (same_view node_view (Easy_camera.camera camera)) ->
-             if moved then
-               match Edit_graph.apply_parameters core.Core.document ~node_id:(Node.id node)
-                   (view_parameters camera) with
-               | Ok (document, _) ->
-                   Core.environment_edit core (`View time) document, camera
-               | Error _ -> core, camera
-             else core,
-               (match Camera.projection node_view with
-                | Perspective { fov_y; _ } -> Easy_camera.with_fov_y fov_y camera
-                | _ -> camera)
-               |> Easy_camera.of_view ~eye:(Camera.position node_view)
-                    ~target:(Camera.target node_view)
-         | Some _ | None -> core, camera)
-    | Some _ | None -> core, camera
-end
-
-module Environment3 = struct
-  open Viewport3
-  type nonrec layout = layout
-  let default_layout = default_layout
-
-  type 'prepared t = {
-    core : 'prepared Core.t;
-    camera : Easy_camera.t;
-    camera_control : CC.t;
-    scene3 : Graph.t -> 'prepared -> Scene3.t;
-    overlay : Graph.t -> 'prepared option -> Frame.t -> Scene.t;
-    rendered : Scene3.t option;
-    render_status : string option;
-    pending_render : CC.render_request option;
-    background : Color.t;
-    look_through : bool;
-    fly : float option;  (* flying at this speed, with relative pointer *)
-    (* The active camera node's view, refreshed each update. *)
-    render_camera : Camera.t;
-    mutable hidden_scene_cache :
-      (Scene3.t, Camera.t) Environment.hidden_scene_cache option;
-  }
-
-  let create ?(layout = default_layout) ?name ?presets ?timeline_frames ?factories
-      ?(camera = Easy_camera.create ~target:Vec3.zero ~distance:7. ())
-      ?(background = Color.hex_exn "#09090b") ?seed ?grain ?domains
-      ?max_entries ?max_payload_bytes ~graph ~prepare ~scene3
-      ?(overlay = fun _ _ _ -> Scene.empty) () =
-    Result.map (fun core ->
-      let core = sync_cameras ~mode:`Reset core camera in
-      { core; camera; camera_control = CC.create (); scene3; overlay;
-        rendered = None; render_status = None; pending_render = None;
-        background; look_through = false; fly = None;
-        render_camera = render_camera_of core camera; hidden_scene_cache = None })
-      (Core.create ~keymap:Leader.keymap3
-        ~seed_document:(Viewport3.seed_document camera)
-        ~layout ?name ?presets ?timeline_frames ?factories ?seed
-        ?grain ?domains ?max_entries ?max_payload_bytes ~graph ~prepare ())
-
-  let graph value = Core.graph value.core
-  let document value = Core.document value.core
-  let prepared value = Core.prepared value.core
-  let camera value = value.camera
-  let render_camera value = value.render_camera
-  let flying value = value.fly <> None
-  let look_through value = value.look_through
-  let timeline value = Core.timeline value.core
-  let selected_node value = Core.selected_node value.core
-  let displayed_node value = Core.displayed_node value.core
-  let panes value frame = Core.panes value.core frame
-  let graph_nodes value = Pxui_graph.node_views value.core.graph_view
-  let rerender value =
-    let core, rendered = Environment.rerender value.core value.scene3 in
-    { value with core; rendered }
-  let can_undo value = Editor.History.can_undo value.core.Core.history
-  let can_redo value = Editor.History.can_redo value.core.Core.history
-
-  let set_relative enabled = ignore (Sketch.set_relative_mouse enabled)
-
-  let update_with value frame ~inspector =
-    let ui = value.core.Core.ui in
-    let raw_frame = frame in
-    let fly, frame = match value.fly with
-      | None -> None, frame
-      | Some _ ->
-          let ended, frame = Editor.Router.fly frame in
-          (if ended then None else value.fly), frame in
-    if value.fly <> None && fly = None then set_relative false;
-    let visible = CC.ui_visible value.camera_control in
-    let camera_panel () = Viewport3.panel ui ~control:value.camera_control
-        ~camera:value.camera ~look_through:value.look_through ~inspector in
-    let update = Core.update value.core ~all_ui_visible:visible
-        ~text_focus:(Pxui.Ui.text_input_focused ui) ~camera_panel
-        ~render_status:value.render_status
-        ~view_state:(function
-          | Some (_, camera, _, look, _) -> Viewport3.section camera ~look_through:look
-          | None -> Viewport3.section value.camera
-              ~look_through:value.look_through) frame in
-    let core = update.core and panes = Core.panes update.core frame in
-    let control, camera, requests, look_through, inspected =
-      match update.panel with
-      | Some panel -> let control, camera, requests, look, inspected = panel in
-          control, camera, requests, look, Some inspected
-      | None -> value.camera_control, value.camera, [], value.look_through, None in
-    let camera, look_through = match update.loaded_view with
-      | Some json -> Viewport3.restore camera json
-      | None -> camera, look_through in
-    let control = List.fold_left (fun control -> function
-      | Leader.Hide_ui -> CC.toggle_ui control
-      | Open_camera -> CC.open_camera control
-      | _ -> control) control update.actions in
-    let look_through = List.fold_left (fun look -> function
-      | Leader.Look_through -> not look | _ -> look) look_through update.actions in
-    let fly, render_status = if fly = None && List.mem Leader.Fly update.actions then begin
-        set_relative true;
-        Some (Float.max 0.5 (Easy_camera.distance camera *. 0.5)),
-        Some "Flying: WASD/QE move, Shift x4, wheel speed, Esc exits"
-      end else fly, value.render_status in
-    let core = if core.document == value.core.document
-        && Pxui_graph.flagged core.graph_view
-           = Pxui_graph.flagged value.core.graph_view
-      then core else sync_cameras ~mode:`Amend core camera in
-    let active = active_node core in
-    let control_area = if visible then panes.view
-      else 0, 0, frame.Frame.width, frame.height in
-    let camera, fly = Viewport3.navigate ~control_area ~control ~camera
-        ~raw_frame ~input:update.input ~fly ~look_through ~active in
-    let camera, render_status = match update.framed with
-      | Some (Some (min, max)) -> Easy_camera.frame_bounds ~min ~max camera, render_status
-      | Some None -> camera, Some "Nothing to frame: no cooked points"
-      | None -> camera, render_status in
-    let core, camera = Viewport3.on_view ~active ~previous:value.camera
-        ~core ~camera ~time:frame.Frame.time in
-    let rendered, pending_render, render_status = Environment.finish update
-        ~core ~draw:value.scene3 ~rendered:value.rendered ~requests
-        ~status:render_status in
-    { value with core; camera; camera_control = control; rendered; pending_render;
-      render_status; look_through; fly; render_camera = render_camera_of core camera },
-    inspected
-
-  let update value frame = fst (update_with value frame ~inspector:ignore)
-
-  let after_present value _frame =
-    match Environment.save_status ~save:Viewport3.save_png
-        ~filename:(fun request -> request.CC.filename)
-        value.pending_render value.rendered with
-    | Some status -> { value with render_status = Some status; pending_render = None }
-    | None -> value
+  let on_view core ~previous camera extra ~time =
+    let core, camera = match active_node core with
+      | Some node when follows node ->
+          let moved = not (same_view (Easy_camera.camera previous)
+              (Easy_camera.camera camera)) in
+          (match node_camera node with
+           | Some node_view when moved || not (same_view node_view (Easy_camera.camera camera)) ->
+               if moved then
+                 match Edit_graph.apply_parameters core.Core.document ~node_id:(Node.id node)
+                     (view_parameters camera) with
+                 | Ok (document, _) ->
+                     Core.environment_edit core (`View time) document, camera
+                 | Error _ -> core, camera
+               else core,
+                 (match Camera.projection node_view with
+                  | Perspective { fov_y; _ } -> Easy_camera.with_fov_y fov_y camera
+                  | _ -> camera)
+                 |> Easy_camera.of_view ~eye:(Camera.position node_view)
+                      ~target:(Camera.target node_view)
+           | Some _ | None -> core, camera)
+      | Some _ | None -> core, camera in
+    core, camera, { extra with render_camera = render_camera_of core camera }
 
   (* The view shows the render camera while looking through it and on the
      frame whose framebuffer a PNG request captures. *)
-  let view_camera value =
-    if value.look_through || value.pending_render <> None then value.render_camera
-    else Easy_camera.camera value.camera
+  let view_camera camera extra ~pending =
+    if extra.look_through || pending then extra.render_camera
+    else Easy_camera.camera camera
 
-  let scene value frame =
-    let all_ui_visible = CC.ui_visible value.camera_control in
-    let scene, cache = Environment.scene ~ui_visible:all_ui_visible
-        ~background:value.background ~rendered:value.rendered
-        ~camera:(view_camera value)
-        ~paint_view:Viewport3.scene
-        ~overlay:value.overlay ~cache:value.hidden_scene_cache
-        value.core frame in
-    value.hidden_scene_cache <- cache;
-    scene
+  let paint viewport camera rendered = [Scene.view3d ~viewport ~camera rendered]
+  let save = CC.save
+  let filename request = request.CC.filename
+  let close extra = if extra.fly <> None then set_relative false
+end
 
-  let close value =
-    if value.fly <> None then set_relative false;
-    Core.close value.core
+module Environment3 = struct
+  include Environment.Make (Viewport3)
 
-  let run ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background ?seed ?grain ?domains ?max_entries
-      ?max_payload_bytes ~config ~graph ~prepare ~scene3
+  let render_camera value = (extra value).Viewport3.render_camera
+  let flying value = (extra value).Viewport3.fly <> None
+  let look_through value = (extra value).Viewport3.look_through
+
+  let create ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~graph ~prepare ~scene3
       ?overlay () =
-    let name = Option.value name ~default:(String.lowercase_ascii config.Sketch.title) in
-    let init _frame = create ?layout ~name ?presets ?timeline_frames ?factories ?camera ?background ?seed ?grain ?domains
-        ?max_entries ?max_payload_bytes ~graph ~prepare ~scene3
-        ?overlay () |> Result.get_ok in
-    let update value frame =
-      let value = update value frame in
-      set_ui_cursor value.core.ui (CC.ui_visible value.camera_control);
-      value in
-    ignore (Sketch.run_state ~config ~init ~update ~view:scene
-      ~after_present ~on_stop:close ())
+    create ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~graph ~prepare
+      ~draw:scene3 ?overlay ()
+
+  let run ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~graph ~prepare
+      ~scene3 ?overlay () =
+    run ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~graph ~prepare
+      ~draw:scene3 ?overlay ()
 end
 
 module Environment2 = struct
-  type nonrec layout = layout
-  let default_layout = default_layout
+  include Environment.Make (Viewport2)
 
-  type 'prepared t = {
-    core : 'prepared Core.t;
-    camera : Easy_camera2.t;
-    camera_control : CC2.t;
-    scene2 : Graph.t -> 'prepared -> Scene.t;
-    overlay : Graph.t -> 'prepared option -> Frame.t -> Scene.t;
-    rendered : Scene.t option;
-    render_status : string option;
-    pending_render : CC2.render_request option;
-    background : Color.t;
-    mutable hidden_scene_cache :
-      (Scene.t, Easy_camera2.t) Environment.hidden_scene_cache option;
-  }
-
-  let create ?(layout = default_layout) ?name ?presets ?timeline_frames ?factories
-      ?(camera = Easy_camera2.create ())
-      ?(background = Color.hex_exn "#09090b") ?seed ?grain ?domains
-      ?max_entries ?max_payload_bytes ~graph ~prepare ~scene2
-      ?(overlay = fun _ _ _ -> Scene.empty) () =
-    Result.map (fun core ->
-      { core; camera; camera_control = CC2.create (); scene2; overlay;
-        rendered = None; render_status = None; pending_render = None; background;
-        hidden_scene_cache = None })
-      (Core.create ~layout ?name ?presets ?timeline_frames ?factories ?seed ?grain
-        ?domains ?max_entries
-        ?max_payload_bytes ~graph ~prepare ())
-
-  let graph value = Core.graph value.core
-  let document value = Core.document value.core
-  let prepared value = Core.prepared value.core
-  let camera value = value.camera
-  let timeline value = Core.timeline value.core
-  let selected_node value = Core.selected_node value.core
-  let displayed_node value = Core.displayed_node value.core
-  let panes value frame = Core.panes value.core frame
-  let graph_nodes value = Pxui_graph.node_views value.core.graph_view
-
-  let rerender value =
-    let core, rendered = Environment.rerender value.core value.scene2 in
-    { value with core; rendered }
-  let can_undo value = Editor.History.can_undo value.core.Core.history
-  let can_redo value = Editor.History.can_redo value.core.Core.history
-
-  let update_with value frame ~inspector =
-    let ui = value.core.Core.ui in
-    let visible = CC2.ui_visible value.camera_control in
-    let camera_panel () = Viewport2.panel ui ~control:value.camera_control
-        ~camera:value.camera ~inspector in
-    let update = Core.update value.core ~all_ui_visible:visible
-        ~text_focus:(Pxui.Ui.text_input_focused ui) ~camera_panel
-        ~render_status:value.render_status
-        ~view_state:(fun panel ->
-          let camera = match panel with
-            | Some (_, camera, _, _) -> camera | None -> value.camera in
-          Viewport2.section camera) frame in
-    let core = update.core and panes = Core.panes update.core frame in
-    let control, camera, requests, inspected = match update.panel with
-      | Some (control, camera, requests, inspected) ->
-          control, camera, requests, Some inspected
-      | None -> value.camera_control, value.camera, [], None in
-    let camera = match update.loaded_view with
-      | Some json -> Viewport2.restore camera json
-      | None -> camera in
-    let control = List.fold_left (fun control -> function
-      | Leader.Hide_ui -> CC2.toggle_ui control
-      | Open_camera -> CC2.open_camera control
-      | _ -> control) control update.actions in
-    let camera = Viewport2.navigate ~visible ~panes ~control ~camera
-        ~input:update.input frame in
-    let camera, render_status = match update.framed with
-      | Some (Some (min, max)) ->
-          Viewport2.frame_bounds ~viewport:panes.view ~min ~max camera,
-          value.render_status
-      | Some None -> camera, Some "Nothing to frame: no cooked points"
-      | None -> camera, value.render_status in
-    let rendered, pending_render, render_status = Environment.finish update
-        ~core ~draw:value.scene2 ~rendered:value.rendered ~requests
-        ~status:render_status in
-    { value with core; camera; camera_control = control; rendered; pending_render;
-      render_status }, inspected
-
-  let update value frame = fst (update_with value frame ~inspector:ignore)
-
-  let after_present value _frame =
-    match Environment.save_status ~save:Viewport2.save_png
-        ~filename:(fun request -> request.CC2.filename)
-        value.pending_render value.rendered with
-    | Some status -> { value with render_status = Some status; pending_render = None }
-    | None -> value
-
-  let scene value frame =
-    let all_ui_visible = CC2.ui_visible value.camera_control in
-    let scene, cache = Environment.scene ~ui_visible:all_ui_visible
-        ~background:value.background ~rendered:value.rendered
-        ~camera:value.camera
-        ~paint_view:Viewport2.scene
-        ~overlay:value.overlay ~cache:value.hidden_scene_cache
-        value.core frame in
-    value.hidden_scene_cache <- cache;
-    scene
-
-  let close value = Core.close value.core
-
-  let run ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background ?seed ?grain ?domains ?max_entries
-      ?max_payload_bytes ~config ~graph ~prepare ~scene2
+  let create ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~graph ~prepare ~scene2
       ?overlay () =
-    let name = Option.value name ~default:(String.lowercase_ascii config.Sketch.title) in
-    let init _frame = create ?layout ~name ?presets ?timeline_frames ?factories ?camera ?background ?seed ?grain ?domains
-        ?max_entries ?max_payload_bytes ~graph ~prepare ~scene2
-        ?overlay () |> Result.get_ok in
-    let update value frame =
-      let value = update value frame in
-      set_ui_cursor value.core.ui (CC2.ui_visible value.camera_control);
-      value in
-    ignore (Sketch.run_state ~config ~init ~update ~view:scene
-      ~after_present ~on_stop:close ())
+    create ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~graph ~prepare
+      ~draw:scene2 ?overlay ()
+
+  let run ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~graph ~prepare
+      ~scene2 ?overlay () =
+    run ?layout ?name ?presets ?timeline_frames ?factories ?camera ?background
+      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~graph ~prepare
+      ~draw:scene2 ?overlay ()
 end
 
 module Private = struct module Workspace = Workspace module Leader = Leader end

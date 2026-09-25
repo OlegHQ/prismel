@@ -1,9 +1,9 @@
 open Pdk
 
-module Constraints = Boolean_kernel.Constraints
-module Coplanar = Boolean_kernel.Coplanar
-module Arrangement = Boolean_kernel.Arrangement
-module Triangulation = Boolean_kernel.Triangulation
+module Constraints = Pdk_boolean.Boolean_kernel.Constraints
+module Coplanar = Pdk_boolean.Boolean_kernel.Coplanar
+module Arrangement = Pdk_boolean.Boolean_kernel.Arrangement
+module Triangulation = Pdk_boolean.Boolean_kernel.Triangulation
 
 let fail format = Printf.ksprintf failwith format
 let check condition message = if not condition then fail "%s" message

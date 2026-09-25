@@ -64,11 +64,11 @@ let test_explicit_mapping_all_storage () =
   let source = point_fixture () in
   let destination = Geometry.find_group ~owner:Group.Point "destination" source
       |> Option.get in
-  let output = Ops.attribute_mirror ~owner:Ops.Mirror_point_attributes
-      ~method_:(Ops.Mirror_by_mapping {
+  let output = Attribute_mirror.run_checked ~owner:Attribute_mirror.Mirror_point_attributes
+      ~method_:(Attribute_mirror.Mirror_by_mapping {
         mapping_attribute = "map"; destination_group = destination })
       ~attributes:"value id label uv Cd rows" ~string_replace:("left", "right")
-      ~transform:(Ops.Mirror_uv { origin_u = 0.; origin_v = 0.;
+      ~transform:(Attribute_mirror.Mirror_uv { origin_u = 0.; origin_v = 0.;
         direction_u = 0.; direction_v = 1. })
       ~output_mapping:"mirror_pair" ~source_group:"mirror_source"
       ~destination_group:"mirror_destination" source |> get_ok in
@@ -113,22 +113,22 @@ let test_plane_points_and_transforms () =
       |> add ~owner:Attribute.Point ~name:"rest" (Attribute.Float3
         (Packed.Float3.Private.of_owned_exn ~x:[|-2.;-1.;0.;0.|]
           ~y:[|1.;2.;0.;0.|] ~z:[|0.;0.;0.;0.|])) in
-  let method_ = Ops.Mirror_by_plane { origin = Prismel.Vec3.zero;
+  let method_ = Attribute_mirror.Mirror_by_plane { origin = Prismel.Vec3.zero;
     normal = Prismel.Vec3.unit_x; distance = 0.; tolerance = 0.11 } in
-  let copied = Ops.attribute_mirror ~owner:Ops.Mirror_point_attributes ~method_
+  let copied = Attribute_mirror.run_checked ~owner:Attribute_mirror.Mirror_point_attributes ~method_
       ~attributes:"value" geometry |> get_ok in
   check (scalar Attribute.Point "value" copied = [|10.;20.;20.;10.|])
     "Attribute Mirror plane point correspondence";
-  let vector = Ops.attribute_mirror ~owner:Ops.Mirror_point_attributes ~method_
-      ~attributes:"N" ~transform:Ops.Mirror_vector geometry |> get_ok in
+  let vector = Attribute_mirror.run_checked ~owner:Attribute_mirror.Mirror_point_attributes ~method_
+      ~attributes:"N" ~transform:Attribute_mirror.Mirror_vector geometry |> get_ok in
   let normal = Geometry.find_attribute ~owner:Attribute.Point "N" vector
       |> Option.get |> Attribute.Private.storage |> function
     | Attribute.Float3 values -> Packed.Float3.Private.view values
     | _ -> assert false in
   check (normal.x = [|1.;2.;-2.;-1.|])
     "Attribute Mirror vector transformation";
-  let points_output = Ops.attribute_mirror ~owner:Ops.Mirror_point_attributes
-      ~method_ ~attributes:"P rest" ~transform:Ops.Mirror_point geometry
+  let points_output = Attribute_mirror.run_checked ~owner:Attribute_mirror.Mirror_point_attributes
+      ~method_ ~attributes:"P rest" ~transform:Attribute_mirror.Mirror_point geometry
     |> get_ok in
   let positions = Packed.Float3.Private.view (Geometry.positions points_output)
   and rest = Geometry.find_attribute ~owner:Attribute.Point "rest" points_output
@@ -167,18 +167,18 @@ let test_vertex_primitive_and_plane_primitive () =
       |> Option.get
   and primitive_dest = Geometry.find_group ~owner:Group.Primitive
       "primitive_dest" geometry |> Option.get in
-  let vertices = Ops.attribute_mirror ~owner:Ops.Mirror_vertex_attributes
-      ~method_:(Ops.Mirror_by_mapping { mapping_attribute = "vertex_map";
+  let vertices = Attribute_mirror.run_checked ~owner:Attribute_mirror.Mirror_vertex_attributes
+      ~method_:(Attribute_mirror.Mirror_by_mapping { mapping_attribute = "vertex_map";
         destination_group = vertex_dest }) ~attributes:"v" geometry |> get_ok in
   check (scalar Attribute.Vertex "v" vertices = [|1.;2.;3.;3.;2.;1.|])
     "Attribute Mirror vertex explicit mapping";
-  let primitives = Ops.attribute_mirror ~owner:Ops.Mirror_primitive_attributes
-      ~method_:(Ops.Mirror_by_mapping { mapping_attribute = "primitive_map";
+  let primitives = Attribute_mirror.run_checked ~owner:Attribute_mirror.Mirror_primitive_attributes
+      ~method_:(Attribute_mirror.Mirror_by_mapping { mapping_attribute = "primitive_map";
         destination_group = primitive_dest }) ~attributes:"p" geometry |> get_ok in
   check (scalar Attribute.Primitive "p" primitives = [|9.;9.|])
     "Attribute Mirror primitive explicit mapping";
-  let plane = Ops.attribute_mirror ~owner:Ops.Mirror_primitive_attributes
-      ~method_:(Ops.Mirror_by_plane { origin = Prismel.Vec3.zero;
+  let plane = Attribute_mirror.run_checked ~owner:Attribute_mirror.Mirror_primitive_attributes
+      ~method_:(Attribute_mirror.Mirror_by_plane { origin = Prismel.Vec3.zero;
         normal = Prismel.Vec3.unit_x; distance = 0.; tolerance = 1e-12 })
       ~attributes:"p" geometry |> get_ok in
   check (scalar Attribute.Primitive "p" plane = [|9.;9.|])
@@ -188,26 +188,26 @@ let test_group_policies_and_noop () =
   let geometry = point_fixture () in
   let destination = Geometry.find_group ~owner:Group.Point "destination" geometry
       |> Option.get in
-  let method_ = Ops.Mirror_by_mapping { mapping_attribute = "map";
+  let method_ = Attribute_mirror.Mirror_by_mapping { mapping_attribute = "map";
     destination_group = destination } in
   let source_selection = group Group.Point "only_source" 4 [0] in
-  let source = Ops.attribute_mirror ~group:source_selection
-      ~group_use:Ops.Mirror_group_as_source
-      ~owner:Ops.Mirror_point_attributes ~method_ ~attributes:"value" geometry
+  let source = Attribute_mirror.run_checked ~group:source_selection
+      ~group_use:Attribute_mirror.Mirror_group_as_source
+      ~owner:Attribute_mirror.Mirror_point_attributes ~method_ ~attributes:"value" geometry
     |> get_ok in
   check (scalar Attribute.Point "value" source = [|10.;20.;0.;10.|])
     "Attribute Mirror source restriction";
   let destination_selection = group Group.Point "only_destination" 4 [2] in
-  let destination = Ops.attribute_mirror ~group:destination_selection
-      ~group_use:Ops.Mirror_group_as_destination
-      ~owner:Ops.Mirror_point_attributes ~method_ ~attributes:"value" geometry
+  let destination = Attribute_mirror.run_checked ~group:destination_selection
+      ~group_use:Attribute_mirror.Mirror_group_as_destination
+      ~owner:Attribute_mirror.Mirror_point_attributes ~method_ ~attributes:"value" geometry
     |> get_ok in
   check (scalar Attribute.Point "value" destination = [|10.;20.;20.;0.|])
     "Attribute Mirror destination restriction";
   let empty = group Group.Point "empty" 4 [] in
-  let unchanged = Ops.attribute_mirror ~group:empty
-      ~group_use:Ops.Mirror_group_as_destination
-      ~owner:Ops.Mirror_point_attributes ~method_ ~attributes:"*" geometry
+  let unchanged = Attribute_mirror.run_checked ~group:empty
+      ~group_use:Attribute_mirror.Mirror_group_as_destination
+      ~owner:Attribute_mirror.Mirror_point_attributes ~method_ ~attributes:"*" geometry
     |> get_ok in
   check (unchanged == geometry)
     "Attribute Mirror empty correspondence did not preserve identity"
@@ -222,50 +222,50 @@ let test_errors_and_cancellation () =
   let geometry = point_fixture () in
   let destination = Geometry.find_group ~owner:Group.Point "destination" geometry
       |> Option.get in
-  let mapping = Ops.Mirror_by_mapping { mapping_attribute = "map";
+  let mapping = Attribute_mirror.Mirror_by_mapping { mapping_attribute = "map";
     destination_group = destination } in
-  expect_error (fun () -> Ops.attribute_mirror ~grain:0
-    ~owner:Ops.Mirror_point_attributes ~method_:mapping geometry);
-  expect_error (fun () -> Ops.attribute_mirror ~attributes:"["
-    ~owner:Ops.Mirror_point_attributes ~method_:mapping geometry);
-  expect_error (fun () -> Ops.attribute_mirror ~transform:Ops.Mirror_vector
-    ~owner:Ops.Mirror_point_attributes ~method_:mapping geometry);
-  expect_error (fun () -> Ops.attribute_mirror ~string_replace:("", "x")
-    ~owner:Ops.Mirror_point_attributes ~method_:mapping geometry);
-  expect_error (fun () -> Ops.attribute_mirror
-    ~owner:Ops.Mirror_vertex_attributes
-    ~method_:(Ops.Mirror_by_plane { origin = Prismel.Vec3.zero;
+  expect_error (fun () -> Attribute_mirror.run_checked ~grain:0
+    ~owner:Attribute_mirror.Mirror_point_attributes ~method_:mapping geometry);
+  expect_error (fun () -> Attribute_mirror.run_checked ~attributes:"["
+    ~owner:Attribute_mirror.Mirror_point_attributes ~method_:mapping geometry);
+  expect_error (fun () -> Attribute_mirror.run_checked ~transform:Attribute_mirror.Mirror_vector
+    ~owner:Attribute_mirror.Mirror_point_attributes ~method_:mapping geometry);
+  expect_error (fun () -> Attribute_mirror.run_checked ~string_replace:("", "x")
+    ~owner:Attribute_mirror.Mirror_point_attributes ~method_:mapping geometry);
+  expect_error (fun () -> Attribute_mirror.run_checked
+    ~owner:Attribute_mirror.Mirror_vertex_attributes
+    ~method_:(Attribute_mirror.Mirror_by_plane { origin = Prismel.Vec3.zero;
       normal = Prismel.Vec3.unit_x; distance = 0.; tolerance = 1. }) geometry);
-  expect_error (fun () -> Ops.attribute_mirror
-    ~owner:Ops.Mirror_point_attributes
-    ~method_:(Ops.Mirror_by_plane { origin = Prismel.Vec3.zero;
+  expect_error (fun () -> Attribute_mirror.run_checked
+    ~owner:Attribute_mirror.Mirror_point_attributes
+    ~method_:(Attribute_mirror.Mirror_by_plane { origin = Prismel.Vec3.zero;
       normal = Prismel.Vec3.zero; distance = 0.; tolerance = 1. }) geometry);
-  expect_error (fun () -> Ops.attribute_mirror
-    ~owner:Ops.Mirror_point_attributes
-    ~method_:(Ops.Mirror_by_plane { origin = Prismel.Vec3.zero;
+  expect_error (fun () -> Attribute_mirror.run_checked
+    ~owner:Attribute_mirror.Mirror_point_attributes
+    ~method_:(Attribute_mirror.Mirror_by_plane { origin = Prismel.Vec3.zero;
       normal = Prismel.Vec3.unit_x; distance = 0.; tolerance = -1. }) geometry);
-  expect_error (fun () -> Ops.attribute_mirror
-    ~transform:(Ops.Mirror_uv { origin_u = 0.; origin_v = 0.;
+  expect_error (fun () -> Attribute_mirror.run_checked
+    ~transform:(Attribute_mirror.Mirror_uv { origin_u = 0.; origin_v = 0.;
       direction_u = 0.; direction_v = 0. })
-    ~owner:Ops.Mirror_point_attributes ~method_:mapping geometry);
-  expect_error (fun () -> Ops.attribute_mirror ~source_group:"same"
-    ~destination_group:"same" ~owner:Ops.Mirror_point_attributes
+    ~owner:Attribute_mirror.Mirror_point_attributes ~method_:mapping geometry);
+  expect_error (fun () -> Attribute_mirror.run_checked ~source_group:"same"
+    ~destination_group:"same" ~owner:Attribute_mirror.Mirror_point_attributes
     ~method_:mapping geometry);
   let wrong_group = group Group.Primitive "wrong" 0 [] in
-  expect_error (fun () -> Ops.attribute_mirror ~group:wrong_group
-    ~owner:Ops.Mirror_point_attributes ~method_:mapping geometry);
+  expect_error (fun () -> Attribute_mirror.run_checked ~group:wrong_group
+    ~owner:Attribute_mirror.Mirror_point_attributes ~method_:mapping geometry);
   let bad = geometry |> add ~owner:Attribute.Point ~name:"value"
       (Attribute.Float [|1.;nan;0.;0.|]) in
-  expect_error (fun () -> Ops.attribute_mirror ~attributes:"value"
-    ~owner:Ops.Mirror_point_attributes ~method_:mapping bad);
+  expect_error (fun () -> Attribute_mirror.run_checked ~attributes:"value"
+    ~owner:Attribute_mirror.Mirror_point_attributes ~method_:mapping bad);
   let wrong_mapping = geometry |> add ~owner:Attribute.Point ~name:"map"
       (Attribute.Float [|-1.;-1.;1.;0.|]) in
-  expect_error (fun () -> Ops.attribute_mirror
-    ~owner:Ops.Mirror_point_attributes ~method_:(Ops.Mirror_by_mapping {
+  expect_error (fun () -> Attribute_mirror.run_checked
+    ~owner:Attribute_mirror.Mirror_point_attributes ~method_:(Attribute_mirror.Mirror_by_mapping {
       mapping_attribute = "map"; destination_group = destination }) wrong_mapping);
   let cancel = Cancel.create () in Cancel.cancel cancel;
-  expect_error ~code:"cancelled" (fun () -> Ops.attribute_mirror ~cancel
-    ~owner:Ops.Mirror_point_attributes ~method_:mapping geometry)
+  expect_error ~code:"cancelled" (fun () -> Attribute_mirror.run_checked ~cancel
+    ~owner:Attribute_mirror.Mirror_point_attributes ~method_:mapping geometry)
 
 let test_parallel_scale () =
   let count = 100_000 and half = 50_000 in
@@ -286,8 +286,8 @@ let test_parallel_scale () =
   let destination = Geometry.find_group ~owner:Group.Point "dest" geometry
       |> Option.get in
   let run domains = Prismel.Parallel.run ~domains (fun () ->
-    Ops.attribute_mirror ~grain:127 ~owner:Ops.Mirror_point_attributes
-      ~method_:(Ops.Mirror_by_mapping { mapping_attribute = "map";
+    Attribute_mirror.run_checked ~grain:127 ~owner:Attribute_mirror.Mirror_point_attributes
+      ~method_:(Attribute_mirror.Mirror_by_mapping { mapping_attribute = "map";
         destination_group = destination }) ~attributes:"Cd"
       ~output_mapping:"pair" geometry |> get_ok) in
   let one = run 1 and four = run 4 in

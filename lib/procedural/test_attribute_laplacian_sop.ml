@@ -11,8 +11,8 @@ let contains text pattern =
   pattern = "" || loop 0
 
 let source () =
-  let geometry = Pdk.Ops.uv_sphere
-      ~connectivity:Pdk.Ops.Sphere_alternating_triangles
+  let geometry = Pdk.Uv_sphere.run_checked
+      ~connectivity:Pdk.Uv_sphere.Sphere_alternating_triangles
       ~segments:160 ~rings:80 ~radius:2. () |> Result.get_ok in
   let positions = Pdk.Packed.Float3.Private.view
       (Pdk.Geometry.positions geometry) in
@@ -79,7 +79,7 @@ let run () =
    | Error error -> check (error.code = "missing_group")
        "Attribute Laplacian missing-group diagnostic"
    | Ok _ -> fail "Attribute Laplacian accepted a missing point group");
-  let curve = Pdk.Ops.polyline ~closed:true
+  let curve = Pdk.Line_geometry.polyline_checked ~closed:true
       [|0.,0.,0.;1.,0.,0.;0.,1.,0.|] |> Result.get_ok |> Sop.snapshot
       |> Sop.attribute_laplacian ~source:"P" in
   (match Session.cook session ~context curve with

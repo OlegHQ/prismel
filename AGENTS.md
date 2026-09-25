@@ -27,7 +27,6 @@ when behavior or architecture changes materially.
 | `prismel` | `Sketch`, `Frame`, pure `Scene`, `Event`/`Input`, resources, renderer behavior |
 | `prismel_pathtracer` | Hardware ray-traced path tracer |
 | `pdk` | The single packed geometry/topology compute core |
-| `geom` | Legacy functional geometry layer, being absorbed into `pdk` (plan K) |
 | `procedural` | Immutable SOP graphs over `pdk` operations |
 | `sop_catalog` | Inspectable SOP constructors registered by PPX |
 | `editor` | Pure shared editor state, starting with bounded history |
@@ -62,7 +61,7 @@ violations are listed there with the plan item that removes them.
 - `prismel` never depends on `pxui`, geometry, sketch libraries, or examples.
 - `pxui_shell` depends only on `prismel`, `editor`, and `pxui`; it never imports
   SOP, graph, geometry, or sketch libraries.
-- `pdk` never reaches `geom`/`procedural`; `procedural` never reaches UI
+- `pdk` never reaches `procedural`; `procedural` never reaches UI
   libraries; `pxui` never reaches `procedural`; `sop_ui` and `pxui_graph`
   never import each other or `sketch_*`; nothing imports `sketch_ui`.
 - A boundary change updates the gate, adds focused tests at each affected

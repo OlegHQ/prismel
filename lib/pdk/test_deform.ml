@@ -86,7 +86,7 @@ let run () =
   if Geometry.find_attribute ~owner:Attribute.Point "N" peaked <> None then
     fail "Peak retained stale point normals";
 
-  let grid = Ops.grid ~columns:1 ~rows:1 ~size:2. () |> get_ok in
+  let grid = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:2. () |> get_ok in
   let point_count = Geometry.point_count grid
   and vertex_count = Geometry.vertex_count grid
   and primitive_count = Geometry.primitive_count grid in
@@ -198,7 +198,7 @@ let run () =
   expect_error "invalid_deformation"
     (Ops.peak ~selection:(Ops.Selected_points wrong_group)
       ~direction_attribute:"direction" ~distance:1. directed);
-  let other = Ops.grid ~columns:1 ~rows:1 ~size:3. () |> get_ok in
+  let other = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:3. () |> get_ok in
   let other_index = Topology_index.create (Geometry.topology other) in
   let other_edges = Edge_group.init ~topology:(Geometry.topology other)
       ~index:other_index ~name:"other" (fun _ -> true) in
@@ -208,7 +208,7 @@ let run () =
   expect_error "invalid_deformation"
     (Ops.peak ~direction_attribute:"direction" ~distance:Float.infinity directed);
 
-  let bend_source = Ops.points [|
+  let bend_source = Line_geometry.points [|
       (0., 0., 0.); (0., 0., 1.); (0., 0., 2.); (0., 1., 2.);
       (1., 0., 2.); (0., 0., 3.); (0., 0., -1.)|] in
   let bent = Ops.bend ~length:2. ~bend_angle:(Float.pi /. 2.) bend_source
@@ -228,7 +228,7 @@ let run () =
   if Geometry.find_attribute ~owner:Attribute.Point "N" bent <> None then
     fail "Bend retained stale normals";
 
-  let twisted_source = Ops.points
+  let twisted_source = Line_geometry.points
       [|(1., 0., 0.); (1., 0., 1.); (1., 0., 2.)|] in
   let twisted = Ops.bend ~length:2. ~twist_angle:Float.pi twisted_source
       |> get_ok |> positions in
@@ -237,14 +237,14 @@ let run () =
       && near twisted.x.(2) (-1.) && near twisted.y.(2) 0.
       && twisted.z = [|0.; 1.; 2.|]) then
     fail "Bend axial twist distribution";
-  let arbitrary = Ops.points [|(1., 1., 0.)|]
+  let arbitrary = Line_geometry.points [|(1., 1., 0.)|]
       |> Ops.bend ~origin:Vec3.zero ~direction:Vec3.unit_x ~up:Vec3.unit_z
            ~length:1. ~twist_angle:(Float.pi /. 2.) |> get_ok |> positions in
   if not (near arbitrary.x.(0) 1. && near arbitrary.y.(0) 0.
       && near arbitrary.z.(0) 1.) then
     fail "Bend arbitrary capture frame";
 
-  let both_source = Ops.points [|(1., 0., -1.); (1., 0., 1.)|] in
+  let both_source = Line_geometry.points [|(1., 0., -1.); (1., 0., 1.)|] in
   let continuous = Ops.bend ~length:1. ~twist_angle:(Float.pi /. 2.)
       ~both_directions:true ~continuous_twist:true both_source |> get_ok
       |> positions
@@ -255,13 +255,13 @@ let run () =
       && near mirrored_twist.y.(0) 1. && near mirrored_twist.y.(1) 1.) then
     fail "Bend bidirectional twist policy";
   let extended = Ops.bend ~length:1. ~twist_angle:(Float.pi /. 2.)
-      ~limit:false (Ops.points [|(1., 0., 2.); (1., 0., -1.)|])
+      ~limit:false (Line_geometry.points [|(1., 0., 2.); (1., 0., -1.)|])
       |> get_ok |> positions in
   if not (near extended.x.(0) (-1.) && near extended.y.(0) 0.
       && extended.x.(1) = 1. && extended.y.(1) = 0.) then
     fail "Bend unlimited forward capture";
 
-  let masked_bend_source = Ops.points
+  let masked_bend_source = Line_geometry.points
       [|(1., 0., 1.); (1., 0., 1.); (1., 0., 1.); (1., 0., 3.)|]
       |> add_attribute (float_attribute "bend_mask" [|0.5; -1.; 2.; 1.|]) in
   let only_first = Group.init ~owner:Group.Point ~name:"bend_selected" 4
@@ -284,7 +284,7 @@ let run () =
   if Geometry.data_id identity_bend <> Geometry.data_id bend_source then
     fail "zero Bend was not an identity";
   let tiny_bend = Ops.bend ~length:2. ~bend_angle:1e-12
-      (Ops.points [|(0., 0., 2.)|]) |> get_ok |> positions in
+      (Line_geometry.points [|(0., 0., 2.)|]) |> get_ok |> positions in
   if not (Float.is_finite tiny_bend.y.(0) && Float.is_finite tiny_bend.z.(0)
       && near tiny_bend.y.(0) 1e-12 && near tiny_bend.z.(0) 2.) then
     fail "Bend small-angle stability";
@@ -314,7 +314,7 @@ let run () =
     (Ops.bend ~mask_attribute:"bad_bend_mask" ~length:1. ~bend_angle:1.
       bad_bend_mask);
 
-  let bend_scale_source = Ops.grid ~columns:320 ~rows:220 ~size:12. ()
+  let bend_scale_source = Plane_generators.grid_checked ~columns:320 ~rows:220 ~size:12. ()
       |> get_ok in
   let bend_scale domains = Parallel.run ~domains (fun () ->
       Ops.bend ~grain:1_009 ~origin:(Vec3.create 0. 0. (-6.))
@@ -327,7 +327,7 @@ let run () =
          <> point_float "bend_capture" bend_many then
     fail "Bend differs between one and four domains";
 
-  let mountain_source = Ops.grid ~columns:160 ~rows:120 ~size:12. () |> get_ok in
+  let mountain_source = Plane_generators.grid_checked ~columns:160 ~rows:120 ~size:12. () |> get_ok in
   let large_count = Geometry.point_count mountain_source in
   let geometric_source = mountain_source
       |> Geometry.without_attribute ~owner:Attribute.Point "N"

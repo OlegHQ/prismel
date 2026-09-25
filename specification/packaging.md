@@ -15,7 +15,7 @@ The root package installs:
 - native runtime/command libraries including `prismel.runtime_native`,
   `prismel.scene_command`, and
   `prismel.scene_execution`;
-- ordinary feature libraries such as `prismel.geom`, `prismel.pdk`,
+- ordinary feature libraries such as `prismel.pdk`,
   `prismel.procedural`, and the UI/sketch adapters.
 
 Runtime provider/orchestrator sublibraries are native-only internal

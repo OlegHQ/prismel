@@ -64,4 +64,8 @@ module Private : sig
     ?wrap_v:wrap ->
     t -> lod:float -> u:float -> v:float -> int
   val levels : t -> (int * int * Color.t array) array
+
+  (** Process-local identity: equal only for the same immutable texture value,
+      so renderers can key uploads without hashing pixels. *)
+  val identity : t -> int
 end

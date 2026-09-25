@@ -8,10 +8,6 @@ let run () =match Device.system_default()with Error _->print_endline"binary-arch
   let archive=get(Binary_archive.create device)in
   get(Binary_archive.add_function_descriptor archive kernel);
   get(Binary_archive.add_render_pipeline archive~vertex~fragment~color_format:Texture.Rgba8_unorm);
-  let stitched=get(Stitched_library_descriptor.create~functions:[]~graphs:[]())in
-  (match Binary_archive.add_stitched_library archive stitched with
-   |Ok()->expect Parent_has_dependents(Stitched_library_descriptor.destroy stitched)
-   |Error _->());
   expect Invalid_argument
     (Binary_archive.add_mesh_render_pipeline archive~mesh:kernel
        ~color_format:Texture.Rgba8_unorm());
@@ -24,5 +20,4 @@ let run () =match Device.system_default()with Error _->print_endline"binary-arch
   if not(Sys.file_exists path)||(Unix.stat path).st_size=0 then failwith"empty binary archive persistence output";
   let reopened=get(Binary_archive.create ~path device)in get(Binary_archive.destroy reopened);Sys.remove path;
   get(Binary_archive.destroy archive);get(Function.destroy kernel);get(Function.destroy vertex);get(Function.destroy fragment);get(Library.destroy library);get(Device.destroy device);
-  get(Stitched_library_descriptor.destroy stitched);
   print_endline"binary-archive5 safe: configured function/render persistence ok"

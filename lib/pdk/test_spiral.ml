@@ -85,7 +85,7 @@ let make ?grain ?extent ?radius ?height_ramp ?radius_scale ?radius_ramp
     ?orientation ?center ?rotation ?rotation_order ?uniform_scale
     ?angle_attribute ?x_axis_attribute ?y_axis_attribute ?tangent_attribute
     ?orient_attribute ?distance_attribute () =
-  Ops.spiral ?grain ?extent ?radius ?height_ramp ?radius_scale ?radius_ramp
+  Spiral.run ?grain ?extent ?radius ?height_ramp ?radius_scale ?radius_ramp
     ?direction ?start_angle ?divisions ?uniform_angle ?spiral_count
     ?orientation ?center ?rotation ?rotation_order ?uniform_scale
     ?angle_attribute ?x_axis_attribute ?y_axis_attribute ?tangent_attribute
@@ -249,7 +249,7 @@ let check_transform_and_validation () =
       ?orientation ?center ?rotation ?uniform_scale ?angle_attribute
       ?x_axis_attribute ?y_axis_attribute ?tangent_attribute ?orient_attribute
       ?distance_attribute () =
-    Ops.spiral ?grain ?extent ?radius ?height_ramp ?radius_scale ?radius_ramp
+    Spiral.run ?grain ?extent ?radius ?height_ramp ?radius_scale ?radius_ramp
       ?direction ?start_angle ?divisions ?uniform_angle ?spiral_count
       ?orientation ?center ?rotation ?uniform_scale ?angle_attribute
       ?x_axis_attribute ?y_axis_attribute ?tangent_attribute ?orient_attribute
@@ -288,11 +288,11 @@ let check_transform_and_validation () =
       ~radius_ramp:[0.5, 0.] ~tangent_attribute:"tangent" ());
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  expect_code "cancelled" (Ops.spiral ~cancel:cancelled ())
+  expect_code "cancelled" (Spiral.run ~cancel:cancelled ())
 
 let check_parallel_exact () =
   let run domains = Parallel.run ~domains (fun () ->
-    Ops.spiral ~grain:257
+    Spiral.run ~grain:257
       ~extent:(Ops.Spiral_height_pitch { height = -18.; pitch = -0.37 })
       ~radius:(Ops.Spiral_logarithmic_end {
         start_radius = 0.35; end_radius = 8. })

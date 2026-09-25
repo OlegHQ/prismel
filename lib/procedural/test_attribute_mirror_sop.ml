@@ -13,7 +13,7 @@ let contains text pattern =
 
 let source count =
   let half = count / 2 in
-  let geometry = Ops.points (Array.init count (fun point ->
+  let geometry = Pdk.Line_geometry.points (Array.init count (fun point ->
       if point < half then (-. float_of_int (half - point), 0., 0.)
       else (float_of_int (point - half + 1), 0., 0.))) in
   let map = Attribute.create_owned ~owner:Attribute.Point ~name:"map"
@@ -57,7 +57,7 @@ let mapping geometry =
 let make_graph geometry =
   Sop.snapshot geometry
   |> Sop.attribute_mirror ~label:"mirror-values"
-       ~owner:Pdk.Ops.Mirror_point_attributes
+       ~owner:Pdk.Attribute_mirror.Mirror_point_attributes
        ~method_:(Sop.Attribute_mirror_mapping {
          mapping_attribute = "map"; destination_group = "destination" })
        ~attributes:"value" ~output_mapping:"pair"
@@ -93,7 +93,7 @@ let run () =
       && Geometry.topology one == Geometry.topology four)
     "Attribute Mirror SOP changed cardinality or topology";
   let missing = Sop.snapshot (source 10)
-      |> Sop.attribute_mirror ~owner:Pdk.Ops.Mirror_point_attributes
+      |> Sop.attribute_mirror ~owner:Pdk.Attribute_mirror.Mirror_point_attributes
            ~method_:(Sop.Attribute_mirror_mapping {
              mapping_attribute = "map"; destination_group = "missing" }) in
   let session = Session.create ~max_entries:4 ~max_payload_bytes:8_000_000
@@ -104,7 +104,7 @@ let run () =
    | Ok _ -> fail "Attribute Mirror SOP accepted a missing group");
   Session.close session;
   check (try ignore (Sop.snapshot (source 10)
-      |> Sop.attribute_mirror ~owner:Pdk.Ops.Mirror_point_attributes
+      |> Sop.attribute_mirror ~owner:Pdk.Attribute_mirror.Mirror_point_attributes
            ~method_:(Sop.Attribute_mirror_mapping {
              mapping_attribute = ""; destination_group = "destination" })); false
     with Invalid_argument _ -> true)

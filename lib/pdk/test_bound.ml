@@ -47,7 +47,7 @@ let equal_geometry left right =
       | None, None -> true | _ -> false)
 
 let check_divided_box () =
-  let source = Ops.box ~size:(Vec3.create 2. 3. 4.) () |> get_ok
+  let source = Box_generator.box_checked ~size:(Vec3.create 2. 3. 4.) () |> get_ok
       |> Ops.transform (Mat4.translation (Vec3.create 3. (-2.) 5.)) in
   let output = Ops.bound ~shape:(Ops.Bound_box { divisions = 2, 3, 4 })
       ~lower_padding:(Vec3.create 1. 2. 3.)
@@ -96,7 +96,7 @@ let check_divided_box () =
   done
 
 let check_typed_selection () =
-  let source = Ops.box ~size:(Vec3.create 2. 2. 2.) () |> get_ok in
+  let source = Box_generator.box_checked ~size:(Vec3.create 2. 2. 2.) () |> get_ok in
   let faces = Group.init ~owner:Group.Primitive ~name:"positive_x" 12
       (fun primitive -> primitive < 2) in
   let output = Ops.bound ~selection:(Ops.Selected_primitives faces)
@@ -109,7 +109,7 @@ let check_typed_selection () =
    | None -> fail "selected Bound output empty")
 
 let check_sphere () =
-  let source = Ops.box ~size:(Vec3.create 2. 2. 2.) () |> get_ok in
+  let source = Box_generator.box_checked ~size:(Vec3.create 2. 2. 2.) () |> get_ok in
   let output = Ops.bound
       ~shape:(Ops.Bound_sphere { segments = 16; rings = 8; minimum_radius = 0. })
       ~lower_padding:(Vec3.create 0.2 0.4 0.6)
@@ -126,7 +126,7 @@ let check_sphere () =
       && near radii.y.(0) (base +. 0.4)
       && near radii.z.(0) (base +. 0.4))
     "Bound sphere padding/metadata";
-  let point = Ops.points [|(4.,5.,6.)|] in
+  let point = Line_geometry.points [|(4.,5.,6.)|] in
   let minimum = Ops.bound
       ~shape:(Ops.Bound_sphere { segments = 8; rings = 4; minimum_radius = 2. })
       point |> get_ok in
@@ -136,7 +136,7 @@ let check_sphere () =
    | None -> fail "minimum-radius Bound sphere empty")
 
 let check_validation () =
-  let source = Ops.points [|(0.,0.,0.)|] in
+  let source = Line_geometry.points [|(0.,0.,0.)|] in
   expect_code "invalid_geometry" (Ops.bound source);
   expect_code "invalid_geometry" (Ops.bound
       ~shape:(Ops.Bound_box { divisions = 0, 1, 1 }) source);
@@ -161,7 +161,7 @@ let check_validation () =
       source)
 
 let check_parallel_exact () =
-  let source = Ops.grid ~columns:500 ~rows:300 ~size:30. () |> get_ok
+  let source = Plane_generators.grid_checked ~columns:500 ~rows:300 ~size:30. () |> get_ok
       |> Ops.noise_displace ~seed:929 ~amplitude:2. ~frequency:0.23 |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
     Ops.bound ~grain:1024

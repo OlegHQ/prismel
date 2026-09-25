@@ -72,7 +72,7 @@ let randomize ?selection ?element_selection ?seed_attribute ?fraction_attribute
   |> get_ok
 
 let run () =
-  let geometry = Ops.grid ~columns:1 ~rows:1 ~size:2. () |> get_ok in
+  let geometry = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:2. () |> get_ok in
   let selected = Group.init ~owner:Group.Point ~name:"selected" 4
       (fun point -> point land 1 = 0) in
   let owners = [
@@ -168,7 +168,7 @@ let run () =
       median = numeric 0.; scale = numeric 1. }) Float.is_finite;
 
   let cauchy_fraction_source = add_attribute
-      (Ops.points [|(0., 0., 0.)|])
+      (Line_geometry.points [|(0., 0., 0.)|])
       (float2_attribute ~owner:Attribute.Point ~name:"cauchy_fraction"
          [|0.5|] [|0.5|]) in
   let cauchy_fraction = randomize ~fraction_attribute:"cauchy_fraction"
@@ -183,7 +183,7 @@ let run () =
     fail "Attribute Randomize isotropic Cauchy inverse radius is incorrect";
 
   let cloud_count = 100_001 in
-  let cloud = Ops.points (Array.make cloud_count (0., 0., 0.)) in
+  let cloud = Line_geometry.points (Array.make cloud_count (0., 0., 0.)) in
   let directions = randomize ~owner:Attribute.Point ~name:"direction"
       (Attribute_ops.Random_direction {
         direction = Attribute_ops.Vec3 Vec3.unit_y;
@@ -269,7 +269,7 @@ let run () =
     if abs_float (length2 -. 1.) > 4e-12 then
       fail "Attribute Randomize orientation is not a unit quaternion"
   done;
-  let cap_cloud = Ops.points (Array.make 4_097 (0., 0., 0.)) in
+  let cap_cloud = Line_geometry.points (Array.make 4_097 (0., 0., 0.)) in
   let orientation_cap = randomize ~owner:Attribute.Point ~name:"orient_cap"
       (Attribute_ops.Random_direction {
         direction = Attribute_ops.Vec4 (0., 0., 0., 1.);
@@ -287,7 +287,7 @@ let run () =
   done;
 
   let quantile_source = add_attribute
-      (Ops.points (Array.make 5 (0., 0., 0.)))
+      (Line_geometry.points (Array.make 5 (0., 0., 0.)))
       (scalar_attribute ~owner:Attribute.Point ~name:"fraction"
         [|0.; 0.25; 0.5; 0.75; 1.|]) in
   let quantiles seed = Attribute_ops.randomize ~grain:2
@@ -406,7 +406,7 @@ let run () =
       (Attribute_ops.Random_normal { middle = numeric 7.; scale = numeric 2. })
       quantile_source in
   expect_error "invalid_randomize" median_quantile;
-  let middle_source = add_attribute (Ops.points [|(0., 0., 0.)|])
+  let middle_source = add_attribute (Line_geometry.points [|(0., 0., 0.)|])
       (scalar_attribute ~owner:Attribute.Point ~name:"middle_fraction" [|0.5|]) in
   let median_quantile = randomize ~fraction_attribute:"middle_fraction"
       ~owner:Attribute.Point ~name:"normal_quantile"
@@ -415,7 +415,7 @@ let run () =
   if abs_float (median_quantile.(0) -. 7.) > 1e-14 then
     fail "Attribute Randomize normal inverse CDF missed the median";
   let tail_source = add_attribute
-      (Ops.points [|(0., 0., 0.); (0., 0., 0.)|])
+      (Line_geometry.points [|(0., 0., 0.); (0., 0., 0.)|])
       (scalar_attribute ~owner:Attribute.Point ~name:"tail_fraction"
         [|0.025; 0.975|]) in
   let tails = randomize ~fraction_attribute:"tail_fraction"
@@ -427,7 +427,7 @@ let run () =
     fail "Attribute Randomize normal inverse CDF tails are inaccurate";
 
   let direction_fractions = add_attribute
-      (Ops.points [|(0., 0., 0.); (0., 0., 0.)|])
+      (Line_geometry.points [|(0., 0., 0.); (0., 0., 0.)|])
       (float2_attribute ~owner:Attribute.Point ~name:"direction_uv"
         [|0.; 1.|] [|0.; 1.|]) in
   let fraction_directions = randomize ~fraction_attribute:"direction_uv"
@@ -608,7 +608,7 @@ let run () =
       ~input:explicit ~output_min:(numeric 0.) ~output_max:(numeric 1.)
       values_geometry);
 
-  let large = Ops.grid ~columns:500 ~rows:200 ~size:10. () |> get_ok in
+  let large = Plane_generators.grid_checked ~columns:500 ~rows:200 ~size:10. () |> get_ok in
   let generated domains = Parallel.run ~domains (fun () ->
     Attribute_ops.randomize ~grain:2_048 ~seed:(Rand.seed 77)
       ~owner:Attribute.Point ~name:"sample"
@@ -715,7 +715,7 @@ let run () =
          <> float_values ~owner:Attribute.Primitive "edge_expanded_parallel"
            extended_many
   then fail "extended Attribute Randomize differs between one and four domains";
-  let noise_input = Ops.points (Array.make 4_097 (0., 0., 0.)) in
+  let noise_input = Line_geometry.points (Array.make 4_097 (0., 0., 0.)) in
   let noisy domains = Parallel.run ~domains (fun () ->
     Attribute_ops.noise ~grain:512 ~seed:73 ~owner:Attribute.Point
       ~name:"orient" ~kind:Attribute_ops.Noise_quaternion

@@ -112,7 +112,7 @@ let circumcenter_xy geometry a b c =
   ((aa *. (cx -. bx)) +. (bb *. (ax -. cx)) +. (cc *. (bx -. ax))) /. d
 
 let test_fit_radius_and_scale () =
-  let source = Ops.polyline ~closed:true
+  let source = Line_geometry.polyline_checked ~closed:true
       [|-2.,-0.2,0.; 0.,-1.,0.; 1.,0.1,0.; 0.3,2.,0.|] |> get in
   let fitted = Ops.circle_from_edges source |> get in
   let p = positions fitted and cx, cy = circumcenter_xy fitted 0 1 2 in
@@ -123,7 +123,7 @@ let test_fit_radius_and_scale () =
       near ~epsilon:2e-10 (radius point) r && near p.z.(point) 0.)))
     "Circle from Edges did not create one fitted planar radius";
 
-  let square = Ops.polyline ~closed:true
+  let square = Line_geometry.polyline_checked ~closed:true
       [|-1.,-1.,0.; 1.,-1.,0.; 1.,1.,0.; -1.,1.,0.|] |> get in
   let scaled = Ops.circle_from_edges ~radius:2.
       ~scale:(Vec3.create 1. 0.5 1.) square |> get in
@@ -133,7 +133,7 @@ let test_fit_radius_and_scale () =
     "Circle from Edges explicit radius/scale"
 
 let test_best_fit_plane () =
-  let source = Ops.polyline ~closed:true
+  let source = Line_geometry.polyline_checked ~closed:true
       [|-1.,-1.,0.1; 1.,-1.,1.9; 1.,1.,2.2; -1.,1.,0.2;
         -1.4,0.,-0.4|] |> get in
   let output = Ops.circle_from_edges source |> get in
@@ -227,7 +227,7 @@ let test_default_boundary () =
     "Circle from Edges did not select the topology boundary"
 
 let test_validation_and_atomicity () =
-  let source = Ops.polyline ~closed:true
+  let source = Line_geometry.polyline_checked ~closed:true
       [|-1.,-1.,0.;1.,-1.,0.;1.,1.,0.;-1.,1.,0.|] |> get in
   expect_code "invalid_circle" (fun () -> Ops.circle_from_edges ~grain:0 source)
     "zero grain";
@@ -239,17 +239,17 @@ let test_validation_and_atomicity () =
       ~scale:(Vec3.create nan 1. 1.) source) "non-finite scale";
   expect_code "invalid_circle" (fun () -> Ops.circle_from_edges
       ~output_group:" " source) "empty output group";
-  let other = Ops.polyline ~closed:true
+  let other = Line_geometry.polyline_checked ~closed:true
       [|0.,0.,0.;1.,0.,0.;0.,1.,0.|] |> get in
   let foreign = edge_group_of_pairs (Geometry.topology other) "foreign"
       [|0,1;1,2;2,0|] in
   expect_code "invalid_circle" (fun () -> Ops.circle_from_edges
       ~edges:foreign source) "foreign edge group";
-  let short = Ops.polyline [|0.,0.,0.;1.,0.,0.|] |> get in
+  let short = Line_geometry.polyline_checked [|0.,0.,0.;1.,0.,0.|] |> get in
   expect_code "invalid_circle" (fun () -> Ops.circle_from_edges
       ~edges:(edge_group_of_pairs (Geometry.topology short) "short" [|0,1|])
       short) "component with fewer than three points";
-  let collinear = Ops.polyline [|0.,0.,0.;1.,0.,0.;2.,0.,0.|] |> get in
+  let collinear = Line_geometry.polyline_checked [|0.,0.,0.;1.,0.,0.;2.,0.,0.|] |> get in
   expect_code "invalid_circle" (fun () -> Ops.circle_from_edges collinear)
     "collinear component";
   let branch = geometry_owned ~kinds:(Array.make 3 Topology.Open_polyline)

@@ -47,7 +47,7 @@ let run name count entry =
          ~identity:name ~version:1L renderer draws))
      | Some (true,actual) -> require (actual=count) "replay draw count"
      | Some _ -> failwith "replay skipped");
-    require (Scene_execution.cache_entries renderer<=256) "mesh cache overflow";
+    require (Scene_execution.Private.cache_count_for_report renderer<=256) "mesh cache overflow";
     if frame mod 10=0 then Gc.full_major ()
   done;
   (* Automatic admission must obey the same resource lifetime rule. *)

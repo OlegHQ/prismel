@@ -265,7 +265,7 @@ let run () =
                   "45-image cached lowering allocation ceiling";
                 require(promoted_per_frame<16384.)
                   "45-image cached lowering promotion ceiling";
-                require(Prismel_next_execution.snapshot_cache_entries execution<=256)
+                require(Prismel_next_execution.Private.snapshot_count_for_test execution<=256)
                   "image snapshot cache exceeded entry capacity";
                 let last=labels.(44)in
                 let blue=Bytes.of_string"\000\000\xff\xff"in
@@ -288,7 +288,7 @@ let run () =
               (fun()->
                 let resolve_large=function
                   |1->Some(Prismel_next_execution.Image large)|_->None in
-                let cache_before=Prismel_next_execution.snapshot_cache_entries execution in
+                let cache_before=Prismel_next_execution.Private.snapshot_count_for_test execution in
                 Gc.full_major();
                 let rss_before=rss_kib()and allocated_before=Gc.allocated_bytes()in
                 let rss_middle=ref rss_before in
@@ -317,7 +317,7 @@ let run () =
                   "large transient image: %.0f bytes/frame, RSS %d/%d/%d KiB\n%!"
                   ((allocated_after-.allocated_before)/.600.)rss_before
                   !rss_middle rss_after;
-                require(Prismel_next_execution.snapshot_cache_entries execution=cache_before)
+                require(Prismel_next_execution.Private.snapshot_count_for_test execution=cache_before)
                   "large transient image entered the immutable snapshot cache";
                 ignore(get_resource(Prismel_next_resources.Image.replace large
                   ~width:640~height:480~rgba:large_b));
@@ -345,7 +345,7 @@ let run () =
                 ignore(get(Prismel_next_execution.lower_scene2 execution~density:1
                   ~resource:(function 1->Some(Prismel_next_execution.Image cached)|_->None)
                   image_ir)))eviction_images;
-                require(Prismel_next_execution.snapshot_cache_entries execution=256)
+                require(Prismel_next_execution.Private.snapshot_count_for_test execution=256)
                   "image snapshot cache did not evict to its exact entry capacity");
             let destroy_first=get(Prismel_next_execution.Private.begin_submission execution)in
             ignore(get(Prismel_next_execution.Private.lower_scene2 destroy_first

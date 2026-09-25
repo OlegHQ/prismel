@@ -88,6 +88,10 @@ let run () =
     (Printf.sprintf
       "Clean edge-length degeneracy tolerance or extreme-coordinate robustness (%d/%d)"
       (Geometry.primitive_count coarse) (Geometry.primitive_count fine));
+  let clean_at domains = Parallel.run ~domains (fun () ->
+      Ops.clean ~grain:1 ~epsilon:0.05 tolerance_source |> get_pdk) in
+  check (geometry_equal (clean_at 1) (clean_at 4))
+    "Clean degenerate output differs across domain counts";
 
   let overlap_source = make_geometry
       ~x:[|0.; 1.; 1.; 0.|] ~y:[|0.; 0.; 1.; 1.|] ~z:(Array.make 4 0.)
@@ -174,7 +178,7 @@ let run () =
       && Geometry.find_edge_group "drop_edges" cleaned_metadata = None)
     "Clean attribute/group/empty-group cleanup";
 
-  let valid = Ops.grid ~columns:2 ~rows:2 ~size:2. () |> get_pdk in
+  let valid = Plane_generators.grid_checked ~columns:2 ~rows:2 ~size:2. () |> get_pdk in
   check (Ops.clean valid |> get_pdk == valid) "Clean no-op lost geometry identity";
   (match Ops.clean ~consolidate_distance:(-1.) valid with
    | Error error -> check (Error.code error = "invalid_geometry")
@@ -191,7 +195,7 @@ let run () =
        "Clean cancellation diagnostic"
    | Ok _ -> fail "cancelled Clean published geometry");
 
-  let base = Ops.grid ~columns:80 ~rows:60 ~size:10. () |> get_pdk in
+  let base = Plane_generators.grid_checked ~columns:80 ~rows:60 ~size:10. () |> get_pdk in
   let base_topology = Topology.Private.view (Geometry.topology base) in
   let copies = 3 and base_primitives = Geometry.primitive_count base
   and base_vertices = Geometry.vertex_count base in

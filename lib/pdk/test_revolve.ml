@@ -90,7 +90,7 @@ let with_attribute owner name storage geometry =
 let with_group group geometry = Geometry.with_group group geometry |> get_string
 
 let base_profile () =
-  Ops.polyline [|(1., -1., 0.); (1., 1., 0.)|] |> get_ok
+  Line_geometry.polyline_checked [|(1., -1., 0.); (1., 1., 0.)|] |> get_ok
 
 let revolve ?(divisions = 4) ?revolve_type ?connectivity ?start_angle
     ?end_angle ?reverse_cross_sections ?caps ?cap_group ?uv_attribute geometry =
@@ -122,13 +122,13 @@ let check_full_surface () =
 let check_connectivity_and_arcs () =
   let source = base_profile () in
   let make connectivity = revolve ~connectivity source in
-  let points = make Ops.Grid_points
-  and rows = make Ops.Grid_rows
-  and columns = make Ops.Grid_columns
-  and both = make Ops.Grid_rows_and_columns
-  and triangles = make Ops.Grid_triangles
-  and reverse = make Ops.Grid_reverse_triangles
-  and alternating = make Ops.Grid_alternating_triangles in
+  let points = make Plane_generators.Grid_points
+  and rows = make Plane_generators.Grid_rows
+  and columns = make Plane_generators.Grid_columns
+  and both = make Plane_generators.Grid_rows_and_columns
+  and triangles = make Plane_generators.Grid_triangles
+  and reverse = make Plane_generators.Grid_reverse_triangles
+  and alternating = make Plane_generators.Grid_alternating_triangles in
   check (Geometry.point_count points = 8 && Geometry.vertex_count points = 0)
     "Revolve point connectivity";
   check (Geometry.primitive_count rows = 2 && Geometry.vertex_count rows = 8
@@ -157,7 +157,7 @@ let check_connectivity_and_arcs () =
     "open-arc Revolve endpoint"
 
 let check_poles_caps_and_reverse () =
-  let pole_profile = Ops.polyline
+  let pole_profile = Line_geometry.polyline_checked
       [|(0., -1., 0.); (1., 0., 0.); (0., 1., 0.)|] |> get_ok in
   let pole = revolve ~caps:true ~cap_group:"caps" pole_profile in
   check (Geometry.point_count pole = 6 && Geometry.primitive_count pole = 8
@@ -226,8 +226,8 @@ let check_payload () =
     "Revolve native-edge ancestry"
 
 let check_selection_validation_and_parallel () =
-  let source = Ops.merge [base_profile ();
-      Ops.polyline [|(2., -1., 0.); (2., 1., 0.)|] |> get_ok] |> get_ok in
+  let source = Mesh_merge.run [base_profile ();
+      Line_geometry.polyline_checked [|(2., -1., 0.); (2., 1., 0.)|] |> get_ok] |> get_ok in
   let selected = Group.init ~owner:Group.Primitive ~name:"selected" 2
       (fun primitive -> primitive = 1) in
   let result = Ops.revolve ~grain:1 ~primitives:selected ~divisions:4
@@ -238,11 +238,11 @@ let check_selection_validation_and_parallel () =
   let count = 10_001 in
   let dense = Array.init count (fun point ->
       let y = (float_of_int point /. float_of_int (count - 1)) *. 8. -. 4. in
-      1.2 +. (0.2 *. sin (y *. 3.)), y, 0.) |> Ops.polyline |> get_ok
+      1.2 +. (0.2 *. sin (y *. 3.)), y, 0.) |> Line_geometry.polyline_checked |> get_ok
       |> fun geometry -> Ops.group_edges ~grain:257 ~name:"profile_edges" geometry
            |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
-      Ops.revolve ~grain:257 ~connectivity:Ops.Grid_alternating_triangles
+      Ops.revolve ~grain:257 ~connectivity:Plane_generators.Grid_alternating_triangles
         ~caps:true ~cap_group:"caps" ~divisions:64 ~origin:Vec3.zero
         ~axis:Vec3.unit_y dense |> get_ok) in
   let one = run 1 and many = run 4 in
@@ -266,10 +266,10 @@ let check_selection_validation_and_parallel () =
     ~divisions:max_int ~origin:Vec3.zero ~axis:Vec3.unit_y (base_profile ()));
   expect_invalid (Ops.revolve ~revolve_type:Ops.Revolve_open_arc ~caps:true
     ~divisions:4 ~origin:Vec3.zero ~axis:Vec3.unit_y (base_profile ()));
-  let polygon = Ops.grid ~columns:1 ~rows:1 ~size:1. () |> get_ok in
+  let polygon = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:1. () |> get_ok in
   expect_invalid (Ops.revolve ~divisions:4 ~origin:Vec3.zero
     ~axis:Vec3.unit_y polygon);
-  let repeated = Ops.polyline [|(1.,0.,0.); (1.,0.,0.)|] |> get_ok in
+  let repeated = Line_geometry.polyline_checked [|(1.,0.,0.); (1.,0.,0.)|] |> get_ok in
   expect_invalid (Ops.revolve ~divisions:4 ~origin:Vec3.zero
     ~axis:Vec3.unit_y repeated);
   let cancelled = Cancel.create () in

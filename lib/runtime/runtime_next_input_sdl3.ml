@@ -81,9 +81,9 @@ let translate = function
 let push value event =
   match event with
   | Sdl3.Event.Drop { change = File path; _ } -> Runtime_next_input.push value (File_dropped path)
-  | Sdl3.Event.Mouse_motion { dx; dy; _ } -> (
+  | Sdl3.Event.Mouse_motion { x; y; dx; dy; _ } ->
       Runtime_next_input.add_motion value ~dx ~dy;
-      match translate event with None -> Ok () | Some event -> Runtime_next_input.push value event)
+      Runtime_next_input.push value (Pointer_moved (x, y))
   | _ -> (
       match translate event with None -> Ok () | Some event -> Runtime_next_input.push value event)
 

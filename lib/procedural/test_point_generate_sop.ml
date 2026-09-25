@@ -11,7 +11,7 @@ let contains value needle =
   needle = "" || loop 0
 
 let source () =
-  let geometry = Pdk.Ops.points [|0., 0., 0.; 1., 0., 0.; 2., 0., 0.|] in
+  let geometry = Pdk.Line_geometry.points [|0., 0., 0.; 1., 0., 0.; 2., 0., 0.|] in
   let density = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Point
       ~name:"density" (Pdk.Attribute.Float [|1.; 2.; 3.|]) |> Result.get_ok
   and id = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Point ~name:"id"
@@ -38,7 +38,7 @@ let run () =
   let graph = Sop.snapshot (source ())
       |> Sop.point_generate ~label:"emit-test" ~group:"emit" ~keep_input:true
            ~seed:7 ~generated_group:"made" ~copy_point_attributes:"id"
-           ~mode:(Pdk.Ops.Generate_per_point {
+           ~mode:(Pdk.Point_generate.Generate_per_point {
              points_per_point = 2.; scale_attribute = Some "density" }) in
   let evaluator = session () in
   let output = cook evaluator ~domains:4 graph in
@@ -77,7 +77,7 @@ let run () =
 
   let missing = Sop.snapshot (source ())
       |> Sop.point_generate ~group:"absent"
-           ~mode:(Pdk.Ops.Generate_per_point {
+           ~mode:(Pdk.Point_generate.Generate_per_point {
              points_per_point = 1.; scale_attribute = None }) in
   let evaluator = session () in
   (match Session.cook evaluator ~context:(context 1) missing with

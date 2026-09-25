@@ -35,7 +35,7 @@ let with_float name values geometry =
 let ids geometry = int_attribute "id" geometry
 
 let points values =
-  Ops.points (Array.map (fun x -> x, 0., 0.) values)
+  Line_geometry.points (Array.map (fun x -> x, 0., 0.) values)
   |> with_int "id" (Array.init (Array.length values) Fun.id)
 
 let permutation values =
@@ -131,8 +131,8 @@ let test_restricted_and_errors () =
    | Ok _ -> fail "Sort Indices accepted P output")
 
 let test_primitive_indirect () =
-  let source = Ops.grid ~columns:3 ~rows:2 ~size:2.
-      ~connectivity:Ops.Grid_triangles () |> get_ok in
+  let source = Plane_generators.grid_checked ~columns:3 ~rows:2 ~size:2.
+      ~connectivity:Plane_generators.Grid_triangles () |> get_ok in
   let count = Geometry.primitive_count source in
   let ids = Attribute.create_owned ~owner:Attribute.Primitive ~name:"pid"
       (Attribute.Int (Array.init count Fun.id)) |> Result.get_ok
@@ -169,20 +169,20 @@ let test_topology_and_spatial_keys () =
       ~key:Ops.By_primitive_index geometry |> get_ok in
   check (same_int_array (ids primitive_index) [|4; 0; 2; 3; 1|])
     "Sort points by lowest primitive index with unconnected-first policy";
-  let locality = Ops.points
+  let locality = Line_geometry.points
       [|0., 0., 1.; 0., 1., 0.; 1., 0., 0.; 0., 0., 0.|]
       |> with_int "id" [|0; 1; 2; 3|]
       |> Ops.sort ~grain:1 ~owner:Ops.Points ~key:Ops.Spatial_locality
       |> get_ok in
   check (same_int_array (ids locality) [|3; 2; 1; 0|])
     "Morton spatial-locality ordering";
-  let extreme = Ops.points
+  let extreme = Line_geometry.points
       [|max_float, max_float, max_float; -.max_float, -.max_float, -.max_float|]
       |> Ops.sort ~grain:1 ~owner:Ops.Points ~key:Ops.Spatial_locality in
   (match extreme with
    | Ok _ -> ()
    | Error error -> fail ("extreme spatial Sort failed: " ^ Error.to_string error));
-  (match Ops.points [|Float.nan, 0., 0.|]
+  (match Line_geometry.points [|Float.nan, 0., 0.|]
       |> Ops.sort ~owner:Ops.Points ~key:Ops.Spatial_locality with
    | Error error -> check (Error.code error = "invalid_sort")
        "non-finite spatial Sort diagnostic"

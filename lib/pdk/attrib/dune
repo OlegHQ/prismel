@@ -1,0 +1,7 @@
+(library
+ (name pdk_attrib)
+ (public_name prismel.pdk.attrib)
+ (libraries pdk_core pdk_exact pdk_spatial prismel_math)
+ (flags (:standard -open Pdk_core -open Pdk_exact -open Pdk_spatial))
+ (private_modules attribute_blur attribute_combine attribute_copy attribute_enumerate attribute_generate attribute_interpolate attribute_promote attribute_transfer)
+ (modules attribute_blur attribute_combine attribute_composite attribute_copy attribute_enumerate attribute_fade attribute_generate attribute_interpolate attribute_lifecycle attribute_mirror attribute_ops attribute_promote attribute_transfer blend_shapes color_by_height group_ops))

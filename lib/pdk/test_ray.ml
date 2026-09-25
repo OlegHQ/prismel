@@ -63,9 +63,9 @@ let expect_code code = function
   | Ok _ -> fail ("expected error " ^ code)
 
 let plane ?(size = 4.) y =
-  Ops.grid ~columns:1 ~rows:1 ~size () |> get_ok |> translated y
+  Plane_generators.grid_checked ~columns:1 ~rows:1 ~size () |> get_ok |> translated y
 
-let source_points values = Ops.points values
+let source_points values = Line_geometry.points values
 
 let equal_attribute left right =
   Attribute.owner left = Attribute.owner right
@@ -175,7 +175,7 @@ let check_basic_projection () =
 
 let check_direction_policies () =
   let source = source_points [|(0., 0., 0.)|] in
-  let collision = Ops.merge [plane 1.; plane 3.; plane (-2.)] |> get_ok in
+  let collision = Mesh_merge.run [plane 1.; plane 3.; plane (-2.)] |> get_ok in
   let project ?(mode = Ops.Ray_forward) ?(surface = Ops.Ray_first_surface) () =
     Ops.ray ~direction:(Ops.Ray_vector Vec3.unit_y) ~direction_mode:mode
       ~surface_hit:surface ~source ~collision () |> get_ok |> positions in
@@ -293,7 +293,7 @@ let check_selection_and_directions () =
       |> fun source -> Ops.ray ~direction:(Ops.Ray_attribute "ray_dir")
           ~source ~collision:(plane 0.) () |> get_ok in
   check ((positions attributed).y = [|0.;0.;0.|]) "Ray attribute directions";
-  let normal_source = Ops.grid ~columns:2 ~rows:2 ~size:1. () |> get_ok
+  let normal_source = Plane_generators.grid_checked ~columns:2 ~rows:2 ~size:1. () |> get_ok
       |> translated 2. in
   let normal_projected = Ops.ray ~direction:Ops.Ray_normal
       ~direction_mode:Ops.Ray_reverse ~source:normal_source
@@ -384,7 +384,7 @@ let check_validation () =
       (Geometry.point_count collision) (fun _ -> true) in
   expect_code "invalid_group" (Ops.ray ~collision_primitives:wrong_collision_group
       ~source ~collision ());
-  let curve = Ops.polyline [|(-1.,0.,0.); (1.,0.,0.)|] |> get_ok in
+  let curve = Line_geometry.polyline_checked [|(-1.,0.,0.); (1.,0.,0.)|] |> get_ok in
   expect_code "invalid_surface" (Ops.ray ~source ~collision:curve ());
   let bad_direction = Packed.Float3.Private.of_owned_exn ~x:[|0.|]
       ~y:[|Float.nan|] ~z:[|0.|] in
@@ -398,11 +398,11 @@ let check_validation () =
   expect_code "cancelled" (Ops.ray ~cancel:cancelled ~source ~collision ())
 
 let check_parallel_exact () =
-  let collision = Ops.grid ~columns:400 ~rows:250 ~size:20. () |> get_ok
+  let collision = Plane_generators.grid_checked ~columns:400 ~rows:250 ~size:20. () |> get_ok
       |> Ops.noise_displace ~amplitude:0.8 ~frequency:0.31 ~seed:709 |> get_ok
-      |> Ops.color_by_height ~low:(Color.hex_exn "#0ea5e9")
-           ~high:(Color.hex_exn "#f97316") |> get_ok in
-  let source = Ops.grid ~columns:400 ~rows:250 ~size:20. () |> get_ok
+      |> Color_by_height.run ~low:(Color.to_floats (Color.hex_exn "#0ea5e9"))
+           ~high:(Color.to_floats (Color.hex_exn "#f97316")) |> get_ok in
+  let source = Plane_generators.grid_checked ~columns:400 ~rows:250 ~size:20. () |> get_ok
       |> translated 3. in
   let run domains = Parallel.run ~domains (fun () ->
     Ops.ray ~grain:1024 ~direction:(Ops.Ray_vector (Vec3.neg Vec3.unit_y))
@@ -423,11 +423,11 @@ let check_parallel_exact () =
       (point_float one "dist")) "Ray scale fixture unexpectedly missed"
 
 let check_parallel_multi_exact () =
-  let collision = Ops.grid ~columns:160 ~rows:100 ~size:12. () |> get_ok
+  let collision = Plane_generators.grid_checked ~columns:160 ~rows:100 ~size:12. () |> get_ok
       |> Ops.noise_displace ~amplitude:0.35 ~frequency:0.27 ~seed:801 |> get_ok
-      |> Ops.color_by_height ~low:(Color.hex_exn "#10b981")
-           ~high:(Color.hex_exn "#f59e0b") |> get_ok in
-  let source = Ops.grid ~columns:160 ~rows:100 ~size:11.5 () |> get_ok
+      |> Color_by_height.run ~low:(Color.to_floats (Color.hex_exn "#10b981"))
+           ~high:(Color.to_floats (Color.hex_exn "#f59e0b")) |> get_ok in
+  let source = Plane_generators.grid_checked ~columns:160 ~rows:100 ~size:11.5 () |> get_ok
       |> translated 2. in
   let run domains = Parallel.run ~domains (fun () ->
     Ops.ray ~grain:512 ~samples:7 ~jitter_scale:0.12 ~seed:997

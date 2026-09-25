@@ -1,5 +1,12 @@
 # Shattered Cube Native Optimization Plan
 
+> Status 2026-09-25: the R9–R12 native protocols and their tooling
+> (`tools/r10_performance`, `tools/runtime_next_native_benchmark`,
+> `tools/runtime_next_native_stability`) were retired under cleanup plan P3-9.
+> The P3 protocol (`tools/bench_shattered_renderer.exe` and the frame benches)
+> measured p95 about 11 ms at Retina scale 2 against the 16.67 ms target.
+> The sections below are kept as history.
+
 ## Scope
 
 This plan covers the Apple-Silicon Metal execution of:

@@ -19,16 +19,16 @@ let cook session domains graph =
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let graph () =
-  let source = Sop.grid ~counts:Pdk.Ops.Grid_point_counts
-      ~connectivity:Pdk.Ops.Grid_alternating_triangles
+  let source = Sop.grid ~counts:Pdk.Plane_generators.Grid_point_counts
+      ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
       ~columns:64 ~rows:48 ~size:12. () in
   let collision = Sop.transform (Mat4.rotation_x (Float.pi /. 2.)) source in
   Sop.intersection_analysis ~label:"intersection-points" ~collision
     ~tolerance:1e-9 ~include_coplanar:false source
 
 let self_graph () =
-  let source = Sop.grid ~counts:Pdk.Ops.Grid_point_counts
-      ~connectivity:Pdk.Ops.Grid_alternating_triangles
+  let source = Sop.grid ~counts:Pdk.Plane_generators.Grid_point_counts
+      ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
       ~columns:48 ~rows:36 ~size:10. () in
   let collision = Sop.transform (Mat4.rotation_x (Float.pi /. 2.)) source in
   Sop.merge [source; collision]
@@ -108,9 +108,9 @@ let test_identity_cache_and_parallel () =
     "Intersection Analysis SOP curve one/four-domain drift"
 
 let test_diagnostics_and_constructor_validation () =
-  let source = Sop.grid ~connectivity:Pdk.Ops.Grid_alternating_triangles
+  let source = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
       ~columns:4 ~rows:4 ~size:2. ()
-  and collision = Sop.grid ~connectivity:Pdk.Ops.Grid_alternating_triangles
+  and collision = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
       ~columns:4 ~rows:4 ~size:2. () in
   let missing = Sop.intersection_analysis ~source_group:"missing" ~collision source in
   let session = Session.create ~max_entries:4 ~max_payload_bytes:8_000_000

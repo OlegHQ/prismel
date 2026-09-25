@@ -19,8 +19,8 @@ let cook session domains graph =
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let graph () =
-  let source = Sop.grid ~counts:Pdk.Ops.Grid_point_counts
-      ~connectivity:Pdk.Ops.Grid_alternating_triangles
+  let source = Sop.grid ~counts:Pdk.Plane_generators.Grid_point_counts
+      ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
       ~columns:64 ~rows:48 ~size:12. () in
   let collision = Sop.transform (Mat4.rotation_x (Float.pi /. 2.)) source in
   Sop.boolean_detect ~label:"surface-crossings" ~collision
@@ -30,8 +30,8 @@ let graph () =
     ~count_attribute:"intersection_count" source
 
 let self_graph () =
-  let source = Sop.grid ~counts:Pdk.Ops.Grid_point_counts
-      ~connectivity:Pdk.Ops.Grid_alternating_triangles
+  let source = Sop.grid ~counts:Pdk.Plane_generators.Grid_point_counts
+      ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
       ~columns:48 ~rows:36 ~size:10. () in
   let crossing = Sop.transform (Mat4.rotation_x (Float.pi /. 2.)) source in
   Sop.merge [source; crossing]

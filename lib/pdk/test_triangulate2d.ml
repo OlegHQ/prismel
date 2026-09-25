@@ -19,7 +19,7 @@ let attribute_storage ~owner name geometry =
   | None -> fail ("missing attribute " ^ name)
 
 let test_xy_payload_and_group () =
-  let input = Ops.points [|0.,0.,3.; 1.,0.,4.; 1.,1.,5.; 0.,1.,6.|]
+  let input = Line_geometry.points [|0.,0.,3.; 1.,0.,4.; 1.,1.,5.; 0.,1.,6.|]
       in
   let id = Attribute.create_owned ~name:"id" ~owner:Attribute.Point
       (Attribute.Int [|10;11;12;13|]) |> Result.get_ok in
@@ -41,7 +41,7 @@ let test_xy_payload_and_group () =
   | None -> fail "triangle group is missing"
 
 let test_best_fit_and_explicit_plane () =
-  let input = Ops.points [|0.,0.,0.; 1.,0.,1.; 1.,1.,3.; 0.,1.,2.; 0.5,0.5,1.5|]
+  let input = Line_geometry.points [|0.,0.,0.; 1.,0.,1.; 1.,1.,3.; 0.,1.,2.; 0.5,0.5,1.5|]
       in
   let best = Ops.triangulate_2d input |> get in
   check (Geometry.primitive_count best = 4) "best-fit tilted plane cardinality";
@@ -54,7 +54,7 @@ let test_best_fit_and_explicit_plane () =
 let test_projected_output_positions () =
   let selected = Group.ordered ~owner:Group.Point ~name:"selected" ~length:5
       [|0;1;2;3|] |> Result.get_ok in
-  let xy = Ops.points
+  let xy = Line_geometry.points
       [|0.,0.,10.;2.,0.,20.;2.,2.,30.;0.,2.,40.;9.,9.,9.|]
       |> Geometry.with_group selected |> Result.get_ok in
   let xy = Ops.triangulate_2d ~grain:1
@@ -65,21 +65,21 @@ let test_projected_output_positions () =
   check (x = [|0.;2.;2.;0.;9.|] && y = [|0.;0.;2.;2.;9.|]
       && z = [|0.;0.;0.;0.;9.|])
     "XY projected output or unselected-point policy";
-  let yz = Ops.points
+  let yz = Line_geometry.points
       [|10.,0.,0.;11.,1.,0.;12.,1.,1.;13.,0.,1.|]
       |> Ops.triangulate_2d ~grain:1 ~projection:Ops.Triangulate_2d_yz
           ~restore_original_point_positions:false |> get in
   let x,y,z = position_signature yz in
   check (x = [|0.;0.;0.;0.|] && y = [|0.;1.;1.;0.|]
       && z = [|0.;0.;1.;1.|]) "YZ projected output";
-  let zx = Ops.points
+  let zx = Line_geometry.points
       [|0.,10.,0.;0.,11.,1.;1.,12.,1.;1.,13.,0.|]
       |> Ops.triangulate_2d ~grain:1 ~projection:Ops.Triangulate_2d_zx
           ~restore_original_point_positions:false |> get in
   let x,y,z = position_signature zx in
   check (x = [|0.;0.;1.;1.|] && y = [|0.;0.;0.;0.|]
       && z = [|0.;1.;1.;0.|]) "ZX projected output";
-  let explicit_source = Ops.points
+  let explicit_source = Line_geometry.points
       [|0.,0.,-5.;2.,0.,20.;2.,2.,-10.;0.,2.,30.|] in
   let explicit = Ops.triangulate_2d ~grain:1
       ~projection:(Ops.Triangulate_2d_plane {
@@ -88,7 +88,7 @@ let test_projected_output_positions () =
   let x,y,z = position_signature explicit in
   check (x = [|0.;2.;2.;0.|] && y = [|0.;0.;2.;2.|]
       && z = [|10.;10.;10.;10.|]) "explicit-plane projected output";
-  let best_source = Ops.points
+  let best_source = Line_geometry.points
       [|0.,0.,3.;2.,0.,5.;2.,2.,9.;0.,2.,7.;1.,1.,6.|] in
   let best = Ops.triangulate_2d ~grain:1
       ~restore_original_point_positions:false best_source |> get in
@@ -99,7 +99,7 @@ let test_projected_output_positions () =
     check (abs_float (bz.(point) -. bx.(point) -. (2. *. by.(point)) -. 3.)
         < 1e-10) "best-fit output left its fitted plane"
   done;
-  let attribute_source = Ops.points
+  let attribute_source = Line_geometry.points
       [|9.,9.,9.;8.,8.,8.;7.,7.,7.;6.,6.,6.|] in
   let coordinates = Attribute.create_owned ~owner:Attribute.Point
       ~name:"planar3" (Attribute.Float3
@@ -115,7 +115,7 @@ let test_projected_output_positions () =
   check (x = [|0.;2.;2.;0.|] && y = [|0.;0.;2.;2.|]
       && z = [|0.;0.;0.;0.|])
     "float3 projection did not use exactly its first two components";
-  let refined_source = Ops.points
+  let refined_source = Line_geometry.points
       [|0.,0.,10.;2.,0.,20.;2.,2.,30.;0.,2.,40.|] in
   let run domains = Parallel.run ~domains (fun () ->
       Ops.triangulate_2d ~grain:1 ~projection:Ops.Triangulate_2d_xy
@@ -130,7 +130,7 @@ let test_projected_output_positions () =
     "generated/refined points were not embedded on the output plane"
 
 let test_attribute_and_selection () =
-  let input = Ops.points [|0.,0.,0.; 1.,0.,0.; 2.,0.,0.; 3.,0.,0.; 4.,0.,0.|]
+  let input = Line_geometry.points [|0.,0.,0.; 1.,0.,0.; 2.,0.,0.; 3.,0.,0.; 4.,0.,0.|]
       in
   let uv = Packed.Float2.of_owned ~x:[|0.;1.;1.;0.;5.|]
       ~y:[|0.;0.;1.;1.;5.|] |> Result.get_ok in
@@ -547,7 +547,7 @@ let test_hull_boundary_flood () =
   check (topology_signature polygon = topology_signature output)
     "constraint-polygon winding differs from simple hull-flood interior";
   let empty = Ops.triangulate_2d ~projection:Ops.Triangulate_2d_xy
-      ~flood_from_hull_boundary:true (Ops.points [|0.,0.,0.;1.,0.,0.;0.,1.,0.|])
+      ~flood_from_hull_boundary:true (Line_geometry.points [|0.,0.,0.;1.,0.,0.;0.,1.,0.|])
       |> get in
   check (Geometry.primitive_count empty = 0)
     "unblocked adapter hull flood did not remove all triangles";
@@ -611,13 +611,13 @@ let test_ignore_non_constraint_points () =
         | _ -> fail "Triangulate 2D recomputed N changed storage")
    | None -> fail "Triangulate 2D did not recompute existing point N");
   (match Ops.triangulate_2d ~projection:Ops.Triangulate_2d_xy
-      ~ignore_non_constraint_points:true (Ops.points
+      ~ignore_non_constraint_points:true (Line_geometry.points
         [|0.,0.,0.;1.,0.,0.;0.,1.,0.|]) with
    | Error _ -> ()
    | Ok _ -> fail "Ignore Non-Constraint Points succeeded without constraints")
 
 let test_remove_duplicate_points () =
-  let input = Ops.points
+  let input = Line_geometry.points
       [|0.,0.,0.; 1.,0.,0.; 1.,1.,0.; 0.,1.,0.; 0.,0.,7.; 9.,9.,9.|] in
   let id = Attribute.create_owned ~name:"id" ~owner:Attribute.Point
       (Attribute.Int [|10;11;12;13;14;15|]) |> Result.get_ok in
@@ -664,7 +664,7 @@ let test_remove_duplicate_points () =
    | None -> fail "projected duplicate removal dropped marker group")
 
 let test_quality_refinement () =
-  let input = Ops.points [|0.,0.,0.;2.,0.,2.;2.,2.,6.;0.,2.,4.|] in
+  let input = Line_geometry.points [|0.,0.,0.;2.,0.,2.;2.,2.,6.;0.,2.,4.|] in
   let value = Attribute.create_owned ~name:"value" ~owner:Attribute.Point
       (Attribute.Float [|0.;2.;6.;4.|]) |> Result.get_ok in
   let input = Geometry.with_attribute value input |> Result.get_ok in
@@ -811,7 +811,7 @@ let test_quality_refinement () =
       ~maximum_new_points:100 input |> get in
   check (Geometry.point_count edge_limited = 4)
     "minimum refinement edge length was not respected";
-  let irregular = Ops.points
+  let irregular = Line_geometry.points
       [|0.,0.,0.; 3.,0.,3.; 2.,2.,6.; 0.,1.,2.|] in
   let run_regularized domains = Parallel.run ~domains (fun () ->
       Ops.triangulate_2d ~grain:1 ~projection:Ops.Triangulate_2d_xy
@@ -926,7 +926,7 @@ let test_projected_silhouette () =
 
 let test_domain_exactness () =
   let count = 2_000 in
-  let input = Ops.points (Array.init count (fun point ->
+  let input = Line_geometry.points (Array.init count (fun point ->
       let x = float_of_int ((point * 7919) mod 2003) in
       let y = float_of_int ((point * 3571) mod 2011) +. (float_of_int point *. 1e-8) in
       x,y,(x *. 0.25) -. (y *. 0.125))) in
@@ -935,14 +935,14 @@ let test_domain_exactness () =
   check (run 1 = run 4) "one/four-domain topology differs"
 
 let test_errors () =
-  let input = Ops.points [|0.,0.,0.; 1.,0.,0.; 0.,1.,0.|] in
+  let input = Line_geometry.points [|0.,0.,0.; 1.,0.,0.; 0.,1.,0.|] in
   let expect = function Error _ -> () | Ok _ -> fail "invalid input succeeded" in
   expect (Ops.triangulate_2d
       ~projection:(Ops.Triangulate_2d_plane {
         origin = Vec3.zero; normal = Vec3.zero }) input);
   expect (Ops.triangulate_2d
       ~projection:(Ops.Triangulate_2d_point_attribute "missing") input);
-  let nonfinite = Ops.points [|0.,0.,0.;1.,0.,0.;0.,1.,0.|] in
+  let nonfinite = Line_geometry.points [|0.,0.,0.;1.,0.,0.;0.,1.,0.|] in
   let bad_coordinates = Attribute.create_owned ~owner:Attribute.Point
       ~name:"bad_coordinates" (Attribute.Float2 (Packed.Float2.of_owned
         ~x:[|0.;nan;0.|] ~y:[|0.;0.;1.|] |> Result.get_ok))

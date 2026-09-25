@@ -99,7 +99,7 @@ let of_geometry ?cancel ?center ~piece_attribute geometry =
         else
           Result.bind
             (Result.map_error Pdk.Error.to_string
-               (Pdk.Prismel_mesh.to_mesh ?cancel geometry))
+               (Pdk_prismel.Prismel_mesh.to_mesh ?cancel geometry))
             (fun mesh ->
               Pdk.Cancel.check_opt cancel;
               let expanded = expand_triangles_preserving_attributes mesh in

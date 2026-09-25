@@ -8,7 +8,31 @@ not select an alternate renderer through environment variables or public API.
 ## Ownership and dependency direction
 
 ```text
-examples / sketches / pxui / editor / procedural / pdk
+examples / sketches / pxui / editor / procedural / pdk_prismel
+                         |                    |       |
+                         |                    v       v
+                         |                 pdk          prismel
+                         |                  |
+                         |                  v
+                         |               pdk_boolean
+                         |                  |
+                         |                  v
+                         |               pdk_mesh
+                         |                  |
+                         |                  v
+                         |              pdk_attrib
+                         |                  |
+                         |                  v
+                         |              pdk_spatial
+                         |                  |
+                         |                  v
+                         |               pdk_exact
+                         |                  |
+                         |                  v
+                         |               pdk_core
+                         |                  |
+                         |                  v
+                         |             prismel_math
                          |
                          v
                       prismel
@@ -22,6 +46,19 @@ examples / sketches / pxui / editor / procedural / pdk
                     ogpu_metal (implementation) ---> ogpu_metal_native ---> metal
                     ogpu_mock  (implementation) ---> ogpu_core
 ```
+
+The PDK split currently puts packed identity, storage, topology, groups, and
+geometry in `pdk_core`; exact predicates, planar constraints, Delaunay, and
+Voronoi live in `pdk_exact`. Spatial and surface indices, proximity queries,
+and point clustering live in `pdk_spatial`. Attribute and group operations
+live in `pdk_attrib`; packed generators and isosurface extraction live in
+`pdk_gen`, while curve sampling and topology live in `pdk_curve`. These are
+branches above the core/exact/spatial layers. Modeling operations are in
+`pdk_mesh`; Boolean stages are in `pdk_boolean`, and packed mesh formats are in
+`pdk_io`.
+`Pdk` keeps the public module paths stable, and
+the dependency gate rejects upward edges from lower to higher PDK libraries.
+`pdk_prismel` is the separate renderer conversion leaf.
 
 `runtime_next` owns process setup, initial-domain lifecycle, the SDL3 window, its
 Metal view, resize scheduling, and presentation. It depends on `sdl3` and the

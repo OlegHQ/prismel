@@ -30,3 +30,5 @@ and `Sop_ui.Node_inspector` plus `Edit_graph.apply_parameters` for selected-node
 editing. Do not recreate a sketch-wide shadow parameter record, copy
 names/defaults/ranges into hand-built widgets, or make `procedural` import
 PXUI.
+
+Workflow for a new node: the `add-sop` skill.

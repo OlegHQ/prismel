@@ -208,9 +208,9 @@ let check_selection_and_density () =
       point_int geometry "id" in
   if generated_ids <> Array.init 40 Fun.id then
     fail "interpolated source id replaced generated scatter identity";
-  let curve = Ops.polyline [|(100.,0.,0.);(101.,0.,0.);(102.,0.,0.)|]
+  let curve = Line_geometry.polyline_checked [|(100.,0.,0.);(101.,0.,0.);(102.,0.,0.)|]
       |> get_ok in
-  let mixed = Ops.merge [source; curve] |> get_ok
+  let mixed = Mesh_merge.run [source; curve] |> get_ok
       |> Ops.scatter_surface ~count:2_000 ~seed:14 |> get_ok
       |> Geometry.positions |> Packed.Float3.Private.view in
   if Array.exists (fun x -> x > 11.) mixed.x then
@@ -284,7 +284,7 @@ let check_errors () =
     ~source_vertex_weights_attribute:"weights" source);
   expect_code "invalid_geometry" (Ops.scatter_surface ~count:1 ~seed:0
     ~match_groups:true source);
-  let curve = Ops.polyline [|(0.,0.,0.);(1.,0.,0.);(2.,0.,0.)|] |> get_ok in
+  let curve = Line_geometry.polyline_checked [|(0.,0.,0.);(1.,0.,0.);(2.,0.,0.)|] |> get_ok in
   expect_code "invalid_geometry" (Ops.scatter_surface ~count:1 ~seed:0 curve);
   if Geometry.point_count (Ops.scatter_surface ~count:0 ~seed:0 curve |> get_ok) <> 0
   then fail "zero scatter on curve";
@@ -319,7 +319,7 @@ let check_errors () =
     ~seed:0 source)
 
 let check_parallel_scale () =
-  let source = Ops.grid ~columns:300 ~rows:200 ~size:20. () |> get_ok in
+  let source = Plane_generators.grid_checked ~columns:300 ~rows:200 ~size:20. () |> get_ok in
   let count = Geometry.point_count source in
   let density = float_attribute ~owner:Attribute.Point "density"
       (Array.init count (fun point -> 0.1 +. float_of_int (point mod 97) /. 97.)) in

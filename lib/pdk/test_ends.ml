@@ -139,7 +139,7 @@ let test_modes_and_ancestry () =
       && Edge_group.length (edge_group closed) = 7
       && Edge_group.cardinality (edge_group closed) = 6)
     "straight close generated-edge policy";
-  let roundtrip = Ops.points [|0.,0.,0.;1.,0.,0.;1.,1.,0.;0.,1.,0.|]
+  let roundtrip = Line_geometry.points [|0.,0.,0.;1.,0.,0.;1.,1.,0.;0.,1.,0.|]
       |> fun geometry ->
         let topology = Topology.polygons_owned ~point_count:4
             ~vertex_points:[|0;1;2;3|] ~primitive_offsets:[|0;4|]
@@ -169,7 +169,7 @@ let test_malformed_and_cancel () =
     Group.init ~owner:Group.Primitive ~name:"short" 1 (fun _ -> true) in
   expect "wrong-length primitive selection"
     (Ops.ends ~primitives:short_selection Ops.Ends_open source);
-  let short = Ops.polyline [|0.,0.,0.;1.,0.,0.|] |> get in
+  let short = Line_geometry.polyline_checked [|0.,0.,0.;1.,0.,0.|] |> get in
   expect "two-point straight close" (Ops.ends Ops.Ends_close_straight short);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;

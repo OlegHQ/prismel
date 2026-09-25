@@ -135,7 +135,7 @@ let test_restrictions_and_errors () =
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
   expect "cancelled" (Ops.boolean_detect ~cancel:cancelled ~collision source);
-  let curve = Ops.line ~origin:Vec3.zero ~direction:Vec3.unit_x ~length:1. ()
+  let curve = Line_geometry.line_checked ~origin:Vec3.zero ~direction:Vec3.unit_x ~length:1. ()
       |> get in
   expect "invalid_surface" (Ops.boolean_detect ~collision curve);
   let nonfinite_positions = Packed.Float3.Private.of_owned_exn
@@ -143,7 +143,7 @@ let test_restrictions_and_errors () =
       ~y:[|0.;0.;2.;0.;0.;2.|] ~z:(Array.make 6 0.) in
   let nonfinite = Geometry.with_positions nonfinite_positions source |> get_string in
   expect "invalid_surface" (Ops.boolean_detect ~collision nonfinite);
-  let empty = Ops.points [||] in
+  let empty = Line_geometry.points [||] in
   let empty_output = Ops.boolean_detect ~collision ~intersections_attribute:"hits"
       ~count_attribute:"hit_count" empty |> get in
   check (Geometry.primitive_count empty_output = 0
@@ -176,7 +176,7 @@ let test_tolerance_and_translation () =
     "Boolean Detect changed under a large common translation"
 
 let self_detect geometry =
-  Ops.boolean_detect ~collision:(Ops.points [||]) ~intersecting_group:None
+  Ops.boolean_detect ~collision:(Line_geometry.points [||]) ~intersecting_group:None
     ~self_intersecting_group:"self_intersections"
     ~self_intersections_attribute:"self_hits"
     ~self_count_attribute:"self_hit_count" geometry |> get
@@ -222,7 +222,7 @@ let test_self_intersections () =
   check ((int_array "self_hits" duplicate).values = [|1;0|])
     "Boolean Detect missed duplicate overlapping primitives";
   let duplicate_without_coplanar = Ops.boolean_detect
-      ~collision:(Ops.points [||]) ~intersecting_group:None
+      ~collision:(Line_geometry.points [||]) ~intersecting_group:None
       ~include_coplanar:false ~self_intersections_attribute:"self_hits"
       (geometry [|0.,0.,0.; 2.,0.,0.; 0.,2.,0.|]
         [|0;1;2; 2;1;0|]) |> get in
@@ -239,8 +239,8 @@ let test_self_intersections () =
     "Boolean Detect exposed one polygon's triangulation diagonal as AxA"
 
 let test_parallel_exact () =
-  let source = Ops.grid ~grain:31 ~counts:Ops.Grid_point_counts
-      ~connectivity:Ops.Grid_alternating_triangles
+  let source = Plane_generators.grid_checked ~grain:31 ~counts:Plane_generators.Grid_point_counts
+      ~connectivity:Plane_generators.Grid_alternating_triangles
       ~columns:80 ~rows:60 ~size:20. () |> get in
   let collision = Ops.transform ~grain:31 (Mat4.rotation_x (Float.pi /. 2.))
       source in
@@ -254,7 +254,7 @@ let test_parallel_exact () =
     "Boolean Detect one/four-domain output drift";
   check (Group.cardinality (group "intersections" one) > 0)
     "Boolean Detect scale fixture found no intersections";
-  let combined = Ops.merge [source; collision] |> get in
+  let combined = Mesh_merge.run [source; collision] |> get in
   let run_self domains = Parallel.run ~domains (fun () -> self_detect combined) in
   let self_signature geometry =
     let rows = int_array "self_hits" geometry in

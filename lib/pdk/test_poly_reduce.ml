@@ -9,8 +9,8 @@ let get_pdk = function
   | Error error -> fail (Error.to_string error)
 
 let grid ?(columns = 24) ?(rows = 18) () =
-  Ops.grid ~counts:Ops.Grid_point_counts
-    ~connectivity:Ops.Grid_alternating_triangles ~columns ~rows ~size:8. ()
+  Plane_generators.grid_checked ~counts:Plane_generators.Grid_point_counts
+    ~connectivity:Plane_generators.Grid_alternating_triangles ~columns ~rows ~size:8. ()
   |> get_pdk
 
 let topology_arrays geometry =
@@ -155,7 +155,7 @@ let test_noop_invalid_and_cancel () =
   check (match Ops.poly_reduce ~max_normal_deviation:(Float.pi +. 0.01) source with
     | Error _ -> true | Ok _ -> false)
     "PolyReduce accepted an invalid normal-deviation limit";
-  let curve = Ops.polyline [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|] |> get_pdk in
+  let curve = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|] |> get_pdk in
   check (match Ops.poly_reduce ~target:(Ops.Reduce_primitive_count 0) curve with
     | Error _ -> true | Ok _ -> false) "PolyReduce accepted curve topology";
   let topology = Geometry.topology source in

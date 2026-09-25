@@ -19,7 +19,7 @@ let check_point geometry point (x, y, z) message =
   check (near p.x.(point) x && near p.y.(point) y && near p.z.(point) z) message
 
 let test_detail_methods () =
-  let source = Ops.points [|0.,0.,0.; 2.,0.,0.; 10.,0.,0.|]
+  let source = Line_geometry.points [|0.,0.,0.; 2.,0.,0.; 10.,0.,0.|]
       |> with_attribute (attribute Attribute.Detail "author"
           (Attribute.Text [|"centroid"|])) in
   let mass = Ops.extract_centroid source |> get
@@ -35,11 +35,11 @@ let test_detail_methods () =
     "detail payload sharing"
 
 let test_planar_and_solid_hull_centers () =
-  let triangle = Ops.points [|0.,0.,0.;2.,0.,0.;0.,2.,0.;0.25,0.25,0.|] in
+  let triangle = Line_geometry.points [|0.,0.,0.;2.,0.,0.;0.,2.,0.;0.25,0.25,0.|] in
   let triangle = Ops.extract_centroid ~method_:Ops.Centroid_convex_hull triangle
       |> get in
   check_point triangle 0 (2. /. 3., 2. /. 3., 0.) "planar hull area center";
-  let tetra = Ops.points [|0.,0.,0.;1.,0.,0.;0.,1.,0.;0.,0.,1.;0.1,0.1,0.1|] in
+  let tetra = Line_geometry.points [|0.,0.,0.;1.,0.,0.;0.,1.,0.;0.,0.,1.;0.1,0.1,0.1|] in
   let tetra = Ops.extract_centroid ~method_:Ops.Centroid_convex_hull tetra |> get in
   check_point tetra 0 (0.25,0.25,0.25) "solid hull volume center"
 
@@ -99,11 +99,11 @@ let expect code work message = match work () with
   | Ok _ -> fail (message ^ ": unexpectedly accepted")
 
 let test_validation_and_cancellation () =
-  expect "invalid_geometry" (fun () -> Ops.extract_centroid (Ops.points [||]))
+  expect "invalid_geometry" (fun () -> Ops.extract_centroid (Line_geometry.points [||]))
     "empty detail";
   expect "invalid_geometry" (fun () -> Ops.extract_centroid ~grain:0
-      (Ops.points [|0.,0.,0.|])) "zero grain";
-  let bad = Ops.points [|Float.nan,0.,0.|] in
+      (Line_geometry.points [|0.,0.,0.|])) "zero grain";
+  let bad = Line_geometry.points [|Float.nan,0.,0.|] in
   expect "invalid_geometry" (fun () -> Ops.extract_centroid bad) "nonfinite";
   let source = two_triangles () in
   expect "invalid_geometry" (fun () -> Ops.extract_centroid
@@ -132,7 +132,7 @@ let equal left right =
 
 let test_parallel_exact () =
   let columns = 400 and rows = 300 in
-  let source = Ops.grid ~connectivity:Ops.Grid_triangles ~columns ~rows
+  let source = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_triangles ~columns ~rows
       ~size:100. () |> get in
   let piece = attribute Attribute.Primitive "piece"
       (Attribute.Int (Array.init (Geometry.primitive_count source)

@@ -51,7 +51,7 @@ let float4_values ~owner name geometry =
 let positions geometry = Packed.Float3.Private.view (Geometry.positions geometry)
 
 let test_cyclic_order_and_rename () =
-  let source = Ops.points [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
+  let source = Line_geometry.points [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
       |> add (Attribute.Float [|10.; 20.; 30.|])
            ~owner:Attribute.Point ~name:"weight"
       |> add (Attribute.Text [|"a"; "b"; "c"|])
@@ -60,7 +60,7 @@ let test_cyclic_order_and_rename () =
         ~x:[|1.;2.;3.|] ~y:[|4.;5.;6.|] ~z:[|7.;8.;9.|]
         ~w:[|10.;11.;12.|] |> Result.get_ok))
            ~owner:Attribute.Point ~name:"tangent" in
-  let target = Ops.points [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.); (3.,0.,0.)|]
+  let target = Line_geometry.points [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.); (3.,0.,0.)|]
       |> add (Attribute.Float [|100.; 100.; 100.; 100.|])
            ~owner:Attribute.Point ~name:"weight"
       |> add (Attribute.Text [|"x"; "x"; "x"; "x"|])
@@ -96,13 +96,13 @@ let test_cyclic_order_and_rename () =
     fail "capture-renamed cyclic Attribute Copy"
 
 let test_match_modes () =
-  let source = Ops.points
+  let source = Line_geometry.points
       [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.); (3.,0.,0.)|]
       |> add (Attribute.Int [|1; 2; 1; 3|])
            ~owner:Attribute.Point ~name:"source_key"
       |> add (Attribute.Float [|10.; 20.; 30.; 40.|])
            ~owner:Attribute.Point ~name:"value" in
-  let target = Ops.points [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
+  let target = Line_geometry.points [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
       |> add (Attribute.Int [|1; 2; 4|])
            ~owner:Attribute.Point ~name:"target_key"
       |> add (Attribute.Float [|9.; 9.; 9.|])
@@ -186,8 +186,8 @@ let test_cross_owner_and_detail () =
     fail "primitive-group to vertex/detail projection"
 
 let test_position_copy () =
-  let source = Ops.points [|(1.,2.,3.); (4.,5.,6.)|]
-  and target = Ops.points [|(0.,0.,0.); (0.,0.,0.); (0.,0.,0.)|] in
+  let source = Line_geometry.points [|(1.,2.,3.); (4.,5.,6.)|]
+  and target = Line_geometry.points [|(0.,0.,0.); (0.,0.,0.); (0.,0.,0.)|] in
   let copied = Attribute_ops.copy ~allow_position:true ~group_owner:Group.Point
       ~rules:[Attribute_ops.copy_rule ~owner:Attribute.Point "P"]
       ~source ~target () |> get_ok in
@@ -211,10 +211,10 @@ let test_position_copy () =
    | None -> fail "renamed P missing")
 
 let test_identity_sharing () =
-  let source = Ops.points [|(1.,2.,3.); (4.,5.,6.); (7.,8.,9.)|]
+  let source = Line_geometry.points [|(1.,2.,3.); (4.,5.,6.); (7.,8.,9.)|]
       |> add (Attribute.Float [|0.25; 0.5; 0.75|])
            ~owner:Attribute.Point ~name:"weight" in
-  let target = Ops.points [|(0.,0.,0.); (0.,0.,0.); (0.,0.,0.)|] in
+  let target = Line_geometry.points [|(0.,0.,0.); (0.,0.,0.); (0.,0.,0.)|] in
   let source_weight = match Geometry.find_attribute ~owner:Attribute.Point
       "weight" source with
     | Some attribute -> attribute
@@ -232,9 +232,9 @@ let test_identity_sharing () =
     fail "identity Attribute Copy did not structurally share canonical P"
 
 let test_errors_and_scale () =
-  let source = Ops.points [|(0.,0.,0.)|]
+  let source = Line_geometry.points [|(0.,0.,0.)|]
       |> add (Attribute.Float [|1.|]) ~owner:Attribute.Point ~name:"value"
-  and target = Ops.points [|(0.,0.,0.)|] in
+  and target = Line_geometry.points [|(0.,0.,0.)|] in
   (match Attribute_ops.copy ~group_owner:Group.Point
       ~rules:[Attribute_ops.copy_rule ~owner:Attribute.Point
         ~into:"bad" "*"] ~source ~target () with
@@ -255,12 +255,12 @@ let test_errors_and_scale () =
    | _ -> fail "cancelled Attribute Copy published output");
   let count = 100_003 in
   let points = Array.init count (fun index -> float_of_int index, 0., 0.) in
-  let source = Ops.points points
+  let source = Line_geometry.points points
       |> add (Attribute.Float (Array.init count float_of_int))
            ~owner:Attribute.Point ~name:"value"
       |> add (Attribute.Int (Array.init count (fun index -> index lxor 0x55aa)))
            ~owner:Attribute.Point ~name:"id" in
-  let target = Ops.points points in
+  let target = Line_geometry.points points in
   let run domains = Parallel.run ~domains (fun () ->
     Attribute_ops.copy ~grain:257 ~group_owner:Group.Point
       ~rules:[Attribute_ops.copy_rule ~owner:Attribute.Point "value id"]

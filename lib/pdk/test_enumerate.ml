@@ -36,7 +36,7 @@ let equal_output left right owner name =
   && int_values owner name left = int_values owner name right
 
 let fixture () =
-  let geometry = Ops.grid ~connectivity:Ops.Grid_quads
+  let geometry = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads
       ~columns:2 ~rows:1 ~size:2. () |> get_pdk in
   geometry
   |> add_attribute Attribute.Point "piece"
@@ -108,7 +108,7 @@ let run () =
   check (int_values Attribute.Point "piece" in_place = [|0; 0; 1; 0; 1; 1|])
     "in-place piece enumeration did not snapshot source keys";
 
-  let extremes = Ops.points [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.); (3.,0.,0.)|]
+  let extremes = Line_geometry.points [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.); (3.,0.,0.)|]
       |> add_attribute Attribute.Point "piece"
            (Attribute.Int [|min_int; max_int; min_int; max_int|]) in
   let extremes = Attribute_ops.enumerate ~piece_attribute:"piece"
@@ -150,7 +150,7 @@ let run () =
    | Ok _ -> fail "cancelled piece enumeration published geometry");
 
   let dense_count = 300_000 in
-  let dense = Ops.points (Array.init dense_count (fun point ->
+  let dense = Line_geometry.points (Array.init dense_count (fun point ->
       float_of_int point *. 0.001, 0., 0.))
       |> add_attribute Attribute.Point "piece"
            (Attribute.Int (Array.init dense_count (fun point ->

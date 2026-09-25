@@ -76,7 +76,7 @@ let equal_geometry left right =
   && List.equal equal_attribute (Geometry.attributes left) (Geometry.attributes right)
 
 let check_default_compatibility () =
-  let geometry = Ops.grid ~columns:1 ~rows:1 ~size:2. () |> get_ok in
+  let geometry = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:2. () |> get_ok in
   let point = positions geometry
   and topology = Topology.Private.view (Geometry.topology geometry)
   and normals = float3_attribute Attribute.Point "N" geometry in
@@ -93,35 +93,35 @@ let check_default_compatibility () =
     "default Grid normals changed"
 
 let check_connectivity () =
-  let make connectivity = Ops.grid ~connectivity ~columns:3 ~rows:2 ~size:2. ()
+  let make connectivity = Plane_generators.grid_checked ~connectivity ~columns:3 ~rows:2 ~size:2. ()
       |> get_ok in
-  let points = make Ops.Grid_points in
+  let points = make Plane_generators.Grid_points in
   check (Geometry.point_count points = 12 && Geometry.vertex_count points = 0
       && Geometry.primitive_count points = 0) "Grid points cardinality";
-  let rows = make Ops.Grid_rows in
+  let rows = make Plane_generators.Grid_rows in
   let row_topology = Topology.Private.view (Geometry.topology rows) in
   check (Geometry.vertex_count rows = 12 && Geometry.primitive_count rows = 3
       && row_topology.vertex_points = Array.init 12 Fun.id
       && row_topology.primitive_offsets = [|0;4;8;12|]
       && row_topology.primitive_kinds = Bytes.make 3 '\001')
     "Grid row-polyline topology";
-  let columns = make Ops.Grid_columns in
+  let columns = make Plane_generators.Grid_columns in
   let column_topology = Topology.Private.view (Geometry.topology columns) in
   check (Geometry.vertex_count columns = 12 && Geometry.primitive_count columns = 4
       && column_topology.vertex_points = [|0;4;8; 1;5;9; 2;6;10; 3;7;11|]
       && column_topology.primitive_offsets = [|0;3;6;9;12|])
     "Grid column-polyline topology";
-  let both = make Ops.Grid_rows_and_columns in
+  let both = make Plane_generators.Grid_rows_and_columns in
   check (Geometry.vertex_count both = 24 && Geometry.primitive_count both = 7)
     "Grid row-and-column cardinality";
-  let quads = make Ops.Grid_quads in
+  let quads = make Plane_generators.Grid_quads in
   let quad_topology = Topology.Private.view (Geometry.topology quads) in
   check (Geometry.vertex_count quads = 24 && Geometry.primitive_count quads = 6
       && Array.sub quad_topology.vertex_points 0 4 = [|0;4;5;1|])
     "Grid quad topology";
-  let triangles = make Ops.Grid_triangles
-  and reversed = make Ops.Grid_reverse_triangles
-  and alternating = make Ops.Grid_alternating_triangles in
+  let triangles = make Plane_generators.Grid_triangles
+  and reversed = make Plane_generators.Grid_reverse_triangles
+  and alternating = make Plane_generators.Grid_alternating_triangles in
   let regular = Topology.Private.view (Geometry.topology triangles)
   and reversed_topology = Topology.Private.view (Geometry.topology reversed)
   and alternating_topology = Topology.Private.view (Geometry.topology alternating) in
@@ -158,7 +158,7 @@ let check_connectivity () =
     done) [quads; triangles; reversed; alternating]
 
 let check_orientation_and_uv () =
-  let xy = Ops.grid ~orientation:Ops.Grid_xy ~center:(Vec3.create 1. 2. 3.)
+  let xy = Plane_generators.grid_checked ~orientation:Plane_generators.Grid_xy ~center:(Vec3.create 1. 2. 3.)
       ~width:4. ~height:2. ~columns:2 ~rows:2 ~size:1. () |> get_ok in
   let xy_bounds = Analysis.bounds xy |> Option.get
   and xy_normal = float3_attribute Attribute.Point "N" xy in
@@ -166,14 +166,14 @@ let check_orientation_and_uv () =
       && near xy_bounds.min.y 1. && near xy_bounds.max.y 3.
       && near xy_bounds.center.z 3. && near xy_normal.z.(0) 1.)
     "Grid XY orientation/dimensions/center";
-  let yz = Ops.grid ~orientation:Ops.Grid_yz ~center:(Vec3.create 2. 3. 4.)
+  let yz = Plane_generators.grid_checked ~orientation:Plane_generators.Grid_yz ~center:(Vec3.create 2. 3. 4.)
       ~width:6. ~height:2. ~columns:2 ~rows:2 ~size:1. () |> get_ok in
   let yz_bounds = Analysis.bounds yz |> Option.get
   and yz_normal = float3_attribute Attribute.Point "N" yz in
   check (near yz_bounds.center.x 2. && near yz_bounds.size.y 2.
       && near yz_bounds.size.z 6. && near yz_normal.x.(0) 1.)
     "Grid YZ orientation";
-  let custom = Ops.grid ~orientation:(Ops.Grid_axes {
+  let custom = Plane_generators.grid_checked ~orientation:(Plane_generators.Grid_axes {
         horizontal = Vec3.create max_float max_float 0.;
         vertical = Vec3.create 0. 0. max_float })
       ~rotation:(Float.pi *. 0.5) ~center:(Vec3.create 4. 5. 6.)
@@ -194,13 +194,13 @@ let check_orientation_and_uv () =
     "Grid custom frame dimensions and normalized UV"
 
 let check_count_modes () =
-  let point_counts = Ops.grid ~counts:Ops.Grid_point_counts
-      ~connectivity:Ops.Grid_quads ~columns:4 ~rows:3 ~size:2. () |> get_ok in
+  let point_counts = Plane_generators.grid_checked ~counts:Plane_generators.Grid_point_counts
+      ~connectivity:Plane_generators.Grid_quads ~columns:4 ~rows:3 ~size:2. () |> get_ok in
   check (Geometry.point_count point_counts = 12
       && Geometry.primitive_count point_counts = 6)
     "Grid point-count resolution";
-  let singleton = Ops.grid ~counts:Ops.Grid_point_counts
-      ~connectivity:Ops.Grid_points ~center:(Vec3.create 1. 2. 3.)
+  let singleton = Plane_generators.grid_checked ~counts:Plane_generators.Grid_point_counts
+      ~connectivity:Plane_generators.Grid_points ~center:(Vec3.create 1. 2. 3.)
       ~uv_attribute:"uv" ~columns:1 ~rows:1 ~size:2. () |> get_ok in
   let point = positions singleton
   and uv = float2_attribute Attribute.Point "uv" singleton in
@@ -210,51 +210,51 @@ let check_count_modes () =
 
 let check_validation () =
   expect_code "invalid_parameter"
-    (Ops.grid ~grain:0 ~columns:1 ~rows:1 ~size:1. ());
+    (Plane_generators.grid_checked ~grain:0 ~columns:1 ~rows:1 ~size:1. ());
   expect_code "invalid_parameter"
-    (Ops.grid ~columns:0 ~rows:1 ~size:1. ());
+    (Plane_generators.grid_checked ~columns:0 ~rows:1 ~size:1. ());
   expect_code "invalid_parameter"
-    (Ops.grid ~counts:Ops.Grid_point_counts ~connectivity:Ops.Grid_quads
+    (Plane_generators.grid_checked ~counts:Plane_generators.Grid_point_counts ~connectivity:Plane_generators.Grid_quads
        ~columns:1 ~rows:2 ~size:1. ());
   expect_code "invalid_parameter"
-    (Ops.grid ~columns:1 ~rows:1 ~size:Float.nan ());
+    (Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:Float.nan ());
   expect_code "invalid_parameter"
-    (Ops.grid ~width:(-1.) ~columns:1 ~rows:1 ~size:1. ());
+    (Plane_generators.grid_checked ~width:(-1.) ~columns:1 ~rows:1 ~size:1. ());
   expect_code "invalid_parameter"
-    (Ops.grid ~center:(Vec3.create Float.nan 0. 0.)
+    (Plane_generators.grid_checked ~center:(Vec3.create Float.nan 0. 0.)
        ~columns:1 ~rows:1 ~size:1. ());
   expect_code "invalid_parameter"
-    (Ops.grid ~orientation:(Ops.Grid_axes {
+    (Plane_generators.grid_checked ~orientation:(Plane_generators.Grid_axes {
          horizontal=Vec3.zero; vertical=Vec3.unit_z })
        ~columns:1 ~rows:1 ~size:1. ());
   expect_code "invalid_parameter"
-    (Ops.grid ~orientation:(Ops.Grid_axes {
+    (Plane_generators.grid_checked ~orientation:(Plane_generators.Grid_axes {
          horizontal=Vec3.unit_x; vertical=Vec3.unit_x })
        ~columns:1 ~rows:1 ~size:1. ());
   expect_code "invalid_parameter"
-    (Ops.grid ~uv_attribute:"P" ~columns:1 ~rows:1 ~size:1. ());
+    (Plane_generators.grid_checked ~uv_attribute:"P" ~columns:1 ~rows:1 ~size:1. ());
   expect_code "invalid_parameter"
-    (Ops.grid ~columns:max_int ~rows:max_int ~size:1. ());
+    (Plane_generators.grid_checked ~columns:max_int ~rows:max_int ~size:1. ());
   expect_code "invalid_parameter"
-    (Ops.grid ~counts:Ops.Grid_point_counts ~connectivity:Ops.Grid_points
+    (Plane_generators.grid_checked ~counts:Plane_generators.Grid_point_counts ~connectivity:Plane_generators.Grid_points
        ~columns:max_int ~rows:2 ~size:1. ());
   expect_code "invalid_parameter"
-    (Ops.grid ~center:(Vec3.create max_float 0. 0.) ~width:max_float
+    (Plane_generators.grid_checked ~center:(Vec3.create max_float 0. 0.) ~width:max_float
        ~columns:1 ~rows:1 ~size:1. ());
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
   expect_code "cancelled"
-    (Ops.grid ~cancel:cancelled ~columns:500 ~rows:500 ~size:1. ())
+    (Plane_generators.grid_checked ~cancel:cancelled ~columns:500 ~rows:500 ~size:1. ())
 
 let check_parallel_exact () =
   let connectivities = [
-    Ops.Grid_points; Ops.Grid_rows; Ops.Grid_columns;
-    Ops.Grid_rows_and_columns; Ops.Grid_quads; Ops.Grid_triangles;
-    Ops.Grid_alternating_triangles; Ops.Grid_reverse_triangles ] in
+    Plane_generators.Grid_points; Plane_generators.Grid_rows; Plane_generators.Grid_columns;
+    Plane_generators.Grid_rows_and_columns; Plane_generators.Grid_quads; Plane_generators.Grid_triangles;
+    Plane_generators.Grid_alternating_triangles; Plane_generators.Grid_reverse_triangles ] in
   List.iter (fun connectivity ->
     let run domains = Parallel.run ~domains (fun () ->
-      Ops.grid ~grain:1024 ~connectivity
-        ~orientation:(Ops.Grid_axes {
+      Plane_generators.grid_checked ~grain:1024 ~connectivity
+        ~orientation:(Plane_generators.Grid_axes {
           horizontal=Vec3.create 1. 2. 0.5;
           vertical=Vec3.create (-0.25) 0.75 2. })
         ~center:(Vec3.create 3. (-2.) 5.) ~width:40. ~height:25.
@@ -264,12 +264,12 @@ let check_parallel_exact () =
     check (equal_geometry one many)
       ("one-domain and four-domain Grid differ for " ^
        (match connectivity with
-        | Ops.Grid_points -> "points" | Ops.Grid_rows -> "rows"
-        | Ops.Grid_columns -> "columns"
-        | Ops.Grid_rows_and_columns -> "rows+columns"
-        | Ops.Grid_quads -> "quads" | Ops.Grid_triangles -> "triangles"
-        | Ops.Grid_alternating_triangles -> "alternating triangles"
-        | Ops.Grid_reverse_triangles -> "reverse triangles"));
+        | Plane_generators.Grid_points -> "points" | Plane_generators.Grid_rows -> "rows"
+        | Plane_generators.Grid_columns -> "columns"
+        | Plane_generators.Grid_rows_and_columns -> "rows+columns"
+        | Plane_generators.Grid_quads -> "quads" | Plane_generators.Grid_triangles -> "triangles"
+        | Plane_generators.Grid_alternating_triangles -> "alternating triangles"
+        | Plane_generators.Grid_reverse_triangles -> "reverse triangles"));
     check (Geometry.point_count one = 351_201) "Grid scale point cardinality")
     connectivities
 

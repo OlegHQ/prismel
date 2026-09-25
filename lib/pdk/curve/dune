@@ -1,0 +1,7 @@
+(library
+ (name pdk_curve)
+ (public_name prismel.pdk.curve)
+ (libraries pdk_core pdk_exact pdk_spatial prismel_math)
+ (flags (:standard -open Pdk_core -open Pdk_exact -open Pdk_spatial))
+ (private_modules )
+ (modules circle_from_edges curve_ops curve_sampling curve_subdivide poly_path polywire resample_curves sweep))

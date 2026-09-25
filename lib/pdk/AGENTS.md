@@ -1,18 +1,33 @@
 # lib/pdk rules
 
-`pdk` is the single packed geometry/topology core. `geom` is being absorbed
-into it and deleted (plan K); `procedural` wraps pdk operations as SOPs.
+`pdk_core` owns the packed storage and topology foundation. `pdk_exact` owns
+exact predicates and planar algorithms. `pdk_spatial` owns indices, proximity
+queries, and point clustering. `pdk_attrib` owns attribute and group operations.
+`pdk_gen` owns generators and isosurface extraction; `pdk_curve` owns curve
+sampling, editing, and sweeps. `pdk_mesh` owns modeling operations, and
+`pdk_boolean` owns Boolean stages; `pdk_io` owns packed mesh formats.
+`pdk` re-exports the stable public module paths; renderer conversion is isolated in
+`pdk_prismel`. `procedural` wraps PDK operations as SOPs.
+
+Sublibraries have one-way dependencies: core → `prismel_math`, exact → core,
+spatial → exact/core, attrib → spatial/exact/core, gen → attrib/spatial/exact/core,
+curve → spatial/exact/core, mesh → curve/gen/attrib/spatial/exact/core, IO → mesh/core, and each higher family may
+depend only on lower families. Add the Dune edge
+and its injected-forbidden dependency-gate check together. Move a module with
+its `.mli`, or add the missing `.mli` during the move. Keep module aliases in
+`Pdk` so consumers do not change paths; keep implementation-only modules
+private. Run the family tests and a one-domain/four-domain exact comparison
+before marking a split complete.
 
 Geometry libraries follow this additional direction:
 
 ```text
-procedural ──> geom ──> pdk ──> prismel
-     └────────────────> pdk
+procedural ──> pdk ──> pdk_core ──> prismel_math
+     └───────> pdk_prismel ──> prismel
 ```
 
-`procedural` may use `geom` for ergonomic curves, polygons, fields, and
-representation-neutral preparation, or call `pdk` directly for packed SOPs.
-`geom` must never depend on `procedural`; `pdk` must never depend on either.
+`procedural` uses `pdk` for packed SOPs and `prismel_math` for mathematical
+values. `pdk` must never depend on `procedural`.
 `sop_ui` may depend on both `procedural` and `pxui`; those libraries must never
 depend on `sop_ui` or each other.
 `sketch_support` is a leaf helper for sketches. It may depend on `procedural`,
@@ -48,22 +63,13 @@ widgets, camera policy, or render lifecycle into `procedural` or `pdk`.
 - `pdk` is the only owner of packed mesh topology, reverse incidence,
   half-edge/edge indexing, spatial acceleration, attribute interpolation and
   promotion, and high-density modeling algorithms.
-- `geom` owns user-facing mathematical values such as points, bounds, curves,
-  polygons, rays, fields, and friendly functional APIs. For mesh generation or
-  topology mutation, it prepares inputs for `pdk`, invokes the shared kernel,
-  and converts the result through an explicit adapter.
-- `procedural` wraps the same `pdk` operations as immutable SOP nodes. It may
-  compose `geom` operations for high-level input preparation, but must not
+- `prismel_math` owns mathematical values such as vectors, bounds, matrices,
+  noise, random streams, and parallel execution policy.
+- `procedural` wraps PDK operations as immutable SOP nodes and must not
   reimplement packed geometry algorithms inside graph cooks.
-- Do not fix duplication by making `pdk` import `geom`. Move or independently
-  implement the representation-neutral algorithm in `pdk`, then adapt the
-  existing `geom` entry point to it while preserving the public API.
-- Migrate incrementally by operation. Every migrated Geom operation needs a
-  compatibility regression comparing its public result before/after where a
-  stable result was documented, plus direct PDK correctness, malformed-input,
+- When replacing a public algorithm, compare a captured public result before
+  and after the change, then add direct PDK correctness, malformed-input,
   cancellation, cardinality, and one-domain/multi-domain exactness tests.
-- Retire the old Geom kernel after its adapter is proven; do not leave two
-  authoritative implementations behind a permanent fallback.
 - Shared topology structures must be packed integer arrays/bytes with explicit
   ownership and O(points + vertices + primitives + edges) storage. Public
   immutable wrappers may expose safe queries; audited kernels may borrow

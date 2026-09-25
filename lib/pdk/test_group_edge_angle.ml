@@ -108,7 +108,7 @@ let test_extreme_coordinates_and_failures () =
    | Ok _ -> fail "cancelled incident-edge selection published geometry")
 
 let test_parallel_exactness_and_scale () =
-  let source = Ops.grid ~columns:600 ~rows:400 ~size:20. () |> get_ok in
+  let source = Plane_generators.grid_checked ~columns:600 ~rows:400 ~size:20. () |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
     Ops.group_edges ~grain:1_009 ~angle_basis:Ops.Incident_edges
       ~min_angle:(Float.pi /. 2.) ~max_angle:(Float.pi /. 2.)

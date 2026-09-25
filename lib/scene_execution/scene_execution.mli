@@ -93,19 +93,10 @@ val shadow_resource : key:string -> shadow_snapshot ->
     render pipelines (see [Ogpu.Backend.create_render_pipeline]); the renderer
     destroys them. Canonical Scene2 pipelines must be created with
     [~indirect:true] so their argument buffers and indirect commands work. *)
-val create_with_pipeline : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
-  ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
-  (Ogpu.Backend.device -> (Ogpu.Backend.pipeline, Ogpu.Error.t) result) ->
-  (t, Ogpu.Error.t) result
 val create_offscreen_with_pipeline :
   Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
   ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
   (Ogpu.Backend.device -> (Ogpu.Backend.pipeline, Ogpu.Error.t) result) ->
-  (t, Ogpu.Error.t) result
-val create_with_pipeline_variants : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
-  ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
-  (Ogpu.Backend.device -> pipeline_family -> Ogpu.Pipeline.blend ->
-    (Ogpu.Backend.pipeline, Ogpu.Error.t) result) ->
   (t, Ogpu.Error.t) result
 val create_offscreen_with_pipeline_variants : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
   ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
@@ -149,7 +140,9 @@ val replay_prepared_sampled_resources :
   ((bool * int) option, Ogpu.Error.t) result
 val resize : t -> Ogpu.Surface.configuration -> (unit, Ogpu.Error.t) result
 val upload_bytes : t -> int64
-val cache_entries : t -> int
+module Private : sig
+  val cache_count_for_report : t -> int
+end
 
 (** Indirect-command replay plans: one automatic plan admitted after two
     identical frames and one identity-keyed prepared plan. [plan_entries]
@@ -158,9 +151,6 @@ type retained_stats = { plan_builds:int64; plan_hits:int64; plan_misses:int64; p
   plan_executions:int64; plan_failures:int64; plan_last_failure:string option; plan_entries:int; plan_capacity:int }
 val retained_stats : t -> retained_stats
 val pipeline_count : t -> int
-module Private : sig
-  val retained_batch_stats : t -> int64 * int64
-end
 val read_pixels : t -> bytes_per_row:int -> (bytes, Ogpu.Error.t) result
 val read_pixels_into : t -> bytes_per_row:int -> destination:bytes ->
   (unit, Ogpu.Error.t) result

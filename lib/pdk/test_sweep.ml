@@ -92,8 +92,8 @@ let check_attribute_storage geometry owner name expected =
       check (equal_storage actual expected) ("Sweep attribute ancestry: " ^ name)
   | None -> fail ("Sweep attribute missing: " ^ name)
 
-let backbone () = Ops.polyline [|(0., 0., 0.); (0., 0., 2.)|] |> get_ok
-let profile () = Ops.polyline ~closed:true
+let backbone () = Line_geometry.polyline_checked [|(0., 0., 0.); (0., 0., 2.)|] |> get_ok
+let profile () = Line_geometry.polyline_checked ~closed:true
     [|(-1., -1., 0.); (1., -1., 0.); (1., 1., 0.); (-1., 1., 0.)|]
     |> get_ok
 
@@ -137,22 +137,22 @@ let check_basic_surface () =
 let check_connectivity () =
   let backbone = backbone () and profile = profile () in
   let expected = [
-    Ops.Grid_points, (8, 0, 0);
-    Ops.Grid_rows, (8, 8, 2);
-    Ops.Grid_columns, (8, 8, 4);
-    Ops.Grid_rows_and_columns, (8, 16, 6);
-    Ops.Grid_quads, (8, 16, 4);
-    Ops.Grid_triangles, (8, 24, 8);
-    Ops.Grid_reverse_triangles, (8, 24, 8);
-    Ops.Grid_alternating_triangles, (8, 24, 8) ] in
+    Plane_generators.Grid_points, (8, 0, 0);
+    Plane_generators.Grid_rows, (8, 8, 2);
+    Plane_generators.Grid_columns, (8, 8, 4);
+    Plane_generators.Grid_rows_and_columns, (8, 16, 6);
+    Plane_generators.Grid_quads, (8, 16, 4);
+    Plane_generators.Grid_triangles, (8, 24, 8);
+    Plane_generators.Grid_reverse_triangles, (8, 24, 8);
+    Plane_generators.Grid_alternating_triangles, (8, 24, 8) ] in
   List.iter (fun (connectivity, (points, vertices, primitives)) ->
     let result = sweep ~connectivity backbone profile in
     check (Geometry.point_count result = points
         && Geometry.vertex_count result = vertices
         && Geometry.primitive_count result = primitives)
       "Sweep connectivity cardinality") expected;
-  let regular = sweep ~connectivity:Ops.Grid_triangles backbone profile
-  and reverse = sweep ~connectivity:Ops.Grid_reverse_triangles backbone profile in
+  let regular = sweep ~connectivity:Plane_generators.Grid_triangles backbone profile
+  and reverse = sweep ~connectivity:Plane_generators.Grid_reverse_triangles backbone profile in
   check ((topology_view regular).vertex_points <>
       (topology_view reverse).vertex_points) "Sweep triangle modes collapsed"
 
@@ -171,6 +171,8 @@ let check_payload_and_groups () =
       |> with_attribute Attribute.Primitive "piece" (Attribute.Text [|"profile"|])
       |> with_group (Group.init ~owner:Group.Point ~name:"positive_x" 4
            (fun point -> point = 1 || point = 2))
+      |> with_group (Group.ordered ~owner:Group.Point ~name:"ordered"
+           ~length:4 [|2;1|] |> get_string)
       |> fun geometry -> Ops.group_edges ~grain:1 ~name:"profile_edges" geometry
            |> get_ok in
   let result = sweep ~caps:true backbone profile in
@@ -188,6 +190,10 @@ let check_payload_and_groups () =
       "cross_section_positive_x" result |> Option.get in
   check (Group.cardinality start = 4 && Group.cardinality positive = 4)
     "Sweep dual-input point groups";
+  let ordered = Geometry.find_group ~owner:Group.Point
+      "cross_section_ordered" result |> Option.get in
+  check (Group.ordered_elements ordered = Some [|2;6;1;5|])
+    "Sweep ordered profile group ancestry";
   let spine_edges = Geometry.find_edge_group "spine_edges" result |> Option.get
   and profile_edges = Geometry.find_edge_group "cross_section_profile_edges" result
       |> Option.get in
@@ -197,11 +203,11 @@ let check_payload_and_groups () =
     "Sweep profile native-edge ancestry"
 
 let check_multiple_and_selection () =
-  let backbone_source = Ops.merge [
-      Ops.polyline [|(0.,0.,0.); (0.,0.,1.)|] |> get_ok;
-      Ops.polyline [|(4.,0.,0.); (4.,0.,1.)|] |> get_ok] |> get_ok in
-  let profile_source = Ops.merge [
-      Ops.polyline ~closed:true
+  let backbone_source = Mesh_merge.run [
+      Line_geometry.polyline_checked [|(0.,0.,0.); (0.,0.,1.)|] |> get_ok;
+      Line_geometry.polyline_checked [|(4.,0.,0.); (4.,0.,1.)|] |> get_ok] |> get_ok in
+  let profile_source = Mesh_merge.run [
+      Line_geometry.polyline_checked ~closed:true
         [|(0.2,0.,0.); (-0.1,0.17,0.); (-0.1,-0.17,0.)|] |> get_ok;
       profile ()] |> get_ok in
   let all = Ops.sweep ~grain:1 ~backbone:backbone_source
@@ -244,7 +250,7 @@ let check_transform_attributes () =
     "Sweep reverse cross sections"
 
 let check_frame_controls () =
-  let corner = Ops.polyline
+  let corner = Line_geometry.polyline_checked
       [|(0.,0.,0.); (0.,0.,1.); (1.,0.,1.)|] |> get_ok in
   let previous = sweep ~tangent:Ops.Sweep_previous_edge corner (profile ())
   and next = sweep ~tangent:Ops.Sweep_next_edge corner (profile ())
@@ -367,8 +373,8 @@ let check_closed_continuity () =
       let radius = 2. +. (0.35 *. cos (3. *. t)) in
       radius *. cos (2. *. t), 0.4 *. sin (3. *. t),
       radius *. sin (2. *. t)) in
-  let backbone = Ops.polyline ~closed:true backbone_values |> get_ok
-  and profile = Ops.polyline ~closed:true
+  let backbone = Line_geometry.polyline_checked ~closed:true backbone_values |> get_ok
+  and profile = Line_geometry.polyline_checked ~closed:true
       [|(0.1,0.,0.); (-0.05,0.0866025403784439,0.);
         (-0.05,-0.0866025403784439,0.)|] |> get_ok in
   let result = sweep ~tangent:Ops.Sweep_central_difference ~twist:2.3
@@ -401,14 +407,14 @@ let expect_invalid = function
 let check_validation_and_parallel () =
   expect_invalid (Ops.sweep ~scale:Float.nan ~backbone:(backbone ())
     ~cross_section:(profile ()) ());
-  expect_invalid (Ops.sweep ~caps:true ~connectivity:Ops.Grid_rows
+  expect_invalid (Ops.sweep ~caps:true ~connectivity:Plane_generators.Grid_rows
     ~backbone:(backbone ()) ~cross_section:(profile ()) ());
-  let polygon = Ops.grid ~columns:1 ~rows:1 ~size:1. () |> get_ok in
+  let polygon = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:1. () |> get_ok in
   expect_invalid (Ops.sweep ~backbone:polygon ~cross_section:(profile ()) ());
-  let repeated = Ops.polyline [|(0.,0.,0.); (0.,0.,0.)|] |> get_ok in
+  let repeated = Line_geometry.polyline_checked [|(0.,0.,0.); (0.,0.,0.)|] |> get_ok in
   expect_invalid (Ops.sweep ~backbone:repeated ~cross_section:(profile ()) ());
-  let partly_invalid = Ops.merge [backbone ();
-      Ops.polyline [|(3.,0.,0.); (3.,0.,1.)|] |> get_ok] |> get_ok
+  let partly_invalid = Mesh_merge.run [backbone ();
+      Line_geometry.polyline_checked [|(3.,0.,0.); (3.,0.,1.)|] |> get_ok] |> get_ok
       |> with_attribute Attribute.Point "pscale"
            (Attribute.Float [|1.;1.;Float.nan;Float.nan|]) in
   let first_curve = Group.init ~owner:Group.Primitive ~name:"first_curve" 2
@@ -431,18 +437,18 @@ let check_validation_and_parallel () =
   let dense_backbone = Array.init count (fun point ->
       let t = float_of_int point *. 0.002 in
       0.25 *. sin (t *. 0.7), 0.2 *. cos (t *. 0.43), t)
-      |> Ops.polyline |> get_ok
+      |> Line_geometry.polyline_checked |> get_ok
       |> fun geometry -> Ops.group_edges ~grain:257 ~name:"spine_edges" geometry
            |> get_ok in
   let sides = 32 in
   let dense_profile = Array.init sides (fun side ->
       let angle = 2. *. Float.pi *. float_of_int side /. float_of_int sides in
       0.08 *. cos angle, 0.08 *. sin angle, 0.)
-      |> Ops.polyline ~closed:true |> get_ok
+      |> Line_geometry.polyline_checked ~closed:true |> get_ok
       |> fun geometry -> Ops.group_edges ~grain:257 ~name:"profile_edges" geometry
            |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
-      Ops.sweep ~grain:257 ~connectivity:Ops.Grid_alternating_triangles
+      Ops.sweep ~grain:257 ~connectivity:Plane_generators.Grid_alternating_triangles
         ~caps:true ~cap_group:"caps" ~twist:2.3 ~backbone:dense_backbone
         ~cross_section:dense_profile () |> get_ok) in
   let one = run 1 and many = run 4 in

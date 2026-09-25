@@ -23,3 +23,4 @@ without changing callers.
   mock and Metal covering every capability (ray tracing incl. motion, curves,
   tables; heaps, residency, fences, events, timestamps; mesh/tile pipelines,
   dynamic libraries, archives, sparse textures, MetalFX).
+- Workflow for a new capability: the `add-ogpu-feature` skill.

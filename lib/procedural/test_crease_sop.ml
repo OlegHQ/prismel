@@ -13,7 +13,7 @@ let contains text pattern =
   pattern = "" || search 0
 
 let source () =
-  let geometry = Ops.grid ~connectivity:Ops.Grid_quads ~columns:260 ~rows:160
+  let geometry = Pdk.Plane_generators.grid_checked ~connectivity:Pdk.Plane_generators.Grid_quads ~columns:260 ~rows:160
       ~size:12. () |> function
     | Ok value -> value
     | Error error -> fail (Error.to_string error) in
@@ -78,9 +78,9 @@ let run () =
   let subdivided = graph |> Sop.subdivide ~scheme:Ops.Catmull_clark in
   let one_subdivided = cook_fresh subdivided 1
   and four_subdivided = cook_fresh subdivided 4 in
-  let one_mesh = Prismel_mesh.to_mesh one_subdivided |> function
+  let one_mesh = Pdk_prismel.Prismel_mesh.to_mesh one_subdivided |> function
     | Ok value -> value | Error error -> fail (Error.to_string error)
-  and four_mesh = Prismel_mesh.to_mesh four_subdivided |> function
+  and four_mesh = Pdk_prismel.Prismel_mesh.to_mesh four_subdivided |> function
     | Ok value -> value | Error error -> fail (Error.to_string error) in
   check (Prismel.Mesh.Private.packed_view one_mesh
       = Prismel.Mesh.Private.packed_view four_mesh)

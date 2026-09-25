@@ -342,7 +342,7 @@ let test_malformed_and_cancellation () =
    | Ok _ -> fail "Point Split ignored cancellation")
 
 let large_fixture () =
-  let geometry = Ops.grid ~connectivity:Ops.Grid_quads ~columns:160 ~rows:120
+  let geometry = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:160 ~rows:120
       ~size:10. () |> get in
   let material = attribute Attribute.Primitive "material"
       (Attribute.Int (Array.init (Geometry.primitive_count geometry)

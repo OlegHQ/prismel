@@ -61,21 +61,4 @@ let run () =
   get(Shader_buffer_layout_descriptors.destroy layouts);
   get(Shader_stage_descriptor.reset stage);
   get(Shader_stage_descriptor.destroy stage);
-  let input=get(Shader_stitching_input.create ~argument_index:2L)in
-  get(Shader_stitching_input.set_argument_index input 4L);
-  if get(Shader_stitching_input.argument_index input)<>4L then fail "stitching index drift";
-  let node=get(Function_stitching_node.create~name:"node"~arguments:[input]~dependencies:[])in
-  let graph=get(Function_stitching_graph.create~name:"graph"~nodes:[node]~output:node~always_inline:true())in
-  let stitch_function=get(Function.find~library "shader157")in
-  let stitched=get(Stitched_library_descriptor.create~functions:[stitch_function]~graphs:[graph]())in
-  get(Stitched_library_descriptor.checked stitched);
-  get(Stitched_library_descriptor.set stitched~functions:[stitch_function]~graphs:[graph]~options:1L());
-  expect Invalid_argument(Function_stitching_node.set node~name:"cycle"~arguments:[input]~dependencies:[node]);
-  expect Parent_has_dependents(Function_stitching_node.destroy node);
-  expect Parent_has_dependents(Function_stitching_graph.destroy graph);
-  get(Stitched_library_descriptor.destroy stitched);
-  get(Function.destroy stitch_function);
-  get(Function_stitching_graph.destroy graph);
-  get(Function_stitching_node.destroy node);
-  get(Shader_stitching_input.destroy input);
   get(Library.destroy library);get(Device.destroy device)

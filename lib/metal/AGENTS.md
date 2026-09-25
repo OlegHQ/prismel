@@ -3,7 +3,7 @@
 Metal bindings exist only because `ogpu_metal` or `runtime` needs them.
 Whole-SDK coverage is not a goal (plan decision 1).
 
-## Target (plan M1–M3)
+## Binding path (plan M1–M3)
 
 - Generated bindings come solely from `gen/registry.ml` (Enum, Record,
   Selector). Every entry names the OGPU `Caps.feature` it serves. Nothing else
@@ -14,8 +14,8 @@ Whole-SDK coverage is not a goal (plan decision 1).
   with `-Werror`, so unknown selectors, wrong types, and unguarded availability
   fail the build. Never use `objc_msgSend`, stringly typed selectors, or a
   public unsafe catch-all.
-- The generator fails on duplicate OCaml/C names and on any registry entry or
-  `metal_raw` external not referenced from `metal.ml`.
+- The generator fails on duplicate OCaml/C names and on any registry entry not
+  referenced from `metal.ml`. M2's raw-external trim remains in progress.
 - Every new safe Metal function lands with its first `ogpu_metal` call site
   and one success and one rejection test in `test_metal.ml`.
 - Encoders with resources, descriptors, blocks, callbacks, and ownership
@@ -24,10 +24,10 @@ Whole-SDK coverage is not a goal (plan decision 1).
 - The safe `Metal` layer validates, returns typed errors, and exposes no raw
   pointers. Delete bindings when their last consumer goes away.
 
-## Until the registry lands
+## While M1–M3 are in progress
 
-`tools/metal` (the whole-SDK inventory/plan tooling) is frozen: do not extend
-it or add inventory, provenance, or ledger entries. Add a binding only for an
-`ogpu_metal`/`runtime` call site, handwritten beside the existing ones, with
-its tests. `test_metal` and the macOS-26-only generated test run under
-`@qualification` (the M1 AGX driver crashes in MTL4 static linking).
+The whole-SDK tooling and inventory are gone. Add a binding through the
+registry when its supported types cover the call; otherwise keep ownership and
+callback code in the handwritten bridge. Follow the `add-metal-binding` skill
+in `.claude/skills/`. The M1 AGX driver crashes in a Metal 4 static-linking
+fixture, so that fixture remains under `@qualification`.

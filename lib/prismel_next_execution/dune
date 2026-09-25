@@ -2,7 +2,7 @@
  (name prismel_next_execution)
  (public_name prismel.prismel_next_execution)
  (modules prismel_next_execution)
- (libraries ogpu scene_command scene_execution runtime_next_orchestrator
+ (libraries ogpu scene_command scene_execution runtime_next_orchestrator lru
   prismel_next_resources))
 
 (executable

@@ -1,4 +1,4 @@
-let to_mesh = Pdk.Prismel_mesh.to_mesh
+let to_mesh = Pdk_prismel.Prismel_mesh.to_mesh
 
 let cook_to_mesh session ~context node =
   match Session.cook session ~context node with

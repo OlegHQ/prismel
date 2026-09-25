@@ -220,7 +220,7 @@ let test_selection_promotion_matrix () =
 
 let test_parallel_and_errors () =
   let run domains = Parallel.run ~domains (fun () ->
-    Ops.grid ~connectivity:Ops.Grid_quads ~columns:220 ~rows:180 ~size:10. ()
+    Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:220 ~rows:180 ~size:10. ()
     |> get_pdk
     |> Ops.normals ~grain:257 ~owner:Attribute.Vertex
          ~weighting:Ops.Vertex_angle ~cusp_angle:(Float.pi /. 3.)
@@ -255,6 +255,35 @@ let test_parallel_and_errors () =
        "normal cancellation code"
    | Ok _ -> fail "Normals ignored cancellation")
 
+let test_checked_boundary () =
+  let geometry = source () in
+  let direct = Normal_ops.run_checked geometry |> get_pdk
+  and compatibility = Ops.normals geometry |> get_pdk in
+  check (equal_normals Attribute.Point direct compatibility)
+    "direct normal boundary changed point normals";
+  let raw_message = match Normal_ops.run ~grain:0 geometry with
+    | Error message -> message
+    | Ok _ -> fail "raw normal validation accepted zero grain" in
+  (match Normal_ops.run_checked ~grain:0 geometry,
+         Ops.normals ~grain:0 geometry with
+   | Error direct, Error compatibility ->
+       check (Error.operation direct = "normals"
+           && Error.code direct = "invalid_topology"
+           && Error.message direct = raw_message
+           && Error.to_string direct = Error.to_string compatibility)
+         "direct normal boundary changed the typed validation error"
+   | _ -> fail "normal boundaries accepted zero grain");
+  let cancel = Cancel.create () in
+  Cancel.cancel cancel;
+  (match Normal_ops.run_checked ~cancel geometry,
+         Ops.normals ~cancel geometry with
+   | Error direct, Error compatibility ->
+       check (Error.operation direct = "normals"
+           && Error.code direct = "cancelled"
+           && Error.to_string direct = Error.to_string compatibility)
+         "direct normal boundary changed the typed cancellation error"
+   | _ -> fail "normal boundaries ignored cancellation")
+
 let run () =
   test_owners_and_weighting ();
   test_vertex_cusp ();
@@ -262,4 +291,5 @@ let run () =
   test_edge_selection_zero_and_custom_name ();
   test_selection_promotion_matrix ();
   test_parallel_and_errors ();
+  test_checked_boundary ();
   print_endline "Normals tests passed"

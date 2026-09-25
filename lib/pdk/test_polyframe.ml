@@ -120,7 +120,7 @@ let with_attribute owner name storage geometry =
   Geometry.with_attribute attribute geometry |> get_string
 
 let check_point_styles () =
-  let source = Ops.grid ~columns:1 ~rows:1 ~size:2. () |> get_ok in
+  let source = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:2. () |> get_ok in
   let first = Ops.polyframe ~orthogonal:true Ops.First_edge source |> get_ok
   and two = Ops.polyframe ~orthogonal:true Ops.Two_edges source |> get_ok
   and radial = Ops.polyframe ~orthogonal:true Ops.Primitive_centroid source
@@ -185,7 +185,7 @@ let check_point_styles () =
     "PolyFrame orthogonal handedness"
 
 let check_gradient_styles () =
-  let source = Ops.grid ~columns:4 ~rows:3 ~uv_attribute:"uv" ~size:2. ()
+  let source = Plane_generators.grid_checked ~columns:4 ~rows:3 ~uv_attribute:"uv" ~size:2. ()
       |> get_ok in
   let point = Ops.polyframe ~orthogonal:true (Ops.Texture_uv "uv") source
       |> get_ok in
@@ -218,7 +218,7 @@ let check_gradient_styles () =
   done
 
 let check_selection () =
-  let source = Ops.grid ~columns:1 ~rows:1 ~size:2. () |> get_ok in
+  let source = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:2. () |> get_ok in
   let count = Geometry.point_count source in
   let source = with_attribute Attribute.Point "tangentu"
       (Attribute.Float3 (Packed.Float3.Private.of_owned_exn
@@ -234,7 +234,7 @@ let check_selection () =
     "PolyFrame selection did not preserve output outside the group"
 
 let check_validation () =
-  let source = Ops.grid ~columns:1 ~rows:1 ~uv_attribute:"uv" ~size:1. ()
+  let source = Plane_generators.grid_checked ~columns:1 ~rows:1 ~uv_attribute:"uv" ~size:1. ()
       |> get_ok in
   expect_invalid (Ops.polyframe (Ops.Texture_uv "missing") source);
   expect_invalid (Ops.polyframe ~normal_attribute:"P" Ops.First_edge source);
@@ -259,7 +259,7 @@ let check_validation () =
    | _ -> fail "PolyFrame ignored cancellation")
 
 let check_parallel_exact () =
-  let source = Ops.grid ~columns:300 ~rows:240 ~uv_attribute:"uv" ~size:20. ()
+  let source = Plane_generators.grid_checked ~columns:300 ~rows:240 ~uv_attribute:"uv" ~size:20. ()
       |> get_ok in
   let run style domains = Parallel.run ~domains (fun () ->
       Ops.polyframe ~grain:257 ~orthogonal:true style source |> get_ok) in

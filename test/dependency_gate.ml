@@ -65,10 +65,10 @@ let reach graph =
 
 let gpu = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu"; "ogpu_mock"; "ogpu_metal"; "ogpu_metal_native";
            "runtime_next"; "runtime_next_orchestrator"; "scene_execution"]
-let upper = ["prismel"; "editor"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "procedural"; "pdk"; "geom";
+let upper = ["prismel"; "editor"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "procedural"; "pdk";
              "sop_catalog"; "sketch_support"; "sketch_ui"]
 let foundational = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu";
-                    "native_layer_token"; "scene_command"]
+                    "native_layer_token"; "scene_command"; "lru"]
 
 (* (library, libraries it may never reach) *)
 let rules =
@@ -86,27 +86,36 @@ let rules =
       "ogpu_metal", ["sdl3"; "runtime_next"; "prismel"; "scene_execution"];
       "runtime_next", upper; "runtime_next_input", upper;
       "prismel_next_execution", ["runtime_next_input"];
-      "prismel", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "procedural"; "pdk"; "geom";
+      "prismel", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "procedural"; "pdk";
                   "sop_catalog"; "sketch_support"; "sketch_ui"];
-      "pdk", "geom" :: "procedural" :: "pxui" :: "pxui_shell" :: "sop_ui" :: "sop_catalog" :: gpu;
-      "geom", ["procedural"; "pxui"; "pxui_shell"; "sop_ui"; "sop_catalog"];
+      "prismel_math", ["prismel"; "pdk_core"; "pdk_exact"; "pdk_spatial"; "pdk_attrib"; "pdk_gen"; "pdk_curve"; "pdk_mesh"; "pdk_boolean"; "pdk_io"; "pdk"; "pdk_prismel"; "procedural"] @ gpu;
+      "pdk_core", "pdk_exact" :: "pdk_spatial" :: "pdk_attrib" :: "pdk_gen" :: "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "pdk_io" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
+      "pdk_exact", "pdk_spatial" :: "pdk_attrib" :: "pdk_gen" :: "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "pdk_io" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
+      "pdk_spatial", "pdk_attrib" :: "pdk_gen" :: "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "pdk_io" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
+      "pdk_attrib", "pdk_gen" :: "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "pdk_io" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
+      "pdk_gen", "pdk_curve" :: "pdk_mesh" :: "pdk_boolean" :: "pdk_io" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
+      "pdk_curve", "pdk_gen" :: "pdk_mesh" :: "pdk_boolean" :: "pdk_io" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
+      "pdk_mesh", "pdk_boolean" :: "pdk_io" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
+      "pdk_boolean", "pdk_io" :: "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
+      "pdk_io", "prismel" :: "pdk" :: "pdk_prismel" :: "procedural" :: gpu;
+      "pdk", "prismel" :: "pdk_prismel" :: "procedural" :: "pxui" :: "pxui_shell" :: "sop_ui" :: "sop_catalog" :: gpu;
       "procedural", "pxui" :: "pxui_shell" :: "pxui_graph" :: "sop_ui" :: "sop_catalog"
                     :: "sketch_support" :: "sketch_ui" :: gpu;
       "editor", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "sketch_ui"; "procedural";
-                 "pdk"; "geom"; "sop_catalog"];
-      "pxui", ["editor"; "pxui_shell"; "procedural"; "pdk"; "geom"; "pxui_graph";
+                 "pdk"; "sop_catalog"];
+      "pxui", ["editor"; "pxui_shell"; "procedural"; "pdk"; "pxui_graph";
                "sop_ui"; "sketch_support"; "sketch_ui"];
-      "pxui_shell", ["procedural"; "pdk"; "geom"; "sop_catalog"; "sop_ui";
+      "pxui_shell", ["procedural"; "pdk"; "sop_catalog"; "sop_ui";
                      "pxui_graph"; "sketch_support"; "sketch_ui"];
       "sop_ui", ["pxui_shell"; "pxui_graph"; "sketch_support"; "sketch_ui"; "sop_catalog"];
       "pxui_graph", ["pxui_shell"; "sop_ui"; "sketch_support"; "sketch_ui"; "sop_catalog"];
-      "sop_catalog", ["geom"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "sketch_support"; "sketch_ui"];
-      "sketch_support", ["geom"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "sketch_ui"] ]
+      "sop_catalog", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "sketch_support"; "sketch_ui"];
+      "sketch_support", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "sketch_ui"] ]
 
 (* Known violations: (library, reached, plan item that removes it). *)
 let reach_exceptions =
   List.concat_map (fun (lib, item) -> List.map (fun g -> lib, g, item) gpu)
-    [ "pdk", "K1"; "procedural", "K1" ]
+    [ "procedural", "K1" ]
 
 (* Direct Metal use outside lib/metal and lib/ogpu_metal: (path prefix, item). *)
 let metal_exceptions = []
@@ -189,14 +198,19 @@ let run () =
   let graph = graph ["lib"; "ppx"] in
   if List.length graph < 20 then failwith "dependency gate found too few libraries (wrong cwd?)";
   List.iter (fun name -> if List.mem_assoc name graph then
-    failwith ("retired facade returned: " ^ name)) ["runtime"; "prismel_next_api"];
+    failwith ("retired facade returned: " ^ name)) ["runtime"; "prismel_next_api"; "geom"];
   (* injected violations must fire *)
   let inject lib dep = List.map (fun (l, d) -> l, if l = lib then dep :: d else d) graph in
   List.iter (fun (lib, dep) ->
     if violations (inject lib dep) ~scan:[] = [] then
       failwith (Printf.sprintf "gate accepted injected edge %s -> %s" lib dep))
     ["ogpu_core", "metal"; "ogpu", "ogpu_metal_native"; "ogpu_mock", "metal"; "prismel", "pxui"; "pxui", "procedural"; "pxui", "sdl3"; "pxui", "scene_command"; "sdl3", "prismel";
-     "pdk", "geom"; "prismel_next_execution", "runtime_next_input"];
+     "pdk", "prismel"; "pdk_core", "pdk_exact";
+     "pdk_exact", "pdk_boolean"; "pdk_spatial", "pdk_attrib";
+     "pdk_attrib", "pdk_boolean"; "pdk_gen", "pdk_curve";
+     "pdk_curve", "pdk_gen"; "pdk_mesh", "pdk_boolean"; "pdk_boolean", "pdk_io"; "pdk_io", "pdk";
+     "pdk_core", "prismel";
+     "prismel_math", "prismel"; "prismel_next_execution", "runtime_next_input"];
   if violations graph ~scan:["lib/prismel/injected.ml", "let x = Metal.Device.system_default"] = []
      || violations graph ~scan:["lib/prismel/injected.ml", "open Ogpu_metal_native"] = []
      || violations graph ~scan:["lib/prismel/injected.ml", "open Ogpu_metal"] = [] then

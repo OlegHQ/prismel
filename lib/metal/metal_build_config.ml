@@ -59,6 +59,26 @@ let profile_compile_flags = function
   | "release" -> [ "-O3"; "-DNDEBUG" ]
   | _ -> [ "-O2" ]
 
+let check_sdk_version version =
+  let parts = String.split_on_char '.' (String.trim version) in
+  let number part =
+    if part = "" || not (String.for_all (function '0' .. '9' -> true | _ -> false) part)
+    then None
+    else int_of_string_opt part
+  in
+  let invalid () = Error (Printf.sprintf "invalid macOS SDK version %S" version) in
+  match parts with
+  | major :: minor :: patch ->
+      if List.length patch > 1 || List.exists (fun part -> number part = None) patch
+      then invalid ()
+      else
+        (match number major, number minor with
+         | Some major, Some _ when major >= 26 -> Ok ()
+         | Some _, Some _ ->
+             Error (Printf.sprintf "Metal requires macOS SDK 26.0 or newer (found %s)" version)
+         | _ -> invalid ())
+  | _ -> invalid ()
+
 let framework_link_flags =
   [ "-framework"; "Foundation"; "-framework"; "Metal"; "-framework"
   ; "QuartzCore"; "-framework"; "CoreGraphics"; "-framework"; "IOSurface"; "-framework"; "MetalFX"; "-lc++"

@@ -6,7 +6,7 @@ let check condition message = if not condition then fail message
 let get = function Ok value -> value | Error message -> fail message
 let get_pdk = function Ok value -> value | Error error -> fail (Error.to_string error)
 
-let point_cloud values = Ops.points values
+let point_cloud values = Line_geometry.points values
 
 let same_storage left right = match Attribute.Private.storage left,
     Attribute.Private.storage right with

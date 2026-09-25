@@ -31,12 +31,16 @@ type snapshot = {
   dropped_events : int;
 }
 
+(* All-float records store their fields unboxed, so per-event updates below
+   assign in place instead of allocating tuples and boxed floats. *)
+type pair = { mutable px : float; mutable py : float }
+
 type t = {
   max_events : int;
   events : event Queue.t;
-  mutable pointer : float * float;
-  mutable mouse_delta : float * float;
-  mutable wheel_delta : float * float;
+  pointer : pair;
+  mouse_delta : pair;
+  wheel_delta : pair;
   mutable buttons : mouse_button list;
   mutable keys : string list;
   mutable pointer_captured : bool;
@@ -56,9 +60,9 @@ let create ~max_events ~logical_width ~logical_height =
       {
         max_events;
         events = Queue.create ();
-        pointer = (0., 0.);
-        mouse_delta = (0., 0.);
-        wheel_delta = (0., 0.);
+        pointer = { px = 0.; py = 0. };
+        mouse_delta = { px = 0.; py = 0. };
+        wheel_delta = { px = 0.; py = 0. };
         buttons = [];
         keys = [];
         pointer_captured = false;
@@ -73,24 +77,29 @@ let remove value values = List.filter (( <> ) value) values
 
 let apply value = function
   | Pointer_moved (x, y) ->
-      let old_x, old_y = value.pointer in
-      let dx, dy = value.mouse_delta in
-      value.pointer <- (x, y);
-      if not value.relative then value.mouse_delta <- (dx +. x -. old_x, dy +. y -. old_y)
+      let pointer = value.pointer and delta = value.mouse_delta in
+      if not value.relative then begin
+        delta.px <- delta.px +. x -. pointer.px;
+        delta.py <- delta.py +. y -. pointer.py
+      end;
+      pointer.px <- x;
+      pointer.py <- y
   | Pointer_pressed (button, x, y) ->
-      value.pointer <- (x, y);
+      value.pointer.px <- x;
+      value.pointer.py <- y;
       value.buttons <- add_unique button value.buttons;
       value.pointer_captured <- true
   | Pointer_released (button, x, y) ->
-      value.pointer <- (x, y);
+      value.pointer.px <- x;
+      value.pointer.py <- y;
       value.buttons <- remove button value.buttons;
       value.pointer_captured <- value.buttons <> []
   | Pointer_cancelled button ->
       value.buttons <- remove button value.buttons;
       value.pointer_captured <- value.buttons <> []
   | Wheel (x, y) ->
-      let old_x, old_y = value.wheel_delta in
-      value.wheel_delta <- (old_x +. x, old_y +. y)
+      value.wheel_delta.px <- value.wheel_delta.px +. x;
+      value.wheel_delta.py <- value.wheel_delta.py +. y
   | Key_pressed event -> value.keys <- add_unique event.key value.keys
   | Key_released event -> value.keys <- remove event.key value.keys
   | Focus_lost -> value.keys <- []
@@ -116,7 +125,7 @@ let push value event =
       Ok ()
 
 let drain value =
-  let events = List.of_seq (Queue.to_seq value.events) in
+  let events = List.rev (Queue.fold (fun acc event -> event :: acc) [] value.events) in
   Queue.clear value.events;
   events
 
@@ -124,13 +133,16 @@ let set_relative value relative = value.relative <- relative
 let relative value = value.relative
 
 let add_motion value ~dx ~dy =
-  if value.relative then
-    let x, y = value.mouse_delta in
-    value.mouse_delta <- (x +. dx, y +. dy)
+  if value.relative then begin
+    value.mouse_delta.px <- value.mouse_delta.px +. dx;
+    value.mouse_delta.py <- value.mouse_delta.py +. dy
+  end
 
 let begin_frame value =
-  value.mouse_delta <- (0., 0.);
-  value.wheel_delta <- (0., 0.)
+  value.mouse_delta.px <- 0.;
+  value.mouse_delta.py <- 0.;
+  value.wheel_delta.px <- 0.;
+  value.wheel_delta.py <- 0.
 
 let set_extent value ~logical_width ~logical_height =
   if logical_width <= 0 || logical_height <= 0 then Error "logical dimensions must be positive"
@@ -142,9 +154,9 @@ let set_extent value ~logical_width ~logical_height =
 
 let snapshot value =
   {
-    pointer = value.pointer;
-    mouse_delta = value.mouse_delta;
-    wheel_delta = value.wheel_delta;
+    pointer = (value.pointer.px, value.pointer.py);
+    mouse_delta = (value.mouse_delta.px, value.mouse_delta.py);
+    wheel_delta = (value.wheel_delta.px, value.wheel_delta.py);
     buttons = value.buttons;
     keys = value.keys;
     pointer_captured = value.pointer_captured;

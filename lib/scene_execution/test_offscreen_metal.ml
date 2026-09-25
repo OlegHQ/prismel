@@ -79,7 +79,7 @@ let run () =
           retained.plan_hits retained.plan_entries retained.plan_failures
           (Option.value retained.plan_last_failure ~default:"none"));
       let uploaded=Scene_execution.upload_bytes renderer in
-      if uploaded<=0L || Scene_execution.cache_entries renderer>2 then
+      if uploaded<=0L || Scene_execution.Private.cache_count_for_report renderer>2 then
         failwith "offscreen cache accounting is unbounded or empty";
       (* Distinct scissors prevent coalescing: this graph crosses the mesh
          cache limit and must rebuild after completion-time eviction. *)
@@ -102,7 +102,7 @@ let run () =
            |Some expected when Bytes.equal expected pixels -> ()
            |Some _ -> failwith "dense eviction native pixel drift")
         end;
-        if Scene_execution.cache_entries renderer>256 then
+        if Scene_execution.Private.cache_count_for_report renderer>256 then
           failwith "dense native cache overflow"
       done;
       let stats=Scene_execution.retained_stats renderer in

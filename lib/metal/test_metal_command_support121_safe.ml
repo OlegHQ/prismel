@@ -3,19 +3,6 @@ let fail format=Printf.ksprintf failwith format
 let get=function Ok x->x|Error e->fail "%s"(Format.asprintf "%a" pp_error e)
 let expect kind=function Error e when e.kind=kind->()|Error e->fail "%s"(Format.asprintf "%a" pp_error e)|Ok _->fail "expected rejection"
 let run () =
-  let manager=get(Capture.Manager.shared())in
-  ignore(get(Capture.Manager.supports_destination manager Capture.Developer_tools));
-  ignore(get(Capture.Manager.is_capturing manager));
-  let capture=get(Capture.Descriptor.create ~destination:Capture.Developer_tools())in
-  let output=Filename.temp_file "prismel-metal-capture-" ".gputrace" in
-  Sys.remove output;
-  expect Invalid_argument(Capture.Descriptor.set_destination capture Capture.Gpu_trace_document);
-  let trace=get(Capture.Descriptor.create ~destination:Capture.Gpu_trace_document
-    ~output_url:output())in
-  if Capture.Descriptor.destination trace<>Capture.Gpu_trace_document then fail "capture destination drift";
-  if Capture.Descriptor.output_url trace<>Some output then fail "capture output path drift";
-  get(Capture.Descriptor.destroy trace);get(Capture.Descriptor.destroy capture);
-  get(Capture.Manager.destroy manager);
   let device=get(Device.system_default())in
   let compute_descriptor=Indirect_command_buffer.descriptor
     ~max_kernel_threadgroup_memory_bind_count:1

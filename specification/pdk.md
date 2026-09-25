@@ -10,12 +10,35 @@ interpreted VEX clone. Its public values are immutable and target-independent;
 builders and kernels use locally owned mutation over packed storage.
 
 ```text
-procedural / geom / examples ──> pdk ──> prismel ──> ogpu
+procedural / examples ──> pdk ──> pdk_boolean / pdk_io ──> pdk_mesh
+                                  pdk_prismel ──> pdk_mesh + prismel
+                                  pdk_mesh ──> pdk_attrib / pdk_gen / pdk_curve
+                                  pdk_attrib / pdk_gen / pdk_curve
+                                    ──> pdk_spatial / pdk_exact ──> pdk_core ──> prismel_math
+prismel ──> prismel_math
 ```
 
-PDK must not import Geom, Procedural, Runtime, SDL3, Metal, or platform code.
-The only renderer boundary is conversion to `Prismel.Mesh.t`; PDK itself
-remains a pure native OCaml compute library.
+PDK must not import Procedural, Runtime, SDL3, Metal, or platform code.
+The renderer boundary is `Pdk_prismel.Prismel_mesh`, which converts to and
+from `Prismel.Mesh.t`. `pdk` and `pdk_core` do not link Prismel or the GPU
+stack. `Pdk.Ops.color_by_height` accepts normalized RGBA float tuples;
+the procedural SOP converts public `Prismel.Color.t` inputs at its boundary.
+`pdk_core` owns packed storage, topology, groups, and geometry; `pdk_exact`
+owns exact planar algorithms; `pdk_spatial` owns indices and intersection
+queries; `pdk_attrib` owns attribute and group operations. Generators and
+curve operations live in `pdk_gen` and `pdk_curve`, while mesh operations and
+Boolean stages live in `pdk_mesh` and `pdk_boolean`; packed mesh formats live
+in `pdk_io`. `Pdk` retains the public
+module paths. `Ops` keeps public aliases for extracted mesh kernels:
+`Triangulate` owns the deterministic polygon-to-triangle plan and installs its
+result through `Topology_remap.preserving_points`. The shared select, attribute,
+and group remappers also serve Sort and Delete payload ancestry. `Reverse_faces`
+owns primitive winding reversal and corner shifts; it retains a specialized
+vertex remap because the generic preserving-points path measured slower on a
+90,601-point grid. `Mirror_geometry` owns reflected topology, normals, and
+edge-group ancestry. `Resample_curves` owns deterministic curve sampling,
+interpolated payload, diagnostics, and edge ancestry. Their checked public
+operations remain under `Ops`.
 
 ## Geometry model
 
@@ -51,7 +74,9 @@ share it without retaining dead geometry. `Topology_index.create_uncached`
 keeps cold construction measurable and explicit.
 `Edge_group.remap` maps canonical source endpoints through an explicit
 source-to-target point plane, drops deleted/collapsed edges, and unions
-many-to-one results. Point/primitive Sort, Triangulate, Reverse, Delete with
+many-to-one results. `Topology_remap.edge_groups` shares the index setup and
+result propagation used by Sort, Delete, point compaction, and other topology
+changes. Point/primitive Sort, Triangulate, Reverse, Delete with
 optional compaction, direct point compaction, Merge, Fuse, and Mirror use this
 boundary or its exact equivalent. Duplicate and Copy to Points validate their
 copy-major topology and replicate edge ordinals directly, avoiding a large
@@ -1151,7 +1176,9 @@ parallel path. Divided boxes compute all six face cardinalities before
 allocation and fill disjoint face-local position, normal, triangle, and winding
 ranges. Bounding spheres start from the selected AABB diagonal, then apply
 asymmetric padding as center/radius changes to the shared UV-sphere generator.
-That generator now allocates exact packed position, normal, and topology arrays
+That generator lives in `pdk_gen/Uv_sphere` with a direct `Pdk.Uv_sphere.run`
+entry point; `Pdk.Ops.uv_sphere` retains its typed-error boundary. It allocates
+exact packed position, normal, and topology arrays
 and fills points/triangles directly, with no per-triangle point tuples. Optional
 detail center/radii and the all-output primitive group are committed only after
 successful geometry construction. Bounds reduction is O(points + selected
@@ -1733,7 +1760,7 @@ boundary positions. Enforce Consistent Topology disables position-dependent
 coincident-chain welding and bridge-face omission, and replaces geometric ear
 selection with a stable source-corner fan. Counts, connectivity, and ordering
 therefore depend only on input topology and selection; an exactly coincident
-transition may deliberately retain a zero-area face. Geom's public Loop and Catmull-Clark
+transition may deliberately retain a zero-area face. PDK's public Loop and Catmull-Clark
 functions now adapt through this kernel rather than owning duplicate topology
 algorithms.
 The unified deletion planner accepts point, vertex, or primitive bitsets.
@@ -2421,6 +2448,65 @@ removed 48 MB of measured allocation at 250,000 points without changing its
 hash.
 
 ### Triangulate 2D
+
+`Pdk.Voronoi2.cells` owns bounded pairwise half-plane clipping for ordered
+2D sites. It removes near-duplicate sites in first-occurrence order, preserves
+polygon vertex order, rejects non-finite inputs, and returns a typed cancellation
+error. The ordered five-cell fixture is checked directly at the PDK boundary
+in one and four domains. During migration, a 64-site release benchmark of the
+former Geom adapter preserved the ordered cell digest and overlapped clean
+`HEAD` timing (0.494–0.495 ms before, 0.497 ms after per call, 500 calls per run).
+
+`Pdk.Curve_sampling` owns quadratic/cubic Bézier and Catmull–Rom sample
+generation in 2D and 3D. It returns typed errors for invalid resolution,
+insufficient distinct controls, non-finite tension, or cancellation.
+Exact ordered fixtures cover each curve kind and one-versus-four-domain
+Catmull–Rom output at the PDK boundary. A captured Geom compatibility fixture
+matched across the migration.
+
+`Pdk.Iso_surface` streams XY slabs while extracting a six-tetrahedra
+isosurface into packed PDK point positions, triangle topology, and point
+normals. It supports boxed and dense scalar fields, typed malformed-input and
+cancellation errors, and deterministic one/four-domain output. A captured
+one-cell plane fixture fixed all 24 emitted positions, identity indices, and
+normals across migration. The dense PDK gyroid benchmark at 40³ cells emits
+52,860 triangles and records position/topology digest `420974040`.
+Historical matched release Geom calls (nine repeats, two interleaved pairs)
+preserved 158,580 vertices and
+full mesh digest `600041751`: one-domain medians are 21.392/22.780 ms on
+clean `HEAD` versus 18.652/20.317 ms after the port, with only 496 more
+caller-allocated bytes. Four-domain medians are 21.294/37.748 versus
+19.747/21.207 ms under variable host scheduling, with the same digest.
+
+`Pdk.Io` owns deterministic packed ASCII/binary STL, OFF, and OBJ loading and
+saving. STL import regenerates triangle normals; OFF import fan-triangulates
+polygons; OBJ import preserves supplied normal and UV corners. Malformed
+records and cancelled operations return typed errors. Direct roundtrip
+fixtures compare ordered positions and triangle indices at one and four
+domains. Migration fixtures also captured the former Geom STL/OFF output,
+including its OFF reader's reversed coordinate-field evaluation.
+
+`Pdk.Subdivision_extra` owns Butterfly and Doo-Sabin triangle subdivision.
+It currently accepts triangle meshes with point `N`, `Cd`, and `uv` only;
+groups and other attributes are unsupported. The output recomputes point
+normals and interpolates point `Cd` and `uv`;
+non-manifold input fails atomically. Captured full ordered open-triangle and
+icosahedron mesh fingerprints matched across migration. Direct fixtures cover
+output cardinality, malformed empty input, cancellation and exact one/four-domain
+output. The release
+`bench_pdk_subdivide` at a 96²-cell triangular grid records 73,728 Butterfly
+faces in 45.043 ms and 109,444 Doo-Sabin faces in 49.538 ms at one domain
+(five repeats), with the same digests at four domains.
+
+`Pdk.Repair_mesh` owns triangle manifold reports, T-junction edge splitting,
+and consistent orientation. It accepts point/detail attributes and point
+groups; vertex/primitive attributes and edge groups return an error. It keeps
+supported point payload while rebuilding ordered triangle topology and
+recomputing normals. Captured full report and
+mesh fingerprints, including a four-way split around multiple T-junctions,
+matched across migration. Direct fixtures also check one/four-domain parity,
+cardinality, malformed input and
+cancellation.
 
 `Ops.triangulate_2d` is the first public adapter over the shared packed
 `Delaunay2` core. It accepts a typed point selection and projects source points
@@ -4216,8 +4302,7 @@ directed-edge points form twelve pentagons followed by twenty hexagons, with 90
 two-manifold edges, black/white primitive `Cd`, and optional arity groups.
 Every point lies at the requested circumsphere radius. Point normals are radial;
 vertex normals are constant per polygon and preserve hard edges through terminal
-N-gon triangulation. `Geom.Polyhedra3` calls this kernel and no longer owns a
-second vertex/face implementation.
+N-gon triangulation.
 
 All cardinalities are fixed and bounded by 60 points, 180 corners, and 32
 primitives. Cook time, output, and auxiliary memory are therefore O(1).

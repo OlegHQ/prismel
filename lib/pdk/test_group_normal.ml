@@ -135,7 +135,7 @@ let test_extreme_coordinates () =
     "Group Normal overflow-safe extreme coordinates"
 
 let test_base_merge_and_failures () =
-  let source = Ops.grid ~columns:3 ~rows:2 ~size:2. () |> get_ok in
+  let source = Plane_generators.grid_checked ~columns:3 ~rows:2 ~size:2. () |> get_ok in
   let base = Group.init ~grain:1 ~owner:Group.Primitive ~name:"base"
       (Geometry.primitive_count source) (fun primitive -> primitive land 1 = 0) in
   let existing = Group.init ~grain:1 ~owner:Group.Primitive ~name:"selection"
@@ -177,7 +177,7 @@ let test_base_merge_and_failures () =
       ~direction:(Vec3.create 0. 1. 0.) ~spread_angle:0.
       ~owner:Ops.Group_points ~name:"bad" source)
     "Group Normal rejects missing attribute";
-  let wrong_n_source = Ops.points [|(0., 0., 0.)|] in
+  let wrong_n_source = Line_geometry.points [|(0., 0., 0.)|] in
   let wrong_n = Attribute.create_owned ~owner:Attribute.Point ~name:"N"
       (Attribute.Int [|1|]) |> Result.get_ok in
   let wrong_n_source = Geometry.with_attribute wrong_n wrong_n_source
@@ -198,7 +198,7 @@ let same_group left right =
   && members left = members right
 
 let test_scale_parallel_exactness () =
-  let source = Ops.grid ~columns:500 ~rows:300 ~size:20. () |> get_ok in
+  let source = Plane_generators.grid_checked ~columns:500 ~rows:300 ~size:20. () |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
     source
     |> Ops.group_normal ~grain:1_009 ~direction:(Vec3.create 0. 1. 0.)

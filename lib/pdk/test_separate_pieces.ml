@@ -253,8 +253,8 @@ let test_dense_parallel_exactness () =
   let one = cook 1 and four = cook 4 in
   check (equal_geometry one four)
     "Separate Pieces one/four-domain geometry differs";
-  let one_mesh = Prismel_mesh.to_mesh one |> get_ok
-  and four_mesh = Prismel_mesh.to_mesh four |> get_ok in
+  let one_mesh = Pdk_prismel.Prismel_mesh.to_mesh one |> get_ok
+  and four_mesh = Pdk_prismel.Prismel_mesh.to_mesh four |> get_ok in
   check (Mesh.Private.packed_view one_mesh = Mesh.Private.packed_view four_mesh)
     "Separate Pieces one/four-domain render mesh differs"
 

@@ -10,7 +10,7 @@ let contains text pattern =
   pattern = "" || loop 0
 
 let input () =
-  let geometry = Pdk.Ops.points
+  let geometry = Pdk.Line_geometry.points
       [|0.,0.,0.; 1.,0.,1.; 1.,1.,3.; 0.,1.,2.; 4.,4.,12.|] in
   let group = Pdk.Group.ordered ~owner:Pdk.Group.Point ~name:"square" ~length:5
       [|0;1;2;3|] |> Result.get_ok in
@@ -103,7 +103,7 @@ let run () =
   check (Array.sub projected_positions.z 0 4 = [|0.;0.;0.;0.|]
       && projected_positions.z.(4) = 12.)
     "Triangulate 2D SOP projected-position output";
-  let refinement_node = Pdk.Ops.points
+  let refinement_node = Pdk.Line_geometry.points
       [|0.,0.,0.;2.,0.,0.;2.,2.,0.;0.,2.,0.|]
       |> Sop.snapshot |> Sop.triangulate_2d
           ~projection:Pdk.Ops.Triangulate_2d_xy ~refine:true
@@ -174,7 +174,7 @@ let run () =
    | Some group -> check (Pdk.Group.cardinality group = 1)
        "Triangulate 2D SOP split group cardinality"
    | None -> fail "Triangulate 2D SOP split group is missing");
-  let flood_node = Pdk.Ops.points [|0.,0.,0.;1.,0.,0.;0.,1.,0.|]
+  let flood_node = Pdk.Line_geometry.points [|0.,0.,0.;1.,0.,0.;0.,1.,0.|]
       |> Sop.snapshot |> Sop.triangulate_2d
           ~projection:Pdk.Ops.Triangulate_2d_xy
           ~flood_from_hull_boundary:true in
@@ -182,7 +182,7 @@ let run () =
     "Triangulate 2D hull-flood policy is absent from identity";
   check (Pdk.Geometry.primitive_count (cook 4 flood_node) = 0)
     "Triangulate 2D SOP did not apply hull flooding";
-  let polygon_node = Pdk.Ops.points [|0.,0.,0.;1.,0.,0.;0.,1.,0.|]
+  let polygon_node = Pdk.Line_geometry.points [|0.,0.,0.;1.,0.,0.;0.,1.,0.|]
       |> Sop.snapshot |> Sop.triangulate_2d
           ~projection:Pdk.Ops.Triangulate_2d_xy
           ~remove_outside_constraint_polygons:true in
@@ -219,7 +219,7 @@ let run () =
   check (Pdk.Geometry.point_count ignored = 4
       && Pdk.Geometry.primitive_count ignored = 2)
     "Triangulate 2D SOP Ignore Non-Constraint Points cardinality";
-  let duplicate_geometry = Pdk.Ops.points
+  let duplicate_geometry = Pdk.Line_geometry.points
       [|0.,0.,0.;1.,0.,0.;1.,1.,0.;0.,1.,0.;0.,0.,3.;9.,9.,9.|] in
   let duplicate_selection = Pdk.Group.ordered ~owner:Pdk.Group.Point
       ~name:"selected_with_duplicate" ~length:6 [|0;1;2;3;4|]

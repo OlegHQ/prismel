@@ -7,7 +7,7 @@ let get = function Ok value -> value | Error error -> fail (Error.to_string erro
 let attribute owner name storage =
   Attribute.create_owned ~owner ~name storage |> Result.get_ok
 
-let points values = Ops.points values
+let points values = Line_geometry.points values
 let point_int name geometry =
   match Geometry.find_attribute ~owner:Attribute.Point name geometry with
   | Some attribute -> (match Attribute.Private.storage attribute with

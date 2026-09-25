@@ -66,7 +66,7 @@ let add_attribute attribute geometry =
   Geometry.with_attribute attribute geometry |> get_ok
 
 let source_geometry () =
-  let source = Ops.box ~size:(Vec3.create 0.5 0.75 1.) () |> get_pdk in
+  let source = Box_generator.box_checked ~size:(Vec3.create 0.5 0.75 1.) () |> get_pdk in
   let points = Geometry.point_count source
   and vertices = Geometry.vertex_count source
   and primitives = Geometry.primitive_count source in
@@ -99,7 +99,7 @@ let transforms count = Array.init count (fun instance ->
 let legacy_materialize matrices source =
   Array.to_list matrices
   |> List.map (fun matrix -> Ops.transform ~grain:1 matrix source)
-  |> Ops.merge ~grain:1
+  |> Mesh_merge.run ~grain:1
   |> get_pdk
 
 let run () =
@@ -139,7 +139,7 @@ let run () =
   check (Attribute.storage_id source_id = Attribute.storage_id single_id)
     "single-instance materialization copied an unchanged attribute";
 
-  let raw_expected = Ops.merge ~grain:1 (List.init 17 (fun _ -> source)) |> get_pdk
+  let raw_expected = Mesh_merge.run ~grain:1 (List.init 17 (fun _ -> source)) |> get_pdk
   and raw = Ops.materialize_instances ~grain:1 ~apply_transform:false
       ~transforms:matrices source |> get_pdk in
   check (geometry_equal raw_expected raw)
@@ -183,7 +183,7 @@ let run () =
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled instance materialization published geometry");
 
-  let triangle = Ops.polyline ~closed:true
+  let triangle = Line_geometry.polyline_checked ~closed:true
       [|(0., 0., 0.); (1., 0., 0.); (0., 1., 0.)|] |> get_pdk in
   let scale_count = 100_000 in
   let scaled = Ops.materialize_instances ~grain:2_048

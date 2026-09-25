@@ -92,9 +92,9 @@ let run () =
   let one = fresh 1 and four = fresh 4 in
   check (equal_geometry one four)
     "Separate Pieces SOP one/four-domain geometry differs";
-  let one_mesh = Prismel_mesh.to_mesh one |> function
+  let one_mesh = Pdk_prismel.Prismel_mesh.to_mesh one |> function
     | Ok value -> value | Error error -> fail (Error.to_string error)
-  and four_mesh = Prismel_mesh.to_mesh four |> function
+  and four_mesh = Pdk_prismel.Prismel_mesh.to_mesh four |> function
     | Ok value -> value | Error error -> fail (Error.to_string error) in
   check (Mesh.Private.packed_view one_mesh = Mesh.Private.packed_view four_mesh)
     "Separate Pieces SOP one/four-domain render mesh differs";

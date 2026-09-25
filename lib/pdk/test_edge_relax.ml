@@ -98,7 +98,7 @@ let run () =
 
   check (Ops.edge_relax ~reference:source source |> get_pdk == source)
     "Edge Relax matching reference was not an identity";
-  let wrong_topology = Ops.polyline [|0.,0.,0.;1.,0.,0.;2.,0.,0.|] |> get_pdk in
+  let wrong_topology = Line_geometry.polyline_checked [|0.,0.,0.;1.,0.,0.;2.,0.,0.|] |> get_pdk in
   expect_code "invalid_edge_relax" (Ops.edge_relax ~reference:wrong_topology source);
   expect_code "invalid_edge_relax" (Ops.edge_relax ~reference ~grain:0 source);
   expect_code "invalid_edge_relax" (Ops.edge_relax ~reference ~iterations:0 source);
@@ -136,9 +136,9 @@ let run () =
   check (Geometry.point_count one = 100_000
       && Geometry.primitive_count one = 50_000)
     "Edge Relax scale cardinality";
-  let connected_source = Ops.polyline
+  let connected_source = Line_geometry.polyline_checked
       [|0.,0.,0.;1.,0.4,0.;3.,-0.2,0.;6.,0.5,0.|] |> get_pdk
-  and connected_reference = Ops.polyline
+  and connected_reference = Line_geometry.polyline_checked
       [|0.,0.,0.;2.,0.,0.;3.,0.,0.;7.,0.,0.|] |> get_pdk in
   let run_connected domains = Parallel.run ~domains (fun () ->
       Ops.edge_relax ~grain:1 ~iterations:96 ~reference:connected_reference

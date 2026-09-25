@@ -221,7 +221,7 @@ let test_position_and_validation () =
    | Ok _ -> fail "cancelled boundary classification published geometry")
 
 let test_parallel_scale_exactness () =
-  let source = Ops.grid ~columns:120 ~rows:90 ~size:20. () |> get_ok in
+  let source = Plane_generators.grid_checked ~columns:120 ~rows:90 ~size:20. () |> get_ok in
   let primitive_count = Geometry.primitive_count source in
   let source = with_attribute Attribute.Primitive "face_id"
       (Attribute.Int (Array.init primitive_count Fun.id)) source in

@@ -12,7 +12,7 @@ let get_group_ok = function
   | Error message -> fail message
 
 let point_cloud count =
-  Ops.points (Array.init count (fun point -> float_of_int point, 0., 0.))
+  Line_geometry.points (Array.init count (fun point -> float_of_int point, 0., 0.))
 
 let mesh primitive_points point_count =
   let positions = Packed.Float3.Builder.create point_count in
@@ -163,11 +163,11 @@ let test_ordered_group_topology_remap () =
   check (ordered_group_members (ordinary Group.Point "path" duplicated)
       = [4; 1; 5; 10; 7; 11])
     "duplicate preserves explicit order in copy-major order";
-  let merged = Ops.merge ~grain:1 [source; source] |> get_ok in
+  let merged = Mesh_merge.run ~grain:1 [source; source] |> get_ok in
   check (ordered_group_members (ordinary Group.Point "path" merged)
       = [4; 1; 5; 10; 7; 11])
     "merge concatenates explicit group order by input";
-  let fuse_source = Ops.points
+  let fuse_source = Line_geometry.points
       [|(0., 0., 0.); (0., 0., 0.); (1., 0., 0.); (2., 0., 0.)|]
       |> with_ordered_group Group.Point "path" [|1; 0; 3|] in
   let fused = Ops.fuse ~grain:1 ~tolerance:0. fuse_source |> get_ok in
@@ -397,7 +397,7 @@ let test_copy () =
    | Ok _ -> fail "Group Copy accepted edge attribute matching")
 
 let test_parallel_exactness_and_cancellation () =
-  let base = Ops.grid ~columns:500 ~rows:300 ~size:20. () |> get_ok in
+  let base = Plane_generators.grid_checked ~columns:500 ~rows:300 ~size:20. () |> get_ok in
   let width = 501 in
   let source = base
       |> with_group Group.Point "stripe_a"
@@ -458,7 +458,7 @@ let test_transfer () =
       |> with_group Group.Point "picked" (fun point -> point = 0)
       |> with_group Group.Point "unused" (fun point -> point = 1) in
   let source = Ops.transform (Mat4.scaling (Vec3.create 10. 1. 1.)) source in
-  let target = Ops.points [|(0.1, 0., 0.); (9.9, 0., 0.); (5., 0., 0.)|] in
+  let target = Line_geometry.points [|(0.1, 0., 0.); (9.9, 0., 0.); (5., 0., 0.)|] in
   let rules = [transfer_rule Ops.Group_points "picked" "near_"] in
   let transferred = Ops.group_transfer ~grain:1 ~distance:0.2 ~rules
       ~source ~target () |> get_ok in
@@ -468,9 +468,9 @@ let test_transfer () =
       ~source ~target () |> get_ok in
   expect_members [0; 2] (ordinary Group.Point "near_picked" tied)
     "Group Transfer point equal-distance lower-index tie";
-  let ordered_source = Ops.points [|(0., 0., 0.); (10., 0., 0.)|]
+  let ordered_source = Line_geometry.points [|(0., 0., 0.); (10., 0., 0.)|]
       |> with_ordered_group Group.Point "path" [|1; 0|] in
-  let ordered_target = Ops.points
+  let ordered_target = Line_geometry.points
       [|(0.9, 0., 0.); (0.1, 0., 0.); (9.8, 0., 0.); (10.5, 0., 0.)|] in
   let ordered_transfer = Ops.group_transfer ~grain:1 ~distance:1.
       ~rules:[transfer_rule Ops.Group_points "path" "mapped_"]
@@ -558,7 +558,7 @@ let test_transfer () =
    | Error error -> check (Error.code error = "invalid_group")
        "Group Transfer degenerate-primitive error code"
    | Ok _ -> fail "Group Transfer accepted a degenerate polygon");
-  let nonfinite = Ops.points [|(Float.nan, 0., 0.)|]
+  let nonfinite = Line_geometry.points [|(Float.nan, 0., 0.)|]
       |> with_group Group.Point "bad" (fun _ -> true) in
   (match Ops.group_transfer ~distance:1.
       ~rules:[transfer_rule Ops.Group_points "bad" ""]
@@ -577,7 +577,7 @@ let test_transfer () =
    | Ok _ -> fail "Group Transfer silently accepted overflowing distance math")
 
 let test_transfer_parallel_exactness () =
-  let source = Ops.grid ~columns:100 ~rows:80 ~size:20. () |> get_ok in
+  let source = Plane_generators.grid_checked ~columns:100 ~rows:80 ~size:20. () |> get_ok in
   let source = source
       |> with_group Group.Point "point_band" (fun point -> point mod 101 < 7)
       |> with_ordered_group Group.Point "ordered_seed" [|404; 5; 8_000; 2|]

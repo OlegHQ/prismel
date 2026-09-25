@@ -121,7 +121,7 @@ let copy_cubes ~source ~targets =
               ~topology:(Pdk.Topology.Builder.freeze builder) ~attributes:[ attribute ] ()))
 
 let graph () =
-  let grid = Sop_catalog.Grid.create ~label:"wall-grid" ~orientation:Pdk.Ops.Grid_xy
+  let grid = Sop_catalog.Grid.create ~label:"wall-grid" ~orientation:Pdk.Plane_generators.Grid_xy
       ~columns:35 ~rows:59 ~width:35. ~height:59. ~size:35. () in
   let cube = Sop_catalog.Box.create ~label:"cube" ~size:(v 0.86 0.86 1.) ~center:(v 0. 0. 0.5) () in
   copy_cubes ~source:cube ~targets:(wall_depth grid)
@@ -288,7 +288,7 @@ let overlay _graph prepared (frame : Frame.t) =
   picture @ Scene.[ text ~at:(12, 12) ~color:(Color.rgb 140 140 145) status ]
 
 let init _frame =
-  let placeholder = Result.get_ok (Pdk.Ops.box ~size:(v 0.01 0.01 0.01) ()) in
+  let placeholder = Result.get_ok (Pdk.Box_generator.box_checked ~size:(v 0.01 0.01 0.01) ()) in
   let w, h = image_size in
   let tracer =
     match P.create ~bounces:4 ~exposure:1. ~width:w ~height:h

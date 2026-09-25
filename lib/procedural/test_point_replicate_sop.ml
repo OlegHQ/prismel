@@ -10,7 +10,7 @@ let contains value needle =
   needle = "" || loop 0
 
 let source () =
-  let geometry = Pdk.Ops.points [|0.,0.,0.; 2.,0.,0.|] in
+  let geometry = Pdk.Line_geometry.points [|0.,0.,0.; 2.,0.,0.|] in
   let density = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Point
       ~name:"density" (Pdk.Attribute.Float [|2.;1.|]) |> Result.get_ok
   and id = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Point ~name:"id"

@@ -14,14 +14,10 @@ let run ()=match Device.system_default()with
   let encoder=get(Shader_argument_encoder.of_buffer_binding device function_~index:0L)in
   if Shader_argument_encoder.buffer_index encoder<>0L then failwith"reflected encoder index drift";
   if Device.registry_id(Shader_argument_encoder.device encoder)<>Device.registry_id device then failwith"reflected encoder device drift";
-  let pipeline=get(Device_async.compute_reflection device function_)in
   let event=get(Device.new_shared_event device)in
   get(Shared_event.set_signaled_value event 3L);
-  let handle=get(Shared_event.export_handle event)in
-  let imported=get(Shared_event.import_handle device handle)in
-  if get(Shared_event.signaled_value imported)<>3L then failwith"imported event value drift";
-  get(Shared_event.destroy imported);get(Shared_event_handle.destroy handle);
-  get(Shared_event.destroy event);get(Compute_pipeline.destroy pipeline);
+  if get(Shared_event.signaled_value event)<>3L then failwith"event value drift";
+  get(Shared_event.destroy event);
   get(Shader_argument_encoder.destroy encoder);get(Function.destroy function_);
   get(Library.destroy library);get(Device.destroy device);
-  print_endline"metal device constructors3: exact3 ok"
+  print_endline"metal device constructors3: retained constructors ok"

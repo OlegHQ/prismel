@@ -142,7 +142,7 @@ let run () =
     [("foo* bar*", "only_*"); ("^tmp*", "renamed_*");
      ("foo* ^tmp*", "one_* two_*")];
   let generated_line domains = Parallel.run ~domains (fun () ->
-    Ops.line ~grain:257 ~points:100_001
+    Line_geometry.line_checked ~grain:257 ~points:100_001
       ~origin:(Vec3.create 1. 2. 3.)
       ~direction:(Vec3.create max_float max_float 0.) ~length:(sqrt 2.) ()
     |> get_ok) in
@@ -162,7 +162,7 @@ let run () =
       || line_positions.y <> line_many_positions.y
       || line_positions.z <> line_many_positions.z then
     fail "Line packed generation/domain exactness";
-  let free_line = Ops.line ~kind:Ops.Line_points ~points:3
+  let free_line = Line_geometry.line_checked ~kind:Line_geometry.Line_points ~points:3
       ~origin:(Vec3.create (-1.) 0. 0.) ~direction:Vec3.unit_x ~length:2. ()
       |> get_ok in
   let free_positions = Packed.Float3.Private.view
@@ -170,23 +170,26 @@ let run () =
   if Geometry.primitive_count free_line <> 0
       || free_positions.x <> [|-1.; 0.; 1.|] then
     fail "Line free-point mode";
-  (match Ops.line ~origin:Vec3.zero ~direction:Vec3.zero ~length:1. () with
+  (match Line_geometry.line_checked ~origin:Vec3.zero ~direction:Vec3.zero ~length:1. () with
    | Error error when Error.code error = "invalid_parameter" -> ()
    | _ -> fail "Line accepted a zero direction");
-  (match Ops.line ~points:1 ~origin:Vec3.zero ~direction:Vec3.unit_x
+  (match Line_geometry.line_checked ~points:1 ~origin:Vec3.zero ~direction:Vec3.unit_x
       ~length:1. () with
    | Error error when Error.code error = "invalid_parameter" -> ()
    | _ -> fail "Line accepted one point in curve mode");
-  (match Ops.line ~origin:(Vec3.create max_float 0. 0.)
+  (match Line_geometry.line_checked ~origin:(Vec3.create max_float 0. 0.)
       ~direction:Vec3.unit_x ~length:max_float () with
    | Error error when Error.code error = "invalid_parameter" -> ()
    | _ -> fail "Line accepted a non-finite endpoint");
   let cancelled_line = Cancel.create () in
   Cancel.cancel cancelled_line;
-  (match Ops.line ~cancel:cancelled_line ~points:10_000 ~origin:Vec3.zero
+  (match Line_geometry.line_checked ~cancel:cancelled_line ~points:10_000 ~origin:Vec3.zero
       ~direction:Vec3.unit_x ~length:1. () with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "Line ignored cancellation");
+  (match Line_geometry.polyline_checked [|(0., 0., 0.)|] with
+   | Error error when Error.code error = "invalid_parameter" -> ()
+   | _ -> fail "Polyline accepted one point");
   let builder = Packed.Float3.Builder.create 4 in
   Packed.Float3.Builder.set builder 0 0. 0. 0.;
   Packed.Float3.Builder.set builder 1 1. 0. 0.;
@@ -245,14 +248,14 @@ let run () =
     fail "point kernel did not invalidate position data";
   if Geometry.find_group ~owner:Group.Point "even" one = None then
     fail "point kernel dropped group";
-  let quad_mesh = Prismel_mesh.to_mesh geometry |> get_ok in
+  let quad_mesh = Pdk_prismel.Prismel_mesh.to_mesh geometry |> get_ok in
   if Mesh.index_count quad_mesh <> 6 then fail "quad bridge triangulation";
   let extruded = Ops.poly_extrude ~distance:2. geometry |> get_ok in
   if Geometry.point_count extruded <> 8
      || Geometry.primitive_count extruded <> 6
      || Geometry.vertex_count extruded <> 24
   then fail "poly extrude cardinality";
-  if Mesh.index_count (Prismel_mesh.to_mesh extruded |> get_ok) <> 36
+  if Mesh.index_count (Pdk_prismel.Prismel_mesh.to_mesh extruded |> get_ok) <> 36
   then fail "poly extrude bridge";
   (match Geometry.find_group ~owner:Group.Point "even" extruded with
    | Some group when Group.cardinality group = 4 -> ()
@@ -581,7 +584,7 @@ let run () =
   let zero_values = Attribute.create_owned ~name:"signed_zero"
       ~owner:Attribute.Point (Attribute.Float [|0.; -0.|]) |> get_ok in
   let zero_source = Geometry.with_attribute zero_values
-      (Ops.points [|(0., 0., 0.); (1., 0., 0.)|]) |> get_ok in
+      (Line_geometry.points [|(0., 0., 0.); (1., 0., 0.)|]) |> get_ok in
   let signed_zero method_ expected_bits expected_index =
     let promoted = Attribute_ops.promote ~method_ ~index_attribute:"zero_source"
         ~source:Attribute.Point ~destination:Attribute.Detail
@@ -705,7 +708,7 @@ let run () =
       || Geometry.find_attribute ~owner:Attribute.Detail "reduced_label"
            multi_renamed <> None then
     fail "multi-term promotion destination/index rewrite";
-  let overlap_source = Pdk.Ops.points
+  let overlap_source = Pdk.Line_geometry.points
       [|(0., 0., 0.); (1., 0., 0.); (2., 0., 0.)|] in
   let overlap_a = Attribute.create_owned ~name:"a" ~owner:Attribute.Point
       (Attribute.Int [|1; 2; 3|]) |> get_ok
@@ -771,7 +774,7 @@ let run () =
   if tuple_source_indices.offsets <> [|0;2|]
       || tuple_source_indices.values <> [|3;0|] then
     fail "tuple promotion component source indices";
-  let empty_source = Ops.points [||] in
+  let empty_source = Line_geometry.points [||] in
   let empty_value = Attribute.create_owned ~name:"empty_value"
       ~owner:Attribute.Point (Attribute.Float [||]) |> get_ok in
   let empty_source = Geometry.with_attribute empty_value empty_source |> get_ok in
@@ -930,7 +933,7 @@ let run () =
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "attribute promote accepted a numeric piece attribute");
   let dense_count = 40_000 and dense_piece_size = 40 in
-  let dense = Ops.points (Array.init dense_count (fun point ->
+  let dense = Line_geometry.points (Array.init dense_count (fun point ->
       float_of_int point, 0., 0.)) in
   let dense_values = Attribute.create_owned ~name:"dense_value"
       ~owner:Attribute.Point (Attribute.Int
@@ -1012,7 +1015,7 @@ let run () =
       integer_geometry with
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "unsupported integer promotion did not return a structured error");
-  let transfer_source = Ops.points [|(0., 0., 0.); (2., 0., 0.)|] in
+  let transfer_source = Line_geometry.points [|(0., 0., 0.); (2., 0., 0.)|] in
   let transfer_weight = Attribute.create_owned ~name:"weight"
       ~owner:Attribute.Point (Attribute.Float [|0.; 10.|]) |> get_ok
   and transfer_id = Attribute.create_owned ~name:"id"
@@ -1020,7 +1023,7 @@ let run () =
   let transfer_source = transfer_source
       |> Geometry.with_attribute transfer_weight |> get_ok
       |> Geometry.with_attribute transfer_id |> get_ok in
-  let transfer_target = Ops.points
+  let transfer_target = Line_geometry.points
       [|(0., 0., 0.); (1., 0., 0.); (10., 0., 0.)|] in
   let existing_weight = Attribute.create_owned ~name:"weight"
       ~owner:Attribute.Point (Attribute.Float [|100.; 100.; 100.|]) |> get_ok in
@@ -1046,12 +1049,12 @@ let run () =
   then fail "weighted attribute transfer/unmatched/domain determinism";
   let nearest_tie = Attribute_ops.transfer_points ~grain:1 ~names:["id"]
       ~max_distance:1. ~source:transfer_source
-      ~target:(Ops.points [|(1., 0., 0.)|]) () |> get_ok in
+      ~target:(Line_geometry.points [|(1., 0., 0.)|]) () |> get_ok in
   if transferred_id nearest_tie <> [|5|] then
     fail "attribute transfer deterministic equal-distance tie";
   let pattern_transfer = Attribute_ops.transfer_points ~grain:1
       ~pattern:"* ^id" ~source:transfer_source
-      ~target:(Ops.points [|(0., 0., 0.)|]) () |> get_ok in
+      ~target:(Line_geometry.points [|(0., 0., 0.)|]) () |> get_ok in
   if transferred_weight pattern_transfer <> [|0.|]
      || Geometry.find_attribute ~owner:Attribute.Point "id" pattern_transfer
         <> None then
@@ -1196,7 +1199,7 @@ let run () =
       let value = float_of_int point in
       (sin (value *. 0.73) *. 7., cos (value *. 1.17) *. 5.,
        sin (value *. 0.19) *. 3.)) in
-  let indexed_geometry = Ops.points indexed_points in
+  let indexed_geometry = Line_geometry.points indexed_points in
   let indexed = Spatial_index.create (Geometry.positions indexed_geometry) |> get_ok in
   (match Spatial_index.create ~grain:0 (Geometry.positions indexed_geometry) with
    | Error error when Error.code error = "invalid_parameter" -> ()
@@ -1276,7 +1279,7 @@ let run () =
       |> get_ok in
   if Surface_index.triangle_count all_corner_surface <> 0 then
     fail "surface index all-corners vertex restriction";
-  let surface_target = Ops.points [|(0.5,0.5,1.); (10.,10.,0.)|] in
+  let surface_target = Line_geometry.points [|(0.5,0.5,1.); (10.,10.,0.)|] in
   let initial_surface_weight = Attribute.create_owned ~name:"sampled_weight"
       ~owner:Attribute.Point (Attribute.Float [|99.; 99.|]) |> get_ok
   and initial_corner = Attribute.create_owned ~name:"sampled_corner"
@@ -1376,7 +1379,7 @@ let run () =
       ~source:surface_source ~target:surface_target () with
    | Error error when Error.code error = "invalid_transfer" -> ()
    | _ -> fail "surface transfer accepted canonical target P as ordinary data");
-  let falloff_target = Ops.points [|(0.5,0.5,0.5); (0.5,0.5,1.5);
+  let falloff_target = Line_geometry.points [|(0.5,0.5,0.5); (0.5,0.5,1.5);
       (0.5,0.5,3.); (0.5,0.5,4.)|] in
   let falloff_initial = Attribute.create_owned ~name:"sampled_weight"
       ~owner:Attribute.Point (Attribute.Float [|10.; 10.; 10.; 10.|]) |> get_ok in
@@ -1418,7 +1421,7 @@ let run () =
       ~owner:Attribute.Primitive (Attribute.Int [|7; 9|]) |> get_ok in
   let restricted_source = Geometry.with_attribute restricted_piece
       duplicate_geometry |> get_ok
-  and restricted_target = Ops.points [|(0.5,0.5,1.); (0.5,0.5,1.)|] in
+  and restricted_target = Line_geometry.points [|(0.5,0.5,1.); (0.5,0.5,1.)|] in
   let restricted_initial = Attribute.create_owned ~name:"piece"
       ~owner:Attribute.Point (Attribute.Int [|4; 4|]) |> get_ok in
   let restricted_target = Geometry.with_attribute restricted_initial
@@ -1461,7 +1464,7 @@ let run () =
       ~attributes:surface_specs ~source:surface_source ~target:surface_target () with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled surface transfer published geometry or wrong error");
-  let nonfinite_surface_target = Ops.points [|(Float.nan, 0., 0.)|] in
+  let nonfinite_surface_target = Line_geometry.points [|(Float.nan, 0., 0.)|] in
   (match Attribute_ops.transfer_surface ~attributes:surface_specs
       ~source:surface_source ~target:nonfinite_surface_target () with
    | Error error when Error.code error = "invalid_position" -> ()
@@ -1480,7 +1483,7 @@ let run () =
    | Ok (Some hit) when hit.primitive = 0
        && abs_float (hit.distance -. 1.) <= 1e-12 -> ()
    | _ -> fail "surface index missed a general polygon");
-  let quad_target = Ops.points [|(0.2, 0.7, 1.); (0.8, 0.7, 1.)|] in
+  let quad_target = Line_geometry.points [|(0.2, 0.7, 1.); (0.8, 0.7, 1.)|] in
   let quad_transfer = Attribute_ops.transfer_surface ~grain:1
       ~attributes:[
         Attribute_ops.surface_attribute ~owner:Attribute.Point "quad_weight";
@@ -1593,7 +1596,7 @@ let run () =
   let original_nx, _, _ = Packed.Float3.get mirror_normals 0
   and reflected_nx, _, _ = Packed.Float3.get mirror_normals 4 in
   if original_nx <> 1. || reflected_nx <> -1. then fail "mirror normal reflection";
-  let shared_box = Ops.box ~size:(Vec3.create 2. 2. 2.) () |> get_ok
+  let shared_box = Box_generator.box_checked ~size:(Vec3.create 2. 2. 2.) () |> get_ok
       |> Ops.fuse ~tolerance:0. ~attributes:Ops.Average_numeric |> get_ok in
   let shared_positions = Packed.Float3.Private.view (Geometry.positions shared_box) in
   let clip_weight = Attribute.create_owned ~name:"weight" ~owner:Attribute.Point
@@ -1665,14 +1668,14 @@ let run () =
       if abs_float x < 1e-12 && Hashtbl.mem above_plane point then
         fail "clip split connectivity shared a plane point"
     done) below;
-  let clipped_curve = Ops.polyline [|(-1.,0.,0.); (0.,1.,0.); (1.,0.,0.)|]
+  let clipped_curve = Line_geometry.polyline_checked [|(-1.,0.,0.); (0.,1.,0.); (1.,0.,0.)|]
       |> get_ok |> Ops.clip ~keep:Ops.Above ~origin:Vec3.zero
            ~normal:Vec3.unit_x |> get_ok in
   if Geometry.primitive_count clipped_curve <> 1
      || Geometry.point_count clipped_curve <> 2
      || Topology.primitive_kind (Geometry.topology clipped_curve) 0
         <> Topology.Open_polyline then fail "open-polyline plane clip";
-  let point_cloud = Ops.points
+  let point_cloud = Line_geometry.points
       [|(-1.,0.,0.); (0.000_01,0.,0.); (1.,0.,0.)|] in
   let point_ids = Attribute.create_owned ~name:"id" ~owner:Attribute.Point
       (Attribute.Int [|10; 20; 30|]) |> get_ok in
@@ -1710,13 +1713,13 @@ let run () =
   done;
   if List.sort Float.compare !plane_values <> [1.; 2.] then
     fail "clip vertex attribute interpolation";
-  let closed_curve = Ops.circle ~segments:16 ~radius:1. () |> get_ok
+  let closed_curve = Plane_generators.circle_checked ~segments:16 ~radius:1. () |> get_ok
       |> Ops.clip ~origin:Vec3.zero ~normal:Vec3.unit_x |> get_ok in
   if Geometry.primitive_count closed_curve <> 1
      || Topology.primitive_kind (Geometry.topology closed_curve) 0
         <> Topology.Open_polyline then
     fail "closed-polyline plane clip did not emit an open retained arc";
-  let concave = Ops.polyline ~closed:true
+  let concave = Line_geometry.polyline_checked ~closed:true
       [|(-2.,-2.,0.); (2.,-2.,0.); (2.,2.,0.); (1.,2.,0.);
         (1.,-1.,0.); (-1.,-1.,0.); (-1.,2.,0.); (-2.,2.,0.)|]
       |> get_ok in
@@ -1955,12 +1958,22 @@ let run () =
         | Attribute.Int values when values = [|10; 30; 40|] -> ()
         | _ -> fail "point delete attribute remap")
    | None -> fail "point delete dropped point attribute");
+  (match Geometry.find_attribute ~owner:Attribute.Point "point_id" healed_many with
+   | Some attribute ->
+       (match Attribute.storage attribute with
+        | Attribute.Int values when values = [|10; 30; 40|] -> ()
+        | _ -> fail "parallel point delete attribute remap")
+   | None -> fail "parallel point delete dropped point attribute");
   if Geometry.find_attribute ~owner:Attribute.Point "N" healed_one <> None then
     fail "point healing retained stale normals";
   (match Geometry.find_group ~owner:Group.Point "even" healed_one with
    | Some group when Group.cardinality group = 2
        && Group.mem 0 group && Group.mem 1 group -> ()
    | _ -> fail "point delete group remap");
+  (match Geometry.find_group ~owner:Group.Point "even" healed_many with
+   | Some group when Group.cardinality group = 2
+       && Group.mem 0 group && Group.mem 1 group -> ()
+   | _ -> fail "parallel point delete group remap");
   let destroyed = Ops.delete remove_point delete_source |> get_ok in
   if Geometry.point_count destroyed <> 3
      || Geometry.primitive_count destroyed <> 0 then
@@ -2001,7 +2014,7 @@ let run () =
       delete_source |> get_ok in
   if Geometry.point_count compacted_vertex <> 0 then
     fail "vertex deletion compact-points policy";
-  let open_curve = Ops.polyline
+  let open_curve = Line_geometry.polyline_checked
       [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.); (3.,0.,0.)|] |> get_ok in
   let curve_vertex = Group.init ~owner:Group.Vertex ~name:"middle" 4
       (fun vertex -> vertex = 1) in
@@ -2021,7 +2034,7 @@ let run () =
   (match Ops.delete ~cancel:delete_cancel remove_point delete_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled delete published geometry or wrong error");
-  let mesh = Prismel_mesh.to_mesh triangle_geometry |> get_ok in
+  let mesh = Pdk_prismel.Prismel_mesh.to_mesh triangle_geometry |> get_ok in
   if Mesh.vertex_count mesh <> 4 || Mesh.index_count mesh <> 6 then
     fail "mesh bridge cardinality";
   let source_positions = Packed.Float3.Private.view positions
@@ -2032,10 +2045,28 @@ let run () =
      || source_positions.z != mesh_view.vertices.z
      || source_topology.vertex_points != mesh_view.indices then
     fail "mesh bridge copied packed render buffers";
-  let roundtrip = Prismel_mesh.of_mesh mesh |> get_ok in
+  let roundtrip = Pdk_prismel.Prismel_mesh.of_mesh mesh |> get_ok in
   if not (equal_positions triangle_geometry roundtrip) then fail "mesh bridge positions";
-  let colored = Ops.color_by_height ~low:Color.red ~high:Color.blue
+  let colored = Color_by_height.run ~low:(Color.to_floats Color.red)
+      ~high:(Color.to_floats Color.blue)
       triangle_geometry |> get_ok in
+  let colored_many = Parallel.run ~domains:4 (fun () ->
+    Color_by_height.run ~low:(Color.to_floats Color.red)
+      ~high:(Color.to_floats Color.blue) triangle_geometry |> get_ok) in
+  let color_planes geometry =
+    Geometry.find_attribute ~owner:Attribute.Point "Cd" geometry
+    |> Option.get |> Attribute.get (Attribute.color ~owner:Attribute.Point)
+    |> Option.get |> Packed.Float4.Private.view in
+  let one = color_planes colored and many = color_planes colored_many in
+  if one.x <> many.x || one.y <> many.y || one.z <> many.z
+     || one.w <> many.w then fail "color_by_height domain mismatch";
+  let cancelled_color = Cancel.create () in
+  Cancel.cancel cancelled_color;
+  (match Color_by_height.run ~cancel:cancelled_color
+      ~low:(Color.to_floats Color.red) ~high:(Color.to_floats Color.blue)
+      triangle_geometry with
+   | Error error when Error.code error = "cancelled" -> ()
+   | _ -> fail "color_by_height cancellation");
   let color_before = Geometry.find_attribute ~owner:Attribute.Point "Cd" colored
       |> Option.get in
   let renamed = Geometry.rename_attribute ~owner:Attribute.Point
@@ -2045,7 +2076,7 @@ let run () =
   if Attribute.data_id color_before = Attribute.data_id color_after
      || Attribute.storage_id color_before <> Attribute.storage_id color_after
   then fail "attribute rename storage sharing";
-  let colored_mesh = Prismel_mesh.to_mesh colored |> get_ok in
+  let colored_mesh = Pdk_prismel.Prismel_mesh.to_mesh colored |> get_ok in
   if not (Mesh.has_colors colored_mesh) then fail "mesh bridge dropped point Cd";
   let vertex_colors =
     let values = Packed.Float4.of_owned
@@ -2056,7 +2087,7 @@ let run () =
     Attribute.create_key_owned (Attribute.color ~owner:Attribute.Vertex) values
     |> get_ok in
   let seamed = Geometry.with_attribute vertex_colors triangle_geometry |> get_ok in
-  let seamed_mesh = Prismel_mesh.to_mesh seamed |> get_ok in
+  let seamed_mesh = Pdk_prismel.Prismel_mesh.to_mesh seamed |> get_ok in
   if Mesh.vertex_count seamed_mesh <> 6 || Mesh.index_count seamed_mesh <> 6
   then fail "vertex attribute seam was not expanded";
   let diagonal = 1. /. sqrt 2. in
@@ -2074,22 +2105,22 @@ let run () =
   if abs_float (nx -. 0.4472135955) > 1e-9
      || abs_float (ny -. 0.8944271910) > 1e-9
   then fail "vertex normal inverse-transpose";
-  let grid = Ops.grid ~columns:8 ~rows:4 ~size:2. () |> get_ok in
+  let grid = Plane_generators.grid_checked ~columns:8 ~rows:4 ~size:2. () |> get_ok in
   if Geometry.point_count grid <> 45 || Geometry.primitive_count grid <> 64
   then fail "grid cardinality";
-  let box = Ops.box ~size:(Vec3.create 2. 4. 6.) () |> get_ok in
+  let box = Box_generator.box_checked ~size:(Vec3.create 2. 4. 6.) () |> get_ok in
   if Geometry.point_count box <> 24 || Geometry.primitive_count box <> 12
   then fail "box cardinality";
-  let sphere = Ops.uv_sphere ~segments:12 ~rings:6 ~radius:2. () |> get_ok in
+  let sphere = Uv_sphere.run_checked ~segments:12 ~rings:6 ~radius:2. () |> get_ok in
   if Geometry.point_count sphere <> 62 || Geometry.primitive_count sphere <> 120
   then fail "UV sphere cardinality";
-  if Mesh.index_count (Prismel_mesh.to_mesh sphere |> get_ok) <> 360
+  if Mesh.index_count (Pdk_prismel.Prismel_mesh.to_mesh sphere |> get_ok) <> 360
   then fail "UV sphere bridge";
-  let circle = Ops.circle ~segments:18 ~radius:2. () |> get_ok in
-  let circle_mesh = Prismel_mesh.to_mesh circle |> get_ok in
+  let circle = Plane_generators.circle_checked ~segments:18 ~radius:2. () |> get_ok in
+  let circle_mesh = Pdk_prismel.Prismel_mesh.to_mesh circle |> get_ok in
   if Mesh.mode circle_mesh <> Mesh.Lines || Mesh.index_count circle_mesh <> 36
   then fail "closed curve bridge";
-  let bent = Ops.polyline [|(0.,0.,0.); (1.,0.,0.); (1.,3.,0.)|] |> get_ok in
+  let bent = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.); (1.,3.,0.)|] |> get_ok in
   let distance_attribute = Attribute.create_owned ~name:"distance"
       ~owner:Attribute.Point (Attribute.Float [|0.; 1.; 4.|]) |> get_ok in
   let bent = Geometry.with_attribute distance_attribute bent |> get_ok in
@@ -2126,7 +2157,7 @@ let run () =
      || Geometry.find_attribute ~owner:Attribute.Vertex "uv" swept = None
      || Geometry.find_attribute ~owner:Attribute.Point "distance" swept = None
   then fail "circle sweep attributes";
-  if Mesh.index_count (Prismel_mesh.to_mesh swept |> get_ok) <> 192
+  if Mesh.index_count (Pdk_prismel.Prismel_mesh.to_mesh swept |> get_ok) <> 192
   then fail "circle sweep bridge";
   let planar_projection = Ops.Planar {
       origin = Vec3.create 0.5 0.5 0.;
@@ -2207,7 +2238,7 @@ let run () =
      || point_uv_values.y <> [|0.; 0.; 0.5; 1.|]
   then fail "point-owned restricted UV transform";
   let angle = 0.1 in
-  let cylinder_curve = Ops.polyline ~closed:true [|
+  let cylinder_curve = Line_geometry.polyline_checked ~closed:true [|
       (cos (-.angle), 0.5, sin (-.angle));
       (cos (-.angle), -0.5, sin (-.angle));
       (cos angle, -0.5, sin angle);
@@ -2237,7 +2268,7 @@ let run () =
   if Array.exists (fun value -> not (Float.is_finite value)) huge_frame_uv.x
      || Array.exists (fun value -> not (Float.is_finite value)) huge_frame_uv.y
   then fail "UV projection did not normalize an extreme finite frame safely";
-  let sphere_uv = Ops.uv_sphere ~segments:48 ~rings:24 ~radius:1. () |> get_ok
+  let sphere_uv = Uv_sphere.run_checked ~segments:48 ~rings:24 ~radius:1. () |> get_ok
       |> Ops.uv_project ~grain:31
            (Ops.Spherical { origin = Vec3.zero; axis = Vec3.unit_y;
              seam = Vec3.unit_x }) |> get_ok in
@@ -2391,20 +2422,20 @@ let run () =
   if Edge_group.cardinality duplicated_edge_group <> 12
      || Edge_group.length duplicated_edge_group <> 12 then
     fail "duplicate did not replicate native edge membership";
-  let merged_edge_geometry = Ops.merge [quad_edges; quad_edges] |> get_ok in
+  let merged_edge_geometry = Mesh_merge.run [quad_edges; quad_edges] |> get_ok in
   let merged_edge_group = Geometry.find_edge_group "quad_edges"
       merged_edge_geometry |> Option.get in
   if Edge_group.cardinality merged_edge_group <> 8
      || Edge_group.length merged_edge_group <> 8 then
     fail "merge did not concatenate native edge membership";
   let copied_edge_geometry = Ops.copy_to_points ~source:quad_edges
-      ~targets:(Ops.points [|(0., 0., 0.); (3., 0., 0.)|]) () |> get_ok in
+      ~targets:(Line_geometry.points [|(0., 0., 0.); (3., 0., 0.)|]) () |> get_ok in
   let copied_edge_group = Geometry.find_edge_group "quad_edges"
       copied_edge_geometry |> Option.get in
   if Edge_group.cardinality copied_edge_group <> 8
      || Edge_group.length copied_edge_group <> 8 then
     fail "copy-to-points did not replicate native edge membership";
-  let hard_box_edges = Ops.box ~size:(Vec3.create 2. 2. 2.) () |> get_ok
+  let hard_box_edges = Box_generator.box_checked ~size:(Vec3.create 2. 2. 2.) () |> get_ok
       |> Ops.group_edges ~name:"all_box_edges" |> get_ok in
   let fused_edge_geometry = Ops.fuse ~tolerance:0.
       ~attributes:Ops.Average_numeric hard_box_edges |> get_ok in
@@ -2573,7 +2604,7 @@ let run () =
   if uniform_unitized.x <> [|0.; 0.5; 0.5; 0.; 0.5; 1.; 1.; 0.5|]
      || uniform_unitized.y <> [|0.25; 0.25; 0.75; 0.75; 0.25; 0.25; 0.75; 0.75|]
   then fail "UV Unitize uniform aspect preservation";
-  let flatten_source = Ops.grid ~columns:2 ~rows:2 ~size:2. () |> get_ok in
+  let flatten_source = Plane_generators.grid_checked ~columns:2 ~rows:2 ~size:2. () |> get_ok in
   let flattened domains = Parallel.run ~domains (fun () ->
     Ops.uv_flatten ~grain:1 ~iterations:500 ~tolerance:1e-12 flatten_source
     |> get_ok) in
@@ -2627,7 +2658,7 @@ let run () =
    | Error error when Error.code error = "invalid_uv" -> ()
    | _ -> fail "UV Flatten accepted non-triangle polygons");
   (match Ops.uv_flatten ~iterations:1 ~tolerance:1e-15
-      (Ops.grid ~columns:20 ~rows:20 ~size:2. () |> get_ok) with
+      (Plane_generators.grid_checked ~columns:20 ~rows:20 ~size:2. () |> get_ok) with
    | Error error when Error.code error = "invalid_uv" -> ()
    | _ -> fail "UV Flatten published a non-converged solve");
   (match Ops.uv_flatten ~edge_seams:hard_one_edges flatten_source with
@@ -2678,7 +2709,7 @@ let run () =
   if Edge_group.cardinality swept_edge_group <> 32
      || Edge_group.length swept_edge_group <> 64 then
     fail "sweep did not propagate selected centerline edges longitudinally";
-  let scaled_spine = Ops.polyline [|(0.,0.,0.); (2.,0.,0.); (4.,0.,0.)|]
+  let scaled_spine = Line_geometry.polyline_checked [|(0.,0.,0.); (2.,0.,0.); (4.,0.,0.)|]
       |> get_ok in
   let wire_scale = Attribute.create_owned ~name:"wire_scale"
       ~owner:Attribute.Point (Attribute.Float [|1.; 2.; 0.5|]) |> get_ok in
@@ -2744,7 +2775,7 @@ let run () =
   if Edge_group.cardinality resampled_closed_group <> 8
      || Edge_group.length resampled_closed_group <> 8 then
     fail "closed resample did not propagate selected edge intervals";
-  let open_curve = Ops.polyline [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.);
+  let open_curve = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.);
       (3.,0.,0.)|] |> get_ok in
   let open_index = Topology_index.create (Geometry.topology open_curve) in
   let middle_edge = Topology_index.find_edge open_index ~a:1 ~b:2 |> Option.get in
@@ -2876,7 +2907,7 @@ let run () =
   if Edge_group.length connected_edges <> 2
       || Edge_group.cardinality connected_edges <> 2 then
     fail "Convert Line connected-path native edge provenance";
-  let loop = Ops.circle ~segments:8 ~radius:1. () |> get_ok in
+  let loop = Plane_generators.circle_checked ~segments:8 ~radius:1. () |> get_ok in
   let open_loop = Ops.convert_line ~connect_path:true ~maximum_distance:0. loop
       |> get_ok
   and closed_loop = Ops.convert_line ~connect_path:true ~maximum_distance:0.
@@ -2904,7 +2935,7 @@ let run () =
   (match Ops.convert_line ~edges:middle_group line_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Convert Line accepted an edge group from another topology");
-  let overflowing_line = Ops.polyline
+  let overflowing_line = Line_geometry.polyline_checked
       [|(-.max_float,0.,0.); (max_float,0.,0.)|] |> get_ok in
   (match Ops.convert_line ~length_attribute:"length" overflowing_line with
    | Error error when Error.code error = "invalid_geometry" -> ()
@@ -2921,7 +2952,7 @@ let run () =
       with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Convert Line path mode accepted an empty length name");
-  let overflowing_path = Ops.polyline
+  let overflowing_path = Line_geometry.polyline_checked
       [|(0.,0.,0.); (max_float,0.,0.); (0.,1.,0.)|] |> get_ok in
   (match Ops.convert_line ~connect_path:true ~maximum_distance:0.
       ~length_attribute:"length" overflowing_path with
@@ -2933,7 +2964,7 @@ let run () =
       line_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled Convert Line path mode published geometry");
-  let carve_source = Ops.polyline [|(0.,0.,0.); (1.,0.,0.); (3.,0.,0.);
+  let carve_source = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.); (3.,0.,0.);
       (6.,0.,0.)|] |> get_ok in
   let carve_weight = Attribute.create_owned ~name:"curve_weight"
       ~owner:Attribute.Point (Attribute.Float [|0.; 10.; 30.; 60.|]) |> get_ok
@@ -3276,14 +3307,14 @@ let run () =
   (match Ops.carve_curves ~grain:0 ~first:0.2 ~last:0.8 carve_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Carve accepted zero grain");
-  let extreme_carve = Ops.polyline
+  let extreme_carve = Line_geometry.polyline_checked
       [|(-5e307,0.,0.); (5e307,0.,0.)|] |> get_ok
       |> Ops.carve_curves ~first:0.25 ~last:0.75 |> get_ok in
   let extreme_positions = Packed.Float3.Private.view
       (Geometry.positions extreme_carve) in
   if not (near_array [|(-2.5e307);2.5e307|] extreme_positions.x) then
     fail "Curve Carve did not preserve a representable extreme interpolation";
-  let overflowing_carve = Ops.polyline
+  let overflowing_carve = Line_geometry.polyline_checked
       [|(-.max_float,0.,0.); (max_float,0.,0.)|] |> get_ok in
   (match Ops.carve_curves ~first:0.25 ~last:0.75 overflowing_carve with
    | Error error when Error.code error = "invalid_geometry" -> ()
@@ -3453,7 +3484,7 @@ let run () =
   (match Ops.carve_curves ~divisions:0 carve_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Carve cut accepted zero divisions");
-  let closed_cut_source = Ops.polyline ~closed:true [|(0.,0.,0.); (1.,0.,0.);
+  let closed_cut_source = Line_geometry.polyline_checked ~closed:true [|(0.,0.,0.); (1.,0.,0.);
       (1.,1.,0.); (0.,1.,0.)|] |> get_ok
       |> Ops.group_edges ~name:"closed_cut_edges" |> get_ok in
   let closed_outside = Ops.carve_curves ~relative_arc_length:false ~first:0.25
@@ -3515,7 +3546,7 @@ let run () =
       || Edge_group.length mixed_outside_edges <> 8
       || Edge_group.cardinality mixed_outside_edges <> 8 then
     fail "Curve Carve mixed outside payload/group/edge ancestry";
-  let closed_ends_source = Ops.polyline ~closed:true [|(0.,0.,0.); (1.,0.,0.);
+  let closed_ends_source = Line_geometry.polyline_checked ~closed:true [|(0.,0.,0.); (1.,0.,0.);
       (1.,1.,0.); (0.,1.,0.)|] |> get_ok
       |> Ops.group_edges ~name:"closed_edges" |> get_ok in
   let opened domains = Parallel.run ~domains (fun () ->
@@ -3536,7 +3567,7 @@ let run () =
       || unrolled_topology.vertex_points <> [|0; 1; 2; 3; 0|]
       || Edge_group.cardinality (opened_group unrolled) <> 4 then
     fail "Curve Ends unroll/remap";
-  let open_ends_source = Ops.polyline [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
+  let open_ends_source = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
       |> get_ok |> Ops.group_edges ~name:"open_edges" |> get_ok in
   let closed_ends = Ops.curve_ends Ops.Close_curve open_ends_source |> get_ok in
   let closed_group = Geometry.find_edge_group "open_edges" closed_ends
@@ -3818,15 +3849,15 @@ let run () =
   (match Ops.join_curves ~tolerance:nan join_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Join accepted a non-finite tolerance");
-  let extreme_join = Ops.merge [
-      Ops.polyline [|(-.max_float,0.,0.); (-.max_float,1.,0.)|] |> get_ok;
-      Ops.polyline [|(max_float,0.,0.); (max_float,1.,0.)|] |> get_ok;
+  let extreme_join = Mesh_merge.run [
+      Line_geometry.polyline_checked [|(-.max_float,0.,0.); (-.max_float,1.,0.)|] |> get_ok;
+      Line_geometry.polyline_checked [|(max_float,0.,0.); (max_float,1.,0.)|] |> get_ok;
     ] |> get_ok |> Ops.join_curves |> get_ok in
   if Geometry.vertex_count extreme_join <> 4 then
     fail "Curve Join mishandled overflowing finite endpoint distance";
-  let extreme_global = Ops.merge [
-      Ops.polyline [|(-.max_float,0.,0.); (-.max_float,1.,0.)|] |> get_ok;
-      Ops.polyline [|(max_float,0.,0.); (max_float,1.,0.)|] |> get_ok;
+  let extreme_global = Mesh_merge.run [
+      Line_geometry.polyline_checked [|(-.max_float,0.,0.); (-.max_float,1.,0.)|] |> get_ok;
+      Line_geometry.polyline_checked [|(max_float,0.,0.); (max_float,1.,0.)|] |> get_ok;
     ] |> get_ok |> Ops.join_curves ~connect_closest_ends:true |> get_ok in
   if Geometry.vertex_count extreme_global <> 4 then
     fail "global closest Curve Join mishandled overflowing finite distance";
@@ -3843,7 +3874,7 @@ let run () =
   (match Ops.carve_curves ~first:0.5 ~last:0.5 carve_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Carve accepted an empty interval");
-  let point_only_carve = Ops.points [|(2.,3.,4.)|] in
+  let point_only_carve = Line_geometry.points [|(2.,3.,4.)|] in
   if (Ops.carve_curves ~first:0.2 point_only_carve |> get_ok) != point_only_carve
   then fail "Curve Carve rebuilt point-only geometry";
   (match Ops.carve_curves ~last:0.9 triangle_geometry with
@@ -3921,9 +3952,9 @@ let run () =
   (match Analysis.surface_area bow_tie with
    | Error _ -> ()
    | Ok _ -> fail "measure accepted a self-intersecting polygon");
-  let open_curve = Ops.polyline
+  let open_curve = Line_geometry.polyline_checked
       [|(0.,0.,0.); (1.,0.,0.); (1.,1.,0.)|] |> get_ok
-  and closed_curve = Ops.polyline ~closed:true
+  and closed_curve = Line_geometry.polyline_checked ~closed:true
       [|(0.,0.,0.); (1.,0.,0.); (1.,1.,0.)|] |> get_ok in
   let open_length = Analysis.perimeter open_curve |> get_ok
   and closed_length = Analysis.perimeter closed_curve |> get_ok in
@@ -3979,12 +4010,12 @@ let run () =
   (match Analysis.with_measure ~grain:0 Analysis.Area grid with
    | Error error when Error.code error = "invalid_parameter" -> ()
    | _ -> fail "measure accepted non-positive grain");
-  let disconnected = Ops.merge [box; Ops.transform
+  let disconnected = Mesh_merge.run [box; Ops.transform
       (Mat4.translation (Vec3.create 10. 0. 0.)) box] |> get_ok in
   let classes, class_count = Analysis.connectivity disconnected in
   if class_count <> 12 || Array.length classes <> 24
   then fail "primitive connectivity";
-  let merged = Ops.merge [grid; grid] |> get_ok in
+  let merged = Mesh_merge.run [grid; grid] |> get_ok in
   if Geometry.point_count merged <> 90 || Geometry.primitive_count merged <> 128
   then fail "merge cardinality";
   let degenerate_positions = Packed.Float3.Private.of_owned_exn
@@ -4044,8 +4075,8 @@ let run () =
        && abs_float (bounds.max.y -. 1.1) < 1e-12
        && abs_float (bounds.size.z -. 0.2) < 1e-12 -> ()
    | _ -> fail "bounding box bounds/padding");
-  let match_source = Ops.box ~size:(Vec3.create 1. 2. 4.) () |> get_ok
-  and match_target = Ops.box ~size:(Vec3.create 4. 6. 8.) () |> get_ok
+  let match_source = Box_generator.box_checked ~size:(Vec3.create 1. 2. 4.) () |> get_ok
+  and match_target = Box_generator.box_checked ~size:(Vec3.create 4. 6. 8.) () |> get_ok
       |> Ops.transform (Mat4.translation (Vec3.create (-3.) 5. 2.)) in
   let matched domains = Parallel.run ~domains (fun () ->
       Ops.match_size ~grain:1 ~fit:Ops.Stretch ~target:match_target match_source
@@ -4058,7 +4089,7 @@ let run () =
      || abs_float (matched_bounds.max.y -. target_bounds.max.y) > 1e-12
      || abs_float (matched_bounds.max.z -. target_bounds.max.z) > 1e-12
   then fail "match size bounds/domain determinism";
-  let axis_source = Ops.points [|(1., 0., 0.); (2., 0., 0.)|] in
+  let axis_source = Line_geometry.points [|(1., 0., 0.); (2., 0., 0.)|] in
   let aligned = Ops.match_axis ~grain:1 ~from:Vec3.unit_x ~into:Vec3.unit_y
       axis_source |> get_ok in
   let aligned_positions = Packed.Float3.Private.view (Geometry.positions aligned) in
@@ -4081,7 +4112,7 @@ let run () =
          | _ -> fail ("unexpected storage for " ^ name))
     | None -> fail ("missing point attribute " ^ name) in
   let blur_curve values =
-    let geometry = Ops.polyline [|(0.,0.,0.); (1.,0.,0.); (3.,0.,0.)|]
+    let geometry = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.); (3.,0.,0.)|]
         |> get_ok in
     let attribute = Attribute.create_owned ~name:"value" ~owner:Attribute.Point
         (Attribute.Float values) |> get_ok in
@@ -4165,7 +4196,7 @@ let run () =
       (blur_curve [|Float.nan; 1.; 2.|]) with
    | Error error when Error.code error = "invalid_blur" -> ()
    | _ -> fail "Attribute Blur accepted non-finite source data");
-  let extreme_curve = Ops.polyline
+  let extreme_curve = Line_geometry.polyline_checked
       [|(max_float,0.,0.); (-.max_float,0.,0.)|] |> get_ok in
   let extreme_value = Attribute.create_owned ~name:"value"
       ~owner:Attribute.Point (Attribute.Float [|0.; 1.|]) |> get_ok in
@@ -4176,7 +4207,7 @@ let run () =
    | _ -> fail "Attribute Blur accepted a non-finite edge metric");
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Ops.grid ~cancel:cancelled ~columns:256 ~rows:256 ~size:2. () with
+  (match Plane_generators.grid_checked ~cancel:cancelled ~columns:256 ~rows:256 ~size:2. () with
    | Error error when Error.code error = "cancelled" -> ()
    | Error error -> fail ("unexpected cancellation code: " ^ Error.code error)
    | Ok _ -> fail "cancelled PDK operation published geometry");
@@ -4216,14 +4247,14 @@ let run () =
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled duplicate published geometry or wrong error");
   (match Ops.copy_to_points ~cancel:cancelled ~source:grid
-      ~targets:(Ops.points [|(0.,0.,0.)|]) () with
+      ~targets:(Line_geometry.points [|(0.,0.,0.)|]) () with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled Copy to Points published geometry or wrong error");
-  (match Prismel_mesh.to_mesh ~cancel:cancelled grid with
+  (match Pdk_prismel.Prismel_mesh.to_mesh ~cancel:cancelled grid with
    | Error error when Error.code error = "cancelled" -> ()
    | Error error -> fail ("unexpected mesh cancellation code: " ^ Error.code error)
    | Ok _ -> fail "cancelled mesh conversion published a mesh");
-  let target_positions = Ops.points [|(10., 0., 0.); (0., 20., 0.)|] in
+  let target_positions = Line_geometry.points [|(10., 0., 0.); (0., 20., 0.)|] in
   let target_scale = Attribute.create_owned ~name:"scale" ~owner:Attribute.Point
       (Attribute.Float3 (Packed.Float3.Private.of_owned_exn
         ~x:[|2.; 1.|] ~y:[|1.; 3.|] ~z:[|1.; 1.|])) |> get_ok in
@@ -4234,7 +4265,7 @@ let run () =
         ~w:[|half_turn; 1.|] |> get_ok)) |> get_ok in
   let targets = target_positions |> Geometry.with_attribute target_scale |> get_ok
       |> Geometry.with_attribute target_orient |> get_ok in
-  let prototype = Ops.points [|(1., 0., 0.); (0., 1., 0.)|] in
+  let prototype = Line_geometry.points [|(1., 0., 0.); (0., 1., 0.)|] in
   let copied domains = Parallel.run ~domains (fun () ->
     Ops.copy_to_points ~grain:1 ~source:prototype ~targets () |> get_ok) in
   let copied_one = copied 1 and copied_many = copied 4 in
@@ -4251,9 +4282,9 @@ let run () =
      || abs_float (x2 -. 1.) > 1e-12 || abs_float (y2 -. 20.) > 1e-12
      || abs_float x3 > 1e-12 || abs_float (y3 -. 23.) > 1e-12
   then fail "copy-to-points scale/orient/translate";
-  let axis_prototype = Ops.points
+  let axis_prototype = Line_geometry.points
       [|(1.,0.,0.); (0.,1.,0.); (0.,0.,1.)|] in
-  let alignment_targets = Ops.points [|(0.,0.,0.); (10.,0.,0.)|] in
+  let alignment_targets = Line_geometry.points [|(0.,0.,0.); (10.,0.,0.)|] in
   let target_n = Attribute.create_owned ~name:"N" ~owner:Attribute.Point
       (Attribute.Float3 (Packed.Float3.Private.of_owned_exn
         ~x:[|1.;0.|] ~y:[|0.;1.|] ~z:[|0.;0.|])) |> get_ok
@@ -4289,7 +4320,7 @@ let run () =
   and velocity_up = Attribute.create_owned ~name:"up" ~owner:Attribute.Point
       (Attribute.Float3 (Packed.Float3.Private.of_owned_exn
         ~x:[|0.|] ~y:[|0.|] ~z:[|1.|])) |> get_ok in
-  let velocity_target = Ops.points [|(0.,0.,0.)|]
+  let velocity_target = Line_geometry.points [|(0.,0.,0.)|]
       |> Geometry.with_attribute velocity |> get_ok
       |> Geometry.with_attribute velocity_up |> get_ok in
   let velocity_copy = Ops.copy_to_points ~source:axis_prototype
@@ -4313,7 +4344,7 @@ let run () =
         ~x:[|1.|] ~y:[|0.|] ~z:[|0.|])) |> get_ok
   and target_pscale = Attribute.create_owned ~name:"pscale" ~owner:Attribute.Point
       (Attribute.Float [|2.|]) |> get_ok in
-  let stacked_target = Ops.points [|(10.,0.,0.)|]
+  let stacked_target = Line_geometry.points [|(10.,0.,0.)|]
       |> Geometry.with_attribute target_rot |> get_ok
       |> Geometry.with_attribute target_trans |> get_ok
       |> Geometry.with_attribute target_pivot |> get_ok
@@ -4321,7 +4352,7 @@ let run () =
   let pivot_normal = Attribute.create_owned ~name:"N" ~owner:Attribute.Point
       (Attribute.Float3 (Packed.Float3.Private.of_owned_exn
         ~x:[|1.;1.|] ~y:[|0.;0.|] ~z:[|0.;0.|])) |> get_ok in
-  let pivot_source = Ops.points [|(1.,0.,0.); (2.,0.,0.)|]
+  let pivot_source = Line_geometry.points [|(1.,0.,0.); (2.,0.,0.)|]
       |> Geometry.with_attribute pivot_normal |> get_ok in
   let stacked domains = Parallel.run ~domains (fun () ->
     Ops.copy_to_points ~grain:1 ~source:pivot_source ~targets:stacked_target ()
@@ -4383,7 +4414,7 @@ let run () =
   let singular_transform = Attribute.create_owned ~name:"transform"
       ~owner:Attribute.Point (Attribute.Float_array (packed_transform
         [|1.;0.;0.; 0.;1.;0.; 0.;0.;0.|])) |> get_ok in
-  let singular_target = Ops.points [|(0.,0.,0.)|]
+  let singular_target = Line_geometry.points [|(0.,0.,0.)|]
       |> Geometry.with_attribute singular_transform |> get_ok in
   let singular_copy = Ops.copy_to_points ~source:pivot_source
       ~targets:singular_target () |> get_ok in
@@ -4393,14 +4424,14 @@ let run () =
       ~owner:Attribute.Point (Attribute.Float_array (packed_transform
         [|1.;0.;0.;0.; 0.;1.;0.;0.; 0.;0.;1.;0.; 0.;0.;1.;1.|]))
       |> get_ok in
-  let malformed_target = Ops.points [|(0.,0.,0.)|]
+  let malformed_target = Line_geometry.points [|(0.,0.,0.)|]
       |> Geometry.with_attribute malformed_transform |> get_ok in
   (match Ops.copy_to_points ~source:prototype ~targets:malformed_target () with
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "copy-to-points accepted a projective transform matrix");
-  let restricted_source = Ops.merge [
-      Ops.polyline [|(0.,0.,0.); (1.,0.,0.)|] |> get_ok;
-      Ops.polyline [|(10.,0.,0.); (12.,0.,0.)|] |> get_ok]
+  let restricted_source = Mesh_merge.run [
+      Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.)|] |> get_ok;
+      Line_geometry.polyline_checked [|(10.,0.,0.); (12.,0.,0.)|] |> get_ok]
       |> get_ok in
   let restricted_weight = Attribute.create_owned ~name:"weight"
       ~owner:Attribute.Point (Attribute.Float [|0.;1.;10.;12.|]) |> get_ok
@@ -4417,7 +4448,7 @@ let run () =
       ~length:2 [|1|] |> get_ok in
   let restricted_source = Geometry.with_group source_second restricted_source
       |> get_ok in
-  let restricted_targets = Ops.points
+  let restricted_targets = Line_geometry.points
       [|(0.,0.,0.); (0.,10.,0.); (0.,20.,0.)|] in
   let restricted_scale = Attribute.create_owned ~name:"pscale"
       ~owner:Attribute.Point (Attribute.Float [|1.;9.;2.|]) |> get_ok in
@@ -4483,7 +4514,7 @@ let run () =
       || Geometry.find_attribute ~owner:Attribute.Detail "detail_id"
            restricted_empty = None then
     fail "copy-to-points empty target restriction/detail preservation";
-  let piece_targets = Ops.points
+  let piece_targets = Line_geometry.points
       [|(0.,0.,0.); (0.,10.,0.); (0.,20.,0.); (0.,30.,0.)|]
     |> Geometry.with_attribute (Attribute.create_owned ~name:"piece_id"
          ~owner:Attribute.Point (Attribute.Int [|200;100;999;200|]) |> get_ok)
@@ -4554,7 +4585,7 @@ let run () =
       |> Geometry.with_attribute (Attribute.create_owned ~name:"name"
            ~owner:Attribute.Primitive (Attribute.Text [|"stem";"cap"|])
            |> get_ok) |> get_ok in
-  let text_targets = Ops.points [|(0.,0.,0.); (0.,10.,0.); (0.,20.,0.)|]
+  let text_targets = Line_geometry.points [|(0.,0.,0.); (0.,10.,0.); (0.,20.,0.)|]
       |> Geometry.with_attribute (Attribute.create_owned ~name:"name"
            ~owner:Attribute.Point (Attribute.Text [|"cap";"missing";"stem"|])
            |> get_ok) |> get_ok in
@@ -4566,12 +4597,12 @@ let run () =
            ~owner:Attribute.Primitive Attribute.int) |> Option.get in
   if text_piece_ids <> [|200;100|] then
     fail "copy-to-points text piece matching/unmatched behavior";
-  let point_piece_source = Ops.polyline [|(0.,0.,0.); (1.,0.,0.)|]
+  let point_piece_source = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.)|]
       |> get_ok
       |> Geometry.with_attribute (Attribute.create_owned ~name:"point_piece"
            ~owner:Attribute.Point (Attribute.Text [|"left";"right"|])
            |> get_ok) |> get_ok in
-  let point_piece_targets = Ops.points [|(0.,0.,0.); (0.,5.,0.)|]
+  let point_piece_targets = Line_geometry.points [|(0.,0.,0.); (0.,5.,0.)|]
       |> Geometry.with_attribute (Attribute.create_owned ~name:"point_piece"
            ~owner:Attribute.Point (Attribute.Text [|"right";"left"|])
            |> get_ok) |> get_ok in
@@ -4585,7 +4616,7 @@ let run () =
       || not (near_array [|1.;0.|] point_piece_positions.x)
       || not (near_array [|0.;5.|] point_piece_positions.y) then
     fail "copy-to-points point piece mixed-primitive/free-point behavior";
-  let fallback_targets = Ops.points [|(0.,0.,0.); (0.,5.,0.); (0.,10.,0.)|]
+  let fallback_targets = Line_geometry.points [|(0.,0.,0.); (0.,5.,0.); (0.,10.,0.)|]
       |> Geometry.with_attribute (Attribute.create_owned ~name:"which"
            ~owner:Attribute.Point (Attribute.Int [|1;7;0|]) |> get_ok)
       |> get_ok in
@@ -4597,7 +4628,7 @@ let run () =
            ~owner:Attribute.Primitive Attribute.int) |> Option.get in
   if fallback_ids <> [|200;100|] then
     fail "copy-to-points primitive-number piece fallback";
-  let invalid_piece_targets = Ops.points [|(0.,0.,0.)|]
+  let invalid_piece_targets = Line_geometry.points [|(0.,0.,0.)|]
       |> Geometry.with_attribute (Attribute.create_owned ~name:"bad_piece"
            ~owner:Attribute.Point (Attribute.Float [|1.|]) |> get_ok)
       |> get_ok in
@@ -4624,7 +4655,7 @@ let run () =
       ~source:restricted_source ~targets:restricted_targets () with
    | Error error when Error.code error = "invalid_selection" -> ()
    | _ -> fail "copy-to-points accepted a primitive-owned target selection");
-  let transfer_source = Ops.polyline [|(0.,0.,0.); (1.,0.,0.)|] |> get_ok in
+  let transfer_source = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.)|] |> get_ok in
   let source_weight = Attribute.create_owned ~name:"weight" ~owner:Attribute.Point
       (Attribute.Float [|10.;20.|]) |> get_ok
   and source_corner = Attribute.create_owned ~name:"corner" ~owner:Attribute.Vertex
@@ -4649,7 +4680,7 @@ let run () =
            ~name:"intersect_mask" 2 (fun vertex -> vertex = 0)) |> get_ok
       |> Geometry.with_group (Group.init ~owner:Group.Primitive
            ~name:"subtract_mask" 1 (fun _ -> true)) |> get_ok in
-  let transfer_targets = Ops.points [|(0.,0.,0.); (0.,10.,0.)|] in
+  let transfer_targets = Line_geometry.points [|(0.,0.,0.); (0.,10.,0.)|] in
   let target_weight = Attribute.create_owned ~name:"weight" ~owner:Attribute.Point
       (Attribute.Float [|3.;4.|]) |> get_ok
   and target_corner = Attribute.create_owned ~name:"corner" ~owner:Attribute.Point
@@ -4834,14 +4865,14 @@ let run () =
   let nonfinite_n = Attribute.create_owned ~name:"N" ~owner:Attribute.Point
       (Attribute.Float3 (Packed.Float3.Private.of_owned_exn
         ~x:[|Float.nan|] ~y:[|0.|] ~z:[|1.|])) |> get_ok in
-  let invalid_alignment = Ops.points [|(0.,0.,0.)|]
+  let invalid_alignment = Line_geometry.points [|(0.,0.,0.)|]
       |> Geometry.with_attribute nonfinite_n |> get_ok in
   (match Ops.copy_to_points ~source:prototype ~targets:invalid_alignment () with
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "copy-to-points accepted a non-finite target N");
   let invalid_rot = Attribute.create_owned ~name:"rot" ~owner:Attribute.Point
       (Attribute.Int [|1|]) |> get_ok in
-  let invalid_rot_target = Ops.points [|(0.,0.,0.)|]
+  let invalid_rot_target = Line_geometry.points [|(0.,0.,0.)|]
       |> Geometry.with_attribute invalid_rot |> get_ok in
   (match Ops.copy_to_points ~source:prototype ~targets:invalid_rot_target () with
    | Error error when Error.code error = "invalid_attribute" -> ()
@@ -4850,12 +4881,13 @@ let run () =
       ~owner:Attribute.Point
       (Attribute.Float3 (Packed.Float3.Private.of_owned_exn
         ~x:[|Float.infinity|] ~y:[|0.|] ~z:[|0.|])) |> get_ok in
-  let invalid_trans_target = Ops.points [|(0.,0.,0.)|]
+  let invalid_trans_target = Line_geometry.points [|(0.,0.,0.)|]
       |> Geometry.with_attribute nonfinite_trans |> get_ok in
   (match Ops.copy_to_points ~source:prototype ~targets:invalid_trans_target () with
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "copy-to-points accepted a non-finite target translation");
-  let scatter_source = Ops.color_by_height ~low:Color.red ~high:Color.blue sphere
+  let scatter_source = Color_by_height.run ~low:(Color.to_floats Color.red)
+      ~high:(Color.to_floats Color.blue) sphere
       |> get_ok in
   let scatter domains = Parallel.run ~domains (fun () ->
     Ops.scatter_surface ~grain:97 ~count:10_000 ~seed:123 scatter_source |> get_ok) in

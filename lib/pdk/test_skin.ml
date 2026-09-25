@@ -103,7 +103,7 @@ let test_unequal_wrap_and_errors () =
    | Error error -> check (Error.code error = "invalid_topology")
        "empty output-group diagnostic"
    | Ok _ -> fail "empty output group accepted");
-  (match Ops.skin ~rest:(Ops.points [|0.,0.,0.|]) source with
+  (match Ops.skin ~rest:(Line_geometry.points [|0.,0.,0.|]) source with
    | Error error -> check (Error.code error = "invalid_topology")
        "rest-cardinality diagnostic"
    | Ok _ -> fail "mismatched rest geometry accepted");

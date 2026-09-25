@@ -18,8 +18,8 @@ let cook session domains graph =
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let graph () =
-  Sop.grid ~counts:Pdk.Ops.Grid_point_counts
-    ~connectivity:Pdk.Ops.Grid_alternating_triangles
+  Sop.grid ~counts:Pdk.Plane_generators.Grid_point_counts
+    ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
     ~columns:28 ~rows:22 ~size:8. ()
   |> Sop.remesh ~label:"isotropic-remesh" ~target_length:0.28 ~iterations:1
        ~smoothing:0.35 ~project:true ~preserve_uv_seams:true
@@ -70,7 +70,7 @@ let run () =
   check (Pdk.Edge_group.cardinality hard
       = Pdk.Topology_index.boundary_edge_count index)
     "Remesh SOP hard-edge diagnostic is incomplete";
-  let missing = Sop.grid ~connectivity:Pdk.Ops.Grid_triangles
+  let missing = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_triangles
       ~columns:4 ~rows:4 ~size:1. ()
       |> Sop.remesh ~target_length:0.2 ~hard_edge_group:"missing" in
   let session = Session.create ~max_entries:4 ~max_payload_bytes:8_000_000

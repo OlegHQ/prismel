@@ -30,9 +30,7 @@ module Private : sig
       and [glyph_alpha] holds one coverage byte per pixel. *)
 
 end
-val cache_count:t->int
 val clear_cache:t->unit
-val release_renderer : Image.Private.renderer -> unit
 val shutdown : unit -> unit
 (* Measurements are logical points and allocate no image; [wrap] measures
    wrapped text. Invalid UTF-8 is measured and drawn as U+FFFD. *)

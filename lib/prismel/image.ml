@@ -23,20 +23,11 @@ let get_size value=match Prismel_next_resources.Image.size value with
 let get_width value=fst(get_size value)
 let get_height value=snd(get_size value)
 module Private=struct
-  type renderer=int
-  type texture=t
-  let current_renderer:renderer option ref=ref None
-  let set_renderer renderer=current_renderer:=Some renderer
-  let get_renderer()=match!current_renderer with Some renderer->Ok renderer|None->Error"Image.Private.get_renderer: renderer unavailable"
-  let get_texture image=image
-  let from_texture image _width _height=image
-  let load_memory contents=map"Image.Private.load_memory"(Prismel_next_resources.Image.load_bytes(Bytes.of_string contents))
   let replace target source=
     match Prismel_next_resources.Image.replace_owned target source with
     |Ok()->()
     |Error error->failwith(message"Image.Private.replace"error)
   let identity=Prismel_next_resources.Image.identity
-  let generation=Prismel_next_resources.Image.generation
   let reload value path=map"Image.reload"(Prismel_next_resources.Image.reload_file value path)
   let pixels value=map"Image.pixels"(Prismel_next_resources.Image.pixels value)
   let of_resource image=image

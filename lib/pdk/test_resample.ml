@@ -113,7 +113,7 @@ let with_primitive_attribute name storage geometry =
   Geometry.with_attribute attribute geometry |> get_string
 
 let check_length_modes () =
-  let line = Ops.polyline [|(0., 0., 0.); (2.5, 0., 0.)|] |> get_ok in
+  let line = Line_geometry.polyline_checked [|(0., 0., 0.); (2.5, 0., 0.)|] |> get_ok in
   let even = Ops.resample_curves ~maximum_segment_length:1. line |> get_ok in
   let x = x_positions even in
   check (Array.length x = 4 && near x.(0) 0. && near x.(1) (2.5 /. 3.)
@@ -127,7 +127,7 @@ let check_length_modes () =
       ~even_last_segment:false line |> get_ok in
   let x = x_positions capped in
   check (x = [|0.; 1.25; 2.5|]) "maximum-segment ceiling sampling";
-  let square = Ops.polyline ~closed:true
+  let square = Line_geometry.polyline_checked ~closed:true
       [|(0., 0., 0.); (1., 0., 0.); (1., 1., 0.); (0., 1., 0.)|]
       |> get_ok in
   let closed = Ops.resample_curves ~maximum_segment_length:10.
@@ -138,7 +138,7 @@ let check_length_modes () =
     "closed length mode minimum cardinality"
 
 let check_diagnostics () =
-  let bent = Ops.polyline [|(0., 0., 0.); (1., 0., 0.); (1., 3., 0.)|]
+  let bent = Line_geometry.polyline_checked [|(0., 0., 0.); (1., 0., 0.); (1., 3., 0.)|]
       |> get_ok in
   let result = Ops.resample_curves ~segments:4 ~curve_u_attribute:"curveu"
       ~curve_number_attribute:"curvenum" ~distance_attribute:"distance"
@@ -159,10 +159,10 @@ let check_diagnostics () =
     "output tangent field"
 
 let check_group_and_overrides () =
-  let first = Ops.polyline [|(0., 0., 0.); (2., 0., 0.)|] |> get_ok
-  and second = Ops.polyline
+  let first = Line_geometry.polyline_checked [|(0., 0., 0.); (2., 0., 0.)|] |> get_ok
+  and second = Line_geometry.polyline_checked
       [|(10., 0., 0.); (11., 1., 0.); (12., 0., 0.)|] |> get_ok in
-  let source = Ops.merge [first; second] |> get_ok in
+  let source = Mesh_merge.run [first; second] |> get_ok in
   let selected = Group.init ~owner:Group.Primitive ~name:"first" 2
       (fun primitive -> primitive = 0) in
   let restricted = Ops.resample_curves ~primitives:selected ~segments:4 source
@@ -194,7 +194,7 @@ let check_group_and_overrides () =
     "primitive override disable/preserve semantics"
 
 let check_validation () =
-  let line = Ops.polyline [|(0., 0., 0.); (1., 0., 0.)|] |> get_ok in
+  let line = Line_geometry.polyline_checked [|(0., 0., 0.); (1., 0., 0.)|] |> get_ok in
   expect_invalid (Ops.resample_curves line);
   expect_invalid (Ops.resample_curves ~segments:0 line);
   expect_invalid (Ops.resample_curves ~maximum_segment_length:0. line);
@@ -217,11 +217,11 @@ let check_validation () =
   let wrong_group = Group.init ~owner:Group.Point ~name:"points" 2
       (fun _ -> true) in
   expect_invalid (Ops.resample_curves ~primitives:wrong_group ~segments:2 line);
-  let repeated = Ops.polyline [|(0., 0., 0.); (0., 0., 0.)|] |> get_ok in
+  let repeated = Line_geometry.polyline_checked [|(0., 0., 0.); (0., 0., 0.)|] |> get_ok in
   expect_invalid (Ops.resample_curves ~segments:2 repeated);
-  let polygon = Ops.grid ~columns:1 ~rows:1 ~size:1. () |> get_ok in
+  let polygon = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:1. () |> get_ok in
   expect_invalid (Ops.resample_curves ~segments:2 polygon);
-  let closed = Ops.polyline ~closed:true
+  let closed = Line_geometry.polyline_checked ~closed:true
       [|(0., 0., 0.); (1., 0., 0.); (0., 1., 0.)|] |> get_ok in
   expect_invalid (Ops.resample_curves ~segments:2 closed);
   let cancelled = Cancel.create () in
@@ -234,7 +234,7 @@ let check_parallel_exact () =
   let count = 5_001 in
   let source = Array.init count (fun point ->
       let t = float_of_int point *. 0.003 in
-      t, sin (t *. 0.7), cos (t *. 0.43) *. 0.6) |> Ops.polyline |> get_ok
+      t, sin (t *. 0.7), cos (t *. 0.43) *. 0.6) |> Line_geometry.polyline_checked |> get_ok
       |> Ops.group_edges ~grain:257 ~name:"spine_edges" |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
       Ops.resample_curves ~grain:257 ~maximum_segment_length:0.0009

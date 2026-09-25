@@ -1,19 +1,11 @@
 (** Ownership-aware bindings to Metal.framework on macOS. *)
 
-(** Generated, handle-free SDK enum values. Every family is a distinct
-    private type; mappings preserve aliases and carry pinned macOS
-    availability metadata. *)
-module Enum : module type of Metal_enum_generated
+(** Registry-generated enum values used by the safe Metal API. *)
+module Enum : module type of Metal_gen.Enum
 
 (** Typed Metal data-type values, including packed formats and resource kinds. *)
-module Data_type : module type of Metal_enum_generated.Mtl_data_type
-module Feature_set : module type of Metal_enum_generated.Mtl_feature_set
-
-(** Generated, handle-free, fixed-layout SDK value records. *)
-module Value : module type of Metal_value_record_generated
-
-(** Generated immutable scalar/enum descriptor-property records. *)
-module Descriptor : module type of Metal_descriptor_generated
+module Data_type : module type of Metal_gen.Enum.Mtl_data_type
+module Feature_set : module type of Metal_gen.Enum.Mtl_feature_set
 
 type error_kind =
   | Native_error
@@ -42,13 +34,6 @@ type depth_stencil
 type binary_archive
 type counter_sample_buffer
 
-(** Copied values of immutable, typed NSString globals exported by the Metal
-    SDK. Each call returns an independently owned OCaml string. *)
-module Global : module type of Metal_global_generated.Make (struct
-    type t = error
-    let of_native ~operation:_ _ = assert false
-  end)
-
 type purgeable_state =
   | Nonvolatile
   | Volatile
@@ -64,19 +49,6 @@ module Sparse_page_size : sig
 end
 
 val pp_error : Format.formatter -> error -> unit
-
-module Provenance : sig
-  val sdk_version : string
-  val deployment_target : string
-  val target_triple : string
-  val header_count : int
-  val header_sha256 : string
-end
-
-module Thread : sig
-  val is_initial_domain : unit -> bool
-  val is_platform_main_thread : unit -> bool
-end
 
 module Release_queue : sig
   type stats =
@@ -96,41 +68,8 @@ module Release_queue : sig
 end
 
 type device
-module Event : sig
-  type t
-  val device_registry_id:t->int64
-  val label:t->(string option,error)result
-  val set_label:t->string option->(unit,error)result
-  val destroyed:t->bool
-  val destroy:t->(unit,error)result
-end
-module Shared_event_listener : sig
-  type mode = Shared | Default | Serial_queue of string
-  type t
-  module Queue : sig
-    type t
-    val label:t->string
-    val destroyed:t->bool
-    val destroy:t->(unit,error)result
-  end
-  val create:mode->(t,error)result
-  val queue:t->(Queue.t,error)result
-  val destroyed:t->bool
-  val destroy:t->(unit,error)result
-end
-module Shared_event_handle : sig
-  type t
-  val label:t->(string option,error)result
-  val destroyed:t->bool
-  val destroy:t->(unit,error)result
-end
 module Shared_event : sig
   type t
-  module Notification : sig
-    type t
-    val cancel:t->(unit,error)result
-    val destroyed:t->bool
-  end
   val device_registry_id:t->int64
   val signaled_value:t->(int64,error)result
   val set_signaled_value:t->int64->(unit,error)result
@@ -138,42 +77,23 @@ module Shared_event : sig
   (** Blocks the calling thread (releasing the OCaml runtime) until the event
       reaches [value] or [timeout_ms] elapses; [Ok false] on timeout. *)
   val wait_until_signaled:t->value:int64->timeout_ms:int64->(bool,error)result
-  val export_handle:t->(Shared_event_handle.t,error)result
-  val import_handle:device->Shared_event_handle.t->(t,error)result
-  val notify:t->listener:Shared_event_listener.t->at_value:int64->
-    (int64->unit)->(Notification.t,error)result
   val destroyed:t->bool
   val destroy:t->(unit,error)result
 end
 
-type io_queue
-type io_file
-type io_command_buffer
 type compute_encoder
 type acceleration_encoder
 type blit_encoder
 type resource_state_encoder
 type command_queue
-type command4_queue
 type fence
-type architecture = private { name : string }
-
-module Architecture : sig
-  type t = architecture
-  val name : t -> string
-end
-
 module Device : sig
   type t = device
   type counter_sampling_point=Stage_boundary|Draw_boundary|Dispatch_boundary|Blit_boundary
   type capability_snapshot={barycentric_coordinates:bool;max_threads:(int64*int64*int64);maximize_concurrent_compilation:bool;bc_texture_compression:bool;counter_set_count:int}
   val capability_snapshot:t->(capability_snapshot,error)result
-  val set_maximize_concurrent_compilation:t->bool->(unit,error)result
   val supports_counter_sampling:t->counter_sampling_point->(bool,error)result
   val supports_feature_set:t->Feature_set.t->(bool,error)result
-  val supports_rasterization_rate_layers:t->int64->(bool,error)result
-  val architecture : t -> (Architecture.t,error) result
-  type io_compression_method = Io_zlib | Io_lzfse | Io_lz4 | Io_lzma | Io_lz_bitmap
 
   type family =
     | Apple1
@@ -210,57 +130,15 @@ module Device : sig
     ; function_pointers : bool
     }
 
-  type argument_buffers_tier = Tier_1 | Tier_2 | Unknown_argument_buffers_tier of int64
-  type location = Built_in | Slot | External | Unspecified | Unknown_location of int64
-  type read_write_texture_tier =
-    | No_read_write_textures
-    | Read_write_tier_1
-    | Read_write_tier_2
-    | Unknown_read_write_texture_tier of int64
-
-  (** Scalar capabilities copied from the native device. Querying this record
-      creates no Metal handles and preserves native availability failures. *)
-  type capabilities =
-    { argument_buffers_tier : argument_buffers_tier
-    ; location : location
-    ; location_number : int64
-    ; max_argument_buffer_sampler_count : int64
-    ; max_transfer_rate : int64
-    ; maximum_concurrent_compilation_task_count : int64
-    ; peer_count : int64
-    ; peer_group_id : int64
-    ; peer_index : int64
-    ; programmable_sample_positions : bool
-    ; raster_order_groups : bool
-    ; read_write_texture_tier : read_write_texture_tier
-    ; supports_32_bit_float_filtering : bool
-    ; supports_32_bit_msaa : bool
-    ; supports_primitive_motion_blur : bool
-    ; supports_pull_model_interpolation : bool
-    ; supports_query_texture_lod : bool
-    ; supports_render_dynamic_libraries : bool
-    ; supports_shader_barycentric_coordinates : bool
-    }
-
   val system_default : unit -> (t, error) result
   val new_fence : t -> (fence,error) result
-  val new_event:t->(Event.t,error)result
   val new_shared_event:t->(Shared_event.t,error)result
-  type io_queue_type = Serial | Concurrent
-  val new_io_queue :
-    t -> ?queue_type:io_queue_type -> ?max_command_buffers:int64 ->
-    ?max_commands_in_flight:int64 -> ?label:string -> unit ->
-    (io_queue, error) result
-  val open_io_file : t -> ?label:string -> string -> (io_file, error) result
-  val open_io_handle_legacy : t -> string -> (io_file,error) result
-  val open_compressed_io_handle_legacy : t -> method_:io_compression_method -> string -> (io_file,error) result
   val all : unit -> (t list, error) result
   val generation : t -> int64
   val registry_id : t -> int64
   val same : t -> t -> bool
   val destroyed : t -> bool
   val info : t -> (info, error) result
-  val capabilities : t -> (capabilities, error) result
   val supports_family : t -> family -> (bool, error) result
   val supports_texture_sample_count : t -> int -> (bool, error) result
 
@@ -290,18 +168,6 @@ module Device : sig
   val timestamp_frequency : t -> (int64,error) result
   val counter_heap_entry_size : t -> (int64,error) result
   val destroy : t -> (unit, error) result
-end
-
-module Device_observer : sig
-  type t
-  type notification = Added | Removal_requested | Other of string
-  (** Starts a multi-shot device observer and returns the initial owned device
-      list. Devices delivered to the callback are owned and must be destroyed
-      by the callback or transferred to another explicit owner. *)
-  val create : (Device.t -> notification -> unit) ->
-    ((t * Device.t list),error) result
-  val active : t -> bool
-  val cancel : t -> (unit,error) result
 end
 
 module Buffer : sig
@@ -1054,49 +920,6 @@ module Drawable : sig
   end
 end
 
-module Rasterization_rate_layer : sig
-  type t
-  val create : horizontal:float array -> vertical:float array -> (t,error) result
-  val sample_count : t -> int64 * int64
-  val max_sample_count : t -> int64 * int64
-  val samples : t -> float array * float array
-  val set_sample_count : t -> width:int64 -> height:int64 -> (unit,error) result
-  val sample : t -> vertical:bool -> index:int64 -> (float,error) result
-  val set_sample : t -> vertical:bool -> index:int64 -> float -> (unit,error) result
-  val destroyed : t -> bool
-  val destroy : t -> (unit,error) result
-end
-
-module Rasterization_rate_descriptor : sig
-  type t
-  val create : width:int64 -> height:int64 -> ?label:string -> Rasterization_rate_layer.t array -> (t,error) result
-  val screen_size : t -> int64 * int64
-  val label : t -> string option
-  val layer_count : t -> int
-  val layer : t -> index:int -> Rasterization_rate_layer.t option
-  val set_layer : t -> index:int -> Rasterization_rate_layer.t option -> (unit,error) result
-  val set_metadata : t -> width:int64 -> height:int64 -> ?label:string -> unit -> (unit,error) result
-  val destroyed : t -> bool
-  val destroy : t -> (unit,error) result
-end
-
-module Rasterization_rate_map : sig
-  type t
-  val create_uniform : Device.t -> width:int64 -> height:int64 -> (t,error) result
-  val create : Device.t -> Rasterization_rate_descriptor.t -> (t,error) result
-  val device : t -> Device.t
-  val screen_size : t -> int64 * int64
-  val layer_count : t -> int
-  val physical_granularity : t -> int64 * int64
-  val parameter_size_and_alignment : t -> int64 * int64
-  val label : t -> string option
-  val physical_size : t -> layer:int -> (int64 * int64,error) result
-  val coordinate : t -> layer:int -> physical_to_screen:bool -> float * float -> (float * float,error) result
-  val copy_parameters : t -> Buffer.t -> offset:int64 -> (unit,error) result
-  val destroyed : t -> bool
-  val destroy : t -> (unit,error) result
-end
-
 module Render_pass_descriptor : sig
   type t
   type color_load_action = Load_dont_care | Load | Clear
@@ -1134,9 +957,6 @@ module Render_pass_descriptor : sig
       untouched. *)
   val set_depth_stencil_actions : t -> depth:(color_load_action * store_action * float) ->
     stencil:(color_load_action * store_action * int) -> (unit,error) result
-  val rasterization_rate_map : t -> Rasterization_rate_map.t option
-  val set_rasterization_rate_map :
-    t -> Rasterization_rate_map.t option -> (unit,error) result
   val set_attachments :
     t -> color:Texture.t -> ?clear:float * float * float * float ->
     ?depth:Texture.t -> ?stencil:Texture.t -> ?visibility_result:Buffer.t ->
@@ -1541,7 +1361,6 @@ module Library : sig
   val kind : t -> (kind, error) result
   val install_name : t -> (string option, error) result
   val function_names : t -> (string list, error) result
-  val reflection : t -> string -> ((Binding.t list * string option) option,error) result
   val destroy : t -> (unit, error) result
 end
 
@@ -1694,28 +1513,6 @@ and Shader_argument_encoder : sig
   val destroy : t -> (unit,error) result
 end
 
-module Library_metadata : sig
-  type attribute_kind = Stage_input | Vertex
-  type attribute =
-    { name : string option; index : int64; data_type : Shader_type.t
-    ; active : bool; patch_control_point_data : bool; patch_data : bool
-    ; kind : attribute_kind }
-  type function_reflection = { bindings : Binding.t list }
-  val attributes : Function.t -> vertex:bool -> (attribute list,error) result
-  val function_reflection :
-    library:Library.t -> string -> (function_reflection,error) result
-end
-
-module Library_function_task : sig
-  type t
-  type kind = Descriptor | Constants | Intersection
-  type poll = Pending | Complete of (Function.t,error) result | Cancelled
-  val start : library:Library.t -> kind -> string -> (t,error) result
-  val destroyed : t -> bool
-  val poll : t -> (poll,error) result
-  val cancel : t -> (unit,error) result
-end
-
 module rec Shader_stage_descriptor : sig
   type t
   type index_type=Uint16|Uint32
@@ -1749,103 +1546,6 @@ and Shader_attribute_descriptor : sig
   val destroy:t->(unit,error)result
 end
 and Shader_buffer_layout_descriptors : sig type t val destroyed:t->bool val destroy:t->(unit,error)result end
-
-module Shader_stitching_input : sig
-  type t
-  val create:argument_index:int64->(t,error)result
-  val argument_index:t->(int64,error)result
-  val set_argument_index:t->int64->(unit,error)result
-  val destroyed:t->bool
-  val destroy:t->(unit,error)result
-end
-
-module Function_stitching_node : sig
-  type t
-  val create : name:string -> arguments:Shader_stitching_input.t list -> dependencies:t list -> (t,error) result
-  val name : t -> string
-  val arguments : t -> Shader_stitching_input.t list
-  val dependencies : t -> t list
-  val set : t -> name:string -> arguments:Shader_stitching_input.t list -> dependencies:t list -> (unit,error) result
-  val destroyed : t -> bool
-  val destroy : t -> (unit,error) result
-end
-
-module Function_stitching_graph : sig
-  type t
-  val create : name:string -> nodes:Function_stitching_node.t list -> ?output:Function_stitching_node.t -> ?always_inline:bool -> unit -> (t,error) result
-  val name : t -> string
-  val nodes : t -> Function_stitching_node.t list
-  val output : t -> Function_stitching_node.t option
-  val always_inline : t -> bool
-  val set : t -> name:string -> nodes:Function_stitching_node.t list -> ?output:Function_stitching_node.t -> ?always_inline:bool -> unit -> (unit,error) result
-  val destroyed : t -> bool
-  val destroy : t -> (unit,error) result
-end
-
-module Stitched_library_descriptor : sig
-  type t
-  val create : functions:Function.t list -> graphs:Function_stitching_graph.t list -> ?archives:binary_archive list -> ?options:int64 -> unit -> (t,error) result
-  val functions : t -> Function.t list
-  val graphs : t -> Function_stitching_graph.t list
-  val archives : t -> binary_archive list
-  val options : t -> int64
-  val set : t -> functions:Function.t list -> graphs:Function_stitching_graph.t list -> ?archives:binary_archive list -> ?options:int64 -> unit -> (unit,error) result
-  val checked : t -> (unit,error) result
-  val compile : t -> device:Device.t -> (Library.t,error) result
-  val destroyed : t -> bool
-  val destroy : t -> (unit,error) result
-end
-
-module Capture : sig
-  type destination=Developer_tools|Gpu_trace_document
-  type manager
-  type scope
-  type source=
-    | Capture_device of Device.t
-    | Capture_command_queue of command_queue
-    | Capture_scope of scope
-    | Capture_command4_queue of command4_queue
-  module Descriptor:sig
-    type t
-    val create : ?source:source -> ?destination:destination ->
-      ?output_url:string -> unit -> (t,error) result
-    val destination:t->destination
-    val source:t->source option
-    val output_url:t->string option
-    val set_destination:t->destination->(unit,error)result
-    val set_source:t->source option->(unit,error)result
-    val set_output_url:t->string option->(unit,error)result
-    val destroyed:t->bool
-    val destroy:t->(unit,error)result
-  end
-  module Scope:sig
-    type t=scope
-    val create:manager->source->(t,error)result
-    val device:t->Device.t
-    val label:t->string option
-    val set_label:t->string option->(unit,error)result
-    val command_queue:t->command_queue option
-    val metal4_command_queue:t->command4_queue option
-    val begin_scope:t->(unit,error)result
-    val end_scope:t->(unit,error)result
-    val active:t->bool
-    val destroyed:t->bool
-    val destroy:t->(unit,error)result
-  end
-  module Manager:sig
-    type t=manager
-    val shared:unit->(t,error)result
-    val supports_destination:t->destination->(bool,error)result
-    val is_capturing:t->(bool,error)result
-    val default_scope:t->(scope option,error)result
-    val set_default_scope:t->scope option->(unit,error)result
-    val start:t->source->(unit,error)result
-    val start_descriptor:t->Descriptor.t->(unit,error)result
-    val stop:t->(unit,error)result
-    val destroyed:t->bool
-    val destroy:t->(unit,error)result
-  end
-end
 
 module Dynamic_library : sig
   type t
@@ -1888,8 +1588,6 @@ module Binary_archive : sig
   val add_function_descriptor : t -> Function.t -> (unit,error) result
   val add_render_pipeline : t -> vertex:Function.t -> fragment:Function.t ->
     color_format:Texture.format -> (unit,error) result
-  val add_stitched_library :
-    t -> Stitched_library_descriptor.t -> (unit,error) result
   val add_mesh_render_pipeline :
     t -> mesh:Function.t -> ?fragment:Function.t ->
     color_format:Texture.format -> unit -> (unit,error) result
@@ -2382,53 +2080,6 @@ module Device_function_handle : sig
   val destroy : t -> (unit,error) result
 end
 
-module Function_specialization : sig
-  module Function_descriptor : sig
-    type t
-    val create : Function.t -> name:string -> (t,error) result
-    val name : t -> string
-    val destroyed : t -> bool
-    val destroy : t -> (unit,error) result
-  end
-  module Constants : sig
-    type t
-    val create_empty : unit -> (t,error) result
-    val destroyed : t -> bool
-    val destroy : t -> (unit,error) result
-  end
-  module Specialized : sig
-    type t
-    val create : ?function_descriptor:Function_descriptor.t -> ?name:string -> ?constants:Constants.t -> unit -> (t,error) result
-    val set : t -> ?function_descriptor:Function_descriptor.t -> ?name:string -> ?constants:Constants.t -> unit -> (unit,error) result
-    val get : t -> ((Function_descriptor.t option * string option * Constants.t option),error) result
-    val destroy : t -> (unit,error) result
-  end
-  module Stitched : sig
-    type t
-    val create : Function_descriptor.t list -> (t,error) result
-    val set : t -> Function_descriptor.t list -> (unit,error) result
-    val get : t -> (Function_descriptor.t list,error) result
-    val set_graph :
-      t -> Function_descriptor.t list -> Function_stitching_graph.t option ->
-      (unit,error) result
-    val graph : t -> Function_stitching_graph.t option
-    val destroy : t -> (unit,error) result
-  end
-end
-
-module Metal4_compute_pipeline_descriptor : sig
-  type t
-  val create : unit -> (t,error) result
-  val configure : t ->
-    ?function_descriptor:Function_specialization.Function_descriptor.t ->
-    max_threads:int64 -> threadgroup_multiple:bool -> unit -> (unit,error) result
-  val snapshot : t ->
-    Function_specialization.Function_descriptor.t option * int64 * bool
-  val reset : t -> (unit,error) result
-  val destroyed : t -> bool
-  val destroy : t -> (unit,error) result
-end
-
 module Pipeline_archive : sig
   type t
 
@@ -2452,39 +2103,6 @@ module Pipeline_archive : sig
   val compile_render : t -> library:Library.t -> vertex:string -> ?fragment:string -> color_format:Texture.format -> unit -> (Render_pipeline.t,error) result
 
   val destroy : t -> (unit, error) result
-end
-
-module Compiler_task : sig
-  type 'a t
-
-  type status =
-    | None_
-    | Scheduled
-    | Compiling
-    | Finished
-    | Unknown_status of int
-
-  type 'a poll =
-    | Pending
-    | Complete of ('a, error) result
-
-  val id : 'a t -> int64
-  val device : 'a t -> Device.t
-  val generation : 'a t -> int64
-  val destroyed : 'a t -> bool
-  val status : 'a t -> (status, error) result
-
-  (** Blocks without holding the OCaml runtime lock. The native completion
-      handler only records immutable result state and a bounded completion ID;
-      [poll] materializes the OCaml result on the initial domain. *)
-  val wait : 'a t -> (unit, error) result
-  val poll : 'a t -> ('a poll, error) result
-
-  val completion_capacity : int
-  val drain_completions : ?limit:int -> unit -> (int64 list, error) result
-  val dropped_completions : unit -> (int64, error) result
-  val pending_completions : unit -> (int, error) result
-  val destroy : 'a t -> (unit, error) result
 end
 
 module Compiler : sig
@@ -2529,28 +2147,14 @@ module Compiler : sig
   val compile_source :
     ?name:string -> t -> string -> (Library.t, error) result
 
-  val compile_source_async :
-    ?name:string -> t -> string ->
-    (Library.t Compiler_task.t, error) result
-
   (** Builds a dynamic library through the Metal 4 compiler. The input must be
       a same-device [Library.Dynamic_library_source] with an install name. *)
   val create_dynamic_library :
     ?label:string -> t -> Library.t -> (Dynamic_library.t, error) result
 
-  (** The native task retains the source library through completion. *)
-  val create_dynamic_library_async :
-    ?label:string -> t -> Library.t ->
-    (Dynamic_library.t Compiler_task.t, error) result
-
   (** Loads serialized dynamic-library device code from an absolute path. *)
   val load_dynamic_library :
     ?label:string -> t -> string -> (Dynamic_library.t, error) result
-
-  (** The native task retains the file URL through completion. *)
-  val load_dynamic_library_async :
-    ?label:string -> t -> string ->
-    (Dynamic_library.t Compiler_task.t, error) result
 
   (** Compiles a visible or intersection function to device machine code.
       Lookup archives are searched by Metal before compiling a miss. *)
@@ -2558,11 +2162,6 @@ module Compiler : sig
     ?pipeline_independent:bool -> ?lookup_archives:Pipeline_archive.t list ->
     t -> source:Function.t -> name:string ->
     (Binary_function.t, error) result
-
-  val create_binary_function_async :
-    ?pipeline_independent:bool -> ?lookup_archives:Pipeline_archive.t list ->
-    t -> source:Function.t -> name:string ->
-    (Binary_function.t Compiler_task.t, error) result
 
   val create_compute_pipeline :
     ?label:string -> ?reflection:bool ->
@@ -2577,23 +2176,6 @@ module Compiler : sig
     ?max_call_stack_depth:int ->
     ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
     string -> (Compute_pipeline.t, error) result
-
-  (** The task retains native descriptor inputs through completion. Dynamic
-      linking is capability-gated to Apple9/M3-or-newer GPUs because the
-      Apple7/M1 Metal 4 driver cannot safely serialize that async request. *)
-  val create_compute_pipeline_async :
-    ?label:string -> ?reflection:bool ->
-    ?threadgroup_size_multiple:bool ->
-    ?max_total_threads_per_threadgroup:int ->
-    ?required_threads_per_threadgroup:(int * int * int) ->
-    ?support_binary_linking:bool ->
-    ?support_indirect_command_buffers:bool ->
-    ?static_linking:static_linking ->
-    ?binary_linked_functions:Binary_function.t list ->
-    ?preloaded_libraries:Dynamic_library.t list ->
-    ?max_call_stack_depth:int ->
-    ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
-    string -> (Compute_pipeline.t Compiler_task.t, error) result
 
   (** Compiles a conventional vertex/fragment Metal 4 render pipeline.
       Rasterized pipelines require a fragment function and one to eight color
@@ -2625,40 +2207,11 @@ module Compiler : sig
     ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
     vertex:string -> (Render_pipeline.t, error) result
 
-  (** The native task retains its library and render descriptor through
-      completion; [Compiler_task.poll] materializes the result on the initial
-      domain. Asynchronous dynamic linking requires Apple9/M3 or newer. *)
-  val create_render_pipeline_async :
-    ?label:string -> ?fragment:string -> ?reflection:bool ->
-    ?raster_sample_count:int -> ?color_formats:Texture.format list ->
-    ?color_attachments:Render_pipeline.color_attachment list ->
-    ?vertex_descriptor:Vertex_descriptor.t ->
-    ?alpha_to_coverage:bool -> ?alpha_to_one:bool ->
-    ?max_vertex_amplification_count:int ->
-    ?color_attachment_mapping:Render_pipeline.color_attachment_mapping ->
-    ?support_vertex_binary_linking:bool ->
-    ?support_fragment_binary_linking:bool ->
-    ?vertex_dynamic_linking:stage_linking ->
-    ?fragment_dynamic_linking:stage_linking ->
-    ?vertex_static_linking:static_linking ->
-    ?fragment_static_linking:static_linking ->
-    ?rasterization_enabled:bool ->
-    ?primitive_topology:Render_pipeline.primitive_topology ->
-    ?support_indirect_command_buffers:bool ->
-    ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
-    vertex:string ->
-    (Render_pipeline.t Compiler_task.t, error) result
-
   val specialize_render_pipeline :
     t -> source:Render_pipeline.t -> library:Library.t -> vertex:string ->
     ?fragment:string -> color_format:Texture.format -> unit ->
     (Render_pipeline.t,error) result
-  val specialize_render_pipeline_async :
-    t -> source:Render_pipeline.t -> library:Library.t -> vertex:string ->
-    ?fragment:string -> color_format:Texture.format -> unit ->
-    (Render_pipeline.t Compiler_task.t,error) result
-
-  (** Compiles a Metal 4 mesh pipeline, optionally with an object stage.
+  (* Compiles a Metal 4 mesh pipeline, optionally with an object stage.
       Object-stage limits and payload configuration require [object_function].
       Rasterization and color-format rules match [create_render_pipeline].
       Mesh shading requires an Apple7-or-newer or Mac2 GPU. Optional stage
@@ -2696,38 +2249,6 @@ module Compiler : sig
     ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
     mesh:string -> (Render_pipeline.t, error) result
 
-  (** The native task retains the mesh descriptor and every linking input
-      through completion. Indirect mesh draws and asynchronous dynamic linking
-      are rejected below Apple9/M3. *)
-  val create_mesh_pipeline_async :
-    ?label:string -> ?object_function:string -> ?fragment:string ->
-    ?reflection:bool ->
-    ?max_total_threads_per_object_threadgroup:int ->
-    ?max_total_threads_per_mesh_threadgroup:int ->
-    ?required_threads_per_object_threadgroup:(int * int * int) ->
-    ?required_threads_per_mesh_threadgroup:(int * int * int) ->
-    ?object_threadgroup_size_multiple:bool ->
-    ?mesh_threadgroup_size_multiple:bool -> ?payload_memory_length:int ->
-    ?max_total_threadgroups_per_mesh_grid:int -> ?raster_sample_count:int ->
-    ?color_formats:Texture.format list ->
-    ?color_attachments:Render_pipeline.color_attachment list ->
-    ?alpha_to_coverage:bool -> ?alpha_to_one:bool ->
-    ?max_vertex_amplification_count:int ->
-    ?color_attachment_mapping:Render_pipeline.color_attachment_mapping ->
-    ?support_object_binary_linking:bool ->
-    ?support_mesh_binary_linking:bool ->
-    ?support_fragment_binary_linking:bool ->
-    ?object_dynamic_linking:stage_linking ->
-    ?mesh_dynamic_linking:stage_linking ->
-    ?fragment_dynamic_linking:stage_linking ->
-    ?object_static_linking:static_linking ->
-    ?mesh_static_linking:static_linking ->
-    ?fragment_static_linking:static_linking ->
-    ?rasterization_enabled:bool ->
-    ?support_indirect_command_buffers:bool ->
-    ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
-    mesh:string -> (Render_pipeline.t Compiler_task.t, error) result
-
   (** Compiles a Metal 4 tile pipeline for an Apple4-or-newer GPU. Tile entry
       points may be kernel- or fragment-based. Empty [color_formats] are
       permitted for tile work that does not access an imageblock attachment. *)
@@ -2742,20 +2263,6 @@ module Compiler : sig
     ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
     tile:string -> (Render_pipeline.t, error) result
 
-  (** The native compiler task owns the tile descriptor, source libraries,
-      static/dynamic-link inputs, and lookup archives through completion.
-      Asynchronous dynamic linking requires Apple9/M3 or newer. *)
-  val create_tile_pipeline_async :
-    ?label:string -> ?reflection:bool -> ?raster_sample_count:int ->
-    ?color_formats:Texture.format list ->
-    ?threadgroup_size_matches_tile_size:bool ->
-    ?max_total_threads_per_threadgroup:int ->
-    ?required_threads_per_threadgroup:(int * int * int) ->
-    ?support_binary_linking:bool -> ?static_linking:static_linking ->
-    ?dynamic_linking:stage_linking ->
-    ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
-    tile:string -> (Render_pipeline.t Compiler_task.t, error) result
-
   val device : t -> Device.t
   val generation : t -> int64
   val dataset : t -> Pipeline_dataset.t option
@@ -2764,622 +2271,9 @@ module Compiler : sig
   val destroy : t -> (unit, error) result
 end
 
-(** Typed Metal 4 command recording. These objects are distinct from the
-    legacy Metal command modules below: an allocator records one buffer at a
-    time, queues return explicit submissions, and a submission must complete
-    before its command resources are released. *)
+(** Handle for indirect commands recorded through the legacy Metal command
+    encoders below. *)
 type indirect_command_buffer_handle
-
-module Machine_learning : sig
-  module Descriptor : sig
-    type t
-    val create : ?label:string -> library:Library.t -> function_name:string -> unit -> (t,error) result
-    val set_label : t -> string option -> (unit,error) result
-    val label : t -> string option
-    val function_ : t -> ((Library.t*string),error) result
-    val set_input_dimensions : t -> index:int64 -> int64 array -> (unit,error) result
-    val input_dimensions : t -> index:int64 -> (int64 array option,error) result
-    val set_input_dimensions_range : t -> start:int64 -> int64 array option array -> (unit,error) result
-    val reset : t -> (unit,error) result
-    val destroy : t -> (unit,error) result
-  end
-  module Pipeline : sig
-    type t
-    val compile : Compiler.t -> Descriptor.t -> (t,error) result
-    val compile_async : Compiler.t -> Descriptor.t -> (t Compiler_task.t,error) result
-    val label : t -> string option
-    val intermediates_heap_size : t -> int64
-    val bindings : t -> Binding.t list
-    val device : t -> Device.t
-    val destroyed : t -> bool
-    val destroy : t -> (unit,error) result
-  end
-end
-
-module Command4 : sig
-  module Counter_heap : sig
-    type t
-    type kind = Timestamp
-    module Descriptor : sig
-      type t
-      val create : kind:kind -> count:int64 -> (t,error) result
-      val kind : t -> kind
-      val count : t -> int64
-    end
-    val create_from_descriptor : ?label:string -> Device.t -> Descriptor.t -> (t,error) result
-    val create : ?label:string -> Device.t -> kind:kind -> count:int64 -> (t,error) result
-    val info : t -> (kind * int64 * string option,error) result
-    val set_label : t -> string option -> (unit,error) result
-    val invalidate : t -> location:int64 -> length:int64 -> (unit,error) result
-    val resolve : t -> location:int64 -> length:int64 -> (bytes,error) result
-    val device : t -> Device.t
-    val destroyed : t -> bool
-    val destroy : t -> (unit,error) result
-  end
-  module Argument_table : sig
-    type t
-
-    (** Creates a checked Metal 4 argument table. The hardware limits are 31
-        buffer slots, 128 texture slots, and 16 sampler slots; at least one
-        capacity must be nonzero. *)
-    val create :
-      ?label:string -> ?initialize_bindings:bool ->
-      ?support_attribute_strides:bool -> ?max_buffers:int ->
-      ?max_textures:int -> ?max_samplers:int -> Device.t -> unit ->
-      (t, error) result
-
-    val device : t -> Device.t
-    val generation : t -> int64
-    val destroyed : t -> bool
-    val max_buffers : t -> int
-    val max_textures : t -> int
-    val max_samplers : t -> int
-    val initializes_bindings : t -> bool
-    val supports_attribute_strides : t -> bool
-    val label : t -> (string option, error) result
-
-    (** Binds [buffer] by GPU address. [offset] must select a byte inside the
-        buffer. [attribute_stride] requires a table created with
-        [support_attribute_strides:true]. *)
-    val set_buffer :
-      t -> index:int -> ?offset:int64 -> ?attribute_stride:int -> Buffer.t ->
-      (unit, error) result
-
-    val clear_buffer : t -> index:int -> (unit, error) result
-    val set_texture : t -> index:int -> Texture.t -> (unit, error) result
-    val clear_texture : t -> index:int -> (unit, error) result
-    val set_sampler : t -> index:int -> Sampler.t -> (unit, error) result
-    val clear_sampler : t -> index:int -> (unit, error) result
-    val destroy : t -> (unit, error) result
-  end
-
-  module Allocator : sig
-    type t
-
-    val create : ?label:string -> Device.t -> (t, error) result
-    val device : t -> Device.t
-    val generation : t -> int64
-    val destroyed : t -> bool
-    val label : t -> (string option, error) result
-    val allocated_size : t -> (int64, error) result
-
-    (** Requires every command buffer that used this allocator to be destroyed,
-        which proves that no submitted work still owns allocator memory. *)
-    val reset : t -> (unit, error) result
-
-    val destroy : t -> (unit, error) result
-  end
-
-  module Log_state : sig
-    type t
-    type level =
-      | Log_undefined | Log_debug | Log_info | Log_notice | Log_error | Log_fault
-    module Descriptor : sig
-      type t
-      val create : ?level:level -> ?buffer_size:int64 -> unit -> (t,error) result
-      val level : t -> level
-      val buffer_size : t -> int64
-      val set : t -> level:level -> buffer_size:int64 -> (unit,error) result
-      val snapshot : t -> ((level * int64),error) result
-      val destroyed : t -> bool
-      val destroy : t -> (unit,error) result
-    end
-    type message={subsystem:string option;category:string option;level:level;text:string}
-    module Handler : sig
-      type t
-      val cancelled : t -> bool
-      val cancel : t -> (unit,error) result
-      val destroyed : t -> bool
-      val destroy : t -> (unit,error) result
-    end
-    val create : Device.t -> (t,error) result
-    val create_with_descriptor : Device.t -> Descriptor.t -> (t,error) result
-    val add_handler : t -> (message -> unit) -> (Handler.t,error) result
-    val device : t -> Device.t
-    val destroyed : t -> bool
-    val destroy : t -> (unit,error) result
-  end
-  module Command_buffer_options : sig
-    type t
-    val create : Device.t -> (t,error) result
-    val log_state : t -> Log_state.t option
-    val set_log_state : t -> Log_state.t option -> (unit,error) result
-    val destroyed : t -> bool
-    val destroy : t -> (unit,error) result
-  end
-  module Command_buffer : sig
-    type t
-
-    type state =
-      | Recording
-      | Ended
-      | Submitted
-      | Completed
-      | Failed of string
-
-    val create : Allocator.t -> ?label:string -> ?options:Command_buffer_options.t -> unit -> (t, error) result
-    val device : t -> Device.t
-    val generation : t -> int64
-    val destroyed : t -> bool
-    val state : t -> state
-    val label : t -> (string option, error) result
-    val push_debug_group : t -> string -> (unit, error) result
-    val pop_debug_group : t -> (unit, error) result
-    val use_residency_sets : t -> Residency_set.t list -> (unit, error) result
-    val write_timestamp : t -> Counter_heap.t -> index:int64 -> (unit, error) result
-    val resolve_counter : t -> Counter_heap.t -> location:int64 -> length:int64 ->
-      destination:Buffer.t -> destination_offset:int64 -> ?wait_fence:Fence.t ->
-      ?update_fence:Fence.t -> unit -> (unit, error) result
-
-    (** Ends native command recording after the current encoder has ended. *)
-    val end_recording : t -> (unit, error) result
-
-    val destroy : t -> (unit, error) result
-  end
-
-  module Submission : sig
-    type t
-    type feedback={gpu_start_time:float;gpu_end_time:float;gpu_duration:float}
-
-    val device : t -> Device.t
-    val generation : t -> int64
-    val destroyed : t -> bool
-    val completed : t -> bool
-    val feedback : t -> (feedback,error) result
-
-    (** Checks commit feedback without waiting; a terminal result also updates
-        [completed] and releases the submission's recorded resources. *)
-    val poll : t -> (bool,error) result
-
-    (** Blocks without holding the OCaml runtime lock. GPU execution errors are
-        returned from Metal 4 commit feedback with their native diagnostics. *)
-    val wait : t -> (unit, error) result
-
-    val destroy : t -> (unit, error) result
-  end
-
-  module Queue : sig
-    type t = command4_queue
-
-    type buffer_mapping_copy =
-      { source_offset : int64
-      ; length : int64
-      ; destination_offset : int64
-      }
-
-    type texture_mapping_copy =
-      { source_origin : int64 * int64 * int64
-      ; size : int64 * int64 * int64
-      ; source_level : int64
-      ; source_slice : int64
-      ; destination_origin : int64 * int64 * int64
-      ; destination_level : int64
-      ; destination_slice : int64
-      }
-
-    type event = Event of Event.t | Shared_event of Shared_event.t
-
-    val create : ?label:string -> Device.t -> (t, error) result
-    val create_default : Device.t -> (t, error) result
-    val device : t -> Device.t
-    val generation : t -> int64
-    val destroyed : t -> bool
-    val label : t -> (string option, error) result
-
-    (** Commits one to 64 unique, ended command buffers in list order. *)
-    val commit : t -> Command_buffer.t list -> (Submission.t, error) result
-    val add_residency_sets : t -> Residency_set.t list -> (unit,error) result
-    val add_residency_set : t -> Residency_set.t -> (unit,error) result
-    val remove_residency_set : t -> Residency_set.t -> (unit,error) result
-    val remove_residency_sets : t -> Residency_set.t list -> (unit,error) result
-    val copy_buffer_mappings : t -> source:Buffer.t -> destination:Buffer.t ->
-      buffer_mapping_copy list -> (unit,error) result
-    val copy_texture_mappings : t -> source:Texture.t -> destination:Texture.t ->
-      texture_mapping_copy list -> (unit,error) result
-    val signal_drawable : t -> Drawable.t -> (unit,error) result
-    val wait_for_drawable : t -> Drawable.t -> (unit,error) result
-    val wait_for_event : t -> event -> value:int64 -> (unit,error) result
-
-    val destroy : t -> (unit, error) result
-  end
-
-  module Render_encoder : sig
-    type t
-    type color
-
-    type load_action =
-      | Load_dont_care
-      | Load
-      | Clear of color
-
-    type store_action =
-      | Store_dont_care
-      | Store
-      | Multisample_resolve
-      | Store_and_multisample_resolve
-      | Store_deferred
-
-    type visibility_result_mode =
-      | Visibility_disabled
-      | Visibility_boolean
-      | Visibility_counting
-
-    type visibility_result_type =
-      | Visibility_reset
-      | Visibility_accumulate
-
-    type depth_load_action =
-      | Depth_load_dont_care
-      | Depth_load
-      | Depth_clear
-
-    type stencil_load_action =
-      | Stencil_load_dont_care
-      | Stencil_load
-      | Stencil_clear
-
-    type color_attachment
-    type depth_attachment
-    type stencil_attachment
-    type viewport
-    type scissor_rect
-    type vertex_amplification_view_mapping
-
-    type winding =
-      | Clockwise
-      | Counter_clockwise
-
-    type cull_mode =
-      | Cull_none
-      | Cull_front
-      | Cull_back
-
-    type depth_clip_mode =
-      | Depth_clip
-      | Depth_clamp
-
-    type triangle_fill_mode =
-      | Triangle_fill
-      | Triangle_lines
-
-    type primitive =
-      | Point
-      | Line
-      | Line_strip
-      | Triangle
-      | Triangle_strip
-
-    type index_type =
-      | Uint16
-      | Uint32
-    type timestamp_granularity = Relaxed | Precise
-
-    type stage =
-      | Vertex
-      | Fragment
-      | Tile
-      | Object
-      | Mesh
-
-    val color :
-      red:float -> green:float -> blue:float -> alpha:float -> color
-
-    (** Creates a base-level 2D or 2D-multisample color attachment. A resolve
-        store action requires [resolve_texture] to be a compatible base-level,
-        single-sample 2D texture. [Store_deferred] must be finalized on the
-        encoder before it ends. *)
-    val color_attachment :
-      ?load_action:load_action -> ?store_action:store_action ->
-      ?resolve_texture:Texture.t -> Texture.t -> color_attachment
-
-    (** Creates a base-level 2D or 2D-multisample depth attachment.
-        [Store_deferred] must be finalized on the encoder before it ends. *)
-    val depth_attachment :
-      ?load_action:depth_load_action -> ?store_action:store_action ->
-      ?clear_depth:float -> Texture.t -> depth_attachment
-
-    (** Creates a base-level 2D or 2D-multisample stencil attachment. The clear
-        value is interpreted as an unsigned 32-bit bit pattern.
-        [Store_deferred] must be finalized on the encoder before it ends. *)
-    val stencil_attachment :
-      ?load_action:stencil_load_action -> ?store_action:store_action ->
-      ?clear_stencil:int32 -> Texture.t -> stencil_attachment
-
-    (** Describes the unsigned 32-bit viewport- and render-target-array index
-        offsets for one amplified vertex output. Values are checked when the
-        mapping is installed on an encoder. *)
-    val vertex_amplification_view_mapping :
-      ?viewport_array_index_offset:int ->
-      ?render_target_array_index_offset:int -> unit ->
-      vertex_amplification_view_mapping
-
-    (** Creates a render encoder and optionally configures a visibility-result
-        buffer containing one or more 64-bit slots. The buffer must be live,
-        same-device, and at least eight bytes. [Visibility_accumulate] requires
-        such a buffer; [Visibility_reset] remains the default. *)
-    val create :
-      ?label:string -> ?depth_attachment:depth_attachment ->
-      ?stencil_attachment:stencil_attachment ->
-      ?visibility_result_buffer:Buffer.t ->
-      ?visibility_result_type:visibility_result_type ->
-      ?support_color_attachment_mapping:bool -> Command_buffer.t ->
-      color_attachments:color_attachment list -> (t, error) result
-
-    (** Binds a conventional, mesh, or tile render pipeline whose sample count
-        and ordered color formats match the render pass. *)
-    val set_pipeline : t -> Render_pipeline.t -> (unit, error) result
-
-    (** Sets the number of amplified vertex outputs for subsequent conventional
-        or mesh draws. Metal 4 accepts one or two outputs; the count must also
-        fit the bound pipeline and device. When present, [view_mappings] has
-        exactly one unsigned-32-bit offset pair per output. *)
-    val set_vertex_amplification_count :
-      t -> ?view_mappings:vertex_amplification_view_mapping list -> int ->
-      (unit, error) result
-
-    (** Installs a complete logical-to-physical color-attachment permutation,
-        or clears it to Metal's identity mapping with [None]. The pass must
-        opt in at creation and the bound pipeline must use [Inherited]. *)
-    val set_color_attachment_map :
-      t -> int list option -> (unit, error) result
-
-    (** Binds immutable depth/stencil state. Active depth testing or writes
-        require a depth attachment, and an explicit stencil face requires a
-        stencil attachment. [None] restores Metal's default state. *)
-    val set_depth_stencil_state :
-      t -> Depth_stencil.t option -> (unit, error) result
-
-    (** Sets the unsigned 32-bit stencil reference for both primitive faces. *)
-    val set_stencil_reference : t -> int32 -> (unit, error) result
-
-    (** Sets independent unsigned 32-bit front/back stencil references. *)
-    val set_stencil_references :
-      t -> front:int32 -> back:int32 -> (unit, error) result
-
-    (** Sets the finite float32 blend constant for subsequent draws. *)
-    val set_blend_color : t -> color -> (unit, error) result
-
-    (** Associates [table] with the selected render stages. Metal snapshots
-        the table's current resources at each subsequent draw. [None] clears
-        those stage bindings. *)
-    val set_argument_table :
-      t -> stages:stage list -> Argument_table.t option -> (unit, error) result
-
-    (** Returns the native thread-tile dimensions captured at encoder creation. *)
-    val tile_size : t -> int * int
-
-    val viewport :
-      x:float -> y:float -> width:float -> height:float -> z_near:float ->
-      z_far:float -> viewport
-
-    (** Builds an integer-pixel scissor rectangle. Bounds are checked against
-        the render target when the rectangle is installed. *)
-    val scissor_rect :
-      x:int -> y:int -> width:int -> height:int -> scissor_rect
-
-    val set_viewport : t -> viewport -> (unit, error) result
-
-    (** Installs one to sixteen in-target viewports selected by shader
-        [viewport_array_index] output. *)
-    val set_viewports : t -> viewport list -> (unit, error) result
-
-    val set_scissor_rect : t -> scissor_rect -> (unit, error) result
-
-    (** Installs one to sixteen in-target scissor rectangles selected by shader
-        [viewport_array_index] output. *)
-    val set_scissor_rects : t -> scissor_rect list -> (unit, error) result
-
-    val set_front_facing_winding : t -> winding -> (unit, error) result
-    val set_cull_mode : t -> cull_mode -> (unit, error) result
-    val set_depth_clip_mode : t -> depth_clip_mode -> (unit, error) result
-
-    (** Sets finite float32 constant, slope-scale, and clamp depth bias. *)
-    val set_depth_bias :
-      t -> depth_bias:float -> slope_scale:float -> clamp:float ->
-      (unit, error) result
-
-    (** Sets ordered finite depth bounds in the closed interval zero to one.
-        Any pair other than zero/one enables testing and requires a depth
-        attachment and an Apple10-or-newer GPU. *)
-    val set_depth_test_bounds :
-      t -> min_bound:float -> max_bound:float -> (unit, error) result
-
-    val set_triangle_fill_mode :
-      t -> triangle_fill_mode -> (unit, error) result
-
-    (** Finalizes a [Store_deferred] color attachment exactly once. *)
-    val set_color_store_action :
-      t -> index:int -> store_action -> (unit, error) result
-
-    (** Finalizes a [Store_deferred] depth attachment exactly once. *)
-    val set_depth_store_action : t -> store_action -> (unit, error) result
-
-    (** Finalizes a [Store_deferred] stencil attachment exactly once. *)
-    val set_stencil_store_action : t -> store_action -> (unit, error) result
-
-    (** Configures one 64-bit visibility-result slot. Active boolean and
-        counting modes require the live buffer supplied to [create]; [offset]
-        must be nonnegative, eight-byte aligned, and in range. Disabled mode
-        requires only a nonnegative aligned offset. *)
-    val set_visibility_result_mode :
-      t -> visibility_result_mode -> offset:int64 -> (unit, error) result
-
-    val draw_primitives :
-      t -> primitive -> vertex_start:int -> vertex_count:int ->
-      (unit, error) result
-
-    (** Draws a positive instance range starting at [base_instance]. *)
-    val draw_primitives_instanced :
-      t -> primitive -> vertex_start:int -> vertex_count:int ->
-      instance_count:int -> base_instance:int -> (unit, error) result
-
-    (** Draws from a checked aligned byte range of [index_buffer]. The buffer
-        and current argument-table resources remain owned through completion. *)
-    val draw_indexed_primitives :
-      t -> primitive -> index_type -> index_buffer:Buffer.t ->
-      index_offset:int64 -> index_count:int -> (unit, error) result
-
-    (** Draws a checked indexed instance range. [base_vertex] is signed;
-        [base_instance] is nonnegative. The index buffer and current
-        argument-table resources remain owned through completion. *)
-    val draw_indexed_primitives_instanced :
-      t -> primitive -> index_type -> index_buffer:Buffer.t ->
-      index_offset:int64 -> index_count:int -> instance_count:int ->
-      base_vertex:int -> base_instance:int -> (unit, error) result
-
-    (** Reads one 16-byte [MTLDrawPrimitivesIndirectArguments] value from a
-        checked 4-byte-aligned buffer range. *)
-    val draw_primitives_indirect :
-      t -> primitive -> indirect_buffer:Buffer.t -> indirect_offset:int64 ->
-      (unit, error) result
-
-    (** Reads one 20-byte [MTLDrawIndexedPrimitivesIndirectArguments] value
-        from a checked 4-byte-aligned range. [index_length] is a positive,
-        naturally aligned accessible range starting at [index_offset]. Both
-        buffers and current argument-table resources remain owned through
-        completion. *)
-    val draw_indexed_primitives_indirect :
-      t -> primitive -> index_type -> index_buffer:Buffer.t ->
-      index_offset:int64 -> index_length:int64 -> indirect_buffer:Buffer.t ->
-      indirect_offset:int64 -> (unit, error) result
-
-    (** Dispatches a positive grid of mesh threadgroups. [object_threadgroup]
-        is required exactly when the compiled pipeline has an object stage.
-        Required sizes, pipeline maxima, and execution-width promises are
-        checked before command encoding. *)
-    val draw_mesh_threadgroups :
-      t -> threadgroups:(int * int * int) ->
-      ?object_threadgroup:(int * int * int) ->
-      mesh_threadgroup:(int * int * int) -> unit -> (unit, error) result
-
-    (** Dispatches a tile pipeline with positive in-tile dimensions and depth
-        one. The compiled maximum, optional required size, and exact-tile-size
-        promise are checked before encoding. *)
-    val dispatch_threads_per_tile :
-      t -> threads:(int * int * int) -> (unit, error) result
-
-    val draw : t -> primitive -> vertex_start:int64 -> vertex_count:int64 -> instance_count:int64 -> (unit,error) result
-    val draw_indexed : t -> primitive -> index_type -> index_buffer:Buffer.t -> index_count:int64 -> index_length:int64 -> instance_count:int64 -> (unit,error) result
-    val draw_mesh_threads_raw : t -> threads:(int*int*int) -> object_threadgroup:(int*int*int) -> mesh_threadgroup:(int*int*int) -> (unit,error) result
-    val draw_mesh_indirect : t -> indirect_buffer:Buffer.t -> offset:int64 -> object_threadgroup:(int*int*int) -> mesh_threadgroup:(int*int*int) -> (unit,error) result
-    val execute_icb_range : t -> indirect_command_buffer_handle -> location:int64 -> length:int64 -> (unit,error) result
-    val execute_icb_indirect : t -> indirect_command_buffer_handle -> indirect_buffer:Buffer.t -> offset:int64 -> (unit,error) result
-    val set_threadgroup_memory : t -> ?object_stage:bool -> length:int64 -> index:int64 -> offset:int64 -> unit -> (unit,error) result
-    val write_timestamp : t -> granularity:timestamp_granularity -> after:stage list -> Counter_heap.t -> index:int64 -> (unit,error) result
-
-    (** Ends the encoder after every [Store_deferred] action is finalized. *)
-    val end_encoding : t -> (unit, error) result
-    val destroyed : t -> bool
-  end
-
-  module Render_pass_descriptor : sig
-    type t
-    val create : Device.t -> width:int -> height:int -> ?sample_count:int -> unit -> (t,error) result
-    val sample_positions : t -> (float * float) array
-    val set_sample_positions : t -> (float * float) array -> (unit,error) result
-    val rasterization_rate_map : t -> Rasterization_rate_map.t option
-    val set_rasterization_rate_map : t -> Rasterization_rate_map.t option -> (unit,error) result
-    val set_depth_attachment : t -> Render_encoder.depth_attachment option -> (unit,error) result
-    val set_stencil_attachment : t -> Render_encoder.stencil_attachment option -> (unit,error) result
-    val destroyed : t -> bool
-    val destroy : t -> (unit,error) result
-  end
-
-  module Compute_encoder : sig
-    type t
-    type stage = Vertex | Fragment | Tile | Object | Mesh | Compute | Blit
-    type timestamp_granularity = Relaxed | Precise
-    type copy_options = No_options | Row_linear_pvrtc
-
-    val create :
-      ?label:string -> Command_buffer.t -> (t, error) result
-
-    val set_pipeline : t -> Compute_pipeline.t -> (unit, error) result
-
-    (** Configures one reflected [[threadgroup(index)]] binding. The bound
-        pipeline must have been created with reflection, [index] is between
-        zero and thirty, and [length] is a nonnegative multiple of sixteen
-        bytes. Setting zero clears that index. Static and dynamic allocations
-        together must fit the device threadgroup-memory limit. *)
-    val set_threadgroup_memory_length :
-      t -> index:int -> length:int -> (unit, error) result
-
-    (** Associates the table with the compute stage. Metal snapshots its
-        current resources at each subsequent dispatch. [None] clears it. *)
-    val set_argument_table :
-      t -> Argument_table.t option -> (unit, error) result
-
-    val insert_debug_signpost : t -> string -> (unit,error) result
-    val push_debug_group : t -> string -> (unit,error) result
-    val pop_debug_group : t -> (unit,error) result
-    val barrier : t -> after:stage list -> before:stage list -> ?before_queue:bool -> unit -> (unit,error) result
-    val update_fence : t -> Fence.t -> after:stage list -> (unit,error) result
-    (* Waits for a live same-device fence before the selected nonempty stage
-       set. The recording command retains the fence after native encoding
-       succeeds. *)
-    val wait_for_fence : t -> Fence.t -> before:stage list -> (unit,error) result
-    val dispatch_threadgroups : t -> threadgroups:(int64*int64*int64) -> threads_per_threadgroup:(int64*int64*int64) -> (unit,error) result
-    val dispatch_indirect_threadgroups : t -> indirect_buffer:Buffer.t -> offset:int64 -> threads_per_threadgroup:(int64*int64*int64) -> (unit,error) result
-    val dispatch_indirect_threads : t -> indirect_buffer:Buffer.t -> offset:int64 -> (unit,error) result
-    val set_imageblock_size : t -> width:int64 -> height:int64 -> (unit,error) result
-    val stages : t -> (int64,error) result
-    val fill_buffer : t -> Buffer.t -> offset:int64 -> length:int64 -> byte:int -> (unit,error) result
-    val generate_mipmaps : t -> Texture.t -> (unit,error) result
-    val optimize_for_cpu : t -> Texture.t -> (unit,error) result
-    val optimize_for_gpu : t -> Texture.t -> (unit,error) result
-    val optimize_level_for_cpu : t -> Texture.t -> slice:int64 -> level:int64 -> (unit,error) result
-    val optimize_level_for_gpu : t -> Texture.t -> slice:int64 -> level:int64 -> (unit,error) result
-    val copy_buffer : t -> source:Buffer.t -> source_offset:int64 -> destination:Buffer.t -> destination_offset:int64 -> size:int64 -> (unit,error) result
-    val copy_texture : t -> source:Texture.t -> destination:Texture.t -> (unit,error) result
-    val copy_texture_slices : t -> source:Texture.t -> source_slice:int64 -> source_level:int64 -> destination:Texture.t -> destination_slice:int64 -> destination_level:int64 -> slice_count:int64 -> level_count:int64 -> (unit,error) result
-    val copy_texture_region : t -> source:Texture.t -> source_slice:int64 -> source_level:int64 -> source_origin:(int64*int64*int64) -> size:(int64*int64*int64) -> destination:Texture.t -> destination_slice:int64 -> destination_level:int64 -> destination_origin:(int64*int64*int64) -> (unit,error) result
-    val buffer_to_texture : ?options:copy_options -> t -> source:Buffer.t -> source_offset:int64 -> bytes_per_row:int64 -> bytes_per_image:int64 -> size:(int64*int64*int64) -> destination:Texture.t -> destination_slice:int64 -> destination_level:int64 -> destination_origin:(int64*int64*int64) -> (unit,error) result
-    val texture_to_buffer : ?options:copy_options -> t -> source:Texture.t -> source_slice:int64 -> source_level:int64 -> source_origin:(int64*int64*int64) -> size:(int64*int64*int64) -> destination:Buffer.t -> destination_offset:int64 -> bytes_per_row:int64 -> bytes_per_image:int64 -> (unit,error) result
-    val execute_icb : t -> indirect_command_buffer_handle -> location:int64 -> length:int64 -> (unit,error) result
-    val execute_icb_indirect : t -> indirect_command_buffer_handle -> indirect_buffer:Buffer.t -> offset:int64 -> (unit,error) result
-    val optimize_icb : t -> indirect_command_buffer_handle -> location:int64 -> length:int64 -> (unit,error) result
-    val reset_icb : t -> indirect_command_buffer_handle -> location:int64 -> length:int64 -> (unit,error) result
-    val copy_icb : t -> source:indirect_command_buffer_handle -> source_location:int64 -> length:int64 -> destination:indirect_command_buffer_handle -> destination_index:int64 -> (unit,error) result
-    val copy_acceleration_structure : t -> source:Acceleration_structure.t -> destination:Acceleration_structure.t -> compact:bool -> (unit,error) result
-    val write_timestamp : t -> granularity:timestamp_granularity -> Counter_heap.t -> index:int64 -> (unit,error) result
-
-    val dispatch_threads :
-      t -> threads:(int * int * int) -> threadgroup:(int * int * int) ->
-      (unit, error) result
-
-    val end_encoding : t -> (unit, error) result
-    val destroyed : t -> bool
-  end
-
-  module Machine_learning_encoder : sig
-    type t
-    val create : Command_buffer.t -> (t,error) result
-    val set_pipeline : t -> Machine_learning.Pipeline.t -> (unit,error) result
-    val set_argument_table : t -> Argument_table.t option -> (unit,error) result
-    val dispatch : t -> Heap.t -> (unit,error) result
-    val end_encoding : t -> (unit,error) result
-  end
-end
 
 module Indirect_command_buffer : sig
   type command_type =
@@ -3485,107 +2379,19 @@ module Indirect_command_buffer : sig
   end
 end
 
-module Retained_render_plan : sig
-  type t
-  type candidate
-  type prepared=Hit of Indirect_command_buffer.t|Candidate of candidate
-  type stats=
-    { entries:int
-    ; retained_bytes:int64
-    ; entry_capacity:int
-    ; byte_capacity:int64 }
-  (* Retained plans are populated through Metal indirect-command wrappers and
-     own private-storage command buffers with exact allocated-size accounting. *)
-  val create : device:Device.t -> ?capacity:int -> ?byte_capacity:int64 ->
-    ?enabled:bool ->
-    ?on_evict:(key:string -> generation:int64 -> Indirect_command_buffer.t -> unit) ->
-    unit -> (t,error) result
-  val length : t -> int
-  val stats : t -> stats
-  (* A miss candidate owns its private ICB until [admit] transfers it into the
-     cache or [discard] destroys it. Preparation never mutates active entries,
-     order, accounting, or eviction callbacks. *)
-  val prepare : t -> key:string -> generation:int64 -> command_count:int ->
-    descriptor:Indirect_command_buffer.descriptor ->
-    build:(Indirect_command_buffer.t -> (unit,error) result) ->
-    (prepared,error) result
-  val candidate_buffer : candidate -> Indirect_command_buffer.t
-  val admit : t -> candidate -> (unit,error) result
-  val discard : candidate -> (unit,error) result
-  val find_or_create : t -> key:string -> generation:int64 -> command_count:int ->
-    descriptor:Indirect_command_buffer.descriptor ->
-    build:(Indirect_command_buffer.t -> (unit,error) result) ->
-    (Indirect_command_buffer.t * bool,error) result
-  val invalidate : t -> string -> (unit,error) result
-  val destroy : t -> (unit,error) result
-end
-
-module Function_log : sig
-  type log_type = Validation
-  type location = {url:string option;function_name:string option;line:int64;column:int64}
-  type t = {log_type:log_type;encoder_label:string option;function_name:string option;location:location option}
-end
-
 module Command_queue : sig
   type t = command_queue
-  module Descriptor : sig
-    type t
-    val create : Device.t -> ?max_command_buffer_count:int64 ->
-      ?log_state:Command4.Log_state.t -> unit -> (t,error) result
-    val max_command_buffer_count : t -> int64
-    val log_state : t -> Command4.Log_state.t option
-    val set : t -> max_command_buffer_count:int64 ->
-      log_state:Command4.Log_state.t option -> (unit,error) result
-    val destroyed : t -> bool
-    val destroy : t -> (unit,error) result
-  end
-
   val create : Device.t -> (t, error) result
-  val create_with_max : Device.t -> int64 -> (t,error) result
-  val create_from_descriptor : Device.t -> Descriptor.t -> (t,error) result
   val device : t -> Device.t
   val generation : t -> int64
   val label : t -> (string option,error) result
   val set_label : t -> string option -> (unit,error) result
-  val insert_capture_boundary : t -> Capture.Manager.t -> (unit,error) result
   val add_residency_set : t -> Residency_set.t -> (unit, error) result
   val add_residency_sets : t -> Residency_set.t list -> (unit, error) result
   val remove_residency_set : t -> Residency_set.t -> (unit, error) result
   val remove_residency_sets : t -> Residency_set.t list -> (unit, error) result
   val destroyed : t -> bool
   val destroy : t -> (unit, error) result
-end
-
-module Parallel_render_encoder : sig
-  type t
-  type child
-  type store_action=Dont_care|Store|Multisample_resolve|Store_and_multisample_resolve
-  type store_options=No_options|Custom_sample_positions
-  val create_child:t->(child,error)result
-  val end_child:child->(unit,error)result
-  val child_destroyed:child->bool
-  val set_color_store:t->index:int->store_action->store_options->(unit,error)result
-  val set_depth_store:t->store_action->store_options->(unit,error)result
-  val set_stencil_store:t->store_action->store_options->(unit,error)result
-  val destroyed : t -> bool
-  val end_encoding : t -> (unit,error) result
-end
-
-module Command_encoder : sig
-  type t
-  type stage=Vertex|Fragment|Tile|Object|Mesh|Resource_state|Dispatch|Blit|Acceleration_structure|Machine_learning
-  val of_compute:compute_encoder->t
-  val of_blit:blit_encoder->t
-  val of_resource_state:resource_state_encoder->t
-  val of_acceleration:acceleration_encoder->t
-  val device:t->Device.t
-  val checked_device:t->(Device.t,error)result
-  val label:t->(string option,error)result
-  val set_label:t->string option->(unit,error)result
-  val insert_debug_signpost:t->string->(unit,error)result
-  val push_debug_group:t->string->(unit,error)result
-  val pop_debug_group:t->(unit,error)result
-  val barrier:t->after:stage list->before:stage list->(unit,error)result
 end
 
 module Command_buffer : sig
@@ -3609,20 +2415,20 @@ module Command_buffer : sig
 
   val create : Command_queue.t -> ?label:string -> unit -> (t, error) result
   val create_unretained : Command_queue.t -> (t,error) result
-  val create_with_descriptor : Command_queue.t -> ?retained_references:bool ->
-    ?error_options:int64 -> ?log_state:Command4.Log_state.t -> unit -> (t,error) result
   val device : t -> Device.t
   val generation : t -> int64
   val use_residency_set : t -> Residency_set.t -> (unit, error) result
   val use_residency_sets : t -> Residency_set.t list -> (unit, error) result
   val status : t -> (status, error) result
   val diagnostics : t -> (diagnostics,error) result
+
+  (** Distinct resources this command buffer keeps alive until completion. *)
+  val retained_resource_count : t -> int
+
   val enqueue : t -> (unit,error) result
   val wait_until_scheduled : t -> (unit,error) result
   val push_debug_group : t -> string -> (unit,error) result
   val pop_debug_group : t -> (unit,error) result
-  val encode_signal_event : t -> Event.t -> value:int64 -> (unit,error) result
-  val encode_wait_for_event : t -> Event.t -> value:int64 -> (unit,error) result
 
   (** Shared (host-visible, cross-queue) event signal and wait, encoded between
       encoders of a recording command buffer. *)
@@ -3631,13 +2437,10 @@ module Command_buffer : sig
   val create_compute_encoder : t -> dispatch_type -> (compute_encoder,error) result
   val create_acceleration_encoder : t -> (acceleration_encoder,error) result
   val logs : t -> (string option,error) result
-  val function_logs : t -> (Function_log.t list,error) result
   val encoder_infos : t -> (encoder_info list,error) result
   val create_acceleration_encoder_with_descriptor : t -> (acceleration_encoder,error) result
   val create_blit_encoder_with_descriptor : t -> (blit_encoder,error) result
   val create_compute_encoder_with_descriptor : t -> (compute_encoder,error) result
-  val create_parallel_render_encoder_with_descriptor :
-    t -> Render_pass_descriptor.t -> (Parallel_render_encoder.t,error) result
   val create_resource_state_encoder_with_descriptor : t -> (resource_state_encoder,error) result
   val present :
     t -> Drawable.t -> ?at:present_time -> unit -> (unit, error) result
@@ -4283,100 +3086,6 @@ and Blit_pass_attachment : sig
   val destroy : t -> (unit,error) result
 end
 
-module Tensor : sig
-  module Extents : sig
-    type t
-    val create : int64 array -> (t,error) result
-    val values : t -> int64 array
-    val rank : t -> int
-    val extent : t -> int -> (int64,error) result
-    val destroyed : t -> bool
-    val destroy : t -> (unit,error) result
-  end
-  module Descriptor : sig
-    type t
-    val create : data_type:Data_type.t -> dimensions:Extents.t -> strides:Extents.t -> (t,error) result
-    val dimensions : t -> Extents.t
-    val strides : t -> Extents.t
-    val data_type : t -> Data_type.t
-    val options : t -> Buffer.storage_mode * Heap.cpu_cache_mode * Heap.hazard_tracking_mode * int64
-    val checked_options : t -> (Buffer.storage_mode * Heap.cpu_cache_mode * Heap.hazard_tracking_mode * int64,error) result
-    val set_options : t -> storage:Buffer.storage_mode -> cpu_cache:Heap.cpu_cache_mode -> hazard_tracking:Heap.hazard_tracking_mode -> usage:int64 -> (unit,error) result
-    val destroyed : t -> bool
-    val destroy : t -> (unit,error) result
-  end
-  module Device_owned : sig
-    type t
-    val create : Device.t -> Descriptor.t -> (t,error) result
-    val size_and_align : Device.t -> Descriptor.t -> (int64 * int64,error) result
-    val device : t -> Device.t
-    val descriptor : t -> Descriptor.t
-    val destroyed : t -> bool
-    val destroy : t -> (unit,error) result
-  end
-  type t = Resource100.tensor
-  val of_buffer : Buffer.t -> data_type:Data_type.t -> dimensions:int64 array -> strides:int64 array -> offset:int64 -> (t,error) result
-  val buffer : t -> Buffer.t
-  val dimensions : t -> int64 array
-  val strides : t -> int64 array
-  val data_type : t -> Data_type.t
-  val offset : t -> int64
-  val gpu_resource_id : t -> (int64,error) result
-  val usage : t -> (int64,error) result
-  val checked_snapshot : t -> (unit,error) result
-  val get_bytes : t -> bytes -> origin:int64 array -> slice_dimensions:int64 array -> byte_strides:int64 array -> (unit,error) result
-  val replace_bytes : t -> bytes -> origin:int64 array -> slice_dimensions:int64 array -> byte_strides:int64 array -> (unit,error) result
-  val blit_copy : Blit_encoder.t -> source:t -> source_origin:Extents.t -> source_dimensions:Extents.t -> destination:t -> destination_origin:Extents.t -> destination_dimensions:Extents.t -> (unit,error) result
-  val destroyed : t -> bool
-  val destroy : t -> (unit,error) result
-end
-
-
-(** Typed resources whose native objects carry a nonzero [MTLResourceID].
-    [Buffer.t] is deliberately absent: Metal buffers are bound through
-    [Command4.Argument_table.set_buffer], using their GPU address and offset. *)
-module Metal4_argument_table_resource : sig
-  type t =
-    | Acceleration_structure of Acceleration_structure.t
-    | Texture of Texture.t
-    | Sampler of Sampler.t
-    | Tensor of Tensor.Device_owned.t
-    | Compute_pipeline of Compute_pipeline.t
-    | Render_pipeline of Render_pipeline.t
-    | Visible_function_table of Visible_function_table.t
-    | Intersection_function_table of Intersection_function_table.t
-    | Function_handle of Function_handle.t
-    | Indirect_command_buffer of Indirect_command_buffer.t
-
-  val set : Command4.Argument_table.t -> buffer_index:int -> t ->
-    (unit, error) result
-end
-
-module Metal4_render_pipeline_reset : sig
-  type snapshot =
-    { format : Texture.format option
-    ; blending : bool
-    ; write_mask : int
-    }
-  type attachment
-  type attachment_array
-  val attachment : unit -> (attachment, error) result
-  val attachment_array : unit -> (attachment_array, error) result
-  val configure : attachment -> format:Texture.format -> blending:bool ->
-    write_mask:int -> (unit, error) result
-  val snapshot : attachment -> snapshot
-  val reset_attachment : attachment -> (unit, error) result
-  (* Assignment snapshots the descriptor, matching Metal's copy semantics. *)
-  val set : attachment_array -> index:int -> attachment -> (unit, error) result
-  val snapshots : attachment_array -> snapshot array
-  val reset_array : attachment_array -> (unit, error) result
-  val attachment_destroyed : attachment -> bool
-  val array_destroyed : attachment_array -> bool
-  val destroy_attachment : attachment -> (unit, error) result
-  val destroy_array : attachment_array -> (unit, error) result
-end
-
-
 module Compute_pass : sig
   type dispatch = Serial | Concurrent
   type attachment =
@@ -4398,142 +3107,6 @@ module Compute_pass : sig
   val create_encoder : Command_buffer.t -> t -> (Compute_encoder.t,error) result
   val destroyed : t -> bool
   val destroy : t -> (unit,error) result
-end
-
-module IO : sig
-  module Compressor : sig
-    type method_ = Lz4 | Lz_bitmap | Lzfse | Lzma | Zlib
-    type t
-    val default_chunk_size : unit -> (int64, error) result
-    val create :
-      path:string -> method_:method_ -> chunk_size:int64 -> (t, error) result
-    val configuration : t -> string * method_ * int64
-    val appended_bytes : t -> int64
-    val finalized : t -> bool
-    val append :
-      t -> bytes -> offset:int64 -> length:int64 -> (unit, error) result
-    val finish : t -> (unit, error) result
-  end
-  module Queue : sig
-    type t = io_queue
-    val device : t -> Device.t
-    val destroyed : t -> bool
-    val label : t -> (string option,error) result
-    val set_label : t -> string option -> (unit,error) result
-    val enqueue_barrier : t -> (unit,error) result
-    val create_command_buffer :
-      t -> ?label:string -> unit -> (io_command_buffer, error) result
-    val create_unretained_command_buffer : t -> (io_command_buffer,error) result
-    val destroy : t -> (unit, error) result
-  end
-  module Scratch_buffer : sig
-    type t
-    val buffer : t -> Buffer.t
-    val destroyed : t -> bool
-    val destroy : t -> (unit, error) result
-  end
-  module Scratch_allocator : sig
-    type t
-    val create : Device.t -> (t, error) result
-    val device : t -> Device.t
-    val destroyed : t -> bool
-    val create_queue : t -> (Queue.t, error) result
-    val allocate : t -> minimum_size:int64 -> (Scratch_buffer.t, error) result
-    val destroy : t -> (unit, error) result
-  end
-  module File : sig
-    type t = io_file
-    val device : t -> Device.t
-    val destroyed : t -> bool
-    val label : t -> (string option,error) result
-    val set_label : t -> string option -> (unit,error) result
-    val destroy : t -> (unit, error) result
-  end
-  module Command_buffer : sig
-    type t = io_command_buffer
-    type status = Recording | Submitted | Complete | Failed
-    val status : t -> status
-    val label : t -> (string option,error) result
-    val error_message : t -> (string option,error) result
-    val set_label : t -> string option -> (unit,error) result
-    val add_barrier : t -> (unit,error) result
-    val enqueue : t -> (unit,error) result
-    val try_cancel : t -> (unit,error) result
-    val push_debug_group : t -> string -> (unit,error) result
-    val pop_debug_group : t -> (unit,error) result
-    val wait_event : t -> Shared_event.t -> int64 -> (unit,error) result
-    val signal_event : t -> Shared_event.t -> int64 -> (unit,error) result
-    val copy_status : t -> destination:Buffer.t -> offset:int64 -> (unit,error) result
-    val add_completed_handler : t -> (unit -> unit) -> (unit, error) result
-    val load_bytes :
-      t -> size:int64 -> source:File.t -> source_offset:int64 ->
-      on_complete:((bytes, string) result -> unit) -> (unit, error) result
-    val load_texture :
-      t -> destination:Texture.t -> slice:int64 -> level:int ->
-      region:Texture.region -> source_bytes_per_row:int64 ->
-      source_bytes_per_image:int64 ->
-      source:File.t -> source_offset:int64 -> (unit, error) result
-    val load_buffer :
-      t -> destination:Buffer.t -> destination_offset:int64 -> size:int64 ->
-      source:File.t -> source_offset:int64 -> (unit, error) result
-    val commit_and_wait : t -> (status, error) result
-    val destroyed : t -> bool
-    val destroy : t -> (unit, error) result
-  end
-end
-
-
-module Pipeline_descriptor : sig
-  module Compute : sig
-    type t
-    type size3 = { width : int64; height : int64; depth : int64 }
-    val create :
-      ?preloaded_libraries:Dynamic_library.t list ->
-      ?stage_input:Shader_stage_descriptor.t -> Function.t -> (t, error) result
-    val required_threads : t -> (size3, error) result
-    val set_required_threads : t -> size3 -> (unit, error) result
-    val compile : ?reflection:bool -> t -> (Compute_pipeline.t, error) result
-    val reset : t -> (unit, error) result
-    val destroyed : t -> bool
-    val destroy : t -> (unit, error) result
-  end
-  module Render : sig
-    type t
-    type topology = Unspecified | Point | Line | Triangle
-    type winding = Clockwise | Counter_clockwise
-    val create :
-      ?fragment_function:Function.t -> ?binary_archives:Binary_archive.t list ->
-      ?vertex_preloaded_libraries:Dynamic_library.t list ->
-      ?fragment_preloaded_libraries:Dynamic_library.t list ->
-      Function.t -> (t, error) result
-    val depth_format : t -> (Texture.format option, error) result
-    val set_depth_format : t -> Texture.format -> (unit, error) result
-    val stencil_format : t -> (Texture.format option, error) result
-    val set_stencil_format : t -> Texture.format -> (unit, error) result
-    val input_topology : t -> (topology, error) result
-    val set_input_topology : t -> topology -> (unit, error) result
-    val sample_count : t -> (int, error) result
-    val set_sample_count : t -> int -> (unit, error) result
-    val tessellation_winding : t -> (winding, error) result
-    val set_tessellation_winding : t -> winding -> (unit, error) result
-    val compile : ?reflection:bool -> t -> (Render_pipeline.t, error) result
-    val compile_simple : t -> (Render_pipeline.t,error) result
-    val reset : t -> (unit, error) result
-    val destroyed : t -> bool
-    val destroy : t -> (unit, error) result
-  end
-end
-
-module Device_async : sig
-  type variant = Basic | With_options
-  val library_source : ?options:Compile_options.t -> Device.t -> string -> (Library.t,error) result
-  val stitched_library : Device.t -> Stitched_library_descriptor.t -> (Library.t,error) result
-  val compute_function : ?variant:variant -> Device.t -> Function.t -> (Compute_pipeline.t,error) result
-  val compute_descriptor : Pipeline_descriptor.Compute.t -> (Compute_pipeline.t,error) result
-  val compute_reflection : Device.t -> Function.t -> (Compute_pipeline.t,error) result
-  val render_descriptor : ?variant:variant -> Pipeline_descriptor.Render.t -> (Render_pipeline.t,error) result
-  val mesh : Render_pipeline.Mesh_tile.mesh_descriptor -> (Render_pipeline.t,error) result
-  val tile : Render_pipeline.Mesh_tile.tile_descriptor -> (Render_pipeline.t,error) result
 end
 
 (** MetalFX, linked as its own framework. *)

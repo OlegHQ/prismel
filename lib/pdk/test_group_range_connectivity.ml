@@ -100,13 +100,13 @@ let test_point_components () =
   expect_members [0; 1; 2; 5; 6; 9; 10]
     (group Group.Point "first_half" partitioned)
     "Group Range did not balance partitions independently";
-  let orphans = Ops.points [|(0., 0., 0.); (1., 0., 0.); (2., 0., 0.)|]
+  let orphans = Line_geometry.points [|(0., 0., 0.); (1., 0., 0.); (2., 0., 0.)|]
       |> Ops.group_range ~grain:1 ~owner:Ops.Group_points ~name:"each_first"
            ~connectivity:(disconnected ())
            (Ops.Range_start_end { start = 0; end_ = 0 }) |> get_ok in
   expect_members [0; 1; 2] (group Group.Point "each_first" orphans)
     "Group Range did not treat orphan points as stable components";
-  let empty = Ops.points [||]
+  let empty = Line_geometry.points [||]
       |> Ops.group_range ~grain:1 ~owner:Ops.Group_points ~name:"empty"
            ~connectivity:(disconnected ())
            (Ops.Range_start_end { start = 0; end_ = 0 }) |> get_ok in
@@ -319,7 +319,7 @@ let test_parallel_exactness_and_scale () =
   check (Group.mem 0 one && not (Group.mem 1 one)
       && Group.mem (3 * (triangles - 1)) one)
     "Group Range connected scale membership";
-  let grid = Ops.grid ~columns:400 ~rows:250 ~size:10. () |> get_ok in
+  let grid = Plane_generators.grid_checked ~columns:400 ~rows:250 ~size:10. () |> get_ok in
   let point_count = Geometry.point_count grid in
   let attributed = with_attribute "stripe" Attribute.Point
       (Attribute.Int (Array.init point_count (fun point -> point / 10_000)))
@@ -395,7 +395,7 @@ let test_multiple_ranges () =
    | Ok _ -> fail "cancelled Group Ranges published geometry")
 
 let test_multiple_ranges_parallel_exactness () =
-  let source = Ops.grid ~columns:400 ~rows:250 ~size:10. () |> get_ok in
+  let source = Plane_generators.grid_checked ~columns:400 ~rows:250 ~size:10. () |> get_ok in
   let point_count = Geometry.point_count source in
   let source = with_attribute "stripe" Attribute.Point
       (Attribute.Int (Array.init point_count (fun point -> point / 10_000)))

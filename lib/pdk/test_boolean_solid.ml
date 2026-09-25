@@ -1,10 +1,10 @@
 open Pdk
 
-module Solid = Boolean_kernel.Solid
-module Extract = Boolean_kernel.Extract
-module Seam = Boolean_kernel.Seam
-module Materialization = Boolean_kernel.Materialization
-module Complex = Boolean_kernel.Complex
+module Solid = Pdk_boolean.Boolean_kernel.Solid
+module Extract = Pdk_boolean.Boolean_kernel.Extract
+module Seam = Pdk_boolean.Boolean_kernel.Seam
+module Materialization = Pdk_boolean.Boolean_kernel.Materialization
+module Complex = Pdk_boolean.Boolean_kernel.Complex
 
 let fail format = Printf.ksprintf failwith format
 let check condition message = if not condition then fail "%s" message
@@ -830,11 +830,11 @@ let test_surface_surface_products () =
     "transverse surface/surface intersection lost its curve product"
 
 let test_certified_rounding_repair () =
-  let host = Ops.box ~grain:128 ~center:(Prismel.Vec3.create 0. 0. 0.)
+  let host = Box_generator.box_checked ~grain:128 ~center:(Prismel.Vec3.create 0. 0. 0.)
       ~rotation:(Prismel.Vec3.create 0.08 (-0.13) 0.04)
       ~size:(Prismel.Vec3.create 5.2 3.3 2.7)
       ~x_divisions:6 ~y_divisions:6 ~z_divisions:6
-      ~connectivity:Ops.Box_quads ~consolidate_points:true () |> get in
+      ~connectivity:Box_generator.Box_quads ~consolidate_points:true () |> get in
   let cutters = merge_geometry (Array.init 7 (fun index ->
       let x = -2.2 +. (4.4 *. float_of_int index /. 6.) in
       torus ~major_segments:24 ~minor_segments:10 ~center_x:x

@@ -34,7 +34,7 @@ let same_float_array left right =
      !same
 
 let test_projections () =
-  let source = Ops.points [|3., 4., 0.; 1., 2., 3.; 0., -2., 0.|] in
+  let source = Line_geometry.points [|3., 4., 0.; 1., 2., 3.; 0., -2., 0.|] in
   let spherical = Ops.distance_from_target ~grain:1 source |> get_ok in
   let values = float_attribute "distance" spherical in
   check (close values.(0) 5. && close values.(1) (sqrt 14.)
@@ -62,7 +62,7 @@ let test_projections () =
     "Distance From Target signed magnitude mask"
 
 let test_affected_and_mask_only () =
-  let source = Ops.points [|0., 0., 0.; 2., 0., 0.; 4., 0., 0.|]
+  let source = Line_geometry.points [|0., 0., 0.; 2., 0., 0.; 4., 0., 0.|]
       |> with_float "distance" [|90.; 91.; 92.|]
       |> with_float "mask" [|80.; 81.; 82.|] in
   let affected = point_group "affected" 3 (fun point -> point <> 1) in
@@ -81,7 +81,7 @@ let test_affected_and_mask_only () =
   check (same_float_array (float_attribute "distance" only) [|90.; 91.; 92.|]
       && Array.length (float_attribute "only" only) = 3)
     "Distance From Target mask-only output";
-  let zero = Ops.points [|0., 0., 0.; 1., 0., 1.|] in
+  let zero = Line_geometry.points [|0., 0., 0.; 1., 0., 1.|] in
   let zero = Ops.distance_from_target ~grain:1
       ~projection:Ops.Distance_target_planar ~direction:Vec3.unit_y
       ~distance_attribute:None ~mask_attribute:"mask" zero |> get_ok in
@@ -93,7 +93,7 @@ let expect_invalid work message = match work () with
   | Ok _ -> fail (message ^ ": unexpectedly accepted")
 
 let test_errors_cancellation_and_parallel () =
-  let source = Ops.points [|0., 0., 0.; 1., 0., 0.|] in
+  let source = Line_geometry.points [|0., 0., 0.; 1., 0., 0.|] in
   expect_invalid (fun () -> Ops.distance_from_target
       ~distance_attribute:None source) "Distance From Target no outputs";
   expect_invalid (fun () -> Ops.distance_from_target
@@ -124,7 +124,7 @@ let test_errors_cancellation_and_parallel () =
    | Error error -> check (Error.code error = "cancelled")
        "Distance From Target cancellation code"
    | Ok _ -> fail "cancelled Distance From Target published geometry");
-  let dense = Ops.grid ~columns:480 ~rows:300 ~size:20. () |> get_ok
+  let dense = Plane_generators.grid_checked ~columns:480 ~rows:300 ~size:20. () |> get_ok
       |> Ops.transform (Mat4.translation (Vec3.create 1.25 (-0.75) 2.5)) in
   let count = Geometry.point_count dense in
   let affected = point_group "affected" count (fun point -> point mod 7 <> 0) in

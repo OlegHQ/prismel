@@ -27,7 +27,7 @@ let with_attribute owner name storage geometry =
   Geometry.with_attribute attribute geometry |> get_string
 
 let quad_grid () =
-  Ops.grid ~connectivity:Ops.Grid_quads ~columns:2 ~rows:2 ~size:2. () |> get
+  Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:2 ~rows:2 ~size:2. () |> get
 
 let verify_points_by_primitive geometry colors =
   let topology = Geometry.topology geometry in
@@ -180,7 +180,7 @@ let test_validation () =
   Cancel.cancel cancelled;
   expect_code "cancelled" (fun () -> Ops.graph_color ~cancel:cancelled source)
     "cancellation";
-  let empty = Ops.points [||] in
+  let empty = Line_geometry.points [||] in
   let empty = Ops.graph_color ~connectivity:Ops.Graph_points_by_primitive
       ~sort_output:true
       ~worksets:{Ops.begin_attribute="begin";length_attribute="length"}

@@ -1,4 +1,29 @@
-module Point = Pdk.Boolean_kernel.Private
+module Point = struct
+  include Pdk_boolean.Boolean_kernel.Private
+  let sign value = match reference value with
+    | -1 -> Pdk.Predicates.Negative
+    | 0 -> Pdk.Predicates.Zero
+    | 1 -> Pdk.Predicates.Positive
+    | _ -> assert false
+  let compare_reference_x a b = reference (Compare_x (a,b))
+  let compare_reference_y a b = reference (Compare_y (a,b))
+  let compare_reference_z a b = reference (Compare_z (a,b))
+  let orient2d_reference_xy a b c = sign (Orient2d_xy (a,b,c))
+  let orient2d_reference_yz a b c = sign (Orient2d_yz (a,b,c))
+  let orient2d_reference_zx a b c = sign (Orient2d_zx (a,b,c))
+  let orient3d_reference a b c d = sign (Orient3d (a,b,c,d))
+  let radial_dot_reference a b c d = sign (Radial_dot (a,b,c,d))
+  let ray_edge_reference ~query ~first ~second ~dx ~dy ~dz =
+    sign (Ray_edge (query,first,second,dx,dy,dz))
+  let ray_edge_symbolic_reference ~query ~first ~second =
+    sign (Ray_edge_symbolic (query,first,second))
+  let normal_dot_direction_reference a b c ~dx ~dy ~dz =
+    sign (Normal_dot_direction (a,b,c,dx,dy,dz))
+  let normal_dot_symbolic_reference a b c = sign (Normal_dot_symbolic (a,b,c))
+  let incircle_reference_xy a b c d = sign (Incircle_xy (a,b,c,d))
+  let incircle_reference_yz a b c d = sign (Incircle_yz (a,b,c,d))
+  let incircle_reference_zx a b c d = sign (Incircle_zx (a,b,c,d))
+end
 
 let fail format = Printf.ksprintf failwith format
 

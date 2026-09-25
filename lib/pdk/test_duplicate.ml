@@ -237,7 +237,7 @@ let equal_geometry left right =
            !same
 
 let test_parallel_exact () =
-  let source = Ops.grid ~columns:400 ~rows:250 ~size:20. () |> get in
+  let source = Plane_generators.grid_checked ~columns:400 ~rows:250 ~size:20. () |> get in
   let point_count = Geometry.point_count source
   and vertex_count = Geometry.vertex_count source
   and primitive_count = Geometry.primitive_count source in

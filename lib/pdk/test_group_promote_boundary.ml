@@ -162,7 +162,7 @@ let test_all_owner_pairs () =
 let test_curve_unshared_policy () =
   let positions = [|(0., 0., 0.); (1., 0., 0.); (2., 0., 0.);
     (3., 0., 0.)|] in
-  let geometry = Ops.polyline ~closed:false positions |> get_ok
+  let geometry = Line_geometry.polyline_checked ~closed:false positions |> get_ok
       |> with_group Group.Primitive "curve" (fun _ -> true) in
   let ends = promote ~keep_original:true ~include_unshared_edges:true
       ~name:"ends" ~source:Ops.Group_primitives ~destination:Ops.Group_edges
@@ -255,7 +255,7 @@ let same_edge_group left right =
      !equal
 
 let test_parallel_exactness () =
-  let base = Ops.grid ~columns:600 ~rows:400 ~size:20. () |> get_ok in
+  let base = Plane_generators.grid_checked ~columns:600 ~rows:400 ~size:20. () |> get_ok in
   let source = with_group Group.Primitive "left_half"
       (fun primitive -> primitive mod 1_200 < 600) base in
   let run domains = Parallel.run ~domains (fun () ->

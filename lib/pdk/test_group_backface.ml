@@ -109,7 +109,7 @@ let test_base_merge_and_failures () =
    | Ok _ -> fail "cancelled Group Backface published geometry")
 
 let test_scale_parallel_exactness () =
-  let source = Ops.grid ~columns:600 ~rows:400 ~size:20. () |> get_ok in
+  let source = Plane_generators.grid_checked ~columns:600 ~rows:400 ~size:20. () |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
     Ops.group_backface ~grain:1_009 ~viewpoint:(Vec3.create 0. (-10.) 0.)
       ~name:"backfaces" source |> get_ok) in

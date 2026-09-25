@@ -25,18 +25,19 @@ type output = {
 }
 
 type entry = {
-  key : string;
   output : output;
   components : (int * int) list;
-  mutable newer : entry option;
-  mutable older : entry option;
 }
 
 type mesh_entry = {
   mesh : Prismel.Mesh.t;
-  bytes : int;
-  mutable stamp : int;
 }
+
+module Entry_cache = Lru.Make (String)
+module Mesh_cache = Lru.Make (Int)
+
+(* Cook outputs share packed payload planes; the pool counts each plane once. *)
+type payload_pool = { refs : (int, int * int) Hashtbl.t; mutable bytes : int }
 
 type inspection_entry = { root : Graph.t Weak.t; infos : Graph.info list;
   bytes : int }
@@ -54,15 +55,10 @@ let rec find_inspection root = function
 type t = {
   max_entries : int;
   max_payload_bytes : int;
-  cache : (string, entry) Hashtbl.t;
-  payload_refs : (int, int * int) Hashtbl.t;
-  mesh_cache : (int, mesh_entry) Hashtbl.t;
+  cache : entry Entry_cache.t;
+  payload : payload_pool;
+  mesh_cache : mesh_entry Mesh_cache.t;
   mutable inspection_cache : inspection_entry list;
-  mutable newest : entry option;
-  mutable oldest : entry option;
-  mutable retained_payload_bytes : int;
-  mutable retained_mesh_bytes : int;
-  mutable mesh_clock : int;
   mutable mesh_hits : int;
   mutable mesh_misses : int;
   mutable cooks : int;
@@ -73,18 +69,31 @@ type t = {
   mutable closed : bool;
 }
 
+let release_components payload components =
+  List.iter (fun (id, bytes) ->
+    match Hashtbl.find_opt payload.refs id with
+    | None -> ()
+    | Some (_, 1) ->
+        Hashtbl.remove payload.refs id;
+        payload.bytes <- payload.bytes - bytes
+    | Some (_, references) ->
+        Hashtbl.replace payload.refs id (bytes, references - 1))
+    components
+
 let create ~max_entries ~max_payload_bytes =
   if max_entries < 0 then Error "Session.create: max_entries must be non-negative"
   else if max_payload_bytes < 0 then
     Error "Session.create: max_payload_bytes must be non-negative"
-  else Ok {
+  else
+    let payload = { refs = Hashtbl.create (min (max_entries * 4) 4096); bytes = 0 } in
+    Ok {
     max_entries; max_payload_bytes;
-    cache = Hashtbl.create (min max_entries 1024);
-    payload_refs = Hashtbl.create (min (max_entries * 4) 4096);
-    mesh_cache = Hashtbl.create (min max_entries 256);
+    cache = Entry_cache.create max_entries
+        ~release:(fun _ entry -> release_components payload entry.components);
+    payload;
+    mesh_cache = Mesh_cache.create ~byte_capacity:max_payload_bytes max_entries;
     inspection_cache = [];
-    newest = None; oldest = None; retained_payload_bytes = 0;
-    retained_mesh_bytes = 0; mesh_clock = 0; mesh_hits = 0; mesh_misses = 0;
+    mesh_hits = 0; mesh_misses = 0;
     cooks = 0; hits = 0; misses = 0; evictions = 0;
     last_node = None; closed = false;
   }
@@ -112,74 +121,25 @@ let inspect session root =
           ({ root = weak; infos; bytes } :: session.inspection_cache);
       infos
 
-let detach session entry =
-  (match entry.newer with
-   | None -> session.newest <- entry.older
-   | Some newer -> newer.older <- entry.older);
-  (match entry.older with
-   | None -> session.oldest <- entry.newer
-   | Some older -> older.newer <- entry.newer);
-  entry.newer <- None;
-  entry.older <- None
-
-let attach_newest session entry =
-  entry.newer <- None;
-  entry.older <- session.newest;
-  (match session.newest with None -> () | Some old -> old.newer <- Some entry);
-  session.newest <- Some entry;
-  if session.oldest = None then session.oldest <- Some entry
-
-let touch session entry =
-  let already_newest = match session.newest with
-    | Some newest -> newest == entry
-    | None -> false
-  in
-  if not already_newest then begin
-    detach session entry;
-    attach_newest session entry
-  end
-
-let remove session entry =
-  detach session entry;
-  Hashtbl.remove session.cache entry.key;
-  List.iter (fun (id, bytes) ->
-    match Hashtbl.find_opt session.payload_refs id with
-    | None -> ()
-    | Some (_, 1) ->
-        Hashtbl.remove session.payload_refs id;
-        session.retained_payload_bytes <- session.retained_payload_bytes - bytes
-    | Some (_, references) ->
-        Hashtbl.replace session.payload_refs id (bytes, references - 1))
-    entry.components
-
-let rec evict_to_limits session =
-  if Hashtbl.length session.cache > session.max_entries
-     || session.retained_payload_bytes > session.max_payload_bytes
-  then match session.oldest with
-    | None -> ()
-    | Some entry ->
-        remove session entry;
-        session.evictions <- session.evictions + 1;
-        evict_to_limits session
-
 let insert session key output =
   let components = Pdk.Geometry.payload_components output.geometry in
   if session.max_entries > 0 then begin
-    (match Hashtbl.find_opt session.cache key with
-     | None -> ()
-     | Some old -> remove session old);
-    let entry = { key; output; components; newer = None; older = None } in
-    Hashtbl.add session.cache key entry;
-    attach_newest session entry;
+    let payload = session.payload in
     List.iter (fun (id, bytes) ->
-      match Hashtbl.find_opt session.payload_refs id with
+      match Hashtbl.find_opt payload.refs id with
       | None ->
-          Hashtbl.add session.payload_refs id (bytes, 1);
-          session.retained_payload_bytes <- session.retained_payload_bytes + bytes
+          Hashtbl.add payload.refs id (bytes, 1);
+          payload.bytes <- payload.bytes + bytes
       | Some (known_bytes, references) ->
-          Hashtbl.replace session.payload_refs id (known_bytes, references + 1))
+          Hashtbl.replace payload.refs id (known_bytes, references + 1))
       components;
-    evict_to_limits session
+    let before = Entry_cache.length session.cache
+    and replaced = Option.is_some (Entry_cache.peek session.cache key) in
+    Entry_cache.add session.cache key { output; components };
+    while payload.bytes > session.max_payload_bytes
+          && Entry_cache.drop_oldest session.cache do () done;
+    session.evictions <- session.evictions + before
+      + (if replaced then 0 else 1) - Entry_cache.length session.cache
   end
 
 let cache_key node context inputs =
@@ -230,13 +190,12 @@ let rec evaluate session context node =
     | Ok () ->
         let geometries = Array.map Option.get geometries in
         let key = cache_key node context geometries in
-        match Hashtbl.find_opt session.cache key with
-        | Some entry ->
-            touch session entry;
+        match Entry_cache.find session.cache key with
+        | entry ->
             session.hits <- session.hits + 1;
             session.last_node <- Some (timing node ~seconds:0. ~cache_hit:true);
             Ok entry.output
-        | None ->
+        | exception Not_found ->
             session.misses <- session.misses + 1;
             session.cooks <- session.cooks + 1;
             let started = Unix.gettimeofday () in
@@ -278,49 +237,26 @@ let cook session ~context node =
       | Error _ as error -> error
       | Ok output -> Ok { output with diagnostics = deduplicate output.diagnostics })
 
-let evict_oldest_mesh session =
-  let oldest = Hashtbl.fold (fun id entry current ->
-    match current with
-    | None -> Some (id, entry)
-    | Some (_, old) when entry.stamp < old.stamp -> Some (id, entry)
-    | Some _ -> current) session.mesh_cache None in
-  match oldest with
-  | None -> ()
-  | Some (id, entry) ->
-      Hashtbl.remove session.mesh_cache id;
-      session.retained_mesh_bytes <- session.retained_mesh_bytes - entry.bytes
-
-let rec evict_meshes session =
-  if Hashtbl.length session.mesh_cache > session.max_entries
-     || session.retained_mesh_bytes > session.max_payload_bytes
-  then begin evict_oldest_mesh session; evict_meshes session end
-
 let mesh ?cancel session geometry =
   if session.closed then Error (Pdk.Error.make ~operation:"session_mesh"
       ~code:"session_closed" "Session.mesh: session is closed")
   else
     let id = Pdk.Geometry.data_id geometry in
-    session.mesh_clock <- session.mesh_clock + 1;
-    match Hashtbl.find_opt session.mesh_cache id with
-    | Some entry ->
-        entry.stamp <- session.mesh_clock;
+    match Mesh_cache.find session.mesh_cache id with
+    | entry ->
         session.mesh_hits <- session.mesh_hits + 1;
         Ok entry.mesh
-    | None ->
+    | exception Not_found ->
         session.mesh_misses <- session.mesh_misses + 1;
-        Result.bind (Pdk.Prismel_mesh.to_mesh ?cancel geometry) (fun mesh ->
+        Result.bind (Pdk_prismel.Prismel_mesh.to_mesh ?cancel geometry) (fun mesh ->
           match cancel with
           | Some token when Pdk.Cancel.is_cancelled token ->
               Error (Pdk.Error.make ~operation:"session_mesh" ~code:"cancelled"
                 "mesh conversion was cancelled")
           | _ ->
           let bytes = Pdk.Geometry.payload_bytes geometry in
-          if session.max_entries > 0 && bytes <= session.max_payload_bytes then begin
-            Hashtbl.replace session.mesh_cache id
-              { mesh; bytes; stamp = session.mesh_clock };
-            session.retained_mesh_bytes <- session.retained_mesh_bytes + bytes;
-            evict_meshes session
-          end;
+          if session.max_entries > 0 && bytes <= session.max_payload_bytes then
+            Mesh_cache.add session.mesh_cache ~bytes id { mesh };
           Ok mesh)
 
 let stats session = {
@@ -328,23 +264,20 @@ let stats session = {
   hits = session.hits;
   misses = session.misses;
   evictions = session.evictions;
-  retained_entries = Hashtbl.length session.cache;
-  retained_payload_bytes = session.retained_payload_bytes;
+  retained_entries = Entry_cache.length session.cache;
+  retained_payload_bytes = session.payload.bytes;
   mesh_hits = session.mesh_hits;
   mesh_misses = session.mesh_misses;
-  retained_meshes = Hashtbl.length session.mesh_cache;
+  retained_meshes = Mesh_cache.length session.mesh_cache;
   last_node = session.last_node;
 }
 
 let clear session =
   session.inspection_cache <- [];
-  Hashtbl.clear session.cache;
-  Hashtbl.clear session.payload_refs;
-  session.newest <- None;
-  session.oldest <- None;
-  session.retained_payload_bytes <- 0;
-  Hashtbl.clear session.mesh_cache;
-  session.retained_mesh_bytes <- 0
+  Entry_cache.clear session.cache;
+  Hashtbl.clear session.payload.refs;
+  session.payload.bytes <- 0;
+  Mesh_cache.clear session.mesh_cache
 
 let close session =
   if not session.closed then begin

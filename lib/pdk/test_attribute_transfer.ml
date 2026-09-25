@@ -95,10 +95,10 @@ let compare_transferred left right =
 let near left right = Float.abs (left -. right) <= 1e-12
 
 let test_source_kernels () =
-  let source = Ops.points [|(0.,0.,0.);(1.,0.,0.);(2.,0.,0.)|]
+  let source = Line_geometry.points [|(0.,0.,0.);(1.,0.,0.);(2.,0.,0.)|]
       |> add_float ~owner:Attribute.Point ~name:"weight" [|0.;10.;20.|]
       |> add_int ~owner:Attribute.Point ~name:"id" [|3;5;7|] in
-  let target = Ops.points [|(0.5,0.,0.)|]
+  let target = Line_geometry.points [|(0.5,0.,0.)|]
       |> add_float ~owner:Attribute.Point ~name:"weight" [|100.|]
       |> add_int ~owner:Attribute.Point ~name:"id" [|99|] in
   let sample kernel = Attribute_ops.transfer_points ~grain:1
@@ -128,7 +128,7 @@ let test_source_kernels () =
          <> [|0.|] then
     fail "zero-radius or zero-support kernel nearest fallback";
   let large_count = 20_003 in
-  let large_target = Ops.points (Array.init large_count (fun point ->
+  let large_target = Line_geometry.points (Array.init large_count (fun point ->
       float_of_int (point mod 2001) /. 1000., 0., 0.)) in
   let run domains = Parallel.run ~domains (fun () ->
     Attribute_ops.transfer_points ~grain:257
@@ -153,12 +153,12 @@ let test_source_kernels () =
         neighbors=1; radius=max_float; kernel=Attribute_ops.Hart }]
 
 let test_blend_falloff () =
-  let source = Ops.points [|(0., 0., 0.)|]
+  let source = Line_geometry.points [|(0., 0., 0.)|]
       |> add_float ~owner:Attribute.Point ~name:"weight" [|10.|]
       |> add_int ~owner:Attribute.Point ~name:"id" [|7|]
       |> add_float3 ~owner:Attribute.Point ~name:"N"
            ~x:[|1.|] ~y:[|0.|] ~z:[|0.|] in
-  let target = Ops.points [|(1.5, 0., 0.); (2.5, 0., 0.)|]
+  let target = Line_geometry.points [|(1.5, 0., 0.); (2.5, 0., 0.)|]
       |> add_float ~owner:Attribute.Point ~name:"weight" [|2.; 2.|]
       |> add_int ~owner:Attribute.Point ~name:"id" [|3; 3|]
       |> add_float3 ~owner:Attribute.Point ~name:"N"
@@ -242,7 +242,7 @@ let test_empty_surface_selection () =
 
 let test_source_vertex_surface_selection () =
   let source = two_triangle_source () in
-  let target = Ops.points [|(0.25, 0.25, 0.2); (10.25, 0.25, 0.2)|]
+  let target = Line_geometry.points [|(0.25, 0.25, 0.2); (10.25, 0.25, 0.2)|]
       |> add_float ~owner:Attribute.Point ~name:"sampled" [|9.; 9.|] in
   let spec = Attribute_ops.surface_attribute ~owner:Attribute.Vertex
       ~into:"sampled" "corner_value" in
@@ -323,10 +323,10 @@ let test_scale_exactness () =
   let count = 20_001 in
   let points = Array.init count (fun index ->
     let x = float_of_int index *. 0.001 in x, sin x, cos x) in
-  let source = Ops.points points
+  let source = Line_geometry.points points
       |> add_float ~owner:Attribute.Point ~name:"sample"
            (Array.init count float_of_int) in
-  let target = Ops.points points in
+  let target = Line_geometry.points points in
   let run domains = Parallel.run ~domains (fun () ->
     Attribute_ops.transfer_all ~grain:257 ~point_pattern:"sample"
       ~max_distance:0. ~source ~target () |> get_ok) in

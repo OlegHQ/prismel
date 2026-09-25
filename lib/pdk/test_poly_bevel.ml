@@ -72,8 +72,8 @@ let equal_geometry left right =
       (Geometry.edge_groups right)
 
 let box () =
-  Ops.box ~connectivity:Ops.Box_quads ~consolidate_points:true
-    ~normals:Ops.Box_no_normals ~size:(Vec3.create 2. 2. 2.) () |> get_pdk
+  Box_generator.box_checked ~connectivity:Box_generator.Box_quads ~consolidate_points:true
+    ~normals:Box_generator.Box_no_normals ~size:(Vec3.create 2. 2. 2.) () |> get_pdk
 
 let all_edges geometry name =
   let topology = Geometry.topology geometry in
@@ -243,8 +243,8 @@ let test_connected_network_flat_filter_and_normals () =
       && Group.cardinality (Geometry.find_group ~owner:Group.Primitive "corners"
         connected |> Option.get) = 2)
     "PolyBevel connected edge-run corner planning";
-  let divided = Ops.box ~connectivity:Ops.Box_quads ~consolidate_points:true
-      ~normals:Ops.Box_point_normals ~x_divisions:3 ~y_divisions:2 ~z_divisions:2
+  let divided = Box_generator.box_checked ~connectivity:Box_generator.Box_quads ~consolidate_points:true
+      ~normals:Box_generator.Box_point_normals ~x_divisions:3 ~y_divisions:2 ~z_divisions:2
       ~size:(Vec3.create 2. 2. 2.) () |> get_pdk in
   let all = all_edges divided "all" in
   let output = Ops.poly_bevel ~grain:7 ~edges:all ~ignore_flat_angle:0.
@@ -259,13 +259,13 @@ let test_exclusions_identity_and_validation () =
   let all = all_edges source "all" in
   check (Ops.poly_bevel ~edges:all ~distance:0. source |> get_pdk == source)
     "PolyBevel zero distance did not preserve identity";
-  let open_grid = Ops.grid ~counts:Ops.Grid_point_counts
-      ~connectivity:Ops.Grid_quads ~columns:2 ~rows:2 ~size:2. () |> get_pdk in
+  let open_grid = Plane_generators.grid_checked ~counts:Plane_generators.Grid_point_counts
+      ~connectivity:Plane_generators.Grid_quads ~columns:2 ~rows:2 ~size:2. () |> get_pdk in
   let boundary = edge_pair open_grid "boundary" 0 1 in
   check (Ops.poly_bevel ~edges:boundary ~distance:0.2 open_grid |> get_pdk
       == open_grid) "PolyBevel did not ignore a boundary edge";
-  let flat = Ops.grid ~counts:Ops.Grid_point_counts
-      ~connectivity:Ops.Grid_alternating_triangles ~columns:2 ~rows:2 ~size:2. ()
+  let flat = Plane_generators.grid_checked ~counts:Plane_generators.Grid_point_counts
+      ~connectivity:Plane_generators.Grid_alternating_triangles ~columns:2 ~rows:2 ~size:2. ()
       |> get_pdk in
   let flat_index = Topology_index.create (Geometry.topology flat) in
   let interior = ref (-1) in

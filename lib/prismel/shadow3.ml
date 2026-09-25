@@ -10,7 +10,10 @@ type t = {
   normal_bias : float;
   filter : filter;
   strength : float;
+  id : int;  (* process-local identity; shadows are immutable *)
 }
+
+let next_id = Atomic.make 1
 
 let create ?(bias = 0.001) ?(normal_bias = 0.005) ?(filter = Pcf_3x3)
     ?(strength = 1.) ~light ~camera ~width ~height ~depths () =
@@ -36,6 +39,7 @@ let create ?(bias = 0.001) ?(normal_bias = 0.005) ?(filter = Pcf_3x3)
     normal_bias;
     filter;
     strength;
+    id = Atomic.fetch_and_add next_id 1;
   }
 
 let light shadow = shadow.light
@@ -63,6 +67,7 @@ module Private = struct
     strength : float;
   }
 
+  let identity (shadow:t) = shadow.id
   let snapshot (shadow:t) =
     { view_projection=shadow.view_projection;width=shadow.width;height=shadow.height;
       depths=Array.copy shadow.depths;bias=shadow.bias;normal_bias=shadow.normal_bias;

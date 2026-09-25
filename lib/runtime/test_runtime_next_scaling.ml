@@ -31,4 +31,24 @@ let run () =
   let changed=List.hd(Runtime_next.Private.scale_draws resized draws)in
   if changed.state.viewport<>(3,4,9,8)||changed.state.scissor<>(0,0,12,8)then
     failwith"resized nonuniform edges were not recomputed";
-  print_endline"runtime_next scaling: 1x identity, Retina and resize exact"
+  (* The per-frame path memoizes on list identity: the same list and facts
+     return the same scaled list without allocating; a new list rescales. *)
+  let cache=Runtime_next.Private.new_scaled_cache()in
+  let many=List.init 1000(fun _->List.hd sampled)in
+  let first=Runtime_next.Private.scale_sampled_cached cache retina many in
+  if first==many||List.length first<>1000 then failwith"cached Retina list was not scaled";
+  if Runtime_next.Private.scale_sampled_cached cache retina many!=first then
+    failwith"unchanged draw list was rescaled";
+  let words=(Gc.quick_stat()).minor_words in
+  for _=1 to 1000 do
+    ignore(Runtime_next.Private.scale_sampled_cached cache retina many)done;
+  let per_call=((Gc.quick_stat()).minor_words-.words)/.1000. in
+  if per_call>8. then failwith(Printf.sprintf"cached scaling allocated %.0f words per call"per_call);
+  let words=(Gc.quick_stat()).minor_words in
+  for _=1 to 1000 do ignore(Runtime_next.Private.scale_sampled_resources retina many)done;
+  let uncached=((Gc.quick_stat()).minor_words-.words)/.1000. in
+  if Runtime_next.Private.scale_sampled_cached cache retina(List.tl many)==first then
+    failwith"a different draw list reused the cached scaling";
+  if Runtime_next.Private.scale_sampled_cached cache one many!=many then
+    failwith"1x facts did not bypass the cache";
+  Printf.printf"runtime_next scaling: 1x identity, Retina and resize exact; 1000 draws at 2x: %.0f words/frame uncached, %.0f cached\n"uncached per_call

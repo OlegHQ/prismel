@@ -92,8 +92,8 @@ is restricted to visible tiles.
   in stable source order instead of rescanning every vertex and restarting the
   complete face list per split.
 - PDK reverse topology uses packed integer CSR/half-edge planes and a
-  specialized open-addressed integer edge table. Geom weld now routes through
-  PDK Fuse, cutting the 200,000-point one-domain fixture from 64.5 ms and
+  specialized open-addressed integer edge table. The former weld path moved
+  into PDK Fuse, cutting the 200,000-point one-domain fixture from 64.5 ms and
   78.9 MB allocated to 50.2 ms and 48.2 MB with identical cardinality.
 - Filtered exact PDK orientation predicates expose packed SoA/index calls so
   the certified fast path does not box coordinates. Five million release-build
@@ -138,6 +138,9 @@ is restricted to visible tiles.
   `PRISMEL_PREDICATE_BENCH_COUNT=1000000
   PRISMEL_PREDICATE_BENCH_REPEATS=5 dune exec --profile release
   tools/bench_predicates.exe`.
+- `tools/bench_boolean_pipeline.exe` measures the full pipeline by default.
+  Pass `-- <stage>` to select a stage fixture; each stage keeps its own CSV
+  columns and environment controls.
 - The exact Boolean face-constraint planner is measured independently on
   50,000 spatially disjoint transverse triangle pairs (100,000 constructed
   endpoints). The first eager-exact implementation took 518.837 ms and
@@ -170,11 +173,12 @@ is restricted to visible tiles.
   ```sh
   PRISMEL_BOOLEAN_PAIR_COUNT=50000 PRISMEL_BOOLEAN_REPEATS=3 \
   PRISMEL_BOOLEAN_GRAIN=1024 PRISMEL_BENCH_DOMAINS=1 \
-    dune exec --profile release tools/bench_boolean_constraints.exe
+    dune exec --profile release tools/bench_boolean_pipeline.exe -- constraints
   # Repeat with PRISMEL_BENCH_DOMAINS=4 for exact scheduling regression.
   ```
-- `tools/bench_boolean_seam.exe` isolates packed curve/coincident-facet
-  materialization from an already prepared exact complex. On 10,000 isolated
+- `tools/bench_boolean_pipeline.exe -- seam` isolates packed
+  curve/coincident-facet materialization from an already prepared exact
+  complex. On 10,000 isolated
   transverse pairs (140,000 complex edges, 10,000 one-edge curves), the
   pre-scheduling baseline took 7.611 ms and allocated 14,688,368 current-domain
   bytes. Before post-rounding verification, the final cutoff path took 7.128
@@ -209,11 +213,12 @@ is restricted to visible tiles.
   ```sh
   PRISMEL_BOOLEAN_PAIR_COUNT=50000 PRISMEL_BOOLEAN_REPEATS=5 \
   PRISMEL_BOOLEAN_GRAIN=16384 PRISMEL_BENCH_DOMAINS=1 \
-    dune exec --profile release tools/bench_boolean_seam.exe
+    dune exec --profile release tools/bench_boolean_pipeline.exe -- seam
   # Repeat with PRISMEL_BENCH_DOMAINS=4 for exact scheduling regression.
   ```
-- `tools/bench_boolean_arrangement.exe` isolates the formerly quadratic work
-  hidden by the ordinary one-cut-per-face refinement fixture. Its source face
+- `tools/bench_boolean_pipeline.exe -- arrangement` isolates the formerly
+  quadratic work hidden by the ordinary one-cut-per-face refinement fixture.
+  Its source face
   receives many spatially independent exact LPI segments, so required output
   is linear. The prior implementation linearly deduplicated every point, ran
   every segment pair through exact projected predicates, and then tested every
@@ -260,13 +265,14 @@ is restricted to visible tiles.
   ```sh
   PRISMEL_BOOLEAN_SEGMENTS=10000 PRISMEL_BOOLEAN_REPEATS=3 \
   PRISMEL_BENCH_DOMAINS=1 \
-    dune exec --profile release tools/bench_boolean_arrangement.exe
+    dune exec --profile release tools/bench_boolean_pipeline.exe -- arrangement
   # Add PRISMEL_BOOLEAN_ORACLE=1 for the exact compatibility oracle.
   # Add PRISMEL_BOOLEAN_STABLE_BVH=1 to force the packed indexed path.
   # Add PRISMEL_BOOLEAN_FIXTURE=multiway for coincident-event stress.
   ```
-- `tools/bench_boolean_cdt.exe` isolates point insertion, constraint recovery,
-  and exact Delaunay repair on one face with many independent constraints. The
+- `tools/bench_boolean_pipeline.exe -- cdt` isolates point insertion,
+  constraint recovery, and exact Delaunay repair on one face with many
+  independent constraints. The
   rebuild-per-query reference took 123.389/532.621/3,535.072 ms for
   100/200/500 constraints and allocated
   73,730,008/288,972,200/1,776,782,696 bytes. Incremental packed edge
@@ -299,7 +305,7 @@ is restricted to visible tiles.
   ```sh
   PRISMEL_BOOLEAN_SEGMENTS=500 PRISMEL_BOOLEAN_REPEATS=5 \
   PRISMEL_BENCH_DOMAINS=1 \
-    dune exec --profile release tools/bench_boolean_cdt.exe
+    dune exec --profile release tools/bench_boolean_pipeline.exe -- cdt
   ```
 - Batch exact face arrangement/CDT is measured separately after the global
   constraint plan has been built. On 10,000 independent pairs (20,000 affected
@@ -314,7 +320,7 @@ is restricted to visible tiles.
   ```sh
   PRISMEL_BOOLEAN_PAIR_COUNT=10000 PRISMEL_BOOLEAN_REPEATS=3 \
   PRISMEL_BOOLEAN_GRAIN=64 PRISMEL_BENCH_DOMAINS=1 \
-    dune exec --profile release tools/bench_boolean_refinement.exe
+    dune exec --profile release tools/bench_boolean_pipeline.exe -- refinement
   # Repeat with PRISMEL_BENCH_DOMAINS=4.
   ```
 - Exact coplanar overlap is measured on 50,000 spatially independent triangle
@@ -333,7 +339,7 @@ is restricted to visible tiles.
   ```sh
   PRISMEL_BOOLEAN_PAIR_COUNT=50000 PRISMEL_BOOLEAN_REPEATS=3 \
   PRISMEL_BOOLEAN_GRAIN=256 PRISMEL_BENCH_DOMAINS=1 \
-    dune exec --profile release tools/bench_boolean_coplanar.exe
+    dune exec --profile release tools/bench_boolean_pipeline.exe -- coplanar
   # Repeat with PRISMEL_BENCH_DOMAINS=4; do not run the timings concurrently.
   ```
 - Complex/radial assembly is measured on 10,000 independent transverse
@@ -347,7 +353,7 @@ is restricted to visible tiles.
   ```sh
   PRISMEL_BOOLEAN_PAIR_COUNT=10000 PRISMEL_BOOLEAN_REPEATS=3 \
   PRISMEL_BOOLEAN_GRAIN=64 PRISMEL_BENCH_DOMAINS=1 \
-    dune exec --profile release tools/bench_boolean_complex.exe
+    dune exec --profile release tools/bench_boolean_pipeline.exe -- complex
   ```
 - The complete private Boolean pipeline is measured on 10,000 pairs of
   spatially disjoint closed tetrahedra (80,000 output points/facets). It runs
@@ -395,8 +401,9 @@ is restricted to visible tiles.
   hash remains exactly `3722707883293083377`. Use
   `PRISMEL_BOOLEAN_SELF=1` with `tools/bench_boolean_pipeline.exe` to measure
   the resolved policy.
-- `tools/bench_boolean_materialization.exe` isolates exact seam-facet candidate
-  marking, strict independent contraction planning, and the complete rounded
+- `tools/bench_boolean_pipeline.exe -- materialization` isolates exact
+  seam-facet candidate marking, strict independent contraction planning, and
+  the complete rounded
   surface publication guard on replicated overlapping-box arrangements. On 20
   pairs (476 points, 872 facets), fresh three-run release medians are 0.042 ms
   / 19,224 current-domain bytes for 784 candidates and 0.487 ms / 196,960 bytes
@@ -420,14 +427,15 @@ is restricted to visible tiles.
   ```sh
   PRISMEL_BOOLEAN_PAIR_COUNT=20 PRISMEL_BOOLEAN_REPEATS=3 \
   PRISMEL_BENCH_DOMAINS=1 \
-    dune exec --profile release tools/bench_boolean_materialization.exe
+    dune exec --profile release tools/bench_boolean_pipeline.exe -- materialization
   PRISMEL_BOOLEAN_PAIR_COUNT=1 PRISMEL_BOOLEAN_REPEATS=5 \
   PRISMEL_BOOLEAN_COLLAPSE=1 PRISMEL_BENCH_DOMAINS=1 \
-    dune exec --profile release tools/bench_boolean_materialization.exe
+    dune exec --profile release tools/bench_boolean_pipeline.exe -- materialization
   # Repeat both with PRISMEL_BENCH_DOMAINS=4; hashes must match.
   ```
 - Full Boolean payload transfer is isolated by
-  `tools/bench_boolean_payload.exe`. The 10,000-disjoint-pair fixture has
+  `tools/bench_boolean_pipeline.exe -- payload`. The 10,000-disjoint-pair
+  fixture has
   80,000 output facets and copies primitive Float, Float3, two-value Int-array,
   and group planes; point Float, two-value Float-array, and group planes; and
   vertex normalized Float3, two-value Int-array, and group planes. The current
@@ -470,13 +478,14 @@ is restricted to visible tiles.
   ```sh
   PRISMEL_BOOLEAN_PAIR_COUNT=10000 PRISMEL_BOOLEAN_REPEATS=3 \
   PRISMEL_BOOLEAN_GRAIN=256 PRISMEL_BENCH_DOMAINS=1 \
-    dune exec --profile release tools/bench_boolean_payload.exe
+    dune exec --profile release tools/bench_boolean_pipeline.exe -- payload
   # Repeat with PRISMEL_BENCH_DOMAINS=4; the exact hash must match. Set
   # PRISMEL_BOOLEAN_EDGE_GROUPS=0 to isolate the no-native-edge schema.
   ```
 - The promoted `Pdk.Boolean.run` product boundary is measured end to end by
-  `tools/bench_boolean_product.exe`: exact arrangement, difference extraction,
-  complete payload/schema transfer, seam construction, zero-threshold rounded
+  `tools/bench_boolean_pipeline.exe -- product`: exact arrangement,
+  difference extraction, complete payload/schema transfer, seam construction,
+  zero-threshold rounded
   verification, and output publication. On ten independent overlapping box
   pairs (176 points, 312 triangles), nine-run release medians on Linux 6.8
   aarch64, four Apple virtual cores, OCaml 5.3.0 are 42.185 ms on one domain
@@ -492,7 +501,7 @@ is restricted to visible tiles.
   PRISMEL_BOOLEAN_PAIR_COUNT=10 PRISMEL_BOOLEAN_REPEATS=9 \
   PRISMEL_BOOLEAN_GRAIN=32 PRISMEL_BENCH_DOMAINS=1 \
     opam exec --switch=. -- dune exec --profile release \
-      tools/bench_boolean_product.exe
+      tools/bench_boolean_pipeline.exe -- product
   # Repeat with PRISMEL_BENCH_DOMAINS=4; hashes must match.
   ```
 - The Boolean stability runner's standard-density campaign additionally covers
@@ -1412,13 +1421,15 @@ replaces drawable-sized resources instead of accumulating extents. The initial
 domain records and submits GPU work; pure mesh/scene preparation may run in the
 shared pool and joins before upload.
 
-Native qualification measures Basic, PXUI, Canvas, and Scene3 visible/hidden
-scenarios at first, second, 60th, 600th, and post-resize frames. It records CPU
-and GPU duration, frame median/p95/p99, allocations, RSS, uploads, draw/pass
-counts, retained-plan hits/misses/evictions, cache entries, and live/released
-Metal handles. R10 enforces the frozen median/p95 envelope, R11 checks the
-shattered-cube one-upload contract, and R12 checks 30-minute changing-resource
-stability.
+Frame performance is qualified with the cleanup plan's P3 protocol:
+`tools/bench_shattered_renderer.exe` (visible and hidden, release profile,
+reporting the live drawable scale), `bench_uniforms`, `bench_scene2_ir`,
+`bench_instances`, `bench_pxui` and `bench_pxui_graph`, recorded before and
+after a change on the same machine, plus a one-domain versus N-domain output
+comparison. The target is p95 at or under 16.67 ms at the display's scale. The
+earlier R9–R12 native protocols (frozen 640×480 envelope, one-upload contract,
+30-minute stability run) were retired on 2026-09-25 once that target was met;
+their tooling lives in git history before that date.
 
 Reproduce the finite shattered-cube native workflow without a backend selector:
 
@@ -1431,23 +1442,20 @@ PRISMEL_SHATTER_FRAMES=1001 \
 
 ## Measurement contract
 
-`tools/bench_geom.exe` is the repeatable geometry baseline. It reports elapsed
-time and GC allocation for representative mesh, field, topology, spatial, CSG,
-physics, transform, extrude/lathe/sweep, dense voxel, and sparse-octree
-workloads. Benchmarks run with the release profile and record input
-cardinalities and domain count.
+The focused PDK benchmarks, including `tools/bench_pdk_ops.exe`,
+`tools/bench_pdk_iso.exe`, and `tools/bench_pdk_subdivide.exe`, report elapsed
+time and GC allocation for their declared geometry fixtures. Run them with the
+release profile and record input cardinalities and domain count.
 
 Performance changes require before/after measurements on the same machine and
 compiler profile. Correctness tests additionally enforce deterministic output,
 expected cardinality, and bounded cache/resource behavior. Timing is diagnostic
 unless a stable dedicated benchmark runner is available.
 
-`tools/runtime_next_native_benchmark` owns the native renderer scenarios and
-machine-readable reports. The R9/R11 protocol tools validate upload and cache
-invariants around that benchmark. `tools/r10_performance` runs the frozen native
-Basic/PXUI/Canvas/Scene3 matrix and validates its timing envelope. The R12
-stability tool samples changing resources for the required duration and rejects
-unbounded handles, queues, caches, or RSS.
+`tools/bench_shattered_renderer.exe` is the native frame benchmark: it cooks
+the shattered-cube graph, renders the packed result through the sketch runtime
+at 1200×760 logical points, and prints one JSON line with frame percentiles,
+allocation, RSS and the live drawable size and scale.
 
 `tools/bench_pxui.exe` measures retained-scene construction and a captured
 pointer drag on a configurable large control panel. PXUI keeps O(1) reverse-list

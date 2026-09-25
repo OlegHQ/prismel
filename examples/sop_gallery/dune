@@ -1,0 +1,7 @@
+(executable
+ (name main)
+ (libraries prismel procedural sop_catalog sketch_ui))
+
+(rule
+ (alias runtest)
+ (action (run %{exe:main.exe} --check-all)))

@@ -66,7 +66,7 @@ let add_attribute attribute geometry =
   Geometry.with_attribute attribute geometry |> get_ok
 
 let enriched_grid () =
-  let geometry = Ops.grid ~columns:1 ~rows:1 ~size:2. () |> get_pdk in
+  let geometry = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:2. () |> get_pdk in
   let point_id = Attribute.create_owned ~name:"point_id" ~owner:Attribute.Point
       (Attribute.Int [|0; 1; 2; 3|]) |> get_ok
   and vertex_value = Attribute.create_owned ~name:"vertex_value"
@@ -102,6 +102,15 @@ let int_attribute owner name geometry =
 
 let run () =
   let source = enriched_grid () in
+  (* Preserve the default individual path's packed topology before replacing
+     its legacy implementation. Its two triangles have six source corners. *)
+  let individual = Ops.poly_extrude ~distance:1. source |> get_pdk in
+  check (Geometry.point_count individual = 12
+      && Geometry.vertex_count individual = 36
+      && Geometry.primitive_count individual = 10
+      && Array.length (int_attribute Attribute.Point "point_id" individual) = 12
+      && group_cardinality Group.Point "corner" individual = 4)
+    "individual Poly Extrude packed-output compatibility";
   let connected = Ops.poly_extrude
       ~divide:Ops.Extrude_connected_components
       ~front_group:"front" ~back_group:"back" ~side_group:"side"
@@ -292,7 +301,7 @@ let run () =
        "Poly Extrude cancellation diagnostic"
    | Ok _ -> fail "cancelled Poly Extrude published geometry");
 
-  let dense = Ops.grid ~columns:320 ~rows:240 ~size:20. () |> get_pdk in
+  let dense = Plane_generators.grid_checked ~columns:320 ~rows:240 ~size:20. () |> get_pdk in
   let dense = dense
       |> Geometry.with_attribute (Attribute.create_owned ~name:"id"
            ~owner:Attribute.Point

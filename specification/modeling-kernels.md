@@ -18,15 +18,14 @@ SOP graph remains acyclic and its cache remains bounded.
 ## One authoritative core
 
 ```text
-Procedural ──> Geom ──> PDK ──> Prismel.Mesh
-     └────────────────> PDK
+Procedural ──> PDK ──> Prismel.Mesh
 ```
 
 PDK owns packed geometry, reverse topology, attribute interpolation/reduction,
-spatial acceleration, and high-density modeling algorithms. Geom owns friendly
-mathematical types and functional preparation/adapters. Procedural owns graph
-composition, context dependencies, diagnostics, and bounded evaluation. PDK
-never imports upward; Procedural may use either Geom or PDK.
+spatial acceleration, and high-density modeling algorithms. `prismel_math`
+owns mathematical values; `pdk_prismel` converts cooked geometry to render
+meshes. Procedural owns graph composition, context dependencies, diagnostics,
+and bounded evaluation. PDK never imports upward.
 
 `Pdk.Topology` remains the compact forward point/corner/primitive structure.
 `Pdk.Topology_index` is a derived, immutable reverse view with packed
@@ -37,15 +36,15 @@ interpretation described by the
 [CGAL HalfedgeDS manual](https://doc.cgal.org/latest/HalfedgeDS/index.html),
 while using index planes rather than per-element objects.
 
-## Existing Geom disposition
+## Kernel ownership
 
 | Existing area | Current value | PDK migration decision |
 |---|---|---|
-| `Mesh_repair.weld` | Attribute-compatible spatial weld | Migrated to `Pdk.Ops.fuse`; Geom is now an adapter |
-| `Mesh_topology` | Triangle adjacency and immutable editing | Migrated to `Topology_index`; friendly list-returning queries remain only at the API edge |
-| `Mesh3` extrusion/lathe/sweep | Cardinality-first generators with useful framing code | Move topology/attribute output to PDK; keep Polygon2/Curve2 preparation in Geom |
-| `Mesh3` Loop/Catmull-Clark | Public compatibility entry points | Migrated to `Pdk.Ops.subdivide`; the boxed/list topology kernels were removed and Geom now adapts through PDK |
-| Edge subdivision | No former single owner | `Pdk.Ops.edge_divide` is the sole packed implementation; Procedural wraps it and future Geom conveniences must adapt to it rather than add another topology kernel |
+| Weld | Attribute-compatible spatial weld | `Pdk.Ops.fuse` owns the packed implementation |
+| Topology | Triangle adjacency and immutable editing | `Pdk.Topology_index` owns the reverse index |
+| Extrusion/revolve/sweep | Cardinality-first generators | `Pdk.Ops.poly_extrude`, `revolve`, and `sweep` own topology and payload output |
+| Loop/Catmull-Clark | Surface subdivision | `Pdk.Ops.subdivide` owns the packed kernel |
+| Edge subdivision | One packed owner | `Pdk.Ops.edge_divide` owns the kernel; Procedural wraps it |
 | Edge collapse | No former single owner | `Pdk.Ops.edge_collapse` owns selected-edge component planning and delegates packed reduction, rewiring, and cleanup to the single Fuse core; it is the contraction primitive for future reduce/remesh work |
 | Blend Shapes | No former single owner | `Pdk.Ops.blend_shapes` owns target ordering, masks, point-ID matching, and packed fixed-width point-field interpolation; Procedural stores only immutable target descriptors and never caches mutable deltas inside a node |
 | Attribute Composite | No former single owner | `Pdk.Ops.attribute_composite` owns independent owner-pattern discovery, ordered weighted/alpha composition, direct-index cardinality and finite-value validation, exact packed output planes, and stale-normal policy; Procedural stores only immutable ordered input descriptors and complete cache identity |
@@ -55,7 +54,7 @@ while using index planes rather than per-element objects.
 | Boolean intersection detection | Formerly only boxed `Csg3` BSP classification | `Pdk.Ops.boolean_detect` owns deterministic surface triangulation, two-pass packed AxB and unordered AxA BVH triangle-pair discovery, locally normalized narrow-phase classification, topology-contact suppression, symmetric self-pair aggregation, cancellation, and exact-size group/CSR outputs; Procedural resolves optional one/two-input roles, two named primitive restrictions, and immutable cache identity. This reusable detection stage does not replace the future robust corefinement kernel |
 | Intersection event analysis | No former packed owner | `Pdk.Ops.intersection_analysis` owns one packed mixed triangle/curve-piece BVH, reuses the shared `Triangle_intersection` decision/event kernel for triangle pairs, supplies fixed-scratch segment/segment and segment/triangle events, preflights exact raw cardinality, welds stable point identities, and emits aligned input/primitive/parameter/incident-point CSR provenance; Procedural owns only graph roles and named-group resolution |
 | Polygon bevel | No former single owner | `Pdk.Ops.poly_bevel` owns selected-edge eligibility, face-ring slide/collision planning, cross-face ring splits, connected continuation/corner topology, profile sampling, cardinality-first packed output, payload ancestry, and generated groups; Procedural only resolves a named native edge group and immutable parameters |
-| Point splitting | No former single owner | `Pdk.Ops.point_split` owns selected-incidence classification, mixed vertex/primitive attribute and named-group seam tuple clustering, stable point allocation, promotion, and one-to-many point/group/native-edge ancestry; Procedural only resolves typed groups and immutable seam policy, while future Geom conveniences must adapt to the same operation |
+| Point splitting | One packed owner | `Pdk.Ops.point_split` owns selected-incidence classification, mixed vertex/primitive attribute and named-group seam tuple clustering, stable point allocation, promotion, and one-to-many point/group/native-edge ancestry; Procedural only resolves typed groups and immutable seam policy |
 | Point generation | No former single owner | `Pdk.Ops.point_generate` owns exact cardinality planning, deterministic per-source emission, every point-storage copy path, provenance, generated grouping, and retained-topology extension; Procedural supplies generator/modifier graph identity and resolves an optional named point group |
 | Point replication | No former single owner | `Pdk.Ops.point_replicate` reuses Point Generate cardinality/payload planning and the canonical Copy-to-Points basis transform, then exclusively owns source-keyed local shape sampling, copied-vector/normal transformation, quasi coordinates, rest-space noise, velocity synthesis, and custom-shape ancestry; Procedural only resolves graph inputs/groups and immutable identity |
 | Geometry distance fields | No former single owner | `Pdk.Ops.distance_along_geometry` owns exact edge-path propagation, `Pdk.Ops.distance_from_geometry` owns point/surface reference queries, and `Pdk.Ops.distance_from_target` owns analytic point/axis/plane projection; all reuse the shared falloff/output policy and packed storage rather than placing distance kernels in Procedural graph cooks |
@@ -70,15 +69,14 @@ while using index planes rather than per-element objects.
 | Edge straightening | No former single owner | `Edge_ops.straighten` owns selected-edge components, scale-normalized covariance fitting, deterministic principal-axis selection, and packed point projection; Procedural only resolves named groups and node identity |
 | Edge length equalization | No former single owner | `Edge_ops.equalize` owns target reduction, selected incidence planning, the independent-edge exact path, deterministic connected projection, convergence and finite-result policy, stale-normal invalidation, and packed coordinate output; Procedural only resolves named groups and immutable solver parameters |
 | Reference edge relaxation | No former single owner | `Edge_relax.relax` owns matching-topology validation, individual/scale-independent reference targets, movable/pinned incidence planning, shorten-only policy, a closed-form independent-edge path, and delegates connected iterations to the shared `Edge_constraints` projector; Procedural owns only two-input roles, named-group resolution, and immutable parameters |
-| `Mesh3` Butterfly/Doo-Sabin | Useful specialized compatibility operations | Migrate only after core Catmull-Clark/Loop contracts; expose as narrower methods |
-| `Mesh_repair` diagnostics/orientation | Useful validation and stable ordering | Move incidence/union-find work to PDK; retain Geom reports as adapters |
-| `Csg3` BSP | Good creative-coding subset | Keep honestly labeled compatibility behavior until robust PDK corefinement replaces it; do not advertise production Boolean robustness |
-| `Delaunay2`/Voronoi | Useful 2D modeling algorithms | Preserve API, replace topology-changing orientation/incircle signs with adaptive predicates before production-parity claims |
-| `Iso3`/`Voxel3`/`Svo3` | Independent field and occupancy modeling | Share packed PDK output builders; do not force sparse field structures into a half-edge representation |
+| Butterfly/Doo-Sabin | Specialized subdivision | `Pdk.Subdivision_extra` owns packed output and direct fixtures |
+| Repair diagnostics/orientation | Mesh validation and stable ordering | `Pdk.Repair_mesh` owns the packed reports and fixes |
+| Boolean | Exact corefinement | `Pdk.Boolean` owns the arrangement and extraction pipeline |
+| Delaunay/Voronoi | Planar modeling | `Pdk.Delaunay2` and `Pdk.Voronoi2` own exact-predicate results |
+| Isosurface | Scalar-field extraction | `Pdk.Iso_surface` owns packed output |
 
-Migration is per operation. A migrated public Geom function has no permanent
-fallback to the old algorithm: compatibility and scale tests land first, the
-adapter switches to PDK, and the duplicate implementation is removed.
+Public algorithm replacements keep captured compatibility and scale fixtures
+before an old implementation is removed.
 
 ## Algorithm requirements
 
@@ -176,7 +174,7 @@ an almost-parallel subnormal case. Exact three-point centroids support cell
 queries without manufacturing a floating offset, and an exact/filterable
 perpendicular radial dot predicate resolves coplanar angular ties.
 
-`Pdk.Boolean_kernel.Constraints` now implements phases 2 and 3 for two
+`Pdk_boolean.Boolean_kernel.Constraints` now implements phases 2 and 3 for two
 surfaces and the packed input to phase 4. It concatenates source coordinate
 planes once, gets stable BVH candidates, classifies candidates exactly in
 parallel ranges, constructs LPI endpoints, sorts/deduplicates them by exact
@@ -199,7 +197,7 @@ suppression, the clean-input policy, cancellation, and exact one/four-domain
 output. Coplanar arrangement and face CDT remain deliberately downstream of
 this candidate and constraint plan.
 
-`Pdk.Boolean_kernel.Coplanar` now consumes every exact-coplanar candidate pair
+`Pdk_boolean.Boolean_kernel.Coplanar` now consumes every exact-coplanar candidate pair
 as a separate planar arrangement. It classifies both triangles' vertices with
 exact projected orientations, constructs every proper edge crossing as an
 exact projected line-line point, deduplicates by homogeneous identity, and
@@ -259,7 +257,7 @@ face-touching tetrahedra; union, intersection, both differences, XOR, and a
 custom expression; one/four-domain exactness; outward volume; and region
 volume partition identities.
 
-`Boolean_kernel.Seam` derives a second product from that same prepared complex
+`Pdk_boolean.Boolean_kernel.Seam` derives a second product from that same prepared complex
 without repeating intersection or face refinement. It classifies exact complex
 edges as left-self, between-operands, or right-self; source-native edge ancestry
 prevents an ordinary non-manifold input edge from becoming a false
@@ -292,7 +290,7 @@ seam-adjacent edges” applies to the extracted surface around seams, not to the
 polyline seam product; that separate topology-changing cleanup remains gated
 on explicit threshold, payload, ancestry, and re-verification policy.
 
-`Boolean_kernel.Payload.copy_primitives` consumes that ancestry without
+`Pdk_boolean.Boolean_kernel.Payload.copy_primitives` consumes that ancestry without
 re-running extraction. It transfers the union of both operands' primitive
 attribute schemas across Float, Int, Text, Float2/3/4, Int-array, and
 Float-array storage; a field absent on the selected source operand receives
@@ -306,7 +304,7 @@ operand's source traversal, merge the left operand before the right, and keep
 stable output-facet order among the one-to-many descendants of one source
 primitive.
 
-`Boolean_kernel.Payload.copy_points_and_vertices` completes the private
+`Pdk_boolean.Boolean_kernel.Payload.copy_points_and_vertices` completes the private
 corner-payload boundary over the same ancestry. It supports every PDK storage
 kind independently on Point and Vertex owners. Float and Float2/3/4 values use
 the stored exact-construction barycentrics; `N` Float3 values are normalized
@@ -354,7 +352,7 @@ predicate. Failures report `rounding_collision` or `rounding_degenerate`
 instead of returning a silently invalid solid. Tiny-edge consolidation and a
 post-cleanup seam-intersection verification remain separate release gates.
 
-`Boolean_kernel.Solid` is the private transactional boundary over those
+`Pdk_boolean.Boolean_kernel.Solid` is the private transactional boundary over those
 stages. `prepare` owns one exact arrangement, radial graph, and classified cell
 complex; repeated `extract` calls evaluate different typed expressions without
 repeating intersection or classification work. It validates stage identity,
@@ -837,4 +835,4 @@ Every production modeling kernel requires:
 5. byte-identical one-/multi-domain output and stable element ordering;
 6. a representative scale benchmark with allocation and peak-RSS evidence;
 7. native framebuffer or PNG comparison for renderable output;
-8. Geom adapter compatibility when replacing an existing public operation.
+8. Captured compatibility when replacing an existing public operation.

@@ -102,7 +102,7 @@ let equal_geometry left right =
       (Geometry.edge_groups left) (Geometry.edge_groups right)
 
 let two_quads () =
-  Ops.grid ~connectivity:Ops.Grid_quads ~columns:2 ~rows:1 ~size:2. ()
+  Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:2 ~rows:1 ~size:2. ()
   |> get_pdk |> add_payload
   |> fun geometry -> Geometry.with_edge_group (boundary_edges geometry) geometry
        |> get
@@ -110,7 +110,7 @@ let two_quads () =
 let test_interior () =
   let source = two_quads () in
   let edges = manifold_edges source in
-  let output = Ops.dissolve ~edges ~remove_unused_points:false source |> get_pdk in
+  let output = Dissolve.run_checked ~edges ~remove_unused_points:false source |> get_pdk in
   check (Geometry.point_count output = 6 && Geometry.vertex_count output = 6
       && Geometry.primitive_count output = 1) "two-quad cardinality";
   check (int_attribute Attribute.Primitive "face" output = [|10|])
@@ -131,27 +131,27 @@ let test_interior () =
       ~owner:Attribute.Point "weight" output |> Option.get in
   check (Attribute.storage_id source_weight = Attribute.storage_id output_weight)
     "point payload was copied without point compaction";
-  let cleaned = Ops.dissolve ~edges ~remove_inline_points:true
+  let cleaned = Dissolve.run_checked ~edges ~remove_inline_points:true
       ~collinearity_tolerance:1e-10 source |> get_pdk in
   check (Geometry.point_count cleaned = 4 && Geometry.vertex_count cleaned = 4
       && Geometry.primitive_count cleaned = 1) "inline cleanup rectangle";
   let boundary = boundary_edges source in
-  let inverted = Ops.dissolve ~edges:boundary
-      ~operation:Ops.Dissolve_non_selected ~remove_unused_points:false source
+  let inverted = Dissolve.run_checked ~edges:boundary
+      ~operation:Dissolve.Dissolve_non_selected ~remove_unused_points:false source
       |> get_pdk in
   check (Geometry.primitive_count inverted = 1 && Geometry.vertex_count inverted = 6)
     "Dissolve Non-Selected"
 
 let test_boundary () =
-  let source = Ops.grid ~connectivity:Ops.Grid_quads ~columns:1 ~rows:1 ~size:1. ()
+  let source = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:1 ~rows:1 ~size:1. ()
       |> get_pdk in
   let index = Topology_index.create (Geometry.topology source) in
   let selected = edge_group source "one" (fun edge -> edge = 0) in
   check (Topology_index.edge_incidence_count index 0 = 1) "fixture boundary edge";
-  let deleted = Ops.dissolve ~edges:selected source |> get_pdk in
+  let deleted = Dissolve.run_checked ~edges:selected source |> get_pdk in
   check (Geometry.point_count deleted = 0 && Geometry.primitive_count deleted = 0)
     "boundary dissolve deletion";
-  let curve = Ops.dissolve ~edges:selected ~create_boundary_curves:true source
+  let curve = Dissolve.run_checked ~edges:selected ~create_boundary_curves:true source
       |> get_pdk in
   check (Geometry.point_count curve = 4 && Geometry.vertex_count curve = 4
       && Geometry.primitive_count curve = 1
@@ -171,35 +171,35 @@ let ring () =
 let test_bridges () =
   let source = ring () in
   let edges = manifold_edges source in
-  let disjoint = Ops.dissolve ~edges
-      ~bridge_policy:Ops.Create_disjoint_polygons ~remove_unused_points:false source
+  let disjoint = Dissolve.run_checked ~edges
+      ~bridge_policy:Dissolve.Create_disjoint_polygons ~remove_unused_points:false source
       |> get_pdk in
   check (Geometry.primitive_count disjoint = 2
       && Geometry.vertex_count disjoint = 8) "disjoint bridge loops";
-  let bridged = Ops.dissolve ~edges
-      ~bridge_policy:Ops.Create_bridged_polygons ~remove_unused_points:false source
+  let bridged = Dissolve.run_checked ~edges
+      ~bridge_policy:Dissolve.Create_bridged_polygons ~remove_unused_points:false source
       |> get_pdk in
   check (Geometry.primitive_count bridged = 1
       && Geometry.vertex_count bridged = 10) "bridged polygon loop";
-  let deleted = Ops.dissolve ~edges
-      ~bridge_policy:Ops.Delete_bridge_polygons source |> get_pdk in
+  let deleted = Dissolve.run_checked ~edges
+      ~bridge_policy:Dissolve.Delete_bridge_polygons source |> get_pdk in
   check (Geometry.primitive_count deleted = 0 && Geometry.point_count deleted = 0)
     "delete bridge component"
 
 let test_errors_and_curves () =
-  let curve = Ops.polyline [|0.,0.,0.;1.,0.,0.;2.,0.,0.|] |> get_pdk in
+  let curve = Line_geometry.polyline_checked [|0.,0.,0.;1.,0.,0.;2.,0.,0.|] |> get_pdk in
   let all = edge_group curve "all" (fun _ -> true) in
-  check (Ops.dissolve ~edges:all curve |> get_pdk == curve)
+  check (Dissolve.run_checked ~edges:all curve |> get_pdk == curve)
     "polygon-curve edges were not ignored";
   let cancel = Cancel.create () in Cancel.cancel cancel;
   let cancelled_source = two_quads () in
-  (match Ops.dissolve ~cancel ~edges:(manifold_edges cancelled_source)
+  (match Dissolve.run_checked ~cancel ~edges:(manifold_edges cancelled_source)
       cancelled_source with
    | Error error -> check (Error.code error = "cancelled") "cancellation code"
    | Ok _ -> fail "cancelled dissolve succeeded");
   let source = two_quads () in
   let foreign = manifold_edges (ring ()) in
-  (match Ops.dissolve ~edges:foreign source with
+  (match Dissolve.run_checked ~edges:foreign source with
    | Error error -> check (Error.code error = "invalid_topology")
        "foreign topology diagnostic"
    | Ok _ -> fail "foreign edge group accepted");
@@ -218,13 +218,13 @@ let test_errors_and_curves () =
     check (edge >= 0) (label ^ " fixture edge");
     let selected = Edge_group.init ~grain:1 ~topology ~index ~name:"bad"
         (fun candidate -> candidate = edge) in
-    match Ops.dissolve ~edges:selected geometry with
+    match Dissolve.run_checked ~edges:selected geometry with
     | Error error -> check (Error.code error = "invalid_topology")
         (label ^ " diagnostic")
     | Ok _ -> fail (label ^ " accepted") in
   expect_invalid "non-manifold" (malformed [|0;1;2; 1;0;3; 0;1;4|]);
   expect_invalid "inconsistent winding" (malformed [|0;1;2; 0;1;3|]);
-  (match Ops.dissolve ~collinearity_tolerance:nan source with
+  (match Dissolve.run_checked ~collinearity_tolerance:nan source with
    | Error error -> check (Error.code error = "invalid_topology")
        "non-finite tolerance diagnostic"
    | Ok _ -> fail "non-finite tolerance accepted")
@@ -237,7 +237,7 @@ let test_normals () =
         ~y:(Array.make (Geometry.point_count source) 0.)
         ~z:(Array.make (Geometry.point_count source) 0.))) |> get in
   let source = Geometry.with_attribute normals source |> get in
-  let output = Ops.dissolve ~edges:(manifold_edges source)
+  let output = Dissolve.run_checked ~edges:(manifold_edges source)
       ~remove_inline_points:true source |> get_pdk in
   let normal = Geometry.find_attribute ~owner:Attribute.Point "N" output
       |> Option.get in
@@ -259,11 +259,11 @@ let test_normals () =
   | _ -> fail "recomputed normal storage"
 
 let test_parallel () =
-  let source = Ops.grid ~grain:127 ~connectivity:Ops.Grid_quads
+  let source = Plane_generators.grid_checked ~grain:127 ~connectivity:Plane_generators.Grid_quads
       ~columns:300 ~rows:220 ~size:20. () |> get_pdk |> add_payload in
   let edges = manifold_edges source in
   let run domains = Prismel.Parallel.run ~domains (fun () ->
-      Ops.dissolve ~grain:257 ~edges ~remove_inline_points:true
+      Dissolve.run_checked ~grain:257 ~edges ~remove_inline_points:true
         ~collinearity_tolerance:1e-10 source |> get_pdk) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four) "one/four-domain output differs";

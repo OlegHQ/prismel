@@ -6,7 +6,7 @@ let check condition message = if not condition then fail message
 let get = function Ok value -> value | Error message -> fail message
 let get_pdk = function Ok value -> value | Error error -> fail (Error.to_string error)
 
-let points values = Ops.points values
+let points values = Line_geometry.points values
 
 let add_int name values geometry =
   let attribute = Attribute.create_owned ~name ~owner:Attribute.Point

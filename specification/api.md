@@ -233,24 +233,27 @@ there is no separate public `Framebuffer3` module in the installed library.
 See [`3d.md`](./3d.md) for the rendering contract and
 [`3d-parity.md`](./3d-parity.md) for the audited openFrameworks parity matrix.
 
-### `Geom`
+### Packed geometry in `Pdk`
 
-Geom is a wrapped sibling library published as `prismel.geom`. It adds
-immutable geometry algorithms without enlarging Prismel's five-minute sketch
-surface or reversing the dependency direction. Shapes, intersections, curves,
-spatial trees, Verlet worlds, sparse voxels, mesh processing, SVG values, and
-visualization layouts remain renderer-independent values and transformations.
+The public `Pdk` facade keeps its packed geometry, topology, attribute, mesh,
+and Boolean paths while implementations live in one-way `pdk_core`, `pdk_exact`,
+`pdk_spatial`, `pdk_attrib`, `pdk_gen`, `pdk_curve`, `pdk_mesh`, `pdk_boolean`, and
+`pdk_io` libraries. `Pdk.Curve_sampling` provides deterministic Bézier and
+Catmull–Rom samples, `Pdk.Iso_surface` extracts packed isosurfaces,
+`Pdk.Uv_sphere` generates packed latitude/longitude spheres, and
+`Pdk.Io` loads and saves STL, OFF, and OBJ through typed results.
+`Pdk.Group_ops`, `Pdk.Blend_shapes`, `Pdk.Attribute_composite`,
+`Pdk.Attribute_mirror`, `Pdk.Attribute_fade`, `Pdk.Fuse_reduce`, `Pdk.Normal_ops`, `Pdk.Plane_generators`,
+`Pdk.Box_generator`, `Pdk.Spiral`, `Pdk.Point_generate`,
+`Pdk.Color_by_height`, `Pdk.Line_geometry`, `Pdk.Mesh_merge`,
+`Pdk.Edge_collapse`, and `Pdk.Dissolve` expose option and rule types or checked operations used
+by procedural SOPs;
+`Pdk.Ops` retains compatible operation entry points during the consumer
+migration.
 
-`Render2` is the explicit adapter into `Scene.node` and `Path.t`. `Mesh3` is
-the explicit adapter into native immutable `Mesh.t` values, including
-extrusion, lathing, parallel-transport sweeps, four subdivision families,
-repair, exchange, and CSG. `Iso3` and `Voxel3` extract the same mesh values
-from pure scalar fields or sparse occupancy. The normal
-Prismel renderer therefore remains the only effect boundary, and the same
-output works in presented, captured, framebuffer, and export paths.
-
-Loop and Catmull-Clark mesh subdivision adapt through the same packed PDK core
-used by `Procedural.Sop.subdivide`. The SOP additionally exposes bilinear
+Loop and Catmull-Clark mesh subdivision use the same packed PDK core
+as `Procedural.Sop.subdivide`; `Pdk.Subdivision_extra` provides Butterfly and
+Doo-Sabin. The SOP additionally exposes bilinear
 refinement, recursive depth, all six OpenSubdiv face-varying interpolation
 policies, standard or Smooth Triangles Catmull-Clark masks, groups, and
 Uniform or Chaikin semi-sharp `creaseweight` plus uniformly decayed
@@ -509,9 +512,6 @@ source indices; same-owner renames work without a piece partition.
 remainder branches. All three use the same packed destroy/heal/compaction
 contract, so graph convenience does not fork topology semantics.
 
-See [`geom.md`](./geom.md) for algorithm contracts, examples, attribution, and
-the capability map against thi.ng/geom.
-
 ### `PXUI`
 
 PXUI is a sibling library that depends on Prismel and consumes ordinary
@@ -590,7 +590,10 @@ shared subgraphs; the sketch host's `Doc` module applies typed graph edit
 requests, and selected-node changes go through
 `Procedural.Edit_graph.apply_parameters` before compiling the cookable graph.
 The host's `Cook` module owns compilation, reactive scheduling, polling, and
-framing work; `Core` composes those results with the workspace UI.
+framing work; `Core` composes those results with the workspace UI. One
+`Environment.Make` functor over a `VIEWPORT` adapter (`Viewport3`, `Viewport2`)
+turns that core into the public `Environment3`/`Environment2`, which differ
+only in their viewport.
 `prismel.pxui_graph` supplies deterministic initial layout,
 persistent graph-space tile positions, ordered ports/wires, topology-safe node
 dragging, independent inspector/display selection through each tile's VIEW

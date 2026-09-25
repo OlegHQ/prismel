@@ -49,7 +49,7 @@ let combine ?selection ?match_attribute ?create_missing
   |> get_ok
 
 let base_scalar () =
-  Ops.points [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
+  Line_geometry.points [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
   |> add (Attribute.Float [|4.;4.;4.|]) ~owner:Attribute.Point ~name:"dest"
   |> add (Attribute.Float [|2.;2.;0.|]) ~owner:Attribute.Point ~name:"src"
 
@@ -72,7 +72,7 @@ let test_operations () =
       fail "Attribute Combine arithmetic operation") cases
 
 let test_processing_and_blend () =
-  let geometry = Ops.points [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
+  let geometry = Line_geometry.points [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
       |> add (Attribute.Float [|0.;0.;0.|])
            ~owner:Attribute.Point ~name:"dest"
       |> add (Attribute.Float [|-1.;0.25;2.|])
@@ -102,7 +102,7 @@ let test_processing_and_blend () =
 let test_tuple_conversion_and_creation () =
   let source3 = Packed.Float3.Private.of_owned_exn
       ~x:[|3.;0.|] ~y:[|4.;0.|] ~z:[|0.;2.|] in
-  let geometry = Ops.points [|(0.,0.,0.); (1.,0.,0.)|]
+  let geometry = Line_geometry.points [|(0.,0.,0.); (1.,0.,0.)|]
       |> add (Attribute.Float [|0.;0.|]) ~owner:Attribute.Point ~name:"scalar"
       |> add (Attribute.Float3 source3) ~owner:Attribute.Point ~name:"vector"
       |> add (Attribute.Float [|2.;-3.|]) ~owner:Attribute.Point ~name:"factor" in
@@ -147,13 +147,13 @@ let test_tuple_conversion_and_creation () =
       <> [|0.25;0.25|] then fail "Attribute Combine implicit constant"
 
 let test_cross_input_matching () =
-  let primary = Ops.points
+  let primary = Line_geometry.points
       [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.); (3.,0.,0.)|]
       |> add (Attribute.Float [|10.;10.;10.;10.|])
            ~owner:Attribute.Point ~name:"dest"
       |> add (Attribute.Int [|1;2;1;9|])
            ~owner:Attribute.Point ~name:"key" in
-  let source = Ops.points [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
+  let source = Line_geometry.points [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
       |> add (Attribute.Float [|2.;3.;4.|])
            ~owner:Attribute.Point ~name:"value"
       |> add (Attribute.Float [|1.;0.5;0.25|])
@@ -187,7 +187,7 @@ let test_cross_input_matching () =
       <> [|2.;3.;4.;0.|] then fail "Attribute Combine missing blend fallback"
 
 let test_group_post_position_cleanup_and_integer () =
-  let geometry = Ops.points
+  let geometry = Line_geometry.points
       [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.); (3.,0.,0.)|]
       |> add (Attribute.Float [|0.2;0.8;-0.5;2.|])
            ~owner:Attribute.Point ~name:"dest"
@@ -267,7 +267,7 @@ let test_other_owners () =
     fail "Attribute Combine detail owner"
 
 let test_errors_cancellation_and_scale () =
-  let geometry = Ops.points [|(0.,0.,0.)|]
+  let geometry = Line_geometry.points [|(0.,0.,0.)|]
       |> add (Attribute.Float [|1.|]) ~owner:Attribute.Point ~name:"dest"
       |> add (Attribute.Text [|"bad"|]) ~owner:Attribute.Point ~name:"text" in
   let expect_invalid result label = match result with
@@ -300,7 +300,7 @@ let test_errors_cancellation_and_scale () =
       ~y:(Array.init count (fun point -> float_of_int (point land 127)))
       ~z:(Array.init count (fun point -> float_of_int (point land 63)))
       ~w:(Array.make count 1.) |> Result.get_ok in
-  let geometry = Ops.points points
+  let geometry = Line_geometry.points points
       |> add (Attribute.Float4 source4) ~owner:Attribute.Point ~name:"source4"
       |> add (Attribute.Float (Array.init count (fun point ->
         float_of_int (point land 7) /. 7.)))

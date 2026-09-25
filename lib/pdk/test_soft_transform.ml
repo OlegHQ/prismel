@@ -104,7 +104,7 @@ let test_attribute () =
   check (close y.(0) 2. && close y.(1) 1.5 && close y.(2) 1.
       && close y.(3) 0.5 && close y.(4) 0.)
     "Soft Transform rolled distance attribute";
-  let no_normals = Ops.grid ~columns:2 ~rows:2 ~size:2. () |> get_ok in
+  let no_normals = Plane_generators.grid_checked ~columns:2 ~rows:2 ~size:2. () |> get_ok in
   let seed = point_group "seed" (Geometry.point_count no_normals)
       (fun point -> point = 4) in
   let deformed = Ops.soft_transform ~grain:1
@@ -160,7 +160,7 @@ let test_errors_and_parallel () =
    | Error error -> check (Error.code error = "cancelled")
        "Soft Transform cancellation code"
    | Ok _ -> fail "cancelled Soft Transform published geometry");
-  let dense = Ops.grid ~columns:400 ~rows:240 ~size:20. () |> get_ok in
+  let dense = Plane_generators.grid_checked ~columns:400 ~rows:240 ~size:20. () |> get_ok in
   let width = 401 and count = Geometry.point_count dense in
   let seed = point_group "seed" count (fun point ->
       point = (120 * width) + 200) in

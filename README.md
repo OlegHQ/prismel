@@ -22,7 +22,7 @@ different renderer.
 - PXUI, an immediate-mode UI kit with an instanced Metal renderer, plus
   graph/inspector adapters for procedural tools.
 - Deterministic random, noise, fixed-clock, and multicore preparation APIs.
-- PDK packed geometry, functional Geom adapters, and immutable Procedural SOPs.
+- PDK packed geometry and immutable Procedural SOPs.
 - Bounded GPU resource, retained-plan, mesh, and text caches.
 
 ## Platform requirements
@@ -139,7 +139,7 @@ dune exec examples/generative/main.exe
 dune exec examples/recursive_rectangles/main.exe
 dune exec examples/pxui/main.exe
 dune exec examples/procedural_modeling/main.exe
-dune exec examples/boolean/main.exe
+dune exec examples/sop_gallery/main.exe -- --entry boolean
 dune exec examples/pathtracer/main.exe
 ```
 
@@ -190,8 +190,8 @@ examples / sketches / pxui / procedural / pdk
 - `ogpu_metal` translates OGPU commands to the safe Metal library.
 - `metal` owns typed Objective-C++ calls, native validation, ownership, and
   command-completion retention.
-- `pdk` is the sole packed topology/geometry kernel; `geom` and `procedural`
-  adapt that core rather than duplicating it.
+- `pdk` is the sole packed topology/geometry kernel; `procedural` wraps it in
+  immutable graphs.
 
 No public Prismel type exposes an SDL3 or Metal handle. All window, input,
 resource, and presentation operations remain on the initial OCaml domain.
@@ -208,7 +208,6 @@ lib/metal/            safe/raw Metal API and OCaml/Dune generation
 lib/ogpu/             renderer command interface
 lib/ogpu_metal/       Metal implementation of OGPU
 lib/pdk/              packed geometry/topology core
-lib/geom/             functional geometry adapters
 lib/procedural/       immutable SOP graphs
 lib/pxui*/            UI and graph presentation
 lib/sketch_support/   target-neutral sketch helpers
@@ -246,14 +245,14 @@ rendering path.
 The geometry stack has one authoritative core:
 
 ```text
-procedural ──> geom ──> pdk ──> prismel
-     └────────────────> pdk
+procedural ──> pdk ──> prismel_math
+     └────────> pdk_prismel ──> prismel
 ```
 
 PDK owns packed topology, reverse incidence, spatial acceleration, attributes,
-groups, and high-density modeling algorithms. Geom supplies ergonomic points,
-curves, polygons, fields, and adapters. Procedural wraps the same operations in
-immutable cookable graphs with bounded caches and explicit cancellation.
+groups, and high-density modeling algorithms. Procedural wraps the same
+operations in immutable cookable graphs with bounded caches and explicit
+cancellation. `pdk_prismel` converts cooked geometry for rendering.
 
 See [the PDK specification](specification/pdk.md), [procedural
 specification](specification/procedural.md), and [modeling-kernel

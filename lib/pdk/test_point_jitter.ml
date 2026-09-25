@@ -32,7 +32,7 @@ let expect_code code = function
   | Ok _ -> fail ("expected error " ^ code)
 
 let source () =
-  Ops.points [|0., 1., 2.; 10., 20., 30.; -3., 4., -5.; 8., 9., 10.|]
+  Line_geometry.points [|0., 1., 2.; 10., 20., 30.; -3., 4., -5.; 8., 9., 10.|]
   |> add_attribute ~owner:Attribute.Point ~name:"mask"
        (Attribute.Float [|1.; 0.5; 2.; 0.|])
   |> add_attribute ~owner:Attribute.Point ~name:"pscale"
@@ -116,7 +116,7 @@ let run () =
     "Point Jitter ignored its random seed";
 
   let count = 200_003 in
-  let large = Ops.points (Array.init count (fun point ->
+  let large = Line_geometry.points (Array.init count (fun point ->
       let value = float_of_int point in value *. 0.01, value *. -0.02, value *. 0.03))
       |> add_attribute ~owner:Attribute.Point ~name:"mask"
            (Attribute.Float (Array.init count (fun point ->

@@ -15,7 +15,7 @@ let contains text pattern =
 let source () =
   let values = Array.init 60_001 (fun point ->
       sin (float_of_int point *. 0.003), 0., 0.) in
-  let geometry = Ops.points values in
+  let geometry = Pdk.Line_geometry.points values in
   let ids = Attribute.create_owned ~owner:Attribute.Point ~name:"id"
       (Attribute.Int (Array.init (Geometry.point_count geometry) Fun.id))
       |> Result.get_ok in

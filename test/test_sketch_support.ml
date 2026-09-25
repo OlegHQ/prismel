@@ -128,10 +128,10 @@ let run () =
   if noisy_a.x <> noisy_b.x || noisy_a.y <> noisy_b.y || noisy_a.z <> noisy_b.z
   then fail "Packed_pieces noise is not deterministic";
   let source = Sop.box ~size:(Vec3.create 2. 2. 2.)
-      ~connectivity:Pdk.Ops.Box_quads ~consolidate_points:true
-      ~normals:Pdk.Ops.Box_no_normals () in
-  let cutter = Sop.grid ~counts:Pdk.Ops.Grid_divisions
-      ~connectivity:Pdk.Ops.Grid_triangles ~columns:1 ~rows:1 ~size:3. () in
+      ~connectivity:Pdk.Box_generator.Box_quads ~consolidate_points:true
+      ~normals:Pdk.Box_generator.Box_no_normals () in
+  let cutter = Sop.grid ~counts:Pdk.Plane_generators.Grid_divisions
+      ~connectivity:Pdk.Plane_generators.Grid_triangles ~columns:1 ~rows:1 ~size:3. () in
   let fractured = Sop.boolean_fracture ~require_closed:true
       ~piece_attribute:"piece" ~cutters:cutter source in
   let session = Session.create ~max_entries:16
