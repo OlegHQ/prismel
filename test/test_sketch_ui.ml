@@ -153,6 +153,11 @@ let run () =
       (frame ~events:[mouse_move (10, 100)] 19) in
   check (ui_bytes (Sketch_ui.Environment3.scene environment (frame 19)) <> collapsed_scene)
     "workspace render accordion lost its armed press before the release frame";
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[Event.KeyPressed Input.Space;
+        Event.KeyPressed (Input.KeyChar 'w')] 19) in
+  check (not (Sketch_ui.Environment3.flying environment))
+    "inspector child press did not focus its pane";
   (match Sys.getenv_opt "PRISMEL_UI_PREVIEW" with
    | Some directory -> Sketch.export ~directory ~prefix:"workspace-render"
        ~frames:1 ~config:{ Sketch.default_config with width=900; height=640 }

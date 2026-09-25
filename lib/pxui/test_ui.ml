@@ -45,6 +45,25 @@ let with_scale scale =
   let settle ui build = ignore (step ui [] build) in
   let label = Printf.sprintf "%gx: %s" scale in
 
+  let ui = Ui.create () in
+  let roots events = Ui.frame ui (frame ~scale ~time:0.5 events) (fun ui ->
+    let root = Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px 100.)
+      ~h:(Ui.Px 100.) "root" in
+    let child = Ui.within ui root (fun () ->
+      Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px 30.) ~h:(Ui.Px 30.)
+        ~at:(10., 10.) "child") in
+    Ui.signal ui root, Ui.signal ui child) in
+  ignore (roots []);
+  let root, child = roots [press (15, 15)] in
+  if root.pressed || root.subtree_press <> Some 0
+      || not child.pressed || child.subtree_press <> Some 0 then
+    fail (label "child press did not reach its hit ancestor");
+  let root, child = roots [release (15, 15); press (80, 80)] in
+  if not root.pressed || root.subtree_press <> Some 1
+      || child.pressed then
+    fail (label "blank root press did not select the root");
+  Ui.destroy ui;
+
   (* Toggle commits on release inside, never on press alone. *)
   let ui = Ui.create () in
   let value = ref false in

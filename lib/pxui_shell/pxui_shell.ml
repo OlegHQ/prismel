@@ -244,6 +244,12 @@ module Chrome = struct
     Pxui.Ui.box ui ~flags ~w:(Pxui.Ui.Px (float_of_int width))
       ~h:(Pxui.Ui.Px (float_of_int height)) ~at:(float_of_int x, float_of_int y) label
 
+  let pane_root ui (frame : Frame.t) ~bounds:(x, y, width, height) label =
+    Pxui.Ui.box ui ~flags:Pxui.Ui.clickable
+      ~w:(Pxui.Ui.Px (float_of_int frame.width))
+      ~h:(Pxui.Ui.Px (float_of_int frame.height)) ~at:(0., 0.)
+      ~hit:(fun _ -> float x, float y, float width, float height) label
+
   (* Chrome of the retained workspace, painted and hit through PXUI boxes:
      pane backgrounds, splitters, and header bars with collapse buttons. *)
   let update value ui (frame : Frame.t) =

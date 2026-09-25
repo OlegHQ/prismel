@@ -43,6 +43,9 @@ module Chrome : sig
   val update : Layout.t -> Pxui.Ui.t -> Prismel.Frame.t -> Layout.t
   val floating : Pxui.Ui.t -> ?flags:Pxui.Ui.flags -> Layout.bounds -> string ->
     Pxui.Ui.box
+  (* A pane's PXUI hit ancestor; children keep screen-space coordinates. *)
+  val pane_root : Pxui.Ui.t -> Prismel.Frame.t -> bounds:Layout.bounds ->
+    string -> Pxui.Ui.box
   val focus : Pxui.Ui.t -> bounds:Layout.bounds -> unit
 end
 

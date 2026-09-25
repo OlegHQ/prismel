@@ -356,6 +356,7 @@ module Core = struct
 
   type 'panel frame_result = {
     workspace : Workspace.t;
+    focus : Workspace.column;
     graph_view : Pxui_graph.t;
     document : Edit_graph.t;
     edit_error : string option;
@@ -494,18 +495,6 @@ module Core = struct
         ~text ~fps:value.status_fps
     end
 
-  (* Build the workspace in [ui] and apply its edits. [camera_panel] fills
-     the inspector while no node is selected. *)
-  let pane_at (panes : Workspace.panes) point =
-    let px, py = point in
-    let inside (x, y, w, h) = px >= float x && py >= float y &&
-      px < float (x + w) && py < float (y + h) in
-    if inside panes.timeline then Some Workspace.Timeline
-    else if inside panes.graph then Some Workspace.Graph
-    else if inside panes.inspector then Some Workspace.Inspector
-    else if inside panes.view || inside panes.status then Some Workspace.View
-    else None
-
   (* Leader actions owned by the workspace; the environment handles the rest
      from [update.actions]. *)
   let apply_action (frame : Frame.t) (workspace, graph_view, timeline, changes) action =
@@ -542,11 +531,9 @@ module Core = struct
 
   let update value ~all_ui_visible ~text_focus ~camera_panel ~render_status
       ~view_state (frame : Frame.t) =
-    let panes = Workspace.geometry value.workspace frame in
-    let focus = List.fold_left (fun focus -> function
-      | Event.MousePressed (_, point) when all_ui_visible ->
-          Option.value ~default:focus (pane_at panes point)
-      | _ -> focus) value.focus frame.events in
+    (* ponytail: scoped keys batched with a pane press use prior focus; move
+       routing into the PXUI frame when same-frame click/key input matters. *)
+    let focus = value.focus in
     let keymap = if all_ui_visible
         && not (Workspace.collapsed value.workspace Workspace.Graph)
       then value.keymap else List.filter (fun binding ->
@@ -585,13 +572,26 @@ module Core = struct
     let build ui =
       let workspace = Workspace.update workspace ui shortcut_frame in
       let panes = Workspace.geometry workspace frame in
+      let root column bounds =
+        column, Pxui_shell.Chrome.pane_root ui frame ~bounds
+          ("workspace-pane-" ^ Leader.pane_name column) in
+      let vx, vy, vw, _ = panes.view in
+      let _, sy, _, sh = panes.status in
+      let view, view_root = root Workspace.View (vx, vy, vw, sy + sh - vy) in
+      let graph, graph_root = root Workspace.Graph panes.graph in
+      let inspector_column, inspector_root =
+        root Workspace.Inspector panes.inspector in
+      let timeline_column, timeline_root =
+        root Workspace.Timeline panes.timeline in
       let gx, gy, gw, gh = panes.graph in
       let graph_view = graph_view
         |> Pxui_graph.with_bounds ~x:gx ~y:gy ~width:(max 1 gw) ~height:(max 1 gh)
         |> Pxui_graph.with_visible
              (not (Workspace.collapsed workspace Workspace.Graph)) in
       let graph_view, graph_changes = if Pxui_graph.visible graph_view
-        then Pxui_graph.update graph_view ui shortcut_frame else graph_view, [] in
+        then Pxui.Ui.within ui graph_root (fun () ->
+          Pxui_graph.update graph_view ui shortcut_frame)
+        else graph_view, [] in
       let graph_changes = command_changes @ graph_changes in
       let frame_request = List.fold_left (fun request -> function
         | Pxui_graph.Frame_camera_requested id -> Some id
@@ -603,7 +603,8 @@ module Core = struct
       let inspector_visible = not (Workspace.collapsed workspace Workspace.Inspector) in
       let selected = Option.bind (Pxui_graph.selected graph_view)
           (fun node_id -> Edit_graph.find document ~node_id) in
-      let panel, inspector, document, parameter_effects, edit_error = match selected with
+      let panel, inspector, document, parameter_effects, edit_error =
+        Pxui.Ui.within ui inspector_root (fun () -> match selected with
         | None ->
             let panel = if inspector_visible then
               Some (inspector_panel ui panes.inspector camera_panel) else None in
@@ -625,19 +626,29 @@ module Core = struct
                 (match Edit_graph.replace_node edited document with
                  | Error message -> None, Some inspector, document, Parameter.no_effects,
                      Some message
-                 | Ok document -> None, Some inspector, document, effects, edit_error) in
+                 | Ok document -> None, Some inspector, document, effects, edit_error)) in
       let timeline_intents = if Workspace.collapsed workspace Workspace.Timeline
-        then [] else Pxui_shell.Timeline_bar.draw ui ~bounds:panes.timeline
-          ~playing:(Sketch_support.Timeline.mode timeline = Sketch_support.Timeline.Playing)
-          ~frame:(Sketch_support.Timeline.frame timeline)
-          ~time:(Sketch_support.Timeline.time timeline)
-          ~max_frame:value.timeline_frames in
+        then [] else Pxui.Ui.within ui timeline_root (fun () ->
+          Pxui_shell.Timeline_bar.draw ui ~bounds:panes.timeline
+            ~playing:(Sketch_support.Timeline.mode timeline = Sketch_support.Timeline.Playing)
+            ~frame:(Sketch_support.Timeline.frame timeline)
+            ~time:(Sketch_support.Timeline.time timeline)
+            ~max_frame:value.timeline_frames) in
+      Pxui.Ui.within ui view_root (fun () ->
+        status_box { value with workspace; status_fps } ui frame ~render_status);
+      let focus = List.fold_left (fun (latest, focus) (column, box) ->
+        match (Pxui.Ui.signal ui box).subtree_press with
+        | Some index when index >= latest -> index, column
+        | _ -> latest, focus) (-1, focus)
+        [view, view_root; graph, graph_root;
+         inspector_column, inspector_root; timeline_column, timeline_root]
+        |> snd in
       (* The focused pane's accent outline. *)
       let bounds = match focus with
         | Workspace.View -> panes.view | Graph -> panes.graph
         | Inspector -> panes.inspector | Timeline -> panes.timeline in
       Pxui_shell.Chrome.focus ui ~bounds;
-      { workspace; graph_view; document; edit_error; inspector;
+      { workspace; focus; graph_view; document; edit_error; inspector;
         effects = Parameter.union_effects editor_effects parameter_effects;
         timeline_intents; frame_request; prompt = None; prompt_intent = None;
         panel } in
@@ -687,14 +698,11 @@ module Core = struct
         ~visible:all_ui_visible ~overlay:leader_panel
         ~body:(fun ui ->
           let result = build ui in
-          status_box { value with workspace = result.workspace;
-              status_fps } ui frame
-            ~render_status;
           let prompt, prompt_intent = prompt_panel ui initial_prompt in
           { result with prompt; prompt_intent }) with
       | Some result -> result
       | None ->
-        { workspace; graph_view; document = value.document;
+        { workspace; focus; graph_view; document = value.document;
           edit_error = value.edit_error; inspector = value.inspector;
           effects = Parameter.no_effects; timeline_intents = [];
           frame_request = initial_frame_request; prompt = initial_prompt;
@@ -771,7 +779,7 @@ module Core = struct
         displayed_graph = cooked.displayed_graph; document; graph_view; displayed_id;
         inspector; workspace = result.workspace; timeline; cook = cooked.cook;
         edit_error = cooked.edit_error;
-        status_fps; status_fps_at; history; focus; leader; prompt;
+        status_fps; status_fps_at; history; focus = result.focus; leader; prompt;
         notice = if document_changed && Option.is_none loaded then None else notice };
       effects; prepared_changed = cooked.prepared_changed;
       framed = cooked.framed;

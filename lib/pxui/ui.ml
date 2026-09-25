@@ -211,7 +211,8 @@ and ui = {
   signals : accumulator Int_table.t;
   (* previous frame's hit list, in paint order *)
   mutable hit_count : int;
-  mutable hit_keys : int array; mutable hit_flags_of : int array;
+  mutable hit_keys : int array; mutable hit_parent : int array;
+  mutable hit_flags_of : int array;
   mutable hit_x : float array; mutable hit_y : float array;
   mutable hit_w : float array; mutable hit_h : float array;
   (* output *)
@@ -224,6 +225,7 @@ and ui = {
 
 and accumulator = {
   mutable pressed : bool;
+  mutable subtree_press : int option;
   mutable released : bool;
   mutable clicked : bool;
   mutable double_clicked : bool;
@@ -437,7 +439,7 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     requested_cursor = None;
     frame_events = []; view_w = 0.; view_h = 0.; modal_heights = Hashtbl.create 4;
     signals = Int_table.create 16;
-    hit_count = 0; hit_keys = [||]; hit_flags_of = [||];
+    hit_count = 0; hit_keys = [||]; hit_parent = [||]; hit_flags_of = [||];
     hit_x = [||]; hit_y = [||]; hit_w = [||]; hit_h = [||];
     batch_builder = Batch.Builder.create ~capacity:1024 ();
     regions = []; scene = []; atlas = create_atlas (); destroyed = false }
@@ -519,7 +521,8 @@ let accumulator ui key =
   match Int_table.find_opt ui.signals key with
   | Some value -> value
   | None ->
-      let value = { pressed = false; released = false; clicked = false;
+      let value = { pressed = false; subtree_press = None;
+        released = false; clicked = false;
         double_clicked = false; moved = false; drag_x = 0.; drag_y = 0.;
         press_point = (0., 0.); release_point = (0., 0.); button = None;
         scroll_x = 0.; scroll_y_steps = 0.; keys = [] } in
@@ -566,7 +569,7 @@ let route ui (frame : Frame.t) =
   ui.shift_down <- List.mem Input.Shift frame.keys;
   ui.view_w <- float frame.width; ui.view_h <- float frame.height;
   let set_pointer point = ui.pointer <- point in
-  List.iter (fun (event : Event.t) -> match event with
+  List.iteri (fun event_index (event : Event.t) -> match event with
     | Event.MouseMoved point ->
         let px, py = ui.pointer in
         set_pointer point;
@@ -582,6 +585,13 @@ let route ui (frame : Frame.t) =
     | Event.MousePressed (button, point) ->
         set_pointer point;
         let target = topmost ui ui.pointer in
+        let rec mark key =
+          if key <> 0 then begin
+            (accumulator ui key).subtree_press <- Some event_index;
+            let index = hit_index ui key in
+            if index >= 0 then mark ui.hit_parent.(index)
+          end in
+        mark target;
         let flags = flags_of_key ui target in
         if button = Input.LeftButton then begin
           let focus = if flags land focusable <> 0 then target else 0 in
@@ -776,6 +786,7 @@ let hit_rect ui box = ui.hx.(box.box_slot), ui.hy.(box.box_slot),
 type signal = {
   hovered : bool;
   pressed : bool;
+  subtree_press : int option;
   held : bool;
   released : bool;
   clicked : bool;
@@ -795,7 +806,8 @@ let signal ui box =
   let held = ui.active = key in
   match Int_table.find_opt ui.signals key with
   | None ->
-      { hovered = ui.hot = key; pressed = false; held; released = false;
+      { hovered = ui.hot = key; pressed = false; subtree_press = None;
+        held; released = false;
         clicked = false; double_clicked = false; dragging = false;
         drag = (0., 0.); pointer = ui.pointer;
         press_point = (if held then ui.active_press
@@ -804,7 +816,8 @@ let signal ui box =
         button = (if held then Some ui.active_button else None);
         scroll = (0., 0.); keys = [] }
   | Some value ->
-      { hovered = ui.hot = key; pressed = value.pressed; held;
+      { hovered = ui.hot = key; pressed = value.pressed;
+        subtree_press = value.subtree_press; held;
         released = value.released; clicked = value.clicked;
         double_clicked = value.double_clicked;
         dragging = value.moved && (held || value.released);
@@ -1141,16 +1154,18 @@ module Paint = struct
         :: paint.owner.regions
 end
 
-let record_hit ui index (x, y, w, h) =
+let record_hit ui index parent (x, y, w, h) =
   let position = ui.hit_count in
   if position >= Array.length ui.hit_keys then begin
     let size = max 64 (2 * Array.length ui.hit_keys) in
     ui.hit_keys <- grow ui.hit_keys size 0;
+    ui.hit_parent <- grow ui.hit_parent size 0;
     ui.hit_flags_of <- grow ui.hit_flags_of size 0;
     ui.hit_x <- grow_float ui.hit_x size 0.; ui.hit_y <- grow_float ui.hit_y size 0.;
     ui.hit_w <- grow_float ui.hit_w size 0.; ui.hit_h <- grow_float ui.hit_h size 0.
   end;
   ui.hit_keys.(position) <- ui.b_key.(index);
+  ui.hit_parent.(position) <- parent;
   ui.hit_flags_of.(position) <- ui.b_flags.(index);
   ui.hit_x.(position) <- x; ui.hit_y.(position) <- y;
   ui.hit_w.(position) <- w; ui.hit_h.(position) <- h;
@@ -1170,7 +1185,7 @@ let paint_all ui (frame : Frame.t) =
       let local = ui.l_x.(index), ui.l_y.(index), ui.l_w.(index), ui.l_h.(index) in
       List.iter (fun painter -> painter paint local) (List.rev painters)
     end in
-  let rec visit index clip_rect =
+  let rec visit index clip_rect parent_hit =
     let screen_rect = screen ui index in
     let slot = ui.b_slot.(index) in
     let x, y, w, h = screen_rect in
@@ -1188,8 +1203,8 @@ let paint_all ui (frame : Frame.t) =
     ui.hx.(slot) <- hx; ui.hy.(slot) <- hy; ui.hw.(slot) <- hw; ui.hh.(slot) <- hh;
     let visible = let _, _, vw, vh = intersect screen_rect clip_rect in
       vw > 0. && vh > 0. in
-    if ui.b_flags.(index) land hit_flags <> 0 && hw > 0. && hh > 0. then
-      record_hit ui index clipped_hit;
+    let has_hit = ui.b_flags.(index) land hit_flags <> 0 && hw > 0. && hh > 0. in
+    if has_hit then record_hit ui index parent_hit clipped_hit;
     if visible || ui.b_xform.(index) <> None then begin
       run ui.b_painters.(index) index clip_rect;
       let child_clip = if ui.b_flags.(index) land clip <> 0 then
@@ -1197,7 +1212,8 @@ let paint_all ui (frame : Frame.t) =
           intersect clip_rect (x +. padding, y +. padding,
             Float.max 0. (w -. (2. *. padding)), Float.max 0. (h -. (2. *. padding)))
         else clip_rect in
-      children ui index (fun child -> visit child child_clip);
+      let parent_hit = if has_hit then ui.b_key.(index) else parent_hit in
+      children ui index (fun child -> visit child child_clip parent_hit);
       run ui.b_overlays.(index) index clip_rect
     end else
       (* Culled: keep retained rectangles current for [rect] queries. *)
@@ -1208,7 +1224,7 @@ let paint_all ui (frame : Frame.t) =
         ui.hw.(slot) <- 0.; ui.hh.(slot) <- 0.;
         retain child) in
       retain index in
-  visit 0 paint.clip_rect;
+  visit 0 paint.clip_rect 0;
   Batch.Builder.publish builder
 
 (* -------------------------------------------------------------- frame *)

@@ -127,6 +127,8 @@ val hit_rect : t -> box -> float * float * float * float
 type signal = {
   hovered : bool;  (** topmost box under the pointer, or captured *)
   pressed : bool;  (** a press on this box began this frame *)
+  subtree_press : int option;
+  (** Ordinal of the last press on this box or any hit descendant this frame. *)
   held : bool;  (** holds pointer capture after this frame's events *)
   released : bool;  (** capture ended this frame *)
   clicked : bool;  (** left press and release both inside the hit rect *)

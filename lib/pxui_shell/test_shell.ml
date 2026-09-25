@@ -37,6 +37,24 @@ let status_instances height =
       | _ -> total) 0 staged.layers
 
 let () =
+  let ui = Pxui.Ui.create () in
+  let pane events = Pxui.Ui.frame ui { frame with events } (fun ui ->
+    let root = Pxui_shell.Chrome.pane_root ui frame
+      ~bounds:(100, 20, 100, 80) "pane" in
+    let child = Pxui.Ui.within ui root (fun () ->
+      Pxui.Ui.box ui ~flags:Pxui.Ui.clickable
+        ~w:(Pxui.Ui.Px 20.) ~h:(Pxui.Ui.Px 20.)
+        ~at:(110., 30.) "child") in
+    Pxui.Ui.signal ui root, Pxui.Ui.signal ui child) in
+  ignore (pane []);
+  let root, child = pane [Event.MousePressed (Input.LeftButton, (115., 35.))] in
+  if root.subtree_press <> Some 0 || not child.pressed then
+    failwith "pane root missed its child control press";
+  let root, _ = pane [Event.MouseReleased (Input.LeftButton, (115., 35.));
+    Event.MousePressed (Input.LeftButton, (5., 5.))] in
+  if root.subtree_press <> None then
+    failwith "pane root accepted a press outside its hit bounds";
+  Pxui.Ui.destroy ui;
   let layout = Pxui_shell.Layout.create Pxui_shell.Layout.default in
   let panes = Pxui_shell.Layout.geometry layout { frame with width = 1000;
     size = 1000, 300; drawable_width = 1000; drawable_size = 1000, 300 } in
