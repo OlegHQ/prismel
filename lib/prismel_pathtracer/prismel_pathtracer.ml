@@ -565,9 +565,7 @@ let put_f32 bytes offset value = Bytes.set_int32_le bytes offset (Int32.bits_of_
 let put_u32 bytes offset value = Bytes.set_int32_le bytes offset (Int32.of_int value)
 
 let add_f32 builder value =
-  let bytes = Bytes.create 4 in
-  put_f32 bytes 0 value;
-  Stdlib.Buffer.add_bytes builder bytes
+  Stdlib.Buffer.add_int32_le builder (Int32.bits_of_float value)
 
 let add_vec3 builder (x, y, z) = add_f32 builder x; add_f32 builder y; add_f32 builder z
 let add_float4 builder (x, y, z) w = add_vec3 builder (x, y, z); add_f32 builder w

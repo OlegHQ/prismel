@@ -15,6 +15,17 @@ let () =
   Printf.printf "%d instances  %d triangles  %.1f ms  %.0f minor words  %.0f major words\n%!"
     (Array.length transforms) (P.triangle_count mesh) elapsed
     (after.minor_words -. before.minor_words) (after.major_words -. before.major_words);
+  if Array.length Sys.argv > 1 && Sys.argv.(1) = "--flat" then begin
+    let objects = Array.to_list (Array.map (fun matrix ->
+      Pdk.Ops.transform matrix cube, P.material (0.4, 0.4, 0.4)) transforms) in
+    let before = Gc.quick_stat () and start = Unix.gettimeofday () in
+    let flat = match P.mesh objects with Ok value -> value | Error error -> failwith error in
+    let elapsed = (Unix.gettimeofday () -. start) *. 1000. in
+    let after = Gc.quick_stat () in
+    Printf.printf "flat: %d triangles  %.1f ms  %.0f minor words  %.0f major words\n%!"
+      (P.triangle_count flat) elapsed
+      (after.minor_words -. before.minor_words) (after.major_words -. before.major_words)
+  end;
   if Array.length Sys.argv > 1 && Sys.argv.(1) = "--gpu" then begin
     let scene = { P.objects = [cube, P.material (0.4, 0.4, 0.4)]
       ; environment = { sky = (0., 0., 0.); ground = (0., 0., 0.); panels = [] }
