@@ -131,16 +131,6 @@ type edge_bound = {
   max_y : float;
 }
 
-type edge_delta_tree =
-  | Edge_delta_empty
-  | Edge_delta_branch of {
-      bound : edge_bound;
-      priority : int;
-      subtree_max_x : float;
-      left : edge_delta_tree;
-      right : edge_delta_tree;
-    }
-
 type edge_bvh = {
   min_x : float array;
   min_y : float array;
@@ -183,10 +173,6 @@ type t = {
   positions : (float * float) Id_map.t;
   moved_nodes : Id_set.t;
   moved_cells : Id_set.t Cell_map.t;
-  moved_edges : Id_set.t;
-  edge_delta_bounds : edge_bound array Id_map.t;
-  edge_delta_tree : edge_delta_tree;
-  edge_delta_entries : int;
   spatial : spatial_index;
   selected : Id_set.t;
   primary : int option;
@@ -306,127 +292,29 @@ let wire_distance_squared px py x0 y0 x3 y3 segment_distance_squared =
   done;
   !best
 
-let edge_bound_compare (left : edge_bound) (right : edge_bound) =
-  let order = Float.compare left.min_x right.min_x in
-  if order <> 0 then order else
-  let order = Int.compare left.edge_id right.edge_id in
-  if order <> 0 then order else Int.compare left.segment right.segment
+let stored_box_position positions (box : box) =
+  Option.value (Id_map.find_opt box.info.Edit_graph.id positions)
+    ~default:(box.gx, box.gy)
 
-let edge_delta_max_x = function
-  | Edge_delta_empty -> Float.neg_infinity
-  | Edge_delta_branch node -> node.subtree_max_x
-
-let edge_delta_branch (bound : edge_bound) priority left right =
-  Edge_delta_branch { bound; priority; left; right;
-    subtree_max_x = max bound.max_x
-      (max (edge_delta_max_x left) (edge_delta_max_x right)) }
-
-let edge_delta_priority (bound : edge_bound) =
-  let value = Int64.logxor (Int64.shift_left (Int64.of_int bound.edge_id) 4)
-      (Int64.of_int bound.segment) in
-  let value = Int64.mul (Int64.logxor value (Int64.shift_right_logical value 30))
-      0xbf58476d1ce4e5b9L in
-  let value = Int64.mul (Int64.logxor value (Int64.shift_right_logical value 27))
-      0x94d049bb133111ebL in
-  Int64.to_int (Int64.logand
-      (Int64.logxor value (Int64.shift_right_logical value 31)) 0x3fff_ffffL)
-
-let rec edge_delta_insert (bound : edge_bound) = function
-  | Edge_delta_empty -> edge_delta_branch bound
-      (edge_delta_priority bound) Edge_delta_empty Edge_delta_empty
-  | Edge_delta_branch node ->
-      let order = edge_bound_compare bound node.bound in
-      if order = 0 then edge_delta_branch bound node.priority node.left node.right
-      else if order < 0 then
-        let left = edge_delta_insert bound node.left in
-        (match left with
-         | Edge_delta_branch child when child.priority < node.priority ->
-             edge_delta_branch child.bound child.priority child.left
-               (edge_delta_branch node.bound node.priority child.right node.right)
-         | Edge_delta_empty | Edge_delta_branch _ ->
-             edge_delta_branch node.bound node.priority left node.right)
-      else
-        let right = edge_delta_insert bound node.right in
-        (match right with
-         | Edge_delta_branch child when child.priority < node.priority ->
-             edge_delta_branch child.bound child.priority
-               (edge_delta_branch node.bound node.priority node.left child.left)
-               child.right
-         | Edge_delta_empty | Edge_delta_branch _ ->
-             edge_delta_branch node.bound node.priority node.left right)
-
-let rec edge_delta_merge left right = match left, right with
-  | Edge_delta_empty, tree | tree, Edge_delta_empty -> tree
-  | Edge_delta_branch left_node, Edge_delta_branch right_node ->
-      if left_node.priority < right_node.priority then
-        edge_delta_branch left_node.bound left_node.priority left_node.left
-          (edge_delta_merge left_node.right right)
-      else edge_delta_branch right_node.bound right_node.priority
-          (edge_delta_merge left right_node.left) right_node.right
-
-let rec edge_delta_remove (bound : edge_bound) = function
-  | Edge_delta_empty -> Edge_delta_empty
-  | Edge_delta_branch node as tree ->
-      let order = edge_bound_compare bound node.bound in
-      if order = 0 then edge_delta_merge node.left node.right
-      else if order < 0 then
-        let left = edge_delta_remove bound node.left in
-        if left == node.left then tree
-        else edge_delta_branch node.bound node.priority left node.right
-      else
-        let right = edge_delta_remove bound node.right in
-        if right == node.right then tree
-        else edge_delta_branch node.bound node.priority node.left right
-
-let rec iter_edge_delta tree min_x min_y max_x max_y visit = match tree with
-  | Edge_delta_empty -> ()
-  | Edge_delta_branch node ->
-      if edge_delta_max_x node.left >= min_x then
-        iter_edge_delta node.left min_x min_y max_x max_y visit;
-      if node.bound.min_x <= max_x && min_x <= node.bound.max_x
-          && node.bound.min_y <= max_y && min_y <= node.bound.max_y then
-        visit node.bound.edge_id node.bound.segment;
-      if node.bound.min_x <= max_x then
-        iter_edge_delta node.right min_x min_y max_x max_y visit
-
-let build_spatial_index boxes edges =
-  let pending = Hashtbl.create (max 16 (Array.length boxes * 2)) in
-  Array.iteri (fun index (box : box) ->
-    ignore (fold_box_cells box box.gx box.gy () (fun () key ->
-      Hashtbl.replace pending key
-        (index :: Option.value (Hashtbl.find_opt pending key) ~default:[]))))
-    boxes;
-  let cells = Hashtbl.create (Hashtbl.length pending) in
-  let max_candidates = ref 0 in
-  Hashtbl.iter (fun key reversed ->
-    let candidates = Array.of_list (List.rev reversed) in
-    max_candidates := max !max_candidates (Array.length candidates);
-    Hashtbl.add cells key candidates) pending;
+let build_edge_index boxes edges positions =
   let edge_x0 = Array.make (Array.length edges) 0.
   and edge_y0 = Array.make (Array.length edges) 0.
   and edge_x3 = Array.make (Array.length edges) 0.
   and edge_y3 = Array.make (Array.length edges) 0. in
-  let pending_incident = Array.make (Array.length boxes) [] in
-  Array.iteri (fun index edge ->
-    pending_incident.(edge.source_index) <-
-      index :: pending_incident.(edge.source_index);
-    if edge.consumer_index <> edge.source_index then
-      pending_incident.(edge.consumer_index) <-
-        index :: pending_incident.(edge.consumer_index)) edges;
-  let incident_edges = Array.map (fun reversed ->
-    Array.of_list (List.rev reversed)) pending_incident in
   let edge_bounds = Array.make (Array.length edges * edge_bvh_segments)
       { edge_id = 0; segment = 0; min_x = 0.; min_y = 0.; max_x = 0.;
         max_y = 0. } in
   Array.iteri (fun index edge ->
     let source = boxes.(edge.source_index)
     and consumer = boxes.(edge.consumer_index) in
-    let from_x = source.gx +. (float_of_int source.width /. 2.)
-    and from_y = source.gy +. float_of_int source.height
-    and to_x = consumer.gx +.
+    let source_x, source_y = stored_box_position positions source
+    and consumer_x, consumer_y = stored_box_position positions consumer in
+    let from_x = source_x +. (float_of_int source.width /. 2.)
+    and from_y = source_y +. float_of_int source.height
+    and to_x = consumer_x +.
       (float_of_int (consumer.width * (edge.connection.input_index + 1)) /.
        float_of_int (edge.input_count + 1))
-    and to_y = consumer.gy in
+    and to_y = consumer_y in
     Array.unsafe_set edge_x0 index from_x;
     Array.unsafe_set edge_y0 index from_y;
     Array.unsafe_set edge_x3 index to_x;
@@ -484,6 +372,32 @@ let build_spatial_index boxes edges =
   let edge_bvh = { min_x = bvh_min_x; min_y = bvh_min_y;
     max_x = bvh_max_x; max_y = bvh_max_y; left = bvh_left;
     right = bvh_right; edge_id = bvh_edge_id; segment = bvh_segment; root } in
+  edge_bvh, edge_x0, edge_y0, edge_x3, edge_y3
+
+let build_spatial_index boxes edges =
+  let pending = Hashtbl.create (max 16 (Array.length boxes * 2)) in
+  Array.iteri (fun index (box : box) ->
+    ignore (fold_box_cells box box.gx box.gy () (fun () key ->
+      Hashtbl.replace pending key
+        (index :: Option.value (Hashtbl.find_opt pending key) ~default:[]))))
+    boxes;
+  let cells = Hashtbl.create (Hashtbl.length pending) in
+  let max_candidates = ref 0 in
+  Hashtbl.iter (fun key reversed ->
+    let candidates = Array.of_list (List.rev reversed) in
+    max_candidates := max !max_candidates (Array.length candidates);
+    Hashtbl.add cells key candidates) pending;
+  let pending_incident = Array.make (Array.length boxes) [] in
+  Array.iteri (fun index edge ->
+    pending_incident.(edge.source_index) <-
+      index :: pending_incident.(edge.source_index);
+    if edge.consumer_index <> edge.source_index then
+      pending_incident.(edge.consumer_index) <-
+        index :: pending_incident.(edge.consumer_index)) edges;
+  let incident_edges = Array.map (fun reversed ->
+    Array.of_list (List.rev reversed)) pending_incident in
+  let edge_bvh, edge_x0, edge_y0, edge_x3, edge_y3 =
+    build_edge_index boxes edges Id_map.empty in
   { cells; edge_bvh; cell_size = spatial_cell_size;
     max_candidates = !max_candidates;
     max_edge_candidates = 1;
@@ -600,8 +514,6 @@ let create_document ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360)
   { source_graph = None; document; boxes; edges; slots;
     positions = Id_map.empty; moved_nodes = Id_set.empty;
     moved_cells = Cell_map.empty;
-    moved_edges = Id_set.empty; edge_delta_bounds = Id_map.empty;
-    edge_delta_tree = Edge_delta_empty; edge_delta_entries = 0;
     spatial = build_spatial_index boxes edges; selected; primary;
     selected_edge = None; viewed; flagged = None; flaggable; x; y; width; height;
     pan_x = float_of_int (width / 2); pan_y = 18.; zoom = 1.; drag = None;
@@ -657,8 +569,6 @@ let with_document document value =
     { value with source_graph = None; document; boxes; edges; slots;
       positions = Id_map.empty; moved_nodes = Id_set.empty;
       moved_cells = Cell_map.empty;
-      moved_edges = Id_set.empty; edge_delta_bounds = Id_map.empty;
-      edge_delta_tree = Edge_delta_empty; edge_delta_entries = 0;
       spatial = build_spatial_index boxes edges;
       selected; primary;
       selected_edge; viewed }
@@ -729,8 +639,6 @@ let place_node ~node_id ~x ~y value =
   { value with boxes; edges;
     positions = Id_map.empty; moved_nodes = Id_set.empty;
     moved_cells = Cell_map.empty;
-    moved_edges = Id_set.empty; edge_delta_bounds = Id_map.empty;
-    edge_delta_tree = Edge_delta_empty; edge_delta_entries = 0;
     spatial = build_spatial_index boxes edges }
 
 let screen_x value gx = value.x + int_of_float (value.pan_x +. (gx *. value.zoom))
@@ -738,10 +646,6 @@ let screen_y value gy = value.y + int_of_float (value.pan_y +. (gy *. value.zoom
 let screen_size value size = max 1 (int_of_float (float_of_int size *. value.zoom))
 let graph_x value x = (float_of_int (x - value.x) -. value.pan_x) /. value.zoom
 let graph_y value y = (float_of_int (y - value.y) -. value.pan_y) /. value.zoom
-
-let stored_box_position positions (box : box) =
-  Option.value (Id_map.find_opt box.info.Edit_graph.id positions)
-    ~default:(box.gx, box.gy)
 
 let box_graph_position (value : t) (box : box) =
   let gx, gy = stored_box_position value.positions box in
@@ -928,43 +832,23 @@ let segment_distance_squared px py ax ay bx by =
   let ex = px -. x and ey = py -. y in
   (ex *. ex) +. (ey *. ey)
 
-let edge_graph_points_from_positions value positions edge =
-  let source = value.boxes.(edge.source_index)
-  and consumer = value.boxes.(edge.consumer_index) in
-  let source_x, source_y = stored_box_position positions source
-  and consumer_x, consumer_y = stored_box_position positions consumer in
-  source_x +. (float_of_int source.width /. 2.),
-  source_y +. float_of_int source.height,
-  consumer_x +.
-    (float_of_int (consumer.width * (edge.connection.input_index + 1)) /.
-     float_of_int (edge.input_count + 1)),
-  consumer_y
-
-let edge_graph_points value edge =
-  edge_graph_points_from_positions value value.positions edge
-
 let hit_edge value (px, py) =
   let graph_px = graph_x value px and graph_py = graph_y value py in
   let threshold = 9. /. value.zoom
   and best = ref None and best_distance = ref Float.infinity in
   let visit index _segment =
-    let x0, y0, x3, y3 = if Id_set.mem index value.moved_edges
-      then edge_graph_points value value.edges.(index)
-      else Array.unsafe_get value.spatial.edge_x0 index,
-        Array.unsafe_get value.spatial.edge_y0 index,
-        Array.unsafe_get value.spatial.edge_x3 index,
-        Array.unsafe_get value.spatial.edge_y3 index in
+    let x0, y0, x3, y3 =
+      Array.unsafe_get value.spatial.edge_x0 index,
+      Array.unsafe_get value.spatial.edge_y0 index,
+      Array.unsafe_get value.spatial.edge_x3 index,
+      Array.unsafe_get value.spatial.edge_y3 index in
     let distance = wire_distance_squared graph_px graph_py x0 y0 x3 y3
         segment_distance_squared in
     if distance < !best_distance then begin
       best_distance := distance;
       best := Some index
     end in
-  iter_spatial_edge_candidates value (px, py) (fun index segment ->
-    if not (Id_set.mem index value.moved_edges) then visit index segment);
-  iter_edge_delta value.edge_delta_tree (graph_px -. threshold)
-    (graph_py -. threshold) (graph_px +. threshold) (graph_py +. threshold)
-    visit;
+  iter_spatial_edge_candidates value (px, py) visit;
   if !best_distance <= threshold *. threshold then !best else None
 
 let pan value dx dy =
@@ -988,13 +872,12 @@ let move_nodes value node indices edge_indices (dx, dy) offset_x offset_y =
       offset_x = offset_x +. (dx /. value.zoom);
       offset_y = offset_y +. (dy /. value.zoom) }) }
 
-let commit_node_move value indices edge_indices offset_x offset_y =
+let commit_node_move value indices offset_x offset_y =
+  if offset_x = 0. && offset_y = 0. then { value with drag = None } else
   let positions, moved_nodes, moved_cells = Array.fold_left
       (fun (positions, moved_nodes, moved_cells) index ->
     let box = Array.unsafe_get value.boxes index in
-    let gx, gy = Option.value
-        (Id_map.find_opt box.info.Edit_graph.id positions)
-        ~default:(box.gx, box.gy) in
+    let gx, gy = stored_box_position positions box in
     let moved_cells = if Id_set.mem index moved_nodes then
         fold_box_cells box gx gy moved_cells (fun cells key ->
           match Cell_map.find_opt key cells with
@@ -1013,26 +896,18 @@ let commit_node_move value indices edge_indices offset_x offset_y =
     Id_map.add box.info.Edit_graph.id (next_x, next_y) positions,
     Id_set.add index moved_nodes, moved_cells)
       (value.positions, value.moved_nodes, value.moved_cells) indices in
-  let moved_edges = Array.fold_left (fun moved index ->
-    Id_set.add index moved) value.moved_edges edge_indices in
-  let edge_delta_bounds, edge_delta_tree, edge_delta_entries = Array.fold_left
-      (fun (all_bounds, tree, entries) index ->
-    let tree = match Id_map.find_opt index all_bounds with
-      | None -> tree
-      | Some previous -> Array.fold_left (fun tree bound ->
-          edge_delta_remove bound tree) tree previous in
-    let x0, y0, x3, y3 = edge_graph_points_from_positions value positions
-        value.edges.(index) in
-    let bounds = make_edge_bounds index x0 y0 x3 y3 in
-    let tree = Array.fold_left (fun tree bound ->
-      edge_delta_insert bound tree) tree bounds in
-    let entries = if Id_map.mem index all_bounds then entries
-      else entries + Array.length bounds in
-    Id_map.add index bounds all_bounds, tree, entries)
-      (value.edge_delta_bounds, value.edge_delta_tree,
-       value.edge_delta_entries) edge_indices in
-  { value with positions; moved_nodes; moved_cells; moved_edges;
-    edge_delta_bounds; edge_delta_tree; edge_delta_entries; drag = None }
+  (* ponytail: full edge rebuild costs ~11 ms/14 MB for 20k wires on M1;
+     refit affected BVH leaves if release latency exceeds the frame budget. *)
+  let edge_bvh, edge_x0, edge_y0, edge_x3, edge_y3 =
+    build_edge_index value.boxes value.edges positions in
+  let spatial = { value.spatial with edge_bvh; edge_x0; edge_y0; edge_x3;
+    edge_y3; marks = Array.make (Array.length value.boxes) 0;
+    edge_marks = Array.make (Array.length value.edges) 0;
+    mark_generation = 0; visible_length = 0; visible_edge_length = 0;
+    visible = Array.make (Array.length value.spatial.visible) 0;
+    visible_edges = Array.make (Array.length value.spatial.visible_edges) 0;
+    edge_stack = Array.make 64 0 } in
+  { value with positions; moved_nodes; moved_cells; spatial; drag = None }
 
 let zoom_at value (mouse_x, mouse_y) delta =
   let old_zoom = value.zoom in
@@ -1356,12 +1231,7 @@ let visible_node_indices (value : t) viewport =
     end in
   iter_edge_bvh spatial (min graph_left graph_right) (min graph_top graph_bottom)
     (max graph_left graph_right) (max graph_top graph_bottom)
-    (fun candidate _segment ->
-      if not (Id_set.mem candidate value.moved_edges) then visit_edge candidate);
-  iter_edge_delta value.edge_delta_tree (min graph_left graph_right)
-    (min graph_top graph_bottom) (max graph_left graph_right)
-    (max graph_top graph_bottom) (fun candidate _segment ->
-      visit_edge candidate);
+    (fun candidate _segment -> visit_edge candidate);
   (match value.drag with
    | Some (Move_nodes { edge_indices; _ }) -> Array.iter visit_edge edge_indices
    | Some (Box_select _ | Connect_wire _) | None -> ());
@@ -1378,8 +1248,7 @@ let visibility (value : t) =
     visible_wires = visible_edge_length;
     spatial_cells = Hashtbl.length value.spatial.cells;
     max_spatial_candidates = value.spatial.max_candidates;
-    spatial_edge_cells = Array.length value.spatial.edge_bvh.edge_id
-      + value.edge_delta_entries;
+    spatial_edge_cells = Array.length value.spatial.edge_bvh.edge_id;
     max_spatial_edge_candidates = value.spatial.max_edge_candidates;
     overflow_spatial_edges = 0 }
 
@@ -1497,8 +1366,6 @@ let optimize_layout (value : t) =
   { value with boxes; edges;
     positions = Id_map.empty; moved_nodes = Id_set.empty;
     moved_cells = Cell_map.empty;
-    moved_edges = Id_set.empty; edge_delta_bounds = Id_map.empty;
-    edge_delta_tree = Edge_delta_empty; edge_delta_entries = 0;
     spatial = build_spatial_index boxes edges } |> frame_all
 
 let open_menu_at point value = open_menu value point
@@ -1785,7 +1652,7 @@ let update (value : t) ui (frame : Frame.t) =
                else if signal.released then
                  match value.drag with
                  | Some (Move_nodes moved) ->
-                     commit_node_move value moved.indices moved.edge_indices
+                     commit_node_move value moved.indices
                        moved.offset_x moved.offset_y
                  | _ -> value
                else if signal.held then value else { value with drag = None })
@@ -1851,20 +1718,9 @@ module Private = struct
     let generation = next_spatial_generation value.spatial in
     let count = ref 0 in
     iter_spatial_edge_candidates value point (fun index _segment ->
-      if not (Id_set.mem index value.moved_edges)
-          && Array.unsafe_get value.spatial.edge_marks index <> generation then begin
+      if Array.unsafe_get value.spatial.edge_marks index <> generation then begin
         Array.unsafe_set value.spatial.edge_marks index generation;
         incr count
       end);
-    let px, py = point in
-    let graph_x = graph_x value px and graph_y = graph_y value py in
-    let radius = 9. /. value.zoom in
-    iter_edge_delta value.edge_delta_tree (graph_x -. radius)
-      (graph_y -. radius) (graph_x +. radius) (graph_y +. radius)
-      (fun index _segment ->
-        if Array.unsafe_get value.spatial.edge_marks index <> generation then begin
-          Array.unsafe_set value.spatial.edge_marks index generation;
-          incr count
-        end);
     !count
 end
