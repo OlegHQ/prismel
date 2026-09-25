@@ -3,6 +3,10 @@ open Procedural
 
 let fail message = raise (Failure message)
 let check condition message = if not condition then fail message
+let edit_parameters graph ~node_id changes =
+  Result.bind (Edit_graph.apply_parameters (Edit_graph.of_graph graph)
+      ~node_id changes) (fun (document, effects) ->
+    Result.map (fun graph -> graph, effects) (Edit_graph.compile document))
 
 let cook session node = match Session.cook session
     ~context:(Context.create () |> Result.get_ok) node with
@@ -59,7 +63,7 @@ let run () =
                "axis_x"; "axis_y"; "axis_z"];
      fracture, ["resolve_cutter_self_intersections";
                 "detriangulation"; "require_closed"; "piece_attribute"]];
-  let changed_graph, effects = Graph.apply_parameters targets
+  let changed_graph, effects = edit_parameters targets
       ~node_id:(Node.id orient)
       ["location", (field custom_noise "location").current;
        "range", (field custom_noise "range").current] |> Result.get_ok in
@@ -94,7 +98,7 @@ let run () =
      "fracture"; "exploded-view"];
   let point_node = Graph.inspect graph
       |> List.find (fun info -> info.Graph.label = "points") in
-  let edited, effects = Graph.apply_parameters graph ~node_id:point_node.id
+  let edited, effects = edit_parameters graph ~node_id:point_node.id
       ["points", Parameter.Int_value 999] |> Result.get_ok in
   let edited_points = Graph.find edited ~node_id:point_node.id |> Option.get in
   let value = Node.parameter_fields edited_points
@@ -108,7 +112,7 @@ let run () =
       [cube; dodecahedron] in
   check (Node.operation switched = "switch" && Node.has_parameters switched)
     "catalog Switch is not the standard parameterized SOP switch";
-  let switched, switch_effects = Graph.apply_parameters switched
+  let switched, switch_effects = edit_parameters switched
       ~node_id:(Node.id switched)
       ["input", Parameter.Choice_value "1 · dodecahedron"]
       |> Result.get_ok in

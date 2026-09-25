@@ -59,15 +59,14 @@ persisted values; hard bounds normalize every write.
 
 `Node.parameterize` couples one schema, one immutable record, and the pure
 rebuild function to the concrete SOP node that owns them. `Node.parameter_fields`
-is the narrow type-erasure boundary used by inspectors. `Graph.apply_parameters`
-edits a selected node, preserves every logical node ID and shared DAG identity,
-and reconstructs only input paths that reference the edit. A `Cook` field
+is the narrow type-erasure boundary used by inspectors. `Edit_graph.apply_parameters`
+edits a selected node in the immutable document; compiling it preserves logical
+node IDs and shared DAG identity. A `Cook` field
 replaces that node's cook closure and cache-key parameters; `View` and `Export`
 fields update metadata without invalidating cooked geometry.
 
 SOPs and sketches attach schemas to individual nodes. There is no sketch-wide
-promoted record that shadows the graph; `Graph.apply_parameters` is the single
-editing authority.
+promoted record that shadows the graph; `Edit_graph` owns document edits.
 
 The runtime API is PPX-independent. Templates may be written directly with
 `Parameter.field` and `Parameter.schema`. The optional `prismel.ppx` deriver
@@ -108,8 +107,8 @@ behavior. `[@sop.kind expression]` supplies arbitrary typed choices, and
 `prismel.sop_ui` is a separate leaf library depending on both Procedural and
 PXUI. `Sop_ui.Node_inspector` converts the selected node's folders to nested
 accordions and kinds to native widgets; its update path applies changes through
-`Graph.apply_parameters`, synchronizes hard-bound normalization, and returns
-accumulated effects.
+`Node.apply_parameters`, synchronizes hard-bound normalization, and returns
+accumulated effects. The host applies that edit to `Edit_graph`.
 Procedural never imports PXUI, and PXUI never gains SOP knowledge. A schema
 builds an O(1) field-name lookup once; ordinary frames with no relevant change
 do no parameter synchronization or graph work.

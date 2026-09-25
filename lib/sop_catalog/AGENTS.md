@@ -26,7 +26,7 @@ parameter values, graph position, and deterministic input order.
 For SOP-backed inspectors, declare typed templates beside each operator with
 `Procedural.Parameter` (or `[@@deriving sop_params]`) and attach them to that
 node. Use `Procedural.Custom.node/create/map` for custom parameterized nodes,
-and `Sop_ui.Node_inspector` plus `Graph.apply_parameters` for selected-node
+and `Sop_ui.Node_inspector` plus `Edit_graph.apply_parameters` for selected-node
 editing. Do not recreate a sketch-wide shadow parameter record, copy
 names/defaults/ranges into hand-built widgets, or make `procedural` import
 PXUI.

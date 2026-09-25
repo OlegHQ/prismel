@@ -24,7 +24,7 @@
 selection lives in returned immutable UI state, topology in
 `Procedural.Edit_graph`, and this host applies typed editor commands before
 compiling a cookable DAG. Parameter edits replace the selected node in that
-same document (or use `Graph.apply_parameters` outside the editor).
+same document (or use `Node.apply_parameters` for a standalone node).
 
 ## Workspace UX
 

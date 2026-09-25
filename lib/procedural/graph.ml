@@ -94,41 +94,6 @@ let dependencies root =
     Context.Dependencies.union dependencies info.dependencies)
     Context.Dependencies.static
 
-let apply_parameters root ~node_id changes =
-  let memo = Hashtbl.create 32 and found = ref false
-  and effects = ref Parameter.no_effects in
-  let rec replace node =
-    match Hashtbl.find_opt memo (Node.id node) with
-    | Some replacement -> Ok replacement
-    | None ->
-        let original_inputs = Node.Private.input_array node in
-        let rec replace_inputs index changed =
-          if index = Array.length original_inputs then
-            Ok (if changed then
-              Node.Private.rebuild_with_inputs node original_inputs else node)
-          else
-            Result.bind (replace original_inputs.(index)) (fun replacement ->
-              let changed = changed || replacement != original_inputs.(index) in
-              original_inputs.(index) <- replacement;
-              replace_inputs (index + 1) changed)
-        in
-        Result.bind (replace_inputs 0 false) (fun node ->
-          let edited = if Node.id node <> node_id then Ok node
-            else begin
-              found := true;
-              Result.map (fun (node, node_effects) ->
-                effects := Parameter.union_effects !effects node_effects;
-                node) (Node.apply_parameters node changes)
-            end
-          in
-          Result.map (fun replacement ->
-            Hashtbl.add memo (Node.id node) replacement;
-            replacement) edited)
-  in
-  Result.bind (replace root) (fun root ->
-    if !found then Ok (root, !effects)
-    else Error (Printf.sprintf "procedural graph has no node #%d" node_id))
-
 let cook_mode_name = function
   | Node.Generator -> "generator"
   | Node.Duplicate_input index -> Printf.sprintf "duplicate(%d)" index

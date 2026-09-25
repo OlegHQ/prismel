@@ -20,14 +20,5 @@ val find : t -> node_id:int -> Node.t option
     runtimes use this to schedule external-effect recooks. *)
 val dependencies : t -> Context.Dependencies.t
 
-(** Edit one selected node and rebuild only the input paths that reference it.
-    Logical ids remain stable, including through shared subgraphs, so graph
-    selection and unaffected session cache entries survive parameter edits. *)
-val apply_parameters :
-  t ->
-  node_id:int ->
-  (string * Parameter.value) list ->
-  (t * Parameter.effects, string) result
-
 val format : t -> string
 val to_dot : t -> string

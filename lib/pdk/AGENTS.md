@@ -22,8 +22,8 @@ kernels and must never be imported by those underlying libraries.
 selection lives in returned immutable UI state, network topology lives in
 `Procedural.Edit_graph`, and the `sketch_ui` host applies typed editor commands
 before compiling a cookable DAG. Parameter edits replace the selected node in
-that same immutable document (or use `Graph.apply_parameters` in a compiled,
-non-editor context). `sop_catalog` may attach
+that same immutable document (or use `Node.apply_parameters` for a standalone
+node). `sop_catalog` may attach
 PPX-derived schemas through `Node.parameterize`, but delegates cooking to
 ordinary Procedural SOPs. `sketch_ui` composes these leaves and must not move
 widgets, camera policy, or render lifecycle into `procedural` or `pdk`.

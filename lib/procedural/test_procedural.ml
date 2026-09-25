@@ -4,6 +4,10 @@ open Procedural
 let fail message = raise (Failure message)
 let check condition message = if not condition then fail message
 let get_ok = function Ok value -> value | Error _ -> fail "unexpected error"
+let edit_parameters graph ~node_id changes =
+  Result.bind (Edit_graph.apply_parameters (Edit_graph.of_graph graph)
+      ~node_id changes) (fun (document, effects) ->
+    Result.map (fun graph -> graph, effects) (Edit_graph.compile document))
 let cook_ok session context graph =
   match Session.cook session ~context graph with
   | Ok output -> output
@@ -108,7 +112,7 @@ let test_node_owned_parameters_and_graph_edit () =
   check (List.length (Node.parameter_fields editable) = 2
       && Node.has_parameters editable)
     "node-owned parameter metadata was not exposed";
-  let translated, effects = Graph.apply_parameters graph
+  let translated, effects = edit_parameters graph
       ~node_id:(Node.id editable)
       ["translate_x", Parameter.Float_value 1.5] |> get_ok in
   check (Graph.inspect translated != original_infos)
@@ -136,7 +140,7 @@ let test_node_owned_parameters_and_graph_edit () =
     "edited node did not rebuild its cook closure";
   check (after_edit.hits > before_edit.hits)
     "stable graph edit did not reuse an unaffected cached input";
-  let view_only, view_effects = Graph.apply_parameters translated
+  let view_only, view_effects = edit_parameters translated
       ~node_id:(Node.id editable)
       ["display_gain", Parameter.Float_value 1.75] |> get_ok in
   check (not view_effects.cook && view_effects.view && not view_effects.export)

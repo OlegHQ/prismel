@@ -2,6 +2,10 @@ open Prismel
 open Procedural
 
 let fail message = raise (Failure message)
+let edit_parameters graph ~node_id changes =
+  Result.bind (Edit_graph.apply_parameters (Edit_graph.of_graph graph)
+      ~node_id changes) (fun (document, effects) ->
+    Result.map (fun graph -> graph, effects) (Edit_graph.compile document))
 
 type controls = {
   translate_x : float [@sop.default 0.] [@sop.label "Translate X"]
@@ -41,7 +45,7 @@ let run () =
   if x (cook session (context 3.) node) <> 7. then
     fail "custom SOP did not receive parameters and timeline context";
   let before_key = Node.parameters node and node_id = Node.id node in
-  let edited, effects = Graph.apply_parameters node ~node_id
+  let edited, effects = edit_parameters node ~node_id
       ["translate_x", Parameter.Float_value 4.] |> Result.get_ok in
   if not effects.cook || Node.id edited <> node_id
      || Node.parameters edited = before_key

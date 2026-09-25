@@ -1001,13 +1001,13 @@
       "source_sha256": "cb6a3710fef61442825460f14225d0e3e1493b2ac3fae00d37aa3b04d21cd7d4"
     },
     {
-      "api_sha256": "18eba87c3f33cde659ecd65ce3939dc04a92f6450c4fb2cf2960fa125ddc0fb2",
+      "api_sha256": "7ca7dc981e3789fac449565c41ee2bedf63162e3516cb911149bf74fbf00c1c7",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Graph",
       "source": "lib/procedural/graph.mli",
-      "source_bytes": 991,
-      "source_sha256": "e61e382c77d3e7008ebc551e544ade8180b79c8666adabee3c0e5efce5312c5d"
+      "source_bytes": 631,
+      "source_sha256": "e7a31e46d9f916e75b6bf9326161755a208e6c3a831a722912452e3c9edb7777"
     },
     {
       "api_sha256": "4dc1e85828fd27487cb2b4f4114d2246dba369f5db684446d7a9bfefc8008b68",
