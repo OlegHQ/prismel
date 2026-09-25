@@ -60,6 +60,19 @@ let paint view (frame : Prismel.Frame.t) =
 
 let measure count =
   let view = Pxui_graph.create ~width:1200 ~height:760 (graph count) in
+  ignore (paint view (frame ()));
+  Gc.full_major ();
+  let static_before = Gc.allocated_bytes () in
+  let static_samples = Array.make 100 0. in
+  for index = 0 to Array.length static_samples - 1 do
+    let started = Unix.gettimeofday () in
+    ignore (paint view (frame ()));
+    static_samples.(index) <- Unix.gettimeofday () -. started
+  done;
+  Printf.printf "pxui_graph_static_frame,%d,%.9f,%.9f,%.0f\n%!"
+    count (percentile (Array.copy static_samples) 0.5)
+    (percentile static_samples 0.95)
+    ((Gc.allocated_bytes () -. static_before) /. float (Array.length static_samples));
   let nodes = Pxui_graph.node_views view in
   let targets = nodes |> List.to_seq |> Seq.take 32 |> Array.of_seq
     |> Array.map (fun node ->

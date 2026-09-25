@@ -55,6 +55,8 @@ type change =
 
 type box = {
   info : Edit_graph.node_info;
+  tile_id : string;
+  detail : string;
   depth : int;
   gx : float;
   gy : float;
@@ -410,6 +412,10 @@ let build_spatial_index boxes edges =
     visible_edges = Array.make (min 16 (Array.length edges)) 0;
     visible_edge_length = 0; edge_stack = Array.make 64 0 }
 
+let tile_text (info : Edit_graph.node_info) =
+  "node###pxui-graph-node-" ^ string_of_int info.id,
+  info.operation ^ " · " ^ Context.Dependencies.to_string info.dependencies
+
 let automatic_layout document =
   let infos = Edit_graph.inspect document in
   let count = List.length infos in
@@ -441,7 +447,8 @@ let automatic_layout document =
     let count = List.length row in
     let row_width = count * node_width + max 0 (count - 1) * horizontal_gap in
     List.iteri (fun column info ->
-      boxes := { info; depth;
+      let tile_id, detail = tile_text info in
+      boxes := { info; tile_id; detail; depth;
         gx = float_of_int (margin - (row_width / 2)
           + (column * (node_width + horizontal_gap)));
         gy = float_of_int (margin + (depth * (node_height + vertical_gap)));
@@ -552,7 +559,8 @@ let with_document document value =
     let boxes = Array.copy value.boxes in
     List.iter (fun (info : Edit_graph.node_info) ->
       let index = Hashtbl.find value.slots info.id in
-      boxes.(index) <- { (boxes.(index)) with info }) infos;
+      let tile_id, detail = tile_text info in
+      boxes.(index) <- { (boxes.(index)) with info; tile_id; detail }) infos;
     { value with source_graph = None; document; boxes }
   end else
     let boxes = automatic_layout document
@@ -1285,7 +1293,7 @@ let canvas_fill (value : t) =
   if value.theme = Pxui.default_theme then Color.hex_exn "#eef2ee"
   else Color.blend value.theme.panel value.theme.accent ~pct:0.25
 
-let paint_background (value : t) paint =
+let paint_background (value : t) paint visible_edges visible_wires =
   let theme = value.theme in
   let spacing = max 10 (screen_size value 12) in
   let offset_x = int_of_float value.pan_x mod spacing
@@ -1295,8 +1303,7 @@ let paint_background (value : t) paint =
     ~origin:(float_of_int (value.x + offset_x - spacing),
       float_of_int (value.y + offset_y - spacing))
     ~spacing:(float_of_int spacing) (Color.with_alpha theme.foreground 145);
-  let _, visible_edges, stats = visibility value in
-  for visible_index = 0 to stats.visible_wires - 1 do
+  for visible_index = 0 to visible_wires - 1 do
     let edge = value.edges.(Array.unsafe_get visible_edges visible_index) in
     let from_x, from_y, to_x, to_y = edge_points value edge in
     paint_wire value paint (from_x, from_y) (to_x, to_y)
@@ -1322,8 +1329,7 @@ let paint_node (value : t) paint (box : box) =
     text paint ~at:(x + 10, y + 5) ~size:font_size ~color:theme.input box.info.label;
     text paint ~at:(x + 10, y + height - max 23 (screen_size value 25))
       ~size:detail_size ~color:(darken theme.foreground 55)
-      (box.info.operation ^ " · "
-       ^ Context.Dependencies.to_string box.info.dependencies);
+      box.detail;
     if value.zoom >= 0.45 then begin
       let radius = max 2 (screen_size value 4) in
       circle paint (x + width / 2, y + height) radius ~fill:theme.accent
@@ -1478,7 +1484,7 @@ let update (value : t) ui (frame : Frame.t) =
       ~stroke:value.theme.foreground);
   let canvas_signal = Ui.signal ui canvas in
   (* Visible tiles become boxes keyed by node id; selected tiles on top. *)
-  let visible_nodes, _, stats = visibility value in
+  let visible_nodes, visible_edges, stats = visibility value in
   let is_selected index = Id_set.mem value.boxes.(index).info.Edit_graph.id value.selected in
   if Array.length value.spatial.order < stats.visible_nodes then
     value.spatial.order <- Array.make (Array.length visible_nodes) 0;
@@ -1497,7 +1503,18 @@ let update (value : t) ui (frame : Frame.t) =
   let tiles = Ui.within ui canvas (fun () ->
     let layer = Ui.box ui ~w:(Ui.Px (float_of_int value.width))
         ~h:(Ui.Px (float_of_int value.height)) ~at:(0., 0.) "wires" in
-    Ui.draw ui layer (fun paint _ -> paint_background !final paint);
+    Ui.draw ui layer (fun paint _ ->
+      let current = !final in
+      let edges, count =
+        if current.spatial == value.spatial && current.positions == value.positions
+            && current.drag == value.drag && current.pan_x = value.pan_x
+            && current.pan_y = value.pan_y && current.zoom = value.zoom
+            && current.x = value.x && current.y = value.y
+            && current.width = value.width && current.height = value.height
+        then visible_edges, stats.visible_wires
+        else let _, edges, stats = visibility current in
+          edges, stats.visible_wires in
+      paint_background current paint edges count);
     let tiles = Array.init stats.visible_nodes (fun position ->
       let index = Array.unsafe_get order position in
       let box = value.boxes.(index) in
@@ -1505,7 +1522,7 @@ let update (value : t) ui (frame : Frame.t) =
       let x, y, width, height = box_bounds value box in
       let tile = Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px (float_of_int width))
           ~h:(Ui.Px (float_of_int height)) ~at:(local (x, y))
-          ("node###pxui-graph-node-" ^ string_of_int id) in
+          box.tile_id in
       Ui.draw ui tile (fun paint _ ->
         let value = !final in
         match Hashtbl.find_opt value.slots id with
