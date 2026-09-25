@@ -129,7 +129,7 @@ module Environment3 : sig
 
   (* Call from [Sketch.run_state ~after_present] when driving the environment
       manually so PNG requests save the completed frame. *)
-  val after_present : 'prepared t -> Prismel.Frame.t -> unit
+  val after_present : 'prepared t -> Prismel.Frame.t -> 'prepared t
 
   val rerender : 'prepared t -> 'prepared t
   (** Re-evaluates [scene3] now and forces a recook so [prepare] runs again,
@@ -228,7 +228,7 @@ module Environment2 : sig
   val update : 'prepared t -> Prismel.Frame.t -> 'prepared t
   (* Call from [Sketch.run_state ~after_present] when driving the environment
       manually so PNG requests save the completed frame. *)
-  val after_present : 'prepared t -> Prismel.Frame.t -> unit
+  val after_present : 'prepared t -> Prismel.Frame.t -> 'prepared t
   val scene : 'prepared t -> Prismel.Frame.t -> Prismel.Scene.t
   val close : 'prepared t -> unit
   val graph : 'prepared t -> Procedural.Graph.t

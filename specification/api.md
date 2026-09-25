@@ -633,7 +633,8 @@ requests return in the workspace frame result; the host applies both after
 file I/O runs after the UI frame. The 2D and 3D camera panels return their
 edited camera, control state, and render requests in that same frame result;
 preset saves use the returned camera state, and navigation and render scheduling
-run afterward.
+run afterward. PNG render status is held in the environment model and updated
+by the model returned from `after_present`.
 
 `Environment3` keeps camera nodes (`Sop_catalog.Camera`, operation `camera`)
 in the document: a default one following the viewport is added when the
@@ -799,5 +800,7 @@ A proposed high-level feature should demonstrate:
 # Post-present work
 
 `Sketch.run_state` accepts `?after_present`, called with the current model and
-frame after `Scene.render`. Use it for framebuffer capture or other work that
-needs the completed native frame. The view remains a pure scene description.
+frame after `Scene.render`. It returns the model used on the next frame and
+passed to `on_stop`. Use it for framebuffer capture or other work that needs
+the completed native frame, such as recording a PNG save result in the model.
+The view remains a pure scene description.

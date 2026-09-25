@@ -657,4 +657,14 @@ let run () =
     "native relative-pointer toggle failed or outlived the sketch";
   check (Sys.file_exists nested_capture)
     "native capture did not write its nested PNG";
+  let final = Sketch.run_state ~max_frames:2
+      ~config:{ Sketch.default_config with width = 120; height = 80 }
+      ~init:(fun _ -> 0)
+      ~update:(fun value (frame : Frame.t) ->
+        if frame.count = 2 then check (value = 11)
+            "after_present model was not used on the next frame";
+        value + 1)
+      ~view:(fun _ _ -> [Scene.clear Color.black])
+      ~after_present:(fun value _ -> value + 10) () in
+  check (final = 22) "after_present model was not returned";
   print_endline "sketch ui tests passed"

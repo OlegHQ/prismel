@@ -1155,7 +1155,7 @@ module Environment3 = struct
     scene3 : Graph.t -> 'prepared -> Scene3.t;
     overlay : Graph.t -> 'prepared option -> Frame.t -> Scene.t;
     rendered : Scene3.t option;
-    render_status : string option ref;
+    render_status : string option;
     pending_render : CC.render_request option;
     background : Color.t;
     look_through : bool;
@@ -1241,7 +1241,7 @@ module Environment3 = struct
     Result.map (fun core ->
       let core = sync_cameras ~mode:`Reset core camera in
       { core; camera; camera_control = CC.create (); scene3; overlay;
-        rendered = None; render_status = ref None; pending_render = None;
+        rendered = None; render_status = None; pending_render = None;
         background; look_through = false; fly = None;
         render_camera = render_camera_of core camera; hidden_scene_cache = None })
       (Core.create ~keymap:Leader.keymap3
@@ -1329,7 +1329,7 @@ module Environment3 = struct
       control, camera, requests, look_through, inspector ui in
     let update = Core.update value.core ~all_ui_visible:visible
         ~text_focus:(Pxui.Ui.text_input_focused ui) ~camera_panel
-        ~render_status:!(value.render_status)
+        ~render_status:value.render_status
         ~view_state:(function
           | Some (_, camera, _, look, _) -> view_json camera look
           | None -> view_json value.camera value.look_through) frame in
@@ -1350,12 +1350,11 @@ module Environment3 = struct
      | None -> ());
     let look_through = List.fold_left (fun look -> function
       | Leader.Look_through -> not look | _ -> look) !look_through update.actions in
-    let fly = if fly = None && List.mem Leader.Fly update.actions then begin
+    let fly, render_status = if fly = None && List.mem Leader.Fly update.actions then begin
         set_relative true;
-        value.render_status :=
-          Some "Flying: WASD/QE move, Shift x4, wheel speed, Esc exits";
-        Some (Float.max 0.5 (Easy_camera.distance !camera *. 0.5))
-      end else fly in
+        Some (Float.max 0.5 (Easy_camera.distance !camera *. 0.5)),
+        Some "Flying: WASD/QE move, Shift x4, wheel speed, Esc exits"
+      end else fly, value.render_status in
     let core = if core.document == value.core.document
         && Pxui_graph.flagged core.graph_view
            = Pxui_graph.flagged value.core.graph_view
@@ -1371,11 +1370,10 @@ module Environment3 = struct
       | Some speed ->
           let camera, speed = Easy_camera.fly ~speed !camera raw_frame in camera, Some speed
       | None -> CC.navigate ~control_area control !camera update.input, None in
-    let camera = match update.framed with
-      | Some (Some (min, max)) -> Easy_camera.frame_bounds ~min ~max camera
-      | Some None -> value.render_status := Some "Nothing to frame: no cooked points";
-          camera
-      | None -> camera in
+    let camera, render_status = match update.framed with
+      | Some (Some (min, max)) -> Easy_camera.frame_bounds ~min ~max camera, render_status
+      | Some None -> camera, Some "Nothing to frame: no cooked points"
+      | None -> camera, render_status in
     (* Follow viewport: viewport motion writes the node (one coalesced undo
        entry per gesture); otherwise node edits and undo move the viewport. *)
     let core, camera = match active with
@@ -1404,10 +1402,10 @@ module Environment3 = struct
       else value.rendered in
     let pending_render = match List.rev requests with
       | request :: _ -> Some request | [] -> None in
-    if pending_render <> None && rendered = None then
-      value.render_status := Some "Render unavailable until the first cook completes";
+    let render_status = if pending_render <> None && rendered = None then
+      Some "Render unavailable until the first cook completes" else render_status in
     { value with core; camera; camera_control = control; rendered; pending_render;
-      look_through; fly; render_camera = render_camera_of core camera },
+      render_status; look_through; fly; render_camera = render_camera_of core camera },
     inspected
 
   let update value frame = fst (update_with value frame ~inspector:ignore)
@@ -1415,10 +1413,11 @@ module Environment3 = struct
   let after_present value _frame =
     match value.pending_render, value.rendered with
     | Some request, Some _ ->
-        value.render_status := Some (match CC.save request with
+        let render_status = Some (match CC.save request with
           | Ok () -> "Saved " ^ request.filename
-          | Error message -> "Render failed: " ^ message)
-    | _ -> ()
+          | Error message -> "Render failed: " ^ message) in
+        { value with render_status; pending_render = None }
+    | _ -> value
 
   (* The view shows the render camera while looking through it and on the
      frame whose framebuffer a PNG request captures. *)
@@ -1505,7 +1504,7 @@ module Environment2 = struct
     scene2 : Graph.t -> 'prepared -> Scene.t;
     overlay : Graph.t -> 'prepared option -> Frame.t -> Scene.t;
     rendered : Scene.t option;
-    render_status : string option ref;
+    render_status : string option;
     pending_render : CC2.render_request option;
     background : Color.t;
     mutable hidden_scene_cache : hidden_scene2_cache option;
@@ -1528,7 +1527,7 @@ module Environment2 = struct
       ?(overlay = fun _ _ _ -> Scene.empty) () =
     Result.map (fun core ->
       { core; camera; camera_control = CC2.create (); scene2; overlay;
-        rendered = None; render_status = ref None; pending_render = None; background;
+        rendered = None; render_status = None; pending_render = None; background;
         hidden_scene_cache = None })
       (Core.create ~layout ?name ?presets ?timeline_frames ?factories ?seed ?grain
         ?domains ?max_entries
@@ -1551,7 +1550,7 @@ module Environment2 = struct
       CC2.widgets value.camera_control ui ~camera:value.camera in
     let update = Core.update value.core ~all_ui_visible:visible
         ~text_focus:(Pxui.Ui.text_input_focused ui) ~camera_panel
-        ~render_status:!(value.render_status)
+        ~render_status:value.render_status
         ~view_state:(fun panel ->
           let camera = match panel with
             | Some (_, camera, _) -> camera | None -> value.camera in
@@ -1593,17 +1592,19 @@ module Environment2 = struct
       else value.rendered in
     let pending_render = match List.rev requests with
       | request :: _ -> Some request | [] -> None in
-    if pending_render <> None && rendered = None then
-      value.render_status := Some "Render unavailable until the first cook completes";
-    { value with core; camera; camera_control = control; rendered; pending_render }
+    let render_status = if pending_render <> None && rendered = None then
+      Some "Render unavailable until the first cook completes" else value.render_status in
+    { value with core; camera; camera_control = control; rendered; pending_render;
+      render_status }
 
   let after_present value _frame =
     match value.pending_render, value.rendered with
     | Some request, Some _ ->
-        value.render_status := Some (match CC2.save request with
+        let render_status = Some (match CC2.save request with
           | Ok () -> "Saved " ^ request.filename
-          | Error message -> "Render failed: " ^ message)
-    | _ -> ()
+          | Error message -> "Render failed: " ^ message) in
+        { value with render_status; pending_render = None }
+    | _ -> value
 
   let scene value frame =
     let all_ui_visible = CC2.ui_visible value.camera_control in

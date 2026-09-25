@@ -358,5 +358,6 @@ let () =
     ~config:{ Sketch.default_config with width = 1280; height = 820; title = "Prismel voxel wall"
             ; domains = Some 1 }
     ~init ~update ~view
-    ~after_present:(fun m frame -> Sketch_ui.Environment3.after_present m.env frame)
+    ~after_present:(fun m frame ->
+      { m with env = Sketch_ui.Environment3.after_present m.env frame })
     ~on_stop:(fun m -> Sketch_ui.Environment3.close m.env; P.destroy m.tracer) ())

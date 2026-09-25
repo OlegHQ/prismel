@@ -18,7 +18,7 @@ let resize ~width ~height =
   |None->invalid_arg"Sketch.resize: no sketch is running"
   |Some resize->resize~width~height
 let frame config count time dt events={Frame.width=config.width;height=config.height;size=(config.width,config.height);drawable_width=config.width;drawable_height=config.height;drawable_size=(config.width,config.height);pixel_scale=(1.,1.);time;dt;fps=(if dt > 0. then 1. /. dt else 0.);count;mouse=Input.mouse_pos();mouse_delta=Input.mouse_delta();keys=Input.keys_down();mouse_buttons=Input.mouse_buttons_down();events}
-let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _ _->())~init~update~view ?(on_stop=fun _->())()=
+let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun model _->model)~init~update~view ?(on_stop=fun _->())()=
   if config.width<=0||config.height<=0 then invalid_arg"Sketch: dimensions must be positive";
   let max_frames=match max_frames,Sys.getenv_opt"PRISMEL_MAX_FRAMES"with
     |Some _,_|None,(None|Some"")->max_frames
@@ -112,7 +112,7 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun _
         drawable_size=(presentation.drawable_width,presentation.drawable_height);
         pixel_scale=(scale_x,scale_y)}in
       model:=update !model facts;Scene.render(view !model facts);
-      after_present !model facts;Time.limit_frame_rate()done;!model)
+      model:=after_present !model facts;Time.limit_frame_rate()done;!model)
 let run_state ?config ?max_frames ~init~update~view ?after_present ?on_stop()=
   Parallel.run ?domains:(Option.bind config(fun value->value.domains))(fun()->run_state_internal?config?max_frames?after_present~init~update~view?on_stop())
 let run ?config view=ignore(run_state?config~init:(fun _->())~update:(fun()_->())~view:(fun()frame->view frame)())
@@ -122,7 +122,7 @@ let export_state ?(config=default_config)?(fps=60)?(prefix="frame")~directory~fr
   if fps<=0 then invalid_arg"Sketch.export_state: fps must be positive";
   if prefix=""||prefix="."||prefix=".."||Filename.basename prefix<>prefix then invalid_arg"Sketch.export_state: invalid prefix";
   Canvas_runtime.ensure_directory directory;let index=ref 0 in
-  let after_present _ _=let filename=Filename.concat directory(Printf.sprintf"%s-%06d.png"prefix !index)in match Canvas.save_screen_png filename with Ok()->incr index|Error message->failwith("Frame export failed: "^message)in
+  let after_present model _=let filename=Filename.concat directory(Printf.sprintf"%s-%06d.png"prefix !index)in match Canvas.save_screen_png filename with Ok()->incr index;model|Error message->failwith("Frame export failed: "^message)in
   let config={config with clock=Fixed(1./.float fps);fps=None}in
   Parallel.run ?domains:config.domains(fun()->run_state_internal~config~max_frames:frames~after_present~init~update~view~on_stop())
 let export ?config ?fps ?prefix ~directory ~frames view=ignore(export_state?config?fps?prefix~directory~frames~init:(fun _->())~update:(fun()_->())~view:(fun()frame->view frame)())
