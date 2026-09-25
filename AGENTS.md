@@ -32,6 +32,7 @@ when behavior or architecture changes materially.
 | `sop_catalog` | Inspectable SOP constructors registered by PPX |
 | `editor` | Pure shared editor state, starting with bounded history |
 | `pxui` | The one immediate-mode UI engine (`Pxui.Ui`) |
+| `pxui_shell` | Editor chrome over PXUI; generic key and pane presentation |
 | `pxui_graph` | SOP-network presentation; emits typed requests, never edits |
 | `sop_ui` | Renders a node's typed parameter template through PXUI |
 | `sketch_support` | Target-neutral sketch helpers (reactive cooks, packed pieces) |
@@ -58,6 +59,8 @@ violations are listed there with the plan item that removes them.
 - `Metal.`/`Ogpu_metal_native.` stay within the Metal backend except for the
   listed runtime, path-tracer, and test exceptions scheduled for G3/G4.
 - `prismel` never depends on `pxui`, geometry, sketch libraries, or examples.
+- `pxui_shell` depends only on `prismel`, `editor`, and `pxui`; it never imports
+  SOP, graph, geometry, or sketch libraries.
 - `pdk` never reaches `geom`/`procedural`; `procedural` never reaches UI
   libraries; `pxui` never reaches `procedural`; `sop_ui` and `pxui_graph`
   never import each other or `sketch_*`; nothing imports `sketch_ui`.

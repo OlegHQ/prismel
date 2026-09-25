@@ -3,7 +3,7 @@
   "baseline_plan_sha256": "6f95e5738ae263386bbc414299f598f25ba9f604b48a8c2ef9bee84f974e2954",
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 132,
+  "module_count": 133,
   "modules": [
     {
       "api_sha256": "a5e51a9c25447aacc512d8798506014bbbcd9b827e22785216f9de3c1ce2a23c",
@@ -1134,6 +1134,15 @@
       "source": "lib/pxui_graph/pxui_graph.mli",
       "source_bytes": 6422,
       "source_sha256": "7dcb51044fdd8d730854e2158f631921180b8dac00d4dd31625c694d010618d9"
+    },
+    {
+      "api_sha256": "9dad3e3acc728497bdfdce9b7fa93c6766f5d03c9c49fe76eda64793f7949629",
+      "excluded_legacy_symbols": [],
+      "library": "pxui_shell",
+      "module": "Pxui_shell",
+      "source": "lib/pxui_shell/pxui_shell.mli",
+      "source_bytes": 277,
+      "source_sha256": "bd6b23c0c0bb0e28ee904a8737e16c65ec0e71b183f1ed2309b46d9612d2ac28"
     },
     {
       "api_sha256": "8d4d7d634c1b362e582e6a485c8a7341f9151e5f34752d972f85db879693bdef",

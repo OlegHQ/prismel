@@ -65,7 +65,7 @@ let reach graph =
 
 let gpu = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu"; "ogpu_mock"; "ogpu_metal"; "ogpu_metal_native";
            "runtime_next"; "runtime_next_orchestrator"; "scene_execution"]
-let upper = ["prismel"; "editor"; "pxui"; "pxui_graph"; "sop_ui"; "procedural"; "pdk"; "geom";
+let upper = ["prismel"; "editor"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "procedural"; "pdk"; "geom";
              "sop_catalog"; "sketch_support"; "sketch_ui"]
 let foundational = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu";
                     "native_layer_token"; "scene_command"]
@@ -81,20 +81,22 @@ let rules =
       "ogpu_metal", ["sdl3"; "runtime_next"; "prismel"; "scene_execution"];
       "runtime_next", upper; "runtime_next_input", upper;
       "prismel_next_execution", ["runtime_next_input"];
-      "prismel", ["pxui"; "pxui_graph"; "sop_ui"; "procedural"; "pdk"; "geom";
+      "prismel", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "procedural"; "pdk"; "geom";
                   "sop_catalog"; "sketch_support"; "sketch_ui"];
-      "pdk", "geom" :: "procedural" :: "pxui" :: "sop_ui" :: "sop_catalog" :: gpu;
-      "geom", ["procedural"; "pxui"; "sop_ui"; "sop_catalog"];
-      "procedural", "pxui" :: "pxui_graph" :: "sop_ui" :: "sop_catalog"
+      "pdk", "geom" :: "procedural" :: "pxui" :: "pxui_shell" :: "sop_ui" :: "sop_catalog" :: gpu;
+      "geom", ["procedural"; "pxui"; "pxui_shell"; "sop_ui"; "sop_catalog"];
+      "procedural", "pxui" :: "pxui_shell" :: "pxui_graph" :: "sop_ui" :: "sop_catalog"
                     :: "sketch_support" :: "sketch_ui" :: gpu;
-      "editor", ["pxui"; "pxui_graph"; "sop_ui"; "sketch_ui"; "procedural";
+      "editor", ["pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "sketch_ui"; "procedural";
                  "pdk"; "geom"; "sop_catalog"];
-      "pxui", ["editor"; "procedural"; "pdk"; "geom"; "pxui_graph";
+      "pxui", ["editor"; "pxui_shell"; "procedural"; "pdk"; "geom"; "pxui_graph";
                "sop_ui"; "sketch_support"; "sketch_ui"];
-      "sop_ui", ["pxui_graph"; "sketch_support"; "sketch_ui"; "sop_catalog"];
-      "pxui_graph", ["sop_ui"; "sketch_support"; "sketch_ui"; "sop_catalog"];
-      "sop_catalog", ["geom"; "pxui"; "pxui_graph"; "sop_ui"; "sketch_support"; "sketch_ui"];
-      "sketch_support", ["geom"; "pxui"; "pxui_graph"; "sop_ui"; "sketch_ui"] ]
+      "pxui_shell", ["procedural"; "pdk"; "geom"; "sop_catalog"; "sop_ui";
+                     "pxui_graph"; "sketch_support"; "sketch_ui"];
+      "sop_ui", ["pxui_shell"; "pxui_graph"; "sketch_support"; "sketch_ui"; "sop_catalog"];
+      "pxui_graph", ["pxui_shell"; "sop_ui"; "sketch_support"; "sketch_ui"; "sop_catalog"];
+      "sop_catalog", ["geom"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "sketch_support"; "sketch_ui"];
+      "sketch_support", ["geom"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_ui"; "sketch_ui"] ]
 
 (* Known violations: (library, reached, plan item that removes it). *)
 let reach_exceptions =

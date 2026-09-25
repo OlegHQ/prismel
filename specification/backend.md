@@ -37,7 +37,9 @@ The pure `editor` library owns bounded undo history with explicit edit merge
 rules and key routing. Sketch hosts use `Editor.History` and `Editor.Router`;
 `pxui_graph` exports editor bindings and graph commands without handling key
 events. `editor` depends on `prismel` for frame and event values, never on UI
-or geometry libraries.
+or geometry libraries. `pxui_shell` owns editor chrome over the shared PXUI
+handle; its which-key panel reads generic editor bindings without depending on
+SOP or graph libraries. `sketch_ui` supplies the host binding table and focus.
 OGPU's dormant Frame_graph, Descriptor_arena, Transfer_ring, Instance,
 Device_lifecycle, and Acceleration_pass modules have no production callers and
 are removed. Query validation stays in `Ogpu.Sync.resolve`; the redundant

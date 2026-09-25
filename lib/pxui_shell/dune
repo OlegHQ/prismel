@@ -1,0 +1,10 @@
+(library
+ (name pxui_shell)
+ (public_name prismel.pxui_shell)
+ (modules pxui_shell)
+ (libraries prismel editor pxui))
+
+(test
+ (name test_which_key)
+ (modules test_which_key)
+ (libraries prismel editor pxui pxui_shell))
