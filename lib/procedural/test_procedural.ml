@@ -892,10 +892,11 @@ let test_generators_selections_and_delete () =
       && Pdk.Geometry.point_count compacted.geometry = 3)
     "delete with orphan-point compaction";
   let bounded = Sop.box ~size:(Vec3.create 2. 3. 4.) ()
-      |> Sop.bounding_box ~padding:(Vec3.create 0.5 0.5 0.5)
+      |> Sop.bound ~lower_padding:(Vec3.create 0.5 0.5 0.5)
+           ~upper_padding:(Vec3.create 0.5 0.5 0.5)
       |> cook_ok evaluator current in
   check (Pdk.Geometry.point_count bounded.geometry = 24)
-    "procedural bounding box";
+    "procedural box Bound";
   let divided_bound = Sop.box ~size:(Vec3.create 2. 3. 4.) ()
       |> Sop.group ~name:"bound_faces"
            (Select.primitive_indices [|0;1;2;3|])

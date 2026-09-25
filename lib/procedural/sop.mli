@@ -2437,8 +2437,6 @@ val bound :
   Node.t -> Node.t
 (* Create a divided box or polygon sphere/ovoid around an optional typed
     component selection, with inspectable output group and detail metadata. *)
-val bounding_box :
-  ?label:string -> ?padding:Prismel.Vec3.t -> Node.t -> Node.t
 val match_axis :
   ?label:string -> from:Prismel.Vec3.t -> into:Prismel.Vec3.t -> Node.t -> Node.t
 (* Stable packed point/primitive sort, including point topology keys and

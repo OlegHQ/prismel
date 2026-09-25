@@ -148,11 +148,13 @@ let run () =
   Session.close session;
   let factory_keys = List.map Edit_graph.factory_key
       Sop_catalog.Editor.factories in
-  check (List.length factory_keys = 159
-      && List.length (List.sort_uniq String.compare factory_keys) = 159)
+  check (List.length factory_keys = 158
+      && List.length (List.sort_uniq String.compare factory_keys) = 158)
     "PPX SOP manifest has a missing or duplicate factory key";
   check (not (List.mem "delete_attribute" factory_keys))
     "duplicate Delete Attribute factory remains registered";
+  check (not (List.mem "bounding_box" factory_keys))
+    "duplicate Bounding Box factory remains registered";
   List.iter (fun key -> check (List.mem key factory_keys)
       ("SOP editor catalog is missing " ^ key))
     ["box"; "grid"; "platonic"; "points"; "switch";
@@ -224,7 +226,7 @@ let run () =
      "edge_transport_parent"];
   List.iter (fun key -> check (List.mem key factory_keys)
       ("SOP editor metadata utility is missing " ^ key))
-    ["compact_points"; "bounding_box"; "rename_group";
+    ["compact_points"; "bound"; "rename_group";
      "delete_edge_group"; "rename_edge_group"; "delete_attributes";
      "rename_attributes"; "swap_attributes";
      "triangulate_2d"; "extract_point_from_curve"; "soft_transform";

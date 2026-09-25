@@ -6560,18 +6560,6 @@ let compact_points ?label input =
       ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
       geometry) input
 
-let bounding_box ?label ?(padding = Vec3.zero) input =
-  let padding = vec3_copy padding in
-  Node.Private.make ?label ~operation:"bounding_box" ~version:1
-    ~parameters:("padding=" ^ vec3_key padding)
-    ~cook_mode:(Node.Duplicate_input 0)
-    ~dependencies:Context.Dependencies.static ~inputs:[|input|]
-    (fun ~node_id:_ context inputs ->
-      match Pdk.Ops.bounding_box ~cancel:(Context.cancel_token context)
-          ~grain:(Context.grain context) ~padding inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
-
 let match_size_fit_key = function
   | Pdk.Ops.Translate_only -> "translate_only"
   | Pdk.Ops.Stretch -> "stretch"

@@ -7675,30 +7675,6 @@ module Compact_points = struct
       ~label:(label "compact-points" node_label) input
 end [@@sop.register]
 
-module Bounding_box = struct
-  type parameters = {
-    padding_x : float [@sop.default 0.] [@sop.label "Padding X"]
-      [@sop.min 0.] [@sop.max 10.] [@sop.hard_min 0.];
-    padding_y : float [@sop.default 0.] [@sop.label "Padding Y"]
-      [@sop.min 0.] [@sop.max 10.] [@sop.hard_min 0.];
-    padding_z : float [@sop.default 0.] [@sop.label "Padding Z"]
-      [@sop.min 0.] [@sop.max 10.] [@sop.hard_min 0.];
-  } [@@sop.node_key "bounding_box"] [@@sop.node_label "Bounding Box"]
-    [@@sop.node_category "Create/Bounds"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-  let rec build ~label ~inputs parameters = match inputs with
-    | [input] -> Sop.bounding_box ~label
-        ~padding:(Vec3.create parameters.padding_x parameters.padding_y
-          parameters.padding_z) input
-      |> Node.parameterize ~schema:parameters_schema ~values:parameters
-           ~rebuild:build
-    | _ -> invalid_arg "Sop_catalog.Bounding_box expects one input"
-  let factory = parameters_factory build
-  let create ?label:node_label input = build
-      ~label:(label "bounding-box" node_label) ~inputs:[input]
-      parameters_default
-end [@@sop.register]
-
 module Rename_group = struct
   type parameters = {
     owner : Pdk.Group.owner [@sop.default Pdk.Group.Point]

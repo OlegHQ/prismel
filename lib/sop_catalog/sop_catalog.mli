@@ -612,10 +612,6 @@ module Compact_points : sig
   val create : ?label:string -> Procedural.Node.t -> Procedural.Node.t
 end
 
-module Bounding_box : sig
-  val create : ?label:string -> Procedural.Node.t -> Procedural.Node.t
-end
-
 module Rename_group : sig
   val create : ?label:string -> Procedural.Node.t -> Procedural.Node.t
 end

@@ -626,7 +626,7 @@ The first coherent set includes:
   per-primitive, or current-time scalar cuts plus interpolated point/copied
   primitive payload and curve diagnostics, typed divided-box or
   sphere/ovoid Bound with asymmetric padding and detail/group metadata,
-  bounding-box convenience, Match Axis, and production Match Size with
+  Match Axis, and production Match Size with
   independent typed move/source/target selections, unit/numeric or node
   references, per-axis/cross-anchor alignment, offsets, and bounds/metric fit
   modes;
