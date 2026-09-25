@@ -645,6 +645,9 @@ module Core = struct
     | Saving of string
     | Browsing of { query : string; presets : (string * float) list }
 
+  type timeline_intent = Pause_toggle | Stop_playback | Reset_playback
+    | Seek_playback of int64
+
   type 'prepared t = {
     code_graph : Graph.t;
     presets : string;  (* preset directory *)
@@ -864,30 +867,31 @@ module Core = struct
           let graph_view, emitted = Pxui_graph.run_command graph_view command in
           graph_view, changes @ emitted
       | _ -> graph_view, changes) (graph_view, []) actions in
-    let timeline = ref timeline and timeline_changes = ref timeline_changes in
     (* ponytail: seeking recooks the pure graph at the target frame; state a
        sketch threads through [run_state] outside the graph is not replayed. *)
-    let timeline_bar ui (x, y, width, height) =
+    let timeline_bar ui (x, y, width, height) timeline =
       let module T = Sketch_support.Timeline in
       let module Ui = Pxui.Ui in
-      let current = !timeline in
-      let step action = let next, changes = action current in
-        timeline := next; timeline_changes := !timeline_changes @ changes in
       Ui.panel ui ~x:(float_of_int x) ~y:(float_of_int y) ~width:(float_of_int width)
         ~max_height:(float_of_int height) "workspace-timeline" (fun () ->
         Ui.row ui ~gap:6. "timeline-row" (fun () ->
-          if Ui.button ui (if T.mode current = T.Playing then "Pause###timeline-play"
-            else "Play###timeline-play") then step T.toggle_pause;
-          if Ui.button ui "Stop###timeline-stop" then step T.stop;
-          if Ui.button ui "Reset###timeline-reset" then step T.reset;
-          let frame = T.frame current in
+          let pause = Ui.button ui (if T.mode timeline = T.Playing then "Pause###timeline-play"
+            else "Play###timeline-play") in
+          let stop = Ui.button ui "Stop###timeline-stop" in
+          let reset = Ui.button ui "Reset###timeline-reset" in
+          let frame = T.frame timeline in
           Ui.label ui (Printf.sprintf "f %Ld  %.2fs###timeline-readout" frame
-            (T.time current));
+            (T.time timeline));
           let range = Float.max (Int64.to_float frame) (float_of_int value.timeline_frames) in
           let scrub = Ui.slider ui "Frame###timeline-scrub" ~range:(0., range)
-              (Int64.to_float frame) in
-          if scrub <> Int64.to_float frame then
-            step (T.seek ~frame:(Int64.of_float (Float.round scrub))))) in
+            (Int64.to_float frame) in
+          List.filter_map Fun.id [
+            (if pause then Some Pause_toggle else None);
+            (if stop then Some Stop_playback else None);
+            (if reset then Some Reset_playback else None);
+            (if scrub <> Int64.to_float frame
+              then Some (Seek_playback (Int64.of_float (Float.round scrub)))
+              else None)])) in
     let frame_request = ref (if List.mem Leader.Frame_camera actions
       then Pxui_graph.selected graph_view else None) in
     let build ui =
@@ -933,8 +937,8 @@ module Core = struct
                  | Error message -> Some inspector, document, Parameter.no_effects,
                      Some message
                  | Ok document -> Some inspector, document, effects, edit_error) in
-      if not (Workspace.collapsed workspace Workspace.Timeline) then
-        timeline_bar ui panes.timeline;
+      let timeline_intents = if Workspace.collapsed workspace Workspace.Timeline
+        then [] else timeline_bar ui panes.timeline timeline in
       (* The focused pane's accent outline. *)
       let theme = Pxui.Ui.theme ui in
       let bounds = match focus with
@@ -947,7 +951,7 @@ module Core = struct
             ~y:(float_of_int y +. 0.5) ~w:(float_of_int (w - 1))
             ~h:(float_of_int (h - 1)) ~width:1. theme.accent);
       workspace, graph_view, document, edit_error, inspector,
-      Parameter.union_effects editor_effects parameter_effects in
+      Parameter.union_effects editor_effects parameter_effects, timeline_intents in
     let leader_panel ui = if leader = Leader.Pending then
         Leader.panel ui keymap focus in
     (* Presets: Space s names and saves the document, Space b browses, loads
@@ -1007,23 +1011,30 @@ module Core = struct
            | Some (query, _) -> prompt := Some (Browsing { query; presets })));
       (* A closed prompt must not keep keyboard focus into the next frame. *)
       if !prompt = None && value.prompt <> None then Ui.unfocus ui in
-    let workspace, graph_view, document, edit_error, inspector, effects =
+    let workspace, graph_view, document, edit_error, inspector, effects,
+        timeline_intents =
       if all_ui_visible then
         Pxui.Ui.frame value.ui frame (fun ui ->
           let result = build ui in
-          let (workspace, _, _, _, _, _) = result in
+          let (workspace, _, _, _, _, _, _) = result in
           status_box { value with workspace; status_fps; notice = !notice } ui frame
             ~render_status;
-          let (_, graph_view, document, _, _, _) = result in
+          let (_, graph_view, document, _, _, _, _) = result in
           prompt_panel ui graph_view document;
           leader_panel ui;
           result)
       else begin
         if leader = Leader.Pending then Pxui.Ui.frame value.ui frame leader_panel;
         workspace, graph_view, value.document, value.edit_error,
-        value.inspector, Parameter.no_effects
+        value.inspector, Parameter.no_effects, []
       end in
-    let timeline = !timeline and timeline_changes = !timeline_changes in
+    let timeline, timeline_changes = List.fold_left (fun (timeline, changes) intent ->
+      let next, emitted = match intent with
+        | Pause_toggle -> Sketch_support.Timeline.toggle_pause timeline
+        | Stop_playback -> Sketch_support.Timeline.stop timeline
+        | Reset_playback -> Sketch_support.Timeline.reset timeline
+        | Seek_playback frame -> Sketch_support.Timeline.seek timeline ~frame in
+      next, changes @ emitted) (timeline, timeline_changes) timeline_intents in
     let prompt = !prompt and notice = !notice in
     let document, graph_view, inspector, edit_error = match !loaded with
       | None -> document, graph_view, inspector, edit_error

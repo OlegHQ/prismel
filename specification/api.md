@@ -627,7 +627,8 @@ bounds through the shared cook worker. Escape still dismisses UI modes. A right
 click (not a drag) opens graph context menus that emit the ordinary typed
 graph changes. The timeline bar (hidden by default) has play/pause, stop,
 reset, a frame/time readout, and a scrub slider that seeks (`Timeline.seek`)
-and recooks.
+and recooks. Its widgets return playback intents; the host applies them after
+`Ui.frame` completes.
 
 `Environment3` keeps camera nodes (`Sop_catalog.Camera`, operation `camera`)
 in the document: a default one following the viewport is added when the
