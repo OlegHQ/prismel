@@ -53,8 +53,8 @@ let same_output left right =
 
 let run () =
   let graph = Sop.snapshot (source ())
-      |> Sop.soft_transform_trs ~metric:Pdk.Ops.Soft_edge
-           ~falloff:Pdk.Ops.Soft_quadratic ~radius:3.5
+      |> Sop.soft_transform_trs ~metric:Pdk.Transform_ops.Soft_edge
+           ~falloff:Pdk.Transform_ops.Soft_quadratic ~radius:3.5
            ~falloff_attribute:"soft_weight"
            ~translate:(Vec3.create 0. 1.2 0.)
            ~rotate:(Vec3.create 0. 0.25 0.)

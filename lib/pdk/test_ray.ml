@@ -9,7 +9,7 @@ let near ?(epsilon = 1e-10) left right = abs_float (left -. right) <= epsilon
 let positions geometry = Packed.Float3.Private.view (Geometry.positions geometry)
 
 let translated y geometry =
-  Ops.transform (Mat4.translation (Vec3.create 0. y 0.)) geometry
+  Transform_ops.transform (Mat4.translation (Vec3.create 0. y 0.)) geometry
 
 let add_attribute attribute geometry =
   Geometry.with_attribute attribute geometry |> get_string_ok
@@ -281,7 +281,7 @@ let check_selection_and_directions () =
   let source = source_points [|(-1.,2.,0.); (0.,2.,0.); (1.,2.,0.)|] in
   let selection = Group.init ~owner:Group.Point ~name:"middle" 3
       (fun point -> point = 1) in
-  let selected = Ops.ray ~selection:(Ops.Selected_points selection)
+  let selected = Ops.ray ~selection:(Transform_ops.Selected_points selection)
       ~direction:(Ops.Ray_vector (Vec3.neg Vec3.unit_y))
       ~source ~collision:(plane 0.) () |> get_ok |> positions in
   check (selected.y = [|2.; 0.; 2.|]) "Ray point restriction";

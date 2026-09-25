@@ -96,10 +96,10 @@ let run () =
   let directed = add_attribute direction grid in
   let point_group = Group.init ~owner:Group.Point ~name:"one" point_count
       (fun point -> point = 0) in
-  let point_peak = Ops.peak ~selection:(Ops.Selected_points point_group)
+  let point_peak = Ops.peak ~selection:(Transform_ops.Selected_points point_group)
       ~direction_attribute:"direction" ~distance:1. directed |> get_ok in
   expect_only_points_moved directed point_peak [|0|] 1. 0. 0.;
-  let unnormalized = Ops.peak ~selection:(Ops.Selected_points point_group)
+  let unnormalized = Ops.peak ~selection:(Transform_ops.Selected_points point_group)
       ~direction_attribute:"direction" ~normalize_direction:false ~distance:1.
       directed |> get_ok in
   expect_only_points_moved directed unnormalized [|0|] 2. 0. 0.;
@@ -145,7 +145,7 @@ let run () =
   let vertex_point = Topology.point_of_vertex topology 0 in
   let vertices = Group.init ~owner:Group.Vertex ~name:"corner" vertex_count
       (fun vertex -> vertex = 0) in
-  let vertex_peak = Ops.peak ~selection:(Ops.Selected_vertices vertices)
+  let vertex_peak = Ops.peak ~selection:(Transform_ops.Selected_vertices vertices)
       ~direction_attribute:"direction" ~distance:1. directed |> get_ok in
   expect_only_points_moved directed vertex_peak [|vertex_point|] 1. 0. 0.;
 
@@ -155,14 +155,14 @@ let run () =
     let first, last = Topology.primitive_vertex_range topology 0 in
     Array.init (last - first) (fun local -> Topology.point_of_vertex topology
       (first + local)) in
-  let primitive_peak = Ops.peak ~selection:(Ops.Selected_primitives primitives)
+  let primitive_peak = Ops.peak ~selection:(Transform_ops.Selected_primitives primitives)
       ~direction_attribute:"direction" ~distance:1. directed |> get_ok in
   expect_only_points_moved directed primitive_peak primitive_points 1. 0. 0.;
 
   let index = Topology_index.create topology in
   let edges = Edge_group.init ~topology ~index ~name:"edge" (fun edge -> edge = 0) in
   let edge_a, edge_b = Topology_index.edge_points index 0 in
-  let edge_peak = Ops.peak ~selection:(Ops.Selected_edges edges)
+  let edge_peak = Ops.peak ~selection:(Transform_ops.Selected_edges edges)
       ~direction_attribute:"direction" ~distance:1. directed |> get_ok in
   expect_only_points_moved directed edge_peak [|edge_a; edge_b|] 1. 0. 0.;
 
@@ -196,14 +196,14 @@ let run () =
   let wrong_group = Group.init ~owner:Group.Vertex ~name:"wrong" vertex_count
       (fun _ -> true) in
   expect_error "invalid_deformation"
-    (Ops.peak ~selection:(Ops.Selected_points wrong_group)
+    (Ops.peak ~selection:(Transform_ops.Selected_points wrong_group)
       ~direction_attribute:"direction" ~distance:1. directed);
   let other = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:3. () |> get_ok in
   let other_index = Topology_index.create (Geometry.topology other) in
   let other_edges = Edge_group.init ~topology:(Geometry.topology other)
       ~index:other_index ~name:"other" (fun _ -> true) in
   expect_error "invalid_deformation"
-    (Ops.peak ~selection:(Ops.Selected_edges other_edges)
+    (Ops.peak ~selection:(Transform_ops.Selected_edges other_edges)
       ~direction_attribute:"direction" ~distance:1. directed);
   expect_error "invalid_deformation"
     (Ops.peak ~direction_attribute:"direction" ~distance:Float.infinity directed);
@@ -266,7 +266,7 @@ let run () =
       |> add_attribute (float_attribute "bend_mask" [|0.5; -1.; 2.; 1.|]) in
   let only_first = Group.init ~owner:Group.Point ~name:"bend_selected" 4
       (fun point -> point <> 2) in
-  let masked_bend = Ops.bend ~selection:(Ops.Selected_points only_first)
+  let masked_bend = Ops.bend ~selection:(Transform_ops.Selected_points only_first)
       ~mask_attribute:"bend_mask" ~capture_attribute:"bend_capture"
       ~length:2. ~twist_angle:Float.pi masked_bend_source |> get_ok in
   let masked_bend_positions = positions masked_bend
@@ -342,7 +342,7 @@ let run () =
   let middle = Group.init ~owner:Group.Point ~name:"middle" large_count
       (fun point -> point mod 3 <> 0) in
   let mountain domains seed = Parallel.run ~domains (fun () ->
-    Ops.mountain ~grain:2_048 ~selection:(Ops.Selected_points middle) ~seed
+    Ops.mountain ~grain:2_048 ~selection:(Transform_ops.Selected_points middle) ~seed
       ~height:1.25 ~frequency:(Vec3.create 0.35 0.7 0.55)
       ~offset:(Vec3.create 1. 2. 3.) ~octaves:6 ~lacunarity:2.1
       ~roughness:0.47 ~height_attribute:"height" mountain_source |> get_ok) in

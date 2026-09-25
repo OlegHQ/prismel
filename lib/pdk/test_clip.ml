@@ -186,7 +186,7 @@ let check_selection_isolation () =
   let selected = Group.init ~owner:Group.Primitive ~name:"selected" 2
       (fun primitive -> primitive = 0) in
   let output = Ops.clip ~grain:1 ~snapping_tolerance:0.001
-      ~selection:(Ops.Selected_primitives selected) ~clipped_group:"clipped"
+      ~selection:(Transform_ops.Selected_primitives selected) ~clipped_group:"clipped"
       ~above_group:"above" ~clipped_edge_group:"clip_edges"
       ~origin:Vec3.zero ~normal:Vec3.unit_x source |> get_ok in
   let ids = int_attribute ~owner:Attribute.Primitive "primitive_id" output in
@@ -220,7 +220,7 @@ let check_selection_isolation () =
       (fun primitive -> primitive = 1) in
   let source_with_existing = Geometry.with_group existing source |> get_string_ok in
   let unioned = Ops.clip ~grain:1 ~snapping_tolerance:0.001
-      ~selection:(Ops.Selected_primitives selected)
+      ~selection:(Transform_ops.Selected_primitives selected)
       ~replace_existing_groups:false ~clipped_group:"clipped"
       ~origin:Vec3.zero ~normal:Vec3.unit_x source_with_existing |> get_ok in
   (match Geometry.find_group ~owner:Group.Primitive "clipped" unioned with
@@ -228,7 +228,7 @@ let check_selection_isolation () =
        "Clip Replace Existing=false did not union primitive membership"
    | None -> fail "unioned Clip primitive group missing");
   let split = Ops.clip ~grain:1 ~keep:Ops.All ~split_connectivity:true
-      ~snapping_tolerance:0.001 ~selection:(Ops.Selected_primitives selected)
+      ~snapping_tolerance:0.001 ~selection:(Transform_ops.Selected_primitives selected)
       ~origin:Vec3.zero ~normal:Vec3.unit_x source |> get_ok in
   let split_ids = int_attribute ~owner:Attribute.Primitive "primitive_id" split
   and split_topology = Topology.Private.view (Geometry.topology split) in
@@ -257,13 +257,13 @@ let check_typed_selection_promotion () =
       |> get_ok in
   let points = Group.init ~owner:Group.Point ~name:"shared_point" 4
       (fun point -> point = 1) in
-  let point_output = Ops.clip ~selection:(Ops.Selected_points points)
+  let point_output = Ops.clip ~selection:(Transform_ops.Selected_points points)
       ~origin:Vec3.zero ~normal:Vec3.unit_x source |> get_ok in
   check (equal_geometry unrestricted point_output)
     "point-selected Clip did not promote to every incident primitive";
   let vertices = Group.init ~owner:Group.Vertex ~name:"first_corner" 6
       (fun vertex -> vertex = 0) in
-  check (clipped_count (Ops.Selected_vertices vertices) source = 1)
+  check (clipped_count (Transform_ops.Selected_vertices vertices) source = 1)
     "vertex-selected Clip did not promote to its incident primitive";
   let index = Topology_index.create (Geometry.topology source) in
   let shared_edge = Topology_index.find_edge_index index ~a:1 ~b:2
@@ -272,9 +272,9 @@ let check_typed_selection_promotion () =
       ~name:"shared" (fun edge -> edge = shared_edge)
   and boundary = Edge_group.init ~topology:(Geometry.topology source) ~index
       ~name:"boundary" (fun edge -> edge = boundary_edge) in
-  check (clipped_count (Ops.Selected_edges shared) source = 2)
+  check (clipped_count (Transform_ops.Selected_edges shared) source = 2)
     "shared-edge Clip did not promote both incident primitives";
-  check (clipped_count (Ops.Selected_edges boundary) source = 1)
+  check (clipped_count (Transform_ops.Selected_edges boundary) source = 1)
     "boundary-edge Clip did not promote its incident primitive";
   let foreign = Box_generator.box_checked ~connectivity:Box_generator.Box_quads ~consolidate_points:true
       ~size:(Vec3.create 2. 2. 2.) () |> get_ok in
@@ -282,7 +282,7 @@ let check_typed_selection_promotion () =
   let foreign_edges = Edge_group.init ~topology:(Geometry.topology foreign)
       ~index:foreign_index ~name:"foreign" (fun edge -> edge = 0) in
   expect_code "invalid_geometry" (Ops.clip
-      ~selection:(Ops.Selected_edges foreign_edges) ~origin:Vec3.zero
+      ~selection:(Transform_ops.Selected_edges foreign_edges) ~origin:Vec3.zero
       ~normal:Vec3.unit_x source)
 
 let check_selected_free_points () =
@@ -290,7 +290,7 @@ let check_selected_free_points () =
       |> with_attribute "id" (Attribute.Int [|10; 20; 30|]) in
   let selected = Group.init ~owner:Group.Point ~name:"selected_free" 3
       (fun point -> point = 0) in
-  let output = Ops.clip ~selection:(Ops.Selected_points selected)
+  let output = Ops.clip ~selection:(Transform_ops.Selected_points selected)
       ~origin:Vec3.zero ~normal:Vec3.unit_x source |> get_ok in
   check (Geometry.point_count output = 2
       && int_attribute ~owner:Attribute.Point "id" output = [|20; 30|])
@@ -307,7 +307,7 @@ let check_selected_caps_and_edge_output () =
       (fun primitive -> primitive < first_primitives) in
   let run domains = Parallel.run ~domains (fun () ->
       Ops.clip ~grain:1 ~fill:true
-        ~selection:(Ops.Selected_primitives selected) ~cap_group:"caps"
+        ~selection:(Transform_ops.Selected_primitives selected) ~cap_group:"caps"
         ~origin:Vec3.zero ~normal:Vec3.unit_y source |> get_ok) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four)
@@ -329,7 +329,7 @@ let check_selected_caps_and_edge_output () =
       ~topology:(Topology.Builder.freeze topology) () |> get_string_ok in
   let selected = Group.init ~owner:Group.Primitive ~name:"first" 2
       (fun primitive -> primitive = 0) in
-  let output = Ops.clip ~selection:(Ops.Selected_primitives selected)
+  let output = Ops.clip ~selection:(Transform_ops.Selected_primitives selected)
       ~clipped_edge_group:"plane_edges" ~origin:Vec3.zero
       ~normal:Vec3.unit_x source |> get_ok in
   (match Geometry.find_edge_group "plane_edges" output with
@@ -365,7 +365,7 @@ let check_parallel_exact () =
       (Geometry.primitive_count source) (fun primitive -> primitive mod 3 = 0) in
   let run_selected domains = Parallel.run ~domains (fun () ->
       Ops.clip ~grain:2048 ~keep:Ops.All ~split_connectivity:true
-        ~selection:(Ops.Selected_primitives selected)
+        ~selection:(Transform_ops.Selected_primitives selected)
         ~clip_attribute:"field" ~distance:0.137
         ~clipped_edge_group:"clipped_edges" ~clipped_group:"clipped"
         ~above_group:"above" ~below_group:"below" ~origin:Vec3.zero
@@ -551,7 +551,7 @@ let check_nested_cap_contours () =
       && Topology_index.non_manifold_edge_count index = 0)
     "nested Clip cap is not a closed two-manifold";
   let center = Vec3.create 1e150 (-1e150) 5e149 and scale = 1e140 in
-  let transformed = Ops.transform
+  let transformed = Transform_ops.transform
       (Mat4.mul (Mat4.translation center)
         (Mat4.scaling (Vec3.create scale scale scale))) source in
   let transformed = Ops.clip ~grain:1 ~fill:true ~cap_group:"caps"
@@ -561,7 +561,7 @@ let check_nested_cap_contours () =
   check (Group.cardinality transformed_caps = 8)
     "nested Clip lost scale robustness at large finite coordinates";
   let components = Array.init 8 (fun component ->
-      Ops.transform (Mat4.translation
+      Transform_ops.transform (Mat4.translation
         (Vec3.create 0. ((float_of_int component -. 3.5) *. 6.) 0.))
         (hollow_square_prism ())) in
   let components = Mesh_merge.run (Array.to_list components) |> get_ok in

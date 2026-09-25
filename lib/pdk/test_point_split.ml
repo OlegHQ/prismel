@@ -141,23 +141,23 @@ let test_unique_and_selection () =
   let topology = Topology.Private.view (Geometry.topology all) in
   check (topology.vertex_points = [|0;1;2;5;6;3|])
     "Point Split unique stable topology";
-  let point_selection = Ops.Selected_points (group Group.Point "seam_points" source) in
+  let point_selection = Transform_ops.Selected_points (group Group.Point "seam_points" source) in
   let points = Ops.point_split ~selection:point_selection source |> get in
   check (Geometry.point_count points = 7)
     "Point Split selected-point cardinality";
-  let vertex_selection = Ops.Selected_vertices
+  let vertex_selection = Transform_ops.Selected_vertices
       (group Group.Vertex "one_corner" source) in
   let vertex = Ops.point_split ~selection:vertex_selection source |> get in
   check (Geometry.point_count vertex = 6)
     "Point Split selected-vertex cardinality";
-  let primitive_selection = Ops.Selected_primitives
+  let primitive_selection = Transform_ops.Selected_primitives
       (group Group.Primitive "first_face" source) in
   let primitive = Ops.point_split ~selection:primitive_selection source |> get in
   check (Geometry.point_count primitive = 7)
     "Point Split selected-primitive cardinality";
   let empty = Group.init ~grain:1 ~owner:Group.Point ~name:"empty" 5
       (Fun.const false) in
-  check (Ops.point_split ~selection:(Ops.Selected_points empty) source |> get == source)
+  check (Ops.point_split ~selection:(Transform_ops.Selected_points empty) source |> get == source)
     "Point Split empty selection identity"
 
 let test_attribute_clusters_and_tolerance () =
@@ -210,12 +210,12 @@ let test_group_clusters () =
 
 let test_partial_attribute_selection () =
   let exact = base ~delta:0. () in
-  let selected = Ops.Selected_vertices
+  let selected = Transform_ops.Selected_vertices
       (group Group.Vertex "one_corner" exact) in
   check (Ops.point_split ~selection:selected ~attributes:"uv" exact |> get == exact)
     "Point Split separated an equal selected/unselected seam";
   let differing = base () in
-  let selected = Ops.Selected_vertices
+  let selected = Transform_ops.Selected_vertices
       (group Group.Vertex "one_corner" differing) in
   let split = Ops.point_split ~selection:selected ~attributes:"uv" differing
       |> get in
@@ -315,12 +315,12 @@ let test_malformed_and_cancellation () =
   expect_error "malformed pattern" (Ops.point_split ~attributes:"[" source);
   let wrong = group Group.Primitive "first_face" source in
   expect_error "wrong selection owner"
-    (Ops.point_split ~selection:(Ops.Selected_points wrong) source);
+    (Ops.point_split ~selection:(Transform_ops.Selected_points wrong) source);
   let index = Topology_index.create (Geometry.topology source) in
   let edge = Edge_group.init ~grain:1 ~topology:(Geometry.topology source)
       ~index ~name:"edge" (fun edge -> edge = 0) in
   expect_error "native edge selection"
-    (Ops.point_split ~selection:(Ops.Selected_edges edge) source);
+    (Ops.point_split ~selection:(Transform_ops.Selected_edges edge) source);
   let bad = Geometry.with_attribute
       (attribute Attribute.Vertex "bad"
         (Attribute.Float [|0.;0.;0.;nan;0.;0.|])) source |> Result.get_ok in

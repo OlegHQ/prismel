@@ -15,7 +15,7 @@ let contains text pattern =
 
 let source () =
   let geometry = Pdk.Plane_generators.grid_checked ~columns:220 ~rows:140 ~size:12. () |> function
-    | Ok value -> Ops.transform (Mat4.translation (Vec3.create 0. 1. 0.)) value
+    | Ok value -> Transform_ops.transform (Mat4.translation (Vec3.create 0. 1. 0.)) value
     | Error error -> fail (Error.to_string error) in
   let affected = Group.init ~grain:97 ~owner:Group.Point
       ~name:"distance_affected" (Geometry.point_count geometry)
@@ -59,9 +59,9 @@ let run () =
       |> Sop.distance_from_geometry ~reference:(Sop.snapshot (reference ()))
            ~affected:(Sop.Point_group "distance_affected")
            ~reference_selection:(Sop.Primitive_group "reference_surface")
-           ~reference_kind:Pdk.Ops.Distance_reference_primitives
-           ~falloff:Pdk.Ops.Soft_cubic
-           ~radius:(Pdk.Ops.Distance_fixed 3.5)
+           ~reference_kind:Pdk.Transform_ops.Distance_reference_primitives
+           ~falloff:Pdk.Transform_ops.Soft_cubic
+           ~radius:(Pdk.Transform_ops.Distance_fixed 3.5)
            ~distance_attribute:(Some "surface_distance") ~mask_attribute:"mask" in
   let parameters = Node.parameters graph in
   check (contains parameters "affected=point:distance_affected"

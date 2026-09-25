@@ -98,7 +98,7 @@ let transforms count = Array.init count (fun instance ->
 
 let legacy_materialize matrices source =
   Array.to_list matrices
-  |> List.map (fun matrix -> Ops.transform ~grain:1 matrix source)
+  |> List.map (fun matrix -> Transform_ops.transform ~grain:1 matrix source)
   |> Mesh_merge.run ~grain:1
   |> get_pdk
 
@@ -143,7 +143,7 @@ let run () =
       (Mat4.rotation_x 0.37) in
   let single = Instance_copy.materialize_instances ~grain:1
       ~transforms:[|single_matrix|] source |> get_pdk
-  and single_expected = Ops.transform ~grain:1 single_matrix source in
+  and single_expected = Transform_ops.transform ~grain:1 single_matrix source in
   check (geometry_equal single_expected single)
     "single-instance fast path changed transform semantics";
   check (Geometry.topology single == Geometry.topology source)

@@ -46,8 +46,8 @@ let same_float_array left right =
 let test_distance_and_masks () =
   let source = line_with_free_point () in
   let start = point_group "start" 5 (fun point -> point = 0) in
-  let fixed = Ops.distance_along_geometry ~grain:1
-      ~start:(Ops.Selected_points start) ~radius:(Ops.Distance_fixed 3.5)
+  let fixed = Transform_ops.distance_along_geometry ~grain:1
+      ~start:(Transform_ops.Selected_points start) ~radius:(Transform_ops.Distance_fixed 3.5)
       ~mask_attribute:"mask" source |> get_ok in
   let distance = float_attribute "distance" fixed
   and mask = float_attribute "mask" fixed in
@@ -59,17 +59,17 @@ let test_distance_and_masks () =
       && close mask.(2) 0. && close mask.(3) (1. -. (3. /. 3.5))
       && close mask.(4) 0.)
     "Distance Along Geometry fixed mask";
-  let maximum = Ops.distance_along_geometry ~grain:1
-      ~start:(Ops.Selected_points start) ~mask_attribute:"mask"
-      ~falloff:Ops.Soft_quadratic source |> get_ok in
+  let maximum = Transform_ops.distance_along_geometry ~grain:1
+      ~start:(Transform_ops.Selected_points start) ~mask_attribute:"mask"
+      ~falloff:Transform_ops.Soft_quadratic source |> get_ok in
   let mask = float_attribute "mask" maximum in
   check (close mask.(0) 1. && close mask.(1) (1. -. (1. /. 16.))
       && close mask.(2) 0. && close mask.(3) (1. -. (9. /. 16.))
       && close mask.(4) 0.)
     "Distance Along Geometry maximum-distance mask";
-  let mask_only = Ops.distance_along_geometry ~grain:1
-      ~start:(Ops.Selected_points start) ~distance_attribute:None
-      ~mask_attribute:"mask" ~radius:(Ops.Distance_fixed 3.5) source |> get_ok in
+  let mask_only = Transform_ops.distance_along_geometry ~grain:1
+      ~start:(Transform_ops.Selected_points start) ~distance_attribute:None
+      ~mask_attribute:"mask" ~radius:(Transform_ops.Distance_fixed 3.5) source |> get_ok in
   check (Geometry.find_attribute ~owner:Attribute.Point "distance" mask_only = None)
     "Distance Along Geometry omitted raw output";
   check (same_float_array (float_attribute "mask" fixed)
@@ -85,10 +85,10 @@ let test_affected_and_promotion () =
       (Geometry.vertex_count source) (fun vertex -> vertex = 0) in
   check (topology.vertex_points.(0) = 0) "distance test vertex fixture";
   let affected = point_group "affected" 5 (fun point -> point = 1 || point = 3) in
-  let output = Ops.distance_along_geometry ~grain:1
-      ~start:(Ops.Selected_vertices vertices)
-      ~affected:(Ops.Selected_points affected)
-      ~radius:(Ops.Distance_fixed 3.5) ~mask_attribute:"mask" source |> get_ok in
+  let output = Transform_ops.distance_along_geometry ~grain:1
+      ~start:(Transform_ops.Selected_vertices vertices)
+      ~affected:(Transform_ops.Selected_points affected)
+      ~radius:(Transform_ops.Distance_fixed 3.5) ~mask_attribute:"mask" source |> get_ok in
   let distance = float_attribute "distance" output
   and mask = float_attribute "mask" output in
   check (same_float_array distance [|90.; 1.; 92.; 3.; 94.|])
@@ -99,21 +99,21 @@ let test_affected_and_promotion () =
     "Distance Along Geometry affected mask preservation";
   let isolated = Line_geometry.points [|0., 0., 0.; 1., 0., 0.|] in
   let start = point_group "start" 2 (fun point -> point = 0) in
-  let zero = Ops.distance_along_geometry ~grain:1
-      ~start:(Ops.Selected_points start) ~distance_attribute:None
+  let zero = Transform_ops.distance_along_geometry ~grain:1
+      ~start:(Transform_ops.Selected_points start) ~distance_attribute:None
       ~mask_attribute:"mask" isolated |> get_ok in
   check (same_float_array (float_attribute "mask" zero) [|1.; 0.|])
     "Distance Along Geometry zero maximum and disconnected points";
   let empty = point_group "empty" 2 (fun _ -> false) in
-  let empty_output = Ops.distance_along_geometry ~grain:1
-      ~start:(Ops.Selected_points empty) ~mask_attribute:"mask" isolated
+  let empty_output = Transform_ops.distance_along_geometry ~grain:1
+      ~start:(Transform_ops.Selected_points empty) ~mask_attribute:"mask" isolated
       |> get_ok in
   check (same_float_array (float_attribute "distance" empty_output) [|-1.; -1.|]
       && same_float_array (float_attribute "mask" empty_output) [|0.; 0.|])
     "Distance Along Geometry empty-start fast path";
   let all = point_group "all" 2 (fun _ -> true) in
-  let all_output = Ops.distance_along_geometry ~grain:1
-      ~start:(Ops.Selected_points all) ~mask_attribute:"mask" isolated |> get_ok in
+  let all_output = Transform_ops.distance_along_geometry ~grain:1
+      ~start:(Transform_ops.Selected_points all) ~mask_attribute:"mask" isolated |> get_ok in
   check (same_float_array (float_attribute "distance" all_output) [|0.; 0.|]
       && same_float_array (float_attribute "mask" all_output) [|1.; 1.|])
     "Distance Along Geometry complete-start fast path"
@@ -125,40 +125,40 @@ let expect_invalid work message = match work () with
 let test_errors_cancellation_and_parallel () =
   let source = line_with_free_point () in
   let start = point_group "start" 5 (fun point -> point = 0) in
-  let selected = Ops.Selected_points start in
-  expect_invalid (fun () -> Ops.distance_along_geometry ~start:selected
+  let selected = Transform_ops.Selected_points start in
+  expect_invalid (fun () -> Transform_ops.distance_along_geometry ~start:selected
       ~distance_attribute:None source) "Distance Along Geometry no outputs";
-  expect_invalid (fun () -> Ops.distance_along_geometry ~start:selected
+  expect_invalid (fun () -> Transform_ops.distance_along_geometry ~start:selected
       ~distance_attribute:(Some "") source) "Distance Along Geometry blank output";
-  expect_invalid (fun () -> Ops.distance_along_geometry ~start:selected
+  expect_invalid (fun () -> Transform_ops.distance_along_geometry ~start:selected
       ~distance_attribute:(Some " P ") source)
     "Distance Along Geometry reserved position output";
-  expect_invalid (fun () -> Ops.distance_along_geometry ~start:selected
+  expect_invalid (fun () -> Transform_ops.distance_along_geometry ~start:selected
       ~distance_attribute:(Some "same") ~mask_attribute:"same" source)
     "Distance Along Geometry duplicate outputs";
-  expect_invalid (fun () -> Ops.distance_along_geometry ~start:selected
-      ~radius:(Ops.Distance_fixed 0.) source)
+  expect_invalid (fun () -> Transform_ops.distance_along_geometry ~start:selected
+      ~radius:(Transform_ops.Distance_fixed 0.) source)
     "Distance Along Geometry zero radius";
-  expect_invalid (fun () -> Ops.distance_along_geometry ~start:selected
-      ~radius:(Ops.Distance_fixed Float.nan) source)
+  expect_invalid (fun () -> Transform_ops.distance_along_geometry ~start:selected
+      ~radius:(Transform_ops.Distance_fixed Float.nan) source)
     "Distance Along Geometry non-finite radius";
   let wrong = Attribute.create_owned ~owner:Attribute.Point ~name:"distance"
       (Attribute.Int (Array.make 5 1)) |> Result.get_ok in
   let wrong = Geometry.with_attribute wrong source |> Result.get_ok in
-  expect_invalid (fun () -> Ops.distance_along_geometry ~start:selected wrong)
+  expect_invalid (fun () -> Transform_ops.distance_along_geometry ~start:selected wrong)
     "Distance Along Geometry wrong existing storage";
   let malformed = point_group "malformed" 4 (fun point -> point = 0) in
-  expect_invalid (fun () -> Ops.distance_along_geometry
-      ~start:(Ops.Selected_points malformed) source)
+  expect_invalid (fun () -> Transform_ops.distance_along_geometry
+      ~start:(Transform_ops.Selected_points malformed) source)
     "Distance Along Geometry malformed selection";
   let nonfinite = Line_geometry.points [|Float.nan, 0., 0.; 0., 0., 0.|] in
   let nonfinite_start = point_group "start" 2 (fun point -> point = 0) in
-  expect_invalid (fun () -> Ops.distance_along_geometry
-      ~start:(Ops.Selected_points nonfinite_start) nonfinite)
+  expect_invalid (fun () -> Transform_ops.distance_along_geometry
+      ~start:(Transform_ops.Selected_points nonfinite_start) nonfinite)
     "Distance Along Geometry non-finite positions";
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Ops.distance_along_geometry ~cancel:cancelled ~start:selected source with
+  (match Transform_ops.distance_along_geometry ~cancel:cancelled ~start:selected source with
    | Error error -> check (Error.code error = "cancelled")
        "Distance Along Geometry cancellation code"
    | Ok _ -> fail "cancelled Distance Along Geometry published geometry");
@@ -168,10 +168,10 @@ let test_errors_cancellation_and_parallel () =
       point = (120 * width) + 200) in
   let affected = point_group "affected" count (fun point -> point mod 3 <> 0) in
   let run domains = Parallel.run ~domains (fun () ->
-      Ops.distance_along_geometry ~grain:257
-        ~start:(Ops.Selected_points dense_start)
-        ~affected:(Ops.Selected_points affected)
-        ~falloff:Ops.Soft_cubic ~radius:(Ops.Distance_fixed 4.)
+      Transform_ops.distance_along_geometry ~grain:257
+        ~start:(Transform_ops.Selected_points dense_start)
+        ~affected:(Transform_ops.Selected_points affected)
+        ~falloff:Transform_ops.Soft_cubic ~radius:(Transform_ops.Distance_fixed 4.)
         ~mask_attribute:"mask" dense |> get_ok) in
   let one = run 1 and four = run 4 in
   check (same_float_array (float_attribute "distance" one)

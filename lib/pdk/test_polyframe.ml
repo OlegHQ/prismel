@@ -226,7 +226,7 @@ let check_selection () =
         ~z:(Array.make count 7.))) source in
   let group = Group.init ~owner:Group.Point ~name:"one" count
       (fun point -> point = 0) in
-  let framed = Ops.polyframe ~selection:(Ops.Selected_points group)
+  let framed = Ops.polyframe ~selection:(Transform_ops.Selected_points group)
       Ops.First_edge source |> get_ok in
   let tangent = float3_attribute ~owner:Attribute.Point framed "tangentu" in
   check (near (norm tangent 0) 1. && tangent.x.(1) = 9.

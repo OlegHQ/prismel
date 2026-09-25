@@ -48,7 +48,7 @@ let equal_geometry left right =
 
 let check_divided_box () =
   let source = Box_generator.box_checked ~size:(Vec3.create 2. 3. 4.) () |> get_ok
-      |> Ops.transform (Mat4.translation (Vec3.create 3. (-2.) 5.)) in
+      |> Transform_ops.transform (Mat4.translation (Vec3.create 3. (-2.) 5.)) in
   let output = Ops.bound ~shape:(Ops.Bound_box { divisions = 2, 3, 4 })
       ~lower_padding:(Vec3.create 1. 2. 3.)
       ~upper_padding:(Vec3.create 0.5 1. 1.5) ~bounds_group:"bounds"
@@ -99,7 +99,7 @@ let check_typed_selection () =
   let source = Box_generator.box_checked ~size:(Vec3.create 2. 2. 2.) () |> get_ok in
   let faces = Group.init ~owner:Group.Primitive ~name:"positive_x" 12
       (fun primitive -> primitive < 2) in
-  let output = Ops.bound ~selection:(Ops.Selected_primitives faces)
+  let output = Ops.bound ~selection:(Transform_ops.Selected_primitives faces)
       ~lower_padding:(Vec3.create 0.1 0. 0.)
       ~upper_padding:(Vec3.create 0.1 0. 0.) source |> get_ok in
   (match Analysis.bounds output with
@@ -153,7 +153,7 @@ let check_validation () =
       ~lower_padding:(Vec3.create 1. 1. 1.) source);
   let empty = Group.init ~owner:Group.Point ~name:"empty" 1 (fun _ -> false) in
   expect_code "invalid_geometry" (Ops.bound
-      ~selection:(Ops.Selected_points empty) source);
+      ~selection:(Transform_ops.Selected_points empty) source);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
   expect_code "cancelled" (Ops.bound ~cancel:cancelled

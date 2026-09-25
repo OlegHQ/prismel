@@ -823,7 +823,7 @@ let test_snapshot_feedback_boundary () =
       ~version:1 ~parameters:"dx=0.25" [previous]
       (fun ~context:_ inputs ->
         match inputs with
-        | [|geometry|] -> Ok (Pdk.Ops.transform
+        | [|geometry|] -> Ok (Pdk.Transform_ops.transform
             (Mat4.translation (Vec3.create 0.25 0. 0.)) geometry)
         | _ -> Error "solver step requires one snapshot") in
   let output = cook_ok evaluator current step in
@@ -1436,7 +1436,7 @@ let test_generators_selections_and_delete () =
     "procedural Normals cache identity";
   let normal_output = cook_ok evaluator current normal_graph in
   let expected_normals = Pdk.Ops.normals ~grain:1
-      ~selection:(Pdk.Ops.Selected_primitives
+      ~selection:(Pdk.Transform_ops.Selected_primitives
         (Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive
           "reverse_first" reverse_source |> Option.get))
       ~owner:Pdk.Attribute.Vertex ~weighting:Pdk.Normal_ops.Vertex_angle
@@ -2519,7 +2519,7 @@ let test_generators_selections_and_delete () =
    | Some _ -> fail "procedural multi-owner transfer accepted no owner patterns");
   let custom = Sop.custom ~label:"custom-shift" ~operation:"custom_shift"
       ~version:3 ~parameters:"x=2" [Sop.points [|(0., 0., 0.)|]]
-      (fun ~context:_ inputs -> Ok (Pdk.Ops.transform
+      (fun ~context:_ inputs -> Ok (Pdk.Transform_ops.transform
         (Mat4.translation (Vec3.create 2. 0. 0.)) inputs.(0))) in
   let custom_output = cook_ok evaluator current custom in
   let custom_x, _, _ = Pdk.Packed.Float3.get

@@ -73,7 +73,7 @@ let test_point_rewire_and_edge_ancestry () =
   let geometry = source () in
   let selected = group Group.Point "selected" 7 [0] in
   let output = Ops.rewire_vertices
-      ~selection:(Ops.Selected_points selected) ~keep_unused_points:true
+      ~selection:(Transform_ops.Selected_points selected) ~keep_unused_points:true
       ~original_point_attribute:"origpt" ~owner:Attribute.Point
       ~target_attribute:"targetpt" geometry |> get_ok in
   check (vertex_points output = [|3;1;2;2;1;3;4;5;6|])
@@ -95,27 +95,27 @@ let test_selection_promotion () =
   let geometry = source () in
   let selected_vertex = group Group.Vertex "one_corner" 9 [2] in
   let output = Ops.rewire_vertices
-      ~selection:(Ops.Selected_vertices selected_vertex)
+      ~selection:(Transform_ops.Selected_vertices selected_vertex)
       ~keep_unused_points:true ~owner:Attribute.Point
       ~target_attribute:"targetpt" geometry |> get_ok in
   check (vertex_points output = [|0;1;4;4;1;3;4;5;6|])
     "Rewire Vertices did not promote vertex selection to point owner";
   let selected_vertex = group Group.Vertex "one_vertex" 9 [0] in
   let output = Ops.rewire_vertices
-      ~selection:(Ops.Selected_vertices selected_vertex)
+      ~selection:(Transform_ops.Selected_vertices selected_vertex)
       ~keep_unused_points:true ~owner:Attribute.Vertex
       ~target_attribute:"targetv" geometry |> get_ok in
   check (vertex_points output = [|3;1;2;2;1;3;4;5;6|])
     "Rewire Vertices vertex target selection";
   let primitive = group Group.Primitive "first" 3 [0] in
   let output = Ops.rewire_vertices
-      ~selection:(Ops.Selected_primitives primitive)
+      ~selection:(Transform_ops.Selected_primitives primitive)
       ~keep_unused_points:true ~owner:Attribute.Primitive
       ~target_attribute:"targetprim" geometry |> get_ok in
   check (vertex_points output = [|4;4;4;2;1;3;4;5;6|])
     "Rewire Vertices primitive target selection";
   let hard = Geometry.find_edge_group "hard" geometry |> Option.get in
-  let output = Ops.rewire_vertices ~selection:(Ops.Selected_edges hard)
+  let output = Ops.rewire_vertices ~selection:(Transform_ops.Selected_edges hard)
       ~keep_unused_points:true ~owner:Attribute.Point
       ~target_attribute:"targetpt" geometry |> get_ok in
   check (vertex_points output = [|3;1;2;2;1;3;4;5;6|])
@@ -133,7 +133,7 @@ let test_recursive_chains_and_cycles () =
 let test_cleanup_and_payload () =
   let geometry = source ~free_point:true () in
   let selected = group Group.Point "selected" 8 [0] in
-  let output = Ops.rewire_vertices ~selection:(Ops.Selected_points selected)
+  let output = Ops.rewire_vertices ~selection:(Transform_ops.Selected_points selected)
       ~owner:Attribute.Point ~target_attribute:"targetpt" geometry |> get_ok in
   check (Geometry.point_count output = 7
       && vertex_points output = [|0;0;1;1;0;2;3;4;5|])
@@ -193,7 +193,7 @@ let test_delete_noop_and_errors () =
     ~owner:Attribute.Detail ~target_attribute:"targetpt" geometry);
   let wrong = group Group.Point "wrong" 2 [] in
   expect "invalid_rewire_vertices" (fun () -> Ops.rewire_vertices
-    ~selection:(Ops.Selected_points wrong) ~owner:Attribute.Point
+    ~selection:(Transform_ops.Selected_points wrong) ~owner:Attribute.Point
     ~target_attribute:"targetpt" geometry);
   let cancel = Cancel.create () in
   Cancel.cancel cancel;

@@ -246,8 +246,8 @@ let numeric_value kind x y z w = match kind with
   | Numeric_vec4 -> Pdk.Attribute_ops.Vec4 (x, y, z, w)
 
 let soft_falloff_parameter = Parameter.choice ~equal:( = ) [
-    "Linear", Pdk.Ops.Soft_linear; "Quadratic", Pdk.Ops.Soft_quadratic;
-    "Cubic", Pdk.Ops.Soft_cubic;
+    "Linear", Pdk.Transform_ops.Soft_linear; "Quadratic", Pdk.Transform_ops.Soft_quadratic;
+    "Cubic", Pdk.Transform_ops.Soft_cubic;
   ]
 
 type distance_radius_mode = Radius_fixed | Radius_maximum
@@ -255,8 +255,8 @@ let distance_radius_parameter = Parameter.choice ~equal:( = ) [
     "Fixed", Radius_fixed; "Maximum distance", Radius_maximum;
   ]
 let distance_radius mode value = match mode with
-  | Radius_fixed -> Pdk.Ops.Distance_fixed value
-  | Radius_maximum -> Pdk.Ops.Distance_maximum
+  | Radius_fixed -> Pdk.Transform_ops.Distance_fixed value
+  | Radius_maximum -> Pdk.Transform_ops.Distance_maximum
 
 module Box = struct
   let connectivity_parameter = Parameter.choice ~equal:( = ) [
@@ -4383,8 +4383,8 @@ module Distance_along_geometry = struct
       [@sop.kind element_owner_parameter];
     affected_group : string [@sop.default ""] [@sop.label "Affected group"]
       [@sop.folder "Affected"];
-    falloff : Pdk.Ops.soft_transform_falloff
-      [@sop.default Pdk.Ops.Soft_linear]
+    falloff : Pdk.Transform_ops.soft_transform_falloff
+      [@sop.default Pdk.Transform_ops.Soft_linear]
       [@sop.label "Falloff"] [@sop.kind soft_falloff_parameter];
     radius_mode : distance_radius_mode [@sop.default Radius_maximum]
       [@sop.label "Radius"] [@sop.kind distance_radius_parameter];
@@ -4423,8 +4423,8 @@ end [@@sop.register]
 
 module Distance_from_geometry = struct
   let reference_parameter = Parameter.choice ~equal:( = ) [
-      "Points", Pdk.Ops.Distance_reference_points;
-      "Primitives", Pdk.Ops.Distance_reference_primitives;
+      "Points", Pdk.Transform_ops.Distance_reference_points;
+      "Primitives", Pdk.Transform_ops.Distance_reference_primitives;
     ]
 
   type parameters = {
@@ -4438,12 +4438,12 @@ module Distance_from_geometry = struct
       [@sop.kind element_owner_parameter];
     reference_group : string [@sop.default ""] [@sop.label "Reference group"]
       [@sop.folder "Reference"];
-    reference_kind : Pdk.Ops.distance_from_geometry_reference
-      [@sop.default Pdk.Ops.Distance_reference_primitives]
+    reference_kind : Pdk.Transform_ops.distance_from_geometry_reference
+      [@sop.default Pdk.Transform_ops.Distance_reference_primitives]
       [@sop.label "Reference type"] [@sop.folder "Reference"]
       [@sop.kind reference_parameter];
-    falloff : Pdk.Ops.soft_transform_falloff
-      [@sop.default Pdk.Ops.Soft_linear]
+    falloff : Pdk.Transform_ops.soft_transform_falloff
+      [@sop.default Pdk.Transform_ops.Soft_linear]
       [@sop.label "Falloff"] [@sop.kind soft_falloff_parameter];
     radius_mode : distance_radius_mode [@sop.default Radius_maximum]
       [@sop.label "Radius"] [@sop.kind distance_radius_parameter];
@@ -4483,21 +4483,21 @@ end [@@sop.register]
 
 module Distance_from_target = struct
   let projection_parameter = Parameter.choice ~equal:( = ) [
-      "Spherical", Pdk.Ops.Distance_target_spherical;
-      "Cylindrical", Pdk.Ops.Distance_target_cylindrical;
-      "Planar", Pdk.Ops.Distance_target_planar;
+      "Spherical", Pdk.Transform_ops.Distance_target_spherical;
+      "Cylindrical", Pdk.Transform_ops.Distance_target_cylindrical;
+      "Planar", Pdk.Transform_ops.Distance_target_planar;
     ]
   let metric_parameter = Parameter.choice ~equal:( = ) [
-      "Absolute", Pdk.Ops.Distance_target_absolute;
-      "Signed", Pdk.Ops.Distance_target_signed;
+      "Absolute", Pdk.Transform_ops.Distance_target_absolute;
+      "Signed", Pdk.Transform_ops.Distance_target_signed;
     ]
 
   type parameters = {
     affected_owner : element_owner [@sop.default Element_point]
       [@sop.label "Affected group type"] [@sop.kind element_owner_parameter];
     affected_group : string [@sop.default ""] [@sop.label "Affected group"];
-    projection : Pdk.Ops.distance_from_target_projection
-      [@sop.default Pdk.Ops.Distance_target_spherical]
+    projection : Pdk.Transform_ops.distance_from_target_projection
+      [@sop.default Pdk.Transform_ops.Distance_target_spherical]
       [@sop.label "Projection"] [@sop.kind projection_parameter];
     origin_x : float [@sop.default 0.] [@sop.label "Origin X"]
       [@sop.folder "Target/Origin"] [@sop.min (-100.)] [@sop.max 100.];
@@ -4511,11 +4511,11 @@ module Distance_from_target = struct
       [@sop.folder "Target/Direction"] [@sop.min (-1.)] [@sop.max 1.];
     direction_z : float [@sop.default 0.] [@sop.label "Direction Z"]
       [@sop.folder "Target/Direction"] [@sop.min (-1.)] [@sop.max 1.];
-    metric : Pdk.Ops.distance_from_target_metric
-      [@sop.default Pdk.Ops.Distance_target_absolute]
+    metric : Pdk.Transform_ops.distance_from_target_metric
+      [@sop.default Pdk.Transform_ops.Distance_target_absolute]
       [@sop.label "Metric"] [@sop.kind metric_parameter];
-    falloff : Pdk.Ops.soft_transform_falloff
-      [@sop.default Pdk.Ops.Soft_linear]
+    falloff : Pdk.Transform_ops.soft_transform_falloff
+      [@sop.default Pdk.Transform_ops.Soft_linear]
       [@sop.label "Falloff"] [@sop.kind soft_falloff_parameter];
     radius_mode : distance_radius_mode [@sop.default Radius_maximum]
       [@sop.label "Radius"] [@sop.kind distance_radius_parameter];
@@ -8037,14 +8037,14 @@ end [@@sop.register]
 module Soft_transform = struct
   type metric = Radius | Edge | Attribute
   let order_parameter = Parameter.choice ~equal:( = ) [
-      "SRT", Pdk.Ops.Transform_srt; "STR", Pdk.Ops.Transform_str;
-      "RST", Pdk.Ops.Transform_rst; "RTS", Pdk.Ops.Transform_rts;
-      "TSR", Pdk.Ops.Transform_tsr; "TRS", Pdk.Ops.Transform_trs;
+      "SRT", Pdk.Transform_ops.Transform_srt; "STR", Pdk.Transform_ops.Transform_str;
+      "RST", Pdk.Transform_ops.Transform_rst; "RTS", Pdk.Transform_ops.Transform_rts;
+      "TSR", Pdk.Transform_ops.Transform_tsr; "TRS", Pdk.Transform_ops.Transform_trs;
     ]
   let rotation_order_parameter = Parameter.choice ~equal:( = ) [
-      "XYZ", Pdk.Ops.Transform_xyz; "XZY", Pdk.Ops.Transform_xzy;
-      "YXZ", Pdk.Ops.Transform_yxz; "YZX", Pdk.Ops.Transform_yzx;
-      "ZXY", Pdk.Ops.Transform_zxy; "ZYX", Pdk.Ops.Transform_zyx;
+      "XYZ", Pdk.Transform_ops.Transform_xyz; "XZY", Pdk.Transform_ops.Transform_xzy;
+      "YXZ", Pdk.Transform_ops.Transform_yxz; "YZX", Pdk.Transform_ops.Transform_yzx;
+      "ZXY", Pdk.Transform_ops.Transform_zxy; "ZYX", Pdk.Transform_ops.Transform_zyx;
     ]
   let metric_parameter = Parameter.choice ~equal:( = ) [
       "Radius", Radius; "Edge distance", Edge; "Attribute", Attribute;
@@ -8055,11 +8055,11 @@ module Soft_transform = struct
       [@sop.kind element_owner_parameter];
     group : string [@sop.default ""] [@sop.label "Group"]
       [@sop.folder "Selection"];
-    order : Pdk.Ops.transform_order [@sop.default Pdk.Ops.Transform_srt]
+    order : Pdk.Transform_ops.transform_order [@sop.default Pdk.Transform_ops.Transform_srt]
       [@sop.label "Transform order"] [@sop.folder "Transform"]
       [@sop.kind order_parameter];
-    rotation_order : Pdk.Ops.transform_rotation_order
-      [@sop.default Pdk.Ops.Transform_xyz] [@sop.label "Rotation order"]
+    rotation_order : Pdk.Transform_ops.transform_rotation_order
+      [@sop.default Pdk.Transform_ops.Transform_xyz] [@sop.label "Rotation order"]
       [@sop.folder "Transform/Rotate"] [@sop.kind rotation_order_parameter];
     translate_x : float [@sop.default 0.] [@sop.label "Translate X"]
       [@sop.folder "Transform/Translate"] [@sop.min (-10.)] [@sop.max 10.];
@@ -8113,8 +8113,8 @@ module Soft_transform = struct
       [@sop.label "Metric attribute"] [@sop.folder "Soft selection"];
     apply_rolloff : bool [@sop.default true] [@sop.label "Apply rolloff"]
       [@sop.folder "Soft selection"];
-    falloff : Pdk.Ops.soft_transform_falloff
-      [@sop.default Pdk.Ops.Soft_cubic] [@sop.label "Falloff"]
+    falloff : Pdk.Transform_ops.soft_transform_falloff
+      [@sop.default Pdk.Transform_ops.Soft_cubic] [@sop.label "Falloff"]
       [@sop.folder "Soft selection"] [@sop.kind soft_falloff_parameter];
     radius : float [@sop.default 1.] [@sop.label "Radius"]
       [@sop.folder "Soft selection"] [@sop.min 0.] [@sop.max 100.]
@@ -8127,9 +8127,9 @@ module Soft_transform = struct
     [@@sop.node_category "Deform"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
   let metric parameters = match parameters.metric with
-    | Radius -> Pdk.Ops.Soft_radius
-    | Edge -> Pdk.Ops.Soft_edge
-    | Attribute -> Pdk.Ops.Soft_attribute {
+    | Radius -> Pdk.Transform_ops.Soft_radius
+    | Edge -> Pdk.Transform_ops.Soft_edge
+    | Attribute -> Pdk.Transform_ops.Soft_attribute {
         attribute = parameters.metric_attribute;
         apply_rolloff = parameters.apply_rolloff }
   let rec build ~label ~inputs parameters = match inputs with

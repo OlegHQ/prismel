@@ -45,8 +45,8 @@ let same_positions left right =
 
 let run () =
   let graph = Sop.snapshot (source ())
-      |> Sop.transform_trs ~order:Ops.Transform_str
-           ~rotation_order:Ops.Transform_yzx
+      |> Sop.transform_trs ~order:Transform_ops.Transform_str
+           ~rotation_order:Transform_ops.Transform_yzx
            ~translate:(Vec3.create 1. 2. 3.)
            ~rotate:(Vec3.create 0.2 (-0.3) 0.4)
            ~scale:(Vec3.create 1.2 0.7 1.1)

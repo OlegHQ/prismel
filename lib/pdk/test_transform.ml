@@ -79,12 +79,12 @@ let same_geometry left right =
 let test_composition () =
   let translation = Vec3.create 10. 0. 0. and rotation = Vec3.create 0. 0. (Float.pi /. 2.)
   and scale = Vec3.create 2. 1. 1. in
-  let srt = Ops.compose_transform ~order:Ops.Transform_srt
+  let srt = Transform_ops.compose_transform ~order:Transform_ops.Transform_srt
       ~translate:translation ~rotate:rotation ~scale () |> get_ok in
   let x, y, z = Mat4.transform_point srt (Vec3.create 1. 0. 0.) |> fun v -> v.x,v.y,v.z in
   check (close x 10. && close y 2. && close z 0.)
     "Transform SRT application order";
-  let trs = Ops.compose_transform ~order:Ops.Transform_trs
+  let trs = Transform_ops.compose_transform ~order:Transform_ops.Transform_trs
       ~translate:translation ~rotate:rotation ~scale () |> get_ok in
   let value = Mat4.transform_point trs (Vec3.create 1. 0. 0.) in
   check (close value.x 0. && close value.y 11. && close value.z 0.)
@@ -95,33 +95,33 @@ let test_composition () =
   let applied matrices = List.fold_left (fun matrix operation ->
       Mat4.mul operation matrix) Mat4.identity matrices in
   List.iter (fun (order, expected) ->
-    let actual = Ops.compose_transform ~order ~translate:translation
+    let actual = Transform_ops.compose_transform ~order ~translate:translation
         ~rotate:rotation ~scale () |> get_ok in
     check (Mat4.nearly_equal actual (applied expected) ~eps:1e-12)
       "Transform affine-order matrix")
-    [Ops.Transform_srt, [s;r;t]; Ops.Transform_str, [s;t;r];
-     Ops.Transform_rst, [r;s;t]; Ops.Transform_rts, [r;t;s];
-     Ops.Transform_tsr, [t;s;r]; Ops.Transform_trs, [t;r;s]];
+    [Transform_ops.Transform_srt, [s;r;t]; Transform_ops.Transform_str, [s;t;r];
+     Transform_ops.Transform_rst, [r;s;t]; Transform_ops.Transform_rts, [r;t;s];
+     Transform_ops.Transform_tsr, [t;s;r]; Transform_ops.Transform_trs, [t;r;s]];
   let rx = Mat4.rotation_x 0.2 and ry = Mat4.rotation_y (-0.3)
   and rz = Mat4.rotation_z 0.4 and angles = Vec3.create 0.2 (-0.3) 0.4 in
   List.iter (fun (rotation_order, expected) ->
-    let actual = Ops.compose_transform ~rotation_order ~rotate:angles ()
+    let actual = Transform_ops.compose_transform ~rotation_order ~rotate:angles ()
         |> get_ok in
     check (Mat4.nearly_equal actual (applied expected) ~eps:1e-12)
       "Transform Euler-order matrix")
-    [Ops.Transform_xyz, [rx;ry;rz]; Ops.Transform_xzy, [rx;rz;ry];
-     Ops.Transform_yxz, [ry;rx;rz]; Ops.Transform_yzx, [ry;rz;rx];
-     Ops.Transform_zxy, [rz;rx;ry]; Ops.Transform_zyx, [rz;ry;rx]];
-  let pivoted = Ops.compose_transform ~scale:(Vec3.create 2. 2. 2.)
+    [Transform_ops.Transform_xyz, [rx;ry;rz]; Transform_ops.Transform_xzy, [rx;rz;ry];
+     Transform_ops.Transform_yxz, [ry;rx;rz]; Transform_ops.Transform_yzx, [ry;rz;rx];
+     Transform_ops.Transform_zxy, [rz;rx;ry]; Transform_ops.Transform_zyx, [rz;ry;rx]];
+  let pivoted = Transform_ops.compose_transform ~scale:(Vec3.create 2. 2. 2.)
       ~pivot:(Vec3.create 1. 0. 0.) () |> get_ok in
   let value = Mat4.transform_point pivoted (Vec3.create 2. 0. 0.) in
   check (close value.x 3. && close value.y 0. && close value.z 0.)
     "Transform pivot";
-  let forward = Ops.compose_transform ~translate:(Vec3.create 3. (-2.) 5.)
+  let forward = Transform_ops.compose_transform ~translate:(Vec3.create 3. (-2.) 5.)
       ~rotate:(Vec3.create 0.2 (-0.4) 0.7)
       ~scale:(Vec3.create 2. 3. 4.) ~shear:(Vec3.create 0.1 (-0.2) 0.3) ()
       |> get_ok in
-  let inverse = Ops.compose_transform ~translate:(Vec3.create 3. (-2.) 5.)
+  let inverse = Transform_ops.compose_transform ~translate:(Vec3.create 3. (-2.) 5.)
       ~rotate:(Vec3.create 0.2 (-0.4) 0.7)
       ~scale:(Vec3.create 2. 3. 4.) ~shear:(Vec3.create 0.1 (-0.2) 0.3)
       ~invert:true () |> get_ok in
@@ -129,7 +129,7 @@ let test_composition () =
   let round_trip = Mat4.transform_point inverse (Mat4.transform_point forward source) in
   check (close source.x round_trip.x && close source.y round_trip.y
       && close source.z round_trip.z) "Transform inverse round trip";
-  (match Ops.compose_transform ~scale:Vec3.zero ~invert:true () with
+  (match Transform_ops.compose_transform ~scale:Vec3.zero ~invert:true () with
    | Error error -> check (Error.code error = "invalid_transform")
        "singular inverse error code"
    | Ok _ -> fail "Transform accepted singular inversion")
@@ -138,18 +138,18 @@ let test_selection_and_normals () =
   let source = two_triangles () in
   let primitive = Group.init ~grain:1 ~owner:Group.Primitive ~name:"first" 2
       (fun primitive -> primitive = 0) in
-  let matrix = Ops.compose_transform ~translate:(Vec3.create 2. 0. 0.) ()
+  let matrix = Transform_ops.compose_transform ~translate:(Vec3.create 2. 0. 0.) ()
       |> get_ok in
-  let moved = Ops.transform_selected ~grain:1
-      ~selection:(Ops.Selected_primitives primitive) matrix source |> get_ok in
+  let moved = Transform_ops.transform_selected ~grain:1
+      ~selection:(Transform_ops.Selected_primitives primitive) matrix source |> get_ok in
   check_point moved 0 (2.,0.,0.) "selected primitive point 0";
   check_point moved 1 (3.,0.,0.) "selected primitive point 1";
   check_point moved 2 (3.,1.,0.) "selected primitive point 2";
   check_point moved 3 (0.,1.,0.) "unselected primitive-only point";
   let vertex = Group.init ~grain:1 ~owner:Group.Vertex ~name:"corner" 6
       (fun vertex -> vertex = 4) in
-  let moved_vertex = Ops.transform_selected ~grain:1
-      ~selection:(Ops.Selected_vertices vertex) matrix source |> get_ok in
+  let moved_vertex = Transform_ops.transform_selected ~grain:1
+      ~selection:(Transform_ops.Selected_vertices vertex) matrix source |> get_ok in
   check_point moved_vertex 2 (3.,1.,0.) "selected vertex referenced point";
   check_point moved_vertex 0 (0.,0.,0.) "unselected vertex point";
   let topology = Geometry.topology source in
@@ -158,47 +158,47 @@ let test_selection_and_normals () =
   let edge = Edge_group.init ~grain:1 ~topology ~index ~name:"edge01"
       (fun edge -> let a = reverse.edge_a.(edge) and b = reverse.edge_b.(edge) in
         (a = 0 && b = 1) || (a = 1 && b = 0)) in
-  let moved_edge = Ops.transform_selected ~grain:1
-      ~selection:(Ops.Selected_edges edge) matrix source |> get_ok in
+  let moved_edge = Transform_ops.transform_selected ~grain:1
+      ~selection:(Transform_ops.Selected_edges edge) matrix source |> get_ok in
   check_point moved_edge 0 (2.,0.,0.) "selected edge endpoint 0";
   check_point moved_edge 1 (3.,0.,0.) "selected edge endpoint 1";
   check_point moved_edge 2 (1.,1.,0.) "unselected edge point";
   let one_point = Group.init ~grain:1 ~owner:Group.Point ~name:"one" 4
       (fun point -> point = 1) in
-  let scale = Ops.compose_transform ~scale:(Vec3.create 2. 1. 1.) () |> get_ok in
-  let normalized = Ops.transform_selected ~grain:1
-      ~selection:(Ops.Selected_points one_point) scale source |> get_ok in
+  let scale = Transform_ops.compose_transform ~scale:(Vec3.create 2. 1. 1.) () |> get_ok in
+  let normalized = Transform_ops.transform_selected ~grain:1
+      ~selection:(Transform_ops.Selected_points one_point) scale source |> get_ok in
   let normals = normal Attribute.Point normalized in
   check (close (sqrt (normals.x.(1) ** 2. +. normals.y.(1) ** 2.)) 1.
       && close normals.x.(0) 2. && close normals.y.(0) 2.)
     "selected inverse-transpose normalized normals";
-  let preserved = Ops.transform_selected ~grain:1 ~preserve_normal_length:true
-      ~selection:(Ops.Selected_points one_point) scale source |> get_ok in
+  let preserved = Transform_ops.transform_selected ~grain:1 ~preserve_normal_length:true
+      ~selection:(Transform_ops.Selected_points one_point) scale source |> get_ok in
   let normals = normal Attribute.Point preserved in
   check (close (sqrt (normals.x.(1) ** 2. +. normals.y.(1) ** 2.))
       (sqrt 8.)) "preserved selected normal length";
-  let singular = Ops.compose_transform ~scale:(Vec3.create 0. 1. 1.) () |> get_ok in
-  let singular = Ops.transform_selected ~grain:1 singular source |> get_ok in
+  let singular = Transform_ops.compose_transform ~scale:(Vec3.create 0. 1. 1.) () |> get_ok in
+  let singular = Transform_ops.transform_selected ~grain:1 singular source |> get_ok in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" singular = None
       && Geometry.find_attribute ~owner:Attribute.Vertex "N" singular = None)
     "singular transform invalidates normals";
   let empty = Group.init ~grain:1 ~owner:Group.Point ~name:"empty" 4
       (fun _ -> false) in
-  let unchanged = Ops.transform_selected ~grain:1
-      ~selection:(Ops.Selected_points empty) matrix source |> get_ok in
+  let unchanged = Transform_ops.transform_selected ~grain:1
+      ~selection:(Transform_ops.Selected_points empty) matrix source |> get_ok in
   check (unchanged == source) "empty Transform selection structural sharing"
 
 let test_errors_and_parallel () =
   let source = two_triangles () in
   let invalid = Mat4.of_rows (Float.nan,0.,0.,0.) (0.,1.,0.,0.)
       (0.,0.,1.,0.) (0.,0.,0.,1.) in
-  (match Ops.transform_selected invalid source with
+  (match Transform_ops.transform_selected invalid source with
    | Error error -> check (Error.code error = "invalid_transform")
        "non-finite matrix error code"
    | Ok _ -> fail "Transform accepted non-finite matrix");
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Ops.transform_selected ~cancel:cancelled (Mat4.translation Vec3.unit_x)
+  (match Transform_ops.transform_selected ~cancel:cancelled (Mat4.translation Vec3.unit_x)
       source with
    | Error error -> check (Error.code error = "cancelled")
        "Transform cancellation code"
@@ -207,14 +207,14 @@ let test_errors_and_parallel () =
   let count = Geometry.primitive_count dense in
   let selection = Group.init ~grain:257 ~owner:Group.Primitive ~name:"bands" count
       (fun primitive -> primitive mod 7 < 3) in
-  let matrix = Ops.compose_transform ~order:Ops.Transform_rts
-      ~rotation_order:Ops.Transform_zyx ~translate:(Vec3.create 1. 2. 3.)
+  let matrix = Transform_ops.compose_transform ~order:Transform_ops.Transform_rts
+      ~rotation_order:Transform_ops.Transform_zyx ~translate:(Vec3.create 1. 2. 3.)
       ~rotate:(Vec3.create 0.2 0.4 (-0.1))
       ~scale:(Vec3.create 1.2 0.8 1.1) ~shear:(Vec3.create 0.1 0.2 (-0.1))
       ~pivot:(Vec3.create 0.3 (-0.2) 0.7) () |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
-      Ops.transform_selected ~grain:257
-        ~selection:(Ops.Selected_primitives selection) matrix dense |> get_ok) in
+      Transform_ops.transform_selected ~grain:257
+        ~selection:(Transform_ops.Selected_primitives selection) matrix dense |> get_ok) in
   let one = run 1 and four = run 4 in
   check (same_geometry one four) "Transform one/four-domain exactness"
 

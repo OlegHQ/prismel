@@ -233,7 +233,7 @@ let check_target_scale_and_validation () =
 let check_target_parallel_exact () =
   let target = Plane_generators.grid_checked ~columns:420 ~rows:320 ~size:30. () |> get_ok in
   let source = target
-      |> Ops.transform (Mat4.translation (Vec3.create 0.013 (-0.017) 0.009)) in
+      |> Transform_ops.transform (Mat4.translation (Vec3.create 0.013 (-0.017) 0.009)) in
   let run domains = Parallel.run ~domains (fun () ->
     Ops.fuse ~grain:1024 ~target ~using:Ops.Closest_target_point
       ~tolerance:0.05 ~fuse_points:false ~snapped_group:"snapped"
@@ -244,7 +244,7 @@ let check_target_parallel_exact () =
   let base = Plane_generators.grid_checked ~columns:220 ~rows:160 ~size:20. () |> get_ok in
   let half = Geometry.point_count base in
   let linked = Mesh_merge.run [base;
-      Ops.transform (Mat4.translation (Vec3.create 0.013 (-0.017) 0.009)) base]
+      Transform_ops.transform (Mat4.translation (Vec3.create 0.013 (-0.017) 0.009)) base]
       |> get_ok in
   let linked_count = Geometry.point_count linked in
   let linked = linked

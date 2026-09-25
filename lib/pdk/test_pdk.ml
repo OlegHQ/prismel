@@ -2096,7 +2096,7 @@ let run () =
   let vertex_normal = Attribute.create_key_owned
       (Attribute.normal ~owner:Attribute.Vertex) vertex_normals |> get_ok in
   let with_vertex_normals = Geometry.with_attribute vertex_normal triangle_geometry |> get_ok in
-  let scaled = Ops.transform (Mat4.scaling (Vec3.create 2. 1. 1.))
+  let scaled = Transform_ops.transform (Mat4.scaling (Vec3.create 2. 1. 1.))
       with_vertex_normals in
   let scaled_n = Geometry.find_attribute ~owner:Attribute.Vertex "N" scaled
       |> Option.get |> Attribute.get (Attribute.normal ~owner:Attribute.Vertex)
@@ -4010,7 +4010,7 @@ let run () =
   (match Analysis.with_measure ~grain:0 Analysis.Area grid with
    | Error error when Error.code error = "invalid_parameter" -> ()
    | _ -> fail "measure accepted non-positive grain");
-  let disconnected = Mesh_merge.run [box; Ops.transform
+  let disconnected = Mesh_merge.run [box; Transform_ops.transform
       (Mat4.translation (Vec3.create 10. 0. 0.)) box] |> get_ok in
   let classes, class_count = Analysis.connectivity disconnected in
   if class_count <> 12 || Array.length classes <> 24
@@ -4077,7 +4077,7 @@ let run () =
    | _ -> fail "bounding box bounds/padding");
   let match_source = Box_generator.box_checked ~size:(Vec3.create 1. 2. 4.) () |> get_ok
   and match_target = Box_generator.box_checked ~size:(Vec3.create 4. 6. 8.) () |> get_ok
-      |> Ops.transform (Mat4.translation (Vec3.create (-3.) 5. 2.)) in
+      |> Transform_ops.transform (Mat4.translation (Vec3.create (-3.) 5. 2.)) in
   let matched domains = Parallel.run ~domains (fun () ->
       Ops.match_size ~grain:1 ~fit:Ops.Stretch ~target:match_target match_source
       |> get_ok) in

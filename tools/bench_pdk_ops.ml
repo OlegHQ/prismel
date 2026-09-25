@@ -955,13 +955,13 @@ let run_facet_benchmarks () =
     Ops.facet ~grain ~primitives:selected_primitives ~unique_points:true source
     |> get_ok) geometry_output;
   measure ~input_points "facet_point_selection_unique_points" (fun () ->
-    Ops.facet ~grain ~selection:(Ops.Selected_points selected_points)
+    Ops.facet ~grain ~selection:(Transform_ops.Selected_points selected_points)
       ~unique_points:true source |> get_ok) geometry_output;
   measure ~input_points "facet_vertex_selection_unique_points" (fun () ->
-    Ops.facet ~grain ~selection:(Ops.Selected_vertices selected_vertices)
+    Ops.facet ~grain ~selection:(Transform_ops.Selected_vertices selected_vertices)
       ~unique_points:true source |> get_ok) geometry_output;
   measure ~input_points "facet_edge_selection_unique_points" (fun () ->
-    Ops.facet ~grain ~selection:(Ops.Selected_edges selected_edges)
+    Ops.facet ~grain ~selection:(Transform_ops.Selected_edges selected_edges)
       ~unique_points:true source |> get_ok) geometry_output;
   measure ~input_points "facet_group_pre_normals" (fun () ->
     Ops.facet ~grain ~primitives:selected_primitives ~pre_compute_normals:true
@@ -1152,7 +1152,7 @@ let run_transfer_benchmarks filter =
   end else
   let modeling_grid = Ops.grid ~columns:200 ~rows:200 ~size:20. () |> get_ok in
   let input_points = Geometry.point_count modeling_grid in
-  let transfer_target = Ops.transform ~grain
+  let transfer_target = Transform_ops.transform ~grain
       (Mat4.translation (Vec3.create 0.015 0. 0.012)) modeling_grid in
   let point_source_group = Group.init ~owner:Group.Point ~name:"point_source"
       input_points (fun _ -> true)
@@ -1207,7 +1207,7 @@ let run_transfer_benchmarks filter =
     let revision = Attribute.create_owned ~name:"revision"
         ~owner:Attribute.Detail (Attribute.Int [|17|]) |> get_ok in
     let source = Geometry.with_attribute revision source |> get_ok in
-    let surface_target = Ops.transform ~grain
+    let surface_target = Transform_ops.transform ~grain
         (Mat4.translation (Vec3.create 0.015 0.2 0.012)) modeling_grid in
     let source_primitives = Group.init ~owner:Group.Primitive
         ~name:"surface_source" primitive_count (fun _ -> true)
@@ -2157,7 +2157,7 @@ let run_ray_benchmarks () =
            |> get_ok
       |> Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
   let source = Ops.grid ~columns ~rows ~size:39.5 () |> get_ok
-      |> Ops.transform ~grain (Mat4.translation (Vec3.create 0. 2. 0.)) in
+      |> Transform_ops.transform ~grain (Mat4.translation (Vec3.create 0. 2. 0.)) in
   let point_count = Geometry.point_count source in
   measure ~input_points:point_count "ray_project_vector" (fun () ->
     Ops.ray ~grain ~direction:(Ops.Ray_vector (Vec3.create 0. (-1.) 0.))
@@ -2219,7 +2219,7 @@ let run_fuse_benchmarks () =
   measure ~input_points:duplicate_count "fuse_exact_duplicate_pair" (fun () ->
     Ops.fuse ~grain ~tolerance:0. duplicate |> get_ok) geometry_output;
   let target = Ops.grid ~columns:500 ~rows:400 ~size:30. () |> get_ok in
-  let query = Ops.transform ~grain
+  let query = Transform_ops.transform ~grain
       (Mat4.translation (Vec3.create 0.013 (-0.017) 0.009)) target in
   let target_count = Geometry.point_count target in
   measure ~input_points:(target_count * 2) "fuse_target_closest_snap" (fun () ->
@@ -2254,7 +2254,7 @@ let run_fuse_benchmarks () =
         Ops.fuse_attribute_rule ~pattern:"catalog" Ops.Attribute_concatenate]
       ~group_rules:[Ops.fuse_group_rule ~pattern:"marked" Ops.Group_union]
       query_rules |> get_ok) geometry_output;
-  let shifted_target = Ops.transform ~grain
+  let shifted_target = Transform_ops.transform ~grain
       (Mat4.translation (Vec3.create 0.013 (-0.017) 0.009)) target in
   let linked = Ops.merge ~grain [target; shifted_target] |> get_ok in
   let linked_count = Geometry.point_count linked in
@@ -2320,7 +2320,7 @@ let run_bound_benchmarks () =
       ~bounds_group:"bounds" ~center_attribute:"bound_center"
       ~radii_attribute:"bound_radii" source |> get_ok) geometry_output;
   measure ~input_points:point_count "bound_box_half_group" (fun () ->
-    Ops.bound ~grain ~selection:(Ops.Selected_points selection)
+    Ops.bound ~grain ~selection:(Transform_ops.Selected_points selection)
       ~shape:(Ops.Bound_box { divisions = 256, 128, 64 })
       ~lower_padding:(Vec3.create 0.25 0.5 0.75)
       ~upper_padding:(Vec3.create 0.75 0.5 0.25)
@@ -2341,13 +2341,13 @@ let run_match_size_benchmarks () =
   let half = Group.init ~grain ~owner:Group.Point ~name:"match_points"
       point_count (fun point -> point land 1 = 0) in
   let target = Ops.box ~size:(Vec3.create 80. 45. 120.) () |> get_ok
-      |> Ops.transform (Mat4.translation (Vec3.create 12. 7. (-5.))) in
+      |> Transform_ops.transform (Mat4.translation (Vec3.create 12. 7. (-5.))) in
   measure ~input_points:point_count "match_size_contain" (fun () ->
     Ops.match_size ~grain ~fit:Ops.Contain ~target source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "match_size_stretch_half" (fun () ->
-    Ops.match_size ~grain ~selection:(Ops.Selected_points half)
-      ~source_selection:(Ops.Selected_points half) ~fit:Ops.Stretch
+    Ops.match_size ~grain ~selection:(Transform_ops.Selected_points half)
+      ~source_selection:(Transform_ops.Selected_points half) ~fit:Ops.Stretch
       ~scale_axes:(true, false, true)
       ~justify:(Vec3.create (-1.) 0. 1.)
       ~target_justify:(Vec3.create 1. (-1.) 0.)
@@ -2551,7 +2551,7 @@ let run_deform_benchmarks () =
       ~name:"normal_alternating" (Geometry.primitive_count geometric_source)
       (fun primitive -> primitive land 1 = 0) in
   measure ~input_points:point_count "normals_vertex_cusp60_local_missing" (fun () ->
-    Ops.normals ~grain ~selection:(Ops.Selected_primitives selected_primitives)
+    Ops.normals ~grain ~selection:(Transform_ops.Selected_primitives selected_primitives)
       ~owner:Attribute.Vertex ~weighting:Ops.Vertex_angle
       ~cusp_angle:(Float.pi /. 3.) geometric_source |> get_ok) geometry_output;
   measure ~input_points:point_count "peak_point_n_mask" (fun () ->
@@ -2727,7 +2727,7 @@ let run_boolean_detect_benchmarks () =
       ~connectivity:Ops.Grid_alternating_triangles
       ~columns:detect_columns ~rows:detect_rows ~size:100. () |> get_ok in
   let point_count = Geometry.point_count source in
-  let crossing = Ops.transform ~grain
+  let crossing = Transform_ops.transform ~grain
       (Mat4.rotation_x (Float.pi /. 2.)) source in
   measure ~input_points:(point_count * 2) "boolean_detect_crossing_grids"
     (fun () -> Ops.boolean_detect ~grain ~collision:crossing
@@ -2749,7 +2749,7 @@ let run_boolean_detect_benchmarks () =
     geometry_output;
   let cell_x = 100. /. float_of_int detect_columns
   and cell_z = 100. /. float_of_int detect_rows in
-  let coplanar = Ops.transform ~grain
+  let coplanar = Transform_ops.transform ~grain
       (Mat4.translation (Vec3.create (0.37 *. cell_x) 0. (0.41 *. cell_z)))
       source in
   let source_index = Surface_index.create ~grain source |> get_ok
@@ -2772,7 +2772,7 @@ let run_intersection_analysis_benchmarks () =
       ~connectivity:Ops.Grid_alternating_triangles
       ~columns:detect_columns ~rows:detect_rows ~size:100. () |> get_ok in
   let point_count = Geometry.point_count source in
-  let crossing = Ops.transform ~grain
+  let crossing = Transform_ops.transform ~grain
       (Mat4.rotation_x (Float.pi /. 2.)) source in
   measure ~input_points:(point_count * 2)
     "intersection_analysis_crossing_grids" (fun () ->
@@ -2785,7 +2785,7 @@ let run_intersection_analysis_benchmarks () =
     geometry_output;
   let cell_x = 100. /. float_of_int detect_columns
   and cell_z = 100. /. float_of_int detect_rows in
-  let coplanar = Ops.transform ~grain
+  let coplanar = Transform_ops.transform ~grain
       (Mat4.translation (Vec3.create (0.37 *. cell_x) 0. (0.41 *. cell_z)))
       source in
   measure ~input_points:(point_count * 2)
@@ -4145,7 +4145,7 @@ let run_group_transfer_benchmarks () =
       |> Geometry.with_group transfer_primitives |> get_ok
       |> Ops.group_edges ~grain ~name:"transfer_edges" ~min_length:0.09
            |> get_ok in
-  let transfer_target = Ops.transform ~grain
+  let transfer_target = Transform_ops.transform ~grain
       (Mat4.translation (Vec3.create 0.001 0. 0.001)) transfer_source in
   let transfer_points_rule = [{ Ops.transfer_owner = Ops.Group_points;
     transfer_pattern = "transfer_points"; transfer_prefix = "mapped_" }]
@@ -4237,7 +4237,7 @@ let run_unpack_benchmarks () =
         (Mat4.scaling (Vec3.create 1. (0.75 +. 0.25 *. cos angle) 1.)))) in
   let legacy_materialize () =
     Array.to_list matrices
-    |> List.map (fun matrix -> Ops.transform ~grain matrix source)
+    |> List.map (fun matrix -> Transform_ops.transform ~grain matrix source)
     |> Ops.merge ~grain
     |> get_ok in
   measure ~input_points:(Geometry.point_count source)
@@ -4255,7 +4255,7 @@ let run_unpack_benchmarks () =
       (Mat4.rotation ~axis:(Vec3.create 1. 2. 3.) 0.7) in
   measure ~input_points:(Geometry.point_count dense)
     "unpack_single_dense_transform_baseline"
-    (fun () -> Ops.transform ~grain dense_matrix dense) geometry_output;
+    (fun () -> Transform_ops.transform ~grain dense_matrix dense) geometry_output;
   measure ~input_points:(Geometry.point_count dense) "unpack_single_dense"
     (fun () -> Instance_copy.materialize_instances ~grain ~transforms:[|dense_matrix|]
       dense |> get_ok)
@@ -4273,26 +4273,26 @@ let run_transform_benchmarks () =
       (fun primitive -> primitive mod 5 < 2) in
   let source = source |> Geometry.with_group point_selection |> get_ok
       |> Geometry.with_group primitive_selection |> get_ok in
-  let matrix = Ops.compose_transform ~order:Ops.Transform_rts
-      ~rotation_order:Ops.Transform_zyx
+  let matrix = Transform_ops.compose_transform ~order:Transform_ops.Transform_rts
+      ~rotation_order:Transform_ops.Transform_zyx
       ~translate:(Vec3.create 2. 3. 4.)
       ~rotate:(Vec3.create 0.2 (-0.4) 0.7)
       ~scale:(Vec3.create 1.3 0.8 1.1)
       ~shear:(Vec3.create 0.15 (-0.08) 0.12)
       ~pivot:(Vec3.create 0.3 (-0.2) 0.5) () |> get_ok in
   measure ~input_points:point_count "transform_selected_all" (fun () ->
-      Ops.transform_selected ~grain matrix source |> get_ok) geometry_output;
+      Transform_ops.transform_selected ~grain matrix source |> get_ok) geometry_output;
   measure ~input_points:point_count "transform_selected_points_third" (fun () ->
-      Ops.transform_selected ~grain
-        ~selection:(Ops.Selected_points point_selection) matrix source |> get_ok)
+      Transform_ops.transform_selected ~grain
+        ~selection:(Transform_ops.Selected_points point_selection) matrix source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "transform_selected_primitives_two_fifths"
-    (fun () -> Ops.transform_selected ~grain
-      ~selection:(Ops.Selected_primitives primitive_selection) matrix source
+    (fun () -> Transform_ops.transform_selected ~grain
+      ~selection:(Transform_ops.Selected_primitives primitive_selection) matrix source
       |> get_ok) geometry_output;
   measure ~input_points:point_count "transform_selected_recompute_normals"
-    (fun () -> Ops.transform_selected ~grain ~recompute_normals:true
-      ~selection:(Ops.Selected_points point_selection) matrix source |> get_ok)
+    (fun () -> Transform_ops.transform_selected ~grain ~recompute_normals:true
+      ~selection:(Transform_ops.Selected_points point_selection) matrix source |> get_ok)
     geometry_output
 
 let run_soft_transform_benchmarks () =
@@ -4306,21 +4306,21 @@ let run_soft_transform_benchmarks () =
         float_of_int column /. float_of_int (max 1 columns)))) |> get_ok in
   let source = source |> Geometry.with_group seed |> get_ok
       |> Geometry.with_attribute authored |> get_ok in
-  let matrix = Ops.compose_transform ~translate:(Vec3.create 0. 1.5 0.)
+  let matrix = Transform_ops.compose_transform ~translate:(Vec3.create 0. 1.5 0.)
       ~rotate:(Vec3.create 0. 0.35 0.) ~scale:(Vec3.create 0.8 1.2 0.8)
       ~pivot:(Vec3.create 0.2 0. (-0.1)) () |> get_ok in
   measure ~input_points:point_count "soft_transform_radius_cubic" (fun () ->
-      Ops.soft_transform ~grain ~selection:(Ops.Selected_points seed)
-        ~metric:Ops.Soft_radius ~falloff:Ops.Soft_cubic ~radius:20.
+      Transform_ops.soft_transform ~grain ~selection:(Transform_ops.Selected_points seed)
+        ~metric:Transform_ops.Soft_radius ~falloff:Transform_ops.Soft_cubic ~radius:20.
         ~falloff_attribute:"soft_weight" matrix source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "soft_transform_edge_cubic" (fun () ->
-      Ops.soft_transform ~grain ~selection:(Ops.Selected_points seed)
-        ~metric:Ops.Soft_edge ~falloff:Ops.Soft_cubic ~radius:20.
+      Transform_ops.soft_transform ~grain ~selection:(Transform_ops.Selected_points seed)
+        ~metric:Transform_ops.Soft_edge ~falloff:Transform_ops.Soft_cubic ~radius:20.
         ~falloff_attribute:"soft_weight" matrix source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "soft_transform_attribute_direct" (fun () ->
-      Ops.soft_transform ~grain ~metric:(Ops.Soft_attribute {
+      Transform_ops.soft_transform ~grain ~metric:(Transform_ops.Soft_attribute {
         attribute = "soft_authored"; apply_rolloff = false })
         ~falloff_attribute:"soft_weight" matrix source |> get_ok)
     geometry_output
@@ -4335,50 +4335,50 @@ let run_distance_along_geometry_benchmarks () =
   let source = source |> Geometry.with_group start |> get_ok
       |> Geometry.with_group affected |> get_ok in
   measure ~input_points:point_count "distance_along_edge_full_fixed_mask"
-    (fun () -> Ops.distance_along_geometry ~grain
-      ~start:(Ops.Selected_points start)
-      ~radius:(Ops.Distance_fixed 20.) ~falloff:Ops.Soft_cubic
+    (fun () -> Transform_ops.distance_along_geometry ~grain
+      ~start:(Transform_ops.Selected_points start)
+      ~radius:(Transform_ops.Distance_fixed 20.) ~falloff:Transform_ops.Soft_cubic
       ~mask_attribute:"distance_mask" source |> get_ok) geometry_output;
   measure ~input_points:point_count "distance_along_edge_bounded_mask_only"
-    (fun () -> Ops.distance_along_geometry ~grain
-      ~start:(Ops.Selected_points start) ~distance_attribute:None
-      ~radius:(Ops.Distance_fixed 20.) ~falloff:Ops.Soft_cubic
+    (fun () -> Transform_ops.distance_along_geometry ~grain
+      ~start:(Transform_ops.Selected_points start) ~distance_attribute:None
+      ~radius:(Transform_ops.Distance_fixed 20.) ~falloff:Transform_ops.Soft_cubic
       ~mask_attribute:"distance_mask" source |> get_ok) geometry_output;
   measure ~input_points:point_count "distance_along_edge_affected_maximum"
-    (fun () -> Ops.distance_along_geometry ~grain
-      ~start:(Ops.Selected_points start)
-      ~affected:(Ops.Selected_points affected)
-      ~radius:Ops.Distance_maximum ~falloff:Ops.Soft_quadratic
+    (fun () -> Transform_ops.distance_along_geometry ~grain
+      ~start:(Transform_ops.Selected_points start)
+      ~affected:(Transform_ops.Selected_points affected)
+      ~radius:Transform_ops.Distance_maximum ~falloff:Transform_ops.Soft_quadratic
       ~mask_attribute:"distance_mask" source |> get_ok) geometry_output
 
 let run_distance_from_geometry_benchmarks () =
   let source = make_grid ()
-      |> Ops.transform ~grain (Mat4.translation (Vec3.create 0. 1.5 0.)) in
+      |> Transform_ops.transform ~grain (Mat4.translation (Vec3.create 0. 1.5 0.)) in
   let point_count = Geometry.point_count source in
   let affected = Group.init ~grain ~owner:Group.Point ~name:"distance_affected"
       point_count (fun point -> point mod 5 <> 0) in
   let reference = Ops.uv_sphere ~grain ~rings:96 ~segments:144 ~radius:28. ()
       |> get_ok in
   measure ~input_points:point_count "distance_from_points_full_fixed_mask"
-    (fun () -> Ops.distance_from_geometry ~grain
-      ~affected:(Ops.Selected_points affected)
-      ~reference_kind:Ops.Distance_reference_points
-      ~radius:(Ops.Distance_fixed 20.) ~falloff:Ops.Soft_cubic
+    (fun () -> Transform_ops.distance_from_geometry ~grain
+      ~affected:(Transform_ops.Selected_points affected)
+      ~reference_kind:Transform_ops.Distance_reference_points
+      ~radius:(Transform_ops.Distance_fixed 20.) ~falloff:Transform_ops.Soft_cubic
       ~mask_attribute:"distance_mask" ~reference source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "distance_from_surface_full_fixed_mask"
-    (fun () -> Ops.distance_from_geometry ~grain
-      ~affected:(Ops.Selected_points affected)
-      ~reference_kind:Ops.Distance_reference_primitives
-      ~radius:(Ops.Distance_fixed 20.) ~falloff:Ops.Soft_cubic
+    (fun () -> Transform_ops.distance_from_geometry ~grain
+      ~affected:(Transform_ops.Selected_points affected)
+      ~reference_kind:Transform_ops.Distance_reference_primitives
+      ~radius:(Transform_ops.Distance_fixed 20.) ~falloff:Transform_ops.Soft_cubic
       ~mask_attribute:"distance_mask" ~reference source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "distance_from_surface_bounded_mask_only"
-    (fun () -> Ops.distance_from_geometry ~grain
-      ~affected:(Ops.Selected_points affected)
-      ~reference_kind:Ops.Distance_reference_primitives
-      ~distance_attribute:None ~radius:(Ops.Distance_fixed 6.)
-      ~falloff:Ops.Soft_cubic ~mask_attribute:"distance_mask"
+    (fun () -> Transform_ops.distance_from_geometry ~grain
+      ~affected:(Transform_ops.Selected_points affected)
+      ~reference_kind:Transform_ops.Distance_reference_primitives
+      ~distance_attribute:None ~radius:(Transform_ops.Distance_fixed 6.)
+      ~falloff:Transform_ops.Soft_cubic ~mask_attribute:"distance_mask"
       ~reference source |> get_ok) geometry_output;
   let index = Surface_index.create ~grain reference |> get_ok
   and queries = Geometry.positions source in
@@ -4405,34 +4405,34 @@ let run_distance_from_geometry_benchmarks () =
 
 let run_distance_from_target_benchmarks () =
   let source = make_grid ()
-      |> Ops.transform ~grain
+      |> Transform_ops.transform ~grain
            (Mat4.translation (Vec3.create 1.25 (-0.75) 2.5)) in
   let point_count = Geometry.point_count source in
   let affected = Group.init ~grain ~owner:Group.Point ~name:"distance_affected"
       point_count (fun point -> point mod 5 <> 0) in
   measure ~input_points:point_count "distance_from_target_spherical_full_fixed"
-    (fun () -> Ops.distance_from_target ~grain
-      ~affected:(Ops.Selected_points affected)
-      ~projection:Ops.Distance_target_spherical
+    (fun () -> Transform_ops.distance_from_target ~grain
+      ~affected:(Transform_ops.Selected_points affected)
+      ~projection:Transform_ops.Distance_target_spherical
       ~origin:(Vec3.create 0.5 (-1.25) 2.)
-      ~radius:(Ops.Distance_fixed 20.) ~falloff:Ops.Soft_cubic
+      ~radius:(Transform_ops.Distance_fixed 20.) ~falloff:Transform_ops.Soft_cubic
       ~mask_attribute:"distance_mask" source |> get_ok) geometry_output;
   measure ~input_points:point_count "distance_from_target_cylindrical_mask_only"
-    (fun () -> Ops.distance_from_target ~grain
-      ~affected:(Ops.Selected_points affected)
-      ~projection:Ops.Distance_target_cylindrical
+    (fun () -> Transform_ops.distance_from_target ~grain
+      ~affected:(Transform_ops.Selected_points affected)
+      ~projection:Transform_ops.Distance_target_cylindrical
       ~origin:(Vec3.create 0.5 (-1.25) 2.)
       ~direction:(Vec3.create 1. 2. (-3.)) ~distance_attribute:None
-      ~radius:(Ops.Distance_fixed 20.) ~falloff:Ops.Soft_cubic
+      ~radius:(Transform_ops.Distance_fixed 20.) ~falloff:Transform_ops.Soft_cubic
       ~mask_attribute:"distance_mask" source |> get_ok) geometry_output;
   measure ~input_points:point_count "distance_from_target_planar_signed_maximum"
-    (fun () -> Ops.distance_from_target ~grain
-      ~affected:(Ops.Selected_points affected)
-      ~projection:Ops.Distance_target_planar
+    (fun () -> Transform_ops.distance_from_target ~grain
+      ~affected:(Transform_ops.Selected_points affected)
+      ~projection:Transform_ops.Distance_target_planar
       ~origin:(Vec3.create 0.5 (-1.25) 2.)
       ~direction:(Vec3.create 1. 2. (-3.))
-      ~metric:Ops.Distance_target_signed ~radius:Ops.Distance_maximum
-      ~falloff:Ops.Soft_quadratic ~mask_attribute:"distance_mask" source
+      ~metric:Transform_ops.Distance_target_signed ~radius:Transform_ops.Distance_maximum
+      ~falloff:Transform_ops.Soft_quadratic ~mask_attribute:"distance_mask" source
       |> get_ok) geometry_output
 
 let run_sort_extended_benchmarks () =
@@ -5292,7 +5292,7 @@ let () =
   if benchmark_filter = Some "poly_path" then exit 0;
   let matrix = Mat4.mul (Mat4.translation (Vec3.create 2. 3. 4.))
       (Mat4.rotation ~axis:(Vec3.create 1. 2. 3.) 0.7) in
-  measure "transform" (fun () -> Ops.transform ~grain matrix source) geometry_output;
+  measure "transform" (fun () -> Transform_ops.transform ~grain matrix source) geometry_output;
   measure "noise_displace" (fun () ->
     Ops.noise_displace ~grain ~amplitude:0.8 ~frequency:0.16 ~seed:42 source
     |> get_ok) geometry_output;
@@ -5613,7 +5613,7 @@ let () =
       ~piece_attribute:"promote_piece" ~into:"piece_mode" ~delete_source:false
       ~source:Attribute.Point ~destination:Attribute.Point
       ~name:"promote_value" promote_source |> get_ok) geometry_output;
-  let transfer_target = Ops.transform ~grain
+  let transfer_target = Transform_ops.transform ~grain
       (Mat4.translation (Vec3.create 0.015 0. 0.012)) modeling_grid in
   let point_source_group = Group.init ~owner:Group.Point ~name:"point_source"
       (Geometry.point_count modeling_grid) (fun _ -> true)
@@ -5681,7 +5681,7 @@ let () =
   measure "delete_vertices_heal_quads_attributes" (fun () ->
     Ops.delete ~grain ~policy:Ops.Heal_primitives delete_quad_corners
       deletion_quads |> get_ok) geometry_output;
-  let surface_target = Ops.transform ~grain
+  let surface_target = Transform_ops.transform ~grain
       (Mat4.translation (Vec3.create 0.015 0.2 0.012)) modeling_grid in
   let surface_specs = [
     Attribute_ops.surface_attribute ~owner:Attribute.Point "Cd";
@@ -5743,14 +5743,14 @@ let () =
   measure ~input_points:clip_input_points "clip_selected_third_attributes"
     (fun () ->
       Ops.clip ~grain ~keep:Ops.Above
-        ~selection:(Ops.Selected_primitives clip_selected_third)
+        ~selection:(Transform_ops.Selected_primitives clip_selected_third)
         ~clipped_group:"cut"
         ~origin:(Vec3.create 0.123 0. 0.) ~normal:Vec3.unit_x
         clip_attribute_grid |> get_ok) geometry_output;
   measure ~input_points:clip_input_points "clip_selected_third_attributes_edges"
     (fun () ->
       Ops.clip ~grain ~keep:Ops.Above
-        ~selection:(Ops.Selected_primitives clip_selected_third)
+        ~selection:(Transform_ops.Selected_primitives clip_selected_third)
         ~clipped_group:"cut" ~clipped_edge_group:"clip_edges"
         ~origin:(Vec3.create 0.123 0. 0.) ~normal:Vec3.unit_x
         clip_attribute_grid |> get_ok) geometry_output;

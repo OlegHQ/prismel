@@ -219,8 +219,8 @@ val transform :
 
 val transform_trs :
   ?label:string ->
-  ?order:Pdk.Ops.transform_order ->
-  ?rotation_order:Pdk.Ops.transform_rotation_order ->
+  ?order:Pdk.Transform_ops.transform_order ->
+  ?rotation_order:Pdk.Transform_ops.transform_rotation_order ->
   ?translate:Prismel.Vec3.t ->
   ?rotate:Prismel.Vec3.t ->
   ?scale:Prismel.Vec3.t ->
@@ -240,8 +240,8 @@ val transform_trs :
 val soft_transform :
   ?label:string ->
   ?selection:element_group ->
-  ?metric:Pdk.Ops.soft_transform_metric ->
-  ?falloff:Pdk.Ops.soft_transform_falloff ->
+  ?metric:Pdk.Transform_ops.soft_transform_metric ->
+  ?falloff:Pdk.Transform_ops.soft_transform_falloff ->
   ?radius:float ->
   ?falloff_attribute:string ->
   ?recompute_normals:bool ->
@@ -252,8 +252,8 @@ val soft_transform :
 
 val soft_transform_trs :
   ?label:string ->
-  ?order:Pdk.Ops.transform_order ->
-  ?rotation_order:Pdk.Ops.transform_rotation_order ->
+  ?order:Pdk.Transform_ops.transform_order ->
+  ?rotation_order:Pdk.Transform_ops.transform_rotation_order ->
   ?translate:Prismel.Vec3.t ->
   ?rotate:Prismel.Vec3.t ->
   ?scale:Prismel.Vec3.t ->
@@ -263,8 +263,8 @@ val soft_transform_trs :
   ?pivot_rotation:Prismel.Vec3.t ->
   ?invert:bool ->
   ?selection:element_group ->
-  ?metric:Pdk.Ops.soft_transform_metric ->
-  ?falloff:Pdk.Ops.soft_transform_falloff ->
+  ?metric:Pdk.Transform_ops.soft_transform_metric ->
+  ?falloff:Pdk.Transform_ops.soft_transform_falloff ->
   ?radius:float ->
   ?falloff_attribute:string ->
   ?recompute_normals:bool ->
@@ -274,8 +274,8 @@ val soft_transform_trs :
 val distance_along_geometry :
   ?label:string ->
   ?affected:element_group ->
-  ?falloff:Pdk.Ops.soft_transform_falloff ->
-  ?radius:Pdk.Ops.distance_along_radius ->
+  ?falloff:Pdk.Transform_ops.soft_transform_falloff ->
+  ?radius:Pdk.Transform_ops.distance_along_radius ->
   ?distance_attribute:string option ->
   ?mask_attribute:string ->
   start:element_group ->
@@ -289,9 +289,9 @@ val distance_from_geometry :
   ?label:string ->
   ?affected:element_group ->
   ?reference_selection:element_group ->
-  ?reference_kind:Pdk.Ops.distance_from_geometry_reference ->
-  ?falloff:Pdk.Ops.soft_transform_falloff ->
-  ?radius:Pdk.Ops.distance_along_radius ->
+  ?reference_kind:Pdk.Transform_ops.distance_from_geometry_reference ->
+  ?falloff:Pdk.Transform_ops.soft_transform_falloff ->
+  ?radius:Pdk.Transform_ops.distance_along_radius ->
   ?distance_attribute:string option ->
   ?mask_attribute:string ->
   reference:Node.t ->
@@ -304,12 +304,12 @@ val distance_from_geometry :
 val distance_from_target :
   ?label:string ->
   ?affected:element_group ->
-  ?projection:Pdk.Ops.distance_from_target_projection ->
+  ?projection:Pdk.Transform_ops.distance_from_target_projection ->
   ?origin:Prismel.Vec3.t ->
   ?direction:Prismel.Vec3.t ->
-  ?metric:Pdk.Ops.distance_from_target_metric ->
-  ?falloff:Pdk.Ops.soft_transform_falloff ->
-  ?radius:Pdk.Ops.distance_along_radius ->
+  ?metric:Pdk.Transform_ops.distance_from_target_metric ->
+  ?falloff:Pdk.Transform_ops.soft_transform_falloff ->
+  ?radius:Pdk.Transform_ops.distance_along_radius ->
   ?distance_attribute:string option ->
   ?mask_attribute:string ->
   Node.t -> Node.t

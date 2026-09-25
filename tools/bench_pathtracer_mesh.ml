@@ -18,7 +18,7 @@ let () =
     (after.minor_words -. before.minor_words) (after.major_words -. before.major_words);
   if Array.length Sys.argv > 1 && Sys.argv.(1) = "--flat" then begin
     let objects = Array.to_list (Array.map (fun matrix ->
-      Pdk.Ops.transform matrix cube, P.material (rgb 0.4 0.4 0.4)) transforms) in
+      Pdk.Transform_ops.transform matrix cube, P.material (rgb 0.4 0.4 0.4)) transforms) in
     let before = Gc.quick_stat () and start = Unix.gettimeofday () in
     let flat = match P.mesh objects with Ok value -> value | Error error -> failwith error in
     let elapsed = (Unix.gettimeofday () -. start) *. 1000. in
@@ -68,7 +68,7 @@ let () =
       Bytes.copy (P.pixels tracer) in
     let instanced = run "instance structure" mesh in
     let flat_objects = Array.to_list (Array.map (fun matrix ->
-      Pdk.Ops.transform matrix cube, material) transforms) in
+      Pdk.Transform_ops.transform matrix cube, material) transforms) in
     let flat = match P.mesh flat_objects with Ok value -> value | Error error -> failwith error in
     let flattened = run "flat triangles" flat in
     let max_delta = ref 0 in

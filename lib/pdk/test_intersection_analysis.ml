@@ -283,7 +283,7 @@ let test_restrictions_translation_and_errors () =
   let original = Ops.intersection_analysis ~include_coplanar:false ~collision
       source |> get
   and translated = Ops.intersection_analysis ~include_coplanar:false
-      ~collision:(Ops.transform moved collision) (Ops.transform moved source)
+      ~collision:(Transform_ops.transform moved collision) (Transform_ops.transform moved source)
       |> get in
   check (Geometry.point_count translated = Geometry.point_count original
       && (int_rows "sourceprim" translated).values
@@ -336,7 +336,7 @@ let test_parallel_exact () =
   let source = Plane_generators.grid_checked ~grain:31 ~counts:Plane_generators.Grid_point_counts
       ~connectivity:Plane_generators.Grid_alternating_triangles
       ~columns:80 ~rows:60 ~size:20. () |> get in
-  let collision = Ops.transform ~grain:31
+  let collision = Transform_ops.transform ~grain:31
       (Mat4.rotation_x (Float.pi /. 2.)) source in
   let run domains = Parallel.run ~domains (fun () ->
     Ops.intersection_analysis ~grain:31 ~include_coplanar:false ~collision source

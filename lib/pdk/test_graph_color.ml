@@ -106,13 +106,13 @@ let test_selection_promotion () =
   let primitives = Group.init ~grain:1 ~owner:Group.Primitive ~name:"diagonal" 4
       (fun primitive -> primitive = 0 || primitive = 3) in
   let edge_graph = Ops.graph_color ~grain:1
-      ~selection:(Ops.Selected_primitives primitives)
+      ~selection:(Transform_ops.Selected_primitives primitives)
       ~connectivity:Ops.Graph_primitives_by_edge source |> get in
   check (Array.to_list (int_attribute Attribute.Primitive "color" edge_graph)
       = [0;-1;-1;0])
     "Graph Color selected induced edge graph";
   let point_graph = Ops.graph_color ~grain:1
-      ~selection:(Ops.Selected_primitives primitives)
+      ~selection:(Transform_ops.Selected_primitives primitives)
       ~connectivity:Ops.Graph_primitives_by_point source |> get in
   check (Array.to_list (int_attribute Attribute.Primitive "color" point_graph)
       = [0;-1;-1;1])
@@ -121,7 +121,7 @@ let test_selection_promotion () =
   let center = Group.init ~grain:1 ~owner:Group.Point ~name:"center" 9
       (fun point -> point = 4) in
   let promoted = Ops.graph_color ~grain:1
-      ~selection:(Ops.Selected_points center)
+      ~selection:(Transform_ops.Selected_points center)
       ~connectivity:Ops.Graph_primitives_by_point source |> get in
   check (Array.to_list (int_attribute Attribute.Primitive "color" promoted)
       = [0;1;2;3])
@@ -134,7 +134,7 @@ let test_sort_and_worksets () =
   let selected = Group.init ~grain:1 ~owner:Group.Primitive ~name:"middle" 4
       (fun primitive -> primitive = 1 || primitive = 2) in
   let output = Ops.graph_color ~grain:1
-      ~selection:(Ops.Selected_primitives selected)
+      ~selection:(Transform_ops.Selected_primitives selected)
       ~connectivity:Ops.Graph_primitives_by_point ~sort_output:true
       ~worksets:{Ops.begin_attribute="work_begin";length_attribute="work_length"}
       source |> get in
@@ -174,7 +174,7 @@ let test_validation () =
   let foreign = Group.init ~grain:1 ~owner:Group.Primitive ~name:"foreign" 1
       (fun _ -> true) in
   expect_code "invalid_graph" (fun () -> Ops.graph_color
-      ~selection:(Ops.Selected_primitives foreign) source)
+      ~selection:(Transform_ops.Selected_primitives foreign) source)
     "foreign selection cardinality";
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;

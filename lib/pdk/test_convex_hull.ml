@@ -160,7 +160,7 @@ let test_solid_payload_and_selection () =
     "ordered point-group ancestry";
   let selected = Group.init ~grain:1 ~owner:Group.Point ~name:"bottom" 11
       (fun point -> point < 4) in
-  let plane = Ops.convex_hull ~selection:(Ops.Selected_points selected) source
+  let plane = Ops.convex_hull ~selection:(Transform_ops.Selected_points selected) source
       |> get_pdk in
   check (Geometry.point_count plane = 4 && Geometry.primitive_count plane = 1)
     "typed selected hull";
@@ -187,7 +187,7 @@ let test_exact_and_errors () =
   let wrong = Group.init ~grain:1 ~owner:Group.Point ~name:"wrong" 3
       (Fun.const true) in
   expect_error "invalid_geometry"
-    (Ops.convex_hull ~selection:(Ops.Selected_points wrong) exact);
+    (Ops.convex_hull ~selection:(Transform_ops.Selected_points wrong) exact);
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
   expect_error "cancelled" (Ops.convex_hull ~cancel exact)

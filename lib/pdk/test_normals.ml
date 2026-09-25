@@ -113,7 +113,7 @@ let with_constant_normal owner geometry =
 
 let test_selection_and_existing_values () =
   let geometry = source () |> with_constant_normal Attribute.Vertex in
-  let selection = Ops.Selected_points (group Group.Point "selected_point" geometry) in
+  let selection = Transform_ops.Selected_points (group Group.Point "selected_point" geometry) in
   let selected = Ops.normals ~owner:Attribute.Vertex ~weighting:Ops.Each_vertex
       ~cusp_angle:0. ~selection ~reverse:true geometry |> get_pdk
       |> normal Attribute.Vertex in
@@ -122,7 +122,7 @@ let test_selection_and_existing_values () =
   List.iter (fun vertex -> check_vec selected vertex (0.,1.,0.)
       "unselected existing vertex normal changed") [1;2;4;5];
   let missing = source () in
-  let selection = Ops.Selected_points
+  let selection = Transform_ops.Selected_points
       (group Group.Point "selected_point" missing) in
   let initialized = Ops.normals ~owner:Attribute.Vertex
       ~weighting:Ops.Each_vertex ~cusp_angle:0. ~selection missing |> get_pdk
@@ -138,7 +138,7 @@ let test_selection_and_existing_values () =
       && not (near point_missing.x.(3) 0.))
     "missing point N incorrectly restricted computation to the group";
   let point_existing = source () |> with_constant_normal Attribute.Point in
-  let point_selection = Ops.Selected_points
+  let point_selection = Transform_ops.Selected_points
       (group Group.Point "selected_point" point_existing) in
   let point_selected = Ops.normals ~selection:point_selection point_existing
       |> get_pdk |> normal Attribute.Point in
@@ -155,7 +155,7 @@ let test_edge_selection_zero_and_custom_name () =
   let geometry = Geometry.with_edge_group edge geometry |> get_string
       |> with_constant_normal Attribute.Primitive in
   let selected = Ops.normals ~owner:Attribute.Primitive
-      ~selection:(Ops.Selected_edges edge) ~reverse:true geometry |> get_pdk
+      ~selection:(Transform_ops.Selected_edges edge) ~reverse:true geometry |> get_pdk
       |> normal Attribute.Primitive in
   check_vec selected 0 (0.,0.,-1.) "edge-selected first primitive";
   check_vec selected 1 (-1.,0.,0.) "edge-selected second primitive";
@@ -191,11 +191,11 @@ let test_selection_promotion_matrix () =
   let edge = Edge_group.init ~topology ~index ~name:"shared"
       (fun value -> value = shared) in
   let base = Geometry.with_edge_group edge base |> get_string in
-  let point = Ops.Selected_points (group Group.Point "selected_point" base)
-  and vertex = Ops.Selected_vertices (group Group.Vertex "single_vertex" base)
-  and primitive = Ops.Selected_primitives
+  let point = Transform_ops.Selected_points (group Group.Point "selected_point" base)
+  and vertex = Transform_ops.Selected_vertices (group Group.Vertex "single_vertex" base)
+  and primitive = Transform_ops.Selected_primitives
       (group Group.Primitive "selected_primitive" base)
-  and edge = Ops.Selected_edges edge in
+  and edge = Transform_ops.Selected_edges edge in
   let run owner selection = base |> with_constant_normal owner
       |> Ops.normals ~owner ~selection |> get_pdk |> changed_indices owner in
   check (run Attribute.Point point = [0]) "point-to-point selection promotion";
@@ -239,7 +239,7 @@ let test_parallel_and_errors () =
       (fun () -> Ops.normals ~cusp_angle:(-0.1) geometry);
       (fun () -> Ops.normals ~cusp_angle:Float.nan geometry);
       (fun () -> Ops.normals ~attribute:"" geometry);
-      (fun () -> Ops.normals ~selection:(Ops.Selected_points wrong) geometry);
+      (fun () -> Ops.normals ~selection:(Transform_ops.Selected_points wrong) geometry);
     ];
   let scalar = Geometry.with_attribute
       (attribute Attribute.Point "N" (Attribute.Float (Array.make 5 1.))) geometry

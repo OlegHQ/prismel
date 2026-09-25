@@ -32,7 +32,7 @@ let run () =
       (fun ~parameters ~context geometry ->
         let offset = parameters.translate_x
             +. (parameters.time_scale *. Context.time context) in
-        Ok (Pdk.Ops.transform
+        Ok (Pdk.Transform_ops.transform
           (Mat4.translation (Vec3.create offset 0. 0.)) geometry)) in
   if List.length (Node.parameter_fields node) <> 2
      || not (Node.has_parameters node)

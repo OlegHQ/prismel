@@ -20,22 +20,22 @@ let resolve_element_group ~operation selection geometry = match selection with
   | None -> Ok None
   | Some (Point_group name) ->
       (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name geometry with
-       | Some group -> Ok (Some (Pdk.Ops.Selected_points group))
+       | Some group -> Ok (Some (Pdk.Transform_ops.Selected_points group))
        | None -> Error (Diagnostic.error ~code:"missing_group"
            (Printf.sprintf "%s could not find point group %S" operation name)))
   | Some (Vertex_group name) ->
       (match Pdk.Geometry.find_group ~owner:Pdk.Group.Vertex name geometry with
-       | Some group -> Ok (Some (Pdk.Ops.Selected_vertices group))
+       | Some group -> Ok (Some (Pdk.Transform_ops.Selected_vertices group))
        | None -> Error (Diagnostic.error ~code:"missing_group"
            (Printf.sprintf "%s could not find vertex group %S" operation name)))
   | Some (Primitive_group name) ->
       (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name geometry with
-       | Some group -> Ok (Some (Pdk.Ops.Selected_primitives group))
+       | Some group -> Ok (Some (Pdk.Transform_ops.Selected_primitives group))
        | None -> Error (Diagnostic.error ~code:"missing_group"
            (Printf.sprintf "%s could not find primitive group %S" operation name)))
   | Some (Edge_group name) ->
       (match Pdk.Geometry.find_edge_group name geometry with
-       | Some group -> Ok (Some (Pdk.Ops.Selected_edges group))
+       | Some group -> Ok (Some (Pdk.Transform_ops.Selected_edges group))
        | None -> Error (Diagnostic.error ~code:"missing_group"
            (Printf.sprintf "%s could not find edge group %S" operation name)))
 
@@ -652,7 +652,7 @@ let transform ?label ?selection ?(preserve_normal_length = false)
     (fun ~node_id:_ context inputs ->
       match resolve_element_group ~operation:"transform" selection inputs.(0) with
       | Error error -> Error error
-      | Ok selection -> match Pdk.Ops.transform_selected
+      | Ok selection -> match Pdk.Transform_ops.transform_selected
           ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
           ?selection ~preserve_normal_length ~recompute_normals matrix inputs.(0) with
         | Ok geometry -> cooked geometry
@@ -661,25 +661,25 @@ let transform ?label ?selection ?(preserve_normal_length = false)
 let transform_trs ?label ?order ?rotation_order ?translate ?rotate ?scale
     ?shear ?uniform_scale ?pivot ?pivot_rotation ?invert ?selection
     ?preserve_normal_length ?recompute_normals input =
-  match Pdk.Ops.compose_transform ?order ?rotation_order ?translate ?rotate
+  match Pdk.Transform_ops.compose_transform ?order ?rotation_order ?translate ?rotate
       ?scale ?shear ?uniform_scale ?pivot ?pivot_rotation ?invert () with
   | Error error -> invalid_arg (Pdk.Error.to_string error)
   | Ok matrix -> transform ?label ?selection ?preserve_normal_length
       ?recompute_normals matrix input
 
 let soft_transform_metric_key = function
-  | Pdk.Ops.Soft_radius -> "radius"
-  | Pdk.Ops.Soft_edge -> "edge"
-  | Pdk.Ops.Soft_attribute { attribute; apply_rolloff } ->
+  | Pdk.Transform_ops.Soft_radius -> "radius"
+  | Pdk.Transform_ops.Soft_edge -> "edge"
+  | Pdk.Transform_ops.Soft_attribute { attribute; apply_rolloff } ->
       Printf.sprintf "attribute:%S:%b" attribute apply_rolloff
 
 let soft_transform_falloff_key = function
-  | Pdk.Ops.Soft_linear -> "linear"
-  | Pdk.Ops.Soft_quadratic -> "quadratic"
-  | Pdk.Ops.Soft_cubic -> "cubic"
+  | Pdk.Transform_ops.Soft_linear -> "linear"
+  | Pdk.Transform_ops.Soft_quadratic -> "quadratic"
+  | Pdk.Transform_ops.Soft_cubic -> "cubic"
 
-let soft_transform ?label ?selection ?(metric = Pdk.Ops.Soft_radius)
-    ?(falloff = Pdk.Ops.Soft_cubic) ?(radius = 1.) ?falloff_attribute
+let soft_transform ?label ?selection ?(metric = Pdk.Transform_ops.Soft_radius)
+    ?(falloff = Pdk.Transform_ops.Soft_cubic) ?(radius = 1.) ?falloff_attribute
     ?(recompute_normals = true) matrix input =
   let matrix = matrix_copy matrix in
   Node.Private.make ?label ~operation:"soft_transform" ~version:1
@@ -696,7 +696,7 @@ let soft_transform ?label ?selection ?(metric = Pdk.Ops.Soft_radius)
     (fun ~node_id:_ context inputs ->
       match resolve_element_group ~operation:"soft_transform" selection inputs.(0) with
       | Error error -> Error error
-      | Ok selection -> match Pdk.Ops.soft_transform
+      | Ok selection -> match Pdk.Transform_ops.soft_transform
           ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
           ?selection ~metric ~falloff ~radius ?falloff_attribute
           ~recompute_normals matrix inputs.(0) with
@@ -706,18 +706,18 @@ let soft_transform ?label ?selection ?(metric = Pdk.Ops.Soft_radius)
 let soft_transform_trs ?label ?order ?rotation_order ?translate ?rotate ?scale
     ?shear ?uniform_scale ?pivot ?pivot_rotation ?invert ?selection ?metric
     ?falloff ?radius ?falloff_attribute ?recompute_normals input =
-  match Pdk.Ops.compose_transform ?order ?rotation_order ?translate ?rotate
+  match Pdk.Transform_ops.compose_transform ?order ?rotation_order ?translate ?rotate
       ?scale ?shear ?uniform_scale ?pivot ?pivot_rotation ?invert () with
   | Error error -> invalid_arg (Pdk.Error.to_string error)
   | Ok matrix -> soft_transform ?label ?selection ?metric ?falloff ?radius
       ?falloff_attribute ?recompute_normals matrix input
 
 let distance_along_radius_key = function
-  | Pdk.Ops.Distance_fixed value -> "fixed:" ^ float_key value
-  | Pdk.Ops.Distance_maximum -> "maximum"
+  | Pdk.Transform_ops.Distance_fixed value -> "fixed:" ^ float_key value
+  | Pdk.Transform_ops.Distance_maximum -> "maximum"
 
 let distance_along_geometry ?label ?affected
-    ?(falloff = Pdk.Ops.Soft_linear) ?(radius = Pdk.Ops.Distance_maximum)
+    ?(falloff = Pdk.Transform_ops.Soft_linear) ?(radius = Pdk.Transform_ops.Distance_maximum)
     ?(distance_attribute = Some "distance") ?mask_attribute ~start input =
   Node.Private.make ?label ~operation:"distance_along_geometry" ~version:1
     ~parameters:(String.concat ";" [
@@ -741,7 +741,7 @@ let distance_along_geometry ?label ?affected
               ~operation:"distance_along_geometry affected" affected geometry with
            | Error error -> Error error
            | Ok affected ->
-               match Pdk.Ops.distance_along_geometry
+               match Pdk.Transform_ops.distance_along_geometry
                    ~cancel:(Context.cancel_token context)
                    ~grain:(Context.grain context) ?affected ~falloff ~radius
                    ~distance_attribute ?mask_attribute ~start geometry with
@@ -749,12 +749,12 @@ let distance_along_geometry ?label ?affected
                | Error error -> structured_pdk_error error))
 
 let distance_from_geometry_reference_key = function
-  | Pdk.Ops.Distance_reference_points -> "points"
-  | Pdk.Ops.Distance_reference_primitives -> "primitives"
+  | Pdk.Transform_ops.Distance_reference_points -> "points"
+  | Pdk.Transform_ops.Distance_reference_primitives -> "primitives"
 
 let distance_from_geometry ?label ?affected ?reference_selection
-    ?(reference_kind = Pdk.Ops.Distance_reference_primitives)
-    ?(falloff = Pdk.Ops.Soft_linear) ?(radius = Pdk.Ops.Distance_maximum)
+    ?(reference_kind = Pdk.Transform_ops.Distance_reference_primitives)
+    ?(falloff = Pdk.Transform_ops.Soft_linear) ?(radius = Pdk.Transform_ops.Distance_maximum)
     ?(distance_attribute = Some "distance") ?mask_attribute ~reference source =
   Node.Private.make ?label ~operation:"distance_from_geometry" ~version:1
     ~parameters:(String.concat ";" [
@@ -779,7 +779,7 @@ let distance_from_geometry ?label ?affected ?reference_selection
               reference_selection inputs.(1) with
            | Error error -> Error error
            | Ok reference_selection ->
-               match Pdk.Ops.distance_from_geometry
+               match Pdk.Transform_ops.distance_from_geometry
                    ~cancel:(Context.cancel_token context)
                    ~grain:(Context.grain context) ?affected ?reference_selection
                    ~reference_kind ~falloff ~radius ~distance_attribute
@@ -788,18 +788,18 @@ let distance_from_geometry ?label ?affected ?reference_selection
                | Error error -> structured_pdk_error error))
 
 let distance_from_target_projection_key = function
-  | Pdk.Ops.Distance_target_spherical -> "spherical"
-  | Pdk.Ops.Distance_target_cylindrical -> "cylindrical"
-  | Pdk.Ops.Distance_target_planar -> "planar"
+  | Pdk.Transform_ops.Distance_target_spherical -> "spherical"
+  | Pdk.Transform_ops.Distance_target_cylindrical -> "cylindrical"
+  | Pdk.Transform_ops.Distance_target_planar -> "planar"
 
 let distance_from_target_metric_key = function
-  | Pdk.Ops.Distance_target_absolute -> "absolute"
-  | Pdk.Ops.Distance_target_signed -> "signed"
+  | Pdk.Transform_ops.Distance_target_absolute -> "absolute"
+  | Pdk.Transform_ops.Distance_target_signed -> "signed"
 
 let distance_from_target ?label ?affected
-    ?(projection = Pdk.Ops.Distance_target_spherical) ?(origin = Vec3.zero)
-    ?(direction = Vec3.unit_y) ?(metric = Pdk.Ops.Distance_target_absolute)
-    ?(falloff = Pdk.Ops.Soft_linear) ?(radius = Pdk.Ops.Distance_maximum)
+    ?(projection = Pdk.Transform_ops.Distance_target_spherical) ?(origin = Vec3.zero)
+    ?(direction = Vec3.unit_y) ?(metric = Pdk.Transform_ops.Distance_target_absolute)
+    ?(falloff = Pdk.Transform_ops.Soft_linear) ?(radius = Pdk.Transform_ops.Distance_maximum)
     ?(distance_attribute = Some "distance") ?mask_attribute input =
   let origin = vec3_copy origin and direction = vec3_copy direction in
   Node.Private.make ?label ~operation:"distance_from_target" ~version:1
@@ -821,7 +821,7 @@ let distance_from_target ?label ?affected
           affected inputs.(0) with
       | Error error -> Error error
       | Ok affected ->
-          match Pdk.Ops.distance_from_target
+          match Pdk.Transform_ops.distance_from_target
               ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?affected ~projection ~origin
               ~direction ~metric ~falloff ~radius ~distance_attribute
@@ -2717,7 +2717,7 @@ let triangulate_2d ?label ?point_group ?constraint_edge_group
         | None -> Ok None
         | Some name ->
             (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name geometry with
-             | Some group -> Ok (Some (Pdk.Ops.Selected_points group))
+             | Some group -> Ok (Some (Pdk.Transform_ops.Selected_points group))
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf
                     "triangulate_2d could not find point group %S" name))) in
@@ -7374,7 +7374,7 @@ let mountain ?label ?group ?seed ?direction_attribute
         | None -> Ok None
         | Some name ->
             (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name inputs.(0) with
-             | Some group -> Ok (Some (Pdk.Ops.Selected_points group))
+             | Some group -> Ok (Some (Pdk.Transform_ops.Selected_points group))
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "mountain could not find point group %S" name))) in
       match selection with
@@ -7660,13 +7660,13 @@ let attribute_randomize ?label ?group ?selection ?seed ?seed_attribute
       | Error error -> Error error
       | Ok (selection, element_selection) ->
           let element_selection = Option.map (function
-            | Pdk.Ops.Selected_points group ->
+            | Pdk.Transform_ops.Selected_points group ->
                 Pdk.Attribute_ops.Random_points group
-            | Pdk.Ops.Selected_vertices group ->
+            | Pdk.Transform_ops.Selected_vertices group ->
                 Pdk.Attribute_ops.Random_vertices group
-            | Pdk.Ops.Selected_primitives group ->
+            | Pdk.Transform_ops.Selected_primitives group ->
                 Pdk.Attribute_ops.Random_primitives group
-            | Pdk.Ops.Selected_edges group ->
+            | Pdk.Transform_ops.Selected_edges group ->
                 Pdk.Attribute_ops.Random_edges group) element_selection in
           let identity = Option.value ~default:(Int64.of_int node_id)
               stable_identity in

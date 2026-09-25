@@ -263,13 +263,13 @@ let check_typed_selections () =
       |> get_ok in
   let points = Group.init ~owner:Group.Point ~name:"facet_point" 5
       (fun point -> point = 1) in
-  let point_output = Ops.facet ~selection:(Ops.Selected_points points)
+  let point_output = Ops.facet ~selection:(Transform_ops.Selected_points points)
       ~unique_points:true source |> get_ok in
   check (equal_geometry point_output expected)
     "Facet point selection did not promote to incident primitives";
   let vertices = Group.init ~owner:Group.Vertex ~name:"facet_vertex" 6
       (fun vertex -> vertex = 1) in
-  let vertex_output = Ops.facet ~selection:(Ops.Selected_vertices vertices)
+  let vertex_output = Ops.facet ~selection:(Transform_ops.Selected_vertices vertices)
       ~unique_points:true source |> get_ok in
   check (equal_geometry vertex_output expected)
     "Facet vertex selection did not promote to its owning primitive";
@@ -283,27 +283,27 @@ let check_typed_selections () =
   done;
   let edges = Edge_group.init ~topology ~index ~name:"facet_edge"
       (fun edge -> edge = !boundary_edge) in
-  let edge_output = Ops.facet ~selection:(Ops.Selected_edges edges)
+  let edge_output = Ops.facet ~selection:(Transform_ops.Selected_edges edges)
       ~unique_points:true source |> get_ok in
   check (equal_geometry edge_output expected)
     "Facet edge selection did not promote to its incident primitive";
   let shared = Geometry.find_edge_group "crease" source |> Option.get in
-  let all = Ops.facet ~selection:(Ops.Selected_edges shared)
+  let all = Ops.facet ~selection:(Transform_ops.Selected_edges shared)
       ~unique_points:true source |> get_ok in
   check (equal_geometry all
       (Ops.facet ~unique_points:true source |> get_ok))
     "Facet shared-edge selection did not promote both incident primitives";
   let empty = Group.init ~owner:Group.Point ~name:"empty" 5 (fun _ -> false) in
-  check (Ops.facet ~selection:(Ops.Selected_points empty)
+  check (Ops.facet ~selection:(Transform_ops.Selected_points empty)
       ~unique_points:true source |> get_ok == source)
     "Facet empty typed selection is not identity";
-  (match Ops.facet ~selection:(Ops.Selected_points points) ~primitives:first
+  (match Ops.facet ~selection:(Transform_ops.Selected_points points) ~primitives:first
       ~unique_points:true source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Facet accepted two selection inputs");
   let wrong = Group.init ~owner:Group.Primitive ~name:"wrong" 2
       (fun _ -> true) in
-  (match Ops.facet ~selection:(Ops.Selected_points wrong)
+  (match Ops.facet ~selection:(Transform_ops.Selected_points wrong)
       ~unique_points:true source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Facet accepted a typed selection with the wrong owner");
@@ -312,7 +312,7 @@ let check_typed_selections () =
   let foreign_index = Topology_index.create foreign_topology in
   let foreign_edge = Edge_group.init ~topology:foreign_topology
       ~index:foreign_index ~name:"foreign" (fun edge -> edge = 0) in
-  (match Ops.facet ~selection:(Ops.Selected_edges foreign_edge)
+  (match Ops.facet ~selection:(Transform_ops.Selected_edges foreign_edge)
       ~unique_points:true source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Facet accepted a foreign-topology edge selection")
@@ -937,7 +937,7 @@ let check_validation () =
   let selected_points = Group.init ~owner:Group.Point ~name:"selected" 5
       (fun point -> point = 0) in
   (match Ops.facet ~cancel:cancelled
-      ~selection:(Ops.Selected_points selected_points) ~unique_points:true source with
+      ~selection:(Transform_ops.Selected_points selected_points) ~unique_points:true source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "Facet typed selection promotion ignored cancellation");
   let wrong_owner = Group.init ~owner:Group.Point ~name:"wrong" 5
@@ -1099,7 +1099,7 @@ let check_parallel_exact () =
       (Geometry.point_count source)
       (fun point -> point < Geometry.point_count source / 2) in
   let run domains = Parallel.run ~domains (fun () ->
-      Ops.facet ~grain:257 ~selection:(Ops.Selected_points selected_points)
+      Ops.facet ~grain:257 ~selection:(Transform_ops.Selected_points selected_points)
         ~unique_points:true source |> get_ok) in
   let one = run 1 and many = run 4 in
   check (equal_geometry one many)
@@ -1109,7 +1109,7 @@ let check_parallel_exact () =
   let selected_edges = Edge_group.init ~topology ~index ~name:"facet_edges"
       (fun edge -> edge mod 7 = 0) in
   let run domains = Parallel.run ~domains (fun () ->
-      Ops.facet ~grain:257 ~selection:(Ops.Selected_edges selected_edges)
+      Ops.facet ~grain:257 ~selection:(Transform_ops.Selected_edges selected_edges)
         ~unique_points:true source |> get_ok) in
   let one = run 1 and many = run 4 in
   check (equal_geometry one many)

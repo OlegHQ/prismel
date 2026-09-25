@@ -53,8 +53,8 @@ let run () =
       |> Sop.distance_along_geometry
            ~start:(Sop.Point_group "distance_start")
            ~affected:(Sop.Point_group "distance_affected")
-           ~falloff:Pdk.Ops.Soft_cubic
-           ~radius:(Pdk.Ops.Distance_fixed 3.5)
+           ~falloff:Pdk.Transform_ops.Soft_cubic
+           ~radius:(Pdk.Transform_ops.Distance_fixed 3.5)
            ~distance_attribute:(Some "edge_distance") ~mask_attribute:"mask" in
   let parameters = Node.parameters graph in
   check (contains parameters "start=point:distance_start"
