@@ -636,7 +636,8 @@ preset saves use the returned camera state, and navigation and render scheduling
 run afterward. PNG render status is held in the environment model and updated
 by the model returned from `after_present`.
 The leader-key panel is `Pxui_shell.Which_key`; the sketch host supplies its
-bindings and focused-pane name.
+bindings and focused-pane name. `Pxui_shell.Status_bar` paints the common kit
+strip from host-provided status text, FPS, and pane bounds.
 
 `Environment3` keeps camera nodes (`Sop_catalog.Camera`, operation `camera`)
 in the document: a default one following the viewport is added when the

@@ -754,21 +754,11 @@ module Core = struct
   let status_box value ui (frame : Frame.t) ~render_status =
     let x, y, width, height = (Workspace.geometry value.workspace frame).status in
     if height > 0 then begin
-      let module Ui = Pxui.Ui in
-      let box = Workspace.floating ui (x, y, width, height) "workspace-status" in
-      let base = truncate (max 1 ((width - 80) / 7))
+      let text = truncate (max 1 ((width - 80) / 7))
           (status_text value ^ match render_status with
-            | None -> "" | Some status -> " · " ^ status)
-      and fps = match value.status_fps with
-        | Some fps -> Printf.sprintf " · %d fps" fps | None -> "" in
-      let theme = Ui.theme ui in
-      Ui.draw ui box (fun paint _ ->
-        Ui.Paint.fill paint ~x:(float_of_int x) ~y:(float_of_int y)
-          ~w:(float_of_int width) ~h:(float_of_int height) theme.foreground;
-        let at = float_of_int (x + 10), float_of_int (y + 8) in
-        Ui.Paint.text paint ~at ~size:11 ~color:theme.input base;
-        Ui.Paint.text paint ~at:(fst at +. Ui.Paint.text_width paint ~size:11 base, snd at)
-          ~size:11 ~color:theme.input fps)
+            | None -> "" | Some status -> " · " ^ status) in
+      Pxui_shell.Status_bar.draw ui ~bounds:(x, y, width, height)
+        ~text ~fps:value.status_fps
     end
 
   (* Build the workspace in [ui] and apply its edits. [camera_panel] fills

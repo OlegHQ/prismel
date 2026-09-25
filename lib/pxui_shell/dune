@@ -5,6 +5,6 @@
  (libraries prismel editor pxui))
 
 (test
- (name test_which_key)
- (modules test_which_key)
+ (name test_shell)
+ (modules test_shell)
  (libraries prismel editor pxui pxui_shell))
