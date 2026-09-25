@@ -588,6 +588,8 @@ let selected_node, effects =
 shared subgraphs; the sketch host's `Doc` module applies typed graph edit
 requests, and selected-node changes go through
 `Procedural.Edit_graph.apply_parameters` before compiling the cookable graph.
+The host's `Cook` module owns compilation, reactive scheduling, polling, and
+framing work; `Core` composes those results with the workspace UI.
 `prismel.pxui_graph` supplies deterministic initial layout,
 persistent graph-space tile positions, ordered ports/wires, topology-safe node
 dragging, independent inspector/display selection through each tile's VIEW

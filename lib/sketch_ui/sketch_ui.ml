@@ -515,15 +515,34 @@ module Doc = struct
         document, graph_view, error, effects
 end
 
-module Core = struct
+module Cook = struct
   type bounds = Vec3.t * Vec3.t
 
-  (* The one worker serves display cooks and framing requests; display cooks
-     also report their geometry bounds so [F] on the displayed node is
-     immediate. *)
   type 'prepared cooked =
     | Displayed of 'prepared * bounds option
     | Framed of bounds option
+
+  type 'prepared t = {
+    worker : 'prepared cooked Sketch_support.Reactive_sop.t;
+    schedule : Sketch_support.Reactive_sop.schedule;
+    prepare : Session.output -> ('prepared, string) result;
+    prepared : 'prepared option;
+    error : string option;
+    seconds : float option;
+    displayed_bounds : bounds option;
+    (* A framing job can supersede a display cook that must be resubmitted. *)
+    framing : bool option;
+    force : bool;
+  }
+
+  type 'prepared update = {
+    cook : 'prepared t;
+    graph : Graph.t;
+    displayed_graph : Graph.t;
+    edit_error : string option;
+    prepared_changed : bool;
+    framed : bounds option option;
+  }
 
   let geometry_bounds geometry =
     let points = Pdk.Geometry.positions geometry in
@@ -539,6 +558,88 @@ module Core = struct
       done;
       Some (Vec3.create lo.(0) lo.(1) lo.(2), Vec3.create hi.(0) hi.(1) hi.(2))
     end
+
+  let create ~prepare ~seed ~grain ?domains ~max_entries ~max_payload_bytes () =
+    Result.map (fun worker ->
+      { worker; prepare; schedule = Sketch_support.Reactive_sop.schedule_initial;
+        prepared = None; error = None; seconds = None; displayed_bounds = None;
+        framing = None; force = false })
+      (Sketch_support.Reactive_sop.create ~seed ~grain ?domains ~max_entries
+        ~max_payload_bytes ())
+
+  let status value = Sketch_support.Reactive_sop.status value.worker
+  let busy value = match status value with
+    | Async_cook.Idle -> false | Cooking _ -> true
+  let force value = { value with force = true }
+
+  let update value ~document ~displayed_id ~graph ~displayed_graph ~edit_error
+      ~display_changed ~document_changed ~effects ~timeline_changes ~timeline
+      ~frame ~frame_request =
+    let graph, edit_error = if not document_changed then graph, edit_error
+      else match Edit_graph.compile document with
+      | Ok graph -> graph, edit_error
+      | Error message -> graph, Some message in
+    let displayed_graph, edit_error =
+      if not document_changed && not display_changed
+      then displayed_graph, edit_error
+      else match Edit_graph.compile_node document ~node_id:displayed_id with
+      | Ok graph -> graph, edit_error
+      | Error message -> displayed_graph, Some message in
+    let completion = Sketch_support.Reactive_sop.poll value.worker in
+    let resume = value.framing = Some true in
+    let prepared, error, seconds, prepared_changed, displayed_bounds,
+        framed, framing, force_next = match completion with
+      | None -> value.prepared, value.error, value.seconds, false,
+          value.displayed_bounds, None, value.framing, false
+      | Some { Async_cook.result = Ok (Displayed (prepared, bounds)); seconds; _ } ->
+          Some prepared, None, Some seconds, true, bounds, None, None, false
+      | Some { result = Ok (Framed bounds); _ } ->
+          value.prepared, value.error, value.seconds, false,
+          value.displayed_bounds, Some bounds, None, resume
+      | Some { result = Error _; _ } when value.framing <> None ->
+          value.prepared, value.error, value.seconds, false,
+          value.displayed_bounds, Some None, None, resume
+      | Some { result = Error error; seconds; _ } ->
+          value.prepared,
+          Some (Sketch_support.Reactive_sop.error_to_string error),
+          Some seconds, false, value.displayed_bounds, None, None, false in
+    let schedule, submit = Sketch_support.Reactive_sop.schedule value.schedule
+        ~graph:displayed_graph ~effects
+        ~context_changed:(Sketch_support.Timeline.changed_context timeline_changes)
+        ~force:(display_changed || value.force)
+        ~busy:(busy value || framing <> None) ~frame in
+    let prepare_display output = Result.map (fun prepared ->
+      Displayed (prepared, geometry_bounds output.Session.geometry))
+      (value.prepare output) in
+    let error, framing = if submit then match
+        Sketch_support.Reactive_sop.submit_timeline value.worker
+          ~timeline ~node:displayed_graph ~prepare:prepare_display with
+      | Ok _ -> None, None
+      | Error message -> Some message, None
+      else error, framing in
+    let framed, framing = match frame_request with
+      | None -> framed, framing
+      | Some node_id when node_id = displayed_id && displayed_bounds <> None
+          && not document_changed -> Some displayed_bounds, framing
+      | Some node_id ->
+          (match Edit_graph.compile_node document ~node_id with
+           | Error _ -> Some None, framing
+           | Ok node ->
+               let was_busy = busy value && framing = None in
+               match Sketch_support.Reactive_sop.submit_timeline value.worker
+                   ~timeline ~node ~prepare:(fun output ->
+                     Ok (Framed (geometry_bounds output.Session.geometry))) with
+               | Ok _ -> framed, Some (was_busy || Option.value ~default:false framing)
+               | Error _ -> Some None, framing) in
+    { cook = { value with schedule; prepared; error; seconds; displayed_bounds;
+        framing; force = force_next }; graph; displayed_graph; edit_error;
+      prepared_changed; framed }
+
+  let close value = Sketch_support.Reactive_sop.close value.worker
+end
+
+module Core = struct
+  type bounds = Cook.bounds
 
   type prompt =
     | Saving of string
@@ -560,23 +661,11 @@ module Core = struct
     ui : Pxui.Ui.t;
     workspace : Workspace.t;
     timeline : Sketch_support.Timeline.t;
-    worker : 'prepared cooked Sketch_support.Reactive_sop.t;
-    displayed_bounds : bounds option;
-    (* A framing job is in flight; [true] when it superseded a display cook
-       that must be resubmitted afterwards. *)
-    framing : bool option;
-    schedule : Sketch_support.Reactive_sop.schedule;
-    prepare : Session.output -> ('prepared, string) result;
-    prepared : 'prepared option;
+    cook : 'prepared Cook.t;
     edit_error : string option;
-    cook_error : string option;
-    cook_seconds : float option;
     status_fps : int option;
     status_fps_at : float;
     history : Edit_graph.t Editor.History.t;
-    (* Re-run [prepare] on the next update even when the graph is unchanged,
-       for sketch-owned render modes that [prepare] reads. *)
-    force_cook : bool;
     focus : Workspace.column;
     leader : Leader.state;
     keymap : Leader.binding list;
@@ -615,7 +704,7 @@ module Core = struct
       ?domains ?(max_entries = 32)
       ?(max_payload_bytes = 256 * 1024 * 1024)
       ~graph ~prepare () =
-    Result.map (fun worker ->
+    Result.map (fun cook ->
         let workspace = Workspace.create layout in
         let panes = Workspace.geometry workspace initial_frame in
         let gx, gy, gw, gh = panes.graph in
@@ -633,21 +722,18 @@ module Core = struct
           graph; displayed_graph = graph; document; factories; graph_view;
           displayed_id = Node.id graph; inspector = None;
           ui = Pxui.Ui.create (); workspace;
-          timeline = Sketch_support.Timeline.create (); worker;
-          displayed_bounds = None; framing = None;
-          schedule = Sketch_support.Reactive_sop.schedule_initial; prepare;
-          prepared = None; edit_error = None; cook_error = None;
-          cook_seconds = None; status_fps = None;
+          timeline = Sketch_support.Timeline.create (); cook;
+          edit_error = None; status_fps = None;
           status_fps_at = Float.neg_infinity;
           history = Editor.History.create document;
-          force_cook = false; focus = Workspace.View; leader = Leader.Idle;
+          focus = Workspace.View; leader = Leader.Idle;
           keymap; timeline_frames = max 1 timeline_frames })
-        (Sketch_support.Reactive_sop.create ~seed ~grain ?domains ~max_entries
+        (Cook.create ~prepare ~seed ~grain ?domains ~max_entries
           ~max_payload_bytes ())
 
   let graph value = value.graph
   let document value = value.document
-  let prepared value = value.prepared
+  let prepared value = value.cook.Cook.prepared
   let timeline value = value.timeline
   let selected_node value = Option.bind (Pxui_graph.selected value.graph_view)
       (fun node_id -> Edit_graph.find value.document ~node_id)
@@ -655,20 +741,17 @@ module Core = struct
   let panes value frame = Workspace.geometry value.workspace frame
   let column_visible value column = not (Workspace.collapsed value.workspace column)
 
-  let busy worker = match Sketch_support.Reactive_sop.status worker with
-    | Async_cook.Idle -> false | Cooking _ -> true
-
   let truncate limit text = if String.length text <= limit then text
     else String.sub text 0 (limit - 3) ^ "..."
 
   let status_text value =
     let viewing = Node.label (displayed_node value) in
-    let cook = match Sketch_support.Reactive_sop.status value.worker with
+    let cook = match Cook.status value.cook with
       | Async_cook.Cooking { seconds; queued; _ } ->
           Printf.sprintf "Cooking… %.1fs%s" seconds
             (if queued then " · latest queued" else "")
       | Idle ->
-          (match value.edit_error, value.cook_error, value.cook_seconds with
+          (match value.edit_error, value.cook.error, value.cook.seconds with
            | Some error, _, _ -> "Graph edit rejected: " ^ truncate 49 error
            | None, Some error, _ -> "Cook rejected: " ^ truncate 54 error
            | None, None, _ when value.notice <> None -> Option.get value.notice
@@ -976,70 +1059,16 @@ module Core = struct
     let displayed_id = Pxui_graph.viewed graph_view in
     let display_changed = displayed_id <> value.displayed_id in
     let document_changed = document != value.document in
-    let graph, edit_error = if not document_changed then value.graph, edit_error
-      else match Edit_graph.compile document with
-      | Ok graph -> graph, edit_error
-      | Error message -> value.graph, Some message in
-    let displayed_graph, edit_error =
-      if not document_changed && not display_changed
-      then value.displayed_graph, edit_error
-      else match Edit_graph.compile_node document ~node_id:displayed_id with
-      | Ok graph -> graph, edit_error
-      | Error message -> value.displayed_graph, Some message in
-    let completion = Sketch_support.Reactive_sop.poll value.worker in
-    (* Latest-request publishing: while framing, a completion is the framing
-       job's. *)
-    let resume = value.framing = Some true in
-    let prepared, cook_error, cook_seconds, prepared_changed, displayed_bounds,
-        framed, framing, force_next = match completion with
-      | None -> value.prepared, value.cook_error, value.cook_seconds, false,
-          value.displayed_bounds, None, value.framing, false
-      | Some { Async_cook.result = Ok (Displayed (prepared, bounds)); seconds; _ } ->
-          Some prepared, None, Some seconds, true, bounds, None, None, false
-      | Some { result = Ok (Framed bounds); _ } ->
-          value.prepared, value.cook_error, value.cook_seconds, false,
-          value.displayed_bounds, Some bounds, None, resume
-      | Some { result = Error _; _ } when value.framing <> None ->
-          value.prepared, value.cook_error, value.cook_seconds, false,
-          value.displayed_bounds, Some None, None, resume
-      | Some { result = Error error; seconds; _ } ->
-          value.prepared,
-          Some (Sketch_support.Reactive_sop.error_to_string error),
-          Some seconds, false, value.displayed_bounds, None, None, false in
-    let schedule, submit = Sketch_support.Reactive_sop.schedule value.schedule
-        ~graph:displayed_graph ~effects
-        ~context_changed:(Sketch_support.Timeline.changed_context timeline_changes)
-        ~force:(display_changed || value.force_cook)
-        ~busy:(busy value.worker || framing <> None) ~frame in
-    let prepare_display output = Result.map (fun prepared ->
-      Displayed (prepared, geometry_bounds output.Session.geometry))
-      (value.prepare output) in
-    let cook_error, framing = if submit then match
-        Sketch_support.Reactive_sop.submit_timeline value.worker
-          ~timeline ~node:displayed_graph ~prepare:prepare_display with
-      | Ok _ -> None, None
-      | Error message -> Some message, None
-      else cook_error, framing in
-    let framed, framing = match !frame_request with
-      | None -> framed, framing
-      | Some node_id when node_id = displayed_id && displayed_bounds <> None
-          && not document_changed -> Some displayed_bounds, framing
-      | Some node_id ->
-          (match Edit_graph.compile_node document ~node_id with
-           | Error _ -> Some None, framing
-           | Ok node ->
-               let was_busy = busy value.worker && framing = None in
-               match Sketch_support.Reactive_sop.submit_timeline value.worker
-                   ~timeline ~node ~prepare:(fun output ->
-                     Ok (Framed (geometry_bounds output.Session.geometry))) with
-               | Ok _ -> framed, Some (was_busy || Option.value ~default:false framing)
-               | Error _ -> Some None, framing) in
-    { core = { value with graph; displayed_graph; document; graph_view; displayed_id;
-        inspector; workspace; timeline; schedule; prepared; edit_error; cook_error;
-        cook_seconds; status_fps; status_fps_at; history;
-        force_cook = force_next; focus; leader; displayed_bounds; framing; prompt;
+    let cooked = Cook.update value.cook ~document ~displayed_id ~graph:value.graph
+        ~displayed_graph:value.displayed_graph ~edit_error ~display_changed
+        ~document_changed ~effects ~timeline_changes ~timeline ~frame
+        ~frame_request:!frame_request in
+    { core = { value with graph = cooked.graph;
+        displayed_graph = cooked.displayed_graph; document; graph_view; displayed_id;
+        inspector; workspace; timeline; cook = cooked.cook; edit_error = cooked.edit_error;
+        status_fps; status_fps_at; history; focus; leader; prompt;
         notice = if document_changed && Option.is_none !loaded then None else notice };
-      effects; prepared_changed; framed;
+      effects; prepared_changed = cooked.prepared_changed; framed = cooked.framed;
       loaded_view = Option.map (fun (preset : Preset.loaded) -> preset.view) !loaded;
       actions; input = frame }
 
@@ -1063,7 +1092,7 @@ module Core = struct
 
   let close value =
     Pxui.Ui.destroy value.ui;
-    Sketch_support.Reactive_sop.close value.worker
+    Cook.close value.cook
 end
 
 module CC = Pxui.Camera_control
@@ -1196,7 +1225,7 @@ module Environment3 = struct
   let panes value frame = Core.panes value.core frame
   let graph_nodes value = Pxui_graph.node_views value.core.graph_view
   let rerender value =
-    { value with core = { value.core with Core.force_cook = true };
+    { value with core = { value.core with Core.cook = Cook.force value.core.cook };
       rendered = Option.map (value.scene3 (Core.displayed_node value.core))
           (Core.prepared value.core) }
   let can_undo value = Editor.History.can_undo value.core.Core.history
