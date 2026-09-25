@@ -301,8 +301,7 @@ let run () =
     "node search did not use the shared fuzzy matching rule";
 
   let clipboard_view = Pxui_graph.select (Node.id source_a) edit_view in
-  let clipboard_view, changes = Pxui_graph.run_command clipboard_view Copy in
-  check (changes = []) "Command-C unexpectedly changed graph topology";
+  let clipboard_view = Pxui_graph.copy_selection clipboard_view in
   let _, changes = Pxui_graph.run_command clipboard_view Paste in
   check (List.exists (function Pxui_graph.Paste_requested request ->
       List.length request.positions = 1 | _ -> false) changes)
@@ -336,7 +335,7 @@ let run () =
   check (List.exists (function Pxui_graph.Insert_requested request ->
       request.factory_key = "null" | _ -> false) changes)
     "Space on a wire did not request atomic unary insertion";
-  let _, changes = Pxui_graph.run_command chain_view Delete in
+  let _, changes = Pxui_graph.delete_selection chain_view in
   check (List.exists (function Pxui_graph.Disconnect_requested _ -> true
       | _ -> false) changes)
     "Delete on a selected wire did not request disconnection";
@@ -359,7 +358,7 @@ let run () =
 
   let delete_view = Pxui_graph.select (Node.id source_a)
       (Pxui_graph.create ~x:20 ~y:30 ~width:800 ~height:520 graph) in
-  let _, changes = Pxui_graph.run_command delete_view Delete in
+  let _, changes = Pxui_graph.delete_selection delete_view in
   check (List.mem (Pxui_graph.Delete_nodes_requested [Node.id source_a]) changes)
     "Delete did not request removal of selected nodes";
 

@@ -128,8 +128,15 @@ val open_menu_at : int * int -> t -> t
 val optimize_layout : t -> t
 (** Re-run automatic layout, dropping manual tile positions, and frame all. *)
 
+val frame_all : t -> t
 val frame_selected : t -> t
 (** Frame the selected tiles, or all tiles when nothing is selected. *)
+
+val copy_selection : t -> t
+val paste_clipboard : t -> t * change list
+val duplicate_selection : t -> t * change list
+val delete_selection : t -> t * change list
+(** Graph commands return topology requests for the host to apply. *)
 
 val stats : t -> stats
 

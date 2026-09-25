@@ -32,6 +32,18 @@ let ui_bytes scene =
       | _ -> None) staged.layers)
 
 let run () =
+  let module Leader = Sketch_ui.Private.Leader in
+  List.iter (fun (trigger, _, command) ->
+    check (List.exists (fun binding ->
+      binding.Editor.Keymap.trigger = trigger
+      && binding.action = Leader.Graph_command command) Leader.keymap)
+      "graph command missing from the host keymap") Pxui_graph.bindings;
+  let camera_binding key action = List.exists (fun binding ->
+    binding.Editor.Keymap.trigger = Editor.Keymap.Leader key
+    && binding.action = action) Leader.keymap in
+  check (camera_binding 'h' Leader.Hide_ui
+      && camera_binding 'c' Leader.Open_camera)
+    "camera visibility commands missing from the host keymap";
   let workspace = Sketch_ui.Private.Workspace.create Sketch_ui.default_layout in
   let initial = Sketch_ui.Private.Workspace.geometry workspace (frame ~width:1000 0) in
   check (initial.view_header = (0, 0, width initial.view, 22))
