@@ -250,6 +250,9 @@ Catmull–Rom samples, `Pdk.Iso_surface` extracts packed isosurfaces,
 by procedural SOPs;
 `Pdk.Ops` retains compatible operation entry points during the consumer
 migration.
+`Pdk.Group_ops.groups_from_name_checked` and
+`Pdk.Group_ops.name_from_groups_checked` return the same typed validation and
+cancellation errors as their compatibility entry points.
 
 Loop and Catmull-Clark mesh subdivision use the same packed PDK core
 as `Procedural.Sop.subdivide`; `Pdk.Subdivision_extra` provides Butterfly and
