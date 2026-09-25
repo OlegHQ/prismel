@@ -563,9 +563,9 @@ let scale_sampled_resources (facts : frame_facts) draws =
   if not (scale_required facts) then draws
   else
     List.map
-      (fun ((family, blend, texture, auxiliary, samples, draw) as entry) ->
-        let scaled = scale_draw facts draw in
-        if scaled == draw then entry else (family, blend, texture, auxiliary, samples, scaled))
+      (fun (entry:Scene_execution.sampled_draw) ->
+        let scaled = scale_draw facts entry.draw in
+        if scaled == entry.draw then entry else {entry with draw=scaled})
       draws
 
 let apply_facts (value : t) (facts : frame_facts) =

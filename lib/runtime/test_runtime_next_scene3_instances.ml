@@ -47,8 +47,7 @@ let run () = match Runtime_next.create_offscreen ~logical_width:4 ~logical_heigh
       and right = draw (0, 0, 4, 4) (uniform false) in
       for _frame = 1 to 3 do
         ignore (get (Runtime_next.render_offscreen runtime
-          [left.family, left.blend, None, None, 1, left.draw;
-           right.family, right.blend, None, None, 1, right.draw]));
+          [left;right]));
         let pixels = get (Runtime_next.read_offscreen runtime ~bytes_per_row:256) in
         if Char.code (Bytes.get pixels 0) <> 255
             || Char.code (Bytes.get pixels 1) <> 0
@@ -63,9 +62,7 @@ let run () = match Runtime_next.create_offscreen ~logical_width:4 ~logical_heigh
       Bytes.set_int32_le second (53 * 4) (Int32.bits_of_float 0.);
       let reference_draws = [draw (0, 0, 4, 4) first; draw (0, 0, 4, 4) second] in
       let render entries =
-        ignore (get (Runtime_next.render_offscreen runtime
-          (List.map (fun (entry : Scene_execution.scene3_entry) ->
-            entry.family, entry.blend, None, None, 1, entry.draw) entries)));
+        ignore (get (Runtime_next.render_offscreen runtime entries));
         get (Runtime_next.read_offscreen runtime ~bytes_per_row:256) in
       let expected = render reference_draws in
       let instanced = Bytes.make (5456 + 2 * 192) '\000' in

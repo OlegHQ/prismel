@@ -99,7 +99,8 @@ let run () =
   let replay_renderer=get(Scene_execution.create driver configuration)in
   let stable=draws 10 in
   let retained=stable|>List.map(fun(blend,draw)->
-    Scene_execution.Scene2,blend,None,None,1,draw)in
+    {Scene_execution.family=Scene2;blend;texture=None;auxiliary=None;
+     samples=1;draw})in
   ignore(get(Scene_execution.render_prepared_sampled_resources
     ~identity:"scratch-retained"~version:7L replay_renderer retained));
   Ogpu.Backend_mock.clear_trace replay_control;
@@ -150,14 +151,16 @@ let run () =
   let first={Scene_execution.mesh=mesh 70_000;state}
   and second={Scene_execution.mesh=mesh 70_001;
     state={state with depth_write=true}}in
-  let stable=[Scene_execution.Scene2,Ogpu.Pipeline.Replace,None,None,1,first;
-    Scene_execution.Scene3,Ogpu.Pipeline.Replace,None,None,1,second]in
+  let stable=[{Scene_execution.family=Scene2;blend=Ogpu.Pipeline.Replace;
+    texture=None;auxiliary=None;samples=1;draw=first};
+    {Scene_execution.family=Scene3;blend=Ogpu.Pipeline.Replace;
+    texture=None;auxiliary=None;samples=1;draw=second}]in
   ignore(get(Scene_execution.render_sampled_resources renderer stable));
   ignore(get(Scene_execution.render_sampled_resources renderer stable));
   let builds0,reuses0=Scene_execution.Private.retained_batch_stats renderer in
   let changed=[List.hd stable;
-    Scene_execution.Scene3,Ogpu.Pipeline.Replace,None,None,1,
-      {second with state={second.state with scissor=(1,1,62,62)}}]in
+    {(List.nth stable 1) with draw=
+      {second with state={second.state with scissor=(1,1,62,62)}}}]in
   ignore(get(Scene_execution.render_sampled_resources renderer changed));
   let builds1,reuses1=Scene_execution.Private.retained_batch_stats renderer in
   require(reuses1>reuses0&&builds1>builds0)
@@ -178,13 +181,15 @@ let run () =
       max_anisotropy=1};gpu=None}in
   ignore(get(Scene_execution.render_sampled_resources
     ~after_prepare:release renderer
-    [Scene_execution.Scene2,Ogpu.Pipeline.Replace,Some texture,None,1,
-     {Scene_execution.mesh=mesh 0;state}]));
+    [{Scene_execution.family=Scene2;blend=Ogpu.Pipeline.Replace;
+      texture=Some texture;auxiliary=None;samples=1;
+      draw={mesh=mesh 0;state}}]));
   require(!releases=1)"post-upload release hook did not run exactly once";
   let malformed={texture with levels=[||]}in
   (match Scene_execution.render_sampled_resources ~after_prepare:release renderer
-      [Scene_execution.Scene2,Ogpu.Pipeline.Replace,Some malformed,None,1,
-       {Scene_execution.mesh=mesh 1;state}]with
+      [{Scene_execution.family=Scene2;blend=Ogpu.Pipeline.Replace;
+        texture=Some malformed;auxiliary=None;samples=1;
+        draw={mesh=mesh 1;state}}]with
    |Error _->()|Ok _->failwith"malformed sampled texture unexpectedly rendered");
   require(!releases=2)"failed upload did not run release hook exactly once";
   get(Scene_execution.destroy renderer);

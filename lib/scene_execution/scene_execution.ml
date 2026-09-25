@@ -11,9 +11,10 @@ type shadow_bias={constant:float;slope:float}
 type shadow_snapshot={width:int;height:int;depths:float array;matrix:float array;
   bias:shadow_bias;kernel:shadow_kernel;strength:float}
 type auxiliary_resource={key:string;buffer:bytes;texture:sampled_texture}
-type scene3_entry={family:pipeline_family;blend:Ogpu.Pipeline.blend;
+type sampled_draw={family:pipeline_family;blend:Ogpu.Pipeline.blend;
   texture:sampled_texture option;auxiliary:auxiliary_resource option;
   samples:int;draw:draw}
+type scene3_entry=sampled_draw
 type prepared_scene3={clear:float*float*float*float;clear_depth:float;
   clear_stencil:int;entries:scene3_entry array}
 type cached={mutable key:string;mutable payload_hash:string;mutable trusted_source:mesh option;buffer:Ogpu.Backend.buffer;mutable index_offset:int64;mutable uniform_offset:int64 option;mutable vertex_count:int;mutable index_count:int;mutable primitive:Ogpu.Render_pass.primitive;bytes:int}
@@ -26,7 +27,7 @@ type cached_texture={mutable texture_key:string;mutable texture_hash:string;
   mutable texture_in_use:bool}
 type texture_upload_scratch={scratch_buffer:Ogpu.Backend.buffer;
   scratch_bytes:bytes;scratch_size:int}
-type prepared_run={prepared_identity:string;prepared_version:int64;prepared_draws:(pipeline_family*Ogpu.Pipeline.blend*sampled_texture option*auxiliary_resource option*int*draw)list;prepared_bytes:int}
+type prepared_run={prepared_identity:string;prepared_version:int64;prepared_draws:sampled_draw list;prepared_bytes:int}
 type prepared_submission={submission_identity:string;submission_version:int64;
   submission_clear:float*float*float*float;
   submission_draw_count:int;
@@ -570,17 +571,17 @@ let coalesce_draws draws =
   let stride (mesh : mesh) =
     if mesh.vertex_count = 0 then 0 else Bytes.length mesh.vertices / mesh.vertex_count
   in
-  let compatible (family, blend, texture, auxiliary, (draw : draw))
-      (next_family, next_blend, next_texture, next_auxiliary, (next_draw : draw)) =
-    family = next_family && blend = next_blend && draw.state = next_draw.state &&
-    draw.mesh.primitive=next_draw.mesh.primitive&&
-    stride draw.mesh = stride next_draw.mesh &&
-    same_optional_resource texture next_texture &&
-    same_optional_resource auxiliary next_auxiliary
+  let compatible (first:sampled_draw) (next:sampled_draw) =
+    first.family=next.family&&first.blend=next.blend&&
+    first.samples=next.samples&&first.draw.state=next.draw.state&&
+    first.draw.mesh.primitive=next.draw.mesh.primitive&&
+    stride first.draw.mesh=stride next.draw.mesh&&
+    same_optional_resource first.texture next.texture&&
+    same_optional_resource first.auxiliary next.auxiliary
   in
   let rec take first packed_bytes entries = function
     | next :: rest when compatible first next ->
-        let _, _, _, _, (draw : draw) = next in
+        let draw=next.draw in
         let bytes=Bytes.length draw.mesh.vertices+Bytes.length draw.mesh.indices in
         if packed_bytes <= cache_byte_capacity - bytes then
           take first (packed_bytes + bytes) (next :: entries) rest
@@ -589,7 +590,8 @@ let coalesce_draws draws =
   in
   let rec loop result = function
     | [] -> Ok (List.rev result)
-    | ((family, blend, texture, auxiliary, (draw : draw)) as first) :: rest ->
+    | (first:sampled_draw) :: rest ->
+        let draw=first.draw in
         let first_bytes=Bytes.length draw.mesh.vertices+Bytes.length draw.mesh.indices in
         if first_bytes > cache_byte_capacity then
           error "Scene_execution.coalesce" Ogpu.Error.Capacity "one mesh exceeds the batch byte capacity"
@@ -602,15 +604,13 @@ let coalesce_draws draws =
            unchanged neighbour. Large runs still coalesce to bound caches and
            draw payloads. *)
         | _ when List.length entries<=64->loop(List.rev_append entries result)rest
-        | _ -> let meshes=List.map(fun(_,_,_,_,(entry:draw))->entry.mesh)entries in match combine_meshes meshes with
+        | _ -> let meshes=List.map(fun entry->entry.draw.mesh)entries in match combine_meshes meshes with
           | Error _ as result -> result
-          | Ok mesh -> loop ((family, blend, texture, auxiliary, {draw with mesh}) :: result) rest
+          | Ok mesh -> loop ({first with draw={draw with mesh}} :: result) rest
   in
   loop [] draws
-let coalesce_sampled draws =
-  let rec take samples acc=function (family,blend,texture,auxiliary,next_samples,draw)::rest when next_samples=samples->take samples((family,blend,texture,auxiliary,draw)::acc)rest|rest->List.rev acc,rest in
-  let rec loop acc=function []->Ok(List.rev acc)|(family,blend,texture,auxiliary,samples,draw)::rest->let chunk,rest=take samples[family,blend,texture,auxiliary,draw]rest in match coalesce_draws chunk with Error _ as e->e|Ok values->loop(List.rev_append(List.map(fun(family,blend,texture,auxiliary,draw)->family,blend,texture,auxiliary,samples,draw)values)acc)rest in loop[]draws
-let prepared_bytes draws=List.fold_left(fun total(_,_,_,_,_,(draw:draw))->total+Bytes.length draw.mesh.vertices+Bytes.length draw.mesh.indices)0 draws
+let prepared_bytes draws=List.fold_left(fun total entry->
+  total+Bytes.length entry.draw.mesh.vertices+Bytes.length entry.draw.mesh.indices)0 draws
 let trim_prepared cache =
   let rec loop entries bytes keep = function
     | [] -> List.rev keep
@@ -624,8 +624,8 @@ let resolve_prepared value prepared draws =
   | Some(identity,version)->
       (match List.find_opt(fun item->item.prepared_identity=identity&&item.prepared_version=version)value.prepared_cache with
       |Some item->Ok(item.prepared_draws,true)
-      |None->Result.map(fun prepared_draws->let item={prepared_identity=identity;prepared_version=version;prepared_draws;prepared_bytes=prepared_bytes prepared_draws}in let others=List.filter(fun old->old.prepared_identity<>identity)value.prepared_cache in value.prepared_cache<-trim_prepared(item::others);prepared_draws,false)(coalesce_sampled draws))
-  |None->Result.map(fun draws->draws,false)(coalesce_sampled draws)
+      |None->Result.map(fun prepared_draws->let item={prepared_identity=identity;prepared_version=version;prepared_draws;prepared_bytes=prepared_bytes prepared_draws}in let others=List.filter(fun old->old.prepared_identity<>identity)value.prepared_cache in value.prepared_cache<-trim_prepared(item::others);prepared_draws,false)(coalesce_draws draws))
+  |None->Result.map(fun draws->draws,false)(coalesce_draws draws)
 let intersect_extent ~bound_w ~bound_h (x,y,w,h)=
   let x=max 0 x and y=max 0 y in
   let w=min w(bound_w-x)and h=min h(bound_h-y)in
@@ -819,9 +819,13 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
   let prepared_key=prepared in
   match resolve_prepared value prepared draws with Error _ as result ->after_prepare();result | Ok(draws,trusted_key) ->
   let valid_mesh(mesh:mesh)=mesh.key<>""&&mesh.vertex_count>0&&mesh.index_count>0&&Bytes.length mesh.vertices+Bytes.length mesh.indices>0 in
-  let supported=List.for_all(fun(family,blend,_,_,samples,_)->
-    Option.is_some(find_pipeline value family blend samples))draws in
-  let valid=List.for_all(fun(_,_,texture,auxiliary,samples,(draw:draw))->List.mem samples[1;4;9;16]&&valid_mesh draw.mesh&&Option.fold~none:true~some:valid_texture texture&&Option.fold~none:true~some:(fun(source:auxiliary_resource)->source.key<>""&&Bytes.length source.buffer>0&&valid_texture source.texture)auxiliary)draws in
+  let supported=List.for_all(fun(entry:sampled_draw)->
+    Option.is_some(find_pipeline value entry.family entry.blend entry.samples))draws in
+  let valid=List.for_all(fun(entry:sampled_draw)->List.mem entry.samples[1;4;9;16]&&
+    valid_mesh entry.draw.mesh&&Option.fold~none:true~some:valid_texture entry.texture&&
+    Option.fold~none:true~some:(fun(source:auxiliary_resource)->
+      source.key<>""&&Bytes.length source.buffer>0&&valid_texture source.texture)
+      entry.auxiliary)draws in
   if not supported then(after_prepare();error"Scene_execution.render"Ogpu.Error.Unsupported"pipeline family/blend variant is unavailable")else
   if not valid then(after_prepare();error"Scene_execution.render"Ogpu.Error.Invalid_argument"draw resource preflight failed")else
   let deferred=ref[]in let defer release=deferred:=release::!deferred in
@@ -843,7 +847,8 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
   match ensure_prepared_scratch scratch(List.length draws)with
   |Error _ as result->after_prepare();finish result
   |Ok()->Fun.protect~finally:(fun()->clear_prepared_scratch scratch)(fun()->
-  let modes=Array.of_list(List.map(fun(family,_,_,_,_,(draw:draw))->
+  let modes=Array.of_list(List.map(fun(entry:sampled_draw)->
+    let family=entry.family and draw=entry.draw in
     let scene2=family=Scene2||family=Scene2_textured in
     let canonical_scene2=value.canonical_scene2_argument&&scene2 in
     let canonical_plain=value.canonical_scene2_argument&&family=Scene2 in
@@ -866,7 +871,8 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
     slot.slot_uniform<-uniform;scratch.scratch_length<-scratch.scratch_length+1 in
   let rec prepare_all=function
   |[]->Ok()
-  |(family,blend,texture,auxiliary,samples,(draw:draw))::rest->
+  |(entry:sampled_draw)::rest->
+    let {family;blend;texture;auxiliary;samples;draw}=entry in
     let canonical_scene2,canonical_plain,affine,scene3_transform,_=
       modes.(scratch.scratch_length)in
     match prepare value~defer~trusted_key~reserved:(scratch_mem_mesh scratch)
@@ -1157,7 +1163,8 @@ let replay_prepared_sampled_resources ?(clear=(0.,0.,0.,0.)) ~identity ~version 
       Result.map(fun presented->Some(presented,cached.submission_draw_count))
         (replay_commands value cached.submission_commands)
   |_->Ok None
-let render_resources ?clear value draws=render_sampled_resources ?clear value(List.map(fun(family,blend,texture,auxiliary,draw)->family,blend,texture,auxiliary,1,draw)draws)
+let render_resources ?clear value draws=render_sampled_resources ?clear value(List.map(fun(family,blend,texture,auxiliary,draw)->
+  {family;blend;texture;auxiliary;samples=1;draw})draws)
 let render_textured ?clear value draws=render_resources ?clear value(List.map(fun(family,blend,texture,draw)->family,blend,texture,None,draw)draws)
 let render_family ?clear value draws=render_textured ?clear value(List.map(fun(family,blend,draw)->family,blend,None,draw)draws)
 let render_blended ?clear value draws=render_family ?clear value(List.map(fun(blend,draw)->Scene2,blend,draw)draws)

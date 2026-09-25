@@ -56,7 +56,7 @@ type family = Scene_execution.pipeline_family =
 
 type blend = Ogpu.Pipeline.blend = Replace | Alpha | Add | Multiply | Screen | Subtract
 
-type prepared = {
+type prepared = Scene_execution.sampled_draw = {
   family : family;
   blend : blend;
   texture : Scene_execution.sampled_texture option;
@@ -73,15 +73,6 @@ type t = {
   mutable logical_passes : int64;
   mutable logical_submissions : int64;
   mutable dead : bool;
-  mutable last_prepared_in : prepared list;
-  mutable last_sampled_out :
-    (Scene_execution.pipeline_family
-    * Ogpu.Pipeline.blend
-    * Scene_execution.sampled_texture option
-    * Scene_execution.auxiliary_resource option
-    * int
-    * Scene_execution.draw)
-    list;
 }
 
 let error operation kind message = Error (Ogpu.Error.make operation kind message)
@@ -103,8 +94,6 @@ let create (c : configuration) =
           logical_passes = 0L;
           logical_submissions = 0L;
           dead = false;
-          last_prepared_in = [];
-          last_sampled_out = [];
         }
     in
     match
@@ -220,19 +209,6 @@ let render value draws =
   | Error _ as e -> e
   | Ok () -> account value (List.length draws) (Runtime_next.render value.runtime draws)
 
-let sampled_of_prepared value draws =
-  if draws == value.last_prepared_in then value.last_sampled_out
-  else
-    let out =
-      List.map
-        (fun x ->
-          (x.family, x.blend, x.texture, x.auxiliary, x.samples, x.draw))
-        draws
-    in
-    value.last_prepared_in <- draws;
-    value.last_sampled_out <- out;
-    out
-
 let pull_window_facts value =
   let live = Runtime_next.frame_facts value.runtime and f = value.facts in
   if
@@ -261,7 +237,6 @@ let render_prepared ?after_prepare ?clear value draws =
       Option.iter (fun f -> f ()) after_prepare;
       e
   | Ok () ->
-      let draws = sampled_of_prepared value draws in
       let result =
         account value (List.length draws)
           (Runtime_next.render_sampled_resources ?after_prepare ?clear value.runtime draws)
@@ -275,7 +250,6 @@ let render_retained ?after_prepare ?clear ~identity ~version value draws =
       Option.iter (fun f -> f ()) after_prepare;
       e
   | Ok () ->
-      let draws = sampled_of_prepared value draws in
       let result =
         account value (List.length draws)
           (Runtime_next.render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version
@@ -406,6 +380,4 @@ let destroy value =
   if value.dead then Ok ()
   else (
     value.dead <- true;
-    value.last_prepared_in <- [];
-    value.last_sampled_out <- [];
     Runtime_next.destroy value.runtime)

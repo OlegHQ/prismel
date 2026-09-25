@@ -43,8 +43,8 @@ let run () =
           levels = [| { width = 1; height = 1; bytes = Bytes.of_string "\x11\x22\x33\xff" } |];
           sampler; gpu=None }
       in
-      let draw = Scene_execution.Scene2_textured, Ogpu.Pipeline.Replace, Some texture,
-        None, 1, { Scene_execution.mesh; state } in
+      let draw = {Scene_execution.family=Scene2_textured;blend=Ogpu.Pipeline.Replace;
+        texture=Some texture;auxiliary=None;samples=1;draw={mesh;state}} in
       let first_uploaded = ref None in
       for frame = 1 to 20 do
         if not (get (Runtime_next.render_sampled_resources runtime [draw])) then
@@ -74,8 +74,7 @@ let run () =
             levels = [| { width = 1; height = 1; bytes = Bytes.of_string rgba } |];
             sampler; gpu=None }
         in
-        let changing_draw = Scene_execution.Scene2_textured, Ogpu.Pipeline.Replace,
-          Some changing, None, 1, { Scene_execution.mesh; state } in
+        let changing_draw = {draw with texture=Some changing} in
         if not (get (Runtime_next.render_sampled_resources runtime [changing_draw])) then
           failwith "managed-image churn frame was not presented";
         let pixels = get (Runtime_next.read_pixels runtime ~bytes_per_row:16) in
@@ -99,10 +98,9 @@ let run () =
       if !peak_live <> settled_live || !peak_pending <> settled_pending then
         failwith "managed-image churn grew Metal release state";
       let plain_mesh = { mesh with Scene_execution.key = "scene2-retained-plain" } in
-      let plain_draw = Scene_execution.Scene2, Ogpu.Pipeline.Replace, None,
-        None, 1, { Scene_execution.mesh = plain_mesh; state } in
-      let textured_draw = Scene_execution.Scene2_textured, Ogpu.Pipeline.Alpha,
-        Some texture, None, 1, { Scene_execution.mesh; state } in
+      let plain_draw = {draw with family=Scene2;texture=None;
+        draw={Scene_execution.mesh=plain_mesh;state}} in
+      let textured_draw = {draw with blend=Ogpu.Pipeline.Alpha} in
       for _frame = 1 to 600 do
         if not (get (Runtime_next.render_sampled_resources runtime
           [plain_draw; textured_draw])) then
@@ -143,8 +141,7 @@ let run () =
       in
       let animated tx =
         let state = { state with Scene_execution.transform_uniforms = Some (affine tx) } in
-        Scene_execution.Scene2_textured, Ogpu.Pipeline.Replace, Some texture,
-          None, 1, { Scene_execution.mesh; state }
+        {draw with draw={Scene_execution.mesh;state}}
       in
       for frame = 0 to 19 do
         ignore (get (Runtime_next.render_sampled_resources runtime

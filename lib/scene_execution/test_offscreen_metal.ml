@@ -91,9 +91,10 @@ let run () =
       (* Distinct scissors prevent coalescing: this graph crosses the mesh
          cache limit and must rebuild after completion-time eviction. *)
       let dense=List.init 257 (fun index ->
-        Scene_execution.Scene2,Ogpu.Pipeline.Replace,None,None,1,
-        {Scene_execution.mesh={mesh with key=Printf.sprintf "dense-%d" index};
-         state={state with scissor=(index mod 2,0,3,4)}}) in
+        {Scene_execution.family=Scene2;blend=Ogpu.Pipeline.Replace;
+         texture=None;auxiliary=None;samples=1;
+         draw={mesh={mesh with key=Printf.sprintf "dense-%d" index};
+           state={state with scissor=(index mod 2,0,3,4)}}}) in
       let expected_dense=ref None in
       for frame=1 to 60 do
         ignore (get (Scene_execution.render_prepared_sampled_resources

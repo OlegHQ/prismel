@@ -71,15 +71,17 @@ let run name count entry =
 
 let run () =
   run "mesh-overflow" 257 (fun index ->
-    Scene_execution.Scene2,
-    (if index land 1=0 then Ogpu.Pipeline.Replace else Alpha),
-    None,None,1,{Scene_execution.mesh=mesh index;state});
+    {Scene_execution.family=Scene2;
+     blend=(if index land 1=0 then Ogpu.Pipeline.Replace else Alpha);
+     texture=None;auxiliary=None;samples=1;draw={mesh=mesh index;state}});
   run "texture-overflow" 257 (fun index ->
-    Scene_execution.Scene2_textured,Ogpu.Pipeline.Replace,
-    Some (texture index),None,1,{Scene_execution.mesh=mesh 0;state});
+    {Scene_execution.family=Scene2_textured;blend=Ogpu.Pipeline.Replace;
+     texture=Some(texture index);auxiliary=None;samples=1;
+     draw={mesh=mesh 0;state}});
   run "auxiliary-overflow" 65 (fun index ->
     let auxiliary : Scene_execution.auxiliary_resource =
       {key=Printf.sprintf "auxiliary-%d" index;buffer=Bytes.make 16 '\000';
        texture=texture 0} in
-    Scene_execution.Scene3_shadow,Ogpu.Pipeline.Replace,
-    None,Some auxiliary,1,{Scene_execution.mesh=mesh 0;state})
+    {Scene_execution.family=Scene3_shadow;blend=Ogpu.Pipeline.Replace;
+     texture=None;auxiliary=Some auxiliary;samples=1;
+     draw={mesh=mesh 0;state}})

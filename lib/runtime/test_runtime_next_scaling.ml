@@ -16,7 +16,8 @@ let run () =
   let draws=[draw]in
   if Runtime_next.Private.scale_draws one draws!=draws then
     failwith"1x draw graph was copied";
-  let sampled=[Scene_execution.Scene2,Ogpu.Pipeline.Replace,None,None,1,draw]in
+  let sampled=[{Scene_execution.family=Scene2;blend=Ogpu.Pipeline.Replace;
+    texture=None;auxiliary=None;samples=1;draw}]in
   if Runtime_next.Private.scale_sampled_resources one sampled!=sampled then
     failwith"1x sampled graph was copied";
   let scaled=List.hd(Runtime_next.Private.scale_draws retina draws)in

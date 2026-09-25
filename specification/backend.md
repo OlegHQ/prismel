@@ -236,6 +236,11 @@ and zero handle deltas.
 The frame coordinator and runtime orchestrator use the executor's pipeline
 family and OGPU blend types directly, so preparing a draw no longer maps two
 duplicate enum sets on the way to the backend.
+Sampled draws use the same named record from Scene3 staging through runtime
+and scene execution. The orchestrator passes the list through without a
+per-draw tuple conversion; an unchanged 1× runtime frame preserves the list's
+identity, while Retina scaling copies only records whose viewport or scissor
+changes. Batch coalescing also requires an equal sample count.
 
 Retained OGPU-Metal identity and replay metadata have independent 256-entry
 limits and share a configurable 64-MiB default byte capacity per queue. Metal's

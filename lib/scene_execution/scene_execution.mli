@@ -57,7 +57,7 @@ type auxiliary_resource = {
   texture : sampled_texture;
 }
 
-type scene3_entry = {
+type sampled_draw = {
   family : pipeline_family;
   blend : Ogpu.Pipeline.blend;
   texture : sampled_texture option;
@@ -65,6 +65,7 @@ type scene3_entry = {
   samples : int;
   draw : draw;
 }
+type scene3_entry = sampled_draw
 type prepared_scene3 = {
   clear : float * float * float * float;
   clear_depth : float;
@@ -134,13 +135,11 @@ val render_resources : ?clear:(float * float * float * float) -> t ->
     auxiliary_resource option * draw) list ->
   (bool, Ogpu.Error.t) result
 val render_sampled_resources : ?after_prepare:(unit -> unit) -> ?clear:(float * float * float * float) -> t ->
-  (pipeline_family * Ogpu.Pipeline.blend * sampled_texture option *
-    auxiliary_resource option * int * draw) list ->
+  sampled_draw list ->
   (bool, Ogpu.Error.t) result
 val render_prepared_sampled_resources :
   ?after_prepare:(unit -> unit) -> ?clear:(float * float * float * float) -> identity:string -> version:int64 -> t ->
-  (pipeline_family * Ogpu.Pipeline.blend * sampled_texture option *
-    auxiliary_resource option * int * draw) list ->
+  sampled_draw list ->
   (bool, Ogpu.Error.t) result
 val replay_prepared_sampled_resources :
   ?clear:(float * float * float * float) -> identity:string -> version:int64 -> t ->

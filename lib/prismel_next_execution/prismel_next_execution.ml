@@ -1004,13 +1004,10 @@ let step_core ?after_prepare ?clear ?identity ?version value draws=
       |_->after_prepare();Error(Ogpu.Error.make"Prismel_next_execution.step"Ogpu.Error.Invalid_argument
           "prepared identity and version must be supplied together"))
     |Offscreen state->
-      let portable=List.map(fun draw->
-        draw.Runtime_next_orchestrator.family,draw.blend,draw.texture,
-        draw.auxiliary,draw.samples,draw.draw)draws in
       let result=match identity,version with
-      |None,None->Runtime_next.render_offscreen ~after_prepare ?clear state.runtime portable
+      |None,None->Runtime_next.render_offscreen ~after_prepare ?clear state.runtime draws
       |Some identity,Some version->Runtime_next.render_offscreen_prepared ~after_prepare ?clear
-          ~identity~version state.runtime portable
+          ~identity~version state.runtime draws
       |_->after_prepare();Error(Ogpu.Error.make"Prismel_next_execution.step"Ogpu.Error.Invalid_argument
           "prepared identity and version must be supplied together")in
       (match result with Ok _->state.frames<-Int64.succ state.frames;

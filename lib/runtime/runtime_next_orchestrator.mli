@@ -17,7 +17,7 @@ type stats = { frames:int64; presented:int64; logical_draws:int64;
 type family = Scene_execution.pipeline_family = Scene2 | Scene2_textured | Scene3 | Scene3_points | Scene3_textured | Scene3_shadow |
   Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil | Ui
 type blend = Ogpu.Pipeline.blend = Replace | Alpha | Add | Multiply | Screen | Subtract
-type prepared = {
+type prepared = Scene_execution.sampled_draw = {
   family : family;
   blend : blend;
   texture : Scene_execution.sampled_texture option;
