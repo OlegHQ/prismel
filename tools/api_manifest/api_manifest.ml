@@ -6,7 +6,7 @@ let baseline_relative =
   "tools/api_manifest/phase0_baseline.json"
 
 let stable_library_directories =
-  [ "prismel"; "pdk"; "geom"; "procedural"; "pxui"; "pxui_graph"
+  [ "prismel"; "pdk"; "geom"; "procedural"; "editor"; "pxui"; "pxui_graph"
   ; "sop_catalog"; "sop_ui"; "sketch_support"; "sketch_ui"
   ]
 

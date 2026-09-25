@@ -65,7 +65,7 @@ let reach graph =
 
 let gpu = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu"; "ogpu_mock"; "ogpu_metal"; "ogpu_metal_native";
            "runtime_next"; "runtime_next_orchestrator"; "scene_execution"]
-let upper = ["prismel"; "pxui"; "pxui_graph"; "sop_ui"; "procedural"; "pdk"; "geom";
+let upper = ["prismel"; "editor"; "pxui"; "pxui_graph"; "sop_ui"; "procedural"; "pdk"; "geom";
              "sop_catalog"; "sketch_support"; "sketch_ui"]
 let foundational = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu";
                     "native_layer_token"; "scene_command"]
@@ -87,6 +87,8 @@ let rules =
       "geom", ["procedural"; "pxui"; "sop_ui"; "sop_catalog"];
       "procedural", "pxui" :: "pxui_graph" :: "sop_ui" :: "sop_catalog"
                     :: "sketch_support" :: "sketch_ui" :: gpu;
+      "editor", ["pxui"; "pxui_graph"; "sop_ui"; "sketch_ui"; "procedural";
+                 "pdk"; "geom"; "sop_catalog"];
       "pxui", ["procedural"; "pdk"; "geom"; "pxui_graph"; "sop_ui"; "sketch_support"; "sketch_ui"];
       "sop_ui", ["pxui_graph"; "sketch_support"; "sketch_ui"; "sop_catalog"];
       "pxui_graph", ["sop_ui"; "sketch_support"; "sketch_ui"; "sop_catalog"];

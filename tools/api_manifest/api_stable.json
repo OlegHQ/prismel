@@ -3,8 +3,17 @@
   "baseline_plan_sha256": "6f95e5738ae263386bbc414299f598f25ba9f604b48a8c2ef9bee84f974e2954",
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 131,
+  "module_count": 132,
   "modules": [
+    {
+      "api_sha256": "639c9857498fb05033c5e56188f5f662de51f41d50af8b14da81f4a9d771d64d",
+      "excluded_legacy_symbols": [],
+      "library": "editor",
+      "module": "Editor",
+      "source": "lib/editor/editor.mli",
+      "source_bytes": 545,
+      "source_sha256": "1baaab4355e0e19b6c5e8a014cf98bd4e214d93312c88f4200fad725648a9476"
+    },
     {
       "api_sha256": "69403004e55a49667961f98b7879af4b3786d561307ea8812bb014b262ce5a72",
       "excluded_legacy_symbols": [],
@@ -1082,13 +1091,13 @@
       "source_sha256": "22a51e5f0d0ed52b1526a0db318bea73ebb8a382830a8b424d84b851c792b6c4"
     },
     {
-      "api_sha256": "28aa6f55ca046f0192fa8fd566b5c22f3705b3f2d116c5961f7fae2f3fc0b3c6",
+      "api_sha256": "85f0832871f235d505992fec969c62c0ef9fb1c28d6ca83aab5d8c649340993f",
       "excluded_legacy_symbols": [],
       "library": "pxui",
       "module": "Pxui",
       "source": "lib/pxui/pxui.mli",
-      "source_bytes": 1489,
-      "source_sha256": "bdd56d23eb1662cf6f14a51a0236dc0f2e9af564bbb97f56dd0dbcac70d2947d"
+      "source_bytes": 1195,
+      "source_sha256": "0750be1fb01831a3fb9c8ced452c81156952e4fe323e6562f53d38adacc7cea2"
     },
     {
       "api_sha256": "988703a0f4afb2c884f1bae0ed37143726df43f864484261f55a5964847f8704",

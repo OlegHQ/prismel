@@ -1,0 +1,4 @@
+(library
+ (name editor)
+ (public_name prismel.editor)
+ (modules editor))

@@ -1,5 +1,5 @@
 let run () =
-  let open Pxui.Undo in
+  let open Editor.History in
   let h = create ~capacity:3 0 in
   let h = commit 1 h |> commit 2 |> amend 3 in
   assert (present h = 3 && depth h = 2);
@@ -12,4 +12,5 @@ let run () =
   let rec bottom h = match undo h with Some h -> bottom h | None -> h in
   assert (present (bottom h) = 3 && not (can_undo (bottom h)));
   assert (commit 6 h == h);
+  assert (Pxui.Undo.present h = 6);
   print_endline "pxui undo: commit/amend/undo/redo/bounded ok"
