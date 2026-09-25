@@ -89,7 +89,8 @@ let rules =
                     :: "sketch_support" :: "sketch_ui" :: gpu;
       "editor", ["pxui"; "pxui_graph"; "sop_ui"; "sketch_ui"; "procedural";
                  "pdk"; "geom"; "sop_catalog"];
-      "pxui", ["procedural"; "pdk"; "geom"; "pxui_graph"; "sop_ui"; "sketch_support"; "sketch_ui"];
+      "pxui", ["editor"; "procedural"; "pdk"; "geom"; "pxui_graph";
+               "sop_ui"; "sketch_support"; "sketch_ui"];
       "sop_ui", ["pxui_graph"; "sketch_support"; "sketch_ui"; "sop_catalog"];
       "pxui_graph", ["sop_ui"; "sketch_support"; "sketch_ui"; "sop_catalog"];
       "sop_catalog", ["geom"; "pxui"; "pxui_graph"; "sop_ui"; "sketch_support"; "sketch_ui"];

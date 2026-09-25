@@ -35,3 +35,49 @@ module History = struct
         Some { t with past = t.present :: t.past; present = next; future;
                depth = t.depth + 1 }
 end
+
+module Keymap = struct
+  type ('scope, 'action) binding = {
+    key : char;
+    label : string;
+    scope : 'scope option;
+    action : 'action;
+  }
+
+  let visible bindings focus = List.filter (fun binding ->
+    binding.scope = None || binding.scope = Some focus) bindings
+end
+
+module Router = struct
+  type state = Idle | Pending
+
+  let modifier = function
+    | Prismel.Input.Shift | Prismel.Input.Ctrl | Prismel.Input.Alt
+    | Prismel.Input.Meta -> true
+    | _ -> false
+
+  let step keymap ~focus ~text_focus ~(frame : Prismel.Frame.t) state =
+    let open Prismel in
+    let command = List.mem Input.Meta frame.keys || List.mem Input.Ctrl frame.keys in
+    let state, actions, passed = List.fold_left (fun (state, actions, passed) event ->
+      match state, event with
+      | Idle, Event.KeyPressed Input.Space when not text_focus && not command ->
+          Pending, actions, passed
+      | Idle, _ -> Idle, actions, event :: passed
+      | Pending, Event.KeyPressed key when modifier key -> Pending, actions, passed
+      | Pending, Event.KeyPressed (Input.KeyChar character) ->
+          let character = Char.lowercase_ascii character in
+          let actions = match List.find_opt (fun binding -> binding.Keymap.key = character)
+              (Keymap.visible keymap focus) with
+            | Some binding -> binding.action :: actions
+            | None -> actions in
+          Idle, actions, passed
+      | Pending, (Event.TextInput _ | Event.TextEditing _) -> Pending, actions, passed
+      | Pending, (Event.KeyPressed _ | Event.MousePressed _) -> Idle, actions, passed
+      | Pending, Event.WindowFocusLost -> Idle, actions, event :: passed
+      | Pending, _ -> Pending, actions, event :: passed)
+      (state, [], []) frame.events in
+    let passed = if state = Idle && actions <> [] then List.filter (function
+        | Event.TextInput _ -> false | _ -> true) passed else passed in
+    state, List.rev actions, { frame with events = List.rev passed }
+end

@@ -1,9 +1,10 @@
 (library
  (name editor)
  (public_name prismel.editor)
- (modules editor))
+ (modules editor)
+ (libraries prismel))
 
 (test
  (name test_history)
  (modules test_history)
- (libraries editor))
+ (libraries editor prismel))

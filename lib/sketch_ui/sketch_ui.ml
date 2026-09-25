@@ -317,6 +317,7 @@ module Workspace = struct
 end
 
 module Leader = struct
+  open Editor.Keymap
   type action =
     | Save_preset | Browse_presets
     | Toggle_timeline | Toggle_graph | Toggle_inspector | Hide_ui | Open_camera
@@ -324,14 +325,9 @@ module Leader = struct
     | Add_node | Layout | Frame_tile
     | Look_through | Fly
 
-  type binding = {
-    key : char;
-    label : string;
-    scope : Workspace.column option;
-    action : action;
-  }
+  type binding = (Workspace.column, action) Editor.Keymap.binding
 
-  type state = Idle | Pending
+  type state = Editor.Router.state = Idle | Pending
 
   (* One table drives both dispatch and the which-key panel. *)
   let keymap = [
@@ -357,42 +353,6 @@ module Leader = struct
     { key = 'v'; label = "look through render camera"; scope = Some Workspace.View;
       action = Look_through };
   ]
-
-  let visible keymap focus = List.filter (fun binding ->
-    binding.scope = None || binding.scope = Some focus) keymap
-
-  let modifier = function
-    | Input.Shift | Input.Ctrl | Input.Alt | Input.Meta -> true
-    | _ -> false
-
-  (* Space (no text focus, no command modifier) arms the leader; the next key
-     resolves it. Leader keys, and text typed while pending, are consumed. *)
-  let step keymap ~focus ~text_focus ~(frame : Frame.t) state =
-    let command = List.mem Input.Meta frame.keys || List.mem Input.Ctrl frame.keys in
-    let state, actions, passed = List.fold_left (fun (state, actions, passed) event ->
-      match state, event with
-      | Idle, Event.KeyPressed Input.Space when not text_focus && not command ->
-          Pending, actions, passed
-      | Idle, _ -> Idle, actions, event :: passed
-      | Pending, Event.KeyPressed key when modifier key -> Pending, actions, passed
-      | Pending, Event.KeyPressed (Input.KeyChar character) ->
-          let character = Char.lowercase_ascii character in
-          let actions = match List.find_opt (fun binding -> binding.key = character)
-              (visible keymap focus) with
-            | Some binding -> binding.action :: actions
-            | None -> actions in
-          Idle, actions, passed
-      (* The native window keeps text input on, so Space and letters also
-         produce text events: swallow them without resolving. *)
-      | Pending, (Event.TextInput _ | Event.TextEditing _) -> Pending, actions, passed
-      | Pending, (Event.KeyPressed _ | Event.MousePressed _) -> Idle, actions, passed
-      | Pending, Event.WindowFocusLost -> Idle, actions, event :: passed
-      | Pending, _ -> Pending, actions, event :: passed)
-      (state, [], []) frame.events in
-    (* A text event produced by the resolving key arrives after it. *)
-    let passed = if state = Idle && actions <> [] then List.filter (function
-        | Event.TextInput _ -> false | _ -> true) passed else passed in
-    state, List.rev actions, { frame with events = List.rev passed }
 
   let pane_name = function
     | Workspace.View -> "View" | Graph -> "Graph" | Inspector -> "Inspector"
@@ -769,7 +729,7 @@ module Core = struct
       | Event.MousePressed (_, point) when all_ui_visible ->
           Option.value ~default:focus (pane_at panes point)
       | _ -> focus) value.focus frame.events in
-    let leader, actions, frame = Leader.step value.keymap ~focus ~text_focus ~frame
+    let leader, actions, frame = Editor.Router.step value.keymap ~focus ~text_focus ~frame
         value.leader in
     let sample_fps = frame.time < value.status_fps_at
       || frame.time -. value.status_fps_at >= 1. in

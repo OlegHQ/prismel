@@ -8,7 +8,7 @@ not select an alternate renderer through environment variables or public API.
 ## Ownership and dependency direction
 
 ```text
-examples / sketches / pxui / procedural / pdk
+examples / sketches / pxui / editor / procedural / pdk
                          |
                          v
                       prismel
@@ -33,8 +33,9 @@ translation from the checked high-level GPU interface to typed Metal bindings;
 `metal` owns the safe Metal resource and command API. Prismel owns pure scene
 values and records rendering through the narrow GPU boundary; it never exposes
 native handles in its public API.
-The leaf `editor` library owns bounded undo history; sketch hosts use
-`Editor.History` directly. It does not depend on UI or geometry libraries.
+The pure `editor` library owns bounded undo history and key routing; sketch
+hosts use `Editor.History` and `Editor.Router` directly. It depends on
+`prismel` for frame and event values, never on UI or geometry libraries.
 OGPU's dormant Frame_graph, Descriptor_arena, Transfer_ring, Instance,
 Device_lifecycle, and Acceleration_pass modules have no production callers and
 are removed. Query validation stays in `Ogpu.Sync.resolve`; the redundant

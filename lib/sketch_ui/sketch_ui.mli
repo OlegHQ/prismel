@@ -71,14 +71,9 @@ module Private : sig
       | Add_node | Layout | Frame_tile
       | Look_through | Fly
 
-    type binding = {
-      key : char;
-      label : string;
-      scope : Workspace.column option;  (** [None] is global *)
-      action : action;
-    }
+    type binding = (Workspace.column, action) Editor.Keymap.binding
 
-    type state = Idle | Pending
+    type state = Editor.Router.state = Idle | Pending
 
     val keymap : binding list
     (** The single table behind dispatch and the which-key panel. *)
@@ -86,10 +81,6 @@ module Private : sig
     val keymap3 : binding list
     (** [keymap] plus the 3D view bindings ([w] fly, [v] look through). *)
 
-    val step :
-      binding list -> focus:Workspace.column -> text_focus:bool ->
-      frame:Prismel.Frame.t -> state -> state * action list * Prismel.Frame.t
-    (** Resolve this frame's events; the returned frame omits consumed events. *)
   end
 
   (** [timeline_frames] (default 240) is the scrub range of the timeline bar,

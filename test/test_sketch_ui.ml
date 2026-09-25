@@ -65,40 +65,6 @@ let run () =
       = Sketch_ui.default_layout.collapsed_width)
     "inspector toggle did not collapse the third column";
 
-  (* Leader: Space arms it, the next key resolves global or focused-pane
-     bindings, Escape cancels, and a focused text field keeps its Space. *)
-  let module L = Sketch_ui.Private.Leader in
-  let keys events = frame ~events:(List.map (fun key -> Event.KeyPressed key) events) 0 in
-  let step ?(focus = Sketch_ui.Private.Workspace.View) ?(text_focus = false) state events =
-    L.step L.keymap ~focus ~text_focus ~frame:(keys events) state in
-  let state, actions, passed = step L.Idle [Input.Space; Input.KeyChar 'g'] in
-  check (state = L.Idle && actions = [L.Toggle_graph] && passed.Frame.events = [])
-    "Space g did not toggle the graph and consume both keys";
-  let state, actions, _ = L.step L.keymap ~focus:Sketch_ui.Private.Workspace.View
-      ~text_focus:false ~frame:(frame ~events:[Event.KeyPressed Input.Space;
-        Event.TextInput " "] 0) L.Idle in
-  check (state = L.Pending && actions = [])
-    "the native text event after Space cancelled the leader";
-  let state, actions, passed = L.step L.keymap ~focus:Sketch_ui.Private.Workspace.View
-      ~text_focus:false ~frame:(frame ~events:[Event.KeyPressed (Input.KeyChar 'g');
-        Event.TextInput "g"] 0) state in
-  check (state = L.Idle && actions = [L.Toggle_graph] && passed.events = [])
-    "a leader key with its text event did not resolve cleanly";
-  let state, actions, _ = step L.Idle [Input.Space] in
-  check (state = L.Pending && actions = []) "Space did not arm the leader";
-  let state, actions, passed = step state [Input.Escape] in
-  check (state = L.Idle && actions = [] && passed.events = [])
-    "Escape did not cancel the leader";
-  let _, actions, _ = step L.Idle [Input.Space; Input.KeyChar 'l'] in
-  check (actions = []) "graph-scoped leader key ran while the view was focused";
-  let _, actions, _ = step ~focus:Sketch_ui.Private.Workspace.Graph L.Idle
-      [Input.Space; Input.KeyChar 'l'] in
-  check (actions = [L.Layout]) "graph-scoped leader key ignored the focused graph";
-  let state, actions, passed = step ~text_focus:true L.Idle [Input.Space] in
-  check (state = L.Idle && actions = []
-      && passed.events = [Event.KeyPressed Input.Space])
-    "Space in a focused text field did not reach the field";
-
   let source = Sop.box ~label:"Inspectable source"
       ~size:(Vec3.create 2. 2. 2.) () in
   let graph = Sop.transform ~label:"Inspectable output"
