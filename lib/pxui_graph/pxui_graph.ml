@@ -1472,16 +1472,12 @@ let apply_context (value : t) context index emit =
 let update (value : t) ui (frame : Frame.t) =
   if not value.visible then { value with drag = None; menu = None; context = None }, []
   else
+  let initial = value in
   let changes = ref [] in
   let emit change = changes := change :: !changes in
-  let final = ref value in
   let canvas = Ui.box ui ~flags:Ui.(clickable + scroll + clip + blocking)
       ~w:(Ui.Px (float_of_int value.width)) ~h:(Ui.Px (float_of_int value.height))
       ~at:(float_of_int value.x, float_of_int value.y) "pxui-graph" in
-  Ui.draw ui canvas (fun paint _ ->
-    let value = !final in
-    framed paint value.x value.y value.width value.height ~fill:(canvas_fill value)
-      ~stroke:value.theme.foreground);
   let canvas_signal = Ui.signal ui canvas in
   (* Visible tiles become boxes keyed by node id; selected tiles on top. *)
   let visible_nodes, visible_edges, stats = visibility value in
@@ -1500,34 +1496,16 @@ let update (value : t) ui (frame : Frame.t) =
     done
   done;
   let local (x, y) = float_of_int (x - value.x), float_of_int (y - value.y) in
-  let tiles = Ui.within ui canvas (fun () ->
+  let layer, tiles, overlay = Ui.within ui canvas (fun () ->
     let layer = Ui.box ui ~w:(Ui.Px (float_of_int value.width))
         ~h:(Ui.Px (float_of_int value.height)) ~at:(0., 0.) "wires" in
-    Ui.draw ui layer (fun paint _ ->
-      let current = !final in
-      let edges, count =
-        if current.spatial == value.spatial && current.positions == value.positions
-            && current.drag == value.drag && current.pan_x = value.pan_x
-            && current.pan_y = value.pan_y && current.zoom = value.zoom
-            && current.x = value.x && current.y = value.y
-            && current.width = value.width && current.height = value.height
-        then visible_edges, stats.visible_wires
-        else let _, edges, stats = visibility current in
-          edges, stats.visible_wires in
-      paint_background current paint edges count);
     let tiles = Array.init stats.visible_nodes (fun position ->
       let index = Array.unsafe_get order position in
       let box = value.boxes.(index) in
-      let id = box.info.Edit_graph.id in
       let x, y, width, height = box_bounds value box in
       let tile = Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px (float_of_int width))
           ~h:(Ui.Px (float_of_int height)) ~at:(local (x, y))
           box.tile_id in
-      Ui.draw ui tile (fun paint _ ->
-        let value = !final in
-        match Hashtbl.find_opt value.slots id with
-        | Some index -> paint_node value paint value.boxes.(index)
-        | None -> ());
       let view, output = Ui.within ui tile (fun () ->
         let view = if value.zoom < 0.45 then None else
           let bx, by, bw, bh = view_button_bounds value box in
@@ -1549,23 +1527,7 @@ let update (value : t) ui (frame : Frame.t) =
       index, tile, view, output) in
     let overlay = Ui.box ui ~w:(Ui.Px (float_of_int value.width))
         ~h:(Ui.Px (float_of_int value.height)) ~at:(0., 0.) "overlay" in
-    Ui.draw ui overlay (fun paint _ ->
-      let value = !final in
-      match value.drag with
-      | Some (Box_select _) ->
-          let (x0, y0), (x1, y1) = ints canvas_signal.press_point, ints canvas_signal.pointer in
-          let x, y, width, height = normalize_rect x0 y0 x1 y1 in
-          framed paint x y width height ~fill:(Color.with_alpha value.theme.accent 28)
-            ~stroke:value.theme.accent
-      | Some (Connect_wire { source }) ->
-          (match Hashtbl.find_opt value.slots source with
-           | None -> ()
-           | Some index ->
-               let sx, sy, sw, sh = box_bounds value value.boxes.(index) in
-               paint_wire value paint (sx + sw / 2, sy + sh) (ints canvas_signal.pointer)
-                 value.theme.accent)
-      | Some (Move_nodes _) | None -> ());
-    tiles) in
+    layer, tiles, overlay) in
   let cancelled = List.exists (function
     | Event.PointerCancelled Input.LeftButton | Event.WindowFocusLost -> true
     | _ -> false) frame.events in
@@ -1723,7 +1685,41 @@ let update (value : t) ui (frame : Frame.t) =
   let value = match clicked_context with
     | Some context -> { value with context = Some context; drag = None }
     | None -> value in
-  final := value;
+  Ui.draw ui canvas (fun paint _ ->
+    framed paint value.x value.y value.width value.height ~fill:(canvas_fill value)
+      ~stroke:value.theme.foreground);
+  Ui.draw ui layer (fun paint _ ->
+    let edges, count =
+      if value.spatial == initial.spatial && value.positions == initial.positions
+          && value.drag == initial.drag && value.pan_x = initial.pan_x
+          && value.pan_y = initial.pan_y && value.zoom = initial.zoom
+          && value.x = initial.x && value.y = initial.y
+          && value.width = initial.width && value.height = initial.height
+      then visible_edges, stats.visible_wires
+      else let _, edges, stats = visibility value in
+        edges, stats.visible_wires in
+    paint_background value paint edges count);
+  Array.iter (fun (index, tile, _, _) ->
+    let id = initial.boxes.(index).info.Edit_graph.id in
+    Ui.draw ui tile (fun paint _ ->
+      match Hashtbl.find_opt value.slots id with
+      | Some index -> paint_node value paint value.boxes.(index)
+      | None -> ())) tiles;
+  Ui.draw ui overlay (fun paint _ ->
+    match value.drag with
+    | Some (Box_select _) ->
+        let (x0, y0), (x1, y1) = ints canvas_signal.press_point, ints canvas_signal.pointer in
+        let x, y, width, height = normalize_rect x0 y0 x1 y1 in
+        framed paint x y width height ~fill:(Color.with_alpha value.theme.accent 28)
+          ~stroke:value.theme.accent
+    | Some (Connect_wire { source }) ->
+        (match Hashtbl.find_opt value.slots source with
+         | None -> ()
+         | Some index ->
+             let sx, sy, sw, sh = box_bounds value value.boxes.(index) in
+             paint_wire value paint (sx + sw / 2, sy + sh) (ints canvas_signal.pointer)
+               value.theme.accent)
+    | Some (Move_nodes _) | None -> ());
   value, List.rev !changes
 
 module Private = struct
