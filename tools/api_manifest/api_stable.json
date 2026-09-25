@@ -729,15 +729,15 @@
       "source_sha256": "a00e90bdf49cb4d88646acc49bce52a4b6a23c30c55b692a45d39bca66a2b659"
     },
     {
-      "api_sha256": "90735fabb728a8125fb90c689d5799d9acb8a6cff01c0e4111703d49f3c5332e",
+      "api_sha256": "8a41addc012fb832e16887693c7e21ec1dafb661d1d38deb6b3dd2b91d38b198",
       "excluded_legacy_symbols": [
         "module:Private"
       ],
       "library": "prismel",
       "module": "Image",
       "source": "lib/prismel/image.mli",
-      "source_bytes": 855,
-      "source_sha256": "6656215b18b2d6eb101d1487ce6d8c2b609ac8cefad85b269f6718e41f10b22e"
+      "source_bytes": 1028,
+      "source_sha256": "750415da04b83d9bde752169cbb0a58188f390dbf7e2917cf83a34348ca0164c"
     },
     {
       "api_sha256": "910213df621eb555346e3d9dad1b8320ff419bdf403e88181abb03c115628d87",

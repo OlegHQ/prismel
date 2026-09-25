@@ -12,6 +12,11 @@ let create ~width ~height ?(color=Color.transparent) () =
     Bytes.set rgba(offset+3)(Char.chr color.a)done;
   match Prismel_next_resources.Image.create ~width ~height ~rgba with
   | Ok value->value|Error error->failwith(message"Image.create"error)
+let upload_rgba ?into ~width ~height ~rgba () = match into with
+  | None -> map "Image.upload_rgba" (Prismel_next_resources.Image.create ~width ~height ~rgba)
+  | Some image ->
+      Result.map (fun () -> image)
+        (map "Image.upload_rgba" (Prismel_next_resources.Image.replace image ~width ~height ~rgba))
 let destroy value=ignore(Prismel_next_resources.Image.destroy value)
 let get_size value=match Prismel_next_resources.Image.size value with
   | Ok size->size|Error error->failwith(message"Image.get_size"error)

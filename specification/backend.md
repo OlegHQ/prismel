@@ -266,6 +266,8 @@ an argument-buffer render pass with Scene2 draws. Instance and index bytes
 go through the digest-keyed mesh cache, so an unchanged UI re-uploads
 nothing. The glyph atlas is an ordinary image resource whose generation
 changes only when new glyphs are rasterized.
+PXUI publishes the atlas through public `Image.upload_rgba`, preserving the
+image identity on replacement and retrying a failed upload on the next frame.
 
 `Canvas.render` uses the same lowering, pipeline variants, validation, and
 completion path against a layerless owned Metal texture. A Canvas creates its

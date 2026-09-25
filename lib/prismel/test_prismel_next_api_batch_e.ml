@@ -2,6 +2,19 @@ let require value message=if not value then failwith message
 let run () =let open Prismel in
   let image=Image.create ~width:2 ~height:2 ~color:(Color.rgba 1 2 3 4)()in
   require(Image.get_size image=(2,2)&&Bytes.length(Result.get_ok(Image.Private.pixels image))=16)"Image snapshot";
+  let rgba=Bytes.make 16 '\042' in
+  let uploaded=Image.upload_rgba ~width:2 ~height:2 ~rgba () |> Result.get_ok in
+  let id=Image.Private.identity uploaded in
+  require(Result.is_error(Image.upload_rgba ~into:uploaded ~width:2 ~height:2
+      ~rgba:(Bytes.make 3 '\000') ())
+      && Image.Private.identity uploaded=id
+      && Result.get_ok(Image.Private.pixels uploaded)=rgba)
+    "invalid RGBA upload changed an image";
+  require(Image.upload_rgba ~into:uploaded ~width:2 ~height:2
+      ~rgba:(Bytes.make 16 '\007') ()=Ok uploaded
+      && Image.Private.identity uploaded=id)
+    "RGBA replacement did not preserve image identity";
+  Image.destroy uploaded;
   let canvas=Canvas.create_exn ~width:3 ~height:2 in
   Canvas.map_pixels canvas(fun ~x:_ ~y:_ _->Color.black);
   Canvas.set_pixel canvas ~x:1 ~y:1(Color.rgba 9 8 7 6);

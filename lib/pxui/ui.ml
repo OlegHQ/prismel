@@ -347,17 +347,10 @@ let glyph atlas font ~density code =
 
 let publish_atlas atlas =
   if atlas.dirty then begin
-    atlas.dirty <- false;
-    let rgba = Bytes.copy atlas.pixels in
-    match atlas.image with
-    | Some image ->
-        ignore (Prismel_next_resources.Image.replace (Image.Private.resource image)
-          ~width:atlas.width ~height:atlas.height ~rgba)
-    | None ->
-        match Prismel_next_resources.Image.create ~width:atlas.width
-            ~height:atlas.height ~rgba with
-        | Ok resource -> atlas.image <- Some (Image.Private.of_resource resource)
-        | Error _ -> ()
+    match Image.upload_rgba ?into:atlas.image ~width:atlas.width
+        ~height:atlas.height ~rgba:atlas.pixels () with
+    | Ok image -> atlas.image <- Some image; atlas.dirty <- false
+    | Error _ -> ()
   end
 
 let fallback_fonts = Hashtbl.create 4
