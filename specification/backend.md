@@ -50,8 +50,12 @@ The portable `Ogpu.Command_buffer.status` now polls a queue receipt and returns
 `completed_epoch` query is scoped to that queue. The Metal driver passes the
 native poll through the existing retirement and presentation cleanup path;
 the mock uses independent clocks per queue and executes buffer copies/fills
-against its owned byte storage. Texture transfers and the remaining encoder
-surface still need G2 conformance.
+against its owned byte storage. It now executes texture upload, copy, and
+readback through mip-aware RGBA8 storage as well. Shared conformance compares
+exact bytes after padded-row, mip-level, and subregion transfers on mock and
+Metal. The Metal adapter gives copy-only textures an explicit native usage bit
+because Metal expands an empty usage mask during creation. Compute, ray-query,
+refit, and the remaining encoder surface still need G2 conformance.
 `Ogpu.Caps` now owns the portable feature matrix and typed `Unsupported`
 check. Metal probes populate that profile in `ogpu_metal_native.Device`, which also
 translates native Metal errors to typed OGPU errors.

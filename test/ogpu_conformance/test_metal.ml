@@ -17,4 +17,4 @@ let () =
        Ogpu_conformance.Conformance.run driver;
        if live_handles () <> before.live_handles then
          failwith "Metal backend leaked handles";
-       print_endline "OGPU conformance (Metal): capabilities, buffer round trip, submission, lifetime, zero handles")
+       print_endline "OGPU conformance (Metal): capabilities, buffer/texture round trip, submission, lifetime, zero handles")

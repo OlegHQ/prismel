@@ -3,4 +3,4 @@ let () =
   Ogpu_conformance.Conformance.run driver;
   if live_handles () <> 0 then
     failwith "mock backend leaked handles";
-  print_endline "OGPU conformance (mock): capabilities, buffer round trip, submission, lifetime, zero handles"
+  print_endline "OGPU conformance (mock): capabilities, buffer/texture round trip, submission, lifetime, zero handles"

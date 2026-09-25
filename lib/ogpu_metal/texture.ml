@@ -24,11 +24,14 @@ let validate_descriptor (value : Ogpu_core.Types.texture_descriptor) format =
   else Ok ()
 
 let usage values =
-  List.fold_left (fun result -> function
+  let native=List.fold_left (fun result -> function
     | Ogpu_core.Types.Texture_binding -> add_unique Metal.Texture.Shader_read result
     | Storage_binding -> add_unique Metal.Texture.Shader_write result
     | Render_attachment -> add_unique Metal.Texture.Render_target result
-    | Texture_copy_src | Texture_copy_dst -> result) [] values
+    | Texture_copy_src | Texture_copy_dst -> result) [] values in
+  (* Metal expands an empty usage mask during creation; supply one explicit
+     native bit for copy-only textures so descriptor validation stays exact. *)
+  if native=[] then [Metal.Texture.Shader_read] else native
 
 let create device ~memory ~format ?(view_formats=[]) descriptor =
   let operation="Ogpu_metal.Texture.create" in
