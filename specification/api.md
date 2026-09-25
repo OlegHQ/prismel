@@ -603,8 +603,10 @@ lifecycle.
 #### Sketch workspace keys
 
 `Space` (with no text field focused) opens a centered which-key panel; the
-next key runs a binding from the leader keymap, the single table that
-drives both dispatch and the panel. Global bindings always apply; the others
+next key runs a binding from the editor keymap, the single table that
+drives both dispatch and the panel. Command/Ctrl chords, Delete/Backspace,
+and Home use that same table; `pxui_graph` exports graph commands and their
+bindings without interpreting keys. Global bindings always apply; the others
 belong to the focused pane (the last one clicked, outlined in the accent
 colour). Escape, Space, an unknown key, a click, or focus loss cancel it.
 
@@ -617,9 +619,9 @@ colour). Escape, Space, an unknown key, a click, or focus loss cancel it.
 | `a` / `l` / `f` | graph | add-node menu / layout / frame selected tile |
 | `w` / `v` | view (3D) | fly mode / look through render camera |
 
-Direct keys remain: `Home` frames all tiles, `F` with the graph focused frames
+Other direct keys remain: `F` with the graph focused frames
 the viewport camera on the selected node's cooked bounds (through the shared
-cook worker), Delete/Backspace, Command/Ctrl-C/V/X/D/Z, and Escape. A right
+cook worker), and Escape. A right
 click (not a drag) opens graph context menus that emit the ordinary typed
 graph changes. The timeline bar (hidden by default) has play/pause, stop,
 reset, a frame/time readout, and a scrub slider that seeks (`Timeline.seek`)

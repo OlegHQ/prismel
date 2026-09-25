@@ -60,8 +60,10 @@ module History = struct
 end
 
 module Keymap = struct
+  type trigger = Leader of char | Chord of Prismel.Input.key * Prismel.Input.key list
+
   type ('scope, 'action) binding = {
-    key : char;
+    trigger : trigger;
     label : string;
     scope : 'scope option;
     action : 'action;
@@ -69,6 +71,23 @@ module Keymap = struct
 
   let visible bindings focus = List.filter (fun binding ->
     binding.scope = None || binding.scope = Some focus) bindings
+
+  let same_key a b = match a, b with
+    | Prismel.Input.KeyChar a, Prismel.Input.KeyChar b ->
+        Char.lowercase_ascii a = Char.lowercase_ascii b
+    | _ -> a = b
+
+  let chord bindings focus keys key =
+    visible bindings focus |> List.filter_map (fun binding ->
+      match binding.trigger with
+      | Chord (bound, modifiers) when same_key bound key
+          && List.for_all (fun modifier -> List.mem modifier keys) modifiers ->
+          Some (List.length modifiers, binding.action)
+      | _ -> None)
+    |> List.fold_left (fun best candidate -> match best with
+      | Some (count, _) when count >= fst candidate -> best
+      | _ -> Some candidate) None
+    |> Option.map snd
 end
 
 module Router = struct
@@ -86,11 +105,16 @@ module Router = struct
       match state, event with
       | Idle, Event.KeyPressed Input.Space when not text_focus && not command ->
           Pending, actions, passed
+      | Idle, Event.KeyPressed key when not text_focus ->
+          (match Keymap.chord keymap focus frame.keys key with
+           | Some action -> Idle, action :: actions, passed
+           | None -> Idle, actions, event :: passed)
       | Idle, _ -> Idle, actions, event :: passed
       | Pending, Event.KeyPressed key when modifier key -> Pending, actions, passed
       | Pending, Event.KeyPressed (Input.KeyChar character) ->
           let character = Char.lowercase_ascii character in
-          let actions = match List.find_opt (fun binding -> binding.Keymap.key = character)
+          let actions = match List.find_opt (fun binding ->
+              binding.Keymap.trigger = Keymap.Leader character)
               (Keymap.visible keymap focus) with
             | Some binding -> binding.action :: actions
             | None -> actions in

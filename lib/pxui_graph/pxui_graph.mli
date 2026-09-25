@@ -133,6 +133,11 @@ val frame_selected : t -> t
 
 val stats : t -> stats
 
+type command = Copy | Cut | Paste | Duplicate | Delete | Frame_all
+val bindings : (Editor.Keymap.trigger * string * command) list
+val run_command : t -> command -> t * change list
+(** Commands are dispatched by the host's key router, not by [update]. *)
+
 (** Interaction contract:
 
     - left-click selects; Shift-click and blank-area marquee form multi-select;

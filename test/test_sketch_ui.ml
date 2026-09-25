@@ -268,6 +268,18 @@ let run () =
   check (List.length (Edit_graph.inspect
       (Sketch_ui.Environment3.document environment)) = 4)
     "Backspace did not delete the duplicated node";
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[Event.KeyPressed Input.Space;
+        Event.KeyPressed (Input.KeyChar 'g')] 35) in
+  let environment = Sketch_ui.Environment3.update environment
+      { (frame ~events:[Event.KeyPressed (Input.KeyChar 'd')] 35)
+        with keys = [Input.Meta] } in
+  check (List.length (Edit_graph.inspect
+      (Sketch_ui.Environment3.document environment)) = 4)
+    "hidden graph still accepted a duplicate shortcut";
+  let environment = Sketch_ui.Environment3.update environment
+      (frame ~events:[Event.KeyPressed Input.Space;
+        Event.KeyPressed (Input.KeyChar 'g')] 35) in
   (* Space t shows the timeline bar; dragging its scrub slider seeks and
      pauses the shared clock. *)
   let environment = Sketch_ui.Environment3.update environment

@@ -1101,10 +1101,6 @@ let delete_selection (value : t) = match value.selected_edge with
       clear_selection value, [Delete_nodes_requested ids]
   | None -> value, []
 
-let command_modifier frame =
-  List.mem Input.Meta frame.Prismel.Frame.keys
-  || List.mem Input.Ctrl frame.keys
-
 let select_node (value : t) ~additive index =
   let id = value.boxes.(index).info.Edit_graph.id in
   if additive then
@@ -1379,21 +1375,26 @@ let optimize_layout (value : t) =
 
 let open_menu_at point value = open_menu value point
 
-let keyboard (value : t) (frame : Frame.t) emit =
-  List.fold_left (fun value event -> match event with
-    | Event.KeyPressed (Input.KeyChar character) when command_modifier frame ->
-        (match Char.lowercase_ascii character with
-         | 'c' -> copy_selection value
-         | 'x' ->
-             let value, emitted = delete_selection (copy_selection value) in
-             List.iter emit emitted; value
-         | 'v' -> let value, emitted = paste_clipboard value in List.iter emit emitted; value
-         | 'd' -> let value, emitted = duplicate_selection value in List.iter emit emitted; value
-         | _ -> value)
-    | Event.KeyPressed (Input.Delete | Input.Backspace) ->
-        let value, emitted = delete_selection value in List.iter emit emitted; value
-    | Event.KeyPressed Input.Home -> emit View_changed; frame_all value
-    | _ -> value) value frame.events
+type command = Copy | Cut | Paste | Duplicate | Delete | Frame_all
+
+let bindings =
+  let open Editor.Keymap in
+  let letter key command label = List.map (fun modifier ->
+    Chord (Input.KeyChar key, [modifier]), label, command) [Input.Meta; Input.Ctrl] in
+  letter 'c' Copy "copy" @ letter 'x' Cut "cut"
+  @ letter 'v' Paste "paste" @ letter 'd' Duplicate "duplicate"
+  @ [Chord (Input.Delete, []), "delete", Delete;
+     Chord (Input.Backspace, []), "delete", Delete;
+     Chord (Input.Home, []), "frame all", Frame_all]
+
+let run_command (value : t) = function
+  | _ when value.menu <> None -> value, []
+  | Copy -> copy_selection value, []
+  | Cut -> delete_selection (copy_selection value)
+  | Paste -> paste_clipboard value
+  | Duplicate -> duplicate_selection value
+  | Delete -> delete_selection value
+  | Frame_all -> frame_all value, [View_changed]
 
 let ints (x, y) = int_of_float x, int_of_float y
 
@@ -1473,7 +1474,6 @@ let update (value : t) ui (frame : Frame.t) =
   else
   let changes = ref [] in
   let emit change = changes := change :: !changes in
-  let value = if value.menu = None then keyboard value frame emit else value in
   let final = ref value in
   let canvas = Ui.box ui ~flags:Ui.(clickable + scroll + clip + blocking)
       ~w:(Ui.Px (float_of_int value.width)) ~h:(Ui.Px (float_of_int value.height))

@@ -70,6 +70,8 @@ module Private : sig
       | Play_pause | Reset | Stop
       | Add_node | Layout | Frame_tile
       | Look_through | Fly
+      | Undo | Redo
+      | Graph_command of Pxui_graph.command
 
     type binding = (Workspace.column, action) Editor.Keymap.binding
 

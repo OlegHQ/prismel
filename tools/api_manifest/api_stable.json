@@ -6,13 +6,13 @@
   "module_count": 132,
   "modules": [
     {
-      "api_sha256": "0a22dea2f1aef1046f3a8b1d11ed6aa9a41693877c3e1ebc4b943c2e46c810ac",
+      "api_sha256": "a5e51a9c25447aacc512d8798506014bbbcd9b827e22785216f9de3c1ce2a23c",
       "excluded_legacy_symbols": [],
       "library": "editor",
       "module": "Editor",
       "source": "lib/editor/editor.mli",
-      "source_bytes": 1295,
-      "source_sha256": "16017a262db57b847ec08ef04e1f0cb0a7d2e958bbfb2fdd96165450cfe69f65"
+      "source_bytes": 1513,
+      "source_sha256": "51f3e3bd2211231234b827902f95f79164831f9a4c04fdc84ee709ddf423f0a9"
     },
     {
       "api_sha256": "69403004e55a49667961f98b7879af4b3786d561307ea8812bb014b262ce5a72",
@@ -1127,13 +1127,13 @@
       "source_sha256": "5cb57c7d556507db768a171fec243eba78e6fad02e88d5ea68afa35eaaa39f94"
     },
     {
-      "api_sha256": "dc4d1e5091db3262daa96de74b4eacf64420c2061e8f43295cc3c5ff61efc029",
+      "api_sha256": "ee4a0179a423d53fc91f19891a791e13b2401b6a4bb02b9aadbbab2fbbab1328",
       "excluded_legacy_symbols": [],
       "library": "pxui_graph",
       "module": "Pxui_graph",
       "source": "lib/pxui_graph/pxui_graph.mli",
-      "source_bytes": 5911,
-      "source_sha256": "cfaf65e349f5246fa4c915a78099d2dbc97ca699f0ecfe83d9ee8ed2c94490a6"
+      "source_bytes": 6166,
+      "source_sha256": "a34068f62fd770213f8a1fe430a9d9e8a54031d66eee788ce89c41e12667d4e1"
     },
     {
       "api_sha256": "8d4d7d634c1b362e582e6a485c8a7341f9151e5f34752d972f85db879693bdef",
@@ -1172,13 +1172,13 @@
       "source_sha256": "e25456c97b813c3aa400a95b288c4f83b9b75c1f0f5540ee2519e600e8a930e2"
     },
     {
-      "api_sha256": "f23cef01ddc0d2202d706485471928f1960023591b3f75f6d52624823519c788",
+      "api_sha256": "7044d2dc977d408b4d05e9e7b11a996819f3bff71d0a56b8c06cb7c61abd532e",
       "excluded_legacy_symbols": [],
       "library": "sketch_ui",
       "module": "Sketch_ui",
       "source": "lib/sketch_ui/sketch_ui.mli",
-      "source_bytes": 10096,
-      "source_sha256": "41a650686ccc5aa6a5345426d71d0fa9ee52ccfe9be5f30707fe56535004947b"
+      "source_bytes": 10160,
+      "source_sha256": "7d654a0b4d1fb95e743c5594815c878ab70da567b72199b55c181a3b70f8c2e8"
     },
     {
       "api_sha256": "8058e4e2e745777f32eeee700e6e7dd24c6e9b966a9e2c79e945559be853733b",

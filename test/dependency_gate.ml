@@ -139,6 +139,14 @@ let uses_metal text =
      let rec opens = function "open" :: w :: rest -> w :: opens rest | _ :: rest -> opens rest | [] -> [] in
      opens words)
 
+let uses_key_pressed text =
+  let code = code_tokens text and token = "KeyPressed" in
+  let limit = String.length code - String.length token in
+  let rec find index = index <= limit &&
+    (String.sub code index (String.length token) = token
+     || find (index + 1)) in
+  find 0
+
 let violations graph ~scan =
   let reach = reach graph in
   let direct_errors = List.filter_map (fun (dep, message) ->
@@ -157,6 +165,10 @@ let violations graph ~scan =
       || String.starts_with ~prefix:"lib/ogpu_metal/" path
       || List.exists (fun (prefix, _) -> String.starts_with ~prefix path) metal_exceptions in
     if not allowed && uses_metal text then Some (path ^ " uses Metal outside lib/metal and lib/ogpu_metal")
+    else if (String.starts_with ~prefix:"lib/pxui_graph/" path
+          || String.starts_with ~prefix:"lib/sop_ui/" path)
+        && uses_key_pressed text then
+      Some (path ^ " matches KeyPressed inside a presentation adapter")
     else None) scan in
   direct_errors @ edge_errors @ token_errors
 
@@ -189,6 +201,10 @@ let run () =
     failwith "gate accepted injected Metal reference";
   if violations graph ~scan:["lib/prismel/ok.ml", "(* Metal.foo *) let s = \"Metal.framework\""] <> [] then
     failwith "gate flagged Metal inside a comment or string";
+  if violations graph ~scan:["lib/pxui_graph/injected.ml", "Event.KeyPressed key"] = [] then
+    failwith "gate accepted adapter key handling";
+  if violations graph ~scan:["lib/pxui_graph/ok.ml", "(* KeyPressed *) let s = \"KeyPressed\""] <> [] then
+    failwith "gate flagged KeyPressed inside a comment or string";
   let scan = List.concat_map files ["lib"; "examples"; "sketches"]
     |> List.filter (fun p -> Filename.check_suffix p ".ml" || Filename.check_suffix p ".mli")
     |> List.map (fun p -> p, read p) in

@@ -301,25 +301,17 @@ let run () =
     "node search did not use the shared fuzzy matching rule";
 
   let clipboard_view = Pxui_graph.select (Node.id source_a) edit_view in
-  let clipboard_view, changes = update clipboard_view
-      (frame ~keys:[Input.Meta]
-        ~events:[Event.KeyPressed (Input.KeyChar 'c')] ()) in
+  let clipboard_view, changes = Pxui_graph.run_command clipboard_view Copy in
   check (changes = []) "Command-C unexpectedly changed graph topology";
-  let _, changes = update clipboard_view
-      (frame ~keys:[Input.Meta]
-        ~events:[Event.KeyPressed (Input.KeyChar 'v')] ()) in
+  let _, changes = Pxui_graph.run_command clipboard_view Paste in
   check (List.exists (function Pxui_graph.Paste_requested request ->
       List.length request.positions = 1 | _ -> false) changes)
     "Command-V did not request a fresh subgraph paste";
-  let _, changes = update clipboard_view
-      (frame ~keys:[Input.Meta]
-        ~events:[Event.KeyPressed (Input.KeyChar 'd')] ()) in
+  let _, changes = Pxui_graph.run_command clipboard_view Duplicate in
   check (List.exists (function Pxui_graph.Paste_requested _ -> true
       | _ -> false) changes)
     "Command-D did not request selection duplication";
-  let _, changes = update clipboard_view
-      (frame ~keys:[Input.Meta]
-        ~events:[Event.KeyPressed (Input.KeyChar 'x')] ()) in
+  let _, changes = Pxui_graph.run_command clipboard_view Cut in
   check (List.mem (Pxui_graph.Delete_nodes_requested [Node.id source_a]) changes)
     "Command-X did not copy and request deletion of the selection";
 
@@ -344,8 +336,7 @@ let run () =
   check (List.exists (function Pxui_graph.Insert_requested request ->
       request.factory_key = "null" | _ -> false) changes)
     "Space on a wire did not request atomic unary insertion";
-  let _, changes = update chain_view
-      (frame ~events:[Event.KeyPressed Input.Delete] ()) in
+  let _, changes = Pxui_graph.run_command chain_view Delete in
   check (List.exists (function Pxui_graph.Disconnect_requested _ -> true
       | _ -> false) changes)
     "Delete on a selected wire did not request disconnection";
@@ -368,8 +359,7 @@ let run () =
 
   let delete_view = Pxui_graph.select (Node.id source_a)
       (Pxui_graph.create ~x:20 ~y:30 ~width:800 ~height:520 graph) in
-  let _, changes = update delete_view
-      (frame ~events:[Event.KeyPressed Input.Delete] ()) in
+  let _, changes = Pxui_graph.run_command delete_view Delete in
   check (List.mem (Pxui_graph.Delete_nodes_requested [Node.id source_a]) changes)
     "Delete did not request removal of selected nodes";
 

@@ -324,6 +324,8 @@ module Leader = struct
     | Play_pause | Reset | Stop
     | Add_node | Layout | Frame_tile
     | Look_through | Fly
+    | Undo | Redo
+    | Graph_command of Pxui_graph.command
 
   type binding = (Workspace.column, action) Editor.Keymap.binding
 
@@ -331,26 +333,35 @@ module Leader = struct
 
   (* One table drives both dispatch and the which-key panel. *)
   let keymap = [
-    { key = 's'; label = "save preset"; scope = None; action = Save_preset };
-    { key = 'b'; label = "browse presets"; scope = None; action = Browse_presets };
-    { key = 't'; label = "toggle timeline"; scope = None; action = Toggle_timeline };
-    { key = 'g'; label = "toggle graph"; scope = None; action = Toggle_graph };
-    { key = 'i'; label = "toggle inspector"; scope = None; action = Toggle_inspector };
-    { key = 'h'; label = "hide all UI"; scope = None; action = Hide_ui };
-    { key = 'c'; label = "camera section"; scope = None; action = Open_camera };
-    { key = 'p'; label = "play / pause"; scope = None; action = Play_pause };
-    { key = 'r'; label = "reset"; scope = None; action = Reset };
-    { key = 'x'; label = "stop"; scope = None; action = Stop };
-    { key = 'a'; label = "add node"; scope = Some Workspace.Graph; action = Add_node };
-    { key = 'l'; label = "layout"; scope = Some Workspace.Graph; action = Layout };
-    { key = 'f'; label = "frame selected tile"; scope = Some Workspace.Graph;
+    { trigger = Leader 's'; label = "save preset"; scope = None; action = Save_preset };
+    { trigger = Leader 'b'; label = "browse presets"; scope = None; action = Browse_presets };
+    { trigger = Leader 't'; label = "toggle timeline"; scope = None; action = Toggle_timeline };
+    { trigger = Leader 'g'; label = "toggle graph"; scope = None; action = Toggle_graph };
+    { trigger = Leader 'i'; label = "toggle inspector"; scope = None; action = Toggle_inspector };
+    { trigger = Leader 'h'; label = "hide all UI"; scope = None; action = Hide_ui };
+    { trigger = Leader 'c'; label = "camera section"; scope = None; action = Open_camera };
+    { trigger = Leader 'p'; label = "play / pause"; scope = None; action = Play_pause };
+    { trigger = Leader 'r'; label = "reset"; scope = None; action = Reset };
+    { trigger = Leader 'x'; label = "stop"; scope = None; action = Stop };
+    { trigger = Leader 'a'; label = "add node"; scope = Some Workspace.Graph; action = Add_node };
+    { trigger = Leader 'l'; label = "layout"; scope = Some Workspace.Graph; action = Layout };
+    { trigger = Leader 'f'; label = "frame selected tile"; scope = Some Workspace.Graph;
       action = Frame_tile };
-  ]
+  ] @ List.concat_map (fun modifier -> [
+    { trigger = Chord (Input.KeyChar 'z', [modifier]);
+      label = "undo"; scope = None; action = Undo };
+    { trigger = Chord (Input.KeyChar 'z', [modifier; Input.Shift]);
+      label = "redo"; scope = None; action = Redo };
+    { trigger = Chord (Input.KeyChar 'y', [modifier]);
+      label = "redo"; scope = None; action = Redo }]) [Input.Meta; Input.Ctrl]
+  @ List.map (fun (trigger, label, command) ->
+    { trigger; label; scope = Some Workspace.Graph;
+      action = Graph_command command }) Pxui_graph.bindings
 
   (* Bindings only the 3D environment has. *)
   let keymap3 = keymap @ [
-    { key = 'w'; label = "fly (WASD, Q/E, Esc)"; scope = Some Workspace.View; action = Fly };
-    { key = 'v'; label = "look through render camera"; scope = Some Workspace.View;
+    { trigger = Leader 'w'; label = "fly (WASD, Q/E, Esc)"; scope = Some Workspace.View; action = Fly };
+    { trigger = Leader 'v'; label = "look through render camera"; scope = Some Workspace.View;
       action = Look_through };
   ]
 
@@ -363,13 +374,23 @@ module Leader = struct
     let module Ui = Pxui.Ui in
     let theme = Ui.theme ui in
     let row binding =
+      let key = match binding.trigger with
+        | Leader key -> String.make 1 key
+        | Chord (Input.KeyChar key, modifiers) ->
+            (if List.mem Input.Meta modifiers then "⌘"
+             else if List.mem Input.Ctrl modifiers then "Ctrl-" else "")
+            ^ String.make 1 key
+        | Chord (Input.Delete, _) -> "Del"
+        | Chord (Input.Backspace, _) -> "⌫"
+        | Chord (Input.Home, _) -> "Home"
+        | Chord _ -> "Key" in
       let box = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px (float_of_int (Ui.row_height ui)))
-          ("leader-" ^ String.make 1 binding.key) in
+          ("leader-" ^ key) in
       Ui.draw ui box (fun paint (x, y, _, h) ->
         let y = y +. Float.max 5. ((h -. float_of_int (Ui.font_size ui) -. 3.) /. 2.) in
         Ui.Paint.text paint ~at:(x +. 8., y) ~color:theme.accent
-          (String.make 1 binding.key);
-        Ui.Paint.text paint ~at:(x +. 40., y) ~color:theme.foreground binding.label) in
+          key;
+        Ui.Paint.text paint ~at:(x +. 68., y) ~color:theme.foreground binding.label) in
     let section title scope =
       match List.filter (fun binding -> binding.scope = scope) keymap with
       | [] -> ()
@@ -713,7 +734,8 @@ module Core = struct
         Pxui_graph.open_menu_at at graph_view, timeline, changes
     | Layout -> workspace, Pxui_graph.optimize_layout graph_view, timeline, changes
     | Frame_tile -> workspace, Pxui_graph.frame_selected graph_view, timeline, changes
-    | Hide_ui | Look_through | Fly | Save_preset | Browse_presets ->
+    | Hide_ui | Look_through | Fly | Save_preset | Browse_presets
+    | Graph_command _ | Undo | Redo ->
         workspace, graph_view, timeline, changes
 
   let update value ~all_ui_visible ~text_focus ~camera_panel ~render_status
@@ -723,7 +745,12 @@ module Core = struct
       | Event.MousePressed (_, point) when all_ui_visible ->
           Option.value ~default:focus (pane_at panes point)
       | _ -> focus) value.focus frame.events in
-    let leader, actions, frame = Editor.Router.step value.keymap ~focus ~text_focus ~frame
+    let keymap = if all_ui_visible
+        && not (Workspace.collapsed value.workspace Workspace.Graph)
+      then value.keymap else List.filter (fun binding ->
+        match binding.Editor.Keymap.action with
+        | Leader.Graph_command _ -> false | _ -> true) value.keymap in
+    let leader, actions, frame = Editor.Router.step keymap ~focus ~text_focus ~frame
         value.leader in
     let sample_fps = frame.time < value.status_fps_at
       || frame.time -. value.status_fps_at >= 1. in
@@ -741,6 +768,13 @@ module Core = struct
     let workspace, graph_view, timeline, timeline_changes = List.fold_left
         (apply_action frame)
         (value.workspace, value.graph_view, timeline, timeline_changes) actions in
+    let graph_view, command_changes = List.fold_left (fun (graph_view, changes) ->
+      function
+      | Leader.Graph_command command when all_ui_visible
+          && not (Workspace.collapsed workspace Workspace.Graph) ->
+          let graph_view, emitted = Pxui_graph.run_command graph_view command in
+          graph_view, changes @ emitted
+      | _ -> graph_view, changes) (graph_view, []) actions in
     let timeline = ref timeline and timeline_changes = ref timeline_changes in
     (* ponytail: seeking recooks the pure graph at the target frame; state a
        sketch threads through [run_state] outside the graph is not replayed. *)
@@ -782,6 +816,7 @@ module Core = struct
              (not (Workspace.collapsed workspace Workspace.Graph)) in
       let graph_view, graph_changes = if Pxui_graph.visible graph_view
         then Pxui_graph.update graph_view ui shortcut_frame else graph_view, [] in
+      let graph_changes = command_changes @ graph_changes in
       List.iter (function
         | Pxui_graph.Frame_camera_requested id -> frame_request := Some id
         | _ -> ()) graph_changes;
@@ -830,7 +865,7 @@ module Core = struct
       workspace, graph_view, document, edit_error, inspector,
       Parameter.union_effects editor_effects parameter_effects in
     let leader_panel ui = if leader = Leader.Pending then
-        Leader.panel ui value.keymap focus in
+        Leader.panel ui keymap focus in
     (* Presets: Space s names and saves the document, Space b browses, loads
        (Enter), and deletes (Delete twice). A load replaces the document below
        as one undo entry. *)
@@ -928,14 +963,8 @@ module Core = struct
       | Event.MouseReleased (Input.LeftButton, _) | Event.WindowFocusLost -> true
       | _ -> false) frame in
     let history = if ended_gesture then Editor.History.seal history else history in
-    let shortcut character = Frame.has_event (function
-      | Event.KeyPressed (Input.KeyChar key) ->
-          Char.lowercase_ascii key = character
-          && (List.mem Input.Meta frame.Frame.keys || List.mem Input.Ctrl frame.keys)
-      | _ -> false) shortcut_frame in
-    let shift = List.mem Input.Shift frame.Frame.keys in
-    let stepped = if (shortcut 'z' && shift) || shortcut 'y' then Editor.History.redo history
-      else if shortcut 'z' then Editor.History.undo history else None in
+    let stepped = if List.mem Leader.Redo actions then Editor.History.redo history
+      else if List.mem Leader.Undo actions then Editor.History.undo history else None in
     let history, document, undone = match stepped with
       | Some history -> history, Editor.History.present history, true
       | None -> history, document, false in

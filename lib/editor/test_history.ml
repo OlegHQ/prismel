@@ -29,9 +29,17 @@ let () =
 
 type scope = View | Graph
 
-let bindings : (scope, [ `Toggle | `Layout ]) Editor.Keymap.binding list = [
-  { key = 'g'; label = "toggle graph"; scope = None; action = `Toggle };
-  { key = 'l'; label = "layout"; scope = Some Graph; action = `Layout };
+let bindings : (scope, [ `Toggle | `Layout | `Undo | `Redo | `Delete ])
+    Editor.Keymap.binding list = [
+  { trigger = Leader 'g'; label = "toggle graph"; scope = None; action = `Toggle };
+  { trigger = Leader 'l'; label = "layout"; scope = Some Graph; action = `Layout };
+  { trigger = Chord (Prismel.Input.KeyChar 'z', [Prismel.Input.Meta]);
+    label = "undo"; scope = None; action = `Undo };
+  { trigger = Chord (Prismel.Input.KeyChar 'z',
+      [Prismel.Input.Meta; Prismel.Input.Shift]);
+    label = "redo"; scope = None; action = `Redo };
+  { trigger = Chord (Prismel.Input.Delete, []);
+    label = "delete"; scope = Some Graph; action = `Delete };
 ]
 
 let frame events : Prismel.Frame.t = {
@@ -69,4 +77,20 @@ let () =
   let state, actions, passed = step ~text_focus:true Idle [Input.Space] in
   assert (state = Idle && actions = []
       && passed.events = [Event.KeyPressed Input.Space]);
-  print_endline "editor router: leader scope, text focus and event consumption ok"
+  let chord ?(focus = View) ?(text_focus = false) keys events =
+    Editor.Router.step bindings ~focus ~text_focus
+      ~frame:{ (frame events) with keys } Idle in
+  let _, actions, passed = chord [Input.Meta] [Event.KeyPressed (Input.KeyChar 'Z');
+      Event.TextInput "z"] in
+  assert (actions = [`Undo] && passed.events = []);
+  let _, actions, _ = chord [Input.Meta; Input.Shift]
+      [Event.KeyPressed (Input.KeyChar 'z')] in
+  assert (actions = [`Redo]);
+  let _, actions, _ = chord ~focus:Graph [] [Event.KeyPressed Input.Delete] in
+  assert (actions = [`Delete]);
+  let _, actions, passed = chord [] [Event.KeyPressed Input.Delete] in
+  assert (actions = [] && passed.events = [Event.KeyPressed Input.Delete]);
+  let _, actions, passed = chord ~text_focus:true [Input.Meta]
+      [Event.KeyPressed (Input.KeyChar 'z')] in
+  assert (actions = [] && passed.events = [Event.KeyPressed (Input.KeyChar 'z')]);
+  print_endline "editor router: leader/chord scope, text focus, event consumption ok"
