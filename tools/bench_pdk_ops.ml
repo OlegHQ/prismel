@@ -2028,7 +2028,7 @@ let run_measure_benchmarks () =
     Analysis.with_measure ~grain ~total_name:"perimeter" Analysis.Perimeter source
     |> get_ok) geometry_output;
   let boxes = Ops.box ~size:(Vec3.create 2. 3. 4.) () |> get_ok
-      |> Ops.duplicate ~grain ~copies:20_000
+      |> Instance_copy.duplicate ~grain ~copies:20_000
            ~transform:(Mat4.translation (Vec3.create 3. 0. 0.)) |> get_ok in
   measure ~input_points:(Geometry.point_count boxes) "measure_volume_packed"
     (fun () -> Analysis.with_measure ~grain ~total_name:"signed_volume"
@@ -2810,7 +2810,7 @@ let run_poly_bevel_benchmarks () =
   let source = Ops.box ~grain ~connectivity:Ops.Box_quads
       ~consolidate_points:true ~normals:Ops.Box_no_normals
       ~size:(Vec3.create 1. 1. 1.) () |> get_ok
-      |> Ops.duplicate ~grain ~copies:(copies - 1)
+      |> Instance_copy.duplicate ~grain ~copies:(copies - 1)
            ~transform:(Mat4.translation (Vec3.create 1.5 0. 0.)) |> get_ok
       |> Attribute_ops.enumerate ~grain ~owner:Attribute.Point ~name:"point_id"
       |> get_ok
@@ -2953,7 +2953,7 @@ let run_point_replicate_benchmarks () =
       |> Geometry.with_attribute flow |> get_ok in
   let basis = Ops.points [|0.,0.,0.; 1.,0.,0.; 0.,1.,0.; 0.,0.,1.|] in
   measure ~input_points:source_count "point_replicate_basis_frames_100k"
-    (fun () -> Ops.copy_to_points ~grain ~source:basis ~targets:source ()
+    (fun () -> Instance_copy.copy_to_points ~grain ~source:basis ~targets:source ()
       |> get_ok) geometry_output;
   measure ~input_points:source_count "point_replicate_emission_only_600k"
     (fun () -> Ops.point_generate ~grain ~seed:(Rand.seed 991)
@@ -4243,11 +4243,11 @@ let run_unpack_benchmarks () =
   measure ~input_points:(Geometry.point_count source)
     "unpack_transform_merge_baseline" legacy_materialize geometry_output;
   measure ~input_points:(Geometry.point_count source) "unpack_packed"
-    (fun () -> Ops.materialize_instances ~grain ~transforms:matrices source
+    (fun () -> Instance_copy.materialize_instances ~grain ~transforms:matrices source
       |> get_ok)
     geometry_output;
   measure ~input_points:(Geometry.point_count source) "unpack_packed_raw"
-    (fun () -> Ops.materialize_instances ~grain ~apply_transform:false
+    (fun () -> Instance_copy.materialize_instances ~grain ~apply_transform:false
       ~transforms:matrices source |> get_ok)
     geometry_output;
   let dense = Ops.grid ~columns:500 ~rows:500 ~size:20. () |> get_ok in
@@ -4257,7 +4257,7 @@ let run_unpack_benchmarks () =
     "unpack_single_dense_transform_baseline"
     (fun () -> Ops.transform ~grain dense_matrix dense) geometry_output;
   measure ~input_points:(Geometry.point_count dense) "unpack_single_dense"
-    (fun () -> Ops.materialize_instances ~grain ~transforms:[|dense_matrix|]
+    (fun () -> Instance_copy.materialize_instances ~grain ~transforms:[|dense_matrix|]
       dense |> get_ok)
     geometry_output
 
@@ -5348,7 +5348,7 @@ let () =
   let prototype = Ops.box ~size:(Vec3.create 0.08 0.16 0.08) () |> get_ok
   and targets = Ops.grid ~columns:320 ~rows:320 ~size:100. () |> get_ok in
   measure "copy_to_points" (fun () ->
-    Ops.copy_to_points ~grain ~source:prototype ~targets () |> get_ok)
+    Instance_copy.copy_to_points ~grain ~source:prototype ~targets () |> get_ok)
     geometry_output;
   let target_count = Geometry.point_count targets in
   let transform_offsets = Array.init (target_count + 1) (fun index -> index * 16)
@@ -5368,7 +5368,7 @@ let () =
   let transformed_targets = Geometry.with_attribute target_transform targets
       |> get_ok in
   measure "copy_to_points_transform" (fun () ->
-    Ops.copy_to_points ~grain ~source:prototype ~targets:transformed_targets ()
+    Instance_copy.copy_to_points ~grain ~source:prototype ~targets:transformed_targets ()
       |> get_ok) geometry_output;
   let source_half = Group.init ~owner:Group.Primitive ~name:"source_half"
       (Geometry.primitive_count prototype) (fun primitive ->
@@ -5376,7 +5376,7 @@ let () =
   and target_half = Group.init ~grain ~owner:Group.Point ~name:"target_half"
       (Geometry.point_count targets) (fun point -> point land 1 = 0) in
   measure "copy_to_points_restricted" (fun () ->
-    Ops.copy_to_points ~grain ~source_primitives:source_half
+    Instance_copy.copy_to_points ~grain ~source_primitives:source_half
       ~target_points:target_half ~source:prototype ~targets () |> get_ok)
     geometry_output;
   let transfer_source = prototype
@@ -5417,7 +5417,7 @@ let () =
       copy_target_operation = Copy_target_subtract };
   ] in
   measure "copy_to_points_target_attributes" (fun () ->
-    Ops.copy_to_points ~grain ~target_attributes:transfer_rules
+    Instance_copy.copy_to_points ~grain ~target_attributes:transfer_rules
       ~source:transfer_source ~targets:transfer_targets () |> get_ok)
     geometry_output;
   let group_source = transfer_source
@@ -5450,7 +5450,7 @@ let () =
       copy_target_operation = Copy_target_subtract };
   ] in
   measure "copy_to_points_target_groups" (fun () ->
-    Ops.copy_to_points ~grain ~target_attributes:group_rules
+    Instance_copy.copy_to_points ~grain ~target_attributes:group_rules
       ~source:group_source ~targets:group_targets () |> get_ok)
     geometry_output;
   let piece_four_source = prototype
@@ -5463,7 +5463,7 @@ let () =
            ~name:"piece" (Attribute.Int (Array.init target_count
              (fun target -> target land 3))) |> get_ok) |> get_ok in
   measure ~input_points:target_count "copy_to_points_piece_4" (fun () ->
-    Ops.copy_to_points ~grain ~piece_attribute:"piece"
+    Instance_copy.copy_to_points ~grain ~piece_attribute:"piece"
       ~source:piece_four_source ~targets:piece_four_targets () |> get_ok)
     geometry_output;
   let many_piece_source = Ops.grid ~columns:33 ~rows:33 ~size:1. () |> get_ok in
@@ -5481,7 +5481,7 @@ let () =
            ~name:"piece" (Attribute.Int (Array.init many_target_count
              (fun target -> target mod many_piece_count))) |> get_ok) |> get_ok in
   measure ~input_points:many_target_count "copy_to_points_piece_many" (fun () ->
-    Ops.copy_to_points ~grain ~piece_attribute:"piece"
+    Instance_copy.copy_to_points ~grain ~piece_attribute:"piece"
       ~source:many_piece_source ~targets:many_piece_targets () |> get_ok)
     geometry_output;
   let modeling_grid = Ops.grid ~columns:200 ~rows:200 ~size:20. () |> get_ok in
@@ -5513,11 +5513,11 @@ let () =
   let fully_edged_grid = Ops.group_edges ~grain ~name:"all_edges" modeling_grid
       |> get_ok in
   measure "edge_group_duplicate_plain_4" (fun () ->
-    Ops.duplicate ~grain ~copies:3
+    Instance_copy.duplicate ~grain ~copies:3
       ~transform:(Mat4.translation (Vec3.create 0. 0.2 0.))
       modeling_grid |> get_ok) geometry_output;
   measure "edge_group_duplicate_4" (fun () ->
-    Ops.duplicate ~grain ~copies:3
+    Instance_copy.duplicate ~grain ~copies:3
       ~transform:(Mat4.translation (Vec3.create 0. 0.2 0.))
       fully_edged_grid |> get_ok) geometry_output;
   let planar_projection = Ops.Planar {
@@ -5564,14 +5564,14 @@ let () =
     geometry_output;
   if benchmark_filter = Some "uv_" then exit 0;
   measure "duplicate_grid_8" (fun () ->
-    Ops.duplicate ~grain ~copies:8
+    Instance_copy.duplicate ~grain ~copies:8
       ~transform:(Mat4.mul (Mat4.translation (Vec3.create 0. 0.2 0.))
         (Mat4.rotation_y 0.03)) modeling_grid |> get_ok) geometry_output;
   let duplicate_selection = Group.init ~owner:Group.Primitive
       ~name:"duplicate_selection" (Geometry.primitive_count modeling_grid)
       (fun primitive -> primitive land 1 = 0) in
   measure "duplicate_selected_grid_8" (fun () ->
-    Ops.duplicate ~grain ~copies:8 ~primitives:duplicate_selection
+    Instance_copy.duplicate ~grain ~copies:8 ~primitives:duplicate_selection
       ~copy_group_prefix:"copy_"
       ~transform:(Mat4.mul (Mat4.translation (Vec3.create 0. 0.2 0.))
         (Mat4.rotation_y 0.03)) modeling_grid |> get_ok) geometry_output;

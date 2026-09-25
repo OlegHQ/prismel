@@ -330,7 +330,7 @@ let run () =
      || sorted_vertex_ids <> [|3; 4; 5; 0; 1; 2|]
      || sorted_primitive_ids <> [|20; 10|] then
     fail "primitive reverse sort/vertex payload remap";
-  let duplicated = Ops.duplicate ~grain:1 ~copies:2
+  let duplicated = Instance_copy.duplicate ~grain:1 ~copies:2
       ~transform:(Mat4.translation (Vec3.create 2. 0. 0.)) sortable_points
       |> get_ok in
   let duplicated_positions = Packed.Float3.Private.view
@@ -348,10 +348,10 @@ let run () =
   (match Geometry.find_group ~owner:Group.Point "even" duplicated with
    | Some group when Group.cardinality group = 6 -> ()
    | _ -> fail "duplicate group replication");
-  let duplicate_once = Ops.duplicate ~copies:0 sortable_points |> get_ok in
+  let duplicate_once = Instance_copy.duplicate ~copies:0 sortable_points |> get_ok in
   if Geometry.data_id duplicate_once <> Geometry.data_id sortable_points then
     fail "zero-copy duplicate was not identity";
-  (match Ops.duplicate ~copies:(-1) sortable_points with
+  (match Instance_copy.duplicate ~copies:(-1) sortable_points with
    | Error error when Error.code error = "invalid_parameter" -> ()
    | _ -> fail "duplicate accepted a negative copy count");
   let topology_index = Topology_index.create (Geometry.topology triangle_geometry) in
@@ -2416,7 +2416,7 @@ let run () =
   if Edge_group.cardinality mirrored_edge_group <> 8
      || Edge_group.length mirrored_edge_group <> 8 then
     fail "mirror did not replicate native edge membership";
-  let duplicated_edge_geometry = Ops.duplicate ~copies:2 quad_edges |> get_ok in
+  let duplicated_edge_geometry = Instance_copy.duplicate ~copies:2 quad_edges |> get_ok in
   let duplicated_edge_group = Geometry.find_edge_group "quad_edges"
       duplicated_edge_geometry |> Option.get in
   if Edge_group.cardinality duplicated_edge_group <> 12
@@ -2428,7 +2428,7 @@ let run () =
   if Edge_group.cardinality merged_edge_group <> 8
      || Edge_group.length merged_edge_group <> 8 then
     fail "merge did not concatenate native edge membership";
-  let copied_edge_geometry = Ops.copy_to_points ~source:quad_edges
+  let copied_edge_geometry = Instance_copy.copy_to_points ~source:quad_edges
       ~targets:(Line_geometry.points [|(0., 0., 0.); (3., 0., 0.)|]) () |> get_ok in
   let copied_edge_group = Geometry.find_edge_group "quad_edges"
       copied_edge_geometry |> Option.get in
@@ -4243,10 +4243,10 @@ let run () =
   (match Ops.sort ~cancel:cancelled ~owner:Ops.Points ~key:Ops.X grid with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled sort published geometry or wrong error");
-  (match Ops.duplicate ~cancel:cancelled ~copies:4 grid with
+  (match Instance_copy.duplicate ~cancel:cancelled ~copies:4 grid with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled duplicate published geometry or wrong error");
-  (match Ops.copy_to_points ~cancel:cancelled ~source:grid
+  (match Instance_copy.copy_to_points ~cancel:cancelled ~source:grid
       ~targets:(Line_geometry.points [|(0.,0.,0.)|]) () with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled Copy to Points published geometry or wrong error");
@@ -4267,7 +4267,7 @@ let run () =
       |> Geometry.with_attribute target_orient |> get_ok in
   let prototype = Line_geometry.points [|(1., 0., 0.); (0., 1., 0.)|] in
   let copied domains = Parallel.run ~domains (fun () ->
-    Ops.copy_to_points ~grain:1 ~source:prototype ~targets () |> get_ok) in
+    Instance_copy.copy_to_points ~grain:1 ~source:prototype ~targets () |> get_ok) in
   let copied_one = copied 1 and copied_many = copied 4 in
   if not (equal_positions copied_one copied_many)
      || Geometry.point_count copied_one <> 4
@@ -4295,7 +4295,7 @@ let run () =
       |> Geometry.with_attribute target_n |> get_ok
       |> Geometry.with_attribute target_up |> get_ok in
   let aligned domains = Parallel.run ~domains (fun () ->
-    Ops.copy_to_points ~grain:1 ~source:axis_prototype
+    Instance_copy.copy_to_points ~grain:1 ~source:axis_prototype
       ~targets:alignment_targets () |> get_ok) in
   let aligned_one = aligned 1 and aligned_many = aligned 4 in
   let aligned_positions = Packed.Float3.Private.view
@@ -4310,7 +4310,7 @@ let run () =
         ~x:[|0.;0.|] ~y:[|1.;1.|] ~z:[|0.;0.|])) |> get_ok in
   let orient_priority_targets = targets |> Geometry.with_attribute priority_n
       |> get_ok in
-  let orient_priority = Ops.copy_to_points ~source:prototype
+  let orient_priority = Instance_copy.copy_to_points ~source:prototype
       ~targets:orient_priority_targets () |> get_ok in
   if not (equal_positions orient_priority copied_one) then
     fail "copy-to-points orient did not override N";
@@ -4323,7 +4323,7 @@ let run () =
   let velocity_target = Line_geometry.points [|(0.,0.,0.)|]
       |> Geometry.with_attribute velocity |> get_ok
       |> Geometry.with_attribute velocity_up |> get_ok in
-  let velocity_copy = Ops.copy_to_points ~source:axis_prototype
+  let velocity_copy = Instance_copy.copy_to_points ~source:axis_prototype
       ~targets:velocity_target () |> get_ok in
   let velocity_positions = Packed.Float3.Private.view
       (Geometry.positions velocity_copy) in
@@ -4355,7 +4355,7 @@ let run () =
   let pivot_source = Line_geometry.points [|(1.,0.,0.); (2.,0.,0.)|]
       |> Geometry.with_attribute pivot_normal |> get_ok in
   let stacked domains = Parallel.run ~domains (fun () ->
-    Ops.copy_to_points ~grain:1 ~source:pivot_source ~targets:stacked_target ()
+    Instance_copy.copy_to_points ~grain:1 ~source:pivot_source ~targets:stacked_target ()
       |> get_ok) in
   let stacked_one = stacked 1 and stacked_many = stacked 4 in
   let stacked_positions = Packed.Float3.Private.view
@@ -4388,7 +4388,7 @@ let run () =
   let matrix_target = stacked_target |> Geometry.with_attribute target_transform
       |> get_ok in
   let matrix_copied domains = Parallel.run ~domains (fun () ->
-    Ops.copy_to_points ~grain:1 ~source:pivot_source ~targets:matrix_target ()
+    Instance_copy.copy_to_points ~grain:1 ~source:pivot_source ~targets:matrix_target ()
       |> get_ok) in
   let matrix_one = matrix_copied 1 and matrix_many = matrix_copied 4 in
   let matrix_positions = Packed.Float3.Private.view (Geometry.positions matrix_one)
@@ -4416,7 +4416,7 @@ let run () =
         [|1.;0.;0.; 0.;1.;0.; 0.;0.;0.|])) |> get_ok in
   let singular_target = Line_geometry.points [|(0.,0.,0.)|]
       |> Geometry.with_attribute singular_transform |> get_ok in
-  let singular_copy = Ops.copy_to_points ~source:pivot_source
+  let singular_copy = Instance_copy.copy_to_points ~source:pivot_source
       ~targets:singular_target () |> get_ok in
   if Geometry.find_attribute ~owner:Attribute.Point "N" singular_copy <> None
   then fail "copy-to-points singular transform retained invalid normals";
@@ -4426,7 +4426,7 @@ let run () =
       |> get_ok in
   let malformed_target = Line_geometry.points [|(0.,0.,0.)|]
       |> Geometry.with_attribute malformed_transform |> get_ok in
-  (match Ops.copy_to_points ~source:prototype ~targets:malformed_target () with
+  (match Instance_copy.copy_to_points ~source:prototype ~targets:malformed_target () with
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "copy-to-points accepted a projective transform matrix");
   let restricted_source = Mesh_merge.run [
@@ -4457,7 +4457,7 @@ let run () =
   let target_outer = Group.ordered ~owner:Group.Point ~name:"target_outer"
       ~length:3 [|2;0|] |> get_ok in
   let restricted domains = Parallel.run ~domains (fun () ->
-    Ops.copy_to_points ~grain:1 ~source_primitives:source_second
+    Instance_copy.copy_to_points ~grain:1 ~source_primitives:source_second
       ~target_points:target_outer ~source:restricted_source
       ~targets:restricted_targets () |> get_ok) in
   let restricted_one = restricted 1 and restricted_many = restricted 4 in
@@ -4506,7 +4506,7 @@ let run () =
     fail "copy-to-points source/target restriction payload/group/domain behavior";
   let empty_targets = Group.init ~owner:Group.Point ~name:"none" 3
       (fun _ -> false) in
-  let restricted_empty = Ops.copy_to_points ~source_primitives:source_second
+  let restricted_empty = Instance_copy.copy_to_points ~source_primitives:source_second
       ~target_points:empty_targets ~source:restricted_source
       ~targets:restricted_targets () |> get_ok in
   if Geometry.point_count restricted_empty <> 0
@@ -4533,7 +4533,7 @@ let run () =
       copy_target_operation = Copy_target_copy;
     }] in
   let piece_copy domains = Parallel.run ~domains (fun () ->
-    Ops.copy_to_points ~grain:1 ~piece_attribute:"piece_id"
+    Instance_copy.copy_to_points ~grain:1 ~piece_attribute:"piece_id"
       ~target_attributes:piece_rules ~source:restricted_source
       ~targets:piece_targets () |> get_ok) in
   let piece_one = piece_copy 1 and piece_many = piece_copy 4 in
@@ -4589,7 +4589,7 @@ let run () =
       |> Geometry.with_attribute (Attribute.create_owned ~name:"name"
            ~owner:Attribute.Point (Attribute.Text [|"cap";"missing";"stem"|])
            |> get_ok) |> get_ok in
-  let text_piece = Ops.copy_to_points ~piece_attribute:"name"
+  let text_piece = Instance_copy.copy_to_points ~piece_attribute:"name"
       ~source:text_source ~targets:text_targets () |> get_ok in
   let text_piece_ids = Geometry.find_attribute ~owner:Attribute.Primitive
       "piece_id" text_piece |> Option.get
@@ -4606,7 +4606,7 @@ let run () =
       |> Geometry.with_attribute (Attribute.create_owned ~name:"point_piece"
            ~owner:Attribute.Point (Attribute.Text [|"right";"left"|])
            |> get_ok) |> get_ok in
-  let point_piece = Ops.copy_to_points ~piece_attribute:"point_piece"
+  let point_piece = Instance_copy.copy_to_points ~piece_attribute:"point_piece"
       ~source:point_piece_source ~targets:point_piece_targets () |> get_ok in
   let point_piece_positions = Packed.Float3.Private.view
       (Geometry.positions point_piece) in
@@ -4620,7 +4620,7 @@ let run () =
       |> Geometry.with_attribute (Attribute.create_owned ~name:"which"
            ~owner:Attribute.Point (Attribute.Int [|1;7;0|]) |> get_ok)
       |> get_ok in
-  let fallback_piece = Ops.copy_to_points ~piece_attribute:"which"
+  let fallback_piece = Instance_copy.copy_to_points ~piece_attribute:"which"
       ~source:restricted_source ~targets:fallback_targets () |> get_ok in
   let fallback_ids = Geometry.find_attribute ~owner:Attribute.Primitive
       "piece_id" fallback_piece |> Option.get
@@ -4632,13 +4632,13 @@ let run () =
       |> Geometry.with_attribute (Attribute.create_owned ~name:"bad_piece"
            ~owner:Attribute.Point (Attribute.Float [|1.|]) |> get_ok)
       |> get_ok in
-  (match Ops.copy_to_points ~piece_attribute:"bad_piece"
+  (match Instance_copy.copy_to_points ~piece_attribute:"bad_piece"
       ~source:restricted_source ~targets:invalid_piece_targets () with
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "copy-to-points accepted a non-discrete piece attribute");
   let cancelled_piece = Cancel.create () in
   Cancel.cancel cancelled_piece;
-  (match Ops.copy_to_points ~cancel:cancelled_piece
+  (match Instance_copy.copy_to_points ~cancel:cancelled_piece
       ~piece_attribute:"piece_id" ~source:restricted_source
       ~targets:piece_targets () with
    | Error error when Error.code error = "cancelled" -> ()
@@ -4647,11 +4647,11 @@ let run () =
       (fun _ -> true)
   and wrong_target_owner = Group.init ~owner:Group.Primitive ~name:"wrong" 0
       (fun _ -> false) in
-  (match Ops.copy_to_points ~source_primitives:wrong_source_owner
+  (match Instance_copy.copy_to_points ~source_primitives:wrong_source_owner
       ~source:restricted_source ~targets:restricted_targets () with
    | Error error when Error.code error = "invalid_selection" -> ()
    | _ -> fail "copy-to-points accepted a point-owned source selection");
-  (match Ops.copy_to_points ~target_points:wrong_target_owner
+  (match Instance_copy.copy_to_points ~target_points:wrong_target_owner
       ~source:restricted_source ~targets:restricted_targets () with
    | Error error when Error.code error = "invalid_selection" -> ()
    | _ -> fail "copy-to-points accepted a primitive-owned target selection");
@@ -4757,7 +4757,7 @@ let run () =
       copy_target_operation = Copy_target_subtract };
   ] in
   let transferred domains = Parallel.run ~domains (fun () ->
-    Ops.copy_to_points ~grain:1 ~target_attributes:transfer_rules
+    Instance_copy.copy_to_points ~grain:1 ~target_attributes:transfer_rules
       ~source:transfer_source ~targets:transfer_targets () |> get_ok) in
   let transferred_one = transferred 1 and transferred_many = transferred 4 in
   let transferred_weight = Geometry.find_attribute ~owner:Attribute.Point "weight"
@@ -4838,14 +4838,14 @@ let run () =
   let incompatible_rule = Ops.{ copy_target_pattern = "corner";
       copy_target_owner = Copy_target_points;
       copy_target_operation = Copy_target_add } in
-  (match Ops.copy_to_points ~target_attributes:[incompatible_rule]
+  (match Instance_copy.copy_to_points ~target_attributes:[incompatible_rule]
       ~source:incompatible_source ~targets:transfer_targets () with
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "copy-to-points accepted incompatible target arithmetic storage");
   let malformed_rule = Ops.{ copy_target_pattern = "[unterminated";
       copy_target_owner = Copy_target_points;
       copy_target_operation = Copy_target_copy } in
-  (match Ops.copy_to_points ~target_attributes:[malformed_rule]
+  (match Instance_copy.copy_to_points ~target_attributes:[malformed_rule]
       ~source:transfer_source ~targets:transfer_targets () with
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "copy-to-points accepted malformed target attribute pattern");
@@ -4858,7 +4858,7 @@ let run () =
   let mismatched_rule = Ops.{ copy_target_pattern = "profile";
       copy_target_owner = Copy_target_points;
       copy_target_operation = Copy_target_add } in
-  (match Ops.copy_to_points ~target_attributes:[mismatched_rule]
+  (match Instance_copy.copy_to_points ~target_attributes:[mismatched_rule]
       ~source:transfer_source ~targets:mismatched_targets () with
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "copy-to-points accepted mismatched target ragged row widths");
@@ -4867,14 +4867,14 @@ let run () =
         ~x:[|Float.nan|] ~y:[|0.|] ~z:[|1.|])) |> get_ok in
   let invalid_alignment = Line_geometry.points [|(0.,0.,0.)|]
       |> Geometry.with_attribute nonfinite_n |> get_ok in
-  (match Ops.copy_to_points ~source:prototype ~targets:invalid_alignment () with
+  (match Instance_copy.copy_to_points ~source:prototype ~targets:invalid_alignment () with
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "copy-to-points accepted a non-finite target N");
   let invalid_rot = Attribute.create_owned ~name:"rot" ~owner:Attribute.Point
       (Attribute.Int [|1|]) |> get_ok in
   let invalid_rot_target = Line_geometry.points [|(0.,0.,0.)|]
       |> Geometry.with_attribute invalid_rot |> get_ok in
-  (match Ops.copy_to_points ~source:prototype ~targets:invalid_rot_target () with
+  (match Instance_copy.copy_to_points ~source:prototype ~targets:invalid_rot_target () with
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "copy-to-points accepted a non-quaternion target rot");
   let nonfinite_trans = Attribute.create_owned ~name:"trans"
@@ -4883,7 +4883,7 @@ let run () =
         ~x:[|Float.infinity|] ~y:[|0.|] ~z:[|0.|])) |> get_ok in
   let invalid_trans_target = Line_geometry.points [|(0.,0.,0.)|]
       |> Geometry.with_attribute nonfinite_trans |> get_ok in
-  (match Ops.copy_to_points ~source:prototype ~targets:invalid_trans_target () with
+  (match Instance_copy.copy_to_points ~source:prototype ~targets:invalid_trans_target () with
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "copy-to-points accepted a non-finite target translation");
   let scatter_source = Color_by_height.run ~low:(Color.to_floats Color.red)

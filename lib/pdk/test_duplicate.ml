@@ -69,7 +69,7 @@ let group owner name geometry =
 let test_restricted_payload_and_groups () =
   let source = fixture () and move = Mat4.translation (Vec3.create 10. 0. 0.) in
   let right = group Group.Primitive "right" source in
-  let output = Ops.duplicate ~grain:1 ~copies:2 ~transform:move
+  let output = Instance_copy.duplicate ~grain:1 ~copies:2 ~transform:move
       ~primitives:right ~copy_group_prefix:"copy_" source |> get in
   let topology = Topology.Private.view (Geometry.topology output)
   and positions = Packed.Float3.Private.view (Geometry.positions output) in
@@ -130,25 +130,25 @@ let test_restricted_payload_and_groups () =
   check (Group.cardinality first = 1 && Group.mem 2 first
       && Group.cardinality second = 1 && Group.mem 3 second)
     "per-copy output groups replace collisions";
-  let preserved = Ops.duplicate ~grain:1 ~copies:2 ~transform:move
+  let preserved = Instance_copy.duplicate ~grain:1 ~copies:2 ~transform:move
       ~primitives:right ~copy_group_prefix:"copy_" ~preserve_groups:true source
       |> get in
   let first = group Group.Primitive "copy_1" preserved in
   check (Group.cardinality first = 2 && Group.mem 0 first && Group.mem 2 first)
     "per-copy output groups preserve collisions";
-  let singular = Ops.duplicate ~primitives:right
+  let singular = Instance_copy.duplicate ~primitives:right
       ~transform:(Mat4.scaling (Vec3.create 1. 0. 1.)) source |> get in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" singular = None)
     "singular selected transform normal invalidation";
   let untyped_n = Geometry.with_attribute
       (attribute Attribute.Point "N" (Attribute.Int (Array.make 7 9))) source
       |> Result.get_ok in
-  let untyped_n = Ops.duplicate ~primitives:right
+  let untyped_n = Instance_copy.duplicate ~primitives:right
       ~transform:(Mat4.scaling (Vec3.create 1. 0. 1.)) untyped_n |> get in
   check (int_attribute Attribute.Point "N" untyped_n
       = [|9;9;9;9;9;9;9;9;9;9;9|])
     "singular transform retained non-normal N storage";
-  let non_cumulative = Ops.duplicate ~copies:2 ~cumulative:false ~transform:move
+  let non_cumulative = Instance_copy.duplicate ~copies:2 ~cumulative:false ~transform:move
       ~primitives:right source |> get in
   let positions = Packed.Float3.Private.view
       (Geometry.positions non_cumulative) in
@@ -158,23 +158,23 @@ let test_restricted_payload_and_groups () =
 let test_identity_and_errors () =
   let source = fixture () in
   let right = group Group.Primitive "right" source in
-  check (Ops.duplicate ~copies:0 ~primitives:right source |> get == source)
+  check (Instance_copy.duplicate ~copies:0 ~primitives:right source |> get == source)
     "zero-copy identity";
   let empty = Group.init ~owner:Group.Primitive ~name:"empty" 2
       (fun _ -> false) in
-  check (Ops.duplicate ~copies:3 ~primitives:empty source |> get == source)
+  check (Instance_copy.duplicate ~copies:3 ~primitives:empty source |> get == source)
     "empty-selection identity";
   let expect label = function
     | Error _ -> () | Ok _ -> fail ("accepted " ^ label) in
   expect "point source selection"
-    (Ops.duplicate ~primitives:(group Group.Point "path" source) source);
+    (Instance_copy.duplicate ~primitives:(group Group.Point "path" source) source);
   expect "wrong-length source selection"
-    (Ops.duplicate ~primitives:(Group.init ~owner:Group.Primitive ~name:"short" 1
+    (Instance_copy.duplicate ~primitives:(Group.init ~owner:Group.Primitive ~name:"short" 1
       (fun _ -> true)) source);
   expect "empty copy-group prefix"
-    (Ops.duplicate ~copy_group_prefix:" " source);
+    (Instance_copy.duplicate ~copy_group_prefix:" " source);
   expect "copy-group count bound"
-    (Ops.duplicate ~copies:4_097 ~primitives:empty ~copy_group_prefix:"copy_"
+    (Instance_copy.duplicate ~copies:4_097 ~primitives:empty ~copy_group_prefix:"copy_"
       source);
   let many_primitives = 524_289 in
   let topology = Topology.polygons_owned ~point_count:3
@@ -187,11 +187,11 @@ let test_identity_and_errors () =
   let dense_empty = Group.init ~owner:Group.Primitive ~name:"empty"
       many_primitives (fun _ -> false) in
   expect "copy-group payload bound"
-    (Ops.duplicate ~copies:4_096 ~primitives:dense_empty
+    (Instance_copy.duplicate ~copies:4_096 ~primitives:dense_empty
       ~copy_group_prefix:"copy_" dense);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Ops.duplicate ~cancel:cancelled ~copies:3 ~primitives:right source with
+  (match Instance_copy.duplicate ~cancel:cancelled ~copies:3 ~primitives:right source with
    | Error error when Error.code error = "cancelled" -> ()
    | Error error -> fail ("unexpected cancellation: " ^ Error.to_string error)
    | Ok _ -> fail "ignored cancellation")
@@ -257,7 +257,7 @@ let test_parallel_exact () =
   let source = Geometry.with_group selected source |> Result.get_ok
       |> Ops.group_edges ~name:"all_edges" |> get in
   let cook domains = Parallel.run ~domains (fun () ->
-      Ops.duplicate ~grain:4_096 ~copies:4 ~primitives:selected
+      Instance_copy.duplicate ~grain:4_096 ~copies:4 ~primitives:selected
         ~copy_group_prefix:"copy_"
         ~transform:(Mat4.translation (Vec3.create 0. 0.5 0.)) source |> get) in
   let one = cook 1 and four = cook 4 in

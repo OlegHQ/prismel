@@ -39,6 +39,7 @@ module Mesh_merge = Pdk_mesh.Mesh_merge
 module Edge_collapse = Pdk_mesh.Edge_collapse
 module Dissolve = Pdk_mesh.Dissolve
 module Fuse_reduce = Pdk_mesh.Fuse_reduce
+module Instance_copy = Pdk_mesh.Instance_copy
 module Ops = Pdk_mesh.Ops
 module Subdivision_extra = Pdk_mesh.Subdivision_extra
 module Repair_mesh = Pdk_mesh.Repair_mesh

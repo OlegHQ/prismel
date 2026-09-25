@@ -3007,11 +3007,13 @@ val scatter_surface :
     auxiliary storage are O(points + emitted triangles), and point fills are
     exact across domain counts. *)
 
-type copy_target_owner = Copy_target_points | Copy_target_vertices
+type copy_target_owner = Instance_copy.copy_target_owner =
+  | Copy_target_points | Copy_target_vertices
   | Copy_target_primitives
-type copy_target_operation = Copy_target_nothing | Copy_target_copy
+type copy_target_operation = Instance_copy.copy_target_operation =
+  | Copy_target_nothing | Copy_target_copy
   | Copy_target_add | Copy_target_subtract | Copy_target_multiply
-type copy_target_attribute_rule = {
+type copy_target_attribute_rule = Instance_copy.copy_target_attribute_rule = {
   copy_target_pattern : string;
   copy_target_owner : copy_target_owner;
   copy_target_operation : copy_target_operation;

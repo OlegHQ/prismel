@@ -2476,19 +2476,19 @@ let edge_transport_parent ?label ?point_group ?(parent_attribute = "parent")
           | Error error -> structured_pdk_error error)
 
 let copy_target_owner_key = function
-  | Pdk.Ops.Copy_target_points -> "points"
-  | Pdk.Ops.Copy_target_vertices -> "vertices"
-  | Pdk.Ops.Copy_target_primitives -> "primitives"
+  | Pdk.Instance_copy.Copy_target_points -> "points"
+  | Pdk.Instance_copy.Copy_target_vertices -> "vertices"
+  | Pdk.Instance_copy.Copy_target_primitives -> "primitives"
 
 let copy_target_operation_key = function
-  | Pdk.Ops.Copy_target_nothing -> "nothing"
-  | Pdk.Ops.Copy_target_copy -> "copy"
-  | Pdk.Ops.Copy_target_add -> "add"
-  | Pdk.Ops.Copy_target_subtract -> "subtract"
-  | Pdk.Ops.Copy_target_multiply -> "multiply"
+  | Pdk.Instance_copy.Copy_target_nothing -> "nothing"
+  | Pdk.Instance_copy.Copy_target_copy -> "copy"
+  | Pdk.Instance_copy.Copy_target_add -> "add"
+  | Pdk.Instance_copy.Copy_target_subtract -> "subtract"
+  | Pdk.Instance_copy.Copy_target_multiply -> "multiply"
 
 let copy_target_rule_key rule = Printf.sprintf "%S:%s:%s"
-    rule.Pdk.Ops.copy_target_pattern
+    rule.Pdk.Instance_copy.copy_target_pattern
     (copy_target_owner_key rule.copy_target_owner)
     (copy_target_operation_key rule.copy_target_operation)
 
@@ -2530,7 +2530,7 @@ let copy_to_points ?label ?source_group ?target_group ?piece_attribute
       match source_primitives, target_points with
       | Error error, _ | _, Error error -> Error error
       | Ok source_primitives, Ok target_points ->
-          match Pdk.Ops.copy_to_points ~grain:(Context.grain context)
+          match Pdk.Instance_copy.copy_to_points ~grain:(Context.grain context)
               ~cancel:(Context.cancel_token context) ?source_primitives
               ?target_points ?piece_attribute ~target_attributes ~source:inputs.(0)
               ~targets:inputs.(1) () with
@@ -2558,7 +2558,7 @@ let duplicate ?label ?(copies = 1) ?(cumulative = true)
       match primitives with
       | Error error -> Error error
       | Ok primitives ->
-          match Pdk.Ops.duplicate ~cancel:(Context.cancel_token context)
+          match Pdk.Instance_copy.duplicate ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~copies ~cumulative ~transform
               ?primitives ?copy_group_prefix ~preserve_groups inputs.(0) with
           | Ok geometry -> cooked geometry
@@ -2578,7 +2578,7 @@ let unpack ?label ?(apply_transform = true) instances =
     ~cook_mode:(Node.Duplicate_input 0)
     ~dependencies:Context.Dependencies.static ~inputs:[|input|]
     (fun ~node_id:_ context inputs ->
-      match Pdk.Ops.materialize_instances
+      match Pdk.Instance_copy.materialize_instances
           ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
           ~apply_transform ~transforms inputs.(0) with
       | Ok geometry -> cooked geometry

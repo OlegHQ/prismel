@@ -312,7 +312,7 @@ let test_packed_array_storage_and_structural_ops () =
       |> add (Attribute.Float_array (float_rows
         [|[|0.25;0.75|]; [||]; [|1.|]|]))
            ~owner:Attribute.Point ~name:"weights" in
-  let duplicated = Ops.duplicate ~copies:2 base |> Result.get_ok in
+  let duplicated = Instance_copy.duplicate ~copies:2 base |> Result.get_ok in
   let rows = int_array_values ~owner:Attribute.Point "neighbors" duplicated in
   if Packed.Int_array.length rows <> 9
       || Array.init 9 (Packed.Int_array.get rows)

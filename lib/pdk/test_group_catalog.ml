@@ -148,7 +148,7 @@ let test_ordered_group_core () =
 let test_ordered_group_topology_remap () =
   let source = point_cloud 6
       |> with_ordered_group Group.Point "path" [|4; 1; 5|] in
-  let sorted = Ops.sort ~grain:1 ~owner:Ops.Points ~key:Ops.Reverse source
+  let sorted = Ordering.sort_checked ~grain:1 ~owner:Ordering.Points ~key:Ordering.Reverse source
       |> get_ok in
   check (ordered_group_members (ordinary Group.Point "path" sorted)
       = [1; 4; 0])
@@ -159,7 +159,7 @@ let test_ordered_group_topology_remap () =
   check (ordered_group_members (ordinary Group.Point "path" deleted)
       = [3; 4])
     "point deletion filters and remaps explicit group order";
-  let duplicated = Ops.duplicate ~grain:1 ~copies:1 source |> get_ok in
+  let duplicated = Instance_copy.duplicate ~grain:1 ~copies:1 source |> get_ok in
   check (ordered_group_members (ordinary Group.Point "path" duplicated)
       = [4; 1; 5; 10; 7; 11])
     "duplicate preserves explicit order in copy-major order";

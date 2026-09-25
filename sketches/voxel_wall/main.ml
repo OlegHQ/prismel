@@ -84,7 +84,7 @@ let copy_cubes ~source ~targets =
     ~values:(Parameter.default copy_schema) [ source; targets ]
     (fun ~parameters ~context:_ inputs ->
       let source = inputs.(0) and targets = inputs.(1) in
-      if not parameters.pack then pdk_error (Pdk.Ops.copy_to_points ~source ~targets ())
+      if not parameters.pack then pdk_error (Pdk.Instance_copy.copy_to_points ~source ~targets ())
       else
         let proto_points = Pdk.Geometry.positions source and target_points = Pdk.Geometry.positions targets in
         let np = Pdk.Packed.Float3.length proto_points and nt = Pdk.Packed.Float3.length target_points in

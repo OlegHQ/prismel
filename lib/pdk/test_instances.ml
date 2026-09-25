@@ -110,22 +110,38 @@ let run () =
       |> get_pdk in
   check (geometry_equal expected actual)
     "packed materialization differs from transform-plus-merge semantics";
+  let family = Instance_copy.materialize_instances ~grain:1
+      ~transforms:matrices source |> get_pdk in
+  check (geometry_equal actual family)
+    "Instance_copy materialization differs from Ops compatibility path";
+  let duplicate_family = Instance_copy.duplicate ~grain:1 ~copies:2 source
+      |> get_pdk
+  and duplicate_compat = Ops.duplicate ~grain:1 ~copies:2 source
+      |> get_pdk in
+  check (geometry_equal duplicate_family duplicate_compat)
+    "Instance_copy duplicate differs from Ops compatibility path";
+  let copied_family = Instance_copy.copy_to_points ~grain:1
+      ~source ~targets:source () |> get_pdk
+  and copied_compat = Ops.copy_to_points ~grain:1
+      ~source ~targets:source () |> get_pdk in
+  check (geometry_equal copied_family copied_compat)
+    "Instance_copy copy-to-points differs from Ops compatibility path";
 
   let one = Parallel.run ~domains:1 (fun () ->
-    Ops.materialize_instances ~grain:7 ~transforms:matrices source |> get_pdk)
+    Instance_copy.materialize_instances ~grain:7 ~transforms:matrices source |> get_pdk)
   and four = Parallel.run ~domains:4 (fun () ->
-    Ops.materialize_instances ~grain:7 ~transforms:matrices source |> get_pdk) in
+    Instance_copy.materialize_instances ~grain:7 ~transforms:matrices source |> get_pdk) in
   check (geometry_equal one four)
     "packed materialization differs across domain counts";
 
-  let identity = Ops.materialize_instances ~transforms:[|Mat4.identity|] source
+  let identity = Instance_copy.materialize_instances ~transforms:[|Mat4.identity|] source
       |> get_pdk in
   check (Geometry.data_id identity = Geometry.data_id source)
     "single identity materialization did not preserve the immutable snapshot";
 
   let single_matrix = Mat4.mul (Mat4.translation (Vec3.create 3. 2. 1.))
       (Mat4.rotation_x 0.37) in
-  let single = Ops.materialize_instances ~grain:1
+  let single = Instance_copy.materialize_instances ~grain:1
       ~transforms:[|single_matrix|] source |> get_pdk
   and single_expected = Ops.transform ~grain:1 single_matrix source in
   check (geometry_equal single_expected single)
@@ -140,7 +156,7 @@ let run () =
     "single-instance materialization copied an unchanged attribute";
 
   let raw_expected = Mesh_merge.run ~grain:1 (List.init 17 (fun _ -> source)) |> get_pdk
-  and raw = Ops.materialize_instances ~grain:1 ~apply_transform:false
+  and raw = Instance_copy.materialize_instances ~grain:1 ~apply_transform:false
       ~transforms:matrices source |> get_pdk in
   check (geometry_equal raw_expected raw)
     "disabled transform application changed prototype-space copies";
@@ -148,7 +164,7 @@ let run () =
   let with_detail = source |> add_attribute
       (Attribute.create_owned ~name:"generation" ~owner:Attribute.Detail
         (Attribute.Int [|7|]) |> get_ok) in
-  let empty = Ops.materialize_instances ~transforms:[||] with_detail |> get_pdk in
+  let empty = Instance_copy.materialize_instances ~transforms:[||] with_detail |> get_pdk in
   check (Geometry.point_count empty = 0 && Geometry.vertex_count empty = 0
       && Geometry.primitive_count empty = 0)
     "empty instance materialization emitted topology";
@@ -164,7 +180,7 @@ let run () =
         (Geometry.edge_groups empty))
     "empty instance materialization retained group members";
 
-  let singular = Ops.materialize_instances
+  let singular = Instance_copy.materialize_instances
       ~transforms:[|Mat4.scaling (Vec3.create 1. 0. 1.)|] source |> get_pdk in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" singular = None
       && Geometry.find_attribute ~owner:Attribute.Vertex "N" singular = None)
@@ -172,13 +188,13 @@ let run () =
 
   let invalid = Mat4.of_rows (Float.nan, 0., 0., 0.) (0., 1., 0., 0.)
       (0., 0., 1., 0.) (0., 0., 0., 1.) in
-  (match Ops.materialize_instances ~transforms:[|invalid|] source with
+  (match Instance_copy.materialize_instances ~transforms:[|invalid|] source with
    | Error error when Error.code error = "invalid_parameter" -> ()
    | _ -> fail "non-finite instance transform was accepted");
 
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Ops.materialize_instances ~cancel:cancelled
+  (match Instance_copy.materialize_instances ~cancel:cancelled
       ~transforms:(transforms 10_000) source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled instance materialization published geometry");
@@ -186,7 +202,7 @@ let run () =
   let triangle = Line_geometry.polyline_checked ~closed:true
       [|(0., 0., 0.); (1., 0., 0.); (0., 1., 0.)|] |> get_pdk in
   let scale_count = 100_000 in
-  let scaled = Ops.materialize_instances ~grain:2_048
+  let scaled = Instance_copy.materialize_instances ~grain:2_048
       ~transforms:(Array.make scale_count Mat4.identity) triangle |> get_pdk in
   check (Geometry.point_count scaled = scale_count * 3
       && Geometry.vertex_count scaled = scale_count * 3

@@ -3,7 +3,7 @@
   "baseline_plan_sha256": "6f95e5738ae263386bbc414299f598f25ba9f604b48a8c2ef9bee84f974e2954",
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 113,
+  "module_count": 114,
   "modules": [
     {
       "api_sha256": "e50b68fb8b3efb8c3f48d288c797a83690511ce38a332e2c2285c788efd781ad",
@@ -213,13 +213,22 @@
       "source_sha256": "42613303db49fa0460ef215b59454f0c3e307a980ac7c905f9b447947afcd0d3"
     },
     {
-      "api_sha256": "ed37fca8fe63e63b207e3d1c871464991f8d5e9bc30f4090cc6595205c4b88b4",
+      "api_sha256": "9d9781a40a7df375343497fc7d31465535102d4bb567d180b200e2135454cae5",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Group_ops",
       "source": "lib/pdk/attrib/group_ops.mli",
-      "source_bytes": 27044,
-      "source_sha256": "6f4dade1a6e33df0eb1437c88f3f8351694e2503c6202aa4a0ce968549594420"
+      "source_bytes": 27772,
+      "source_sha256": "3eff06f7b3d0fa6076f1be08ea8cbb003ab2ecf49d1d05e626414a40bbc7b482"
+    },
+    {
+      "api_sha256": "c7508684270c179c88ae16124508533eecf5157ebce2a9c962746020870393f0",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Instance_copy",
+      "source": "lib/pdk/mesh/instance_copy.mli",
+      "source_bytes": 1731,
+      "source_sha256": "fc3c13766b5b62a67aa4a465eb12477e1b5a6939e110a472264552ec25aabaa8"
     },
     {
       "api_sha256": "3decfa0a95739ec44c2802086766965acabaf16fdc89cc58618dc52ad0d6d761",
@@ -276,13 +285,13 @@
       "source_sha256": "783f2a8cb8d44e94a2fe14b57d38a3089600f911da55902a40a5925dc5fe50f7"
     },
     {
-      "api_sha256": "5123af99b26f30637407d5515e16fbe29319389ccf479b37af2e06e93997ce26",
+      "api_sha256": "ff654b62b2c04565fa6c6468419489c4eaeba6f453c0893393e7c5b98908c2ad",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Ops",
       "source": "lib/pdk/mesh/ops.mli",
-      "source_bytes": 213583,
-      "source_sha256": "a934dca397f613a02d59d03c6312f69e3b5fa41e964babfa877aaa799ea7c13a"
+      "source_bytes": 213706,
+      "source_sha256": "ba50dcd51341b46a94ecc6e7869d645220678ebaf9d6ffa2bab5610f9952a9dc"
     },
     {
       "api_sha256": "3ba66ff65661ee6b11ba869bb145c0a7cbfef9f6e1c77749e246c0ece72ae1af",
@@ -901,13 +910,13 @@
       "source_sha256": "83afa2e5b95fc2188298d383ada3f628368e0dba3aa1f7ac67738f4086cfee52"
     },
     {
-      "api_sha256": "19e078f4102a3bbb38ab48dfca51e0959acb6dc672bbe043c461c5b176d20335",
+      "api_sha256": "4116c26dd326ae6ae149cc6f7b3eab08fc96e0bcef46a61815a81fe2e4dff47c",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Sop",
       "source": "lib/procedural/sop.mli",
-      "source_bytes": 99441,
-      "source_sha256": "57019927fcbab5a9ccaf5e9f1234beec7e0cb9b0ec12cbae78f1ef677c690314"
+      "source_bytes": 99461,
+      "source_sha256": "ebd3a95247858150f064d589aa3f72030c5bce10ebacc3a733c03932d325364e"
     },
     {
       "api_sha256": "a07dc249d7631da8b4e38fe93e9e43898cdc8cec6e30be0a7c921a086e386fba",

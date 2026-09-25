@@ -959,12 +959,12 @@ val edge_transport_parent :
    output remains in target-major order.
    Ordered [target_attributes] use last-match-wins patterns to broadcast
    matching target point attributes and groups onto copied point, vertex, or
-   primitive owners. [Pdk.Ops.Copy_target_nothing] cancels an earlier match;
+   primitive owners. [Pdk.Instance_copy.Copy_target_nothing] cancels an earlier match;
    group arithmetic is intersection, union, and subtraction. *)
 val copy_to_points :
   ?label:string -> ?source_group:string -> ?target_group:string ->
   ?piece_attribute:string ->
-  ?target_attributes:Pdk.Ops.copy_target_attribute_rule list ->
+  ?target_attributes:Pdk.Instance_copy.copy_target_attribute_rule list ->
   source:Node.t -> targets:Node.t -> unit -> Node.t
 val duplicate :
   ?label:string -> ?copies:int -> ?cumulative:bool ->
