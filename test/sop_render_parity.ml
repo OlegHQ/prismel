@@ -2,7 +2,7 @@ open Prismel
 open Procedural
 
 let grid () = Sop.grid ~columns:8 ~rows:6 ~size:2. ()
-let box () = Sop.box ~connectivity:Pdk.Ops.Box_quads
+let box () = Sop.box ~connectivity:Pdk.Box_generator.Box_quads
     ~consolidate_points:true ~size:(Vec3.create 1.8 1.8 1.8) ()
 let torus () = Pdk.Ops.torus ~connectivity:Pdk.Ops.Torus_alternating_triangles
     ~rows:16 ~columns:12 ~major_radius:1. ~minor_radius:0.3 ()
@@ -30,7 +30,7 @@ let signal_curve () =
   |> Result.get_ok |> Sop.snapshot
 
 let rewire_source () =
-  let geometry = Pdk.Ops.grid ~connectivity:Pdk.Ops.Grid_quads
+  let geometry = Pdk.Plane_generators.grid_checked ~connectivity:Pdk.Plane_generators.Grid_quads
       ~columns:3 ~rows:3 ~size:2. () |> Result.get_ok in
   let targets = Array.init (Pdk.Geometry.point_count geometry)
       (fun point -> if point = 0 then 1 else -1) in
@@ -74,7 +74,7 @@ let rows = [
     point_attribute "laplacian";
   "attribute_mirror", (fun () ->
     grid () |> Sop.set_color ~owner:Pdk.Attribute.Point Color.red
-    |> Sop.attribute_mirror ~owner:Pdk.Ops.Mirror_point_attributes
+    |> Sop.attribute_mirror ~owner:Pdk.Attribute_mirror.Mirror_point_attributes
          ~attributes:"Cd"
          ~method_:(Sop.Attribute_mirror_plane {
            origin=Vec3.zero; normal=Vec3.unit_x; distance=0.; tolerance=1e-10 })),
@@ -140,7 +140,7 @@ let rows = [
     box () |> Sop.bend ~length:2. ~bend_angle:0.5
     |> Sop.set_color ~owner:Pdk.Attribute.Point Color.blue), nonempty;
   "remesh", (fun () ->
-    Sop.box ~connectivity:Pdk.Ops.Box_triangles
+    Sop.box ~connectivity:Pdk.Box_generator.Box_triangles
       ~consolidate_points:true ()
     |> Sop.remesh ~target_length:0.5 ~iterations:1 ~project:true
       ~output_quality:"quality"), primitive_attribute "quality";

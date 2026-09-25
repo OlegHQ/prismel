@@ -6,11 +6,11 @@ module Box : sig
   val create :
     ?label:string ->
     ?size:Prismel.Vec3.t ->
-    ?connectivity:Pdk.Ops.box_connectivity ->
+    ?connectivity:Pdk.Box_generator.box_connectivity ->
     ?consolidate_points:bool ->
-    ?normals:Pdk.Ops.box_normals ->
+    ?normals:Pdk.Box_generator.box_normals ->
     ?center:Prismel.Vec3.t -> ?rotation:Prismel.Vec3.t ->
-    ?rotation_order:Pdk.Ops.box_rotation_order -> ?uniform_scale:float ->
+    ?rotation_order:Pdk.Box_generator.box_rotation_order -> ?uniform_scale:float ->
     ?x_divisions:int -> ?y_divisions:int -> ?z_divisions:int ->
     ?uv_attribute:string -> ?face_groups:string ->
     unit -> Procedural.Node.t
@@ -41,7 +41,7 @@ end
 
 module Line : sig
   val create :
-    ?label:string -> ?kind:Pdk.Ops.line_kind -> ?points:int ->
+    ?label:string -> ?kind:Pdk.Line_geometry.kind -> ?points:int ->
     ?origin:Prismel.Vec3.t -> ?direction:Prismel.Vec3.t -> ?length:float ->
     unit -> Procedural.Node.t
 end
@@ -53,9 +53,9 @@ end
 module Grid : sig
   val create :
     ?label:string ->
-    ?counts:Pdk.Ops.grid_counts ->
-    ?connectivity:Pdk.Ops.grid_connectivity ->
-    ?orientation:Pdk.Ops.grid_orientation ->
+    ?counts:Pdk.Plane_generators.grid_counts ->
+    ?connectivity:Pdk.Plane_generators.grid_connectivity ->
+    ?orientation:Pdk.Plane_generators.grid_orientation ->
     ?center:Prismel.Vec3.t -> ?width:float -> ?height:float ->
     ?rotation:float -> ?uv_attribute:string ->
     columns:int -> rows:int -> size:float -> unit -> Procedural.Node.t
@@ -222,8 +222,8 @@ module Snap_to_grid : sig
     ?label:string -> ?group:string -> ?spacing:Prismel.Vec3.t ->
     ?offset:Prismel.Vec3.t -> ?rounding:Pdk.Ops.grid_rounding ->
     ?max_distance:float -> ?fuse_points:bool ->
-    ?position:Pdk.Ops.fuse_position -> ?weight_attribute:string ->
-    ?attributes:Pdk.Ops.fuse_attributes -> ?snapped_group:string ->
+    ?position:Pdk.Fuse_reduce.position -> ?weight_attribute:string ->
+    ?attributes:Pdk.Fuse_reduce.attributes -> ?snapped_group:string ->
     Procedural.Node.t -> Procedural.Node.t
 end
 
@@ -737,7 +737,7 @@ end
 module Normal : sig
   val create :
     ?label:string -> ?owner:Pdk.Attribute.owner ->
-    ?weighting:Pdk.Ops.normal_weighting -> ?cusp_angle:float ->
+    ?weighting:Pdk.Normal_ops.weighting -> ?cusp_angle:float ->
     ?keep_original_zero:bool -> ?reverse:bool -> ?attribute:string ->
     Procedural.Node.t -> Procedural.Node.t
 end

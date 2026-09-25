@@ -178,7 +178,7 @@ let check_open_sweeps_caps_and_bridge () =
         && uv.y.(vertex) >= 0. && uv.y.(vertex) <= 1.)
       "capped Torus emitted invalid vertex normal/UV"
   done;
-  let mesh = Prismel_mesh.to_mesh quads |> get_ok in
+  let mesh = Pdk_prismel.Prismel_mesh.to_mesh quads |> get_ok in
   check (Mesh.index_count mesh > 0 && Mesh.normals mesh <> []
       && Mesh.tex_coords mesh <> [])
     "capped Torus failed terminal mesh conversion";

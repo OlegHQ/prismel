@@ -15,7 +15,7 @@ let cook session node = match Session.cook session
 
 let run () =
   let source = Sop_catalog.Box.create ~label:"box"
-      ~size:(Vec3.create 2. 2. 2.) ~connectivity:Pdk.Ops.Box_quads
+      ~size:(Vec3.create 2. 2. 2.) ~connectivity:Pdk.Box_generator.Box_quads
       ~consolidate_points:true () in
   let ordinary_chain = source
     |> Sop_catalog.Transform.create ~label:"transform"

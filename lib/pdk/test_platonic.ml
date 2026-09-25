@@ -182,7 +182,7 @@ let check_normals_groups_colors_and_bridge () =
        check (Group.cardinality pentagons = 12 && Group.cardinality hexagons = 20)
          "soccer-ball face groups"
    | _ -> fail "soccer-ball face groups are missing");
-  let mesh = Prismel_mesh.to_mesh soccer |> get_ok in
+  let mesh = Pdk_prismel.Prismel_mesh.to_mesh soccer |> get_ok in
   check (Mesh.index_count mesh = 348 && Mesh.normals mesh <> [])
     "soccer ball failed terminal triangulation"
 

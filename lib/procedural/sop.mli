@@ -36,15 +36,15 @@ val point_generate_origin :
   points:int ->
   unit -> Node.t
 val line :
-  ?label:string -> ?kind:Pdk.Ops.line_kind -> ?points:int ->
+  ?label:string -> ?kind:Pdk.Line_geometry.kind -> ?points:int ->
   origin:Prismel.Vec3.t -> direction:Prismel.Vec3.t -> length:float -> unit ->
   Node.t
 val polyline :
   ?label:string -> ?closed:bool -> (float * float * float) array -> Node.t
 val circle :
   ?label:string ->
-  ?arc:Pdk.Ops.circle_arc ->
-  ?orientation:Pdk.Ops.circle_orientation ->
+  ?arc:Pdk.Plane_generators.circle_arc ->
+  ?orientation:Pdk.Plane_generators.circle_orientation ->
   ?reverse:bool ->
   ?center:Prismel.Vec3.t ->
   ?radius_x:float ->
@@ -61,9 +61,9 @@ val circle :
     parameters. *)
 val grid :
   ?label:string ->
-  ?counts:Pdk.Ops.grid_counts ->
-  ?connectivity:Pdk.Ops.grid_connectivity ->
-  ?orientation:Pdk.Ops.grid_orientation ->
+  ?counts:Pdk.Plane_generators.grid_counts ->
+  ?connectivity:Pdk.Plane_generators.grid_connectivity ->
+  ?orientation:Pdk.Plane_generators.grid_orientation ->
   ?center:Prismel.Vec3.t ->
   ?width:float ->
   ?height:float ->
@@ -73,12 +73,12 @@ val grid :
 val box :
   ?label:string ->
   ?size:Prismel.Vec3.t ->
-  ?connectivity:Pdk.Ops.box_connectivity ->
+  ?connectivity:Pdk.Box_generator.box_connectivity ->
   ?consolidate_points:bool ->
-  ?normals:Pdk.Ops.box_normals ->
+  ?normals:Pdk.Box_generator.box_normals ->
   ?center:Prismel.Vec3.t ->
   ?rotation:Prismel.Vec3.t ->
-  ?rotation_order:Pdk.Ops.box_rotation_order ->
+  ?rotation_order:Pdk.Box_generator.box_rotation_order ->
   ?uniform_scale:float ->
   ?x_divisions:int ->
   ?y_divisions:int ->
@@ -91,14 +91,14 @@ val box :
    of the node's stable cache identity. *)
 val uv_sphere :
   ?label:string ->
-  ?connectivity:Pdk.Ops.sphere_connectivity ->
+  ?connectivity:Pdk.Uv_sphere.sphere_connectivity ->
   ?unique_points_per_pole:bool ->
   ?triangular_poles:bool ->
-  ?normals:Pdk.Ops.sphere_normals ->
-  ?orientation:Pdk.Ops.sphere_orientation ->
+  ?normals:Pdk.Uv_sphere.sphere_normals ->
+  ?orientation:Pdk.Uv_sphere.sphere_orientation ->
   ?center:Prismel.Vec3.t ->
   ?rotation:Prismel.Vec3.t ->
-  ?rotation_order:Pdk.Ops.sphere_rotation_order ->
+  ?rotation_order:Pdk.Uv_sphere.sphere_rotation_order ->
   ?uniform_scale:float ->
   ?radius_x:float ->
   ?radius_y:float ->
@@ -179,20 +179,20 @@ val platonic :
 
 val spiral :
   ?label:string ->
-  ?extent:Pdk.Ops.spiral_extent ->
-  ?radius:Pdk.Ops.spiral_radius ->
+  ?extent:Pdk.Spiral.extent ->
+  ?radius:Pdk.Spiral.radius ->
   ?height_ramp:(float * float) list ->
   ?radius_scale:float ->
   ?radius_ramp:(float * float) list ->
-  ?direction:Pdk.Ops.spiral_direction ->
+  ?direction:Pdk.Spiral.direction ->
   ?start_angle:float ->
-  ?divisions:Pdk.Ops.spiral_divisions ->
+  ?divisions:Pdk.Spiral.divisions ->
   ?uniform_angle:bool ->
   ?spiral_count:int ->
-  ?orientation:Pdk.Ops.spiral_orientation ->
+  ?orientation:Pdk.Spiral.orientation ->
   ?center:Prismel.Vec3.t ->
   ?rotation:Prismel.Vec3.t ->
-  ?rotation_order:Pdk.Ops.spiral_rotation_order ->
+  ?rotation_order:Pdk.Spiral.rotation_order ->
   ?uniform_scale:float ->
   ?angle_attribute:string ->
   ?x_axis_attribute:string ->
@@ -333,11 +333,11 @@ val fuse :
   ?targeting:Pdk.Ops.fuse_targeting ->
   ?using:Pdk.Ops.fuse_using ->
   ?tolerance:float ->
-  ?position:Pdk.Ops.fuse_position ->
+  ?position:Pdk.Fuse_reduce.position ->
   ?weight_attribute:string ->
-  ?attributes:Pdk.Ops.fuse_attributes ->
-  ?attribute_rules:Pdk.Ops.fuse_attribute_rule list ->
-  ?group_rules:Pdk.Ops.fuse_group_rule list ->
+  ?attributes:Pdk.Fuse_reduce.attributes ->
+  ?attribute_rules:Pdk.Fuse_reduce.attribute_rule list ->
+  ?group_rules:Pdk.Fuse_reduce.group_rule list ->
   ?metric:Pdk.Ops.fuse_metric ->
   ?inclusive:bool ->
   ?match_attributes:bool ->
@@ -363,11 +363,11 @@ val snap_to_grid :
   ?rounding:Pdk.Ops.grid_rounding ->
   ?max_distance:float ->
   ?fuse_points:bool ->
-  ?position:Pdk.Ops.fuse_position ->
+  ?position:Pdk.Fuse_reduce.position ->
   ?weight_attribute:string ->
-  ?attributes:Pdk.Ops.fuse_attributes ->
-  ?attribute_rules:Pdk.Ops.fuse_attribute_rule list ->
-  ?group_rules:Pdk.Ops.fuse_group_rule list ->
+  ?attributes:Pdk.Fuse_reduce.attributes ->
+  ?attribute_rules:Pdk.Fuse_reduce.attribute_rule list ->
+  ?group_rules:Pdk.Fuse_reduce.group_rule list ->
   ?snapped_group:string ->
   Node.t -> Node.t
 (* Snap a named point group, or every point, to a deterministic axis-aligned
@@ -560,7 +560,7 @@ val edge_collapse :
   ?label:string ->
   ?group:string ->
   ?connectivity_attribute:string ->
-  ?position:Pdk.Ops.fuse_position ->
+  ?position:Pdk.Fuse_reduce.position ->
   ?remove_degenerate_primitives:bool ->
   ?recompute_point_normals:bool ->
   Node.t -> Node.t
@@ -571,8 +571,8 @@ val edge_collapse :
 val dissolve :
   ?label:string ->
   ?group:string ->
-  ?operation:Pdk.Ops.dissolve_operation ->
-  ?bridge_policy:Pdk.Ops.dissolve_bridge_policy ->
+  ?operation:Pdk.Dissolve.operation ->
+  ?bridge_policy:Pdk.Dissolve.bridge_policy ->
   ?remove_inline_points:bool ->
   ?collinearity_tolerance:float ->
   ?remove_unused_points:bool ->
@@ -629,7 +629,7 @@ val point_generate :
   ?source_index_attribute:string ->
   ?copy_point_attributes:string ->
   ?copy_detail_attributes:string ->
-  mode:Pdk.Ops.point_generate_mode ->
+  mode:Pdk.Point_generate.mode ->
   Node.t -> Node.t
 (* Generate shaped deterministic point clouds around selected input points.
    Built-in and optional custom point-cloud shapes use the standard packed
@@ -810,7 +810,7 @@ val edge_relax :
 type blend_shape
 val blend_shape :
   ?mask_attribute:string ->
-  ?mask_source:Pdk.Ops.blend_shape_mask_source ->
+  ?mask_source:Pdk.Blend_shapes.mask_source ->
   weight:float ->
   Node.t ->
   blend_shape
@@ -821,8 +821,8 @@ val blend_shape :
 val blend_shapes :
   ?label:string ->
   ?point_group:string ->
-  ?mode:Pdk.Ops.blend_shapes_mode ->
-  ?masking:Pdk.Ops.blend_shapes_masking ->
+  ?mode:Pdk.Blend_shapes.mode ->
+  ?masking:Pdk.Blend_shapes.masking ->
   ?mask_attribute:string ->
   ?point_id_attribute:string ->
   ?attributes:string ->
@@ -835,7 +835,7 @@ val attribute_composite_input :
    input using its finite global weight. *)
 val attribute_composite :
   ?label:string ->
-  ?operation:Pdk.Ops.attribute_composite_operation ->
+  ?operation:Pdk.Attribute_composite.operation ->
   ?weight:float ->
   ?detail_attributes:string ->
   ?primitive_attributes:string ->
@@ -868,14 +868,14 @@ type attribute_mirror_method =
 val attribute_mirror :
   ?label:string ->
   ?group:string ->
-  ?group_use:Pdk.Ops.attribute_mirror_group_use ->
+  ?group_use:Pdk.Attribute_mirror.group_use ->
   ?attributes:string ->
-  ?transform:Pdk.Ops.attribute_mirror_transform ->
+  ?transform:Pdk.Attribute_mirror.transform ->
   ?string_replace:(string * string) ->
   ?output_mapping:string ->
   ?source_group:string ->
   ?destination_group:string ->
-  owner:Pdk.Ops.attribute_mirror_owner ->
+  owner:Pdk.Attribute_mirror.owner ->
   method_:attribute_mirror_method ->
   Node.t -> Node.t
 
@@ -1189,7 +1189,7 @@ val normals :
   ?label:string ->
   ?selection:element_group ->
   ?owner:Pdk.Attribute.owner ->
-  ?weighting:Pdk.Ops.normal_weighting ->
+  ?weighting:Pdk.Normal_ops.weighting ->
   ?cusp_angle:float ->
   ?keep_original_zero:bool ->
   ?reverse:bool ->
@@ -1522,7 +1522,7 @@ val revolve :
   ?label:string ->
   ?group:string ->
   ?revolve_type:Pdk.Ops.revolve_type ->
-  ?connectivity:Pdk.Ops.grid_connectivity ->
+  ?connectivity:Pdk.Plane_generators.grid_connectivity ->
   ?start_angle:float ->
   ?end_angle:float ->
   ?reverse_cross_sections:bool ->
@@ -1539,7 +1539,7 @@ val sweep :
   ?label:string ->
   ?backbone_group:string ->
   ?cross_section_group:string ->
-  ?connectivity:Pdk.Ops.grid_connectivity ->
+  ?connectivity:Pdk.Plane_generators.grid_connectivity ->
   ?tangent:Pdk.Ops.sweep_tangent ->
   ?continuous_closed:bool ->
   ?transform_attributes:bool ->
@@ -1654,12 +1654,12 @@ val group_edges :
     point-sharing primitive expansion follow the PDK boundary contract. *)
 val group_from_attribute_boundary :
   ?label:string ->
-  ?attributes:Pdk.Ops.group_boundary_attribute list ->
+  ?attributes:Pdk.Group_ops.boundary_attribute list ->
   ?tolerance:float ->
   ?include_unshared_edges:bool ->
   ?include_all_unshared_curve_edges:bool ->
   ?include_all_primitives_sharing_boundary_points:bool ->
-  owner:Pdk.Ops.group_owner ->
+  owner:Pdk.Group_ops.owner ->
   name:string ->
   Node.t -> Node.t
 (* Create bounded, stable point or primitive groups from distinct non-empty
@@ -1668,8 +1668,8 @@ val group_from_attribute_boundary :
 val groups_from_name :
   ?label:string ->
   ?prefix:string ->
-  ?conflict:Pdk.Ops.group_name_conflict ->
-  ?invalid_names:Pdk.Ops.invalid_group_name_policy ->
+  ?conflict:Pdk.Group_ops.name_conflict ->
+  ?invalid_names:Pdk.Group_ops.invalid_name_policy ->
   ?max_groups:int ->
   ?max_payload_bytes:int ->
   owner:Pdk.Attribute.owner ->
@@ -1683,7 +1683,7 @@ val name_from_groups :
   ?attribute:string ->
   ?pattern:string ->
   ?default:string ->
-  ?overlap:Pdk.Ops.group_name_overlap ->
+  ?overlap:Pdk.Group_ops.name_overlap ->
   ?delete_groups:bool ->
   owner:Pdk.Attribute.owner ->
   Node.t -> Node.t
@@ -2085,9 +2085,9 @@ val group_random :
   ?seed:int ->
   ?seed_attribute:string ->
   ?base:string ->
-  ?merge:Pdk.Ops.group_boolean_operation ->
+  ?merge:Pdk.Group_ops.boolean_operation ->
   probability:float ->
-  owner:Pdk.Ops.group_owner ->
+  owner:Pdk.Group_ops.owner ->
   name:string ->
   Node.t -> Node.t
 (** Deterministic random point, vertex, primitive, or native-edge grouping.
@@ -2097,10 +2097,10 @@ val group_random :
 val group_bounds :
   ?label:string ->
   ?base:string ->
-  ?containment:Pdk.Ops.group_containment ->
-  ?merge:Pdk.Ops.group_boolean_operation ->
-  Pdk.Ops.group_bounds ->
-  owner:Pdk.Ops.group_owner ->
+  ?containment:Pdk.Group_ops.containment ->
+  ?merge:Pdk.Group_ops.boolean_operation ->
+  Pdk.Group_ops.bounds ->
+  owner:Pdk.Group_ops.owner ->
   name:string ->
   Node.t -> Node.t
 (** Inclusive box/sphere grouping for all four topology owners. Partial native
@@ -2112,10 +2112,10 @@ val group_normal :
   ?use_existing_normal:bool ->
   ?base:string ->
   ?include_opposite:bool ->
-  ?merge:Pdk.Ops.group_boolean_operation ->
+  ?merge:Pdk.Group_ops.boolean_operation ->
   direction:Prismel.Vec3.t ->
   spread_angle:float ->
-  owner:Pdk.Ops.group_owner ->
+  owner:Pdk.Group_ops.owner ->
   name:string ->
   Node.t -> Node.t
 (** Deterministic packed grouping by geometric or owner-matched float3
@@ -2126,7 +2126,7 @@ val group_normal :
 val group_non_planar :
   ?label:string ->
   ?base:string ->
-  ?merge:Pdk.Ops.group_boolean_operation ->
+  ?merge:Pdk.Group_ops.boolean_operation ->
   tolerance:float ->
   name:string ->
   Node.t -> Node.t
@@ -2137,7 +2137,7 @@ val group_non_planar :
 val group_backface :
   ?label:string ->
   ?base:string ->
-  ?merge:Pdk.Ops.group_boolean_operation ->
+  ?merge:Pdk.Group_ops.boolean_operation ->
   viewpoint:Prismel.Vec3.t ->
   name:string ->
   Node.t -> Node.t
@@ -2146,7 +2146,7 @@ val group_backface :
 
 val group_edge_depth :
   ?label:string ->
-  ?merge:Pdk.Ops.group_boolean_operation ->
+  ?merge:Pdk.Group_ops.boolean_operation ->
   depth:int ->
   point_group:string ->
   name:string ->
@@ -2155,8 +2155,8 @@ val group_edge_depth :
 
 val group_unshared :
   ?label:string ->
-  ?merge:Pdk.Ops.group_boolean_operation ->
-  owner:Pdk.Ops.group_owner ->
+  ?merge:Pdk.Group_ops.boolean_operation ->
+  owner:Pdk.Group_ops.owner ->
   name:string ->
   Node.t -> Node.t
 (** Select points, primitives, or native edges incident to unshared topology. *)
@@ -2164,7 +2164,7 @@ val group_unshared :
 val group_boundary_components :
   ?label:string ->
   ?prefix:string ->
-  ?conflict:Pdk.Ops.group_name_conflict ->
+  ?conflict:Pdk.Group_ops.name_conflict ->
   ?max_groups:int ->
   ?max_payload_bytes:int ->
   Node.t -> Node.t
@@ -2180,7 +2180,7 @@ val group_promotions :
   ?label:string ->
   ?max_outputs:int ->
   ?max_payload_bytes:int ->
-  Pdk.Ops.group_promotion_rule list ->
+  Pdk.Group_ops.promotion_rule list ->
   Node.t -> Node.t
 (** Apply ordered wildcard ordinary or boundary promotions in one inspectable
     node. Blank-pattern rules are disabled and removed from cache identity.
@@ -2193,13 +2193,13 @@ val group_promote_boundary :
   ?name:string ->
   ?keep_original:bool ->
   ?output_attribute:string ->
-  ?attributes:Pdk.Ops.group_boundary_attribute list ->
+  ?attributes:Pdk.Group_ops.boundary_attribute list ->
   ?tolerance:float ->
   ?include_unshared_edges:bool ->
   ?include_all_unshared_curve_edges:bool ->
   ?include_all_primitives_sharing_boundary_points:bool ->
-  source:Pdk.Ops.group_owner ->
-  destination:Pdk.Ops.group_owner ->
+  source:Pdk.Group_ops.owner ->
+  destination:Pdk.Group_ops.owner ->
   group:string ->
   Node.t -> Node.t
 (** Convert a named group and retain its topology boundary, optionally unioning
@@ -2212,13 +2212,13 @@ val group_expand :
   ?steps:int ->
   ?flood:bool ->
   ?step_attribute:string ->
-  ?primitive_connectivity:Pdk.Ops.primitive_group_connectivity ->
+  ?primitive_connectivity:Pdk.Group_ops.primitive_connectivity ->
   ?normal_spread:float ->
-  ?normal_attribute:Pdk.Ops.group_expand_normal_attribute ->
-  ?connectivity_attributes:Pdk.Ops.group_boundary_attribute list ->
+  ?normal_attribute:Pdk.Group_ops.expand_normal_attribute ->
+  ?connectivity_attributes:Pdk.Group_ops.boundary_attribute list ->
   ?connectivity_tolerance:float ->
-  ?collision:Pdk.Ops.group_expand_collision ->
-  owner:Pdk.Ops.group_owner ->
+  ?collision:Pdk.Group_ops.expand_collision ->
+  owner:Pdk.Group_ops.owner ->
   group:string ->
   Node.t -> Node.t
 (** Grow, shrink, or flood-fill a named group using owner-specific topology
@@ -2235,10 +2235,10 @@ val group_expand :
 
 val group_combine :
   ?label:string ->
-  owner:Pdk.Ops.group_owner ->
+  owner:Pdk.Group_ops.owner ->
   name:string ->
-  base:Pdk.Ops.group_operand ->
-  steps:Pdk.Ops.group_combine_step list ->
+  base:Pdk.Group_ops.operand ->
+  steps:Pdk.Group_ops.combine_step list ->
   Node.t -> Node.t
 (** Boolean-combine named group patterns, including complemented operands,
     into one point, vertex, primitive, or native-edge group. *)
@@ -2247,12 +2247,12 @@ val group_range :
   ?label:string ->
   ?base:string ->
   ?invert:bool ->
-  ?filter:Pdk.Ops.group_range_filter ->
-  ?connectivity:Pdk.Ops.group_range_connectivity ->
-  ?merge:Pdk.Ops.group_boolean_operation ->
-  owner:Pdk.Ops.group_owner ->
+  ?filter:Pdk.Group_ops.range_filter ->
+  ?connectivity:Pdk.Group_ops.range_connectivity ->
+  ?merge:Pdk.Group_ops.boolean_operation ->
+  owner:Pdk.Group_ops.owner ->
   name:string ->
-  Pdk.Ops.group_range ->
+  Pdk.Group_ops.range ->
   Node.t -> Node.t
 (** Create a packed group from an absolute/relative/length/partition range,
     with an optional periodic selection filter and base-group mask. Optional
@@ -2264,7 +2264,7 @@ val group_range :
 
 val group_ranges :
   ?label:string ->
-  Pdk.Ops.group_range_rule list ->
+  Pdk.Group_ops.range_rule list ->
   Node.t -> Node.t
 (** Apply ordered Group Range rules in one inspectable node. Blank-name rules
     are disabled and removed from cache identity. Later rules may use groups
@@ -2273,8 +2273,8 @@ val group_ranges :
 
 val group_invert :
   ?label:string ->
-  ?conflict:Pdk.Ops.group_rename_conflict ->
-  ?owner:Pdk.Ops.group_owner ->
+  ?conflict:Pdk.Group_ops.rename_conflict ->
+  ?owner:Pdk.Group_ops.owner ->
   pattern:string ->
   ?new_name:string ->
   Node.t -> Node.t
@@ -2284,22 +2284,22 @@ val group_invert :
 val group_delete :
   ?label:string ->
   ?delete_unused:bool ->
-  rules:Pdk.Ops.group_delete_rule list ->
+  rules:Pdk.Group_ops.delete_rule list ->
   Node.t -> Node.t
 (** Delete group metadata by ordered owner/name rules without deleting
     geometry elements. *)
 
 val group_rename :
   ?label:string ->
-  rules:Pdk.Ops.group_rename_rule list ->
+  rules:Pdk.Group_ops.rename_rule list ->
   Node.t -> Node.t
 (** Apply sequential wildcard-capture group renames with explicit conflict
     behavior. *)
 
 val group_copy :
   ?label:string ->
-  ?rules:Pdk.Ops.group_copy_rule list ->
-  ?conflict:Pdk.Ops.group_copy_conflict ->
+  ?rules:Pdk.Group_ops.copy_rule list ->
+  ?conflict:Pdk.Group_ops.copy_conflict ->
   ?copy_empty:bool ->
   source:Node.t -> target:Node.t -> unit -> Node.t
 (** Copy group membership from [source] onto [target] by element identity or
@@ -2307,8 +2307,8 @@ val group_copy :
 
 val group_transfer :
   ?label:string ->
-  ?rules:Pdk.Ops.group_transfer_rule list ->
-  ?conflict:Pdk.Ops.group_copy_conflict ->
+  ?rules:Pdk.Group_ops.transfer_rule list ->
+  ?conflict:Pdk.Group_ops.copy_conflict ->
   ?create_empty:bool ->
   ?distance:float ->
   source:Node.t -> target:Node.t -> unit -> Node.t
@@ -2443,8 +2443,8 @@ val custom :
   (context:Context.t -> Pdk.Geometry.t array ->
    (Pdk.Geometry.t, string) result) ->
   Node.t
-(** Define an inspectable custom node from PDK operations or a Geom/Pdk
-    adapter composition. Identity fields and declared context dependencies are
+(** Define an inspectable custom node from PDK operations or their
+    composition. Identity fields and declared context dependencies are
     part of its cache key. The callback may retain immutable geometry values,
     but must not mutate or retain the supplied array. Long work must poll
     [Context.cancel_token]. *)

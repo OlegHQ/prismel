@@ -42,22 +42,22 @@ let graphs () =
     |> Sop.mountain ~seed:222 ~height:0.16
          ~frequency:(Vec3.create 1.2 0.8 1.2) ~octaves:4
     |> Sop.group_random ~seed:221 ~probability:0.1
-         ~owner:Pdk.Ops.Group_points ~name:"growth_seeds"
+         ~owner:Pdk.Group_ops.Group_points ~name:"growth_seeds"
     |> Sop.group_edge_depth ~depth:1 ~point_group:"growth_seeds"
          ~name:"growth_points"
     |> Sop.peak ~selection:(Sop.Point_group "growth_points") ~distance:0.015
          ~recompute_normals:true
     |> Sop.group_random ~seed:223 ~probability:0.42
-         ~owner:Pdk.Ops.Group_primitives ~name:"raised_tiles"
+         ~owner:Pdk.Group_ops.Group_primitives ~name:"raised_tiles"
     |> Sop.group_bounds ~base:"raised_tiles"
-         ~containment:Pdk.Ops.Partially_contained
-         (Pdk.Ops.Bounds_sphere { center = Vec3.zero; radius = 1.35 })
-         ~owner:Pdk.Ops.Group_primitives ~name:"raised_tiles"
+         ~containment:Pdk.Group_ops.Partially_contained
+         (Pdk.Group_ops.Bounds_sphere { center = Vec3.zero; radius = 1.35 })
+         ~owner:Pdk.Group_ops.Group_primitives ~name:"raised_tiles"
     |> Sop.group_normal ~use_existing_normal:false ~base:"raised_tiles"
          ~direction:Vec3.unit_y
-         ~spread_angle:(Float.pi /. 3.) ~owner:Pdk.Ops.Group_primitives
+         ~spread_angle:(Float.pi /. 3.) ~owner:Pdk.Group_ops.Group_primitives
          ~name:"raised_tiles"
-    |> Sop.group_backface ~merge:Pdk.Ops.Group_subtract
+    |> Sop.group_backface ~merge:Pdk.Group_ops.Group_subtract
          ~viewpoint:(Vec3.create 0. 4. 5.) ~name:"raised_tiles"
     |> Sop.peak ~selection:(Sop.Primitive_group "raised_tiles") ~distance:0.04
     |> Sop.poly_extrude ~group:"raised_tiles"
@@ -69,7 +69,7 @@ let graphs () =
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#fb7185")
     |> Sop.transform (Mat4.translation (Vec3.create 1.5 0. 0.))
   and copies =
-    let prototype = Sop.box ~connectivity:Pdk.Ops.Box_quads
+    let prototype = Sop.box ~connectivity:Pdk.Box_generator.Box_quads
         ~consolidate_points:true ~size:(Vec3.create 0.28 0.62 0.2) ()
         |> Sop.facet ~cusp_angle:0.6 ~post_compute_normals:true
         |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#facc15") in
@@ -99,10 +99,10 @@ let graphs () =
     Sop.grid ~columns:4 ~rows:3 ~size:2.4 ()
     |> Sop.enumerate ~owner:Pdk.Attribute.Primitive ~name:"face_id"
     |> Sop.group ~name:"wire_faces" Select.all_primitives
-    |> Sop.group_promote_boundary ~source:Pdk.Ops.Group_primitives
-         ~destination:Pdk.Ops.Group_edges ~group:"wire_faces"
+    |> Sop.group_promote_boundary ~source:Pdk.Group_ops.Group_primitives
+         ~destination:Pdk.Group_ops.Group_edges ~group:"wire_faces"
          ~name:"wire_edges" ~include_unshared_edges:true ~attributes:[{
-           Pdk.Ops.boundary_attribute_owner = Pdk.Attribute.Primitive;
+           Pdk.Group_ops.boundary_attribute_owner = Pdk.Attribute.Primitive;
            boundary_attribute_pattern = "face_id" }]
     |> Sop.convert_line ~group:"wire_edges" ~connect_path:true
          ~maximum_distance:0. ~make_isolated_loops_closed:true
@@ -110,7 +110,7 @@ let graphs () =
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#34d399")
     |> Sop.transform (Mat4.translation (Vec3.create 0. 2.8 (-1.2)))
   and ends_wire =
-    Sop.box ~connectivity:Pdk.Ops.Box_quads ~consolidate_points:true
+    Sop.box ~connectivity:Pdk.Box_generator.Box_quads ~consolidate_points:true
       ~size:(Vec3.create 0.9 0.75 0.8) ()
     |> Sop.ends Pdk.Ops.Ends_unroll_shared
     |> Sop.polywire ~sides:6 ~caps:true ~radius:0.02
@@ -176,8 +176,8 @@ let graphs () =
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#60a5fa")
     |> Sop.transform (Mat4.translation (Vec3.create 0. 3.2 (-2.1)))
   and reduced_terrain =
-    Sop.grid ~counts:Pdk.Ops.Grid_point_counts
-      ~connectivity:Pdk.Ops.Grid_alternating_triangles
+    Sop.grid ~counts:Pdk.Plane_generators.Grid_point_counts
+      ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
       ~columns:48 ~rows:36 ~size:1.8 ()
     |> Sop.mountain ~seed:744 ~height:0.34
          ~frequency:(Vec3.create 2.2 1.1 1.8) ~octaves:5
@@ -198,7 +198,7 @@ let graphs () =
                max = Pdk.Attribute_ops.Scalar 1.;
              })
         |> Sop.group_random ~seed:513 ~probability:0.78
-             ~owner:Pdk.Ops.Group_primitives ~name:"scatter_surface"
+             ~owner:Pdk.Group_ops.Group_primitives ~name:"scatter_surface"
         |> Sop.scatter ~seed:514 ~group:"scatter_surface" ~count:320
              ~density:(Pdk.Ops.scatter_density ~owner:Pdk.Attribute.Point
                "density")
@@ -261,40 +261,40 @@ let graphs () =
     |> Sop.transform (Mat4.translation (Vec3.create (-2.6) 2.2 1.5))
   and grown_patch =
     let source = Sop.grid ~columns:14 ~rows:10 ~size:1.7 ()
-        |> Sop.group_range ~owner:Pdk.Ops.Group_points ~name:"bands"
-             ~connectivity:(Pdk.Ops.Range_disconnected { region = None })
+        |> Sop.group_range ~owner:Pdk.Group_ops.Group_points ~name:"bands"
+             ~connectivity:(Pdk.Group_ops.Range_disconnected { region = None })
              ~filter:{ select = 2; of_ = 9; offset = 1 }
-             (Pdk.Ops.Range_from_ends { start = 4; end_offset = 4 }) in
+             (Pdk.Group_ops.Range_from_ends { start = 4; end_offset = 4 }) in
     let target = Sop.grid ~columns:14 ~rows:10 ~size:1.7 ()
         |> Sop.group ~name:"seed"
              (Select.points_in_bounds ~min:(Vec3.create (-0.12) (-1.) (-0.12))
                 ~max:(Vec3.create 0.12 1. 0.12)) in
     let copied = Sop.group_copy ~source ~target ~rules:[
-      { Pdk.Ops.copy_owner = Pdk.Ops.Group_points; copy_pattern = "bands";
+      { Pdk.Ops.copy_owner = Pdk.Group_ops.Group_points; copy_pattern = "bands";
         copy_prefix = "copied_"; match_attribute = None }] () in
     Sop.group_transfer ~distance:0.001
-      ~rules:[{ Pdk.Ops.transfer_owner = Pdk.Ops.Group_points;
+      ~rules:[{ Pdk.Ops.transfer_owner = Pdk.Group_ops.Group_points;
         transfer_pattern = "bands"; transfer_prefix = "near_" }]
       ~source ~target:copied ()
-    |> Sop.group_combine ~owner:Pdk.Ops.Group_points ~name:"selection"
+    |> Sop.group_combine ~owner:Pdk.Group_ops.Group_points ~name:"selection"
          ~base:{ Pdk.Ops.pattern = "seed"; inverted = false }
-         ~steps:[{ Pdk.Ops.operation = Pdk.Ops.Group_union;
+         ~steps:[{ Pdk.Ops.operation = Pdk.Group_ops.Group_union;
            operand = { pattern = "near_bands"; inverted = false } }]
-    |> Sop.group_expand ~steps:2 ~owner:Pdk.Ops.Group_points ~group:"selection"
-    |> Sop.group_combine ~owner:Pdk.Ops.Group_points ~name:"outside"
+    |> Sop.group_expand ~steps:2 ~owner:Pdk.Group_ops.Group_points ~group:"selection"
+    |> Sop.group_combine ~owner:Pdk.Group_ops.Group_points ~name:"outside"
          ~base:{ Pdk.Ops.pattern = "selection"; inverted = false } ~steps:[]
-    |> Sop.group_invert ~owner:Pdk.Ops.Group_points ~pattern:"outside"
+    |> Sop.group_invert ~owner:Pdk.Group_ops.Group_points ~pattern:"outside"
     |> Sop.group_rename ~rules:[
-         { Pdk.Ops.rename_owner = Some Pdk.Ops.Group_points;
+         { Pdk.Ops.rename_owner = Some Pdk.Group_ops.Group_points;
            rename_pattern = "outside"; rename_replacement = "discard";
-           rename_conflict = Pdk.Ops.Rename_error }]
+           rename_conflict = Pdk.Group_ops.Rename_error }]
     |> Sop.group_delete ~rules:[
-         { Pdk.Ops.delete_owner = Some Pdk.Ops.Group_points;
+         { Pdk.Ops.delete_owner = Some Pdk.Group_ops.Group_points;
            delete_pattern = "discard copied_* near_* seed" }]
-    |> Sop.group_promotions [Pdk.Ops.group_promote_rule
+    |> Sop.group_promotions [Pdk.Group_ops.promotion_rule
          ~keep_original:true ~new_name:"grown_faces"
-         ~mode:Pdk.Ops.Include_shared_edge ~source:Pdk.Ops.Group_points
-         ~destination:Pdk.Ops.Group_primitives ~pattern:"selection" ()]
+         ~mode:Pdk.Group_ops.Include_shared_edge ~source:Pdk.Group_ops.Group_points
+         ~destination:Pdk.Group_ops.Group_primitives ~pattern:"selection" ()]
     |> Sop.peak ~selection:(Sop.Primitive_group "grown_faces") ~distance:0.32
          ~recompute_normals:true
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#a78bfa")
@@ -362,26 +362,26 @@ let graphs () =
          ~target_size:(Vec3.create 1.4 1.9 1.1)
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#2dd4bf")
   and oriented_grid =
-    Sop.grid ~counts:Pdk.Ops.Grid_point_counts
-      ~connectivity:Pdk.Ops.Grid_alternating_triangles
-      ~orientation:(Pdk.Ops.Grid_axes {
+    Sop.grid ~counts:Pdk.Plane_generators.Grid_point_counts
+      ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
+      ~orientation:(Pdk.Plane_generators.Grid_axes {
         horizontal = Vec3.create 1. 0.2 0.4;
         vertical = Vec3.create (-0.3) 1. 0.5 })
       ~center:(Vec3.create 2.8 4.4 0.) ~width:1.4 ~height:0.9
       ~rotation:0.31 ~uv_attribute:"uv" ~columns:12 ~rows:8 ~size:1. ()
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#fb7185")
   and open_ellipse =
-    Sop.circle ~arc:(Pdk.Ops.Circle_open_arc {
+    Sop.circle ~arc:(Pdk.Plane_generators.Circle_open_arc {
         start_angle = -0.6; end_angle = 4.7 })
-      ~orientation:Pdk.Ops.Circle_xy ~reverse:true
+      ~orientation:Pdk.Plane_generators.Circle_xy ~reverse:true
       ~center:(Vec3.create (-2.8) 3.5 (-0.4))
       ~radius_x:0.75 ~radius_y:0.35 ~rotation:0.3
       ~segments:64 ~radius:1. ()
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#38bdf8")
   and sliced_ellipse =
-    Sop.circle ~arc:(Pdk.Ops.Circle_sliced_arc {
+    Sop.circle ~arc:(Pdk.Plane_generators.Circle_sliced_arc {
         start_angle = 0.2; end_angle = 4.9 })
-      ~orientation:(Pdk.Ops.Circle_axes {
+      ~orientation:(Pdk.Plane_generators.Circle_axes {
         horizontal = Vec3.create 1. 0.1 0.25;
         vertical = Vec3.create (-0.2) 1. 0.4 })
       ~center:(Vec3.create 2.8 3.5 0.4)
@@ -389,24 +389,24 @@ let graphs () =
       ~segments:64 ~radius:1. ()
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#a3e635")
   and divided_box =
-    Sop.box ~connectivity:Pdk.Ops.Box_quads ~consolidate_points:true
-      ~normals:Pdk.Ops.Box_vertex_normals
+    Sop.box ~connectivity:Pdk.Box_generator.Box_quads ~consolidate_points:true
+      ~normals:Pdk.Box_generator.Box_vertex_normals
       ~center:(Vec3.create 0. 4.8 (-1.4))
       ~rotation:(Vec3.create 0.25 0.55 0.15)
-      ~rotation_order:Pdk.Ops.Box_yzx
+      ~rotation_order:Pdk.Box_generator.Box_yzx
       ~x_divisions:5 ~y_divisions:4 ~z_divisions:3
       ~uv_attribute:"uv" ~face_groups:"box_face"
       ~size:(Vec3.create 1.2 0.8 0.7) ()
     |> Sop.facet ~unique_points:true ~consolidate_normals_distance:0.
     |> Sop.set_color ~owner:Pdk.Attribute.Point Color.white
   and advanced_sphere =
-    Sop.uv_sphere ~connectivity:Pdk.Ops.Sphere_quads
+    Sop.uv_sphere ~connectivity:Pdk.Uv_sphere.Sphere_quads
       ~unique_points_per_pole:true ~triangular_poles:true
-      ~normals:Pdk.Ops.Sphere_vertex_normals
-      ~orientation:(Pdk.Ops.Sphere_axis (Vec3.create 1. 2. 0.5))
+      ~normals:Pdk.Uv_sphere.Sphere_vertex_normals
+      ~orientation:(Pdk.Uv_sphere.Sphere_axis (Vec3.create 1. 2. 0.5))
       ~center:(Vec3.create 1.7 4.8 (-1.3))
       ~rotation:(Vec3.create 0.2 0.45 0.1)
-      ~rotation_order:Pdk.Ops.Sphere_zxy
+      ~rotation_order:Pdk.Uv_sphere.Sphere_zxy
       ~radius_x:0.65 ~radius_y:0.45 ~radius_z:0.3
       ~uv_attribute:"uv" ~segments:36 ~rings:20 ~radius:1. ()
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#38bdf8")
@@ -442,15 +442,15 @@ let graphs () =
       ~rotation_order:Pdk.Ops.Platonic_xzy ~face_groups:"soccer_face"
       ~radius:0.52 ()
   and spiral_wire =
-    Sop.spiral ~extent:(Pdk.Ops.Spiral_turns { turns = 2.5; height = 1.25 })
-      ~radius:(Pdk.Ops.Spiral_archimedean_end {
+    Sop.spiral ~extent:(Pdk.Spiral.Spiral_turns { turns = 2.5; height = 1.25 })
+      ~radius:(Pdk.Spiral.Spiral_archimedean_end {
         start_radius = 0.12; end_radius = 0.52 })
       ~radius_ramp:[0., 1.; 0.65, 1.15; 1., 0.85]
       ~uniform_angle:false
-      ~orientation:(Pdk.Ops.Spiral_axis (Vec3.create 0.2 1. 0.1))
+      ~orientation:(Pdk.Spiral.Spiral_axis (Vec3.create 0.2 1. 0.1))
       ~center:(Vec3.create 0. 3.5 (-1.4))
       ~rotation:(Vec3.create 0.1 0.25 0.)
-      ~divisions:(Pdk.Ops.Spiral_divisions_per_curve 128)
+      ~divisions:(Pdk.Spiral.Spiral_divisions_per_curve 128)
       ~distance_attribute:"wire_v" ()
     |> Sop.set_vector ~owner:Pdk.Attribute.Point ~name:"wire_up" Vec3.unit_y
     |> Sop.polywire ~sides:8 ~seam_offset:2 ~v_attribute:"wire_v"
@@ -465,8 +465,8 @@ let graphs () =
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#facc15")
     |> Sop.transform (Mat4.translation (Vec3.create 3.1 3.5 1.2))
   and beveled_box =
-    Sop.box ~connectivity:Pdk.Ops.Box_quads ~consolidate_points:true
-      ~normals:Pdk.Ops.Box_no_normals ~size:(Vec3.create 1.1 0.8 0.7) ()
+    Sop.box ~connectivity:Pdk.Box_generator.Box_quads ~consolidate_points:true
+      ~normals:Pdk.Box_generator.Box_no_normals ~size:(Vec3.create 1.1 0.8 0.7) ()
     |> Sop.group_edges ~name:"bevel_edges"
     |> Sop.poly_bevel ~group:"bevel_edges"
          ~shape:(Pdk.Ops.Bevel_round { convexity = 1. }) ~divisions:4
@@ -476,8 +476,8 @@ let graphs () =
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#22d3ee")
     |> Sop.transform (Mat4.translation (Vec3.create (-3.1) 3.5 1.2))
   and creased_box =
-    Sop.box ~connectivity:Pdk.Ops.Box_quads ~consolidate_points:true
-      ~normals:Pdk.Ops.Box_no_normals ~face_groups:"crease_face"
+    Sop.box ~connectivity:Pdk.Box_generator.Box_quads ~consolidate_points:true
+      ~normals:Pdk.Box_generator.Box_no_normals ~face_groups:"crease_face"
       ~size:(Vec3.create 1.05 0.8 0.8) ()
     |> Sop.group_edges ~group:"crease_face__top" ~name:"feature_edges"
     |> Sop.crease ~group:"feature_edges" ~operation:Pdk.Ops.Crease_set
@@ -514,8 +514,8 @@ let graphs () =
     |> Sop.transform (Mat4.translation (Vec3.create (-2.8) 6.0 (-1.2)))
   and separated_pieces =
     let piece id color x =
-      Sop.box ~connectivity:Pdk.Ops.Box_quads ~consolidate_points:true
-        ~normals:Pdk.Ops.Box_vertex_normals
+      Sop.box ~connectivity:Pdk.Box_generator.Box_quads ~consolidate_points:true
+        ~normals:Pdk.Box_generator.Box_vertex_normals
         ~size:(Vec3.create 0.48 0.48 0.48) ()
       |> Sop.transform (Mat4.translation (Vec3.create x 0. 0.))
       |> Sop.set_int ~owner:Pdk.Attribute.Primitive ~name:"piece" id
@@ -578,7 +578,7 @@ let graphs () =
         |> Sop.bend ~length:1.25 ~bend_angle:1.1
         |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#22d3ee") in
     source
-    |> Sop.attribute_composite ~operation:Pdk.Ops.Composite_mean ~weight:0.42
+    |> Sop.attribute_composite ~operation:Pdk.Attribute_composite.Composite_mean ~weight:0.42
          ~point_attributes:"P Cd" ~allow_position:true
          ~vertex_attributes:"^*" ~primitive_attributes:"^*"
          ~detail_attributes:"^*"
@@ -586,7 +586,7 @@ let graphs () =
     |> Sop.normals ~owner:Pdk.Attribute.Vertex
     |> Sop.transform (Mat4.translation (Vec3.create 1.4 6.0 (-1.2)))
   and mirrored_panel =
-    let geometry = Pdk.Ops.grid ~connectivity:Pdk.Ops.Grid_quads
+    let geometry = Pdk.Plane_generators.grid_checked ~connectivity:Pdk.Plane_generators.Grid_quads
         ~columns:18 ~rows:12 ~size:1.25 () |> Result.get_ok in
     let positions = Pdk.Packed.Float3.Private.view
         (Pdk.Geometry.positions geometry) in
@@ -605,7 +605,7 @@ let graphs () =
         (Pdk.Attribute.Float4 color) |> Result.get_ok in
     Pdk.Geometry.with_attribute color geometry |> Result.get_ok
     |> Sop.snapshot
-    |> Sop.attribute_mirror ~owner:Pdk.Ops.Mirror_point_attributes
+    |> Sop.attribute_mirror ~owner:Pdk.Attribute_mirror.Mirror_point_attributes
          ~method_:(Sop.Attribute_mirror_plane {
            origin = Vec3.zero; normal = Vec3.unit_x;
            distance = 0.; tolerance = 1e-10 })
@@ -615,8 +615,8 @@ let graphs () =
     |> Sop.transform (Mat4.translation (Vec3.create (-1.4) 6.0 (-1.2)))
   and rewired_panel =
     let columns = 18 and rows = 12 in
-    let geometry = Pdk.Ops.grid
-        ~connectivity:Pdk.Ops.Grid_alternating_triangles
+    let geometry = Pdk.Plane_generators.grid_checked
+        ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
         ~columns ~rows ~size:1.25 () |> Result.get_ok in
     let point_count = Pdk.Geometry.point_count geometry
     and width = columns + 1 in
@@ -638,8 +638,8 @@ let graphs () =
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#2dd4bf")
     |> Sop.transform (Mat4.translation (Vec3.create (-4.2) 6.0 (-1.2)))
   and split_box =
-    Sop.box ~connectivity:Pdk.Ops.Box_quads ~consolidate_points:true
-      ~normals:Pdk.Ops.Box_vertex_normals
+    Sop.box ~connectivity:Pdk.Box_generator.Box_quads ~consolidate_points:true
+      ~normals:Pdk.Box_generator.Box_vertex_normals
       ~face_groups:"split_face"
       ~size:(Vec3.create 0.9 0.7 0.8) ()
     |> Sop.point_split ~attributes:"N split_face_*" ~promote_attributes:true
@@ -647,7 +647,7 @@ let graphs () =
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#fb7185")
     |> Sop.transform (Mat4.translation (Vec3.create (-1.55) 3.5 1.2))
   and emitted_copies =
-    let prototype = Sop.box ~connectivity:Pdk.Ops.Box_quads
+    let prototype = Sop.box ~connectivity:Pdk.Box_generator.Box_quads
         ~consolidate_points:true ~size:(Vec3.create 0.09 0.09 0.09) ()
         |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#a3e635") in
     let targets = Sop.points [|(-0.55, 0., 0.); (0., 0.2, 0.15);

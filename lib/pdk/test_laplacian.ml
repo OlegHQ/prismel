@@ -29,7 +29,7 @@ let float3 name geometry =
   | None -> fail (name ^ " is missing")
 
 let grid ?(size = 2.) () =
-  Ops.grid ~connectivity:Ops.Grid_quads ~columns:2 ~rows:2 ~size () |> get
+  Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:2 ~rows:2 ~size () |> get
 
 let degenerate_triangle () =
   let positions = Packed.Float3.Private.of_owned_exn
@@ -107,7 +107,7 @@ let test_uniform_and_integrated () =
     "integrated cotangent Laplacian did not retain a finite negative impulse"
 
 let test_position_scale_and_storage () =
-  let source = Ops.uv_sphere ~connectivity:Ops.Sphere_triangles
+  let source = Uv_sphere.run_checked ~connectivity:Uv_sphere.Sphere_triangles
       ~segments:32 ~rings:16 ~radius:1. () |> get in
   let position = Ops.attribute_laplacian ~source:"P" source |> get in
   let values = float3 "laplacian" position in
@@ -163,7 +163,7 @@ let test_selection_and_exact_domains () =
   check (Geometry.topology output == Geometry.topology source
       && Geometry.positions output == Geometry.positions source)
     "Laplacian did not structurally share topology and positions";
-  let sphere = Ops.uv_sphere ~connectivity:Ops.Sphere_triangles
+  let sphere = Uv_sphere.run_checked ~connectivity:Uv_sphere.Sphere_triangles
       ~segments:192 ~rings:96 ~radius:3. () |> get in
   let run domains weighting = Parallel.run ~domains (fun () ->
       Ops.attribute_laplacian ~grain:257 ~weighting ~source:"P" sphere |> get) in
@@ -198,7 +198,7 @@ let test_validation_and_cancellation () =
       (Attribute.Float [|0.;0.;0.;0.;Float.nan;0.;0.;0.;0.|]) source in
   expect_invalid (fun () -> Ops.attribute_laplacian ~source:"bad" nonfinite)
     "non-finite source";
-  let curve = Ops.polyline ~closed:true [|0.,0.,0.;1.,0.,0.;0.,1.,0.|] |> get in
+  let curve = Line_geometry.polyline_checked ~closed:true [|0.,0.,0.;1.,0.,0.;0.,1.,0.|] |> get in
   expect_invalid (fun () -> Ops.attribute_laplacian ~source:"P" curve)
     "curve input";
   let degenerate = degenerate_triangle () in

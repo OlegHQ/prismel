@@ -93,7 +93,7 @@ let attribute_owner_of_token = function
   | token -> Error (Printf.sprintf "unknown attribute owner %S" token)
 
 let encode_boundary_attributes attributes = encode_table (List.map
-    (fun (attribute : Pdk.Ops.group_boundary_attribute) ->
+    (fun (attribute : Pdk.Group_ops.boundary_attribute) ->
       [attribute_owner_token attribute.boundary_attribute_owner;
        attribute.boundary_attribute_pattern]) attributes)
 
@@ -101,7 +101,7 @@ let decode_boundary_attributes text = Result.bind (decode_table text) (fun rows 
     List.fold_left (fun result row -> Result.bind result (fun attributes ->
       match row with
       | [owner; pattern] -> Result.map (fun boundary_attribute_owner ->
-          { Pdk.Ops.boundary_attribute_owner;
+          { Pdk.Group_ops.boundary_attribute_owner;
             boundary_attribute_pattern = pattern } :: attributes)
           (attribute_owner_of_token
             (String.lowercase_ascii (String.trim owner)))
@@ -122,21 +122,21 @@ let uv_owner_parameter = Parameter.choice ~equal:( = ) [
   ]
 
 let group_owner_parameter = Parameter.choice ~equal:( = ) [
-    "Points", Pdk.Ops.Group_points; "Vertices", Pdk.Ops.Group_vertices;
-    "Primitives", Pdk.Ops.Group_primitives; "Edges", Pdk.Ops.Group_edges;
+    "Points", Pdk.Group_ops.Group_points; "Vertices", Pdk.Group_ops.Group_vertices;
+    "Primitives", Pdk.Group_ops.Group_primitives; "Edges", Pdk.Group_ops.Group_edges;
   ]
 
 let group_owner_token = function
-  | Pdk.Ops.Group_points -> "point"
-  | Pdk.Ops.Group_vertices -> "vertex"
-  | Pdk.Ops.Group_primitives -> "primitive"
-  | Pdk.Ops.Group_edges -> "edge"
+  | Pdk.Group_ops.Group_points -> "point"
+  | Pdk.Group_ops.Group_vertices -> "vertex"
+  | Pdk.Group_ops.Group_primitives -> "primitive"
+  | Pdk.Group_ops.Group_edges -> "edge"
 
 let group_owner_of_token = function
-  | "point" | "points" -> Ok Pdk.Ops.Group_points
-  | "vertex" | "vertices" -> Ok Pdk.Ops.Group_vertices
-  | "primitive" | "primitives" -> Ok Pdk.Ops.Group_primitives
-  | "edge" | "edges" -> Ok Pdk.Ops.Group_edges
+  | "point" | "points" -> Ok Pdk.Group_ops.Group_points
+  | "vertex" | "vertices" -> Ok Pdk.Group_ops.Group_vertices
+  | "primitive" | "primitives" -> Ok Pdk.Group_ops.Group_primitives
+  | "edge" | "edges" -> Ok Pdk.Group_ops.Group_edges
   | token -> Error (Printf.sprintf "unknown group owner %S" token)
 
 let ordinary_group_owner_parameter = Parameter.choice ~equal:( = ) [
@@ -145,29 +145,29 @@ let ordinary_group_owner_parameter = Parameter.choice ~equal:( = ) [
   ]
 
 let group_normal_owner_parameter = Parameter.choice ~equal:( = ) [
-    "Points", Pdk.Ops.Group_points; "Primitives", Pdk.Ops.Group_primitives;
-    "Edges", Pdk.Ops.Group_edges;
+    "Points", Pdk.Group_ops.Group_points; "Primitives", Pdk.Group_ops.Group_primitives;
+    "Edges", Pdk.Group_ops.Group_edges;
   ]
 
 let group_merge_parameter = Parameter.choice ~equal:( = ) [
-    "Replace", Pdk.Ops.Group_replace; "Union", Pdk.Ops.Group_union;
-    "Intersection", Pdk.Ops.Group_intersection;
-    "Subtract", Pdk.Ops.Group_subtract; "Exclusive or", Pdk.Ops.Group_xor;
+    "Replace", Pdk.Group_ops.Group_replace; "Union", Pdk.Group_ops.Group_union;
+    "Intersection", Pdk.Group_ops.Group_intersection;
+    "Subtract", Pdk.Group_ops.Group_subtract; "Exclusive or", Pdk.Group_ops.Group_xor;
   ]
 
 let group_boolean_token = function
-  | Pdk.Ops.Group_replace -> "replace"
-  | Pdk.Ops.Group_union -> "union"
-  | Pdk.Ops.Group_intersection -> "intersection"
-  | Pdk.Ops.Group_subtract -> "subtract"
-  | Pdk.Ops.Group_xor -> "xor"
+  | Pdk.Group_ops.Group_replace -> "replace"
+  | Pdk.Group_ops.Group_union -> "union"
+  | Pdk.Group_ops.Group_intersection -> "intersection"
+  | Pdk.Group_ops.Group_subtract -> "subtract"
+  | Pdk.Group_ops.Group_xor -> "xor"
 
 let group_boolean_of_token = function
-  | "replace" -> Ok Pdk.Ops.Group_replace
-  | "union" -> Ok Pdk.Ops.Group_union
-  | "intersection" -> Ok Pdk.Ops.Group_intersection
-  | "subtract" -> Ok Pdk.Ops.Group_subtract
-  | "xor" -> Ok Pdk.Ops.Group_xor
+  | "replace" -> Ok Pdk.Group_ops.Group_replace
+  | "union" -> Ok Pdk.Group_ops.Group_union
+  | "intersection" -> Ok Pdk.Group_ops.Group_intersection
+  | "subtract" -> Ok Pdk.Group_ops.Group_subtract
+  | "xor" -> Ok Pdk.Group_ops.Group_xor
   | token -> Error (Printf.sprintf "unknown group operation %S" token)
 
 let attribute_promotion_method_parameter = Parameter.choice ~equal:( = ) [
@@ -186,8 +186,8 @@ let attribute_promotion_method_parameter = Parameter.choice ~equal:( = ) [
   ]
 
 let group_rename_conflict_parameter = Parameter.choice ~equal:( = ) [
-    "Skip", Pdk.Ops.Rename_skip; "Error", Pdk.Ops.Rename_error;
-    "Overwrite", Pdk.Ops.Rename_overwrite; "Union", Pdk.Ops.Rename_union;
+    "Skip", Pdk.Group_ops.Rename_skip; "Error", Pdk.Group_ops.Rename_error;
+    "Overwrite", Pdk.Group_ops.Rename_overwrite; "Union", Pdk.Group_ops.Rename_union;
   ]
 
 let delete_topology_policy_parameter = Parameter.choice ~equal:( = ) [
@@ -196,8 +196,8 @@ let delete_topology_policy_parameter = Parameter.choice ~equal:( = ) [
   ]
 
 let group_copy_conflict_parameter = Parameter.choice ~equal:( = ) [
-    "Skip", Pdk.Ops.Copy_skip; "Overwrite", Pdk.Ops.Copy_overwrite;
-    "Add suffix", Pdk.Ops.Copy_add_suffix;
+    "Skip", Pdk.Group_ops.Copy_skip; "Overwrite", Pdk.Group_ops.Copy_overwrite;
+    "Add suffix", Pdk.Group_ops.Copy_add_suffix;
   ]
 
 let edge_transport_direction_parameter = Parameter.choice ~equal:( = ) [
@@ -260,29 +260,29 @@ let distance_radius mode value = match mode with
 
 module Box = struct
   let connectivity_parameter = Parameter.choice ~equal:( = ) [
-      "Triangles", Pdk.Ops.Box_triangles;
-      "Quads", Pdk.Ops.Box_quads;
-      "Surface points", Pdk.Ops.Box_surface_points;
-      "Lattice points", Pdk.Ops.Box_lattice_points;
+      "Triangles", Pdk.Box_generator.Box_triangles;
+      "Quads", Pdk.Box_generator.Box_quads;
+      "Surface points", Pdk.Box_generator.Box_surface_points;
+      "Lattice points", Pdk.Box_generator.Box_lattice_points;
     ]
 
   let normals_parameter = Parameter.choice ~equal:( = ) [
-      "None", Pdk.Ops.Box_no_normals;
-      "Point", Pdk.Ops.Box_point_normals;
-      "Vertex", Pdk.Ops.Box_vertex_normals;
+      "None", Pdk.Box_generator.Box_no_normals;
+      "Point", Pdk.Box_generator.Box_point_normals;
+      "Vertex", Pdk.Box_generator.Box_vertex_normals;
     ]
 
   let rotation_order_parameter = Parameter.choice ~equal:( = ) [
-      "XYZ", Pdk.Ops.Box_xyz; "XZY", Pdk.Ops.Box_xzy;
-      "YXZ", Pdk.Ops.Box_yxz; "YZX", Pdk.Ops.Box_yzx;
-      "ZXY", Pdk.Ops.Box_zxy; "ZYX", Pdk.Ops.Box_zyx;
+      "XYZ", Pdk.Box_generator.Box_xyz; "XZY", Pdk.Box_generator.Box_xzy;
+      "YXZ", Pdk.Box_generator.Box_yxz; "YZX", Pdk.Box_generator.Box_yzx;
+      "ZXY", Pdk.Box_generator.Box_zxy; "ZYX", Pdk.Box_generator.Box_zyx;
     ]
 
   type parameters = {
-    connectivity : Pdk.Ops.box_connectivity
-      [@sop.default Pdk.Ops.Box_quads]
+    connectivity : Pdk.Box_generator.box_connectivity
+      [@sop.default Pdk.Box_generator.Box_quads]
       [@sop.label "Connectivity"] [@sop.kind connectivity_parameter];
-    normals : Pdk.Ops.box_normals [@sop.default Pdk.Ops.Box_vertex_normals]
+    normals : Pdk.Box_generator.box_normals [@sop.default Pdk.Box_generator.Box_vertex_normals]
       [@sop.label "Normals"] [@sop.kind normals_parameter];
     size_x : float [@sop.default 1.] [@sop.label "Size X"]
       [@sop.folder "Size"] [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.];
@@ -313,8 +313,8 @@ module Box = struct
     rotation_z : float [@sop.default 0.] [@sop.label "Rotate Z"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
       [@sop.max 3.14159];
-    rotation_order : Pdk.Ops.box_rotation_order
-      [@sop.default Pdk.Ops.Box_xyz]
+    rotation_order : Pdk.Box_generator.box_rotation_order
+      [@sop.default Pdk.Box_generator.Box_xyz]
       [@sop.label "Rotation order"] [@sop.folder "Transform/Rotate"]
       [@sop.kind rotation_order_parameter];
     uniform_scale : float [@sop.default 1.] [@sop.label "Uniform scale"]
@@ -348,14 +348,14 @@ module Box = struct
   let factory = parameters_factory build
 
   let create ?label:node_label ?(size = Vec3.create 1. 1. 1.)
-      ?(connectivity = Pdk.Ops.Box_quads) ?(consolidate_points = false)
+      ?(connectivity = Pdk.Box_generator.Box_quads) ?(consolidate_points = false)
       ?normals ?(center = Vec3.zero) ?(rotation = Vec3.zero)
-      ?(rotation_order = Pdk.Ops.Box_xyz) ?(uniform_scale = 1.)
+      ?(rotation_order = Pdk.Box_generator.Box_xyz) ?(uniform_scale = 1.)
       ?(x_divisions = 1) ?(y_divisions = 1) ?(z_divisions = 1)
       ?(uv_attribute = "") ?(face_groups = "") () =
     let normals = match normals, connectivity with
       | Some normals, _ -> normals
-      | None, (Pdk.Ops.Box_triangles | Box_quads) -> Pdk.Ops.Box_point_normals
+      | None, (Pdk.Box_generator.Box_triangles | Box_quads) -> Pdk.Box_generator.Box_point_normals
       | None, (Box_surface_points | Box_lattice_points) -> Box_no_normals in
     build ~label:(label "box" node_label) ~inputs:[] {
       connectivity; normals;
@@ -495,8 +495,8 @@ module Spiral = struct
       "Logarithmic end", Logarithmic_end;
     ]
   let direction_parameter = Parameter.choice ~equal:( = ) [
-      "Counterclockwise", Pdk.Ops.Spiral_counterclockwise;
-      "Clockwise", Pdk.Ops.Spiral_clockwise;
+      "Counterclockwise", Pdk.Spiral.Spiral_counterclockwise;
+      "Clockwise", Pdk.Spiral.Spiral_clockwise;
     ]
   let divisions_parameter = Parameter.choice ~equal:( = ) [
       "Per curve", Per_curve; "Per turn", Per_turn;
@@ -506,9 +506,9 @@ module Spiral = struct
       "Custom axis", Axis_custom;
     ]
   let rotation_order_parameter = Parameter.choice ~equal:( = ) [
-      "XYZ", Pdk.Ops.Spiral_xyz; "XZY", Pdk.Ops.Spiral_xzy;
-      "YXZ", Pdk.Ops.Spiral_yxz; "YZX", Pdk.Ops.Spiral_yzx;
-      "ZXY", Pdk.Ops.Spiral_zxy; "ZYX", Pdk.Ops.Spiral_zyx;
+      "XYZ", Pdk.Spiral.Spiral_xyz; "XZY", Pdk.Spiral.Spiral_xzy;
+      "YXZ", Pdk.Spiral.Spiral_yxz; "YZX", Pdk.Spiral.Spiral_yzx;
+      "ZXY", Pdk.Spiral.Spiral_zxy; "ZYX", Pdk.Spiral.Spiral_zyx;
     ]
 
   type parameters = {
@@ -537,8 +537,8 @@ module Spiral = struct
     radius_scale : float [@sop.default 1.] [@sop.label "Radius scale"]
       [@sop.folder "Radius"] [@sop.min 0.01] [@sop.max 10.]
       [@sop.hard_min 0.];
-    direction : Pdk.Ops.spiral_direction
-      [@sop.default Pdk.Ops.Spiral_counterclockwise]
+    direction : Pdk.Spiral.direction
+      [@sop.default Pdk.Spiral.Spiral_counterclockwise]
       [@sop.label "Direction"] [@sop.kind direction_parameter];
     start_angle : float [@sop.default 0.] [@sop.label "Start angle"]
       [@sop.min (-6.283185307179586)] [@sop.max 6.283185307179586];
@@ -573,8 +573,8 @@ module Spiral = struct
     rotation_z : float [@sop.default 0.] [@sop.label "Rotate Z"]
       [@sop.folder "Transform/Rotate"] [@sop.min (-3.14159)]
       [@sop.max 3.14159];
-    rotation_order : Pdk.Ops.spiral_rotation_order
-      [@sop.default Pdk.Ops.Spiral_xyz]
+    rotation_order : Pdk.Spiral.rotation_order
+      [@sop.default Pdk.Spiral.Spiral_xyz]
       [@sop.label "Rotation order"] [@sop.folder "Transform/Rotate"]
       [@sop.kind rotation_order_parameter];
     uniform_scale : float [@sop.default 1.] [@sop.label "Uniform scale"]
@@ -597,32 +597,32 @@ module Spiral = struct
     [@@deriving sop_params, sop_node]
 
   let extent parameters = match parameters.extent_mode with
-    | Turns_height -> Pdk.Ops.Spiral_turns {
+    | Turns_height -> Pdk.Spiral.Spiral_turns {
         turns = parameters.turns; height = parameters.height }
-    | Height_pitch -> Pdk.Ops.Spiral_height_pitch {
+    | Height_pitch -> Pdk.Spiral.Spiral_height_pitch {
         height = parameters.height; pitch = parameters.pitch }
 
   let radius parameters = match parameters.radius_mode with
-    | Archimedean_change -> Pdk.Ops.Spiral_archimedean_change {
+    | Archimedean_change -> Pdk.Spiral.Spiral_archimedean_change {
         start_radius = parameters.start_radius;
         increase_per_turn = parameters.radius_change }
-    | Archimedean_end -> Pdk.Ops.Spiral_archimedean_end {
+    | Archimedean_end -> Pdk.Spiral.Spiral_archimedean_end {
         start_radius = parameters.start_radius; end_radius = parameters.end_radius }
-    | Logarithmic_change -> Pdk.Ops.Spiral_logarithmic_change {
+    | Logarithmic_change -> Pdk.Spiral.Spiral_logarithmic_change {
         start_radius = parameters.start_radius;
         scale_per_turn = parameters.logarithmic_scale }
-    | Logarithmic_end -> Pdk.Ops.Spiral_logarithmic_end {
+    | Logarithmic_end -> Pdk.Spiral.Spiral_logarithmic_end {
         start_radius = parameters.start_radius; end_radius = parameters.end_radius }
 
   let divisions parameters = match parameters.divisions_mode with
-    | Per_curve -> Pdk.Ops.Spiral_divisions_per_curve parameters.divisions
-    | Per_turn -> Pdk.Ops.Spiral_divisions_per_turn parameters.divisions
+    | Per_curve -> Pdk.Spiral.Spiral_divisions_per_curve parameters.divisions
+    | Per_turn -> Pdk.Spiral.Spiral_divisions_per_turn parameters.divisions
 
   let orientation parameters = match parameters.orientation with
-    | Axis_x -> Pdk.Ops.Spiral_x
-    | Axis_y -> Pdk.Ops.Spiral_y
-    | Axis_z -> Pdk.Ops.Spiral_z
-    | Axis_custom -> Pdk.Ops.Spiral_axis (Vec3.create parameters.axis_x
+    | Axis_x -> Pdk.Spiral.Spiral_x
+    | Axis_y -> Pdk.Spiral.Spiral_y
+    | Axis_z -> Pdk.Spiral.Spiral_z
+    | Axis_custom -> Pdk.Spiral.Spiral_axis (Vec3.create parameters.axis_x
         parameters.axis_y parameters.axis_z)
 
   let rec build ~label ~inputs:_ parameters =
@@ -681,12 +681,12 @@ end [@@sop.register]
 
 module Line = struct
   let kind_parameter = Parameter.choice ~equal:( = ) [
-      "Polygon curve", Pdk.Ops.Line_curve;
-      "Points", Pdk.Ops.Line_points;
+      "Polygon curve", Pdk.Line_geometry.Line_curve;
+      "Points", Pdk.Line_geometry.Line_points;
     ]
 
   type parameters = {
-    kind : Pdk.Ops.line_kind [@sop.default Pdk.Ops.Line_curve]
+    kind : Pdk.Line_geometry.kind [@sop.default Pdk.Line_geometry.Line_curve]
       [@sop.label "Primitive type"] [@sop.kind kind_parameter];
     points : int [@sop.default 2] [@sop.label "Points"]
       [@sop.min 2] [@sop.max 128] [@sop.hard_min 1];
@@ -719,7 +719,7 @@ module Line = struct
 
   let factory = parameters_factory build
 
-  let create ?label:node_label ?(kind = Pdk.Ops.Line_curve) ?(points = 2)
+  let create ?label:node_label ?(kind = Pdk.Line_geometry.Line_curve) ?(points = 2)
       ?(origin = Vec3.zero) ?(direction = Vec3.create 0. 1. 0.)
       ?(length = 1.) () =
     build ~label:(label "line" node_label) ~inputs:[] {
@@ -737,8 +737,8 @@ module Circle = struct
     ]
 
   let orientation_parameter = Parameter.choice ~equal:( = ) [
-      "XZ", Pdk.Ops.Circle_xz; "XY", Pdk.Ops.Circle_xy;
-      "YZ", Pdk.Ops.Circle_yz;
+      "XZ", Pdk.Plane_generators.Circle_xz; "XY", Pdk.Plane_generators.Circle_xy;
+      "YZ", Pdk.Plane_generators.Circle_yz;
     ]
 
   type parameters = {
@@ -749,8 +749,8 @@ module Circle = struct
     end_angle : float [@sop.default 6.283185307179586]
       [@sop.label "End angle"] [@sop.folder "Arc"]
       [@sop.min (-6.283185)] [@sop.max 6.283185];
-    orientation : Pdk.Ops.circle_orientation
-      [@sop.default Pdk.Ops.Circle_xz] [@sop.label "Orientation"]
+    orientation : Pdk.Plane_generators.circle_orientation
+      [@sop.default Pdk.Plane_generators.Circle_xz] [@sop.label "Orientation"]
       [@sop.kind orientation_parameter];
     reverse : bool [@sop.default false] [@sop.label "Reverse"];
     center_x : float [@sop.default 0.] [@sop.label "Center X"]
@@ -777,12 +777,12 @@ module Circle = struct
     [@@deriving sop_params, sop_node]
 
   let arc parameters = match parameters.arc with
-    | Closed -> Pdk.Ops.Circle_closed
-    | Open -> Pdk.Ops.Circle_open_arc {
+    | Closed -> Pdk.Plane_generators.Circle_closed
+    | Open -> Pdk.Plane_generators.Circle_open_arc {
         start_angle = parameters.start_angle; end_angle = parameters.end_angle }
-    | Chord -> Pdk.Ops.Circle_closed_arc {
+    | Chord -> Pdk.Plane_generators.Circle_closed_arc {
         start_angle = parameters.start_angle; end_angle = parameters.end_angle }
-    | Sliced -> Pdk.Ops.Circle_sliced_arc {
+    | Sliced -> Pdk.Plane_generators.Circle_sliced_arc {
         start_angle = parameters.start_angle; end_angle = parameters.end_angle }
 
   let rec build ~label ~inputs:_ parameters =
@@ -804,34 +804,34 @@ end [@@sop.register]
 
 module Grid = struct
   let counts_parameter = Parameter.choice ~equal:( = ) [
-      "Divisions", Pdk.Ops.Grid_divisions;
-      "Point counts", Pdk.Ops.Grid_point_counts;
+      "Divisions", Pdk.Plane_generators.Grid_divisions;
+      "Point counts", Pdk.Plane_generators.Grid_point_counts;
     ]
 
   let connectivity_parameter = Parameter.choice ~equal:( = ) [
-      "Points", Pdk.Ops.Grid_points;
-      "Rows", Pdk.Ops.Grid_rows;
-      "Columns", Pdk.Ops.Grid_columns;
-      "Rows and columns", Pdk.Ops.Grid_rows_and_columns;
-      "Quads", Pdk.Ops.Grid_quads;
-      "Triangles", Pdk.Ops.Grid_triangles;
-      "Alternating triangles", Pdk.Ops.Grid_alternating_triangles;
-      "Reverse triangles", Pdk.Ops.Grid_reverse_triangles;
+      "Points", Pdk.Plane_generators.Grid_points;
+      "Rows", Pdk.Plane_generators.Grid_rows;
+      "Columns", Pdk.Plane_generators.Grid_columns;
+      "Rows and columns", Pdk.Plane_generators.Grid_rows_and_columns;
+      "Quads", Pdk.Plane_generators.Grid_quads;
+      "Triangles", Pdk.Plane_generators.Grid_triangles;
+      "Alternating triangles", Pdk.Plane_generators.Grid_alternating_triangles;
+      "Reverse triangles", Pdk.Plane_generators.Grid_reverse_triangles;
     ]
 
   let orientation_parameter = Parameter.choice ~equal:( = ) [
-      "XY", Pdk.Ops.Grid_xy;
-      "XZ", Pdk.Ops.Grid_xz;
-      "YZ", Pdk.Ops.Grid_yz;
+      "XY", Pdk.Plane_generators.Grid_xy;
+      "XZ", Pdk.Plane_generators.Grid_xz;
+      "YZ", Pdk.Plane_generators.Grid_yz;
     ]
 
   type parameters = {
-    counts : Pdk.Ops.grid_counts [@sop.default Pdk.Ops.Grid_divisions]
+    counts : Pdk.Plane_generators.grid_counts [@sop.default Pdk.Plane_generators.Grid_divisions]
       [@sop.label "Counts"] [@sop.kind counts_parameter];
-    connectivity : Pdk.Ops.grid_connectivity
-      [@sop.default Pdk.Ops.Grid_triangles]
+    connectivity : Pdk.Plane_generators.grid_connectivity
+      [@sop.default Pdk.Plane_generators.Grid_triangles]
       [@sop.label "Connectivity"] [@sop.kind connectivity_parameter];
-    orientation : Pdk.Ops.grid_orientation [@sop.default Pdk.Ops.Grid_xz]
+    orientation : Pdk.Plane_generators.grid_orientation [@sop.default Pdk.Plane_generators.Grid_xz]
       [@sop.label "Orientation"] [@sop.kind orientation_parameter];
     columns : int [@sop.default 10] [@sop.label "Columns"]
       [@sop.folder "Resolution"] [@sop.min 1] [@sop.max 64]
@@ -874,9 +874,9 @@ module Grid = struct
 
   let factory = parameters_factory build
 
-  let create ?label:node_label ?(counts = Pdk.Ops.Grid_divisions)
-      ?(connectivity = Pdk.Ops.Grid_triangles)
-      ?(orientation = Pdk.Ops.Grid_xz) ?(center = Vec3.zero) ?width ?height
+  let create ?label:node_label ?(counts = Pdk.Plane_generators.Grid_divisions)
+      ?(connectivity = Pdk.Plane_generators.Grid_triangles)
+      ?(orientation = Pdk.Plane_generators.Grid_xz) ?(center = Vec3.zero) ?width ?height
       ?(rotation = 0.) ?(uv_attribute = "") ~columns ~rows ~size () =
     build ~label:(label "grid" node_label) ~inputs:[] {
       counts; connectivity; orientation; columns; rows; size;
@@ -888,36 +888,36 @@ end [@@sop.register]
 
 module Uv_sphere = struct
   let connectivity_parameter = Parameter.choice ~equal:( = ) [
-      "Triangles", Pdk.Ops.Sphere_triangles;
-      "Alternating triangles", Pdk.Ops.Sphere_alternating_triangles;
-      "Quads", Pdk.Ops.Sphere_quads;
-      "Rows", Pdk.Ops.Sphere_rows;
-      "Columns", Pdk.Ops.Sphere_columns;
-      "Rows and columns", Pdk.Ops.Sphere_rows_and_columns;
-      "Points", Pdk.Ops.Sphere_points;
+      "Triangles", Pdk.Uv_sphere.Sphere_triangles;
+      "Alternating triangles", Pdk.Uv_sphere.Sphere_alternating_triangles;
+      "Quads", Pdk.Uv_sphere.Sphere_quads;
+      "Rows", Pdk.Uv_sphere.Sphere_rows;
+      "Columns", Pdk.Uv_sphere.Sphere_columns;
+      "Rows and columns", Pdk.Uv_sphere.Sphere_rows_and_columns;
+      "Points", Pdk.Uv_sphere.Sphere_points;
     ]
 
   let normals_parameter = Parameter.choice ~equal:( = ) [
-      "None", Pdk.Ops.Sphere_no_normals;
-      "Point", Pdk.Ops.Sphere_point_normals;
-      "Vertex", Pdk.Ops.Sphere_vertex_normals;
+      "None", Pdk.Uv_sphere.Sphere_no_normals;
+      "Point", Pdk.Uv_sphere.Sphere_point_normals;
+      "Vertex", Pdk.Uv_sphere.Sphere_vertex_normals;
     ]
 
   let orientation_parameter = Parameter.choice ~equal:( = ) [
-      "X axis", Pdk.Ops.Sphere_x;
-      "Y axis", Pdk.Ops.Sphere_y;
-      "Z axis", Pdk.Ops.Sphere_z;
+      "X axis", Pdk.Uv_sphere.Sphere_x;
+      "Y axis", Pdk.Uv_sphere.Sphere_y;
+      "Z axis", Pdk.Uv_sphere.Sphere_z;
     ]
 
   type parameters = {
-    connectivity : Pdk.Ops.sphere_connectivity
-      [@sop.default Pdk.Ops.Sphere_triangles]
+    connectivity : Pdk.Uv_sphere.sphere_connectivity
+      [@sop.default Pdk.Uv_sphere.Sphere_triangles]
       [@sop.label "Connectivity"] [@sop.kind connectivity_parameter];
-    normals : Pdk.Ops.sphere_normals
-      [@sop.default Pdk.Ops.Sphere_point_normals]
+    normals : Pdk.Uv_sphere.sphere_normals
+      [@sop.default Pdk.Uv_sphere.Sphere_point_normals]
       [@sop.label "Normals"] [@sop.kind normals_parameter];
-    orientation : Pdk.Ops.sphere_orientation
-      [@sop.default Pdk.Ops.Sphere_y]
+    orientation : Pdk.Uv_sphere.sphere_orientation
+      [@sop.default Pdk.Uv_sphere.Sphere_y]
       [@sop.label "Pole axis"] [@sop.kind orientation_parameter];
     unique_points_per_pole : bool [@sop.default false]
       [@sop.label "Unique pole points"] [@sop.folder "Topology"];
@@ -1685,29 +1685,29 @@ end [@@sop.register]
 
 module Edge_collapse = struct
   let position_parameter = Parameter.choice ~equal:( = ) [
-      "First", Pdk.Ops.First_position;
-      "Least point", Pdk.Ops.Least_point_position;
-      "Greatest point", Pdk.Ops.Greatest_point_position;
-      "Average", Pdk.Ops.Average_position;
-      "Minimum", Pdk.Ops.Minimum_position;
-      "Maximum", Pdk.Ops.Maximum_position;
-      "Mode", Pdk.Ops.Mode_position;
-      "Median", Pdk.Ops.Median_position;
-      "Sum", Pdk.Ops.Sum_position;
-      "Sum squares", Pdk.Ops.Sum_squares_position;
-      "Root mean square", Pdk.Ops.Root_mean_square_position;
-      "Weighted average", Pdk.Ops.Weighted_average_position;
-      "Weighted sum", Pdk.Ops.Weighted_sum_position;
-      "Minimum weight", Pdk.Ops.Minimum_weight_position;
-      "Maximum weight", Pdk.Ops.Maximum_weight_position;
+      "First", Pdk.Fuse_reduce.First_position;
+      "Least point", Pdk.Fuse_reduce.Least_point_position;
+      "Greatest point", Pdk.Fuse_reduce.Greatest_point_position;
+      "Average", Pdk.Fuse_reduce.Average_position;
+      "Minimum", Pdk.Fuse_reduce.Minimum_position;
+      "Maximum", Pdk.Fuse_reduce.Maximum_position;
+      "Mode", Pdk.Fuse_reduce.Mode_position;
+      "Median", Pdk.Fuse_reduce.Median_position;
+      "Sum", Pdk.Fuse_reduce.Sum_position;
+      "Sum squares", Pdk.Fuse_reduce.Sum_squares_position;
+      "Root mean square", Pdk.Fuse_reduce.Root_mean_square_position;
+      "Weighted average", Pdk.Fuse_reduce.Weighted_average_position;
+      "Weighted sum", Pdk.Fuse_reduce.Weighted_sum_position;
+      "Minimum weight", Pdk.Fuse_reduce.Minimum_weight_position;
+      "Maximum weight", Pdk.Fuse_reduce.Maximum_weight_position;
     ]
 
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Edge group"];
     connectivity_attribute : string [@sop.default ""]
       [@sop.label "Connectivity attribute"];
-    position : Pdk.Ops.fuse_position
-      [@sop.default Pdk.Ops.Average_position]
+    position : Pdk.Fuse_reduce.position
+      [@sop.default Pdk.Fuse_reduce.Average_position]
       [@sop.label "Position"] [@sop.kind position_parameter];
     remove_degenerate_primitives : bool [@sop.default true]
       [@sop.label "Remove degenerate primitives"] [@sop.folder "Cleanup"];
@@ -1737,23 +1737,23 @@ end [@@sop.register]
 
 module Dissolve = struct
   let operation_parameter = Parameter.choice ~equal:( = ) [
-      "Selected", Pdk.Ops.Dissolve_selected;
-      "Non-selected", Pdk.Ops.Dissolve_non_selected;
+      "Selected", Pdk.Dissolve.Dissolve_selected;
+      "Non-selected", Pdk.Dissolve.Dissolve_non_selected;
     ]
 
   let bridge_parameter = Parameter.choice ~equal:( = ) [
-      "Create bridged polygons", Pdk.Ops.Create_bridged_polygons;
-      "Create disjoint polygons", Pdk.Ops.Create_disjoint_polygons;
-      "Delete bridge polygons", Pdk.Ops.Delete_bridge_polygons;
+      "Create bridged polygons", Pdk.Dissolve.Create_bridged_polygons;
+      "Create disjoint polygons", Pdk.Dissolve.Create_disjoint_polygons;
+      "Delete bridge polygons", Pdk.Dissolve.Delete_bridge_polygons;
     ]
 
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Edge group"];
-    operation : Pdk.Ops.dissolve_operation
-      [@sop.default Pdk.Ops.Dissolve_selected]
+    operation : Pdk.Dissolve.operation
+      [@sop.default Pdk.Dissolve.Dissolve_selected]
       [@sop.label "Operation"] [@sop.kind operation_parameter];
-    bridge_policy : Pdk.Ops.dissolve_bridge_policy
-      [@sop.default Pdk.Ops.Create_bridged_polygons]
+    bridge_policy : Pdk.Dissolve.bridge_policy
+      [@sop.default Pdk.Dissolve.Create_bridged_polygons]
       [@sop.label "Bridge loops"] [@sop.kind bridge_parameter];
     remove_inline_points : bool [@sop.default true]
       [@sop.label "Remove inline points"] [@sop.folder "Cleanup"];
@@ -2530,26 +2530,26 @@ module Snap_to_grid = struct
     ]
 
   let position_parameter = Parameter.choice ~equal:( = ) [
-      "First", Pdk.Ops.First_position;
-      "Least point", Pdk.Ops.Least_point_position;
-      "Greatest point", Pdk.Ops.Greatest_point_position;
-      "Average", Pdk.Ops.Average_position;
-      "Minimum", Pdk.Ops.Minimum_position;
-      "Maximum", Pdk.Ops.Maximum_position;
-      "Mode", Pdk.Ops.Mode_position;
-      "Median", Pdk.Ops.Median_position;
-      "Sum", Pdk.Ops.Sum_position;
-      "Sum squares", Pdk.Ops.Sum_squares_position;
-      "Root mean square", Pdk.Ops.Root_mean_square_position;
-      "Weighted average", Pdk.Ops.Weighted_average_position;
-      "Weighted sum", Pdk.Ops.Weighted_sum_position;
-      "Minimum weight", Pdk.Ops.Minimum_weight_position;
-      "Maximum weight", Pdk.Ops.Maximum_weight_position;
+      "First", Pdk.Fuse_reduce.First_position;
+      "Least point", Pdk.Fuse_reduce.Least_point_position;
+      "Greatest point", Pdk.Fuse_reduce.Greatest_point_position;
+      "Average", Pdk.Fuse_reduce.Average_position;
+      "Minimum", Pdk.Fuse_reduce.Minimum_position;
+      "Maximum", Pdk.Fuse_reduce.Maximum_position;
+      "Mode", Pdk.Fuse_reduce.Mode_position;
+      "Median", Pdk.Fuse_reduce.Median_position;
+      "Sum", Pdk.Fuse_reduce.Sum_position;
+      "Sum squares", Pdk.Fuse_reduce.Sum_squares_position;
+      "Root mean square", Pdk.Fuse_reduce.Root_mean_square_position;
+      "Weighted average", Pdk.Fuse_reduce.Weighted_average_position;
+      "Weighted sum", Pdk.Fuse_reduce.Weighted_sum_position;
+      "Minimum weight", Pdk.Fuse_reduce.Minimum_weight_position;
+      "Maximum weight", Pdk.Fuse_reduce.Maximum_weight_position;
     ]
 
   let attributes_parameter = Parameter.choice ~equal:( = ) [
-      "Keep first", Pdk.Ops.Keep_first;
-      "Average numeric", Pdk.Ops.Average_numeric;
+      "Keep first", Pdk.Fuse_reduce.Keep_first;
+      "Average numeric", Pdk.Fuse_reduce.Average_numeric;
     ]
 
   type parameters = {
@@ -2577,14 +2577,14 @@ module Snap_to_grid = struct
       [@sop.min 0.] [@sop.max 10.] [@sop.hard_min 0.];
     fuse_points : bool [@sop.default false] [@sop.label "Fuse points"]
       [@sop.folder "Fuse"];
-    position : Pdk.Ops.fuse_position
-      [@sop.default Pdk.Ops.Average_position]
+    position : Pdk.Fuse_reduce.position
+      [@sop.default Pdk.Fuse_reduce.Average_position]
       [@sop.label "Position"] [@sop.folder "Fuse"]
       [@sop.kind position_parameter];
     weight_attribute : string [@sop.default ""]
       [@sop.label "Weight attribute"] [@sop.folder "Fuse"];
-    attributes : Pdk.Ops.fuse_attributes
-      [@sop.default Pdk.Ops.Keep_first]
+    attributes : Pdk.Fuse_reduce.attributes
+      [@sop.default Pdk.Fuse_reduce.Keep_first]
       [@sop.label "Attributes"] [@sop.folder "Fuse"]
       [@sop.kind attributes_parameter];
     snapped_group : string [@sop.default ""] [@sop.label "Snapped group"]
@@ -2614,8 +2614,8 @@ module Snap_to_grid = struct
   let create ?label:node_label ?(group = "")
       ?(spacing = Vec3.create 1. 1. 1.) ?(offset = Vec3.zero)
       ?(rounding = Pdk.Ops.Grid_nearest) ?max_distance ?(fuse_points = false)
-      ?(position = Pdk.Ops.Average_position) ?(weight_attribute = "")
-      ?(attributes = Pdk.Ops.Keep_first) ?(snapped_group = "") input =
+      ?(position = Pdk.Fuse_reduce.Average_position) ?(weight_attribute = "")
+      ?(attributes = Pdk.Fuse_reduce.Keep_first) ?(snapped_group = "") input =
     build ~label:(label "snap-to-grid" node_label) ~inputs:[input] {
       group; spacing_x = spacing.x; spacing_y = spacing.y;
       spacing_z = spacing.z; offset_x = offset.x; offset_y = offset.y;
@@ -4097,25 +4097,25 @@ module Fuse = struct
       "Closest target point", Pdk.Ops.Closest_target_point;
     ]
   let position_parameter = Parameter.choice ~equal:( = ) [
-      "First", Pdk.Ops.First_position;
-      "Least point", Pdk.Ops.Least_point_position;
-      "Greatest point", Pdk.Ops.Greatest_point_position;
-      "Average", Pdk.Ops.Average_position;
-      "Minimum", Pdk.Ops.Minimum_position;
-      "Maximum", Pdk.Ops.Maximum_position;
-      "Mode", Pdk.Ops.Mode_position;
-      "Median", Pdk.Ops.Median_position;
-      "Sum", Pdk.Ops.Sum_position;
-      "Sum squares", Pdk.Ops.Sum_squares_position;
-      "Root mean square", Pdk.Ops.Root_mean_square_position;
-      "Weighted average", Pdk.Ops.Weighted_average_position;
-      "Weighted sum", Pdk.Ops.Weighted_sum_position;
-      "Minimum weight", Pdk.Ops.Minimum_weight_position;
-      "Maximum weight", Pdk.Ops.Maximum_weight_position;
+      "First", Pdk.Fuse_reduce.First_position;
+      "Least point", Pdk.Fuse_reduce.Least_point_position;
+      "Greatest point", Pdk.Fuse_reduce.Greatest_point_position;
+      "Average", Pdk.Fuse_reduce.Average_position;
+      "Minimum", Pdk.Fuse_reduce.Minimum_position;
+      "Maximum", Pdk.Fuse_reduce.Maximum_position;
+      "Mode", Pdk.Fuse_reduce.Mode_position;
+      "Median", Pdk.Fuse_reduce.Median_position;
+      "Sum", Pdk.Fuse_reduce.Sum_position;
+      "Sum squares", Pdk.Fuse_reduce.Sum_squares_position;
+      "Root mean square", Pdk.Fuse_reduce.Root_mean_square_position;
+      "Weighted average", Pdk.Fuse_reduce.Weighted_average_position;
+      "Weighted sum", Pdk.Fuse_reduce.Weighted_sum_position;
+      "Minimum weight", Pdk.Fuse_reduce.Minimum_weight_position;
+      "Maximum weight", Pdk.Fuse_reduce.Maximum_weight_position;
     ]
   let attributes_parameter = Parameter.choice ~equal:( = ) [
-      "Keep first", Pdk.Ops.Keep_first;
-      "Average numeric", Pdk.Ops.Average_numeric;
+      "Keep first", Pdk.Fuse_reduce.Keep_first;
+      "Average numeric", Pdk.Fuse_reduce.Average_numeric;
     ]
   let metric_parameter = Parameter.choice ~equal:( = ) [
       "Euclidean", Pdk.Ops.Euclidean;
@@ -4137,12 +4137,12 @@ module Fuse = struct
       [@sop.label "Use target"] [@sop.kind using_parameter];
     tolerance : float [@sop.default 0.001] [@sop.label "Snap distance"]
       [@sop.min 0.] [@sop.max 10.] [@sop.hard_min 0.];
-    position : Pdk.Ops.fuse_position [@sop.default Pdk.Ops.Average_position]
+    position : Pdk.Fuse_reduce.position [@sop.default Pdk.Fuse_reduce.Average_position]
       [@sop.label "Position"] [@sop.folder "Fuse"]
       [@sop.kind position_parameter];
     weight_attribute : string [@sop.default ""]
       [@sop.label "Weight attribute"] [@sop.folder "Fuse"];
-    attributes : Pdk.Ops.fuse_attributes [@sop.default Pdk.Ops.Keep_first]
+    attributes : Pdk.Fuse_reduce.attributes [@sop.default Pdk.Fuse_reduce.Keep_first]
       [@sop.label "Attributes"] [@sop.folder "Fuse"]
       [@sop.kind attributes_parameter];
     metric : Pdk.Ops.fuse_metric [@sop.default Pdk.Ops.Euclidean]
@@ -4795,21 +4795,21 @@ module Revolve = struct
       "Open arc", Pdk.Ops.Revolve_open_arc;
     ]
   let connectivity_parameter = Parameter.choice ~equal:( = ) [
-      "Points", Pdk.Ops.Grid_points;
-      "Rows", Pdk.Ops.Grid_rows;
-      "Columns", Pdk.Ops.Grid_columns;
-      "Rows and columns", Pdk.Ops.Grid_rows_and_columns;
-      "Quads", Pdk.Ops.Grid_quads;
-      "Triangles", Pdk.Ops.Grid_triangles;
-      "Alternating triangles", Pdk.Ops.Grid_alternating_triangles;
-      "Reverse triangles", Pdk.Ops.Grid_reverse_triangles;
+      "Points", Pdk.Plane_generators.Grid_points;
+      "Rows", Pdk.Plane_generators.Grid_rows;
+      "Columns", Pdk.Plane_generators.Grid_columns;
+      "Rows and columns", Pdk.Plane_generators.Grid_rows_and_columns;
+      "Quads", Pdk.Plane_generators.Grid_quads;
+      "Triangles", Pdk.Plane_generators.Grid_triangles;
+      "Alternating triangles", Pdk.Plane_generators.Grid_alternating_triangles;
+      "Reverse triangles", Pdk.Plane_generators.Grid_reverse_triangles;
     ]
 
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Primitive group"];
     revolve_type : Pdk.Ops.revolve_type [@sop.default Pdk.Ops.Revolve_closed]
       [@sop.label "Revolve type"] [@sop.kind type_parameter];
-    connectivity : Pdk.Ops.grid_connectivity [@sop.default Pdk.Ops.Grid_quads]
+    connectivity : Pdk.Plane_generators.grid_connectivity [@sop.default Pdk.Plane_generators.Grid_quads]
       [@sop.label "Connectivity"] [@sop.kind connectivity_parameter];
     start_angle : float [@sop.default 0.] [@sop.label "Start angle"]
       [@sop.min (-6.283185307179586)] [@sop.max 6.283185307179586];
@@ -4864,12 +4864,12 @@ end [@@sop.register]
 
 module Sweep = struct
   let connectivity_parameter = Parameter.choice ~equal:( = ) [
-      "Points", Pdk.Ops.Grid_points; "Rows", Pdk.Ops.Grid_rows;
-      "Columns", Pdk.Ops.Grid_columns;
-      "Rows and columns", Pdk.Ops.Grid_rows_and_columns;
-      "Quads", Pdk.Ops.Grid_quads; "Triangles", Pdk.Ops.Grid_triangles;
-      "Alternating triangles", Pdk.Ops.Grid_alternating_triangles;
-      "Reverse triangles", Pdk.Ops.Grid_reverse_triangles;
+      "Points", Pdk.Plane_generators.Grid_points; "Rows", Pdk.Plane_generators.Grid_rows;
+      "Columns", Pdk.Plane_generators.Grid_columns;
+      "Rows and columns", Pdk.Plane_generators.Grid_rows_and_columns;
+      "Quads", Pdk.Plane_generators.Grid_quads; "Triangles", Pdk.Plane_generators.Grid_triangles;
+      "Alternating triangles", Pdk.Plane_generators.Grid_alternating_triangles;
+      "Reverse triangles", Pdk.Plane_generators.Grid_reverse_triangles;
     ]
   let tangent_parameter = Parameter.choice ~equal:( = ) [
       "Average edges", Pdk.Ops.Sweep_average_edges;
@@ -4884,7 +4884,7 @@ module Sweep = struct
       [@sop.label "Backbone primitive group"];
     cross_section_group : string [@sop.default ""]
       [@sop.label "Cross-section primitive group"];
-    connectivity : Pdk.Ops.grid_connectivity [@sop.default Pdk.Ops.Grid_quads]
+    connectivity : Pdk.Plane_generators.grid_connectivity [@sop.default Pdk.Plane_generators.Grid_quads]
       [@sop.label "Connectivity"] [@sop.kind connectivity_parameter];
     tangent : Pdk.Ops.sweep_tangent
       [@sop.default Pdk.Ops.Sweep_average_edges]
@@ -5363,7 +5363,7 @@ end [@@sop.register]
 
 module Group_random = struct
   type parameters = {
-    owner : Pdk.Ops.group_owner [@sop.default Pdk.Ops.Group_points]
+    owner : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_points]
       [@sop.label "Group type"] [@sop.kind group_owner_parameter];
     name : string [@sop.default "random"] [@sop.label "Group name"];
     probability : float [@sop.default 0.5] [@sop.label "Probability"]
@@ -5376,8 +5376,8 @@ module Group_random = struct
       [@sop.folder "Random"];
     base : string [@sop.default ""] [@sop.label "Base group"]
       [@sop.folder "Combine"];
-    merge : Pdk.Ops.group_boolean_operation
-      [@sop.default Pdk.Ops.Group_replace] [@sop.label "Operation"]
+    merge : Pdk.Group_ops.boolean_operation
+      [@sop.default Pdk.Group_ops.Group_replace] [@sop.label "Operation"]
       [@sop.folder "Combine"] [@sop.kind group_merge_parameter];
   } [@@sop.node_key "group_random"] [@@sop.node_label "Group Random"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
@@ -5404,11 +5404,11 @@ module Group_bounds = struct
       "Box", Box; "Sphere", Sphere;
     ]
   let containment_parameter = Parameter.choice ~equal:( = ) [
-      "Fully contained", Pdk.Ops.Fully_contained;
-      "Partially contained", Pdk.Ops.Partially_contained;
+      "Fully contained", Pdk.Group_ops.Fully_contained;
+      "Partially contained", Pdk.Group_ops.Partially_contained;
     ]
   type parameters = {
-    owner : Pdk.Ops.group_owner [@sop.default Pdk.Ops.Group_points]
+    owner : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_points]
       [@sop.label "Group type"] [@sop.kind group_owner_parameter];
     name : string [@sop.default "bounds"] [@sop.label "Group name"];
     shape : shape [@sop.default Box] [@sop.label "Bounding shape"]
@@ -5433,11 +5433,11 @@ module Group_bounds = struct
       [@sop.hard_min 0.];
     base : string [@sop.default ""] [@sop.label "Base group"]
       [@sop.folder "Combine"];
-    containment : Pdk.Ops.group_containment
-      [@sop.default Pdk.Ops.Fully_contained] [@sop.label "Containment"]
+    containment : Pdk.Group_ops.containment
+      [@sop.default Pdk.Group_ops.Fully_contained] [@sop.label "Containment"]
       [@sop.folder "Combine"] [@sop.kind containment_parameter];
-    merge : Pdk.Ops.group_boolean_operation
-      [@sop.default Pdk.Ops.Group_replace] [@sop.label "Operation"]
+    merge : Pdk.Group_ops.boolean_operation
+      [@sop.default Pdk.Group_ops.Group_replace] [@sop.label "Operation"]
       [@sop.folder "Combine"] [@sop.kind group_merge_parameter];
   } [@@sop.node_key "group_bounds"] [@@sop.node_label "Group by Bounds"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
@@ -5446,10 +5446,10 @@ module Group_bounds = struct
     let center = Vec3.create parameters.center_x parameters.center_y
         parameters.center_z in
     match parameters.shape with
-    | Sphere -> Pdk.Ops.Bounds_sphere { center; radius = parameters.radius }
+    | Sphere -> Pdk.Group_ops.Bounds_sphere { center; radius = parameters.radius }
     | Box -> let half = Vec3.create (parameters.size_x *. 0.5)
           (parameters.size_y *. 0.5) (parameters.size_z *. 0.5) in
-        Pdk.Ops.Bounds_box { minimum = Vec3.sub center half;
+        Pdk.Group_ops.Bounds_box { minimum = Vec3.sub center half;
           maximum = Vec3.add center half }
   let rec build ~label ~inputs parameters = match inputs with
     | [input] -> Sop.group_bounds ~label ?base:(optional_text parameters.base)
@@ -5466,7 +5466,7 @@ end [@@sop.register]
 
 module Group_normal = struct
   type parameters = {
-    owner : Pdk.Ops.group_owner [@sop.default Pdk.Ops.Group_primitives]
+    owner : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_primitives]
       [@sop.label "Group type"] [@sop.kind group_normal_owner_parameter];
     name : string [@sop.default "normal"] [@sop.label "Group name"];
     direction_x : float [@sop.default 0.] [@sop.label "Direction X"]
@@ -5487,8 +5487,8 @@ module Group_normal = struct
       [@sop.label "Include opposite"] [@sop.folder "Normals"];
     base : string [@sop.default ""] [@sop.label "Base group"]
       [@sop.folder "Combine"];
-    merge : Pdk.Ops.group_boolean_operation
-      [@sop.default Pdk.Ops.Group_replace] [@sop.label "Operation"]
+    merge : Pdk.Group_ops.boolean_operation
+      [@sop.default Pdk.Group_ops.Group_replace] [@sop.label "Operation"]
       [@sop.folder "Combine"] [@sop.kind group_merge_parameter];
   } [@@sop.node_key "group_normal"] [@@sop.node_label "Group by Normal"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
@@ -5518,8 +5518,8 @@ module Group_non_planar = struct
       [@sop.min 0.] [@sop.max 0.1] [@sop.hard_min 0.];
     base : string [@sop.default ""] [@sop.label "Base group"]
       [@sop.folder "Combine"];
-    merge : Pdk.Ops.group_boolean_operation
-      [@sop.default Pdk.Ops.Group_replace] [@sop.label "Operation"]
+    merge : Pdk.Group_ops.boolean_operation
+      [@sop.default Pdk.Group_ops.Group_replace] [@sop.label "Operation"]
       [@sop.folder "Combine"] [@sop.kind group_merge_parameter];
   } [@@sop.node_key "group_non_planar"] [@@sop.node_label "Group Non-Planar"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
@@ -5548,8 +5548,8 @@ module Group_backface = struct
       [@sop.folder "Viewpoint"] [@sop.min (-100.)] [@sop.max 100.];
     base : string [@sop.default ""] [@sop.label "Base group"]
       [@sop.folder "Combine"];
-    merge : Pdk.Ops.group_boolean_operation
-      [@sop.default Pdk.Ops.Group_replace] [@sop.label "Operation"]
+    merge : Pdk.Group_ops.boolean_operation
+      [@sop.default Pdk.Group_ops.Group_replace] [@sop.label "Operation"]
       [@sop.folder "Combine"] [@sop.kind group_merge_parameter];
   } [@@sop.node_key "group_backface"] [@@sop.node_label "Group Backfaces"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
@@ -5574,8 +5574,8 @@ module Group_edge_depth = struct
     name : string [@sop.default "depth"] [@sop.label "Output group"];
     depth : int [@sop.default 1] [@sop.label "Depth"] [@sop.min 0]
       [@sop.max 100] [@sop.hard_min 0];
-    merge : Pdk.Ops.group_boolean_operation
-      [@sop.default Pdk.Ops.Group_replace] [@sop.label "Operation"]
+    merge : Pdk.Group_ops.boolean_operation
+      [@sop.default Pdk.Group_ops.Group_replace] [@sop.label "Operation"]
       [@sop.kind group_merge_parameter];
   } [@@sop.node_key "group_edge_depth"] [@@sop.node_label "Group Edge Depth"]
     [@@sop.node_category "Group/Expand"] [@@sop.node_inputs 1]
@@ -5595,11 +5595,11 @@ end [@@sop.register]
 
 module Group_unshared = struct
   type parameters = {
-    owner : Pdk.Ops.group_owner [@sop.default Pdk.Ops.Group_edges]
+    owner : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_edges]
       [@sop.label "Group type"] [@sop.kind group_owner_parameter];
     name : string [@sop.default "unshared"] [@sop.label "Group name"];
-    merge : Pdk.Ops.group_boolean_operation
-      [@sop.default Pdk.Ops.Group_replace] [@sop.label "Operation"]
+    merge : Pdk.Group_ops.boolean_operation
+      [@sop.default Pdk.Group_ops.Group_replace] [@sop.label "Operation"]
       [@sop.kind group_merge_parameter];
   } [@@sop.node_key "group_unshared"] [@@sop.node_label "Group Unshared"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
@@ -5618,12 +5618,12 @@ end [@@sop.register]
 
 module Group_boundary_components = struct
   let conflict_parameter = Parameter.choice ~equal:( = ) [
-      "Replace", Pdk.Ops.Name_replace; "Union", Pdk.Ops.Name_union;
+      "Replace", Pdk.Group_ops.Name_replace; "Union", Pdk.Group_ops.Name_union;
     ]
   type parameters = {
     prefix : string [@sop.default "boundary"] [@sop.label "Group prefix"];
-    conflict : Pdk.Ops.group_name_conflict
-      [@sop.default Pdk.Ops.Name_replace] [@sop.label "Conflict"]
+    conflict : Pdk.Group_ops.name_conflict
+      [@sop.default Pdk.Group_ops.Name_replace] [@sop.label "Conflict"]
       [@sop.kind conflict_parameter];
     max_groups : int [@sop.default 4096] [@sop.label "Maximum groups"]
       [@sop.folder "Limits"] [@sop.min 1] [@sop.max 16384]
@@ -5650,11 +5650,11 @@ end [@@sop.register]
 
 module Group_from_attribute_boundary = struct
   type parameters = {
-    owner : Pdk.Ops.group_owner [@sop.default Pdk.Ops.Group_edges]
+    owner : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_edges]
       [@sop.label "Group type"] [@sop.kind group_owner_parameter];
     name : string [@sop.default "attribute_boundary"]
       [@sop.label "Group name"];
-    attributes : Pdk.Ops.group_boundary_attribute list [@sop.default []]
+    attributes : Pdk.Group_ops.boundary_attribute list [@sop.default []]
       [@sop.label "Attributes (owner, pattern)"]
       [@sop.kind boundary_attributes_parameter];
     tolerance : float [@sop.default 0.00001] [@sop.label "Tolerance"]
@@ -5690,11 +5690,11 @@ end [@@sop.register]
 
 module Groups_from_name = struct
   let conflict_parameter = Parameter.choice ~equal:( = ) [
-      "Replace", Pdk.Ops.Name_replace; "Union", Pdk.Ops.Name_union;
+      "Replace", Pdk.Group_ops.Name_replace; "Union", Pdk.Group_ops.Name_union;
     ]
   let invalid_parameter = Parameter.choice ~equal:( = ) [
-      "Ignore invalid", Pdk.Ops.Ignore_invalid;
-      "Force valid", Pdk.Ops.Force_valid;
+      "Ignore invalid", Pdk.Group_ops.Ignore_invalid;
+      "Force valid", Pdk.Group_ops.Force_valid;
     ]
   type parameters = {
     owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Primitive]
@@ -5702,11 +5702,11 @@ module Groups_from_name = struct
       [@sop.kind element_attribute_owner_parameter];
     attribute : string [@sop.default "name"] [@sop.label "Name attribute"];
     prefix : string [@sop.default ""] [@sop.label "Group prefix"];
-    conflict : Pdk.Ops.group_name_conflict
-      [@sop.default Pdk.Ops.Name_replace] [@sop.label "Conflict"]
+    conflict : Pdk.Group_ops.name_conflict
+      [@sop.default Pdk.Group_ops.Name_replace] [@sop.label "Conflict"]
       [@sop.kind conflict_parameter];
-    invalid_names : Pdk.Ops.invalid_group_name_policy
-      [@sop.default Pdk.Ops.Ignore_invalid] [@sop.label "Invalid names"]
+    invalid_names : Pdk.Group_ops.invalid_name_policy
+      [@sop.default Pdk.Group_ops.Ignore_invalid] [@sop.label "Invalid names"]
       [@sop.kind invalid_parameter];
     max_groups : int [@sop.default 4096] [@sop.label "Maximum groups"]
       [@sop.folder "Limits"] [@sop.min 1] [@sop.max 16384]
@@ -5734,8 +5734,8 @@ end [@@sop.register]
 
 module Name_from_groups = struct
   let overlap_parameter = Parameter.choice ~equal:( = ) [
-      "First group", Pdk.Ops.First_group; "Last group", Pdk.Ops.Last_group;
-      "Error on overlap", Pdk.Ops.Error_on_overlap;
+      "First group", Pdk.Group_ops.First_group; "Last group", Pdk.Group_ops.Last_group;
+      "Error on overlap", Pdk.Group_ops.Error_on_overlap;
     ]
   type parameters = {
     owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Primitive]
@@ -5743,7 +5743,7 @@ module Name_from_groups = struct
     attribute : string [@sop.default "name"] [@sop.label "Name attribute"];
     pattern : string [@sop.default "*"] [@sop.label "Group pattern"];
     default : string [@sop.default ""] [@sop.label "Default value"];
-    overlap : Pdk.Ops.group_name_overlap [@sop.default Pdk.Ops.First_group]
+    overlap : Pdk.Group_ops.name_overlap [@sop.default Pdk.Group_ops.First_group]
       [@sop.label "Overlapping groups"] [@sop.kind overlap_parameter];
     delete_groups : bool [@sop.default false]
       [@sop.label "Delete source groups"];
@@ -5766,9 +5766,9 @@ end [@@sop.register]
 
 module Group_promote_boundary = struct
   type parameters = {
-    source : Pdk.Ops.group_owner [@sop.default Pdk.Ops.Group_primitives]
+    source : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_primitives]
       [@sop.label "Source owner"] [@sop.kind group_owner_parameter];
-    destination : Pdk.Ops.group_owner [@sop.default Pdk.Ops.Group_edges]
+    destination : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_edges]
       [@sop.label "Destination owner"] [@sop.kind group_owner_parameter];
     group : string [@sop.default "group"] [@sop.label "Source group"];
     name : string [@sop.default ""] [@sop.label "New group name"];
@@ -5776,7 +5776,7 @@ module Group_promote_boundary = struct
       [@sop.label "Keep original group"];
     output_attribute : string [@sop.default ""]
       [@sop.label "Output mask attribute"] [@sop.folder "Output"];
-    attributes : Pdk.Ops.group_boundary_attribute list [@sop.default []]
+    attributes : Pdk.Group_ops.boundary_attribute list [@sop.default []]
       [@sop.label "Boundary attributes (owner, pattern)"]
       [@sop.kind boundary_attributes_parameter];
     tolerance : float [@sop.default 0.00001] [@sop.label "Tolerance"]
@@ -5821,14 +5821,14 @@ module Group_promotions = struct
     | "false" | "0" | "no" -> Ok false
     | token -> Error (Printf.sprintf "expected boolean, got %S" token)
   let encode_attributes attributes = encode_table (List.map
-      (fun (attribute : Pdk.Ops.group_boundary_attribute) ->
+      (fun (attribute : Pdk.Group_ops.boundary_attribute) ->
         [attribute_owner_token attribute.boundary_attribute_owner;
          attribute.boundary_attribute_pattern]) attributes)
   let decode_attributes text = Result.bind (decode_table text) (fun rows ->
       List.fold_left (fun result row -> Result.bind result (fun attributes ->
         match row with
         | [owner; pattern] -> Result.map (fun boundary_attribute_owner ->
-            { Pdk.Ops.boundary_attribute_owner;
+            { Pdk.Group_ops.boundary_attribute_owner;
               boundary_attribute_pattern = pattern } :: attributes)
             (attribute_owner_of_token
               (String.lowercase_ascii (String.trim owner)))
@@ -5836,13 +5836,13 @@ module Group_promotions = struct
             "boundary attribute needs owner and pattern, got %d columns"
             (List.length row)))) (Ok []) rows |> Result.map List.rev)
   let encode_operation = function
-    | Pdk.Ops.Promote_elements mode ->
+    | Pdk.Group_ops.Promote_elements mode ->
         let token = match mode with
-          | Pdk.Ops.Include_any -> "any"
-          | Pdk.Ops.Include_all -> "all"
-          | Pdk.Ops.Include_shared_edge -> "shared_edge" in
+          | Pdk.Group_ops.Include_any -> "any"
+          | Pdk.Group_ops.Include_all -> "all"
+          | Pdk.Group_ops.Include_shared_edge -> "shared_edge" in
         [token; "0"; "false"; "false"; "false"; ""]
-    | Pdk.Ops.Promote_boundary options -> [
+    | Pdk.Group_ops.Promote_boundary options -> [
         "boundary"; Printf.sprintf "%.17g" options.promote_boundary_tolerance;
         bool_token options.promote_include_unshared_edges;
         bool_token options.promote_include_all_unshared_curve_edges;
@@ -5852,10 +5852,10 @@ module Group_promotions = struct
   let decode_operation = function
     | [kind; tolerance; unshared; all_curve; all_primitives; attributes] ->
         (match String.lowercase_ascii (String.trim kind) with
-         | "any" -> Ok (Pdk.Ops.Promote_elements Pdk.Ops.Include_any)
-         | "all" -> Ok (Pdk.Ops.Promote_elements Pdk.Ops.Include_all)
+         | "any" -> Ok (Pdk.Group_ops.Promote_elements Pdk.Group_ops.Include_any)
+         | "all" -> Ok (Pdk.Group_ops.Promote_elements Pdk.Group_ops.Include_all)
          | "shared_edge" | "shared edge" ->
-             Ok (Pdk.Ops.Promote_elements Pdk.Ops.Include_shared_edge)
+             Ok (Pdk.Group_ops.Promote_elements Pdk.Group_ops.Include_shared_edge)
          | "boundary" ->
              (match float_of_string_opt (String.trim tolerance) with
               | None -> Error (Printf.sprintf "invalid boundary tolerance %S"
@@ -5872,7 +5872,7 @@ module Group_promotions = struct
                               (String.trim all_primitives)))
                             (fun promote_include_all_primitives_sharing_boundary_points ->
                               Result.map (fun promote_boundary_attributes ->
-                                Pdk.Ops.Promote_boundary {
+                                Pdk.Group_ops.Promote_boundary {
                                   Pdk.Ops.promote_boundary_attributes;
                                   promote_boundary_tolerance;
                                   promote_include_unshared_edges;
@@ -5884,7 +5884,7 @@ module Group_promotions = struct
     | columns -> Error (Printf.sprintf
         "group promotion operation needs 6 columns, got %d"
         (List.length columns))
-  let encode_rule (rule : Pdk.Ops.group_promotion_rule) = [
+  let encode_rule (rule : Pdk.Group_ops.promotion_rule) = [
       group_owner_token rule.promotion_source;
       group_owner_token rule.promotion_destination;
       rule.promotion_pattern;
@@ -5920,15 +5920,15 @@ module Group_promotions = struct
   let rules_parameter = Parameter.encoded ~equal:( = )
       ~encode:(fun rules -> encode_table (List.map encode_rule rules)) ~decode
   let default_rules = [{
-      Pdk.Ops.promotion_source = Pdk.Ops.Group_points;
-      promotion_destination = Pdk.Ops.Group_primitives;
+      Pdk.Ops.promotion_source = Pdk.Group_ops.Group_points;
+      promotion_destination = Pdk.Group_ops.Group_primitives;
       promotion_pattern = "*"; promotion_new_name = None;
       promotion_keep_original = false;
       promotion_output_as_attribute = false;
-      promotion_operation = Pdk.Ops.Promote_elements Pdk.Ops.Include_any;
+      promotion_operation = Pdk.Group_ops.Promote_elements Pdk.Group_ops.Include_any;
     }]
   type parameters = {
-    rules : Pdk.Ops.group_promotion_rule list [@sop.default default_rules]
+    rules : Pdk.Group_ops.promotion_rule list [@sop.default default_rules]
       [@sop.label "Rules (source, destination, pattern, new name, keep, attribute, operation...)"]
       [@sop.kind rules_parameter];
     max_outputs : int [@sop.default 4096] [@sop.label "Maximum outputs"]
@@ -5955,20 +5955,20 @@ module Group_promotions = struct
 end [@@sop.register]
 
 module Group_invert = struct
-  type owner = Any | Owner of Pdk.Ops.group_owner
+  type owner = Any | Owner of Pdk.Group_ops.owner
   let owner_parameter = Parameter.choice ~equal:( = ) [
-      "Any", Any; "Points", Owner Pdk.Ops.Group_points;
-      "Vertices", Owner Pdk.Ops.Group_vertices;
-      "Primitives", Owner Pdk.Ops.Group_primitives;
-      "Edges", Owner Pdk.Ops.Group_edges;
+      "Any", Any; "Points", Owner Pdk.Group_ops.Group_points;
+      "Vertices", Owner Pdk.Group_ops.Group_vertices;
+      "Primitives", Owner Pdk.Group_ops.Group_primitives;
+      "Edges", Owner Pdk.Group_ops.Group_edges;
     ]
   type parameters = {
     owner : owner [@sop.default Any] [@sop.label "Group type"]
       [@sop.kind owner_parameter];
     pattern : string [@sop.default "*"] [@sop.label "Group pattern"];
     new_name : string [@sop.default ""] [@sop.label "New name pattern"];
-    conflict : Pdk.Ops.group_rename_conflict
-      [@sop.default Pdk.Ops.Rename_overwrite] [@sop.label "Conflict"]
+    conflict : Pdk.Group_ops.rename_conflict
+      [@sop.default Pdk.Group_ops.Rename_overwrite] [@sop.label "Conflict"]
       [@sop.kind group_rename_conflict_parameter];
   } [@@sop.node_key "group_invert"] [@@sop.node_label "Group Invert"]
     [@@sop.node_category "Group/Edit"] [@@sop.node_inputs 1]
@@ -5989,7 +5989,7 @@ module Group_invert = struct
 end [@@sop.register]
 
 module Group_delete = struct
-  let encode_rule (rule : Pdk.Ops.group_delete_rule) = [
+  let encode_rule (rule : Pdk.Group_ops.delete_rule) = [
       (match rule.delete_owner with None -> "any"
        | Some owner -> group_owner_token owner);
       rule.delete_pattern;
@@ -6011,7 +6011,7 @@ module Group_delete = struct
   let rules_parameter = Parameter.encoded ~equal:( = )
       ~encode:(fun rules -> encode_table (List.map encode_rule rules)) ~decode
   type parameters = {
-    rules : Pdk.Ops.group_delete_rule list [@sop.default []]
+    rules : Pdk.Group_ops.delete_rule list [@sop.default []]
       [@sop.label "Rules (owner, pattern)"] [@sop.kind rules_parameter];
     delete_unused : bool [@sop.default false]
       [@sop.label "Delete unused groups"];
@@ -6032,17 +6032,17 @@ end [@@sop.register]
 
 module Group_rename = struct
   let conflict_token = function
-    | Pdk.Ops.Rename_skip -> "skip"
-    | Pdk.Ops.Rename_error -> "error"
-    | Pdk.Ops.Rename_overwrite -> "overwrite"
-    | Pdk.Ops.Rename_union -> "union"
+    | Pdk.Group_ops.Rename_skip -> "skip"
+    | Pdk.Group_ops.Rename_error -> "error"
+    | Pdk.Group_ops.Rename_overwrite -> "overwrite"
+    | Pdk.Group_ops.Rename_union -> "union"
   let conflict_of_token = function
-    | "skip" -> Ok Pdk.Ops.Rename_skip
-    | "error" -> Ok Pdk.Ops.Rename_error
-    | "overwrite" -> Ok Pdk.Ops.Rename_overwrite
-    | "union" -> Ok Pdk.Ops.Rename_union
+    | "skip" -> Ok Pdk.Group_ops.Rename_skip
+    | "error" -> Ok Pdk.Group_ops.Rename_error
+    | "overwrite" -> Ok Pdk.Group_ops.Rename_overwrite
+    | "union" -> Ok Pdk.Group_ops.Rename_union
     | token -> Error (Printf.sprintf "unknown group rename conflict %S" token)
-  let encode_rule (rule : Pdk.Ops.group_rename_rule) = [
+  let encode_rule (rule : Pdk.Group_ops.rename_rule) = [
       (match rule.rename_owner with None -> "any"
        | Some owner -> group_owner_token owner);
       rule.rename_pattern; rule.rename_replacement;
@@ -6069,7 +6069,7 @@ module Group_rename = struct
   let rules_parameter = Parameter.encoded ~equal:( = )
       ~encode:(fun rules -> encode_table (List.map encode_rule rules)) ~decode
   type parameters = {
-    rules : Pdk.Ops.group_rename_rule list [@sop.default []]
+    rules : Pdk.Group_ops.rename_rule list [@sop.default []]
       [@sop.label "Rules (owner, pattern, replacement, conflict)"]
       [@sop.kind rules_parameter];
   } [@@sop.node_key "group_rename"] [@@sop.node_label "Group Rename"]
@@ -6087,7 +6087,7 @@ module Group_rename = struct
 end [@@sop.register]
 
 module Group_copy = struct
-  let encode_rule (rule : Pdk.Ops.group_copy_rule) = [
+  let encode_rule (rule : Pdk.Group_ops.copy_rule) = [
       group_owner_token rule.copy_owner; rule.copy_pattern; rule.copy_prefix;
       Option.value ~default:"" rule.match_attribute;
     ]
@@ -6109,11 +6109,11 @@ module Group_copy = struct
       ~encode:(fun rules -> encode_table (List.map encode_rule rules)) ~decode
   type parameters = {
     use_rules : bool [@sop.default false] [@sop.label "Use rules"];
-    rules : Pdk.Ops.group_copy_rule list [@sop.default []]
+    rules : Pdk.Group_ops.copy_rule list [@sop.default []]
       [@sop.label "Rules (owner, pattern, prefix, match attribute)"]
       [@sop.kind rules_parameter];
-    conflict : Pdk.Ops.group_copy_conflict
-      [@sop.default Pdk.Ops.Copy_overwrite] [@sop.label "Conflict"]
+    conflict : Pdk.Group_ops.copy_conflict
+      [@sop.default Pdk.Group_ops.Copy_overwrite] [@sop.label "Conflict"]
       [@sop.kind group_copy_conflict_parameter];
     copy_empty : bool [@sop.default false] [@sop.label "Copy empty groups"];
   } [@@sop.node_key "group_copy"] [@@sop.node_label "Group Copy"]
@@ -6134,7 +6134,7 @@ module Group_copy = struct
 end [@@sop.register]
 
 module Group_transfer = struct
-  let encode_rule (rule : Pdk.Ops.group_transfer_rule) = [
+  let encode_rule (rule : Pdk.Group_ops.transfer_rule) = [
       group_owner_token rule.transfer_owner; rule.transfer_pattern;
       rule.transfer_prefix;
     ]
@@ -6155,11 +6155,11 @@ module Group_transfer = struct
       ~encode:(fun rules -> encode_table (List.map encode_rule rules)) ~decode
   type parameters = {
     use_rules : bool [@sop.default false] [@sop.label "Use rules"];
-    rules : Pdk.Ops.group_transfer_rule list [@sop.default []]
+    rules : Pdk.Group_ops.transfer_rule list [@sop.default []]
       [@sop.label "Rules (owner, pattern, prefix)"]
       [@sop.kind rules_parameter];
-    conflict : Pdk.Ops.group_copy_conflict
-      [@sop.default Pdk.Ops.Copy_overwrite] [@sop.label "Conflict"]
+    conflict : Pdk.Group_ops.copy_conflict
+      [@sop.default Pdk.Group_ops.Copy_overwrite] [@sop.label "Conflict"]
       [@sop.kind group_copy_conflict_parameter];
     create_empty : bool [@sop.default false]
       [@sop.label "Create empty groups"];
@@ -6188,7 +6188,7 @@ module Group_combine = struct
     | "true" | "1" | "yes" -> Ok true
     | "false" | "0" | "no" -> Ok false
     | token -> Error (Printf.sprintf "expected boolean, got %S" token)
-  let encode_step (step : Pdk.Ops.group_combine_step) = [
+  let encode_step (step : Pdk.Group_ops.combine_step) = [
       group_boolean_token step.operation; step.operand.pattern;
       bool_token step.operand.inverted;
     ]
@@ -6210,12 +6210,12 @@ module Group_combine = struct
   let steps_parameter = Parameter.encoded ~equal:( = )
       ~encode:(fun steps -> encode_table (List.map encode_step steps)) ~decode
   type parameters = {
-    owner : Pdk.Ops.group_owner [@sop.default Pdk.Ops.Group_points]
+    owner : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_points]
       [@sop.label "Group type"] [@sop.kind group_owner_parameter];
     name : string [@sop.default "combined"] [@sop.label "Output group"];
     base_pattern : string [@sop.default "*"] [@sop.label "Base pattern"];
     base_inverted : bool [@sop.default false] [@sop.label "Invert base"];
-    steps : Pdk.Ops.group_combine_step list [@sop.default []]
+    steps : Pdk.Group_ops.combine_step list [@sop.default []]
       [@sop.label "Steps (operation, pattern, invert)"]
       [@sop.kind steps_parameter];
   } [@@sop.node_key "group_combine"] [@@sop.node_label "Group Combine"]
@@ -6237,11 +6237,11 @@ end [@@sop.register]
 
 module Group_expand = struct
   let connectivity_parameter = Parameter.choice ~equal:( = ) [
-      "Share points", Pdk.Ops.Primitive_share_points;
-      "Share edges", Pdk.Ops.Primitive_share_edges;
+      "Share points", Pdk.Group_ops.Primitive_share_points;
+      "Share edges", Pdk.Group_ops.Primitive_share_edges;
     ]
   type parameters = {
-    owner : Pdk.Ops.group_owner [@sop.default Pdk.Ops.Group_points]
+    owner : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_points]
       [@sop.label "Group type"] [@sop.kind group_owner_parameter];
     group : string [@sop.default "group"] [@sop.label "Source group"];
     name : string [@sop.default ""] [@sop.label "Output group"];
@@ -6250,8 +6250,8 @@ module Group_expand = struct
     flood : bool [@sop.default false] [@sop.label "Flood fill"];
     step_attribute : string [@sop.default ""]
       [@sop.label "Step attribute"] [@sop.folder "Output"];
-    primitive_connectivity : Pdk.Ops.primitive_group_connectivity
-      [@sop.default Pdk.Ops.Primitive_share_points]
+    primitive_connectivity : Pdk.Group_ops.primitive_connectivity
+      [@sop.default Pdk.Group_ops.Primitive_share_points]
       [@sop.label "Primitive connectivity"]
       [@sop.folder "Connectivity"] [@sop.kind connectivity_parameter];
     normal_spread : float [@sop.default 3.141592653589793]
@@ -6265,7 +6265,7 @@ module Group_expand = struct
       [@sop.kind element_attribute_owner_parameter];
     normal_name : string [@sop.default "N"] [@sop.label "Normal attribute"]
       [@sop.folder "Connectivity/Normals"];
-    connectivity_attributes : Pdk.Ops.group_boundary_attribute list
+    connectivity_attributes : Pdk.Group_ops.boundary_attribute list
       [@sop.default []] [@sop.label "Boundary attributes (owner, pattern)"]
       [@sop.folder "Connectivity"] [@sop.kind boundary_attributes_parameter];
     connectivity_tolerance : float [@sop.default 0.00001]
@@ -6273,7 +6273,7 @@ module Group_expand = struct
       [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.];
     use_collision : bool [@sop.default false]
       [@sop.label "Use collision group"] [@sop.folder "Collision"];
-    collision_owner : Pdk.Ops.group_owner [@sop.default Pdk.Ops.Group_edges]
+    collision_owner : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_edges]
       [@sop.label "Collision owner"] [@sop.folder "Collision"]
       [@sop.kind group_owner_parameter];
     collision_group : string [@sop.default "collision"]
@@ -6288,10 +6288,10 @@ module Group_expand = struct
   let rec build ~label ~inputs parameters = match inputs with
     | [input] ->
         let normal_attribute = if parameters.use_normal_attribute then Some {
-            Pdk.Ops.expand_normal_owner = parameters.normal_owner;
+            Pdk.Group_ops.expand_normal_owner = parameters.normal_owner;
             expand_normal_name = parameters.normal_name } else None
         and collision = if parameters.use_collision then Some {
-            Pdk.Ops.expand_collision_owner = parameters.collision_owner;
+            Pdk.Group_ops.expand_collision_owner = parameters.collision_owner;
             expand_collision_group = parameters.collision_group;
             expand_collision_contain = parameters.collision_contain;
             expand_collision_allow_boundary =
@@ -6325,13 +6325,13 @@ module Group_range = struct
       "Connected with seams", Connected;
     ]
   type parameters = {
-    owner : Pdk.Ops.group_owner [@sop.default Pdk.Ops.Group_points]
+    owner : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_points]
       [@sop.label "Group type"] [@sop.kind group_owner_parameter];
     name : string [@sop.default "range"] [@sop.label "Output group"];
     base : string [@sop.default ""] [@sop.label "Base group"];
     invert : bool [@sop.default false] [@sop.label "Invert range"];
-    merge : Pdk.Ops.group_boolean_operation
-      [@sop.default Pdk.Ops.Group_replace] [@sop.label "Merge"]
+    merge : Pdk.Group_ops.boolean_operation
+      [@sop.default Pdk.Group_ops.Group_replace] [@sop.label "Merge"]
       [@sop.kind group_merge_parameter];
     range_mode : range_mode [@sop.default Start_end] [@sop.label "Range"]
       [@sop.kind range_parameter];
@@ -6375,7 +6375,7 @@ module Group_range = struct
       [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.];
     use_collision : bool [@sop.default false]
       [@sop.label "Use collision group"] [@sop.folder "Connectivity/Collision"];
-    collision_owner : Pdk.Ops.group_owner [@sop.default Pdk.Ops.Group_edges]
+    collision_owner : Pdk.Group_ops.owner [@sop.default Pdk.Group_ops.Group_edges]
       [@sop.label "Collision owner"] [@sop.folder "Connectivity/Collision"]
       [@sop.kind group_owner_parameter];
     collision_pattern : string [@sop.default "collision"]
@@ -6388,13 +6388,13 @@ module Group_range = struct
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
   let range parameters = match parameters.range_mode with
-    | Start_end -> Pdk.Ops.Range_start_end {
+    | Start_end -> Pdk.Group_ops.Range_start_end {
         start = parameters.start; end_ = parameters.end_ }
-    | From_ends -> Pdk.Ops.Range_from_ends {
+    | From_ends -> Pdk.Group_ops.Range_from_ends {
         start = parameters.start; end_offset = parameters.end_offset }
-    | Start_length -> Pdk.Ops.Range_start_length {
+    | Start_length -> Pdk.Group_ops.Range_start_length {
         start = parameters.start; length = parameters.length }
-    | Partition -> Pdk.Ops.Range_partition {
+    | Partition -> Pdk.Group_ops.Range_partition {
         partition = parameters.partition; partitions = parameters.partitions }
   let filter parameters = if parameters.use_filter then Some {
       Pdk.Ops.select = parameters.filter_select; of_ = parameters.filter_of;
@@ -6403,13 +6403,13 @@ module Group_range = struct
     let region = if parameters.use_region then Some parameters.region else None in
     match parameters.connectivity_mode with
     | No_connectivity -> None
-    | Disconnected -> Some (Pdk.Ops.Range_disconnected { region })
+    | Disconnected -> Some (Pdk.Group_ops.Range_disconnected { region })
     | Connected ->
         let collision = if parameters.use_collision then Some {
             Pdk.Ops.collision_owner = parameters.collision_owner;
             collision_pattern = parameters.collision_pattern;
             keep_boundary = parameters.keep_boundary } else None in
-        Some (Pdk.Ops.Range_connected {
+        Some (Pdk.Group_ops.Range_connected {
           connectivity_attributes =
             optional_text parameters.connectivity_attributes;
           connectivity_tolerance = parameters.connectivity_tolerance;
@@ -6431,13 +6431,13 @@ end [@@sop.register]
 
 module Group_ranges = struct
   let encode_specification = function
-    | Pdk.Ops.Range_start_end { start; end_ } ->
+    | Pdk.Group_ops.Range_start_end { start; end_ } ->
         ["start_end"; string_of_int start; string_of_int end_]
-    | Pdk.Ops.Range_from_ends { start; end_offset } ->
+    | Pdk.Group_ops.Range_from_ends { start; end_offset } ->
         ["from_ends"; string_of_int start; string_of_int end_offset]
-    | Pdk.Ops.Range_start_length { start; length } ->
+    | Pdk.Group_ops.Range_start_length { start; length } ->
         ["start_length"; string_of_int start; string_of_int length]
-    | Pdk.Ops.Range_partition { partition; partitions } ->
+    | Pdk.Group_ops.Range_partition { partition; partitions } ->
         ["partition"; string_of_int partition; string_of_int partitions]
   let decode_specification = function
     | [kind; a; b] ->
@@ -6445,12 +6445,12 @@ module Group_ranges = struct
         let* a = int_of_token a in
         let* b = int_of_token b in
         (match String.lowercase_ascii (String.trim kind) with
-         | "start_end" -> Ok (Pdk.Ops.Range_start_end { start = a; end_ = b })
-         | "from_ends" -> Ok (Pdk.Ops.Range_from_ends {
+         | "start_end" -> Ok (Pdk.Group_ops.Range_start_end { start = a; end_ = b })
+         | "from_ends" -> Ok (Pdk.Group_ops.Range_from_ends {
              start = a; end_offset = b })
-         | "start_length" -> Ok (Pdk.Ops.Range_start_length {
+         | "start_length" -> Ok (Pdk.Group_ops.Range_start_length {
              start = a; length = b })
-         | "partition" -> Ok (Pdk.Ops.Range_partition {
+         | "partition" -> Ok (Pdk.Group_ops.Range_partition {
              partition = a; partitions = b })
          | token -> Error (Printf.sprintf "unknown range kind %S" token))
     | columns -> Error (Printf.sprintf
@@ -6473,10 +6473,10 @@ module Group_ranges = struct
   let encode_connectivity = function
     | None -> ["none"; ""; ""; "0"; "false"; "edge"; "";
         "false"; "false"]
-    | Some (Pdk.Ops.Range_disconnected { region }) -> [
+    | Some (Pdk.Group_ops.Range_disconnected { region }) -> [
         "disconnected"; Option.fold ~none:"" ~some:string_of_int region;
         ""; "0"; "false"; "edge"; ""; "false"; "false"]
-    | Some (Pdk.Ops.Range_connected connectivity) ->
+    | Some (Pdk.Group_ops.Range_connected connectivity) ->
         let collision_enabled, collision_owner, collision_pattern, keep_boundary =
           match connectivity.collision with
           | None -> "false", "edge", "", "false"
@@ -6499,7 +6499,7 @@ module Group_ranges = struct
         let* region = region in
         (match String.lowercase_ascii (String.trim kind) with
          | "none" -> Ok None
-         | "disconnected" -> Ok (Some (Pdk.Ops.Range_disconnected { region }))
+         | "disconnected" -> Ok (Some (Pdk.Group_ops.Range_disconnected { region }))
          | "connected" ->
              let* connectivity_tolerance = float_of_token tolerance in
              let* collision_enabled = bool_of_token collision_enabled in
@@ -6510,7 +6510,7 @@ module Group_ranges = struct
                Ok (Some { Pdk.Ops.collision_owner; collision_pattern;
                  keep_boundary }) in
              let* remove_other_regions = bool_of_token remove_other_regions in
-             Ok (Some (Pdk.Ops.Range_connected {
+             Ok (Some (Pdk.Group_ops.Range_connected {
                connectivity_attributes = optional_text attributes;
                connectivity_tolerance; collision; region;
                remove_other_regions }))
@@ -6518,7 +6518,7 @@ module Group_ranges = struct
              "unknown range connectivity %S" token))
     | columns -> Error (Printf.sprintf
         "range connectivity needs 9 columns, got %d" (List.length columns))
-  let encode_rule (rule : Pdk.Ops.group_range_rule) =
+  let encode_rule (rule : Pdk.Group_ops.range_rule) =
     [group_owner_token rule.range_owner; rule.range_name;
      Option.value ~default:"" rule.range_base; bool_token rule.range_invert;
      group_boolean_token rule.range_merge]
@@ -6549,11 +6549,11 @@ module Group_ranges = struct
       |> Result.map List.rev)
   let rules_parameter = Parameter.encoded ~equal:( = )
       ~encode:(fun rules -> encode_table (List.map encode_rule rules)) ~decode
-  let default_rules = [Pdk.Ops.group_range_rule
-      ~owner:Pdk.Ops.Group_points ~name:"range"
-      (Pdk.Ops.Range_start_end { start = 0; end_ = -1 })]
+  let default_rules = [Pdk.Group_ops.range_rule
+      ~owner:Pdk.Group_ops.Group_points ~name:"range"
+      (Pdk.Group_ops.Range_start_end { start = 0; end_ = -1 })]
   type parameters = {
-    rules : Pdk.Ops.group_range_rule list [@sop.default default_rules]
+    rules : Pdk.Group_ops.range_rule list [@sop.default default_rules]
       [@sop.label "Range rules"] [@sop.kind rules_parameter];
   } [@@sop.node_key "group_ranges"] [@@sop.node_label "Group Ranges"]
     [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
@@ -7219,13 +7219,13 @@ module Attribute_mirror = struct
   type method_ = Plane | Mapping
   type transform = Copy | Uv | Vector | Point
   let owner_parameter = Parameter.choice ~equal:( = ) [
-      "Point", Pdk.Ops.Mirror_point_attributes;
-      "Vertex", Pdk.Ops.Mirror_vertex_attributes;
-      "Primitive", Pdk.Ops.Mirror_primitive_attributes;
+      "Point", Pdk.Attribute_mirror.Mirror_point_attributes;
+      "Vertex", Pdk.Attribute_mirror.Mirror_vertex_attributes;
+      "Primitive", Pdk.Attribute_mirror.Mirror_primitive_attributes;
     ]
   let group_use_parameter = Parameter.choice ~equal:( = ) [
-      "Group is source", Pdk.Ops.Mirror_group_as_source;
-      "Group is destination", Pdk.Ops.Mirror_group_as_destination;
+      "Group is source", Pdk.Attribute_mirror.Mirror_group_as_source;
+      "Group is destination", Pdk.Attribute_mirror.Mirror_group_as_destination;
     ]
   let method_parameter = Parameter.choice ~equal:( = ) [
       "Plane", Plane; "Mapping attribute", Mapping;
@@ -7234,13 +7234,13 @@ module Attribute_mirror = struct
       "Copy", Copy; "UV", Uv; "Vector", Vector; "Point", Point;
     ]
   type parameters = {
-    owner : Pdk.Ops.attribute_mirror_owner
-      [@sop.default Pdk.Ops.Mirror_point_attributes]
+    owner : Pdk.Attribute_mirror.owner
+      [@sop.default Pdk.Attribute_mirror.Mirror_point_attributes]
       [@sop.label "Attribute owner"] [@sop.kind owner_parameter];
     attributes : string [@sop.default "Cd"] [@sop.label "Attributes"];
     group : string [@sop.default ""] [@sop.label "Selection group"];
-    group_use : Pdk.Ops.attribute_mirror_group_use
-      [@sop.default Pdk.Ops.Mirror_group_as_source]
+    group_use : Pdk.Attribute_mirror.group_use
+      [@sop.default Pdk.Attribute_mirror.Mirror_group_as_source]
       [@sop.label "Group use"] [@sop.kind group_use_parameter];
     method_ : method_ [@sop.default Plane] [@sop.label "Mirror method"]
       [@sop.kind method_parameter];
@@ -7302,13 +7302,13 @@ module Attribute_mirror = struct
         mapping_attribute = parameters.mapping_attribute;
         destination_group = parameters.mapping_destination_group }
   let transform parameters = match parameters.transform with
-    | Copy -> Pdk.Ops.Mirror_copy
-    | Uv -> Pdk.Ops.Mirror_uv { origin_u = parameters.uv_origin_u;
+    | Copy -> Pdk.Attribute_mirror.Mirror_copy
+    | Uv -> Pdk.Attribute_mirror.Mirror_uv { origin_u = parameters.uv_origin_u;
         origin_v = parameters.uv_origin_v;
         direction_u = parameters.uv_direction_u;
         direction_v = parameters.uv_direction_v }
-    | Vector -> Pdk.Ops.Mirror_vector
-    | Point -> Pdk.Ops.Mirror_point
+    | Vector -> Pdk.Attribute_mirror.Mirror_vector
+    | Point -> Pdk.Attribute_mirror.Mirror_point
   let rec build ~label ~inputs parameters = match inputs with
     | [input] -> Sop.attribute_mirror ~label
         ?group:(optional_text parameters.group) ~group_use:parameters.group_use
@@ -8202,11 +8202,11 @@ module Point_generate_from_input = struct
     [@@sop.node_category "Create/Points"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
   let mode parameters = match parameters.mode with
-    | Total -> Pdk.Ops.Generate_total parameters.total
-    | Per_point -> Pdk.Ops.Generate_per_point {
+    | Total -> Pdk.Point_generate.Generate_total parameters.total
+    | Per_point -> Pdk.Point_generate.Generate_per_point {
         points_per_point = parameters.points_per_point;
         scale_attribute = optional_text parameters.scale_attribute }
-    | Probability -> Pdk.Ops.Generate_probability {
+    | Probability -> Pdk.Point_generate.Generate_probability {
         attribute = parameters.probability_attribute }
   let rec build ~label ~inputs parameters = match inputs with
     | [input] -> Sop.point_generate ~label
@@ -9546,7 +9546,7 @@ module Camera = struct
     [@@sop.node_category "Scene"] [@@sop.node_inputs 0]
     [@@deriving sop_params, sop_node]
 
-  let empty = Pdk.Ops.points [||]
+  let empty = Pdk.Line_geometry.points [||]
 
   let rec build ~label ~inputs:_ parameters =
     Sop.custom ~label ~operation:"camera" [] (fun ~context:_ _ -> Ok empty)
@@ -9584,16 +9584,16 @@ module Normal = struct
     ]
 
   let weighting_parameter = Parameter.choice ~equal:( = ) [
-      "Vertex angle", Pdk.Ops.Vertex_angle;
-      "Each vertex", Pdk.Ops.Each_vertex;
-      "Face area", Pdk.Ops.Face_area;
+      "Vertex angle", Pdk.Normal_ops.Vertex_angle;
+      "Each vertex", Pdk.Normal_ops.Each_vertex;
+      "Face area", Pdk.Normal_ops.Face_area;
     ]
 
   type parameters = {
     owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Vertex]
       [@sop.label "Add normals to"] [@sop.kind owner_parameter];
-    weighting : Pdk.Ops.normal_weighting
-      [@sop.default Pdk.Ops.Vertex_angle]
+    weighting : Pdk.Normal_ops.weighting
+      [@sop.default Pdk.Normal_ops.Vertex_angle]
       [@sop.label "Weighting"] [@sop.kind weighting_parameter];
     cusp_angle : float [@sop.default 3.141592653589793]
       [@sop.label "Cusp angle"] [@sop.min 0.] [@sop.max 3.141592653589793]
@@ -9620,7 +9620,7 @@ module Normal = struct
   let factory = parameters_factory build
 
   let create ?label:node_label ?(owner = Pdk.Attribute.Vertex)
-      ?(weighting = Pdk.Ops.Vertex_angle) ?(cusp_angle = Float.pi)
+      ?(weighting = Pdk.Normal_ops.Vertex_angle) ?(cusp_angle = Float.pi)
       ?(keep_original_zero = false) ?(reverse = false) ?(attribute = "N")
       input =
     build ~label:(label "normal" node_label) ~inputs:[input] {

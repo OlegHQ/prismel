@@ -217,10 +217,10 @@ let check_cones_caps_normals_and_uv () =
   done;
   check_vertex_normal_winding capped
     "capped cone winding disagrees with vertex normals";
-  let mesh = Prismel_mesh.to_mesh capped |> get_ok in
+  let mesh = Pdk_prismel.Prismel_mesh.to_mesh capped |> get_ok in
   check (Mesh.index_count mesh > 0 && Mesh.normals mesh <> []
       && Mesh.tex_coords mesh <> []) "capped cone failed mesh conversion";
-  let mixed_mesh = Prismel_mesh.to_mesh cone_quads |> get_ok in
+  let mixed_mesh = Pdk_prismel.Prismel_mesh.to_mesh cone_quads |> get_ok in
   check (Mesh.index_count mixed_mesh = 72)
     "quad Tube with triangle apex failed mixed-topology mesh conversion";
   let bottom_cone = make ~bottom_radius:0. ~end_caps:true

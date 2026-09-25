@@ -235,9 +235,9 @@ let test_static_context_cache () =
 let test_grid_generator_contract () =
   let evaluator = session () and current = context ~domains:4 ~grain:7 () in
   let graph = Sop.grid ~label:"oriented-grid"
-      ~counts:Pdk.Ops.Grid_point_counts
-      ~connectivity:Pdk.Ops.Grid_alternating_triangles
-      ~orientation:Pdk.Ops.Grid_xy ~center:(Vec3.create 2. 3. 4.)
+      ~counts:Pdk.Plane_generators.Grid_point_counts
+      ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
+      ~orientation:Pdk.Plane_generators.Grid_xy ~center:(Vec3.create 2. 3. 4.)
       ~width:6. ~height:2. ~rotation:0.25 ~uv_attribute:"st"
       ~columns:5 ~rows:3 ~size:1. () in
   let output = cook_ok evaluator current graph in
@@ -249,16 +249,16 @@ let test_grid_generator_contract () =
       output.geometry <> None)
     "procedural Grid dropped normalized lattice coordinates";
   let rows_and_columns = Sop.grid
-      ~counts:Pdk.Ops.Grid_point_counts
-      ~connectivity:Pdk.Ops.Grid_rows_and_columns
-      ~orientation:Pdk.Ops.Grid_yz ~columns:4 ~rows:3 ~size:2. ()
+      ~counts:Pdk.Plane_generators.Grid_point_counts
+      ~connectivity:Pdk.Plane_generators.Grid_rows_and_columns
+      ~orientation:Pdk.Plane_generators.Grid_yz ~columns:4 ~rows:3 ~size:2. ()
       |> cook_ok evaluator current in
   check (Pdk.Geometry.point_count rows_and_columns.geometry = 12
       && Pdk.Geometry.vertex_count rows_and_columns.geometry = 24
       && Pdk.Geometry.primitive_count rows_and_columns.geometry = 7)
     "procedural Grid row-and-column topology";
   let invalid = Sop.grid ~label:"bad-axes"
-      ~orientation:(Pdk.Ops.Grid_axes {
+      ~orientation:(Pdk.Plane_generators.Grid_axes {
         horizontal = Vec3.unit_x; vertical = Vec3.unit_x })
       ~columns:2 ~rows:2 ~size:1. () in
   (match Session.cook evaluator ~context:current invalid with
@@ -274,9 +274,9 @@ let test_grid_generator_contract () =
 let test_circle_generator_contract () =
   let evaluator = session () and current = context ~domains:4 ~grain:7 () in
   let graph = Sop.circle ~label:"sliced-ellipse"
-      ~arc:(Pdk.Ops.Circle_sliced_arc {
+      ~arc:(Pdk.Plane_generators.Circle_sliced_arc {
         start_angle = -0.4; end_angle = 2.2 })
-      ~orientation:Pdk.Ops.Circle_xy ~reverse:true
+      ~orientation:Pdk.Plane_generators.Circle_xy ~reverse:true
       ~center:(Vec3.create 2. 3. 4.) ~radius_x:3. ~radius_y:1.
       ~rotation:0.25 ~uniform_scale:2. ~segments:8 ~radius:1. () in
   check (contains (Node.parameters graph) "arc=sliced")
@@ -288,9 +288,9 @@ let test_circle_generator_contract () =
       && Pdk.Topology.primitive_kind (Pdk.Geometry.topology output.geometry) 0
          = Pdk.Topology.Closed_polyline)
     "procedural sliced Circle topology";
-  let open_arc = Sop.circle ~arc:(Pdk.Ops.Circle_open_arc {
+  let open_arc = Sop.circle ~arc:(Pdk.Plane_generators.Circle_open_arc {
         start_angle = 0.; end_angle = Float.pi })
-      ~orientation:Pdk.Ops.Circle_yz ~segments:12 ~radius:2. ()
+      ~orientation:Pdk.Plane_generators.Circle_yz ~segments:12 ~radius:2. ()
       |> cook_ok evaluator current in
   (match Bridge.to_mesh open_arc.geometry with
    | Ok mesh -> check (Mesh.mode mesh = Mesh.Lines
@@ -298,7 +298,7 @@ let test_circle_generator_contract () =
        "procedural open Circle bridge"
    | Error error -> fail (Pdk.Error.to_string error));
   let invalid = Sop.circle ~label:"bad-circle-axes"
-      ~orientation:(Pdk.Ops.Circle_axes {
+      ~orientation:(Pdk.Plane_generators.Circle_axes {
         horizontal = Vec3.unit_x; vertical = Vec3.unit_x })
       ~segments:8 ~radius:1. () in
   (match Session.cook evaluator ~context:current invalid with
@@ -313,11 +313,11 @@ let test_circle_generator_contract () =
 
 let test_box_generator_contract () =
   let evaluator = session () and current = context ~domains:4 ~grain:7 () in
-  let graph = Sop.box ~label:"divided-box" ~connectivity:Pdk.Ops.Box_quads
-      ~consolidate_points:true ~normals:Pdk.Ops.Box_vertex_normals
+  let graph = Sop.box ~label:"divided-box" ~connectivity:Pdk.Box_generator.Box_quads
+      ~consolidate_points:true ~normals:Pdk.Box_generator.Box_vertex_normals
       ~center:(Vec3.create 2. 3. 4.)
       ~rotation:(Vec3.create 0.2 0.3 0.4)
-      ~rotation_order:Pdk.Ops.Box_yzx ~uniform_scale:1.5
+      ~rotation_order:Pdk.Box_generator.Box_yzx ~uniform_scale:1.5
       ~x_divisions:2 ~y_divisions:3 ~z_divisions:4
       ~uv_attribute:"uv" ~face_groups:"side"
       ~size:(Vec3.create 2. 3. 4.) () in
@@ -334,7 +334,7 @@ let test_box_generator_contract () =
          output.geometry <> None
       && List.length (Pdk.Geometry.groups output.geometry) = 6)
     "procedural divided Box output contract";
-  let lattice = Sop.box ~connectivity:Pdk.Ops.Box_lattice_points
+  let lattice = Sop.box ~connectivity:Pdk.Box_generator.Box_lattice_points
       ~x_divisions:2 ~y_divisions:3 ~z_divisions:4
       ~size:(Vec3.create 2. 3. 4.) () |> cook_ok evaluator current in
   check (Pdk.Geometry.point_count lattice.geometry = 60
@@ -354,11 +354,11 @@ let test_box_generator_contract () =
 let test_uv_sphere_generator_contract () =
   let evaluator = session () and current = context ~domains:4 ~grain:7 () in
   let graph = Sop.uv_sphere ~label:"advanced-sphere"
-      ~connectivity:Pdk.Ops.Sphere_quads ~unique_points_per_pole:true
-      ~triangular_poles:false ~normals:Pdk.Ops.Sphere_vertex_normals
-      ~orientation:(Pdk.Ops.Sphere_axis (Vec3.create 1. 2. 3.))
+      ~connectivity:Pdk.Uv_sphere.Sphere_quads ~unique_points_per_pole:true
+      ~triangular_poles:false ~normals:Pdk.Uv_sphere.Sphere_vertex_normals
+      ~orientation:(Pdk.Uv_sphere.Sphere_axis (Vec3.create 1. 2. 3.))
       ~center:(Vec3.create 2. 3. 4.) ~rotation:(Vec3.create 0.2 0.3 0.4)
-      ~rotation_order:Pdk.Ops.Sphere_zxy ~uniform_scale:1.5
+      ~rotation_order:Pdk.Uv_sphere.Sphere_zxy ~uniform_scale:1.5
       ~radius_x:2. ~radius_y:1.5 ~radius_z:0.75 ~uv_attribute:"uv"
       ~segments:12 ~rings:6 ~radius:1. () in
   check (contains (Node.parameters graph) "connectivity=quads"
@@ -374,7 +374,7 @@ let test_uv_sphere_generator_contract () =
       && Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Vertex "uv"
          output.geometry <> None)
     "procedural advanced UV Sphere output contract";
-  let points = Sop.uv_sphere ~connectivity:Pdk.Ops.Sphere_points
+  let points = Sop.uv_sphere ~connectivity:Pdk.Uv_sphere.Sphere_points
       ~unique_points_per_pole:true ~uv_attribute:"uv"
       ~segments:12 ~rings:6 ~radius:1. () |> cook_ok evaluator current in
   check (Pdk.Geometry.point_count points.geometry = 84
@@ -383,7 +383,7 @@ let test_uv_sphere_generator_contract () =
          points.geometry <> None)
     "procedural UV Sphere point lattice";
   let invalid = Sop.uv_sphere ~label:"bad-sphere-axis"
-      ~orientation:(Pdk.Ops.Sphere_axis Vec3.zero) ~radius:1. () in
+      ~orientation:(Pdk.Uv_sphere.Sphere_axis Vec3.zero) ~radius:1. () in
   (match Session.cook evaluator ~context:current invalid with
    | Ok _ -> fail "procedural UV Sphere accepted a zero pole axis"
    | Error error ->
@@ -528,17 +528,17 @@ let test_platonic_generator_contract () =
 let test_spiral_generator_contract () =
   let evaluator = session () and current = context ~domains:4 ~grain:7 () in
   let graph = Sop.spiral ~label:"ramped-spirals"
-      ~extent:(Pdk.Ops.Spiral_height_pitch { height = -6.; pitch = -0.75 })
-      ~radius:(Pdk.Ops.Spiral_logarithmic_end {
+      ~extent:(Pdk.Spiral.Spiral_height_pitch { height = -6.; pitch = -0.75 })
+      ~radius:(Pdk.Spiral.Spiral_logarithmic_end {
         start_radius = 0.4; end_radius = 3. })
       ~height_ramp:[0., 0.8; 0.5, 1.2; 1., 1.]
       ~radius_scale:1.3 ~radius_ramp:[0., 1.; 0.4, 0.7; 1., 1.1]
-      ~direction:Pdk.Ops.Spiral_clockwise ~start_angle:0.3
-      ~divisions:(Pdk.Ops.Spiral_divisions_per_curve 40)
+      ~direction:Pdk.Spiral.Spiral_clockwise ~start_angle:0.3
+      ~divisions:(Pdk.Spiral.Spiral_divisions_per_curve 40)
       ~uniform_angle:false ~spiral_count:3
-      ~orientation:(Pdk.Ops.Spiral_axis (Vec3.create 1. 2. 3.))
+      ~orientation:(Pdk.Spiral.Spiral_axis (Vec3.create 1. 2. 3.))
       ~center:(Vec3.create 2. 3. 4.) ~rotation:(Vec3.create 0.2 0.3 0.4)
-      ~rotation_order:Pdk.Ops.Spiral_zxy ~uniform_scale:1.2
+      ~rotation_order:Pdk.Spiral.Spiral_zxy ~uniform_scale:1.2
       ~angle_attribute:"angle" ~x_axis_attribute:"xaxis"
       ~y_axis_attribute:"yaxis" ~tangent_attribute:"tangent"
       ~orient_attribute:"orient" ~distance_attribute:"distance" () in
@@ -567,7 +567,7 @@ let test_spiral_generator_contract () =
          output.geometry <> None)
     "procedural Spiral output contract";
   let invalid = Sop.spiral ~label:"bad-spiral-axis"
-      ~orientation:(Pdk.Ops.Spiral_axis Vec3.zero) () in
+      ~orientation:(Pdk.Spiral.Spiral_axis Vec3.zero) () in
   (match Session.cook evaluator ~context:current invalid with
    | Ok _ -> fail "procedural Spiral accepted a zero central axis"
    | Error error ->
@@ -1128,7 +1128,7 @@ let test_generators_selections_and_delete () =
   let grouped_carve_source = Sop.merge [
       Sop.polyline [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.); (3.,0.,0.)|]
         |> Sop.normals;
-      Sop.grid ~connectivity:Pdk.Ops.Grid_quads ~columns:1 ~rows:1 ~size:1. ();
+      Sop.grid ~connectivity:Pdk.Plane_generators.Grid_quads ~columns:1 ~rows:1 ~size:1. ();
     ]
       |> Sop.set_float ~owner:Pdk.Attribute.Primitive ~name:"first_u" 0.25
       |> Sop.set_float ~owner:Pdk.Attribute.Primitive ~name:"second_u" 0.5
@@ -1365,7 +1365,7 @@ let test_generators_selections_and_delete () =
    | Error error -> check (error.code = "missing_group")
        "Convert Line missing-group diagnostic"
    | Ok _ -> fail "Convert Line accepted a missing edge group");
-  let reverse_base = Pdk.Ops.grid ~connectivity:Pdk.Ops.Grid_quads
+  let reverse_base = Pdk.Plane_generators.grid_checked ~connectivity:Pdk.Plane_generators.Grid_quads
       ~columns:2 ~rows:1 ~size:2. () |> Result.get_ok in
   let reverse_group = Pdk.Group.ordered ~owner:Pdk.Group.Primitive
       ~name:"reverse_first" ~length:2 [|0|] |> Result.get_ok in
@@ -1423,7 +1423,7 @@ let test_generators_selections_and_delete () =
    | Ok _ -> fail "Reverse accepted a missing primitive group");
   let normal_graph = Sop.snapshot reverse_source
       |> Sop.normals ~selection:(Sop.Primitive_group "reverse_first")
-           ~owner:Pdk.Attribute.Vertex ~weighting:Pdk.Ops.Vertex_angle
+           ~owner:Pdk.Attribute.Vertex ~weighting:Pdk.Normal_ops.Vertex_angle
            ~cusp_angle:(Float.pi /. 4.) ~keep_original_zero:true
            ~reverse:true ~attribute:"custom_n" in
   check (Node.version normal_graph = 2
@@ -1439,7 +1439,7 @@ let test_generators_selections_and_delete () =
       ~selection:(Pdk.Ops.Selected_primitives
         (Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive
           "reverse_first" reverse_source |> Option.get))
-      ~owner:Pdk.Attribute.Vertex ~weighting:Pdk.Ops.Vertex_angle
+      ~owner:Pdk.Attribute.Vertex ~weighting:Pdk.Normal_ops.Vertex_angle
       ~cusp_angle:(Float.pi /. 4.) ~keep_original_zero:true
       ~reverse:true ~attribute:"custom_n" reverse_source |> Result.get_ok in
   let actual_n = Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Vertex
@@ -1585,7 +1585,7 @@ let test_generators_selections_and_delete () =
    | None -> fail "Attribute Blur accepted a malformed attribute pattern");
   let modeled_smooth = rough_graph
       |> Sop.group ~name:"smooth_faces" Select.all_primitives
-      |> Sop.group_unshared ~owner:Pdk.Ops.Group_points ~name:"smooth_locks"
+      |> Sop.group_unshared ~owner:Pdk.Group_ops.Group_points ~name:"smooth_locks"
       |> Sop.smooth ~group:"smooth_faces" ~constrained_points:"smooth_locks"
            ~boundary:Pdk.Ops.Smooth_group_boundary ~iterations:4
            ~method_:Pdk.Attribute_ops.Edge_length
@@ -1808,7 +1808,7 @@ let test_generators_selections_and_delete () =
   let fraction_attribute = Pdk.Attribute.create_owned ~name:"fraction"
       ~owner:Pdk.Attribute.Point (Pdk.Attribute.Float [|0.; 0.25; 0.5; 0.75; 1.|])
       |> get_ok in
-  let fraction_geometry = Pdk.Ops.points (Array.make 5 (0., 0., 0.))
+  let fraction_geometry = Pdk.Line_geometry.points (Array.make 5 (0., 0., 0.))
       |> Pdk.Geometry.with_attribute fraction_attribute |> get_ok in
   let fraction_graph = Sop.snapshot fraction_geometry
       |> Sop.attribute_randomize ~fraction_attribute:"fraction"
@@ -1840,7 +1840,7 @@ let test_generators_selections_and_delete () =
       |> fun output -> float_attribute "limited" output.geometry in
   check (limited.(0) = -2. && limited.(2) = 0. && limited.(4) = 2.)
     "procedural Attribute Randomize tail limits";
-  let typed_text = Sop.grid ~connectivity:Pdk.Ops.Grid_triangles
+  let typed_text = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_triangles
       ~columns:2 ~rows:1 ~size:2. ()
       |> Sop.group ~name:"first_face" (Select.primitive_indices [|0|])
       |> Sop.attribute_randomize
@@ -1925,10 +1925,10 @@ let test_generators_selections_and_delete () =
        "Poly Extrude missing primitive-group diagnostic"
    | Ok _ -> fail "Poly Extrude accepted a missing primitive group");
   let cleaned = Sop.snapshot
-      (Pdk.Ops.points [|(nan, 0., 0.); (0., 0., 0.); (0., 0., 0.)|])
+      (Pdk.Line_geometry.points [|(nan, 0., 0.); (0., 0., 0.); (0., 0., 0.)|])
       |> Sop.set_float ~owner:Pdk.Attribute.Point ~name:"temporary" 1.
       |> Sop.group_random ~seed:1 ~probability:0.
-           ~owner:Pdk.Ops.Group_points ~name:"empty"
+           ~owner:Pdk.Group_ops.Group_points ~name:"empty"
       |> Sop.clean ~remove_degenerate:false ~remove_nan_points:true
            ~consolidate_distance:0. ~delete_unused_groups:true
            ~point_attributes:"temporary"
@@ -2040,7 +2040,7 @@ let test_generators_selections_and_delete () =
   check (Pdk.Geometry.point_count inline.geometry = 4
       && Pdk.Geometry.vertex_count inline.geometry = 4)
     "procedural Facet Remove Inline Points";
-  let normal_geometry = Pdk.Ops.points [|(0.,0.,0.); (0.,0.,0.)|]
+  let normal_geometry = Pdk.Line_geometry.points [|(0.,0.,0.); (0.,0.,0.)|]
       |> Pdk.Geometry.with_attribute
         (Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Point ~name:"N"
           (Pdk.Attribute.Float3 (Pdk.Packed.Float3.Private.of_owned_exn
@@ -2062,7 +2062,7 @@ let test_generators_selections_and_delete () =
               "procedural Facet Consolidate Normals values"
         | _ -> fail "procedural Facet Consolidate Normals storage")
    | None -> fail "procedural Facet Consolidate Normals lost N");
-  let cusp_node = Sop.box ~connectivity:Pdk.Ops.Box_quads
+  let cusp_node = Sop.box ~connectivity:Pdk.Box_generator.Box_quads
       ~consolidate_points:true ~size:(Vec3.create 2. 2. 2.) ()
       |> Sop.facet ~cusp_angle:1. ~post_compute_normals:true in
   check (contains (Node.parameters cusp_node)
@@ -2096,11 +2096,11 @@ let test_generators_selections_and_delete () =
     "procedural targeted Fuse identity";
   let rule_input = Sop.points [|(0.,0.,0.); (0.,0.,0.)|] in
   let average_rule = Pdk.Ops.fuse_attribute_rule ~pattern:"Cd"
-      Pdk.Ops.Attribute_average
+      Pdk.Fuse_reduce.Attribute_average
   and sum_rule = Pdk.Ops.fuse_attribute_rule ~pattern:"Cd"
-      Pdk.Ops.Attribute_sum
+      Pdk.Fuse_reduce.Attribute_sum
   and union_rule = Pdk.Ops.fuse_group_rule ~pattern:"selected*"
-      Pdk.Ops.Group_union in
+      Pdk.Fuse_reduce.Group_union in
   let average_node = Sop.fuse ~attribute_rules:[average_rule]
       ~group_rules:[union_rule] rule_input
   and sum_node = Sop.fuse ~attribute_rules:[sum_rule]
@@ -2148,7 +2148,7 @@ let test_generators_selections_and_delete () =
        "grid snap missing-group diagnostic"
    | Ok _ -> fail "grid snap accepted a missing point group");
   let clip_node = Sop.box ~size:(Vec3.create 2. 2. 2.) ()
-      |> Sop.fuse ~tolerance:0. ~attributes:Pdk.Ops.Average_numeric
+      |> Sop.fuse ~tolerance:0. ~attributes:Pdk.Fuse_reduce.Average_numeric
       |> Sop.clip ~keep:Pdk.Ops.Above ~fill:true ~distance:0.25
            ~clipped_edge_group:"clip_edges" ~cap_group:"cap"
            ~origin:Vec3.zero ~normal:Vec3.unit_y
@@ -2175,7 +2175,7 @@ let test_generators_selections_and_delete () =
        "procedural clipped edge group"
    | None -> fail "procedural clipped edge group missing");
   let selected_clip = Sop.box ~size:(Vec3.create 2. 2. 2.) ()
-      |> Sop.fuse ~tolerance:0. ~attributes:Pdk.Ops.Average_numeric
+      |> Sop.fuse ~tolerance:0. ~attributes:Pdk.Fuse_reduce.Average_numeric
       |> Sop.group ~name:"clip_all" Select.all_primitives
       |> Sop.clip ~selection:(Sop.Primitive_group "clip_all")
            ~origin:Vec3.zero ~normal:Vec3.unit_y in
@@ -2188,7 +2188,7 @@ let test_generators_selections_and_delete () =
   let clip_matrix = Mat4.mul (Mat4.translation (Vec3.create 0. 0.25 0.))
       (Mat4.rotation_x 0.) in
   let transformed_clip = Sop.box ~size:(Vec3.create 2. 2. 2.) ()
-      |> Sop.fuse ~tolerance:0. ~attributes:Pdk.Ops.Average_numeric
+      |> Sop.fuse ~tolerance:0. ~attributes:Pdk.Fuse_reduce.Average_numeric
       |> Sop.clip_transform ~transform:clip_matrix in
   let transformed_clip = cook_ok evaluator current transformed_clip in
   check (abs_float ((Pdk.Analysis.bounds transformed_clip.geometry
@@ -2267,7 +2267,7 @@ let test_generators_selections_and_delete () =
              ~index_pattern:"source*") with Invalid_argument _ -> None) with
    | None -> ()
    | Some _ -> fail "procedural average promotion accepted source-index output");
-  let piece_geometry = Pdk.Ops.points
+  let piece_geometry = Pdk.Line_geometry.points
       [|(0., 0., 0.); (1., 0., 0.); (2., 0., 0.); (3., 0., 0.)|] in
   let piece_values = Pdk.Attribute.create_owned ~name:"value"
       ~owner:Pdk.Attribute.Point (Pdk.Attribute.Int [|8; 2; 8; 2|]) |> get_ok
@@ -2331,7 +2331,7 @@ let test_generators_selections_and_delete () =
               "procedural kernel attribute transfer"
         | _ -> fail "procedural kernel transfer Cd storage")
    | None -> fail "procedural kernel transfer missing Cd");
-  let grouped_source = Pdk.Ops.points
+  let grouped_source = Pdk.Line_geometry.points
       [|(0., 0., 0.); (1., 0., 0.); (2., 0., 0.)|] in
   let grouped_weight = Pdk.Attribute.create_owned ~name:"weight"
       ~owner:Pdk.Attribute.Point (Pdk.Attribute.Float [|10.; 20.; 30.|])
@@ -2344,7 +2344,7 @@ let test_generators_selections_and_delete () =
       |> Pdk.Geometry.with_attribute grouped_weight |> Result.get_ok
       |> Pdk.Geometry.with_group source_left |> Result.get_ok
       |> Pdk.Geometry.with_group source_right |> Result.get_ok in
-  let grouped_target = Pdk.Ops.points
+  let grouped_target = Pdk.Line_geometry.points
       [|(0., 0., 0.); (1., 0., 0.); (2., 0., 0.)|] in
   let target_weight = Pdk.Attribute.create_owned ~name:"weight"
       ~owner:Pdk.Attribute.Point (Pdk.Attribute.Float [|100.; 100.; 100.|])
@@ -2395,7 +2395,7 @@ let test_generators_selections_and_delete () =
     with Invalid_argument _ -> None) with
    | None -> ()
    | Some _ -> fail "procedural Attribute Combine accepted conflicting groups");
-  let interpolation_source = Pdk.Ops.grid ~columns:1 ~rows:1 ~size:2. ()
+  let interpolation_source = Pdk.Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:2. ()
       |> Result.get_ok in
   let source_weight = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Point
       ~name:"weight" (Pdk.Attribute.Float [|0.;10.;20.;30.|])
@@ -2407,7 +2407,7 @@ let test_generators_selections_and_delete () =
       |> Result.get_ok in
   let interpolation_source = Pdk.Geometry.with_group hot interpolation_source
       |> Result.get_ok in
-  let interpolation_target = Pdk.Ops.points
+  let interpolation_target = Pdk.Line_geometry.points
       [|(0.,0.,0.); (0.,0.,0.); (0.,0.,0.)|] in
   let primitive_driver = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Point
       ~name:"source_primitive" (Pdk.Attribute.Int [|0;0;0|])
@@ -2531,9 +2531,9 @@ let test_generators_selections_and_delete () =
       |> Sop.group ~name:"old" Select.all_points
       |> Sop.group ~name:"old" Select.all_primitives
       |> Sop.group_rename ~rules:[{
-           Pdk.Ops.rename_owner = Some Pdk.Ops.Group_points;
+           Pdk.Ops.rename_owner = Some Pdk.Group_ops.Group_points;
            rename_pattern = "old"; rename_replacement = "new";
-           rename_conflict = Pdk.Ops.Rename_error }]
+           rename_conflict = Pdk.Group_ops.Rename_error }]
       |> cook_ok evaluator current in
   check (Pdk.Geometry.find_group ~owner:Pdk.Group.Point "old" renamed.geometry = None
       && Pdk.Geometry.find_group ~owner:Pdk.Group.Point "new" renamed.geometry <> None
@@ -2544,12 +2544,12 @@ let test_generators_selections_and_delete () =
       |> Sop.group ~name:"seed_face" (Select.primitive_indices [|0|])
       |> Sop.group_expand ~name:"component" ~flood:true
            ~step_attribute:"group_step"
-           ~primitive_connectivity:Pdk.Ops.Primitive_share_edges
-           ~owner:Pdk.Ops.Group_primitives ~group:"seed_face"
-      |> Sop.group_promotions [Pdk.Ops.group_promote_rule
+           ~primitive_connectivity:Pdk.Group_ops.Primitive_share_edges
+           ~owner:Pdk.Group_ops.Group_primitives ~group:"seed_face"
+      |> Sop.group_promotions [Pdk.Group_ops.promotion_rule
            ~new_name:"component_points" ~keep_original:true
-           ~source:Pdk.Ops.Group_primitives
-           ~destination:Pdk.Ops.Group_points ~pattern:"component" ()]
+           ~source:Pdk.Group_ops.Group_primitives
+           ~destination:Pdk.Group_ops.Group_points ~pattern:"component" ()]
       |> cook_ok evaluator current in
   (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive "component"
       expanded_groups.geometry,
@@ -2562,7 +2562,7 @@ let test_generators_selections_and_delete () =
               "group_step" expanded_groups.geometry <> None)
          "procedural Group Expand/Promote topology component"
    | _ -> fail "procedural Group Expand/Promote dropped an output group");
-  let constrained_geometry = Pdk.Ops.grid ~connectivity:Pdk.Ops.Grid_quads
+  let constrained_geometry = Pdk.Plane_generators.grid_checked ~connectivity:Pdk.Plane_generators.Grid_quads
       ~columns:3 ~rows:1 ~size:3. () |> get_ok in
   let region = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Primitive
       ~name:"region" (Pdk.Attribute.Int [|0;0;1|]) |> get_ok in
@@ -2574,12 +2574,12 @@ let test_generators_selections_and_delete () =
       |> get_ok in
   let constrained_node = Sop.snapshot constrained_geometry
       |> Sop.group_expand ~flood:true ~step_attribute:"constraint_step"
-           ~primitive_connectivity:Pdk.Ops.Primitive_share_edges
+           ~primitive_connectivity:Pdk.Group_ops.Primitive_share_edges
            ~normal_spread:0.1
            ~connectivity_attributes:[{
-             Pdk.Ops.boundary_attribute_owner = Pdk.Attribute.Primitive;
+             Pdk.Group_ops.boundary_attribute_owner = Pdk.Attribute.Primitive;
              boundary_attribute_pattern = "region" }]
-           ~owner:Pdk.Ops.Group_primitives ~group:"seed_face" in
+           ~owner:Pdk.Group_ops.Group_primitives ~group:"seed_face" in
   check (Node.version constrained_node = 2
       && contains (Node.parameters constrained_node) "normal_spread="
       && contains (Node.parameters constrained_node)
@@ -2597,31 +2597,31 @@ let test_generators_selections_and_delete () =
    | None -> fail "procedural constrained Group Expand dropped output");
   (match try Some (Sop.snapshot constrained_geometry
       |> Sop.group_expand ~connectivity_attributes:[{
-           Pdk.Ops.boundary_attribute_owner = Pdk.Attribute.Primitive;
+           Pdk.Group_ops.boundary_attribute_owner = Pdk.Attribute.Primitive;
            boundary_attribute_pattern = "region" }]
-           ~owner:Pdk.Ops.Group_primitives ~group:"seed_face")
+           ~owner:Pdk.Group_ops.Group_primitives ~group:"seed_face")
     with Invalid_argument _ -> None with
    | None -> ()
    | Some _ -> fail
        "procedural Group Expand accepted constrained point-sharing primitives");
   let missing_collision = Sop.snapshot constrained_geometry
-      |> Sop.group_expand ~primitive_connectivity:Pdk.Ops.Primitive_share_edges
+      |> Sop.group_expand ~primitive_connectivity:Pdk.Group_ops.Primitive_share_edges
            ~collision:{
-             Pdk.Ops.expand_collision_owner = Pdk.Ops.Group_primitives;
+             Pdk.Group_ops.expand_collision_owner = Pdk.Group_ops.Group_primitives;
              expand_collision_group = "missing";
              expand_collision_contain = false;
              expand_collision_allow_boundary = false }
-           ~owner:Pdk.Ops.Group_primitives ~group:"seed_face" in
+           ~owner:Pdk.Group_ops.Group_primitives ~group:"seed_face" in
   (match Session.cook evaluator ~context:current missing_collision with
    | Error error -> check (error.code = "invalid_group")
        "procedural Group Expand missing-collision diagnostic"
    | Ok _ -> fail "procedural Group Expand cooked a missing collision group");
   let promoted_mask = Sop.grid ~columns:2 ~rows:1 ~size:2. ()
       |> Sop.group ~name:"seed" (Select.point_indices [|0; 1|])
-      |> Sop.group_promotions [Pdk.Ops.group_promote_rule
+      |> Sop.group_promotions [Pdk.Group_ops.promotion_rule
            ~new_name:"face_mask" ~output_as_attribute:true
-           ~source:Pdk.Ops.Group_points
-           ~destination:Pdk.Ops.Group_primitives ~pattern:"seed" ()]
+           ~source:Pdk.Group_ops.Group_points
+           ~destination:Pdk.Group_ops.Group_primitives ~pattern:"seed" ()]
       |> cook_ok evaluator current in
   check (Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive
       "face_mask" promoted_mask.geometry <> None
@@ -2631,8 +2631,8 @@ let test_generators_selections_and_delete () =
   let promoted_boundary = Sop.grid ~columns:1 ~rows:1 ~size:2. ()
       |> Sop.group ~name:"first_face" (Select.primitive_indices [|0|])
       |> Sop.group_promote_boundary ~keep_original:true ~name:"outline"
-           ~source:Pdk.Ops.Group_primitives
-           ~destination:Pdk.Ops.Group_edges ~group:"first_face"
+           ~source:Pdk.Group_ops.Group_primitives
+           ~destination:Pdk.Group_ops.Group_edges ~group:"first_face"
       |> cook_ok evaluator current in
   (match Pdk.Geometry.find_edge_group "outline" promoted_boundary.geometry with
    | Some group -> check (Pdk.Edge_group.cardinality group = 1)
@@ -2642,12 +2642,12 @@ let test_generators_selections_and_delete () =
       |> Sop.group ~name:"region_a" (Select.primitive_indices [|0|])
       |> Sop.group ~name:"region_b" (Select.primitive_indices [|1|]) in
   let promotion_rules = [
-    Pdk.Ops.group_promote_rule ~new_name:"points_*" ~keep_original:true
-      ~source:Pdk.Ops.Group_primitives ~destination:Pdk.Ops.Group_points
+    Pdk.Group_ops.promotion_rule ~new_name:"points_*" ~keep_original:true
+      ~source:Pdk.Group_ops.Group_primitives ~destination:Pdk.Group_ops.Group_points
       ~pattern:"region_*" ();
-    Pdk.Ops.group_promote_boundary_rule ~new_name:"outline_*"
-      ~keep_original:true ~source:Pdk.Ops.Group_primitives
-      ~destination:Pdk.Ops.Group_edges ~pattern:"region_*" ();
+    Pdk.Group_ops.boundary_promotion_rule ~new_name:"outline_*"
+      ~keep_original:true ~source:Pdk.Group_ops.Group_primitives
+      ~destination:Pdk.Group_ops.Group_edges ~pattern:"region_*" ();
   ] in
   let promotions_node = Sop.group_promotions promotion_rules promotion_source in
   check (Node.operation promotions_node = "group_promotions"
@@ -2657,8 +2657,8 @@ let test_generators_selections_and_delete () =
       && contains (Node.parameters promotions_node) "boundary")
     "procedural Group Promotions cache identity";
   let disabled_promotions = Sop.group_promotions [
-      Pdk.Ops.group_promote_rule ~source:Pdk.Ops.Group_points
-        ~destination:Pdk.Ops.Group_edges ~pattern:" " ()] promotion_source in
+      Pdk.Group_ops.promotion_rule ~source:Pdk.Group_ops.Group_points
+        ~destination:Pdk.Group_ops.Group_edges ~pattern:" " ()] promotion_source in
   check (disabled_promotions == promotion_source)
     "procedural Group Promotions disabled rules lost node identity";
   let promotions = cook_ok evaluator current promotions_node in
@@ -2678,7 +2678,7 @@ let test_generators_selections_and_delete () =
   let edge_expansion = Sop.grid ~columns:2 ~rows:1 ~size:2. ()
       |> Sop.group_edges ~name:"boundary" ~incidence:Pdk.Ops.Boundary_edge
       |> Sop.group_expand ~name:"edge_ring" ~steps:1
-           ~owner:Pdk.Ops.Group_edges ~group:"boundary"
+           ~owner:Pdk.Group_ops.Group_edges ~group:"boundary"
       |> cook_ok evaluator current in
   (match Pdk.Geometry.find_edge_group "boundary" edge_expansion.geometry,
       Pdk.Geometry.find_edge_group "edge_ring" edge_expansion.geometry with
@@ -2702,8 +2702,8 @@ let test_generators_selections_and_delete () =
          "procedural Group Edge Depth"
    | _ -> fail "procedural Group Edge Depth dropped seed/output");
   let boundaries = Sop.grid ~columns:3 ~rows:2 ~size:2. ()
-      |> Sop.group_unshared ~owner:Pdk.Ops.Group_edges ~name:"outer_edges"
-      |> Sop.group_unshared ~owner:Pdk.Ops.Group_points ~name:"outer_points"
+      |> Sop.group_unshared ~owner:Pdk.Group_ops.Group_edges ~name:"outer_edges"
+      |> Sop.group_unshared ~owner:Pdk.Group_ops.Group_points ~name:"outer_points"
       |> Sop.group_boundary_components ~prefix:"border"
       |> cook_ok evaluator current in
   (match Pdk.Geometry.find_edge_group "outer_edges" boundaries.geometry,
@@ -2728,29 +2728,29 @@ let test_generators_selections_and_delete () =
        "procedural incident-edge angle selection"
    | None -> fail "procedural incident-edge angle group missing");
   let missing_group_promote = Sop.grid ~columns:1 ~rows:1 ~size:1. ()
-      |> Sop.group_promotions [Pdk.Ops.group_promote_rule
-           ~source:Pdk.Ops.Group_points
-           ~destination:Pdk.Ops.Group_primitives ~pattern:"missing" ()]
+      |> Sop.group_promotions [Pdk.Group_ops.promotion_rule
+           ~source:Pdk.Group_ops.Group_points
+           ~destination:Pdk.Group_ops.Group_primitives ~pattern:"missing" ()]
       |> cook_ok evaluator current in
   check (Pdk.Geometry.groups missing_group_promote.geometry = [])
     "Group Promotions unmatched pattern changed groups";
   let group_catalog = Sop.points (Array.init 10 (fun point ->
       float_of_int point, 0., 0.))
       |> Sop.group ~name:"ends" (Select.point_indices [|0; 9|])
-      |> Sop.group_range ~owner:Pdk.Ops.Group_points ~name:"middle"
-           (Pdk.Ops.Range_start_end { start = 2; end_ = 7 })
-      |> Sop.group_combine ~owner:Pdk.Ops.Group_points ~name:"selected"
+      |> Sop.group_range ~owner:Pdk.Group_ops.Group_points ~name:"middle"
+           (Pdk.Group_ops.Range_start_end { start = 2; end_ = 7 })
+      |> Sop.group_combine ~owner:Pdk.Group_ops.Group_points ~name:"selected"
            ~base:{ Pdk.Ops.pattern = "ends"; inverted = false }
-           ~steps:[{ Pdk.Ops.operation = Pdk.Ops.Group_union;
+           ~steps:[{ Pdk.Ops.operation = Pdk.Group_ops.Group_union;
              operand = { pattern = "middle"; inverted = false } }]
-      |> Sop.group_invert ~owner:Pdk.Ops.Group_points ~pattern:"selected"
+      |> Sop.group_invert ~owner:Pdk.Group_ops.Group_points ~pattern:"selected"
            ~new_name:"outside"
       |> Sop.group_rename ~rules:[
-           { Pdk.Ops.rename_owner = Some Pdk.Ops.Group_points;
+           { Pdk.Ops.rename_owner = Some Pdk.Group_ops.Group_points;
              rename_pattern = "outside"; rename_replacement = "kept";
-             rename_conflict = Pdk.Ops.Rename_error }]
+             rename_conflict = Pdk.Group_ops.Rename_error }]
       |> Sop.group_delete ~rules:[
-           { Pdk.Ops.delete_owner = Some Pdk.Ops.Group_points;
+           { Pdk.Ops.delete_owner = Some Pdk.Group_ops.Group_points;
              delete_pattern = "ends middle" }]
       |> cook_ok evaluator current in
   (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point "kept"
@@ -2767,9 +2767,9 @@ let test_generators_selections_and_delete () =
         (3., 0., 0.)|];
       Sop.polyline [|(10., 0., 0.); (11., 0., 0.); (12., 0., 0.)|]
     ]
-      |> Sop.group_range ~owner:Pdk.Ops.Group_points ~name:"local_second"
-           ~connectivity:(Pdk.Ops.Range_disconnected { region = None })
-           (Pdk.Ops.Range_start_end { start = 1; end_ = 1 })
+      |> Sop.group_range ~owner:Pdk.Group_ops.Group_points ~name:"local_second"
+           ~connectivity:(Pdk.Group_ops.Range_disconnected { region = None })
+           (Pdk.Group_ops.Range_start_end { start = 1; end_ = 1 })
       |> cook_ok evaluator current in
   (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point "local_second"
       connected_range.geometry with
@@ -2778,7 +2778,7 @@ let test_generators_selections_and_delete () =
        "procedural disconnected Group Range"
    | None -> fail "procedural disconnected Group Range dropped output");
   let collision = {
-    Pdk.Ops.collision_owner = Pdk.Ops.Group_points;
+    Pdk.Ops.collision_owner = Pdk.Group_ops.Group_points;
     collision_pattern = "cut_side";
     keep_boundary = true;
   } in
@@ -2786,14 +2786,14 @@ let test_generators_selections_and_delete () =
       (0., 0., 0.); (1., 0., 0.); (2., 0., 0.); (3., 0., 0.)
     |]
       |> Sop.group ~name:"cut_side" (Select.point_indices [|0; 1|])
-      |> Sop.group_range ~owner:Pdk.Ops.Group_points ~name:"piece_first"
-           ~connectivity:(Pdk.Ops.Range_connected {
+      |> Sop.group_range ~owner:Pdk.Group_ops.Group_points ~name:"piece_first"
+           ~connectivity:(Pdk.Group_ops.Range_connected {
              connectivity_attributes = None;
              connectivity_tolerance = 1e-6;
              collision = Some collision;
              region = None;
              remove_other_regions = false })
-           (Pdk.Ops.Range_start_end { start = 0; end_ = 0 }) in
+           (Pdk.Group_ops.Range_start_end { start = 0; end_ = 0 }) in
   check (Node.version advanced_range_node = 3
       && contains (Node.parameters advanced_range_node)
            "connected:none:0:point:\"cut_side\":true"
@@ -2803,14 +2803,14 @@ let test_generators_selections_and_delete () =
       (0., 0., 0.); (1., 0., 0.); (2., 0., 0.); (3., 0., 0.)
     |]
       |> Sop.group ~name:"cut_side" (Select.point_indices [|0; 1|])
-      |> Sop.group_range ~owner:Pdk.Ops.Group_points ~name:"piece_first"
-           ~connectivity:(Pdk.Ops.Range_connected {
+      |> Sop.group_range ~owner:Pdk.Group_ops.Group_points ~name:"piece_first"
+           ~connectivity:(Pdk.Group_ops.Range_connected {
              connectivity_attributes = Some "  ";
              connectivity_tolerance = 99.;
              collision = Some collision;
              region = None;
              remove_other_regions = true })
-           (Pdk.Ops.Range_start_end { start = 0; end_ = 0 }) in
+           (Pdk.Group_ops.Range_start_end { start = 0; end_ = 0 }) in
   check (Node.parameters equivalent_range_node
       = Node.parameters advanced_range_node)
     "procedural Group Range retained semantically irrelevant cache parameters";
@@ -2818,14 +2818,14 @@ let test_generators_selections_and_delete () =
       (0., 0., 0.); (1., 0., 0.); (2., 0., 0.); (3., 0., 0.)
     |]
       |> Sop.group ~name:"cut_side" (Select.point_indices [|0; 1|])
-      |> Sop.group_range ~owner:Pdk.Ops.Group_points ~name:"piece_first"
-           ~connectivity:(Pdk.Ops.Range_connected {
+      |> Sop.group_range ~owner:Pdk.Group_ops.Group_points ~name:"piece_first"
+           ~connectivity:(Pdk.Group_ops.Range_connected {
              connectivity_attributes = Some "P";
              connectivity_tolerance = 0.25;
              collision = Some { collision with keep_boundary = false };
              region = Some 0;
              remove_other_regions = false })
-           (Pdk.Ops.Range_start_end { start = 0; end_ = 0 }) in
+           (Pdk.Group_ops.Range_start_end { start = 0; end_ = 0 }) in
   check (Node.parameters changed_range_node
       <> Node.parameters advanced_range_node
       && contains (Node.parameters changed_range_node) "\"P\":0.25"
@@ -2841,12 +2841,12 @@ let test_generators_selections_and_delete () =
   let multi_source = Sop.points (Array.init 10 (fun point ->
       float_of_int point, 0., 0.)) in
   let multi_rules = [
-    Pdk.Ops.group_range_rule ~owner:Pdk.Ops.Group_points ~name:"first"
-      (Pdk.Ops.Range_start_end { start = 0; end_ = 4 });
-    Pdk.Ops.group_range_rule ~base:"first" ~owner:Pdk.Ops.Group_points
-      ~name:"middle" (Pdk.Ops.Range_start_end { start = 2; end_ = 3 });
-    Pdk.Ops.group_range_rule ~owner:Pdk.Ops.Group_points ~name:" "
-      (Pdk.Ops.Range_start_end { start = 99; end_ = 99 });
+    Pdk.Group_ops.range_rule ~owner:Pdk.Group_ops.Group_points ~name:"first"
+      (Pdk.Group_ops.Range_start_end { start = 0; end_ = 4 });
+    Pdk.Group_ops.range_rule ~base:"first" ~owner:Pdk.Group_ops.Group_points
+      ~name:"middle" (Pdk.Group_ops.Range_start_end { start = 2; end_ = 3 });
+    Pdk.Group_ops.range_rule ~owner:Pdk.Group_ops.Group_points ~name:" "
+      (Pdk.Group_ops.Range_start_end { start = 99; end_ = 99 });
   ] in
   let multi_node = Sop.group_ranges multi_rules multi_source in
   check (Node.operation multi_node = "group_ranges"
@@ -2869,7 +2869,7 @@ let test_generators_selections_and_delete () =
   let random_points = Sop.points (Array.init 64 (fun point ->
       float_of_int point, 0., 0.))
       |> Sop.group_random ~seed:73 ~probability:0.37
-           ~owner:Pdk.Ops.Group_points ~name:"random"
+           ~owner:Pdk.Group_ops.Group_points ~name:"random"
       |> cook_ok evaluator current in
   (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point "random"
       random_points.geometry with
@@ -2883,7 +2883,7 @@ let test_generators_selections_and_delete () =
    | None -> fail "Group Random dropped its procedural output");
   let missing_random_base = Sop.points [|(0., 0., 0.)|]
       |> Sop.group_random ~base:"missing" ~probability:0.5
-           ~owner:Pdk.Ops.Group_points ~name:"random" in
+           ~owner:Pdk.Group_ops.Group_points ~name:"random" in
   (match Session.cook evaluator ~context:current missing_random_base with
    | Error error -> check (error.code = "invalid_group")
        "Group Random missing-base diagnostic"
@@ -2891,9 +2891,9 @@ let test_generators_selections_and_delete () =
   let bounded_points = Sop.points
       [|(-2., 0., 0.); (-1., 0., 0.); (0., 0., 0.); (1., 0., 0.);
         (2., 0., 0.)|]
-      |> Sop.group_bounds (Pdk.Ops.Bounds_sphere {
+      |> Sop.group_bounds (Pdk.Group_ops.Bounds_sphere {
            center = Vec3.zero; radius = 1. })
-           ~owner:Pdk.Ops.Group_points ~name:"bounded"
+           ~owner:Pdk.Group_ops.Group_points ~name:"bounded"
       |> cook_ok evaluator current in
   (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point "bounded"
       bounded_points.geometry with
@@ -2904,7 +2904,7 @@ let test_generators_selections_and_delete () =
    | None -> fail "Group Bounds dropped its procedural output");
   let upward = Sop.box ~size:(Vec3.create 2. 2. 2.) ()
       |> Sop.group_normal ~direction:Vec3.unit_y ~spread_angle:0.
-           ~owner:Pdk.Ops.Group_primitives ~name:"upward"
+           ~owner:Pdk.Group_ops.Group_primitives ~name:"upward"
       |> cook_ok evaluator current in
   (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive "upward"
       upward.geometry with
@@ -2932,7 +2932,7 @@ let test_generators_selections_and_delete () =
    | None -> fail "Group Non-Planar dropped its procedural output");
   let visible = Sop.box ~size:(Vec3.create 2. 2. 2.) ()
       |> Sop.group ~name:"visible" Select.all_primitives
-      |> Sop.group_backface ~merge:Pdk.Ops.Group_subtract
+      |> Sop.group_backface ~merge:Pdk.Group_ops.Group_subtract
            ~viewpoint:(Vec3.create 0. 0. 5.) ~name:"visible"
       |> cook_ok evaluator current in
   (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive "visible"
@@ -2942,7 +2942,7 @@ let test_generators_selections_and_delete () =
        "procedural Group Backface subtraction"
    | None -> fail "Group Backface dropped its procedural output");
   let copied_groups = Sop.group_copy
-      ~rules:[{ Pdk.Ops.copy_owner = Pdk.Ops.Group_points;
+      ~rules:[{ Pdk.Ops.copy_owner = Pdk.Group_ops.Group_points;
         copy_pattern = "picked"; copy_prefix = "source_";
         match_attribute = None }]
       ~source:(Sop.points [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
@@ -2955,7 +2955,7 @@ let test_generators_selections_and_delete () =
          && Pdk.Group.mem 1 group) "procedural Group Copy two-input mapping"
    | None -> fail "procedural Group Copy dropped output");
   let transferred_groups = Sop.group_transfer ~distance:0.2
-      ~rules:[{ Pdk.Ops.transfer_owner = Pdk.Ops.Group_points;
+      ~rules:[{ Pdk.Ops.transfer_owner = Pdk.Group_ops.Group_points;
         transfer_pattern = "picked"; transfer_prefix = "near_" }]
       ~source:(Sop.points [|(0.,0.,0.); (10.,0.,0.)|]
         |> Sop.group ~name:"picked" (Select.point_indices [|0|]))
@@ -3284,9 +3284,9 @@ let test_generators_selections_and_delete () =
    | None -> fail "Edge Group node did not create its native group");
   let attribute_boundary = Sop.grid ~columns:2 ~rows:1 ~size:2. ()
       |> Sop.enumerate ~owner:Pdk.Attribute.Primitive ~name:"face_id"
-      |> Sop.group_from_attribute_boundary ~owner:Pdk.Ops.Group_edges
+      |> Sop.group_from_attribute_boundary ~owner:Pdk.Group_ops.Group_edges
            ~name:"attribute_seams" ~attributes:[{
-             Pdk.Ops.boundary_attribute_owner = Pdk.Attribute.Primitive;
+             Pdk.Group_ops.boundary_attribute_owner = Pdk.Attribute.Primitive;
              boundary_attribute_pattern = "face_id" }]
       |> cook_ok evaluator current in
   (match Pdk.Geometry.find_edge_group "attribute_seams"
@@ -3294,7 +3294,7 @@ let test_generators_selections_and_delete () =
    | Some group -> check (Pdk.Edge_group.cardinality group = 3)
        "procedural Group from Attribute Boundary cardinality"
    | None -> fail "Group from Attribute Boundary dropped its native group");
-  let piece_source = Pdk.Ops.points
+  let piece_source = Pdk.Line_geometry.points
       [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.); (3.,0.,0.); (4.,0.,0.)|] in
   let piece_attribute = Pdk.Attribute.create_owned
       ~owner:Pdk.Attribute.Point ~name:"piece"
@@ -3336,7 +3336,7 @@ let test_generators_selections_and_delete () =
    | Error error -> check (error.code = "invalid_enumeration")
        "procedural missing piece attribute diagnostic"
    | Ok _ -> fail "procedural Enumerate accepted a missing piece attribute");
-  let named_source = Pdk.Ops.points
+  let named_source = Pdk.Line_geometry.points
       [|(0., 0., 0.); (1., 0., 0.); (2., 0., 0.); (3., 0., 0.)|] in
   let names = Pdk.Attribute.create_owned ~owner:Pdk.Attribute.Point
       ~name:"piece_name" (Pdk.Attribute.Text [|"left"; "right"; "left"; ""|])
@@ -3380,9 +3380,9 @@ let test_generators_selections_and_delete () =
        "Groups from Name bound diagnostic"
    | Ok _ -> fail "Groups from Name ignored its procedural group bound");
   let missing_boundary_attribute = Sop.grid ~columns:1 ~rows:1 ~size:1. ()
-      |> Sop.group_from_attribute_boundary ~owner:Pdk.Ops.Group_edges
+      |> Sop.group_from_attribute_boundary ~owner:Pdk.Group_ops.Group_edges
            ~name:"attribute_seams" ~attributes:[{
-             Pdk.Ops.boundary_attribute_owner = Pdk.Attribute.Primitive;
+             Pdk.Group_ops.boundary_attribute_owner = Pdk.Attribute.Primitive;
              boundary_attribute_pattern = "missing" }] in
   (match Session.cook evaluator ~context:current missing_boundary_attribute with
    | Error error -> check (error.code = "invalid_group")
@@ -3484,7 +3484,7 @@ let test_revolve_contract () =
   let evaluator = session () and current = context ~domains:4 ~grain:7 () in
   let profile = Sop.polyline [|(0., -1., 0.); (1., 0., 0.); (0., 1., 0.)|] in
   let make () = profile |> Sop.revolve ~label:"lathe"
-      ~connectivity:Pdk.Ops.Grid_alternating_triangles ~caps:true
+      ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles ~caps:true
       ~cap_group:"caps" ~uv_attribute:(Some "st") ~divisions:16
       ~origin:Vec3.zero ~axis:Vec3.unit_y in
   let graph = make () in
@@ -3523,7 +3523,7 @@ let test_sweep_contract () =
   and cross_section = Sop.polyline ~closed:true
       [|(-1.,-1.,0.); (1.,-1.,0.); (1.,1.,0.); (-1.,1.,0.)|] in
   let make () = Sop.sweep ~label:"general-sweep"
-      ~connectivity:Pdk.Ops.Grid_alternating_triangles
+      ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
       ~tangent:Pdk.Ops.Sweep_central_difference ~twist:1.25 ~caps:true
       ~cap_group:"caps" ~uv_attribute:(Some "st") ~backbone ~cross_section () in
   let graph = make () in
@@ -3555,7 +3555,7 @@ let test_sweep_contract () =
   Session.close evaluator
 
 let test_local_subdivide_contract () =
-  let base = Pdk.Ops.grid ~columns:3 ~rows:2 ~size:2. () |> Result.get_ok in
+  let base = Pdk.Plane_generators.grid_checked ~columns:3 ~rows:2 ~size:2. () |> Result.get_ok in
   let source_primitives = Pdk.Geometry.primitive_count base in
   let selected = Pdk.Group.ordered ~owner:Pdk.Group.Primitive ~name:"left"
       ~length:source_primitives [|0|] |> Result.get_ok in
@@ -3692,7 +3692,7 @@ let test_local_subdivide_contract () =
          | Some cause -> contains cause "finite and non-negative"
          | None -> false)
        "procedural all-edge crease diagnostic");
-  let chaikin_base = Pdk.Ops.grid ~connectivity:Pdk.Ops.Grid_quads
+  let chaikin_base = Pdk.Plane_generators.grid_checked ~connectivity:Pdk.Plane_generators.Grid_quads
       ~columns:2 ~rows:2 ~size:2. () |> Result.get_ok in
   let chaikin_index = Pdk.Topology_index.create
       (Pdk.Geometry.topology chaikin_base) |> Pdk.Topology_index.Private.view in
@@ -3760,7 +3760,7 @@ let test_local_subdivide_contract () =
       = source_primitives
         * Pdk.Topology.primitive_size (Pdk.Geometry.topology base) 0)
     "procedural Remove Holes off removed descendants";
-  let boundary_base = Pdk.Ops.grid ~connectivity:Pdk.Ops.Grid_quads
+  let boundary_base = Pdk.Plane_generators.grid_checked ~connectivity:Pdk.Plane_generators.Grid_quads
       ~columns:3 ~rows:2 ~size:2. () |> Result.get_ok in
   let boundary_graph = Sop.snapshot boundary_base
       |> Sop.subdivide
@@ -3809,7 +3809,7 @@ let test_local_subdivide_contract () =
     | _ -> fail "procedural face-varying storage changed" in
   check (output_values.(0) <> fvar_values.(0))
     "procedural FVar None did not smooth a continuous boundary value";
-  let triangle_source = Pdk.Ops.grid ~connectivity:Pdk.Ops.Grid_triangles
+  let triangle_source = Pdk.Plane_generators.grid_checked ~connectivity:Pdk.Plane_generators.Grid_triangles
       ~columns:3 ~rows:2 ~size:3. () |> Result.get_ok in
   let triangle_graph = Sop.snapshot triangle_source
       |> Sop.subdivide
@@ -3944,7 +3944,7 @@ let test_local_subdivide_contract () =
 
 let test_edge_divide_contract () =
   let evaluator = session () and current = context ~domains:4 ~grain:7 () in
-  let source = Sop.grid ~connectivity:Pdk.Ops.Grid_quads
+  let source = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_quads
       ~columns:8 ~rows:6 ~size:4. ()
       |> Sop.set_float ~owner:Pdk.Attribute.Point ~name:"weight" 0.75
       |> Sop.group_edges ~name:"all_edges" in
@@ -4037,7 +4037,7 @@ let test_edge_collapse_contract () =
 
 let test_edge_flip_contract () =
   let evaluator = session () and current = context ~domains:4 ~grain:7 () in
-  let source = Sop.grid ~connectivity:Pdk.Ops.Grid_triangles
+  let source = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_triangles
       ~columns:1 ~rows:1 ~size:2. ()
       |> Sop.set_float ~owner:Pdk.Attribute.Vertex ~name:"uv_marker" 0.5
       |> Sop.group_edges ~name:"interior"
@@ -4083,7 +4083,7 @@ let test_edge_flip_contract () =
 
 let test_edge_cusp_contract () =
   let evaluator = session () and current = context ~domains:4 ~grain:7 () in
-  let source = Sop.grid ~connectivity:Pdk.Ops.Grid_triangles
+  let source = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_triangles
       ~columns:3 ~rows:2 ~size:2. ()
       |> Sop.set_int ~owner:Pdk.Attribute.Point ~name:"source_id" 7
       |> Sop.group_edges ~name:"cusp_path" in
@@ -4256,7 +4256,7 @@ let test_blend_shapes_contract () =
   and first = Sop.points [|10.,0.,0.;11.,0.,0.;12.,0.,0.|]
   and second = Sop.points [|20.,0.,0.;21.,0.,0.;22.,0.,0.|] in
   let graph = source |> Sop.blend_shapes ~label:"morph"
-      ~mode:Pdk.Ops.Blend_differencing ~attributes:"^*" ~shapes:[
+      ~mode:Pdk.Blend_shapes.Blend_differencing ~attributes:"^*" ~shapes:[
         Sop.blend_shape ~weight:1.5 first;
         Sop.blend_shape ~weight:(-0.5) second] in
   check (Node.version graph = 1
@@ -4316,7 +4316,7 @@ let test_attribute_composite_contract () =
     |> fun attribute -> Pdk.Geometry.with_attribute attribute geometry
       |> Result.get_ok in
   let make positions values alpha =
-    Pdk.Ops.points positions
+    Pdk.Line_geometry.points positions
     |> add_float "value" values
     |> add_float "alpha" alpha in
   let first_geometry = make [|0.,0.,0.;1.,0.,0.;2.,0.,0.|]
@@ -4325,7 +4325,7 @@ let test_attribute_composite_contract () =
       [|10.;20.;30.|] [|1.;0.;1.|] in
   let first = Sop.snapshot first_geometry and second = Sop.snapshot second_geometry in
   let graph = first |> Sop.attribute_composite ~label:"composite"
-      ~operation:Pdk.Ops.Composite_mean ~weight:1.
+      ~operation:Pdk.Attribute_composite.Composite_mean ~weight:1.
       ~detail_attributes:"^*" ~primitive_attributes:"^*"
       ~point_attributes:"P value" ~vertex_attributes:"^*"
       ~allow_position:true ~alpha_attribute:"alpha"
@@ -4353,7 +4353,7 @@ let test_attribute_composite_contract () =
   check (cached.geometry == output.geometry)
     "procedural Attribute Composite static cook was not cached";
   let scaled = first |> Sop.attribute_composite
-      ~operation:Pdk.Ops.Composite_maximum ~weight:2.
+      ~operation:Pdk.Attribute_composite.Composite_maximum ~weight:2.
       ~point_attributes:"value" ~detail_attributes:"^*"
       ~primitive_attributes:"^*" ~vertex_attributes:"^*" ~inputs:[]
     |> cook_ok evaluator current in
@@ -4381,7 +4381,7 @@ let test_attribute_composite_contract () =
       offset +. float_of_int (point mod 97))) in
   let large_first = make_large 0. and large_second = make_large 7. in
   let exact = Sop.snapshot large_first |> Sop.attribute_composite
-      ~operation:Pdk.Ops.Composite_over ~weight:0.25
+      ~operation:Pdk.Attribute_composite.Composite_over ~weight:0.25
       ~point_attributes:"P value" ~allow_position:true
       ~detail_attributes:"^*" ~primitive_attributes:"^*"
       ~vertex_attributes:"^*"

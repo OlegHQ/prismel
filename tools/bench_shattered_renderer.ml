@@ -375,7 +375,10 @@ let update model frame =
             :: frame.Frame.events }, true
     | (Visible, _ | Hidden, true) -> frame, model.hidden_toggled in
   let environment = Sketch_ui.Environment3.update model.environment frame in
-  let model = { model with environment; hidden_toggled } in
+  let model = { model with environment; hidden_toggled;
+      drawable_width = frame.Frame.drawable_width;
+      drawable_height = frame.drawable_height;
+      pixel_scale_x = fst frame.pixel_scale; pixel_scale_y = snd frame.pixel_scale } in
   let model = match model.ready_at with
     | Some _ -> model
     | None ->

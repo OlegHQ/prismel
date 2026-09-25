@@ -21,6 +21,8 @@ let platonic_batch = integer_env "PRISMEL_PDK_PLATONIC_BATCH" 100_000
 let poly_fill_boxes = integer_env "PRISMEL_PDK_POLY_FILL_BOXES" 100_000
 let low_color = Color.rgb 45 36 114
 let high_color = Color.rgb 244 124 42
+let low_rgba = Color.to_floats low_color
+let high_rgba = Color.to_floats high_color
 let session_only = match Sys.getenv_opt "PRISMEL_PDK_OPS_SESSION_ONLY" with
   | Some value -> List.mem (String.lowercase_ascii value) ["1"; "true"; "yes"; "on"]
   | None -> false
@@ -215,6 +217,61 @@ let make_context () =
   Context.create ~domains ~grain ~seed:42L () |> get_ok
 let make_session () =
   Session.create ~max_entries:16 ~max_payload_bytes:2_000_000_000 |> get_ok
+
+let run_mirror_payload_benchmarks () =
+  let source = make_grid () in
+  let points = Geometry.point_count source
+  and vertices = Geometry.vertex_count source in
+  let color = Packed.Float4.of_owned
+      ~x:(Array.init points float_of_int)
+      ~y:(Array.make points 0.25)
+      ~z:(Array.make points 0.5)
+      ~w:(Array.make points 1.) |> get_ok in
+  let color = Attribute.create_owned ~owner:Attribute.Point ~name:"Cd"
+      (Attribute.Float4 color) |> get_ok in
+  let uv = Packed.Float2.of_owned
+      ~x:(Array.init vertices (fun vertex -> float_of_int (vertex land 255)))
+      ~y:(Array.make vertices 0.75) |> get_ok in
+  let uv = Attribute.create_owned ~owner:Attribute.Vertex ~name:"uv"
+      (Attribute.Float2 uv) |> get_ok in
+  let selection = Group.init ~owner:Group.Point ~name:"selection" points
+      (fun point -> point land 3 = 0) in
+  let source = Geometry.with_attribute color source |> get_ok
+      |> Geometry.with_attribute uv |> get_ok
+      |> Geometry.with_group selection |> get_ok in
+  measure ~input_points:points "mirror_payload" (fun () ->
+    Ops.mirror ~grain ~origin:Vec3.zero ~normal:(Vec3.create 1. 1. 0.)
+      source |> get_ok) geometry_output
+
+let run_reverse_payload_benchmarks () =
+  let source = make_grid () in
+  let vertices = Geometry.vertex_count source in
+  let color = Packed.Float4.of_owned
+      ~x:(Array.init vertices float_of_int)
+      ~y:(Array.make vertices 0.25)
+      ~z:(Array.make vertices 0.5)
+      ~w:(Array.make vertices 1.) |> get_ok in
+  let color = Attribute.create_owned ~owner:Attribute.Vertex ~name:"Cd"
+      (Attribute.Float4 color) |> get_ok in
+  let normals = Packed.Float3.Private.of_owned_exn
+      ~x:(Array.make vertices 0.)
+      ~y:(Array.make vertices 0.)
+      ~z:(Array.make vertices 1.) in
+  let normals = Attribute.create_key_owned
+      (Attribute.normal ~owner:Attribute.Vertex) normals |> get_ok in
+  let selected = Group.ordered ~owner:Group.Vertex ~name:"corners"
+      ~length:vertices
+      (Array.init ((vertices + 7) / 8) (fun index -> index * 8)) |> get_ok in
+  let source = Geometry.with_attribute color source |> get_ok
+      |> Geometry.with_attribute normals |> get_ok
+      |> Geometry.with_group selected |> get_ok in
+  let input_points = Geometry.point_count source in
+  measure ~input_points "reverse_payload" (fun () ->
+    Ops.reverse ~grain ~operation:Ops.Reverse_vertices source |> get_ok)
+    geometry_output;
+  measure ~input_points "shift_payload" (fun () ->
+    Ops.reverse ~grain ~operation:(Ops.Shift_vertices 1) source |> get_ok)
+    geometry_output
 
 let run_grid_generator_benchmarks () =
   let point_count = (columns + 1) * (rows + 1) in
@@ -687,6 +744,28 @@ let run_sweep_general_benchmarks () =
         ~backbone:payload_backbone ~cross_section:payload_profile () |> get_ok)
     geometry_output
 
+let run_curve_subdivide_benchmarks () =
+  let source = Ops.grid ~grain ~connectivity:Ops.Grid_rows
+      ~columns:(min columns 512) ~rows:(min rows 128) ~size:100. () |> get_ok in
+  let add owner name storage geometry =
+    let attribute = Attribute.create_owned ~owner ~name storage |> get_ok in
+    Geometry.with_attribute attribute geometry |> get_ok in
+  let palette = Array.init 97 (Printf.sprintf "label_%02d") in
+  let source = source
+      |> add Attribute.Point "id" (Attribute.Int
+           (Array.init (Geometry.point_count source) (fun point -> point mod 97)))
+      |> add Attribute.Point "label" (Attribute.Text
+           (Array.init (Geometry.point_count source) (fun point ->
+             palette.(point mod Array.length palette))))
+      |> add Attribute.Vertex "u" (Attribute.Float
+           (Array.init (Geometry.vertex_count source) float_of_int))
+      |> add Attribute.Primitive "weight" (Attribute.Float
+           (Array.init (Geometry.primitive_count source) float_of_int)) in
+  measure ~input_points:(Geometry.point_count source)
+    "curve_subdivide_payload" (fun () ->
+      Ops.subdivide ~grain ~scheme:Ops.Catmull_clark
+        ~treat_curves_as_independent:false source |> get_ok) geometry_output
+
 let run_revolve_benchmarks () =
   let profile_points = 10_001 in
   let values = Array.init profile_points (fun point ->
@@ -1124,7 +1203,7 @@ let run_transfer_benchmarks filter =
     let source = modeling_grid
         |> Geometry.with_attribute uv |> get_ok
         |> Geometry.with_attribute density |> get_ok
-        |> Ops.color_by_height ~grain ~low:low_color ~high:high_color |> get_ok in
+        |> Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
     let revision = Attribute.create_owned ~name:"revision"
         ~owner:Attribute.Detail (Attribute.Int [|17|]) |> get_ok in
     let source = Geometry.with_attribute revision source |> get_ok in
@@ -1336,7 +1415,22 @@ let run_attribute_combine_benchmarks () =
       ~destination:"matched_result"
       ~layers:[Attribute_ops.combine_layer ~source:"matched" ~source_input:1
         Attribute_ops.Combine_copy]
-      ~geometries:[|primary;source|] () |> get_ok) geometry_output
+      ~geometries:[|primary;source|] () |> get_ok) geometry_output;
+  let palette = Array.init 1024 (Printf.sprintf "key_%04d") in
+  let text_key value = Attribute.create_owned ~name:"text_key"
+      ~owner:Attribute.Point (Attribute.Text (Array.init count (fun point ->
+        palette.(value point mod Array.length palette)))) |> get_ok in
+  let text_primary = add (text_key Fun.id) geometry
+  and text_source = Geometry.create ~positions
+      ~topology:(Topology.empty ~point_count:count)
+      ~attributes:[text_key (fun point -> count - point - 1); matched] ()
+      |> get_ok in
+  measure ~input_points:count "attribute_combine_matched_text_input" (fun () ->
+    Attribute_ops.combine ~grain ~match_attribute:"text_key"
+      ~owner:Attribute.Point ~destination:"matched_result"
+      ~layers:[Attribute_ops.combine_layer ~source:"matched" ~source_input:1
+        Attribute_ops.Combine_copy]
+      ~geometries:[|text_primary;text_source|] () |> get_ok) geometry_output
 
 let run_attribute_interpolate_benchmarks () =
   let count = columns * rows in
@@ -1583,6 +1677,16 @@ let run_dissolve_benchmarks () =
   measure ~input_points "dissolve_grid_rectangle" (fun () ->
     Ops.dissolve ~grain ~edges:interior ~remove_inline_points:true
       ~collinearity_tolerance:1e-10 source |> get_ok) geometry_output
+
+let run_repair_mesh_benchmarks () =
+  let source = Ops.grid ~grain ~connectivity:Ops.Grid_triangles
+      ~columns:(min columns 300) ~rows:(min rows 300) ~size:100. () |> get_ok in
+  measure ~input_points:(Geometry.point_count source)
+    "repair_mesh_analyze_grid" (fun () ->
+      match Repair_mesh.analyze source with
+      | Ok report -> report
+      | Error error -> failwith (Error.to_string error))
+    (fun report -> report.faces, Hashtbl.hash report)
 
 let run_poly_loft_benchmarks () =
   let sections = rows + 1 and per_section = max 3 columns in
@@ -2007,7 +2111,7 @@ let run_attribute_blur_benchmarks () =
   let source = Ops.grid ~columns:400 ~rows:400 ~size:20. () |> get_ok
       |> Ops.noise_displace ~grain ~amplitude:0.8 ~frequency:0.35 ~seed:91
            |> get_ok
-      |> Ops.color_by_height ~grain ~low:low_color ~high:high_color |> get_ok in
+      |> Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
   let point_count = Geometry.point_count source in
   let weight = Attribute.create_owned ~name:"blur_weight"
       ~owner:Attribute.Point (Attribute.Float (Array.init point_count
@@ -2032,7 +2136,7 @@ let run_smooth_benchmarks () =
   let source = Ops.grid ~columns:400 ~rows:400 ~size:20. () |> get_ok
       |> Ops.noise_displace ~grain ~amplitude:0.8 ~frequency:0.35 ~seed:91
            |> get_ok
-      |> Ops.color_by_height ~grain ~low:low_color ~high:high_color |> get_ok in
+      |> Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
   let point_count = Geometry.point_count source
   and primitive_count = Geometry.primitive_count source in
   let primitives = Group.init ~grain ~owner:Group.Primitive ~name:"smooth_faces"
@@ -2051,7 +2155,7 @@ let run_ray_benchmarks () =
   let collision = Ops.grid ~columns ~rows ~size:40. () |> get_ok
       |> Ops.noise_displace ~grain ~amplitude:0.8 ~frequency:0.18 ~seed:903
            |> get_ok
-      |> Ops.color_by_height ~grain ~low:low_color ~high:high_color |> get_ok in
+      |> Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
   let source = Ops.grid ~columns ~rows ~size:39.5 () |> get_ok
       |> Ops.transform ~grain (Mat4.translation (Vec3.create 0. 2. 0.)) in
   let point_count = Geometry.point_count source in
@@ -2596,6 +2700,10 @@ let run_remesh_benchmarks () =
   let target = 100. /. float_of_int (max remesh_columns remesh_rows) *. 1.13 in
   measure ~input_points:point_count "remesh_topology_iteration_payload" (fun () ->
     Ops.remesh ~grain ~iterations:1 ~smoothing:0. ~project:false
+      ~recompute_point_normals:false ~target_length:target source |> get_ok)
+    geometry_output;
+  measure ~input_points:point_count "remesh_topology_three_iterations" (fun () ->
+    Ops.remesh ~grain ~iterations:3 ~smoothing:0. ~project:false
       ~recompute_point_normals:false ~target_length:target source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "remesh_uniform_full_iteration" (fun () ->
@@ -3691,12 +3799,19 @@ let run_group_benchmarks () =
   let name_attribute = Attribute.create_owned ~owner:Attribute.Point
       ~name:"piece_name" (Attribute.Text name_values) |> get_ok in
   let name_source = Geometry.with_attribute name_attribute source |> get_ok in
-  let grouped_name_source = Ops.groups_from_name ~grain ~owner:Attribute.Point
+  let grouped_name_source = Group_ops.groups_from_name_checked ~grain ~owner:Attribute.Point
       ~attribute:"piece_name" name_source |> get_ok in
   let reversed_ids = Attribute.create_owned ~owner:Attribute.Point ~name:"copy_id"
       (Attribute.Int (Array.init point_count (fun point ->
         point_count - point - 1))) |> get_ok in
   let copy_target = Geometry.with_attribute reversed_ids source |> get_ok in
+  let text_ids name values = Attribute.create_owned ~owner:Attribute.Point
+      ~name (Attribute.Text values) |> get_ok in
+  let text_source = Geometry.with_attribute
+      (text_ids "copy_text" name_values) catalog_source |> get_ok
+  and text_target = Geometry.with_attribute
+      (text_ids "copy_text" (Array.init point_count (fun point ->
+        name_values.(point_count - point - 1)))) source |> get_ok in
   (* Exclude shared cold-index construction from the per-operator warm-path
      medians. [topology_index] remains the dedicated cold-index benchmark. *)
   ignore (Topology_index.create (Geometry.topology source));
@@ -3884,10 +3999,10 @@ let run_group_benchmarks () =
       ~attributes:boundary_attributes ~owner:Ops.Group_primitives
       ~name:"seam_faces" boundary_source |> get_ok) geometry_output;
   measure ~input_points:point_count "groups_from_name_points_64"
-    (fun () -> Ops.groups_from_name ~grain ~owner:Attribute.Point
+    (fun () -> Group_ops.groups_from_name_checked ~grain ~owner:Attribute.Point
       ~attribute:"piece_name" name_source |> get_ok) geometry_output;
   measure ~input_points:point_count "name_from_groups_points_64"
-    (fun () -> Ops.name_from_groups ~grain ~attribute:"round_trip"
+    (fun () -> Group_ops.name_from_groups_checked ~grain ~attribute:"round_trip"
       ~pattern:"piece_*" ~delete_groups:true ~owner:Attribute.Point
       grouped_name_source |> get_ok) geometry_output;
   let random_seed = Rand.seed 0x514e in
@@ -4003,7 +4118,12 @@ let run_group_benchmarks () =
     (fun () -> Ops.group_copy ~grain ~rules:[
       { copy_owner = Ops.Group_points; copy_pattern = "point_seed*";
         copy_prefix = "copied_"; match_attribute = Some "copy_id" }]
-      ~source:catalog_source ~target:copy_target () |> get_ok) geometry_output
+      ~source:catalog_source ~target:copy_target () |> get_ok) geometry_output;
+  measure ~input_points:point_count "group_copy_points_text_attribute"
+    (fun () -> Ops.group_copy ~grain ~rules:[
+      { copy_owner = Ops.Group_points; copy_pattern = "point_seed*";
+        copy_prefix = "copied_"; match_attribute = Some "copy_text" }]
+      ~source:text_source ~target:text_target () |> get_ok) geometry_output
 
 let run_group_transfer_benchmarks () =
   let transfer_source = Ops.grid ~columns:300 ~rows:300 ~size:20. () |> get_ok in
@@ -4559,7 +4679,7 @@ let run_attribute_fade_benchmarks () =
   and fade_out_ramp = [0., 1.; 0.25, 0.96; 0.65, 0.18; 1., 0.] in
   let run ?points ?(visualize = false) name fade_in_ramp fade_out_ramp =
     measure ~input_points:point_count name (fun () ->
-      Ops.attribute_fade ~grain ?points ~frame:137.25
+      Attribute_fade.fade_checked ~grain ?points ~frame:137.25
         ~start_attribute:"start_fade" ~hold_scale_attribute:"duration"
         ~fade_in:8. ~fade_hold:24. ~fade_out:16. ~fade_in_ramp ~fade_out_ramp
         ~visualize source |> get_ok) geometry_output in
@@ -4821,6 +4941,12 @@ let () =
     exit 0
   end;
   (match benchmark_filter with
+   | Some "mirror_payload" ->
+       run_mirror_payload_benchmarks ();
+       exit 0
+   | Some "reverse_payload" | Some "shift_payload" ->
+       run_reverse_payload_benchmarks ();
+       exit 0
    | Some filter when String.starts_with ~prefix:"torus_generator_reference" filter ->
        run_torus_reference_benchmark ();
        exit 0
@@ -4850,6 +4976,9 @@ let () =
        exit 0
    | Some filter when String.starts_with ~prefix:"sweep_general" filter ->
        run_sweep_general_benchmarks ();
+       exit 0
+   | Some filter when String.starts_with ~prefix:"curve_subdivide" filter ->
+       run_curve_subdivide_benchmarks ();
        exit 0
    | Some filter when String.starts_with ~prefix:"revolve" filter ->
        run_revolve_benchmarks ();
@@ -4892,6 +5021,9 @@ let () =
        exit 0
    | Some filter when String.starts_with ~prefix:"dissolve" filter ->
        run_dissolve_benchmarks ();
+       exit 0
+   | Some filter when String.starts_with ~prefix:"repair_mesh" filter ->
+       run_repair_mesh_benchmarks ();
        exit 0
    | Some filter when String.starts_with ~prefix:"poly_loft" filter ->
        run_poly_loft_benchmarks ();
@@ -5167,14 +5299,15 @@ let () =
   let displaced = Ops.noise_displace ~grain ~amplitude:0.8 ~frequency:0.16
       ~seed:42 source |> get_ok in
   measure "color_by_height" (fun () ->
-    Ops.color_by_height ~grain ~low:low_color ~high:high_color displaced
+    Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba displaced
     |> get_ok) geometry_output;
   measure "sort_points_x" (fun () ->
     Ops.sort ~grain ~owner:Ops.Points ~key:Ops.X source |> get_ok) geometry_output;
   measure "triangulate_triangles" (fun () -> Ops.triangulate source |> get_ok)
     geometry_output;
   if benchmark_enabled "triangulate_quads"
-     || benchmark_enabled "triangulate_quads_local_half" then begin
+     || benchmark_enabled "triangulate_quads_local_half"
+     || benchmark_enabled "triangulate_quads_payload" then begin
     let quad_source = Ops.grid ~grain ~connectivity:Ops.Grid_quads
         ~columns ~rows ~size:100. () |> get_ok in
     measure ~input_points:(Geometry.point_count quad_source)
@@ -5187,16 +5320,28 @@ let () =
     measure ~input_points:(Geometry.point_count quad_source)
       "triangulate_quads_local_half" (fun () ->
         Ops.triangulate ~grain ~primitives:alternating quad_source |> get_ok)
-      geometry_output
+      geometry_output;
+    let vertex_ids = Attribute.create_owned ~name:"corner_id"
+        ~owner:Attribute.Vertex
+        (Attribute.Int (Array.init (Geometry.vertex_count quad_source) Fun.id))
+        |> get_ok in
+    let marked = Group.init ~owner:Group.Vertex ~name:"marked_corner"
+        (Geometry.vertex_count quad_source) (fun vertex -> vertex land 1 = 0) in
+    let payload_source = quad_source
+        |> Geometry.with_attribute vertex_ids |> get_ok
+        |> Geometry.with_group marked |> get_ok in
+    measure ~input_points:(Geometry.point_count payload_source)
+      "triangulate_quads_payload" (fun () ->
+        Ops.triangulate ~grain payload_source |> get_ok) geometry_output
   end;
   (match benchmark_filter with
    | Some filter when String.starts_with ~prefix:"triangulate" filter -> exit 0
    | None | Some _ -> ());
-  measure "mesh_bridge_plain" (fun () -> Prismel_mesh.to_mesh source |> get_ok)
+  measure "mesh_bridge_plain" (fun () -> Pdk_prismel.Prismel_mesh.to_mesh source |> get_ok)
     mesh_output;
-  let colored = Ops.color_by_height ~grain ~low:low_color ~high:high_color
+  let colored = Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba
       displaced |> get_ok in
-  measure "mesh_bridge_colored" (fun () -> Prismel_mesh.to_mesh colored |> get_ok)
+  measure "mesh_bridge_colored" (fun () -> Pdk_prismel.Prismel_mesh.to_mesh colored |> get_ok)
     mesh_output;
   measure "merge_pair" (fun () -> Ops.merge ~grain [source; source] |> get_ok)
     geometry_output;
@@ -5440,7 +5585,8 @@ let () =
     spatial_index_output;
   measure "surface_index" (fun () ->
     Surface_index.create modeling_grid |> get_ok) surface_index_output;
-  measure "attribute_promote_point_primitive" (fun () ->
+  measure ~input_points:(Geometry.point_count modeling_grid)
+    "attribute_promote_point_primitive" (fun () ->
     Attribute_ops.promote ~grain ~source:Attribute.Point
       ~destination:Attribute.Primitive ~name:"N" modeling_grid |> get_ok)
     geometry_output;
@@ -5524,7 +5670,7 @@ let () =
   let clip_attribute_grid = clip_grid
       |> Geometry.with_attribute clip_uv |> get_ok
       |> Geometry.with_attribute clip_density |> get_ok
-      |> Ops.color_by_height ~grain ~low:low_color ~high:high_color |> get_ok in
+      |> Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
   let deletion_quads = Ops.subdivide ~grain ~scheme:Ops.Bilinear
       clip_attribute_grid |> get_ok in
   measure "surface_index_quads" (fun () ->
@@ -5734,7 +5880,7 @@ let () =
       ~connectivity:Ops.Grid_triangles ~columns:200 ~rows:200 ~size:20. ()
       |> get_ok
       |> Ops.uv_project ~grain planar_projection |> get_ok
-      |> Ops.color_by_height ~grain ~low:low_color ~high:high_color |> get_ok in
+      |> Ops.color_by_height ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
   let measure_triangles name policy =
     measure ~input_points:(Geometry.point_count triangle_subdivision_grid)
       ("subdivide_catmull_triangles_" ^ name) (fun () ->
@@ -5963,7 +6109,7 @@ let () =
     Ops.subdivide ~grain ~scheme:Ops.Catmull_clark ~consistent_topology:true
       ~cracks:(Ops.Subdivide_pull_triangulate 0.75)
       ~primitives:subdivision_half modeling_grid |> get_ok) geometry_output;
-  measure "mirror" (fun () ->
+  measure ~input_points:(Geometry.point_count modeling_grid) "mirror" (fun () ->
     Ops.mirror ~grain ~origin:Vec3.zero ~normal:(Vec3.create 1. 1. 0.)
       modeling_grid |> get_ok) geometry_output;
   let fuse_source = Ops.merge ~grain [modeling_grid; modeling_grid] |> get_ok in

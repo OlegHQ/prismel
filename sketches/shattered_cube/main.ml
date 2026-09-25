@@ -3,8 +3,8 @@ open Procedural
 
 let graph () =
   let cube = Sop_catalog.Box.create ~label:"cube"
-      ~size:(Vec3.create 2.6 2.6 2.6) ~connectivity:Pdk.Ops.Box_quads
-      ~consolidate_points:true ~normals:Pdk.Ops.Box_vertex_normals ()
+      ~size:(Vec3.create 2.6 2.6 2.6) ~connectivity:Pdk.Box_generator.Box_quads
+      ~consolidate_points:true ~normals:Pdk.Box_generator.Box_vertex_normals ()
   and dodecahedron = Sop_catalog.Platonic.create ~label:"dodecahedron"
       ~kind:Pdk.Ops.Platonic_dodecahedron
       ~normals:Pdk.Ops.Platonic_vertex_normals
@@ -12,7 +12,7 @@ let graph () =
   let source = Sop_catalog.Switch.create ~label:"source-switch"
       [cube; dodecahedron] in
   let cutter_grid = Sop_catalog.Grid.create ~label:"cutter-grid"
-      ~counts:Pdk.Ops.Grid_divisions ~connectivity:Pdk.Ops.Grid_triangles
+      ~counts:Pdk.Plane_generators.Grid_divisions ~connectivity:Pdk.Plane_generators.Grid_triangles
       ~columns:2 ~rows:2 ~size:4.8 ()
     |> Sop_catalog.Mountain.create ~label:"cutter-mountain" ~seed:0
          ~height:0.35 ~frequency:(Vec3.create 0.27 1. 0.27)
@@ -116,7 +116,6 @@ let overlay graph preview frame =
   ]
 
 let () =
-  R11_benchmark.maybe_run graph;
   Sketch_ui.Environment3.run
     ~config:{ Sketch.default_config with width = 1200; height = 760;
       title = "Prismel sketch · shattered cube"; domains = Some 1 }

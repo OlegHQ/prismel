@@ -4,9 +4,8 @@
  (libraries unix))
 
 (executable
- (name bench_geom)
- (modules bench_geom)
- (libraries prismel prismel.geom unix))
+ (name pdk_ops_codemod)
+ (modules pdk_ops_codemod))
 
 (executable
  (name bench_sdl3)
@@ -125,9 +124,14 @@
  (libraries prismel pdk procedural sop_catalog sketch_support sketch_ui unix))
 
 (executable
- (name bench_iso_stream)
- (modules bench_iso_stream)
- (libraries prismel prismel.geom unix))
+ (name bench_pdk_iso)
+ (modules bench_pdk_iso)
+ (libraries pdk prismel_math unix))
+
+(executable
+ (name bench_pdk_subdivide)
+ (modules bench_pdk_subdivide)
+ (libraries pdk prismel unix))
 
 (executable
  (name bench_pxui)
@@ -157,7 +161,7 @@
 (executable
  (name bench_pdk_ops)
  (modules bench_pdk_ops)
- (libraries prismel pdk procedural unix))
+ (libraries prismel pdk pdk_prismel procedural unix))
 
 (executable
  (name bench_pdk_kernel)
@@ -167,37 +171,12 @@
 (executable
  (name bench_predicates)
  (modules bench_predicates)
- (libraries pdk unix))
-
-(executable
- (name bench_boolean_constraints)
- (modules bench_boolean_constraints)
- (libraries prismel pdk unix))
-
-(executable
- (name bench_boolean_coplanar)
- (modules bench_boolean_coplanar)
- (libraries prismel pdk unix))
-
-(executable
- (name bench_boolean_complex)
- (modules bench_boolean_complex)
- (libraries prismel pdk unix))
+ (libraries pdk pdk_boolean unix))
 
 (executable
  (name bench_boolean_pipeline)
  (modules bench_boolean_pipeline)
- (libraries prismel pdk unix))
-
-(executable
- (name bench_boolean_materialization)
- (modules bench_boolean_materialization)
- (libraries prismel pdk unix))
-
-(executable
- (name bench_boolean_product)
- (modules bench_boolean_product)
- (libraries prismel pdk unix))
+ (libraries prismel pdk pdk_boolean unix))
 
 (executable
  (name bench_convex_hull)
@@ -240,31 +219,11 @@
  (libraries prismel pdk unix))
 
 (executable
- (name bench_boolean_seam)
- (modules bench_boolean_seam)
- (libraries prismel pdk unix))
-
-(executable
- (name bench_boolean_refinement)
- (modules bench_boolean_refinement)
- (libraries prismel pdk unix))
-
-(executable
- (name bench_boolean_arrangement)
- (modules bench_boolean_arrangement)
- (libraries prismel pdk unix))
-
-(executable
- (name bench_boolean_cdt)
- (modules bench_boolean_cdt)
- (libraries prismel pdk unix))
-
-(executable
- (name bench_boolean_payload)
- (modules bench_boolean_payload)
- (libraries prismel pdk unix))
-
-(executable
  (name boolean_stress)
  (modules boolean_stress)
  (libraries prismel pdk unix))
+
+(executable
+ (name bench_input)
+ (modules bench_input)
+ (libraries runtime_next_input prismel.sdl3 unix))
