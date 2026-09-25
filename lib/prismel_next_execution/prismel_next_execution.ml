@@ -12,9 +12,9 @@ type configuration = { logical_width:int; logical_height:int;
   drawable_width:int; drawable_height:int; title:string;vsync:bool }
 let default_configuration = { logical_width=640; logical_height=480;
   drawable_width=640; drawable_height=480; title="Prismel";vsync=true }
-type family = Scene2 | Scene2_textured | Scene3 | Scene3_points | Scene3_textured | Scene3_shadow |
+type family = Scene_execution.pipeline_family = Scene2 | Scene2_textured | Scene3 | Scene3_points | Scene3_textured | Scene3_shadow |
   Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil | Ui
-type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
+type blend = Ogpu.Pipeline.blend = Replace | Alpha | Add | Multiply | Screen | Subtract
 type draw = { family:family; blend:blend; texture:Scene_execution.sampled_texture option;
   auxiliary:Scene_execution.auxiliary_resource option;samples:int;value:Scene_execution.draw }
 type cached_scene2_geometry={vertices:float array;indices:int array;fingerprint:int;source_bytes:int;color:int32;
@@ -975,11 +975,6 @@ let step_core ?after_prepare ?clear ?identity ?version value draws=
   let after_prepare=Option.value after_prepare ~default:Fun.id in
   match ensure"Prismel_next_execution.step"value with Error _ as e->e|Ok()->
   match presentation_facts value with Error _ as error->after_prepare();error|Ok f->
-    let family=function Scene2->Runtime_next_orchestrator.Scene2|Scene2_textured->Scene2_textured|Scene3->Scene3|Scene3_points->Scene3_points
-      |Scene3_textured->Scene3_textured|Scene3_shadow->Scene3_shadow|Scene3_stencil->Scene3_stencil
-      |Scene3_textured_stencil->Scene3_textured_stencil|Scene3_shadow_stencil->Scene3_shadow_stencil|Ui->Ui in
-    let blend=function Replace->Runtime_next_orchestrator.Replace|Alpha->Alpha|Add->Add
-      |Multiply->Multiply|Screen->Screen|Subtract->Subtract in
     let replayed=match value.runtime,identity,version with
       |Window runtime,Some identity,Some version->
           Runtime_next_orchestrator.replay_retained ?clear ~identity ~version runtime
@@ -998,7 +993,7 @@ let step_core ?after_prepare ?clear ?identity ?version value draws=
           let scissor=match state.scissor with _,_,w,h when w<0||h<0->0,0,f.logical_width,f.logical_height|x->x in
           let draw=if viewport=state.viewport&&scissor=state.scissor then draw else
             {draw with Scene_execution.state={state with viewport;scissor}}in
-          {Runtime_next_orchestrator.family=family x.family;blend=blend x.blend;texture=x.texture;
+          {Runtime_next_orchestrator.family=x.family;blend=x.blend;texture=x.texture;
             auxiliary=x.auxiliary;samples=x.samples;draw})draws in
         value.last_step_draws<-draws;value.last_step_prepared<-prepared;prepared in
     match value.runtime with
@@ -1010,16 +1005,8 @@ let step_core ?after_prepare ?clear ?identity ?version value draws=
           "prepared identity and version must be supplied together"))
     |Offscreen state->
       let portable=List.map(fun draw->
-        let family=match draw.Runtime_next_orchestrator.family with
-        |Runtime_next_orchestrator.Scene2->Scene_execution.Scene2
-        |Scene2_textured->Scene2_textured|Scene3->Scene3|Scene3_points->Scene3_points
-        |Scene3_textured->Scene3_textured|Scene3_shadow->Scene3_shadow
-        |Scene3_stencil->Scene3_stencil
-        |Scene3_textured_stencil->Scene3_textured_stencil
-        |Scene3_shadow_stencil->Scene3_shadow_stencil|Ui->Ui in
-        let blend=match draw.blend with Runtime_next_orchestrator.Replace->Ogpu.Pipeline.Replace
-        |Alpha->Alpha|Add->Add|Multiply->Multiply|Screen->Screen|Subtract->Subtract in
-        family,blend,draw.texture,draw.auxiliary,draw.samples,draw.draw)draws in
+        draw.Runtime_next_orchestrator.family,draw.blend,draw.texture,
+        draw.auxiliary,draw.samples,draw.draw)draws in
       let result=match identity,version with
       |None,None->Runtime_next.render_offscreen ~after_prepare ?clear state.runtime portable
       |Some identity,Some version->Runtime_next.render_offscreen_prepared ~after_prepare ?clear

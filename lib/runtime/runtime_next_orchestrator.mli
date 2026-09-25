@@ -14,9 +14,9 @@ type stats = { frames:int64; presented:int64; logical_draws:int64;
   retained_plan_misses:int64; retained_plan_evictions:int64;
   retained_plan_executions:int64; retained_plan_entries:int;
   retained_plan_capacity:int }
-type family = Scene2 | Scene2_textured | Scene3 | Scene3_points | Scene3_textured | Scene3_shadow |
+type family = Scene_execution.pipeline_family = Scene2 | Scene2_textured | Scene3 | Scene3_points | Scene3_textured | Scene3_shadow |
   Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil | Ui
-type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
+type blend = Ogpu.Pipeline.blend = Replace | Alpha | Add | Multiply | Screen | Subtract
 type prepared = {
   family : family;
   blend : blend;

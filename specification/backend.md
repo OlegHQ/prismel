@@ -233,6 +233,9 @@ batch from a different blend mode. Native regressions compare 63, 64, 65, and
 1,024 primitives with identity-barrier reference preparation, alpha/additive
 overlap, fractional transforms, clipping, repeated frames, 1×/2× backing sizes,
 and zero handle deltas.
+The frame coordinator and runtime orchestrator use the executor's pipeline
+family and OGPU blend types directly, so preparing a draw no longer maps two
+duplicate enum sets on the way to the backend.
 
 Retained OGPU-Metal identity and replay metadata have independent 256-entry
 limits and share a configurable 64-MiB default byte capacity per queue. Metal's

@@ -18,26 +18,7 @@ let pp_error formatter = function
 
 let draw_of_scene3_entry (entry : Scene_execution.scene3_entry) =
   Prismel_next_execution.prepared_draw
-    ~family:
-      (match entry.family with
-      | Scene3 -> Scene3
-      | Scene3_points -> Scene3_points
-      | Scene3_textured -> Scene3_textured
-      | Scene3_shadow -> Scene3_shadow
-      | Scene3_stencil -> Scene3_stencil
-      | Scene3_textured_stencil -> Scene3_textured_stencil
-      | Scene3_shadow_stencil -> Scene3_shadow_stencil
-      | Scene2 -> Scene2
-      | Scene2_textured -> Scene2_textured
-      | Ui -> Ui)
-    ~blend:
-      (match entry.blend with
-      | Replace -> Replace
-      | Alpha -> Alpha
-      | Add -> Add
-      | Multiply -> Multiply
-      | Screen -> Screen
-      | Subtract -> Subtract)
+    ~family:entry.family ~blend:entry.blend
     ?texture:entry.texture ?auxiliary:entry.auxiliary ~samples:entry.samples
     entry.draw
 
