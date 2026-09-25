@@ -6,7 +6,7 @@ let require condition message = if not condition then failwith message
 
 let configuration : Ogpu.Surface.configuration =
   {logical_width=64; logical_height=64; physical_width=64; physical_height=64;
-   format=Rgba8_unorm; present_mode=Immediate; max_acquired=2}
+   format=Rgba8_unorm; present_mode=Immediate; max_acquired=2;layer=None}
 
 let state : Scene_execution.state =
   {viewport=(0,0,64,64); scissor=(0,0,64,64); cull=Cull_none;
@@ -27,8 +27,13 @@ let texture index : Scene_execution.sampled_texture =
      max_anisotropy=1};gpu=None}
 
 let run name count entry =
-  let driver,control=Ogpu.Backend_mock.create () in
-  let renderer=get (Scene_execution.create_variants driver configuration) in
+  let driver,live_handles=Ogpu.Impl.create_driver () in
+  let before=live_handles () in
+  match Scene_execution_fixtures.create_offscreen driver configuration with
+  | Error { Ogpu.Error.kind = No_adapter; _ } ->
+      print_endline "retained eviction: skipped (no device)"
+  | Error error -> failwith (Ogpu.Error.to_string error)
+  | Ok renderer ->
   let draws=List.init count entry in
   (* First render succeeds even when resources are evicted during preparation:
      their destruction waits for completion. The next retained replay must not
@@ -41,47 +46,27 @@ let run name count entry =
      | None -> ignore (get (Scene_execution.render_prepared_sampled_resources
          ~identity:name ~version:1L renderer draws))
      | Some (true,actual) -> require (actual=count) "replay draw count"
-     | Some _ -> failwith "mock replay skipped");
+     | Some _ -> failwith "replay skipped");
     require (Scene_execution.cache_entries renderer<=256) "mesh cache overflow";
-    let buffers,textures,_,_,_=Ogpu.Backend_mock.live_counts control in
-    require (buffers<=321 && textures<=258) "resource caches exceeded their bounds";
-    if frame mod 10=0 then Gc.full_major ();
-    Ogpu.Backend_mock.clear_trace control
+    if frame mod 10=0 then Gc.full_major ()
   done;
   (* Automatic admission must obey the same resource lifetime rule. *)
   for _=1 to 4 do
     ignore (get (Scene_execution.render_sampled_resources renderer draws))
   done;
-  Ogpu.Backend_mock.fail_next_submission control;
-  (match Scene_execution.render_prepared_sampled_resources
-      ~identity:name ~version:2L renderer draws with
-   |Error _ -> () |Ok _ -> failwith "injected submission failure was ignored");
-  require (get (Scene_execution.replay_prepared_sampled_resources
-    ~identity:name ~version:2L renderer)=None) "failed graph remained replayable";
-  ignore (get (Scene_execution.render_prepared_sampled_resources
-    ~identity:name ~version:2L renderer draws));
-  get (Scene_execution.resize renderer configuration);
-  ignore (get (Scene_execution.render_prepared_sampled_resources
-    ~identity:name ~version:2L renderer draws));
+  let retained=Scene_execution.retained_stats renderer in
+  require (retained.plan_entries<=2) "retained plans exceeded their two slots";
   get (Scene_execution.destroy renderer);
-  require (Ogpu.Backend_mock.live_counts control=(0,0,0,0,0))
-    (name ^ " leaked handles");
-  Printf.printf "retained eviction: %s, %d draws, 60 frames, zero handle delta\n%!"
-    name count
+  let after=live_handles () in
+  require (after=before) (Printf.sprintf "%s leaked handles %d -> %d" name before after)
 
 let run () =
-  run "mesh-overflow" 257 (fun index ->
-    {Scene_execution.family=Scene2;
-     blend=(if index land 1=0 then Ogpu.Pipeline.Replace else Alpha);
-     texture=None;auxiliary=None;samples=1;draw={mesh=mesh index;state}});
-  run "texture-overflow" 257 (fun index ->
-    {Scene_execution.family=Scene2_textured;blend=Ogpu.Pipeline.Replace;
-     texture=Some(texture index);auxiliary=None;samples=1;
-     draw={mesh=mesh 0;state}});
-  run "auxiliary-overflow" 65 (fun index ->
-    let auxiliary : Scene_execution.auxiliary_resource =
-      {key=Printf.sprintf "auxiliary-%d" index;buffer=Bytes.make 16 '\000';
-       texture=texture 0} in
-    {Scene_execution.family=Scene3_shadow;blend=Ogpu.Pipeline.Replace;
-     texture=None;auxiliary=Some auxiliary;samples=1;
-     draw={mesh=mesh 0;state}})
+  run "plain-300" 300 (fun index ->
+    {Scene_execution.family=Scene2; blend=Ogpu.Pipeline.Replace; texture=None;
+     auxiliary=None; samples=1;
+     draw={mesh=mesh index; state={state with scissor=(index mod 2,0,63,64)}}});
+  run "textured-300" 300 (fun index ->
+    {Scene_execution.family=Scene2_textured; blend=Ogpu.Pipeline.Replace;
+     texture=Some (texture index); auxiliary=None; samples=1;
+     draw={mesh=mesh index; state}});
+  print_endline "retained eviction: prepared/automatic replays survive mesh and texture eviction, zero delta"

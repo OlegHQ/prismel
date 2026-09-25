@@ -8,7 +8,14 @@
 (executable
  (name test_main)
  (modules test_main test_prepared_scene3 test_automatic_scratch test_retained_eviction test_offscreen_metal)
- (libraries scene_execution ogpu ogpu_metal_native metal))
+ (libraries scene_execution scene_execution_fixtures ogpu))
+
+; Minimal per-family MSL pipelines for tests and benchmarks that drive the
+; renderer on a real device.
+(library
+ (name scene_execution_fixtures)
+ (modules scene_execution_fixtures)
+ (libraries scene_execution ogpu))
 
 (rule
  (aliases runtest test_prepared_scene3)

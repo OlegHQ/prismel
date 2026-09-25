@@ -29,13 +29,11 @@ let render value scene=
   |Ok _->()
   |Error error->
       failwith(Format.asprintf"Canvas.render: %a"Native_scene_lowering.pp_error error));
-    match Prismel_next_resources.Canvas.Private.prepare_write value.resource with
-    |Error error->failwith(message"Canvas.render"error)
-    |Ok(_,_,destination)->
-      (match Prismel_next_execution.capture_into execution~destination with
-       |Error error->failwith(execution_message"Canvas.render"error)
-       |Ok()->match Prismel_next_resources.Canvas.Private.commit_write value.resource with
-         |Ok()->()|Error error->failwith(message"Canvas.render"error))
+    match Prismel_next_execution.offscreen_target execution with
+    |Error error->failwith(execution_message"Canvas.render"error)
+    |Ok texture->
+      match Prismel_next_resources.Canvas.Private.publish_gpu value.resource texture with
+      |Ok()->()|Error error->failwith(message"Canvas.render"error)
 let packed color=Int32.logor(Int32.shift_left(Int32.of_int color.Color.r)24)
   (Int32.logor(Int32.shift_left(Int32.of_int color.g)16)
     (Int32.logor(Int32.shift_left(Int32.of_int color.b)8)(Int32.of_int color.a)))
@@ -79,7 +77,9 @@ let write_bytes value bytes=match Prismel_next_resources.Canvas.replace_pixels v
 let capture()=match Canvas_runtime.capture()with Error _ as error->error|Ok(w,h,bytes)->let value=create_exn~width:w~height:h in(try write_bytes value bytes;Ok value with exn->ignore(Prismel_next_resources.Canvas.destroy value.resource);Error(Printexc.to_string exn))
 let save_screen_png=Canvas_runtime.save
 let destroy value=if not value.destroyed then(
-  Option.iter(fun execution->ignore(Prismel_next_execution.destroy execution))
+  Option.iter(fun execution->
+    ignore(Prismel_next_resources.Canvas.Private.forget_gpu value.resource);
+    ignore(Prismel_next_execution.destroy execution))
     value.execution;
   value.execution<-None;
   ignore(Prismel_next_resources.Canvas.destroy value.resource);

@@ -40,9 +40,6 @@ type t = {
   window : Sdl3.Window.t;
   view : Sdl3.Metal_view.t;
   renderer : Scene_execution.t;
-  cache : Ogpu_metal_native.Pipeline.cache;
-  device : Ogpu_metal_native.Device.t;
-  control : Ogpu_metal_native.Backend.control;
   mutable facts : frame_facts;
   vsync : bool;
   mutable dead : bool;
@@ -50,46 +47,34 @@ type t = {
   mutable cursor_shape : [ `Default | `Horizontal_resize | `Vertical_resize ] option;
 }
 
-let gpu_film_texture value ~width ~height =
-  let operation = "Runtime_next.gpu_film_texture" in
+let device value =
+  let operation = "Runtime_next.device" in
   if value.dead then
     Error (Ogpu.Error.make operation Ogpu.Error.Stale_handle "runtime is destroyed")
-  else
-    let descriptor : Ogpu.Types.texture_descriptor =
-      {
-        label = Some "pathtracer-film";
-        width;
-        height;
-        depth = 1;
-        mip_levels = 1;
-        sample_count = 1;
-        usage = [ Texture_binding; Storage_binding; Texture_copy_src ];
-      }
-    in
-    let device = Scene_execution.device value.renderer in
-    match Ogpu.Backend.create_texture device descriptor with
-    | Error _ as failure -> failure
-    | Ok texture -> (
-        match Ogpu_metal_native.Backend.Private.native_texture value.control texture with
-        | Ok native -> Ok (texture, native)
-        | Error error ->
-            ignore (Ogpu.Backend.destroy_texture texture);
-            Error error)
+  else Ok (Scene_execution.device value.renderer)
 
 type offscreen = {
   renderer : Scene_execution.t;
-  cache : Ogpu_metal_native.Pipeline.cache;
-  device : Ogpu_metal_native.Device.t;
-  control : Ogpu_metal_native.Backend.control;
   mutable facts : frame_facts;
   mutable dead : bool;
 }
+
+let offscreen_device value =
+  let operation = "Runtime_next.offscreen_device" in
+  if value.dead then
+    Error (Ogpu.Error.make operation Ogpu.Error.Stale_handle "runtime is destroyed")
+  else Ok (Scene_execution.device value.renderer)
+
+let offscreen_target value =
+  let operation = "Runtime_next.offscreen_target" in
+  if value.dead then
+    Error (Ogpu.Error.make operation Ogpu.Error.Stale_handle "runtime is destroyed")
+  else Ok (Scene_execution.target value.renderer)
 
 let error op text = Error (Ogpu.Error.make op Ogpu.Error.Invalid_state text)
 let sdl op = function Ok x -> Ok x | Error e -> error op (Format.asprintf "%a" Sdl3.pp_error e)
 let clipboard_set_text text = sdl "Runtime_next.clipboard_set_text" (Sdl3.Clipboard.set_text text)
 let clipboard_get_text () = sdl "Runtime_next.clipboard_get_text" (Sdl3.Clipboard.get_text ())
-let metal op = function Ok x -> Ok x | Error e -> error op (Format.asprintf "%a" Metal.pp_error e)
 
 let facts window =
   match (Sdl3.Window.size window, Sdl3.Window.size_in_pixels window) with
@@ -150,21 +135,7 @@ fragment float4 scene_fragment(Out value [[stage_in]],texture2d<float> image [[t
 }
 |}
 
-let create_renderer ~offscreen ~device ~driver ~control ~configuration ~before_device_destroy =
-  let supported =
-    List.filter
-      (fun samples ->
-        samples <= (Ogpu_metal_native.Device.capabilities device).Ogpu.Caps.limits.max_sample_count)
-      [ 1; 4; 9; 16 ]
-  in
-  let cache =
-    match
-      Ogpu_metal_native.Pipeline.create_cache
-        ~capacity:(Scene_execution.pipeline_variants_per_sample * List.length supported)
-    with
-    | Ok x -> x
-    | Error e -> raise (Failure (Ogpu.Error.to_string e))
-  in
+let create_renderer ?device ~offscreen ~driver ~configuration ~before_device_destroy () =
   let make_pipeline backend_device family blend samples =
     let source, extra =
       match family with
@@ -333,41 +304,27 @@ let create_renderer ~offscreen ~device ~driver ~control ~configuration ~before_d
                     sample_count = samples;
                   }
                 in
-                match
-                  if family = Scene2 || family = Scene2_textured then
-                    Ogpu_metal_native.Pipeline.create_render_argument_buffer ~blend cache device
-                      descriptor
-                  else
-                    Ogpu_metal_native.Pipeline.create_render_runtime_msl
-                      ~primitive_topology:
-                        (if family = Scene3_points then Metal.Render_pipeline.Point else Triangle)
-                      ~blend cache device descriptor
-                with
-                | Error _ as e -> e
-                | Ok native ->
-                    Ogpu_metal_native.Backend.register_pipeline control native;
-                    Ok (Ogpu_metal_native.Pipeline.Private.portable native))))
+                Ogpu.Backend.create_render_pipeline ~blend
+                  ~topology:
+                    (if family = Scene3_points then Ogpu.Render_pass.Point_list
+                     else Triangle_list)
+                  ~indirect:
+                    (match family with
+                     | Scene2 | Scene2_textured | Scene3 | Scene3_points | Scene3_stencil -> true
+                     | Scene3_textured | Scene3_shadow | Scene3_textured_stencil
+                     | Scene3_shadow_stencil | Ui -> false)
+                  backend_device descriptor)))
   in
-  let destroy_native () =
-    Ogpu_metal_native.Pipeline.clear_cache cache;
-    before_device_destroy ()
-  in
-  let create_renderer =
-    if offscreen then Scene_execution.create_offscreen_with_sampled_pipeline_variants
-    else Scene_execution.create_with_sampled_pipeline_variants
-  in
-  match
-    create_renderer driver configuration ~canonical_scene2_argument:true
-      ~before_device_destroy:destroy_native make_pipeline
-  with
-  | Error error ->
-      Ogpu_metal_native.Pipeline.clear_cache cache;
-      Error error
-  | Ok renderer -> Ok (renderer, cache)
+  if offscreen then
+    Scene_execution.create_offscreen_with_sampled_pipeline_variants driver configuration
+      ~canonical_scene2_argument:true ~before_device_destroy ?device make_pipeline
+  else
+    Scene_execution.create_with_sampled_pipeline_variants driver configuration
+      ~canonical_scene2_argument:true ~before_device_destroy make_pipeline
 
 let present_mode vsync = if vsync then Ogpu.Surface.Fifo else Immediate
 
-let configuration ~vsync ~width ~height : Ogpu.Surface.configuration =
+let configuration ?layer ~vsync ~width ~height () : Ogpu.Surface.configuration =
   {
     logical_width = width;
     logical_height = height;
@@ -376,6 +333,7 @@ let configuration ~vsync ~width ~height : Ogpu.Surface.configuration =
     format = Bgra8_unorm;
     present_mode = present_mode vsync;
     max_acquired = 2;
+    layer;
   }
 
 let reveal window =
@@ -433,44 +391,18 @@ let create ?(vsync = true) ?(hidden = true) ?(title = "Prismel") ~width ~height 
                             cleanup_sdl ();
                             error
                         | Ok token -> (
-                            match Ogpu_metal_native.Device.system_default () with
-                            | Error _ as error ->
+                            let driver, _live = Ogpu.Impl.create_driver () in
+                            let configuration =
+                              configuration ~layer:token ~vsync ~width ~height ()
+                            in
+                            match
+                              create_renderer ~offscreen:false ~driver ~configuration
+                                ~before_device_destroy:(fun () -> Ok ()) ()
+                            with
+                            | Error _ as result ->
                                 cleanup_sdl ();
-                                error
-                            | Ok device -> (
-                                let config = Metal.Metal_layer.default ~width ~height in
-                                match
-                                  metal op
-                                    (Metal.Metal_layer.adopt_borrowed
-                                       (Ogpu_metal_native.Device.Private.metal device)
-                                       token config)
-                                with
-                                | Error _ as error ->
-                                    ignore (Ogpu_metal_native.Device.destroy device);
-                                    cleanup_sdl ();
-                                    error
-                                | Ok layer -> (
-                                    let driver, control =
-                                      Ogpu_metal_native.Backend.create ~device ~layer
-                                        ~retained_plan_capacity:256 ()
-                                    in
-                                    let configuration = configuration ~vsync ~width ~height in
-                                    let destroy_layer () =
-                                      match Metal.Metal_layer.destroy layer with
-                                      | Ok () -> Ok ()
-                                      | Error native_error ->
-                                          error op
-                                            (Format.asprintf "%a" Metal.pp_error native_error)
-                                    in
-                                    match
-                                      create_renderer ~offscreen:false ~device ~driver ~control
-                                        ~configuration ~before_device_destroy:destroy_layer
-                                    with
-                                    | Error _ as result ->
-                                        ignore (destroy_layer ());
-                                        cleanup_sdl ();
-                                        result
-                                    | Ok (renderer, cache) -> (
+                                result
+                                    | Ok renderer -> (
                                         match facts window with
                                         | Error error ->
                                             ignore (Scene_execution.destroy renderer);
@@ -497,34 +429,26 @@ let create ?(vsync = true) ?(hidden = true) ?(title = "Prismel") ~width ~height 
                                                     window;
                                                     view;
                                                     renderer;
-                                                    cache;
-                                                    device;
-                                                    control;
                                                     facts;
                                                     vsync;
                                                     dead = false;
                                                     cursors = [];
                                                     cursor_shape = None;
-                                                  }))))))))))
+                                                  }))))))))
 
-let create_offscreen ~logical_width ~logical_height ~width ~height =
+let create_offscreen ?device ~logical_width ~logical_height ~width ~height () =
   let op = "Runtime_next.create_offscreen" in
   if width <= 0 || height <= 0 || logical_width <= 0 || logical_height <= 0 then
     Error (Ogpu.Error.make op Invalid_argument "dimensions must be positive")
   else
-    match Ogpu_metal_native.Device.system_default () with
-    | Error _ as error -> error
-    | Ok device -> (
-        let driver, control =
-          Ogpu_metal_native.Backend.create ~device ~retained_plan_capacity:256 ()
-        in
-        let configuration = configuration ~vsync:false ~width ~height in
-        match
-          create_renderer ~offscreen:true ~device ~driver ~control ~configuration
-            ~before_device_destroy:(fun () -> Ok ())
-        with
+    let driver, _live = Ogpu.Impl.create_driver () in
+    let configuration = configuration ~vsync:false ~width ~height () in
+    match
+      create_renderer ?device ~offscreen:true ~driver ~configuration
+        ~before_device_destroy:(fun () -> Ok ()) ()
+    with
         | Error _ as error -> error
-        | Ok (renderer, cache) ->
+        | Ok renderer ->
             let facts =
               {
                 logical_width;
@@ -535,7 +459,7 @@ let create_offscreen ~logical_width ~logical_height ~width ~height =
                 pixel_scale_y = float height /. float logical_height;
               }
             in
-            Ok { renderer; cache; device; control; facts; dead = false })
+            Ok { renderer; facts; dead = false }
 
 let scale_rect (facts : frame_facts) (x, y, w, h) =
   let edge value logical drawable = value * drawable / logical in
@@ -578,6 +502,7 @@ let apply_facts (value : t) (facts : frame_facts) =
       format = Bgra8_unorm;
       present_mode = present_mode value.vsync;
       max_acquired = 2;
+      layer = None;
     }
   in
   match Scene_execution.resize value.renderer configuration with
@@ -664,22 +589,22 @@ let read_pixels_into (value : t) ~bytes_per_row ~destination =
   else Scene_execution.read_pixels_into value.renderer ~bytes_per_row ~destination
 
 let stats (value : t) =
-  let timing = Ogpu_metal_native.Queue.gpu_timing_for_device value.device
-  and retained = Ogpu_metal_native.Backend.retained_plan_stats value.control in
+  let timing = Ogpu.Backend.gpu_timing (Scene_execution.queue value.renderer)
+  and retained = Scene_execution.retained_stats value.renderer in
   {
-    pipeline_cache_entries = Ogpu_metal_native.Pipeline.cache_length value.cache;
+    pipeline_cache_entries = Scene_execution.pipeline_count value.renderer;
     mesh_cache_entries = Scene_execution.cache_entries value.renderer;
     uploaded_bytes = Scene_execution.upload_bytes value.renderer;
-    gpu_timing_supported = timing.supported;
-    gpu_duration_seconds = timing.duration_seconds;
-    gpu_sample_count = timing.sample_count;
-    retained_plan_builds = retained.builds;
-    retained_plan_hits = retained.hits;
-    retained_plan_misses = retained.misses;
-    retained_plan_evictions = retained.evictions;
-    retained_plan_executions = retained.executions;
-    retained_plan_entries = retained.entries;
-    retained_plan_capacity = retained.capacity;
+    gpu_timing_supported = timing.timing_supported;
+    gpu_duration_seconds = timing.gpu_seconds;
+    gpu_sample_count = timing.gpu_samples;
+    retained_plan_builds = retained.plan_builds;
+    retained_plan_hits = retained.plan_hits;
+    retained_plan_misses = retained.plan_misses;
+    retained_plan_evictions = retained.plan_evictions;
+    retained_plan_executions = retained.plan_executions;
+    retained_plan_entries = retained.plan_entries;
+    retained_plan_capacity = retained.plan_capacity;
   }
 
 let frame_facts (value : t) = value.facts
@@ -868,7 +793,7 @@ let resize_offscreen value ~logical_width ~logical_height ~width ~height =
       (Ogpu.Error.make "Runtime_next.resize_offscreen" Invalid_argument
          "dimensions must be positive")
   else
-    let configuration = configuration ~vsync:false ~width ~height in
+    let configuration = configuration ~vsync:false ~width ~height () in
     match Scene_execution.resize value.renderer configuration with
     | Error _ as error -> error
     | Ok () ->
@@ -884,22 +809,22 @@ let resize_offscreen value ~logical_width ~logical_height ~width ~height =
         Ok ()
 
 let offscreen_stats value =
-  let timing = Ogpu_metal_native.Queue.gpu_timing_for_device value.device
-  and retained = Ogpu_metal_native.Backend.retained_plan_stats value.control in
+  let timing = Ogpu.Backend.gpu_timing (Scene_execution.queue value.renderer)
+  and retained = Scene_execution.retained_stats value.renderer in
   {
-    pipeline_cache_entries = Ogpu_metal_native.Pipeline.cache_length value.cache;
+    pipeline_cache_entries = Scene_execution.pipeline_count value.renderer;
     mesh_cache_entries = Scene_execution.cache_entries value.renderer;
     uploaded_bytes = Scene_execution.upload_bytes value.renderer;
-    gpu_timing_supported = timing.supported;
-    gpu_duration_seconds = timing.duration_seconds;
-    gpu_sample_count = timing.sample_count;
-    retained_plan_builds = retained.builds;
-    retained_plan_hits = retained.hits;
-    retained_plan_misses = retained.misses;
-    retained_plan_evictions = retained.evictions;
-    retained_plan_executions = retained.executions;
-    retained_plan_entries = retained.entries;
-    retained_plan_capacity = retained.capacity;
+    gpu_timing_supported = timing.timing_supported;
+    gpu_duration_seconds = timing.gpu_seconds;
+    gpu_sample_count = timing.gpu_samples;
+    retained_plan_builds = retained.plan_builds;
+    retained_plan_hits = retained.plan_hits;
+    retained_plan_misses = retained.plan_misses;
+    retained_plan_evictions = retained.plan_evictions;
+    retained_plan_executions = retained.plan_executions;
+    retained_plan_entries = retained.plan_entries;
+    retained_plan_capacity = retained.plan_capacity;
   }
 
 let offscreen_facts value = value.facts

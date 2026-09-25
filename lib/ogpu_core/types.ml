@@ -1,7 +1,11 @@
 type buffer_usage=Copy_src|Copy_dst|Uniform|Storage|Vertex|Index
+type memory=Shared|Device_local
 type buffer_descriptor={label:string option;size:int64;usage:buffer_usage list}
 type texture_usage=Texture_binding|Storage_binding|Render_attachment|Texture_copy_src|Texture_copy_dst
 type texture_descriptor={label:string option;width:int;height:int;depth:int;mip_levels:int;sample_count:int;usage:texture_usage list}
+(* Texel regions for blit copies. *)
+type origin={x:int;y:int;z:int}
+type extent={width:int;height:int;depth:int}
 type sampler_filter=Nearest|Linear
 type mip_filter=No_mip|Nearest_mip|Linear_mip
 type address_mode=Clamp_to_edge|Repeat|Mirror_repeat

@@ -62,7 +62,8 @@ type acceleration_triangle_descriptor =
   }
 
 type acceleration_instance_descriptor =
-  { instance_buffer : handle; instance_count : int64; primitive : handle }
+  { instance_buffer : handle; instance_count : int64; primitives : handle array
+  ; instance_offset : int64 }
 
 (** Positional native ABI value for one reflected pipeline binding. Keep this
     synchronized with [copy_bindings] in [metal_bridge.mm]. *)
@@ -1340,6 +1341,53 @@ external command_queue_remove_residency_sets :
 external command_buffer_create : handle -> (handle, string) result =
   "caml_prismel_metal_command_buffer_create"
 
+(* Generic acceleration build descriptors (plan G5); field order is read
+   positionally by metal_bridge.mm. *)
+type accel_keyframe = { keyframe_buffer : handle; keyframe_offset : int64 }
+type accel_geometry_raw =
+  | Raw_triangles of
+      { vertex : handle; vertex_offset : int64; vertex_stride : int64; triangle_count : int64
+      ; index : handle option; index_offset : int64; index_uint16 : bool
+      ; keyframes : accel_keyframe array; opaque : bool; allow_duplicate : bool
+      ; table_offset : int64 }
+  | Raw_boxes of
+      { boxes : handle; box_offset : int64; box_stride : int64; box_count : int64
+      ; box_keyframes : accel_keyframe array; box_opaque : bool; box_allow_duplicate : bool
+      ; box_table_offset : int64 }
+  | Raw_curves of
+      { control : handle; control_offset : int64; control_stride : int64; control_count : int64
+      ; radius : handle; radius_offset : int64; radius_stride : int64
+      ; curve_index : handle; curve_index_offset : int64; curve_index_uint16 : bool
+      ; segment_count : int64; segment_control_points : int64
+      ; curve_type : int; curve_basis : int; end_caps : int
+      ; control_keyframes : accel_keyframe array; radius_keyframes : accel_keyframe array
+      ; curve_opaque : bool; curve_allow_duplicate : bool; curve_table_offset : int64 }
+type accel_motion_raw =
+  { keyframe_count : int64; start_time : float; end_time : float
+  ; start_border : int; end_border : int }
+type accel_primitive_raw =
+  { geometries : accel_geometry_raw array; motion : accel_motion_raw option
+  ; primitive_refit : bool; fast_build : bool }
+type accel_instances_raw =
+  { instances_buffer : handle; instances_offset : int64; instances_stride : int64
+  ; instances_count : int64; instance_kind : int; instanced : handle array
+  ; motion_transforms : handle option; motion_transform_offset : int64
+  ; motion_transform_count : int64; instances_refit : bool }
+external accel_descriptor_primitive : accel_primitive_raw -> (handle, string) result
+  = "caml_prismel_metal_accel_descriptor_primitive"
+external accel_descriptor_instances : accel_instances_raw -> (handle, string) result
+  = "caml_prismel_metal_accel_descriptor_instances"
+external accel_descriptor_sizes : handle -> handle -> ((int64 * int64 * int64), string) result
+  = "caml_prismel_metal_accel_descriptor_sizes"
+external accel_encoder_build_descriptor :
+  handle -> handle -> handle -> handle -> int64 -> (unit, string) result
+  = "caml_prismel_metal_accel_encoder_build_descriptor"
+external accel_encoder_refit_descriptor :
+  handle -> handle -> handle -> handle -> handle -> int64 -> (unit, string) result
+  = "caml_prismel_metal_accel_encoder_refit_descriptor_bytecode"
+    "caml_prismel_metal_accel_encoder_refit_descriptor"
+external accel_instance_layout : int -> int array = "caml_prismel_metal_accel_instance_layout"
+
 external acceleration_structure_sizes :
   handle -> acceleration_triangle_descriptor ->
   ((int64 * int64 * int64), string) result
@@ -1628,6 +1676,13 @@ external render_viewports : handle -> render_command_viewport array -> (unit,str
 external render_encoder_draw :
   handle -> int -> int -> int -> (unit, string) result =
   "caml_prismel_metal_render_encoder_draw"
+external render_encoder_draw_primitives :
+  handle -> int -> int -> int -> int -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_draw_primitives"
+external render_pass_depth_stencil_actions :
+  handle -> int -> int -> float -> int -> int -> int -> (unit, string) result =
+  "caml_prismel_metal_render_pass_depth_stencil_actions_bytecode"
+  "caml_prismel_metal_render_pass_depth_stencil_actions"
 external render_encoder_end : handle -> (unit, string) result =
   "caml_prismel_metal_render_encoder_end"
 external render_encoder_set_viewport :
@@ -2955,3 +3010,13 @@ external device_default_sample_positions : handle -> int64 -> ((float*float) arr
 external device_sample_timestamps : handle -> ((int64*int64),string) result = "caml_prismel_metal_device_sample_timestamps"
 external device_timestamp_frequency : handle -> (int64,string) result = "caml_prismel_metal_device_timestamp_frequency"
 external device_counter_heap_entry_size : handle -> (int64,string) result = "caml_prismel_metal_device_counter_heap_entry_size"
+external command_buffer_shared_event : handle -> handle -> int64 -> bool -> (unit,string) result = "caml_prismel_metal_command_buffer_shared_event"
+external shared_event_wait : handle -> int64 -> int64 -> (bool,string) result = "caml_prismel_metal_shared_event_wait"
+external command_buffer_compute_encoder_with_pass : handle -> handle -> (handle,string) result = "caml_prismel_metal_command_buffer_compute_encoder_with_pass"
+external command_buffer_blit_encoder_with_pass : handle -> handle -> (handle,string) result = "caml_prismel_metal_command_buffer_blit_encoder_with_pass"
+external render_encoder_draw_mesh_threadgroups : handle -> (int*int*int*int*int*int*int*int*int) -> (unit,string) result = "caml_prismel_metal_render_encoder_draw_mesh_threadgroups"
+external render_encoder_dispatch_threads_per_tile : handle -> int -> int -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_dispatch_threads_per_tile"
+external mesh_tile_descriptor_set_color_format : handle -> bool -> int -> int -> (unit,string) result = "caml_prismel_metal_mesh_tile_descriptor_set_color_format"
+external fx_spatial_supported : handle -> (bool,string) result = "caml_prismel_metal_fx_spatial_supported"
+external fx_spatial_create : handle -> (int*int*int*int*int*int) -> (handle,string) result = "caml_prismel_metal_fx_spatial_create"
+external fx_spatial_encode : handle -> handle -> handle -> handle -> (unit,string) result = "caml_prismel_metal_fx_spatial_encode"

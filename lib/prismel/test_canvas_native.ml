@@ -5,11 +5,7 @@ let channel canvas ~x ~y=
   match Canvas.pixel canvas~x~y with
   |Some color->Color.to_tuple color
   |None->failwith"Canvas native pixel is out of bounds"
-let drain()=match Metal.Release_queue.drain()with
-  |Ok _->()|Error error->failwith(Format.asprintf"%a"Metal.pp_error error)
-let live_handles()=match Metal.Release_queue.stats()with
-  |Ok stats->stats.live_handles
-  |Error error->failwith(Format.asprintf"%a"Metal.pp_error error)
+let live_handles=snd(Ogpu.Impl.create_driver())
 let snapshot canvas=
   let image=Result.get_ok(Canvas.to_image canvas)in
   Fun.protect~finally:(fun()->Image.destroy image)(fun()->
@@ -97,11 +93,21 @@ let run () =
       "Scene2 overlay did not preserve mixed-layer order";
     render reusable;let second=snapshot canvas in
     require(first=second)"released reusable Scene changed exact native pixels";
+    (* Replacing an image's pixels in place must reach the next render. *)
+    let before_replacement=channel canvas~x:3~y:3 in
+    (match Image.upload_rgba~into:borrowed~width:2~height:2
+        ~rgba:(Bytes.of_string"\x11\x22\x33\xff\x11\x22\x33\xff\x11\x22\x33\xff\x11\x22\x33\xff")()with
+     |Ok _->()|Error message->failwith message);
+    (* A fresh Scene value, as a sketch's view builds each frame, sees the
+       replacement; the released [reusable] value keeps its snapshot. *)
+    render Scene.[clear(Color.rgba 9 17 31 255);image borrowed~at:(3,3)()];
+    require(channel canvas~x:3~y:3<>before_replacement&&channel canvas~x:3~y:3=(0x11,0x22,0x33,0xff))
+      "replaced image pixels did not reach the render";
     Image.destroy borrowed;Font.destroy font;
-    require(!rendered=602)"Canvas native frame count";
+    require(!rendered=603)"Canvas native frame count";
     let stats=Canvas.Private.native_stats canvas in
-    require(stats.frames=602L&&stats.logical_submissions=602L&&
-      stats.logical_passes=602L)"Canvas native submission accounting";
+    require(stats.frames=603L&&stats.logical_submissions=603L&&
+      stats.logical_passes=603L)"Canvas native submission accounting";
     require(stats.logical_draws>=599L)"Canvas native draw accounting";
     require(stats.uploaded_bytes>0L)"Canvas native upload accounting";
     require(stats.cache_entries<=32)"Canvas native bounded execution cache";
@@ -115,9 +121,9 @@ let run () =
     let after=Canvas.Private.native_stats canvas in
     require(after.cache_entries=0&&after.frames=0L&&
       after.logical_submissions=0L)"Canvas native cache teardown delta";
-    Canvas.destroy canvas;drain();
+    Canvas.destroy canvas;
     require(live_handles()=baseline)"Canvas native Metal live-handle delta";
     Printf.printf
       "Canvas native: exact released-scene reuse, %.1f promoted B/frame, frames1/2/60/600, bounded cache, zero delta\n"
       promoted_per_frame
-  with exn->Canvas.destroy canvas;drain();raise exn
+  with exn->Canvas.destroy canvas;raise exn

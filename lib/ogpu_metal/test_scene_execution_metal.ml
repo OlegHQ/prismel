@@ -1,4 +1,15 @@
 open Ogpu_metal_native
+(* Tuple shorthand for the record-based [Scene_execution.render_sampled_resources]. *)
+let sampled ?texture ?auxiliary ?(samples=1) family blend draw : Scene_execution.sampled_draw =
+  {family;blend;texture;auxiliary;samples;draw}
+let render_resources ?clear r draws=Scene_execution.render_sampled_resources ?clear r
+  (List.map(fun(family,blend,texture,auxiliary,draw)->sampled ?texture ?auxiliary family blend draw)draws)
+let render_textured ?clear r draws=Scene_execution.render_sampled_resources ?clear r
+  (List.map(fun(family,blend,texture,draw)->sampled ?texture family blend draw)draws)
+let render_family ?clear r draws=Scene_execution.render_sampled_resources ?clear r
+  (List.map(fun(family,blend,draw)->sampled family blend draw)draws)
+let render_blended ?clear r draws=Scene_execution.render_sampled_resources ?clear r
+  (List.map(fun(blend,draw)->sampled Scene_execution.Scene2 blend draw)draws)
 let get=function Ok x->x|Error e->failwith(Ogpu.Error.to_string e)
 let metal=function Ok x->x|Error e->failwith(Format.asprintf"%a"Metal.pp_error e)
 let source={|#include <metal_stdlib>
@@ -31,25 +42,24 @@ fragment float4 scene_fragment(Out v [[stage_in]],const device float*p [[buffer(
 |}
 let run () =match Device.system_default()with Error _->print_endline"scene execution Metal: skipped (no M1 device)"|Ok native_device->
   let before=metal(Metal.Release_queue.stats())in
-  let layer=metal(Metal.Metal_layer.create(Device.Private.metal native_device)(Metal.Metal_layer.default~width:4~height:4))in
-  let driver,control=Backend.create~device:native_device~layer()in
+  let driver,control=Backend.create()in
   let supported=List.filter(fun samples->samples<=(Device.capabilities native_device).Ogpu.Caps.limits.max_sample_count)[1;4;9;16]in
   if Scene_execution.pipeline_variants_per_sample<>60 then failwith"pipeline family/blend cardinality drift";
-  let cache=get(Pipeline.create_cache~capacity:(Scene_execution.pipeline_variants_per_sample*List.length supported))in
-  let configuration:Ogpu.Surface.configuration={logical_width=4;logical_height=4;physical_width=4;physical_height=4;format=Bgra8_unorm;present_mode=Fifo;max_acquired=2}in
-  let renderer=get(Scene_execution.create_with_sampled_pipeline_variants driver configuration(fun device family blend samples->let bytes,vertex_bindings,fragment_bindings,groups=match family with
+  ignore supported;
+  let configuration:Ogpu.Surface.configuration={logical_width=4;logical_height=4;physical_width=4;physical_height=4;format=Bgra8_unorm;present_mode=Fifo;max_acquired=2;layer=None}in
+  let renderer=get(Scene_execution.create_offscreen_with_sampled_pipeline_variants driver configuration(fun device family blend samples->let bytes,vertex_bindings,fragment_bindings,groups=match family with
     |Scene_execution.Scene2->source,[],[],[]
     |Scene3|Scene3_points|Scene3_stencil->source3,[{Ogpu.Shader.group=0;binding=0;kind=Storage_buffer;visibility=[Vertex]}],[],[0,[{Ogpu.Binding.binding=0;kind=Buffer;visibility=[Vertex]}]]
     |Scene2_textured|Scene3_textured|Scene3_textured_stencil|Ui->source3_textured,[{Ogpu.Shader.group=0;binding=0;kind=Storage_buffer;visibility=[Vertex]}],[{Ogpu.Shader.group=0;binding=1;kind=Sampled_texture;visibility=[Fragment]};{group=0;binding=2;kind=Sampler;visibility=[Fragment]}],[0,[{Ogpu.Binding.binding=0;kind=Buffer;visibility=[Vertex]};{binding=1;kind=Texture;visibility=[Fragment]};{binding=2;kind=Sampler;visibility=[Fragment]}]]
     |Scene3_shadow|Scene3_shadow_stencil->source3_shadow,[{Ogpu.Shader.group=0;binding=0;kind=Storage_buffer;visibility=[Vertex]}],[{Ogpu.Shader.group=0;binding=3;kind=Storage_buffer;visibility=[Fragment]};{group=0;binding=4;kind=Sampled_texture;visibility=[Fragment]};{group=0;binding=5;kind=Sampler;visibility=[Fragment]}],[0,[{Ogpu.Binding.binding=0;kind=Buffer;visibility=[Vertex]};{binding=3;kind=Buffer;visibility=[Fragment]};{binding=4;kind=Texture;visibility=[Fragment]};{binding=5;kind=Sampler;visibility=[Fragment]}]]in
     let vertex=get(Ogpu.Shader.create{backend="metal";label=Some"scene-execution-metal-vertex";bytes=Bytes.of_string bytes;entry_points=[{name="scene_vertex";stage=Vertex}];bindings=vertex_bindings})and fragment=get(Ogpu.Shader.create{backend="metal";label=Some"scene-execution-metal-fragment";bytes=Bytes.of_string bytes;entry_points=[{name="scene_fragment";stage=Fragment}];bindings=fragment_bindings})in
-    let layouts=List.map(fun(group,entries)->group,get(Ogpu.Binding.create_layout entries))groups in let layout=get(Ogpu.Binding.create_pipeline_layout~device:(Ogpu.Backend.device_handle device)~capabilities:(Ogpu.Backend.capabilities device)layouts)in let descriptor:Ogpu.Pipeline.render_descriptor={backend="metal";label=Some"scene-execution-metal";layout;vertex;vertex_entry="scene_vertex";fragment=Some fragment;fragment_entry=Some"scene_fragment";color_format=Rgba8_unorm;depth_format=(match family with Scene_execution.Scene2|Scene2_textured|Ui->Ogpu.Pipeline.No_depth|Scene3|Scene3_points|Scene3_textured|Scene3_shadow->Depth32_float|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->Depth32_float_stencil8);sample_count=samples}in let native=get(Pipeline.create_render_runtime_msl~blend cache native_device descriptor)in Backend.register_pipeline control native;Ok(Pipeline.Private.portable native)))in
+    let layouts=List.map(fun(group,entries)->group,get(Ogpu.Binding.create_layout entries))groups in let layout=get(Ogpu.Binding.create_pipeline_layout~device:(Ogpu.Backend.device_handle device)~capabilities:(Ogpu.Backend.capabilities device)layouts)in let descriptor:Ogpu.Pipeline.render_descriptor={backend="metal";label=Some"scene-execution-metal";layout;vertex;vertex_entry="scene_vertex";fragment=Some fragment;fragment_entry=Some"scene_fragment";color_format=Rgba8_unorm;depth_format=(match family with Scene_execution.Scene2|Scene2_textured|Ui->Ogpu.Pipeline.No_depth|Scene3|Scene3_points|Scene3_textured|Scene3_shadow->Depth32_float|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->Depth32_float_stencil8);sample_count=samples}in Ogpu.Backend.create_render_pipeline~blend~topology:(if family=Scene3_points then Ogpu.Render_pass.Point_list else Triangle_list)device descriptor))in
   let indices=Bytes.make 12 '\000'in Bytes.set_int32_le indices 4 1l;Bytes.set_int32_le indices 8 2l;let mesh:Scene_execution.mesh={key="fullscreen";vertices=Bytes.make 48 '\000';vertex_count=3;indices;index_count=3; primitive=Ogpu.Render_pass.Triangle_list}and state:Scene_execution.state={viewport=(0,0,4,4);scissor=(0,0,4,4);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Clear;depth_clear=1.;transform_uniforms=None;stencil_state=None;stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}in
   let sampled samples draw:Scene_execution.sampled_draw={family=Scene3;blend=Ogpu.Pipeline.Replace;texture=None;auxiliary=None;samples;draw}in
   ignore(get(Scene_execution.render renderer[{mesh;state};{mesh;state}]));let pixels=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in
   let r=Char.code(Bytes.get pixels 0)and g=Char.code(Bytes.get pixels 1)and b=Char.code(Bytes.get pixels 2)in if r<>255||g<>0||b<>128 then failwith(Printf.sprintf"scene execution Metal pixel mismatch %d,%d,%d"r g b);
   List.iter(fun(blend,expected)->List.iter(fun _frame->
-    ignore(get(Scene_execution.render_blended renderer[blend,{mesh;state}]));
+    ignore(get(render_blended renderer[blend,{mesh;state}]));
     let bytes=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in
     let actual=Char.code(Bytes.get bytes 0),Char.code(Bytes.get bytes 1),Char.code(Bytes.get bytes 2)in
     if actual<>expected then failwith"scene execution Metal blend pixel") [1;2;60;600])
@@ -58,7 +68,7 @@ let run () =match Device.system_default()with Error _->print_endline"scene execu
   let vertices3=Bytes.make(68*3)'\000'in
   List.iteri(fun index(x,y)->let offset=index*68 in Bytes.set_int64_le vertices3 offset(Int64.bits_of_float x);Bytes.set_int64_le vertices3(offset+8)(Int64.bits_of_float y);Bytes.set_int64_le vertices3(offset+16)(Int64.bits_of_float 0.))[-1.,-1.;3.,-1.;-1.,3.];
   let mesh3:Scene_execution.mesh={key="fullscreen-scene3-double68";vertices=vertices3;vertex_count=3;indices;index_count=3; primitive=Ogpu.Render_pass.Triangle_list}in
-  List.iter(fun _frame->ignore(get(Scene_execution.render_family renderer[Scene_execution.Scene3,Ogpu.Pipeline.Replace,{mesh=mesh3;state}]));let bytes=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in if Char.code(Bytes.get bytes 0)<>255||Char.code(Bytes.get bytes 2)<>128 then failwith"scene execution Metal Scene3 double68 pixel")[1;2;60;600];
+  List.iter(fun _frame->ignore(get(render_family renderer[Scene_execution.Scene3,Ogpu.Pipeline.Replace,{mesh=mesh3;state}]));let bytes=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in if Char.code(Bytes.get bytes 0)<>255||Char.code(Bytes.get bytes 2)<>128 then failwith"scene execution Metal Scene3 double68 pixel")[1;2;60;600];
   if List.mem 4 supported then List.iter(fun _frame->ignore(get(Scene_execution.render_sampled_resources renderer[sampled 4 {mesh=mesh3;state}]));let bytes=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in if Char.code(Bytes.get bytes 0)<>255||Char.code(Bytes.get bytes 2)<>128 then failwith"scene execution Metal four-sample resolve pixel")[1;2;60;600];
   List.iter(fun samples->if not(List.mem samples supported)then let before=Scene_execution.upload_bytes renderer in match Scene_execution.render_sampled_resources renderer[sampled samples {mesh=mesh3;state}]with Error e when e.Ogpu.Error.kind=Unsupported&&Scene_execution.upload_bytes renderer=before->()|_->failwith"unsupported native sample count was not rejected atomically")[9;16];
   let mesh_uv u v=let bytes=Bytes.copy vertices3 in for index=0 to 2 do let offset=index*68 in Bytes.set_int64_le bytes(offset+52)(Int64.bits_of_float u);Bytes.set_int64_le bytes(offset+60)(Int64.bits_of_float v)done;{mesh3 with Scene_execution.key=Printf.sprintf"textured-%g-%g"u v;vertices=bytes}in
@@ -67,7 +77,7 @@ let run () =match Device.system_default()with Error _->print_endline"scene execu
   let cases=[mesh_uv 0.1 0.1,sampler(),(255,0,0);mesh_uv 0.5 0.5,sampler~min_filter:Linear~mag_filter:Linear(),(128,128,128);mesh_uv 1.1 0.1,sampler~address_u:Repeat(),(255,0,0);mesh_uv 1.9 0.1,sampler~address_u:Mirror_repeat(),(255,0,0);mesh_uv 0.1 0.1,sampler~mip_filter:Nearest_mip~lod_min:1.~lod_max:1.(),(255,255,0)]in
   let mixed_texture:Scene_execution.sampled_texture={key="native-mixed-scene2";levels;sampler=sampler();gpu=None}in
   List.iter(fun _frame->
-    ignore(get(Scene_execution.render_textured renderer[
+    ignore(get(render_textured renderer[
       Scene_execution.Scene2,Ogpu.Pipeline.Replace,None,{mesh;state};
       Scene_execution.Scene2_textured,Ogpu.Pipeline.Replace,Some mixed_texture,{mesh=mesh_uv 0.1 0.1;state}
     ]));
@@ -84,14 +94,14 @@ let run () =match Device.system_default()with Error _->print_endline"scene execu
   let gpu_texture:Scene_execution.sampled_texture={key="gpu-film-test";
     levels=[|{width=1;height=1;bytes=Bytes.empty}|];sampler=sampler();gpu=Some film}in
   let before_film=Scene_execution.upload_bytes renderer in
-  ignore(get(Scene_execution.render_textured renderer[Scene_execution.Scene2_textured,
+  ignore(get(render_textured renderer[Scene_execution.Scene2_textured,
     Ogpu.Pipeline.Replace,Some gpu_texture,{mesh=mesh_uv 0.1 0.1;state}]));
   let pixel=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in
   if Char.code(Bytes.get pixel 0)<>0x31||Char.code(Bytes.get pixel 1)<>0x82||
      Char.code(Bytes.get pixel 2)<>0xdd||Scene_execution.upload_bytes renderer<>before_film
   then failwith"GPU film was copied through CPU staging or sampled incorrectly";
   let bad_film={gpu_texture with Scene_execution.levels=[|{width=2;height=1;bytes=Bytes.empty}|]}in
-  (match Scene_execution.render_textured renderer[Scene_execution.Scene2_textured,
+  (match render_textured renderer[Scene_execution.Scene2_textured,
       Ogpu.Pipeline.Replace,Some bad_film,{mesh=mesh_uv 0.1 0.1;state}]with
    |Error error when error.Ogpu.Error.kind=Invalid_argument->()
    |_->failwith"mismatched GPU film extent was accepted");
@@ -104,43 +114,43 @@ let run () =match Device.system_default()with Error _->print_endline"scene execu
   (match Backend.Private.native_texture control foreign with
    |Error error when error.Ogpu.Error.kind=Cross_device->()
    |_->failwith"foreign GPU texture exposed a Metal handle");
-  (match Scene_execution.render_textured renderer[Scene_execution.Scene2_textured,
+  (match render_textured renderer[Scene_execution.Scene2_textured,
       Ogpu.Pipeline.Replace,Some foreign_film,{mesh=mesh_uv 0.1 0.1;state}]with
    |Error error when error.Ogpu.Error.kind=Cross_device->()
    |_->failwith"foreign GPU film was accepted");
   get(Ogpu.Backend.destroy_texture foreign);
   get(Ogpu.Backend.destroy_device foreign_device);
   get(Ogpu.Backend.destroy_texture film);
-  (match Scene_execution.render_textured renderer[Scene_execution.Scene2_textured,
+  (match render_textured renderer[Scene_execution.Scene2_textured,
       Ogpu.Pipeline.Replace,Some gpu_texture,{mesh=mesh_uv 0.1 0.1;state}]with
    |Error error when error.Ogpu.Error.kind=Invalid_argument->()
    |_->failwith"destroyed GPU film was accepted");
-  List.iteri(fun index(mesh,sampler,expected)->let texture:Scene_execution.sampled_texture={key="native-mip-chain";levels;sampler;gpu=None}and stable=ref None in List.iter(fun _frame->ignore(get(Scene_execution.render_textured renderer[Scene_execution.Scene3_textured,Ogpu.Pipeline.Replace,Some texture,{mesh;state}]));let bytes=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in let actual=Char.code(Bytes.get bytes 0),Char.code(Bytes.get bytes 1),Char.code(Bytes.get bytes 2)in begin if actual<>expected then let r,g,b=actual in failwith(Printf.sprintf"scene execution Metal texture case %d: %d,%d,%d"index r g b)end;let uploaded=Scene_execution.upload_bytes renderer in match !stable with None->stable:=Some uploaded|Some value when value=uploaded->()|Some _->failwith"stable native mip chain reuploaded")[1;2;60;600])cases;
+  List.iteri(fun index(mesh,sampler,expected)->let texture:Scene_execution.sampled_texture={key="native-mip-chain";levels;sampler;gpu=None}and stable=ref None in List.iter(fun _frame->ignore(get(render_textured renderer[Scene_execution.Scene3_textured,Ogpu.Pipeline.Replace,Some texture,{mesh;state}]));let bytes=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in let actual=Char.code(Bytes.get bytes 0),Char.code(Bytes.get bytes 1),Char.code(Bytes.get bytes 2)in begin if actual<>expected then let r,g,b=actual in failwith(Printf.sprintf"scene execution Metal texture case %d: %d,%d,%d"index r g b)end;let uploaded=Scene_execution.upload_bytes renderer in match !stable with None->stable:=Some uploaded|Some value when value=uploaded->()|Some _->failwith"stable native mip chain reuploaded")[1;2;60;600])cases;
   for index=0 to 64 do
     let sampler={ (sampler()) with Ogpu.Types.label=Some(Printf.sprintf"sampler-eviction-%d"index)}in
     let texture:Scene_execution.sampled_texture={key="native-sampler-eviction";levels;sampler;gpu=None}in
-    ignore(get(Scene_execution.render_textured renderer[Scene_execution.Scene2_textured,Ogpu.Pipeline.Replace,Some texture,{mesh=mesh_uv 0.1 0.1;state}]))
+    ignore(get(render_textured renderer[Scene_execution.Scene2_textured,Ogpu.Pipeline.Replace,Some texture,{mesh=mesh_uv 0.1 0.1;state}]))
   done;
-  if Backend.sampler_cache_entries control<1||Backend.sampler_cache_entries control>64 then failwith"native sampler cache capacity";
+
   let compacted_texture:Scene_execution.sampled_texture={key="native-sampler-eviction";levels;sampler=sampler~min_filter:Linear~mag_filter:Linear();gpu=None}in
-  List.iter(fun _->ignore(get(Scene_execution.render_textured renderer[
+  List.iter(fun _->ignore(get(render_textured renderer[
     Scene_execution.Scene2_textured,Ogpu.Pipeline.Replace,Some compacted_texture,
       {mesh=mesh_uv 0.5 0.5;state}])))[1;2;60;600];
-  let replacement=[|{Scene_execution.width=2;height=2;bytes=Bytes.make 16 '\255'};{width=1;height=1;bytes=Bytes.of_string"\000\000\255\255"}|]in let replaced:Scene_execution.sampled_texture={key="native-mip-chain";levels=replacement;sampler=sampler();gpu=None}in let before_reload=Scene_execution.upload_bytes renderer in ignore(get(Scene_execution.render_textured renderer[Scene_execution.Scene3_textured,Ogpu.Pipeline.Replace,Some replaced,{mesh=mesh_uv 0.1 0.1;state}]));if Scene_execution.upload_bytes renderer<=before_reload then failwith"texture generation replacement was not uploaded";
-  let malformed={replaced with Scene_execution.key="malformed";levels=[|{Scene_execution.width=2;height=2;bytes=Bytes.make 15 '\000'}|]}and before_reject=Scene_execution.upload_bytes renderer in begin match Scene_execution.render_textured renderer[Scene_execution.Scene3_textured,Ogpu.Pipeline.Replace,Some malformed,{mesh=mesh_uv 0.1 0.1;state}]with Error _ when Scene_execution.upload_bytes renderer=before_reject->()|_->failwith"malformed texture was not rejected atomically"end;
+  let replacement=[|{Scene_execution.width=2;height=2;bytes=Bytes.make 16 '\255'};{width=1;height=1;bytes=Bytes.of_string"\000\000\255\255"}|]in let replaced:Scene_execution.sampled_texture={key="native-mip-chain";levels=replacement;sampler=sampler();gpu=None}in let before_reload=Scene_execution.upload_bytes renderer in ignore(get(render_textured renderer[Scene_execution.Scene3_textured,Ogpu.Pipeline.Replace,Some replaced,{mesh=mesh_uv 0.1 0.1;state}]));if Scene_execution.upload_bytes renderer<=before_reload then failwith"texture generation replacement was not uploaded";
+  let malformed={replaced with Scene_execution.key="malformed";levels=[|{Scene_execution.width=2;height=2;bytes=Bytes.make 15 '\000'}|]}and before_reject=Scene_execution.upload_bytes renderer in begin match render_textured renderer[Scene_execution.Scene3_textured,Ogpu.Pipeline.Replace,Some malformed,{mesh=mesh_uv 0.1 0.1;state}]with Error _ when Scene_execution.upload_bytes renderer=before_reject->()|_->failwith"malformed texture was not rejected atomically"end;
   let shadow_vertices=Bytes.copy vertices3 in for index=0 to 2 do let offset=index*68 in Bytes.set_int64_le shadow_vertices(offset+16)(Int64.bits_of_float 0.5);Bytes.set_int64_le shadow_vertices(offset+40)(Int64.bits_of_float 1.);Bytes.set_int32_le shadow_vertices(offset+48)0xffffffffl done;
   let shadow_mesh={mesh3 with Scene_execution.key="fullscreen-scene3-shadow";vertices=shadow_vertices}in
   let shadow_aux ?(bias=0.) ?(slope=0.) key kernel strength depth =
     let snapshot:Scene_execution.shadow_snapshot={width=1;height=1;depths=[|depth|];matrix=[|1.;0.;0.;0.;0.;1.;0.;0.;0.;0.;1.;0.;0.;0.;0.;1.|];bias={constant=bias;slope};kernel;strength}in
     let resource=get(Scene_execution.shadow_resource~key snapshot)in
     ({Scene_execution.key;buffer=resource.parameters;texture=resource.texture}:Scene_execution.auxiliary_resource)in
-  List.iter(fun(kernel,expected)->let auxiliary=shadow_aux("native-shadow-"^string_of_int expected)kernel 1. 0. and stable=ref None in List.iter(fun _frame->ignore(get(Scene_execution.render_resources renderer[Scene_execution.Scene3_shadow,Ogpu.Pipeline.Replace,None,Some auxiliary,{mesh=shadow_mesh;state}]));let bytes=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in let actual=Char.code(Bytes.get bytes 0)in if actual<>expected then failwith(Printf.sprintf"scene execution Metal shadow pixel %d<>%d"actual expected);let uploaded=Scene_execution.upload_bytes renderer in match!stable with None->stable:=Some uploaded|Some value when value=uploaded->()|Some _->failwith"stable native shadow reuploaded")[1;2;60;600])
+  List.iter(fun(kernel,expected)->let auxiliary=shadow_aux("native-shadow-"^string_of_int expected)kernel 1. 0. and stable=ref None in List.iter(fun _frame->ignore(get(render_resources renderer[Scene_execution.Scene3_shadow,Ogpu.Pipeline.Replace,None,Some auxiliary,{mesh=shadow_mesh;state}]));let bytes=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in let actual=Char.code(Bytes.get bytes 0)in if actual<>expected then failwith(Printf.sprintf"scene execution Metal shadow pixel %d<>%d"actual expected);let uploaded=Scene_execution.upload_bytes renderer in match!stable with None->stable:=Some uploaded|Some value when value=uploaded->()|Some _->failwith"stable native shadow reuploaded")[1;2;60;600])
     [Scene_execution.Tap1,0;Tap9,227;Tap25,245];
-  List.iter(fun(name,auxiliary,expected)->List.iter(fun _frame->ignore(get(Scene_execution.render_resources renderer[Scene_execution.Scene3_shadow,Ogpu.Pipeline.Replace,None,Some auxiliary,{mesh=shadow_mesh;state}]));let bytes=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in let actual=Char.code(Bytes.get bytes 0)in if actual<>expected then failwith(Printf.sprintf"scene execution Metal shadow %s %d<>%d"name actual expected))[1;2;60;600])
+  List.iter(fun(name,auxiliary,expected)->List.iter(fun _frame->ignore(get(render_resources renderer[Scene_execution.Scene3_shadow,Ogpu.Pipeline.Replace,None,Some auxiliary,{mesh=shadow_mesh;state}]));let bytes=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in let actual=Char.code(Bytes.get bytes 0)in if actual<>expected then failwith(Printf.sprintf"scene execution Metal shadow %s %d<>%d"name actual expected))[1;2;60;600])
     ["bias",shadow_aux~bias:0.02"native-shadow-bias"Scene_execution.Tap1 1. 0.49,255;"strength",shadow_aux"native-shadow-strength"Scene_execution.Tap1 0.5 0.,128];
-  let reload_key="native-shadow-reload"in let first_shadow=shadow_aux reload_key Scene_execution.Tap1 1. 0. in ignore(get(Scene_execution.render_resources renderer[Scene_execution.Scene3_shadow,Ogpu.Pipeline.Replace,None,Some first_shadow,{mesh=shadow_mesh;state}]));let before_shadow_reload=Scene_execution.upload_bytes renderer in let reloaded_shadow=shadow_aux reload_key Scene_execution.Tap1 0.5 1. in ignore(get(Scene_execution.render_resources renderer[Scene_execution.Scene3_shadow,Ogpu.Pipeline.Replace,None,Some reloaded_shadow,{mesh=shadow_mesh;state}]));if Scene_execution.upload_bytes renderer<=before_shadow_reload then failwith"shadow generation replacement was not uploaded";
-  let malformed_aux={reloaded_shadow with Scene_execution.key="malformed-shadow";buffer=Bytes.empty}and before_shadow_reject=Scene_execution.upload_bytes renderer in begin match Scene_execution.render_resources renderer[Scene_execution.Scene3_shadow,Ogpu.Pipeline.Replace,None,Some malformed_aux,{mesh=shadow_mesh;state}]with Error _ when Scene_execution.upload_bytes renderer=before_shadow_reject->()|_->failwith"malformed shadow was not rejected atomically"end;
+  let reload_key="native-shadow-reload"in let first_shadow=shadow_aux reload_key Scene_execution.Tap1 1. 0. in ignore(get(render_resources renderer[Scene_execution.Scene3_shadow,Ogpu.Pipeline.Replace,None,Some first_shadow,{mesh=shadow_mesh;state}]));let before_shadow_reload=Scene_execution.upload_bytes renderer in let reloaded_shadow=shadow_aux reload_key Scene_execution.Tap1 0.5 1. in ignore(get(render_resources renderer[Scene_execution.Scene3_shadow,Ogpu.Pipeline.Replace,None,Some reloaded_shadow,{mesh=shadow_mesh;state}]));if Scene_execution.upload_bytes renderer<=before_shadow_reload then failwith"shadow generation replacement was not uploaded";
+  let malformed_aux={reloaded_shadow with Scene_execution.key="malformed-shadow";buffer=Bytes.empty}and before_shadow_reject=Scene_execution.upload_bytes renderer in begin match render_resources renderer[Scene_execution.Scene3_shadow,Ogpu.Pipeline.Replace,None,Some malformed_aux,{mesh=shadow_mesh;state}]with Error _ when Scene_execution.upload_bytes renderer=before_shadow_reject->()|_->failwith"malformed shadow was not rejected atomically"end;
   get(Scene_execution.resize renderer{configuration with physical_width=8;physical_height=8});ignore(get(Scene_execution.render renderer[{mesh;state={state with viewport=(0,0,8,8);scissor=(0,0,8,8)}}]));
   ignore(get(Scene_execution.render renderer[{mesh;state={state with viewport=(0,0,16,16);scissor=(-4,0,32,32)}}]));
   if List.mem 4 supported then(ignore(get(Scene_execution.render_sampled_resources renderer[sampled 4 {mesh=mesh3;state={state with viewport=(0,0,8,8);scissor=(0,0,8,8)}}]));let captured=get(Scene_execution.read_pixels renderer~bytes_per_row:32)in if Bytes.length captured<>256||Char.code(Bytes.get captured 0)<>255||Char.code(Bytes.get captured 2)<>128 then failwith"resized multisample capture pixel");
-  metal(Metal.Metal_layer.destroy layer);get(Scene_execution.destroy renderer);if Backend.sampler_cache_entries control<>0 then failwith"native sampler cache teardown";ignore(metal(Metal.Release_queue.drain()));let after=metal(Metal.Release_queue.stats())in if after.live_handles<>before.live_handles-1 then failwith"scene execution Metal live delta";print_endline"scene execution Metal: SDL-free draw/resize, exact pixel, zero delta"
+  get(Scene_execution.destroy renderer);get(Device.destroy native_device);ignore(metal(Metal.Release_queue.drain()));let after=metal(Metal.Release_queue.stats())in if after.live_handles<>before.live_handles-1 then failwith"scene execution Metal live delta";print_endline"scene execution Metal: SDL-free draw/resize, exact pixel, zero delta"

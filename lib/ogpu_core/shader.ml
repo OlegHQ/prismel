@@ -1,5 +1,6 @@
 type stage = Vertex | Fragment | Compute
 type binding_kind = Uniform_buffer | Storage_buffer | Sampled_texture | Storage_texture | Sampler
+  | Acceleration_structure | Intersection_table | Visible_table
 type entry_point = { name : string; stage : stage }
 type binding =
   { group : int; binding : int; kind : binding_kind; visibility : stage list }
@@ -28,7 +29,8 @@ let valid_text value = value <> "" && not (String.contains value '\000')
 let stage_code = function Vertex -> "v" | Fragment -> "f" | Compute -> "c"
 let kind_code = function
   | Uniform_buffer -> "ub" | Storage_buffer -> "sb" | Sampled_texture -> "st"
-  | Storage_texture -> "wt" | Sampler -> "s"
+  | Storage_texture -> "wt" | Sampler -> "s" | Acceleration_structure -> "as"
+  | Intersection_table -> "it" | Visible_table -> "vt"
 
 let add_field output value =
   Buffer.add_string output (string_of_int (String.length value));
@@ -68,6 +70,13 @@ let validate_entries entries =
   in
   loop [] entries
 
+(* Buffers (including inline constants and acceleration structures), textures
+   and samplers occupy separate index spaces, as in Metal's argument tables. *)
+let index_space = function
+  | Uniform_buffer | Storage_buffer | Acceleration_structure | Intersection_table | Visible_table -> 0
+  | Sampled_texture | Storage_texture -> 1
+  | Sampler -> 2
+
 let validate_bindings bindings =
   let rec loop seen = function
     | [] -> Ok ()
@@ -75,8 +84,9 @@ let validate_bindings bindings =
     | value :: _ when value.visibility = [] -> error "binding visibility is empty"
     | value :: _ when List.sort_uniq compare value.visibility <> value.visibility ->
         error "binding visibility must be sorted and unique"
-    | value :: _ when List.mem (value.group, value.binding) seen -> error "duplicate reflected binding"
-    | value :: rest -> loop ((value.group, value.binding) :: seen) rest
+    | value :: _ when List.mem (value.group, value.binding, index_space value.kind) seen ->
+        error "duplicate reflected binding"
+    | value :: rest -> loop ((value.group, value.binding, index_space value.kind) :: seen) rest
   in
   loop [] bindings
 
@@ -109,6 +119,12 @@ let create_with_format format constants (descriptor : descriptor) =
                ; layout = descriptor.bindings
                ; hash = Digest.to_hex (Digest.string (canonical descriptor format constants))
                ; format; constants }
+
+let validate_constants constants =
+  if List.exists (fun (name, _) -> not (valid_text name)) constants
+     || List.length (List.sort_uniq compare (List.map fst constants)) <> List.length constants then
+    error "function constant names must be nonempty and unique"
+  else Ok ()
 
 let create descriptor = create_with_format Msl_source [] descriptor
 let create_metallib descriptor ~constants = create_with_format Metallib constants descriptor

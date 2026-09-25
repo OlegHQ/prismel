@@ -5,6 +5,16 @@ type t
 val create : Device.t -> memory:memory -> format:format ->
   ?view_formats:format list -> Ogpu_core.Types.texture_descriptor ->
   (t, Ogpu_core.Error.t) result
+val create_in_heap : Device.t -> memory:memory -> Metal.Heap.t -> offset:int64 -> format:format ->
+  Ogpu_core.Types.texture_descriptor -> (t, Ogpu_core.Error.t) result
+
+(** An initially unmapped texture inside a sparse heap. *)
+val create_sparse : Device.t -> Metal.Heap.t -> format:format ->
+  Ogpu_core.Types.texture_descriptor -> (t, Ogpu_core.Error.t) result
+
+(** Size and alignment the texture needs inside a heap. *)
+val placement : Device.t -> memory:memory -> format:format -> Ogpu_core.Types.texture_descriptor ->
+  (int64 * int64, Ogpu_core.Error.t) result
 val create_view : Device.t -> t -> format:format -> base_mip:int ->
   mip_count:int -> base_slice:int -> slice_count:int -> (t, Ogpu_core.Error.t) result
 val id : t -> int64

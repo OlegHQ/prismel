@@ -1058,6 +1058,7 @@ enum class Handle_kind : std::uint32_t {
   Pipeline_descriptor4,
   Mesh_pipeline_descriptor,
   Tile_pipeline_descriptor,
+  Fx_spatial_scaler,
   Linked_functions,
   Counter_set,
   Counter,
@@ -10656,7 +10657,8 @@ caml_prismel_metal_compute_pipeline_create_descriptor(
           [NSMutableArray arrayWithCapacity:linked_functions.size()];
       for (id<MTLFunction> linked : linked_functions) {
         if (linked.device.registryID != device.registryID ||
-            linked.functionType != MTLFunctionTypeVisible ||
+            (linked.functionType != MTLFunctionTypeVisible &&
+             linked.functionType != MTLFunctionTypeIntersection) ||
             [linked_names containsObject:linked.name]) {
           CAMLreturn(result_error_text(
               "Metal linked function is incompatible or duplicated"));
@@ -13732,13 +13734,19 @@ static MTLInstanceAccelerationStructureDescriptor *
 acceleration_instance_descriptor_of_ocaml(value raw_descriptor) {
   id<MTLBuffer> instances =
       object_of_handle(Field(raw_descriptor, 0), Handle_kind::Buffer);
-  id<MTLAccelerationStructure> primitive =
-      object_of_handle(Field(raw_descriptor, 2), Handle_kind::Acceleration_structure);
+  value raw_primitives = Field(raw_descriptor, 2);
+  NSMutableArray<id<MTLAccelerationStructure>> *primitives =
+      [NSMutableArray arrayWithCapacity:Wosize_val(raw_primitives)];
+  for (mlsize_t index = 0; index < Wosize_val(raw_primitives); index++) {
+    [primitives addObject:object_of_handle(Field(raw_primitives, index),
+                                           Handle_kind::Acceleration_structure)];
+  }
   MTLInstanceAccelerationStructureDescriptor *descriptor =
       [MTLInstanceAccelerationStructureDescriptor descriptor];
   descriptor.instanceDescriptorBuffer = instances;
+  descriptor.instanceDescriptorBufferOffset = Int64_val(Field(raw_descriptor, 3));
   descriptor.instanceCount = Int64_val(Field(raw_descriptor, 1));
-  descriptor.instancedAccelerationStructures = @[primitive];
+  descriptor.instancedAccelerationStructures = primitives;
   return descriptor;
 }
 
@@ -14900,6 +14908,60 @@ extern "C" CAMLprim value caml_prismel_metal_render_encoder_draw(
   CAMLreturn(result_unit());
 }
 
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_draw_primitives(
+    value raw_encoder, value raw_primitive, value raw_first, value raw_count,
+    value raw_instances) {
+  CAMLparam5(raw_encoder, raw_primitive, raw_first, raw_count, raw_instances);
+  id<MTLRenderCommandEncoder> encoder =
+      object_of_handle(raw_encoder, Handle_kind::Render_encoder);
+  const intnat primitive = Long_val(raw_primitive);
+  const intnat first = Long_val(raw_first);
+  const intnat count = Long_val(raw_count);
+  const intnat instances = Long_val(raw_instances);
+  if (primitive < 0 || primitive > 4 || first < 0 || count <= 0 || instances <= 0) {
+    CAMLreturn(result_error_text("render draw primitive or range is invalid"));
+  }
+  [encoder drawPrimitives:static_cast<MTLPrimitiveType>(primitive)
+              vertexStart:(NSUInteger)first
+              vertexCount:(NSUInteger)count
+            instanceCount:(NSUInteger)instances];
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_render_pass_depth_stencil_actions(
+    value rp, value rdepth_load, value rdepth_store, value rclear_depth,
+    value rstencil_load, value rstencil_store, value rclear_stencil) {
+  CAMLparam5(rp, rdepth_load, rdepth_store, rclear_depth, rstencil_load);
+  CAMLxparam2(rstencil_store, rclear_stencil);
+  @try {
+    MTLRenderPassDescriptor *p = object_of_handle(rp, Handle_kind::Render_pass_descriptor);
+    const intnat depth_load = Long_val(rdepth_load), depth_store = Long_val(rdepth_store);
+    const intnat stencil_load = Long_val(rstencil_load), stencil_store = Long_val(rstencil_store);
+    const double clear_depth = Double_val(rclear_depth);
+    const intnat clear_stencil = Long_val(rclear_stencil);
+    if (depth_load < 0 || depth_load > 2 || stencil_load < 0 || stencil_load > 2 ||
+        depth_store < 0 || depth_store > 1 || stencil_store < 0 || stencil_store > 1 ||
+        !(clear_depth >= 0.0 && clear_depth <= 1.0) || clear_stencil < 0 || clear_stencil > 255) {
+      CAMLreturn(result_error_text("render pass depth/stencil action is out of range"));
+    }
+    if (p.depthAttachment.texture != nil) {
+      p.depthAttachment.loadAction = static_cast<MTLLoadAction>(depth_load);
+      p.depthAttachment.storeAction = depth_store ? MTLStoreActionStore : MTLStoreActionDontCare;
+      p.depthAttachment.clearDepth = clear_depth;
+    }
+    if (p.stencilAttachment.texture != nil) {
+      p.stencilAttachment.loadAction = static_cast<MTLLoadAction>(stencil_load);
+      p.stencilAttachment.storeAction = stencil_store ? MTLStoreActionStore : MTLStoreActionDontCare;
+      p.stencilAttachment.clearStencil = (uint32_t)clear_stencil;
+    }
+    CAMLreturn(result_unit());
+  } @catch (NSException *x) { CAMLreturn(result_error(x.reason)); }
+}
+extern "C" CAMLprim value caml_prismel_metal_render_pass_depth_stencil_actions_bytecode(value *argv, int argc) {
+  (void)argc;
+  return caml_prismel_metal_render_pass_depth_stencil_actions(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
+}
+
 extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_viewport(
     value raw_encoder, value raw_viewport) {
   CAMLparam2(raw_encoder, raw_viewport);
@@ -15534,3 +15596,584 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal_device_capability13_bridge.inc"
 #include "../../tools/metal/metal_device_spatial_timestamp6_bridge.inc"
 #pragma clang diagnostic pop
+
+/* ---- Generic acceleration structure build descriptors (plan G5). One call
+   builds a complete, retained MTLPrimitive/MTLInstanceAccelerationStructure
+   descriptor from a validated OCaml record; sizes, build, and refit take that
+   descriptor object. Field order mirrors metal_raw.accel_* records. ---- */
+static NSArray<MTLMotionKeyframeData *> *accel_keyframes_of_ocaml(value raw) {
+  NSMutableArray<MTLMotionKeyframeData *> *frames =
+      [NSMutableArray arrayWithCapacity:Wosize_val(raw)];
+  for (mlsize_t i = 0; i < Wosize_val(raw); i++) {
+    value keyframe = Field(raw, i);
+    MTLMotionKeyframeData *data = [MTLMotionKeyframeData data];
+    data.buffer = object_of_handle(Field(keyframe, 0), Handle_kind::Buffer);
+    data.offset = Int64_val(Field(keyframe, 1));
+    [frames addObject:data];
+  }
+  return frames;
+}
+
+static void accel_geometry_common(MTLAccelerationStructureGeometryDescriptor *geometry,
+                                  value opaque, value duplicate, value table_offset) {
+  geometry.opaque = Bool_val(opaque);
+  geometry.allowDuplicateIntersectionFunctionInvocation = Bool_val(duplicate);
+  geometry.intersectionFunctionTableOffset = Int64_val(table_offset);
+}
+
+static MTLAccelerationStructureGeometryDescriptor *accel_geometry_of_ocaml(value g) {
+  switch (Tag_val(g)) {
+  case 0: {
+    /* Raw_triangles: vertex, vertex_offset, vertex_stride, triangle_count,
+       index option, index_offset, index_uint16, keyframes, opaque, allow_dup,
+       table_offset */
+    value keyframes = Field(g, 7);
+    id<MTLBuffer> index =
+        Is_block(Field(g, 4)) ? object_of_handle(Field(Field(g, 4), 0), Handle_kind::Buffer)
+                              : nil;
+    MTLIndexType index_type = Bool_val(Field(g, 6)) ? MTLIndexTypeUInt16 : MTLIndexTypeUInt32;
+    if (Wosize_val(keyframes) == 0) {
+      MTLAccelerationStructureTriangleGeometryDescriptor *d =
+          [MTLAccelerationStructureTriangleGeometryDescriptor descriptor];
+      d.vertexBuffer = object_of_handle(Field(g, 0), Handle_kind::Buffer);
+      d.vertexBufferOffset = Int64_val(Field(g, 1));
+      d.vertexStride = Int64_val(Field(g, 2));
+      d.triangleCount = Int64_val(Field(g, 3));
+      if (index != nil) {
+        d.indexBuffer = index;
+        d.indexBufferOffset = Int64_val(Field(g, 5));
+        d.indexType = index_type;
+      }
+      accel_geometry_common(d, Field(g, 8), Field(g, 9), Field(g, 10));
+      return d;
+    }
+    MTLAccelerationStructureMotionTriangleGeometryDescriptor *d =
+        [MTLAccelerationStructureMotionTriangleGeometryDescriptor descriptor];
+    d.vertexBuffers = accel_keyframes_of_ocaml(keyframes);
+    d.vertexStride = Int64_val(Field(g, 2));
+    d.triangleCount = Int64_val(Field(g, 3));
+    if (index != nil) {
+      d.indexBuffer = index;
+      d.indexBufferOffset = Int64_val(Field(g, 5));
+      d.indexType = index_type;
+    }
+    accel_geometry_common(d, Field(g, 8), Field(g, 9), Field(g, 10));
+    return d;
+  }
+  case 1: {
+    /* Raw_boxes: boxes, box_offset, box_stride, box_count, keyframes, opaque,
+       allow_dup, table_offset */
+    value keyframes = Field(g, 4);
+    if (Wosize_val(keyframes) == 0) {
+      MTLAccelerationStructureBoundingBoxGeometryDescriptor *d =
+          [MTLAccelerationStructureBoundingBoxGeometryDescriptor descriptor];
+      d.boundingBoxBuffer = object_of_handle(Field(g, 0), Handle_kind::Buffer);
+      d.boundingBoxBufferOffset = Int64_val(Field(g, 1));
+      d.boundingBoxStride = Int64_val(Field(g, 2));
+      d.boundingBoxCount = Int64_val(Field(g, 3));
+      accel_geometry_common(d, Field(g, 5), Field(g, 6), Field(g, 7));
+      return d;
+    }
+    MTLAccelerationStructureMotionBoundingBoxGeometryDescriptor *d =
+        [MTLAccelerationStructureMotionBoundingBoxGeometryDescriptor descriptor];
+    d.boundingBoxBuffers = accel_keyframes_of_ocaml(keyframes);
+    d.boundingBoxStride = Int64_val(Field(g, 2));
+    d.boundingBoxCount = Int64_val(Field(g, 3));
+    accel_geometry_common(d, Field(g, 5), Field(g, 6), Field(g, 7));
+    return d;
+  }
+  default: {
+    /* Raw_curves: control, control_offset, control_stride, control_count,
+       radius, radius_offset, radius_stride, index, index_offset, index_uint16,
+       segment_count, segment_control_points, curve_type, basis, end_caps,
+       control_keyframes, radius_keyframes, opaque, allow_dup, table_offset */
+    value control_keyframes = Field(g, 15);
+    MTLCurveType type = Long_val(Field(g, 12)) == 0 ? MTLCurveTypeRound : MTLCurveTypeFlat;
+    MTLCurveBasis basis = MTLCurveBasisBSpline;
+    switch (Long_val(Field(g, 13))) {
+    case 1: basis = MTLCurveBasisCatmullRom; break;
+    case 2: basis = MTLCurveBasisLinear; break;
+    case 3: basis = MTLCurveBasisBezier; break;
+    default: break;
+    }
+    MTLCurveEndCaps caps = MTLCurveEndCapsNone;
+    switch (Long_val(Field(g, 14))) {
+    case 1: caps = MTLCurveEndCapsDisk; break;
+    case 2: caps = MTLCurveEndCapsSphere; break;
+    default: break;
+    }
+    MTLIndexType index_type = Bool_val(Field(g, 9)) ? MTLIndexTypeUInt16 : MTLIndexTypeUInt32;
+    if (Wosize_val(control_keyframes) == 0) {
+      MTLAccelerationStructureCurveGeometryDescriptor *d =
+          [MTLAccelerationStructureCurveGeometryDescriptor descriptor];
+      d.controlPointBuffer = object_of_handle(Field(g, 0), Handle_kind::Buffer);
+      d.controlPointBufferOffset = Int64_val(Field(g, 1));
+      d.controlPointStride = Int64_val(Field(g, 2));
+      d.controlPointCount = Int64_val(Field(g, 3));
+      d.controlPointFormat = MTLAttributeFormatFloat3;
+      d.radiusBuffer = object_of_handle(Field(g, 4), Handle_kind::Buffer);
+      d.radiusBufferOffset = Int64_val(Field(g, 5));
+      d.radiusStride = Int64_val(Field(g, 6));
+      d.radiusFormat = MTLAttributeFormatFloat;
+      d.indexBuffer = object_of_handle(Field(g, 7), Handle_kind::Buffer);
+      d.indexBufferOffset = Int64_val(Field(g, 8));
+      d.indexType = index_type;
+      d.segmentCount = Int64_val(Field(g, 10));
+      d.segmentControlPointCount = Int64_val(Field(g, 11));
+      d.curveType = type;
+      d.curveBasis = basis;
+      d.curveEndCaps = caps;
+      accel_geometry_common(d, Field(g, 17), Field(g, 18), Field(g, 19));
+      return d;
+    }
+    MTLAccelerationStructureMotionCurveGeometryDescriptor *d =
+        [MTLAccelerationStructureMotionCurveGeometryDescriptor descriptor];
+    d.controlPointBuffers = accel_keyframes_of_ocaml(control_keyframes);
+    d.controlPointStride = Int64_val(Field(g, 2));
+    d.controlPointCount = Int64_val(Field(g, 3));
+    d.controlPointFormat = MTLAttributeFormatFloat3;
+    d.radiusBuffers = accel_keyframes_of_ocaml(Field(g, 16));
+    d.radiusStride = Int64_val(Field(g, 6));
+    d.radiusFormat = MTLAttributeFormatFloat;
+    d.indexBuffer = object_of_handle(Field(g, 7), Handle_kind::Buffer);
+    d.indexBufferOffset = Int64_val(Field(g, 8));
+    d.indexType = index_type;
+    d.segmentCount = Int64_val(Field(g, 10));
+    d.segmentControlPointCount = Int64_val(Field(g, 11));
+    d.curveType = type;
+    d.curveBasis = basis;
+    d.curveEndCaps = caps;
+    accel_geometry_common(d, Field(g, 17), Field(g, 18), Field(g, 19));
+    return d;
+  }
+  }
+}
+
+static MTLAccelerationStructureUsage accel_usage_of_ocaml(value refit, value fast_build) {
+  MTLAccelerationStructureUsage usage = MTLAccelerationStructureUsageNone;
+  if (Bool_val(refit)) usage |= MTLAccelerationStructureUsageRefit;
+  if (Bool_val(fast_build)) usage |= MTLAccelerationStructureUsagePreferFastBuild;
+  return usage;
+}
+
+/* accel_primitive_raw: geometries, motion option, refit, fast_build;
+   accel_motion_raw: keyframe_count, start_time, end_time, start_border, end_border */
+extern "C" CAMLprim value caml_prismel_metal_accel_descriptor_primitive(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(handle);
+  @autoreleasepool {
+    @try {
+      MTLPrimitiveAccelerationStructureDescriptor *descriptor =
+          [MTLPrimitiveAccelerationStructureDescriptor descriptor];
+      value geometries = Field(raw, 0);
+      NSMutableArray<MTLAccelerationStructureGeometryDescriptor *> *list =
+          [NSMutableArray arrayWithCapacity:Wosize_val(geometries)];
+      for (mlsize_t i = 0; i < Wosize_val(geometries); i++)
+        [list addObject:accel_geometry_of_ocaml(Field(geometries, i))];
+      descriptor.geometryDescriptors = list;
+      value motion = Field(raw, 1);
+      if (Is_block(motion)) {
+        value m = Field(motion, 0);
+        descriptor.motionKeyframeCount = Int64_val(Field(m, 0));
+        descriptor.motionStartTime = (float)Double_val(Field(m, 1));
+        descriptor.motionEndTime = (float)Double_val(Field(m, 2));
+        descriptor.motionStartBorderMode =
+            Long_val(Field(m, 3)) == 0 ? MTLMotionBorderModeClamp : MTLMotionBorderModeVanish;
+        descriptor.motionEndBorderMode =
+            Long_val(Field(m, 4)) == 0 ? MTLMotionBorderModeClamp : MTLMotionBorderModeVanish;
+      }
+      descriptor.usage = accel_usage_of_ocaml(Field(raw, 2), Field(raw, 3));
+      handle = allocate_handle(descriptor, Handle_kind::Acceleration_primitive_descriptor);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(handle));
+}
+
+/* accel_instances_raw: instance_buffer, instance_offset, instance_stride,
+   instance_count, instance_kind, primitives, motion_transforms option,
+   motion_transform_offset, motion_transform_count, refit */
+extern "C" CAMLprim value caml_prismel_metal_accel_descriptor_instances(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(handle);
+  @autoreleasepool {
+    @try {
+      MTLInstanceAccelerationStructureDescriptor *descriptor =
+          [MTLInstanceAccelerationStructureDescriptor descriptor];
+      descriptor.instanceDescriptorBuffer = object_of_handle(Field(raw, 0), Handle_kind::Buffer);
+      descriptor.instanceDescriptorBufferOffset = Int64_val(Field(raw, 1));
+      descriptor.instanceDescriptorStride = Int64_val(Field(raw, 2));
+      descriptor.instanceCount = Int64_val(Field(raw, 3));
+      switch (Long_val(Field(raw, 4))) {
+      case 1: descriptor.instanceDescriptorType = MTLAccelerationStructureInstanceDescriptorTypeUserID; break;
+      case 2: descriptor.instanceDescriptorType = MTLAccelerationStructureInstanceDescriptorTypeMotion; break;
+      default: descriptor.instanceDescriptorType = MTLAccelerationStructureInstanceDescriptorTypeDefault; break;
+      }
+      value primitives = Field(raw, 5);
+      NSMutableArray<id<MTLAccelerationStructure>> *structures =
+          [NSMutableArray arrayWithCapacity:Wosize_val(primitives)];
+      for (mlsize_t i = 0; i < Wosize_val(primitives); i++)
+        [structures addObject:object_of_handle(Field(primitives, i),
+                                               Handle_kind::Acceleration_structure)];
+      descriptor.instancedAccelerationStructures = structures;
+      value transforms = Field(raw, 6);
+      if (Is_block(transforms)) {
+        descriptor.motionTransformBuffer =
+            object_of_handle(Field(transforms, 0), Handle_kind::Buffer);
+        descriptor.motionTransformBufferOffset = Int64_val(Field(raw, 7));
+        descriptor.motionTransformCount = Int64_val(Field(raw, 8));
+      }
+      descriptor.usage = accel_usage_of_ocaml(Field(raw, 9), Val_false);
+      handle = allocate_handle(descriptor, Handle_kind::Acceleration_instance_descriptor);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(handle));
+}
+
+static MTLAccelerationStructureDescriptor *accel_build_descriptor_of_handle(value raw) {
+  auto *handle = handle_of_value(raw);
+  std::lock_guard<std::mutex> lock(handle_mutex);
+  if (handle->kind != Handle_kind::Acceleration_primitive_descriptor &&
+      handle->kind != Handle_kind::Acceleration_instance_descriptor)
+    caml_failwith("Metal custom handle is not an acceleration build descriptor");
+  if (handle->object == nullptr) caml_failwith("Metal custom handle is destroyed");
+  return (__bridge MTLAccelerationStructureDescriptor *)handle->object;
+}
+
+extern "C" CAMLprim value caml_prismel_metal_accel_descriptor_sizes(value raw_device,
+                                                                     value raw_descriptor) {
+  CAMLparam2(raw_device, raw_descriptor);
+  CAMLlocal4(result, tuple, first, second);
+  CAMLlocal1(third);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+      MTLAccelerationStructureSizes sizes = [device
+          accelerationStructureSizesWithDescriptor:accel_build_descriptor_of_handle(raw_descriptor)];
+      tuple = caml_alloc_tuple(3);
+      first = caml_copy_int64((int64_t)sizes.accelerationStructureSize);
+      second = caml_copy_int64((int64_t)sizes.buildScratchBufferSize);
+      third = caml_copy_int64((int64_t)sizes.refitScratchBufferSize);
+      Store_field(tuple, 0, first);
+      Store_field(tuple, 1, second);
+      Store_field(tuple, 2, third);
+      result = result_ok(tuple);
+    } @catch (NSException *exception) {
+      result = result_error(exception.reason);
+    }
+  }
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_accel_encoder_build_descriptor(
+    value raw_encoder, value raw_destination, value raw_descriptor, value raw_scratch,
+    value raw_scratch_offset) {
+  CAMLparam5(raw_encoder, raw_destination, raw_descriptor, raw_scratch, raw_scratch_offset);
+  @autoreleasepool {
+    @try {
+      id<MTLAccelerationStructureCommandEncoder> encoder =
+          object_of_handle(raw_encoder, Handle_kind::Acceleration_encoder);
+      [encoder buildAccelerationStructure:object_of_handle(raw_destination,
+                                                           Handle_kind::Acceleration_structure)
+                               descriptor:accel_build_descriptor_of_handle(raw_descriptor)
+                            scratchBuffer:object_of_handle(raw_scratch, Handle_kind::Buffer)
+                      scratchBufferOffset:Int64_val(raw_scratch_offset)];
+      CAMLreturn(result_unit());
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_accel_encoder_refit_descriptor(
+    value raw_encoder, value raw_source, value raw_destination, value raw_descriptor,
+    value raw_scratch, value raw_scratch_offset) {
+  CAMLparam5(raw_encoder, raw_source, raw_destination, raw_descriptor, raw_scratch);
+  CAMLxparam1(raw_scratch_offset);
+  @autoreleasepool {
+    @try {
+      id<MTLAccelerationStructureCommandEncoder> encoder =
+          object_of_handle(raw_encoder, Handle_kind::Acceleration_encoder);
+      [encoder refitAccelerationStructure:object_of_handle(raw_source,
+                                                           Handle_kind::Acceleration_structure)
+                               descriptor:accel_build_descriptor_of_handle(raw_descriptor)
+                              destination:object_of_handle(raw_destination,
+                                                           Handle_kind::Acceleration_structure)
+                            scratchBuffer:object_of_handle(raw_scratch, Handle_kind::Buffer)
+                      scratchBufferOffset:Int64_val(raw_scratch_offset)];
+      CAMLreturn(result_unit());
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_accel_encoder_refit_descriptor_bytecode(
+    value *argv, int argn) {
+  (void)argn;
+  return caml_prismel_metal_accel_encoder_refit_descriptor(argv[0], argv[1], argv[2], argv[3],
+                                                           argv[4], argv[5]);
+}
+
+static_assert(sizeof(MTLAccelerationStructureUserIDInstanceDescriptor) == 68);
+static_assert(offsetof(MTLAccelerationStructureUserIDInstanceDescriptor, userID) == 64);
+static_assert(sizeof(MTLPackedFloat4x3) == 48);
+
+/* Byte layout of one instance descriptor record for the given kind:
+   [size; transform; options; mask; table_offset; structure_index; user_id;
+    transforms_start; transforms_count; start_border; end_border; start_time;
+    end_time], -1 where the kind lacks the field. */
+extern "C" CAMLprim value caml_prismel_metal_accel_instance_layout(value raw_kind) {
+  CAMLparam1(raw_kind);
+  CAMLlocal1(layout);
+  long values[13];
+  for (int i = 0; i < 13; i++) values[i] = -1;
+  switch (Long_val(raw_kind)) {
+  case 1:
+    values[0] = sizeof(MTLAccelerationStructureUserIDInstanceDescriptor);
+    values[1] = offsetof(MTLAccelerationStructureUserIDInstanceDescriptor, transformationMatrix);
+    values[2] = offsetof(MTLAccelerationStructureUserIDInstanceDescriptor, options);
+    values[3] = offsetof(MTLAccelerationStructureUserIDInstanceDescriptor, mask);
+    values[4] = offsetof(MTLAccelerationStructureUserIDInstanceDescriptor, intersectionFunctionTableOffset);
+    values[5] = offsetof(MTLAccelerationStructureUserIDInstanceDescriptor, accelerationStructureIndex);
+    values[6] = offsetof(MTLAccelerationStructureUserIDInstanceDescriptor, userID);
+    break;
+  case 2:
+    values[0] = sizeof(MTLAccelerationStructureMotionInstanceDescriptor);
+    values[2] = offsetof(MTLAccelerationStructureMotionInstanceDescriptor, options);
+    values[3] = offsetof(MTLAccelerationStructureMotionInstanceDescriptor, mask);
+    values[4] = offsetof(MTLAccelerationStructureMotionInstanceDescriptor, intersectionFunctionTableOffset);
+    values[5] = offsetof(MTLAccelerationStructureMotionInstanceDescriptor, accelerationStructureIndex);
+    values[6] = offsetof(MTLAccelerationStructureMotionInstanceDescriptor, userID);
+    values[7] = offsetof(MTLAccelerationStructureMotionInstanceDescriptor, motionTransformsStartIndex);
+    values[8] = offsetof(MTLAccelerationStructureMotionInstanceDescriptor, motionTransformsCount);
+    values[9] = offsetof(MTLAccelerationStructureMotionInstanceDescriptor, motionStartBorderMode);
+    values[10] = offsetof(MTLAccelerationStructureMotionInstanceDescriptor, motionEndBorderMode);
+    values[11] = offsetof(MTLAccelerationStructureMotionInstanceDescriptor, motionStartTime);
+    values[12] = offsetof(MTLAccelerationStructureMotionInstanceDescriptor, motionEndTime);
+    break;
+  default:
+    values[0] = sizeof(MTLAccelerationStructureInstanceDescriptor);
+    values[1] = offsetof(MTLAccelerationStructureInstanceDescriptor, transformationMatrix);
+    values[2] = offsetof(MTLAccelerationStructureInstanceDescriptor, options);
+    values[3] = offsetof(MTLAccelerationStructureInstanceDescriptor, mask);
+    values[4] = offsetof(MTLAccelerationStructureInstanceDescriptor, intersectionFunctionTableOffset);
+    values[5] = offsetof(MTLAccelerationStructureInstanceDescriptor, accelerationStructureIndex);
+    break;
+  }
+  layout = caml_alloc(13, 0);
+  for (int i = 0; i < 13; i++) Store_field(layout, i, Val_long(values[i]));
+  CAMLreturn(layout);
+}
+
+// Plan G6: shared events on classic command buffers, host waits, and
+// compute/blit encoders created from pass descriptors (stage-boundary
+// counter sampling).
+extern "C" CAMLprim value caml_prismel_metal_command_buffer_shared_event(
+    value raw, value raw_event, value raw_number, value raw_signal) {
+  CAMLparam4(raw, raw_event, raw_number, raw_signal);
+  @try {
+    id<MTLCommandBuffer> command = object_of_handle(raw, Handle_kind::Command_buffer);
+    id<MTLSharedEvent> event = object_of_handle(raw_event, Handle_kind::Shared_event);
+    if (Bool_val(raw_signal))
+      [command encodeSignalEvent:event value:(uint64_t)Int64_val(raw_number)];
+    else
+      [command encodeWaitForEvent:event value:(uint64_t)Int64_val(raw_number)];
+    CAMLreturn(result_unit());
+  } @catch (NSException *x) {
+    CAMLreturn(result_error(x.reason));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_shared_event_wait(value raw, value raw_number,
+                                                              value raw_timeout) {
+  CAMLparam3(raw, raw_number, raw_timeout);
+  id<MTLSharedEvent> event = nil;
+  @try {
+    event = object_of_handle(raw, Handle_kind::Shared_event);
+  } @catch (NSException *x) {
+    CAMLreturn(result_error(x.reason));
+  }
+  uint64_t target = (uint64_t)Int64_val(raw_number);
+  uint64_t timeout = (uint64_t)Int64_val(raw_timeout);
+  BOOL reached = NO;
+  NSString *failure = nil;
+  caml_release_runtime_system();
+  @try {
+    reached = [event waitUntilSignaledValue:target timeoutMS:timeout];
+  } @catch (NSException *x) {
+    failure = [x.reason copy];
+  }
+  caml_acquire_runtime_system();
+  if (failure != nil) CAMLreturn(result_error(failure));
+  CAMLreturn(result_ok(Val_bool(reached)));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command_buffer_compute_encoder_with_pass(
+    value raw, value raw_pass) {
+  CAMLparam2(raw, raw_pass);
+  CAMLlocal2(handle, result);
+  @try {
+    id<MTLCommandBuffer> command = object_of_handle(raw, Handle_kind::Command_buffer);
+    MTLComputePassDescriptor *pass =
+        object_of_handle(raw_pass, Handle_kind::Compute_pass_descriptor);
+    id<MTLComputeCommandEncoder> encoder = [command computeCommandEncoderWithDescriptor:pass];
+    if (!encoder) CAMLreturn(result_error_text("compute encoder creation from pass failed"));
+    handle = allocate_handle(encoder, Handle_kind::Compute_encoder);
+    result = result_ok(handle);
+    CAMLreturn(result);
+  } @catch (NSException *x) {
+    CAMLreturn(result_error(x.reason));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command_buffer_blit_encoder_with_pass(
+    value raw, value raw_pass) {
+  CAMLparam2(raw, raw_pass);
+  CAMLlocal2(handle, result);
+  @try {
+    id<MTLCommandBuffer> command = object_of_handle(raw, Handle_kind::Command_buffer);
+    MTLBlitPassDescriptor *pass = object_of_handle(raw_pass, Handle_kind::Blit_pass_descriptor);
+    id<MTLBlitCommandEncoder> encoder = [command blitCommandEncoderWithDescriptor:pass];
+    if (!encoder) CAMLreturn(result_error_text("blit encoder creation from pass failed"));
+    handle = allocate_handle(encoder, Handle_kind::Blit_encoder);
+    result = result_ok(handle);
+    CAMLreturn(result);
+  } @catch (NSException *x) {
+    CAMLreturn(result_error(x.reason));
+  }
+}
+
+// Plan G7: classic mesh draws and tile dispatches, mesh/tile color formats,
+// and the MetalFX spatial scaler (linked as its own framework). MetalFX is
+// imported last so its selectors never shadow the untyped sends above.
+#import <MetalFX/MetalFX.h>
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_draw_mesh_threadgroups(
+    value raw, value raw_sizes) {
+  CAMLparam2(raw, raw_sizes);
+  @try {
+    id<MTLRenderCommandEncoder> encoder = object_of_handle(raw, Handle_kind::Render_encoder);
+    NSUInteger v[9];
+    for (int i = 0; i < 9; i++) {
+      intnat x = Long_val(Field(raw_sizes, i));
+      if (x <= 0) CAMLreturn(result_error_text("mesh dispatch sizes must be positive"));
+      v[i] = (NSUInteger)x;
+    }
+    [encoder drawMeshThreadgroups:MTLSizeMake(v[0], v[1], v[2])
+        threadsPerObjectThreadgroup:MTLSizeMake(v[3], v[4], v[5])
+          threadsPerMeshThreadgroup:MTLSizeMake(v[6], v[7], v[8])];
+    CAMLreturn(result_unit());
+  } @catch (NSException *x) {
+    CAMLreturn(result_error(x.reason));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_dispatch_threads_per_tile(
+    value raw, value raw_width, value raw_height, value raw_depth) {
+  CAMLparam4(raw, raw_width, raw_height, raw_depth);
+  @try {
+    id<MTLRenderCommandEncoder> encoder = object_of_handle(raw, Handle_kind::Render_encoder);
+    intnat width = Long_val(raw_width), height = Long_val(raw_height), depth = Long_val(raw_depth);
+    if (width <= 0 || height <= 0 || depth != 1)
+      CAMLreturn(result_error_text("tile dispatch sizes must be positive with depth one"));
+    [encoder dispatchThreadsPerTile:MTLSizeMake((NSUInteger)width, (NSUInteger)height, 1)];
+    CAMLreturn(result_unit());
+  } @catch (NSException *x) {
+    CAMLreturn(result_error(x.reason));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_mesh_tile_descriptor_set_color_format(
+    value raw, value raw_tile, value raw_index, value raw_format) {
+  CAMLparam4(raw, raw_tile, raw_index, raw_format);
+  @try {
+    intnat index = Long_val(raw_index);
+    if (index < 0 || index >= 8)
+      CAMLreturn(result_error_text("color attachment index is outside [0,8)"));
+    MTLPixelFormat format = static_cast<MTLPixelFormat>(Long_val(raw_format));
+    if (Bool_val(raw_tile)) {
+      MTLTileRenderPipelineDescriptor *descriptor =
+          object_of_handle(raw, Handle_kind::Tile_pipeline_descriptor);
+      descriptor.colorAttachments[(NSUInteger)index].pixelFormat = format;
+    } else {
+      MTLMeshRenderPipelineDescriptor *descriptor =
+          object_of_handle(raw, Handle_kind::Mesh_pipeline_descriptor);
+      descriptor.colorAttachments[(NSUInteger)index].pixelFormat = format;
+    }
+    CAMLreturn(result_unit());
+  } @catch (NSException *x) {
+    CAMLreturn(result_error(x.reason));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_fx_spatial_supported(value raw) {
+  CAMLparam1(raw);
+  @try {
+    id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
+    CAMLreturn(result_ok(Val_bool([MTLFXSpatialScalerDescriptor supportsDevice:device])));
+  } @catch (NSException *x) {
+    CAMLreturn(result_error(x.reason));
+  }
+}
+
+// (input width, input height, output width, output height, color format, output format)
+extern "C" CAMLprim value caml_prismel_metal_fx_spatial_create(value raw, value raw_sizes) {
+  CAMLparam2(raw, raw_sizes);
+  CAMLlocal2(handle, result);
+  @try {
+    id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
+    if (![MTLFXSpatialScalerDescriptor supportsDevice:device])
+      CAMLreturn(result_error_text("MetalFX spatial scaling is unsupported on this device"));
+    MTLFXSpatialScalerDescriptor *descriptor = [MTLFXSpatialScalerDescriptor new];
+    descriptor.inputWidth = (NSUInteger)Long_val(Field(raw_sizes, 0));
+    descriptor.inputHeight = (NSUInteger)Long_val(Field(raw_sizes, 1));
+    descriptor.outputWidth = (NSUInteger)Long_val(Field(raw_sizes, 2));
+    descriptor.outputHeight = (NSUInteger)Long_val(Field(raw_sizes, 3));
+    descriptor.colorTextureFormat = static_cast<MTLPixelFormat>(Long_val(Field(raw_sizes, 4)));
+    descriptor.outputTextureFormat = static_cast<MTLPixelFormat>(Long_val(Field(raw_sizes, 5)));
+    descriptor.colorProcessingMode = MTLFXSpatialScalerColorProcessingModePerceptual;
+    id<MTLFXSpatialScaler> scaler = [descriptor newSpatialScalerWithDevice:device];
+    if (scaler == nil) CAMLreturn(result_error_text("MetalFX rejected the spatial scaler descriptor"));
+    handle = allocate_handle(scaler, Handle_kind::Fx_spatial_scaler);
+    result = result_ok(handle);
+    CAMLreturn(result);
+  } @catch (NSException *x) {
+    CAMLreturn(result_error(x.reason));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_fx_spatial_encode(value raw, value raw_command,
+                                                             value raw_color, value raw_output) {
+  CAMLparam4(raw, raw_command, raw_color, raw_output);
+  @try {
+    id<MTLFXSpatialScaler> scaler = object_of_handle(raw, Handle_kind::Fx_spatial_scaler);
+    id<MTLCommandBuffer> command = object_of_handle(raw_command, Handle_kind::Command_buffer);
+    id<MTLTexture> color = object_of_handle(raw_color, Handle_kind::Texture);
+    id<MTLTexture> output = object_of_handle(raw_output, Handle_kind::Texture);
+    if (color.width != scaler.inputWidth || color.height != scaler.inputHeight ||
+        color.pixelFormat != scaler.colorTextureFormat)
+      CAMLreturn(result_error_text("color texture does not match the scaler input"));
+    if (output.width != scaler.outputWidth || output.height != scaler.outputHeight ||
+        output.pixelFormat != scaler.outputTextureFormat)
+      CAMLreturn(result_error_text("output texture does not match the scaler output"));
+    if ((color.usage & scaler.colorTextureUsage) != scaler.colorTextureUsage)
+      CAMLreturn(result_error([NSString stringWithFormat:@"color texture usage %lu lacks the scaler requirement %lu",
+                                                         (unsigned long)color.usage, (unsigned long)scaler.colorTextureUsage]));
+    if ((output.usage & scaler.outputTextureUsage) != scaler.outputTextureUsage)
+      CAMLreturn(result_error([NSString stringWithFormat:@"output texture usage %lu lacks the scaler requirement %lu",
+                                                         (unsigned long)output.usage, (unsigned long)scaler.outputTextureUsage]));
+    scaler.colorTexture = color;
+    scaler.outputTexture = output;
+    scaler.inputContentWidth = scaler.inputWidth;
+    scaler.inputContentHeight = scaler.inputHeight;
+    [scaler encodeToCommandBuffer:command];
+    scaler.colorTexture = nil;
+    scaler.outputTexture = nil;
+    CAMLreturn(result_unit());
+  } @catch (NSException *x) {
+    CAMLreturn(result_error(x.reason));
+  }
+}

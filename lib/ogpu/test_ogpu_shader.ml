@@ -34,7 +34,11 @@ let run () =
   rejected (Ogpu.Shader.create { (descriptor (Bytes.of_string "x")) with
     entry_points = [ entry "same" Vertex; entry "same" Fragment ] });
   rejected (Ogpu.Shader.create { (descriptor (Bytes.of_string "x")) with
-    bindings = [ binding 1 2 Storage_buffer [ Compute ]; binding 1 2 Sampler [ Compute ] ] });
+    bindings = [ binding 1 2 Storage_buffer [ Compute ]; binding 1 2 Acceleration_structure [ Compute ] ] });
+  (* Buffers, textures, and samplers are separate index spaces. *)
+  ignore (ok (Ogpu.Shader.create { (descriptor (Bytes.of_string "x")) with
+    bindings = [ binding 1 2 Storage_buffer [ Compute ]; binding 1 2 Sampler [ Compute ]
+               ; binding 1 2 Storage_texture [ Compute ] ] }));
   rejected (Ogpu.Shader.create { (descriptor (Bytes.of_string "x")) with
     bindings = [ binding 0 0 Uniform_buffer [ Fragment; Vertex ] ] });
   let compiled_descriptor =

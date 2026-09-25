@@ -23,7 +23,7 @@
 (test
  (name test_packed_ink)
  (modules test_packed_ink)
- (libraries code_quadtree_ink prismel metal))
+ (libraries code_quadtree_ink prismel ogpu))
 
 (test
  (name test_mark_field)

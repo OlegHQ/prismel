@@ -2,165 +2,56 @@ type resource = Buffer of Buffer.t | Texture of Texture.t
 
 module Native_metal = Metal
 
-module Metal = struct
-  include Native_metal
+module Metal = Native_metal
 
-  type indirect_primitive = Native_metal.Indirect_command_buffer.Render_command.primitive =
-    | Point
-    | Line
-    | Line_strip
-    | Triangle
-    | Triangle_strip
-end
-
-type plan_owner = {
-  queue_token : int64;
-  generation : int64;
-  command_count : int;
-  mutable last_epoch : int64;
-  dependencies : int64 array;
-  pipeline_keys : string list;
-  commands : Metal.Indirect_command_buffer.Render_command.t list;
-  samplers : Metal.Sampler.t list;
-  encoders : Metal.Shader_argument_encoder.t list;
-  buffers : Metal.Buffer.t list;
-  resource_sets : Metal.Render_encoder.prepared_resources list;
-  vertex_resources : Metal.Render_encoder.prepared_resources;
-  fragment_resources : Metal.Render_encoder.prepared_resources;
-  texture_resources : Metal.Render_encoder.prepared_resources;
-  owner_bytes : int64;
-  mutable passes : (Render_pass.t * int64 array) list;
-}
-
-type classic_submission = {
-  classic_command : Ogpu_core.Backend.command;
-  classic_resources : (int64 * int64) list;
-  classic_pipelines : int64 list;
-  classic_pass : Render_pass.t;
-  classic_bytes : int64;
-  mutable classic_epoch : int64;
-  mutable classic_retired : bool;
-}
-
-type classic_cache_control = {
-  invalidate_classic_resource : int64 -> unit;
-  invalidate_classic_pipeline : int64 -> unit;
-  invalidate_retained_key : string -> unit;
-  classic_entries : unit -> int;
-  classic_retained_bytes : unit -> int64;
-  retained_identity_entries : unit -> int;
-  retained_replay_entries : unit -> int;
-  retained_metadata_bytes : unit -> int64;
-  clear_classics : unit -> unit;
-  clear_retained_metadata : unit -> unit;
-  retry_cleanup : unit -> unit;
-  cleanup_empty : unit -> bool;
-}
-
-type retained_identity = {
-  identity_draws : Ogpu_core.Render_pass.draw list;
-  identity_pipelines : int64 list;
-  identity_key : string;
-  identity_generation : int64;
-  identity_bytes : int64;
-}
-
-type retained_replay = {
-  replay_command : Ogpu_core.Backend.command;
-  replay_pipelines : int64 list;
-  replay_key : string;
-  mutable replay_pass : Render_pass.t;
-  replay_attachment_ids : int64 array;
-  mutable replay_attachment_tokens : int64 array;
-  replay_bytes : int64;
-  mutable replay_epoch : int64;
-  mutable replay_retired : bool;
-}
-
-type retired = {
-  queue_token : int64;
-  epoch : int64;
+type icb_entry = {
   icb : Metal.Indirect_command_buffer.t;
-  mutable candidate : Metal.Retained_render_plan.candidate option;
-  mutable icb_released : bool;
-  owner : plan_owner option;
-  retired_bytes : int64;
+  icb_commands : Metal.Indirect_command_buffer.Render_command.t option array;
 }
 
-type cleanup_failure = Metal_cleanup of Metal.error | Pass_cleanup of Ogpu_core.Error.t
+type active_queue = { presentations : Surface.Private.pending_presentation array }
 
-type retained_plan_stats = {
-  builds : int64;
-  hits : int64;
-  misses : int64;
-  evictions : int64;
-  executions : int64;
-  entries : int;
-  capacity : int;
-  icb_retained_bytes : int64;
-  icb_byte_capacity : int64;
-  owner_retained_bytes : int64;
-  owner_byte_capacity : int64;
-  retired_bytes : int64;
+type table_entry = {
+  table : [ `Intersection of Metal.Intersection_function_table.t | `Visible of Metal.Visible_function_table.t ];
+  mutable table_handles : Metal.Function_handle.t list;
+  mutable table_uses : int;
+  mutable table_destroy_requested : bool;
 }
 
-type classic_submission_stats = {
-  entries : int;
-  retained_bytes : int64;
-  queues : int;
-  entry_capacity : int;
-  byte_capacity : int64;
-}
-
-type retained_metadata_stats = {
-  identity_entries : int;
-  replay_entries : int;
-  retained_bytes : int64;
-  queues : int;
-  identity_entry_capacity : int;
-  replay_entry_capacity : int;
-  byte_capacity : int64;
-}
-
-type active_queue = {
-  queue : Queue.t;
-  submit_combined :
-    Queue.presentation ->
-    Ogpu_core.Backend.command ->
-    resources:(int64 * int64) list ->
-    pipelines:int64 list ->
-    (Ogpu_core.Backend.receipt, Ogpu_core.Error.t) result;
-  presentations : Surface.Private.pending_presentation array;
+(* Plan G6 objects retained by in-flight commands: destruction while used is
+   deferred to the last release. *)
+type 'a sync_entry = {
+  native : 'a;
+  mutable uses : int;
+  mutable destroy_requested : bool;
+  mutable dead : bool;
+  finish : unit -> (unit, Ogpu_core.Error.t) result;
 }
 
 type control = {
   resources : (int64, resource) Hashtbl.t;
-  pipelines : (string, Pipeline.t) Hashtbl.t;
+  heaps : (int64, Metal.Heap.t sync_entry) Hashtbl.t;
+  residency : (int64, Metal.Residency_set.t sync_entry) Hashtbl.t;
+  fences : (int64, Metal.Fence.t sync_entry) Hashtbl.t;
+  events : (int64, Metal.Shared_event.t sync_entry) Hashtbl.t;
+  samples : (int64, Metal.Resource100.Sample_buffer.t sync_entry) Hashtbl.t;
+  dynamics : (int64, (Metal.Dynamic_library.t * Metal.Library.t) sync_entry) Hashtbl.t;
+  archives : (int64, Metal.Binary_archive.t sync_entry) Hashtbl.t;
+  upscalers : (int64, Metal.Fx.Spatial_scaler.t sync_entry) Hashtbl.t;
   pipeline_tokens : (int64, Pipeline.t) Hashtbl.t;
-  sampler_cache : (Ogpu_core.Types.sampler_descriptor, Sampler.t) Hashtbl.t;
-  plan_owners : (string, plan_owner) Hashtbl.t;
-  mutable plan_owner_order : string list;
-  mutable owner_retained_bytes : int64;
-  classic_invalidators : (int64, classic_cache_control) Hashtbl.t;
+  tables : (int64, table_entry) Hashtbl.t;
   active_queues : (int64, active_queue) Hashtbl.t;
-  completed_epochs : (int64, int64) Hashtbl.t;
-  mutable retired : retired list;
-  mutable retired_bytes : int64;
-  mutable plan_cache : Metal.Retained_render_plan.t option;
+  libraries : (int64, Library.t) Hashtbl.t;
+  accels : (int64, Acceleration.t) Hashtbl.t;
+  sampler_tokens : (int64, Sampler.t) Hashtbl.t;
+  icbs : (int64, icb_entry) Hashtbl.t;
+  arguments : (int64, Metal.Shader_argument_encoder.t) Hashtbl.t;
+  depth_states : (Ogpu_core.Backend.depth_state, Metal.Depth_stencil.t) Hashtbl.t;
+  acquired_frames : (int64, Surface.t * Surface.frame) Hashtbl.t;
   mutable cleanup_error : Ogpu_core.Error.t option;
   mutable device_live : bool;
   mutable device_id : int64 option;
   mutable next : int64;
-  mutable plan_builds : int64;
-  mutable plan_hits : int64;
-  mutable plan_misses : int64;
-  mutable plan_evictions : int64;
-  mutable plan_executions : int64;
-  plan_capacity : int;
-  owner_byte_capacity : int64;
-  classic_byte_capacity : int64;
-  metadata_byte_capacity : int64;
-  layer : Metal.Metal_layer.t option;
 }
 
 let error op kind text = Error (Ogpu_core.Error.make op kind text)
@@ -170,209 +61,30 @@ let token c =
   c.next <- Int64.succ x;
   x
 
-let register_pipeline c pipeline = Hashtbl.replace c.pipelines (Pipeline.key pipeline) pipeline
-let sampler_cache_entries c = Hashtbl.length c.sampler_cache
-let retained_plans_enabled = true
-let retained_plan_entries c = Hashtbl.length c.plan_owners
-let retired_plan_entries c = List.length c.retired
-
-let retained_owner_pass_entries c =
-  Hashtbl.fold (fun _ owner count -> count + List.length owner.passes) c.plan_owners 0
-
 let pending_presentation_capacity = 3
-let classic_submission_capacity = 256
-let retained_identity_capacity = 256
-let retained_replay_capacity = 256
-let default_classic_submission_byte_capacity = 67_108_864L
-let default_retained_metadata_byte_capacity = 67_108_864L
-let default_retained_plan_owner_byte_capacity = 67_108_864L
 
-let saturating_add left right =
-  if left > Int64.sub Int64.max_int right then Int64.max_int else Int64.add left right
+let metal_compare = function
+  | Ogpu_core.Render_pass.Never -> Metal.Depth_stencil.Never
+  | Less -> Less | Equal -> Equal | Less_equal -> Less_equal | Greater -> Greater
+  | Not_equal -> Not_equal | Greater_equal -> Greater_equal | Always -> Always
 
-let accounted_items count item_bytes =
-  let count = Int64.of_int count in
-  if count > Int64.div Int64.max_int item_bytes then Int64.max_int else Int64.mul count item_bytes
+let metal_cull = function
+  | Ogpu_core.Render_pass.Cull_none -> Metal.Render_encoder.No_cull
+  | Cull_front -> Cull_front
+  | Cull_back -> Cull_back
 
-let accounted_string value = saturating_add 16L (Int64.of_int (String.length value))
-let accounted_label = function None -> 0L | Some value -> accounted_string value
+let metal_operation = function
+  | Ogpu_core.Render_pass.Keep -> Metal.Depth_stencil.Keep
+  | Zero -> Zero | Replace -> Replace | Increment_clamp -> Increment_clamp
+  | Decrement_clamp -> Decrement_clamp | Invert -> Invert
+  | Increment_wrap -> Increment_wrap | Decrement_wrap -> Decrement_wrap
 
-let plan_owner_bytes ~key ~dependencies ~pipeline_keys ~command_count ~encoder_count ~sampler_count
-    ~argument_buffer_lengths ~resource_set_count ~resource_reference_count =
-  let pipeline_bytes =
-    List.fold_left
-      (fun bytes pipeline_key ->
-        bytes |> saturating_add 32L |> saturating_add (accounted_string pipeline_key))
-      0L pipeline_keys
-  in
-  let argument_bytes =
-    List.fold_left
-      (fun bytes length -> bytes |> saturating_add 384L |> saturating_add length)
-      0L argument_buffer_lengths
-  in
-  2_048L
-  |> saturating_add (accounted_string key)
-  |> saturating_add (accounted_items (Array.length dependencies) 16L)
-  |> saturating_add pipeline_bytes
-  |> saturating_add (accounted_items command_count 384L)
-  |> saturating_add (accounted_items encoder_count 384L)
-  |> saturating_add (accounted_items sampler_count 384L)
-  |> saturating_add argument_bytes
-  |> saturating_add (accounted_items resource_set_count 512L)
-  |> saturating_add (accounted_items resource_reference_count 128L)
-
-let retained_plan_stats c =
-  let icb_entries, icb_retained_bytes, icb_byte_capacity =
-    match c.plan_cache with
-    | None -> (0, 0L, 0L)
-    | Some cache ->
-        let stats = Metal.Retained_render_plan.stats cache in
-        (stats.entries, stats.retained_bytes, stats.byte_capacity)
-  in
-  assert (icb_entries = Hashtbl.length c.plan_owners);
-  assert (icb_retained_bytes >= 0L && icb_retained_bytes <= icb_byte_capacity);
-  assert (c.owner_retained_bytes >= 0L && c.owner_retained_bytes <= c.owner_byte_capacity);
-  let combined = saturating_add icb_retained_bytes c.owner_retained_bytes
-  and combined_capacity = saturating_add icb_byte_capacity c.owner_byte_capacity in
-  assert (combined <= combined_capacity);
-  {
-    builds = c.plan_builds;
-    hits = c.plan_hits;
-    misses = c.plan_misses;
-    evictions = c.plan_evictions;
-    executions = c.plan_executions;
-    entries = Hashtbl.length c.plan_owners;
-    capacity = c.plan_capacity;
-    icb_retained_bytes;
-    icb_byte_capacity;
-    owner_retained_bytes = c.owner_retained_bytes;
-    owner_byte_capacity = c.owner_byte_capacity;
-    retired_bytes = c.retired_bytes;
-  }
-
-let retained_draw_bytes (draw : Ogpu_core.Render_pass.draw) =
-  let bytes =
-    512L
-    |> saturating_add (accounted_string draw.pipeline_key)
-    |> saturating_add (accounted_items (List.length draw.buffers) 128L)
-    |> saturating_add (accounted_items (List.length draw.textures) 128L)
-  in
-  let bytes =
-    List.fold_left
-      (fun total (binding : Ogpu_core.Render_pass.sampler_binding) ->
-        total |> saturating_add 384L
-        |> saturating_add (accounted_label binding.sampler.Ogpu_core.Types.label))
-      bytes draw.samplers
-  in
-  if Option.is_some draw.index then saturating_add bytes 128L else bytes
-
-let retained_draws_bytes draws =
-  List.fold_left (fun total draw -> saturating_add total (retained_draw_bytes draw)) 256L draws
-
-let retained_command_bytes = Ogpu_core.Backend.Private.command_retained_bytes
-
-let retained_identity_bytes draws pipelines key =
-  retained_draws_bytes draws |> saturating_add 512L
-  |> saturating_add (accounted_items (List.length pipelines) 32L)
-  |> saturating_add (accounted_string key)
-
-let retained_replay_bytes command pipelines key pass ids tokens =
-  retained_command_bytes command |> saturating_add 512L
-  |> saturating_add (Render_pass.Private.retained_bytes pass)
-  |> saturating_add (accounted_items (List.length pipelines) 32L)
-  |> saturating_add (accounted_string key)
-  |> saturating_add (accounted_items (Array.length ids) 16L)
-  |> saturating_add (accounted_items (Array.length tokens) 16L)
-
-let classic_entry_bytes command pass resources pipelines =
-  retained_command_bytes command
-  |> saturating_add (Render_pass.Private.retained_bytes pass)
-  |> saturating_add 512L
-  |> saturating_add (accounted_items (List.length resources) 64L)
-  |> saturating_add (accounted_items (List.length pipelines) 32L)
-
-let submit_native_render ~presenting presentation queue pass =
-  if presenting then Queue.submit_render_pass_present queue presentation pass
-  else Queue.submit_render_pass queue pass
-
-let classic_submission_stats c =
-  let entries, retained_bytes =
-    Hashtbl.fold
-      (fun _ cache (entries, bytes) ->
-        (entries + cache.classic_entries (), saturating_add bytes (cache.classic_retained_bytes ())))
-      c.classic_invalidators (0, 0L)
-  in
-  let queues = Hashtbl.length c.classic_invalidators in
-  let entry_capacity =
-    if queues > max_int / classic_submission_capacity then max_int
-    else queues * classic_submission_capacity
-  in
-  {
-    entries;
-    retained_bytes;
-    queues;
-    entry_capacity;
-    byte_capacity = accounted_items queues c.classic_byte_capacity;
-  }
-
-let classic_submission_entries c = (classic_submission_stats c).entries
-
-let retained_metadata_stats c =
-  let identity_entries, replay_entries, retained_bytes =
-    Hashtbl.fold
-      (fun _ cache (identities, replays, bytes) ->
-        ( identities + cache.retained_identity_entries (),
-          replays + cache.retained_replay_entries (),
-          saturating_add bytes (cache.retained_metadata_bytes ()) ))
-      c.classic_invalidators (0, 0, 0L)
-  in
-  let queues = Hashtbl.length c.classic_invalidators in
-  let aggregate_capacity per_queue =
-    if queues > max_int / per_queue then max_int else queues * per_queue
-  in
-  {
-    identity_entries;
-    replay_entries;
-    retained_bytes;
-    queues;
-    identity_entry_capacity = aggregate_capacity retained_identity_capacity;
-    replay_entry_capacity = aggregate_capacity retained_replay_capacity;
-    byte_capacity = accounted_items queues c.metadata_byte_capacity;
-  }
-
-let classic_invalidator_entries c = Hashtbl.length c.classic_invalidators
-
-let disable_retained_plans_for_test c =
-  match c.plan_cache with
-  | None -> ()
-  | Some cache -> (
-      match Metal.Retained_render_plan.destroy cache with
-      | Error error ->
-          if Option.is_none c.cleanup_error then
-            c.cleanup_error <-
-              Some
-                (Device.of_metal_error ~operation:"Ogpu_metal.Backend.disable_retained_plans" error)
-      | Ok () ->
-          c.plan_cache <- None;
-          Hashtbl.iter
-            (fun _ cache ->
-              cache.clear_retained_metadata ();
-              cache.retry_cleanup ())
-            c.classic_invalidators)
-
-let with_only_active_queue c action =
-  match
-    Hashtbl.fold
-      (fun _ active found -> match found with None -> Some active | Some _ -> None)
-      c.active_queues None
-  with
-  | Some active when Hashtbl.length c.active_queues = 1 -> action active.queue
-  | None | Some _ -> ()
-
-let inject_next_active_queue_error c = with_only_active_queue c Queue.inject_next_error
-
-let inject_next_active_queue_completion_error c =
-  with_only_active_queue c Queue.inject_next_completion_error
+let metal_stage = function
+  | Ogpu_core.Backend.Vertex -> Metal.Render_encoder.Vertex
+  | Fragment -> Fragment
+  | Object -> Object
+  | Mesh -> Mesh
+  | Tile -> Tile
 
 let native_texture control texture =
   let device_id, token = Ogpu_core.Backend.Private.texture_driver_token texture in
@@ -389,152 +101,34 @@ let native_texture control texture =
 
 module Private = struct
   let native_texture = native_texture
-  let disable_retained_plans_for_test = disable_retained_plans_for_test
-  let inject_next_active_queue_error = inject_next_active_queue_error
-  let inject_next_active_queue_completion_error = inject_next_active_queue_completion_error
-  let retained_owner_pass_entries = retained_owner_pass_entries
 end
 
-let first_cleanup current failure = match current with Some _ -> current | None -> Some failure
-
-let first_metal_cleanup current = function
-  | Ok () -> current
-  | Error error -> first_cleanup current (Metal_cleanup error)
-
-let first_pass_cleanup current = function
-  | Ok () -> current
-  | Error error -> first_cleanup current (Pass_cleanup error)
-
-let rec token_in_resources dependency = function
-  | [] -> false
-  | (_, token) :: rest -> Int64.equal token dependency || token_in_resources dependency rest
-
-let dependencies_live dependencies resources =
-  let index = ref 0 in
-  while
-    !index < Array.length dependencies
-    && token_in_resources (Array.unsafe_get dependencies !index) resources
-  do
-    incr index
-  done;
-  !index = Array.length dependencies
-
-let destroy_owner_front owner =
-  let failure =
-    List.fold_left
-      (fun failure (pass, _) -> first_pass_cleanup failure (Render_pass.Private.destroy pass))
-      None owner.passes
-  in
-  let failure =
-    List.fold_left
-      (fun failure command ->
-        first_metal_cleanup failure (Metal.Indirect_command_buffer.Render_command.destroy command))
-      failure owner.commands
-  in
-  let failure =
-    List.fold_left
-      (fun failure encoder ->
-        first_metal_cleanup failure (Metal.Shader_argument_encoder.destroy encoder))
-      failure owner.encoders
-  in
-  List.fold_left
-    (fun failure resources ->
-      first_metal_cleanup failure (Metal.Render_encoder.destroy_prepared_resources resources))
-    failure owner.resource_sets
-
-let destroy_owner_back owner failure =
-  let failure =
-    List.fold_left
-      (fun failure buffer -> first_metal_cleanup failure (Metal.Buffer.destroy buffer))
-      failure owner.buffers
-  in
-  List.fold_left
-    (fun failure sampler -> first_metal_cleanup failure (Metal.Sampler.destroy sampler))
-    failure owner.samplers
-
-let destroy_owner owner = destroy_owner_back owner (destroy_owner_front owner)
-
-let owner_retired_bytes icb owner =
-  List.fold_left
-    (fun bytes (pass, _) -> saturating_add bytes (Render_pass.Private.retained_bytes pass))
-    (saturating_add (Metal.Indirect_command_buffer.allocated_size icb) owner.owner_bytes)
-    owner.passes
-
-let destroy_retired retired =
-  let failure = Option.fold ~none:None ~some:destroy_owner_front retired.owner in
-  let destroyed =
-    if retired.icb_released then Ok ()
-    else
-      let result =
-        match retired.candidate with
-        | None -> Metal.Indirect_command_buffer.destroy retired.icb
-        | Some candidate -> Metal.Retained_render_plan.discard candidate
-      in
-      (match result with
-      | Error _ -> ()
-      | Ok () ->
-          retired.icb_released <- true;
-          retired.candidate <- None);
-      result
-  in
-  let failure = first_metal_cleanup failure destroyed in
-  Option.fold ~none:failure ~some:(fun owner -> destroy_owner_back owner failure) retired.owner
-
-let remove_plan_owner c key =
-  match Hashtbl.find_opt c.plan_owners key with
-  | None -> None
-  | Some owner ->
-      assert (owner.owner_bytes <= c.owner_retained_bytes);
-      Hashtbl.remove c.plan_owners key;
-      c.plan_owner_order <- List.filter (( <> ) key) c.plan_owner_order;
-      c.owner_retained_bytes <- Int64.sub c.owner_retained_bytes owner.owner_bytes;
-      Some owner
-
-let release_accounted_retired (c : control) (retired : retired) =
-  assert (retired.retired_bytes <= c.retired_bytes);
-  c.retired_bytes <- Int64.sub c.retired_bytes retired.retired_bytes
-
-let create ?device:provided_device ?layer ?(retained_plan_capacity = 64)
-    ?(retained_plan_owner_byte_capacity = default_retained_plan_owner_byte_capacity)
-    ?(classic_submission_byte_capacity = default_classic_submission_byte_capacity)
-    ?(retained_metadata_byte_capacity = default_retained_metadata_byte_capacity) () =
-  if retained_plan_capacity < 1 || retained_plan_capacity > 1024 then
-    invalid_arg "Ogpu_metal.Backend.create: retained plan capacity must be in [1,1024]";
-  if retained_plan_owner_byte_capacity <= 0L then
-    invalid_arg "Ogpu_metal.Backend.create: retained plan owner byte capacity must be positive";
-  if classic_submission_byte_capacity <= 0L then
-    invalid_arg "Ogpu_metal.Backend.create: classic submission byte capacity must be positive";
-  if retained_metadata_byte_capacity <= 0L then
-    invalid_arg "Ogpu_metal.Backend.create: retained metadata byte capacity must be positive";
+let create () =
   let c =
     {
       resources = Hashtbl.create 32;
-      pipelines = Hashtbl.create 16;
+      heaps = Hashtbl.create 4;
+      residency = Hashtbl.create 4;
+      fences = Hashtbl.create 4;
+      events = Hashtbl.create 4;
+      samples = Hashtbl.create 4;
+      dynamics = Hashtbl.create 4;
+      archives = Hashtbl.create 4;
+      upscalers = Hashtbl.create 2;
       pipeline_tokens = Hashtbl.create 16;
-      sampler_cache = Hashtbl.create 64;
-      plan_owners = Hashtbl.create 64;
-      plan_owner_order = [];
-      owner_retained_bytes = 0L;
-      classic_invalidators = Hashtbl.create 4;
+      tables = Hashtbl.create 4;
       active_queues = Hashtbl.create 4;
-      completed_epochs = Hashtbl.create 4;
-      retired = [];
-      retired_bytes = 0L;
-      plan_cache = None;
+      libraries = Hashtbl.create 4;
+      accels = Hashtbl.create 8;
+      sampler_tokens = Hashtbl.create 8;
+      icbs = Hashtbl.create 8;
+      arguments = Hashtbl.create 4;
+      depth_states = Hashtbl.create 8;
+      acquired_frames = Hashtbl.create 4;
       cleanup_error = None;
       device_live = false;
       device_id = None;
       next = 1L;
-      plan_builds = 0L;
-      plan_hits = 0L;
-      plan_misses = 0L;
-      plan_evictions = 0L;
-      plan_executions = 0L;
-      plan_capacity = retained_plan_capacity;
-      owner_byte_capacity = retained_plan_owner_byte_capacity;
-      classic_byte_capacity = classic_submission_byte_capacity;
-      metadata_byte_capacity = retained_metadata_byte_capacity;
-      layer;
     }
   in
   let record_ogpu_cleanup error =
@@ -546,119 +140,28 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity = 64)
         record_ogpu_cleanup (Device.of_metal_error ~operation:"Ogpu_metal.Backend.cleanup" error))
       failure
   in
-  let record_destroy_cleanup =
-    Option.iter (function
-      | Metal_cleanup error -> record_cleanup (Some error)
-      | Pass_cleanup error -> record_ogpu_cleanup error)
-  in
   let take_cleanup_error () =
     let failure = c.cleanup_error in
     c.cleanup_error <- None;
     failure
-  in
-  let account_retired retired =
-    c.retired <- retired :: c.retired;
-    c.retired_bytes <- saturating_add c.retired_bytes retired.retired_bytes
-  in
-  let attempt_retired retired =
-    match destroy_retired retired with
-    | None -> true
-    | Some failure ->
-        record_destroy_cleanup (Some failure);
-        false
-  in
-  let drain_retired ready =
-    c.retired <-
-      List.filter
-        (fun retired ->
-          if not (ready retired) then true
-          else if attempt_retired retired then begin
-            release_accounted_retired c retired;
-            false
-          end
-          else true)
-        c.retired
-  in
-  let obtain_device () =
-    match provided_device with Some device -> Ok device | None -> Device.system_default ()
   in
   let create_device () =
     if c.device_live then
       error "Ogpu_metal.Backend.create_device" Ogpu_core.Error.Invalid_state
         "adapter already owns a live device"
     else
-      match obtain_device () with
+      match Device.system_default () with
       | Error _ as e -> e
       | Ok device ->
           c.device_live <- true;
           c.device_id <- Some (Ogpu_core.Handle.device_id (Device.Private.handle device));
           let device_token = token c in
-          let handoff ~key ~generation:_ icb =
-            c.plan_evictions <- Int64.succ c.plan_evictions;
-            let owner : plan_owner option = Hashtbl.find_opt c.plan_owners key in
-            let queue_token =
-              Option.fold ~none:0L ~some:(fun (owner : plan_owner) -> owner.queue_token) owner
-            in
-            Option.iter
-              (fun cache -> cache.invalidate_retained_key key)
-              (Hashtbl.find_opt c.classic_invalidators queue_token);
-            let owner = remove_plan_owner c key in
-            let epoch =
-              Option.fold ~none:0L ~some:(fun (owner : plan_owner) -> owner.last_epoch) owner
-            in
-            let retired_bytes =
-              match owner with
-              | None -> Metal.Indirect_command_buffer.allocated_size icb
-              | Some owner -> owner_retired_bytes icb owner
-            in
-            let retired =
-              {
-                queue_token;
-                epoch;
-                icb;
-                candidate = None;
-                icb_released = false;
-                owner;
-                retired_bytes;
-              }
-            in
-            let completed =
-              Option.value (Hashtbl.find_opt c.completed_epochs queue_token) ~default:0L
-            in
-            if epoch = 0L || epoch <= completed || not (Hashtbl.mem c.active_queues queue_token)
-            then
-              begin if not (attempt_retired retired) then account_retired retired
-              end
-            else account_retired retired
+          let buffer_memory = function
+            | Ogpu_core.Types.Shared -> Buffer.Shared
+            | Ogpu_core.Types.Device_local -> Buffer.Device_local
           in
-          (match
-             Metal.Retained_render_plan.create ~device:(Device.Private.metal device)
-               ~capacity:retained_plan_capacity ~on_evict:handoff ()
-           with
-          | Ok cache -> c.plan_cache <- Some cache
-          | Error _ -> ());
-          let invalidate_resource id =
-            Hashtbl.iter
-              (fun _ cache -> cache.invalidate_classic_resource id)
-              c.classic_invalidators;
-            match c.plan_cache with
-            | None -> ()
-            | Some cache ->
-                let keys =
-                  Hashtbl.fold
-                    (fun key (owner : plan_owner) acc ->
-                      if Array.exists (Int64.equal id) owner.dependencies then key :: acc else acc)
-                    c.plan_owners []
-                in
-                List.iter
-                  (fun key ->
-                    match Metal.Retained_render_plan.invalidate cache key with
-                    | Ok () -> ()
-                    | Error error -> record_cleanup (Some error))
-                  keys
-          in
-          let create_buffer descriptor =
-            match Buffer.create device ~memory:Buffer.Shared descriptor with
+          let register_buffer created =
+            match created with
             | Error _ as e -> e
             | Ok buffer ->
                 let id = token c in
@@ -687,7 +190,6 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity = 64)
                               Ok ()));
                     destroy =
                       (fun () ->
-                        invalidate_resource id;
                         match Buffer.destroy buffer with
                         | Error _ as e -> e
                         | Ok () ->
@@ -695,14 +197,14 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity = 64)
                             Ok ());
                   }
           in
-          let create_texture_format ~format ~host_read descriptor =
-            match
-              Texture.create device
-                ~memory:
-                  (if descriptor.Ogpu_core.Types.sample_count = 1 && host_read then Texture.Shared
-                   else Device_local)
-                ~format descriptor
-            with
+          let create_buffer memory descriptor =
+            register_buffer (Buffer.create device ~memory:(buffer_memory memory) descriptor)
+          in
+          let texture_memory ~host_read (descriptor : Ogpu_core.Types.texture_descriptor) =
+            if descriptor.sample_count = 1 && host_read then Texture.Shared else Device_local
+          in
+          let register_texture ~host_read (descriptor : Ogpu_core.Types.texture_descriptor) created =
+            match created with
             | Error _ as e -> e
             | Ok texture ->
                 let id = token c in
@@ -747,13 +249,16 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity = 64)
                     read_into;
                     destroy =
                       (fun () ->
-                        invalidate_resource id;
                         match Texture.destroy texture with
                         | Error _ as e -> e
                         | Ok () ->
                             Hashtbl.remove c.resources id;
                             Ok ());
                   }
+          in
+          let create_texture_format ~format ~host_read descriptor =
+            register_texture ~host_read descriptor
+              (Texture.create device ~memory:(texture_memory ~host_read descriptor) ~format descriptor)
           in
           let create_texture descriptor =
             create_texture_format ~format:Texture.Rgba8_unorm ~host_read:true descriptor
@@ -764,41 +269,314 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity = 64)
           let create_stencil_texture descriptor =
             create_texture_format ~format:Texture.Stencil8 ~host_read:false descriptor
           in
-          let invalidate_pipeline key id =
-            Hashtbl.iter
-              (fun _ cache -> cache.invalidate_classic_pipeline id)
-              c.classic_invalidators;
-            match c.plan_cache with
-            | None -> ()
-            | Some cache ->
-                let keys =
-                  Hashtbl.fold
-                    (fun plan_key (owner : plan_owner) acc ->
-                      if List.mem key owner.pipeline_keys then plan_key :: acc else acc)
-                    c.plan_owners []
-                in
-                List.iter
-                  (fun plan_key ->
-                    match Metal.Retained_render_plan.invalidate cache plan_key with
-                    | Ok () -> ()
-                    | Error error -> record_cleanup (Some error))
-                  keys
+          let native_resource token = Hashtbl.find_opt c.resources token in
+          let register_sync table native native_destroy operation =
+            let id = token c in
+            let rec entry =
+              { native; uses = 0; destroy_requested = false; dead = false; finish = (fun () -> finish ()) }
+            and finish () =
+              if entry.dead then Ok ()
+              else
+                match native_destroy native with
+                | Error e -> Error (Device.of_metal_error ~operation e)
+                | Ok () ->
+                    entry.dead <- true;
+                    Hashtbl.remove table id;
+                    Ok ()
+            in
+            Hashtbl.add table id entry;
+            (id, entry)
           in
-          let compact_sampler_cache () =
-            (* Cached pass descriptors borrow sampler wrappers between submissions.
-         Drop those descriptors, and retained plans that embed them, before
-         reclaiming cache entries. In-flight samplers reject destruction and
-         remain in the bounded cache until a later compaction. *)
-            Hashtbl.iter (fun _ cache -> cache.clear_classics ()) c.classic_invalidators;
-            Option.iter
-              (fun cache ->
-                let keys = Hashtbl.fold (fun key _ acc -> key :: acc) c.plan_owners [] in
-                List.iter (fun key -> ignore (Metal.Retained_render_plan.invalidate cache key)) keys)
-              c.plan_cache;
-            Hashtbl.filter_map_inplace
-              (fun _ sampler ->
-                match Sampler.destroy sampler with Ok () -> None | Error _ -> Some sampler)
-              c.sampler_cache
+          let sync_destroy (entry : _ sync_entry) () =
+            if entry.dead then Ok ()
+            else if entry.uses > 0 then begin
+              entry.destroy_requested <- true;
+              Ok ()
+            end
+            else entry.finish ()
+          in
+          let find_sync operation table what token =
+            match Hashtbl.find_opt table token with
+            | Some (entry : _ sync_entry) when not entry.dead -> Ok entry
+            | _ -> error operation Ogpu_core.Error.Invalid_argument (what ^ " graph is incomplete")
+          in
+          let of_metal operation = function
+            | Error e -> Error (Device.of_metal_error ~operation e)
+            | Ok x -> Ok x
+          in
+          let metal_device = Device.Private.metal device in
+          let create_heap (descriptor : Ogpu_core.Backend.heap_descriptor) =
+            let operation = "Ogpu_metal.Backend.create_heap" in
+            let storage =
+              match descriptor.heap_memory with
+              | Ogpu_core.Types.Shared -> Metal.Buffer.Shared
+              | Ogpu_core.Types.Device_local -> Metal.Buffer.Private
+            in
+            if descriptor.heap_sparse && descriptor.heap_memory <> Ogpu_core.Types.Device_local then
+              error operation Ogpu_core.Error.Invalid_argument "sparse heaps are device-local"
+            else
+            let created =
+              if descriptor.heap_sparse then
+                  Metal.Heap.create ~device:metal_device
+                    (Metal.Heap.make_descriptor ~storage ~hazard_tracking:Metal.Heap.Tracked ~kind:Metal.Heap.Sparse
+                       ~sparse_page_size:Metal.Sparse_page_size.Page_16_kib ?label:descriptor.heap_label
+                       ~size:descriptor.heap_size ())
+              else
+                Metal.Heap.create ~device:metal_device
+                  (Metal.Heap.make_descriptor ~storage
+                     ~hazard_tracking:(if descriptor.heap_tracked then Metal.Heap.Tracked else Metal.Heap.Untracked)
+                     ~kind:Metal.Heap.Placement ?label:descriptor.heap_label ~size:descriptor.heap_size ())
+            in
+            match created with
+            | Error e -> Error (Device.of_metal_error ~operation e)
+            | Ok heap ->
+                let id, entry = register_sync c.heaps heap Metal.Heap.destroy "Ogpu_metal.Backend.destroy_heap" in
+                Ok
+                  {
+                    Ogpu_core.Backend.heap_token = id;
+                    heap_buffer =
+                      (fun ~offset buffer_descriptor ->
+                        register_buffer
+                          (Buffer.create_in_heap device ~memory:(buffer_memory descriptor.heap_memory) heap ~offset
+                             buffer_descriptor));
+                    heap_texture =
+                      (fun ~offset texture_descriptor ->
+                        register_texture ~host_read:(descriptor.heap_memory = Ogpu_core.Types.Shared) texture_descriptor
+                          (Texture.create_in_heap device
+                             ~memory:(match descriptor.heap_memory with Shared -> Texture.Shared | Device_local -> Device_local)
+                             heap ~offset ~format:Texture.Rgba8_unorm texture_descriptor));
+                    heap_alias =
+                      (fun token ->
+                        let operation = "Ogpu_metal.Backend.make_aliasable" in
+                        match native_resource token with
+                        | Some (Buffer buffer) -> of_metal operation (Metal.Buffer.make_aliasable (Buffer.Private.metal buffer))
+                        | Some (Texture texture) -> of_metal operation (Metal.Texture.make_aliasable (Texture.Private.metal texture))
+                        | None -> error operation Ogpu_core.Error.Invalid_argument "resource graph is incomplete");
+                    destroy_heap = sync_destroy entry;
+                  }
+          in
+          let heap_placement = function
+            | Ogpu_core.Backend.Buffer_placement (memory, length) -> (
+                let storage =
+                  match memory with
+                  | Ogpu_core.Types.Shared -> Metal.Buffer.Shared
+                  | Ogpu_core.Types.Device_local -> Metal.Buffer.Private
+                in
+                match Metal.Heap.buffer_size_and_align ~device:metal_device ~length ~storage () with
+                | Error e -> Error (Device.of_metal_error ~operation:"Ogpu_metal.Backend.buffer_placement" e)
+                | Ok sizes -> Ok { Ogpu_core.Backend.placement_size = sizes.size; placement_alignment = sizes.alignment })
+            | Texture_placement descriptor -> (
+                match Texture.placement device ~memory:Texture.Device_local ~format:Texture.Rgba8_unorm descriptor with
+                | Error _ as e -> e
+                | Ok (size, alignment) -> Ok { Ogpu_core.Backend.placement_size = size; placement_alignment = alignment })
+          in
+          let residency_allocation operation = function
+            | Ogpu_core.Backend.Resident_buffer token -> (
+                match native_resource token with
+                | Some (Buffer buffer) -> Ok (Metal.Residency_set.Buffer (Buffer.Private.metal buffer))
+                | _ -> error operation Ogpu_core.Error.Invalid_argument "buffer graph is incomplete")
+            | Resident_texture token -> (
+                match native_resource token with
+                | Some (Texture texture) -> Ok (Metal.Residency_set.Texture (Texture.Private.metal texture))
+                | _ -> error operation Ogpu_core.Error.Invalid_argument "texture graph is incomplete")
+            | Resident_heap token ->
+                Result.map (fun (entry : _ sync_entry) -> Metal.Residency_set.Heap entry.native)
+                  (find_sync operation c.heaps "heap" token)
+          in
+          let create_residency ~capacity ~label =
+            let operation = "Ogpu_metal.Backend.create_residency_set" in
+            match
+              Metal.Residency_set.create ~device:metal_device
+                (Metal.Residency_set.make_descriptor ?label ~initial_capacity:capacity ())
+            with
+            | Error e -> Error (Device.of_metal_error ~operation e)
+            | Ok set ->
+                let id, entry =
+                  register_sync c.residency set Metal.Residency_set.destroy "Ogpu_metal.Backend.destroy_residency_set"
+                in
+                let change operation apply item =
+                  match residency_allocation operation item with
+                  | Error _ as e -> e
+                  | Ok allocation -> of_metal operation (apply set allocation)
+                in
+                Ok
+                  {
+                    Ogpu_core.Backend.residency_token = id;
+                    residency_add = change "Ogpu_metal.Backend.residency_add" Metal.Residency_set.add_allocation;
+                    residency_remove = change "Ogpu_metal.Backend.residency_remove" Metal.Residency_set.remove_allocation;
+                    residency_commit =
+                      (fun () -> of_metal "Ogpu_metal.Backend.residency_commit" (Metal.Residency_set.commit set));
+                    residency_size =
+                      (fun () -> of_metal "Ogpu_metal.Backend.residency_size" (Metal.Residency_set.allocated_size set));
+                    destroy_residency = sync_destroy entry;
+                  }
+          in
+          let create_fence () =
+            match Metal.Fence.create metal_device with
+            | Error e -> Error (Device.of_metal_error ~operation:"Ogpu_metal.Backend.create_fence" e)
+            | Ok fence ->
+                let id, entry = register_sync c.fences fence Metal.Fence.destroy "Ogpu_metal.Backend.destroy_fence" in
+                Ok { Ogpu_core.Backend.fence_token = id; destroy_fence = sync_destroy entry }
+          in
+          let create_event () =
+            match Metal.Device.new_shared_event metal_device with
+            | Error e -> Error (Device.of_metal_error ~operation:"Ogpu_metal.Backend.create_event" e)
+            | Ok event ->
+                let id, entry =
+                  register_sync c.events event Metal.Shared_event.destroy "Ogpu_metal.Backend.destroy_event"
+                in
+                Ok
+                  {
+                    Ogpu_core.Backend.event_token = id;
+                    event_value =
+                      (fun () -> of_metal "Ogpu_metal.Backend.event_value" (Metal.Shared_event.signaled_value event));
+                    event_signal =
+                      (fun value ->
+                        of_metal "Ogpu_metal.Backend.signal_event" (Metal.Shared_event.set_signaled_value event value));
+                    event_wait =
+                      (fun value ~timeout_ms ->
+                        of_metal "Ogpu_metal.Backend.wait_event"
+                          (Metal.Shared_event.wait_until_signaled event ~value ~timeout_ms:(Int64.of_int timeout_ms)));
+                    destroy_event = sync_destroy entry;
+                  }
+          in
+          let create_timestamps ~count =
+            let operation = "Ogpu_metal.Backend.create_timestamps" in
+            match Metal.Resource100.Sample_buffer.create metal_device ~sample_count:(Int64.of_int count) () with
+            | Error e -> Error (Device.of_metal_error ~operation e)
+            | Ok samples ->
+                let id, entry =
+                  register_sync c.samples samples Metal.Resource100.Sample_buffer.destroy
+                    "Ogpu_metal.Backend.destroy_timestamps"
+                in
+                Ok
+                  {
+                    Ogpu_core.Backend.timestamps_token = id;
+                    timestamps_read =
+                      (fun ~first ~count ->
+                        let operation = "Ogpu_metal.Backend.read_timestamps" in
+                        match Metal.Counters.resolve samples ~first:(Int64.of_int first) ~count:(Int64.of_int count) with
+                        | Error e -> Error (Device.of_metal_error ~operation e)
+                        | Ok bytes ->
+                            if Bytes.length bytes <> 8 * count then
+                              error operation Ogpu_core.Error.Invalid_state
+                                "resolved timestamp bytes do not match the sample count"
+                            else Ok (Array.init count (fun i -> Bytes.get_int64_le bytes (i * 8))));
+                    destroy_timestamps = sync_destroy entry;
+                  }
+          in
+          let timestamp_reference () =
+            let operation = "Ogpu_metal.Backend.timestamp_reference" in
+            match Metal.Device.sample_timestamps metal_device with
+            | Error e -> Error (Device.of_metal_error ~operation e)
+            | Ok (cpu_nanoseconds, gpu_timestamp) -> (
+                match Metal.Device.timestamp_frequency metal_device with
+                | Error e -> Error (Device.of_metal_error ~operation e)
+                | Ok gpu_frequency -> Ok { Ogpu_core.Backend.cpu_nanoseconds; gpu_timestamp; gpu_frequency })
+          in
+          let finish_table_destroy entry =
+            let operation = "Ogpu_metal.Backend.destroy_table" in
+            (* The table holds a dependent on every function handle it binds,
+               so it goes first and releases them for destruction. *)
+            let destroyed =
+              match entry.table with
+              | `Intersection table -> Metal.Intersection_function_table.destroy table
+              | `Visible table -> Metal.Visible_function_table.destroy table
+            in
+            let handles = entry.table_handles in
+            entry.table_handles <- [];
+            let released =
+              List.fold_left
+                (fun result handle ->
+                  match (result, Metal.Function_handle.destroy handle) with
+                  | Ok (), Error e -> Error (Device.of_metal_error ~operation e)
+                  | result, _ -> result)
+                (Ok ()) handles
+            in
+            match (destroyed, released) with
+            | Error e, _ -> Error (Device.of_metal_error ~operation e)
+            | Ok (), (Error _ as e) -> e
+            | Ok (), Ok () -> Ok ()
+          in
+          let create_table pipeline ~intersection ~capacity =
+            let operation = "Ogpu_metal.Backend.create_table" in
+            match Pipeline.Private.native pipeline with
+            | Render _ ->
+                error operation Ogpu_core.Error.Invalid_argument
+                  "function tables belong to compute pipelines"
+            | Compute compute -> (
+                let created =
+                  if intersection then
+                    Result.map (fun t -> `Intersection t)
+                      (Metal.Intersection_function_table.create ~pipeline:compute ~capacity)
+                  else
+                    Result.map (fun t -> `Visible t)
+                      (Metal.Visible_function_table.create ~pipeline:compute ~capacity)
+                in
+                match created with
+                | Error e -> Error (Device.of_metal_error ~operation e)
+                | Ok table ->
+                    let id = token c in
+                    let entry =
+                      { table; table_handles = []; table_uses = 0
+                      ; table_destroy_requested = false }
+                    in
+                    Hashtbl.add c.tables id entry;
+                    let handle_of name =
+                      match Pipeline.Private.linked_function pipeline name with
+                      | None ->
+                          error operation Ogpu_core.Error.Invalid_argument
+                            "function is not linked into the table's pipeline"
+                      | Some function_ -> (
+                          match Metal.Function_handle.create ~pipeline:compute ~function_ with
+                          | Error e -> Error (Device.of_metal_error ~operation e)
+                          | Ok handle ->
+                              entry.table_handles <- handle :: entry.table_handles;
+                              Ok handle)
+                    in
+                    Ok
+                      {
+                        Ogpu_core.Backend.table_token = id;
+                        table_set_function =
+                          (fun ~index name ->
+                            match handle_of name with
+                            | Error _ as e -> e
+                            | Ok handle ->
+                                let set =
+                                  match table with
+                                  | `Intersection t ->
+                                      Metal.Intersection_function_table.set_function t ~index (Some handle)
+                                  | `Visible t ->
+                                      Metal.Visible_function_table.set_function t ~index (Some handle)
+                                in
+                                Result.map_error (Device.of_metal_error ~operation) set);
+                        table_set_buffer =
+                          (fun ~index buffer_token ~offset ->
+                            match (table, native_resource buffer_token) with
+                            | `Intersection t, Some (Buffer buffer) ->
+                                Result.map_error (Device.of_metal_error ~operation)
+                                  (Metal.Intersection_function_table.set_buffer t ~index ~offset
+                                     (Some (Buffer.Private.metal buffer)))
+                            | `Visible _, _ ->
+                                error operation Ogpu_core.Error.Invalid_argument
+                                  "visible function tables bind no buffers"
+                            | _, _ ->
+                                error operation Ogpu_core.Error.Invalid_argument
+                                  "table buffer graph is incomplete");
+                        destroy_table =
+                          (fun () ->
+                            if entry.table_uses > 0 then begin
+                              entry.table_destroy_requested <- true;
+                              Hashtbl.remove c.tables id;
+                              Ok ()
+                            end
+                            else
+                              match finish_table_destroy entry with
+                              | Error _ as e -> e
+                              | Ok () ->
+                                  Hashtbl.remove c.tables id;
+                                  Ok ());
+                      })
           in
           let own_pipeline pipeline =
             let id = token c in
@@ -806,9 +584,9 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity = 64)
             Ok
               {
                 Ogpu_core.Backend.pipeline_token = id;
+                create_table = create_table pipeline;
                 destroy_pipeline =
                   (fun () ->
-                    invalidate_pipeline (Pipeline.key pipeline) id;
                     match Pipeline.destroy pipeline with
                     | Error _ as failure -> failure
                     | Ok () ->
@@ -816,1949 +594,549 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity = 64)
                         Ok ());
               }
           in
-          let create_pipeline portable =
-            match Hashtbl.find_opt c.pipelines (Ogpu_core.Pipeline.cache_key portable) with
-            | None ->
-                error "Ogpu_metal.Backend.create_pipeline" Ogpu_core.Error.Invalid_argument
-                  "portable pipeline was not registered with the Metal adapter"
-            | Some pipeline -> own_pipeline pipeline
+          let archive_list operation tokens =
+            List.fold_left
+              (fun result token ->
+                match result with
+                | Error _ as failure -> failure
+                | Ok acc ->
+                    Result.map (fun (entry : _ sync_entry) -> entry.native :: acc)
+                      (find_sync operation c.archives "archive" token))
+              (Ok []) tokens
+            |> Result.map List.rev
           in
-          let create_compute_pipeline descriptor =
-            match Pipeline.create_cache ~capacity:1 with
+          let create_library shader ~dynamic =
+            let operation = "Ogpu_metal.Backend.create_library" in
+            let dynamic =
+              List.fold_left
+                (fun result token ->
+                  match result with
+                  | Error _ as failure -> failure
+                  | Ok acc ->
+                      Result.map (fun (entry : _ sync_entry) -> fst entry.native :: acc)
+                        (find_sync operation c.dynamics "dynamic library" token))
+                (Ok []) dynamic
+              |> Result.map List.rev
+            in
+            match dynamic with
             | Error _ as failure -> failure
-            | Ok cache -> (
-                match Pipeline.create_compute cache device descriptor with
+            | Ok dynamic -> (
+            match Library.create ~dynamic device shader with
+            | Error _ as failure -> failure
+            | Ok library ->
+                let id = token c in
+                Hashtbl.add c.libraries id library;
+                Ok
+                  {
+                    Ogpu_core.Backend.library_token = id;
+                    create_compute_pipeline_in =
+                      (fun ~entry ~constants ~interface ~linked ~archives ~archive_only ->
+                        match archive_list "Ogpu_metal.Backend.create_compute_pipeline" archives with
+                        | Error _ as failure -> failure
+                        | Ok archives -> (
+                        match
+                          Pipeline.create_compute_from_library ~linked ~archives ~archive_only device library ~entry ~constants
+                            ~interface
+                        with
+                        | Error _ as failure -> failure
+                        | Ok pipeline -> own_pipeline pipeline));
+                    destroy_library =
+                      (fun () ->
+                        match Library.destroy library with
+                        | Error _ as failure -> failure
+                        | Ok () ->
+                            Hashtbl.remove c.libraries id;
+                            Ok ());
+                  })
+          in
+          let find_library operation token =
+            match Hashtbl.find_opt c.libraries token with
+            | Some library -> Ok library
+            | None -> error operation Ogpu_core.Error.Invalid_argument "library graph is incomplete"
+          in
+          let create_mesh_pipeline (o : Ogpu_core.Backend.driver_mesh_options) =
+            let operation = "Ogpu_metal.Backend.create_mesh_pipeline" in
+            match (find_library operation o.mesh_library, archive_list operation o.mesh_archives) with
+            | Error e, _ | _, Error e -> Error e
+            | Ok library, Ok archives -> (
+                match
+                  Pipeline.create_mesh ?label:o.mesh_label ~blend:o.mesh_blend ~archives ~archive_only:o.mesh_archive_only device library
+                    ~object_entry:o.mesh_object_entry ~mesh_entry:o.mesh_entry ~fragment_entry:o.mesh_fragment_entry
+                    ~color:o.mesh_color ~mesh_threads:o.mesh_threads ~object_threads:o.object_threads
+                with
                 | Error _ as failure -> failure
                 | Ok pipeline -> own_pipeline pipeline)
           in
-          let native_resource token = Hashtbl.find_opt c.resources token in
+          let create_tile_pipeline (o : Ogpu_core.Backend.driver_tile_options) =
+            let operation = "Ogpu_metal.Backend.create_tile_pipeline" in
+            match (find_library operation o.tile_library, archive_list operation o.tile_archives) with
+            | Error e, _ | _, Error e -> Error e
+            | Ok library, Ok archives -> (
+                match
+                  Pipeline.create_tile ?label:o.tile_label ~archives ~archive_only:o.tile_archive_only device library
+                    ~tile_entry:o.tile_entry ~color:o.tile_color ~tile_threads:o.tile_threads
+                with
+                | Error _ as failure -> failure
+                | Ok pipeline -> own_pipeline pipeline)
+          in
+          let create_dynamic_library ~install_name shader =
+            let operation = "Ogpu_metal.Backend.create_dynamic_library" in
+            if Ogpu_core.Shader.backend shader <> "metal" || Ogpu_core.Shader.format shader <> Ogpu_core.Shader.Msl_source then
+              error operation Ogpu_core.Error.Invalid_argument "dynamic libraries compile from MSL source"
+            else
+              match
+                Metal.Library.compile_dynamic_source ?label:(Ogpu_core.Shader.label shader) ~device:metal_device ~install_name
+                  (Bytes.to_string (Ogpu_core.Shader.bytes shader))
+              with
+              | Error e -> Error (Device.of_metal_error ~operation e)
+              | Ok source -> (
+                  (* Metal resolves a pipeline's dynamic symbols from a library
+                     loaded by its install name, so the compiled library is
+                     serialized there (or to a temporary file for an
+                     @rpath-style name) and loaded back. *)
+                  let path =
+                    if Filename.is_relative install_name then Filename.temp_file "prismel-dynamic" ".metallib"
+                    else install_name
+                  in
+                  let loaded =
+                    match Metal.Dynamic_library.create ?label:(Ogpu_core.Shader.label shader) source with
+                    | Error _ as failure -> failure
+                    | Ok compiled -> (
+                        let serialized = Metal.Dynamic_library.serialize compiled path in
+                        ignore (Metal.Dynamic_library.destroy compiled);
+                        match serialized with
+                        | Error _ as failure -> failure
+                        | Ok () -> Metal.Dynamic_library.load_file ?label:(Ogpu_core.Shader.label shader) ~device:metal_device path)
+                  in
+                  match loaded with
+                  | Error e ->
+                      ignore (Metal.Library.destroy source);
+                      Error (Device.of_metal_error ~operation e)
+                  | Ok dynamic ->
+                      let id, entry =
+                        register_sync c.dynamics (dynamic, source)
+                          (fun (dynamic, source) ->
+                            match Metal.Dynamic_library.destroy dynamic with
+                            | Error _ as failure -> failure
+                            | Ok () ->
+                                (try Sys.remove path with Sys_error _ -> ());
+                                Metal.Library.destroy source)
+                          "Ogpu_metal.Backend.destroy_dynamic_library"
+                      in
+                      Ok { Ogpu_core.Backend.dynamic_token = id; destroy_dynamic = sync_destroy entry })
+          in
+          let create_archive ~path =
+            let operation = "Ogpu_metal.Backend.create_archive" in
+            match Metal.Binary_archive.create ?path metal_device with
+            | Error e -> Error (Device.of_metal_error ~operation e)
+            | Ok archive ->
+                let id, entry =
+                  register_sync c.archives archive Metal.Binary_archive.destroy "Ogpu_metal.Backend.destroy_archive"
+                in
+                Ok
+                  {
+                    Ogpu_core.Backend.archive_token = id;
+                    archive_add =
+                      (fun token ->
+                        let operation = "Ogpu_metal.Backend.archive_add" in
+                        match Hashtbl.find_opt c.pipeline_tokens token with
+                        | None -> error operation Ogpu_core.Error.Invalid_argument "pipeline graph is incomplete"
+                        | Some pipeline -> (
+                            let functions = Pipeline.Private.functions pipeline in
+                            match (Pipeline.Private.native pipeline, functions) with
+                            | Compute _, entry :: _ ->
+                                of_metal operation (Metal.Binary_archive.add_compute_functions archive entry)
+                            | Render native, functions -> (
+                                match (Metal.Render_pipeline.kind native, Metal.Render_pipeline.color_formats native, functions) with
+                                | Mesh, color_format :: _, mesh :: fragment :: _ ->
+                                    of_metal operation
+                                      (Metal.Binary_archive.add_mesh_render_pipeline archive ~mesh ~fragment ~color_format ())
+                                | Tile, color_format :: _, tile :: _ ->
+                                    of_metal operation (Metal.Binary_archive.add_tile_render_pipeline archive ~tile ~color_format)
+                                | _ ->
+                                    error operation Ogpu_core.Error.Unsupported
+                                      "vertex/fragment render pipelines are compiled by the Metal 4 compiler and are not archived")
+                            | Compute _, [] ->
+                                error operation Ogpu_core.Error.Invalid_state "compute pipeline lost its entry function"));
+                    archive_serialize =
+                      (fun path -> of_metal "Ogpu_metal.Backend.archive_serialize" (Metal.Binary_archive.serialize archive path));
+                    destroy_archive = sync_destroy entry;
+                  }
+          in
+          let create_sparse_texture ~heap descriptor =
+            let operation = "Ogpu_metal.Backend.create_sparse_texture" in
+            match find_sync operation c.heaps "heap" heap with
+            | Error _ as failure -> failure
+            | Ok entry ->
+                register_texture ~host_read:false descriptor
+                  (Texture.create_sparse device entry.native ~format:Texture.Rgba8_unorm descriptor)
+          in
+          let texture_tile token =
+            let operation = "Ogpu_metal.Backend.texture_tile" in
+            match native_resource token with
+            | Some (Texture texture) -> (
+                match Metal.Texture.sparse_info (Texture.Private.metal texture) with
+                | Error e -> Error (Device.of_metal_error ~operation e)
+                | Ok None -> error operation Ogpu_core.Error.Invalid_argument "texture is not sparse"
+                | Ok (Some info) -> Ok (info.tile_width, info.tile_height))
+            | _ -> error operation Ogpu_core.Error.Invalid_argument "texture graph is incomplete"
+          in
+          let create_upscaler ~input ~output =
+            let operation = "Ogpu_metal.Backend.create_upscaler" in
+            match
+              Metal.Fx.Spatial_scaler.create metal_device ~input ~output ~color_format:Metal.Texture.Rgba8_unorm
+                ~output_format:Metal.Texture.Rgba8_unorm
+            with
+            | Error e -> Error (Device.of_metal_error ~operation e)
+            | Ok scaler ->
+                let id, entry =
+                  register_sync c.upscalers scaler Metal.Fx.Spatial_scaler.destroy "Ogpu_metal.Backend.destroy_upscaler"
+                in
+                Ok { Ogpu_core.Backend.upscaler_token = id; destroy_upscaler = sync_destroy entry }
+          in
+          let create_accel descriptor =
+            let operation = "Ogpu_metal.Backend.create_accel" in
+            let resolve_buffer token =
+              match native_resource token with
+              | Some (Buffer buffer) -> Ok buffer
+              | _ ->
+                  error operation Ogpu_core.Error.Invalid_argument
+                    "acceleration buffer graph is incomplete"
+            in
+            let resolve_structure token =
+              match Hashtbl.find_opt c.accels token with
+              | Some structure -> Ok structure
+              | None ->
+                  error operation Ogpu_core.Error.Invalid_argument
+                    "acceleration structure graph is incomplete"
+            in
+            match Acceleration.create device descriptor ~resolve_buffer ~resolve_structure with
+            | Error _ as failure -> failure
+            | Ok structure ->
+                let id = token c in
+                Hashtbl.add c.accels id structure;
+                let sizes = Acceleration.sizes structure in
+                Ok
+                  {
+                    Ogpu_core.Backend.accel_token = id;
+                    accel_sizes =
+                      {
+                        structure_size = sizes.acceleration_structure_size;
+                        build_scratch_size = sizes.build_scratch_buffer_size;
+                        refit_scratch_size = sizes.refit_scratch_buffer_size;
+                      };
+                    destroy_accel =
+                      (fun () ->
+                        match Acceleration.destroy structure with
+                        | Error _ as failure -> failure
+                        | Ok () ->
+                            Hashtbl.remove c.accels id;
+                            Ok ());
+                  }
+          in
+          let instance_layout kind =
+            let layout =
+              Metal.Acceleration_structure.Build.instance_layout
+                (match kind with
+                 | Ogpu_core.Backend.Default_instances -> Metal.Acceleration_structure.Build.Default_instances
+                 | User_id_instances -> User_id_instances
+                 | Motion_instances -> Motion_instances)
+            in
+            [| layout.size; layout.transform; layout.options; layout.mask; layout.table_offset
+             ; layout.structure_index; layout.user_id; layout.transforms_start; layout.transforms_count
+             ; layout.start_border_offset; layout.end_border_offset; layout.start_time_offset
+             ; layout.end_time_offset |]
+          in
+          let create_sampler descriptor =
+            match Sampler.create device descriptor with
+            | Error _ as failure -> failure
+            | Ok sampler ->
+                let id = token c in
+                Hashtbl.add c.sampler_tokens id sampler;
+                Ok
+                  {
+                    Ogpu_core.Backend.sampler_token = id;
+                    destroy_sampler =
+                      (fun () ->
+                        match Sampler.destroy sampler with
+                        | Error _ as failure -> failure
+                        | Ok () ->
+                            Hashtbl.remove c.sampler_tokens id;
+                            Ok ());
+                  }
+          in
+          let create_render_pipeline (options : Ogpu_core.Backend.render_pipeline_options)
+              descriptor =
+            if options.archives <> [] then
+              error "Ogpu_metal.Backend.create_render_pipeline" Ogpu_core.Error.Unsupported
+                "vertex/fragment render pipelines are compiled by the Metal 4 compiler and are not archived"
+            else
+            let primitive_topology =
+              match options.topology with
+              | Ogpu_core.Render_pass.Point_list -> Metal.Render_pipeline.Point
+              | _ -> Metal.Render_pipeline.Triangle
+            in
+            match
+              Pipeline.create_render_owned ~indirect:options.indirect ~primitive_topology
+                ~blend:options.blend device descriptor
+            with
+            | Error _ as failure -> failure
+            | Ok pipeline -> own_pipeline pipeline
+          in
+          let create_icb ~max_commands =
+            let operation = "Ogpu_metal.Backend.create_icb" in
+            let descriptor =
+              Metal.Indirect_command_buffer.descriptor ~inherit_buffers:false
+                ~inherit_pipeline_state:false ~max_vertex_buffer_bind_count:8
+                ~max_fragment_buffer_bind_count:8
+                ~command_types:
+                  [ Metal.Indirect_command_buffer.Indirect_draw; Indirect_draw_indexed ]
+                ()
+            in
+            match
+              Metal.Indirect_command_buffer.create ~device:(Device.Private.metal device)
+                ~max_command_count:max_commands descriptor
+            with
+            | Error e -> Error (Device.of_metal_error ~operation e)
+            | Ok icb ->
+                let id = token c in
+                let entry = { icb; icb_commands = Array.make max_commands None } in
+                Hashtbl.add c.icbs id entry;
+                let native_of = function
+                  | Error e -> Error (Device.of_metal_error ~operation e)
+                  | Ok x -> Ok x
+                in
+                let command index =
+                  match entry.icb_commands.(index) with
+                  | Some command -> Ok command
+                  | None -> (
+                      match Metal.Indirect_command_buffer.Render_command.at icb index with
+                      | Error e -> Error (Device.of_metal_error ~operation e)
+                      | Ok command ->
+                          entry.icb_commands.(index) <- Some command;
+                          Ok command)
+                in
+                let buffer token =
+                  match native_resource token with
+                  | Some (Buffer buffer) -> Ok buffer
+                  | _ ->
+                      error operation Ogpu_core.Error.Invalid_argument
+                        "buffer graph is incomplete"
+                in
+                let primitive = function
+                  | Ogpu_core.Render_pass.Point_list ->
+                      Metal.Indirect_command_buffer.Render_command.Point
+                  | Line_list -> Line
+                  | Triangle_list -> Triangle
+                  | Triangle_strip -> Triangle_strip
+                in
+                Ok
+                  {
+                    Ogpu_core.Backend.icb_token = id;
+                    icb_reset =
+                      (fun ~location ~length ->
+                        native_of (Metal.Indirect_command_buffer.reset icb ~location ~length));
+                    icb_set_pipeline =
+                      (fun ~index token ->
+                        match Hashtbl.find_opt c.pipeline_tokens token with
+                        | None ->
+                            error operation Ogpu_core.Error.Invalid_argument
+                              "pipeline graph is incomplete"
+                        | Some pipeline -> (
+                            match Pipeline.Private.native pipeline with
+                            | Compute _ ->
+                                error operation Ogpu_core.Error.Invalid_argument
+                                  "compute pipeline cannot draw"
+                            | Render native -> (
+                                match command index with
+                                | Error _ as failure -> failure
+                                | Ok command ->
+                                    native_of
+                                      (Metal.Indirect_command_buffer.Render_command.set_pipeline
+                                         command native))));
+                    icb_set_buffer =
+                      (fun ~index stage ~slot ~offset token ->
+                        match (command index, buffer token) with
+                        | Error e, _ | _, Error e -> Error e
+                        | Ok command, Ok buffer ->
+                            (match stage with
+                             | Ogpu_core.Backend.Vertex ->
+                                 native_of (Metal.Indirect_command_buffer.Render_command.set_vertex_buffer command ~index:slot ~offset (Buffer.Private.metal buffer))
+                             | Fragment ->
+                                 native_of (Metal.Indirect_command_buffer.Render_command.set_fragment_buffer command ~index:slot ~offset (Buffer.Private.metal buffer))
+                             | Object | Mesh | Tile ->
+                                 error operation Ogpu_core.Error.Unsupported "indirect commands bind vertex and fragment buffers only"));
+                    icb_draw =
+                      (fun ~index ~primitive:kind ~first ~count ~instances ->
+                        match command index with
+                        | Error _ as failure -> failure
+                        | Ok command ->
+                            native_of
+                              (Metal.Indirect_command_buffer.Render_command.draw_primitives
+                                 command ~primitive:(primitive kind) ~vertex_start:first
+                                 ~vertex_count:count ~instance_count:instances ()));
+                    icb_draw_indexed =
+                      (fun ~index ~primitive:kind ~index_type token ~offset ~count ~instances ->
+                        match (command index, buffer token) with
+                        | Error e, _ | _, Error e -> Error e
+                        | Ok command, Ok index_buffer ->
+                            native_of
+                              (Metal.Indirect_command_buffer.Render_command.draw_indexed command
+                                 ~primitive:(primitive kind)
+                                 ~index_type:
+                                   (match index_type with
+                                   | Ogpu_core.Render_pass.Uint16 -> Uint16
+                                   | Uint32 -> Uint32)
+                                 ~index_buffer:(Buffer.Private.metal index_buffer)
+                                 ~index_offset:offset ~index_count:count
+                                 ~instance_count:(Int64.of_int instances) ()));
+                    destroy_icb =
+                      (fun () ->
+                        Array.iteri
+                          (fun index command ->
+                            Option.iter
+                              (fun command ->
+                                ignore
+                                  (Metal.Indirect_command_buffer.Render_command.destroy command);
+                                entry.icb_commands.(index) <- None)
+                              command)
+                          entry.icb_commands;
+                        match Metal.Indirect_command_buffer.destroy icb with
+                        | Error e -> Error (Device.of_metal_error ~operation e)
+                        | Ok () ->
+                            Hashtbl.remove c.icbs id;
+                            Ok ());
+                  }
+          in
+          let create_argument ~pipeline stage ~index =
+            let operation = "Ogpu_metal.Backend.create_argument" in
+            match Hashtbl.find_opt c.pipeline_tokens pipeline with
+            | None ->
+                error operation Ogpu_core.Error.Invalid_argument "pipeline graph is incomplete"
+            | Some pipeline -> (
+                match stage with
+                | Ogpu_core.Backend.Vertex | Object | Mesh | Tile ->
+                    error operation Ogpu_core.Error.Unsupported
+                      "argument encoders are exposed for fragment functions"
+                | Fragment -> (
+                    match Pipeline.Private.argument_encoder pipeline ~buffer_index:(Int64.of_int index) with
+                    | Error _ as failure -> failure
+                    | Ok encoder ->
+                        let id = token c in
+                        Hashtbl.add c.arguments id encoder;
+                        let native_of = function
+                          | Error e -> Error (Device.of_metal_error ~operation e)
+                          | Ok x -> Ok x
+                        in
+                        (* A Metal argument encoder keeps its last-set resources
+                           alive; encode each slice through a short-lived
+                           encoder so evicted textures can be released. *)
+                        let encode buffer offset resource =
+                          match native_resource buffer with
+                          | Some (Buffer buffer) -> (
+                              match
+                                Pipeline.Private.argument_encoder pipeline
+                                  ~buffer_index:(Int64.of_int index)
+                              with
+                              | Error _ as failure -> failure
+                              | Ok scratch ->
+                                  let finish result =
+                                    ignore (Metal.Shader_argument_encoder.destroy scratch);
+                                    native_of result
+                                  in
+                                  (match
+                                     Metal.Shader_argument_encoder.set_argument_buffer scratch
+                                       (Buffer.Private.metal buffer) ~offset ()
+                                   with
+                                  | Error _ as failure -> finish failure
+                                  | Ok () -> finish (resource scratch)))
+                          | _ ->
+                              error operation Ogpu_core.Error.Invalid_argument
+                                "buffer graph is incomplete"
+                        in
+                        Ok
+                          {
+                            Ogpu_core.Backend.argument_token = id;
+                            argument_length =
+                              Int64.to_int (Metal.Shader_argument_encoder.encoded_length encoder);
+                            argument_alignment =
+                              Int64.to_int (Metal.Shader_argument_encoder.alignment encoder);
+                            argument_texture =
+                              (fun ~buffer ~offset ~slot texture ->
+                                match native_resource texture with
+                                | Some (Texture texture) ->
+                                    encode buffer offset (fun scratch ->
+                                        Metal.Shader_argument_encoder.set scratch
+                                          ~index:(Int64.of_int slot)
+                                          (Metal.Shader_argument_encoder.Texture
+                                             (Texture.Private.metal texture)))
+                                | _ ->
+                                    error operation Ogpu_core.Error.Invalid_argument
+                                      "texture graph is incomplete");
+                            argument_sampler =
+                              (fun ~buffer ~offset ~slot sampler ->
+                                match Hashtbl.find_opt c.sampler_tokens sampler with
+                                | Some sampler ->
+                                    encode buffer offset (fun scratch ->
+                                        Metal.Shader_argument_encoder.set scratch
+                                          ~index:(Int64.of_int slot)
+                                          (Metal.Shader_argument_encoder.Sampler
+                                             (Sampler.Private.metal sampler)))
+                                | None ->
+                                    error operation Ogpu_core.Error.Invalid_argument
+                                      "sampler graph is incomplete");
+                            destroy_argument =
+                              (fun () ->
+                                match Metal.Shader_argument_encoder.destroy encoder with
+                                | Error e -> Error (Device.of_metal_error ~operation e)
+                                | Ok () ->
+                                    Hashtbl.remove c.arguments id;
+                                    Ok ());
+                          }))
+          in
+          let depth_state_for (state : Ogpu_core.Backend.depth_state) =
+            let operation = "Ogpu_metal.Backend.depth_state" in
+            match Hashtbl.find_opt c.depth_states state with
+            | Some native -> Ok native
+            | None ->
+                if Hashtbl.length c.depth_states >= 64 then begin
+                  Hashtbl.iter (fun _ native -> ignore (Metal.Depth_stencil.destroy native)) c.depth_states;
+                  Hashtbl.reset c.depth_states
+                end;
+                let face (f : Ogpu_core.Render_pass.stencil_face) =
+                  Metal.Depth_stencil.face ~compare:(metal_compare f.compare)
+                    ~stencil_fail:(metal_operation f.stencil_fail)
+                    ~depth_fail:(metal_operation f.depth_fail)
+                    ~pass:(metal_operation f.pass) ~read_mask:f.read_mask
+                    ~write_mask:f.write_mask ()
+                in
+                (match
+                   Metal.Depth_stencil.create ~label:"ogpu-metal-depth-state"
+                     ~depth_compare:(metal_compare state.depth_compare)
+                     ~depth_write:state.depth_write
+                     ?front_face:(Option.map (fun (s : Ogpu_core.Render_pass.stencil_state) -> face s.front) state.stencil)
+                     ?back_face:(Option.map (fun (s : Ogpu_core.Render_pass.stencil_state) -> face s.back) state.stencil)
+                     (Device.Private.metal device) ()
+                 with
+                 | Error e -> Error (Device.of_metal_error ~operation e)
+                 | Ok native ->
+                     Hashtbl.add c.depth_states state native;
+                     Ok native)
+          in
           let create_queue () =
             match Queue.create device with
             | Error _ as e -> e
             | Ok queue ->
                 let queue_token = token c in
-                (* A prepared Scene_execution command is immutable and may be submitted
-         for many frames.  Retain a bounded set of fully converted classic
-         descriptors per queue; exact portable commands and resource/pipeline
-         token lists make reuse safe across freshly allocated wrappers. *)
-                let classic_submissions = ref [] in
-                let classic_retained_bytes = ref 0L in
-                let retire_classic entry =
-                  entry.classic_retired <- true;
-                  let completed = Queue.completed_epoch queue in
-                  match Render_pass.Private.destroy entry.classic_pass with
-                  | Error error ->
-                      if entry.classic_epoch <= completed then record_ogpu_cleanup error;
-                      false
-                  | Ok () ->
-                      assert (entry.classic_bytes <= !classic_retained_bytes);
-                      classic_retained_bytes :=
-                        Int64.sub !classic_retained_bytes entry.classic_bytes;
-                      true
-                in
-                let filter_classics keep =
-                  classic_submissions :=
-                    List.filter
-                      (fun entry ->
-                        if not (keep entry) then entry.classic_retired <- true;
-                        not (entry.classic_retired && retire_classic entry))
-                      !classic_submissions
-                in
-                let drop_oldest_classic () =
-                  match List.rev !classic_submissions with
-                  | [] -> false
-                  | oldest :: reversed ->
-                      if retire_classic oldest then begin
-                        classic_submissions := List.rev reversed;
-                        true
-                      end
-                      else false
-                in
-                let make_room_for_classic entry_bytes =
-                  if entry_bytes > c.classic_byte_capacity then false
-                  else
-                    let available = Int64.sub c.classic_byte_capacity entry_bytes in
-                    let rec make_room () =
-                      if
-                        List.length !classic_submissions < classic_submission_capacity
-                        && !classic_retained_bytes <= available
-                      then true
-                      else if drop_oldest_classic () then make_room ()
-                      else false
-                    in
-                    make_room ()
-                in
-                let retained_identities : retained_identity list ref = ref [] in
-                let retained_identity_byte_count = ref 0L in
-                let retained_replays = Array.make retained_replay_capacity None in
-                let retained_replay_length = ref 0 in
-                let retained_replay_byte_count = ref 0L in
-                let retire_identity entry =
-                  assert (entry.identity_bytes <= !retained_identity_byte_count);
-                  retained_identity_byte_count :=
-                    Int64.sub !retained_identity_byte_count entry.identity_bytes
-                in
-                let drop_retained_identities keep =
-                  let retained, rejected = List.partition keep !retained_identities in
-                  retained_identities := retained;
-                  List.iter retire_identity rejected
-                in
-                let release_replay_pass ~record_failure entry =
-                  match Render_pass.Private.destroy entry.replay_pass with
-                  | Error error ->
-                      if record_failure then record_ogpu_cleanup error;
-                      false
-                  | Ok () ->
-                      Option.iter
-                        (fun (owner : plan_owner) ->
-                          owner.passes <-
-                            List.filter
-                              (fun (candidate, _) -> candidate != entry.replay_pass)
-                              owner.passes)
-                        (Hashtbl.find_opt c.plan_owners entry.replay_key);
-                      true
-                in
-                let retire_replay entry =
-                  entry.replay_retired <- true;
-                  let completed = Queue.completed_epoch queue in
-                  if release_replay_pass ~record_failure:(entry.replay_epoch <= completed) entry
-                  then begin
-                    assert (entry.replay_bytes <= !retained_replay_byte_count);
-                    retained_replay_byte_count :=
-                      Int64.sub !retained_replay_byte_count entry.replay_bytes;
-                    true
-                  end
-                  else false
-                in
-                let drop_retained_replays keep =
-                  let write = ref 0 in
-                  for read = 0 to !retained_replay_length - 1 do
-                    match Array.unsafe_get retained_replays read with
-                    | Some entry ->
-                        if not (keep entry) then entry.replay_retired <- true;
-                        if not (entry.replay_retired && retire_replay entry) then begin
-                          if !write <> read then
-                            Array.unsafe_set retained_replays !write (Some entry);
-                          incr write
-                        end
-                    | None -> assert false
-                  done;
-                  for index = !write to !retained_replay_length - 1 do
-                    Array.unsafe_set retained_replays index None
-                  done;
-                  retained_replay_length := !write
-                in
-                let drop_oldest_identity () =
-                  match List.rev !retained_identities with
-                  | [] -> false
-                  | oldest :: reversed ->
-                      retained_identities := List.rev reversed;
-                      retire_identity oldest;
-                      true
-                in
-                let drop_oldest_replay () =
-                  if !retained_replay_length = 0 then false
-                  else begin
-                    let index = !retained_replay_length - 1 in
-                    let entry = Option.get (Array.unsafe_get retained_replays index) in
-                    if retire_replay entry then begin
-                      Array.unsafe_set retained_replays index None;
-                      retained_replay_length := index;
-                      true
-                    end
-                    else false
-                  end
-                in
-                let retained_metadata_byte_count () =
-                  saturating_add !retained_identity_byte_count !retained_replay_byte_count
-                in
-                let make_room_for_identity bytes =
-                  if bytes > c.metadata_byte_capacity then false
-                  else
-                    let available = Int64.sub c.metadata_byte_capacity bytes in
-                    let room = ref true in
-                    while
-                      !room
-                      && (List.length !retained_identities >= retained_identity_capacity
-                         || retained_metadata_byte_count () > available)
-                    do
-                      room := drop_oldest_identity ()
-                    done;
-                    !room
-                    && List.length !retained_identities < retained_identity_capacity
-                    && retained_metadata_byte_count () <= available
-                in
-                let make_room_for_replay bytes =
-                  if bytes > c.metadata_byte_capacity then false
-                  else
-                    let available = Int64.sub c.metadata_byte_capacity bytes in
-                    let room = ref true in
-                    while
-                      !room
-                      && (!retained_replay_length >= retained_replay_capacity
-                         || retained_metadata_byte_count () > available)
-                    do
-                      room := if drop_oldest_identity () then true else drop_oldest_replay ()
-                    done;
-                    !room
-                    && !retained_replay_length < retained_replay_capacity
-                    && retained_metadata_byte_count () <= available
-                in
-                let retain_identity entry =
-                  if make_room_for_identity entry.identity_bytes then begin
-                    retained_identities := entry :: !retained_identities;
-                    retained_identity_byte_count :=
-                      Int64.add !retained_identity_byte_count entry.identity_bytes;
-                    true
-                  end
-                  else false
-                in
-                let retain_replay entry =
-                  if make_room_for_replay entry.replay_bytes then begin
-                    if !retained_replay_length > 0 then
-                      Array.blit retained_replays 0 retained_replays 1 !retained_replay_length;
-                    Array.unsafe_set retained_replays 0 (Some entry);
-                    incr retained_replay_length;
-                    retained_replay_byte_count :=
-                      Int64.add !retained_replay_byte_count entry.replay_bytes;
-                    true
-                  end
-                  else false
-                in
-                let replay_admission_preflight bytes =
-                  if bytes > c.metadata_byte_capacity then false
-                  else
-                    let available = Int64.sub c.metadata_byte_capacity bytes
-                    and completed = Queue.completed_epoch queue in
-                    let rec simulate length retained index =
-                      if length < retained_replay_capacity && retained <= available then true
-                      else if index < 0 then false
-                      else
-                        match Array.unsafe_get retained_replays index with
-                        | None -> false
-                        | Some entry when entry.replay_retired || entry.replay_epoch > completed ->
-                            false
-                        | Some entry ->
-                            simulate (length - 1) (Int64.sub retained entry.replay_bytes) (index - 1)
-                    in
-                    (* Identity entries are always removable without native cleanup and are
-           selected before replay victims by [make_room_for_replay]. *)
-                    simulate !retained_replay_length !retained_replay_byte_count
-                      (!retained_replay_length - 1)
-                in
-                let invalidate_retained_key key =
-                  drop_retained_identities (fun entry -> entry.identity_key <> key);
-                  drop_retained_replays (fun entry -> entry.replay_key <> key)
-                in
-                let clear_retained_metadata () =
-                  drop_retained_identities (fun _ -> false);
-                  drop_retained_replays (fun _ -> false)
-                in
-                let invalidate_owner_attachments id =
-                  Hashtbl.iter
-                    (fun _ (owner : plan_owner) ->
-                      owner.passes <-
-                        List.filter
-                          (fun (pass, tokens) ->
-                            if not (Array.exists (Int64.equal id) tokens) then true
-                            else
-                              match Render_pass.Private.destroy pass with
-                              | Ok () -> false
-                              | Error error ->
-                                  if owner.last_epoch <= Queue.completed_epoch queue then
-                                    record_ogpu_cleanup error;
-                                  true)
-                          owner.passes)
-                    c.plan_owners
-                in
-                let invalidate_classic_resource id =
-                  filter_classics (fun entry ->
-                      not (List.exists (fun (_, token) -> token = id) entry.classic_resources));
-                  drop_retained_replays (fun entry ->
-                      not (Array.exists (Int64.equal id) entry.replay_attachment_tokens));
-                  invalidate_owner_attachments id
-                and invalidate_classic_pipeline id =
-                  filter_classics (fun entry -> not (List.mem id entry.classic_pipelines))
-                in
-                let retry_cleanup () =
-                  filter_classics (fun _ -> true);
-                  drop_retained_replays (fun _ -> true)
-                in
-                let cleanup_empty () = !classic_submissions = [] && !retained_replay_length = 0 in
-                Hashtbl.add c.classic_invalidators queue_token
-                  {
-                    invalidate_classic_resource;
-                    invalidate_classic_pipeline;
-                    invalidate_retained_key;
-                    classic_entries = (fun () -> List.length !classic_submissions);
-                    classic_retained_bytes = (fun () -> !classic_retained_bytes);
-                    retained_identity_entries = (fun () -> List.length !retained_identities);
-                    retained_replay_entries = (fun () -> !retained_replay_length);
-                    retained_metadata_bytes = retained_metadata_byte_count;
-                    clear_classics = (fun () -> filter_classics (fun _ -> false));
-                    clear_retained_metadata;
-                    retry_cleanup;
-                    cleanup_empty;
-                  };
-                let rec same_resources left right =
-                  match (left, right) with
-                  | [], [] -> true
-                  | (left_id, left_token) :: left, (right_id, right_token) :: right ->
-                      Int64.equal left_id right_id
-                      && Int64.equal left_token right_token
-                      && same_resources left right
-                  | _ -> false
-                in
-                let rec same_pipelines left right =
-                  match (left, right) with
-                  | [], [] -> true
-                  | left :: lefts, right :: rights ->
-                      Int64.equal left right && same_pipelines lefts rights
-                  | _ -> false
-                in
-                let attachment_ids submission =
-                  let descriptor =
-                    Ogpu_core.Render_pass.descriptor
-                      (Ogpu_core.Render_pass.submission_pass submission)
-                  in
-                  let reversed = ref [] in
-                  Array.iter
-                    (function
-                      | None -> ()
-                      | Some (color : Ogpu_core.Render_pass.color) ->
-                          reversed := color.texture.id :: !reversed;
-                          Option.iter
-                            (fun (texture : Ogpu_core.Render_pass.texture) ->
-                              reversed := texture.id :: !reversed)
-                            color.resolve)
-                    descriptor.colors;
-                  Option.iter
-                    (fun (depth : Ogpu_core.Render_pass.depth) ->
-                      reversed := depth.texture.id :: !reversed)
-                    descriptor.depth;
-                  Option.iter
-                    (fun (stencil : Ogpu_core.Render_pass.stencil) ->
-                      reversed := stencil.texture.id :: !reversed)
-                    descriptor.stencil;
-                  Array.of_list (List.rev !reversed)
-                in
-                let resolve_attachment_tokens ids resources =
-                  Array.map
-                    (fun id -> Option.value (List.assoc_opt id resources) ~default:Int64.min_int)
-                    ids
-                in
-                let same_attachment_tokens ids tokens resources =
-                  let rec loop index =
-                    index = Array.length ids
-                    ||
-                    match List.assoc_opt ids.(index) resources with
-                    | Some token when Int64.equal token tokens.(index) -> loop (index + 1)
-                    | None | Some _ -> false
-                  in
-                  Array.length ids = Array.length tokens && loop 0
-                in
-                let unused_presentation _ = assert false in
-                let submit_with ~presenting presentation command ~resources ~pipelines =
-                  let command_view = Ogpu_core.Backend.Private.command_view command in
-                  match command_view with
-                  | (Ogpu_core.Backend.Private.Transfer _ | Compute _) when presenting ->
-                      error "Ogpu_metal.Backend.submit_present" Ogpu_core.Error.Unsupported
-                        "combined presentation requires a render command"
-                  | Render submission
-                    when presenting
-                         && Render_pass.Private.portable_requires_command4
-                              (Ogpu_core.Render_pass.submission_pass submission) ->
-                      error "Ogpu_metal.Backend.submit_present" Ogpu_core.Error.Unsupported
-                        "combined presentation requires a classic render pass"
-                  | _ ->
-                      let find id = Option.bind (List.assoc_opt id resources) native_resource in
-                      let one_pipeline () =
-                        match pipelines with
-                        | [ id ] -> Hashtbl.find_opt c.pipeline_tokens id
-                        | _ -> None
-                      in
-                      let native_render_descriptor (descriptor : Ogpu_core.Render_pass.descriptor) =
-                        let fact usage (value : Ogpu_core.Render_pass.texture) =
-                          match find value.id with
-                          | Some (Texture texture) -> Render_pass.attachment device texture ~usage
-                          | _ ->
-                              error "Ogpu_metal.Backend.render" Ogpu_core.Error.Invalid_argument
-                                "render attachment graph is incomplete"
-                        in
-                        let colors =
-                          Array.map
-                            (function
-                              | None -> Ok None
-                              | Some (color : Ogpu_core.Render_pass.color) -> (
-                                  match fact Render_target color.texture with
-                                  | Error _ as e -> e
-                                  | Ok texture -> (
-                                      match color.resolve with
-                                      | None -> Ok (Some { color with texture })
-                                      | Some resolve ->
-                                          Result.map
-                                            (fun resolve ->
-                                              Some { color with texture; resolve = Some resolve })
-                                            (fact Resolve_target resolve))))
-                            descriptor.colors
-                        in
-                        if Array.exists Result.is_error colors then
-                          Array.find_opt Result.is_error colors
-                          |> Option.get
-                          |> Result.map (fun _ -> assert false)
-                        else
-                          let depth =
-                            match descriptor.depth with
-                            | None -> Ok None
-                            | Some (d : Ogpu_core.Render_pass.depth) ->
-                                Result.map
-                                  (fun texture -> Some { d with texture })
-                                  (fact Render_target d.texture)
-                          and stencil =
-                            match descriptor.stencil with
-                            | None -> Ok None
-                            | Some (s : Ogpu_core.Render_pass.stencil) ->
-                                Result.map
-                                  (fun texture -> Some { s with texture })
-                                  (fact Render_target s.texture)
-                          in
-                          match (depth, stencil) with
-                          | Error e, _ -> Error e
-                          | _, Error e -> Error e
-                          | Ok depth, Ok stencil ->
-                              Ok
-                                {
-                                  descriptor with
-                                  colors = Array.map Result.get_ok colors;
-                                  depth;
-                                  stencil;
-                                }
-                      in
-                      let result =
-                        match command_view with
-                        | Ogpu_core.Backend.Private.Transfer descriptions ->
-                            let pass =
-                              Ogpu_core.Transfer_pass.create (Device.Private.handle device)
-                            in
-                            let b id =
-                              match find id with
-                              | Some (Buffer x) -> Ok x
-                              | _ ->
-                                  error "Ogpu_metal.Backend.transfer"
-                                    Ogpu_core.Error.Invalid_argument "buffer graph is incomplete"
-                            and t id =
-                              match find id with
-                              | Some (Texture x) -> Ok x
-                              | _ ->
-                                  error "Ogpu_metal.Backend.transfer"
-                                    Ogpu_core.Error.Invalid_argument "texture graph is incomplete"
-                            in
-                            let rec replay i =
-                              if i = Array.length descriptions then
-                                match
-                                  Transfer_pass.create device pass
-                                    ~buffers:
-                                      (List.filter_map
-                                         (fun (_, tok) ->
-                                           match native_resource tok with
-                                           | Some (Buffer x) -> Some x
-                                           | _ -> None)
-                                         resources)
-                                    ~textures:
-                                      (List.filter_map
-                                         (fun (_, tok) ->
-                                           match native_resource tok with
-                                           | Some (Texture x) -> Some x
-                                           | _ -> None)
-                                         resources)
-                                with
-                                | Error _ as e -> e
-                                | Ok encoded -> Queue.submit_transfer_pass queue encoded
-                              else
-                                let next =
-                                  match descriptions.(i) with
-                                  | Ogpu_core.Transfer_pass.Copy_buffer (a, ao, d, do_, n) -> (
-                                      match (b a, b d) with
-                                      | Ok a, Ok d ->
-                                          Ogpu_core.Transfer_pass.copy_buffer pass
-                                            ~src:(Result.get_ok (Transfer_pass.buffer device a))
-                                            ~src_offset:ao
-                                            ~dst:(Result.get_ok (Transfer_pass.buffer device d))
-                                            ~dst_offset:do_ ~length:n
-                                      | Error e, _ -> Error e
-                                      | _, Error e -> Error e)
-                                  | Fill_buffer (a, o, n, v) -> (
-                                      match b a with
-                                      | Error _ as e -> e
-                                      | Ok a ->
-                                          Ogpu_core.Transfer_pass.fill_buffer pass
-                                            (Result.get_ok (Transfer_pass.buffer device a))
-                                            ~offset:o ~length:n ~value:v)
-                                  | Buffer_to_texture (a, o, row, image, d, mip, origin, extent)
-                                    -> (
-                                      match (b a, t d) with
-                                      | Ok a, Ok d ->
-                                          Ogpu_core.Transfer_pass.buffer_to_texture pass
-                                            ~src:(Result.get_ok (Transfer_pass.buffer device a))
-                                            ~offset:o ~bytes_per_row:row ~bytes_per_image:image
-                                            ~dst:(Result.get_ok (Transfer_pass.texture device d))
-                                            ~mip ~origin ~extent
-                                      | Error e, _ -> Error e
-                                      | _, Error e -> Error e)
-                                  | Texture_to_buffer (a, mip, origin, extent, d, o, row, image)
-                                    -> (
-                                      match (t a, b d) with
-                                      | Ok a, Ok d ->
-                                          Ogpu_core.Transfer_pass.texture_to_buffer pass
-                                            ~src:(Result.get_ok (Transfer_pass.texture device a))
-                                            ~mip ~origin ~extent
-                                            ~dst:(Result.get_ok (Transfer_pass.buffer device d))
-                                            ~offset:o ~bytes_per_row:row ~bytes_per_image:image
-                                      | Error e, _ -> Error e
-                                      | _, Error e -> Error e)
-                                  | Copy_texture (a, am, ao, d, dm, do_, extent) -> (
-                                      match (t a, t d) with
-                                      | Ok a, Ok d ->
-                                          Ogpu_core.Transfer_pass.copy_texture pass
-                                            ~src:(Result.get_ok (Transfer_pass.texture device a))
-                                            ~src_mip:am ~src_origin:ao
-                                            ~dst:(Result.get_ok (Transfer_pass.texture device d))
-                                            ~dst_mip:dm ~dst_origin:do_ ~extent
-                                      | Error e, _ -> Error e
-                                      | _, Error e -> Error e)
-                                in
-                                match next with Error _ as e -> e | Ok () -> replay (i + 1)
-                            in
-                            replay 0
-                        | Compute description -> (
-                            match one_pipeline () with
-                            | None ->
-                                error "Ogpu_metal.Backend.compute" Ogpu_core.Error.Invalid_argument
-                                  "compute pipeline graph is incomplete"
-                            | Some pipeline -> (
-                                let slots =
-                                  Array.to_list description.groups
-                                  |> List.concat_map (fun (_, xs) -> xs)
-                                  |> List.map fst
-                                and ids =
-                                  Array.to_list description.commands
-                                  |> List.filter_map (function
-                                    | Ogpu_core.Command.Declare_resource r -> Some r.resource_id
-                                    | _ -> None)
-                                in
-                                if List.length slots <> List.length ids then
-                                  error "Ogpu_metal.Backend.compute"
-                                    Ogpu_core.Error.Invalid_argument
-                                    "binding/resource cardinality differs"
-                                else
-                                  let native_id id =
-                                    match find id with
-                                    | Some (Buffer buffer) -> Buffer.id buffer
-                                    | _ -> id
-                                  in
-                                  let bindings =
-                                    List.map2
-                                      (fun index id ->
-                                        match find id with
-                                        | Some (Buffer buffer) ->
-                                            Ok { Compute_pass.id = Buffer.id buffer; index; buffer }
-                                        | _ ->
-                                            error "Ogpu_metal.Backend.compute"
-                                              Ogpu_core.Error.Invalid_argument
-                                              "compute buffer graph is incomplete")
-                                      slots ids
-                                  in
-                                  if List.exists Result.is_error bindings then
-                                    List.find Result.is_error bindings
-                                    |> Result.map (fun _ -> assert false)
-                                  else
-                                    let description =
-                                      Ogpu_core.Compute_pass.Private.map_resource_ids native_id
-                                        description
-                                    in
-                                    match
-                                      Compute_pass.create device
-                                        (Ogpu_core.Compute_pass.Private.of_description description)
-                                        ~pipeline ~bindings:(List.map Result.get_ok bindings)
-                                    with
-                                    | Error _ as e -> e
-                                    | Ok encoded -> Queue.submit_compute_pass queue encoded))
-                        | Render submission -> (
-                            let cached_classic =
-                              List.find_opt
-                                (fun entry ->
-                                  (not entry.classic_retired) && entry.classic_command == command
-                                  && same_resources entry.classic_resources resources
-                                  && same_pipelines entry.classic_pipelines pipelines)
-                                !classic_submissions
-                            in
-                            match cached_classic with
-                            | Some entry -> (
-                                match
-                                  submit_native_render ~presenting presentation queue
-                                    entry.classic_pass
-                                with
-                                | Error _ as failure -> failure
-                                | Ok receipt ->
-                                    entry.classic_epoch <- receipt.epoch;
-                                    Ok receipt)
-                            | None -> (
-                                let rec find_retained index =
-                                  if index = !retained_replay_length then None
-                                  else
-                                    match Array.unsafe_get retained_replays index with
-                                    | Some entry
-                                      when (not entry.replay_retired)
-                                           && entry.replay_command == command
-                                           && same_pipelines entry.replay_pipelines pipelines
-                                           && Hashtbl.mem c.plan_owners entry.replay_key ->
-                                        Some entry
-                                    | Some _ -> find_retained (index + 1)
-                                    | None -> assert false
-                                in
-                                let cached_retained = find_retained 0 in
-                                match cached_retained with
-                                | Some replay -> (
-                                    let key = replay.replay_key
-                                    and template = replay.replay_pass
-                                    and attachment_ids = replay.replay_attachment_ids
-                                    and attachment_tokens = replay.replay_attachment_tokens in
-                                    let owner = Hashtbl.find c.plan_owners key in
-                                    if not (dependencies_live owner.dependencies resources) then begin
-                                      drop_retained_replays (fun entry -> entry.replay_key <> key);
-                                      error "Ogpu_metal.Backend.render" Ogpu_core.Error.Stale_handle
-                                        "retained render dependencies changed without invalidation"
-                                    end
-                                    else if
-                                      same_attachment_tokens attachment_ids attachment_tokens
-                                        resources
-                                    then (
-                                      match
-                                        submit_native_render ~presenting presentation queue template
-                                      with
-                                      | Error _ as e -> e
-                                      | Ok receipt ->
-                                          c.plan_hits <- Int64.succ c.plan_hits;
-                                          c.plan_executions <- Int64.succ c.plan_executions;
-                                          owner.last_epoch <- receipt.epoch;
-                                          replay.replay_epoch <- receipt.epoch;
-                                          Ok receipt)
-                                    else
-                                      let replace_cached =
-                                        replay.replay_epoch <= Queue.completed_epoch queue
-                                      in
-                                      let descriptor =
-                                        Ogpu_core.Render_pass.descriptor
-                                          (Ogpu_core.Render_pass.submission_pass submission)
-                                      in
-                                      let portable_pass =
-                                        Ogpu_core.Render_pass.submission_pass submission
-                                      in
-                                      let attachments =
-                                        resources
-                                        |> List.filter_map (fun (_, tok) ->
-                                            match native_resource tok with
-                                            | Some (Texture x) -> Some x
-                                            | _ -> None)
-                                      in
-                                      match native_render_descriptor descriptor with
-                                      | Error _ as e -> e
-                                      | Ok descriptor -> (
-                                          match
-                                            Ogpu_core.Render_pass.create
-                                              ~raster_state:
-                                                (Ogpu_core.Render_pass.raster_state portable_pass)
-                                              ?stencil_state:
-                                                (Ogpu_core.Render_pass.stencil_state portable_pass)
-                                              (Device.Private.handle device) descriptor
-                                          with
-                                          | Error _ as e -> e
-                                          | Ok pass -> (
-                                              match
-                                                Render_pass.create_empty device pass ~attachments
-                                              with
-                                              | Error _ as e -> e
-                                              | Ok encoded -> (
-                                                  (* A pass that cannot replace an in-flight cached attachment
-                     belongs to this queue submission only. Queue completion
-                     destroys nonpersistent passes, so it cannot accumulate in
-                     the retained plan owner outside its byte ledgers. *)
-                                                  let encoded =
-                                                    Render_pass.replay_indirect encoded ~template
-                                                      ~persistent:replace_cached
-                                                  in
-                                                  if replace_cached then
-                                                    Render_pass.Private.retain_encoding encoded;
-                                                  match
-                                                    submit_native_render ~presenting presentation
-                                                      queue encoded
-                                                  with
-                                                  | Error _ as e ->
-                                                      (match
-                                                         Render_pass.Private.destroy encoded
-                                                       with
-                                                      | Ok () -> ()
-                                                      | Error cleanup_error ->
-                                                          record_ogpu_cleanup cleanup_error;
-                                                          owner.passes <-
-                                                            ( encoded,
-                                                              resolve_attachment_tokens
-                                                                attachment_ids resources )
-                                                            :: owner.passes;
-                                                          Option.iter
-                                                            (fun cache ->
-                                                              ignore
-                                                                (Metal.Retained_render_plan
-                                                                 .invalidate cache key))
-                                                            c.plan_cache);
-                                                      e
-                                                  | Ok receipt ->
-                                                      let tokens =
-                                                        resolve_attachment_tokens attachment_ids
-                                                          resources
-                                                      in
-                                                      owner.last_epoch <- receipt.epoch;
-                                                      if replace_cached then
-                                                        begin if
-                                                          release_replay_pass ~record_failure:true
-                                                            replay
-                                                        then begin
-                                                          owner.passes <-
-                                                            (encoded, tokens) :: owner.passes;
-                                                          replay.replay_pass <- encoded;
-                                                          replay.replay_attachment_tokens <- tokens;
-                                                          replay.replay_epoch <- receipt.epoch
-                                                        end
-                                                        else begin
-                                                          owner.passes <-
-                                                            (encoded, tokens) :: owner.passes;
-                                                          replay.replay_retired <- true;
-                                                          Option.iter
-                                                            (fun cache ->
-                                                              ignore
-                                                                (Metal.Retained_render_plan
-                                                                 .invalidate cache key))
-                                                            c.plan_cache
-                                                        end
-                                                        end;
-                                                      c.plan_hits <- Int64.succ c.plan_hits;
-                                                      c.plan_executions <-
-                                                        Int64.succ c.plan_executions;
-                                                      Ok receipt))))
-                                | None ->
-                                    let sampler_binding (s : Ogpu_core.Render_pass.sampler_binding)
-                                        =
-                                      match Hashtbl.find_opt c.sampler_cache s.sampler with
-                                      | Some sampler ->
-                                          Ok
-                                            {
-                                              Render_pass.stage =
-                                                (match s.stage with
-                                                | Ogpu_core.Command.Vertex -> Render_pass.Vertex
-                                                | Fragment -> Fragment
-                                                | _ -> assert false);
-                                              index = s.index;
-                                              sampler;
-                                            }
-                                      | None -> (
-                                          if Hashtbl.length c.sampler_cache >= 64 then
-                                            compact_sampler_cache ();
-                                          if Hashtbl.length c.sampler_cache >= 64 then
-                                            error "Ogpu_metal.Backend.sampler"
-                                              Ogpu_core.Error.Invalid_state
-                                              "all bounded sampler entries are referenced by \
-                                               in-flight retained plans"
-                                          else
-                                            match Sampler.create device s.sampler with
-                                            | Error _ as e -> e
-                                            | Ok sampler ->
-                                                Hashtbl.add c.sampler_cache s.sampler sampler;
-                                                Ok
-                                                  {
-                                                    Render_pass.stage =
-                                                      (match s.stage with
-                                                      | Ogpu_core.Command.Vertex ->
-                                                          Render_pass.Vertex
-                                                      | Fragment -> Fragment
-                                                      | _ -> assert false);
-                                                    index = s.index;
-                                                    sampler;
-                                                  })
-                                    in
-                                    let pipeline_by_key key =
-                                      pipelines
-                                      |> List.find_map (fun id ->
-                                          match Hashtbl.find_opt c.pipeline_tokens id with
-                                          | Some p when Pipeline.key p = key -> Some p
-                                          | _ -> None)
-                                    in
-                                    let convert (portable_draw : Ogpu_core.Render_pass.draw) =
-                                      match pipeline_by_key portable_draw.pipeline_key with
-                                      | None ->
-                                          error "Ogpu_metal.Backend.render"
-                                            Ogpu_core.Error.Invalid_argument
-                                            "render pipeline graph is incomplete"
-                                      | Some pipeline ->
-                                          let buffer_binding
-                                              (b : Ogpu_core.Render_pass.buffer_binding) =
-                                            match find b.buffer_id with
-                                            | Some (Buffer buffer) ->
-                                                Ok
-                                                  {
-                                                    Render_pass.stage =
-                                                      (match b.stage with
-                                                      | Ogpu_core.Command.Vertex ->
-                                                          Render_pass.Vertex
-                                                      | Fragment -> Fragment
-                                                      | _ -> assert false);
-                                                    index = b.index;
-                                                    buffer;
-                                                    offset = b.offset;
-                                                  }
-                                            | _ ->
-                                                error "Ogpu_metal.Backend.render"
-                                                  Ogpu_core.Error.Invalid_argument
-                                                  "render buffer graph is incomplete"
-                                          and texture_binding
-                                              (t : Ogpu_core.Render_pass.texture_binding) =
-                                            match find t.texture_id with
-                                            | Some (Texture texture) ->
-                                                Ok
-                                                  {
-                                                    Render_pass.stage =
-                                                      (match t.stage with
-                                                      | Ogpu_core.Command.Vertex ->
-                                                          Render_pass.Vertex
-                                                      | Fragment -> Fragment
-                                                      | _ -> assert false);
-                                                    index = t.index;
-                                                    texture;
-                                                  }
-                                            | _ ->
-                                                error "Ogpu_metal.Backend.render"
-                                                  Ogpu_core.Error.Invalid_argument
-                                                  "render texture graph is incomplete"
-                                          in
-                                          let buffers =
-                                            List.map buffer_binding portable_draw.buffers
-                                          and textures =
-                                            List.map texture_binding portable_draw.textures
-                                          and samplers =
-                                            List.map sampler_binding portable_draw.samplers
-                                          in
-                                          if
-                                            List.exists Result.is_error buffers
-                                            || List.exists Result.is_error textures
-                                            || List.exists Result.is_error samplers
-                                          then
-                                            error "Ogpu_metal.Backend.render"
-                                              Ogpu_core.Error.Invalid_argument
-                                              "render binding graph is invalid"
-                                          else
-                                            let index =
-                                              match portable_draw.index with
-                                              | None -> Ok None
-                                              | Some (kind, id, offset, count) -> (
-                                                  match find id with
-                                                  | Some (Buffer buffer) ->
-                                                      Ok
-                                                        (Some
-                                                           ( (match kind with
-                                                             | Ogpu_core.Render_pass.Uint16 ->
-                                                                 Render_pass.Uint16
-                                                             | Uint32 -> Uint32),
-                                                             buffer,
-                                                             offset,
-                                                             Int64.of_int count ))
-                                                  | _ ->
-                                                      error "Ogpu_metal.Backend.render"
-                                                        Ogpu_core.Error.Invalid_argument
-                                                        "render index graph is incomplete")
-                                            in
-                                            Result.map
-                                              (fun index ->
-                                                {
-                                                  Render_pass.pipeline;
-                                                  buffers = List.map Result.get_ok buffers;
-                                                  textures = List.map Result.get_ok textures;
-                                                  samplers = List.map Result.get_ok samplers;
-                                                  primitive =
-                                                    (match portable_draw.primitive with
-                                                    | Ogpu_core.Render_pass.Point_list ->
-                                                        Render_pass.Point_list
-                                                    | Line_list -> Line_list
-                                                    | Triangle_list -> Triangle_list
-                                                    | Triangle_strip -> Triangle_strip);
-                                                  vertex_start = portable_draw.vertex_start;
-                                                  vertex_count = portable_draw.vertex_count;
-                                                  instance_count = portable_draw.instance_count;
-                                                  index;
-                                                })
-                                              index
-                                    in
-                                    let draws =
-                                      List.map convert
-                                        (Ogpu_core.Render_pass.submission_draws submission)
-                                    in
-                                    if List.exists Result.is_error draws then
-                                      List.find Result.is_error draws
-                                      |> Result.map (fun _ -> assert false)
-                                    else
-                                      let descriptor =
-                                        Ogpu_core.Render_pass.descriptor
-                                          (Ogpu_core.Render_pass.submission_pass submission)
-                                      and attachments =
-                                        resources
-                                        |> List.filter_map (fun (_, tok) ->
-                                            match native_resource tok with
-                                            | Some (Texture x) -> Some x
-                                            | _ -> None)
-                                      in
-                                      let portable_pass =
-                                        Ogpu_core.Render_pass.submission_pass submission
-                                      in
-                                      let native_draws = List.map Result.get_ok draws in
-                                      let argument_pipeline (draw : Render_pass.draw) =
-                                        Option.is_some
-                                          (Pipeline.Private.argument_function draw.pipeline)
-                                      in
-                                      let exact_argument_abi (draw : Render_pass.draw) =
-                                        let vertex index =
-                                          List.filter
-                                            (fun (binding : Render_pass.buffer_binding) ->
-                                              binding.stage = Render_pass.Vertex
-                                              && binding.index = index)
-                                            draw.buffers
-                                        in
-                                        match
-                                          ( draw.index,
-                                            draw.textures,
-                                            draw.samplers,
-                                            Pipeline.Private.argument_function draw.pipeline )
-                                        with
-                                        | ( None,
-                                            [ { stage = Render_pass.Fragment; index = 0; _ } ],
-                                            [ { stage = Render_pass.Fragment; index = 1; _ } ],
-                                            Some _ ) ->
-                                            List.length (vertex 0) = 1
-                                            && List.length (vertex 6) <= 1
-                                            && List.length draw.buffers = 1 + List.length (vertex 6)
-                                        | _ -> false
-                                      in
-                                      let maybe_indirect encoded =
-                                        let eligible draw =
-                                          retained_plans_enabled
-                                          && draw.Render_pass.instance_count = 1
-                                          && exact_argument_abi draw
-                                        in
-                                        match c.plan_cache with
-                                        | None when List.exists argument_pipeline native_draws ->
-                                            error "Ogpu_metal.Backend.render"
-                                              Ogpu_core.Error.Unsupported
-                                              "retained plan cache is unavailable"
-                                        | None -> Ok (encoded, None, None, `None, None)
-                                        | Some _
-                                          when native_draws = []
-                                               || not (List.for_all eligible native_draws) ->
-                                            Ok (encoded, None, None, `None, None)
-                                        | Some cache -> (
-                                            let portable_draws =
-                                              Ogpu_core.Render_pass.submission_draws submission
-                                            in
-                                            let pending_identity = ref None in
-                                            let key, generation =
-                                              match
-                                                List.find_opt
-                                                  (fun entry ->
-                                                    entry.identity_draws = portable_draws
-                                                    && same_pipelines entry.identity_pipelines
-                                                         pipelines)
-                                                  !retained_identities
-                                              with
-                                              | Some entry ->
-                                                  (entry.identity_key, entry.identity_generation)
-                                              | None ->
-                                                  let pipeline_identities =
-                                                    List.map
-                                                      (fun (draw : Render_pass.draw) ->
-                                                        Pipeline.Private.native_identity
-                                                          draw.pipeline)
-                                                      native_draws
-                                                  in
-                                                  let generation =
-                                                    Int64.logand
-                                                      (List.fold_left
-                                                         (fun hash (id, value) ->
-                                                           Int64.logxor
-                                                             (Int64.mul
-                                                                (Int64.logxor
-                                                                   (Int64.mul hash 1099511628211L)
-                                                                   id)
-                                                                1099511628211L)
-                                                             value)
-                                                         1469598103934665603L pipeline_identities)
-                                                      Int64.max_int
-                                                  in
-                                                  let identity =
-                                                    Marshal.to_string
-                                                      (portable_draws, pipeline_identities)
-                                                      []
-                                                  in
-                                                  let key =
-                                                    Printf.sprintf "render:%Ld:%s" queue_token
-                                                      (Digest.to_hex (Digest.string identity))
-                                                  in
-                                                  let identity_bytes =
-                                                    retained_identity_bytes portable_draws pipelines
-                                                      key
-                                                  in
-                                                  pending_identity :=
-                                                    Some
-                                                      {
-                                                        identity_draws = portable_draws;
-                                                        identity_pipelines = pipelines;
-                                                        identity_key = key;
-                                                        identity_generation = generation;
-                                                        identity_bytes;
-                                                      };
-                                                  (key, generation)
-                                            in
-                                            let made = ref None in
-                                            let icb_descriptor =
-                                              Metal.Indirect_command_buffer.descriptor
-                                                ~inherit_buffers:false ~inherit_pipeline_state:false
-                                                ~max_vertex_buffer_bind_count:7
-                                                ~max_fragment_buffer_bind_count:2
-                                                ~command_types:
-                                                  [ Metal.Indirect_command_buffer.Indirect_draw ]
-                                                ()
-                                            in
-                                            let retained_resource_ids =
-                                              Ogpu_core.Render_pass.submission_draws submission
-                                              |> List.concat_map
-                                                   (fun (draw : Ogpu_core.Render_pass.draw) ->
-                                                     List.map
-                                                       (fun (binding :
-                                                              Ogpu_core.Render_pass.buffer_binding)
-                                                          -> binding.buffer_id)
-                                                       draw.buffers
-                                                     @ List.map
-                                                         (fun (binding :
-                                                                Ogpu_core.Render_pass
-                                                                .texture_binding) ->
-                                                           binding.texture_id)
-                                                         draw.textures
-                                                     @ Option.fold ~none:[]
-                                                         ~some:(fun (_, id, _, _) -> [ id ])
-                                                         draw.index)
-                                              |> List.sort_uniq Int64.compare
-                                            in
-                                            let dependencies =
-                                              resources
-                                              |> List.filter_map (fun (id, token) ->
-                                                  if List.mem id retained_resource_ids then
-                                                    Some token
-                                                  else None)
-                                              |> List.sort_uniq Int64.compare |> Array.of_list
-                                            and pipeline_keys =
-                                              List.map
-                                                (fun (draw : Render_pass.draw) ->
-                                                  Pipeline.key draw.pipeline)
-                                                native_draws
-                                              |> List.sort_uniq String.compare
-                                            in
-                                            let unique id values =
-                                              List.fold_left
-                                                (fun kept value ->
-                                                  if List.exists (fun old -> id old = id value) kept
-                                                  then kept
-                                                  else value :: kept)
-                                                [] values
-                                              |> List.rev
-                                            in
-                                            let vertex_buffers =
-                                              native_draws
-                                              |> List.concat_map (fun (draw : Render_pass.draw) ->
-                                                  List.map
-                                                    (fun (binding : Render_pass.buffer_binding) ->
-                                                      binding.buffer)
-                                                    draw.buffers)
-                                              |> unique Buffer.id |> List.map Buffer.Private.metal
-                                            and textures =
-                                              native_draws
-                                              |> List.map (fun (draw : Render_pass.draw) ->
-                                                  (List.hd draw.textures).texture)
-                                              |> unique Texture.id |> List.map Texture.Private.metal
-                                            in
-                                            let command_count = List.length native_draws in
-                                            let prepared_encoders = ref None in
-                                            let destroy_prepared_encoders () =
-                                              Option.iter
-                                                (List.iter (fun (_, encoder, _) ->
-                                                     ignore
-                                                       (Metal.Shader_argument_encoder.destroy
-                                                          encoder)))
-                                                !prepared_encoders;
-                                              prepared_encoders := None
-                                            in
-                                            let prepare_argument_encoders () =
-                                              match !prepared_encoders with
-                                              | Some prepared -> Ok prepared
-                                              | None ->
-                                                  let rec prepare reversed = function
-                                                    | [] ->
-                                                        let prepared = List.rev reversed in
-                                                        prepared_encoders := Some prepared;
-                                                        Ok prepared
-                                                    | (draw : Render_pass.draw) :: rest -> (
-                                                        let function_ =
-                                                          Option.get
-                                                            (Pipeline.Private.argument_function
-                                                               draw.pipeline)
-                                                        in
-                                                        match
-                                                          Metal.Function.argument_encoder function_
-                                                            ~buffer_index:1L
-                                                        with
-                                                        | Error _ as failure ->
-                                                            List.iter
-                                                              (fun (_, encoder, _) ->
-                                                                ignore
-                                                                  (Metal.Shader_argument_encoder
-                                                                   .destroy encoder))
-                                                              reversed;
-                                                            failure
-                                                        | Ok encoder ->
-                                                            let length =
-                                                              Metal.Shader_argument_encoder
-                                                              .encoded_length encoder
-                                                            in
-                                                            prepare
-                                                              ((draw, encoder, length) :: reversed)
-                                                              rest)
-                                                  in
-                                                  prepare [] native_draws
-                                            in
-                                            let prospective_owner_bytes prepared =
-                                              plan_owner_bytes ~key ~dependencies ~pipeline_keys
-                                                ~command_count ~encoder_count:(List.length prepared)
-                                                ~sampler_count:command_count
-                                                ~argument_buffer_lengths:
-                                                  (List.map (fun (_, _, length) -> length) prepared)
-                                                ~resource_set_count:3
-                                                ~resource_reference_count:
-                                                  (List.length vertex_buffers + command_count
-                                                 + List.length textures)
-                                            in
-                                            let expected_hit =
-                                              match Hashtbl.find_opt c.plan_owners key with
-                                              | Some owner ->
-                                                  owner.generation = generation
-                                                  && owner.command_count = command_count
-                                              | None -> false
-                                            in
-                                            let build icb =
-                                              match prepare_argument_encoders () with
-                                              | Error _ as failure -> failure
-                                              | Ok prepared ->
-                                                  let prospective_bytes =
-                                                    prospective_owner_bytes prepared
-                                                  in
-                                                  assert (prospective_bytes <= c.owner_byte_capacity);
-                                                  let commands = ref []
-                                                  and buffers = ref []
-                                                  and samplers = ref []
-                                                  and resource_sets = ref [] in
-                                                  let fail e =
-                                                    List.iter
-                                                      (fun x ->
-                                                        ignore
-                                                          (Metal.Indirect_command_buffer
-                                                           .Render_command
-                                                           .destroy x))
-                                                      !commands;
-                                                    let count = List.length !commands in
-                                                    if count > 0 then
-                                                      ignore
-                                                        (Metal.Indirect_command_buffer.reset icb
-                                                           ~location:0 ~length:count);
-                                                    destroy_prepared_encoders ();
-                                                    List.iter
-                                                      (fun x ->
-                                                        ignore
-                                                          (Metal.Render_encoder
-                                                           .destroy_prepared_resources x))
-                                                      !resource_sets;
-                                                    List.iter
-                                                      (fun x -> ignore (Metal.Buffer.destroy x))
-                                                      !buffers;
-                                                    List.iter
-                                                      (fun x -> ignore (Metal.Sampler.destroy x))
-                                                      !samplers;
-                                                    Error e
-                                                  in
-                                                  let configure command (draw : Render_pass.draw)
-                                                      argument_buffer =
-                                                    let pipeline =
-                                                      match
-                                                        Pipeline.Private.native draw.pipeline
-                                                      with
-                                                      | Render pipeline -> pipeline
-                                                      | Compute _ -> assert false
-                                                    in
-                                                    match
-                                                      Metal.Indirect_command_buffer.Render_command
-                                                      .set_pipeline command pipeline
-                                                    with
-                                                    | Error _ as e -> e
-                                                    | Ok () -> (
-                                                        let rec bind_vertices = function
-                                                          | [] -> Ok ()
-                                                          | (binding : Render_pass.buffer_binding)
-                                                            :: rest -> (
-                                                              match
-                                                                Metal.Indirect_command_buffer
-                                                                .Render_command
-                                                                .set_vertex_buffer command
-                                                                  ~index:binding.index
-                                                                  ~offset:binding.offset
-                                                                  (Buffer.Private.metal
-                                                                     binding.buffer)
-                                                              with
-                                                              | Error _ as e -> e
-                                                              | Ok () -> bind_vertices rest)
-                                                        in
-                                                        match bind_vertices draw.buffers with
-                                                        | Error _ as e -> e
-                                                        | Ok () -> (
-                                                            match
-                                                              Metal.Indirect_command_buffer
-                                                              .Render_command
-                                                              .set_fragment_buffer command ~index:1
-                                                                ~offset:0L argument_buffer
-                                                            with
-                                                            | Error _ as e -> e
-                                                            | Ok () ->
-                                                                Metal.Indirect_command_buffer
-                                                                .Render_command
-                                                                .draw_primitives command
-                                                                  ~primitive:
-                                                                    (match draw.primitive with
-                                                                    | Point_list -> Metal.Point
-                                                                    | Line_list -> Metal.Line
-                                                                    | Triangle_list ->
-                                                                        Metal.Triangle
-                                                                    | Triangle_strip ->
-                                                                        Metal.Triangle_strip)
-                                                                  ~vertex_start:draw.vertex_start
-                                                                  ~vertex_count:draw.vertex_count ()
-                                                            ))
-                                                  in
-                                                  let rec loop i = function
-                                                    | [] -> (
-                                                        let buffers = List.rev !buffers in
-                                                        let prepare resources =
-                                                          match
-                                                            Metal.Render_encoder.prepare_resources
-                                                              (Device.Private.metal device)
-                                                              resources
-                                                          with
-                                                          | Error _ as e -> e
-                                                          | Ok prepared ->
-                                                              resource_sets :=
-                                                                prepared :: !resource_sets;
-                                                              Ok prepared
-                                                        in
-                                                        match
-                                                          prepare
-                                                            (List.map
-                                                               (fun buffer ->
-                                                                 Metal.Render_encoder
-                                                                 .Buffer_resource
-                                                                   buffer)
-                                                               vertex_buffers)
-                                                        with
-                                                        | Error e -> fail e
-                                                        | Ok vertex_resources -> (
-                                                            match
-                                                              prepare
-                                                                (List.map
-                                                                   (fun buffer ->
-                                                                     Metal.Render_encoder
-                                                                     .Buffer_resource
-                                                                       buffer)
-                                                                   buffers)
-                                                            with
-                                                            | Error e -> fail e
-                                                            | Ok fragment_resources -> (
-                                                                match
-                                                                  prepare
-                                                                    (List.map
-                                                                       (fun texture ->
-                                                                         Metal.Render_encoder
-                                                                         .Texture_resource
-                                                                           texture)
-                                                                       textures)
-                                                                with
-                                                                | Error e -> fail e
-                                                                | Ok texture_resources ->
-                                                                    let encoders =
-                                                                      List.map
-                                                                        (fun (_, encoder, _) ->
-                                                                          encoder)
-                                                                        prepared
-                                                                    and argument_buffer_lengths =
-                                                                      List.map Metal.Buffer.length
-                                                                        buffers
-                                                                    in
-                                                                    assert (
-                                                                      argument_buffer_lengths
-                                                                      = List.map
-                                                                          (fun (_, _, length) ->
-                                                                            length)
-                                                                          prepared);
-                                                                    let resource_sets =
-                                                                      List.rev !resource_sets
-                                                                    in
-                                                                    assert (
-                                                                      List.length resource_sets = 3);
-                                                                    let owner_bytes =
-                                                                      plan_owner_bytes ~key
-                                                                        ~dependencies ~pipeline_keys
-                                                                        ~command_count
-                                                                        ~encoder_count:
-                                                                          (List.length encoders)
-                                                                        ~sampler_count:
-                                                                          (List.length !samplers)
-                                                                        ~argument_buffer_lengths
-                                                                        ~resource_set_count:
-                                                                          (List.length resource_sets)
-                                                                        ~resource_reference_count:
-                                                                          (List.length
-                                                                             vertex_buffers
-                                                                         + List.length buffers
-                                                                         + List.length textures)
-                                                                    in
-                                                                    assert (
-                                                                      owner_bytes
-                                                                      = prospective_bytes);
-                                                                    let owner =
-                                                                      {
-                                                                        queue_token;
-                                                                        generation;
-                                                                        command_count;
-                                                                        last_epoch = 0L;
-                                                                        dependencies;
-                                                                        pipeline_keys;
-                                                                        commands =
-                                                                          List.rev !commands;
-                                                                        samplers =
-                                                                          List.rev !samplers;
-                                                                        encoders;
-                                                                        buffers;
-                                                                        resource_sets;
-                                                                        vertex_resources;
-                                                                        fragment_resources;
-                                                                        texture_resources;
-                                                                        owner_bytes;
-                                                                        passes = [];
-                                                                      }
-                                                                    in
-                                                                    prepared_encoders := None;
-                                                                    made := Some owner;
-                                                                    Ok ())))
-                                                    | ((draw : Render_pass.draw), encoder, length)
-                                                      :: rest -> (
-                                                        match
-                                                          Metal.Buffer.create
-                                                            ~device:(Device.Private.metal device)
-                                                            ~length ~storage:Metal.Buffer.Shared ()
-                                                        with
-                                                        | Error e ->
-                                                            ignore
-                                                              (Metal.Shader_argument_encoder.destroy
-                                                                 encoder);
-                                                            fail e
-                                                        | Ok argument_buffer -> (
-                                                            buffers := argument_buffer :: !buffers;
-                                                            match
-                                                              Metal.Shader_argument_encoder
-                                                              .set_argument_buffer encoder
-                                                                argument_buffer ~offset:0L ()
-                                                            with
-                                                            | Error e -> fail e
-                                                            | Ok () -> (
-                                                                let texture =
-                                                                  (List.hd draw.textures)
-                                                                    .Render_pass.texture
-                                                                and classic_sampler =
-                                                                  (List.hd draw.samplers)
-                                                                    .Render_pass.sampler
-                                                                in
-                                                                match
-                                                                  Metal.Shader_argument_encoder.set
-                                                                    encoder ~index:0L
-                                                                    (Metal.Shader_argument_encoder
-                                                                     .Texture
-                                                                       (Texture.Private.metal
-                                                                          texture))
-                                                                with
-                                                                | Error e -> fail e
-                                                                | Ok () -> (
-                                                                    match
-                                                                      Sampler.Private
-                                                                      .create_argument device
-                                                                        (Sampler.Private.descriptor
-                                                                           classic_sampler)
-                                                                    with
-                                                                    | Error e -> fail e
-                                                                    | Ok sampler -> (
-                                                                        samplers :=
-                                                                          sampler :: !samplers;
-                                                                        match
-                                                                          Metal
-                                                                          .Shader_argument_encoder
-                                                                          .set encoder ~index:1L
-                                                                            (Metal
-                                                                             .Shader_argument_encoder
-                                                                             .Sampler
-                                                                               sampler)
-                                                                        with
-                                                                        | Error e -> fail e
-                                                                        | Ok () -> (
-                                                                            match
-                                                                              Metal
-                                                                              .Indirect_command_buffer
-                                                                              .Render_command
-                                                                              .at icb i
-                                                                            with
-                                                                            | Error e -> fail e
-                                                                            | Ok command -> (
-                                                                                commands :=
-                                                                                  command
-                                                                                  :: !commands;
-                                                                                let configured =
-                                                                                  configure command
-                                                                                    draw
-                                                                                    argument_buffer
-                                                                                in
-                                                                                match
-                                                                                  configured
-                                                                                with
-                                                                                | Error e -> fail e
-                                                                                | Ok () ->
-                                                                                    loop (i + 1)
-                                                                                      rest)))))))
-                                                  in
-                                                  loop 0 prepared
-                                            in
-                                            let prepared =
-                                              if expected_hit then Ok None
-                                              else
-                                                match prepare_argument_encoders () with
-                                                | Error error ->
-                                                    Error
-                                                      (Device.of_metal_error
-                                                         ~operation:
-                                                           "Ogpu_metal.Backend.render_plan_owner"
-                                                         error)
-                                                | Ok prepared ->
-                                                    let bytes = prospective_owner_bytes prepared in
-                                                    if bytes > c.owner_byte_capacity then begin
-                                                      destroy_prepared_encoders ();
-                                                      error "Ogpu_metal.Backend.render_plan_owner"
-                                                        Ogpu_core.Error.Invalid_argument
-                                                        "retained plan owner exceeds its byte \
-                                                         capacity"
-                                                    end
-                                                    else Ok (Some prepared)
-                                            in
-                                            match prepared with
-                                            | Error _ as failure -> failure
-                                            | Ok _ -> (
-                                                match
-                                                  Metal.Retained_render_plan.prepare cache ~key
-                                                    ~generation ~command_count
-                                                    ~descriptor:icb_descriptor ~build
-                                                with
-                                                | Error error ->
-                                                    destroy_prepared_encoders ();
-                                                    Option.iter
-                                                      (fun owner ->
-                                                        record_destroy_cleanup (destroy_owner owner))
-                                                      !made;
-                                                    made := None;
-                                                    Error
-                                                      (Device.of_metal_error
-                                                         ~operation:"Ogpu_metal.Backend.render_plan"
-                                                         error)
-                                                | Ok (Metal.Retained_render_plan.Hit icb) ->
-                                                    destroy_prepared_encoders ();
-                                                    let owner = Hashtbl.find c.plan_owners key in
-                                                    Ok
-                                                      ( Render_pass.with_indirect encoded icb
-                                                          ~vertex_resources:owner.vertex_resources
-                                                          ~fragment_resources:
-                                                            owner.fragment_resources
-                                                          ~texture_resources:owner.texture_resources,
-                                                        Some key,
-                                                        Some icb,
-                                                        `Hit owner,
-                                                        !pending_identity )
-                                                | Ok
-                                                    (Metal.Retained_render_plan.Candidate candidate)
-                                                  ->
-                                                    let owner = Option.get !made in
-                                                    let icb =
-                                                      Metal.Retained_render_plan.candidate_buffer
-                                                        candidate
-                                                    in
-                                                    Ok
-                                                      ( Render_pass.with_indirect encoded icb
-                                                          ~vertex_resources:owner.vertex_resources
-                                                          ~fragment_resources:
-                                                            owner.fragment_resources
-                                                          ~texture_resources:owner.texture_resources,
-                                                        Some key,
-                                                        Some icb,
-                                                        `Candidate (cache, candidate, owner),
-                                                        !pending_identity )))
-                                      in
-                                      let retire_candidate ~epoch candidate owner =
-                                        let icb =
-                                          Metal.Retained_render_plan.candidate_buffer candidate
-                                        in
-                                        let retired =
-                                          {
-                                            queue_token;
-                                            epoch;
-                                            icb;
-                                            candidate = Some candidate;
-                                            icb_released = false;
-                                            owner = Some owner;
-                                            retired_bytes = owner_retired_bytes icb owner;
-                                          }
-                                        in
-                                        if epoch = 0L || epoch <= Queue.completed_epoch queue then
-                                          begin if not (attempt_retired retired) then
-                                            account_retired retired
-                                          end
-                                        else account_retired retired
-                                      in
-                                      let make_room_for_owner cache key bytes =
-                                        if bytes > c.owner_byte_capacity then false
-                                        else
-                                          let available = Int64.sub c.owner_byte_capacity bytes in
-                                          let resident_without_key () =
-                                            Int64.sub c.owner_retained_bytes
-                                              (Option.fold ~none:0L
-                                                 ~some:(fun (owner : plan_owner) ->
-                                                   owner.owner_bytes)
-                                                 (Hashtbl.find_opt c.plan_owners key))
-                                          in
-                                          let rec make_room () =
-                                            if resident_without_key () <= available then true
-                                            else
-                                              match
-                                                List.find_opt
-                                                  (fun oldest ->
-                                                    oldest <> key
-                                                    && Hashtbl.mem c.plan_owners oldest)
-                                                  c.plan_owner_order
-                                              with
-                                              | None ->
-                                                  record_ogpu_cleanup
-                                                    (Ogpu_core.Error.make
-                                                       "Ogpu_metal.Backend.render_plan_owner"
-                                                       Ogpu_core.Error.Invalid_state
-                                                       "retained plan owner order cannot satisfy \
-                                                        its byte capacity");
-                                                  false
-                                              | Some oldest -> (
-                                                  match
-                                                    Metal.Retained_render_plan.invalidate cache
-                                                      oldest
-                                                  with
-                                                  | Ok () -> make_room ()
-                                                  | Error error ->
-                                                      record_cleanup (Some error);
-                                                      false)
-                                          in
-                                          make_room ()
-                                      in
-                                      let has_argument =
-                                        List.exists argument_pipeline native_draws
-                                      in
-                                      let rendered =
-                                        if
-                                          has_argument
-                                          && not (List.for_all exact_argument_abi native_draws)
-                                        then
-                                          error "Ogpu_metal.Backend.render"
-                                            Ogpu_core.Error.Invalid_argument
-                                            "argument-buffer render batch has mixed or \
-                                             noncanonical bindings"
-                                        else if has_argument && not retained_plans_enabled then
-                                          error "Ogpu_metal.Backend.render"
-                                            Ogpu_core.Error.Unsupported
-                                            "argument-buffer rendering requires retained ICB \
-                                             support"
-                                        else
-                                          match native_render_descriptor descriptor with
-                                          | Error _ as e -> e
-                                          | Ok descriptor -> (
-                                              match
-                                                Ogpu_core.Render_pass.create
-                                                  ~raster_state:
-                                                    (Ogpu_core.Render_pass.raster_state
-                                                       portable_pass)
-                                                  ?stencil_state:
-                                                    (Ogpu_core.Render_pass.stencil_state
-                                                       portable_pass)
-                                                  (Device.Private.handle device) descriptor
-                                              with
-                                              | Error _ as e -> e
-                                              | Ok pass -> (
-                                                  match
-                                                    if native_draws = [] then
-                                                      Render_pass.create_empty device pass
-                                                        ~attachments
-                                                    else
-                                                      Render_pass.create_batch device pass
-                                                        ~attachments native_draws
-                                                  with
-                                                  | Error _ as e -> e
-                                                  | Ok encoded -> (
-                                                      match maybe_indirect encoded with
-                                                      | Error _ as e ->
-                                                          ignore
-                                                            (Render_pass.Private.destroy encoded);
-                                                          e
-                                                      | Ok
-                                                          ( encoded,
-                                                            key,
-                                                            icb,
-                                                            plan_state,
-                                                            pending_identity ) -> (
-                                                          let classic_bytes =
-                                                            classic_entry_bytes command encoded
-                                                              resources pipelines
-                                                          in
-                                                          let retain_classic =
-                                                            Option.is_none key
-                                                            && classic_bytes
-                                                               <= c.classic_byte_capacity
-                                                            && List.length !classic_submissions
-                                                               < classic_submission_capacity
-                                                            && !classic_retained_bytes
-                                                               <= Int64.sub c.classic_byte_capacity
-                                                                    classic_bytes
-                                                          in
-                                                          let ( pending_classic,
-                                                                pending_replay,
-                                                                encoding_persistent ) =
-                                                            match (key, icb) with
-                                                            | None, _ when retain_classic ->
-                                                                Render_pass.Private.retain_encoding
-                                                                  encoded;
-                                                                ( Some
-                                                                    {
-                                                                      classic_command = command;
-                                                                      classic_resources = resources;
-                                                                      classic_pipelines = pipelines;
-                                                                      classic_pass = encoded;
-                                                                      classic_bytes;
-                                                                      classic_epoch = 0L;
-                                                                      classic_retired = false;
-                                                                    },
-                                                                  None,
-                                                                  true )
-                                                            | None, _ -> (None, None, false)
-                                                            | Some key, Some _ ->
-                                                                let owner =
-                                                                  match plan_state with
-                                                                  | `Hit owner
-                                                                  | `Candidate (_, _, owner) ->
-                                                                      owner
-                                                                  | `None -> assert false
-                                                                in
-                                                                let ids =
-                                                                  attachment_ids submission
-                                                                in
-                                                                let tokens =
-                                                                  resolve_attachment_tokens ids
-                                                                    resources
-                                                                in
-                                                                let replay_bytes =
-                                                                  retained_replay_bytes command
-                                                                    pipelines key encoded ids tokens
-                                                                in
-                                                                let entry =
-                                                                  {
-                                                                    replay_command = command;
-                                                                    replay_pipelines = pipelines;
-                                                                    replay_key = key;
-                                                                    replay_pass = encoded;
-                                                                    replay_attachment_ids = ids;
-                                                                    replay_attachment_tokens =
-                                                                      tokens;
-                                                                    replay_bytes;
-                                                                    replay_epoch = 0L;
-                                                                    replay_retired = false;
-                                                                  }
-                                                                in
-                                                                if
-                                                                  replay_admission_preflight
-                                                                    replay_bytes
-                                                                then begin
-                                                                  Render_pass.Private
-                                                                  .retain_encoding encoded;
-                                                                  ( None,
-                                                                    Some (entry, owner, tokens),
-                                                                    true )
-                                                                end
-                                                                else (None, None, false)
-                                                            | Some _, None -> assert false
-                                                          in
-                                                          match
-                                                            submit_native_render ~presenting
-                                                              presentation queue encoded
-                                                          with
-                                                          | Error _ as error ->
-                                                              if encoding_persistent then (
-                                                                match
-                                                                  Render_pass.Private.destroy
-                                                                    encoded
-                                                                with
-                                                                | Ok () -> ()
-                                                                | Error cleanup_error ->
-                                                                    record_ogpu_cleanup
-                                                                      cleanup_error;
-                                                                    Option.iter
-                                                                      (fun entry ->
-                                                                        entry.classic_retired <-
-                                                                          true;
-                                                                        classic_submissions :=
-                                                                          entry
-                                                                          :: !classic_submissions;
-                                                                        classic_retained_bytes :=
-                                                                          Int64.add
-                                                                            !classic_retained_bytes
-                                                                            entry.classic_bytes)
-                                                                      pending_classic;
-                                                                    Option.iter
-                                                                      (fun (entry, owner, tokens) ->
-                                                                        match plan_state with
-                                                                        | `Candidate _ ->
-                                                                            owner.passes <-
-                                                                              ( entry.replay_pass,
-                                                                                tokens )
-                                                                              :: owner.passes
-                                                                        | `Hit _ ->
-                                                                            owner.passes <-
-                                                                              ( entry.replay_pass,
-                                                                                tokens )
-                                                                              :: owner.passes;
-                                                                            Option.iter
-                                                                              (fun cache ->
-                                                                                match
-                                                                                  Metal
-                                                                                  .Retained_render_plan
-                                                                                  .invalidate cache
-                                                                                    entry.replay_key
-                                                                                with
-                                                                                | Ok () -> ()
-                                                                                | Error error ->
-                                                                                    record_cleanup
-                                                                                      (Some error))
-                                                                              c.plan_cache
-                                                                        | `None -> assert false)
-                                                                      pending_replay)
-                                                              else
-                                                                ignore
-                                                                  (Render_pass.Private.destroy
-                                                                     encoded);
-                                                              (match plan_state with
-                                                              | `None | `Hit _ -> ()
-                                                              | `Candidate (_, candidate, owner) ->
-                                                                  retire_candidate ~epoch:0L
-                                                                    candidate owner);
-                                                              error
-                                                          | Ok receipt ->
-                                                              let plan_active =
-                                                                match plan_state with
-                                                                | `None -> true
-                                                                | `Hit owner ->
-                                                                    owner.last_epoch <-
-                                                                      receipt.epoch;
-                                                                    c.plan_hits <-
-                                                                      Int64.succ c.plan_hits;
-                                                                    c.plan_executions <-
-                                                                      Int64.succ c.plan_executions;
-                                                                    true
-                                                                | `Candidate
-                                                                    (cache, candidate, owner) -> (
-                                                                    owner.last_epoch <-
-                                                                      receipt.epoch;
-                                                                    if
-                                                                      not
-                                                                        (make_room_for_owner cache
-                                                                           (Option.get key)
-                                                                           owner.owner_bytes)
-                                                                    then begin
-                                                                      Option.iter
-                                                                        (fun (entry, _, tokens) ->
-                                                                          owner.passes <-
-                                                                            ( entry.replay_pass,
-                                                                              tokens )
-                                                                            :: owner.passes)
-                                                                        pending_replay;
-                                                                      retire_candidate
-                                                                        ~epoch:receipt.epoch
-                                                                        candidate owner;
-                                                                      false
-                                                                    end
-                                                                    else
-                                                                      match
-                                                                        Metal.Retained_render_plan
-                                                                        .admit cache candidate
-                                                                      with
-                                                                      | Error cleanup_error ->
-                                                                          record_cleanup
-                                                                            (Some cleanup_error);
-                                                                          Option.iter
-                                                                            (fun (entry, _, tokens)
-                                                                               ->
-                                                                              owner.passes <-
-                                                                                ( entry.replay_pass,
-                                                                                  tokens )
-                                                                                :: owner.passes)
-                                                                            pending_replay;
-                                                                          retire_candidate
-                                                                            ~epoch:receipt.epoch
-                                                                            candidate owner;
-                                                                          false
-                                                                      | Ok () ->
-                                                                          let key =
-                                                                            Option.get key
-                                                                          in
-                                                                          assert (
-                                                                            not
-                                                                              (Hashtbl.mem
-                                                                                 c.plan_owners key));
-                                                                          Hashtbl.add c.plan_owners
-                                                                            key owner;
-                                                                          c.plan_owner_order <-
-                                                                            c.plan_owner_order
-                                                                            @ [ key ];
-                                                                          c.owner_retained_bytes <-
-                                                                            Int64.add
-                                                                              c.owner_retained_bytes
-                                                                              owner.owner_bytes;
-                                                                          c.plan_builds <-
-                                                                            Int64.succ c.plan_builds;
-                                                                          c.plan_misses <-
-                                                                            Int64.succ c.plan_misses;
-                                                                          c.plan_executions <-
-                                                                            Int64.succ
-                                                                              c.plan_executions;
-                                                                          true)
-                                                              in
-                                                              Option.iter
-                                                                (fun entry ->
-                                                                  assert (
-                                                                    make_room_for_classic
-                                                                      entry.classic_bytes);
-                                                                  entry.classic_epoch <-
-                                                                    receipt.epoch;
-                                                                  classic_submissions :=
-                                                                    entry :: !classic_submissions;
-                                                                  classic_retained_bytes :=
-                                                                    Int64.add
-                                                                      !classic_retained_bytes
-                                                                      entry.classic_bytes)
-                                                                pending_classic;
-                                                              if plan_active then begin
-                                                                Option.iter
-                                                                  (fun (entry, owner, tokens) ->
-                                                                    entry.replay_epoch <-
-                                                                      receipt.epoch;
-                                                                    if retain_replay entry then
-                                                                      owner.passes <-
-                                                                        (entry.replay_pass, tokens)
-                                                                        :: owner.passes
-                                                                    else
-                                                                      begin match
-                                                                        Render_pass.Private.destroy
-                                                                          entry.replay_pass
-                                                                      with
-                                                                      | Ok () -> ()
-                                                                      | Error cleanup_error ->
-                                                                          if
-                                                                            receipt.epoch
-                                                                            <= Queue.completed_epoch
-                                                                                 queue
-                                                                          then
-                                                                            record_ogpu_cleanup
-                                                                              cleanup_error;
-                                                                          owner.passes <-
-                                                                            ( entry.replay_pass,
-                                                                              tokens )
-                                                                            :: owner.passes;
-                                                                          Option.iter
-                                                                            (fun cache ->
-                                                                              match
-                                                                                Metal
-                                                                                .Retained_render_plan
-                                                                                .invalidate cache
-                                                                                  entry.replay_key
-                                                                              with
-                                                                              | Ok () -> ()
-                                                                              | Error error ->
-                                                                                  record_cleanup
-                                                                                    (Some error))
-                                                                            c.plan_cache
-                                                                      end)
-                                                                  pending_replay;
-                                                                if Option.is_some pending_replay
-                                                                then
-                                                                  Option.iter
-                                                                    (fun entry ->
-                                                                      ignore (retain_identity entry))
-                                                                    pending_identity
-                                                              end;
-                                                              Ok receipt))))
-                                      in
-                                      rendered))
-                      in
-                      Result.map
-                        (fun (receipt : Queue.receipt) ->
-                          { Ogpu_core.Backend.epoch = receipt.epoch })
-                        result
-                in
-                let submit command ~resources ~pipelines =
-                  submit_with ~presenting:false unused_presentation command ~resources ~pipelines
-                in
-                let submit_combined presentation command ~resources ~pipelines =
-                  submit_with ~presenting:true presentation command ~resources ~pipelines
-                in
                 let active =
                   {
-                    queue;
-                    submit_combined;
                     presentations =
                       Array.init pending_presentation_capacity (fun _ ->
                           Surface.Private.create_pending_presentation ());
                   }
                 in
                 Hashtbl.add c.active_queues queue_token active;
-                let commit_completed_epoch epoch completion =
-                  Hashtbl.replace c.completed_epochs queue_token epoch;
-                  drain_retired (fun (retired : retired) ->
-                      retired.queue_token = queue_token && retired.epoch <= epoch);
-                  Option.iter
-                    (fun cache -> cache.retry_cleanup ())
-                    (Hashtbl.find_opt c.classic_invalidators queue_token);
+                let commit_completed_epoch _epoch completion =
                   let cleanup = take_cleanup_error () in
                   match (completion, cleanup) with
                   | (Error _ as e), _ -> e
@@ -2782,24 +1160,1100 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity = 64)
                   end
                   else polled
                 in
-                let submit_sync command ~resources ~pipelines =
-                  Queue.Private.arm_scoped_render queue;
-                  match submit command ~resources ~pipelines with
-                  | Error _ as e ->
-                      ignore (Queue.Private.take_scoped_completion queue);
-                      e
-                  | Ok receipt ->
-                      let completion =
-                        match Queue.Private.take_scoped_completion queue with
-                        | Some result -> result
-                        | None -> complete_through receipt.epoch
+                let begin_commands () =
+                  let operation = "Ogpu_metal.Backend.begin_commands" in
+                  let native_of = function
+                    | Error e -> Error (Device.of_metal_error ~operation e)
+                    | Ok x -> Ok x
+                  in
+                  match Metal.Command_buffer.create (Queue.Private.metal queue) () with
+                  | Error e -> Error (Device.of_metal_error ~operation e)
+                  | Ok native ->
+                      let commands_token = token c in
+                      let retained = ref [] in
+                      let open_encoder : (unit -> unit) option ref = ref None in
+                      let finished = ref false in
+                      let keep retain release =
+                        match retain () with
+                        | Error _ as failure -> failure
+                        | Ok () ->
+                            retained := release :: !retained;
+                            Ok ()
                       in
-                      let completion =
-                        if Queue.completed_epoch queue >= receipt.epoch then
-                          commit_completed_epoch receipt.epoch completion
-                        else completion
+                      let keep_buffer buffer =
+                        keep
+                          (fun () -> Buffer.Private.retain_submission buffer)
+                          (fun () -> Buffer.Private.release_submission buffer)
                       in
-                      Ok { Ogpu_core.Backend.receipt; completion }
+                      let keep_sync (entry : _ sync_entry) =
+                        entry.uses <- entry.uses + 1;
+                        retained :=
+                          (fun () ->
+                            entry.uses <- entry.uses - 1;
+                            if entry.uses = 0 && entry.destroy_requested then
+                              match entry.finish () with
+                              | Ok () -> ()
+                              | Error error -> record_ogpu_cleanup error)
+                          :: !retained
+                      in
+                      let sampled (sampling : Ogpu_core.Backend.driver_sampling) =
+                        Result.map
+                          (fun (entry : _ sync_entry) ->
+                            keep_sync entry;
+                            (entry.native, Int64.of_int sampling.sampling_start, Int64.of_int sampling.sampling_end))
+                          (find_sync operation c.samples "timestamps" sampling.sampling_token)
+                      in
+                      let release_later destroy =
+                        retained :=
+                          (fun () -> match destroy () with Ok () -> () | Error e -> record_cleanup (Some e)) :: !retained
+                      in
+                      let fence_call kind token call =
+                        match find_sync operation c.fences "fence" token with
+                        | Error _ as e -> e
+                        | Ok entry ->
+                            keep_sync entry;
+                            native_of (call entry.native)
+                        |> fun result -> ignore kind; result
+                      in
+                      let heap_call token call =
+                        match find_sync operation c.heaps "heap" token with
+                        | Error _ as e -> e
+                        | Ok entry ->
+                            keep_sync entry;
+                            native_of (call entry.native)
+                      in
+                      let find_buffer token =
+                        match native_resource token with
+                        | Some (Buffer buffer) -> Ok buffer
+                        | _ ->
+                            error operation Ogpu_core.Error.Invalid_argument
+                              "buffer graph is incomplete"
+                      in
+                      let find_accel token =
+                        match Hashtbl.find_opt c.accels token with
+                        | Some structure -> Ok structure
+                        | None ->
+                            error operation Ogpu_core.Error.Invalid_argument
+                              "acceleration structure graph is incomplete"
+                      in
+                      let keep_accel structure =
+                        match Acceleration.Private.retain_submission structure with
+                        | Error _ as failure -> failure
+                        | Ok release ->
+                            retained := release :: !retained;
+                            Ok ()
+                      in
+                      let recording () =
+                        if !finished then
+                          error operation Ogpu_core.Error.Invalid_state "commands are finished"
+                        else Ok ()
+                      in
+                      let compute_encoder sampling =
+                        match recording () with
+                        | Error _ as failure -> failure
+                        | Ok () -> (
+                            let created =
+                              match sampling with
+                              | None -> native_of (Metal.Compute_encoder.create native)
+                              | Some sampling -> (
+                                  match sampled sampling with
+                                  | Error _ as e -> e
+                                  | Ok (sample_buffer, start_index, end_index) -> (
+                                      match
+                                        Metal.Compute_pass.create metal_device
+                                          ~attachments:[| Some { Metal.Compute_pass.sample_buffer; start_index; end_index } |] ()
+                                      with
+                                      | Error e -> Error (Device.of_metal_error ~operation e)
+                                      | Ok pass -> (
+                                          match Metal.Compute_pass.create_encoder native pass with
+                                          | Error e ->
+                                              ignore (Metal.Compute_pass.destroy pass);
+                                              Error (Device.of_metal_error ~operation e)
+                                          | Ok encoder ->
+                                              release_later (fun () -> Metal.Compute_pass.destroy pass);
+                                              Ok encoder)))
+                            in
+                            match created with
+                            | Error _ as failure -> failure
+                            | Ok encoder ->
+                                open_encoder :=
+                                  Some (fun () -> ignore (Metal.Compute_encoder.end_encoding encoder));
+                                Ok
+                                  {
+                                    Ogpu_core.Backend.set_pipeline =
+                                      (fun token ->
+                                        match Hashtbl.find_opt c.pipeline_tokens token with
+                                        | None ->
+                                            error operation Ogpu_core.Error.Invalid_argument
+                                              "pipeline graph is incomplete"
+                                        | Some pipeline -> (
+                                            match Pipeline.Private.native pipeline with
+                                            | Render _ ->
+                                                error operation Ogpu_core.Error.Invalid_argument
+                                                  "render pipeline cannot execute compute"
+                                            | Compute compute -> (
+                                                match
+                                                  keep
+                                                    (fun () ->
+                                                      Pipeline.Private.retain_submission pipeline)
+                                                    (fun () ->
+                                                      Pipeline.Private.release_submission pipeline)
+                                                with
+                                                | Error _ as failure -> failure
+                                                | Ok () ->
+                                                    native_of
+                                                      (Metal.Compute_encoder.set_pipeline encoder
+                                                         compute))));
+                                    set_buffer =
+                                      (fun ~index ~offset token ->
+                                        match find_buffer token with
+                                        | Error _ as failure -> failure
+                                        | Ok buffer -> (
+                                            match keep_buffer buffer with
+                                            | Error _ as failure -> failure
+                                            | Ok () ->
+                                                native_of
+                                                  (Metal.Compute_encoder.set_buffer encoder ~index
+                                                     ~offset (Buffer.Private.metal buffer))));
+                                    set_bytes =
+                                      (fun ~index bytes ->
+                                        native_of (Metal.Compute_encoder.set_bytes encoder ~index bytes));
+                                    set_texture =
+                                      (fun ~index token ->
+                                        match native_resource token with
+                                        | Some (Texture texture) -> (
+                                            match
+                                              keep
+                                                (fun () -> Texture.Private.retain_submission texture)
+                                                (fun () -> Texture.Private.release_submission texture)
+                                            with
+                                            | Error _ as failure -> failure
+                                            | Ok () ->
+                                                native_of
+                                                  (Metal.Compute_encoder.set_texture encoder ~index
+                                                     (Texture.Private.metal texture)))
+                                        | _ ->
+                                            error operation Ogpu_core.Error.Invalid_argument
+                                              "texture graph is incomplete");
+                                    set_accel =
+                                      (fun ~index token ->
+                                        match find_accel token with
+                                        | Error _ as failure -> failure
+                                        | Ok structure -> (
+                                            match keep_accel structure with
+                                            | Error _ as failure -> failure
+                                            | Ok () ->
+                                                native_of
+                                                  (Metal.Compute_encoder.set_acceleration_structure
+                                                     encoder ~index
+                                                     (Some (Acceleration.Private.metal structure)))));
+                                    set_table =
+                                      (fun ~index token ->
+                                        match Hashtbl.find_opt c.tables token with
+                                        | None ->
+                                            error operation Ogpu_core.Error.Invalid_argument
+                                              "function table graph is incomplete"
+                                        | Some entry -> (
+                                            match
+                                              keep
+                                                (fun () ->
+                                                  entry.table_uses <- entry.table_uses + 1;
+                                                  Ok ())
+                                                (fun () ->
+                                                  entry.table_uses <- entry.table_uses - 1;
+                                                  if entry.table_uses = 0 && entry.table_destroy_requested
+                                                  then ignore (finish_table_destroy entry))
+                                            with
+                                            | Error _ as failure -> failure
+                                            | Ok () ->
+                                                native_of
+                                                  (match entry.table with
+                                                   | `Intersection t ->
+                                                       Metal.Compute_encoder.set_intersection_function_table
+                                                         encoder ~index (Some t)
+                                                   | `Visible t ->
+                                                       Metal.Compute_encoder.set_visible_function_table
+                                                         encoder ~index (Some t))));
+                                    dispatch_threads =
+                                      (fun ~threads ~threadgroup ->
+                                        native_of
+                                          (Metal.Compute_encoder.dispatch_threads encoder ~threads
+                                             ~threadgroup));
+                                    dispatch_threadgroups =
+                                      (fun ~threadgroups ~threadgroup ->
+                                        native_of
+                                          (Metal.Compute_encoder.dispatch_threadgroups encoder
+                                             ~threadgroups ~threadgroup));
+                                    compute_use_heap =
+                                      (fun token -> heap_call token (fun heap -> Metal.Compute_encoder.use_heaps encoder [ heap ]));
+                                    compute_update_fence =
+                                      (fun token -> fence_call `Update token (Metal.Compute_encoder.update_fence encoder));
+                                    compute_wait_fence =
+                                      (fun token -> fence_call `Wait token (Metal.Compute_encoder.wait_for_fence encoder));
+                                    end_compute =
+                                      (fun () ->
+                                        open_encoder := None;
+                                        native_of (Metal.Compute_encoder.end_encoding encoder));
+                                  })
+                      in
+                      let accel_encoder () =
+                        match recording () with
+                        | Error _ as failure -> failure
+                        | Ok () -> (
+                            match Metal.Acceleration_encoder.create native with
+                            | Error e -> Error (Device.of_metal_error ~operation e)
+                            | Ok encoder ->
+                                open_encoder :=
+                                  Some
+                                    (fun () ->
+                                      ignore (Metal.Acceleration_encoder.end_encoding encoder));
+                                let operate encode token ~scratch ~scratch_offset =
+                                  match find_accel token with
+                                  | Error _ as failure -> failure
+                                  | Ok structure -> (
+                                      match find_buffer scratch with
+                                      | Error _ as failure -> failure
+                                      | Ok scratch -> (
+                                          match keep_accel structure with
+                                          | Error _ as failure -> failure
+                                          | Ok () -> (
+                                              match keep_buffer scratch with
+                                              | Error _ as failure -> failure
+                                              | Ok () ->
+                                                  encode encoder device structure ~scratch
+                                                    ~scratch_offset)))
+                                in
+                                let pair encode ~src ~dst =
+                                  match (find_accel src, find_accel dst) with
+                                  | Error e, _ | _, Error e -> Error e
+                                  | Ok src, Ok dst -> (
+                                      match (keep_accel src, keep_accel dst) with
+                                      | Error e, _ | _, Error e -> Error e
+                                      | Ok (), Ok () -> encode encoder device ~src ~dst)
+                                in
+                                Ok
+                                  {
+                                    Ogpu_core.Backend.build = operate Acceleration.encode_build;
+                                    refit = operate Acceleration.encode_refit;
+                                    copy = pair Acceleration.encode_copy;
+                                    compact = pair Acceleration.encode_compact;
+                                    write_compacted_size =
+                                      (fun token ~dst ~offset ->
+                                        match (find_accel token, find_buffer dst) with
+                                        | Error e, _ | _, Error e -> Error e
+                                        | Ok structure, Ok destination -> (
+                                            match (keep_accel structure, keep_buffer destination) with
+                                            | Error e, _ | _, Error e -> Error e
+                                            | Ok (), Ok () ->
+                                                Acceleration.encode_compacted_size encoder device
+                                                  structure ~destination ~offset));
+                                    end_accel =
+                                      (fun () ->
+                                        open_encoder := None;
+                                        native_of (Metal.Acceleration_encoder.end_encoding encoder));
+                                  })
+                      in
+                      let find_texture token =
+                        match native_resource token with
+                        | Some (Texture texture) -> Ok texture
+                        | _ ->
+                            error operation Ogpu_core.Error.Invalid_argument
+                              "texture graph is incomplete"
+                      in
+                      let keep_texture texture =
+                        keep
+                          (fun () -> Texture.Private.retain_submission texture)
+                          (fun () -> Texture.Private.release_submission texture)
+                      in
+                      let region (o : Ogpu_core.Types.origin)
+                          (e : Ogpu_core.Types.extent) : Metal.Texture.region =
+                        { x = o.x; y = o.y; z = o.z; width = e.width; height = e.height; depth = e.depth }
+                      in
+                      let blit_encoder sampling =
+                        match recording () with
+                        | Error _ as failure -> failure
+                        | Ok () -> (
+                            let created =
+                              match sampling with
+                              | None -> native_of (Metal.Blit_encoder.create native)
+                              | Some sampling -> (
+                                  match sampled sampling with
+                                  | Error _ as e -> e
+                                  | Ok (sample_buffer, start_index, end_index) -> (
+                                      match Metal.Blit_pass_descriptor.create metal_device with
+                                      | Error e -> Error (Device.of_metal_error ~operation e)
+                                      | Ok pass -> (
+                                          let configured =
+                                            match Metal.Blit_pass_descriptor.attachments pass with
+                                            | Error _ as e -> e
+                                            | Ok attachments -> (
+                                                match Metal.Blit_pass_attachments.get attachments ~index:0 with
+                                                | Error _ as e -> e
+                                                | Ok None -> Ok None
+                                                | Ok (Some attachment) ->
+                                                    Result.map
+                                                      (fun () -> Some (attachments, attachment))
+                                                      (Metal.Blit_pass_attachment.configure attachment
+                                                         ~sample_buffer:(Some sample_buffer)
+                                                         ~start:(Metal.Blit_pass_attachment.Index start_index)
+                                                         ~finish:(Metal.Blit_pass_attachment.Index end_index)))
+                                          in
+                                          let cleanup children =
+                                            release_later (fun () ->
+                                                let first =
+                                                  match children with
+                                                  | None -> Ok ()
+                                                  | Some (attachments, attachment) -> (
+                                                      match Metal.Blit_pass_attachment.destroy attachment with
+                                                      | Error _ as e -> e
+                                                      | Ok () -> Metal.Blit_pass_attachments.destroy attachments)
+                                                in
+                                                match first with
+                                                | Error _ as e -> e
+                                                | Ok () -> Metal.Blit_pass_descriptor.destroy pass)
+                                          in
+                                          match configured with
+                                          | Error e ->
+                                              ignore (Metal.Blit_pass_descriptor.destroy pass);
+                                              Error (Device.of_metal_error ~operation e)
+                                          | Ok None ->
+                                              ignore (Metal.Blit_pass_descriptor.destroy pass);
+                                              error operation Ogpu_core.Error.Invalid_state
+                                                "blit pass has no sample attachment slot"
+                                          | Ok children -> (
+                                              match Metal.Blit_pass_descriptor.create_encoder native pass with
+                                              | Error e ->
+                                                  cleanup children;
+                                                  Error (Device.of_metal_error ~operation e)
+                                              | Ok encoder ->
+                                                  cleanup children;
+                                                  Ok encoder))))
+                            in
+                            match created with
+                            | Error _ as failure -> failure
+                            | Ok encoder ->
+                                open_encoder :=
+                                  Some (fun () -> ignore (Metal.Blit_encoder.end_encoding encoder));
+                                let two_buffers src dst k =
+                                  match (find_buffer src, find_buffer dst) with
+                                  | Error e, _ | _, Error e -> Error e
+                                  | Ok source, Ok destination -> (
+                                      match (keep_buffer source, keep_buffer destination) with
+                                      | Error e, _ | _, Error e -> Error e
+                                      | Ok (), Ok () -> native_of (k source destination))
+                                in
+                                Ok
+                                  {
+                                    Ogpu_core.Backend.copy_buffer =
+                                      (fun ~src ~src_offset ~dst ~dst_offset ~length ->
+                                        two_buffers src dst (fun source destination ->
+                                            Metal.Blit_encoder.copy_buffer encoder
+                                              ~source:(Buffer.Private.metal source)
+                                              ~source_offset:src_offset
+                                              ~destination:(Buffer.Private.metal destination)
+                                              ~destination_offset:dst_offset ~length));
+                                    fill_buffer =
+                                      (fun token ~offset ~length ~value ->
+                                        match find_buffer token with
+                                        | Error _ as failure -> failure
+                                        | Ok buffer -> (
+                                            match keep_buffer buffer with
+                                            | Error _ as failure -> failure
+                                            | Ok () ->
+                                                native_of
+                                                  (Metal.Blit_encoder.fill_buffer encoder
+                                                     (Buffer.Private.metal buffer) ~offset ~length
+                                                     ~byte:value)));
+                                    buffer_to_texture =
+                                      (fun ~src ~offset ~bytes_per_row ~bytes_per_image ~dst ~mip
+                                           ~origin ~extent ->
+                                        match (find_buffer src, find_texture dst) with
+                                        | Error e, _ | _, Error e -> Error e
+                                        | Ok source, Ok destination -> (
+                                            match (keep_buffer source, keep_texture destination) with
+                                            | Error e, _ | _, Error e -> Error e
+                                            | Ok (), Ok () ->
+                                                native_of
+                                                  (Metal.Blit_encoder.copy_buffer_to_texture encoder
+                                                     ~source:(Buffer.Private.metal source)
+                                                     ~source_offset:offset
+                                                     ~source_bytes_per_row:(Int64.to_int bytes_per_row)
+                                                     ~source_bytes_per_image:
+                                                       (Int64.to_int bytes_per_image)
+                                                     ~destination:(Texture.Private.metal destination)
+                                                     ~destination_slice:0 ~destination_level:mip
+                                                     ~destination_region:(region origin extent))));
+                                    texture_to_buffer =
+                                      (fun ~src ~mip ~origin ~extent ~dst ~offset ~bytes_per_row
+                                           ~bytes_per_image ->
+                                        match (find_texture src, find_buffer dst) with
+                                        | Error e, _ | _, Error e -> Error e
+                                        | Ok source, Ok destination -> (
+                                            match (keep_texture source, keep_buffer destination) with
+                                            | Error e, _ | _, Error e -> Error e
+                                            | Ok (), Ok () ->
+                                                native_of
+                                                  (Metal.Blit_encoder.copy_texture_to_buffer encoder
+                                                     ~source:(Texture.Private.metal source)
+                                                     ~source_slice:0 ~source_level:mip
+                                                     ~source_region:(region origin extent)
+                                                     ~destination:(Buffer.Private.metal destination)
+                                                     ~destination_offset:offset
+                                                     ~destination_bytes_per_row:bytes_per_row
+                                                     ~destination_bytes_per_image:bytes_per_image ())));
+                                    copy_texture =
+                                      (fun ~src ~src_mip ~src_origin ~dst ~dst_mip ~dst_origin ~extent ->
+                                        match (find_texture src, find_texture dst) with
+                                        | Error e, _ | _, Error e -> Error e
+                                        | Ok source, Ok destination -> (
+                                            match (keep_texture source, keep_texture destination) with
+                                            | Error e, _ | _, Error e -> Error e
+                                            | Ok (), Ok () ->
+                                                native_of
+                                                  (Metal.Blit_encoder.copy_texture_region encoder
+                                                     ~source:(Texture.Private.metal source)
+                                                     ~source_slice:0 ~source_level:src_mip
+                                                     ~source_region:(region src_origin extent)
+                                                     ~destination:(Texture.Private.metal destination)
+                                                     ~destination_slice:0 ~destination_level:dst_mip
+                                                     ~destination_origin:
+                                                       (dst_origin.x, dst_origin.y, dst_origin.z))));
+                                    blit_update_fence =
+                                      (fun token -> fence_call `Update token (Metal.Blit_encoder.update_fence encoder));
+                                    blit_wait_fence =
+                                      (fun token -> fence_call `Wait token (Metal.Blit_encoder.wait_for_fence encoder));
+                                    resolve_timestamps =
+                                      (fun token ~first ~count ~dst ~offset ->
+                                        match (find_sync operation c.samples "timestamps" token, find_buffer dst) with
+                                        | Error e, _ | _, Error e -> Error e
+                                        | Ok entry, Ok destination -> (
+                                            match keep_buffer destination with
+                                            | Error _ as e -> e
+                                            | Ok () ->
+                                                keep_sync entry;
+                                                native_of
+                                                  (Metal.Resource100.Sample_buffer.resolve encoder entry.native
+                                                     ~first:(Int64.of_int first) ~count:(Int64.of_int count)
+                                                     (Buffer.Private.metal destination) ~offset)));
+                                    end_blit =
+                                      (fun () ->
+                                        open_encoder := None;
+                                        native_of (Metal.Blit_encoder.end_encoding encoder));
+                                  })
+                      in
+                      let render_encoder sampling (target : Ogpu_core.Backend.driver_render_target) =
+                        match recording () with
+                        | Error _ as failure -> failure
+                        | Ok () -> (
+                            let color = target.target_colors.(0) in
+                            let optional f = function
+                              | None -> Ok None
+                              | Some token -> Result.map Option.some (f token)
+                            in
+                            match
+                              ( find_texture color.color,
+                                optional find_texture color.color_resolve,
+                                optional (fun (d : Ogpu_core.Backend.driver_depth_attachment) -> find_texture d.depth) target.target_depth,
+                                optional (fun (s : Ogpu_core.Backend.driver_stencil_attachment) -> find_texture s.stencil) target.target_stencil )
+                            with
+                            | Error e, _, _, _ | _, Error e, _, _ | _, _, Error e, _ | _, _, _, Error e -> Error e
+                            | Ok color_texture, Ok resolve, Ok depth, Ok stencil -> (
+                                let retained_all =
+                                  List.fold_left
+                                    (fun result texture ->
+                                      Result.bind result (fun () -> keep_texture texture))
+                                    (Ok ())
+                                    (color_texture
+                                    :: List.filter_map Fun.id [ resolve; depth; stencil ])
+                                in
+                                match retained_all with
+                                | Error _ as failure -> failure
+                                | Ok () -> (
+                                    match
+                                      Metal.Render_pass_descriptor.create ~width:target.target_width
+                                        ~height:target.target_height
+                                        ~sample_count:target.target_samples ()
+                                    with
+                                    | Error e -> Error (Device.of_metal_error ~operation e)
+                                    | Ok pass -> (
+                                        let fail e =
+                                          ignore (Metal.Render_pass_descriptor.destroy pass);
+                                          Error (Device.of_metal_error ~operation e)
+                                        in
+                                        let sample =
+                                          match sampling with
+                                          | None -> Ok None
+                                          | Some sampling -> Result.map Option.some (sampled sampling)
+                                        in
+                                        match sample with
+                                        | Error e ->
+                                            ignore (Metal.Render_pass_descriptor.destroy pass);
+                                            Error e
+                                        | Ok sample ->
+                                        let load = function
+                                          | Ogpu_core.Render_pass.Dont_care ->
+                                              Metal.Render_pass_descriptor.Load_dont_care
+                                          | Load -> Load
+                                          | Clear -> Clear
+                                        and store = function
+                                          | Ogpu_core.Render_pass.Store | Resolve ->
+                                              Metal.Render_pass_descriptor.Store
+                                          | Discard -> Store_dont_care
+                                        in
+                                        let configured =
+                                          let ( let* ) = Result.bind in
+                                          let* () =
+                                            Metal.Render_pass_descriptor.set_attachments pass
+                                              ~color:(Texture.Private.metal color_texture)
+                                              ~clear:color.color_clear
+                                              ?depth:(Option.map Texture.Private.metal depth)
+                                              ?stencil:(Option.map Texture.Private.metal stencil)
+                                              ()
+                                          in
+                                          let* () =
+                                            Metal.Render_pass_descriptor.set_color_load_action pass
+                                              (load color.color_load)
+                                          in
+                                          let* () =
+                                            match resolve with
+                                            | None ->
+                                                Metal.Render_pass_descriptor.set_color_store_action
+                                                  pass ~resolve:false
+                                            | Some resolve ->
+                                                let* () =
+                                                  Metal.Render_pass_descriptor.set_resolve_texture
+                                                    pass (Some (Texture.Private.metal resolve))
+                                                in
+                                                Metal.Render_pass_descriptor.set_color_store_action
+                                                  pass ~resolve:true
+                                          in
+                                          let depth_actions =
+                                            match target.target_depth with
+                                            | None -> (Metal.Render_pass_descriptor.Clear, Metal.Render_pass_descriptor.Store, 1.)
+                                            | Some d -> (load d.depth_load, store d.depth_store, d.depth_clear)
+                                          and stencil_actions =
+                                            match target.target_stencil with
+                                            | None -> (Metal.Render_pass_descriptor.Clear, Metal.Render_pass_descriptor.Store, 0)
+                                            | Some s -> (load s.stencil_load, store s.stencil_store, s.stencil_clear)
+                                          in
+                                          match
+                                            Metal.Render_pass_descriptor.set_depth_stencil_actions pass
+                                              ~depth:depth_actions ~stencil:stencil_actions
+                                          with
+                                          | Error _ as e -> e
+                                          | Ok () -> (
+                                              match sample with
+                                              | None -> Ok ()
+                                              | Some (sample_buffer, start_index, end_index) ->
+                                                  (* Vertex start and fragment end bracket the pass. *)
+                                                  Metal.Counters.set_render_pass_attachment pass ~index:0 sample_buffer
+                                                    ~start_vertex:start_index ~end_vertex:(-1L) ~start_fragment:(-1L)
+                                                    ~end_fragment:end_index)
+                                        in
+                                        match configured with
+                                        | Error e -> fail e
+                                        | Ok () -> (
+                                            match
+                                              Metal.Render_encoder.Private.create_from_pass_scoped native pass
+                                            with
+                                            | Error e -> fail e
+                                            | Ok encoder ->
+                                                let finish () =
+                                                  open_encoder := None;
+                                                  let ended = Metal.Render_encoder.end_encoding encoder in
+                                                  ignore (Metal.Render_pass_descriptor.destroy pass);
+                                                  native_of ended
+                                                in
+                                                open_encoder := Some (fun () -> ignore (finish ()));
+                                                let render_pipeline token =
+                                                  match Hashtbl.find_opt c.pipeline_tokens token with
+                                                  | None ->
+                                                      error operation Ogpu_core.Error.Invalid_argument
+                                                        "pipeline graph is incomplete"
+                                                  | Some pipeline -> (
+                                                      match Pipeline.Private.native pipeline with
+                                                      | Compute _ ->
+                                                          error operation Ogpu_core.Error.Invalid_argument
+                                                            "compute pipeline cannot draw"
+                                                      | Render native -> (
+                                                          match
+                                                            keep
+                                                              (fun () -> Pipeline.Private.retain_submission pipeline)
+                                                              (fun () -> Pipeline.Private.release_submission pipeline)
+                                                          with
+                                                          | Error _ as failure -> failure
+                                                          | Ok () -> Ok native))
+                                                in
+                                                let metal_primitive = function
+                                                  | Ogpu_core.Render_pass.Point_list -> Metal.Render_encoder.Point
+                                                  | Line_list -> Line
+                                                  | Triangle_list -> Triangle
+                                                  | Triangle_strip -> Triangle_strip
+                                                and metal_index = function
+                                                  | Ogpu_core.Render_pass.Uint16 -> Metal.Render_encoder.Uint16
+                                                  | Uint32 -> Uint32
+                                                in
+                                                Ok
+                                                  {
+                                                    Ogpu_core.Backend.render_set_pipeline =
+                                                      (fun token ->
+                                                        match render_pipeline token with
+                                                        | Error _ as failure -> failure
+                                                        | Ok native ->
+                                                            native_of (Metal.Render_encoder.set_pipeline encoder native));
+                                                    set_stage_buffer =
+                                                      (fun stage ~index ~offset token ->
+                                                        match find_buffer token with
+                                                        | Error _ as failure -> failure
+                                                        | Ok buffer -> (
+                                                            match keep_buffer buffer with
+                                                            | Error _ as failure -> failure
+                                                            | Ok () ->
+                                                                native_of
+                                                                  (match stage with
+                                                                   | Ogpu_core.Backend.Vertex -> Metal.Render_encoder.set_vertex_buffer encoder ~index ~offset (Buffer.Private.metal buffer)
+                                                                   | Fragment -> Metal.Render_encoder.set_fragment_buffer encoder ~index ~offset (Buffer.Private.metal buffer)
+                                                                   | Object | Mesh | Tile ->
+                                                                       Metal.Render_encoder.set_stage_buffer encoder ~stage:(metal_stage stage) ~index ~offset
+                                                                         (Some (Buffer.Private.metal buffer)))));
+                                                    set_stage_bytes =
+                                                      (fun stage ~index bytes ->
+                                                        native_of
+                                                          (match stage with
+                                                           | Ogpu_core.Backend.Vertex -> Metal.Render_encoder.set_vertex_bytes encoder ~index bytes
+                                                           | Fragment -> Metal.Render_encoder.set_fragment_bytes encoder ~index bytes
+                                                           | Object | Mesh | Tile -> Metal.Render_encoder.set_stage_bytes encoder ~stage:(metal_stage stage) ~index bytes));
+                                                    set_stage_texture =
+                                                      (fun stage ~index token ->
+                                                        match find_texture token with
+                                                        | Error _ as failure -> failure
+                                                        | Ok texture -> (
+                                                            match keep_texture texture with
+                                                            | Error _ as failure -> failure
+                                                            | Ok () ->
+                                                                native_of
+                                                                  (match stage with
+                                                                   | Ogpu_core.Backend.Vertex -> Metal.Render_encoder.set_vertex_texture encoder ~index (Texture.Private.metal texture)
+                                                                   | Fragment -> Metal.Render_encoder.set_fragment_texture encoder ~index (Texture.Private.metal texture)
+                                                                   | Object | Mesh | Tile ->
+                                                                       Metal.Render_encoder.set_stage_texture encoder ~stage:(metal_stage stage) ~index
+                                                                         (Some (Texture.Private.metal texture)))));
+                                                    set_stage_sampler =
+                                                      (fun stage ~index token ->
+                                                        match Hashtbl.find_opt c.sampler_tokens token with
+                                                        | None ->
+                                                            error operation Ogpu_core.Error.Invalid_argument
+                                                              "sampler graph is incomplete"
+                                                        | Some sampler -> (
+                                                            match
+                                                              keep
+                                                                (fun () -> Sampler.Private.retain_submission sampler)
+                                                                (fun () -> Sampler.Private.release_submission sampler)
+                                                            with
+                                                            | Error _ as failure -> failure
+                                                            | Ok () ->
+                                                                native_of
+                                                                  (match stage with
+                                                                   | Ogpu_core.Backend.Vertex -> Metal.Render_encoder.set_vertex_sampler encoder ~index (Sampler.Private.metal sampler)
+                                                                   | Fragment -> Metal.Render_encoder.set_fragment_sampler encoder ~index (Sampler.Private.metal sampler)
+                                                                   | Object | Mesh | Tile ->
+                                                                       Metal.Render_encoder.set_stage_sampler encoder ~stage:(metal_stage stage) ~index
+                                                                         (Some (Sampler.Private.metal sampler)))));
+                                                    set_viewport =
+                                                      (fun (rect : Ogpu_core.Render_pass.rect) ->
+                                                        native_of
+                                                          (Metal.Render_encoder.set_viewport encoder
+                                                             { x = float rect.x; y = float rect.y; width = float rect.width;
+                                                               height = float rect.height; znear = 0.; zfar = 1. }));
+                                                    set_scissor =
+                                                      (fun (rect : Ogpu_core.Render_pass.rect) ->
+                                                        native_of
+                                                          (Metal.Render_encoder.set_scissor encoder
+                                                             { x = rect.x; y = rect.y; width = rect.width; height = rect.height }));
+                                                    set_cull =
+                                                      (fun cull ->
+                                                        native_of (Metal.Render_encoder.set_cull_mode encoder (metal_cull cull)));
+                                                    set_winding =
+                                                      (fun winding ->
+                                                        native_of
+                                                          (Metal.Render_encoder.set_front_facing_winding encoder
+                                                             (match winding with
+                                                              | Ogpu_core.Backend.Clockwise -> Metal.Render_encoder.Clockwise
+                                                              | Counter_clockwise -> Counter_clockwise)));
+                                                    set_depth_state =
+                                                      (function
+                                                        | None -> native_of (Metal.Render_encoder.set_depth_stencil_state encoder None)
+                                                        | Some state -> (
+                                                            match depth_state_for state with
+                                                            | Error _ as failure -> failure
+                                                            | Ok native ->
+                                                                native_of (Metal.Render_encoder.set_depth_stencil_state encoder (Some native))));
+                                                    set_stencil_reference =
+                                                      (fun ~front ~back ->
+                                                        native_of (Metal.Render_encoder.set_stencil_reference_values encoder ~front ~back));
+                                                    draw =
+                                                      (fun ~primitive ~first ~count ~instances ->
+                                                        native_of
+                                                          (Metal.Render_encoder.draw_primitives encoder
+                                                             ~primitive:(metal_primitive primitive) ~first ~count ~instances ()));
+                                                    draw_indexed =
+                                                      (fun ~primitive ~index_type token ~offset ~count ~instances ->
+                                                        match find_buffer token with
+                                                        | Error _ as failure -> failure
+                                                        | Ok buffer -> (
+                                                            match keep_buffer buffer with
+                                                            | Error _ as failure -> failure
+                                                            | Ok () ->
+                                                                let index_buffer = Buffer.Private.metal buffer in
+                                                                native_of
+                                                                  (if instances = 1 then
+                                                                     Metal.Render_encoder.draw_indexed_basic encoder
+                                                                       ~primitive:(metal_primitive primitive)
+                                                                       ~index_type:(metal_index index_type) ~index_buffer
+                                                                       ~index_offset:offset ~index_count:count
+                                                                   else
+                                                                     Metal.Render_encoder.draw_indexed_instances encoder
+                                                                       ~primitive:(metal_primitive primitive)
+                                                                       ~index_type:(metal_index index_type) ~index_buffer
+                                                                       ~index_offset:offset ~index_count:count
+                                                                       ~instances:(Int64.of_int instances))));
+                                                    draw_batch =
+                                                      (fun draws ->
+                                                        (* Indexed single-instance draws run through the native
+                                                           prepared-draw loop in one call; anything else encodes
+                                                           draw by draw. *)
+                                                        let all_indexed =
+                                                          Array.for_all
+                                                            (fun (d : Ogpu_core.Backend.driver_batch_draw) ->
+                                                              Option.is_some d.batch_index && d.batch_instances = 1)
+                                                            draws
+                                                        in
+                                                        let resolve (d : Ogpu_core.Backend.driver_batch_draw) =
+                                                          match render_pipeline d.batch_pipeline with
+                                                          | Error _ as failure -> failure
+                                                          | Ok native -> (
+                                                              let rec buffers acc index =
+                                                                if index = Array.length d.batch_buffers then Ok (List.rev acc)
+                                                                else
+                                                                  let stage, slot, token, offset = d.batch_buffers.(index) in
+                                                                  match find_buffer token with
+                                                                  | Error _ as failure -> failure
+                                                                  | Ok buffer -> (
+                                                                      match keep_buffer buffer with
+                                                                      | Error _ as failure -> failure
+                                                                      | Ok () -> buffers ((stage, slot, buffer, offset) :: acc) (index + 1))
+                                                              in
+                                                              match buffers [] 0 with
+                                                              | Error _ as failure -> failure
+                                                              | Ok buffers -> (
+                                                                  match d.batch_index with
+                                                                  | None -> Ok (native, buffers, None)
+                                                                  | Some (kind, token, offset, count) -> (
+                                                                      match find_buffer token with
+                                                                      | Error _ as failure -> failure
+                                                                      | Ok index_buffer -> (
+                                                                          match keep_buffer index_buffer with
+                                                                          | Error _ as failure -> failure
+                                                                          | Ok () -> Ok (native, buffers, Some (kind, index_buffer, offset, count))))))
+                                                        in
+                                                        let resolved = Array.map resolve draws in
+                                                        match Array.find_opt Result.is_error resolved with
+                                                        | Some (Error e) -> Error e
+                                                        | Some (Ok _) -> assert false
+                                                        | None ->
+                                                            if all_indexed then begin
+                                                              let prepared =
+                                                                Array.map2
+                                                                  (fun (d : Ogpu_core.Backend.driver_batch_draw) resolved ->
+                                                                    let native, buffers, index = Result.get_ok resolved in
+                                                                    let kind, index_buffer, offset, count = Option.get index in
+                                                                    ({ Metal.Render_encoder.Private.prepared_pipeline = native;
+                                                                       prepared_bindings =
+                                                                         Array.of_list
+                                                                           (List.map
+                                                                              (fun (stage, slot, buffer, offset) ->
+                                                                                { Metal.Render_encoder.Private.prepared_stage = metal_stage stage;
+                                                                                  prepared_index = slot; prepared_offset = offset;
+                                                                                  prepared_buffer = Buffer.Private.metal buffer })
+                                                                              buffers);
+                                                                       prepared_primitive = metal_primitive d.batch_primitive;
+                                                                       prepared_index_type = metal_index kind;
+                                                                       prepared_index_buffer = Buffer.Private.metal index_buffer;
+                                                                       prepared_index_offset = offset; prepared_index_count = count }
+                                                                     : Metal.Render_encoder.Private.prepared_indexed_draw))
+                                                                  draws resolved
+                                                              in
+                                                              match
+                                                                Metal.Render_encoder.Private.prepare_indexed_draws
+                                                                  (Device.Private.metal device) prepared
+                                                              with
+                                                              | Error e -> Error (Device.of_metal_error ~operation e)
+                                                              | Ok prepared ->
+                                                                  native_of
+                                                                    (Metal.Render_encoder.Private.execute_prepared_indexed_draws encoder prepared)
+                                                            end
+                                                            else
+                                                              let rec each index =
+                                                                if index = Array.length draws then Ok ()
+                                                                else
+                                                                  let d = draws.(index) in
+                                                                  let native, buffers, indexed = Result.get_ok resolved.(index) in
+                                                                  let ( let* ) = Result.bind in
+                                                                  let* () = native_of (Metal.Render_encoder.set_pipeline encoder native) in
+                                                                  let* () =
+                                                                    List.fold_left
+                                                                      (fun result (stage, slot, buffer, offset) ->
+                                                                        let* () = result in
+                                                                        native_of
+                                                                          (match stage with
+                                                                           | Ogpu_core.Backend.Vertex -> Metal.Render_encoder.set_vertex_buffer encoder ~index:slot ~offset (Buffer.Private.metal buffer)
+                                                                           | Fragment -> Metal.Render_encoder.set_fragment_buffer encoder ~index:slot ~offset (Buffer.Private.metal buffer)
+                                                                           | Object | Mesh | Tile ->
+                                                                               Metal.Render_encoder.set_stage_buffer encoder ~stage:(metal_stage stage) ~index:slot ~offset
+                                                                                 (Some (Buffer.Private.metal buffer))))
+                                                                      (Ok ()) buffers
+                                                                  in
+                                                                  let* () =
+                                                                    match indexed with
+                                                                    | None ->
+                                                                        native_of
+                                                                          (Metal.Render_encoder.draw_primitives encoder
+                                                                             ~primitive:(metal_primitive d.batch_primitive)
+                                                                             ~first:d.batch_vertex_start ~count:d.batch_vertex_count
+                                                                             ~instances:d.batch_instances ())
+                                                                    | Some (kind, index_buffer, offset, count) ->
+                                                                        native_of
+                                                                          (Metal.Render_encoder.draw_indexed_instances encoder
+                                                                             ~primitive:(metal_primitive d.batch_primitive)
+                                                                             ~index_type:(metal_index kind)
+                                                                             ~index_buffer:(Buffer.Private.metal index_buffer)
+                                                                             ~index_offset:offset ~index_count:count
+                                                                             ~instances:(Int64.of_int d.batch_instances))
+                                                                  in
+                                                                  each (index + 1)
+                                                              in
+                                                              each 0);
+                                                    use_resources =
+                                                      (fun tokens ->
+                                                        let rec split buffers textures = function
+                                                          | [] -> Ok (List.rev buffers, List.rev textures)
+                                                          | token :: rest -> (
+                                                              match native_resource token with
+                                                              | Some (Buffer buffer) -> (
+                                                                  match keep_buffer buffer with
+                                                                  | Error _ as failure -> failure
+                                                                  | Ok () ->
+                                                                      split (Metal.Render_encoder.Buffer_resource (Buffer.Private.metal buffer) :: buffers) textures rest)
+                                                              | Some (Texture texture) -> (
+                                                                  match keep_texture texture with
+                                                                  | Error _ as failure -> failure
+                                                                  | Ok () ->
+                                                                      split buffers (Metal.Render_encoder.Texture_resource (Texture.Private.metal texture) :: textures) rest)
+                                                              | None ->
+                                                                  error operation Ogpu_core.Error.Invalid_argument
+                                                                    "resource graph is incomplete")
+                                                        in
+                                                        match split [] [] tokens with
+                                                        | Error _ as failure -> failure
+                                                        | Ok (buffers, textures) ->
+                                                            let ( let* ) = Result.bind in
+                                                            let* () =
+                                                              if buffers = [] then Ok ()
+                                                              else
+                                                                native_of
+                                                                  (Metal.Render_encoder.use_resources encoder buffers
+                                                                     ~usage:[ Metal.Render_encoder.Read ]
+                                                                     ~stages:[ Metal.Render_encoder.Vertex; Fragment ])
+                                                            in
+                                                            if textures = [] then Ok ()
+                                                            else
+                                                              native_of
+                                                                (Metal.Render_encoder.use_resources encoder textures
+                                                                   ~usage:[ Metal.Render_encoder.Sample ]
+                                                                   ~stages:[ Metal.Render_encoder.Fragment ]));
+                                                    execute_icb =
+                                                      (fun token ~location ~length ->
+                                                        match Hashtbl.find_opt c.icbs token with
+                                                        | None ->
+                                                            error operation Ogpu_core.Error.Invalid_argument
+                                                              "indirect command buffer graph is incomplete"
+                                                        | Some entry ->
+                                                            native_of
+                                                              (Metal.Render_encoder.execute_indirect_commands encoder entry.icb
+                                                                 ~location ~length));
+                                                    render_use_heap =
+                                                      (fun token ->
+                                                        heap_call token (fun heap ->
+                                                            Metal.Render_encoder.use_heaps encoder [ heap ]
+                                                              ~stages:[ Metal.Render_encoder.Vertex; Fragment ]));
+                                                    render_update_fence =
+                                                      (fun token ->
+                                                        fence_call `Update token (fun fence ->
+                                                            Metal.Render_encoder.update_fence encoder fence
+                                                              ~after:[ Metal.Render_encoder.Fragment ]));
+                                                    render_wait_fence =
+                                                      (fun token ->
+                                                        fence_call `Wait token (fun fence ->
+                                                            Metal.Render_encoder.wait_for_fence encoder fence
+                                                              ~before:[ Metal.Render_encoder.Vertex ]));
+                                                    draw_mesh =
+                                                      (fun ~threadgroups ~object_threadgroup ~mesh_threadgroup ->
+                                                        native_of
+                                                          (Metal.Render_encoder.draw_mesh_threadgroups encoder ~threadgroups
+                                                             ?object_threadgroup ~mesh_threadgroup ()));
+                                                    dispatch_tile =
+                                                      (fun ~threads -> native_of (Metal.Render_encoder.dispatch_threads_per_tile encoder ~threads));
+                                                    tile_size =
+                                                      (fun () ->
+                                                        match (Metal.Render_encoder.tile_width encoder, Metal.Render_encoder.tile_height encoder) with
+                                                        | Ok width, Ok height -> Ok (width, height)
+                                                        | Error e, _ | _, Error e -> Error (Device.of_metal_error ~operation e));
+                                                    end_render = finish;
+                                                  })))))
+                      in
+                      let commit_present ~source (frame : Ogpu_core.Backend.driver_frame) =
+                        match recording () with
+                        | Error _ as failure -> failure
+                        | Ok () -> (
+                            match (find_texture source, Hashtbl.find_opt c.acquired_frames frame.frame_token) with
+                            | Error e, _ -> Error e
+                            | _, None ->
+                                error operation Ogpu_core.Error.Invalid_state "frame token is stale"
+                            | Ok source, Some (surface, native_frame) -> (
+                                match
+                                  Array.find_opt Surface.Private.pending_presentation_available
+                                    active.presentations
+                                with
+                                | None ->
+                                    error operation Ogpu_core.Error.Capacity
+                                      "bounded presentation slots are all in flight"
+                                | Some pending -> (
+                                    match Surface.Private.prepare_present pending surface native_frame ~source with
+                                    | Error _ as failure -> failure
+                                    | Ok () -> (
+                                        match Surface.Private.presentation_encoder pending native with
+                                        | Error _ as failure ->
+                                            Surface.Private.rollback_present pending;
+                                            failure
+                                        | Ok () -> (
+                                            match Queue.submit_native queue native ~retained:!retained with
+                                            | Error _ as failure ->
+                                                Surface.Private.rollback_present pending;
+                                                failure
+                                            | Ok (receipt : Queue.receipt) ->
+                                                finished := true;
+                                                retained := [];
+                                                Surface.Private.commit_present pending ~epoch:receipt.epoch;
+                                                Hashtbl.remove c.acquired_frames frame.frame_token;
+                                                Ok { Ogpu_core.Backend.epoch = receipt.epoch })))))
+                      in
+                      let release_all () =
+                        List.iter (fun release -> release ()) !retained;
+                        retained := []
+                      in
+                      let commit () =
+                        match recording () with
+                        | Error _ as failure -> failure
+                        | Ok () -> (
+                            match Queue.submit_native queue native ~retained:!retained with
+                            | Error _ as failure -> failure
+                            | Ok (receipt : Queue.receipt) ->
+                                finished := true;
+                                retained := [];
+                                Ok { Ogpu_core.Backend.epoch = receipt.epoch })
+                      in
+                      let abandon () =
+                        match recording () with
+                        | Error _ as failure -> failure
+                        | Ok () ->
+                            Option.iter (fun end_open -> end_open ()) !open_encoder;
+                            open_encoder := None;
+                            finished := true;
+                            release_all ();
+                            native_of (Metal.Command_buffer.destroy native)
+                      in
+                      let commands_use_residency token =
+                        match recording () with
+                        | Error _ as failure -> failure
+                        | Ok () -> (
+                            match find_sync operation c.residency "residency set" token with
+                            | Error _ as e -> e
+                            | Ok entry ->
+                                keep_sync entry;
+                                native_of (Metal.Command_buffer.use_residency_set native entry.native))
+                      in
+                      let commands_event ~signal token value =
+                        match recording () with
+                        | Error _ as failure -> failure
+                        | Ok () -> (
+                            match find_sync operation c.events "event" token with
+                            | Error _ as e -> e
+                            | Ok entry ->
+                                keep_sync entry;
+                                native_of
+                                  (if signal then Metal.Command_buffer.encode_signal_shared_event native entry.native ~value
+                                   else Metal.Command_buffer.encode_wait_for_shared_event native entry.native ~value))
+                      in
+                      let map_tiles token ~mip ~region ~map =
+                        match recording () with
+                        | Error _ as failure -> failure
+                        | Ok () -> (
+                            match find_texture token with
+                            | Error _ as failure -> failure
+                            | Ok texture -> (
+                                match keep_texture texture with
+                                | Error _ as failure -> failure
+                                | Ok () -> (
+                                    match Metal.Resource_state_encoder.create native with
+                                    | Error e -> Error (Device.of_metal_error ~operation e)
+                                    | Ok encoder ->
+                                        let x, y, width, height = region in
+                                        let mapped =
+                                          Metal.Resource_state_encoder.update_texture_mapping encoder
+                                            ~mode:(if map then Metal.Resource_state_encoder.Map else Unmap)
+                                            (Texture.Private.metal texture) ~mip_level:mip ~slice:0
+                                            ~region:{ x; y; z = 0; width; height; depth = 1 }
+                                        in
+                                        let ended = Metal.Resource_state_encoder.end_encoding encoder in
+                                        native_of (match mapped with Error _ as e -> e | Ok () -> ended))))
+                      in
+                      let upscale token ~src ~dst =
+                        match recording () with
+                        | Error _ as failure -> failure
+                        | Ok () -> (
+                            match (find_sync operation c.upscalers "upscaler" token, find_texture src, find_texture dst) with
+                            | Error e, _, _ | _, Error e, _ | _, _, Error e -> Error e
+                            | Ok entry, Ok source, Ok destination -> (
+                                match (keep_texture source, keep_texture destination) with
+                                | (Error _ as failure), _ | _, (Error _ as failure) -> failure
+                                | Ok (), Ok () ->
+                                    keep_sync entry;
+                                    native_of
+                                      (Metal.Fx.Spatial_scaler.encode entry.native native ~color:(Texture.Private.metal source)
+                                         ~output:(Texture.Private.metal destination))))
+                      in
+                      Ok
+                        {
+                          Ogpu_core.Backend.commands_token;
+                          compute_encoder;
+                          accel_encoder;
+                          blit_encoder;
+                          render_encoder;
+                          map_tiles;
+                          upscale;
+                          commands_use_residency;
+                          commands_signal_event = commands_event ~signal:true;
+                          commands_wait_event = commands_event ~signal:false;
+                          commit;
+                          commit_present;
+                          abandon;
+                        }
+                in
+                let gpu_duration epoch = Queue.gpu_duration queue epoch in
+                let gpu_timing () =
+                  let timing = Queue.gpu_timing_for_device device in
+                  { Ogpu_core.Backend.timing_supported = timing.supported;
+                    gpu_seconds = timing.duration_seconds; gpu_samples = timing.sample_count }
                 in
                 let destroy_queue () =
                   if
@@ -2813,53 +2267,70 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity = 64)
                     match Queue.destroy queue with
                     | Error _ as e -> e
                     | Ok () -> (
-                        Hashtbl.replace c.completed_epochs queue_token (Queue.completed_epoch queue);
-                        Option.iter
-                          (fun cache ->
-                            let keys =
-                              Hashtbl.fold
-                                (fun key (owner : plan_owner) found ->
-                                  if owner.queue_token = queue_token then key :: found else found)
-                                c.plan_owners []
-                            in
-                            List.iter
-                              (fun key ->
-                                match Metal.Retained_render_plan.invalidate cache key with
-                                | Ok () -> ()
-                                | Error error -> record_cleanup (Some error))
-                              keys)
-                          c.plan_cache;
-                        filter_classics (fun _ -> false);
-                        clear_retained_metadata ();
-                        retry_cleanup ();
-                        drain_retired (fun (retired : retired) -> retired.queue_token = queue_token);
                         Surface.Private.clear_pending_presentations active.presentations;
-                        if cleanup_empty () then Hashtbl.remove c.classic_invalidators queue_token;
                         Hashtbl.remove c.active_queues queue_token;
-                        Hashtbl.remove c.completed_epochs queue_token;
                         match take_cleanup_error () with None -> Ok () | Some error -> Error error)
                 in
                 Ok
                   {
                     Ogpu_core.Backend.queue_token;
-                    submit;
-                    submit_sync;
                     complete_through;
                     poll_through;
                     completed_epoch = (fun () -> Queue.completed_epoch queue);
+                    begin_commands;
+                    queue_add_residency =
+                      (fun token ->
+                        let operation = "Ogpu_metal.Backend.queue_add_residency" in
+                        match find_sync operation c.residency "residency set" token with
+                        | Error _ as e -> e
+                        | Ok entry -> of_metal operation (Metal.Command_queue.add_residency_set (Queue.Private.metal queue) entry.native));
+                    queue_remove_residency =
+                      (fun token ->
+                        let operation = "Ogpu_metal.Backend.queue_remove_residency" in
+                        match find_sync operation c.residency "residency set" token with
+                        | Error _ as e -> e
+                        | Ok entry -> of_metal operation (Metal.Command_queue.remove_residency_set (Queue.Private.metal queue) entry.native));
+                    gpu_duration;
+                    gpu_timing;
                     destroy_queue;
                   }
           in
-          let create_surface configuration =
-            match c.layer with
+          let create_surface (configuration : Ogpu_core.Surface.configuration) =
+            let adopted =
+              match configuration.layer with
+              | Some token -> (
+                  match
+                    Metal.Metal_layer.adopt_borrowed (Device.Private.metal device) token
+                      (Metal.Metal_layer.default ~width:configuration.physical_width
+                         ~height:configuration.physical_height)
+                  with
+                  | Error e -> Error (Device.of_metal_error ~operation:"Ogpu_metal.Backend.create_surface" e)
+                  | Ok layer -> Ok (Some layer))
+              | None -> Ok None
+            in
+            match adopted with
+            | Error _ as e -> e
+            | Ok adopted -> (
+            match adopted with
             | None ->
                 error "Ogpu_metal.Backend.create_surface" Ogpu_core.Error.Unsupported
-                  "adapter was created without a typed Metal layer"
+                  "surface needs a native layer token"
             | Some layer -> (
+                let release_adopted () =
+                  Option.iter (fun layer -> ignore (Metal.Metal_layer.destroy layer)) adopted
+                in
                 match Surface.create device ~layer configuration with
-                | Error _ as e -> e
+                | Error _ as e -> release_adopted (); e
                 | Ok surface ->
-                    let surface_token = token c and frames = Hashtbl.create 4 in
+                    let surface_token = token c in
+                    let frames_of_surface () =
+                      Hashtbl.fold
+                        (fun _ (owner, _) count -> if owner == surface then count + 1 else count)
+                        c.acquired_frames 0
+                    in
+                    let find_frame token =
+                      Option.map snd (Hashtbl.find_opt c.acquired_frames token)
+                    in
                     let acquire_with acquire =
                       match acquire surface with
                       | Error _ as e -> e
@@ -2868,13 +2339,13 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity = 64)
                       | Ok Device_lost -> Ok `Device_lost
                       | Ok (Acquired frame) ->
                           let frame_token = Surface.frame_id frame in
-                          Hashtbl.add frames frame_token frame;
+                          Hashtbl.add c.acquired_frames frame_token (surface, frame);
                           Ok (`Acquired { Ogpu_core.Backend.frame_token })
                     in
                     let acquire () = acquire_with Surface.acquire
                     and acquire_sync () = acquire_with Surface.Private.acquire_scoped in
                     let take f frame =
-                      match Hashtbl.find_opt frames frame.Ogpu_core.Backend.frame_token with
+                      match find_frame frame.Ogpu_core.Backend.frame_token with
                       | None ->
                           error "Ogpu_metal.Backend.surface" Ogpu_core.Error.Invalid_state
                             "frame token is stale"
@@ -2882,139 +2353,8 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity = 64)
                           match f surface native with
                           | Error _ as e -> e
                           | Ok () ->
-                              Hashtbl.remove frames frame.frame_token;
+                              Hashtbl.remove c.acquired_frames frame.frame_token;
                               Ok ())
-                    in
-                    let take_present queue source frame =
-                      match Hashtbl.find_opt frames frame.Ogpu_core.Backend.frame_token with
-                      | None ->
-                          error "Ogpu_metal.Backend.surface" Ogpu_core.Error.Invalid_state
-                            "frame token is stale"
-                      | Some native -> (
-                          match Surface.present_from surface native ~queue ~source with
-                          | Error _ as e -> e
-                          | Ok () ->
-                              Hashtbl.remove frames frame.frame_token;
-                              Ok ())
-                    in
-                    let present ~queue ~source frame =
-                      match Hashtbl.find_opt c.active_queues queue with
-                      | None ->
-                          error "Ogpu_metal.Backend.present" Ogpu_core.Error.Stale_handle
-                            "presentation queue token is stale"
-                      | Some active -> (
-                          match native_resource source with
-                          | Some (Texture texture) -> take_present active.queue texture frame
-                          | Some (Buffer _) ->
-                              error "Ogpu_metal.Backend.present" Ogpu_core.Error.Invalid_argument
-                                "presentation source token is not a texture"
-                          | None ->
-                              error "Ogpu_metal.Backend.present" Ogpu_core.Error.Stale_handle
-                                "presentation source token is stale")
-                    in
-                    let submit_present_common ~scoped ~queue ~source command ~resources ~pipelines
-                        frame =
-                      match Hashtbl.find_opt c.active_queues queue with
-                      | None ->
-                          error "Ogpu_metal.Backend.submit_present" Ogpu_core.Error.Stale_handle
-                            "presentation queue token is stale"
-                      | Some active -> (
-                          match native_resource source with
-                          | Some (Buffer _) ->
-                              error "Ogpu_metal.Backend.submit_present"
-                                Ogpu_core.Error.Invalid_argument
-                                "presentation source token is not a texture"
-                          | None ->
-                              error "Ogpu_metal.Backend.submit_present" Ogpu_core.Error.Stale_handle
-                                "presentation source token is stale"
-                          | Some (Texture texture) -> (
-                              match Hashtbl.find_opt frames frame.Ogpu_core.Backend.frame_token with
-                              | None ->
-                                  error "Ogpu_metal.Backend.submit_present"
-                                    Ogpu_core.Error.Invalid_state "frame token is stale"
-                              | Some native -> (
-                                  match
-                                    Array.find_opt Surface.Private.pending_presentation_available
-                                      active.presentations
-                                  with
-                                  | None ->
-                                      error "Ogpu_metal.Backend.submit_present"
-                                        Ogpu_core.Error.Invalid_state
-                                        "queue has the maximum presentations in flight"
-                                  | Some pending -> (
-                                      match
-                                        Surface.Private.prepare_present pending surface native
-                                          ~source:texture
-                                      with
-                                      | Error _ as e -> e
-                                      | Ok () -> (
-                                          if scoped then
-                                            Queue.Private.arm_scoped_render
-                                              ~on_committed:(fun epoch ->
-                                                Surface.Private.commit_present_scoped pending ~epoch;
-                                                Hashtbl.remove frames frame.frame_token)
-                                              active.queue;
-                                          match
-                                            active.submit_combined
-                                              ((if scoped then
-                                                  Surface.Private.presentation_encoder_scoped
-                                                else Surface.Private.presentation_encoder)
-                                                 pending)
-                                              command ~resources ~pipelines
-                                          with
-                                          | Error _ as e ->
-                                              Surface.Private.rollback_present pending;
-                                              e
-                                          | Ok receipt ->
-                                              if not scoped then begin
-                                                Surface.Private.commit_present pending
-                                                  ~epoch:receipt.epoch;
-                                                Hashtbl.remove frames frame.frame_token
-                                              end;
-                                              Ok receipt)))))
-                    in
-                    let submit_present = submit_present_common ~scoped:false in
-                    let submit_present_sync ~queue ~source command ~resources ~pipelines frame =
-                      let active = Hashtbl.find_opt c.active_queues queue in
-                      match
-                        submit_present_common ~scoped:true ~queue ~source command ~resources
-                          ~pipelines frame
-                      with
-                      | Error _ as e ->
-                          Option.iter
-                            (fun active ->
-                              ignore (Queue.Private.take_scoped_completion active.queue))
-                            active;
-                          e
-                      | Ok receipt ->
-                          let completion =
-                            match active with
-                            | None ->
-                                error "Ogpu_metal.Backend.submit_present_sync"
-                                  Ogpu_core.Error.Stale_handle "presentation queue token is stale"
-                            | Some active -> (
-                                match Queue.Private.take_scoped_completion active.queue with
-                                | Some result -> result
-                                | None -> Queue.wait_through active.queue receipt.epoch)
-                          in
-                          Option.iter
-                            (fun active ->
-                              Surface.Private.complete_presentations_through active.presentations
-                                (Queue.completed_epoch active.queue))
-                            active;
-                          Hashtbl.replace c.completed_epochs queue receipt.epoch;
-                          drain_retired (fun (retired : retired) ->
-                              retired.queue_token = queue && retired.epoch <= receipt.epoch);
-                          Option.iter
-                            (fun cache -> cache.retry_cleanup ())
-                            (Hashtbl.find_opt c.classic_invalidators queue);
-                          let completion =
-                            match (completion, take_cleanup_error ()) with
-                            | (Error _ as failure), _ -> failure
-                            | Ok (), Some error -> Error error
-                            | Ok (), None -> Ok ()
-                          in
-                          Ok { Ogpu_core.Backend.receipt; completion }
                     in
                     Ok
                       {
@@ -3022,13 +2362,10 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity = 64)
                         configure = (fun x -> Surface.configure surface x);
                         acquire;
                         acquire_sync;
-                        present;
-                        submit_present;
-                        submit_present_sync;
                         discard = take Surface.discard;
                         destroy_surface =
                           (fun () ->
-                            if Hashtbl.length frames <> 0 then
+                            if frames_of_surface () <> 0 then
                               error "Ogpu_metal.Backend.destroy_surface"
                                 Ogpu_core.Error.Invalid_state "surface has outstanding frames"
                             else if Surface.in_flight_presentations surface <> 0 then
@@ -3036,49 +2373,22 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity = 64)
                                 Ogpu_core.Error.Invalid_state "surface has presentations in flight"
                             else (
                               Surface.destroy surface;
+                              release_adopted ();
                               Ok ()));
-                      })
+                      }))
           in
           let destroy_device () =
             if Hashtbl.length c.active_queues <> 0 then
               error "Ogpu_metal.Backend.destroy_device" Ogpu_core.Error.Invalid_state
                 "device has active queues"
             else begin
-              (match c.plan_cache with
-              | None -> ()
-              | Some cache -> (
-                  match Metal.Retained_render_plan.destroy cache with
-                  | Ok () -> c.plan_cache <- None
-                  | Error error -> record_cleanup (Some error)));
-              let empty_invalidators =
-                Hashtbl.fold
-                  (fun queue cache empty ->
-                    cache.clear_classics ();
-                    cache.clear_retained_metadata ();
-                    cache.retry_cleanup ();
-                    if cache.cleanup_empty () then queue :: empty else empty)
-                  c.classic_invalidators []
-              in
-              List.iter (Hashtbl.remove c.classic_invalidators) empty_invalidators;
-              drain_retired (fun _ -> true);
-              let remaining = Hashtbl.fold (fun key _ keys -> key :: keys) c.plan_owners [] in
-              List.iter
-                (fun key ->
-                  match Hashtbl.find_opt c.plan_owners key with
-                  | None -> ()
-                  | Some owner -> (
-                      match destroy_owner owner with
-                      | None -> ignore (remove_plan_owner c key)
-                      | Some failure -> record_destroy_cleanup (Some failure)))
-                remaining;
-              Hashtbl.filter_map_inplace
-                (fun _ sampler ->
-                  match Sampler.destroy sampler with
-                  | Ok () -> None
-                  | Error error ->
-                      record_ogpu_cleanup error;
-                      Some sampler)
-                c.sampler_cache;
+              Hashtbl.iter
+                (fun _ native ->
+                  match Metal.Depth_stencil.destroy native with
+                  | Ok () -> ()
+                  | Error error -> record_cleanup (Some error))
+                c.depth_states;
+              Hashtbl.reset c.depth_states;
               let destroyed = if c.device_live then Device.destroy device else Ok () in
               (match destroyed with
               | Ok () ->
@@ -3101,10 +2411,29 @@ let create ?device:provided_device ?layer ?(retained_plan_capacity = 64)
               create_texture;
               create_depth_texture;
               create_stencil_texture;
-              create_pipeline;
-              create_compute_pipeline;
+              create_library;
+              create_accel;
+              instance_layout;
+              create_sampler;
+              create_render_pipeline;
+              create_icb;
+              create_argument;
               create_queue;
               create_surface;
+              create_heap;
+              heap_placement;
+              create_residency;
+              create_fence;
+              create_event;
+              create_timestamps;
+              timestamp_reference;
+              create_mesh_pipeline;
+              create_tile_pipeline;
+              create_dynamic_library;
+              create_archive;
+              create_sparse_texture;
+              texture_tile;
+              create_upscaler;
               destroy_device;
             }
   in

@@ -3,26 +3,112 @@
 using namespace metal;
 using namespace raytracing;
 
-#ifndef INSTANCED
-#define INSTANCED 0
-#endif
-#if INSTANCED
-#define SCENE_TYPE instance_acceleration_structure
-#define TRACE_TYPE intersector<triangle_data, instancing>
-inline float3 world_point(device const packed_float3 *transforms, uint instance, float3 p) {
-  uint i = instance * 7u;
-  return float3(transforms[i]) * p.x + float3(transforms[i + 1u]) * p.y
-       + float3(transforms[i + 2u]) * p.z + float3(transforms[i + 3u]);
+// One library, one kernel specialized per mesh shape: INSTANCED selects the
+// instance acceleration structure and per-instance transforms; MOTION adds a
+// second transform keyframe per instance and a shutter time per sample;
+// SPHERES adds bounding-box geometry resolved by an intersection function
+// table; CURVES adds linear round strands. The kernel body is templated on the
+// structure, intersector, and table types so every specialization compiles
+// from this single source.
+constant bool INSTANCED [[function_constant(0)]];
+constant bool MOTION [[function_constant(1)]];
+constant bool SPHERES [[function_constant(2)]];
+constant bool CURVES [[function_constant(3)]];
+constant bool FLAT = !INSTANCED;
+constant bool STATIC_INSTANCED = INSTANCED && !MOTION;
+constant bool MOTION_INSTANCED = INSTANCED && MOTION;
+constant bool T_F = SPHERES && FLAT && !CURVES;
+constant bool T_FC = SPHERES && FLAT && CURVES;
+constant bool T_I = SPHERES && INSTANCED && !MOTION && !CURVES;
+constant bool T_IC = SPHERES && INSTANCED && !MOTION && CURVES;
+constant bool T_IM = SPHERES && INSTANCED && MOTION && !CURVES;
+constant bool T_IMC = SPHERES && INSTANCED && MOTION && CURVES;
+
+// Per-instance transform records: four columns of the 3x4 world transform and
+// three columns of its normal matrix; with MOTION a second such record for the
+// shutter's end keyframe follows and the columns are interpolated.
+inline float3 column(device const packed_float3 *transforms, uint instance, uint k, float time) {
+  if (MOTION) {
+    uint base = instance * 14u;
+    return mix(float3(transforms[base + k]), float3(transforms[base + 7u + k]), time);
+  }
+  return float3(transforms[instance * 7u + k]);
 }
-inline float3 world_normal(device const packed_float3 *transforms, uint instance, float3 n) {
-  uint i = instance * 7u + 4u;
-  return float3(transforms[i]) * n.x + float3(transforms[i + 1u]) * n.y
-       + float3(transforms[i + 2u]) * n.z;
+inline float3 world_point(device const packed_float3 *transforms, uint instance, float3 p, float time) {
+  return column(transforms, instance, 0u, time) * p.x + column(transforms, instance, 1u, time) * p.y
+       + column(transforms, instance, 2u, time) * p.z + column(transforms, instance, 3u, time);
 }
-#else
-#define SCENE_TYPE primitive_acceleration_structure
-#define TRACE_TYPE intersector<triangle_data>
-#endif
+inline float3 world_normal(device const packed_float3 *transforms, uint instance, float3 n, float time) {
+  return column(transforms, instance, 4u, time) * n.x + column(transforms, instance, 5u, time) * n.y
+       + column(transforms, instance, 6u, time) * n.z;
+}
+// The normal matrix is the inverse transpose of the 3x3 part, so its columns
+// dotted with a world offset give the object-space offset.
+inline float3 object_offset(device const packed_float3 *transforms, uint instance, float3 world, float time) {
+  float3 d = world - column(transforms, instance, 3u, time);
+  return float3(dot(column(transforms, instance, 4u, time), d),
+                dot(column(transforms, instance, 5u, time), d),
+                dot(column(transforms, instance, 6u, time), d));
+}
+template <typename Hit> inline uint instance_of(Hit) { return 0u; }
+inline uint instance_of(intersection_result<triangle_data, instancing> hit) { return hit.instance_id; }
+inline uint instance_of(intersection_result<triangle_data, instancing, instance_motion> hit) { return hit.instance_id; }
+inline uint instance_of(intersection_result<triangle_data, curve_data, instancing> hit) { return hit.instance_id; }
+inline uint instance_of(intersection_result<triangle_data, curve_data, instancing, instance_motion> hit) { return hit.instance_id; }
+template <typename Hit> inline uint user_of(Hit) { return 0u; }
+inline uint user_of(intersection_result<triangle_data, instancing> hit) { return hit.user_instance_id; }
+inline uint user_of(intersection_result<triangle_data, instancing, instance_motion> hit) { return hit.user_instance_id; }
+inline uint user_of(intersection_result<triangle_data, curve_data, instancing> hit) { return hit.user_instance_id; }
+inline uint user_of(intersection_result<triangle_data, curve_data, instancing, instance_motion> hit) { return hit.user_instance_id; }
+template <typename Hit> inline float curve_u(Hit) { return 0.0f; }
+inline float curve_u(intersection_result<triangle_data, curve_data> hit) { return hit.curve_parameter; }
+inline float curve_u(intersection_result<triangle_data, curve_data, instancing> hit) { return hit.curve_parameter; }
+inline float curve_u(intersection_result<triangle_data, curve_data, instancing, instance_motion> hit) { return hit.curve_parameter; }
+
+// Spheres are bounding-box primitives resolved in object space; one variant
+// per intersector tag set the pipelines use.
+struct Sphere { float4 center_radius; uint4 material; };
+struct SphereHit { bool accept [[accept_intersection]]; float distance [[distance]]; };
+inline SphereHit sphere_test(float3 origin, float3 direction, float min_distance, float max_distance, float4 s) {
+  SphereHit result; result.accept = false; result.distance = 0.0f;
+  float3 oc = origin - s.xyz;
+  float b = dot(oc, direction), c = dot(oc, oc) - s.w * s.w, disc = b * b - c;
+  if (disc < 0.0f) return result;
+  float root = sqrt(disc), t = -b - root;
+  if (t < min_distance) t = -b + root;
+  if (t < min_distance || t > max_distance) return result;
+  result.accept = true; result.distance = t; return result;
+}
+#define SPHERE_FUNCTION(NAME, ...) \
+  [[intersection(bounding_box, __VA_ARGS__)]] SphereHit NAME(float3 origin [[origin]], float3 direction [[direction]], \
+      float min_distance [[min_distance]], float max_distance [[max_distance]], uint primitive_id [[primitive_id]], \
+      const device Sphere *spheres [[buffer(0)]]) { \
+    return sphere_test(origin, direction, min_distance, max_distance, spheres[primitive_id].center_radius); }
+SPHERE_FUNCTION(sphere_hit_f, triangle_data)
+SPHERE_FUNCTION(sphere_hit_fc, triangle_data, curve_data)
+SPHERE_FUNCTION(sphere_hit_i, triangle_data, instancing)
+SPHERE_FUNCTION(sphere_hit_ic, triangle_data, curve_data, instancing)
+SPHERE_FUNCTION(sphere_hit_im, triangle_data, instancing, instance_motion)
+SPHERE_FUNCTION(sphere_hit_imc, triangle_data, curve_data, instancing, instance_motion)
+
+// intersect() takes a table only with spheres and a time only with motion.
+template <bool MOT, bool SPH> struct Isect;
+template <> struct Isect<false, false> {
+  template <typename Tracer, typename Scene, typename Table>
+  static auto go(thread Tracer &t, ray r, Scene s, Table, float) { return t.intersect(r, s); }
+};
+template <> struct Isect<false, true> {
+  template <typename Tracer, typename Scene, typename Table>
+  static auto go(thread Tracer &t, ray r, Scene s, Table table, float) { return t.intersect(r, s, table); }
+};
+template <> struct Isect<true, false> {
+  template <typename Tracer, typename Scene, typename Table>
+  static auto go(thread Tracer &t, ray r, Scene s, Table, float time) { return t.intersect(r, s, time); }
+};
+template <> struct Isect<true, true> {
+  template <typename Tracer, typename Scene, typename Table>
+  static auto go(thread Tracer &t, ray r, Scene s, Table table, float time) { return t.intersect(r, s, time, table); }
+};
 
 struct Uniforms {
   float4 eye;      // xyz
@@ -88,16 +174,15 @@ inline float3 environment(constant Uniforms &u, device const Panel *panels, floa
 // return N, and within [radius] of an edge the normal rolls smoothly onto the
 // adjacent face, including faces parallel to N that a single-axis probe
 // would never see.
-inline float3 round_corners(SCENE_TYPE scene,
+template <bool INST, bool MOT, typename Scene, typename Tracer>
+inline float3 round_corners(Scene scene,
                             device const packed_float3 *positions,
-#if INSTANCED
                             device const packed_float3 *transforms,
-#endif
                             float3 P, float3 N, float radius, uint samples,
-                            thread uint &state) {
+                            float time, thread uint &state) {
   float3 t, b;
   basis(N, t, b);
-  TRACE_TYPE probe;
+  Tracer probe;
   probe.assume_geometry_type(geometry_type::triangle);
   probe.force_opacity(forced_opacity::opaque);
   float3 sum = float3(0.0f);
@@ -114,15 +199,15 @@ inline float3 round_corners(SCENE_TYPE scene,
     r.min_distance = 0.0f;
     r.max_distance = 2.0f * radius;
     for (uint k = 0; k < 4; ++k) {
-      auto hit = probe.intersect(r, scene);
-      if (hit.type == intersection_type::none) break;
+      auto hit = Isect<MOT, false>::go(probe, r, scene, 0, time);
+      if (hit.type != intersection_type::triangle) break;
       uint prim = hit.primitive_id;
       float3 p0 = float3(positions[prim * 3]), p1 = float3(positions[prim * 3 + 1]), p2 = float3(positions[prim * 3 + 2]);
-#if INSTANCED
-      p0 = world_point(transforms, hit.instance_id, p0);
-      p1 = world_point(transforms, hit.instance_id, p1);
-      p2 = world_point(transforms, hit.instance_id, p2);
-#endif
+      if (INST) {
+        p0 = world_point(transforms, instance_of(hit), p0, time);
+        p1 = world_point(transforms, instance_of(hit), p1, time);
+        p2 = world_point(transforms, instance_of(hit), p2, time);
+      }
       float3 hn = normalize(cross(p1 - p0, p2 - p0));
       if (dot(hn, N) < 0.0f) hn = -hn;
       float3 hp = r.origin + r.direction * hit.distance;
@@ -206,29 +291,29 @@ inline uchar4 resolved_rgba(float3 linear, float exposure) {
                 uchar(c.z * 255.0f + 0.5f), 255);
 }
 
-#if INSTANCED
-kernel void pathtrace_instanced(
-#else
-kernel void pathtrace(
-#endif
-    SCENE_TYPE scene [[buffer(0)]],
-    constant Uniforms &u [[buffer(1)]],
-    device const packed_float3 *positions [[buffer(2)]],
-    device const packed_float3 *normals [[buffer(3)]],
-    device const uint *material_ids [[buffer(4)]],
-    device const Material *materials [[buffer(5)]],
-    device const Panel *panels [[buffer(6)]],
-    device float4 *accum [[buffer(7)]],
-    texture2d<float, access::write> output [[texture(0)]],
-    device const Light *lights [[buffer(9)]],
-#if INSTANCED
-    device const packed_float3 *transforms [[buffer(10)]],
-#endif
-    device const float4 *previous_color [[buffer(11)]],
-    device const float4 *previous_geometry [[buffer(12)]],
-    device float4 *next_color [[buffer(13)]],
-    device float4 *next_geometry [[buffer(14)]],
-    uint2 gid [[thread_position_in_grid]]) {
+template <bool INST, bool MOT, bool SPH, bool CRV, typename Scene, typename Tracer, typename Table>
+inline void trace_pixel(
+    Scene scene,
+    constant Uniforms &u,
+    device const packed_float3 *positions,
+    device const packed_float3 *normals,
+    device const uint *material_ids,
+    device const Material *materials,
+    device const Panel *panels,
+    device float4 *accum,
+    texture2d<float, access::write> output,
+    device const Light *lights,
+    device const packed_float3 *transforms,
+    device const float4 *previous_color,
+    device const float4 *previous_geometry,
+    device float4 *next_color,
+    device float4 *next_geometry,
+    device const Sphere *spheres,
+    Table table,
+    device const packed_float3 *strand_points,
+    device const uint *strand_indices,
+    device const uint *strand_ids,
+    uint2 gid) {
   // Trace primary visibility at every output pixel during camera motion.
   // Preview spends its smaller ray budget on direct light and one bevel probe.
   if (gid.x >= u.width || gid.y >= u.height) return;
@@ -237,11 +322,14 @@ kernel void pathtrace(
   uint spp = u.preview ? 1u : u.spp;
   uint state = (pixel + 1u) * 0x9E3779B9u ^ ((u.frame + 1u) * 0x85EBCA6Bu);
   pcg(state); pcg(state);
-  TRACE_TYPE trace;
-  trace.assume_geometry_type(geometry_type::triangle);
+  geometry_type kinds = geometry_type::triangle;
+  if (SPH) kinds |= geometry_type::bounding_box;
+  if (CRV) kinds |= geometry_type::curve;
+  Tracer trace;
+  trace.assume_geometry_type(kinds);
   trace.force_opacity(forced_opacity::opaque);
-  TRACE_TYPE shadow;
-  shadow.assume_geometry_type(geometry_type::triangle);
+  Tracer shadow;
+  shadow.assume_geometry_type(kinds);
   shadow.force_opacity(forced_opacity::opaque);
   shadow.accept_any_intersection(true);
   float aspect = u.right.w, tan_half = u.forward.w;
@@ -250,6 +338,8 @@ kernel void pathtrace(
   float primary_depth = 0.0f;
   for (uint s = 0; s < spp; ++s) {
     float jx = u.preview ? 0.5f : rnd(state), jy = u.preview ? 0.5f : rnd(state);
+    // Shutter time for this sample's whole path.
+    float time = MOT ? (u.preview ? 0.5f : rnd(state)) : 0.0f;
     float px = ((float(gid.x) + jx) / float(u.width)) * 2.0f - 1.0f;
     float py = 1.0f - ((float(gid.y) + jy) / float(u.height)) * 2.0f;
     ray r;
@@ -260,7 +350,7 @@ kernel void pathtrace(
     float3 throughput = float3(1.0f), radiance = float3(0.0f);
     float last_pdf = 0.0f;  // BSDF pdf of the direction that produced this ray
     for (uint bounce = 0; bounce < bounces; ++bounce) {
-      auto hit = trace.intersect(r, scene);
+      auto hit = Isect<MOT, SPH>::go(trace, r, scene, table, time);
       if (hit.type == intersection_type::none) {
         // MIS (balance heuristic) against the panel sampler below; camera rays
         // have no competing strategy.
@@ -269,36 +359,57 @@ kernel void pathtrace(
         break;
       }
       uint prim = hit.primitive_id;
-      float2 bc = hit.triangle_barycentric_coord;
-      float3 p0 = float3(positions[prim * 3]), p1 = float3(positions[prim * 3 + 1]), p2 = float3(positions[prim * 3 + 2]);
-#if INSTANCED
-      p0 = world_point(transforms, hit.instance_id, p0);
-      p1 = world_point(transforms, hit.instance_id, p1);
-      p2 = world_point(transforms, hit.instance_id, p2);
-#endif
-      float3 ng = normalize(cross(p1 - p0, p2 - p0));
-      float3 ns = normalize(float3(normals[prim * 3]) * (1.0f - bc.x - bc.y)
-                            + float3(normals[prim * 3 + 1]) * bc.x
-                            + float3(normals[prim * 3 + 2]) * bc.y);
-#if INSTANCED
-      ns = normalize(world_normal(transforms, hit.instance_id, ns));
-#endif
-      float3 v = -r.direction;
-      if (dot(ng, v) < 0.0f) { ng = -ng; ns = -ns; }
-      Material m = materials[material_ids[prim]];
+      uint instance = instance_of(hit);
       float3 hitp = r.origin + r.direction * hit.distance;
+      float3 v = -r.direction;
+      float3 ng, ns;
+      uint material_index;
+      bool bevel = false;
+      if (SPH && hit.type == intersection_type::bounding_box) {
+        // Sphere: the object-space offset from its centre is the normal.
+        float3 offset = INST ? object_offset(transforms, instance, hitp, time) : hitp;
+        offset -= spheres[prim].center_radius.xyz;
+        ns = INST ? normalize(world_normal(transforms, instance, offset, time)) : normalize(offset);
+        ng = ns;
+        material_index = spheres[prim].material.x;
+      } else if (CRV && hit.type == intersection_type::curve) {
+        // Strand: the offset from the interpolated axis point is the normal.
+        uint first = strand_indices[prim];
+        float3 axis = mix(float3(strand_points[first]), float3(strand_points[first + 1u]), curve_u(hit));
+        float3 offset = (INST ? object_offset(transforms, instance, hitp, time) : hitp) - axis;
+        float3 tangent = float3(strand_points[first + 1u]) - float3(strand_points[first]);
+        offset -= tangent * (dot(offset, tangent) / max(dot(tangent, tangent), 1e-8f));
+        ns = INST ? normalize(world_normal(transforms, instance, offset, time)) : normalize(offset);
+        ng = ns;
+        material_index = strand_ids[prim];
+      } else {
+        float2 bc = hit.triangle_barycentric_coord;
+        float3 p0 = float3(positions[prim * 3]), p1 = float3(positions[prim * 3 + 1]), p2 = float3(positions[prim * 3 + 2]);
+        if (INST) {
+          p0 = world_point(transforms, instance, p0, time);
+          p1 = world_point(transforms, instance, p1, time);
+          p2 = world_point(transforms, instance, p2, time);
+        }
+        ng = normalize(cross(p1 - p0, p2 - p0));
+        ns = normalize(float3(normals[prim * 3]) * (1.0f - bc.x - bc.y)
+                       + float3(normals[prim * 3 + 1]) * bc.x
+                       + float3(normals[prim * 3 + 2]) * bc.y);
+        if (INST) ns = normalize(world_normal(transforms, instance, ns, time));
+        // Instances select their material by user id; flat meshes per triangle.
+        material_index = INST ? user_of(hit) : material_ids[prim];
+        bevel = true;
+      }
+      if (dot(ng, v) < 0.0f) { ng = -ng; ns = -ns; }
+      Material m = materials[material_index];
       if (bounce == 0 && s == 0) {
         primary_position = hitp;
         primary_normal = ng;
         primary_depth = hit.distance;
       }
-      if (m.round.x > 0.0f && bounce < 2)
-        ns = round_corners(scene, positions,
-#if INSTANCED
-                           transforms,
-#endif
+      if (bevel && m.round.x > 0.0f && bounce < 2)
+        ns = round_corners<INST, MOT, Scene, Tracer>(scene, positions, transforms,
                            hitp, ns, m.round.x,
-                           u.preview ? 1u : (bounce == 0 ? u.round_samples : max(u.round_samples / 4u, 1u)), state);
+                           u.preview ? 1u : (bounce == 0 ? u.round_samples : max(u.round_samples / 4u, 1u)), time, state);
       if (dot(ns, v) <= 0.0f) ns = ng;
       radiance += throughput * m.emission_metallic.xyz;
       float3 albedo = m.albedo_roughness.xyz;
@@ -326,7 +437,7 @@ kernel void pathtrace(
           sr.direction = wi;
           sr.min_distance = 0.0f;
           sr.max_distance = dist - 2e-3f;
-          if (shadow.intersect(sr, scene).type == intersection_type::none) {
+          if (Isect<MOT, SPH>::go(shadow, sr, scene, table, time).type == intersection_type::none) {
             float pdf = dist2 / (cos_l * L.radiance.w * float(u.light_count));
             radiance += throughput * L.radiance.xyz * eval_brdf(ns, v, wi, diffuse, f0, a2) * cos_s / pdf;
           }
@@ -343,7 +454,7 @@ kernel void pathtrace(
           sr.direction = wi;
           sr.min_distance = 0.0f;
           sr.max_distance = INFINITY;
-          if (shadow.intersect(sr, scene).type == intersection_type::none) {
+          if (Isect<MOT, SPH>::go(shadow, sr, scene, table, time).type == intersection_type::none) {
             float w = pl / (pl + bsdf_pdf(ns, v, wi, a2, ps));
             radiance += throughput * environment(u, panels, wi) * eval_brdf(ns, v, wi, diffuse, f0, a2) * cos_s * (w / pl);
           }
@@ -419,6 +530,86 @@ kernel void pathtrace(
   next_color[pixel] = float4(linear, history_count);
   next_geometry[pixel] = float4(primary_normal, primary_depth);
   output.write(float4(resolved_rgba(linear, u.exposure)) / 255.0f, gid);
+}
+
+kernel void pathtrace(
+    primitive_acceleration_structure flat_scene [[buffer(0), function_constant(FLAT)]],
+    instance_acceleration_structure instanced_scene [[buffer(0), function_constant(STATIC_INSTANCED)]],
+    acceleration_structure<instancing, instance_motion> motion_scene [[buffer(0), function_constant(MOTION_INSTANCED)]],
+    constant Uniforms &u [[buffer(1)]],
+    device const packed_float3 *positions [[buffer(2)]],
+    device const packed_float3 *normals [[buffer(3)]],
+    device const uint *material_ids [[buffer(4), function_constant(FLAT)]],
+    device const Material *materials [[buffer(5)]],
+    device const Panel *panels [[buffer(6)]],
+    device float4 *accum [[buffer(7)]],
+    texture2d<float, access::write> output [[texture(0)]],
+    device const Light *lights [[buffer(9)]],
+    device const packed_float3 *transforms [[buffer(10), function_constant(INSTANCED)]],
+    device const float4 *previous_color [[buffer(11)]],
+    device const float4 *previous_geometry [[buffer(12)]],
+    device float4 *next_color [[buffer(13)]],
+    device float4 *next_geometry [[buffer(14)]],
+    device const Sphere *spheres [[buffer(15), function_constant(SPHERES)]],
+    intersection_function_table<triangle_data> table_f [[buffer(16), function_constant(T_F)]],
+    intersection_function_table<triangle_data, curve_data> table_fc [[buffer(16), function_constant(T_FC)]],
+    intersection_function_table<triangle_data, instancing> table_i [[buffer(16), function_constant(T_I)]],
+    intersection_function_table<triangle_data, curve_data, instancing> table_ic [[buffer(16), function_constant(T_IC)]],
+    intersection_function_table<triangle_data, instancing, instance_motion> table_im [[buffer(16), function_constant(T_IM)]],
+    intersection_function_table<triangle_data, curve_data, instancing, instance_motion> table_imc [[buffer(16), function_constant(T_IMC)]],
+    device const packed_float3 *strand_points [[buffer(17), function_constant(CURVES)]],
+    device const uint *strand_indices [[buffer(18), function_constant(CURVES)]],
+    device const uint *strand_ids [[buffer(19), function_constant(CURVES)]],
+    uint2 gid [[thread_position_in_grid]]) {
+  using S_F = primitive_acceleration_structure;
+  using S_I = instance_acceleration_structure;
+  using S_IM = acceleration_structure<instancing, instance_motion>;
+  using R_F = intersector<triangle_data>;
+  using R_FC = intersector<triangle_data, curve_data>;
+  using R_I = intersector<triangle_data, instancing>;
+  using R_IC = intersector<triangle_data, curve_data, instancing>;
+  using R_IM = intersector<triangle_data, instancing, instance_motion>;
+  using R_IMC = intersector<triangle_data, curve_data, instancing, instance_motion>;
+  using T_F_ = intersection_function_table<triangle_data>;
+  using T_FC_ = intersection_function_table<triangle_data, curve_data>;
+  using T_I_ = intersection_function_table<triangle_data, instancing>;
+  using T_IC_ = intersection_function_table<triangle_data, curve_data, instancing>;
+  using T_IM_ = intersection_function_table<triangle_data, instancing, instance_motion>;
+  using T_IMC_ = intersection_function_table<triangle_data, curve_data, instancing, instance_motion>;
+#define TRACE(INST, MOT, SPH, CRV, SCENE, TRACER, TABLE, SCENE_ARG, TABLE_ARG) \
+  trace_pixel<INST, MOT, SPH, CRV, SCENE, TRACER, TABLE>( \
+      SCENE_ARG, u, positions, normals, INST ? nullptr : material_ids, materials, panels, accum, output, lights, \
+      INST ? transforms : nullptr, previous_color, previous_geometry, next_color, next_geometry, \
+      SPH ? spheres : nullptr, TABLE_ARG, CRV ? strand_points : nullptr, CRV ? strand_indices : nullptr, \
+      CRV ? strand_ids : nullptr, gid)
+  if (INSTANCED) {
+    if (MOTION) {
+      if (CURVES) {
+        if (SPHERES) TRACE(true, true, true, true, S_IM, R_IMC, T_IMC_, motion_scene, table_imc);
+        else TRACE(true, true, false, true, S_IM, R_IMC, int, motion_scene, 0);
+      } else {
+        if (SPHERES) TRACE(true, true, true, false, S_IM, R_IM, T_IM_, motion_scene, table_im);
+        else TRACE(true, true, false, false, S_IM, R_IM, int, motion_scene, 0);
+      }
+    } else {
+      if (CURVES) {
+        if (SPHERES) TRACE(true, false, true, true, S_I, R_IC, T_IC_, instanced_scene, table_ic);
+        else TRACE(true, false, false, true, S_I, R_IC, int, instanced_scene, 0);
+      } else {
+        if (SPHERES) TRACE(true, false, true, false, S_I, R_I, T_I_, instanced_scene, table_i);
+        else TRACE(true, false, false, false, S_I, R_I, int, instanced_scene, 0);
+      }
+    }
+  } else {
+    if (CURVES) {
+      if (SPHERES) TRACE(false, false, true, true, S_F, R_FC, T_FC_, flat_scene, table_fc);
+      else TRACE(false, false, false, true, S_F, R_FC, int, flat_scene, 0);
+    } else {
+      if (SPHERES) TRACE(false, false, true, false, S_F, R_F, T_F_, flat_scene, table_f);
+      else TRACE(false, false, false, false, S_F, R_F, int, flat_scene, 0);
+    }
+  }
+#undef TRACE
 }
 
 kernel void resolve_preview(

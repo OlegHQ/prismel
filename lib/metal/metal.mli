@@ -134,6 +134,10 @@ module Shared_event : sig
   val device_registry_id:t->int64
   val signaled_value:t->(int64,error)result
   val set_signaled_value:t->int64->(unit,error)result
+
+  (** Blocks the calling thread (releasing the OCaml runtime) until the event
+      reaches [value] or [timeout_ms] elapses; [Ok false] on timeout. *)
+  val wait_until_signaled:t->value:int64->timeout_ms:int64->(bool,error)result
   val export_handle:t->(Shared_event_handle.t,error)result
   val import_handle:device->Shared_event_handle.t->(t,error)result
   val notify:t->listener:Shared_event_listener.t->at_value:int64->
@@ -457,6 +461,76 @@ module Acceleration_structure : sig
     type t
     val create : device:Device.t -> primitive:structure ->
       transforms:float array array -> (t, error) result
+
+    (** Borrows caller-owned 64-byte [MTLAccelerationStructureInstanceDescriptor]
+        records at a 64-byte aligned [offset]; each record's structure index
+        selects one of [primitives]. [destroy] releases nothing. *)
+    val borrow : device:Device.t -> buffer:Buffer.t -> offset:int64 -> count:int64 ->
+      primitives:structure array -> (t, error) result
+    val destroy : t -> (unit, error) result
+  end
+
+
+  (** Generic build descriptors (plan G5). A geometry lists one keyframe for a
+      static structure or exactly [motion.keyframe_count] keyframes; ranges are
+      validated against their buffers, and the descriptor keeps every buffer and
+      instanced structure alive until it is destroyed. *)
+  module Build : sig
+    type keyframe = { buffer : Buffer.t; offset : int64 }
+    type border = Clamp | Vanish
+    type motion =
+      { keyframe_count : int; start_time : float; end_time : float
+      ; start_border : border; end_border : border }
+    type index = { index_buffer : Buffer.t; index_offset : int64; index_uint16 : bool }
+    type common =
+      { opaque : bool; allow_duplicate_intersection : bool
+      ; intersection_function_table_offset : int }
+    val default_common : common
+    type curve_type = Round | Flat
+    type curve_basis = Bspline | Catmull_rom | Linear | Bezier
+    type end_caps = No_caps | Disk | Sphere
+    type geometry =
+      | Triangles of
+          { vertices : keyframe list; vertex_stride : int64; triangle_count : int64
+          ; index : index option; common : common }
+      | Bounding_boxes of
+          { boxes : keyframe list; stride : int64; count : int64; common : common }
+      | Curves of
+          { control_points : keyframe list; control_stride : int64; control_point_count : int64
+          ; radii : keyframe list; radius_stride : int64; index : index
+          ; segment_count : int64; control_points_per_segment : int
+          ; curve_type : curve_type; basis : curve_basis; end_caps : end_caps
+          ; common : common }
+    type usage = Refit | Prefer_fast_build
+    type instance_kind = Default_instances | User_id_instances | Motion_instances
+
+    (** Byte offsets inside one native instance record; [-1] where the kind
+        lacks the field. [transform] is a packed 4x3 (48 bytes), [user_id] and
+        the motion fields exist for the user-id and motion kinds. *)
+    type instance_layout =
+      { size : int; transform : int; options : int; mask : int; table_offset : int
+      ; structure_index : int; user_id : int; transforms_start : int; transforms_count : int
+      ; start_border_offset : int; end_border_offset : int; start_time_offset : int
+      ; end_time_offset : int }
+    val instance_layout : instance_kind -> instance_layout
+    type t
+    val primitive : Device.t -> ?motion:motion -> ?usage:usage list -> geometry list ->
+      (t, error) result
+
+    (** [motion_transforms] is (buffer, offset, count) of packed 4x3 keyframe
+        transforms and is required for [Motion_instances]. *)
+    val instances : Device.t -> buffer:Buffer.t -> ?offset:int64 -> ?stride:int64 ->
+      count:int64 -> ?kind:instance_kind -> ?motion_transforms:(Buffer.t * int64 * int64) ->
+      ?usage:usage list -> structure array -> (t, error) result
+    val sizes : device:Device.t -> t -> (sizes, error) result
+    val device : t -> Device.t
+    val buffers : t -> Buffer.t list
+    val structures : t -> structure list
+
+    (** Zero and [None] for a primitive descriptor. *)
+    val instance_count : t -> int64
+    val instance_kind : t -> instance_kind option
+    val destroyed : t -> bool
     val destroy : t -> (unit, error) result
   end
 
@@ -1053,6 +1127,13 @@ module Render_pass_descriptor : sig
   val set_resolve_texture : t -> Texture.t option -> (unit,error) result
   val set_color_store_action : t -> resolve:bool -> (unit,error) result
   val set_color_load_action : t -> color_load_action -> (unit,error) result
+  type store_action = Store_dont_care | Store
+
+  (** Load/store actions and clear values for the depth and stencil
+      attachments set by [set_attachments]; absent attachments are left
+      untouched. *)
+  val set_depth_stencil_actions : t -> depth:(color_load_action * store_action * float) ->
+    stencil:(color_load_action * store_action * int) -> (unit,error) result
   val rasterization_rate_map : t -> Rasterization_rate_map.t option
   val set_rasterization_rate_map :
     t -> Rasterization_rate_map.t option -> (unit,error) result
@@ -2193,7 +2274,10 @@ module Render_pipeline : sig
     val create_color_attachment : Texture.format -> (color_attachment,error) result
     val create_color_attachment_configured : ?blending:blend_state -> ?source_rgb:blend_factor -> ?destination_rgb:blend_factor -> ?rgb_operation:blend_operation -> ?source_alpha:blend_factor -> ?destination_alpha:blend_factor -> ?alpha_operation:blend_operation -> ?write_mask:color_write list -> Texture.format -> (color_attachment,error) result
     val color_attachment_format : color_attachment -> Texture.format
-    val mesh_descriptor : ?label:string -> ?object_function:Function.t -> ?fragment_function:Function.t -> ?binary_archives:Binary_archive.t list -> mesh_function:Function.t -> depth_format:Texture.format -> stencil_format:Texture.format -> required_mesh_threads:size3 -> required_object_threads:size3 -> unit -> (mesh_descriptor,error) result
+
+    (** Without [depth_format]/[stencil_format] the pipeline renders to color
+        attachments only. *)
+    val mesh_descriptor : ?label:string -> ?object_function:Function.t -> ?fragment_function:Function.t -> ?binary_archives:Binary_archive.t list -> mesh_function:Function.t -> ?depth_format:Texture.format -> ?stencil_format:Texture.format -> required_mesh_threads:size3 -> required_object_threads:size3 -> unit -> (mesh_descriptor,error) result
     val mesh_binary_archives : mesh_descriptor -> (Binary_archive.t list,error) result
     val mesh_color_formats : mesh_descriptor -> (Texture.format option array,error) result
     val mesh_buffer_mutabilities : mesh_descriptor -> buffer_stage -> (mutability array,error) result
@@ -2221,6 +2305,10 @@ module Render_pipeline : sig
     val set_tile_function : tile_descriptor -> Function.t -> (unit,error) result
     val tile_linked_functions : tile_descriptor -> (Linked_functions.t option,error) result
     val set_tile_linked_functions : tile_descriptor -> Linked_functions.t option -> (unit,error) result
+
+    (** Pixel format of a color attachment the pipeline renders into. *)
+    val set_mesh_color_format : mesh_descriptor -> index:int -> Texture.format -> (unit,error) result
+    val set_tile_color_format : tile_descriptor -> index:int -> Texture.format -> (unit,error) result
     val compile_mesh : ?reflection:bool -> mesh_descriptor -> (t,error) result
     val compile_tile : ?reflection:bool -> tile_descriptor -> (t,error) result
     val destroy_buffer : buffer_descriptor -> (unit,error) result
@@ -3535,6 +3623,11 @@ module Command_buffer : sig
   val pop_debug_group : t -> (unit,error) result
   val encode_signal_event : t -> Event.t -> value:int64 -> (unit,error) result
   val encode_wait_for_event : t -> Event.t -> value:int64 -> (unit,error) result
+
+  (** Shared (host-visible, cross-queue) event signal and wait, encoded between
+      encoders of a recording command buffer. *)
+  val encode_signal_shared_event : t -> Shared_event.t -> value:int64 -> (unit,error) result
+  val encode_wait_for_shared_event : t -> Shared_event.t -> value:int64 -> (unit,error) result
   val create_compute_encoder : t -> dispatch_type -> (compute_encoder,error) result
   val create_acceleration_encoder : t -> (acceleration_encoder,error) result
   val logs : t -> (string option,error) result
@@ -3590,6 +3683,16 @@ module Acceleration_encoder : sig
     destination:Acceleration_structure.t ->
     descriptor:Acceleration_structure.Triangle.t -> scratch:Buffer.t ->
     scratch_offset:int64 -> (unit, error) result
+
+  (** Build or refit through a generic descriptor; the destination(s) must fit
+      the descriptor's sizes and the scratch range its build/refit scratch. *)
+  val build_with :
+    t -> destination:Acceleration_structure.t -> descriptor:Acceleration_structure.Build.t ->
+    scratch:Buffer.t -> scratch_offset:int64 -> (unit, error) result
+  val refit_with :
+    t -> source:Acceleration_structure.t -> destination:Acceleration_structure.t ->
+    descriptor:Acceleration_structure.Build.t -> scratch:Buffer.t -> scratch_offset:int64 ->
+    (unit, error) result
   val copy :
     t -> source:Acceleration_structure.t ->
     destination:Acceleration_structure.t -> (unit, error) result
@@ -3777,8 +3880,23 @@ module Render_encoder : sig
   val draw_patches_indirect : t -> control_points:int64 -> patch_index_buffer:Buffer.t -> patch_index_offset:int64 -> indirect_buffer:Buffer.t -> indirect_offset:int64 -> (unit,error) result
   val execute_indirect_commands : t -> Indirect_command_buffer.t -> location:int -> length:int -> (unit,error) result
   val execute_indirect_commands_indirect_range : t -> Indirect_command_buffer.t -> range_buffer:Buffer.t -> offset:int64 -> (unit,error) result
+
+  (** Mesh dispatch on the classic encoder. The bound pipeline must be a mesh
+      pipeline; [object_threadgroup] is given exactly when it has an object
+      stage; compiled required sizes must match. *)
+  val draw_mesh_threadgroups :
+    t -> threadgroups:(int * int * int) -> ?object_threadgroup:(int * int * int) ->
+    mesh_threadgroup:(int * int * int) -> unit -> (unit, error) result
+
+  (** Tile dispatch on the classic encoder; the bound pipeline must be a tile
+      pipeline and [threads] positive with depth one. *)
+  val dispatch_threads_per_tile : t -> threads:(int * int * int) -> (unit, error) result
+
   val draw_triangles :
     t -> first:int -> count:int -> ?instances:int -> unit ->
+    (unit, error) result
+  val draw_primitives :
+    t -> primitive:primitive -> first:int -> count:int -> ?instances:int -> unit ->
     (unit, error) result
   val end_encoding : t -> (unit, error) result
   val destroyed : t -> bool
@@ -4138,6 +4256,11 @@ module rec Blit_pass_descriptor : sig
   type t
   val create : Device.t -> (t,error) result
   val attachments : t -> (Blit_pass_attachments.t,error) result
+
+  (** A blit encoder whose stage boundaries sample the configured counter
+      attachments; the command buffer retains the descriptor and its sample
+      buffers until completion. *)
+  val create_encoder : Command_buffer.t -> t -> (Blit_encoder.t,error) result
   val destroyed : t -> bool
   val destroy : t -> (unit,error) result
 end
@@ -4268,6 +4391,11 @@ module Compute_pass : sig
   val attachments : t -> attachment option array
   val set_dispatch : t -> dispatch -> (unit,error) result
   val set_attachment : t -> index:int -> attachment option -> (unit,error) result
+
+  (** A compute encoder whose stage boundaries sample the configured counter
+      attachments; the command buffer retains the descriptor and its sample
+      buffers until completion. *)
+  val create_encoder : Command_buffer.t -> t -> (Compute_encoder.t,error) result
   val destroyed : t -> bool
   val destroy : t -> (unit,error) result
 end
@@ -4406,4 +4534,29 @@ module Device_async : sig
   val render_descriptor : ?variant:variant -> Pipeline_descriptor.Render.t -> (Render_pipeline.t,error) result
   val mesh : Render_pipeline.Mesh_tile.mesh_descriptor -> (Render_pipeline.t,error) result
   val tile : Render_pipeline.Mesh_tile.tile_descriptor -> (Render_pipeline.t,error) result
+end
+
+(** MetalFX, linked as its own framework. *)
+module Fx : sig
+  (** Spatial upscaling of one color texture into a larger output. *)
+  module Spatial_scaler : sig
+    type t
+    val supported : Device.t -> (bool, error) result
+
+    (** [input]/[output] are (width, height); the output is never smaller
+        than the input. The color texture needs shader-read usage and the
+        output shader-read plus render-target usage, checked at [encode]. *)
+    val create :
+      Device.t -> input:int * int -> output:int * int -> color_format:Texture.format ->
+      output_format:Texture.format -> (t, error) result
+    val input : t -> int * int
+    val output : t -> int * int
+    val formats : t -> Texture.format * Texture.format
+
+    (** Encodes the upscale between encoders of a recording command buffer,
+        which retains the scaler and both textures until it completes. *)
+    val encode : t -> Command_buffer.t -> color:Texture.t -> output:Texture.t -> (unit, error) result
+    val destroyed : t -> bool
+    val destroy : t -> (unit, error) result
+  end
 end

@@ -44,6 +44,26 @@ let create device ~memory descriptor =
                 Device.Private.attach_resource device;
                 Ok value
 
+(* A buffer placed at [offset] inside a heap; the heap keeps its storage class. *)
+let create_in_heap device ~memory (heap : Metal.Heap.t) ~offset descriptor =
+  let operation = "Ogpu_metal.Buffer.create_in_heap" in
+  if Device.destroyed device then
+    Error (Ogpu_core.Error.make operation Ogpu_core.Error.Stale_handle "device is destroyed")
+  else
+    match Ogpu_core.Types.validate_buffer (Device.capabilities device) descriptor with
+    | Error _ as failure -> failure
+    | Ok () ->
+        match validate_memory descriptor memory with
+        | Error _ as failure -> failure
+        | Ok () ->
+            match Metal.Heap.create_buffer heap ~offset ~length:descriptor.size ?label:descriptor.label () with
+            | Error metal -> Error (Device.of_metal_error ~operation metal)
+            | Ok metal ->
+                let value = { metal; handle = Ogpu_core.Handle.create ~device:(Device.Private.handle device);
+                  device; descriptor; memory;submission_uses=0;destroy_requested=false } in
+                Device.Private.attach_resource device;
+                Ok value
+
 let id value = Ogpu_core.Handle.id value.handle
 let generation value = Ogpu_core.Handle.generation value.handle
 let device_id value = Device.id value.device

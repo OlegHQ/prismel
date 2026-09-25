@@ -35,6 +35,19 @@ let run () =
            (match get (Blit_pass_attachment.sample_buffer attachment) with
             | Some retained when retained==samples -> ()
             | _ -> failwith "blit sample-buffer identity drift");
+           (* A blit encoder created from the descriptor samples index 1 and
+              3 at its boundaries; the command retains descriptor and samples. *)
+           let queue = get (Command_queue.create device) in
+           let command = get (Command_buffer.create queue ()) in
+           let encoder = get (Blit_pass_descriptor.create_encoder command pass) in
+           expect Invalid_state (Blit_pass_descriptor.create_encoder command pass);
+           get (Blit_encoder.end_encoding encoder);
+           expect Parent_has_dependents (Blit_pass_descriptor.destroy pass);
+           get (Command_buffer.commit command);
+           get (Command_buffer.wait_until_completed command);
+           if Bytes.length (get (Counters.resolve samples ~first:1L ~count:3L)) <> 24 then failwith "blit pass samples did not resolve";
+           get (Command_buffer.destroy command);
+           get (Command_queue.destroy queue);
            expect Parent_has_dependents (Resource100.Sample_buffer.destroy samples);
            get (Blit_pass_attachment.configure attachment ~sample_buffer:None
              ~start:Blit_pass_attachment.Dont_sample

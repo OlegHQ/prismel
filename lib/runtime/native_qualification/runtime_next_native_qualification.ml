@@ -4,9 +4,7 @@ let get = function
   | Ok value -> value
   | Error error -> failwith (Ogpu.Error.to_string error)
 
-let metal = function
-  | Ok value -> value
-  | Error error -> failwith (Format.asprintf "%a" Metal.pp_error error)
+let live_handles = snd (Ogpu.Impl.create_driver ())
 
 let rss_kib () =
   let argv = [| "/bin/ps"; "-o"; "rss="; "-p"; string_of_int (Unix.getpid ()) |] in
@@ -111,7 +109,7 @@ let () =
   let input=match Runtime_next_input.create~max_events:8~logical_width:10~logical_height:10 with Ok value->value|Error message->failwith message in
   ignore(Runtime_next_input_sdl3.push input(Sdl3.Event.Mouse_motion{timestamp_ns=0L;window_id=1L;which=1L;buttons=0L;x=3.25;y=4.5;dx=0.;dy=0.}));
   if (Runtime_next_input.snapshot input).pointer<>(3.25,4.5)then failwith"SDL3 logical pointer was double-scaled";
-  let before = metal (Metal.Release_queue.stats ()) and rss_before = rss_kib () in
+  let before = live_handles () and rss_before = rss_kib () in
   match Runtime_next.create ~width:1 ~height:1 () with
   | Error error -> failwith ("runtime-next native qualification create failed: " ^ Ogpu.Error.to_string error)
   | Ok probe ->
@@ -127,20 +125,19 @@ let () =
       for _ = 1 to 4 do
         let runtime = get (Runtime_next.create ~width:2 ~height:2 ()) in
         get (Runtime_next.destroy runtime);
-        ignore (metal (Metal.Release_queue.drain ()));
+        ignore (live_handles ());
         Gc.full_major ()
       done;
-      let teardown_rss=Array.init 12(fun _->let runtime=get(Runtime_next.create~width:2~height:2())in get(Runtime_next.destroy runtime);ignore(metal(Metal.Release_queue.drain()));Gc.full_major();rss_kib())in
+      let teardown_rss=Array.init 12(fun _->let runtime=get(Runtime_next.create~width:2~height:2())in get(Runtime_next.destroy runtime);ignore(live_handles());Gc.full_major();rss_kib())in
       let teardown_min=Array.fold_left min max_int teardown_rss and teardown_max=Array.fold_left max 0 teardown_rss in
       if teardown_max-teardown_min>4096 then failwith"native repeated teardown RSS did not plateau";
-      ignore (metal (Metal.Release_queue.drain ()));
-      let after = metal (Metal.Release_queue.stats ()) and rss_after = rss_kib () in
-      if after.live_handles <> before.live_handles then failwith "native qualification live-handle delta";
+      let after = live_handles () and rss_after = rss_kib () in
+      if after <> before then failwith "native qualification live-handle delta";
       let report = `Assoc [ "schema", `Int 1; "host", `String "Apple M1";
         "checkpoints", `List [ `Int 1; `Int 2; `Int 60; `Int 600 ];
         "scenarios", `List scenarios; "rss_before_kib", `Int rss_before;
-        "rss_after_kib", `Int rss_after; "live_handles_before", `Int before.live_handles;
-        "live_handles_after", `Int after.live_handles;
+        "rss_after_kib", `Int rss_after; "live_handles_before", `Int before;
+        "live_handles_after", `Int after;
         "rss_after_each_scenario_kib", `List (List.rev_map (fun value -> `Int value) !rss_checkpoints);
         "rss_after_twelve_teardown_cycles_kib", `List(Array.to_list(Array.map(fun value->`Int value)teardown_rss));
         "teardown_rss_range_kib", `Int(teardown_max-teardown_min);

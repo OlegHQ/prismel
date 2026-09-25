@@ -151,14 +151,19 @@ end
 module Canvas=struct
   type t={identity:int;mutable generation:int;mutable width:int;mutable height:int;
     mutable rgba:bytes;mutable spare:bytes option;mutable mirror:Image.t option;
-    mutable blocked:Image.t option;mutable dead:bool}
+    mutable blocked:Image.t option;
+    (* The GPU frame this canvas last rendered (owned by its execution); CPU
+       pixels are read back lazily while [cpu_stale]. A CPU mutation makes
+       the CPU bank authoritative again and forgets the texture. *)
+    mutable gpu:Ogpu.Backend.texture option;mutable cpu_stale:bool;
+    mutable dead:bool}
   let generation x=x.generation and destroyed x=x.dead
   let live op x f=main op(fun()->if x.dead then error op Destroyed"canvas is destroyed"else f())
   let storage operation width height=
     if width<=0||height<=0||width>max_int/4||height>max_int/(width*4)then
       error operation Invalid_argument"invalid canvas extent"
     else Ok(Bytes.make(width*height*4)'\000')
-  let create ~width ~height=main"Canvas.create"(fun()->Result.map(fun rgba->{identity=fresh_identity();generation=1;width;height;rgba;spare=None;mirror=None;blocked=None;dead=false})(storage"Canvas.create"width height))
+  let create ~width ~height=main"Canvas.create"(fun()->Result.map(fun rgba->{identity=fresh_identity();generation=1;width;height;rgba;spare=None;mirror=None;blocked=None;gpu=None;cpu_stale=false;dead=false})(storage"Canvas.create"width height))
   let size x=live"Canvas.size"x(fun()->Ok(x.width,x.height))
   let valid_mirror x image=not image.Image.dead&&image.canvas_owner=Some x.identity&&
     image.rgba==x.rgba
@@ -196,16 +201,28 @@ module Canvas=struct
         detach_mirror x;x.rgba<-replacement
     |Some _->x.mirror<-None|None->()
   let write_color bytes offset color=Bytes.set_int32_be bytes offset color
-  let clear x color=live"Canvas.clear"x(fun()->detach_for_mutation x;for offset=0 to Bytes.length x.rgba/4-1 do write_color x.rgba(offset*4)color done;x.generation<-x.generation+1;Ok())
-  let set_pixel x ~x:px ~y:py color=live"Canvas.set_pixel"x(fun()->if px<0||py<0||px>=x.width||py>=x.height then error"Canvas.set_pixel"Invalid_argument"pixel is out of bounds"else(detach_for_mutation x;write_color x.rgba((py*x.width+px)*4)color;x.generation<-x.generation+1;Ok()))
+  let sync_cpu op x=
+    if not x.cpu_stale then Ok()else
+    match x.gpu with
+    |None->x.cpu_stale<-false;Ok()
+    |Some texture->
+        detach_for_overwrite x;
+        (match Ogpu.Backend.read_texture_into texture~bytes_per_row:(x.width*4)~destination:x.rgba with
+         |Ok()->x.cpu_stale<-false;Ok()
+         |Error e->error op Io(Ogpu.Error.to_string e))
+  let cpu_overwrites x=x.cpu_stale<-false;x.gpu<-None
+  let cpu_mutates op x=match sync_cpu op x with Error _ as e->e|Ok()->x.gpu<-None;Ok()
+  let clear x color=live"Canvas.clear"x(fun()->cpu_overwrites x;detach_for_mutation x;for offset=0 to Bytes.length x.rgba/4-1 do write_color x.rgba(offset*4)color done;x.generation<-x.generation+1;Ok())
+  let set_pixel x ~x:px ~y:py color=live"Canvas.set_pixel"x(fun()->if px<0||py<0||px>=x.width||py>=x.height then error"Canvas.set_pixel"Invalid_argument"pixel is out of bounds"else match cpu_mutates"Canvas.set_pixel"x with Error _ as e->e|Ok()->(detach_for_mutation x;write_color x.rgba((py*x.width+px)*4)color;x.generation<-x.generation+1;Ok()))
   let replace_pixels x pixels=live"Canvas.replace_pixels"x(fun()->
     let expected=x.width*x.height*4 in
     if Bytes.length pixels<>expected then error"Canvas.replace_pixels"Invalid_argument"pixel storage length does not match canvas"
-    else(detach_for_mutation x;Bytes.blit pixels 0 x.rgba 0 expected;x.generation<-x.generation+1;Ok()))
+    else(cpu_overwrites x;detach_for_mutation x;Bytes.blit pixels 0 x.rgba 0 expected;x.generation<-x.generation+1;Ok()))
   let copy_to_image x image=main"Canvas.copy_to_image"(fun()->
     if x.dead then error"Canvas.copy_to_image"Destroyed"canvas is destroyed"
     else if image.Image.dead then error"Canvas.copy_to_image"Destroyed"image is destroyed"
-    else begin discard_invalid_mirror x;
+    else match sync_cpu"Canvas.copy_to_image"x with Error _ as e->e|Ok()->
+    begin discard_invalid_mirror x;
     if match x.mirror with Some mirror->mirror==image&&valid_mirror x image|None->false then(
       image.generation<-image.generation+1;Ok())
     else if match x.blocked with Some blocked->blocked==image|None->false then begin
@@ -231,13 +248,13 @@ module Canvas=struct
       Bytes.blit source 0 bytes 0(Bytes.length source);Image.install image bytes;
       image.width<-width;image.height<-height;
       image.generation<-image.generation+1;Ok()end)
-  let snapshot x=live"Canvas.snapshot"x(fun()->
+  let snapshot x=live"Canvas.snapshot"x(fun()->match sync_cpu"Canvas.snapshot"x with Error _ as e->e|Ok()->
     Ok(x.width,x.height,x.generation,Bytes.copy x.rgba))
   let draw_image x image ~x:px ~y:py=live"Canvas.draw_image"x(fun()->match Image.size image,Image.pixels image with
-    |Ok(w,h),Ok bytes->detach_for_mutation x;for sy=0 to h-1 do let dy=py+sy in if dy>=0&&dy<x.height then for sx=0 to w-1 do let dx=px+sx in if dx>=0&&dx<x.width then Bytes.blit bytes((sy*w+sx)*4)x.rgba((dy*x.width+dx)*4)4 done done;x.generation<-x.generation+1;Ok()
+    |Ok(w,h),Ok bytes->(match cpu_mutates"Canvas.draw_image"x with Error _ as e->e|Ok()->detach_for_mutation x;for sy=0 to h-1 do let dy=py+sy in if dy>=0&&dy<x.height then for sx=0 to w-1 do let dx=px+sx in if dx>=0&&dx<x.width then Bytes.blit bytes((sy*w+sx)*4)x.rgba((dy*x.width+dx)*4)4 done done;x.generation<-x.generation+1;Ok())
     |Error e,_|_,Error e->Error e)
-  let resize x ~width ~height=live"Canvas.resize"x(fun()->match storage"Canvas.resize"width height with Error _ as e->e|Ok rgba->detach_mirror x;x.blocked<-None;x.spare<-None;x.width<-width;x.height<-height;x.rgba<-rgba;x.generation<-x.generation+1;Ok())
-  let capture x=live"Canvas.capture"x(fun()->
+  let resize x ~width ~height=live"Canvas.resize"x(fun()->match storage"Canvas.resize"width height with Error _ as e->e|Ok rgba->cpu_overwrites x;detach_mirror x;x.blocked<-None;x.spare<-None;x.width<-width;x.height<-height;x.rgba<-rgba;x.generation<-x.generation+1;Ok())
+  let capture x=live"Canvas.capture"x(fun()->match sync_cpu"Canvas.capture"x with Error _ as e->e|Ok()->
     discard_invalid_mirror x;
     if x.mirror=None&&x.blocked=None then begin
       let image:Image.t={identity=fresh_identity();generation=1;
@@ -247,18 +264,24 @@ module Canvas=struct
       x.mirror<-Some image;Ok image
     end else
       Image.create~width:x.width~height:x.height~rgba:x.rgba)
-  let save_png x path=live"Canvas.save_png"x(fun()->try let bytes=Png.encode~width:x.width~height:x.height x.rgba in let out=open_out_bin path in Fun.protect~finally:(fun()->close_out_noerr out)(fun()->output_bytes out bytes);Ok()with Sys_error m->error"Canvas.save_png"Io m)
+  let save_png x path=live"Canvas.save_png"x(fun()->match sync_cpu"Canvas.save_png"x with Error _ as e->e|Ok()->try let bytes=Png.encode~width:x.width~height:x.height x.rgba in let out=open_out_bin path in Fun.protect~finally:(fun()->close_out_noerr out)(fun()->output_bytes out bytes);Ok()with Sys_error m->error"Canvas.save_png"Io m)
   module Private=struct
-    (* The native readback path is synchronous and initial-domain-only.  It
-       obtains the Canvas-owned bank after detaching any published Image, then
-       marks the generation only after a successful GPU read. *)
     let identity x=x.identity
-    let prepare_write x=live"Canvas.Private.prepare_write"x(fun()->
-      detach_for_overwrite x;Ok(x.width,x.height,x.rgba))
-    let commit_write x=live"Canvas.Private.commit_write"x(fun()->
-      x.generation<-x.generation+1;Ok())
+    let publish_gpu x texture=live"Canvas.Private.publish_gpu"x(fun()->
+      let descriptor=Ogpu.Backend.Private.texture_descriptor texture in
+      if Ogpu.Backend.Private.texture_destroyed texture||
+         descriptor.width<>x.width||descriptor.height<>x.height||
+         not(List.mem Ogpu.Types.Texture_binding descriptor.usage) then
+        error"Canvas.Private.publish_gpu"Invalid_argument"GPU texture shape or usage is invalid"
+      else(x.gpu<-Some texture;x.cpu_stale<-true;x.generation<-x.generation+1;Ok()))
+    let gpu_snapshot x=if x.dead then None else
+      Option.map(fun texture->x.width,x.height,x.generation,texture)x.gpu
+    let forget_gpu x=live"Canvas.Private.forget_gpu"x(fun()->
+      match sync_cpu"Canvas.Private.forget_gpu"x with
+      |Ok()->x.gpu<-None;Ok()
+      |Error _ as e->x.gpu<-None;x.cpu_stale<-false;e)
   end
-  let destroy x=main"Canvas.destroy"(fun()->if x.dead then Ok()else(detach_mirror x;x.blocked<-None;x.spare<-None;x.rgba<-Bytes.empty;x.dead<-true;Ok()))
+  let destroy x=main"Canvas.destroy"(fun()->if x.dead then Ok()else(x.gpu<-None;x.cpu_stale<-false;detach_mirror x;x.blocked<-None;x.spare<-None;x.rgba<-Bytes.empty;x.dead<-true;Ok()))
 end
 
 module Text=struct

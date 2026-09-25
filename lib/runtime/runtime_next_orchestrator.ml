@@ -129,10 +129,10 @@ let create (c : configuration) =
 let ensure operation value =
   if value.dead then error operation Ogpu.Error.Stale_handle "runtime is destroyed" else Ok ()
 
-let gpu_film_texture value ~width ~height =
-  match ensure "Runtime_next_orchestrator.gpu_film_texture" value with
+let device value =
+  match ensure "Runtime_next_orchestrator.device" value with
   | Error _ as failure -> failure
-  | Ok () -> Runtime_next.gpu_film_texture value.runtime ~width ~height
+  | Ok () -> Runtime_next.device value.runtime
 
 let facts value =
   Result.map (fun () -> value.facts) (ensure "Runtime_next_orchestrator.facts" value)

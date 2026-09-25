@@ -14,7 +14,7 @@
 (executable
  (name test_main)
  (modules test_main test_prismel_next_api test_prismel_next_api_batch_d test_prismel_next_api_batch_a test_prismel_next_api_batch_b test_prismel_next_api_batch_c test_prismel_next_api_batch_c_scene_parity test_scene_rounded_cache test_automatic_text_cache test_prismel_next_api_batch_e test_scene3_native_lowering test_scene_display_list test_core_interface_preservation test_resource_interface_preservation test_canvas_native)
- (libraries prismel prismel_next_resources runtime_next_input scene_command unix metal))
+ (libraries prismel prismel_next_resources runtime_next_input scene_command unix ogpu))
 
 (rule
  (aliases runtest test_prismel_next_api)

@@ -147,7 +147,7 @@
 (executable
  (name bench_uniforms)
  (modules bench_uniforms)
- (libraries scene_execution ogpu unix))
+ (libraries scene_execution scene_execution_fixtures ogpu unix))
 
 (executable
  (name bench_scene2_ir)

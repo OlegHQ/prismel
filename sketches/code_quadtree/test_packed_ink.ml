@@ -1,7 +1,8 @@
 open Prismel
 
 let () =
-  let baseline=Result.get_ok (Metal.Release_queue.stats ()) in
+  let live_handles=snd (Ogpu.Impl.create_driver ()) in
+  let baseline=live_handles () in
   let plain=ref [] and packed=Packed_ink.create () in
   let add node=plain:=node::!plain in
   for i=0 to 400 do
@@ -57,7 +58,6 @@ let () =
        Canvas.pixel canvas ~x:3 ~y:5<>Some Color.white then failwith "internal segment clip";
     Canvas.render canvas [Scene.clear Color.black;unclipped_batch];
     if Canvas.pixel canvas ~x:0 ~y:0<>Some Color.white then failwith "segment clip reset");
-  ignore (Result.get_ok (Metal.Release_queue.drain ()));
-  let after=Result.get_ok (Metal.Release_queue.stats ()) in
-  if after.live_handles<>baseline.live_handles then failwith "packed native handle delta";
+  let after=live_handles () in
+  if after<>baseline then failwith "packed native handle delta";
   print_endline "packed ink: exact native pixels vs Scene rect/line/stroke, alpha/order/clip, zero handle delta"

@@ -3,6 +3,8 @@ type t
 
 val create : Device.t -> memory:memory -> Ogpu_core.Types.buffer_descriptor ->
   (t, Ogpu_core.Error.t) result
+val create_in_heap : Device.t -> memory:memory -> Metal.Heap.t -> offset:int64 ->
+  Ogpu_core.Types.buffer_descriptor -> (t, Ogpu_core.Error.t) result
 val id : t -> int64
 val generation : t -> int64
 val device_id : t -> int64

@@ -1,29 +1,13 @@
 type t
-type render_result = Completed | Committed_with_error of Ogpu_core.Error.t
 
 val create : Device.t -> (t, Ogpu_core.Error.t) result
 
-(** [encode_classic value commands ~source ~target] appends the presentation
-    render pass to a caller-owned classic command buffer.  The command buffer
-    is never committed or destroyed here. *)
-val encode_classic :
-  ?scoped:bool -> t -> Metal.Command_buffer.t -> ?present:Metal.Drawable.t ->
+(** [encode value commands ~source ~target] appends the presentation render
+    pass (and the drawable's presentation when [present] is given) to a
+    caller-owned command buffer, which is never committed or destroyed here. *)
+val encode :
+  t -> Metal.Command_buffer.t -> ?present:Metal.Drawable.t ->
   source:Metal.Texture.t -> target:Metal.Texture.t -> unit ->
-  (unit, Ogpu_core.Error.t) result
-
-(** [render value ~source ~target] performs a synchronous GPU-only, one-to-one
-    presentation draw.  It accepts only a single-sample RGBA8 shader-readable
-    source and an equally sized single-sample BGRA8 render target. *)
-val render :
-  t -> queue:Metal.Command_queue.t -> ?present:Metal.Drawable.t ->
-  ?on_commit:(unit -> unit) ->
-  source:Metal.Texture.t ->
-  target:Metal.Texture.t -> unit ->
-  (render_result, Ogpu_core.Error.t) result
-
-val copy :
-  t -> queue:Metal.Command_queue.t -> source:Metal.Texture.t ->
-  target:Metal.Texture.t ->
   (unit, Ogpu_core.Error.t) result
 
 val destroy : t -> unit

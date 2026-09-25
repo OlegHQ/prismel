@@ -74,9 +74,14 @@ let foundational = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "og
 let rules =
   List.map (fun lib -> lib, "runtime_next" :: "runtime_next_orchestrator"
                             :: "prismel_next_execution" :: upper) foundational
-  @ [ "ogpu_core", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"; "native_layer_token"];
-      "ogpu", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"; "native_layer_token"];
-      "ogpu_mock", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"; "native_layer_token"];
+  @ [ "ogpu_core", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];
+      "ogpu", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];
+      "ogpu_mock", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];
+      "runtime_next", ["metal"; "ogpu_metal_native"; "ogpu_metal"];
+      "runtime_next_orchestrator", ["metal"; "ogpu_metal_native"; "ogpu_metal"];
+      "scene_execution", ["metal"; "ogpu_metal_native"; "ogpu_metal"];
+      "prismel_next_execution", ["metal"; "ogpu_metal_native"; "ogpu_metal"];
+      "prismel", ["metal"; "ogpu_metal_native"; "ogpu_metal"];
       "ogpu_metal_native", ["sdl3"; "runtime_next"; "prismel"; "scene_execution"];
       "ogpu_metal", ["sdl3"; "runtime_next"; "prismel"; "scene_execution"];
       "runtime_next", upper; "runtime_next_input", upper;
@@ -104,12 +109,7 @@ let reach_exceptions =
     [ "pdk", "K1"; "procedural", "K1" ]
 
 (* Direct Metal use outside lib/metal and lib/ogpu_metal: (path prefix, item). *)
-let metal_exceptions = [
-  "lib/runtime/", "G4"; "lib/prismel_pathtracer/", "G3";
-  (* tests that read Metal's release-queue stats for leak checks *)
-  "lib/prismel/test_canvas_native.ml", "G4";
-  "lib/prismel_next_execution/test_", "G4"; "lib/scene_execution/test_", "G4";
-  "sketches/code_quadtree/test_packed_ink.ml", "S5" ]
+let metal_exceptions = []
 
 (* identifiers outside comments and string literals *)
 let code_tokens text =

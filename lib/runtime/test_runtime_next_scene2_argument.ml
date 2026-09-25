@@ -1,10 +1,16 @@
 open Ogpu.Types
 
 let get = function Ok value -> value | Error error -> failwith (Ogpu.Error.to_string error)
-let get_metal = function Ok value -> value | Error error -> failwith error.Metal.message
+let live_handles = snd (Ogpu.Impl.create_driver ())
+
+let describe (stats : Runtime_next.stats) =
+  Printf.sprintf "builds %Ld misses %Ld hits %Ld executions %Ld evictions %Ld entries %d capacity %d"
+    stats.retained_plan_builds stats.retained_plan_misses stats.retained_plan_hits
+    stats.retained_plan_executions stats.retained_plan_evictions stats.retained_plan_entries
+    stats.retained_plan_capacity
 
 let run () =
-  let before = get_metal (Metal.Release_queue.stats ()) in
+  let before = live_handles () in
   match Runtime_next.create ~width:4 ~height:4 () with
   | Error _ -> print_endline "runtime-next scene2 retained argument: skipped (no Metal device)"
   | Ok runtime ->
@@ -49,7 +55,7 @@ let run () =
       for frame = 1 to 20 do
         if not (get (Runtime_next.render_sampled_resources runtime [draw])) then
           failwith "scene2 retained argument frame was not presented";
-        let pixels = get (Runtime_next.read_pixels runtime ~bytes_per_row:16) in
+        let pixels = get (Runtime_next.read_pixels runtime ~bytes_per_row:((Runtime_next.frame_facts runtime).drawable_width * 4)) in
         if Bytes.sub pixels 0 4 <> Bytes.of_string "\x11\x22\x33\xff" then
           failwith "scene2 retained argument exact pixel mismatch";
         if frame = 1 then first_uploaded := Some (Runtime_next.stats runtime).uploaded_bytes
@@ -59,44 +65,51 @@ let run () =
       if Some uploaded <> !first_uploaded then
         failwith "scene2 retained argument stable draw was re-expanded or re-uploaded";
       let retained = Runtime_next.stats runtime in
-      if retained.retained_plan_builds <> 1L || retained.retained_plan_misses <> 1L
-         || retained.retained_plan_hits <> 19L || retained.retained_plan_executions <> 20L
+      (* Automatic replay: frame 1 records the candidate, frame 2 admits and
+         builds the plan, frames 3..20 replay it. *)
+      if retained.retained_plan_builds <> 1L || retained.retained_plan_misses <> 2L
+         || retained.retained_plan_hits <> 18L || retained.retained_plan_executions <> 18L
          || retained.retained_plan_evictions <> 0L || retained.retained_plan_entries <> 1
-         || retained.retained_plan_capacity <> 256 then
-        failwith "scene2 retained argument counters are not exact";
+         || retained.retained_plan_capacity <> 2 then
+        failwith ("scene2 retained argument counters are not exact: " ^ describe retained);
       let settled_release = ref None in
       let peak_live = ref 0 in
-      let peak_pending = ref 0 in
       for frame = 1 to 1000 do
         let rgba = if frame land 1 = 0 then "\x11\x22\x33\xff" else "\x99\x55\x22\xff" in
+        (* Managed-image keys carry their generation: same-key image bytes are
+           never re-hashed, and a new generation recycles the same-shape texture. *)
         let changing : Scene_execution.sampled_texture =
-          { key = "image:managed-churn:1";
+          { key = Printf.sprintf "image:managed-churn:1:%d" frame;
             levels = [| { width = 1; height = 1; bytes = Bytes.of_string rgba } |];
             sampler; gpu=None }
         in
         let changing_draw = {draw with texture=Some changing} in
         if not (get (Runtime_next.render_sampled_resources runtime [changing_draw])) then
           failwith "managed-image churn frame was not presented";
-        let pixels = get (Runtime_next.read_pixels runtime ~bytes_per_row:16) in
+        let pixels = get (Runtime_next.read_pixels runtime ~bytes_per_row:((Runtime_next.frame_facts runtime).drawable_width * 4)) in
         if Bytes.sub pixels 0 4 <> Bytes.of_string rgba then
-          failwith "managed-image churn exact pixel mismatch";
-        if frame = 1 || frame mod 100 = 0 then begin
-          let current = get_metal (Metal.Release_queue.stats ()) in
-          if frame = 1 then settled_release := Some (current.live_handles, current.pending);
-          peak_live := max !peak_live current.live_handles;
-          peak_pending := max !peak_pending current.pending
+          failwith (Printf.sprintf "managed-image churn exact pixel mismatch at frame %d: got %S expected %S"
+            frame (Bytes.sub_string pixels 0 4) rgba);
+        (* Sample after the automatic plan is admitted (frame 2): the live
+           handle count must then stay flat across all generations. *)
+        if frame mod 100 = 0 then begin
+          let current = live_handles () in
+          if frame = 100 then settled_release := Some current;
+          peak_live := max !peak_live current
         end
       done;
       let churn = Runtime_next.stats runtime in
-      if churn.retained_plan_builds <> 2L || churn.retained_plan_misses <> 2L
-         || churn.retained_plan_hits <> 1018L || churn.retained_plan_executions <> 1020L
-         || churn.retained_plan_evictions <> 0L || churn.retained_plan_entries <> 2 then
-        failwith "managed-image churn rebuilt its retained render plan";
+      (* The churn frames admit one new automatic plan (two misses, one build)
+         that replaces the earlier one, then replay it for 998 frames while the
+         same-shape texture is recycled with one upload per generation. *)
+      if churn.retained_plan_builds <> 2L || churn.retained_plan_misses <> 4L
+         || churn.retained_plan_hits <> 1016L || churn.retained_plan_executions <> 1016L
+         || churn.retained_plan_evictions <> 1L || churn.retained_plan_entries <> 1 then
+        failwith ("managed-image churn rebuilt its retained render plan: " ^ describe churn);
       if Int64.sub churn.uploaded_bytes uploaded <> 256000L then
-        failwith "managed-image churn upload cardinality is not exact";
-      let settled_live, settled_pending = Option.get !settled_release in
-      if !peak_live <> settled_live || !peak_pending <> settled_pending then
-        failwith "managed-image churn grew Metal release state";
+        failwith (Printf.sprintf "managed-image churn upload cardinality is not exact: %Ld" (Int64.sub churn.uploaded_bytes uploaded));
+      if !peak_live <> Option.get !settled_release then
+        failwith "managed-image churn grew native live-handle state";
       let plain_mesh = { mesh with Scene_execution.key = "scene2-retained-plain" } in
       let plain_draw = {draw with family=Scene2;texture=None;
         draw={Scene_execution.mesh=plain_mesh;state}} in
@@ -106,14 +119,14 @@ let run () =
           [plain_draw; textured_draw])) then
           failwith "mixed canonical Scene2 frame was not presented"
       done;
-      let pixels = get (Runtime_next.read_pixels runtime ~bytes_per_row:16) in
+      let pixels = get (Runtime_next.read_pixels runtime ~bytes_per_row:((Runtime_next.frame_facts runtime).drawable_width * 4)) in
       if Bytes.sub pixels 0 4 <> Bytes.of_string "\x11\x22\x33\xff" then
         failwith "mixed canonical Scene2 exact pixel mismatch";
       let mixed = Runtime_next.stats runtime in
-      if mixed.retained_plan_builds <> 3L || mixed.retained_plan_misses <> 3L
-         || mixed.retained_plan_hits <> 1617L || mixed.retained_plan_executions <> 1620L
-         || mixed.retained_plan_evictions <> 0L || mixed.retained_plan_entries <> 3 then
-        failwith "mixed plain/textured Scene2 did not retain one stable plan";
+      if mixed.retained_plan_builds <> 3L || mixed.retained_plan_misses <> 6L
+         || mixed.retained_plan_hits <> 1614L || mixed.retained_plan_executions <> 1614L
+         || mixed.retained_plan_evictions <> 2L || mixed.retained_plan_entries <> 1 then
+        failwith ("mixed plain/textured Scene2 did not retain one stable plan: " ^ describe mixed);
       for frame = 0 to 159 do
         let identity = frame mod 80 in
         let mesh =
@@ -124,14 +137,16 @@ let run () =
           failwith "80-identity retained-plan frame was not presented"
       done;
       let cycled = Runtime_next.stats runtime in
-      if cycled.retained_plan_builds <> Int64.add mixed.retained_plan_builds 80L
-         || cycled.retained_plan_misses <> Int64.add mixed.retained_plan_misses 80L
-         || cycled.retained_plan_hits <> Int64.add mixed.retained_plan_hits 80L
-         || cycled.retained_plan_executions <> Int64.add mixed.retained_plan_executions 160L
-         || cycled.retained_plan_evictions <> mixed.retained_plan_evictions
-         || cycled.retained_plan_entries <> mixed.retained_plan_entries + 80
-         || cycled.retained_plan_capacity <> 256 then
-        failwith "80 mesh identities thrashed the aligned retained-plan cache";
+      (* Every frame differs from its predecessor, so no automatic plan is
+         admitted: 160 misses, no builds, and the previous plan is dropped. *)
+      if cycled.retained_plan_builds <> mixed.retained_plan_builds
+         || cycled.retained_plan_misses <> Int64.add mixed.retained_plan_misses 160L
+         || cycled.retained_plan_hits <> mixed.retained_plan_hits
+         || cycled.retained_plan_executions <> mixed.retained_plan_executions
+         || cycled.retained_plan_evictions <> Int64.succ mixed.retained_plan_evictions
+         || cycled.retained_plan_entries <> 0
+         || cycled.retained_plan_capacity <> 2 then
+        failwith ("80 mesh identities thrashed the aligned retained-plan cache: " ^ describe cycled);
       let affine tx =
         let bytes = Bytes.make 48 '\000' in
         Bytes.set_int64_le bytes 0 (Int64.bits_of_float 1.);
@@ -172,17 +187,16 @@ let run () =
           "animated affine retained path promoted %.0f bytes/frame"
           promoted_per_frame);
       ignore (get (Runtime_next.render_sampled_resources runtime [animated 2.]));
-      let shifted = get (Runtime_next.read_pixels runtime ~bytes_per_row:16) in
+      let shifted = get (Runtime_next.read_pixels runtime ~bytes_per_row:((Runtime_next.frame_facts runtime).drawable_width * 4)) in
       if Bytes.sub shifted 0 4 <> Bytes.of_string "\000\000\000\000" then
         failwith "animated affine translated pixel mismatch";
       ignore (get (Runtime_next.render_sampled_resources runtime [animated 0.]));
-      let restored = get (Runtime_next.read_pixels runtime ~bytes_per_row:16) in
+      let restored = get (Runtime_next.read_pixels runtime ~bytes_per_row:((Runtime_next.frame_facts runtime).drawable_width * 4)) in
       if Bytes.sub restored 0 4 <> Bytes.of_string "\x11\x22\x33\xff" then
         failwith "animated affine restored pixel mismatch";
       get (Runtime_next.destroy runtime);
-      ignore (get_metal (Metal.Release_queue.drain ()));
-      let after = get_metal (Metal.Release_queue.stats ()) in
-      if after.live_handles <> before.live_handles then
+      let after = live_handles () in
+      if after <> before then
         failwith "scene2 retained argument live-handle delta";
       Printf.printf "runtime-next scene2 retained argument: indexed expansion + 1000 managed-image generations + 600 mixed plain/textured + 400 affine frames, %.0f allocated and %.0f promoted bytes/frame, exact pixels, bounded release state, zero delta\n"
         allocated_per_frame promoted_per_frame

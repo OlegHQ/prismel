@@ -293,7 +293,7 @@ let init _frame =
   let tracer =
     match P.create ~bounces:4 ~exposure:1. ~width:w ~height:h
       { P.objects = [ (placeholder, concrete) ]
-      ; environment = { sky = rgb 0.006 0.007 0.009; ground = rgb 0.002 0.002 0.003; panels = [] }
+      ; spheres = []; strands = []; environment = { sky = rgb 0.006 0.007 0.009; ground = rgb 0.002 0.002 0.003; panels = [] }
       ; lights =
           [ P.rect_light ~intensity:9. ~size:(24., 24.) ~target:(v 0. 0. 0.) (v (-34.) 40. 30.)
           ; P.rect_light ~intensity:1.2 ~size:(30., 30.) ~target:(v 0. 0. 0.) (v 30. (-10.) 26.) ] }

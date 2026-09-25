@@ -1,6 +1,8 @@
 type format = Rgba8_unorm | Bgra8_unorm
 type present_mode = Fifo | Immediate
-type configuration = { logical_width:int; logical_height:int; physical_width:int; physical_height:int; format:format; present_mode:present_mode; max_acquired:int }
+(** [layer] is the window's native layer token (from [Sdl3.Metal_view.layer]);
+    [None] describes an offscreen or mock surface. *)
+type configuration = { logical_width:int; logical_height:int; physical_width:int; physical_height:int; format:format; present_mode:present_mode; max_acquired:int; layer:Native_layer_token.t option }
 type t
 type frame
 type acquire_result = Acquired of frame | Timeout | Occluded | Device_lost

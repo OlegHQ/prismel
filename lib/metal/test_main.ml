@@ -12,6 +12,7 @@ let tests = [
   "test_metal_blit_command25_safe", Test_metal_blit_command25_safe.run;
   "test_metal_io_compressor_safe", Test_metal_io_compressor_safe.run;
   "test_metal_mesh_tile105_safe", Test_metal_mesh_tile105_safe.run;
+  "test_metal_fx_safe", Test_metal_fx_safe.run;
   "test_metal_command_events_safe", Test_metal_command_events_safe.run;
   "test_metal_command_support121_safe", Test_metal_command_support121_safe.run;
   "test_metal_io_safe", Test_metal_io_safe.run;

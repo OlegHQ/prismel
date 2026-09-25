@@ -3,14 +3,13 @@ let rgb=P.Linear_color.rgb
 let get=function Ok value->value|Error message->failwith message
 let execution=function Ok value->value|Error error->
   failwith(Format.asprintf"%a"Prismel_next_execution.pp_error error)
-let metal=function Ok value->value|Error error->
-  failwith(Format.asprintf"%a"Metal.pp_error error)
+let live_handles=let _,live=Ogpu.Impl.create_driver()in live
 
 let run () =
-  let baseline=(metal(Metal.Release_queue.stats())).live_handles in
+  let baseline=live_handles()in
   let cube=get(Result.map_error Pdk.Error.to_string
     (Pdk.Ops.box ~size:(Prismel.Vec3.create 1. 1. 1.) ()))in
-  let scene={P.objects=[cube,P.material (rgb 0.8 0.6 0.4)];
+  let scene={ P.objects=[cube,P.material (rgb 0.8 0.6 0.4)]; spheres = []; strands = [];
     environment={sky=rgb 0.6 0.7 0.8;ground=rgb 0.1 0.1 0.1;panels=[]};
     lights=[]}in
   let camera=Prismel.Camera.perspective ~fov_y:0.9
@@ -58,7 +57,6 @@ let run () =
           |None->failwith"GPU film reverted to CPU storage"
         done;
         assert(Hashtbl.length textures=2)));
-  ignore(metal(Metal.Release_queue.drain()));
-  let after=(metal(Metal.Release_queue.stats())).live_handles in
+  let after=live_handles()in
   assert(after=baseline);
   print_endline"GPU film: direct texture, explicit readback, zero live delta"

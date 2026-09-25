@@ -54,8 +54,25 @@ val rect_light :
   ?color:Linear_color.t -> intensity:float -> size:float * float -> target:Prismel.Vec3.t ->
   Prismel.Vec3.t -> light
 
+(** An analytic sphere, traced through a bounding-box intersection function
+    rather than tessellated. *)
+type sphere = { center : Prismel.Vec3.t; radius : float; sphere_material : material }
+
+val sphere : radius:float -> material -> Prismel.Vec3.t -> sphere
+
+(** A round polyline of constant [thickness] (diameter), traced as linear
+    curve segments. Needs [Ogpu.Caps.Ray_tracing_curves]; [create] and
+    [replace_mesh] fail with a typed message otherwise. *)
+type strand = { points : Prismel.Vec3.t array; thickness : float; strand_material : material }
+
+val strand : thickness:float -> material -> Prismel.Vec3.t array -> strand
+
 type scene =
-  { objects : (Pdk.Geometry.t * material) list; environment : environment; lights : light list }
+  { objects : (Pdk.Geometry.t * material) list
+  ; spheres : sphere list
+  ; strands : strand list
+  ; environment : environment
+  ; lights : light list }
 
 type t
 
@@ -63,14 +80,21 @@ type t
     instance transforms. A SOP cook worker may prepare it off the initial domain. *)
 type mesh
 
-val mesh : (Pdk.Geometry.t * material) list -> (mesh, string) result
+val mesh :
+  ?spheres:sphere list -> ?strands:strand list -> (Pdk.Geometry.t * material) list ->
+  (mesh, string) result
 val triangle_count : mesh -> int
 
 val mesh_instanced :
-  prototype:(Pdk.Geometry.t * material) -> Prismel.Mat4.t array -> (mesh, string) result
+  prototype:(Pdk.Geometry.t * material) -> ?materials:material array ->
+  ?motion:Prismel.Mat4.t array -> Prismel.Mat4.t array -> (mesh, string) result
 (** One prototype and its instance transforms, without duplicated triangles.
     For [n] instances, preparation takes O(n) time and O(n) auxiliary memory;
-    the prototype's topology is stored once. *)
+    the prototype's topology is stored once. [materials] (one per instance)
+    overrides the prototype material per instance through the instance user
+    id. [motion] gives each instance a second transform at the end of the
+    shutter; the instance structure carries both keyframes and every sample
+    picks a shutter time, so instances blur along their motion. *)
 
 (** Builds the primitive acceleration structure, compiles the kernels, and
     allocates accumulation and output storage. Fails with a typed message

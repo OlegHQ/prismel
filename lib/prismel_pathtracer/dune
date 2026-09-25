@@ -12,21 +12,22 @@
  (name prismel_pathtracer)
  (public_name prismel.pathtracer)
  (modules prismel_pathtracer pathtrace_source)
- (libraries prismel metal ogpu pdk prismel_next_execution runtime_next_orchestrator
-  prismel_next_resources unix))
+ (libraries prismel ogpu pdk prismel_next_execution prismel_next_resources unix))
 
 (executable
  (name test_main)
  (modules test_main test_pathtracer test_gpu_film)
- (libraries prismel prismel_pathtracer prismel_next_execution prismel_next_resources ogpu pdk metal))
+ (libraries prismel prismel_pathtracer prismel_next_execution prismel_next_resources ogpu pdk))
 
 (rule
  (aliases runtest test_pathtracer)
+ (deps pathtrace.metal)
  (action (run %{exe:test_main.exe} test_pathtracer)))
 
 (rule
  (enabled_if (= %{env:PRISMEL_PATH_TRACER_EXACT_M1=0} 1))
  (alias qualification)
+ (deps pathtrace.metal)
  (action
   (setenv PRISMEL_PATH_TRACER_EXACT_M1 1
    (run %{exe:test_main.exe} test_pathtracer))))

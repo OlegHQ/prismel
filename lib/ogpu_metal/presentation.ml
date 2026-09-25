@@ -4,7 +4,6 @@ type t =
   ; pipeline : Metal.Render_pipeline.t
   ; mutable dead : bool
   }
-type render_result = Completed | Committed_with_error of Ogpu_core.Error.t
 
 let operation = "Ogpu_metal.Presentation"
 let error kind message = Error (Ogpu_core.Error.make operation kind message)
@@ -16,24 +15,6 @@ let fail_encode encoder value =
        if not (Metal.Render_encoder.destroyed encoder) then
          ignore (Metal.Render_encoder.end_encoding encoder))
     encoder;
-  metal value
-
-let fail_render commands encoder value =
-  Option.iter
-    (fun encoder ->
-       if not (Metal.Render_encoder.destroyed encoder) then
-         ignore (Metal.Render_encoder.end_encoding encoder))
-    encoder;
-  ignore (Metal.Command_buffer.destroy commands);
-  metal value
-
-let fail_copy commands encoder value =
-  Option.iter
-    (fun encoder ->
-       if not (Metal.Blit_encoder.destroyed encoder) then
-         ignore (Metal.Blit_encoder.end_encoding encoder))
-    encoder;
-  ignore (Metal.Command_buffer.destroy commands);
   metal value
 
 let source = {|
@@ -124,13 +105,7 @@ let validate_resources value ~device ~source ~target =
         "presentation source and target extents differ"
     else Ok ()
 
-let validate value ~queue ~source ~target =
-  if Metal.Command_queue.destroyed queue then
-    error Ogpu_core.Error.Stale_handle "presentation queue is destroyed"
-  else
-    validate_resources value ~device:(Metal.Command_queue.device queue) ~source ~target
-
-let encode_classic ?(scoped=false) value commands ?present ~source ~target () =
+let encode value commands ?present ~source ~target () =
   if Metal.Command_buffer.destroyed commands then
     error Ogpu_core.Error.Stale_handle "presentation command buffer is destroyed"
   else
@@ -138,8 +113,7 @@ let encode_classic ?(scoped=false) value commands ?present ~source ~target () =
             ~source ~target with
     | Error _ as failure -> failure
     | Ok () ->
-        (match (if scoped then Metal.Render_encoder.Private.create_scoped
-                  commands~target() else Metal.Render_encoder.create commands~target()) with
+        (match Metal.Render_encoder.create commands ~target () with
          | Error value -> metal value
          | Ok encoder ->
              (match Metal.Render_encoder.set_pipeline encoder value.pipeline with
@@ -160,79 +134,6 @@ let encode_classic ?(scoped=false) value commands ?present ~source ~target () =
                                      (match Metal.Command_buffer.present commands drawable () with
                                       | Ok () -> Ok ()
                                       | Error value -> metal value))))))
-
-let render value ~queue ?present ?on_commit ~source ~target () =
-  match validate value ~queue ~source ~target with
-  | Error _ as failure -> failure
-  | Ok () ->
-      (match Metal.Command_buffer.create queue ~label:"Prismel presentation" () with
-       | Error value -> metal value
-       | Ok commands ->
-           match encode_classic value commands ?present ~source ~target () with
-           | Error value ->
-               ignore (Metal.Command_buffer.destroy commands);
-               Error value
-           | Ok () ->
-               (match Metal.Command_buffer.commit commands with
-                | Error value -> fail_render commands None value
-                | Ok () ->
-                    Option.iter (fun notify -> notify ()) on_commit;
-                    (match Metal.Command_buffer.wait_until_completed commands with
-                     | Error value ->
-                         ignore (Metal.Command_buffer.destroy commands);
-                         Ok (Committed_with_error
-                               (Device.of_metal_error ~operation value))
-                     | Ok () ->
-                         (match Metal.Command_buffer.destroy commands with
-                          | Error value ->
-                              Ok (Committed_with_error
-                                    (Device.of_metal_error ~operation value))
-                          | Ok () -> Ok Completed))))
-
-let copy value ~queue ~source ~target =
-  if value.dead then error Ogpu_core.Error.Stale_handle "presentation helper is destroyed"
-  else if Metal.Command_queue.destroyed queue then
-    error Ogpu_core.Error.Stale_handle "presentation queue is destroyed"
-  else if not (Metal.Device.same value.device (Metal.Command_queue.device queue)) then
-    error Ogpu_core.Error.Cross_device "presentation queue belongs to another device"
-  else if Metal.Texture.destroyed source || Metal.Texture.destroyed target then
-    error Ogpu_core.Error.Stale_handle "presentation copy texture is destroyed"
-  else if not (Metal.Device.same value.device (Metal.Texture.device source)) ||
-          not (Metal.Device.same value.device (Metal.Texture.device target)) then
-    error Ogpu_core.Error.Cross_device "presentation copy texture belongs to another device"
-  else
-    let source_descriptor = Metal.Texture.descriptor source
-    and target_descriptor = Metal.Texture.descriptor target in
-    if source_descriptor.kind <> Metal.Texture.Texture_2d ||
-       target_descriptor.kind <> Metal.Texture.Texture_2d ||
-       source_descriptor.format <> Metal.Texture.Bgra8_unorm ||
-       target_descriptor.format <> Metal.Texture.Bgra8_unorm ||
-       source_descriptor.width <> target_descriptor.width ||
-       source_descriptor.height <> target_descriptor.height ||
-       source_descriptor.sample_count <> 1 || target_descriptor.sample_count <> 1 then
-      error Ogpu_core.Error.Invalid_argument "presentation copy textures are incompatible"
-    else
-      match Metal.Command_buffer.create queue ~label:"Prismel presentation readback" () with
-      | Error value -> metal value
-      | Ok commands ->
-          (match Metal.Blit_encoder.create commands with
-           | Error value -> fail_copy commands None value
-           | Ok encoder ->
-               (match Metal.Blit_encoder.copy_texture encoder ~source ~destination:target with
-                | Error value -> fail_copy commands (Some encoder) value
-                | Ok () ->
-                    (match Metal.Blit_encoder.end_encoding encoder with
-                     | Error value -> fail_copy commands None value
-                     | Ok () ->
-                         (match Metal.Command_buffer.commit commands with
-                          | Error value -> fail_copy commands None value
-                          | Ok () ->
-                              (match Metal.Command_buffer.wait_until_completed commands with
-                               | Error value -> fail_copy commands None value
-                               | Ok () ->
-                                   (match Metal.Command_buffer.destroy commands with
-                                    | Error value -> metal value
-                                    | Ok () -> Ok ()))))))
 
 let destroy value =
   if not value.dead then begin

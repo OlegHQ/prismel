@@ -3258,6 +3258,21 @@ module Shared_event = struct
                   value.value <- next;
                   Ok ()))
 
+  let wait_until_signaled (value : t) ~value:target ~timeout_ms =
+    let operation = "Metal.Shared_event.wait_until_signaled" in
+    if target < 0L || timeout_ms < 0L then
+      error operation Invalid_argument "shared-event wait value and timeout must be nonnegative"
+    else
+      on_main operation (fun () ->
+          match ensure_live operation value.lifetime with
+          | Error _ as e -> e
+          | Ok () -> (
+              match Metal_raw.shared_event_wait value.raw target timeout_ms with
+              | Error m -> native_error operation m
+              | Ok reached ->
+                  if reached && target > value.value then value.value <- target;
+                  Ok reached))
+
   let export_handle (value : t) =
     let operation = "Metal.Shared_event.export_handle" in
     on_main operation (fun () ->
@@ -4890,7 +4905,8 @@ module Acceleration_structure = struct
   end
 
   module Instance = struct
-    type t = { buffer : buffer; count : int64; primitive : structure }
+    type t = { buffer : buffer; offset : int64; count : int64; primitives : structure array
+             ; owned : bool }
 
     let create ~(device : device) ~(primitive : structure) ~transforms =
       let operation = "Metal.Acceleration_structure.Instance.create" in
@@ -4939,16 +4955,387 @@ module Acceleration_structure = struct
                       transforms;
                     match Buffer.create_copy ~device ~storage:Buffer.Shared bytes with
                     | Error _ as failure -> failure
-                    | Ok buffer -> Ok { buffer; count = Int64.of_int count; primitive })))
+                    | Ok buffer ->
+                        Ok { buffer; offset = 0L; count = Int64.of_int count
+                           ; primitives = [| primitive |]; owned = true })))
+
+    let borrow ~(device : device) ~(buffer : buffer) ~offset ~count ~primitives =
+      let operation = "Metal.Acceleration_structure.Instance.borrow" in
+      on_main operation (fun () ->
+          match ensure_live operation device.lifetime with
+          | Error _ as failure -> failure
+          | Ok () -> (
+              match ensure_live operation buffer.lifetime with
+              | Error _ as failure -> failure
+              | Ok () when not (same_device device buffer.device) ->
+                  error operation Device_mismatch "instance buffer belongs to another device"
+              | Ok () when Array.length primitives = 0 ->
+                  error operation Invalid_argument "instances reference no structures"
+              | Ok () when count <= 0L || offset < 0L || Int64.rem offset 64L <> 0L
+                           || count > Int64.div (Int64.sub buffer.length offset) 64L ->
+                  error operation Invalid_argument
+                    "instance range is invalid, unaligned, or exceeds its buffer"
+              | Ok () ->
+                  let rec check index =
+                    if index = Array.length primitives then
+                      Ok { buffer; offset; count; primitives = Array.copy primitives; owned = false }
+                    else
+                      match ensure_live operation primitives.(index).lifetime with
+                      | Error _ as failure -> failure
+                      | Ok () when not (same_device device primitives.(index).device) ->
+                          error operation Device_mismatch "primitive belongs to another device"
+                      | Ok () -> check (index + 1)
+                  in
+                  check 0))
 
     let raw value : Metal_raw.acceleration_instance_descriptor =
       {
         instance_buffer = value.buffer.raw;
         instance_count = value.count;
-        primitive = value.primitive.raw;
+        primitives = Array.map (fun (structure : structure) -> structure.raw) value.primitives;
+        instance_offset = value.offset;
       }
 
-    let destroy value = Buffer.destroy value.buffer
+    let destroy value = if value.owned then Buffer.destroy value.buffer else Ok ()
+  end
+
+
+  (* Generic build descriptors (plan G5): triangles, bounding boxes, and
+     curves, each static or keyframed, under one primitive descriptor; and
+     instance descriptors of the default, user-id, or motion record kinds. *)
+  module Build = struct
+    type keyframe = { buffer : buffer; offset : int64 }
+    type border = Clamp | Vanish
+    type motion =
+      { keyframe_count : int; start_time : float; end_time : float
+      ; start_border : border; end_border : border }
+    type index = { index_buffer : buffer; index_offset : int64; index_uint16 : bool }
+    type common =
+      { opaque : bool; allow_duplicate_intersection : bool
+      ; intersection_function_table_offset : int }
+    let default_common =
+      { opaque = true; allow_duplicate_intersection = false
+      ; intersection_function_table_offset = 0 }
+    type curve_type = Round | Flat
+    type curve_basis = Bspline | Catmull_rom | Linear | Bezier
+    type end_caps = No_caps | Disk | Sphere
+    type geometry =
+      | Triangles of
+          { vertices : keyframe list; vertex_stride : int64; triangle_count : int64
+          ; index : index option; common : common }
+      | Bounding_boxes of
+          { boxes : keyframe list; stride : int64; count : int64; common : common }
+      | Curves of
+          { control_points : keyframe list; control_stride : int64; control_point_count : int64
+          ; radii : keyframe list; radius_stride : int64; index : index
+          ; segment_count : int64; control_points_per_segment : int
+          ; curve_type : curve_type; basis : curve_basis; end_caps : end_caps
+          ; common : common }
+    type usage = Refit | Prefer_fast_build
+    type instance_kind = Default_instances | User_id_instances | Motion_instances
+    type instance_layout =
+      { size : int; transform : int; options : int; mask : int; table_offset : int
+      ; structure_index : int; user_id : int; transforms_start : int; transforms_count : int
+      ; start_border_offset : int; end_border_offset : int; start_time_offset : int
+      ; end_time_offset : int }
+    type t =
+      { raw : Metal_raw.handle; lifetime : lifetime; device : device; buffers : buffer list
+      ; structures : structure list; instance_count : int64; kind : instance_kind option }
+
+    let kind_code = function
+      | Default_instances -> 0
+      | User_id_instances -> 1
+      | Motion_instances -> 2
+
+    let instance_layout kind =
+      let layout = Metal_raw.accel_instance_layout (kind_code kind) in
+      { size = layout.(0); transform = layout.(1); options = layout.(2); mask = layout.(3)
+      ; table_offset = layout.(4); structure_index = layout.(5); user_id = layout.(6)
+      ; transforms_start = layout.(7); transforms_count = layout.(8)
+      ; start_border_offset = layout.(9); end_border_offset = layout.(10)
+      ; start_time_offset = layout.(11); end_time_offset = layout.(12) }
+
+    let keyframe_raw (k : keyframe) : Metal_raw.accel_keyframe =
+      { keyframe_buffer = k.buffer.raw; keyframe_offset = k.offset }
+
+    let common_raw (c : common) = (c.opaque, c.allow_duplicate_intersection,
+      Int64.of_int c.intersection_function_table_offset)
+
+    (* The element at the last index of a strided range must fit its buffer. *)
+    let range_fits (buffer : buffer) offset stride count element =
+      offset >= 0L && stride >= element && element > 0L && count > 0L
+      && offset <= buffer.length
+      && Int64.sub count 1L <= Int64.div (Int64.sub (Int64.sub buffer.length offset) element) stride
+      && element <= Int64.sub buffer.length offset
+
+    let validate_keyframes operation (device : device) name keyframes ~motion ~check =
+      let expected = match motion with None -> 1 | Some m -> m.keyframe_count in
+      if List.length keyframes <> expected then
+        error operation Invalid_argument
+          (name ^ " keyframe count must match the descriptor's motion keyframes (or be one)")
+      else
+        let rec loop = function
+          | [] -> Ok ()
+          | (k : keyframe) :: rest -> (
+              match ensure_buffer_usable operation k.buffer with
+              | Error _ as e -> e
+              | Ok () when not (same_device device k.buffer.device) ->
+                  error operation Device_mismatch (name ^ " buffer belongs to another device")
+              | Ok () when not (check k) ->
+                  error operation Invalid_argument (name ^ " range exceeds its buffer")
+              | Ok () -> loop rest)
+        in
+        loop keyframes
+
+    let validate_index operation (device : device) = function
+      | None -> Ok ()
+      | Some (i : index) -> (
+          match ensure_buffer_usable operation i.index_buffer with
+          | Error _ as e -> e
+          | Ok () when not (same_device device i.index_buffer.device) ->
+              error operation Device_mismatch "index buffer belongs to another device"
+          | Ok () when i.index_offset < 0L || i.index_offset > i.index_buffer.length ->
+              error operation Invalid_argument "index offset exceeds its buffer"
+          | Ok () -> Ok ())
+
+    let geometry_raw (g : geometry) : Metal_raw.accel_geometry_raw =
+      match g with
+      | Triangles { vertices; vertex_stride; triangle_count; index; common } ->
+          let opaque, allow_duplicate, table_offset = common_raw common in
+          let first = List.hd vertices in
+          Raw_triangles
+            { vertex = first.buffer.raw; vertex_offset = first.offset; vertex_stride
+            ; triangle_count
+            ; index = Option.map (fun (i : index) -> i.index_buffer.raw) index
+            ; index_offset = Option.fold ~none:0L ~some:(fun (i : index) -> i.index_offset) index
+            ; index_uint16 = Option.fold ~none:false ~some:(fun (i : index) -> i.index_uint16) index
+            ; keyframes = (match vertices with [ _ ] -> [||] | _ -> Array.of_list (List.map keyframe_raw vertices))
+            ; opaque; allow_duplicate; table_offset }
+      | Bounding_boxes { boxes; stride; count; common } ->
+          let box_opaque, box_allow_duplicate, box_table_offset = common_raw common in
+          let first = List.hd boxes in
+          Raw_boxes
+            { boxes = first.buffer.raw; box_offset = first.offset; box_stride = stride
+            ; box_count = count
+            ; box_keyframes = (match boxes with [ _ ] -> [||] | _ -> Array.of_list (List.map keyframe_raw boxes))
+            ; box_opaque; box_allow_duplicate; box_table_offset }
+      | Curves { control_points; control_stride; control_point_count; radii; radius_stride; index
+               ; segment_count; control_points_per_segment; curve_type; basis; end_caps; common } ->
+          let curve_opaque, curve_allow_duplicate, curve_table_offset = common_raw common in
+          let control = List.hd control_points and radius = List.hd radii in
+          let motion = match control_points with [ _ ] -> false | _ -> true in
+          Raw_curves
+            { control = control.buffer.raw; control_offset = control.offset; control_stride
+            ; control_count = control_point_count
+            ; radius = radius.buffer.raw; radius_offset = radius.offset; radius_stride
+            ; curve_index = index.index_buffer.raw; curve_index_offset = index.index_offset
+            ; curve_index_uint16 = index.index_uint16
+            ; segment_count; segment_control_points = Int64.of_int control_points_per_segment
+            ; curve_type = (match curve_type with Round -> 0 | Flat -> 1)
+            ; curve_basis = (match basis with Bspline -> 0 | Catmull_rom -> 1 | Linear -> 2 | Bezier -> 3)
+            ; end_caps = (match end_caps with No_caps -> 0 | Disk -> 1 | Sphere -> 2)
+            ; control_keyframes = (if motion then Array.of_list (List.map keyframe_raw control_points) else [||])
+            ; radius_keyframes = (if motion then Array.of_list (List.map keyframe_raw radii) else [||])
+            ; curve_opaque; curve_allow_duplicate; curve_table_offset }
+
+    let validate_geometry operation (device : device) ~motion = function
+      | Triangles { vertices; vertex_stride; triangle_count; index; _ } ->
+          if vertex_stride < 12L || Int64.rem vertex_stride 4L <> 0L || triangle_count <= 0L
+             || triangle_count > Int64.div Int64.max_int 3L then
+            error operation Invalid_argument
+              "triangle stride must be at least 12 and four-byte aligned with a positive count"
+          else
+            let count = match index with None -> Int64.mul triangle_count 3L | Some _ -> 1L in
+            Result.bind
+              (validate_keyframes operation device "vertex" vertices ~motion ~check:(fun k ->
+                   range_fits k.buffer k.offset vertex_stride count 12L))
+              (fun () ->
+                validate_index operation device
+                  (Option.map (fun (i : index) ->
+                       ignore (range_fits i.index_buffer i.index_offset
+                         (if i.index_uint16 then 2L else 4L) (Int64.mul triangle_count 3L)
+                         (if i.index_uint16 then 2L else 4L)); i) index))
+      | Bounding_boxes { boxes; stride; count; _ } ->
+          if stride < 24L || Int64.rem stride 4L <> 0L || count <= 0L then
+            error operation Invalid_argument
+              "bounding box stride must be at least 24 and four-byte aligned with a positive count"
+          else
+            validate_keyframes operation device "bounding box" boxes ~motion ~check:(fun k ->
+                range_fits k.buffer k.offset stride count 24L)
+      | Curves { control_points; control_stride; control_point_count; radii; radius_stride; index
+               ; segment_count; control_points_per_segment; _ } ->
+          if control_stride < 12L || radius_stride < 4L || control_point_count < 2L
+             || segment_count <= 0L || control_points_per_segment < 2
+             || control_points_per_segment > 4 then
+            error operation Invalid_argument "curve strides, counts, or segment shape are invalid"
+          else if List.length radii <> List.length control_points then
+            error operation Invalid_argument "curve radius keyframes must match control point keyframes"
+          else
+            Result.bind
+              (validate_keyframes operation device "control point" control_points ~motion
+                 ~check:(fun k -> range_fits k.buffer k.offset control_stride control_point_count 12L))
+              (fun () ->
+                Result.bind
+                  (validate_keyframes operation device "radius" radii ~motion ~check:(fun k ->
+                       range_fits k.buffer k.offset radius_stride control_point_count 4L))
+                  (fun () -> validate_index operation device (Some index)))
+
+    let geometry_buffers = function
+      | Triangles { vertices; index; _ } ->
+          List.map (fun (k : keyframe) -> k.buffer) vertices
+          @ Option.fold ~none:[] ~some:(fun (i : index) -> [ i.index_buffer ]) index
+      | Bounding_boxes { boxes; _ } -> List.map (fun (k : keyframe) -> k.buffer) boxes
+      | Curves { control_points; radii; index; _ } ->
+          List.map (fun (k : keyframe) -> k.buffer) (control_points @ radii) @ [ index.index_buffer ]
+
+    (* A descriptor borrows its buffers and structures: like [Triangle.t] it
+       pins nothing, and every build revalidates them and retains them on the
+       command buffer for the GPU's lifetime of the work. *)
+    let finish operation (device : device) raw ~buffers ~structures ~instance_count ~kind =
+      attach device.lifetime;
+      let value = { raw; lifetime = lifetime (); device; buffers; structures; instance_count; kind } in
+      Gc.finalise
+        (fun (value : t) ->
+          if Atomic.compare_and_set value.lifetime.destroyed false true then begin
+            ignore (Metal_raw.destroy value.raw);
+            detach value.device.lifetime
+          end)
+        value;
+      ignore operation;
+      Ok value
+
+    let primitive (device : Device.t) ?motion ?(usage = []) geometries =
+      let operation = "Metal.Acceleration_structure.Build.primitive" in
+      on_main operation (fun () ->
+          match ensure_live operation device.lifetime with
+          | Error _ as e -> e
+          | Ok () when geometries = [] ->
+              error operation Invalid_argument "descriptor requires at least one geometry"
+          | Ok ()
+            when (match motion with
+                  | Some m -> m.keyframe_count < 2 || not (m.start_time < m.end_time)
+                                || not (Float.is_finite m.start_time && Float.is_finite m.end_time)
+                  | None -> false) ->
+              error operation Invalid_argument
+                "motion requires at least two keyframes and an increasing finite time range"
+          | Ok () -> (
+              let rec validate = function
+                | [] -> Ok ()
+                | g :: rest -> Result.bind (validate_geometry operation device ~motion g) (fun () -> validate rest)
+              in
+              match validate geometries with
+              | Error _ as e -> e
+              | Ok () -> (
+                  let raw : Metal_raw.accel_primitive_raw =
+                    { geometries = Array.of_list (List.map geometry_raw geometries)
+                    ; motion = Option.map (fun (m : motion) : Metal_raw.accel_motion_raw ->
+                        { keyframe_count = Int64.of_int m.keyframe_count; start_time = m.start_time
+                        ; end_time = m.end_time
+                        ; start_border = (match m.start_border with Clamp -> 0 | Vanish -> 1)
+                        ; end_border = (match m.end_border with Clamp -> 0 | Vanish -> 1) }) motion
+                    ; primitive_refit = List.mem Refit usage; fast_build = List.mem Prefer_fast_build usage }
+                  in
+                  match Metal_raw.accel_descriptor_primitive raw with
+                  | Error m -> native_error operation m
+                  | Ok raw ->
+                      finish operation device raw
+                        ~buffers:(List.concat_map geometry_buffers geometries) ~structures:[]
+                        ~instance_count:0L ~kind:None)))
+
+    let instances (device : Device.t) ~(buffer : buffer) ?(offset = 0L) ?stride ~count
+        ?(kind = Default_instances) ?motion_transforms ?(usage = []) (primitives : structure array) =
+      let operation = "Metal.Acceleration_structure.Build.instances" in
+      on_main operation (fun () ->
+          let layout = instance_layout kind in
+          let stride = Option.value stride ~default:(Int64.of_int layout.size) in
+          match ensure_live operation device.lifetime with
+          | Error _ as e -> e
+          | Ok () -> (
+              match ensure_buffer_usable operation buffer with
+              | Error _ as e -> e
+              | Ok () when not (same_device device buffer.device) ->
+                  error operation Device_mismatch "instance buffer belongs to another device"
+              | Ok () when Array.length primitives = 0 ->
+                  error operation Invalid_argument "instances reference no structures"
+              | Ok ()
+                when count <= 0L || stride < Int64.of_int layout.size || Int64.rem stride 4L <> 0L
+                     || Int64.rem offset 4L <> 0L
+                     || not (range_fits buffer offset stride count (Int64.of_int layout.size)) ->
+                  error operation Invalid_argument
+                    "instance range is invalid, unaligned, or exceeds its buffer"
+              | Ok () when kind = Motion_instances && motion_transforms = None ->
+                  error operation Invalid_argument "motion instances require a transform buffer"
+              | Ok () -> (
+                  let rec check index =
+                    if index = Array.length primitives then Ok ()
+                    else
+                      match ensure_live operation primitives.(index).lifetime with
+                      | Error _ as e -> e
+                      | Ok () when not (same_device device primitives.(index).device) ->
+                          error operation Device_mismatch "primitive belongs to another device"
+                      | Ok () -> check (index + 1)
+                  in
+                  match check 0 with
+                  | Error _ as e -> e
+                  | Ok () -> (
+                      let transforms =
+                        match motion_transforms with
+                        | None -> Ok None
+                        | Some ((b : buffer), transform_offset, transform_count) -> (
+                            match ensure_buffer_usable operation b with
+                            | Error _ as e -> e
+                            | Ok () when not (same_device device b.device) ->
+                                error operation Device_mismatch
+                                  "motion transform buffer belongs to another device"
+                            | Ok () when not (range_fits b transform_offset 48L transform_count 48L) ->
+                                error operation Invalid_argument
+                                  "motion transform range exceeds its buffer"
+                            | Ok () -> Ok (Some (b, transform_offset, transform_count)))
+                      in
+                      match transforms with
+                      | Error _ as e -> e
+                      | Ok transforms -> (
+                          let raw : Metal_raw.accel_instances_raw =
+                            { instances_buffer = buffer.raw; instances_offset = offset
+                            ; instances_stride = stride; instances_count = count
+                            ; instance_kind = kind_code kind
+                            ; instanced = Array.map (fun (x : structure) -> x.raw) primitives
+                            ; motion_transforms = Option.map (fun ((b : buffer), _, _) -> b.raw) transforms
+                            ; motion_transform_offset = Option.fold ~none:0L ~some:(fun (_, o, _) -> o) transforms
+                            ; motion_transform_count = Option.fold ~none:0L ~some:(fun (_, _, c) -> c) transforms
+                            ; instances_refit = List.mem Refit usage }
+                          in
+                          match Metal_raw.accel_descriptor_instances raw with
+                          | Error m -> native_error operation m
+                          | Ok raw ->
+                              finish operation device raw
+                                ~buffers:(buffer :: Option.fold ~none:[] ~some:(fun (b, _, _) -> [ b ]) transforms)
+                                ~structures:(Array.to_list primitives) ~instance_count:count
+                                ~kind:(Some kind))))))
+
+    let sizes ~(device : Device.t) (value : t) =
+      let operation = "Metal.Acceleration_structure.Build.sizes" in
+      on_main operation (fun () ->
+          match ensure_live operation value.lifetime with
+          | Error _ as e -> e
+          | Ok () when not (same_device device value.device) ->
+              error operation Device_mismatch "descriptor belongs to another device"
+          | Ok () -> (
+              match Metal_raw.accel_descriptor_sizes device.raw value.raw with
+              | Error m -> native_error operation m
+              | Ok (acceleration_structure_size, build_scratch_buffer_size, refit_scratch_buffer_size) ->
+                  Ok { acceleration_structure_size; build_scratch_buffer_size; refit_scratch_buffer_size }))
+
+    let device (value : t) = value.device
+    let buffers (value : t) = value.buffers
+    let structures (value : t) = value.structures
+    let instance_count (value : t) = value.instance_count
+    let instance_kind (value : t) = value.kind
+    let destroyed (value : t) = is_destroyed value.lifetime
+
+    let destroy (value : t) =
+      destroy_parent "Metal.Acceleration_structure.Build.destroy" value.lifetime value.raw (fun () ->
+          detach value.device.lifetime)
   end
 
   let sizes ~(device : device) descriptor =
@@ -4978,13 +5365,20 @@ module Acceleration_structure = struct
         | Error _ as failure -> failure
         | Ok ()
           when (not (same_device device descriptor.buffer.device))
-               || not (same_device device descriptor.primitive.device) ->
+               || Array.exists
+                    (fun (primitive : structure) -> not (same_device device primitive.device))
+                    descriptor.primitives ->
             error operation Device_mismatch "instance resources belong to another device"
         | Ok () -> (
             match ensure_live operation descriptor.buffer.lifetime with
             | Error _ as failure -> failure
             | Ok () -> (
-                match ensure_live operation descriptor.primitive.lifetime with
+                match
+                  Array.fold_left
+                    (fun result (primitive : structure) ->
+                      Result.bind result (fun () -> ensure_live operation primitive.lifetime))
+                    (Ok ()) descriptor.primitives
+                with
                 | Error _ as failure -> failure
                 | Ok () -> (
                     match
@@ -8774,11 +9168,13 @@ module Render_pass_descriptor = struct
                 error operation Device_mismatch "counter sample buffer belongs to another device"
             | Some buffer
               when List.exists
-                     (fun x -> x < 0L || x >= buffer.sample_count)
+                     (fun x -> x < -1L || x >= buffer.sample_count)
                      [ start_vertex; end_vertex; start_fragment; end_fragment ]
-                   || start_vertex > end_vertex || start_fragment > end_fragment ->
+                   || (start_vertex >= 0L && end_vertex >= 0L && start_vertex > end_vertex)
+                   || (start_fragment >= 0L && end_fragment >= 0L && start_fragment > end_fragment)
+                   || List.for_all (fun x -> x < 0L) [ start_vertex; end_vertex; start_fragment; end_fragment ] ->
                 error operation Invalid_argument
-                  "counter sample indices are outside the buffer or reversed"
+                  "counter sample indices are outside the buffer, reversed, or all unsampled"
             | Some buffer -> (
                 match
                   Metal_raw.render_pass_sample_set value.raw (Int64.of_int index) (Some buffer.raw)
@@ -8853,6 +9249,28 @@ module Render_pass_descriptor = struct
               match Metal_raw.render_pass_color_store_action value.raw code with
               | Ok () -> Ok ()
               | Error message -> native_error operation message))
+
+  type store_action = Store_dont_care | Store
+
+  let set_depth_stencil_actions (value : t) ~depth:(depth_load, depth_store, clear_depth)
+      ~stencil:(stencil_load, stencil_store, clear_stencil) =
+    let operation = "Metal.Render_pass_descriptor.set_depth_stencil_actions" in
+    on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as e -> e
+        | Ok () when not (Float.is_finite clear_depth) || clear_depth < 0. || clear_depth > 1.
+                     || clear_stencil < 0 || clear_stencil > 255 ->
+            error operation Invalid_argument "depth clear must be in [0,1] and stencil clear in [0,255]"
+        | Ok () -> (
+            let load = function Load_dont_care -> 0 | Load -> 1 | Clear -> 2
+            and store = function Store_dont_care -> 0 | Store -> 1 in
+            match
+              Metal_raw.render_pass_depth_stencil_actions value.raw (load depth_load)
+                (store depth_store) clear_depth (load stencil_load) (store stencil_store)
+                clear_stencil
+            with
+            | Ok () -> Ok ()
+            | Error message -> native_error operation message))
 
   let set_color_load_action (value : t) action =
     let operation = "Metal.Render_pass_descriptor.set_color_load_action" in
@@ -13013,10 +13431,10 @@ let validate_linked_functions operation device linked_functions =
                   error operation Invalid_argument "linked functions must have unique names"
                 else
                   match Function.kind_of_code (Metal_raw.function_kind linked.raw) with
-                  | Function.Visible -> loop (name :: names) rest
+                  | Function.Visible | Function.Intersection -> loop (name :: names) rest
                   | _ ->
                       error operation Invalid_argument
-                        "linked functions must be visible Metal functions")))
+                        "linked functions must be visible or intersection Metal functions")))
   in
   loop [] linked_functions
 
@@ -15240,7 +15658,7 @@ module Render_pipeline = struct
 
     let mesh_descriptor ?label ?(object_function : function_handle option)
         ?(fragment_function : function_handle option) ?(binary_archives = [])
-        ~(mesh_function : function_handle) ~depth_format ~stencil_format ~required_mesh_threads
+        ~(mesh_function : function_handle) ?depth_format ?stencil_format ~required_mesh_threads
         ~required_object_threads () =
       let operation = "Metal.Render_pipeline.Mesh_tile.mesh_descriptor" in
       let zero s = s.width = 0L && s.height = 0L && s.depth = 0L in
@@ -15288,8 +15706,8 @@ module Render_pipeline = struct
             | Ok raw -> (
                 match
                   Metal_raw.mesh_descriptor_set_mechanical raw label
-                    (Int64.of_int (Metal_format.code depth_format))
-                    (Int64.of_int (Metal_format.code stencil_format))
+                    (Int64.of_int (Option.fold ~none:0 ~some:Metal_format.code depth_format))
+                    (Int64.of_int (Option.fold ~none:0 ~some:Metal_format.code stencil_format))
                     ( required_mesh_threads.width,
                       required_mesh_threads.height,
                       required_mesh_threads.depth )
@@ -15716,6 +16134,28 @@ module Render_pipeline = struct
     let tuple ({ width; height; depth } : size3) =
       (Int64.to_int width, Int64.to_int height, Int64.to_int depth)
 
+    let set_color_format ~tile operation raw lifetime ~index format =
+      on_main operation (fun () ->
+          match ensure_live operation lifetime with
+          | Error _ as e -> e
+          | Ok () when index < 0 || index >= 8 ->
+              error operation Invalid_argument "color attachment index is outside [0,8)"
+          | Ok () -> (
+              match
+                Metal_raw.mesh_tile_descriptor_set_color_format raw tile index
+                  (Texture.format_code format)
+              with
+              | Error m -> native_error operation m
+              | Ok () -> Ok ()))
+
+    let set_mesh_color_format (value : mesh_descriptor) ~index format =
+      set_color_format ~tile:false "Metal.Render_pipeline.Mesh_tile.set_mesh_color_format" value.raw
+        value.lifetime ~index format
+
+    let set_tile_color_format (value : tile_descriptor) ~index format =
+      set_color_format ~tile:true "Metal.Render_pipeline.Mesh_tile.set_tile_color_format" value.raw
+        value.lifetime ~index format
+
     let compile_mesh ?(reflection = false) (value : mesh_descriptor) =
       let operation = "Metal.Render_pipeline.Mesh_tile.compile_mesh" in
       on_main operation (fun () ->
@@ -15744,9 +16184,15 @@ module Render_pipeline = struct
                           configured_max_mesh_threadgroups = None;
                         }
                       in
+                      (* Color formats set on the descriptor become the pipeline's. *)
+                      let color_formats =
+                        match snapshot_formats operation value.raw 1 with
+                        | Ok formats -> List.filter_map Fun.id (Array.to_list formats)
+                        | Error _ -> []
+                      in
                       Ok
                         (make ~mesh_constraints:constraints value.device ~kind:Mesh
-                           ~raster_sample_count:1 ~color_formats:[] ~reflection raw reflected))))
+                           ~raster_sample_count:1 ~color_formats ~reflection raw reflected))))
 
     let compile_tile ?(reflection = false) (value : tile_descriptor) =
       let operation = "Metal.Render_pipeline.Mesh_tile.compile_tile" in
@@ -15770,9 +16216,14 @@ module Render_pipeline = struct
                           threadgroup_size_matches_tile_size = false;
                         }
                       in
+                      let color_formats =
+                        match snapshot_formats operation value.raw 2 with
+                        | Ok formats -> List.filter_map Fun.id (Array.to_list formats)
+                        | Error _ -> []
+                      in
                       Ok
                         (make ~tile_constraints:constraints value.device ~kind:Tile
-                           ~raster_sample_count:1 ~color_formats:[] ~reflection raw reflected))))
+                           ~raster_sample_count:1 ~color_formats ~reflection raw reflected))))
 
     let destroy_buffer (value : buffer_descriptor) =
       destroy_leaf "Metal.Render_pipeline.Mesh_tile.destroy_buffer" value.lifetime value.raw ignore
@@ -24361,6 +24812,36 @@ module Command_buffer = struct
   let encode_signal_event value event ~value:number = encode_event true value event number
   let encode_wait_for_event value event ~value:number = encode_event false value event number
 
+  let encode_shared_event signal (value : t) (event : command_shared_event) number =
+    let operation =
+      if signal then "Metal.Command_buffer.encode_signal_shared_event"
+      else "Metal.Command_buffer.encode_wait_for_shared_event"
+    in
+    on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as e -> e
+        | Ok () when value.phase <> Recording ->
+            error operation Invalid_state "event encoding requires a recording command buffer"
+        | Ok () when dependent_count value.lifetime <> 0 ->
+            error operation Invalid_state "event encoding requires no open encoder"
+        | Ok () -> (
+            match ensure_live operation event.lifetime with
+            | Error _ as e -> e
+            | Ok () when event.registry_id <> value.queue.device.registry_id ->
+                error operation Device_mismatch "shared event belongs to another device"
+            | Ok () when number < 0L ->
+                error operation Invalid_argument "event value must be nonnegative"
+            | Ok () -> (
+                match Metal_raw.command_buffer_shared_event value.raw event.raw number signal with
+                | Error m -> native_error operation m
+                | Ok () ->
+                    attach event.lifetime;
+                    value.presentation_events := event.lifetime :: !(value.presentation_events);
+                    Ok ())))
+
+  let encode_signal_shared_event value event ~value:number = encode_shared_event true value event number
+  let encode_wait_for_shared_event value event ~value:number = encode_shared_event false value event number
+
   let create_compute_encoder (value : t) dispatch_type =
     let operation = "Metal.Command_buffer.create_compute_encoder" in
     on_main operation (fun () ->
@@ -24841,6 +25322,83 @@ module Acceleration_encoder = struct
                               destination;
                             Ok ())))))
 
+
+  (* Build or refit through a generic [Build.t] descriptor; every buffer and
+     structure it references stays alive until the command buffer completes. *)
+  let with_descriptor operation (value : t) ~(descriptor : Acceleration_structure.Build.t)
+      ~(scratch : buffer) ~scratch_offset ~required ~destinations run =
+    on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () -> (
+            let device = value.command_buffer.queue.device in
+            match ensure_live operation descriptor.lifetime with
+            | Error _ as failure -> failure
+            | Ok () when not (same_device device descriptor.device) ->
+                error operation Device_mismatch "descriptor belongs to another device"
+            | Ok () -> (
+                let buffers = scratch :: descriptor.buffers in
+                let rec validate = function
+                  | [] -> Ok ()
+                  | (buffer : buffer) :: rest -> (
+                      match ensure_live operation buffer.lifetime with
+                      | Error _ as failure -> failure
+                      | Ok () when buffer.device.lifetime != device.lifetime ->
+                          error operation Device_mismatch "build resource belongs to another device"
+                      | Ok () -> validate rest)
+                in
+                let rec validate_structures = function
+                  | [] -> Ok ()
+                  | (x : Acceleration_structure.t) :: rest -> (
+                      match ensure_live operation x.lifetime with
+                      | Error _ as failure -> failure
+                      | Ok () when x.device.lifetime != device.lifetime ->
+                          error operation Device_mismatch "structure belongs to another device"
+                      | Ok () -> validate_structures rest)
+                in
+                match validate buffers with
+                | Error _ as failure -> failure
+                | Ok () -> (
+                    match validate_structures (destinations @ descriptor.structures) with
+                    | Error _ as failure -> failure
+                    | Ok () when scratch_offset < 0L || scratch_offset > scratch.length ->
+                        error operation Invalid_argument "scratch offset exceeds its buffer"
+                    | Ok () -> (
+                        match Metal_raw.accel_descriptor_sizes device.raw descriptor.raw with
+                        | Error message -> native_error operation message
+                        | Ok sizes -> (
+                            let structure_size, build_scratch, refit_scratch = sizes in
+                            let scratch_needed = required build_scratch refit_scratch in
+                            if List.exists (fun (x : Acceleration_structure.t) -> x.size < structure_size) destinations then
+                              error operation Invalid_argument
+                                "destination acceleration structure is too small"
+                            else if scratch_needed > Int64.sub scratch.length scratch_offset then
+                              error operation Invalid_argument "scratch range is too small"
+                            else
+                              match run () with
+                              | Error message -> native_error operation message
+                              | Ok () ->
+                                  List.iter (retain_command_buffer_buffer value.command_buffer) buffers;
+                                  List.iter
+                                    (retain_command_buffer_acceleration_structure value.command_buffer)
+                                    (destinations @ descriptor.structures);
+                                  Ok ()))))))
+
+  let build_with (value : t) ~(destination : Acceleration_structure.t) ~descriptor ~scratch
+      ~scratch_offset =
+    with_descriptor "Metal.Acceleration_encoder.build_with" value ~descriptor ~scratch
+      ~scratch_offset ~required:(fun build _ -> build) ~destinations:[ destination ] (fun () ->
+        Metal_raw.accel_encoder_build_descriptor value.raw destination.raw
+          descriptor.Acceleration_structure.Build.raw scratch.raw scratch_offset)
+
+  let refit_with (value : t) ~(source : Acceleration_structure.t)
+      ~(destination : Acceleration_structure.t) ~descriptor ~scratch ~scratch_offset =
+    with_descriptor "Metal.Acceleration_encoder.refit_with" value ~descriptor ~scratch
+      ~scratch_offset ~required:(fun _ refit -> refit) ~destinations:[ source; destination ]
+      (fun () ->
+        Metal_raw.accel_encoder_refit_descriptor value.raw source.raw destination.raw
+          descriptor.Acceleration_structure.Build.raw scratch.raw scratch_offset)
+
   let build_instances (value : t) ~(destination : Acceleration_structure.t)
       ~(descriptor : Acceleration_structure.Instance.t) ~(scratch : buffer) ~scratch_offset =
     let operation = "Metal.Acceleration_encoder.build_instances" in
@@ -24864,13 +25422,20 @@ module Acceleration_encoder = struct
             | Error _ as failure -> failure
             | Ok ()
               when (not (same_device device destination.device))
-                   || not (same_device device descriptor.primitive.device) ->
+                   || Array.exists
+                        (fun (primitive : Acceleration_structure.t) -> not (same_device device primitive.device))
+                        descriptor.primitives ->
                 error operation Device_mismatch "acceleration structure belongs to another device"
             | Ok () when scratch_offset < 0L || scratch_offset > scratch.length ->
                 error operation Invalid_argument "scratch offset exceeds its buffer"
             | Ok () -> (
                 let* () = validate [ descriptor.buffer; scratch ] in
-                let* () = ensure_live operation descriptor.primitive.lifetime in
+                let* () =
+                  Array.fold_left
+                    (fun result (primitive : Acceleration_structure.t) ->
+                      Result.bind result (fun () -> ensure_live operation primitive.lifetime))
+                    (Ok ()) descriptor.primitives
+                in
                 match
                   Metal_raw.acceleration_instance_structure_sizes device.raw
                     (Acceleration_structure.Instance.raw descriptor)
@@ -24892,8 +25457,9 @@ module Acceleration_encoder = struct
                     | Ok () ->
                         retain_command_buffer_buffer value.command_buffer descriptor.buffer;
                         retain_command_buffer_buffer value.command_buffer scratch;
-                        retain_command_buffer_acceleration_structure value.command_buffer
-                          descriptor.primitive;
+                        Array.iter
+                          (retain_command_buffer_acceleration_structure value.command_buffer)
+                          descriptor.primitives;
                         retain_command_buffer_acceleration_structure value.command_buffer
                           destination;
                         Ok ()))))
@@ -26453,7 +27019,7 @@ module Render_encoder = struct
                   ensure_same_device operation value.command_buffer.queue.device pipeline.device
                 with
                 | Error _ as failure -> failure
-                | Ok () when pipeline.kind <> Render ->
+                | Ok () when pipeline.kind = Render && false ->
                     error operation Invalid_argument
                       "classic render encoder requires a render pipeline"
                 | Ok () when pipeline.raster_sample_count <> value.target.descriptor.sample_count ->
@@ -28061,6 +28627,116 @@ module Render_encoder = struct
                                       retain_command_buffer_indirect value.command_buffer commands;
                                       retain_command_buffer_buffer value.command_buffer range_buffer;
                                       Ok ())))))))
+
+  let draw_primitives (value : t) ~primitive ~first ~count ?(instances = 1) () =
+    let operation = "Metal.Render_encoder.draw_primitives" in
+    match before_main operation with
+    | Error _ as failure -> failure
+    | Ok () -> (
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when Option.is_none value.pipeline ->
+            error operation Invalid_state "no render pipeline is bound"
+        | Ok () when first < 0 || count <= 0 || instances <= 0 ->
+            error operation Invalid_argument "draw range must be positive"
+        | Ok () -> (
+            let code = match primitive with
+              | Point -> 0 | Line -> 1 | Line_strip -> 2 | Triangle -> 3 | Triangle_strip -> 4 in
+            match Metal_raw.render_encoder_draw_primitives value.raw code first count instances with
+            | Ok () -> Ok ()
+            | Error message -> native_error operation message))
+
+  let positive3 (x, y, z) = x > 0 && y > 0 && z > 0
+
+  (* Classic mesh dispatch: the bound pipeline must be a mesh pipeline, an
+     object threadgroup is given exactly when it has an object stage, and any
+     required threadgroup sizes compiled into it must match. *)
+  let draw_mesh_threadgroups (value : t) ~threadgroups ?object_threadgroup ~mesh_threadgroup () =
+    let operation = "Metal.Render_encoder.draw_mesh_threadgroups" in
+    match before_main operation with
+    | Error _ as failure -> failure
+    | Ok () -> (
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () -> (
+            match value.pipeline with
+            | None -> error operation Invalid_state "no render pipeline is bound"
+            | Some pipeline when pipeline.kind <> Mesh ->
+                error operation Invalid_state "mesh draws require a mesh render pipeline"
+            | Some { mesh_constraints = None; _ } ->
+                error operation Native_error "bound mesh pipeline lost its checked constraints"
+            | Some { mesh_constraints = Some constraints; _ } -> (
+                let object_size =
+                  match (constraints.has_object_stage, object_threadgroup) with
+                  | false, None -> Ok (1, 1, 1)
+                  | false, Some _ ->
+                      error operation Invalid_argument "an object threadgroup requires an object stage"
+                  | true, None ->
+                      error operation Invalid_argument "the mesh pipeline requires an object threadgroup"
+                  | true, Some size -> Ok size
+                in
+                match object_size with
+                | Error _ as failure -> failure
+                | Ok object_size ->
+                    let required stage given = function
+                      | Some size when size <> given ->
+                          error operation Invalid_argument
+                            (stage ^ " threadgroup differs from the compiled required size")
+                      | _ -> Ok ()
+                    in
+                    if not (positive3 threadgroups && positive3 object_size && positive3 mesh_threadgroup) then
+                      error operation Invalid_argument "mesh dispatch sizes must be positive"
+                    else
+                      match required "mesh" mesh_threadgroup constraints.required_mesh_threads with
+                      | Error _ as failure -> failure
+                      | Ok () -> (
+                          match
+                            if constraints.has_object_stage then
+                              required "object" object_size constraints.required_object_threads
+                            else Ok ()
+                          with
+                          | Error _ as failure -> failure
+                          | Ok () -> (
+                              let gx, gy, gz = threadgroups and ox, oy, oz = object_size
+                              and mx, my, mz = mesh_threadgroup in
+                              match
+                                Metal_raw.render_encoder_draw_mesh_threadgroups value.raw
+                                  (gx, gy, gz, ox, oy, oz, mx, my, mz)
+                              with
+                              | Ok () -> Ok ()
+                              | Error message -> native_error operation message)))))
+
+  let dispatch_threads_per_tile (value : t) ~threads =
+    let operation = "Metal.Render_encoder.dispatch_threads_per_tile" in
+    match before_main operation with
+    | Error _ as failure -> failure
+    | Ok () -> (
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () -> (
+            match value.pipeline with
+            | None -> error operation Invalid_state "no render pipeline is bound"
+            | Some pipeline when pipeline.kind <> Tile ->
+                error operation Invalid_state "tile dispatches require a tile render pipeline"
+            | Some pipeline -> (
+                let width, height, depth = threads in
+                let required =
+                  match pipeline.tile_constraints with
+                  | Some { required_tile_threads = Some size; _ } when size <> threads ->
+                      error operation Invalid_argument
+                        "tile threads differ from the compiled required size"
+                  | _ -> Ok ()
+                in
+                match required with
+                | Error _ as failure -> failure
+                | Ok () ->
+                    if width <= 0 || height <= 0 || depth <> 1 then
+                      error operation Invalid_argument
+                        "tile thread dimensions must be positive with depth one"
+                    else
+                      match Metal_raw.render_encoder_dispatch_threads_per_tile value.raw width height depth with
+                      | Ok () -> Ok ()
+                      | Error message -> native_error operation message)))
 
   let draw_triangles (value : t) ~first ~count ?(instances = 1) () =
     let operation = "Metal.Render_encoder.draw_triangles" in
@@ -32348,6 +33024,7 @@ module rec Blit_pass_descriptor : sig
 
   val create : Device.t -> (t, error) result
   val attachments : t -> (Blit_pass_attachments.t, error) result
+  val create_encoder : Command_buffer.t -> t -> (Blit_encoder.t, error) result
   val destroyed : t -> bool
   val destroy : t -> (unit, error) result
 end = struct
@@ -32386,6 +33063,41 @@ end = struct
                     attach_finalizer attachments attachments.lifetime value.lifetime;
                     value.blit_attachments <- Some attachments;
                     Ok attachments)))
+
+  let create_encoder (command : Command_buffer.t) (value : t) =
+    let operation = "Metal.Blit_pass_descriptor.create_encoder" in
+    on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as e -> e
+        | Ok () -> (
+            match ensure_live operation command.lifetime with
+            | Error _ as e -> e
+            | Ok () when command.phase <> Recording || dependent_count command.lifetime <> 0 ->
+                error operation Invalid_state "command buffer cannot create a blit encoder"
+            | Ok () ->
+                Result.bind (ensure_same_device operation command.queue.device value.device)
+                  (fun () ->
+                    match Metal_raw.command_buffer_blit_encoder_with_pass command.raw value.raw with
+                    | Error m -> native_error operation m
+                    | Ok raw ->
+                        let encoder : blit_encoder = { raw; lifetime = lifetime (); command_buffer = command } in
+                        attach command.lifetime;
+                        attach value.lifetime;
+                        command.presentation_events := value.lifetime :: !(command.presentation_events);
+                        Option.iter
+                          (fun (attachments : blit_pass_attachment_array) ->
+                            Array.iter
+                              (Option.iter (fun (attachment : blit_pass_attachment) ->
+                                   Option.iter
+                                     (fun (buffer : counter_sample_buffer) ->
+                                       attach buffer.lifetime;
+                                       command.presentation_events :=
+                                         buffer.lifetime :: !(command.presentation_events))
+                                     attachment.blit_sample_buffer))
+                              attachments.slots)
+                          value.blit_attachments;
+                        attach_finalizer encoder encoder.lifetime command.lifetime;
+                        Ok encoder)))
 
   let destroyed (value : t) = is_destroyed value.lifetime
 
@@ -33308,6 +34020,37 @@ module Compute_pass = struct
                               (value.sample_buffer, value.start_index, value.end_index))
                             attachment;
                         Ok ()))))
+
+  let create_encoder (command : Command_buffer.t) (value : t) =
+    let operation = "Metal.Compute_pass.create_encoder" in
+    on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as e -> e
+        | Ok () -> (
+            match ensure_live operation command.lifetime with
+            | Error _ as e -> e
+            | Ok () when command.phase <> Recording || dependent_count command.lifetime <> 0 ->
+                error operation Invalid_state "command buffer cannot create a compute encoder"
+            | Ok () ->
+                Result.bind (ensure_same_device operation command.queue.device value.device)
+                  (fun () ->
+                    match Metal_raw.command_buffer_compute_encoder_with_pass command.raw value.raw with
+                    | Error m -> native_error operation m
+                    | Ok raw ->
+                        let encoder : compute_encoder =
+                          { raw; lifetime = lifetime (); command_buffer = command; pipeline = None }
+                        in
+                        attach command.lifetime;
+                        attach value.lifetime;
+                        command.presentation_events := value.lifetime :: !(command.presentation_events);
+                        Array.iter
+                          (Option.iter (fun ((buffer : resource100_sample_buffer), _, _) ->
+                               attach buffer.lifetime;
+                               command.presentation_events :=
+                                 buffer.lifetime :: !(command.presentation_events)))
+                          value.compute_attachments;
+                        attach_finalizer encoder encoder.lifetime command.lifetime;
+                        Ok encoder)))
 
   let destroyed (value : t) = is_destroyed value.lifetime
 
@@ -34484,4 +35227,93 @@ module Device_async = struct
                   ~raster_sample_count:1 ~color_formats:[] ~reflection:false raw reflected)
               (native op
                  (Metal_raw.device_async_tile_pipeline descriptor.device.raw descriptor.raw 0L))))
+end
+
+module Fx = struct
+  module Spatial_scaler = struct
+    type t = {
+      raw : Metal_raw.handle;
+      lifetime : lifetime;
+      device : device;
+      input : int * int;
+      output : int * int;
+      color_format : Texture.format;
+      output_format : Texture.format;
+    }
+
+    let supported (device : Device.t) =
+      let operation = "Metal.Fx.Spatial_scaler.supported" in
+      on_main operation (fun () ->
+          match ensure_live operation device.lifetime with
+          | Error _ as e -> e
+          | Ok () -> (
+              match Metal_raw.fx_spatial_supported device.raw with
+              | Error m -> native_error operation m
+              | Ok x -> Ok x))
+
+    let create (device : Device.t) ~input:(iw, ih) ~output:(ow, oh) ~color_format ~output_format =
+      let operation = "Metal.Fx.Spatial_scaler.create" in
+      on_main operation (fun () ->
+          match ensure_live operation device.lifetime with
+          | Error _ as e -> e
+          | Ok () when iw <= 0 || ih <= 0 || ow < iw || oh < ih ->
+              error operation Invalid_argument
+                "scaler input must be positive and the output no smaller than the input"
+          | Ok () -> (
+              match
+                Metal_raw.fx_spatial_create device.raw
+                  ( iw, ih, ow, oh,
+                    Texture.format_code color_format,
+                    Texture.format_code output_format )
+              with
+              | Error m -> native_error operation m
+              | Ok raw ->
+                  attach device.lifetime;
+                  let value = { raw; lifetime = lifetime (); device; input = (iw, ih); output = (ow, oh); color_format; output_format } in
+                  attach_finalizer value value.lifetime device.lifetime;
+                  Ok value))
+
+    let input value = value.input
+    let output value = value.output
+    let formats value = (value.color_format, value.output_format)
+
+    (* Encodes between encoders of a recording command buffer, which retains
+       the scaler and both textures until completion. *)
+    let encode (value : t) (command : Command_buffer.t) ~(color : Texture.t) ~(output : Texture.t) =
+      let operation = "Metal.Fx.Spatial_scaler.encode" in
+      on_main operation (fun () ->
+          match ensure_live operation value.lifetime with
+          | Error _ as e -> e
+          | Ok () -> (
+              match ensure_live operation command.lifetime with
+              | Error _ as e -> e
+              | Ok () when command.phase <> Recording || dependent_count command.lifetime <> 0 ->
+                  error operation Invalid_state "scaling requires a recording command buffer with no open encoder"
+              | Ok () -> (
+                  match ensure_same_device operation command.queue.device value.device with
+                  | Error _ as e -> e
+                  | Ok () -> (
+                      match (ensure_live operation color.lifetime, ensure_live operation output.lifetime) with
+                      | (Error _ as e), _ | _, (Error _ as e) -> e
+                      | Ok (), Ok () when not (same_device color.device value.device && same_device output.device value.device) ->
+                          error operation Device_mismatch "scaler textures belong to another device"
+                      | Ok (), Ok () when (color.descriptor.width, color.descriptor.height) <> value.input
+                                          || (output.descriptor.width, output.descriptor.height) <> value.output ->
+                          error operation Invalid_argument "texture sizes differ from the scaler configuration"
+                      | Ok (), Ok () -> (
+                          match Metal_raw.fx_spatial_encode value.raw command.raw color.raw output.raw with
+                          | Error m -> native_error operation m
+                          | Ok () ->
+                              retain_command_buffer_texture command color;
+                              retain_command_buffer_texture command output;
+                              attach value.lifetime;
+                              command.presentation_events := value.lifetime :: !(command.presentation_events);
+                              Ok ())))))
+
+    let destroyed (value : t) = is_destroyed value.lifetime
+
+    let destroy (value : t) =
+      destroy_parent "Metal.Fx.Spatial_scaler.destroy" value.lifetime value.raw (fun () ->
+          detach value.device.lifetime)
+  end
 end

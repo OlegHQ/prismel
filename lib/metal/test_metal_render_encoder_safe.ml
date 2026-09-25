@@ -11,8 +11,29 @@ let expect kind = function
       fail "expected another error kind: %s" (Format.asprintf "%a" pp_error error)
   | Ok _ -> fail "expected Metal operation to fail"
 
+let depth_actions device =
+  let pass = get (Render_pass_descriptor.create ~width:4 ~height:4 ()) in
+  let color = get (Texture.create ~device (Texture.descriptor_2d ~storage:Buffer.Private
+    ~usage:[Texture.Render_target] ~format:Texture.Bgra8_unorm ~width:4 ~height:4 ())) in
+  let depth = get (Texture.create ~device (Texture.descriptor_2d ~storage:Buffer.Private
+    ~usage:[Texture.Render_target] ~format:Texture.Depth32_float ~width:4 ~height:4 ())) in
+  get (Render_pass_descriptor.set_attachments pass ~color ~depth ());
+  get (Render_pass_descriptor.set_depth_stencil_actions pass
+    ~depth:(Render_pass_descriptor.Load, Render_pass_descriptor.Store, 0.5)
+    ~stencil:(Render_pass_descriptor.Clear, Render_pass_descriptor.Store_dont_care, 0));
+  expect Invalid_argument (Render_pass_descriptor.set_depth_stencil_actions pass
+    ~depth:(Render_pass_descriptor.Load, Render_pass_descriptor.Store, 1.5)
+    ~stencil:(Render_pass_descriptor.Clear, Render_pass_descriptor.Store, 0));
+  expect Invalid_argument (Render_pass_descriptor.set_depth_stencil_actions pass
+    ~depth:(Render_pass_descriptor.Load, Render_pass_descriptor.Store, 0.)
+    ~stencil:(Render_pass_descriptor.Clear, Render_pass_descriptor.Store, 256));
+  get (Render_pass_descriptor.destroy pass);
+  get (Texture.destroy depth);
+  get (Texture.destroy color)
+
 let run () =
   let device = get (Device.system_default ()) in
+  depth_actions device;
   let queue = get (Command_queue.create device) in
   let target =
     get
@@ -56,6 +77,8 @@ let run () =
   expect Invalid_argument
     (Render_encoder.set_vertex_texture encoder ~index:31 sampled);
   expect Invalid_argument (Render_encoder.set_vertex_bytes encoder ~index:0 Bytes.empty);
+  expect Invalid_state
+    (Render_encoder.draw_primitives encoder ~primitive:Render_encoder.Point ~first:0 ~count:1 ());
   expect Invalid_argument (Render_encoder.set_stage_bytes encoder ~stage:Render_encoder.Mesh ~index:0 Bytes.empty);
   expect Invalid_argument (Render_encoder.set_depth_bounds encoder ~minimum:0.8 ~maximum:0.2);
   expect Invalid_argument (Render_encoder.set_viewports encoder []);

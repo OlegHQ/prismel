@@ -1,4 +1,3 @@
-type resource = Buffer of Buffer.t | Texture of Texture.t
 type t = { portable:Ogpu_core.Diagnostics.t }
 
 let create device ~capacity =
@@ -20,67 +19,5 @@ let add_error value ?label error =
 
 let messages value = Ogpu_core.Diagnostics.messages value.portable
 let dropped value = Ogpu_core.Diagnostics.dropped_messages value.portable
-
-let add_field buffer key value =
-  Stdlib.Buffer.add_string buffer key; Stdlib.Buffer.add_char buffer '=';
-  Stdlib.Buffer.add_string buffer (string_of_int (String.length value)); Stdlib.Buffer.add_char buffer ':';
-  Stdlib.Buffer.add_string buffer value; Stdlib.Buffer.add_char buffer '\n'
-
-let int64 = Int64.to_string
-let float value = Printf.sprintf "%.17g" value
-let label = Option.value ~default:""
-
-let resource_row device = function
-  | Buffer value -> Result.map (fun (descriptor:Ogpu_core.Types.buffer_descriptor) ->
-      (Buffer.id value, Printf.sprintf "buffer|%s|%s|%s"
-        (int64 (Buffer.id value)) (int64 (Buffer.generation value)) (label descriptor.Ogpu_core.Types.label)))
-      (Buffer.descriptor device value)
-  | Texture value -> Result.map (fun (descriptor:Ogpu_core.Types.texture_descriptor) ->
-      (Texture.id value, Printf.sprintf "texture|%s|%s|%s|%d|%d|%d|%d"
-        (int64 (Texture.id value)) (int64 (Texture.generation value)) (label descriptor.Ogpu_core.Types.label)
-        descriptor.width descriptor.height descriptor.mip_levels descriptor.sample_count))
-      (Texture.descriptor device value)
-
-let operation_row = function
-  | Command.Private.Copy (source,source_offset,destination,destination_offset,length) ->
-      Printf.sprintf "copy|%s|%s|%s|%s|%s" (int64(Buffer.id source)) (int64 source_offset)
-        (int64(Buffer.id destination)) (int64 destination_offset) (int64 length)
-  | Compute (source,entry,buffer,threads) ->
-      Printf.sprintf "compute|%s|%s|%s|%d" (Digest.to_hex(Digest.string source)) entry (int64(Buffer.id buffer)) threads
-  | Dispatch (pipeline,buffer,threads) ->
-      Printf.sprintf "dispatch|%s|%s|%d" (Pipeline.key pipeline) (int64(Buffer.id buffer)) threads
-  | Clear (texture,(r,g,b,a)) ->
-      Printf.sprintf "clear|%s|%s|%s|%s|%s" (int64(Texture.id texture)) (float r) (float g) (float b) (float a)
-  | Draw_triangle (pipeline,texture) ->
-      Printf.sprintf "draw|%s|%s" (Pipeline.key pipeline) (int64(Texture.id texture))
-
-let serialize_capture device ~label:capture_label ~resources ~commands =
-  let operation="Ogpu_metal.Diagnostics.serialize_capture" in
-  if capture_label="" || String.contains capture_label '\000' then
-    Error(Ogpu_core.Error.make operation Ogpu_core.Error.Invalid_argument "capture label is invalid")
-  else if List.exists (fun command ->
-    let descriptions=Command.descriptions command in
-    Array.length descriptions=0 || descriptions.(Array.length descriptions-1)<>Ogpu_core.Command.End_encoder) commands then
-    Error(Ogpu_core.Error.make operation Ogpu_core.Error.Invalid_state "capture commands must be ended")
-  else
-    let rec gather acc = function
-      | [] -> Ok acc
-      | resource::rest -> (match resource_row device resource with Error _ as failure->failure|Ok row->gather(row::acc)rest)
-    in
-    match gather [] resources with Error _ as failure->failure|Ok rows->
-    let rows=List.sort(fun(a,_)(b,_)->Int64.compare a b)rows in
-    let rec unique = function []|[_]->true|(a,_)::((b,_)::_ as rest)->a<>b&&unique rest in
-    if not(unique rows)then Error(Ogpu_core.Error.make operation Ogpu_core.Error.Invalid_argument "capture resources contain duplicate IDs")else
-    let output=Stdlib.Buffer.create 1024 in add_field output "manifest" "ogpu-metal-v1";add_field output "label" capture_label;
-    List.iter(fun(_,row)->add_field output "resource" row)rows;
-    List.iteri(fun command_index command->
-      List.iteri(fun operation_index operation->add_field output "command"
-        (Printf.sprintf "%d|%d|%s"command_index operation_index(operation_row operation)))
-        (Command.Private.operations command))commands;
-    Ok(Stdlib.Buffer.contents output)
-
-let capture_hash device ~label ~resources ~commands =
-  Result.map (fun value->Digest.to_hex(Digest.string value))
-    (serialize_capture device ~label ~resources ~commands)
 
 let destroy value = Ogpu_core.Diagnostics.destroy value.portable

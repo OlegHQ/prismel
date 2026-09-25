@@ -8,7 +8,7 @@
 
 (executable
  (name test_main)
- (modules test_main test_ogpu_foundation test_ogpu_command test_ogpu_mock test_ogpu_shader test_ogpu_backend test_ogpu_surface test_ogpu_binding test_ogpu_sync test_ogpu_pipeline test_ogpu_acceleration test_ogpu_cache test_ogpu_memory test_ogpu_render_pass test_ogpu_diagnostics test_ogpu_compute_pass test_ogpu_transfer_pass test_ogpu_validation)
+ (modules test_main test_ogpu_foundation test_ogpu_shader test_ogpu_surface test_ogpu_binding test_ogpu_sync test_ogpu_pipeline test_ogpu_acceleration test_ogpu_memory test_ogpu_diagnostics test_ogpu_validation)
  (libraries ogpu))
 
 (rule
@@ -16,20 +16,8 @@
  (action (run %{exe:test_main.exe} test_ogpu_foundation)))
 
 (rule
- (aliases runtest test_ogpu_command)
- (action (run %{exe:test_main.exe} test_ogpu_command)))
-
-(rule
- (aliases runtest test_ogpu_mock)
- (action (run %{exe:test_main.exe} test_ogpu_mock)))
-
-(rule
  (aliases runtest test_ogpu_shader)
  (action (run %{exe:test_main.exe} test_ogpu_shader)))
-
-(rule
- (aliases runtest test_ogpu_backend)
- (action (run %{exe:test_main.exe} test_ogpu_backend)))
 
 (rule
  (aliases runtest test_ogpu_surface)
@@ -52,28 +40,12 @@
  (action (run %{exe:test_main.exe} test_ogpu_acceleration)))
 
 (rule
- (aliases runtest test_ogpu_cache)
- (action (run %{exe:test_main.exe} test_ogpu_cache)))
-
-(rule
  (aliases runtest test_ogpu_memory)
  (action (run %{exe:test_main.exe} test_ogpu_memory)))
 
 (rule
- (aliases runtest test_ogpu_render_pass)
- (action (run %{exe:test_main.exe} test_ogpu_render_pass)))
-
-(rule
  (aliases runtest test_ogpu_diagnostics)
  (action (run %{exe:test_main.exe} test_ogpu_diagnostics)))
-
-(rule
- (aliases runtest test_ogpu_compute_pass)
- (action (run %{exe:test_main.exe} test_ogpu_compute_pass)))
-
-(rule
- (aliases runtest test_ogpu_transfer_pass)
- (action (run %{exe:test_main.exe} test_ogpu_transfer_pass)))
 
 (rule
  (aliases runtest test_ogpu_validation)

@@ -3,13 +3,13 @@
  (public_name prismel.runtime_native)
  (modules runtime_next runtime_next_shaders)
  (private_modules runtime_next_shaders)
- (libraries sdl3 metal ogpu ogpu_metal_native scene_execution))
+ (libraries sdl3 ogpu scene_execution))
 
 (library
  (name runtime_next_orchestrator)
  (public_name prismel.runtime_next_orchestrator)
  (modules runtime_next_orchestrator)
- (libraries ogpu metal scene_execution runtime_next))
+ (libraries ogpu scene_execution runtime_next))
 
 (library
  (name runtime_next_input)
@@ -21,7 +21,7 @@
 (executable
  (name test_main)
  (modules test_main test_runtime_next test_runtime_next_visibility test_runtime_next_scaling test_runtime_next_scene3_lighting test_runtime_next_scene3_instances test_runtime_next_scene2_argument_shader test_runtime_next_scene2_argument test_runtime_next_orchestrator test_runtime_next_input)
- (libraries runtime_next runtime_next_orchestrator runtime_next_input scene_execution metal ogpu sdl3))
+ (libraries runtime_next runtime_next_orchestrator runtime_next_input scene_execution ogpu sdl3))
 
 (rule
  (aliases runtest-native test_runtime_next)

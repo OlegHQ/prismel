@@ -1,6 +1,5 @@
 type t
-val gpu_film_texture : t -> width:int -> height:int ->
-  (Ogpu.Backend.texture * Metal.Texture.t,Ogpu.Error.t) result
+val device : t -> (Ogpu.Backend.device,Ogpu.Error.t) result
 type configuration = { logical_width:int; logical_height:int;
   drawable_width:int; drawable_height:int; title:string; vsync:bool }
 type facts = { title:string; logical_width:int; logical_height:int;

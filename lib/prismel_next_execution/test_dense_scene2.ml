@@ -26,7 +26,8 @@ let scene ~reference ~count ~phase =
   Result.get_ok (create (Array.of_list (List.rev !commands)))
 
 let run () =
-  let baseline=Result.get_ok (Metal.Release_queue.stats ()) in
+  let live_handles=snd(Ogpu.Impl.create_driver()) in
+  let baseline=live_handles() in
   List.iter (fun scale ->
     let execution=get (Prismel_next_execution.create_offscreen
       {Prismel_next_execution.
@@ -76,7 +77,6 @@ let run () =
         done;
         if retained "retained-white-rebuilt" (colored ~barrier:true 0xffffffffl)
             <>expected then failwith "evicted geometry index reused stale colors")) [1;2];
-  ignore (Result.get_ok (Metal.Release_queue.drain ()));
-  let after=Result.get_ok (Metal.Release_queue.stats ()) in
-  if after.live_handles<>baseline.live_handles then failwith "dense scene2 handle delta";
+  let after=live_handles() in
+  if after<>baseline then failwith "dense scene2 handle delta";
   print_endline "dense scene2: exact 1x/2x pixels, alpha/add, fractional transforms, alternating retained payloads, zero handles"

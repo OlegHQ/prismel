@@ -1,5 +1,10 @@
 type t
 val device : t -> Ogpu.Backend.device
+val queue : t -> Ogpu.Backend.queue
+
+(** The owned RGBA8 texture every submission renders into; a shared-device
+    renderer's callers may sample it directly between completed submissions. *)
+val target : t -> Ogpu.Backend.texture
 type mesh = {
   key : string;
   vertices : bytes;
@@ -84,55 +89,53 @@ val prepare_scene3 : clear:(float * float * float * float) ->
 val shadow_resource : key:string -> shadow_snapshot ->
   (shadow_resource, Ogpu.Error.t) result
 
-val create : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
-  (t, Ogpu.Error.t) result
-val create_variants : ?canonical_scene2_argument:bool -> Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
-  (t, Ogpu.Error.t) result
+(** Pipeline factories receive the renderer's device and return owned OGPU
+    render pipelines (see [Ogpu.Backend.create_render_pipeline]); the renderer
+    destroys them. Canonical Scene2 pipelines must be created with
+    [~indirect:true] so their argument buffers and indirect commands work. *)
 val create_with_pipeline : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
   ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
-  (Ogpu.Backend.device -> (Ogpu.Pipeline.t, Ogpu.Error.t) result) ->
+  (Ogpu.Backend.device -> (Ogpu.Backend.pipeline, Ogpu.Error.t) result) ->
   (t, Ogpu.Error.t) result
 val create_offscreen_with_pipeline :
   Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
   ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
-  (Ogpu.Backend.device -> (Ogpu.Pipeline.t, Ogpu.Error.t) result) ->
+  (Ogpu.Backend.device -> (Ogpu.Backend.pipeline, Ogpu.Error.t) result) ->
   (t, Ogpu.Error.t) result
 val create_with_pipeline_variants : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
   ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
   (Ogpu.Backend.device -> pipeline_family -> Ogpu.Pipeline.blend ->
-    (Ogpu.Pipeline.t, Ogpu.Error.t) result) ->
+    (Ogpu.Backend.pipeline, Ogpu.Error.t) result) ->
+  (t, Ogpu.Error.t) result
+val create_offscreen_with_pipeline_variants : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
+  ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
+  ?canonical_scene2_argument:bool ->
+  (Ogpu.Backend.device -> pipeline_family -> Ogpu.Pipeline.blend ->
+    (Ogpu.Backend.pipeline, Ogpu.Error.t) result) ->
   (t, Ogpu.Error.t) result
 val create_with_sampled_pipeline_variants : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
   ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
   ?canonical_scene2_argument:bool ->
     (Ogpu.Backend.device -> pipeline_family -> Ogpu.Pipeline.blend -> int ->
-    (Ogpu.Pipeline.t, Ogpu.Error.t) result) ->
+    (Ogpu.Backend.pipeline, Ogpu.Error.t) result) ->
   (t, Ogpu.Error.t) result
 
 (** Creates an owned texture target without creating, acquiring, or presenting
     a platform surface. Submissions complete before the call returns, so exact
     readback and explicit destruction have the same contract as surface-backed
-    execution. *)
+    execution. With [?device], the renderer borrows that device (the driver is
+    unused) and never destroys it, so a Canvas can share the presenting
+    window's GPU. *)
 val create_offscreen_with_sampled_pipeline_variants :
   Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
   ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
   ?canonical_scene2_argument:bool ->
+  ?device:Ogpu.Backend.device ->
   (Ogpu.Backend.device -> pipeline_family -> Ogpu.Pipeline.blend -> int ->
-    (Ogpu.Pipeline.t, Ogpu.Error.t) result) ->
+    (Ogpu.Backend.pipeline, Ogpu.Error.t) result) ->
   (t, Ogpu.Error.t) result
+
 val render : ?clear:(float * float * float * float) -> t -> draw list ->
-  (bool, Ogpu.Error.t) result
-val render_blended : ?clear:(float * float * float * float) -> t ->
-  (Ogpu.Pipeline.blend * draw) list -> (bool, Ogpu.Error.t) result
-val render_family : ?clear:(float * float * float * float) -> t ->
-  (pipeline_family * Ogpu.Pipeline.blend * draw) list ->
-  (bool, Ogpu.Error.t) result
-val render_textured : ?clear:(float * float * float * float) -> t ->
-  (pipeline_family * Ogpu.Pipeline.blend * sampled_texture option * draw) list ->
-  (bool, Ogpu.Error.t) result
-val render_resources : ?clear:(float * float * float * float) -> t ->
-  (pipeline_family * Ogpu.Pipeline.blend * sampled_texture option *
-    auxiliary_resource option * draw) list ->
   (bool, Ogpu.Error.t) result
 val render_sampled_resources : ?after_prepare:(unit -> unit) -> ?clear:(float * float * float * float) -> t ->
   sampled_draw list ->
@@ -147,6 +150,14 @@ val replay_prepared_sampled_resources :
 val resize : t -> Ogpu.Surface.configuration -> (unit, Ogpu.Error.t) result
 val upload_bytes : t -> int64
 val cache_entries : t -> int
+
+(** Indirect-command replay plans: one automatic plan admitted after two
+    identical frames and one identity-keyed prepared plan. [plan_entries]
+    counts the live indirect command buffers across both. *)
+type retained_stats = { plan_builds:int64; plan_hits:int64; plan_misses:int64; plan_evictions:int64;
+  plan_executions:int64; plan_failures:int64; plan_last_failure:string option; plan_entries:int; plan_capacity:int }
+val retained_stats : t -> retained_stats
+val pipeline_count : t -> int
 module Private : sig
   val retained_batch_stats : t -> int64 * int64
 end

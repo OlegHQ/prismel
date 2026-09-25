@@ -57,7 +57,7 @@ let run () = match Array.to_list Sys.argv with
         failwith ("native-only rendering gate rejected:\n" ^
           String.concat "\n" found);
       require stubs_path (read stubs_path) "SDL_Metal_CreateView";
-      require runtime_path (read runtime_path) "Ogpu_metal_native.Backend.create";
+      require runtime_path (read runtime_path) "Ogpu.Impl.create_driver";
       require orchestrator_path (read orchestrator_path) "Runtime_next.create";
       require execution_path (read execution_path)
         "Runtime_next_orchestrator.create";

@@ -1,9 +1,14 @@
+(* Tuple shorthand for the record-based [Scene_execution.render_sampled_resources]. *)
+let sampled ?texture ?auxiliary ?(samples=1) family blend draw : Scene_execution.sampled_draw =
+  {family;blend;texture;auxiliary;samples;draw}
+let render_blended ?clear r draws=Scene_execution.render_sampled_resources ?clear r
+  (List.map(fun(blend,draw)->sampled Scene_execution.Scene2 blend draw)draws)
 let get = function Ok value -> value | Error error -> failwith (Ogpu.Error.to_string error)
 
 let configuration : Ogpu.Surface.configuration =
   { logical_width = 64; logical_height = 64; physical_width = 64;
     physical_height = 64; format = Rgba8_unorm; present_mode = Immediate;
-    max_acquired = 2 }
+    max_acquired = 2;layer=None }
 
 let mesh : Scene_execution.mesh =
   { key = "uniform-bench"; vertices = Bytes.make 48 '\000'; vertex_count = 3;
@@ -35,16 +40,14 @@ let percentile values fraction =
   sorted.(int_of_float (ceil (fraction *. float (Array.length sorted))) - 1)
 
 let () =
-  let driver, control = Ogpu.Backend_mock.create () in
-  let renderer = get (if Sys.getenv_opt "PRISMEL_UNIFORM_BENCH_VARIANTS" = Some "all"
-    then Scene_execution.create_variants driver configuration
-    else Scene_execution.create driver configuration) in
+  let driver, live_handles = Ogpu.Impl.create_driver () in
+  let baseline = live_handles () in
+  let renderer = get (Scene_execution_fixtures.create_offscreen driver configuration) in
   let stable = draws 0 in
   print_endline "mode,draws,frames,p50_s,p95_s,allocated_bytes_per_frame,uploaded_bytes_per_frame,peak_buffers";
   let measure name make_draws =
     for frame = 1 to 3 do
-      ignore (get (Scene_execution.render_blended renderer (make_draws frame)));
-      Ogpu.Backend_mock.clear_trace control
+      ignore (get (render_blended renderer (make_draws frame)))
     done;
     Gc.full_major ();
     let samples = Array.make 50 0. in
@@ -53,11 +56,9 @@ let () =
     and peak_buffers = ref 0 in
     for frame = 0 to Array.length samples - 1 do
       let started = Unix.gettimeofday () in
-      ignore (get (Scene_execution.render_blended renderer (make_draws (frame + 4))));
+      ignore (get (render_blended renderer (make_draws (frame + 4))));
       samples.(frame) <- Unix.gettimeofday () -. started;
-      let buffers, _, _, _, _ = Ogpu.Backend_mock.live_counts control in
-      peak_buffers := max !peak_buffers buffers;
-      Ogpu.Backend_mock.clear_trace control
+      peak_buffers := max !peak_buffers (live_handles ())
     done;
     Printf.printf "%s,%d,50,%.6f,%.6f,%.0f,%Ld,%d\n%!" name count
       (percentile samples 0.5) (percentile samples 0.95)
@@ -67,5 +68,5 @@ let () =
   measure "static" (fun _ -> stable);
   measure "changing" draws;
   get (Scene_execution.destroy renderer);
-  if Ogpu.Backend_mock.live_counts control <> (0, 0, 0, 0, 0) then
+  if live_handles () <> baseline then
     failwith "uniform benchmark leaked mock handles"

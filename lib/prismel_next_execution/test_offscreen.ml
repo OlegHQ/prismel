@@ -5,11 +5,7 @@ let get_resource=function Ok value->value|Error error->
   failwith(Format.asprintf"%a"Prismel_next_resources.pp_error error)
 let get_ir=function Ok value->value|Error _->failwith"render IR fixture"
 let expect_error message=function Error _->()|Ok _->failwith message
-let drain()=match Metal.Release_queue.drain()with
-  |Ok _->()|Error error->failwith(Format.asprintf"%a"Metal.pp_error error)
-let live_handles()=match Metal.Release_queue.stats()with
-  |Ok stats->stats.live_handles
-  |Error error->failwith(Format.asprintf"%a"Metal.pp_error error)
+let live_handles=snd(Ogpu.Impl.create_driver())
 let rss_kib()=
   let argv=[|"/bin/ps";"-o";"rss=";"-p";string_of_int(Unix.getpid())|]in
   let input=Unix.open_process_args_in argv.(0)argv in
@@ -365,7 +361,7 @@ let run () =
               (Prismel_next_execution.Private.begin_submission execution);
             Prismel_next_execution.Private.cancel destroy_first;
             Prismel_next_execution.Private.cancel destroy_second);
-        ignore(get(Prismel_next_execution.destroy execution));drain();
+        ignore(get(Prismel_next_execution.destroy execution));
         require(live_handles()=baseline)"offscreen resize Metal live-handle delta";
         print_endline"Prismel offscreen: clear/readback/resize, no present, zero delta"
-      with exn->ignore(Prismel_next_execution.destroy execution);drain();raise exn
+      with exn->ignore(Prismel_next_execution.destroy execution);raise exn

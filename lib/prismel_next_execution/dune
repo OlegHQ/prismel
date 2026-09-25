@@ -8,7 +8,7 @@
 (executable
  (name test_main)
  (modules test_main test_offscreen test_scene2_coordinates test_dense_scene2 test_ui_pipeline)
- (libraries prismel_next_execution scene_command metal unix))
+ (libraries prismel_next_execution scene_command ogpu unix))
 
 (rule
  (aliases runtest test_offscreen)

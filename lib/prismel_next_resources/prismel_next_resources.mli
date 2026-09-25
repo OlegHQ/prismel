@@ -55,11 +55,15 @@ module Canvas : sig
   val capture : t -> (Image.t,error) result
   val save_png : t -> string -> (unit,error) result
   module Private : sig
-    (** Return the Canvas-owned writable bank after detaching any published
-        image snapshot.  The caller must synchronously fill it and call
-        [commit_write] only after the complete write succeeds. *)
-    val prepare_write : t -> ((int * int * bytes),error) result
-    val commit_write : t -> (unit,error) result
+    (** [publish_gpu] adopts the canvas execution's completed frame texture
+        (borrowed; the execution owns it) as the authoritative pixels and
+        bumps the generation. CPU readers read it back lazily; CPU writers
+        forget it. *)
+    val publish_gpu : t -> Ogpu.Backend.texture -> (unit,error) result
+    val gpu_snapshot : t -> (int * int * int * Ogpu.Backend.texture) option
+
+    (** Reads back any stale CPU pixels, then drops the GPU reference. *)
+    val forget_gpu : t -> (unit,error) result
     val identity : t -> int
   end
   val destroy : t -> (unit,error) result

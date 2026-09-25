@@ -1,6 +1,6 @@
 type format=Rgba8_unorm|Bgra8_unorm
 type present_mode=Fifo|Immediate
-type configuration={logical_width:int;logical_height:int;physical_width:int;physical_height:int;format:format;present_mode:present_mode;max_acquired:int}
+type configuration={logical_width:int;logical_height:int;physical_width:int;physical_height:int;format:format;present_mode:present_mode;max_acquired:int;layer:Native_layer_token.t option}
 type frame_state=Live|Presented|Discarded|Stale
 type frame={id:int64;surface_id:int64;generation:int64;mutable state:frame_state}
 type availability=Available|Force_timeout|Force_occluded|Force_device_lost

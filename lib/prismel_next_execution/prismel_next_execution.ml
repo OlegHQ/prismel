@@ -312,7 +312,7 @@ let batch_scene2_draws ~cache ~set_cache draws =
 type presentation_facts={title:string;logical_width:int;logical_height:int;
   drawable_width:int;drawable_height:int;position:(int*int)option;
   pixel_density:float;display_scale:float;refresh_rate:float option;vsync:bool}
-type offscreen_runtime={runtime:Runtime_next.offscreen;
+type offscreen_runtime={runtime:Runtime_next.offscreen;lease_shared:bool;
   mutable facts:presentation_facts;mutable frames:int64;
   mutable logical_draws:int64;mutable logical_passes:int64;
   mutable logical_submissions:int64}
@@ -321,7 +321,7 @@ type submission_state=Open|Closed
 exception Resource_resolver_raised of exn
 type snapshot_cache_entry={snapshot_key:string;mutable snapshot_generation:int;
   snapshot_density:int;snapshot_width:int;snapshot_height:int;
-  snapshot_bytes:int;snapshot_texture:Scene_execution.sampled_texture}
+  snapshot_bytes:int;mutable snapshot_texture:Scene_execution.sampled_texture}
 type retained_scene2_segment={segment_identity:int64;segment_version:int64;
   segment_density:int;segment_width:int;segment_height:int;
   segment_bytes:int;segment_draws:draw list}
@@ -363,6 +363,28 @@ and batch={batch_owner:submission;batch_draws:draw list}
 (* ponytail: one active native window; pass an explicit renderer token if sketches
    start owning multiple windows concurrently. *)
 let active_window : t option ref=ref None
+(* Device leases: the active window's device when one exists, otherwise one
+   lazily created headless device shared by every lease and released with the
+   last one. Offscreen executions (Canvas) and GPU film producers both lease. *)
+let headless_gpu:(Ogpu.Backend.device*int ref)option ref=ref None
+let release_headless()=match !headless_gpu with
+  |Some(device,count)->decr count;
+      if !count<=0 then(headless_gpu:=None;ignore(Ogpu.Backend.destroy_device device))
+  |None->()
+let acquire_device operation=
+  let shared=match !active_window with
+    |Some{runtime=Window runtime;dead=false;_}->Some(Runtime_next_orchestrator.device runtime)
+    |Some _|None->None in
+  match shared with
+  |Some(Ok device)->Ok(device,true)
+  |Some(Error e)->backend operation e
+  |None->(match !headless_gpu with
+    |Some(device,count)->incr count;Ok(device,false)
+    |None->let driver,_=Ogpu.Impl.create_driver()in
+        match Ogpu.Backend.create_device driver with
+        |Error e->backend operation e
+        |Ok device->headless_gpu:=Some(device,ref 1);Ok(device,false))
+let release_device shared=if not shared then release_headless()
 type lease_policy=Copy_image_snapshots|Retain_image_snapshots of submission
 let valid_configuration operation (configuration:configuration)=
   let positive x=x>0 in
@@ -394,12 +416,13 @@ let create (configuration:configuration) =
 let create_offscreen (configuration:configuration)=
   let operation="Prismel_next_execution.create_offscreen"in
   match valid_configuration operation configuration with Error _ as error->error|Ok()->
-  match Runtime_next.create_offscreen
+  match acquire_device operation with Error _ as error->error|Ok(device,lease_shared)->
+  match Runtime_next.create_offscreen ~device
       ~logical_width:configuration.logical_width
       ~logical_height:configuration.logical_height
       ~width:configuration.drawable_width
-      ~height:configuration.drawable_height with
-  |Error error->backend operation error
+      ~height:configuration.drawable_height () with
+  |Error error->release_device lease_shared;backend operation error
   |Ok runtime->
       let pixel_density=float configuration.drawable_width/.
         float configuration.logical_width in
@@ -409,7 +432,7 @@ let create_offscreen (configuration:configuration)=
         drawable_width=configuration.drawable_width;
         drawable_height=configuration.drawable_height;position=None;pixel_density;
         display_scale=pixel_density;refresh_rate=None;vsync=false}in
-      let state={runtime;facts;frames=0L;logical_draws=0L;logical_passes=0L;
+      let state={runtime;lease_shared;facts;frames=0L;logical_draws=0L;logical_passes=0L;
         logical_submissions=0L}in
       Ok(finish_create(Offscreen state))
 let assets value=value.assets
@@ -549,6 +572,8 @@ let snapshot value ~lease_policy ~density source =
       value.snapshot_bytes<-value.snapshot_bytes+bytes;
       trim()
     end in
+  let texture_key key generation=
+    key^":"^string_of_int density^":"^string_of_int generation in
   let finish ?(copy=true) key generation width height pixels =
     match find key generation with
     |Some cached->Ok cached
@@ -563,15 +588,20 @@ let snapshot value ~lease_policy ~density source =
         match find_key[]value.snapshots with
         |Some entry->
             entry.snapshot_generation<-generation;
-            let texture=entry.snapshot_texture in
             let bytes=if copy then Bytes.copy pixels else pixels in
-            texture.levels.(0)<-{texture.levels.(0) with bytes};
+            (* The execution key carries the generation: same-key bytes are
+               never re-hashed below, and a new generation recycles the
+               same-shape texture with one upload. *)
+            let texture={entry.snapshot_texture with
+              key=texture_key key generation;
+              levels=[|{entry.snapshot_texture.levels.(0) with bytes}|]}in
+            entry.snapshot_texture<-texture;
             Ok(width,height,texture)
         |None->
         let sampler:Ogpu.Types.sampler_descriptor={label=Some"scene-image";min_filter=Linear;mag_filter=Linear;
           mip_filter=No_mip;address_u=Clamp_to_edge;address_v=Clamp_to_edge;lod_min=0.;lod_max=0.;max_anisotropy=1}in
         let bytes=if copy then Bytes.copy pixels else pixels in
-        let texture:Scene_execution.sampled_texture={key=key^":"^string_of_int density;
+        let texture:Scene_execution.sampled_texture={key=texture_key key generation;
           levels=[|{width;height;bytes}|];sampler;gpu=None}in
         store key generation width height texture(Bytes.length bytes);
         Ok(width,height,texture)in
@@ -627,7 +657,26 @@ let snapshot value ~lease_policy ~density source =
       let key=match List.find_opt(fun(source,_)->source==canvas)value.canvas_keys with Some(_,key)->key|None->
         let key="canvas:"^string_of_int value.next_canvas_key in value.next_canvas_key<-value.next_canvas_key+1;
         value.canvas_keys<-(canvas,key)::value.canvas_keys;value.canvas_keys<-bounded_prefix 256 value.canvas_keys;key in
-      (match Prismel_next_resources.Canvas.snapshot canvas with
+      (* A canvas rendered on this window's device is sampled in place. *)
+      let gpu=match value.runtime,Prismel_next_resources.Canvas.Private.gpu_snapshot canvas with
+        |Window runtime,Some(width,height,generation,texture)->
+            let device_id,_=Ogpu.Backend.Private.texture_driver_token texture in
+            (match Runtime_next_orchestrator.device runtime with
+             |Ok device when Ogpu.Handle.device_id(Ogpu.Backend.device_handle device)=device_id->
+                 Some(width,height,generation,texture)
+             |_->None)
+        |_->None in
+      (match gpu with
+       |Some(width,height,generation,texture)->
+           let sampler:Ogpu.Types.sampler_descriptor={label=Some"scene-image";
+             min_filter=Linear;mag_filter=Linear;mip_filter=No_mip;
+             address_u=Clamp_to_edge;address_v=Clamp_to_edge;lod_min=0.;lod_max=0.;
+             max_anisotropy=1}in
+           Ok(width,height,{Scene_execution.key=key^":"^string_of_int density^":"^
+             string_of_int generation;levels=[|{width;height;bytes=Bytes.empty}|];
+             sampler;gpu=Some texture})
+       |None->
+      match Prismel_next_resources.Canvas.snapshot canvas with
        |Ok(width,height,generation,pixels)->finish~copy:false key generation width height pixels
        |Error e->resource operation e)
 let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
@@ -1216,6 +1265,13 @@ let capture value=match ensure"Prismel_next_execution.capture"value with Error _
   |Offscreen state->Runtime_next.read_offscreen state.runtime
       ~bytes_per_row:(facts.drawable_width*4)in
   match captured with Ok x->Ok x|Error e->backend"Prismel_next_execution.capture"e
+let offscreen_target value=
+  let operation="Prismel_next_execution.offscreen_target"in
+  match ensure operation value with Error _ as e->e|Ok()->
+  match value.runtime with
+  |Offscreen state->(match Runtime_next.offscreen_target state.runtime with
+      |Ok texture->Ok texture|Error e->backend operation e)
+  |Window _->fail operation Unsupported"operation requires an offscreen execution"
 let capture_into value~destination=
   match ensure"Prismel_next_execution.capture_into"value with Error _ as e->e|Ok()->
   match presentation_facts value with Error _ as error->error|Ok facts->
@@ -1241,12 +1297,31 @@ let destroy value=if value.dead then Ok()else(
     (match !active_window with Some current when current==value->active_window:=None|_->());
     let destroyed=match value.runtime with
     |Window runtime->Runtime_next_orchestrator.destroy runtime
-    |Offscreen state->Runtime_next.destroy_offscreen state.runtime in
+    |Offscreen state->
+        let destroyed=Runtime_next.destroy_offscreen state.runtime in
+        release_device state.lease_shared;destroyed in
     match destroyed with Ok()->Ok()|Error e->backend"Prismel_next_execution.destroy"e)
+(* GPU film leases own their own queue, so their frame pacing never couples
+   with presentation. *)
+type gpu={gpu_device:Ogpu.Backend.device;gpu_queue:Ogpu.Backend.queue;
+  gpu_shared:bool;mutable gpu_released:bool}
+let acquire_gpu()=
+  let operation="Prismel_next_execution.acquire_gpu"in
+  match acquire_device operation with
+  |Error _ as e->e
+  |Ok(device,gpu_shared)->
+      match Ogpu.Backend.create_queue device with
+      |Error e->release_device gpu_shared;backend operation e
+      |Ok queue->Ok{gpu_device=device;gpu_queue=queue;gpu_shared;gpu_released=false}
+let gpu_device gpu=gpu.gpu_device
+let gpu_queue gpu=gpu.gpu_queue
+let gpu_shared gpu=gpu.gpu_shared
+let release_gpu gpu=if not gpu.gpu_released then begin
+  gpu.gpu_released<-true;
+  ignore(Ogpu.Backend.destroy_queue gpu.gpu_queue);
+  release_device gpu.gpu_shared
+end
 module Private=struct
-  let active_window_runtime()=match !active_window with
-    |Some{runtime=Window runtime;dead=false;_}->Some runtime
-    |_->None
   type nonrec submission=submission
   type nonrec batch=batch
   let begin_submission=begin_submission

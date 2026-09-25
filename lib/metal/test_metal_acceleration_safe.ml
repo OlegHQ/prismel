@@ -22,6 +22,83 @@ let run () =
        {buffer=vertex;offset=0L;stride=12L;count=1L;element_size=12L})) in
   let owned_primitive = get (Acceleration_structure.Descriptor.create device
     (Acceleration_structure.Descriptor.Primitive [owned_triangle])) in
+  (* Generic build descriptors: static and keyframed triangles, bounding
+     boxes, instance record layouts, and typed rejections. *)
+  let build_module =
+    let d = device in
+    let open Acceleration_structure.Build in
+    let keyframe buffer = { buffer; offset = 0L } in
+    let triangles ?(keyframes = [ keyframe vertex ]) () =
+      Triangles { vertices = keyframes; vertex_stride = 12L; triangle_count = 1L; index = None
+                ; common = default_common } in
+    let static = get (primitive d [ triangles () ]) in
+    let static_sizes = get (sizes ~device:d static) in
+    check (static_sizes.acceleration_structure_size > 0L
+           && static_sizes.build_scratch_buffer_size > 0L) "generic triangle sizes";
+    let second = get (Buffer.create_copy ~device:d ~storage:Buffer.Shared vertices) in
+    let motion = { keyframe_count = 2; start_time = 0.; end_time = 1.
+                 ; start_border = Clamp; end_border = Clamp } in
+    let moving = get (primitive d ~motion ~usage:[ Refit ]
+      [ triangles ~keyframes:[ keyframe vertex; keyframe second ] () ]) in
+    check ((get (sizes ~device:d moving)).acceleration_structure_size > 0L) "motion triangle sizes";
+    (match primitive d ~motion [ triangles () ] with
+     | Error error when error.kind = Invalid_argument -> ()
+     | _ -> failwith "keyframe count mismatch accepted");
+    (match primitive d [ Bounding_boxes { boxes = [ keyframe vertex ]; stride = 24L; count = 2L
+                                             ; common = default_common } ] with
+     | Error error when error.kind = Invalid_argument -> ()
+     | _ -> failwith "bounding box range overflow accepted");
+    let boxes = get (Buffer.create_copy ~device:d ~storage:Buffer.Shared (Bytes.make 48 '\000')) in
+    let boxed = get (primitive d [ Bounding_boxes { boxes = [ keyframe boxes ]; stride = 24L
+                                                        ; count = 2L; common = default_common } ]) in
+    check ((get (sizes ~device:d boxed)).acceleration_structure_size > 0L) "bounding box sizes";
+    let layout = instance_layout Default_instances in
+    check (layout.size = 64 && layout.mask = 52 && layout.structure_index = 60 && layout.user_id = -1)
+      "default instance layout";
+    let user = instance_layout User_id_instances in
+    check (user.size = 68 && user.user_id = 64) "user-id instance layout";
+    let motion_layout = instance_layout Motion_instances in
+    check (motion_layout.transform = -1 && motion_layout.transforms_start >= 0
+           && motion_layout.end_time_offset > motion_layout.start_time_offset)
+      "motion instance layout";
+    let structure = get (Acceleration_structure.create ~device:d
+      ~size:static_sizes.acceleration_structure_size) in
+    let records = get (Buffer.create_copy ~device:d ~storage:Buffer.Shared (Bytes.make 136 '\000')) in
+    let instanced = get (instances d ~buffer:records ~count:2L ~kind:User_id_instances
+      [| structure |]) in
+    check (instance_count instanced = 2L && instance_kind instanced = Some User_id_instances)
+      "instance descriptor facts";
+    check ((get (sizes ~device:d instanced)).acceleration_structure_size > 0L) "instance sizes";
+    (match instances d ~buffer:records ~stride:32L ~count:2L [| structure |] with
+     | Error error when error.kind = Invalid_argument -> ()
+     | _ -> failwith "undersized instance stride accepted");
+    (match instances d ~buffer:records ~count:2L ~kind:Motion_instances [| structure |] with
+     | Error error when error.kind = Invalid_argument -> ()
+     | _ -> failwith "motion instances without transforms accepted");
+    (match instances d ~buffer:records ~count:3L [| structure |] with
+     | Error error when error.kind = Invalid_argument -> ()
+     | _ -> failwith "instance range overflow accepted");
+    let scratch_length = Int64.max static_sizes.build_scratch_buffer_size 256L in
+    let scratch = get (Buffer.create ~device:d ~length:scratch_length ~storage:Buffer.Private ()) in
+    let queue = get (Command_queue.create d) in
+    let commands = get (Command_buffer.create queue ()) in
+    let encoder = get (Acceleration_encoder.create commands) in
+    get (Acceleration_encoder.build_with encoder ~destination:structure ~descriptor:static ~scratch
+      ~scratch_offset:0L);
+    (match Acceleration_encoder.build_with encoder ~destination:structure ~descriptor:static ~scratch
+      ~scratch_offset:scratch_length with
+     | Error error when error.kind = Invalid_argument -> ()
+     | _ -> failwith "exhausted scratch accepted");
+    get (Acceleration_encoder.end_encoding encoder);
+    get (Command_buffer.commit commands);
+    get (Command_buffer.wait_until_completed commands);
+    List.iter (fun destroy -> get (destroy ()))
+      [ (fun () -> Command_buffer.destroy commands); (fun () -> Command_queue.destroy queue)
+      ; (fun () -> destroy instanced); (fun () -> destroy boxed); (fun () -> destroy moving)
+      ; (fun () -> destroy static); (fun () -> Acceleration_structure.destroy structure)
+      ; (fun () -> Buffer.destroy scratch); (fun () -> Buffer.destroy records)
+      ; (fun () -> Buffer.destroy boxes); (fun () -> Buffer.destroy second) ] in
+  ignore build_module;
   let sizes = get (Acceleration_structure.sizes ~device descriptor) in
   check (sizes.acceleration_structure_size > 0L) "empty AS allocation size";
   check (sizes.build_scratch_buffer_size > 0L) "empty AS build scratch size";

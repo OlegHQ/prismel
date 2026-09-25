@@ -1,15 +1,26 @@
 # Path tracer
 
 `lib/prismel_pathtracer/` is a progressive Monte Carlo path tracer that runs on
-the Metal ray-tracing API (`primitive_acceleration_structure` plus an
-`intersector<triangle_data>` inside one compute kernel). It is the foundation
-for real-time path-traced demos; the scene composition lives in
-`examples/pathtracer/`.
+OGPU's ray-tracing surface (Metal backend: a primitive, instance, or motion
+instance acceleration structure plus an `intersector` whose tags follow the
+mesh shape inside one compute kernel). It is the foundation for real-time path-traced
+demos; the scene composition lives in `examples/pathtracer/`.
 
 ## Scope
 
 - Input: a list of `Pdk.Geometry.t` objects, each with one metallic-roughness
-  material (`albedo`, `roughness`, `metallic`, `emission`).
+  material (`albedo`, `roughness`, `metallic`, `emission`), plus analytic
+  `sphere`s (bounding-box primitives resolved by an intersection function, so
+  they are exact and never tessellated) and `strand`s (round polylines of
+  constant thickness traced as linear curve segments; they need
+  `Ogpu.Caps.Ray_tracing_curves`, so on the M1 `create`/`replace_mesh` return
+  a typed error rather than a silent miss).
+- Instancing extras: `mesh_instanced ?materials` gives each instance its own
+  material through the instance user id (the prototype material is index 0),
+  and `?motion` gives each instance a second transform at the end of the
+  shutter. Both keyframes are stored per instance; the kernel picks a shutter
+  time per sample, so instances blur along their motion while the preview
+  renders the shutter midpoint.
 - Lighting: rectangle area lights (`rect_light`: centre, target, size, colour,
   intensity; two-sided, analytic, never visible) sampled with next-event
   estimation, plus a procedural dome that stands in for a studio HDRI: a
@@ -64,19 +75,32 @@ file-backed HDRIs.
    `packed_float3` position buffer, a matching normal buffer, and one material
    index per triangle. A single primitive acceleration structure is built and
    the scratch buffer is released after the build completes. Packed geometry
-   keeps one prototype triangle buffer and BLAS, uploads 64-byte Metal instance
-   descriptors and shading transforms, and builds a TLAS. Exact prototype-byte
-   matches reuse the GPU prototype and BLAS on later edits; only transforms
-   and the TLAS change.
-2. The kernel source is compiled from an embedded MSL string at `create`
-   time and bound as one compute pipeline.
+   keeps one prototype triangle buffer and BLAS, uploads backend-packed
+   instance descriptors (`Ogpu.Backend.pack_instances`) and shading
+   transforms, and builds a TLAS. Both builds are encoded on the tracer's
+   queue and polled, never waited on, unless `flush` or `replace_mesh` asks.
+   Exact prototype-byte matches reuse the GPU prototype and BLAS on later
+   edits; only transforms and the TLAS change. Spheres and strands are further
+   geometries of the same BLAS (bounding boxes and curves). Every build is
+   staged: the primitive build writes its compacted size, the next poll
+   compacts it into a right-sized structure, then the TLAS (user-id or motion
+   instance records) builds over the compacted one and the uncompacted
+   structure is released; `render` never waits on any stage.
+2. The embedded MSL is compiled once into one OGPU library at `create` time.
+   One `pathtrace` kernel is specialized per mesh shape by the `INSTANCED`,
+   `MOTION`, `SPHERES`, and `CURVES` function constants (mutually exclusive
+   structure arguments, a body templated on the structure, intersector, and
+   table types) and compiled on first use; a sphere pipeline links the
+   `sphere_hit_*` intersection function whose tags match its intersector and
+   owns a one-entry intersection table. `resolve_preview` comes from the same
+   library.
 3. `render` polls the previous submission and returns if it remains busy.
    Once complete, it publishes the completed GPU texture behind the borrowed
    image's stable identity without a CPU transfer or Scene re-upload. It then
    uploads a 144-byte uniform block (camera basis, dome colours, size, frame
    index, spp, bounce cap, exposure, round-corner probe count, light count)
    with `set_bytes`, dispatches one thread per pixel directly into the other
-   of two RGBA8 Metal textures, and commits without waiting. The textures
+   of two RGBA8 OGPU textures, and commits without waiting. The textures
    alternate even during motion, so Scene never samples the texture being
    written. `flush` makes the pending frame synchronous. A
   camera change retains valid completed preview history; an explicit reset
@@ -117,7 +141,12 @@ The RNG is a PCG hash seeded from pixel index and frame index, so a fixed
 camera and frame sequence reproduces byte-identical output. The library test
 (`lib/prismel_pathtracer/test_pathtracer.ml`) renders a lit sphere over a
 floor twice from reset and asserts identical bytes, a non-flat image, and
-opaque alpha. It skips when no ray-tracing device is present unless
+opaque alpha; it then checks a white analytic sphere in the furnace (energy
+conservation through the intersection table), red/green per-instance
+materials, motion-blur coverage between an instance's rest and end positions,
+typed rejection of strands on devices without curve intersection, mismatched
+material and motion counts, and that all twelve kernel specializations
+(including the curve variants) compile against their declared interfaces. It skips when no ray-tracing device is present unless
 `PRISMEL_REQUIRE_RAYTRACING` is set. `test_gpu_film.ml` creates a native
 renderer, verifies direct texture publication and explicit pixel readback,
 compares its frame byte-for-byte with the standalone path, then checks teardown
@@ -252,7 +281,11 @@ the difference is not an isolated preparation-speed measurement.
 
 ## Dependency direction
 
-`prismel_pathtracer` depends on `prismel`, `metal`, `ogpu`, `pdk`,
-`prismel_next_resources`, `prismel_next_execution`, and the native runtime
-orchestrator. It uses the safe `Metal` API and a narrow borrowed OGPU film
-texture; no underlying library imports the tracer.
+`prismel_pathtracer` depends on `prismel`, `ogpu`, `pdk`,
+`prismel_next_resources`, and `prismel_next_execution`. Every GPU object is an
+`Ogpu.Backend` handle on a device leased through
+`Prismel_next_execution.acquire_gpu`: the presenting window's device when a
+window exists (so Scene samples the film directly), otherwise a shared
+headless device released with the last lease. The tracer owns its own queue on
+that device so its frames never serialize behind presentation. It imports no
+Metal module, and no underlying library imports the tracer.

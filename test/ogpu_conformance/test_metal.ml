@@ -21,4 +21,4 @@ let () =
        Ogpu_conformance.Conformance.run ?metallib driver;
        if live_handles () <> before.live_handles then
          failwith "Metal backend leaked handles";
-       print_endline "OGPU conformance (Metal): capabilities, buffer/texture round trip, exact compute, lifetime, zero handles")
+       print_endline "OGPU conformance (Metal): capabilities, buffer/texture round trip, exact compute, library constants, encoders, blit, ray-query hits, refit, bounding boxes with intersection tables, curves or their typed rejection, motion primitives and instances, user-id masks, compaction and copy, visible tables, aliasing heaps with fences, residency sets, timeline events, stage-boundary timestamps, mesh and tile pipelines, dynamic libraries, binary archives, sparse tile mapping, MetalFX upscaling, lifetime, zero handles")

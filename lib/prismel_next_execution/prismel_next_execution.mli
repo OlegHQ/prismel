@@ -75,9 +75,26 @@ val step : ?clear:(float * float * float * float) -> t -> draw list ->
   (unit,error) result
 val capture : t -> (bytes,error) result
 val capture_into : t -> destination:bytes -> (unit,error) result
+
+(** An offscreen execution's completed frame texture, on the device it leased
+    (the presenting window's when one exists). A window execution samples a
+    Canvas published from it directly; readback happens only for CPU access. *)
+val offscreen_target : t -> (Ogpu.Backend.texture,error) result
 val destroy : t -> (unit,error) result
+
+(** A borrowed GPU: the active window's OGPU device (so Scene samples GPU
+    film textures directly) or, without a window, a lazily created headless
+    device shared by all leases. Every lease owns its own queue. Release it
+    while SDL is alive; the headless device goes away with the last lease. *)
+type gpu
+val acquire_gpu : unit -> (gpu,error) result
+val gpu_device : gpu -> Ogpu.Backend.device
+val gpu_queue : gpu -> Ogpu.Backend.queue
+
+(** True when the device is the presenting window's. *)
+val gpu_shared : gpu -> bool
+val release_gpu : gpu -> unit
 module Private : sig
-  val active_window_runtime : unit -> Runtime_next_orchestrator.t option
   type submission
   type batch
   (* Starts an isolated zero-copy Scene2 lowering transaction.  A later

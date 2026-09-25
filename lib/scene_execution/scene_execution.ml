@@ -28,12 +28,6 @@ type cached_texture={mutable texture_key:string;mutable texture_hash:string;
 type texture_upload_scratch={scratch_buffer:Ogpu.Backend.buffer;
   scratch_bytes:bytes;scratch_size:int}
 type prepared_run={prepared_identity:string;prepared_version:int64;prepared_draws:sampled_draw list;prepared_bytes:int}
-type prepared_submission={submission_identity:string;submission_version:int64;
-  submission_clear:float*float*float*float;
-  submission_draw_count:int;
-  submission_commands:(Ogpu.Backend.command*
-    [ `Buffer of Ogpu.Backend.buffer | `Texture of Ogpu.Backend.texture ] list*
-    Ogpu.Backend.pipeline list)list}
 type automatic_signature={signature_family:pipeline_family;
   signature_blend:Ogpu.Pipeline.blend;signature_samples:int;
   signature_state:state;signature_texture:(int64*Ogpu.Types.sampler_descriptor)option;
@@ -42,11 +36,22 @@ type automatic_signature={signature_family:pipeline_family;
   signature_uniform_buffer:int64 option;signature_uniform_offset:int64 option;
   signature_vertex_count:int;
   signature_index_count:int}
-type automatic_submission={automatic_clear:float*float*float*float;
-  automatic_payloads:(automatic_signature*Ogpu.Render_pass.draw*Ogpu.Backend.pipeline)list;
-  automatic_commands:(Ogpu.Backend.command*
-    [ `Buffer of Ogpu.Backend.buffer | `Texture of Ogpu.Backend.texture ] list*
-    Ogpu.Backend.pipeline list)list}
+type plan_draw={plan_draw:Ogpu.Backend.batch_draw;
+  plan_textures:(Ogpu.Backend.shader_stage*int*Ogpu.Backend.texture)list;
+  plan_samplers:(Ogpu.Backend.shader_stage*int*Ogpu.Backend.sampler)list;
+  (* Textures reached only through an argument buffer: Metal needs them made
+     resident with [use_resources] before any draw of the pass. *)
+  plan_resident:Ogpu.Backend.texture list}
+(* One render pass of a frame: its attachment state and draws. A retained
+   batch replays an indirect command buffer instead of re-encoding. *)
+type batch_plan={batch_family:pipeline_family;batch_samples:int;batch_state:state;
+  batch_first:bool;batch_draws:plan_draw array;
+  batch_resources:[`Buffer of Ogpu.Backend.buffer|`Texture of Ogpu.Backend.texture]list;
+  batch_winding:bool;mutable batch_icb:Ogpu.Backend.icb option}
+type replay_plan={replay_clear:float*float*float*float;
+  replay_payloads:automatic_signature list;replay_batches:batch_plan list}
+type prepared_submission={submission_identity:string;submission_version:int64;
+  submission_draw_count:int;submission_plan:replay_plan}
 type automatic_candidate={candidate_clear:float*float*float*float;
   candidate_length:int;candidate_fingerprint:int}
 type prepared_slot={mutable slot_family:pipeline_family;
@@ -57,7 +62,14 @@ type prepared_slot={mutable slot_family:pipeline_family;
   mutable slot_mesh:cached option;mutable slot_uniform:uniform_slice option}
 type prepared_scratch={mutable scratch_slots:prepared_slot array;
   mutable scratch_length:int}
-type pipeline_variant={family:pipeline_family;blend:Ogpu.Pipeline.blend;samples:int;pipeline:Ogpu.Backend.pipeline;key:string}
+type pipeline_variant={family:pipeline_family;blend:Ogpu.Pipeline.blend;samples:int;
+  pipeline:Ogpu.Backend.pipeline;mutable argument:Ogpu.Backend.argument option}
+type icb_stats={mutable icb_builds:int64;mutable icb_hits:int64;mutable icb_misses:int64;
+  mutable icb_evictions:int64;mutable icb_executions:int64;mutable icb_failures:int64;
+  mutable icb_last_failure:string option}
+type argument_pool={argument_buffer:Ogpu.Backend.buffer;argument_stride:int;
+  argument_capacity:int;slices:(int64*Ogpu.Types.sampler_descriptor,int64)Hashtbl.t;
+  mutable argument_next:int}
 type t={device:Ogpu.Backend.device;queue:Ogpu.Backend.queue;
   surface:Ogpu.Backend.surface option;mutable target:Ogpu.Backend.texture;
   mutable configuration:Ogpu.Surface.configuration;
@@ -68,16 +80,35 @@ type t={device:Ogpu.Backend.device;queue:Ogpu.Backend.queue;
   mutable previous_uniforms:uniform_slice option array;
   mutable prepared_cache:prepared_run list;
   mutable prepared_submission:prepared_submission option;
-  mutable automatic_submission:automatic_submission option;
+  mutable automatic_submission:replay_plan option;
   mutable automatic_candidate:automatic_candidate option;
   prepared_scratch:prepared_scratch;
   mutable auxiliary_cache:cached_auxiliary list;
   mutable texture_cache:cached_texture list;
   mutable texture_upload_scratch:texture_upload_scratch option;
+  samplers:(Ogpu.Types.sampler_descriptor,Ogpu.Backend.sampler)Hashtbl.t;
+  mutable arguments:argument_pool option;
+  icb_stats:icb_stats;
   mutable retained_batch_builds:int64;mutable retained_batch_reuses:int64;
   mutable uploaded:int64;
-  mutable dead:bool;before_device_destroy:unit->(unit,Ogpu.Error.t)result}
+  mutable dead:bool;before_device_destroy:unit->(unit,Ogpu.Error.t)result;
+  (* A borrowed device (shared with a window) is never destroyed here. *)
+  owns_device:bool}
+let drop_plan value=function
+  |None->()
+  |Some plan->List.iter(fun batch->Option.iter(fun icb->
+      value.icb_stats.icb_evictions<-Int64.succ value.icb_stats.icb_evictions;
+      match Ogpu.Backend.destroy_icb icb with
+      |Ok()->()
+      |Error error->value.icb_stats.icb_failures<-Int64.succ value.icb_stats.icb_failures;
+          value.icb_stats.icb_last_failure<-Some("destroy: "^Ogpu.Error.to_string error))batch.batch_icb;batch.batch_icb<-None)plan.replay_batches
+let drop_plans value=
+  drop_plan value value.automatic_submission;value.automatic_submission<-None;
+  drop_plan value(Option.map(fun s->s.submission_plan)value.prepared_submission);value.prepared_submission<-None;
+  value.automatic_candidate<-None
 let device value=value.device
+let queue value=value.queue
+let target value=value.target
 let error op kind text=Error(Ogpu.Error.make op kind text)
 let prepare_scene3 ~clear ~clear_depth ~clear_stencil entries =
   let finite=Float.is_finite in
@@ -130,14 +161,6 @@ let shadow_resource ~key (source:shadow_snapshot) =
     let radius=match source.kernel with Tap1->0.|Tap4->1.|Tap9->1.|Tap25->2. in set_f32_le parameters 76 radius;set_f32_le parameters 80 1.;
     let sampler:Ogpu.Types.sampler_descriptor={label=Some("scene-shadow-"^key);min_filter=Nearest;mag_filter=Nearest;mip_filter=Nearest_mip;address_u=Clamp_to_edge;address_v=Clamp_to_edge;lod_min=0.;lod_max=0.;max_anisotropy=1}in
     Ok{texture={key="shadow:"^key;levels=[|{width=source.width;height=source.height;bytes=pixels}|];sampler;gpu=None};parameters}
-let shader stage ~entry artifact=Ogpu.Shader.create{backend="mock";label=Some artifact;bytes=Bytes.of_string artifact;entry_points=[{Ogpu.Shader.name=entry;stage}];bindings=[]}
-let pipeline device family blend samples=let capabilities=Ogpu.Backend.capabilities device in let open Result in
-  bind(Ogpu.Binding.create_pipeline_layout~device:(Ogpu.Backend.device_handle device)~capabilities[])(fun layout->
-  let suffix=match family with Scene2->"scene2"|Scene2_textured->"scene2-textured"|Scene3->"scene3"|Scene3_points->"scene3-points"|Scene3_textured->"scene3-textured"|Scene3_shadow->"scene3-shadow"|Scene3_stencil->"scene3-stencil"|Scene3_textured_stencil->"scene3-textured-stencil"|Scene3_shadow_stencil->"scene3-shadow-stencil"|Ui->"ui"in
-  bind(shader Ogpu.Shader.Vertex~entry:"scene_vertex"("scene_vertex-"^suffix))(fun vertex->bind(shader Fragment~entry:"scene_fragment"("scene_fragment-"^suffix))(fun fragment->
-  let depth_format=match family with Scene2|Scene2_textured|Ui->Ogpu.Pipeline.No_depth|Scene3|Scene3_points|Scene3_textured|Scene3_shadow->Depth32_float|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->Depth32_float_stencil8 in
-  bind(Ogpu.Pipeline.create_render~blend capabilities{backend="mock";label=Some"scene-execution";layout;vertex;vertex_entry="scene_vertex";fragment=Some fragment;fragment_entry=Some"scene_fragment";color_format=Rgba8_unorm;depth_format;sample_count=samples})(fun portable->
-  map(fun value->value,Ogpu.Pipeline.cache_key portable)(Ogpu.Backend.adopt_pipeline device portable)))))
 let texture_descriptor configuration:Ogpu.Types.texture_descriptor={label=Some"scene-execution-target";width=configuration.Ogpu.Surface.physical_width;height=configuration.physical_height;depth=1;mip_levels=1;sample_count=1;usage=[Texture_binding;Render_attachment;Texture_copy_src]}
 let blends=[Ogpu.Pipeline.Replace;Alpha;Add;Multiply;Screen;Subtract]
 let families=[Scene2;Scene2_textured;Scene3;Scene3_points;Scene3_textured;Scene3_shadow;Scene3_stencil;Scene3_textured_stencil;Scene3_shadow_stencil;Ui]
@@ -157,16 +180,17 @@ let find_pipeline value family blend samples=
   if slot<0 then None else value.pipeline_lookup.(slot)
 let sample_counts device=List.filter(fun samples->samples<=(Ogpu.Backend.capabilities device).Ogpu.Caps.limits.max_sample_count)[1;4;9;16]
 let allocate_target device configuration=Ogpu.Backend.create_texture device(texture_descriptor configuration)
-let create_common ?(canonical_scene2_argument=false) ?(offscreen=false) driver configuration before_device_destroy families_to_make variants_to_make samples_to_make supplied=match Ogpu.Backend.create_device driver with Error _ as e->e|Ok device->
-  let cleanup()=ignore(Ogpu.Backend.destroy_device device)in
+let create_common ?(canonical_scene2_argument=false) ?(offscreen=false) ?device driver configuration before_device_destroy families_to_make variants_to_make samples_to_make make=
+  let owns_device=Option.is_none device in
+  match(match device with Some device->Ok device|None->Ogpu.Backend.create_device driver)with Error _ as e->e|Ok device->
+  let cleanup()=if owns_device then ignore(Ogpu.Backend.destroy_device device)in
   match Ogpu.Backend.create_queue device with Error e->cleanup();Error e|Ok queue->
   let surface=if offscreen then Ok None else
     Result.map Option.some(Ogpu.Backend.create_surface device configuration)in
   match surface with Error e->ignore(Ogpu.Backend.destroy_queue queue);cleanup();Error e|Ok surface->
-    let make family blend samples=match supplied with None->pipeline device family blend samples|Some make->Result.bind(make device family blend samples)(fun portable->Result.map(fun value->value,Ogpu.Pipeline.cache_key portable)(Ogpu.Backend.adopt_pipeline device portable))in
     let samples=samples_to_make device in
     let requested=List.concat_map(fun family->List.concat_map(fun blend->List.map(fun samples->family,blend,samples)samples)variants_to_make)families_to_make in
-    let rec variants made=function []->Ok(List.rev made)|(family,blend,samples)::rest->match make family blend samples with Error e->List.iter(fun x->ignore(Ogpu.Backend.destroy_pipeline x.pipeline))made;Error e|Ok(pipeline,key)->variants({family;blend;samples;pipeline;key}::made)rest in
+    let rec variants made=function []->Ok(List.rev made)|(family,blend,samples)::rest->match make device family blend samples with Error e->List.iter(fun x->ignore(Ogpu.Backend.destroy_pipeline x.pipeline))made;Error e|Ok pipeline->variants({family;blend;samples;pipeline;argument=None}::made)rest in
     let destroy_surface()=Option.iter(fun surface->ignore(Ogpu.Backend.destroy_surface surface))surface in
     match variants[]requested with Error e->destroy_surface();ignore(Ogpu.Backend.destroy_queue queue);cleanup();Error e|Ok pipelines->
     (match allocate_target device configuration with
@@ -174,25 +198,24 @@ let create_common ?(canonical_scene2_argument=false) ?(offscreen=false) driver c
         let pipeline_lookup=Array.make(pipeline_variants_per_sample*4)None in
         List.iter(fun variant->let slot=pipeline_slot variant.family variant.blend variant.samples in
           if slot>=0 then pipeline_lookup.(slot)<-Some variant)pipelines;
-        Ok{device;queue;surface;target;configuration;attachments;pipelines;pipeline_lookup;canonical_scene2_argument;cache=[];uniform_pages=Array.make 3 None;next_uniform_page=0;previous_uniforms=[||];prepared_cache=[];prepared_submission=None;automatic_submission=None;automatic_candidate=None;prepared_scratch={scratch_slots=[||];scratch_length=0};auxiliary_cache=[];texture_cache=[];texture_upload_scratch=None;retained_batch_builds=0L;retained_batch_reuses=0L;uploaded=0L;dead=false;before_device_destroy}
+        Ok{device;owns_device;queue;surface;target;configuration;attachments;pipelines;pipeline_lookup;canonical_scene2_argument;cache=[];uniform_pages=Array.make 3 None;next_uniform_page=0;previous_uniforms=[||];prepared_cache=[];prepared_submission=None;automatic_submission=None;automatic_candidate=None;prepared_scratch={scratch_slots=[||];scratch_length=0};auxiliary_cache=[];texture_cache=[];texture_upload_scratch=None;samplers=Hashtbl.create 8;arguments=None;icb_stats={icb_builds=0L;icb_hits=0L;icb_misses=0L;icb_evictions=0L;icb_executions=0L;icb_failures=0L;icb_last_failure=None};retained_batch_builds=0L;retained_batch_reuses=0L;uploaded=0L;dead=false;before_device_destroy}
       |Error e->List.iter(fun x->ignore(Ogpu.Backend.destroy_pipeline x.pipeline))pipelines;destroy_surface();ignore(Ogpu.Backend.destroy_queue queue);cleanup();Error e)
 let one_sample _=[1]
-let create driver configuration=create_common driver configuration(fun()->Ok())[Scene2]blends one_sample None
-let create_variants ?(canonical_scene2_argument=false) driver configuration=create_common~canonical_scene2_argument driver configuration(fun()->Ok())families blends sample_counts None
-let create_with_pipeline_variants driver configuration ?(before_device_destroy=fun()->Ok()) pipeline=create_common driver configuration before_device_destroy families blends one_sample(Some(fun device family blend _->pipeline device family blend))
-let create_with_sampled_pipeline_variants driver configuration ?(before_device_destroy=fun()->Ok()) ?(canonical_scene2_argument=false) pipeline=create_common~canonical_scene2_argument driver configuration before_device_destroy families blends sample_counts(Some pipeline)
+let create_with_pipeline_variants driver configuration ?(before_device_destroy=fun()->Ok()) pipeline=create_common driver configuration before_device_destroy families blends one_sample(fun device family blend _->pipeline device family blend)
+let create_offscreen_with_pipeline_variants driver configuration ?(before_device_destroy=fun()->Ok()) ?(canonical_scene2_argument=false) pipeline=create_common~canonical_scene2_argument~offscreen:true driver configuration before_device_destroy families blends one_sample(fun device family blend _->pipeline device family blend)
+let create_with_sampled_pipeline_variants driver configuration ?(before_device_destroy=fun()->Ok()) ?(canonical_scene2_argument=false) pipeline=create_common~canonical_scene2_argument driver configuration before_device_destroy families blends sample_counts pipeline
 let create_offscreen_with_sampled_pipeline_variants driver configuration
-    ?(before_device_destroy=fun()->Ok()) ?(canonical_scene2_argument=false) pipeline=
-  create_common~canonical_scene2_argument~offscreen:true driver configuration
-    before_device_destroy families blends sample_counts(Some pipeline)
+    ?(before_device_destroy=fun()->Ok()) ?(canonical_scene2_argument=false) ?device pipeline=
+  create_common~canonical_scene2_argument~offscreen:true ?device driver configuration
+    before_device_destroy families blends sample_counts pipeline
 let create_with_pipeline driver configuration ?(before_device_destroy=fun()->Ok()) make=
   create_common driver configuration before_device_destroy[Scene2][Ogpu.Pipeline.Replace]one_sample
-    (Some(fun device _family _blend _samples->make device))
+    (fun device _family _blend _samples->make device)
 let create_offscreen_with_pipeline driver configuration
     ?(before_device_destroy=fun()->Ok()) make=
   create_common~offscreen:true driver configuration before_device_destroy
     [Scene2][Ogpu.Pipeline.Replace]one_sample
-    (Some(fun device _family _blend _samples->make device))
+    (fun device _family _blend _samples->make device)
 let cache_byte_capacity=256*1024*1024
 let mesh_cache_entry_capacity=256
 let trim_cache cache =
@@ -317,9 +340,7 @@ let prepare_uniforms value ~defer sources=
       |Some bytes,Some slice->Bytes.equal bytes slice.uniform_bytes
       |_->false)sources previous in
   if same then Ok previous else begin
-    value.prepared_submission<-None;
-    value.automatic_submission<-None;
-    value.automatic_candidate<-None;
+    drop_plans value;
     value.previous_uniforms<-[||];
     let needed=ref 0 and valid=ref true in
     Array.iter(function None->()|Some bytes->
@@ -427,10 +448,13 @@ let prepare_texture value ~defer(source:sampled_texture)=
   |Some item when String.starts_with~prefix:"image:"source.key->
       item.texture_in_use<-true;Ok item
   |_->
+  (* Image and canvas keys carry their identity and generation, so their
+     bytes are never hashed; other keys are content-addressed. *)
   let hash,known_reusable=
     match List.find_opt(fun item->item.texture_key=source.key)value.texture_cache with
     |Some item when String.starts_with~prefix:"canvas:"source.key->
         "",Some item
+    |_ when image_or_canvas_key source.key->"",None
     |_->
         Digest.to_hex(Digest.string(Array.to_list source.levels|>List.map(fun (level:texture_level)->Printf.sprintf"%dx%d:%s"level.width level.height(Digest.to_hex(Digest.string(Bytes.unsafe_to_string level.bytes))))|>String.concat"|")),
         None in
@@ -472,9 +496,7 @@ let prepare_texture value ~defer(source:sampled_texture)=
       and packed=scratch.scratch_bytes in
     Array.iteri(fun level_index (level:texture_level)->for row=0 to level.height-1 do Bytes.blit level.bytes(row*level.width*4)packed(offsets.(level_index)+row*rows.(level_index))(level.width*4)done)source.levels;
     match Ogpu.Backend.write_buffer staging~offset:0L packed with Error e->if created then ignore(Ogpu.Backend.destroy_texture texture);Error e|Ok()->
-    let pass=Ogpu.Transfer_pass.create(Ogpu.Backend.device_handle value.device)in
-    let src=Ogpu.Backend.transfer_buffer staging and dst=Ogpu.Backend.transfer_texture texture in
-    let failure=ref None in Array.iteri(fun index (level:texture_level)->if !failure=None then match Ogpu.Transfer_pass.buffer_to_texture pass~src~offset:(Int64.of_int offsets.(index))~bytes_per_row:(Int64.of_int rows.(index))~bytes_per_image:(Int64.of_int(rows.(index)*level.height))~dst~mip:index~origin:{x=0;y=0;z=0}~extent:{width=level.width;height=level.height;depth=1}with Ok()->()|Error e->failure:=Some e)source.levels;
+    let failure=ref None in
     let finish result=match result with Error e->if created then ignore(Ogpu.Backend.destroy_texture texture);Error e|Ok()->
       value.uploaded<-Int64.add value.uploaded(Int64.of_int total);
       match reusable with
@@ -494,7 +516,24 @@ let prepare_texture value ~defer(source:sampled_texture)=
             value.texture_cache<-keep;
             List.iter(fun old->defer(fun()->ignore(Ogpu.Backend.destroy_texture old.texture)))evict;
             Ok item in
-    match !failure with Some e->finish(Error e)|None->match Ogpu.Backend.transfer pass with Error e->finish(Error e)|Ok command->match Ogpu.Backend.submit value.queue command~resources:[`Buffer staging;`Texture texture]~pipelines:[]with Error e->finish(Error e)|Ok receipt->finish(Ogpu.Backend.complete_through value.queue receipt.epoch)
+    match !failure with Some e->finish(Error e)|None->
+    let uploaded=
+      let ( let* )=Result.bind in
+      let* commands=Ogpu.Backend.begin_commands value.queue in
+      let encoded=
+        let* blit=Ogpu.Backend.blit_encoder commands in
+        let* ()=Array.fold_left(fun result index->let* ()=result in
+          let level=source.levels.(index)in
+          Ogpu.Backend.buffer_to_texture blit~src:staging~offset:(Int64.of_int offsets.(index))
+            ~bytes_per_row:(Int64.of_int rows.(index))~bytes_per_image:(Int64.of_int(rows.(index)*level.height))
+            ~dst:texture~mip:index~extent:{width=level.width;height=level.height;depth=1}())
+          (Ok())(Array.init(Array.length source.levels)Fun.id)in
+        let* ()=Ogpu.Backend.end_blit blit in
+        Ogpu.Backend.commit commands in
+      match encoded with
+      |Error e->ignore(Ogpu.Backend.abandon commands);Error e
+      |Ok receipt->Ogpu.Backend.complete_through value.queue receipt.epoch in
+    finish uploaded
 let prepare_auxiliary value ~defer(source:auxiliary_resource)=
   let hash=Digest.to_hex(Digest.bytes source.buffer)in
   match List.find_opt(fun item->item.auxiliary_key=source.key&&item.auxiliary_hash=hash)value.auxiliary_cache with
@@ -631,20 +670,6 @@ let intersect_extent ~bound_w ~bound_h (x,y,w,h)=
   let w=min w(bound_w-x)and h=min h(bound_h-y)in
   if bound_w<=0||bound_h<=0||w<=0||h<=0 then(0,0,max 1 bound_w,max 1 bound_h)
   else(x,y,w,h)
-let pass value family samples state load clear=
-  let keys=(if samples=1 then[]else[Scene_attachment_pool.Color,samples])@(match family with Scene2|Scene2_textured|Ui->[]|Scene3|Scene3_points|Scene3_textured|Scene3_shadow->[Depth,samples]|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->[Depth,samples;Stencil,samples])in
-  match Scene_attachment_pool.acquire_many value.attachments keys with Error _ as e->e|Ok pooled->
-  let attachments=ref pooled in
-  let take()=match!attachments with texture::rest->attachments:=rest;texture|[]->assert false in
-  let target=if samples=1 then value.target else take()in
-  let texture=Ogpu.Backend.render_texture target~format:Ogpu.Render_pass.Rgba8~usage:Render_target in
-  let resolve=if samples=1 then None else Some(Ogpu.Backend.render_texture value.target~format:Ogpu.Render_pass.Rgba8~usage:Resolve_target)in
-  let depth=match family with Scene2|Scene2_textured|Ui->None|Scene3|Scene3_points|Scene3_textured|Scene3_shadow|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->let texture=Ogpu.Backend.render_texture(take())~format:Ogpu.Render_pass.Depth32~usage:Render_target in Some({Ogpu.Render_pass.texture;load=state.depth_load;store=Store;clear=state.depth_clear}:Ogpu.Render_pass.depth)in
-  let stencil=match family with Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->let texture=Ogpu.Backend.render_texture(take())~format:Ogpu.Render_pass.Stencil8~usage:Render_target in Some({Ogpu.Render_pass.texture;load=state.stencil_load;store=Store;clear=state.stencil_clear}:Ogpu.Render_pass.stencil)|Scene2|Scene2_textured|Ui|Scene3|Scene3_points|Scene3_textured|Scene3_shadow->None in
-  let bound_w=texture.width and bound_h=texture.height in
-  let x,y,width,height=intersect_extent~bound_w~bound_h state.viewport
-  and sx,sy,sw,sh=intersect_extent~bound_w~bound_h state.scissor in
-  Result.map(fun pass->pass,pooled)(Ogpu.Render_pass.create~raster_state:{cull=state.cull;depth_compare=state.depth_compare;depth_write=state.depth_write}?stencil_state:state.stencil_state(Ogpu.Backend.device_handle value.device){colors=[|Some{texture;resolve;load;store=(if samples=1 then Store else Resolve);clear}|];depth;stencil;viewport={x;y;width;height};scissor={x=sx;y=sy;width=sw;height=sh}})
 let automatic_signature
     (family,blend,samples,state,texture,auxiliary,item,uniform) =
   (* Submission signatures own affine bytes.  Scene values are immutable by
@@ -766,12 +791,74 @@ let automatic_candidate_fingerprint scratch=
          slot.slot_uniform,mesh.vertex_count,mesh.index_count)
   done;
   !fingerprint
+(* Attachments and encoder state for one render pass over [target]. *)
+let render_target value family samples (state:state) load clear=
+  let keys=(if samples=1 then[]else[Scene_attachment_pool.Color,samples])@(match family with Scene2|Scene2_textured|Ui->[]|Scene3|Scene3_points|Scene3_textured|Scene3_shadow->[Depth,samples]|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->[Depth,samples;Stencil,samples])in
+  match Scene_attachment_pool.acquire_many value.attachments keys with Error _ as e->e|Ok pooled->
+  let attachments=ref pooled in
+  let take()=match!attachments with texture::rest->attachments:=rest;texture|[]->assert false in
+  let color=if samples=1 then value.target else take()in
+  let resolve=if samples=1 then None else Some value.target in
+  let depth=match family with Scene2|Scene2_textured|Ui->None|_->
+    Some{Ogpu.Backend.depth_texture=take();depth_load=state.depth_load;depth_store=Store;depth_clear=state.depth_clear}in
+  let stencil=match family with Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->
+    Some{Ogpu.Backend.stencil_texture=take();stencil_load=state.stencil_load;stencil_store=Store;stencil_clear=state.stencil_clear}|_->None in
+  Ok({Ogpu.Backend.colors=[{texture=color;resolve;load;store=(if samples=1 then Store else Resolve);clear}];depth;stencil},pooled)
+let has_depth=function Scene2|Scene2_textured|Ui->false|_->true
+let sampler_for value descriptor=
+  match Hashtbl.find_opt value.samplers descriptor with
+  |Some sampler->Ok sampler
+  |None->
+    (* ponytail: 64 distinct sampler states per renderer; a scene using more
+       clears the table and drops replay plans that borrowed them. *)
+    if Hashtbl.length value.samplers>=64 then begin
+      Hashtbl.iter(fun _ sampler->ignore(Ogpu.Backend.destroy_sampler sampler))value.samplers;
+      Hashtbl.reset value.samplers;
+      drop_plans value
+    end;
+    match Ogpu.Backend.create_sampler value.device descriptor with
+    |Error _ as e->e
+    |Ok sampler->Hashtbl.add value.samplers descriptor sampler;Ok sampler
+let argument_page_bytes=256*1024
+let argument_encoder variant=
+  match variant.argument with
+  |Some argument->Ok argument
+  |None->match Ogpu.Backend.create_argument variant.pipeline Fragment~index:1 with
+    |Error _ as e->e
+    |Ok argument->variant.argument<-Some argument;Ok argument
+(* Canonical Scene2 binds its texture and sampler through one argument slice
+   per (texture, sampler) pair inside a shared page, so indirect commands can
+   reference textures. *)
+let argument_slice value variant (texture:Ogpu.Backend.texture) sampler_descriptor=
+  match argument_encoder variant with Error _ as e->e|Ok argument->
+  let pool=match value.arguments with
+    |Some pool->Ok pool
+    |None->
+      let length=Ogpu.Backend.argument_length argument and alignment=max 1(Ogpu.Backend.argument_alignment argument)in
+      let stride=max 16((length+alignment-1)/alignment*alignment)in
+      let descriptor:Ogpu.Types.buffer_descriptor={label=Some"scene-argument-page";size=Int64.of_int argument_page_bytes;usage=[Storage]}in
+      match Ogpu.Backend.create_buffer value.device descriptor with Error _ as e->e|Ok argument_buffer->
+        let pool={argument_buffer;argument_stride=stride;argument_capacity=argument_page_bytes/stride;slices=Hashtbl.create 64;argument_next=0}in
+        value.arguments<-Some pool;Ok pool in
+  match pool with Error _ as e->e|Ok pool->
+  if Ogpu.Backend.argument_length argument>pool.argument_stride then
+    error"Scene_execution.argument_slice"Ogpu.Error.Capacity"argument layout exceeds the shared slice stride"
+  else
+  let key=Ogpu.Backend.texture_id texture,sampler_descriptor in
+  match Hashtbl.find_opt pool.slices key with
+  |Some offset->Ok(pool.argument_buffer,offset)
+  |None->
+    if pool.argument_next>=pool.argument_capacity then begin
+      Hashtbl.reset pool.slices;pool.argument_next<-0;
+      drop_plans value
+    end;
+    let offset=Int64.of_int(pool.argument_next*pool.argument_stride)in
+    match sampler_for value sampler_descriptor with Error _ as e->e|Ok sampler->
+    match Ogpu.Backend.argument_texture argument pool.argument_buffer~offset~slot:0 texture with Error _ as e->e|Ok()->
+    match Ogpu.Backend.argument_sampler argument pool.argument_buffer~offset~slot:1 sampler with Error _ as e->e|Ok()->
+    pool.argument_next<-pool.argument_next+1;Hashtbl.add pool.slices key offset;Ok(pool.argument_buffer,offset)
 type acquired=Offscreen|Presented of Ogpu.Backend.frame
 let discard=function Offscreen->()|Presented frame->ignore(Ogpu.Backend.discard frame)
-let finish_submission value=function
-  |Offscreen->Ok()
-  |Presented frame->Ogpu.Backend.present frame~queue:value.queue
-      ~source:value.target
 let acquire value=match value.surface with
   |None->Ok(`Acquired Offscreen)
   |Some surface->match Ogpu.Backend.acquire_sync surface with
@@ -779,43 +866,100 @@ let acquire value=match value.surface with
     |Ok(`Timeout|`Occluded)->Ok`Skipped
     |Ok`Device_lost->error"Scene_execution.render"Ogpu.Error.Device_lost"device lost"
     |Ok(`Acquired frame)->Ok(`Acquired(Presented frame))
-let submit_acquired value frame commands =
-  let submit_one(command,resources,pipelines)=
-    match Ogpu.Backend.submit_sync value.queue command~resources~pipelines with
-    |Error e->Error e|Ok admitted->Ok admitted.Ogpu.Backend.completion in
-  let rec submit=function
-    |[]->Result.map(fun()->Ok())(finish_submission value frame)
-    |[command,resources,pipelines]->
-        (match frame with
-         |Offscreen->submit_one(command,resources,pipelines)
-         |Presented surface_frame->
-             (match Ogpu.Backend.submit_present_sync value.queue command~resources
-                      ~pipelines~source:value.target surface_frame with
-              |Ok admitted->Ok admitted.Ogpu.Backend.completion
-              |Error e when e.Ogpu.Error.kind=Ogpu.Error.Unsupported->
-                  (match submit_one(command,resources,pipelines)with
-                   |Error _ as e->e
-                   |Ok(Error _ as completion)->discard frame;Ok completion
-                   |Ok(Ok())->Result.map(fun()->Ok())
-                       (finish_submission value frame))
-              |Error e->Error e))
-    |entry::rest->
-        (match submit_one entry with
-         |Error _ as e->e
-         |Ok(Error _ as completion)->discard frame;Ok completion
-         |Ok(Ok())->submit rest)in
-  match submit commands with
-  |Ok completion->completion
-  |Error error->discard frame;Error error
-let replay_commands value commands =
+let plain_draws draws=Array.for_all(fun draw->draw.plan_textures=[]&&draw.plan_samplers=[])draws
+let encode_batch value commands ~clear (batch:batch_plan)=
+  let ( let* )=Result.bind in
+  let* target,_=render_target value batch.batch_family batch.batch_samples batch.batch_state
+    (if batch.batch_first then Ogpu.Render_pass.Clear else Load)clear in
+  let* encoder=Ogpu.Backend.render_encoder commands target in
+  let bound_w=value.configuration.Ogpu.Surface.physical_width and bound_h=value.configuration.physical_height in
+  let x,y,width,height=intersect_extent~bound_w~bound_h batch.batch_state.viewport
+  and sx,sy,sw,sh=intersect_extent~bound_w~bound_h batch.batch_state.scissor in
+  let* ()=Ogpu.Backend.set_viewport encoder{x;y;width;height}in
+  let* ()=Ogpu.Backend.set_scissor encoder{x=sx;y=sy;width=sw;height=sh}in
+  let* ()=Ogpu.Backend.set_cull encoder batch.batch_state.cull in
+  let* ()=if batch.batch_winding then Ogpu.Backend.set_winding encoder Counter_clockwise else Ok()in
+  let* ()=if has_depth batch.batch_family then
+      Ogpu.Backend.set_depth_state encoder(Some{depth_compare=batch.batch_state.depth_compare;
+        depth_write=batch.batch_state.depth_write;stencil=batch.batch_state.stencil_state})
+    else Ok()in
+  let* ()=match batch.batch_state.stencil_state with
+    |Some state->Ogpu.Backend.set_stencil_reference encoder~front:state.front_reference~back:state.back_reference
+    |None->Ok()in
+  let* ()=
+    if Array.length batch.batch_draws=0 then Ok()
+    else
+    let* ()=if batch.batch_resources=[] then Ok()
+      else Ogpu.Backend.use_resources encoder batch.batch_resources in
+    match batch.batch_icb with
+    |Some icb->
+        let* ()=Ogpu.Backend.set_render_pipeline encoder batch.batch_draws.(0).plan_draw.pipeline in
+        value.icb_stats.icb_executions<-Int64.succ value.icb_stats.icb_executions;
+        Ogpu.Backend.execute_icb encoder icb~location:0~length:(Array.length batch.batch_draws)
+    |None->
+        if plain_draws batch.batch_draws then
+          Ogpu.Backend.draw_batch encoder(Array.map(fun draw->draw.plan_draw)batch.batch_draws)
+        else
+          Array.fold_left(fun result draw->
+            let* ()=result in
+            let bd=draw.plan_draw in
+            let* ()=Ogpu.Backend.set_render_pipeline encoder bd.pipeline in
+            let* ()=List.fold_left(fun result(stage,index,buffer,offset)->let* ()=result in
+              Ogpu.Backend.set_stage_buffer encoder stage~index~offset buffer)(Ok())bd.buffers in
+            let* ()=List.fold_left(fun result(stage,index,texture)->let* ()=result in
+              Ogpu.Backend.set_stage_texture encoder stage~index texture)(Ok())draw.plan_textures in
+            let* ()=List.fold_left(fun result(stage,index,sampler)->let* ()=result in
+              Ogpu.Backend.set_stage_sampler encoder stage~index sampler)(Ok())draw.plan_samplers in
+            match bd.index with
+            |None->Ogpu.Backend.draw encoder~primitive:bd.primitive~first:bd.vertex_start~count:bd.vertex_count~instances:bd.instances()
+            |Some(index_type,buffer,offset,count)->Ogpu.Backend.draw_indexed encoder~primitive:bd.primitive~index_type buffer~offset~count~instances:bd.instances())
+            (Ok())batch.batch_draws in
+  Ogpu.Backend.end_render encoder
+let build_icb value (batch:batch_plan)=
+  let draws=batch.batch_draws in
+  if Array.length draws=0||not(plain_draws draws)||Option.is_some batch.batch_icb
+     ||not(Array.for_all(fun draw->Ogpu.Backend.pipeline_indirect draw.plan_draw.pipeline)draws)then Ok()
+  else
+    let ( let* )=Result.bind in
+    let* icb=Ogpu.Backend.create_icb value.device~max_commands:(Array.length draws)in
+    let encoded=Array.fold_left(fun result(index,draw)->
+      let* ()=result in
+      let bd=draw.plan_draw in
+      let* ()=Ogpu.Backend.icb_set_pipeline icb~index bd.pipeline in
+      let* ()=List.fold_left(fun result(stage,slot,buffer,offset)->let* ()=result in
+        Ogpu.Backend.icb_set_buffer icb~index stage~slot~offset buffer)(Ok())bd.buffers in
+      match bd.index with
+      |None->Ogpu.Backend.icb_draw icb~index~primitive:bd.primitive~first:bd.vertex_start~count:bd.vertex_count~instances:bd.instances()
+      |Some(index_type,buffer,offset,count)->Ogpu.Backend.icb_draw_indexed icb~index~primitive:bd.primitive~index_type buffer~offset~count~instances:bd.instances())
+      (Ok())(Array.mapi(fun index draw->index,draw)draws)in
+    match encoded with
+    |Error _ as e->ignore(Ogpu.Backend.destroy_icb icb);e
+    |Ok()->value.icb_stats.icb_builds<-Int64.succ value.icb_stats.icb_builds;batch.batch_icb<-Some icb;Ok()
+let submit_frame value frame commands=
+  let committed=match frame with
+    |Offscreen->Ogpu.Backend.commit commands
+    |Presented surface_frame->Ogpu.Backend.commit_present commands~source:value.target surface_frame in
+  match committed with
+  |Error _ as e->ignore(Ogpu.Backend.abandon commands);discard frame;e
+  |Ok receipt->Ogpu.Backend.complete_through value.queue receipt.epoch
+(* Encodes [batches] into one command buffer and completes it. *)
+let encode_frame value frame ~clear batches=
+  match Ogpu.Backend.begin_commands value.queue with
+  |Error _ as e->discard frame;e
+  |Ok commands->
+    let encoded=List.fold_left(fun result batch->Result.bind result(fun()->encode_batch value commands~clear batch))(Ok())batches in
+    match encoded with
+    |Error _ as e->ignore(Ogpu.Backend.abandon commands);discard frame;e
+    |Ok()->submit_frame value frame commands
+let replay_plan value plan=
   match acquire value with
   |Error _ as error->error|Ok`Skipped->Ok false
-  |Ok(`Acquired frame)->Result.map(fun()->true)(submit_acquired value frame commands)
+  |Ok(`Acquired frame)->Result.map(fun()->true)(encode_frame value frame~clear:plan.replay_clear plan.replay_batches)
 let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0.,0.,0.,0.)) value draws=if value.dead then(after_prepare();error"Scene_execution.render"Ogpu.Error.Stale_handle"renderer is destroyed")else if List.length draws>prepared_scratch_capacity then(after_prepare();error"Scene_execution.render"Ogpu.Error.Capacity"one submission exceeds the bounded prepared-draw capacity")else
   match prepared,value.prepared_submission with
-  |Some(identity,version),Some cached when cached.submission_identity=identity&&cached.submission_version=version&&cached.submission_clear=clear->
-    after_prepare();replay_commands value cached.submission_commands
-  |_->value.prepared_submission<-None;
+  |Some(identity,version),Some cached when cached.submission_identity=identity&&cached.submission_version=version&&cached.submission_plan.replay_clear=clear->
+    after_prepare();replay_plan value cached.submission_plan
+  |_->drop_plan value(Option.map(fun s->s.submission_plan)value.prepared_submission);value.prepared_submission<-None;
   let prepared_key=prepared in
   match resolve_prepared value prepared draws with Error _ as result ->after_prepare();result | Ok(draws,trusted_key) ->
   let valid_mesh(mesh:mesh)=mesh.key<>""&&mesh.vertex_count>0&&mesh.index_count>0&&Bytes.length mesh.vertices+Bytes.length mesh.indices>0 in
@@ -831,15 +975,12 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
   let deferred=ref[]in let defer release=deferred:=release::!deferred in
   let finish result=
     (* Evicted and oversize resources are valid through this synchronous
-       submission, but not through another replay. Retained commands borrow
+       submission, but not through another replay. Retained plans borrow
        cache resources; drop both replay paths before releasing any of them,
-       including on preparation/submission failure. Keep the bounded caches
-       and CPU prepared draws so the next frame can rebuild safely. *)
+       including on preparation/submission failure. *)
     (match !deferred with
      |[]->()
-     |_->value.prepared_submission<-None;
-         value.automatic_submission<-None;
-         value.automatic_candidate<-None);
+     |_->drop_plans value);
     List.iter(fun release->release())!deferred;result in
   let scratch=value.prepared_scratch in
   clear_prepared_scratch scratch;
@@ -912,33 +1053,16 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
     |Ok()->let candidate_fingerprint=automatic_candidate_fingerprint scratch in
       after_prepare();
       match value.automatic_submission with
-      |Some cached when cached.automatic_clear=clear&&
-        same_scratch_payloads cached.automatic_payloads scratch->
+      |Some plan when plan.replay_clear=clear&&
+        same_scratch_payloads(List.map(fun s->s,(),())plan.replay_payloads)scratch->
           value.automatic_candidate<-None;
+          value.icb_stats.icb_hits<-Int64.succ value.icb_stats.icb_hits;
           clear_prepared_scratch scratch;
-          finish(Result.map(fun()->true)
-            (submit_acquired value frame cached.automatic_commands))
+          finish(Result.map(fun()->true)(encode_frame value frame~clear plan.replay_batches))
       |_->
+    value.icb_stats.icb_misses<-Int64.succ value.icb_stats.icb_misses;
     let slot_state slot=match slot.slot_state with Some state->state|None->assert false
     and slot_mesh slot=match slot.slot_mesh with Some mesh->mesh|None->assert false in
-    let resources=ref[]in
-    let add resource=resources:=resource::!resources in
-    add(`Texture value.target);
-    for index=0 to scratch.scratch_length-1 do
-      let slot=Array.unsafe_get scratch.scratch_slots index in
-      add(`Buffer(slot_mesh slot).buffer);
-      Option.iter(fun item->add(`Buffer item.uniform_buffer))slot.slot_uniform;
-      Option.iter(fun(_,item)->add(`Texture item.texture))slot.slot_texture;
-      Option.iter(fun(_,buffer,texture)->add(`Buffer buffer.auxiliary_buffer);
-        add(`Texture texture.texture))slot.slot_auxiliary
-    done;
-    let seen_buffers=Hashtbl.create 32 and seen_textures=Hashtbl.create 16 in
-    let resources=List.rev!resources|>List.filter(fun resource->
-      let table,id=match resource with
-      |`Buffer buffer->seen_buffers,Ogpu.Backend.buffer_id buffer
-      |`Texture texture->seen_textures,Ogpu.Backend.texture_id texture in
-      if Hashtbl.mem table id then false
-      else(Hashtbl.add table id();true))in
     let attachment_class=function
       |Scene2|Scene2_textured->0
       (* Ui draws bind directly; argument-buffer passes cannot mix them. *)
@@ -960,119 +1084,81 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
           (slot.slot_family=Scene2_textured)=retained)&&
         same_pass_state class_ state(slot_state slot)do incr index done;
       !index in
-    let payload_entry slot=
+    let plan_entry slot=
+      let ( let* )=Result.bind in
       let family=slot.slot_family and blend=slot.slot_blend
       and samples=slot.slot_samples and item=slot_mesh slot in
       let canonical_scene2=value.canonical_scene2_argument&&
         (family=Scene2||family=Scene2_textured)in
       let pipeline_family=if canonical_scene2&&family=Scene2 then Scene2_textured else family in
       let variant=Option.get(find_pipeline value pipeline_family blend samples)in
-      let texture_index,sampler_index=if canonical_scene2 then 0,1 else 1,2 in
-      let textures,samplers=match slot.slot_texture with
-        |None->[],[]
+      let* buffers,textures,samplers,resident=match slot.slot_texture with
+        |None->Ok([],[],[],[])
         |Some(source,cached)->
-            [{Ogpu.Render_pass.stage=Fragment;index=texture_index;
-              texture_id=Ogpu.Backend.texture_id cached.texture}],
-            [{Ogpu.Render_pass.stage=Fragment;index=sampler_index;
-              sampler=source.sampler}]in
-      let buffers,textures,samplers=match slot.slot_auxiliary with
-        |None->[{Ogpu.Render_pass.stage=Ogpu.Command.Vertex;index=0;
-          buffer_id=Ogpu.Backend.buffer_id item.buffer;offset=0L}],textures,samplers
+            if canonical_scene2 then
+              let* page,offset=argument_slice value variant cached.texture source.sampler in
+              Ok([Ogpu.Backend.Fragment,1,page,offset],[],[],[cached.texture])
+            else
+              let* sampler=sampler_for value source.sampler in
+              Ok([],[Ogpu.Backend.Fragment,1,cached.texture],[Ogpu.Backend.Fragment,2,sampler],[])in
+      let* buffers,textures,samplers=match slot.slot_auxiliary with
+        |None->Ok((Ogpu.Backend.Vertex,0,item.buffer,0L)::buffers,textures,samplers)
         |Some(source,buffer,texture)->
-            [{Ogpu.Render_pass.stage=Ogpu.Command.Vertex;index=0;
-              buffer_id=Ogpu.Backend.buffer_id item.buffer;offset=0L};
-             {stage=Fragment;index=3;
-              buffer_id=Ogpu.Backend.buffer_id buffer.auxiliary_buffer;offset=0L}],
-            {Ogpu.Render_pass.stage=Fragment;index=4;
-              texture_id=Ogpu.Backend.texture_id texture.texture}::textures,
-            {Ogpu.Render_pass.stage=Fragment;index=5;
-              sampler=source.texture.sampler}::samplers in
+            let* sampler=sampler_for value source.texture.sampler in
+            Ok((Ogpu.Backend.Vertex,0,item.buffer,0L)::(Ogpu.Backend.Fragment,3,buffer.auxiliary_buffer,0L)::buffers,
+               (Ogpu.Backend.Fragment,4,texture.texture)::textures,
+               (Ogpu.Backend.Fragment,5,sampler)::samplers)in
       let buffers=match slot.slot_uniform,item.uniform_offset with
         |Some uniform,_->
-            let binding stage={Ogpu.Render_pass.stage;index=6;
-              buffer_id=Ogpu.Backend.buffer_id uniform.uniform_buffer;
-              offset=uniform.uniform_offset}in
-            binding Vertex::(if family=Scene2||family=Scene2_textured||family=Ui then buffers
-              else {Ogpu.Render_pass.stage=Vertex;index=7;
-                buffer_id=Ogpu.Backend.buffer_id uniform.uniform_buffer;
-                offset=(match (slot_state slot).transform_uniforms with
+            let binding stage=stage,6,uniform.uniform_buffer,uniform.uniform_offset in
+            binding Ogpu.Backend.Vertex::(if family=Scene2||family=Scene2_textured||family=Ui then buffers
+              else (Ogpu.Backend.Vertex,7,uniform.uniform_buffer,
+                (match (slot_state slot).transform_uniforms with
                   |Some bytes when Bytes.length bytes>5456->Int64.add uniform.uniform_offset 5456L
-                  |_->uniform.uniform_offset)}::
-                binding Fragment::buffers)
-        |None,Some offset->{Ogpu.Render_pass.stage=Ogpu.Command.Vertex;index=6;
-            buffer_id=Ogpu.Backend.buffer_id item.buffer;offset}::
+                  |_->uniform.uniform_offset))::
+                binding Ogpu.Backend.Fragment::buffers)
+        |None,Some offset->(Ogpu.Backend.Vertex,6,item.buffer,offset)::
             (if family=Scene2||family=Scene2_textured||family=Ui then [] else
-              [{Ogpu.Render_pass.stage=Ogpu.Command.Vertex;index=7;
-                buffer_id=Ogpu.Backend.buffer_id item.buffer;offset}])@
-            {Ogpu.Render_pass.stage=Ogpu.Command.Fragment;index=6;
-              buffer_id=Ogpu.Backend.buffer_id item.buffer;offset}::buffers
+              [Ogpu.Backend.Vertex,7,item.buffer,offset])@
+            (Ogpu.Backend.Fragment,6,item.buffer,offset)::buffers
         |None,None->buffers in
       let index=if canonical_scene2||family=Scene2_textured then None
-        else Some(Ogpu.Render_pass.Uint32,Ogpu.Backend.buffer_id item.buffer,
-          item.index_offset,item.index_count)in
-      ({Ogpu.Render_pass.pipeline_key=variant.key;buffers;textures;samplers;
-        primitive=item.primitive;vertex_start=0;vertex_count=item.vertex_count;
-        instance_count=(match family,(slot_state slot).transform_uniforms with
-          |(Scene3|Scene3_points|Scene3_textured|Scene3_shadow|Scene3_stencil|
-             Scene3_textured_stencil|Scene3_shadow_stencil),Some bytes
-             when Bytes.length bytes>5456&&
-               (Bytes.length bytes-5456)mod 192=0->
-               (Bytes.length bytes-5456)/192
-          |_->1);index},
-       variant.pipeline)in
-    let made_commands=ref[]and made_payloads=ref[]in
-    let previous_payloads=ref(match value.automatic_submission with
-      |Some cached->cached.automatic_payloads|None->[])in
-    let previous_commands=ref(match value.automatic_submission with
-      |Some cached->cached.automatic_commands|None->[])in
-    let rec same_draws left right=match left,right with
-      |[],[]->true|left::lefts,right::rights->left=right&&
-          same_draws lefts rights|_->false in
-    let rec same_resources left right=match left,right with
-      |[],[]->true
-      |`Buffer left::lefts,`Buffer right::rights->
-          Ogpu.Backend.buffer_id left=Ogpu.Backend.buffer_id right&&
-          same_resources lefts rights
-      |`Texture left::lefts,`Texture right::rights->
-          Ogpu.Backend.texture_id left=Ogpu.Backend.texture_id right&&
-          same_resources lefts rights
-      |_->false in
-    let rec same_pipelines left right=match left,right with
-      |[],[]->true|left::lefts,right::rights->left==right&&
-          same_pipelines lefts rights|_->false in
-    let reuse_command pass payload resources pipelines=
-      match!previous_commands with
-      |[]->None
-      |((command,old_resources,old_pipelines)as entry)::rest->
-          previous_commands:=rest;
-          match Ogpu.Backend.Private.command_view command with
-          |Ogpu.Backend.Private.Render submission
-              when Ogpu.Render_pass.same
-                (Ogpu.Render_pass.submission_pass submission)pass&&
-                same_draws(Ogpu.Render_pass.submission_draws submission)payload&&
-                same_resources old_resources resources&&
-                same_pipelines old_pipelines pipelines->Some entry
-          |Transfer _|Compute _|Render _->None in
+        else Some(Ogpu.Render_pass.Uint32,item.buffer,item.index_offset,Int64.of_int item.index_count)in
+      let instances=match family,(slot_state slot).transform_uniforms with
+        |(Scene3|Scene3_points|Scene3_textured|Scene3_shadow|Scene3_stencil|
+           Scene3_textured_stencil|Scene3_shadow_stencil),Some bytes
+           when Bytes.length bytes>5456&&(Bytes.length bytes-5456)mod 192=0->
+             (Bytes.length bytes-5456)/192
+        |_->1 in
+      Ok{plan_draw={Ogpu.Backend.pipeline=variant.pipeline;buffers;primitive=item.primitive;index;
+          vertex_start=0;vertex_count=item.vertex_count;instances};
+         plan_textures=textures;plan_samplers=samplers;plan_resident=resident} in
+    let batch_resources draws=
+      let seen_buffers=Hashtbl.create 32 and seen_textures=Hashtbl.create 16 in
+      let resources=ref[]in
+      let buffer b=let id=Ogpu.Backend.buffer_id b in if not(Hashtbl.mem seen_buffers id)then(Hashtbl.add seen_buffers id();resources:=`Buffer b::!resources)
+      and texture t=let id=Ogpu.Backend.texture_id t in if not(Hashtbl.mem seen_textures id)then(Hashtbl.add seen_textures id();resources:=`Texture t::!resources)in
+      Array.iter(fun draw->List.iter(fun(_,_,b,_)->buffer b)draw.plan_draw.buffers;
+        Option.iter(fun(_,b,_,_)->buffer b)draw.plan_draw.index;
+        List.iter(fun(_,_,t)->texture t)draw.plan_textures;
+        List.iter texture draw.plan_resident)draws;
+      (match value.arguments with Some pool->buffer pool.argument_buffer|None->());
+      List.rev!resources in
     let payloads first last=
-      let rec loop index previous reversed=
-        if index=last then List.rev reversed,previous else
+      let rec loop index reversed=
+        if index=last then Ok(List.rev reversed)else
         let slot=Array.unsafe_get scratch.scratch_slots index in
-        match previous with
-        |((signature,_,_)as payload)::old when same_automatic_slot signature slot->
-            loop(index+1)old(payload::reversed)
-        |_::old->let draw,pipeline=payload_entry slot in
-            let signature=automatic_signature(slot.slot_family,slot.slot_blend,
-              slot.slot_samples,slot_state slot,slot.slot_texture,
-              slot.slot_auxiliary,slot_mesh slot,slot.slot_uniform)in
-            loop(index+1)old((signature,draw,pipeline)::reversed)
-        |[]->let draw,pipeline=payload_entry slot in
-            let signature=automatic_signature(slot.slot_family,slot.slot_blend,
-              slot.slot_samples,slot_state slot,slot.slot_texture,
-              slot.slot_auxiliary,slot_mesh slot,slot.slot_uniform)in
-            loop(index+1)[]((signature,draw,pipeline)::reversed)in
-      loop first!previous_payloads[]in
-    let rec batches first index=
-      if index=scratch.scratch_length then if not first then Ok()else
+        match plan_entry slot with
+        |Error _ as e->e
+        |Ok draw->
+          let signature=automatic_signature(slot.slot_family,slot.slot_blend,
+            slot.slot_samples,slot_state slot,slot.slot_texture,
+            slot.slot_auxiliary,slot_mesh slot,slot.slot_uniform)in
+          loop(index+1)((signature,draw)::reversed)in
+      loop first[]in
+    let rec batches first index reversed=
+      if index=scratch.scratch_length then
+        if not first then Ok(List.rev reversed)else
         let width=value.configuration.Ogpu.Surface.physical_width
         and height=value.configuration.physical_height in
         let state={viewport=(0,0,width,height);scissor=(0,0,width,height);
@@ -1080,77 +1166,63 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
           depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;
           transform_uniforms=None;stencil_state=None;
           stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}in
-        (match pass value Scene2 1 state Ogpu.Render_pass.Clear clear with
-         |Error _ as result->result
-         |Ok(pass,attachments)->
-             let resources=List.map(fun texture->`Texture texture)attachments@resources in
-             (match reuse_command pass[]resources[]with
-              |Some entry->value.retained_batch_reuses<-
-                  Int64.succ value.retained_batch_reuses;
-                  made_commands:=entry::!made_commands;Ok()
-              |None->match Ogpu.Backend.render pass[]with Error _ as result->result
-                |Ok command->value.retained_batch_builds<-
-                    Int64.succ value.retained_batch_builds;
-                    made_commands:=(command,resources,[])::!made_commands;
-                    Ok()))
+        Ok[{batch_family=Scene2;batch_samples=1;batch_state=state;batch_first=true;batch_draws=[||];
+            batch_resources=[];batch_winding=false;batch_icb=None},[]]
       else
       let slot=Array.unsafe_get scratch.scratch_slots index in
       let family=slot.slot_family and samples=slot.slot_samples
       and state=slot_state slot in
       let class_=attachment_class family in
       let next=take class_(family=Scene2_textured)samples state(index+1)in
-      match pass value family samples state
-        (if first then Ogpu.Render_pass.Clear else Load)clear with
-      |Error _ as result->result
-      |Ok(pass,attachments)->
-          let resources=List.map(fun texture->`Texture texture)attachments@resources in
-          let automatic_payloads,remaining=payloads index next in
-          previous_payloads:=remaining;
-          let payload=List.map(fun(_,draw,_)->draw)automatic_payloads in
-          let pipelines=List.map(fun(_,_,pipeline)->pipeline)automatic_payloads in
-          made_payloads:=List.rev_append automatic_payloads!made_payloads;
-          let pipelines=List.fold_left(fun unique pipeline->
-            if List.exists((==)pipeline)unique then unique else pipeline::unique)[]pipelines in
-          match reuse_command pass payload resources pipelines with
-          |Some entry->value.retained_batch_reuses<-
-              Int64.succ value.retained_batch_reuses;
-              made_commands:=entry::!made_commands;batches false next
-          |None->match Ogpu.Backend.render pass payload with
-            |Error _ as result->result
-            |Ok command->value.retained_batch_builds<-
-                Int64.succ value.retained_batch_builds;
-                made_commands:=(command,resources,pipelines)::!made_commands;
-                batches false next in
-    match batches true 0 with
+      match payloads index next with
+      |Error _ as e->e
+      |Ok entries->
+          let draws=Array.of_list(List.map snd entries)in
+          let winding=Array.exists(fun draw->List.exists(fun(stage,slot,_,_)->stage=Ogpu.Backend.Vertex&&slot=7)draw.plan_draw.buffers)draws in
+          let batch={batch_family=family;batch_samples=samples;batch_state=state;batch_first=first;
+            batch_draws=draws;batch_resources=batch_resources draws;batch_winding=winding;batch_icb=None}in
+          batches false next((batch,List.map fst entries)::reversed)in
+    match batches true 0[]with
     |Error _ as result->discard frame;finish result
-    |Ok()->
-        let commands=List.rev!made_commands
-        and automatic_payloads=List.rev!made_payloads in
+    |Ok planned->
+        let plan_batches,payload_lists=List.split planned in
+        let payloads=List.concat payload_lists in
         clear_prepared_scratch scratch;
-        match submit_acquired value frame commands with
+        value.retained_batch_builds<-Int64.add value.retained_batch_builds(Int64.of_int(List.length plan_batches));
+        match encode_frame value frame~clear plan_batches with
         |Error _ as result->finish result
         |Ok()->
             value.previous_uniforms<- !uniform_slices;
+            let plan={replay_clear=clear;replay_payloads=payloads;replay_batches=plan_batches}in
+            let admit=match value.automatic_candidate with
+              |Some candidate->candidate.candidate_clear=clear&&
+                candidate.candidate_length=List.length payloads&&
+                candidate.candidate_fingerprint=candidate_fingerprint
+              |None->false in
+            let retained=prepared_key<>None||admit in
+            if retained then
+              List.iter(fun batch->match build_icb value batch with
+                |Ok()->()
+                |Error error->value.icb_stats.icb_failures<-Int64.succ value.icb_stats.icb_failures;
+                    value.icb_stats.icb_last_failure<-Some(Ogpu.Error.to_string error))plan_batches;
             (match prepared_key with
              |Some(identity,version)->value.prepared_submission<-Some{
                  submission_identity=identity;submission_version=version;
-                 submission_clear=clear;submission_draw_count=List.length draws;
-                 submission_commands=commands}
+                 submission_draw_count=List.length draws;submission_plan=plan}
              |None->());
-            let admit=match value.automatic_candidate with
-              |Some candidate->candidate.candidate_clear=clear&&
-                candidate.candidate_length=List.length automatic_payloads&&
-                candidate.candidate_fingerprint=candidate_fingerprint
-              |None->false in
             if admit then(
-              value.automatic_submission<-Some{automatic_clear=clear;
-                automatic_payloads;automatic_commands=commands};
+              drop_plan value value.automatic_submission;
+              value.automatic_submission<-Some plan;
               value.automatic_candidate<-None)
             else(
+              drop_plan value value.automatic_submission;
               value.automatic_submission<-None;
               value.automatic_candidate<-Some{candidate_clear=clear;
-                candidate_length=List.length automatic_payloads;
+                candidate_length=List.length payloads;
                 candidate_fingerprint});
+            (* A plan retained under an identity shares its batches with the
+               automatic slot; count the retained builds once. *)
+            if retained then value.retained_batch_reuses<-Int64.succ value.retained_batch_reuses;
             finish(Ok true))
 let render_sampled_resources ?after_prepare ?clear value draws=render_sampled_resources_common ?after_prepare ?clear value draws
 let render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version value draws=render_sampled_resources_common ?after_prepare ?clear~prepared:(identity,version)value draws
@@ -1159,20 +1231,13 @@ let replay_prepared_sampled_resources ?(clear=(0.,0.,0.,0.)) ~identity ~version 
       Ogpu.Error.Stale_handle"renderer is destroyed"
   else match value.prepared_submission with
   |Some cached when cached.submission_identity=identity&&
-      cached.submission_version=version&&cached.submission_clear=clear->
+      cached.submission_version=version&&cached.submission_plan.replay_clear=clear->
       Result.map(fun presented->Some(presented,cached.submission_draw_count))
-        (replay_commands value cached.submission_commands)
+        (replay_plan value cached.submission_plan)
   |_->Ok None
-let render_resources ?clear value draws=render_sampled_resources ?clear value(List.map(fun(family,blend,texture,auxiliary,draw)->
-  {family;blend;texture;auxiliary;samples=1;draw})draws)
-let render_textured ?clear value draws=render_resources ?clear value(List.map(fun(family,blend,texture,draw)->family,blend,texture,None,draw)draws)
-let render_family ?clear value draws=render_textured ?clear value(List.map(fun(family,blend,draw)->family,blend,None,draw)draws)
-let render_blended ?clear value draws=render_family ?clear value(List.map(fun(blend,draw)->Scene2,blend,draw)draws)
-let render ?clear value draws=render_blended ?clear value(List.map(fun draw->Ogpu.Pipeline.Replace,draw)draws)
+let render ?clear value draws=render_sampled_resources ?clear value(List.map(fun draw->{family=Scene2;blend=Ogpu.Pipeline.Replace;texture=None;auxiliary=None;samples=1;draw})draws)
 let resize value configuration=
-  value.prepared_submission<-None;
-  value.automatic_submission<-None;
-  value.automatic_candidate<-None;
+  drop_plans value;
   let samples=List.sort_uniq Int.compare(List.map(fun variant->variant.samples)value.pipelines)in
   match allocate_target value.device configuration with Error _ as e->e|Ok target->
   let attachments=Scene_attachment_pool.create~device:value.device~configuration~sample_counts:samples in
@@ -1183,6 +1248,16 @@ let resize value configuration=
   match configured with Error e->ignore(Ogpu.Backend.destroy_texture target);Scene_attachment_pool.destroy attachments;Error e|Ok()->let old=value.target and old_attachments=value.attachments in value.target<-target;value.configuration<-configuration;value.attachments<-attachments;Scene_attachment_pool.destroy old_attachments;Ogpu.Backend.destroy_texture old
 let upload_bytes value=value.uploaded
 let cache_entries value=List.length value.cache
+type retained_stats={plan_builds:int64;plan_hits:int64;plan_misses:int64;plan_evictions:int64;
+  plan_executions:int64;plan_failures:int64;plan_last_failure:string option;plan_entries:int;plan_capacity:int}
+let retained_stats value=
+  let live plan=Option.fold~none:0~some:(fun plan->List.length(List.filter(fun b->Option.is_some b.batch_icb)plan.replay_batches))plan in
+  {plan_builds=value.icb_stats.icb_builds;plan_hits=value.icb_stats.icb_hits;plan_misses=value.icb_stats.icb_misses;
+   plan_evictions=value.icb_stats.icb_evictions;plan_executions=value.icb_stats.icb_executions;
+   plan_failures=value.icb_stats.icb_failures;plan_last_failure=value.icb_stats.icb_last_failure;
+   plan_entries=live value.automatic_submission+live(Option.map(fun s->s.submission_plan)value.prepared_submission);
+   plan_capacity=2}
+let pipeline_count value=List.length value.pipelines
 module Private=struct
   let retained_batch_stats value=
     value.retained_batch_builds,value.retained_batch_reuses
@@ -1190,15 +1265,28 @@ end
 let read_pixels value ~bytes_per_row=Ogpu.Backend.read_texture value.target~bytes_per_row
 let read_pixels_into value ~bytes_per_row ~destination=
   Ogpu.Backend.read_texture_into value.target~bytes_per_row~destination
+(* Every owned handle is released; the first failure is reported after the
+   remaining releases and device teardown have run. *)
 let destroy value=if value.dead then Ok()else(value.dead<-true;
-  value.prepared_cache<-[];value.prepared_submission<-None;
-  value.automatic_submission<-None;
-  value.automatic_candidate<-None;
+  let failure=ref None in
+  let record=function Ok()->()|Error error->if !failure=None then failure:=Some error in
+  let named name=function Ok()->()|Error(error:Ogpu.Error.t)->
+    record(Error{error with message=error.message^" ("^name^")"})in
+  value.prepared_cache<-[];drop_plans value;
   clear_prepared_scratch value.prepared_scratch;
   value.prepared_scratch.scratch_slots<-[||];
-  List.iter(fun item->ignore(Ogpu.Backend.destroy_buffer item.buffer))value.cache;value.cache<-[];
+  List.iter(fun variant->Option.iter(fun argument->record(Ogpu.Backend.destroy_argument argument))variant.argument;variant.argument<-None)value.pipelines;
+  List.iter(fun item->named("mesh "^item.key)(Ogpu.Backend.destroy_buffer item.buffer))value.cache;value.cache<-[];
   value.previous_uniforms<-[||];
   Array.iteri(fun index page->Option.iter(fun page->
-    ignore(Ogpu.Backend.destroy_buffer page.page_buffer))page;
+    named"uniform page"(Ogpu.Backend.destroy_buffer page.page_buffer))page;
     value.uniform_pages.(index)<-None)value.uniform_pages;
-  List.iter(fun item->ignore(Ogpu.Backend.destroy_buffer item.auxiliary_buffer))value.auxiliary_cache;value.auxiliary_cache<-[];List.iter(fun item->ignore(Ogpu.Backend.destroy_texture item.texture))value.texture_cache;value.texture_cache<-[];Option.iter(fun scratch->ignore(Ogpu.Backend.destroy_buffer scratch.scratch_buffer))value.texture_upload_scratch;value.texture_upload_scratch<-None;Scene_attachment_pool.destroy value.attachments;ignore(Ogpu.Backend.destroy_texture value.target);List.iter(fun variant->ignore(Ogpu.Backend.destroy_pipeline variant.pipeline))value.pipelines;Option.iter(fun surface->ignore(Ogpu.Backend.destroy_surface surface))value.surface;ignore(Ogpu.Backend.destroy_queue value.queue);match value.before_device_destroy()with Error _ as e->e|Ok()->Ogpu.Backend.destroy_device value.device)
+  List.iter(fun item->record(Ogpu.Backend.destroy_buffer item.auxiliary_buffer))value.auxiliary_cache;value.auxiliary_cache<-[];List.iter(fun item->record(Ogpu.Backend.destroy_texture item.texture))value.texture_cache;value.texture_cache<-[];Option.iter(fun scratch->record(Ogpu.Backend.destroy_buffer scratch.scratch_buffer))value.texture_upload_scratch;value.texture_upload_scratch<-None;
+  Option.iter(fun pool->named"argument page"(Ogpu.Backend.destroy_buffer pool.argument_buffer))value.arguments;value.arguments<-None;
+  Hashtbl.iter(fun _ sampler->record(Ogpu.Backend.destroy_sampler sampler))value.samplers;Hashtbl.reset value.samplers;
+  Scene_attachment_pool.destroy value.attachments;record(Ogpu.Backend.destroy_texture value.target);List.iter(fun variant->record(Ogpu.Backend.destroy_pipeline variant.pipeline))value.pipelines;Option.iter(fun surface->record(Ogpu.Backend.destroy_surface surface))value.surface;record(Ogpu.Backend.destroy_queue value.queue);
+  record(value.before_device_destroy());
+  if value.owns_device then record(Ogpu.Backend.destroy_device value.device);
+  match !failure with
+  |Some(error:Ogpu.Error.t)->Error{error with message=error.message^(match value.icb_stats.icb_last_failure with Some text->" [plans: "^text^"]"|None->"")}
+  |None->Ok())

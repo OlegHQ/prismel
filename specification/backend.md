@@ -15,22 +15,24 @@ examples / sketches / pxui / editor / procedural / pdk
                          |
                          v
                       runtime_next ------> sdl3
-                         |  \
-                         v   v
-                  ogpu_metal_native    ogpu (virtual)
-                         |   |             |
-                         v   v             v
-                       metal  ogpu_core <-+
+                         |
+                         v
+                     ogpu (virtual) ---> ogpu_core ---> native_layer_token
 
-                    ogpu_metal (implementation) ---> ogpu_metal_native
+                    ogpu_metal (implementation) ---> ogpu_metal_native ---> metal
                     ogpu_mock  (implementation) ---> ogpu_core
 ```
 
 `runtime_next` owns process setup, initial-domain lifecycle, the SDL3 window, its
-Metal view, resize scheduling, and presentation. `ogpu_metal_native` owns the
-translation from the checked high-level GPU interface to typed Metal bindings;
-`ogpu_metal` selects it as the default virtual OGPU implementation.
-`metal` owns the safe Metal resource and command API. Prismel owns pure scene
+Metal view, resize scheduling, and presentation. It depends on `sdl3` and the
+virtual `ogpu` only: it obtains the driver through `Ogpu.Impl.create_driver`,
+and the surface configuration carries the window's `Native_layer_token`, which
+the Metal adapter adopts as its `CAMetalLayer` and releases with the surface.
+`Ogpu.Backend.gpu_timing` reports the queue's accumulated GPU time, so the
+runtime reads no Metal counter. `ogpu_metal_native` owns the translation from
+the checked high-level GPU interface to typed Metal bindings; `ogpu_metal`
+selects it as the default virtual OGPU implementation. `metal` owns the safe
+Metal resource and command API. Prismel owns pure scene
 values and records rendering through the narrow GPU boundary; it never exposes
 native handles in its public API.
 The pure `editor` library owns bounded undo history with explicit edit merge
@@ -63,34 +65,148 @@ OGPU's dormant Frame_graph, Descriptor_arena, Transfer_ring, Instance,
 Device_lifecycle, and Acceleration_pass modules have no production callers and
 are removed. Query validation stays in `Ogpu.Sync.resolve`; the redundant
 Query_pass and scoped Native_pass metadata wrappers are removed. The Metal
-queue now owns its bounded submission epochs and reusable command storage,
-instead of carrying the separate `Ogpu.Submission` state object. The live
-command and resource contracts remain until G4 moves render callers onto the
-virtual interface.
-The native queue can poll completion through an epoch without blocking. Classic
-command buffers use Metal status; Metal 4 submissions read the existing commit
-feedback callback's protected completion flag. A terminal poll uses the same
-ordered cleanup and epoch accounting as a blocking wait.
-The portable `Ogpu.Command_buffer.status` now polls a queue receipt and returns
+queue owns its bounded submission epochs: every command buffer is recorded
+through `Backend.begin_commands` and admitted by `commit` or `commit_present`.
+Plan G4 removed the description-based paths that preceded the encoders: the
+portable `Command`, `Compute_pass`, `Transfer_pass`, `Mock`, and `Cache`
+modules, `Backend.submit`/`submit_sync`/`present`/`submit_present`, pipeline
+adoption, the per-queue submission cache, the Metal adapter's classic and
+retained render-plan caches, its Command4 scoped path, and the description
+encoders. `Ogpu.Render_pass` now holds only the render-state enumerations the
+encoders share, and `Types.origin`/`extent` describe blit regions.
+The native queue can poll completion through an epoch without blocking using
+Metal command-buffer status; a terminal poll uses the same ordered cleanup
+and epoch accounting as a blocking wait.
+The portable `Ogpu.Command_buffer.status` polls a queue receipt and returns
 `Pending` or `Completed`; terminal GPU errors remain typed errors. Its
 `completed_epoch` query is scoped to that queue. The Metal driver passes the
-native poll through the existing retirement and presentation cleanup path;
-the mock uses independent clocks per queue and executes buffer copies/fills
+native poll through the presentation cleanup path;
+the mock uses independent clocks per queue and executes blit copies/fills
 against its owned byte storage. It now executes texture upload, copy, and
 readback through mip-aware RGBA8 storage as well. Shared conformance compares
 exact bytes after padded-row, mip-level, and subregion transfers on mock and
 Metal. The Metal adapter gives copy-only textures an explicit native usage bit
 because Metal expands an empty usage mask during creation. Ray-query, refit,
-and the remaining encoder surface still need G2 conformance.
+and the remaining encoder surface are covered by the G2 conformance below.
+
+OGPU now carries the immediate-mode surface the path tracer needs (plan G2).
+`Backend.create_library` compiles one shader artifact into a reusable library;
+`create_compute_pipeline_from` makes a pipeline per entry point with typed
+function constants and an exact per-entry binding interface checked against
+Metal reflection (buffer, texture, and sampler bindings occupy separate index
+spaces, and `Acceleration_structure` is a binding kind). `create_accel` builds
+bottom-level triangle structures and top-level instance structures from
+`pack_instances` records (transform, mask, structure index); `begin_commands`
+records one command buffer through compute, acceleration, and blit encoders
+(`set_pipeline`, `set_buffer`, `set_bytes`, `set_texture`, `set_accel`,
+`dispatch_threads`, `build_accel`, `refit_accel`, `copy_buffer`) and commits
+without blocking, so `Command_buffer.status` and `gpu_duration` observe it
+through the queue's epochs. Buffers take a `Types.memory` class; device-local
+buffers reject host access with `Unsupported`. The Metal adapter retains every
+referenced resource until the native command buffer completes; the mock
+executes blit copies exactly and answers compute and ray tracing with typed
+`Unsupported`. Shared conformance now checks library lifetime and both
+function-constant specializations, exact encoded compute and blit output,
+abandoned commands, ray-query hits returning primitive id, instance id, and
+`t` on both structure kinds, and refit after moving vertices.
+
+Plan G5 completed the ray-tracing surface. Geometry variants are
+`Triangles`, `Motion_triangles` (one vertex buffer per keyframe),
+`Bounding_boxes`, and `Curves` (linear or higher-order control points, radii,
+and segment indices); descriptors are `Blas`, `Motion_blas` (keyframe count,
+time range, border modes), `Tlas`, `Tlas_of` with an `instance_kind`
+(`Default_instances`, `User_id_instances`, `Motion_instances` plus a keyframe
+transform buffer packed by `pack_transforms`), and `Sized` structures that
+are only filled by `copy_accel` or `compact_accel` after
+`write_compacted_size` reports the size. Instance records pack through the
+driver's `instance_layout` (`pack_instances`, `pack_instance_records`,
+`pack_motion_instances`; Metal: 64, 68, and 44 bytes) and carry masks, user
+ids, and table offsets; TLAS refit is supported. Pipelines link `[[visible]]`
+and `[[intersection]]` functions (`create_compute_pipeline_from ~linked`), and
+`create_intersection_table`/`create_visible_table` with `table_set_function`,
+`table_set_buffer`, and the compute encoder's `set_table` bind them through
+the `Intersection_table` and `Visible_table` binding kinds, which share the
+buffer index space. `Caps.Function_tables` and `Caps.Ray_tracing_curves`
+(Metal: Apple9 and later; the M1 reports curves unsupported and answers with
+typed `Unsupported` while the kernels still compile) gate the features.
+Conformance on Metal traces bounding boxes through an intersection table,
+curves or their rejection, motion primitives and motion instances at three
+shutter times, user-id masks, TLAS refit, compaction and copy hit parity, and
+visible tables; the mock rejects linked functions and reproduces the record
+layouts.
+
+Plan G6 added the memory and synchronization surface. `create_heap` makes a
+placement heap in one memory class, tracked or untracked; `create_heap_buffer`
+and `create_heap_texture` place resources at explicit offsets,
+`make_aliasable` lets a later placement overlap a resource, and
+`buffer_placement`/`texture_placement` report the size and alignment a
+resource needs; compute and render encoders declare heaps with
+`compute_use_heap`/`render_use_heap`. Residency sets (`create_residency_set`,
+`residency_add`/`residency_remove`/`residency_commit`, `queue_add_residency`,
+`use_residency`) keep allocations resident per queue or per command buffer.
+Intra-queue fences (`create_fence`, `update_fence`, `wait_fence` on compute,
+blit, and render encoders) order encoders on one queue, which is what makes
+untracked heap aliasing safe. Timeline events (`create_event`,
+`signal_event`/`wait_event` on the host, `commands_signal_event`/
+`commands_wait_event` between encoders) synchronize the host with the GPU and
+queues with each other. Timestamps (`create_timestamps`, the `?timestamps`
+argument of `compute_encoder`, `blit_encoder`, and `render_encoder`,
+`resolve_timestamps` into a buffer, `read_timestamps` on the host, and
+`timestamp_reference` for the CPU/GPU clock pair and tick rate) sample GPU
+time at encoder stage boundaries, the only sampling point Apple GPUs offer.
+`Caps` gained `Heaps`, `Residency_sets`, and `Fences`, and
+`Event_synchronization` and `Timestamp_queries` are now real probes (the M1
+reports all five). The Metal adapter defers destruction of any of these
+objects while a submission still uses it; the mock implements fences and
+events (an event wait that is not yet satisfied parks the rest of the command
+buffer until the host polls, completes, or waits) and answers heaps,
+residency sets, and timestamps with typed `Unsupported`. The safe Metal layer
+gained shared-event signal/wait on classic command buffers, a host wait with
+timeout, and compute/blit encoders created from pass descriptors, each with a
+success and a rejection test.
+
+Plan G7 completed the pipeline and memory surface. Mesh pipelines
+(`create_mesh_pipeline` from a library's object, mesh, and fragment entries
+with compiled threadgroup sizes; `draw_mesh` on the render encoder) and tile
+pipelines (`create_tile_pipeline`; `dispatch_tile` inside a render pass over
+the imageblock; `tile_size`) share the render encoder with vertex pipelines,
+whose shape the encoder tracks so that a draw of the wrong kind is
+`Invalid_state`; `shader_stage` gained `Object`, `Mesh`, and `Tile` for stage
+bindings. Dynamic libraries (`create_dynamic_library` from MSL with an install
+name; `create_library ~dynamic` links against them and preloads them into
+every pipeline of that library) and binary archives (`create_archive`,
+`archive_add` of compute, mesh, and tile pipelines, `archive_serialize`,
+`?archives`/`?archive_only` on pipeline creation) are gated by
+`Caps.Dynamic_libraries`/`Caps.Binary_archives`; vertex/fragment render
+pipelines are compiled by the Metal 4 compiler and answer archives with typed
+`Unsupported`. Sparse textures live in `create_heap ~sparse:true` heaps
+(`create_sparse_texture`, `texture_tile`, and `map_tiles` between encoders,
+unmapped tiles reading as zero) behind `Caps.Sparse_memory`, and
+`create_upscaler`/`upscale` wrap the MetalFX spatial scaler behind
+`Caps.Metal_fx`; both capabilities are real probes now. The Metal adapter
+serializes a dynamic library at its install name (or a temporary file for an
+`@rpath` name) and loads it back, which is how Metal resolves pipeline
+symbols. Safe Metal additions, handwritten in the bridge with success and
+rejection tests: classic `draw_mesh_threadgroups` and
+`dispatch_threads_per_tile`, mesh/tile descriptor color formats, optional
+mesh depth/stencil formats, and `Metal.Fx.Spatial_scaler`, whose MetalFX
+framework is linked as its own input. Conformance draws a full-screen
+triangle through an object+mesh pipeline, inverts a green pass to magenta
+through a tile kernel, calls a dynamic-library function from a kernel,
+round-trips a compute pipeline through a serialized archive with
+`archive_only`, uploads into a two-tile sparse texture and reads the mapped
+tile back and the unmapped one as zero, then remaps, and upscales a constant
+2x2 image to a constant 4x4; the mock rejects each with typed
+`Unsupported`.
 The virtual mock now reports `Compute_pipeline = false`: it validates compute
 descriptions but cannot execute MSL. Pipeline creation, adoption, and raw
 compute submissions reject with typed `Unsupported`; Metal keeps compute
 enabled. The generic mock cache test no longer pretends that a metadata-only
-compute pipeline exercises executable GPU work. The portable
-`Backend.create_compute_pipeline` compiles an MSL compute descriptor through
-the Metal adapter's existing compiler and reflection checks. Shared
-conformance now dispatches that pipeline and compares exact output words on
-Metal, while requiring typed `Unsupported` on the mock. `Ogpu.Library` now
+compute pipeline exercises executable GPU work. Compute pipelines come only from libraries
+(`Backend.create_library` and `create_compute_pipeline_from`), whose
+reflection checks the declared interface; shared conformance dispatches them
+through the compute encoder and compares exact output words on Metal, while
+requiring typed `Unsupported` on the mock. `Ogpu.Library` now
 exposes source and compiled metallib artifacts (currently aliasing `Shader`
 for compatibility); compute pipeline identity includes typed function
 constants. The Metal adapter loads compiled bytes and specializes the selected
@@ -103,9 +219,10 @@ source MSL and mock compiled-pipeline `Unsupported`; compiled-output validation 
 Xcode toolchain. Acceleration/refit and the remaining encoder contract remain
 in G2.
 The path tracer's MSL now lives in `lib/prismel_pathtracer/pathtrace.metal` and
-is embedded by an OCaml/Dune rule; its runtime compilation and raw Metal
-ownership remain until G3 migrates it to OGPU. The M1 fixed-image
-qualification covers flat and instanced renders after this source move.
+is embedded by an OCaml/Dune rule and compiled once into one OGPU library;
+the `INSTANCED` function constant selects the flat or instanced pipeline. The
+M1 fixed-image qualification covers flat and instanced renders after this
+source move and after the OGPU migration.
 The path-tracer camera input is now `Prismel.Camera.t`; the current ray kernel
 accepts only an unshifted perspective view. The M1 fixed-image qualification
 also covers this API migration.
@@ -122,14 +239,15 @@ feature availability, and conservative-probe notes travel as one value.
 uses `Caps.require` for typed unsupported-feature results.
 The old Metal `Adapter` module is removed; it no longer duplicates feature
 decisions or wraps capability probes.
-The shared `test/ogpu_conformance` runner now exercises capabilities, buffer
-round trips, submissions, lifetime rejection, and teardown on both the mock
-and Metal drivers. Two executables select `ogpu_mock` and `ogpu_metal` through
-Dune's virtual-library implementation mechanism. The portable types live in
-`ogpu_core`; the wrapped `ogpu` module aliases them without changing type
-identity. The native detail library depends on that core, avoiding a cycle.
-G4 will remove the remaining direct runtime and scene-execution access to
-`ogpu_metal_native`.
+The shared `test/ogpu_conformance` runner exercises capabilities, encoded
+buffer and texture round trips (padded rows, mip levels, inset origins),
+libraries and compute, ray tracing, the render path, lifetime rejection, and
+teardown on both the mock and Metal drivers. Two executables select
+`ogpu_mock` and `ogpu_metal` through Dune's virtual-library implementation
+mechanism. The portable types live in `ogpu_core`; the wrapped `ogpu` module
+aliases them without changing type identity. Nothing outside `lib/metal` and
+`lib/ogpu_metal` references `Metal` or `Ogpu_metal_native`; the dependency
+gate lists no Metal exception.
 
 Qualification code reads the runtime and Metal counters at their owning
 boundaries. Sketch does not retain a process-global diagnostics snapshot after
@@ -157,8 +275,7 @@ The vertex shader indexes that table with Metal's instance ID. OGPU carries a
 checked positive instance count; OGPU-Metal uses an indexed instanced draw and
 keeps the transform buffer alive through completion. Scene3 uses
 counterclockwise front faces, matching PDK mesh winding. Other scene paths
-retain their existing winding. Scene3 indexed draws use the classic encoder
-until the prepared indexed pass supports instance counts and winding.
+retain their existing winding.
 
 Scene execution uploads transform blocks into three bounded shared-buffer
 pages, with each draw's offset aligned to 256 bytes. A changed transform set
@@ -166,8 +283,8 @@ packs into the next page; an unchanged set reuses the previous page without
 another upload and permits retained-command replay when other state matches.
 Submission is synchronous,
 so a page is reused only after its prior GPU work completes. Each page is
-capped at 256 MiB. Small uniforms still use these pages until OGPU render
-encoders expose inline `set_bytes` in P3-1/G4.
+capped at 256 MiB. Small uniforms use these pages rather than inline
+`set_stage_bytes`, so retained indirect commands can reference them.
 
 Scene3 raster accepts indexed triangles, lines, and points. Lines use native
 Metal line draws; points use a point-topology pipeline with an explicit
@@ -182,14 +299,16 @@ The initial domain owns every window, event, layer, drawable, and resource
 operation. Pure geometry and scene preparation may use the shared parallel
 pool, but all results join before crossing the native boundary.
 
-`prismel_pathtracer` is the one ordinary sibling library that consumes the
-safe `metal` API directly: it owns its own device, queue, acceleration
-structures, and compute pipelines. Its packed-mesh path builds one primitive
-structure and a top-level instance structure; unchanged prototypes retain
-their GPU buffers and primitive structure across transform edits. It hands
-results back to Prismel only as
-an ordinary `Image.t` with a stable identity. It never exposes native handles
-and nothing below it imports it. See `specification/pathtracer.md`.
+`prismel_pathtracer` is an ordinary sibling library on the virtual `ogpu`
+API: it leases the presenting window's OGPU device through
+`Prismel_next_execution.acquire_gpu` (or a lazily created headless device when
+no window exists), owns one queue on it, and builds its acceleration
+structures, library, pipelines, and frames through OGPU encoders. Its
+packed-mesh path builds one bottom-level structure and a top-level instance
+structure; unchanged prototypes retain their GPU buffers and bottom-level
+structure across transform edits. It hands results back to Prismel only as
+an ordinary `Image.t` with a stable identity. It imports neither `metal` nor
+the runtime, and nothing below it imports it. See `specification/pathtracer.md`.
 
 ## Frame lifecycle
 
@@ -201,38 +320,27 @@ and nothing below it imports it. See `specification/pathtracer.md`.
    ranges, and command ordering before encoding Metal commands.
 4. Scene passes render into one owned RGBA8 texture, which remains the exact
    native capture/readback source.
-5. A typed OGPU presentation operation uses the same producer queue to render
-   that RGBA8 texture into the acquired BGRA8 `CAMetalDrawable`. Classic final
-   passes append conversion and drawable scheduling to their existing command
-   buffer. A final pass that requires Command4 completes first and uses the
-   ordered same-queue classic presentation fallback until Command4 exposes a
-   bounded submission-scoped drawable lifetime. Both paths keep
-   completion-owned state alive until Metal reports completion. Production
-   drawables remain framebuffer-only; only the focused backend test creates a
-   readable layer.
+5. `Backend.commit_present` appends the presentation pass, which renders that
+   RGBA8 texture into the acquired BGRA8 `CAMetalDrawable`, to the frame's own
+   command buffer and schedules the drawable. The queue keeps the frame,
+   drawable, and source alive until Metal reports completion. Production
+   drawables are framebuffer-only; the windowed runtime tests cover
+   presentation end to end.
 
-Unchanged portable submissions may reuse an exact immutable command/resource/
-pipeline identity tuple. Public commands snapshot every reachable mutable array
-once and are abstract; generic drivers receive only a borrowed, read-only view.
-The generic queue validates the current resource and pipeline wrappers on every
-hit, but caches only the command identity and numeric identity/token maps. It
-never retains command graphs, public resource or pipeline wrappers, or arbitrary
-driver closures. Destroying a resource or pipeline purges matching numeric
-entries. The queue keeps at most 256 entries and 64 MiB of this mapping metadata
-per queue by default; the fixed 256-slot array is bounded independently from
-the byte ledger, and retained-byte statistics cover entry metadata only.
-Oversized maps remain one-shot. OGPU-Metal applies a
-separate 256-entry and 64-MiB default per-queue bound to retained classic pass
-descriptors and accounts any command graph it deliberately owns. Both byte
-limits are configurable, use conservative saturating accounting, mutate only
-after native admission, and release their accounting on eviction and queue
-teardown.
-
-Scene execution's retained commands borrow the bounded mesh, texture, and
-auxiliary caches. Resources evicted while preparing a frame remain alive until
-that synchronous submission completes. Before releasing any deferred resource,
-execution invalidates both explicit prepared replay and automatic command
-replay, including their admission candidate, on success and failure paths.
+Scene execution records each frame through the render encoder. A frame's
+passes become a replay plan of indirect command buffers when two consecutive
+frames present identical draws (the automatic plan, admitted through a
+fingerprint of the mesh, uniform, texture, and state identities and then an
+exact payload comparison); an explicit prepared plan is keyed by identity and
+version. Indirect commands cover buffer-only pipelines; textured families are
+re-encoded each frame. Every render pass first makes the batch's buffers and
+argument-referenced textures resident with `use_resources`, so a texture
+reached only through an argument buffer is never sampled from a non-resident
+page. Scene execution's plans borrow the bounded mesh, texture, and auxiliary
+caches. Resources evicted while preparing a frame remain alive until that
+synchronous submission completes. Before releasing any deferred resource,
+execution drops both the prepared and automatic plans, including the
+admission candidate, on success and failure paths.
 The next frame rebuilds from the immutable CPU description. A dense scene may
 exceed cache capacity without retaining a graph that refers to destroyed GPU
 objects or increasing the cache bounds. Regressions cover 257 meshes, 257
@@ -283,25 +391,6 @@ Separately constructed but equivalent IR still uses content comparison to
 preserve cache hits. The identity does not enter serialized IR or rendered
 artifacts; the Scene2 plan cache remains capped at 16 entries and 64 MiB.
 
-Retained OGPU-Metal identity and replay metadata have independent 256-entry
-limits and share a configurable 64-MiB default byte capacity per queue. Metal's
-retained render-plan cache has its own entry limit and configurable 64-MiB
-default capacity, measured from each private-storage indirect command buffer's
-native `allocatedSize`. The adapter separately bounds the safe owner graph that
-keeps commands, argument encoders and buffers, samplers, prepared resource
-sets, pipelines, and dependency tokens alive. Evicted in-flight plans move
-their exact ICB bytes and conservative owner bytes to an explicit retired-byte
-ledger until completion; teardown drains every ledger to zero.
-
-A prepared Metal pass is an immutable generic snapshot. It roots the typed safe
-wrappers needed for revalidation, but owns no command buffer or native encoder
-while idle. Execution first revalidates its descriptor graph, resource
-lifetimes, device identity, render area, and draw or ICB range. A successful
-command buffer then owns one typed aggregate of the referenced resources until
-terminal completion. Unexpected native failure closes any opened encoder and
-makes that command buffer uncommittable; it never falls back to a CPU or
-alternate renderer.
-
 Private scene staging may split consecutive Scene2 commands into multiple
 ordered native layers so independently changing UI regions do not invalidate a
 stable retained plan.  A staging boundary emits no rendering command, does not
@@ -330,11 +419,19 @@ PXUI publishes the atlas through public `Image.upload_rgba`, preserving the
 image identity on replacement and retrying a failed upload on the next frame.
 
 `Canvas.render` uses the same lowering, pipeline variants, validation, and
-completion path against a layerless owned Metal texture. A Canvas creates its
-offscreen coordinator lazily, reuses it for all subsequent renders, reads the
-completed texture back into the public Canvas snapshot, and destroys the
-coordinator with `Canvas.destroy`. Offscreen submission never creates a hidden
-window, acquires a drawable, presents, or waits for display pacing.
+completion path against a layerless owned texture on the shared device: the
+offscreen execution leases the presenting window's OGPU device (or the
+lazily created headless device) through the same lease as GPU film
+producers, and the scene executor borrows that device without destroying it.
+A Canvas creates its offscreen coordinator lazily, reuses it for all
+subsequent renders, and after each render publishes the completed target
+texture to the Canvas resource. A window scene that draws the canvas samples
+that texture directly, keyed by canvas generation, with no readback or
+upload; CPU access (`pixel`, `pixels`, `capture`, `to_image`, `save_png`)
+reads the texture back lazily, and a CPU mutation makes the CPU pixels
+authoritative again. `Canvas.destroy` destroys the coordinator and releases the
+lease. Offscreen submission never creates a hidden window, acquires a drawable,
+presents, or waits for display pacing.
 
 Windowed runtime configuration selects FIFO presentation when vsync is enabled
 and Immediate presentation otherwise. The selected mode is retained across
@@ -344,9 +441,8 @@ Canvas targets always report `vsync = false` and `presented = 0`.
 Drawable dimensions are physical pixels. `Frame.width`, `Frame.height`, scene
 coordinates, input positions, and PXUI layout remain logical points; the
 backend performs the logical-to-drawable conversion exactly once at the native
-viewport boundary. Captures read the owned drawable-sized RGBA8 Metal target;
-they do not masquerade as a read of the BGRA window drawable. Exact
-presentation tests separately probe the acquired drawable through a GPU blit.
+viewport boundary. Captures read the owned drawable-sized RGBA8 target;
+they do not masquerade as a read of the BGRA window drawable.
 
 ## Resource rules
 
@@ -377,13 +473,12 @@ The path tracer instead publishes one of two borrowed OGPU film textures on
 completion. Scene samples that texture directly without image staging or a
 per-frame CPU readback. The tracer writes the other texture while rendering;
 explicit `Image.pixels` and capture remain checked readback boundaries.
-Scene rejects malformed, destroyed, and foreign-device GPU image sources.
-An independent offscreen Canvas renderer snapshots the image once into its
-own device, preserving `Canvas.render` and `Image.pixels` behavior across that
-device boundary.
+Scene rejects malformed, destroyed, and foreign-device GPU image sources; a
+canvas rendered on another device than the window's falls back to its CPU
+pixels.
 
 Canvas pixel storage is a compatibility/readback snapshot, not a renderer.
-`Canvas.render` replaces it only with completed native Metal output. The
+`Canvas.render` replaces it only with completed native GPU output. The
 snapshot continues to support `pixels`, `capture`, `to_image`, `save_png`, and
 explicit resource destruction; no CPU raster fallback participates in scene
 rendering.

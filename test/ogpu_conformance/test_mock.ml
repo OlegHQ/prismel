@@ -7,4 +7,4 @@ let () =
   Ogpu_conformance.Conformance.run ~metallib driver;
   if live_handles () <> 0 then
     failwith "mock backend leaked handles";
-  print_endline "OGPU conformance (mock): capabilities, buffer/texture round trip, typed source/compiled compute rejection, lifetime, zero handles"
+  print_endline "OGPU conformance (mock): capabilities, buffer/texture round trip, typed compute/ray-tracing/linked-function rejection, instance record packing, exact encoded blit, fences, timeline events with deferred waits, typed heap/residency/timestamp/mesh/tile/dynamic-library/archive/sparse/upscale rejection, lifetime, zero handles"

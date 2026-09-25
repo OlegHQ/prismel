@@ -29,7 +29,7 @@ let () =
   end;
   if Array.length Sys.argv > 1 && Sys.argv.(1) = "--gpu" then begin
     let scene = { P.objects = [cube, P.material (rgb 0.4 0.4 0.4)]
-      ; environment = { sky = rgb 0. 0. 0.; ground = rgb 0. 0. 0.; panels = [] }
+      ; spheres = []; strands = []; environment = { sky = rgb 0. 0. 0.; ground = rgb 0. 0. 0.; panels = [] }
       ; lights = [] } in
     let tracer = match P.create ~width:32 ~height:32 scene with
       | Ok value -> value | Error error -> failwith error in
@@ -48,7 +48,7 @@ let () =
   if Array.length Sys.argv > 1 && Sys.argv.(1) = "--compare-render" then begin
     let material = P.material ~roughness:0.6 ~round:0.07 (rgb 0.42 0.42 0.44) in
     let scene = { P.objects = [cube, material]
-      ; environment = { sky = rgb 0.006 0.007 0.009
+      ; spheres = []; strands = []; environment = { sky = rgb 0.006 0.007 0.009
                       ; ground = rgb 0.002 0.002 0.003; panels = [] }
       ; lights = [P.rect_light ~intensity:9. ~size:(24., 24.)
                     ~target:(v 17. 29. 0.) (v (-17.) 69. 30.)] } in

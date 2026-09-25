@@ -15,9 +15,10 @@ type t = { kind : kind; backend : string; label : string option; key : string; d
 let invalid operation message = Error (Error.make operation Error.Invalid_argument message)
 let valid_text value = value <> "" && not (String.contains value '\000')
 let binding_kind = function
-  | Shader.Uniform_buffer | Storage_buffer -> Binding.Buffer
+  | Shader.Uniform_buffer | Storage_buffer | Intersection_table | Visible_table -> Binding.Buffer
   | Sampled_texture | Storage_texture -> Binding.Texture
   | Sampler -> Binding.Sampler
+  | Acceleration_structure -> Binding.Acceleration_structure
 let binding_stage = function
   | Shader.Vertex -> Binding.Vertex | Fragment -> Binding.Fragment | Compute -> Binding.Compute
 let kind_code = function Binding.Buffer -> "b" | Texture -> "t" | Sampler -> "s" | Acceleration_structure -> "a"
@@ -133,3 +134,10 @@ let backend value = value.backend
 let label value = value.label
 let cache_key value = value.key
 let description value = value.description
+
+module Private = struct
+  let compute_of_key ?label key =
+    { kind = Compute; backend = "metal"; label; key; description = "library-compute:" ^ key }
+  let render_of_key ?label key =
+    { kind = Render; backend = "metal"; label; key; description = "library-render:" ^ key }
+end

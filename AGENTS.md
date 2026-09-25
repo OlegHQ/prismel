@@ -55,9 +55,10 @@ violations are listed there with the plan item that removes them.
   `scene_command`) never reach `runtime_next`, `prismel`, or anything above.
   `ogpu_core` depends on nothing in the repo; virtual `ogpu` depends only on
   `ogpu_core`. `ogpu_mock` stays portable; native Metal detail depends only on
-  `ogpu_core` + `metal` until G4 removes its direct callers.
-- `Metal.`/`Ogpu_metal_native.` stay within the Metal backend except for the
-  listed runtime, path-tracer, and test exceptions scheduled for G3/G4.
+  `ogpu_core` + `metal`.
+- `Metal.`/`Ogpu_metal_native.` stay within the Metal backend; the runtime,
+  path tracer, and their tests use the virtual `ogpu` only, and the gate lists
+  no Metal exception.
 - `prismel` never depends on `pxui`, geometry, sketch libraries, or examples.
 - `pxui_shell` depends only on `prismel`, `editor`, and `pxui`; it never imports
   SOP, graph, geometry, or sketch libraries.

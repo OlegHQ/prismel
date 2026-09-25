@@ -1,4 +1,5 @@
 (library
  (name ogpu_core)
  (public_name prismel.ogpu_core)
- (modules Error Handle Caps Validation Types Command Mock Shader Surface Binding Sync Pipeline Acceleration Cache Memory Render_pass Diagnostics Compute_pass Transfer_pass Backend Command_buffer Backend_mock))
+ (modules Error Handle Caps Validation Types Shader Surface Binding Sync Pipeline Acceleration Memory Render_pass Diagnostics Backend Command_buffer Backend_mock)
+ (libraries native_layer_token))

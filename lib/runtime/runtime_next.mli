@@ -1,8 +1,10 @@
 type t
 val clipboard_set_text : string -> (unit, Ogpu.Error.t) result
 val clipboard_get_text : unit -> (string, Ogpu.Error.t) result
-val gpu_film_texture : t -> width:int -> height:int ->
-  (Ogpu.Backend.texture * Metal.Texture.t,Ogpu.Error.t) result
+
+(** The window's OGPU device, shared with GPU film producers such as the path
+    tracer so Scene can sample their textures without staging. *)
+val device : t -> (Ogpu.Backend.device,Ogpu.Error.t) result
 type stats = { pipeline_cache_entries:int; mesh_cache_entries:int;
   uploaded_bytes:int64; gpu_timing_supported:bool; gpu_duration_seconds:float;
   gpu_sample_count:int64; retained_plan_builds:int64; retained_plan_hits:int64;
@@ -57,8 +59,12 @@ val maximize : t -> (unit, Ogpu.Error.t) result
 val restore : t -> (unit, Ogpu.Error.t) result
 val destroy : t -> (unit, Ogpu.Error.t) result
 type offscreen
-val create_offscreen : logical_width:int -> logical_height:int ->
-  width:int -> height:int -> (offscreen,Ogpu.Error.t) result
+
+(** [?device] borrows a live OGPU device (normally the presenting window's,
+    see [device]) so the offscreen target can be sampled by that window
+    without readback; the offscreen runtime never destroys a borrowed device. *)
+val create_offscreen : ?device:Ogpu.Backend.device -> logical_width:int -> logical_height:int ->
+  width:int -> height:int -> unit -> (offscreen,Ogpu.Error.t) result
 val render_offscreen : ?after_prepare:(unit -> unit) -> ?clear:(float*float*float*float) -> offscreen ->
   Scene_execution.sampled_draw list -> (bool,Ogpu.Error.t) result
 val replay_prepared_sampled_resources :
@@ -73,6 +79,10 @@ val read_offscreen_into : offscreen -> bytes_per_row:int -> destination:bytes ->
 val resize_offscreen : offscreen -> logical_width:int -> logical_height:int ->
   width:int -> height:int -> (unit,Ogpu.Error.t) result
 val offscreen_stats : offscreen -> stats
+val offscreen_device : offscreen -> (Ogpu.Backend.device,Ogpu.Error.t) result
+
+(** The completed frame's texture on the offscreen device. *)
+val offscreen_target : offscreen -> (Ogpu.Backend.texture,Ogpu.Error.t) result
 val offscreen_facts : offscreen -> frame_facts
 val destroy_offscreen : offscreen -> (unit,Ogpu.Error.t) result
 module Private : sig
