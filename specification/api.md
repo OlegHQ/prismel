@@ -658,6 +658,8 @@ entry per gesture. `Sop_catalog.Camera.of_node` reads the generated parameter
 schema into a typed camera and follow flag; `to_values` writes viewport edits,
 so the host has no camera field names or copied defaults. Fly mode captures the pointer with
 `Sketch.set_relative_mouse`; Escape exits and Space exits into the leader.
+`Editor.Router` owns the fly-mode key filter; pointer and focus-loss events
+still reach the workspace.
 `Prismel_pathtracer.render` accepts `Camera.t` directly. It currently supports
 unshifted perspective cameras and returns an error for other projections,
 forced aspect, or vertical flip.

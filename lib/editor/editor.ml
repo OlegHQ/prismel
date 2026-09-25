@@ -98,6 +98,17 @@ end
 module Router = struct
   type state = Idle | Pending
 
+  let fly (frame : Prismel.Frame.t) =
+    let open Prismel in
+    let exits = List.exists (function
+      | Event.KeyPressed (Input.Escape | Input.Space) | Event.WindowFocusLost -> true
+      | _ -> false) frame.events in
+    exits, { frame with events = List.filter (function
+      | Event.KeyPressed Input.Space | Event.WindowFocusLost -> true
+      | Event.KeyPressed _ | Event.KeyReleased _ | Event.TextInput _
+      | Event.TextEditing _ -> false
+      | _ -> true) frame.events }
+
   let modifier = function
     | Prismel.Input.Shift | Prismel.Input.Ctrl | Prismel.Input.Alt
     | Prismel.Input.Meta -> true

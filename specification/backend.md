@@ -36,6 +36,8 @@ native handles in its public API.
 The pure `editor` library owns bounded undo history with explicit edit merge
 rules, key routing, and atomic JSON storage. Sketch hosts use
 `Editor.History`, `Editor.Router`, and `Editor.Store`;
+the router filters fly-mode keyboard events before leader and chord routing,
+while passing Space through to arm the leader after fly exits.
 `pxui_graph` exports editor bindings and graph commands without handling key
 events. `editor` depends on `prismel` for frame and event values, never on UI
 or geometry libraries. `pxui_shell` owns editor chrome over the shared PXUI

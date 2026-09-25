@@ -6,13 +6,13 @@
   "module_count": 133,
   "modules": [
     {
-      "api_sha256": "036bba7ad4ccd76c919c872597aeb98c8264d6c1dfb177af07e146a4e8429309",
+      "api_sha256": "e50b68fb8b3efb8c3f48d288c797a83690511ce38a332e2c2285c788efd781ad",
       "excluded_legacy_symbols": [],
       "library": "editor",
       "module": "Editor",
       "source": "lib/editor/editor.mli",
-      "source_bytes": 1535,
-      "source_sha256": "24e8fe22858f3e11167d78d38187b02b83155ed40e2ec79c9766d808b06aa083"
+      "source_bytes": 1748,
+      "source_sha256": "8d2346ae0f2f89ba65fbad8cb9b1a17aad2ced5b7f55dea4ab7accd541afadb6"
     },
     {
       "api_sha256": "b46696f52f8f6928015d24bee3f7cf48d237219c12f14a9bbd5895faf319f175",

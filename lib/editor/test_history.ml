@@ -106,4 +106,17 @@ let () =
   let _, actions, passed = chord ~text_focus:true [Input.Meta]
       [Event.KeyPressed (Input.KeyChar 'z')] in
   assert (actions = [] && passed.events = [Event.KeyPressed (Input.KeyChar 'z')]);
+  let pointer = Event.MouseMoved (4., 5.) in
+  let ended, passed = fly (frame [Event.KeyPressed (Input.KeyChar 'w'); pointer]) in
+  assert (not ended && passed.events = [pointer]);
+  let ended, passed = fly (frame [Event.KeyPressed Input.Space;
+      Event.KeyPressed (Input.KeyChar 'g'); Event.TextInput "g"]) in
+  assert (ended && passed.events = [Event.KeyPressed Input.Space]);
+  let state, actions, passed = Editor.Router.step bindings ~focus:View
+      ~text_focus:false ~frame:passed Idle in
+  assert (state = Pending && actions = [] && passed.events = []);
+  let ended, passed = fly (frame [Event.KeyPressed Input.Escape]) in
+  assert (ended && passed.events = []);
+  let ended, passed = fly (frame [Event.WindowFocusLost]) in
+  assert (ended && passed.events = [Event.WindowFocusLost]);
   print_endline "editor router: leader/chord scope, text focus, event consumption ok"

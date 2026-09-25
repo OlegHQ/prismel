@@ -955,28 +955,16 @@ module Environment3 = struct
   let can_undo value = Editor.History.can_undo value.core.Core.history
   let can_redo value = Editor.History.can_redo value.core.Core.history
 
-  (* Fly mode owns the keyboard: Escape or focus loss ends it; Space ends it
-     and reaches the workspace, arming the leader in the same frame. *)
-  let fly_input value (frame : Frame.t) =
-    match value.fly with
-    | None -> value.fly, frame
-    | Some _ as fly ->
-        let ends = List.exists (function
-          | Event.KeyPressed (Input.Escape | Input.Space) | Event.WindowFocusLost -> true
-          | _ -> false) frame.events in
-        (if ends then None else fly),
-        { frame with events = List.filter (function
-            | Event.KeyPressed Input.Space | Event.WindowFocusLost -> true
-            | Event.KeyPressed _ | Event.KeyReleased _ | Event.TextInput _
-            | Event.TextEditing _ -> false
-            | _ -> true) frame.events }
-
   let set_relative enabled = ignore (Sketch.set_relative_mouse enabled)
 
   let update_with value frame ~inspector =
     let ui = value.core.Core.ui in
     let raw_frame = frame in
-    let fly, frame = fly_input value frame in
+    let fly, frame = match value.fly with
+      | None -> None, frame
+      | Some _ ->
+          let ended, frame = Editor.Router.fly frame in
+          (if ended then None else value.fly), frame in
     if value.fly <> None && fly = None then set_relative false;
     let visible = CC.ui_visible value.camera_control in
     let camera_panel () =

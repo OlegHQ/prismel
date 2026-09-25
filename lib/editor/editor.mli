@@ -43,6 +43,10 @@ end
 module Router : sig
   type state = Idle | Pending
 
+  (** In fly mode, keep pointer/window events and pass Space to the leader
+      router after ending the mode. Escape ends fly without opening a shortcut. *)
+  val fly : Prismel.Frame.t -> bool * Prismel.Frame.t
+
   val step : ('scope, 'action) Keymap.binding list -> focus:'scope ->
     text_focus:bool -> frame:Prismel.Frame.t -> state ->
     state * 'action list * Prismel.Frame.t
