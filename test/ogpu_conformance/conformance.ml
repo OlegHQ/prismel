@@ -4,7 +4,7 @@ let get = function
 
 let require condition message = if not condition then failwith message
 
-let run driver =
+let run ?metallib driver =
   let open Ogpu in
   let device = get (Backend.create_device driver) in
   let capabilities = Backend.capabilities device in
@@ -163,41 +163,58 @@ let run driver =
   let compute_descriptor : Pipeline.compute_descriptor=
     {backend="metal";label=Some"exact-compute";layout;shader;
      entry="exact_compute"} in
+  let compiled bytes constants =
+    let shader=get (Library.of_metallib
+      {backend="metal";label=Some"exact-compute-compiled";bytes;
+       entry_points=[{name="exact_compute_compiled";stage=Shader.Compute}];
+       bindings=[{group=0;binding=0;kind=Shader.Storage_buffer;
+                  visibility=[Shader.Compute]}]} ~constants) in
+    ({backend="metal";label=Some"exact-compute-compiled";layout;shader;
+      entry="exact_compute_compiled"}:Pipeline.compute_descriptor) in
   if Caps.has profile Caps.Compute_pipeline then begin
     let compute_buffer=get (Backend.create_buffer device
       {label=Some"compute-output";size=16L;
        usage=[Storage;Copy_src;Copy_dst]}) in
-    let input=Bytes.create 16 in
-    for i=0 to 3 do Bytes.set_int32_le input (i*4) (Int32.of_int i) done;
-    get (Backend.write_buffer compute_buffer ~offset:0L input);
-    let portable=get (Pipeline.create_compute capabilities
-      compute_descriptor) in
-    let pipeline=get (Backend.create_compute_pipeline device
-      compute_descriptor) in
     let group=get (Binding.create_group layout ~group:0
       [{binding=0;resource=Backend.binding_buffer compute_buffer}]) in
     let resource : Compute_pass.resource=
       {id=Backend.buffer_id compute_buffer;access=Command.Read_write;
        stages=[Command.Compute_stage]} in
-    let pass=get (Compute_pass.create (Backend.device_handle device)
-      ~limits:capabilities.limits ~pipeline:portable ~layout
-      ~groups:[|0,group|] ~resources:[|resource|]
-      ~dispatch:(Compute_pass.Direct{x=4;y=1;z=1})) in
-    let compute_receipt=get (Backend.submit queue (Backend.compute pass)
-      ~resources:[`Buffer compute_buffer] ~pipelines:[pipeline]) in
-    poll compute_receipt 1000;
-    let output=get (Backend.read_buffer compute_buffer ~offset:0L
-      ~length:16) in
-    for i=0 to 3 do
-      require (Bytes.get_int32_le output (i*4)=Int32.of_int(i*3+1))
-        "compute output differs"
-    done;
-    get (Backend.destroy_pipeline pipeline);
+    let run_compute descriptor factor =
+      let input=Bytes.create 16 in
+      for i=0 to 3 do Bytes.set_int32_le input (i*4) (Int32.of_int i) done;
+      get (Backend.write_buffer compute_buffer ~offset:0L input);
+      let portable=get (Pipeline.create_compute capabilities descriptor) in
+      let pipeline=get (Backend.create_compute_pipeline device descriptor) in
+      let pass=get (Compute_pass.create (Backend.device_handle device)
+        ~limits:capabilities.limits ~pipeline:portable ~layout
+        ~groups:[|0,group|] ~resources:[|resource|]
+        ~dispatch:(Compute_pass.Direct{x=4;y=1;z=1})) in
+      let receipt=get (Backend.submit queue (Backend.compute pass)
+        ~resources:[`Buffer compute_buffer] ~pipelines:[pipeline]) in
+      poll receipt 1000;
+      let output=get (Backend.read_buffer compute_buffer ~offset:0L
+        ~length:16) in
+      for i=0 to 3 do
+        require (Bytes.get_int32_le output (i*4)=Int32.of_int(i*factor+1))
+          "compute output differs"
+      done;
+      get (Backend.destroy_pipeline pipeline) in
+    run_compute compute_descriptor 3;
+    Option.iter (fun bytes ->
+      run_compute (compiled bytes ["TRIPLE",Shader.Bool true]) 3;
+      run_compute (compiled bytes ["TRIPLE",Shader.Bool false]) 2) metallib;
     get (Backend.destroy_buffer compute_buffer)
   end else
     (match Backend.create_compute_pipeline device compute_descriptor with
      | Error { Error.kind = Unsupported; _ } -> ()
      | _ -> failwith "unsupported compute pipeline was accepted");
+  if not (Caps.has profile Caps.Compute_pipeline) then
+    Option.iter (fun bytes ->
+      match Backend.create_compute_pipeline device
+        (compiled bytes ["TRIPLE",Shader.Bool true]) with
+      | Error { Error.kind = Unsupported; _ } -> ()
+      | _ -> failwith "unsupported compiled pipeline was accepted") metallib;
   let other_queue = get (Backend.create_queue device) in
   require (Command_buffer.completed_epoch other_queue = 0L)
     "new queue inherited another queue's completion";

@@ -14,9 +14,31 @@
  (libraries ogpu_conformance ogpu_metal metal))
 
 (rule
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
+ (target exact_compute.air)
+ (deps exact_compute.metal)
+ (action (run xcrun -sdk macosx metal -c %{dep:exact_compute.metal} -o %{target})))
+
+(rule
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
+ (target exact_compute.metallib)
+ (deps exact_compute.air)
+ (action (run xcrun -sdk macosx metallib %{dep:exact_compute.air} -o %{target})))
+
+(rule
  (aliases runtest ogpu_conformance_mock)
  (action (run %{exe:test_mock.exe})))
 
 (rule
  (aliases runtest ogpu_conformance_metal)
  (action (run %{exe:test_metal.exe})))
+
+(rule
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
+ (alias qualification)
+ (action (run %{exe:test_mock.exe} %{dep:exact_compute.metallib})))
+
+(rule
+ (enabled_if (= %{env:PRISMEL_METAL_DEV=0} 1))
+ (alias qualification)
+ (action (run %{exe:test_metal.exe} %{dep:exact_compute.metallib})))

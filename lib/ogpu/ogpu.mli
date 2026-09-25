@@ -6,6 +6,7 @@ module Types = Ogpu_core.Types
 module Command = Ogpu_core.Command
 module Mock = Ogpu_core.Mock
 module Shader = Ogpu_core.Shader
+module Library = Ogpu_core.Shader
 module Surface = Ogpu_core.Surface
 module Binding = Ogpu_core.Binding
 module Sync = Ogpu_core.Sync

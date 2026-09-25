@@ -37,4 +37,26 @@ let run () =
     bindings = [ binding 1 2 Storage_buffer [ Compute ]; binding 1 2 Sampler [ Compute ] ] });
   rejected (Ogpu.Shader.create { (descriptor (Bytes.of_string "x")) with
     bindings = [ binding 0 0 Uniform_buffer [ Fragment; Vertex ] ] });
+  let compiled_descriptor =
+    { (descriptor (Bytes.of_string "compiled bytes")) with backend = "metal"
+    ; entry_points = [entry "kernel" Compute]
+    ; bindings = [binding 0 0 Storage_buffer [Compute]] } in
+  let compiled = ok (Ogpu.Shader.create_metallib compiled_descriptor
+    ~constants:["TRIPLE",Bool true]) in
+  if Ogpu.Shader.format compiled <> Metallib then fail "compiled shader format lost";
+  if Ogpu.Shader.constants compiled <> ["TRIPLE",Bool true] then
+    fail "function constants lost";
+  let other = ok (Ogpu.Shader.create_metallib compiled_descriptor
+    ~constants:["TRIPLE",Bool false]) in
+  if Ogpu.Shader.provenance_hash compiled = Ogpu.Shader.provenance_hash other then
+    fail "function constant did not change shader identity";
+  rejected (Ogpu.Shader.create_metallib compiled_descriptor
+    ~constants:["TRIPLE",Bool true;"TRIPLE",Bool false]);
+  rejected (Ogpu.Shader.create_metallib compiled_descriptor
+    ~constants:["",Bool true]);
+  rejected (Ogpu.Shader.create_metallib (descriptor (Bytes.of_string "x"))
+    ~constants:[]);
+  rejected (Ogpu.Shader.create_metallib
+    { (descriptor (Bytes.of_string "x")) with backend = "metal" }
+    ~constants:["TRIPLE",Bool true]);
   print_endline "OGPU immutable deterministic shader artifact passed"

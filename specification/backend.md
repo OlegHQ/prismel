@@ -64,8 +64,18 @@ compute pipeline exercises executable GPU work. The portable
 `Backend.create_compute_pipeline` compiles an MSL compute descriptor through
 the Metal adapter's existing compiler and reflection checks. Shared
 conformance now dispatches that pipeline and compares exact output words on
-Metal, while requiring typed `Unsupported` on the mock. A Dune-built metallib
-path and function constants remain in G2.
+Metal, while requiring typed `Unsupported` on the mock. `Ogpu.Library` now
+exposes source and compiled metallib artifacts (currently aliasing `Shader`
+for compatibility); compute pipeline identity includes typed function
+constants. The Metal adapter loads compiled bytes and specializes the selected
+function before reflection validation. The shared conformance runner has a
+second exact-output path for both Boolean constant values, compiled from
+`exact_compute.metal` by Dune. It lives under `@qualification` with
+`PRISMEL_METAL_DEV=1`, because the Command Line Tools installation lacks
+`xcrun metal` and `xcrun metallib`. The default headless suite still checks
+source MSL and mock compiled-pipeline `Unsupported`; compiled-output validation needs a full
+Xcode toolchain. Acceleration/refit and the remaining encoder contract remain
+in G2.
 `Ogpu.Caps` now owns the portable feature matrix and typed `Unsupported`
 check. Metal probes populate that profile in `ogpu_metal_native.Device`, which also
 translates native Metal errors to typed OGPU errors.

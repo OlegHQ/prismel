@@ -3,6 +3,8 @@ type binding_kind = Uniform_buffer | Storage_buffer | Sampled_texture | Storage_
 type entry_point = { name : string; stage : stage }
 type binding =
   { group : int; binding : int; kind : binding_kind; visibility : stage list }
+type format = Msl_source | Metallib
+type constant_value = Bool of bool | Int32 of int32 | Uint32 of int32 | Float32 of float
 type descriptor =
   { backend : string
   ; label : string option
@@ -17,6 +19,8 @@ type t =
   ; entries : entry_point list
   ; layout : binding list
   ; hash : string
+  ; format : format
+  ; constants : (string * constant_value) list
   }
 
 let error message = Error (Error.make "Ogpu.Shader.create" Error.Invalid_argument message)
@@ -31,11 +35,19 @@ let add_field output value =
   Buffer.add_char output ':';
   Buffer.add_string output value
 
-let canonical (descriptor : descriptor) =
+let canonical (descriptor : descriptor) format constants =
   let output = Buffer.create (Bytes.length descriptor.bytes + 128) in
   add_field output descriptor.backend;
   add_field output (Option.value descriptor.label ~default:"");
   add_field output (Bytes.unsafe_to_string descriptor.bytes);
+  add_field output (match format with Msl_source -> "msl" | Metallib -> "metallib");
+  List.iter (fun (name, value) ->
+    add_field output name;
+    add_field output (match value with
+      | Bool value -> if value then "b1" else "b0"
+      | Int32 value -> "i" ^ Int32.to_string value
+      | Uint32 value -> "u" ^ Int32.to_string value
+      | Float32 value -> "f" ^ Int32.to_string (Int32.bits_of_float value))) constants;
   List.iter (fun entry -> add_field output entry.name; add_field output (stage_code entry.stage))
     descriptor.entry_points;
   List.iter
@@ -68,12 +80,22 @@ let validate_bindings bindings =
   in
   loop [] bindings
 
-let create (descriptor : descriptor) =
+let create_with_format format constants (descriptor : descriptor) =
   if descriptor.backend <> "metal" && descriptor.backend <> "mock" then
     error "unknown shader backend"
+  else if format = Metallib && descriptor.backend <> "metal" then
+    error "metallib requires the metal backend"
   else if Option.fold ~none:false ~some:(fun value -> not (valid_text value)) descriptor.label then
     error "shader label is empty or contains NUL"
   else if Bytes.length descriptor.bytes = 0 then error "shader artifact is empty"
+  (* ponytail: render specialization waits for a portable render-pipeline
+     function interface; reject it here until that path uses constants. *)
+  else if constants <> [] &&
+          List.exists (fun entry -> entry.stage <> Compute) descriptor.entry_points then
+    error "function constants currently require compute entry points"
+  else if List.exists (fun (name, _) -> not (valid_text name)) constants
+       || List.length (List.sort_uniq compare (List.map fst constants)) <> List.length constants then
+    error "function constant names must be nonempty and unique"
   else
     match validate_entries descriptor.entry_points with
     | Error _ as result -> result
@@ -84,11 +106,20 @@ let create (descriptor : descriptor) =
             let descriptor = { descriptor with bytes = Bytes.copy descriptor.bytes } in
             Ok { backend = descriptor.backend; label = descriptor.label
                ; artifact = descriptor.bytes; entries = descriptor.entry_points
-               ; layout = descriptor.bindings; hash = Digest.to_hex (Digest.string (canonical descriptor)) }
+               ; layout = descriptor.bindings
+               ; hash = Digest.to_hex (Digest.string (canonical descriptor format constants))
+               ; format; constants }
+
+let create descriptor = create_with_format Msl_source [] descriptor
+let create_metallib descriptor ~constants = create_with_format Metallib constants descriptor
+let of_source = create
+let of_metallib = create_metallib
 
 let backend value = value.backend
 let label value = value.label
 let bytes value = Bytes.copy value.artifact
+let format value = value.format
+let constants value = value.constants
 let entry_points value = value.entries
 let bindings value = value.layout
 let provenance_hash value = value.hash

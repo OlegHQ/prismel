@@ -23,9 +23,30 @@ let validate_reflection op shader bindings =
   if List.exists(fun(b:Ogpu_core.Shader.binding)->b.group<>0)expected then error op Ogpu_core.Error.Invalid_argument"Metal foundation maps only bind group zero"else
   let expected=List.sort compare(List.map(fun(b:Ogpu_core.Shader.binding)->b.binding,metal_kind b.kind)expected)and actual=bindings|>List.filter(fun(b:Metal.Binding.t)->b.used)|>List.map(fun(b:Metal.Binding.t)->Int64.to_int b.index,reflected_kind b)|>List.sort compare in
   if expected<>actual then error op Ogpu_core.Error.Invalid_argument"native Metal reflection does not match OGPU slots and resource classes"else Ok()
-let compile_library op device shader=if Ogpu_core.Shader.backend shader<>"metal"then error op Ogpu_core.Error.Invalid_argument"shader backend is not metal"else match Metal.Library.compile_source~device:(Device.Private.metal device)?label:(Ogpu_core.Shader.label shader)(Bytes.to_string(Ogpu_core.Shader.bytes shader))with Ok x->Ok x|Error e->Error(Device.of_metal_error~operation:op e)
+let compile_library op device shader=
+  if Ogpu_core.Shader.backend shader<>"metal"then
+    error op Ogpu_core.Error.Invalid_argument"shader backend is not metal"
+  else
+    let bytes=Bytes.to_string(Ogpu_core.Shader.bytes shader) in
+    let result=match Ogpu_core.Shader.format shader with
+      |Ogpu_core.Shader.Msl_source->Metal.Library.compile_source
+        ~device:(Device.Private.metal device)
+        ?label:(Ogpu_core.Shader.label shader) bytes
+      |Ogpu_core.Shader.Metallib->Metal.Library.load_data
+        ~device:(Device.Private.metal device) bytes in
+    Result.map_error(Device.of_metal_error~operation:op)result
+let find_function library shader entry=
+  let constants=Ogpu_core.Shader.constants shader in
+  if constants=[]then Metal.Function.find~library entry
+  else Metal.Function.specialize~library entry ~constants:(List.map(fun(name,value)->
+    name,(match value with
+      |Ogpu_core.Shader.Bool value->Metal.Function.Bool_constant value
+      |Int32 value->Metal.Function.Int32_constant value
+      |Uint32 value->Metal.Function.Uint32_constant
+        (Int64.logand (Int64.of_int32 value) 0xffff_ffffL)
+      |Float32 value->Metal.Function.Float32_constant value))constants)
 let cached cache device portable build=let k=Ogpu_core.Pipeline.cache_key portable in match Ogpu_core.Cache.get cache.values k with Some value->(match validate device value with Ok()->Ok value|Error _ as e->e)|None->match build()with Error _ as e->e|Ok value->(match Ogpu_core.Cache.insert cache.values k value with Ok()->Ok value|Error e->ignore(destroy value);Error e)
-let create_compute cache device descriptor=let op="Ogpu_metal.Pipeline.create_compute"in if Device.destroyed device then error op Ogpu_core.Error.Stale_handle"device is destroyed"else match Ogpu_core.Pipeline.create_compute(Device.capabilities device)descriptor with Error _ as e->e|Ok portable->cached cache device portable(fun()->match compile_library op device descriptor.shader with Error _ as e->e|Ok library->match Metal.Function.find~library descriptor.entry with Error e->ignore(Metal.Library.destroy library);Error(Device.of_metal_error~operation:op e)|Ok function_->match Metal.Compute_pipeline.create~label:(Option.value descriptor.label~default:descriptor.entry)~reflection:true function_ with Error e->ignore(Metal.Function.destroy function_);ignore(Metal.Library.destroy library);Error(Device.of_metal_error~operation:op e)|Ok pipeline->match Option.value(Metal.Compute_pipeline.bindings pipeline)~default:[]|>validate_reflection op descriptor.shader with Error e->ignore(Metal.Compute_pipeline.destroy pipeline);ignore(Metal.Function.destroy function_);ignore(Metal.Library.destroy library);Error e|Ok()->let value={native=Compute pipeline;library;functions=[function_];descriptor_destroy=None;handle=Ogpu_core.Handle.create~device:(Device.Private.handle device);device;portable;dead=false;submission_uses=0;destroy_requested=false}in Device.Private.attach_resource device;Ok value)
+let create_compute cache device descriptor=let op="Ogpu_metal.Pipeline.create_compute"in if Device.destroyed device then error op Ogpu_core.Error.Stale_handle"device is destroyed"else match Ogpu_core.Pipeline.create_compute(Device.capabilities device)descriptor with Error _ as e->e|Ok portable->cached cache device portable(fun()->match compile_library op device descriptor.shader with Error _ as e->e|Ok library->match find_function library descriptor.shader descriptor.entry with Error e->ignore(Metal.Library.destroy library);Error(Device.of_metal_error~operation:op e)|Ok function_->match Metal.Compute_pipeline.create~label:(Option.value descriptor.label~default:descriptor.entry)~reflection:true function_ with Error e->ignore(Metal.Function.destroy function_);ignore(Metal.Library.destroy library);Error(Device.of_metal_error~operation:op e)|Ok pipeline->match Option.value(Metal.Compute_pipeline.bindings pipeline)~default:[]|>validate_reflection op descriptor.shader with Error e->ignore(Metal.Compute_pipeline.destroy pipeline);ignore(Metal.Function.destroy function_);ignore(Metal.Library.destroy library);Error e|Ok()->let value={native=Compute pipeline;library;functions=[function_];descriptor_destroy=None;handle=Ogpu_core.Handle.create~device:(Device.Private.handle device);device;portable;dead=false;submission_uses=0;destroy_requested=false}in Device.Private.attach_resource device;Ok value)
 let attachment blend format =
   let open Metal.Render_pipeline in
   match blend with

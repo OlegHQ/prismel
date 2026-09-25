@@ -1,1 +1,1 @@
-val run : Ogpu.Backend.driver -> unit
+val run : ?metallib:bytes -> Ogpu.Backend.driver -> unit
