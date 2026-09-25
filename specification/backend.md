@@ -130,6 +130,15 @@ counterclockwise front faces, matching PDK mesh winding. Other scene paths
 retain their existing winding. Scene3 indexed draws use the classic encoder
 until the prepared indexed pass supports instance counts and winding.
 
+Scene execution uploads transform blocks into three bounded shared-buffer
+pages, with each draw's offset aligned to 256 bytes. A changed transform set
+packs into the next page; an unchanged set reuses the previous page without
+another upload and permits retained-command replay when other state matches.
+Submission is synchronous,
+so a page is reused only after its prior GPU work completes. Each page is
+capped at 256 MiB. Small uniforms still use these pages until OGPU render
+encoders expose inline `set_bytes` in P3-1/G4.
+
 Scene3 raster accepts indexed triangles, lines, and points. Lines use native
 Metal line draws; points use a point-topology pipeline with an explicit
 one-pixel point size. Line strips and loops become indexed line pairs once

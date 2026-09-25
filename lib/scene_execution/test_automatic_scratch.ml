@@ -201,6 +201,36 @@ let run () =
   get(Scene_execution.destroy renderer);
   require(Ogpu.Backend_mock.live_counts control=(0,0,0,0,0))
     "oversized viewport clamp leaked mock handles";
+  let driver,control=Ogpu.Backend_mock.create()in
+  let renderer=get(Scene_execution.create driver configuration)in
+  let affine offset=let bytes=Bytes.make 24 '\000'in
+    Bytes.set_int32_le bytes 0(Int32.bits_of_float 1.);
+    Bytes.set_int32_le bytes 16(Int32.bits_of_float 1.);
+    Bytes.set_int32_le bytes 8(Int32.bits_of_float offset);bytes in
+  let transforms=[|affine 0.;affine 1.|]in
+  let uniform_draws()=Array.to_list(Array.mapi(fun index bytes->
+    Ogpu.Pipeline.Replace,{Scene_execution.mesh=mesh index;
+      state={state with transform_uniforms=Some bytes}})transforms)in
+  ignore(get(Scene_execution.render_blended renderer(uniform_draws())));
+  let uploaded=Scene_execution.upload_bytes renderer in
+  require(let buffers,_,_,_,_=Ogpu.Backend_mock.live_counts control in buffers=3)
+    "two uniform draws allocated separate GPU buffers";
+  ignore(get(Scene_execution.render_blended renderer(uniform_draws())));
+  require(Scene_execution.upload_bytes renderer=uploaded)
+    "unchanged uniforms were uploaded again";
+  Bytes.set_int32_le transforms.(1) 8(Int32.bits_of_float 2.);
+  ignore(get(Scene_execution.render_blended renderer(uniform_draws())));
+  require(Scene_execution.upload_bytes renderer=Int64.add uploaded 48L)
+    "mutated input bytes were mistaken for the completed uniform page";
+  for frame=3 to 7 do
+    Bytes.set_int32_le transforms.(1) 8(Int32.bits_of_float(float frame));
+    ignore(get(Scene_execution.render_blended renderer(uniform_draws())))
+  done;
+  require(let buffers,_,_,_,_=Ogpu.Backend_mock.live_counts control in buffers<=5)
+    "triple uniform ring exceeded its buffer bound";
+  get(Scene_execution.destroy renderer);
+  require(Ogpu.Backend_mock.live_counts control=(0,0,0,0,0))
+    "uniform ring leaked mock handles";
   Printf.printf
     "automatic scratch: 1000 exact frames, 10 draws %.0f alloc/%.1f promoted B, 84 draws %.0f alloc/%.1f promoted B, capacity 65536\n%!"
     allocated10 promoted10 allocated84 promoted84
