@@ -322,7 +322,7 @@ module Leader = struct
     | Save_preset | Browse_presets
     | Toggle_timeline | Toggle_graph | Toggle_inspector | Hide_ui | Open_camera
     | Play_pause | Reset | Stop
-    | Add_node | Layout | Frame_tile
+    | Add_node | Layout | Frame_tile | Frame_camera
     | Look_through | Fly
     | Undo | Redo
     | Graph_command of Pxui_graph.command
@@ -347,6 +347,9 @@ module Leader = struct
     { trigger = Leader 'l'; label = "layout"; scope = Some Workspace.Graph; action = Layout };
     { trigger = Leader 'f'; label = "frame selected tile"; scope = Some Workspace.Graph;
       action = Frame_tile };
+    { trigger = Chord (Input.KeyChar 'f', []);
+      label = "frame camera on tile"; scope = Some Workspace.Graph;
+      action = Frame_camera };
   ] @ List.concat_map (fun modifier -> [
     { trigger = Chord (Input.KeyChar 'z', [modifier]);
       label = "undo"; scope = None; action = Undo };
@@ -735,7 +738,7 @@ module Core = struct
     | Layout -> workspace, Pxui_graph.optimize_layout graph_view, timeline, changes
     | Frame_tile -> workspace, Pxui_graph.frame_selected graph_view, timeline, changes
     | Hide_ui | Look_through | Fly | Save_preset | Browse_presets
-    | Graph_command _ | Undo | Redo ->
+    | Graph_command _ | Frame_camera | Undo | Redo ->
         workspace, graph_view, timeline, changes
 
   let update value ~all_ui_visible ~text_focus ~camera_panel ~render_status
@@ -749,7 +752,8 @@ module Core = struct
         && not (Workspace.collapsed value.workspace Workspace.Graph)
       then value.keymap else List.filter (fun binding ->
         match binding.Editor.Keymap.action with
-        | Leader.Graph_command _ -> false | _ -> true) value.keymap in
+        | Leader.Graph_command _ | Leader.Frame_camera -> false
+        | _ -> true) value.keymap in
     let leader, actions, frame = Editor.Router.step keymap ~focus ~text_focus ~frame
         value.leader in
     let sample_fps = frame.time < value.status_fps_at
@@ -799,13 +803,8 @@ module Core = struct
               (Int64.to_float frame) in
           if scrub <> Int64.to_float frame then
             step (T.seek ~frame:(Int64.of_float (Float.round scrub))))) in
-    (* [F] with the graph focused frames the viewport on the selected node. *)
-    let frame_request = ref (if focus = Workspace.Graph && all_ui_visible
-        && not (List.mem Input.Meta frame.keys || List.mem Input.Ctrl frame.keys)
-        && Frame.has_event (function
-          | Event.KeyPressed (Input.KeyChar ('f' | 'F')) -> true | _ -> false)
-          shortcut_frame
-      then Pxui_graph.selected value.graph_view else None) in
+    let frame_request = ref (if List.mem Leader.Frame_camera actions
+      then Pxui_graph.selected graph_view else None) in
     let build ui =
       let workspace = Workspace.update workspace ui shortcut_frame in
       let panes = Workspace.geometry workspace frame in

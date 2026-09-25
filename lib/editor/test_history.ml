@@ -29,7 +29,7 @@ let () =
 
 type scope = View | Graph
 
-let bindings : (scope, [ `Toggle | `Layout | `Undo | `Redo | `Delete ])
+let bindings : (scope, [ `Toggle | `Layout | `Undo | `Redo | `Delete | `Frame ])
     Editor.Keymap.binding list = [
   { trigger = Leader 'g'; label = "toggle graph"; scope = None; action = `Toggle };
   { trigger = Leader 'l'; label = "layout"; scope = Some Graph; action = `Layout };
@@ -40,6 +40,8 @@ let bindings : (scope, [ `Toggle | `Layout | `Undo | `Redo | `Delete ])
     label = "redo"; scope = None; action = `Redo };
   { trigger = Chord (Prismel.Input.Delete, []);
     label = "delete"; scope = Some Graph; action = `Delete };
+  { trigger = Chord (Prismel.Input.KeyChar 'f', []);
+    label = "frame"; scope = Some Graph; action = `Frame };
 ]
 
 let frame events : Prismel.Frame.t = {
@@ -88,6 +90,12 @@ let () =
   assert (actions = [`Redo]);
   let _, actions, _ = chord ~focus:Graph [] [Event.KeyPressed Input.Delete] in
   assert (actions = [`Delete]);
+  let _, actions, _ = chord ~focus:Graph []
+      [Event.KeyPressed (Input.KeyChar 'F')] in
+  assert (actions = [`Frame]);
+  let _, actions, passed = chord ~focus:Graph [Input.Meta]
+      [Event.KeyPressed (Input.KeyChar 'f')] in
+  assert (actions = [] && passed.events = [Event.KeyPressed (Input.KeyChar 'f')]);
   let _, actions, passed = chord [] [Event.KeyPressed Input.Delete] in
   assert (actions = [] && passed.events = [Event.KeyPressed Input.Delete]);
   let _, actions, passed = chord ~text_focus:true [Input.Meta]

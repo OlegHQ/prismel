@@ -81,7 +81,10 @@ module Keymap = struct
     visible bindings focus |> List.filter_map (fun binding ->
       match binding.trigger with
       | Chord (bound, modifiers) when same_key bound key
-          && List.for_all (fun modifier -> List.mem modifier keys) modifiers ->
+          && List.for_all (fun modifier -> List.mem modifier keys) modifiers
+          && List.for_all (fun modifier ->
+               not (List.mem modifier keys) || List.mem modifier modifiers)
+               [Prismel.Input.Meta; Prismel.Input.Ctrl] ->
           Some (List.length modifiers, binding.action)
       | _ -> None)
     |> List.fold_left (fun best candidate -> match best with

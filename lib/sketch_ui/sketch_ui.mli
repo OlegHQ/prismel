@@ -68,7 +68,7 @@ module Private : sig
       | Save_preset | Browse_presets
       | Toggle_timeline | Toggle_graph | Toggle_inspector | Hide_ui | Open_camera
       | Play_pause | Reset | Stop
-      | Add_node | Layout | Frame_tile
+      | Add_node | Layout | Frame_tile | Frame_camera
       | Look_through | Fly
       | Undo | Redo
       | Graph_command of Pxui_graph.command

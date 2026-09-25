@@ -1172,13 +1172,13 @@
       "source_sha256": "e25456c97b813c3aa400a95b288c4f83b9b75c1f0f5540ee2519e600e8a930e2"
     },
     {
-      "api_sha256": "7044d2dc977d408b4d05e9e7b11a996819f3bff71d0a56b8c06cb7c61abd532e",
+      "api_sha256": "150cdf9bee28f23f67d40c4273c89e1b271a011824c941d83b25bd97eb081779",
       "excluded_legacy_symbols": [],
       "library": "sketch_ui",
       "module": "Sketch_ui",
       "source": "lib/sketch_ui/sketch_ui.mli",
-      "source_bytes": 10160,
-      "source_sha256": "7d654a0b4d1fb95e743c5594815c878ab70da567b72199b55c181a3b70f8c2e8"
+      "source_bytes": 10175,
+      "source_sha256": "48b0c72b1b3a116253f20cd009774b99c72795bc607184ca4e1e7ef854df5b42"
     },
     {
       "api_sha256": "8058e4e2e745777f32eeee700e6e7dd24c6e9b966a9e2c79e945559be853733b",
