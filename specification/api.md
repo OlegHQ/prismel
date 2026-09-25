@@ -585,7 +585,8 @@ let selected_node, effects =
 `effects.cook` requests a deferred/asynchronous graph cook;
 `effects.view` updates render-only metadata without invalidating geometry;
 `effects.export` marks output-only state. Graph edits preserve logical IDs and
-shared subgraphs; the host applies selected-node changes through
+shared subgraphs; the sketch host's `Doc` module applies typed graph edit
+requests, and selected-node changes go through
 `Procedural.Edit_graph.apply_parameters` before compiling the cookable graph.
 `prismel.pxui_graph` supplies deterministic initial layout,
 persistent graph-space tile positions, ordered ports/wires, topology-safe node
