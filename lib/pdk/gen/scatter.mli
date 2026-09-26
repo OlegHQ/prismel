@@ -2,6 +2,7 @@ type density = {
   density_owner : Pdk_core.Attribute.owner;
   density_attribute : string;
 }
+val density : owner:Pdk_core.Attribute.owner -> string -> density
 type density_values =
     Uniform
   | Point_density of float array
@@ -74,3 +75,14 @@ val run :
   ?source_vertex_weights_attribute:String.t ->
   count:int ->
   seed:int -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
+
+val run_checked :
+  ?cancel:Pdk_core.Cancel.t -> ?grain:int ->
+  ?primitives:Pdk_core.Group.t -> ?density:density ->
+  ?point_pattern:string -> ?vertex_pattern:string ->
+  ?primitive_pattern:string -> ?detail_pattern:string ->
+  ?match_groups:bool -> ?source_primitive_attribute:string ->
+  ?source_vertex_numbers_attribute:string ->
+  ?source_vertex_weights_attribute:string ->
+  count:int -> seed:int -> Pdk_core.Geometry.t ->
+  (Pdk_core.Geometry.t, Pdk_core.Error.t) result

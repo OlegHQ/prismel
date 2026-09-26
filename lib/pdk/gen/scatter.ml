@@ -5,6 +5,8 @@ type density = {
   density_attribute : string;
 }
 
+let density ~owner density_attribute = { density_owner = owner; density_attribute }
+
 type density_values =
   | Uniform
   | Point_density of float array
@@ -674,3 +676,13 @@ let run ?cancel ?(grain = 16_384) ?primitives ?density ?point_pattern
         List.fold_left (fun result attribute -> Result.bind result
           (Geometry.with_attribute attribute)) (Ok output) !protected_attributes
         ))))))))))))
+
+let run_checked ?cancel ?grain ?primitives ?density ?point_pattern
+    ?vertex_pattern ?primitive_pattern ?detail_pattern ?match_groups
+    ?source_primitive_attribute ?source_vertex_numbers_attribute
+    ?source_vertex_weights_attribute ~count ~seed geometry =
+  Error.guard ~operation:"scatter_surface" ~code:"invalid_geometry" (fun () ->
+    run ?cancel ?grain ?primitives ?density ?point_pattern ?vertex_pattern
+      ?primitive_pattern ?detail_pattern ?match_groups
+      ?source_primitive_attribute ?source_vertex_numbers_attribute
+      ?source_vertex_weights_attribute ~count ~seed geometry)

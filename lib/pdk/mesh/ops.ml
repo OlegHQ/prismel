@@ -296,21 +296,6 @@ type fuse_targeting = Fuse_grid.fuse_targeting =
   | Specified_points of string
 type grid_rounding = Fuse_grid.grid_rounding = Grid_nearest | Grid_down | Grid_up
 
-let measure_curvature ?cancel ?grain ?points ?boundary ?smoothing_iterations
-    ?smoothing_strength ?outputs geometry =
-  Curvature.run ?cancel ?grain ?points ?boundary ?smoothing_iterations
-    ?smoothing_strength ?outputs geometry
-
-let attribute_laplacian ?cancel ?grain ?points ?weighting ?normalize ~source
-    ?output geometry =
-  Laplacian.run ?cancel ?grain ?points ?weighting ?normalize ~source ?output
-    geometry
-
-let polyframe ?cancel ?grain ?selection ?orthogonal ?left_handed ?normal_attribute
-    ?tangent_attribute ?bitangent_attribute style geometry =
-  Polyframe.run ?cancel ?grain ?selection ?orthogonal ?left_handed ?normal_attribute
-    ?tangent_attribute ?bitangent_attribute style geometry
-
 type copy_target_owner = Instance_copy.copy_target_owner =
   | Copy_target_points | Copy_target_vertices | Copy_target_primitives
 type copy_target_operation = Instance_copy.copy_target_operation =
@@ -340,14 +325,6 @@ type point_generate_mode = Point_generate.mode =
       scale_attribute : string option;
     }
   | Generate_probability of { attribute : string }
-
-let detailed operation code result =
-  Result.map_error (Error.of_string ~operation ~code) result
-
-let protected operation code work =
-  try detailed operation code (work ()) with
-  | Cancel.Cancelled -> Error (Error.make ~operation ~code:"cancelled"
-      "geometry operation was cancelled")
 
 let polyline = Line_geometry.polyline_checked
 let line = Line_geometry.line_checked
@@ -483,26 +460,9 @@ let normals ?cancel ?grain ?selection ?owner ?weighting ?cusp_angle
   Normal_ops.run_checked ?cancel ?grain ?selection ?owner ?weighting
     ?cusp_angle ?keep_original_zero ?reverse ?attribute geometry
 
-let measure_curvature_raw = measure_curvature
-let measure_curvature ?cancel ?grain ?points ?boundary ?smoothing_iterations
-    ?smoothing_strength ?outputs geometry =
-  protected "measure_curvature" "invalid_curvature" (fun () ->
-    measure_curvature_raw ?cancel ?grain ?points ?boundary
-      ?smoothing_iterations ?smoothing_strength ?outputs geometry)
-
-let attribute_laplacian_raw = attribute_laplacian
-let attribute_laplacian ?cancel ?grain ?points ?weighting ?normalize ~source
-    ?output geometry =
-  protected "attribute_laplacian" "invalid_laplacian" (fun () ->
-    attribute_laplacian_raw ?cancel ?grain ?points ?weighting ?normalize
-      ~source ?output geometry)
-
-let polyframe_raw = polyframe
-let polyframe ?cancel ?grain ?selection ?orthogonal ?left_handed ?normal_attribute
-    ?tangent_attribute ?bitangent_attribute style geometry =
-  protected "polyframe" "invalid_geometry" (fun () ->
-    polyframe_raw ?cancel ?grain ?selection ?orthogonal ?left_handed
-      ?normal_attribute ?tangent_attribute ?bitangent_attribute style geometry)
+let measure_curvature = Analysis_ops.measure_curvature
+let attribute_laplacian = Analysis_ops.attribute_laplacian
+let polyframe = Analysis_ops.polyframe
 
 let delete_primitives = Deletion.delete_primitives
 
@@ -516,18 +476,8 @@ let sort = Ordering.sort_checked
 
 let match_size = Match_size.run_checked
 
-let scatter_density ~owner density_attribute = { density_owner = owner;
-  density_attribute }
-
-let scatter_surface ?cancel ?grain ?primitives ?density ?point_pattern
-    ?vertex_pattern ?primitive_pattern ?detail_pattern ?match_groups
-    ?source_primitive_attribute ?source_vertex_numbers_attribute
-    ?source_vertex_weights_attribute ~count ~seed geometry =
-  protected "scatter_surface" "invalid_geometry"
-    (fun () -> Scatter.run ?cancel ?grain ?primitives ?density ?point_pattern
-      ?vertex_pattern ?primitive_pattern ?detail_pattern ?match_groups
-      ?source_primitive_attribute ?source_vertex_numbers_attribute
-      ?source_vertex_weights_attribute ~count ~seed geometry)
+let scatter_density = Scatter.density
+let scatter_surface = Scatter.run_checked
 
 let copy_to_points = Instance_copy.copy_to_points
 let materialize_instances = Instance_copy.materialize_instances
