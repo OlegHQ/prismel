@@ -76,6 +76,7 @@ let dead_exports ~excludes dirs =
       match i.cmt_impl_shape, (Cmt_format.read_cmt cmti).cmt_annots with
       | Some shape, Interface sg ->
           let mli = Filename.chop_suffix ml ".ml" ^ ".mli" in
+          if Sys.file_exists mli then
           let rec scan prefix shape items = List.iter (function
             | Types.Sig_value (id, _, _) ->
                 let name = Ident.name id in
@@ -122,12 +123,14 @@ let remove_ranges ?(subst = []) path src ranges =
   let edits = List.sort_uniq compare (List.map (fun (s, e) -> s, e, "") ranges @ subst) in
   let b = Buffer.create (String.length src) in
   let pos = List.fold_left (fun pos (s, e, text) ->
-    if s < pos then pos
+    if s < pos then max pos e
     else (Buffer.add_string b (String.sub src pos (s - pos)); Buffer.add_string b text; e)) 0 edits in
   Buffer.add_string b (String.sub src pos (String.length src - pos));
   (* collapse runs of blank lines left behind *)
   let out = Buffer.contents b in
+  let out = Str.global_replace (Str.regexp "[ \t]+$") "" out in
   let re = Str.regexp "\n\n\n+" in
+  let out = Str.global_replace (Str.regexp "\n\n+\\'") "\n" out in
   write_file path (Str.global_replace re "\n\n" out)
 
 let drop_vals path names =
@@ -140,6 +143,10 @@ let drop_vals path names =
         ranges := range src item.psig_loc vd.pval_attributes :: !ranges
     | Psig_module { pmd_name = { txt = Some m; _ }; pmd_type = { pmty_desc = Pmty_signature s; _ }; _ } ->
         go (prefix ^ m ^ ".") s
+    | Psig_recmodule mds -> List.iter (function
+        | { Parsetree.pmd_name = { txt = Some m; _ }; pmd_type = { pmty_desc = Pmty_signature s; _ }; _ } ->
+            go (prefix ^ m ^ ".") s
+        | _ -> ()) mds
     | _ -> ()) items in
   go "" sg;
   List.iter (fun n -> if not (List.mem n !found) then
@@ -168,7 +175,7 @@ let diagnostics log =
               let n = int_of_string (Str.matched_group 1 w) in
               (* 69 also reports "never mutated"; only unread fields go *)
               let unread = match r with m :: _ -> contains (w ^ m) "never read" | [] -> false in
-              if n = 69 && not (unread || contains w "is never used") then 690 else n
+              if n = 69 && not (unread || contains w "is never used" || contains w "unused record field") then 690 else n
           | w :: _ when String.length w >= 5 && String.sub w 0 5 = "Error" -> 0
           | w :: r when not (Str.string_match header w 0) -> kind r
           | _ -> 0 in
@@ -177,7 +184,19 @@ let diagnostics log =
     | [] -> List.rev acc in
   go [] (String.split_on_char '\n' log)
 
-let handled = [26; 27; 32; 33; 34; 60; 69]
+(* The typed tree of [file] from its .cmt under _build/default. *)
+let cmt_for file =
+  let found = ref None in
+  let dir = Filename.concat "_build/default" (Filename.dirname file) in
+  if Sys.file_exists dir then
+    walk dir (fun p ->
+      if !found = None && Filename.check_suffix p ".cmt" then
+        match Cmt_format.read_cmt p with
+        | { cmt_sourcefile = Some f; cmt_annots = Implementation s; _ } when f = file -> found := Some s
+        | _ | exception _ -> ());
+  !found
+
+let handled = [26; 27; 32; 33; 34; 37; 60; 69; 690]
 
 let drop_unused log =
   let by_file = Hashtbl.create 64 in
@@ -204,22 +223,44 @@ let drop_unused log =
         match item.pstr_desc with
         | Pstr_value (_, [vb]) when pat_hit vb.pvb_pat -> add item.pstr_loc vb.pvb_attributes
         | Pstr_value (_, vbs) when List.exists (fun vb -> pat_hit vb.Parsetree.pvb_pat) vbs ->
-            Printf.eprintf "drop-unused: %s:%d: multi-binding let left alone\n" file
-              item.pstr_loc.loc_start.pos_lnum
+            if List.for_all (fun vb -> pat_hit vb.Parsetree.pvb_pat) vbs then add item.pstr_loc []
+            else
+              (* [let rec a = .. and b = ..]: cut a dead binding together with
+                 the [and] that joins it to its neighbour *)
+              let starts = List.map (fun (vb : Parsetree.value_binding) -> vb.pvb_pat.ppat_loc.loc_start.pos_cnum) vbs in
+              let and_before p = let rec go i = if i >= 3 && String.sub src (i - 3) 3 = "and" then i - 3 else go (i - 1) in go p in
+              List.iteri (fun i (vb : Parsetree.value_binding) ->
+                if pat_hit vb.pvb_pat then
+                  let e = vb.pvb_expr.pexp_loc.loc_end.pos_cnum in
+                  if i = 0 then ranges := (List.nth starts 0, List.nth starts 1) :: !ranges
+                  else ranges := (and_before (List.nth starts i), e) :: !ranges) vbs
         | Pstr_primitive vd when at vd.pval_name.loc -> add item.pstr_loc vd.pval_attributes
         | Pstr_open _ when at item.pstr_loc -> add item.pstr_loc []
         | Pstr_type (_, [td]) when at td.ptype_name.loc -> add item.pstr_loc td.ptype_attributes
         | Pstr_module mb when at mb.pmb_name.loc || at item.pstr_loc ->
             add item.pstr_loc mb.pmb_attributes
         | Pstr_module { pmb_expr = me; _ } -> modexpr me
+        | Pstr_recmodule mbs -> List.iter (fun (mb : Parsetree.module_binding) -> modexpr mb.pmb_expr) mbs
+        | Pstr_modtype { pmtd_type = Some mt; _ } -> modtype mt
         | _ -> ()) items
       and modexpr (me : Parsetree.module_expr) = match me.pmod_desc with
         | Pmod_structure s -> go s
-        | Pmod_constraint (me, _) -> modexpr me
+        | Pmod_constraint (me, mt) -> modexpr me; modtype mt
+        | _ -> ()
+      (* [val]s of local signatures, e.g. [module M : sig val x : t end = ...] *)
+      and modtype (mt : Parsetree.module_type) = match mt.pmty_desc with
+        | Pmty_signature items -> List.iter (fun (item : Parsetree.signature_item) ->
+            match item.psig_desc with
+            | Psig_value vd when at item.psig_loc || at vd.pval_name.loc ->
+                add item.psig_loc vd.pval_attributes
+            | Psig_module { pmd_type; _ } -> modtype pmd_type
+            | _ -> ()) items
         | _ -> () in
       go str;
-      (* Unread record fields: drop the declaration and every [field = e] in
-         record literals of this file, with one adjacent semicolon. *)
+      (* Unread record fields: drop the declaration, and use the typed tree
+         (.cmt) to find exactly the literals [f = e] and assignments [r.f <- e]
+         that target that declaration. 690: a mutable field that is never
+         mutated loses its [mutable]. *)
       let field_range s e =
         let n = String.length src in
         let rec fwd i = if i < n && (src.[i] = ' ' || src.[i] = '\n' || src.[i] = '\t') then fwd (i+1) else i in
@@ -228,34 +269,87 @@ let drop_unused log =
         if e > 0 && src.[e-1] = ';' then s, e
         else if f < n && src.[f] = ';' then s, f + 1
         else let b = back s in if b > 0 && src.[b-1] = ';' then b - 1, e else s, e in
-      let decls = ref [] and dead = ref [] in
+      let subst = ref [] in
+      let dead_decls = ref [] in
       let it = { Ast_iterator.default_iterator with
         label_declaration = (fun self (ld : Parsetree.label_declaration) ->
-          decls := ld.pld_name.txt :: !decls;
-          if at ld.pld_loc || at ld.pld_name.loc then begin
-            dead := ld.pld_name.txt :: !dead;
-            ranges := field_range ld.pld_loc.loc_start.pos_cnum ld.pld_loc.loc_end.pos_cnum :: !ranges
-          end;
+          let s = ld.pld_loc.loc_start.pos_cnum in
+          if hit [69] ld.pld_loc || hit [69] ld.pld_name.loc then begin
+            dead_decls := s :: !dead_decls;
+            ranges := field_range s ld.pld_loc.loc_end.pos_cnum :: !ranges
+          end else if hit [690] ld.pld_loc && String.length src > s + 8 && String.sub src s 8 = "mutable " then
+            subst := (s, s + 8, "") :: !subst;
           Ast_iterator.default_iterator.label_declaration self ld) } in
       it.structure it str;
-      let unique name = List.length (List.filter (( = ) name) !decls) = 1 in
-      List.iter (fun name -> if not (unique name) then
-        Printf.eprintf "drop-unused: %s: field %s is declared twice; literals left alone\n" file name) !dead;
+      if !dead_decls <> [] then (match cmt_for file with
+        | None -> Printf.eprintf "drop-unused: %s: no .cmt; field uses left alone\n" file
+        | Some tree ->
+            let dead (l : Types.label_description) = List.mem l.lbl_loc.loc_start.pos_cnum !dead_decls
+              && l.lbl_loc.loc_start.pos_fname = file in
+            let it = { Tast_iterator.default_iterator with
+              expr = (fun self (e : Typedtree.expression) ->
+                (match e.exp_desc with
+                 | Texp_record { fields; _ } -> Array.iter (function
+                     | (l, Typedtree.Overridden (lid, v)) when dead l ->
+                         ranges := field_range lid.loc.loc_start.pos_cnum
+                           (max lid.loc.loc_end.pos_cnum v.exp_loc.loc_end.pos_cnum) :: !ranges
+                     | _ -> ()) fields
+                 | Texp_setfield (_, _, l, _) when dead l ->
+                     subst := (e.exp_loc.loc_start.pos_cnum, e.exp_loc.loc_end.pos_cnum, "()") :: !subst
+                 | _ -> ());
+                Tast_iterator.default_iterator.expr self e) } in
+            it.structure it tree);
+      (* 37: a constructor that is never built disappears with the match arms
+         (or or-pattern alternatives) that only it reaches. *)
+      let bar_range s e =
+        let n = String.length src in
+        let rec fwd i = if i < n && (src.[i] = ' ' || src.[i] = '\n' || src.[i] = '\t') then fwd (i+1) else i in
+        let rec back i = if i > 0 && (src.[i-1] = ' ' || src.[i-1] = '\n' || src.[i-1] = '\t') then back (i-1) else i in
+        let b = back s and f = fwd e in
+        if src.[s] = '|' then s, e
+        else if b > 0 && src.[b-1] = '|' then b - 1, e
+        else if f < n && src.[f] = '|' then s, f + 1 else s, e in
+      let all_ctors = ref [] and dead_ctors = ref [] in
+      let it = { Ast_iterator.default_iterator with
+        constructor_declaration = (fun self (cd : Parsetree.constructor_declaration) ->
+          all_ctors := cd.pcd_name.txt :: !all_ctors;
+          if hit [37] cd.pcd_loc || hit [37] cd.pcd_name.loc then dead_ctors := cd :: !dead_ctors;
+          Ast_iterator.default_iterator.constructor_declaration self cd) } in
+      it.structure it str;
+      let dead_names = List.filter_map (fun (cd : Parsetree.constructor_declaration) ->
+        if List.length (List.filter (( = ) cd.pcd_name.txt) !all_ctors) = 1 then begin
+          ranges := bar_range cd.pcd_loc.loc_start.pos_cnum cd.pcd_loc.loc_end.pos_cnum :: !ranges;
+          Some cd.pcd_name.txt
+        end else None) !dead_ctors in
+      (* a pattern that needs a dead constructor anywhere can never match *)
+      let rec only_dead (p : Parsetree.pattern) = match p.ppat_desc with
+        | Ppat_construct (lid, arg) -> List.mem (Longident.last lid.txt) dead_names
+            || (match arg with Some (_, a) -> only_dead a | None -> false)
+        | Ppat_tuple ps -> List.exists only_dead ps
+        | Ppat_record (fs, _) -> List.exists (fun (_, p) -> only_dead p) fs
+        | Ppat_or (a, b) -> only_dead a && only_dead b
+        | Ppat_alias (p, _) | Ppat_constraint (p, _) -> only_dead p
+        | _ -> false in
+      let rec or_alts (p : Parsetree.pattern) = match p.ppat_desc with
+        | Ppat_or (a, b) -> or_alts a @ or_alts b
+        | _ -> [p] in
+      let cases (cs : Parsetree.case list) = List.iter (fun (c : Parsetree.case) ->
+        if only_dead c.pc_lhs then
+          ranges := bar_range c.pc_lhs.ppat_loc.loc_start.pos_cnum c.pc_rhs.pexp_loc.loc_end.pos_cnum :: !ranges
+        else List.iter (fun (p : Parsetree.pattern) -> if only_dead p then
+          ranges := bar_range p.ppat_loc.loc_start.pos_cnum p.ppat_loc.loc_end.pos_cnum :: !ranges)
+          (match c.pc_lhs.ppat_desc with Ppat_or _ -> or_alts c.pc_lhs | _ -> [])) cs in
       let it = { Ast_iterator.default_iterator with
         expr = (fun self (e : Parsetree.expression) ->
           (match e.pexp_desc with
-           | Pexp_record (fields, _) -> List.iter (fun ((lid : Longident.t Location.loc), (v : Parsetree.expression)) ->
-               let name = Longident.last lid.txt in
-               if List.mem name !dead && unique name then
-                 ranges := field_range lid.loc.loc_start.pos_cnum
-                   (max lid.loc.loc_end.pos_cnum v.pexp_loc.loc_end.pos_cnum) :: !ranges) fields
+           | Pexp_match (_, cs) | Pexp_try (_, cs) -> cases cs
+           | Pexp_function (_, _, Pfunction_cases (cs, _, _)) -> cases cs
            | _ -> ());
           Ast_iterator.default_iterator.expr self e) } in
-      if !dead <> [] then it.structure it str;
+      if dead_names <> [] then it.structure it str;
       (* 26: an unused [let x = e in body] local becomes [body] (ReviewED via
          the printed list; e must not be needed for effect). 27: an unused
          parameter is renamed [_x] / [~x:_]. *)
-      let subst = ref [] in
       let it = { Ast_iterator.default_iterator with
         expr = (fun self (e : Parsetree.expression) ->
           (match e.pexp_desc with
@@ -307,6 +401,7 @@ let build target =
   Sys.remove log; code, text
 
 let prune ~excludes ~target dirs =
+  let last = ref [] in
   let rec loop round =
     let code, log = build target in
     let dropped = drop_unused log in
@@ -322,11 +417,13 @@ let prune ~excludes ~target dirs =
     end else begin
       let dead = dead_exports ~excludes dirs in
       if dead = [] then Printf.printf "round %d: fixpoint\n" round
+      else if dead = !last then (Printf.printf "round %d: no progress on %d exports; stopping\n" round (List.length dead); exit 1)
       else begin
         let by_file = Hashtbl.create 16 in
         List.iter (fun (f, n) -> Hashtbl.replace by_file f
           (n :: Option.value (Hashtbl.find_opt by_file f) ~default:[])) dead;
-        Hashtbl.iter drop_vals by_file;
+        last := dead;
+        Hashtbl.iter (fun f names -> if Sys.file_exists f then drop_vals f names) by_file;
         Printf.printf "round %d: %d dead exports dropped\n%!" round (List.length dead);
         loop (round + 1)
       end
