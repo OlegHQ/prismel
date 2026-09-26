@@ -7,7 +7,6 @@ type attenuation = {
 }
 
 type kind =
-  | Ambient
   | Directional of { direction : Vec3.t }
   | Point of { position : Vec3.t; attenuation : attenuation }
   | Spot of {
@@ -29,28 +28,22 @@ type kind =
 type t = {
   kind : kind;
   diffuse : Color.t;
-  ambient : Color.t;
-  specular : Color.t;
   intensity : float;
 }
+(** [diffuse] tints both the diffuse and the specular response. *)
 
 val no_attenuation : attenuation
 val attenuation :
   ?constant:float -> ?linear:float -> ?quadratic:float -> unit -> attenuation
 
-val ambient : ?intensity:float -> Color.t -> t
 val directional :
   ?diffuse:Color.t ->
-  ?ambient:Color.t ->
-  ?specular:Color.t ->
   ?intensity:float ->
   direction:Vec3.t ->
   unit ->
   t
 val point :
   ?diffuse:Color.t ->
-  ?ambient:Color.t ->
-  ?specular:Color.t ->
   ?intensity:float ->
   ?attenuation:attenuation ->
   at:Vec3.t ->
@@ -59,8 +52,6 @@ val point :
 
 val spot :
   ?diffuse:Color.t ->
-  ?ambient:Color.t ->
-  ?specular:Color.t ->
   ?intensity:float ->
   ?attenuation:attenuation ->
   at:Vec3.t ->
@@ -73,8 +64,6 @@ val spot :
 
 val area :
   ?diffuse:Color.t ->
-  ?ambient:Color.t ->
-  ?specular:Color.t ->
   ?intensity:float ->
   ?attenuation:attenuation ->
   ?samples:int ->

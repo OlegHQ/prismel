@@ -140,23 +140,6 @@ let run_1 () =
   let camera =
     Camera.perspective ~at:(Vec3.create 0. 0. 5.) ~target:Vec3.zero ()
   in
-  let linear_fog =
-    Fog3.linear ~color:(Color.gray 128) ~start:2. ~end_:6.
-  and exponential_fog =
-    Fog3.exponential ~color:(Color.gray 128) ~density:0.5
-  and squared_fog =
-    Fog3.exponential_squared ~color:(Color.gray 128) ~density:0.5
-  in
-  if Fog3.Private.visibility linear_fog ~distance:0. <> 1.
-     || Fog3.Private.visibility linear_fog ~distance:4. <> 0.5
-     || Fog3.Private.visibility linear_fog ~distance:8. <> 0.
-     || abs_float
-          (Fog3.Private.visibility exponential_fog ~distance:2. -. exp (-1.))
-        > 1e-12
-     || abs_float
-          (Fog3.Private.visibility squared_fog ~distance:2. -. exp (-1.))
-        > 1e-12
-  then fail "standard 3D fog visibility equations are incorrect";
   let viewport = 0, 0, 640, 360 in
   let screen =
     match Camera.world_to_screen ~viewport camera Vec3.zero with

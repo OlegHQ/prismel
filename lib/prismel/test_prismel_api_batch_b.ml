@@ -2,8 +2,6 @@ let require condition message = if not condition then failwith message
 
 let run () =
   let open Prismel in
-  let linear=Fog3.linear ~color:(Color.gray 128) ~start:2. ~end_:6. in
-  require(Fog3.Private.visibility linear ~distance:4.=0.5)"Fog3 linear";
   let material=Material.matte(Color.rgb 10 20 30) in
   require(material.diffuse=Color.rgb 10 20 30)"Material matte";
   let light=Light.spot ~at:(Vec3.create 1. 2. 3.)

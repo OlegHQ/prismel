@@ -254,8 +254,7 @@ type model =
     renderer : renderer; cook_mode : renderer Atomic.t }
 
 let raster_lights =
-  [ Light.directional ~direction:(v 0.6 (-0.7) (-0.55)) ~diffuse:(Color.rgb 255 250 240)
-      ~ambient:(Color.rgb 14 14 16) ()
+  [ Light.directional ~direction:(v 0.6 (-0.7) (-0.55)) ~diffuse:(Color.rgb 255 250 240) ()
   ; Light.directional ~direction:(v (-0.7) 0.3 (-0.6)) ~diffuse:(Color.rgb 90 95 110) ~intensity:0.4 () ]
 
 let scene3 _graph prepared =

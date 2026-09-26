@@ -62,10 +62,9 @@ type node =
 type t = {
   nodes : node list;
   lights : Light.t list;
-  shadows : Shadow3.t list;
+  shadow : Shadow3.t option;
   ambient : Color.t;
   separate_specular : bool;
-  fog : Fog3.t option;
   depth_clear : float;
   stencil_clear : int;
   samples : int;
@@ -110,17 +109,16 @@ let default_raster = raster_state ()
 let empty = {
   nodes = [];
   lights = [];
-  shadows = [];
+  shadow = None;
   ambient = Color.black;
   separate_specular = false;
-  fog = None;
   depth_clear = 1.;
   stencil_clear = 0;
   samples = 1;
 }
 
-let create ?(lights = []) ?(shadows = []) ?(ambient = Color.rgb 32 32 32)
-    ?(separate_specular = false) ?fog ?(depth_clear = 1.)
+let create ?(lights = []) ?shadow ?(ambient = Color.rgb 32 32 32)
+    ?(separate_specular = false) ?(depth_clear = 1.)
     ?(stencil_clear = 0) ?(samples = 1) nodes =
   if not (Float.is_finite depth_clear)
      || depth_clear < 0. || depth_clear > 1.
@@ -131,10 +129,9 @@ let create ?(lights = []) ?(shadows = []) ?(ambient = Color.rgb 32 32 32)
   {
     nodes;
     lights;
-    shadows;
+    shadow;
     ambient;
     separate_specular;
-    fog;
     depth_clear;
     stencil_clear;
     samples;
@@ -227,7 +224,7 @@ module Private = struct
       | Mesh (_, _, _, (Some _), _, _, _) :: _
       | Instances (_, _, (Some _), _, _, _, _, _) :: _
       | Instances (_, _, _, (Some _), _, _, _, _) :: _ -> false in
-    scene.shadows = [] && nodes scene.nodes
+    Option.is_none scene.shadow && nodes scene.nodes
 
   let drawings scene =
     let rec flatten parent depth stencil raster blend acc = function
@@ -354,10 +351,9 @@ module Private = struct
     visit Mat4.identity default_depth default_stencil default_raster Alpha scene.nodes
 
   let lights scene = scene.lights
-  let shadows scene = scene.shadows
+  let shadow scene = scene.shadow
   let ambient scene = scene.ambient
   let separate_specular scene = scene.separate_specular
-  let fog scene = scene.fog
   let depth_clear scene = scene.depth_clear
   let stencil_clear scene = scene.stencil_clear
   let samples scene = scene.samples

@@ -3,6 +3,7 @@ type error =
   | Unsupported_mode
   | Unsupported_texture
   | Unsupported_shadow
+  | Too_many_lights
   | Invalid_mesh
   | Invalid_viewport
 
@@ -26,6 +27,8 @@ let packed_color(c:Color.t)=Int32.of_int((c.r lsl 24)lor(c.g lsl 16)lor(c.b lsl 
 let put32 bytes index value=Bytes.set_int32_le bytes(index*4)(Int32.bits_of_float value)
 let color bytes index(c:Color.t)=put32 bytes index(float c.r/.255.);put32 bytes(index+1)(float c.g/.255.);put32 bytes(index+2)(float c.b/.255.);put32 bytes(index+3)(float c.a/.255.)
 let matrix bytes offset value=for index=0 to 15 do put32 bytes(offset+index)(Mat4.get value~row:(index/4)~column:(index mod 4))done
+(* Uniform words 84..1363 hold 20 words per light, matching the shader loop. *)
+let max_lights=64
 let uniforms ~camera ~viewport scene(drawing:Scene3.Private.drawing)=
   let bytes=Bytes.make 5456 '\000'and material=drawing.material in
   let projection=Camera.view_projection_matrix~viewport camera in
@@ -34,10 +37,10 @@ let uniforms ~camera ~viewport scene(drawing:Scene3.Private.drawing)=
   let eye=Camera.position camera in put32 bytes 48 eye.x;put32 bytes 49 eye.y;put32 bytes 50 eye.z;
   color bytes 52 material.ambient;color bytes 56 material.diffuse;color bytes 60 material.specular;color bytes 64 material.emissive;put32 bytes 68 material.shininess;
   let ambient=Scene3.Private.ambient scene in color bytes 69 ambient;
-  let lights=Scene3.Private.lights scene|>List.filter(fun light->light.Light.kind<>Ambient)|>Array.of_list in
+  let lights=Array.of_list(Scene3.Private.lights scene)in
   put32 bytes 73(float(Array.length lights));put32 bytes 74(if drawing.cull=Cull_none then 1. else 0.);put32 bytes 75(if Scene3.Private.separate_specular scene then 1. else 0.);
   Array.iteri(fun index(light:Light.t)->let o=84+index*20 in let vector p=put32 bytes(o+1)p.Vec3.x;put32 bytes(o+2)p.y;put32 bytes(o+3)p.z in color bytes(o+4)light.diffuse;put32 bytes(o+8)light.intensity;match light.kind with
-    |Ambient->()|Directional{direction}->put32 bytes o 0.;vector direction
+    |Directional{direction}->put32 bytes o 0.;vector direction
     |Point{position;attenuation}->put32 bytes o 1.;vector position;put32 bytes(o+9)attenuation.constant;put32 bytes(o+10)attenuation.linear;put32 bytes(o+11)attenuation.quadratic
     |Spot{position;direction;cutoff;concentration;attenuation}->put32 bytes o 2.;vector position;put32 bytes(o+9)direction.x;put32 bytes(o+10)direction.y;put32 bytes(o+11)direction.z;put32 bytes(o+12)(cos cutoff);put32 bytes(o+13)(cos cutoff);put32 bytes(o+14)concentration;put32 bytes(o+15)attenuation.constant;put32 bytes(o+16)attenuation.linear;put32 bytes(o+17)attenuation.quadratic
     |Area{position;direction;width;height;samples;attenuation}->put32 bytes o 3.;vector position;put32 bytes(o+9)direction.x;put32 bytes(o+10)direction.y;put32 bytes(o+11)direction.z;put32 bytes(o+12)width;put32 bytes(o+13)height;put32 bytes(o+14)(float samples);put32 bytes(o+15)attenuation.constant;put32 bytes(o+16)attenuation.linear;put32 bytes(o+17)attenuation.quadratic)lights;bytes
@@ -171,7 +174,8 @@ let prepare ~resources ~camera ~viewport:(x,y,width,height as viewport) scene =
       cached.viewport=viewport)!prepared_cache with
   |Some cached->Ok cached.prepared
   |None->
-  let cacheable=ref(Scene3.Private.shadows scene=[])
+  if List.compare_length_with(Scene3.Private.lights scene)max_lights>0 then Error Too_many_lights else
+  let cacheable=ref(Option.is_none(Scene3.Private.shadow scene))
     and failure=ref None and entries=ref[]in
   Scene3.Private.iter_batches (fun (drawing:Scene3.Private.drawing) transforms->
     if Option.is_some drawing.shader then failure:=Some Unsupported_shader;
@@ -180,7 +184,7 @@ let prepare ~resources ~camera ~viewport:(x,y,width,height as viewport) scene =
     then match packed_of_mesh drawing.mode drawing.mesh with
     |Ok packed->
         let texture=match drawing.texture with None->Ok None|Some value->Result.map Option.some(resources.texture value) in
-        let shadow=match Scene3.Private.shadows scene with []->Ok None|value::_->Result.map Option.some(resources.shadow value) in
+        let shadow=match Scene3.Private.shadow scene with None->Ok None|Some value->Result.map Option.some(resources.shadow value) in
         (match texture,shadow with Error error,_|_,Error error->failure:=Some error
         |Ok texture,Ok auxiliary->
           let mesh:Scene_execution.mesh={key=packed.key;vertices=packed.vertices;vertex_count=packed.vertex_count;indices=packed.indices;index_count=packed.index_count;primitive=packed.primitive} in

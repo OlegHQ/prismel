@@ -18,6 +18,13 @@ let run () =
     ~colors:[Color.red;Color.green;Color.blue]
     [Vec3.create(-0.5)(-0.5)0.;Vec3.create 0.5(-0.5)0.;Vec3.create 0. 0.5 0.]in
   let scene=Scene3.create[Scene3.mesh~material:(Material.unlit Color.white)mesh]in
+  let lights n=List.init n(fun _->Light.directional~direction:Vec3.unit_z())in
+  ignore(prepare~width:16~height:16
+    (Scene3.create~lights:(lights 64)[Scene3.mesh mesh]));
+  (match Scene.Private.stage_native~width:16~height:16
+    [Scene.view3d~camera(Scene3.create~lights:(lights 65)[Scene3.mesh mesh])]with
+   |Error message when message="native View3d lowering failed: more than 64 lights"->()
+   |_->failwith"native Scene3 accepted more than 64 lights");
   let retained_frame=Scene.[clear Color.black;view3d~camera scene]in
   let retained_first=Result.get_ok(Scene.Private.stage_native~width:16~height:16
     retained_frame)in
@@ -60,7 +67,7 @@ let run () =
   (match textured_entry.family,textured_entry.texture with Scene_execution.Scene3_textured,Some value when Array.length value.levels=2&&Bytes.length value.levels.(0).bytes=16->()|_->failwith"native texture mip/sampler staging");
   let light=Light.directional~direction:(Vec3.create 0. 0.(-1.))()in
   let shadow=Shadow3.create~light~camera~width:1~height:1~depths:[|0.5|]()in
-  let shadowed=Scene3.create~lights:[light]~shadows:[shadow][Scene3.mesh mesh]in
+  let shadowed=Scene3.create~lights:[light]~shadow[Scene3.mesh mesh]in
   let shadow_stage=Result.get_ok(Scene.Private.stage_native~width:16~height:16[Scene.view3d~camera shadowed])in
   let shadow_entry=(List.hd shadow_stage.scene3).entries.(0)in
   (match shadow_entry.family,shadow_entry.auxiliary with Scene_execution.Scene3_shadow,Some value when Bytes.length value.buffer=84->()|_->failwith"native shadow staging");

@@ -49,13 +49,14 @@ type node
 type t
 
 val empty : t
-(* [samples] is [1], [4], [9], or [16] coverage samples per pixel. *)
+(* [samples] is [1], [4], [9], or [16] coverage samples per pixel. The native
+   renderer shades at most 64 lights; rendering a scene with more fails with a
+   typed lowering error instead of dropping lights. *)
 val create :
   ?lights:Light.t list ->
-  ?shadows:Shadow3.t list ->
+  ?shadow:Shadow3.t ->
   ?ambient:Color.t ->
   ?separate_specular:bool ->
-  ?fog:Fog3.t ->
   ?depth_clear:float ->
   ?stencil_clear:int ->
   ?samples:int ->
@@ -223,10 +224,9 @@ module Private : sig
      instance batch composed after the descriptor's parent transform. *)
   val iter_batches : (drawing -> Mat4.t array option -> unit) -> t -> unit
   val lights : t -> Light.t list
-  val shadows : t -> Shadow3.t list
+  val shadow : t -> Shadow3.t option
   val ambient : t -> Color.t
   val separate_specular : t -> bool
-  val fog : t -> Fog3.t option
   val depth_clear : t -> float
   val stencil_clear : t -> int
   val samples : t -> int

@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 152,
+  "module_count": 151,
   "modules": [
     {
       "api_sha256": "42991257be662e316b18b78776fd2c91d5990ebf5a3b561d4d38b32d1d9db961",
@@ -877,15 +877,6 @@
       "source_sha256": "c5514df49d514e2bc49355fd6c2584d3d16e2197db22c835277a2cced17d0fce"
     },
     {
-      "api_sha256": "ad62ad9ff4b2dc8aed9b97d9436ec5203c79f7a90d44504fb6a08416fe053e0a",
-      "excluded_legacy_symbols": [],
-      "library": "prismel",
-      "module": "Fog3",
-      "source": "lib/prismel/fog3.mli",
-      "source_bytes": 510,
-      "source_sha256": "c2f882087efb3d55d07d2be24227681c5a55b0efd289930b377c9458d591997a"
-    },
-    {
       "api_sha256": "5f29f30c6553b9d996cb148e8316b1096514d14c162e8183f03d3d39f22e40aa",
       "excluded_legacy_symbols": [
         "module:Private"
@@ -935,13 +926,13 @@
       "source_sha256": "faca8d62430ef59d40eef2dc9bb2baf3d2975ca2b25b6425f5c2aa8732ed319c"
     },
     {
-      "api_sha256": "462469ed4e8b2ddd45acceb51d7e2603ea20a8bf448fac73c0e6794bd706116d",
+      "api_sha256": "316c0fbc9a221ddbf42340ca8c905852c5e4ba32ba7df55a577976226be75dd0",
       "excluded_legacy_symbols": [],
       "library": "prismel",
       "module": "Light",
       "source": "lib/prismel/light.mli",
-      "source_bytes": 1759,
-      "source_sha256": "572544e352109c4403182252f38dd2894f00035992986911ec7adf9965f64840"
+      "source_bytes": 1544,
+      "source_sha256": "2bdc5cff64ba22570ea55532e5fa11872388ba4f62b8aa09a967ba68e191cd18"
     },
     {
       "api_sha256": "800716ec3944adc38c92341986735476d76ba5f774da239383f37790c3de3d55",
@@ -1052,13 +1043,13 @@
       "source_sha256": "67c2c1a27b49ad8dbbcf841b2facb2bfa825fb4687f451eec9e3f2cc148b40cf"
     },
     {
-      "api_sha256": "f5f7e207387260bc531eefeaab7ad9e10333d34343e4b93b374962bc9aae010e",
+      "api_sha256": "01b3010e4813ab7a5490635a5b08bf547780b4acc29da3d15eb090c44159c45c",
       "excluded_legacy_symbols": [],
       "library": "prismel",
       "module": "Scene3",
       "source": "lib/prismel/scene3.mli",
-      "source_bytes": 5336,
-      "source_sha256": "58cecb65ea75c1496053386bc6264704fcc84d9fa996c76cb09072d7df19b7f5"
+      "source_bytes": 5425,
+      "source_sha256": "6ded3b153cfb7561e31e6ba47b8e686b91e977b52428240e902fbe851a8cc2ad"
     },
     {
       "api_sha256": "95065cba582b65eb9f7700f8d67bac6c2152edbd7ad964fc0ed5e7eab58fc8ed",

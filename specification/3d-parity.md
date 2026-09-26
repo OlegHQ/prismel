@@ -32,15 +32,15 @@ Status meanings:
 | Filled triangle drawing | complete | Triangle, strip, and fan input become checked indexed Metal draws |
 | Depth compare/write and face culling | complete | Lowered to native render-pass/pipeline state and covered by overlap fixtures |
 | Replace/alpha/add/multiply/screen/subtract blending | partial | Supported fixed families lower to Metal; every family/sample combination still follows device capability checks |
-| Fixed material and ambient/directional/point/spot/area input | partial | Uniform packing and native fixed pipeline exist; parity for every light policy is not yet a blanket claim |
+| Fixed material, scene ambient color, directional/point/spot/area lights | partial | Uniform packing and native fixed pipeline exist; more than 64 lights is a typed `Too_many_lights` lowering error; parity for every light policy is not yet a blanket claim |
 | Sampled mesh texture | partial | One sampled texture with checked resource/sampler ownership; the broader texture API is not all Scene3-qualified |
-| Shadow input | partial | The first configured shadow resource lowers; multiple-shadow and full public policy parity remain open |
+| Shadow input | partial | `Scene3.create ?shadow` takes one shadow map, which lowers natively; full public policy parity remains open |
 | Scene multisampling | partial | Supported sample counts are device-negotiated; exact per-count parity is a qualification matrix |
 | Wireframe, vertices, point and line modes | API only | Current public native lowering rejects non-face/non-triangulable drawings |
 | Scoped line width and point size | API only | State constructors exist; their drawing modes are not public-native complete |
 | Full stencil behavior | API only | Public state exists; current Scene3 preparation does not claim complete stencil lowering |
 | Smooth/flat policy parity | partial | Mesh normals reach native lighting; all public splitting/interpolation combinations require end-to-end fixtures |
-| Fog and separate-specular policy | partial | Public values and uniform fields exist; complete visible-behavior parity remains a qualification item |
+| Separate-specular policy | partial | Public value and uniform field exist; complete visible-behavior parity remains a qualification item |
 | Instanced Scene3 submission | partial | Public immutable batches exist; end-to-end native instancing must be distinguished from repeated retained draws |
 | `Shader3` OCaml vertex/geometry/fragment functions | API only | Current native lowering returns `Unsupported_shader`; typed MSL/IR is required for native completion |
 | `Compute3` and `Transform_feedback3` | API only | Functional APIs remain, but they are not claimed as public Metal execution by Scene3 |

@@ -44,7 +44,7 @@ let material = Material.create ~diffuse:(Color.hex_exn "#f2b36d")
 
 let lights = [
   Light.directional ~direction:(Vec3.create (-1.) (-1.5) (-2.))
-    ~diffuse:(Color.hex_exn "#fff7ed") ~ambient:(Color.hex_exn "#1c1917") ();
+    ~diffuse:(Color.hex_exn "#fff7ed") ();
   Light.directional ~direction:(Vec3.create 1.2 0.4 (-0.8))
     ~diffuse:(Color.hex_exn "#7dd3fc") ~intensity:0.55 ();
 ]

@@ -243,7 +243,7 @@ let scene3 _graph mesh =
     | Triangles | Triangle_strip | Triangle_fan -> material in
   Scene3.create ~samples:4 ~lights:[
     Light.directional ~direction:(v (-1.) (-1.2) (-2.))
-      ~diffuse:Color.white ~ambient:(color "#172554") ()]
+      ~diffuse:Color.white ()]
     [Scene3.mesh ~cull:Scene3.Cull_none ~material mesh]
 
 let check_all () =

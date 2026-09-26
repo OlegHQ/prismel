@@ -98,8 +98,7 @@ let update model frame =
   { model with camera = Easy_camera.update model.camera frame }
 
 let view model _frame =
-  let lights = [Light.directional ~direction:(Vec3.create (-1.) (-2.) (-1.))
-      ~ambient:(Color.hex_exn "#1e293b") ()] in
+  let lights = [Light.directional ~direction:(Vec3.create (-1.) (-2.) (-1.)) ()] in
   let nodes = List.map (fun mesh -> Scene3.mesh ~cull:Scene3.Cull_none
       ~material:(Material.create ~diffuse:Color.white ()) mesh) model.meshes in
   Scene.[

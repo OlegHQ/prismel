@@ -48,7 +48,6 @@ let size shadow = shadow.width, shadow.height
 
 let toward_light light world =
   match light.Light.kind with
-  | Ambient -> Vec3.zero
   | Directional { direction } -> Vec3.neg direction
   | Point { position; _ }
   | Spot { position; _ }

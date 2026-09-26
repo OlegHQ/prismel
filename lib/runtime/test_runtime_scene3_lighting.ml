@@ -37,11 +37,7 @@ let run () =match Runtime.create~width:4~height:4() with Error _->print_endline"
   let point=positional 1.(1.,0.,0.,1.)in set point 93 1.;check"point"point(byte inverse_length,0,0);
   let spot=positional 2.(0.,0.,1.,1.)in set spot 93 0.;set spot 94 0.;set spot 95(-1.);set spot 96 1.;set spot 97 0.5;set spot 98 1.;set spot 99 1.;check"spot"spot(0,0,byte(inverse_length*.inverse_length));
   let area=positional 3.(1.,0.,0.,1.)in set area 93 0.;set area 94 0.;set area 95(-1.);set area 96 1.;set area 97 1.;set area 98 4.;set area 99 1.;check"area"area(byte area_diffuse,0,0);
-  let fog kind=let bytes=uniform~ambient:(1.,1.,1.,1.)~diffuse:(0.,0.,0.,1.)~global:(1.,1.,1.,1.)~light:None in set bytes 76 kind;set bytes 77 1.;set bytes 78 0.;set bytes 79 0.;set bytes 80 1.;bytes in
-  let linear=fog 1. in set linear 81 0.;set linear 82 1.;check"linear-fog"linear(255,0,0);
-  let exponential=fog 2. in set exponential 81 100.;check"exponential-fog"exponential(255,0,0);
-  let exponential2=fog 3. in set exponential2 81 100.;check"exponential2-fog"exponential2(255,0,0);
-  let too_many=Bytes.copy exponential2 in set too_many 73 65.;let uploaded=(Runtime.stats runtime).uploaded_bytes in
+  let too_many=uniform~ambient:(1.,1.,1.,1.)~diffuse:(0.,0.,0.,1.)~global:(1.,1.,1.,1.)~light:None in set too_many 73 65.;let uploaded=(Runtime.stats runtime).uploaded_bytes in
   begin match Runtime.render_sampled_resources runtime[entry Scene3 {base with transform_uniforms=Some too_many}]with Error error when error.Ogpu.Error.kind=Invalid_argument&&uploaded=(Runtime.stats runtime).uploaded_bytes->()|_->failwith"over-64 light block was not rejected atomically"end;
   let stencil compare pass reference:Ogpu.Render_pass.stencil_state=let face={Ogpu.Render_pass.compare;stencil_fail=Ogpu.Render_pass.Keep;depth_fail=Keep;pass;read_mask=Int32.minus_one;write_mask=Int32.minus_one}in{front=face;back=face;front_reference=Int32.of_int reference;back_reference=Int32.of_int reference}in
   let red=uniform~ambient:(1.,0.,0.,1.)~diffuse:(0.,0.,0.,1.)~global:(1.,1.,1.,1.)~light:None and green=uniform~ambient:(0.,1.,0.,1.)~diffuse:(0.,0.,0.,1.)~global:(1.,1.,1.,1.)~light:None in
