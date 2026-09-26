@@ -111,7 +111,7 @@ let () =
     Predicates.orient3d_packed ~x:underflow_x ~y:underflow_y
       ~z:underflow_z 0 1 2 3 |> sign_code);
   let module Point = struct
-    include Pdk_boolean.Boolean_kernel.Private
+    include Pdk_exact.Implicit_point
     let sign value = match reference value with
       | -1 -> Predicates.Negative | 0 -> Predicates.Zero
       | 1 -> Predicates.Positive | _ -> assert false

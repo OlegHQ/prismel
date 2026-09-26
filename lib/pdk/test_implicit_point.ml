@@ -1,5 +1,5 @@
 module Point = struct
-  include Pdk_boolean.Boolean_kernel.Private
+  include Pdk_exact.Implicit_point
   let sign value = match reference value with
     | -1 -> Pdk.Predicates.Negative
     | 0 -> Pdk.Predicates.Zero

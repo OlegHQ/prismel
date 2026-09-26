@@ -1,8 +1,8 @@
 open Pdk
 
-module Constraints = Pdk_boolean.Boolean_kernel.Constraints
+module Constraints = Pdk_boolean.Boolean_constraints
 let approximate_point plan point =
-  Pdk_boolean.Boolean_kernel.Private.approximate (Constraints.Private.point plan point)
+  Pdk_exact.Implicit_point.approximate (Constraints.Private.point plan point)
 
 let fail format = Printf.ksprintf failwith format
 let check condition message = if not condition then fail "%s" message

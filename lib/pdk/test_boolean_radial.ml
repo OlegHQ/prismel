@@ -1,11 +1,11 @@
 open Pdk
 
-module Point = Pdk_boolean.Boolean_kernel.Private
-module Constraints = Pdk_boolean.Boolean_kernel.Constraints
-module Coplanar = Pdk_boolean.Boolean_kernel.Coplanar
-module Refinement = Pdk_boolean.Boolean_kernel.Refinement
-module Complex = Pdk_boolean.Boolean_kernel.Complex
-module Radial = Pdk_boolean.Boolean_kernel.Radial
+module Point = Pdk_exact.Implicit_point
+module Constraints = Pdk_boolean.Boolean_constraints
+module Coplanar = Pdk_boolean.Boolean_coplanar
+module Refinement = Pdk_boolean.Boolean_refinement
+module Complex = Pdk_boolean.Boolean_complex
+module Radial = Pdk_boolean.Boolean_radial
 
 let fail format = Printf.ksprintf failwith format
 let check condition message = if not condition then fail "%s" message

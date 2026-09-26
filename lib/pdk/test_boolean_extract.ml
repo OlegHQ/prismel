@@ -1,13 +1,13 @@
 open Pdk
 
-module Constraints = Pdk_boolean.Boolean_kernel.Constraints
-module Coplanar = Pdk_boolean.Boolean_kernel.Coplanar
-module Refinement = Pdk_boolean.Boolean_kernel.Refinement
-module Complex = Pdk_boolean.Boolean_kernel.Complex
-module Radial = Pdk_boolean.Boolean_kernel.Radial
-module Weiler = Pdk_boolean.Boolean_kernel.Weiler
-module Cells = Pdk_boolean.Boolean_kernel.Cells
-module Extract = Pdk_boolean.Boolean_kernel.Extract
+module Constraints = Pdk_boolean.Boolean_constraints
+module Coplanar = Pdk_boolean.Boolean_coplanar
+module Refinement = Pdk_boolean.Boolean_refinement
+module Complex = Pdk_boolean.Boolean_complex
+module Radial = Pdk_boolean.Boolean_radial
+module Weiler = Pdk_boolean.Boolean_weiler
+module Cells = Pdk_boolean.Boolean_cells
+module Extract = Pdk_boolean.Boolean_extract
 
 let fail format = Printf.ksprintf failwith format
 let check condition message = if not condition then fail "%s" message

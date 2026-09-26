@@ -317,7 +317,7 @@ let test_inserted_points () =
     [0,4;4,2;1,4;4,3];
   validate x y output;
 
-  let module Point = Pdk_boolean.Boolean_kernel.Private in
+  let module Point = Pdk_exact.Implicit_point in
   let source = Point.source ~x:(Array.sub x 0 4) ~y:(Array.sub y 0 4)
       ~z:[|0.;0.;0.;0.|] |> function Ok value -> value | Error _ ->
         fail "implicit source construction failed" in

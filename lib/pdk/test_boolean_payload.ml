@@ -1,8 +1,8 @@
 open Pdk
 
-module Solid = Pdk_boolean.Boolean_kernel.Solid
-module Extract = Pdk_boolean.Boolean_kernel.Extract
-module Payload = Pdk_boolean.Boolean_kernel.Payload
+module Solid = Pdk_boolean.Boolean_solid
+module Extract = Pdk_boolean.Boolean_extract
+module Payload = Pdk_boolean.Boolean_payload
 
 let fail format = Printf.ksprintf failwith format
 let check condition message = if not condition then fail "%s" message
@@ -129,7 +129,7 @@ let validate left right ancestry output =
       (Geometry.find_group ~owner:Group.Primitive "ordered" output) in
   for primitive = 0 to Geometry.primitive_count output - 1 do
     let face = Extract.primitive_face ancestry primitive in
-    let is_left = Extract.primitive_side ancestry primitive = Pdk_boolean.Boolean_kernel.Complex.Left in
+    let is_left = Extract.primitive_side ancestry primitive = Pdk_boolean.Boolean_complex.Left in
     let base = if is_left then 10. else 20. in
     check (weight.(primitive) = base +. float_of_int face)
       "primitive float ancestry is wrong";
@@ -158,7 +158,7 @@ let validate left right ancestry output =
   let order = Option.get (Group.ordered_elements ordered) in
   let source_order = Array.map (fun primitive ->
       (match Extract.primitive_side ancestry primitive with
-       | Pdk_boolean.Boolean_kernel.Complex.Left -> 0 | Pdk_boolean.Boolean_kernel.Complex.Right -> 1),
+       | Pdk_boolean.Boolean_complex.Left -> 0 | Pdk_boolean.Boolean_complex.Right -> 1),
       Extract.primitive_face ancestry primitive) order in
   check (source_order = [|0,3; 0,1; 1,2; 1,0|])
     "ordered primitive group ancestry did not preserve left/right source order";
@@ -293,7 +293,7 @@ let validate_corner_payload ancestry output =
     let primitive = corner / 3 and local = corner mod 3 in
     let wa,wb,wc = Extract.corner_barycentric ancestry primitive local in
     let source_local = if wa >= wb && wa >= wc then 0 else if wb >= wc then 1 else 2 in
-    let is_left = Extract.primitive_side ancestry primitive = Pdk_boolean.Boolean_kernel.Complex.Left in
+    let is_left = Extract.primitive_side ancestry primitive = Pdk_boolean.Boolean_complex.Left in
     let base = if is_left then 10. else 20.
     and point_source = Extract.primitive_source_point ancestry primitive source_local
     and vertex_source = Extract.primitive_source_vertex ancestry primitive source_local in
@@ -332,12 +332,12 @@ let validate_corner_payload ancestry output =
     check (!corner >= 0) "ordered output point has no incident corner";
     let primitive = !corner / 3 and local = !corner mod 3 in
     (match Extract.primitive_side ancestry primitive with
-     | Pdk_boolean.Boolean_kernel.Complex.Left -> 0 | Pdk_boolean.Boolean_kernel.Complex.Right -> 1),
+     | Pdk_boolean.Boolean_complex.Left -> 0 | Pdk_boolean.Boolean_complex.Right -> 1),
     Extract.primitive_source_point ancestry primitive local in
   let vertex_source vertex =
     let primitive = vertex / 3 and local = vertex mod 3 in
     (match Extract.primitive_side ancestry primitive with
-     | Pdk_boolean.Boolean_kernel.Complex.Left -> 0 | Pdk_boolean.Boolean_kernel.Complex.Right -> 1),
+     | Pdk_boolean.Boolean_complex.Left -> 0 | Pdk_boolean.Boolean_complex.Right -> 1),
     Extract.primitive_source_vertex ancestry primitive local in
   check (Array.map point_source point_order = [|0,3; 0,1; 1,3; 1,1|])
     "ordered point group did not preserve operand/source traversal";
@@ -693,10 +693,10 @@ let test_surface_cut_payload () =
       let sheet_count = ref 0 in
       for primitive = 0 to Geometry.primitive_count output - 1 do
         match Extract.primitive_side ancestry primitive with
-        | Pdk_boolean.Boolean_kernel.Complex.Left ->
+        | Pdk_boolean.Boolean_complex.Left ->
             check (ids.(primitive) = 0 && not (Group.mem primitive group))
               "solid side inherited surface-only cut payload"
-        | Pdk_boolean.Boolean_kernel.Complex.Right ->
+        | Pdk_boolean.Boolean_complex.Right ->
             incr sheet_count;
             check ((ids.(primitive) = 42 || ids.(primitive) = 43)
                 && Group.mem primitive group)

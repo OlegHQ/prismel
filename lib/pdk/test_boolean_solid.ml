@@ -1,10 +1,10 @@
 open Pdk
 
-module Solid = Pdk_boolean.Boolean_kernel.Solid
-module Extract = Pdk_boolean.Boolean_kernel.Extract
-module Seam = Pdk_boolean.Boolean_kernel.Seam
-module Materialization = Pdk_boolean.Boolean_kernel.Materialization
-module Complex = Pdk_boolean.Boolean_kernel.Complex
+module Solid = Pdk_boolean.Boolean_solid
+module Extract = Pdk_boolean.Boolean_extract
+module Seam = Pdk_boolean.Boolean_seam
+module Materialization = Pdk_boolean.Boolean_materialization
+module Complex = Pdk_boolean.Boolean_complex
 
 let fail format = Printf.ksprintf failwith format
 let check condition message = if not condition then fail "%s" message

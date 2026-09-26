@@ -94,19 +94,19 @@ let run_pipeline () =
 open Prismel
 open Pdk
 
-module Constraints = Pdk_boolean.Boolean_kernel.Constraints
-module Coplanar = Pdk_boolean.Boolean_kernel.Coplanar
-module Arrangement = Pdk_boolean.Boolean_kernel.Arrangement
-module Triangulation = Pdk_boolean.Boolean_kernel.Triangulation
-module Refinement = Pdk_boolean.Boolean_kernel.Refinement
-module Complex = Pdk_boolean.Boolean_kernel.Complex
-module Radial = Pdk_boolean.Boolean_kernel.Radial
-module Weiler = Pdk_boolean.Boolean_kernel.Weiler
-module Cells = Pdk_boolean.Boolean_kernel.Cells
-module Extract = Pdk_boolean.Boolean_kernel.Extract
-module Solid = Pdk_boolean.Boolean_kernel.Solid
-module Payload = Pdk_boolean.Boolean_kernel.Payload
-module Materialization = Pdk_boolean.Boolean_kernel.Materialization
+module Constraints = Pdk_boolean.Boolean_constraints
+module Coplanar = Pdk_boolean.Boolean_coplanar
+module Arrangement = Pdk_boolean.Boolean_face_arrangement
+module Triangulation = Pdk_boolean.Boolean_face_cdt
+module Refinement = Pdk_boolean.Boolean_refinement
+module Complex = Pdk_boolean.Boolean_complex
+module Radial = Pdk_boolean.Boolean_radial
+module Weiler = Pdk_boolean.Boolean_weiler
+module Cells = Pdk_boolean.Boolean_cells
+module Extract = Pdk_boolean.Boolean_extract
+module Solid = Pdk_boolean.Boolean_solid
+module Payload = Pdk_boolean.Boolean_payload
+module Materialization = Pdk_boolean.Boolean_materialization
 
 
 let pair_count = integer_env "PRISMEL_BOOLEAN_PAIR_COUNT" 10_000
@@ -449,9 +449,9 @@ let run_constraints () =
 open Prismel
 open Pdk
 
-module Constraints = Pdk_boolean.Boolean_kernel.Constraints
+module Constraints = Pdk_boolean.Boolean_constraints
 let approximate_point plan point =
-  Pdk_boolean.Boolean_kernel.Private.approximate (Constraints.Private.point plan point)
+  Pdk_exact.Implicit_point.approximate (Constraints.Private.point plan point)
 
 
 let pair_count = integer_env "PRISMEL_BOOLEAN_PAIR_COUNT" 20_000
@@ -572,10 +572,10 @@ let run_coplanar () =
 open Prismel
 open Pdk
 
-module Constraints = Pdk_boolean.Boolean_kernel.Constraints
-module Coplanar = Pdk_boolean.Boolean_kernel.Coplanar
+module Constraints = Pdk_boolean.Boolean_constraints
+module Coplanar = Pdk_boolean.Boolean_coplanar
 let approximate_point value pair point =
-  Pdk_boolean.Boolean_kernel.Private.approximate (Coplanar.Private.point value pair point)
+  Pdk_exact.Implicit_point.approximate (Coplanar.Private.point value pair point)
 
 
 let pair_count = integer_env "PRISMEL_BOOLEAN_PAIR_COUNT" 10_000
@@ -658,10 +658,10 @@ let run_arrangement () =
   let module Bench = struct
 open Prismel
 
-module Constraints = Pdk_boolean.Boolean_kernel.Constraints
-module Arrangement = Pdk_boolean.Boolean_kernel.Arrangement
+module Constraints = Pdk_boolean.Boolean_constraints
+module Arrangement = Pdk_boolean.Boolean_face_arrangement
 let approximate_point value point =
-  Pdk_boolean.Boolean_kernel.Private.approximate (Arrangement.Private.point value point)
+  Pdk_exact.Implicit_point.approximate (Arrangement.Private.point value point)
 
 
 let segment_count = integer_env "PRISMEL_BOOLEAN_SEGMENTS" 2_000
@@ -761,9 +761,9 @@ let run_cdt () =
   let module Bench = struct
 open Prismel
 
-module Constraints = Pdk_boolean.Boolean_kernel.Constraints
-module Arrangement = Pdk_boolean.Boolean_kernel.Arrangement
-module Triangulation = Pdk_boolean.Boolean_kernel.Triangulation
+module Constraints = Pdk_boolean.Boolean_constraints
+module Arrangement = Pdk_boolean.Boolean_face_arrangement
+module Triangulation = Pdk_boolean.Boolean_face_cdt
 
 
 let segment_count = integer_env "PRISMEL_BOOLEAN_SEGMENTS" 500
@@ -842,9 +842,9 @@ let run_refinement () =
   let module Bench = struct
 open Prismel
 
-module Constraints = Pdk_boolean.Boolean_kernel.Constraints
-module Triangulation = Pdk_boolean.Boolean_kernel.Triangulation
-module Refinement = Pdk_boolean.Boolean_kernel.Refinement
+module Constraints = Pdk_boolean.Boolean_constraints
+module Triangulation = Pdk_boolean.Boolean_face_cdt
+module Refinement = Pdk_boolean.Boolean_refinement
 
 
 let pair_count = integer_env "PRISMEL_BOOLEAN_PAIR_COUNT" 10_000
@@ -911,10 +911,10 @@ let run_complex () =
   let module Bench = struct
 open Prismel
 
-module Constraints = Pdk_boolean.Boolean_kernel.Constraints
-module Refinement = Pdk_boolean.Boolean_kernel.Refinement
-module Complex = Pdk_boolean.Boolean_kernel.Complex
-module Radial = Pdk_boolean.Boolean_kernel.Radial
+module Constraints = Pdk_boolean.Boolean_constraints
+module Refinement = Pdk_boolean.Boolean_refinement
+module Complex = Pdk_boolean.Boolean_complex
+module Radial = Pdk_boolean.Boolean_radial
 
 
 let pair_count = integer_env "PRISMEL_BOOLEAN_PAIR_COUNT" 10_000
@@ -979,11 +979,11 @@ let run_seam () =
 open Prismel
 open Pdk
 
-module Constraints = Pdk_boolean.Boolean_kernel.Constraints
-module Coplanar = Pdk_boolean.Boolean_kernel.Coplanar
-module Refinement = Pdk_boolean.Boolean_kernel.Refinement
-module Complex = Pdk_boolean.Boolean_kernel.Complex
-module Seam = Pdk_boolean.Boolean_kernel.Seam
+module Constraints = Pdk_boolean.Boolean_constraints
+module Coplanar = Pdk_boolean.Boolean_coplanar
+module Refinement = Pdk_boolean.Boolean_refinement
+module Complex = Pdk_boolean.Boolean_complex
+module Seam = Pdk_boolean.Boolean_seam
 
 
 let pair_count = integer_env "PRISMEL_BOOLEAN_PAIR_COUNT" 2_000
@@ -1102,9 +1102,9 @@ let run_materialization () =
 open Prismel
 open Pdk
 
-module Solid = Pdk_boolean.Boolean_kernel.Solid
-module Extract = Pdk_boolean.Boolean_kernel.Extract
-module Materialization = Pdk_boolean.Boolean_kernel.Materialization
+module Solid = Pdk_boolean.Boolean_solid
+module Extract = Pdk_boolean.Boolean_extract
+module Materialization = Pdk_boolean.Boolean_materialization
 
 
 let pair_count = integer_env "PRISMEL_BOOLEAN_PAIR_COUNT" 100
@@ -1197,9 +1197,9 @@ let run_payload () =
 open Pdk
 open Prismel
 
-module Solid = Pdk_boolean.Boolean_kernel.Solid
-module Extract = Pdk_boolean.Boolean_kernel.Extract
-module Payload = Pdk_boolean.Boolean_kernel.Payload
+module Solid = Pdk_boolean.Boolean_solid
+module Extract = Pdk_boolean.Boolean_extract
+module Payload = Pdk_boolean.Boolean_payload
 
 
 let pair_count = integer_env "PRISMEL_BOOLEAN_PAIR_COUNT" 10_000

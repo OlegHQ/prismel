@@ -172,7 +172,7 @@ an almost-parallel subnormal case. Exact three-point centroids support cell
 queries without manufacturing a floating offset, and an exact/filterable
 perpendicular radial dot predicate resolves coplanar angular ties.
 
-`Pdk_boolean.Boolean_kernel.Constraints` now implements phases 2 and 3 for two
+`Pdk_boolean.Boolean_constraints` now implements phases 2 and 3 for two
 surfaces and the packed input to phase 4. It concatenates source coordinate
 planes once, gets stable BVH candidates, classifies candidates exactly in
 parallel ranges, constructs LPI endpoints, sorts/deduplicates them by exact
@@ -195,7 +195,7 @@ suppression, the clean-input policy, cancellation, and exact one/four-domain
 output. Coplanar arrangement and face CDT remain deliberately downstream of
 this candidate and constraint plan.
 
-`Pdk_boolean.Boolean_kernel.Coplanar` now consumes every exact-coplanar candidate pair
+`Pdk_boolean.Boolean_coplanar` now consumes every exact-coplanar candidate pair
 as a separate planar arrangement. It classifies both triangles' vertices with
 exact projected orientations, constructs every proper edge crossing as an
 exact projected line-line point, deduplicates by homogeneous identity, and
@@ -255,7 +255,7 @@ face-touching tetrahedra; union, intersection, both differences, XOR, and a
 custom expression; one/four-domain exactness; outward volume; and region
 volume partition identities.
 
-`Pdk_boolean.Boolean_kernel.Seam` derives a second product from that same prepared complex
+`Pdk_boolean.Boolean_seam` derives a second product from that same prepared complex
 without repeating intersection or face refinement. It classifies exact complex
 edges as left-self, between-operands, or right-self; source-native edge ancestry
 prevents an ordinary non-manifold input edge from becoming a false
@@ -288,7 +288,7 @@ seam-adjacent edges” applies to the extracted surface around seams, not to the
 polyline seam product; that separate topology-changing cleanup remains gated
 on explicit threshold, payload, ancestry, and re-verification policy.
 
-`Pdk_boolean.Boolean_kernel.Payload.copy_primitives` consumes that ancestry without
+`Pdk_boolean.Boolean_payload.copy_primitives` consumes that ancestry without
 re-running extraction. It transfers the union of both operands' primitive
 attribute schemas across Float, Int, Text, Float2/3/4, Int-array, and
 Float-array storage; a field absent on the selected source operand receives
@@ -302,7 +302,7 @@ operand's source traversal, merge the left operand before the right, and keep
 stable output-facet order among the one-to-many descendants of one source
 primitive.
 
-`Pdk_boolean.Boolean_kernel.Payload.copy_points_and_vertices` completes the private
+`Pdk_boolean.Boolean_payload.copy_points_and_vertices` completes the private
 corner-payload boundary over the same ancestry. It supports every PDK storage
 kind independently on Point and Vertex owners. Float and Float2/3/4 values use
 the stored exact-construction barycentrics; `N` Float3 values are normalized
@@ -350,7 +350,7 @@ predicate. Failures report `rounding_collision` or `rounding_degenerate`
 instead of returning a silently invalid solid. Tiny-edge consolidation and a
 post-cleanup seam-intersection verification remain separate release gates.
 
-`Pdk_boolean.Boolean_kernel.Solid` is the private transactional boundary over those
+`Pdk_boolean.Boolean_solid` is the private transactional boundary over those
 stages. `prepare` owns one exact arrangement, radial graph, and classified cell
 complex; repeated `extract` calls evaluate different typed expressions without
 repeating intersection or classification work. It validates stage identity,

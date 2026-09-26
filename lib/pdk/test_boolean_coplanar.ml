@@ -1,9 +1,9 @@
 open Pdk
 
-module Constraints = Pdk_boolean.Boolean_kernel.Constraints
-module Coplanar = Pdk_boolean.Boolean_kernel.Coplanar
+module Constraints = Pdk_boolean.Boolean_constraints
+module Coplanar = Pdk_boolean.Boolean_coplanar
 let approximate_point value pair point =
-  Pdk_boolean.Boolean_kernel.Private.approximate (Coplanar.Private.point value pair point)
+  Pdk_exact.Implicit_point.approximate (Coplanar.Private.point value pair point)
 
 let fail format = Printf.ksprintf failwith format
 let check condition message = if not condition then fail "%s" message
