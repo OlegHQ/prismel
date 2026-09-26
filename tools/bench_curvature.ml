@@ -50,7 +50,7 @@ let measure name outputs smoothing_iterations input =
       Gc.full_major ();
       let before = Gc.quick_stat () and bytes_before = Gc.allocated_bytes ()
       and started = Unix.gettimeofday () in
-      let output = Ops.measure_curvature ~grain ~smoothing_iterations
+      let output = Analysis_ops.measure_curvature ~grain ~smoothing_iterations
           ~smoothing_strength:0.2 ~outputs input |> get in
       times.(repeat) <- Unix.gettimeofday () -. started;
       allocated.(repeat) <- Gc.allocated_bytes () -. bytes_before;
@@ -73,7 +73,7 @@ let measure name outputs smoothing_iterations input =
 let () =
   let input = input () in
   Printf.printf "case,points,primitives,domains,grain,repeats,seconds,current_domain_allocated_bytes,promoted_bytes,major_bytes,hash\n";
-  measure "mean" Ops.default_curvature_outputs 0 input;
+  measure "mean" Analysis_ops.default_curvature_outputs 0 input;
   measure "all_fields_smoothed" {
     Ops.mean=Some "mean"; gaussian=Some "gaussian";
     minimum=Some "minimum"; maximum=Some "maximum";

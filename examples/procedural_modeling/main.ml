@@ -20,7 +20,7 @@ let graphs () =
     |> Sop.resample ~maximum_segment_length:0.08
          ~curve_u_attribute:"curveu" ~tangent_attribute:"curve_tangent"
     |> Sop.sweep_circle ~sides:12 ~radius:0.16
-    |> Sop.polyframe ~orthogonal:true (Pdk.Ops.Attribute_gradient "uv")
+    |> Sop.polyframe ~orthogonal:true (Pdk.Analysis_ops.Attribute_gradient "uv")
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#22d3ee")
   and swept_star =
     let backbone =
@@ -200,7 +200,7 @@ let graphs () =
         |> Sop.group_random ~seed:513 ~probability:0.78
              ~owner:Pdk.Group_ops.Group_primitives ~name:"scatter_surface"
         |> Sop.scatter ~seed:514 ~group:"scatter_surface" ~count:320
-             ~density:(Pdk.Ops.scatter_density ~owner:Pdk.Attribute.Point
+             ~density:(Pdk.Scatter.density ~owner:Pdk.Attribute.Point
                "density")
              ~source_primitive_attribute:"source_primitive"
         |> Sop.transform (Mat4.translation (Vec3.create 0. 3.1 2.2)) in

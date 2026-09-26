@@ -229,7 +229,7 @@ let run () =
   let generated_polyframe = Sop.grid ~columns:401 ~rows:301
       ~uv_attribute:"uv" ~size:20. ()
       |> Sop.polyframe ~orthogonal:true
-           (Ops.Attribute_gradient "uv") in
+           (Analysis_ops.Attribute_gradient "uv") in
   let one = cook 1 generated_polyframe and many = cook 4 generated_polyframe in
   check (equal_geometry one many)
     "one-domain and four-domain PolyFrame geometry differ";
@@ -1179,7 +1179,7 @@ let run () =
       |> Sop.group_random ~seed:1_338 ~probability:0.73
            ~owner:Group_ops.Group_primitives ~name:"scatter_surface"
       |> Sop.scatter ~seed:1_339 ~group:"scatter_surface" ~count:100_000
-           ~density:(Ops.scatter_density ~owner:Attribute.Point
+           ~density:(Scatter.density ~owner:Attribute.Point
              "scatter_density")
            ~point_pattern:"N scatter_density"
            ~source_primitive_attribute:"source_primitive"

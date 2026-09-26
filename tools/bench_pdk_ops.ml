@@ -819,13 +819,13 @@ let run_polyframe_benchmarks () =
       ~size:100. () |> get_ok in
   let input_points = Geometry.point_count source in
   measure ~input_points "polyframe_two_edges" (fun () ->
-    Ops.polyframe ~grain ~orthogonal:true Ops.Two_edges source |> get_ok)
+    Analysis_ops.polyframe ~grain ~orthogonal:true Analysis_ops.Two_edges source |> get_ok)
     geometry_output;
   measure ~input_points "polyframe_texture_uv" (fun () ->
-    Ops.polyframe ~grain ~orthogonal:true (Ops.Texture_uv "uv") source
+    Analysis_ops.polyframe ~grain ~orthogonal:true (Analysis_ops.Texture_uv "uv") source
     |> get_ok) geometry_output;
   measure ~input_points "polyframe_attribute_gradient" (fun () ->
-    Ops.polyframe ~grain ~orthogonal:true (Ops.Attribute_gradient "uv") source
+    Analysis_ops.polyframe ~grain ~orthogonal:true (Analysis_ops.Attribute_gradient "uv") source
     |> get_ok) geometry_output
 
 let run_facet_benchmarks () =
@@ -3713,11 +3713,11 @@ let run_scatter_benchmarks () =
           0.05 +. float_of_int (point mod 257) /. 257.))) |> get_ok in
   let weighted = Geometry.with_attribute density source |> get_ok in
   measure ~input_points:source_points "scatter_uniform_exact_count" (fun () ->
-    Ops.scatter_surface ~grain ~count:scatter_count ~seed:73 source |> get_ok)
+    Scatter.run_checked ~grain ~count:scatter_count ~seed:73 source |> get_ok)
     geometry_output;
   measure ~input_points:source_points "scatter_density_provenance" (fun () ->
-    Ops.scatter_surface ~grain ~count:scatter_count ~seed:73
-      ~density:(Ops.scatter_density ~owner:Attribute.Point "scatter_density")
+    Scatter.run_checked ~grain ~count:scatter_count ~seed:73
+      ~density:(Scatter.density ~owner:Attribute.Point "scatter_density")
       ~point_pattern:"N scatter_density"
       ~source_primitive_attribute:"source_primitive"
       ~source_vertex_numbers_attribute:"source_vertices"

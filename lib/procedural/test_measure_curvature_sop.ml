@@ -54,7 +54,7 @@ let run () =
   let geometry = source () in
   let node = Sop.snapshot geometry
       |> Sop.measure_curvature ~label:"surface-curvature" ~point_group:"upper"
-          ~boundary:Pdk.Ops.Curvature_boundary_one_sided
+          ~boundary:Pdk.Analysis_ops.Curvature_boundary_one_sided
           ~smoothing_iterations:2 ~smoothing_strength:0.25 ~outputs in
   check (Node.operation node = "measure_curvature" && Node.version node = 1
       && Node.cook_mode node = Node.Duplicate_input 0

@@ -91,11 +91,11 @@ type normal_weighting = Normal_ops.weighting =
     triangulation changes, [Each_vertex] is the fastest equal-corner average,
     and [Face_area] gives larger polygons proportionally more influence. *)
 
-type curvature_boundary =
+type curvature_boundary = Analysis_ops.curvature_boundary =
   | Curvature_boundary_zero
   | Curvature_boundary_one_sided
 
-type curvature_outputs = {
+type curvature_outputs = Analysis_ops.curvature_outputs = {
   mean : string option;
   gaussian : string option;
   minimum : string option;
@@ -106,12 +106,12 @@ type curvature_outputs = {
 
 val default_curvature_outputs : curvature_outputs
 
-type laplacian_weighting =
+type laplacian_weighting = Analysis_ops.laplacian_weighting =
   | Laplacian_cotan
   | Laplacian_positive_cotan
   | Laplacian_uniform
 
-type polyframe_style =
+type polyframe_style = Analysis_ops.polyframe_style =
   | First_edge
   | Two_edges
   | Primitive_centroid

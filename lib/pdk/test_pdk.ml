@@ -4890,7 +4890,7 @@ let run () =
       ~high:(Color.to_floats Color.blue) sphere
       |> get_ok in
   let scatter domains = Parallel.run ~domains (fun () ->
-    Ops.scatter_surface ~grain:97 ~count:10_000 ~seed:123 scatter_source |> get_ok) in
+    Scatter.run_checked ~grain:97 ~count:10_000 ~seed:123 scatter_source |> get_ok) in
   let scatter_one = scatter 1 and scatter_many = scatter 4 in
   if not (equal_positions scatter_one scatter_many)
      || Geometry.point_count scatter_one <> 10_000

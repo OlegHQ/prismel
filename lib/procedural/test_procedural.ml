@@ -994,7 +994,7 @@ let test_generators_selections_and_delete () =
            ~normal_attribute:"frame_n"
            ~tangent_attribute:(Some "frame_u")
            ~bitangent_attribute:(Some "frame_v")
-           (Pdk.Ops.Texture_uv_gradient "uv") in
+           (Pdk.Analysis_ops.Texture_uv_gradient "uv") in
   check (contains (Node.parameters polyframe_node)
       "style=texture_uv_gradient:uv"
       && contains (Node.parameters polyframe_node) "orthogonal=true"
@@ -1011,7 +1011,7 @@ let test_generators_selections_and_delete () =
     "procedural PolyFrame vertex outputs";
   let missing_polyframe = Sop.grid ~columns:1 ~rows:1 ~size:1. ()
       |> Sop.polyframe ~selection:(Sop.Point_group "missing")
-           Pdk.Ops.First_edge in
+           Pdk.Analysis_ops.First_edge in
   (match Session.cook evaluator ~context:current missing_polyframe with
    | Error error -> check (error.code = "missing_group")
        "PolyFrame missing-group diagnostic"

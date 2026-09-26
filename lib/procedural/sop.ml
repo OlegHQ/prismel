@@ -3249,8 +3249,8 @@ let normals ?label ?selection ?(owner = Pdk.Attribute.Point)
           | Error error -> structured_pdk_error error)
 
 let curvature_boundary_key = function
-  | Pdk.Ops.Curvature_boundary_zero -> "zero"
-  | Pdk.Ops.Curvature_boundary_one_sided -> "one_sided"
+  | Pdk.Analysis_ops.Curvature_boundary_zero -> "zero"
+  | Pdk.Analysis_ops.Curvature_boundary_one_sided -> "one_sided"
 
 let curvature_outputs_key outputs = String.concat "," [
   "mean=" ^ option_string_key outputs.Pdk.Ops.mean;
@@ -3262,9 +3262,9 @@ let curvature_outputs_key outputs = String.concat "," [
 ]
 
 let measure_curvature ?label ?point_group
-    ?(boundary = Pdk.Ops.Curvature_boundary_zero)
+    ?(boundary = Pdk.Analysis_ops.Curvature_boundary_zero)
     ?(smoothing_iterations = 0) ?(smoothing_strength = 0.5)
-    ?(outputs = Pdk.Ops.default_curvature_outputs) input =
+    ?(outputs = Pdk.Analysis_ops.default_curvature_outputs) input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.measure_curvature: empty point group name") point_group;
   if smoothing_iterations < 0 then
@@ -3309,7 +3309,7 @@ let measure_curvature ?label ?point_group
       match points with
       | Error error -> Error error
       | Ok points ->
-          match Pdk.Ops.measure_curvature
+          match Pdk.Analysis_ops.measure_curvature
               ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?points ~boundary
               ~smoothing_iterations ~smoothing_strength ~outputs geometry with
@@ -3317,12 +3317,12 @@ let measure_curvature ?label ?point_group
           | Error error -> structured_pdk_error error)
 
 let laplacian_weighting_key = function
-  | Pdk.Ops.Laplacian_cotan -> "cotan"
-  | Pdk.Ops.Laplacian_positive_cotan -> "positive_cotan"
-  | Pdk.Ops.Laplacian_uniform -> "uniform"
+  | Pdk.Analysis_ops.Laplacian_cotan -> "cotan"
+  | Pdk.Analysis_ops.Laplacian_positive_cotan -> "positive_cotan"
+  | Pdk.Analysis_ops.Laplacian_uniform -> "uniform"
 
 let attribute_laplacian ?label ?point_group
-    ?(weighting = Pdk.Ops.Laplacian_cotan) ?(normalize = true) ~source
+    ?(weighting = Pdk.Analysis_ops.Laplacian_cotan) ?(normalize = true) ~source
     ?output input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.attribute_laplacian: empty point group name") point_group;
@@ -3354,7 +3354,7 @@ let attribute_laplacian ?label ?point_group
       match points with
       | Error error -> Error error
       | Ok points ->
-          match Pdk.Ops.attribute_laplacian
+          match Pdk.Analysis_ops.attribute_laplacian
               ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?points ~weighting ~normalize
               ~source ?output geometry with
@@ -3362,15 +3362,15 @@ let attribute_laplacian ?label ?point_group
           | Error error -> structured_pdk_error error)
 
 let polyframe_style_key = function
-  | Pdk.Ops.First_edge -> "first_edge"
-  | Pdk.Ops.Two_edges -> "two_edges"
-  | Pdk.Ops.Primitive_centroid -> "primitive_centroid"
-  | Pdk.Ops.Texture_uv name -> "texture_uv:" ^ String.escaped
+  | Pdk.Analysis_ops.First_edge -> "first_edge"
+  | Pdk.Analysis_ops.Two_edges -> "two_edges"
+  | Pdk.Analysis_ops.Primitive_centroid -> "primitive_centroid"
+  | Pdk.Analysis_ops.Texture_uv name -> "texture_uv:" ^ String.escaped
       (if String.trim name = "" then "uv" else name)
-  | Pdk.Ops.Texture_uv_gradient name ->
+  | Pdk.Analysis_ops.Texture_uv_gradient name ->
       "texture_uv_gradient:" ^ String.escaped
         (if String.trim name = "" then "uv" else name)
-  | Pdk.Ops.Attribute_gradient name ->
+  | Pdk.Analysis_ops.Attribute_gradient name ->
       "attribute_gradient:" ^ String.escaped name
 
 let polyframe ?label ?selection ?(orthogonal = false)
@@ -3393,7 +3393,7 @@ let polyframe ?label ?selection ?(orthogonal = false)
       match resolve_element_group ~operation:"polyframe" selection inputs.(0) with
       | Error _ as error -> error
       | Ok selection ->
-          match Pdk.Ops.polyframe ~cancel:(Context.cancel_token context)
+          match Pdk.Analysis_ops.polyframe ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~orthogonal
               ~left_handed ~normal_attribute ~tangent_attribute
               ~bitangent_attribute style inputs.(0) with
@@ -7816,8 +7816,8 @@ let scatter ?label ?seed ?group ?density ?point_pattern ?vertex_pattern
   let dependencies = match seed with
     | Some _ -> Context.Dependencies.static
     | None -> Context.Dependencies.one Context.Dependencies.Seed in
-  let density = Option.map (fun (value : Pdk.Ops.scatter_density) ->
-    { Pdk.Ops.density_owner = value.density_owner;
+  let density = Option.map (fun (value : Pdk.Scatter.density) ->
+    { Pdk.Scatter.density_owner = value.density_owner;
       density_attribute = String.sub value.density_attribute 0
           (String.length value.density_attribute) }) density in
   let density_key = match density with
@@ -7859,7 +7859,7 @@ let scatter ?label ?seed ?group ?density ?point_pattern ?vertex_pattern
       match primitives with
       | Error _ as error -> error
       | Ok primitives ->
-          match Pdk.Ops.scatter_surface ~grain:(Context.grain context) ~count ~seed
+          match Pdk.Scatter.run_checked ~grain:(Context.grain context) ~count ~seed
               ~cancel:(Context.cancel_token context) ?primitives ?density
               ?point_pattern ?vertex_pattern ?primitive_pattern ?detail_pattern
               ~match_groups ?source_primitive_attribute

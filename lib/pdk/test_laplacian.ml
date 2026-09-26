@@ -48,7 +48,7 @@ let test_constant_linear_and_quadratic () =
   let count = Geometry.point_count source in
   let source = with_attribute "constant" (Attribute.Float (Array.make count 7.))
       source in
-  let constant = Ops.attribute_laplacian ~source:"constant" source |> get in
+  let constant = Analysis_ops.attribute_laplacian ~source:"constant" source |> get in
   Array.iter (fun value -> check (value = 0.)
       "cotangent Laplacian did not annihilate a constant")
     (scalar "constant_laplacian" constant);
@@ -61,12 +61,12 @@ let test_constant_linear_and_quadratic () =
   let source = source |> with_attribute "linear" (Attribute.Float linear)
       |> with_attribute "quadratic" (Attribute.Float quadratic) in
   let center = center_group source in
-  let linear = Ops.attribute_laplacian ~points:center ~source:"linear" source
+  let linear = Analysis_ops.attribute_laplacian ~points:center ~source:"linear" source
       |> get |> scalar "linear_laplacian" in
   check (near linear.(4) 0.) "cotangent Laplacian lost planar linear precision";
-  let quadratic = Ops.attribute_laplacian ~points:center ~source:"quadratic"
+  let quadratic = Analysis_ops.attribute_laplacian ~points:center ~source:"quadratic"
       source |> get |> scalar "quadratic_laplacian" in
-  let quadratic_sum = Ops.attribute_laplacian ~points:center ~normalize:false
+  let quadratic_sum = Analysis_ops.attribute_laplacian ~points:center ~normalize:false
       ~source:"quadratic" ~output:"quadratic_sum" source
       |> get |> scalar "quadratic_sum" in
   check (quadratic.(4) > 0. && quadratic_sum.(4) > 0.)
@@ -74,7 +74,7 @@ let test_constant_linear_and_quadratic () =
   List.iter (fun radius ->
     let octahedron = Parametric_generators.platonic_checked ~kind:Parametric_generators.Platonic_octahedron ~radius ()
         |> get in
-    let laplacian = Ops.attribute_laplacian ~source:"P" octahedron
+    let laplacian = Analysis_ops.attribute_laplacian ~source:"P" octahedron
         |> get |> float3 "laplacian" in
     let positions = Packed.Float3.Private.view (Geometry.positions octahedron) in
     for point = 0 to Geometry.point_count octahedron - 1 do
@@ -92,15 +92,15 @@ let test_uniform_and_integrated () =
   let values = Array.make 9 0. in values.(4) <- 1.;
   let source = with_attribute "impulse" (Attribute.Float values) source in
   let center = center_group source in
-  let average = Ops.attribute_laplacian ~points:center
-      ~weighting:Ops.Laplacian_uniform ~source:"impulse" source
+  let average = Analysis_ops.attribute_laplacian ~points:center
+      ~weighting:Analysis_ops.Laplacian_uniform ~source:"impulse" source
       |> get |> scalar "impulse_laplacian" in
   check (average.(4) = -1.) "normalized uniform Laplacian is not neighbor average";
-  let sum = Ops.attribute_laplacian ~points:center
-      ~weighting:Ops.Laplacian_uniform ~normalize:false ~source:"impulse"
+  let sum = Analysis_ops.attribute_laplacian ~points:center
+      ~weighting:Analysis_ops.Laplacian_uniform ~normalize:false ~source:"impulse"
       ~output:"sum" source |> get |> scalar "sum" in
   check (sum.(4) = -4.) "integrated uniform Laplacian has wrong valence sum";
-  let cotan = Ops.attribute_laplacian ~points:center ~normalize:false
+  let cotan = Analysis_ops.attribute_laplacian ~points:center ~normalize:false
       ~source:"impulse" ~output:"cotan_sum" source
       |> get |> scalar "cotan_sum" in
   check (cotan.(4) < 0. && Float.is_finite cotan.(4))
@@ -109,7 +109,7 @@ let test_uniform_and_integrated () =
 let test_position_scale_and_storage () =
   let source = Uv_sphere.run_checked ~connectivity:Uv_sphere.Sphere_triangles
       ~segments:32 ~rings:16 ~radius:1. () |> get in
-  let position = Ops.attribute_laplacian ~source:"P" source |> get in
+  let position = Analysis_ops.attribute_laplacian ~source:"P" source |> get in
   let values = float3 "laplacian" position in
   let positions = Packed.Float3.Private.view (Geometry.positions source) in
   for point = 0 to Geometry.point_count source - 1 do
@@ -130,16 +130,16 @@ let test_position_scale_and_storage () =
   let base = base |> with_attribute "integer" (Attribute.Int (Array.init count Fun.id))
       |> with_attribute "pair" (Attribute.Float2 float2)
       |> with_attribute "tuple" (Attribute.Float4 float4) in
-  let integer = Ops.attribute_laplacian ~weighting:Ops.Laplacian_uniform
+  let integer = Analysis_ops.attribute_laplacian ~weighting:Analysis_ops.Laplacian_uniform
       ~source:"integer" base |> get in
   ignore (scalar "integer_laplacian" integer);
-  let pair = Ops.attribute_laplacian ~source:"pair" base |> get in
+  let pair = Analysis_ops.attribute_laplacian ~source:"pair" base |> get in
   (match Geometry.find_attribute ~owner:Attribute.Point "pair_laplacian" pair with
    | Some attribute ->
        (match Attribute.Private.storage attribute with Attribute.Float2 _ -> ()
         | _ -> fail "float2 Laplacian changed width")
    | None -> fail "float2 Laplacian is missing");
-  let tuple = Ops.attribute_laplacian ~source:"tuple" base |> get in
+  let tuple = Analysis_ops.attribute_laplacian ~source:"tuple" base |> get in
   (match Geometry.find_attribute ~owner:Attribute.Point "tuple_laplacian" tuple with
    | Some attribute ->
        (match Attribute.Private.storage attribute with Attribute.Float4 _ -> ()
@@ -153,7 +153,7 @@ let test_selection_and_exact_domains () =
   let source = with_attribute "result" (Attribute.Float (Array.make 9 42.))
       source in
   let center = center_group source in
-  let output = Ops.attribute_laplacian ~points:center ~source:"value"
+  let output = Analysis_ops.attribute_laplacian ~points:center ~source:"value"
       ~output:"result" source |> get in
   let result = scalar "result" output in
   for point = 0 to 8 do
@@ -166,13 +166,13 @@ let test_selection_and_exact_domains () =
   let sphere = Uv_sphere.run_checked ~connectivity:Uv_sphere.Sphere_triangles
       ~segments:192 ~rings:96 ~radius:3. () |> get in
   let run domains weighting = Parallel.run ~domains (fun () ->
-      Ops.attribute_laplacian ~grain:257 ~weighting ~source:"P" sphere |> get) in
+      Analysis_ops.attribute_laplacian ~grain:257 ~weighting ~source:"P" sphere |> get) in
   List.iter (fun weighting ->
     let one = float3 "laplacian" (run 1 weighting)
     and four = float3 "laplacian" (run 4 weighting) in
     check (one.x = four.x && one.y = four.y && one.z = four.z)
       "Laplacian differs across domain counts")
-    [Ops.Laplacian_cotan;Ops.Laplacian_positive_cotan;Ops.Laplacian_uniform]
+    [Analysis_ops.Laplacian_cotan;Analysis_ops.Laplacian_positive_cotan;Analysis_ops.Laplacian_uniform]
 
 let expect_invalid work message = match work () with
   | Error error when Error.code error = "invalid_laplacian" -> ()
@@ -181,31 +181,31 @@ let expect_invalid work message = match work () with
 
 let test_validation_and_cancellation () =
   let source = grid () in
-  expect_invalid (fun () -> Ops.attribute_laplacian ~grain:0 ~source:"P" source)
+  expect_invalid (fun () -> Analysis_ops.attribute_laplacian ~grain:0 ~source:"P" source)
     "zero grain";
-  expect_invalid (fun () -> Ops.attribute_laplacian ~source:"missing" source)
+  expect_invalid (fun () -> Analysis_ops.attribute_laplacian ~source:"missing" source)
     "missing source";
-  expect_invalid (fun () -> Ops.attribute_laplacian ~source:"P" ~output:"P" source)
+  expect_invalid (fun () -> Analysis_ops.attribute_laplacian ~source:"P" ~output:"P" source)
     "position output";
   let primitive_group = Group.init ~owner:Group.Primitive ~name:"wrong"
       (Geometry.primitive_count source) (fun _ -> true) in
-  expect_invalid (fun () -> Ops.attribute_laplacian ~points:primitive_group
+  expect_invalid (fun () -> Analysis_ops.attribute_laplacian ~points:primitive_group
       ~source:"P" source) "wrong group owner";
   let text = with_attribute "text" (Attribute.Text (Array.make 9 "x")) source in
-  expect_invalid (fun () -> Ops.attribute_laplacian ~source:"text" text)
+  expect_invalid (fun () -> Analysis_ops.attribute_laplacian ~source:"text" text)
     "text source";
   let nonfinite = with_attribute "bad"
       (Attribute.Float [|0.;0.;0.;0.;Float.nan;0.;0.;0.;0.|]) source in
-  expect_invalid (fun () -> Ops.attribute_laplacian ~source:"bad" nonfinite)
+  expect_invalid (fun () -> Analysis_ops.attribute_laplacian ~source:"bad" nonfinite)
     "non-finite source";
   let curve = Line_geometry.polyline_checked ~closed:true [|0.,0.,0.;1.,0.,0.;0.,1.,0.|] |> get in
-  expect_invalid (fun () -> Ops.attribute_laplacian ~source:"P" curve)
+  expect_invalid (fun () -> Analysis_ops.attribute_laplacian ~source:"P" curve)
     "curve input";
   let degenerate = degenerate_triangle () in
-  expect_invalid (fun () -> Ops.attribute_laplacian ~source:"P" degenerate)
+  expect_invalid (fun () -> Analysis_ops.attribute_laplacian ~source:"P" degenerate)
     "degenerate metric";
   let cancel = Cancel.create () in Cancel.cancel cancel;
-  (match Ops.attribute_laplacian ~cancel ~source:"P" source with
+  (match Analysis_ops.attribute_laplacian ~cancel ~source:"P" source with
    | Error error -> check (Error.code error = "cancelled")
        "Laplacian cancellation code"
    | Ok _ -> fail "cancelled Laplacian unexpectedly succeeded")

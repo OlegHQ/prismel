@@ -45,7 +45,7 @@ let run () =
   let geometry = source () in
   let node = Sop.snapshot geometry
       |> Sop.attribute_laplacian ~label:"surface-laplacian"
-          ~point_group:"upper" ~weighting:Pdk.Ops.Laplacian_positive_cotan
+          ~point_group:"upper" ~weighting:Pdk.Analysis_ops.Laplacian_positive_cotan
           ~normalize:false ~source:"P" ~output:"delta_p" in
   check (Node.operation node = "attribute_laplacian" && Node.version node = 1
       && Node.cook_mode node = Node.Duplicate_input 0

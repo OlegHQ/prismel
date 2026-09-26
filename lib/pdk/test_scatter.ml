@@ -107,8 +107,8 @@ let source_with_payload () =
 
 let check_payload_and_provenance () =
   let source = source_with_payload () in
-  let output = Ops.scatter_surface ~grain:37 ~count:4_000 ~seed:73
-      ~density:(Ops.scatter_density ~owner:Attribute.Primitive "density")
+  let output = Scatter.run_checked ~grain:37 ~count:4_000 ~seed:73
+      ~density:(Scatter.density ~owner:Attribute.Primitive "density")
       ~point_pattern:"foo point_mark" ~vertex_pattern:"corner vertex_mark"
       ~primitive_pattern:"material primitive_mark" ~detail_pattern:"meta"
       ~match_groups:true ~source_primitive_attribute:"source_primitive"
@@ -159,30 +159,30 @@ let check_selection_and_density () =
   let source = two_triangles () in
   let first = Group.init ~owner:Group.Primitive ~name:"first" 2
       (fun primitive -> primitive = 0) in
-  let selected = Ops.scatter_surface ~primitives:first ~count:2_000 ~seed:9 source
+  let selected = Scatter.run_checked ~primitives:first ~count:2_000 ~seed:9 source
       |> get_ok |> Geometry.positions |> Packed.Float3.Private.view in
   if Array.exists (fun x -> x < 0. || x > 1.) selected.x then
     fail "scatter primitive restriction";
   let negative = source
       |> add (float_attribute ~owner:Attribute.Primitive "density" [|-4.; 1.|]) in
-  let weighted = Ops.scatter_surface ~count:2_000 ~seed:10
-      ~density:(Ops.scatter_density ~owner:Attribute.Primitive "density") negative
+  let weighted = Scatter.run_checked ~count:2_000 ~seed:10
+      ~density:(Scatter.density ~owner:Attribute.Primitive "density") negative
       |> get_ok |> Geometry.positions |> Packed.Float3.Private.view in
   if Array.exists (fun x -> x < 10.) weighted.x then
     fail "negative density was not clamped to zero";
   let vertex_weighted = source
       |> add (float_attribute ~owner:Attribute.Vertex "vertex_density"
            [|0.;0.;0.;1.;1.;1.|])
-      |> Ops.scatter_surface ~count:2_000 ~seed:12
-           ~density:(Ops.scatter_density ~owner:Attribute.Vertex
+      |> Scatter.run_checked ~count:2_000 ~seed:12
+           ~density:(Scatter.density ~owner:Attribute.Vertex
              "vertex_density") |> get_ok |> Geometry.positions
       |> Packed.Float3.Private.view in
   if Array.exists (fun x -> x < 10.) vertex_weighted.x then
     fail "vertex density ownership";
   let detail_weighted = source
       |> add (float_attribute ~owner:Attribute.Detail "detail_density" [|2.|])
-      |> Ops.scatter_surface ~count:17 ~seed:13
-           ~density:(Ops.scatter_density ~owner:Attribute.Detail
+      |> Scatter.run_checked ~count:17 ~seed:13
+           ~density:(Scatter.density ~owner:Attribute.Detail
              "detail_density") |> get_ok in
   if Geometry.point_count detail_weighted <> 17 then fail "detail density ownership";
   let one_triangle = Geometry.create
@@ -192,8 +192,8 @@ let check_selection_and_density () =
         ~vertex_points:[|0;1;2|] ~primitive_offsets:[|0;3|] |> get_string_ok) ()
       |> get_string_ok
       |> add (float_attribute ~owner:Attribute.Point "density" [|1.;0.;0.|]) in
-  let biased = Ops.scatter_surface ~count:50_000 ~seed:11
-      ~density:(Ops.scatter_density ~owner:Attribute.Point "density") one_triangle
+  let biased = Scatter.run_checked ~count:50_000 ~seed:11
+      ~density:(Scatter.density ~owner:Attribute.Point "density") one_triangle
       |> get_ok |> Geometry.positions |> Packed.Float3.Private.view in
   let mean_x = Array.fold_left ( +. ) 0. biased.x /. 50_000.
   and mean_z = Array.fold_left ( +. ) 0. biased.z /. 50_000. in
@@ -203,7 +203,7 @@ let check_selection_and_density () =
   let source_id = source
       |> add (Attribute.create_owned ~name:"id" ~owner:Attribute.Point
            (Attribute.Int (Array.make 6 99)) |> get_string_ok) in
-  let generated_ids = Ops.scatter_surface ~count:40 ~seed:16
+  let generated_ids = Scatter.run_checked ~count:40 ~seed:16
       ~point_pattern:"id" source_id |> get_ok |> fun geometry ->
       point_int geometry "id" in
   if generated_ids <> Array.init 40 Fun.id then
@@ -211,7 +211,7 @@ let check_selection_and_density () =
   let curve = Line_geometry.polyline_checked [|(100.,0.,0.);(101.,0.,0.);(102.,0.,0.)|]
       |> get_ok in
   let mixed = Mesh_merge.run [source; curve] |> get_ok
-      |> Ops.scatter_surface ~count:2_000 ~seed:14 |> get_ok
+      |> Scatter.run_checked ~count:2_000 ~seed:14 |> get_ok
       |> Geometry.positions |> Packed.Float3.Private.view in
   if Array.exists (fun x -> x > 11.) mixed.x then
     fail "curve primitive contributed to surface scatter"
@@ -224,7 +224,7 @@ let check_ngon_provenance () =
   Topology.Builder.add_polygon topology [|0;1;2;3;4|];
   let source = Geometry.create ~positions ~topology:(Topology.Builder.freeze topology) ()
       |> get_string_ok in
-  let output = Ops.scatter_surface ~count:5_000 ~seed:99
+  let output = Scatter.run_checked ~count:5_000 ~seed:99
       ~source_vertex_numbers_attribute:"vertices"
       ~source_vertex_weights_attribute:"weights" source |> get_ok in
   let output_positions = Packed.Float3.Private.view (Geometry.positions output)
@@ -251,42 +251,42 @@ let check_ngon_provenance () =
 
 let check_errors () =
   let source = two_triangles () in
-  expect_code "invalid_geometry" (Ops.scatter_surface ~count:(-1) ~seed:0 source);
-  expect_code "invalid_geometry" (Ops.scatter_surface ~grain:0 ~count:1 ~seed:0 source);
-  expect_code "invalid_geometry" (Ops.scatter_surface ~count:1 ~seed:0
-    ~density:(Ops.scatter_density ~owner:Attribute.Point "missing") source);
+  expect_code "invalid_geometry" (Scatter.run_checked ~count:(-1) ~seed:0 source);
+  expect_code "invalid_geometry" (Scatter.run_checked ~grain:0 ~count:1 ~seed:0 source);
+  expect_code "invalid_geometry" (Scatter.run_checked ~count:1 ~seed:0
+    ~density:(Scatter.density ~owner:Attribute.Point "missing") source);
   let wrong_density = source
       |> add (text_attribute ~owner:Attribute.Point "density"
            (Array.make 6 "bad")) in
-  expect_code "invalid_geometry" (Ops.scatter_surface ~count:1 ~seed:0
-    ~density:(Ops.scatter_density ~owner:Attribute.Point "density") wrong_density);
+  expect_code "invalid_geometry" (Scatter.run_checked ~count:1 ~seed:0
+    ~density:(Scatter.density ~owner:Attribute.Point "density") wrong_density);
   let nan_density = source
       |> add (float_attribute ~owner:Attribute.Point "density"
            [|1.;1.;Float.nan;1.;1.;1.|]) in
-  expect_code "invalid_geometry" (Ops.scatter_surface ~count:1 ~seed:0
-    ~density:(Ops.scatter_density ~owner:Attribute.Point "density") nan_density);
+  expect_code "invalid_geometry" (Scatter.run_checked ~count:1 ~seed:0
+    ~density:(Scatter.density ~owner:Attribute.Point "density") nan_density);
   let zero_density = source
       |> add (float_attribute ~owner:Attribute.Detail "density" [|0.|]) in
-  expect_code "invalid_geometry" (Ops.scatter_surface ~count:1 ~seed:0
-    ~density:(Ops.scatter_density ~owner:Attribute.Detail "density") zero_density);
+  expect_code "invalid_geometry" (Scatter.run_checked ~count:1 ~seed:0
+    ~density:(Scatter.density ~owner:Attribute.Detail "density") zero_density);
   let wrong_owner = Group.init ~owner:Group.Point ~name:"wrong" 6 (fun _ -> true) in
-  expect_code "invalid_geometry" (Ops.scatter_surface ~primitives:wrong_owner
+  expect_code "invalid_geometry" (Scatter.run_checked ~primitives:wrong_owner
     ~count:1 ~seed:0 source);
   let wrong_length = Group.init ~owner:Group.Primitive ~name:"wrong" 1
       (fun _ -> true) in
-  expect_code "invalid_geometry" (Ops.scatter_surface ~primitives:wrong_length
+  expect_code "invalid_geometry" (Scatter.run_checked ~primitives:wrong_length
     ~count:1 ~seed:0 source);
-  expect_code "invalid_geometry" (Ops.scatter_surface ~count:1 ~seed:0
+  expect_code "invalid_geometry" (Scatter.run_checked ~count:1 ~seed:0
     ~source_vertex_numbers_attribute:"numbers" source);
-  expect_code "invalid_geometry" (Ops.scatter_surface ~count:1 ~seed:0
+  expect_code "invalid_geometry" (Scatter.run_checked ~count:1 ~seed:0
     ~source_primitive_attribute:"same"
     ~source_vertex_numbers_attribute:"same"
     ~source_vertex_weights_attribute:"weights" source);
-  expect_code "invalid_geometry" (Ops.scatter_surface ~count:1 ~seed:0
+  expect_code "invalid_geometry" (Scatter.run_checked ~count:1 ~seed:0
     ~match_groups:true source);
   let curve = Line_geometry.polyline_checked [|(0.,0.,0.);(1.,0.,0.);(2.,0.,0.)|] |> get_ok in
-  expect_code "invalid_geometry" (Ops.scatter_surface ~count:1 ~seed:0 curve);
-  if Geometry.point_count (Ops.scatter_surface ~count:0 ~seed:0 curve |> get_ok) <> 0
+  expect_code "invalid_geometry" (Scatter.run_checked ~count:1 ~seed:0 curve);
+  if Geometry.point_count (Scatter.run_checked ~count:0 ~seed:0 curve |> get_ok) <> 0
   then fail "zero scatter on curve";
   let bad_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|0.;1.;0.;Float.nan;11.;10.|]
@@ -294,10 +294,10 @@ let check_errors () =
   let bad_source = Geometry.create ~positions:bad_positions
       ~topology:(Geometry.topology source) () |> get_string_ok in
   expect_code "invalid_geometry"
-    (Ops.scatter_surface ~count:1 ~seed:0 bad_source);
+    (Scatter.run_checked ~count:1 ~seed:0 bad_source);
   let only_valid = Group.init ~owner:Group.Primitive ~name:"valid" 2
       (fun primitive -> primitive = 0) in
-  if Geometry.point_count (Ops.scatter_surface ~primitives:only_valid
+  if Geometry.point_count (Scatter.run_checked ~primitives:only_valid
       ~count:20 ~seed:0 bad_source |> get_ok) <> 20 then
     fail "unselected non-finite primitive affected scatter";
   let extreme = Geometry.create
@@ -307,7 +307,7 @@ let check_errors () =
       ~topology:(Topology.polygons_owned ~point_count:3
         ~vertex_points:[|0;1;2|] ~primitive_offsets:[|0;3|] |> get_string_ok) ()
       |> get_string_ok in
-  let extreme_positions = Ops.scatter_surface ~count:100 ~seed:15 extreme
+  let extreme_positions = Scatter.run_checked ~count:100 ~seed:15 extreme
       |> get_ok |> Geometry.positions |> Packed.Float3.Private.view in
   if not (Array.for_all Float.is_finite extreme_positions.x
       && Array.for_all Float.is_finite extreme_positions.y
@@ -315,7 +315,7 @@ let check_errors () =
     fail "extreme finite surface scatter overflow";
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  expect_code "cancelled" (Ops.scatter_surface ~cancel:cancelled ~count:100
+  expect_code "cancelled" (Scatter.run_checked ~cancel:cancelled ~count:100
     ~seed:0 source)
 
 let check_parallel_scale () =
@@ -325,8 +325,8 @@ let check_parallel_scale () =
       (Array.init count (fun point -> 0.1 +. float_of_int (point mod 97) /. 97.)) in
   let source = add density source in
   let scatter domains = Parallel.run ~domains (fun () ->
-    Ops.scatter_surface ~grain:1_009 ~count:100_000 ~seed:1_337
-      ~density:(Ops.scatter_density ~owner:Attribute.Point "density")
+    Scatter.run_checked ~grain:1_009 ~count:100_000 ~seed:1_337
+      ~density:(Scatter.density ~owner:Attribute.Point "density")
       ~point_pattern:"N" ~source_primitive_attribute:"primitive"
       ~source_vertex_numbers_attribute:"vertices"
       ~source_vertex_weights_attribute:"weights" source |> get_ok) in
