@@ -8,7 +8,6 @@ module Dependencies : sig
 
   val static : t
   val one : fact -> t
-  val of_list : fact list -> t
   val union : t -> t -> t
   val mem : fact -> t -> bool
   val to_list : t -> fact list

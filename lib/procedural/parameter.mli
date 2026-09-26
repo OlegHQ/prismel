@@ -126,7 +126,6 @@ val field :
 val schema :
   name:string -> default:'record -> 'record field list -> 'record schema
 
-val name : 'record schema -> string
 val default : 'record schema -> 'record
 val fields : 'record schema -> 'record field list
 

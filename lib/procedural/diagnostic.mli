@@ -21,7 +21,6 @@ type error = {
   hints : string list;
 }
 
-val make : severity -> node:trace -> code:string -> string -> t
 val error : ?cause:string -> ?hints:string list -> code:string -> string -> error
 val prepend_trace : trace -> error -> error
 val error_to_string : error -> string

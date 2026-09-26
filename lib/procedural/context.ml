@@ -15,7 +15,6 @@ module Dependencies = struct
   let one fact = bit fact
   let union = (lor)
   let mem fact value = value land bit fact <> 0
-  let of_list facts = List.fold_left (fun value fact -> union value (one fact)) static facts
   let all = [ Frame; Time; Seed; Domains; Grain ]
   let to_list value = List.filter (fun fact -> mem fact value) all
   let fact_name = function

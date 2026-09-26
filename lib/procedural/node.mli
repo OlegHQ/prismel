@@ -73,10 +73,9 @@ module Private : sig
 
   val input_policy : t -> input_policy
   val input_array : t -> t array
-  val with_inputs : t -> t array -> t
   (* Rebuild a parameterized node against new inputs so input-dependent
      schemas (for example Switch choices) stay current. The logical id is
-     retained. Unparameterized nodes behave like [with_inputs]. *)
+     retained. Unparameterized nodes only swap their inputs. *)
   val rebuild_with_inputs : t -> t array -> t
   (* Clone a node with a fresh logical id. Parameter values and operator
      metadata are preserved and input-dependent schemas are rebuilt. *)

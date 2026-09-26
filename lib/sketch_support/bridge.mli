@@ -13,8 +13,6 @@ val create :
   (t, string) result
 (** Wrap a cook session with a mesh cache of the given bounds. *)
 
-val session : t -> Procedural.Session.t
-
 val context_of_frame :
   ?seed:int64 -> ?domains:int -> ?grain:int -> Prismel.Frame.t ->
   (Procedural.Context.t, string) result
@@ -50,5 +48,3 @@ val cook_to_scene3 :
 (** Cook/cache one prototype directly into an immutable Scene3 instance node. *)
 
 val stats : t -> stats
-val clear : t -> unit
-(** Drop cached meshes; the wrapped session is untouched. *)

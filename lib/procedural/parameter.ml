@@ -232,7 +232,6 @@ let schema ~name ~default fields =
   in
   { schema with default }
 
-let name (value : 'record schema) = value.name
 let default (value : 'record schema) = value.default
 let fields (value : 'record schema) = value.fields
 

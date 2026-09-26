@@ -21,8 +21,6 @@ let create ~max_entries ~max_payload_bytes session =
             cache = Mesh_cache.create ~byte_capacity:max_payload_bytes max_entries;
             hits = 0; misses = 0 }
 
-let session bridge = bridge.session
-
 let context_of_frame ?seed ?domains ?grain (frame : Prismel.Frame.t) =
   Context.create ~frame:(Int64.of_int frame.count) ~time:frame.time ?seed ?domains
     ?grain ()
@@ -76,5 +74,3 @@ let cook_to_scene3 ?material ?texture ?mode ?cull ?shading
 let stats bridge =
   { hits = bridge.hits; misses = bridge.misses;
     retained = Mesh_cache.length bridge.cache }
-
-let clear bridge = Mesh_cache.clear bridge.cache

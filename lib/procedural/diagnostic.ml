@@ -21,7 +21,6 @@ type error = {
   hints : string list;
 }
 
-let make severity ~node ~code message = { severity; code; message; node }
 let error ?cause ?(hints = []) ~code message =
   { code; message; trace = []; cause; hints }
 let prepend_trace node value = { value with trace = node :: value.trace }

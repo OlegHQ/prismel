@@ -228,19 +228,6 @@ val transform_trs :
     column-vector points; rotations are radians and shear components are
     X-on-XY, X-on-XZ, and Y-on-YZ. *)
 
-val soft_transform :
-  ?label:string ->
-  ?selection:element_group ->
-  ?metric:Pdk.Transform_ops.soft_transform_metric ->
-  ?falloff:Pdk.Transform_ops.soft_transform_falloff ->
-  ?radius:float ->
-  ?falloff_attribute:string ->
-  ?recompute_normals:bool ->
-  Prismel_math.Mat4.t -> Node.t -> Node.t
-(** Apply a matrix with radius, edge-path, or point-attribute falloff. The
-    optional selected group supplies source points for geometric metrics and
-    the affected points for attribute weights. *)
-
 val soft_transform_trs :
   ?label:string ->
   ?order:Pdk.Transform_ops.transform_order ->
