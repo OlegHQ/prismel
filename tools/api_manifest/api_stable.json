@@ -3,7 +3,7 @@
   "baseline_plan_sha256": "6f95e5738ae263386bbc414299f598f25ba9f604b48a8c2ef9bee84f974e2954",
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 126,
+  "module_count": 129,
   "modules": [
     {
       "api_sha256": "e50b68fb8b3efb8c3f48d288c797a83690511ce38a332e2c2285c788efd781ad",
@@ -141,6 +141,15 @@
       "source_sha256": "0bf46003b41ba91781e491d8d2d28c8651900351281525a7779b64c3c4380279"
     },
     {
+      "api_sha256": "623c0af691aee92a984a30e0dd82de612f885589cc8b18ddc4f1bbce920c9bf6",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Compact_points",
+      "source": "lib/pdk/mesh/compact_points.mli",
+      "source_bytes": 186,
+      "source_sha256": "d17c7ffc052efd3c347d84ff2eb48151927592ceb4471bfa01db4b8debf43be1"
+    },
+    {
       "api_sha256": "8cfdbe361aeec3e22a73fe36dd0290fbb91350921f49c6bb04f118300b3a46b8",
       "excluded_legacy_symbols": [],
       "library": "pdk",
@@ -220,6 +229,15 @@
       "source": "lib/pdk/core/error.mli",
       "source_bytes": 457,
       "source_sha256": "c108990fa858b5f0eb14d65a6586ce7af23e1596b2151306417b4bb011fa6d74"
+    },
+    {
+      "api_sha256": "e81a21b15e63c18205412ea8c36c6d2e11ab8b4daa4dd00b60c7bfa31e89bf8c",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Facet_ops",
+      "source": "lib/pdk/mesh/facet_ops.mli",
+      "source_bytes": 542,
+      "source_sha256": "5b6f1e8018e52b801d86aae9ac743bbb6e4bb7e578c64ff781f71b83c2c47afd"
     },
     {
       "api_sha256": "b4ac0feb05cee1c04a3549733ffb85b22aa0b2663c04f6dc8cd05cd9d4c395e1",
@@ -427,6 +445,15 @@
       "source": "lib/pdk/gen/point_generate.mli",
       "source_bytes": 2454,
       "source_sha256": "ca23bf82111a0bac6faa9d8423063030192a408c7ea0d76e7e426c2d96cf0888"
+    },
+    {
+      "api_sha256": "222134e4c4d5a068cd1cd38ee9e57fbf0f82b7d31b37844b620ea0898d44a01d",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Poly_fill",
+      "source": "lib/pdk/mesh/poly_fill.mli",
+      "source_bytes": 3279,
+      "source_sha256": "eea1b023ea482670f6badbd1e80df61706b4fc877c25d451626056e0bdf05719"
     },
     {
       "api_sha256": "6ea1d611e0e4a77e689b4e9c64ff34678408123b886e0270f7cc04fa615cd58a",

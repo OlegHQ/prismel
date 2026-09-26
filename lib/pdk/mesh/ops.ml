@@ -415,9 +415,6 @@ type sweep_tangent =
   | Sweep_next_edge
   | Sweep_z_axis
 
-let finite value = Float.is_finite value
-let get_ok = function Ok value -> value | Error message -> invalid_arg message
-
 let points = Line_geometry.points
 
 
@@ -531,62 +528,7 @@ let ray ?cancel ?grain ?selection ?collision_primitives ?method_ ?direction
     ?normal_attribute ?point_pattern ?vertex_pattern ?primitive_pattern
     ?detail_pattern ?match_groups ~source ~collision ()
 
-let compact_points ?cancel ?(grain = 16_384) geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.compact_points: grain must be positive";
-  Cancel.check_opt cancel;
-  let point_count = Geometry.point_count geometry
-  and source_topology_value = Geometry.topology geometry in
-  let source_topology = Topology.Private.view source_topology_value in
-  let used = Array.make point_count false in
-  Array.iteri (fun vertex point ->
-    if vertex land 16_383 = 0 then Cancel.check_opt cancel;
-    used.(point) <- true) source_topology.vertex_points;
-  let old_to_new = Array.make point_count (-1) and retained = ref 0 in
-  for point = 0 to point_count - 1 do
-    if point land 16_383 = 0 then Cancel.check_opt cancel;
-    if used.(point) then begin
-      old_to_new.(point) <- !retained;
-      incr retained
-    end
-  done;
-  if !retained = point_count then Ok geometry
-  else begin
-    let new_to_old = Array.make !retained 0 and at = ref 0 in
-    for point = 0 to point_count - 1 do
-      if used.(point) then begin new_to_old.(!at) <- point; incr at end
-    done;
-    let source_positions = Packed.Float3.Private.view (Geometry.positions geometry) in
-    let px = Topology_remap.select_float ?cancel ~grain new_to_old source_positions.x
-    and py = Topology_remap.select_float ?cancel ~grain new_to_old source_positions.y
-    and pz = Topology_remap.select_float ?cancel ~grain new_to_old source_positions.z in
-    let positions = Packed.Float3.Private.of_owned_exn ~x:px ~y:py ~z:pz in
-    let vertex_points = Array.make (Array.length source_topology.vertex_points) 0 in
-    if Array.length vertex_points > 0 then
-      Parallel.for_ ~chunk_size:grain ~start:0
-        ~finish:(Array.length vertex_points - 1) (fun vertex ->
-          if vertex land 16_383 = 0 then Cancel.check_opt cancel;
-          vertex_points.(vertex) <- old_to_new.(source_topology.vertex_points.(vertex)));
-    let topology = Topology.Private.create_validated_owned ~point_count:!retained
-        ~vertex_points ~primitive_offsets:(Array.copy source_topology.primitive_offsets)
-        ~primitive_kinds:(Bytes.copy source_topology.primitive_kinds) in
-    let remap_point_attribute attribute =
-      if Attribute.owner attribute <> Attribute.Point then Ok attribute
-      else Ok (Topology_remap.attribute ?cancel ~grain new_to_old attribute) in
-    let rec remap_attributes result = function
-      | [] -> Ok (List.rev result)
-      | attribute :: rest -> Result.bind (remap_point_attribute attribute)
-          (fun attribute -> remap_attributes (attribute :: result) rest) in
-    Result.bind (remap_attributes [] (Geometry.attributes geometry))
-      (fun attributes ->
-        let groups = List.map (fun group ->
-          if Group.owner group <> Group.Point then group
-          else Topology_remap.group ?cancel ~grain new_to_old group)
-            (Geometry.groups geometry) in
-        let edge_groups = Topology_remap.edge_groups ?cancel
-            ~source_topology:source_topology_value ~target_topology:topology
-            ~point_map:old_to_new (Geometry.edge_groups geometry) |> get_ok in
-        Geometry.create ~positions ~topology ~attributes ~groups ~edge_groups ())
-  end
+let compact_points = Compact_points.run
 
 type copy_target_owner = Instance_copy.copy_target_owner =
   | Copy_target_points | Copy_target_vertices | Copy_target_primitives
@@ -700,187 +642,6 @@ let clean ?cancel ?(grain = 16_384) ?epsilon ?remove_degenerate
       Fuse_grid.fuse ?cancel ~grain ~tolerance geometry)
     ~compact:(fun geometry -> compact_points ?cancel ~grain geometry)
     geometry
-
-let facet_point_selection ?cancel ~grain primitives geometry =
-  let topology = Geometry.topology geometry in
-  let index = Topology_index.create ?cancel topology in
-  let view = Topology_index.Private.view index in
-  Group.init ~grain ~owner:Group.Point ~name:"__facet_selected_points"
-    (Topology.point_count topology) (fun point ->
-      let found = ref false and at = ref view.point_offsets.(point) in
-      let finish = view.point_offsets.(point + 1) in
-      while not !found && !at < finish do
-        found := Group.mem view.primitive_of_vertex.(view.point_vertices.(!at))
-            primitives;
-        incr at
-      done;
-      !found)
-
-let facet_primitives_of_selection ?cancel ~grain selection geometry =
-  let topology = Geometry.topology geometry in
-  Cancel.check_opt cancel;
-  Result.bind (Deform.validate_selection topology (Some selection)) (fun () ->
-  match selection with
-  | Selected_primitives group -> Ok group
-  | Selected_points points ->
-      let view = Topology.Private.view topology in
-      Ok (Group.init ~grain ~owner:Group.Primitive
-        ~name:"__facet_from_points" (Topology.primitive_count topology)
-        (fun primitive ->
-          if primitive land 4095 = 0 then Cancel.check_opt cancel;
-          let found = ref false
-          and vertex = ref view.primitive_offsets.(primitive) in
-          let last = view.primitive_offsets.(primitive + 1) in
-          while not !found && !vertex < last do
-            found := Group.mem view.vertex_points.(!vertex) points;
-            incr vertex
-          done;
-          !found))
-  | Selected_vertices vertices ->
-      let view = Topology.Private.view topology in
-      Ok (Group.init ~grain ~owner:Group.Primitive
-        ~name:"__facet_from_vertices" (Topology.primitive_count topology)
-        (fun primitive ->
-          if primitive land 4095 = 0 then Cancel.check_opt cancel;
-          let found = ref false
-          and vertex = ref view.primitive_offsets.(primitive) in
-          let last = view.primitive_offsets.(primitive + 1) in
-          while not !found && !vertex < last do
-            found := Group.mem !vertex vertices;
-            incr vertex
-          done;
-          !found))
-  | Selected_edges edges ->
-      let view = Topology.Private.view topology in
-      let index = Topology_index.create ?cancel topology in
-      let incidence = Topology_index.Private.view index in
-      Ok (Group.init ~grain ~owner:Group.Primitive
-        ~name:"__facet_from_edges" (Topology.primitive_count topology)
-        (fun primitive ->
-          if primitive land 4095 = 0 then Cancel.check_opt cancel;
-          let found = ref false
-          and vertex = ref view.primitive_offsets.(primitive) in
-          let last = view.primitive_offsets.(primitive + 1) in
-          while not !found && !vertex < last do
-            let edge = incidence.edge_of_vertex.(!vertex) in
-            found := edge >= 0 && Edge_group.mem edge edges;
-            incr vertex
-          done;
-          !found)))
-
-let facet ?cancel ?(grain = 16_384) ?primitives
-    ?(pre_compute_normals = false)
-    ?(make_normals_unit_length = false) ?(unique_points = false)
-    ?consolidate_distance ?consolidate_normals_distance
-    ?(remove_inline_points = false)
-    ?(inline_distance = 0.) ?(orient_polygons = false) ?cusp_angle
-    ?(remove_degenerate = false) ?(make_planar = false)
-    ?(post_compute_normals = false) ?(reverse_normals = false) geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.facet: grain must be positive";
-  let primitive_count = Geometry.primitive_count geometry in
-  if match primitives with
-    | Some group -> Group.owner group <> Group.Primitive
-        || Group.length group <> primitive_count
-    | None -> false
-  then Error "Facet selection must be a matching primitive group"
-  else if match consolidate_distance with Some value ->
-      not (finite value) || value < 0. | None -> false
-  then Error "Facet consolidation distance must be finite and non-negative"
-  else if match consolidate_normals_distance with Some value ->
-      not (finite value) || value < 0. | None -> false
-  then Error "Facet normal consolidation distance must be finite and non-negative"
-  else if consolidate_distance <> None && consolidate_normals_distance <> None
-  then Error "Facet point and normal consolidation modes are mutually exclusive"
-  else if remove_inline_points
-      && (not (finite inline_distance) || inline_distance < 0.)
-  then Error "Facet inline distance must be finite and non-negative"
-  else if match primitives with Some group -> Group.cardinality group = 0
-      | None -> false then Ok geometry
-  else
-    let original_geometry = geometry in
-    let selection_name, geometry = match primitives with
-      | None -> None, geometry
-      | Some group when Group.cardinality group = primitive_count ->
-          None, geometry
-      | Some group ->
-          let rec available suffix =
-            let name = Printf.sprintf "__pdk_facet_selection_%d"
-                suffix in
-            if Geometry.find_group ~owner:Group.Primitive name geometry = None
-            then name else available (suffix + 1) in
-          let name = available 0 in
-          let private_group = Group.init ~grain ~owner:Group.Primitive ~name
-              primitive_count (fun primitive -> Group.mem primitive group) in
-          Some name, Geometry.with_group private_group geometry |> Result.get_ok in
-    let selection_geometry = geometry in
-    let current_selection geometry = match selection_name with
-      | None -> None
-      | Some name -> Geometry.find_group ~owner:Group.Primitive name geometry in
-    let result = if pre_compute_normals then
-        Deform.normals ?cancel ~grain
-          ?primitives:(current_selection geometry) geometry
-      else Ok geometry in
-    let result = Result.bind result (fun geometry ->
-      Facet.adjust_normals ?cancel ~grain
-        ?primitives:(current_selection geometry)
-        ~unit_length:(make_normals_unit_length && not pre_compute_normals)
-        ~reverse:false geometry) in
-    let result = Result.bind result (fun geometry ->
-      if unique_points then Facet.unique_points ?cancel ~grain
-        ?primitives:(current_selection geometry) geometry
-      else Ok geometry) in
-    let result = Result.bind result (fun geometry ->
-      match consolidate_distance, consolidate_normals_distance with
-      | None, None -> Ok geometry
-      | Some tolerance, None ->
-          let selection = Option.map (fun primitives ->
-            facet_point_selection ?cancel ~grain primitives geometry)
-              (current_selection geometry) in
-          Fuse_grid.fuse ?cancel ~grain ?selection ~tolerance geometry
-      | None, Some distance ->
-          Facet.consolidate_normals ?cancel ~grain
-            ?primitives:(current_selection geometry) ~distance geometry
-      | Some _, Some _ -> assert false) in
-    let result = Result.bind result (fun geometry ->
-      if remove_inline_points then
-        Facet.remove_inline_points ?cancel ~grain
-          ?primitives:(current_selection geometry) ~distance:inline_distance geometry
-      else Ok geometry) in
-    let result = Result.bind result (fun geometry ->
-      if orient_polygons then Facet.orient_polygons ?cancel ~grain
-          ?primitives:(current_selection geometry) geometry
-      else Ok geometry) in
-    let result = Result.bind result (fun geometry -> match cusp_angle with
-      | None -> Ok geometry
-      | Some angle -> Facet.cusp_polygons ?cancel ~grain
-          ?primitives:(current_selection geometry) ~angle geometry) in
-    let result = Result.bind result (fun geometry ->
-      if remove_degenerate then
-        Clean.delete_degenerate ?cancel ~grain
-          ?primitives:(current_selection geometry) ~epsilon:1e-12 geometry
-      else Ok geometry) in
-    let result = Result.bind result (fun geometry ->
-      if make_planar then Facet.make_planar ?cancel ~grain
-          ?primitives:(current_selection geometry) geometry
-      else Ok geometry) in
-    let result = Result.bind result (fun geometry ->
-      if post_compute_normals then Deform.normals ?cancel ~grain
-          ?primitives:(current_selection geometry) geometry
-      else Ok geometry) in
-    let result = Result.bind result (fun geometry ->
-      Facet.adjust_normals ?cancel ~grain ~unit_length:false
-        ?primitives:(current_selection geometry)
-        ~reverse:reverse_normals geometry) in
-    Result.map (fun geometry -> match selection_name with
-      | None -> geometry
-      | Some _ when geometry == selection_geometry -> original_geometry
-      | Some name -> Geometry.without_group ~owner:Group.Primitive name geometry)
-      result
-
-let poly_fill ?cancel ?grain ?boundary ?mode ?reverse_patches ?unique_points
-    ?update_point_normals ?patch_group geometry =
-  Poly_fill.run ?cancel ?grain ?boundary ?mode ?reverse_patches ?unique_points
-    ?update_point_normals ?patch_group geometry
 
 (* Public result boundaries carry stable codes while the implementation above
    remains free to compose the lower-level validation functions that still
@@ -1375,9 +1136,7 @@ let blast_by_attribute ?cancel ?grain ?base ?invert ?remove_unused_points
 
 let delete_primitives = Deletion.delete_primitives
 
-let compact_points ?cancel ?grain geometry =
-  protected "compact_points" "invalid_geometry"
-    (fun () -> compact_points_raw ?cancel ?grain geometry)
+let compact_points = Compact_points.run_checked
 
 let convex_hull ?cancel ?grain ?selection ?preserve_point_payload
     ?source_point_attribute ?hull_group geometry =
@@ -1496,26 +1255,7 @@ let clean ?cancel ?grain ?epsilon ?remove_degenerate ?consolidate_distance
       ?vertex_attributes ?primitive_attributes ?detail_attributes ?point_groups
       ?vertex_groups ?primitive_groups ?edge_groups geometry)
 
-let facet_raw = facet
-let facet ?cancel ?grain ?selection ?primitives ?pre_compute_normals ?make_normals_unit_length
-    ?unique_points ?consolidate_distance ?consolidate_normals_distance
-    ?remove_inline_points ?inline_distance ?orient_polygons ?cusp_angle
-    ?remove_degenerate ?make_planar
-    ?post_compute_normals ?reverse_normals geometry =
-  protected "facet" "invalid_geometry" (fun () ->
-    let resolved = match selection, primitives with
-      | Some _, Some _ -> Error
-          "Facet selection and primitive selection are mutually exclusive"
-      | None, primitives -> Ok primitives
-      | Some selection, None -> Result.map Option.some
-          (facet_primitives_of_selection ?cancel
-            ~grain:(Option.value ~default:16_384 grain) selection geometry) in
-    Result.bind resolved (fun primitives ->
-      facet_raw ?cancel ?grain ?primitives ?pre_compute_normals
-        ?make_normals_unit_length ?unique_points ?consolidate_distance
-        ?consolidate_normals_distance ?remove_inline_points ?inline_distance
-        ?orient_polygons ?remove_degenerate ?make_planar ?cusp_angle
-        ?post_compute_normals ?reverse_normals geometry))
+let facet = Facet_ops.run_checked
 
 let poly_extrude ?cancel ?grain ?primitives ?split_edges ?divide ?divisions
     ?output_front ?output_back ?output_side ?front_group ?back_group ?side_group
@@ -1525,12 +1265,7 @@ let poly_extrude ?cancel ?grain ?primitives ?split_edges ?divide ?divisions
       ?divisions ?output_front ?output_back ?output_side ?front_group ?back_group
       ?side_group ?front_boundary_group ?back_boundary_group ~distance geometry)
 
-let poly_fill_raw = poly_fill
-let poly_fill ?cancel ?grain ?boundary ?mode ?reverse_patches ?unique_points
-    ?update_point_normals ?patch_group geometry =
-  protected "poly_fill" "invalid_geometry"
-    (fun () -> poly_fill_raw ?cancel ?grain ?boundary ?mode ?reverse_patches
-      ?unique_points ?update_point_normals ?patch_group geometry)
+let poly_fill = Poly_fill.run_checked
 
 let resample_curves = Curve_modeling.resample_curves_checked
 

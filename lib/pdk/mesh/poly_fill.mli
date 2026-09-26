@@ -87,3 +87,14 @@ val run :
   ?update_point_normals:bool ->
   ?patch_group:string ->
   Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
+
+val run_checked :
+  ?cancel:Pdk_core.Cancel.t ->
+  ?grain:int ->
+  ?boundary:Pdk_core.Edge_group.t ->
+  ?mode:mode ->
+  ?reverse_patches:bool ->
+  ?unique_points:bool ->
+  ?update_point_normals:bool ->
+  ?patch_group:string ->
+  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result

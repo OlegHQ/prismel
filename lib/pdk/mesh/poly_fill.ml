@@ -747,3 +747,9 @@ let run ?cancel ?(grain = 16_384) ?boundary ?(mode = Fill_triangles)
       | Some normal -> Geometry.with_attribute normal output
     end else Ok output
   end
+
+let run_checked ?cancel ?grain ?boundary ?mode ?reverse_patches ?unique_points
+    ?update_point_normals ?patch_group geometry =
+  Error.guard ~operation:"poly_fill" ~code:"invalid_geometry" (fun () ->
+    run ?cancel ?grain ?boundary ?mode ?reverse_patches ?unique_points
+      ?update_point_normals ?patch_group geometry)

@@ -1,7 +1,4 @@
-open Prismel_math
-
 let finite = Float.is_finite
-let fuse = Fuse_grid.fuse
 
 type deform_selection = Deform.selection =
   | Selected_points of Group.t
@@ -144,7 +141,7 @@ let facet ?cancel ?(grain = 16_384) ?primitives
           let selection = Option.map (fun primitives ->
             facet_point_selection ?cancel ~grain primitives geometry)
               (current_selection geometry) in
-          fuse ?cancel ~grain ?selection ~tolerance geometry
+          Fuse_grid.fuse ?cancel ~grain ?selection ~tolerance geometry
       | None, Some distance ->
           Facet.consolidate_normals ?cancel ~grain
             ?primitives:(current_selection geometry) ~distance geometry

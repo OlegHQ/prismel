@@ -1,3 +1,5 @@
+open Prismel_math
+
 let get_ok = function Ok value -> value | Error message -> invalid_arg message
 
 let compact_points ?cancel ?(grain = 16_384) geometry =
