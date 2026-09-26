@@ -16,14 +16,6 @@ let run () =
       let queue = get (Command_queue.create device) in
       for iteration = 0 to 255 do
         let fence = get (Device.new_fence device) in
-        let label = Printf.sprintf "fence-%d" iteration in
-        get (Fence.set_label fence (Some label));
-        if get (Fence.label fence) <> Some label
-           || not (Device.same (Fence.device fence) device)
-        then failwith "fence label/device snapshot mismatch";
-        get (Fence.set_label fence None);
-        if get (Fence.label fence) <> None then failwith "fence nil-label reset failed";
-        expect Invalid_argument (Fence.set_label fence (Some "bad\000label"));
         let source = get (Buffer.create ~device ~length:64L ~storage:Buffer.Shared ()) in
         let destination = get (Buffer.create ~device ~length:64L ~storage:Buffer.Shared ()) in
         let command = get (Command_buffer.create queue ()) in

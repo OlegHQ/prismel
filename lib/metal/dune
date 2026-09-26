@@ -69,15 +69,6 @@
  (modules test_metal_build_config)
  (libraries metal_build_config))
 
-(executable
- (name test_metal)
- (modules test_metal)
- (libraries metal))
-
-(rule
- (alias qualification)
- (action (run %{exe:test_metal.exe})))
-
 (rule
  (alias qualification)
  (action (run %{exe:test_main.exe} test_metal_presentation_10k)))

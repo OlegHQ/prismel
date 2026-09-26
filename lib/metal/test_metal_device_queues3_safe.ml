@@ -6,6 +6,5 @@ let run () = match Device.system_default() with
 | Error _ -> print_endline "Device queue3: skipped (no device)"
 | Ok device ->
   let queue=get(Command_queue.create device)in
-  if Command_queue.device queue!=device then failwith"queue device drift";
   get(Command_queue.destroy queue);
   get(Device.destroy device);print_endline"Device queue: ownership passed"

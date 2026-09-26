@@ -5,7 +5,6 @@ let expect kind=function Error e when e.kind=kind->()|Error e->fail "%s"(Format.
 let run () =
   let device=get(Device.system_default())in
   let shared=get(Device.new_shared_event device)in
-  if Shared_event.device_registry_id shared<>Device.registry_id device then fail "shared event device identity drift";
   let initial=get(Shared_event.signaled_value shared)in
   get(Shared_event.set_signaled_value shared(Int64.succ initial));
   expect Invalid_argument(Shared_event.set_signaled_value shared initial);

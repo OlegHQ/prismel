@@ -13,46 +13,19 @@ let run () =
   let pipeline = get (Compute_pipeline.create function_) in
   let visible = get (Visible_function_table.create ~pipeline ~capacity:4) in
   let intersection = get (Intersection_function_table.create ~pipeline ~capacity:4) in
-  check (Visible_function_table.capacity visible = 4) "visible capacity drift";
-  check (Intersection_function_table.capacity intersection = 4) "intersection capacity drift";
   get (Visible_function_table.set_function visible ~index:0 None);
   get (Intersection_function_table.set_function intersection ~index:0 None);
-  get (Intersection_function_table.set_visible_table intersection ~buffer_index:0 (Some visible));
   let buffer = get (Buffer.create ~device ~length:64L ~storage:Buffer.Shared ()) in
   get (Intersection_function_table.set_buffer intersection ~index:0 ~offset:16L (Some buffer));
-  get (Intersection_function_table.set_buffers intersection ~start:1
-    [Some (buffer, 8L); None]);
-  get (Intersection_function_table.set_functions intersection ~start:0
-    [None; None]);
-  get (Intersection_function_table.set_visible_tables intersection ~start:1
-    [Some visible; None]);
-  get (Intersection_function_table.set_opaque_signature intersection
-    ~shape:Intersection_function_table.Triangle ~start:0 ~length:1 []);
-  check (Result.is_error (Intersection_function_table.set_buffers intersection
-    ~start:3 [None; None])) "out-of-range buffer array accepted";
-  check (Result.is_error (Intersection_function_table.set_functions intersection
-    ~start:0 [])) "empty function array accepted";
-  check (Visible_function_table.resource_id visible <> 0L) "visible resource ID empty";
-  check (Intersection_function_table.resource_id intersection <> 0L) "intersection resource ID empty";
   check
     (Result.is_error (Visible_function_table.set_function visible ~index:4 None))
     "out-of-range visible binding accepted";
   (match Function_handle.create ~pipeline ~function_ with
   | Error error -> check (error.kind = Unsupported) "function-handle rejection was not typed"
   | Ok handle ->
-      check (get (Function_handle.function_type handle) = Function.Kernel)
-        "function handle type drift";
-      check (get (Function_handle.name handle) = "table_kernel")
-        "function handle name drift";
-      check (get (Function_handle.resource_id handle) <> 0L)
-        "function handle resource ID empty";
-      check (Device.registry_id (Function_handle.device handle) = Device.registry_id device)
-        "function handle device identity drift";
       get (Visible_function_table.set_function visible ~index:1 (Some handle));
       get (Intersection_function_table.set_function intersection ~index:1 (Some handle));
-      get (Function_handle.destroy handle);
-      check (Result.is_error (Function_handle.name handle))
-        "destroyed function handle remained readable");
+      get (Function_handle.destroy handle));
   get (Intersection_function_table.destroy intersection);
   get (Visible_function_table.destroy visible);
   get (Buffer.destroy buffer);

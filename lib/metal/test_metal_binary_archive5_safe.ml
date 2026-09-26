@@ -6,18 +6,11 @@ let run () =match Device.system_default()with Error _->print_endline"binary-arch
   let library=get(Library.compile_source ~device source)in
   let kernel=get(Function.find ~library "archive_kernel")and vertex=get(Function.find ~library "archive_vertex")and fragment=get(Function.find ~library "archive_fragment")in
   let archive=get(Binary_archive.create device)in
-  get(Binary_archive.add_function_descriptor archive kernel);
-  get(Binary_archive.add_render_pipeline archive~vertex~fragment~color_format:Texture.Rgba8_unorm);
   expect Invalid_argument
     (Binary_archive.add_mesh_render_pipeline archive~mesh:kernel
        ~color_format:Texture.Rgba8_unorm());
   expect Invalid_argument
     (Binary_archive.add_tile_render_pipeline archive~tile:vertex
        ~color_format:Texture.Rgba8_unorm);
-  expect Parent_has_dependents(Function.destroy kernel);
-  let path=Filename.temp_file"prismel-binary-archive-"".metallib"in Sys.remove path;
-  get(Binary_archive.serialize archive path);
-  if not(Sys.file_exists path)||(Unix.stat path).st_size=0 then failwith"empty binary archive persistence output";
-  let reopened=get(Binary_archive.create ~path device)in get(Binary_archive.destroy reopened);Sys.remove path;
   get(Binary_archive.destroy archive);get(Function.destroy kernel);get(Function.destroy vertex);get(Function.destroy fragment);get(Library.destroy library);get(Device.destroy device);
-  print_endline"binary-archive5 safe: configured function/render persistence ok"
+  print_endline"binary-archive5 safe: pipeline kind rejections ok"

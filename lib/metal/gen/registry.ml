@@ -71,68 +71,7 @@ type entry =
       }
 
 let entries : entry list =
-  [ Enum
-      { sdk = "MTLAttributeFormat"
-      ; ocaml = "Mtl_attribute_format"
-      ; cases =
-        [ ("mtl_attribute_format_char", "MTLAttributeFormatChar", 0x000000000000002eL, (10, 13, 0))
-        ; ("mtl_attribute_format_char2", "MTLAttributeFormatChar2", 0x0000000000000004L, (10, 12, 0))
-        ; ("mtl_attribute_format_char2_normalized", "MTLAttributeFormatChar2Normalized", 0x000000000000000aL, (10, 12, 0))
-        ; ("mtl_attribute_format_char3", "MTLAttributeFormatChar3", 0x0000000000000005L, (10, 12, 0))
-        ; ("mtl_attribute_format_char3_normalized", "MTLAttributeFormatChar3Normalized", 0x000000000000000bL, (10, 12, 0))
-        ; ("mtl_attribute_format_char4", "MTLAttributeFormatChar4", 0x0000000000000006L, (10, 12, 0))
-        ; ("mtl_attribute_format_char4_normalized", "MTLAttributeFormatChar4Normalized", 0x000000000000000cL, (10, 12, 0))
-        ; ("mtl_attribute_format_char_normalized", "MTLAttributeFormatCharNormalized", 0x0000000000000030L, (10, 13, 0))
-        ; ("mtl_attribute_format_float", "MTLAttributeFormatFloat", 0x000000000000001cL, (10, 12, 0))
-        ; ("mtl_attribute_format_float2", "MTLAttributeFormatFloat2", 0x000000000000001dL, (10, 12, 0))
-        ; ("mtl_attribute_format_float3", "MTLAttributeFormatFloat3", 0x000000000000001eL, (10, 12, 0))
-        ; ("mtl_attribute_format_float4", "MTLAttributeFormatFloat4", 0x000000000000001fL, (10, 12, 0))
-        ; ("mtl_attribute_format_float_rg11_b10", "MTLAttributeFormatFloatRG11B10", 0x0000000000000036L, (14, 0, 0))
-        ; ("mtl_attribute_format_float_rgb9_e5", "MTLAttributeFormatFloatRGB9E5", 0x0000000000000037L, (14, 0, 0))
-        ; ("mtl_attribute_format_half", "MTLAttributeFormatHalf", 0x0000000000000035L, (10, 13, 0))
-        ; ("mtl_attribute_format_half2", "MTLAttributeFormatHalf2", 0x0000000000000019L, (10, 12, 0))
-        ; ("mtl_attribute_format_half3", "MTLAttributeFormatHalf3", 0x000000000000001aL, (10, 12, 0))
-        ; ("mtl_attribute_format_half4", "MTLAttributeFormatHalf4", 0x000000000000001bL, (10, 12, 0))
-        ; ("mtl_attribute_format_int", "MTLAttributeFormatInt", 0x0000000000000020L, (10, 12, 0))
-        ; ("mtl_attribute_format_int1010102_normalized", "MTLAttributeFormatInt1010102Normalized", 0x0000000000000028L, (10, 12, 0))
-        ; ("mtl_attribute_format_int2", "MTLAttributeFormatInt2", 0x0000000000000021L, (10, 12, 0))
-        ; ("mtl_attribute_format_int3", "MTLAttributeFormatInt3", 0x0000000000000022L, (10, 12, 0))
-        ; ("mtl_attribute_format_int4", "MTLAttributeFormatInt4", 0x0000000000000023L, (10, 12, 0))
-        ; ("mtl_attribute_format_invalid", "MTLAttributeFormatInvalid", 0x0000000000000000L, (10, 12, 0))
-        ; ("mtl_attribute_format_short", "MTLAttributeFormatShort", 0x0000000000000032L, (10, 13, 0))
-        ; ("mtl_attribute_format_short2", "MTLAttributeFormatShort2", 0x0000000000000010L, (10, 12, 0))
-        ; ("mtl_attribute_format_short2_normalized", "MTLAttributeFormatShort2Normalized", 0x0000000000000016L, (10, 12, 0))
-        ; ("mtl_attribute_format_short3", "MTLAttributeFormatShort3", 0x0000000000000011L, (10, 12, 0))
-        ; ("mtl_attribute_format_short3_normalized", "MTLAttributeFormatShort3Normalized", 0x0000000000000017L, (10, 12, 0))
-        ; ("mtl_attribute_format_short4", "MTLAttributeFormatShort4", 0x0000000000000012L, (10, 12, 0))
-        ; ("mtl_attribute_format_short4_normalized", "MTLAttributeFormatShort4Normalized", 0x0000000000000018L, (10, 12, 0))
-        ; ("mtl_attribute_format_short_normalized", "MTLAttributeFormatShortNormalized", 0x0000000000000034L, (10, 13, 0))
-        ; ("mtl_attribute_format_u_char", "MTLAttributeFormatUChar", 0x000000000000002dL, (10, 13, 0))
-        ; ("mtl_attribute_format_u_char2", "MTLAttributeFormatUChar2", 0x0000000000000001L, (10, 12, 0))
-        ; ("mtl_attribute_format_u_char2_normalized", "MTLAttributeFormatUChar2Normalized", 0x0000000000000007L, (10, 12, 0))
-        ; ("mtl_attribute_format_u_char3", "MTLAttributeFormatUChar3", 0x0000000000000002L, (10, 12, 0))
-        ; ("mtl_attribute_format_u_char3_normalized", "MTLAttributeFormatUChar3Normalized", 0x0000000000000008L, (10, 12, 0))
-        ; ("mtl_attribute_format_u_char4", "MTLAttributeFormatUChar4", 0x0000000000000003L, (10, 12, 0))
-        ; ("mtl_attribute_format_u_char4_normalized", "MTLAttributeFormatUChar4Normalized", 0x0000000000000009L, (10, 12, 0))
-        ; ("mtl_attribute_format_u_char4_normalized_bgra", "MTLAttributeFormatUChar4Normalized_BGRA", 0x000000000000002aL, (10, 13, 0))
-        ; ("mtl_attribute_format_u_char_normalized", "MTLAttributeFormatUCharNormalized", 0x000000000000002fL, (10, 13, 0))
-        ; ("mtl_attribute_format_u_int", "MTLAttributeFormatUInt", 0x0000000000000024L, (10, 12, 0))
-        ; ("mtl_attribute_format_u_int1010102_normalized", "MTLAttributeFormatUInt1010102Normalized", 0x0000000000000029L, (10, 12, 0))
-        ; ("mtl_attribute_format_u_int2", "MTLAttributeFormatUInt2", 0x0000000000000025L, (10, 12, 0))
-        ; ("mtl_attribute_format_u_int3", "MTLAttributeFormatUInt3", 0x0000000000000026L, (10, 12, 0))
-        ; ("mtl_attribute_format_u_int4", "MTLAttributeFormatUInt4", 0x0000000000000027L, (10, 12, 0))
-        ; ("mtl_attribute_format_u_short", "MTLAttributeFormatUShort", 0x0000000000000031L, (10, 13, 0))
-        ; ("mtl_attribute_format_u_short2", "MTLAttributeFormatUShort2", 0x000000000000000dL, (10, 12, 0))
-        ; ("mtl_attribute_format_u_short2_normalized", "MTLAttributeFormatUShort2Normalized", 0x0000000000000013L, (10, 12, 0))
-        ; ("mtl_attribute_format_u_short3", "MTLAttributeFormatUShort3", 0x000000000000000eL, (10, 12, 0))
-        ; ("mtl_attribute_format_u_short3_normalized", "MTLAttributeFormatUShort3Normalized", 0x0000000000000014L, (10, 12, 0))
-        ; ("mtl_attribute_format_u_short4", "MTLAttributeFormatUShort4", 0x000000000000000fL, (10, 12, 0))
-        ; ("mtl_attribute_format_u_short4_normalized", "MTLAttributeFormatUShort4Normalized", 0x0000000000000015L, (10, 12, 0))
-        ; ("mtl_attribute_format_u_short_normalized", "MTLAttributeFormatUShortNormalized", 0x0000000000000033L, (10, 13, 0))
-        ]
-      ; feature = Ogpu_core.Caps.Render_pipeline
-      }
-  ; Enum
+  [  Enum
       { sdk = "MTLDataType"
       ; ocaml = "Mtl_data_type"
       ; cases =
@@ -252,24 +191,7 @@ let entries : entry list =
         ]
       ; feature = Ogpu_core.Caps.Buffer
       }
-  ; Enum
-      { sdk = "MTLIntersectionFunctionSignature"
-      ; ocaml = "Mtl_intersection_function_signature"
-      ; cases =
-        [ ("mtl_intersection_function_signature_curve_data", "MTLIntersectionFunctionSignatureCurveData", 0x0000000000000080L, (14, 0, 0))
-        ; ("mtl_intersection_function_signature_extended_limits", "MTLIntersectionFunctionSignatureExtendedLimits", 0x0000000000000020L, (12, 0, 0))
-        ; ("mtl_intersection_function_signature_instance_motion", "MTLIntersectionFunctionSignatureInstanceMotion", 0x0000000000000008L, (12, 0, 0))
-        ; ("mtl_intersection_function_signature_instancing", "MTLIntersectionFunctionSignatureInstancing", 0x0000000000000001L, (11, 0, 0))
-        ; ("mtl_intersection_function_signature_intersection_function_buffer", "MTLIntersectionFunctionSignatureIntersectionFunctionBuffer", 0x0000000000000100L, (26, 0, 0))
-        ; ("mtl_intersection_function_signature_max_levels", "MTLIntersectionFunctionSignatureMaxLevels", 0x0000000000000040L, (14, 0, 0))
-        ; ("mtl_intersection_function_signature_none", "MTLIntersectionFunctionSignatureNone", 0x0000000000000000L, (11, 0, 0))
-        ; ("mtl_intersection_function_signature_primitive_motion", "MTLIntersectionFunctionSignaturePrimitiveMotion", 0x0000000000000010L, (12, 0, 0))
-        ; ("mtl_intersection_function_signature_triangle_data", "MTLIntersectionFunctionSignatureTriangleData", 0x0000000000000002L, (11, 0, 0))
-        ; ("mtl_intersection_function_signature_user_data", "MTLIntersectionFunctionSignatureUserData", 0x0000000000000200L, (26, 0, 0))
-        ; ("mtl_intersection_function_signature_world_space_data", "MTLIntersectionFunctionSignatureWorldSpaceData", 0x0000000000000004L, (11, 0, 0))
-        ]
-      ; feature = Ogpu_core.Caps.Function_tables
-      }
+
   ; Record
       { sdk = "MTLSize"
       ; ocaml = "Mtl_size"
@@ -285,15 +207,7 @@ let entries : entry list =
       ; since = Some (10, 13)
       ; feature = Ogpu_core.Caps.Compute_pipeline
       }
-  ; Selector
-      { recv = "MTLComputePipelineState"
-      ; sel = "supportIndirectCommandBuffers"
-      ; args = []
-      ; ret = Some Bool
-      ; ocaml = "compute_pipeline_state_support_indirect_command_buffers"
-      ; since = Some (11, 0)
-      ; feature = Ogpu_core.Caps.Compute_pipeline
-      }
+
   ; Selector
       { recv = "MTLRenderPipelineState"
       ; sel = "supportIndirectCommandBuffers"

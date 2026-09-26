@@ -386,11 +386,6 @@ let supports_lossy_compression = function
   | Rgba16_sint | Rgba16_float | Bgra10_xr | Bgra10_xr_srgb
   | Rgba32_uint | Rgba32_sint | Rgba32_float -> true
 
-let supports_buffer_backing format =
-  not
-    (is_depth_or_stencil format || is_subsampled format
-     || is_compressed format)
-
 let view_class = function
   | R8_unorm | R8_unorm_srgb -> Some 1
   | Rg8_unorm | Rg8_unorm_srgb -> Some 2
