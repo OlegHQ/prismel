@@ -805,7 +805,7 @@ let drop_c_unused ~dir log =
 
 let build target =
   let log = Filename.temp_file "codemod" ".log" in
-  let code = Sys.command (Printf.sprintf "dune build --profile codemod %s > %s 2>&1" target log) in
+  let code = Sys.command (Printf.sprintf "dune build --root . --profile codemod %s > %s 2>&1" target log) in
   let text = read_file log in
   Sys.remove log; code, text
 
