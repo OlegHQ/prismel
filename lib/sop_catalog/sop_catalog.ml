@@ -201,37 +201,37 @@ let group_copy_conflict_parameter = Parameter.choice ~equal:( = ) [
   ]
 
 let edge_transport_direction_parameter = Parameter.choice ~equal:( = ) [
-    "Forward", Pdk.Ops.Transport_forward;
-    "Backward", Pdk.Ops.Transport_backward;
+    "Forward", Pdk.Edge_transport_ops.Transport_forward;
+    "Backward", Pdk.Edge_transport_ops.Transport_backward;
   ]
 
 let edge_transport_operation_parameter = Parameter.choice ~equal:( = ) [
-    "Transport", Pdk.Ops.Transport;
-    "From root", Pdk.Ops.Transport_from_root;
-    "Total", Pdk.Ops.Transport_total;
-    "Maximum", Pdk.Ops.Transport_maximum;
-    "Minimum", Pdk.Ops.Transport_minimum;
+    "Transport", Pdk.Edge_transport_ops.Transport;
+    "From root", Pdk.Edge_transport_ops.Transport_from_root;
+    "Total", Pdk.Edge_transport_ops.Transport_total;
+    "Maximum", Pdk.Edge_transport_ops.Transport_maximum;
+    "Minimum", Pdk.Edge_transport_ops.Transport_minimum;
   ]
 
 let edge_transport_root_value_parameter = Parameter.choice ~equal:( = ) [
-    "Zero", Pdk.Ops.Transport_root_zero;
-    "Hold", Pdk.Ops.Transport_root_hold;
+    "Zero", Pdk.Edge_transport_ops.Transport_root_zero;
+    "Hold", Pdk.Edge_transport_ops.Transport_root_hold;
   ]
 
 let edge_transport_normalization_parameter = Parameter.choice ~equal:( = ) [
-    "None", Pdk.Ops.Transport_no_normalization;
-    "Per component", Pdk.Ops.Transport_normalize_components;
-    "Global", Pdk.Ops.Transport_normalize_global;
+    "None", Pdk.Edge_transport_ops.Transport_no_normalization;
+    "Per component", Pdk.Edge_transport_ops.Transport_normalize_components;
+    "Global", Pdk.Edge_transport_ops.Transport_normalize_global;
   ]
 
 let edge_transport_split_parameter = Parameter.choice ~equal:( = ) [
-    "Copy", Pdk.Ops.Transport_copy; "Split", Pdk.Ops.Transport_split;
+    "Copy", Pdk.Edge_transport_ops.Transport_copy; "Split", Pdk.Edge_transport_ops.Transport_split;
   ]
 
 let edge_transport_merge_parameter = Parameter.choice ~equal:( = ) [
-    "Add", Pdk.Ops.Transport_merge_add;
-    "Maximum", Pdk.Ops.Transport_merge_maximum;
-    "Minimum", Pdk.Ops.Transport_merge_minimum;
+    "Add", Pdk.Edge_transport_ops.Transport_merge_add;
+    "Maximum", Pdk.Edge_transport_ops.Transport_merge_maximum;
+    "Minimum", Pdk.Edge_transport_ops.Transport_merge_minimum;
   ]
 
 type numeric_kind = Numeric_scalar | Numeric_vec2 | Numeric_vec3 | Numeric_vec4
@@ -1480,14 +1480,14 @@ end [@@sop.register]
 
 module Crease = struct
   let operation_parameter = Parameter.choice ~equal:( = ) [
-      "Add", Pdk.Ops.Crease_add;
-      "Set", Pdk.Ops.Crease_set;
-      "Delete", Pdk.Ops.Crease_delete;
+      "Add", Pdk.Mesh_edit_ops.Crease_add;
+      "Set", Pdk.Mesh_edit_ops.Crease_set;
+      "Delete", Pdk.Mesh_edit_ops.Crease_delete;
     ]
 
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Edge group"];
-    operation : Pdk.Ops.crease_operation [@sop.default Pdk.Ops.Crease_add]
+    operation : Pdk.Mesh_edit_ops.crease_operation [@sop.default Pdk.Mesh_edit_ops.Crease_add]
       [@sop.label "Operation"] [@sop.kind operation_parameter];
     weight : float [@sop.default 1.] [@sop.label "Weight"]
       [@sop.min 0.] [@sop.max 10.] [@sop.hard_min 0.];
@@ -1828,8 +1828,8 @@ module Poly_bevel = struct
   let rec build ~label ~inputs parameters = match inputs with
     | [input] ->
         let shape = match parameters.shape with
-          | Chamfer -> Pdk.Ops.Bevel_chamfer
-          | Round -> Pdk.Ops.Bevel_round { convexity = parameters.convexity } in
+          | Chamfer -> Pdk.Poly_modeling.Bevel_chamfer
+          | Round -> Pdk.Poly_modeling.Bevel_round { convexity = parameters.convexity } in
         Sop.poly_bevel ~label ?group:(optional_text parameters.group) ~shape
           ~divisions:parameters.divisions
           ?point_scale_attribute:(optional_text parameters.point_scale_attribute)
@@ -2073,9 +2073,9 @@ module Smooth = struct
   type mode = Laplacian | Custom
 
   let boundary_parameter = Parameter.choice ~equal:( = ) [
-      "Free", Pdk.Ops.Smooth_free;
-      "Pin unshared", Pdk.Ops.Smooth_unshared;
-      "Pin group boundary", Pdk.Ops.Smooth_group_boundary;
+      "Free", Pdk.Smooth_ops.Smooth_free;
+      "Pin unshared", Pdk.Smooth_ops.Smooth_unshared;
+      "Pin group boundary", Pdk.Smooth_ops.Smooth_group_boundary;
     ]
 
   let method_parameter = Parameter.choice ~equal:( = ) [
@@ -2091,7 +2091,7 @@ module Smooth = struct
     group : string [@sop.default ""] [@sop.label "Point group"];
     constrained_points : string [@sop.default ""]
       [@sop.label "Constrained points"];
-    boundary : Pdk.Ops.smooth_boundary [@sop.default Pdk.Ops.Smooth_free]
+    boundary : Pdk.Smooth_ops.boundary [@sop.default Pdk.Smooth_ops.Smooth_free]
       [@sop.label "Boundary"] [@sop.kind boundary_parameter];
     iterations : int [@sop.default 10] [@sop.label "Iterations"]
       [@sop.min 1] [@sop.max 200] [@sop.hard_min 1];
@@ -2166,8 +2166,8 @@ module Reverse = struct
   let rec build ~label ~inputs parameters = match inputs with
     | [input] ->
         let operation = match parameters.operation with
-          | Reverse -> Pdk.Ops.Reverse_vertices
-          | Shift -> Pdk.Ops.Shift_vertices parameters.shift in
+          | Reverse -> Pdk.Reverse_ops.Reverse_vertices
+          | Shift -> Pdk.Reverse_ops.Shift_vertices parameters.shift in
         Sop.reverse ~label ?group:(optional_text parameters.group) ~operation input
         |> Node.parameterize ~schema:parameters_schema ~values:parameters
              ~rebuild:build
@@ -2181,8 +2181,8 @@ end [@@sop.register]
 
 module Clean = struct
   let overlaps_parameter = Parameter.choice ~equal:( = ) [
-      "Keep first", Pdk.Ops.Keep_first_overlap;
-      "Delete pairs", Pdk.Ops.Delete_overlap_pairs;
+      "Keep first", Pdk.Clean_ops.Keep_first_overlap;
+      "Delete pairs", Pdk.Clean_ops.Delete_overlap_pairs;
     ]
 
   type parameters = {
@@ -2194,8 +2194,8 @@ module Clean = struct
     consolidate_distance : float [@sop.default 0.]
       [@sop.label "Consolidate distance"] [@sop.min 0.] [@sop.max 0.1]
       [@sop.hard_min 0.];
-    overlaps : Pdk.Ops.clean_overlap_policy
-      [@sop.default Pdk.Ops.Keep_first_overlap]
+    overlaps : Pdk.Clean_ops.overlap_policy
+      [@sop.default Pdk.Clean_ops.Keep_first_overlap]
       [@sop.label "Overlaps"] [@sop.kind overlaps_parameter];
     reverse_winding : bool [@sop.default false]
       [@sop.label "Reverse winding"];
@@ -2485,15 +2485,15 @@ end [@@sop.register]
 
 module Edge_equalize = struct
   let method_parameter = Parameter.choice ~equal:( = ) [
-      "Average", Pdk.Ops.Equalize_average;
-      "Longest", Pdk.Ops.Equalize_longest;
-      "Shortest", Pdk.Ops.Equalize_shortest;
+      "Average", Pdk.Edge_modeling_ops.Equalize_average;
+      "Longest", Pdk.Edge_modeling_ops.Equalize_longest;
+      "Shortest", Pdk.Edge_modeling_ops.Equalize_shortest;
     ]
 
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Edge group"];
-    method_ : Pdk.Ops.edge_equalize_method
-      [@sop.default Pdk.Ops.Equalize_average]
+    method_ : Pdk.Edge_modeling_ops.equalize_method
+      [@sop.default Pdk.Edge_modeling_ops.Equalize_average]
       [@sop.label "Method"] [@sop.kind method_parameter];
     iterations : int [@sop.default 64] [@sop.label "Iterations"]
       [@sop.min 1] [@sop.max 256] [@sop.hard_min 1];
@@ -2516,7 +2516,7 @@ module Edge_equalize = struct
 
   let factory = parameters_factory build
   let create ?label:node_label ?(group = "")
-      ?(method_ = Pdk.Ops.Equalize_average) ?(iterations = 64)
+      ?(method_ = Pdk.Edge_modeling_ops.Equalize_average) ?(iterations = 64)
       ?(tolerance = 0.000001) ?(output_group = "") input =
     build ~label:(label "edge-equalize" node_label) ~inputs:[input]
       { group; method_; iterations; tolerance; output_group }
@@ -2684,8 +2684,8 @@ end [@@sop.register]
 
 module Poly_extrude = struct
   let divide_parameter = Parameter.choice ~equal:( = ) [
-      "Individual elements", Pdk.Ops.Extrude_individual;
-      "Connected components", Pdk.Ops.Extrude_connected_components;
+      "Individual elements", Pdk.Poly_modeling.Extrude_individual;
+      "Connected components", Pdk.Poly_modeling.Extrude_connected_components;
     ]
 
   type parameters = {
@@ -2693,8 +2693,8 @@ module Poly_extrude = struct
     split_edges : string [@sop.default ""] [@sop.label "Split edge group"];
     distance : float [@sop.default 0.1] [@sop.label "Distance"]
       [@sop.min (-10.)] [@sop.max 10.];
-    divide : Pdk.Ops.poly_extrude_divide
-      [@sop.default Pdk.Ops.Extrude_individual]
+    divide : Pdk.Poly_modeling.extrude_divide
+      [@sop.default Pdk.Poly_modeling.Extrude_individual]
       [@sop.label "Divide into"] [@sop.kind divide_parameter];
     divisions : int [@sop.default 1] [@sop.label "Divisions"]
       [@sop.min 1] [@sop.max 64] [@sop.hard_min 1];
@@ -4584,12 +4584,12 @@ end [@@sop.register]
 
 module Poly_bridge = struct
   let pairing_parameter = Parameter.choice ~equal:( = ) [
-      "By order", Pdk.Ops.Bridge_by_order;
-      "By centroid", Pdk.Ops.Bridge_by_centroid;
+      "By order", Pdk.Poly_modeling.Bridge_by_order;
+      "By centroid", Pdk.Poly_modeling.Bridge_by_centroid;
     ]
   let minimize_parameter = Parameter.choice ~equal:( = ) [
-      "Two point distance", Pdk.Ops.Two_point_distance;
-      "Three point distance", Pdk.Ops.Three_point_distance;
+      "Two point distance", Pdk.Poly_modeling.Two_point_distance;
+      "Three point distance", Pdk.Poly_modeling.Three_point_distance;
     ]
 
   type parameters = {
@@ -4597,13 +4597,13 @@ module Poly_bridge = struct
       [@sop.label "Source edge group"];
     destination_group : string [@sop.default "destination"]
       [@sop.label "Destination edge group"];
-    pairing : Pdk.Ops.poly_bridge_pairing
-      [@sop.default Pdk.Ops.Bridge_by_order]
+    pairing : Pdk.Poly_modeling.bridge_pairing
+      [@sop.default Pdk.Poly_modeling.Bridge_by_order]
       [@sop.label "Pairing"] [@sop.kind pairing_parameter];
     connect_closest_ends : bool [@sop.default true]
       [@sop.label "Connect closest ends"];
-    minimize : Pdk.Ops.poly_loft_minimize
-      [@sop.default Pdk.Ops.Two_point_distance]
+    minimize : Pdk.Poly_modeling.loft_minimize
+      [@sop.default Pdk.Poly_modeling.Two_point_distance]
       [@sop.label "Minimize"] [@sop.kind minimize_parameter];
     reverse_source : bool [@sop.default false] [@sop.label "Reverse source"];
     reverse_destination : bool [@sop.default false]
@@ -4695,8 +4695,8 @@ end [@@sop.register]
 
 module Edge_relax = struct
   let target_parameter = Parameter.choice ~equal:( = ) [
-      "Individual lengths", Pdk.Ops.Individual_lengths;
-      "Scale-independent distribution", Pdk.Ops.Scale_independent_distribution;
+      "Individual lengths", Pdk.Edge_modeling_ops.Individual_lengths;
+      "Scale-independent distribution", Pdk.Edge_modeling_ops.Scale_independent_distribution;
     ]
 
   type parameters = {
@@ -4708,8 +4708,8 @@ module Edge_relax = struct
       [@sop.min 1] [@sop.max 1024] [@sop.hard_min 1];
     step_size : float [@sop.default 0.5] [@sop.label "Step size"]
       [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.];
-    target_mode : Pdk.Ops.edge_relax_target_mode
-      [@sop.default Pdk.Ops.Individual_lengths]
+    target_mode : Pdk.Edge_modeling_ops.relax_target_mode
+      [@sop.default Pdk.Edge_modeling_ops.Individual_lengths]
       [@sop.label "Target mode"] [@sop.kind target_parameter];
     only_shorten : bool [@sop.default false] [@sop.label "Only shorten"];
     tolerance : float [@sop.default 0.000001] [@sop.label "Tolerance"]
@@ -4739,16 +4739,16 @@ end [@@sop.register]
 
 module Poly_loft = struct
   let minimize_parameter = Parameter.choice ~equal:( = ) [
-      "Two point distance", Pdk.Ops.Two_point_distance;
-      "Three point distance", Pdk.Ops.Three_point_distance;
+      "Two point distance", Pdk.Poly_modeling.Two_point_distance;
+      "Three point distance", Pdk.Poly_modeling.Three_point_distance;
     ]
 
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Primitive group"];
     connect_closest_ends : bool [@sop.default true]
       [@sop.label "Connect closest ends"];
-    minimize : Pdk.Ops.poly_loft_minimize
-      [@sop.default Pdk.Ops.Two_point_distance]
+    minimize : Pdk.Poly_modeling.loft_minimize
+      [@sop.default Pdk.Poly_modeling.Two_point_distance]
       [@sop.label "Minimize"] [@sop.kind minimize_parameter];
     u_wrap : bool [@sop.default false] [@sop.label "Wrap U"];
     v_wrap : bool [@sop.default false] [@sop.label "Wrap V"];
@@ -6615,10 +6615,10 @@ end [@@sop.register]
 module Poly_cut = struct
   type detection = All | Crossing | Change
   let element_parameter = Parameter.choice ~equal:( = ) [
-      "Points", Pdk.Ops.Poly_cut_points; "Edges", Pdk.Ops.Poly_cut_edges;
+      "Points", Pdk.Poly_modeling.Poly_cut_points; "Edges", Pdk.Poly_modeling.Poly_cut_edges;
     ]
   let strategy_parameter = Parameter.choice ~equal:( = ) [
-      "Remove", Pdk.Ops.Poly_cut_remove; "Cut", Pdk.Ops.Poly_cut_cut;
+      "Remove", Pdk.Poly_modeling.Poly_cut_remove; "Cut", Pdk.Poly_modeling.Poly_cut_cut;
     ]
   let detection_parameter = Parameter.choice ~equal:( = ) [
       "All selected", All; "Attribute crossing", Crossing;
@@ -6627,10 +6627,10 @@ module Poly_cut = struct
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Primitive group"];
     cut_group : string [@sop.default ""] [@sop.label "Cut group"];
-    element : Pdk.Ops.poly_cut_element [@sop.default Pdk.Ops.Poly_cut_points]
+    element : Pdk.Poly_modeling.cut_element [@sop.default Pdk.Poly_modeling.Poly_cut_points]
       [@sop.label "Cut elements"] [@sop.kind element_parameter];
-    strategy : Pdk.Ops.poly_cut_strategy
-      [@sop.default Pdk.Ops.Poly_cut_remove]
+    strategy : Pdk.Poly_modeling.cut_strategy
+      [@sop.default Pdk.Poly_modeling.Poly_cut_remove]
       [@sop.label "Strategy"] [@sop.kind strategy_parameter];
     detection : detection [@sop.default All] [@sop.label "Detection"]
       [@sop.folder "Detection"] [@sop.kind detection_parameter];
@@ -6646,10 +6646,10 @@ module Poly_cut = struct
     [@@sop.node_category "Topology/Curve"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
   let detection parameters = match parameters.detection with
-    | All -> Pdk.Ops.Poly_cut_all
-    | Crossing -> Pdk.Ops.Poly_cut_crossing {
+    | All -> Pdk.Poly_modeling.Poly_cut_all
+    | Crossing -> Pdk.Poly_modeling.Poly_cut_crossing {
         attribute = parameters.attribute; value = parameters.value }
-    | Change -> Pdk.Ops.Poly_cut_change {
+    | Change -> Pdk.Poly_modeling.Poly_cut_change {
         attribute = parameters.attribute; threshold = parameters.threshold }
   let rec build ~label ~inputs parameters = match inputs with
     | [input] -> Sop.poly_cut ~label ?group:(optional_text parameters.group)
@@ -7375,9 +7375,9 @@ let transport_roots_parameter = Parameter.choice ~equal:( = ) [
     "Root group", Transport_group;
   ]
 let transport_roots mode group = match mode with
-  | Transport_first -> None, Pdk.Ops.Transport_first_point
-  | Transport_last -> None, Pdk.Ops.Transport_last_point
-  | Transport_group -> optional_text group, Pdk.Ops.Transport_first_point
+  | Transport_first -> None, Pdk.Edge_transport_ops.Transport_first_point
+  | Transport_last -> None, Pdk.Edge_transport_ops.Transport_last_point
+  | Transport_group -> optional_text group, Pdk.Edge_transport_ops.Transport_first_point
 
 module Edge_transport = struct
   type parameters = {
@@ -7386,26 +7386,26 @@ module Edge_transport = struct
     roots : transport_roots [@sop.default Transport_first]
       [@sop.label "Roots"] [@sop.kind transport_roots_parameter];
     root_group : string [@sop.default ""] [@sop.label "Root group"];
-    direction : Pdk.Ops.edge_transport_direction
-      [@sop.default Pdk.Ops.Transport_forward] [@sop.label "Direction"]
+    direction : Pdk.Edge_transport_ops.direction
+      [@sop.default Pdk.Edge_transport_ops.Transport_forward] [@sop.label "Direction"]
       [@sop.kind edge_transport_direction_parameter];
-    operation : Pdk.Ops.edge_transport_operation
-      [@sop.default Pdk.Ops.Transport] [@sop.label "Operation"]
+    operation : Pdk.Edge_transport_ops.operation
+      [@sop.default Pdk.Edge_transport_ops.Transport] [@sop.label "Operation"]
       [@sop.kind edge_transport_operation_parameter];
-    root_value : Pdk.Ops.edge_transport_root_value
-      [@sop.default Pdk.Ops.Transport_root_zero] [@sop.label "Root value"]
+    root_value : Pdk.Edge_transport_ops.root_value
+      [@sop.default Pdk.Edge_transport_ops.Transport_root_zero] [@sop.label "Root value"]
       [@sop.kind edge_transport_root_value_parameter];
     integrate_constant : bool [@sop.default false]
       [@sop.label "Integrate constant"];
     scale_by_edge_length : bool [@sop.default false]
       [@sop.label "Scale by edge length"];
-    split : Pdk.Ops.edge_transport_split [@sop.default Pdk.Ops.Transport_copy]
+    split : Pdk.Edge_transport_ops.split [@sop.default Pdk.Edge_transport_ops.Transport_copy]
       [@sop.label "Branch split"] [@sop.kind edge_transport_split_parameter];
-    merge : Pdk.Ops.edge_transport_merge
-      [@sop.default Pdk.Ops.Transport_merge_add]
+    merge : Pdk.Edge_transport_ops.merge
+      [@sop.default Pdk.Edge_transport_ops.Transport_merge_add]
       [@sop.label "Branch merge"] [@sop.kind edge_transport_merge_parameter];
-    normalization : Pdk.Ops.edge_transport_normalization
-      [@sop.default Pdk.Ops.Transport_no_normalization]
+    normalization : Pdk.Edge_transport_ops.normalization
+      [@sop.default Pdk.Edge_transport_ops.Transport_no_normalization]
       [@sop.label "Normalization"]
       [@sop.kind edge_transport_normalization_parameter];
   } [@@sop.node_key "edge_transport"] [@@sop.node_label "Edge Transport"]
@@ -7440,21 +7440,21 @@ module Edge_transport_curves = struct
       [@sop.label "Primitive group"];
     owner : Pdk.Attribute.owner [@sop.default Pdk.Attribute.Point]
       [@sop.label "Attribute owner"] [@sop.kind uv_owner_parameter];
-    direction : Pdk.Ops.edge_transport_direction
-      [@sop.default Pdk.Ops.Transport_forward] [@sop.label "Direction"]
+    direction : Pdk.Edge_transport_ops.direction
+      [@sop.default Pdk.Edge_transport_ops.Transport_forward] [@sop.label "Direction"]
       [@sop.kind edge_transport_direction_parameter];
-    operation : Pdk.Ops.edge_transport_operation
-      [@sop.default Pdk.Ops.Transport] [@sop.label "Operation"]
+    operation : Pdk.Edge_transport_ops.operation
+      [@sop.default Pdk.Edge_transport_ops.Transport] [@sop.label "Operation"]
       [@sop.kind edge_transport_operation_parameter];
-    root_value : Pdk.Ops.edge_transport_root_value
-      [@sop.default Pdk.Ops.Transport_root_zero] [@sop.label "Root value"]
+    root_value : Pdk.Edge_transport_ops.root_value
+      [@sop.default Pdk.Edge_transport_ops.Transport_root_zero] [@sop.label "Root value"]
       [@sop.kind edge_transport_root_value_parameter];
     integrate_constant : bool [@sop.default false]
       [@sop.label "Integrate constant"];
     scale_by_edge_length : bool [@sop.default false]
       [@sop.label "Scale by edge length"];
-    normalization : Pdk.Ops.edge_transport_normalization
-      [@sop.default Pdk.Ops.Transport_no_normalization]
+    normalization : Pdk.Edge_transport_ops.normalization
+      [@sop.default Pdk.Edge_transport_ops.Transport_no_normalization]
       [@sop.label "Normalization"]
       [@sop.kind edge_transport_normalization_parameter];
   } [@@sop.node_key "edge_transport_curves"]
@@ -7485,26 +7485,26 @@ module Edge_transport_parent = struct
     point_group : string [@sop.default ""] [@sop.label "Point group"];
     parent_attribute : string [@sop.default "parent"]
       [@sop.label "Parent attribute"];
-    direction : Pdk.Ops.edge_transport_direction
-      [@sop.default Pdk.Ops.Transport_forward] [@sop.label "Direction"]
+    direction : Pdk.Edge_transport_ops.direction
+      [@sop.default Pdk.Edge_transport_ops.Transport_forward] [@sop.label "Direction"]
       [@sop.kind edge_transport_direction_parameter];
-    operation : Pdk.Ops.edge_transport_operation
-      [@sop.default Pdk.Ops.Transport] [@sop.label "Operation"]
+    operation : Pdk.Edge_transport_ops.operation
+      [@sop.default Pdk.Edge_transport_ops.Transport] [@sop.label "Operation"]
       [@sop.kind edge_transport_operation_parameter];
-    root_value : Pdk.Ops.edge_transport_root_value
-      [@sop.default Pdk.Ops.Transport_root_zero] [@sop.label "Root value"]
+    root_value : Pdk.Edge_transport_ops.root_value
+      [@sop.default Pdk.Edge_transport_ops.Transport_root_zero] [@sop.label "Root value"]
       [@sop.kind edge_transport_root_value_parameter];
     integrate_constant : bool [@sop.default false]
       [@sop.label "Integrate constant"];
     scale_by_edge_length : bool [@sop.default false]
       [@sop.label "Scale by edge length"];
-    split : Pdk.Ops.edge_transport_split [@sop.default Pdk.Ops.Transport_copy]
+    split : Pdk.Edge_transport_ops.split [@sop.default Pdk.Edge_transport_ops.Transport_copy]
       [@sop.label "Branch split"] [@sop.kind edge_transport_split_parameter];
-    merge : Pdk.Ops.edge_transport_merge
-      [@sop.default Pdk.Ops.Transport_merge_add]
+    merge : Pdk.Edge_transport_ops.merge
+      [@sop.default Pdk.Edge_transport_ops.Transport_merge_add]
       [@sop.label "Branch merge"] [@sop.kind edge_transport_merge_parameter];
-    normalization : Pdk.Ops.edge_transport_normalization
-      [@sop.default Pdk.Ops.Transport_no_normalization]
+    normalization : Pdk.Edge_transport_ops.normalization
+      [@sop.default Pdk.Edge_transport_ops.Transport_no_normalization]
       [@sop.label "Normalization"]
       [@sop.kind edge_transport_normalization_parameter];
   } [@@sop.node_key "edge_transport_parent"]
@@ -8229,14 +8229,14 @@ end [@@sop.register]
 
 module Point_replicate = struct
   let shape_parameter = Parameter.choice ~equal:( = ) [
-      "Point", Pdk.Ops.Replicate_point; "Box", Pdk.Ops.Replicate_box;
-      "Sphere", Pdk.Ops.Replicate_sphere; "Disk", Pdk.Ops.Replicate_disk;
-      "Line", Pdk.Ops.Replicate_line; "Custom", Pdk.Ops.Replicate_custom;
+      "Point", Pdk.Point_replication.Replicate_point; "Box", Pdk.Point_replication.Replicate_box;
+      "Sphere", Pdk.Point_replication.Replicate_sphere; "Disk", Pdk.Point_replication.Replicate_disk;
+      "Line", Pdk.Point_replication.Replicate_line; "Custom", Pdk.Point_replication.Replicate_custom;
     ]
   let velocity_parameter = Parameter.choice ~equal:( = ) [
-      "None", Pdk.Ops.Replicate_no_velocity_stretch;
-      "Scaled velocity", Pdk.Ops.Replicate_scaled_velocity;
-      "Velocity only", Pdk.Ops.Replicate_velocity_only;
+      "None", Pdk.Point_replication.Replicate_no_velocity_stretch;
+      "Scaled velocity", Pdk.Point_replication.Replicate_scaled_velocity;
+      "Velocity only", Pdk.Point_replication.Replicate_velocity_only;
     ]
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Point group"];
@@ -8250,7 +8250,7 @@ module Point_replicate = struct
       [@sop.folder "Random"] [@sop.min 0] [@sop.max 9999];
     id_attribute : string [@sop.default "id"] [@sop.label "ID attribute"]
       [@sop.folder "Random"];
-    shape : Pdk.Ops.point_replicate_shape [@sop.default Pdk.Ops.Replicate_sphere]
+    shape : Pdk.Point_replication.shape [@sop.default Pdk.Point_replication.Replicate_sphere]
       [@sop.label "Shape"] [@sop.folder "Shape"] [@sop.kind shape_parameter];
     center_x : float [@sop.default 0.] [@sop.label "Center X"]
       [@sop.folder "Shape/Center"] [@sop.min (-10.)] [@sop.max 10.];
@@ -8281,8 +8281,8 @@ module Point_replicate = struct
       [@sop.hard_min 0.];
     quasi_stratified : bool [@sop.default false]
       [@sop.label "Quasi-stratified"] [@sop.folder "Random"];
-    velocity_stretch : Pdk.Ops.point_replicate_velocity_stretch
-      [@sop.default Pdk.Ops.Replicate_no_velocity_stretch]
+    velocity_stretch : Pdk.Point_replication.velocity_stretch
+      [@sop.default Pdk.Point_replication.Replicate_no_velocity_stretch]
       [@sop.label "Velocity stretch"] [@sop.folder "Velocity"]
       [@sop.kind velocity_parameter];
     velocity_scale : float [@sop.default 1.] [@sop.label "Velocity scale"]
@@ -8339,7 +8339,7 @@ module Point_replicate = struct
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
   let rec build_slots ~label ~inputs parameters = match inputs with
     | [Some input; custom_shape] ->
-        let custom_shape = if parameters.shape = Pdk.Ops.Replicate_custom
+        let custom_shape = if parameters.shape = Pdk.Point_replication.Replicate_custom
           then custom_shape else None in
         Sop.point_replicate ~label ?group:(optional_text parameters.group)
           ~keep_input:parameters.keep_input

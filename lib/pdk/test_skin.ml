@@ -45,7 +45,7 @@ let int_attribute owner name geometry =
 
 let test_quads_and_payload () =
   let source = rings () in
-  let output = Ops.skin ~connect_closest_ends:false ~output_group:"skin" source
+  let output = Poly_modeling.skin_checked ~connect_closest_ends:false ~output_group:"skin" source
       |> get_pdk in
   check (Geometry.point_count output = 8
       && Geometry.primitive_count output = 4
@@ -65,7 +65,7 @@ let test_quads_and_payload () =
       |> Option.get |> Group.cardinality = 16) "vertex-group ancestry";
   check (Geometry.find_edge_group "section_edges" output
       |> Option.get |> Edge_group.cardinality = 8) "native-edge ancestry";
-  let kept = Ops.skin ~connect_closest_ends:false ~keep_primitives:true source
+  let kept = Poly_modeling.skin_checked ~connect_closest_ends:false ~keep_primitives:true source
       |> get_pdk in
   check (Geometry.primitive_count kept = 6 && Geometry.vertex_count kept = 24)
     "keep source curves";
@@ -83,10 +83,10 @@ let unequal_open () =
   Geometry.create ~positions ~topology () |> get
 
 let test_unequal_wrap_and_errors () =
-  let unequal = Ops.skin (unequal_open ()) |> get_pdk in
+  let unequal = Poly_modeling.skin_checked (unequal_open ()) |> get_pdk in
   check (Geometry.primitive_count unequal = 5
       && Geometry.vertex_count unequal = 15) "unequal triangle fallback";
-  let wrapped = Ops.skin ~v_wrap:true (rings ~sections:3 ()) |> get_pdk in
+  let wrapped = Poly_modeling.skin_checked ~v_wrap:true (rings ~sections:3 ()) |> get_pdk in
   let index = Topology_index.create (Geometry.topology wrapped) in
   check (Geometry.primitive_count wrapped = 12
       && Geometry.vertex_count wrapped = 48
@@ -95,21 +95,21 @@ let test_unequal_wrap_and_errors () =
   let source = rings () in
   let wrong = Group.init ~grain:1 ~owner:Group.Point ~name:"wrong" 8
       (fun _ -> true) in
-  (match Ops.skin ~primitives:wrong source with
+  (match Poly_modeling.skin_checked ~primitives:wrong source with
    | Error error -> check (Error.code error = "invalid_topology")
        "selection-owner diagnostic"
    | Ok _ -> fail "point group accepted");
-  (match Ops.skin ~output_group:" " source with
+  (match Poly_modeling.skin_checked ~output_group:" " source with
    | Error error -> check (Error.code error = "invalid_topology")
        "empty output-group diagnostic"
    | Ok _ -> fail "empty output group accepted");
-  (match Ops.skin ~rest:(Line_geometry.points [|0.,0.,0.|]) source with
+  (match Poly_modeling.skin_checked ~rest:(Line_geometry.points [|0.,0.,0.|]) source with
    | Error error -> check (Error.code error = "invalid_topology")
        "rest-cardinality diagnostic"
    | Ok _ -> fail "mismatched rest geometry accepted");
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  (match Ops.skin ~cancel source with
+  (match Poly_modeling.skin_checked ~cancel source with
    | Error error -> check (Error.code error = "cancelled") "cancellation code"
    | Ok _ -> fail "cancelled skin succeeded")
 
@@ -142,7 +142,7 @@ let equal_geometry left right =
 let test_parallel_exactness () =
   let source = rings ~sections:96 ~points:257 () in
   let run domains = Prismel.Parallel.run ~domains (fun () ->
-      Ops.skin ~grain:113 ~output_group:"skin" source |> get_pdk) in
+      Poly_modeling.skin_checked ~grain:113 ~output_group:"skin" source |> get_pdk) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four) "one/four-domain output differs";
   check (Geometry.primitive_count one = 95 * 257

@@ -37,7 +37,7 @@ let run () =
   let custom = Sop.points [|(0.,0.,0.); (0.,0.,1.)|] in
   let graph = Sop.snapshot (source ())
       |> Sop.point_replicate ~label:"replicate-test" ~group:"emit" ~seed:71
-           ~shape:Pdk.Ops.Replicate_custom ~custom_shape:custom
+           ~shape:Pdk.Point_replication.Replicate_custom ~custom_shape:custom
            ~generated_group:"cloud" ~keep_source_attributes:true
            ~transform_attributes:"flow"
            ~quasi_stratified:true ~noise_seed:72

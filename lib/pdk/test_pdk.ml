@@ -250,7 +250,7 @@ let run () =
     fail "point kernel dropped group";
   let quad_mesh = Pdk_prismel.Prismel_mesh.to_mesh geometry |> get_ok in
   if Mesh.index_count quad_mesh <> 6 then fail "quad bridge triangulation";
-  let extruded = Ops.poly_extrude ~distance:2. geometry |> get_ok in
+  let extruded = Poly_modeling.poly_extrude_checked ~distance:2. geometry |> get_ok in
   if Geometry.point_count extruded <> 8
      || Geometry.primitive_count extruded <> 6
      || Geometry.vertex_count extruded <> 24
@@ -1579,7 +1579,7 @@ let run () =
   let mirror_source = Geometry.with_attribute direction_attribute
       triangle_geometry |> get_ok in
   let mirrored domains = Parallel.run ~domains (fun () ->
-      Ops.mirror ~grain:1 ~origin:Vec3.zero ~normal:Vec3.unit_x mirror_source
+      Mesh_edit_ops.mirror_checked ~grain:1 ~origin:Vec3.zero ~normal:Vec3.unit_x mirror_source
       |> get_ok) in
   let mirrored_one = mirrored 1 and mirrored_many = mirrored 4 in
   let mirror_topology_one = Topology.Private.view (Geometry.topology mirrored_one)
@@ -2395,21 +2395,21 @@ let run () =
   if Edge_group.cardinality triangulated_edge_group <> 4
      || Edge_group.length triangulated_edge_group <> 5 then
     fail "triangulate did not preserve original edges/exclude its diagonal";
-  let reversed_edges = Ops.reverse quad_edges |> get_ok
+  let reversed_edges = Reverse_ops.run_checked quad_edges |> get_ok
       |> Geometry.find_edge_group "quad_edges" |> Option.get in
   if Edge_group.cardinality reversed_edges <> 4 then
     fail "reverse did not remap native edge membership";
   let quad_edge_group = Geometry.find_edge_group "quad_edges" quad_edges
       |> Option.get
   and quad_edge_index = Topology_index.create (Geometry.topology quad_edges) in
-  let reversed_topology = Ops.reverse quad_edges |> get_ok |> Geometry.topology in
+  let reversed_topology = Reverse_ops.run_checked quad_edges |> get_ok |> Geometry.topology in
   (match Edge_group.replicate_exact_copies
       ~source_topology:(Geometry.topology quad_edges)
       ~source_index:quad_edge_index ~target_topology:reversed_topology
       ~copies:1 quad_edge_group with
    | Error _ -> ()
    | Ok _ -> fail "exact-copy edge replication accepted reordered topology");
-  let mirrored_edge_geometry = Ops.mirror ~origin:Vec3.zero ~normal:Vec3.unit_x
+  let mirrored_edge_geometry = Mesh_edit_ops.mirror_checked ~origin:Vec3.zero ~normal:Vec3.unit_x
       quad_edges |> get_ok in
   let mirrored_edge_group = Geometry.find_edge_group "quad_edges"
       mirrored_edge_geometry |> Option.get in
@@ -2457,7 +2457,7 @@ let run () =
   if Edge_group.cardinality clipped_edge_group <> 3
      || Edge_group.length clipped_edge_group <> 4 then
     fail "clip did not preserve source fragments/exclude its cut edge";
-  let extruded_edge_geometry = Ops.poly_extrude ~distance:1. quad_edges
+  let extruded_edge_geometry = Poly_modeling.poly_extrude_checked ~distance:1. quad_edges
       |> get_ok in
   let extruded_edge_group = Geometry.find_edge_group "quad_edges"
       extruded_edge_geometry |> Option.get in
@@ -3965,7 +3965,7 @@ let run () =
    | Error _ -> ()
    | Ok _ -> fail "area measurement accepted an open curve");
   let box_volume = Analysis.signed_volume ~grain:3 box |> get_ok in
-  let reversed_box = Ops.reverse box |> get_ok in
+  let reversed_box = Reverse_ops.run_checked box |> get_ok in
   let reversed_volume = Analysis.signed_volume ~grain:3 reversed_box |> get_ok in
   if abs_float (abs_float box_volume -. 48.) > 1e-12
       || abs_float (box_volume +. reversed_volume) > 1e-12 then
@@ -4024,10 +4024,10 @@ let run () =
   Topology.Builder.add_triangle degenerate_topology 0 1 2;
   let degenerate = Geometry.create ~positions:degenerate_positions
       ~topology:(Topology.Builder.freeze degenerate_topology) () |> get_ok in
-  let cleaned = Ops.clean degenerate |> get_ok in
+  let cleaned = Clean_ops.run_checked degenerate |> get_ok in
   if Geometry.primitive_count cleaned <> 0 || Geometry.point_count cleaned <> 3
   then fail "clean degenerate primitive/point identity";
-  let cleaned_compact = Ops.clean ~remove_unused_points:true degenerate |> get_ok in
+  let cleaned_compact = Clean_ops.run_checked ~remove_unused_points:true degenerate |> get_ok in
   if Geometry.primitive_count cleaned_compact <> 0
      || Geometry.point_count cleaned_compact <> 0 then
     fail "clean remove-unused-points policy";
@@ -4214,7 +4214,7 @@ let run () =
   (match Fuse_grid.fuse_checked ~cancel:cancelled ~tolerance:0. grid with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled fuse published geometry or wrong error");
-  (match Ops.mirror ~cancel:cancelled ~origin:Vec3.zero ~normal:Vec3.unit_x grid with
+  (match Mesh_edit_ops.mirror_checked ~cancel:cancelled ~origin:Vec3.zero ~normal:Vec3.unit_x grid with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled mirror published geometry or wrong error");
   (match Plane_clip.clip_checked ~cancel:cancelled ~origin:Vec3.zero ~normal:Vec3.unit_x grid with

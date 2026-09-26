@@ -63,7 +63,7 @@ let measure name components input =
       Gc.full_major ();
       let before = Gc.quick_stat () and bytes_before = Gc.allocated_bytes ()
       and started = Unix.gettimeofday () in
-      let output = Ops.circle_from_edges ~grain input |> get in
+      let output = Edge_modeling_ops.circle_from_edges_checked ~grain input |> get in
       times.(repeat) <- Unix.gettimeofday () -. started;
       allocated.(repeat) <- Gc.allocated_bytes () -. bytes_before;
       let after = Gc.quick_stat () in

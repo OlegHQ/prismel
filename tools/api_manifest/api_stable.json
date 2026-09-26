@@ -3,7 +3,7 @@
   "baseline_plan_sha256": "6f95e5738ae263386bbc414299f598f25ba9f604b48a8c2ef9bee84f974e2954",
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 141,
+  "module_count": 149,
   "modules": [
     {
       "api_sha256": "e50b68fb8b3efb8c3f48d288c797a83690511ce38a332e2c2285c788efd781ad",
@@ -141,6 +141,15 @@
       "source_sha256": "c861d2e8253c3633abfa233f3eeb53247c01f3983e753f6b89a344d3d5870921"
     },
     {
+      "api_sha256": "c406397c52c85696e764487f887fc55c905e0b592d2ddeb735528e3a3ac63253",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Clean_ops",
+      "source": "lib/pdk/mesh/clean_ops.mli",
+      "source_bytes": 612,
+      "source_sha256": "b0029d44e85250e8f1a11fc46c488b5f9ea263fb18b3621067edf6c4a2f61282"
+    },
+    {
       "api_sha256": "daa12f65b997230cbe47bbd458ae8b59a6bc0b93f653d2d08be5f9a81d0c6459",
       "excluded_legacy_symbols": [],
       "library": "pdk",
@@ -247,6 +256,24 @@
       "source": "lib/pdk/core/edge_group.mli",
       "source_bytes": 2609,
       "source_sha256": "102618f1df43284ea5064b3ff438838d40df7db6c1c5231d073cabfb2248b162"
+    },
+    {
+      "api_sha256": "9664fd9df88b6e3e97e8a212d6d6311de2f063ab79d7076e0534b5a7f2567e04",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Edge_modeling_ops",
+      "source": "lib/pdk/mesh/edge_modeling_ops.mli",
+      "source_bytes": 1553,
+      "source_sha256": "4fb8bb43726982b771d149d128ca29b83fd8b73ae89357eeb7bddbe9a6b60e1a"
+    },
+    {
+      "api_sha256": "6b1d84b63341f78917c9d838ccba200e0bf46a45cc64ed7f91ca6bc35ac5cee4",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Edge_transport_ops",
+      "source": "lib/pdk/mesh/edge_transport_ops.mli",
+      "source_bytes": 1861,
+      "source_sha256": "83a175e95d5b2198a00f64a474f4175475f7c9b561253e40493c43f4ccebb869"
     },
     {
       "api_sha256": "b2e041c2be999205d4b1cc71acbed3d1a8315317115cc9cf092e7098e51cf72f",
@@ -384,6 +411,15 @@
       "source_sha256": "f5f3b328927fce40bdb38b3edce6f6c3217caa41d252f3ffe897eb8e783b98bc"
     },
     {
+      "api_sha256": "edcec322f3cc3676ab8b7255f94ac15c44b6c1e9a24a667db3ed2a72d59e2587",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Mesh_edit_ops",
+      "source": "lib/pdk/mesh/mesh_edit_ops.mli",
+      "source_bytes": 1186,
+      "source_sha256": "aa5f68551f292b7a95aa669890bf4f61e82a447176b81dd292b59167f83e36a0"
+    },
+    {
       "api_sha256": "befd10e388cf3658ffa6aa336b84f39a377d5c71c171b6c2c4dcbfbe89c3aee4",
       "excluded_legacy_symbols": [],
       "library": "pdk",
@@ -420,13 +456,13 @@
       "source_sha256": "783f2a8cb8d44e94a2fe14b57d38a3089600f911da55902a40a5925dc5fe50f7"
     },
     {
-      "api_sha256": "7634e95780b1b147147b15e8aff284411fbfb8483f8f0dc7fd8643e0dffe9669",
+      "api_sha256": "4703b910ee7bc7b157b1b3d40775bb162ba001fe58ff0fd54a74c89c4d5809e1",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Ops",
       "source": "lib/pdk/mesh/ops.mli",
-      "source_bytes": 141481,
-      "source_sha256": "cf7cfaa1af044e8647526af58141b4f4091b6ebd31785ce1df8f5747ce6f4d12"
+      "source_bytes": 106901,
+      "source_sha256": "b8473e4558640dd139651d7a5e216230106336207d2b41a6f19cca0a58839003"
     },
     {
       "api_sha256": "b490452483589f09b79da98886e02e53857b15bc4e94c89b071cad643471a311",
@@ -501,6 +537,15 @@
       "source_sha256": "ca23bf82111a0bac6faa9d8423063030192a408c7ea0d76e7e426c2d96cf0888"
     },
     {
+      "api_sha256": "972efe591a573c5a939274777b4059920695d8915c4aad6287b97d082ea46a7b",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Point_replication",
+      "source": "lib/pdk/mesh/point_replication.mli",
+      "source_bytes": 1290,
+      "source_sha256": "0dfb34bb78e3b561f5af26a5510dc12d50f5d8a09e4cbfc78c0aa1ddcd8edaff"
+    },
+    {
       "api_sha256": "59fc3b074dcc6165d752043988fa277bab220209abb73854492edcc2a4115c9d",
       "excluded_legacy_symbols": [],
       "library": "pdk",
@@ -517,6 +562,15 @@
       "source": "lib/pdk/mesh/poly_fill.mli",
       "source_bytes": 3279,
       "source_sha256": "eea1b023ea482670f6badbd1e80df61706b4fc877c25d451626056e0bdf05719"
+    },
+    {
+      "api_sha256": "f364b0e35d930272020646fda78d360ff4b1a6df737d6999a31b77a674c8f47f",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Poly_modeling",
+      "source": "lib/pdk/mesh/poly_modeling.mli",
+      "source_bytes": 2943,
+      "source_sha256": "3e225ed76e0e65e6b080211256273075e6f8646fd143160729e014463bf1721f"
     },
     {
       "api_sha256": "6ea1d611e0e4a77e689b4e9c64ff34678408123b886e0270f7cc04fa615cd58a",
@@ -555,6 +609,15 @@
       "source_sha256": "d34fd0c7e1f3d8f75dfedb6a2f674f2b2ab49511e91f8234597e6ee8a0afa91a"
     },
     {
+      "api_sha256": "a059e1b57854f35076d90208c12b7d578ef0ed98220bbdc57a614bb5d19feae8",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Reverse_ops",
+      "source": "lib/pdk/mesh/reverse_ops.mli",
+      "source_bytes": 237,
+      "source_sha256": "c5bd76084e38d008f2c27510a78fa4dd82abedd562002e25454a30ec102398fc"
+    },
+    {
       "api_sha256": "385c502d05983cffe5a30c2ed07d092beb1abcb19f683f514f4b329380a2f402",
       "excluded_legacy_symbols": [],
       "library": "pdk",
@@ -562,6 +625,15 @@
       "source": "lib/pdk/mesh/separate_pieces.mli",
       "source_bytes": 717,
       "source_sha256": "7c8ae285eefc86b77b37c64533c29d3765bc526e0d2cd90dbf4c341a7c8b78b5"
+    },
+    {
+      "api_sha256": "af23d1b68f8f6a2b35b04dc23169ebf8e3d7ae8946eefe71c96a4a55a6583263",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Smooth_ops",
+      "source": "lib/pdk/mesh/smooth_ops.mli",
+      "source_bytes": 525,
+      "source_sha256": "c7b97fe15669eaef391a82764d0795827b060720d259fd97014cb846e9102031"
     },
     {
       "api_sha256": "32c3c01f6a422108e560db6f453ed7c8bfdf677410df9d3edd250d940508fe14",
@@ -1153,13 +1225,13 @@
       "source_sha256": "83afa2e5b95fc2188298d383ada3f628368e0dba3aa1f7ac67738f4086cfee52"
     },
     {
-      "api_sha256": "6416e961a854d418d04f47f4c55823ef502eba4d2ba6e9f3bfa23c080c2e0077",
+      "api_sha256": "80b9e9e87f1d3511d1ca64a54fbfe0c7a4e984c6d36cdca247a48653bc5fbfe8",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Sop",
       "source": "lib/procedural/sop.mli",
-      "source_bytes": 99802,
-      "source_sha256": "d2fa0c09a416bfb241b108c08afc5238ff90f15fc99f2514913cf79030dfea58"
+      "source_bytes": 99889,
+      "source_sha256": "fd0c4579e607b44ad5de2409f490756c0c655d715526b4172f0c257f76f2ca1f"
     },
     {
       "api_sha256": "a07dc249d7631da8b4e38fe93e9e43898cdc8cec6e30be0a7c921a086e386fba",
@@ -1261,13 +1333,13 @@
       "source_sha256": "e29942e9832efce336bad8a6132ce04fad60bf934fa5510edae5ce4ecdad30d3"
     },
     {
-      "api_sha256": "db89ebbd0af932d040c0c687fac36effd1902e1e7ccc4d46dd8da3fd33f81d92",
+      "api_sha256": "980032fda9fa26b8d432a5c39c798af158a5dea2c42d1646a29baeb92906a25b",
       "excluded_legacy_symbols": [],
       "library": "sop_catalog",
       "module": "Sop_catalog",
       "source": "lib/sop_catalog/sop_catalog.mli",
-      "source_bytes": 21346,
-      "source_sha256": "8cb2ae7bbd00b75dbad3a9c42539b1ea8d84cd2a1690ef46ca85e5b24614b72f"
+      "source_bytes": 21355,
+      "source_sha256": "84215a073d83657a9d1284d4d6e5009ba2897bfbc42728d565e1c39faa4a7370"
     },
     {
       "api_sha256": "066c13e6f40d5ace39e223d82bef47560a97d2d8a6dd75ab9bae2117d32ab5a5",

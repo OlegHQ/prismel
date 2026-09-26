@@ -11,9 +11,9 @@ let run () =
   let exact_m1 = Sys.getenv_opt "PRISMEL_PATH_TRACER_EXACT_M1" = Some "1" in
   let initial_handles = live_handles () in
   let sphere = get (Result.map_error Pdk.Error.to_string
-    (Pdk.Ops.uv_sphere ~center:(Prismel.Vec3.create 0. 1. 0.) ~segments:24 ~rings:12 ~radius:1. ())) in
+    (Pdk.Uv_sphere.run_checked ~center:(Prismel.Vec3.create 0. 1. 0.) ~segments:24 ~rings:12 ~radius:1. ())) in
   let floor = get (Result.map_error Pdk.Error.to_string
-    (Pdk.Ops.box ~center:(Prismel.Vec3.create 0. (-0.05) 0.) ~size:(Prismel.Vec3.create 20. 0.1 20.) ())) in
+    (Pdk.Box_generator.box_checked ~center:(Prismel.Vec3.create 0. (-0.05) 0.) ~size:(Prismel.Vec3.create 20. 0.1 20.) ())) in
   let scene =
     { P.objects =
         [ (sphere, P.material ~roughness:0.2 ~metallic:1. (rgb 0.9 0.7 0.4))

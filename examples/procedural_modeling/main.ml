@@ -61,7 +61,7 @@ let graphs () =
          ~viewpoint:(Vec3.create 0. 4. 5.) ~name:"raised_tiles"
     |> Sop.peak ~selection:(Sop.Primitive_group "raised_tiles") ~distance:0.04
     |> Sop.poly_extrude ~group:"raised_tiles"
-         ~divide:Pdk.Ops.Extrude_connected_components ~divisions:3
+         ~divide:Pdk.Poly_modeling.Extrude_connected_components ~divisions:3
          ~front_group:"tile_fronts" ~side_group:"tile_sides"
          ~front_boundary_group:"tile_rims" ~distance:0.28
     |> Sop.facet ~unique_points:true ~post_compute_normals:true
@@ -208,7 +208,7 @@ let graphs () =
   and promoted_piece =
     Sop.grid ~columns:16 ~rows:12 ~size:1.8 ()
     |> Sop.noise_displace ~seed:51 ~amplitude:0.35 ~frequency:1.2
-    |> Sop.smooth ~iterations:2 ~boundary:Pdk.Ops.Smooth_unshared
+    |> Sop.smooth ~iterations:2 ~boundary:Pdk.Smooth_ops.Smooth_unshared
          ~attributes:"P" ~method_:Pdk.Attribute_ops.Edge_length
          ~mode:(Pdk.Attribute_ops.Laplacian 0.3)
     |> Sop.color_by_height ~low:(Color.hex_exn "#2563eb")
@@ -469,7 +469,7 @@ let graphs () =
       ~normals:Pdk.Box_generator.Box_no_normals ~size:(Vec3.create 1.1 0.8 0.7) ()
     |> Sop.group_edges ~name:"bevel_edges"
     |> Sop.poly_bevel ~group:"bevel_edges"
-         ~shape:(Pdk.Ops.Bevel_round { convexity = 1. }) ~divisions:4
+         ~shape:(Pdk.Poly_modeling.Bevel_round { convexity = 1. }) ~divisions:4
          ~distance:0.14 ~edge_group:"bevel_faces"
          ~corner_group:"bevel_corners" ~offset_group:"bevel_rims"
     |> Sop.normals ~owner:Pdk.Attribute.Vertex ~cusp_angle:0.85
@@ -480,7 +480,7 @@ let graphs () =
       ~normals:Pdk.Box_generator.Box_no_normals ~face_groups:"crease_face"
       ~size:(Vec3.create 1.05 0.8 0.8) ()
     |> Sop.group_edges ~group:"crease_face__top" ~name:"feature_edges"
-    |> Sop.crease ~group:"feature_edges" ~operation:Pdk.Ops.Crease_set
+    |> Sop.crease ~group:"feature_edges" ~operation:Pdk.Mesh_edit_ops.Crease_set
          ~weight:2.5 ~add_vertex_color:true
     |> Sop.subdivide ~iterations:2 ~scheme:Pdk.Subdivision_ops.Catmull_clark
     |> Sop.normals ~owner:Pdk.Attribute.Vertex ~cusp_angle:Float.pi
@@ -505,9 +505,9 @@ let graphs () =
            min = Pdk.Attribute_ops.Scalar (-1.);
            max = Pdk.Attribute_ops.Scalar 1.;
          })
-    |> Sop.poly_cut ~element:Pdk.Ops.Poly_cut_points
-         ~strategy:Pdk.Ops.Poly_cut_remove
-         ~detection:(Pdk.Ops.Poly_cut_crossing {
+    |> Sop.poly_cut ~element:Pdk.Poly_modeling.Poly_cut_points
+         ~strategy:Pdk.Poly_modeling.Poly_cut_remove
+         ~detection:(Pdk.Poly_modeling.Poly_cut_crossing {
            attribute = "cut_signal"; value = 0. }) ~keep_closed:false
     |> Sop.polywire ~sides:8 ~caps:true ~radius:0.035
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#38bdf8")
@@ -532,7 +532,7 @@ let graphs () =
       (0.35,0.5,0.);(1.1,-0.1,0.)|]
     |> Sop.group_edges ~name:"uneven_edges"
     |> Sop.edge_equalize ~group:"uneven_edges"
-         ~method_:Pdk.Ops.Equalize_average ~iterations:128
+         ~method_:Pdk.Edge_modeling_ops.Equalize_average ~iterations:128
          ~tolerance:1e-7 ~output_group:"equalized_edges"
     |> Sop.polywire ~sides:8 ~caps:true ~radius:0.035
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#fde047")
@@ -546,15 +546,15 @@ let graphs () =
           (0.65,0.2,0.);(1.1,-0.15,0.)|] in
     source
     |> Sop.edge_relax ~reference ~iterations:128 ~step_size:0.5
-         ~target_mode:Pdk.Ops.Individual_lengths ~tolerance:1e-7
+         ~target_mode:Pdk.Edge_modeling_ops.Individual_lengths ~tolerance:1e-7
     |> Sop.polywire ~sides:8 ~caps:true ~radius:0.035
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#a3e635")
     |> Sop.transform (Mat4.translation (Vec3.create (-2.8) 3.5 1.2))
   and transported_panel =
     Sop.grid ~columns:18 ~rows:12 ~size:1.4 ()
-    |> Sop.edge_transport ~operation:Pdk.Ops.Transport_total
+    |> Sop.edge_transport ~operation:Pdk.Edge_transport_ops.Transport_total
          ~integrate_constant:true ~scale_by_edge_length:true
-         ~normalization:Pdk.Ops.Transport_normalize_global
+         ~normalization:Pdk.Edge_transport_ops.Transport_normalize_global
          ~attribute:"distance"
     |> Sop.peak ~mask_attribute:"distance" ~distance:0.32
          ~recompute_normals:true
@@ -662,7 +662,7 @@ let graphs () =
         |> Sop.point_replicate ~label:"creative-replication" ~seed:814
              ~generated_group:"emitted"
              ~transform_attributes:"N"
-             ~shape:Pdk.Ops.Replicate_sphere ~quasi_stratified:true
+             ~shape:Pdk.Point_replication.Replicate_sphere ~quasi_stratified:true
              ~size:(Vec3.create 0.64 0.45 0.64)
              ~points_per_point:1. ~scale_attribute:"density" in
     Sop.copy_to_points ~source:prototype ~targets ()

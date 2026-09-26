@@ -32,7 +32,7 @@ let test_shapes_and_quantity () =
       |> Geometry.with_attribute (attribute Attribute.Point "id"
            (Attribute.Int [|70;90|])) |> Result.get_ok in
   let test shape label predicate =
-    let output = Ops.point_replicate ~seed:(Rand.seed 41)
+    let output = Point_replication.run_checked ~seed:(Rand.seed 41)
         ~keep_source_attributes:true ~shape ~size:(Vec3.create 2. 4. 6.)
         ~points_per_point:2. ~scale_attribute:"density" source |> get in
     check (Geometry.point_count output = 6
@@ -46,15 +46,15 @@ let test_shapes_and_quantity () =
           positions.y.(point) positions.z.(point))
         (label ^ " shape bounds")
     done in
-  test Ops.Replicate_box "box" (fun x y z ->
+  test Point_replication.Replicate_box "box" (fun x y z ->
       abs_float x <= 1. && abs_float y <= 2. && abs_float z <= 3.);
-  test Ops.Replicate_sphere "sphere" (fun x y z ->
+  test Point_replication.Replicate_sphere "sphere" (fun x y z ->
       let x = x /. 2. and y = y /. 4. and z = z /. 6. in
       x*.x +. y*.y +. z*.z <= 0.250000000001);
-  test Ops.Replicate_disk "disk" (fun x y z ->
+  test Point_replication.Replicate_disk "disk" (fun x y z ->
       let x = x /. 2. and y = y /. 4. in
       x*.x +. y*.y <= 0.250000000001 && z = 0.);
-  test Ops.Replicate_line "line" (fun x y z ->
+  test Point_replication.Replicate_line "line" (fun x y z ->
       x = 0. && y = 0. && abs_float z <= 3.)
 
 let test_point_shape_and_transformed_attributes () =
@@ -72,7 +72,7 @@ let test_point_shape_and_transformed_attributes () =
       |> Geometry.with_attribute (attribute Attribute.Point "flow"
            (Attribute.Float3 (Packed.Float3.Private.of_owned_exn
              ~x:[|1.|] ~y:[|2.|] ~z:[|3.|]))) |> Result.get_ok in
-  let unchanged = Ops.point_replicate ~shape:Ops.Replicate_point
+  let unchanged = Point_replication.run_checked ~shape:Point_replication.Replicate_point
       ~points_per_point:2. source |> get in
   let positions = Packed.Float3.Private.view (Geometry.positions unchanged)
   and flow = point_float3 "flow" unchanged in
@@ -84,7 +84,7 @@ let test_point_shape_and_transformed_attributes () =
       (attribute Attribute.Point "v"
         (Attribute.Float3 (Packed.Float3.Private.of_owned_exn
           ~x:[|4.|] ~y:[|5.|] ~z:[|6.|]))) |> Result.get_ok in
-  let transformed = Ops.point_replicate ~shape:Ops.Replicate_point
+  let transformed = Point_replication.run_checked ~shape:Point_replication.Replicate_point
       ~transform_attributes:"flow N v" ~points_per_point:1. source |> get in
   let flow = point_float3 "flow" transformed
   and normal = point_float3 "N" transformed
@@ -117,12 +117,12 @@ let test_singular_normal_selection () =
              ~x:[|1.;1.|] ~y:[|0.;0.|] ~z:[|0.;0.|]))) |> Result.get_ok in
   let nonsingular = Group.init ~grain:1 ~owner:Group.Point ~name:"selected"
       2 (fun point -> point = 1) in
-  let output = Ops.point_replicate ~points:nonsingular
-      ~shape:Ops.Replicate_point ~transform_attributes:"N"
+  let output = Point_replication.run_checked ~points:nonsingular
+      ~shape:Point_replication.Replicate_point ~transform_attributes:"N"
       ~points_per_point:1. source |> get in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" output <> None)
     "unselected singular source removed transformed normals";
-  let output = Ops.point_replicate ~shape:Ops.Replicate_point
+  let output = Point_replication.run_checked ~shape:Point_replication.Replicate_point
       ~transform_attributes:"N" ~points_per_point:1. source |> get in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" output = None)
     "selected singular source retained transformed normals"
@@ -144,8 +144,8 @@ let test_standard_transform_custom_shape () =
            (Attribute.Float3 (Packed.Float3.Private.of_owned_exn
              ~x:[|0.|] ~y:[|0.|] ~z:[|2.|]))) |> Result.get_ok in
   let custom = points [|1.,2.,3.|] in
-  let output = Ops.point_replicate ~seed:(Rand.seed 9)
-      ~shape:Ops.Replicate_custom ~custom_shape:custom
+  let output = Point_replication.run_checked ~seed:(Rand.seed 9)
+      ~shape:Point_replication.Replicate_custom ~custom_shape:custom
       ~inherit_velocity:0.5 ~radial_velocity:0.25
       ~keep_source_attributes:true ~points_per_point:1. source |> get in
   let position = Packed.Float3.Private.view (Geometry.positions output) in
@@ -161,8 +161,8 @@ let test_keep_input_group_and_hidden_metadata () =
   let source = points [|0.,0.,0.; 2.,0.,0.|]
       |> Geometry.with_attribute (attribute Attribute.Point "tag"
            (Attribute.Text [|"a";"b"|])) |> Result.get_ok in
-  let output = Ops.point_replicate ~keep_input:true ~generated_group:"cloud"
-      ~copy_point_attributes:"tag" ~shape:Ops.Replicate_line
+  let output = Point_replication.run_checked ~keep_input:true ~generated_group:"cloud"
+      ~copy_point_attributes:"tag" ~shape:Point_replication.Replicate_line
       ~points_per_point:2. source |> get in
   check (Geometry.point_count output = 6
       && Geometry.find_attribute ~owner:Attribute.Point "sourcepoint" output = None
@@ -181,8 +181,8 @@ let test_id_stability_across_reordering () =
            (Attribute.Float [|2.5;2.5|])) |> Result.get_ok in
   let first = make [|0.,0.,0.; 100.,0.,0.|] [|10;20|]
   and reversed = make [|100.,0.,0.; 0.,0.,0.|] [|20;10|] in
-  let cook source = Ops.point_replicate ~seed:(Rand.seed 123)
-      ~keep_source_attributes:true ~shape:Ops.Replicate_box
+  let cook source = Point_replication.run_checked ~seed:(Rand.seed 123)
+      ~keep_source_attributes:true ~shape:Point_replication.Replicate_box
       ~points_per_point:1. ~scale_attribute:"density" source |> get in
   let signature source output =
     let ids = point_int "id" output and local = point_int "sourceindex" output
@@ -207,10 +207,10 @@ let test_rest_stable_noise () =
            (Attribute.Float3 (Packed.Float3.Private.of_owned_exn
              ~x:[|5.|] ~y:[|2.|] ~z:[|-1.|]))) |> Result.get_ok in
   let first = make 0. and moved = make 100. in
-  let cook source = Ops.point_replicate ~seed:(Rand.seed 65) ~noise_seed:66
+  let cook source = Point_replication.run_checked ~seed:(Rand.seed 65) ~noise_seed:66
       ~noise_amplitude:(Vec3.create 0.25 0.2 0.15)
       ~noise_frequency:(Vec3.create 1.3 0.8 1.7) ~noise_turbulence:4
-      ~shape:Ops.Replicate_sphere ~points_per_point:8. source |> get in
+      ~shape:Point_replication.Replicate_sphere ~points_per_point:8. source |> get in
   let offsets source output =
     let count = Geometry.point_count output in
     let source = Packed.Float3.Private.view (Geometry.positions source)
@@ -229,29 +229,29 @@ let test_malformed_and_cancel () =
   let source = points [|0.,0.,0.|] in
   let expect label result = match result with
     | Error _ -> () | Ok _ -> fail ("Point Replicate accepted " ^ label) in
-  expect "negative size" (Ops.point_replicate ~size:(Vec3.create (-1.) 1. 1.)
+  expect "negative size" (Point_replication.run_checked ~size:(Vec3.create (-1.) 1. 1.)
     ~points_per_point:1. source);
-  expect "missing custom shape" (Ops.point_replicate ~shape:Ops.Replicate_custom
+  expect "missing custom shape" (Point_replication.run_checked ~shape:Point_replication.Replicate_custom
     ~points_per_point:1. source);
-  expect "custom shape for builtin" (Ops.point_replicate ~custom_shape:source
+  expect "custom shape for builtin" (Point_replication.run_checked ~custom_shape:source
     ~points_per_point:1. source);
-  expect "invalid noise roughness" (Ops.point_replicate
+  expect "invalid noise roughness" (Point_replication.run_checked
     ~noise_amplitude:(Vec3.create 1. 1. 1.) ~noise_roughness:1.1
     ~points_per_point:1. source);
-  expect "malformed transform attribute pattern" (Ops.point_replicate
+  expect "malformed transform attribute pattern" (Point_replication.run_checked
     ~transform_attributes:"[" ~points_per_point:1. source);
   let nonfinite = source |> Geometry.with_attribute
       (attribute Attribute.Point "flow"
         (Attribute.Float3 (Packed.Float3.Private.of_owned_exn
           ~x:[|nan|] ~y:[|0.|] ~z:[|0.|]))) |> Result.get_ok in
-  expect "non-finite transformed vector" (Ops.point_replicate
+  expect "non-finite transformed vector" (Point_replication.run_checked
     ~transform_attributes:"flow" ~points_per_point:1. nonfinite);
   let wrong_id = source |> Geometry.with_attribute
       (attribute Attribute.Point "id" (Attribute.Text [|"bad"|]))
       |> Result.get_ok in
-  expect "wrong id storage" (Ops.point_replicate ~points_per_point:1. wrong_id);
+  expect "wrong id storage" (Point_replication.run_checked ~points_per_point:1. wrong_id);
   let cancel = Cancel.create () in Cancel.cancel cancel;
-  (match Ops.point_replicate ~cancel ~points_per_point:10. source with
+  (match Point_replication.run_checked ~cancel ~points_per_point:10. source with
    | Error error when Error.code error = "cancelled" -> ()
    | Error error -> fail ("unexpected cancellation: " ^ Error.to_string error)
    | Ok _ -> fail "Point Replicate ignored cancellation")
@@ -290,8 +290,8 @@ let test_parallel_exact () =
              ~z:(Array.make count 3.))))
       |> Result.get_ok in
   let cook domains = Parallel.run ~domains (fun () ->
-      Ops.point_replicate ~grain:4096 ~seed:(Rand.seed 88)
-        ~quasi_stratified:true ~shape:Ops.Replicate_sphere
+      Point_replication.run_checked ~grain:4096 ~seed:(Rand.seed 88)
+        ~quasi_stratified:true ~shape:Point_replication.Replicate_sphere
         ~transform_attributes:"flow"
         ~noise_seed:89 ~noise_amplitude:(Vec3.create 0.1 0.2 0.15)
         ~points_per_point:6. source |> get) in

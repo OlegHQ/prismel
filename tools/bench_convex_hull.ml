@@ -81,7 +81,7 @@ let measure name input =
       Gc.full_major ();
       let before = Gc.quick_stat () and allocated = Gc.allocated_bytes ()
       and started = Unix.gettimeofday () in
-      let output = Ops.convex_hull ~grain input |> get in
+      let output = Mesh_edit_ops.convex_hull_checked ~grain input |> get in
       times.(repeat) <- Unix.gettimeofday () -. started;
       allocations.(repeat) <- Gc.allocated_bytes () -. allocated;
       let after = Gc.quick_stat () in

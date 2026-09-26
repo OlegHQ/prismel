@@ -425,7 +425,7 @@ val clip_transform :
 val crease :
   ?label:string ->
   ?group:string ->
-  ?operation:Pdk.Ops.crease_operation ->
+  ?operation:Pdk.Mesh_edit_ops.crease_operation ->
   ?weight:float ->
   ?add_vertex_color:bool ->
   Node.t -> Node.t
@@ -461,16 +461,16 @@ val poly_cut :
   ?label:string ->
   ?group:string ->
   ?cut_group:string ->
-  ?element:Pdk.Ops.poly_cut_element ->
-  ?strategy:Pdk.Ops.poly_cut_strategy ->
-  ?detection:Pdk.Ops.poly_cut_detection ->
+  ?element:Pdk.Poly_modeling.cut_element ->
+  ?strategy:Pdk.Poly_modeling.cut_strategy ->
+  ?detection:Pdk.Poly_modeling.cut_detection ->
   ?keep_closed:bool ->
   Node.t -> Node.t
 (** Break polygon curves at selected point or native-edge attribute events.
     [group] restricts source primitives; [cut_group] resolves as a point group
     for [Poly_cut_points] and a native edge group for [Poly_cut_edges]. The
     immutable node delegates packed planning, interpolation, ancestry, and
-    deterministic parallel fills to {!Pdk.Ops.poly_cut}. *)
+    deterministic parallel fills to {!Pdk.Poly_modeling.poly_cut_checked}. *)
 
 val separate_pieces :
   ?label:string ->
@@ -588,7 +588,7 @@ val dissolve :
 val poly_bevel :
   ?label:string ->
   ?group:string ->
-  ?shape:Pdk.Ops.poly_bevel_shape ->
+  ?shape:Pdk.Poly_modeling.bevel_shape ->
   ?divisions:int ->
   ?point_scale_attribute:string ->
   ?ignore_flat_angle:float ->
@@ -651,14 +651,14 @@ val point_replicate :
   ?transform_attributes:string ->
   ?source_point_attribute:string ->
   ?source_index_attribute:string ->
-  ?shape:Pdk.Ops.point_replicate_shape ->
+  ?shape:Pdk.Point_replication.shape ->
   ?custom_shape:Node.t ->
   ?center:Prismel.Vec3.t ->
   ?size:Prismel.Vec3.t ->
   ?orientation:Prismel.Vec3.t ->
   ?uniform_scale:float ->
   ?quasi_stratified:bool ->
-  ?velocity_stretch:Pdk.Ops.point_replicate_velocity_stretch ->
+  ?velocity_stretch:Pdk.Point_replication.velocity_stretch ->
   ?velocity_scale:float ->
   ?inherit_velocity:float ->
   ?radial_velocity:float ->
@@ -682,7 +682,7 @@ val poly_loft :
   ?group:string ->
   ?rest:Node.t ->
   ?connect_closest_ends:bool ->
-  ?minimize:Pdk.Ops.poly_loft_minimize ->
+  ?minimize:Pdk.Poly_modeling.loft_minimize ->
   ?u_wrap:bool ->
   ?v_wrap:bool ->
   ?keep_primitives:bool ->
@@ -699,7 +699,7 @@ val skin :
   ?group:string ->
   ?rest:Node.t ->
   ?connect_closest_ends:bool ->
-  ?minimize:Pdk.Ops.poly_loft_minimize ->
+  ?minimize:Pdk.Poly_modeling.loft_minimize ->
   ?u_wrap:bool ->
   ?v_wrap:bool ->
   ?keep_primitives:bool ->
@@ -716,9 +716,9 @@ val poly_bridge :
   ?label:string ->
   source_group:string ->
   destination_group:string ->
-  ?pairing:Pdk.Ops.poly_bridge_pairing ->
+  ?pairing:Pdk.Poly_modeling.bridge_pairing ->
   ?connect_closest_ends:bool ->
-  ?minimize:Pdk.Ops.poly_loft_minimize ->
+  ?minimize:Pdk.Poly_modeling.loft_minimize ->
   ?reverse_source:bool ->
   ?reverse_destination:bool ->
   ?pairing_shift:int ->
@@ -787,7 +787,7 @@ val graph_color :
 val edge_equalize :
   ?label:string ->
   ?group:string ->
-  ?method_:Pdk.Ops.edge_equalize_method ->
+  ?method_:Pdk.Edge_modeling_ops.equalize_method ->
   ?iterations:int ->
   ?tolerance:float ->
   ?output_group:string ->
@@ -802,7 +802,7 @@ val edge_relax :
   ?pin_group:string ->
   ?iterations:int ->
   ?step_size:float ->
-  ?target_mode:Pdk.Ops.edge_relax_target_mode ->
+  ?target_mode:Pdk.Edge_modeling_ops.relax_target_mode ->
   ?only_shorten:bool ->
   ?tolerance:float ->
   reference:Node.t ->
@@ -900,15 +900,15 @@ val edge_transport :
   ?label:string ->
   ?point_group:string ->
   ?root_group:string ->
-  ?roots:Pdk.Ops.edge_transport_roots ->
-  ?direction:Pdk.Ops.edge_transport_direction ->
-  ?operation:Pdk.Ops.edge_transport_operation ->
-  ?root_value:Pdk.Ops.edge_transport_root_value ->
+  ?roots:Pdk.Edge_transport_ops.roots ->
+  ?direction:Pdk.Edge_transport_ops.direction ->
+  ?operation:Pdk.Edge_transport_ops.operation ->
+  ?root_value:Pdk.Edge_transport_ops.root_value ->
   ?integrate_constant:bool ->
   ?scale_by_edge_length:bool ->
-  ?split:Pdk.Ops.edge_transport_split ->
-  ?merge:Pdk.Ops.edge_transport_merge ->
-  ?normalization:Pdk.Ops.edge_transport_normalization ->
+  ?split:Pdk.Edge_transport_ops.split ->
+  ?merge:Pdk.Edge_transport_ops.merge ->
+  ?normalization:Pdk.Edge_transport_ops.normalization ->
   attribute:string ->
   Node.t -> Node.t
 (* Transport a scalar point or vertex field independently along selected
@@ -920,12 +920,12 @@ val edge_transport_curves :
   ?label:string ->
   ?primitive_group:string ->
   ?owner:Pdk.Attribute.owner ->
-  ?direction:Pdk.Ops.edge_transport_direction ->
-  ?operation:Pdk.Ops.edge_transport_operation ->
-  ?root_value:Pdk.Ops.edge_transport_root_value ->
+  ?direction:Pdk.Edge_transport_ops.direction ->
+  ?operation:Pdk.Edge_transport_ops.operation ->
+  ?root_value:Pdk.Edge_transport_ops.root_value ->
   ?integrate_constant:bool ->
   ?scale_by_edge_length:bool ->
-  ?normalization:Pdk.Ops.edge_transport_normalization ->
+  ?normalization:Pdk.Edge_transport_ops.normalization ->
   attribute:string ->
   Node.t -> Node.t
 (* Transport a scalar point field through an integer parent forest without
@@ -935,14 +935,14 @@ val edge_transport_parent :
   ?label:string ->
   ?point_group:string ->
   ?parent_attribute:string ->
-  ?direction:Pdk.Ops.edge_transport_direction ->
-  ?operation:Pdk.Ops.edge_transport_operation ->
-  ?root_value:Pdk.Ops.edge_transport_root_value ->
+  ?direction:Pdk.Edge_transport_ops.direction ->
+  ?operation:Pdk.Edge_transport_ops.operation ->
+  ?root_value:Pdk.Edge_transport_ops.root_value ->
   ?integrate_constant:bool ->
   ?scale_by_edge_length:bool ->
-  ?split:Pdk.Ops.edge_transport_split ->
-  ?merge:Pdk.Ops.edge_transport_merge ->
-  ?normalization:Pdk.Ops.edge_transport_normalization ->
+  ?split:Pdk.Edge_transport_ops.split ->
+  ?merge:Pdk.Edge_transport_ops.merge ->
+  ?normalization:Pdk.Edge_transport_ops.normalization ->
   attribute:string ->
   Node.t -> Node.t
 (* Expands the source once per target point. Target [pscale], [scale], and
@@ -1180,7 +1180,7 @@ val poly_reduce :
 val reverse :
   ?label:string ->
   ?group:string ->
-  ?operation:Pdk.Ops.reverse_operation ->
+  ?operation:Pdk.Reverse_ops.operation ->
   Node.t -> Node.t
 (* Compute point, vertex, primitive, or detail normals through the packed PDK
    kernel. Typed selections are promoted to the requested output owner;
@@ -1241,7 +1241,7 @@ val smooth :
   ?label:string ->
   ?group:string ->
   ?constrained_points:string ->
-  ?boundary:Pdk.Ops.smooth_boundary ->
+  ?boundary:Pdk.Smooth_ops.boundary ->
   ?iterations:int ->
   ?method_:Pdk.Attribute_ops.blur_method ->
   ?mode:Pdk.Attribute_ops.blur_mode ->
@@ -1360,7 +1360,7 @@ val clean :
   ?epsilon:float ->
   ?remove_degenerate:bool ->
   ?consolidate_distance:float ->
-  ?overlaps:Pdk.Ops.clean_overlap_policy ->
+  ?overlaps:Pdk.Clean_ops.overlap_policy ->
   ?reverse_winding:bool ->
   ?remove_nan_points:bool ->
   ?remove_unused_points:bool ->
@@ -1409,7 +1409,7 @@ val poly_extrude :
   ?label:string ->
   ?group:string ->
   ?split_edges:string ->
-  ?divide:Pdk.Ops.poly_extrude_divide ->
+  ?divide:Pdk.Poly_modeling.extrude_divide ->
   ?divisions:int ->
   ?output_front:bool ->
   ?output_back:bool ->

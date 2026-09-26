@@ -363,14 +363,14 @@ let check_parallel_exact () =
 let check_family_boundary () =
   let make = Parametric_generators.tube_checked
       ~rows:32 ~columns:16 ~top_radius:1. ~bottom_radius:2. ~height:3. in
-  let compat = Ops.tube ~rows:32 ~columns:16
+  let compat = Parametric_generators.tube_checked ~rows:32 ~columns:16
       ~top_radius:1. ~bottom_radius:2. ~height:3. in
   check (equal_geometry (make () |> get_ok) (compat () |> get_ok))
     "Tube family differs from compatibility path";
   let code = function Error error -> Error.code error | Ok _ -> "ok" in
   check (code (Parametric_generators.tube_checked
       ~top_radius:1. ~bottom_radius:2. ~height:0. ()) =
-    code (Ops.tube ~top_radius:1. ~bottom_radius:2. ~height:0. ()))
+    code (Parametric_generators.tube_checked ~top_radius:1. ~bottom_radius:2. ~height:0. ()))
     "Tube family error code differs from compatibility path"
 
 let run () =

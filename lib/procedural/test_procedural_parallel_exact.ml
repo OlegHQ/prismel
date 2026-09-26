@@ -517,7 +517,7 @@ let run () =
            ~owner:Group_ops.Group_primitives ~name:"smooth_faces"
       |> Sop.group_unshared ~owner:Group_ops.Group_points ~name:"smooth_locks"
       |> Sop.smooth ~group:"smooth_faces" ~constrained_points:"smooth_locks"
-           ~boundary:Ops.Smooth_group_boundary ~iterations:8
+           ~boundary:Smooth_ops.Smooth_group_boundary ~iterations:8
            ~method_:Attribute_ops.Edge_length
            ~mode:(Attribute_ops.Custom_steps { odd = 0.43; even = -0.45 })
            ~weight_attribute:"smooth_weight" ~attributes:"P Cd" in
@@ -1525,7 +1525,7 @@ let run () =
       |> Sop.group ~name:"all" Select.all_primitives
       |> Sop.group_edges ~name:"extruded_edges"
       |> Sop.poly_extrude ~group:"all"
-           ~divide:Ops.Extrude_connected_components ~divisions:3
+           ~divide:Poly_modeling.Extrude_connected_components ~divisions:3
            ~front_group:"extrude_front" ~side_group:"extrude_side"
            ~front_boundary_group:"front_rim" ~back_boundary_group:"back_rim"
            ~distance:0.4
@@ -1602,7 +1602,7 @@ let run () =
       |> Sop.set_float ~owner:Attribute.Point ~name:"pscale" 1.
       |> Sop.group_edges ~name:"bevel_edges"
       |> Sop.poly_bevel ~group:"bevel_edges"
-           ~shape:(Ops.Bevel_round { convexity = 0.8 }) ~divisions:3
+           ~shape:(Poly_modeling.Bevel_round { convexity = 0.8 }) ~divisions:3
            ~point_scale_attribute:"pscale" ~distance:0.08
            ~edge_group:"edge_fillets" ~corner_group:"corner_fillets"
            ~offset_group:"offset_edges" in
@@ -1648,7 +1648,7 @@ let run () =
       |> Sop.set_vector ~owner:Attribute.Point ~name:"scale"
            (Vec3.create 0.75 1.25 1.5)
       |> Sop.point_replicate ~label:"parallel-point-replicate" ~seed:937
-           ~shape:Ops.Replicate_sphere ~quasi_stratified:true
+           ~shape:Point_replication.Replicate_sphere ~quasi_stratified:true
            ~generated_group:"cloud"
            ~copy_point_attributes:"density id flow scale"
            ~transform_attributes:"flow"
@@ -1696,7 +1696,7 @@ let run () =
   let equalized = Sop.snapshot (edge_equalize_geometry 50_000)
       |> Sop.group_edges ~name:"equalize_edges"
       |> Sop.edge_equalize ~group:"equalize_edges"
-           ~method_:Ops.Equalize_average ~output_group:"equalized" in
+           ~method_:Edge_modeling_ops.Equalize_average ~output_group:"equalized" in
   let one = cook 1 equalized and many = cook 4 equalized in
   check (equal_geometry one many)
     "one-domain and four-domain Edge Equalize geometry differ";

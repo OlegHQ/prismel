@@ -103,7 +103,7 @@ let test_closed_bridge_and_payload () =
   let source_geometry, source, destination = loop_pairs () in
   let point_attribute = Geometry.find_attribute ~owner:Attribute.Point "weight"
       source_geometry |> Option.get in
-  let output = Ops.poly_bridge ~source ~destination
+  let output = Poly_modeling.poly_bridge_checked ~source ~destination
       ~connect_closest_ends:false ~reverse_destination:true
       ~output_group:"bridge" source_geometry |> get_pdk in
   check (Geometry.point_count output = 8
@@ -131,15 +131,15 @@ let test_closed_bridge_and_payload () =
   let index = Topology_index.create (Geometry.topology output) in
   check (Topology_index.boundary_edge_count index = 0
       && Topology_index.non_manifold_edge_count index = 0) "closed manifold";
-  let bridge_only = Ops.poly_bridge ~source ~destination ~keep_input:false
+  let bridge_only = Poly_modeling.poly_bridge_checked ~source ~destination ~keep_input:false
       ~connect_closest_ends:false source_geometry |> get_pdk in
   check (Geometry.primitive_count bridge_only = 4
       && Geometry.vertex_count bridge_only = 16) "bridge-only cardinality";
-  let without_normals = Ops.poly_bridge ~source ~destination
+  let without_normals = Poly_modeling.poly_bridge_checked ~source ~destination
       ~recompute_normals:false source_geometry |> get_pdk in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" without_normals = None)
     "stale normal was retained";
-  let shifted = Ops.poly_bridge ~source ~destination ~keep_input:false
+  let shifted = Poly_modeling.poly_bridge_checked ~source ~destination ~keep_input:false
       ~connect_closest_ends:false ~pairing_shift:1 source_geometry |> get_pdk in
   let base_topology = Topology.Private.view (Geometry.topology bridge_only)
   and shifted_topology = Topology.Private.view (Geometry.topology shifted) in
@@ -148,7 +148,7 @@ let test_closed_bridge_and_payload () =
 
 let test_divided_bridge_interpolation () =
   let geometry, source, destination = loop_pairs () in
-  let output = Ops.poly_bridge ~source ~destination ~divisions:3
+  let output = Poly_modeling.poly_bridge_checked ~source ~destination ~divisions:3
       ~connect_closest_ends:false ~output_group:"bridge" geometry |> get_pdk in
   check (Geometry.point_count output = 16
       && Geometry.primitive_count output = 14
@@ -189,13 +189,13 @@ let test_divided_bridge_interpolation () =
       |> Option.get |> Group.cardinality = 56) "divided vertex group";
   check (Geometry.find_edge_group "source_edges" output
       |> Option.get |> Edge_group.cardinality = 4) "divided boundary ancestry";
-  (match Ops.poly_bridge ~source ~destination ~divisions:0 geometry with
+  (match Poly_modeling.poly_bridge_checked ~source ~destination ~divisions:0 geometry with
    | Error error -> check (Error.code error = "invalid_topology")
        "division diagnostic"
    | Ok _ -> fail "zero divisions accepted");
   let unequal, source, destination =
     loop_pairs ~source_points:3 ~destination_points:5 () in
-  (match Ops.poly_bridge ~source ~destination ~divisions:2 unequal with
+  (match Poly_modeling.poly_bridge_checked ~source ~destination ~divisions:2 unequal with
    | Error error -> check (Error.code error = "invalid_topology")
        "unequal divided diagnostic"
    | Ok _ -> fail "unequal divided bridge accepted")
@@ -217,20 +217,20 @@ let open_paths () =
 
 let test_open_unequal_and_errors () =
   let geometry, source, destination = open_paths () in
-  let output = Ops.poly_bridge ~source ~destination ~keep_input:false geometry
+  let output = Poly_modeling.poly_bridge_checked ~source ~destination ~keep_input:false geometry
       |> get_pdk in
   check (Geometry.primitive_count output = 2
       && Geometry.vertex_count output = 8) "open bridge cardinality";
-  (match Ops.poly_bridge ~source ~destination ~pairing_shift:1 geometry with
+  (match Poly_modeling.poly_bridge_checked ~source ~destination ~pairing_shift:1 geometry with
    | Error error -> check (Error.code error = "invalid_topology")
        "open pairing-shift diagnostic"
    | Ok _ -> fail "open pairing shift accepted");
-  (match Ops.poly_bridge ~source ~destination:source geometry with
+  (match Poly_modeling.poly_bridge_checked ~source ~destination:source geometry with
    | Error error -> check (Error.code error = "invalid_topology")
        "overlap diagnostic"
    | Ok _ -> fail "overlapping groups accepted");
   let _, foreign_source, _ = loop_pairs () in
-  (match Ops.poly_bridge ~source:foreign_source ~destination geometry with
+  (match Poly_modeling.poly_bridge_checked ~source:foreign_source ~destination geometry with
    | Error error -> check (Error.code error = "invalid_topology")
        "foreign-affinity diagnostic"
    | Ok _ -> fail "foreign edge group accepted");
@@ -238,20 +238,20 @@ let test_open_unequal_and_errors () =
       ~topology:(Geometry.topology geometry)
       ~index:(Topology_index.create (Geometry.topology geometry)) ~name:"empty"
       (fun _ -> false) in
-  (match Ops.poly_bridge ~source ~destination:empty_destination geometry with
+  (match Poly_modeling.poly_bridge_checked ~source ~destination:empty_destination geometry with
    | Error error -> check (Error.code error = "invalid_topology")
        "component-count diagnostic"
    | Ok _ -> fail "component-count mismatch accepted");
   let unequal_geometry, unequal_source, unequal_destination =
     loop_pairs ~source_points:3 ~destination_points:5 () in
-  let unequal = Ops.poly_bridge ~source:unequal_source
+  let unequal = Poly_modeling.poly_bridge_checked ~source:unequal_source
       ~destination:unequal_destination ~keep_input:false unequal_geometry
       |> get_pdk in
   check (Geometry.primitive_count unequal = 8
       && Geometry.vertex_count unequal = 24) "unequal zipper cardinality";
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  (match Ops.poly_bridge ~cancel ~source ~destination geometry with
+  (match Poly_modeling.poly_bridge_checked ~cancel ~source ~destination geometry with
    | Error error -> check (Error.code error = "cancelled") "cancellation code"
    | Ok _ -> fail "cancelled bridge succeeded")
 
@@ -271,7 +271,7 @@ let test_branched_selection () =
   and destination = Edge_group.init ~grain:1 ~topology ~index ~name:"target"
       (fun edge -> let a, b = Topology_index.edge_points index edge in
         a = 4 || b = 4) in
-  match Ops.poly_bridge ~source ~destination geometry with
+  match Poly_modeling.poly_bridge_checked ~source ~destination geometry with
   | Error error -> check (Error.code error = "invalid_topology")
       "branched selection diagnostic"
   | Ok _ -> fail "branched selection accepted"
@@ -330,8 +330,8 @@ let equal_geometry left right =
 let test_multiple_parallel_exactness () =
   let geometry, source, destination = loop_pairs ~pairs:128 ~source_points:129 () in
   let run domains = Prismel.Parallel.run ~domains (fun () ->
-      Ops.poly_bridge ~grain:97 ~source ~destination
-        ~pairing:Ops.Bridge_by_centroid ~divisions:4
+      Poly_modeling.poly_bridge_checked ~grain:97 ~source ~destination
+        ~pairing:Poly_modeling.Bridge_by_centroid ~divisions:4
         ~output_group:"bridge" geometry
       |> get_pdk) in
   let one = run 1 and four = run 4 in

@@ -58,9 +58,9 @@ let crossing_source () =
 
 let test_edge_remove_and_cut () =
   let source = crossing_source () in
-  let removed = Ops.poly_cut ~element:Ops.Poly_cut_edges
-      ~strategy:Ops.Poly_cut_remove
-      ~detection:(Ops.Poly_cut_crossing {attribute="signal"; value=0.})
+  let removed = Poly_modeling.poly_cut_checked ~element:Poly_modeling.Poly_cut_edges
+      ~strategy:Poly_modeling.Poly_cut_remove
+      ~detection:(Poly_modeling.Poly_cut_crossing {attribute="signal"; value=0.})
       source |> get_ok in
   check (Geometry.point_count removed = 5
       && Geometry.primitive_count removed = 2
@@ -68,9 +68,9 @@ let test_edge_remove_and_cut () =
       && primitive_points removed 1 = [|3;4|])
     "PolyCut edge removal fragments";
   let source = source |> Group_mesh.group_edges_checked ~name:"source_edges" |> get_ok in
-  let cut = Ops.poly_cut ~grain:1 ~element:Ops.Poly_cut_edges
-      ~strategy:Ops.Poly_cut_cut
-      ~detection:(Ops.Poly_cut_crossing {attribute="signal"; value=0.})
+  let cut = Poly_modeling.poly_cut_checked ~grain:1 ~element:Poly_modeling.Poly_cut_edges
+      ~strategy:Poly_modeling.Poly_cut_cut
+      ~detection:(Poly_modeling.Poly_cut_crossing {attribute="signal"; value=0.})
       source |> get_ok in
   check (Geometry.point_count cut = 9 && Geometry.primitive_count cut = 3)
     "PolyCut crossing cut cardinality";
@@ -107,9 +107,9 @@ let test_change_subdivision () =
       |> with_attribute Attribute.Point "delta"
            (Attribute.Float2 (Packed.Float2.of_owned ~x:[|0.;3.|]
              ~y:[|0.;4.|] |> Result.get_ok)) in
-  let cut = Ops.poly_cut ~grain:1 ~element:Ops.Poly_cut_edges
-      ~strategy:Ops.Poly_cut_cut
-      ~detection:(Ops.Poly_cut_change {attribute="delta"; threshold=2.})
+  let cut = Poly_modeling.poly_cut_checked ~grain:1 ~element:Poly_modeling.Poly_cut_edges
+      ~strategy:Poly_modeling.Poly_cut_cut
+      ~detection:(Poly_modeling.Poly_cut_change {attribute="delta"; threshold=2.})
       source |> get_ok in
   check (Geometry.primitive_count cut = 3 && Geometry.point_count cut = 6)
     "PolyCut tuple-change subdivision cardinality";
@@ -121,9 +121,9 @@ let test_change_subdivision () =
   check_float (2. /. 3.) positions.x.(b.(1)) "change cut second third";
   check_float (2. /. 3.) positions.x.(c.(0)) "change cut second clone";
   let extreme = open_curve 2 |> with_float "signal" [|-.max_float;max_float|] in
-  let extreme = Ops.poly_cut ~grain:1 ~element:Ops.Poly_cut_edges
-      ~strategy:Ops.Poly_cut_cut
-      ~detection:(Ops.Poly_cut_crossing {attribute="signal"; value=0.})
+  let extreme = Poly_modeling.poly_cut_checked ~grain:1 ~element:Poly_modeling.Poly_cut_edges
+      ~strategy:Poly_modeling.Poly_cut_cut
+      ~detection:(Poly_modeling.Poly_cut_crossing {attribute="signal"; value=0.})
       extreme |> get_ok in
   let extreme_positions = position_view extreme
   and extreme_fragment = primitive_points extreme 0 in
@@ -133,19 +133,19 @@ let test_change_subdivision () =
 let test_edge_cut_boundary_semantics () =
   let equal_endpoints = open_curve 3
       |> with_float "signal" [|0.;0.;1.|] in
-  let equal_endpoints = Ops.poly_cut ~grain:1
-      ~element:Ops.Poly_cut_edges ~strategy:Ops.Poly_cut_cut
-      ~detection:(Ops.Poly_cut_crossing {attribute="signal"; value=0.})
+  let equal_endpoints = Poly_modeling.poly_cut_checked ~grain:1
+      ~element:Poly_modeling.Poly_cut_edges ~strategy:Poly_modeling.Poly_cut_cut
+      ~detection:(Poly_modeling.Poly_cut_crossing {attribute="signal"; value=0.})
       equal_endpoints |> get_ok in
   check (Geometry.point_count equal_endpoints = 3
       && Geometry.primitive_count equal_endpoints = 1
       && primitive_points equal_endpoints 0 = [|1;2|])
     "PolyCut must remove an edge whose endpoint values both equal the crossing";
   let source = open_curve 4 in
-  let removed = Ops.poly_cut ~grain:1 ~element:Ops.Poly_cut_edges
-      ~strategy:Ops.Poly_cut_remove ~detection:Ops.Poly_cut_all source |> get_ok
-  and cut = Ops.poly_cut ~grain:1 ~element:Ops.Poly_cut_edges
-      ~strategy:Ops.Poly_cut_cut ~detection:Ops.Poly_cut_all source |> get_ok in
+  let removed = Poly_modeling.poly_cut_checked ~grain:1 ~element:Poly_modeling.Poly_cut_edges
+      ~strategy:Poly_modeling.Poly_cut_remove ~detection:Poly_modeling.Poly_cut_all source |> get_ok
+  and cut = Poly_modeling.poly_cut_checked ~grain:1 ~element:Poly_modeling.Poly_cut_edges
+      ~strategy:Poly_modeling.Poly_cut_cut ~detection:Poly_modeling.Poly_cut_all source |> get_ok in
   check (topology_view removed = topology_view cut
       && position_view removed = position_view cut
       && Geometry.point_count cut = 4
@@ -177,9 +177,9 @@ let test_discrete_ragged_payload_and_ordered_groups () =
           |> Result.get_ok;
         Group.ordered ~owner:Group.Primitive ~name:"marked_curve" ~length:1 [|0|]
           |> Result.get_ok] () |> Result.get_ok in
-  let output = Ops.poly_cut ~grain:1 ~element:Ops.Poly_cut_edges
-      ~strategy:Ops.Poly_cut_cut
-      ~detection:(Ops.Poly_cut_crossing {attribute="signal"; value=0.})
+  let output = Poly_modeling.poly_cut_checked ~grain:1 ~element:Poly_modeling.Poly_cut_edges
+      ~strategy:Poly_modeling.Poly_cut_cut
+      ~detection:(Poly_modeling.Poly_cut_crossing {attribute="signal"; value=0.})
       source |> get_ok in
   let text owner name = match Geometry.find_attribute ~owner name output with
     | Some attribute -> (match Attribute.Private.storage attribute with
@@ -222,9 +222,9 @@ let point_group name count member =
 let test_point_remove_and_cut () =
   let source = open_curve 5 in
   let middle = point_group "middle" 5 (fun point -> point = 2) in
-  let removed = Ops.poly_cut ~grain:1 ~element:Ops.Poly_cut_points
-      ~strategy:Ops.Poly_cut_remove ~cut_points:middle
-      ~detection:Ops.Poly_cut_all source |> get_ok in
+  let removed = Poly_modeling.poly_cut_checked ~grain:1 ~element:Poly_modeling.Poly_cut_points
+      ~strategy:Poly_modeling.Poly_cut_remove ~cut_points:middle
+      ~detection:Poly_modeling.Poly_cut_all source |> get_ok in
   check (Geometry.point_count removed = 4
       && Geometry.primitive_count removed = 2)
     "PolyCut point removal cardinality";
@@ -233,9 +233,9 @@ let test_point_remove_and_cut () =
       && primitive_points removed 0 = [|0;1|]
       && primitive_points removed 1 = [|2;3|])
     "PolyCut point removal compaction/fragments";
-  let cut = Ops.poly_cut ~grain:1 ~element:Ops.Poly_cut_points
-      ~strategy:Ops.Poly_cut_cut ~cut_points:middle
-      ~detection:Ops.Poly_cut_all source |> get_ok in
+  let cut = Poly_modeling.poly_cut_checked ~grain:1 ~element:Poly_modeling.Poly_cut_points
+      ~strategy:Poly_modeling.Poly_cut_cut ~cut_points:middle
+      ~detection:Poly_modeling.Poly_cut_all source |> get_ok in
   check (Geometry.point_count cut = 6 && Geometry.primitive_count cut = 2)
     "PolyCut point-cut cardinality";
   let a = primitive_points cut 0 and b = primitive_points cut 1 in
@@ -243,9 +243,9 @@ let test_point_remove_and_cut () =
       && b.(1) = 3 && b.(2) = 4)
     "PolyCut point-cut disconnected endpoint ancestry";
   let endpoint = point_group "endpoint" 5 (fun point -> point = 0) in
-  let identity = Ops.poly_cut ~element:Ops.Poly_cut_points
-      ~strategy:Ops.Poly_cut_cut ~cut_points:endpoint
-      ~detection:Ops.Poly_cut_all source |> get_ok in
+  let identity = Poly_modeling.poly_cut_checked ~element:Poly_modeling.Poly_cut_points
+      ~strategy:Poly_modeling.Poly_cut_cut ~cut_points:endpoint
+      ~detection:Poly_modeling.Poly_cut_all source |> get_ok in
   check (identity == source) "PolyCut endpoint-only no-op lost identity"
 
 let test_closed_policy_and_restrictions () =
@@ -255,12 +255,12 @@ let test_closed_policy_and_restrictions () =
   let index = Topology_index.create topology in
   let one_edge = Edge_group.init ~topology ~index ~name:"one"
       (fun edge -> edge = 0) in
-  let open_result = Ops.poly_cut ~element:Ops.Poly_cut_edges
-      ~strategy:Ops.Poly_cut_remove ~cut_edges:one_edge
-      ~detection:Ops.Poly_cut_all ~keep_closed:false source |> get_ok
-  and closed_result = Ops.poly_cut ~element:Ops.Poly_cut_edges
-      ~strategy:Ops.Poly_cut_remove ~cut_edges:one_edge
-      ~detection:Ops.Poly_cut_all ~keep_closed:true source |> get_ok in
+  let open_result = Poly_modeling.poly_cut_checked ~element:Poly_modeling.Poly_cut_edges
+      ~strategy:Poly_modeling.Poly_cut_remove ~cut_edges:one_edge
+      ~detection:Poly_modeling.Poly_cut_all ~keep_closed:false source |> get_ok
+  and closed_result = Poly_modeling.poly_cut_checked ~element:Poly_modeling.Poly_cut_edges
+      ~strategy:Poly_modeling.Poly_cut_remove ~cut_edges:one_edge
+      ~detection:Poly_modeling.Poly_cut_all ~keep_closed:true source |> get_ok in
   check (Geometry.primitive_count open_result = 1
       && Topology.primitive_kind (Geometry.topology open_result) 0
            = Topology.Open_polyline)
@@ -275,9 +275,9 @@ let test_closed_policy_and_restrictions () =
   let face_index = Topology_index.create face_topology in
   let face_edge = Edge_group.init ~topology:face_topology ~index:face_index
       ~name:"face_edge" (fun edge -> edge = 0) in
-  let face_cut = Ops.poly_cut ~element:Ops.Poly_cut_edges
-      ~strategy:Ops.Poly_cut_remove ~cut_edges:face_edge
-      ~detection:Ops.Poly_cut_all ~keep_closed:true face |> get_ok in
+  let face_cut = Poly_modeling.poly_cut_checked ~element:Poly_modeling.Poly_cut_edges
+      ~strategy:Poly_modeling.Poly_cut_remove ~cut_edges:face_edge
+      ~detection:Poly_modeling.Poly_cut_all ~keep_closed:true face |> get_ok in
   check (Topology.primitive_kind (Geometry.topology face_cut) 0 = Topology.Polygon)
     "PolyCut did not preserve filled-polygon kind for a closed fragment"
 
@@ -287,47 +287,47 @@ let expect_invalid work message = match work () with
 
 let test_validation_and_cancellation () =
   let source = crossing_source () in
-  expect_invalid (fun () -> Ops.poly_cut ~grain:0 source) "zero grain";
-  expect_invalid (fun () -> Ops.poly_cut
-      ~detection:(Ops.Poly_cut_crossing {attribute="missing"; value=0.}) source)
+  expect_invalid (fun () -> Poly_modeling.poly_cut_checked ~grain:0 source) "zero grain";
+  expect_invalid (fun () -> Poly_modeling.poly_cut_checked
+      ~detection:(Poly_modeling.Poly_cut_crossing {attribute="missing"; value=0.}) source)
     "missing cut attribute";
-  expect_invalid (fun () -> Ops.poly_cut
-      ~detection:(Ops.Poly_cut_crossing {attribute="P"; value=0.}) source)
+  expect_invalid (fun () -> Poly_modeling.poly_cut_checked
+      ~detection:(Poly_modeling.Poly_cut_crossing {attribute="P"; value=0.}) source)
     "tuple crossing";
-  expect_invalid (fun () -> Ops.poly_cut ~element:Ops.Poly_cut_edges
-      ~strategy:Ops.Poly_cut_cut
-      ~detection:(Ops.Poly_cut_change {attribute="signal"; threshold=0.}) source)
+  expect_invalid (fun () -> Poly_modeling.poly_cut_checked ~element:Poly_modeling.Poly_cut_edges
+      ~strategy:Poly_modeling.Poly_cut_cut
+      ~detection:(Poly_modeling.Poly_cut_change {attribute="signal"; threshold=0.}) source)
     "zero cut-at-change threshold";
   let overflow = open_curve 2
       |> with_float "signal" [|-.max_float;max_float|] in
-  expect_invalid (fun () -> Ops.poly_cut ~grain:1
-      ~element:Ops.Poly_cut_edges ~strategy:Ops.Poly_cut_cut
-      ~detection:(Ops.Poly_cut_change {attribute="signal"; threshold=1.})
+  expect_invalid (fun () -> Poly_modeling.poly_cut_checked ~grain:1
+      ~element:Poly_modeling.Poly_cut_edges ~strategy:Poly_modeling.Poly_cut_cut
+      ~detection:(Poly_modeling.Poly_cut_change {attribute="signal"; threshold=1.})
       overflow) "unrepresentable change";
   let wrong_points = Group.init ~owner:Group.Primitive ~name:"wrong"
       (Geometry.primitive_count source) (fun _ -> true) in
-  expect_invalid (fun () -> Ops.poly_cut ~cut_points:wrong_points source)
+  expect_invalid (fun () -> Poly_modeling.poly_cut_checked ~cut_points:wrong_points source)
     "wrong point-selection owner";
   let wrong_primitive_owner = Group.init ~owner:Group.Point ~name:"wrong_owner"
       (Geometry.point_count source) (fun _ -> true) in
-  expect_invalid (fun () -> Ops.poly_cut ~primitives:wrong_primitive_owner source)
+  expect_invalid (fun () -> Poly_modeling.poly_cut_checked ~primitives:wrong_primitive_owner source)
     "wrong primitive-selection owner";
   let wrong_primitive_length = Group.init ~owner:Group.Primitive
       ~name:"wrong_length" 2 (fun _ -> true) in
-  expect_invalid (fun () -> Ops.poly_cut ~primitives:wrong_primitive_length source)
+  expect_invalid (fun () -> Poly_modeling.poly_cut_checked ~primitives:wrong_primitive_length source)
     "wrong primitive-selection length";
   let other = open_curve 5 in
   let wrong_index = Topology_index.create (Geometry.topology other) in
   let wrong_edges = Edge_group.init ~topology:(Geometry.topology other)
       ~index:wrong_index ~name:"wrong" (fun _ -> true) in
-  expect_invalid (fun () -> Ops.poly_cut ~element:Ops.Poly_cut_edges
+  expect_invalid (fun () -> Poly_modeling.poly_cut_checked ~element:Poly_modeling.Poly_cut_edges
       ~cut_edges:wrong_edges source) "wrong edge affinity";
   let malformed = source |> with_float "signal"
       [|-1.;Float.nan;1.;Float.infinity;1.|] in
   let error domains = Parallel.run ~domains (fun () ->
-      Ops.poly_cut ~grain:1 ~element:Ops.Poly_cut_edges
-        ~strategy:Ops.Poly_cut_remove
-        ~detection:(Ops.Poly_cut_crossing {attribute="signal"; value=0.})
+      Poly_modeling.poly_cut_checked ~grain:1 ~element:Poly_modeling.Poly_cut_edges
+        ~strategy:Poly_modeling.Poly_cut_remove
+        ~detection:(Poly_modeling.Poly_cut_crossing {attribute="signal"; value=0.})
         malformed) in
   let message domains = match error domains with
     | Error error -> Error.message error
@@ -338,16 +338,16 @@ let test_validation_and_cancellation () =
     "PolyCut lowest malformed diagnostic differs across domain counts";
   let none = Group.init ~owner:Group.Primitive ~name:"none" 1
       (fun _ -> false) in
-  let opaque = Ops.poly_cut ~primitives:none ~element:Ops.Poly_cut_edges
-      ~strategy:Ops.Poly_cut_remove
-      ~detection:(Ops.Poly_cut_crossing {attribute="signal"; value=0.})
+  let opaque = Poly_modeling.poly_cut_checked ~primitives:none ~element:Poly_modeling.Poly_cut_edges
+      ~strategy:Poly_modeling.Poly_cut_remove
+      ~detection:(Poly_modeling.Poly_cut_crossing {attribute="signal"; value=0.})
       malformed |> get_ok in
   check (opaque == malformed) "PolyCut rejected opaque unselected values";
   let no_points = Group.init ~owner:Group.Point ~name:"no_points" 5
       (fun _ -> false) in
-  let opaque_points = Ops.poly_cut ~cut_points:no_points
-      ~element:Ops.Poly_cut_points ~strategy:Ops.Poly_cut_remove
-      ~detection:(Ops.Poly_cut_crossing {attribute="signal"; value=0.})
+  let opaque_points = Poly_modeling.poly_cut_checked ~cut_points:no_points
+      ~element:Poly_modeling.Poly_cut_points ~strategy:Poly_modeling.Poly_cut_remove
+      ~detection:(Poly_modeling.Poly_cut_crossing {attribute="signal"; value=0.})
       malformed |> get_ok in
   check (opaque_points == malformed)
     "PolyCut rejected values outside an empty cut-point restriction";
@@ -355,9 +355,9 @@ let test_validation_and_cancellation () =
   let malformed_index = Topology_index.create malformed_topology in
   let no_edges = Edge_group.init ~topology:malformed_topology
       ~index:malformed_index ~name:"no_edges" (fun _ -> false) in
-  let opaque_edges = Ops.poly_cut ~cut_edges:no_edges
-      ~element:Ops.Poly_cut_edges ~strategy:Ops.Poly_cut_cut
-      ~detection:(Ops.Poly_cut_crossing {attribute="signal"; value=0.})
+  let opaque_edges = Poly_modeling.poly_cut_checked ~cut_edges:no_edges
+      ~element:Poly_modeling.Poly_cut_edges ~strategy:Poly_modeling.Poly_cut_cut
+      ~detection:(Poly_modeling.Poly_cut_crossing {attribute="signal"; value=0.})
       malformed |> get_ok in
   check (opaque_edges == malformed)
     "PolyCut rejected values outside an empty cut-edge restriction";
@@ -368,13 +368,13 @@ let test_validation_and_cancellation () =
         ~x:[|Float.nan;1.|] ~y:[|0.;0.|] ~z:[|0.;0.|])
       ~topology:(Geometry.topology bad_position_source)
       ~attributes:(Geometry.attributes bad_position_source) () |> Result.get_ok in
-  expect_invalid (fun () -> Ops.poly_cut ~grain:1
-      ~element:Ops.Poly_cut_edges ~strategy:Ops.Poly_cut_cut
-      ~detection:(Ops.Poly_cut_crossing {attribute="signal"; value=0.})
+  expect_invalid (fun () -> Poly_modeling.poly_cut_checked ~grain:1
+      ~element:Poly_modeling.Poly_cut_edges ~strategy:Poly_modeling.Poly_cut_cut
+      ~detection:(Poly_modeling.Poly_cut_crossing {attribute="signal"; value=0.})
       bad_position_source) "non-finite interpolated position";
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  (match Ops.poly_cut ~cancel source with
+  (match Poly_modeling.poly_cut_checked ~cancel source with
    | Error error -> check (Error.code error = "cancelled")
        "PolyCut cancellation code"
    | Ok _ -> fail "cancelled PolyCut published geometry")
@@ -458,9 +458,9 @@ let test_dense_parallel_exactness () =
   let source = Geometry.with_group selected source |> Result.get_ok
       |> Group_mesh.group_edges_checked ~grain:257 ~name:"source_edges" |> get_ok in
   let cook domains = Parallel.run ~domains (fun () ->
-      Ops.poly_cut ~grain:257 ~element:Ops.Poly_cut_edges
-        ~strategy:Ops.Poly_cut_cut
-        ~detection:(Ops.Poly_cut_crossing {attribute="signal"; value=0.})
+      Poly_modeling.poly_cut_checked ~grain:257 ~element:Poly_modeling.Poly_cut_edges
+        ~strategy:Poly_modeling.Poly_cut_cut
+        ~detection:(Poly_modeling.Poly_cut_crossing {attribute="signal"; value=0.})
         source |> get_ok) in
   let one = cook 1 and four = cook 4 in
   check (equal_geometry one four) "PolyCut one/four-domain geometry differs";

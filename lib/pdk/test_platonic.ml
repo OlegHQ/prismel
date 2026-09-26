@@ -242,12 +242,12 @@ let check_parallel_exact () =
 
 let check_family_boundary () =
   let family = Parametric_generators.platonic_checked ~radius:1. () |> get_ok
-  and compat = Ops.platonic ~radius:1. () |> get_ok in
+  and compat = Parametric_generators.platonic_checked ~radius:1. () |> get_ok in
   check (equal_geometry family compat)
     "Platonic family differs from compatibility path";
   let code = function Error error -> Error.code error | Ok _ -> "ok" in
   check (code (Parametric_generators.platonic_checked ~radius:0. ()) =
-    code (Ops.platonic ~radius:0. ()))
+    code (Parametric_generators.platonic_checked ~radius:0. ()))
     "Platonic family error code differs from compatibility path"
 
 let run () =

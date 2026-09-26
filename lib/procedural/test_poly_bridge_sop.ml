@@ -39,7 +39,7 @@ let cook graph =
 let run () =
   let graph = Sop.snapshot (bridge_source ())
       |> Sop.poly_bridge ~source_group:"source" ~destination_group:"destination"
-           ~pairing:Pdk.Ops.Bridge_by_centroid ~reverse_destination:true
+           ~pairing:Pdk.Poly_modeling.Bridge_by_centroid ~reverse_destination:true
            ~divisions:3 ~output_group:"bridge" in
   let output = cook graph in
   if Pdk.Geometry.point_count output <> 16

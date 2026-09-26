@@ -180,8 +180,8 @@ let percentile values length fraction =
 
 let graph () =
   let cube = Sop_catalog.Box.create ~label:"cube"
-      ~size:(Vec3.create 2.6 2.6 2.6) ~connectivity:Pdk.Ops.Box_quads
-      ~consolidate_points:true ~normals:Pdk.Ops.Box_vertex_normals ()
+      ~size:(Vec3.create 2.6 2.6 2.6) ~connectivity:Pdk.Box_generator.Box_quads
+      ~consolidate_points:true ~normals:Pdk.Box_generator.Box_vertex_normals ()
   and dodecahedron = Sop_catalog.Platonic.create ~label:"dodecahedron"
       ~kind:Pdk.Parametric_generators.Platonic_dodecahedron
       ~normals:Pdk.Parametric_generators.Platonic_vertex_normals

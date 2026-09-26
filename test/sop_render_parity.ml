@@ -110,7 +110,7 @@ let rows = [
   "edge_transport", (fun () ->
     grid () |> Sop.set_float ~owner:Pdk.Attribute.Point ~name:"distance" 0.
     |> Sop.edge_transport ~attribute:"distance"
-      ~operation:Pdk.Ops.Transport_total
+      ~operation:Pdk.Edge_transport_ops.Transport_total
     |> Sop.peak ~mask_attribute:"distance" ~distance:0.25),
     point_attribute "distance";
   "extract_centroid", (fun () ->
@@ -132,9 +132,9 @@ let rows = [
   "measure_curvature", (fun () ->
     torus () |> Sop.measure_curvature), point_attribute "curvature";
   "poly_cut", (fun () ->
-    signal_curve () |> Sop.poly_cut ~element:Pdk.Ops.Poly_cut_points
-      ~strategy:Pdk.Ops.Poly_cut_remove
-      ~detection:(Pdk.Ops.Poly_cut_crossing {attribute="signal"; value=0.})
+    signal_curve () |> Sop.poly_cut ~element:Pdk.Poly_modeling.Poly_cut_points
+      ~strategy:Pdk.Poly_modeling.Poly_cut_remove
+      ~detection:(Pdk.Poly_modeling.Poly_cut_crossing {attribute="signal"; value=0.})
     |> wire), nonempty;
   "procedural", (fun () ->
     box () |> Sop.bend ~length:2. ~bend_angle:0.5

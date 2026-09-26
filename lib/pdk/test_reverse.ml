@@ -107,7 +107,7 @@ let group owner name geometry =
 
 let test_reverse () =
   let run domains = Parallel.run ~domains (fun () ->
-    Ops.reverse ~grain:1 (fixture ()) |> get_pdk) in
+    Reverse_ops.run_checked ~grain:1 (fixture ()) |> get_pdk) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four)
     "Reverse differs across one and four domains";
@@ -129,13 +129,13 @@ let test_reverse () =
 let test_local_and_shift () =
   let source = fixture () in
   let selected = group Group.Primitive "selected" source in
-  let local = Ops.reverse ~grain:1 ~primitives:selected source |> get_pdk in
+  let local = Reverse_ops.run_checked ~grain:1 ~primitives:selected source |> get_pdk in
   check (topology_points local = [|3;2;1;0; 3;4;5|])
     "local Reverse changed an unselected curve";
   let shift domains offset = Parallel.run ~domains (fun () ->
     let source = fixture () in
-    Ops.reverse ~grain:1 ~primitives:(group Group.Primitive "selected" source)
-      ~operation:(Ops.Shift_vertices offset) source |> get_pdk) in
+    Reverse_ops.run_checked ~grain:1 ~primitives:(group Group.Primitive "selected" source)
+      ~operation:(Reverse_ops.Shift_vertices offset) source |> get_pdk) in
   let shifted = shift 1 1 and shifted_four = shift 4 1 in
   check (equal_geometry shifted shifted_four)
     "Shift Reverse differs across one and four domains";
@@ -161,12 +161,12 @@ let test_local_and_shift () =
            && rows.values = [|11;111;13;10;14;114;15;16;116|])
          "corner shift did not remap CSR vertex rows"
    | _ -> fail "corner shift changed CSR storage");
-  let identity = Ops.reverse ~grain:1 ~primitives:selected
-      ~operation:(Ops.Shift_vertices 4) source |> get_pdk in
+  let identity = Reverse_ops.run_checked ~grain:1 ~primitives:selected
+      ~operation:(Reverse_ops.Shift_vertices 4) source |> get_pdk in
   check (Geometry.data_id identity = Geometry.data_id source)
     "whole-cycle corner shift did not preserve identity";
   let empty = group Group.Primitive "empty" source in
-  let empty_output = Ops.reverse ~grain:1 ~primitives:empty source |> get_pdk in
+  let empty_output = Reverse_ops.run_checked ~grain:1 ~primitives:empty source |> get_pdk in
   check (Geometry.data_id empty_output = Geometry.data_id source)
     "empty local Reverse did not preserve identity"
 
@@ -174,23 +174,23 @@ let test_errors_and_cancellation () =
   let source = fixture () in
   let wrong_owner = Group.init ~owner:Group.Point ~name:"wrong"
       (Geometry.point_count source) (fun _ -> false) in
-  (match Ops.reverse ~primitives:wrong_owner source with
+  (match Reverse_ops.run_checked ~primitives:wrong_owner source with
    | Error error -> check (Error.code error = "invalid_topology")
        "Reverse wrong-owner diagnostic code"
    | Ok _ -> fail "Reverse accepted a point selection");
   let wrong_length = Group.init ~owner:Group.Primitive ~name:"wrong" 1
       (fun _ -> true) in
-  (match Ops.reverse ~primitives:wrong_length source with
+  (match Reverse_ops.run_checked ~primitives:wrong_length source with
    | Error error -> check (Error.code error = "invalid_topology")
        "Reverse wrong-length diagnostic code"
    | Ok _ -> fail "Reverse accepted a wrong-length selection");
-  (match Ops.reverse ~grain:0 source with
+  (match Reverse_ops.run_checked ~grain:0 source with
    | Error error -> check (Error.code error = "invalid_topology")
        "Reverse invalid-grain diagnostic code"
    | Ok _ -> fail "Reverse accepted zero grain");
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  (match Ops.reverse ~cancel source with
+  (match Reverse_ops.run_checked ~cancel source with
    | Error error -> check (Error.code error = "cancelled")
        "Reverse cancellation diagnostic code"
    | Ok _ -> fail "Reverse ignored cancellation")

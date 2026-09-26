@@ -1059,7 +1059,7 @@ let mirror ?label ?(keep_original = true) ~origin ~normal input =
     ~cook_mode:(Node.Duplicate_input 0)
     ~dependencies:Context.Dependencies.static ~inputs:[|input|]
     (fun ~node_id:_ context inputs ->
-      match Pdk.Ops.mirror ~cancel:(Context.cancel_token context)
+      match Pdk.Mesh_edit_ops.mirror_checked ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~keep_original ~origin ~normal inputs.(0) with
       | Ok geometry -> cooked geometry
       | Error error -> structured_pdk_error error)
@@ -1119,17 +1119,17 @@ let clip_transform ?label ?keep ?snapping_tolerance ?fill ?split_connectivity
     ~origin ~normal input
 
 let crease_operation_key = function
-  | Pdk.Ops.Crease_add -> "add"
-  | Pdk.Ops.Crease_set -> "set"
-  | Pdk.Ops.Crease_delete -> "delete"
+  | Pdk.Mesh_edit_ops.Crease_add -> "add"
+  | Pdk.Mesh_edit_ops.Crease_set -> "set"
+  | Pdk.Mesh_edit_ops.Crease_delete -> "delete"
 
-let crease ?label ?group ?(operation = Pdk.Ops.Crease_add) ?(weight = 1.)
+let crease ?label ?group ?(operation = Pdk.Mesh_edit_ops.Crease_add) ?(weight = 1.)
     ?(add_vertex_color = false) input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.crease: empty edge group name") group;
   let weight_key = match operation with
-    | Pdk.Ops.Crease_delete -> "ignored"
-    | Pdk.Ops.Crease_add | Pdk.Ops.Crease_set -> float_key weight in
+    | Pdk.Mesh_edit_ops.Crease_delete -> "ignored"
+    | Pdk.Mesh_edit_ops.Crease_add | Pdk.Mesh_edit_ops.Crease_set -> float_key weight in
   Node.Private.make ?label ~operation:"crease" ~version:1
     ~parameters:(Printf.sprintf
       "group=%s;operation=%s;weight=%s;add_vertex_color=%b"
@@ -1147,7 +1147,7 @@ let crease ?label ?group ?(operation = Pdk.Ops.Crease_add) ?(weight = 1.)
                  (Printf.sprintf
                    "crease could not find native edge group %S" name))) in
       Result.bind edges (fun edges ->
-        match Pdk.Ops.crease ~cancel:(Context.cancel_token context)
+        match Pdk.Mesh_edit_ops.crease_checked ~cancel:(Context.cancel_token context)
             ~grain:(Context.grain context) ?edges ~operation ~weight
             ~add_vertex_color geometry with
         | Ok geometry -> cooked geometry
@@ -1211,23 +1211,23 @@ let attribute_fade ?label ?group ?start_source ?hold_source
           | Error error -> structured_pdk_error error)
 
 let poly_cut_element_key = function
-  | Pdk.Ops.Poly_cut_points -> "points"
-  | Pdk.Ops.Poly_cut_edges -> "edges"
+  | Pdk.Poly_modeling.Poly_cut_points -> "points"
+  | Pdk.Poly_modeling.Poly_cut_edges -> "edges"
 
 let poly_cut_strategy_key = function
-  | Pdk.Ops.Poly_cut_remove -> "remove"
-  | Pdk.Ops.Poly_cut_cut -> "cut"
+  | Pdk.Poly_modeling.Poly_cut_remove -> "remove"
+  | Pdk.Poly_modeling.Poly_cut_cut -> "cut"
 
 let poly_cut_detection_key = function
-  | Pdk.Ops.Poly_cut_all -> "all"
-  | Pdk.Ops.Poly_cut_crossing {attribute; value} ->
+  | Pdk.Poly_modeling.Poly_cut_all -> "all"
+  | Pdk.Poly_modeling.Poly_cut_crossing {attribute; value} ->
       "crossing:" ^ String.escaped attribute ^ ":" ^ float_key value
-  | Pdk.Ops.Poly_cut_change {attribute; threshold} ->
+  | Pdk.Poly_modeling.Poly_cut_change {attribute; threshold} ->
       "change:" ^ String.escaped attribute ^ ":" ^ float_key threshold
 
-let poly_cut ?label ?group ?cut_group ?(element = Pdk.Ops.Poly_cut_points)
-    ?(strategy = Pdk.Ops.Poly_cut_remove)
-    ?(detection = Pdk.Ops.Poly_cut_all) ?(keep_closed = true) input =
+let poly_cut ?label ?group ?cut_group ?(element = Pdk.Poly_modeling.Poly_cut_points)
+    ?(strategy = Pdk.Poly_modeling.Poly_cut_remove)
+    ?(detection = Pdk.Poly_modeling.Poly_cut_all) ?(keep_closed = true) input =
   List.iter (fun (label, name) -> Option.iter (fun name ->
     if String.trim name = "" then
       invalid_arg ("Sop.poly_cut: empty " ^ label ^ " group name")) name)
@@ -1248,22 +1248,22 @@ let poly_cut ?label ?group ?cut_group ?(element = Pdk.Ops.Poly_cut_points)
       | Error error -> Error error
       | Ok primitives ->
           let cut_selection = match element with
-            | Pdk.Ops.Poly_cut_points ->
+            | Pdk.Poly_modeling.Poly_cut_points ->
                 Result.map (fun value -> `Points value)
                   (resolve_optional_point_group "poly_cut" cut_group geometry)
-            | Pdk.Ops.Poly_cut_edges ->
+            | Pdk.Poly_modeling.Poly_cut_edges ->
                 Result.map (fun value -> `Edges value)
                   (resolve_optional_edge_group "poly_cut" cut_group geometry) in
           match cut_selection with
           | Error error -> Error error
           | Ok (`Points cut_points) ->
-              (match Pdk.Ops.poly_cut ~cancel:(Context.cancel_token context)
+              (match Pdk.Poly_modeling.poly_cut_checked ~cancel:(Context.cancel_token context)
                   ~grain:(Context.grain context) ?primitives ?cut_points
                   ~element ~strategy ~detection ~keep_closed geometry with
                | Ok geometry -> cooked geometry
                | Error error -> structured_pdk_error error)
           | Ok (`Edges cut_edges) ->
-              (match Pdk.Ops.poly_cut ~cancel:(Context.cancel_token context)
+              (match Pdk.Poly_modeling.poly_cut_checked ~cancel:(Context.cancel_token context)
                   ~grain:(Context.grain context) ?primitives ?cut_edges
                   ~element ~strategy ~detection ~keep_closed geometry with
                | Ok geometry -> cooked geometry
@@ -1448,7 +1448,7 @@ let edge_divide ?label ?group ?(divisions = 2) ?(share_points = true) input =
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Ops.edge_divide ~cancel:(Context.cancel_token context)
+          match Pdk.Edge_modeling_ops.edge_divide_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ~divisions ~share_points
               inputs.(0) with
           | Ok geometry -> cooked geometry
@@ -1536,10 +1536,10 @@ let dissolve ?label ?group ?(operation = Pdk.Dissolve.Dissolve_selected)
           | Error error -> structured_pdk_error error)
 
 let poly_bevel_shape_key = function
-  | Pdk.Ops.Bevel_chamfer -> "chamfer"
-  | Pdk.Ops.Bevel_round { convexity } -> "round:" ^ float_key convexity
+  | Pdk.Poly_modeling.Bevel_chamfer -> "chamfer"
+  | Pdk.Poly_modeling.Bevel_round { convexity } -> "round:" ^ float_key convexity
 
-let poly_bevel ?label ?group ?(shape = Pdk.Ops.Bevel_chamfer)
+let poly_bevel ?label ?group ?(shape = Pdk.Poly_modeling.Bevel_chamfer)
     ?(divisions = 1) ?point_scale_attribute ?ignore_flat_angle
     ?(clamp_overlap = true) ?edge_group ?corner_group ?offset_group
     ?(recompute_point_normals = true) ~distance input =
@@ -1580,7 +1580,7 @@ let poly_bevel ?label ?group ?(shape = Pdk.Ops.Bevel_chamfer)
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Ops.poly_bevel ~cancel:(Context.cancel_token context)
+          match Pdk.Poly_modeling.poly_bevel_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ~shape ~divisions
               ?point_scale_attribute ?ignore_flat_angle ~clamp_overlap
               ?edge_group ?corner_group ?offset_group ~recompute_point_normals
@@ -1612,11 +1612,11 @@ let point_split ?label ?selection ?(attributes = "") ?(tolerance = 1e-5)
         | Error error -> structured_pdk_error error)
 
 let poly_loft_minimize_key = function
-  | Pdk.Ops.Two_point_distance -> "two_point"
-  | Pdk.Ops.Three_point_distance -> "three_point"
+  | Pdk.Poly_modeling.Two_point_distance -> "two_point"
+  | Pdk.Poly_modeling.Three_point_distance -> "three_point"
 
 let poly_loft ?label ?group ?rest ?(connect_closest_ends = true)
-    ?(minimize = Pdk.Ops.Two_point_distance) ?(u_wrap = false)
+    ?(minimize = Pdk.Poly_modeling.Two_point_distance) ?(u_wrap = false)
     ?(v_wrap = false) ?(keep_primitives = false) ?output_group
     ?(collinearity_tolerance = 0.) ?(recompute_normals = true) input =
   let inputs = match rest with None -> [|input|] | Some rest -> [|input; rest|] in
@@ -1648,7 +1648,7 @@ let poly_loft ?label ?group ?rest ?(connect_closest_ends = true)
       | Error error -> Error error
       | Ok primitives ->
           let rest = if Array.length inputs = 2 then Some inputs.(1) else None in
-          match Pdk.Ops.poly_loft ~cancel:(Context.cancel_token context)
+          match Pdk.Poly_modeling.poly_loft_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ?rest
               ~connect_closest_ends ~minimize ~u_wrap ~v_wrap ~keep_primitives
               ?output_group ~collinearity_tolerance ~recompute_normals geometry with
@@ -1656,7 +1656,7 @@ let poly_loft ?label ?group ?rest ?(connect_closest_ends = true)
           | Error error -> structured_pdk_error error)
 
 let skin ?label ?group ?rest ?(connect_closest_ends = true)
-    ?(minimize = Pdk.Ops.Two_point_distance) ?(u_wrap = false)
+    ?(minimize = Pdk.Poly_modeling.Two_point_distance) ?(u_wrap = false)
     ?(v_wrap = false) ?(keep_primitives = false) ?output_group
     ?(collinearity_tolerance = 0.) ?(recompute_normals = true) input =
   let inputs = match rest with None -> [|input|] | Some rest -> [|input; rest|] in
@@ -1687,7 +1687,7 @@ let skin ?label ?group ?rest ?(connect_closest_ends = true)
       | Error error -> Error error
       | Ok primitives ->
           let rest = if Array.length inputs = 2 then Some inputs.(1) else None in
-          match Pdk.Ops.skin ~cancel:(Context.cancel_token context)
+          match Pdk.Poly_modeling.skin_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ?rest
               ~connect_closest_ends ~minimize ~u_wrap ~v_wrap ~keep_primitives
               ?output_group ~collinearity_tolerance ~recompute_normals geometry with
@@ -1695,12 +1695,12 @@ let skin ?label ?group ?rest ?(connect_closest_ends = true)
           | Error error -> structured_pdk_error error)
 
 let poly_bridge_pairing_key = function
-  | Pdk.Ops.Bridge_by_order -> "order"
-  | Pdk.Ops.Bridge_by_centroid -> "centroid"
+  | Pdk.Poly_modeling.Bridge_by_order -> "order"
+  | Pdk.Poly_modeling.Bridge_by_centroid -> "centroid"
 
 let poly_bridge ?label ~source_group ~destination_group
-    ?(pairing = Pdk.Ops.Bridge_by_order) ?(connect_closest_ends = true)
-    ?(minimize = Pdk.Ops.Two_point_distance) ?(reverse_source = false)
+    ?(pairing = Pdk.Poly_modeling.Bridge_by_order) ?(connect_closest_ends = true)
+    ?(minimize = Pdk.Poly_modeling.Two_point_distance) ?(reverse_source = false)
     ?(reverse_destination = false) ?(pairing_shift = 0)
     ?(divisions = 1) ?(keep_input = true) ?output_group
     ?(collinearity_tolerance = 0.)
@@ -1737,7 +1737,7 @@ let poly_bridge ?label ~source_group ~destination_group
           (Printf.sprintf "poly_bridge could not find destination edge group %S"
              destination_group))
       | Some source, Some destination ->
-          match Pdk.Ops.poly_bridge ~cancel:(Context.cancel_token context)
+          match Pdk.Poly_modeling.poly_bridge_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~source ~destination ~pairing
               ~connect_closest_ends ~minimize ~reverse_source
               ~reverse_destination ~pairing_shift ~divisions ~keep_input ?output_group
@@ -1795,7 +1795,7 @@ let edge_cusp ?label ?group ?(update_point_normals = true) input =
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Ops.edge_cusp ~cancel:(Context.cancel_token context)
+          match Pdk.Edge_modeling_ops.edge_cusp_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ~update_point_normals
               geometry with
           | Ok geometry -> cooked geometry
@@ -1824,7 +1824,7 @@ let edge_straighten ?label ?group ?output_group input =
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Ops.edge_straighten ~cancel:(Context.cancel_token context)
+          match Pdk.Edge_modeling_ops.edge_straighten_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ?output_group geometry with
           | Ok geometry -> cooked geometry
           | Error error -> structured_pdk_error error)
@@ -1862,7 +1862,7 @@ let circle_from_edges ?label ?group ?radius
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Ops.circle_from_edges ~cancel:(Context.cancel_token context)
+          match Pdk.Edge_modeling_ops.circle_from_edges_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ?radius ~scale ?output_group
               geometry with
           | Ok geometry -> cooked geometry
@@ -1915,11 +1915,11 @@ let graph_color ?label ?selection
           | Error error -> structured_pdk_error error)
 
 let edge_equalize_method_key = function
-  | Pdk.Ops.Equalize_average -> "average"
-  | Pdk.Ops.Equalize_longest -> "longest"
-  | Pdk.Ops.Equalize_shortest -> "shortest"
+  | Pdk.Edge_modeling_ops.Equalize_average -> "average"
+  | Pdk.Edge_modeling_ops.Equalize_longest -> "longest"
+  | Pdk.Edge_modeling_ops.Equalize_shortest -> "shortest"
 
-let edge_equalize ?label ?group ?(method_ = Pdk.Ops.Equalize_average)
+let edge_equalize ?label ?group ?(method_ = Pdk.Edge_modeling_ops.Equalize_average)
     ?(iterations = 64) ?(tolerance = 1e-6) ?output_group input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.edge_equalize: empty edge group name") group;
@@ -1948,18 +1948,18 @@ let edge_equalize ?label ?group ?(method_ = Pdk.Ops.Equalize_average)
       match edges with
       | Error error -> Error error
       | Ok edges ->
-          match Pdk.Ops.edge_equalize ~cancel:(Context.cancel_token context)
+          match Pdk.Edge_modeling_ops.edge_equalize_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?edges ~method_ ~iterations
               ~tolerance ?output_group geometry with
           | Ok geometry -> cooked geometry
           | Error error -> structured_pdk_error error)
 
 let edge_relax_target_key = function
-  | Pdk.Ops.Individual_lengths -> "individual"
-  | Pdk.Ops.Scale_independent_distribution -> "scale_independent"
+  | Pdk.Edge_modeling_ops.Individual_lengths -> "individual"
+  | Pdk.Edge_modeling_ops.Scale_independent_distribution -> "scale_independent"
 
 let edge_relax ?label ?group ?pin_group ?(iterations = 20)
-    ?(step_size = 0.5) ?(target_mode = Pdk.Ops.Individual_lengths)
+    ?(step_size = 0.5) ?(target_mode = Pdk.Edge_modeling_ops.Individual_lengths)
     ?(only_shorten = false) ?(tolerance = 1e-6) ~reference input =
   (match group with
    | Some (Vertex_group _ | Edge_group _) ->
@@ -1986,12 +1986,12 @@ let edge_relax ?label ?group ?pin_group ?(iterations = 20)
         | None -> Ok None
         | Some (Point_group name) ->
             (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name geometry with
-             | Some group -> Ok (Some (Pdk.Ops.Relax_points group))
+             | Some group -> Ok (Some (Pdk.Edge_modeling_ops.Relax_points group))
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "edge_relax could not find point group %S" name)))
         | Some (Primitive_group name) ->
             (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive name geometry with
-             | Some group -> Ok (Some (Pdk.Ops.Relax_primitives group))
+             | Some group -> Ok (Some (Pdk.Edge_modeling_ops.Relax_primitives group))
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "edge_relax could not find primitive group %S" name)))
         | Some (Vertex_group _ | Edge_group _) -> assert false in
@@ -2006,7 +2006,7 @@ let edge_relax ?label ?group ?pin_group ?(iterations = 20)
       match selection, pins with
       | Error error, _ | _, Error error -> Error error
       | Ok selection, Ok pin_points ->
-          match Pdk.Ops.edge_relax ~cancel:(Context.cancel_token context)
+          match Pdk.Edge_modeling_ops.edge_relax_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ?pin_points ~iterations
               ~step_size ~target_mode ~only_shorten ~tolerance ~reference
               geometry with
@@ -2014,34 +2014,34 @@ let edge_relax ?label ?group ?pin_group ?(iterations = 20)
           | Error error -> structured_pdk_error error)
 
 let edge_transport_roots_key = function
-  | Pdk.Ops.Transport_first_point -> "first"
-  | Pdk.Ops.Transport_last_point -> "last"
-  | Pdk.Ops.Transport_root_group _ -> "group"
+  | Pdk.Edge_transport_ops.Transport_first_point -> "first"
+  | Pdk.Edge_transport_ops.Transport_last_point -> "last"
+  | Pdk.Edge_transport_ops.Transport_root_group _ -> "group"
 
 let edge_transport_operation_key = function
-  | Pdk.Ops.Transport -> "transport"
-  | Pdk.Ops.Transport_from_root -> "from_root"
-  | Pdk.Ops.Transport_total -> "total"
-  | Pdk.Ops.Transport_maximum -> "maximum"
-  | Pdk.Ops.Transport_minimum -> "minimum"
+  | Pdk.Edge_transport_ops.Transport -> "transport"
+  | Pdk.Edge_transport_ops.Transport_from_root -> "from_root"
+  | Pdk.Edge_transport_ops.Transport_total -> "total"
+  | Pdk.Edge_transport_ops.Transport_maximum -> "maximum"
+  | Pdk.Edge_transport_ops.Transport_minimum -> "minimum"
 
 let edge_transport_split_key = function
-  | Pdk.Ops.Transport_copy -> "copy"
-  | Pdk.Ops.Transport_split -> "split"
+  | Pdk.Edge_transport_ops.Transport_copy -> "copy"
+  | Pdk.Edge_transport_ops.Transport_split -> "split"
 
 let edge_transport_normalization_key = function
-  | Pdk.Ops.Transport_no_normalization -> "none"
-  | Pdk.Ops.Transport_normalize_components -> "components"
-  | Pdk.Ops.Transport_normalize_global -> "global"
+  | Pdk.Edge_transport_ops.Transport_no_normalization -> "none"
+  | Pdk.Edge_transport_ops.Transport_normalize_components -> "components"
+  | Pdk.Edge_transport_ops.Transport_normalize_global -> "global"
 
 let edge_transport_direction_key = function
-  | Pdk.Ops.Transport_forward -> "forward"
-  | Pdk.Ops.Transport_backward -> "backward"
+  | Pdk.Edge_transport_ops.Transport_forward -> "forward"
+  | Pdk.Edge_transport_ops.Transport_backward -> "backward"
 
 let edge_transport_merge_key = function
-  | Pdk.Ops.Transport_merge_add -> "add"
-  | Pdk.Ops.Transport_merge_maximum -> "maximum"
-  | Pdk.Ops.Transport_merge_minimum -> "minimum"
+  | Pdk.Edge_transport_ops.Transport_merge_add -> "add"
+  | Pdk.Edge_transport_ops.Transport_merge_maximum -> "maximum"
+  | Pdk.Edge_transport_ops.Transport_merge_minimum -> "minimum"
 
 type blend_shape = {
   blend_node : Node.t;
@@ -2327,7 +2327,7 @@ let rewire_vertices ?label ?selection ?(recursive = false)
       match resolve_element_group ~operation:"rewire_vertices" selection inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Ops.rewire_vertices ~cancel:(Context.cancel_token context)
+          match Pdk.Mesh_edit_ops.rewire_vertices_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~recursive
               ~delete_target_attribute ~keep_unused_points
               ?original_point_attribute ~owner ~target_attribute inputs.(0) with
@@ -2335,14 +2335,14 @@ let rewire_vertices ?label ?selection ?(recursive = false)
           | Error error -> structured_pdk_error error)
 
 let edge_transport ?label ?point_group ?root_group
-    ?(roots = Pdk.Ops.Transport_first_point)
-    ?(direction = Pdk.Ops.Transport_forward)
-    ?(operation = Pdk.Ops.Transport)
-    ?(root_value = Pdk.Ops.Transport_root_hold)
+    ?(roots = Pdk.Edge_transport_ops.Transport_first_point)
+    ?(direction = Pdk.Edge_transport_ops.Transport_forward)
+    ?(operation = Pdk.Edge_transport_ops.Transport)
+    ?(root_value = Pdk.Edge_transport_ops.Transport_root_hold)
     ?(integrate_constant = false) ?(scale_by_edge_length = false)
-    ?(split = Pdk.Ops.Transport_copy)
-    ?(merge = Pdk.Ops.Transport_merge_add)
-    ?(normalization = Pdk.Ops.Transport_no_normalization) ~attribute input =
+    ?(split = Pdk.Edge_transport_ops.Transport_copy)
+    ?(merge = Pdk.Edge_transport_ops.Transport_merge_add)
+    ?(normalization = Pdk.Edge_transport_ops.Transport_no_normalization) ~attribute input =
   List.iter (fun (kind, name) -> Option.iter (fun name ->
       if String.trim name = "" then
         invalid_arg ("Sop.edge_transport: empty " ^ kind ^ " group name")) name)
@@ -2350,9 +2350,9 @@ let edge_transport ?label ?point_group ?root_group
   if String.trim attribute = "" || attribute = "P" then
     invalid_arg "Sop.edge_transport: attribute must be non-empty and not P";
   (match roots, root_group with
-   | Pdk.Ops.Transport_root_group _, _ ->
+   | Pdk.Edge_transport_ops.Transport_root_group _, _ ->
        invalid_arg "Sop.edge_transport: construct grouped roots with ~root_group"
-   | (Pdk.Ops.Transport_first_point | Pdk.Ops.Transport_last_point), Some _ -> ()
+   | (Pdk.Edge_transport_ops.Transport_first_point | Pdk.Edge_transport_ops.Transport_last_point), Some _ -> ()
    | _, None -> ());
   let roots_key = if Option.is_some root_group then "group"
     else edge_transport_roots_key roots in
@@ -2362,8 +2362,8 @@ let edge_transport ?label ?point_group ?root_group
       (option_string_key point_group) roots_key (option_string_key root_group)
       (edge_transport_direction_key direction)
       (edge_transport_operation_key operation)
-      (match root_value with Pdk.Ops.Transport_root_zero -> "zero"
-        | Pdk.Ops.Transport_root_hold -> "hold")
+      (match root_value with Pdk.Edge_transport_ops.Transport_root_zero -> "zero"
+        | Pdk.Edge_transport_ops.Transport_root_hold -> "hold")
       integrate_constant scale_by_edge_length (edge_transport_split_key split)
       (edge_transport_merge_key merge)
       (edge_transport_normalization_key normalization) attribute)
@@ -2376,14 +2376,14 @@ let edge_transport ?label ?point_group ?root_group
         | None -> Ok roots
         | Some name ->
             (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name geometry with
-             | Some group -> Ok (Pdk.Ops.Transport_root_group group)
+             | Some group -> Ok (Pdk.Edge_transport_ops.Transport_root_group group)
              | None -> Error (Diagnostic.error ~code:"missing_group"
                  (Printf.sprintf "edge_transport could not find root point group %S"
                     name))) in
       match points, roots with
       | Error error, _ | _, Error error -> Error error
       | Ok points, Ok roots ->
-          match Pdk.Ops.edge_transport ~cancel:(Context.cancel_token context)
+          match Pdk.Edge_transport_ops.run_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?points ~roots ~operation ~root_value
               ~integrate_constant ~scale_by_edge_length ~split ~direction ~merge
               ~normalization ~attribute geometry with
@@ -2392,11 +2392,11 @@ let edge_transport ?label ?point_group ?root_group
 
 let edge_transport_curves ?label ?primitive_group
     ?(owner = Pdk.Attribute.Point)
-    ?(direction = Pdk.Ops.Transport_forward)
-    ?(operation = Pdk.Ops.Transport)
-    ?(root_value = Pdk.Ops.Transport_root_hold)
+    ?(direction = Pdk.Edge_transport_ops.Transport_forward)
+    ?(operation = Pdk.Edge_transport_ops.Transport)
+    ?(root_value = Pdk.Edge_transport_ops.Transport_root_hold)
     ?(integrate_constant = false) ?(scale_by_edge_length = false)
-    ?(normalization = Pdk.Ops.Transport_no_normalization) ~attribute input =
+    ?(normalization = Pdk.Edge_transport_ops.Transport_no_normalization) ~attribute input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.edge_transport_curves: empty primitive group name")
     primitive_group;
@@ -2415,8 +2415,8 @@ let edge_transport_curves ?label ?primitive_group
       (option_string_key primitive_group) owner_key
       (edge_transport_direction_key direction)
       (edge_transport_operation_key operation)
-      (match root_value with Pdk.Ops.Transport_root_zero -> "zero"
-        | Pdk.Ops.Transport_root_hold -> "hold")
+      (match root_value with Pdk.Edge_transport_ops.Transport_root_zero -> "zero"
+        | Pdk.Edge_transport_ops.Transport_root_hold -> "hold")
       integrate_constant scale_by_edge_length
       (edge_transport_normalization_key normalization) attribute)
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
@@ -2426,7 +2426,7 @@ let edge_transport_curves ?label ?primitive_group
           primitive_group geometry with
       | Error error -> Error error
       | Ok primitives ->
-          match Pdk.Ops.edge_transport_curves
+          match Pdk.Edge_transport_ops.run_curves_checked
               ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ~owner ~direction
               ~operation ~root_value ~integrate_constant ~scale_by_edge_length
@@ -2435,13 +2435,13 @@ let edge_transport_curves ?label ?primitive_group
           | Error error -> structured_pdk_error error)
 
 let edge_transport_parent ?label ?point_group ?(parent_attribute = "parent")
-    ?(direction = Pdk.Ops.Transport_forward)
-    ?(operation = Pdk.Ops.Transport)
-    ?(root_value = Pdk.Ops.Transport_root_hold)
+    ?(direction = Pdk.Edge_transport_ops.Transport_forward)
+    ?(operation = Pdk.Edge_transport_ops.Transport)
+    ?(root_value = Pdk.Edge_transport_ops.Transport_root_hold)
     ?(integrate_constant = false) ?(scale_by_edge_length = false)
-    ?(split = Pdk.Ops.Transport_copy)
-    ?(merge = Pdk.Ops.Transport_merge_add)
-    ?(normalization = Pdk.Ops.Transport_no_normalization) ~attribute input =
+    ?(split = Pdk.Edge_transport_ops.Transport_copy)
+    ?(merge = Pdk.Edge_transport_ops.Transport_merge_add)
+    ?(normalization = Pdk.Edge_transport_ops.Transport_no_normalization) ~attribute input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.edge_transport_parent: empty point group name") point_group;
   if String.trim parent_attribute = "" then
@@ -2455,8 +2455,8 @@ let edge_transport_parent ?label ?point_group ?(parent_attribute = "parent")
       (option_string_key point_group) parent_attribute
       (edge_transport_direction_key direction)
       (edge_transport_operation_key operation)
-      (match root_value with Pdk.Ops.Transport_root_zero -> "zero"
-        | Pdk.Ops.Transport_root_hold -> "hold")
+      (match root_value with Pdk.Edge_transport_ops.Transport_root_zero -> "zero"
+        | Pdk.Edge_transport_ops.Transport_root_hold -> "hold")
       integrate_constant scale_by_edge_length (edge_transport_split_key split)
       (edge_transport_merge_key merge)
       (edge_transport_normalization_key normalization) attribute)
@@ -2467,7 +2467,7 @@ let edge_transport_parent ?label ?point_group ?(parent_attribute = "parent")
           geometry with
       | Error error -> Error error
       | Ok points ->
-          match Pdk.Ops.edge_transport_parent
+          match Pdk.Edge_transport_ops.run_parent_checked
               ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?points ~parent_attribute ~direction
               ~operation ~root_value ~integrate_constant ~scale_by_edge_length
@@ -3188,10 +3188,10 @@ let poly_reduce ?label ?group ?hard_point_group ?hard_edge_group
           | Error error -> structured_pdk_error error)
 
 let reverse_operation_key = function
-  | Pdk.Ops.Reverse_vertices -> "reverse"
-  | Pdk.Ops.Shift_vertices offset -> "shift:" ^ string_of_int offset
+  | Pdk.Reverse_ops.Reverse_vertices -> "reverse"
+  | Pdk.Reverse_ops.Shift_vertices offset -> "shift:" ^ string_of_int offset
 
-let reverse ?label ?group ?(operation = Pdk.Ops.Reverse_vertices) input =
+let reverse ?label ?group ?(operation = Pdk.Reverse_ops.Reverse_vertices) input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.reverse: empty primitive group name") group;
   Node.Private.make ?label ~operation:"reverse" ~version:2
@@ -3210,7 +3210,7 @@ let reverse ?label ?group ?(operation = Pdk.Ops.Reverse_vertices) input =
       match primitives with
       | Error error -> Error error
       | Ok primitives ->
-          match Pdk.Ops.reverse ~cancel:(Context.cancel_token context)
+          match Pdk.Reverse_ops.run_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ~operation geometry with
           | Ok geometry -> cooked geometry
           | Error error -> structured_pdk_error error)
@@ -3401,9 +3401,9 @@ let polyframe ?label ?selection ?(orthogonal = false)
           | Error error -> structured_pdk_error error)
 
 let smooth_boundary_key = function
-  | Pdk.Ops.Smooth_free -> "free"
-  | Pdk.Ops.Smooth_unshared -> "unshared"
-  | Pdk.Ops.Smooth_group_boundary -> "group_boundary"
+  | Pdk.Smooth_ops.Smooth_free -> "free"
+  | Pdk.Smooth_ops.Smooth_unshared -> "unshared"
+  | Pdk.Smooth_ops.Smooth_group_boundary -> "group_boundary"
 
 let smooth_method_key = function
   | Pdk.Attribute_ops.Uniform -> "uniform"
@@ -3415,7 +3415,7 @@ let smooth_mode_key = function
       String.concat ":" ["custom"; float_key odd; float_key even]
 
 let smooth ?label ?group ?constrained_points
-    ?(boundary = Pdk.Ops.Smooth_free) ?(iterations = 1)
+    ?(boundary = Pdk.Smooth_ops.Smooth_free) ?(iterations = 1)
     ?(method_ = Pdk.Attribute_ops.Uniform)
     ?(mode = Pdk.Attribute_ops.Laplacian 0.5) ?weight_attribute
     ?alpha_attribute ?(recompute_normals = true) ?(original_blend = 0.)
@@ -3460,7 +3460,7 @@ let smooth ?label ?group ?constrained_points
               "constrained point group" constrained_points with
            | Error error -> Error error
            | Ok constrained_points ->
-               match Pdk.Ops.smooth ~cancel:(Context.cancel_token context)
+               match Pdk.Smooth_ops.run_checked ~cancel:(Context.cancel_token context)
                    ~grain:(Context.grain context) ?primitives
                    ?constrained_points ~boundary ~iterations ~method_ ~mode
                    ?weight_attribute ?alpha_attribute ~recompute_normals
@@ -3469,8 +3469,8 @@ let smooth ?label ?group ?constrained_points
                | Error error -> structured_pdk_error error))
 
 let clean_overlap_key = function
-  | Pdk.Ops.Keep_first_overlap -> "keep_first"
-  | Pdk.Ops.Delete_overlap_pairs -> "delete_pairs"
+  | Pdk.Clean_ops.Keep_first_overlap -> "keep_first"
+  | Pdk.Clean_ops.Delete_overlap_pairs -> "delete_pairs"
 
 let clean ?label ?epsilon ?(remove_degenerate = true) ?consolidate_distance
     ?overlaps ?(reverse_winding = false) ?(remove_nan_points = false)
@@ -3504,7 +3504,7 @@ let clean ?label ?epsilon ?(remove_degenerate = true) ?consolidate_distance
     ~cook_mode:(Node.Duplicate_input 0)
     ~dependencies:Context.Dependencies.static ~inputs:[|input|]
     (fun ~node_id:_ context inputs ->
-      match Pdk.Ops.clean ~cancel:(Context.cancel_token context)
+      match Pdk.Clean_ops.run_checked ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ?epsilon ~remove_degenerate
           ?consolidate_distance ?overlaps ~reverse_winding ~remove_nan_points
           ~remove_unused_points ~delete_unused_groups ?point_attributes
@@ -3571,11 +3571,11 @@ let facet ?label ?group ?selection ?(pre_compute_normals = false)
           | Error error -> structured_pdk_error error)
 
 let poly_extrude_divide_key = function
-  | Pdk.Ops.Extrude_individual -> "individual"
-  | Pdk.Ops.Extrude_connected_components -> "connected_components"
+  | Pdk.Poly_modeling.Extrude_individual -> "individual"
+  | Pdk.Poly_modeling.Extrude_connected_components -> "connected_components"
 
 let poly_extrude ?label ?group ?split_edges
-    ?(divide = Pdk.Ops.Extrude_individual) ?(divisions = 1)
+    ?(divide = Pdk.Poly_modeling.Extrude_individual) ?(divisions = 1)
     ?(output_front = true) ?(output_back = true) ?(output_side = true)
     ?front_group ?back_group ?side_group ?front_boundary_group
     ?back_boundary_group ~distance input =
@@ -3626,7 +3626,7 @@ let poly_extrude ?label ?group ?split_edges
       match primitives, split with
       | Error error, _ | _, Error error -> Error error
       | Ok primitives, Ok split_edges ->
-          match Pdk.Ops.poly_extrude ~cancel:(Context.cancel_token context)
+          match Pdk.Poly_modeling.poly_extrude_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ?split_edges ~divide
               ~divisions ~output_front ~output_back ~output_side ?front_group
               ?back_group ?side_group ?front_boundary_group
@@ -7043,7 +7043,7 @@ let convex_hull ?label ?selection ?(preserve_point_payload = true)
       match resolve_element_group ~operation:"convex_hull" selection inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Ops.convex_hull ~cancel:(Context.cancel_token context)
+          match Pdk.Mesh_edit_ops.convex_hull_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~preserve_point_payload
               ?source_point_attribute ?hull_group inputs.(0) with
           | Ok geometry -> cooked geometry
@@ -7437,27 +7437,27 @@ let point_generate ?label ?group ?(keep_input = false) ?seed ?generated_group
           | Error error -> structured_pdk_error error)
 
 let point_replicate_shape_key = function
-  | Pdk.Ops.Replicate_point -> "point"
-  | Pdk.Ops.Replicate_box -> "box"
-  | Pdk.Ops.Replicate_sphere -> "sphere"
-  | Pdk.Ops.Replicate_disk -> "disk"
-  | Pdk.Ops.Replicate_line -> "line"
-  | Pdk.Ops.Replicate_custom -> "custom"
+  | Pdk.Point_replication.Replicate_point -> "point"
+  | Pdk.Point_replication.Replicate_box -> "box"
+  | Pdk.Point_replication.Replicate_sphere -> "sphere"
+  | Pdk.Point_replication.Replicate_disk -> "disk"
+  | Pdk.Point_replication.Replicate_line -> "line"
+  | Pdk.Point_replication.Replicate_custom -> "custom"
 
 let point_replicate_velocity_key = function
-  | Pdk.Ops.Replicate_no_velocity_stretch -> "none"
-  | Pdk.Ops.Replicate_scaled_velocity -> "scaled"
-  | Pdk.Ops.Replicate_velocity_only -> "velocity_only"
+  | Pdk.Point_replication.Replicate_no_velocity_stretch -> "none"
+  | Pdk.Point_replication.Replicate_scaled_velocity -> "scaled"
+  | Pdk.Point_replication.Replicate_velocity_only -> "velocity_only"
 
 let point_replicate ?label ?group ?(keep_input = false) ?seed
     ?(id_attribute = "id") ?generated_group ?(copy_point_attributes = "*")
     ?(keep_source_attributes = false) ?(transform_attributes = "P")
     ?(source_point_attribute = "sourcepoint")
     ?(source_index_attribute = "sourceindex")
-    ?(shape = Pdk.Ops.Replicate_sphere) ?custom_shape ?(center = Vec3.zero)
+    ?(shape = Pdk.Point_replication.Replicate_sphere) ?custom_shape ?(center = Vec3.zero)
     ?(size = Vec3.create 1. 1. 1.) ?(orientation = Vec3.zero)
     ?(uniform_scale = 1.) ?(quasi_stratified = false)
-    ?(velocity_stretch = Pdk.Ops.Replicate_no_velocity_stretch)
+    ?(velocity_stretch = Pdk.Point_replication.Replicate_no_velocity_stretch)
     ?(velocity_scale = 1.) ?(inherit_velocity = 1.) ?(radial_velocity = 0.)
     ?noise_amplitude ?(noise_frequency = Vec3.create 1. 1. 1.)
     ?(noise_offset = Vec3.zero) ?(noise_roughness = 0.5)
@@ -7531,7 +7531,7 @@ let point_replicate ?label ?group ?(keep_input = false) ?seed
           let noise_seed = Option.value ~default:(mixed_seed context
               (Int64.logxor identity 0x6a09e667f3bcc909L)) noise_seed in
           let custom_shape = if Array.length inputs = 2 then Some inputs.(1) else None in
-          match Pdk.Ops.point_replicate ~cancel:(Context.cancel_token context)
+          match Pdk.Point_replication.run_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?points:selection ~keep_input
               ~seed:(Rand.seed seed) ~id_attribute ?generated_group
               ~copy_point_attributes ~keep_source_attributes

@@ -8,7 +8,7 @@ let live_handles=let _,live=Ogpu.Impl.create_driver()in live
 let run () =
   let baseline=live_handles()in
   let cube=get(Result.map_error Pdk.Error.to_string
-    (Pdk.Ops.box ~size:(Prismel.Vec3.create 1. 1. 1.) ()))in
+    (Pdk.Box_generator.box_checked ~size:(Prismel.Vec3.create 1. 1. 1.) ()))in
   let scene={ P.objects=[cube,P.material (rgb 0.8 0.6 0.4)]; spheres = []; strands = [];
     environment={sky=rgb 0.6 0.7 0.8;ground=rgb 0.1 0.1 0.1;panels=[]};
     lights=[]}in

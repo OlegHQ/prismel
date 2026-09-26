@@ -212,7 +212,7 @@ end
 
 module Edge_equalize : sig
   val create :
-    ?label:string -> ?group:string -> ?method_:Pdk.Ops.edge_equalize_method ->
+    ?label:string -> ?group:string -> ?method_:Pdk.Edge_modeling_ops.equalize_method ->
     ?iterations:int -> ?tolerance:float -> ?output_group:string ->
     Procedural.Node.t -> Procedural.Node.t
 end

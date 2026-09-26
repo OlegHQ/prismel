@@ -31,36 +31,13 @@ type scatter_density = Scatter.density = {
   density_owner : Attribute.owner;
   density_attribute : string;
 }
-type smooth_boundary = Smooth.boundary =
-  | Smooth_free
-  | Smooth_unshared
-  | Smooth_group_boundary
-type crease_operation = Crease.operation =
-  | Crease_add
-  | Crease_set
-  | Crease_delete
-type poly_loft_minimize = Poly_loft.minimize =
-  | Two_point_distance
-  | Three_point_distance
-type poly_bridge_pairing = Poly_bridge.pairing =
-  | Bridge_by_order
-  | Bridge_by_centroid
 type poly_reduce_target = Poly_reduce.target =
   | Reduce_ratio of float
   | Reduce_primitive_count of int
-type poly_bevel_shape = Poly_bevel.shape =
-  | Bevel_chamfer
-  | Bevel_round of { convexity : float }
-type poly_extrude_divide = Poly_extrude.divide =
-  | Extrude_individual
-  | Extrude_connected_components
 type poly_fill_mode = Poly_fill.mode =
   | Fill_single_polygon
   | Fill_triangles
   | Fill_triangle_fan
-type clean_overlap_policy =
-  | Keep_first_overlap
-  | Delete_overlap_pairs
 type sort_owner = Ordering.owner = Points | Primitives
 type sort_key = Ordering.key =
   | X | Y | Z
@@ -319,10 +296,6 @@ type fuse_targeting = Fuse_grid.fuse_targeting =
   | Specified_points of string
 type grid_rounding = Fuse_grid.grid_rounding = Grid_nearest | Grid_down | Grid_up
 
-type reverse_operation = Reverse_faces.operation =
-  | Reverse_vertices
-  | Shift_vertices of int
-
 let measure_curvature ?cancel ?grain ?points ?boundary ?smoothing_iterations
     ?smoothing_strength ?outputs geometry =
   Curvature.run ?cancel ?grain ?points ?boundary ?smoothing_iterations
@@ -338,16 +311,6 @@ let polyframe ?cancel ?grain ?selection ?orthogonal ?left_handed ?normal_attribu
   Polyframe.run ?cancel ?grain ?selection ?orthogonal ?left_handed ?normal_attribute
     ?tangent_attribute ?bitangent_attribute style geometry
 
-let smooth ?cancel ?grain ?primitives ?constrained_points ?boundary ?iterations
-    ?method_ ?mode ?weight_attribute ?alpha_attribute ?recompute_normals
-    ?original_blend ?smoothed_blend ~attributes geometry =
-  Smooth.run ?cancel ?grain ?primitives ?constrained_points ?boundary ?iterations
-    ?method_ ?mode ?weight_attribute ?alpha_attribute ?recompute_normals
-    ?original_blend ?smoothed_blend ~attributes geometry
-
-
-let compact_points = Compact_points.run
-
 type copy_target_owner = Instance_copy.copy_target_owner =
   | Copy_target_points | Copy_target_vertices | Copy_target_primitives
 type copy_target_operation = Instance_copy.copy_target_operation =
@@ -358,8 +321,6 @@ type copy_target_attribute_rule = Instance_copy.copy_target_attribute_rule = {
   copy_target_owner : copy_target_owner;
   copy_target_operation : copy_target_operation;
 }
-
-let copy_to_points = Instance_copy.Private.copy_to_points
 
 let transform = Transform_ops.transform
 
@@ -372,37 +333,6 @@ type match_size_fit = Match_size.match_size_fit =
   | Match_x | Match_y | Match_z
   | Match_perimeter | Match_area | Match_volume
 
-let poly_bevel ?cancel ?grain ?edges ?shape ?divisions ?point_scale_attribute
-    ?ignore_flat_angle ?clamp_overlap ?edge_group ?corner_group ?offset_group
-    ?recompute_point_normals ~distance geometry =
-  Poly_bevel.run ?cancel ?grain ?edges ?shape ?divisions ?point_scale_attribute
-    ?ignore_flat_angle ?clamp_overlap ?edge_group ?corner_group ?offset_group
-    ?recompute_point_normals ~distance geometry
-
-let poly_loft ?cancel ?grain ?primitives ?rest ?connect_closest_ends
-    ?minimize ?u_wrap ?v_wrap ?keep_primitives ?output_group
-    ?collinearity_tolerance ?recompute_normals geometry =
-  Poly_loft.run ?cancel ?grain ?primitives ?rest ?connect_closest_ends
-    ?minimize ?u_wrap ?v_wrap ?keep_primitives ?output_group
-    ?collinearity_tolerance ?recompute_normals geometry
-
-let skin ?cancel ?grain ?primitives ?rest ?connect_closest_ends
-    ?minimize ?u_wrap ?v_wrap ?keep_primitives ?output_group
-    ?collinearity_tolerance ?recompute_normals geometry =
-  Poly_loft.run ?cancel ?grain ?primitives ?rest ?connect_closest_ends
-    ?minimize ?u_wrap ?v_wrap ?keep_primitives ?output_group
-    ?collinearity_tolerance ?recompute_normals ~output:Poly_loft.Polygons
-    ~operation:"skin" geometry
-
-let poly_bridge ?cancel ?grain ~source ~destination ?pairing
-    ?connect_closest_ends ?minimize ?reverse_source ?reverse_destination
-    ?pairing_shift ?divisions ?keep_input ?output_group ?collinearity_tolerance
-    ?recompute_normals geometry =
-  Poly_bridge.run ?cancel ?grain ~source ~destination ?pairing
-    ?connect_closest_ends ?minimize ?reverse_source ?reverse_destination
-    ?pairing_shift ?divisions ?keep_input ?output_group ?collinearity_tolerance
-    ?recompute_normals geometry
-
 type point_generate_mode = Point_generate.mode =
   | Generate_total of int
   | Generate_per_point of {
@@ -411,60 +341,6 @@ type point_generate_mode = Point_generate.mode =
     }
   | Generate_probability of { attribute : string }
 
-type point_replicate_shape = Point_replicate.shape =
-  | Replicate_point
-  | Replicate_box
-  | Replicate_sphere
-  | Replicate_disk
-  | Replicate_line
-  | Replicate_custom
-
-type point_replicate_velocity_stretch = Point_replicate.velocity_stretch =
-  | Replicate_no_velocity_stretch
-  | Replicate_scaled_velocity
-  | Replicate_velocity_only
-
-let point_replicate ?cancel ?(grain = 16_384) ?points ?keep_input ?seed
-    ?id_attribute ?generated_group ?copy_point_attributes
-    ?keep_source_attributes ?transform_attributes ?source_point_attribute
-    ?source_index_attribute
-    ?shape ?custom_shape ?center ?size ?orientation ?uniform_scale
-    ?quasi_stratified ?velocity_stretch ?velocity_scale ?inherit_velocity
-    ?radial_velocity ?noise_amplitude ?noise_frequency ?noise_offset
-    ?noise_roughness ?noise_attenuation ?noise_turbulence ?noise_seed
-    ~points_per_point ?scale_attribute geometry =
-  Point_replicate.run ?cancel ~grain ?points ?keep_input ?seed ?id_attribute
-    ?generated_group ?copy_point_attributes ?keep_source_attributes
-    ?transform_attributes
-    ?source_point_attribute ?source_index_attribute ?shape ?custom_shape
-    ?center ?size ?orientation ?uniform_scale ?quasi_stratified
-    ?velocity_stretch ?velocity_scale ?inherit_velocity ?radial_velocity
-    ?noise_amplitude ?noise_frequency ?noise_offset ?noise_roughness
-    ?noise_attenuation ?noise_turbulence ?noise_seed
-    ~copy_basis:(fun source targets ->
-      copy_to_points ?cancel ~grain ~source ~targets ())
-    ~points_per_point ?scale_attribute geometry
-
-let clean ?cancel ?(grain = 16_384) ?epsilon ?remove_degenerate
-    ?consolidate_distance ?overlaps ?reverse_winding ?remove_nan_points
-    ?remove_unused_points ?delete_unused_groups ?point_attributes
-    ?vertex_attributes ?primitive_attributes ?detail_attributes ?point_groups
-    ?vertex_groups ?primitive_groups ?edge_groups geometry =
-  Clean.run ?cancel ~grain ?epsilon ?remove_degenerate ?consolidate_distance
-    ?overlaps:(Option.map (fun policy -> policy = Delete_overlap_pairs) overlaps)
-    ?reverse_winding ?remove_nan_points ?remove_unused_points
-    ?delete_unused_groups ?point_attributes ?vertex_attributes
-    ?primitive_attributes ?detail_attributes ?point_groups ?vertex_groups
-    ?primitive_groups ?edge_groups
-    ~consolidate:(fun tolerance geometry ->
-      Fuse_grid.fuse ?cancel ~grain ~tolerance geometry)
-    ~compact:(fun geometry -> compact_points ?cancel ~grain geometry)
-    geometry
-
-(* Public result boundaries carry stable codes while the implementation above
-   remains free to compose the lower-level validation functions that still
-   report strings. Keep these wrappers last so internal operator composition
-   uses the raw result without repeatedly wrapping and unwrapping failures. *)
 let detailed operation code result =
   Result.map_error (Error.of_string ~operation ~code) result
 
@@ -493,45 +369,6 @@ let edge_collapse = Edge_collapse.run
 
 let dissolve = Dissolve.run_checked
 
-let poly_bevel_raw = poly_bevel
-let poly_bevel ?cancel ?grain ?edges ?shape ?divisions ?point_scale_attribute
-    ?ignore_flat_angle ?clamp_overlap ?edge_group ?corner_group ?offset_group
-    ?recompute_point_normals ~distance geometry =
-  protected "poly_bevel" "invalid_topology" (fun () ->
-    poly_bevel_raw ?cancel ?grain ?edges ?shape ?divisions
-      ?point_scale_attribute ?ignore_flat_angle ?clamp_overlap ?edge_group
-      ?corner_group ?offset_group ?recompute_point_normals ~distance geometry)
-
-
-let poly_loft_raw = poly_loft
-let poly_loft ?cancel ?grain ?primitives ?rest ?connect_closest_ends
-    ?minimize ?u_wrap ?v_wrap ?keep_primitives ?output_group
-    ?collinearity_tolerance ?recompute_normals geometry =
-  protected "poly_loft" "invalid_topology" (fun () ->
-    poly_loft_raw ?cancel ?grain ?primitives ?rest ?connect_closest_ends
-      ?minimize ?u_wrap ?v_wrap ?keep_primitives ?output_group
-      ?collinearity_tolerance ?recompute_normals geometry)
-
-let skin_raw = skin
-let skin ?cancel ?grain ?primitives ?rest ?connect_closest_ends
-    ?minimize ?u_wrap ?v_wrap ?keep_primitives ?output_group
-    ?collinearity_tolerance ?recompute_normals geometry =
-  protected "skin" "invalid_topology" (fun () ->
-    skin_raw ?cancel ?grain ?primitives ?rest ?connect_closest_ends
-      ?minimize ?u_wrap ?v_wrap ?keep_primitives ?output_group
-      ?collinearity_tolerance ?recompute_normals geometry)
-
-let poly_bridge_raw = poly_bridge
-let poly_bridge ?cancel ?grain ~source ~destination ?pairing
-    ?connect_closest_ends ?minimize ?reverse_source ?reverse_destination
-    ?pairing_shift ?divisions ?keep_input ?output_group ?collinearity_tolerance
-    ?recompute_normals geometry =
-  protected "poly_bridge" "invalid_topology" (fun () ->
-    poly_bridge_raw ?cancel ?grain ~source ~destination ?pairing
-      ?connect_closest_ends ?minimize ?reverse_source ?reverse_destination
-      ?pairing_shift ?divisions ?keep_input ?output_group ?collinearity_tolerance
-      ?recompute_normals geometry)
-
 let snap_to_grid = Fuse_grid.snap_to_grid_checked
 
 let boolean_detect ?cancel ?(grain = 16_384) ?source_primitives
@@ -547,78 +384,6 @@ let boolean_detect ?cancel ?(grain = 16_384) ?source_primitives
 
 let poly_reduce = Poly_reduce.run_checked
 let edge_flip = Edge_flip.run_checked
-
-let edge_cusp ?cancel ?grain ?edges ?update_point_normals geometry =
-  protected "edge_cusp" "invalid_topology" (fun () ->
-    Facet.edge_cusp ?cancel ?grain ?edges ?update_point_normals geometry)
-
-let edge_straighten ?cancel ?grain ?edges ?output_group geometry =
-  protected "edge_straighten" "invalid_geometry" (fun () ->
-    Edge_ops.straighten ?cancel ?grain ?edges ?output_group geometry)
-
-let circle_from_edges ?cancel ?grain ?edges ?radius ?scale ?output_group geometry =
-  protected "circle_from_edges" "invalid_circle" (fun () ->
-    Circle_from_edges.run ?cancel ?grain ?edges ?radius ?scale ?output_group
-      geometry)
-
-type edge_equalize_method = Edge_ops.equalize_method =
-  | Equalize_average
-  | Equalize_longest
-  | Equalize_shortest
-
-let edge_equalize ?cancel ?grain ?edges ?method_ ?iterations ?tolerance
-    ?output_group geometry =
-  protected "edge_equalize" "invalid_edge_equalize" (fun () ->
-    Edge_ops.equalize ?cancel ?grain ?edges ?method_ ?iterations ?tolerance
-      ?output_group geometry)
-
-type edge_relax_selection = Edge_relax.selection =
-  | Relax_points of Group.t
-  | Relax_primitives of Group.t
-
-type edge_relax_target_mode = Edge_relax.target_mode =
-  | Individual_lengths
-  | Scale_independent_distribution
-
-let edge_relax ?cancel ?grain ?selection ?pin_points ?iterations ?step_size
-    ?target_mode ?only_shorten ?tolerance ~reference geometry =
-  protected "edge_relax" "invalid_edge_relax" (fun () ->
-    Edge_relax.relax ?cancel ?grain ?selection ?pin_points ?iterations
-      ?step_size ?target_mode ?only_shorten ?tolerance ~reference geometry)
-
-type edge_transport_roots = Edge_transport.roots =
-  | Transport_first_point
-  | Transport_last_point
-  | Transport_root_group of Group.t
-
-type edge_transport_operation = Edge_transport.operation =
-  | Transport
-  | Transport_from_root
-  | Transport_total
-  | Transport_maximum
-  | Transport_minimum
-
-type edge_transport_root_value = Edge_transport.root_value =
-  | Transport_root_zero
-  | Transport_root_hold
-
-type edge_transport_split = Edge_transport.split =
-  | Transport_copy
-  | Transport_split
-
-type edge_transport_normalization = Edge_transport.normalization =
-  | Transport_no_normalization
-  | Transport_normalize_components
-  | Transport_normalize_global
-
-type edge_transport_direction = Edge_transport.direction =
-  | Transport_forward
-  | Transport_backward
-
-type edge_transport_merge = Edge_transport.merge =
-  | Transport_merge_add
-  | Transport_merge_maximum
-  | Transport_merge_minimum
 
 type blend_shapes_mode = Blend_shapes.mode =
   | Blend_normalized
@@ -699,59 +464,8 @@ let attribute_mirror ?cancel ?grain ?group ?group_use ?attributes ?transform
     ?transform ?string_replace ?output_mapping ?source_group
     ?destination_group ~owner ~method_ geometry
 
-let rewire_vertices ?cancel ?grain ?selection ?recursive
-    ?delete_target_attribute ?keep_unused_points ?original_point_attribute
-    ~owner ~target_attribute geometry =
-  let selection = Option.map (function
-    | Selected_points group -> Element_selection.Selected_points group
-    | Selected_vertices group -> Element_selection.Selected_vertices group
-    | Selected_primitives group -> Element_selection.Selected_primitives group
-    | Selected_edges group -> Element_selection.Selected_edges group) selection in
-  protected "rewire_vertices" "invalid_rewire_vertices" (fun () ->
-    Rewire_vertices.run ?cancel ?grain ?selection ?recursive
-      ?delete_target_attribute ?keep_unused_points ?original_point_attribute
-      ~owner ~target_attribute geometry)
-
-let edge_transport ?cancel ?grain ?points ?roots ?operation ?root_value
-    ?integrate_constant ?scale_by_edge_length ?split ?direction ?merge
-    ?normalization ~attribute geometry =
-  protected "edge_transport" "invalid_edge_transport" (fun () ->
-    Edge_transport.run ?cancel ?grain ?points ?roots ?operation ?root_value
-      ?integrate_constant ?scale_by_edge_length ?split ?direction ?merge
-      ?normalization
-      ~attribute geometry)
-
-let edge_transport_curves ?cancel ?grain ?primitives ?owner ?direction
-    ?operation ?root_value ?integrate_constant ?scale_by_edge_length
-    ?normalization ~attribute geometry =
-  protected "edge_transport_curves" "invalid_edge_transport" (fun () ->
-    Edge_transport.run_curves ?cancel ?grain ?primitives ?owner ?direction
-      ?operation ?root_value ?integrate_constant ?scale_by_edge_length
-      ?normalization ~attribute geometry)
-
-let edge_transport_parent ?cancel ?grain ?points ?parent_attribute ?direction
-    ?operation ?root_value ?integrate_constant ?scale_by_edge_length ?split
-    ?merge ?normalization ~attribute geometry =
-  protected "edge_transport_parent" "invalid_edge_transport" (fun () ->
-    Edge_transport.run_parent ?cancel ?grain ?points ?parent_attribute
-      ?direction ?operation ?root_value ?integrate_constant
-      ?scale_by_edge_length ?split ?merge ?normalization ~attribute geometry)
-
-let reverse ?cancel ?grain ?primitives ?operation geometry =
-  protected "reverse" "invalid_topology"
-    (fun () -> Reverse_faces.run ?cancel ?grain ?primitives ?operation geometry)
-
-let mirror ?cancel ?grain ?keep_original ~origin ~normal geometry =
-  protected "mirror" "invalid_parameter" (fun () ->
-    Mirror_geometry.run ?cancel ?grain ?keep_original ~origin ~normal geometry)
-
 let clip = Plane_clip.clip_checked
 let clip_transform = Plane_clip.clip_transform_checked
-
-let crease ?cancel ?grain ?edges ?operation ?weight ?add_vertex_color geometry =
-  protected "crease" "invalid_crease" (fun () ->
-    Crease.crease ?cancel ?grain ?edges ?operation ?weight ?add_vertex_color
-      geometry)
 
 let attribute_fade ?cancel ?grain ?points ?start_source ?hold_source
     ?fade_attribute ?start_attribute ?start_retime ?hold_scale_attribute ~frame
@@ -762,25 +476,7 @@ let attribute_fade ?cancel ?grain ?points ?start_source ?hold_source
     ~frame ?frame_offset ?fade_in ?fade_hold ?fade_out ?fade_in_ramp
     ?fade_out_ramp ?visualize geometry
 
-type poly_cut_element = Poly_cut.element = Poly_cut_points | Poly_cut_edges
-type poly_cut_strategy = Poly_cut.strategy = Poly_cut_remove | Poly_cut_cut
-type poly_cut_detection = Poly_cut.detection =
-  | Poly_cut_all
-  | Poly_cut_crossing of { attribute : string; value : float }
-  | Poly_cut_change of { attribute : string; threshold : float }
-
-let poly_cut ?cancel ?grain ?primitives ?cut_points ?cut_edges ?element
-    ?strategy ?detection ?keep_closed geometry =
-  protected "poly_cut" "invalid_poly_cut" (fun () ->
-    Poly_cut.cut ?cancel ?grain ?primitives ?cut_points ?cut_edges ?element
-      ?strategy ?detection ?keep_closed geometry)
-
 let subdivide = Subdivision_ops.subdivide_checked
-
-let edge_divide ?cancel ?grain ?edges ?divisions ?share_points geometry =
-  protected "edge_divide" "invalid_topology" (fun () ->
-    Subdivide.edge_divide ?cancel ?grain ?edges ?divisions ?share_points
-      geometry)
 
 let normals ?cancel ?grain ?selection ?owner ?weighting ?cusp_angle
     ?keep_original_zero ?reverse ?attribute geometry =
@@ -811,12 +507,6 @@ let polyframe ?cancel ?grain ?selection ?orthogonal ?left_handed ?normal_attribu
 let delete_primitives = Deletion.delete_primitives
 
 let compact_points = Compact_points.run_checked
-
-let convex_hull ?cancel ?grain ?selection ?preserve_point_payload
-    ?source_point_attribute ?hull_group geometry =
-  protected "convex_hull" "invalid_geometry" (fun () ->
-    Convex_hull.run ?cancel ?grain ?selection ?preserve_point_payload
-      ?source_point_attribute ?hull_group geometry)
 
 let bound = Bound.run_checked
 let bounding_box = Bound.bounding_box_checked
@@ -858,51 +548,9 @@ let point_jitter = Deform_ops.point_jitter_checked
 
 let point_generate = Point_generate.run_checked
 
-let point_replicate_raw = point_replicate
-let point_replicate ?cancel ?grain ?points ?keep_input ?seed ?id_attribute
-    ?generated_group ?copy_point_attributes ?keep_source_attributes
-    ?transform_attributes ?source_point_attribute ?source_index_attribute
-    ?shape ?custom_shape
-    ?center ?size ?orientation ?uniform_scale ?quasi_stratified
-    ?velocity_stretch ?velocity_scale ?inherit_velocity ?radial_velocity
-    ?noise_amplitude ?noise_frequency ?noise_offset ?noise_roughness
-    ?noise_attenuation ?noise_turbulence ?noise_seed ~points_per_point
-    ?scale_attribute geometry =
-  protected "point_replicate" "invalid_geometry" (fun () ->
-    point_replicate_raw ?cancel ?grain ?points ?keep_input ?seed ?id_attribute
-      ?generated_group ?copy_point_attributes ?keep_source_attributes
-      ?transform_attributes
-      ?source_point_attribute ?source_index_attribute ?shape ?custom_shape
-      ?center ?size ?orientation ?uniform_scale ?quasi_stratified
-      ?velocity_stretch ?velocity_scale ?inherit_velocity ?radial_velocity
-      ?noise_amplitude ?noise_frequency ?noise_offset ?noise_roughness
-      ?noise_attenuation ?noise_turbulence ?noise_seed
-      ~points_per_point ?scale_attribute geometry)
-
 let color_by_height = Pdk_attrib.Color_by_height.run
 
-let clean_raw = clean
-let clean ?cancel ?grain ?epsilon ?remove_degenerate ?consolidate_distance
-    ?overlaps ?reverse_winding ?remove_nan_points ?remove_unused_points
-    ?delete_unused_groups ?point_attributes ?vertex_attributes
-    ?primitive_attributes ?detail_attributes ?point_groups ?vertex_groups
-    ?primitive_groups ?edge_groups geometry =
-  protected "clean" "invalid_geometry"
-    (fun () -> clean_raw ?cancel ?grain ?epsilon ?remove_degenerate
-      ?consolidate_distance ?overlaps ?reverse_winding ?remove_nan_points
-      ?remove_unused_points ?delete_unused_groups ?point_attributes
-      ?vertex_attributes ?primitive_attributes ?detail_attributes ?point_groups
-      ?vertex_groups ?primitive_groups ?edge_groups geometry)
-
 let facet = Facet_ops.run_checked
-
-let poly_extrude ?cancel ?grain ?primitives ?split_edges ?divide ?divisions
-    ?output_front ?output_back ?output_side ?front_group ?back_group ?side_group
-    ?front_boundary_group ?back_boundary_group ~distance geometry =
-  protected "poly_extrude" "invalid_geometry"
-    (fun () -> Poly_extrude.run ?cancel ?grain ?primitives ?split_edges ?divide
-      ?divisions ?output_front ?output_back ?output_side ?front_group ?back_group
-      ?side_group ?front_boundary_group ?back_boundary_group ~distance geometry)
 
 let poly_fill = Poly_fill.run_checked
 

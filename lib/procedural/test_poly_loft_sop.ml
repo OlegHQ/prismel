@@ -25,7 +25,7 @@ let sections () = Sop.merge [
 
 let run () =
   let graph = sections () |> Sop.poly_loft
-      ~minimize:Pdk.Ops.Three_point_distance ~output_group:"loft" in
+      ~minimize:Pdk.Poly_modeling.Three_point_distance ~output_group:"loft" in
   let output = cook graph in
   if Pdk.Geometry.point_count output <> 7
      || Pdk.Geometry.vertex_count output <> 15

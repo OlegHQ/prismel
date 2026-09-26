@@ -131,7 +131,7 @@ let run () =
   let source = decorated_bend () in
   let bend = Geometry.find_edge_group "bend" source |> Option.get
   and first = Geometry.find_edge_group "first" source |> Option.get in
-  let output = Ops.edge_straighten ~grain:1 ~edges:bend
+  let output = Edge_modeling_ops.edge_straighten_checked ~grain:1 ~edges:bend
       ~output_group:"straightened" source |> get_pdk in
   let output_positions = positions output in
   check (output_positions.x = [|-1.;0.;1.|]
@@ -160,18 +160,18 @@ let run () =
   check (Group.ordered_elements ordered = Some [|2;0|])
     "Edge Straighten changed ordered groups";
 
-  check (Ops.edge_straighten ~edges:first source |> get_pdk == source)
+  check (Edge_modeling_ops.edge_straighten_checked ~edges:first source |> get_pdk == source)
     "single-edge straighten was not an identity";
   let line = Line_geometry.polyline_checked [|0.,0.,0.;1.,2.,3.;2.,4.,6.;3.,6.,9.|]
       |> get_pdk in
-  check (Ops.edge_straighten line |> get_pdk == line)
+  check (Edge_modeling_ops.edge_straighten_checked line |> get_pdk == line)
     "already-straight component was not an identity";
   let empty = Edge_group.init ~grain:1 ~topology:(Geometry.topology source)
       ~index:(Topology_index.create (Geometry.topology source)) ~name:"empty"
       (Fun.const false) in
-  check (Ops.edge_straighten ~edges:empty source |> get_pdk == source)
+  check (Edge_modeling_ops.edge_straighten_checked ~edges:empty source |> get_pdk == source)
     "empty Edge Straighten was not an identity";
-  let with_empty_output = Ops.edge_straighten ~edges:empty
+  let with_empty_output = Edge_modeling_ops.edge_straighten_checked ~edges:empty
       ~output_group:"empty_output" source |> get_pdk in
   check (Geometry.find_edge_group "empty_output" with_empty_output
       |> Option.get |> Edge_group.cardinality = 0)
@@ -179,7 +179,7 @@ let run () =
 
   let square = Line_geometry.polyline_checked ~closed:true
       [|-1.,-1.,0.;1.,-1.,0.;1.,1.,0.;-1.,1.,0.|] |> get_pdk in
-  let square_output = Ops.edge_straighten square |> get_pdk in
+  let square_output = Edge_modeling_ops.edge_straighten_checked square |> get_pdk in
   let square_positions = positions square_output in
   check (square_positions.y = [|0.;0.;0.;0.|])
     "Edge Straighten cycle did not use deterministic principal-axis tie";
@@ -187,13 +187,13 @@ let run () =
       ~kinds:(Array.make 4 Topology.Open_polyline)
       [0.,0.,0.; -2.,0.,0.; 2.,0.,0.; 0.,-1.,0.; 0.,1.,0.]
       [|0;1; 0;2; 0;3; 0;4|] [|0;2;4;6;8|] in
-  let branch_output = Ops.edge_straighten branch |> get_pdk in
+  let branch_output = Edge_modeling_ops.edge_straighten_checked branch |> get_pdk in
   check ((positions branch_output).y = [|0.;0.;0.;0.;0.|])
     "Edge Straighten branch did not become collinear";
   let x_extent = sqrt 1.5 in
   let covariance_trap = Line_geometry.polyline_checked
       [|-.x_extent,0.,0.; x_extent,0.,0.; 0.,-1.,-1.; 0.,1.,1.|]
-      |> get_pdk |> Ops.edge_straighten |> get_pdk in
+      |> get_pdk |> Edge_modeling_ops.edge_straighten_checked |> get_pdk in
   let covariance_positions = positions covariance_trap in
   check (Array.for_all (fun value -> abs_float value < 1e-12)
       covariance_positions.x
@@ -205,20 +205,20 @@ let run () =
   let other = decorated_bend () in
   let other_edges = Geometry.find_edge_group "bend" other |> Option.get in
   expect_code "invalid_geometry"
-    (Ops.edge_straighten ~edges:other_edges source);
+    (Edge_modeling_ops.edge_straighten_checked ~edges:other_edges source);
   expect_code "invalid_geometry"
-    (Ops.edge_straighten ~output_group:" " source);
-  expect_code "invalid_geometry" (Ops.edge_straighten ~grain:0 source);
+    (Edge_modeling_ops.edge_straighten_checked ~output_group:" " source);
+  expect_code "invalid_geometry" (Edge_modeling_ops.edge_straighten_checked ~grain:0 source);
   let non_finite = geometry_owned ~kinds:[|Topology.Open_polyline|]
       [0.,0.,0.;nan,1.,0.;2.,0.,0.] [|0;1;2|] [|0;3|] in
-  expect_code "invalid_geometry" (Ops.edge_straighten non_finite);
+  expect_code "invalid_geometry" (Edge_modeling_ops.edge_straighten_checked non_finite);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  expect_code "cancelled" (Ops.edge_straighten ~cancel:cancelled source);
+  expect_code "cancelled" (Edge_modeling_ops.edge_straighten_checked ~cancel:cancelled source);
 
   let large = many_bends 50_000 in
   let run domains = Parallel.run ~domains (fun () ->
-    Ops.edge_straighten ~grain:127 large |> get_pdk) in
+    Edge_modeling_ops.edge_straighten_checked ~grain:127 large |> get_pdk) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four)
     "Edge Straighten differs across domain counts";

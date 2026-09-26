@@ -46,7 +46,7 @@ let color_values geometry =
 
 let run () =
   let graph = Sop.snapshot (source ())
-      |> Sop.crease ~group:"crease_edges" ~operation:Ops.Crease_add ~weight:2.
+      |> Sop.crease ~group:"crease_edges" ~operation:Mesh_edit_ops.Crease_add ~weight:2.
            ~add_vertex_color:true in
   let parameters = Node.parameters graph in
   check (contains parameters "group=crease_edges"
@@ -87,7 +87,7 @@ let run () =
     "Crease/Subdivide SOP one/four-domain render mesh differs";
   let missing = Sop.snapshot (source ()) |> Sop.crease ~group:"missing" in
   let invalid = Sop.snapshot (source ())
-      |> Sop.crease ~group:"crease_edges" ~operation:Ops.Crease_set ~weight:(-1.) in
+      |> Sop.crease ~group:"crease_edges" ~operation:Mesh_edit_ops.Crease_set ~weight:(-1.) in
   let session = Session.create ~max_entries:4 ~max_payload_bytes:90_000_000
       |> get in
   (match Session.cook session ~context:(context 1) missing with
@@ -100,9 +100,9 @@ let run () =
    | Ok _ -> fail "Crease SOP accepted a negative weight");
   Session.close session;
   let delete_a = Sop.snapshot (source ())
-      |> Sop.crease ~operation:Ops.Crease_delete ~weight:1.
+      |> Sop.crease ~operation:Mesh_edit_ops.Crease_delete ~weight:1.
   and delete_b = Sop.snapshot (source ())
-      |> Sop.crease ~operation:Ops.Crease_delete ~weight:Float.nan in
+      |> Sop.crease ~operation:Mesh_edit_ops.Crease_delete ~weight:Float.nan in
   check (Node.parameters delete_a = Node.parameters delete_b
       && contains (Node.parameters delete_a) "weight=ignored")
     "Crease Delete retained an irrelevant weight in cache identity";

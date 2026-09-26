@@ -122,11 +122,6 @@ type polyframe_style =
     [Texture_uv_gradient] and [Attribute_gradient] emit
     discontinuity-preserving vertex fields. *)
 
-type smooth_boundary =
-  | Smooth_free
-  | Smooth_unshared
-  | Smooth_group_boundary
-
 val sort :
   ?cancel:Cancel.t -> ?grain:int -> ?selection:Group.t -> ?descending:bool ->
   ?output_indices:string -> ?combine_indices:bool ->
@@ -873,160 +868,9 @@ val dissolve :
     for the uncommon multi-loop case. Packed payload remaps and normal fills
     use stable disjoint parallel ranges. *)
 
-type poly_bevel_shape =
-  | Bevel_chamfer
-  | Bevel_round of { convexity : float }
-
-val poly_bevel :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?edges:Edge_group.t ->
-  ?shape:poly_bevel_shape ->
-  ?divisions:int ->
-  ?point_scale_attribute:string ->
-  ?ignore_flat_angle:float ->
-  ?clamp_overlap:bool ->
-  ?edge_group:string ->
-  ?corner_group:string ->
-  ?offset_group:string ->
-  ?recompute_point_normals:bool ->
-  distance:float ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Insert fillet strips along selected consistently oriented two-sided polygon
-    edges and fill arbitrary connected junctions. Chamfer and rational-circular
-    rounded profiles support one or more deterministic divisions; round
-    [convexity] lies in [-1, 1]. A scalar point attribute may scale cutback
-    distance. Face-local slide distances are clamped before adjacent offset
-    fronts cross, and [ignore_flat_angle] excludes smaller dihedral angles.
-
-    Existing polygon and curve primitives are retained, selected polygon faces
-    are cut back within their first ring, and generated edge/corner faces plus
-    offset boundaries may be named. Numeric vertex payload interpolates across
-    fillet rows; discrete vertex payload uses stable nearest-side ancestry.
-    Point, primitive, detail, ordinary-group, ordered-group, and native-edge
-    ancestry remain deterministic. Point/vertex normals are invalidated and an
-    existing point normal is recomputed by default.
-
-    Requested boundary, non-manifold, self, non-polygon, inconsistently wound,
-    and excluded-flat edges do not contribute. Planning and auxiliary storage
-    are O(points + vertices + primitives + edges), output cardinality is
-    computed before allocation, and packed independent fills use the reusable
-    domain pool with byte-identical ordering across domain counts. *)
-
-type poly_loft_minimize = Two_point_distance | Three_point_distance
-
-val poly_loft :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?primitives:Group.t ->
-  ?rest:Geometry.t ->
-  ?connect_closest_ends:bool ->
-  ?minimize:poly_loft_minimize ->
-  ?u_wrap:bool ->
-  ?v_wrap:bool ->
-  ?keep_primitives:bool ->
-  ?output_group:string ->
-  ?collinearity_tolerance:float ->
-  ?recompute_normals:bool ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Triangulate between consecutive selected polygon curves or polygon faces
-    using their existing points. Unequal section cardinalities use a stable
-    two- or three-distance zipper. [connect_closest_ends] aligns open endpoints
-    and closed seams/orientation from geometry or an equal-point-count [rest]
-    snapshot. [u_wrap] closes open sections and [v_wrap] connects the final
-    section back to the first.
-
-    Selected source sections are removed unless [keep_primitives] is true;
-    unrelated primitives pass through in source order. New corners inherit
-    exact section-corner ancestry, new faces inherit the preceding section,
-    and [output_group] records only generated triangles. Point/detail storage
-    is shared. Stale normals are removed and an existing point or vertex [N]
-    can be regenerated.
-
-    A zero [collinearity_tolerance] preserves every triangle with three
-    distinct point numbers, making topology independent of metric roundoff.
-    A positive dimensionless sine threshold explicitly enables approximate
-    collinearity filtering.
-
-    Pair planning is O(output triangles) after closest-seam search. Small seam
-    searches are quadratic; large closed sections use a packed spatial index.
-    Independent section pairs, topology copies, payload remaps, and normal
-    fills use deterministic disjoint domain ranges. *)
-
-val skin :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?primitives:Group.t ->
-  ?rest:Geometry.t ->
-  ?connect_closest_ends:bool ->
-  ?minimize:poly_loft_minimize ->
-  ?u_wrap:bool ->
-  ?v_wrap:bool ->
-  ?keep_primitives:bool ->
-  ?output_group:string ->
-  ?collinearity_tolerance:float ->
-  ?recompute_normals:bool ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Build a polygon skin between consecutive selected polygon curves or faces.
-    Equal-cardinality section pairs produce stable quads; unequal pairs use the
-    same deterministic triangle zipper and alignment policy as [poly_loft].
-    This is the linear polygon-surface subset of a Skin operation; it does not
-    synthesize spline surfaces or bilinear U/V boundary patches.
-
-    Source retention, selection, rest alignment, U/V wrapping, payload
-    ancestry, normal policy, cancellation, and parallel determinism match
-    [poly_loft]. Time and auxiliary storage are linear in generated corners
-    after optional closest-seam search. *)
-
-type poly_bridge_pairing = Bridge_by_order | Bridge_by_centroid
-
 type poly_reduce_target = Poly_reduce.target =
   | Reduce_ratio of float
   | Reduce_primitive_count of int
-
-val poly_bridge :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  source:Edge_group.t ->
-  destination:Edge_group.t ->
-  ?pairing:poly_bridge_pairing ->
-  ?connect_closest_ends:bool ->
-  ?minimize:poly_loft_minimize ->
-  ?reverse_source:bool ->
-  ?reverse_destination:bool ->
-  ?pairing_shift:int ->
-  ?divisions:int ->
-  ?keep_input:bool ->
-  ?output_group:string ->
-  ?collinearity_tolerance:float ->
-  ?recompute_normals:bool ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Bridge paired simple source and destination edge paths or loops without
-    duplicating their boundary points. Connected components pair in stable
-    authored order or by deterministic lexicographic centroid rank. Equal
-    component cardinalities produce quads; unequal components use the shared
-    PolyLoft zipper. Reverse controls and a closed-loop destination pairing
-    shift override automatic endpoint/seam alignment. [divisions] adds
-    uniformly spaced straight rows for equal-cardinality pairs, linearly
-    interpolating numeric point/vertex payload and using nearest endpoint
-    policy for discrete payload and ordinary groups.
-
-    Input topology is retained by default and generated faces append in pair
-    order. New corners and faces retain exact boundary ancestry, including
-    packed vertex/primitive payload and topology-affine edge groups;
-    [output_group] identifies generated polygons. Selected edge graphs must be
-    non-branching, source/destination components must have matching counts and
-    closure, and their edge selections must not overlap.
-
-    Path extraction, fixed-arity planning, and topology materialization are
-    O(vertices + edges + output corners). Centroid-rank pairing is O(k log k)
-    in the number of components; independent bridge plans and packed output
-    ranges use deterministic disjoint domain work. Divided bridges add
-    O((divisions - 1) * boundary points) packed point storage. *)
 
 val edge_flip :
   ?cancel:Cancel.t ->
@@ -1055,178 +899,6 @@ val edge_flip :
     topology and payload remapping are linear in geometry size. Disjoint
     selected pairs fill deterministic output ranges through the reusable
     domain pool. *)
-
-val edge_cusp :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?edges:Edge_group.t ->
-  ?update_point_normals:bool ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Split polygon point fans along the interior vertices of selected edge
-    paths. Path endpoints—points incident to only one selected edge—remain
-    shared, so a single selected edge is an identity and two connected edges
-    split only their common point. An omitted edge group is an intentional
-    no-op.
-
-    New points duplicate every point attribute and ordinary/ordered point-group
-    membership. Vertex, primitive, and detail payload retains its existing
-    slots, while native edge groups follow exact source-corner ancestry.
-    Existing point normals are recomputed by default; as with [normals], this
-    replaces conflicting [N] fields on other owners. No normal is invented when
-    the source has no point [N]. Effective selected edges must have at most two
-    polygon incidences.
-
-    Fan construction and output planning are O(points + vertices + edges) time
-    and storage. Packed position, point-payload, group, topology, and ancestry
-    fills use deterministic disjoint ranges in the reusable domain pool. *)
-
-val edge_straighten :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?edges:Edge_group.t ->
-  ?output_group:string ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Orthogonally project the points of each connected selected-edge component
-    onto its least-squares best-fit line. An omitted selection uses every
-    topology edge. Components with at most two points and components already
-    collinear to scale-aware floating-point precision preserve their positions
-    exactly. [output_group] optionally records the selected topology edges.
-
-    Topology and non-normal payload remain structurally shared. A changed
-    result removes stale point and vertex [N]. Selected endpoints and projected
-    results must be finite; arbitrary branches and cycles are supported by the
-    component fit rather than assigned an undocumented path order.
-
-    Component construction, packed member planning, fitting, and projection
-    are O(points + edges) time and storage. Independent component fits and
-    disjoint point projections use the reusable domain pool; stable member
-    order makes one- and multi-domain results byte-identical. *)
-
-val circle_from_edges :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?edges:Edge_group.t ->
-  ?radius:float ->
-  ?scale:Prismel_math.Vec3.t ->
-  ?output_group:string ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Fit each simple connected selected-edge path or loop to a least-squares
-    plane and algebraic circle, then radially project its points onto the fitted
-    or explicit positive radius. [scale] is a component-wise world-axis scale
-    about each fitted center. An omitted edge group selects topology boundary
-    edges; [output_group] records exactly the transformed edges.
-
-    Topology, payload, and non-selected positions remain structurally stable;
-    changed point and vertex [N] are removed. Branches, components with fewer
-    than three points, collinear fits, stale edge affinity, non-finite inputs or
-    parameters, unrepresentable output, and cancellation fail atomically.
-
-    Stable union-find/component CSR planning is O(points + edges); independent
-    normalized covariance/circle fits and disjoint point projection use the
-    reusable domain pool. Auxiliary storage is O(points + edges + components),
-    and one/multi-domain output ordering is identical. *)
-
-type edge_equalize_method =
-  | Equalize_average
-  | Equalize_longest
-  | Equalize_shortest
-
-val edge_equalize :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?edges:Edge_group.t ->
-  ?method_:edge_equalize_method ->
-  ?iterations:int ->
-  ?tolerance:float ->
-  ?output_group:string ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Move selected-edge endpoints until all selected edges have the initial
-    average, longest, or shortest selected length. An omitted selection uses
-    every topology edge. [iterations] defaults to 64 and [tolerance] to a
-    relative [1e-6]. [output_group] records the exact transformed selection.
-
-    Independent edges are solved exactly in one disjoint parallel pass.
-    Connected selections use a deterministic, centroid-preserving Jacobi
-    projection with stable incident-edge order. A positive target cannot give
-    direction to a zero-length edge; non-finite positions, unrepresentable
-    lengths, and failure to converge are reported atomically. Changed results
-    discard stale point and vertex [N].
-
-    Initial planning is O(points + edges); connected solving is
-    O(iterations * (points + selected incidences)). Auxiliary storage is
-    O(points + edges), independent of domain count. *)
-
-type edge_relax_selection =
-  | Relax_points of Group.t
-  | Relax_primitives of Group.t
-
-type edge_relax_target_mode =
-  | Individual_lengths
-  | Scale_independent_distribution
-
-val edge_relax :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?selection:edge_relax_selection ->
-  ?pin_points:Group.t ->
-  ?iterations:int ->
-  ?step_size:float ->
-  ?target_mode:edge_relax_target_mode ->
-  ?only_shorten:bool ->
-  ?tolerance:float ->
-  reference:Geometry.t ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Relax movable points toward reference edge lengths from an exactly
-    matching polygon/curve topology. Point selection moves named points;
-    primitive selection promotes incident points once. Unselected and pinned
-    points remain fixed while incident edges constrain movable neighbors.
-
-    Individual mode uses each reference length. Scale-independent mode scales
-    the reference distribution to the source's selected mean length.
-    [only_shorten] ignores satisfied and lengthening constraints. Iteration
-    buffers are bounded, residual stopping is deterministic, and output after
-    the requested ceiling is a valid best effort rather than an implicit
-    mutable solver state. Changed output removes stale point and vertex [N].
-
-    Planning is O(points + edges), and solving is
-    O(iterations * (points + selected incidences)) with O(points + edges)
-    auxiliary storage. Point updates write disjoint packed ranges through the
-    reusable domain pool and are byte-identical across domain counts. *)
-
-type edge_transport_roots =
-  | Transport_first_point
-  | Transport_last_point
-  | Transport_root_group of Group.t
-
-type edge_transport_operation =
-  | Transport
-  | Transport_from_root
-  | Transport_total
-  | Transport_maximum
-  | Transport_minimum
-
-type edge_transport_root_value =
-  | Transport_root_zero
-  | Transport_root_hold
-
-type edge_transport_split = Transport_copy | Transport_split
-
-type edge_transport_normalization =
-  | Transport_no_normalization
-  | Transport_normalize_components
-  | Transport_normalize_global
-
-type edge_transport_direction = Transport_forward | Transport_backward
-
-type edge_transport_merge =
-  | Transport_merge_add
-  | Transport_merge_maximum
-  | Transport_merge_minimum
 
 type blend_shapes_mode = Blend_shapes.mode = Blend_normalized | Blend_differencing
 type blend_shapes_masking = Blend_shapes.masking = Blend_no_mask | Blend_set_from_attribute
@@ -1376,128 +1048,6 @@ val attribute_mirror :
     Fixed-width output is exact-sized and disjoint range copying uses the
     reusable domain pool. *)
 
-val rewire_vertices :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?selection:deform_selection ->
-  ?recursive:bool ->
-  ?delete_target_attribute:bool ->
-  ?keep_unused_points:bool ->
-  ?original_point_attribute:string ->
-  owner:Attribute.owner ->
-  target_attribute:string ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Reassign selected primitive corners to point numbers read from a scalar
-    integer point, vertex, or primitive attribute. The typed selection is
-    first promoted to the target attribute's owner, then to affected corners;
-    invalid target numbers leave the corresponding corners unchanged.
-
-    Recursive mode follows point-owned target chains to their terminal point.
-    Nodes in a cycle remain wired to themselves; tails entering a cycle end at
-    its stable entry point. Optional original-point output records every source
-    corner, target-field deletion is atomic, and default cleanup deletes only
-    points that became unused because of this rewire while preserving points
-    which were already free. Point/vertex normals are invalidated when topology
-    changes. All attribute/group payload is preserved, and native edge groups
-    follow corner-edge ancestry with union when rewired edges merge.
-
-    Direct rewiring is O(points + vertices + primitives + payload). Recursive
-    point chains and cleanup add O(points) time/storage. Target fills, point
-    payload compaction, and edge-group materialization use deterministic
-    disjoint ranges through the reusable domain pool. *)
-
-val edge_transport :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?points:Group.t ->
-  ?roots:edge_transport_roots ->
-  ?operation:edge_transport_operation ->
-  ?root_value:edge_transport_root_value ->
-  ?integrate_constant:bool ->
-  ?scale_by_edge_length:bool ->
-  ?split:edge_transport_split ->
-  ?direction:edge_transport_direction ->
-  ?merge:edge_transport_merge ->
-  ?normalization:edge_transport_normalization ->
-  attribute:string ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Transport a scalar float point attribute through a deterministic
-    shortest-path forest over selected topology edges. First/last root policy
-    seeds every selected component; an explicit root group leaves unreachable
-    points unchanged. Stable distance/root/point ties define parentage.
-
-    [Transport] propagates the chosen root value, [Transport_from_root] copies
-    each forest root, [Transport_total] accumulates ancestors (optionally a
-    constant and/or edge length), and minimum/maximum fold the root-to-point
-    path. Copy or split controls forward branching. Backward traversal treats
-    forest leaves as traversal roots and combines child branches by Add,
-    Maximum, or Minimum. Reached values may be normalized globally or per
-    selected component.
-
-    Topology planning is O(points + edges), shortest-path construction is
-    O((points + edges) log points), and storage is O(points + edges). First/last
-    roots drain independent components through component-local heaps; explicit
-    multi-source roots retain one global stable heap. Length validation and
-    packed edge metrics use reusable-domain ranges, and independent backward
-    trees evaluate in parallel. Output is deterministic and committed
-    atomically. *)
-
-val edge_transport_curves :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?primitives:Group.t ->
-  ?owner:Attribute.owner ->
-  ?direction:edge_transport_direction ->
-  ?operation:edge_transport_operation ->
-  ?root_value:edge_transport_root_value ->
-  ?integrate_constant:bool ->
-  ?scale_by_edge_length:bool ->
-  ?normalization:edge_transport_normalization ->
-  attribute:string ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Transport a scalar point or vertex field independently along selected
-    polygon/curve primitives. Open-curve forward traversal runs from the
-    lower-numbered endpoint to the higher-numbered endpoint. Closed curves
-    use their lowest-numbered point as a deterministic seam, with the lower
-    adjacent point choosing forward orientation.
-
-    Curves are processed through disjoint reusable-domain ranges. Point-owned
-    output rejects repeated/shared selected points because concurrent writes
-    would otherwise be undefined; vertex-owned output remains valid for shared
-    points. Work is O(selected vertices), auxiliary storage is O(points) only
-    for point-write validation, and results are exact across domain counts. *)
-
-val edge_transport_parent :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?points:Group.t ->
-  ?parent_attribute:string ->
-  ?direction:edge_transport_direction ->
-  ?operation:edge_transport_operation ->
-  ?root_value:edge_transport_root_value ->
-  ?integrate_constant:bool ->
-  ?scale_by_edge_length:bool ->
-  ?split:edge_transport_split ->
-  ?merge:edge_transport_merge ->
-  ?normalization:edge_transport_normalization ->
-  attribute:string ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Transport a scalar point field through an integer point-parent forest,
-    without requiring topology edges. Invalid, self, and selected-to-unselected
-    parent references are roots; parent cycles are deliberately unreachable
-    and remain unchanged.
-
-    Forward traversal applies Copy/Split from roots to children. Backward
-    traversal treats leaves as traversal roots and combines child branches by
-    Add, Maximum, or Minimum. Independent rooted trees evaluate in parallel;
-    stable numeric roots and child order make output exact across domains.
-    Planning, evaluation, and normalization are O(points), with O(points)
-    packed auxiliary storage and atomic output commit. *)
-
 type grid_rounding = Fuse_grid.grid_rounding = Grid_nearest | Grid_down | Grid_up
 
 val snap_to_grid :
@@ -1611,78 +1161,6 @@ val poly_reduce :
     packed contraction/remapping, and optional normal generation use stable
     disjoint ranges; cost ordering and independent-set selection are
     deterministic across domain counts. *)
-
-type reverse_operation =
-  | Reverse_vertices
-  | Shift_vertices of int
-
-val reverse :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?primitives:Group.t ->
-  ?operation:reverse_operation ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Reverse or cyclically shift selected polygon/curve primitive corners.
-    [Reverse_vertices] is the default and invalidates point/vertex [N] when at
-    least one primitive changes winding. [Shift_vertices offset] preserves
-    shape, winding, and point attributes while remapping every vertex-owned
-    field/group by the same signed, wrapping offset. Unselected primitives
-    retain exact topology and payload order. Empty selections and shifts which
-    are multiples of every selected primitive size preserve geometry identity.
-
-    Work and output storage are O(vertices + vertex payload); topology and
-    fixed-width vertex payload planes fill in deterministic disjoint ranges.
-    Point, primitive, and detail payloads remain structurally shared. *)
-
-val smooth :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?primitives:Group.t ->
-  ?constrained_points:Group.t ->
-  ?boundary:smooth_boundary ->
-  ?iterations:int ->
-  ?method_:Attribute_ops.blur_method ->
-  ?mode:Attribute_ops.blur_mode ->
-  ?weight_attribute:string ->
-  ?alpha_attribute:string ->
-  ?recompute_normals:bool ->
-  ?original_blend:float ->
-  ?smoothed_blend:float ->
-  attributes:string ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Smooth canonical [P] and matching point-owned floating attributes over the
-    shared topology graph. A primitive selection affects all referenced
-    points. [Smooth_unshared] locks topology boundaries;
-    [Smooth_group_boundary] additionally locks edges separating selected and
-    unselected primitives. [constrained_points] always remain fixed.
-
-    The numeric kernel is the same deterministic packed implementation used
-    by {!Attribute_ops.blur_points}: uniform or inverse-original-edge-length
-    weights, constant or alternating passes, optional receiver/neighbor
-    controls, and explicit original/smoothed composition. If [P] changes and
-    the input carried normals, [recompute_normals] replaces them with fresh
-    point normals; otherwise stale point/vertex normals are removed.
-
-    Work is O(points + vertices + iterations * attribute_components * edges),
-    with O(points + edges + attribute_components * points) auxiliary storage.
-    Selection and iteration fills use disjoint packed ranges and are exact
-    across domain counts. *)
-
-val mirror :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?keep_original:bool ->
-  origin:Prismel_math.Vec3.t ->
-  normal:Prismel_math.Vec3.t ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Reflect geometry across an arbitrary plane. Polygon winding is corrected,
-    vertex attributes/groups and native edge groups are remapped, and point/vertex [N] values
-    are reflected. With [keep_original=true] (the default), the source is
-    followed by the mirrored copy in stable order. O(payload) time/output;
-    packed point, vertex, and primitive ranges are parallelized. *)
 
 type clip_keep = Plane_clip.keep = Above | Below | All
 
@@ -1805,36 +1283,6 @@ type subdivision_crack_policy = Subdivision_ops.crack_policy =
   | Subdivide_stitch_divide_edges
   | Subdivide_stitch_triangulate
 
-type crease_operation = Crease_add | Crease_set | Crease_delete
-
-val crease :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?edges:Edge_group.t ->
-  ?operation:crease_operation ->
-  ?weight:float ->
-  ?add_vertex_color:bool ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Author a vertex [creaseweight] field over unique topology edges for direct
-    consumption by {!subdivide}. An omitted edge group selects every edge.
-    [Crease_add] (the default) adds [weight] to the maximum existing incident
-    corner value, [Crease_set] replaces it, and [Crease_delete] clears it.
-    Every incident corner receives the same result, including on non-manifold
-    edges; unrelated corner values are preserved exactly. A completely cleared
-    field is removed.
-
-    [add_vertex_color] creates or updates vertex float4 [Cd], coloring both
-    endpoints of every resulting positive crease red while preserving other
-    vertex colors. Existing point float4 [Cd] is expanded as the uncreased
-    default; otherwise the default is white.
-
-    Work is O(vertices + edges) with O(vertices + edges) output/scratch in the
-    add/visualization paths and O(vertices) otherwise. Validation, unique-edge
-    reduction, and disjoint corner/color fills run in parallel with stable
-    results. Crease values must be finite and non-negative; malformed storage,
-    topology affinity, overflow, and cancellation fail atomically. *)
-
 val attribute_fade :
   ?cancel:Cancel.t ->
   ?grain:int ->
@@ -1873,52 +1321,6 @@ val attribute_fade :
     byte-identical across domain counts. Invalid storage, cardinality,
     non-finite values, negative durations/scales, overflow, and cancellation
     fail atomically. *)
-
-type poly_cut_element = Poly_cut_points | Poly_cut_edges
-type poly_cut_strategy = Poly_cut_remove | Poly_cut_cut
-type poly_cut_detection =
-  | Poly_cut_all
-  | Poly_cut_crossing of { attribute : string; value : float }
-  | Poly_cut_change of { attribute : string; threshold : float }
-
-val poly_cut :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?primitives:Group.t ->
-  ?cut_points:Group.t ->
-  ?cut_edges:Edge_group.t ->
-  ?element:poly_cut_element ->
-  ?strategy:poly_cut_strategy ->
-  ?detection:poly_cut_detection ->
-  ?keep_closed:bool ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Break selected polygon curves at point endpoints or directed topology-edge
-    events. [Poly_cut_all] treats every selection-eligible edge as invalid.
-    [Poly_cut_crossing] accepts a scalar point float/integer field and cuts at
-    its exact linear threshold crossing. [Poly_cut_change] accepts every
-    numeric point width, uses scalar absolute or tuple Euclidean change, and
-    subdivides a cut edge into [ceil(change/threshold)] disconnected segments.
-
-    Removing points drops marked endpoints and their adjacent curve segments;
-    cutting points retains them as independently owned fragment endpoints.
-    Removing edges drops the selected invalid segments; cutting edges inserts
-    interpolated, disconnected endpoints. A point or native-edge restriction
-    applies only to its corresponding [element] mode. Selected closed inputs
-    optionally close every viable fragment with a new topology edge.
-
-    Point and vertex numeric payload is linearly interpolated; discrete and
-    ragged payload, as well as ordinary groups, use the nearest endpoint.
-    Primitive payload follows exact ancestry, detail payload is shared, and
-    native edge groups follow every retained/subdivided source edge while new
-    closure edges remain ungrouped. Removed point-mode endpoints are compacted
-    only when no retained corner uses them; pre-existing free points survive.
-
-    Work and auxiliary memory are O(points + vertices + primitives + output),
-    where output includes requested change subdivisions. Classification,
-    fragment planning, interpolation, and payload fills use stable disjoint
-    ranges. Cardinality, topology affinity, finite operated fields, threshold,
-    interpolation, and cancellation failures are atomic. *)
 
 val subdivide :
   ?cancel:Cancel.t ->
@@ -2069,43 +1471,10 @@ val subdivide :
     selection and zero iterations preserve object identity;
     full selection uses the whole-mesh path byte-for-byte. *)
 
-val edge_divide :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?edges:Edge_group.t ->
-  ?divisions:int ->
-  ?share_points:bool ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Split every selected polygon or polygon-curve edge into [divisions]
-    equal segments. No edge selection is an identity operation, matching the
-    Edge Divide empty-group contract. With [share_points=true], all incident
-    uses of one topology edge share a single ordered sequence of inserted
-    points. Otherwise every incident primitive edge receives private points.
-
-    Positions and numeric point/vertex attributes interpolate linearly;
-    integer, text, and ragged fields use the nearest stable endpoint.
-    Primitive/detail payload remains exact. New ordinary point/vertex group
-    members require both endpoints to be members, and every native source edge
-    group propagates to all child segments.
-
-    Work is O(points + vertices + primitives + edges + output payload), with
-    exact output cardinality and O(points + vertices + edges) planning storage.
-    Independent point, topology, payload, and edge-ancestry ranges use the
-    reusable domain pool and are byte-identical across domain counts. *)
-
-type poly_extrude_divide =
-  | Extrude_individual
-  | Extrude_connected_components
-
 type poly_fill_mode =
   | Fill_single_polygon
   | Fill_triangles
   | Fill_triangle_fan
-
-type clean_overlap_policy =
-  | Keep_first_overlap
-  | Delete_overlap_pairs
 
 val normals :
   ?cancel:Cancel.t ->
@@ -2239,31 +1608,6 @@ val compact_points :
 (** Remove every point not referenced by topology, preserving retained point
     order and remapping point attributes/groups, native edge groups, and vertex point indices.
     O(points + vertices + point payload) time and O(points + output) storage. *)
-
-val convex_hull :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?selection:deform_selection ->
-  ?preserve_point_payload:bool ->
-  ?source_point_attribute:string ->
-  ?hull_group:string ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Construct the convex hull of every point referenced by an optional typed
-    selection. Exact predicates determine duplicates, affine dimension,
-    visibility, and horizon topology. One point remains free, collinear input
-    becomes an endpoint polyline, coplanar input becomes one convex polygon,
-    and full-dimensional input becomes an outward closed triangular surface.
-
-    Point and detail payload is preserved by exact source-point ancestry by
-    default; stale [N], corner/primitive payload, and topology-affine edge
-    groups are removed. [source_point_attribute] records that ancestry and
-    [hull_group] selects all generated primitives.
-
-    Expected Quickhull time is O(n log n), with the usual O(n^2) worst case;
-    auxiliary storage is O(n + f), where [f] includes live and retired work
-    faces. Initial conflict classification, reclassification, payload remap,
-    and materialization use deterministic disjoint domain ranges. *)
 
 type bound_shape = Bound.bound_shape =
   | Bound_box of { divisions : int * int * int }
@@ -2775,118 +2119,11 @@ val point_generate :
     auxiliary storage is O(input points + output points), with exact ordering
     across domain counts. *)
 
-type point_replicate_shape =
-  | Replicate_point
-  | Replicate_box
-  | Replicate_sphere
-  | Replicate_disk
-  | Replicate_line
-  | Replicate_custom
-
-type point_replicate_velocity_stretch =
-  | Replicate_no_velocity_stretch
-  | Replicate_scaled_velocity
-  | Replicate_velocity_only
-
-val point_replicate :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?points:Group.t ->
-  ?keep_input:bool ->
-  ?seed:Prismel_math.Rand.t ->
-  ?id_attribute:string ->
-  ?generated_group:string ->
-  ?copy_point_attributes:string ->
-  ?keep_source_attributes:bool ->
-  ?transform_attributes:string ->
-  ?source_point_attribute:string ->
-  ?source_index_attribute:string ->
-  ?shape:point_replicate_shape ->
-  ?custom_shape:Geometry.t ->
-  ?center:Prismel_math.Vec3.t ->
-  ?size:Prismel_math.Vec3.t ->
-  ?orientation:Prismel_math.Vec3.t ->
-  ?uniform_scale:float ->
-  ?quasi_stratified:bool ->
-  ?velocity_stretch:point_replicate_velocity_stretch ->
-  ?velocity_scale:float ->
-  ?inherit_velocity:float ->
-  ?radial_velocity:float ->
-  ?noise_amplitude:Prismel_math.Vec3.t ->
-  ?noise_frequency:Prismel_math.Vec3.t ->
-  ?noise_offset:Prismel_math.Vec3.t ->
-  ?noise_roughness:float ->
-  ?noise_attenuation:float ->
-  ?noise_turbulence:int ->
-  ?noise_seed:int ->
-  points_per_point:float ->
-  ?scale_attribute:string ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Generate a deterministic local cloud around each selected input point.
-    Point, box, volume-uniform sphere, area-uniform disk, line, and custom point-cloud
-    shapes are normalized in local +Z space, then transformed through the same
-    [pscale]/[scale]/[orient]/[N]/[up]/[v]/[rot]/[pivot]/[trans]/[transform]
-    contract as {!copy_to_points}. Custom clouds emit [shapeptnum].
-    Matching point float3 [transform_attributes] are additionally transformed
-    as vectors; [N] uses the scale-safe inverse transpose and is removed when
-    any selected source frame that emits points is singular. [P] is always
-    handled exactly once.
-
-    Counts, point/detail ancestry, input retention, generated grouping, and
-    optional source metadata reuse Point Generate. Existing integer [id]
-    values stabilize random clouds across point renumbering. Quasi-stratified
-    sampling uses deterministic source-local low-discrepancy coordinates.
-    Velocity may be inherited and augmented radially; velocity stretching can
-    compose with or replace source geometric scale. Optional allocation-free
-    vector fBm perturbs local coordinates and uses point [rest], when present,
-    to keep noise stable while source positions move.
-
-    Cardinality is exact before shape allocation. Source frames are evaluated
-    once and generated point ranges are disjoint and byte-identical across
-    domain counts. *)
-
 val color_by_height :
   ?cancel:Cancel.t -> ?grain:int -> low:(float * float * float * float) ->
   high:(float * float * float * float) -> Geometry.t ->
   (Geometry.t, Error.t) result
 (** Create or replace point [Cd] by normalized Y extent. *)
-
-val clean :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?epsilon:float ->
-  ?remove_degenerate:bool ->
-  ?consolidate_distance:float ->
-  ?overlaps:clean_overlap_policy ->
-  ?reverse_winding:bool ->
-  ?remove_nan_points:bool ->
-  ?remove_unused_points:bool ->
-  ?delete_unused_groups:bool ->
-  ?point_attributes:string ->
-  ?vertex_attributes:string ->
-  ?primitive_attributes:string ->
-  ?detail_attributes:string ->
-  ?point_groups:string ->
-  ?vertex_groups:string ->
-  ?primitive_groups:string ->
-  ?edge_groups:string ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Run a stable polygon/curve cleanup pipeline. Optional exact/tolerance point
-    consolidation precedes degeneracy removal. Polygon area is compared with
-    [epsilon] squared, while curve length is compared directly. Overlap repair
-    recognizes cyclic rotations and reversed winding of polygons which share
-    the same point vertices, retaining the first polygon or deleting every
-    member of an overlap class. Optional winding reversal, NaN-point removal,
-    point compaction, empty-group deletion, and owner-specific attribute/group
-    patterns complete the pipeline. Canonical [P] cannot be deleted.
-
-    Primitive classification and canonical overlap preparation fill disjoint
-    packed ranges in parallel; stable deletion/compaction preserves all
-    surviving attribute and group ancestry. Expected time is linear in input
-    and output payload for bounded primitive degree; general canonicalization
-    is O(vertices), with O(points + primitives + output) temporary storage. *)
 
 val facet :
   ?cancel:Cancel.t ->
@@ -2933,40 +2170,6 @@ val facet :
     shared corners whose independent primitive projections conflict. It is
     O(points + vertices + primitives + output payload) time and storage, with
     deterministic disjoint projection fills. *)
-
-val poly_extrude :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?primitives:Group.t ->
-  ?split_edges:Edge_group.t ->
-  ?divide:poly_extrude_divide ->
-  ?divisions:int ->
-  ?output_front:bool ->
-  ?output_back:bool ->
-  ?output_side:bool ->
-  ?front_group:string ->
-  ?back_group:string ->
-  ?side_group:string ->
-  ?front_boundary_group:string ->
-  ?back_boundary_group:string ->
-  distance:float -> Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Extrude selected polygon faces as independent elements or stable
-    shared-edge connected components. Connected fronts share new points,
-    displace along selected-face averaged point normals, omit internal sides,
-    honor topology-affine split edges, and emit [divisions] straight side rows.
-    Unselected polygons and curves pass through. Front/back/side geometry and
-    primitive groups are independently controlled; front/back boundary outputs
-    are native edge groups. Attributes and ordinary/native edge groups remap
-    by stable ancestry and point/vertex normals are invalidated.
-
-    The compatibility default retains the original allocation-tight
-    individual-face kernel and exact ordering. The connected planner is
-    O(points + vertices + primitives + edges + output payload) expected time,
-    uses O(selected topology + output) auxiliary memory, fills independent
-    ranges in parallel, and is exact across domain counts. Connected selection
-    touching a non-manifold edge fails atomically because radial side ordering
-    is not represented by polygon topology. *)
 
 val poly_fill :
   ?cancel:Cancel.t ->
