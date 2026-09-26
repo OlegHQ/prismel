@@ -503,6 +503,10 @@ including a single exact name, with an explicit destination conflict policy.
 `Procedural.Sop.bound` creates a bounding box with its default shape; use
 equal lower and upper padding for symmetric expansion. The editor exposes the
 same operation as `Bound`.
+The checked packed operations are `Pdk.Bound.run_checked`,
+`Pdk.Bound.bounding_box_checked`, `Pdk.Match_size.run_checked`, and
+`Pdk.Match_size.match_axis_checked`; their shape and fit constructors live in
+those family modules.
 `Procedural.Sop.group_rename` applies ordered owner-scoped rename rules with
 an explicit conflict policy, including the single-group case.
 `Procedural.Sop.group_promotions` uses one ordered rule list for single and

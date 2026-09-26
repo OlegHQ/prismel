@@ -2875,7 +2875,7 @@ val extract_point_from_curve :
     non-finite values or positions, overflow, and cancellation fail atomically.
     *)
 
-type bound_shape =
+type bound_shape = Bound.bound_shape =
   | Bound_box of { divisions : int * int * int }
   | Bound_sphere of { segments : int; rings : int; minimum_radius : float }
 
@@ -2910,7 +2910,7 @@ val bounding_box :
     invalid/negative padding, and zero-thickness output are rejected; use
     positive padding on collapsed axes for planar or linear input. *)
 
-type match_size_fit =
+type match_size_fit = Match_size.match_size_fit =
   | Translate_only
   | Stretch
   | Contain

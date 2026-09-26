@@ -3,7 +3,7 @@
   "baseline_plan_sha256": "6f95e5738ae263386bbc414299f598f25ba9f604b48a8c2ef9bee84f974e2954",
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 117,
+  "module_count": 119,
   "modules": [
     {
       "api_sha256": "e50b68fb8b3efb8c3f48d288c797a83690511ce38a332e2c2285c788efd781ad",
@@ -103,6 +103,15 @@
       "source": "lib/pdk/boolean/boolean.mli",
       "source_bytes": 4895,
       "source_sha256": "c70d000c6ac643b5f9a5371d0504c7af033801509838e629cc072d0e74695dd6"
+    },
+    {
+      "api_sha256": "1c569542e34b2bec7f8ce66f1fee9ccfbdf89acb1771cf0c25dfe0783c2ea006",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Bound",
+      "source": "lib/pdk/mesh/bound.mli",
+      "source_bytes": 1034,
+      "source_sha256": "144fe35dd666af6f8d8dc0816e826c8e7320b46337edc105879371dd506981c3"
     },
     {
       "api_sha256": "2e1939bf259701a24c068375687fb1c90cce5d482e2ab0cbcf4c7ddebe682183",
@@ -258,6 +267,15 @@
       "source_sha256": "c9a84931ecc10acb61e7ba2e24fc3f39367982a2cbc605239540350c964f2f36"
     },
     {
+      "api_sha256": "caafe986565c099625c5ba5b5d78107e4a174079bd77a7def3eb94bd305bcc06",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Match_size",
+      "source": "lib/pdk/mesh/match_size.mli",
+      "source_bytes": 1081,
+      "source_sha256": "f5f3b328927fce40bdb38b3edce6f6c3217caa41d252f3ffe897eb8e783b98bc"
+    },
+    {
       "api_sha256": "befd10e388cf3658ffa6aa336b84f39a377d5c71c171b6c2c4dcbfbe89c3aee4",
       "excluded_legacy_symbols": [],
       "library": "pdk",
@@ -294,13 +312,13 @@
       "source_sha256": "783f2a8cb8d44e94a2fe14b57d38a3089600f911da55902a40a5925dc5fe50f7"
     },
     {
-      "api_sha256": "6ec2322a75a3804279d32b23c689649235de88a3490ac88cc5796450297811ab",
+      "api_sha256": "76ebf93921ddfa16f9909271f4f9f6891e92ebdcfa62f10644de3f07a98330ec",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Ops",
       "source": "lib/pdk/mesh/ops.mli",
-      "source_bytes": 214070,
-      "source_sha256": "9567e4d7b3341e7b65fb34f405a3089de0d475a47b14aad83127e59aeac820f4"
+      "source_bytes": 214118,
+      "source_sha256": "d5d6faa833083ec1f2fc29debb775c5f622978fd7724bfd604a1f95110f9c03c"
     },
     {
       "api_sha256": "b490452483589f09b79da98886e02e53857b15bc4e94c89b071cad643471a311",
