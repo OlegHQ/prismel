@@ -234,7 +234,7 @@ let run () =
   let other_group = Geometry.find_edge_group "cusp" other |> Option.get in
   expect_code "invalid_topology" (Facet.edge_cusp ~edges:other_group source);
   expect_code "invalid_topology" (Facet.edge_cusp ~grain:0 ~edges:cusp source);
-  let curve = Line_geometry.polyline_checked [|0.,0.,0.;1.,0.,0.;2.,0.,0.|] |> get_pdk in
+  let curve = Line_geometry.polyline [|0.,0.,0.;1.,0.,0.;2.,0.,0.|] |> get_pdk in
   let curve_edges = edge_group_of_pairs (Geometry.topology curve) "curve"
       [|0,1;1,2|] in
   expect_code "invalid_topology" (Facet.edge_cusp ~edges:curve_edges curve);

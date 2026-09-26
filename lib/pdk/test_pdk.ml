@@ -204,7 +204,7 @@ let run () =
       ~direction:Vec3.unit_x ~length:1. () with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "Line ignored cancellation");
-  (match Line_geometry.polyline_checked [|(0., 0., 0.)|] with
+  (match Line_geometry.polyline [|(0., 0., 0.)|] with
    | Error error when Error.code error = "invalid_parameter" -> ()
    | _ -> fail "Polyline accepted one point");
   let builder = Packed.Float3.Builder.create 4 in
@@ -1685,7 +1685,7 @@ let run () =
       if abs_float x < 1e-12 && Hashtbl.mem above_plane point then
         fail "clip split connectivity shared a plane point"
     done) below;
-  let clipped_curve = Line_geometry.polyline_checked [|(-1.,0.,0.); (0.,1.,0.); (1.,0.,0.)|]
+  let clipped_curve = Line_geometry.polyline [|(-1.,0.,0.); (0.,1.,0.); (1.,0.,0.)|]
       |> get_ok |> Plane_clip.clip_checked ~keep:Plane_clip.Above ~origin:Vec3.zero
            ~normal:Vec3.unit_x |> get_ok in
   if Geometry.primitive_count clipped_curve <> 1
@@ -1736,7 +1736,7 @@ let run () =
      || Topology.primitive_kind (Geometry.topology closed_curve) 0
         <> Topology.Open_polyline then
     fail "closed-polyline plane clip did not emit an open retained arc";
-  let concave = Line_geometry.polyline_checked ~closed:true
+  let concave = Line_geometry.polyline ~closed:true
       [|(-2.,-2.,0.); (2.,-2.,0.); (2.,2.,0.); (1.,2.,0.);
         (1.,-1.,0.); (-1.,-1.,0.); (-1.,2.,0.); (-2.,2.,0.)|]
       |> get_ok in
@@ -2031,7 +2031,7 @@ let run () =
       delete_source |> get_ok in
   if Geometry.point_count compacted_vertex <> 0 then
     fail "vertex deletion compact-points policy";
-  let open_curve = Line_geometry.polyline_checked
+  let open_curve = Line_geometry.polyline
       [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.); (3.,0.,0.)|] |> get_ok in
   let curve_vertex = Group.init ~owner:Group.Vertex ~name:"middle" 4
       (fun vertex -> vertex = 1) in
@@ -2137,7 +2137,7 @@ let run () =
   let circle_mesh = Pdk_prismel.Prismel_mesh.to_mesh circle |> get_ok in
   if Mesh.mode circle_mesh <> Mesh.Lines || Mesh.index_count circle_mesh <> 36
   then fail "closed curve bridge";
-  let bent = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.); (1.,3.,0.)|] |> get_ok in
+  let bent = Line_geometry.polyline [|(0.,0.,0.); (1.,0.,0.); (1.,3.,0.)|] |> get_ok in
   let distance_attribute = Attribute.create_owned ~name:"distance"
       ~owner:Attribute.Point (Attribute.Float [|0.; 1.; 4.|]) |> get_ok in
   let bent = Geometry.with_attribute distance_attribute bent |> get_ok in
@@ -2255,7 +2255,7 @@ let run () =
      || point_uv_values.y <> [|0.; 0.; 0.5; 1.|]
   then fail "point-owned restricted UV transform";
   let angle = 0.1 in
-  let cylinder_curve = Line_geometry.polyline_checked ~closed:true [|
+  let cylinder_curve = Line_geometry.polyline ~closed:true [|
       (cos (-.angle), 0.5, sin (-.angle));
       (cos (-.angle), -0.5, sin (-.angle));
       (cos angle, -0.5, sin angle);
@@ -2726,7 +2726,7 @@ let run () =
   if Edge_group.cardinality swept_edge_group <> 32
      || Edge_group.length swept_edge_group <> 64 then
     fail "sweep did not propagate selected centerline edges longitudinally";
-  let scaled_spine = Line_geometry.polyline_checked [|(0.,0.,0.); (2.,0.,0.); (4.,0.,0.)|]
+  let scaled_spine = Line_geometry.polyline [|(0.,0.,0.); (2.,0.,0.); (4.,0.,0.)|]
       |> get_ok in
   let wire_scale = Attribute.create_owned ~name:"wire_scale"
       ~owner:Attribute.Point (Attribute.Float [|1.; 2.; 0.5|]) |> get_ok in
@@ -2792,7 +2792,7 @@ let run () =
   if Edge_group.cardinality resampled_closed_group <> 8
      || Edge_group.length resampled_closed_group <> 8 then
     fail "closed resample did not propagate selected edge intervals";
-  let open_curve = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.);
+  let open_curve = Line_geometry.polyline [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.);
       (3.,0.,0.)|] |> get_ok in
   let open_index = Topology_index.create (Geometry.topology open_curve) in
   let middle_edge = Topology_index.find_edge open_index ~a:1 ~b:2 |> Option.get in
@@ -2952,7 +2952,7 @@ let run () =
   (match Curve_topology.convert_line ~edges:middle_group line_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Convert Line accepted an edge group from another topology");
-  let overflowing_line = Line_geometry.polyline_checked
+  let overflowing_line = Line_geometry.polyline
       [|(-.max_float,0.,0.); (max_float,0.,0.)|] |> get_ok in
   (match Curve_topology.convert_line ~length_attribute:"length" overflowing_line with
    | Error error when Error.code error = "invalid_geometry" -> ()
@@ -2969,7 +2969,7 @@ let run () =
       with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Convert Line path mode accepted an empty length name");
-  let overflowing_path = Line_geometry.polyline_checked
+  let overflowing_path = Line_geometry.polyline
       [|(0.,0.,0.); (max_float,0.,0.); (0.,1.,0.)|] |> get_ok in
   (match Curve_topology.convert_line ~connect_path:true ~maximum_distance:0.
       ~length_attribute:"length" overflowing_path with
@@ -2981,7 +2981,7 @@ let run () =
       line_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled Convert Line path mode published geometry");
-  let carve_source = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.); (3.,0.,0.);
+  let carve_source = Line_geometry.polyline [|(0.,0.,0.); (1.,0.,0.); (3.,0.,0.);
       (6.,0.,0.)|] |> get_ok in
   let carve_weight = Attribute.create_owned ~name:"curve_weight"
       ~owner:Attribute.Point (Attribute.Float [|0.; 10.; 30.; 60.|]) |> get_ok
@@ -3324,14 +3324,14 @@ let run () =
   (match Curve_ops.carve_curves ~grain:0 ~first:0.2 ~last:0.8 carve_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Carve accepted zero grain");
-  let extreme_carve = Line_geometry.polyline_checked
+  let extreme_carve = Line_geometry.polyline
       [|(-5e307,0.,0.); (5e307,0.,0.)|] |> get_ok
       |> Curve_ops.carve_curves ~first:0.25 ~last:0.75 |> get_ok in
   let extreme_positions = Packed.Float3.Private.view
       (Geometry.positions extreme_carve) in
   if not (near_array [|(-2.5e307);2.5e307|] extreme_positions.x) then
     fail "Curve Carve did not preserve a representable extreme interpolation";
-  let overflowing_carve = Line_geometry.polyline_checked
+  let overflowing_carve = Line_geometry.polyline
       [|(-.max_float,0.,0.); (max_float,0.,0.)|] |> get_ok in
   (match Curve_ops.carve_curves ~first:0.25 ~last:0.75 overflowing_carve with
    | Error error when Error.code error = "invalid_geometry" -> ()
@@ -3501,7 +3501,7 @@ let run () =
   (match Curve_ops.carve_curves ~divisions:0 carve_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Carve cut accepted zero divisions");
-  let closed_cut_source = Line_geometry.polyline_checked ~closed:true [|(0.,0.,0.); (1.,0.,0.);
+  let closed_cut_source = Line_geometry.polyline ~closed:true [|(0.,0.,0.); (1.,0.,0.);
       (1.,1.,0.); (0.,1.,0.)|] |> get_ok
       |> Group_mesh.group_edges_checked ~name:"closed_cut_edges" |> get_ok in
   let closed_outside = Curve_ops.carve_curves ~relative_arc_length:false ~first:0.25
@@ -3563,7 +3563,7 @@ let run () =
       || Edge_group.length mixed_outside_edges <> 8
       || Edge_group.cardinality mixed_outside_edges <> 8 then
     fail "Curve Carve mixed outside payload/group/edge ancestry";
-  let closed_ends_source = Line_geometry.polyline_checked ~closed:true [|(0.,0.,0.); (1.,0.,0.);
+  let closed_ends_source = Line_geometry.polyline ~closed:true [|(0.,0.,0.); (1.,0.,0.);
       (1.,1.,0.); (0.,1.,0.)|] |> get_ok
       |> Group_mesh.group_edges_checked ~name:"closed_edges" |> get_ok in
   let opened domains = Parallel.run ~domains (fun () ->
@@ -3584,7 +3584,7 @@ let run () =
       || unrolled_topology.vertex_points <> [|0; 1; 2; 3; 0|]
       || Edge_group.cardinality (opened_group unrolled) <> 4 then
     fail "Curve Ends unroll/remap";
-  let open_ends_source = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
+  let open_ends_source = Line_geometry.polyline [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
       |> get_ok |> Group_mesh.group_edges_checked ~name:"open_edges" |> get_ok in
   let closed_ends = Curve_topology.curve_ends Curve_topology.Close_curve open_ends_source |> get_ok in
   let closed_group = Geometry.find_edge_group "open_edges" closed_ends
@@ -3867,14 +3867,14 @@ let run () =
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Join accepted a non-finite tolerance");
   let extreme_join = Mesh_merge.run [
-      Line_geometry.polyline_checked [|(-.max_float,0.,0.); (-.max_float,1.,0.)|] |> get_ok;
-      Line_geometry.polyline_checked [|(max_float,0.,0.); (max_float,1.,0.)|] |> get_ok;
+      Line_geometry.polyline [|(-.max_float,0.,0.); (-.max_float,1.,0.)|] |> get_ok;
+      Line_geometry.polyline [|(max_float,0.,0.); (max_float,1.,0.)|] |> get_ok;
     ] |> get_ok |> Curve_topology.join_curves |> get_ok in
   if Geometry.vertex_count extreme_join <> 4 then
     fail "Curve Join mishandled overflowing finite endpoint distance";
   let extreme_global = Mesh_merge.run [
-      Line_geometry.polyline_checked [|(-.max_float,0.,0.); (-.max_float,1.,0.)|] |> get_ok;
-      Line_geometry.polyline_checked [|(max_float,0.,0.); (max_float,1.,0.)|] |> get_ok;
+      Line_geometry.polyline [|(-.max_float,0.,0.); (-.max_float,1.,0.)|] |> get_ok;
+      Line_geometry.polyline [|(max_float,0.,0.); (max_float,1.,0.)|] |> get_ok;
     ] |> get_ok |> Curve_topology.join_curves ~connect_closest_ends:true |> get_ok in
   if Geometry.vertex_count extreme_global <> 4 then
     fail "global closest Curve Join mishandled overflowing finite distance";
@@ -3969,9 +3969,9 @@ let run () =
   (match Analysis.surface_area bow_tie with
    | Error _ -> ()
    | Ok _ -> fail "measure accepted a self-intersecting polygon");
-  let open_curve = Line_geometry.polyline_checked
+  let open_curve = Line_geometry.polyline
       [|(0.,0.,0.); (1.,0.,0.); (1.,1.,0.)|] |> get_ok
-  and closed_curve = Line_geometry.polyline_checked ~closed:true
+  and closed_curve = Line_geometry.polyline ~closed:true
       [|(0.,0.,0.); (1.,0.,0.); (1.,1.,0.)|] |> get_ok in
   let open_length = Analysis.perimeter open_curve |> get_ok
   and closed_length = Analysis.perimeter closed_curve |> get_ok in
@@ -4129,7 +4129,7 @@ let run () =
          | _ -> fail ("unexpected storage for " ^ name))
     | None -> fail ("missing point attribute " ^ name) in
   let blur_curve values =
-    let geometry = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.); (3.,0.,0.)|]
+    let geometry = Line_geometry.polyline [|(0.,0.,0.); (1.,0.,0.); (3.,0.,0.)|]
         |> get_ok in
     let attribute = Attribute.create_owned ~name:"value" ~owner:Attribute.Point
         (Attribute.Float values) |> get_ok in
@@ -4213,7 +4213,7 @@ let run () =
       (blur_curve [|Float.nan; 1.; 2.|]) with
    | Error error when Error.code error = "invalid_blur" -> ()
    | _ -> fail "Attribute Blur accepted non-finite source data");
-  let extreme_curve = Line_geometry.polyline_checked
+  let extreme_curve = Line_geometry.polyline
       [|(max_float,0.,0.); (-.max_float,0.,0.)|] |> get_ok in
   let extreme_value = Attribute.create_owned ~name:"value"
       ~owner:Attribute.Point (Attribute.Float [|0.; 1.|]) |> get_ok in
@@ -4447,8 +4447,8 @@ let run () =
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "copy-to-points accepted a projective transform matrix");
   let restricted_source = Mesh_merge.run [
-      Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.)|] |> get_ok;
-      Line_geometry.polyline_checked [|(10.,0.,0.); (12.,0.,0.)|] |> get_ok]
+      Line_geometry.polyline [|(0.,0.,0.); (1.,0.,0.)|] |> get_ok;
+      Line_geometry.polyline [|(10.,0.,0.); (12.,0.,0.)|] |> get_ok]
       |> get_ok in
   let restricted_weight = Attribute.create_owned ~name:"weight"
       ~owner:Attribute.Point (Attribute.Float [|0.;1.;10.;12.|]) |> get_ok
@@ -4614,7 +4614,7 @@ let run () =
            ~owner:Attribute.Primitive Attribute.int) |> Option.get in
   if text_piece_ids <> [|200;100|] then
     fail "copy-to-points text piece matching/unmatched behavior";
-  let point_piece_source = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.)|]
+  let point_piece_source = Line_geometry.polyline [|(0.,0.,0.); (1.,0.,0.)|]
       |> get_ok
       |> Geometry.with_attribute (Attribute.create_owned ~name:"point_piece"
            ~owner:Attribute.Point (Attribute.Text [|"left";"right"|])
@@ -4672,7 +4672,7 @@ let run () =
       ~source:restricted_source ~targets:restricted_targets () with
    | Error error when Error.code error = "invalid_selection" -> ()
    | _ -> fail "copy-to-points accepted a primitive-owned target selection");
-  let transfer_source = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.)|] |> get_ok in
+  let transfer_source = Line_geometry.polyline [|(0.,0.,0.); (1.,0.,0.)|] |> get_ok in
   let source_weight = Attribute.create_owned ~name:"weight" ~owner:Attribute.Point
       (Attribute.Float [|10.;20.|]) |> get_ok
   and source_corner = Attribute.create_owned ~name:"corner" ~owner:Attribute.Vertex

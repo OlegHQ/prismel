@@ -222,7 +222,7 @@ let run () =
   check (Subdivide.edge_divide ~edges:empty ~divisions:5 source |> get_pdk == source)
     "empty edge-group Edge Divide was not an identity";
 
-  let curve = Line_geometry.polyline_checked [|0.,0.,0.; 2.,0.,0.; 2.,2.,0.|] |> get_pdk
+  let curve = Line_geometry.polyline [|0.,0.,0.; 2.,0.,0.; 2.,2.,0.|] |> get_pdk
       |> Group_mesh.group_edges_checked ~name:"curve_edges" |> get_pdk in
   let curve_edges = Geometry.find_edge_group "curve_edges" curve |> Option.get in
   let curve_output = Subdivide.edge_divide ~edges:curve_edges ~divisions:2 curve
@@ -233,7 +233,7 @@ let run () =
       && Bytes.get curve_topology.primitive_kinds 0 = '\001')
     "open-curve Edge Divide";
 
-  let closed_curve = Line_geometry.polyline_checked ~closed:true
+  let closed_curve = Line_geometry.polyline ~closed:true
       [|0.,0.,0.; 2.,0.,0.; 1.,2.,0.|] |> get_pdk
       |> Group_mesh.group_edges_checked ~name:"closed_edges" |> get_pdk in
   let closed_edges = Geometry.find_edge_group "closed_edges" closed_curve

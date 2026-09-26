@@ -364,13 +364,13 @@
       "source_sha256": "dea4de82bff5f7532bfacf9344a69b0286592f70c3053e7d4fe6c34d868e0e0c"
     },
     {
-      "api_sha256": "23104a674f8978df467792e5e1b13a91c674ff372e140e0f5f6ec2f1b58392d7",
+      "api_sha256": "8c6b90e825c4528a581ef335d3e9f615337d5f60039e9fc20161724f9de5f30b",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Line_geometry",
       "source": "lib/pdk/gen/line_geometry.mli",
-      "source_bytes": 462,
-      "source_sha256": "4404fb44d80e3deae0e04888eab05ec24b37fbc3975a49ba88eb3b37770423ca"
+      "source_bytes": 454,
+      "source_sha256": "a77914216e179e24bcc206a8cfd832f4a73d68e77e354edcc760cbf2a16ddd0b"
     },
     {
       "api_sha256": "caafe986565c099625c5ba5b5d78107e4a174079bd77a7def3eb94bd305bcc06",

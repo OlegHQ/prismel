@@ -198,7 +198,7 @@ let test_validation_and_cancellation () =
       (Attribute.Float [|0.;0.;0.;0.;Float.nan;0.;0.;0.;0.|]) source in
   expect_invalid (fun () -> Laplacian.run ~source:"bad" nonfinite)
     "non-finite source";
-  let curve = Line_geometry.polyline_checked ~closed:true [|0.,0.,0.;1.,0.,0.;0.,1.,0.|] |> get in
+  let curve = Line_geometry.polyline ~closed:true [|0.,0.,0.;1.,0.,0.;0.,1.,0.|] |> get in
   expect_invalid (fun () -> Laplacian.run ~source:"P" curve)
     "curve input";
   let degenerate = degenerate_triangle () in

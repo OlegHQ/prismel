@@ -90,7 +90,7 @@ let with_attribute owner name storage geometry =
 let with_group group geometry = Geometry.with_group group geometry |> get_string
 
 let base_profile () =
-  Line_geometry.polyline_checked [|(1., -1., 0.); (1., 1., 0.)|] |> get_ok
+  Line_geometry.polyline [|(1., -1., 0.); (1., 1., 0.)|] |> get_ok
 
 let revolve ?(divisions = 4) ?revolve_type ?connectivity ?start_angle
     ?end_angle ?reverse_cross_sections ?caps ?cap_group ?uv_attribute geometry =
@@ -157,7 +157,7 @@ let check_connectivity_and_arcs () =
     "open-arc Revolve endpoint"
 
 let check_poles_caps_and_reverse () =
-  let pole_profile = Line_geometry.polyline_checked
+  let pole_profile = Line_geometry.polyline
       [|(0., -1., 0.); (1., 0., 0.); (0., 1., 0.)|] |> get_ok in
   let pole = revolve ~caps:true ~cap_group:"caps" pole_profile in
   check (Geometry.point_count pole = 6 && Geometry.primitive_count pole = 8
@@ -227,7 +227,7 @@ let check_payload () =
 
 let check_selection_validation_and_parallel () =
   let source = Mesh_merge.run [base_profile ();
-      Line_geometry.polyline_checked [|(2., -1., 0.); (2., 1., 0.)|] |> get_ok] |> get_ok in
+      Line_geometry.polyline [|(2., -1., 0.); (2., 1., 0.)|] |> get_ok] |> get_ok in
   let selected = Group.init ~owner:Group.Primitive ~name:"selected" 2
       (fun primitive -> primitive = 1) in
   let result = Sweep_modeling.revolve ~grain:1 ~primitives:selected ~divisions:4
@@ -238,7 +238,7 @@ let check_selection_validation_and_parallel () =
   let count = 10_001 in
   let dense = Array.init count (fun point ->
       let y = (float_of_int point /. float_of_int (count - 1)) *. 8. -. 4. in
-      1.2 +. (0.2 *. sin (y *. 3.)), y, 0.) |> Line_geometry.polyline_checked |> get_ok
+      1.2 +. (0.2 *. sin (y *. 3.)), y, 0.) |> Line_geometry.polyline |> get_ok
       |> fun geometry -> Group_mesh.group_edges_checked ~grain:257 ~name:"profile_edges" geometry
            |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
@@ -269,7 +269,7 @@ let check_selection_validation_and_parallel () =
   let polygon = Plane_generators.grid ~columns:1 ~rows:1 ~size:1. () |> get_ok in
   expect_invalid (Sweep_modeling.revolve ~divisions:4 ~origin:Vec3.zero
     ~axis:Vec3.unit_y polygon);
-  let repeated = Line_geometry.polyline_checked [|(1.,0.,0.); (1.,0.,0.)|] |> get_ok in
+  let repeated = Line_geometry.polyline [|(1.,0.,0.); (1.,0.,0.)|] |> get_ok in
   expect_invalid (Sweep_modeling.revolve ~divisions:4 ~origin:Vec3.zero
     ~axis:Vec3.unit_y repeated);
   let cancelled = Cancel.create () in

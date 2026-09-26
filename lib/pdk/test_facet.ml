@@ -713,7 +713,7 @@ let check_cusp_polygons () =
     | Error error when Error.code error = "invalid_geometry" -> ()
     | _ -> fail "Facet accepted an invalid cusp angle")
     [(-0.1); Float.pi +. 0.1; Float.nan];
-  let curve = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.)|] |> get_ok in
+  let curve = Line_geometry.polyline [|(0.,0.,0.); (1.,0.,0.)|] |> get_ok in
   (match Facet.run ~cusp_angle:1. curve with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Facet Cusp Polygons accepted curve topology")
@@ -811,7 +811,7 @@ let check_make_planar () =
       ~topology:planar_topology () |> get_string in
   check (Facet.run ~make_planar:true planar |> get_ok == planar)
     "Facet Make Planar changed an already planar polygon";
-  let curve = Line_geometry.polyline_checked
+  let curve = Line_geometry.polyline
       [|(0.,0.,0.); (1.,0.,1.); (2.,1.,0.); (3.,0.,1.)|] |> get_ok in
   check (Facet.run ~make_planar:true curve |> get_ok == curve)
     "Facet Make Planar changed a polygon curve";

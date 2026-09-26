@@ -92,8 +92,8 @@ let check_attribute_storage geometry owner name expected =
       check (equal_storage actual expected) ("Sweep attribute ancestry: " ^ name)
   | None -> fail ("Sweep attribute missing: " ^ name)
 
-let backbone () = Line_geometry.polyline_checked [|(0., 0., 0.); (0., 0., 2.)|] |> get_ok
-let profile () = Line_geometry.polyline_checked ~closed:true
+let backbone () = Line_geometry.polyline [|(0., 0., 0.); (0., 0., 2.)|] |> get_ok
+let profile () = Line_geometry.polyline ~closed:true
     [|(-1., -1., 0.); (1., -1., 0.); (1., 1., 0.); (-1., 1., 0.)|]
     |> get_ok
 
@@ -204,10 +204,10 @@ let check_payload_and_groups () =
 
 let check_multiple_and_selection () =
   let backbone_source = Mesh_merge.run [
-      Line_geometry.polyline_checked [|(0.,0.,0.); (0.,0.,1.)|] |> get_ok;
-      Line_geometry.polyline_checked [|(4.,0.,0.); (4.,0.,1.)|] |> get_ok] |> get_ok in
+      Line_geometry.polyline [|(0.,0.,0.); (0.,0.,1.)|] |> get_ok;
+      Line_geometry.polyline [|(4.,0.,0.); (4.,0.,1.)|] |> get_ok] |> get_ok in
   let profile_source = Mesh_merge.run [
-      Line_geometry.polyline_checked ~closed:true
+      Line_geometry.polyline ~closed:true
         [|(0.2,0.,0.); (-0.1,0.17,0.); (-0.1,-0.17,0.)|] |> get_ok;
       profile ()] |> get_ok in
   let all = Sweep_modeling.sweep ~grain:1 ~backbone:backbone_source
@@ -250,7 +250,7 @@ let check_transform_attributes () =
     "Sweep reverse cross sections"
 
 let check_frame_controls () =
-  let corner = Line_geometry.polyline_checked
+  let corner = Line_geometry.polyline
       [|(0.,0.,0.); (0.,0.,1.); (1.,0.,1.)|] |> get_ok in
   let previous = sweep ~tangent:Sweep_modeling.Sweep_previous_edge corner (profile ())
   and next = sweep ~tangent:Sweep_modeling.Sweep_next_edge corner (profile ())
@@ -373,8 +373,8 @@ let check_closed_continuity () =
       let radius = 2. +. (0.35 *. cos (3. *. t)) in
       radius *. cos (2. *. t), 0.4 *. sin (3. *. t),
       radius *. sin (2. *. t)) in
-  let backbone = Line_geometry.polyline_checked ~closed:true backbone_values |> get_ok
-  and profile = Line_geometry.polyline_checked ~closed:true
+  let backbone = Line_geometry.polyline ~closed:true backbone_values |> get_ok
+  and profile = Line_geometry.polyline ~closed:true
       [|(0.1,0.,0.); (-0.05,0.0866025403784439,0.);
         (-0.05,-0.0866025403784439,0.)|] |> get_ok in
   let result = sweep ~tangent:Sweep_modeling.Sweep_central_difference ~twist:2.3
@@ -411,10 +411,10 @@ let check_validation_and_parallel () =
     ~backbone:(backbone ()) ~cross_section:(profile ()) ());
   let polygon = Plane_generators.grid ~columns:1 ~rows:1 ~size:1. () |> get_ok in
   expect_invalid (Sweep_modeling.sweep ~backbone:polygon ~cross_section:(profile ()) ());
-  let repeated = Line_geometry.polyline_checked [|(0.,0.,0.); (0.,0.,0.)|] |> get_ok in
+  let repeated = Line_geometry.polyline [|(0.,0.,0.); (0.,0.,0.)|] |> get_ok in
   expect_invalid (Sweep_modeling.sweep ~backbone:repeated ~cross_section:(profile ()) ());
   let partly_invalid = Mesh_merge.run [backbone ();
-      Line_geometry.polyline_checked [|(3.,0.,0.); (3.,0.,1.)|] |> get_ok] |> get_ok
+      Line_geometry.polyline [|(3.,0.,0.); (3.,0.,1.)|] |> get_ok] |> get_ok
       |> with_attribute Attribute.Point "pscale"
            (Attribute.Float [|1.;1.;Float.nan;Float.nan|]) in
   let first_curve = Group.init ~owner:Group.Primitive ~name:"first_curve" 2
@@ -437,14 +437,14 @@ let check_validation_and_parallel () =
   let dense_backbone = Array.init count (fun point ->
       let t = float_of_int point *. 0.002 in
       0.25 *. sin (t *. 0.7), 0.2 *. cos (t *. 0.43), t)
-      |> Line_geometry.polyline_checked |> get_ok
+      |> Line_geometry.polyline |> get_ok
       |> fun geometry -> Group_mesh.group_edges_checked ~grain:257 ~name:"spine_edges" geometry
            |> get_ok in
   let sides = 32 in
   let dense_profile = Array.init sides (fun side ->
       let angle = 2. *. Float.pi *. float_of_int side /. float_of_int sides in
       0.08 *. cos angle, 0.08 *. sin angle, 0.)
-      |> Line_geometry.polyline_checked ~closed:true |> get_ok
+      |> Line_geometry.polyline ~closed:true |> get_ok
       |> fun geometry -> Group_mesh.group_edges_checked ~grain:257 ~name:"profile_edges" geometry
            |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->

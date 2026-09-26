@@ -88,7 +88,7 @@ let run () =
    | Error error -> check (error.code = "missing_group")
        "Measure Curvature missing-group diagnostic"
    | Ok _ -> fail "Measure Curvature accepted a missing point group");
-  let curve = Pdk.Line_geometry.polyline_checked ~closed:true
+  let curve = Pdk.Line_geometry.polyline ~closed:true
       [|0.,0.,0.;1.,0.,0.;0.,1.,0.|] |> Result.get_ok |> Sop.snapshot
       |> Sop.measure_curvature in
   (match Session.cook session ~context curve with

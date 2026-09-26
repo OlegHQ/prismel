@@ -182,7 +182,7 @@ let run () =
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled instance materialization published geometry");
 
-  let triangle = Line_geometry.polyline_checked ~closed:true
+  let triangle = Line_geometry.polyline ~closed:true
       [|(0., 0., 0.); (1., 0., 0.); (0., 1., 0.)|] |> get_pdk in
   let scale_count = 100_000 in
   let scaled = Instance_copy.materialize_instances ~grain:2_048

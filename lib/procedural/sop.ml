@@ -144,7 +144,7 @@ let polyline ?label ?(closed = false) values =
   Node.Private.make ?label ~operation:"polyline" ~version:1 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ _context _inputs ->
-      match Pdk.Line_geometry.polyline_checked ~closed values with
+      match Pdk.Line_geometry.polyline ~closed values with
       | Ok geometry -> cooked geometry
       | Error error -> structured_pdk_error error)
 

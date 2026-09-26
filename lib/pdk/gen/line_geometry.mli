@@ -9,6 +9,6 @@ val line :
   origin:Prismel_math.Vec3.t -> direction:Prismel_math.Vec3.t -> length:float -> unit ->
   (Geometry.t, Error.t) result
 
-val polyline_checked :
+val polyline :
   ?closed:bool -> (float * float * float) array ->
   (Geometry.t, Error.t) result

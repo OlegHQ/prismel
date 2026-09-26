@@ -162,7 +162,7 @@ let test_all_owner_pairs () =
 let test_curve_unshared_policy () =
   let positions = [|(0., 0., 0.); (1., 0., 0.); (2., 0., 0.);
     (3., 0., 0.)|] in
-  let geometry = Line_geometry.polyline_checked ~closed:false positions |> get_ok
+  let geometry = Line_geometry.polyline ~closed:false positions |> get_ok
       |> with_group Group.Primitive "curve" (fun _ -> true) in
   let ends = promote ~keep_original:true ~include_unshared_edges:true
       ~name:"ends" ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_edges

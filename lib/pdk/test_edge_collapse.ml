@@ -220,7 +220,7 @@ let run () =
   check (Edge_collapse.run ~edges:empty source |> get_pdk == source)
     "empty Edge Collapse was not an identity";
 
-  let curve = Line_geometry.polyline_checked [|0.,0.,0.;1.,0.,0.;2.,0.,0.;3.,0.,0.|]
+  let curve = Line_geometry.polyline [|0.,0.,0.;1.,0.,0.;2.,0.,0.;3.,0.,0.|]
       |> get_pdk in
   let collapsed_curve = Edge_collapse.run curve |> get_pdk in
   check (Geometry.point_count collapsed_curve = 0

@@ -129,7 +129,7 @@ let expect_invalid = function
   | Ok _ -> fail "expected invalid PolyWire input"
 
 let check_controls () =
-  let source = Line_geometry.polyline_checked [|(0., 0., 0.); (2., 0., 0.)|] |> get_ok
+  let source = Line_geometry.polyline [|(0., 0., 0.); (2., 0., 0.)|] |> get_ok
       |> with_float "scale" [|1.; 0.5|]
       |> with_int "seam" [|0; 1|]
       |> with_float "vcoord" [|2.; 5.|]
@@ -184,7 +184,7 @@ let check_closed_frame () =
       let radius = 2. +. (0.45 *. cos (3. *. t)) in
       radius *. cos (2. *. t), 0.45 *. sin (3. *. t),
       radius *. sin (2. *. t)) in
-  let source = Line_geometry.polyline_checked ~closed:true source_values |> get_ok in
+  let source = Line_geometry.polyline ~closed:true source_values |> get_ok in
   let wire = Sweep_circle.run ~sides:8 ~radius:0.1 source |> get_ok in
   let normals = float3_attribute ~owner:Attribute.Point wire "N" in
   let point index = let x, y, z = source_values.(index) in x, y, z in
@@ -205,7 +205,7 @@ let check_closed_frame () =
     (Printf.sprintf "closed PolyWire frame seam alignment %.12g" alignment)
 
 let check_validation () =
-  let line = Line_geometry.polyline_checked [|(0., 0., 0.); (1., 0., 0.)|] |> get_ok in
+  let line = Line_geometry.polyline [|(0., 0., 0.); (1., 0., 0.)|] |> get_ok in
   expect_invalid (Sweep_circle.run ~scale_attribute:" " ~radius:0.1 line);
   expect_invalid (Sweep_circle.run ~seam_attribute:"missing" ~radius:0.1 line);
   expect_invalid (Sweep_circle.run ~v_attribute:"missing" ~radius:0.1 line);
@@ -236,7 +236,7 @@ let check_validation () =
       overflowing);
   expect_invalid (Sweep_circle.run ~cap_group:"caps" ~radius:0.1 line);
   expect_invalid (Sweep_circle.run ~caps:true ~cap_group:" " ~radius:0.1 line);
-  let repeated = Line_geometry.polyline_checked
+  let repeated = Line_geometry.polyline
       [|(0., 0., 0.); (1., 0., 0.); (1., 0., 0.); (2., 0., 0.)|] |> get_ok in
   expect_invalid (Sweep_circle.run ~radius:0.1 repeated);
   let cancelled = Cancel.create () in
@@ -249,7 +249,7 @@ let check_parallel_exact () =
   let count = 5_001 in
   let source = Array.init count (fun point ->
       let t = float_of_int point *. 0.002 in
-      t, sin (t *. 0.7), cos (t *. 0.43) *. 0.6) |> Line_geometry.polyline_checked |> get_ok
+      t, sin (t *. 0.7), cos (t *. 0.43) *. 0.6) |> Line_geometry.polyline |> get_ok
       |> with_float "scale" (Array.init count (fun point ->
           0.7 +. (0.3 *. sin (float_of_int point *. 0.017))))
       |> with_int "seam" (Array.init count (fun point -> (point / 97) - 20))
@@ -463,7 +463,7 @@ let check_variable_validation () =
    | _ -> fail "variable PolyWire ignored cancellation")
 
 let check_scoped_fixed_compatibility () =
-  let source = Line_geometry.polyline_checked
+  let source = Line_geometry.polyline
       [|(0.,0.,0.); (0.4,0.7,0.2); (1.,1.1,-0.1); (1.5,1.8,0.3)|]
       |> get_ok |> with_float "weight" [|0.;0.3;0.7;1.|] in
   let all = Group.init ~owner:Group.Primitive ~name:"all" 1 (Fun.const true) in
@@ -489,7 +489,7 @@ let check_scoped_fixed_compatibility () =
 
 let check_variable_closed_manifold () =
   let count = 6 in
-  let source = Line_geometry.polyline_checked ~closed:true (Array.init count (fun point ->
+  let source = Line_geometry.polyline ~closed:true (Array.init count (fun point ->
       let angle = 2. *. Float.pi *. float_of_int point /. float_of_int count in
       (1. +. (0.15 *. cos (2. *. angle))) *. cos angle,
       0.2 *. sin (3. *. angle),
@@ -508,7 +508,7 @@ let check_variable_closed_manifold () =
     "closed variable PolyWire zipper is not a closed two-manifold"
 
 let check_segment_scales_and_uv () =
-  let line = Line_geometry.polyline_checked [|(0.,0.,0.); (10.,0.,0.)|] |> get_ok in
+  let line = Line_geometry.polyline [|(0.,0.,0.); (10.,0.,0.)|] |> get_ok in
   let scaled = Sweep_circle.run ~grain:1 ~sides:4 ~segments:4
       ~segment_scales:(0.2,0.8) ~u_range:(-1.,1.) ~v_range:(2.,4.)
       ~radius:0.25 line |> get_ok in
@@ -521,7 +521,7 @@ let check_segment_scales_and_uv () =
       && near uv.y.(0) 2. && near uv.y.(2) 2.4
       && near uv.y.(16) 2.4 && near uv.y.(18) 3.)
     "constant per-edge U/V texture ranges";
-  let attributed = Line_geometry.polyline_checked
+  let attributed = Line_geometry.polyline
       [|(0.,0.,0.); (10.,0.,0.); (20.,0.,0.)|] |> get_ok
       |> with_vertex_attribute "segment_scales" (Attribute.Float2
           (Packed.Float2.of_owned ~x:[|0.1;0.4;0.|] ~y:[|0.6;0.9;1.|]
@@ -565,7 +565,7 @@ let check_segment_scales_and_uv () =
     "disabled generation did not preserve/interpolate authored UV"
 
 let check_segment_texture_validation () =
-  let line = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.)|] |> get_ok in
+  let line = Line_geometry.polyline [|(0.,0.,0.); (1.,0.,0.)|] |> get_ok in
   expect_invalid (Sweep_circle.run ~segments:2 ~segment_scales:(-0.1,0.8)
       ~radius:0.1 line);
   expect_invalid (Sweep_circle.run ~segments:2 ~segment_scales:(0.8,0.2)
@@ -591,7 +591,7 @@ let check_segment_texture_validation () =
       ~radius:0.1 bad_uv)
 
 let check_joint_buckling () =
-  let source = Line_geometry.polyline_checked
+  let source = Line_geometry.polyline
       [|(0.,0.,0.); (1.,0.,0.); (1.,1.,0.)|] |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
     Sweep_circle.run ~grain:1 ~sides:4 ~prevent_joint_buckling:true
@@ -619,7 +619,7 @@ let check_joint_buckling () =
   and dy = limited_positions.y.(5) in
   check (near (sqrt ((dx *. dx) +. (dy *. dy))) 1.1)
     "point maximum joint scale did not cap radial miter enlargement";
-  let closed = Line_geometry.polyline_checked ~closed:true
+  let closed = Line_geometry.polyline ~closed:true
       [|(0.,0.,0.); (1.,0.,0.); (1.,1.,0.); (0.,1.,0.)|] |> get_ok in
   let closed_wire = Sweep_circle.run ~grain:1 ~sides:4
       ~prevent_joint_buckling:true ~maximum_joint_scale:2. ~radius:0.1 closed
@@ -632,7 +632,7 @@ let check_joint_buckling () =
     "closed joint buckling produced non-finite geometry"
 
 let check_joint_buckling_validation () =
-  let line = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.); (1.,1.,0.)|] |> get_ok in
+  let line = Line_geometry.polyline [|(0.,0.,0.); (1.,0.,0.); (1.,1.,0.)|] |> get_ok in
   expect_invalid (Sweep_circle.run ~prevent_joint_buckling:true
       ~maximum_joint_scale:0.99 ~radius:0.1 line);
   expect_invalid (Sweep_circle.run ~maximum_joint_scale:0.99
@@ -651,7 +651,7 @@ let check_joint_buckling_validation () =
       ~maximum_joint_scale_attribute:"joint_limit" ~radius:0.1 invalid)
 
 let check_smooth_disconnection () =
-  let source = Line_geometry.polyline_checked
+  let source = Line_geometry.polyline
       [|(0.,0.,0.); (1.,0.,0.); (1.,1.,0.)|] |> get_ok
       |> with_float "smooth" [|1.;0.;1.|] in
   let run domains = Parallel.run ~domains (fun () ->
@@ -686,7 +686,7 @@ let check_smooth_disconnection () =
   done;
   let all_disconnected = Sweep_circle.run ~grain:1 ~sides:4
       ~smooth_point:false ~radius:0.2
-      (Line_geometry.polyline_checked [|(0.,0.,0.);(1.,0.,0.);(2.,0.,0.);(3.,0.,0.)|]
+      (Line_geometry.polyline [|(0.,0.,0.);(1.,0.,0.);(2.,0.,0.);(3.,0.,0.)|]
        |> get_ok) |> get_ok in
   check (Geometry.point_count all_disconnected = 24)
     "constant Smooth Point=false did not split every interior joint";
@@ -701,7 +701,7 @@ let check_smooth_disconnection () =
       ~radius:0.2 branch |> get_ok in
   check (Geometry.point_count limited = 24)
     "Max Valence did not disconnect the three-edge branch point";
-  let closed = Line_geometry.polyline_checked ~closed:true
+  let closed = Line_geometry.polyline ~closed:true
       [|(0.,0.,0.);(1.,0.,0.);(1.,1.,0.);(0.,1.,0.)|] |> get_ok
       |> with_float "smooth" [|0.;1.;1.;1.|] in
   let run_closed domains = Parallel.run ~domains (fun () ->
@@ -722,7 +722,7 @@ let check_smooth_disconnection () =
    | None -> fail "closed disconnected cap group missing")
 
 let check_smooth_validation () =
-  let line = Line_geometry.polyline_checked [|(0.,0.,0.);(1.,0.,0.);(2.,0.,0.)|] |> get_ok in
+  let line = Line_geometry.polyline [|(0.,0.,0.);(1.,0.,0.);(2.,0.,0.)|] |> get_ok in
   expect_invalid (Sweep_circle.run ~max_valence:0 ~radius:0.1 line);
   expect_invalid (Sweep_circle.run ~smooth_attribute:"missing" ~radius:0.1 line);
   let wrong = line |> with_int "smooth" [|1;0;1|] in
@@ -731,7 +731,7 @@ let check_smooth_validation () =
   expect_invalid (Sweep_circle.run ~smooth_attribute:"smooth" ~radius:0.1 invalid)
 
 let check_segment_seam () =
-  let source = Line_geometry.polyline_checked
+  let source = Line_geometry.polyline
       [|(0.,0.,0.);(1.,0.,0.);(2.,0.,0.)|] |> get_ok
       |> with_vertex_attribute "segment_seam" (Attribute.Int [|1;2;0|]) in
   let run domains = Parallel.run ~domains (fun () ->
@@ -760,7 +760,7 @@ let check_segment_seam () =
     "large combined seam offsets overflowed"
 
 let check_segment_seam_validation () =
-  let line = Line_geometry.polyline_checked [|(0.,0.,0.);(1.,0.,0.)|] |> get_ok in
+  let line = Line_geometry.polyline [|(0.,0.,0.);(1.,0.,0.)|] |> get_ok in
   expect_invalid (Sweep_circle.run ~segment_seam_attribute:"missing"
       ~radius:0.1 line);
   let wrong = line |> with_vertex_attribute "segment_seam"

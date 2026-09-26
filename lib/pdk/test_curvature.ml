@@ -199,7 +199,7 @@ let test_validation_and_cancellation () =
   let wrong = Geometry.with_attribute wrong source |> get_string in
   expect_invalid (fun () -> Curvature.run wrong)
     "wrong existing output storage";
-  let curve = Line_geometry.polyline_checked ~closed:true
+  let curve = Line_geometry.polyline ~closed:true
       [|0.,0.,0.;1.,0.,0.;0.,1.,0.|] |> get in
   expect_invalid (fun () -> Curvature.run curve) "curve input";
   let inconsistent = geometry

@@ -79,7 +79,7 @@ let run () =
    | Error error -> check (error.code = "missing_group")
        "Attribute Laplacian missing-group diagnostic"
    | Ok _ -> fail "Attribute Laplacian accepted a missing point group");
-  let curve = Pdk.Line_geometry.polyline_checked ~closed:true
+  let curve = Pdk.Line_geometry.polyline ~closed:true
       [|0.,0.,0.;1.,0.,0.;0.,1.,0.|] |> Result.get_ok |> Sop.snapshot
       |> Sop.attribute_laplacian ~source:"P" in
   (match Session.cook session ~context curve with

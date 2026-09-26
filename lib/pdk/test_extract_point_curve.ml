@@ -113,7 +113,7 @@ let test_per_curve_target_and_selection () =
     "varying target positions"
 
 let test_open_last_endpoint () =
-  let source = Line_geometry.polyline_checked [|0.,0.,0.;1.,0.,0.;2.,0.,0.|] |> get
+  let source = Line_geometry.polyline [|0.,0.,0.;1.,0.,0.;2.,0.,0.|] |> get
       |> with_attribute (attribute Attribute.Point "d"
           (Attribute.Float [|-1.;-1.;0.|])) in
   let output = Curve_topology.extract_point_from_curve ~distance_attribute:"d" source |> get in
@@ -131,7 +131,7 @@ let test_empty_selection_and_extreme_scale () =
   check (Geometry.find_attribute ~owner:Attribute.Detail "author" output
       = Geometry.find_attribute ~owner:Attribute.Detail "author" source)
     "empty selection detail structural sharing";
-  let extreme = Line_geometry.polyline_checked
+  let extreme = Line_geometry.polyline
       [|(-.Float.max_float),0.,0.; Float.max_float,0.,0.|] |> get
       |> with_attribute (attribute Attribute.Point "d"
           (Attribute.Float [|(-.Float.max_float);Float.max_float|])) in

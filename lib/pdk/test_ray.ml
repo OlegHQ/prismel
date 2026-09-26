@@ -384,7 +384,7 @@ let check_validation () =
       (Geometry.point_count collision) (fun _ -> true) in
   expect_code "invalid_group" (Ray.run ~collision_primitives:wrong_collision_group
       ~source ~collision ());
-  let curve = Line_geometry.polyline_checked [|(-1.,0.,0.); (1.,0.,0.)|] |> get_ok in
+  let curve = Line_geometry.polyline [|(-1.,0.,0.); (1.,0.,0.)|] |> get_ok in
   expect_code "invalid_surface" (Ray.run ~source ~collision:curve ());
   let bad_direction = Packed.Float3.Private.of_owned_exn ~x:[|0.|]
       ~y:[|Float.nan|] ~z:[|0.|] in

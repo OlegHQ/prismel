@@ -86,7 +86,7 @@ let expect_code code = function
   | Ok _ -> fail ("expected error " ^ code)
 
 let decorated_bend () =
-  let base = Line_geometry.polyline_checked [|-1.,0.,0.; 0.,1.,0.; 1.,0.,0.|] |> get_pdk in
+  let base = Line_geometry.polyline [|-1.,0.,0.; 0.,1.,0.; 1.,0.,0.|] |> get_pdk in
   let topology = Geometry.topology base in
   let bend = edge_group_of_pairs topology "bend" [|0,1;1,2|]
   and first = edge_group_of_pairs topology "first" [|0,1|] in
@@ -162,7 +162,7 @@ let run () =
 
   check (Edge_ops.straighten ~edges:first source |> get_pdk == source)
     "single-edge straighten was not an identity";
-  let line = Line_geometry.polyline_checked [|0.,0.,0.;1.,2.,3.;2.,4.,6.;3.,6.,9.|]
+  let line = Line_geometry.polyline [|0.,0.,0.;1.,2.,3.;2.,4.,6.;3.,6.,9.|]
       |> get_pdk in
   check (Edge_ops.straighten line |> get_pdk == line)
     "already-straight component was not an identity";
@@ -177,7 +177,7 @@ let run () =
       |> Option.get |> Edge_group.cardinality = 0)
     "Edge Straighten omitted empty output group";
 
-  let square = Line_geometry.polyline_checked ~closed:true
+  let square = Line_geometry.polyline ~closed:true
       [|-1.,-1.,0.;1.,-1.,0.;1.,1.,0.;-1.,1.,0.|] |> get_pdk in
   let square_output = Edge_ops.straighten square |> get_pdk in
   let square_positions = positions square_output in
@@ -191,7 +191,7 @@ let run () =
   check ((positions branch_output).y = [|0.;0.;0.;0.;0.|])
     "Edge Straighten branch did not become collinear";
   let x_extent = sqrt 1.5 in
-  let covariance_trap = Line_geometry.polyline_checked
+  let covariance_trap = Line_geometry.polyline
       [|-.x_extent,0.,0.; x_extent,0.,0.; 0.,-1.,-1.; 0.,1.,1.|]
       |> get_pdk |> Edge_ops.straighten |> get_pdk in
   let covariance_positions = positions covariance_trap in

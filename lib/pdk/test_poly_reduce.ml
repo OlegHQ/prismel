@@ -155,7 +155,7 @@ let test_noop_invalid_and_cancel () =
   check (match Poly_reduce.run_checked ~max_normal_deviation:(Float.pi +. 0.01) source with
     | Error _ -> true | Ok _ -> false)
     "PolyReduce accepted an invalid normal-deviation limit";
-  let curve = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|] |> get_pdk in
+  let curve = Line_geometry.polyline [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|] |> get_pdk in
   check (match Poly_reduce.run_checked ~target:(Poly_reduce.Reduce_primitive_count 0) curve with
     | Error _ -> true | Ok _ -> false) "PolyReduce accepted curve topology";
   let topology = Geometry.topology source in

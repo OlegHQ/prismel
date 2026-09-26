@@ -398,7 +398,7 @@ let test_errors_and_cancellation () =
         (fun point -> if point = 2 then Float.nan else 1.))) in
   expect "invalid_remesh"
     (Remesh.run ~target_length:1. ~target_size_attribute:"size" bad_size);
-  let curve = Line_geometry.polyline_checked [|0.,0.,0.;1.,0.,0.;2.,0.,0.|] |> get in
+  let curve = Line_geometry.polyline [|0.,0.,0.;1.,0.,0.;2.,0.,0.|] |> get in
   expect "invalid_remesh" (Remesh.run ~target_length:1. curve);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;

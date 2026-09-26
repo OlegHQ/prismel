@@ -222,7 +222,7 @@ let check_fit_modes () =
     "primitive-selected metric fit"
 
 let check_normals () =
-  let source = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,1.,0.)|] |> get_ok in
+  let source = Line_geometry.polyline [|(0.,0.,0.); (1.,1.,0.)|] |> get_ok in
   let root = 1. /. sqrt 2. in
   let normal owner = Attribute.create_key_owned (Attribute.normal ~owner)
       (Packed.Float3.Private.of_owned_exn ~x:[|root; root|]

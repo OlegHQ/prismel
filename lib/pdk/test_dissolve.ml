@@ -187,7 +187,7 @@ let test_bridges () =
     "delete bridge component"
 
 let test_errors_and_curves () =
-  let curve = Line_geometry.polyline_checked [|0.,0.,0.;1.,0.,0.;2.,0.,0.|] |> get_pdk in
+  let curve = Line_geometry.polyline [|0.,0.,0.;1.,0.,0.;2.,0.,0.|] |> get_pdk in
   let all = edge_group curve "all" (fun _ -> true) in
   check (Dissolve.run_checked ~edges:all curve |> get_pdk == curve)
     "polygon-curve edges were not ignored";

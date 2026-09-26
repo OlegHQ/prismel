@@ -74,6 +74,7 @@ let line ?cancel ?(grain = 16_384) ?(kind = Line_curve) ?(points = 2)
       end
 
 let polyline ?(closed = false) values =
+  Error.guard ~operation:"polyline" ~code:"invalid_parameter" @@ fun () ->
   let count = Array.length values in
   let minimum = if closed then 3 else 2 in
   if count < minimum then Error (Printf.sprintf
@@ -90,7 +91,3 @@ let polyline ?(closed = false) values =
     else Topology.Builder.add_open_polyline topology indices;
     Geometry.create ~positions:(Geometry.positions geometry)
       ~topology:(Topology.Builder.freeze topology) ()
-
-let polyline_checked ?closed values =
-  Result.map_error (Error.of_string ~operation:"polyline"
-    ~code:"invalid_parameter") (polyline ?closed values)

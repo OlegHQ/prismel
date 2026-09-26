@@ -566,7 +566,7 @@ let reference_spiral ~divisions ~turns ~height ~start_radius ~end_radius =
     let angle = turns *. 2. *. Float.pi *. t
     and radius = start_radius +. ((end_radius -. start_radius) *. t) in
     radius *. cos angle, height *. t, radius *. sin angle) in
-  Line_geometry.polyline_checked points |> get_ok
+  Line_geometry.polyline points |> get_ok
 
 let run_spiral_reference_benchmark () =
   measure ~input_points:1_000_001 "spiral_generator_reference_polyline"
@@ -611,7 +611,7 @@ let run_polywire_benchmarks () =
   let source = Array.init source_points (fun point ->
       let t = float_of_int point *. 0.0005 in
       t, sin (t *. 0.19) *. 2., cos (t *. 0.13) *. 1.5)
-    |> Line_geometry.polyline_checked |> get_ok in
+    |> Line_geometry.polyline |> get_ok in
   measure ~input_points:source_points "polywire_long_spine" (fun () ->
     Sweep_circle.run ~grain ~sides:12 ~radius:0.08 source |> get_ok)
     geometry_output;
@@ -638,7 +638,7 @@ let run_polywire_benchmarks () =
   let variable = Array.init variable_points (fun point ->
       let t = float_of_int point *. 0.0015 in
       t, sin (t *. 0.23) *. 1.6, cos (t *. 0.17) *. 1.2)
-    |> Line_geometry.polyline_checked |> get_ok
+    |> Line_geometry.polyline |> get_ok
     |> add "wire_divisions" (Attribute.Int (Array.init variable_points
          (fun point -> 6 + ((point / 127) mod 9))))
     |> add "wire_segments" (Attribute.Int (Array.init variable_points
@@ -674,7 +674,7 @@ let run_polywire_benchmarks () =
       let p = float_of_int point in
       p *. 0.04, (if point land 1 = 0 then 0. else 0.035),
       0.08 *. sin (p *. 0.007))
-    |> Line_geometry.polyline_checked |> get_ok
+    |> Line_geometry.polyline |> get_ok
     |> add "joint_limit" (Attribute.Float (Array.init variable_points
          (fun point -> 1.15 +. (0.35 *. float_of_int (point mod 17) /. 16.)))) in
   measure ~input_points:variable_points
@@ -707,8 +707,8 @@ let run_sweep_general_benchmarks () =
           /. float_of_int profile_points in
       (0.08 +. (0.012 *. cos (5. *. angle))) *. cos angle,
       (0.08 +. (0.012 *. cos (5. *. angle))) *. sin angle, 0.) in
-  let backbone = Line_geometry.polyline_checked backbone_values |> get_ok
-  and profile = Line_geometry.polyline_checked ~closed:true profile_values |> get_ok in
+  let backbone = Line_geometry.polyline backbone_values |> get_ok
+  and profile = Line_geometry.polyline ~closed:true profile_values |> get_ok in
   measure ~input_points:(backbone_points + profile_points)
     "sweep_general_profile_triangles" (fun () ->
       Sweep_modeling.sweep ~grain ~connectivity:Plane_generators.Grid_alternating_triangles
@@ -775,7 +775,7 @@ let run_revolve_benchmarks () =
         else 2. +. (0.35 *. sin (u *. 14. *. Float.pi))
           +. (0.12 *. cos (u *. 37. *. Float.pi)) in
       radius, y, 0.) in
-  let source = Line_geometry.polyline_checked values |> get_ok in
+  let source = Line_geometry.polyline values |> get_ok in
   measure ~input_points:profile_points "revolve_dense_profile_triangles" (fun () ->
     Sweep_modeling.revolve ~grain ~connectivity:Plane_generators.Grid_alternating_triangles
       ~divisions:64 ~origin:Vec3.zero ~axis:Vec3.unit_y source |> get_ok)
@@ -802,7 +802,7 @@ let run_resample_benchmarks () =
       let t = float_of_int point *. 0.0005 in
       t, (2. *. sin (t *. 0.19)) +. (0.1 *. sin (t *. 2.7)),
       (1.5 *. cos (t *. 0.13)) +. (0.08 *. sin (t *. 3.1)))
-    |> Line_geometry.polyline_checked |> get_ok in
+    |> Line_geometry.polyline |> get_ok in
   measure ~input_points:source_points "resample_long_spine" (fun () ->
     Resample_curves.run ~grain ~segments:1_000_000 source |> get_ok)
     geometry_output;
@@ -6120,13 +6120,13 @@ let () =
   let curve = Array.init 10_001 (fun index ->
     let t = float_of_int index *. 0.002 in
     (t, sin (t *. 2.3), cos (t *. 1.7) *. 0.5))
-    |> Line_geometry.polyline_checked |> get_ok in
+    |> Line_geometry.polyline |> get_ok in
   measure "sweep_circle" (fun () ->
     Sweep_circle.run ~sides:12 ~radius:0.08 curve |> get_ok) geometry_output;
   let dense_curve_values = Array.init curve_points (fun index ->
       let t = float_of_int index *. 0.001 in
       t, sin (t *. 0.19), cos (t *. 0.07) *. 0.5) in
-  let dense_curve_plain = Line_geometry.polyline_checked dense_curve_values |> get_ok in
+  let dense_curve_plain = Line_geometry.polyline dense_curve_values |> get_ok in
   let curve_weight = Attribute.create_owned ~name:"weight"
       ~owner:Attribute.Point
       (Attribute.Float (Array.init curve_points (fun index ->
@@ -6208,7 +6208,7 @@ let () =
     "curve_carve_grouped" (fun () ->
       Curve_ops.carve_curves ~grain ~primitives:grouped_carve_selection ~first:0.137
         ~last:0.863 grouped_carve_source |> get_ok) geometry_output;
-  let closed_dense_curve = Line_geometry.polyline_checked ~closed:true dense_curve_values |> get_ok
+  let closed_dense_curve = Line_geometry.polyline ~closed:true dense_curve_values |> get_ok
       |> Geometry.with_attribute curve_weight |> get_ok
       |> Geometry.with_attribute curve_uv |> get_ok
       |> Geometry.with_group curve_points_group |> get_ok

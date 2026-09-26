@@ -136,7 +136,7 @@ let run () =
       [|-0.5;1.5;3.;5.;7.5;9.5|])
     "Edge Equalize subset moved an unselected edge";
 
-  let chain = Line_geometry.polyline_checked [|0.,0.,0.;1.,0.,0.;4.,0.,0.;6.,0.,0.|]
+  let chain = Line_geometry.polyline [|0.,0.,0.;1.,0.,0.;4.,0.,0.;6.,0.,0.|]
       |> get_pdk in
   let chain_output = Edge_ops.equalize ~grain:1 chain |> get_pdk in
   let p = positions chain_output in
@@ -151,7 +151,7 @@ let run () =
   expect_code "invalid_edge_equalize"
     (Edge_ops.equalize ~iterations:1 ~tolerance:1e-12 chain);
 
-  let cycle = Line_geometry.polyline_checked ~closed:true
+  let cycle = Line_geometry.polyline ~closed:true
       [|(-1.,-0.6,0.);(1.4,-0.8,0.);(0.8,1.2,0.);(-0.7,0.9,0.)|]
       |> get_pdk |> Edge_ops.equalize ~iterations:160 ~tolerance:1e-7
       |> get_pdk in

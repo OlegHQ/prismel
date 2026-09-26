@@ -169,7 +169,7 @@ let test_malformed_and_cancel () =
     Group.init ~owner:Group.Primitive ~name:"short" 1 (fun _ -> true) in
   expect "wrong-length primitive selection"
     (Curve_topology.ends ~primitives:short_selection Curve_topology.Ends_open source);
-  let short = Line_geometry.polyline_checked [|0.,0.,0.;1.,0.,0.|] |> get in
+  let short = Line_geometry.polyline [|0.,0.,0.;1.,0.,0.|] |> get in
   expect "two-point straight close" (Curve_topology.ends Curve_topology.Ends_close_straight short);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
