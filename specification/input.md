@@ -1,7 +1,7 @@
 # Input and events
 
 Runtime translates SDL3 input into Prismel's typed, ordered `Event.t` stream
-and updates the public `Input` snapshot. Native event values never expose an
+and folds held input into each `Frame.t`. Native event values never expose an
 SDL3 pointer or structure.
 
 ## Keys and buttons
@@ -11,14 +11,12 @@ modifiers, F1–F12, and `Unknown of int` for an unmapped native code.
 `Input.mouse_button` covers left, right, middle, and the two common auxiliary
 buttons.
 
-The public snapshot supports:
-
-- `is_key_down`, `is_key_up`, and `keys_down`;
-- `mouse_pos` and the current-frame aggregate `mouse_delta`;
-- `is_mouse_button_down` and `mouse_buttons_down`.
-
-Pressed collections are state facts, not a replacement for ordered events.
-Use events for edges and text, and snapshot queries for continuous actions.
+Held input lives only in the frame: `Frame.keys`, `Frame.mouse_buttons`,
+`Frame.mouse`, the current-frame aggregate `Frame.mouse_delta`, and the
+`Frame.key_down`/`Frame.mouse_down` queries. There is no global input state or
+public setter. Pressed collections are state facts, not a replacement for
+ordered events. Use events for edges and text, and frame facts for continuous
+actions.
 
 ## Event order
 
@@ -31,7 +29,7 @@ Use events for edges and text, and snapshot queries for continuous actions.
 - logical window resize and focus loss;
 - a requested window close.
 
-Runtime updates the `Input` snapshot in the same pass. `Frame.mouse_delta` is
+Runtime folds the same pass into the frame facts. `Frame.mouse_delta` is
 the sum of all logical pointer displacement observed during that application
 frame and resets before polling the next frame.
 
@@ -70,9 +68,8 @@ the runtime boundary and cannot escape into user code.
 ## Domain and reset rules
 
 Polling, state mutation, and every SDL3 operation run on the initial OCaml
-domain. `Input.begin_frame` resets only per-frame facts. Runtime setup/reset and
-focus loss use the private state-update boundary to establish a coherent
-snapshot.
+domain. Each poll resets only per-frame facts; focus loss clears held keys and
+buttons. The state is private to `Sketch`.
 
 ## Regression requirements
 
