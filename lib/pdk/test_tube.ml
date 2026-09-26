@@ -360,24 +360,10 @@ let check_parallel_exact () =
     check (equal_geometry one many)
       "one-domain and four-domain Tube geometry differ") cases
 
-let check_family_boundary () =
-  let make = Parametric_generators.tube_checked
-      ~rows:32 ~columns:16 ~top_radius:1. ~bottom_radius:2. ~height:3. in
-  let compat = Parametric_generators.tube_checked ~rows:32 ~columns:16
-      ~top_radius:1. ~bottom_radius:2. ~height:3. in
-  check (equal_geometry (make () |> get_ok) (compat () |> get_ok))
-    "Tube family differs from compatibility path";
-  let code = function Error error -> Error.code error | Ok _ -> "ok" in
-  check (code (Parametric_generators.tube_checked
-      ~top_radius:1. ~bottom_radius:2. ~height:0. ()) =
-    code (Parametric_generators.tube_checked ~top_radius:1. ~bottom_radius:2. ~height:0. ()))
-    "Tube family error code differs from compatibility path"
-
 let run () =
   check_default_and_connectivity ();
   check_cones_caps_normals_and_uv ();
   check_frustum_orientation_and_rotation ();
   check_validation ();
   check_parallel_exact ();
-  check_family_boundary ();
   print_endline "Tube tests passed"

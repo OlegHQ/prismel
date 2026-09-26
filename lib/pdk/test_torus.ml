@@ -396,19 +396,6 @@ let check_parallel_exact () =
     check (equal_geometry one many)
       "one-domain and four-domain Torus geometry differ") cases
 
-let check_family_boundary () =
-  let make = Parametric_generators.torus_checked
-      ~rows:32 ~columns:16 ~major_radius:3. ~minor_radius:1. in
-  let compat = Parametric_generators.torus_checked ~rows:32 ~columns:16
-      ~major_radius:3. ~minor_radius:1. in
-  check (equal_geometry (make () |> get_ok) (compat () |> get_ok))
-    "Torus family differs from compatibility path";
-  let code = function Error error -> Error.code error | Ok _ -> "ok" in
-  check (code (Parametric_generators.torus_checked
-      ~major_radius:0. ~minor_radius:1. ()) =
-    code (Parametric_generators.torus_checked ~major_radius:0. ~minor_radius:1. ()))
-    "Torus family error code differs from compatibility path"
-
 let run () =
   check_default_and_connectivity ();
   check_open_sweeps_caps_and_bridge ();
@@ -416,5 +403,4 @@ let run () =
   check_orientation_and_rotation ();
   check_validation ();
   check_parallel_exact ();
-  check_family_boundary ();
   print_endline "Torus tests passed"
