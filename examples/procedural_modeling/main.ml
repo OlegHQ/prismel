@@ -24,7 +24,7 @@ let graphs () =
     |> Sop.resample ~maximum_segment_length:0.08
          ~curve_u_attribute:"curveu" ~tangent_attribute:"curve_tangent"
     |> Sop.sweep_circle ~sides:12 ~radius:0.16
-    |> Sop.polyframe ~orthogonal:true (Pdk.Analysis_ops.Attribute_gradient "uv")
+    |> Sop.polyframe ~orthogonal:true (Pdk.Polyframe.Attribute_gradient "uv")
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#22d3ee")
   and tiles =
     Sop.grid ~columns:4 ~rows:3 ~size:2.8 ()

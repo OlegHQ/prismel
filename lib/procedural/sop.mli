@@ -1139,10 +1139,10 @@ val normals :
 val measure_curvature :
   ?label:string ->
   ?point_group:string ->
-  ?boundary:Pdk.Analysis_ops.curvature_boundary ->
+  ?boundary:Pdk.Curvature.boundary ->
   ?smoothing_iterations:int ->
   ?smoothing_strength:float ->
-  ?outputs:Pdk.Analysis_ops.curvature_outputs ->
+  ?outputs:Pdk.Curvature.outputs ->
   Node.t -> Node.t
 (* Estimate signed mean, Gaussian, principal, curvedness, and shape-index
    point fields through the shared packed PDK curvature kernel. The default
@@ -1152,7 +1152,7 @@ val measure_curvature :
 val attribute_laplacian :
   ?label:string ->
   ?point_group:string ->
-  ?weighting:Pdk.Analysis_ops.laplacian_weighting ->
+  ?weighting:Pdk.Laplacian.weighting ->
   ?normalize:bool ->
   source:string ->
   ?output:string ->
@@ -1164,7 +1164,7 @@ val polyframe :
   ?label:string -> ?selection:element_group -> ?orthogonal:bool ->
   ?left_handed:bool -> ?normal_attribute:string ->
   ?tangent_attribute:string option ->
-  ?bitangent_attribute:string option -> Pdk.Analysis_ops.polyframe_style ->
+  ?bitangent_attribute:string option -> Pdk.Polyframe.style ->
   Node.t -> Node.t
 (* Generate point or vertex coordinate-frame fields with deterministic packed
    PDK kernels. First-edge, two-edge, centroid, and texture-UV styles produce

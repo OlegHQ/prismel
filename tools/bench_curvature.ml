@@ -50,14 +50,14 @@ let measure name outputs smoothing_iterations input =
       Gc.full_major ();
       let before = Gc.quick_stat () and bytes_before = Gc.allocated_bytes ()
       and started = Unix.gettimeofday () in
-      let output = Analysis_ops.measure_curvature ~grain ~smoothing_iterations
+      let output = Curvature.run ~grain ~smoothing_iterations
           ~smoothing_strength:0.2 ~outputs input |> get in
       times.(repeat) <- Unix.gettimeofday () -. started;
       allocated.(repeat) <- Gc.allocated_bytes () -. bytes_before;
       let after = Gc.quick_stat () in
       promoted.(repeat) <- (after.promoted_words -. before.promoted_words) *. 8.;
       major.(repeat) <- (after.major_words -. before.major_words) *. 8.;
-      let names = [outputs.Analysis_ops.mean;outputs.gaussian;outputs.minimum;
+      let names = [outputs.Curvature.mean;outputs.gaussian;outputs.minimum;
           outputs.maximum;outputs.curvedness;outputs.shape_index]
           |> List.filter_map Fun.id in
       let current = output_hash names output in
@@ -73,9 +73,9 @@ let measure name outputs smoothing_iterations input =
 let () =
   let input = input () in
   Printf.printf "case,points,primitives,domains,grain,repeats,seconds,current_domain_allocated_bytes,promoted_bytes,major_bytes,hash\n";
-  measure "mean" Analysis_ops.default_curvature_outputs 0 input;
+  measure "mean" Curvature.default_outputs 0 input;
   measure "all_fields_smoothed" {
-    Analysis_ops.mean=Some "mean"; gaussian=Some "gaussian";
+    Curvature.mean=Some "mean"; gaussian=Some "gaussian";
     minimum=Some "minimum"; maximum=Some "maximum";
     curvedness=Some "curvedness"; shape_index=Some "shape";
   } 2 input

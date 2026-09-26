@@ -3311,14 +3311,14 @@ end [@@sop.register]
 
 module Measure_curvature = struct
   let boundary_parameter = Parameter.choice ~equal:( = ) [
-      "Zero", Pdk.Analysis_ops.Curvature_boundary_zero;
-      "One-sided", Pdk.Analysis_ops.Curvature_boundary_one_sided;
+      "Zero", Pdk.Curvature.Curvature_boundary_zero;
+      "One-sided", Pdk.Curvature.Curvature_boundary_one_sided;
     ]
 
   type parameters = {
     point_group : string [@sop.default ""] [@sop.label "Point group"];
-    boundary : Pdk.Analysis_ops.curvature_boundary
-      [@sop.default Pdk.Analysis_ops.Curvature_boundary_zero]
+    boundary : Pdk.Curvature.boundary
+      [@sop.default Pdk.Curvature.Curvature_boundary_zero]
       [@sop.label "Boundary"] [@sop.kind boundary_parameter];
     smoothing_iterations : int [@sop.default 0]
       [@sop.label "Smoothing iterations"] [@sop.min 0] [@sop.max 64]
@@ -3344,7 +3344,7 @@ module Measure_curvature = struct
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters input ->
-    let outputs : Pdk.Analysis_ops.curvature_outputs = {
+    let outputs : Pdk.Curvature.outputs = {
       mean = optional_text parameters.mean;
       gaussian = optional_text parameters.gaussian;
       minimum = optional_text parameters.minimum;
@@ -3362,15 +3362,15 @@ end [@@sop.register]
 
 module Attribute_laplacian = struct
   let weighting_parameter = Parameter.choice ~equal:( = ) [
-      "Cotangent", Pdk.Analysis_ops.Laplacian_cotan;
-      "Positive cotangent", Pdk.Analysis_ops.Laplacian_positive_cotan;
-      "Uniform", Pdk.Analysis_ops.Laplacian_uniform;
+      "Cotangent", Pdk.Laplacian.Laplacian_cotan;
+      "Positive cotangent", Pdk.Laplacian.Laplacian_positive_cotan;
+      "Uniform", Pdk.Laplacian.Laplacian_uniform;
     ]
 
   type parameters = {
     point_group : string [@sop.default ""] [@sop.label "Point group"];
-    weighting : Pdk.Analysis_ops.laplacian_weighting
-      [@sop.default Pdk.Analysis_ops.Laplacian_cotan]
+    weighting : Pdk.Laplacian.weighting
+      [@sop.default Pdk.Laplacian.Laplacian_cotan]
       [@sop.label "Weighting"] [@sop.kind weighting_parameter];
     normalize : bool [@sop.default true] [@sop.label "Normalize"];
     source : string [@sop.default "P"] [@sop.label "Source attribute"];
@@ -3421,14 +3421,14 @@ module Polyframe = struct
     [@@deriving sop_params, sop_node]
 
   let style parameters = match parameters.style with
-    | Style_first_edge -> Pdk.Analysis_ops.First_edge
-    | Style_two_edges -> Pdk.Analysis_ops.Two_edges
-    | Style_centroid -> Pdk.Analysis_ops.Primitive_centroid
-    | Style_texture_uv -> Pdk.Analysis_ops.Texture_uv parameters.style_attribute
+    | Style_first_edge -> Pdk.Polyframe.First_edge
+    | Style_two_edges -> Pdk.Polyframe.Two_edges
+    | Style_centroid -> Pdk.Polyframe.Primitive_centroid
+    | Style_texture_uv -> Pdk.Polyframe.Texture_uv parameters.style_attribute
     | Style_texture_uv_gradient ->
-        Pdk.Analysis_ops.Texture_uv_gradient parameters.style_attribute
+        Pdk.Polyframe.Texture_uv_gradient parameters.style_attribute
     | Style_attribute_gradient ->
-        Pdk.Analysis_ops.Attribute_gradient parameters.style_attribute
+        Pdk.Polyframe.Attribute_gradient parameters.style_attribute
 
   let build = parameters_build (fun ~label parameters input ->
     Sop.polyframe ~label

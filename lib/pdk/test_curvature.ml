@@ -43,7 +43,7 @@ let values name geometry =
   | None -> fail (name ^ " is missing")
 
 let all_outputs = {
-  Analysis_ops.mean = Some "mean";
+  Curvature.mean = Some "mean";
   gaussian = Some "gaussian";
   minimum = Some "minimum";
   maximum = Some "maximum";
@@ -52,7 +52,7 @@ let all_outputs = {
 }
 
 let test_closed_surface_and_scaling () =
-  let output = Analysis_ops.measure_curvature ~grain:1 ~outputs:all_outputs
+  let output = Curvature.run ~grain:1 ~outputs:all_outputs
       (octahedron ()) |> get in
   let mean = values "mean" output and gaussian = values "gaussian" output
   and minimum = values "minimum" output and maximum = values "maximum" output
@@ -68,7 +68,7 @@ let test_closed_surface_and_scaling () =
     check (near curvedness.(point) 1. && near shape.(point) 1.)
       "unit octahedron derived curvature"
   done;
-  let scaled = Analysis_ops.measure_curvature ~outputs:all_outputs
+  let scaled = Curvature.run ~outputs:all_outputs
       (octahedron ~scale:2. ()) |> get in
   let scaled_mean = values "mean" scaled
   and scaled_gaussian = values "gaussian" scaled in
@@ -78,7 +78,7 @@ let test_closed_surface_and_scaling () =
     check (near scaled_gaussian.(point) (gaussian.(point) /. 4.))
       "Gaussian curvature did not scale inversely with area"
   done;
-  let translated = Analysis_ops.measure_curvature ~outputs:all_outputs
+  let translated = Curvature.run ~outputs:all_outputs
       (octahedron ~center:(1e12,-2e12,3e12) ()) |> get in
   Array.iter (fun value -> check (near ~epsilon:5e-4 value 1.)
       "large translation destabilized mean curvature") (values "mean" translated);
@@ -87,7 +87,7 @@ let test_closed_surface_and_scaling () =
       "large translation destabilized Gaussian curvature")
     (values "gaussian" translated);
   List.iter (fun scale ->
-    let output = Analysis_ops.measure_curvature ~outputs:all_outputs
+    let output = Curvature.run ~outputs:all_outputs
         (octahedron ~scale ()) |> get in
     Array.iter (fun value -> check
         (near ~epsilon:1e-9 (value *. scale) 1.)
@@ -113,7 +113,7 @@ let test_orientation_and_saddle () =
       ~primitive_kinds:(Array.make 8 Topology.Polygon) |> get_string in
   let reversed = Geometry.create ~positions:(Geometry.positions source)
       ~topology:reversed_topology () |> get_string
-      |> Analysis_ops.measure_curvature ~outputs:all_outputs |> get in
+      |> Curvature.run ~outputs:all_outputs |> get in
   Array.iter (fun value -> check (near value (-1.))
       "reversed winding did not reverse signed curvature") (values "mean" reversed);
   Array.iter (fun value -> check (near value (Float.pi /. sqrt 3.))
@@ -121,7 +121,7 @@ let test_orientation_and_saddle () =
   let saddle = geometry
       [(0.,0.,0.);(1.,0.,1.);(0.,1.,-1.);(-1.,0.,1.);(0.,-1.,-1.)]
       [(0,1,2);(0,2,3);(0,3,4);(0,4,1)]
-      |> Analysis_ops.measure_curvature ~boundary:Analysis_ops.Curvature_boundary_one_sided
+      |> Curvature.run ~boundary:Curvature.Curvature_boundary_one_sided
           ~outputs:all_outputs |> get in
   check ((values "gaussian" saddle).(0) < 0.)
     "saddle center did not receive negative Gaussian curvature"
@@ -129,18 +129,18 @@ let test_orientation_and_saddle () =
 let test_boundary_smoothing_and_selection () =
   let grid = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:2 ~rows:2 ~size:2. ()
       |> get in
-  let zero = Analysis_ops.measure_curvature ~outputs:all_outputs grid |> get in
+  let zero = Curvature.run ~outputs:all_outputs grid |> get in
   Array.iter (fun value -> check (near value 0.)
       "flat boundary-zero grid has nonzero curvature") (values "mean" zero);
   Array.iter (fun value -> check (near value 0.)
       "flat boundary-zero grid has nonzero Gaussian curvature")
     (values "gaussian" zero);
-  let one_sided = Analysis_ops.measure_curvature
-      ~boundary:Analysis_ops.Curvature_boundary_one_sided ~outputs:all_outputs grid |> get in
+  let one_sided = Curvature.run
+      ~boundary:Curvature.Curvature_boundary_one_sided ~outputs:all_outputs grid |> get in
   check (Array.exists (fun value -> value > 0.) (values "gaussian" one_sided))
     "one-sided boundary policy did not retain boundary angle defect";
-  let smoothed = Analysis_ops.measure_curvature
-      ~boundary:Analysis_ops.Curvature_boundary_one_sided ~smoothing_iterations:3
+  let smoothed = Curvature.run
+      ~boundary:Curvature.Curvature_boundary_one_sided ~smoothing_iterations:3
       ~smoothing_strength:0.25 ~outputs:all_outputs grid |> get in
   check (Array.for_all Float.is_finite (values "gaussian" smoothed))
     "curvature smoothing produced non-finite output";
@@ -150,7 +150,7 @@ let test_boundary_smoothing_and_selection () =
   let existing = Attribute.create_owned ~owner:Attribute.Point ~name:"curvature"
       (Attribute.Float (Array.make 6 42.)) |> get_string in
   let base = Geometry.with_attribute existing base |> get_string in
-  let selected_output = Analysis_ops.measure_curvature ~points:selected base |> get in
+  let selected_output = Curvature.run ~points:selected base |> get in
   let selected_values = values "curvature" selected_output in
   check (near selected_values.(0) 1.) "selected curvature was not written";
   for point = 1 to 5 do
@@ -162,7 +162,7 @@ let test_exact_domains_and_cardinality () =
   let sphere = Uv_sphere.run_checked ~connectivity:Uv_sphere.Sphere_triangles
       ~segments:192 ~rings:96 ~radius:3. () |> get in
   let run domains = Parallel.run ~domains (fun () ->
-      Analysis_ops.measure_curvature ~grain:257 ~smoothing_iterations:2
+      Curvature.run ~grain:257 ~smoothing_iterations:2
         ~smoothing_strength:0.2 ~outputs:all_outputs sphere |> get) in
   let one = run 1 and four = run 4 in
   List.iter (fun name ->
@@ -182,47 +182,47 @@ let expect_invalid work message = match work () with
 
 let test_validation_and_cancellation () =
   let source = octahedron () in
-  expect_invalid (fun () -> Analysis_ops.measure_curvature ~grain:0 source)
+  expect_invalid (fun () -> Curvature.run ~grain:0 source)
     "zero grain";
-  expect_invalid (fun () -> Analysis_ops.measure_curvature ~smoothing_iterations:(-1) source)
+  expect_invalid (fun () -> Curvature.run ~smoothing_iterations:(-1) source)
     "negative smoothing iterations";
-  expect_invalid (fun () -> Analysis_ops.measure_curvature ~smoothing_strength:1.1 source)
+  expect_invalid (fun () -> Curvature.run ~smoothing_strength:1.1 source)
     "invalid smoothing strength";
-  expect_invalid (fun () -> Analysis_ops.measure_curvature ~outputs:{all_outputs with
+  expect_invalid (fun () -> Curvature.run ~outputs:{all_outputs with
       gaussian=Some "mean"} source) "duplicate output names";
   let primitive_group = Group.init ~owner:Group.Primitive ~name:"wrong" 8
       (fun _ -> true) in
-  expect_invalid (fun () -> Analysis_ops.measure_curvature ~points:primitive_group source)
+  expect_invalid (fun () -> Curvature.run ~points:primitive_group source)
     "wrong selection owner";
   let wrong = Attribute.create_owned ~owner:Attribute.Point ~name:"curvature"
       (Attribute.Int (Array.make 6 0)) |> get_string in
   let wrong = Geometry.with_attribute wrong source |> get_string in
-  expect_invalid (fun () -> Analysis_ops.measure_curvature wrong)
+  expect_invalid (fun () -> Curvature.run wrong)
     "wrong existing output storage";
   let curve = Line_geometry.polyline_checked ~closed:true
       [|0.,0.,0.;1.,0.,0.;0.,1.,0.|] |> get in
-  expect_invalid (fun () -> Analysis_ops.measure_curvature curve) "curve input";
+  expect_invalid (fun () -> Curvature.run curve) "curve input";
   let inconsistent = geometry
       [(0.,0.,0.);(1.,0.,0.);(0.,1.,0.);(0.,-1.,0.)]
       [(0,1,2);(0,1,3)] in
-  expect_invalid (fun () -> Analysis_ops.measure_curvature inconsistent)
+  expect_invalid (fun () -> Curvature.run inconsistent)
     "inconsistent winding";
   let disconnected = geometry
       [(0.,0.,0.);(1.,0.,0.);(0.,1.,0.);(-1.,0.,0.);(0.,-1.,0.)]
       [(0,1,2);(0,3,4)] in
-  expect_invalid (fun () -> Analysis_ops.measure_curvature disconnected)
+  expect_invalid (fun () -> Curvature.run disconnected)
     "disconnected point fans";
   let non_manifold = geometry
       [(0.,0.,0.);(1.,0.,0.);(0.,1.,0.);(0.,-1.,0.);(0.,0.,1.)]
       [(0,1,2);(1,0,3);(0,1,4)] in
-  expect_invalid (fun () -> Analysis_ops.measure_curvature non_manifold)
+  expect_invalid (fun () -> Curvature.run non_manifold)
     "non-manifold edge";
   let degenerate = geometry [(0.,0.,0.);(1.,0.,0.);(2.,0.,0.)] [(0,1,2)] in
-  expect_invalid (fun () -> Analysis_ops.measure_curvature degenerate)
+  expect_invalid (fun () -> Curvature.run degenerate)
     "degenerate triangle";
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  (match Analysis_ops.measure_curvature ~cancel source with
+  (match Curvature.run ~cancel source with
    | Error error -> check (Error.code error = "cancelled")
        "curvature cancellation code"
    | Ok _ -> fail "cancelled curvature unexpectedly succeeded")

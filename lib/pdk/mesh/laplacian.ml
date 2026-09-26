@@ -240,6 +240,7 @@ let cotan ?cancel ~grain ~positive ~normalize ~points source output metric =
 
 let run ?cancel ?(grain = 16_384) ?points ?(weighting = Laplacian_cotan)
     ?(normalize = true) ~source:source_name ?output geometry =
+  Error.guard ~operation:"attribute_laplacian" ~code:"invalid_laplacian" @@ fun () ->
   try
     if grain <= 0 then fail "laplacian grain must be positive";
     if String.trim source_name = "" then fail "laplacian source name is empty";

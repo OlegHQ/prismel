@@ -20,4 +20,4 @@ val run :
   ?normal_attribute:String.t ->
   ?tangent_attribute:String.t option ->
   ?bitangent_attribute:String.t option ->
-  style -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
+  style -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Error.t) result

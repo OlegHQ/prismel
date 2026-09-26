@@ -12,4 +12,4 @@ val run :
   ?normalize:bool ->
   source:String.t ->
   ?output:String.t ->
-  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
+  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Error.t) result

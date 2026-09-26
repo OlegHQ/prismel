@@ -819,13 +819,13 @@ let run_polyframe_benchmarks () =
       ~size:100. () |> get_ok in
   let input_points = Geometry.point_count source in
   measure ~input_points "polyframe_two_edges" (fun () ->
-    Analysis_ops.polyframe ~grain ~orthogonal:true Analysis_ops.Two_edges source |> get_ok)
+    Polyframe.run ~grain ~orthogonal:true Polyframe.Two_edges source |> get_ok)
     geometry_output;
   measure ~input_points "polyframe_texture_uv" (fun () ->
-    Analysis_ops.polyframe ~grain ~orthogonal:true (Analysis_ops.Texture_uv "uv") source
+    Polyframe.run ~grain ~orthogonal:true (Polyframe.Texture_uv "uv") source
     |> get_ok) geometry_output;
   measure ~input_points "polyframe_attribute_gradient" (fun () ->
-    Analysis_ops.polyframe ~grain ~orthogonal:true (Analysis_ops.Attribute_gradient "uv") source
+    Polyframe.run ~grain ~orthogonal:true (Polyframe.Attribute_gradient "uv") source
     |> get_ok) geometry_output
 
 let run_facet_benchmarks () =

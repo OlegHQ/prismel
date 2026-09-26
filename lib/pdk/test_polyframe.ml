@@ -121,9 +121,9 @@ let with_attribute owner name storage geometry =
 
 let check_point_styles () =
   let source = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:2. () |> get_ok in
-  let first = Analysis_ops.polyframe ~orthogonal:true Analysis_ops.First_edge source |> get_ok
-  and two = Analysis_ops.polyframe ~orthogonal:true Analysis_ops.Two_edges source |> get_ok
-  and radial = Analysis_ops.polyframe ~orthogonal:true Analysis_ops.Primitive_centroid source
+  let first = Polyframe.run ~orthogonal:true Polyframe.First_edge source |> get_ok
+  and two = Polyframe.run ~orthogonal:true Polyframe.Two_edges source |> get_ok
+  and radial = Polyframe.run ~orthogonal:true Polyframe.Primitive_centroid source
       |> get_ok in
   List.iter (fun geometry ->
     let normal = float3_attribute ~owner:Attribute.Point geometry "N"
@@ -159,20 +159,20 @@ let check_point_styles () =
   check (near ((two_tangent.x.(0) *. ex +. two_tangent.y.(0) *. ey
       +. two_tangent.z.(0) *. ez) /. length) 1.)
     "Two Edges tangent is not the sum of both point-relative edge vectors";
-  let normal_only = Analysis_ops.polyframe ~tangent_attribute:None
-      ~bitangent_attribute:None Analysis_ops.First_edge source |> get_ok in
+  let normal_only = Polyframe.run ~tangent_attribute:None
+      ~bitangent_attribute:None Polyframe.First_edge source |> get_ok in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" normal_only <> None
       && Geometry.find_attribute ~owner:Attribute.Point "tangentu" normal_only = None)
     "PolyFrame output toggles";
-  let bitangent_only = Analysis_ops.polyframe ~orthogonal:true ~tangent_attribute:None
-      ~bitangent_attribute:(Some "frame_v") Analysis_ops.First_edge source |> get_ok in
+  let bitangent_only = Polyframe.run ~orthogonal:true ~tangent_attribute:None
+      ~bitangent_attribute:(Some "frame_v") Polyframe.First_edge source |> get_ok in
   let bitangent = float3_attribute ~owner:Attribute.Point bitangent_only
       "frame_v" in
   check (Geometry.find_attribute ~owner:Attribute.Point "tangentu"
            bitangent_only = None
       && near (norm bitangent 0) 1.)
     "PolyFrame bitangent-only output";
-  let left = Analysis_ops.polyframe ~orthogonal:true ~left_handed:true Analysis_ops.First_edge
+  let left = Polyframe.run ~orthogonal:true ~left_handed:true Polyframe.First_edge
       source |> get_ok in
   let rn = float3_attribute ~owner:Attribute.Point first "N"
   and rt = float3_attribute ~owner:Attribute.Point first "tangentu"
@@ -187,9 +187,9 @@ let check_point_styles () =
 let check_gradient_styles () =
   let source = Plane_generators.grid_checked ~columns:4 ~rows:3 ~uv_attribute:"uv" ~size:2. ()
       |> get_ok in
-  let point = Analysis_ops.polyframe ~orthogonal:true (Analysis_ops.Texture_uv "uv") source
+  let point = Polyframe.run ~orthogonal:true (Polyframe.Texture_uv "uv") source
       |> get_ok in
-  let default_point = Analysis_ops.polyframe ~orthogonal:true (Analysis_ops.Texture_uv "") source
+  let default_point = Polyframe.run ~orthogonal:true (Polyframe.Texture_uv "") source
       |> get_ok in
   check (equal_geometry point default_point)
     "empty Texture UV attribute name did not resolve to uv";
@@ -201,10 +201,10 @@ let check_gradient_styles () =
         && near (norm pb index) 1. && near (dot pn pt index) 0.)
       "Texture UV point frame"
   done;
-  let vertex = Analysis_ops.polyframe ~orthogonal:true
-      (Analysis_ops.Attribute_gradient "uv") source |> get_ok in
-  let texture_gradient = Analysis_ops.polyframe ~orthogonal:true
-      (Analysis_ops.Texture_uv_gradient "uv") source |> get_ok in
+  let vertex = Polyframe.run ~orthogonal:true
+      (Polyframe.Attribute_gradient "uv") source |> get_ok in
+  let texture_gradient = Polyframe.run ~orthogonal:true
+      (Polyframe.Texture_uv_gradient "uv") source |> get_ok in
   check (equal_geometry vertex texture_gradient)
     "Texture UV Gradient and UV Attribute Gradient disagree";
   let vn = float3_attribute ~owner:Attribute.Vertex vertex "N"
@@ -226,8 +226,8 @@ let check_selection () =
         ~z:(Array.make count 7.))) source in
   let group = Group.init ~owner:Group.Point ~name:"one" count
       (fun point -> point = 0) in
-  let framed = Analysis_ops.polyframe ~selection:(Transform_ops.Selected_points group)
-      Analysis_ops.First_edge source |> get_ok in
+  let framed = Polyframe.run ~selection:(Transform_ops.Selected_points group)
+      Polyframe.First_edge source |> get_ok in
   let tangent = float3_attribute ~owner:Attribute.Point framed "tangentu" in
   check (near (norm tangent 0) 1. && tangent.x.(1) = 9.
       && tangent.y.(1) = 8. && tangent.z.(1) = 7.)
@@ -236,25 +236,25 @@ let check_selection () =
 let check_validation () =
   let source = Plane_generators.grid_checked ~columns:1 ~rows:1 ~uv_attribute:"uv" ~size:1. ()
       |> get_ok in
-  expect_invalid (Analysis_ops.polyframe (Analysis_ops.Texture_uv "missing") source);
-  expect_invalid (Analysis_ops.polyframe ~normal_attribute:"P" Analysis_ops.First_edge source);
-  expect_invalid (Analysis_ops.polyframe ~normal_attribute:"frame"
-      ~tangent_attribute:(Some "frame") Analysis_ops.First_edge source);
+  expect_invalid (Polyframe.run (Polyframe.Texture_uv "missing") source);
+  expect_invalid (Polyframe.run ~normal_attribute:"P" Polyframe.First_edge source);
+  expect_invalid (Polyframe.run ~normal_attribute:"frame"
+      ~tangent_attribute:(Some "frame") Polyframe.First_edge source);
   let wrong = source |> with_attribute Attribute.Point "bad"
       (Attribute.Float (Array.make (Geometry.point_count source) 0.)) in
-  expect_invalid (Analysis_ops.polyframe (Analysis_ops.Texture_uv "bad") wrong);
+  expect_invalid (Polyframe.run (Polyframe.Texture_uv "bad") wrong);
   let nonfinite = source |> with_attribute Attribute.Point "bad_uv"
       (Attribute.Float2 (Packed.Float2.of_owned
         ~x:(Array.make (Geometry.point_count source) Float.nan)
         ~y:(Array.make (Geometry.point_count source) 0.) |> get_string)) in
-  expect_invalid (Analysis_ops.polyframe (Analysis_ops.Texture_uv "bad_uv") nonfinite);
+  expect_invalid (Polyframe.run (Polyframe.Texture_uv "bad_uv") nonfinite);
   let wrong_output = source |> with_attribute Attribute.Point "frame"
       (Attribute.Float (Array.make (Geometry.point_count source) 0.)) in
-  expect_invalid (Analysis_ops.polyframe ~normal_attribute:"frame" Analysis_ops.First_edge
+  expect_invalid (Polyframe.run ~normal_attribute:"frame" Polyframe.First_edge
       wrong_output);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Analysis_ops.polyframe ~cancel:cancelled Analysis_ops.First_edge source with
+  (match Polyframe.run ~cancel:cancelled Polyframe.First_edge source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "PolyFrame ignored cancellation")
 
@@ -262,13 +262,13 @@ let check_parallel_exact () =
   let source = Plane_generators.grid_checked ~columns:300 ~rows:240 ~uv_attribute:"uv" ~size:20. ()
       |> get_ok in
   let run style domains = Parallel.run ~domains (fun () ->
-      Analysis_ops.polyframe ~grain:257 ~orthogonal:true style source |> get_ok) in
+      Polyframe.run ~grain:257 ~orthogonal:true style source |> get_ok) in
   List.iter (fun style ->
     let one = run style 1 and many = run style 4 in
     check (equal_geometry one many)
       "one-domain and four-domain PolyFrame geometry differ")
-    [Analysis_ops.Two_edges; Analysis_ops.Texture_uv "uv"; Analysis_ops.Texture_uv_gradient "uv";
-     Analysis_ops.Attribute_gradient "uv"]
+    [Polyframe.Two_edges; Polyframe.Texture_uv "uv"; Polyframe.Texture_uv_gradient "uv";
+     Polyframe.Attribute_gradient "uv"]
 
 let run () =
   check_point_styles ();

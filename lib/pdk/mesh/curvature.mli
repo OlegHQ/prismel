@@ -17,4 +17,4 @@ val run :
   ?smoothing_iterations:int ->
   ?smoothing_strength:float ->
   ?outputs:outputs ->
-  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
+  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Error.t) result

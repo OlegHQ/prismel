@@ -229,7 +229,7 @@ let run () =
   let generated_polyframe = Sop.grid ~columns:401 ~rows:301
       ~uv_attribute:"uv" ~size:20. ()
       |> Sop.polyframe ~orthogonal:true
-           (Analysis_ops.Attribute_gradient "uv") in
+           (Polyframe.Attribute_gradient "uv") in
   let one = cook 1 generated_polyframe and many = cook 4 generated_polyframe in
   check (equal_geometry one many)
     "one-domain and four-domain PolyFrame geometry differ";

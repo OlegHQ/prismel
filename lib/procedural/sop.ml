@@ -3212,11 +3212,11 @@ let normals ?label ?selection ?(owner = Pdk.Attribute.Point)
           | Error error -> structured_pdk_error error)
 
 let curvature_boundary_key = function
-  | Pdk.Analysis_ops.Curvature_boundary_zero -> "zero"
-  | Pdk.Analysis_ops.Curvature_boundary_one_sided -> "one_sided"
+  | Pdk.Curvature.Curvature_boundary_zero -> "zero"
+  | Pdk.Curvature.Curvature_boundary_one_sided -> "one_sided"
 
 let curvature_outputs_key outputs = String.concat "," [
-  "mean=" ^ option_string_key outputs.Pdk.Analysis_ops.mean;
+  "mean=" ^ option_string_key outputs.Pdk.Curvature.mean;
   "gaussian=" ^ option_string_key outputs.gaussian;
   "minimum=" ^ option_string_key outputs.minimum;
   "maximum=" ^ option_string_key outputs.maximum;
@@ -3225,9 +3225,9 @@ let curvature_outputs_key outputs = String.concat "," [
 ]
 
 let measure_curvature ?label ?point_group
-    ?(boundary = Pdk.Analysis_ops.Curvature_boundary_zero)
+    ?(boundary = Pdk.Curvature.Curvature_boundary_zero)
     ?(smoothing_iterations = 0) ?(smoothing_strength = 0.5)
-    ?(outputs = Pdk.Analysis_ops.default_curvature_outputs) input =
+    ?(outputs = Pdk.Curvature.default_outputs) input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.measure_curvature: empty point group name") point_group;
   if smoothing_iterations < 0 then
@@ -3272,7 +3272,7 @@ let measure_curvature ?label ?point_group
       match points with
       | Error error -> Error error
       | Ok points ->
-          match Pdk.Analysis_ops.measure_curvature
+          match Pdk.Curvature.run
               ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?points ~boundary
               ~smoothing_iterations ~smoothing_strength ~outputs geometry with
@@ -3280,12 +3280,12 @@ let measure_curvature ?label ?point_group
           | Error error -> structured_pdk_error error)
 
 let laplacian_weighting_key = function
-  | Pdk.Analysis_ops.Laplacian_cotan -> "cotan"
-  | Pdk.Analysis_ops.Laplacian_positive_cotan -> "positive_cotan"
-  | Pdk.Analysis_ops.Laplacian_uniform -> "uniform"
+  | Pdk.Laplacian.Laplacian_cotan -> "cotan"
+  | Pdk.Laplacian.Laplacian_positive_cotan -> "positive_cotan"
+  | Pdk.Laplacian.Laplacian_uniform -> "uniform"
 
 let attribute_laplacian ?label ?point_group
-    ?(weighting = Pdk.Analysis_ops.Laplacian_cotan) ?(normalize = true) ~source
+    ?(weighting = Pdk.Laplacian.Laplacian_cotan) ?(normalize = true) ~source
     ?output input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.attribute_laplacian: empty point group name") point_group;
@@ -3317,7 +3317,7 @@ let attribute_laplacian ?label ?point_group
       match points with
       | Error error -> Error error
       | Ok points ->
-          match Pdk.Analysis_ops.attribute_laplacian
+          match Pdk.Laplacian.run
               ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?points ~weighting ~normalize
               ~source ?output geometry with
@@ -3325,15 +3325,15 @@ let attribute_laplacian ?label ?point_group
           | Error error -> structured_pdk_error error)
 
 let polyframe_style_key = function
-  | Pdk.Analysis_ops.First_edge -> "first_edge"
-  | Pdk.Analysis_ops.Two_edges -> "two_edges"
-  | Pdk.Analysis_ops.Primitive_centroid -> "primitive_centroid"
-  | Pdk.Analysis_ops.Texture_uv name -> "texture_uv:" ^ String.escaped
+  | Pdk.Polyframe.First_edge -> "first_edge"
+  | Pdk.Polyframe.Two_edges -> "two_edges"
+  | Pdk.Polyframe.Primitive_centroid -> "primitive_centroid"
+  | Pdk.Polyframe.Texture_uv name -> "texture_uv:" ^ String.escaped
       (if String.trim name = "" then "uv" else name)
-  | Pdk.Analysis_ops.Texture_uv_gradient name ->
+  | Pdk.Polyframe.Texture_uv_gradient name ->
       "texture_uv_gradient:" ^ String.escaped
         (if String.trim name = "" then "uv" else name)
-  | Pdk.Analysis_ops.Attribute_gradient name ->
+  | Pdk.Polyframe.Attribute_gradient name ->
       "attribute_gradient:" ^ String.escaped name
 
 let polyframe ?label ?selection ?(orthogonal = false)
@@ -3356,7 +3356,7 @@ let polyframe ?label ?selection ?(orthogonal = false)
       match resolve_element_group ~operation:"polyframe" selection inputs.(0) with
       | Error _ as error -> error
       | Ok selection ->
-          match Pdk.Analysis_ops.polyframe ~cancel:(Context.cancel_token context)
+          match Pdk.Polyframe.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~orthogonal
               ~left_handed ~normal_attribute ~tangent_attribute
               ~bitangent_attribute style inputs.(0) with

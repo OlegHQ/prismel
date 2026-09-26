@@ -66,6 +66,7 @@ let existing_float name point_count geometry =
 let run ?cancel ?(grain = 16_384) ?points
     ?(boundary = Curvature_boundary_zero) ?(smoothing_iterations = 0)
     ?(smoothing_strength = 0.5) ?(outputs = default_outputs) geometry =
+  Error.guard ~operation:"measure_curvature" ~code:"invalid_curvature" @@ fun () ->
   try
     if grain <= 0 then fail "grain must be positive";
     if smoothing_iterations < 0 then

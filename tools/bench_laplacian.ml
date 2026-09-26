@@ -52,7 +52,7 @@ let measure name weighting normalize input =
       Gc.full_major ();
       let before = Gc.quick_stat () and bytes_before = Gc.allocated_bytes ()
       and started = Unix.gettimeofday () in
-      let output = Analysis_ops.attribute_laplacian ~grain ~weighting ~normalize
+      let output = Laplacian.run ~grain ~weighting ~normalize
           ~source:"P" input |> get in
       times.(repeat) <- Unix.gettimeofday () -. started;
       allocated.(repeat) <- Gc.allocated_bytes () -. bytes_before;
@@ -72,6 +72,6 @@ let measure name weighting normalize input =
 let () =
   let input = input () in
   Printf.printf "case,points,primitives,domains,grain,repeats,seconds,current_domain_allocated_bytes,promoted_bytes,major_bytes,hash\n";
-  measure "cotan_pointwise" Analysis_ops.Laplacian_cotan true input;
-  measure "positive_cotan_pointwise" Analysis_ops.Laplacian_positive_cotan true input;
-  measure "uniform_average" Analysis_ops.Laplacian_uniform true input
+  measure "cotan_pointwise" Laplacian.Laplacian_cotan true input;
+  measure "positive_cotan_pointwise" Laplacian.Laplacian_positive_cotan true input;
+  measure "uniform_average" Laplacian.Laplacian_uniform true input
