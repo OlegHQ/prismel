@@ -45,7 +45,7 @@ let key_name ~scancode keycode =
     | 225 | 229 -> "Shift"
     | 226 | 230 -> "Alt"
     | 227 | 231 -> "Meta"
-    | _ -> Printf.sprintf "Unknown(%d)" keycode
+    | _ -> Printf.sprintf "Unknown(%d)" scancode
 
 let modifiers bits =
   let add mask value values = if bits land mask <> 0 then value :: values else values in
@@ -72,7 +72,10 @@ let translate = function
   | Window { change = Focus_lost; _ } -> Some Runtime_input.Focus_lost
   | Window { change = Focus_gained; _ } -> Some Runtime_input.Focus_gained
   | Window { change = Shown; _ } -> Some (Visibility_changed true)
-  | Window { change = Hidden; _ } -> Some (Visibility_changed false)
+  (* SDL3 sends no paired event when occlusion ends, so [Occluded] stays
+     untranslated rather than leaving visibility stuck false. *)
+  | Window { change = Hidden | Minimized; _ } -> Some (Visibility_changed false)
+  | Window { change = Restored; _ } -> Some (Visibility_changed true)
   | Window { change = Close_requested; _ } -> Some Runtime_input.Quit
   | Sdl3.Event.Quit _ -> Some Runtime_input.Quit
   | Drop { change = File _; _ } -> None

@@ -102,7 +102,12 @@ let apply value = function
       value.wheel_delta.py <- value.wheel_delta.py +. y
   | Key_pressed event -> value.keys <- add_unique event.key value.keys
   | Key_released event -> value.keys <- remove event.key value.keys
-  | Focus_lost -> value.keys <- []
+  | Focus_lost ->
+      (* The matching releases go to another window, so held input and
+         capture end here. *)
+      value.keys <- [];
+      value.buttons <- [];
+      value.pointer_captured <- false
   | Resized (width, height) ->
       value.logical_width <- width;
       value.logical_height <- height

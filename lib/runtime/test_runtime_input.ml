@@ -68,12 +68,22 @@ let run () =
   ignore (Input.drain native);
   get (Input.push native (Pointer_pressed (Left, 1., 1.)));
   get (Input.push native Focus_lost);
-  if not (Input.snapshot native).pointer_captured then
-    failwith "focus loss incorrectly acted as pointer cancellation";
+  let unfocused = Input.snapshot native in
+  if unfocused.pointer_captured || unfocused.buttons <> [] then
+    failwith "focus loss left a held button or pointer capture";
+  (match Input.drain native with
+   | [Pointer_pressed (Left, _, _); Focus_lost] -> ()
+   | _ -> failwith "focus loss synthesized a pointer cancellation event");
+  get (Input.push native (Pointer_pressed (Left, 1., 1.)));
   get (Input.push native (Pointer_cancelled Left));
   if (Input.snapshot native).pointer_captured then
     failwith "pointer cancellation retained capture";
   ignore (Input.drain native);
+  (match Runtime_input_sdl3.translate (Sdl3.Event.Key { timestamp_ns = 0L;
+      window_id = 1L; which = 1L; scancode = 100; keycode = 1 lsl 30 lor 100;
+      modifiers = 0; raw_scancode = 100; down = true; repeat = false }) with
+   | Some (Key_pressed { key = "Unknown(100)"; _ }) -> ()
+   | _ -> failwith "unknown key name does not report the matched scancode");
   let timestamp_ns=0L and window_id=1L and which=1L in
   let named=[40,"Enter";41,"Escape";42,"Backspace";43,"Tab";44,"Space";
     58,"F1";59,"F2";60,"F3";61,"F4";62,"F5";63,"F6";64,"F7";
@@ -98,6 +108,7 @@ let run () =
     if Runtime_input_sdl3.translate event<>Some expected then
       failwith"window authority mapping drift")
     [Sdl3.Event.Shown,Visibility_changed true;Hidden,Visibility_changed false;
+     Minimized,Visibility_changed false;Restored,Visibility_changed true;
      Focus_gained,Runtime_input.Focus_gained;
      Close_requested,Runtime_input.Quit];
   if Runtime_input_sdl3.translate(Sdl3.Event.Quit{timestamp_ns})<>Some Quit then
