@@ -183,7 +183,7 @@ module Separate_pieces : sig
   val create :
     ?label:string -> ?owner:Pdk.Attribute.owner ->
     ?translation_attribute:string -> ?axis:Prismel.Vec3.t -> ?gap:float ->
-    ?mode:Pdk.Ops.separate_pieces_mode -> piece_attribute:string ->
+    ?mode:Pdk.Separate_pieces.mode -> piece_attribute:string ->
     Procedural.Node.t -> Procedural.Node.t
 end
 

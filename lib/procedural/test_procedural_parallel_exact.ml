@@ -1229,7 +1229,7 @@ let run () =
       let x = float_of_int index *. 0.01 in
       x, sin x, 0.) in
   let healed_curve = Sop.polyline curve_points
-      |> Sop.delete ~policy:Ops.Heal_primitives
+      |> Sop.delete ~policy:Deletion.Heal_primitives
            (Select.vertex_indices
              (Array.init 400 (fun index -> 1 + (index * 5)))) in
   let one = cook 1 healed_curve and many = cook 4 healed_curve in

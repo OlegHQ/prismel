@@ -155,7 +155,7 @@ let test_ordered_group_topology_remap () =
     "point reorder remaps explicit group order by element ancestry";
   let remove = Group.init ~grain:1 ~owner:Group.Point ~name:"remove" 6
       (fun point -> point = 1) in
-  let deleted = Ops.delete ~grain:1 remove source |> get_ok in
+  let deleted = Deletion.delete_checked ~grain:1 remove source |> get_ok in
   check (ordered_group_members (ordinary Group.Point "path" deleted)
       = [3; 4])
     "point deletion filters and remaps explicit group order";

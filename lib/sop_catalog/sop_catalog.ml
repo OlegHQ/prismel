@@ -191,8 +191,8 @@ let group_rename_conflict_parameter = Parameter.choice ~equal:( = ) [
   ]
 
 let delete_topology_policy_parameter = Parameter.choice ~equal:( = ) [
-    "Destroy touched primitives", Pdk.Ops.Destroy_touched_primitives;
-    "Heal primitives", Pdk.Ops.Heal_primitives;
+    "Destroy touched primitives", Pdk.Deletion.Destroy_touched_primitives;
+    "Heal primitives", Pdk.Deletion.Heal_primitives;
   ]
 
 let group_copy_conflict_parameter = Parameter.choice ~equal:( = ) [
@@ -2319,8 +2319,8 @@ module Separate_pieces = struct
     ]
 
   let mode_parameter = Parameter.choice ~equal:( = ) [
-      "Separate", Pdk.Ops.Separate_pieces_separate;
-      "Move back", Pdk.Ops.Separate_pieces_move_back;
+      "Separate", Pdk.Separate_pieces.Separate_pieces_separate;
+      "Move back", Pdk.Separate_pieces.Separate_pieces_move_back;
     ]
 
   type parameters = {
@@ -2338,8 +2338,8 @@ module Separate_pieces = struct
       [@sop.folder "Axis"] [@sop.min (-1.)] [@sop.max 1.];
     gap : float [@sop.default 0.001] [@sop.label "Gap"]
       [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.];
-    mode : Pdk.Ops.separate_pieces_mode
-      [@sop.default Pdk.Ops.Separate_pieces_separate]
+    mode : Pdk.Separate_pieces.mode
+      [@sop.default Pdk.Separate_pieces.Separate_pieces_separate]
       [@sop.label "Mode"] [@sop.kind mode_parameter];
   } [@@sop.node_key "separate_pieces"] [@@sop.node_label "Separate Pieces"]
     [@@sop.node_category "Modify/Pieces"] [@@sop.node_inputs 1]
@@ -2361,7 +2361,7 @@ module Separate_pieces = struct
   let create ?label:node_label ?(owner = Pdk.Attribute.Primitive)
       ?(translation_attribute = "piece_translation")
       ?(axis = Vec3.unit_x) ?(gap = 0.001)
-      ?(mode = Pdk.Ops.Separate_pieces_separate) ~piece_attribute input =
+      ?(mode = Pdk.Separate_pieces.Separate_pieces_separate) ~piece_attribute input =
     build ~label:(label "separate-pieces" node_label) ~inputs:[input] {
       owner; piece_attribute; translation_attribute;
       axis_x = axis.x; axis_y = axis.y; axis_z = axis.z; gap; mode }
@@ -4648,17 +4648,17 @@ end [@@sop.register]
 
 module Graph_color = struct
   let connectivity_parameter = Parameter.choice ~equal:( = ) [
-      "Primitives by point", Pdk.Ops.Graph_primitives_by_point;
-      "Points by primitive", Pdk.Ops.Graph_points_by_primitive;
-      "Primitives by edge", Pdk.Ops.Graph_primitives_by_edge;
+      "Primitives by point", Pdk.Graph_color.Graph_primitives_by_point;
+      "Points by primitive", Pdk.Graph_color.Graph_points_by_primitive;
+      "Primitives by edge", Pdk.Graph_color.Graph_primitives_by_edge;
     ]
 
   type parameters = {
     group_owner : element_owner [@sop.default Element_primitive]
       [@sop.label "Group type"] [@sop.kind element_owner_parameter];
     group : string [@sop.default ""] [@sop.label "Group"];
-    connectivity : Pdk.Ops.graph_color_connectivity
-      [@sop.default Pdk.Ops.Graph_primitives_by_point]
+    connectivity : Pdk.Graph_color.connectivity
+      [@sop.default Pdk.Graph_color.Graph_primitives_by_point]
       [@sop.label "Connectivity"] [@sop.kind connectivity_parameter];
     color_attribute : string [@sop.default "color"]
       [@sop.label "Color attribute"];
@@ -4676,7 +4676,7 @@ module Graph_color = struct
   let rec build ~label ~inputs parameters = match inputs with
     | [input] ->
         let worksets = if parameters.output_worksets then Some {
-            Pdk.Ops.begin_attribute = parameters.workset_begin_attribute;
+            Pdk.Graph_color.begin_attribute = parameters.workset_begin_attribute;
             length_attribute = parameters.workset_length_attribute }
           else None in
         Sop.graph_color ~label
@@ -7535,8 +7535,8 @@ module Blast_by_attribute = struct
   type mode = Below | Range | Width
   type output = Delete | Group
   let owner_parameter = Parameter.choice ~equal:( = ) [
-      "Points", Pdk.Ops.Blast_points;
-      "Primitives", Pdk.Ops.Blast_primitives;
+      "Points", Pdk.Blast_by_attribute.Blast_points;
+      "Primitives", Pdk.Blast_by_attribute.Blast_primitives;
     ]
   let mode_parameter = Parameter.choice ~equal:( = ) [
       "Below threshold", Below; "Range", Range; "Center and width", Width;
@@ -7545,7 +7545,7 @@ module Blast_by_attribute = struct
       "Delete elements", Delete; "Create group", Group;
     ]
   type parameters = {
-    owner : Pdk.Ops.blast_attribute_owner [@sop.default Pdk.Ops.Blast_points]
+    owner : Pdk.Blast_by_attribute.owner [@sop.default Pdk.Blast_by_attribute.Blast_points]
       [@sop.label "Owner"] [@sop.kind owner_parameter];
     attribute : string [@sop.default "mask"] [@sop.label "Attribute"];
     mode : mode [@sop.default Below] [@sop.label "Comparison"]
@@ -7574,16 +7574,16 @@ module Blast_by_attribute = struct
     [@@sop.node_category "Topology/Delete"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
   let blast_mode parameters = match parameters.mode with
-    | Below -> Pdk.Ops.Blast_below parameters.threshold
-    | Range -> Pdk.Ops.Blast_range {
+    | Below -> Pdk.Blast_by_attribute.Blast_below parameters.threshold
+    | Range -> Pdk.Blast_by_attribute.Blast_range {
         minimum = parameters.minimum; maximum = parameters.maximum }
-    | Width -> Pdk.Ops.Blast_width {
+    | Width -> Pdk.Blast_by_attribute.Blast_width {
         center = parameters.center; width = parameters.width }
   let rec build ~label ~inputs parameters = match inputs with
     | [input] ->
         let output = match parameters.output with
-          | Delete -> Pdk.Ops.Blast_delete
-          | Group -> Pdk.Ops.Blast_group parameters.output_group in
+          | Delete -> Pdk.Blast_by_attribute.Blast_delete
+          | Group -> Pdk.Blast_by_attribute.Blast_group parameters.output_group in
         Sop.blast_by_attribute ~label
           ?group:(optional_text parameters.group) ~invert:parameters.invert
           ~remove_unused_points:parameters.remove_unused_points
@@ -7606,8 +7606,8 @@ module Blast = struct
     selected : bool [@sop.default true] [@sop.label "Delete selected"];
     compact_points : bool [@sop.default false]
       [@sop.label "Remove unused points"];
-    policy : Pdk.Ops.delete_topology_policy
-      [@sop.default Pdk.Ops.Destroy_touched_primitives]
+    policy : Pdk.Deletion.topology_policy
+      [@sop.default Pdk.Deletion.Destroy_touched_primitives]
       [@sop.label "Point deletion policy"]
       [@sop.kind delete_topology_policy_parameter];
   } [@@sop.node_key "blast"] [@@sop.node_label "Blast"]

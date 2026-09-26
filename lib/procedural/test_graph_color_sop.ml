@@ -56,7 +56,7 @@ let run () =
   let source = Sop.snapshot (colored_source 20_000) in
   let graph = source |> Sop.graph_color ~label:"schedule-points"
       ~selection:(Sop.Primitive_group "selected")
-      ~connectivity:Pdk.Ops.Graph_points_by_primitive
+      ~connectivity:Pdk.Graph_color.Graph_points_by_primitive
       ~color_attribute:"schedule" in
   check (Node.operation graph = "graph_color" && Node.version graph = 1
       && Node.cook_mode graph = Node.Duplicate_input 0
@@ -96,7 +96,7 @@ let run () =
     with Invalid_argument _ -> true)
     "Graph Color SOP accepted an empty selection group";
   check (try ignore (Sop.graph_color
-      ~worksets:{Pdk.Ops.begin_attribute="begin";length_attribute="length"}
+      ~worksets:{Pdk.Graph_color.begin_attribute="begin";length_attribute="length"}
       source); false with Invalid_argument _ -> true)
     "Graph Color SOP accepted unsorted worksets";
   print_endline "graph color SOP tests passed"

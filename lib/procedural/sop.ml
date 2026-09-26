@@ -1270,8 +1270,8 @@ let poly_cut ?label ?group ?cut_group ?(element = Pdk.Ops.Poly_cut_points)
                | Error error -> structured_pdk_error error))
 
 let separate_pieces_mode_key = function
-  | Pdk.Ops.Separate_pieces_separate -> "separate"
-  | Pdk.Ops.Separate_pieces_move_back -> "move_back"
+  | Pdk.Separate_pieces.Separate_pieces_separate -> "separate"
+  | Pdk.Separate_pieces.Separate_pieces_move_back -> "move_back"
 
 let separate_pieces_owner_key = function
   | Pdk.Attribute.Point -> "point"
@@ -1281,7 +1281,7 @@ let separate_pieces_owner_key = function
 
 let separate_pieces ?label ?(owner = Pdk.Attribute.Primitive)
     ?(translation_attribute = "piece_translation") ?(axis = Vec3.unit_x)
-    ?(gap = 0.001) ?(mode = Pdk.Ops.Separate_pieces_separate)
+    ?(gap = 0.001) ?(mode = Pdk.Separate_pieces.Separate_pieces_separate)
     ~piece_attribute input =
   if String.trim piece_attribute = "" then
     invalid_arg "Sop.separate_pieces: empty piece attribute name";
@@ -1299,7 +1299,7 @@ let separate_pieces ?label ?(owner = Pdk.Attribute.Primitive)
     ~cook_mode:(Node.Duplicate_input 0)
     ~dependencies:Context.Dependencies.static ~inputs:[|input|]
     (fun ~node_id:_ context inputs ->
-      match Pdk.Ops.separate_pieces ~cancel:(Context.cancel_token context)
+      match Pdk.Separate_pieces.run_checked ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~owner ~translation_attribute ~axis
           ~gap ~mode ~piece_attribute inputs.(0) with
       | Ok geometry -> cooked geometry
@@ -1869,15 +1869,15 @@ let circle_from_edges ?label ?group ?radius
           | Error error -> structured_pdk_error error)
 
 let graph_color_connectivity_key = function
-  | Pdk.Ops.Graph_primitives_by_point -> "primitives_by_point"
-  | Pdk.Ops.Graph_points_by_primitive -> "points_by_primitive"
-  | Pdk.Ops.Graph_primitives_by_edge -> "primitives_by_edge"
+  | Pdk.Graph_color.Graph_primitives_by_point -> "primitives_by_point"
+  | Pdk.Graph_color.Graph_points_by_primitive -> "points_by_primitive"
+  | Pdk.Graph_color.Graph_primitives_by_edge -> "primitives_by_edge"
 
-let graph_color_worksets_key (value : Pdk.Ops.graph_color_worksets) =
+let graph_color_worksets_key (value : Pdk.Graph_color.worksets) =
   String.escaped value.begin_attribute ^ "," ^ String.escaped value.length_attribute
 
 let graph_color ?label ?selection
-    ?(connectivity = Pdk.Ops.Graph_primitives_by_point)
+    ?(connectivity = Pdk.Graph_color.Graph_primitives_by_point)
     ?(color_attribute = "color") ?(sort_output = false) ?worksets input =
   let validate_name label name =
     if String.trim name = "" || String.equal name "P" then
@@ -1889,7 +1889,7 @@ let graph_color ?label ?selection
       | Edge_group name -> name in
     if String.trim name = "" then
       invalid_arg "Sop.graph_color: empty selection group name") selection;
-  Option.iter (fun (value : Pdk.Ops.graph_color_worksets) ->
+  Option.iter (fun (value : Pdk.Graph_color.worksets) ->
     validate_name "workset begin attribute" value.begin_attribute;
     validate_name "workset length attribute" value.length_attribute;
     if String.equal value.begin_attribute value.length_attribute then
@@ -1908,7 +1908,7 @@ let graph_color ?label ?selection
       match resolve_element_group ~operation:"graph_color" selection inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Ops.graph_color ~cancel:(Context.cancel_token context)
+          match Pdk.Graph_color.run_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~connectivity
               ~color_attribute ~sort_output ?worksets inputs.(0) with
           | Ok geometry -> cooked geometry
@@ -6374,23 +6374,23 @@ let group_find_path ?label ?(mode = Pdk.Group_mesh.Through_each)
             | Error error -> structured_pdk_error error))
 
 let delete_policy_key = function
-  | Pdk.Ops.Destroy_touched_primitives -> "destroy_touched_primitives"
-  | Pdk.Ops.Heal_primitives -> "heal_primitives"
+  | Pdk.Deletion.Destroy_touched_primitives -> "destroy_touched_primitives"
+  | Pdk.Deletion.Heal_primitives -> "heal_primitives"
 
 let blast_attribute_owner_key = function
-  | Pdk.Ops.Blast_points -> "points"
-  | Pdk.Ops.Blast_primitives -> "primitives"
+  | Pdk.Blast_by_attribute.Blast_points -> "points"
+  | Pdk.Blast_by_attribute.Blast_primitives -> "primitives"
 
 let blast_attribute_mode_key = function
-  | Pdk.Ops.Blast_below threshold -> "below:" ^ float_key threshold
-  | Pdk.Ops.Blast_range { minimum; maximum } ->
+  | Pdk.Blast_by_attribute.Blast_below threshold -> "below:" ^ float_key threshold
+  | Pdk.Blast_by_attribute.Blast_range { minimum; maximum } ->
       String.concat ":" ["range"; float_key minimum; float_key maximum]
-  | Pdk.Ops.Blast_width { center; width } ->
+  | Pdk.Blast_by_attribute.Blast_width { center; width } ->
       String.concat ":" ["width"; float_key center; float_key width]
 
 let blast_attribute_output_key = function
-  | Pdk.Ops.Blast_delete -> "delete"
-  | Pdk.Ops.Blast_group name -> "group:" ^ String.escaped name
+  | Pdk.Blast_by_attribute.Blast_delete -> "delete"
+  | Pdk.Blast_by_attribute.Blast_group name -> "group:" ^ String.escaped name
 
 let blast_by_attribute ?label ?group ?(invert = false)
     ?(remove_unused_points = false) ~owner ~attribute ~mode ~output input =
@@ -6398,9 +6398,9 @@ let blast_by_attribute ?label ?group ?(invert = false)
     invalid_arg "Sop.blast_by_attribute: empty attribute name";
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.blast_by_attribute: empty base group name") group;
-  (match output with Pdk.Ops.Blast_group name when String.trim name = "" ->
+  (match output with Pdk.Blast_by_attribute.Blast_group name when String.trim name = "" ->
      invalid_arg "Sop.blast_by_attribute: empty output group name"
-   | Pdk.Ops.Blast_delete | Pdk.Ops.Blast_group _ -> ());
+   | Pdk.Blast_by_attribute.Blast_delete | Pdk.Blast_by_attribute.Blast_group _ -> ());
   Node.Private.make ?label ~operation:"blast_by_attribute" ~version:1
     ~parameters:(String.concat ";" [
       "owner=" ^ blast_attribute_owner_key owner;
@@ -6414,8 +6414,8 @@ let blast_by_attribute ?label ?group ?(invert = false)
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
       let geometry = inputs.(0) in
       let group_owner = match owner with
-        | Pdk.Ops.Blast_points -> Pdk.Group.Point
-        | Pdk.Ops.Blast_primitives -> Pdk.Group.Primitive in
+        | Pdk.Blast_by_attribute.Blast_points -> Pdk.Group.Point
+        | Pdk.Blast_by_attribute.Blast_primitives -> Pdk.Group.Primitive in
       let base = match group with
         | None -> Ok None
         | Some name ->
@@ -6426,7 +6426,7 @@ let blast_by_attribute ?label ?group ?(invert = false)
                    "blast_by_attribute could not find %s group %S"
                    (blast_attribute_owner_key owner) name))) in
       Result.bind base (fun base ->
-        match Pdk.Ops.blast_by_attribute
+        match Pdk.Blast_by_attribute.blast_checked
             ~cancel:(Context.cancel_token context)
             ~grain:(Context.grain context) ?base ~invert ~remove_unused_points
             ~owner ~attribute ~mode ~output geometry with
@@ -6434,7 +6434,7 @@ let blast_by_attribute ?label ?group ?(invert = false)
         | Error error -> structured_pdk_error error))
 
 let delete ?label ?(selected = true) ?(compact_points = false)
-    ?(policy = Pdk.Ops.Destroy_touched_primitives) selection input =
+    ?(policy = Pdk.Deletion.Destroy_touched_primitives) selection input =
   Node.Private.make ?label ~operation:"delete" ~version:1
     ~parameters:(Printf.sprintf
       "selected=%b;compact_points=%b;policy=%s;selection=%s"
@@ -6445,7 +6445,7 @@ let delete ?label ?(selected = true) ?(compact_points = false)
       match Select.evaluate ~name:"__delete" selection inputs.(0) with
       | Error message -> pdk_error "delete" message
       | Ok selection ->
-          match Pdk.Ops.delete ~cancel:(Context.cancel_token _context)
+          match Pdk.Deletion.delete_checked ~cancel:(Context.cancel_token _context)
               ~grain:(Context.grain _context) ~selected ~compact_points ~policy
               selection inputs.(0) with
           | Ok geometry -> cooked geometry
@@ -6457,7 +6457,7 @@ let group_owner_key = function
   | Pdk.Group.Primitive -> "primitive"
 
 let blast ?label ?(selected = true) ?(compact_points = false)
-    ?(policy = Pdk.Ops.Destroy_touched_primitives) ~owner ~group input =
+    ?(policy = Pdk.Deletion.Destroy_touched_primitives) ~owner ~group input =
   if String.trim group = "" then invalid_arg "Sop.blast: empty group name";
   Node.Private.make ?label ~operation:"blast" ~version:1
     ~parameters:(Printf.sprintf
@@ -6472,14 +6472,14 @@ let blast ?label ?(selected = true) ?(compact_points = false)
           (Printf.sprintf "blast could not find %s group %S"
             (group_owner_key owner) group))
       | Some selection ->
-          match Pdk.Ops.delete ~cancel:(Context.cancel_token context)
+          match Pdk.Deletion.delete_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~selected ~compact_points ~policy
               selection inputs.(0) with
           | Ok geometry -> cooked geometry
           | Error error -> structured_pdk_error error)
 
 let split ?label ?(compact_points = false)
-    ?(policy = Pdk.Ops.Destroy_touched_primitives) selection input =
+    ?(policy = Pdk.Deletion.Destroy_touched_primitives) selection input =
   let selected_label = Option.map (fun value -> value ^ " selected") label
   and remainder_label = Option.map (fun value -> value ^ " remainder") label in
   delete ?label:selected_label ~selected:false ~compact_points ~policy selection input,

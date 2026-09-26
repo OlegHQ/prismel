@@ -88,8 +88,8 @@ let test_primitive_integer_and_move_back () =
       |> with_attribute Attribute.Primitive "piece" (Attribute.Int [|7;3;7|])
       |> with_attribute Attribute.Point "weight"
            (Attribute.Float [|0.;1.;2.;3.;4.;5.|]) in
-  let output = Ops.separate_pieces ~grain:1 ~gap:1.
-      ~mode:Ops.Separate_pieces_separate ~piece_attribute:"piece" source
+  let output = Separate_pieces.run_checked ~grain:1 ~gap:1.
+      ~mode:Separate_pieces.Separate_pieces_separate ~piece_attribute:"piece" source
       |> get_ok in
   let positions = position_view output in
   check (positions.x = [|0.;2.;12.;13.;10.;11.|])
@@ -108,8 +108,8 @@ let test_primitive_integer_and_move_back () =
       |> Option.get in
   check (Attribute.storage_id source_weight = Attribute.storage_id output_weight)
     "Separate Pieces copied unchanged payload";
-  let restored = Ops.separate_pieces ~grain:1
-      ~mode:Ops.Separate_pieces_move_back ~piece_attribute:"piece" output
+  let restored = Separate_pieces.run_checked ~grain:1
+      ~mode:Separate_pieces.Separate_pieces_move_back ~piece_attribute:"piece" output
       |> get_ok in
   check (position_view restored = position_view source)
     "Separate Pieces Move Back did not restore positions";
@@ -122,8 +122,8 @@ let test_text_axis_and_point_owner () =
       [|[|0;1|];[|2;3|]|]
       |> with_attribute Attribute.Primitive "name"
            (Attribute.Text [|"left";"right"|]) in
-  let output = Ops.separate_pieces ~grain:1 ~axis:Vec3.unit_y ~gap:2.
-      ~mode:Ops.Separate_pieces_separate ~piece_attribute:"name" source
+  let output = Separate_pieces.run_checked ~grain:1 ~axis:Vec3.unit_y ~gap:2.
+      ~mode:Separate_pieces.Separate_pieces_separate ~piece_attribute:"name" source
       |> get_ok in
   let positions = position_view output in
   check (positions.y = [|0.;2.;4.;6.|])
@@ -133,8 +133,8 @@ let test_text_axis_and_point_owner () =
       [|[|0;1|];[|2;3|]|]
       |> with_attribute Attribute.Point "island"
            (Attribute.Text [|"a";"a";"b";"b"|]) in
-  let point_output = Ops.separate_pieces ~grain:1 ~owner:Attribute.Point
-      ~gap:0.5 ~mode:Ops.Separate_pieces_separate
+  let point_output = Separate_pieces.run_checked ~grain:1 ~owner:Attribute.Point
+      ~gap:0.5 ~mode:Separate_pieces.Separate_pieces_separate
       ~piece_attribute:"island" point_source |> get_ok in
   check ((position_view point_output).x = [|0.;1.;1.5;2.5|])
     "Separate Pieces point-owned packing";
@@ -152,64 +152,64 @@ let test_validation_and_cancellation () =
   let source = make_curves [|(0.,0.,0.);(1.,0.,0.);(2.,0.,0.)|]
       [|[|0;1|];[|1;2|]|]
       |> with_attribute Attribute.Primitive "piece" (Attribute.Int [|0;1|]) in
-  expect_invalid (fun () -> Ops.separate_pieces
-      ~mode:Ops.Separate_pieces_separate ~piece_attribute:"piece" source)
+  expect_invalid (fun () -> Separate_pieces.run_checked
+      ~mode:Separate_pieces.Separate_pieces_separate ~piece_attribute:"piece" source)
     "shared point across primitive pieces";
   let mixed_points = make_curves [|(0.,0.,0.);(1.,0.,0.)|] [|[|0;1|]|]
       |> with_attribute Attribute.Point "piece" (Attribute.Int [|0;1|]) in
-  expect_invalid (fun () -> Ops.separate_pieces ~owner:Attribute.Point
-      ~mode:Ops.Separate_pieces_separate ~piece_attribute:"piece" mixed_points)
+  expect_invalid (fun () -> Separate_pieces.run_checked ~owner:Attribute.Point
+      ~mode:Separate_pieces.Separate_pieces_separate ~piece_attribute:"piece" mixed_points)
     "mixed point pieces in one primitive";
   let valid = make_curves [|(0.,0.,0.);(1.,0.,0.)|] [|[|0;1|]|]
       |> with_attribute Attribute.Primitive "piece" (Attribute.Int [|0|]) in
-  expect_invalid (fun () -> Ops.separate_pieces ~grain:0
-      ~mode:Ops.Separate_pieces_separate ~piece_attribute:"piece" valid)
+  expect_invalid (fun () -> Separate_pieces.run_checked ~grain:0
+      ~mode:Separate_pieces.Separate_pieces_separate ~piece_attribute:"piece" valid)
     "zero grain";
-  expect_invalid (fun () -> Ops.separate_pieces ~gap:(-1.)
-      ~mode:Ops.Separate_pieces_separate ~piece_attribute:"piece" valid)
+  expect_invalid (fun () -> Separate_pieces.run_checked ~gap:(-1.)
+      ~mode:Separate_pieces.Separate_pieces_separate ~piece_attribute:"piece" valid)
     "negative gap";
-  expect_invalid (fun () -> Ops.separate_pieces ~axis:Vec3.zero
-      ~mode:Ops.Separate_pieces_separate ~piece_attribute:"piece" valid)
+  expect_invalid (fun () -> Separate_pieces.run_checked ~axis:Vec3.zero
+      ~mode:Separate_pieces.Separate_pieces_separate ~piece_attribute:"piece" valid)
     "zero axis";
-  expect_invalid (fun () -> Ops.separate_pieces ~owner:Attribute.Vertex
-      ~mode:Ops.Separate_pieces_separate ~piece_attribute:"piece" valid)
+  expect_invalid (fun () -> Separate_pieces.run_checked ~owner:Attribute.Vertex
+      ~mode:Separate_pieces.Separate_pieces_separate ~piece_attribute:"piece" valid)
     "unsupported owner";
-  expect_invalid (fun () -> Ops.separate_pieces
-      ~mode:Ops.Separate_pieces_separate ~piece_attribute:"missing" valid)
+  expect_invalid (fun () -> Separate_pieces.run_checked
+      ~mode:Separate_pieces.Separate_pieces_separate ~piece_attribute:"missing" valid)
     "missing piece field";
   let wrong_storage = valid
       |> with_attribute Attribute.Primitive "piece" (Attribute.Float [|0.|]) in
-  expect_invalid (fun () -> Ops.separate_pieces
-      ~mode:Ops.Separate_pieces_separate ~piece_attribute:"piece" wrong_storage)
+  expect_invalid (fun () -> Separate_pieces.run_checked
+      ~mode:Separate_pieces.Separate_pieces_separate ~piece_attribute:"piece" wrong_storage)
     "wrong piece storage";
   let malformed = make_curves [|(Float.nan,0.,0.);(1.,0.,0.)|] [|[|0;1|]|]
       |> with_attribute Attribute.Primitive "piece" (Attribute.Int [|0|]) in
-  expect_invalid (fun () -> Ops.separate_pieces
-      ~mode:Ops.Separate_pieces_separate ~piece_attribute:"piece" malformed)
+  expect_invalid (fun () -> Separate_pieces.run_checked
+      ~mode:Separate_pieces.Separate_pieces_separate ~piece_attribute:"piece" malformed)
     "non-finite position";
   let unrepresentable_gap = make_curves
       [|(max_float,0.,0.);(max_float,1.,0.)|] [||]
       |> with_attribute Attribute.Point "piece" (Attribute.Int [|0;1|]) in
-  expect_invalid (fun () -> Ops.separate_pieces ~owner:Attribute.Point
-      ~mode:Ops.Separate_pieces_separate ~piece_attribute:"piece"
+  expect_invalid (fun () -> Separate_pieces.run_checked ~owner:Attribute.Point
+      ~mode:Separate_pieces.Separate_pieces_separate ~piece_attribute:"piece"
       unrepresentable_gap) "unrepresentable positive gap";
   let single_extreme = make_curves [|(max_float,0.,0.)|] [||]
       |> with_attribute Attribute.Point "piece" (Attribute.Int [|0|]) in
-  ignore (Ops.separate_pieces ~owner:Attribute.Point
-      ~mode:Ops.Separate_pieces_separate ~piece_attribute:"piece"
+  ignore (Separate_pieces.run_checked ~owner:Attribute.Point
+      ~mode:Separate_pieces.Separate_pieces_separate ~piece_attribute:"piece"
       single_extreme |> get_ok);
   let bad_translation = valid
       |> with_attribute Attribute.Primitive "piece_translation"
            (Attribute.Float [|1.|]) in
-  expect_invalid (fun () -> Ops.separate_pieces
-      ~mode:Ops.Separate_pieces_move_back ~piece_attribute:"piece"
+  expect_invalid (fun () -> Separate_pieces.run_checked
+      ~mode:Separate_pieces.Separate_pieces_move_back ~piece_attribute:"piece"
       bad_translation) "wrong translation storage";
   let conflict_translation = source
       |> with_attribute Attribute.Primitive "piece_translation"
            (Attribute.Float3 (Packed.Float3.Private.of_owned_exn
              ~x:[|0.;1.|] ~y:[|0.;0.|] ~z:[|0.;0.|])) in
-  expect_invalid (fun () -> Ops.separate_pieces
-      ~mode:Ops.Separate_pieces_move_back ~piece_attribute:"piece"
+  expect_invalid (fun () -> Separate_pieces.run_checked
+      ~mode:Separate_pieces.Separate_pieces_move_back ~piece_attribute:"piece"
       conflict_translation) "conflicting shared-point translations";
   let opaque_free_point = make_curves
       [|(0.,0.,0.);(1.,0.,0.);(Float.nan,0.,0.)|] [|[|0;1|]|]
@@ -217,15 +217,15 @@ let test_validation_and_cancellation () =
       |> with_attribute Attribute.Primitive "piece_translation"
            (Attribute.Float3 (Packed.Float3.Private.of_owned_exn
              ~x:[|1.|] ~y:[|0.|] ~z:[|0.|])) in
-  let opaque_free_point = Ops.separate_pieces
-      ~mode:Ops.Separate_pieces_move_back ~piece_attribute:"piece"
+  let opaque_free_point = Separate_pieces.run_checked
+      ~mode:Separate_pieces.Separate_pieces_move_back ~piece_attribute:"piece"
       opaque_free_point |> get_ok |> position_view in
   check (opaque_free_point.x.(0) = -1. && opaque_free_point.x.(1) = 0.
       && Float.is_nan opaque_free_point.x.(2))
     "Separate Pieces inspected or changed an unowned free point";
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  (match Ops.separate_pieces ~cancel ~mode:Ops.Separate_pieces_separate
+  (match Separate_pieces.run_checked ~cancel ~mode:Separate_pieces.Separate_pieces_separate
       ~piece_attribute:"piece" valid with
    | Error error -> check (Error.code error = "cancelled")
        "Separate Pieces cancellation code"
@@ -247,8 +247,8 @@ let test_dense_parallel_exactness () =
       |> with_attribute Attribute.Point "id"
            (Attribute.Int (Array.init point_count Fun.id)) in
   let cook domains = Parallel.run ~domains (fun () ->
-      Ops.separate_pieces ~grain:257 ~axis:(Vec3.create 1. 2. 3.) ~gap:0.01
-        ~mode:Ops.Separate_pieces_separate ~piece_attribute:"piece" source
+      Separate_pieces.run_checked ~grain:257 ~axis:(Vec3.create 1. 2. 3.) ~gap:0.01
+        ~mode:Separate_pieces.Separate_pieces_separate ~piece_attribute:"piece" source
       |> get_ok) in
   let one = cook 1 and four = cook 4 in
   check (equal_geometry one four)

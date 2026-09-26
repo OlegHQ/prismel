@@ -4491,36 +4491,36 @@ let run_blast_by_attribute_benchmarks () =
     (fun () -> Geometry.with_group (point_selection ()) source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "blast_by_attribute_baseline_point_delete"
-    (fun () -> Ops.delete ~grain (point_selection ()) source |> get_ok)
+    (fun () -> Deletion.delete_checked ~grain (point_selection ()) source |> get_ok)
     geometry_output;
   measure ~input_points:point_count
     "blast_by_attribute_baseline_primitive_delete_compact"
-    (fun () -> Ops.delete ~grain ~compact_points:true
+    (fun () -> Deletion.delete_checked ~grain ~compact_points:true
       (primitive_selection ()) source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "blast_by_attribute_point_group"
-    (fun () -> Ops.blast_by_attribute ~grain ~owner:Ops.Blast_points
+    (fun () -> Blast_by_attribute.blast_checked ~grain ~owner:Blast_by_attribute.Blast_points
       ~attribute:"density"
-      ~mode:(Ops.Blast_range { minimum = 0.35; maximum = 0.65 })
-      ~output:(Ops.Blast_group "blast_selection") source |> get_ok)
+      ~mode:(Blast_by_attribute.Blast_range { minimum = 0.35; maximum = 0.65 })
+      ~output:(Blast_by_attribute.Blast_group "blast_selection") source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "blast_by_attribute_point_group_base_invert"
-    (fun () -> Ops.blast_by_attribute ~grain ~base:point_base ~invert:true
-      ~owner:Ops.Blast_points ~attribute:"density"
-      ~mode:(Ops.Blast_range { minimum = 0.35; maximum = 0.65 })
-      ~output:(Ops.Blast_group "blast_selection") source |> get_ok)
+    (fun () -> Blast_by_attribute.blast_checked ~grain ~base:point_base ~invert:true
+      ~owner:Blast_by_attribute.Blast_points ~attribute:"density"
+      ~mode:(Blast_by_attribute.Blast_range { minimum = 0.35; maximum = 0.65 })
+      ~output:(Blast_by_attribute.Blast_group "blast_selection") source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "blast_by_attribute_point_delete"
-    (fun () -> Ops.blast_by_attribute ~grain ~owner:Ops.Blast_points
+    (fun () -> Blast_by_attribute.blast_checked ~grain ~owner:Blast_by_attribute.Blast_points
       ~attribute:"density"
-      ~mode:(Ops.Blast_range { minimum = 0.35; maximum = 0.65 })
-      ~output:Ops.Blast_delete source |> get_ok)
+      ~mode:(Blast_by_attribute.Blast_range { minimum = 0.35; maximum = 0.65 })
+      ~output:Blast_by_attribute.Blast_delete source |> get_ok)
     geometry_output;
   measure ~input_points:point_count
     "blast_by_attribute_primitive_delete_compact"
-    (fun () -> Ops.blast_by_attribute ~grain ~remove_unused_points:true
-      ~owner:Ops.Blast_primitives ~attribute:"class"
-      ~mode:(Ops.Blast_below 400.) ~output:Ops.Blast_delete source |> get_ok)
+    (fun () -> Blast_by_attribute.blast_checked ~grain ~remove_unused_points:true
+      ~owner:Blast_by_attribute.Blast_primitives ~attribute:"class"
+      ~mode:(Blast_by_attribute.Blast_below 400.) ~output:Blast_by_attribute.Blast_delete source |> get_ok)
     geometry_output
 
 type reference_crease_operation = Reference_crease_add | Reference_crease_set
@@ -4838,8 +4838,8 @@ let run_separate_pieces_benchmarks () =
   let geometry, _, _ = separate_pieces_benchmark_fixture () in
   measure ~input_points:(Geometry.point_count geometry)
     "separate_pieces_primitive_int" (fun () ->
-      Ops.separate_pieces ~grain ~gap:0.01
-        ~mode:Ops.Separate_pieces_separate ~piece_attribute:"piece" geometry
+      Separate_pieces.run_checked ~grain ~gap:0.01
+        ~mode:Separate_pieces.Separate_pieces_separate ~piece_attribute:"piece" geometry
       |> get_ok) geometry_output
 
 let run_curve_join_benchmarks () =
@@ -5633,14 +5633,14 @@ let () =
     Ops.delete_primitives ~grain ~compact_points:true delete_half modeling_grid
     |> get_ok) geometry_output;
   measure "delete_primitives_keep_points" (fun () ->
-    Ops.delete ~grain delete_half modeling_grid |> get_ok) geometry_output;
+    Deletion.delete_checked ~grain delete_half modeling_grid |> get_ok) geometry_output;
   let modeling_positions = Packed.Float3.Private.view
       (Geometry.positions modeling_grid) in
   let delete_left_points = Group.init ~owner:Group.Point ~name:"left"
       (Geometry.point_count modeling_grid)
       (fun point -> modeling_positions.x.(point) < 0.) in
   measure "delete_points_destroy_compact" (fun () ->
-    Ops.delete ~grain ~compact_points:true delete_left_points modeling_grid
+    Deletion.delete_checked ~grain ~compact_points:true delete_left_points modeling_grid
     |> get_ok) geometry_output;
   measure "bounding_box" (fun () ->
     Bound.bounding_box_checked ~grain ~padding:(Vec3.create 0.1 0.1 0.1) modeling_grid
@@ -5679,7 +5679,7 @@ let () =
       ~name:"sparse_corners" (Geometry.vertex_count deletion_quads)
       (fun vertex -> vertex mod 16 = 0) in
   measure "delete_vertices_heal_quads_attributes" (fun () ->
-    Ops.delete ~grain ~policy:Ops.Heal_primitives delete_quad_corners
+    Deletion.delete_checked ~grain ~policy:Deletion.Heal_primitives delete_quad_corners
       deletion_quads |> get_ok) geometry_output;
   let surface_target = Transform_ops.transform ~grain
       (Mat4.translation (Vec3.create 0.015 0.2 0.012)) modeling_grid in

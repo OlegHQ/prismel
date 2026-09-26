@@ -71,7 +71,7 @@ let extract_point_curve () =
 let graph_color () =
   Sop.grid ~connectivity:Pdk.Plane_generators.Grid_quads
     ~columns:18 ~rows:12 ~size:2. ()
-  |> Sop.graph_color ~connectivity:Pdk.Ops.Graph_primitives_by_edge
+  |> Sop.graph_color ~connectivity:Pdk.Graph_color.Graph_primitives_by_edge
 
 let intersection_analysis () =
   let source, collision = collision_pair () in

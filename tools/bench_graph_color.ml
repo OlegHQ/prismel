@@ -60,7 +60,7 @@ let measure name owner connectivity input =
       Gc.full_major ();
       let before = Gc.quick_stat () and bytes_before = Gc.allocated_bytes ()
       and started = Unix.gettimeofday () in
-      let output = Ops.graph_color ~grain ~connectivity input |> get in
+      let output = Graph_color.run_checked ~grain ~connectivity input |> get in
       times.(repeat) <- Unix.gettimeofday () -. started;
       allocated.(repeat) <- Gc.allocated_bytes () -. bytes_before;
       let after = Gc.quick_stat () in
@@ -79,9 +79,9 @@ let measure name owner connectivity input =
 let () =
   Printf.printf "case,points,primitives,domains,grain,repeats,seconds,current_domain_allocated_bytes,promoted_bytes,major_bytes,hash\n";
   measure "disconnected_triangle_points" Attribute.Point
-    Ops.Graph_points_by_primitive (disconnected_triangles elements);
+    Graph_color.Graph_points_by_primitive (disconnected_triangles elements);
   let grid = square_grid elements in
   measure "quad_primitives_by_edge" Attribute.Primitive
-    Ops.Graph_primitives_by_edge grid;
+    Graph_color.Graph_primitives_by_edge grid;
   measure "quad_primitives_by_point" Attribute.Primitive
-    Ops.Graph_primitives_by_point grid
+    Graph_color.Graph_primitives_by_point grid

@@ -478,14 +478,14 @@ val separate_pieces :
   ?translation_attribute:string ->
   ?axis:Prismel.Vec3.t ->
   ?gap:float ->
-  ?mode:Pdk.Ops.separate_pieces_mode ->
+  ?mode:Pdk.Separate_pieces.mode ->
   piece_attribute:string ->
   Node.t -> Node.t
 (** Deterministically separate point- or primitive-identified pieces into
     disjoint intervals along an axis, or restore them from the stored float3
     translation. The immutable node delegates ownership validation, packed
     bounds, reversible position fills, and cancellation to
-    {!Pdk.Ops.separate_pieces}. *)
+    {!Pdk.Separate_pieces.run_checked}. *)
 
 (* Packed Catmull-Clark or bilinear polygon-surface and polygon-curve
    refinement, plus triangle-only Loop refinement. [group] restricts
@@ -776,10 +776,10 @@ val circle_from_edges :
 val graph_color :
   ?label:string ->
   ?selection:element_group ->
-  ?connectivity:Pdk.Ops.graph_color_connectivity ->
+  ?connectivity:Pdk.Graph_color.connectivity ->
   ?color_attribute:string ->
   ?sort_output:bool ->
-  ?worksets:Pdk.Ops.graph_color_worksets ->
+  ?worksets:Pdk.Graph_color.worksets ->
   Node.t -> Node.t
 (* Equalize the initial selected edge lengths to their average, longest, or
    shortest value. Connected selections use the deterministic PDK iterative
@@ -2336,7 +2336,7 @@ val group_find_path :
 
 val delete :
   ?label:string -> ?selected:bool -> ?compact_points:bool ->
-  ?policy:Pdk.Ops.delete_topology_policy ->
+  ?policy:Pdk.Deletion.topology_policy ->
   'owner Select.t -> Node.t -> Node.t
 (* Select points or primitives from a same-owner scalar numeric attribute.
     The optional named base group restricts both normal and inverted
@@ -2348,19 +2348,19 @@ val blast_by_attribute :
   ?group:string ->
   ?invert:bool ->
   ?remove_unused_points:bool ->
-  owner:Pdk.Ops.blast_attribute_owner ->
+  owner:Pdk.Blast_by_attribute.owner ->
   attribute:string ->
-  mode:Pdk.Ops.blast_attribute_mode ->
-  output:Pdk.Ops.blast_attribute_output ->
+  mode:Pdk.Blast_by_attribute.mode ->
+  output:Pdk.Blast_by_attribute.output ->
   Node.t ->
   Node.t
 val blast :
   ?label:string -> ?selected:bool -> ?compact_points:bool ->
-  ?policy:Pdk.Ops.delete_topology_policy ->
+  ?policy:Pdk.Deletion.topology_policy ->
   owner:Pdk.Group.owner -> group:string -> Node.t -> Node.t
 val split :
   ?label:string -> ?compact_points:bool ->
-  ?policy:Pdk.Ops.delete_topology_policy ->
+  ?policy:Pdk.Deletion.topology_policy ->
   'owner Select.t -> Node.t -> Node.t * Node.t
 (* Return selected geometry and its remainder as two cache-sharing graph
    branches in that order. *)

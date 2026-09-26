@@ -122,7 +122,7 @@ let rows = [
     |> fun targets -> Sop.copy_to_points ~source:marker ~targets ()), nonempty;
   "graph_color", (fun () ->
     grid () |> Sop.graph_color
-      ~connectivity:Pdk.Ops.Graph_primitives_by_point),
+      ~connectivity:Pdk.Graph_color.Graph_primitives_by_point),
     primitive_attribute "color";
   "intersection_analysis", (fun () ->
     let source = grid () in

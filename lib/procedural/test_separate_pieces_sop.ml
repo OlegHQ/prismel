@@ -43,7 +43,7 @@ let graph source =
   Sop.snapshot source
   |> Sop.separate_pieces ~label:"space-pieces" ~owner:Attribute.Primitive
        ~translation_attribute:"separation" ~axis:(Vec3.create 1. 2. 3.)
-       ~gap:0.02 ~mode:Ops.Separate_pieces_separate ~piece_attribute:"piece"
+       ~gap:0.02 ~mode:Separate_pieces.Separate_pieces_separate ~piece_attribute:"piece"
 
 let equal_geometry left right =
   Packed.Float3.Private.view (Geometry.positions left)
@@ -101,7 +101,7 @@ let run () =
   let restored_graph = graph source
       |> Sop.separate_pieces ~owner:Attribute.Primitive
            ~translation_attribute:"separation"
-           ~mode:Ops.Separate_pieces_move_back ~piece_attribute:"piece" in
+           ~mode:Separate_pieces.Separate_pieces_move_back ~piece_attribute:"piece" in
   let session = Session.create ~max_entries:8 ~max_payload_bytes:220_000_000
       |> get in
   let restored = cook session (context 1) restored_graph in

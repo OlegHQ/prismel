@@ -82,22 +82,22 @@ let verify_primitives_by_edge geometry colors =
 
 let test_connectivities () =
   let source = quad_grid () in
-  let by_point = Ops.graph_color ~grain:1
-      ~connectivity:Ops.Graph_primitives_by_point source |> get in
+  let by_point = Graph_color.run_checked ~grain:1
+      ~connectivity:Graph_color.Graph_primitives_by_point source |> get in
   let point_colors = int_attribute Attribute.Primitive "color" by_point in
   verify_primitives_by_point by_point point_colors;
   check (Array.to_list point_colors = [0;1;2;3])
     "shared-center quads did not receive stable greedy colors";
 
-  let by_edge = Ops.graph_color ~grain:1
-      ~connectivity:Ops.Graph_primitives_by_edge source |> get in
+  let by_edge = Graph_color.run_checked ~grain:1
+      ~connectivity:Graph_color.Graph_primitives_by_edge source |> get in
   let edge_colors = int_attribute Attribute.Primitive "color" by_edge in
   verify_primitives_by_edge by_edge edge_colors;
   check (Array.to_list edge_colors = [0;1;1;0])
     "edge graph did not reuse checkerboard colors";
 
-  let points = Ops.graph_color ~grain:1 ~color_attribute:"point_color"
-      ~connectivity:Ops.Graph_points_by_primitive source |> get in
+  let points = Graph_color.run_checked ~grain:1 ~color_attribute:"point_color"
+      ~connectivity:Graph_color.Graph_points_by_primitive source |> get in
   verify_points_by_primitive points
     (int_attribute Attribute.Point "point_color" points)
 
@@ -105,24 +105,24 @@ let test_selection_promotion () =
   let source = quad_grid () in
   let primitives = Group.init ~grain:1 ~owner:Group.Primitive ~name:"diagonal" 4
       (fun primitive -> primitive = 0 || primitive = 3) in
-  let edge_graph = Ops.graph_color ~grain:1
+  let edge_graph = Graph_color.run_checked ~grain:1
       ~selection:(Transform_ops.Selected_primitives primitives)
-      ~connectivity:Ops.Graph_primitives_by_edge source |> get in
+      ~connectivity:Graph_color.Graph_primitives_by_edge source |> get in
   check (Array.to_list (int_attribute Attribute.Primitive "color" edge_graph)
       = [0;-1;-1;0])
     "Graph Color selected induced edge graph";
-  let point_graph = Ops.graph_color ~grain:1
+  let point_graph = Graph_color.run_checked ~grain:1
       ~selection:(Transform_ops.Selected_primitives primitives)
-      ~connectivity:Ops.Graph_primitives_by_point source |> get in
+      ~connectivity:Graph_color.Graph_primitives_by_point source |> get in
   check (Array.to_list (int_attribute Attribute.Primitive "color" point_graph)
       = [0;-1;-1;1])
     "Graph Color selected induced point graph";
 
   let center = Group.init ~grain:1 ~owner:Group.Point ~name:"center" 9
       (fun point -> point = 4) in
-  let promoted = Ops.graph_color ~grain:1
+  let promoted = Graph_color.run_checked ~grain:1
       ~selection:(Transform_ops.Selected_points center)
-      ~connectivity:Ops.Graph_primitives_by_point source |> get in
+      ~connectivity:Graph_color.Graph_primitives_by_point source |> get in
   check (Array.to_list (int_attribute Attribute.Primitive "color" promoted)
       = [0;1;2;3])
     "Graph Color did not promote a point selection to incident primitives"
@@ -133,10 +133,10 @@ let test_sort_and_worksets () =
            (Attribute.Int [|0;1;2;3|]) in
   let selected = Group.init ~grain:1 ~owner:Group.Primitive ~name:"middle" 4
       (fun primitive -> primitive = 1 || primitive = 2) in
-  let output = Ops.graph_color ~grain:1
+  let output = Graph_color.run_checked ~grain:1
       ~selection:(Transform_ops.Selected_primitives selected)
-      ~connectivity:Ops.Graph_primitives_by_point ~sort_output:true
-      ~worksets:{Ops.begin_attribute="work_begin";length_attribute="work_length"}
+      ~connectivity:Graph_color.Graph_primitives_by_point ~sort_output:true
+      ~worksets:{Graph_color.begin_attribute="work_begin";length_attribute="work_length"}
       source |> get in
   check (Array.to_list (int_attribute Attribute.Primitive "id" output)
       = [0;3;1;2])
@@ -157,33 +157,33 @@ let expect_code code operation message = match operation () with
 
 let test_validation () =
   let source = quad_grid () in
-  expect_code "invalid_graph" (fun () -> Ops.graph_color ~grain:0 source)
+  expect_code "invalid_graph" (fun () -> Graph_color.run_checked ~grain:0 source)
     "zero grain";
-  expect_code "invalid_graph" (fun () -> Ops.graph_color ~color_attribute:"P" source)
+  expect_code "invalid_graph" (fun () -> Graph_color.run_checked ~color_attribute:"P" source)
     "reserved color attribute";
-  expect_code "invalid_graph" (fun () -> Ops.graph_color
-      ~worksets:{Ops.begin_attribute="begin";length_attribute="length"} source)
+  expect_code "invalid_graph" (fun () -> Graph_color.run_checked
+      ~worksets:{Graph_color.begin_attribute="begin";length_attribute="length"} source)
     "worksets without sorting";
-  expect_code "invalid_graph" (fun () -> Ops.graph_color ~sort_output:true
-      ~worksets:{Ops.begin_attribute="same";length_attribute="same"} source)
+  expect_code "invalid_graph" (fun () -> Graph_color.run_checked ~sort_output:true
+      ~worksets:{Graph_color.begin_attribute="same";length_attribute="same"} source)
     "duplicate workset names";
   let wrong = source |> with_attribute Attribute.Primitive "color"
       (Attribute.Float (Array.make 4 0.)) in
-  expect_code "invalid_graph" (fun () -> Ops.graph_color wrong)
+  expect_code "invalid_graph" (fun () -> Graph_color.run_checked wrong)
     "wrong output storage";
   let foreign = Group.init ~grain:1 ~owner:Group.Primitive ~name:"foreign" 1
       (fun _ -> true) in
-  expect_code "invalid_graph" (fun () -> Ops.graph_color
+  expect_code "invalid_graph" (fun () -> Graph_color.run_checked
       ~selection:(Transform_ops.Selected_primitives foreign) source)
     "foreign selection cardinality";
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  expect_code "cancelled" (fun () -> Ops.graph_color ~cancel:cancelled source)
+  expect_code "cancelled" (fun () -> Graph_color.run_checked ~cancel:cancelled source)
     "cancellation";
   let empty = Line_geometry.points [||] in
-  let empty = Ops.graph_color ~connectivity:Ops.Graph_points_by_primitive
+  let empty = Graph_color.run_checked ~connectivity:Graph_color.Graph_points_by_primitive
       ~sort_output:true
-      ~worksets:{Ops.begin_attribute="begin";length_attribute="length"}
+      ~worksets:{Graph_color.begin_attribute="begin";length_attribute="length"}
       empty |> get in
   check (int_attribute Attribute.Point "color" empty = [||]
       && detail_int_array "begin" empty = [||]
@@ -207,8 +207,8 @@ let disconnected_triangles count =
 let test_parallel_exact () =
   let source = disconnected_triangles 40_000 in
   let run domains = Parallel.run ~domains (fun () ->
-      Ops.graph_color ~grain:257
-        ~connectivity:Ops.Graph_points_by_primitive source |> get) in
+      Graph_color.run_checked ~grain:257
+        ~connectivity:Graph_color.Graph_points_by_primitive source |> get) in
   let one = run 1 and four = run 4 in
   let one_colors = int_attribute Attribute.Point "color" one
   and four_colors = int_attribute Attribute.Point "color" four in
@@ -220,9 +220,9 @@ let test_parallel_exact () =
     "Graph Color scale cardinality/order";
   verify_points_by_primitive one one_colors;
   let run_sorted domains = Parallel.run ~domains (fun () ->
-      Ops.graph_color ~grain:257 ~connectivity:Ops.Graph_points_by_primitive
+      Graph_color.run_checked ~grain:257 ~connectivity:Graph_color.Graph_points_by_primitive
         ~sort_output:true
-        ~worksets:{Ops.begin_attribute="begin";length_attribute="length"}
+        ~worksets:{Graph_color.begin_attribute="begin";length_attribute="length"}
         source |> get) in
   let sorted_one = run_sorted 1 and sorted_four = run_sorted 4 in
   let signature geometry =
