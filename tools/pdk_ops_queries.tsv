@@ -21,4 +21,4 @@ Ops.Ray_shortest	Ray.Ray_shortest
 Ops.Ray_longest	Ray.Ray_longest
 Ops.ray	Ray.run
 Ops.point_split	Point_split.run_checked
-Ops.intersection_analysis	Intersection_analysis.run
+Ops.intersection_analysis	Intersection_analysis.run_checked

@@ -361,3 +361,13 @@ let run ?cancel ~grain ?source_primitives ?collision_primitives ~tolerance
   with
   | Cancel.Cancelled -> error "cancelled" "Intersection Analysis was cancelled"
   | Invalid_argument message -> error "invalid_geometry" message
+
+let run_checked ?cancel ?(grain = 16_384) ?source_primitives
+    ?collision_primitives ?(tolerance = 0.) ?(include_coplanar = true)
+    ?(input_attribute = Some "sourceinput")
+    ?(primitive_attribute = Some "sourceprim")
+    ?(primitive_uvw_attribute = Some "sourceprimuv")
+    ?(point_attribute = Some "sourcepoint") ?collision geometry =
+  run ?cancel ~grain ?source_primitives ?collision_primitives ~tolerance
+    ~include_coplanar ~input_attribute ~primitive_attribute
+    ~primitive_uvw_attribute ~point_attribute ~collision geometry
