@@ -1,0 +1,19 @@
+# Remaining generator-grid callers (distinct from Fuse_grid snap rounding).
+Ops.grid	Plane_generators.grid_checked
+Ops.grid_counts	Plane_generators.grid_counts
+Ops.grid_orientation	Plane_generators.grid_orientation
+Ops.grid_connectivity	Plane_generators.grid_connectivity
+Ops.Grid_divisions	Plane_generators.Grid_divisions
+Ops.Grid_point_counts	Plane_generators.Grid_point_counts
+Ops.Grid_xy	Plane_generators.Grid_xy
+Ops.Grid_xz	Plane_generators.Grid_xz
+Ops.Grid_yz	Plane_generators.Grid_yz
+Ops.Grid_axes	Plane_generators.Grid_axes
+Ops.Grid_points	Plane_generators.Grid_points
+Ops.Grid_rows	Plane_generators.Grid_rows
+Ops.Grid_columns	Plane_generators.Grid_columns
+Ops.Grid_rows_and_columns	Plane_generators.Grid_rows_and_columns
+Ops.Grid_quads	Plane_generators.Grid_quads
+Ops.Grid_triangles	Plane_generators.Grid_triangles
+Ops.Grid_alternating_triangles	Plane_generators.Grid_alternating_triangles
+Ops.Grid_reverse_triangles	Plane_generators.Grid_reverse_triangles
