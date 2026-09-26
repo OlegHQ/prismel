@@ -10084,6 +10084,32 @@ module Compute_encoder = struct
                       List.iter (retain_command_buffer_heap value.command_buffer) heaps;
                       Ok ()))
 
+  let use_acceleration_structures (value : t) structures =
+    let operation = "Metal.Compute_encoder.use_acceleration_structures" in
+    on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as e -> e
+        | Ok () ->
+            if structures = [] then error operation Invalid_argument "structures must not be empty"
+            else
+              let device = value.command_buffer.queue.device in
+              let rec check = function
+                | [] -> Ok ()
+                | (a : Acceleration_structure.t) :: xs ->
+                    Result.bind (ensure_live operation a.lifetime) (fun () ->
+                        Result.bind (ensure_same_device operation device a.device) (fun () ->
+                            check xs))
+              in
+              Result.bind (check structures) (fun () ->
+                  match
+                    Metal_raw.compute35_accelerations value.raw
+                      (Array.of_list (List.map (fun (a : Acceleration_structure.t) -> a.raw) structures))
+                  with
+                  | Error m -> native_error operation m
+                  | Ok () ->
+                      List.iter (retain_command_buffer_acceleration_structure value.command_buffer) structures;
+                      Ok ()))
+
   let positive_size (x, y, z) = x > 0 && y > 0 && z > 0
 
   let product3 x y z =

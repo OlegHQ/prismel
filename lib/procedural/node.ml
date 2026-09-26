@@ -11,6 +11,8 @@ module Private_types = struct
   type cooked = {
     geometry : Pdk.Geometry.t;
     diagnostics : Diagnostic.t list;
+    instances : Prismel_math.Mat4.t array option;
+    (** Packed: [geometry] is a prototype drawn at these transforms. *)
   }
 end
 
@@ -56,6 +58,9 @@ let parameter_fields value = match value.parameterization with
       Parameter.view parameterization.schema parameterization.values
 
 let has_parameters value = Option.is_some value.parameterization
+
+let relabel label value =
+  if String.trim label = "" then value else { value with label = String.trim label }
 
 let parameterize ~schema ~values ~rebuild value =
   let values = match Parameter.normalize schema values with

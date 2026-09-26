@@ -13,7 +13,7 @@ type configuration = { logical_width:int; logical_height:int;
 let default_configuration = { logical_width=640; logical_height=480;
   drawable_width=640; drawable_height=480; title="Prismel";vsync=true }
 type family = Scene_execution.pipeline_family = Scene2 | Scene2_textured | Scene3 | Scene3_points | Scene3_textured | Scene3_shadow |
-  Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil | Ui
+  Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil | Scene3_world | Ui
 type blend = Ogpu.Pipeline.blend = Replace | Alpha | Add | Multiply | Screen | Subtract
 type draw = { family:family; blend:blend; texture:Scene_execution.sampled_texture option;
   auxiliary:Scene_execution.auxiliary_resource option;samples:int;value:Scene_execution.draw }

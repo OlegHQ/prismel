@@ -1524,6 +1524,14 @@ module Compute_encoder : sig
   val update_fence : t -> Fence.t -> (unit,error) result
   val wait_for_fence : t -> Fence.t -> (unit,error) result
   val use_heaps : t -> Heap.t list -> (unit,error) result
+
+  (** [useResource:usage:MTLResourceUsageRead] on each structure: an instance
+      structure bound with [set_acceleration_structure] only references its
+      bottom-level structures, which must be declared here to stay resident
+      for the dispatch. Rejects an empty list, a destroyed structure, or one
+      from another device. *)
+  val use_acceleration_structures : t -> Acceleration_structure.t list -> (unit,error) result
+
   val dispatch_threads :
     t -> threads:int * int * int -> threadgroup:int * int * int ->
     (unit, error) result

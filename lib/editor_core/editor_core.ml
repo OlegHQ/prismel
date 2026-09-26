@@ -68,7 +68,7 @@ module History = struct
 end
 
 module Keymap = struct
-  type trigger = Leader of char | Chord of Prismel.Input.key * Prismel.Input.key list
+  type trigger = Leader of string | Chord of Prismel.Input.key * Prismel.Input.key list
 end
 
 module Command = struct
@@ -86,7 +86,7 @@ end
 module Router = struct
   open Command
   open Keymap
-  type state = Idle | Pending
+  type state = Idle | Pending of string  (* the leader keys typed so far *)
 
   let visible commands focus = List.filter (fun command ->
     command.scope = None || command.scope = Some focus) commands
@@ -134,25 +134,28 @@ module Router = struct
     let state, actions, passed = List.fold_left (fun (state, actions, passed) event ->
       match state, event with
       | Idle, Event.KeyPressed Input.Space when not text_focus && not command ->
-          Pending, actions, passed
+          Pending "", actions, passed
       | Idle, Event.KeyPressed key when not text_focus ->
           (match chord keymap focus frame.keys key with
            | Some action -> Idle, action :: actions, passed
            | None -> Idle, actions, event :: passed)
       | Idle, _ -> Idle, actions, event :: passed
-      | Pending, Event.KeyPressed key when modifier key -> Pending, actions, passed
-      | Pending, Event.KeyPressed (Input.KeyChar character) ->
-          let character = Char.lowercase_ascii character in
-          let actions = match List.find_opt (fun command ->
-              command.trigger = Some (Leader character))
-              (visible keymap focus) with
-            | Some command -> command.action :: actions
-            | None -> actions in
-          Idle, actions, passed
-      | Pending, (Event.TextInput _ | Event.TextEditing _) -> Pending, actions, passed
-      | Pending, (Event.KeyPressed _ | Event.MousePressed _) -> Idle, actions, passed
-      | Pending, Event.WindowFocusLost -> Idle, actions, event :: passed
-      | Pending, _ -> Pending, actions, event :: passed)
+      | Pending _, Event.KeyPressed key when modifier key -> state, actions, passed
+      | Pending prefix, Event.KeyPressed (Input.KeyChar character) ->
+          (* An exact sequence runs; a proper prefix opens the next page. *)
+          let typed = prefix ^ String.make 1 (Char.lowercase_ascii character) in
+          let commands = visible keymap focus in
+          (match List.find_opt (fun command ->
+              command.trigger = Some (Leader typed)) commands with
+           | Some command -> Idle, command.action :: actions, passed
+           | None when List.exists (fun command -> match command.trigger with
+               | Some (Leader sequence) -> String.starts_with ~prefix:typed sequence
+               | _ -> false) commands -> Pending typed, actions, passed
+           | None -> Idle, actions, passed)
+      | Pending _, (Event.TextInput _ | Event.TextEditing _) -> state, actions, passed
+      | Pending _, (Event.KeyPressed _ | Event.MousePressed _) -> Idle, actions, passed
+      | Pending _, Event.WindowFocusLost -> Idle, actions, event :: passed
+      | Pending _, _ -> state, actions, event :: passed)
       (state, [], []) frame.events in
     let passed = if state = Idle && actions <> [] then List.filter (function
         | Event.TextInput _ -> false | _ -> true) passed else passed in

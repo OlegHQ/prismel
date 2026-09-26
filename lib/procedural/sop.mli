@@ -922,7 +922,10 @@ val copy_to_points :
   ?label:string -> ?source_group:string -> ?target_group:string ->
   ?piece_attribute:string ->
   ?target_attributes:Pdk.Instance_copy.copy_target_attribute_rule list ->
-  source:Node.t -> targets:Node.t -> unit -> Node.t
+  ?pack:bool -> source:Node.t -> targets:Node.t -> unit -> Node.t
+(** [pack] (default false) returns the source once with one instance
+    transform per target ({!Session.output.instances}) instead of copies. *)
+
 val duplicate :
   ?label:string -> ?copies:int -> ?cumulative:bool ->
   ?transform:Prismel_math.Mat4.t -> ?group:string ->

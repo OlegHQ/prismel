@@ -91,6 +91,13 @@
  (locks smoke_window)
  (action
   (setenv PRISMEL_MAX_FRAMES 30
+   (run %{exe:sketches/cube_cage/main.exe}))))
+
+(rule
+ (alias smoke-all)
+ (locks smoke_window)
+ (action
+  (setenv PRISMEL_MAX_FRAMES 30
    (run %{exe:sketches/chromatic_drift/main.exe}))))
 
 (rule

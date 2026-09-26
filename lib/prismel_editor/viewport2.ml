@@ -10,8 +10,12 @@ type extra = unit
 type view = Easy_camera2.t
 
 let keymap = Leader.keymap
+let scene_level = false
 let default_camera () = Easy_camera2.create ()
-let seed_document _ _ document = document
+let seed_scene ?lens:_ _ _ scene = scene
+
+(* One geometry object; 2D pieces are placed as drawn. *)
+let compose ~scene:_ ~world:_ pieces = List.concat_map (fun (_, _, scene) -> scene) pieces
 let init core _ = core, ()
 let create_control () = CC2.create ()
 let ui_visible = CC2.ui_visible
@@ -44,9 +48,10 @@ let frame_bounds ~viewport:(_, _, width, height) ~min ~max camera =
 
 let on_view core ~previous:_ camera () ~time:_ = core, camera, ()
 let view_camera camera () ~pending:_ = camera
+let film () viewport = viewport
 let paint viewport camera rendered = Easy_camera2.scene ~viewport camera rendered
-let guides ~document:_ ~selected:_ _ () ~bounds:_ = []
-let handles _ ~selected:_ _ () ~bounds:_ = [], false
+let guides ~scene:_ ~selected:_ ~space:_ _ () ~bounds:_ = []
+let handles _ ~selected:_ ~scene:_ ~space:_ _ () ~bounds:_ = [], false, None
 let save = CC2.save
 let filename request = request.CC2.filename
 let close () = ()

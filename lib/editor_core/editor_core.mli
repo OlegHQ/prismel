@@ -34,7 +34,7 @@ module History : sig
 end
 
 module Keymap : sig
-  type trigger = Leader of char | Chord of Prismel.Input.key * Prismel.Input.key list
+  type trigger = Leader of string | Chord of Prismel.Input.key * Prismel.Input.key list
 end
 
 (** Named editor commands: the one table behind key routing, which-key, and
@@ -53,7 +53,7 @@ module Command : sig
 end
 
 module Router : sig
-  type state = Idle | Pending
+  type state = Idle | Pending of string  (** leader keys typed so far *)
 
   (** In fly mode, keep pointer/window events and pass Space to the leader
       router after ending the mode. Escape ends fly without opening a shortcut. *)

@@ -33,8 +33,8 @@ let run () =
     let descriptor:Pipeline.render_descriptor={backend="metal";label=Some entry;layout;vertex;vertex_entry="sample_vertex";fragment=Some(fragment entry);fragment_entry=Some entry;color_format=Rgba8_unorm;depth_format=No_depth;sample_count=1}in
     entry,get(Backend.create_render_pipeline device descriptor)in
   let pipelines=List.map make_pipeline["sample_clamp";"sample_repeat";"sample_mirror";"sample_linear";"sample_mip"]in
-  let sampled=get(Backend.create_texture device{label=Some"sampled";width=2;height=2;depth=1;mip_levels=2;sample_count=1;usage=[Texture_binding;Texture_copy_dst]})
-  and target=get(Backend.create_texture device{label=Some"target";width=1;height=1;depth=1;mip_levels=1;sample_count=1;usage=[Texture_binding;Render_attachment;Texture_copy_src]})
+  let sampled=get(Backend.create_texture device{label=Some"sampled";width=2;height=2;depth=1;mip_levels=2;sample_count=1;format=Rgba8_unorm;usage=[Texture_binding;Texture_copy_dst]})
+  and target=get(Backend.create_texture device{label=Some"target";width=1;height=1;depth=1;mip_levels=1;sample_count=1;format=Rgba8_unorm;usage=[Texture_binding;Render_attachment;Texture_copy_src]})
   and upload=get(Backend.create_buffer device{label=None;size=768L;usage=[Copy_src;Copy_dst]})
   and queue=get(Backend.create_queue device)in
   let bytes=Bytes.make 768 '\000'in

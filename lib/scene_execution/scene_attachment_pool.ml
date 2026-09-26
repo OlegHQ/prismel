@@ -22,6 +22,7 @@ let descriptor configuration kind samples : Ogpu.Types.texture_descriptor =
     width=configuration.Ogpu.Surface.physical_width;
     height=configuration.physical_height;
     depth=1; mip_levels=1; sample_count=samples;
+    format=Rgba8_unorm;
     usage=[Ogpu.Types.Render_attachment] }
 
 let allocate value configuration kind samples =

@@ -8941,6 +8941,9 @@ C35_FENCE(caml_prismel_metal_compute35_wait_fence,waitForFence)
 #undef C35_FENCE
 C35_ENTRY(caml_prismel_metal_compute35_heaps)(value re,value ra){CAMLparam2(re,ra);@try{C35_ENCODER(re);mlsize_t n=Wosize_val(ra);std::vector<id<MTLHeap>>h;h.reserve(n);for(mlsize_t i=0;i<n;i++)h.push_back(object_of_handle(Field(ra,i),Handle_kind::Heap));if(n==1)[e useHeap:h[0]];else[e useHeaps:h.data() count:n];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 C35_ENTRY(caml_prismel_metal_compute35_resources)(value re,value rh,value rk,value usage){CAMLparam4(re,rh,rk,usage);@try{C35_ENCODER(re);auto r=prismel_compute35_resources(rh,rk);if(r.size()==1)[e useResource:r[0] usage:(MTLResourceUsage)Int64_val(usage)];else[e useResources:r.data() count:r.size() usage:(MTLResourceUsage)Int64_val(usage)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+/* useResource(s) with MTLResourceUsageRead on acceleration structures: the
+   bottom-level structures an instance structure references stay resident. */
+C35_ENTRY(caml_prismel_metal_compute35_accelerations)(value re,value ra){CAMLparam2(re,ra);@try{C35_ENCODER(re);mlsize_t n=Wosize_val(ra);std::vector<id<MTLResource>>r;r.reserve(n);for(mlsize_t i=0;i<n;i++)r.push_back(object_of_handle(Field(ra,i),Handle_kind::Acceleration_structure));if(n==1)[e useResource:r[0] usage:MTLResourceUsageRead];else if(n>1)[e useResources:r.data() count:n usage:MTLResourceUsageRead];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 #undef C35_ENTRY
 #undef C35_ENCODER
 

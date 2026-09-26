@@ -20,8 +20,8 @@ type 'a completion = {
 type 'a request = {
   id : int;
   context : Context.t;
-  node : Node.t;
-  prepare : Session.output -> ('a, string) result;
+  nodes : Node.t list;
+  prepare : Session.output list -> ('a, string) result;
 }
 
 type active = {
@@ -56,10 +56,16 @@ let cancel_request request =
 
 let execute session request =
   try
-    match Session.cook session ~context:request.context request.node with
-    | Error error -> Error (Cook_error error)
-    | Ok output ->
-        (match request.prepare output with
+    let rec cook outputs = function
+      | [] -> Ok (List.rev outputs)
+      | node :: rest ->
+          (match Session.cook session ~context:request.context node with
+           | Error error -> Error (Cook_error error)
+           | Ok output -> cook (output :: outputs) rest) in
+    match cook [] request.nodes with
+    | Error error -> Error error
+    | Ok outputs ->
+        (match request.prepare outputs with
          | Ok prepared -> Ok prepared
          | Error message -> Error (Prepare_error message))
   with exn -> Error (Uncaught_exception (Printexc.to_string exn))
@@ -117,7 +123,7 @@ let create ~max_entries ~max_payload_bytes =
     value)
     (Session.create ~max_entries ~max_payload_bytes)
 
-let submit value ~context ~node ~prepare =
+let submit_all value ~context ~nodes ~prepare =
   with_lock value (fun () ->
     if value.closed || value.stopping then
       Error "Async_cook.submit: worker is closed"
@@ -126,11 +132,16 @@ let submit value ~context ~node ~prepare =
       Option.iter (fun active -> Pdk.Cancel.cancel active.cancel) value.active;
       value.latest_id <- value.latest_id + 1;
       let id = value.latest_id in
-      value.pending <- Some { id; context; node; prepare };
+      value.pending <- Some { id; context; nodes; prepare };
       value.completion <- None;
       Condition.signal value.ready;
       Ok id
     end)
+
+let submit value ~context ~node ~prepare =
+  submit_all value ~context ~nodes:[node] ~prepare:(function
+    | [output] -> prepare output
+    | _ -> Error "Async_cook.submit: expected one output")
 
 let poll value = with_lock value (fun () ->
   let completion = value.completion in

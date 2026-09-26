@@ -56,6 +56,17 @@ let measure nodes =
     environment := E.update !environment (frame ?mouse ?buttons ?events !count);
     incr count in
   let gx, gy, gw, gh = (E.panes !environment (frame 0)).graph in
+  (* The scene opens as a list: focus it, arrow to geo1, and enter it. *)
+  let inside = gx + 20, gy + gh - 20 in
+  step ~mouse:inside ();
+  step ~mouse:inside ~events:[Prismel.Event.MousePressed (Prismel.Input.LeftButton, pointer inside);
+    Prismel.Event.MouseReleased (Prismel.Input.LeftButton, pointer inside)] ();
+  let key k = Prismel.Event.KeyPressed k in
+  while Option.map Node.label (E.selected_node !environment) <> Some "geo1" do
+    step ~events:[key Prismel.Input.ArrowDown] ()
+  done;
+  step ~events:[key (Prismel.Input.KeyChar 'i')] ();
+  step ();
   let tile = List.find (fun (node : Pxui_graph.node_view) ->
       let x, y, width, height = node.bounds in
       x >= gx && y >= gy && x + width < gx + gw && y + height < gy + gh)

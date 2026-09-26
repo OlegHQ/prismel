@@ -32,7 +32,7 @@ let make device family blend samples =
           { group = 0; binding = 2; kind = Sampler; visibility = [ Fragment ] } ],
         [ { B.binding = 1; kind = Texture; visibility = [ Fragment ] };
           { binding = 2; kind = Sampler; visibility = [ Fragment ] } ]
-    | Scene3_shadow | Scene3_shadow_stencil ->
+    | Scene3_shadow | Scene3_shadow_stencil | Scene3_world ->
         "scene_fragment_shadow",
         [ { S.group = 0; binding = 3; kind = Storage_buffer; visibility = [ Fragment ] };
           { group = 0; binding = 4; kind = Sampled_texture; visibility = [ Fragment ] };
@@ -57,7 +57,7 @@ let make device family blend samples =
     ~capabilities:(Ogpu.Backend.capabilities device) [ 0, group ]) in
   let depth_format = match family with
     | Scene_execution.Scene2 | Scene2_textured | Ui -> Ogpu.Pipeline.No_depth
-    | Scene3 | Scene3_points | Scene3_textured | Scene3_shadow -> Depth32_float
+    | Scene3 | Scene3_points | Scene3_textured | Scene3_shadow | Scene3_world -> Depth32_float
     | Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil -> Depth32_float_stencil8 in
   Ogpu.Backend.create_render_pipeline ~blend
     ~topology:(if family = Scene3_points then Ogpu.Render_pass.Point_list else Triangle_list)

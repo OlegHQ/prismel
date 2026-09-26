@@ -53,6 +53,8 @@ type change =
       (** the flag button (or "Set active" menu item) on a [flaggable] tile *)
   | Frame_camera_requested of int
       (** frame the host's viewport camera on this node's cooked bounds *)
+  | Open_requested of int
+      (** a tile was double-clicked: the host may enter the node *)
 
 type node_view = {
   id : int;
@@ -118,6 +120,11 @@ val place_nodes : (int * float * float) list -> t -> t
     in the graph are ignored. *)
 
 val node_views : t -> node_view list
+
+val trunk : Procedural.Edit_graph.t -> (int * int * bool) array
+(** The network as list rows [(id, depth, link)], sources first: rows follow
+    each node's first input, other inputs nest one level under the node that
+    consumes them, and a node reached twice repeats as a [link] row. *)
 
 val node_positions : t -> (int * float * float) list
 (** Graph-space tile positions of every node, the inverse of {!place_nodes}. *)

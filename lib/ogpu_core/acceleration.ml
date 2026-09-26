@@ -34,10 +34,15 @@ let validate_geometry device ~motion=function
       if control_stride<12||radius_stride<4||control_point_count<2||segment_count<=0||control_points_per_segment<2||control_points_per_segment>4 then invalid"Ogpu.Acceleration.Curves""curve strides, counts, or segment shape are invalid"
       else if not(keyframes_ok motion control_points)||List.length radii<>List.length control_points then invalid"Ogpu.Acceleration.Curves""keyframe count must match the structure's motion keyframes"
       else Result.bind(validate_ranges device(control_points@radii))(fun()->validate_range device indices)
+let geometry_kind=function Triangles _|Motion_triangles _->0|Bounding_boxes _->1|Curves _->2
 let descriptor_refit=function Blas{allow_refit;_}|Tlas{allow_refit;_}->allow_refit|Sized _->false
 let validate_descriptor device=function
   |Blas{geometries;_}when Array.length geometries=0->invalid"Ogpu.Acceleration.create""BLAS geometry array is empty"
   |Blas{motion_keyframes=Some k;_}when k<2->invalid"Ogpu.Acceleration.create""motion requires at least two keyframes"
+  (* Metal sizes a primitive structure by its first geometry's kind and sends
+     that kind's selectors to every geometry, so one BLAS holds one kind. *)
+  |Blas{geometries;_}when Array.exists(fun g->geometry_kind g<>geometry_kind geometries.(0))geometries->
+      invalid"Ogpu.Acceleration.create""BLAS geometries must all be one kind (triangles, bounding boxes, or curves)"
   |Blas{geometries;motion_keyframes;_}->Array.fold_left(fun result geometry->Result.bind result(fun()->validate_geometry device ~motion:motion_keyframes geometry))(Ok())geometries
   |Tlas{instances;instance_stride;instance_count;instance_kind;structures;_}->
       let minimum_stride=match instance_kind with Default_instances->64|User_id_instances->68|Motion_instances->44 in

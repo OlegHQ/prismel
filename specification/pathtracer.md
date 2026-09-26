@@ -21,9 +21,30 @@ demos; the scene composition lives in `examples/pathtracer/`.
   shutter. Both keyframes are stored per instance; the kernel picks a shutter
   time per sample, so instances blur along their motion while the preview
   renders the shutter midpoint.
+- Several objects: `scene_mesh [(transform, mesh); ...]` places prepared
+  triangle meshes (flat, instanced, or earlier scenes) at world transforms in
+  one trace: a TLAS whose instances reference one BLAS per input over one
+  shared vertex buffer. A flat input is one instance, an instanced input one
+  instance per copy with its transform premultiplied by the object's.
+  Spheres, strands, and motion inputs are rejected (ponytail: the sphere
+  intersection function has no per-instance base).
+- Moving objects: `move t matrices` re-places the newest `scene_mesh`'s
+  objects at new world transforms without re-preparing or re-uploading
+  geometry. The layout keeps each object's placement range, world matrix,
+  and per-placement local matrix; only changed objects recompute
+  `object * local`, then fresh instance records and shader transforms go up
+  and only the TLAS rebuilds over the installed BLASes (staged like
+  `queue_mesh`; a newer move supersedes a pending one, and a move behind a
+  full build waits for it). On the M1, 2001 instances plus a 20k-triangle
+  mesh: `move` + `flush` about 2 ms (0.4 ms on the CPU) against about 8.5 ms
+  for `scene_mesh` + `queue_mesh` + `flush` (`test_scene`).
 - Lighting: rectangle area lights (`rect_light`: centre, target, size, colour,
   intensity; two-sided, analytic, never visible) sampled with next-event
-  estimation, plus a procedural dome that stands in for a studio HDRI: a
+  estimation; `light_of` converts a raster `Prismel.Light.t` (1/d²
+  attenuation) to the rect of the same irradiance `pi I / d²`: radiance
+  `pi I / A`, the inverse of the raster World conversion `L A / pi`; point
+  and spot lights become 0.1 x 0.1 rects, a directional light a 20 x 20 rect
+  100 units away. Plus a procedural dome that stands in for a studio HDRI: a
   sky/ground gradient with soft rectangular emitter panels defined by a dome
   direction, angular half-extents, edge softness, colour, and intensity.
   Emissive materials also work as BSDF-sampled lights.
@@ -42,7 +63,14 @@ demos; the scene composition lives in `examples/pathtracer/`.
   texture in a native Sketch. `pixels` requests an explicit RGBA8 readback for
   tests and export. Standalone tracer use without a Sketch still publishes a
   CPU image after command completion.
-- Camera: pinhole, `eye`/`target`/vertical `fov`. A camera change restarts
+- Camera: `eye`/`target`/vertical `fov`, pinhole by default. The camera's
+  `Camera.lens` is thin-lens depth of field: `aperture` is the lens radius in
+  scene units and `focus_distance` the sharp plane along the view direction
+  (`None` focuses on the target). Each
+  accumulated sample starts from a uniform point of the lens disk and aims
+  at the pinhole ray's focus-plane point (two random numbers per sample, no
+  extra rays), so bokeh converges with the rest of the image; preview frames
+  stay pinhole. A lens change is a camera change. A camera change restarts
   accumulation and renders every primary pixel as an interactive preview:
   one direct-light bounce and one round-corner probe. The preview reprojects
   the last completed linear frame by the current hit position and previous
@@ -50,6 +78,14 @@ demos; the scene composition lives in `examples/pathtracer/`.
   only across matching surfaces. History is capped at twelve frames and reset
   on geometry changes. The first frame after the camera rests restarts
   full-quality progressive accumulation.
+- Residency: the trace dispatch binds the instance structure and declares
+  its bottom-level structures read (`Ogpu.Backend.compute_use_accels`);
+  Metal only keeps referenced structures resident when told, and without it
+  the BLASes were evicted over minutes, rays missed more and more, and the
+  picture faded to the background (a fresh frame after `reset` got darker
+  with every frame rendered). The library test renders a large instanced
+  prototype for sixty frames and requires a fresh frame's brightness to match
+  the first.
 - Interaction contract: `render` never blocks. It polls the in-flight command
   buffer and, while the GPU is busy, returns without submitting, so the
   sketch loop, camera, and UI keep the display rate regardless of tracer
@@ -62,10 +98,16 @@ demos; the scene composition lives in `examples/pathtracer/`.
   waiting. The previous scene remains visible until the build completes and
   all earlier renders finish; then the renderer swaps resources and resets
   accumulation. Edits received during a build coalesce to the latest mesh.
+  The first frame over newly installed geometry, lights, or World renders
+  as a preview, like a camera move, so a live slider drag stays interactive;
+  accumulation resumes one frame after edits stop, and `reset` restarts at
+  full quality (1200x1560, 4 bounces, rounded voxel scene on the M1: preview
+  about 61 ms against 218 ms for a full first sample, `test_main.exe
+  bench_scene`).
   `replace_mesh` remains a synchronous version for tests and export.
 
 Not in scope yet: thin-lens depth of field, textures, learned denoising,
-file-backed HDRIs.
+file-backed HDRIs (a baked `Prismel.World` is the environment; see World path).
 
 ## Pipeline
 
@@ -80,15 +122,22 @@ file-backed HDRIs.
    transforms, and builds a TLAS. Both builds are encoded on the tracer's
    queue and polled, never waited on, unless `flush` or `replace_mesh` asks.
    Exact prototype-byte matches reuse the GPU prototype and BLAS on later
-   edits; only transforms and the TLAS change. Spheres and strands are further
-   geometries of the same BLAS (bounding boxes and curves). Every build is
+   edits; only transforms and the TLAS change. A Metal primitive structure
+   holds one geometry kind (a triangles-plus-boxes BLAS fails at sizing with
+   an unrecognized `vertexBuffer` selector), so OGPU rejects mixed-kind BLAS
+   descriptors and a mesh mixing triangles, spheres, and strands becomes a
+   scene: one BLAS per kind under identity TLAS instances. A scene's BLASes
+   build side by side in slices of one scratch buffer and the TLAS builds in
+   the next encoder of the same command buffer, uncompacted (ponytail).
+   The `SCENE` kernel binds a per-instance table (first triangle, material or
+   `~0` for per-triangle ids) at buffer 20. Every build is
    staged: the primitive build writes its compacted size, the next poll
    compacts it into a right-sized structure, then the TLAS (user-id or motion
    instance records) builds over the compacted one and the uncompacted
    structure is released; `render` never waits on any stage.
 2. The embedded MSL is compiled once into one OGPU library at `create` time.
    One `pathtrace` kernel is specialized per mesh shape by the `INSTANCED`,
-   `MOTION`, `SPHERES`, and `CURVES` function constants (mutually exclusive
+   `MOTION`, `SPHERES`, `CURVES`, and `SCENE` function constants (mutually exclusive
    structure arguments, a body templated on the structure, intersector, and
    table types) and compiled on first use; a sphere pipeline links the
    `sphere_hit_*` intersection function whose tags match its intersector and
@@ -97,8 +146,9 @@ file-backed HDRIs.
 3. `render` polls the previous submission and returns if it remains busy.
    Once complete, it publishes the completed GPU texture behind the borrowed
    image's stable identity without a CPU transfer or Scene re-upload. It then
-   uploads a 144-byte uniform block (camera basis, dome colours, size, frame
-   index, spp, bounce cap, exposure, round-corner probe count, light count)
+   uploads a 288-byte uniform block (camera basis, dome colours, size, frame
+   index, spp, bounce cap, exposure, round-corner probe count, light count,
+   previous camera, World flags and sun)
    with `set_bytes`, dispatches one thread per pixel directly into the other
    of two RGBA8 OGPU textures, and commits without waiting. The textures
    alternate even during motion, so Scene never samples the texture being
@@ -135,6 +185,62 @@ file-backed HDRIs.
   suppress fireflies (biased, documented as a `ponytail:` corner), ACES-style
   tonemap and 2.2 gamma on resolve.
 
+## World path
+
+`set_world t (Some baked)` replaces the procedural dome with a baked
+`Prismel.World` (`specification/environment.md`); `None` restores the dome,
+and a sketch that never sets a World renders bit-exactly as before (the M1
+qualification digests are unchanged). The upload happens only when the baked
+value changes (physical equality) and restarts accumulation.
+
+- Data: one float32 storage buffer (binding 8): camera map, lighting map
+  (both `w x h` RGB, the World's equirect convention), the CDF marginal
+  (`h + 1`) and conditional rows (`h x (w + 1)`). Lookups are manual
+  bilinear, u wrapping, v clamped, matching `World.lookup`. The uniform block
+  (now 288 bytes) carries the flags, map size, background colour, and sun.
+- Camera rays that miss read the camera map (sun disc and promoted emitters
+  included), or `Color c` as radiance `c` (exposure and tone map still
+  apply), or for `Transparent` nothing: the accumulation's `w` then counts
+  covered samples, the colour is their mean (straight alpha) and the film's
+  alpha is coverage. The preview resolve marks alpha 0 where the centre
+  sample missed.
+- Later bounces read the lighting map. Next-event estimation draws a
+  direction by inverse CDF (binary search on the marginal, then the row;
+  the leftover of each uniform places the direction inside the texel). Its
+  solid-angle pdf is the CDF's own texel probability times `w h` over
+  `2 pi^2 sin theta` at the sampled direction, so sampling and evaluation
+  agree exactly. BSDF escapes are weighted against that pdf.
+- Sun: a cone of `angular_radius` around `baked.sun.direction`, sampled
+  uniformly (`1 - cos` carried as `2 sin^2(r/2)` so small discs keep float
+  precision; pdf is one over the cone's solid angle). BSDF escapes inside
+  the cone add the sun radiance. The lighting map has no disc, so nothing is
+  counted twice.
+- Rect lights: `baked.lights` (one-sided, emitting along their normal) join
+  the `set_lights`/scene lights (two-sided) in one buffer, and become
+  hittable. A camera ray stops at the nearest rect in front of the scene;
+  later rays add every rect they cross before the scene hit, weighted against
+  the rect NEE pdf (area to solid angle, one light of `n` picked uniformly),
+  and continue. Shadow rays ignore rects, so both strategies see the same
+  emitters.
+- MIS: every light strategy (map, sun, rects) against BSDF sampling with the
+  power heuristic; the BSDF pdf is the mixture pdf the sampler uses. The
+  dome's `sample_panel` is not used on this path.
+- Firefly clamp: only the indirect part (light arriving after the first hit)
+  is clamped at luminance 8; direct light is MIS-sampled and unclamped.
+- Exposure: the effective exposure is `2 ** baked.exposure` times `create`'s
+  `exposure`.
+- `PRISMEL_PATHTRACER_BSDF_ONLY=1` at `create` disables all light sampling
+  on the World path (debugging and the unbiasedness test).
+
+Tests (`test_world.ml`, headless, default `runtest`): a uniform-radiance
+World furnace resolves to 224 like the dome furnace (a mutation that drops
+the MIS weights reads 241); a peaked map with a sun converges to the same
+image with MIS as with BSDF-only sampling (mean 34.04 vs 33.93 on RGBA8) and
+at 16 spp has RMSE 6.6 vs 17.7 against the converged image; a `Color`
+background resolves to exactly its tone-mapped value; `Transparent` misses
+have alpha 0; a rect light behind the camera appears in a mirror sphere under
+BSDF-only sampling (so only by being hit) and MIS agrees.
+
 ## Determinism and tests
 
 The RNG is a PCG hash seeded from pixel index and frame index, so a fixed
@@ -145,8 +251,14 @@ opaque alpha; it then checks a white analytic sphere in the furnace (energy
 conservation through the intersection table), red/green per-instance
 materials, motion-blur coverage between an instance's rest and end positions,
 typed rejection of strands on devices without curve intersection, mismatched
-material and motion counts, and that all twelve kernel specializations
-(including the curve variants) compile against their declared interfaces. It skips when no ray-tracing device is present unless
+material and motion counts, and that all sixteen kernel specializations
+(including the curve and scene variants) compile against their declared
+interfaces. `test_scene.ml` checks that a `scene_mesh` of a flat box, an
+instanced pair with per-instance materials, and a floor matches the same
+meshes composed by hand, that translating an object moves it in the image,
+that a mesh of triangles plus an analytic sphere builds and shows both, and
+that `light_of` area, point, spot, and directional lights light a white matte
+plane to the analytic `albedo I / d²` within 6%, with no handle leak. It skips when no ray-tracing device is present unless
 `PRISMEL_REQUIRE_RAYTRACING` is set. `test_gpu_film.ml` creates a native
 renderer, verifies direct texture publication and explicit pixel readback,
 compares its frame byte-for-byte with the standalone path, then checks teardown
@@ -242,6 +354,24 @@ cover tracing and preview resolve, while the application total also includes
 startup, cook, UI rendering, scheduling, and presentation. PNG capture is
 excluded. This identifies the ray workload as a substantial cost without
 attributing the remaining time to a single phase.
+
+World convergence probe (headless, 2026-09-26, Apple M1, default profile):
+`dune exec lib/prismel_pathtracer/test_main.exe -- bench_world` renders a
+floor and a 48x24 UV sphere at 256x256, 1 spp per frame, 6 bounces, in three
+interleaved rounds. Wall time per `render`+`flush` frame (Metal GPU
+timestamps read 0 on this machine), and RGBA8 RMSE against each
+configuration's own 2048-frame reference:
+
+| Configuration | ms/frame (3 rounds) | RMSE @16 | RMSE @64 |
+|---|---|---|---|
+| procedural dome, 1 panel (no World, before) | 3.62 / 3.97 / 3.93 | 3.52 | 1.68 |
+| white room, panels in the maps (CDF + MIS) | 4.11 / 4.22 / 4.40 | 3.01 | 1.36 |
+| white room, 6 promoted panels (rect NEE + hittable) | 6.35 / 6.32 / 6.21 | 3.07 | 1.43 |
+
+The references differ per row, so RMSE compares convergence rates, not
+images. The promoted room pays for testing six rects on every ray and a
+third shadow ray per bounce. Timings exclude tracer creation and one warm-up
+frame.
 
 ## SOP workflow example
 

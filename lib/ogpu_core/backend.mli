@@ -68,6 +68,7 @@ type driver_compute_encoder =
   ; dispatch_threads:threads:int * int * int -> threadgroup:int * int * int -> (unit,Error.t) result
   ; dispatch_threadgroups:threadgroups:int * int * int -> threadgroup:int * int * int -> (unit,Error.t) result
   ; compute_use_heap:token -> (unit,Error.t) result
+  ; compute_use_accels:token list -> (unit,Error.t) result
   ; compute_update_fence:token -> (unit,Error.t) result
   ; compute_wait_fence:token -> (unit,Error.t) result
   ; end_compute:unit -> (unit,Error.t) result }
@@ -316,6 +317,7 @@ type upscaler
 
 (** Geometry for bottom-level structures. A keyframe list holds one entry for
     a static structure and exactly the structure's motion keyframes otherwise.
+    One structure holds one geometry kind (triangles, boxes, or curves).
     Bounding boxes are 24-byte min/max float triples that an intersection
     function resolves; curves are float3 control points with float radii and
     uint32 segment indices. *)
@@ -515,6 +517,13 @@ val destroy_heap : heap -> (unit,Error.t) result
     not aliasable is rejected. *)
 val make_aliasable : heap -> [ `Buffer of buffer | `Texture of texture ] -> (unit,Error.t) result
 val compute_use_heap : compute_encoder -> heap -> (unit,Error.t) result
+
+(** Declares built structures an instance structure bound with [set_accel]
+    references (its bottom-level structures) as read by the dispatch, so the
+    device keeps them resident; without it they may be evicted over time and
+    rays silently miss. Every structure must be built and of the encoder's
+    device. An empty list is a no-op. *)
+val compute_use_accels : compute_encoder -> accel list -> (unit,Error.t) result
 
 (** A residency set makes its allocations resident for every command buffer
     of the queues it is attached to (or for one [commands] value). Changes

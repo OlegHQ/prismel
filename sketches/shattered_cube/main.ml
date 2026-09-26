@@ -49,7 +49,9 @@ let lights = [
     ~diffuse:(Color.hex_exn "#7dd3fc") ~intensity:0.55 ();
 ]
 
-type preview = Pieces of Sketch_support.Packed_pieces.t | Mesh of Mesh.t
+(* [Mesh] carries a packed cook's instance transforms. *)
+type preview = Pieces of Sketch_support.Packed_pieces.t
+  | Mesh of Mesh.t * Mat4.t array option
 
 let prepare output =
   match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Primitive "piece"
@@ -61,16 +63,16 @@ let prepare output =
              output.geometry
            |> Result.map (fun pieces -> Pieces pieces)
        | _ -> Pdk_prismel.Prismel_mesh.to_mesh output.geometry
-           |> Result.map (fun mesh -> Mesh mesh)
+           |> Result.map (fun mesh -> Mesh (mesh, output.instances))
            |> Result.map_error Pdk.Error.to_string)
   | None -> Pdk_prismel.Prismel_mesh.to_mesh output.geometry
-      |> Result.map (fun mesh -> Mesh mesh)
+      |> Result.map (fun mesh -> Mesh (mesh, output.instances))
       |> Result.map_error Pdk.Error.to_string
 
 let scene3 node preview =
   let mesh = match preview with
     | Pieces pieces -> Sketch_support.Packed_pieces.mesh_for_node node pieces
-    | Mesh mesh -> mesh in
+    | Mesh (mesh, _) -> mesh in
   let primitive_mode = Mesh.mode mesh in
   let shading = match Node.operation node with
     | "box" | "grid" | "platonic" -> Scene3.Flat
@@ -90,7 +92,10 @@ let scene3 node preview =
     (* Intermediate sheet SOPs need to remain inspectable from either side,
        like a modelling viewport. Primitive sources use their exact face
        winding instead of an interpolated preview normal. *)
-    Scene3.mesh ~cull ~shading ~material:preview_material mesh
+    match preview with
+    | Mesh (_, Some transforms) ->
+        Scene3.instances_array ~cull ~shading ~material:preview_material mesh transforms
+    | Mesh (_, None) | Pieces _ -> Scene3.mesh ~cull ~shading ~material:preview_material mesh
   in
   let drawing = match primitive_mode with
     | Mesh.Points ->
@@ -98,14 +103,14 @@ let scene3 node preview =
     | Lines | Line_strip | Line_loop ->
         Scene3.with_raster (Scene3.raster_state ~line_width:2. ()) [drawing]
     | Triangles | Triangle_strip | Triangle_fan -> drawing in
-  Scene3.create ~samples:1 ~lights [drawing]
+  Scene3.create ~samples:1 [drawing]
 
 let overlay graph preview frame =
   let pieces = match preview with
     | None -> "waiting for first cook"
     | Some (Pieces pieces) -> Printf.sprintf "%d closed pieces"
         (Sketch_support.Packed_pieces.piece_count pieces)
-    | Some (Mesh mesh) -> Printf.sprintf "%d preview vertices"
+    | Some (Mesh (mesh, _)) -> Printf.sprintf "%d preview vertices"
         (Mesh.vertex_count mesh) in
   Scene.[
     text ~at:(20, 18) "SOP Shattered Cube";
@@ -123,7 +128,7 @@ let () =
       ~azimuth:0.72 ~elevation:0.42 ())
     ~seed:7349L ~grain:2 ~max_entries:24
     ~max_payload_bytes:(256 * 1024 * 1024)
-    ~factories:Sop_catalog.Editor.factories
+    ~factories:Sop_catalog.Editor.factories ~lights
     ~graph:(graph ())
     ~prepare:(fun _ -> prepare)
     ~scene3 ~overlay ()

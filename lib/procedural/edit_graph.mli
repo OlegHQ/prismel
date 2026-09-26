@@ -30,6 +30,9 @@ type node_info = {
 }
 
 val of_graph : Graph.t -> t
+val empty : t
+(** No nodes; build it up with [add_node] so every node keeps its factory. *)
+
 val root : t -> int option
 val set_root : int -> t -> (t, string) result
 val inspect : t -> node_info list

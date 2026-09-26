@@ -39,6 +39,7 @@ type driver_compute_encoder={
   dispatch_threads:threads:int*int*int->threadgroup:int*int*int->(unit,Error.t)result;
   dispatch_threadgroups:threadgroups:int*int*int->threadgroup:int*int*int->(unit,Error.t)result;
   compute_use_heap:token->(unit,Error.t)result;
+  compute_use_accels:token list->(unit,Error.t)result;
   compute_update_fence:token->(unit,Error.t)result;
   compute_wait_fence:token->(unit,Error.t)result;
   end_compute:unit->(unit,Error.t)result}
@@ -263,6 +264,8 @@ let validate_present op (queue:queue) (source:texture) (frame:frame)=
         "source texture extent does not match the configured physical surface extent"
     else if descriptor.sample_count<>1 then
       error op Error.Invalid_argument"source texture must have sample_count=1"
+    else if descriptor.format<>Types.Rgba8_unorm then
+      error op Error.Invalid_argument"source texture must be Rgba8_unorm"
     else if not(List.mem Types.Texture_binding descriptor.usage)then
       error op Error.Invalid_argument"source texture must have Texture_binding usage"
     else Ok()
@@ -970,9 +973,9 @@ let blit_range size offset length=offset>=0L&&length>0L&&offset<=size&&length<=I
 let texrange (d:Types.texture_descriptor) mip (o:Types.origin) (e:Types.extent)=
   mip>=0&&mip<d.mip_levels&&o.x>=0&&o.y>=0&&o.z>=0&&e.width>0&&e.height>0&&e.depth>0&&
   o.x<=max 1(d.width lsr mip)-e.width&&o.y<=max 1(d.height lsr mip)-e.height&&o.z<=max 1(d.depth lsr mip)-e.depth
-let pitches (e:Types.extent) row image=
+let pitches texel (e:Types.extent) row image=
   let height=Int64.of_int e.height in
-  row>=Int64.mul(Int64.of_int e.width)4L&&Int64.rem row 256L=0L&&
+  row>=Int64.mul(Int64.of_int e.width)(Int64.of_int texel)&&Int64.rem row 256L=0L&&
   height>0L&&row<=Int64.div Int64.max_int height&&
   image>=Int64.mul row height
 let footprint image depth=
@@ -982,7 +985,7 @@ let footprint image depth=
 let buffer_texture_region op ~buffer_usage ~texture_usage (b:buffer) offset row image (x:texture) mip origin (extent:Types.extent)=
   if not(List.mem buffer_usage b.buffer_descriptor.usage&&List.mem texture_usage x.texture_descriptor.usage)then
     error op Error.Invalid_argument"buffer or texture usage does not permit the copy"
-  else if not(texrange x.texture_descriptor mip origin extent&&pitches extent row image)then
+  else if not(texrange x.texture_descriptor mip origin extent&&pitches(Types.texel_bytes x.texture_descriptor.format)extent row image)then
     error op Error.Invalid_argument"texture region or row pitch is invalid"
   else match footprint image extent.depth with
     |Some size when blit_range b.buffer_descriptor.size offset size->Ok()
@@ -996,6 +999,8 @@ let copy_texture (encoder:blit_encoder) ~(src:texture) ?(src_mip=0) ?(src_origin
   let valid=
     if not(List.mem Types.Texture_copy_src src.texture_descriptor.usage&&List.mem Types.Texture_copy_dst dst.texture_descriptor.usage)then
       error op Error.Invalid_argument"texture usage does not permit the copy"
+    else if src.texture_descriptor.format<>dst.texture_descriptor.format then
+      error op Error.Invalid_argument"texture formats differ"
     else if not(texrange src.texture_descriptor src_mip src_origin extent&&texrange dst.texture_descriptor dst_mip dst_origin extent)then
       error op Error.Invalid_argument"texture copy region is invalid"
     else Ok()in
@@ -1091,6 +1096,18 @@ let compute_use_heap (encoder:compute_encoder) heap=
   let op="Backend.compute_use_heap"in
   match open_compute op encoder with Error _ as e->e|Ok()->
   match check_heap op (commands_device encoder.compute_commands) heap with Error _ as e->e|Ok()->encoder.compute_raw.compute_use_heap heap.heap_raw.heap_token
+let compute_use_accels (encoder:compute_encoder) accels=
+  let op="Backend.compute_use_accels"in
+  match open_compute op encoder with Error _ as e->e|Ok()->
+  let device=commands_device encoder.compute_commands in
+  let rec check=function
+    | []->Ok()
+    | (accel:accel)::rest->
+        (match check_accel op device accel with Error _ as e->e|Ok()->
+         if not(Acceleration.built accel.portable)then error op Error.Invalid_state"acceleration structure has no encoded build"
+         else check rest) in
+  match check accels with Error _ as e->e|Ok()->
+  if accels=[] then Ok() else encoder.compute_raw.compute_use_accels (List.map (fun (a:accel)->a.accel_raw.accel_token) accels)
 type residency_allocation=[ `Buffer of buffer | `Texture of texture | `Heap of heap ]
 let create_residency_set device ?(capacity=16) ?label ()=
   let op="Backend.create_residency_set"in
@@ -1302,6 +1319,7 @@ let upscale (commands:commands) (u:upscaler) ~(src:texture) ~(dst:texture)=
   match check_resource op device dst.resource with Error _ as e->e|Ok()->
   let size (t:texture)=t.texture_descriptor.width,t.texture_descriptor.height in
   if size src<>u.upscaler_input||size dst<>u.upscaler_output then error op Error.Invalid_argument"texture sizes differ from the upscaler configuration"
+  else if src.texture_descriptor.format<>Types.Rgba8_unorm then error op Error.Invalid_argument"upscale source must be Rgba8_unorm"
   else if not(List.mem Types.Texture_binding src.texture_descriptor.usage)||not(List.mem Types.Texture_binding dst.texture_descriptor.usage&&List.mem Types.Render_attachment dst.texture_descriptor.usage)then
     error op Error.Invalid_argument"upscale source needs texture-binding usage and the destination texture-binding plus render-attachment usage"
   else match commands.commands_raw.upscale u.upscaler_raw.upscaler_token ~src:src.resource.raw.token ~dst:dst.resource.raw.token with Error _ as e->e|Ok()->

@@ -4,28 +4,33 @@ open Procedural
 (* Effect- and dependency-aware cook scheduler. It fires initially, after a
    committed cook parameter change, after [force], and whenever the sketch
    clock changed and any reachable node declares [Time] or [Frame]. While a
-   primary-pointer edit is held, only the latest desired cook is retained. *)
+   primary-pointer edit is held it cooks only when [live] and the worker is
+   idle; otherwise only the latest desired cook is retained until release. *)
 type t = {
   initialized : bool;
   dirty : bool;
-  graph : Graph.t option;
+  graphs : Graph.t list;
   dependencies : Context.Dependencies.t;
 }
 
 let initial = { initialized = false; dirty = false;
-  graph = None; dependencies = Context.Dependencies.static }
+  graphs = []; dependencies = Context.Dependencies.static }
 
-let step value ~graph ~effects ~context_changed ~force ~busy ~frame =
+let step ?(live = false) value ~graphs ~effects ~context_changed ~force ~busy ~frame =
   let dirty = value.dirty || effects.Parameter.cook || force in
-  let dependencies = match value.graph with
-    | Some previous when previous == graph -> value.dependencies
-    | None | Some _ -> Graph.dependencies graph in
+  let dependencies = if List.equal ( == ) graphs value.graphs then value.dependencies
+    else List.fold_left (fun union graph ->
+      Context.Dependencies.union union (Graph.dependencies graph))
+      Context.Dependencies.static graphs in
   let dynamic = context_changed
       && (Context.Dependencies.mem Context.Dependencies.Time dependencies
           || Context.Dependencies.mem Context.Dependencies.Frame dependencies) in
   let held = Frame.mouse_down Input.LeftButton frame in
   let desired = not value.initialized || dirty || dynamic in
   let urgent = not value.initialized || effects.Parameter.cook || force in
-  let fire = not held && desired && (not busy || urgent) in
+  (* Live: while a drag holds the pointer, cook whenever the worker is idle,
+     so each finished cook shows and the next picks up the latest value. *)
+  let fire = if held then live && desired && not busy
+    else desired && (not busy || urgent) in
   { initialized = value.initialized || fire;
-    dirty = desired && not fire; graph = Some graph; dependencies }, fire
+    dirty = desired && not fire; graphs; dependencies }, fire

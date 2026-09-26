@@ -19,6 +19,7 @@ type stats = {
 type output = {
   geometry : Pdk.Geometry.t;
   diagnostics : Diagnostic.t list;
+  instances : Prismel_math.Mat4.t array option;
 }
 
 type entry = {
@@ -56,6 +57,7 @@ type t = {
   mutable evictions : int;
   mutable last_node : node_timing option;
   mutable closed : bool;
+  mutable materialized : (output * Pdk.Geometry.t) list;  (* see [input_geometry] *)
 }
 
 let release_components payload components =
@@ -82,7 +84,7 @@ let create ~max_entries ~max_payload_bytes =
     payload;
     inspection_cache = [];
     cooks = 0; hits = 0; misses = 0; evictions = 0;
-    last_node = None; closed = false;
+    last_node = None; closed = false; materialized = [];
   }
 
 let inspect session root =
@@ -164,6 +166,26 @@ let cancellation_error node =
   Diagnostic.error ~code:"cancelled" "procedural cook was cancelled"
   |> Diagnostic.prepend_trace (Node.trace node)
 
+exception Materialize of Diagnostic.error
+
+(* A packed input reaches its consumer materialized (the explicit boundary),
+   once per packed output: the copy keeps a stable data id, so downstream
+   cache keys still hit. ponytail: the last 8 packed outputs are kept; an
+   LRU keyed by output identity if graphs pack more than that. *)
+let input_geometry session output = match output.instances with
+  | None -> Ok output.geometry
+  | Some transforms ->
+      match List.assq_opt output session.materialized with
+      | Some geometry -> Ok geometry
+      | None ->
+          match Pdk.Instance_copy.materialize_instances ~transforms output.geometry with
+          | Error error -> Error (Diagnostic.error ~code:(Pdk.Error.code error)
+              ~cause:(Pdk.Error.to_string error) "packed instances could not be materialized")
+          | Ok geometry ->
+              session.materialized <- (output, geometry)
+                :: List.filteri (fun index _ -> index < 7) session.materialized;
+              Ok geometry
+
 (* [memo] holds this cook's results by node id so a node reachable through
    several paths is evaluated once; the physical check guards reused ids. *)
 let rec evaluate memo session context node =
@@ -191,11 +213,14 @@ and evaluate_uncached memo session context node =
       else match evaluate memo session context selected.(index) with
         | Error error -> Error (Diagnostic.prepend_trace (Node.trace node) error)
         | Ok output ->
-            geometries.(index) <- Some output.geometry;
+            (match input_geometry session output with
+             | Error error -> raise_notrace (Materialize error)
+             | Ok geometry -> geometries.(index) <- Some geometry);
             input_diagnostics := output.diagnostics :: !input_diagnostics;
             cook_inputs (index + 1)
     in
-    match cook_inputs 0 with
+    match (try cook_inputs 0 with Materialize error ->
+        Error (Diagnostic.prepend_trace (Node.trace node) error)) with
     | Error _ as error -> error
     | Ok () ->
         let geometries = Array.map Option.get geometries in
@@ -224,7 +249,8 @@ and evaluate_uncached memo session context node =
                 let diagnostics =
                   List.concat (List.rev (cooked.diagnostics :: !input_diagnostics))
                 in
-                let output = { geometry = cooked.geometry; diagnostics } in
+                let output = { geometry = cooked.geometry; diagnostics;
+                  instances = cooked.instances } in
                 insert session key output;
                 Ok output
 

@@ -63,6 +63,7 @@ let run ?metallib driver =
   let texture_descriptor : Types.texture_descriptor =
     {label=Some "texture-round-trip";width=2;height=2;depth=1;
      mip_levels=1;sample_count=1;
+     format=Rgba8_unorm;
      usage=[Texture_copy_src;Texture_copy_dst]} in
   let first=get (Backend.create_texture device texture_descriptor) in
   let second=get (Backend.create_texture device texture_descriptor) in
@@ -106,6 +107,113 @@ let run ?metallib driver =
   Bytes.blit padded 256 expected_image 36 8;
   require (get (Backend.read_texture mip_second ~bytes_per_row:16)=
     expected_image) "texture subregion changed other pixels";
+  (* Pixel formats: a 4x4 three-mip texture per format, known texels per
+     level (negative and above one for floats) uploaded with 256-byte rows
+     and read back exactly; level 0 also through the host read path. *)
+  let format_rows=get (Backend.create_buffer device
+    {label=Some"format-rows";size=1024L;usage=[Copy_src;Copy_dst]}) in
+  let format_back=get (Backend.create_buffer device
+    {label=Some"format-back";size=1024L;usage=[Copy_src;Copy_dst]}) in
+  let format_texture ?(width=4) ?(mip_levels=3) ?(usage=[Types.Texture_binding;Texture_copy_src;Texture_copy_dst]) format =
+    Backend.create_texture device
+      {label=Some"format";width;height=width;depth=1;mip_levels;sample_count=1;format;usage} in
+  (* Rows of [texel] values, 256-byte pitch, encoded per format. *)
+  let encode format ~width texel =
+    let rows=Bytes.make 1024 '\000' and size=Types.texel_bytes format/4 in
+    for y=0 to width-1 do for x=0 to width-1 do for c=0 to 3 do
+      let offset=y*256+(x*4+c)*size and v=texel x y c in
+      match format with
+      | Types.Rgba8_unorm -> Bytes.set_uint8 rows offset (int_of_float v land 255)
+      | Rgba16_float -> Bytes.set_uint16_le rows offset (Types.half_of_float v)
+      | Rgba32_float -> Bytes.set_int32_le rows offset (Int32.bits_of_float v)
+    done done done;
+    rows in
+  List.iter (fun format ->
+    let texture=get (format_texture format) in
+    for mip=0 to 2 do
+      let width=4 lsr mip in
+      let rows=encode format ~width (fun x y c ->
+        if format=Types.Rgba8_unorm then float_of_int (x*7+y*31+c*13+mip*50)
+        else float_of_int (x-2*y+3*c)*.1.5+.float_of_int mip*.100.-.7.) in
+      get (Backend.write_buffer format_rows ~offset:0L rows);
+      get (Backend.write_buffer format_back ~offset:0L (Bytes.make 1024 '\000'));
+      let extent : Types.extent={width;height=width;depth=1} in
+      ignore (blit (fun encoder ->
+        get (Backend.buffer_to_texture encoder ~src:format_rows ~bytes_per_row:256L
+          ~bytes_per_image:1024L ~dst:texture ~mip ~extent ());
+        get (Backend.texture_to_buffer encoder ~src:texture ~mip ~extent
+          ~dst:format_back ~bytes_per_row:256L ~bytes_per_image:1024L ())));
+      require (get (Backend.read_buffer format_back ~offset:0L ~length:1024)=rows)
+        "format mip round trip differs";
+      if mip=0 then begin
+        let row=4*Types.texel_bytes format in
+        let compact=Bytes.create (4*row) in
+        for y=0 to 3 do Bytes.blit rows (y*256) compact (y*row) row done;
+        require (get (Backend.read_texture texture ~bytes_per_row:row)=compact)
+          "format host read differs"
+      end
+    done;
+    get (Backend.destroy_texture texture)) [Types.Rgba8_unorm;Rgba16_float;Rgba32_float];
+  (match format_texture ~mip_levels:1 ~usage:[Texture_binding;Render_attachment] Types.Rgba16_float with
+   | Error { Error.kind = Unsupported; _ } -> ()
+   | _ -> failwith "float render attachment was accepted");
+  let half=get (format_texture Types.Rgba16_float) and single=get (format_texture Types.Rgba32_float) in
+  let wide=get (format_texture ~width:32 ~mip_levels:1 Types.Rgba32_float) in
+  let commands=get (Backend.begin_commands queue) in
+  let encoder=get (Backend.blit_encoder commands) in
+  (match Backend.copy_texture encoder ~src:half ~dst:single ~extent:{width=4;height=4;depth=1} () with
+   | Error { Error.kind = Invalid_argument; _ } -> ()
+   | _ -> failwith "cross-format texture copy was accepted");
+  (match Backend.buffer_to_texture encoder ~src:format_rows ~bytes_per_row:256L ~bytes_per_image:256L
+     ~dst:wide ~extent:{width=32;height=1;depth=1} () with
+   | Error { Error.kind = Invalid_argument; _ } -> ()
+   | _ -> failwith "row pitch below the float texel width was accepted");
+  get (Backend.end_blit encoder);
+  get (Backend.abandon commands);
+  (* Linear mip sampling of Rgba16_float at LOD 0, 0.5 and 1 from uniform
+     levels: the exact levels and their average. *)
+  if Caps.has profile Caps.Compute_pipeline then begin
+    let levels=[|[|2.;-1.;0.5;4.|];[|4.;-3.;1.5;8.|];[|100.;100.;100.;100.|]|] in
+    for mip=0 to 2 do
+      let width=4 lsr mip in
+      get (Backend.write_buffer format_rows ~offset:0L
+        (encode Types.Rgba16_float ~width (fun _ _ c -> levels.(mip).(c))));
+      ignore (blit (fun encoder ->
+        get (Backend.buffer_to_texture encoder ~src:format_rows ~bytes_per_row:256L
+          ~bytes_per_image:1024L ~dst:half ~mip ~extent:{width;height=width;depth=1} ())))
+    done;
+    let source=Bytes.of_string
+      "#include <metal_stdlib>\nusing namespace metal;\nkernel void sample_lod(texture2d<float> image [[texture(0)]], device float4 *out [[buffer(1)]], uint i [[thread_position_in_grid]]) { constexpr sampler s(filter::linear, mip_filter::linear, address::clamp_to_edge); out[i] = image.sample(s, float2(0.3, 0.6), level(float(i) * 0.5)); }\n" in
+    let interface : Shader.binding list=
+      [{group=0;binding=0;kind=Shader.Sampled_texture;visibility=[Shader.Compute]};
+       {group=0;binding=1;kind=Shader.Storage_buffer;visibility=[Shader.Compute]}] in
+    let shader=get (Shader.create {backend="metal";label=Some"sample-lod";bytes=source;
+      entry_points=[{name="sample_lod";stage=Shader.Compute}];bindings=interface}) in
+    let library=get (Backend.create_library device shader) in
+    let pipeline=get (Backend.create_compute_pipeline_from library ~entry:"sample_lod" ~interface ()) in
+    let out=get (Backend.create_buffer device {label=Some"sample-lod";size=48L;usage=[Storage;Copy_src]}) in
+    let commands=get (Backend.begin_commands queue) in
+    let encoder=get (Backend.compute_encoder commands) in
+    get (Backend.set_pipeline encoder pipeline);
+    get (Backend.set_texture encoder ~index:0 half);
+    get (Backend.set_buffer encoder ~index:1 out);
+    get (Backend.dispatch_threads encoder ~threads:(3,1,1) ~threadgroup:(3,1,1));
+    get (Backend.end_compute encoder);
+    poll (get (Backend.commit commands)) 1000;
+    let values=get (Backend.read_buffer out ~offset:0L ~length:48) in
+    Array.iteri (fun i expected -> Array.iteri (fun c expected ->
+      let actual=Int32.float_of_bits (Bytes.get_int32_le values ((i*4+c)*4)) in
+      require (Float.abs (actual-.expected)<=1e-3)
+        (Printf.sprintf "Rgba16_float sample at LOD %g channel %d: %g, expected %g" (float_of_int i*.0.5) c actual expected))
+      expected)
+      [|levels.(0);Array.map2 (fun a b->(a+.b)*.0.5) levels.(0) levels.(1);levels.(1)|];
+    get (Backend.destroy_buffer out);
+    get (Backend.destroy_pipeline pipeline);
+    get (Backend.destroy_library library)
+  end;
+  List.iter (fun texture -> get (Backend.destroy_texture texture)) [half;single;wide];
+  get (Backend.destroy_buffer format_rows);
+  get (Backend.destroy_buffer format_back);
   (* Precompiled metallib with function constants, through the same library
      and encoder path as source shaders. *)
   let compute_interface : Shader.binding list=
@@ -337,6 +445,10 @@ let run ?metallib driver =
     (match Backend.set_accel compute ~index:0 blas with
      | Error { Error.kind = Invalid_state; _ } -> ()
      | _ -> failwith "unbuilt structure was bound");
+    (match Backend.compute_use_accels compute [blas] with
+     | Error { Error.kind = Invalid_state; _ } -> ()
+     | _ -> failwith "unbuilt structure was declared used");
+    get (Backend.compute_use_accels compute []);
     get (Backend.end_compute compute);
     let build=get (Backend.accel_encoder commands) in
     (match Backend.build_accel build tlas ~scratch:tlas_scratch () with
@@ -355,6 +467,7 @@ let run ?metallib driver =
       let compute=get (Backend.compute_encoder commands) in
       get (Backend.set_pipeline compute pipeline);
       get (Backend.set_accel compute ~index:0 structure);
+      get (Backend.compute_use_accels compute [blas]);
       get (Backend.set_buffer compute ~index:1 rays);
       get (Backend.set_buffer compute ~index:2 hits);
       get (Backend.dispatch_threads compute ~threads:(4,1,1) ~threadgroup:(4,1,1));
@@ -809,7 +922,7 @@ let run ?metallib driver =
     end;
     (* A heap texture round-trips through encoded blits. *)
     let texture_descriptor : Types.texture_descriptor=
-      {label=Some"heap-texture";width=2;height=2;depth=1;mip_levels=1;sample_count=1;usage=[Texture_copy_src;Texture_copy_dst]} in
+      {label=Some"heap-texture";width=2;height=2;depth=1;mip_levels=1;sample_count=1;format=Rgba8_unorm;usage=[Texture_copy_src;Texture_copy_dst]} in
     let texture_placement=get (Backend.texture_placement device texture_descriptor) in
     require (texture_placement.placement_size>=16L) "texture placement is too small";
     let texture_heap=get (Backend.create_heap device ~size:(Int64.mul 2L (max texture_placement.placement_size texture_placement.placement_alignment)) ()) in
@@ -994,6 +1107,7 @@ let run ?metallib driver =
      fragment=Some fragment;fragment_entry=Some entry;color_format=Rgba8_unorm;depth_format=No_depth;sample_count=1} in
   let target_descriptor : Types.texture_descriptor=
     {label=Some"render-target";width=4;height=4;depth=1;mip_levels=1;sample_count=1;
+     format=Rgba8_unorm;
      usage=[Texture_binding;Render_attachment;Texture_copy_src]} in
   let target=get (Backend.create_texture device target_descriptor) in
   let offsets=get (Backend.create_buffer device {label=Some"offsets";size=8L;usage=[Storage]}) in
@@ -1085,7 +1199,7 @@ let run ?metallib driver =
     let argument_buffer=get (Backend.create_buffer device
       {label=Some"arguments";size=Int64.of_int (max 256 (Backend.argument_length argument));usage=[Storage]}) in
     let texel=get (Backend.create_texture device
-      {label=Some"texel";width=1;height=1;depth=1;mip_levels=1;sample_count=1;usage=[Texture_binding;Texture_copy_dst]}) in
+      {label=Some"texel";width=1;height=1;depth=1;mip_levels=1;sample_count=1;format=Rgba8_unorm;usage=[Texture_binding;Texture_copy_dst]}) in
     let texel_upload=get (Backend.create_buffer device {label=Some"texel-upload";size=256L;usage=[Copy_src]}) in
     get (Backend.write_buffer texel_upload ~offset:0L (Bytes.init 256 (fun i->if i<4 then "\x40\x80\xc0\xff".[i] else '\000')));
     let commands=get (Backend.begin_commands queue) in
@@ -1127,7 +1241,7 @@ let run ?metallib driver =
     (* Depth: a cleared depth attachment at 0.25 with Less rejects a triangle
        at z=0.5 when loaded, and admits it after a clear to 1. *)
     let depth_descriptor : Types.texture_descriptor=
-      {label=Some"depth";width=4;height=4;depth=1;mip_levels=1;sample_count=1;usage=[Render_attachment]} in
+      {label=Some"depth";width=4;height=4;depth=1;mip_levels=1;sample_count=1;format=Rgba8_unorm;usage=[Render_attachment]} in
     let depth=get (Backend.create_depth_texture device depth_descriptor) in
     let depth_shader=render_shader [{name="flat_vertex";stage=Shader.Vertex}]
       [{group=0;binding=0;kind=Shader.Storage_buffer;visibility=[Shader.Vertex]}] in
@@ -1216,7 +1330,7 @@ let run ?metallib driver =
      sparse textures with tile mapping, and MetalFX upscaling. Each feature
      either behaves exactly or rejects with typed Unsupported. *)
   let g7_target : Types.texture_descriptor=
-    {label=Some"g7-target";width=4;height=4;depth=1;mip_levels=1;sample_count=1;usage=[Texture_binding;Render_attachment;Texture_copy_src]} in
+    {label=Some"g7-target";width=4;height=4;depth=1;mip_levels=1;sample_count=1;format=Rgba8_unorm;usage=[Texture_binding;Render_attachment;Texture_copy_src]} in
   let g7_pixels target=get (Backend.read_texture target ~bytes_per_row:16) in
   let g7_pixel bytes x y=Bytes.sub_string bytes ((y*4+x)*4) 4 in
   if Caps.has profile Caps.Mesh_shaders then begin
@@ -1397,12 +1511,12 @@ let run ?metallib driver =
     (match Backend.create_heap_buffer heap ~offset:0L {label=None;size=16L;usage=[Storage]} with
      | Error { Error.kind = Invalid_argument; _ } -> ()
      | _ -> failwith "sparse heap created a buffer");
-    let probe=get (Backend.create_sparse_texture heap {label=Some"sparse-probe";width=4;height=4;depth=1;mip_levels=1;sample_count=1;usage=[Texture_copy_src;Texture_copy_dst]}) in
+    let probe=get (Backend.create_sparse_texture heap {label=Some"sparse-probe";width=4;height=4;depth=1;mip_levels=1;sample_count=1;format=Rgba8_unorm;usage=[Texture_copy_src;Texture_copy_dst]}) in
     let tile_width,tile_height=get (Backend.texture_tile probe) in
     require (tile_width>0 && tile_height>0) "sparse tile size is empty";
     get (Backend.destroy_texture probe);
     let width=2*tile_width and height=tile_height in
-    let descriptor : Types.texture_descriptor={label=Some"sparse";width;height;depth=1;mip_levels=1;sample_count=1;usage=[Texture_copy_src;Texture_copy_dst]} in
+    let descriptor : Types.texture_descriptor={label=Some"sparse";width;height;depth=1;mip_levels=1;sample_count=1;format=Rgba8_unorm;usage=[Texture_copy_src;Texture_copy_dst]} in
     let sparse=get (Backend.create_sparse_texture heap descriptor) in
     let row=Int64.of_int (((width*4)+255)/256*256) in
     let image=Int64.mul row (Int64.of_int height) in
@@ -1446,9 +1560,9 @@ let run ?metallib driver =
      | Error { Error.kind = Invalid_argument; _ } -> ()
      | _ -> failwith "downscaling upscaler was created");
     let upscaler=get (Backend.create_upscaler device ~input:(2,2) ~output:(4,4)) in
-    let small=get (Backend.create_texture device {label=Some"fx-in";width=2;height=2;depth=1;mip_levels=1;sample_count=1;usage=[Texture_binding;Texture_copy_dst]}) in
-    let large=get (Backend.create_texture device {label=Some"fx-out";width=4;height=4;depth=1;mip_levels=1;sample_count=1;usage=[Texture_binding;Render_attachment;Texture_copy_src]}) in
-    let wrong=get (Backend.create_texture device {label=Some"fx-wrong";width=4;height=4;depth=1;mip_levels=1;sample_count=1;usage=[Texture_binding]}) in
+    let small=get (Backend.create_texture device {label=Some"fx-in";width=2;height=2;depth=1;mip_levels=1;sample_count=1;format=Rgba8_unorm;usage=[Texture_binding;Texture_copy_dst]}) in
+    let large=get (Backend.create_texture device {label=Some"fx-out";width=4;height=4;depth=1;mip_levels=1;sample_count=1;format=Rgba8_unorm;usage=[Texture_binding;Render_attachment;Texture_copy_src]}) in
+    let wrong=get (Backend.create_texture device {label=Some"fx-wrong";width=4;height=4;depth=1;mip_levels=1;sample_count=1;format=Rgba8_unorm;usage=[Texture_binding]}) in
     let staging=get (Backend.create_buffer device {label=Some"fx-staging";size=512L;usage=[Copy_src]}) in
     get (Backend.write_buffer staging ~offset:0L (Bytes.init 512 (fun i -> match i mod 4 with 0 -> '\x40' | 1 -> '\x80' | 2 -> '\xc0' | _ -> '\xff')));
     let commands=get (Backend.begin_commands queue) in

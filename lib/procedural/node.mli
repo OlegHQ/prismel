@@ -32,6 +32,10 @@ val trace : t -> Diagnostic.trace
 val parameter_fields : t -> Parameter.field_view list
 val has_parameters : t -> bool
 
+val relabel : string -> t -> t
+(** The same node (id, parameters, cook identity) under a new display label;
+    a blank label is ignored. *)
+
 (** Attach a typed immutable parameter record and its pure reconstruction
     function to a node. This is the public extension point for custom SOPs.
     Standard catalog SOPs use the same mechanism. The reconstruction receives
@@ -56,6 +60,8 @@ module Private : sig
   type cooked = {
     geometry : Pdk.Geometry.t;
     diagnostics : Diagnostic.t list;
+    instances : Prismel_math.Mat4.t array option;
+    (** Packed: [geometry] is a prototype drawn at these transforms. *)
   }
 
   val make :

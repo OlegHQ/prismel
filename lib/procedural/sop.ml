@@ -63,7 +63,7 @@ let color_key color =
   let r, g, b, a = Color.to_tuple color in
   Printf.sprintf "%d,%d,%d,%d" r g b a
 
-let cooked geometry = Ok Node.Private.{ geometry; diagnostics = [] }
+let cooked geometry = Ok Node.Private.{ geometry; diagnostics = []; instances = None }
 let pdk_error ?(hints = []) operation message =
   Error (Diagnostic.error ~code:(operation ^ "_failed") ~cause:message ~hints
     (operation ^ " could not produce valid geometry"))
@@ -2481,7 +2481,7 @@ let copy_target_rule_key rule = Printf.sprintf "%S:%s:%s"
     (copy_target_operation_key rule.copy_target_operation)
 
 let copy_to_points ?label ?source_group ?target_group ?piece_attribute
-    ?(target_attributes = []) ~source ~targets () =
+    ?(target_attributes = []) ?(pack = false) ~source ~targets () =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.copy_to_points: empty source group name") source_group;
   Option.iter (fun name -> if String.trim name = "" then
@@ -2490,11 +2490,11 @@ let copy_to_points ?label ?source_group ?target_group ?piece_attribute
     invalid_arg "Sop.copy_to_points: empty piece attribute name") piece_attribute;
   Node.Private.make ?label ~operation:"copy_to_points" ~version:8
     ~parameters:(Printf.sprintf
-      "source_group=%S;target_group=%S;piece_attribute=%S;target_attributes=%s"
+      "source_group=%S;target_group=%S;piece_attribute=%S;target_attributes=%s;pack=%b"
       (Option.value ~default:"" source_group)
       (Option.value ~default:"" target_group)
       (Option.value ~default:"" piece_attribute)
-      (String.concat "," (List.map copy_target_rule_key target_attributes)))
+      (String.concat "," (List.map copy_target_rule_key target_attributes)) pack)
     ~cook_mode:Node.Generic
     ~dependencies:Context.Dependencies.static ~inputs:[|source; targets|]
     (fun ~node_id:_ context inputs ->
@@ -2517,6 +2517,16 @@ let copy_to_points ?label ?source_group ?target_group ?piece_attribute
                    "copy_to_points could not find target point group %S" name))) in
       match source_primitives, target_points with
       | Error error, _ | _, Error error -> Error error
+      | Ok _, Ok target_points when pack ->
+          (* Packed: the whole source once, drawn at each target's transform. *)
+          if source_group <> None || piece_attribute <> None then
+            Error (Diagnostic.error ~code:"invalid_parameter"
+              "copy_to_points: pack copies the whole source; clear the source group and piece attribute")
+          else (match Pdk.Instance_copy.copy_transforms ~grain:(Context.grain context)
+              ~cancel:(Context.cancel_token context) ?target_points inputs.(1) with
+            | Ok transforms -> Ok Node.Private.{ geometry = inputs.(0); diagnostics = [];
+                instances = Some transforms }
+            | Error error -> structured_pdk_error error)
       | Ok source_primitives, Ok target_points ->
           match Pdk.Instance_copy.copy_to_points ~grain:(Context.grain context)
               ~cancel:(Context.cancel_token context) ?source_primitives

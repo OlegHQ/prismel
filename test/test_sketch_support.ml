@@ -80,22 +80,32 @@ let test_timeline_and_schedule () =
       ~dependencies:(Context.Dependencies.one Context.Dependencies.Time)
       [static_graph] (fun ~context:_ inputs -> Ok inputs.(0)) in
   let schedule, fire = Prismel_editor.Private.Schedule.step
-      Prismel_editor.Private.Schedule.initial ~graph:static_graph
+      Prismel_editor.Private.Schedule.initial ~graphs:[static_graph]
       ~effects:Parameter.no_effects ~context_changed:false ~force:false
       ~busy:false
       ~frame:(timeline_frame ()) in
   if not fire then fail "cook scheduler skipped the initial graph";
   let schedule, fire = Prismel_editor.Private.Schedule.step schedule
-      ~graph:static_graph ~effects:Parameter.no_effects ~context_changed:true
+      ~graphs:[static_graph] ~effects:Parameter.no_effects ~context_changed:true
       ~force:false ~busy:false ~frame:(timeline_frame ()) in
   if fire then fail "static graph recooked for an unrelated clock change";
   let schedule, fire = Prismel_editor.Private.Schedule.step schedule
-      ~graph:dynamic_graph ~effects:Parameter.no_effects ~context_changed:true
+      ~graphs:[dynamic_graph] ~effects:Parameter.no_effects ~context_changed:true
       ~force:false ~busy:false
       ~frame:(timeline_frame ~buttons:[Input.LeftButton] ()) in
   if fire then fail "dynamic graph cooked while a parameter drag was held";
+  let _, fire = Prismel_editor.Private.Schedule.step ~live:true schedule
+      ~graphs:[dynamic_graph] ~effects:Parameter.no_effects ~context_changed:true
+      ~force:false ~busy:false
+      ~frame:(timeline_frame ~buttons:[Input.LeftButton] ()) in
+  if not fire then fail "live cooking did not cook during a held drag";
+  let _, fire = Prismel_editor.Private.Schedule.step ~live:true schedule
+      ~graphs:[dynamic_graph] ~effects:Parameter.no_effects ~context_changed:true
+      ~force:false ~busy:true
+      ~frame:(timeline_frame ~buttons:[Input.LeftButton] ()) in
+  if fire then fail "live cooking cancelled a running cook during a drag";
   let _, fire = Prismel_editor.Private.Schedule.step schedule
-      ~graph:dynamic_graph ~effects:Parameter.no_effects ~context_changed:false
+      ~graphs:[dynamic_graph] ~effects:Parameter.no_effects ~context_changed:false
       ~force:false ~busy:false ~frame:(timeline_frame ()) in
   if not fire then fail "cook scheduler lost the latest held dynamic request"
 

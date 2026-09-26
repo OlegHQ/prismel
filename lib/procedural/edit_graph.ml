@@ -57,6 +57,8 @@ let of_graph graph =
   { entries; order_rev = List.rev_map (fun info -> info.Graph.id) infos;
     root = Some (Node.id graph) }
 
+let empty = { entries = Id_map.empty; order_rev = []; root = None }
+
 let root value = value.root
 
 let set_root node_id value =
@@ -267,6 +269,14 @@ let depends_on value ~node_id ~candidate =
   visit node_id
 
 let rebuild_if_connected entries (entry : entry) inputs =
+  match entry.factory with
+  | Some factory when Array.exists (( = ) Optional) factory.requirements ->
+      (* Optional slots rebuild through the factory, which knows presence. *)
+      let nodes = Array.map (fun input -> Option.bind input (fun id ->
+          Option.map (fun (source : entry) -> source.node) (Id_map.find_opt id entries)))
+          inputs in
+      (match rebuild entry nodes with Ok node -> node | Error _ -> entry.node)
+  | _ ->
   let nodes = Array.make (Array.length inputs) entry.node in
   let complete = ref true in
   Array.iteri (fun index -> function

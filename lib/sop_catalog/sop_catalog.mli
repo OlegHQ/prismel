@@ -52,6 +52,7 @@ module Copy_to_points : sig
     ?source_group:string ->
     ?target_group:string ->
     ?piece_attribute:string ->
+    ?pack:bool ->
     source:Procedural.Node.t ->
     targets:Procedural.Node.t ->
     unit ->
@@ -98,6 +99,68 @@ module Point_jitter : sig
     Procedural.Node.t -> Procedural.Node.t
 end
 
+module Boolean : sig
+  val create :
+    ?label:string ->
+    ?operation:Pdk.Boolean.operation ->
+    ?resolve_right_self_intersections:bool ->
+    ?detriangulation:Pdk.Boolean.detriangulation ->
+    right:Procedural.Node.t -> Procedural.Node.t -> Procedural.Node.t
+  (** [create ~right left]: exact Boolean of [left] (input 0) with [right]
+      (input 1); the operation defaults to union. *)
+end
+
+module Duplicate : sig
+  val create :
+    ?label:string -> ?copies:int -> ?cumulative:bool ->
+    ?transform:Prismel.Mat4.t -> Procedural.Node.t -> Procedural.Node.t
+  (** Append [copies] transformed copies (points included), each by
+      [transform] to the power of its index when [cumulative]. *)
+end
+
+module Poly_bevel : sig
+  type shape = Chamfer | Round
+  val create :
+    ?label:string -> ?shape:shape -> ?divisions:int -> distance:float ->
+    Procedural.Node.t -> Procedural.Node.t
+end
+
+module Transform : sig
+  val create :
+    ?label:string -> ?translate:Prismel.Vec3.t -> ?rotate:Prismel.Vec3.t ->
+    ?scale:Prismel.Vec3.t -> ?uniform_scale:float ->
+    Procedural.Node.t -> Procedural.Node.t
+  (** Translate, rotate (radians), scale, then uniform scale. *)
+end
+
+module Attribute_randomize : sig
+  val create :
+    ?label:string -> ?owner:Pdk.Attribute.owner -> ?seed:int -> name:string ->
+    minimum:float -> maximum:float -> Procedural.Node.t -> Procedural.Node.t
+  (** A uniform random scalar attribute in [[minimum, maximum]] per element
+      (point by default). *)
+end
+
+module Merge : sig
+  val create : ?label:string -> Procedural.Node.t list -> Procedural.Node.t
+  (** Concatenate geometry in input order. The node menu offers one required
+      and two optional inputs. *)
+end
+
+module Group_random : sig
+  val create :
+    ?label:string -> ?seed:int -> probability:float ->
+    owner:Pdk.Group_ops.owner -> name:string ->
+    Procedural.Node.t -> Procedural.Node.t
+end
+
+module Blast : sig
+  val create :
+    ?label:string -> ?selected:bool -> ?compact_points:bool ->
+    owner:Pdk.Group.owner -> group:string ->
+    Procedural.Node.t -> Procedural.Node.t
+end
+
 module Boolean_fracture : sig
   val create :
     ?label:string ->
@@ -116,12 +179,6 @@ module Normal : sig
     ?weighting:Pdk.Normal_ops.weighting -> ?cusp_angle:float ->
     ?keep_original_zero:bool -> ?reverse:bool -> ?attribute:string ->
     Procedural.Node.t -> Procedural.Node.t
-end
-
-module Camera : sig
-  val of_node : Procedural.Node.t -> (Prismel.Camera.t * bool) option
-  val to_values : eye:Prismel.Vec3.t -> target:Prismel.Vec3.t -> fov_y:float ->
-    (string * Procedural.Parameter.value) list
 end
 
 module Exploded_view : sig

@@ -2,7 +2,7 @@ open Ogpu_metal_native
 let get=function Ok x->x|Error e->failwith(Ogpu.Error.to_string e)
 let get_metal=function Ok x->x|Error e->failwith(Format.asprintf"%a"Metal.pp_error e)
 let expect kind=function Error e when e.Ogpu.Error.kind=kind->()|_->failwith"wrong rejection"
-let descriptor : Ogpu.Types.texture_descriptor={label=Some"ogpu-metal-texture";width=4;height=4;depth=1;mip_levels=1;sample_count=1;usage=[Texture_binding;Texture_copy_src;Texture_copy_dst]}
+let descriptor : Ogpu.Types.texture_descriptor={label=Some"ogpu-metal-texture";width=4;height=4;depth=1;mip_levels=1;sample_count=1;format=Rgba8_unorm;usage=[Texture_binding;Texture_copy_src;Texture_copy_dst]}
 let run () =match Device.system_default()with Error _->print_endline"ogpu_metal texture: skipped (no device)"|Ok device->
   let other=get(Device.system_default())in let before=get_metal(Metal.Release_queue.stats())in
   let invalid={descriptor with mip_levels=8}in expect Ogpu.Error.Invalid_argument(Texture.create device~memory:Texture.Shared~format:Texture.Rgba8_unorm invalid);

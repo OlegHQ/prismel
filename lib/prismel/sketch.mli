@@ -28,9 +28,16 @@ val run_state :
   update:('model -> Frame.t -> 'model) ->
   view:('model -> Frame.t -> Scene.t) ->
   ?after_present:('model -> Frame.t -> 'model) ->
+  ?crash_dump:('model -> string -> unit) ->
   ?on_stop:('model -> unit) ->
   unit -> 'model
 (** Run a sketch with immutable user state threaded through every frame.
+    A fatal exception in [init], [update], [view], or [after_present] writes
+    a crash report folder under [/tmp/prismel-crash] (or
+    [PRISMEL_CRASH_DIR]) before it propagates: [crash.txt] holds the
+    exception, backtrace, the last 120 frames' input, GC and environment
+    facts; [crash_dump model directory] adds the sketch's own files there
+    (e.g. its document). The folder path is printed to stderr.
     [max_frames] keeps one runtime alive for exactly that many frames unless
     [quit] is requested first; it defaults to [PRISMEL_MAX_FRAMES] when that
     environment variable is set, for finite smoke runs. [after_present] runs after

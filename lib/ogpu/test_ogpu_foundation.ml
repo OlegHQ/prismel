@@ -19,5 +19,5 @@ let run () =
   let bad_buffers=[0L;Int64.minus_one;Int64.max_int]in
   List.iter(fun size->expect Ogpu.Error.Invalid_argument(Ogpu.Types.validate_buffer caps {label=None;size;usage=[Ogpu.Types.Copy_dst]}))bad_buffers;
   let bad_textures=[(0,1,1,1,1);(1,0,1,1,1);(1,1,0,1,1);(1,1,1,0,1);(1,1,1,1,0);(20000,1,1,1,1)]in
-  List.iter(fun(width,height,depth,mip_levels,sample_count)->expect Ogpu.Error.Invalid_argument(Ogpu.Types.validate_texture caps {label=None;width;height;depth;mip_levels;sample_count;usage=[Ogpu.Types.Texture_binding]}))bad_textures;
+  List.iter(fun(width,height,depth,mip_levels,sample_count)->expect Ogpu.Error.Invalid_argument(Ogpu.Types.validate_texture caps {label=None;width;height;depth;mip_levels;sample_count;format=Rgba8_unorm;usage=[Ogpu.Types.Texture_binding]}))bad_textures;
   print_endline"OGPU handle and descriptor foundation passed"

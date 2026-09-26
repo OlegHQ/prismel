@@ -842,6 +842,7 @@ external compute35_bytes_plain : handle -> bytes -> int64 -> (unit,string) resul
 external compute35_update_fence : handle -> handle -> (unit,string) result = "caml_prismel_metal_compute35_update_fence"
 external compute35_wait_fence : handle -> handle -> (unit,string) result = "caml_prismel_metal_compute35_wait_fence"
 external compute35_heaps : handle -> handle array -> (unit,string) result = "caml_prismel_metal_compute35_heaps"
+external compute35_accelerations : handle -> handle array -> (unit,string) result = "caml_prismel_metal_compute35_accelerations"
 
 
 external resource_state_encoder_update_texture_mapping :

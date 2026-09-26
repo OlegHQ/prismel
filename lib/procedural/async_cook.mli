@@ -39,6 +39,16 @@ val submit :
 (** Submit the newest desired graph. The request and preparation callback are
     retained only until this bounded job completes or is superseded. *)
 
+val submit_all :
+  'a t ->
+  context:Context.t ->
+  nodes:Node.t list ->
+  prepare:(Session.output list -> ('a, string) result) ->
+  (int, string) result
+(** [submit] for several graphs cooked in order in the same session and
+    prepared together, e.g. every visible object of a scene; the first cook
+    error fails the request. *)
+
 val poll : 'a t -> 'a completion option
 (** Remove and return the newest completed result, if any. *)
 

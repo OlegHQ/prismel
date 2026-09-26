@@ -83,6 +83,10 @@ dune build @doc
 example/sketch sweep. Both open windows sequentially. For a window-free broad
 test run, set `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy` on `dune runtest`.
 
+A fatal exception in a running sketch writes a report folder under
+`/tmp/prismel-crash` (exception, backtrace, recent input, and the editor's
+document as a preset); read it first when asked to investigate a crash.
+
 Default `runtest` is green on a clean checkout. Display-dependent tests live in
 `@runtest-native`; long, SDK-, driver-, or machine-specific checks in
 `@qualification`. A public `.mli` change shows as a diff of

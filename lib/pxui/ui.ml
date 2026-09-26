@@ -186,6 +186,7 @@ and ui = {
   mutable l_ty : float array;
   (* build state *)
   mutable parents : int list;
+  mutable overlays : int list;  (* popup boxes this frame, newest first *)
   mutable seeds : int list;
   mutable building : bool;
   mutable frame_number : int;
@@ -453,7 +454,7 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     l_content = Array.make capacity 0.; l_gutter = Array.make capacity 0.;
     l_scale = Array.make capacity 1.; l_tx = Array.make capacity 0.;
     l_ty = Array.make capacity 0.;
-    parents = []; seeds = []; building = false; frame_number = 0; density = 1;
+    parents = []; overlays = []; seeds = []; building = false; frame_number = 0; density = 1;
     kit_row_height = 24; kit_padding = 3;
     pointer = (Float.nan, Float.nan); hot = 0; active = 0;
     active_button = Input.LeftButton; active_press = (0., 0.); focus = 0; composition = "";
@@ -1309,6 +1310,20 @@ let frame ui (frame : Frame.t) f =
   let result = Fun.protect ~finally:(fun () -> ui.building <- false)
       (fun () -> f ui) in
   ui.parents <- []; ui.seeds <- [];
+  (* Move popups to the end of the root's children, oldest first. *)
+  List.iter (fun index ->
+    if ui.b_parent.(index) = 0 && ui.b_last.(0) <> index then begin
+      let rec unlink previous child =
+        if child >= 0 then
+          if child = index then begin
+            (if previous < 0 then ui.b_first.(0) <- ui.b_next.(index)
+             else ui.b_next.(previous) <- ui.b_next.(index))
+          end else unlink child ui.b_next.(child) in
+      unlink (-1) ui.b_first.(0);
+      ui.b_next.(ui.b_last.(0)) <- index; ui.b_next.(index) <- -1;
+      ui.b_last.(0) <- index
+    end) (List.rev ui.overlays);
+  ui.overlays <- [];
   apply_scroll ui;
   intrinsic ui;
   arrange ui;
@@ -1445,8 +1460,17 @@ let popup ui ?stroke ?max_height ?(dismiss_initial = true)
     | Event.MousePressed (_, point) ->
         (slot >= 0 || dismiss_initial) && not (contains rect point)
     | _ -> false) ui.frame_events in
-  if dismissed then None else
-    Some (panel_with ?stroke ?max_height ui ~x ~y ~width label f)
+  if dismissed then None else begin
+    (* Popups live at the root wherever they are built, so a pane's hit
+       area never clips them, and are moved last so they paint on top. *)
+    let parents = ui.parents in
+    ui.parents <- [0];
+    let index = ui.count in
+    Fun.protect ~finally:(fun () -> ui.parents <- parents) (fun () ->
+      let result = panel_with ?stroke ?max_height ui ~x ~y ~width label f in
+      ui.overlays <- index :: ui.overlays;
+      Some result)
+  end
 
 (* A centered panel from last frame's height. *)
 let modal ui ?(width = 320.) label f =

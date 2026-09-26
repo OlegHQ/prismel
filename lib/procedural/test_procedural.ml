@@ -4496,6 +4496,31 @@ let test_shared_input_memo () =
     "shared inputs were looked up once per path on a warm cook";
   Session.close evaluator
 
+
+(* Copy to Points with pack: the cook is the source once plus one transform
+   per target; a consumer receives it materialized; recooking hits. *)
+let test_packed_copy_contract () =
+  let session = Session.create ~max_entries:16 ~max_payload_bytes:(1 lsl 24) |> Result.get_ok in
+  let context = Context.create ~seed:1L ~domains:1 () |> Result.get_ok in
+  let source = Sop.box ~size:(Vec3.create 1. 1. 1.) () in
+  let targets = Sop.points [| 0., 0., 0.; 2., 0., 0.; 4., 0., 0. |] in
+  let packed = Sop.copy_to_points ~pack:true ~source ~targets () in
+  let output = Session.cook session ~context packed |> Result.get_ok in
+  let box_points = Pdk.Geometry.point_count output.geometry in
+  assert (match output.instances with
+    | Some transforms -> Array.length transforms = 3
+      && Vec3.nearly_equal (Mat4.transform_point transforms.(2) Vec3.zero)
+           (Vec3.create 4. 0. 0.) ~eps:1e-12
+    | None -> false);
+  let consumer = Sop.null packed in
+  let materialized = Session.cook session ~context consumer |> Result.get_ok in
+  assert (materialized.instances = None
+    && Pdk.Geometry.point_count materialized.geometry = 3 * box_points);
+  let hits = (Session.stats session).hits in
+  ignore (Session.cook session ~context consumer |> Result.get_ok);
+  assert ((Session.stats session).hits > hits);
+  Session.close session
+
 let run () =
   test_node_owned_parameters_and_graph_edit ();
   test_shared_input_memo ();
@@ -4536,4 +4561,5 @@ let run () =
   test_blend_shapes_contract ();
   test_attribute_composite_contract ();
   test_edge_transport_contract ();
+  test_packed_copy_contract ();
   print_endline "procedural tests passed"

@@ -2,7 +2,8 @@
 
     PDK meshes carry metallic-roughness materials and are lit by a procedural
     dome: a sky/ground gradient plus soft rectangular emitter panels, which
-    together stand in for a studio HDRI. Rendering is progressive: every
+    together stand in for a studio HDRI, or by a baked [Prismel.World]
+    ({!set_world}). Rendering is progressive: every
     [render] call adds [spp] samples per pixel into an accumulation buffer and
     refreshes the borrowed [image]; a camera change restarts accumulation. *)
 
@@ -46,13 +47,30 @@ type environment = { sky : Linear_color.t; ground : Linear_color.t; panels : pan
 
 (** Rectangle area light of [size] (width, height) centred at [at], facing
     [target], two-sided. Sampled with shadow rays (next-event estimation);
-    lights are analytic and never appear as visible geometry. *)
+    lights are analytic and, without a World ({!set_world}), never appear as
+    visible geometry. *)
 type light =
   { at : Prismel.Vec3.t; target : Prismel.Vec3.t; size : float * float; color : Linear_color.t; intensity : float }
 
 val rect_light :
   ?color:Linear_color.t -> intensity:float -> size:float * float -> target:Prismel.Vec3.t ->
   Prismel.Vec3.t -> light
+
+val light_of : Prismel.Light.t -> light
+(** The rect that lights like a raster [Light.t] with physical 1/d²
+    attenuation: a white matte face at distance [d] receives irradiance
+    [pi * intensity * color / d²] (the raster World path's inverse: a rect of
+    radiance [L] and area [A] is a [Light.t] of color [L * A / pi]). [color]
+    is [diffuse / 255] as linear RGB; the rect's radiance is
+    [pi * intensity / (width * height)].
+    - [Area]: same size, centred at its position, facing [direction].
+    - [Point]: a 0.1 x 0.1 rect facing down (-Y).
+    - [Spot]: a 0.1 x 0.1 rect facing [direction].
+    - [Directional]: a 20 x 20 rect 100 units against [direction], aimed at
+      the origin, with radiance [pi * intensity * 100² / 400].
+    ponytail: rects are two-sided and cosine-weighted, so a point light is
+    dark sideways, a spot ignores its cone, and attenuation coefficients other
+    than the quadratic term are ignored. *)
 
 (** An analytic sphere, traced through a bounding-box intersection function
     rather than tessellated. *)
@@ -83,6 +101,9 @@ type mesh
 val mesh :
   ?spheres:sphere list -> ?strands:strand list -> (Pdk.Geometry.t * material) list ->
   (mesh, string) result
+(** Triangles, spheres, and strands together become one primitive structure
+    per kind under an instance structure (Metal holds one kind per structure). *)
+
 val triangle_count : mesh -> int
 
 val mesh_instanced :
@@ -96,23 +117,43 @@ val mesh_instanced :
     shutter; the instance structure carries both keyframes and every sample
     picks a shutter time, so instances blur along their motion. *)
 
+val scene_mesh : (Prismel.Mat4.t * mesh) list -> (mesh, string) result
+(** Several prepared meshes placed at their world transforms in one
+    traceable scene: an instance structure over one primitive structure per
+    input. A flat input is one instance at its transform; an instanced input
+    is one instance per copy, each copy's transform premultiplied by its
+    object's. Materials stay per object. Pure, like {!mesh}. Inputs must be
+    triangle meshes without motion (spheres, strands, or motion are an
+    [Error]); a [scene_mesh] result may itself be an input. *)
+
 (** Builds the primitive acceleration structure, compiles the kernels, and
     allocates accumulation and output storage. Fails with a typed message
     when no ray-tracing Metal device is available. *)
 val create :
   ?spp:int -> ?bounces:int -> ?exposure:float -> ?round_samples:int ->
-  width:int -> height:int -> scene -> (t, string) result
+  ?preview_scale:int -> width:int -> height:int -> scene -> (t, string) result
 (** [round_samples] (default 4) is the number of probe rays per camera-visible
-    shading point for round-corner materials; secondary bounces use a quarter. *)
+    shading point for round-corner materials; secondary bounces use a quarter.
+    [preview_scale] (default 1: full resolution) is the pixel block a preview
+    frame traces once; 2 traces a quarter of the pixels and fills the blocks,
+    a blockier but faster preview for heavy scenes. *)
 
 (** Accepts a perspective camera with no lens offset, forced aspect, or
-    vertical flip. Other projections return an error. Publishes the previous
+    vertical flip. Other projections return an error. The camera's
+    [Prismel.Camera.lens] is thin-lens depth of field: every accumulated
+    sample starts from a random point of the lens disk and aims at the
+    focus plane, so bokeh converges with the rest of the image at no extra
+    per-sample cost; preview frames stay pinhole. Publishes the previous
     frame's pixels to [image], then submits a new frame
-    without waiting for it (one frame of latency). A frame whose camera
-    differs from the previous call is an interactive preview: full-resolution
+    without waiting for it (one frame of latency), as row bands the
+    window's own drawing interleaves with. A frame whose camera
+    differs from the previous call, or the first frame over newly installed
+    geometry ({!replace_mesh}, {!queue_mesh}, {!move}), lights, or World, is
+    an interactive preview: [preview_scale]-block
     primary visibility, direct lighting, one round-corner probe, temporal
     reprojection with disocclusion rejection, and an edge-aware spatial
-    resolve. Progressive accumulation restarts as soon as the camera rests. *)
+    resolve. Progressive accumulation restarts as soon as the camera rests and edits
+    stop. *)
 val render : t -> Prismel.Camera.t -> (unit, string) result
 
 val replace_mesh : t -> mesh -> (unit, string) result
@@ -124,6 +165,15 @@ val queue_mesh : t -> mesh -> (unit, string) result
     mesh supersedes one still building; at most one build and one queued mesh
     are retained. [flush] waits for the latest replacement. *)
 
+val move : t -> Prismel.Mat4.t list -> (unit, string) result
+(** Re-places the objects of the newest mesh given to the tracer, which must
+    be a {!scene_mesh} of as many objects as matrices, at new world
+    transforms (in input order), without re-preparing or re-uploading
+    geometry: only the instance records and the instance structure are
+    rebuilt, over the existing primitive structures. Like {!queue_mesh} it
+    does not wait: the moved scene shows once its build completes, then
+    accumulation restarts; a newer [move] supersedes a pending one. *)
+
 val flush : t -> (unit, string) result
 (** Publishes the in-flight frame and waits for queued geometry;
     [render] then [flush] is a
@@ -131,7 +181,28 @@ val flush : t -> (unit, string) result
     busy with the previous frame it returns without submitting, so the
     caller's loop keeps its own frame rate. *)
 
+val set_world : t -> Prismel.World.baked option -> (unit, string) result
+(** Light and frame the scene with a baked World instead of the procedural
+    [environment] (whose sky, ground and panels are then ignored); [None]
+    restores it. Uploads the maps and CDF only when the value changes
+    (physical equality), then restarts accumulation. With a World:
+    camera rays that miss show the camera map, or [Color c] as radiance [c],
+    or for [Transparent] nothing, with the film's alpha holding coverage
+    (straight alpha; the RGBA8 film always has alpha). Later bounces see the
+    lighting map, sampled through its CDF and the sun cone with multiple
+    importance sampling. [baked.lights] join the {!set_lights} lights as
+    one-sided rects, and every rect light becomes visible to rays (camera,
+    mirrors) instead of shadow rays only. The effective exposure is
+    [2 ** baked.exposure] times [create]'s [exposure]. *)
+
+val set_lights : t -> light list -> (unit, string) result
+(** Replaces the scene's rect lights and restarts accumulation. Rect only:
+    approximate a point or spot light with a small rect facing its target. *)
+
 val reset : t -> unit
+(** Restarts accumulation; the next frame renders at full quality even
+    right after a scene edit. *)
+
 val samples : t -> int
 (** Accumulated samples per pixel. *)
 

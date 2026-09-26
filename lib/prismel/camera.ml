@@ -19,6 +19,10 @@ type projection =
       far : float;
     }
 
+type lens = { aperture : float; focus_distance : float option }
+
+let pinhole = { aperture = 0.; focus_distance = None }
+
 type t = {
   position : Vec3.t;
   target : Vec3.t;
@@ -26,6 +30,7 @@ type t = {
   projection : projection;
   v_flip : bool;
   forced_aspect : float option;
+  lens : lens;
 }
 
 let validate_view position target up =
@@ -42,6 +47,7 @@ let create ~position ~target ~up ~projection ~v_flip =
     projection;
     v_flip;
     forced_aspect = None;
+    lens = pinhole;
   }
 
 let perspective ?(fov_y = Float.pi /. 3.) ?(near = 0.1) ?(far = 1000.)
@@ -94,6 +100,20 @@ let up camera = camera.up
 let projection camera = camera.projection
 let v_flip camera = camera.v_flip
 let forced_aspect camera = camera.forced_aspect
+let lens camera = camera.lens
+
+let focus_distance camera = match camera.lens.focus_distance with
+  | Some distance -> distance
+  | None -> Vec3.length (Vec3.sub camera.target camera.position)
+
+let with_lens lens camera =
+  if not (Float.is_finite lens.aperture) || lens.aperture < 0. then
+    invalid_arg "Camera.with_lens: aperture must be finite and non-negative";
+  Option.iter (fun distance ->
+    if not (Float.is_finite distance) || distance <= 0. then
+      invalid_arg "Camera.with_lens: focus distance must be finite and positive")
+    lens.focus_distance;
+  { camera with lens }
 
 let with_position position camera =
   validate_view position camera.target camera.up;

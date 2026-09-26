@@ -654,16 +654,19 @@ dependency-aware cooking, status, selection, inspection, and finite native
 lifecycle. Both expose `update_with` for sketch-owned inspector widgets and
 `can_undo`/`can_redo` for the shared document history.
 
-One immutable document holds everything a user edits and saves: the SOP graph,
-tile positions, the display node, the active camera, and sketch `Settings`
-(a typed `Editor_core.Param` record passed as `?settings`). History (128
-entries) snapshots that document, so moving a tile or switching a renderer is
-one undo step. Tile positions are an int-keyed persistent map: an edit frame
-updates only the tiles it moved, added, or deleted, and only a preset load or
-automatic layout (itself one "Layout" step) re-reads every tile. Settings show in the unselected inspector, are saved in
-presets, and reach `prepare settings output`; `set_settings` changes them
-from code. The viewport camera enters history only while a camera node
-follows it.
+One immutable document holds everything a user edits and saves: the scene of
+objects (as its own node network), each geometry object's SOP network and
+the World's layer stack with their tile positions and display nodes, the
+active camera object, and sketch `Settings` (a typed `Editor_core.Param`
+record passed as `?settings`). History (128 entries) snapshots that
+document, so moving a tile, an object, or switching a renderer is one undo
+step. Tile positions are an int-keyed persistent map per network: an edit
+frame updates only the tiles it moved, added, or deleted, and only a preset
+load or automatic layout (itself one "Layout" step) re-reads every tile.
+Settings show in the unselected inspector, are saved in presets, and reach
+`prepare settings output`; `set_settings` changes them from code. The
+viewport camera enters history only while a camera object follows it. The
+scene level, list projection, and World are described in `scene.md`.
 
 #### Sketch workspace keys
 
@@ -686,8 +689,15 @@ colour). Escape, Space, an unknown key, a click, or focus loss cancel it.
 | `t` / `g` / `i` | global | toggle timeline / graph / inspector |
 | `h` / `c` | global | hide all UI / camera section |
 | `p` / `r` / `x` | global | play-pause / reset / stop |
-| `a` / `l` / `f` | graph | add-node menu / layout / frame displayed tile |
+| `a` | global | add menu of the open level (hover submenus, type to search) |
+| `l` / `e` | global | list ⇄ graph (map view in the World) / open the World |
+| `f` | graph | frame displayed tile |
 | `w` / `v` | view (3D) | fly mode / look through render camera |
+
+Plain keys: `i` enters the selected object, `u` goes up; in the view `w`/`e`/`r`
+pick translate/rotate/scale handles and Escape hides them;
+the list's WAI-ARIA keys and the World keys are listed in `scene.md`. Graph
+layout is in the graph context menu and the palette only.
 
 Graph-focused `F` frames the displayed tile in the editor. Viewport-focused
 `F` frames the camera on the displayed node's cooked bounds through the shared
@@ -717,23 +727,25 @@ results and performs file I/O after the frame.
 `Pxui_shell.Shell.frame` is the sketch workspace's `Ui.frame` caller for both
 normal chrome and a pending leader overlay while the rest of the UI is hidden.
 
-`Editor3` keeps camera nodes (`Sop_catalog.Camera`, operation `camera`)
-in the document: a default one following the viewport is added when the
-catalog offers it, exactly one is ACTIVE (tile button or context menu), and
+`Editor3` keeps camera objects (operation `camera`) in the scene: a
+default one following the viewport is added to a scene without one, exactly
+one is ACTIVE (tile button or context menu), and
 `render_camera` drives look-through, PNG export, and sketch renderers such as
 the voxel wall's path tracer. Follow-viewport writes coalesce into one undo
-entry per gesture. `Sop_catalog.Camera.of_node` reads the generated parameter
-schema into a typed camera and follow flag; `to_values` writes viewport edits,
-so the host has no camera field names or copied defaults. Fly mode captures the pointer with
+entry per gesture. The camera object's generated parameter schema is read
+into a typed camera and follow flag and written from viewport edits, so the
+host has no camera field names or copied defaults. Fly mode captures the pointer with
 `Sketch.set_relative_mouse`; Escape exits and Space exits into the leader.
 `Editor_core.Router` owns the fly-mode key filter; pointer and focus-loss events
 still reach the workspace.
-`Prismel_pathtracer.render` accepts `Camera.t` directly. It currently supports
+`Prismel_pathtracer.render` accepts `Camera.t` directly, including its
+`Camera.lens` (thin-lens aperture and focus distance). It currently supports
 unshifted perspective cameras and returns an error for other projections,
 forced aspect, or vertical flip.
-Presets (`Prismel_editor.Preset`) save the full document to
-`~/.prismel/<sketch>/<name>.json`; loading rebinds code-graph nodes by id,
-recreates catalog nodes from their factories, and is one undo entry.
+Presets save the full document to `~/.prismel/<sketch>/<name>.json`
+(version 2: the scene and every object's network); loading rebinds code-graph
+nodes by id, recreates catalog nodes from their factories, migrates version 1
+(one SOP network) to `geo1`, and is one undo entry.
 
 `Easy_camera2` is the immutable 2D view transform. It supplies resize-safe
 viewports and gesture areas, world/screen conversion, captured pan, inertia,

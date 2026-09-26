@@ -5,7 +5,11 @@ let run () =
   let d1=Ogpu.Handle.create_device()and d2=Ogpu.Handle.create_device()in let buffer=Ogpu.Handle.create ~device:d1 in
   let range={Ogpu.Acceleration.buffer;buffer_size=4096L;offset=0L;length=1024L}in
   let curves per_segment=Ogpu.Acceleration.Curves{control_points=[range];control_stride=12;control_point_count=4;radii=[range];radius_stride=4;indices=range;segment_count=1;control_points_per_segment=per_segment}in
-  let descriptor=Ogpu.Acceleration.Blas{geometries=[|Triangles{vertices=range;vertex_stride=12;vertex_count=3};Bounding_boxes{boxes=[range];stride=24;count=1};curves 4|];allow_refit=true;motion_keyframes=None}in
+  (* One BLAS holds one geometry kind: Metal rejects a mix at sizing. *)
+  expect Ogpu.Error.Invalid_argument(Ogpu.Acceleration.create d1 ~ray_tracing:true(Blas{geometries=[|Triangles{vertices=range;vertex_stride=12;vertex_count=3};Bounding_boxes{boxes=[range];stride=24;count=1};curves 4|];allow_refit=false;motion_keyframes=None}));
+  ignore(ok(Ogpu.Acceleration.create d1 ~ray_tracing:true(Blas{geometries=[|Bounding_boxes{boxes=[range];stride=24;count=1};Bounding_boxes{boxes=[range];stride=24;count=2}|];allow_refit=false;motion_keyframes=None})));
+  ignore(ok(Ogpu.Acceleration.create d1 ~ray_tracing:true(Blas{geometries=[|curves 4|];allow_refit=false;motion_keyframes=None})));
+  let descriptor=Ogpu.Acceleration.Blas{geometries=[|Triangles{vertices=range;vertex_stride=12;vertex_count=3};Triangles{vertices=range;vertex_stride=12;vertex_count=6}|];allow_refit=true;motion_keyframes=None}in
   expect Ogpu.Error.Unsupported(Ogpu.Acceleration.create d1 ~ray_tracing:false descriptor);
   let value=ok(Ogpu.Acceleration.create d1 ~ray_tracing:true descriptor)in
   expect Ogpu.Error.Invalid_state(Ogpu.Acceleration.refit d1 value);ok(Ogpu.Acceleration.build d1 value);ok(Ogpu.Acceleration.refit d1 value);

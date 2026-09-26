@@ -102,6 +102,11 @@
  (libraries prismel unix))
 
 (executable
+ (name bench_world)
+ (modules bench_world)
+ (libraries prismel unix))
+
+(executable
  (name bench_pathtracer_mesh)
  (modules bench_pathtracer_mesh)
  (libraries prismel prismel_pathtracer pdk unix))

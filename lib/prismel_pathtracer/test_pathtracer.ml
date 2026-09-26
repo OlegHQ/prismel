@@ -93,6 +93,7 @@ let run () =
       let transformed = Pdk.Transform_ops.transform matrix sphere in
       get (P.replace_mesh tracer (get (P.mesh [transformed, P.material (rgb 0.7 0.5 0.3)])));
       get (P.render tracer camera); get (P.flush tracer);
+      get (P.render tracer camera); get (P.flush tracer);
       let largest_difference = ref 0 in
       Bytes.iteri (fun i value ->
         largest_difference := max !largest_difference
@@ -103,6 +104,8 @@ let run () =
       get (P.queue_mesh tracer (get (P.mesh [transformed, P.material (rgb 0.7 0.5 0.3)])));
       get (P.flush tracer);
       assert (P.samples tracer = 0);
+      get (P.render tracer camera); get (P.flush tracer);
+      assert (P.samples tracer = 0); (* an edit's first frame is a preview *)
       get (P.render tracer camera); get (P.flush tracer);
       assert (Bytes.equal expected (get (P.pixels tracer)));
       let stable_handles = ref None in
@@ -116,7 +119,50 @@ let run () =
         if index = 1 then stable_handles := Some (live_handles ())
       done;
       assert (live_handles () <= Option.get !stable_handles);
+      (* Depth of field: a lens blurs the image deterministically; a pinhole
+         lens restores the exact pinhole frame. *)
+      get (P.replace_mesh tracer (get (P.mesh [sphere, P.material ~roughness:0.2 ~metallic:1. (rgb 0.9 0.7 0.4); floor, P.material ~roughness:0.8 (rgb 0.6 0.6 0.6)])));
+      let pinhole = run () in
+      let with_lens camera = Prismel.Camera.with_lens
+        { aperture = 0.4; focus_distance = Some 6. } camera in
+      (* A lens change is a camera change: settle its preview frame first. *)
+      let run camera = get (P.render tracer camera); get (P.flush tracer);
+        P.reset tracer; get (P.render tracer camera); get (P.flush tracer);
+        get (P.render tracer camera); get (P.flush tracer); Bytes.copy (get (P.pixels tracer)) in
+      let blurred = run (with_lens camera) in
+      assert (not (Bytes.equal pinhole blurred));
+      assert (Bytes.equal blurred (run (with_lens camera)));
+      assert (Bytes.equal pinhole (run camera));
       P.destroy tracer;
+      (* An instance structure only references its BLAS: without declaring
+         it read each dispatch the device evicts it over time and a fresh
+         frame gets darker. A large prototype instanced many times, rendered
+         for a while, must light a fresh frame exactly as at the start. *)
+      let big = get (Result.map_error Pdk.Error.to_string
+        (Pdk.Uv_sphere.run ~center:Prismel.Vec3.zero ~segments:96 ~rings:48 ~radius:0.4 ())) in
+      let grid = Array.init 64 (fun i -> Prismel.Mat4.translation
+        (Prismel.Vec3.create (float (i mod 8) -. 3.5) (float (i / 8) -. 3.5) 0.)) in
+      let lattice = get (P.mesh_instanced ~prototype:(big, P.material ~roughness:0.6 (rgb 0.8 0.8 0.8)) grid) in
+      let tracer = get (P.create ~spp:1 ~bounces:2 ~width:320 ~height:320
+        { P.objects = [ (floor, P.material (rgb 0.5 0.5 0.5)) ]; spheres = []; strands = []
+        ; environment = { sky = rgb 0.02 0.02 0.02; ground = rgb 0.02 0.02 0.02; panels = [] }
+        ; lights = [ P.rect_light ~intensity:12. ~size:(8., 8.) ~target:Prismel.Vec3.zero
+                       (Prismel.Vec3.create (-6.) 8. 8.) ] }) in
+      get (P.replace_mesh tracer (get (P.scene_mesh [ Prismel.Mat4.identity, lattice ])));
+      let camera = Prismel.Camera.perspective ~fov_y:0.7 ~at:(Prismel.Vec3.create 0. 0. 12.)
+        ~target:Prismel.Vec3.zero () in
+      let fresh () =
+        P.reset tracer; get (P.render tracer camera); get (P.flush tracer);
+        let sum = ref 0 in
+        Bytes.iteri (fun i c -> if i mod 4 = 0 then sum := !sum + Char.code c) (get (P.pixels tracer));
+        !sum in
+      let first = fresh () in
+      for _ = 1 to 60 do get (P.render tracer camera); get (P.flush tracer) done;
+      let later = fresh () in
+      P.destroy tracer;
+      if abs (later - first) * 50 > first then
+        failwith (Printf.sprintf "instanced scene faded: fresh frame sum %d then %d" first later);
+      print_endline "pathtracer: instance structure stays resident";
       print_endline "pathtracer: deterministic lit render ok";
       (* Furnace: an albedo-0.8 floor under a uniform white dome reflects
          exactly 0.8 along every path, which the ACES/2.2 resolve maps to 224.
@@ -229,13 +275,15 @@ let run () =
       let library = get (Result.map_error Ogpu.Error.to_string (Ogpu.Backend.create_library device shader)) in
       let binding index kind = { Ogpu.Shader.group = 0; binding = index; kind; visibility = [ Compute ] } in
       let shapes = ref 0 in
-      List.iter (fun (instanced, motion, spheres, curves) ->
-        if not (motion && not instanced) then begin
+      List.iter (fun ((instanced, motion, spheres, curves), scene) ->
+        if not (motion && not instanced) && not (scene && (motion || not instanced)) then begin
           let interface =
             [ binding 0 Acceleration_structure; binding 1 Uniform_buffer ]
             @ List.map (fun index -> binding index Storage_buffer)
-                ([ 2; 3 ] @ (if instanced then [ 5; 6; 7; 9; 10 ] else [ 4; 5; 6; 7; 9 ]) @ [ 11; 12; 13; 14 ]
-                 @ (if spheres then [ 15 ] else []) @ (if curves then [ 17; 18; 19 ] else []))
+                ([ 2; 3 ] @ (if scene then [ 4 ] else [])
+                 @ (if instanced then [ 5; 6; 7; 8; 9; 10 ] else [ 4; 5; 6; 7; 8; 9 ]) @ [ 11; 12; 13; 14 ]
+                 @ (if spheres then [ 15 ] else []) @ (if curves then [ 17; 18; 19 ] else [])
+                 @ if scene then [ 20 ] else [])
             @ (if spheres then [ binding 16 Intersection_table ] else [])
             @ [ binding 0 Storage_texture ] in
           let linked = if spheres then
@@ -243,13 +291,13 @@ let run () =
             else [] in
           let pipeline = get (Result.map_error Ogpu.Error.to_string
             (Ogpu.Backend.create_compute_pipeline_from library ~entry:"pathtrace"
-               ~constants:[ ("INSTANCED", Bool instanced); ("MOTION", Bool motion); ("SPHERES", Bool spheres); ("CURVES", Bool curves) ]
+               ~constants:[ ("INSTANCED", Bool instanced); ("MOTION", Bool motion); ("SPHERES", Bool spheres); ("CURVES", Bool curves); ("SCENE", Bool scene) ]
                ~interface ~linked ())) in
           get (Result.map_error Ogpu.Error.to_string (Ogpu.Backend.destroy_pipeline pipeline));
           incr shapes
         end)
-        (List.concat_map (fun i -> List.concat_map (fun m -> List.concat_map (fun s -> List.map (fun c -> (i, m, s, c)) [ false; true ]) [ false; true ]) [ false; true ]) [ false; true ]);
-      assert (!shapes = 12);
+        (List.concat_map (fun i -> List.concat_map (fun m -> List.concat_map (fun s -> List.concat_map (fun c -> [ ((i, m, s, c), false); ((i, m, s, c), true) ]) [ false; true ]) [ false; true ]) [ false; true ]) [ false; true ]);
+      assert (!shapes = 16);
       get (Result.map_error Ogpu.Error.to_string (Ogpu.Backend.destroy_library library));
       get (Result.map_error Ogpu.Error.to_string (Ogpu.Backend.destroy_device device));
       Printf.printf "pathtracer: %d kernel specializations compile\n" !shapes;

@@ -1,14 +1,16 @@
-(* Voxel wall: a Houdini-style SOP network (Grid -> Wall Depth -> Copy Cubes
-   with a cube prototype) in the Sketch UI workspace, rendered either by the
-   Metal path tracer, filled raster, or wireframe (choose in the inspector's
-   "Renderer" control while no node is selected). "copy-cubes" packs and
-   instances by default: its cook is the prototype plus one loose point per
-   copy, so topology is never multiplied; the rasterizer draws it with
-   Scene3 instancing and a Metal instance acceleration structure for tracing.
+(* Voxel wall: a Houdini-style SOP network (Grid -> Wall Depth -> Copy to
+   Points with a cube prototype) in the Sketch UI workspace, rendered either
+   by the Metal path tracer, filled raster, or wireframe (choose in the
+   inspector's "Renderer" control while no node is selected). "copy-cubes"
+   packs and instances: its cook is the cube plus one transform per target
+   point ([Session.output.instances]), so topology is never multiplied; the
+   rasterizer draws it with Scene3 instancing and the tracer with a Metal
+   instance acceleration structure.
    Select a node to edit it; Command-Z / Shift-Command-Z undo and
    redo every edit. Orbit in the view pane with the mouse; Space opens the
    leader keys (Space w flies, Space s / Space b save and browse presets in
-   ~/.prismel/voxel_wall). The ACTIVE camera node drives the path tracer.
+   ~/.prismel/voxel_wall). The path tracer follows the view pane (the
+   camera object through look-through) with the camera object's lens.
    PRISMEL_VOXEL_RENDERER=wireframe|raster selects a startup mode;
    PRISMEL_VOXEL_SWITCH=wireframe|raster switches to it halfway through a
    finite smoke, exercising the live renderer change.
@@ -65,76 +67,21 @@ let wall_depth grid =
         (Pdk.Attribute.create_key_owned scale_key (Pdk.Packed.Float3.Builder.freeze scale))
         (fun attribute -> Pdk.Geometry.with_attribute attribute geometry))
 
-(* Copy Cubes: Houdini's Copy to Points with "Pack and Instance". Packed
-   output is the prototype's polygons followed by one loose point per target
-   carrying its [scale]; renderers read that as prototype + instance
-   transforms. Materialized output expands every copy through PDK. *)
-type copy = { pack : bool }
-
-let copy_schema =
-  Parameter.schema ~name:"copy_cubes" ~default:{ pack = true }
-    [ Parameter.field ~name:"pack" ~label:"Pack and instance"
-        ~kind:(Parameter.choice ~equal:( = ) [ "Instances", true; "Materialize", false ])
-        ~default:true ~get:(fun r -> r.pack) ~set:(fun pack _ -> { pack }) () ]
-
 let pdk_error result = Result.map_error Pdk.Error.to_string result
-
-let copy_cubes ~source ~targets =
-  Custom.create ~label:"copy-cubes" ~operation:"copy_cubes" ~schema:copy_schema
-    ~values:(Parameter.default copy_schema) [ source; targets ]
-    (fun ~parameters ~context:_ inputs ->
-      let source = inputs.(0) and targets = inputs.(1) in
-      if not parameters.pack then pdk_error (Pdk.Instance_copy.copy_to_points ~source ~targets ())
-      else
-        let proto_points = Pdk.Geometry.positions source and target_points = Pdk.Geometry.positions targets in
-        let np = Pdk.Packed.Float3.length proto_points and nt = Pdk.Packed.Float3.length target_points in
-        let topology = Pdk.Geometry.topology source in
-        let builder = Pdk.Topology.Builder.create ~point_count:(np + nt) () in
-        for primitive = 0 to Pdk.Topology.primitive_count topology - 1 do
-          let polygon = Array.make (Pdk.Topology.primitive_size topology primitive) 0 in
-          Pdk.Topology.iter_primitive_vertices topology primitive (fun vertex point ->
-            let first, _ = Pdk.Topology.primitive_vertex_range topology primitive in
-            polygon.(vertex - first) <- point);
-          Pdk.Topology.Builder.add_polygon builder polygon
-        done;
-        let positions = Pdk.Packed.Float3.Builder.create (np + nt)
-        and scale = Pdk.Packed.Float3.Builder.create (np + nt) in
-        let target_scale = Option.bind
-            (Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point "scale" targets)
-            (Pdk.Attribute.get scale_key) in
-        for index = 0 to np - 1 do
-          let x, y, z = Pdk.Packed.Float3.get proto_points index in
-          Pdk.Packed.Float3.Builder.set positions index x y z;
-          Pdk.Packed.Float3.Builder.set scale index 1. 1. 1.
-        done;
-        for index = 0 to nt - 1 do
-          let x, y, z = Pdk.Packed.Float3.get target_points index in
-          Pdk.Packed.Float3.Builder.set positions (np + index) x y z;
-          let sx, sy, sz = match target_scale with
-            | Some field -> Pdk.Packed.Float3.get field index | None -> 1., 1., 1. in
-          Pdk.Packed.Float3.Builder.set scale (np + index) sx sy sz
-        done;
-        Result.bind
-          (Pdk.Attribute.create_key_owned scale_key (Pdk.Packed.Float3.Builder.freeze scale))
-          (fun attribute ->
-            Pdk.Geometry.create ~positions:(Pdk.Packed.Float3.Builder.freeze positions)
-              ~topology:(Pdk.Topology.Builder.freeze builder) ~attributes:[ attribute ] ()))
 
 (* The sketch's own SOPs in the node menu, beside the catalog. *)
 let factories =
   Edit_graph.factory ~key:"wall_depth" ~label:"Wall Depth" ~category:[ "Voxel wall" ]
     ~arity:1 (function [ grid ] -> wall_depth grid
       | _ -> invalid_arg "Wall Depth expects one input")
-  :: Edit_graph.factory ~key:"copy_cubes" ~label:"Copy Cubes" ~category:[ "Voxel wall" ]
-    ~arity:2 (function [ source; targets ] -> copy_cubes ~source ~targets
-      | _ -> invalid_arg "Copy Cubes expects two inputs")
   :: Sop_catalog.Editor.factories
 
 let graph () =
   let grid = Sop_catalog.Grid.create ~label:"wall-grid" ~orientation:Pdk.Plane_generators.Grid_xy
       ~columns:35 ~rows:59 ~width:35. ~height:59. ~size:35. () in
   let cube = Sop_catalog.Box.create ~label:"cube" ~size:(v 0.86 0.86 1.) ~center:(v 0. 0. 0.5) () in
-  copy_cubes ~source:cube ~targets:(wall_depth grid)
+  Sop_catalog.Copy_to_points.create ~label:"copy-cubes" ~pack:true ~source:cube
+    ~targets:(wall_depth grid) ()
 
 (* ---- preparation (cook worker, pure) ---- *)
 
@@ -143,71 +90,16 @@ let raster_material = Material.create ~diffuse:(Color.rgb 150 150 156)
     ~ambient:(Color.rgb 10 10 12) ~specular:(Color.rgb 40 40 40) ~shininess:24. ()
 let wire_material = Material.unlit (Color.rgb 190 215 225)
 
-type renderer = Path_traced | Raster | Wireframe
-let initial_renderer = match Sys.getenv_opt "PRISMEL_VOXEL_RENDERER" with
-  | Some "raster" -> Raster | Some "wireframe" -> Wireframe
-  | _ -> Path_traced
-let switch_to = match Sys.getenv_opt "PRISMEL_VOXEL_SWITCH" with
-  | Some "raster" -> Some Raster | Some "wireframe" -> Some Wireframe
-  | Some "path" -> Some Path_traced | _ -> None
+module Renderer = Prismel_editor.Renderer
+let initial_renderer = Option.value ~default:Renderer.Path_traced
+    (Renderer.of_env "PRISMEL_VOXEL_RENDERER")
+let switch_to = Renderer.of_env "PRISMEL_VOXEL_SWITCH"
 
-type prepared = { mode : renderer; traced : P.mesh option; raster : Scene3.node option;
+type prepared = { mode : Renderer.t; traced : P.mesh option; raster : Scene3.node option;
   wire : Scene3.node option; triangles : int; instances : int }
 
-let wire_mesh geometry =
-  let topology = Pdk.Geometry.topology geometry in
-  let edges = Pdk.Topology_index.create topology in
-  let points = Pdk.Geometry.positions geometry in
-  let vertices = Array.init (Pdk.Packed.Float3.length points) (fun index ->
-    let x, y, z = Pdk.Packed.Float3.get points index in v x y z) in
-  let indices = Array.make (Pdk.Topology_index.edge_count edges * 2) 0 in
-  for edge = 0 to Pdk.Topology_index.edge_count edges - 1 do
-    let a, b = Pdk.Topology_index.edge_points edges edge in
-    indices.(edge * 2) <- a; indices.(edge * 2 + 1) <- b
-  done;
-  Mesh.Private.create_owned ~mode:Mesh.Lines ~indices vertices
-
-(* Splits packed output back into prototype and instance transforms. Points
-   referenced by a primitive form the prototype; the rest are copies. *)
-let split_packed geometry =
-  let topology = Pdk.Geometry.topology geometry and points = Pdk.Geometry.positions geometry in
-  let count = Pdk.Packed.Float3.length points in
-  let referenced = ref 0 in
-  for primitive = 0 to Pdk.Topology.primitive_count topology - 1 do
-    Pdk.Topology.iter_primitive_vertices topology primitive (fun _ point ->
-      referenced := max !referenced (point + 1))
-  done;
-  let np = !referenced in
-  if np = 0 || np = count then None
-  else
-    let scale = Option.bind (Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point "scale" geometry)
-        (Pdk.Attribute.get scale_key) in
-    let transforms = Array.init (count - np) (fun index ->
-      let x, y, z = Pdk.Packed.Float3.get points (np + index) in
-      let sx, sy, sz = match scale with Some field -> Pdk.Packed.Float3.get field (np + index) | None -> 1., 1., 1. in
-      Mat4.mul (Mat4.translation (v x y z)) (Mat4.scaling (v sx sy sz))) in
-    let builder = Pdk.Topology.Builder.create ~point_count:np () in
-    for primitive = 0 to Pdk.Topology.primitive_count topology - 1 do
-      let first, _ = Pdk.Topology.primitive_vertex_range topology primitive in
-      let polygon = Array.make (Pdk.Topology.primitive_size topology primitive) 0 in
-      Pdk.Topology.iter_primitive_vertices topology primitive (fun vertex point ->
-        polygon.(vertex - first) <- point);
-      Pdk.Topology.Builder.add_polygon builder polygon
-    done;
-    let xs = Array.make np 0. and ys = Array.make np 0. and zs = Array.make np 0. in
-    for index = 0 to np - 1 do
-      let x, y, z = Pdk.Packed.Float3.get points index in
-      xs.(index) <- x; ys.(index) <- y; zs.(index) <- z
-    done;
-    match Pdk.Packed.Float3.of_owned ~x:xs ~y:ys ~z:zs with
-    | Error _ -> None
-    | Ok positions ->
-        (match Pdk.Geometry.create ~positions ~topology:(Pdk.Topology.Builder.freeze builder) () with
-         | Ok prototype -> Some (prototype, transforms)
-         | Error _ -> None)
-
 let prepare mode (output : Session.output) =
-  let packed = split_packed output.geometry in
+  let packed = Option.map (fun transforms -> output.geometry, transforms) output.instances in
   let geometry, instances = match packed with
     | Some (prototype, transforms) -> prototype, Array.length transforms
     | None -> output.geometry, 0 in
@@ -242,7 +134,7 @@ let prepare mode (output : Session.output) =
           | None -> Scene3.mesh ~material:raster_material mesh in
         finish ~raster ()))
   | Wireframe ->
-      Result.bind (wire_mesh geometry) (fun mesh ->
+      Result.bind (Renderer.wire_mesh geometry) (fun mesh ->
         let wire = match packed with
           | Some (_, transforms) -> Scene3.instances_array ~material:wire_material
               ~cull:Scene3.Cull_none mesh transforms
@@ -263,23 +155,37 @@ module Settings = Prismel_editor.Settings
 
 let settings_schema =
   Parameter.schema ~name:"voxel_wall" ~default:initial_renderer
-    [ Parameter.field ~name:"renderer" ~label:"Renderer"
-        ~kind:(Parameter.choice ~equal:( = )
-          [ "Path traced", Path_traced; "Raster", Raster; "Wireframe", Wireframe ])
-        ~default:initial_renderer ~get:Fun.id ~set:(fun renderer _ -> renderer) () ]
+    [ Renderer.field ~default:initial_renderer ~get:Fun.id ~set:(fun renderer _ -> renderer) ]
 
 let renderer env = Settings.get settings_schema (Prismel_editor.Editor3.settings env)
 
-type model = { env : prepared Prismel_editor.Editor3.t; tracer : P.t; shown : prepared option }
+(* What the tracer currently holds, compared physically so an idle frame
+   uploads nothing. *)
+type model = { env : prepared Prismel_editor.Editor3.t; tracer : P.t;
+  shown : (Mat4.t * prepared) list; lit : Light.t list; world : World.baked option }
 
-let raster_lights =
-  [ Light.directional ~direction:(v 0.6 (-0.7) (-0.55)) ~diffuse:(Color.rgb 255 250 240) ()
-  ; Light.directional ~direction:(v (-0.7) 0.3 (-0.6)) ~diffuse:(Color.rgb 90 95 110) ~intensity:0.4 () ]
+(* The studio: two big softboxes as area light objects (raster units: a rect
+   of radiance L and area A is intensity L * A / pi) under a near-black World,
+   so raster and the path tracer light the wall the same way. *)
+let softbox ~radiance ~size at =
+  Light.area ~intensity:(radiance *. size *. size /. Float.pi) ~at
+    ~direction:(Vec3.normalize (Vec3.sub Vec3.zero at)) ~width:size ~height:size
+    ~attenuation:(Light.attenuation ~constant:0. ~quadratic:1. ()) ()
+
+let lights = [ softbox ~radiance:9. ~size:24. (v (-34.) 40. 30.);
+               softbox ~radiance:1.2 ~size:30. (v 30. (-10.) 26.) ]
+
+let studio =
+  let dark r g b = World.rgb r g b in
+  { World.default with
+    layers = [ { name = "studio"; visible = true;
+                 layer = Gradient { zenith = dark 0.006 0.007 0.009; horizon = dark 0.006 0.007 0.009;
+                                    nadir = dark 0.002 0.002 0.003; sharpness = 1. } } ] }
 
 let scene3 _graph prepared =
   match prepared.mode with
   | Path_traced -> Scene3.create []
-  | Raster -> Scene3.create ~lights:raster_lights (Option.to_list prepared.raster)
+  | Raster -> Scene3.create (Option.to_list prepared.raster)
   | Wireframe -> Scene3.create (Option.to_list prepared.wire)
 
 (* Renderer stats go to the editor's status bar, not over the picture. *)
@@ -290,7 +196,8 @@ let status tracer = Option.map (fun p -> Printf.sprintf "%s%s · %d tris%s"
   p.triangles
   (if p.instances > 0 then Printf.sprintf " · %d inst" p.instances else ""))
 
-(* The traced film matches the view pane (see [update]), so it fills it. *)
+(* The traced film matches the editor's film rect (see [update]), so it
+   fills the overlay frame. *)
 let overlay tracer _graph prepared (frame : Frame.t) =
   match prepared with
     | Some { mode = Path_traced; _ } ->
@@ -317,13 +224,13 @@ let init _frame =
       ~camera:(Easy_camera.create ~target:(v 0. 0. 1.) ~distance:19. ~azimuth:(-0.22)
         ~elevation:0.08 ~fov_y:0.7 ~inertia:false ())
       ~background:(Color.rgb 8 8 10) ~seed:7L ~grain:2 ~max_entries:24
-      ~max_payload_bytes:(256 * 1024 * 1024) ~factories
+      ~max_payload_bytes:(256 * 1024 * 1024) ~factories ~lights ~world:studio
       ~settings:(Settings.make settings_schema initial_renderer)
       ~graph:(graph ())
       ~prepare:(fun settings -> prepare (Settings.get settings_schema settings))
       ~scene3 ~overlay:(overlay tracer) ~status:(status tracer) ()
     with Ok env -> env | Error message -> failwith message in
-  { env; tracer; shown = None }
+  { env; tracer; shown = []; lit = []; world = None }
 
 let update m (frame : Frame.t) =
   let env = Prismel_editor.Editor3.update m.env frame in
@@ -332,28 +239,41 @@ let update m (frame : Frame.t) =
         Prismel_editor.Editor3.set_settings env (Settings.make settings_schema target)
     | _ -> env in
   let renderer = renderer env in
-  let shown = match Prismel_editor.Editor3.prepared env with
-    | Some prepared when (match m.shown with Some previous -> previous != prepared | None -> true) ->
-        Option.iter (fun traced -> match P.queue_mesh m.tracer traced with
-          | Ok () -> () | Error e -> prerr_endline e) prepared.traced;
-        Some prepared
-    | _ -> m.shown in
-  (* The ACTIVE camera node drives the trace; the default one follows the
-     viewport, so orbiting still steers it. *)
+  (* Every renderable object at its world transform in one scene_mesh; when
+     only transforms changed, [P.move] rebuilds just the instance structure. *)
+  let objects = Prismel_editor.Editor3.objects env in
+  let same_prepared = List.equal (fun (_, p) (_, q) -> p == q) objects m.shown in
+  let same = same_prepared && List.equal (fun (m, _) (n, _) -> Mat4.nearly_equal m n ~eps:0.) objects m.shown in
+  if not same then begin
+    let traced = List.filter_map (fun (matrix, p) ->
+        Option.map (fun mesh -> matrix, mesh) p.traced) objects in
+    let rebuild () = match Result.bind (P.scene_mesh traced) (P.queue_mesh m.tracer) with
+      | Ok () -> () | Error e -> prerr_endline e in
+    if traced <> [] then
+      if same_prepared then (match P.move m.tracer (List.map fst traced) with
+        | Ok () -> () | Error _ -> rebuild ())
+      else rebuild ()
+  end;
+  let lit = Prismel_editor.Editor3.lights env in
+  if lit <> m.lit then (match P.set_lights m.tracer (List.map P.light_of lit) with
+    | Ok () -> () | Error e -> prerr_endline e);
+  let world = Prismel_editor.Editor3.world env in
+  if world != m.world then (match P.set_world m.tracer world with
+    | Ok () -> () | Error e -> prerr_endline e);
+  let m = { m with shown = objects; lit; world } in
+  (* The trace follows the view pane (the camera object through
+     look-through) with the camera object's lens. *)
   if renderer = Path_traced then begin
-    let _, _, width, height = (Prismel_editor.Editor3.panes env frame).view in
+    let _, _, width, height = Prismel_editor.Editor3.film env frame in
     (match P.resize m.tracer ~width:(max 1 width) ~height:(max 1 height) with
      | Ok () -> () | Error e -> prerr_endline e);
-    let camera = Prismel_editor.Editor3.render_camera env in
-    let target = Camera.target camera in
-    let fov = match Camera.projection camera with
-      | Camera.Perspective { fov_y; _ } -> fov_y | _ -> 0.7 in
-    let eye = if orbit then
+    let camera = Prismel_editor.Editor3.view_camera env in
+    let camera = if not orbit then camera else
+      let target = Camera.target camera in
       let angle = 0.5 *. sin (float frame.count *. 0.05) in
-      v (target.x +. 19. *. sin angle) (target.y +. 1.5) (target.z +. 19. *. cos angle)
-      else Camera.position camera in
-    match P.render m.tracer (Camera.perspective ~fov_y:fov ~at:eye ~target ())
-    with Ok () -> () | Error e -> prerr_endline e
+      Camera.with_position (v (target.x +. 19. *. sin angle) (target.y +. 1.5)
+        (target.z +. 19. *. cos angle)) camera in
+    match P.render m.tracer camera with Ok () -> () | Error e -> prerr_endline e
   end;
   if frames > 0 && frame.count + 1 >= frames then begin
     Option.iter (fun path ->
@@ -364,7 +284,7 @@ let update m (frame : Frame.t) =
       ((Unix.gettimeofday () -. started) *. 1000. /. float frames);
     Sketch.quit ()
   end;
-  { m with env; shown }
+  { m with env }
 
 let view m (frame : Frame.t) = Prismel_editor.Editor3.scene m.env frame
 
@@ -375,4 +295,5 @@ let () =
     ~init ~update ~view
     ~after_present:(fun m frame ->
       { m with env = Prismel_editor.Editor3.after_present m.env frame })
+    ~crash_dump:(fun m -> Prismel_editor.Editor3.crash_dump m.env)
     ~on_stop:(fun m -> Prismel_editor.Editor3.close m.env; P.destroy m.tracer) ())

@@ -21,6 +21,14 @@ type projection =
       far : float;
     }
 
+(** Thin-lens depth of field for renderers that model it (the path tracer):
+    [aperture] is the lens radius in scene units (0, the default, is a
+    pinhole); [focus_distance] is the sharp distance along the view direction,
+    or [None] to focus on [target]. Raster views ignore the lens. *)
+type lens = { aperture : float; focus_distance : float option }
+
+val pinhole : lens
+
 type t
 
 val perspective :
@@ -75,6 +83,10 @@ val up : t -> Vec3.t
 val projection : t -> projection
 val v_flip : t -> bool
 val forced_aspect : t -> float option
+val lens : t -> lens
+
+val focus_distance : t -> float
+(** The lens's focus distance, or the distance to [target]. *)
 
 val with_position : Vec3.t -> t -> t
 val with_target : Vec3.t -> t -> t
@@ -83,6 +95,11 @@ val look_at : Vec3.t -> t -> t
 val with_projection : projection -> t -> t
 val with_v_flip : bool -> t -> t
 val with_forced_aspect : float option -> t -> t
+
+val with_lens : lens -> t -> t
+(** Raises [Invalid_argument] for a negative or non-finite aperture or a
+    non-positive focus distance. *)
+
 val move : Vec3.t -> t -> t
 (* Translate both position and target. *)
 

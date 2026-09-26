@@ -48,8 +48,10 @@ end
 
 module Which_key : sig
   val panel : Pxui.Ui.t -> ('scope, 'action) Editor_core.Command.t list ->
-    focus:'scope -> focus_name:string -> unit
-  (** Draw global and focused commands that have a trigger in the standard modal. *)
+    prefix:string -> focus:'scope -> focus_name:string -> unit
+  (** Draw the page of global and focused commands whose leader sequence
+      continues [prefix] (plus key chords on the first page) in the standard
+      modal; a key leading to several commands shows as a [+group] row. *)
 end
 
 module Status_bar : sig
@@ -74,6 +76,62 @@ module Prompt : sig
     query:string -> rows:(string -> (string * string) array) ->
     (string * Pxui.Ui.pick) option
   (** Standard name and searchable-picker modals; hosts interpret the result. *)
+end
+
+(** A keyboard-first tree list (WAI-ARIA treeview keys): focus is separate
+    from selection, folds and a filter (keeping ancestors) are view state,
+    rows show indent guides and sticky ancestors, toggle columns paint when
+    dragged, and rows drag with a 4-point dead zone onto before/inside/after
+    drop zones. A right-click menu (enter, rename, hide, delete) acts on the
+    row, or on the selection when the row is in it, without changing the
+    selection. The host owns rows and selection and applies the intents. *)
+module Tree : sig
+  type row = {
+    id : int;
+    depth : int;  (** depth-first order; a child is one deeper than its parent *)
+    label : string;
+    detail : string;  (** muted text after the label, e.g. the kind *)
+    badge : string * Prismel.Color.t;  (** a kind letter on its colour *)
+    link : bool;  (** a muted [↳] row repeating [id] shown elsewhere *)
+    ghost : bool;  (** dimmed and locked: no rename, drag, or toggles *)
+    flags : bool list;  (** one per column *)
+  }
+  type drop = Before | Inside | After
+  type intent =
+    | Select of int list  (** the new selection, primary first *)
+    | Flag of { ids : int list; column : int; value : bool }
+    | Move of { ids : int list; target : int; drop : drop }
+    | Indent of int list
+    | Outdent of int list
+    | Reorder of { ids : int list; delta : int }
+    | Rename of int * string
+    | Activate of int  (** double-click, or the host's enter key *)
+    | Delete of int list  (** from the row context menu *)
+  type command = Up | Down | Extend_up | Extend_down | Collapse | Expand
+    | First | Last | Indent_rows | Outdent_rows | Move_up | Move_down
+    | Rename_row | Filter | Hide | Activate_row
+  type t
+
+  val create : unit -> t
+  val bindings : ('scope, command) Editor_core.Command.t list
+  (** Arrows, Home/End, Tab/Shift-Tab, Alt-arrows, F2, [/], [h]; the host
+      scopes them to its list pane. *)
+
+  val run_command : t -> row array -> selected:int list -> command -> t * intent list
+  val update : t -> Pxui.Ui.t -> Prismel.Frame.t -> bounds:(int * int * int * int) ->
+    ?title:string -> columns:string list -> row array -> selected:int list -> t * intent list
+  (** Build the list inside [Ui.frame] and return this frame's intents;
+      [title] leads the header, e.g. the level's breadcrumb. *)
+
+  val rename : int -> string -> t -> t
+  (** Open the rename prompt on a row, e.g. one just added. *)
+
+  val reveal : t -> t
+  (** Scroll the focused row into view on the next update. *)
+
+  val focused : t -> int option
+  val editing : t -> bool
+  (** The filter or rename prompt holds the keyboard. *)
 end
 
 module Shell : sig

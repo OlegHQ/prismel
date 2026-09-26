@@ -1,4 +1,4 @@
-type format = R8_unorm | Rgba8_unorm | Bgra8_unorm | Rgba16_float | Depth32_float | Stencil8
+type format = R8_unorm | Rgba8_unorm | Bgra8_unorm | Rgba16_float | Rgba32_float | Depth32_float | Stencil8
 type memory = Device_local | Shared
 type t =
   { metal : Metal.Texture.t; handle : unit Ogpu_core.Handle.t; device : Device.t
@@ -7,10 +7,10 @@ type t =
     mutable submission_uses:int;mutable destroy_requested:bool }
 
 let error operation kind message = Error (Ogpu_core.Error.make operation kind message)
-let metal_format = function R8_unorm->Metal.Texture.R8_unorm|Rgba8_unorm->Metal.Texture.Rgba8_unorm|Bgra8_unorm->Metal.Texture.Bgra8_unorm|Rgba16_float->Metal.Texture.Rgba16_float|Depth32_float->Metal.Texture.Depth32_float|Stencil8->Metal.Texture.Stencil8
-let bytes_per_pixel = function R8_unorm|Stencil8->1|Rgba8_unorm|Bgra8_unorm|Depth32_float->4|Rgba16_float->8
+let metal_format = function R8_unorm->Metal.Texture.R8_unorm|Rgba8_unorm->Metal.Texture.Rgba8_unorm|Bgra8_unorm->Metal.Texture.Bgra8_unorm|Rgba16_float->Metal.Texture.Rgba16_float|Rgba32_float->Metal.Texture.Rgba32_float|Depth32_float->Metal.Texture.Depth32_float|Stencil8->Metal.Texture.Stencil8
+let bytes_per_pixel = function R8_unorm|Stencil8->1|Rgba8_unorm|Bgra8_unorm|Depth32_float->4|Rgba16_float->8|Rgba32_float->16
 let add_unique x xs = if List.mem x xs then xs else x :: xs
-let validation_format=function R8_unorm|Stencil8->Ogpu_core.Validation.R8_unorm|Rgba8_unorm->Rgba8_unorm|Bgra8_unorm->Bgra8_unorm|Rgba16_float->Rgba16_float|Depth32_float->Depth32_float
+let validation_format=function R8_unorm|Stencil8->Ogpu_core.Validation.R8_unorm|Rgba8_unorm->Rgba8_unorm|Bgra8_unorm->Bgra8_unorm|Rgba16_float->Rgba16_float|Rgba32_float->Rgba32_float|Depth32_float->Depth32_float
 let validation_storage=function Device_local->Ogpu_core.Validation.Device_local|Shared->Shared
 let validation_usage=function Ogpu_core.Types.Texture_binding->Ogpu_core.Validation.Binding|Storage_binding->Storage_binding|Render_attachment->Attachment|Texture_copy_src->Copy_src|Texture_copy_dst->Copy_dst
 

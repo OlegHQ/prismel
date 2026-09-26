@@ -227,19 +227,20 @@ let entries = [|
 let material = Material.create ~diffuse:Color.white
     ~ambient:(color "#172554") ~specular:Color.white ~shininess:36. ()
 
+(* A packed cook (Copy to Points, Pack and instance) keeps its transforms. *)
 let prepare output = Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
+  |> Result.map (fun mesh -> mesh, output.Session.instances)
   |> Result.map_error Pdk.Error.to_string
 
-let scene3 _graph mesh =
+let scene3 _graph (mesh, instances) =
   let mode = Mesh.mode mesh in
   let material = match mode with
     | Mesh.Points | Lines | Line_strip | Line_loop ->
         Material.unlit (color "#67e8f9")
     | Triangles | Triangle_strip | Triangle_fan -> material in
-  Scene3.create ~samples:4 ~lights:[
-    Light.directional ~direction:(v (-1.) (-1.2) (-2.))
-      ~diffuse:Color.white ()]
-    [Scene3.mesh ~cull:Scene3.Cull_none ~material mesh]
+  Scene3.create ~samples:4 [match instances with
+    | Some transforms -> Scene3.instances_array ~cull:Scene3.Cull_none ~material mesh transforms
+    | None -> Scene3.mesh ~cull:Scene3.Cull_none ~material mesh]
 
 let check_all () =
   let context = Context.create ~seed:2026L ~domains:1 () |> Result.get_ok in
@@ -254,7 +255,7 @@ let check_all () =
             if Pdk.Geometry.point_count output.geometry = 0 then
               failwith (name ^ ": empty geometry");
             (match prepare output with
-             | Ok mesh when Mesh.vertex_count mesh > 0 -> ()
+             | Ok (mesh, _) when Mesh.vertex_count mesh > 0 -> ()
              | Ok _ -> failwith (name ^ ": empty render mesh")
              | Error error -> failwith (name ^ ": " ^ error));
             Printf.printf "%s: %d points, %d primitives\n%!" name
@@ -277,6 +278,8 @@ let () =
           ~config:{Sketch.default_config with width=1100; height=720;
             title="Prismel SOP gallery · " ^ name}
           ~name:"sop_gallery" ~factories:Sop_catalog.Editor.factories
+          ~lights:[Light.directional ~direction:(v (-1.) (-1.2) (-2.))
+            ~diffuse:Color.white ()]
           ~camera:(Easy_camera.create ~target:Vec3.zero ~distance:6.
             ~azimuth:0.6 ~elevation:0.35 ())
           ~seed:2026L ~max_entries:24 ~max_payload_bytes:134_217_728

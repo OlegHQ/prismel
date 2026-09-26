@@ -13,8 +13,9 @@ let texture_level_size (d:Types.texture_descriptor) mip=
     (Int64.of_int(mip_extent d.width mip))
     (Int64.mul (Int64.of_int(mip_extent d.height mip))
       (Int64.of_int(mip_extent d.depth mip))) in
-  if texels>Int64.of_int(Sys.max_string_length/4) then None
-  else Some(Int64.to_int texels*4)
+  let texel=Types.texel_bytes d.format in
+  if texels>Int64.of_int(Sys.max_string_length/texel) then None
+  else Some(Int64.to_int texels*texel)
 (* Blit operations recorded by the mock encoder and replayed at commit. *)
 type transfer=
   |Buffer_to_texture of int64*int64*int64*int64*int64*int*Types.origin*Types.extent
@@ -32,12 +33,12 @@ let execute_transfer c resources description =
   let sum a b=
     if a<0L || b<0L || a>Int64.sub Int64.max_int b
     then None else Some(Int64.add a b) in
-  let buffer_region bytes offset row image (extent:Types.extent)=
+  let buffer_region texel bytes offset row image (extent:Types.extent)=
     let width=Int64.of_int extent.width in
     let height=Int64.of_int extent.height in
     let depth=Int64.of_int extent.depth in
     if width<=0L || height<=0L || depth<=0L then false
-    else match product width 4L,product row height with
+    else match product width (Int64.of_int texel),product row height with
       |Some pixels,Some minimum_image
         when row>=pixels && image>=minimum_image->
           (match product image (Int64.pred depth),
@@ -76,15 +77,15 @@ let execute_transfer c resources description =
   let texture_offset storage mip (origin:Types.origin)=
     let width=mip_extent storage.descriptor.width mip in
     let height=mip_extent storage.descriptor.height mip in
-    ((origin.z*height+origin.y)*width+origin.x)*4 in
-  let copy_rows ~source ~source_offset ~source_row ~source_image
+    ((origin.z*height+origin.y)*width+origin.x)*Types.texel_bytes storage.descriptor.format in
+  let copy_rows ~texel ~source ~source_offset ~source_row ~source_image
       ~target ~target_offset ~target_row ~target_image
       (extent:Types.extent)=
     for z=0 to extent.depth-1 do
       for y=0 to extent.height-1 do
         Bytes.blit source (source_offset+z*source_image+y*source_row)
           target (target_offset+z*target_image+y*target_row)
-          (extent.width*4)
+          (extent.width*texel)
       done
     done in
   begin match description with
@@ -92,18 +93,19 @@ let execute_transfer c resources description =
               origin,extent)->
               Result.bind (bytes src) (fun source->
                 Result.bind (texture dst) (fun target->
+                  let texel=Types.texel_bytes target.descriptor.format in
                   if not(valid_region target mip origin extent &&
-                    buffer_region source offset row image extent) then
+                    buffer_region texel source offset row image extent) then
                     error op Error.Invalid_argument"texture upload range is invalid"
                   else begin
                     let width=mip_extent target.descriptor.width mip in
                     let height=mip_extent target.descriptor.height mip in
-                    copy_rows ~source ~source_offset:(Int64.to_int offset)
+                    copy_rows ~texel ~source ~source_offset:(Int64.to_int offset)
                       ~source_row:(Int64.to_int row)
                       ~source_image:(Int64.to_int image)
                       ~target:target.levels.(mip)
                       ~target_offset:(texture_offset target mip origin)
-                      ~target_row:(width*4) ~target_image:(width*height*4)
+                      ~target_row:(width*texel) ~target_image:(width*height*texel)
                       extent;
                     Ok()
                   end))
@@ -111,15 +113,16 @@ let execute_transfer c resources description =
               offset,row,image)->
               Result.bind (texture src) (fun source->
                 Result.bind (bytes dst) (fun target->
+                  let texel=Types.texel_bytes source.descriptor.format in
                   if not(valid_region source mip origin extent &&
-                    buffer_region target offset row image extent) then
+                    buffer_region texel target offset row image extent) then
                     error op Error.Invalid_argument"texture readback range is invalid"
                   else begin
                     let width=mip_extent source.descriptor.width mip in
                     let height=mip_extent source.descriptor.height mip in
-                    copy_rows ~source:source.levels.(mip)
+                    copy_rows ~texel ~source:source.levels.(mip)
                       ~source_offset:(texture_offset source mip origin)
-                      ~source_row:(width*4) ~source_image:(width*height*4)
+                      ~source_row:(width*texel) ~source_image:(width*height*texel)
                       ~target ~target_offset:(Int64.to_int offset)
                       ~target_row:(Int64.to_int row)
                       ~target_image:(Int64.to_int image) extent;
@@ -134,6 +137,7 @@ let execute_transfer c resources description =
                     error op Error.Invalid_argument"texture copy range is invalid"
                   else begin
                     let source_bytes=source.levels.(src_mip) in
+                    let texel=Types.texel_bytes source.descriptor.format in
                     (* ponytail: self-copy snapshots one whole mip; stage only
                        the touched rows if large mock textures need less memory. *)
                     let source_bytes=if source_bytes==target.levels.(dst_mip)
@@ -142,14 +146,14 @@ let execute_transfer c resources description =
                     let src_height=mip_extent source.descriptor.height src_mip in
                     let dst_width=mip_extent target.descriptor.width dst_mip in
                     let dst_height=mip_extent target.descriptor.height dst_mip in
-                    copy_rows ~source:source_bytes
+                    copy_rows ~texel ~source:source_bytes
                       ~source_offset:(texture_offset source src_mip src_origin)
-                      ~source_row:(src_width*4)
-                      ~source_image:(src_width*src_height*4)
+                      ~source_row:(src_width*texel)
+                      ~source_image:(src_width*src_height*texel)
                       ~target:target.levels.(dst_mip)
                       ~target_offset:(texture_offset target dst_mip dst_origin)
-                      ~target_row:(dst_width*4)
-                      ~target_image:(dst_width*dst_height*4) extent;
+                      ~target_row:(dst_width*texel)
+                      ~target_image:(dst_width*dst_height*texel) extent;
                     Ok()
                   end))
   end

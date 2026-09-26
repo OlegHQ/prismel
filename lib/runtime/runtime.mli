@@ -21,7 +21,8 @@ type stats = { frames:int64; presented:int64; logical_draws:int64;
   gpu_sample_count:int64; retained_plan_builds:int64; retained_plan_hits:int64;
   retained_plan_misses:int64; retained_plan_evictions:int64;
   retained_plan_executions:int64; retained_plan_entries:int;
-  retained_plan_capacity:int }
+  retained_plan_capacity:int;
+  sun_shadow_passes:int64; (** World sun map renders (Scene3.with_world). *) }
 
 val zero_stats : stats
 

@@ -34,11 +34,11 @@ let () =
 
 type scope = View | Graph
 
-let bindings : (scope, [ `Toggle | `Layout | `Undo | `Redo | `Delete | `Frame | `Palette ])
+let bindings : (scope, [ `Toggle | `Layout | `Undo | `Redo | `Delete | `Frame | `Palette | `Add_light ])
     Editor_core.Command.t list = Editor_core.Keymap.[
-  { id = "toggle"; trigger = Some (Leader 'g'); label = "toggle graph"; scope = None;
+  { id = "toggle"; trigger = Some (Leader "g"); label = "toggle graph"; scope = None;
     action = `Toggle };
-  { id = "layout"; trigger = Some (Leader 'l'); label = "layout"; scope = Some Graph;
+  { id = "layout"; trigger = Some (Leader "l"); label = "layout"; scope = Some Graph;
     action = `Layout };
   { id = "undo"; trigger = Some (Chord (Prismel.Input.KeyChar 'z', [Prismel.Input.Meta]));
     label = "undo"; scope = None; action = `Undo };
@@ -49,6 +49,8 @@ let bindings : (scope, [ `Toggle | `Layout | `Undo | `Redo | `Delete | `Frame | 
     label = "delete"; scope = Some Graph; action = `Delete };
   { id = "frame"; trigger = Some (Chord (Prismel.Input.KeyChar 'f', []));
     label = "frame"; scope = Some Graph; action = `Frame };
+  { id = "add-light"; trigger = Some (Leader "al"); label = "add light"; scope = None;
+    action = `Add_light };
   (* No trigger: palette only, never routed from a key. *)
   Editor_core.Command.make ~id:"palette" ~label:"palette only" `Palette;
 ]
@@ -72,19 +74,26 @@ let () =
   let state, actions, _ = Editor_core.Router.step bindings ~focus:View
       ~text_focus:false ~frame:(frame [Event.KeyPressed Input.Space;
         Event.TextInput " "]) Idle in
-  assert (state = Pending && actions = []);
+  assert (state = Pending "" && actions = []);
   let state, actions, passed = Editor_core.Router.step bindings ~focus:View
       ~text_focus:false ~frame:(frame [Event.KeyPressed (Input.KeyChar 'g');
         Event.TextInput "g"]) state in
   assert (state = Idle && actions = [`Toggle] && passed.events = []);
   let state, actions, _ = step Idle [Input.Space] in
-  assert (state = Pending && actions = []);
+  assert (state = Pending "" && actions = []);
   let state, actions, passed = step state [Input.Escape] in
   assert (state = Idle && actions = [] && passed.events = []);
   let _, actions, _ = step Idle [Input.Space; Input.KeyChar 'l'] in
   assert (actions = []);
   let _, actions, _ = step ~focus:Graph Idle [Input.Space; Input.KeyChar 'l'] in
   assert (actions = [`Layout]);
+  (* Sequences: a proper prefix opens the next which-key page. *)
+  let state, actions, _ = step Idle [Input.Space; Input.KeyChar 'a'] in
+  assert (state = Pending "a" && actions = []);
+  let state, actions, _ = step state [Input.KeyChar 'L'] in
+  assert (state = Idle && actions = [`Add_light]);
+  let state, actions, _ = step Idle [Input.Space; Input.KeyChar 'a'; Input.KeyChar 'q'] in
+  assert (state = Idle && actions = []);
   let state, actions, passed = step ~text_focus:true Idle [Input.Space] in
   assert (state = Idle && actions = []
       && passed.events = [Event.KeyPressed Input.Space]);
@@ -123,7 +132,7 @@ let () =
   assert (ended && passed.events = [Event.KeyPressed Input.Space]);
   let state, actions, passed = Editor_core.Router.step bindings ~focus:View
       ~text_focus:false ~frame:passed Idle in
-  assert (state = Pending && actions = [] && passed.events = []);
+  assert (state = Pending "" && actions = [] && passed.events = []);
   let ended, passed = fly (frame [Event.KeyPressed Input.Escape]) in
   assert (ended && passed.events = []);
   let ended, passed = fly (frame [Event.WindowFocusLost]) in

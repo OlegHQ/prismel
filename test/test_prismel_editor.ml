@@ -36,6 +36,22 @@ let ui_bytes scene =
           Some (Bytes.to_string (Scene_command.Ui_batch.instances batch))
       | _ -> None) staged.layers)
 
+(* The scene opens as a list; [Space l] shows it as a graph, where a
+   double-click on geo1 enters its SOP network. *)
+let enter_geo1 ?(toggle = true) ~update ~graph_nodes environment count =
+  let environment = if not toggle then environment else
+    update environment (frame ~events:[Event.KeyPressed Input.Space;
+      Event.KeyPressed (Input.KeyChar 'l')] count) in
+  let environment = update environment (frame (count + 1)) in
+  let tile = List.find (fun tile -> tile.Pxui_graph.label = "geo1")
+      (graph_nodes environment) in
+  let point = center tile.Pxui_graph.bounds in
+  let click = [mouse_press (Input.LeftButton, point);
+    mouse_release (Input.LeftButton, point)] in
+  let environment = update environment (frame ~mouse:point (count + 2)) in
+  let environment = update environment (frame ~mouse:point ~events:click (count + 3)) in
+  update environment (frame ~mouse:point ~events:click (count + 4))
+
 let run () =
   let module Leader = Prismel_editor.Private.Leader in
   List.iter (fun (graph : _ Editor_core.Command.t) ->
@@ -46,8 +62,8 @@ let run () =
   let camera_binding key action = List.exists (fun (command : Leader.command) ->
     command.trigger = Some (Editor_core.Keymap.Leader key)
     && command.action = action) Leader.keymap in
-  check (camera_binding 'h' Leader.Hide_ui
-      && camera_binding 'c' Leader.Open_camera)
+  check (camera_binding "h" Leader.Hide_ui
+      && camera_binding "c" Leader.Open_camera)
     "camera visibility commands missing from the host keymap";
   let workspace = Prismel_editor.Private.Workspace.create Prismel_editor.default_layout in
   let initial = Prismel_editor.Private.Workspace.geometry workspace (frame ~width:1000 0) in
@@ -107,6 +123,12 @@ let run () =
     | None -> fail "sketch environment did not publish its initial async cook"
   in
   let environment = wait 0 environment in
+  let enter3 ?toggle environment count = enter_geo1 ?toggle
+      ~update:Prismel_editor.Editor3.update
+      ~graph_nodes:Prismel_editor.Editor3.graph_nodes environment count in
+  let environment = enter3 environment 0 in
+  check (Prismel_editor.Editor3.level environment = Some "geo1")
+    "double-clicking geo1 in the scene graph did not enter its SOP network";
   (match Sys.getenv_opt "PRISMEL_UI_PREVIEW" with
    | Some directory ->
        Sketch.export ~directory ~prefix:"workspace" ~frames:1
@@ -403,11 +425,12 @@ let run () =
      without one, exactly one is ACTIVE, deleting the last re-adds it inside
      the same undo entry, and a viewport drag is one coalesced undo entry. *)
   let cameras environment = List.filter (fun info -> info.Edit_graph.operation = "camera")
-      (Edit_graph.inspect (Prismel_editor.Editor3.document environment)) in
+      (Edit_graph.inspect (Prismel_editor.Editor3.scene_document environment)) in
   let active environment = List.filter (fun tile -> tile.Pxui_graph.active)
       (Prismel_editor.Editor3.graph_nodes environment) in
   let environment = Prismel_editor.Editor3.create ~graph
       ~camera:(Easy_camera.create ~distance:6. ~inertia:false ())
+      ~lens:{ aperture = 0.3; focus_distance = None }
       ~factories:Sop_catalog.Editor.factories
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
       ~prepare:(fun _ output -> Pdk_prismel.Prismel_mesh.to_mesh output.Session.geometry
@@ -420,11 +443,25 @@ let run () =
     Camera.position (Easy_camera.camera (Prismel_editor.Editor3.camera environment)) in
   check (List.length (cameras environment) = 1 && List.length (active environment) = 1)
     "Editor3 did not add one ACTIVE default camera";
+  (* Cameras are scene objects: show the scene as a graph to click them. *)
+  let environment = Prismel_editor.Editor3.update environment
+      (frame ~events:[Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'l')] 0) in
   let environment = List.fold_left (fun environment count ->
       Prismel_editor.Editor3.update environment (frame count)) environment [0; 1; 2] in
   check (not (Prismel_editor.Editor3.can_undo environment)
       && near (eye environment) (viewport_eye environment))
     "an idle following camera wrote undo entries or drifted from the viewport";
+  (* The default camera object carries the sketch's lens; the view camera
+     is the viewport with that lens while nothing looks through. *)
+  let view_lens environment = Camera.lens (Prismel_editor.Editor3.view_camera environment) in
+  check ((Camera.lens (Prismel_editor.Editor3.render_camera environment)).aperture = 0.3
+      && (view_lens environment).aperture = 0.3
+      && near (Camera.position (Prismel_editor.Editor3.view_camera environment))
+           (viewport_eye environment))
+    "the default camera object did not carry the sketch lens into the view camera";
+  let idle = Prismel_editor.Editor3.update environment (frame 3) in
+  check (Prismel_editor.Editor3.view_camera idle == Prismel_editor.Editor3.view_camera environment)
+    "an idle frame rebuilt the view camera (a sketch tracer would restart each frame)";
   let start_eye = eye environment in
   let vx, vy, vw, vh = (Prismel_editor.Editor3.panes environment (frame 3)).view in
   let px, py = vx + (vw / 2), vy + (vh / 2) in
@@ -504,6 +541,7 @@ let run () =
       (frame ~events:[key Input.Space; key (Input.KeyChar 'g')] 18) in
   (* F frames the displayed tile in the graph, then the displayed geometry
      in the viewport even when another node is selected. *)
+  let environment = enter3 ~toggle:false environment 18 in
   let source_tile = List.find (fun tile -> tile.Pxui_graph.label = "Inspectable source")
       (Prismel_editor.Editor3.graph_nodes environment) in
   let at = let x, y, w, _ = source_tile.bounds in x + (w / 3), y + 5 in
@@ -526,6 +564,14 @@ let run () =
       mouse_press (Input.LeftButton, view_at); mouse_release (Input.LeftButton, view_at)] 20) in
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[key (Input.KeyChar 'f')] 21) in
+  (* Framing waits for bounds when the display cook is still running. *)
+  let deadline = Unix.gettimeofday () +. 2. in
+  let rec framed count environment =
+    if near (target environment) (Vec3.create 5. 0. 0.)
+        || Unix.gettimeofday () > deadline then environment
+    else (Unix.sleepf 0.001;
+      framed (count + 1) (Prismel_editor.Editor3.update environment (frame count))) in
+  let environment = framed 22 environment in
   check (near (target environment) (Vec3.create 5. 0. 0.))
     "viewport-focused F did not focus on the displayed node's cached bounds";
   Prismel_editor.Editor3.close environment;
@@ -537,7 +583,7 @@ let run () =
         ~default:0 ~get:Fun.id ~set:(fun mode _ -> mode) () ]) in
   let module Settings = Prismel_editor.Settings in
   let bump = Editor_core.Command.make ~id:"test.bump" ~label:"bump mode"
-      ~trigger:(Editor_core.Keymap.Leader 'k') (fun environment ->
+      ~trigger:(Editor_core.Keymap.Leader "k") (fun environment ->
         Prismel_editor.Editor3.set_settings environment (Settings.make mode_schema 3)) in
   let environment = Prismel_editor.Editor3.create ~graph
       ~settings:(Settings.make mode_schema 0) ~commands:[bump]
@@ -637,9 +683,13 @@ let run () =
   check (Prismel_editor.Editor2.scene environment2 (frame 12) == hidden_scene)
     "unchanged hidden 2D scene composition was rebuilt";
   Prismel_editor.Editor2.close environment2;
-  (* Presets: a custom node, an added catalog node, a moved tile, and an
-     edited parameter survive save -> load; a sketch whose code graph lacks
-     the custom node, or corrupt JSON, is rejected. *)
+  (* Presets: a version 1 file (one SOP network with a custom code node, an
+     added catalog node, a moved tile, an edited parameter, and a camera SOP)
+     migrates to geo1 plus a camera object; saving it as version 2 and
+     loading again keeps it; a sketch without the custom node, or corrupt
+     JSON, is rejected. *)
+  let module Preset = Prismel_editor.Private.Preset in
+  let module Document = Prismel_editor.Private.Document in
   let depth_schema = Parameter.schema ~name:"test_depth" ~default:2.
       [Parameter.field ~name:"amount" ~label:"Amount"
          ~kind:(Parameter.floating ~min:0. ~max:10. ()) ~default:2.
@@ -649,21 +699,50 @@ let run () =
     Custom.map ~label:"code-depth" ~operation:"test_depth" ~schema:depth_schema
       ~values:2. grid (fun ~parameters:_ ~context:_ geometry -> Ok geometry) in
   let code_graph = code () in
-  let box = List.find (fun factory -> Edit_graph.factory_key factory = "box")
-      Sop_catalog.Editor.factories in
-  let added = Result.get_ok (Edit_graph.instantiate box []) in
-  let document = Edit_graph.of_graph code_graph
-    |> Edit_graph.add_node ~factory:box added |> Result.get_ok in
-  let document, _ = Edit_graph.apply_parameters document ~node_id:(Node.id code_graph)
-      ["amount", Parameter.Float_value 7.25] |> Result.get_ok in
+  let grid_id = List.hd (Node.inputs code_graph) |> Node.id in
   let directory = Filename.temp_dir "sketch-ui-presets" "" in
-  let positions = [Node.id added, 123.5, -40.; Node.id added, 999., 999.] in
-  let saved = Prismel_editor.Preset.save ~directory ~name:"my wall/1" ~sketch:"test"
-      ~document ~positions ~display:(Some (Node.id code_graph)) ~active_camera:None
-      ~settings:["mode", Parameter.Int_value 2]
-      ~view:(`Assoc ["fov", `Float 0.5]) |> Result.get_ok in
+  let v1 = Filename.concat directory "legacy.json" in
+  let node ?factory_key ~id ~label ~inputs ?(params = []) ?(x = 0.) () =
+    `Assoc ((["id", `Int id] @ (match factory_key with
+        | Some key -> ["factory_key", `String key] | None -> [])
+      @ ["label", `String label;
+         "inputs", `List (List.map (function Some id -> `Int id | None -> `Null) inputs);
+         "params", `List (List.map (fun (name, value) -> `List [`String name; value]) params);
+         "x", `Float x; "y", `Float (-40.)])) in
+  Yojson.Safe.to_file v1 (`Assoc [
+    "prismel", `Int 1; "kind", `String "preset"; "sketch", `String "test";
+    "version", `Int 1; "view", `Assoc ["fov", `Float 0.5];
+    "nodes", `List [
+      node ~id:grid_id ~label:"code-grid" ~inputs:[] ();
+      node ~id:(Node.id code_graph) ~label:"code-depth" ~inputs:[Some grid_id]
+        ~params:["amount", `Assoc ["float", `Float 7.25]] ();
+      node ~factory_key:"box" ~id:900001 ~label:"box" ~inputs:[] ~x:123.5 ();
+      node ~factory_key:"camera" ~id:900002 ~label:"camera" ~inputs:[]
+        ~params:["eye_x", `Assoc ["float", `Float 6.]] ()];
+    "display", `Int (Node.id code_graph); "active_camera", `Int 900002;
+    "settings", `List []]);
+  let loaded = Preset.load ~path:v1 ~code:code_graph ~factories:Sop_catalog.Editor.factories
+      ~settings:Prismel_editor.Settings.none |> Result.get_ok in
+  let objects doc = Edit_graph.inspect (Document.scene_graph doc)
+    |> List.map (fun (info : Edit_graph.node_info) -> info.label, info.operation) in
+  let geometry doc = List.find (fun (info : Edit_graph.node_info) ->
+      info.operation = "geometry") (Edit_graph.inspect (Document.scene_graph doc)) in
+  let describe doc =
+    let graph, displayed = Option.get (Document.object_network doc (geometry doc).id) in
+    let label id = Node.label (Option.get (Edit_graph.find graph ~node_id:id)) in
+    label displayed, Edit_graph.inspect graph |> List.map (fun (info : Edit_graph.node_info) ->
+      info.label, info.operation, info.parameters, Array.map (Option.map label) info.inputs) in
+  check (List.sort compare (objects loaded.doc) = ["camera", "camera"; "geo1", "geometry"]
+      && fst (describe loaded.doc) = "code-depth"
+      && List.length (snd (describe loaded.doc)) = 3
+      && List.exists (fun (_, x, _) -> x = 123.5)
+        (Option.get (Document.positions loaded.doc (geometry loaded.doc).id))
+      && loaded.view = `Assoc ["fov", `Float 0.5])
+    "a version 1 preset did not migrate to geo1 and a camera object";
+  let saved = Preset.save ~directory ~name:"my wall/1" ~sketch:"test" ~doc:loaded.doc
+      ~view:loaded.view |> Result.get_ok in
   check (Filename.basename saved = "my_wall_1.json"
-      && List.map fst (Prismel_editor.Preset.list ~directory) = ["my_wall_1"])
+      && List.mem "my_wall_1" (List.map fst (Preset.list ~directory)))
     "preset save did not sanitize the name or list the file";
   (match Yojson.Safe.from_file saved with
    | `Assoc fields -> check (List.assoc_opt "prismel" fields = Some (`Int 1)
@@ -674,44 +753,24 @@ let run () =
            | _ -> false))
        "preset lacks the shared sectioned envelope"
    | _ -> check false "preset is not a JSON object");
-  let loaded = Prismel_editor.Preset.load ~path:saved ~code:code_graph
-      ~factories:Sop_catalog.Editor.factories |> Result.get_ok in
-  let describe document = Edit_graph.inspect document |> List.map (fun info ->
-    let label id = (Option.get (Edit_graph.find document ~node_id:id) |> Node.label) in
-    info.Edit_graph.label, info.operation, info.parameters,
-    Array.map (Option.map label) info.inputs) in
-  check (describe loaded.document = describe document
-      && loaded.view = `Assoc ["fov", `Float 0.5]
-      && loaded.display = Some (Node.id code_graph)
-      && List.exists (fun (_, x, y) -> x = 123.5 && y = -40.) loaded.positions
-      && loaded.settings = ["mode", Parameter.Int_value 2])
-    "preset round trip changed the document, view, display, positions, or settings";
-  let legacy = Filename.concat directory "legacy.json" in
-  let sectioned = Yojson.Safe.from_file saved in
-  (match sectioned with
-   | `Assoc fields ->
-       let sections = match List.assoc "sections" fields with `Assoc s -> s | _ -> assert false in
-       let graph = match List.assoc "graph" sections with `Assoc g -> g | _ -> assert false in
-       Yojson.Safe.to_file legacy (`Assoc (
-         ["prismel", `Int 1; "kind", `String "preset";
-          "sketch", `String "test"; "view", List.assoc "viewport" sections] @ graph))
-   | _ -> assert false);
-  let loaded_legacy = Prismel_editor.Preset.load ~path:legacy ~code:code_graph
-      ~factories:Sop_catalog.Editor.factories |> Result.get_ok in
-  check (describe loaded_legacy.document = describe document
-      && loaded_legacy.view = loaded.view)
-    "old flat preset stopped loading";
-  check (Prismel_editor.Preset.delete ~directory ~name:"legacy" = Ok ())
+  let reloaded = Preset.load ~path:saved ~code:code_graph
+      ~factories:Sop_catalog.Editor.factories ~settings:Prismel_editor.Settings.none
+    |> Result.get_ok in
+  check (describe reloaded.doc = describe loaded.doc
+      && List.sort compare (objects reloaded.doc) = List.sort compare (objects loaded.doc))
+    "preset v2 round trip changed the scene or geo1's network";
+  check (Preset.delete ~directory ~name:"legacy" = Ok ())
     "legacy preset could not be deleted";
-  check (Result.is_error (Prismel_editor.Preset.load ~path:saved ~code:(code ())
-      ~factories:Sop_catalog.Editor.factories))
+  check (Result.is_error (Preset.load ~path:saved ~code:(code ())
+      ~factories:Sop_catalog.Editor.factories ~settings:Prismel_editor.Settings.none))
     "a preset loaded into a sketch without its custom node";
   let corrupt = Filename.concat directory "corrupt.json" in
   Out_channel.with_open_text corrupt (fun channel -> output_string channel "{nope");
-  check (Result.is_error (Prismel_editor.Preset.load ~path:corrupt ~code:code_graph
-      ~factories:Sop_catalog.Editor.factories)) "corrupt preset JSON loaded";
-  check (Prismel_editor.Preset.delete ~directory ~name:"corrupt" = Ok ()
-      && List.map fst (Prismel_editor.Preset.list ~directory) = ["my_wall_1"])
+  check (Result.is_error (Preset.load ~path:corrupt ~code:code_graph
+      ~factories:Sop_catalog.Editor.factories ~settings:Prismel_editor.Settings.none))
+    "corrupt preset JSON loaded";
+  check (Preset.delete ~directory ~name:"corrupt" = Ok ()
+      && List.map fst (Preset.list ~directory) = ["my_wall_1"])
     "preset delete did not remove the file";
 
   (* Workspace presets: Space s + Enter saves; Space b loads a preset whose
@@ -737,17 +796,27 @@ let run () =
       = graph_width) "open preset prompt let a workspace shortcut toggle the graph";
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[key Input.Enter] 51) in
-  check (List.length (Prismel_editor.Preset.list ~directory:presets) = 1)
+  check (List.length (Preset.list ~directory:presets) = 1)
     "Space s + Enter did not save a preset";
-  let document = Prismel_editor.Editor3.document environment in
+  (* A copy of that preset whose camera object stops following the view. *)
   let camera_id = (List.hd (cameras environment)).id in
-  let document, _ = Edit_graph.apply_parameters document ~node_id:camera_id
-      [ "follow_viewport", Parameter.Bool_value false;
-        "eye_x", Parameter.Float_value 6.; "eye_y", Parameter.Float_value 2.;
-        "eye_z", Parameter.Float_value 6. ] |> Result.get_ok in
-  ignore (Prismel_editor.Preset.save ~directory:presets ~name:"fixed" ~sketch:"test" ~document
-      ~positions:[] ~display:None ~active_camera:(Some camera_id) ~settings:[]
-      ~view:(`Assoc ["look_through", `Bool true]) |> Result.get_ok);
+  let rec retarget = function
+    | `Assoc fields when List.assoc_opt "id" fields = Some (`Int camera_id) ->
+        `Assoc (List.map (fun (name, value) -> name, match name with
+          | "params" -> `List [
+              `List [`String "follow_viewport"; `Assoc ["bool", `Bool false]];
+              `List [`String "eye_x"; `Assoc ["float", `Float 6.]];
+              `List [`String "eye_y"; `Assoc ["float", `Float 2.]];
+              `List [`String "eye_z"; `Assoc ["float", `Float 6.]]]
+          | _ -> value) fields)
+    | `Assoc fields -> `Assoc (List.map (fun (name, value) ->
+        name, if name = "viewport" then `Assoc ["look_through", `Bool true]
+          else retarget value) fields)
+    | `List items -> `List (List.map retarget items)
+    | json -> json in
+  let first = fst (List.hd (Preset.list ~directory:presets)) in
+  Yojson.Safe.to_file (Preset.path ~directory:presets ~name:"fixed")
+    (retarget (Yojson.Safe.from_file (Preset.path ~directory:presets ~name:first)));
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[key Input.Space; key (Input.KeyChar 'b')] 52) in
   let environment = Prismel_editor.Editor3.update environment
@@ -757,6 +826,33 @@ let run () =
       && Prismel_editor.Editor3.look_through environment
       && not (near (viewport_eye environment) (Vec3.create 6. 2. 6.)))
     "loading a preset did not restore its fixed render camera and look-through";
+  check (near (Camera.position (Prismel_editor.Editor3.view_camera environment))
+      (Vec3.create 6. 2. 6.))
+    "look-through did not make the view camera the fixed render camera";
+  (* Looking through, the film is the camera's aspect (its render
+     resolution) fitted into the pane; otherwise the whole pane. *)
+  let settings = Prismel_editor.Editor3.render_settings environment in
+  let _, _, pane_w, pane_h = (Prismel_editor.Editor3.panes environment (frame 54)).view in
+  let fx, fy, fw, fh = Prismel_editor.Editor3.film environment (frame 54) in
+  check (settings.width = 1920 && settings.height = 1080 && settings.max_spp = 256)
+    "the camera object did not carry default render settings";
+  check (fw <= pane_w && fh <= pane_h && (fw = pane_w || fh = pane_h)
+      && abs (fw * 1080 - fh * 1920) <= 1920 && fx = (pane_w - fw) / 2 && fy = (pane_h - fh) / 2)
+    "look-through did not letterbox the film to the camera's aspect";
+  (* Space v toggles look-through off: the view camera is the free viewport
+     with the fixed camera's aperture, focused on the orbit target. *)
+  let environment = Prismel_editor.Editor3.update environment
+      (frame ~events:[key Input.Space; key (Input.KeyChar 'v')] 54) in
+  check (not (Prismel_editor.Editor3.look_through environment)
+      && near (Camera.position (Prismel_editor.Editor3.view_camera environment))
+           (viewport_eye environment)
+      && (view_lens environment).focus_distance = None)
+    "with look-through off the view camera did not follow the free viewport";
+  check (Prismel_editor.Editor3.film environment (frame 54) = (0, 0, pane_w, pane_h))
+    "without look-through the film did not fill the view pane";
+  let environment = Prismel_editor.Editor3.update environment
+      (frame ~events:[key Input.Space; key (Input.KeyChar 'v')] 54) in
+  check (Prismel_editor.Editor3.look_through environment) "Space v did not restore look-through";
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[key Input.Space; key (Input.KeyChar 'h')] 55) in
   let deadline = Unix.gettimeofday () +. 2. in

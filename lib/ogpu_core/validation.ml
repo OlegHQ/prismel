@@ -1,4 +1,4 @@
-type format=R8_unorm|Rgba8_unorm|Bgra8_unorm|Rgba16_float|Depth32_float
+type format=R8_unorm|Rgba8_unorm|Bgra8_unorm|Rgba16_float|Rgba32_float|Depth32_float
 type storage=Device_local|Shared|Upload|Readback
 type texture_usage=Binding|Storage_binding|Attachment|Copy_src|Copy_dst
 type texture_profile={format:format;storage:storage;width:int;height:int;depth:int;mip_levels:int;sample_count:int;usage:texture_usage list}
@@ -16,7 +16,7 @@ let validate_texture_shape ~operation ~max_dimension ~max_samples ~width ~height
     if mul_overflows w h||mul_overflows(Int64.mul w h)d then invalid operation"texture texel cardinality overflows"else
     let rec maximum_mips n levels=if n<=1 then levels else maximum_mips(n/2)(levels+1)in
     if mip_levels>maximum_mips(max width(max height depth))1 then invalid operation"texture mip cardinality exceeds its extent"else Ok()
-let formats=[R8_unorm;Rgba8_unorm;Bgra8_unorm;Rgba16_float;Depth32_float]
+let formats=[R8_unorm;Rgba8_unorm;Bgra8_unorm;Rgba16_float;Rgba32_float;Depth32_float]
 let storages=[Device_local;Shared;Upload;Readback]
 let storage_supported=function Device_local|Shared->true|Upload|Readback->false
 let format_storage_table=Array.of_list(List.concat_map(fun format->List.map(fun storage->format,storage,storage_supported storage)storages)formats)

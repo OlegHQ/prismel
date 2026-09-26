@@ -19,11 +19,20 @@
   `Leader.Sketch_command id`); panes do not match `KeyPressed` for commands.
   `pxui_graph` never matches operation names; the host passes predicates such
   as `~flaggable`.
-- One immutable `Document` (graph, tile layout, display node, active camera,
-  sketch `Settings`) is the only thing `Editor_core.History` (128 entries)
-  snapshots. Its tile layout is an int-keyed map updated per frame from the
-  ids `Doc.apply` reports placed, moved, or deleted (`Document.edit`); never
-  walk every tile on an edit frame. Graph intents go through `Doc.apply`; each recorded entry has a
+- One immutable `Document` (the scene network, one network per geometry
+  object and World, active camera object, sketch `Settings`) is the only
+  thing `Editor_core.History` (128 entries) snapshots; `Core.doc` is always
+  its present. Each network's tile layout is an int-keyed map updated per
+  frame from the ids `Doc.apply` reports placed, moved, or deleted
+  (`Document.edit`); never walk every tile on an edit frame.
+- Scene objects are nodes of the scene `Edit_graph` (input 0 = parent,
+  parameters = transform and kind settings; `Objects`, `Layers`), so graph,
+  list, inspector, handles, presets, and undo have one path. Never add a
+  parallel object model. Levels (`Document.level`) are view state; `i`,
+  double-click, and list activation enter, `u` leaves. Object transforms
+  are applied when composing drawings, never inside SOP networks, so scene
+  edits never re-cook (`Async_cook.submit_all` cooks every visible
+  geometry object in one job). See `specification/scene.md`. Graph intents go through `Doc.apply`; each recorded entry has a
   label (`intent_label`), shown as "Undo <label>". Selection, hover, and an
   unlinked viewport camera are view state; a camera node that follows the
   viewport records camera moves as one `Burst` entry. Cooking and framing

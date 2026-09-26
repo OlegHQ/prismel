@@ -319,7 +319,44 @@ let test_parallel_exact () =
   check (equal_geometry (cook 1) (cook 4))
     "PolyBevel one/four-domain output differs"
 
+(* Every emitted strip and corner patch winds like the faces it joins: a
+   chamfered closed box keeps outward polygon normals and (nearly) its
+   volume. *)
+let test_outward_winding () =
+  List.iter (fun (shape, divisions) ->
+    let output = Poly_bevel.run ~grain:1 ~shape ~divisions ~distance:0.1 (box ()) |> get_pdk in
+    let topology = Geometry.topology output and positions = Geometry.positions output in
+    let volume = ref 0. in
+    for primitive = 0 to Geometry.primitive_count output - 1 do
+      let first, last = Topology.primitive_vertex_range topology primitive in
+      let count = last - first in
+      let point i = Packed.Float3.get positions
+          (Topology.point_of_vertex topology (first + (i mod count))) in
+      let nx = ref 0. and ny = ref 0. and nz = ref 0.
+      and cx = ref 0. and cy = ref 0. and cz = ref 0. in
+      for i = 0 to count - 1 do
+        let ax, ay, az = point i and bx, by, bz = point (i + 1) in
+        nx := !nx +. ((ay -. by) *. (az +. bz));
+        ny := !ny +. ((az -. bz) *. (ax +. bx));
+        nz := !nz +. ((ax -. bx) *. (ay +. by));
+        cx := !cx +. ax; cy := !cy +. ay; cz := !cz +. az
+      done;
+      check ((!nx *. !cx) +. (!ny *. !cy) +. (!nz *. !cz) > 0.)
+        (Printf.sprintf "PolyBevel primitive %d winds inward" primitive);
+      (* Fan triangulation for the signed volume. *)
+      let ox, oy, oz = point 0 in
+      for i = 1 to count - 2 do
+        let ax, ay, az = point i and bx, by, bz = point (i + 1) in
+        volume := !volume +. ((ox *. ((ay *. bz) -. (az *. by)))
+          +. (oy *. ((az *. bx) -. (ax *. bz))) +. (oz *. ((ax *. by) -. (ay *. bx)))) /. 6.
+      done
+    done;
+    check (!volume > 7.6 && !volume < 8.)
+      (Printf.sprintf "PolyBevel chamfered box volume %.3f is not just under 8" !volume))
+    [Poly_bevel.Bevel_chamfer, 1; Poly_bevel.Bevel_round { convexity = 0.5 }, 3]
+
 let run () =
+  test_outward_winding ();
   test_all_edges_and_profiles ();
   test_partial_network_and_clamping ();
   test_connected_network_flat_filter_and_normals ();

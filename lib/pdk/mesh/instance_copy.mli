@@ -18,6 +18,13 @@ val copy_to_points :
   (Geometry.t, Error.t) result
 (** Copy source geometry once per target point with stable payload ancestry. *)
 
+val copy_transforms :
+  ?cancel:Cancel.t -> ?grain:int -> ?target_points:Group.t -> Geometry.t ->
+  (Prismel_math.Mat4.t array, Error.t) result
+(** The affine transform [copy_to_points] gives each (selected) target point
+    — pscale, scale, orient or N/up, rot, trans, pivot, and transform — in
+    target order: a packed copy is its source drawn at these matrices. *)
+
 val materialize_instances :
   ?cancel:Cancel.t -> ?grain:int -> ?apply_transform:bool ->
   transforms:Prismel_math.Mat4.t array -> Geometry.t ->

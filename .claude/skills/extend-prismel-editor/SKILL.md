@@ -39,8 +39,16 @@ Read `lib/prismel_editor/AGENTS.md` first. Pick the lowest level that works:
    `pxui_shell` or `editor_core`, not into `prismel_editor`.
 6. **Undo**: `Editor_core.History` snapshots one immutable value. Give each
    record a `~label`; merge drags with `Gesture`, bursts with `Burst`.
+7. **Scene objects and levels**: an object kind is a node of the scene
+   network (`Objects`, `Layers`: PPX `sop_params`/`sop_node` records with an
+   optional input 0 as the parent, no `[@@sop.register]`), added to the
+   scene catalog in `Core.catalog`. A key that only means something on one
+   level is a `Leader` chord or sequence filtered in `Core.routed`. Sketches
+   pass lights as `?lights` and read `Editor3.objects`/`lights`/`world` for
+   their own renderers; see `specification/scene.md`.
 
-Check: `dune build @lib/editor_core/runtest @lib/pxui_shell/runtest`, then one
+Check: `dune build @lib/editor_core/runtest @lib/pxui_shell/runtest`,
+`SDL_VIDEODRIVER=dummy dune build @test/test_scene_tree @test/test_prismel_editor_logic`, then one
 native run of `dune build @test/test_prismel_editor` (opens a few windows;
 do not loop on it), `dune build @tools/api_manifest/runtest` (promote an
 intended `.mli` change), and the dependency gate in `dune runtest`.

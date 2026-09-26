@@ -25,6 +25,10 @@ type stats = {
 type output = {
   geometry : Pdk.Geometry.t;
   diagnostics : Diagnostic.t list;
+  instances : Prismel_math.Mat4.t array option;
+  (** A packed result (e.g. Copy to Points with Pack and instance): draw
+      [geometry] once per transform. A node that consumes it receives it
+      materialized. *)
 }
 
 val create : max_entries:int -> max_payload_bytes:int -> (t, string) result

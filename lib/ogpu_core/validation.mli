@@ -1,4 +1,4 @@
-type format = R8_unorm | Rgba8_unorm | Bgra8_unorm | Rgba16_float | Depth32_float
+type format = R8_unorm | Rgba8_unorm | Bgra8_unorm | Rgba16_float | Rgba32_float | Depth32_float
 type storage = Device_local | Shared | Upload | Readback
 type texture_usage = Binding | Storage_binding | Attachment | Copy_src | Copy_dst
 type texture_profile =

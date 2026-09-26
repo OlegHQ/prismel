@@ -1,5 +1,11 @@
 type resource = Buffer of Buffer.t | Texture of Texture.t
 
+let color_format (descriptor : Ogpu_core.Types.texture_descriptor) =
+  match descriptor.format with
+  | Rgba8_unorm -> Texture.Rgba8_unorm
+  | Rgba16_float -> Texture.Rgba16_float
+  | Rgba32_float -> Texture.Rgba32_float
+
 type icb_entry = {
   icb : Metal.Indirect_command_buffer.t;
   icb_commands : Metal.Indirect_command_buffer.Render_command.t option array;
@@ -247,7 +253,7 @@ let create () =
               (Texture.create device ~memory:(texture_memory ~host_read descriptor) ~format descriptor)
           in
           let create_texture descriptor =
-            create_texture_format ~format:Texture.Rgba8_unorm ~host_read:true descriptor
+            create_texture_format ~format:(color_format descriptor) ~host_read:true descriptor
           in
           let create_depth_texture descriptor =
             create_texture_format ~format:Texture.Depth32_float ~host_read:false descriptor
@@ -330,7 +336,7 @@ let create () =
                         register_texture ~host_read:(descriptor.heap_memory = Ogpu_core.Types.Shared) texture_descriptor
                           (Texture.create_in_heap device
                              ~memory:(match descriptor.heap_memory with Shared -> Texture.Shared | Device_local -> Device_local)
-                             heap ~offset ~format:Texture.Rgba8_unorm texture_descriptor));
+                             heap ~offset ~format:(color_format texture_descriptor) texture_descriptor));
                     heap_alias =
                       (fun token ->
                         let operation = "Ogpu_metal.Backend.make_aliasable" in
@@ -352,7 +358,7 @@ let create () =
                 | Error e -> Error (Device.of_metal_error ~operation:"Ogpu_metal.Backend.buffer_placement" e)
                 | Ok sizes -> Ok { Ogpu_core.Backend.placement_size = sizes.size; placement_alignment = sizes.alignment })
             | Texture_placement descriptor -> (
-                match Texture.placement device ~memory:Texture.Device_local ~format:Texture.Rgba8_unorm descriptor with
+                match Texture.placement device ~memory:Texture.Device_local ~format:(color_format descriptor) descriptor with
                 | Error _ as e -> e
                 | Ok (size, alignment) -> Ok { Ogpu_core.Backend.placement_size = size; placement_alignment = alignment })
           in
@@ -755,7 +761,7 @@ let create () =
             | Error _ as failure -> failure
             | Ok entry ->
                 register_texture ~host_read:false descriptor
-                  (Texture.create_sparse device entry.native ~format:Texture.Rgba8_unorm descriptor)
+                  (Texture.create_sparse device entry.native ~format:(color_format descriptor) descriptor)
           in
           let texture_tile token =
             let operation = "Ogpu_metal.Backend.texture_tile" in
@@ -1373,6 +1379,23 @@ let create () =
                                              ~threadgroups ~threadgroup));
                                     compute_use_heap =
                                       (fun token -> heap_call token (fun heap -> Metal.Compute_encoder.use_heaps encoder [ heap ]));
+                                    compute_use_accels =
+                                      (fun tokens ->
+                                        let rec collect acc = function
+                                          | [] -> Ok (List.rev acc)
+                                          | token :: rest -> (
+                                              match find_accel token with
+                                              | Error _ as failure -> failure
+                                              | Ok structure -> (
+                                                  match keep_accel structure with
+                                                  | Error _ as failure -> failure
+                                                  | Ok () -> collect (Acceleration.Private.metal structure :: acc) rest))
+                                        in
+                                        match collect [] tokens with
+                                        | Error _ as failure -> failure
+                                        | Ok [] -> Ok ()
+                                        | Ok structures ->
+                                            native_of (Metal.Compute_encoder.use_acceleration_structures encoder structures));
                                     compute_update_fence =
                                       (fun token -> fence_call `Update token (Metal.Compute_encoder.update_fence encoder));
                                     compute_wait_fence =

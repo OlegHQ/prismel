@@ -33,30 +33,30 @@ let instantiate factories document key input_ids =
 
 (* Folds one graph intent into the document and view; [placed] collects the
    ids whose tile position this frame set, moved, or removed, so the undo
-   document re-reads only those. *)
-let apply factories (document, graph_view, error, effects, placed) = function
+   document re-reads only those, and [pasted] the (source, copy) id pairs. *)
+let apply factories (document, graph_view, error, effects, placed, pasted) = function
   | Pxui_graph.Connect_requested connection ->
       (match Edit_graph.connect ~source:connection.source
           ~consumer:connection.consumer ~input_index:connection.input_index document with
-       | Error message -> document, graph_view, Some message, effects, placed
+       | Error message -> document, graph_view, Some message, effects, placed, pasted
        | Ok document -> document, Pxui_graph.with_document document graph_view,
-           None, Parameter.union_effects effects cook_effects, placed)
+           None, Parameter.union_effects effects cook_effects, placed, pasted)
   | Disconnect_requested connection ->
       (match Edit_graph.disconnect ~consumer:connection.consumer
           ~input_index:connection.input_index document with
-       | Error message -> document, graph_view, Some message, effects, placed
+       | Error message -> document, graph_view, Some message, effects, placed, pasted
        | Ok document -> document, Pxui_graph.with_document document graph_view,
-           None, Parameter.union_effects effects cook_effects, placed)
+           None, Parameter.union_effects effects cook_effects, placed, pasted)
   | Delete_nodes_requested ids ->
       let document = Edit_graph.remove_nodes ids document in
       document, Pxui_graph.with_document document graph_view, None,
-      Parameter.union_effects effects cook_effects, List.rev_append ids placed
+      Parameter.union_effects effects cook_effects, List.rev_append ids placed, pasted
   | Add_requested request ->
       (match instantiate factories document request.factory_key request.inputs with
-       | Error message -> document, graph_view, Some message, effects, placed
+       | Error message -> document, graph_view, Some message, effects, placed, pasted
        | Ok (node, slots, factory) ->
            (match Edit_graph.add_node ~inputs:slots ~factory node document with
-            | Error message -> document, graph_view, Some message, effects, placed
+            | Error message -> document, graph_view, Some message, effects, placed, pasted
             | Ok document ->
                 let connected = Edit_graph.factory_ready factory
                     (Array.to_list slots |> List.map (function
@@ -75,15 +75,15 @@ let apply factories (document, graph_view, error, effects, placed) = function
                 let graph_view = if connected
                   then Pxui_graph.view (Node.id node) graph_view else graph_view in
                 document, graph_view, None,
-                Parameter.union_effects effects cook_effects, Node.id node :: placed))
+                Parameter.union_effects effects cook_effects, Node.id node :: placed, pasted))
   | Insert_requested request ->
       (match instantiate factories document request.factory_key
           [request.connection.source] with
-       | Error message -> document, graph_view, Some message, effects, placed
+       | Error message -> document, graph_view, Some message, effects, placed, pasted
        | Ok (node, _, factory) ->
            (match Edit_graph.insert_on_connection ~factory
                request.connection node document with
-            | Error message -> document, graph_view, Some message, effects, placed
+            | Error message -> document, graph_view, Some message, effects, placed, pasted
             | Ok document ->
                 let x, y = request.at in
                 let graph_view = graph_view
@@ -92,11 +92,12 @@ let apply factories (document, graph_view, error, effects, placed) = function
                   |> Pxui_graph.select (Node.id node)
                   |> Pxui_graph.view (Node.id node) in
                 document, graph_view, None,
-                Parameter.union_effects effects cook_effects, Node.id node :: placed))
+                Parameter.union_effects effects cook_effects, Node.id node :: placed, pasted))
   | Paste_requested request ->
       (match Edit_graph.paste request.fragment document with
-       | Error message -> document, graph_view, Some message, effects, placed
+       | Error message -> document, graph_view, Some message, effects, placed, pasted
        | Ok (document, mapping) ->
+           let pasted_mapping = pasted in
            let pasted = List.map snd mapping in
            let graph_view = Pxui_graph.with_document document graph_view
              |> Pxui_graph.place_nodes (List.filter_map (fun (old_id, new_id) ->
@@ -106,9 +107,10 @@ let apply factories (document, graph_view, error, effects, placed) = function
              |> Pxui_graph.select_nodes pasted in
            document, graph_view, None,
            Parameter.union_effects effects cook_effects,
-           List.rev_append pasted placed)
-  | Node_moved id -> document, graph_view, error, effects, id :: placed
-  | Nodes_moved ids -> document, graph_view, error, effects, List.rev_append ids placed
-  | Selected _ | Viewed _ | View_changed
+           List.rev_append pasted placed, mapping @ pasted_mapping)
+  | Node_moved id -> document, graph_view, error, effects, id :: placed, pasted
+  | Nodes_moved ids -> document, graph_view, error, effects, List.rev_append ids placed,
+      pasted
+  | Selected _ | Viewed _ | View_changed | Open_requested _
   | Connection_selected _ | Flag_requested _ | Frame_camera_requested _ ->
-      document, graph_view, error, effects, placed
+      document, graph_view, error, effects, placed, pasted

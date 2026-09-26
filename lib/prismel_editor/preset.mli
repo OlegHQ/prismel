@@ -1,18 +1,17 @@
 (** Sketch presets: the full editable document as versioned JSON.
 
-    A preset records topology, per-node parameters, graph tile positions, the
-    display node, the active camera, and environment view settings. Nodes added
-    from the catalog are recreated from their factory; nodes from the sketch's
-    code graph (including custom, non-catalog SOPs) rebind by their stable
-    node id, so a preset only loads into the sketch whose code produced it. *)
+    A preset records the scene network (objects, their parents and
+    parameters), every object's own network (a geometry object's SOPs, the
+    World's layers) with tile positions and display nodes, the active camera,
+    sketch settings, and environment view settings. Nodes added from a
+    catalog are recreated from their factory; nodes from the sketch's code
+    graph (including custom, non-catalog SOPs) rebind by their stable node
+    id, so a preset only loads into the sketch whose code produced it.
+    Version 1 presets (one SOP network) load as the geometry object geo1,
+    their camera SOPs becoming camera objects. *)
 
 type loaded = {
-  document : Procedural.Edit_graph.t;
-  positions : (int * float * float) list;  (** graph-space tile positions *)
-  display : int option;
-  active_camera : int option;
-  settings : (string * Procedural.Parameter.value) list;
-  (** sketch settings by field name; empty in older presets *)
+  doc : Document.t;
   view : Yojson.Safe.t;  (** environment camera/render settings *)
 }
 
@@ -25,11 +24,8 @@ val default_name : unit -> string
 val path : directory:string -> name:string -> string
 
 val save :
-  directory:string -> name:string -> sketch:string ->
-  document:Procedural.Edit_graph.t -> positions:(int * float * float) list ->
-  display:int option -> active_camera:int option ->
-  settings:(string * Procedural.Parameter.value) list -> view:Yojson.Safe.t ->
-  (string, string) result
+  directory:string -> name:string -> sketch:string -> doc:Document.t ->
+  view:Yojson.Safe.t -> (string, string) result
 (** Write [<directory>/<name>.json] through {!Editor_core.Store}'s atomic JSON
     envelope; returns the path. *)
 
@@ -41,10 +37,9 @@ val delete : directory:string -> name:string -> (unit, string) result
 
 val load :
   path:string -> code:Procedural.Graph.t ->
-  factories:Procedural.Edit_graph.factory list -> (loaded, string) result
-(** Rebuild the saved document from [code]: code nodes rebind by id, catalog
-    nodes are instantiated from [factories] with disconnected placeholders,
-    then inputs are connected, parameters applied, and the display node set.
-    Code nodes absent from the preset are removed. Corrupt JSON, an unknown
-    version, a missing code node, or an unknown factory is an [Error]; the
-    caller's document is never touched. *)
+  factories:Procedural.Edit_graph.factory list -> settings:Settings.t ->
+  (loaded, string) result
+(** Rebuild the saved document from [code] and the catalogs; [settings] is
+    the sketch's settings value the saved fields apply to. Corrupt JSON, an
+    unknown version, a missing code node, or an unknown factory is an
+    [Error]; the caller's document is never touched. *)

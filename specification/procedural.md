@@ -1197,3 +1197,16 @@ The design was checked through 2026-08-04 against SideFX's primary documentation
 
 The OCaml API is intentionally smaller and strongly typed. It adopts documented
 workflow concepts without copying Houdini source or wire formats.
+
+## Packed outputs
+
+A cook result may be packed: `Session.output.instances = Some transforms`
+means "draw `geometry` once per transform". Copy to Points with **Pack and
+instance** produces one (the source once, `Pdk.Instance_copy.copy_transforms`
+of the targets: the same pscale/scale/orient/N/up/rot/trans/pivot/transform
+rules as the unpacked copy). Packed instances stay outside `Pdk.Geometry.t`:
+a node that consumes a packed result receives it materialized (the explicit
+boundary), memoized per packed output so downstream cache keys keep hitting.
+Renderers draw packed results as instances (`Scene3.instances_array`, the
+path tracer's instance structures), so editing target attributes re-uploads
+transforms, never multiplied topology.

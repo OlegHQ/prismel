@@ -52,6 +52,7 @@ type change =
   | Paste_requested of paste_request
   | Flag_requested of int
   | Frame_camera_requested of int
+  | Open_requested of int
 
 type box = {
   info : Edit_graph.node_info;
@@ -597,7 +598,7 @@ let with_bounds ~x ~y ~width ~height value =
 
 let with_visible visible value =
   if visible = value.visible then value
-  else { value with visible; drag = None; menu = None; context = None }
+  else { value with visible; drag = None; context = None }
 let visible (value : t) = value.visible
 let selected (value : t) = value.primary
 let selected_nodes (value : t) = Id_set.elements value.selected
@@ -618,7 +619,7 @@ let select_nodes node_ids value =
         (Printf.sprintf "Pxui_graph.select_nodes: graph has no node #%d" node_id);
     Id_set.add node_id selected) Id_set.empty node_ids in
   { value with selected;
-    primary = if Id_set.is_empty selected then None else Some (Id_set.max_elt selected);
+    primary = (match node_ids with id :: _ -> Some id | [] -> None);
     selected_edge = None }
 
 let clear_selection value = { value with selected = Id_set.empty; primary = None;
@@ -1373,33 +1374,84 @@ let picker_rows value menu query =
         if query = "" then Printf.sprintf "%d in" entry.arity
         else Printf.sprintf "%s · %d in" (category_text entry.category) entry.arity)
 
-(* The node menu: a kit panel with a picker, kept inside the canvas. A press
-   outside it or window focus loss closes it like Escape. *)
+(* The node menu: a search field over the top-level column. Hovering or
+   clicking a category opens its column to the right; clicking an entry adds
+   it. Typing lists every matching node instead (arrows and Enter pick).
+   All columns share one popup, so a press in any of them keeps it open; a
+   press outside or Escape closes it. *)
 let build_menu (value : t) ui menu =
   let row = Ui.row_height ui in
-  let count = Array.length (menu_rows value menu) in
-  let height = ((1 + min menu_limit count) * row) + 6 in
-  let x = menu.x and y = max value.y (min menu.y (value.y + value.height - height)) in
-  let breadcrumb = match menu.path with
-    | [] -> "SOPs" | path -> "SOPs / " ^ category_text path in
-  let result = Ui.popup ui ~at:(float_of_int x, float_of_int y)
-      ~width:(float_of_int menu_width) ~height:(float_of_int height)
+  let searching = menu.query <> "" in
+  let rows_of prefix = menu_rows value { menu with path = prefix; query = "" } in
+  (* A lone top-level category (the scene's Object, the World's Layer)
+     opens by itself. *)
+  let base = match rows_of [] with [| Menu_category category |] -> [category] | _ -> [] in
+  let menu = if menu.path = [] then { menu with path = base } else menu in
+  let levels = if searching then []
+    else List.init (List.length menu.path + 1 - List.length base) (fun depth ->
+      List.filteri (fun index _ -> index < depth + List.length base) menu.path) in
+  let shown = if searching then Array.length (menu_rows value { menu with path = [] })
+    else List.fold_left (fun most prefix -> max most (Array.length (rows_of prefix))) 0 levels in
+  let height = ((1 + min menu_limit shown) * row) + 6 in
+  let width = max 1 (List.length levels) * menu_width in
+  let x = max 0 (min menu.x (value.x + value.width - width))
+  and y = max value.y (min menu.y (value.y + value.height - height)) in
+  let result = Ui.popup ui ~stroke:(Ui.theme ui).accent ~at:(float_of_int x, float_of_int y)
+      ~width:(float_of_int width) ~height:(float_of_int height)
       "pxui-graph-menu" (fun () ->
-      Ui.picker ui ~limit:menu_limit breadcrumb ~query:menu.query
-        (picker_rows value menu)) in
+      let query, pick = Ui.picker ui ~limit:menu_limit "Add · type to search"
+          ~query:menu.query (fun query ->
+            if query = "" then [||] else picker_rows value { menu with path = [] } query) in
+      let hovered = ref None and clicked = ref None in
+      if query = "" then
+        Ui.row ui "pxui-graph-menu-columns" (fun () ->
+          List.iteri (fun depth prefix ->
+            let column = Ui.box ui ~flags:Ui.(scroll + clip) ~w:(Ui.Px (float_of_int menu_width))
+                ~h:Ui.Fit ~max_h:(float_of_int (menu_limit * row)) ~axis:Ui.Column
+                (Printf.sprintf "column-%d" depth) in
+            Ui.within ui column (fun () ->
+              Array.iteri (fun index item ->
+                let item_box = Ui.box ui ~flags:Ui.(clickable + blocking) ~w:Ui.Grow
+                    ~h:(Ui.Px (float_of_int row)) (Printf.sprintf "item-%d" index) in
+                let signal = Ui.signal ui item_box in
+                let label, detail, opened = match item with
+                  | Menu_category category ->
+                      category, "›",
+                      List.nth_opt menu.path (depth + List.length base) = Some category
+                  | Menu_entry entry -> entry.label, Printf.sprintf "%d in" entry.arity, false in
+                if signal.hovered then hovered := Some (prefix, item);
+                if signal.clicked then clicked := Some (prefix, item);
+                let theme = Ui.theme ui in
+                Ui.draw ui item_box (fun paint (x, y, w, h) ->
+                  if opened || signal.hovered then
+                    Ui.Paint.fill paint ~x ~y:(y +. 1.) ~w ~h:(h -. 2.)
+                      (if opened then theme.foreground else Pxui.Theme.hover_fill theme);
+                  let color = if opened then theme.input else theme.foreground in
+                  let text_y = y +. Float.max 4. ((h -. float_of_int (Ui.font_size ui)) /. 2.) in
+                  Ui.Paint.text paint ~at:(x +. 8., text_y) ~color label;
+                  Ui.Paint.text paint ~at:(x +. w -. 8. -. Ui.Paint.text_width paint detail, text_y)
+                    ~color:(if opened then theme.input else Pxui.Theme.muted theme) detail))
+                (rows_of prefix))) levels);
+      query, pick, !hovered, !clicked) in
   let menu, requests = match result with
     | None -> None, []
-    | Some (query, pick) ->
-      let menu = { menu with query } in
-      (match pick with
-    | `Cancel -> None, []
-    | `Back -> Some { menu with path = parent_path menu.path; query = "" }, []
-    | `Pick index ->
-        (match (menu_rows value menu).(index) with
-         | Menu_category category ->
-             Some { menu with path = menu.path @ [category]; query = "" }, []
-         | Menu_entry entry -> None, [menu_request value menu entry])
-    | `None | `Submit | `Delete _ -> Some menu, []) in
+    | Some (query, pick, hovered, clicked) ->
+        let menu = { menu with query } in
+        (match pick, clicked, hovered with
+         | `Cancel, _, _ -> None, []
+         | `Back, _, _ -> Some { menu with path = parent_path menu.path; query = "" }, []
+         | `Pick index, _, _ ->
+             (match (menu_rows value { menu with path = [] }).(index) with
+              | Menu_category category -> Some { menu with path = [category]; query = "" }, []
+              | Menu_entry entry -> None, [menu_request value menu entry])
+         | _, Some (_, Menu_entry entry), _ -> None, [menu_request value menu entry]
+         | _, Some (prefix, Menu_category category), _
+         | _, None, Some (prefix, Menu_category category) ->
+             Some { menu with path = prefix @ [category] }, []
+         | _, None, Some (prefix, Menu_entry _)
+           when List.length prefix < List.length menu.path ->
+             Some { menu with path = prefix }, []
+         | _ -> Some menu, []) in
   if menu = None then Ui.unfocus ui;
   { value with menu }, requests
 
@@ -1436,7 +1488,12 @@ let apply_context (value : t) context index =
       { value with selected_edge = None }, [Disconnect_requested connection]
 
 let update (value : t) ui (frame : Frame.t) =
-  if not value.visible then { value with drag = None; menu = None; context = None }, []
+  if not value.visible then
+    (* A hidden canvas (the host shows a list instead) still runs its menu. *)
+    match value.menu with
+    | Some menu -> let value, emitted = build_menu { value with drag = None; context = None }
+          ui menu in value, List.rev emitted
+    | None -> { value with drag = None; context = None }, []
   else
   let initial = value in
   let canvas = Ui.box ui ~flags:Ui.(clickable + scroll + clip + blocking)
@@ -1569,6 +1626,8 @@ let update (value : t) ui (frame : Frame.t) =
               value, changes
             end else value, changes
         | None -> value, changes in
+      let changes = if tile_signal.double_clicked && left tile_signal
+        then Open_requested id :: changes else changes in
       if tile_signal.pressed && left tile_signal then begin
         let before = value.primary in
         let value = select_node value ~additive:(List.mem Input.Shift frame.keys) index in
@@ -1682,6 +1741,37 @@ let update (value : t) ui (frame : Frame.t) =
                value.theme.accent)
     | Some (Move_nodes _) | None -> ());
   value, List.rev changes
+
+let trunk document =
+  let infos = Edit_graph.inspect document in
+  let consumed = Hashtbl.create 64 and inputs = Hashtbl.create 64 in
+  List.iter (fun (info : Edit_graph.node_info) ->
+    Hashtbl.replace inputs info.id info.inputs;
+    Array.iter (Option.iter (fun id -> Hashtbl.replace consumed id ())) info.inputs)
+    infos;
+  let emitted = Hashtbl.create 64 and rows = ref [] in
+  let first id = match Hashtbl.find_opt inputs id with
+    | Some slots when Array.length slots > 0 -> slots.(0) | _ -> None in
+  let rec emit_trunk id depth =
+    (* The chain up the first inputs, stopping at a node already listed. *)
+    let rec chain id acc =
+      if Hashtbl.mem emitted id then Some id, acc
+      else match first id with
+        | Some source when Hashtbl.mem inputs source -> chain source (id :: acc)
+        | _ -> None, id :: acc in
+    let shared, nodes = chain id [] in
+    Option.iter (fun id -> rows := (id, depth, true) :: !rows) shared;
+    List.iter (fun id ->
+      Hashtbl.replace emitted id ();
+      rows := (id, depth, false) :: !rows;
+      Array.iteri (fun index slot -> match slot with
+        | Some side when index > 0 && Hashtbl.mem inputs side ->
+            if Hashtbl.mem emitted side then rows := (side, depth + 1, true) :: !rows
+            else emit_trunk side (depth + 1)
+        | _ -> ()) (Option.value ~default:[||] (Hashtbl.find_opt inputs id))) nodes in
+  List.iter (fun (info : Edit_graph.node_info) ->
+    if not (Hashtbl.mem consumed info.id) then emit_trunk info.id 0) infos;
+  Array.of_list (List.rev !rows)
 
 module Private = struct
   let hit_edge_id value point = Option.map (fun index ->

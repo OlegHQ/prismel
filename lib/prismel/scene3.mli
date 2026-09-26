@@ -111,6 +111,10 @@ val instances_array :
     shared and instance transforms stream through rendering without first
     materializing a drawing list. *)
 
+val nodes : t -> node list
+(** The scene's drawings without its lights and render settings, e.g. to
+    place a whole scene under a [transform] inside another. *)
+
 val group : node list -> node
 val transform : Mat4.t -> node list -> node
 val translate : Vec3.t -> node list -> node
@@ -181,6 +185,14 @@ val cone :
   unit ->
   node
 
+val with_world : World.baked -> t -> t
+(** Light the scene with a baked {!World} instead of Blinn-Phong: the camera
+    map (or the World's background color) behind the geometry, image-based
+    diffuse (SH9) and specular (prefiltered mips), the sun and the extracted
+    rect lights beside the scene's own lights, all through the path tracer's
+    GGX BRDF and ACES tone map. [specification/environment.md] documents the
+    material mapping and the light cap. *)
+
 module Private : sig
   type drawing = {
     mesh : Mesh.t;
@@ -209,5 +221,6 @@ module Private : sig
   val depth_clear : t -> float
   val stencil_clear : t -> int
   val samples : t -> int
+  val world : t -> World.baked option
 end
 (** Internal renderer boundary. *)

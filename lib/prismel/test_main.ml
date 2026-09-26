@@ -14,6 +14,8 @@ let tests = [
   "test_core_interface_preservation", Test_core_interface_preservation.run;
   "test_resource_interface_preservation", Test_resource_interface_preservation.run;
   "test_canvas_native", Test_canvas_native.run;
+  "test_world", Test_world.run;
+  "test_world_raster", Test_world_raster.run;
 ]
 
 let () =

@@ -9,13 +9,13 @@ let frame : Frame.t = {
 }
 
 let bindings = Editor_core.[
-  Command.make ~id:"save" ~label:"Save" ~trigger:(Keymap.Leader 's') "save";
-  Command.make ~id:"view" ~label:"View" ~trigger:(Keymap.Leader 'v') ~scope:"view" "view";]
+  Command.make ~id:"save" ~label:"Save" ~trigger:(Keymap.Leader "s") "save";
+  Command.make ~id:"view" ~label:"View" ~trigger:(Keymap.Leader "v") ~scope:"view" "view";]
 
 let instances focus =
   let ui = Pxui.Ui.create () in
   ignore (Pxui.Ui.frame ui frame (fun ui ->
-    Pxui_shell.Which_key.panel ui bindings ~focus ~focus_name:"View"));
+    Pxui_shell.Which_key.panel ui bindings ~prefix:"" ~focus ~focus_name:"View"));
   match Scene.Private.stage_native ~width:400 ~height:300 (Pxui.Ui.scene ui) with
   | Error message -> failwith message
   | Ok staged -> List.fold_left (fun total -> function
@@ -128,5 +128,84 @@ let () =
   (match record click false with
    | Ok (true, effects) when effects.cook -> ()
    | _ -> failwith "inspector toggle did not edit the record");
+  Pxui.Ui.destroy ui;
+  (* Tree: WAI-ARIA keys through [run_command], and pointer gestures (dead
+     zone, before/inside/after drops, toggle paint, double-click). *)
+  let module T = Pxui_shell.Tree in
+  let row id depth label = { T.id; depth; label; detail = ""; badge = "S", Color.gray 90; link = false;
+    ghost = false; flags = [true] } in
+  let rows = [| row 1 0 "a"; row 2 1 "b"; row 3 1 "c"; row 4 0 "d" |] in
+  let expect name got want = if got <> want then failwith ("tree: " ^ name) in
+  let run t command = T.run_command t rows ~selected:[] command in
+  let t, intents = run (T.create ()) T.Down in
+  expect "Down from nothing selects the first row" intents [T.Select [1]];
+  let t, intents = run t T.Down in
+  expect "Down moves to the child" intents [T.Select [2]];
+  let t2, intents = run t T.Extend_down in
+  expect "Shift-Down extends from the anchor" intents [T.Select [3; 2]];
+  ignore t2;
+  let t, intents = run t T.Collapse in
+  expect "Left on a leaf goes to its parent" intents [T.Select [1]];
+  let t, intents = run t T.Collapse in
+  expect "Left on an open parent folds it" intents [];
+  let t, intents = run t T.Down in
+  expect "a folded parent hides its children" intents [T.Select [4]];
+  let t, _ = run t T.Up in
+  let t, intents = run t T.Expand in
+  expect "Right unfolds" intents [];
+  let t, intents = run t T.Expand in
+  expect "Right on an open parent goes to its first child" intents [T.Select [2]];
+  let _, intents = run t T.Last in
+  expect "End selects the last row" intents [T.Select [4]];
+  let _, intents = T.run_command t rows ~selected:[2; 3] T.Indent_rows in
+  expect "Tab reparents the selection" intents [T.Indent [2; 3]];
+  let _, intents = run t T.Outdent_rows in
+  expect "Shift-Tab outdents the focus" intents [T.Outdent [2]];
+  let _, intents = run t T.Move_up in
+  expect "Alt-Up reorders" intents [T.Reorder { ids = [2]; delta = -1 }];
+  let _, intents = run t T.Hide in
+  expect "h hides the focused row" intents [T.Flag { ids = [2]; column = 0; value = false }];
+  let _, intents = run t T.Activate_row in
+  expect "the enter key activates" intents [T.Activate 2];
+  let filtering, _ = run t T.Filter in
+  expect "/ opens the filter" (T.editing filtering) true;
+  let ui = Pxui.Ui.create () in
+  let center k = 200., 24. +. (24. *. float_of_int k) +. 12. in
+  let step t ?(mouse = 0., 0.) events =
+    Pxui.Ui.frame ui { frame with events; mouse } (fun ui ->
+      T.update t ui { frame with events; mouse } ~bounds:(0, 0, 400, 300)
+        ~columns:["vis"] rows ~selected:[]) in
+  let gesture t from_ to_ =
+    let t, _ = step t ~mouse:from_ [] in
+    let t, pressed = step t ~mouse:from_ [Event.MousePressed (Input.LeftButton, from_)] in
+    let t, moved = step t ~mouse:to_ [Event.MouseMoved to_] in
+    let t, released = step t ~mouse:to_ [Event.MouseReleased (Input.LeftButton, to_)] in
+    t, pressed @ moved @ released in
+  let moves intents = List.filter (function T.Move _ -> true | _ -> false) intents in
+  let x, y = center 0 in
+  let t, intents = gesture (T.create ()) (x, y) (x +. 2., y +. 1.) in
+  expect "a 2-point drag stays inside the dead zone" (moves intents) [];
+  let drop k fraction = let x, y = center k in x, y -. 12. +. (24. *. fraction) in
+  let t, intents = gesture t (center 1) (drop 3 0.5) in
+  expect "the middle of a row drops inside"
+    (moves intents) [T.Move { ids = [2]; target = 4; drop = T.Inside }];
+  let t, intents = gesture t (center 1) (drop 3 0.1) in
+  expect "the top quarter drops before"
+    (moves intents) [T.Move { ids = [2]; target = 4; drop = T.Before }];
+  let t, intents = gesture t (center 1) (drop 3 0.9) in
+  expect "the bottom quarter drops after"
+    (moves intents) [T.Move { ids = [2]; target = 4; drop = T.After }];
+  let flag k = 386., snd (center k) in
+  let t, intents = gesture t (flag 0) (flag 2) in
+  expect "dragging down a toggle column paints each row it passes"
+    (List.filter (function T.Flag _ -> true | _ -> false) intents)
+    [T.Flag { ids = [1]; column = 0; value = false };
+     T.Flag { ids = [3]; column = 0; value = false }];
+  let click = [Event.MousePressed (Input.LeftButton, center 3);
+    Event.MouseReleased (Input.LeftButton, center 3)] in
+  let t, _ = step t ~mouse:(center 3) click in
+  let _, intents = step t ~mouse:(center 3) click in
+  expect "a double-click activates the row"
+    (List.filter (function T.Activate _ -> true | _ -> false) intents) [T.Activate 4];
   Pxui.Ui.destroy ui;
   print_endline "pxui shell tests passed"

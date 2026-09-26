@@ -7,14 +7,20 @@ using namespace raytracing;
 // instance acceleration structure and per-instance transforms; MOTION adds a
 // second transform keyframe per instance and a shutter time per sample;
 // SPHERES adds bounding-box geometry resolved by an intersection function
-// table; CURVES adds linear round strands. The kernel body is templated on the
+// table; CURVES adds linear round strands; SCENE (below) adds several
+// primitive structures under one instance structure. The kernel body is templated on the
 // structure, intersector, and table types so every specialization compiles
 // from this single source.
 constant bool INSTANCED [[function_constant(0)]];
 constant bool MOTION [[function_constant(1)]];
 constant bool SPHERES [[function_constant(2)]];
 constant bool CURVES [[function_constant(3)]];
+// SCENE (with INSTANCED): the instance structure spans several primitive
+// structures over one shared vertex buffer; a per-instance table gives the
+// instance's first triangle there and its material (~0u: per-triangle ids).
+constant bool SCENE [[function_constant(4)]];
 constant bool FLAT = !INSTANCED;
+constant bool IDS = FLAT || SCENE;
 constant bool STATIC_INSTANCED = INSTANCED && !MOTION;
 constant bool MOTION_INSTANCED = INSTANCED && MOTION;
 constant bool T_F = SPHERES && FLAT && !CURVES;
@@ -110,25 +116,43 @@ template <> struct Isect<true, true> {
   static auto go(thread Tracer &t, ray r, Scene s, Table table, float time) { return t.intersect(r, s, time, table); }
 };
 
+// Preview frames trace every scale-th pixel and fill the block they stand for.
+inline void write_block(texture2d<float, access::write> output, uint2 gid, uint scale, float4 value) {
+  if (scale <= 1u) { output.write(value, gid); return; }
+  for (uint dy = 0; dy < scale; ++dy)
+    for (uint dx = 0; dx < scale; ++dx) {
+      uint2 p = gid * scale + uint2(dx, dy);
+      if (p.x < output.get_width() && p.y < output.get_height()) output.write(value, p);
+    }
+}
+
 struct Uniforms {
-  float4 eye;      // xyz
+  float4 eye;      // xyz, w = lens radius (0 = pinhole)
   float4 forward;  // xyz, w = tan(fov / 2)
   float4 right;    // xyz, w = aspect
-  float4 up;       // xyz
+  float4 up;       // xyz, w = focus distance
   float4 sky;
   float4 ground;
   uint width, height, frame, spp;
   uint panel_count, bounces;
   float exposure;
   uint round_samples;
-  uint light_count, preview, pad1, pad2;
+  uint light_count, preview, pad1, scale;  // scale: preview block size
   float4 prev_eye;
   float4 prev_forward;
   float4 prev_right;
   float4 prev_up;
+  // World (set_world): world = 1 switches the dome and panels off for the
+  // baked maps in buffer 8. background: 0 environment, 1 color, 2 transparent.
+  uint world, background, map_width, map_height;
+  float4 background_color;
+  float4 sun_direction;  // xyz toward the sun, w = 1 - cos(angular radius)
+  float4 sun_radiance;   // w = cone pdf, 1 / solid angle (0 = no sun)
+  uint bsdf_only, row_offset, pad4, pad5;  // row_offset: this band's first row
 };
 struct Material { float4 albedo_roughness; float4 emission_metallic; float4 round; };
 // Rectangle area light: corner + two edge vectors; radiance.w is the area.
+// origin.w = 1 makes it one-sided, emitting along cross(u, v).
 struct Light { float4 origin; float4 u; float4 v; float4 radiance; };
 struct Panel { float4 direction; float4 color; float4 extents; };
 
@@ -178,6 +202,7 @@ template <bool INST, bool MOT, typename Scene, typename Tracer>
 inline float3 round_corners(Scene scene,
                             device const packed_float3 *positions,
                             device const packed_float3 *transforms,
+                            device const uint2 *scene_table,
                             float3 P, float3 N, float radius, uint samples,
                             float time, thread uint &state) {
   float3 t, b;
@@ -202,6 +227,7 @@ inline float3 round_corners(Scene scene,
       auto hit = Isect<MOT, false>::go(probe, r, scene, 0, time);
       if (hit.type != intersection_type::triangle) break;
       uint prim = hit.primitive_id;
+      if (SCENE) prim += scene_table[instance_of(hit)].x;
       float3 p0 = float3(positions[prim * 3]), p1 = float3(positions[prim * 3 + 1]), p2 = float3(positions[prim * 3 + 2]);
       if (INST) {
         p0 = world_point(transforms, instance_of(hit), p0, time);
@@ -283,6 +309,93 @@ inline float3 eval_brdf(float3 ns, float3 v, float3 l, float3 diffuse, float3 f0
   return diffuse * (1.0f - F) / M_PI_F + d_ggx(noh, a2) * v_smith(nov, nol, a2) * F;
 }
 
+// Baked World (Prismel.World.baked) in one float buffer: camera map, lighting
+// map (w x h RGB each, equirect, +Y up, u = atan2(x, -z) / 2pi + 0.5,
+// v = acos(y) / pi, texel centres at (i + 0.5) / w), then the CDF marginal
+// (h + 1) and conditional rows (h x (w + 1)).
+inline float2 world_uv(float3 d) {
+  float u = atan2(d.x, -d.z) / (2.0f * M_PI_F) + 0.5f;
+  return float2(u >= 1.0f ? u - 1.0f : u, acos(clamp(d.y, -1.0f, 1.0f)) / M_PI_F);
+}
+inline float3 world_dir(float2 uv) {
+  float phi = (uv.x - 0.5f) * 2.0f * M_PI_F, theta = uv.y * M_PI_F, s = sin(theta);
+  return float3(s * sin(phi), cos(theta), -s * cos(phi));
+}
+// Bilinear, u wraps, v clamps: the same filter as World.lookup.
+inline float3 world_lookup(device const float *map, uint w, uint h, float3 d) {
+  float2 uv = world_uv(d);
+  float fx = uv.x * float(w) - 0.5f, fy = uv.y * float(h) - 0.5f;
+  float x0 = floor(fx), y0 = floor(fy), tx = fx - x0, ty = fy - y0;
+  int iw = int(w);
+  uint xa = uint(((int(x0) % iw) + iw) % iw), xb = (xa + 1u) % w;
+  uint ya = uint(clamp(int(y0), 0, int(h) - 1)) * w, yb = uint(clamp(int(y0) + 1, 0, int(h) - 1)) * w;
+  uint aa = (ya + xa) * 3u, ba = (ya + xb) * 3u, ab = (yb + xa) * 3u, bb = (yb + xb) * 3u;
+  float3 a = float3(map[aa], map[aa + 1u], map[aa + 2u]), b = float3(map[ba], map[ba + 1u], map[ba + 2u]);
+  float3 c = float3(map[ab], map[ab + 1u], map[ab + 2u]), e = float3(map[bb], map[bb + 1u], map[bb + 2u]);
+  float3 top = a + tx * (b - a), bottom = c + tx * (e - c);
+  return top + ty * (bottom - top);
+}
+// Largest k in [0, n) with cdf[k] <= x; cdf[0] = 0 and cdf[n] = 1 > x.
+inline uint cdf_find(device const float *cdf, uint n, float x) {
+  uint lo = 0u, hi = n;
+  while (hi - lo > 1u) {
+    uint mid = (lo + hi) / 2u;
+    if (cdf[mid] <= x) lo = mid; else hi = mid;
+  }
+  return lo;
+}
+// Solid-angle pdf of texel (i, j) sampled uniformly in (u, v): the CDF's own
+// piecewise-constant probabilities over the Jacobian 2 pi^2 sin(theta).
+inline float world_texel_pdf(device const float *marginal, device const float *conditional,
+                             uint w, uint h, uint i, uint j, float sin_theta) {
+  device const float *row = conditional + j * (w + 1u);
+  float p = (marginal[j + 1u] - marginal[j]) * (row[i + 1u] - row[i]) * float(w * h);
+  return sin_theta > 1e-6f ? p / (2.0f * M_PI_F * M_PI_F * sin_theta) : 0.0f;
+}
+inline float world_pdf(constant Uniforms &u, device const float *world, float3 d) {
+  uint w = u.map_width, h = u.map_height;
+  device const float *marginal = world + 6u * w * h;
+  float2 uv = world_uv(d);
+  uint i = min(uint(uv.x * float(w)), w - 1u), j = min(uint(uv.y * float(h)), h - 1u);
+  return world_texel_pdf(marginal, marginal + h + 1u, w, h, i, j, sqrt(max(0.0f, 1.0f - d.y * d.y)));
+}
+// Inverse-CDF sample of the lighting map; the leftover of each uniform inside
+// its CDF step places the direction within the texel.
+inline float3 sample_world(constant Uniforms &u, device const float *world, thread uint &state, thread float &pdf) {
+  uint w = u.map_width, h = u.map_height;
+  device const float *marginal = world + 6u * w * h;
+  device const float *conditional = marginal + h + 1u;
+  float x1 = rnd(state), x2 = rnd(state);
+  uint j = cdf_find(marginal, h, x1);
+  device const float *row = conditional + j * (w + 1u);
+  uint i = cdf_find(row, w, x2);
+  float fv = clamp((x1 - marginal[j]) / max(marginal[j + 1u] - marginal[j], 1e-12f), 0.0f, 0.9999f);
+  float fu = clamp((x2 - row[i]) / max(row[i + 1u] - row[i], 1e-12f), 0.0f, 0.9999f);
+  float3 d = world_dir(float2((float(i) + fu) / float(w), (float(j) + fv) / float(h)));
+  pdf = world_texel_pdf(marginal, conditional, w, h, i, j, sqrt(max(0.0f, 1.0f - d.y * d.y)));
+  return d;
+}
+// Power heuristic weight of strategy [a] against [b] (a > 0).
+inline float power_weight(float a, float b) {
+  float r = b / a;
+  return 1.0f / (1.0f + r * r);
+}
+// Distance to a rect light along a ray, or -1; cos_l is the emitter-side
+// cosine (one-sided lights emit only along cross(u, v)).
+inline float rect_hit(Light L, float3 o, float3 d, float tmax, thread float &cos_l) {
+  float3 n = cross(L.u.xyz, L.v.xyz);
+  float dn = dot(d, n), nn = dot(n, n);
+  if (fabs(dn) < 1e-12f || nn <= 0.0f) return -1.0f;
+  float t = dot(L.origin.xyz - o, n) / dn;
+  if (t <= 1e-4f || t >= tmax) return -1.0f;
+  float3 p = o + d * t - L.origin.xyz;
+  float a = dot(cross(p, L.v.xyz), n) / nn, b = dot(cross(L.u.xyz, p), n) / nn;
+  if (a < 0.0f || a > 1.0f || b < 0.0f || b > 1.0f) return -1.0f;
+  float c = -dn / sqrt(nn);
+  cos_l = L.origin.w > 0.5f ? c : fabs(c);
+  return cos_l > 1e-4f ? t : -1.0f;
+}
+
 inline uchar4 resolved_rgba(float3 linear, float exposure) {
   float3 c = linear * exposure;
   c = (c * (2.51f * c + 0.03f)) / (c * (2.43f * c + 0.59f) + 0.14f);
@@ -303,6 +416,7 @@ inline void trace_pixel(
     device float4 *accum,
     texture2d<float, access::write> output,
     device const Light *lights,
+    device const float *world,
     device const packed_float3 *transforms,
     device const float4 *previous_color,
     device const float4 *previous_geometry,
@@ -313,9 +427,11 @@ inline void trace_pixel(
     device const packed_float3 *strand_points,
     device const uint *strand_indices,
     device const uint *strand_ids,
+    device const uint2 *scene_table,
     uint2 gid) {
   // Trace primary visibility at every output pixel during camera motion.
   // Preview spends its smaller ray budget on direct light and one bevel probe.
+  gid.y += u.row_offset;
   if (gid.x >= u.width || gid.y >= u.height) return;
   uint pixel = gid.y * u.width + gid.x;
   uint bounces = u.preview ? 1u : u.bounces;
@@ -334,6 +450,7 @@ inline void trace_pixel(
   shadow.accept_any_intersection(true);
   float aspect = u.right.w, tan_half = u.forward.w;
   float3 sum = float3(0.0f);
+  float coverage = 0.0f;  // World path: samples whose camera ray hit something
   float3 primary_position = float3(0.0f), primary_normal = float3(0.0f);
   float primary_depth = 0.0f;
   for (uint s = 0; s < spp; ++s) {
@@ -345,13 +462,72 @@ inline void trace_pixel(
     ray r;
     r.origin = u.eye.xyz;
     r.direction = normalize(u.forward.xyz + u.right.xyz * (px * tan_half * aspect) + u.up.xyz * (py * tan_half));
+    if (u.eye.w > 0.0f && !u.preview) {
+      // Thin lens: the pinhole ray meets the focus plane at [focus]; the
+      // sample instead starts from a uniform point of the lens disk and aims
+      // at that same point, so only the focus plane stays sharp.
+      float3 focus = r.origin + r.direction * (u.up.w / dot(r.direction, u.forward.xyz));
+      float radius = u.eye.w * sqrt(rnd(state)), angle = 2.0f * M_PI_F * rnd(state);
+      r.origin += u.right.xyz * (radius * cos(angle)) + u.up.xyz * (radius * sin(angle));
+      r.direction = normalize(focus - r.origin);
+    }
     r.min_distance = 1e-4f;
     r.max_distance = INFINITY;
     float3 throughput = float3(1.0f), radiance = float3(0.0f);
+    // World path: [radiance] holds direct light (camera-visible emitters and
+    // light arriving at the first hit), [indirect] the rest, which alone is
+    // firefly-clamped.
+    float3 indirect = float3(0.0f);
     float last_pdf = 0.0f;  // BSDF pdf of the direction that produced this ray
     for (uint bounce = 0; bounce < bounces; ++bounce) {
       auto hit = Isect<MOT, SPH>::go(trace, r, scene, table, time);
-      if (hit.type == intersection_type::none) {
+      if (u.world) {
+        // Rect lights are hittable. A camera ray stops at the nearest one in
+        // front of the scene; later rays add every rect they cross (MIS
+        // against light sampling) and continue, matching the shadow rays,
+        // which ignore rects. ponytail: rects never occlude later bounces, and
+        // every ray tests every rect (linear in the light count).
+        float tmax = hit.type == intersection_type::none ? INFINITY : hit.distance;
+        float nearest = tmax;
+        float3 seen = float3(0.0f);
+        for (uint k = 0; k < u.light_count; ++k) {
+          float cos_l;
+          float t = rect_hit(lights[k], r.origin, r.direction, tmax, cos_l);
+          if (t < 0.0f) continue;
+          if (bounce == 0u) {
+            if (t < nearest) { nearest = t; seen = lights[k].radiance.xyz; }
+          } else {
+            float pl = t * t / (cos_l * lights[k].radiance.w * float(u.light_count));
+            float w = u.bsdf_only ? 1.0f : power_weight(last_pdf, pl);
+            float3 e = throughput * lights[k].radiance.xyz * w;
+            if (bounce == 1u) radiance += e; else indirect += e;
+          }
+        }
+        if (bounce == 0u && nearest < tmax) {
+          radiance += seen;
+          coverage += 1.0f;
+          break;
+        }
+        if (hit.type == intersection_type::none) {
+          device const float *maps = world;
+          uint w = u.map_width, h = u.map_height;
+          if (bounce == 0u) {
+            // The eye sees the camera map (sun disc and promoted emitters
+            // included) or the flat background.
+            if (u.background == 0u) radiance += world_lookup(maps, w, h, r.direction);
+            else if (u.background == 1u) radiance += u.background_color.xyz;
+          } else {
+            float3 e = world_lookup(maps + 3u * w * h, w, h, r.direction)
+                       * (u.bsdf_only ? 1.0f : power_weight(last_pdf, world_pdf(u, world, r.direction)));
+            float3 sd = u.sun_direction.xyz - r.direction;
+            if (u.sun_radiance.w > 0.0f && dot(sd, sd) <= 2.0f * u.sun_direction.w)
+              e += u.sun_radiance.xyz * (u.bsdf_only ? 1.0f : power_weight(last_pdf, u.sun_radiance.w));
+            if (bounce == 1u) radiance += throughput * e; else indirect += throughput * e;
+          }
+          break;
+        }
+        if (bounce == 0u) coverage += 1.0f;
+      } else if (hit.type == intersection_type::none) {
         // MIS (balance heuristic) against the panel sampler below; camera rays
         // have no competing strategy.
         float w = bounce == 0 ? 1.0f : last_pdf / (last_pdf + panel_pdf(u, panels, r.direction));
@@ -384,6 +560,8 @@ inline void trace_pixel(
         material_index = strand_ids[prim];
       } else {
         float2 bc = hit.triangle_barycentric_coord;
+        uint scene_material = ~0u;
+        if (SCENE) { prim += scene_table[instance].x; scene_material = scene_table[instance].y; }
         float3 p0 = float3(positions[prim * 3]), p1 = float3(positions[prim * 3 + 1]), p2 = float3(positions[prim * 3 + 2]);
         if (INST) {
           p0 = world_point(transforms, instance, p0, time);
@@ -395,8 +573,10 @@ inline void trace_pixel(
                        + float3(normals[prim * 3 + 1]) * bc.x
                        + float3(normals[prim * 3 + 2]) * bc.y);
         if (INST) ns = normalize(world_normal(transforms, instance, ns, time));
-        // Instances select their material by user id; flat meshes per triangle.
-        material_index = INST ? user_of(hit) : material_ids[prim];
+        // Instances select their material by user id; flat meshes per triangle;
+        // scene instances by their table entry, else per triangle.
+        material_index = SCENE ? (scene_material != ~0u ? scene_material : material_ids[prim])
+                       : INST ? user_of(hit) : material_ids[prim];
         bevel = true;
       }
       if (dot(ng, v) < 0.0f) { ng = -ng; ns = -ns; }
@@ -406,12 +586,15 @@ inline void trace_pixel(
         primary_normal = ng;
         primary_depth = hit.distance;
       }
-      if (bevel && m.round.x > 0.0f && bounce < 2)
-        ns = round_corners<INST, MOT, Scene, Tracer>(scene, positions, transforms,
+      // ponytail: triangle-only probes cannot cross a scene's sphere or strand
+      // structures without the table, so round corners are off in such scenes.
+      if (bevel && m.round.x > 0.0f && bounce < 2 && !(SCENE && (SPH || CRV)))
+        ns = round_corners<INST, MOT, Scene, Tracer>(scene, positions, transforms, scene_table,
                            hitp, ns, m.round.x,
                            u.preview ? 1u : (bounce == 0 ? u.round_samples : max(u.round_samples / 4u, 1u)), time, state);
       if (dot(ns, v) <= 0.0f) ns = ng;
-      radiance += throughput * m.emission_metallic.xyz;
+      if (u.world && bounce > 1u) indirect += throughput * m.emission_metallic.xyz;
+      else radiance += throughput * m.emission_metallic.xyz;
       float3 albedo = m.albedo_roughness.xyz;
       float rough = max(m.albedo_roughness.w, 0.03f), metal = m.emission_metallic.w;
       float3 f0 = mix(float3(0.04f), albedo, metal);
@@ -419,10 +602,11 @@ inline void trace_pixel(
       float nov = max(dot(ns, v), 1e-4f);
       float a = rough * rough, a2 = a * a;
       float ps = clamp(metal + (1.0f - metal) * (0.04f + 0.96f * pow(1.0f - nov, 5.0f)), 0.05f, 0.95f);
-      // Next-event estimation on one rectangle light per bounce. Lights are
-      // analytic (not in the acceleration structure), so they are never hit by
-      // BSDF-sampled rays and this estimator is complete for them.
-      if (u.light_count > 0) {
+      // Next-event estimation on one rectangle light per bounce. Without a
+      // World lights are analytic (not in the acceleration structure), never
+      // hit by BSDF-sampled rays, so this estimator is complete for them; with
+      // a World they are also hit and both strategies are MIS-weighted.
+      if (u.light_count > 0 && u.bsdf_only == 0u) {
         uint li = min(uint(rnd(state) * float(u.light_count)), u.light_count - 1u);
         Light L = lights[li];
         float3 lp = L.origin.xyz + L.u.xyz * rnd(state) + L.v.xyz * rnd(state);
@@ -430,7 +614,8 @@ inline void trace_pixel(
         float3 wi = lp - hitp;
         float dist2 = max(dot(wi, wi), 1e-8f), dist = sqrt(dist2);
         wi /= dist;
-        float cos_l = fabs(dot(ln, wi)), cos_s = dot(ns, wi);
+        float cl = dot(ln, wi);
+        float cos_l = L.origin.w > 0.5f ? -cl : fabs(cl), cos_s = dot(ns, wi);
         if (cos_s > 0.0f && dot(ng, wi) > 0.0f && cos_l > 1e-4f) {
           ray sr;
           sr.origin = hitp + ng * 1e-3f;
@@ -439,7 +624,56 @@ inline void trace_pixel(
           sr.max_distance = dist - 2e-3f;
           if (Isect<MOT, SPH>::go(shadow, sr, scene, table, time).type == intersection_type::none) {
             float pdf = dist2 / (cos_l * L.radiance.w * float(u.light_count));
-            radiance += throughput * L.radiance.xyz * eval_brdf(ns, v, wi, diffuse, f0, a2) * cos_s / pdf;
+            if (u.world) {
+              float3 e = throughput * L.radiance.xyz * eval_brdf(ns, v, wi, diffuse, f0, a2) * cos_s
+                         * (power_weight(pdf, bsdf_pdf(ns, v, wi, a2, ps)) / pdf);
+              if (bounce == 0u) radiance += e; else indirect += e;
+            } else
+              radiance += throughput * L.radiance.xyz * eval_brdf(ns, v, wi, diffuse, f0, a2) * cos_s / pdf;
+          }
+        }
+      }
+      // World: the lighting map through its 2D CDF and the sun cone, each
+      // weighted against BSDF sampling (power heuristic). Shadow rays ignore
+      // rect lights, like the BSDF rays that cross them.
+      if (u.world && u.bsdf_only == 0u) {
+        float pl;
+        float3 wi = sample_world(u, world, state, pl);
+        float cos_s = dot(ns, wi);
+        if (pl > 0.0f && cos_s > 0.0f && dot(ng, wi) > 0.0f) {
+          ray sr;
+          sr.origin = hitp + ng * 1e-3f;
+          sr.direction = wi;
+          sr.min_distance = 0.0f;
+          sr.max_distance = INFINITY;
+          if (Isect<MOT, SPH>::go(shadow, sr, scene, table, time).type == intersection_type::none) {
+            float3 e = throughput * world_lookup(world + 3u * u.map_width * u.map_height, u.map_width, u.map_height, wi)
+                       * eval_brdf(ns, v, wi, diffuse, f0, a2) * cos_s
+                       * (power_weight(pl, bsdf_pdf(ns, v, wi, a2, ps)) / pl);
+            if (bounce == 0u) radiance += e; else indirect += e;
+          }
+        }
+        if (u.sun_radiance.w > 0.0f) {
+          // Uniform cone: 1 - cos(theta) = x * (1 - cos max), written so tiny
+          // discs keep their precision.
+          float3 st, sb, sd = u.sun_direction.xyz;
+          basis(sd, st, sb);
+          float k = rnd(state) * u.sun_direction.w, sphi = 2.0f * M_PI_F * rnd(state);
+          float sin_t = sqrt(max(0.0f, k * (2.0f - k)));
+          float3 swi = normalize(st * (sin_t * cos(sphi)) + sb * (sin_t * sin(sphi)) + sd * (1.0f - k));
+          float scos = dot(ns, swi);
+          if (scos > 0.0f && dot(ng, swi) > 0.0f) {
+            ray sr;
+            sr.origin = hitp + ng * 1e-3f;
+            sr.direction = swi;
+            sr.min_distance = 0.0f;
+            sr.max_distance = INFINITY;
+            if (Isect<MOT, SPH>::go(shadow, sr, scene, table, time).type == intersection_type::none) {
+              float spdf = u.sun_radiance.w;
+              float3 e = throughput * u.sun_radiance.xyz * eval_brdf(ns, v, swi, diffuse, f0, a2) * scos
+                         * (power_weight(spdf, bsdf_pdf(ns, v, swi, a2, ps)) / spdf);
+              if (bounce == 0u) radiance += e; else indirect += e;
+            }
           }
         }
       }
@@ -494,11 +728,22 @@ inline void trace_pixel(
       r.direction = l;
     }
     // ponytail: firefly clamp; replace with next-event estimation on panels if noise matters.
-    float lum = dot(radiance, float3(0.2126f, 0.7152f, 0.0722f));
-    if (lum > 8.0f) radiance *= 8.0f / lum;
+    // With a World only the indirect part is clamped (direct light is MIS-sampled).
+    if (u.world) {
+      float lum = dot(indirect, float3(0.2126f, 0.7152f, 0.0722f));
+      if (lum > 8.0f) indirect *= 8.0f / lum;
+      radiance += indirect;
+    } else {
+      float lum = dot(radiance, float3(0.2126f, 0.7152f, 0.0722f));
+      if (lum > 8.0f) radiance *= 8.0f / lum;
+    }
     sum += radiance;
   }
-  float4 total = float4(sum, float(spp));
+  // A transparent World background accumulates coverage in w instead of the
+  // sample count, so the colour below is the covered samples' mean (straight
+  // alpha) and alpha is coverage over the frame's sample count.
+  bool transparent = u.world && u.background == 2u;
+  float4 total = float4(sum, transparent ? coverage : float(spp));
   if (!u.preview) {
     total += u.frame == 0 ? float4(0.0f) : accum[pixel];
     accum[pixel] = total;
@@ -529,7 +774,12 @@ inline void trace_pixel(
   }
   next_color[pixel] = float4(linear, history_count);
   next_geometry[pixel] = float4(primary_normal, primary_depth);
-  output.write(float4(resolved_rgba(linear, u.exposure)) / 255.0f, gid);
+  uchar4 rgba = resolved_rgba(linear, u.exposure);
+  if (transparent) {
+    float count = u.preview ? 1.0f : float((u.frame + 1u) * spp);
+    rgba.w = uchar(clamp(total.w / count, 0.0f, 1.0f) * 255.0f + 0.5f);
+  }
+  write_block(output, gid, u.preview ? u.scale : 1u, float4(rgba) / 255.0f);
 }
 
 kernel void pathtrace(
@@ -539,11 +789,12 @@ kernel void pathtrace(
     constant Uniforms &u [[buffer(1)]],
     device const packed_float3 *positions [[buffer(2)]],
     device const packed_float3 *normals [[buffer(3)]],
-    device const uint *material_ids [[buffer(4), function_constant(FLAT)]],
+    device const uint *material_ids [[buffer(4), function_constant(IDS)]],
     device const Material *materials [[buffer(5)]],
     device const Panel *panels [[buffer(6)]],
     device float4 *accum [[buffer(7)]],
     texture2d<float, access::write> output [[texture(0)]],
+    device const float *world [[buffer(8)]],
     device const Light *lights [[buffer(9)]],
     device const packed_float3 *transforms [[buffer(10), function_constant(INSTANCED)]],
     device const float4 *previous_color [[buffer(11)]],
@@ -560,6 +811,7 @@ kernel void pathtrace(
     device const packed_float3 *strand_points [[buffer(17), function_constant(CURVES)]],
     device const uint *strand_indices [[buffer(18), function_constant(CURVES)]],
     device const uint *strand_ids [[buffer(19), function_constant(CURVES)]],
+    device const uint2 *scene_table [[buffer(20), function_constant(SCENE)]],
     uint2 gid [[thread_position_in_grid]]) {
   using S_F = primitive_acceleration_structure;
   using S_I = instance_acceleration_structure;
@@ -576,12 +828,12 @@ kernel void pathtrace(
   using T_IC_ = intersection_function_table<triangle_data, curve_data, instancing>;
   using T_IM_ = intersection_function_table<triangle_data, instancing, instance_motion>;
   using T_IMC_ = intersection_function_table<triangle_data, curve_data, instancing, instance_motion>;
-#define TRACE(INST, MOT, SPH, CRV, SCENE, TRACER, TABLE, SCENE_ARG, TABLE_ARG) \
-  trace_pixel<INST, MOT, SPH, CRV, SCENE, TRACER, TABLE>( \
-      SCENE_ARG, u, positions, normals, INST ? nullptr : material_ids, materials, panels, accum, output, lights, \
-      INST ? transforms : nullptr, previous_color, previous_geometry, next_color, next_geometry, \
+#define TRACE(INST, MOT, SPH, CRV, STRUCTURE, TRACER, TABLE, SCENE_ARG, TABLE_ARG) \
+  trace_pixel<INST, MOT, SPH, CRV, STRUCTURE, TRACER, TABLE>( \
+      SCENE_ARG, u, positions, normals, (INST && !SCENE) ? nullptr : material_ids, materials, panels, accum, output, \
+      lights, world, INST ? transforms : nullptr, previous_color, previous_geometry, next_color, next_geometry, \
       SPH ? spheres : nullptr, TABLE_ARG, CRV ? strand_points : nullptr, CRV ? strand_indices : nullptr, \
-      CRV ? strand_ids : nullptr, gid)
+      CRV ? strand_ids : nullptr, SCENE ? scene_table : nullptr, gid)
   if (INSTANCED) {
     if (MOTION) {
       if (CURVES) {
@@ -641,5 +893,9 @@ kernel void resolve_preview(
       }
     }
   }
-  output.write(float4(resolved_rgba(sum / weight, u.exposure)) / 255.0f, gid);
+  uchar4 rgba = resolved_rgba(sum / weight, u.exposure);
+  // ponytail: a transparent World preview is opaque exactly where the centre
+  // sample hit geometry; accumulation later gives edges fractional alpha.
+  if (u.world && u.background == 2u && center.w <= 0.0f) rgba.w = 0;
+  write_block(output, gid, u.preview ? u.scale : 1u, float4(rgba) / 255.0f);
 }

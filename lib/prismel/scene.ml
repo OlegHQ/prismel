@@ -444,7 +444,7 @@ module Private=struct
    let failure=ref None in
    let callbacks:Scene3_native_lowering.resources={
      texture=(fun value->let levels=texture_levels value.Scene3.value in let address=function Texture.Clamp->Ogpu.Types.Clamp_to_edge|Repeat->Repeat|Mirror->Mirror_repeat in let min_filter,mag_filter,mip_filter=match value.filter with Texture.Nearest->Ogpu.Types.Nearest,Ogpu.Types.Nearest,Ogpu.Types.No_mip|Texture.Bilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.No_mip|Texture.Trilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.Linear_mip in let sampler:Ogpu.Types.sampler_descriptor={label=Some"scene3-texture";min_filter;mag_filter;mip_filter;address_u=address value.wrap_u;address_v=address value.wrap_v;lod_min=0.;lod_max=float(Array.length levels-1);max_anisotropy=1}in Ok{Scene_execution.key="texture:"^string_of_int(Texture.Private.identity value.Scene3.value);levels;sampler;gpu=None});
-     shadow=(fun value->match shadow_resource value with Error _->Error Unsupported_shadow|Ok resource->Ok{Scene_execution.key=resource.texture.key;buffer=resource.parameters;texture=resource.texture})}in
+     shadow=(fun value->match shadow_resource value with Error _->Error Unsupported_shadow|Ok resource->Ok{Scene_execution.key=resource.texture.key;buffer=resource.parameters;texture=resource.texture;environment=None;sun_shadow=None})}in
    let layers=match grouped with
    |[`Two _]->[Scene2_layer(scene2,resources)]
    |_->List.filter_map(fun item->if!failure<>None then None else match item with

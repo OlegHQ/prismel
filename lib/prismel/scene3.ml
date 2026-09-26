@@ -68,6 +68,7 @@ type t = {
   depth_clear : float;
   stencil_clear : int;
   samples : int;
+  world : World.baked option;
 }
 
 let depth_state ?(comparison = Less) ?(write = true) () =
@@ -115,6 +116,7 @@ let empty = {
   depth_clear = 1.;
   stencil_clear = 0;
   samples = 1;
+  world = None;
 }
 
 let create ?(lights = []) ?shadow ?(ambient = Color.rgb 32 32 32)
@@ -135,6 +137,7 @@ let create ?(lights = []) ?shadow ?(ambient = Color.rgb 32 32 32)
     depth_clear;
     stencil_clear;
     samples;
+    world = None;
   }
 
 let textured ?(filter = Texture.Bilinear) ?(wrap_u = Texture.Clamp)
@@ -150,6 +153,7 @@ let instances_array ?(material = Material.default) ?texture ?(mode = Faces)
   Instances (value, material, texture, mode, cull, shading,
     Array.copy transforms)
 
+let nodes scene = scene.nodes
 let group nodes = Group nodes
 let transform matrix nodes = Transform (matrix, nodes)
 let translate value nodes = transform (Mat4.translation value) nodes
@@ -186,6 +190,8 @@ let cone ?material ?texture ?mode ?cull ?shading
     ~radius ~height () =
   mesh ?material ?texture ?mode ?cull ?shading
     (Mesh.cone ~radius ~height ())
+
+let with_world baked scene = { scene with world = Some baked }
 
 module Private = struct
   type drawing = {
@@ -347,4 +353,5 @@ module Private = struct
   let depth_clear scene = scene.depth_clear
   let stencil_clear scene = scene.stencil_clear
   let samples scene = scene.samples
+  let world scene = scene.world
 end

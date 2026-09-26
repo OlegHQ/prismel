@@ -10,7 +10,7 @@ let operator ~label ~operation ?(cook_mode = Node.Duplicate_input 0) inputs cook
   Node.Private.make ~label ~operation ~version:1 ~parameters:"" ~cook_mode
     ~dependencies:Context.Dependencies.static ~inputs cook
 
-let cooked geometry = Ok Node.Private.{ geometry; diagnostics = [] }
+let cooked geometry = Ok Node.Private.{ geometry; diagnostics = []; instances = None }
 
 let pdk_cooked = function
   | Ok geometry -> cooked geometry
@@ -1201,6 +1201,8 @@ module Transform = struct
       [@sop.folder "Scale"] [@sop.min 0.01] [@sop.max 10.];
     scale_z : float [@sop.default 1.] [@sop.label "Scale Z"]
       [@sop.folder "Scale"] [@sop.min 0.01] [@sop.max 10.];
+    uniform_scale : float [@sop.default 1.] [@sop.label "Uniform scale"]
+      [@sop.folder "Scale"] [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.];
     preserve_normal_length : bool [@sop.default false]
       [@sop.label "Preserve normal length"] [@sop.folder "Normals"];
     recompute_normals : bool [@sop.default false]
@@ -1217,10 +1219,19 @@ module Transform = struct
         parameters.rotate_z)
       ~scale:(Vec3.create parameters.scale_x parameters.scale_y
         parameters.scale_z)
+      ~uniform_scale:parameters.uniform_scale
       ~preserve_normal_length:parameters.preserve_normal_length
       ~recompute_normals:parameters.recompute_normals input)
 
   let factory = parameters_factory build
+
+  let create ?label:node_label ?(translate = Vec3.zero) ?(rotate = Vec3.zero)
+      ?(scale = Vec3.create 1. 1. 1.) ?(uniform_scale = 1.) input =
+    build ~label:(label "transform" node_label) ~inputs:[input]
+      { parameters_default with
+        translate_x = translate.Vec3.x; translate_y = translate.y; translate_z = translate.z;
+        rotate_x = rotate.Vec3.x; rotate_y = rotate.y; rotate_z = rotate.z;
+        scale_x = scale.Vec3.x; scale_y = scale.y; scale_z = scale.z; uniform_scale }
 
 end [@@sop.register]
 
@@ -1716,7 +1727,7 @@ module Poly_bevel = struct
     point_scale_attribute : string [@sop.default ""]
       [@sop.label "Point scale attribute"] [@sop.folder "Attributes"];
     ignore_flat_angle : float [@sop.default 0.]
-      [@sop.label "Ignore flat angle"] [@sop.folder "Robustness"]
+      [@sop.label "Ignore flat angle (0: bevel every edge)"] [@sop.folder "Robustness"]
       [@sop.min 0.] [@sop.max 3.14159] [@sop.hard_min 0.];
     clamp_overlap : bool [@sop.default true]
       [@sop.label "Clamp overlap"] [@sop.folder "Robustness"];
@@ -1739,7 +1750,8 @@ module Poly_bevel = struct
     Sop.poly_bevel ~label ?group:(optional_text parameters.group) ~shape
       ~divisions:parameters.divisions
       ?point_scale_attribute:(optional_text parameters.point_scale_attribute)
-      ~ignore_flat_angle:parameters.ignore_flat_angle
+      ?ignore_flat_angle:(if parameters.ignore_flat_angle > 0.
+                          then Some parameters.ignore_flat_angle else None)
       ~clamp_overlap:parameters.clamp_overlap
       ?edge_group:(optional_text parameters.edge_group)
       ?corner_group:(optional_text parameters.corner_group)
@@ -1748,6 +1760,11 @@ module Poly_bevel = struct
       ~distance:parameters.distance input)
 
   let factory = parameters_factory build
+
+  let create ?label:node_label ?(shape = parameters_default.shape)
+      ?(divisions = parameters_default.divisions) ~distance input =
+    build ~label:(label "poly-bevel" node_label) ~inputs:[input]
+      { parameters_default with shape; divisions; distance }
 end [@@sop.register]
 
 module Triangulate = struct
@@ -1772,6 +1789,7 @@ module Copy_to_points = struct
       [@sop.folder "Selection"];
     piece_attribute : string [@sop.default ""] [@sop.label "Piece attribute"]
       [@sop.folder "Matching"];
+    pack : bool [@sop.default false] [@sop.label "Pack and instance"];
   } [@@sop.node_key "copy_to_points"] [@@sop.node_label "Copy to Points"]
     [@@sop.node_category "Copy"] [@@sop.node_inputs 2]
     [@@deriving sop_params, sop_node]
@@ -1781,14 +1799,14 @@ module Copy_to_points = struct
       ?source_group:(optional_text parameters.source_group)
       ?target_group:(optional_text parameters.target_group)
       ?piece_attribute:(optional_text parameters.piece_attribute)
-      ~source ~targets ())
+      ~pack:parameters.pack ~source ~targets ())
 
   let factory = parameters_factory build
 
   let create ?label:node_label ?(source_group = "") ?(target_group = "")
-      ?(piece_attribute = "") ~source ~targets () =
+      ?(piece_attribute = "") ?(pack = false) ~source ~targets () =
     build ~label:(label "copy-to-points" node_label) ~inputs:[source; targets] {
-      source_group; target_group; piece_attribute }
+      source_group; target_group; piece_attribute; pack }
 end [@@sop.register]
 
 module Mountain = struct
@@ -3108,6 +3126,14 @@ module Boolean = struct
       ~right left)
 
   let factory = parameters_factory build
+
+  let create ?label:node_label ?(operation = parameters_default.operation)
+      ?(resolve_right_self_intersections =
+          parameters_default.resolve_right_self_intersections)
+      ?(detriangulation = parameters_default.detriangulation) ~right left =
+    build ~label:(label "boolean" node_label) ~inputs:[left; right]
+      { parameters_default with operation; resolve_right_self_intersections;
+        detriangulation }
 end [@@sop.register]
 
 module Boolean_seam = struct
@@ -3503,6 +3529,17 @@ module Duplicate = struct
       ~preserve_groups:parameters.preserve_groups input)
 
   let factory = parameters_factory build
+
+  let create ?label:node_label ?(copies = parameters_default.copies)
+      ?(cumulative = parameters_default.cumulative)
+      ?(transform = matrix parameters_default) input =
+    let m row column = Mat4.get transform ~row ~column in
+    build ~label:(label "duplicate" node_label) ~inputs:[input]
+      { parameters_default with copies; cumulative;
+        m00 = m 0 0; m01 = m 0 1; m02 = m 0 2; m03 = m 0 3;
+        m10 = m 1 0; m11 = m 1 1; m12 = m 1 2; m13 = m 1 3;
+        m20 = m 2 0; m21 = m 2 1; m22 = m 2 2; m23 = m 2 3;
+        m30 = m 3 0; m31 = m 3 1; m32 = m 3 2; m33 = m 3 3 }
 end [@@sop.register]
 
 module Match_axis = struct
@@ -4832,6 +4869,11 @@ module Group_random = struct
         ~probability:parameters.probability ~owner:parameters.owner
         ~name:parameters.name input)
   let factory = parameters_factory build
+
+  let create ?label:node_label ?(seed = parameters_default.seed) ~probability
+      ~owner ~name input =
+    build ~label:(label "group-random" node_label) ~inputs:[input]
+      { parameters_default with seed; probability; owner; name }
 end [@@sop.register]
 
 module Group_bounds = struct
@@ -6464,6 +6506,12 @@ module Attribute_randomize = struct
       ~owner:parameters.owner ~name:parameters.name
       (distribution parameters) input)
   let factory = parameters_factory build
+
+  (* A uniform scalar in [minimum, maximum]. *)
+  let create ?label:node_label ?(owner = parameters_default.owner)
+      ?(seed = parameters_default.seed) ~name ~minimum ~maximum input =
+    build ~label:(label "attribute-randomize" node_label) ~inputs:[input]
+      { parameters_default with owner; seed; name; a_x = minimum; b_x = maximum }
 end [@@sop.register]
 
 module Attribute_mirror = struct
@@ -6831,6 +6879,22 @@ module Blast = struct
         ~compact_points:parameters.compact_points ~policy:parameters.policy
         ~owner:parameters.owner ~group:parameters.group input)
   let factory = parameters_factory build
+
+  let create ?label:node_label ?(selected = parameters_default.selected)
+      ?(compact_points = parameters_default.compact_points) ~owner ~group
+      input =
+    build ~label:(label "blast" node_label) ~inputs:[input]
+      { parameters_default with selected; compact_points; owner; group }
+end [@@sop.register]
+
+module Merge = struct
+  (* Three slots, the first required: a Merge with more inputs chains. *)
+  let factory = Edit_graph.factory_slots ~key:"merge" ~label:"Merge"
+      ~category:["Copy"] ~inputs:Edit_graph.[Required; Optional; Optional]
+      (fun inputs -> Sop.merge ~label:"merge" (List.filter_map Fun.id inputs))
+
+  let create ?label:node_label inputs =
+    Sop.merge ~label:(label "merge" node_label) inputs
 end [@@sop.register]
 
 module Compact_points = struct
@@ -8527,66 +8591,6 @@ end [@@sop.register]
 
 (* A render camera: parameters only, cooking to empty geometry.
    ponytail: no frustum gizmo in the viewport; add a wireframe overlay if asked. *)
-module Camera = struct
-  type parameters = {
-    eye_x : float [@sop.default 0.] [@sop.label "Eye X"] [@sop.folder "Eye"]
-      [@sop.min (-100.)] [@sop.max 100.];
-    eye_y : float [@sop.default 0.] [@sop.label "Eye Y"] [@sop.folder "Eye"]
-      [@sop.min (-100.)] [@sop.max 100.];
-    eye_z : float [@sop.default 7.] [@sop.label "Eye Z"] [@sop.folder "Eye"]
-      [@sop.min (-100.)] [@sop.max 100.];
-    target_x : float [@sop.default 0.] [@sop.label "Target X"] [@sop.folder "Target"]
-      [@sop.min (-100.)] [@sop.max 100.];
-    target_y : float [@sop.default 0.] [@sop.label "Target Y"] [@sop.folder "Target"]
-      [@sop.min (-100.)] [@sop.max 100.];
-    target_z : float [@sop.default 0.] [@sop.label "Target Z"] [@sop.folder "Target"]
-      [@sop.min (-100.)] [@sop.max 100.];
-    up_x : float [@sop.default 0.] [@sop.label "Up X"] [@sop.folder "Up"]
-      [@sop.min (-1.)] [@sop.max 1.];
-    up_y : float [@sop.default 1.] [@sop.label "Up Y"] [@sop.folder "Up"]
-      [@sop.min (-1.)] [@sop.max 1.];
-    up_z : float [@sop.default 0.] [@sop.label "Up Z"] [@sop.folder "Up"]
-      [@sop.min (-1.)] [@sop.max 1.];
-    fov : float [@sop.default 60.] [@sop.label "FOV (degrees)"]
-      [@sop.min 5.] [@sop.max 150.] [@sop.hard_min 1.] [@sop.hard_max 179.];
-    near : float [@sop.default 0.1] [@sop.label "Near clip"]
-      [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.0001];
-    far : float [@sop.default 1000.] [@sop.label "Far clip"]
-      [@sop.min 10.] [@sop.max 10000.] [@sop.hard_min 0.001];
-    follow_viewport : bool [@sop.default false] [@sop.label "Follow viewport"];
-  } [@@sop.node_key "camera"] [@@sop.node_label "Camera"]
-    [@@sop.node_category "Scene"] [@@sop.node_inputs 0]
-    [@@deriving sop_params, sop_node]
-
-  let empty = Pdk.Line_geometry.points [||]
-
-  let build = parameters_build (fun ~label _parameters ->
-    Sop.custom ~label ~operation:"camera" [] (fun ~context:_ _ -> Ok empty))
-
-  let factory = parameters_factory build
-
-  let of_node node =
-    if Node.operation node <> "camera" then None else
-    let values = List.map (fun (field : Parameter.field_view) ->
-      field.name, field.current) (Node.parameter_fields node) in
-    match Parameter.apply_all parameters_schema parameters_default values with
-    | Error _ -> None
-    | Ok (p, _) ->
-        let at = Prismel.Vec3.create p.eye_x p.eye_y p.eye_z
-        and target = Prismel.Vec3.create p.target_x p.target_y p.target_z
-        and up = Prismel.Vec3.create p.up_x p.up_y p.up_z in
-        (match Prismel.Camera.perspective ~fov_y:(p.fov *. Float.pi /. 180.)
-            ~near:p.near ~far:p.far ~at ~target () |> Prismel.Camera.with_up up with
-         | camera -> Some (camera, p.follow_viewport)
-         | exception Invalid_argument _ -> None)
-
-  let to_values ~(eye : Prismel.Vec3.t) ~(target : Prismel.Vec3.t) ~fov_y =
-    let float name value = name, Parameter.Float_value value in
-    [float "eye_x" eye.x; float "eye_y" eye.y; float "eye_z" eye.z;
-     float "target_x" target.x; float "target_y" target.y;
-     float "target_z" target.z; float "fov" (fov_y *. 180. /. Float.pi)]
-end [@@sop.register]
-
 module Normal = struct
   let owner_parameter = Parameter.choice ~equal:( = ) [
       "Point", Pdk.Attribute.Point;

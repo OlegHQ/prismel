@@ -28,11 +28,13 @@ type state = {
 }
 type draw = { mesh : mesh; state : state }
 type pipeline_family = Scene2 | Scene2_textured | Scene3 | Scene3_points | Scene3_textured | Scene3_shadow |
-  Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil | Ui
+  Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil | Scene3_world | Ui
 (** Exact number of family/blend variants required for each supported sample
     count. Cache owners use this value so adding a family cannot silently
     evict a still-live pipeline during renderer construction. *)
 val pipeline_variants_per_sample : int
+(* Every level holds [width * height] texels of 4, 8 or 16 bytes (the size
+    level 0 implies): [Rgba8_unorm], [Rgba16_float] or [Rgba32_float]. *)
 type texture_level = { width:int; height:int; bytes:bytes }
 type sampled_texture = {
   key:string;
@@ -60,6 +62,13 @@ type auxiliary_resource = {
   key : string;
   buffer : bytes;
   texture : sampled_texture;
+  environment : sampled_texture option;
+  (** A [Scene3_world] draw's camera map (texture 9, sampler 10). *)
+  sun_shadow : string option;
+  (** [Some key]: this World block (sun view-projection at words 40..55)
+      samples the renderer's sun map at texture 8, rendered from the
+      frame's depth-writing [Replace]/[Alpha] World triangle draws with the
+      same key whenever the key differs from the last rendered one. *)
 }
 
 type sampled_draw = {
@@ -102,8 +111,12 @@ val shadow_resource : key:string -> shadow_snapshot ->
     the call returns, so exact readback and explicit destruction have the same
     contract as surface-backed execution. With [?device], the renderer borrows
     that device (the driver is unused) and never destroys it, so a Canvas can
-    share the presenting window's GPU. *)
-val create : ?device:Ogpu.Backend.device -> offscreen:bool ->
+    share the presenting window's GPU. [?sun_depth] makes the pipeline of
+    the World sun map pass (RGBA8 color, Depth32 depth, one sample), created
+    on first use; without it a sun-shadowed World draw is [Unsupported]. *)
+val create : ?device:Ogpu.Backend.device ->
+  ?sun_depth:(Ogpu.Backend.device -> (Ogpu.Backend.pipeline, Ogpu.Error.t) result) ->
+  offscreen:bool ->
   Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
   (Ogpu.Backend.device -> pipeline_family -> Ogpu.Pipeline.blend -> int ->
     (Ogpu.Backend.pipeline, Ogpu.Error.t) result) ->
@@ -123,6 +136,12 @@ val replay_prepared_sampled_resources :
   ((bool * int) option, Ogpu.Error.t) result
 val resize : t -> Ogpu.Surface.configuration -> (unit, Ogpu.Error.t) result
 val upload_bytes : t -> int64
+
+(** Sun map passes rendered so far (see [auxiliary_resource.sun_shadow]). *)
+val sun_shadow_passes : t -> int64
+
+(** Width and height of the sun map. *)
+val sun_map_size : int
 module Private : sig
   val cache_count_for_report : t -> int
 end

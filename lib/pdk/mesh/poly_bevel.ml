@@ -843,10 +843,12 @@ let run ?cancel ?(grain = 16_384) ?edges ?(shape = Bevel_chamfer)
                 vertex_left.(vertex) <- source0;
                 vertex_right.(vertex) <- source1;
                 vertex_weight.(vertex) <- float_of_int row /. float_of_int divisions in
-              set 0 0 layer left right_next;
-              set 1 1 layer left_next right;
-              set 2 1 (layer + 1) left_next right;
-              set 3 0 (layer + 1) left right_next
+              (* Opposite to the left face along their shared edge, so the
+                 strip winds outward like its neighbours. *)
+              set 0 1 layer left_next right;
+              set 1 0 layer left right_next;
+              set 2 0 (layer + 1) left right_next;
+              set 3 1 (layer + 1) left_next right
             done
           end
         done;
@@ -900,6 +902,14 @@ let run ?cancel ?(grain = 16_384) ?edges ?(shape = Bevel_chamfer)
             vertex_right.(!patch_cursor) <- source_corner;
             incr patch_cursor
           end;
+          (* The fan order runs against the faces around the point; the
+             patch winds outward reversed. *)
+          let lo = ref primitive_offsets.(primitive) and hi = ref (!patch_cursor - 1) in
+          while !lo < !hi do
+            let swap array = let t = array.(!lo) in array.(!lo) <- array.(!hi); array.(!hi) <- t in
+            swap vertex_points; swap vertex_left; swap vertex_right; swap vertex_weight;
+            incr lo; decr hi
+          done;
           primitive_map.(primitive) <- !source_primitive
           end
         done;

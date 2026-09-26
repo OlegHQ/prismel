@@ -257,15 +257,20 @@ let run () =
       ~catalog:nested_catalog graph in
   let nested_view, _ = update (Pxui_graph.open_menu_at menu_point nested_view)
       (frame ~mouse:menu_point ()) in
-  (* Each Enter descends one level; the picker re-keys on the breadcrumb. *)
-  let enter view = update view
-      (frame ~mouse:menu_point ~events:[Event.KeyPressed Input.Enter] ()) in
-  let nested_view, _ = enter nested_view in
-  let nested_view, _ = enter nested_view in
-  let _, changes = enter nested_view in
+  (* A lone top-level category (Create) opens by itself; hovering a
+     category opens its column to the right, clicking an entry adds it.
+     Rows sit one search row below the menu's top (400, 250). *)
+  let row_y = 250 + 3 + 24 + 12 in
+  let hover view x = fst (update view (frame ~mouse:(x, row_y)
+      ~events:[Event.MouseMoved (float x, float row_y)] ())) in
+  let nested_view = hover nested_view 420 in
+  let point = float (420 + 286), float row_y in
+  let _, changes = update nested_view (frame ~mouse:(420 + 286, row_y)
+      ~events:[Event.MousePressed (Input.LeftButton, point);
+        Event.MouseReleased (Input.LeftButton, point)] ()) in
   check (List.exists (function Pxui_graph.Add_requested request ->
       request.factory_key = "box" | _ -> false) changes)
-    "node menu did not navigate category submenus to a SOP";
+    "node menu did not open category submenus on hover down to a SOP";
 
   let scrolling_catalog = List.init 15 (fun index -> {
       Pxui_graph.key = Printf.sprintf "node_%02d" index;
@@ -276,7 +281,7 @@ let run () =
   let scrolling_view, _ = update (Pxui_graph.open_menu_at menu_point scrolling_view)
       (frame ~mouse:menu_point ()) in
   let scrolling_view, _ = update scrolling_view
-      (frame ~mouse:menu_point ~events:[Event.KeyPressed Input.Enter] ()) in
+      (frame ~mouse:menu_point ~events:[Event.TextInput "node"] ()) in
   let arrows = List.init 12 (fun _ -> Event.KeyPressed Input.ArrowDown) in
   let _, changes = update scrolling_view
       (frame ~mouse:menu_point ~events:(arrows @ [Event.KeyPressed Input.Enter]) ()) in

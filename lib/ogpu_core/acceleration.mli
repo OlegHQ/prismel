@@ -1,7 +1,9 @@
 type buffer_range = { buffer:unit Handle.t; buffer_size:int64; offset:int64; length:int64 }
 
 (** Keyframed ranges hold one entry for a static structure and exactly the
-    structure's motion keyframe count otherwise. *)
+    structure's motion keyframe count otherwise. A BLAS holds one geometry
+    kind (static and motion triangles count as one); mixing triangles,
+    bounding boxes, and curves is [Invalid_argument]. *)
 type geometry =
   | Triangles of { vertices:buffer_range; vertex_stride:int; vertex_count:int }
   | Motion_triangles of { keyframes:buffer_range list; vertex_stride:int; vertex_count:int }

@@ -205,7 +205,10 @@ and `create_heap_texture` place resources at explicit offsets,
 `make_aliasable` lets a later placement overlap a resource, and
 `buffer_placement`/`texture_placement` report the size and alignment a
 resource needs; compute and render encoders declare heaps with
-`compute_use_heap`/`render_use_heap`. Residency sets (`create_residency_set`,
+`compute_use_heap`/`render_use_heap`, and `compute_use_accels` declares the
+built bottom-level structures an instance structure references as read by a
+compute dispatch (Metal `useResource:usage:` on acceleration structures; they
+are otherwise evicted over time). Residency sets (`create_residency_set`,
 `residency_add`/`residency_remove`/`residency_commit`, `queue_add_residency`,
 `use_residency`) keep allocations resident per queue or per command buffer.
 Intra-queue fences (`create_fence`, `update_fence`, `wait_fence` on compute,
@@ -312,6 +315,26 @@ mechanism. The portable types live in `ogpu_core`; the wrapped `ogpu` module
 aliases them without changing type identity. Nothing outside `lib/metal` and
 `lib/ogpu_metal` references `Metal` or `Ogpu_metal_native`; the dependency
 gate lists no Metal exception.
+
+Texture pixel formats (World plan P6): `Types.texture_descriptor.format` is
+`Rgba8_unorm`, `Rgba16_float`, or `Rgba32_float` (4, 8, 16 bytes per texel,
+`Types.texel_bytes`). Host bytes are little-endian; half floats are IEEE
+binary16 (`Types.half_of_float`/`float_of_half`, round to nearest even).
+Upload and readback row pitches must cover `width * texel_bytes`; texture
+copies require equal formats. All three are sampled with linear filtering
+and mip LOD and are storage-capable on Apple7+ (the M1 reports
+`supports32BitFloatFiltering`), so no capability gate exists. Float formats
+reject `Render_attachment` and multisampling with a typed `Unsupported`:
+pipelines target `Rgba8_unorm` only and HDR is tone-mapped in the shader.
+Presentation and MetalFX sources must be `Rgba8_unorm`. Depth and stencil
+constructors keep their own native format.
+
+`Scene_execution` sampled textures take their format from level 0's byte
+count (4, 8 or 16 bytes per texel); `world:` keys are identity keys like
+`image:`. The `Scene3_world` family (World plan P7) binds the material
+texture or camera map at 1/2, the World block at buffer 3 and the prefiltered
+specular mips at 4/5; auxiliary blocks hit on physical identity before a byte
+compare and count against a 256 MB byte capacity.
 
 Qualification code reads the runtime and Metal counters at their owning
 boundaries. Sketch does not retain a process-global diagnostics snapshot after

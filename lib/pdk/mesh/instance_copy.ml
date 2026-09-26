@@ -813,18 +813,21 @@ let duplicate ?cancel ?(grain = 16_384) ?(copies = 1) ?(cumulative = true)
     )
   end
 
-let copy_to_points_all ?cancel ?(grain = 16_384) ~target_attributes
-    ~source ~targets () =
-  if grain <= 0 then invalid_arg "Pdk.Instance_copy.copy_to_points: grain must be positive";
-  let copies = Geometry.point_count targets and source_points = Geometry.point_count source
-  and source_vertices = Geometry.vertex_count source
-  and source_primitives = Geometry.primitive_count source in
-  Result.bind (checked_product "Pdk.Instance_copy.copy_to_points" copies source_points)
-    (fun output_points ->
-  Result.bind (checked_product "Pdk.Instance_copy.copy_to_points" copies source_vertices)
-    (fun output_vertices ->
-  Result.bind (checked_product "Pdk.Instance_copy.copy_to_points" copies source_primitives)
-    (fun output_primitives ->
+(* Each target point's copy frame, Houdini's instancing attributes in
+   order: scale (pscale, scale), rotation rows (transform, else orient, else
+   N/v with up), rot, then translation (P, trans, transform, pivot). [affine]
+   records a [transform] attribute, whose normals need the inverse transpose. *)
+type frames = {
+  sx : float array; sy : float array; sz : float array;
+  r00 : float array; r01 : float array; r02 : float array;
+  r10 : float array; r11 : float array; r12 : float array;
+  r20 : float array; r21 : float array; r22 : float array;
+  tx : float array; ty : float array; tz : float array;
+  affine : bool;
+}
+
+let copy_frames ?cancel ~grain targets =
+  let copies = Geometry.point_count targets in
   Result.bind (point_float targets "pscale") (fun pscale ->
   Result.bind (point_float3 targets "scale") (fun scale ->
   Result.bind (point_float4 targets "orient") (fun orient ->
@@ -835,9 +838,7 @@ let copy_to_points_all ?cancel ?(grain = 16_384) ~target_attributes
   Result.bind (point_float3 targets "trans") (fun target_translation ->
   Result.bind (point_float3 targets "pivot") (fun target_pivot ->
   Result.bind (point_affine_transform targets "transform") (fun target_transform ->
-    let target_positions = Packed.Float3.Private.view (Geometry.positions targets)
-    and source_positions = Packed.Float3.Private.view (Geometry.positions source)
-    and source_topology = Topology.Private.view (Geometry.topology source) in
+    let target_positions = Packed.Float3.Private.view (Geometry.positions targets) in
     let sx = Array.make copies 1. and sy = Array.make copies 1.
     and sz = Array.make copies 1. in
     if Option.is_none target_transform then begin
@@ -1057,6 +1058,25 @@ let copy_to_points_all ?cancel ?(grain = 16_384) ~target_attributes
           || Array.exists (fun value -> not (Float.is_finite value)) tz then
         Error "Pdk.Instance_copy.copy_to_points: target translations must be finite"
       else
+      Ok { sx; sy; sz; r00; r01; r02; r10; r11; r12; r20; r21; r22; tx; ty; tz;
+           affine = Option.is_some target_transform }))))))))))
+
+let copy_to_points_all ?cancel ?(grain = 16_384) ~target_attributes
+    ~source ~targets () =
+  if grain <= 0 then invalid_arg "Pdk.Instance_copy.copy_to_points: grain must be positive";
+  let copies = Geometry.point_count targets and source_points = Geometry.point_count source
+  and source_vertices = Geometry.vertex_count source
+  and source_primitives = Geometry.primitive_count source in
+  Result.bind (checked_product "Pdk.Instance_copy.copy_to_points" copies source_points)
+    (fun output_points ->
+  Result.bind (checked_product "Pdk.Instance_copy.copy_to_points" copies source_vertices)
+    (fun output_vertices ->
+  Result.bind (checked_product "Pdk.Instance_copy.copy_to_points" copies source_primitives)
+    (fun output_primitives ->
+  Result.bind (copy_frames ?cancel ~grain targets) (fun
+      { sx; sy; sz; r00; r01; r02; r10; r11; r12; r20; r21; r22; tx; ty; tz; affine } ->
+    let source_positions = Packed.Float3.Private.view (Geometry.positions source)
+    and source_topology = Topology.Private.view (Geometry.topology source) in
       let px = Array.make output_points 0. and py = Array.make output_points 0.
       and pz = Array.make output_points 0. in
       if copies > 0 then Parallel.for_ ~chunk_size:(max 1 (grain / max 1 source_points))
@@ -1076,9 +1096,7 @@ let copy_to_points_all ?cancel ?(grain = 16_384) ~target_attributes
                 +. (r22.(copy) *. z) +. tz.(copy)
             done);
       let matrix_normals_valid = ref true in
-      (match target_transform with
-      | None -> ()
-      | Some _ ->
+      (if affine then begin
           let has_normals = Geometry.find_attribute ~owner:Attribute.Point "N" source
                 <> None
               || Geometry.find_attribute ~owner:Attribute.Vertex "N" source <> None in
@@ -1124,7 +1142,7 @@ let copy_to_points_all ?cancel ?(grain = 16_384) ~target_attributes
               end
             );
             if Bytes.contains singular '\001' then matrix_normals_valid := false
-          end);
+          end end);
       let vertex_points = Array.make output_vertices 0
       and primitive_offsets = Array.make (output_primitives + 1) 0
       and primitive_kinds = Bytes.make output_primitives '\000' in
@@ -1223,7 +1241,7 @@ let copy_to_points_all ?cancel ?(grain = 16_384) ~target_attributes
             output_groups in
           Result.bind result (apply_copy_target_rules ?cancel ~grain ~copies
             ~source_points ~source_vertices ~source_primitives target_attributes
-            targets))))))))))))))))
+            targets)))))))
 
 type copy_piece_values = Copy_piece_int of int array
   | Copy_piece_text of string array
@@ -1535,6 +1553,22 @@ let copy_to_points ?cancel ?grain ?source_primitives ?target_points
   | None -> Error.guard ~operation:"copy_to_points" ~code:"invalid_attribute"
       (fun () -> copy_to_points_raw ?cancel ?grain ?source_primitives
         ?target_points ?piece_attribute ?target_attributes ~source ~targets ())
+
+(* Each (selected) target's copy transform, from the frames
+   [copy_to_points] places copies with: rows R·diag(s) and translation t. *)
+let copy_transforms ?cancel ?(grain = 16_384) ?target_points targets =
+  Error.guard ~operation:"copy_transforms" ~code:"invalid_attribute" (fun () ->
+    Result.bind (copy_frames ?cancel ~grain targets) (fun f ->
+      let selected = match target_points with
+        | None -> Array.init (Geometry.point_count targets) Fun.id
+        | Some group -> Array.of_seq (Seq.filter (fun index -> Group.mem index group)
+            (Seq.init (Geometry.point_count targets) Fun.id)) in
+      Ok (Array.map (fun i ->
+        Prismel_math.Mat4.of_rows
+          (f.r00.(i) *. f.sx.(i), f.r01.(i) *. f.sy.(i), f.r02.(i) *. f.sz.(i), f.tx.(i))
+          (f.r10.(i) *. f.sx.(i), f.r11.(i) *. f.sy.(i), f.r12.(i) *. f.sz.(i), f.ty.(i))
+          (f.r20.(i) *. f.sx.(i), f.r21.(i) *. f.sy.(i), f.r22.(i) *. f.sz.(i), f.tz.(i))
+          (0., 0., 0., 1.)) selected)))
 
 let materialize_instances ?cancel ?grain ?apply_transform ~transforms geometry =
   Error.guard ~operation:"materialize_instances" ~code:"invalid_parameter"
