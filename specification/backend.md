@@ -68,11 +68,15 @@ the dependency gate rejects upward edges from lower to higher PDK libraries.
 `prismel` never depends directly on an SDL library: window, event, clipboard,
 cursor, image, font and audio services sit behind `runtime`,
 `runtime_input` and `runtime_resources`, and the dependency gate rejects a
-direct `prismel` → `sdl3*` edge. `Runtime` owns one window or offscreen
-target's lifecycle and its single `stats` record (frame, presentation, draw,
-pass and submission counts beside cache, upload, GPU-timing and retained-plan
-counters); `Prismel_execution` is the frame coordinator above it and
-re-exports that record rather than defining its own.
+direct `prismel` → `sdl3*` edge. One `Runtime.t` is either a window or an
+offscreen target: the same render, replay, readback, resize, stats and
+presentation-facts calls serve both, and window-only calls return
+`Unsupported` offscreen. It owns the target's lifecycle, its single `stats`
+record (frame, presentation, draw, pass and submission counts beside cache,
+upload, GPU-timing and retained-plan counters) and the one presentation-facts
+cache, requeried from SDL whenever the drawable changes; `Prismel_execution`
+is the frame coordinator above it and re-exports both records rather than
+defining its own.
 `pdk_prismel` is the separate renderer conversion leaf.
 `procedural` depends only on `pdk`, `prismel_math` (vectors, matrices,
 `Color`, `Parallel`) and `lru`; it never reaches `prismel` or the GPU

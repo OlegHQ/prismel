@@ -130,12 +130,12 @@ let compose_raster (a:Scene_command.Render_ir.transform) (b:Scene_command.Render
   yy=a.xy*.b.yx+.a.yy*.b.yy;tx=a.xx*.b.tx+.a.yx*.b.ty+.a.tx;
   ty=a.xy*.b.tx+.a.yy*.b.ty+.a.ty}
 
-type presentation_facts={title:string;logical_width:int;logical_height:int;
-  drawable_width:int;drawable_height:int;position:(int*int)option;
+type presentation_facts=Runtime.presentation_facts={title:string;logical_width:int;
+  logical_height:int;drawable_width:int;drawable_height:int;position:(int*int)option;
   pixel_density:float;display_scale:float;refresh_rate:float option;vsync:bool}
-type offscreen_runtime={runtime:Runtime.offscreen;lease_shared:bool;
-  mutable facts:presentation_facts}
-type runtime=Window of Runtime.t|Offscreen of offscreen_runtime
+(* An offscreen target leases its device (see [acquire_device]). *)
+type runtime=Window of Runtime.t|Offscreen of Runtime.t*bool
+let target=function Window runtime|Offscreen(runtime,_)->runtime
 type submission_state=Open|Closed
 exception Resource_resolver_raised of exn
 type snapshot_cache_entry={mutable snapshot_generation:int;
@@ -182,7 +182,6 @@ type t = { runtime:runtime;
   mutable last_step_prepared:Scene_execution.sampled_draw list;
   mutable scene2_out_slots:draw array;
   mutable scene2_out_list:draw list;
-  mutable last_presentation:presentation_facts option;
   ui_slots:ui_slot Int_table.t;
 }
 and submission={owner:t;mutable submission_state:submission_state;
@@ -241,7 +240,7 @@ let finish_create runtime=
         ~byte_capacity:retained_scene2_segment_byte_capacity;
       retained_scene2_segment_hits=0L;retained_scene2_segment_misses=0L;
       submissions=[];last_step_draws=[];last_step_prepared=[];
-      scene2_out_slots=[||];scene2_out_list=[];last_presentation=None;ui_slots=Int_table.create ui_slot_capacity}
+      scene2_out_slots=[||];scene2_out_list=[];ui_slots=Int_table.create ui_slot_capacity}
 let create (configuration:configuration) =
   let operation="Prismel_execution.create" in
   match valid_configuration operation configuration with Error _ as error->error|Ok()->
@@ -258,23 +257,13 @@ let create_offscreen (configuration:configuration)=
   let operation="Prismel_execution.create_offscreen"in
   match valid_configuration operation configuration with Error _ as error->error|Ok()->
   match acquire_device operation with Error _ as error->error|Ok(device,lease_shared)->
-  match Runtime.create_offscreen ~device
+  match Runtime.create_offscreen ~device ~title:configuration.title
       ~logical_width:configuration.logical_width
       ~logical_height:configuration.logical_height
       ~width:configuration.drawable_width
       ~height:configuration.drawable_height () with
   |Error error->release_device lease_shared;backend operation error
-  |Ok runtime->
-      let pixel_density=float configuration.drawable_width/.
-        float configuration.logical_width in
-      let facts={title=configuration.title;
-        logical_width=configuration.logical_width;
-        logical_height=configuration.logical_height;
-        drawable_width=configuration.drawable_width;
-        drawable_height=configuration.drawable_height;position=None;pixel_density;
-        display_scale=pixel_density;refresh_rate=None;vsync=false}in
-      let state={runtime;lease_shared;facts}in
-      Ok(finish_create(Offscreen state))
+  |Ok runtime->Ok(finish_create(Offscreen(runtime,lease_shared)))
 let ensure operation value=if value.dead then fail operation Destroyed"coordinator is destroyed"else Ok()
 let release_image_leases leases=
   List.iter Runtime_resources.Image.Private.release_snapshot leases
@@ -314,29 +303,12 @@ let rollback_leases policy checkpoint=match policy,checkpoint with
   |Retain_image_snapshots _,None->assert false
 type stats=Runtime.stats
 let stats value=match ensure"Prismel_execution.stats"value with Error _ as e->e|Ok()->
-  match value.runtime with
-  |Window runtime->Ok(Runtime.stats runtime)
-  |Offscreen state->Ok(Runtime.offscreen_stats state.runtime)
+  Ok(Runtime.stats(target value.runtime))
 let presentation_facts value=match ensure"Prismel_execution.presentation_facts"value with
   |Error _ as e->e
-  |Ok()->match value.runtime with
-    |Window runtime->(match Runtime.window_facts runtime with
-      |Error error->{operation="Prismel_execution.presentation_facts";
-          kind=Backend;message=Ogpu.Error.to_string error}|>Result.error
-      |Ok facts->
-          (match value.last_presentation with
-           |Some p when p.logical_width=facts.logical_width&&p.logical_height=facts.logical_height&&
-               p.drawable_width=facts.drawable_width&&p.drawable_height=facts.drawable_height&&
-               p.pixel_density=facts.pixel_density&&p.display_scale=facts.display_scale&&
-               p.vsync=facts.vsync&&p.title=facts.title&&p.position=Some facts.position&&
-               p.refresh_rate=facts.refresh_rate->Ok p
-           |_->let p={title=facts.title;logical_width=facts.logical_width;
-               logical_height=facts.logical_height;drawable_width=facts.drawable_width;
-               drawable_height=facts.drawable_height;position=Some facts.position;
-               pixel_density=facts.pixel_density;display_scale=facts.display_scale;
-               refresh_rate=facts.refresh_rate;vsync=facts.vsync}in
-               value.last_presentation<-Some p;Ok p))
-    |Offscreen state->Ok state.facts
+  |Ok()->match Runtime.presentation_facts(target value.runtime)with
+    |Ok _ as facts->facts
+    |Error error->backend"Prismel_execution.presentation_facts"error
 let window operation call value=match ensure operation value with Error _ as e->e|Ok()->
   match value.runtime with
   |Offscreen _->fail operation Unsupported"operation requires a presentation window"
@@ -699,36 +671,26 @@ let resize value ~logical_width ~logical_height ~drawable_width ~drawable_height
   match ensure"Prismel_execution.resize"value with Error _ as e->e|Ok()->
   let resized=match value.runtime with
   |Window runtime->Runtime.resize runtime~width:logical_width~height:logical_height
-  |Offscreen state->match Runtime.resize_offscreen state.runtime
-      ~logical_width~logical_height
-      ~width:drawable_width~height:drawable_height with
-    |Error _ as error->error
-    |Ok()->let pixel_density=float drawable_width/.float logical_width in
-      state.facts<-{state.facts with logical_width;logical_height;drawable_width;
-        drawable_height;pixel_density;display_scale=pixel_density};Ok()in
+  |Offscreen(runtime,_)->Runtime.resize runtime~drawable:(drawable_width,drawable_height)
+      ~width:logical_width~height:logical_height in
   Result.map_error (fun e->{operation="Prismel_execution.resize";
       kind=Backend;message=Ogpu.Error.to_string e}) resized
 let replay_step ?clear ~identity ~version value=
   match ensure"Prismel_execution.Private.replay"value with
   |Error _ as error->error
   |Ok()->
-      match presentation_facts value with
-      |Error _ as error->error
-      |Ok _->
-          let replayed=match value.runtime with
-          |Window runtime->Runtime.replay_prepared_sampled_resources ?clear
-              ~identity ~version runtime
-          |Offscreen _->Ok None in
-          (match replayed with
-          |Error error->backend"Prismel_execution.Private.replay"error
-          |Ok None->Ok None
-          |Ok(Some _)->Ok(Some()))
+      match Runtime.replay_prepared_sampled_resources ?clear ~identity ~version
+          (target value.runtime) with
+      |Error error->backend"Prismel_execution.Private.replay"error
+      |Ok None->Ok None
+      |Ok(Some _)->Ok(Some())
 let step_core ?after_prepare ?clear ?identity ?version value draws=
   let after_prepare=Option.value after_prepare ~default:Fun.id in
   match ensure"Prismel_execution.step"value with Error _ as e->e|Ok()->
   match presentation_facts value with Error _ as error->after_prepare();error|Ok f->
-    let replayed=match value.runtime,identity,version with
-      |Window runtime,Some identity,Some version->
+    let runtime=target value.runtime in
+    let replayed=match identity,version with
+      |Some identity,Some version->
           Runtime.replay_prepared_sampled_resources ?clear ~identity ~version runtime
       |_->Ok None in
     let rendered=match replayed with
@@ -748,21 +710,12 @@ let step_core ?after_prepare ?clear ?identity ?version value draws=
           {Scene_execution.family=x.family;blend=x.blend;texture=x.texture;
             auxiliary=x.auxiliary;samples=x.samples;draw})draws in
         value.last_step_draws<-draws;value.last_step_prepared<-prepared;prepared in
-    match value.runtime with
-    |Window runtime->(match identity,version with
-      |None,None->Runtime.render_sampled_resources ~after_prepare ?clear runtime draws
-      |Some identity,Some version->Runtime.render_prepared_sampled_resources ~after_prepare ?clear
-          ~identity~version runtime draws
-      |_->after_prepare();Error(Ogpu.Error.make"Prismel_execution.step"Ogpu.Error.Invalid_argument
-          "prepared identity and version must be supplied together"))
-    |Offscreen state->
-      let result=match identity,version with
-      |None,None->Runtime.render_offscreen ~after_prepare ?clear state.runtime draws
-      |Some identity,Some version->Runtime.render_offscreen_prepared ~after_prepare ?clear
-          ~identity~version state.runtime draws
-      |_->after_prepare();Error(Ogpu.Error.make"Prismel_execution.step"Ogpu.Error.Invalid_argument
-          "prepared identity and version must be supplied together")in
-      result in
+    match identity,version with
+    |None,None->Runtime.render_sampled_resources ~after_prepare ?clear runtime draws
+    |Some identity,Some version->Runtime.render_prepared_sampled_resources ~after_prepare ?clear
+        ~identity~version runtime draws
+    |_->after_prepare();Error(Ogpu.Error.make"Prismel_execution.step"Ogpu.Error.Invalid_argument
+        "prepared identity and version must be supplied together")in
     match rendered with Error e->backend"Prismel_execution.step"e
     |Ok _->Ok()
 let step ?clear value draws=step_core ?clear value draws
@@ -958,28 +911,22 @@ let step_submission ?clear ?identity ?version submission batches=
             ?clear ?identity ?version submission.owner draws)
 let capture value=match ensure"Prismel_execution.capture"value with Error _ as e->e|Ok()->
   match presentation_facts value with Error _ as error->error|Ok facts->
-  let captured=match value.runtime with
-  |Window runtime->Runtime.read_pixels runtime
-      ~bytes_per_row:(facts.drawable_width*4)
-  |Offscreen state->Runtime.read_offscreen state.runtime
-      ~bytes_per_row:(facts.drawable_width*4)in
-  match captured with Ok x->Ok x|Error e->backend"Prismel_execution.capture"e
+  match Runtime.read_pixels(target value.runtime)
+      ~bytes_per_row:(facts.drawable_width*4)with
+  |Ok x->Ok x|Error e->backend"Prismel_execution.capture"e
 let offscreen_target value=
   let operation="Prismel_execution.offscreen_target"in
   match ensure operation value with Error _ as e->e|Ok()->
   match value.runtime with
-  |Offscreen state->(match Runtime.offscreen_target state.runtime with
+  |Offscreen(runtime,_)->(match Runtime.target runtime with
       |Ok texture->Ok texture|Error e->backend operation e)
   |Window _->fail operation Unsupported"operation requires an offscreen execution"
 let capture_into value~destination=
   match ensure"Prismel_execution.capture_into"value with Error _ as e->e|Ok()->
   match presentation_facts value with Error _ as error->error|Ok facts->
-  let captured=match value.runtime with
-  |Window runtime->Runtime.read_pixels_into runtime
-      ~bytes_per_row:(facts.drawable_width*4)~destination
-  |Offscreen state->Runtime.read_offscreen_into state.runtime
-      ~bytes_per_row:(facts.drawable_width*4)~destination in
-  match captured with Ok()->Ok()|Error e->backend"Prismel_execution.capture_into"e
+  match Runtime.read_pixels_into(target value.runtime)
+      ~bytes_per_row:(facts.drawable_width*4)~destination with
+  |Ok()->Ok()|Error e->backend"Prismel_execution.capture_into"e
 let destroy value=if value.dead then Ok()else
   match value.runtime with
   |Window _ when !shared_leases>0->
@@ -996,13 +943,11 @@ let destroy value=if value.dead then Ok()else
     Segment_table.clear value.retained_scene2_segments;
     value.last_step_draws<-[];
     value.last_step_prepared<-[];value.scene2_out_slots<-[||];
-    value.scene2_out_list<-[];value.last_presentation<-None;Int_table.clear value.ui_slots;value.dead<-true;
+    value.scene2_out_list<-[];Int_table.clear value.ui_slots;value.dead<-true;
     (match !active_window with Some current when current==value->active_window:=None|_->());
-    let destroyed=match value.runtime with
-    |Window runtime->Runtime.destroy runtime
-    |Offscreen state->
-        let destroyed=Runtime.destroy_offscreen state.runtime in
-        release_device state.lease_shared;destroyed in
+    let destroyed=Runtime.destroy(target value.runtime)in
+    (match value.runtime with
+     |Offscreen(_,lease_shared)->release_device lease_shared|Window _->());
     match destroyed with Ok()->Ok()|Error e->backend"Prismel_execution.destroy"e)
 (* GPU film leases own their own queue, so their frame pacing never couples
    with presentation. *)

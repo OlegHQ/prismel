@@ -46,9 +46,9 @@ let run () = match Runtime.create_offscreen ~logical_width:4 ~logical_height:4 (
       let left = draw (0, 0, 4, 4) (uniform true)
       and right = draw (0, 0, 4, 4) (uniform false) in
       for _frame = 1 to 3 do
-        ignore (get (Runtime.render_offscreen runtime
+        ignore (get (Runtime.render_sampled_resources runtime
           [left;right]));
-        let pixels = get (Runtime.read_offscreen runtime ~bytes_per_row:256) in
+        let pixels = get (Runtime.read_pixels runtime ~bytes_per_row:256) in
         if Char.code (Bytes.get pixels 0) <> 255
             || Char.code (Bytes.get pixels 1) <> 0
             || Char.code (Bytes.get pixels 12) <> 0
@@ -62,8 +62,8 @@ let run () = match Runtime.create_offscreen ~logical_width:4 ~logical_height:4 (
       Bytes.set_int32_le second (53 * 4) (Int32.bits_of_float 0.);
       let reference_draws = [draw (0, 0, 4, 4) first; draw (0, 0, 4, 4) second] in
       let render entries =
-        ignore (get (Runtime.render_offscreen runtime entries));
-        get (Runtime.read_offscreen runtime ~bytes_per_row:256) in
+        ignore (get (Runtime.render_sampled_resources runtime entries));
+        get (Runtime.read_pixels runtime ~bytes_per_row:256) in
       let expected = render reference_draws in
       let instanced = Bytes.make (5456 + 2 * 192) '\000' in
       Bytes.blit first 0 instanced 0 5456;
@@ -99,5 +99,5 @@ let run () = match Runtime.create_offscreen ~logical_width:4 ~logical_height:4 (
           | Triangle_list -> "triangle" | Triangle_strip -> "strip")))
         [ Ogpu.Render_pass.Line_list, [-1., 0.; 1., 0.];
           Ogpu.Render_pass.Point_list, [-0.5, -0.75] ];
-      get (Runtime.destroy_offscreen runtime);
+      get (Runtime.destroy runtime);
       print_endline "Scene3 shared-mesh and indexed instances passed"

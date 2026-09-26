@@ -59,61 +59,47 @@ let count counters draw_count ~presented =
   counters.logical_passes <- Int64.succ counters.logical_passes;
   counters.logical_submissions <- Int64.succ counters.logical_submissions
 
-let account counters draw_count result =
-  (match result with Ok presented -> count counters draw_count ~presented | Error _ -> ());
-  result
-
-(* An offscreen target never reaches the display. *)
-let account_offscreen counters draw_count result =
-  (match result with Ok _ -> count counters draw_count ~presented:false | Error _ -> ());
-  result
-
-type window_facts = {
+type presentation_facts = {
   title : string;
   logical_width : int;
   logical_height : int;
   drawable_width : int;
   drawable_height : int;
-  position : int * int;
+  position : (int * int) option;
   pixel_density : float;
   display_scale : float;
   refresh_rate : float option;
   vsync : bool;
 }
 
-type t = {
-  window : Sdl3.Window.t;
+type window = {
+  handle : Sdl3.Window.t;
   view : Sdl3.Metal_view.t;
-  renderer : Scene_execution.t;
-  mutable facts : frame_facts;
-  mutable presentation : window_facts option;
-  counters : counters;
-  scaled : scaled_cache;
   vsync : bool;
-  mutable dead : bool;
   mutable cursors : ([ `Default | `Horizontal_resize | `Vertical_resize ] * Sdl3.Cursor.t) list;
   mutable cursor_shape : [ `Default | `Horizontal_resize | `Vertical_resize ] option;
 }
 
-let device value =
-  let operation = "Runtime.device" in
-  if value.dead then
-    Error (Ogpu.Error.make operation Ogpu.Error.Stale_handle "runtime is destroyed")
-  else Ok (Scene_execution.device value.renderer)
-
-type offscreen = {
+(* One render target: a presenting window, or ([window = None]) an owned
+   offscreen texture. *)
+type t = {
   renderer : Scene_execution.t;
+  window : window option;
+  title : string;
   mutable facts : frame_facts;
+  mutable presentation : presentation_facts option;
   counters : counters;
   scaled : scaled_cache;
   mutable dead : bool;
 }
 
-let offscreen_target value =
-  let operation = "Runtime.offscreen_target" in
-  if value.dead then
-    Error (Ogpu.Error.make operation Ogpu.Error.Stale_handle "runtime is destroyed")
-  else Ok (Scene_execution.target value.renderer)
+let stale operation = Error (Ogpu.Error.make operation Ogpu.Error.Stale_handle "runtime is destroyed")
+
+let device value =
+  if value.dead then stale "Runtime.device" else Ok (Scene_execution.device value.renderer)
+
+let target value =
+  if value.dead then stale "Runtime.target" else Ok (Scene_execution.target value.renderer)
 
 let error op text = Error (Ogpu.Error.make op Ogpu.Error.Invalid_state text)
 let sdl op = function Ok x -> Ok x | Error e -> error op (Format.asprintf "%a" Sdl3.pp_error e)
@@ -464,49 +450,56 @@ let create ?(vsync = true) ?(hidden = true) ?(title = "Prismel") ~width ~height 
                                             | Ok () ->
                                                 Ok
                                                   {
-                                                    window;
-                                                    view;
                                                     renderer;
+                                                    window =
+                                                      Some
+                                                        {
+                                                          handle = window;
+                                                          view;
+                                                          vsync;
+                                                          cursors = [];
+                                                          cursor_shape = None;
+                                                        };
+                                                    title;
                                                     facts;
-                                                    vsync;
-                                                    dead = false;
-                                                    cursors = [];
                                                     presentation = None;
                                                     counters = new_counters ();
                                                     scaled = new_scaled_cache ();
-                                                    cursor_shape = None;
+                                                    dead = false;
                                                   }))))))))
 
-let create_offscreen ?device ~logical_width ~logical_height ~width ~height () =
+let offscreen_facts ~logical_width ~logical_height ~width ~height =
+  {
+    logical_width;
+    logical_height;
+    drawable_width = width;
+    drawable_height = height;
+    pixel_scale_x = float width /. float logical_width;
+    pixel_scale_y = float height /. float logical_height;
+  }
+
+let create_offscreen ?device ?(title = "Prismel") ~logical_width ~logical_height ~width ~height
+    () =
   let op = "Runtime.create_offscreen" in
   if width <= 0 || height <= 0 || logical_width <= 0 || logical_height <= 0 then
     Error (Ogpu.Error.make op Invalid_argument "dimensions must be positive")
   else
     let driver, _live = Ogpu.Impl.create_driver () in
     let configuration = configuration ~vsync:false ~width ~height () in
-    match
-      create_renderer ?device ~offscreen:true ~driver ~configuration ()
-    with
-        | Error _ as error -> error
-        | Ok renderer ->
-            let facts =
-              {
-                logical_width;
-                logical_height;
-                drawable_width = width;
-                drawable_height = height;
-                pixel_scale_x = float width /. float logical_width;
-                pixel_scale_y = float height /. float logical_height;
-              }
-            in
-            Ok
-              {
-                renderer;
-                facts;
-                counters = new_counters ();
-                scaled = new_scaled_cache ();
-                dead = false;
-              }
+    match create_renderer ?device ~offscreen:true ~driver ~configuration () with
+    | Error _ as error -> error
+    | Ok renderer ->
+        Ok
+          {
+            renderer;
+            window = None;
+            title;
+            facts = offscreen_facts ~logical_width ~logical_height ~width ~height;
+            presentation = None;
+            counters = new_counters ();
+            scaled = new_scaled_cache ();
+            dead = false;
+          }
 
 let scale_rect (facts : frame_facts) (x, y, w, h) =
   let edge value logical drawable = value * drawable / logical in
@@ -552,7 +545,7 @@ let scale_sampled_cached cache (facts : frame_facts) draws =
     scaled
   end
 
-let apply_facts (value : t) (facts : frame_facts) =
+let apply_facts (value : t) ~vsync (facts : frame_facts) =
   let configuration : Ogpu.Surface.configuration =
     {
       logical_width = facts.logical_width;
@@ -560,7 +553,7 @@ let apply_facts (value : t) (facts : frame_facts) =
       physical_width = facts.drawable_width;
       physical_height = facts.drawable_height;
       format = Bgra8_unorm;
-      present_mode = present_mode value.vsync;
+      present_mode = present_mode vsync;
       max_acquired = 2;
       layer = None;
     }
@@ -571,68 +564,61 @@ let apply_facts (value : t) (facts : frame_facts) =
       value.facts <- facts;
       Ok ()
 
-let sync_window_facts (value : t) =
-  if value.dead then Ok ()
+(* A window's drawable follows SDL; an offscreen target changes only through
+   [resize]. *)
+let sync_facts (value : t) =
+  match value.window with
+  | None -> Ok ()
+  | Some window -> (
+      match facts window.handle with
+      | Error _ as error -> error
+      | Ok live
+        when live.logical_width = value.facts.logical_width
+             && live.logical_height = value.facts.logical_height
+             && live.drawable_width = value.facts.drawable_width
+             && live.drawable_height = value.facts.drawable_height ->
+          Ok ()
+      | Ok live -> apply_facts value ~vsync:window.vsync live)
+
+(* Runs one frame against the synced target; only a window presents. *)
+let frame operation ?after_prepare (value : t) draw_count render =
+  let release () = Option.iter (fun f -> f ()) after_prepare in
+  if value.dead then (
+    release ();
+    stale operation)
   else
-    match facts value.window with
-    | Error _ as error -> error
-    | Ok live
-      when live.logical_width = value.facts.logical_width
-           && live.logical_height = value.facts.logical_height
-           && live.drawable_width = value.facts.drawable_width
-           && live.drawable_height = value.facts.drawable_height ->
-        Ok ()
-    | Ok live -> apply_facts value live
+    match sync_facts value with
+    | Error _ as error ->
+        release ();
+        error
+    | Ok () -> (
+        match render () with
+        | Ok presented as result ->
+            count value.counters draw_count
+              ~presented:(presented && Option.is_some value.window);
+            result
+        | Error _ as error -> error)
 
 let render ?clear (value : t) draws =
-  if value.dead then
-    Error (Ogpu.Error.make "Runtime.render" Stale_handle "runtime is destroyed")
-  else
-    match sync_window_facts value with
-    | Error _ as error -> error
-    | Ok () ->
-        account value.counters (List.length draws)
-          (Scene_execution.render ?clear value.renderer (scale_draws value.facts draws))
+  frame "Runtime.render" value (List.length draws) (fun () ->
+      Scene_execution.render ?clear value.renderer (scale_draws value.facts draws))
 
 let render_sampled_resources ?after_prepare ?clear (value : t) draws =
-  if value.dead then (
-    Option.iter (fun f -> f ()) after_prepare;
-    Error
-      (Ogpu.Error.make "Runtime.render_sampled_resources" Stale_handle "runtime is destroyed"))
-  else
-    match sync_window_facts value with
-    | Error _ as error ->
-        Option.iter (fun f -> f ()) after_prepare;
-        error
-    | Ok () ->
-        account value.counters (List.length draws)
-          (Scene_execution.render_sampled_resources ?after_prepare ?clear value.renderer
-             (scale_sampled_cached value.scaled value.facts draws))
+  frame "Runtime.render_sampled_resources" ?after_prepare value (List.length draws) (fun () ->
+      Scene_execution.render_sampled_resources ?after_prepare ?clear value.renderer
+        (scale_sampled_cached value.scaled value.facts draws))
 
 let render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version (value : t) draws =
-  if value.dead then (
-    Option.iter (fun f -> f ()) after_prepare;
-    Error
-      (Ogpu.Error.make "Runtime.render_prepared_sampled_resources" Stale_handle
-         "runtime is destroyed"))
-  else
-    match sync_window_facts value with
-    | Error _ as error ->
-        Option.iter (fun f -> f ()) after_prepare;
-        error
-    | Ok () ->
-        account value.counters (List.length draws)
-          (Scene_execution.render_prepared_sampled_resources ?after_prepare ?clear ~identity
-             ~version value.renderer
-             (scale_sampled_cached value.scaled value.facts draws))
+  frame "Runtime.render_prepared_sampled_resources" ?after_prepare value (List.length draws)
+    (fun () ->
+      Scene_execution.render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version
+        value.renderer
+        (scale_sampled_cached value.scaled value.facts draws))
 
 let replay_prepared_sampled_resources ?clear ~identity ~version (value : t) =
-  if value.dead then
-    Error
-      (Ogpu.Error.make "Runtime.replay_prepared_sampled_resources" Stale_handle
-         "runtime is destroyed")
+  if value.dead then stale "Runtime.replay_prepared_sampled_resources"
   else
-    match sync_window_facts value with
+    match sync_facts value with
     | Error _ as error -> error
     | Ok () -> (
         match
@@ -640,29 +626,48 @@ let replay_prepared_sampled_resources ?clear ~identity ~version (value : t) =
             value.renderer
         with
         | Ok (Some (presented, draw_count)) ->
+            let presented = presented && Option.is_some value.window in
             count value.counters draw_count ~presented;
             Ok (Some presented)
         | Ok None -> Ok None
         | Error _ as error -> error)
 
-let resize (value : t) ~width ~height =
-  if value.dead then
-    Error (Ogpu.Error.make "Runtime.resize" Stale_handle "runtime is destroyed")
+let resize ?drawable (value : t) ~width ~height =
+  let op = "Runtime.resize" in
+  if value.dead then stale op
+  else if width <= 0 || height <= 0 then
+    Error (Ogpu.Error.make op Invalid_argument "dimensions must be positive")
   else
-    match sdl "Runtime.resize" (Sdl3.Window.set_size value.window ~width ~height) with
-    | Error _ as e -> e
-    | Ok () ->
-        value.presentation <- None;
-        Result.bind (facts value.window) (apply_facts value)
+    match (value.window, drawable) with
+    | Some _, Some _ ->
+        Error
+          (Ogpu.Error.make op Invalid_argument "a window's drawable size follows its display")
+    | Some window, None -> (
+        match sdl op (Sdl3.Window.set_size window.handle ~width ~height) with
+        | Error _ as e -> e
+        | Ok () ->
+            value.presentation <- None;
+            Result.bind (facts window.handle) (apply_facts value ~vsync:window.vsync))
+    | None, drawable ->
+        let drawable_width, drawable_height = Option.value drawable ~default:(width, height) in
+        if drawable_width <= 0 || drawable_height <= 0 then
+          Error (Ogpu.Error.make op Invalid_argument "dimensions must be positive")
+        else (
+          value.presentation <- None;
+          apply_facts value ~vsync:false
+            (offscreen_facts ~logical_width:width ~logical_height:height ~width:drawable_width
+               ~height:drawable_height))
 
-let read_pixels (value : t) = Scene_execution.read_pixels value.renderer
+let read_pixels (value : t) ~bytes_per_row =
+  if value.dead then stale "Runtime.read_pixels"
+  else Scene_execution.read_pixels value.renderer ~bytes_per_row
 
 let read_pixels_into (value : t) ~bytes_per_row ~destination =
-  if value.dead then
-    Error (Ogpu.Error.make "Runtime.read_pixels_into" Stale_handle "runtime is destroyed")
+  if value.dead then stale "Runtime.read_pixels_into"
   else Scene_execution.read_pixels_into value.renderer ~bytes_per_row ~destination
 
-let renderer_stats renderer (counters : counters) =
+let stats (value : t) =
+  let renderer = value.renderer and counters = value.counters in
   let timing = Ogpu.Backend.gpu_timing (Scene_execution.queue renderer)
   and retained = Scene_execution.retained_stats renderer in
   {
@@ -708,83 +713,78 @@ let zero_stats =
     retained_plan_capacity = 0;
   }
 
-let stats (value : t) = renderer_stats value.renderer value.counters
-
 let frame_facts (value : t) = value.facts
 
 let live_window operation (value : t) callback =
-  if value.dead then Error (Ogpu.Error.make operation Stale_handle "runtime is destroyed")
-  else callback value.window
+  if value.dead then stale operation
+  else
+    match value.window with
+    | None -> Error (Ogpu.Error.make operation Unsupported "operation requires a window")
+    | Some window -> callback window
 
-let query_window_facts (value : t) =
-  live_window "Runtime.window_facts" value (fun window ->
+let query_presentation (value : t) =
+  match value.window with
+  | None ->
+      let facts = value.facts in
+      Ok
+        {
+          title = value.title;
+          logical_width = facts.logical_width;
+          logical_height = facts.logical_height;
+          drawable_width = facts.drawable_width;
+          drawable_height = facts.drawable_height;
+          position = None;
+          pixel_density = facts.pixel_scale_x;
+          display_scale = facts.pixel_scale_x;
+          refresh_rate = None;
+          vsync = false;
+        }
+  | Some { handle = window; vsync; _ } -> (
+      let op = "Runtime.presentation_facts" in
       match
-        ( sdl "Runtime.window_facts" (Sdl3.Window.presentation_facts window ~vsync:value.vsync),
-          sdl "Runtime.window_facts" (Sdl3.Window.title window),
-          sdl "Runtime.window_facts" (Sdl3.Window.position window) )
+        ( sdl op (Sdl3.Window.presentation_facts window ~vsync),
+          sdl op (Sdl3.Window.title window),
+          sdl op (Sdl3.Window.position window) )
       with
       | Ok facts, Ok title, Ok position ->
           Ok
-            ({
-               title;
-               logical_width = facts.logical_width;
-               logical_height = facts.logical_height;
-               drawable_width = facts.drawable_width;
-               drawable_height = facts.drawable_height;
-               position;
-               pixel_density = facts.pixel_density;
-               display_scale = facts.display_scale;
-               refresh_rate = facts.refresh_rate;
-               vsync = facts.vsync;
-             }
-              : window_facts)
+            {
+              title;
+              logical_width = facts.logical_width;
+              logical_height = facts.logical_height;
+              drawable_width = facts.drawable_width;
+              drawable_height = facts.drawable_height;
+              position = Some position;
+              pixel_density = facts.pixel_density;
+              display_scale = facts.display_scale;
+              refresh_rate = facts.refresh_rate;
+              vsync = facts.vsync;
+            }
       | Error e, _, _ | _, Error e, _ | _, _, Error e -> Error e)
 
-(* Queried from SDL once, then kept in step with the per-frame drawable facts;
-   title, position, resize and show invalidate it. *)
-let window_facts (value : t) =
-  match value.presentation with
-  | None ->
-      Result.map
-        (fun facts ->
-          value.presentation <- Some facts;
-          facts)
-        (query_window_facts value)
-  | Some _ when value.dead ->
-      Error (Ogpu.Error.make "Runtime.window_facts" Stale_handle "runtime is destroyed")
-  | Some cached ->
-      let live = value.facts in
-      if
-        cached.logical_width = live.logical_width
-        && cached.logical_height = live.logical_height
-        && cached.drawable_width = live.drawable_width
-        && cached.drawable_height = live.drawable_height
-        && cached.pixel_density = live.pixel_scale_x
-        && cached.display_scale = live.pixel_scale_x
-      then Ok cached
-      else
-        let facts =
-          {
-            cached with
-            logical_width = live.logical_width;
-            logical_height = live.logical_height;
-            drawable_width = live.drawable_width;
-            drawable_height = live.drawable_height;
-            pixel_density = live.pixel_scale_x;
-            display_scale = live.pixel_scale_x;
-          }
-        in
-        value.presentation <- Some facts;
-        Ok facts
-
-let invalidate_presentation (value : t) = function
-  | Ok () as ok ->
-      value.presentation <- None;
-      ok
-  | Error _ as error -> error
+(* Queried once and reused while the target's drawable facts are unchanged;
+   a drawable change, resize, or show queries again (so a new display's scale
+   is read, never guessed). *)
+let presentation_facts (value : t) =
+  if value.dead then stale "Runtime.presentation_facts"
+  else
+    let live = value.facts in
+    match value.presentation with
+    | Some cached
+      when cached.logical_width = live.logical_width
+           && cached.logical_height = live.logical_height
+           && cached.drawable_width = live.drawable_width
+           && cached.drawable_height = live.drawable_height ->
+        Ok cached
+    | Some _ | None ->
+        Result.map
+          (fun facts ->
+            value.presentation <- Some facts;
+            facts)
+          (query_presentation value)
 
 let window_call operation call value =
-  live_window operation value (fun window -> sdl operation (call window))
+  live_window operation value (fun window -> sdl operation (call window.handle))
 
 let set_resizable value enabled =
   window_call "Runtime.set_resizable"
@@ -797,11 +797,11 @@ let set_relative_mouse value enabled =
     value
 
 let set_cursor value shape =
-  live_window "Runtime.set_cursor" value (fun _ ->
-      if value.cursor_shape = Some shape then Ok ()
+  live_window "Runtime.set_cursor" value (fun window ->
+      if window.cursor_shape = Some shape then Ok ()
       else
         let cursor =
-          match List.assoc_opt shape value.cursors with
+          match List.assoc_opt shape window.cursors with
           | Some cursor -> Ok cursor
           | None ->
               let native =
@@ -812,7 +812,7 @@ let set_cursor value shape =
               in
               Result.map
                 (fun cursor ->
-                  value.cursors <- (shape, cursor) :: value.cursors;
+                  window.cursors <- (shape, cursor) :: window.cursors;
                   cursor)
                 (sdl "Runtime.set_cursor" (Sdl3.Cursor.create native))
         in
@@ -822,7 +822,7 @@ let set_cursor value shape =
             match sdl "Runtime.set_cursor" (Sdl3.Cursor.set cursor) with
             | Error _ as error -> error
             | Ok () ->
-                value.cursor_shape <- Some shape;
+                window.cursor_shape <- Some shape;
                 Ok ()))
 
 let set_text_input_area value area =
@@ -834,11 +834,13 @@ let set_text_input_area value area =
     value
 
 let show (value : t) =
-  if value.dead then Error (Ogpu.Error.make "Runtime.show" Stale_handle "runtime is destroyed")
-  else
-    match sdl "Runtime.show" (reveal value.window) with
-    | Error _ as error -> error
-    | Ok () -> invalidate_presentation value (sync_window_facts value)
+  live_window "Runtime.show" value (fun window ->
+      match sdl "Runtime.show" (reveal window.handle) with
+      | Error _ as error -> error
+      | Ok () ->
+          let synced = sync_facts value in
+          if Result.is_ok synced then value.presentation <- None;
+          synced)
 
 let hide = window_call "Runtime.hide" Sdl3.Window.hide
 
@@ -846,7 +848,7 @@ let visible value =
   live_window "Runtime.visible" value (fun window ->
       Result.map
         (fun flags -> Int64.logand flags 0x8L = 0L)
-        (sdl "Runtime.visible" (Sdl3.Window.flags window)))
+        (sdl "Runtime.visible" (Sdl3.Window.flags window.handle)))
 
 let restore = window_call "Runtime.restore" Sdl3.Window.restore
 
@@ -860,82 +862,18 @@ let destroy (value : t) =
       | Error error -> if !failure = None then failure := Some error
     in
     record (Scene_execution.destroy value.renderer);
-    record (sdl "Runtime.destroy" (Sdl3.Text_input.stop value.window));
-    List.iter
-      (fun (_, cursor) -> record (sdl "Runtime.destroy" (Sdl3.Cursor.destroy cursor)))
-      value.cursors;
-    value.cursors <- [];
-    record (sdl "Runtime.destroy" (Sdl3.Metal_view.destroy value.view));
-    record (sdl "Runtime.destroy" (Sdl3.Window.destroy value.window));
-    record (sdl "Runtime.destroy" (Sdl3.Init.quit_subsystems [ Sdl3.Init.Video ]));
+    Option.iter
+      (fun window ->
+        record (sdl "Runtime.destroy" (Sdl3.Text_input.stop window.handle));
+        List.iter
+          (fun (_, cursor) -> record (sdl "Runtime.destroy" (Sdl3.Cursor.destroy cursor)))
+          window.cursors;
+        window.cursors <- [];
+        record (sdl "Runtime.destroy" (Sdl3.Metal_view.destroy window.view));
+        record (sdl "Runtime.destroy" (Sdl3.Window.destroy window.handle));
+        record (sdl "Runtime.destroy" (Sdl3.Init.quit_subsystems [ Sdl3.Init.Video ])))
+      value.window;
     match !failure with None -> Ok () | Some error -> Error error)
-
-let render_offscreen ?after_prepare ?clear value draws =
-  if value.dead then (
-    Option.iter (fun f -> f ()) after_prepare;
-    Error
-      (Ogpu.Error.make "Runtime.render_offscreen" Stale_handle "offscreen target is destroyed"))
-  else
-    account_offscreen value.counters (List.length draws)
-      (Scene_execution.render_sampled_resources ?after_prepare ?clear value.renderer
-         (scale_sampled_cached value.scaled value.facts draws))
-
-let render_offscreen_prepared ?after_prepare ?clear ~identity ~version value draws =
-  if value.dead then (
-    Option.iter (fun f -> f ()) after_prepare;
-    Error
-      (Ogpu.Error.make "Runtime.render_offscreen_prepared" Stale_handle
-         "offscreen target is destroyed"))
-  else
-    account_offscreen value.counters (List.length draws)
-      (Scene_execution.render_prepared_sampled_resources ?after_prepare ?clear ~identity ~version
-         value.renderer
-         (scale_sampled_cached value.scaled value.facts draws))
-
-let read_offscreen value ~bytes_per_row =
-  if value.dead then
-    Error
-      (Ogpu.Error.make "Runtime.read_offscreen" Stale_handle "offscreen target is destroyed")
-  else Scene_execution.read_pixels value.renderer ~bytes_per_row
-
-let read_offscreen_into value ~bytes_per_row ~destination =
-  if value.dead then
-    Error
-      (Ogpu.Error.make "Runtime.read_offscreen_into" Stale_handle
-         "offscreen target is destroyed")
-  else Scene_execution.read_pixels_into value.renderer ~bytes_per_row ~destination
-
-let resize_offscreen value ~logical_width ~logical_height ~width ~height =
-  if value.dead then
-    Error
-      (Ogpu.Error.make "Runtime.resize_offscreen" Stale_handle "offscreen target is destroyed")
-  else if width <= 0 || height <= 0 || logical_width <= 0 || logical_height <= 0 then
-    Error
-      (Ogpu.Error.make "Runtime.resize_offscreen" Invalid_argument
-         "dimensions must be positive")
-  else
-    let configuration = configuration ~vsync:false ~width ~height () in
-    match Scene_execution.resize value.renderer configuration with
-    | Error _ as error -> error
-    | Ok () ->
-        value.facts <-
-          {
-            logical_width;
-            logical_height;
-            drawable_width = width;
-            drawable_height = height;
-            pixel_scale_x = float width /. float logical_width;
-            pixel_scale_y = float height /. float logical_height;
-          };
-        Ok ()
-
-let offscreen_stats (value : offscreen) = renderer_stats value.renderer value.counters
-
-let destroy_offscreen value =
-  if value.dead then Ok ()
-  else (
-    value.dead <- true;
-    Scene_execution.destroy value.renderer)
 
 module Private = struct
   let scale_draws = scale_draws
