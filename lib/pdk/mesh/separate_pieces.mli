@@ -11,18 +11,6 @@ val run :
   ?gap:float ->
   mode:mode ->
   piece_attribute:string ->
-  Geometry.t ->
-  (Geometry.t, string) result
-
-val run_checked :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?owner:Attribute.owner ->
-  ?translation_attribute:string ->
-  ?axis:Vec3.t ->
-  ?gap:float ->
-  mode:mode ->
-  piece_attribute:string ->
   Geometry.t -> (Geometry.t, Error.t) result
 (** Deterministically pack integer- or text-identified pieces along [axis], or
     reverse a previous pack from its stored float3 translation attribute. *)

@@ -223,7 +223,7 @@ let run () =
     "empty edge-group Edge Divide was not an identity";
 
   let curve = Line_geometry.polyline [|0.,0.,0.; 2.,0.,0.; 2.,2.,0.|] |> get_pdk
-      |> Group_mesh.group_edges_checked ~name:"curve_edges" |> get_pdk in
+      |> Group_mesh.group_edges ~name:"curve_edges" |> get_pdk in
   let curve_edges = Geometry.find_edge_group "curve_edges" curve |> Option.get in
   let curve_output = Subdivide.edge_divide ~edges:curve_edges ~divisions:2 curve
       |> get_pdk in
@@ -235,7 +235,7 @@ let run () =
 
   let closed_curve = Line_geometry.polyline ~closed:true
       [|0.,0.,0.; 2.,0.,0.; 1.,2.,0.|] |> get_pdk
-      |> Group_mesh.group_edges_checked ~name:"closed_edges" |> get_pdk in
+      |> Group_mesh.group_edges ~name:"closed_edges" |> get_pdk in
   let closed_edges = Geometry.find_edge_group "closed_edges" closed_curve
       |> Option.get in
   let closed_output = Subdivide.edge_divide ~edges:closed_edges ~divisions:2
@@ -263,7 +263,7 @@ let run () =
     "non-manifold shared Edge Divide cardinality";
 
   let other = Box_generator.box ~size:(Vec3.create 1. 1. 1.) () |> get_pdk
-      |> Group_mesh.group_edges_checked ~name:"other" |> get_pdk in
+      |> Group_mesh.group_edges ~name:"other" |> get_pdk in
   let other_edges = Geometry.find_edge_group "other" other |> Option.get in
   expect_code "invalid_topology"
     (Subdivide.edge_divide ~edges:other_edges ~divisions:2 source);
@@ -286,7 +286,7 @@ let run () =
 
   let large = Plane_generators.grid ~grain:127 ~connectivity:Plane_generators.Grid_quads
       ~columns:160 ~rows:120 ~size:20. () |> get_pdk
-      |> Group_mesh.group_edges_checked ~grain:127 ~name:"all" |> get_pdk in
+      |> Group_mesh.group_edges ~grain:127 ~name:"all" |> get_pdk in
   let all = Geometry.find_edge_group "all" large |> Option.get in
   let run domains share_points = Parallel.run ~domains (fun () ->
     Subdivide.edge_divide ~grain:127 ~edges:all ~divisions:3 ~share_points large

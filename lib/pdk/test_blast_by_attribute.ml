@@ -111,7 +111,7 @@ let two_triangles () =
   |> with_attribute Attribute.Primitive "class" (Attribute.Int [|1; 2|])
   |> with_attribute Attribute.Primitive "primitive_id" (Attribute.Int [|20; 21|])
   |> with_attribute Attribute.Detail "tag" (Attribute.Text [|"source"|])
-  |> Group_mesh.group_edges_checked ~grain:1 ~name:"source_edges" |> get_ok
+  |> Group_mesh.group_edges ~grain:1 ~name:"source_edges" |> get_ok
 
 let test_modes_groups_and_base () =
   let source = point_source () in

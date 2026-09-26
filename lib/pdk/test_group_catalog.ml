@@ -148,7 +148,7 @@ let test_ordered_group_core () =
 let test_ordered_group_topology_remap () =
   let source = point_cloud 6
       |> with_ordered_group Group.Point "path" [|4; 1; 5|] in
-  let sorted = Ordering.sort_checked ~grain:1 ~owner:Ordering.Points ~key:Ordering.Reverse source
+  let sorted = Ordering.sort ~grain:1 ~owner:Ordering.Points ~key:Ordering.Reverse source
       |> get_ok in
   check (ordered_group_members (ordinary Group.Point "path" sorted)
       = [1; 4; 0])

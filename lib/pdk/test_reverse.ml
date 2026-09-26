@@ -42,7 +42,7 @@ let fixture () =
       ~name:"ordered_vertices" ~length:7 [|6;4;1|] |> get_string in
   Geometry.create ~positions ~topology ~attributes
     ~groups:[selected; empty; ordered_vertices] () |> get_string
-  |> Group_mesh.group_edges_checked ~name:"all_edges" |> get_pdk
+  |> Group_mesh.group_edges ~name:"all_edges" |> get_pdk
 
 let topology_points geometry =
   (Topology.Private.view (Geometry.topology geometry)).vertex_points

@@ -60,7 +60,7 @@ let measure name owner connectivity input =
       Gc.full_major ();
       let before = Gc.quick_stat () and bytes_before = Gc.allocated_bytes ()
       and started = Unix.gettimeofday () in
-      let output = Graph_color.run_checked ~grain ~connectivity input |> get in
+      let output = Graph_color.run ~grain ~connectivity input |> get in
       times.(repeat) <- Unix.gettimeofday () -. started;
       allocated.(repeat) <- Gc.allocated_bytes () -. bytes_before;
       let after = Gc.quick_stat () in

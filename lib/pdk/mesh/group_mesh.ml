@@ -11,13 +11,13 @@ type angle_basis = Edge_ops.angle_basis =
 type path_mode = Group_path.mode = Through_each | Start_end_pairs
 type path_ending = Group_path.ending = Stop_at_end | Close_path
 
-let group_edges_checked ?cancel ?grain ?name ?primitives ?incidence
+let group_edges ?cancel ?grain ?name ?primitives ?incidence
     ?min_length ?max_length ?angle_basis ?min_angle ?max_angle geometry =
   Error.guard ~operation:"group_edges" ~code:"invalid_edge_group" (fun () ->
     Edge_ops.group ?cancel ?grain ?name ?primitives ?incidence ?min_length
       ?max_length ?angle_basis ?min_angle ?max_angle geometry)
 
-let group_find_path_checked ?cancel ?grain ?mode ?ending
+let group_find_path ?cancel ?grain ?mode ?ending
     ?avoid_self_intersection ?collision ?contain ~base ~name geometry =
   Error.guard ~operation:"group_find_path" ~code:"invalid_group" (fun () ->
     Group_path.run ?cancel ?grain ?mode ?ending ?avoid_self_intersection

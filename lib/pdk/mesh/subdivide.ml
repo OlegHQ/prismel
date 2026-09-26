@@ -4328,9 +4328,9 @@ let subdivide ?cancel ?grain ?(scheme = Catmull_clark) ?(iterations = 1)
          | None -> () | Some free -> parts := free :: !parts);
         let combined = combine_parts ?cancel ?grain ~source:prepared
             (List.rev !parts) in
-        let ordered = Ordering.sort ?cancel ?grain ~owner:Ordering.Primitives
+        let ordered = Error.unguard (Ordering.sort ?cancel ?grain ~owner:Ordering.Primitives
             ~key:(Ordering.Attribute_component
-              { name = source_order_name; component = 0 }) combined |> get_ok in
+              { name = source_order_name; component = 0 }) combined) |> get_ok in
         let output = Geometry.without_attribute ~owner:Attribute.Primitive
             source_order_name ordered in
         Ok (if generate_resulting_creases then output

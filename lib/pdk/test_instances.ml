@@ -85,7 +85,7 @@ let source_geometry () =
       ~name:"primitive_path" ~length:primitives [|2; 0; 5|] |> get_ok in
   let source = Geometry.with_group point_group source |> get_ok in
   let source = Geometry.with_group primitive_group source |> get_ok in
-  Group_mesh.group_edges_checked ~grain:1 ~name:"prototype_edges" source |> get_pdk
+  Group_mesh.group_edges ~grain:1 ~name:"prototype_edges" source |> get_pdk
 
 let transforms count = Array.init count (fun instance ->
   let angle = float_of_int instance *. 0.17 in

@@ -37,7 +37,7 @@ let validate_name label name =
   if String.trim name = "" || String.equal name "P" then
     fail ("Graph Color " ^ label ^ " must be non-empty and not P")
 
-let run ?cancel ?(grain = 16_384) ?selection
+let graph_color_raw ?cancel ?(grain = 16_384) ?selection
     ?(connectivity = Graph_primitives_by_point) ?(color_attribute = "color")
     ?(sort_output = false) ?worksets geometry =
   try
@@ -309,9 +309,9 @@ let run ?cancel ?(grain = 16_384) ?selection
         (Attribute.Int colors) |> get in
     let output = Geometry.with_attribute color_attribute_value geometry |> get in
     let output = if not sort_output then output else
-        Ordering.sort ?cancel ~grain ~owner:(ordering_owner owner)
+        Error.unguard (Ordering.sort ?cancel ~grain ~owner:(ordering_owner owner)
           ~key:(Ordering.Attribute_component {
-            name = color_attribute; component = 0 }) output |> get in
+            name = color_attribute; component = 0 }) output) |> get in
     match worksets with
     | None -> Ok output
     | Some worksets ->
@@ -334,14 +334,14 @@ let run ?cancel ?(grain = 16_384) ?selection
         |> Geometry.with_attribute length_attribute
   with Graph_color_error message | Invalid_argument message -> Error message
 
-let run_checked ?cancel ?grain ?selection ?connectivity ?color_attribute
+let run ?cancel ?grain ?selection ?connectivity ?color_attribute
     ?sort_output ?worksets geometry =
+  Error.guard ~operation:"graph_color" ~code:"invalid_graph" @@ fun () ->
   let selection = Option.map (function
     | Transform_ops.Selected_points group -> Element_selection.Selected_points group
     | Transform_ops.Selected_vertices group -> Element_selection.Selected_vertices group
     | Transform_ops.Selected_primitives group -> Element_selection.Selected_primitives group
     | Transform_ops.Selected_edges group -> Element_selection.Selected_edges group)
       selection in
-  Error.guard ~operation:"graph_color" ~code:"invalid_graph" (fun () ->
-    run ?cancel ?grain ?selection ?connectivity ?color_attribute ?sort_output
-      ?worksets geometry)
+  graph_color_raw ?cancel ?grain ?selection ?connectivity ?color_attribute ?sort_output
+    ?worksets geometry

@@ -235,7 +235,7 @@ let check_parallel_exact () =
   let source = Array.init count (fun point ->
       let t = float_of_int point *. 0.003 in
       t, sin (t *. 0.7), cos (t *. 0.43) *. 0.6) |> Line_geometry.polyline |> get_ok
-      |> Group_mesh.group_edges_checked ~grain:257 ~name:"spine_edges" |> get_ok in
+      |> Group_mesh.group_edges ~grain:257 ~name:"spine_edges" |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
       Resample_curves.run ~grain:257 ~maximum_segment_length:0.0009
         ~curve_u_attribute:"curveu" ~curve_number_attribute:"curvenum"

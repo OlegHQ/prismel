@@ -726,7 +726,7 @@ let run_sweep_general_benchmarks () =
       |> fun geometry -> Geometry.with_group
            (Group.init ~owner:Group.Point ~name:"alternating" backbone_points
               (fun point -> point land 1 = 0)) geometry |> get_ok
-      |> Group_mesh.group_edges_checked ~grain ~name:"spine_edges" |> get_ok in
+      |> Group_mesh.group_edges ~grain ~name:"spine_edges" |> get_ok in
   let payload_profile = profile
       |> add Attribute.Point "profile_id"
            (Attribute.Int (Array.init profile_points Fun.id))
@@ -737,7 +737,7 @@ let run_sweep_general_benchmarks () =
            (Group.init ~owner:Group.Point ~name:"upper" profile_points
               (fun point -> let _, y, _ = profile_values.(point) in y >= 0.))
            geometry |> get_ok
-      |> Group_mesh.group_edges_checked ~grain ~name:"profile_edges" |> get_ok in
+      |> Group_mesh.group_edges ~grain ~name:"profile_edges" |> get_ok in
   measure ~input_points:(backbone_points + profile_points)
     "sweep_general_profile_payload" (fun () ->
       Sweep_modeling.sweep ~grain ~caps:true ~cap_group:"caps" ~twist:3.7
@@ -790,7 +790,7 @@ let run_revolve_benchmarks () =
   let payload_source = source |> Geometry.with_attribute point_id |> get_ok
       |> Geometry.with_attribute vertex_u |> get_ok
       |> Geometry.with_group alternating |> get_ok
-      |> Group_mesh.group_edges_checked ~grain ~name:"profile_edges" |> get_ok in
+      |> Group_mesh.group_edges ~grain ~name:"profile_edges" |> get_ok in
   measure ~input_points:profile_points "revolve_dense_profile_payload" (fun () ->
     Sweep_modeling.revolve ~grain ~connectivity:Plane_generators.Grid_quads ~caps:true
       ~cap_group:"caps" ~divisions:64 ~origin:Vec3.zero ~axis:Vec3.unit_y
@@ -1053,13 +1053,13 @@ let run_poly_fill_benchmarks () =
       ~attributes:[point_color; vertex_uv; primitive_piece]
       ~groups:[top_points; bottoms] ~edge_groups:[rims] () |> get_ok in
   measure ~input_points:point_count "poly_fill_single_polygon" (fun () ->
-    Poly_fill.run_checked ~grain ~mode:Poly_fill.Fill_single_polygon ~patch_group:"patch"
+    Poly_fill.run ~grain ~mode:Poly_fill.Fill_single_polygon ~patch_group:"patch"
       source |> get_ok) geometry_output;
   measure ~input_points:point_count "poly_fill_triangles" (fun () ->
-    Poly_fill.run_checked ~grain ~mode:Poly_fill.Fill_triangles ~patch_group:"patch"
+    Poly_fill.run ~grain ~mode:Poly_fill.Fill_triangles ~patch_group:"patch"
       source |> get_ok) geometry_output;
   measure ~input_points:point_count "poly_fill_triangle_fan_unique" (fun () ->
-    Poly_fill.run_checked ~grain ~mode:Poly_fill.Fill_triangle_fan ~unique_points:true
+    Poly_fill.run ~grain ~mode:Poly_fill.Fill_triangle_fan ~unique_points:true
       ~patch_group:"patch" source |> get_ok) geometry_output
 
 let run_clean_benchmarks () =
@@ -2604,7 +2604,7 @@ let run_edge_divide_benchmarks () =
       point_count (fun point -> point land 1 = 0) in
   let source = source |> Geometry.with_attribute corner |> get_ok
       |> Geometry.with_group point_group |> get_ok
-      |> Group_mesh.group_edges_checked ~grain ~name:"all_edges" |> get_ok in
+      |> Group_mesh.group_edges ~grain ~name:"all_edges" |> get_ok in
   let edges = Geometry.find_edge_group "all_edges" source |> Option.get in
   measure ~input_points:point_count "edge_divide_shared_divisions4" (fun () ->
     Subdivide.edge_divide ~grain ~edges ~divisions:4 source |> get_ok)
@@ -2657,15 +2657,15 @@ let run_poly_reduce_benchmarks () =
   let checker = Group.init ~grain ~owner:Group.Point ~name:"checker"
       point_count (fun point -> point land 1 = 0) in
   let source = Geometry.with_group checker source |> get_ok
-      |> Group_mesh.group_edges_checked ~grain ~name:"boundary"
+      |> Group_mesh.group_edges ~grain ~name:"boundary"
            ~incidence:Group_mesh.Boundary_edge |> get_ok in
   measure ~input_points:point_count "poly_reduce_qem_ratio40_payload" (fun () ->
-    Poly_reduce.run_checked ~grain ~target:(Poly_reduce.Reduce_ratio 0.4)
+    Poly_reduce.run ~grain ~target:(Poly_reduce.Reduce_ratio 0.4)
       ~preserve_boundary:true ~equalize_lengths:1e-8
       ~max_normal_deviation:0.7 ~output_group:"reduced" source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "poly_reduce_original_positions_ratio40"
-    (fun () -> Poly_reduce.run_checked ~grain ~target:(Poly_reduce.Reduce_ratio 0.4)
+    (fun () -> Poly_reduce.run ~grain ~target:(Poly_reduce.Reduce_ratio 0.4)
       ~preserve_boundary:false ~only_original_positions:true source |> get_ok)
     geometry_output
 
@@ -2766,12 +2766,12 @@ let run_intersection_analysis_benchmarks () =
       (Mat4.rotation_x (Float.pi /. 2.)) source in
   measure ~input_points:(point_count * 2)
     "intersection_analysis_crossing_grids" (fun () ->
-      Intersection_analysis.run_checked ~grain ~include_coplanar:false
+      Intersection_analysis.run ~grain ~include_coplanar:false
         ~collision:crossing source |> get_ok) geometry_output;
   let combined = Mesh_merge.run [source; crossing] |> get_ok in
   measure ~input_points:(point_count * 2)
     "intersection_analysis_self_crossing_grids" (fun () ->
-      Intersection_analysis.run_checked ~grain ~include_coplanar:false combined |> get_ok)
+      Intersection_analysis.run ~grain ~include_coplanar:false combined |> get_ok)
     geometry_output;
   let cell_x = 100. /. float_of_int detect_columns
   and cell_z = 100. /. float_of_int detect_rows in
@@ -2780,7 +2780,7 @@ let run_intersection_analysis_benchmarks () =
       source in
   measure ~input_points:(point_count * 2)
     "intersection_analysis_coplanar_shifted_grids" (fun () ->
-      Intersection_analysis.run_checked ~grain ~collision:coplanar source |> get_ok)
+      Intersection_analysis.run ~grain ~collision:coplanar source |> get_ok)
     geometry_output;
   let curve_columns = max 8 (min columns 360)
   and curve_rows = max 8 (min rows 260) in
@@ -2792,7 +2792,7 @@ let run_intersection_analysis_benchmarks () =
       ~size:100. () |> get_ok in
   measure ~input_points:(Geometry.point_count rows + Geometry.point_count columns)
     "intersection_analysis_curve_grid" (fun () ->
-      Intersection_analysis.run_checked ~grain ~collision:columns rows |> get_ok)
+      Intersection_analysis.run ~grain ~collision:columns rows |> get_ok)
     geometry_output
 
 let run_poly_bevel_benchmarks () =
@@ -2806,7 +2806,7 @@ let run_poly_bevel_benchmarks () =
       |> get_ok
       |> Attribute_ops.enumerate ~grain ~owner:Attribute.Vertex ~name:"corner_id"
       |> get_ok
-      |> Group_mesh.group_edges_checked ~grain ~name:"bevel_edges" |> get_ok in
+      |> Group_mesh.group_edges ~grain ~name:"bevel_edges" |> get_ok in
   let point_count = Geometry.point_count source in
   let scale = Attribute.create_owned ~owner:Attribute.Point ~name:"pscale"
       (Attribute.Float (Array.init point_count (fun point ->
@@ -2829,7 +2829,7 @@ let run_point_split_benchmarks () =
       ~columns ~rows ~size:100. () |> get_ok
       |> Attribute_ops.enumerate ~grain ~owner:Attribute.Point ~name:"point_id"
       |> get_ok
-      |> Group_mesh.group_edges_checked ~grain ~name:"source_edges" |> get_ok in
+      |> Group_mesh.group_edges ~grain ~name:"source_edges" |> get_ok in
   let point_count = Geometry.point_count source
   and vertex_count = Geometry.vertex_count source
   and primitive_count = Geometry.primitive_count source in
@@ -2858,17 +2858,17 @@ let run_point_split_benchmarks () =
       |> Geometry.with_group checker |> get_ok
       |> Geometry.with_group seam_region |> get_ok in
   measure ~input_points:point_count "point_split_unique_quads" (fun () ->
-    Point_split.run_checked ~grain source |> get_ok) geometry_output;
+    Point_split.run ~grain source |> get_ok) geometry_output;
   measure ~input_points:point_count "point_split_group_seams_quads" (fun () ->
-    Point_split.run_checked ~grain ~attributes:"seam_region" source |> get_ok)
+    Point_split.run ~grain ~attributes:"seam_region" source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "point_split_attribute_seams_promote_quads"
     (fun () ->
-      Point_split.run_checked ~grain ~attributes:"seam_uv seam_material"
+      Point_split.run ~grain ~attributes:"seam_uv seam_material"
         ~tolerance:1e-6 ~promote_attributes:true source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "point_split_seams_promote_quads" (fun () ->
-    Point_split.run_checked ~grain ~attributes:"seam_*" ~tolerance:1e-6
+    Point_split.run ~grain ~attributes:"seam_*" ~tolerance:1e-6
       ~promote_attributes:true source |> get_ok) geometry_output
 
 let run_point_generate_benchmarks () =
@@ -2952,26 +2952,26 @@ let run_point_replicate_benchmarks () =
         points_per_point = 1.; scale_attribute = Some "density" }) source
       |> get_ok) geometry_output;
   measure ~input_points:source_count "point_replicate_sphere_payload_600k"
-    (fun () -> Point_replication.run_checked ~grain ~seed:(Rand.seed 991)
+    (fun () -> Point_replication.run ~grain ~seed:(Rand.seed 991)
       ~shape:Point_replication.Replicate_sphere ~generated_group:"cloud"
       ~copy_point_attributes:"density id pscale N v"
       ~points_per_point:1. ~scale_attribute:"density" source |> get_ok)
     geometry_output;
   measure ~input_points:source_count "point_replicate_line_payload_600k"
-    (fun () -> Point_replication.run_checked ~grain ~seed:(Rand.seed 991)
+    (fun () -> Point_replication.run ~grain ~seed:(Rand.seed 991)
       ~shape:Point_replication.Replicate_line ~generated_group:"cloud"
       ~copy_point_attributes:"density id pscale N v"
       ~points_per_point:1. ~scale_attribute:"density" source |> get_ok)
     geometry_output;
   measure ~input_points:source_count "point_replicate_transformed_vectors_600k"
-    (fun () -> Point_replication.run_checked ~grain ~seed:(Rand.seed 991)
+    (fun () -> Point_replication.run ~grain ~seed:(Rand.seed 991)
       ~shape:Point_replication.Replicate_sphere ~generated_group:"cloud"
       ~copy_point_attributes:"density id pscale N flow"
       ~transform_attributes:"N flow"
       ~points_per_point:1. ~scale_attribute:"density" source |> get_ok)
     geometry_output;
   measure ~input_points:source_count "point_replicate_sphere_quasi_velocity_600k"
-    (fun () -> Point_replication.run_checked ~grain ~seed:(Rand.seed 991)
+    (fun () -> Point_replication.run ~grain ~seed:(Rand.seed 991)
       ~shape:Point_replication.Replicate_sphere ~quasi_stratified:true
       ~velocity_stretch:Point_replication.Replicate_scaled_velocity ~velocity_scale:0.7
       ~inherit_velocity:0.8 ~radial_velocity:0.25
@@ -2979,7 +2979,7 @@ let run_point_replicate_benchmarks () =
       ~points_per_point:1. ~scale_attribute:"density" source |> get_ok)
     geometry_output;
   measure ~input_points:source_count "point_replicate_sphere_noise_600k"
-    (fun () -> Point_replication.run_checked ~grain ~seed:(Rand.seed 991)
+    (fun () -> Point_replication.run ~grain ~seed:(Rand.seed 991)
       ~shape:Point_replication.Replicate_sphere ~noise_seed:992
       ~noise_amplitude:(Vec3.create 0.12 0.2 0.16)
       ~noise_frequency:(Vec3.create 1.2 0.8 1.7) ~noise_turbulence:4
@@ -3050,7 +3050,7 @@ let run_edge_cusp_benchmarks () =
       point_count (fun point -> point land 1 = 0) in
   let source = source |> Geometry.with_attribute corner |> get_ok
       |> Geometry.with_group checker |> get_ok
-      |> Group_mesh.group_edges_checked ~grain ~name:"cusp_edges" |> get_ok in
+      |> Group_mesh.group_edges ~grain ~name:"cusp_edges" |> get_ok in
   let cusp = Geometry.find_edge_group "cusp_edges" source |> Option.get in
   measure ~input_points:point_count "edge_cusp_all_triangle_edges" (fun () ->
     Facet.edge_cusp ~grain ~edges:cusp source |> get_ok) geometry_output
@@ -4074,11 +4074,11 @@ let run_group_benchmarks () =
       ~viewpoint:(Vec3.create 0. (-100.) 0.) ~name:"backfaces" source
       |> get_ok) geometry_output;
   measure ~input_points:point_count "group_edges_incident_angle"
-    (fun () -> Group_mesh.group_edges_checked ~grain ~angle_basis:Group_mesh.Incident_edges
+    (fun () -> Group_mesh.group_edges ~grain ~angle_basis:Group_mesh.Incident_edges
       ~min_angle:(Float.pi /. 3.) ~max_angle:(2. *. Float.pi /. 3.)
       ~name:"incident_angles" source |> get_ok) geometry_output;
   measure ~input_points:point_count "group_edges_dihedral_angle"
-    (fun () -> Group_mesh.group_edges_checked ~grain ~angle_basis:Group_mesh.Primitive_dihedral
+    (fun () -> Group_mesh.group_edges ~grain ~angle_basis:Group_mesh.Primitive_dihedral
       ~min_angle:0.01 ~name:"dihedral_angles" source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "group_combine_points_xor"
@@ -4133,7 +4133,7 @@ let run_group_transfer_benchmarks () =
       |> Geometry.with_group transfer_points |> get_ok
       |> Geometry.with_group transfer_points_ordered |> get_ok
       |> Geometry.with_group transfer_primitives |> get_ok
-      |> Group_mesh.group_edges_checked ~grain ~name:"transfer_edges" ~min_length:0.09
+      |> Group_mesh.group_edges ~grain ~name:"transfer_edges" ~min_length:0.09
            |> get_ok in
   let transfer_target = Transform_ops.transform ~grain
       (Mat4.translation (Vec3.create 0.001 0. 0.001)) transfer_source in
@@ -4196,26 +4196,26 @@ let run_group_find_path_benchmarks () =
       |> Geometry.with_group primitive_pair_group |> get_ok
       |> Geometry.with_group primitive_setup_group |> get_ok in
   measure ~input_points:(Geometry.point_count source) "group_find_path_pairs"
-    (fun () -> Group_mesh.group_find_path_checked ~grain ~mode:Group_mesh.Start_end_pairs
+    (fun () -> Group_mesh.group_find_path ~grain ~mode:Group_mesh.Start_end_pairs
       ~avoid_self_intersection:false ~base:pair_group ~name:"pair_paths" source
       |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count source) "group_find_path_avoiding"
-    (fun () -> Group_mesh.group_find_path_checked ~grain ~base:through_group
+    (fun () -> Group_mesh.group_find_path ~grain ~base:through_group
       ~name:"through_path" source |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count source)
     "group_find_path_primitive_setup"
-    (fun () -> Group_mesh.group_find_path_checked ~grain ~base:primitive_setup_group
+    (fun () -> Group_mesh.group_find_path ~grain ~base:primitive_setup_group
       ~name:"primitive_setup_path" source |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count source)
     "group_find_path_primitive_pairs"
-    (fun () -> Group_mesh.group_find_path_checked ~grain ~mode:Group_mesh.Start_end_pairs
+    (fun () -> Group_mesh.group_find_path ~grain ~mode:Group_mesh.Start_end_pairs
       ~avoid_self_intersection:false ~base:primitive_pair_group
       ~name:"primitive_pair_paths" source |> get_ok) geometry_output
 
 let run_unpack_benchmarks () =
   let copies = 4_096 in
   let source = Box_generator.box ~size:(Vec3.create 0.25 0.5 0.75) () |> get_ok
-      |> Group_mesh.group_edges_checked ~grain ~name:"prototype_edges" |> get_ok in
+      |> Group_mesh.group_edges ~grain ~name:"prototype_edges" |> get_ok in
   let matrices = Array.init copies (fun index ->
     let angle = float_of_int index *. 0.013 in
     Mat4.mul
@@ -4429,30 +4429,30 @@ let run_sort_extended_benchmarks () =
   let source = make_grid () in
   let point_count = Geometry.point_count source in
   measure ~input_points:point_count "sort_extended_random_points"
-    (fun () -> Ordering.sort_checked ~grain ~owner:Ordering.Points ~key:(Ordering.Random 918273L)
+    (fun () -> Ordering.sort ~grain ~owner:Ordering.Points ~key:(Ordering.Random 918273L)
       source |> get_ok) geometry_output;
   measure ~input_points:point_count "sort_extended_indices_x"
-    (fun () -> Ordering.sort_checked ~grain ~owner:Ordering.Points ~key:Ordering.X
+    (fun () -> Ordering.sort ~grain ~owner:Ordering.Points ~key:Ordering.X
       ~output_indices:"sort_rank" source |> get_ok) geometry_output;
-  let ranked = Ordering.sort_checked ~grain ~owner:Ordering.Points ~key:Ordering.X
+  let ranked = Ordering.sort ~grain ~owner:Ordering.Points ~key:Ordering.X
       ~output_indices:"sort_rank" source |> get_ok in
   measure ~input_points:point_count "sort_extended_reorder_by_index"
-    (fun () -> Ordering.sort_checked ~grain ~owner:Ordering.Points
+    (fun () -> Ordering.sort ~grain ~owner:Ordering.Points
       ~key:(Ordering.Index_attribute "sort_rank") ranked |> get_ok) geometry_output;
-  let ranked_y = Ordering.sort_checked ~grain ~owner:Ordering.Points ~key:Ordering.Y
+  let ranked_y = Ordering.sort ~grain ~owner:Ordering.Points ~key:Ordering.Y
       ~output_indices:"sort_rank" source |> get_ok in
   measure ~input_points:point_count "sort_extended_indices_combined_x_after_y"
-    (fun () -> Ordering.sort_checked ~grain ~owner:Ordering.Points ~key:Ordering.X
+    (fun () -> Ordering.sort ~grain ~owner:Ordering.Points ~key:Ordering.X
       ~output_indices:"sort_rank" ~combine_indices:true ranked_y |> get_ok)
     geometry_output;
   measure ~input_points:point_count "sort_extended_by_vertex_order"
-    (fun () -> Ordering.sort_checked ~grain ~owner:Ordering.Points ~key:Ordering.By_vertex_order source
+    (fun () -> Ordering.sort ~grain ~owner:Ordering.Points ~key:Ordering.By_vertex_order source
       |> get_ok) geometry_output;
   measure ~input_points:point_count "sort_extended_by_primitive_index"
-    (fun () -> Ordering.sort_checked ~grain ~owner:Ordering.Points
+    (fun () -> Ordering.sort ~grain ~owner:Ordering.Points
       ~key:Ordering.By_primitive_index source |> get_ok) geometry_output;
   measure ~input_points:point_count "sort_extended_spatial_locality"
-    (fun () -> Ordering.sort_checked ~grain ~owner:Ordering.Points ~key:Ordering.Spatial_locality source
+    (fun () -> Ordering.sort ~grain ~owner:Ordering.Points ~key:Ordering.Spatial_locality source
       |> get_ok) geometry_output
 
 let run_blast_by_attribute_benchmarks () =
@@ -4828,7 +4828,7 @@ let run_separate_pieces_benchmarks () =
   let geometry, _, _ = separate_pieces_benchmark_fixture () in
   measure ~input_points:(Geometry.point_count geometry)
     "separate_pieces_primitive_int" (fun () ->
-      Separate_pieces.run_checked ~grain ~gap:0.01
+      Separate_pieces.run ~grain ~gap:0.01
         ~mode:Separate_pieces.Separate_pieces_separate ~piece_attribute:"piece" geometry
       |> get_ok) geometry_output
 
@@ -4857,7 +4857,7 @@ let run_curve_join_benchmarks () =
         float_of_int point *. 0.001))) |> get_ok in
   let ordered_source = Geometry.create ~positions:ordered_positions
       ~topology:ordered_topology ~attributes:[ordered_weight] () |> get_ok
-      |> Group_mesh.group_edges_checked ~grain ~name:"all_join_edges" |> get_ok in
+      |> Group_mesh.group_edges ~grain ~name:"all_join_edges" |> get_ok in
   measure ~input_points:ordered_points "curve_join_ordered" (fun () ->
     Curve_topology.join_curves ~grain ordered_source |> get_ok) geometry_output;
   let picked_ends = Array.init ordered_curve_count (fun order -> {
@@ -4904,7 +4904,7 @@ let run_curve_join_benchmarks () =
       ~positions:(Packed.Float3.Private.of_owned_exn ~x ~y ~z)
       ~topology:closest_topology
       ~attributes:[point_weight; corner_id; piece_id] ~groups:[selected] ()
-      |> get_ok |> Group_mesh.group_edges_checked ~grain ~name:"source_edges" |> get_ok in
+      |> get_ok |> Group_mesh.group_edges ~grain ~name:"source_edges" |> get_ok in
   measure ~input_points:closest_point_count "curve_join_closest_ends" (fun () ->
     Curve_topology.join_curves ~grain ~connect_closest_ends:true closest_source |> get_ok)
     geometry_output;
@@ -5257,7 +5257,7 @@ let () =
   (match benchmark_filter with
    | Some filter when String.starts_with ~prefix:"reverse_" filter -> exit 0
    | None | Some _ -> ());
-  let convert_line_source = Group_mesh.group_edges_checked ~grain ~name:"all_grid_edges"
+  let convert_line_source = Group_mesh.group_edges ~grain ~name:"all_grid_edges"
       source |> get_ok in
   measure "convert_line_grid_edges" (fun () ->
     Curve_topology.convert_line ~grain ~length_attribute:"edge_length"
@@ -5289,7 +5289,7 @@ let () =
     Color_by_height.run ~grain ~low:low_rgba ~high:high_rgba displaced
     |> get_ok) geometry_output;
   measure "sort_points_x" (fun () ->
-    Ordering.sort_checked ~grain ~owner:Ordering.Points ~key:Ordering.X source |> get_ok) geometry_output;
+    Ordering.sort ~grain ~owner:Ordering.Points ~key:Ordering.X source |> get_ok) geometry_output;
   measure "triangulate_triangles" (fun () -> Triangulate.run source |> get_ok)
     geometry_output;
   if benchmark_enabled "triangulate_quads"
@@ -5492,12 +5492,12 @@ let () =
     topology_index_output;
   ignore (Topology_index.create (Geometry.topology modeling_grid));
   measure "edge_group_boundary" (fun () ->
-    Group_mesh.group_edges_checked ~grain ~name:"boundary" ~incidence:Group_mesh.Boundary_edge
+    Group_mesh.group_edges ~grain ~name:"boundary" ~incidence:Group_mesh.Boundary_edge
       modeling_grid |> get_ok) geometry_output;
   measure "edge_group_angle" (fun () ->
-    Group_mesh.group_edges_checked ~grain ~name:"angled" ~incidence:Group_mesh.Manifold_edge
+    Group_mesh.group_edges ~grain ~name:"angled" ~incidence:Group_mesh.Manifold_edge
       ~min_angle:0.01 modeling_grid |> get_ok) geometry_output;
-  let fully_edged_grid = Group_mesh.group_edges_checked ~grain ~name:"all_edges" modeling_grid
+  let fully_edged_grid = Group_mesh.group_edges ~grain ~name:"all_edges" modeling_grid
       |> get_ok in
   measure "edge_group_duplicate_plain_4" (fun () ->
     Instance_copy.duplicate ~grain ~copies:3
@@ -5563,7 +5563,7 @@ let () =
       ~transform:(Mat4.mul (Mat4.translation (Vec3.create 0. 0.2 0.))
         (Mat4.rotation_y 0.03)) modeling_grid |> get_ok) geometry_output;
   measure "sort_primitives_x" (fun () ->
-    Ordering.sort_checked ~grain ~descending:true ~owner:Ordering.Primitives ~key:Ordering.X
+    Ordering.sort ~grain ~descending:true ~owner:Ordering.Primitives ~key:Ordering.X
       modeling_grid |> get_ok) geometry_output;
   measure "topology_index" (fun () ->
     Topology_index.create (Geometry.topology modeling_grid)) topology_index_output;
@@ -5639,7 +5639,7 @@ let () =
   let clip_grid = source in
   let clip_input_points = Geometry.point_count clip_grid in
   measure ~input_points:clip_input_points "clip_half_grid" (fun () ->
-    Plane_clip.clip_checked ~grain ~keep:Plane_clip.Above ~clipped_group:"cut"
+    Plane_clip.clip ~grain ~keep:Plane_clip.Above ~clipped_group:"cut"
       ~origin:(Vec3.create 0.123 0. 0.) ~normal:Vec3.unit_x clip_grid
     |> get_ok) geometry_output;
   let clip_vertex_count = Geometry.vertex_count clip_grid
@@ -5721,7 +5721,7 @@ let () =
       ~source:clip_attribute_grid ~target:surface_target () |> get_ok)
     geometry_output;
   measure ~input_points:clip_input_points "clip_half_grid_attributes" (fun () ->
-    Plane_clip.clip_checked ~grain ~keep:Plane_clip.Above ~clipped_group:"cut"
+    Plane_clip.clip ~grain ~keep:Plane_clip.Above ~clipped_group:"cut"
       ~origin:(Vec3.create 0.123 0. 0.) ~normal:Vec3.unit_x
       clip_attribute_grid |> get_ok) geometry_output;
   let clip_selected_third = Group.init ~grain ~owner:Group.Primitive
@@ -5729,14 +5729,14 @@ let () =
       (fun primitive -> primitive < Geometry.primitive_count clip_attribute_grid / 3) in
   measure ~input_points:clip_input_points "clip_selected_third_attributes"
     (fun () ->
-      Plane_clip.clip_checked ~grain ~keep:Plane_clip.Above
+      Plane_clip.clip ~grain ~keep:Plane_clip.Above
         ~selection:(Transform_ops.Selected_primitives clip_selected_third)
         ~clipped_group:"cut"
         ~origin:(Vec3.create 0.123 0. 0.) ~normal:Vec3.unit_x
         clip_attribute_grid |> get_ok) geometry_output;
   measure ~input_points:clip_input_points "clip_selected_third_attributes_edges"
     (fun () ->
-      Plane_clip.clip_checked ~grain ~keep:Plane_clip.Above
+      Plane_clip.clip ~grain ~keep:Plane_clip.Above
         ~selection:(Transform_ops.Selected_primitives clip_selected_third)
         ~clipped_group:"cut" ~clipped_edge_group:"clip_edges"
         ~origin:(Vec3.create 0.123 0. 0.) ~normal:Vec3.unit_x
@@ -5756,7 +5756,7 @@ let () =
         |> get_ok in
     measure ~input_points:clip_input_points
       "clip_custom_attribute_distance_edges" (fun () ->
-        Plane_clip.clip_checked ~grain ~keep:Plane_clip.Above ~clip_attribute:"clip_field"
+        Plane_clip.clip ~grain ~keep:Plane_clip.Above ~clip_attribute:"clip_field"
           ~distance:0.137 ~clipped_edge_group:"clip_edges"
           ~origin:Vec3.zero ~normal:(Vec3.create 0.7 0.1 (-0.2))
           clip_custom_grid |> get_ok) geometry_output
@@ -5764,7 +5764,7 @@ let () =
   let clip_sphere = Uv_sphere.run ~segments:96 ~rings:64 ~radius:2. () |> get_ok in
   measure ~input_points:(Geometry.point_count clip_sphere)
     "clip_sphere_filled_all" (fun () ->
-    Plane_clip.clip_checked ~grain ~keep:Plane_clip.All ~fill:true ~split_connectivity:true
+    Plane_clip.clip ~grain ~keep:Plane_clip.All ~fill:true ~split_connectivity:true
       ~cap_group:"caps" ~above_group:"above" ~below_group:"below"
       ~origin:(Vec3.create 0. 0.13 0.) ~normal:(Vec3.create 0.2 1. 0.3)
       clip_sphere |> get_ok) geometry_output;
@@ -5781,7 +5781,7 @@ let () =
     let source = Mesh_merge.run (outer :: Array.to_list holes) |> get_ok in
     measure ~input_points:(Geometry.point_count source)
       "clip_nested_caps_64_holes" (fun () ->
-        Plane_clip.clip_checked ~grain ~fill:true ~cap_group:"caps" ~origin:Vec3.zero
+        Plane_clip.clip ~grain ~fill:true ~cap_group:"caps" ~origin:Vec3.zero
           ~normal:Vec3.unit_x source |> get_ok) geometry_output
   end;
   if benchmark_enabled "clip_nested_caps_16_components" then begin
@@ -5801,7 +5801,7 @@ let () =
     let source = Mesh_merge.run !shells |> get_ok in
     measure ~input_points:(Geometry.point_count source)
       "clip_nested_caps_16_components" (fun () ->
-        Plane_clip.clip_checked ~grain ~fill:true ~cap_group:"caps" ~origin:Vec3.zero
+        Plane_clip.clip ~grain ~fill:true ~cap_group:"caps" ~origin:Vec3.zero
           ~normal:Vec3.unit_x source |> get_ok) geometry_output
   end;
   measure ~input_points:(Geometry.point_count clip_attribute_grid)
@@ -6142,7 +6142,7 @@ let () =
   let dense_curve = dense_curve_plain |> Geometry.with_attribute curve_weight |> get_ok
       |> Geometry.with_attribute curve_uv |> get_ok
       |> Geometry.with_group curve_points_group |> get_ok
-      |> Group_mesh.group_edges_checked ~grain ~name:"all_curve_edges" |> get_ok in
+      |> Group_mesh.group_edges ~grain ~name:"all_curve_edges" |> get_ok in
   let segment_count = curve_points - 1 in
   let segmented_topology = Topology.create_owned ~point_count:curve_points
       ~vertex_points:(Array.init (segment_count * 2) (fun vertex ->
@@ -6163,7 +6163,7 @@ let () =
       ~topology:segmented_topology
       ~attributes:[curve_weight; segmented_uv]
       ~groups:[curve_points_group] () |> get_ok
-      |> Group_mesh.group_edges_checked ~grain ~name:"all_curve_edges" |> get_ok in
+      |> Group_mesh.group_edges ~grain ~name:"all_curve_edges" |> get_ok in
   measure ~input_points:curve_points "subdivide_catmull_curves_shared" (fun () ->
     Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark segmented_curves |> get_ok)
     geometry_output;
@@ -6202,7 +6202,7 @@ let () =
       ~name:"carve_curve" (Geometry.primitive_count grouped_carve_source)
       (fun primitive -> primitive = 0) in
   let grouped_carve_source = Geometry.with_group grouped_carve_selection
-      grouped_carve_source |> get_ok |> Group_mesh.group_edges_checked ~grain ~name:"all_edges"
+      grouped_carve_source |> get_ok |> Group_mesh.group_edges ~grain ~name:"all_edges"
       |> get_ok in
   measure ~input_points:(Geometry.point_count grouped_carve_source)
     "curve_carve_grouped" (fun () ->
@@ -6212,7 +6212,7 @@ let () =
       |> Geometry.with_attribute curve_weight |> get_ok
       |> Geometry.with_attribute curve_uv |> get_ok
       |> Geometry.with_group curve_points_group |> get_ok
-      |> Group_mesh.group_edges_checked ~grain ~name:"all_curve_edges" |> get_ok in
+      |> Group_mesh.group_edges ~grain ~name:"all_curve_edges" |> get_ok in
   measure "curve_ends_unroll" (fun () ->
     Curve_topology.curve_ends ~grain Curve_topology.Unroll_curve closed_dense_curve |> get_ok)
     geometry_output;
@@ -6241,13 +6241,13 @@ let () =
       ~topology:ends_topology ~attributes:[ends_id;ends_uv]
       ~groups:[Group.init ~owner:Group.Point ~name:"marked" ends_points
         (fun point -> point land 7 = 0)] () |> get_ok
-      |> Group_mesh.group_edges_checked ~grain ~name:"all_edges" |> get_ok in
+      |> Group_mesh.group_edges ~grain ~name:"all_edges" |> get_ok in
   measure ~input_points:ends_points "ends_unroll_new_100k_quads"
     (fun () -> Curve_topology.ends ~grain Curve_topology.Ends_unroll_new ends_source |> get_ok)
     geometry_output;
   let shared_ends_source = Plane_generators.grid ~connectivity:Plane_generators.Grid_quads
       ~columns:400 ~rows:400 ~size:100. () |> get_ok
-      |> Group_mesh.group_edges_checked ~grain ~name:"all_edges" |> get_ok in
+      |> Group_mesh.group_edges ~grain ~name:"all_edges" |> get_ok in
   measure ~input_points:(Geometry.point_count shared_ends_source)
     "ends_unroll_shared_159k_grid_faces"
     (fun () -> Curve_topology.ends ~grain Curve_topology.Ends_unroll_shared shared_ends_source
@@ -6276,7 +6276,7 @@ let () =
         float_of_int point *. 0.001))) |> get_ok in
   let join_source = Geometry.create ~positions:join_positions
       ~topology:join_topology ~attributes:[join_weight] () |> get_ok
-      |> Group_mesh.group_edges_checked ~grain ~name:"all_join_edges" |> get_ok in
+      |> Group_mesh.group_edges ~grain ~name:"all_join_edges" |> get_ok in
   let first_u = Attribute.create_owned ~name:"first_u"
       ~owner:Attribute.Primitive
       (Attribute.Float (Array.init join_curve_count (fun primitive ->

@@ -163,7 +163,7 @@ let check_payload_and_groups () =
       |> with_attribute Attribute.Primitive "piece" (Attribute.Text [|"spine"|])
       |> with_group (Group.init ~owner:Group.Point ~name:"start" 2
            (fun point -> point = 0))
-      |> fun geometry -> Group_mesh.group_edges_checked ~grain:1 ~name:"spine_edges" geometry
+      |> fun geometry -> Group_mesh.group_edges ~grain:1 ~name:"spine_edges" geometry
            |> get_ok in
   let profile = profile ()
       |> with_attribute Attribute.Point "id" (Attribute.Int [|1;2;3;4|])
@@ -173,7 +173,7 @@ let check_payload_and_groups () =
            (fun point -> point = 1 || point = 2))
       |> with_group (Group.ordered ~owner:Group.Point ~name:"ordered"
            ~length:4 [|2;1|] |> get_string)
-      |> fun geometry -> Group_mesh.group_edges_checked ~grain:1 ~name:"profile_edges" geometry
+      |> fun geometry -> Group_mesh.group_edges ~grain:1 ~name:"profile_edges" geometry
            |> get_ok in
   let result = sweep ~caps:true backbone profile in
   let point_int name = match Geometry.find_attribute ~owner:Attribute.Point name result with
@@ -438,14 +438,14 @@ let check_validation_and_parallel () =
       let t = float_of_int point *. 0.002 in
       0.25 *. sin (t *. 0.7), 0.2 *. cos (t *. 0.43), t)
       |> Line_geometry.polyline |> get_ok
-      |> fun geometry -> Group_mesh.group_edges_checked ~grain:257 ~name:"spine_edges" geometry
+      |> fun geometry -> Group_mesh.group_edges ~grain:257 ~name:"spine_edges" geometry
            |> get_ok in
   let sides = 32 in
   let dense_profile = Array.init sides (fun side ->
       let angle = 2. *. Float.pi *. float_of_int side /. float_of_int sides in
       0.08 *. cos angle, 0.08 *. sin angle, 0.)
       |> Line_geometry.polyline ~closed:true |> get_ok
-      |> fun geometry -> Group_mesh.group_edges_checked ~grain:257 ~name:"profile_edges" geometry
+      |> fun geometry -> Group_mesh.group_edges ~grain:257 ~name:"profile_edges" geometry
            |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
       Sweep_modeling.sweep ~grain:257 ~connectivity:Plane_generators.Grid_alternating_triangles

@@ -11,7 +11,7 @@ type velocity_stretch = Point_replicate.velocity_stretch =
   | Replicate_scaled_velocity
   | Replicate_velocity_only
 
-let run_checked ?cancel ?(grain = 16_384) ?points ?keep_input ?seed
+let run ?cancel ?(grain = 16_384) ?points ?keep_input ?seed
     ?id_attribute ?generated_group ?copy_point_attributes
     ?keep_source_attributes ?transform_attributes ?source_point_attribute
     ?source_index_attribute ?shape ?custom_shape ?center ?size ?orientation

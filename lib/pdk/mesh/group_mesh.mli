@@ -11,7 +11,7 @@ type angle_basis = Edge_ops.angle_basis =
 type path_mode = Group_path.mode = Through_each | Start_end_pairs
 type path_ending = Group_path.ending = Stop_at_end | Close_path
 
-val group_edges_checked :
+val group_edges :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
   ?name:string ->
@@ -24,7 +24,7 @@ val group_edges_checked :
   ?max_angle:float ->
   Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 
-val group_find_path_checked :
+val group_find_path :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
   ?mode:path_mode ->

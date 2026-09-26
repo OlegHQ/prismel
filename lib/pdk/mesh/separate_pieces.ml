@@ -439,6 +439,7 @@ let move_back ?cancel ~grain ~owner ~translation_attribute geometry =
 let run ?cancel ?(grain = 16_384) ?(owner = Attribute.Primitive)
     ?(translation_attribute = "piece_translation") ?(axis = Vec3.unit_x)
     ?(gap = 0.001) ~mode ~piece_attribute geometry =
+  Error.guard ~operation:"separate_pieces" ~code:"invalid_separate_pieces" @@ fun () ->
   try
     if grain <= 0 then fail "grain must be positive";
     validate_name "piece attribute name" piece_attribute;
@@ -460,9 +461,3 @@ let run ?cancel ?(grain = 16_384) ?(owner = Attribute.Primitive)
     | Separate_pieces_move_back ->
         move_back ?cancel ~grain ~owner ~translation_attribute geometry
   with Separate_pieces_error message -> Error message
-
-let run_checked ?cancel ?grain ?owner ?translation_attribute ?axis ?gap
-    ~mode ~piece_attribute geometry =
-  Error.guard ~operation:"separate_pieces" ~code:"invalid_separate_pieces"
-    (fun () -> run ?cancel ?grain ?owner ?translation_attribute ?axis ?gap
-      ~mode ~piece_attribute geometry)

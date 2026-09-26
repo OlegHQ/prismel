@@ -6,7 +6,7 @@ type selection = Deform.selection =
   | Selected_primitives of Pdk_core.Group.t
   | Selected_edges of Pdk_core.Edge_group.t
 
-val clip_checked :
+val clip :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
   ?keep:keep ->
@@ -26,7 +26,7 @@ val clip_checked :
   normal:Prismel_math.Vec3.t ->
   Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 
-val clip_transform_checked :
+val clip_transform :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->
   ?keep:keep ->

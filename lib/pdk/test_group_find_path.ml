@@ -56,21 +56,21 @@ let diamond ?(upper_y = 2.) ?(lower_y = 0.1) () =
 
 let test_shortest_and_modes () =
   let source = diamond () in
-  let through = Group_mesh.group_find_path_checked ~grain:1
+  let through = Group_mesh.group_find_path ~grain:1
       ~base:(ordered "base" 5 [|0; 3; 4|]) ~name:"path" source |> get_ok in
   check (order (ordinary "path" through) = [|0; 2; 3; 4|])
     "through mode minimizes hops then length and joins contiguous segments";
   let tied = diamond ~upper_y:1. ~lower_y:(-1.) () in
-  let tie = Group_mesh.group_find_path_checked ~grain:1
+  let tie = Group_mesh.group_find_path ~grain:1
       ~base:(ordered "base" 5 [|0; 3|]) ~name:"path" tied |> get_ok in
   check (order (ordinary "path" tie) = [|0; 1; 3|])
     "equal hop/equal length path uses stable lower-point predecessor";
-  let pairs = Group_mesh.group_find_path_checked ~grain:1 ~mode:Group_mesh.Start_end_pairs
+  let pairs = Group_mesh.group_find_path ~grain:1 ~mode:Group_mesh.Start_end_pairs
       ~avoid_self_intersection:false
       ~base:(ordered "base" 5 [|0; 3; 1; 4|]) ~name:"pairs" source |> get_ok in
   check (order (ordinary "pairs" pairs) = [|0; 2; 3; 1; 4|])
     "pair mode preserves pair order and first point occurrence";
-  (match Group_mesh.group_find_path_checked ~grain:1 ~mode:Group_mesh.Start_end_pairs
+  (match Group_mesh.group_find_path ~grain:1 ~mode:Group_mesh.Start_end_pairs
       ~base:(ordered "base" 5 [|0; 3; 1; 4|]) ~name:"blocked" source with
    | Error error -> check (Error.code error = "invalid_group")
        "self-intersection failure has structured code"
@@ -81,21 +81,21 @@ let test_collision_constraints () =
   let base = ordered "base" 5 [|0; 3|] in
   let avoid = Group.init ~owner:Group.Point ~name:"avoid" 5
       (fun point -> point = 2) in
-  let avoided = Group_mesh.group_find_path_checked ~grain:1 ~collision:avoid ~base
+  let avoided = Group_mesh.group_find_path ~grain:1 ~collision:avoid ~base
       ~name:"avoided" source |> get_ok in
   check (order (ordinary "avoided" avoided) = [|0; 1; 3|])
     "collision group excludes points";
   let region = Group.init ~owner:Group.Point ~name:"region" 5
       (fun point -> point = 0 || point = 2 || point = 3) in
-  let contained = Group_mesh.group_find_path_checked ~grain:1 ~collision:region ~contain:true
+  let contained = Group_mesh.group_find_path ~grain:1 ~collision:region ~contain:true
       ~base ~name:"contained" source |> get_ok in
   check (order (ordinary "contained" contained) = [|0; 2; 3|])
     "contain mode restricts traversal to the collision group";
-  (match Group_mesh.group_find_path_checked ~grain:1 ~contain:true ~base ~name:"bad" source with
+  (match Group_mesh.group_find_path ~grain:1 ~contain:true ~base ~name:"bad" source with
    | Error error -> check (Error.code error = "invalid_group")
        "contain-without-group structured code"
    | Ok _ -> fail "contain mode accepted a missing collision group");
-  (match Group_mesh.group_find_path_checked ~grain:1 ~collision:avoid
+  (match Group_mesh.group_find_path ~grain:1 ~collision:avoid
       ~base:(ordered "single" 5 [|2|]) ~name:"bad" source with
    | Error _ -> ()
    | Ok _ -> fail "single constrained base point bypassed validation")
@@ -104,13 +104,13 @@ let test_closure () =
   let square = geometry
       [|(0.,0.,0.); (1.,0.,0.); (1.,1.,0.); (0.,1.,0.)|]
       [|[|0; 1; 2|]; [|0; 3; 2|]|] in
-  let closed = Group_mesh.group_find_path_checked ~grain:1 ~ending:Group_mesh.Close_path
+  let closed = Group_mesh.group_find_path ~grain:1 ~ending:Group_mesh.Close_path
       ~base:(ordered "base" 4 [|0; 2|]) ~name:"loop" square |> get_ok in
   check (order (ordinary "loop" closed) = [|0; 1; 2; 3|])
     "close mode finds a non-overlapping secondary path";
   let line = geometry [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
       [|[|0; 1; 2|]|] in
-  (match Group_mesh.group_find_path_checked ~grain:1 ~ending:Group_mesh.Close_path
+  (match Group_mesh.group_find_path ~grain:1 ~ending:Group_mesh.Close_path
       ~base:(ordered "base" 3 [|0; 2|]) ~name:"loop" line with
    | Error error -> check (Error.code error = "invalid_group")
        "missing closure structured code"
@@ -119,26 +119,26 @@ let test_closure () =
 let test_primitive_paths () =
   let source = primitive_fan () in
   let base = ordered_primitives "base" 4 [|0; 2|] in
-  let path = Group_mesh.group_find_path_checked ~grain:1 ~base ~name:"path" source |> get_ok in
+  let path = Group_mesh.group_find_path ~grain:1 ~base ~name:"path" source |> get_ok in
   let path = Geometry.find_group ~owner:Group.Primitive "path" path
       |> Option.get in
   check (order path = [|0; 1; 2|])
     "primitive path uses stable shared-edge dual traversal";
   let collision = Group.init ~owner:Group.Primitive ~name:"avoid" 4
       (fun primitive -> primitive = 1) in
-  let avoided = Group_mesh.group_find_path_checked ~grain:1 ~collision ~base
+  let avoided = Group_mesh.group_find_path ~grain:1 ~collision ~base
       ~name:"avoided" source |> get_ok in
   check (order (Geometry.find_group ~owner:Group.Primitive "avoided" avoided
       |> Option.get) = [|0; 3; 2|])
     "primitive collision group excludes dual-graph faces";
   let region = Group.init ~owner:Group.Primitive ~name:"region" 4
       (fun primitive -> primitive <> 1) in
-  let contained = Group_mesh.group_find_path_checked ~grain:1 ~collision:region ~contain:true
+  let contained = Group_mesh.group_find_path ~grain:1 ~collision:region ~contain:true
       ~base ~name:"contained" source |> get_ok in
   check (order (Geometry.find_group ~owner:Group.Primitive "contained" contained
       |> Option.get) = [|0; 3; 2|])
     "primitive collision containment restricts the dual graph";
-  let closed = Group_mesh.group_find_path_checked ~grain:1 ~ending:Group_mesh.Close_path ~base
+  let closed = Group_mesh.group_find_path ~grain:1 ~ending:Group_mesh.Close_path ~base
       ~name:"loop" source |> get_ok in
   check (order (Geometry.find_group ~owner:Group.Primitive "loop" closed
       |> Option.get) = [|0; 1; 2; 3|])
@@ -153,7 +153,7 @@ let test_primitive_paths () =
   let nonmanifold = Geometry.create ~positions:nonmanifold_positions
       ~topology:(Topology.Builder.freeze nonmanifold_topology) ()
       |> function Ok value -> value | Error message -> fail message in
-  (match Group_mesh.group_find_path_checked
+  (match Group_mesh.group_find_path
       ~base:(ordered_primitives "base" 3 [|0; 2|]) ~name:"path"
       nonmanifold with
    | Error error -> check (Error.code error = "invalid_group")
@@ -164,26 +164,26 @@ let test_validation_and_cancellation () =
   let source = diamond () in
   let unordered = Group.init ~owner:Group.Point ~name:"base" 5
       (fun point -> point = 0 || point = 3) in
-  (match Group_mesh.group_find_path_checked ~base:unordered ~name:"path" source with
+  (match Group_mesh.group_find_path ~base:unordered ~name:"path" source with
    | Error error -> check (Error.code error = "invalid_group")
        "unordered base structured code"
    | Ok _ -> fail "Group Find Path accepted an unordered base");
-  (match Group_mesh.group_find_path_checked ~mode:Group_mesh.Start_end_pairs
+  (match Group_mesh.group_find_path ~mode:Group_mesh.Start_end_pairs
       ~base:(ordered "base" 5 [|0; 3; 4|]) ~name:"path" source with
    | Error _ -> () | Ok _ -> fail "pair mode accepted an odd base count");
   let disconnected = geometry
       [|(0.,0.,0.); (1.,0.,0.); (5.,0.,0.); (6.,0.,0.)|]
       [|[|0; 1|]; [|2; 3|]|] in
-  (match Group_mesh.group_find_path_checked ~base:(ordered "base" 4 [|0; 3|])
+  (match Group_mesh.group_find_path ~base:(ordered "base" 4 [|0; 3|])
       ~name:"path" disconnected with
    | Error _ -> () | Ok _ -> fail "disconnected path unexpectedly succeeded");
   let nonfinite = geometry [|(0.,0.,0.); (Float.nan,0.,0.)|] [|[|0; 1|]|] in
-  (match Group_mesh.group_find_path_checked ~base:(ordered "base" 2 [|0; 1|])
+  (match Group_mesh.group_find_path ~base:(ordered "base" 2 [|0; 1|])
       ~name:"path" nonfinite with
    | Error _ -> () | Ok _ -> fail "non-finite path geometry succeeded");
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  (match Group_mesh.group_find_path_checked ~cancel ~base:(ordered "base" 5 [|0; 3|])
+  (match Group_mesh.group_find_path ~cancel ~base:(ordered "base" 5 [|0; 3|])
       ~name:"path" source with
    | Error error -> check (Error.code error = "cancelled")
        "cancelled path structured code"
@@ -200,7 +200,7 @@ let test_parallel_exactness () =
     else point (pair * 5) 120) in
   let base = ordered "base" (Geometry.point_count source) elements in
   let run domains = Parallel.run ~domains (fun () ->
-    Group_mesh.group_find_path_checked ~grain:257 ~mode:Group_mesh.Start_end_pairs
+    Group_mesh.group_find_path ~grain:257 ~mode:Group_mesh.Start_end_pairs
       ~avoid_self_intersection:false ~base ~name:"paths" source |> get_ok) in
   let one = ordinary "paths" (run 1) and four = ordinary "paths" (run 4) in
   check (order one = order four)
@@ -212,7 +212,7 @@ let test_parallel_exactness () =
   let primitive_base = ordered_primitives "primitive_base" primitive_count
       primitive_elements in
   let run_primitives domains = Parallel.run ~domains (fun () ->
-    Group_mesh.group_find_path_checked ~grain:257 ~mode:Group_mesh.Start_end_pairs
+    Group_mesh.group_find_path ~grain:257 ~mode:Group_mesh.Start_end_pairs
       ~avoid_self_intersection:false ~base:primitive_base
       ~name:"primitive_paths" source |> get_ok) in
   let one = Geometry.find_group ~owner:Group.Primitive "primitive_paths"

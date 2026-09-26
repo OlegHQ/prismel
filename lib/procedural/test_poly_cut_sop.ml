@@ -36,7 +36,7 @@ let source () =
       curves (fun primitive -> primitive mod 3 <> 0) in
   Geometry.create ~positions ~topology ~attributes:[signal;piece]
       ~groups:[selected] () |> Result.get_ok
-  |> Group_mesh.group_edges_checked ~grain:257 ~name:"cuttable" |> function
+  |> Group_mesh.group_edges ~grain:257 ~name:"cuttable" |> function
   | Ok value -> value
   | Error error -> fail (Error.to_string error)
 

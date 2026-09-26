@@ -63,7 +63,7 @@ let fixture () =
           (fun primitive -> primitive = 0);
         Group.init ~grain:1 ~owner:Group.Primitive ~name:"curve_only" 2
           (fun primitive -> primitive = 1)] () |> Result.get_ok in
-  Group_mesh.group_edges_checked ~grain:1 ~name:"all_edges" geometry |> get
+  Group_mesh.group_edges ~grain:1 ~name:"all_edges" geometry |> get
 
 let primitive_group name geometry =
   Geometry.find_group ~owner:Group.Primitive name geometry |> Option.get
@@ -186,7 +186,7 @@ let test_shared_topology_edge_fallback () =
       ~vertex_points:[|0;1;4;3; 1;2;5;4|]
       ~primitive_offsets:[|0;4;8|] |> Result.get_ok in
   let source = Geometry.create ~positions ~topology () |> Result.get_ok
-      |> Group_mesh.group_edges_checked ~grain:1 ~name:"all_edges" |> get in
+      |> Group_mesh.group_edges ~grain:1 ~name:"all_edges" |> get in
   let output = Curve_topology.ends ~grain:1 Curve_topology.Ends_unroll_new source |> get in
   let edges = edge_group output in
   if Geometry.point_count output <> 8 || Geometry.vertex_count output <> 10
@@ -245,7 +245,7 @@ let test_parallel_exact () =
           (Attribute.Int (Array.init points (fun vertex -> vertex land 3)))]
       ~groups:[Group.init ~owner:Group.Point ~name:"marked" points
         (fun point -> point land 7 = 0)] () |> Result.get_ok
-      |> Group_mesh.group_edges_checked ~name:"all_edges" |> get in
+      |> Group_mesh.group_edges ~name:"all_edges" |> get in
   let cook domains = Parallel.run ~domains (fun () ->
       Curve_topology.ends ~grain:4_096 Curve_topology.Ends_unroll_new source |> get) in
   let one = cook 1 and four = cook 4 in

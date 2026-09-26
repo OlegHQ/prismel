@@ -1096,7 +1096,7 @@ let clip ?label ?(keep = Pdk.Plane_clip.Above) ?(snapping_tolerance = 1e-9)
     (fun ~node_id:_ context inputs ->
       match resolve_element_group ~operation:"clip" selection inputs.(0) with
       | Error error -> Error error
-      | Ok selection -> match Pdk.Plane_clip.clip_checked ~cancel:(Context.cancel_token context)
+      | Ok selection -> match Pdk.Plane_clip.clip ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~keep ~snapping_tolerance ~fill
           ~split_connectivity ~clip_attribute ~distance ?selection
           ~replace_existing_groups
@@ -1287,7 +1287,7 @@ let separate_pieces ?label ?(owner = Pdk.Attribute.Primitive)
     ~cook_mode:(Node.Duplicate_input 0)
     ~dependencies:Context.Dependencies.static ~inputs:[|input|]
     (fun ~node_id:_ context inputs ->
-      match Pdk.Separate_pieces.run_checked ~cancel:(Context.cancel_token context)
+      match Pdk.Separate_pieces.run ~cancel:(Context.cancel_token context)
           ~grain:(Context.grain context) ~owner ~translation_attribute ~axis
           ~gap ~mode ~piece_attribute inputs.(0) with
       | Ok geometry -> cooked geometry
@@ -1593,7 +1593,7 @@ let point_split ?label ?selection ?(attributes = "") ?(tolerance = 1e-5)
     (fun ~node_id:_ context inputs ->
       match resolve_element_group ~operation:"point_split" selection inputs.(0) with
       | Error error -> Error error
-      | Ok selection -> match Pdk.Point_split.run_checked
+      | Ok selection -> match Pdk.Point_split.run
           ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
           ?selection ~attributes ~tolerance ~promote_attributes inputs.(0) with
         | Ok geometry -> cooked geometry
@@ -1896,7 +1896,7 @@ let graph_color ?label ?selection
       match resolve_element_group ~operation:"graph_color" selection inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Graph_color.run_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Graph_color.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~connectivity
               ~color_attribute ~sort_output ?worksets inputs.(0) with
           | Ok geometry -> cooked geometry
@@ -3077,7 +3077,7 @@ let intersection_analysis ?label ?source_group ?collision_group
               collision_group group_geometry with
            | Error error -> Error error
            | Ok collision_primitives ->
-               match Pdk.Intersection_analysis.run_checked
+               match Pdk.Intersection_analysis.run
                    ~cancel:(Context.cancel_token context)
                    ~grain:(Context.grain context) ?source_primitives
                    ?collision_primitives ~tolerance ~include_coplanar
@@ -3142,7 +3142,7 @@ let poly_reduce ?label ?group ?hard_point_group ?hard_edge_group
       match primitives, hard_points, hard_edges with
       | Error error, _, _ | _, Error error, _ | _, _, Error error -> Error error
       | Ok primitives, Ok hard_points, Ok hard_edges ->
-          match Pdk.Poly_reduce.run_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Poly_reduce.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~target ?primitives ?hard_points
               ?hard_edges ~preserve_boundary ~only_original_positions
               ~equalize_lengths ?max_normal_deviation ?output_group
@@ -3633,7 +3633,7 @@ let poly_fill ?label ?boundary_group ?(mode = Pdk.Poly_fill.Fill_triangles)
       match boundary with
       | Error error -> Error error
       | Ok boundary ->
-          match Pdk.Poly_fill.run_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Poly_fill.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?boundary ~mode ~reverse_patches
               ~unique_points ~update_point_normals ?patch_group geometry with
           | Ok geometry -> cooked geometry
@@ -4489,7 +4489,7 @@ let group_edges ?label ?(name = "edges") ?group
       match primitives with
       | Error _ as error -> error
       | Ok primitives ->
-          match Pdk.Group_mesh.group_edges_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Group_mesh.group_edges ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~name ?primitives ~incidence
               ?min_length ?max_length ~angle_basis ?min_angle ?max_angle
               inputs.(0) with
@@ -6110,7 +6110,7 @@ let group_find_path ?label ?(mode = Pdk.Group_mesh.Through_each)
                        "group_find_path could not find collision %s group %S"
                        (group_owner_key owner) group))) in
           Result.bind collision (fun collision ->
-            match Pdk.Group_mesh.group_find_path_checked
+            match Pdk.Group_mesh.group_find_path
                 ~cancel:(Context.cancel_token context)
                 ~grain:(Context.grain context) ~mode ~ending
                 ~avoid_self_intersection ?collision ~contain ~base ~name geometry with
@@ -6269,7 +6269,7 @@ let sort ?label ?group ?(descending = false) ?output_indices
       match selection with
       | Error error -> Error error
       | Ok selection ->
-          match Pdk.Ordering.sort_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Ordering.sort ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~descending
               ?output_indices ~combine_indices ~owner ~key inputs.(0) with
           | Ok geometry -> cooked geometry
@@ -7225,7 +7225,7 @@ let point_replicate ?label ?group ?(keep_input = false) ?seed
           let noise_seed = Option.value ~default:(mixed_seed context
               (Int64.logxor identity 0x6a09e667f3bcc909L)) noise_seed in
           let custom_shape = if Array.length inputs = 2 then Some inputs.(1) else None in
-          match Pdk.Point_replication.run_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Point_replication.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?points:selection ~keep_input
               ~seed:(Rand.seed seed) ~id_attribute ?generated_group
               ~copy_point_attributes ~keep_source_attributes

@@ -332,6 +332,7 @@ let randomize_in_place ?cancel seed values =
 
 let sort ?cancel ?(grain = 16_384) ?selection ?(descending = false)
     ?output_indices ?(combine_indices = false) ~owner ~key geometry =
+  Pdk_core.Error.guard ~operation:"sort" ~code:"invalid_sort" @@ fun () ->
   try
     if grain <= 0 then invalid_arg "Pdk.Ordering.sort: grain must be positive";
     Cancel.check_opt cancel;
@@ -425,9 +426,3 @@ let sort ?cancel ?(grain = 16_384) ?selection ?(descending = false)
             (Attribute.Int ranks) |> get_ok in
         Geometry.with_attribute attribute geometry
   with Sort_error message | Invalid_argument message -> Error message
-
-let sort_checked ?cancel ?grain ?selection ?descending ?output_indices
-    ?combine_indices ~owner ~key geometry =
-  Pdk_core.Error.guard ~operation:"sort" ~code:"invalid_sort" (fun () ->
-    sort ?cancel ?grain ?selection ?descending ?output_indices
-      ?combine_indices ~owner ~key geometry)

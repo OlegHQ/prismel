@@ -388,6 +388,7 @@ let run ?cancel ?(grain = 16_384) ?(target = Reduce_ratio 0.5)
     ?(only_original_positions = false) ?(equalize_lengths = 1e-10)
     ?max_normal_deviation ?output_group ?(recompute_point_normals = true)
     geometry =
+  Error.guard ~operation:"poly_reduce" ~code:"invalid_topology" @@ fun () ->
   try
     let original_geometry = geometry in
     if grain <= 0 then invalid_arg "Pdk.Poly_reduce.poly_reduce: grain must be positive";
@@ -542,11 +543,3 @@ let run ?cancel ?(grain = 16_384) ?(target = Reduce_ratio 0.5)
           else Ok output))
     end
   with Invalid_argument message -> Error message
-
-let run_checked ?cancel ?grain ?target ?primitives ?hard_points ?hard_edges
-    ?preserve_boundary ?only_original_positions ?equalize_lengths
-    ?max_normal_deviation ?output_group ?recompute_point_normals geometry =
-  Error.guard ~operation:"poly_reduce" ~code:"invalid_topology" (fun () ->
-    run ?cancel ?grain ?target ?primitives ?hard_points ?hard_edges
-      ?preserve_boundary ?only_original_positions ?equalize_lengths
-      ?max_normal_deviation ?output_group ?recompute_point_normals geometry)

@@ -174,6 +174,7 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
     ?(split_connectivity = false) ?(clip_attribute = "P") ?(distance = 0.)
     ?selection ?(replace_existing_groups = true) ?clipped_edge_group ?cap_group
     ?clipped_group ?above_group ?below_group ~origin ~normal geometry =
+  Error.guard ~operation:"clip" ~code:"invalid_geometry" @@ fun () ->
   try
     if grain <= 0 then invalid_arg "Pdk.Plane_clip.clip: grain must be positive";
     Cancel.check_opt cancel;
@@ -1698,23 +1699,13 @@ type selection = Deform.selection =
   | Selected_primitives of Group.t
   | Selected_edges of Edge_group.t
 
-let clip_checked ?cancel ?grain ?keep ?snapping_tolerance ?fill
-    ?split_connectivity ?clip_attribute ?distance ?selection
-    ?replace_existing_groups ?clipped_edge_group ?cap_group ?clipped_group
-    ?above_group ?below_group ~origin ~normal geometry =
-  Error.guard ~operation:"clip" ~code:"invalid_geometry" (fun () ->
-    clip ?cancel ?grain ?keep ?snapping_tolerance ?fill
-      ?split_connectivity ?clip_attribute ?distance ?selection
-      ?replace_existing_groups ?clipped_edge_group ?cap_group ?clipped_group
-      ?above_group ?below_group ~origin ~normal geometry)
-
-let clip_transform_checked ?cancel ?grain ?keep ?snapping_tolerance ?fill
+let clip_transform ?cancel ?grain ?keep ?snapping_tolerance ?fill
     ?split_connectivity ?clip_attribute ?distance ?selection
     ?replace_existing_groups ?clipped_edge_group ?cap_group ?clipped_group
     ?above_group ?below_group ?(local_normal = Vec3.unit_y) ~transform geometry =
   let origin = Mat4.transform_point transform Vec3.zero
   and normal = Mat4.transform_direction transform local_normal in
-  clip_checked ?cancel ?grain ?keep ?snapping_tolerance ?fill
+  clip ?cancel ?grain ?keep ?snapping_tolerance ?fill
     ?split_connectivity ?clip_attribute ?distance ?selection
     ?replace_existing_groups ?clipped_edge_group ?cap_group ?clipped_group
     ?above_group ?below_group ~origin ~normal geometry

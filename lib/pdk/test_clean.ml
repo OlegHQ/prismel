@@ -102,7 +102,7 @@ let run () =
   let primitive_id = Attribute.create_owned ~name:"primitive_id"
       ~owner:Attribute.Primitive (Attribute.Int [|10;20;30;40;50|]) |> get_ok in
   let overlap_source = Geometry.with_attribute primitive_id overlap_source |> get_ok
-      |> Group_mesh.group_edges_checked ~name:"source_edges" |> get_pdk in
+      |> Group_mesh.group_edges ~name:"source_edges" |> get_pdk in
   let keep_first = Clean.run ~remove_degenerate:false
       ~overlaps:Clean.Keep_first_overlap overlap_source |> get_pdk
   and delete_pairs = Clean.run ~remove_degenerate:false
@@ -160,7 +160,7 @@ let run () =
   ] in
   let metadata_source = Geometry.create ~positions:(Geometry.positions metadata_source)
       ~topology:(Geometry.topology metadata_source) ~attributes ~groups () |> get_ok
-      |> Group_mesh.group_edges_checked ~name:"drop_edges" |> get_pdk in
+      |> Group_mesh.group_edges ~name:"drop_edges" |> get_pdk in
   let cleaned_metadata = Clean.run ~remove_degenerate:false ~reverse_winding:true
       ~delete_unused_groups:true ~point_attributes:"temp*"
       ~vertex_attributes:"temp*" ~primitive_attributes:"temp*"

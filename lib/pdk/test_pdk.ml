@@ -292,7 +292,7 @@ let run () =
   let point_ids = Attribute.create_owned ~name:"point_id" ~owner:Attribute.Point
       (Attribute.Int [|0; 1; 2; 3|]) |> get_ok in
   let sortable_points = Geometry.with_attribute point_ids geometry |> get_ok in
-  let sorted_points = Ordering.sort_checked ~grain:1 ~selection:selected ~descending:true
+  let sorted_points = Ordering.sort ~grain:1 ~selection:selected ~descending:true
       ~owner:Ordering.Points ~key:Ordering.X sortable_points |> get_ok in
   let sorted_positions = Packed.Float3.Private.view (Geometry.positions sorted_points)
   and sorted_topology = Topology.Private.view (Geometry.topology sorted_points) in
@@ -303,24 +303,24 @@ let run () =
      || sorted_topology.vertex_points <> [|2; 1; 0; 3|]
      || sorted_ids <> [|2; 1; 0; 3|] then
     fail "restricted stable point sort/remap";
-  let stable_points = Ordering.sort_checked ~grain:1 ~owner:Ordering.Points ~key:Ordering.X
+  let stable_points = Ordering.sort ~grain:1 ~owner:Ordering.Points ~key:Ordering.X
       sortable_points |> get_ok in
   let stable_ids = Geometry.find_attribute ~owner:Attribute.Point "point_id"
       stable_points |> Option.get |> Attribute.get (Attribute.key ~name:"point_id"
         ~owner:Attribute.Point Attribute.int) |> Option.get in
   if stable_ids <> [|0; 3; 1; 2|] then fail "point sort stability";
-  let shifted_points = Ordering.sort_checked ~owner:Ordering.Points ~key:(Ordering.Shift 1)
+  let shifted_points = Ordering.sort ~owner:Ordering.Points ~key:(Ordering.Shift 1)
       sortable_points |> get_ok in
   let shifted_ids = Geometry.find_attribute ~owner:Attribute.Point "point_id"
       shifted_points |> Option.get |> Attribute.get (Attribute.key ~name:"point_id"
         ~owner:Attribute.Point Attribute.int) |> Option.get in
   if shifted_ids <> [|3; 0; 1; 2|] then fail "point sort cyclic shift";
-  (match Ordering.sort_checked ~owner:Ordering.Points
+  (match Ordering.sort ~owner:Ordering.Points
       ~key:(Ordering.Attribute_component { name = "missing"; component = 0 })
       sortable_points with
    | Error error when Error.code error = "invalid_sort" -> ()
    | _ -> fail "sort accepted a missing key attribute");
-  (match Ordering.sort_checked ~selection:selected ~owner:Ordering.Primitives ~key:Ordering.X
+  (match Ordering.sort ~selection:selected ~owner:Ordering.Primitives ~key:Ordering.X
       triangle_geometry with
    | Error error when Error.code error = "invalid_sort" -> ()
    | _ -> fail "sort accepted a mismatched selection owner");
@@ -331,7 +331,7 @@ let run () =
   let sortable_primitives = triangle_geometry
       |> Geometry.with_attribute vertex_ids |> get_ok
       |> Geometry.with_attribute primitive_ids |> get_ok in
-  let sorted_primitives = Ordering.sort_checked ~grain:1 ~owner:Ordering.Primitives
+  let sorted_primitives = Ordering.sort ~grain:1 ~owner:Ordering.Primitives
       ~key:Ordering.Reverse sortable_primitives |> get_ok in
   let sorted_primitive_topology = Topology.Private.view
       (Geometry.topology sorted_primitives) in
@@ -1620,7 +1620,7 @@ let run () =
       (Attribute.Float (Array.copy shared_positions.x)) |> get_ok in
   let clip_source = Geometry.with_attribute clip_weight shared_box |> get_ok in
   let clipped domains = Parallel.run ~domains (fun () ->
-      Plane_clip.clip_checked ~grain:1 ~keep:Plane_clip.Above ~fill:true ~cap_group:"cap"
+      Plane_clip.clip ~grain:1 ~keep:Plane_clip.Above ~fill:true ~cap_group:"cap"
         ~clipped_group:"cut" ~origin:Vec3.zero ~normal:Vec3.unit_x
         clip_source |> get_ok) in
   let clipped_one = clipped 1 and clipped_many = clipped 4 in
@@ -1663,7 +1663,7 @@ let run () =
     if abs_float (clipped_weights clipped_one).(point) > 1e-12 then
       fail "clip point attribute interpolation"
   done;
-  let split = Plane_clip.clip_checked ~keep:Plane_clip.All ~split_connectivity:true
+  let split = Plane_clip.clip ~keep:Plane_clip.All ~split_connectivity:true
       ~above_group:"above" ~below_group:"below" ~origin:Vec3.zero
       ~normal:Vec3.unit_x clip_source |> get_ok in
   let split_topology = Geometry.topology split
@@ -1686,7 +1686,7 @@ let run () =
         fail "clip split connectivity shared a plane point"
     done) below;
   let clipped_curve = Line_geometry.polyline [|(-1.,0.,0.); (0.,1.,0.); (1.,0.,0.)|]
-      |> get_ok |> Plane_clip.clip_checked ~keep:Plane_clip.Above ~origin:Vec3.zero
+      |> get_ok |> Plane_clip.clip ~keep:Plane_clip.Above ~origin:Vec3.zero
            ~normal:Vec3.unit_x |> get_ok in
   if Geometry.primitive_count clipped_curve <> 1
      || Geometry.point_count clipped_curve <> 2
@@ -1697,7 +1697,7 @@ let run () =
   let point_ids = Attribute.create_owned ~name:"id" ~owner:Attribute.Point
       (Attribute.Int [|10; 20; 30|]) |> get_ok in
   let point_cloud = Geometry.with_attribute point_ids point_cloud |> get_ok in
-  let clipped_points = Plane_clip.clip_checked ~snapping_tolerance:0.001
+  let clipped_points = Plane_clip.clip ~snapping_tolerance:0.001
       ~origin:Vec3.zero ~normal:Vec3.unit_x point_cloud |> get_ok in
   let clipped_point_ids = Geometry.find_attribute ~owner:Attribute.Point "id"
       clipped_points |> Option.get
@@ -1716,7 +1716,7 @@ let run () =
   let vertex_clip_source = Geometry.create ~positions:vertex_clip_positions
       ~topology:(Topology.Builder.freeze vertex_clip_topology)
       ~attributes:[vertex_u] () |> get_ok in
-  let vertex_clipped = Plane_clip.clip_checked ~origin:Vec3.zero ~normal:Vec3.unit_x
+  let vertex_clipped = Plane_clip.clip ~origin:Vec3.zero ~normal:Vec3.unit_x
       vertex_clip_source |> get_ok in
   let vertex_u = Geometry.find_attribute ~owner:Attribute.Vertex "u"
       vertex_clipped |> Option.get
@@ -1731,7 +1731,7 @@ let run () =
   if List.sort Float.compare !plane_values <> [1.; 2.] then
     fail "clip vertex attribute interpolation";
   let closed_curve = Plane_generators.circle ~segments:16 ~radius:1. () |> get_ok
-      |> Plane_clip.clip_checked ~origin:Vec3.zero ~normal:Vec3.unit_x |> get_ok in
+      |> Plane_clip.clip ~origin:Vec3.zero ~normal:Vec3.unit_x |> get_ok in
   if Geometry.primitive_count closed_curve <> 1
      || Topology.primitive_kind (Geometry.topology closed_curve) 0
         <> Topology.Open_polyline then
@@ -1748,29 +1748,29 @@ let run () =
       ~primitive_kinds:(Bytes.make 1 '\000') in
   let concave = Geometry.create ~positions:(Geometry.positions concave)
       ~topology:concave_polygon () |> get_ok in
-  let concave_clipped = Plane_clip.clip_checked ~origin:Vec3.zero ~normal:Vec3.unit_y
+  let concave_clipped = Plane_clip.clip ~origin:Vec3.zero ~normal:Vec3.unit_y
       concave |> get_ok in
   if Geometry.primitive_count concave_clipped <> 2
      || Geometry.vertex_count concave_clipped <> 8 then
     fail "clip did not reconstruct disconnected concave half-plane fragments";
-  (match Plane_clip.clip_checked ~split_connectivity:true ~origin:Vec3.zero
+  (match Plane_clip.clip ~split_connectivity:true ~origin:Vec3.zero
       ~normal:Vec3.unit_x clip_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "clip accepted split connectivity outside keep-all mode");
-  (match Plane_clip.clip_checked ~cap_group:"same" ~above_group:"same" ~origin:Vec3.zero
+  (match Plane_clip.clip ~cap_group:"same" ~above_group:"same" ~origin:Vec3.zero
       ~normal:Vec3.unit_x clip_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "clip accepted duplicate output group names");
-  let huge_normal_clip = Plane_clip.clip_checked ~origin:Vec3.zero
+  let huge_normal_clip = Plane_clip.clip ~origin:Vec3.zero
       ~normal:(Vec3.create 1e300 0. 0.) clip_source |> get_ok
-  and unit_normal_clip = Plane_clip.clip_checked ~origin:Vec3.zero ~normal:Vec3.unit_x
+  and unit_normal_clip = Plane_clip.clip ~origin:Vec3.zero ~normal:Vec3.unit_x
       clip_source |> get_ok in
   if not (equal_positions huge_normal_clip unit_normal_clip) then
     fail "clip normal normalization overflow";
-  (match Plane_clip.clip_checked ~origin:Vec3.zero ~normal:Vec3.zero clip_source with
+  (match Plane_clip.clip ~origin:Vec3.zero ~normal:Vec3.zero clip_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "clip accepted a zero plane normal");
-  (match Plane_clip.clip_checked ~fill:true ~origin:(Vec3.create 0.5 0. 0.) ~normal:Vec3.unit_x
+  (match Plane_clip.clip ~fill:true ~origin:(Vec3.create 0.5 0. 0.) ~normal:Vec3.unit_x
       triangle_geometry with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "clip filled an open polygon boundary");
@@ -2373,7 +2373,7 @@ let run () =
      || Geometry.topology hard_seams_one != Geometry.topology shared_box
   then fail "UV Auto Seam copied unchanged geometry payload";
   let sharp_edges domains = Parallel.run ~domains (fun () ->
-    Group_mesh.group_edges_checked ~grain:1 ~name:"sharp" ~incidence:Group_mesh.Manifold_edge
+    Group_mesh.group_edges ~grain:1 ~name:"sharp" ~incidence:Group_mesh.Manifold_edge
       ~min_angle:(Float.pi /. 4.) shared_box |> get_ok) in
   let sharp_one = sharp_edges 1 and sharp_many = sharp_edges 4 in
   let sharp_group geometry = Geometry.find_edge_group "sharp" geometry
@@ -2387,17 +2387,17 @@ let run () =
     if Edge_group.mem edge sharp_one_group <> Edge_group.mem edge sharp_many_group
     then fail "Edge Group differs by domain count"
   done;
-  let boundary_edges = Group_mesh.group_edges_checked ~name:"boundary"
+  let boundary_edges = Group_mesh.group_edges ~name:"boundary"
       ~incidence:Group_mesh.Boundary_edge triangle_geometry |> get_ok
       |> Geometry.find_edge_group "boundary" |> Option.get in
   if Edge_group.cardinality boundary_edges <> 4 then
     fail "Edge Group boundary incidence";
-  let unit_edges = Group_mesh.group_edges_checked ~name:"unit" ~min_length:1. ~max_length:1.
+  let unit_edges = Group_mesh.group_edges ~name:"unit" ~min_length:1. ~max_length:1.
       triangle_geometry |> get_ok |> Geometry.find_edge_group "unit"
       |> Option.get in
   if Edge_group.cardinality unit_edges <> 4 then
     fail "Edge Group inclusive length range";
-  let selected_edges = Group_mesh.group_edges_checked ~name:"selected_edges"
+  let selected_edges = Group_mesh.group_edges ~name:"selected_edges"
       ~primitives:first_face triangle_geometry |> get_ok
       |> Geometry.find_edge_group "selected_edges" |> Option.get in
   if Edge_group.cardinality selected_edges <> 3 then
@@ -2405,7 +2405,7 @@ let run () =
   (match Geometry.with_edge_group sharp_one_group triangle_geometry with
    | Error _ -> ()
    | Ok _ -> fail "Geometry accepted an edge group from another topology");
-  let quad_edges = Group_mesh.group_edges_checked ~name:"quad_edges" geometry |> get_ok in
+  let quad_edges = Group_mesh.group_edges ~name:"quad_edges" geometry |> get_ok in
   let triangulated_edges = Triangulate.run quad_edges |> get_ok in
   let triangulated_edge_group = Geometry.find_edge_group "quad_edges"
       triangulated_edges |> Option.get in
@@ -2453,7 +2453,7 @@ let run () =
      || Edge_group.length copied_edge_group <> 8 then
     fail "copy-to-points did not replicate native edge membership";
   let hard_box_edges = Box_generator.box ~size:(Vec3.create 2. 2. 2.) () |> get_ok
-      |> Group_mesh.group_edges_checked ~name:"all_box_edges" |> get_ok in
+      |> Group_mesh.group_edges ~name:"all_box_edges" |> get_ok in
   let fused_edge_geometry = Fuse_grid.fuse ~tolerance:0.
       ~attributes:Fuse_reduce.Average_numeric hard_box_edges |> get_ok in
   let fused_edge_group = Geometry.find_edge_group "all_box_edges"
@@ -2467,7 +2467,7 @@ let run () =
       subdivided_edge_geometry |> Option.get in
   if Edge_group.cardinality subdivided_edge_group <> 16 then
     fail "subdivision did not propagate selected source-edge children";
-  let clipped_edge_geometry = Plane_clip.clip_checked ~keep:Plane_clip.Above
+  let clipped_edge_geometry = Plane_clip.clip ~keep:Plane_clip.Above
       ~origin:(Vec3.create 0.5 0. 0.) ~normal:Vec3.unit_x quad_edges |> get_ok in
   let clipped_edge_group = Geometry.find_edge_group "quad_edges"
       clipped_edge_geometry |> Option.get in
@@ -2481,15 +2481,15 @@ let run () =
   if Edge_group.cardinality extruded_edge_group <> 8
      || Edge_group.length extruded_edge_group <> 12 then
     fail "poly extrude did not propagate bottom/top source edges";
-  let sorted_edge_geometry = Ordering.sort_checked ~owner:Ordering.Points ~key:Ordering.X quad_edges
+  let sorted_edge_geometry = Ordering.sort ~owner:Ordering.Points ~key:Ordering.X quad_edges
       |> get_ok in
   let sorted_edge_group = Geometry.find_edge_group "quad_edges"
       sorted_edge_geometry |> Option.get in
   if Edge_group.cardinality sorted_edge_group <> 4 then
     fail "point sort did not remap native edge membership";
-  let triangle_edges = Group_mesh.group_edges_checked ~name:"triangle_edges" triangle_geometry
+  let triangle_edges = Group_mesh.group_edges ~name:"triangle_edges" triangle_geometry
       |> get_ok in
-  let sorted_primitives = Ordering.sort_checked ~descending:true ~owner:Ordering.Primitives
+  let sorted_primitives = Ordering.sort ~descending:true ~owner:Ordering.Primitives
       ~key:Ordering.Reverse triangle_edges |> get_ok in
   if Edge_group.cardinality (Geometry.find_edge_group "triangle_edges"
       sorted_primitives |> Option.get) <> 5 then
@@ -2559,7 +2559,7 @@ let run () =
   if Group.cardinality (seam_group nonmanifold) <> 3
      || Edge_group.cardinality (edge_seam_group nonmanifold) <> 1 then
     fail "UV Auto Seam non-manifold incidence policy";
-  let nonmanifold_edges = Group_mesh.group_edges_checked ~name:"nonmanifold"
+  let nonmanifold_edges = Group_mesh.group_edges ~name:"nonmanifold"
       ~incidence:Group_mesh.Non_manifold_edge nonmanifold |> get_ok
       |> Geometry.find_edge_group "nonmanifold" |> Option.get in
   if Edge_group.cardinality nonmanifold_edges <> 1 then
@@ -2712,14 +2712,14 @@ let run () =
   (match Uv_ops.unitize ~cancel:cancelled_unitize Uv_ops.Islands strip with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "UV Unitize ignored cancellation");
-  (match Group_mesh.group_edges_checked ~cancel:cancelled_unitize strip with
+  (match Group_mesh.group_edges ~cancel:cancelled_unitize strip with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "Edge Group ignored cancellation");
-  (match Group_mesh.group_edges_checked ~min_angle:0. cylinder_curve with
+  (match Group_mesh.group_edges ~min_angle:0. cylinder_curve with
    | Error error when Error.code error = "invalid_edge_group" -> ()
    | _ -> fail "Edge Group accepted an angle filter on curves");
   let swept_edge_geometry = cylinder_curve
-      |> Group_mesh.group_edges_checked ~name:"centerline_edges" |> get_ok
+      |> Group_mesh.group_edges ~name:"centerline_edges" |> get_ok
       |> Sweep_circle.run ~sides:8 ~radius:0.1 |> get_ok in
   let swept_edge_group = Geometry.find_edge_group "centerline_edges"
       swept_edge_geometry |> Option.get in
@@ -2785,7 +2785,7 @@ let run () =
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "sweep accepted a negative point scale");
   let resampled_closed = cylinder_curve
-      |> Group_mesh.group_edges_checked ~name:"curve_edges" |> get_ok
+      |> Group_mesh.group_edges ~name:"curve_edges" |> get_ok
       |> Resample_curves.run ~segments:8 |> get_ok in
   let resampled_closed_group = Geometry.find_edge_group "curve_edges"
       resampled_closed |> Option.get in
@@ -2823,7 +2823,7 @@ let run () =
       ~topology:(Geometry.topology triangle_geometry)
       ~attributes:[line_point_id; line_corner_id; line_face_id; line_detail_id]
       ~groups:[line_points; line_corners; line_faces] () |> get_ok
-      |> Group_mesh.group_edges_checked ~name:"all_source_edges" |> get_ok in
+      |> Group_mesh.group_edges ~name:"all_source_edges" |> get_ok in
   let line_index = Topology_index.create (Geometry.topology line_source) in
   let diagonal = Topology_index.find_edge line_index ~a:0 ~b:2 |> Option.get
   and top = Topology_index.find_edge line_index ~a:2 ~b:3 |> Option.get in
@@ -3146,7 +3146,7 @@ let run () =
       ~attributes:[mixed_point_id; mixed_vertex_id; mixed_primitive_id;
         mixed_first_u; mixed_second_u]
       ~groups:[mixed_even; carve_first] () |> get_ok
-      |> Group_mesh.group_edges_checked ~name:"mixed_edges" |> get_ok in
+      |> Group_mesh.group_edges ~name:"mixed_edges" |> get_ok in
   let mixed_carved domains = Parallel.run ~domains (fun () ->
     Curve_ops.carve_curves ~grain:1 ~primitives:carve_first
       ~relative_arc_length:false ~first:0.25 ~last:0.75 mixed |> get_ok) in
@@ -3503,7 +3503,7 @@ let run () =
    | _ -> fail "Curve Carve cut accepted zero divisions");
   let closed_cut_source = Line_geometry.polyline ~closed:true [|(0.,0.,0.); (1.,0.,0.);
       (1.,1.,0.); (0.,1.,0.)|] |> get_ok
-      |> Group_mesh.group_edges_checked ~name:"closed_cut_edges" |> get_ok in
+      |> Group_mesh.group_edges ~name:"closed_cut_edges" |> get_ok in
   let closed_outside = Curve_ops.carve_curves ~relative_arc_length:false ~first:0.25
       ~last:0.75 ~keep:Curve_ops.Outside closed_cut_source |> get_ok in
   let closed_outside_topology = Topology.Private.view
@@ -3565,7 +3565,7 @@ let run () =
     fail "Curve Carve mixed outside payload/group/edge ancestry";
   let closed_ends_source = Line_geometry.polyline ~closed:true [|(0.,0.,0.); (1.,0.,0.);
       (1.,1.,0.); (0.,1.,0.)|] |> get_ok
-      |> Group_mesh.group_edges_checked ~name:"closed_edges" |> get_ok in
+      |> Group_mesh.group_edges ~name:"closed_edges" |> get_ok in
   let opened domains = Parallel.run ~domains (fun () ->
     Curve_topology.curve_ends ~grain:1 Curve_topology.Open_curve closed_ends_source |> get_ok) in
   let opened_one = opened 1 and opened_many = opened 4 in
@@ -3585,7 +3585,7 @@ let run () =
       || Edge_group.cardinality (opened_group unrolled) <> 4 then
     fail "Curve Ends unroll/remap";
   let open_ends_source = Line_geometry.polyline [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
-      |> get_ok |> Group_mesh.group_edges_checked ~name:"open_edges" |> get_ok in
+      |> get_ok |> Group_mesh.group_edges ~name:"open_edges" |> get_ok in
   let closed_ends = Curve_topology.curve_ends Curve_topology.Close_curve open_ends_source |> get_ok in
   let closed_group = Geometry.find_edge_group "open_edges" closed_ends
       |> Option.get in
@@ -3609,7 +3609,7 @@ let run () =
   let join_source = Geometry.create ~positions:join_positions
       ~topology:(Topology.Builder.freeze join_topology)
       ~attributes:[join_corner_id; join_piece] ~groups:[join_tagged] () |> get_ok
-      |> Group_mesh.group_edges_checked ~name:"join_edges" |> get_ok in
+      |> Group_mesh.group_edges ~name:"join_edges" |> get_ok in
   let joined domains = Parallel.run ~domains (fun () ->
     Curve_topology.join_curves ~grain:1 join_source |> get_ok) in
   let joined_one = joined 1 and joined_many = joined 4 in
@@ -3656,7 +3656,7 @@ let run () =
   let closest_source = Geometry.create ~positions:closest_positions
       ~topology:(Topology.Builder.freeze closest_topology)
       ~attributes:[closest_corner; closest_piece] () |> get_ok
-      |> Group_mesh.group_edges_checked ~name:"closest_edges" |> get_ok in
+      |> Group_mesh.group_edges ~name:"closest_edges" |> get_ok in
   let globally_joined domains = Parallel.run ~domains (fun () ->
       Curve_topology.join_curves ~grain:1 ~connect_closest_ends:true closest_source
       |> get_ok) in
@@ -4059,7 +4059,7 @@ let run () =
   let compact_source = Geometry.create ~positions:compact_positions
       ~topology:(Topology.Builder.freeze compact_topology)
       ~attributes:[compact_ids] ~groups:[compact_group] () |> get_ok
-      |> Group_mesh.group_edges_checked ~name:"compact_edges" |> get_ok in
+      |> Group_mesh.group_edges ~name:"compact_edges" |> get_ok in
   let compacted domains = Parallel.run ~domains (fun () ->
       Compact_points.run ~grain:1 compact_source |> get_ok) in
   let compact_one = compacted 1 and compact_many = compacted 4 in
@@ -4234,7 +4234,7 @@ let run () =
   (match Mirror_geometry.run ~cancel:cancelled ~origin:Vec3.zero ~normal:Vec3.unit_x grid with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled mirror published geometry or wrong error");
-  (match Plane_clip.clip_checked ~cancel:cancelled ~origin:Vec3.zero ~normal:Vec3.unit_x grid with
+  (match Plane_clip.clip ~cancel:cancelled ~origin:Vec3.zero ~normal:Vec3.unit_x grid with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled clip published geometry or wrong error");
   (match Attribute_ops.promote ~cancel:cancelled ~source:Attribute.Point
@@ -4257,7 +4257,7 @@ let run () =
   (match Match_size.run ~cancel:cancelled ~target:match_target match_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled match size published geometry or wrong error");
-  (match Ordering.sort_checked ~cancel:cancelled ~owner:Ordering.Points ~key:Ordering.X grid with
+  (match Ordering.sort ~cancel:cancelled ~owner:Ordering.Points ~key:Ordering.X grid with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled sort published geometry or wrong error");
   (match Instance_copy.duplicate ~cancel:cancelled ~copies:4 grid with
@@ -4460,7 +4460,7 @@ let run () =
       |> Geometry.with_attribute restricted_weight |> get_ok
       |> Geometry.with_attribute restricted_id |> get_ok
       |> Geometry.with_attribute restricted_detail |> get_ok
-      |> Group_mesh.group_edges_checked ~name:"source_edges" |> get_ok in
+      |> Group_mesh.group_edges ~name:"source_edges" |> get_ok in
   let source_second = Group.ordered ~owner:Group.Primitive ~name:"source_second"
       ~length:2 [|1|] |> get_ok in
   let restricted_source = Geometry.with_group source_second restricted_source

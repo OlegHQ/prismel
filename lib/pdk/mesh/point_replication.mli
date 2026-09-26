@@ -10,7 +10,7 @@ type velocity_stretch = Point_replicate.velocity_stretch =
   | Replicate_scaled_velocity
   | Replicate_velocity_only
 
-val run_checked :
+val run :
   ?cancel:Cancel.t -> ?grain:int -> ?points:Group.t -> ?keep_input:bool ->
   ?seed:Prismel_math.Rand.t -> ?id_attribute:string ->
   ?generated_group:string -> ?copy_point_attributes:string ->

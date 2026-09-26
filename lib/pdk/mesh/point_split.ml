@@ -374,7 +374,7 @@ let promote_attribute ?cancel ~grain ~primitive_of_vertex ~point_representative
   Attribute.create_owned ~name:seam.name ~owner:Attribute.Point storage
   |> Result.get_ok
 
-let run ?cancel ?(grain = 16_384) ?selection ?(attributes = "")
+let point_split_raw ?cancel ?(grain = 16_384) ?selection ?(attributes = "")
     ?(tolerance = 1e-5) ?(promote_attributes = false) geometry =
   if grain <= 0 then invalid_arg "Pdk.Point_split.point_split: grain must be positive";
   if not (Float.is_finite tolerance) || tolerance < 0. then
@@ -689,13 +689,13 @@ type deform_selection = Deform.selection =
   | Selected_primitives of Group.t
   | Selected_edges of Edge_group.t
 
-let run_checked ?cancel ?grain ?selection ?attributes ?tolerance
+let run ?cancel ?grain ?selection ?attributes ?tolerance
     ?promote_attributes geometry =
+  Error.guard ~operation:"point_split" ~code:"invalid_geometry" @@ fun () ->
   let selection = Option.map (function
     | Selected_points group -> Element_selection.Selected_points group
     | Selected_vertices group -> Element_selection.Selected_vertices group
     | Selected_primitives group -> Element_selection.Selected_primitives group
     | Selected_edges group -> Element_selection.Selected_edges group) selection in
-  Error.guard ~operation:"point_split" ~code:"invalid_geometry" (fun () ->
-    run ?cancel ?grain ?selection ?attributes ?tolerance
-      ?promote_attributes geometry)
+  point_split_raw ?cancel ?grain ?selection ?attributes ?tolerance
+    ?promote_attributes geometry

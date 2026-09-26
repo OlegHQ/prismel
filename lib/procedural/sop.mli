@@ -442,7 +442,7 @@ val separate_pieces :
     disjoint intervals along an axis, or restore them from the stored float3
     translation. The immutable node delegates ownership validation, packed
     bounds, reversible position fills, and cancellation to
-    {!Pdk.Separate_pieces.run_checked}. *)
+    {!Pdk.Separate_pieces.run}. *)
 
 (* Packed Catmull-Clark or bilinear polygon-surface and polygon-curve
    refinement, plus triangle-only Loop refinement. [group] restricts

@@ -1,4 +1,4 @@
-val run_checked :
+val run :
   ?cancel:Cancel.t -> ?grain:int -> ?source_primitives:Group.t ->
   ?collision_primitives:Group.t -> ?tolerance:float ->
   ?include_coplanar:bool -> ?input_attribute:string option ->
