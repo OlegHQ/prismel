@@ -15,6 +15,10 @@ let guard ~operation ~code work =
   try Result.map_error (of_string ~operation ~code) (work ()) with
   | Cancel.Cancelled -> Error (make ~operation ~code:"cancelled"
       "geometry operation was cancelled")
+let unguard = function
+  | Ok value -> Ok value
+  | Error value when value.code = "cancelled" -> raise Cancel.Cancelled
+  | Error value -> Error value.message
 let operation value = value.operation
 let code value = value.code
 let message value = value.message

@@ -267,10 +267,10 @@ let run_reverse_payload_benchmarks () =
       |> Geometry.with_group selected |> get_ok in
   let input_points = Geometry.point_count source in
   measure ~input_points "reverse_payload" (fun () ->
-    Reverse_ops.run_checked ~grain ~operation:Reverse_ops.Reverse_vertices source |> get_ok)
+    Reverse_faces.run ~grain ~operation:Reverse_faces.Reverse_vertices source |> get_ok)
     geometry_output;
   measure ~input_points "shift_payload" (fun () ->
-    Reverse_ops.run_checked ~grain ~operation:(Reverse_ops.Shift_vertices 1) source |> get_ok)
+    Reverse_faces.run ~grain ~operation:(Reverse_faces.Shift_vertices 1) source |> get_ok)
     geometry_output
 
 let run_grid_generator_benchmarks () =
@@ -5246,14 +5246,14 @@ let () =
   if benchmark_filter = Some "line_generator" then exit 0;
   let source = make_grid () in
   measure ~input_points:(Geometry.point_count source) "reverse_all" (fun () ->
-    Reverse_ops.run_checked ~grain source |> get_ok) geometry_output;
+    Reverse_faces.run ~grain source |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count source) "reverse_shift_all" (fun () ->
-    Reverse_ops.run_checked ~grain ~operation:(Reverse_ops.Shift_vertices 1) source |> get_ok)
+    Reverse_faces.run ~grain ~operation:(Reverse_faces.Shift_vertices 1) source |> get_ok)
     geometry_output;
   let reverse_half = Group.init ~owner:Group.Primitive ~name:"reverse_half"
       (Geometry.primitive_count source) (fun primitive -> primitive land 1 = 0) in
   measure ~input_points:(Geometry.point_count source) "reverse_local_half" (fun () ->
-    Reverse_ops.run_checked ~grain ~primitives:reverse_half source |> get_ok) geometry_output;
+    Reverse_faces.run ~grain ~primitives:reverse_half source |> get_ok) geometry_output;
   (match benchmark_filter with
    | Some filter when String.starts_with ~prefix:"reverse_" filter -> exit 0
    | None | Some _ -> ());
@@ -5777,7 +5777,7 @@ let () =
         let row = hole / 8 and column = hole mod 8 in
         box ~center:(Vec3.create 0. ((float_of_int column -. 3.5) *. 2.)
           ((float_of_int row -. 3.5) *. 2.)) ~y:1. ~z:1.
-        |> Reverse_ops.run_checked |> get_ok) in
+        |> Reverse_faces.run |> get_ok) in
     let source = Mesh_merge.run (outer :: Array.to_list holes) |> get_ok in
     measure ~input_points:(Geometry.point_count source)
       "clip_nested_caps_64_holes" (fun () ->
@@ -5795,7 +5795,7 @@ let () =
           ((float_of_int row -. 1.5) *. 3.) in
       let outer = box ~center ~size:(Vec3.create 2. 2. 2.)
       and inner = box ~center ~size:(Vec3.create 2. 1. 1.)
-          |> Reverse_ops.run_checked |> get_ok in
+          |> Reverse_faces.run |> get_ok in
       shells := outer :: inner :: !shells
     done;
     let source = Mesh_merge.run !shells |> get_ok in

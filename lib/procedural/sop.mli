@@ -1120,7 +1120,7 @@ val poly_reduce :
 val reverse :
   ?label:string ->
   ?group:string ->
-  ?operation:Pdk.Reverse_ops.operation ->
+  ?operation:Pdk.Reverse_faces.operation ->
   Node.t -> Node.t
 (* Compute point, vertex, primitive, or detail normals through the packed PDK
    kernel. Typed selections are promoted to the requested output owner;

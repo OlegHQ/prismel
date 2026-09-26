@@ -1318,16 +1318,16 @@ let test_generators_selections_and_delete () =
    | Ok _ -> fail "Triangulate accepted a missing primitive group");
   let reverse_graph = Sop.snapshot reverse_source
       |> Sop.reverse ~group:"reverse_first"
-           ~operation:(Pdk.Reverse_ops.Shift_vertices (-1)) in
+           ~operation:(Pdk.Reverse_faces.Shift_vertices (-1)) in
   check (Node.version reverse_graph = 2
       && contains (Node.parameters reverse_graph) "group=reverse_first"
       && contains (Node.parameters reverse_graph) "operation=shift:-1")
     "procedural Reverse cache identity";
   let reversed = cook_ok evaluator current reverse_graph in
-  let expected_reverse = Pdk.Reverse_ops.run_checked ~grain:1
+  let expected_reverse = Pdk.Reverse_faces.run ~grain:1
       ~primitives:(Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive
         "reverse_first" reverse_source |> Option.get)
-      ~operation:(Pdk.Reverse_ops.Shift_vertices (-1)) reverse_source
+      ~operation:(Pdk.Reverse_faces.Shift_vertices (-1)) reverse_source
       |> Result.get_ok in
   let actual_topology = Pdk.Topology.Private.view
       (Pdk.Geometry.topology reversed.geometry)

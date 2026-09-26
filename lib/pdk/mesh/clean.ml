@@ -458,7 +458,8 @@ let run ?cancel ?(grain = 16_384) ?(epsilon = 1e-12)
         | None -> Ok geometry
         | Some delete_pairs -> delete_overlaps ?cancel ~grain ~delete_pairs geometry) in
       let result = Result.bind result (fun geometry ->
-        if reverse_winding then Reverse_faces.run ?cancel geometry else Ok geometry) in
+        if reverse_winding then Error.unguard (Reverse_faces.run ?cancel geometry)
+        else Ok geometry) in
       let result = Result.bind result (fun geometry ->
         if remove_unused_points then compact geometry
         else Ok geometry) in

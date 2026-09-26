@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 137,
+  "module_count": 136,
   "modules": [
     {
       "api_sha256": "42991257be662e316b18b78776fd2c91d5990ebf5a3b561d4d38b32d1d9db961",
@@ -292,13 +292,13 @@
       "source_sha256": "83a175e95d5b2198a00f64a474f4175475f7c9b561253e40493c43f4ccebb869"
     },
     {
-      "api_sha256": "b2e041c2be999205d4b1cc71acbed3d1a8315317115cc9cf092e7098e51cf72f",
+      "api_sha256": "a73ed897fadb4285bbc8b490adc091cb230e98a8787c6e0d7e2067e21d2b6127",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Error",
       "source": "lib/pdk/core/error.mli",
-      "source_bytes": 457,
-      "source_sha256": "c108990fa858b5f0eb14d65a6586ce7af23e1596b2151306417b4bb011fa6d74"
+      "source_bytes": 657,
+      "source_sha256": "2da0d7aac10f2007067073810cb23becacc9c3defa9f3d0a805e6b69dbff6aa3"
     },
     {
       "api_sha256": "e81a21b15e63c18205412ea8c36c6d2e11ab8b4daa4dd00b60c7bfa31e89bf8c",
@@ -596,15 +596,6 @@
       "source": "lib/pdk/mesh/ray.mli",
       "source_bytes": 1367,
       "source_sha256": "9d174ef889c2ac2d3e4b423bd82512c69e21292cca0999ba7402d996d4287c95"
-    },
-    {
-      "api_sha256": "a059e1b57854f35076d90208c12b7d578ef0ed98220bbdc57a614bb5d19feae8",
-      "excluded_legacy_symbols": [],
-      "library": "pdk",
-      "module": "Reverse_ops",
-      "source": "lib/pdk/mesh/reverse_ops.mli",
-      "source_bytes": 237,
-      "source_sha256": "c5bd76084e38d008f2c27510a78fa4dd82abedd562002e25454a30ec102398fc"
     },
     {
       "api_sha256": "cf591f8aa3f523bc13c8fa17ef4a105fc2f7b8d395cfde9594ca0f8832e3d4b0",
@@ -1115,13 +1106,13 @@
       "source_sha256": "56843fac9c3df29c046e0c707bd5a2374e4c400e0a02ae5627e27a7000bf8ee8"
     },
     {
-      "api_sha256": "d7fed0738c33e9346f4847399b95c7587a13b107c0bdfb9a9ec123f6d370271b",
+      "api_sha256": "74b3df022c98b655e0743f0624a28b3e87782abf4739c95008a7f713a8b2d9df",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Sop",
       "source": "lib/procedural/sop.mli",
-      "source_bytes": 94829,
-      "source_sha256": "90aa929c21e9d6ec3f1cc73dc9faa32d070a03ee73039ae241b8ea56c13d60c6"
+      "source_bytes": 94831,
+      "source_sha256": "3f41b85b145e768927acc82e7cb7babf197191dcc2fedb3d41cdced93338339a"
     },
     {
       "api_sha256": "a07dc249d7631da8b4e38fe93e9e43898cdc8cec6e30be0a7c921a086e386fba",

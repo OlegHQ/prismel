@@ -602,9 +602,9 @@ let check_multiple_nested_cap_contours () =
       ~size:(Vec3.create 2. y z) () |> get_ok in
   let outer = box 6. 4.
   and first_hole = box ~center:(Vec3.create 0. (-1.5) 0.) 1. 1.
-      |> Reverse_ops.run_checked |> get_ok
+      |> Reverse_faces.run |> get_ok
   and second_hole = box ~center:(Vec3.create 0. 1.5 0.) 1. 1.
-      |> Reverse_ops.run_checked |> get_ok in
+      |> Reverse_faces.run |> get_ok in
   let source = Mesh_merge.run [outer; first_hole; second_hole] |> get_ok in
   let run domains keep = Parallel.run ~domains (fun () ->
       Plane_clip.clip_checked ~grain:1 ~keep ~fill:true ~cap_group:"caps"
@@ -624,7 +624,7 @@ let check_multiple_nested_cap_contours () =
   check (Group.cardinality both_caps = 28
       && near (cap_area_yz both both_caps) 44.)
     "keep-all multiple-hole Clip did not cap both sides";
-  let middle = box 4. 4. |> Reverse_ops.run_checked |> get_ok
+  let middle = box 4. 4. |> Reverse_faces.run |> get_ok
   and island = box 2. 2. in
   let nested = Mesh_merge.run [box 6. 6.; middle; island] |> get_ok
       |> Plane_clip.clip_checked ~grain:1 ~fill:true ~cap_group:"caps"
@@ -655,7 +655,7 @@ let check_multiple_nested_cap_contours () =
       ~consolidate_points:true ~normals:Box_generator.Box_no_normals
       ~center:(Vec3.create (-1.5) 0. 0.5)
       ~size:(Vec3.create 0.5 0.5 1.) () |> get_ok
-      |> Reverse_ops.run_checked |> get_ok in
+      |> Reverse_faces.run |> get_ok in
   let concave_nested = Mesh_merge.run [concave; concave_hole] |> get_ok
       |> Plane_clip.clip_checked ~grain:1 ~fill:true ~cap_group:"caps"
            ~origin:(Vec3.create 0. 0. 0.5) ~normal:Vec3.unit_z |> get_ok in
@@ -668,9 +668,9 @@ let check_multiple_nested_cap_contours () =
       && Topology_index.non_manifold_edge_count concave_index = 0)
     "concave outer contour with a hole is not a closed two-manifold";
   let overlap_a = box ~center:(Vec3.create 0. (-0.3) 0.) 2. 2.
-      |> Reverse_ops.run_checked |> get_ok
+      |> Reverse_faces.run |> get_ok
   and overlap_b = box ~center:(Vec3.create 0. 0.3 0.) 2. 2.
-      |> Reverse_ops.run_checked |> get_ok in
+      |> Reverse_faces.run |> get_ok in
   let overlapping = Mesh_merge.run [outer; overlap_a; overlap_b] |> get_ok in
   expect_code "invalid_geometry" (Plane_clip.clip_checked ~grain:1 ~fill:true
       ~origin:Vec3.zero ~normal:Vec3.unit_x overlapping);

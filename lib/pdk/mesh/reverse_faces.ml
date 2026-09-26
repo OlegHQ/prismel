@@ -19,6 +19,7 @@ type operation =
 
 let run ?cancel ?(grain = 16_384) ?primitives
     ?(operation = Reverse_vertices) geometry =
+  Error.guard ~operation:"reverse" ~code:"invalid_topology" @@ fun () ->
   try
   if grain <= 0 then invalid_arg "Pdk_mesh.Reverse_faces.reverse: grain must be positive";
   Cancel.check_opt cancel;

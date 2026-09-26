@@ -3151,10 +3151,10 @@ let poly_reduce ?label ?group ?hard_point_group ?hard_edge_group
           | Error error -> structured_pdk_error error)
 
 let reverse_operation_key = function
-  | Pdk.Reverse_ops.Reverse_vertices -> "reverse"
-  | Pdk.Reverse_ops.Shift_vertices offset -> "shift:" ^ string_of_int offset
+  | Pdk.Reverse_faces.Reverse_vertices -> "reverse"
+  | Pdk.Reverse_faces.Shift_vertices offset -> "shift:" ^ string_of_int offset
 
-let reverse ?label ?group ?(operation = Pdk.Reverse_ops.Reverse_vertices) input =
+let reverse ?label ?group ?(operation = Pdk.Reverse_faces.Reverse_vertices) input =
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.reverse: empty primitive group name") group;
   Node.Private.make ?label ~operation:"reverse" ~version:2
@@ -3173,7 +3173,7 @@ let reverse ?label ?group ?(operation = Pdk.Reverse_ops.Reverse_vertices) input 
       match primitives with
       | Error error -> Error error
       | Ok primitives ->
-          match Pdk.Reverse_ops.run_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Reverse_faces.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ~operation geometry with
           | Ok geometry -> cooked geometry
           | Error error -> structured_pdk_error error)

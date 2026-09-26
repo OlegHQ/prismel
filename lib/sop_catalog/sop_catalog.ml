@@ -2032,8 +2032,8 @@ module Reverse = struct
 
   let build = parameters_build (fun ~label parameters input ->
     let operation = match parameters.operation with
-      | Reverse -> Pdk.Reverse_ops.Reverse_vertices
-      | Shift -> Pdk.Reverse_ops.Shift_vertices parameters.shift in
+      | Reverse -> Pdk.Reverse_faces.Reverse_vertices
+      | Shift -> Pdk.Reverse_faces.Shift_vertices parameters.shift in
     Sop.reverse ~label ?group:(optional_text parameters.group) ~operation input)
 
   let factory = parameters_factory build

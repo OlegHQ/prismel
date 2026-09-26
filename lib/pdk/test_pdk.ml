@@ -2412,14 +2412,14 @@ let run () =
   if Edge_group.cardinality triangulated_edge_group <> 4
      || Edge_group.length triangulated_edge_group <> 5 then
     fail "triangulate did not preserve original edges/exclude its diagonal";
-  let reversed_edges = Reverse_ops.run_checked quad_edges |> get_ok
+  let reversed_edges = Reverse_faces.run quad_edges |> get_ok
       |> Geometry.find_edge_group "quad_edges" |> Option.get in
   if Edge_group.cardinality reversed_edges <> 4 then
     fail "reverse did not remap native edge membership";
   let quad_edge_group = Geometry.find_edge_group "quad_edges" quad_edges
       |> Option.get
   and quad_edge_index = Topology_index.create (Geometry.topology quad_edges) in
-  let reversed_topology = Reverse_ops.run_checked quad_edges |> get_ok |> Geometry.topology in
+  let reversed_topology = Reverse_faces.run quad_edges |> get_ok |> Geometry.topology in
   (match Edge_group.replicate_exact_copies
       ~source_topology:(Geometry.topology quad_edges)
       ~source_index:quad_edge_index ~target_topology:reversed_topology
@@ -3982,7 +3982,7 @@ let run () =
    | Error _ -> ()
    | Ok _ -> fail "area measurement accepted an open curve");
   let box_volume = Analysis.signed_volume ~grain:3 box |> get_ok in
-  let reversed_box = Reverse_ops.run_checked box |> get_ok in
+  let reversed_box = Reverse_faces.run box |> get_ok in
   let reversed_volume = Analysis.signed_volume ~grain:3 reversed_box |> get_ok in
   if abs_float (abs_float box_volume -. 48.) > 1e-12
       || abs_float (box_volume +. reversed_volume) > 1e-12 then
