@@ -1,0 +1,11 @@
+# Reviewed checked curve modeling paths; apply only to explicit caller files.
+Ops.resample_curves	Curve_modeling.resample_curves_checked
+Ops.carve_curves	Curve_modeling.carve_curves_checked
+Ops.sweep_circle	Curve_modeling.sweep_circle_checked
+Ops.carve_keep	Curve_modeling.carve_keep
+Ops.carve_attribute_mode	Curve_modeling.carve_attribute_mode
+Ops.Keep_inside_and_outside	Curve_modeling.Keep_inside_and_outside
+Ops.Keep_inside	Curve_modeling.Keep_inside
+Ops.Keep_outside	Curve_modeling.Keep_outside
+Ops.Attribute_replace	Curve_modeling.Attribute_replace
+Ops.Attribute_scale	Curve_modeling.Attribute_scale
