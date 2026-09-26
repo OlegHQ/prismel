@@ -43,9 +43,9 @@ let fail message = raise (Blend_error message)
 
 let shape ?mask_attribute ?(mask_source = Blend_mask_shape) ~weight geometry =
   Option.iter (fun name -> if String.trim name = "" then
-    invalid_arg "Pdk.Ops.blend_shape: empty mask attribute") mask_attribute;
+    invalid_arg "Pdk.Blend_shapes.blend_shape: empty mask attribute") mask_attribute;
   if not (Float.is_finite weight) then
-    invalid_arg "Pdk.Ops.blend_shape: non-finite weight";
+    invalid_arg "Pdk.Blend_shapes.blend_shape: non-finite weight";
   { geometry; weight; mask_attribute; mask_source }
 
 let[@inline always] mapped_point mapping point = match mapping with

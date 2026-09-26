@@ -81,9 +81,9 @@ let compose_transform_raw ?(order = Transform_srt)
     "shear", shear; "pivot", pivot; "pivot_rotation", pivot_rotation] in
   match List.find_opt (fun (_, value) -> not (finite value.Vec3.x
       && finite value.y && finite value.z)) vectors with
-  | Some (name, _) -> Error ("Pdk.Ops.compose_transform: non-finite " ^ name)
+  | Some (name, _) -> Error ("Pdk.Transform_ops.compose_transform: non-finite " ^ name)
   | None when not (Float.is_finite uniform_scale) ->
-      Error "Pdk.Ops.compose_transform: non-finite uniform scale"
+      Error "Pdk.Transform_ops.compose_transform: non-finite uniform scale"
   | None ->
       let scale = Vec3.scale scale uniform_scale in
       let scale_shear = Mat4.mul
@@ -113,7 +113,7 @@ let compose_transform_raw ?(order = Transform_srt)
       if not invert then Ok matrix
       else match Mat4.inverse matrix with
         | Some inverse -> Ok inverse
-        | None -> Error "Pdk.Ops.compose_transform: cannot invert a singular transform"
+        | None -> Error "Pdk.Transform_ops.compose_transform: cannot invert a singular transform"
 
 let transform_matrix_finite matrix =
   let rows = Mat4.to_rows matrix in
@@ -198,10 +198,10 @@ let transform_selected_normals ?cancel ~grain ~preserve_length matrix selected
 let transform_selected_raw ?cancel ?(grain = 16_384) ?selection
     ?(preserve_normal_length = false) ?(recompute_normals = false)
     matrix geometry =
-  if grain <= 0 then Error "Pdk.Ops.transform_selected: grain must be positive"
+  if grain <= 0 then Error "Pdk.Transform_ops.transform_selected: grain must be positive"
   else if not (transform_matrix_finite matrix) then
-    Error "Pdk.Ops.transform_selected: matrix must be finite"
-  else Result.bind (Element_selection.validate ~operation:"Pdk.Ops.transform_selected"
+    Error "Pdk.Transform_ops.transform_selected: matrix must be finite"
+  else Result.bind (Element_selection.validate ~operation:"Pdk.Transform_ops.transform_selected"
       (Geometry.topology geometry) selection) (fun () ->
     let point_count = Geometry.point_count geometry in
     let selected_result = match selection with
@@ -396,7 +396,7 @@ let valid_output_attribute_name = function
 let distance_along_geometry_raw ?cancel ?(grain = 16_384) ?affected
     ?(falloff = Soft_linear) ?(radius = Distance_maximum)
     ?(distance_attribute = Some "distance") ?mask_attribute ~start geometry =
-  let operation = "Pdk.Ops.distance_along_geometry" in
+  let operation = "Pdk.Transform_ops.distance_along_geometry" in
   if grain <= 0 then Error (operation ^ ": grain must be positive")
   else if not (valid_output_attribute_name distance_attribute) then Error
       (operation ^ ": distance attribute name must be non-empty and not P")
@@ -497,7 +497,7 @@ let distance_from_geometry_raw ?cancel ?(grain = 16_384) ?affected
     ?reference_selection ?(reference_kind = Distance_reference_primitives)
     ?(falloff = Soft_linear) ?(radius = Distance_maximum)
     ?(distance_attribute = Some "distance") ?mask_attribute ~reference source =
-  let operation = "Pdk.Ops.distance_from_geometry" in
+  let operation = "Pdk.Transform_ops.distance_from_geometry" in
   if grain <= 0 then Error (operation ^ ": grain must be positive")
   else if not (valid_output_attribute_name distance_attribute) then Error
       (operation ^ ": distance attribute name must be non-empty and not P")
@@ -631,7 +631,7 @@ let distance_from_target_raw ?cancel ?(grain = 16_384) ?affected
     ?(direction = Vec3.unit_y) ?(metric = Distance_target_absolute)
     ?(falloff = Soft_linear) ?(radius = Distance_maximum)
     ?(distance_attribute = Some "distance") ?mask_attribute geometry =
-  let operation = "Pdk.Ops.distance_from_target" in
+  let operation = "Pdk.Transform_ops.distance_from_target" in
   if grain <= 0 then Error (operation ^ ": grain must be positive")
   else if not (valid_output_attribute_name distance_attribute) then Error
       (operation ^ ": distance attribute name must be non-empty and not P")
@@ -766,17 +766,17 @@ let distance_from_target_raw ?cancel ?(grain = 16_384) ?affected
 let soft_attribute_weights ?cancel ~grain ~radius ~falloff ~apply_rolloff
     selected name geometry =
   if String.trim name = "" then
-    Error "Pdk.Ops.soft_transform: empty distance attribute name"
+    Error "Pdk.Transform_ops.soft_transform: empty distance attribute name"
   else match Geometry.find_attribute ~owner:Attribute.Point name geometry with
     | None -> Error (Printf.sprintf
-        "Pdk.Ops.soft_transform: missing point distance attribute %S" name)
+        "Pdk.Transform_ops.soft_transform: missing point distance attribute %S" name)
     | Some attribute -> match Attribute.Private.storage attribute with
       | Attribute.Float values ->
           let count = Array.length values in
           let weights = Array.make count 0.
           and first_invalid = Atomic.make max_int in
           if count <> Geometry.point_count geometry then Error
-              "Pdk.Ops.soft_transform: distance attribute length mismatch"
+              "Pdk.Transform_ops.soft_transform: distance attribute length mismatch"
           else begin
             if count > 0 then Parallel.for_ ~chunk_size:grain ~start:0
                 ~finish:(count - 1) (fun point ->
@@ -794,31 +794,31 @@ let soft_attribute_weights ?cancel ~grain ~radius ~falloff ~apply_rolloff
                         soft_transform_weight falloff value radius else value);
             let invalid = Atomic.get first_invalid in
             if invalid = max_int then Ok weights else Error (Printf.sprintf
-              "Pdk.Ops.soft_transform: distance attribute %S element %d is non-finite"
+              "Pdk.Transform_ops.soft_transform: distance attribute %S element %d is non-finite"
               name invalid)
           end
       | _ -> Error (Printf.sprintf
-          "Pdk.Ops.soft_transform: point distance attribute %S must be float" name)
+          "Pdk.Transform_ops.soft_transform: point distance attribute %S must be float" name)
 
 let soft_transform_raw ?cancel ?(grain = 16_384) ?selection
     ?(metric = Soft_radius) ?(falloff = Soft_cubic) ?(radius = 1.)
     ?falloff_attribute ?(recompute_normals = true) matrix geometry =
-  if grain <= 0 then Error "Pdk.Ops.soft_transform: grain must be positive"
+  if grain <= 0 then Error "Pdk.Transform_ops.soft_transform: grain must be positive"
   else if not (finite radius) || radius < 0. then
-    Error "Pdk.Ops.soft_transform: radius must be finite and non-negative"
+    Error "Pdk.Transform_ops.soft_transform: radius must be finite and non-negative"
   else if not (transform_matrix_finite matrix) then
-    Error "Pdk.Ops.soft_transform: matrix must be finite"
+    Error "Pdk.Transform_ops.soft_transform: matrix must be finite"
   else if (match falloff_attribute with
       | Some name -> String.trim name = "" | None -> false) then
-    Error "Pdk.Ops.soft_transform: empty falloff attribute name"
+    Error "Pdk.Transform_ops.soft_transform: empty falloff attribute name"
   else if (match metric with Soft_radius | Soft_edge -> radius <= 0.
       | Soft_attribute { apply_rolloff = true; _ } -> radius <= 0.
       | Soft_attribute { apply_rolloff = false; _ } -> false) then
-    Error "Pdk.Ops.soft_transform: rolloff radius must be positive"
-  else Result.bind (Element_selection.validate ~operation:"Pdk.Ops.soft_transform"
+    Error "Pdk.Transform_ops.soft_transform: rolloff radius must be positive"
+  else Result.bind (Element_selection.validate ~operation:"Pdk.Transform_ops.soft_transform"
       (Geometry.topology geometry) selection) (fun () ->
     Result.bind (validate_finite_positions ?cancel ~grain
-        ~operation:"Pdk.Ops.soft_transform" geometry)
+        ~operation:"Pdk.Transform_ops.soft_transform" geometry)
       (fun positions ->
       let selected_result = match selection with
         | None -> Ok None

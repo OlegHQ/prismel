@@ -79,7 +79,7 @@ let concatenate_attribute template attributes =
     ~owner:(Attribute.owner template) storage
 
 let merge ?cancel ?(grain = 16_384) geometries =
-  if grain <= 0 then invalid_arg "Pdk.Ops.merge: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk.Mesh_merge.merge: grain must be positive";
   match geometries with
   | [] -> Ok (points [||])
   | first :: _ ->
@@ -102,14 +102,14 @@ let merge ?cancel ?(grain = 16_384) geometries =
         && List.for_all (fun template ->
           find_matching_edge_group template geometry <> None) first_edge_groups in
       if not (List.for_all exact_schema geometries) then
-        Error "Pdk.Ops.merge: attribute schemas must match exactly"
+        Error "Pdk.Mesh_merge.merge: attribute schemas must match exactly"
       else if not (List.for_all exact_group_schema geometries) then
-        Error "Pdk.Ops.merge: group schemas must match exactly"
+        Error "Pdk.Mesh_merge.merge: group schemas must match exactly"
       else if not (List.for_all exact_edge_group_schema geometries) then
-        Error "Pdk.Ops.merge: edge group schemas must match exactly"
+        Error "Pdk.Mesh_merge.merge: edge group schemas must match exactly"
       else if List.exists (fun attribute -> Attribute.owner attribute = Attribute.Detail)
           first_attributes then
-        Error "Pdk.Ops.merge: detail attributes need an explicit merge policy"
+        Error "Pdk.Mesh_merge.merge: detail attributes need an explicit merge policy"
       else
         let point_count = List.fold_left (fun n g -> n + Geometry.point_count g) 0 geometries
         and vertex_count = List.fold_left (fun n g -> n + Geometry.vertex_count g) 0 geometries

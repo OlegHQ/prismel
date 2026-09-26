@@ -13,7 +13,7 @@ type faces = {
   inverse_length : float array;
 }
 
-let operation = "Pdk.Ops.normals"
+let operation = "Pdk.Normal_ops.normals"
 
 let[@inline] max_abs3 x y z =
   let x = abs_float x and y = abs_float y and z = abs_float z in

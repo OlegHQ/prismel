@@ -391,32 +391,32 @@ let run ?cancel ?(grain = 16_384) ?(target = Reduce_ratio 0.5)
     geometry =
   try
     let original_geometry = geometry in
-    if grain <= 0 then invalid_arg "Pdk.Ops.poly_reduce: grain must be positive";
+    if grain <= 0 then invalid_arg "Pdk.Poly_reduce.poly_reduce: grain must be positive";
     let original_primitives = Geometry.primitive_count geometry
     and original_points = Geometry.point_count geometry
     and original_topology = Geometry.topology geometry in
     (match target with
      | Reduce_ratio ratio when not (finite ratio) || ratio < 0. || ratio > 1. ->
-         invalid_arg "Pdk.Ops.poly_reduce: ratio must be finite and in [0, 1]"
+         invalid_arg "Pdk.Poly_reduce.poly_reduce: ratio must be finite and in [0, 1]"
      | Reduce_primitive_count count when count < 0 ->
          invalid_arg
-           "Pdk.Ops.poly_reduce: target primitive count must be non-negative"
+           "Pdk.Poly_reduce.poly_reduce: target primitive count must be non-negative"
      | Reduce_ratio _ | Reduce_primitive_count _ -> ());
     (match output_group with
      | Some name when String.trim name = "" ->
-         invalid_arg "Pdk.Ops.poly_reduce: output group name must not be empty"
+         invalid_arg "Pdk.Poly_reduce.poly_reduce: output group name must not be empty"
      | None | Some _ -> ());
     (match primitives with
      | Some group when Group.owner group <> Group.Primitive
          || Group.length group <> original_primitives ->
          invalid_arg
-           "Pdk.Ops.poly_reduce: selection must be a matching primitive group"
+           "Pdk.Poly_reduce.poly_reduce: selection must be a matching primitive group"
      | None | Some _ -> ());
     (match hard_points with
      | Some group when Group.owner group <> Group.Point
          || Group.length group <> original_points ->
          invalid_arg
-           "Pdk.Ops.poly_reduce: hard points must be a matching point group"
+           "Pdk.Poly_reduce.poly_reduce: hard points must be a matching point group"
      | None | Some _ -> ());
     let original_index = Topology_index.create ?cancel original_topology in
     (match hard_edges with
@@ -424,7 +424,7 @@ let run ?cancel ?(grain = 16_384) ?(target = Reduce_ratio 0.5)
          <> Topology.data_id original_topology
          || Edge_group.length group <> Topology_index.edge_count original_index ->
          invalid_arg
-           "Pdk.Ops.poly_reduce: hard edges must belong to the input topology"
+           "Pdk.Poly_reduce.poly_reduce: hard edges must belong to the input topology"
      | None | Some _ -> ());
     let requested_original = match target with
       | Reduce_ratio ratio ->
@@ -480,7 +480,7 @@ let run ?cancel ?(grain = 16_384) ?(target = Reduce_ratio 0.5)
           let count = Geometry.primitive_count current in
           if count <= target_count then Ok current
           else if round > 128 then Error
-              "Pdk.Ops.poly_reduce: adaptive reduction exceeded 128 rounds"
+              "Pdk.Poly_reduce.poly_reduce: adaptive reduction exceeded 128 rounds"
           else
             let primitive_selection = Option.bind primitive_name (fun name ->
               Geometry.find_group ~owner:Group.Primitive name current)
@@ -502,7 +502,7 @@ let run ?cancel ?(grain = 16_384) ?(target = Reduce_ratio 0.5)
                     ~recompute_point_normals:false current with
                  | Error message -> Error message
                  | Ok next when Geometry.primitive_count next >= count -> Error
-                       "Pdk.Ops.poly_reduce: a planned contraction made no progress"
+                       "Pdk.Poly_reduce.poly_reduce: a planned contraction made no progress"
                  | Ok next -> reduce (round + 1) next) in
         Result.bind (reduce 0 triangulated) (fun output ->
           if output == triangulated

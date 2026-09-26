@@ -50,7 +50,7 @@ let compile_ramp label source =
   | [] -> Ok None
   | [position, value] ->
       if not (finite position && finite value && position >= 0. && position <= 1.)
-      then Error ("Pdk.Ops.spiral: " ^ label
+      then Error ("Pdk.Spiral.spiral: " ^ label
           ^ " ramp point must be finite and inside [0, 1]")
       else Ok (Some { positions = [|position|]; values = [|value|]; slopes = [||] })
   | _ ->
@@ -63,7 +63,7 @@ let compile_ramp label source =
         positions.(index) <- position; values.(index) <- value;
         previous := position) source;
       if not !valid || positions.(0) <> 0. || positions.(count - 1) <> 1. then
-        Error ("Pdk.Ops.spiral: " ^ label
+        Error ("Pdk.Spiral.spiral: " ^ label
           ^ " ramp positions must be finite, strictly increasing, and span 0 through 1")
       else
         let slopes = Array.init (count - 1) (fun index ->
@@ -155,11 +155,11 @@ let[@inline always] gauss_length profile lower upper =
 
 let normalize_axis label value =
   if not (finite value.Vec3.x && finite value.y && finite value.z) then
-    Error ("Pdk.Ops.spiral: " ^ label ^ " axis must be finite")
+    Error ("Pdk.Spiral.spiral: " ^ label ^ " axis must be finite")
   else
     let scale = max (abs_float value.x)
         (max (abs_float value.y) (abs_float value.z)) in
-    if scale = 0. then Error ("Pdk.Ops.spiral: " ^ label ^ " axis must be non-zero")
+    if scale = 0. then Error ("Pdk.Spiral.spiral: " ^ label ^ " axis must be non-zero")
     else
       let x = value.x /. scale and y = value.y /. scale
       and z = value.z /. scale in
@@ -209,14 +209,14 @@ let frame orientation rotation_order (rotation : Vec3.t) =
 let validate_names names =
   let names = List.filter_map Fun.id names in
   if List.exists (fun name -> String.trim name = "" || String.equal name "P") names
-  then Error "Pdk.Ops.spiral: output attribute names must be non-empty and cannot be P"
+  then Error "Pdk.Spiral.spiral: output attribute names must be non-empty and cannot be P"
   else
     let sorted = List.sort String.compare names in
     let rec duplicate = function
       | left :: (right :: _ as tail) ->
           String.equal left right || duplicate tail
       | _ -> false in
-    if duplicate sorted then Error "Pdk.Ops.spiral: output attribute names must be unique"
+    if duplicate sorted then Error "Pdk.Spiral.spiral: output attribute names must be unique"
     else Ok ()
 
 let[@inline always] write_normalized_quaternion (qx, qy, qz, qw)
@@ -268,20 +268,20 @@ let generate ?cancel ?(grain = 16_384)
           let segments = ceil (turns *. float_of_int count) in
           if not (finite segments) || segments > float_of_int max_int then None
           else Some (max 1 (int_of_float segments)) in
-  if grain <= 0 then Error "Pdk.Ops.spiral: grain must be positive"
+  if grain <= 0 then Error "Pdk.Spiral.spiral: grain must be positive"
   else if not extent_valid then
-    Error "Pdk.Ops.spiral: turns must be finite/positive; height and pitch must be finite with height/pitch positive"
+    Error "Pdk.Spiral.spiral: turns must be finite/positive; height and pitch must be finite with height/pitch positive"
   else if not radius_valid then
-    Error "Pdk.Ops.spiral: radius profile must remain finite and non-negative; logarithmic radii/scales must be positive"
+    Error "Pdk.Spiral.spiral: radius profile must remain finite and non-negative; logarithmic radii/scales must be positive"
   else if not (finite radius_scale && radius_scale > 0.
       && finite uniform_scale && uniform_scale > 0. && finite start_angle) then
-    Error "Pdk.Ops.spiral: radius scale and uniform scale must be finite/positive and start angle finite"
+    Error "Pdk.Spiral.spiral: radius scale and uniform scale must be finite/positive and start angle finite"
   else if not (finite center.x && finite center.y && finite center.z
       && finite rotation.x && finite rotation.y && finite rotation.z) then
-    Error "Pdk.Ops.spiral: center and rotation must be finite"
-  else if spiral_count <= 0 then Error "Pdk.Ops.spiral: spiral count must be positive"
+    Error "Pdk.Spiral.spiral: center and rotation must be finite"
+  else if spiral_count <= 0 then Error "Pdk.Spiral.spiral: spiral count must be positive"
   else match segment_count with
-    | None -> Error "Pdk.Ops.spiral: divisions must be positive and output cardinality finite"
+    | None -> Error "Pdk.Spiral.spiral: divisions must be positive and output cardinality finite"
     | Some segment_count ->
       Result.bind (validate_names [angle_attribute; x_axis_attribute;
           y_axis_attribute; tangent_attribute; orient_attribute;
@@ -293,11 +293,11 @@ let generate ?cancel ?(grain = 16_384)
       let point_limit = Sys.max_array_length
       and primitive_limit = min (Sys.max_array_length - 1) Sys.max_string_length in
       if segment_count >= point_limit || spiral_count > primitive_limit then
-        Error "Pdk.Ops.spiral: output cardinality exceeds OCaml array limits"
+        Error "Pdk.Spiral.spiral: output cardinality exceeds OCaml array limits"
       else
         let points_per_curve = segment_count + 1 in
         if spiral_count > point_limit / points_per_curve then
-          Error "Pdk.Ops.spiral: output cardinality exceeds OCaml array limits"
+          Error "Pdk.Spiral.spiral: output cardinality exceeds OCaml array limits"
         else
           let point_count = spiral_count * points_per_curve in
           let direction_sign = match direction with
@@ -384,7 +384,7 @@ let generate ?cancel ?(grain = 16_384)
             let total = prefix.(integration_count) in
             if !invalid >= 0 || not (finite total) || total <= 0. then
               raise (Invalid_spiral
-                "Pdk.Ops.spiral: equal-arc integration produced a non-finite or zero curve length");
+                "Pdk.Spiral.spiral: equal-arc integration produced a non-finite or zero curve length");
             t_values.(0) <- 0.; t_values.(segment_count) <- 1.;
             Parallel.for_ ~chunk_size:grain ~start:1
               ~finish:(segment_count - 1) (fun point ->
@@ -443,7 +443,7 @@ let generate ?cancel ?(grain = 16_384)
               if point < 0 then first else if first < 0 || point < first
               then point else first) (-1) table_errors in
           if table_invalid >= 0 then Error (Printf.sprintf
-              "Pdk.Ops.spiral: generated sample %d is not finite" table_invalid)
+              "Pdk.Spiral.spiral: generated sample %d is not finite" table_invalid)
           else begin
             let phase_sine = Array.make spiral_count 0.
             and phase_cosine = Array.make spiral_count 0. in
@@ -495,7 +495,7 @@ let generate ?cancel ?(grain = 16_384)
                 if point < 0 then first else if first < 0 || point < first
                 then point else first) (-1) position_errors in
             if position_invalid >= 0 then Error (Printf.sprintf
-                "Pdk.Ops.spiral: generated point %d is not finite" position_invalid)
+                "Pdk.Spiral.spiral: generated point %d is not finite" position_invalid)
             else begin
               let distance_values = Option.map (fun _ -> Array.make point_count 0.)
                   distance_attribute in
@@ -680,7 +680,7 @@ let generate ?cancel ?(grain = 16_384)
                   if point < 0 then first else if first < 0 || point < first
                   then point else first) (-1) frame_errors in
               if frame_invalid >= 0 then Error (Printf.sprintf
-                  "Pdk.Ops.spiral: cannot construct a frame at stationary point %d"
+                  "Pdk.Spiral.spiral: cannot construct a frame at stationary point %d"
                   frame_invalid)
               else begin
                 let attributes = ref [] in

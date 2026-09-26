@@ -9,7 +9,7 @@ type output = Blast_delete | Blast_group of string
 
 type classifier = Below of float | Closed of float * float
 
-let fail message = Error ("Pdk.Ops.blast_by_attribute: " ^ message)
+let fail message = Error ("Pdk.Blast_by_attribute.blast_by_attribute: " ^ message)
 
 let group_owner = function
   | Blast_points -> Group.Point

@@ -39,38 +39,38 @@ let box ?cancel ?(grain = 16_384) ?(connectivity = Box_triangles)
   let sx = size.Vec3.x *. uniform_scale
   and sy = size.y *. uniform_scale
   and sz = size.z *. uniform_scale in
-  if grain <= 0 then Error "Pdk.Ops.box: grain must be positive"
+  if grain <= 0 then Error "Pdk.Box_generator.box: grain must be positive"
   else if x_divisions <= 0 || y_divisions <= 0 || z_divisions <= 0 then
-    Error "Pdk.Ops.box: axis divisions must be positive"
+    Error "Pdk.Box_generator.box: axis divisions must be positive"
   else if x_divisions = max_int || y_divisions = max_int
       || z_divisions = max_int then
-    Error "Pdk.Ops.box: point cardinality overflows"
+    Error "Pdk.Box_generator.box: point cardinality overflows"
   else if not (finite size.x && finite size.y && finite size.z
       && finite uniform_scale && uniform_scale > 0.
       && finite sx && finite sy && finite sz
       && sx > 0. && sy > 0. && sz > 0.) then
-    Error "Pdk.Ops.box: dimensions and uniform scale must be finite and positive"
+    Error "Pdk.Box_generator.box: dimensions and uniform scale must be finite and positive"
   else if not (finite center.x && finite center.y && finite center.z
       && finite rotation.x && finite rotation.y && finite rotation.z) then
-    Error "Pdk.Ops.box: center and rotation must be finite"
+    Error "Pdk.Box_generator.box: center and rotation must be finite"
   else if (match uv_attribute with
       | Some name -> String.trim name = "" || String.equal name "P"
           || String.equal name "N"
       | None -> false) then
-    Error "Pdk.Ops.box: UV attribute name must be non-empty and cannot be P or N"
+    Error "Pdk.Box_generator.box: UV attribute name must be non-empty and cannot be P or N"
   else if (match face_groups with
       | Some prefix -> String.trim prefix = ""
       | None -> false) then
-    Error "Pdk.Ops.box: face-group prefix must be non-empty"
+    Error "Pdk.Box_generator.box: face-group prefix must be non-empty"
   else if not polygon_mode && Option.is_some uv_attribute then
-    Error "Pdk.Ops.box: point output cannot carry vertex UVs"
+    Error "Pdk.Box_generator.box: point output cannot carry vertex UVs"
   else if not polygon_mode && Option.is_some face_groups then
-    Error "Pdk.Ops.box: point output cannot carry primitive face groups"
+    Error "Pdk.Box_generator.box: point output cannot carry primitive face groups"
   else if not polygon_mode && normal_mode = Box_vertex_normals then
-    Error "Pdk.Ops.box: point output cannot carry vertex normals"
+    Error "Pdk.Box_generator.box: point output cannot carry vertex normals"
   else if connectivity = Box_lattice_points
       && normal_mode <> Box_no_normals then
-    Error "Pdk.Ops.box: volume lattice points do not have surface normals"
+    Error "Pdk.Box_generator.box: volume lattice points do not have surface normals"
   else if connectivity = Box_triangles && not consolidate_points
       && normal_mode = Box_point_normals
       && center.x = 0. && center.y = 0. && center.z = 0.
@@ -165,8 +165,8 @@ let box ?cancel ?(grain = 16_384) ?(connectivity = Box_triangles)
           if cells <= primitive_limit / 2 && cells <= point_limit / 6
           then Some (cells * 6, cells * 2) else None in
     match point_count, topology_cardinality with
-    | None, _ -> Error "Pdk.Ops.box: point cardinality exceeds OCaml array limits"
-    | _, None -> Error "Pdk.Ops.box: topology cardinality exceeds OCaml array limits"
+    | None, _ -> Error "Pdk.Box_generator.box: point cardinality exceeds OCaml array limits"
+    | _, None -> Error "Pdk.Box_generator.box: topology cardinality exceeds OCaml array limits"
     | Some point_count, Some (vertex_count, primitive_count) ->
         let hx = sx *. 0.5 and hy = sy *. 0.5 and hz = sz *. 0.5 in
         let rotated = rotation.x <> 0. || rotation.y <> 0. || rotation.z <> 0. in
@@ -377,7 +377,7 @@ let box ?cancel ?(grain = 16_384) ?(connectivity = Box_triangles)
                note_errors errors
              done);
         if !invalid_point >= 0 then Error (Printf.sprintf
-            "Pdk.Ops.box: generated point %d is not finite" !invalid_point)
+            "Pdk.Box_generator.box: generated point %d is not finite" !invalid_point)
         else
           let positions = Packed.Float3.Private.of_owned_exn ~x:px ~y:py ~z:pz in
           let topology, vertex_normals, uv = if not polygon_mode then

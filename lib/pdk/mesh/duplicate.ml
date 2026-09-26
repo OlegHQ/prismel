@@ -6,19 +6,19 @@ let finite value = match classify_float value with
 
 let checked_total label source copies selected =
   if selected <> 0 && copies > (Sys.max_array_length - source) / selected then
-    Error (Printf.sprintf "Pdk.Ops.duplicate: %s output exceeds array limits" label)
+    Error (Printf.sprintf "Pdk_mesh.Duplicate.duplicate: %s output exceeds array limits" label)
   else Ok (source + (copies * selected))
 
 let selected ?cancel ~grain ~primitives ~transforms geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.duplicate: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_mesh.Duplicate.duplicate: grain must be positive";
   Cancel.check_opt cancel;
   let source_points = Geometry.point_count geometry
   and source_vertices = Geometry.vertex_count geometry
   and source_primitives = Geometry.primitive_count geometry in
   if Group.owner primitives <> Group.Primitive then
-    Error "Pdk.Ops.duplicate: source selection must own primitives"
+    Error "Pdk_mesh.Duplicate.duplicate: source selection must own primitives"
   else if Group.length primitives <> source_primitives then
-    Error "Pdk.Ops.duplicate: source selection length does not match primitive count"
+    Error "Pdk_mesh.Duplicate.duplicate: source selection length does not match primitive count"
   else
     let copies = Array.length transforms in
     let invalid_transform = ref (-1) in
@@ -31,7 +31,7 @@ let selected ?cancel ~grain ~primitives ~transforms geometry =
         done
       done) transforms;
     if !invalid_transform >= 0 then Error (Printf.sprintf
-        "Pdk.Ops.duplicate: transform for copy %d must be finite"
+        "Pdk_mesh.Duplicate.duplicate: transform for copy %d must be finite"
         (!invalid_transform + 1))
     else begin
       let topology_value = Geometry.topology geometry in
@@ -71,7 +71,7 @@ let selected ?cancel ~grain ~primitives ~transforms geometry =
           selected_primitive_count)
         (fun output_primitives ->
           if output_primitives = Sys.max_array_length then Error
-              "Pdk.Ops.duplicate: primitive-offset output exceeds array limits"
+              "Pdk_mesh.Duplicate.duplicate: primitive-offset output exceeds array limits"
           else begin
             let selected_points = Array.make !selected_point_count 0
             and point_local = Array.make source_points (-1)
@@ -337,15 +337,15 @@ let selected ?cancel ~grain ~primitives ~transforms geometry =
 
 let validate_copy_groups ~prefix ~copies ~primitive_count =
   if copies < 0 || primitive_count < 0 then invalid_arg
-      "Pdk.Ops.duplicate: negative copy-group cardinality";
+      "Pdk_mesh.Duplicate.duplicate: negative copy-group cardinality";
   if String.trim prefix = "" then Error
-      "Pdk.Ops.duplicate: copy-group prefix must not be empty"
+      "Pdk_mesh.Duplicate.duplicate: copy-group prefix must not be empty"
   else if copies > 4_096 then Error
-      "Pdk.Ops.duplicate: output copy groups exceed the 4096-group limit"
+      "Pdk_mesh.Duplicate.duplicate: output copy groups exceed the 4096-group limit"
   else
     let bytes_per_group = (primitive_count + 7) / 8 in
     if copies <> 0 && bytes_per_group > 268_435_456 / copies then Error
-        "Pdk.Ops.duplicate: output copy-group payload exceeds 256 MiB"
+        "Pdk_mesh.Duplicate.duplicate: output copy-group payload exceeds 256 MiB"
     else begin
       for copy = 0 to copies - 1 do
         let name = prefix ^ string_of_int (copy + 1) in
@@ -356,7 +356,7 @@ let validate_copy_groups ~prefix ~copies ~primitive_count =
 
 let add_copy_groups ?cancel ~grain ~prefix ~preserve ~copies
     ~primitives_per_copy geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.duplicate: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_mesh.Duplicate.duplicate: grain must be positive";
   let primitive_count = Geometry.primitive_count geometry in
   Result.bind (validate_copy_groups ~prefix ~copies ~primitive_count) (fun () ->
     begin

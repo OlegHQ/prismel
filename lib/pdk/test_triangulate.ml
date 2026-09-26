@@ -272,7 +272,7 @@ let test_collapsed_quad_and_deterministic_failure () =
   let one = run 1 and four = run 4 in
   check (String.equal one four
       && String.equal one
-         "Pdk.Ops.triangulate: primitive 0 has degenerate projected area")
+         "Pdk_mesh.Triangulate.triangulate: primitive 0 has degenerate projected area")
     "Triangulate did not report the stable lowest failing primitive"
 
 let run () =

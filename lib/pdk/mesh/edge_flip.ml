@@ -20,9 +20,9 @@ let edge_flip ?cancel ?(grain = 16_384) ?edges ?(cycles = 1)
     ?(cycle_vertex_attributes = true) ?(recompute_point_normals = false)
     geometry =
   try
-    if grain <= 0 then invalid_arg "Pdk.Ops.edge_flip: grain must be positive";
+    if grain <= 0 then invalid_arg "Pdk.Edge_flip.edge_flip: grain must be positive";
     if cycles < 0 then invalid_arg
-        "Pdk.Ops.edge_flip: cycles must be non-negative";
+        "Pdk.Edge_flip.edge_flip: cycles must be non-negative";
     Cancel.check_opt cancel;
     let source_topology = Geometry.topology geometry in
     let source = Topology.Private.view source_topology in
@@ -34,10 +34,10 @@ let edge_flip ?cancel ?(grain = 16_384) ?edges ?(cycles = 1)
     (match edges with
      | Some group when Edge_group.topology_data_id group
          <> Topology.data_id source_topology ->
-         invalid_arg "Pdk.Ops.edge_flip: edge selection belongs to a different topology"
+         invalid_arg "Pdk.Edge_flip.edge_flip: edge selection belongs to a different topology"
      | Some group when Edge_group.length group <> edge_count ->
          invalid_arg
-           "Pdk.Ops.edge_flip: edge selection length does not match topology edge count"
+           "Pdk.Edge_flip.edge_flip: edge selection length does not match topology edge count"
      | None | Some _ -> ());
     if cycles = 0 || (match edges with None -> true
         | Some group -> Edge_group.cardinality group = 0) then Ok geometry
@@ -183,7 +183,7 @@ let edge_flip ?cancel ?(grain = 16_384) ?edges ?(cycles = 1)
       done;
       match !first_error with
       | Some (edge, message) -> Error (Printf.sprintf
-          "Pdk.Ops.edge_flip: edge %d: %s" edge message)
+          "Pdk.Edge_flip.edge_flip: edge %d: %s" edge message)
       | None when !changed = 0 -> Ok geometry
       | None ->
           let vertex_points = Array.copy source.vertex_points
@@ -269,7 +269,7 @@ let edge_flip ?cancel ?(grain = 16_384) ?edges ?(cycles = 1)
              let scratch = Polygon_triangulation.create_scratch () in
              let rec diagnose = function
                | [] -> Error (Printf.sprintf
-                   "Pdk.Ops.edge_flip: edge %d creates an invalid polygon"
+                   "Pdk.Edge_flip.edge_flip: edge %d creates an invalid polygon"
                    failure)
                | primitive :: rest ->
                    match Polygon_triangulation.primitive ?cancel ~positions
@@ -277,7 +277,7 @@ let edge_flip ?cancel ?(grain = 16_384) ?edges ?(cycles = 1)
                        ~emit:(fun _ _ _ _ -> ()) with
                    | Ok () -> diagnose rest
                    | Error message -> Error (Printf.sprintf
-                       "Pdk.Ops.edge_flip: edge %d creates invalid polygon %d: %s"
+                       "Pdk.Edge_flip.edge_flip: edge %d creates invalid polygon %d: %s"
                        failure primitive message) in
              diagnose [plan_primitive_a.(failure); plan_primitive_b.(failure)]
            else
@@ -323,12 +323,12 @@ let edge_flip ?cancel ?(grain = 16_384) ?edges ?(cycles = 1)
                       let target = Topology_index.find_edge_index target_index
                           ~a ~b in
                       if target < 0 then invalid_arg
-                          "Pdk.Ops.edge_flip: flipped edge is absent from output";
+                          "Pdk.Edge_flip.edge_flip: flipped edge is absent from output";
                       source_of_target.(target) <- edge
                     end
                   done;
                   if Array.exists (( = ) (-1)) source_of_target then Error
-                      "Pdk.Ops.edge_flip: output edge has no source ancestry"
+                      "Pdk.Edge_flip.edge_flip: output edge has no source ancestry"
                   else begin
                     let edge_groups = Geometry.edge_groups geometry
                         |> List.map (fun group ->

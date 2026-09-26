@@ -223,7 +223,7 @@ let numeric_reduction ~grain clusters source position weights =
                done;
                if position = Weighted_average_position then begin
                  if !total = 0. then raise (Invalid (Printf.sprintf
-                     "Pdk.Ops.fuse: position weight sum is zero for cluster %d"
+                     "Pdk.Fuse_reduce.fuse: position weight sum is zero for cluster %d"
                      cluster));
                  value := !weighted /. !total
                end else value := !weighted
@@ -235,17 +235,17 @@ let numeric_reduction ~grain clusters source position weights =
 let weight_values name geometry =
   match Geometry.find_attribute ~owner:Attribute.Point name geometry with
   | None -> raise (Invalid (Printf.sprintf
-      "Pdk.Ops.fuse: position weight point attribute %S is missing" name))
+      "Pdk.Fuse_reduce.fuse: position weight point attribute %S is missing" name))
   | Some attribute ->
       let values = match Attribute.Private.storage attribute with
         | Attribute.Float values -> Array.copy values
         | Attribute.Int values -> Array.map float_of_int values
         | _ -> raise (Invalid (Printf.sprintf
-            "Pdk.Ops.fuse: position weight attribute %S must be scalar float or integer"
+            "Pdk.Fuse_reduce.fuse: position weight attribute %S must be scalar float or integer"
             name)) in
       Array.iteri (fun point value -> if not (finite value) then
         raise (Invalid (Printf.sprintf
-          "Pdk.Ops.fuse: position weight attribute %S is non-finite at point %d"
+          "Pdk.Fuse_reduce.fuse: position weight attribute %S is non-finite at point %d"
           name point))) values;
       values
 
@@ -264,7 +264,7 @@ let validate_positions x y z =
   for point = 0 to Array.length x - 1 do
     if not (finite x.(point) && finite y.(point) && finite z.(point)) then
       raise (Invalid (Printf.sprintf
-        "Pdk.Ops.fuse: position reduction is non-finite at output point %d" point))
+        "Pdk.Fuse_reduce.fuse: position reduction is non-finite at output point %d" point))
   done
 
 let apply ?cancel ~grain ~position ?weight_attribute ~attributes
@@ -277,9 +277,9 @@ let apply ?cancel ~grain ~position ?weight_attribute ~attributes
         | Maximum_weight_position -> true | _ -> false in
     let weights = match weighted, weight_attribute with
       | true, None -> raise (Invalid
-          "Pdk.Ops.fuse: weighted position reduction requires a weight attribute")
+          "Pdk.Fuse_reduce.fuse: weighted position reduction requires a weight attribute")
       | true, Some name when String.trim name = "" -> raise (Invalid
-          "Pdk.Ops.fuse: position weight attribute name must not be empty")
+          "Pdk.Fuse_reduce.fuse: position weight attribute name must not be empty")
       | true, Some name -> Some (weight_values name geometry)
       | false, _ -> None in
     let positions = Packed.Float3.Private.view (Geometry.positions geometry) in

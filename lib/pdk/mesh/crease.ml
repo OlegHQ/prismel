@@ -2,7 +2,7 @@ open Prismel_math
 
 type operation = Crease_add | Crease_set | Crease_delete
 
-let fail message = Error ("Pdk.Ops.crease: " ^ message)
+let fail message = Error ("Pdk_mesh.Crease.crease: " ^ message)
 
 let atomic_min target candidate =
   let rec update current =

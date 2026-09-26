@@ -3,7 +3,7 @@ open Prismel_math
 let get_ok = function Ok value -> value | Error message -> invalid_arg message
 
 let run_raw ?cancel ?(grain = 16_384) ~low ~high geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.color_by_height: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk.Color_by_height.color_by_height: grain must be positive";
   let positions = Packed.Float3.Private.view (Geometry.positions geometry) in
   let count = Array.length positions.y in
   let minimum = ref infinity and maximum = ref neg_infinity in

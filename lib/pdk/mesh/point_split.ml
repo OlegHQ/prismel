@@ -376,7 +376,7 @@ let promote_attribute ?cancel ~grain ~primitive_of_vertex ~point_representative
 
 let run ?cancel ?(grain = 16_384) ?selection ?(attributes = "")
     ?(tolerance = 1e-5) ?(promote_attributes = false) geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.point_split: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk.Point_split.point_split: grain must be positive";
   if not (Float.is_finite tolerance) || tolerance < 0. then
     Error "Point Split tolerance must be finite and non-negative"
   else

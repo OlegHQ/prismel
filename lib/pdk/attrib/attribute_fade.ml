@@ -10,7 +10,7 @@ type ramp = {
   values : float array;
 }
 
-let fail message = Error ("Pdk.Ops.attribute_fade: " ^ message)
+let fail message = Error ("Pdk.Attribute_fade.attribute_fade: " ^ message)
 let ( let* ) result continuation = Result.bind result continuation
 
 let block_count length grain =

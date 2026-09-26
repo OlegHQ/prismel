@@ -4,7 +4,7 @@ let raw ?cancel ?(grain = 16_384) ?edges
     ?connectivity_attribute ?(position = Average_position)
     ?(remove_degenerate_primitives = true)
     ?(recompute_point_normals = true) geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.edge_collapse: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk.Edge_collapse.edge_collapse: grain must be positive";
   let topology_value = Geometry.topology geometry in
   let index_value = Topology_index.create ?cancel topology_value in
   let index = Topology_index.Private.view index_value in
@@ -21,16 +21,16 @@ let raw ?cancel ?(grain = 16_384) ?edges
         Some "edge selection length does not match topology edge count"
     | None | Some _ -> None in
   match invalid_selection with
-  | Some message -> Error ("Pdk.Ops.edge_collapse: " ^ message)
+  | Some message -> Error ("Pdk.Edge_collapse.edge_collapse: " ^ message)
   | None ->
       let connectivity = match connectivity_attribute with
         | None -> Ok None
         | Some name when String.trim name = "" ->
-            Error "Pdk.Ops.edge_collapse: connectivity attribute name must not be empty"
+            Error "Pdk.Edge_collapse.edge_collapse: connectivity attribute name must not be empty"
         | Some name ->
             (match Geometry.find_attribute ~owner:Attribute.Point name geometry with
              | None -> Error (Printf.sprintf
-                 "Pdk.Ops.edge_collapse: point connectivity attribute %S is missing"
+                 "Pdk.Edge_collapse.edge_collapse: point connectivity attribute %S is missing"
                  name)
              | Some attribute -> Ok (Some attribute)) in
       Result.bind connectivity (fun connectivity ->

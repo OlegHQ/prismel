@@ -1,6 +1,6 @@
 open Prismel_math
 
-let operation = "Pdk.Ops.convex_hull"
+let operation = "Pdk_mesh.Convex_hull.convex_hull"
 
 type positions = Packed.Float3.Private.view
 

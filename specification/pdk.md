@@ -21,7 +21,7 @@ prismel ──> prismel_math
 PDK must not import Procedural, Runtime, SDL3, Metal, or platform code.
 The renderer boundary is `Pdk_prismel.Prismel_mesh`, which converts to and
 from `Prismel.Mesh.t`. `pdk` and `pdk_core` do not link Prismel or the GPU
-stack. `Pdk.Ops.color_by_height` accepts normalized RGBA float tuples;
+stack. `Pdk.Color_by_height` accepts normalized RGBA float tuples;
 the procedural SOP converts public `Prismel.Color.t` inputs at its boundary.
 `pdk_core` owns packed storage, topology, groups, and geometry; `pdk_exact`
 owns exact planar algorithms; `pdk_spatial` owns indices and intersection
@@ -1177,7 +1177,7 @@ allocation and fill disjoint face-local position, normal, triangle, and winding
 ranges. Bounding spheres start from the selected AABB diagonal, then apply
 asymmetric padding as center/radius changes to the shared UV-sphere generator.
 That generator lives in `pdk_gen/Uv_sphere` with a direct `Pdk.Uv_sphere.run`
-entry point; `Pdk.Ops.uv_sphere` retains its typed-error boundary. It allocates
+entry point; `Pdk.Uv_sphere` retains its typed-error boundary. It allocates
 exact packed position, normal, and topology arrays
 and fills points/triangles directly, with no per-triangle point tuples. Optional
 detail center/radii and the all-output primitive group are committed only after
@@ -4487,7 +4487,7 @@ between-input, and right-self primitive groups independently; coincident output
 returns exact coincident triangle patches with an optional named group. Both
 forms retain cancellation and exact ordered one-/multi-domain behavior.
 
-`Pdk.Ops.boolean_detect` is the packed diagnostic stage shared by one-input
+`Pdk.Boolean_detect` is the packed diagnostic stage shared by one-input
 AxA self detection and two-input AxB detection. It triangulates selected simple
 polygons only inside immutable `Surface_index` values, preserving the source
 topology and every existing payload plane. A two-pass BVH traversal first
@@ -4521,7 +4521,7 @@ required to construct topology-changing Boolean seams.
 
 ## Intersection point analysis
 
-`Pdk.Ops.intersection_analysis` consumes a packed BVH of triangle and
+`Pdk.Intersection_analysis` consumes a packed BVH of triangle and
 polygon-curve segment pieces and uses the same `Triangle_intersection` narrow
 phase as Boolean Detect for triangle pairs. Its result is point-only geometry.
 With one input it visits unordered AxA pairs;

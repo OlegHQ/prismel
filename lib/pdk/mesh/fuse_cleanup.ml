@@ -2,7 +2,7 @@ open Prismel_math
 
 exception Invalid of string
 
-let fail message = raise (Invalid ("Pdk.Ops.fuse: " ^ message))
+let fail message = raise (Invalid ("Pdk_mesh.Fuse_cleanup.fuse: " ^ message))
 let get_ok = function Ok value -> value | Error message -> fail message
 
 let run ?cancel ~grain count operation =

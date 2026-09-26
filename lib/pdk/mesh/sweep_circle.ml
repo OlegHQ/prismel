@@ -6,10 +6,10 @@ let get_ok = function Ok value -> value | Error message -> invalid_arg message
 let run ?cancel ?(grain = 16_384) ?(sides = 12) ?scale_attribute
     ?(seam_offset = 0) ?seam_attribute ?v_attribute ?up_attribute
     ?(caps = false) ?cap_group ~radius geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.sweep_circle: grain must be positive";
-  if sides < 3 then Error "Pdk.Ops.sweep_circle: sides must be at least three"
+  if grain <= 0 then invalid_arg "Pdk_mesh.Sweep_circle.sweep_circle: grain must be positive";
+  if sides < 3 then Error "Pdk_mesh.Sweep_circle.sweep_circle: sides must be at least three"
   else if not (finite radius) || radius <= 0. then
-    Error "Pdk.Ops.sweep_circle: radius must be finite and positive"
+    Error "Pdk_mesh.Sweep_circle.sweep_circle: radius must be finite and positive"
   else
     let topology = Geometry.topology geometry
     and source_positions = Packed.Float3.Private.view (Geometry.positions geometry) in
@@ -96,7 +96,7 @@ let run ?cancel ?(grain = 16_384) ?(sides = 12) ?scale_attribute
           source_primitive_offsets.(primitive) * sides
       done;
     match !invalid with
-    | Some message -> Error ("Pdk.Ops.sweep_circle: " ^ message)
+    | Some message -> Error ("Pdk_mesh.Sweep_circle.sweep_circle: " ^ message)
     | None ->
         let output_points = source_vertices * sides
         and side_primitives = !edge_count * sides in
@@ -106,7 +106,7 @@ let run ?cancel ?(grain = 16_384) ?(sides = 12) ?scale_attribute
             || side_primitives > max_int / 4
             || (cap_primitives > 0
                 && cap_primitives > (max_int - (side_primitives * 4)) / sides) then
-          Error "Pdk.Ops.sweep_circle: output vertex count exceeds OCaml array limits"
+          Error "Pdk_mesh.Sweep_circle.sweep_circle: output vertex count exceeds OCaml array limits"
         else
           let side_vertices = side_primitives * 4 in
           let output_vertices = side_vertices + (cap_primitives * sides) in
@@ -544,7 +544,7 @@ let run ?cancel ?(grain = 16_384) ?(sides = 12) ?scale_attribute
             incr invalid_position
           done;
           if !failed_primitive < source_primitives then
-            Error (Printf.sprintf "Pdk.Ops.sweep_circle: primitive %d has %s"
+            Error (Printf.sprintf "Pdk_mesh.Sweep_circle.sweep_circle: primitive %d has %s"
               !failed_primitive
               (match Bytes.get failures !failed_primitive with
                | '\001' -> "an undefined tangent"
@@ -552,14 +552,14 @@ let run ?cancel ?(grain = 16_384) ?(sides = 12) ?scale_attribute
                | _ -> "zero length"))
           else if !invalid_frame < source_vertices then
             Error (Printf.sprintf
-              "Pdk.Ops.sweep_circle: point %d has %s"
+              "Pdk_mesh.Sweep_circle.sweep_circle: point %d has %s"
               (Topology.point_of_vertex topology !invalid_frame)
               (match Bytes.get invalid_frames !invalid_frame with
                | '\001' -> "a joint up vector parallel to its tangent"
                | _ -> "an undefined local frame"))
           else if !invalid_position < source_vertices then
             Error (Printf.sprintf
-              "Pdk.Ops.sweep_circle: generated ring %d is not finite"
+              "Pdk_mesh.Sweep_circle.sweep_circle: generated ring %d is not finite"
               !invalid_position)
           else
               let output_positions = Packed.Float3.Private.of_owned_exn ~x:px ~y:py ~z:pz

@@ -2,7 +2,7 @@
 
 This document is the normative research and conformance contract for PDK's
 mesh Boolean. The implementation remains private until every public-product
-gate below is closed. `Csg3` and `Pdk.Ops.boolean_detect` are useful narrower
+gate below is closed. `Csg3` and `Pdk.Boolean_detect` are useful narrower
 tools, but neither is a fallback for this kernel.
 
 ## Evidence hierarchy

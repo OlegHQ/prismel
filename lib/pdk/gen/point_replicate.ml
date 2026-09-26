@@ -13,7 +13,7 @@ type velocity_stretch =
   | Replicate_scaled_velocity
   | Replicate_velocity_only
 
-let error message = Error ("Pdk.Ops.point_replicate: " ^ message)
+let error message = Error ("Pdk_gen.Point_replicate.point_replicate: " ^ message)
 let finite3 value = Float.is_finite value.Vec3.x
   && Float.is_finite value.y && Float.is_finite value.z
 let[@inline always] fract value = value -. Float.floor value
@@ -262,7 +262,7 @@ let run ?cancel ?(grain = 16_384) ?points ?(keep_input = false)
     ?(noise_offset = Vec3.zero) ?(noise_roughness = 0.5)
     ?(noise_attenuation = 1.) ?(noise_turbulence = 3) ?(noise_seed = 0)
     ~copy_basis ~points_per_point ?scale_attribute geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.point_replicate: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_gen.Point_replicate.point_replicate: grain must be positive";
   if String.trim id_attribute = "" then error "id attribute name must not be empty"
   else if not (finite3 center && finite3 size && finite3 orientation
       && Float.is_finite uniform_scale && uniform_scale >= 0.
@@ -283,7 +283,7 @@ let run ?cancel ?(grain = 16_384) ?points ?(keep_input = false)
   let transform_pattern = if String.trim transform_attributes = "" then Ok None
     else Attribute_pattern.compile transform_attributes |> Result.map Option.some
       |> Result.map_error (fun message ->
-        "Pdk.Ops.point_replicate: transform attribute pattern: " ^ message) in
+        "Pdk_gen.Point_replicate.point_replicate: transform attribute pattern: " ^ message) in
   Result.bind transform_pattern (fun transform_pattern ->
   let custom_positions = Option.map (fun geometry ->
       Packed.Float3.Private.view (Geometry.positions geometry)) custom_shape in

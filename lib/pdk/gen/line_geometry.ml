@@ -18,18 +18,18 @@ let points values =
 let line ?cancel ?(grain = 16_384) ?(kind = Line_curve) ?(points = 2)
     ~origin ~direction ~length () =
   let minimum = match kind with Line_curve -> 2 | Line_points -> 1 in
-  if grain <= 0 then Error "Pdk.Ops.line: grain must be positive"
+  if grain <= 0 then Error "Pdk.Line_geometry.line: grain must be positive"
   else if points < minimum then Error (Printf.sprintf
-      "Pdk.Ops.line: %s output requires at least %d points"
+      "Pdk.Line_geometry.line: %s output requires at least %d points"
       (match kind with Line_curve -> "curve" | Line_points -> "point") minimum)
   else if not (finite origin.Vec3.x && finite origin.y && finite origin.z
       && finite direction.Vec3.x && finite direction.y && finite direction.z
       && finite length && length >= 0.) then
-    Error "Pdk.Ops.line: origin/direction must be finite and length finite and non-negative"
+    Error "Pdk.Line_geometry.line: origin/direction must be finite and length finite and non-negative"
   else
     let scale = max (abs_float direction.x)
         (max (abs_float direction.y) (abs_float direction.z)) in
-    if scale = 0. then Error "Pdk.Ops.line: direction must be non-zero"
+    if scale = 0. then Error "Pdk.Line_geometry.line: direction must be non-zero"
     else
       let sx = direction.x /. scale and sy = direction.y /. scale
       and sz = direction.z /. scale in
@@ -40,7 +40,7 @@ let line ?cancel ?(grain = 16_384) ?(kind = Line_curve) ?(points = 2)
       let end_x = origin.x +. dx and end_y = origin.y +. dy
       and end_z = origin.z +. dz in
       if not (finite end_x && finite end_y && finite end_z) then
-        Error "Pdk.Ops.line: endpoint is not finite"
+        Error "Pdk.Line_geometry.line: endpoint is not finite"
       else begin
         let x = Array.make points 0. and y = Array.make points 0.
         and z = Array.make points 0.
@@ -77,10 +77,10 @@ let polyline ?(closed = false) values =
   let count = Array.length values in
   let minimum = if closed then 3 else 2 in
   if count < minimum then Error (Printf.sprintf
-      "Pdk.Ops.polyline: %s polylines require at least %d points"
+      "Pdk.Line_geometry.polyline: %s polylines require at least %d points"
       (if closed then "closed" else "open") minimum)
   else if Array.exists (fun (x, y, z) -> not (finite x && finite y && finite z)) values
-  then Error "Pdk.Ops.polyline: positions must be finite"
+  then Error "Pdk.Line_geometry.polyline: positions must be finite"
   else
     let geometry = points values in
     let topology = Topology.Builder.create ~point_count:count

@@ -29,7 +29,7 @@ type bound_face = {
 let selected_bounds ?cancel ~grain ~operation selection geometry =
   let topology = Geometry.topology geometry in
   match Deform.validate_selection topology selection with
-  | Error message -> Error ("Pdk.Ops." ^ operation ^ ": " ^ message)
+  | Error message -> Error ("Pdk.Bound." ^ operation ^ ": " ^ message)
   | Ok () ->
       let point_count = Geometry.point_count geometry in
       let needs_index = Deform.selection_needs_index selection in
@@ -77,7 +77,7 @@ let selected_bounds ?cancel ~grain ~operation selection geometry =
           if point < 0 then first else if first < 0 then point
           else min first point) (-1) errors in
       if invalid >= 0 then Error (Printf.sprintf
-          "Pdk.Ops.%s: selected point %d has a non-finite position"
+          "Pdk.Bound.%s: selected point %d has a non-finite position"
           operation invalid)
       else begin
         let xmin = ref Float.infinity and ymin = ref Float.infinity
@@ -96,7 +96,7 @@ let selected_bounds ?cancel ~grain ~operation selection geometry =
           end
         done;
         if not !any then Error
-            ("Pdk.Ops." ^ operation ^ ": selection contains no points")
+            ("Pdk.Bound." ^ operation ^ ": selection contains no points")
         else
           let sx = !xmax -. !xmin and sy = !ymax -. !ymin
           and sz = !zmax -. !zmin in
@@ -104,7 +104,7 @@ let selected_bounds ?cancel ~grain ~operation selection geometry =
           and cz = !zmin +. (sz *. 0.5) in
           if not (finite sx && finite sy && finite sz && finite cx && finite cy
               && finite cz) then Error
-              ("Pdk.Ops." ^ operation ^ ": selected bounds overflow")
+              ("Pdk.Bound." ^ operation ^ ": selected bounds overflow")
           else Ok Analysis.{
             min = Vec3.create !xmin !ymin !zmin;
             max = Vec3.create !xmax !ymax !zmax;
@@ -165,7 +165,7 @@ let divided_box ?cancel ~minimum ~maximum ~divisions () =
         primitive_offsets_by_face.(face) + primitives
     | _ -> overflow := true
   done;
-  if !overflow then Error "Pdk.Ops.bound: divided box output is too large"
+  if !overflow then Error "Pdk.Bound.bound: divided box output is too large"
   else begin
     let point_count = point_offsets.(6)
     and primitive_count = primitive_offsets_by_face.(6) in
@@ -228,18 +228,18 @@ let bound ?cancel ?(grain = 16_384) ?selection
     ?(shape = Bound_box { divisions = 1, 1, 1 })
     ?(lower_padding = Vec3.zero) ?(upper_padding = Vec3.zero) ?bounds_group
     ?center_attribute ?radii_attribute geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.bound: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk.Bound.bound: grain must be positive";
   let valid_padding value = finite_vec3 value && value.Vec3.x >= 0.
       && value.y >= 0. && value.z >= 0. in
   let output_names = List.filter_map Fun.id [center_attribute; radii_attribute] in
   if not (valid_padding lower_padding && valid_padding upper_padding) then
-    Error "Pdk.Ops.bound: lower and upper padding must be finite and non-negative"
+    Error "Pdk.Bound.bound: lower and upper padding must be finite and non-negative"
   else if List.exists (fun name -> String.trim name = "" || String.equal name "P")
-      output_names then Error "Pdk.Ops.bound: output attribute names must be non-empty and cannot be P"
+      output_names then Error "Pdk.Bound.bound: output attribute names must be non-empty and cannot be P"
   else if List.length output_names <> List.length (List.sort_uniq String.compare output_names)
-  then Error "Pdk.Ops.bound: output attribute names must be distinct"
+  then Error "Pdk.Bound.bound: output attribute names must be distinct"
   else if match bounds_group with Some name -> String.trim name = "" | None -> false
-  then Error "Pdk.Ops.bound: bounds group name must not be empty"
+  then Error "Pdk.Bound.bound: bounds group name must not be empty"
   else
     let shape_valid = match shape with
       | Bound_box { divisions = dx, dy, dz } -> dx > 0 && dy > 0 && dz > 0
@@ -247,7 +247,7 @@ let bound ?cancel ?(grain = 16_384) ?selection
           segments >= 3 && rings >= 2 && finite minimum_radius
           && minimum_radius >= 0. in
     if not shape_valid then Error
-        "Pdk.Ops.bound: box divisions must be positive; sphere segments/rings/minimum radius are invalid"
+        "Pdk.Bound.bound: box divisions must be positive; sphere segments/rings/minimum radius are invalid"
     else Result.bind
         (selected_bounds ?cancel ~grain ~operation:"bound" selection geometry)
       (fun source_bounds ->
@@ -266,7 +266,7 @@ let bound ?cancel ?(grain = 16_384) ?selection
               and radii = Vec3.scale size 0.5 in
               (fun () -> if not (finite_vec3 size && finite_vec3 center)
                     || size.x <= 0. || size.y <= 0. || size.z <= 0. then
-                    Error "Pdk.Ops.bound: box output must have finite positive extent on every axis"
+                    Error "Pdk.Bound.bound: box output must have finite positive extent on every axis"
                   else divided_box ?cancel ~minimum ~maximum ~divisions ()),
               center, radii
           | Bound_sphere { segments; rings; minimum_radius } ->
@@ -289,7 +289,7 @@ let bound ?cancel ?(grain = 16_384) ?selection
               (fun () -> if not (finite base_radius && finite_vec3 center
                     && finite_vec3 radii) || radii.x <= 0. || radii.y <= 0.
                     || radii.z <= 0. then
-                    Error "Pdk.Ops.bound: sphere output radii must be finite and positive"
+                    Error "Pdk.Bound.bound: sphere output radii must be finite and positive"
                   else Result.map (transform ~grain
                       (Mat4.mul (Mat4.translation center) (Mat4.scaling radii)))
                       (uv_sphere ?cancel ~grain ~segments ~rings ~radius:1. ())),

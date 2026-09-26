@@ -1,6 +1,6 @@
 open Prismel_math
 
-let error message = Error ("Pdk.Ops.point_jitter: " ^ message)
+let error message = Error ("Pdk_gen.Point_jitter.point_jitter: " ^ message)
 
 let point_float ?(missing = false) name geometry =
   match Geometry.find_attribute ~owner:Attribute.Point name geometry with
@@ -30,7 +30,7 @@ let empty_name = function
 
 let run ?cancel ?(grain = 16_384) ?points ?mask_attribute ?id_attribute
     ?(use_point_scale = false) ~seed ~scale ~axis_scales geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.point_jitter: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_gen.Point_jitter.point_jitter: grain must be positive";
   if not (Float.is_finite scale) then error "scale must be finite"
   else if not (finite_vec3 axis_scales) then error "axis scales must be finite"
   else if empty_name mask_attribute then

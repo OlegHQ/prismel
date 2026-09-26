@@ -25,25 +25,25 @@ let validate_selection topology = function
   | None -> Ok ()
   | Some (Selected_points group) ->
       if Group.owner group <> Group.Point then Error
-          "Pdk.Ops: point selection must own points"
+          "Pdk.Deform: point selection must own points"
       else if Group.length group <> Topology.point_count topology then Error
-          "Pdk.Ops: point selection length does not match point count"
+          "Pdk.Deform: point selection length does not match point count"
       else Ok ()
   | Some (Selected_vertices group) ->
       if Group.owner group <> Group.Vertex then Error
-          "Pdk.Ops: vertex selection must own vertices"
+          "Pdk.Deform: vertex selection must own vertices"
       else if Group.length group <> Topology.vertex_count topology then Error
-          "Pdk.Ops: vertex selection length does not match vertex count"
+          "Pdk.Deform: vertex selection length does not match vertex count"
       else Ok ()
   | Some (Selected_primitives group) ->
       if Group.owner group <> Group.Primitive then Error
-          "Pdk.Ops: primitive selection must own primitives"
+          "Pdk.Deform: primitive selection must own primitives"
       else if Group.length group <> Topology.primitive_count topology then Error
-          "Pdk.Ops: primitive selection length does not match primitive count"
+          "Pdk.Deform: primitive selection length does not match primitive count"
       else Ok ()
   | Some (Selected_edges group) ->
       if Edge_group.topology_data_id group <> Topology.data_id topology then Error
-          "Pdk.Ops: edge selection belongs to different topology"
+          "Pdk.Deform: edge selection belongs to different topology"
       else Ok ()
 
 let selection_needs_index = function
@@ -117,12 +117,12 @@ let vertex_normals geometry =
        | Attribute.Float3 values ->
            let values = Packed.Float3.Private.view values in
            Ok (Some { x = values.x; y = values.y; z = values.z })
-       | _ -> Error "Pdk.Ops: vertex N must have float3 storage")
+       | _ -> Error "Pdk.Deform: vertex N must have float3 storage")
 
 let face_vectors ?cancel ~grain ?primitives geometry =
   Result.map (fun ((x, y, z), _) -> { x; y; z })
     (Face_normals.polygon_area_vector ?cancel ~grain ~need_inverse:false
-      ~first_failure:true ?primitives ~operation:"Pdk.Ops" geometry)
+      ~first_failure:true ?primitives ~operation:"Pdk.Deform" geometry)
 
 let point_vectors_from_vertices ?cancel ~grain topology source =
   let topology_view = Topology.Private.view topology in
@@ -175,8 +175,8 @@ let geometric_point_vectors ?cancel ~grain ?primitives geometry =
 let resolve_directions ?cancel ~grain ?direction_attribute geometry =
   match direction_attribute with
   | Some name when String.trim name = "" -> Error
-      "Pdk.Ops: direction attribute name must not be empty"
-  | Some name -> point_vector_attribute "Pdk.Ops" name geometry
+      "Pdk.Deform: direction attribute name must not be empty"
+  | Some name -> point_vector_attribute "Pdk.Deform" name geometry
   | None ->
       (match Geometry.find_attribute ~owner:Attribute.Point "N" geometry with
        | Some attribute ->
@@ -184,7 +184,7 @@ let resolve_directions ?cancel ~grain ?direction_attribute geometry =
             | Attribute.Float3 values ->
                 let values = Packed.Float3.Private.view values in
                 Ok { x = values.x; y = values.y; z = values.z }
-            | _ -> Error "Pdk.Ops: point N must have float3 storage")
+            | _ -> Error "Pdk.Deform: point N must have float3 storage")
        | None ->
            Result.bind (vertex_normals geometry) (function
              | Some values -> Ok (point_vectors_from_vertices ?cancel
@@ -217,7 +217,7 @@ let normalize_planes ?cancel ~grain source =
     done);
   match Array.find_opt (fun value -> value >= 0) errors with
   | Some point -> Error (Printf.sprintf
-      "Pdk.Ops: non-finite normal at point %d" point)
+      "Pdk.Deform: non-finite normal at point %d" point)
   | None -> Ok { x; y; z }
 
 let with_point_normals ?cancel ~grain ?primitives geometry =
@@ -226,7 +226,7 @@ let with_point_normals ?cancel ~grain ?primitives geometry =
     ~owner:Attribute.Point ~weighting:Normal_ops.Face_area geometry
 
 let normals ?cancel ~grain ?primitives geometry =
-  if grain <= 0 then Error "Pdk.Ops.normals: grain must be positive"
+  if grain <= 0 then Error "Pdk_mesh.Deform.normals: grain must be positive"
   else with_point_normals ?cancel ~grain ?primitives geometry
 
 let prepare ?cancel ~grain ?selection ?direction_attribute ?mask_attribute geometry =
@@ -240,30 +240,30 @@ let prepare ?cancel ~grain ?selection ?direction_attribute ?mask_attribute geome
       Result.map (fun mask -> index, directions, mask) (match mask_attribute with
         | None -> Ok None
         | Some name when String.trim name = "" -> Error
-            "Pdk.Ops: mask attribute name must not be empty"
+            "Pdk.Deform: mask attribute name must not be empty"
         | Some name -> Result.map Option.some
-            (point_float_attribute "Pdk.Ops" name geometry))))
+            (point_float_attribute "Pdk.Deform" name geometry))))
 
 let validate_noop ?selection ?direction_attribute ?mask_attribute geometry =
   Result.bind (validate_selection (Geometry.topology geometry) selection) (fun () ->
     Result.bind (match direction_attribute with
       | Some name when String.trim name = "" -> Error
-          "Pdk.Ops: direction attribute name must not be empty"
+          "Pdk.Deform: direction attribute name must not be empty"
       | Some name -> Result.map ignore
-          (point_vector_attribute "Pdk.Ops" name geometry)
+          (point_vector_attribute "Pdk.Deform" name geometry)
       | None ->
           (match Geometry.find_attribute ~owner:Attribute.Point "N" geometry with
            | Some attribute ->
                (match Attribute.Private.storage attribute with
                 | Attribute.Float3 _ -> Ok ()
-                | _ -> Error "Pdk.Ops: point N must have float3 storage")
+                | _ -> Error "Pdk.Deform: point N must have float3 storage")
            | None -> Result.map ignore (vertex_normals geometry))) (fun () ->
       match mask_attribute with
       | None -> Ok ()
       | Some name when String.trim name = "" -> Error
-          "Pdk.Ops: mask attribute name must not be empty"
+          "Pdk.Deform: mask attribute name must not be empty"
       | Some name -> Result.map ignore
-          (point_float_attribute "Pdk.Ops" name geometry)))
+          (point_float_attribute "Pdk.Deform" name geometry)))
 
 let finish_positions ?cancel ~grain ~recompute_normals geometry x y z =
   let positions = Packed.Float3.Private.of_owned_exn ~x ~y ~z in
@@ -275,9 +275,9 @@ let finish_positions ?cancel ~grain ~recompute_normals geometry x y z =
 
 let peak ?cancel ~grain ?selection ?direction_attribute ~normalize_direction
     ?mask_attribute ~distance ~recompute_normals geometry =
-  if grain <= 0 then Error "Pdk.Ops.peak: grain must be positive"
+  if grain <= 0 then Error "Pdk_mesh.Deform.peak: grain must be positive"
   else if not (Float.is_finite distance) then Error
-      "Pdk.Ops.peak: distance must be finite"
+      "Pdk_mesh.Deform.peak: distance must be finite"
   else if distance = 0. then
     Result.bind (validate_noop ?selection ?direction_attribute ?mask_attribute
         geometry) (fun () ->
@@ -329,7 +329,7 @@ let peak ?cancel ~grain ?selection ?direction_attribute ~normalize_direction
       done);
     match Array.find_opt (fun value -> value >= 0) errors with
     | Some point -> Error (Printf.sprintf
-        "Pdk.Ops.peak: non-finite direction, mask, or output at point %d" point)
+        "Pdk_mesh.Deform.peak: non-finite direction, mask, or output at point %d" point)
     | None when not (Array.exists Fun.id changed) -> Ok geometry
     | None -> finish_positions ?cancel ~grain ~recompute_normals geometry x y z)
 
@@ -343,12 +343,12 @@ let normalize3 x y z =
 
 let capture_frame origin direction up =
   if not (finite_vec3 origin && finite_vec3 direction && finite_vec3 up) then
-    Error "Pdk.Ops.bend: capture vectors must be finite"
+    Error "Pdk_mesh.Deform.bend: capture vectors must be finite"
   else match normalize3 direction.x direction.y direction.z with
-  | None -> Error "Pdk.Ops.bend: capture direction must be non-zero"
+  | None -> Error "Pdk_mesh.Deform.bend: capture direction must be non-zero"
   | Some (zx, zy, zz) ->
       (match normalize3 up.x up.y up.z with
-       | None -> Error "Pdk.Ops.bend: up vector must be non-zero"
+       | None -> Error "Pdk_mesh.Deform.bend: up vector must be non-zero"
        | Some (upx, upy, upz) ->
            let projection = (upx *. zx) +. (upy *. zy) +. (upz *. zz) in
            let yx = upx -. (projection *. zx)
@@ -356,13 +356,13 @@ let capture_frame origin direction up =
            and yz = upz -. (projection *. zz) in
            (match normalize3 yx yy yz with
             | None -> Error
-                "Pdk.Ops.bend: up vector must not be parallel to capture direction"
+                "Pdk_mesh.Deform.bend: up vector must not be parallel to capture direction"
             | Some (yx, yy, yz) ->
                 let xx = (yy *. zz) -. (yz *. zy)
                 and xy = (yz *. zx) -. (yx *. zz)
                 and xz = (yx *. zy) -. (yy *. zx) in
                 match normalize3 xx xy xz with
-                | None -> Error "Pdk.Ops.bend: could not construct capture frame"
+                | None -> Error "Pdk_mesh.Deform.bend: could not construct capture frame"
                 | Some (xx, xy, xz) ->
                     Ok (xx, xy, xz, yx, yy, yz, zx, zy, zz)))
 
@@ -391,15 +391,15 @@ let install_point_float name values geometry =
 let bend ?cancel ~grain ?selection ?mask_attribute ~origin ~direction ~up
     ~length ~bend_angle ~twist_angle ~limit ~both_directions
     ~continuous_twist ?capture_attribute ~recompute_normals geometry =
-  if grain <= 0 then Error "Pdk.Ops.bend: grain must be positive"
+  if grain <= 0 then Error "Pdk_mesh.Deform.bend: grain must be positive"
   else if not (Float.is_finite length && Float.is_finite bend_angle
       && Float.is_finite twist_angle) then Error
-      "Pdk.Ops.bend: length and angles must be finite"
-  else if length <= 0. then Error "Pdk.Ops.bend: capture length must be positive"
+      "Pdk_mesh.Deform.bend: length and angles must be finite"
+  else if length <= 0. then Error "Pdk_mesh.Deform.bend: capture length must be positive"
   else if (match capture_attribute with
       | Some name -> String.trim name = "" || String.equal name "P"
       | None -> false) then Error
-      "Pdk.Ops.bend: capture attribute must be a non-empty ordinary name"
+      "Pdk_mesh.Deform.bend: capture attribute must be a non-empty ordinary name"
   else Result.bind (capture_frame origin direction up)
       (fun (xx, xy, xz, yx, yy, yz, zx, zy, zz) ->
     Result.bind (validate_selection (Geometry.topology geometry) selection)
@@ -407,9 +407,9 @@ let bend ?cancel ~grain ?selection ?mask_attribute ~origin ~direction ~up
     Result.bind (match mask_attribute with
       | None -> Ok None
       | Some name when String.trim name = "" -> Error
-          "Pdk.Ops.bend: mask attribute name must not be empty"
+          "Pdk_mesh.Deform.bend: mask attribute name must not be empty"
       | Some name -> Result.map Option.some
-          (point_float_attribute "Pdk.Ops.bend" name geometry)) (fun mask ->
+          (point_float_attribute "Pdk_mesh.Deform.bend" name geometry)) (fun mask ->
     Cancel.check_opt cancel;
     let topology = Geometry.topology geometry in
     let index = if selection_needs_index selection then
@@ -492,7 +492,7 @@ let bend ?cancel ~grain ?selection ?mask_attribute ~origin ~direction ~up
         done);
     match Array.find_opt (fun value -> value >= 0) errors with
     | Some point -> Error (Printf.sprintf
-        "Pdk.Ops.bend: non-finite position, mask, parameter, or output at point %d"
+        "Pdk_mesh.Deform.bend: non-finite position, mask, parameter, or output at point %d"
         point)
     | None ->
         let changed = Array.exists Fun.id changed in
@@ -508,7 +508,7 @@ let bend ?cancel ~grain ?selection ?mask_attribute ~origin ~direction ~up
 let initial_height_attribute name count geometry = match name with
   | None -> Ok None
   | Some name when String.trim name = "" -> Error
-      "Pdk.Ops.mountain: height attribute name must not be empty"
+      "Pdk_mesh.Deform.mountain: height attribute name must not be empty"
   | Some name ->
       (match Geometry.find_attribute ~owner:Attribute.Point name geometry with
        | None -> Ok (Some (name, Array.make count 0.))
@@ -516,23 +516,23 @@ let initial_height_attribute name count geometry = match name with
            (match Attribute.Private.storage attribute with
             | Attribute.Float values -> Ok (Some (name, Array.copy values))
             | _ -> Error (Printf.sprintf
-                "Pdk.Ops.mountain: height attribute %s must have float storage"
+                "Pdk_mesh.Deform.mountain: height attribute %s must have float storage"
                 name)))
 
 let mountain ?cancel ~grain ?selection ?direction_attribute
     ~normalize_direction ?mask_attribute ~seed ~height ~frequency ~offset
     ~octaves ~lacunarity ~roughness ?height_attribute ~recompute_normals geometry =
-  if grain <= 0 then Error "Pdk.Ops.mountain: grain must be positive"
+  if grain <= 0 then Error "Pdk_mesh.Deform.mountain: grain must be positive"
   else if not (Float.is_finite height && finite_vec3 frequency
       && finite_vec3 offset && Float.is_finite lacunarity
       && Float.is_finite roughness) then Error
-      "Pdk.Ops.mountain: numeric parameters must be finite"
+      "Pdk_mesh.Deform.mountain: numeric parameters must be finite"
   else if octaves <= 0 || octaves > 64 then Error
-      "Pdk.Ops.mountain: octaves must be in [1, 64]"
+      "Pdk_mesh.Deform.mountain: octaves must be in [1, 64]"
   else if lacunarity <= 0. then Error
-      "Pdk.Ops.mountain: lacunarity must be positive"
+      "Pdk_mesh.Deform.mountain: lacunarity must be positive"
   else if roughness < 0. || roughness > 1. then Error
-      "Pdk.Ops.mountain: roughness must be in [0, 1]"
+      "Pdk_mesh.Deform.mountain: roughness must be in [0, 1]"
   else Result.bind (prepare ?cancel ~grain ?selection ?direction_attribute
       ?mask_attribute geometry) (fun (index, directions, mask) ->
     let source = Packed.Float3.Private.view (Geometry.positions geometry) in
@@ -591,7 +591,7 @@ let mountain ?cancel ~grain ?selection ?direction_attribute
       done);
     match Array.find_opt (fun value -> value >= 0) errors with
     | Some point -> Error (Printf.sprintf
-        "Pdk.Ops.mountain: non-finite direction, noise, mask, or output at point %d"
+        "Pdk_mesh.Deform.mountain: non-finite direction, noise, mask, or output at point %d"
         point)
     | None ->
         let position_changed = Array.exists Fun.id changed in

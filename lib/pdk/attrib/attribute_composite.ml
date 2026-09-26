@@ -32,7 +32,7 @@ let fail message = raise (Composite_error message)
 
 let input ~weight geometry : input =
   if not (Float.is_finite weight) then
-    invalid_arg "Pdk.Ops.attribute_composite_input: non-finite weight";
+    invalid_arg "Pdk.Attribute_composite.attribute_composite_input: non-finite weight";
   { geometry; weight }
 
 let owner_name = function

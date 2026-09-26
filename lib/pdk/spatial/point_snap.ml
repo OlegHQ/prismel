@@ -323,7 +323,7 @@ let plan ?cancel ~grain ?queries ?targets ~targeting ~using ~tolerance ~metric
     ~inclusive ?radius_attribute ?match_attribute ~match_condition
     ~match_tolerance ~source ~target () =
   try
-    if grain <= 0 then invalid_arg "Pdk.Ops.fuse: grain must be positive";
+    if grain <= 0 then invalid_arg "Pdk_spatial.Point_snap.fuse: grain must be positive";
     validate_group "query selection" (Geometry.point_count source) queries;
     validate_group "target selection" (Geometry.point_count target) targets;
     if not (finite tolerance) || tolerance < 0. then
@@ -353,4 +353,4 @@ let plan ?cancel ~grain ?queries ?targets ~targeting ~using ~tolerance ~metric
           ~inclusive ?radius_attribute ?match_attribute ~match_condition
           ~match_tolerance ~source ~target ())
   with
-  | Invalid message | Invalid_argument message -> Error ("Pdk.Ops.fuse: " ^ message)
+  | Invalid message | Invalid_argument message -> Error ("Pdk_spatial.Point_snap.fuse: " ^ message)

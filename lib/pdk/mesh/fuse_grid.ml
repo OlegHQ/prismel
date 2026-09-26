@@ -44,15 +44,15 @@ let fuse_clusters ?cancel ?(grain = 16_384) ?selection ?(tolerance = 1e-6)
     ?(attribute_rules = []) ?(group_rules = [])
     ?(metric = Euclidean) ?(inclusive = true) ?(match_attributes = false)
     ?(keep_fused_points = false) geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.fuse: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk.Fuse_grid.fuse: grain must be positive";
   let count = Geometry.point_count geometry in
   if match selection with
     | Some group -> Group.owner group <> Group.Point
         || Group.length group <> count
     | None -> false
-  then Error "Pdk.Ops.fuse: selection must be a matching point group"
+  then Error "Pdk.Fuse_grid.fuse: selection must be a matching point group"
   else if not (finite tolerance) || tolerance < 0. then
-    Error "Pdk.Ops.fuse: tolerance must be finite and non-negative"
+    Error "Pdk.Fuse_grid.fuse: tolerance must be finite and non-negative"
   else
     let exact = tolerance = 0. in
     let point_attributes = if match_attributes then
@@ -119,7 +119,7 @@ let fuse_clusters ?cancel ?(grain = 16_384) ?selection ?(tolerance = 1e-6)
       | Euclidean -> Point_clusters.Euclidean
       | Componentwise -> Point_clusters.Componentwise in
     Result.bind (Point_clusters.create ?cancel ?selection ~metric:cluster_metric
-        ~inclusive ~operation:"Pdk.Ops.fuse" ~tolerance ~compatible geometry)
+        ~inclusive ~operation:"Pdk.Fuse_grid.fuse" ~tolerance ~compatible geometry)
       (function
       | Point_clusters.Identity -> Ok geometry
       | Point_clusters.Clusters clusters ->
@@ -159,7 +159,7 @@ let fuse ?cancel ?(grain = 16_384) ?selection ?target_selection
   else cleanup (begin
     let invalid_name label = function
       | Some name when String.trim name = "" ->
-          Some (Printf.sprintf "Pdk.Ops.fuse: %s name must not be empty" label)
+          Some (Printf.sprintf "Pdk.Fuse_grid.fuse: %s name must not be empty" label)
       | _ -> None in
     match invalid_name "snapped group" snapped_group with
     | Some message -> Error message
@@ -172,9 +172,9 @@ let fuse ?cancel ?(grain = 16_384) ?selection ?target_selection
         let same = Geometry.data_id geometry
             = Geometry.data_id target_geometry in
         if keep_fused_points && not fuse_points then Error
-            "Pdk.Ops.fuse: Keep Fused Points requires Fuse Snapped Points"
+            "Pdk.Fuse_grid.fuse: Keep Fused Points requires Fuse Snapped Points"
         else if modify_target && not same then Error
-            "Pdk.Ops.fuse: Modify Target is unavailable with a second input"
+            "Pdk.Fuse_grid.fuse: Modify Target is unavailable with a second input"
         else
         let effective_targets = match target_selection, same with
           | Some group, _ -> Some group
@@ -274,7 +274,7 @@ let fuse ?cancel ?(grain = 16_384) ?selection ?target_selection
                   Geometry.with_group group output |> get_ok in
             if same && effective_modify_target && !mapped > 0 then
               Result.bind (Point_clusters.of_links ?cancel
-                  ~operation:"Pdk.Ops.fuse" destinations) (function
+                  ~operation:"Pdk.Fuse_grid.fuse" destinations) (function
                 | Point_clusters.Identity -> Ok (install_outputs geometry)
                 | Point_clusters.Clusters clusters ->
                     let compact = fuse_points && not keep_fused_points in
@@ -329,28 +329,28 @@ let snap_to_grid ?cancel ?(grain = 16_384) ?selection
     ?(position = Average_position) ?weight_attribute
     ?(attributes = Keep_first) ?(attribute_rules = []) ?(group_rules = [])
     ?snapped_group geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.snap_to_grid: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk.Fuse_grid.snap_to_grid: grain must be positive";
   let count = Geometry.point_count geometry in
   let finite3 value = finite value.Vec3.x && finite value.y && finite value.z in
   if not (finite3 spacing) || spacing.x <= 0. || spacing.y <= 0.
       || spacing.z <= 0. then
-    Error "Pdk.Ops.snap_to_grid: spacing must be finite and positive on every axis"
+    Error "Pdk.Fuse_grid.snap_to_grid: spacing must be finite and positive on every axis"
   else if not (finite3 offset) || offset.x < 0. || offset.x > 1.
       || offset.y < 0. || offset.y > 1. || offset.z < 0. || offset.z > 1.
-  then Error "Pdk.Ops.snap_to_grid: offset fractions must be finite and in [0, 1]"
+  then Error "Pdk.Fuse_grid.snap_to_grid: offset fractions must be finite and in [0, 1]"
   else if match max_distance with
     | Some distance -> not (finite distance) || distance < 0.
     | None -> false
-  then Error "Pdk.Ops.snap_to_grid: maximum distance must be finite and non-negative"
+  then Error "Pdk.Fuse_grid.snap_to_grid: maximum distance must be finite and non-negative"
   else if match selection with
     | Some group -> Group.owner group <> Group.Point
         || Group.length group <> count
     | None -> false
-  then Error "Pdk.Ops.snap_to_grid: selection must be a matching point group"
+  then Error "Pdk.Fuse_grid.snap_to_grid: selection must be a matching point group"
   else if match snapped_group with
     | Some name -> String.trim name = ""
     | None -> false
-  then Error "Pdk.Ops.snap_to_grid: snapped group name must not be empty"
+  then Error "Pdk.Fuse_grid.snap_to_grid: snapped group name must not be empty"
   else begin
     let source = Packed.Float3.Private.view (Geometry.positions geometry) in
     let x = Array.copy source.x and y = Array.copy source.y
@@ -407,7 +407,7 @@ let snap_to_grid ?cancel ?(grain = 16_384) ?selection
         if point < 0 then earliest else if earliest < 0 then point
         else min earliest point) (-1) errors in
     if invalid >= 0 then Error (Printf.sprintf
-        "Pdk.Ops.snap_to_grid: selected point %d cannot be snapped to this grid"
+        "Pdk.Fuse_grid.snap_to_grid: selected point %d cannot be snapped to this grid"
         invalid)
     else
       let changed_count = Array.fold_left ( + ) 0 changed_counts in

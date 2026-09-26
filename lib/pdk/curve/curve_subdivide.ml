@@ -12,7 +12,7 @@ let checked_add name left right =
   left + right
 
 let run ?(grain = 16_384) ?cancel count operation =
-  if grain <= 0 then invalid_arg "Pdk.Ops.subdivide: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_curve.Curve_subdivide.subdivide: grain must be positive";
   if count > 0 then
     Parallel.for_ ~chunk_size:grain ~start:0 ~finish:(count - 1) (fun index ->
       if index land 4095 = 0 then Cancel.check_opt cancel;

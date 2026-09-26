@@ -2,7 +2,7 @@ open Prismel_math
 
 let noise_displace_raw ?cancel ?grain ~amplitude ~frequency ~seed geometry =
   if not (Float.is_finite amplitude && Float.is_finite frequency) then
-    Error "Pdk.Ops.noise_displace: amplitude and frequency must be finite"
+    Error "Pdk.Deform_ops.noise_displace: amplitude and frequency must be finite"
   else
     let noise = Noise.create seed in
     let samples = Array.make (Geometry.point_count geometry) 0. in

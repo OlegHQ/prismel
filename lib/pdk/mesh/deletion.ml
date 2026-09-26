@@ -4,11 +4,11 @@ type topology_policy = Destroy_touched_primitives | Heal_primitives
 
 exception Delete_error of string
 
-let fail message = raise (Delete_error ("Pdk.Ops.delete: " ^ message))
+let fail message = raise (Delete_error ("Pdk.Deletion.delete: " ^ message))
 let get_ok = function Ok value -> value | Error message -> fail message
 
 let run ?(grain = 16_384) ?cancel count operation =
-  if grain <= 0 then invalid_arg "Pdk.Ops.delete: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk.Deletion.delete: grain must be positive";
   if count > 0 then
     Parallel.for_ ~chunk_size:grain ~start:0 ~finish:(count - 1) (fun index ->
       if index land 4095 = 0 then Cancel.check_opt cancel;

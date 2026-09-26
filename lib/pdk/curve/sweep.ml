@@ -644,25 +644,25 @@ let run ?cancel ~grain ?backbones ?cross_sections ~connectivity ~tangent
     ~continuous_closed ~transform_attributes ~reverse_cross_sections ~scale
     ~roll ~twist ~caps ?cap_group ~uv_attribute ~cross_section_prefix
     ~backbone ~cross_section () =
-  if grain <= 0 then invalid_arg "Pdk.Ops.sweep: grain must be positive";
-  if not (finite scale) then Error "Pdk.Ops.sweep: scale must be finite"
+  if grain <= 0 then invalid_arg "Pdk_curve.Sweep.sweep: grain must be positive";
+  if not (finite scale) then Error "Pdk_curve.Sweep.sweep: scale must be finite"
   else if not (finite roll && finite twist) then
-    Error "Pdk.Ops.sweep: roll and twist must be finite"
+    Error "Pdk_curve.Sweep.sweep: roll and twist must be finite"
   else if caps && not (surface_connectivity connectivity) then
-    Error "Pdk.Ops.sweep: caps require polygon surface connectivity"
+    Error "Pdk_curve.Sweep.sweep: caps require polygon surface connectivity"
   else if cap_group <> None && not caps then
-    Error "Pdk.Ops.sweep: cap_group requires caps=true"
+    Error "Pdk_curve.Sweep.sweep: cap_group requires caps=true"
   else if String.contains cross_section_prefix '\000' then
-    Error "Pdk.Ops.sweep: cross-section prefix contains NUL"
+    Error "Pdk_curve.Sweep.sweep: cross-section prefix contains NUL"
   else
     let named label = function
       | Some name when String.trim name = "" ->
-          Error ("Pdk.Ops.sweep: " ^ label ^ " must not be empty")
+          Error ("Pdk_curve.Sweep.sweep: " ^ label ^ " must not be empty")
       | None | Some _ -> Ok () in
     Result.bind (named "cap group name" cap_group) (fun () ->
     Result.bind (match uv_attribute with
       | Some name when String.trim name = "" ->
-          Error "Pdk.Ops.sweep: UV attribute name must not be empty"
+          Error "Pdk_curve.Sweep.sweep: UV attribute name must not be empty"
       | None | Some _ -> Ok ()) (fun () ->
     Result.bind (collect_curves "backbone" backbone backbones) (fun backbone_curves ->
     Result.bind (collect_curves "cross-section" cross_section cross_sections)
@@ -708,7 +708,7 @@ let run ?cancel ~grain ?backbones ?cross_sections ~connectivity ~tangent
         backbone backbone_curves) (fun frames ->
       Result.bind (fill_parameters ?cancel ~grain cross_section profile_curves)
         (fun (_, _, _, profile_cumulative, profile_totals) ->
-      let pair_count_result = checked_product "Pdk.Ops.sweep"
+      let pair_count_result = checked_product "Pdk_curve.Sweep.sweep"
           (Array.length backbone_curves) (Array.length profile_curves) in
       Result.bind pair_count_result (fun pair_count ->
         let placeholder_curve =
@@ -722,11 +722,11 @@ let run ?cancel ~grain ?backbones ?cross_sections ~connectivity ~tangent
           pairs.(pair_index) <- { backbone = backbone_curve;
             profile = profile_curve; point_first = !point_cursor };
           if !failure = None then
-            match checked_product "Pdk.Ops.sweep" backbone_curve.count
+            match checked_product "Pdk_curve.Sweep.sweep" backbone_curve.count
                 profile_curve.count with
             | Error message -> failure := Some message
             | Ok points ->
-                (match checked_add "Pdk.Ops.sweep" !point_cursor points with
+                (match checked_add "Pdk_curve.Sweep.sweep" !point_cursor points with
                  | Error message -> failure := Some message
                  | Ok next -> point_cursor := next)
         done;
@@ -741,47 +741,47 @@ let run ?cancel ~grain ?backbones ?cross_sections ~connectivity ~tangent
             let eligible_caps = caps && (not b.closed) && p.closed in
             let cap_primitives = if eligible_caps then 2 else 0 in
             Result.bind (if eligible_caps then
-                checked_product "Pdk.Ops.sweep" 2 p.count else Ok 0)
+                checked_product "Pdk_curve.Sweep.sweep" 2 p.count else Ok 0)
               (fun cap_vertices -> match connectivity with
             | Points -> Ok (0, 0)
             | Rows -> Result.map (fun vertices -> b.count, vertices)
-                (checked_product "Pdk.Ops.sweep" b.count p.count)
+                (checked_product "Pdk_curve.Sweep.sweep" b.count p.count)
             | Columns -> Result.map (fun vertices -> p.count, vertices)
-                (checked_product "Pdk.Ops.sweep" b.count p.count)
+                (checked_product "Pdk_curve.Sweep.sweep" b.count p.count)
             | Rows_and_columns ->
-                Result.bind (checked_add "Pdk.Ops.sweep" b.count p.count)
+                Result.bind (checked_add "Pdk_curve.Sweep.sweep" b.count p.count)
                   (fun primitives ->
-                Result.bind (checked_product "Pdk.Ops.sweep" b.count p.count)
+                Result.bind (checked_product "Pdk_curve.Sweep.sweep" b.count p.count)
                   (fun one_family -> Result.map (fun vertices -> primitives, vertices)
-                    (checked_product "Pdk.Ops.sweep" one_family 2)))
+                    (checked_product "Pdk_curve.Sweep.sweep" one_family 2)))
             | Quads ->
-                Result.bind (checked_product "Pdk.Ops.sweep" be pe) (fun cells ->
-                Result.bind (checked_add "Pdk.Ops.sweep" cells cap_primitives)
+                Result.bind (checked_product "Pdk_curve.Sweep.sweep" be pe) (fun cells ->
+                Result.bind (checked_add "Pdk_curve.Sweep.sweep" cells cap_primitives)
                   (fun primitives ->
-                Result.bind (checked_product "Pdk.Ops.sweep" cells 4)
+                Result.bind (checked_product "Pdk_curve.Sweep.sweep" cells 4)
                   (fun side_vertices -> Result.map (fun vertices ->
                     primitives, vertices)
-                    (checked_add "Pdk.Ops.sweep" side_vertices cap_vertices))))
+                    (checked_add "Pdk_curve.Sweep.sweep" side_vertices cap_vertices))))
             | Triangles | Alternating_triangles | Reverse_triangles ->
-                Result.bind (checked_product "Pdk.Ops.sweep" be pe) (fun cells ->
-                Result.bind (checked_product "Pdk.Ops.sweep" cells 2)
+                Result.bind (checked_product "Pdk_curve.Sweep.sweep" be pe) (fun cells ->
+                Result.bind (checked_product "Pdk_curve.Sweep.sweep" cells 2)
                   (fun side_primitives ->
-                Result.bind (checked_add "Pdk.Ops.sweep" side_primitives
+                Result.bind (checked_add "Pdk_curve.Sweep.sweep" side_primitives
                   cap_primitives) (fun primitives ->
-                Result.bind (checked_product "Pdk.Ops.sweep" cells 6)
+                Result.bind (checked_product "Pdk_curve.Sweep.sweep" cells 6)
                   (fun side_vertices -> Result.map (fun vertices ->
                     primitives, vertices)
-                    (checked_add "Pdk.Ops.sweep" side_vertices cap_vertices)))))) in
+                    (checked_add "Pdk_curve.Sweep.sweep" side_vertices cap_vertices)))))) in
           let primitive_count = ref 0 and vertex_count = ref 0 in
           Array.iter (fun pair ->
             if !failure = None then begin
               match count_for_pair pair with
               | Error message -> failure := Some message
               | Ok (primitives, vertices) ->
-                  (match checked_add "Pdk.Ops.sweep" !primitive_count primitives with
+                  (match checked_add "Pdk_curve.Sweep.sweep" !primitive_count primitives with
                    | Error message -> failure := Some message
                    | Ok value -> primitive_count := value);
-                  (match checked_add "Pdk.Ops.sweep" !vertex_count vertices with
+                  (match checked_add "Pdk_curve.Sweep.sweep" !vertex_count vertices with
                    | Error message -> failure := Some message
                    | Ok value -> vertex_count := value)
             end) pairs;
@@ -912,7 +912,7 @@ let run ?cancel ~grain ?backbones ?cross_sections ~connectivity ~tangent
              while !invalid < output_points
                  && Bytes.get invalid_points !invalid = '\000' do incr invalid done;
              if !invalid < output_points then Error (Printf.sprintf
-                 "Pdk.Ops.sweep: generated point %d is not finite" !invalid)
+                 "Pdk_curve.Sweep.sweep: generated point %d is not finite" !invalid)
              else
                let primitive_offsets = Array.make (output_primitives + 1) 0
                and primitive_kinds = Bytes.make output_primitives '\000'

@@ -27,7 +27,7 @@ type match_size_fit =
 let match_axis ?grain ~from ~into geometry =
   if not (finite_vec3 from && finite_vec3 into)
      || Vec3.length_sq from <= 1e-30 || Vec3.length_sq into <= 1e-30 then
-    Error "Pdk.Ops.match_axis: vectors must be finite and non-zero"
+    Error "Pdk.Match_size.match_axis: vectors must be finite and non-zero"
   else
     let from = Vec3.normalize from and into = Vec3.normalize into in
     let dot = max (-1.) (min 1. (Vec3.dot from into)) in
@@ -49,7 +49,7 @@ let match_size_metric_primitives operation selection = match selection with
   | None -> Ok None
   | Some (Selected_primitives group) -> Ok (Some group)
   | Some _ -> Error (Printf.sprintf
-      "Pdk.Ops.match_size: %s must be primitive-owned for metric fitting"
+      "Pdk.Match_size.match_size: %s must be primitive-owned for metric fitting"
       operation)
 
 let match_size_measure ?cancel ~grain fit selection geometry =
@@ -64,21 +64,21 @@ let match_size_measure ?cancel ~grain fit selection geometry =
   Result.bind measured (fun value ->
     let value = abs_float value in
     if not (finite value) then Error
-        "Pdk.Ops.match_size: metric measurement is not finite"
+        "Pdk.Match_size.match_size: metric measurement is not finite"
     else if value <= 1e-20 then Error
-        "Pdk.Ops.match_size: metric fitting requires a positive measurement"
+        "Pdk.Match_size.match_size: metric fitting requires a positive measurement"
     else Ok value))
 
 let match_size_bounds ~center ~size =
   if not (finite_vec3 center && finite_vec3 size)
      || size.x < 0. || size.y < 0. || size.z < 0. then
-    Error "Pdk.Ops.match_size: target center must be finite and target size finite and non-negative"
+    Error "Pdk.Match_size.match_size: target center must be finite and target size finite and non-negative"
   else
     let hx = size.x *. 0.5 and hy = size.y *. 0.5 and hz = size.z *. 0.5 in
     let minimum = Vec3.create (center.x -. hx) (center.y -. hy) (center.z -. hz)
     and maximum = Vec3.create (center.x +. hx) (center.y +. hy) (center.z +. hz) in
     if not (finite_vec3 minimum && finite_vec3 maximum) then Error
-        "Pdk.Ops.match_size: numeric target bounds overflow"
+        "Pdk.Match_size.match_size: numeric target bounds overflow"
     else Ok Analysis.{ min = minimum; max = maximum; center; size }
 
 let match_size_transform ?cancel ~grain ?selection ~scale ~translation geometry =
@@ -134,7 +134,7 @@ let match_size_transform ?cancel ~grain ?selection ~scale ~translation geometry 
         if point < 0 then first else if first < 0 then point else min first point)
         (-1) errors in
     if invalid >= 0 then Error (Printf.sprintf
-        "Pdk.Ops.match_size: transformed point %d is not finite" invalid)
+        "Pdk.Match_size.match_size: transformed point %d is not finite" invalid)
     else
       let positions = Packed.Float3.Private.of_owned_exn ~x ~y ~z in
       let output = Geometry.with_positions positions geometry |> get_ok in
@@ -191,7 +191,7 @@ let match_size_transform ?cancel ~grain ?selection ~scale ~translation geometry 
                        if element < 0 then first else if first < 0 then element
                        else min first element) (-1) errors in
                    if invalid >= 0 then Error (Printf.sprintf
-                       "Pdk.Ops.match_size: transformed %s normal %d is not finite"
+                       "Pdk.Match_size.match_size: transformed %s normal %d is not finite"
                        (match owner with Attribute.Point -> "point"
                         | Attribute.Vertex -> "vertex"
                         | Attribute.Primitive | Attribute.Detail -> assert false)
@@ -213,19 +213,19 @@ let match_size ?cancel ?(grain = 16_384) ?selection ?source_selection
   let target_justify = Option.value ~default:justify target_justify in
   let tx_enabled, ty_enabled, tz_enabled = translate_axes
   and sx_enabled, sy_enabled, sz_enabled = scale_axes in
-  if grain <= 0 then Error "Pdk.Ops.match_size: grain must be positive"
+  if grain <= 0 then Error "Pdk.Match_size.match_size: grain must be positive"
   else if not (finite_vec3 justify && finite_vec3 target_justify)
       || abs_float justify.x > 1. || abs_float justify.y > 1.
       || abs_float justify.z > 1. || abs_float target_justify.x > 1.
       || abs_float target_justify.y > 1. || abs_float target_justify.z > 1. then
-    Error "Pdk.Ops.match_size: justification components must be finite and between -1 and 1"
+    Error "Pdk.Match_size.match_size: justification components must be finite and between -1 and 1"
   else if not (finite_vec3 offset && finite scale) || scale < 0. then
-    Error "Pdk.Ops.match_size: offset must be finite and scale finite and non-negative"
+    Error "Pdk.Match_size.match_size: offset must be finite and scale finite and non-negative"
   else if Option.is_some target &&
       (Option.is_some target_center || Option.is_some target_size) then
-    Error "Pdk.Ops.match_size: geometry and numeric targets are mutually exclusive"
+    Error "Pdk.Match_size.match_size: geometry and numeric targets are mutually exclusive"
   else if Option.is_none target && Option.is_some target_selection then
-    Error "Pdk.Ops.match_size: target selection requires target geometry"
+    Error "Pdk.Match_size.match_size: target selection requires target geometry"
   else
     Result.bind (selected_bounds ?cancel ~grain ~operation:"match_size source"
         source_selection geometry) (fun source_bounds ->
@@ -260,18 +260,18 @@ let match_size ?cancel ?(grain = 16_384) ?selection ?source_selection
       | Contain -> Ok (uniform_scale (uniform Float.min))
       | Cover -> Ok (uniform_scale (uniform Float.max))
       | Match_x when source_bounds.size.x <= 1e-20 -> Error
-          "Pdk.Ops.match_size: X-axis fitting requires non-degenerate source bounds"
+          "Pdk.Match_size.match_size: X-axis fitting requires non-degenerate source bounds"
       | Match_y when source_bounds.size.y <= 1e-20 -> Error
-          "Pdk.Ops.match_size: Y-axis fitting requires non-degenerate source bounds"
+          "Pdk.Match_size.match_size: Y-axis fitting requires non-degenerate source bounds"
       | Match_z when source_bounds.size.z <= 1e-20 -> Error
-          "Pdk.Ops.match_size: Z-axis fitting requires non-degenerate source bounds"
+          "Pdk.Match_size.match_size: Z-axis fitting requires non-degenerate source bounds"
       | Match_x -> Ok (uniform_scale rx)
       | Match_y -> Ok (uniform_scale ry)
       | Match_z -> Ok (uniform_scale rz)
       | Match_perimeter | Match_area | Match_volume ->
           (match target with
            | None -> Error
-               "Pdk.Ops.match_size: metric fitting requires target geometry"
+               "Pdk.Match_size.match_size: metric fitting requires target geometry"
            | Some target ->
                Result.bind (match_size_measure ?cancel ~grain fit
                    source_selection geometry) (fun source_measure ->
@@ -286,7 +286,7 @@ let match_size ?cancel ?(grain = 16_384) ?selection ?source_selection
                  (match_size_measure ?cancel ~grain fit target_selection target))) in
     Result.bind computed_scale (fun computed_scale ->
     if not (finite_vec3 computed_scale) then Error
-        "Pdk.Ops.match_size: computed scale is not finite"
+        "Pdk.Match_size.match_size: computed scale is not finite"
     else
       let anchor (bounds : Analysis.bounds) justification = Vec3.create
           (bounds.center.x +. (justification.Vec3.x *. bounds.size.x *. 0.5))
@@ -302,7 +302,7 @@ let match_size ?cancel ?(grain = 16_384) ?selection ?source_selection
           (if tz_enabled then target_anchor.z +. offset.z
              -. (source_anchor.z *. computed_scale.z) else 0.) in
       if not (finite_vec3 translation) then Error
-          "Pdk.Ops.match_size: computed translation is not finite"
+          "Pdk.Match_size.match_size: computed translation is not finite"
       else match_size_transform ?cancel ~grain ?selection
           ~scale:computed_scale ~translation geometry)))
 

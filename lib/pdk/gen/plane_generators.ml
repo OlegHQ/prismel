@@ -85,7 +85,7 @@ let grid_frame orientation rotation =
     | Grid_xz -> Vec3.unit_x, Vec3.unit_z
     | Grid_yz -> Vec3.unit_z, Vec3.unit_y
     | Grid_axes { horizontal; vertical } -> horizontal, vertical in
-  plane_frame "Pdk.Ops.grid" ~horizontal ~vertical rotation
+  plane_frame "Pdk.Plane_generators.grid" ~horizontal ~vertical rotation
 
 let circle_frame orientation rotation =
   let horizontal, vertical = match orientation with
@@ -93,7 +93,7 @@ let circle_frame orientation rotation =
     | Circle_xz -> Vec3.unit_x, Vec3.unit_z
     | Circle_yz -> Vec3.unit_y, Vec3.unit_z
     | Circle_axes { horizontal; vertical } -> horizontal, vertical in
-  plane_frame "Pdk.Ops.circle" ~horizontal ~vertical rotation
+  plane_frame "Pdk.Plane_generators.circle" ~horizontal ~vertical rotation
 
 let circle ?cancel ?(grain = 16_384) ?(arc = Circle_closed)
     ?(orientation = Circle_xz) ?(reverse = false) ?(center = Vec3.zero)
@@ -112,23 +112,23 @@ let circle ?cancel ?(grain = 16_384) ?(arc = Circle_closed)
     | Circle_closed_arc { start_angle; end_angle }
     | Circle_sliced_arc { start_angle; end_angle } ->
         if not (finite start_angle && finite end_angle) then
-          Error "Pdk.Ops.circle: arc angles must be finite"
+          Error "Pdk.Plane_generators.circle: arc angles must be finite"
         else
           let sweep = end_angle -. start_angle in
           if not (finite sweep) || sweep = 0. then
-            Error "Pdk.Ops.circle: arc angles must span a finite non-zero interval"
+            Error "Pdk.Plane_generators.circle: arc angles must span a finite non-zero interval"
           else Ok (start_angle, end_angle) in
-  if grain <= 0 then Error "Pdk.Ops.circle: grain must be positive"
+  if grain <= 0 then Error "Pdk.Plane_generators.circle: grain must be positive"
   else if segments < minimum_segments then Error (Printf.sprintf
-      "Pdk.Ops.circle: this arc mode requires at least %d segments"
+      "Pdk.Plane_generators.circle: this arc mode requires at least %d segments"
       minimum_segments)
   else if not (finite radius && finite radius_x && finite radius_y
       && finite uniform_scale && radius > 0. && radius_x > 0. && radius_y > 0.
       && uniform_scale > 0.) then
-    Error "Pdk.Ops.circle: radii and uniform scale must be finite and positive"
+    Error "Pdk.Plane_generators.circle: radii and uniform scale must be finite and positive"
   else if not (finite center.x && finite center.y && finite center.z
       && finite rotation) then
-    Error "Pdk.Ops.circle: center and rotation must be finite"
+    Error "Pdk.Plane_generators.circle: center and rotation must be finite"
   else Result.bind arc_angles (fun (start_angle, end_angle) ->
     Result.bind (circle_frame orientation rotation)
       (fun (horizontal, vertical, _normal) ->
@@ -140,7 +140,7 @@ let circle ?cancel ?(grain = 16_384) ?(arc = Circle_closed)
     let point_limit = Sys.max_array_length in
     if segments = max_int || arc_points > point_limit
        || add_center && arc_points = point_limit then
-      Error "Pdk.Ops.circle: point cardinality exceeds OCaml array limits"
+      Error "Pdk.Plane_generators.circle: point cardinality exceeds OCaml array limits"
     else
       let point_count = arc_points + if add_center then 1 else 0 in
       let px = Array.make point_count 0. and py = Array.make point_count 0.
@@ -172,7 +172,7 @@ let circle ?cancel ?(grain = 16_384) ?(arc = Circle_closed)
           if point < 0 then first else if first < 0 then point
           else min first point) (-1) errors in
       if invalid >= 0 then Error (Printf.sprintf
-          "Pdk.Ops.circle: generated point %d is not finite" invalid)
+          "Pdk.Plane_generators.circle: generated point %d is not finite" invalid)
       else begin
         if add_center then begin
           px.(arc_points) <- center.x; py.(arc_points) <- center.y;
@@ -200,23 +200,23 @@ let grid ?cancel ?(grain = 16_384) ?(counts = Grid_divisions)
     | Grid_point_counts, Grid_columns -> 1, 2
     | Grid_point_counts, (Grid_rows_and_columns | Grid_quads | Grid_triangles
         | Grid_alternating_triangles | Grid_reverse_triangles) -> 2, 2 in
-  if grain <= 0 then Error "Pdk.Ops.grid: grain must be positive"
+  if grain <= 0 then Error "Pdk.Plane_generators.grid: grain must be positive"
   else if columns < minimum_columns || rows < minimum_rows then Error
-      (Printf.sprintf "Pdk.Ops.grid: this count/connectivity mode requires at least %d columns and %d rows"
+      (Printf.sprintf "Pdk.Plane_generators.grid: this count/connectivity mode requires at least %d columns and %d rows"
          minimum_columns minimum_rows)
   else if counts = Grid_divisions && (columns = max_int || rows = max_int) then
-    Error "Pdk.Ops.grid: point cardinality overflows"
+    Error "Pdk.Plane_generators.grid: point cardinality overflows"
   else if not (finite size && size > 0. && finite width && width > 0.
       && finite height && height > 0.) then
-    Error "Pdk.Ops.grid: size, width, and height must be finite and positive"
+    Error "Pdk.Plane_generators.grid: size, width, and height must be finite and positive"
   else if not (finite center.x && finite center.y && finite center.z
       && finite rotation) then
-    Error "Pdk.Ops.grid: center and rotation must be finite"
+    Error "Pdk.Plane_generators.grid: center and rotation must be finite"
   else if match uv_attribute with
     | Some name -> String.trim name = "" || String.equal name "P"
         || String.equal name "N"
     | None -> false then
-    Error "Pdk.Ops.grid: UV attribute name must be non-empty and cannot be P or N"
+    Error "Pdk.Plane_generators.grid: UV attribute name must be non-empty and cannot be P or N"
   else Result.bind (grid_frame orientation rotation)
       (fun (horizontal, vertical, normal) ->
     let u_points, v_points = match counts with
@@ -228,7 +228,7 @@ let grid ?cancel ?(grain = 16_384) ?(counts = Grid_divisions)
     let point_limit = Sys.max_array_length
     and primitive_limit = min (Sys.max_array_length - 1) Sys.max_string_length in
     match checked_product u_points v_points point_limit with
-    | None -> Error "Pdk.Ops.grid: point cardinality exceeds OCaml array limits"
+    | None -> Error "Pdk.Plane_generators.grid: point cardinality exceeds OCaml array limits"
     | Some point_count ->
         let topology_cardinality =
           let cells = match checked_product u_divisions v_divisions point_limit with
@@ -254,7 +254,7 @@ let grid ?cancel ?(grain = 16_384) ?(counts = Grid_divisions)
               then Some (cells * 6, cells * 2) else None in
         (match topology_cardinality with
          | None -> Error
-             "Pdk.Ops.grid: topology cardinality exceeds OCaml array limits"
+             "Pdk.Plane_generators.grid: topology cardinality exceeds OCaml array limits"
          | Some (vertex_count, primitive_count) ->
              let px = Array.make point_count 0. and py = Array.make point_count 0.
              and pz = Array.make point_count 0. in
@@ -300,7 +300,7 @@ let grid ?cancel ?(grain = 16_384) ?(counts = Grid_divisions)
                  if point < 0 then first else if first < 0 then point
                  else min first point) (-1) errors in
              if invalid >= 0 then Error (Printf.sprintf
-                 "Pdk.Ops.grid: generated point %d is not finite" invalid)
+                 "Pdk.Plane_generators.grid: generated point %d is not finite" invalid)
              else
                let positions = Packed.Float3.Private.of_owned_exn
                    ~x:px ~y:py ~z:pz in

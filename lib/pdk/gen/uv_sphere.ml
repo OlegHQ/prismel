@@ -40,7 +40,7 @@ let sphere_frame orientation rotation_order (rotation : Vec3.t) =
     | Sphere_z -> Ok (Vec3.unit_x, Vec3.unit_z,
         Vec3.create 0. (-1.) 0.)
     | Sphere_axis axis ->
-        Result.bind (normalize_plane_axis "Pdk.Ops.uv_sphere" "pole" axis)
+        Result.bind (normalize_plane_axis "Pdk.Uv_sphere.uv_sphere" "pole" axis)
           (fun pole ->
             let ax = abs_float pole.x and ay = abs_float pole.y
             and az = abs_float pole.z in
@@ -51,10 +51,10 @@ let sphere_frame orientation rotation_order (rotation : Vec3.t) =
                 (reference.x -. (projection *. pole.x))
                 (reference.y -. (projection *. pole.y))
                 (reference.z -. (projection *. pole.z)) in
-            Result.bind (normalize_plane_axis "Pdk.Ops.uv_sphere" "radial"
+            Result.bind (normalize_plane_axis "Pdk.Uv_sphere.uv_sphere" "radial"
                 radial) (fun radial ->
               Result.map (fun tangent -> radial, pole, tangent)
-                (normalize_plane_axis "Pdk.Ops.uv_sphere" "tangent"
+                (normalize_plane_axis "Pdk.Uv_sphere.uv_sphere" "tangent"
                    (Vec3.cross radial pole)))) in
   Result.map (fun (radial, pole, tangent) ->
     if rotation.x = 0. && rotation.y = 0. && rotation.z = 0. then
@@ -79,26 +79,26 @@ let run ?cancel ?(grain = 16_384)
   let rx = Option.value ~default:radius radius_x *. uniform_scale
   and ry = Option.value ~default:radius radius_y *. uniform_scale
   and rz = Option.value ~default:radius radius_z *. uniform_scale in
-  if grain <= 0 then Error "Pdk.Ops.uv_sphere: grain must be positive"
+  if grain <= 0 then Error "Pdk.Uv_sphere.uv_sphere: grain must be positive"
   else if segments < 3 then
-    Error "Pdk.Ops.uv_sphere: segments must be at least 3"
-  else if rings < 2 then Error "Pdk.Ops.uv_sphere: rings must be at least 2"
+    Error "Pdk.Uv_sphere.uv_sphere: segments must be at least 3"
+  else if rings < 2 then Error "Pdk.Uv_sphere.uv_sphere: rings must be at least 2"
   else if segments = max_int || rings = max_int then
-    Error "Pdk.Ops.uv_sphere: output cardinality overflows"
+    Error "Pdk.Uv_sphere.uv_sphere: output cardinality overflows"
   else if not (finite radius && radius > 0. && finite uniform_scale
       && uniform_scale > 0. && finite rx && finite ry && finite rz
       && rx > 0. && ry > 0. && rz > 0.) then
-    Error "Pdk.Ops.uv_sphere: radii and uniform scale must be finite and positive"
+    Error "Pdk.Uv_sphere.uv_sphere: radii and uniform scale must be finite and positive"
   else if not (finite center.x && finite center.y && finite center.z
       && finite rotation.x && finite rotation.y && finite rotation.z) then
-    Error "Pdk.Ops.uv_sphere: center and rotation must be finite"
+    Error "Pdk.Uv_sphere.uv_sphere: center and rotation must be finite"
   else if (match uv_attribute with
       | Some name -> String.trim name = "" || String.equal name "P"
           || String.equal name "N"
       | None -> false) then
-    Error "Pdk.Ops.uv_sphere: UV attribute name must be non-empty and cannot be P or N"
+    Error "Pdk.Uv_sphere.uv_sphere: UV attribute name must be non-empty and cannot be P or N"
   else if point_mode && normal_mode = Sphere_vertex_normals then
-    Error "Pdk.Ops.uv_sphere: point output cannot carry vertex normals"
+    Error "Pdk.Uv_sphere.uv_sphere: point output cannot carry vertex normals"
   else Result.bind (sphere_frame orientation rotation_order rotation)
       (fun (radial_axis, pole_axis, tangent_axis) ->
     let point_limit = Sys.max_array_length
@@ -156,11 +156,11 @@ let run ?cancel ?(grain = 16_384)
            | _ -> None) in
     match point_count, topology_cardinality, interior_count, middle_cells with
     | None, _, _, _ ->
-        Error "Pdk.Ops.uv_sphere: point cardinality exceeds OCaml array limits"
+        Error "Pdk.Uv_sphere.uv_sphere: point cardinality exceeds OCaml array limits"
     | _, None, _, _ ->
-        Error "Pdk.Ops.uv_sphere: topology cardinality exceeds OCaml array limits"
+        Error "Pdk.Uv_sphere.uv_sphere: topology cardinality exceeds OCaml array limits"
     | _, _, None, _ | _, _, _, None ->
-        Error "Pdk.Ops.uv_sphere: output cardinality exceeds OCaml array limits"
+        Error "Pdk.Uv_sphere.uv_sphere: output cardinality exceeds OCaml array limits"
     | Some point_count, Some (vertex_count, primitive_count),
       Some interior_count, Some middle_cells ->
         let identity_frame = orientation = Sphere_y
@@ -306,7 +306,7 @@ let run ?cancel ?(grain = 16_384)
             if point < 0 then first else if first < 0 || point < first
             then point else first) (-1) errors in
         if invalid >= 0 then Error (Printf.sprintf
-            "Pdk.Ops.uv_sphere: generated point %d is not finite" invalid)
+            "Pdk.Uv_sphere.uv_sphere: generated point %d is not finite" invalid)
         else
           let vertex_normals = match normal_mode with
             | Sphere_vertex_normals -> Some (Array.make vertex_count 0.,

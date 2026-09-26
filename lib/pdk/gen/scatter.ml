@@ -33,9 +33,9 @@ let selected primitives primitive = match primitives with
 let validate_selection geometry = function
   | None -> Ok ()
   | Some group when Group.owner group <> Group.Primitive ->
-      Error "Pdk.Ops.scatter_surface: selection must own primitives"
+      Error "Pdk.Scatter.scatter_surface: selection must own primitives"
   | Some group when Group.length group <> Geometry.primitive_count geometry ->
-      Error "Pdk.Ops.scatter_surface: selection length does not match primitive count"
+      Error "Pdk.Scatter.scatter_surface: selection length does not match primitive count"
   | Some _ -> Ok ()
 
 let optional_vec3 geometry name =
@@ -44,7 +44,7 @@ let optional_vec3 geometry name =
     | Some attribute ->
         (match Attribute.Private.storage attribute with
          | Attribute.Float3 values -> Ok (Some values)
-         | _ -> Error (Printf.sprintf "Pdk.Ops.scatter_surface: %s has storage %s"
+         | _ -> Error (Printf.sprintf "Pdk.Scatter.scatter_surface: %s has storage %s"
              name (Attribute.kind_name attribute))) in
   match get Attribute.Vertex with
   | Error _ as error -> error
@@ -58,7 +58,7 @@ let optional_vec4 geometry name =
     | Some attribute ->
         (match Attribute.Private.storage attribute with
          | Attribute.Float4 values -> Ok (Some values)
-         | _ -> Error (Printf.sprintf "Pdk.Ops.scatter_surface: %s has storage %s"
+         | _ -> Error (Printf.sprintf "Pdk.Scatter.scatter_surface: %s has storage %s"
              name (Attribute.kind_name attribute))) in
   match get Attribute.Vertex with
   | Error _ as error -> error
@@ -69,12 +69,12 @@ let optional_vec4 geometry name =
 let resolve_density geometry = function
   | None -> Ok (Uniform, 1.)
   | Some density when String.trim density.density_attribute = "" ->
-      Error "Pdk.Ops.scatter_surface: density attribute name must not be empty"
+      Error "Pdk.Scatter.scatter_surface: density attribute name must not be empty"
   | Some density ->
       match Geometry.find_attribute ~owner:density.density_owner
           density.density_attribute geometry with
       | None -> Error (Printf.sprintf
-          "Pdk.Ops.scatter_surface: missing %s density attribute %S"
+          "Pdk.Scatter.scatter_surface: missing %s density attribute %S"
           (match density.density_owner with
            | Attribute.Point -> "point" | Attribute.Vertex -> "vertex"
            | Attribute.Primitive -> "primitive" | Attribute.Detail -> "detail")
@@ -89,7 +89,7 @@ let resolve_density geometry = function
                 else if value > !maximum then maximum := value
               done;
               if !invalid >= 0 then Error (Printf.sprintf
-                  "Pdk.Ops.scatter_surface: density is non-finite at element %d"
+                  "Pdk.Scatter.scatter_surface: density is non-finite at element %d"
                   !invalid)
               else
                 let source = match density.density_owner with
@@ -99,7 +99,7 @@ let resolve_density geometry = function
                   | Attribute.Detail -> Detail_density values.(0) in
                 Ok (source, !maximum)
           | _ -> Error (Printf.sprintf
-              "Pdk.Ops.scatter_surface: density attribute %S must have float storage"
+              "Pdk.Scatter.scatter_surface: density attribute %S must have float storage"
               density.density_attribute)
 
 let[@inline always] triangle_primitive plan triangle =
@@ -132,7 +132,7 @@ let create_plan ?cancel ~grain ?primitives geometry =
         else begin
           if size <> 3 then begin direct := false; has_ngon := true end;
           if !triangle_count > Sys.max_array_length - (size - 2) then
-            invalid_arg "Pdk.Ops.scatter_surface: triangle cardinality exceeds array limits";
+            invalid_arg "Pdk.Scatter.scatter_surface: triangle cardinality exceeds array limits";
           triangle_count := !triangle_count + size - 2
         end
       end else direct := false
@@ -140,7 +140,7 @@ let create_plan ?cancel ~grain ?primitives geometry =
   done;
   match !invalid with
   | Some primitive -> Error (Printf.sprintf
-      "Pdk.Ops.scatter_surface: selected polygon %d has fewer than three corners"
+      "Pdk.Scatter.scatter_surface: selected polygon %d has fewer than three corners"
       primitive)
   | None when !direct -> Ok {
       triangle_count = primitive_count; direct_triangles = true;
@@ -191,7 +191,7 @@ let create_plan ?cancel ~grain ?primitives geometry =
             incr primitive
           done);
       match Array.find_map Fun.id errors with
-      | Some message -> Error ("Pdk.Ops.scatter_surface: " ^ message)
+      | Some message -> Error ("Pdk.Scatter.scatter_surface: " ^ message)
       | None -> Ok {
           triangle_count = !triangle_count; direct_triangles = false;
           triangle_primitives; triangle_a; triangle_b; triangle_c;
@@ -247,7 +247,7 @@ let coordinate_scale ?cancel ~grain (topology : Topology.Private.view) plan
         done);
   match Array.find_opt (fun point -> point >= 0) invalid with
   | Some point -> Error (Printf.sprintf
-      "Pdk.Ops.scatter_surface: non-finite selected position at point %d" point)
+      "Pdk.Scatter.scatter_surface: non-finite selected position at point %d" point)
   | None ->
       let maximum = ref 0. in
       Array.iter (fun value -> if value > !maximum then maximum := value) maxima;
@@ -311,7 +311,7 @@ let triangle_distribution ?cancel ~grain (topology : Topology.Private.view) plan
       done);
   match Array.find_opt (fun triangle -> triangle >= 0) errors with
   | Some triangle -> Error (Printf.sprintf
-      "Pdk.Ops.scatter_surface: non-finite area or density at triangle %d"
+      "Pdk.Scatter.scatter_surface: non-finite area or density at triangle %d"
       triangle)
   | None ->
       let total = ref 0. and compensation = ref 0. in
@@ -322,7 +322,7 @@ let triangle_distribution ?cancel ~grain (topology : Topology.Private.view) plan
         total := next
       done;
       if not (Float.is_finite !total) || !total <= 0. then Error
-          "Pdk.Ops.scatter_surface: selected surface has zero weighted area"
+          "Pdk.Scatter.scatter_surface: selected surface has zero weighted area"
       else Ok (weights, !total)
 
 let build_alias weights total =
@@ -385,19 +385,19 @@ let unique_attribute_name geometry reserved base =
 let validate_name label = function
   | None -> Ok ()
   | Some name when String.trim name = "" ->
-      Error ("Pdk.Ops.scatter_surface: " ^ label ^ " must not be empty")
-  | Some "P" -> Error ("Pdk.Ops.scatter_surface: " ^ label ^ " cannot be P")
+      Error ("Pdk.Scatter.scatter_surface: " ^ label ^ " must not be empty")
+  | Some "P" -> Error ("Pdk.Scatter.scatter_surface: " ^ label ^ " cannot be P")
   | Some _ -> Ok ()
 
 let run ?cancel ?(grain = 16_384) ?primitives ?density ?point_pattern
     ?vertex_pattern ?primitive_pattern ?detail_pattern ?(match_groups = false)
     ?source_primitive_attribute ?source_vertex_numbers_attribute
     ?source_vertex_weights_attribute ~count ~seed geometry =
-  if count < 0 then Error "Pdk.Ops.scatter_surface: count must be non-negative"
-  else if grain <= 0 then Error "Pdk.Ops.scatter_surface: grain must be positive"
+  if count < 0 then Error "Pdk.Scatter.scatter_surface: count must be non-negative"
+  else if grain <= 0 then Error "Pdk.Scatter.scatter_surface: grain must be positive"
   else if match_groups && point_pattern = None && vertex_pattern = None
       && primitive_pattern = None then Error
-      "Pdk.Ops.scatter_surface: group interpolation requires an attribute/group pattern"
+      "Pdk.Scatter.scatter_surface: group interpolation requires an attribute/group pattern"
   else Result.bind (validate_selection geometry primitives) (fun () ->
     Result.bind (validate_name "source primitive attribute"
       source_primitive_attribute) (fun () ->
@@ -410,12 +410,12 @@ let run ?cancel ?(grain = 16_384) ?primitives ?density ?point_pattern
       | None, None | Some _, Some _ -> true
       | None, Some _ | Some _, None -> false in
     if not paired then Error
-        "Pdk.Ops.scatter_surface: source vertex number and weight attributes must be requested together"
+        "Pdk.Scatter.scatter_surface: source vertex number and weight attributes must be requested together"
     else
       let names = List.filter_map Fun.id [source_primitive_attribute;
         source_vertex_numbers_attribute; source_vertex_weights_attribute] in
       if List.length names <> List.length (List.sort_uniq String.compare names)
-      then Error "Pdk.Ops.scatter_surface: output attribute names must be distinct"
+      then Error "Pdk.Scatter.scatter_surface: output attribute names must be distinct"
       else Result.bind (resolve_density geometry density)
         (fun (density_values, density_scale) ->
       Result.bind (optional_vec3 geometry "N") (fun normals ->
@@ -424,12 +424,12 @@ let run ?cancel ?(grain = 16_384) ?primitives ?density ?point_pattern
       let topology = Topology.Private.view (Geometry.topology geometry)
       and positions = Packed.Float3.Private.view (Geometry.positions geometry) in
       if count > 0 && (plan.triangle_count = 0 || density_scale <= 0.) then Error
-          "Pdk.Ops.scatter_surface: selected surface has zero weighted area"
+          "Pdk.Scatter.scatter_surface: selected surface has zero weighted area"
       else Result.bind (if count = 0 then Ok 1.
         else coordinate_scale ?cancel ~grain topology plan positions)
         (fun coordinate_scale ->
       if count > 0 && coordinate_scale = 0. then Error
-          "Pdk.Ops.scatter_surface: selected surface has zero weighted area"
+          "Pdk.Scatter.scatter_surface: selected surface has zero weighted area"
       else Result.bind (if count = 0 then Ok ([||], 1.)
         else triangle_distribution ?cancel ~grain topology plan positions
           density_values density_scale coordinate_scale) (fun (weights, total) ->
@@ -441,7 +441,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?density ?point_pattern
       let keep_drivers = source_vertex_numbers_attribute <> None in
       let need_drivers = needs_interpolation || keep_drivers in
       if need_drivers && count > Sys.max_array_length / 3 then Error
-          "Pdk.Ops.scatter_surface: provenance cardinality exceeds array limits"
+          "Pdk.Scatter.scatter_surface: provenance cardinality exceeds array limits"
       else
         let reserved = "P" :: "N" :: "Cd" :: "id" :: names in
         let numbers_name = match source_vertex_numbers_attribute with

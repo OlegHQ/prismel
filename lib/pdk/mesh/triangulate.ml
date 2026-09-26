@@ -4,16 +4,16 @@ let finite = Float.is_finite
 
 let run ?cancel ?(grain = 16_384) ?primitives geometry =
   try
-  if grain <= 0 then invalid_arg "Pdk.Ops.triangulate: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_mesh.Triangulate.triangulate: grain must be positive";
   Cancel.check_opt cancel;
   let topology = Geometry.topology geometry in
   let primitive_count = Topology.primitive_count topology in
   (match primitives with
    | Some group when Group.owner group <> Group.Primitive ->
-       invalid_arg "Pdk.Ops.triangulate: selection must own primitives"
+       invalid_arg "Pdk_mesh.Triangulate.triangulate: selection must own primitives"
    | Some group when Group.length group <> primitive_count ->
        invalid_arg
-         "Pdk.Ops.triangulate: selection length does not match primitive count"
+         "Pdk_mesh.Triangulate.triangulate: selection length does not match primitive count"
    | None | Some _ -> ());
   let positions = Packed.Float3.Private.view (Geometry.positions geometry) in
   let topology_view = Topology.Private.view topology in
@@ -104,7 +104,7 @@ let run ?cancel ?(grain = 16_384) ?primitives geometry =
       end);
   let curve = Atomic.get first_selected_curve in
   if curve <> max_int then Error (Printf.sprintf
-      "Pdk.Ops.triangulate: primitive %d is a curve, not a polygon" curve)
+      "Pdk_mesh.Triangulate.triangulate: primitive %d is a curve, not a polygon" curve)
   else if not (Atomic.get changes) then Ok geometry
   else begin
     let cardinality_error = ref None in
@@ -119,7 +119,7 @@ let run ?cancel ?(grain = 16_384) ?primitives geometry =
          || (full_selection && primitive_bases.(primitive)
              > (Sys.max_array_length / 3) - next_primitives) then
         cardinality_error := Some
-          "Pdk.Ops.triangulate: output cardinality exceeds array limits"
+          "Pdk_mesh.Triangulate.triangulate: output cardinality exceeds array limits"
       else begin
         primitive_bases.(primitive + 1) <-
           primitive_bases.(primitive) + next_primitives;
@@ -132,7 +132,7 @@ let run ?cancel ?(grain = 16_384) ?primitives geometry =
         primitive_bases.(primitive_count) * 3
       else vertex_bases.(primitive_count) in
     if output_primitives >= Sys.max_array_length then cardinality_error := Some
-        "Pdk.Ops.triangulate: output cardinality exceeds array limits";
+        "Pdk_mesh.Triangulate.triangulate: output cardinality exceeds array limits";
     match !cardinality_error with
     | Some message -> Error message
     | None ->
@@ -204,9 +204,9 @@ let run ?cancel ?(grain = 16_384) ?primitives geometry =
         (match Polygon_triangulation.primitive ?cancel ~positions
             ~topology:topology_view ~scratch failure
             ~emit:(fun _ _ _ _ -> ()) with
-         | Error message -> Error ("Pdk.Ops.triangulate: " ^ message)
+         | Error message -> Error ("Pdk_mesh.Triangulate.triangulate: " ^ message)
          | Ok () -> Error (Printf.sprintf
-             "Pdk.Ops.triangulate: primitive %d failed triangulation" failure))
+             "Pdk_mesh.Triangulate.triangulate: primitive %d failed triangulation" failure))
       else begin
         let output_topology = Topology.Private.create_validated_owned
             ~point_count:(Geometry.point_count geometry)

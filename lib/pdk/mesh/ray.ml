@@ -73,7 +73,7 @@ let direction_planes ?cancel ~grain source = function
   | Ray_attribute name ->
       if String.trim name = "" then
         fail "invalid_direction" "ray direction attribute name must not be empty";
-      let values = match Deform.point_vector_attribute "Pdk.Ops.ray" name source with
+      let values = match Deform.point_vector_attribute "Pdk.Ray.ray" name source with
         | Ok values -> values | Error message -> fail "invalid_direction" message in
       let packed = Packed.Float3.Private.of_shared_exn
           ~x:values.x ~y:values.y ~z:values.z in

@@ -68,7 +68,7 @@ let torus_frame orientation rotation_order (rotation : Vec3.t) =
     | Torus_y -> Ok (Vec3.unit_x, Vec3.unit_y, Vec3.unit_z)
     | Torus_z -> Ok (Vec3.unit_x, Vec3.unit_z, Vec3.create 0. (-1.) 0.)
     | Torus_axis axis ->
-        Result.bind (normalize_plane_axis "Pdk.Ops.torus" "hole" axis)
+        Result.bind (normalize_plane_axis "Pdk.Parametric_generators.torus" "hole" axis)
           (fun pole ->
             let ax = abs_float pole.x and ay = abs_float pole.y
             and az = abs_float pole.z in
@@ -79,10 +79,10 @@ let torus_frame orientation rotation_order (rotation : Vec3.t) =
                 (reference.x -. (projection *. pole.x))
                 (reference.y -. (projection *. pole.y))
                 (reference.z -. (projection *. pole.z)) in
-            Result.bind (normalize_plane_axis "Pdk.Ops.torus" "radial" radial)
+            Result.bind (normalize_plane_axis "Pdk.Parametric_generators.torus" "radial" radial)
               (fun radial ->
                 Result.map (fun tangent -> radial, pole, tangent)
-                  (normalize_plane_axis "Pdk.Ops.torus" "tangent"
+                  (normalize_plane_axis "Pdk.Parametric_generators.torus" "tangent"
                      (Vec3.cross radial pole)))) in
   Result.map (fun (radial, pole, tangent) ->
     if rotation.x = 0. && rotation.y = 0. && rotation.z = 0. then
@@ -111,44 +111,44 @@ let torus ?cancel ?(grain = 16_384) ?(connectivity = Torus_triangles)
   let u_span = u_end -. u_start and v_span = v_end -. v_start in
   let minimum_u = if u_wrap then 3 else 2
   and minimum_v = if v_wrap then 3 else 2 in
-  if grain <= 0 then Error "Pdk.Ops.torus: grain must be positive"
+  if grain <= 0 then Error "Pdk.Parametric_generators.torus: grain must be positive"
   else if rows < minimum_u then Error (Printf.sprintf
-      "Pdk.Ops.torus: rows must be at least %d for the selected U wrap" minimum_u)
+      "Pdk.Parametric_generators.torus: rows must be at least %d for the selected U wrap" minimum_u)
   else if columns < minimum_v then Error (Printf.sprintf
-      "Pdk.Ops.torus: columns must be at least %d for the selected V wrap" minimum_v)
+      "Pdk.Parametric_generators.torus: columns must be at least %d for the selected V wrap" minimum_v)
   else if not (finite major_radius && major_radius > 0.
       && finite minor_radius && minor_radius > 0.
       && finite uniform_scale && uniform_scale > 0.
       && finite major_radius_scaled && major_radius_scaled > 0.
       && finite minor_radius_scaled && minor_radius_scaled > 0.) then
-    Error "Pdk.Ops.torus: radii and uniform scale must be finite and positive"
+    Error "Pdk.Parametric_generators.torus: radii and uniform scale must be finite and positive"
   else if not (finite u_start && finite u_end && finite v_start && finite v_end
       && finite u_span && finite v_span && u_span <> 0. && v_span <> 0.) then
-    Error "Pdk.Ops.torus: angle endpoints must define finite non-zero spans"
+    Error "Pdk.Parametric_generators.torus: angle endpoints must define finite non-zero spans"
   else if not (finite center.x && finite center.y && finite center.z
       && finite rotation.x && finite rotation.y && finite rotation.z) then
-    Error "Pdk.Ops.torus: center and rotation must be finite"
+    Error "Pdk.Parametric_generators.torus: center and rotation must be finite"
   else if (match uv_attribute with
       | Some name -> String.trim name = "" || String.equal name "P"
           || String.equal name "N"
       | None -> false) then
-    Error "Pdk.Ops.torus: UV attribute name must be non-empty and cannot be P or N"
+    Error "Pdk.Parametric_generators.torus: UV attribute name must be non-empty and cannot be P or N"
   else if point_mode && normal_mode = Torus_vertex_normals then
-    Error "Pdk.Ops.torus: point output cannot carry vertex normals"
+    Error "Pdk.Parametric_generators.torus: point output cannot carry vertex normals"
   else if (u_end_caps || v_end_cap) && not polygon_mode then
-    Error "Pdk.Ops.torus: end caps require triangle or quad connectivity"
+    Error "Pdk.Parametric_generators.torus: end caps require triangle or quad connectivity"
   else if u_end_caps && u_wrap then
-    Error "Pdk.Ops.torus: U end caps require an open U sweep"
+    Error "Pdk.Parametric_generators.torus: U end caps require an open U sweep"
   else if v_end_cap && v_wrap then
-    Error "Pdk.Ops.torus: a V end cap requires an open V sweep"
+    Error "Pdk.Parametric_generators.torus: a V end cap requires an open V sweep"
   else if u_end_caps && columns < 3 then
-    Error "Pdk.Ops.torus: U end caps require at least three columns"
+    Error "Pdk.Parametric_generators.torus: U end caps require at least three columns"
   else
     let v_chord_x = cos v_end -. cos v_start
     and v_chord_y = sin v_end -. sin v_start in
     let v_chord_scale = Float.max (abs_float v_chord_x) (abs_float v_chord_y) in
     if v_end_cap && v_chord_scale <= 64. *. Float.epsilon then
-      Error "Pdk.Ops.torus: V end cap endpoints are geometrically coincident"
+      Error "Pdk.Parametric_generators.torus: V end cap endpoints are geometrically coincident"
     else Result.bind (torus_frame orientation rotation_order rotation)
       (fun (radial_axis, pole_axis, tangent_axis) ->
       let point_limit = Sys.max_array_length
@@ -201,7 +201,7 @@ let torus ?cancel ?(grain = 16_384) ?(connectivity = Torus_triangles)
                        (checked_add fixed_vertices u_cap_vertices point_limit)))))))) in
       match point_count, topology_cardinality with
       | None, _ | _, None ->
-          Error "Pdk.Ops.torus: output cardinality exceeds OCaml array limits"
+          Error "Pdk.Parametric_generators.torus: output cardinality exceeds OCaml array limits"
       | Some point_count,
         Some (vertex_count, primitive_count, surface_cells,
           fixed_primitive_count, fixed_vertex_count) ->
@@ -304,7 +304,7 @@ let torus ?cancel ?(grain = 16_384) ?(connectivity = Torus_triangles)
               if point < 0 then first else if first < 0 || point < first
               then point else first) (-1) errors in
           if invalid >= 0 then Error (Printf.sprintf
-              "Pdk.Ops.torus: generated point %d is not finite" invalid)
+              "Pdk.Parametric_generators.torus: generated point %d is not finite" invalid)
           else
             let vertex_normals = match normal_mode with
               | Torus_vertex_normals -> Some (Array.make vertex_count 0.,
@@ -592,7 +592,7 @@ let tube_frame orientation rotation_order (rotation : Vec3.t) =
     | Tube_y -> Ok (Vec3.unit_x, Vec3.unit_y, Vec3.unit_z)
     | Tube_z -> Ok (Vec3.unit_x, Vec3.unit_z, Vec3.create 0. (-1.) 0.)
     | Tube_axis axis ->
-        Result.bind (normalize_plane_axis "Pdk.Ops.tube" "primary" axis)
+        Result.bind (normalize_plane_axis "Pdk.Parametric_generators.tube" "primary" axis)
           (fun pole ->
             let ax = abs_float pole.x and ay = abs_float pole.y
             and az = abs_float pole.z in
@@ -603,10 +603,10 @@ let tube_frame orientation rotation_order (rotation : Vec3.t) =
                 (reference.x -. (projection *. pole.x))
                 (reference.y -. (projection *. pole.y))
                 (reference.z -. (projection *. pole.z)) in
-            Result.bind (normalize_plane_axis "Pdk.Ops.tube" "radial" radial)
+            Result.bind (normalize_plane_axis "Pdk.Parametric_generators.tube" "radial" radial)
               (fun radial ->
                 Result.map (fun tangent -> radial, pole, tangent)
-                  (normalize_plane_axis "Pdk.Ops.tube" "tangent"
+                  (normalize_plane_axis "Pdk.Parametric_generators.tube" "tangent"
                      (Vec3.cross radial pole)))) in
   Result.map (fun (radial, pole, tangent) ->
     if rotation.x = 0. && rotation.y = 0. && rotation.z = 0. then
@@ -629,34 +629,34 @@ let tube ?cancel ?(grain = 16_384) ?(connectivity = Tube_quads)
   let normal_mode = Option.value ~default:Tube_point_normals normals in
   let top_radius_scaled = top_radius *. radius_scale
   and bottom_radius_scaled = bottom_radius *. radius_scale in
-  if grain <= 0 then Error "Pdk.Ops.tube: grain must be positive"
-  else if rows < 2 then Error "Pdk.Ops.tube: rows must be at least two"
-  else if columns < 3 then Error "Pdk.Ops.tube: columns must be at least three"
+  if grain <= 0 then Error "Pdk.Parametric_generators.tube: grain must be positive"
+  else if rows < 2 then Error "Pdk.Parametric_generators.tube: rows must be at least two"
+  else if columns < 3 then Error "Pdk.Parametric_generators.tube: columns must be at least three"
   else if not (finite top_radius && top_radius >= 0.
       && finite bottom_radius && bottom_radius >= 0.
       && finite radius_scale && radius_scale > 0.
       && finite top_radius_scaled && top_radius_scaled >= 0.
       && finite bottom_radius_scaled && bottom_radius_scaled >= 0.
       && (top_radius_scaled > 0. || bottom_radius_scaled > 0.)) then
-    Error "Pdk.Ops.tube: radii must be finite/non-negative, at least one positive, and radius scale positive"
+    Error "Pdk.Parametric_generators.tube: radii must be finite/non-negative, at least one positive, and radius scale positive"
   else if not (finite height && height > 0.) then
-    Error "Pdk.Ops.tube: height must be finite and positive"
+    Error "Pdk.Parametric_generators.tube: height must be finite and positive"
   else if not (finite center.x && finite center.y && finite center.z
       && finite rotation.x && finite rotation.y && finite rotation.z) then
-    Error "Pdk.Ops.tube: center and rotation must be finite"
+    Error "Pdk.Parametric_generators.tube: center and rotation must be finite"
   else if (match uv_attribute with
       | Some name -> String.trim name = "" || String.equal name "P"
           || String.equal name "N"
       | None -> false) then
-    Error "Pdk.Ops.tube: UV attribute name must be non-empty and cannot be P or N"
+    Error "Pdk.Parametric_generators.tube: UV attribute name must be non-empty and cannot be P or N"
   else if (match cap_group with Some name -> String.trim name = "" | None -> false)
-  then Error "Pdk.Ops.tube: cap group name must be non-empty"
+  then Error "Pdk.Parametric_generators.tube: cap group name must be non-empty"
   else if point_mode && normal_mode = Tube_vertex_normals then
-    Error "Pdk.Ops.tube: point output cannot carry vertex normals"
+    Error "Pdk.Parametric_generators.tube: point output cannot carry vertex normals"
   else if end_caps && not polygon_mode then
-    Error "Pdk.Ops.tube: end caps require triangle or quad connectivity"
+    Error "Pdk.Parametric_generators.tube: end caps require triangle or quad connectivity"
   else if Option.is_some cap_group && not end_caps then
-    Error "Pdk.Ops.tube: cap group requires end caps"
+    Error "Pdk.Parametric_generators.tube: cap group requires end caps"
   else Result.bind (tube_frame orientation rotation_order rotation)
       (fun (radial_axis, pole_axis, tangent_axis) ->
       let point_limit = Sys.max_array_length
@@ -738,7 +738,7 @@ let tube ?cancel ?(grain = 16_384) ?(connectivity = Tube_quads)
                        | _ -> None))) in
       match ring_points, point_count, topology_cardinality with
       | None, _, _ | _, None, _ | _, _, None ->
-          Error "Pdk.Ops.tube: output cardinality exceeds OCaml array limits"
+          Error "Pdk.Parametric_generators.tube: output cardinality exceeds OCaml array limits"
       | Some side_point_count, Some point_count,
         Some (vertex_count, primitive_count, side_vertex_count,
           side_primitive_count) ->
@@ -871,7 +871,7 @@ let tube ?cancel ?(grain = 16_384) ?(connectivity = Tube_quads)
               if point < 0 then first else if first < 0 || point < first
               then point else first) (-1) errors in
           if invalid >= 0 then Error (Printf.sprintf
-              "Pdk.Ops.tube: generated point %d is not finite" invalid)
+              "Pdk.Parametric_generators.tube: generated point %d is not finite" invalid)
           else begin
             let copy_cap_points source base sign =
               if base >= 0 then begin
@@ -1296,13 +1296,13 @@ let platonic ?cancel ?(kind = Platonic_tetrahedron)
     ?(rotation_order = Platonic_xyz) ?face_groups ~radius () =
   Cancel.check_opt cancel;
   if not (finite radius && radius > 0.) then
-    Error "Pdk.Ops.platonic: radius must be finite and positive"
+    Error "Pdk.Parametric_generators.platonic: radius must be finite and positive"
   else if not (finite center.x && finite center.y && finite center.z
       && finite rotation.x && finite rotation.y && finite rotation.z) then
-    Error "Pdk.Ops.platonic: center and rotation must be finite"
+    Error "Pdk.Parametric_generators.platonic: center and rotation must be finite"
   else if (match face_groups with
       | Some name -> String.trim name = "" | None -> false) then
-    Error "Pdk.Ops.platonic: face group prefix must be non-empty"
+    Error "Pdk.Parametric_generators.platonic: face group prefix must be non-empty"
   else
     let tube_orientation = match orientation with
       | Platonic_x -> Tube_x | Platonic_y -> Tube_y | Platonic_z -> Tube_z
@@ -1362,7 +1362,7 @@ let platonic ?cancel ?(kind = Platonic_tetrahedron)
         end else if !invalid < 0 then invalid := point
       done;
       if !invalid >= 0 then Error (Printf.sprintf
-          "Pdk.Ops.platonic: generated point %d is not finite" !invalid)
+          "Pdk.Parametric_generators.platonic: generated point %d is not finite" !invalid)
       else begin
         let topology = Topology.Private.create_validated_owned ~point_count
             ~vertex_points:(Array.copy data.platonic_vertex_points)

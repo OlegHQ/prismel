@@ -71,7 +71,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?segments
     ?maximum_segment_length ?segment_length_attribute ?segments_attribute
     ?(even_last_segment = true) ?curve_u_attribute ?curve_number_attribute
     ?distance_attribute ?tangent_attribute geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.resample_curves: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_curve.Resample_curves.resample_curves: grain must be positive";
   let invalid = ref None in
   (match segments with
    | Some value when value < 1 ->
@@ -158,7 +158,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?segments
         source_offsets.(primitive) + cumulative_count
   done;
   match !invalid with
-  | Some message -> Error ("Pdk.Ops.resample_curves: " ^ message)
+  | Some message -> Error ("Pdk_curve.Resample_curves.resample_curves: " ^ message)
   | None ->
       let cumulative = Array.make source_offsets.(primitive_count) 0.
       and totals = Array.make primitive_count 0.
@@ -207,7 +207,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?segments
       done;
       if !failed < primitive_count then
         Error (Printf.sprintf
-          "Pdk.Ops.resample_curves: primitive %d has zero or non-finite length"
+          "Pdk_curve.Resample_curves.resample_curves: primitive %d has zero or non-finite length"
           !failed)
       else begin
         let output_edges = Array.make primitive_count 0
@@ -278,7 +278,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?segments
               primitive_offsets.(primitive) + samples
         done;
         match !cardinality_error with
-        | Some message -> Error ("Pdk.Ops.resample_curves: " ^ message)
+        | Some message -> Error ("Pdk_curve.Resample_curves.resample_curves: " ^ message)
         | None ->
           let output_count = primitive_offsets.(primitive_count) in
           let px = Array.make output_count 0. and py = Array.make output_count 0.
@@ -398,7 +398,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?segments
             incr failed_chunk
           done;
           if !failed_chunk < chunk_count then Error
-              "Pdk.Ops.resample_curves: generated a non-finite sample"
+              "Pdk_curve.Resample_curves.resample_curves: generated a non-finite sample"
           else begin
             let distance_values = Option.map (fun _ -> Array.make output_count 0.)
                 distance_attribute
@@ -494,7 +494,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?segments
               incr failed_diagnostic
             done;
             if !failed_diagnostic < chunk_count then Error
-                "Pdk.Ops.resample_curves: generated a non-finite or undefined diagnostic"
+                "Pdk_curve.Resample_curves.resample_curves: generated a non-finite or undefined diagnostic"
             else
             let vertex_points = Parallel.init_array ~grain output_count Fun.id in
             Result.bind (Topology.create_owned ~point_count:output_count

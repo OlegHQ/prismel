@@ -10,7 +10,7 @@ type mode =
 
 exception Cardinality_error of string
 
-let error message = Error ("Pdk.Ops.point_generate: " ^ message)
+let error message = Error ("Pdk.Point_generate.point_generate: " ^ message)
 
 let nonempty label name =
   if String.trim name = "" then error (label ^ " must not be empty") else Ok ()
@@ -18,7 +18,7 @@ let nonempty label name =
 let compile_optional_pattern label source =
   if String.trim source = "" then Ok None
   else Result.map Option.some (Attribute_pattern.compile source)
-    |> Result.map_error (fun message -> "Pdk.Ops.point_generate: " ^ label
+    |> Result.map_error (fun message -> "Pdk.Point_generate.point_generate: " ^ label
         ^ ": " ^ message)
 
 let point_float name geometry =
@@ -279,7 +279,7 @@ let run ?cancel ?(grain = 16_384) ?points ?count_ids ?(keep_input = false)
     ?(source_index_attribute = "sourceindex")
     ?(copy_point_attributes = "*") ?(copy_detail_attributes = "")
     ~mode geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.point_generate: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk.Point_generate.point_generate: grain must be positive";
   let point_count = Geometry.point_count geometry in
   let selection = match points with
     | None -> Ok None

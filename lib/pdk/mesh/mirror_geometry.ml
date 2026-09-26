@@ -5,17 +5,17 @@ let get_ok = function Ok value -> value | Error message -> invalid_arg message
 
 let run ?cancel ?(grain = 16_384) ?(keep_original = true) ~origin ~normal
     geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.mirror: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_mesh.Mirror_geometry.mirror: grain must be positive";
   let ox = origin.Vec3.x and oy = origin.y and oz = origin.z
   and supplied_nx = normal.Vec3.x and supplied_ny = normal.y
   and supplied_nz = normal.z in
   if not (finite ox && finite oy && finite oz && finite supplied_nx
           && finite supplied_ny && finite supplied_nz) then
-    Error "Pdk.Ops.mirror: plane origin and normal must be finite"
+    Error "Pdk_mesh.Mirror_geometry.mirror: plane origin and normal must be finite"
   else
     let length = sqrt ((supplied_nx *. supplied_nx)
         +. (supplied_ny *. supplied_ny) +. (supplied_nz *. supplied_nz)) in
-    if length <= 1e-20 then Error "Pdk.Ops.mirror: plane normal must be non-zero"
+    if length <= 1e-20 then Error "Pdk_mesh.Mirror_geometry.mirror: plane normal must be non-zero"
     else
       let nx = supplied_nx /. length and ny = supplied_ny /. length
       and nz = supplied_nz /. length in
@@ -25,7 +25,7 @@ let run ?cancel ?(grain = 16_384) ?(keep_original = true) ~origin ~normal
       let copies = if keep_original then 2 else 1 in
       if source_points > max_int / copies || source_vertices > max_int / copies
          || source_primitives > max_int / copies then
-        Error "Pdk.Ops.mirror: output cardinality exceeds OCaml array limits"
+        Error "Pdk_mesh.Mirror_geometry.mirror: output cardinality exceeds OCaml array limits"
       else
         let output_points = source_points * copies
         and output_vertices = source_vertices * copies

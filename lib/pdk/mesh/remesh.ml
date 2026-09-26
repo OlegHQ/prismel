@@ -16,7 +16,7 @@ type projection_scratch = {
   distances_squared : float array;
 }
 
-let operation = "Pdk.Ops.remesh"
+let operation = "Pdk_mesh.Remesh.remesh"
 let fail message = Error (operation ^ ": " ^ message)
 let finite = Float.is_finite
 

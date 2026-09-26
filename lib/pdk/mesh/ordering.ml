@@ -333,7 +333,7 @@ let randomize_in_place ?cancel seed values =
 let sort ?cancel ?(grain = 16_384) ?selection ?(descending = false)
     ?output_indices ?(combine_indices = false) ~owner ~key geometry =
   try
-    if grain <= 0 then invalid_arg "Pdk.Ops.sort: grain must be positive";
+    if grain <= 0 then invalid_arg "Pdk.Ordering.sort: grain must be positive";
     Cancel.check_opt cancel;
     let count = count geometry owner in
     (match selection with

@@ -10,7 +10,7 @@ let point_float geometry name =
   | Some attribute ->
       (match Attribute.Private.storage attribute with
        | Attribute.Float values -> Ok (Some values)
-       | _ -> Error (Printf.sprintf "Pdk.Ops.copy_to_points: %s must be point float" name))
+       | _ -> Error (Printf.sprintf "Pdk.Instance_copy.copy_to_points: %s must be point float" name))
 
 let point_float3 geometry name =
   match Geometry.find_attribute ~owner:Attribute.Point name geometry with
@@ -18,7 +18,7 @@ let point_float3 geometry name =
   | Some attribute ->
       (match Attribute.Private.storage attribute with
        | Attribute.Float3 values -> Ok (Some values)
-       | _ -> Error (Printf.sprintf "Pdk.Ops.copy_to_points: %s must be point float3" name))
+       | _ -> Error (Printf.sprintf "Pdk.Instance_copy.copy_to_points: %s must be point float3" name))
 
 let point_float4 geometry name =
   match Geometry.find_attribute ~owner:Attribute.Point name geometry with
@@ -26,7 +26,7 @@ let point_float4 geometry name =
   | Some attribute ->
       (match Attribute.Private.storage attribute with
        | Attribute.Float4 values -> Ok (Some values)
-       | _ -> Error (Printf.sprintf "Pdk.Ops.copy_to_points: %s must be point float4" name))
+       | _ -> Error (Printf.sprintf "Pdk.Instance_copy.copy_to_points: %s must be point float4" name))
 
 let point_affine_transform geometry name =
   match Geometry.find_attribute ~owner:Attribute.Point name geometry with
@@ -39,7 +39,7 @@ let point_affine_transform geometry name =
            let width = if rows = 0 then 16
              else view.offsets.(1) - view.offsets.(0) in
            if width <> 9 && width <> 16 then Error (Printf.sprintf
-             "Pdk.Ops.copy_to_points: %s rows must contain 9 or 16 floats" name)
+             "Pdk.Instance_copy.copy_to_points: %s rows must contain 9 or 16 floats" name)
            else begin
              let valid = ref true in
              for row = 0 to rows - 1 do
@@ -56,11 +56,11 @@ let point_affine_transform geometry name =
              done;
              if !valid then Ok (Some (view, width))
              else Error (Printf.sprintf
-               "Pdk.Ops.copy_to_points: %s must contain finite, fixed-width affine matrices"
+               "Pdk.Instance_copy.copy_to_points: %s must contain finite, fixed-width affine matrices"
                name)
            end
        | _ -> Error (Printf.sprintf
-           "Pdk.Ops.copy_to_points: %s must be a point float-array matrix" name))
+           "Pdk.Instance_copy.copy_to_points: %s must be a point float-array matrix" name))
 
 let checked_product operation left right =
   if left <> 0 && right > max_int / left then
@@ -119,7 +119,7 @@ let copy_target_attribute ?cancel ~grain ~copies ~per_copy rule target_attribute
     | Copy_target_subtract -> source - target
     | Copy_target_multiply -> source * target in
   let incompatible expected = Error (Printf.sprintf
-    "Pdk.Ops.copy_to_points: target attribute %S requires matching %s storage for arithmetic"
+    "Pdk.Instance_copy.copy_to_points: target attribute %S requires matching %s storage for arithmetic"
     name expected) in
   let fixed_float target destination =
     let output = Array.make output_count 0. in
@@ -330,7 +330,7 @@ let copy_target_attribute ?cancel ~grain ~copies ~per_copy rule target_attribute
     Result.bind (Attribute.create_owned ~name ~owner storage) (fun attribute ->
       Geometry.with_attribute attribute geometry))
   with Invalid_argument message ->
-    Error ("Pdk.Ops.copy_to_points: " ^ message)
+    Error ("Pdk.Instance_copy.copy_to_points: " ^ message)
 
 let compile_copy_target_rules rules =
   let rec compile result = function
@@ -551,7 +551,7 @@ let transform_single_instance ?cancel ~grain matrix geometry =
 let materialize_instances ?cancel ?(grain = 16_384) ?(apply_transform = true)
     ~transforms geometry =
   if grain <= 0 then
-    invalid_arg "Pdk.Ops.materialize_instances: grain must be positive";
+    invalid_arg "Pdk.Instance_copy.materialize_instances: grain must be positive";
   Cancel.check_opt cancel;
   let matrices = Array.copy transforms in
   let invalid_transform = ref (-1) in
@@ -564,7 +564,7 @@ let materialize_instances ?cancel ?(grain = 16_384) ?(apply_transform = true)
   let total = Array.length matrices in
   if !invalid_transform >= 0 then
     Error (Printf.sprintf
-      "Pdk.Ops.materialize_instances: transform %d must be finite"
+      "Pdk.Instance_copy.materialize_instances: transform %d must be finite"
       !invalid_transform)
   else if total = 1 && (not apply_transform
       || Mat4.nearly_equal matrices.(0) Mat4.identity ~eps:0.) then
@@ -580,14 +580,14 @@ let materialize_instances ?cancel ?(grain = 16_384) ?(apply_transform = true)
     else
     let product label count =
       if count <> 0 && total > Sys.max_array_length / count then
-        Error ("Pdk.Ops.materialize_instances: " ^ label
+        Error ("Pdk.Instance_copy.materialize_instances: " ^ label
           ^ " output exceeds array limits")
       else Ok (total * count) in
     Result.bind (product "point" source_points) (fun output_points ->
     Result.bind (product "vertex" source_vertices) (fun output_vertices ->
     Result.bind (product "primitive" source_primitives) (fun output_primitives ->
     if output_primitives = Sys.max_array_length then
-      Error "Pdk.Ops.materialize_instances: primitive-offset output exceeds array limits"
+      Error "Pdk.Instance_copy.materialize_instances: primitive-offset output exceeds array limits"
     else begin
       let source_positions = Packed.Float3.Private.view (Geometry.positions geometry) in
       let x, y, z = if not apply_transform then
@@ -755,19 +755,19 @@ let materialize_instances ?cancel ?(grain = 16_384) ?(apply_transform = true)
 let duplicate ?cancel ?(grain = 16_384) ?(copies = 1) ?(cumulative = true)
     ?(transform = Mat4.identity) ?primitives ?copy_group_prefix
     ?(preserve_groups = false) geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.duplicate: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk.Instance_copy.duplicate: grain must be positive";
   let selection_error = match primitives with
     | Some group when Group.owner group <> Group.Primitive ->
-        Some "Pdk.Ops.duplicate: source selection must own primitives"
+        Some "Pdk.Instance_copy.duplicate: source selection must own primitives"
     | Some group when Group.length group <> Geometry.primitive_count geometry ->
-        Some "Pdk.Ops.duplicate: source selection length does not match primitive count"
+        Some "Pdk.Instance_copy.duplicate: source selection length does not match primitive count"
     | None | Some _ -> None in
   match selection_error with
   | Some message -> Error message
-  | None when copies < 0 -> Error "Pdk.Ops.duplicate: copy count must be non-negative"
+  | None when copies < 0 -> Error "Pdk.Instance_copy.duplicate: copy count must be non-negative"
   | None when copies = 0 -> Ok geometry
   | None when copies >= Sys.max_array_length ->
-    Error "Pdk.Ops.duplicate: copy count is too large"
+    Error "Pdk.Instance_copy.duplicate: copy count is too large"
   | None -> begin
     let full_matrices () =
       let matrices = Array.make (copies + 1) Mat4.identity in
@@ -790,7 +790,7 @@ let duplicate ?cancel ?(grain = 16_384) ?(copies = 1) ?(cumulative = true)
           if primitives_per_copy <> 0
               && copies > (Sys.max_array_length
                 - Geometry.primitive_count geometry) / primitives_per_copy
-          then Error "Pdk.Ops.duplicate: primitive output exceeds array limits"
+          then Error "Pdk.Instance_copy.duplicate: primitive output exceeds array limits"
           else Duplicate.validate_copy_groups ~prefix ~copies
               ~primitive_count:(Geometry.primitive_count geometry
                 + (copies * primitives_per_copy)) in
@@ -816,15 +816,15 @@ let duplicate ?cancel ?(grain = 16_384) ?(copies = 1) ?(cumulative = true)
 
 let copy_to_points_all ?cancel ?(grain = 16_384) ~target_attributes
     ~source ~targets () =
-  if grain <= 0 then invalid_arg "Pdk.Ops.copy_to_points: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk.Instance_copy.copy_to_points: grain must be positive";
   let copies = Geometry.point_count targets and source_points = Geometry.point_count source
   and source_vertices = Geometry.vertex_count source
   and source_primitives = Geometry.primitive_count source in
-  Result.bind (checked_product "Pdk.Ops.copy_to_points" copies source_points)
+  Result.bind (checked_product "Pdk.Instance_copy.copy_to_points" copies source_points)
     (fun output_points ->
-  Result.bind (checked_product "Pdk.Ops.copy_to_points" copies source_vertices)
+  Result.bind (checked_product "Pdk.Instance_copy.copy_to_points" copies source_vertices)
     (fun output_vertices ->
-  Result.bind (checked_product "Pdk.Ops.copy_to_points" copies source_primitives)
+  Result.bind (checked_product "Pdk.Instance_copy.copy_to_points" copies source_primitives)
     (fun output_primitives ->
   Result.bind (point_float targets "pscale") (fun pscale ->
   Result.bind (point_float3 targets "scale") (fun scale ->
@@ -858,7 +858,7 @@ let copy_to_points_all ?cancel ?(grain = 16_384) ~target_attributes
     if Array.exists (fun value -> not (finite value)) sx
        || Array.exists (fun value -> not (finite value)) sy
        || Array.exists (fun value -> not (finite value)) sz
-    then Error "Pdk.Ops.copy_to_points: target scales must be finite"
+    then Error "Pdk.Instance_copy.copy_to_points: target scales must be finite"
     else
       let r00 = Array.make copies 1. and r01 = Array.make copies 0.
       and r02 = Array.make copies 0. and r10 = Array.make copies 0.
@@ -1009,7 +1009,7 @@ let copy_to_points_all ?cancel ?(grain = 16_384) ~target_attributes
               rotations.z.(index) rotations.w.(index)
           done) target_rotation;
       if not !orientation_is_finite then
-        Error "Pdk.Ops.copy_to_points: target orientations must be finite"
+        Error "Pdk.Instance_copy.copy_to_points: target orientations must be finite"
       else
       let owns_translation = Option.is_some target_translation
           || Option.is_some target_pivot || Option.is_some target_transform in
@@ -1056,7 +1056,7 @@ let copy_to_points_all ?cancel ?(grain = 16_384) ~target_attributes
       if Array.exists (fun value -> not (finite value)) tx
           || Array.exists (fun value -> not (finite value)) ty
           || Array.exists (fun value -> not (finite value)) tz then
-        Error "Pdk.Ops.copy_to_points: target translations must be finite"
+        Error "Pdk.Instance_copy.copy_to_points: target translations must be finite"
       else
       let px = Array.make output_points 0. and py = Array.make output_points 0.
       and pz = Array.make output_points 0. in
@@ -1233,7 +1233,7 @@ let copy_piece_values attribute = match Attribute.Private.storage attribute with
   | Attribute.Int values -> Ok (Copy_piece_int values)
   | Attribute.Text values -> Ok (Copy_piece_text values)
   | _ -> Error (Printf.sprintf
-      "Pdk.Ops.copy_to_points: piece attribute %S must use int or text storage"
+      "Pdk.Instance_copy.copy_to_points: piece attribute %S must use int or text storage"
       (Attribute.name attribute))
 
 let plan_copy_pieces ?cancel ~name source targets =
@@ -1241,7 +1241,7 @@ let plan_copy_pieces ?cancel ~name source targets =
       targets in
   match target_attribute with
   | None -> Error (Printf.sprintf
-      "Pdk.Ops.copy_to_points: target point piece attribute %S does not exist"
+      "Pdk.Instance_copy.copy_to_points: target point piece attribute %S does not exist"
       name)
   | Some target_attribute ->
       Result.bind (copy_piece_values target_attribute) (fun target_values ->
@@ -1254,7 +1254,7 @@ let plan_copy_pieces ?cancel ~name source targets =
         | None, None -> None in
       match source_attribute, target_values with
       | None, Copy_piece_text _ -> Error (Printf.sprintf
-          "Pdk.Ops.copy_to_points: text target piece attribute %S requires a matching source point or primitive attribute"
+          "Pdk.Instance_copy.copy_to_points: text target piece attribute %S requires a matching source point or primitive attribute"
           name)
       | None, Copy_piece_int target_values ->
           let piece_count = Geometry.primitive_count source in
@@ -1271,7 +1271,7 @@ let plan_copy_pieces ?cancel ~name source targets =
             | Copy_piece_text _, Copy_piece_text _ -> true
             | _ -> false in
           if not type_matches then Error (Printf.sprintf
-            "Pdk.Ops.copy_to_points: source and target piece attribute %S storage must match"
+            "Pdk.Instance_copy.copy_to_points: source and target piece attribute %S storage must match"
             name)
           else
             let next_piece = ref 0 in
@@ -1365,10 +1365,10 @@ let empty_copy_targets ?cancel ~grain targets =
 let checked_piece_cardinality label target_counts source_pieces owner_count =
   let rec loop piece total =
     if piece = Array.length target_counts then Ok ()
-    else Result.bind (checked_product "Pdk.Ops.copy_to_points"
+    else Result.bind (checked_product "Pdk.Instance_copy.copy_to_points"
         target_counts.(piece) (owner_count source_pieces.(piece))) (fun count ->
       if total > max_int - count then Error (Printf.sprintf
-        "Pdk.Ops.copy_to_points: output %s cardinality exceeds OCaml array limits"
+        "Pdk.Instance_copy.copy_to_points: output %s cardinality exceeds OCaml array limits"
         label)
       else loop (piece + 1) (total + count)) in
   loop 0 0
@@ -1487,25 +1487,25 @@ let copy_to_points_pieces ?cancel ~grain ~target_attributes ~piece_attribute
 
 let copy_to_points ?cancel ?(grain = 16_384) ?source_primitives ?target_points
     ?piece_attribute ?(target_attributes = []) ~source ~targets () =
-  if grain <= 0 then invalid_arg "Pdk.Ops.copy_to_points: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk.Instance_copy.copy_to_points: grain must be positive";
   Result.bind (compile_copy_target_rules target_attributes) (fun target_attributes ->
   let prepare_source = match source_primitives with
     | None -> Ok source
     | Some group when Group.owner group <> Group.Primitive ->
-        Error "Pdk.Ops.copy_to_points: source selection must own primitives"
+        Error "Pdk.Instance_copy.copy_to_points: source selection must own primitives"
     | Some group -> Deletion.delete ?cancel ~grain ~selected:false
         ~compact_points:true group source in
   Result.bind prepare_source (fun source ->
     let prepare_targets = match target_points with
       | None -> Ok targets
       | Some group when Group.owner group <> Group.Point ->
-          Error "Pdk.Ops.copy_to_points: target selection must own points"
+          Error "Pdk.Instance_copy.copy_to_points: target selection must own points"
       | Some group -> Deletion.delete ?cancel ~grain ~selected:false group targets in
     Result.bind prepare_targets (fun targets -> match piece_attribute with
       | None -> copy_to_points_all ?cancel ~grain ~target_attributes ~source
           ~targets ()
       | Some name when String.trim name = "" ->
-          Error "Pdk.Ops.copy_to_points: piece attribute name must not be empty"
+          Error "Pdk.Instance_copy.copy_to_points: piece attribute name must not be empty"
       | Some name -> copy_to_points_pieces ?cancel ~grain ~target_attributes
           ~piece_attribute:name ~source ~targets ())))
 

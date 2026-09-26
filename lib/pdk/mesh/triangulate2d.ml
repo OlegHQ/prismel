@@ -8,7 +8,7 @@ type projection =
   | Plane of { origin : Vec3.t; normal : Vec3.t }
   | Point_attribute of string
 
-let operation = "Pdk.Ops.triangulate_2d"
+let operation = "Pdk_mesh.Triangulate2d.triangulate_2d"
 
 let finite3 x y z = Float.is_finite x && Float.is_finite y && Float.is_finite z
 

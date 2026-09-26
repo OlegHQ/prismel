@@ -10,14 +10,14 @@ let finite = Float.is_finite
 let checked_length label value =
   if Int64.compare value 0L < 0
       || Int64.compare value (Int64.of_int Sys.max_array_length) > 0 then
-    Error ("Pdk.Ops.poly_bevel: " ^ label ^
+    Error ("Pdk_mesh.Poly_bevel.poly_bevel: " ^ label ^
       " cardinality exceeds OCaml array limits")
   else Ok (Int64.to_int value)
 
 let validate_name label = function
   | None -> Ok ()
   | Some name when String.trim name = "" ->
-      Error ("Pdk.Ops.poly_bevel: " ^ label ^ " group name must not be empty")
+      Error ("Pdk_mesh.Poly_bevel.poly_bevel: " ^ label ^ " group name must not be empty")
   | Some _ -> Ok ()
 
 let[@inline always] length3 x y z =
@@ -172,23 +172,23 @@ let run ?cancel ?(grain = 16_384) ?edges ?(shape = Bevel_chamfer)
     ?(divisions = 1) ?point_scale_attribute ?ignore_flat_angle
     ?(clamp_overlap = true) ?edge_group ?corner_group ?offset_group
     ?(recompute_point_normals = true) ~distance geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.poly_bevel: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_mesh.Poly_bevel.poly_bevel: grain must be positive";
   if not (finite distance) || distance < 0. then
-    Error "Pdk.Ops.poly_bevel: distance must be finite and non-negative"
+    Error "Pdk_mesh.Poly_bevel.poly_bevel: distance must be finite and non-negative"
   else if divisions <= 0 then
-    Error "Pdk.Ops.poly_bevel: divisions must be positive"
+    Error "Pdk_mesh.Poly_bevel.poly_bevel: divisions must be positive"
   else
   let* () = match shape with
     | Bevel_chamfer -> Ok ()
     | Bevel_round { convexity }
       when finite convexity && convexity >= -1. && convexity <= 1. -> Ok ()
     | Bevel_round _ ->
-        Error "Pdk.Ops.poly_bevel: round convexity must be finite and within [-1, 1]" in
+        Error "Pdk_mesh.Poly_bevel.poly_bevel: round convexity must be finite and within [-1, 1]" in
   let* () = match ignore_flat_angle with
     | None -> Ok ()
     | Some value when finite value && value >= 0. && value <= Float.pi -> Ok ()
     | Some _ ->
-        Error "Pdk.Ops.poly_bevel: flatness angle must be finite and within [0, pi]" in
+        Error "Pdk_mesh.Poly_bevel.poly_bevel: flatness angle must be finite and within [0, pi]" in
   let* () = validate_name "edge fillet" edge_group in
   let* () = validate_name "corner fillet" corner_group in
   let* () = validate_name "offset edge" offset_group in
@@ -203,23 +203,23 @@ let run ?cancel ?(grain = 16_384) ?edges ?(shape = Bevel_chamfer)
   let* () = match edges with
     | None -> Ok ()
     | Some group when Edge_group.topology_data_id group <> Topology.data_id topology ->
-        Error "Pdk.Ops.poly_bevel: edge selection belongs to a different topology"
+        Error "Pdk_mesh.Poly_bevel.poly_bevel: edge selection belongs to a different topology"
     | Some group when Edge_group.length group <> edge_count ->
-        Error "Pdk.Ops.poly_bevel: edge selection length does not match topology edge count"
+        Error "Pdk_mesh.Poly_bevel.poly_bevel: edge selection length does not match topology edge count"
     | Some _ -> Ok () in
   let point_scale = match point_scale_attribute with
     | None -> Ok None
     | Some name when String.trim name = "" ->
-        Error "Pdk.Ops.poly_bevel: point scale attribute name must not be empty"
+        Error "Pdk_mesh.Poly_bevel.poly_bevel: point scale attribute name must not be empty"
     | Some name ->
         (match Geometry.find_attribute ~owner:Attribute.Point name geometry with
          | None -> Error (Printf.sprintf
-             "Pdk.Ops.poly_bevel: point float scale attribute %S is missing" name)
+             "Pdk_mesh.Poly_bevel.poly_bevel: point float scale attribute %S is missing" name)
          | Some attribute ->
              (match Attribute.Private.storage attribute with
               | Attribute.Float values -> Ok (Some values)
               | _ -> Error (Printf.sprintf
-                  "Pdk.Ops.poly_bevel: point scale attribute %S must use float storage"
+                  "Pdk_mesh.Poly_bevel.poly_bevel: point scale attribute %S must use float storage"
                   name))) in
   let* point_scale = point_scale in
   let* () = match point_scale with
@@ -234,7 +234,7 @@ let run ?cancel ?(grain = 16_384) ?edges ?(shape = Bevel_chamfer)
           incr point
         done;
         if !invalid < 0 then Ok () else Error (Printf.sprintf
-          "Pdk.Ops.poly_bevel: point scale at point %d must produce a finite non-negative distance"
+          "Pdk_mesh.Poly_bevel.poly_bevel: point scale at point %d must produce a finite non-negative distance"
           !invalid) in
   let positions = Packed.Float3.Private.view (Geometry.positions geometry) in
   let requested edge = match edges with
@@ -454,7 +454,7 @@ let run ?cancel ?(grain = 16_384) ?edges ?(shape = Bevel_chamfer)
     done;
     component_offsets.(!component_count) <- !component_cursor;
     if !component_cursor <> !touched_count then
-      Error "Pdk.Ops.poly_bevel: selected edge network has inconsistent point fans"
+      Error "Pdk_mesh.Poly_bevel.poly_bevel: selected edge network has inconsistent point fans"
     else begin
       let component_joined = Bytes.make !component_count '\000' in
       for component = 0 to !component_count - 1 do
@@ -557,7 +557,7 @@ let run ?cancel ?(grain = 16_384) ?edges ?(shape = Bevel_chamfer)
               end
             end);
       if Atomic.get invalid_position >= 0 then Error (Printf.sprintf
-          "Pdk.Ops.poly_bevel: corner position for vertex %d is not finite"
+          "Pdk_mesh.Poly_bevel.poly_bevel: corner position for vertex %d is not finite"
           (Atomic.get invalid_position))
       else begin
         for vertex = 0 to vertex_count - 1 do

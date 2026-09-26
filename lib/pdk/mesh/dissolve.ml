@@ -5,7 +5,7 @@ type bridge_policy =
   | Delete_bridge_polygons
 
 exception Invalid of string
-let fail message = raise (Invalid ("Pdk.Ops.dissolve: " ^ message))
+let fail message = raise (Invalid ("Pdk.Dissolve.dissolve: " ^ message))
 let get_ok = function Ok value -> value | Error message -> fail message
 
 module Int_buffer = struct

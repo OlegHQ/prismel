@@ -112,21 +112,21 @@ module Edge_lookup = Topology_edge_lookup
 let validate_selection geometry = function
   | None -> Ok ()
   | Some group when Group.owner group <> Group.Primitive ->
-      Error "Pdk.Ops.poly_extrude: selection must own primitives"
+      Error "Pdk_mesh.Poly_extrude.poly_extrude: selection must own primitives"
   | Some group when Group.length group <> Geometry.primitive_count geometry ->
-      Error "Pdk.Ops.poly_extrude: selection length does not match primitive count"
+      Error "Pdk_mesh.Poly_extrude.poly_extrude: selection length does not match primitive count"
   | Some _ -> Ok ()
 
 let validate_name label = function
   | None -> Ok ()
   | Some name when String.trim name = "" ->
-      Error ("Pdk.Ops.poly_extrude: empty " ^ label ^ " group name")
+      Error ("Pdk_mesh.Poly_extrude.poly_extrude: empty " ^ label ^ " group name")
   | Some _ -> Ok ()
 
 let checked_array_length label value =
   if Int64.compare value 0L < 0
       || Int64.compare value (Int64.of_int Sys.max_array_length) > 0 then
-    Error ("Pdk.Ops.poly_extrude: " ^ label ^
+    Error ("Pdk_mesh.Poly_extrude.poly_extrude: " ^ label ^
       " cardinality exceeds OCaml array limits")
   else Ok (Int64.to_int value)
 
@@ -170,9 +170,9 @@ let rec merge_edge_group group = function
       Result.map (fun rest -> existing :: rest) (merge_edge_group group rest)
 
 let run_default ?cancel ?(grain = 1_024) ~distance geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.poly_extrude: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_mesh.Poly_extrude.poly_extrude: grain must be positive";
   if not (finite distance) then
-    Error "Pdk.Ops.poly_extrude: distance must be finite"
+    Error "Pdk_mesh.Poly_extrude.poly_extrude: distance must be finite"
   else
     let topology = Geometry.topology geometry
     and positions = Packed.Float3.Private.view (Geometry.positions geometry) in
@@ -186,10 +186,10 @@ let run_default ?cancel ?(grain = 1_024) ~distance geometry =
     done;
     match !curve with
     | Some primitive -> Error (Printf.sprintf
-        "Pdk.Ops.poly_extrude: primitive %d is a curve" primitive)
+        "Pdk_mesh.Poly_extrude.poly_extrude: primitive %d is a curve" primitive)
     | None when source_vertices > max_int / 6
              || source_primitives > (max_int - source_vertices) / 2 ->
-        Error "Pdk.Ops.poly_extrude: output cardinality exceeds OCaml array limits"
+        Error "Pdk_mesh.Poly_extrude.poly_extrude: output cardinality exceeds OCaml array limits"
     | None ->
         let output_points = source_vertices * 2
         and output_vertices = source_vertices * 6
@@ -221,7 +221,7 @@ let run_default ?cancel ?(grain = 1_024) ~distance geometry =
               let length = sqrt ((!nx *. !nx) +. (!ny *. !ny) +. (!nz *. !nz)) in
               if length <= 1e-20 || not (finite length) then
                 failures.(primitive) <- Some (Printf.sprintf
-                  "Pdk.Ops.poly_extrude: primitive %d is degenerate" primitive)
+                  "Pdk_mesh.Poly_extrude.poly_extrude: primitive %d is degenerate" primitive)
               else begin
                 let dx = distance *. !nx /. length and dy = distance *. !ny /. length
                 and dz = distance *. !nz /. length and output_vertex = first * 6
@@ -319,10 +319,10 @@ let run_general ?cancel ?(grain = 16_384) ?primitives ?split_edges
     ?(output_front = true) ?(output_back = true) ?(output_side = true)
     ?front_group ?back_group ?side_group ?front_boundary_group
     ?back_boundary_group ~distance geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.poly_extrude: grain must be positive";
-  if divisions <= 0 then Error "Pdk.Ops.poly_extrude: divisions must be positive"
+  if grain <= 0 then invalid_arg "Pdk_mesh.Poly_extrude.poly_extrude: grain must be positive";
+  if divisions <= 0 then Error "Pdk_mesh.Poly_extrude.poly_extrude: divisions must be positive"
   else if not (finite distance) then
-    Error "Pdk.Ops.poly_extrude: distance must be finite"
+    Error "Pdk_mesh.Poly_extrude.poly_extrude: distance must be finite"
   else
   let* () = validate_selection geometry primitives in
   let* () = validate_name "front" front_group in
@@ -333,10 +333,10 @@ let run_general ?cancel ?(grain = 16_384) ?primitives ?split_edges
   let topology = Geometry.topology geometry in
   let* () = match split_edges with
     | Some _ when divide = Extrude_individual ->
-        Error "Pdk.Ops.poly_extrude: split edges require connected-components mode"
+        Error "Pdk_mesh.Poly_extrude.poly_extrude: split edges require connected-components mode"
     | Some group when Edge_group.topology_data_id group
         <> Topology.data_id topology ->
-        Error "Pdk.Ops.poly_extrude: split edge group belongs to another topology"
+        Error "Pdk_mesh.Poly_extrude.poly_extrude: split edge group belongs to another topology"
     | None | Some _ -> Ok () in
   let topology_view = Topology.Private.view topology in
   let source_points = topology_view.point_count
@@ -348,7 +348,7 @@ let run_general ?cancel ?(grain = 16_384) ?primitives ?split_edges
   if selected_count = 0 then Ok geometry
   else
   let* face_nx, face_ny, face_nz = Face_normals.compute ?cancel ~grain
-      ?primitives ~operation:"Pdk.Ops.poly_extrude" geometry in
+      ?primitives ~operation:"Pdk_mesh.Poly_extrude.poly_extrude" geometry in
   let index = Topology_index.create ?cancel topology in
   let index_view = Topology_index.Private.view index in
   let primitive_component = Array.make source_primitives (-1) in
@@ -390,7 +390,7 @@ let run_general ?cancel ?(grain = 16_384) ?primitives ?split_edges
           end
         done;
         if !non_manifold >= 0 then Error (Printf.sprintf
-            "Pdk.Ops.poly_extrude: connected extrusion touches non-manifold edge %d"
+            "Pdk_mesh.Poly_extrude.poly_extrude: connected extrusion touches non-manifold edge %d"
             !non_manifold)
         else begin
           let root_component = Array.make source_primitives (-1)
@@ -508,7 +508,7 @@ let run_general ?cancel ?(grain = 16_384) ?primitives ?split_edges
             direction_z.(association) <- z *. inverse
           end);
     if Atomic.get invalid_direction then Error
-        "Pdk.Ops.poly_extrude: selected point normals cancel to zero"
+        "Pdk_mesh.Poly_extrude.poly_extrude: selected point normals cancel to zero"
     else Ok ()
   end in
   let base_index = Array.make source_primitives (-1)

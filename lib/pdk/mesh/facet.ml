@@ -126,7 +126,7 @@ let[@inline always] inline_corner ~tolerance positions topology previous next
       then 1 else 0
 
 let remove_inline_points ?cancel ?(grain = 16_384) ?primitives ~distance geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.facet: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_mesh.Facet.facet: grain must be positive";
   if not (Float.is_finite distance) || distance < 0. then
     Error "Facet inline distance must be finite and non-negative"
   else begin
@@ -310,7 +310,7 @@ let remove_inline_points ?cancel ?(grain = 16_384) ?primitives ~distance geometr
   end
 
 let unique_points_all ?cancel ?(grain = 16_384) geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.facet: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_mesh.Facet.facet: grain must be positive";
   let source_topology = Geometry.topology geometry in
   let topology = Topology.Private.view source_topology in
   let index = Topology_index.create ?cancel source_topology in
@@ -375,7 +375,7 @@ let unique_points_all ?cancel ?(grain = 16_384) geometry =
   end
 
 let unique_points_selected ?cancel ?(grain = 16_384) primitives geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.facet: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_mesh.Facet.facet: grain must be positive";
   let source_topology = Geometry.topology geometry in
   let topology = Topology.Private.view source_topology in
   let primitive_count = Topology.primitive_count source_topology in
@@ -505,7 +505,7 @@ let unique_points ?cancel ?grain ?primitives geometry = match primitives with
   | Some primitives -> unique_points_selected ?cancel ?grain primitives geometry
 
 let orient_polygons ?cancel ?(grain = 16_384) ?primitives geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.facet: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_mesh.Facet.facet: grain must be positive";
   let source_topology = Geometry.topology geometry in
   let topology = Topology.Private.view source_topology in
   let index = Topology_index.create ?cancel source_topology in
@@ -807,7 +807,7 @@ let split_points_on_edge_ends ?cancel ~grain ?primitives ~index ~split_ends
   end
 
 let cusp_polygons ?cancel ?(grain = 16_384) ?primitives ~angle geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.facet: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_mesh.Facet.facet: grain must be positive";
   if not (Float.is_finite angle) || angle < 0. || angle > Float.pi then
     Error "Facet cusp angle must be finite and within [0, pi]"
   else
@@ -910,7 +910,7 @@ let cusp_polygons ?cancel ?(grain = 16_384) ?primitives ~angle geometry =
 
 let edge_cusp ?cancel ?(grain = 16_384) ?edges
     ?(update_point_normals = true) geometry =
-  if grain <= 0 then Error "Pdk.Ops.edge_cusp: grain must be positive"
+  if grain <= 0 then Error "Pdk_mesh.Facet.edge_cusp: grain must be positive"
   else begin
     Cancel.check_opt cancel;
     let topology_value = Geometry.topology geometry in
@@ -921,9 +921,9 @@ let edge_cusp ?cancel ?(grain = 16_384) ?edges
     let selection_error = match edges with
       | Some group when Edge_group.topology_data_id group
           <> Topology.data_id topology_value -> Some
-          "Pdk.Ops.edge_cusp: edge selection belongs to a different topology"
+          "Pdk_mesh.Facet.edge_cusp: edge selection belongs to a different topology"
       | Some group when Edge_group.length group <> edge_count -> Some
-          "Pdk.Ops.edge_cusp: edge selection length does not match topology edge count"
+          "Pdk_mesh.Facet.edge_cusp: edge selection length does not match topology edge count"
       | None | Some _ -> None in
     match selection_error, edges with
     | Some message, _ -> Error message
@@ -972,7 +972,7 @@ let edge_cusp ?cancel ?(grain = 16_384) ?edges
         end
       done;
       if !first_invalid_edge >= 0 then Error (Printf.sprintf
-          "Pdk.Ops.edge_cusp: edge %d: %s" !first_invalid_edge !invalid_reason)
+          "Pdk_mesh.Facet.edge_cusp: edge %d: %s" !first_invalid_edge !invalid_reason)
       else if not (Bytes.exists (fun value -> value <> '\000') split_ends) then
         Ok geometry
       else
@@ -993,7 +993,7 @@ let[@inline always] planar_world value origin scale relative =
   if relative then origin +. (value *. scale) else value *. scale
 
 let make_planar ?cancel ?(grain = 16_384) ?primitives geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.facet: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_mesh.Facet.facet: grain must be positive";
   Cancel.check_opt cancel;
   let source_topology = Geometry.topology geometry in
   let topology = Topology.Private.view source_topology in
@@ -1365,7 +1365,7 @@ let consolidate_vertex_normal ?cancel ~grain ?primitives clusters incidence
   Packed.Float3.Private.of_owned_exn ~x ~y ~z
 
 let consolidate_normals ?cancel ?(grain = 16_384) ?primitives ~distance geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.facet: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_mesh.Facet.facet: grain must be positive";
   if not (Float.is_finite distance) || distance < 0. then
     Error "Facet normal consolidation distance must be finite and non-negative"
   else begin
@@ -1508,7 +1508,7 @@ let adjust_normal_attribute ?cancel ~grain ?selected ~unit_length ~reverse attri
 
 let adjust_normals ?cancel ?(grain = 16_384) ?primitives ~unit_length ~reverse
     geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.facet: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_mesh.Facet.facet: grain must be positive";
   if not unit_length && not reverse then Ok geometry
   else begin
     let topology = Geometry.topology geometry in

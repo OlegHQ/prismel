@@ -15,7 +15,7 @@ type boundary_plan = {
   loop_points : int array;
 }
 
-let operation = "Pdk.Ops.poly_fill"
+let operation = "Pdk.Poly_fill.poly_fill"
 
 let checked_length label value =
   if Int64.compare value 0L < 0

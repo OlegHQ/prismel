@@ -31,7 +31,7 @@ let edge_ancestry_prefix = "__pdk_subdivide_edge_ancestry_"
 
 exception Subdivide_error of string
 
-let fail message = raise (Subdivide_error ("Pdk.Ops.subdivide: " ^ message))
+let fail message = raise (Subdivide_error ("Pdk_mesh.Subdivide.subdivide: " ^ message))
 let get_ok = function Ok value -> value | Error message -> fail message
 
 let checked_add name a b =
@@ -44,7 +44,7 @@ let checked_mul name a b =
   a * b
 
 let run ?(grain = 16_384) ?cancel count operation =
-  if grain <= 0 then invalid_arg "Pdk.Ops.subdivide: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_mesh.Subdivide.subdivide: grain must be positive";
   if count > 0 then
     Parallel.for_ ~chunk_size:grain ~start:0 ~finish:(count - 1) (fun index ->
       if index land 4095 = 0 then Cancel.check_opt cancel;
@@ -3918,11 +3918,11 @@ let subdivide_polygons ?cancel ?grain ?(scheme = Catmull_clark) ?(iterations = 1
     ?(face_varying_interpolation = Subdivide_fvar_all)
     ?(triangle_subdivision = Subdivide_triangles_catmull_clark)
     ?(creasing_method = Subdivide_creasing_uniform) geometry =
-  if iterations < 0 then invalid_arg "Pdk.Ops.subdivide: iterations must be non-negative";
+  if iterations < 0 then invalid_arg "Pdk_mesh.Subdivide.subdivide: iterations must be non-negative";
   (match cracks with
    | (Subdivide_pull_divide_edges bias | Subdivide_pull_triangulate bias)
        when not (Float.is_finite bias) || bias < 0. || bias > 1. ->
-       invalid_arg "Pdk.Ops.subdivide: Pull Divide bias must be finite and in [0, 1]"
+       invalid_arg "Pdk_mesh.Subdivide.subdivide: Pull Divide bias must be finite and in [0, 1]"
    | _ -> ());
   try
     Cancel.check_opt cancel;
@@ -4218,12 +4218,12 @@ let subdivide ?cancel ?grain ?(scheme = Catmull_clark) ?(iterations = 1)
   else
     try
       if iterations < 0 then
-        invalid_arg "Pdk.Ops.subdivide: iterations must be non-negative";
+        invalid_arg "Pdk_mesh.Subdivide.subdivide: iterations must be non-negative";
       (match cracks with
        | (Subdivide_pull_divide_edges bias | Subdivide_pull_triangulate bias)
            when not (Float.is_finite bias) || bias < 0. || bias > 1. ->
            invalid_arg
-             "Pdk.Ops.subdivide: Pull Divide bias must be finite and in [0, 1]"
+             "Pdk_mesh.Subdivide.subdivide: Pull Divide bias must be finite and in [0, 1]"
        | _ -> ());
       Cancel.check_opt cancel;
       Option.iter (fun selection -> validate_primitive_selection selection geometry)
@@ -4347,7 +4347,7 @@ let edge_divide ?cancel ?(grain = 16_384) ?edges ?(divisions = 2)
     ?(share_points = true) geometry =
   let exception Edge_divide_error of string in
   let fail_edge message = raise (Edge_divide_error
-      ("Pdk.Ops.edge_divide: " ^ message)) in
+      ("Pdk_mesh.Subdivide.edge_divide: " ^ message)) in
   let checked_add_edge name left right =
     if right < 0 || left > max_int - right then
       fail_edge (name ^ " exceeds integer limits");
@@ -4362,7 +4362,7 @@ let edge_divide ?cancel ?(grain = 16_384) ?edges ?(divisions = 2)
         if index land 4095 = 0 then Cancel.check_opt cancel;
         operation index) in
   try
-    if grain <= 0 then invalid_arg "Pdk.Ops.edge_divide: grain must be positive";
+    if grain <= 0 then invalid_arg "Pdk_mesh.Subdivide.edge_divide: grain must be positive";
     if divisions <= 0 then fail_edge "divisions must be positive";
     Cancel.check_opt cancel;
     let topology_value = Geometry.topology geometry in

@@ -3,7 +3,7 @@ open Prismel_math
 let get_ok = function Ok value -> value | Error message -> invalid_arg message
 
 let compact_points ?cancel ?(grain = 16_384) geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.compact_points: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk.Compact_points.compact_points: grain must be positive";
   Cancel.check_opt cancel;
   let point_count = Geometry.point_count geometry
   and source_topology_value = Geometry.topology geometry in

@@ -69,7 +69,7 @@ file-backed HDRIs.
 
 ## Pipeline
 
-1. The flat `create` path triangulates every object with `Pdk.Ops.triangulate`, computes
+1. The flat `create` path triangulates every object with `Pdk.Triangulation_modeling.triangulate`, computes
    vertex normals with a 40° cusp so subdivided/rounded surfaces stay smooth
    while boxes stay hard, and flattens everything into one unindexed
    `packed_float3` position buffer, a matching normal buffer, and one material
@@ -260,7 +260,7 @@ loose points (instance transforms) on the cook worker. The rasterizer draws
 that with one indexed Metal instance batch through `Scene3.instances_array`;
 the tracer uses `mesh_instanced` to keep a single prototype BLAS and build a
 top-level instance structure. Materialized, the node calls
-`Pdk.Ops.copy_to_points`. A "Renderer" choice in the inspector's camera panel
+`Pdk.Instance_copy.copy_to_points`. A "Renderer" choice in the inspector's camera panel
 (the `~inspector` hook) switches between the path tracer, filled Scene3 raster,
 and a Scene3 wireframe made from indexed Metal lines along unique PDK topology
 edges. The Box catalog defaults to six quads, so the wireframe follows the

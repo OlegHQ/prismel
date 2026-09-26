@@ -81,7 +81,7 @@ let facet ?cancel ?(grain = 16_384) ?primitives
     ?(inline_distance = 0.) ?(orient_polygons = false) ?cusp_angle
     ?(remove_degenerate = false) ?(make_planar = false)
     ?(post_compute_normals = false) ?(reverse_normals = false) geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.facet: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk.Facet_ops.facet: grain must be positive";
   let primitive_count = Geometry.primitive_count geometry in
   if match primitives with
     | Some group -> Group.owner group <> Group.Primitive

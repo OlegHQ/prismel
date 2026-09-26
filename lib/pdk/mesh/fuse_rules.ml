@@ -47,7 +47,7 @@ type compiled_group_rule = {
 }
 
 let fail format = Printf.ksprintf (fun message ->
-    invalid_arg ("Pdk.Ops.fuse: " ^ message)) format
+    invalid_arg ("Pdk_mesh.Fuse_rules.fuse: " ^ message)) format
 
 let get_ok = function Ok value -> value | Error message -> fail "%s" message
 

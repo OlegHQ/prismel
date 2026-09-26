@@ -12,7 +12,7 @@ let run ?cancel ?(grain = 16_384) ?primitives
     ?(reverse_cross_sections = false) ?(caps = false) ?cap_group
     ?(uv_attribute = Some "uv") ~divisions ~(origin : Vec3.t)
     ~(axis : Vec3.t) geometry =
-  let operation = "Pdk.Ops.revolve" in
+  let operation = "Pdk_mesh.Revolve.revolve" in
   Cancel.check_opt cancel;
   let topology = Geometry.topology geometry in
   let source = Topology.Private.view topology

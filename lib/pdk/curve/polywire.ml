@@ -1434,4 +1434,4 @@ let run ?cancel ~grain ~primitives ~sides ~divisions_attribute ~segments
         Geometry.with_group group output
     end
   with
-  | Invalid message -> Error ("Pdk.Ops.sweep_circle: " ^ message)
+  | Invalid message -> Error ("Pdk_curve.Polywire.sweep_circle: " ^ message)

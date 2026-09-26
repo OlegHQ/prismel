@@ -502,7 +502,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?rest
             output
       end
     end
-  with Invalid message -> Error ("Pdk.Ops." ^ operation ^ ": " ^ message)
+  with Invalid message -> Error ("Pdk_mesh.Poly_loft." ^ operation ^ ": " ^ message)
 
 module Private = struct
   type nonrec plan = plan

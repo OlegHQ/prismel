@@ -20,7 +20,7 @@ type operation =
 let run ?cancel ?(grain = 16_384) ?primitives
     ?(operation = Reverse_vertices) geometry =
   try
-  if grain <= 0 then invalid_arg "Pdk.Ops.reverse: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_mesh.Reverse_faces.reverse: grain must be positive";
   Cancel.check_opt cancel;
   let topology = Geometry.topology geometry in
   let source = Topology.Private.view topology in
@@ -28,9 +28,9 @@ let run ?cancel ?(grain = 16_384) ?primitives
   let primitive_count = Topology.primitive_count topology in
   (match primitives with
    | Some group when Group.owner group <> Group.Primitive ->
-       invalid_arg "Pdk.Ops.reverse: selection must own primitives"
+       invalid_arg "Pdk_mesh.Reverse_faces.reverse: selection must own primitives"
    | Some group when Group.length group <> primitive_count ->
-       invalid_arg "Pdk.Ops.reverse: selection length does not match primitive count"
+       invalid_arg "Pdk_mesh.Reverse_faces.reverse: selection length does not match primitive count"
    | None | Some _ -> ());
   let selected primitive = match primitives with
     | None -> true | Some group -> Group.mem primitive group in

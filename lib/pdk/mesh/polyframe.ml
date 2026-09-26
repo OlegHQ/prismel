@@ -565,7 +565,7 @@ let run ?cancel ?(grain = 16_384) ?selection ?(orthogonal = false)
     ?(left_handed = false)
     ?(normal_attribute = "N") ?(tangent_attribute = Some "tangentu")
     ?(bitangent_attribute = Some "tangentv") style geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.polyframe: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_mesh.Polyframe.polyframe: grain must be positive";
   Result.bind (validate_names ~normal_attribute ~tangent_attribute
       ~bitangent_attribute) (fun () ->
   Result.bind (Deform.validate_selection (Geometry.topology geometry) selection)

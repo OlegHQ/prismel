@@ -28,7 +28,7 @@ let grown_capacity current required =
     if value >= required then value
     else if value >= Sys.max_array_length / 2 then
       if required <= Sys.max_array_length then required
-      else raise (Clip_error "Pdk.Ops.clip: output exceeds OCaml array limits")
+      else raise (Clip_error "Pdk.Plane_clip.clip: output exceeds OCaml array limits")
     else grow (max 8 (value * 2)) in
   grow current
 
@@ -82,7 +82,7 @@ let create_builder ~corner_capacity ~primitive_capacity =
 
 let ensure_corners value additional =
   if additional > Sys.max_array_length - value.corner_count then
-    raise (Clip_error "Pdk.Ops.clip: corner count exceeds OCaml array limits");
+    raise (Clip_error "Pdk.Plane_clip.clip: corner count exceeds OCaml array limits");
   let required = value.corner_count + additional in
   if required > Array.length value.tokens then begin
     let capacity = grown_capacity (Array.length value.tokens) required in
@@ -94,7 +94,7 @@ let ensure_corners value additional =
 
 let ensure_primitives value additional =
   if additional > Sys.max_array_length - value.primitive_count then
-    raise (Clip_error "Pdk.Ops.clip: primitive count exceeds OCaml array limits");
+    raise (Clip_error "Pdk.Plane_clip.clip: primitive count exceeds OCaml array limits");
   let required = value.primitive_count + additional in
   if required > Bytes.length value.kinds then begin
     let capacity = grown_capacity (Bytes.length value.kinds) required in
@@ -175,41 +175,41 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
     ?selection ?(replace_existing_groups = true) ?clipped_edge_group ?cap_group
     ?clipped_group ?above_group ?below_group ~origin ~normal geometry =
   try
-    if grain <= 0 then invalid_arg "Pdk.Ops.clip: grain must be positive";
+    if grain <= 0 then invalid_arg "Pdk.Plane_clip.clip: grain must be positive";
     Cancel.check_opt cancel;
     let ox = origin.Vec3.x and oy = origin.y and oz = origin.z
     and supplied_nx = normal.Vec3.x and supplied_ny = normal.y
     and supplied_nz = normal.z in
     if not (finite ox && finite oy && finite oz && finite supplied_nx
         && finite supplied_ny && finite supplied_nz) then
-      raise (Clip_error "Pdk.Ops.clip: plane origin and normal must be finite");
+      raise (Clip_error "Pdk.Plane_clip.clip: plane origin and normal must be finite");
     if not (finite snapping_tolerance) || snapping_tolerance < 0. then
       raise (Clip_error
-        "Pdk.Ops.clip: snapping tolerance must be finite and non-negative");
+        "Pdk.Plane_clip.clip: snapping tolerance must be finite and non-negative");
     if String.trim clip_attribute = "" then
-      raise (Clip_error "Pdk.Ops.clip: clip attribute must not be empty");
+      raise (Clip_error "Pdk.Plane_clip.clip: clip attribute must not be empty");
     if not (finite distance) then
-      raise (Clip_error "Pdk.Ops.clip: plane distance must be finite");
+      raise (Clip_error "Pdk.Plane_clip.clip: plane distance must be finite");
     if split_connectivity && keep <> All then
       raise (Clip_error
-        "Pdk.Ops.clip: split connectivity requires keep=All");
+        "Pdk.Plane_clip.clip: split connectivity requires keep=All");
     let output_names = [|cap_group; clipped_group; above_group; below_group|] in
     let seen_names = Hashtbl.create 4 in
     Array.iter (function
       | None -> ()
       | Some name when String.trim name = "" -> raise (Clip_error
-          "Pdk.Ops.clip: output group names must not be empty")
+          "Pdk.Plane_clip.clip: output group names must not be empty")
       | Some name when Hashtbl.mem seen_names name -> raise (Clip_error
-          "Pdk.Ops.clip: output group names must be distinct")
+          "Pdk.Plane_clip.clip: output group names must be distinct")
       | Some name -> Hashtbl.add seen_names name ()) output_names;
     (match clipped_edge_group with
      | Some name when String.trim name = "" -> raise (Clip_error
-         "Pdk.Ops.clip: clipped edge group name must not be empty")
+         "Pdk.Plane_clip.clip: clipped edge group name must not be empty")
      | None | Some _ -> ());
     let normal_scale = Float.max (abs_float supplied_nx)
         (Float.max (abs_float supplied_ny) (abs_float supplied_nz)) in
     if normal_scale = 0. then
-      raise (Clip_error "Pdk.Ops.clip: plane normal must be non-zero");
+      raise (Clip_error "Pdk.Plane_clip.clip: plane normal must be non-zero");
     let scaled_nx = supplied_nx /. normal_scale
     and scaled_ny = supplied_ny /. normal_scale
     and scaled_nz = supplied_nz /. normal_scale in
@@ -224,7 +224,7 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
         positions.x, Some positions.y, Some positions.z
       else match Geometry.find_attribute ~owner:Attribute.Point clip_attribute geometry with
       | None -> raise (Clip_error (Printf.sprintf
-          "Pdk.Ops.clip: point clip attribute %S does not exist" clip_attribute))
+          "Pdk.Plane_clip.clip: point clip attribute %S does not exist" clip_attribute))
       | Some attribute ->
           match Attribute.Private.storage attribute with
           | Attribute.Float values ->
@@ -242,7 +242,7 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
               values.x, Some values.y, Some values.z
           | Attribute.Int_array _ | Attribute.Float_array _ | Attribute.Text _ ->
               raise (Clip_error (Printf.sprintf
-                "Pdk.Ops.clip: point clip attribute %S must be a scalar or fixed-width numeric tuple"
+                "Pdk.Plane_clip.clip: point clip attribute %S must be a scalar or fixed-width numeric tuple"
                 clip_attribute)) in
     let raw_distance = Array.make point_count 0.
     and classified_distance = Array.make point_count 0. in
@@ -252,18 +252,18 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
           let x = positions.x.(point) and y = positions.y.(point)
           and z = positions.z.(point) in
           if not (finite x && finite y && finite z) then
-            raise (Clip_error "Pdk.Ops.clip: point positions must be finite");
+            raise (Clip_error "Pdk.Plane_clip.clip: point positions must be finite");
           let cx = clip_x.(point)
           and cy = match clip_y with None -> 0. | Some values -> values.(point)
           and cz = match clip_z with None -> 0. | Some values -> values.(point) in
           if not (finite cx && finite cy && finite cz) then
             raise (Clip_error (Printf.sprintf
-              "Pdk.Ops.clip: point clip attribute %S must contain finite values"
+              "Pdk.Plane_clip.clip: point clip attribute %S must contain finite values"
               clip_attribute));
           let value = ((cx -. ox) *. nx) +. ((cy -. oy) *. ny)
               +. ((cz -. oz) *. nz) -. distance in
           if not (finite value) then raise (Clip_error
-              "Pdk.Ops.clip: signed plane distance overflowed");
+              "Pdk.Plane_clip.clip: signed plane distance overflowed");
           raw_distance.(point) <- value;
           classified_distance.(point) <- if abs_float value <= snapping_tolerance then 0.
             else value);
@@ -329,11 +329,11 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
           end in
     let edge_count = Topology_index.edge_count topology_index in
     if point_count > Sys.max_array_length - edge_count then
-      raise (Clip_error "Pdk.Ops.clip: token count exceeds OCaml array limits");
+      raise (Clip_error "Pdk.Plane_clip.clip: token count exceeds OCaml array limits");
     let base_token_count = point_count + edge_count in
     let split = keep = All && split_connectivity in
     if split && base_token_count > Sys.max_array_length / 2 then
-      raise (Clip_error "Pdk.Ops.clip: split token count exceeds OCaml array limits");
+      raise (Clip_error "Pdk.Plane_clip.clip: split token count exceeds OCaml array limits");
     let selected_token_count = if split then base_token_count * 2
       else base_token_count in
     let passthrough_offset = selected_token_count in
@@ -341,7 +341,7 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
     let has_isolation_tokens = shared_token_count > 0 in
     if has_isolation_tokens
        && selected_token_count > Sys.max_array_length - shared_token_count
-    then raise (Clip_error "Pdk.Ops.clip: selection-isolation token count exceeds OCaml array limits");
+    then raise (Clip_error "Pdk.Plane_clip.clip: selection-isolation token count exceeds OCaml array limits");
     let geometry_token_count = selected_token_count
         + shared_token_count in
     let token side base = if split then (side * base_token_count) + base else base in
@@ -357,7 +357,7 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
         base >= point_count || (point_affected base && point_on_plane base) in
     let edge_token side vertex =
       let edge = index_view.edge_of_vertex.(vertex) in
-      if edge < 0 then raise (Clip_error "Pdk.Ops.clip: missing topology edge")
+      if edge < 0 then raise (Clip_error "Pdk.Plane_clip.clip: missing topology edge")
       else token side (point_count + edge) in
     let source_token side point = token side point in
     let passthrough_token point =
@@ -377,7 +377,7 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
         let a = index_view.edge_a.(edge) and b = index_view.edge_b.(edge) in
         let denominator = raw_distance.(b) -. raw_distance.(a) in
         if denominator = 0. || not (finite denominator) then
-          raise (Clip_error "Pdk.Ops.clip: unstable shared-edge intersection");
+          raise (Clip_error "Pdk.Plane_clip.clip: unstable shared-edge intersection");
         let t = clamp01 (-.raw_distance.(a) /. denominator) in
         positions.x.(a) +. ((positions.x.(b) -. positions.x.(a)) *. t),
         positions.y.(a) +. ((positions.y.(b) -. positions.y.(a)) *. t),
@@ -415,7 +415,7 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
         let primitive_count = Geometry.primitive_count geometry in
         let slots = if keep = All then 2 else 1 in
         if primitive_count > Sys.max_array_length / slots then
-          raise (Clip_error "Pdk.Ops.clip: primitive plan exceeds OCaml array limits");
+          raise (Clip_error "Pdk.Plane_clip.clip: primitive plan exceeds OCaml array limits");
         let candidate_count = primitive_count * slots in
         let candidate_corners = Array.make candidate_count 0 in
         if candidate_count > 0 then Parallel.for_
@@ -496,7 +496,7 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
           let output_count = ref 0 and total_corners = ref 0 in
           Array.iter (fun count -> if count > 0 then begin
               if count > Sys.max_array_length - !total_corners then
-                raise (Clip_error "Pdk.Ops.clip: corner plan exceeds OCaml array limits");
+                raise (Clip_error "Pdk.Plane_clip.clip: corner plan exceeds OCaml array limits");
               incr output_count; total_corners := !total_corners + count
             end) candidate_corners;
           let offsets = Array.make (!output_count + 1) 0 in
@@ -559,7 +559,7 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
         let denominator = raw_distance.(current_point)
             -. raw_distance.(previous_point) in
         if denominator = 0. || not (finite denominator) then
-          raise (Clip_error "Pdk.Ops.clip: unstable plane intersection");
+          raise (Clip_error "Pdk.Plane_clip.clip: unstable plane intersection");
         let t = clamp01 (-.raw_distance.(previous_point) /. denominator) in
         add_corner_unique builder start ~token:(edge_token side previous_vertex)
           ~a:previous_vertex ~b:current_vertex ~t
@@ -626,7 +626,7 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
           incr outside_local
         done;
         if !outside_local = count then
-          raise (Clip_error "Pdk.Ops.clip: disconnected-fragment plan disagreement");
+          raise (Clip_error "Pdk.Plane_clip.clip: disconnected-fragment plan disagreement");
         let scratch_start = builder.corner_count
         and chain_starts = Array.make count 0
         and chain_finishes = Array.make count 0
@@ -705,7 +705,7 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
             else if y_span >= z_span then endpoint_y else endpoint_z in
           if Float.max x_span (Float.max y_span z_span) = 0. then
             raise (Clip_error
-              "Pdk.Ops.clip: coincident concave clipping intersections");
+              "Pdk.Plane_clip.clip: coincident concave clipping intersections");
           let order = Array.init endpoint_count Fun.id in
           Array.sort (fun left right ->
             let compared = Float.compare coordinate.(left) coordinate.(right) in
@@ -719,13 +719,13 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
             let left = order.(pair * 2) and right = order.((pair * 2) + 1) in
             if endpoint_start.(left) = endpoint_start.(right) then
               raise (Clip_error
-                "Pdk.Ops.clip: ambiguous concave clipping intersection order");
+                "Pdk.Plane_clip.clip: ambiguous concave clipping intersection order");
             let end_chain, start_chain = if endpoint_start.(left)
               then endpoint_chain.(right), endpoint_chain.(left)
               else endpoint_chain.(left), endpoint_chain.(right) in
             if successor.(end_chain) >= 0 then
               raise (Clip_error
-                "Pdk.Ops.clip: duplicate concave clipping successor");
+                "Pdk.Plane_clip.clip: duplicate concave clipping successor");
             successor.(end_chain) <- start_chain
           done;
           let visited = Array.make !chain_count false in
@@ -743,10 +743,10 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
                 done;
                 current := successor.(!current);
                 if !current < 0 then raise (Clip_error
-                    "Pdk.Ops.clip: incomplete concave clipping cycle")
+                    "Pdk.Plane_clip.clip: incomplete concave clipping cycle")
               done;
               if !current <> first_chain then raise (Clip_error
-                  "Pdk.Ops.clip: intersecting concave clipping cycles");
+                  "Pdk.Plane_clip.clip: intersecting concave clipping cycles");
               finish_fragment component_start
             end
           done
@@ -860,7 +860,7 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
                    done;
                    if !at <> builder.offsets.(output + 1) then
                      raise (Clip_error
-                       "Pdk.Ops.clip: passthrough plan/fill disagreement");
+                       "Pdk.Plane_clip.clip: passthrough plan/fill disagreement");
                    Bytes.set builder.kinds output '\000';
                    builder.primitive_source.(output) <- primitive;
                    builder.primitive_side.(output) <- -1;
@@ -898,7 +898,7 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
                          -. raw_distance.(previous_point) in
                      if denominator = 0. || not (finite denominator) then
                        raise (Clip_error
-                         "Pdk.Ops.clip: unstable plane intersection");
+                         "Pdk.Plane_clip.clip: unstable plane intersection");
                      builder.tokens.(corner) <- edge_token side previous_vertex;
                      builder.corner_a.(corner) <- previous_vertex;
                      builder.corner_b.(corner) <- current_vertex;
@@ -925,7 +925,7 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
                    previous := current
                  done;
                  if !at <> builder.offsets.(output + 1) then
-                   raise (Clip_error "Pdk.Ops.clip: polygon plan/fill disagreement");
+                   raise (Clip_error "Pdk.Plane_clip.clip: polygon plan/fill disagreement");
                  let crossed = !has_positive && !has_negative in
                  Bytes.set builder.kinds output '\000';
                  builder.primitive_source.(output) <- primitive;
@@ -976,7 +976,7 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
           let a = segments.segment_a.(segment) and b = segments.segment_b.(segment) in
           if outgoing.(a) >= 0 || incoming.(b) >= 0 then
             raise (Clip_error
-              "Pdk.Ops.clip: cap boundary is non-manifold or inconsistently wound");
+              "Pdk.Plane_clip.clip: cap boundary is non-manifold or inconsistently wound");
           outgoing.(a) <- b;
           incoming.(b) <- a
         end
@@ -986,21 +986,21 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
       for start = 0 to geometry_token_count - 1 do
         if start land 4095 = 0 then Cancel.check_opt cancel;
         if (outgoing.(start) >= 0) <> (incoming.(start) >= 0) then
-          raise (Clip_error "Pdk.Ops.clip: cap boundary is open or inconsistently wound")
+          raise (Clip_error "Pdk.Plane_clip.clip: cap boundary is open or inconsistently wound")
         else if outgoing.(start) >= 0 && not visited.(start) then begin
           let count = ref 0 and current = ref start in
           while !current <> start || !count = 0 do
             if !current < 0 || (!count > 0 && visited.(!current)) then
-              raise (Clip_error "Pdk.Ops.clip: cap boundary does not form simple loops");
+              raise (Clip_error "Pdk.Plane_clip.clip: cap boundary does not form simple loops");
             if !count >= Array.length scratch then
-              raise (Clip_error "Pdk.Ops.clip: cap boundary traversal overflow");
+              raise (Clip_error "Pdk.Plane_clip.clip: cap boundary traversal overflow");
             scratch.(!count) <- !current;
             incr count;
             visited.(!current) <- true;
             current := outgoing.(!current)
           done;
           if !count < 3 then raise (Clip_error
-              "Pdk.Ops.clip: cap boundary contains fewer than three points");
+              "Pdk.Plane_clip.clip: cap boundary contains fewer than three points");
           loops := Array.sub scratch 0 !count :: !loops
         end
       done;
@@ -1020,7 +1020,7 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
           cap_coordinate_scale := Float.max !cap_coordinate_scale
               (abs_float (z -. cap_anchor_z)))) loops;
       if !cap_coordinate_scale = 0. then raise (Clip_error
-          "Pdk.Ops.clip: cap contours have zero coordinate extent");
+          "Pdk.Plane_clip.clip: cap contours have zero coordinate extent");
       let project (x, y, z) = if dominant = 0 then
           (y -. cap_anchor_y) /. !cap_coordinate_scale,
           (z -. cap_anchor_z) /. !cap_coordinate_scale
@@ -1141,8 +1141,8 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
             if not adjacent && projected_segments_intersect
                 edge_a.(candidate) edge_b.(candidate) edge_a.(edge) edge_b.(edge)
             then raise (Clip_error (if same_loop then
-                "Pdk.Ops.clip: cap contour is geometrically self-intersecting"
-              else "Pdk.Ops.clip: cap contours intersect or touch"))
+                "Pdk.Plane_clip.clip: cap contour is geometrically self-intersecting"
+              else "Pdk.Plane_clip.clip: cap contours intersect or touch"))
           end
         done;
         active.(!active_count) <- edge;
@@ -1162,7 +1162,7 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
             coordinate_scale := Float.max !coordinate_scale
                 (abs_float (z -. anchor_z))) loop;
           if !coordinate_scale = 0. then raise (Clip_error
-              "Pdk.Ops.clip: cap contour has zero coordinate extent");
+              "Pdk.Plane_clip.clip: cap contour has zero coordinate extent");
           let orientation = ref 0. in
           for index = 0 to Array.length loop - 1 do
             let next = (index + 1) mod Array.length loop in
@@ -1181,7 +1181,7 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
           done;
           if not (finite !orientation) || abs_float !orientation <= 1e-14 then
             raise (Clip_error
-              "Pdk.Ops.clip: cap contour has degenerate projected area");
+              "Pdk.Plane_clip.clip: cap contour has degenerate projected area");
           !orientation) loops in
       let parent = Array.make loop_count (-1) in
       for child = 0 to loop_count - 1 do
@@ -1216,7 +1216,7 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
         while !current >= 0 do
           incr value;
           if !value > loop_count then raise (Clip_error
-              "Pdk.Ops.clip: cyclic cap contour containment");
+              "Pdk.Plane_clip.clip: cyclic cap contour containment");
           current := parent.(!current)
         done;
         depth.(loop) <- !value
@@ -1270,7 +1270,7 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
             +. ((abz *. acx) -. (abx *. acz)) *. ny
             +. ((abx *. acy) -. (aby *. acx)) *. nz in
         if not (finite orientation) || orientation = 0. then raise (Clip_error
-            "Pdk.Ops.clip: cap contour triangulation emitted a degenerate triangle");
+            "Pdk.Plane_clip.clip: cap contour triangulation emitted a degenerate triangle");
         let b, c = if (orientation > 0.) = want_positive then b, c else c, b in
         let start = builder.corner_count in
         add_corner builder ~token:a ~a:(-1) ~b:(-1) ~t:0.;
@@ -1286,9 +1286,9 @@ let clip ?cancel ?(grain = 16_384) ?(keep = Above)
               let triangles = match triangulated.(outer) with
                 | Some (Ok triangles) -> triangles
                 | Some (Error message) -> raise (Clip_error
-                    ("Pdk.Ops.clip: cap contours: " ^ message))
+                    ("Pdk.Plane_clip.clip: cap contours: " ^ message))
                 | None -> raise (Clip_error
-                    "Pdk.Ops.clip: missing cap contour triangulation plan") in
+                    "Pdk.Plane_clip.clip: missing cap contour triangulation plan") in
               for triangle = 0 to (Array.length triangles / 3) - 1 do
                 let at = triangle * 3 in
                 emit_triangle triangles.(at) triangles.(at + 1)

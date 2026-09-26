@@ -264,7 +264,7 @@ let delete_overlaps_general ?cancel ~grain ~delete_pairs geometry =
   done;
   if !polygon_count = 0 then Ok geometry
   else if !polygon_count > Sys.max_array_length / 4 then
-    Error "Pdk.Ops.clean: overlap table exceeds array limits"
+    Error "Pdk_mesh.Clean.clean: overlap table exceeds array limits"
   else begin
     Parallel.for_ ~chunk_size:grain ~start:0 ~finish:(primitive_count - 1)
       (fun primitive ->
@@ -358,7 +358,7 @@ let delete_triangle_overlaps ?cancel ~grain ~delete_pairs geometry =
   let primitive_count = Geometry.primitive_count geometry in
   if primitive_count = 0 then Ok geometry
   else if primitive_count > Sys.max_array_length / 4 then
-    Error "Pdk.Ops.clean: overlap table exceeds array limits"
+    Error "Pdk_mesh.Clean.clean: overlap table exceeds array limits"
   else begin
     let first_points = Array.make primitive_count 0
     and second_points = Array.make primitive_count 0
@@ -430,13 +430,13 @@ let run ?cancel ?(grain = 16_384) ?(epsilon = 1e-12)
     ?point_attributes ?vertex_attributes ?primitive_attributes ?detail_attributes
     ?point_groups ?vertex_groups ?primitive_groups ?edge_groups
     ~consolidate ~compact geometry =
-  if grain <= 0 then invalid_arg "Pdk.Ops.clean: grain must be positive";
+  if grain <= 0 then invalid_arg "Pdk_mesh.Clean.clean: grain must be positive";
   if not (finite epsilon) || epsilon < 0. then
-    Error "Pdk.Ops.clean: epsilon must be finite and non-negative"
+    Error "Pdk_mesh.Clean.clean: epsilon must be finite and non-negative"
   else if (match consolidate_distance with
     | Some value -> not (finite value) || value < 0.
     | None -> false) then
-    Error "Pdk.Ops.clean: consolidate distance must be finite and non-negative"
+    Error "Pdk_mesh.Clean.clean: consolidate distance must be finite and non-negative"
   else begin
     let validate_pattern = function
       | None -> Ok ()
