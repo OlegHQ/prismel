@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 140,
+  "module_count": 139,
   "modules": [
     {
       "api_sha256": "42991257be662e316b18b78776fd2c91d5990ebf5a3b561d4d38b32d1d9db961",
@@ -596,15 +596,6 @@
       "source": "lib/pdk/mesh/ray.mli",
       "source_bytes": 1367,
       "source_sha256": "9d174ef889c2ac2d3e4b423bd82512c69e21292cca0999ba7402d996d4287c95"
-    },
-    {
-      "api_sha256": "86b0655137588149583fa1d220738ede40daecf5ba6897c69c4a1431c63569cb",
-      "excluded_legacy_symbols": [],
-      "library": "pdk",
-      "module": "Repair_mesh",
-      "source": "lib/pdk/mesh/repair_mesh.mli",
-      "source_bytes": 625,
-      "source_sha256": "d34fd0c7e1f3d8f75dfedb6a2f674f2b2ab49511e91f8234597e6ee8a0afa91a"
     },
     {
       "api_sha256": "a059e1b57854f35076d90208c12b7d578ef0ed98220bbdc57a614bb5d19feae8",

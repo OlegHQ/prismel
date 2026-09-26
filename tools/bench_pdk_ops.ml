@@ -1678,16 +1678,6 @@ let run_dissolve_benchmarks () =
     Dissolve.run_checked ~grain ~edges:interior ~remove_inline_points:true
       ~collinearity_tolerance:1e-10 source |> get_ok) geometry_output
 
-let run_repair_mesh_benchmarks () =
-  let source = Plane_generators.grid_checked ~grain ~connectivity:Plane_generators.Grid_triangles
-      ~columns:(min columns 300) ~rows:(min rows 300) ~size:100. () |> get_ok in
-  measure ~input_points:(Geometry.point_count source)
-    "repair_mesh_analyze_grid" (fun () ->
-      match Repair_mesh.analyze source with
-      | Ok report -> report
-      | Error error -> failwith (Error.to_string error))
-    (fun report -> report.faces, Hashtbl.hash report)
-
 let run_poly_loft_benchmarks () =
   let sections = rows + 1 and per_section = max 3 columns in
   let point_count = sections * per_section in
@@ -5021,9 +5011,6 @@ let () =
        exit 0
    | Some filter when String.starts_with ~prefix:"dissolve" filter ->
        run_dissolve_benchmarks ();
-       exit 0
-   | Some filter when String.starts_with ~prefix:"repair_mesh" filter ->
-       run_repair_mesh_benchmarks ();
        exit 0
    | Some filter when String.starts_with ~prefix:"poly_loft" filter ->
        run_poly_loft_benchmarks ();

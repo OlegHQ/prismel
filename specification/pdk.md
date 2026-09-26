@@ -2489,16 +2489,6 @@ output. The release
 faces in 45.043 ms and 109,444 Doo-Sabin faces in 49.538 ms at one domain
 (five repeats), with the same digests at four domains.
 
-`Pdk.Repair_mesh` owns triangle manifold reports, T-junction edge splitting,
-and consistent orientation. It accepts point/detail attributes and point
-groups; vertex/primitive attributes and edge groups return an error. It keeps
-supported point payload while rebuilding ordered triangle topology and
-recomputing normals. Captured full report and
-mesh fingerprints, including a four-way split around multiple T-junctions,
-matched across migration. Direct fixtures also check one/four-domain parity,
-cardinality, malformed input and
-cancellation.
-
 `Ops.triangulate_2d` is the first public adapter over the shared packed
 `Delaunay2` core. It accepts a typed point selection and projects source points
 through PCA best fit, XY/YZ/ZX, an explicit origin/normal frame, or a point
