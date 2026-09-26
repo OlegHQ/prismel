@@ -6913,30 +6913,6 @@ caml_prismel_metal_command_buffer_use_residency_sets(
   }
 }
 
-static MTLPrimitiveAccelerationStructureDescriptor *
-acceleration_triangle_descriptor_of_ocaml(value raw_descriptor) {
-  id<MTLBuffer> vertex_buffer =
-      object_of_handle(Field(raw_descriptor, 0), Handle_kind::Buffer);
-  MTLAccelerationStructureTriangleGeometryDescriptor *geometry =
-      [MTLAccelerationStructureTriangleGeometryDescriptor descriptor];
-  geometry.vertexBuffer = vertex_buffer;
-  geometry.vertexBufferOffset = Int64_val(Field(raw_descriptor, 1));
-  geometry.vertexStride = Int64_val(Field(raw_descriptor, 2));
-  geometry.triangleCount = Int64_val(Field(raw_descriptor, 3));
-  value raw_index = Field(raw_descriptor, 4);
-  if (Is_block(raw_index)) {
-    geometry.indexBuffer =
-        object_of_handle(Field(raw_index, 0), Handle_kind::Buffer);
-    geometry.indexBufferOffset = Int64_val(Field(raw_descriptor, 5));
-    geometry.indexType = MTLIndexTypeUInt32;
-  }
-  MTLPrimitiveAccelerationStructureDescriptor *descriptor =
-      [MTLPrimitiveAccelerationStructureDescriptor descriptor];
-  descriptor.geometryDescriptors = @[ geometry ];
-  descriptor.usage = MTLAccelerationStructureUsageRefit;
-  return descriptor;
-}
-
 static_assert(sizeof(MTLAccelerationStructureInstanceDescriptor) == 64);
 static_assert(offsetof(MTLAccelerationStructureInstanceDescriptor, options) == 48);
 static_assert(offsetof(MTLAccelerationStructureInstanceDescriptor, mask) == 52);
@@ -8027,67 +8003,37 @@ extern "C" CAMLprim value caml_prismel_metal_command_buffer_error(value raw) {
 enum class PrismelRenderStage:intnat{Vertex=0,Fragment=1,Tile=2,Object=3,Mesh=4};
 static PrismelRenderStage prismel_render_stage(value v){intnat n=Long_val(v);if(n<0||n>4)@throw[NSException exceptionWithName:NSInvalidArgumentException reason:@"invalid render stage" userInfo:nil];return(PrismelRenderStage)n;}
 template<class T>static std::vector<T> prismel_render_handles(value a,Handle_kind kind){mlsize_t n=Wosize_val(a);std::vector<T>v;v.reserve(n);for(mlsize_t i=0;i<n;i++)v.push_back(Is_none(Field(a,i))?nil:object_of_handle(Field(Field(a,i),0),kind));return v;}
-static std::vector<NSUInteger> prismel_render_uints(value a){mlsize_t n=Wosize_val(a);std::vector<NSUInteger>v(n);for(mlsize_t i=0;i<n;i++)v[i]=Int64_val(Field(a,i));return v;}
-static std::vector<float> prismel_render_floats(value a){mlsize_t n=Wosize_val(a);std::vector<float>v(n);for(mlsize_t i=0;i<n;i++)v[i]=Double_val(Field(a,i));return v;}
 #define PRISMEL_RENDER_ENTRY(NAME) extern "C" CAMLprim value NAME
-#define PRISMEL_RENDER_CATCH }@catch(NSException*x){CAMLreturn(result_error(x.reason));}
 
-PRISMEL_RENDER_ENTRY(caml_prismel_metal_render_stage_buffer)(value re,value rs,value rb,value ro,value stride,value ri){CAMLparam5(re,rs,rb,ro,stride);CAMLxparam1(ri);@try{id<MTLRenderCommandEncoder>e=object_of_handle(re,Handle_kind::Render_encoder);id<MTLBuffer>b=Is_none(rb)?nil:object_of_handle(Field(rb,0),Handle_kind::Buffer);switch(prismel_render_stage(rs)){case PrismelRenderStage::Vertex:[e setVertexBuffer:b offset:Int64_val(ro) attributeStride:Int64_val(stride) atIndex:Int64_val(ri)];break;case PrismelRenderStage::Tile:[e setTileBuffer:b offset:Int64_val(ro) atIndex:Int64_val(ri)];break;case PrismelRenderStage::Object:[e setObjectBuffer:b offset:Int64_val(ro) atIndex:Int64_val(ri)];break;case PrismelRenderStage::Mesh:[e setMeshBuffer:b offset:Int64_val(ro) atIndex:Int64_val(ri)];break;default:CAMLreturn(result_error_text("stage has no single-buffer selector"));}CAMLreturn(result_unit());PRISMEL_RENDER_CATCH}
+PRISMEL_RENDER_ENTRY(caml_prismel_metal_render_stage_buffer)(value re,value rs,value rb,value ro,value stride,value ri){CAMLparam5(re,rs,rb,ro,stride);CAMLxparam1(ri);@try{id<MTLRenderCommandEncoder>e=object_of_handle(re,Handle_kind::Render_encoder);id<MTLBuffer>b=Is_none(rb)?nil:object_of_handle(Field(rb,0),Handle_kind::Buffer);switch(prismel_render_stage(rs)){case PrismelRenderStage::Vertex:[e setVertexBuffer:b offset:Int64_val(ro) attributeStride:Int64_val(stride) atIndex:Int64_val(ri)];break;case PrismelRenderStage::Tile:[e setTileBuffer:b offset:Int64_val(ro) atIndex:Int64_val(ri)];break;case PrismelRenderStage::Object:[e setObjectBuffer:b offset:Int64_val(ro) atIndex:Int64_val(ri)];break;case PrismelRenderStage::Mesh:[e setMeshBuffer:b offset:Int64_val(ro) atIndex:Int64_val(ri)];break;default:CAMLreturn(result_error_text("stage has no single-buffer selector"));}CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 extern "C" CAMLprim value caml_prismel_metal_render_stage_buffer_bytecode(value*argv,int argc){(void)argc;return caml_prismel_metal_render_stage_buffer(argv[0],argv[1],argv[2],argv[3],argv[4],argv[5]);}
 
-PRISMEL_RENDER_ENTRY(caml_prismel_metal_render_stage_buffers_bytecode)(value*argv,int argc){(void)argc;CAMLparam0();@try{id<MTLRenderCommandEncoder>e=object_of_handle(argv[0],Handle_kind::Render_encoder);auto b=prismel_render_handles<id<MTLBuffer>>(argv[2],Handle_kind::Buffer);auto o=prismel_render_uints(argv[3]);auto strides=prismel_render_uints(argv[4]);NSUInteger start=Int64_val(argv[5]);if(b.size()!=o.size()||(!strides.empty()&&strides.size()!=b.size()))CAMLreturn(result_error_text("buffer binding cardinality mismatch"));NSRange range=NSMakeRange(start,b.size());switch(prismel_render_stage(argv[1])){case PrismelRenderStage::Vertex:if(strides.empty())[e setVertexBuffers:b.data() offsets:o.data() withRange:range];else[e setVertexBuffers:b.data() offsets:o.data() attributeStrides:strides.data() withRange:range];break;case PrismelRenderStage::Fragment:[e setFragmentBuffers:b.data() offsets:o.data() withRange:range];break;case PrismelRenderStage::Tile:[e setTileBuffers:b.data() offsets:o.data() withRange:range];break;case PrismelRenderStage::Object:[e setObjectBuffers:b.data() offsets:o.data() withRange:range];break;case PrismelRenderStage::Mesh:[e setMeshBuffers:b.data() offsets:o.data() withRange:range];break;}CAMLreturn(result_unit());PRISMEL_RENDER_CATCH}
+PRISMEL_RENDER_ENTRY(caml_prismel_metal_render_stage_bytes_bytecode)(value*argv,int argc){(void)argc;CAMLparam0();@try{id<MTLRenderCommandEncoder>e=object_of_handle(argv[0],Handle_kind::Render_encoder);void*p=Bytes_val(argv[2]);NSUInteger n=caml_string_length(argv[2]),stride=Int64_val(argv[3]),index=Int64_val(argv[4]);switch(prismel_render_stage(argv[1])){case PrismelRenderStage::Vertex:[e setVertexBytes:p length:n attributeStride:stride atIndex:index];break;case PrismelRenderStage::Tile:[e setTileBytes:p length:n atIndex:index];break;case PrismelRenderStage::Object:[e setObjectBytes:p length:n atIndex:index];break;case PrismelRenderStage::Mesh:[e setMeshBytes:p length:n atIndex:index];break;default:CAMLreturn(result_error_text("stage has no byte selector"));}CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 
-PRISMEL_RENDER_ENTRY(caml_prismel_metal_render_stage_bytes_bytecode)(value*argv,int argc){(void)argc;CAMLparam0();@try{id<MTLRenderCommandEncoder>e=object_of_handle(argv[0],Handle_kind::Render_encoder);void*p=Bytes_val(argv[2]);NSUInteger n=caml_string_length(argv[2]),stride=Int64_val(argv[3]),index=Int64_val(argv[4]);switch(prismel_render_stage(argv[1])){case PrismelRenderStage::Vertex:[e setVertexBytes:p length:n attributeStride:stride atIndex:index];break;case PrismelRenderStage::Tile:[e setTileBytes:p length:n atIndex:index];break;case PrismelRenderStage::Object:[e setObjectBytes:p length:n atIndex:index];break;case PrismelRenderStage::Mesh:[e setMeshBytes:p length:n atIndex:index];break;default:CAMLreturn(result_error_text("stage has no byte selector"));}CAMLreturn(result_unit());PRISMEL_RENDER_CATCH}
+PRISMEL_RENDER_ENTRY(caml_prismel_metal_render_stage_sampler_bytecode)(value*argv,int argc){(void)argc;CAMLparam0();@try{id<MTLRenderCommandEncoder>e=object_of_handle(argv[0],Handle_kind::Render_encoder);id<MTLSamplerState>s=Is_none(argv[2])?nil:object_of_handle(Field(argv[2],0),Handle_kind::Sampler);NSUInteger index=Int64_val(argv[5]);BOOL lod=Bool_val(argv[3]);float lo=Double_val(Field(argv[4],0)),hi=Double_val(Field(argv[4],1));switch(prismel_render_stage(argv[1])){case PrismelRenderStage::Tile:if(lod)[e setTileSamplerState:s lodMinClamp:lo lodMaxClamp:hi atIndex:index];else[e setTileSamplerState:s atIndex:index];break;case PrismelRenderStage::Object:if(lod)[e setObjectSamplerState:s lodMinClamp:lo lodMaxClamp:hi atIndex:index];else[e setObjectSamplerState:s atIndex:index];break;case PrismelRenderStage::Mesh:if(lod)[e setMeshSamplerState:s lodMinClamp:lo lodMaxClamp:hi atIndex:index];else[e setMeshSamplerState:s atIndex:index];break;default:CAMLreturn(result_error_text("stage has no single-sampler selector"));}CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 
-PRISMEL_RENDER_ENTRY(caml_prismel_metal_render_stage_sampler_bytecode)(value*argv,int argc){(void)argc;CAMLparam0();@try{id<MTLRenderCommandEncoder>e=object_of_handle(argv[0],Handle_kind::Render_encoder);id<MTLSamplerState>s=Is_none(argv[2])?nil:object_of_handle(Field(argv[2],0),Handle_kind::Sampler);NSUInteger index=Int64_val(argv[5]);BOOL lod=Bool_val(argv[3]);float lo=Double_val(Field(argv[4],0)),hi=Double_val(Field(argv[4],1));switch(prismel_render_stage(argv[1])){case PrismelRenderStage::Tile:if(lod)[e setTileSamplerState:s lodMinClamp:lo lodMaxClamp:hi atIndex:index];else[e setTileSamplerState:s atIndex:index];break;case PrismelRenderStage::Object:if(lod)[e setObjectSamplerState:s lodMinClamp:lo lodMaxClamp:hi atIndex:index];else[e setObjectSamplerState:s atIndex:index];break;case PrismelRenderStage::Mesh:if(lod)[e setMeshSamplerState:s lodMinClamp:lo lodMaxClamp:hi atIndex:index];else[e setMeshSamplerState:s atIndex:index];break;default:CAMLreturn(result_error_text("stage has no single-sampler selector"));}CAMLreturn(result_unit());PRISMEL_RENDER_CATCH}
+PRISMEL_RENDER_ENTRY(caml_prismel_metal_render_stage_texture)(value re,value rs,value rt,value ri){CAMLparam4(re,rs,rt,ri);@try{id<MTLRenderCommandEncoder>e=object_of_handle(re,Handle_kind::Render_encoder);id<MTLTexture>t=Is_none(rt)?nil:object_of_handle(Field(rt,0),Handle_kind::Texture);NSUInteger i=Int64_val(ri);switch(prismel_render_stage(rs)){case PrismelRenderStage::Tile:[e setTileTexture:t atIndex:i];break;case PrismelRenderStage::Object:[e setObjectTexture:t atIndex:i];break;case PrismelRenderStage::Mesh:[e setMeshTexture:t atIndex:i];break;default:CAMLreturn(result_error_text("stage has no single-texture selector"));}CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 
-PRISMEL_RENDER_ENTRY(caml_prismel_metal_render_stage_samplers_bytecode)(value*argv,int argc){(void)argc;CAMLparam0();@try{id<MTLRenderCommandEncoder>e=object_of_handle(argv[0],Handle_kind::Render_encoder);auto s=prismel_render_handles<id<MTLSamplerState>>(argv[2],Handle_kind::Sampler);auto lo=prismel_render_floats(argv[4]);auto hi=prismel_render_floats(argv[5]);BOOL lod=Bool_val(argv[3]);if(lod&&(lo.size()!=s.size()||hi.size()!=s.size()))CAMLreturn(result_error_text("sampler LOD cardinality mismatch"));NSRange r=NSMakeRange(Int64_val(argv[6]),s.size());switch(prismel_render_stage(argv[1])){case PrismelRenderStage::Vertex:if(lod)[e setVertexSamplerStates:s.data() lodMinClamps:lo.data() lodMaxClamps:hi.data() withRange:r];else[e setVertexSamplerStates:s.data() withRange:r];break;case PrismelRenderStage::Fragment:if(lod)[e setFragmentSamplerStates:s.data() lodMinClamps:lo.data() lodMaxClamps:hi.data() withRange:r];else[e setFragmentSamplerStates:s.data() withRange:r];break;case PrismelRenderStage::Tile:if(lod)[e setTileSamplerStates:s.data() lodMinClamps:lo.data() lodMaxClamps:hi.data() withRange:r];else[e setTileSamplerStates:s.data() withRange:r];break;case PrismelRenderStage::Object:if(lod)[e setObjectSamplerStates:s.data() lodMinClamps:lo.data() lodMaxClamps:hi.data() withRange:r];else[e setObjectSamplerStates:s.data() withRange:r];break;case PrismelRenderStage::Mesh:if(lod)[e setMeshSamplerStates:s.data() lodMinClamps:lo.data() lodMaxClamps:hi.data() withRange:r];else[e setMeshSamplerStates:s.data() withRange:r];break;}CAMLreturn(result_unit());PRISMEL_RENDER_CATCH}
-
-PRISMEL_RENDER_ENTRY(caml_prismel_metal_render_stage_texture)(value re,value rs,value rt,value ri){CAMLparam4(re,rs,rt,ri);@try{id<MTLRenderCommandEncoder>e=object_of_handle(re,Handle_kind::Render_encoder);id<MTLTexture>t=Is_none(rt)?nil:object_of_handle(Field(rt,0),Handle_kind::Texture);NSUInteger i=Int64_val(ri);switch(prismel_render_stage(rs)){case PrismelRenderStage::Tile:[e setTileTexture:t atIndex:i];break;case PrismelRenderStage::Object:[e setObjectTexture:t atIndex:i];break;case PrismelRenderStage::Mesh:[e setMeshTexture:t atIndex:i];break;default:CAMLreturn(result_error_text("stage has no single-texture selector"));}CAMLreturn(result_unit());PRISMEL_RENDER_CATCH}
-PRISMEL_RENDER_ENTRY(caml_prismel_metal_render_stage_textures)(value re,value rs,value rt,value rstart){CAMLparam4(re,rs,rt,rstart);@try{id<MTLRenderCommandEncoder>e=object_of_handle(re,Handle_kind::Render_encoder);auto t=prismel_render_handles<id<MTLTexture>>(rt,Handle_kind::Texture);NSRange r=NSMakeRange(Int64_val(rstart),t.size());switch(prismel_render_stage(rs)){case PrismelRenderStage::Vertex:[e setVertexTextures:t.data() withRange:r];break;case PrismelRenderStage::Fragment:[e setFragmentTextures:t.data() withRange:r];break;case PrismelRenderStage::Tile:[e setTileTextures:t.data() withRange:r];break;case PrismelRenderStage::Object:[e setObjectTextures:t.data() withRange:r];break;case PrismelRenderStage::Mesh:[e setMeshTextures:t.data() withRange:r];break;}CAMLreturn(result_unit());PRISMEL_RENDER_CATCH}
-
-#define PRISMEL_RENDER_STAGE_OBJECT(NAME,TYPE,KIND,VERTEX,FRAGMENT,TILE) PRISMEL_RENDER_ENTRY(NAME)(value re,value rs,value ro,value ri){CAMLparam4(re,rs,ro,ri);@try{id<MTLRenderCommandEncoder>e=object_of_handle(re,Handle_kind::Render_encoder);TYPE o=Is_none(ro)?nil:object_of_handle(Field(ro,0),KIND);NSUInteger i=Int64_val(ri);switch(prismel_render_stage(rs)){case PrismelRenderStage::Vertex:[e VERTEX:o atBufferIndex:i];break;case PrismelRenderStage::Fragment:[e FRAGMENT:o atBufferIndex:i];break;case PrismelRenderStage::Tile:[e TILE:o atBufferIndex:i];break;default:CAMLreturn(result_error_text("object unsupported for stage"));}CAMLreturn(result_unit());PRISMEL_RENDER_CATCH}
-PRISMEL_RENDER_STAGE_OBJECT(caml_prismel_metal_render_stage_acceleration,id<MTLAccelerationStructure>,Handle_kind::Acceleration_structure,setVertexAccelerationStructure,setFragmentAccelerationStructure,setTileAccelerationStructure)
-PRISMEL_RENDER_STAGE_OBJECT(caml_prismel_metal_render_stage_intersection,id<MTLIntersectionFunctionTable>,Handle_kind::Intersection_function_table,setVertexIntersectionFunctionTable,setFragmentIntersectionFunctionTable,setTileIntersectionFunctionTable)
-PRISMEL_RENDER_STAGE_OBJECT(caml_prismel_metal_render_stage_visible,id<MTLVisibleFunctionTable>,Handle_kind::Visible_function_table,setVertexVisibleFunctionTable,setFragmentVisibleFunctionTable,setTileVisibleFunctionTable)
+#define PRISMEL_RENDER_STAGE_OBJECT(NAME,TYPE,KIND,VERTEX,FRAGMENT,TILE) PRISMEL_RENDER_ENTRY(NAME)(value re,value rs,value ro,value ri){CAMLparam4(re,rs,ro,ri);@try{id<MTLRenderCommandEncoder>e=object_of_handle(re,Handle_kind::Render_encoder);TYPE o=Is_none(ro)?nil:object_of_handle(Field(ro,0),KIND);NSUInteger i=Int64_val(ri);switch(prismel_render_stage(rs)){case PrismelRenderStage::Vertex:[e VERTEX:o atBufferIndex:i];break;case PrismelRenderStage::Fragment:[e FRAGMENT:o atBufferIndex:i];break;case PrismelRenderStage::Tile:[e TILE:o atBufferIndex:i];break;default:CAMLreturn(result_error_text("object unsupported for stage"));}CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 #undef PRISMEL_RENDER_STAGE_OBJECT
 
-#define PRISMEL_RENDER_STAGE_TABLES(NAME,TYPE,KIND,VERTEX,FRAGMENT,TILE) PRISMEL_RENDER_ENTRY(NAME)(value re,value rs,value ra,value start){CAMLparam4(re,rs,ra,start);@try{id<MTLRenderCommandEncoder>e=object_of_handle(re,Handle_kind::Render_encoder);auto a=prismel_render_handles<TYPE>(ra,KIND);NSRange r=NSMakeRange(Int64_val(start),a.size());switch(prismel_render_stage(rs)){case PrismelRenderStage::Vertex:[e VERTEX:a.data() withBufferRange:r];break;case PrismelRenderStage::Fragment:[e FRAGMENT:a.data() withBufferRange:r];break;case PrismelRenderStage::Tile:[e TILE:a.data() withBufferRange:r];break;default:CAMLreturn(result_error_text("table array unsupported for stage"));}CAMLreturn(result_unit());PRISMEL_RENDER_CATCH}
-PRISMEL_RENDER_STAGE_TABLES(caml_prismel_metal_render_stage_intersections,id<MTLIntersectionFunctionTable>,Handle_kind::Intersection_function_table,setVertexIntersectionFunctionTables,setFragmentIntersectionFunctionTables,setTileIntersectionFunctionTables)
-PRISMEL_RENDER_STAGE_TABLES(caml_prismel_metal_render_stage_visibles,id<MTLVisibleFunctionTable>,Handle_kind::Visible_function_table,setVertexVisibleFunctionTables,setFragmentVisibleFunctionTables,setTileVisibleFunctionTables)
+#define PRISMEL_RENDER_STAGE_TABLES(NAME,TYPE,KIND,VERTEX,FRAGMENT,TILE) PRISMEL_RENDER_ENTRY(NAME)(value re,value rs,value ra,value start){CAMLparam4(re,rs,ra,start);@try{id<MTLRenderCommandEncoder>e=object_of_handle(re,Handle_kind::Render_encoder);auto a=prismel_render_handles<TYPE>(ra,KIND);NSRange r=NSMakeRange(Int64_val(start),a.size());switch(prismel_render_stage(rs)){case PrismelRenderStage::Vertex:[e VERTEX:a.data() withBufferRange:r];break;case PrismelRenderStage::Fragment:[e FRAGMENT:a.data() withBufferRange:r];break;case PrismelRenderStage::Tile:[e TILE:a.data() withBufferRange:r];break;default:CAMLreturn(result_error_text("table array unsupported for stage"));}CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 #undef PRISMEL_RENDER_STAGE_TABLES
 #undef PRISMEL_RENDER_ENTRY
-#undef PRISMEL_RENDER_CATCH
 
 extern "C" CAMLprim value caml_prismel_metal_render_stage_bytes(value a,value b,value c,value d,value e){value argv[]={a,b,c,d,e};return caml_prismel_metal_render_stage_bytes_bytecode(argv,5);}
 extern "C" CAMLprim value caml_prismel_metal_render_stage_sampler(value a,value b,value c,value d,value e,value f){value argv[]={a,b,c,d,e,f};return caml_prismel_metal_render_stage_sampler_bytecode(argv,6);}
-extern "C" CAMLprim value caml_prismel_metal_render_stage_samplers(value a,value b,value c,value d,value e,value f,value g){value argv[]={a,b,c,d,e,f,g};return caml_prismel_metal_render_stage_samplers_bytecode(argv,7);}
 
 /* M3: former metal_render_command_draw_state.inc */
 #define PRISMEL_RENDER_ENCODER(ARG) id<MTLRenderCommandEncoder>e=object_of_handle(ARG,Handle_kind::Render_encoder)
 
-extern "C" CAMLprim value caml_prismel_metal_render_draw_indexed_bytecode(value*a,int n){(void)n;CAMLparam0();@try{PRISMEL_RENDER_ENCODER(a[0]);[e drawIndexedPrimitives:(MTLPrimitiveType)Long_val(a[1]) indexCount:Int64_val(a[2]) indexType:(MTLIndexType)Long_val(a[3]) indexBuffer:object_of_handle(a[4],Handle_kind::Buffer) indexBufferOffset:Int64_val(a[5]) instanceCount:Int64_val(a[6]) baseVertex:Int64_val(a[7]) baseInstance:Int64_val(a[8])];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_render_draw_indexed(value a,value b,value c,value d,value e,value f,value g,value h,value i){value v[]={a,b,c,d,e,f,g,h,i};return caml_prismel_metal_render_draw_indexed_bytecode(v,9);}
 extern "C" CAMLprim value caml_prismel_metal_render_draw_indexed_instances_bytecode(value*a,int n){(void)n;CAMLparam0();@try{PRISMEL_RENDER_ENCODER(a[0]);[e drawIndexedPrimitives:(MTLPrimitiveType)Long_val(a[1]) indexCount:Int64_val(a[2]) indexType:(MTLIndexType)Long_val(a[3]) indexBuffer:object_of_handle(a[4],Handle_kind::Buffer) indexBufferOffset:Int64_val(a[5]) instanceCount:Int64_val(a[6])];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 extern "C" CAMLprim value caml_prismel_metal_render_draw_indexed_instances(value a,value b,value c,value d,value e,value f,value g){value v[]={a,b,c,d,e,f,g};return caml_prismel_metal_render_draw_indexed_instances_bytecode(v,7);}
 extern "C" CAMLprim value caml_prismel_metal_render_draw_indexed_basic(value re,value p,value count,value ty,value rb,value off){CAMLparam5(re,p,count,ty,rb);CAMLxparam1(off);@try{PRISMEL_RENDER_ENCODER(re);[e drawIndexedPrimitives:(MTLPrimitiveType)Long_val(p) indexCount:Int64_val(count) indexType:(MTLIndexType)Long_val(ty) indexBuffer:object_of_handle(rb,Handle_kind::Buffer) indexBufferOffset:Int64_val(off)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 extern "C" CAMLprim value caml_prismel_metal_render_draw_indexed_basic_bytecode(value*a,int n){(void)n;return caml_prismel_metal_render_draw_indexed_basic(a[0],a[1],a[2],a[3],a[4],a[5]);}
-extern "C" CAMLprim value caml_prismel_metal_render_draw_indexed_indirect(value re,value p,value ty,value ib,value io,value indirect,value off){CAMLparam5(re,p,ty,ib,io);CAMLxparam2(indirect,off);@try{PRISMEL_RENDER_ENCODER(re);[e drawIndexedPrimitives:(MTLPrimitiveType)Long_val(p) indexType:(MTLIndexType)Long_val(ty) indexBuffer:object_of_handle(ib,Handle_kind::Buffer) indexBufferOffset:Int64_val(io) indirectBuffer:object_of_handle(indirect,Handle_kind::Buffer) indirectBufferOffset:Int64_val(off)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_render_draw_indexed_indirect_bytecode(value*a,int n){(void)n;return caml_prismel_metal_render_draw_indexed_indirect(a[0],a[1],a[2],a[3],a[4],a[5],a[6]);}
-
-extern "C" CAMLprim value caml_prismel_metal_render_draw_patches_indirect(value re,value cp,value pib,value pio,value indirect,value off){CAMLparam5(re,cp,pib,pio,indirect);CAMLxparam1(off);@try{PRISMEL_RENDER_ENCODER(re);[e drawPatches:Int64_val(cp) patchIndexBuffer:object_of_handle(pib,Handle_kind::Buffer) patchIndexBufferOffset:Int64_val(pio) indirectBuffer:object_of_handle(indirect,Handle_kind::Buffer) indirectBufferOffset:Int64_val(off)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_render_draw_patches_indirect_bytecode(value*a,int n){(void)n;return caml_prismel_metal_render_draw_patches_indirect(a[0],a[1],a[2],a[3],a[4],a[5]);}
-extern "C" CAMLprim value caml_prismel_metal_render_draw_patches_bytecode(value*a,int n){(void)n;CAMLparam0();@try{PRISMEL_RENDER_ENCODER(a[0]);[e drawPatches:Int64_val(a[1]) patchStart:Int64_val(a[2]) patchCount:Int64_val(a[3]) patchIndexBuffer:object_of_handle(a[4],Handle_kind::Buffer) patchIndexBufferOffset:Int64_val(a[5]) instanceCount:Int64_val(a[6]) baseInstance:Int64_val(a[7])];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_render_draw_patches(value a,value b,value c,value d,value e,value f,value g,value h){value v[]={a,b,c,d,e,f,g,h};return caml_prismel_metal_render_draw_patches_bytecode(v,8);}
-extern "C" CAMLprim value caml_prismel_metal_render_draw_indirect(value re,value p,value rb,value off){CAMLparam4(re,p,rb,off);@try{PRISMEL_RENDER_ENCODER(re);[e drawPrimitives:(MTLPrimitiveType)Long_val(p) indirectBuffer:object_of_handle(rb,Handle_kind::Buffer) indirectBufferOffset:Int64_val(off)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-
-extern "C" CAMLprim value caml_prismel_metal_render_sample_counters(value re,value rb,value index,value barrier){CAMLparam4(re,rb,index,barrier);@try{PRISMEL_RENDER_ENCODER(re);[e sampleCountersInBuffer:object_of_handle(rb,Handle_kind::Counter_sample_buffer) atSampleIndex:Int64_val(index) withBarrier:Bool_val(barrier)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 
 extern "C" CAMLprim value caml_prismel_metal_render_depth_stencil(value re,value rs){CAMLparam2(re,rs);@try{PRISMEL_RENDER_ENCODER(re);[e setDepthStencilState:Is_none(rs)?nil:object_of_handle(Field(rs,0),Handle_kind::Depth_stencil)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_render_scissors(value re,value ra){CAMLparam2(re,ra);@try{PRISMEL_RENDER_ENCODER(re);mlsize_t n=Wosize_val(ra);std::vector<MTLScissorRect>v(n);for(mlsize_t i=0;i<n;i++){value x=Field(ra,i);v[i]=MTLScissorRect{(NSUInteger)Int64_val(Field(x,0)),(NSUInteger)Int64_val(Field(x,1)),(NSUInteger)Int64_val(Field(x,2)),(NSUInteger)Int64_val(Field(x,3))};}[e setScissorRects:v.data() count:n];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_render_tessellation_buffer(value re,value rb,value ro,value stride){CAMLparam4(re,rb,ro,stride);@try{PRISMEL_RENDER_ENCODER(re);[e setTessellationFactorBuffer:Is_none(rb)?nil:object_of_handle(Field(rb,0),Handle_kind::Buffer) offset:Int64_val(ro) instanceStride:Int64_val(stride)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_render_vertex_amplification(value re,value ra){CAMLparam2(re,ra);@try{PRISMEL_RENDER_ENCODER(re);mlsize_t n=Wosize_val(ra);std::vector<MTLVertexAmplificationViewMapping>v(n);for(mlsize_t i=0;i<n;i++){value x=Field(ra,i);v[i]=MTLVertexAmplificationViewMapping{(uint32_t)Int64_val(Field(x,0)),(uint32_t)Int64_val(Field(x,1))};}[e setVertexAmplificationCount:n viewMappings:v.data()];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_render_viewports(value re,value ra){CAMLparam2(re,ra);@try{PRISMEL_RENDER_ENCODER(re);mlsize_t n=Wosize_val(ra);std::vector<MTLViewport>v(n);for(mlsize_t i=0;i<n;i++){value x=Field(ra,i);v[i]=MTLViewport{Double_val(Field(x,0)),Double_val(Field(x,1)),Double_val(Field(x,2)),Double_val(Field(x,3)),Double_val(Field(x,4)),Double_val(Field(x,5))};}[e setViewports:v.data() count:n];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+
 #undef PRISMEL_RENDER_ENCODER
 
 #pragma clang diagnostic pop
@@ -8100,45 +8046,27 @@ extern "C" CAMLprim value caml_prismel_metal_render_viewports(value re,value ra)
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 /* exact conventional render/compute pipeline mechanical shard */
-static MTLResourceID prismel_pipeline_mtlcomputepipelinestate_gpuresourceid(id<MTLComputePipelineState> receiver){return [receiver gpuResourceID];}/*method:-[MTLComputePipelineState gpuResourceID]*/
-static NSUInteger prismel_pipeline_mtlcomputepipelinestate_imageblockmemorylengthfordimensions_(id<MTLComputePipelineState> receiver, MTLSize a0){return [receiver imageblockMemoryLengthForDimensions:a0];}/*method:-[MTLComputePipelineState imageblockMemoryLengthForDimensions:]*/
-static MTLSize prismel_pipeline_mtlcomputepipelinestate_requiredthreadsperthreadgroup(id<MTLComputePipelineState> receiver){return [receiver requiredThreadsPerThreadgroup];}/*method:-[MTLComputePipelineState requiredThreadsPerThreadgroup]*/
-static MTLShaderValidation prismel_pipeline_mtlcomputepipelinestate_shadervalidation(id<MTLComputePipelineState> receiver){return [receiver shaderValidation];}/*method:-[MTLComputePipelineState shaderValidation]*/
-static BOOL prismel_pipeline_mtlcomputepipelinestate_supportindirectcommandbuffers(id<MTLComputePipelineState> receiver){return [receiver supportIndirectCommandBuffers];}/*method:-[MTLComputePipelineState supportIndirectCommandBuffers]*/
-static MTLResourceID prismel_pipeline_mtlrenderpipelinestate_gpuresourceid(id<MTLRenderPipelineState> receiver){return [receiver gpuResourceID];}/*method:-[MTLRenderPipelineState gpuResourceID]*/
-static NSUInteger prismel_pipeline_mtlrenderpipelinestate_imageblockmemorylengthfordimensions_(id<MTLRenderPipelineState> receiver, MTLSize a0){return [receiver imageblockMemoryLengthForDimensions:a0];}/*method:-[MTLRenderPipelineState imageblockMemoryLengthForDimensions:]*/
-static NSUInteger prismel_pipeline_mtlrenderpipelinestate_imageblocksamplelength(id<MTLRenderPipelineState> receiver){return [receiver imageblockSampleLength];}/*method:-[MTLRenderPipelineState imageblockSampleLength]*/
-static MTLSize prismel_pipeline_mtlrenderpipelinestate_requiredthreadspermeshthreadgroup(id<MTLRenderPipelineState> receiver){return [receiver requiredThreadsPerMeshThreadgroup];}/*method:-[MTLRenderPipelineState requiredThreadsPerMeshThreadgroup]*/
-static MTLSize prismel_pipeline_mtlrenderpipelinestate_requiredthreadsperobjectthreadgroup(id<MTLRenderPipelineState> receiver){return [receiver requiredThreadsPerObjectThreadgroup];}/*method:-[MTLRenderPipelineState requiredThreadsPerObjectThreadgroup]*/
-static MTLSize prismel_pipeline_mtlrenderpipelinestate_requiredthreadspertilethreadgroup(id<MTLRenderPipelineState> receiver){return [receiver requiredThreadsPerTileThreadgroup];}/*method:-[MTLRenderPipelineState requiredThreadsPerTileThreadgroup]*/
-static MTLShaderValidation prismel_pipeline_mtlrenderpipelinestate_shadervalidation(id<MTLRenderPipelineState> receiver){return [receiver shaderValidation];}/*method:-[MTLRenderPipelineState shaderValidation]*/
+/*method:-[MTLComputePipelineState gpuResourceID]*/
+/*method:-[MTLComputePipelineState imageblockMemoryLengthForDimensions:]*/
+/*method:-[MTLComputePipelineState requiredThreadsPerThreadgroup]*/
+/*method:-[MTLComputePipelineState shaderValidation]*/
+/*method:-[MTLComputePipelineState supportIndirectCommandBuffers]*/
+/*method:-[MTLRenderPipelineState gpuResourceID]*/
+/*method:-[MTLRenderPipelineState imageblockMemoryLengthForDimensions:]*/
+/*method:-[MTLRenderPipelineState imageblockSampleLength]*/
+/*method:-[MTLRenderPipelineState requiredThreadsPerMeshThreadgroup]*/
+/*method:-[MTLRenderPipelineState requiredThreadsPerObjectThreadgroup]*/
+/*method:-[MTLRenderPipelineState requiredThreadsPerTileThreadgroup]*/
+/*method:-[MTLRenderPipelineState shaderValidation]*/
 static BOOL prismel_pipeline_mtlrenderpipelinestate_supportindirectcommandbuffers(id<MTLRenderPipelineState> receiver){return [receiver supportIndirectCommandBuffers];}/*method:-[MTLRenderPipelineState supportIndirectCommandBuffers]*/
 
 #pragma clang diagnostic pop
 
-static value prismel_pipeline_size_value(MTLSize size) {
-  value result=caml_alloc_tuple(3);
-  Store_field(result,0,caml_copy_int64(size.width));
-  Store_field(result,1,caml_copy_int64(size.height));
-  Store_field(result,2,caml_copy_int64(size.depth));
-  return result;
-}
 #define PRISMEL_PIPELINE_STATE_INT(NAME,KIND,TYPE,CALL) extern "C" CAMLprim value NAME(value raw){CAMLparam1(raw);CAMLlocal2(v,result);@try{TYPE object=object_of_handle(raw,KIND);v=caml_copy_int64((int64_t)(CALL));result=result_ok(v);CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 #define PRISMEL_PIPELINE_STATE_BOOL(NAME,KIND,TYPE,CALL) extern "C" CAMLprim value NAME(value raw){CAMLparam1(raw);@try{TYPE object=object_of_handle(raw,KIND);CAMLreturn(result_ok(Val_bool((CALL))));}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 #define PRISMEL_PIPELINE_STATE_SIZE(NAME,KIND,TYPE,CALL) extern "C" CAMLprim value NAME(value raw){CAMLparam1(raw);CAMLlocal2(v,result);@try{TYPE object=object_of_handle(raw,KIND);v=prismel_pipeline_size_value((CALL));result=result_ok(v);CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-PRISMEL_PIPELINE_STATE_INT(caml_prismel_metal_pipeline_compute_resource_id,Handle_kind::Compute_pipeline,id<MTLComputePipelineState>,prismel_pipeline_mtlcomputepipelinestate_gpuresourceid(object)._impl)
-PRISMEL_PIPELINE_STATE_SIZE(caml_prismel_metal_pipeline_compute_required_threads,Handle_kind::Compute_pipeline,id<MTLComputePipelineState>,prismel_pipeline_mtlcomputepipelinestate_requiredthreadsperthreadgroup(object))
-PRISMEL_PIPELINE_STATE_INT(caml_prismel_metal_pipeline_compute_shader_validation,Handle_kind::Compute_pipeline,id<MTLComputePipelineState>,prismel_pipeline_mtlcomputepipelinestate_shadervalidation(object))
-PRISMEL_PIPELINE_STATE_BOOL(caml_prismel_metal_pipeline_compute_indirect,Handle_kind::Compute_pipeline,id<MTLComputePipelineState>,prismel_pipeline_mtlcomputepipelinestate_supportindirectcommandbuffers(object))
-PRISMEL_PIPELINE_STATE_INT(caml_prismel_metal_pipeline_render_resource_id,Handle_kind::Render_pipeline,id<MTLRenderPipelineState>,prismel_pipeline_mtlrenderpipelinestate_gpuresourceid(object)._impl)
-PRISMEL_PIPELINE_STATE_INT(caml_prismel_metal_pipeline_render_imageblock_sample_length,Handle_kind::Render_pipeline,id<MTLRenderPipelineState>,prismel_pipeline_mtlrenderpipelinestate_imageblocksamplelength(object))
-PRISMEL_PIPELINE_STATE_SIZE(caml_prismel_metal_pipeline_render_mesh_threads,Handle_kind::Render_pipeline,id<MTLRenderPipelineState>,prismel_pipeline_mtlrenderpipelinestate_requiredthreadspermeshthreadgroup(object))
-PRISMEL_PIPELINE_STATE_SIZE(caml_prismel_metal_pipeline_render_object_threads,Handle_kind::Render_pipeline,id<MTLRenderPipelineState>,prismel_pipeline_mtlrenderpipelinestate_requiredthreadsperobjectthreadgroup(object))
-PRISMEL_PIPELINE_STATE_SIZE(caml_prismel_metal_pipeline_render_tile_threads,Handle_kind::Render_pipeline,id<MTLRenderPipelineState>,prismel_pipeline_mtlrenderpipelinestate_requiredthreadspertilethreadgroup(object))
-PRISMEL_PIPELINE_STATE_INT(caml_prismel_metal_pipeline_render_shader_validation,Handle_kind::Render_pipeline,id<MTLRenderPipelineState>,prismel_pipeline_mtlrenderpipelinestate_shadervalidation(object))
 PRISMEL_PIPELINE_STATE_BOOL(caml_prismel_metal_pipeline_render_indirect,Handle_kind::Render_pipeline,id<MTLRenderPipelineState>,prismel_pipeline_mtlrenderpipelinestate_supportindirectcommandbuffers(object))
-extern "C" CAMLprim value caml_prismel_metal_pipeline_compute_imageblock_length(value raw,value dimensions){CAMLparam2(raw,dimensions);CAMLlocal2(v,result);@try{id<MTLComputePipelineState>object=object_of_handle(raw,Handle_kind::Compute_pipeline);MTLSize size=MTLSizeMake(Int64_val(Field(dimensions,0)),Int64_val(Field(dimensions,1)),Int64_val(Field(dimensions,2)));v=caml_copy_int64(prismel_pipeline_mtlcomputepipelinestate_imageblockmemorylengthfordimensions_(object,size));result=result_ok(v);CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(value raw,value dimensions){CAMLparam2(raw,dimensions);CAMLlocal2(v,result);@try{id<MTLRenderPipelineState>object=object_of_handle(raw,Handle_kind::Render_pipeline);MTLSize size=MTLSizeMake(Int64_val(Field(dimensions,0)),Int64_val(Field(dimensions,1)),Int64_val(Field(dimensions,2)));v=caml_copy_int64(prismel_pipeline_mtlrenderpipelinestate_imageblockmemorylengthfordimensions_(object,size));result=result_ok(v);CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+
 #undef PRISMEL_PIPELINE_STATE_INT
 #undef PRISMEL_PIPELINE_STATE_BOOL
 #undef PRISMEL_PIPELINE_STATE_SIZE
@@ -8152,17 +8080,6 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
    stitched-library descriptors, reflection objects, preprocessor dictionaries,
    or callback compilation. Those ownership IDs intentionally have no bridge
    symbol here. */
-
-static value prismel_shader_handle_array(NSArray *objects, Handle_kind kind) {
-  CAMLparam0();
-  CAMLlocal2(array, item);
-  array = caml_alloc(static_cast<mlsize_t>(objects.count), 0);
-  for (NSUInteger index = 0; index < objects.count; ++index) {
-    item = allocate_handle(objects[index], kind);
-    Store_field(array, static_cast<mlsize_t>(index), item);
-  }
-  CAMLreturn(array);
-}
 
 #define PRISMEL_SHADER_INT(NAME, KIND, TYPE, EXPR)                         \
   extern "C" CAMLprim value NAME(value raw) {                            \
@@ -8187,27 +8104,6 @@ static value prismel_shader_handle_array(NSArray *objects, Handle_kind kind) {
     } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); } \
   }
 
-PRISMEL_SHADER_INT(caml_prismel_metal_shader_function_options,
-  Handle_kind::Function, id<MTLFunction>, object.options)
-PRISMEL_SHADER_INT(caml_prismel_metal_shader_function_patch_control_point_count,
-  Handle_kind::Function, id<MTLFunction>, object.patchControlPointCount)
-PRISMEL_SHADER_INT(caml_prismel_metal_shader_function_patch_type,
-  Handle_kind::Function, id<MTLFunction>, object.patchType)
-
-extern "C" CAMLprim value caml_prismel_metal_shader_function_attributes(
-    value raw, value raw_vertex) {
-  CAMLparam2(raw, raw_vertex); CAMLlocal2(array, result);
-  @try {
-    id<MTLFunction> object = object_of_handle(raw, Handle_kind::Function);
-    const bool vertex = Bool_val(raw_vertex);
-    NSArray *objects = vertex ? static_cast<NSArray *>(object.vertexAttributes)
-                              : static_cast<NSArray *>(object.stageInputAttributes);
-    array = prismel_shader_handle_array(objects ?: @[],
-        vertex ? Handle_kind::Shader_vertex_attribute : Handle_kind::Shader_attribute);
-    result = result_ok(array); CAMLreturn(result);
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-
 extern "C" CAMLprim value caml_prismel_metal_shader_function_argument_encoder(
     value raw, value raw_index) {
   CAMLparam2(raw, raw_index); CAMLlocal2(handle, result);
@@ -8223,16 +8119,6 @@ extern "C" CAMLprim value caml_prismel_metal_shader_function_argument_encoder(
   } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
 }
 
-extern "C" CAMLprim value caml_prismel_metal_shader_attribute_name(
-    value raw, value raw_vertex) {
-  CAMLparam2(raw, raw_vertex); CAMLlocal2(name, result);
-  @try {
-    NSString *text = Bool_val(raw_vertex)
-      ? static_cast<MTLVertexAttribute *>(object_of_handle(raw, Handle_kind::Shader_vertex_attribute)).name
-      : static_cast<MTLAttribute *>(object_of_handle(raw, Handle_kind::Shader_attribute)).name;
-    name = copy_optional_string(text); result = result_ok(name); CAMLreturn(result);
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
 #define PRISMEL_SHADER_ATTRIBUTE_INT(NAME, FIELD)                          \
   extern "C" CAMLprim value NAME(value raw, value raw_vertex) {          \
     CAMLparam2(raw, raw_vertex); CAMLlocal2(v, result); @try {             \
@@ -8251,77 +8137,6 @@ extern "C" CAMLprim value caml_prismel_metal_shader_attribute_name(
       CAMLreturn(result_ok(Val_bool(output)));                            \
     } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); } \
   }
-PRISMEL_SHADER_ATTRIBUTE_INT(caml_prismel_metal_shader_attribute_index, attributeIndex)
-PRISMEL_SHADER_ATTRIBUTE_INT(caml_prismel_metal_shader_attribute_type, attributeType)
-PRISMEL_SHADER_ATTRIBUTE_BOOL(caml_prismel_metal_shader_attribute_active, active)
-PRISMEL_SHADER_ATTRIBUTE_BOOL(caml_prismel_metal_shader_attribute_patch_control_point, patchControlPointData)
-PRISMEL_SHADER_ATTRIBUTE_BOOL(caml_prismel_metal_shader_attribute_patch_data, patchData)
-
-PRISMEL_SHADER_INT(caml_prismel_metal_shader_attribute_descriptor_buffer_index,
-  Handle_kind::Shader_attribute_descriptor, MTLAttributeDescriptor *, object.bufferIndex)
-PRISMEL_SHADER_INT(caml_prismel_metal_shader_attribute_descriptor_offset,
-  Handle_kind::Shader_attribute_descriptor, MTLAttributeDescriptor *, object.offset)
-PRISMEL_SHADER_INT(caml_prismel_metal_shader_attribute_descriptor_format,
-  Handle_kind::Shader_attribute_descriptor, MTLAttributeDescriptor *, object.format)
-PRISMEL_SHADER_SET_INT(caml_prismel_metal_shader_attribute_descriptor_set_buffer_index,
-  Handle_kind::Shader_attribute_descriptor, MTLAttributeDescriptor *, object.bufferIndex = static_cast<NSUInteger>(input))
-PRISMEL_SHADER_SET_INT(caml_prismel_metal_shader_attribute_descriptor_set_offset,
-  Handle_kind::Shader_attribute_descriptor, MTLAttributeDescriptor *, object.offset = static_cast<NSUInteger>(input))
-PRISMEL_SHADER_SET_INT(caml_prismel_metal_shader_attribute_descriptor_set_format,
-  Handle_kind::Shader_attribute_descriptor, MTLAttributeDescriptor *, object.format = static_cast<MTLAttributeFormat>(input))
-
-extern "C" CAMLprim value caml_prismel_metal_shader_attribute_descriptor_at(
-    value raw, value raw_index) {
-  CAMLparam2(raw, raw_index); CAMLlocal2(handle, result); @try {
-    int64_t index = Int64_val(raw_index);
-    if (index < 0) CAMLreturn(result_error_text("attribute index must be non-negative"));
-    MTLAttributeDescriptorArray *array = object_of_handle(raw, Handle_kind::Shader_attribute_descriptor_array);
-    MTLAttributeDescriptor *descriptor = array[static_cast<NSUInteger>(index)];
-    if (descriptor == nil) CAMLreturn(result_error_text("Metal returned no attribute descriptor"));
-    handle = allocate_handle(descriptor, Handle_kind::Shader_attribute_descriptor);
-    result = result_ok(handle); CAMLreturn(result);
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-extern "C" CAMLprim value caml_prismel_metal_shader_attribute_descriptor_set_at(
-    value raw, value raw_index, value raw_descriptor) {
-  CAMLparam3(raw, raw_index, raw_descriptor); @try {
-    int64_t index = Int64_val(raw_index);
-    if (index < 0) CAMLreturn(result_error_text("attribute index must be non-negative"));
-    MTLAttributeDescriptorArray *array = object_of_handle(raw, Handle_kind::Shader_attribute_descriptor_array);
-    MTLAttributeDescriptor *descriptor = object_of_handle(raw_descriptor, Handle_kind::Shader_attribute_descriptor);
-    array[static_cast<NSUInteger>(index)] = descriptor; CAMLreturn(result_unit());
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_shader_stage_descriptor_create(value unit) {
-  CAMLparam1(unit); CAMLlocal2(handle, result); @try {
-    MTLStageInputOutputDescriptor *object = [MTLStageInputOutputDescriptor stageInputOutputDescriptor];
-    handle = allocate_handle(object, Handle_kind::Shader_stage_descriptor);
-    result = result_ok(handle); CAMLreturn(result);
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-PRISMEL_SHADER_INT(caml_prismel_metal_shader_stage_descriptor_index_buffer_index,
-  Handle_kind::Shader_stage_descriptor, MTLStageInputOutputDescriptor *, object.indexBufferIndex)
-PRISMEL_SHADER_INT(caml_prismel_metal_shader_stage_descriptor_index_type,
-  Handle_kind::Shader_stage_descriptor, MTLStageInputOutputDescriptor *, object.indexType)
-PRISMEL_SHADER_SET_INT(caml_prismel_metal_shader_stage_descriptor_set_index_buffer_index,
-  Handle_kind::Shader_stage_descriptor, MTLStageInputOutputDescriptor *, object.indexBufferIndex = static_cast<NSUInteger>(input))
-PRISMEL_SHADER_SET_INT(caml_prismel_metal_shader_stage_descriptor_set_index_type,
-  Handle_kind::Shader_stage_descriptor, MTLStageInputOutputDescriptor *, object.indexType = static_cast<MTLIndexType>(input))
-extern "C" CAMLprim value caml_prismel_metal_shader_stage_descriptor_reset(value raw) {
-  CAMLparam1(raw); @try { MTLStageInputOutputDescriptor *object = object_of_handle(raw, Handle_kind::Shader_stage_descriptor);
-    [object reset]; CAMLreturn(result_unit());
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-extern "C" CAMLprim value caml_prismel_metal_shader_stage_descriptor_child(value raw, value raw_attributes) {
-  CAMLparam2(raw, raw_attributes); CAMLlocal2(handle, result); @try {
-    MTLStageInputOutputDescriptor *object = object_of_handle(raw, Handle_kind::Shader_stage_descriptor);
-    id child = Bool_val(raw_attributes) ? object.attributes : object.layouts;
-    Handle_kind kind = Bool_val(raw_attributes) ? Handle_kind::Shader_attribute_descriptor_array
-                                                 : Handle_kind::Buffer_layout_descriptor_array;
-    handle = allocate_handle(child, kind); result = result_ok(handle); CAMLreturn(result);
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
 
 #undef PRISMEL_SHADER_INT
 #undef PRISMEL_SHADER_BOOL
@@ -8511,46 +8326,10 @@ extern "C" CAMLprim value caml_prismel_metal_shared_event_set_value(value re,val
    Callback capture/event notification, function-log enumeration and complex
    blit copies remain blocked until their roots and full range schemas exist. */
 
-static bool prismel_command_nonnegative(value raw, int64_t *out) {
-  *out = Int64_val(raw);
-  return *out >= 0;
-}
-static MTLSize prismel_command_size(value raw) {
-  return MTLSizeMake(static_cast<NSUInteger>(Int64_val(Field(raw, 0))),
-                     static_cast<NSUInteger>(Int64_val(Field(raw, 1))),
-                     static_cast<NSUInteger>(Int64_val(Field(raw, 2))));
-}
-static MTLRegion prismel_command_region(value raw) {
-  return MTLRegionMake3D(Int64_val(Field(raw, 0)), Int64_val(Field(raw, 1)),
-                         Int64_val(Field(raw, 2)), Int64_val(Field(raw, 3)),
-                         Int64_val(Field(raw, 4)), Int64_val(Field(raw, 5)));
-}
-
 #define PRISMEL_INDIRECT0(NAME, KIND, TYPE, CALL) \
 extern "C" CAMLprim value NAME(value raw){CAMLparam1(raw);@try{TYPE command=object_of_handle(raw,KIND);[command CALL];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 #define PRISMEL_INDIRECT_ENUM(NAME, KIND, TYPE, CALL, ENUM) \
 extern "C" CAMLprim value NAME(value raw,value input){CAMLparam2(raw,input);@try{TYPE command=object_of_handle(raw,KIND);[command CALL:(ENUM)Long_val(input)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-PRISMEL_INDIRECT0(caml_prismel_metal_support_indirect_compute_clear_barrier,Handle_kind::Indirect_compute_command,id<MTLIndirectComputeCommand>,clearBarrier)
-PRISMEL_INDIRECT0(caml_prismel_metal_support_indirect_compute_set_barrier,Handle_kind::Indirect_compute_command,id<MTLIndirectComputeCommand>,setBarrier)
-PRISMEL_INDIRECT0(caml_prismel_metal_support_indirect_render_clear_barrier,Handle_kind::Indirect_render_command,id<MTLIndirectRenderCommand>,clearBarrier)
-PRISMEL_INDIRECT0(caml_prismel_metal_support_indirect_render_set_barrier,Handle_kind::Indirect_render_command,id<MTLIndirectRenderCommand>,setBarrier)
-PRISMEL_INDIRECT_ENUM(caml_prismel_metal_support_indirect_render_set_cull,Handle_kind::Indirect_render_command,id<MTLIndirectRenderCommand>,setCullMode,MTLCullMode)
-PRISMEL_INDIRECT_ENUM(caml_prismel_metal_support_indirect_render_set_depth_clip,Handle_kind::Indirect_render_command,id<MTLIndirectRenderCommand>,setDepthClipMode,MTLDepthClipMode)
-PRISMEL_INDIRECT_ENUM(caml_prismel_metal_support_indirect_render_set_front_winding,Handle_kind::Indirect_render_command,id<MTLIndirectRenderCommand>,setFrontFacingWinding,MTLWinding)
-PRISMEL_INDIRECT_ENUM(caml_prismel_metal_support_indirect_render_set_fill,Handle_kind::Indirect_render_command,id<MTLIndirectRenderCommand>,setTriangleFillMode,MTLTriangleFillMode)
-
-extern "C" CAMLprim value caml_prismel_metal_support_indirect_compute_imageblock(value raw,value width,value height){
-  CAMLparam3(raw,width,height);int64_t w,h;if(!prismel_command_nonnegative(width,&w)||!prismel_command_nonnegative(height,&h))CAMLreturn(result_error_text("imageblock dimensions must be non-negative"));
-  @try{[object_of_handle(raw,Handle_kind::Indirect_compute_command) setImageblockWidth:w height:h];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_support_indirect_compute_stage_region(value raw,value region){CAMLparam2(raw,region);@try{[object_of_handle(raw,Handle_kind::Indirect_compute_command) setStageInRegion:prismel_command_region(region)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_support_indirect_compute_memory(value raw,value length,value index){CAMLparam3(raw,length,index);int64_t l,i;if(!prismel_command_nonnegative(length,&l)||!prismel_command_nonnegative(index,&i))CAMLreturn(result_error_text("threadgroup memory arguments must be non-negative"));@try{[object_of_handle(raw,Handle_kind::Indirect_compute_command) setThreadgroupMemoryLength:l atIndex:i];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_support_indirect_compute_dispatch_groups(value raw,value groups,value threads){CAMLparam3(raw,groups,threads);@try{[object_of_handle(raw,Handle_kind::Indirect_compute_command) concurrentDispatchThreadgroups:prismel_command_size(groups) threadsPerThreadgroup:prismel_command_size(threads)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-
-extern "C" CAMLprim value caml_prismel_metal_support_indirect_render_depth_bias(value raw,value bias,value slope,value clamp){CAMLparam4(raw,bias,slope,clamp);@try{[object_of_handle(raw,Handle_kind::Indirect_render_command) setDepthBias:Double_val(bias) slopeScale:Double_val(slope) clamp:Double_val(clamp)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_support_indirect_render_depth_stencil(value raw,value state_raw){CAMLparam2(raw,state_raw);@try{[object_of_handle(raw,Handle_kind::Indirect_render_command) setDepthStencilState:object_of_handle(state_raw,Handle_kind::Depth_stencil)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_support_indirect_render_object_memory(value raw,value length,value index){CAMLparam3(raw,length,index);int64_t l,i;if(!prismel_command_nonnegative(length,&l)||!prismel_command_nonnegative(index,&i))CAMLreturn(result_error_text("object memory arguments must be non-negative"));@try{[object_of_handle(raw,Handle_kind::Indirect_render_command) setObjectThreadgroupMemoryLength:l atIndex:i];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_support_indirect_render_mesh_groups(value raw,value groups,value object_threads,value mesh_threads){CAMLparam4(raw,groups,object_threads,mesh_threads);@try{[object_of_handle(raw,Handle_kind::Indirect_render_command) drawMeshThreadgroups:prismel_command_size(groups) threadsPerObjectThreadgroup:prismel_command_size(object_threads) threadsPerMeshThreadgroup:prismel_command_size(mesh_threads)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_support_indirect_render_mesh_threads(value raw,value threads,value object_threads,value mesh_threads){CAMLparam4(raw,threads,object_threads,mesh_threads);@try{[object_of_handle(raw,Handle_kind::Indirect_render_command) drawMeshThreads:prismel_command_size(threads) threadsPerObjectThreadgroup:prismel_command_size(object_threads) threadsPerMeshThreadgroup:prismel_command_size(mesh_threads)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 
 #undef PRISMEL_INDIRECT0
 #undef PRISMEL_INDIRECT_ENUM
@@ -8591,62 +8370,6 @@ extern "C" NSUInteger prismel_mtl_mesh_tile_mechanical_id_count(void) { return 4
 /* M3: former metal_mesh_tile_mechanical_callable_bridge.inc */
 /* Callable adapters for all 16 contained-value properties in the prepared
    Mesh/tile105 mechanical shard. Object graph properties remain handwritten. */
-
-extern "C" CAMLprim value caml_prismel_metal_mesh_buffer_descriptor_create(value unit) {
-  CAMLparam1(unit); CAMLlocal2(handle, result); @try {
-    handle = allocate_handle([MTLPipelineBufferDescriptor new],
-                             Handle_kind::Pipeline_buffer_descriptor);
-    result = result_ok(handle); CAMLreturn(result);
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_mesh_buffer_set_mutability(
-    value raw, value raw_mutability) {
-  CAMLparam2(raw, raw_mutability); @try {
-    MTLPipelineBufferDescriptor *descriptor = object_of_handle(
-        raw, Handle_kind::Pipeline_buffer_descriptor);
-    prismel_mtl_pipeline_buffer_set_mutability(
-        descriptor, static_cast<MTLMutability>(Long_val(raw_mutability)));
-    CAMLreturn(result_unit());
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_mesh_color_attachment_create(value unit) {
-  CAMLparam1(unit); CAMLlocal2(handle, result); @try {
-    handle = allocate_handle([MTLRenderPipelineColorAttachmentDescriptor new],
-                             Handle_kind::Color_attachment_descriptor);
-    result = result_ok(handle); CAMLreturn(result);
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_mesh_color_attachment_set(
-    value raw, value pixel, value source_rgb, value destination_rgb,
-    value rgb_operation, value source_alpha, value destination_alpha,
-    value alpha_operation, value write_mask) {
-  CAMLparam5(raw, pixel, source_rgb, destination_rgb, rgb_operation);
-  CAMLxparam4(source_alpha, destination_alpha, alpha_operation, write_mask);
-  @try {
-    MTLRenderPipelineColorAttachmentDescriptor *descriptor = object_of_handle(
-        raw, Handle_kind::Color_attachment_descriptor);
-    prismel_mtl_color_attachment_set_mechanical(
-        descriptor, static_cast<MTLPixelFormat>(Int64_val(pixel)),
-        static_cast<MTLBlendFactor>(Long_val(source_rgb)),
-        static_cast<MTLBlendFactor>(Long_val(destination_rgb)),
-        static_cast<MTLBlendOperation>(Long_val(rgb_operation)),
-        static_cast<MTLBlendFactor>(Long_val(source_alpha)),
-        static_cast<MTLBlendFactor>(Long_val(destination_alpha)),
-        static_cast<MTLBlendOperation>(Long_val(alpha_operation)),
-        static_cast<MTLColorWriteMask>(Int64_val(write_mask)));
-    CAMLreturn(result_unit());
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-extern "C" CAMLprim value caml_prismel_metal_mesh_color_attachment_set_bytecode(
-    value *argv, int argn) {
-  (void)argn;
-  return caml_prismel_metal_mesh_color_attachment_set(
-      argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7],
-      argv[8]);
-}
 
 static bool prismel_mesh_size(value raw, MTLSize *size) {
   int64_t width = Int64_val(Field(raw, 0));
@@ -8877,53 +8600,11 @@ extern "C" CAMLprim value caml_prismel_metal_tile_pipeline_compile(
 /* Next coherent authoritative Metal4 ownership closure: binary-function
    descriptor graph (20 IDs), command-buffer resource views (7), and render
    encoder commands (9). */
-static NSArray* m4_binary_array(value raw){mlsize_t n=Wosize_val(raw);NSMutableArray*a=[NSMutableArray arrayWithCapacity:n];for(mlsize_t i=0;i<n;i++)[a addObject:object_of_handle(Field(raw,i),Handle_kind::Binary_function)];return a;}
-static value m4_copy_binary_array(NSArray*array){CAMLparam0();CAMLlocal2(out,h);out=caml_alloc(array.count,0);for(NSUInteger i=0;i<array.count;i++){h=allocate_handle(array[i],Handle_kind::Binary_function);Store_field(out,i,h);}CAMLreturn(out);}
-extern "C" CAMLprim value caml_prismel_metal4_binary_functions_create(value unit){CAMLparam1(unit);CAMLlocal2(raw,result);if(@available(macOS 26.0,*)){raw=allocate_handle([MTL4RenderPipelineBinaryFunctionsDescriptor new],Handle_kind::Binary_functions_descriptor4);result=result_ok(raw);CAMLreturn(result);}CAMLreturn(result_error_text("Metal 4 binary functions require macOS 26"));}
-static NSArray* m4_binary_stage(MTL4RenderPipelineBinaryFunctionsDescriptor*d,int stage){switch(stage){case 0:return d.vertexAdditionalBinaryFunctions;case 1:return d.fragmentAdditionalBinaryFunctions;case 2:return d.tileAdditionalBinaryFunctions;case 3:return d.objectAdditionalBinaryFunctions;case 4:return d.meshAdditionalBinaryFunctions;default:return nil;}}
-extern "C" CAMLprim value caml_prismel_metal4_binary_functions_get(value rd,value rs){CAMLparam2(rd,rs);CAMLlocal2(v,result);if(@available(macOS 26.0,*)){@try{MTL4RenderPipelineBinaryFunctionsDescriptor*d=object_of_handle(rd,Handle_kind::Binary_functions_descriptor4);int stage=Long_val(rs);if(stage<0||stage>4)CAMLreturn(result_error_text("invalid binary-function stage"));v=m4_copy_binary_array(m4_binary_stage(d,stage)?:@[]);result=result_ok(v);CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}CAMLreturn(result_error_text("Metal 4 binary functions require macOS 26"));}
-extern "C" CAMLprim value caml_prismel_metal4_binary_functions_set(value rd,value rs,value ra){CAMLparam3(rd,rs,ra);if(@available(macOS 26.0,*)){@try{MTL4RenderPipelineBinaryFunctionsDescriptor*d=object_of_handle(rd,Handle_kind::Binary_functions_descriptor4);NSArray*a=m4_binary_array(ra);switch(Long_val(rs)){case 0:d.vertexAdditionalBinaryFunctions=a;break;case 1:d.fragmentAdditionalBinaryFunctions=a;break;case 2:d.tileAdditionalBinaryFunctions=a;break;case 3:d.objectAdditionalBinaryFunctions=a;break;case 4:d.meshAdditionalBinaryFunctions=a;break;default:CAMLreturn(result_error_text("invalid binary-function stage"));}CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}CAMLreturn(result_error_text("Metal 4 binary functions require macOS 26"));}
-extern "C" CAMLprim value caml_prismel_metal4_binary_functions_reset(value rd){CAMLparam1(rd);if(@available(macOS 26.0,*)){@try{MTL4RenderPipelineBinaryFunctionsDescriptor*d=object_of_handle(rd,Handle_kind::Binary_functions_descriptor4);[d reset];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}CAMLreturn(result_error_text("Metal 4 binary functions require macOS 26"));}
-extern "C" CAMLprim value caml_prismel_metal4_binary_function_info(value rf){CAMLparam1(rf);CAMLlocal3(v,n,result);if(@available(macOS 26.0,*)){@try{id<MTL4BinaryFunction>f=object_of_handle(rf,Handle_kind::Binary_function);v=caml_alloc_tuple(2);n=copy_optional_string(f.name);Store_field(v,0,n);Store_field(v,1,Val_long(f.functionType));result=result_ok(v);CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}CAMLreturn(result_error_text("Metal 4 binary functions require macOS 26"));}
 
 /* M3: former metal4_acceleration_structure11_callable_bridge.inc */
 /* MTL4AccelerationStructure11 is an exact class-metadata tail. These nine
    constructors are support machinery for concrete descriptor ownership; the
    abstract Descriptor and GeometryDescriptor classes are never instantiated. */
-extern "C" CAMLprim value caml_prismel_metal4_acceleration_structure11_create(
-    value kind_raw) {
-  CAMLparam1(kind_raw); CAMLlocal2(handle, result); id descriptor = nil;
-  Handle_kind kind;
-  if (@available(macOS 26.0, *)) {
-    @try { switch (Long_val(kind_raw)) {
-        case 0: descriptor = [MTL4AccelerationStructureBoundingBoxGeometryDescriptor new];
-          kind = Handle_kind::Acceleration4_bbox_descriptor; break;
-        case 1: descriptor = [MTL4AccelerationStructureCurveGeometryDescriptor new];
-          kind = Handle_kind::Acceleration4_curve_descriptor; break;
-        case 2: descriptor = [MTL4AccelerationStructureMotionBoundingBoxGeometryDescriptor new];
-          kind = Handle_kind::Acceleration4_motion_bbox_descriptor; break;
-        case 3: descriptor = [MTL4AccelerationStructureMotionCurveGeometryDescriptor new];
-          kind = Handle_kind::Acceleration4_motion_curve_descriptor; break;
-        case 4: descriptor = [MTL4AccelerationStructureMotionTriangleGeometryDescriptor new];
-          kind = Handle_kind::Acceleration4_motion_triangle_descriptor; break;
-        case 5: descriptor = [MTL4AccelerationStructureTriangleGeometryDescriptor new];
-          kind = Handle_kind::Acceleration4_triangle_descriptor; break;
-        case 6: descriptor = [MTL4IndirectInstanceAccelerationStructureDescriptor new];
-          kind = Handle_kind::Acceleration4_indirect_instance_descriptor; break;
-        case 7: descriptor = [MTL4InstanceAccelerationStructureDescriptor new];
-          kind = Handle_kind::Acceleration4_instance_descriptor; break;
-        case 8: descriptor = [MTL4PrimitiveAccelerationStructureDescriptor new];
-          kind = Handle_kind::Acceleration4_primitive_descriptor; break;
-        default: CAMLreturn(result_error_text("unknown Metal4 acceleration descriptor kind"));
-      }
-      if (descriptor == nil)
-        CAMLreturn(result_error_text("Metal returned no Metal4 acceleration descriptor"));
-      handle = allocate_handle(descriptor, kind); result = result_ok(handle);
-      CAMLreturn(result);
-    } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-  }
-  CAMLreturn(result_error_text("Metal4 acceleration structures require macOS 26"));
-}
 
 /* M3: former metal4_argument_table_resource_bridge.inc */
 /* Exact MTL4ArgumentTable setResource:atBufferIndex: path.  The table stores a
@@ -8946,30 +8627,6 @@ static value prismel_device_library_result(id<MTLLibrary> _Nullable library,
   return result_ok(allocate_handle(library, Handle_kind::Library));
 }
 
-extern "C" CAMLprim value caml_prismel_metal_device_default_library(value raw_device) {
-  CAMLparam1(raw_device);
-  @try {
-    id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
-    CAMLreturn(prismel_device_library_result(
-        [device newDefaultLibrary], nil, @"Metal returned no default library"));
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_device_default_library_bundle(
-    value raw_device, value raw_path) {
-  CAMLparam2(raw_device, raw_path);
-  @try {
-    id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
-    NSString *path = string_from_ocaml(raw_path);
-    NSBundle *bundle = [NSBundle bundleWithPath:path];
-    if (bundle == nil) CAMLreturn(result_error_text("invalid library bundle path"));
-    NSError *error = nil;
-    id<MTLLibrary> library = [device newDefaultLibraryWithBundle:bundle error:&error];
-    CAMLreturn(prismel_device_library_result(
-        library, error, @"Metal returned no bundle default library"));
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-
 extern "C" CAMLprim value caml_prismel_metal_device_library_data(
     value raw_device, value raw_bytes) {
   CAMLparam2(raw_device, raw_bytes);
@@ -8986,22 +8643,6 @@ extern "C" CAMLprim value caml_prismel_metal_device_library_data(
     id<MTLLibrary> library = [device newLibraryWithData:data error:&error];
     CAMLreturn(prismel_device_library_result(
         library, error, @"Metal rejected library data"));
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_device_library_file(
-    value raw_device, value raw_path) {
-  CAMLparam2(raw_device, raw_path);
-  @try {
-    id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
-    NSError *error = nil;
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    id<MTLLibrary> library = [device newLibraryWithFile:string_from_ocaml(raw_path)
-                                                  error:&error];
-#pragma clang diagnostic pop
-    CAMLreturn(prismel_device_library_result(
-        library, error, @"Metal rejected library file"));
   } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
 }
 
@@ -9027,24 +8668,18 @@ static_assert(std::is_same_v<decltype(((MTLTensorDescriptor *)nil).dataType), MT
     } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); } \
   }
 
-PRISMEL_TENSOR_SET(caml_prismel_metal_tensor_descriptor_set_data_type, object.dataType = static_cast<MTLTensorDataType>(Int64_val(input)))
-
 #undef PRISMEL_TENSOR_SET
 
 /* MTLSize helpers retained for compile-option snapshots. */
-static bool prismel_rate_size(value raw,MTLSize*out){int64_t w=Int64_val(Field(raw,0)),h=Int64_val(Field(raw,1)),d=Int64_val(Field(raw,2));if(w<0||h<0||d<0)return false;*out=MTLSizeMake(w,h,d);return true;}
 
 /* M3: former metal_library42_callable_bridge.inc */
 /* Remaining synchronous MTLLibrary42 calls use the ordinary Metal bridge
    handle/result helpers. The deprecated encoder reflection stays isolated. */
-extern "C" CAMLprim value caml_prismel_metal_compile_options_create(value macros,value required){CAMLparam2(macros,required);CAMLlocal2(h,r);@try{MTLCompileOptions*o=[MTLCompileOptions new];NSMutableDictionary*d=[NSMutableDictionary dictionary];for(mlsize_t i=0;i<Wosize_val(macros);i++){value p=Field(macros,i);NSString*k=string_from_ocaml(Field(p,0)),*v=string_from_ocaml(Field(p,1));if(!k.length||!v||d[k])CAMLreturn(result_error_text("invalid or duplicate preprocessor macro"));d[k]=v;}o.preprocessorMacros=d;if(@available(macOS 26.0,*)){MTLSize s;if(!prismel_rate_size(required,&s))CAMLreturn(result_error_text("invalid required threadgroup size"));o.requiredThreadsPerThreadgroup=s;}h=allocate_handle(o,Handle_kind::Compile_options);r=result_ok(h);CAMLreturn(r);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 
-extern "C" CAMLprim value caml_prismel_metal_compile_options_required_threads_available(value unit){CAMLparam1(unit);if(@available(macOS 26.0,*))CAMLreturn(Val_true);CAMLreturn(Val_false);}
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-extern "C" CAMLprim value caml_prismel_metal_function_argument_encoder_reflection(value raw,value index){CAMLparam2(raw,index);CAMLlocal3(pair,h,r);@try{id<MTLFunction>f=object_of_handle(raw,Handle_kind::Function);MTLAutoreleasedArgument argument=nil;id<MTLArgumentEncoder>e=[f newArgumentEncoderWithBufferIndex:Int64_val(index) reflection:&argument];if(!e)CAMLreturn(result_error_text("Metal returned no reflected argument encoder"));h=allocate_handle(e,Handle_kind::Shader_argument_encoder);pair=caml_alloc_tuple(2);Store_field(pair,0,h);Store_field(pair,1,Val_bool(argument!=nil));r=result_ok(pair);CAMLreturn(r);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+
 #pragma clang diagnostic pop
-extern "C" CAMLprim value caml_prismel_metal_library_intersection_function(value raw,value name){CAMLparam2(raw,name);CAMLlocal2(h,r);@try{id<MTLLibrary>l=object_of_handle(raw,Handle_kind::Library);MTLIntersectionFunctionDescriptor*d=[MTLIntersectionFunctionDescriptor new];d.name=string_from_ocaml(name);NSError*e=nil;id<MTLFunction>f=[l newIntersectionFunctionWithDescriptor:d error:&e];if(!f)CAMLreturn(result_error(error_description(e,@"intersection function creation failed")));h=allocate_handle(f,Handle_kind::Function);r=result_ok(h);CAMLreturn(r);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 
 /* M3: former metal_argument_encoder34_callable_bridge.inc */
 /* ArgumentEncoder34 isolated callable shard. Array inputs are completely
@@ -9052,29 +8687,16 @@ extern "C" CAMLprim value caml_prismel_metal_library_intersection_function(value
    first Objective-C mutation, preserving atomic rejection. */
 static bool prismel_argument_same_device(id<MTLArgumentEncoder>e,id object){return [object respondsToSelector:@selector(device)]&&[[object device] registryID]==e.device.registryID;}
 extern "C" CAMLprim value caml_prismel_metal_argument_encoder_snapshot(value raw){CAMLparam1(raw);CAMLlocal5(tuple,label,length,alignment,device);@try{id<MTLArgumentEncoder>e=object_of_handle(raw,Handle_kind::Shader_argument_encoder);label=copy_optional_string(e.label);length=caml_copy_int64(e.encodedLength);alignment=caml_copy_int64(e.alignment);device=caml_copy_int64(e.device.registryID);tuple=caml_alloc_tuple(4);Store_field(tuple,0,label);Store_field(tuple,1,length);Store_field(tuple,2,alignment);Store_field(tuple,3,device);CAMLreturn(result_ok(tuple));}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_argument_encoder_set_label(value raw,value label){CAMLparam2(raw,label);@try{id<MTLArgumentEncoder>e=object_of_handle(raw,Handle_kind::Shader_argument_encoder);NSString*s=Is_none(label)?nil:string_from_ocaml(Field(label,0));if(!Is_none(label)&&s==nil)CAMLreturn(result_error_text("argument encoder label is not valid UTF-8"));e.label=s;CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+
 extern "C" CAMLprim value caml_prismel_metal_argument_encoder_set_buffer(value raw,value buffer,value offset,value start,value element){CAMLparam5(raw,buffer,offset,start,element);@try{id<MTLArgumentEncoder>e=object_of_handle(raw,Handle_kind::Shader_argument_encoder);id<MTLBuffer>b=object_of_handle(buffer,Handle_kind::Buffer);int64_t o=Int64_val(offset),s=Int64_val(start),a=Int64_val(element);if(o<0||s<0||a<0||(uint64_t)o>b.length||!prismel_argument_same_device(e,b))CAMLreturn(result_error_text("argument buffer range or device mismatch"));if(a==0)[e setArgumentBuffer:b offset:o];else[e setArgumentBuffer:b startOffset:s arrayElement:a];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_argument_encoder_nested(value raw,value index){CAMLparam2(raw,index);CAMLlocal2(handle,result);int64_t i=Int64_val(index);if(i<0)CAMLreturn(result_error_text("negative nested argument index"));@try{id<MTLArgumentEncoder>e=object_of_handle(raw,Handle_kind::Shader_argument_encoder);id<MTLArgumentEncoder>n=[e newArgumentEncoderForBufferAtIndex:i];if(!n)CAMLreturn(result_error_text("Metal returned no nested argument encoder"));handle=allocate_handle(n,Handle_kind::Shader_argument_encoder);result=result_ok(handle);CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_argument_encoder_constant_available(value raw,value index){CAMLparam2(raw,index);CAMLlocal1(result);int64_t i=Int64_val(index);if(i<0)CAMLreturn(result_error_text("negative constant argument index"));@try{id<MTLArgumentEncoder>e=object_of_handle(raw,Handle_kind::Shader_argument_encoder);result=result_ok(Val_bool([e constantDataAtIndex:i]!=nullptr));CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+
 extern "C" CAMLprim value caml_prismel_metal_argument_encoder_single(value raw,value tag,value object,value offset,value index){CAMLparam5(raw,tag,object,offset,index);int64_t o=Int64_val(offset),i=Int64_val(index);if(o<0||i<0)CAMLreturn(result_error_text("negative argument offset or index"));@try{id<MTLArgumentEncoder>e=object_of_handle(raw,Handle_kind::Shader_argument_encoder);id x=nil;switch(Long_val(tag)){case 0:x=object_of_handle(object,Handle_kind::Buffer);break;case 1:x=object_of_handle(object,Handle_kind::Texture);break;case 2:x=object_of_handle(object,Handle_kind::Sampler);break;case 3:x=object_of_handle(object,Handle_kind::Acceleration_structure);break;case 4:x=object_of_handle(object,Handle_kind::Indirect_command_buffer);break;case 5:x=object_of_handle(object,Handle_kind::Visible_function_table);break;case 6:x=object_of_handle(object,Handle_kind::Intersection_function_table);break;case 7:x=object_of_handle(object,Handle_kind::Render_pipeline);break;case 8:x=object_of_handle(object,Handle_kind::Compute_pipeline);break;case 9:x=object_of_handle(object,Handle_kind::Depth_stencil);break;default:CAMLreturn(result_error_text("unknown argument binding kind"));}if(!prismel_argument_same_device(e,x))CAMLreturn(result_error_text("argument binding device mismatch"));switch(Long_val(tag)){case 0:[e setBuffer:x offset:o atIndex:i];break;case 1:[e setTexture:x atIndex:i];break;case 2:[e setSamplerState:x atIndex:i];break;case 3:[e setAccelerationStructure:x atIndex:i];break;case 4:[e setIndirectCommandBuffer:x atIndex:i];break;case 5:[e setVisibleFunctionTable:x atIndex:i];break;case 6:[e setIntersectionFunctionTable:x atIndex:i];break;case 7:[e setRenderPipelineState:x atIndex:i];break;case 8:[e setComputePipelineState:x atIndex:i];break;case 9:[e setDepthStencilState:x atIndex:i];break;}CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_argument_encoder_array(value raw,value tag,value objects,value offsets,value location){CAMLparam5(raw,tag,objects,offsets,location);mlsize_t count=Wosize_val(objects);int64_t start=Int64_val(Field(location,0)),length=Int64_val(Field(location,1));if(start<0||length<0||(uint64_t)length!=count||(Long_val(tag)==0&&Wosize_val(offsets)!=count)||(Long_val(tag)!=0&&Wosize_val(offsets)!=0))CAMLreturn(result_error_text("argument array/range cardinality mismatch"));@try{id<MTLArgumentEncoder>e=object_of_handle(raw,Handle_kind::Shader_argument_encoder);std::vector<id>xs(count);std::vector<NSUInteger>os(count);Handle_kind kind;switch(Long_val(tag)){case 0:kind=Handle_kind::Buffer;break;case 1:kind=Handle_kind::Texture;break;case 2:kind=Handle_kind::Sampler;break;case 3:kind=Handle_kind::Render_pipeline;break;case 4:kind=Handle_kind::Compute_pipeline;break;case 5:kind=Handle_kind::Depth_stencil;break;case 6:kind=Handle_kind::Indirect_command_buffer;break;case 7:kind=Handle_kind::Visible_function_table;break;case 8:kind=Handle_kind::Intersection_function_table;break;default:CAMLreturn(result_error_text("unknown argument array kind"));}for(mlsize_t i=0;i<count;i++){xs[i]=object_of_handle(Field(objects,i),kind);if(!prismel_argument_same_device(e,xs[i]))CAMLreturn(result_error_text("argument array device mismatch"));if(Long_val(tag)==0){int64_t o=Int64_val(Field(offsets,i));if(o<0||(uint64_t)o>[(id<MTLBuffer>)xs[i] length])CAMLreturn(result_error_text("argument buffer offset out of range"));os[i]=o;}}NSRange range=NSMakeRange(start,length);switch(Long_val(tag)){case 0:[e setBuffers:(id<MTLBuffer> const*)xs.data() offsets:os.data() withRange:range];break;case 1:[e setTextures:(id<MTLTexture> const*)xs.data() withRange:range];break;case 2:[e setSamplerStates:(id<MTLSamplerState> const*)xs.data() withRange:range];break;case 3:[e setRenderPipelineStates:(id<MTLRenderPipelineState> const*)xs.data() withRange:range];break;case 4:[e setComputePipelineStates:(id<MTLComputePipelineState> const*)xs.data() withRange:range];break;case 5:[e setDepthStencilStates:(id<MTLDepthStencilState> const*)xs.data() withRange:range];break;case 6:[e setIndirectCommandBuffers:(id<MTLIndirectCommandBuffer> const*)xs.data() withRange:range];break;case 7:[e setVisibleFunctionTables:(id<MTLVisibleFunctionTable> const*)xs.data() withRange:range];break;case 8:[e setIntersectionFunctionTables:(id<MTLIntersectionFunctionTable> const*)xs.data() withRange:range];break;}CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 
 /* M3: former metal_acceleration_command32_callable_bridge.inc */
 /* Missing18 callable IDs complement the existing build/refit/copy/compact
    encoder methods. Every array is fully kind/device validated before mutation. */
-extern "C" CAMLprim value caml_prismel_metal_acceleration_pass_create(value unit){CAMLparam1(unit);CAMLlocal2(h,r);h=allocate_handle([MTLAccelerationStructurePassDescriptor accelerationStructurePassDescriptor],Handle_kind::Acceleration_pass_descriptor);r=result_ok(h);CAMLreturn(r);}
-extern "C" CAMLprim value caml_prismel_metal_acceleration_pass_attachments(value raw){CAMLparam1(raw);CAMLlocal2(h,r);@try{MTLAccelerationStructurePassDescriptor*d=object_of_handle(raw,Handle_kind::Acceleration_pass_descriptor);h=allocate_handle(d.sampleBufferAttachments,Handle_kind::Acceleration_sample_attachment_array);r=result_ok(h);CAMLreturn(r);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_acceleration_pass_attachment(value raw,value index,value sample,value start,value finish){CAMLparam5(raw,index,sample,start,finish);CAMLlocal2(h,r);int64_t i=Int64_val(index),s=Int64_val(start),e=Int64_val(finish);if(i<0||s<0||e<0||s>e)CAMLreturn(result_error_text("invalid acceleration sample attachment indices"));@try{MTLAccelerationStructurePassSampleBufferAttachmentDescriptorArray*a=object_of_handle(raw,Handle_kind::Acceleration_sample_attachment_array);id<MTLCounterSampleBuffer>b=Is_none(sample)?nil:object_of_handle(Field(sample,0),Handle_kind::Counter_sample_buffer);if(b&&(NSUInteger)e>=b.sampleCount)CAMLreturn(result_error_text("acceleration sample index out of range"));MTLAccelerationStructurePassSampleBufferAttachmentDescriptor*d=a[i];d.sampleBuffer=b;d.startOfEncoderSampleIndex=s;d.endOfEncoderSampleIndex=e;h=allocate_handle(d,Handle_kind::Acceleration_sample_attachment);r=result_ok(h);CAMLreturn(r);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_acceleration_pass_attachment_snapshot(value raw){CAMLparam1(raw);CAMLlocal5(tuple,sample,handle,start,finish);@try{MTLAccelerationStructurePassSampleBufferAttachmentDescriptor*d=object_of_handle(raw,Handle_kind::Acceleration_sample_attachment);if(!d.sampleBuffer)sample=Val_none;else{handle=allocate_handle(d.sampleBuffer,Handle_kind::Counter_sample_buffer);sample=caml_alloc(1,0);Store_field(sample,0,handle);}start=caml_copy_int64(d.startOfEncoderSampleIndex);finish=caml_copy_int64(d.endOfEncoderSampleIndex);tuple=caml_alloc_tuple(3);Store_field(tuple,0,sample);Store_field(tuple,1,start);Store_field(tuple,2,finish);CAMLreturn(result_ok(tuple));}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_acceleration_pass_attachment_set(value raw,value index,value attachment){CAMLparam3(raw,index,attachment);int64_t i=Int64_val(index);if(i<0)CAMLreturn(result_error_text("negative acceleration attachment index"));@try{MTLAccelerationStructurePassSampleBufferAttachmentDescriptorArray*a=object_of_handle(raw,Handle_kind::Acceleration_sample_attachment_array);a[(NSUInteger)i]=Is_none(attachment)?nil:object_of_handle(Field(attachment,0),Handle_kind::Acceleration_sample_attachment);CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_acceleration_encoder_fence(value raw,value fence,value update){CAMLparam3(raw,fence,update);@try{id<MTLAccelerationStructureCommandEncoder>e=object_of_handle(raw,Handle_kind::Acceleration_encoder);id<MTLFence>f=object_of_handle(fence,Handle_kind::Fence);if(Bool_val(update))[e updateFence:f];else[e waitForFence:f];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_acceleration_encoder_sample(value raw,value sample,value index,value barrier){CAMLparam4(raw,sample,index,barrier);int64_t i=Int64_val(index);if(i<0)CAMLreturn(result_error_text("negative counter sample index"));@try{id<MTLCounterSampleBuffer>b=object_of_handle(sample,Handle_kind::Counter_sample_buffer);if((NSUInteger)i>=b.sampleCount)CAMLreturn(result_error_text("counter sample index out of range"));[object_of_handle(raw,Handle_kind::Acceleration_encoder) sampleCountersInBuffer:b atSampleIndex:i withBarrier:Bool_val(barrier)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_acceleration_encoder_use(value raw,value heaps,value resources,value usage){CAMLparam4(raw,heaps,resources,usage);/* MTLResourceUsageSample is deprecated and aliases Read; command encoders accept the canonical Read/Write mask. */uint64_t u=Int64_val(usage),known=MTLResourceUsageRead|MTLResourceUsageWrite;if(u==0||(u&~known)!=0)CAMLreturn(result_error_text("invalid acceleration resource usage"));@try{id<MTLAccelerationStructureCommandEncoder>e=object_of_handle(raw,Handle_kind::Acceleration_encoder);std::vector<id<MTLHeap>>hs(Wosize_val(heaps));std::vector<id<MTLResource>>rs(Wosize_val(resources));uint64_t registry=e.device.registryID;for(mlsize_t i=0;i<Wosize_val(heaps);i++){hs[i]=object_of_handle(Field(heaps,i),Handle_kind::Heap);if(hs[i].device.registryID!=registry)CAMLreturn(result_error_text("acceleration heap device mismatch"));}for(mlsize_t i=0;i<Wosize_val(resources);i++){value pair=Field(resources,i);int tag=Long_val(Field(pair,0));if(tag==0)rs[i]=(id<MTLResource>)object_of_handle(Field(pair,1),Handle_kind::Buffer);else if(tag==1)rs[i]=(id<MTLResource>)object_of_handle(Field(pair,1),Handle_kind::Texture);else CAMLreturn(result_error_text("invalid acceleration resource kind"));if(rs[i].device.registryID!=registry)CAMLreturn(result_error_text("acceleration resource device mismatch"));}if(hs.size()==1)[e useHeap:hs[0]];else if(!hs.empty())[e useHeaps:hs.data() count:hs.size()];if(rs.size()==1)[e useResource:rs[0] usage:(MTLResourceUsage)u];else if(!rs.empty())[e useResources:rs.data() count:rs.size() usage:(MTLResourceUsage)u];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_acceleration_encoder_refit_options(value encoder,value source,value destination,value descriptor,value scratch,value offset,value options){CAMLparam5(encoder,source,destination,descriptor,scratch);CAMLxparam2(offset,options);int64_t o=Int64_val(offset);if(o<0)CAMLreturn(result_error_text("negative acceleration scratch offset"));@try{[object_of_handle(encoder,Handle_kind::Acceleration_encoder) refitAccelerationStructure:object_of_handle(source,Handle_kind::Acceleration_structure) descriptor:acceleration_triangle_descriptor_of_ocaml(descriptor) destination:object_of_handle(destination,Handle_kind::Acceleration_structure) scratchBuffer:object_of_handle(scratch,Handle_kind::Buffer) scratchBufferOffset:o options:(MTLAccelerationStructureRefitOptions)Int64_val(options)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_acceleration_encoder_refit_options_bytecode(value*argv,int argc){(void)argc;return caml_prismel_metal_acceleration_encoder_refit_options(argv[0],argv[1],argv[2],argv[3],argv[4],argv[5],argv[6]);}
+
 extern "C" CAMLprim value caml_prismel_metal_acceleration_encoder_write_type(value raw,value structure,value buffer,value offset,value type){CAMLparam5(raw,structure,buffer,offset,type);int64_t o=Int64_val(offset);if(o<0)CAMLreturn(result_error_text("negative compacted-size offset"));@try{id<MTLBuffer>b=object_of_handle(buffer,Handle_kind::Buffer);NSUInteger bytes=Long_val(type)==0?sizeof(uint32_t):sizeof(uint64_t);if((uint64_t)o>b.length||bytes>b.length-o)CAMLreturn(result_error_text("compacted-size destination range out of bounds"));[object_of_handle(raw,Handle_kind::Acceleration_encoder) writeCompactedAccelerationStructureSize:object_of_handle(structure,Handle_kind::Acceleration_structure) toBuffer:b offset:o sizeDataType:(MTLDataType)Long_val(type)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_acceleration_encoder_with_pass(value command_raw,value pass_raw){CAMLparam2(command_raw,pass_raw);CAMLlocal2(handle,result);@try{id<MTLCommandBuffer>command=object_of_handle(command_raw,Handle_kind::Command_buffer);MTLAccelerationStructurePassDescriptor*pass=object_of_handle(pass_raw,Handle_kind::Acceleration_pass_descriptor);id<MTLAccelerationStructureCommandEncoder>encoder=[command accelerationStructureCommandEncoderWithDescriptor:pass];if(!encoder)CAMLreturn(result_error_text("acceleration encoder creation failed"));handle=allocate_handle(encoder,Handle_kind::Acceleration_encoder);result=result_ok(handle);CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_acceleration_supports_counters(value device_raw){CAMLparam1(device_raw);CAMLlocal2(supported,result);@try{id<MTLDevice>device=object_of_handle(device_raw,Handle_kind::Device);supported=Val_bool([device supportsCounterSampling:MTLCounterSamplingPointAtStageBoundary]);result=result_ok(supported);CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 
 /* M3: former metal_blit_command25_callable_bridge.inc */
 /* BlitCommand25 isolated callable shard. Positional copy specs are decoded and
@@ -9085,17 +8707,13 @@ extern "C" CAMLprim value caml_prismel_metal_blit_fill_mipmap(value raw,value re
 extern "C" CAMLprim value caml_prismel_metal_blit_fence(value raw,value fence,value update){CAMLparam3(raw,fence,update);@try{id<MTLBlitCommandEncoder>e=object_of_handle(raw,Handle_kind::Blit_encoder);id<MTLFence>f=object_of_handle(fence,Handle_kind::Fence);if(Bool_val(update))[e updateFence:f];else[e waitForFence:f];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 extern "C" CAMLprim value caml_prismel_metal_blit_counter(value raw,value sample,value first,value count,value destination,value offset,value sample_now){CAMLparam5(raw,sample,first,count,destination);CAMLxparam2(offset,sample_now);@try{id<MTLBlitCommandEncoder>e=object_of_handle(raw,Handle_kind::Blit_encoder);id<MTLCounterSampleBuffer>s=object_of_handle(sample,Handle_kind::Counter_sample_buffer);int64_t i=Int64_val(first),n=Int64_val(count);if(i<0||n<0||(uint64_t)i>s.sampleCount||(uint64_t)n>s.sampleCount-i)CAMLreturn(result_error_text("counter sample range out of bounds"));if(Bool_val(sample_now))[e sampleCountersInBuffer:s atSampleIndex:i withBarrier:YES];else{ id<MTLBuffer>d=object_of_handle(destination,Handle_kind::Buffer);int64_t o=Int64_val(offset);if(o<0||(uint64_t)o>d.length)CAMLreturn(result_error_text("counter resolve offset out of bounds"));[e resolveCounters:s inRange:NSMakeRange(i,n) destinationBuffer:d destinationOffset:o];}CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 extern "C" CAMLprim value caml_prismel_metal_blit_counter_bytecode(value*argv,int argc){(void)argc;return caml_prismel_metal_blit_counter(argv[0],argv[1],argv[2],argv[3],argv[4],argv[5],argv[6]);}
-extern "C" CAMLprim value caml_prismel_metal_blit_texture_aux(value raw,value texture,value mode,value spec){CAMLparam4(raw,texture,mode,spec);@try{id<MTLBlitCommandEncoder>e=object_of_handle(raw,Handle_kind::Blit_encoder);id<MTLTexture>t=object_of_handle(texture,Handle_kind::Texture);int op=Long_val(mode);if(op==0)[e optimizeContentsForCPUAccess:t];else if(op==1)[e optimizeContentsForCPUAccess:t slice:Int64_val(Field(spec,0)) level:Int64_val(Field(spec,1))];else if(op==2)[e optimizeContentsForGPUAccess:t];else if(op==3)[e optimizeContentsForGPUAccess:t slice:Int64_val(Field(spec,0)) level:Int64_val(Field(spec,1))];else if(op==4)[e synchronizeResource:t];else if(op==5)[e synchronizeTexture:t slice:Int64_val(Field(spec,0)) level:Int64_val(Field(spec,1))];else CAMLreturn(result_error_text("unknown texture auxiliary blit"));CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_blit_indirect(value raw,value indirect,value optimize,value location,value length){CAMLparam5(raw,indirect,optimize,location,length);int64_t o=Int64_val(location),n=Int64_val(length);if(o<0||n<0)CAMLreturn(result_error_text("invalid indirect command range"));@try{id<MTLIndirectCommandBuffer>b=object_of_handle(indirect,Handle_kind::Indirect_command_buffer);if((uint64_t)o>b.size||(uint64_t)n>b.size-o)CAMLreturn(result_error_text("indirect command range out of bounds"));if(Bool_val(optimize))[object_of_handle(raw,Handle_kind::Blit_encoder) optimizeIndirectCommandBuffer:b withRange:NSMakeRange(o,n)];else[object_of_handle(raw,Handle_kind::Blit_encoder) resetCommandsInBuffer:b withRange:NSMakeRange(o,n)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_blit_access_counters(value raw,value texture,value region,value level,value slice,value reset,value buffer,value offset){CAMLparam5(raw,texture,region,level,slice);CAMLxparam3(reset,buffer,offset);@try{id<MTLBlitCommandEncoder>e=object_of_handle(raw,Handle_kind::Blit_encoder);id<MTLTexture>t=object_of_handle(texture,Handle_kind::Texture);MTLRegion r=MTLRegionMake3D(Int64_val(Field(region,0)),Int64_val(Field(region,1)),Int64_val(Field(region,2)),Int64_val(Field(region,3)),Int64_val(Field(region,4)),Int64_val(Field(region,5)));if(Bool_val(reset)){[e resetTextureAccessCounters:t region:r mipLevel:Int64_val(level) slice:Int64_val(slice)];}else{id<MTLBuffer>b=object_of_handle(buffer,Handle_kind::Buffer);[e getTextureAccessCounters:t region:r mipLevel:Int64_val(level) slice:Int64_val(slice) resetCounters:NO countersBuffer:b countersBufferOffset:Int64_val(offset)];}CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_blit_access_counters_bytecode(value*argv,int argc){(void)argc;return caml_prismel_metal_blit_access_counters(argv[0],argv[1],argv[2],argv[3],argv[4],argv[5],argv[6],argv[7]);}
 
 /* M3: former metal_compute_pass20_callable_bridge.inc */
 /* ComputePass20 complete descriptor graph. Returned objects use the three
    dedicated handle kinds added by integration. */
 extern "C" CAMLprim value caml_prismel_metal_compute_pass_create(value dispatch){CAMLparam1(dispatch);CAMLlocal2(handle,result);int type=Long_val(dispatch);if(type<0||type>1)CAMLreturn(result_error_text("invalid compute dispatch type"));@try{MTLComputePassDescriptor*d=[MTLComputePassDescriptor computePassDescriptor];d.dispatchType=(MTLDispatchType)type;handle=allocate_handle(d,Handle_kind::Compute_pass_descriptor);result=result_ok(handle);CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 extern "C" CAMLprim value caml_prismel_metal_compute_pass_snapshot(value raw){CAMLparam1(raw);CAMLlocal3(tuple,attachments,result);@try{MTLComputePassDescriptor*d=object_of_handle(raw,Handle_kind::Compute_pass_descriptor);attachments=allocate_handle(d.sampleBufferAttachments,Handle_kind::Compute_sample_attachment_array);tuple=caml_alloc_tuple(2);Store_field(tuple,0,Val_long(d.dispatchType));Store_field(tuple,1,attachments);result=result_ok(tuple);CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_compute_pass_set_dispatch(value raw,value dispatch){CAMLparam2(raw,dispatch);int type=Long_val(dispatch);if(type<0||type>1)CAMLreturn(result_error_text("invalid compute dispatch type"));@try{MTLComputePassDescriptor*d=object_of_handle(raw,Handle_kind::Compute_pass_descriptor);d.dispatchType=(MTLDispatchType)type;CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+
 extern "C" CAMLprim value caml_prismel_metal_compute_pass_attachment(value raw,value index,value sample,value start,value finish){CAMLparam5(raw,index,sample,start,finish);CAMLlocal2(handle,result);int64_t i=Int64_val(index),s=Int64_val(start),e=Int64_val(finish);if(i<0||(Is_none(sample)?(s!=-1||e!=-1):(s<0||e<0||s>e)))CAMLreturn(result_error_text("invalid compute sample attachment indices"));@try{MTLComputePassSampleBufferAttachmentDescriptorArray*a=object_of_handle(raw,Handle_kind::Compute_sample_attachment_array);id<MTLCounterSampleBuffer>b=Is_none(sample)?nil:object_of_handle(Field(sample,0),Handle_kind::Counter_sample_buffer);if(b&&(NSUInteger)e>=b.sampleCount)CAMLreturn(result_error_text("compute sample index out of range"));MTLComputePassSampleBufferAttachmentDescriptor*d=a[i];d.sampleBuffer=b;d.startOfEncoderSampleIndex=s;d.endOfEncoderSampleIndex=e;handle=allocate_handle(d,Handle_kind::Compute_sample_attachment);result=result_ok(handle);CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 extern "C" CAMLprim value caml_prismel_metal_compute_pass_attachment_snapshot(value raw){CAMLparam1(raw);CAMLlocal5(tuple,sample,handle,start,finish);@try{MTLComputePassSampleBufferAttachmentDescriptor*d=object_of_handle(raw,Handle_kind::Compute_sample_attachment);if(!d.sampleBuffer)sample=Val_none;else{handle=allocate_handle(d.sampleBuffer,Handle_kind::Counter_sample_buffer);sample=caml_alloc(1,0);Store_field(sample,0,handle);}start=caml_copy_int64(d.startOfEncoderSampleIndex);finish=caml_copy_int64(d.endOfEncoderSampleIndex);tuple=caml_alloc_tuple(3);Store_field(tuple,0,sample);Store_field(tuple,1,start);Store_field(tuple,2,finish);CAMLreturn(result_ok(tuple));}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 
@@ -9113,121 +8731,10 @@ extern "C" CAMLprim value caml_prismel_metal_compute_pass_attachment_snapshot(va
 
 /* mode 0 is commandBufferWithUnretainedReferences; mode 1 materializes the
    exact command-buffer descriptor tuple (retainedReferences,errorOptions,log). */
-extern "C" CAMLprim value caml_prismel_metal_command_queue_command_buffer(
-    value raw, value mode_raw, value retained_raw, value error_options_raw,
-    value log_state) {
-  CAMLparam5(raw, mode_raw, retained_raw, error_options_raw, log_state);
-  CAMLlocal2(handle, result); @try {
-    id<MTLCommandQueue> queue = object_of_handle(raw, Handle_kind::Command_queue);
-    id<MTLCommandBuffer> command = nil;
-    if (Long_val(mode_raw) == 0) command = [queue commandBufferWithUnretainedReferences];
-    else if (Long_val(mode_raw) == 1) {
-      if (@available(macOS 15.0, *)) {} else
-        CAMLreturn(result_error_text("command-buffer descriptors require macOS 15"));
-      MTLCommandBufferDescriptor *descriptor = [MTLCommandBufferDescriptor new];
-      descriptor.retainedReferences = Bool_val(retained_raw);
-      descriptor.errorOptions = (MTLCommandBufferErrorOption)Int64_val(error_options_raw);
-      PrismelMetalLogStateState *state = Is_none(log_state) ? nil :
-        object_of_handle(Field(log_state, 0), Handle_kind::Log_state);
-      if (state != nil && state.registryID != queue.device.registryID)
-        CAMLreturn(result_error_text("log state belongs to another Metal device"));
-      descriptor.logState = state.state;
-      command = [queue commandBufferWithDescriptor:descriptor];
-    } else CAMLreturn(result_error_text("unknown command-buffer constructor"));
-    if (command == nil) CAMLreturn(result_error_text("Metal returned no command buffer"));
-    /* allocate_handle retains even the SDK's unretained-references variant. */
-    handle = allocate_handle(command, Handle_kind::Command_buffer);
-    result = result_ok(handle); CAMLreturn(result);
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_command_queue_snapshot(value raw) {
-  CAMLparam1(raw); CAMLlocal4(tuple, label, device, result); @try {
-    id<MTLCommandQueue> queue = object_of_handle(raw, Handle_kind::Command_queue);
-    label = copy_optional_string(queue.label); device = caml_copy_int64(queue.device.registryID);
-    tuple = caml_alloc_tuple(2); Store_field(tuple, 0, label); Store_field(tuple, 1, device);
-    result = result_ok(tuple); CAMLreturn(result);
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_command_queue_set_label(value raw, value option) {
-  CAMLparam2(raw, option); @try {
-    NSString *label = Is_none(option) ? nil : string_from_ocaml(Field(option, 0));
-    if (!Is_none(option) && label == nil)
-      CAMLreturn(result_error_text("command queue label is not valid UTF-8"));
-    id<MTLCommandQueue> queue = object_of_handle(raw, Handle_kind::Command_queue);
-    queue.label = label;
-    CAMLreturn(result_unit());
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
 
 /* M3: former metal_compute_pipeline11_callable_bridge.inc */
-extern "C" CAMLprim value caml_prismel_metal_compute_pipeline11_named(
-    value pipeline_raw, value name_raw) {
-  CAMLparam2(pipeline_raw, name_raw); CAMLlocal3(option, handle, result);
-  @try {
-    id<MTLComputePipelineState> pipeline = object_of_handle(
-      pipeline_raw, Handle_kind::Compute_pipeline);
-    id<MTLFunctionHandle> function = [pipeline functionHandleWithName:string_from_ocaml(name_raw)];
-    if (function == nil) option = Val_none;
-    else { handle = allocate_handle(function, Handle_kind::Function_handle);
-      option = caml_alloc(1, 0); Store_field(option, 0, handle); }
-    result = result_ok(option); CAMLreturn(result);
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_compute_pipeline11_relink(
-    value pipeline_raw, value binary_raw) {
-  CAMLparam2(pipeline_raw, binary_raw); CAMLlocal2(handle, result);
-  @try {
-    id<MTLComputePipelineState> pipeline = object_of_handle(
-      pipeline_raw, Handle_kind::Compute_pipeline);
-    NSError *error = nil; id<MTLComputePipelineState> relinked = nil;
-    if (Bool_val(binary_raw)) {
-      if (@available(macOS 26.0, *))
-        relinked = [pipeline newComputePipelineStateWithBinaryFunctions:@[] error:&error];
-      else CAMLreturn(result_error_text("MTL4 binary relinking requires macOS 26"));
-    } else
-      relinked = [pipeline newComputePipelineStateWithAdditionalBinaryFunctions:@[] error:&error];
-    if (relinked == nil) CAMLreturn(result_error(error_description(error,
-      @"compute pipeline relink is unsupported")));
-    handle = allocate_handle(relinked, Handle_kind::Compute_pipeline);
-    result = result_ok(handle); CAMLreturn(result);
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
 
 /* M3: former metal_command_buffer19_encoder_info.inc */
-extern "C" CAMLprim value caml_prismel_metal_command_buffer_encoder_infos(value raw) {
-  CAMLparam1(raw);
-  CAMLlocal5(result, array, tuple, label, signposts);
-  @try {
-    id<MTLCommandBuffer> command = object_of_handle(raw, Handle_kind::Command_buffer);
-    if (command.status != MTLCommandBufferStatusError)
-      CAMLreturn(result_error(@"encoder diagnostics require a failed command buffer"));
-    NSArray<id<MTLCommandBufferEncoderInfo>> *infos =
-      command.error.userInfo[MTLCommandBufferEncoderInfoErrorKey];
-    if (infos == nil) infos = @[];
-    array = caml_alloc((mlsize_t)infos.count, 0);
-    for (NSUInteger i = 0; i < infos.count; ++i) {
-      id<MTLCommandBufferEncoderInfo> info = infos[i];
-      tuple = caml_alloc_tuple(3);
-      label = copy_optional_string(info.label);
-      Store_field(tuple, 0, label);
-      NSArray<NSString *> *native_signposts = info.debugSignposts ?: @[];
-      signposts = caml_alloc((mlsize_t)native_signposts.count, 0);
-      for (NSUInteger j = 0; j < native_signposts.count; ++j)
-        Store_field(signposts, j,
-          caml_copy_string(native_signposts[j].UTF8String ?: ""));
-      Store_field(tuple, 1, signposts);
-      Store_field(tuple, 2, Val_long((long)info.errorState));
-      Store_field(array, i, tuple);
-    }
-    result = result_ok(array);
-    CAMLreturn(result);
-  } @catch (NSException *exception) {
-    CAMLreturn(result_error(exception.reason));
-  }
-}
 
 /* M3: former metal_indirect_command14_callable_bridge.inc */
 /* IndirectCommand14 residual shard. expected_device is the authoritative ICB
@@ -9241,49 +8748,6 @@ static bool prismel_indirect_buffer_range(id<MTLBuffer> buffer, int64_t offset,
     (int64_t)buffer.device.registryID == device;
 }
 
-extern "C" CAMLprim value caml_prismel_metal_indirect_command_set_buffer_stride(
-    value command_raw, value buffer_raw, value offset_raw, value stride_raw,
-    value index_raw, value stage_raw, value device_raw) {
-  CAMLparam5(command_raw, buffer_raw, offset_raw, stride_raw, index_raw);
-  CAMLxparam2(stage_raw, device_raw); int64_t offset = Int64_val(offset_raw);
-  int64_t stride = Int64_val(stride_raw), index = Int64_val(index_raw);
-  if (stride <= 0 || index < 0) CAMLreturn(result_error_text("invalid indirect buffer stride/index"));
-  @try { id<MTLBuffer> buffer = object_of_handle(buffer_raw, Handle_kind::Buffer);
-    if (!prismel_indirect_buffer_range(buffer, offset, 0, Int64_val(device_raw)))
-      CAMLreturn(result_error_text("indirect buffer offset/device mismatch"));
-    switch (Long_val(stage_raw)) {
-      case 0: [object_of_handle(command_raw, Handle_kind::Indirect_compute_command)
-        setKernelBuffer:buffer offset:offset attributeStride:stride atIndex:index]; break;
-      case 1: [object_of_handle(command_raw, Handle_kind::Indirect_render_command)
-        setVertexBuffer:buffer offset:offset attributeStride:stride atIndex:index]; break;
-      default: CAMLreturn(result_error_text("unknown indirect stride binding stage"));
-    } CAMLreturn(result_unit());
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-extern "C" CAMLprim value caml_prismel_metal_indirect_command_set_buffer_stride_bytecode(
-    value *argv, int argc) { (void)argc; return caml_prismel_metal_indirect_command_set_buffer_stride(
-      argv[0],argv[1],argv[2],argv[3],argv[4],argv[5],argv[6]); }
-
-extern "C" CAMLprim value caml_prismel_metal_indirect_render_set_stage_buffer(
-    value command_raw, value buffer_raw, value offset_raw, value index_raw,
-    value stage_raw, value device_raw) {
-  CAMLparam5(command_raw, buffer_raw, offset_raw, index_raw, stage_raw); CAMLxparam1(device_raw);
-  int64_t offset=Int64_val(offset_raw),index=Int64_val(index_raw);
-  if(index<0)CAMLreturn(result_error_text("negative indirect binding index"));
-  @try{id<MTLBuffer>b=object_of_handle(buffer_raw,Handle_kind::Buffer);
-    if(!prismel_indirect_buffer_range(b,offset,0,Int64_val(device_raw)))
-      CAMLreturn(result_error_text("indirect buffer offset/device mismatch"));
-    id<MTLIndirectRenderCommand>c=object_of_handle(command_raw,Handle_kind::Indirect_render_command);
-    switch(Long_val(stage_raw)){case 0:[c setVertexBuffer:b offset:offset atIndex:index];break;
-      case 1:[c setFragmentBuffer:b offset:offset atIndex:index];break;
-      case 2:[c setObjectBuffer:b offset:offset atIndex:index];break;
-      case 3:[c setMeshBuffer:b offset:offset atIndex:index];break;
-      default:CAMLreturn(result_error_text("unknown indirect render binding stage"));}
-    CAMLreturn(result_unit());
-  }@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_indirect_render_set_stage_buffer_bytecode(
-    value*argv,int argc){(void)argc;return caml_prismel_metal_indirect_render_set_stage_buffer(argv[0],argv[1],argv[2],argv[3],argv[4],argv[5]);}
-
 extern "C" CAMLprim value caml_prismel_metal_indirect_render_draw_indexed(
     value command_raw,value primitive_raw,value count_raw,value type_raw,
     value buffer_raw,value offset_raw,value instances_raw,value base_vertex_raw,
@@ -9295,32 +8759,11 @@ extern "C" CAMLprim value caml_prismel_metal_indirect_render_draw_indexed_byteco
 /* Patch calls retain three buffers in the safe command slot. The positional
    tuple is (controlPoints,patchStart,patchCount,patchOffset,controlOffset,
    instances,baseInstance,tessOffset,tessStride), all int64. */
-extern "C" CAMLprim value caml_prismel_metal_indirect_render_draw_patches(
-    value command_raw,value patch_index,value control_raw,value tess_raw,value spec,value device_raw){CAMLparam5(command_raw,patch_index,control_raw,tess_raw,spec);CAMLxparam1(device_raw);
-  int64_t points=Int64_val(Field(spec,0)),start=Int64_val(Field(spec,1)),count=Int64_val(Field(spec,2)),po=Int64_val(Field(spec,3)),co=Int64_val(Field(spec,4)),instances=Int64_val(Field(spec,5)),base=Int64_val(Field(spec,6)),to=Int64_val(Field(spec,7)),stride=Int64_val(Field(spec,8));if(points<=0||start<0||count<=0||po<0||co<0||instances<=0||base<0||to<0||stride<=0)CAMLreturn(result_error_text("invalid indirect patch cardinality/stride"));
-  @try{id<MTLBuffer>control=object_of_handle(control_raw,Handle_kind::Buffer),tess=object_of_handle(tess_raw,Handle_kind::Buffer);id<MTLBuffer>patch=Is_none(patch_index)?nil:object_of_handle(Field(patch_index,0),Handle_kind::Buffer);int64_t dev=Int64_val(device_raw);if(!prismel_indirect_buffer_range(control,co,0,dev)||!prismel_indirect_buffer_range(tess,to,0,dev)||(patch&&!prismel_indirect_buffer_range(patch,po,0,dev)))CAMLreturn(result_error_text("indirect patch buffer offset/device mismatch"));id<MTLIndirectRenderCommand>c=object_of_handle(command_raw,Handle_kind::Indirect_render_command);if(patch)[c drawIndexedPatches:points patchStart:start patchCount:count patchIndexBuffer:patch patchIndexBufferOffset:po controlPointIndexBuffer:control controlPointIndexBufferOffset:co instanceCount:instances baseInstance:base tessellationFactorBuffer:tess tessellationFactorBufferOffset:to tessellationFactorBufferInstanceStride:stride];else[c drawPatches:points patchStart:start patchCount:count patchIndexBuffer:nil patchIndexBufferOffset:0 instanceCount:instances baseInstance:base tessellationFactorBuffer:tess tessellationFactorBufferOffset:to tessellationFactorBufferInstanceStride:stride];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_indirect_render_draw_patches_bytecode(value*argv,int argc){(void)argc;return caml_prismel_metal_indirect_render_draw_patches(argv[0],argv[1],argv[2],argv[3],argv[4],argv[5]);}
 
 /* M3: former metal_acceleration_structure28_callable_bridge.inc */
 /* AccelerationStructure28 constructor-only ownership shard. Integration adds
    ten exact descriptor handle kinds; property graphs remain handwritten and
    validate all buffers before mutating these retained descriptors. */
-extern "C" CAMLprim value caml_prismel_metal_acceleration_descriptor_create(value tag_raw){
-  CAMLparam1(tag_raw);CAMLlocal2(handle,result);id descriptor=nil;Handle_kind kind;
-  @try{switch(Long_val(tag_raw)){
-    case 0:descriptor=[MTLAccelerationStructureBoundingBoxGeometryDescriptor descriptor];kind=Handle_kind::Acceleration_bbox_descriptor;break;
-    case 1:descriptor=[MTLAccelerationStructureCurveGeometryDescriptor descriptor];kind=Handle_kind::Acceleration_curve_descriptor;break;
-    case 2:descriptor=[MTLAccelerationStructureMotionBoundingBoxGeometryDescriptor descriptor];kind=Handle_kind::Acceleration_motion_bbox_descriptor;break;
-    case 3:descriptor=[MTLAccelerationStructureMotionCurveGeometryDescriptor descriptor];kind=Handle_kind::Acceleration_motion_curve_descriptor;break;
-    case 4:descriptor=[MTLAccelerationStructureMotionTriangleGeometryDescriptor descriptor];kind=Handle_kind::Acceleration_motion_triangle_descriptor;break;
-    case 5:descriptor=[MTLAccelerationStructureTriangleGeometryDescriptor descriptor];kind=Handle_kind::Acceleration_triangle_owned_descriptor;break;
-    case 6:descriptor=[MTLIndirectInstanceAccelerationStructureDescriptor descriptor];kind=Handle_kind::Acceleration_indirect_instance_descriptor;break;
-    case 7:descriptor=[MTLInstanceAccelerationStructureDescriptor descriptor];kind=Handle_kind::Acceleration_instance_descriptor;break;
-    case 8:descriptor=[MTLMotionKeyframeData data];kind=Handle_kind::Acceleration_motion_keyframe;break;
-    case 9:descriptor=[MTLPrimitiveAccelerationStructureDescriptor descriptor];kind=Handle_kind::Acceleration_primitive_descriptor;break;
-    default:CAMLreturn(result_error_text("unknown acceleration descriptor constructor"));}
-    if(!descriptor)CAMLreturn(result_error_text("Metal returned no acceleration descriptor"));handle=allocate_handle(descriptor,kind);result=result_ok(handle);CAMLreturn(result);
-  }@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 
 /* M3: former metal_log_state9_callable_bridge.inc */
 #include <condition_variable>
@@ -9375,44 +8818,17 @@ struct PrismelLogHandlerToken{std::shared_ptr<PrismelLogHandlerState>state;};
 /* FunctionHandle8 isolated snapshot. A single exact-kind read materializes all
    four SDK properties; method/property companion IDs share these direct typed
    selectors without exposing Device handles or native strings. */
-extern "C" CAMLprim value caml_prismel_metal_function_handle_snapshot(value raw){CAMLparam1(raw);CAMLlocal5(tuple,function_type,resource_id,device_id,name);@try{id<MTLFunctionHandle>handle=object_of_handle(raw,Handle_kind::Function_handle);NSString*native_name=handle.name;if(native_name==nil)CAMLreturn(result_error_text("Metal function handle has no name"));function_type=Val_long(handle.functionType);resource_id=caml_copy_int64((int64_t)handle.gpuResourceID._impl);device_id=caml_copy_int64((int64_t)handle.device.registryID);const char*utf8=native_name.UTF8String;if(!utf8)CAMLreturn(result_error_text("Metal function handle name is not valid UTF-8"));name=caml_copy_string(utf8);tuple=caml_alloc_tuple(4);Store_field(tuple,0,function_type);Store_field(tuple,1,resource_id);Store_field(tuple,2,device_id);Store_field(tuple,3,name);CAMLreturn(result_ok(tuple));}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 
 /* M3: former metal_linked_functions9_callable_bridge.inc */
 /* LinkedFunctions9 isolated shard. The safe owner supplies its authoritative
    pipeline device ID. Every nullable array/dictionary edge is decoded,
    kind/device checked, and copied before the first descriptor mutation. */
-static bool prismel_linked_function_array_raw(value raw,int64_t device,NSArray<id<MTLFunction>>**out,NSString**failure){NSMutableArray<id<MTLFunction>>*items=[NSMutableArray arrayWithCapacity:Wosize_val(raw)];for(mlsize_t i=0;i<Wosize_val(raw);i++){id<MTLFunction>f=object_of_handle(Field(raw,i),Handle_kind::Function);if((int64_t)f.device.registryID!=device){*failure=@"linked function device mismatch";return false;}[items addObject:f];}*out=[items copy];return true;}
-static bool prismel_linked_function_array(value option,int64_t device,NSArray<id<MTLFunction>>**out,NSString**failure){if(Is_none(option)){*out=nil;return true;}return prismel_linked_function_array_raw(Field(option,0),device,out,failure);}
-static value prismel_linked_function_array_value(NSArray<id<MTLFunction>>*items){if(items==nil)return Val_none;CAMLparam0();CAMLlocal3(option,array,handle);array=caml_alloc(items.count,0);for(NSUInteger i=0;i<items.count;i++){handle=allocate_handle(items[i],Handle_kind::Function);Store_field(array,i,handle);}option=caml_alloc(1,0);Store_field(option,0,array);CAMLreturn(option);}
-
-extern "C" CAMLprim value caml_prismel_metal_linked_functions_array(value raw,value lane_raw){CAMLparam2(raw,lane_raw);CAMLlocal2(option,result);@try{MTLLinkedFunctions*linked=object_of_handle(raw,Handle_kind::Linked_functions);NSArray<id<MTLFunction>>*items=Long_val(lane_raw)==0?linked.binaryFunctions:Long_val(lane_raw)==1?linked.privateFunctions:nil;if(Long_val(lane_raw)<0||Long_val(lane_raw)>1)CAMLreturn(result_error_text("unknown linked function array lane"));option=prismel_linked_function_array_value(items);result=result_ok(option);CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_linked_functions_set_array(value raw,value lane_raw,value option,value device_raw){CAMLparam4(raw,lane_raw,option,device_raw);@try{NSArray<id<MTLFunction>>*items=nil;NSString*failure=nil;if(!prismel_linked_function_array(option,Int64_val(device_raw),&items,&failure))CAMLreturn(result_error(failure));MTLLinkedFunctions*linked=object_of_handle(raw,Handle_kind::Linked_functions);if(Long_val(lane_raw)==0)linked.binaryFunctions=items;else if(Long_val(lane_raw)==1)linked.privateFunctions=items;else CAMLreturn(result_error_text("unknown linked function array lane"));CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-
-extern "C" CAMLprim value caml_prismel_metal_linked_functions_groups(value raw){CAMLparam1(raw);CAMLlocal5(option,array,pair,name,functions);@try{MTLLinkedFunctions*linked=object_of_handle(raw,Handle_kind::Linked_functions);NSDictionary<NSString*,NSArray<id<MTLFunction>>*>*groups=linked.groups;if(groups==nil)CAMLreturn(result_ok(Val_none));NSArray<NSString*>*keys=[[groups allKeys]sortedArrayUsingSelector:@selector(compare:)];array=caml_alloc(keys.count,0);for(NSUInteger i=0;i<keys.count;i++){NSString*key=keys[i];name=caml_copy_string(key.UTF8String?key.UTF8String:"");value some=prismel_linked_function_array_value(groups[key]);functions=Field(some,0);pair=caml_alloc_tuple(2);Store_field(pair,0,name);Store_field(pair,1,functions);Store_field(array,i,pair);}option=caml_alloc(1,0);Store_field(option,0,array);CAMLreturn(result_ok(option));}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_linked_functions_set_groups(value raw,value option,value device_raw){CAMLparam3(raw,option,device_raw);@try{NSDictionary<NSString*,NSArray<id<MTLFunction>>*>*snapshot=nil;if(Is_block(option)){value entries=Field(option,0);NSMutableDictionary<NSString*,NSArray<id<MTLFunction>>*>*groups=[NSMutableDictionary dictionaryWithCapacity:Wosize_val(entries)];for(mlsize_t i=0;i<Wosize_val(entries);i++){value pair=Field(entries,i);NSString*name=string_from_ocaml(Field(pair,0));if(!name)CAMLreturn(result_error_text("linked function group name is not valid UTF-8"));if(groups[name]!=nil)CAMLreturn(result_error_text("duplicate linked function group name"));NSArray<id<MTLFunction>>*items=nil;NSString*failure=nil;if(!prismel_linked_function_array_raw(Field(pair,1),Int64_val(device_raw),&items,&failure))CAMLreturn(result_error(failure));groups[name]=items;}snapshot=[groups copy];}MTLLinkedFunctions*linked=object_of_handle(raw,Handle_kind::Linked_functions);linked.groups=snapshot;CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 
 /* M3: former metal_linked_functions9_constructor_bridge.inc */
 /* Handwritten enabling constructor for the LinkedFunctions9 safe graph.
    MTLLinkedFunctions is a descriptor-like retained object with no device
    property.  The safe OCaml owner therefore records the authoritative device
    separately and passes its registry ID to every function-bearing setter. */
-extern "C" CAMLprim value
-caml_prismel_metal_linked_functions_create(value unit_raw)
-{
-  CAMLparam1(unit_raw);
-  CAMLlocal2(handle, result);
-  (void)unit_raw;
-  @try {
-    MTLLinkedFunctions *linked = [MTLLinkedFunctions new];
-    if (linked == nil)
-      CAMLreturn(result_error_text("Metal returned no linked-functions object"));
-    handle = allocate_handle(linked, Handle_kind::Linked_functions);
-    result = result_ok(handle);
-    CAMLreturn(result);
-  } @catch (NSException *exception) {
-    CAMLreturn(result_error(exception.reason));
-  }
-}
 
 /* M3: former metal4_command_queue8_callable_bridge.inc */
 /* MTL4CommandQueue8 isolated tail. Every call is compile/runtime gated and
@@ -9424,112 +8840,11 @@ caml_prismel_metal_linked_functions_create(value unit_raw)
 /* RenderPipeline93 mechanical descriptor foundation. The OCaml safe layer
    owns graph semantics; these direct calls only construct/reset descriptors,
    copy labels, and access the checked color-attachment array. */
-extern "C" CAMLprim value caml_prismel_metal_render93_descriptor_create(value kind_raw) {
-  CAMLparam1(kind_raw); CAMLlocal2(handle,result);
-  @try {
-    switch (Long_val(kind_raw)) {
-      case 0: handle=allocate_handle([MTLRenderPipelineDescriptor new],Handle_kind::Render_pipeline_descriptor); break;
-      case 1: handle=allocate_handle([MTLMeshRenderPipelineDescriptor new],Handle_kind::Mesh_pipeline_descriptor); break;
-      case 2: handle=allocate_handle([MTLTileRenderPipelineDescriptor new],Handle_kind::Tile_pipeline_descriptor); break;
-      default: CAMLreturn(result_error_text("unknown render pipeline descriptor kind"));
-    }
-    result=result_ok(handle); CAMLreturn(result);
-  } @catch(NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_render93_descriptor_label(value raw,value kind_raw,value set_raw,value replacement) {
-  CAMLparam4(raw,kind_raw,set_raw,replacement); CAMLlocal2(copied,result);
-  @try {
-    NSString *label=Is_none(replacement)?nil:string_from_ocaml(Field(replacement,0));
-    if(!Is_none(replacement)&&label==nil)CAMLreturn(result_error_text("render pipeline label is not valid UTF-8"));
-    switch(Long_val(kind_raw)) {
-      case 0: { MTLRenderPipelineDescriptor*d=object_of_handle(raw,Handle_kind::Render_pipeline_descriptor); if(Bool_val(set_raw))d.label=label; copied=copy_optional_string(d.label); break; }
-      case 1: { MTLMeshRenderPipelineDescriptor*d=object_of_handle(raw,Handle_kind::Mesh_pipeline_descriptor); if(Bool_val(set_raw))d.label=label; copied=copy_optional_string(d.label); break; }
-      case 2: { MTLTileRenderPipelineDescriptor*d=object_of_handle(raw,Handle_kind::Tile_pipeline_descriptor); if(Bool_val(set_raw))d.label=label; copied=copy_optional_string(d.label); break; }
-      default: CAMLreturn(result_error_text("unknown render pipeline descriptor kind"));
-    }
-    result=result_ok(copied); CAMLreturn(result);
-  } @catch(NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_render93_descriptor_reset(value raw,value kind_raw) {
-  CAMLparam2(raw,kind_raw);
-  @try {
-    switch(Long_val(kind_raw)) {
-      case 0: [object_of_handle(raw,Handle_kind::Render_pipeline_descriptor) reset]; break;
-      case 1: [object_of_handle(raw,Handle_kind::Mesh_pipeline_descriptor) reset]; break;
-      case 2: [object_of_handle(raw,Handle_kind::Tile_pipeline_descriptor) reset]; break;
-      default: CAMLreturn(result_error_text("unknown render pipeline descriptor kind"));
-    }
-    CAMLreturn(result_unit());
-  } @catch(NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_render93_color_at(value descriptor_raw,value index_raw,value set_raw,value replacement) {
-  CAMLparam4(descriptor_raw,index_raw,set_raw,replacement); CAMLlocal3(handle,result,option);
-  int64_t index=Int64_val(index_raw);
-  if(index<0||index>=8)CAMLreturn(result_error_text("render pipeline color attachment index is out of range"));
-  @try {
-    MTLRenderPipelineDescriptor*d=object_of_handle(descriptor_raw,Handle_kind::Render_pipeline_descriptor);
-    if(Bool_val(set_raw))d.colorAttachments[(NSUInteger)index]=Is_none(replacement)?nil:object_of_handle(Field(replacement,0),Handle_kind::Color_attachment_descriptor);
-    MTLRenderPipelineColorAttachmentDescriptor*color=d.colorAttachments[(NSUInteger)index];
-    if(color==nil||color.pixelFormat==MTLPixelFormatInvalid)CAMLreturn(result_ok(Val_none));
-    handle=allocate_handle(color,Handle_kind::Color_attachment_descriptor);
-    option=caml_alloc(1,0); Store_field(option,0,handle); result=result_ok(option); CAMLreturn(result);
-  } @catch(NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
 
 /* operation 0 binary archives, 1 object function, 2 mesh function,
    3 fragment function. [expected] is also the replacement when [set_raw]. */
-extern "C" CAMLprim value caml_prismel_metal_render93_mesh_graph(value descriptor_raw,value operation_raw,value set_raw,value expected) {
-  CAMLparam4(descriptor_raw,operation_raw,set_raw,expected);
-  @try {
-    MTLMeshRenderPipelineDescriptor*d=object_of_handle(descriptor_raw,Handle_kind::Mesh_pipeline_descriptor);
-    int operation=Long_val(operation_raw);
-    if(operation==0){
-      NSMutableArray<id<MTLBinaryArchive>>*items=[NSMutableArray arrayWithCapacity:Wosize_val(expected)];
-      for(mlsize_t i=0;i<Wosize_val(expected);i++)[items addObject:object_of_handle(Field(expected,i),Handle_kind::Binary_archive)];
-      if(Bool_val(set_raw))d.binaryArchives=items;
-      if(d.binaryArchives.count!=items.count)CAMLreturn(result_error_text("mesh binary archive graph changed"));
-      for(NSUInteger i=0;i<items.count;i++)if(d.binaryArchives[i]!=items[i])CAMLreturn(result_error_text("mesh binary archive identity changed"));
-    }else if(operation>=1&&operation<=3){
-      if(Wosize_val(expected)>1)CAMLreturn(result_error_text("mesh function graph cardinality is invalid"));
-      id<MTLFunction>function=Wosize_val(expected)==0?nil:object_of_handle(Field(expected,0),Handle_kind::Function);
-      if(operation==1){if(Bool_val(set_raw))d.objectFunction=function;if(d.objectFunction!=function)CAMLreturn(result_error_text("mesh object function identity changed"));}
-      if(operation==2){if(Bool_val(set_raw))d.meshFunction=function;if(d.meshFunction!=function)CAMLreturn(result_error_text("mesh function identity changed"));}
-      if(operation==3){if(Bool_val(set_raw))d.fragmentFunction=function;if(d.fragmentFunction!=function)CAMLreturn(result_error_text("mesh fragment function identity changed"));}
-    }else CAMLreturn(result_error_text("unknown mesh pipeline graph operation"));
-    CAMLreturn(result_unit());
-  } @catch(NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
 
 /* operation 0 binary archives, 1 preloaded libraries, 2 tile function. */
-extern "C" CAMLprim value caml_prismel_metal_render93_tile_graph(value descriptor_raw,value operation_raw,value set_raw,value expected) {
-  CAMLparam4(descriptor_raw,operation_raw,set_raw,expected);
-  @try {
-    MTLTileRenderPipelineDescriptor*d=object_of_handle(descriptor_raw,Handle_kind::Tile_pipeline_descriptor);
-    int operation=Long_val(operation_raw);
-    if(operation==0){
-      NSMutableArray<id<MTLBinaryArchive>>*items=[NSMutableArray arrayWithCapacity:Wosize_val(expected)];
-      for(mlsize_t i=0;i<Wosize_val(expected);i++)[items addObject:object_of_handle(Field(expected,i),Handle_kind::Binary_archive)];
-      if(Bool_val(set_raw))d.binaryArchives=items;
-      if(d.binaryArchives.count!=items.count)CAMLreturn(result_error_text("tile binary archive graph changed"));
-      for(NSUInteger i=0;i<items.count;i++)if(d.binaryArchives[i]!=items[i])CAMLreturn(result_error_text("tile binary archive identity changed"));
-    }else if(operation==1){
-      NSMutableArray<id<MTLDynamicLibrary>>*items=[NSMutableArray arrayWithCapacity:Wosize_val(expected)];
-      for(mlsize_t i=0;i<Wosize_val(expected);i++)[items addObject:object_of_handle(Field(expected,i),Handle_kind::Dynamic_library)];
-      if(Bool_val(set_raw))d.preloadedLibraries=items;
-      if(d.preloadedLibraries.count!=items.count)CAMLreturn(result_error_text("tile preloaded library graph changed"));
-      for(NSUInteger i=0;i<items.count;i++)if(d.preloadedLibraries[i]!=items[i])CAMLreturn(result_error_text("tile preloaded library identity changed"));
-    }else if(operation==2){
-      if(Wosize_val(expected)>1)CAMLreturn(result_error_text("tile function graph cardinality is invalid"));
-      id<MTLFunction>function=Wosize_val(expected)==0?nil:object_of_handle(Field(expected,0),Handle_kind::Function);
-      if(Bool_val(set_raw))d.tileFunction=function;
-      if(d.tileFunction!=function)CAMLreturn(result_error_text("tile function identity changed"));
-    }else CAMLreturn(result_error_text("unknown tile pipeline graph operation"));
-    CAMLreturn(result_unit());
-  } @catch(NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
 
 /* Descriptor-array immutable snapshots: descriptor kind 0 render, 1 mesh,
    2 tile; array kind 0 colors, then stage buffer arrays in header order. */
@@ -9555,29 +8870,6 @@ extern "C" CAMLprim value caml_prismel_metal_render93_array_snapshot(value descr
   } @catch(NSException *exception) { CAMLreturn(result_error(exception.reason)); }
 }
 
-extern "C" CAMLprim value caml_prismel_metal_render93_buffer_at(
-    value descriptor_raw,value descriptor_kind_raw,value array_kind_raw,
-    value index_raw,value replacement) {
-  CAMLparam5(descriptor_raw,descriptor_kind_raw,array_kind_raw,index_raw,replacement);
-  int64_t index=Int64_val(index_raw);
-  if(index<0||index>=31)CAMLreturn(result_error_text("pipeline buffer index is out of range"));
-  @try {
-    int descriptor_kind=Long_val(descriptor_kind_raw),array_kind=Long_val(array_kind_raw);
-    MTLPipelineBufferDescriptorArray*array=nil;
-    if(descriptor_kind==0){MTLRenderPipelineDescriptor*d=object_of_handle(descriptor_raw,Handle_kind::Render_pipeline_descriptor);if(array_kind==1)array=d.fragmentBuffers;else if(array_kind==2)array=d.vertexBuffers;}
-    else if(descriptor_kind==1){MTLMeshRenderPipelineDescriptor*d=object_of_handle(descriptor_raw,Handle_kind::Mesh_pipeline_descriptor);if(array_kind==1)array=d.fragmentBuffers;else if(array_kind==2)array=d.meshBuffers;else if(array_kind==3)array=d.objectBuffers;}
-    else if(descriptor_kind==2){MTLTileRenderPipelineDescriptor*d=object_of_handle(descriptor_raw,Handle_kind::Tile_pipeline_descriptor);if(array_kind==1)array=d.tileBuffers;}
-    if(array==nil)CAMLreturn(result_error_text("buffer array does not belong to this pipeline descriptor"));
-    MTLPipelineBufferDescriptor*source=Is_none(replacement)?nil:object_of_handle(Field(replacement,0),Handle_kind::Pipeline_buffer_descriptor);
-    [array setObject:source atIndexedSubscript:(NSUInteger)index];
-    MTLPipelineBufferDescriptor*stored=[array objectAtIndexedSubscript:(NSUInteger)index];
-    const MTLMutability expected=source==nil?MTLMutabilityDefault:source.mutability;
-    if(stored==nil||stored==source||stored.mutability!=expected)
-      CAMLreturn(result_error_text("Metal changed pipeline buffer descriptor copy/reset semantics"));
-    CAMLreturn(result_unit());
-  } @catch(NSException*exception){CAMLreturn(result_error(exception.reason));}
-}
-
 /* M3: former metal_render_pipeline93_linked_graph_bridge.inc */
 /* RenderPipeline93 linked-function graph closure (exact 12 SDK IDs).
 
@@ -9589,221 +8881,17 @@ extern "C" CAMLprim value caml_prismel_metal_render93_buffer_at(
    Mesh lanes: 0 object, 1 mesh, 2 fragment.  Tile has one linked-functions
    lane.  A missing OCaml option maps to nil and remains a valid graph reset. */
 
-static value prismel_render93_linked_snapshot(MTLLinkedFunctions *linked) {
-  CAMLparam0();
-  CAMLlocal2(handle,option);
-  if (linked == nil) CAMLreturn(Val_none);
-  handle = allocate_handle(linked,Handle_kind::Linked_functions);
-  option = caml_alloc(1,0);
-  Store_field(option,0,handle);
-  CAMLreturn(option);
-}
-
-extern "C" CAMLprim value
-caml_prismel_metal_render93_mesh_linked(value descriptor_raw,
-                                        value lane_raw,
-                                        value set_raw,
-                                        value replacement) {
-  CAMLparam4(descriptor_raw,lane_raw,set_raw,replacement);
-  CAMLlocal2(snapshot,result);
-  @try {
-    MTLMeshRenderPipelineDescriptor *descriptor =
-        object_of_handle(descriptor_raw,Handle_kind::Mesh_pipeline_descriptor);
-    MTLLinkedFunctions *next = Is_none(replacement)
-        ? nil
-        : object_of_handle(Field(replacement,0),Handle_kind::Linked_functions);
-    switch (Long_val(lane_raw)) {
-      case 0:
-        if (Bool_val(set_raw)) descriptor.objectLinkedFunctions = next;
-        snapshot = prismel_render93_linked_snapshot(
-            descriptor.objectLinkedFunctions);
-        break;
-      case 1:
-        if (Bool_val(set_raw)) descriptor.meshLinkedFunctions = next;
-        snapshot = prismel_render93_linked_snapshot(
-            descriptor.meshLinkedFunctions);
-        break;
-      case 2:
-        if (Bool_val(set_raw)) descriptor.fragmentLinkedFunctions = next;
-        snapshot = prismel_render93_linked_snapshot(
-            descriptor.fragmentLinkedFunctions);
-        break;
-      default:
-        CAMLreturn(result_error_text("unknown mesh linked-functions lane"));
-    }
-    result = result_ok(snapshot);
-    CAMLreturn(result);
-  } @catch(NSException *exception) {
-    CAMLreturn(result_error(exception.reason));
-  }
-}
-
-extern "C" CAMLprim value
-caml_prismel_metal_render93_tile_linked(value descriptor_raw,
-                                        value set_raw,
-                                        value replacement) {
-  CAMLparam3(descriptor_raw,set_raw,replacement);
-  CAMLlocal2(snapshot,result);
-  @try {
-    MTLTileRenderPipelineDescriptor *descriptor =
-        object_of_handle(descriptor_raw,Handle_kind::Tile_pipeline_descriptor);
-    MTLLinkedFunctions *next = Is_none(replacement)
-        ? nil
-        : object_of_handle(Field(replacement,0),Handle_kind::Linked_functions);
-    if (Bool_val(set_raw)) descriptor.linkedFunctions = next;
-    snapshot = prismel_render93_linked_snapshot(descriptor.linkedFunctions);
-    result = result_ok(snapshot);
-    CAMLreturn(result);
-  } @catch(NSException *exception) {
-    CAMLreturn(result_error(exception.reason));
-  }
-}
-
 /* M3: former metal_render_pipeline93_function_handle_bridge.inc */
 /* RenderPipeline93 pipeline-state function lookup closure (exact 3 IDs).
    Results are nullable and become independently owned Function_handle values.
    The safe layer validates liveness, same-device identity, one exact stage bit,
    UTF-8/NUL-free names, and retains the source function through this call. */
 
-static bool prismel_render93_single_stage(int64_t stage) {
-  return stage == (int64_t)MTLRenderStageVertex ||
-         stage == (int64_t)MTLRenderStageFragment ||
-         stage == (int64_t)MTLRenderStageTile ||
-         stage == (int64_t)MTLRenderStageObject ||
-         stage == (int64_t)MTLRenderStageMesh;
-}
-
-static value prismel_render93_function_handle_result(
-    id<MTLFunctionHandle> _Nullable function) {
-  CAMLparam0();
-  CAMLlocal2(handle,option);
-  if (function == nil) CAMLreturn(Val_none);
-  handle = allocate_handle(function,Handle_kind::Function_handle);
-  option = caml_alloc(1,0);
-  Store_field(option,0,handle);
-  CAMLreturn(option);
-}
-
-extern "C" CAMLprim value
-caml_prismel_metal_render93_function_handle(value pipeline_raw,
-                                             value operation_raw,
-                                             value argument_raw,
-                                             value stage_raw) {
-  CAMLparam4(pipeline_raw,operation_raw,argument_raw,stage_raw);
-  CAMLlocal2(option,result);
-  int64_t stage = Int64_val(stage_raw);
-  if (!prismel_render93_single_stage(stage))
-    CAMLreturn(result_error_text("render pipeline function stage must contain one exact stage"));
-  @try {
-    id<MTLRenderPipelineState> pipeline =
-        object_of_handle(pipeline_raw,Handle_kind::Render_pipeline);
-    id<MTLFunctionHandle> function = nil;
-    switch (Long_val(operation_raw)) {
-      case 0: {
-        id<MTLFunction> source =
-            object_of_handle(argument_raw,Handle_kind::Function);
-        function = [pipeline functionHandleWithFunction:source
-                                                  stage:(MTLRenderStages)stage];
-        break;
-      }
-      case 1:
-        if (@available(macOS 26.0,*)) {
-          id<MTL4BinaryFunction> source =
-              object_of_handle(argument_raw,Handle_kind::Binary_function);
-          function = [pipeline functionHandleWithBinaryFunction:source
-                                                           stage:(MTLRenderStages)stage];
-        } else {
-          CAMLreturn(result_error_text(
-              "render pipeline binary-function lookup requires macOS 26"));
-        }
-        break;
-      case 2:
-        if (@available(macOS 26.0,*)) {
-          NSString *name = string_from_ocaml(argument_raw);
-          if (name == nil)
-            CAMLreturn(result_error_text("render pipeline function name is not valid UTF-8"));
-          function = [pipeline functionHandleWithName:name
-                                                stage:(MTLRenderStages)stage];
-        } else {
-          CAMLreturn(result_error_text(
-              "render pipeline named-function lookup requires macOS 26"));
-        }
-        break;
-      default:
-        CAMLreturn(result_error_text("unknown render pipeline function lookup"));
-    }
-    option = prismel_render93_function_handle_result(function);
-    result = result_ok(option);
-    CAMLreturn(result);
-  } @catch(NSException *exception) {
-    CAMLreturn(result_error(exception.reason));
-  }
-}
-
 /* M3: former metal_render_pipeline93_function_tables_bridge.inc */
 /* RenderPipeline93 function-table allocation closure (exact 2 IDs).
    The public safe API supplies a checked positive capacity and exact stage;
    this native layer constructs the SDK descriptor locally, avoiding exposure
    of a mutable descriptor handle, then returns one owned table handle. */
-
-static bool prismel_render93_table_stage(int64_t stage) {
-  return stage == (int64_t)MTLRenderStageVertex ||
-         stage == (int64_t)MTLRenderStageFragment ||
-         stage == (int64_t)MTLRenderStageTile ||
-         stage == (int64_t)MTLRenderStageObject ||
-         stage == (int64_t)MTLRenderStageMesh;
-}
-
-extern "C" CAMLprim value
-caml_prismel_metal_render93_function_table(value pipeline_raw,
-                                            value table_kind_raw,
-                                            value stage_raw,
-                                            value capacity_raw) {
-  CAMLparam4(pipeline_raw,table_kind_raw,stage_raw,capacity_raw);
-  CAMLlocal2(handle,result);
-  int64_t stage = Int64_val(stage_raw);
-  int64_t capacity = Int64_val(capacity_raw);
-  if (!prismel_render93_table_stage(stage))
-    CAMLreturn(result_error_text("render function-table stage must contain one exact stage"));
-  if (capacity <= 0 || (uint64_t)capacity > (uint64_t)NSUIntegerMax)
-    CAMLreturn(result_error_text("render function-table capacity is out of range"));
-  @try {
-    id<MTLRenderPipelineState> pipeline =
-        object_of_handle(pipeline_raw,Handle_kind::Render_pipeline);
-    switch (Long_val(table_kind_raw)) {
-      case 0: {
-        MTLVisibleFunctionTableDescriptor *descriptor =
-            [MTLVisibleFunctionTableDescriptor visibleFunctionTableDescriptor];
-        descriptor.functionCount = (NSUInteger)capacity;
-        id<MTLVisibleFunctionTable> table =
-            [pipeline newVisibleFunctionTableWithDescriptor:descriptor
-                                                      stage:(MTLRenderStages)stage];
-        if (table == nil)
-          CAMLreturn(result_error_text("Metal failed to allocate render visible function table"));
-        handle = allocate_handle(table,Handle_kind::Visible_function_table);
-        break;
-      }
-      case 1: {
-        MTLIntersectionFunctionTableDescriptor *descriptor =
-            [MTLIntersectionFunctionTableDescriptor intersectionFunctionTableDescriptor];
-        descriptor.functionCount = (NSUInteger)capacity;
-        id<MTLIntersectionFunctionTable> table =
-            [pipeline newIntersectionFunctionTableWithDescriptor:descriptor
-                                                           stage:(MTLRenderStages)stage];
-        if (table == nil)
-          CAMLreturn(result_error_text("Metal failed to allocate render intersection function table"));
-        handle = allocate_handle(table,Handle_kind::Intersection_function_table);
-        break;
-      }
-      default:
-        CAMLreturn(result_error_text("unknown render function-table kind"));
-    }
-    result = result_ok(handle);
-    CAMLreturn(result);
-  } @catch(NSException *exception) {
-    CAMLreturn(result_error(exception.reason));
-  }
-}
 
 /* M3: former metal_render_pipeline93_functions_descriptor_bridge.inc */
 /* RenderPipeline93 functions-descriptor closure (exact 10 IDs): class plus
@@ -9813,91 +8901,10 @@ caml_prismel_metal_render93_function_table(value pipeline_raw,
    before any SDK setter executes; the safe layer retains logical children and
    validates one device identity when attaching this descriptor to a pipeline. */
 
-static NSArray<id<MTLFunction>> *
-prismel_render93_binary_array(value raw) {
-  NSMutableArray<id<MTLFunction>> *items =
-      [NSMutableArray arrayWithCapacity:Wosize_val(raw)];
-  for (mlsize_t index = 0; index < Wosize_val(raw); ++index) {
-    id<MTLFunction> function =
-        object_of_handle(Field(raw,index),Handle_kind::Function);
-    [items addObject:function];
-  }
-  return [items copy];
-}
-
-static value prismel_render93_copy_binary_array(
-    NSArray<id<MTLFunction>> *items) {
-  CAMLparam0();
-  CAMLlocal2(array,handle);
-  array = caml_alloc(items.count,0);
-  for (NSUInteger index = 0; index < items.count; ++index) {
-    handle = allocate_handle(items[index],Handle_kind::Function);
-    Store_field(array,index,handle);
-  }
-  CAMLreturn(array);
-}
-
-extern "C" CAMLprim value
-caml_prismel_metal_render93_functions_descriptor_create(value unit_raw) {
-  CAMLparam1(unit_raw);
-  CAMLlocal2(handle,result);
-  (void)unit_raw;
-  @try {
-    MTLRenderPipelineFunctionsDescriptor *descriptor =
-        [MTLRenderPipelineFunctionsDescriptor new];
-    handle = allocate_handle(
-        descriptor,Handle_kind::Render_pipeline_functions_descriptor);
-    result = result_ok(handle);
-    CAMLreturn(result);
-  } @catch(NSException *exception) {
-    CAMLreturn(result_error(exception.reason));
-  }
-}
-
-extern "C" CAMLprim value
-caml_prismel_metal_render93_functions_descriptor_array(value descriptor_raw,
-                                                        value stage_raw,
-                                                        value set_raw,
-                                                        value replacement) {
-  CAMLparam4(descriptor_raw,stage_raw,set_raw,replacement);
-  CAMLlocal2(snapshot,result);
-  @try {
-    MTLRenderPipelineFunctionsDescriptor *descriptor = object_of_handle(
-        descriptor_raw,Handle_kind::Render_pipeline_functions_descriptor);
-    NSArray<id<MTLFunction>> *next = nil;
-    if (Bool_val(set_raw)) next = prismel_render93_binary_array(replacement);
-    NSArray<id<MTLFunction>> *current = nil;
-    switch (Long_val(stage_raw)) {
-      case 0:
-        if (Bool_val(set_raw)) descriptor.vertexAdditionalBinaryFunctions = next;
-        current = descriptor.vertexAdditionalBinaryFunctions;
-        break;
-      case 1:
-        if (Bool_val(set_raw)) descriptor.fragmentAdditionalBinaryFunctions = next;
-        current = descriptor.fragmentAdditionalBinaryFunctions;
-        break;
-      case 2:
-        if (Bool_val(set_raw)) descriptor.tileAdditionalBinaryFunctions = next;
-        current = descriptor.tileAdditionalBinaryFunctions;
-        break;
-      default:
-        CAMLreturn(result_error_text(
-            "unknown render pipeline functions descriptor stage"));
-    }
-    snapshot = prismel_render93_copy_binary_array(current ?: @[]);
-    result = result_ok(snapshot);
-    CAMLreturn(result);
-  } @catch(NSException *exception) {
-    CAMLreturn(result_error(exception.reason));
-  }
-}
-
 /* M3: former metal_render_pipeline93_state_factories_bridge.inc */
 /* Final RenderPipeline93 state factory closure (exact 3 IDs).
    Hookup adds Pipeline_descriptor4 and the functions-descriptor kind prepared
    in the exact10 shard.  Every returned object is independently owned. */
-extern "C" CAMLprim value caml_prismel_metal_render93_specialization_descriptor(value rp){CAMLparam1(rp);CAMLlocal2(h,r);if(@available(macOS 26.0,*)){@try{id<MTLRenderPipelineState>p=object_of_handle(rp,Handle_kind::Render_pipeline);MTL4PipelineDescriptor*d=[p newRenderPipelineDescriptorForSpecialization];h=allocate_handle(d,Handle_kind::Pipeline_descriptor4);r=result_ok(h);CAMLreturn(r);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}CAMLreturn(result_error_text("render pipeline specialization requires macOS 26"));}
-extern "C" CAMLprim value caml_prismel_metal_render93_relink(value rp,value kind,value descriptor){CAMLparam3(rp,kind,descriptor);CAMLlocal2(h,r);@try{id<MTLRenderPipelineState>p=object_of_handle(rp,Handle_kind::Render_pipeline);NSError*e=nil;id<MTLRenderPipelineState>next=nil;if(Long_val(kind)==0){MTLRenderPipelineFunctionsDescriptor*d=object_of_handle(descriptor,Handle_kind::Render_pipeline_functions_descriptor);next=[p newRenderPipelineStateWithAdditionalBinaryFunctions:d error:&e];}else if(Long_val(kind)==1){if(@available(macOS 26.0,*)){MTL4RenderPipelineBinaryFunctionsDescriptor*d=object_of_handle(descriptor,Handle_kind::Binary_functions_descriptor4);next=[p newRenderPipelineStateWithBinaryFunctions:d error:&e];}else CAMLreturn(result_error_text("Metal 4 render pipeline relinking requires macOS 26"));}else CAMLreturn(result_error_text("unknown render pipeline relink descriptor"));if(!next)CAMLreturn(result_error(error_description(e,@"render pipeline relinking failed")));h=allocate_handle(next,Handle_kind::Render_pipeline);r=result_ok(h);CAMLreturn(r);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -9907,8 +8914,6 @@ extern "C" CAMLprim value caml_prismel_metal_render93_relink(value rp,value kind
    Hookup adds exact owned Vertex_descriptor and Render_pipeline_reflection
    kinds. Vertex descriptors are copied; reflection arrays become immutable
    six-field value snapshots (name,index,type,access,active,array-length). */
-extern "C" CAMLprim value caml_prismel_metal_render93_vertex_descriptor(value rd,value set,value replacement){CAMLparam3(rd,set,replacement);CAMLlocal3(h,o,r);@try{MTLRenderPipelineDescriptor*d=object_of_handle(rd,Handle_kind::Render_pipeline_descriptor);if(Bool_val(set))d.vertexDescriptor=Is_none(replacement)?nil:object_of_handle(Field(replacement,0),Handle_kind::Vertex_descriptor);MTLVertexDescriptor*v=d.vertexDescriptor;if(!v)CAMLreturn(result_ok(Val_none));h=allocate_handle(v,Handle_kind::Vertex_descriptor);o=caml_alloc(1,0);Store_field(o,0,h);r=result_ok(o);CAMLreturn(r);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_render93_vertex_materialize(value attributes,value layouts){CAMLparam2(attributes,layouts);CAMLlocal2(h,r);@try{MTLVertexDescriptor*d=[MTLVertexDescriptor vertexDescriptor];for(mlsize_t i=0;i<Wosize_val(attributes);i++){value a=Field(attributes,i);NSUInteger index=Long_val(Field(a,0));if(index>=31)CAMLreturn(result_error_text("vertex attribute index out of range"));MTLVertexAttributeDescriptor*x=d.attributes[index];x.format=(MTLVertexFormat)Long_val(Field(a,1));x.offset=Long_val(Field(a,2));x.bufferIndex=Long_val(Field(a,3));}for(mlsize_t i=0;i<Wosize_val(layouts);i++){value a=Field(layouts,i);NSUInteger index=Long_val(Field(a,0));if(index>=31)CAMLreturn(result_error_text("vertex layout index out of range"));MTLVertexBufferLayoutDescriptor*x=d.layouts[index];x.stride=Int64_val(Field(a,1));x.stepFunction=(MTLVertexStepFunction)Long_val(Field(a,2));x.stepRate=Int64_val(Field(a,3));}h=allocate_handle(d,Handle_kind::Vertex_descriptor);r=result_ok(h);CAMLreturn(r);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 
 #pragma clang diagnostic pop
 
@@ -9916,11 +8921,6 @@ extern "C" CAMLprim value caml_prismel_metal_render93_vertex_materialize(value a
 /* IntersectionFunctionTable8 isolated shard. Function-handle entries carry
    authoritative safe-owner registry IDs because MTLFunctionHandle exposes no
    device property. All arrays are decoded before the first table write. */
-static bool prismel_intersection_range(int64_t start,int64_t count,int64_t capacity){return start>=0&&count>=0&&capacity>=0&&start<=capacity&&count<=capacity-start;}
-extern "C" CAMLprim value caml_prismel_metal_intersection_table_array(value table_raw,value tag_raw,value objects,value offsets,value device_ids,value range_raw,value capacity_raw,value device_raw){CAMLparam5(table_raw,tag_raw,objects,offsets,device_ids);CAMLxparam3(range_raw,capacity_raw,device_raw);mlsize_t count=Wosize_val(objects);int64_t start=Int64_val(Field(range_raw,0)),length=Int64_val(Field(range_raw,1)),capacity=Int64_val(capacity_raw),device=Int64_val(device_raw);if((uint64_t)length!=count||!prismel_intersection_range(start,length,capacity))CAMLreturn(result_error_text("intersection table array/range cardinality mismatch"));int tag=Long_val(tag_raw);if((tag==0&&Wosize_val(offsets)!=count)||(tag!=0&&Wosize_val(offsets)!=0)||(tag==1&&Wosize_val(device_ids)!=count)||(tag!=1&&Wosize_val(device_ids)!=0))CAMLreturn(result_error_text("intersection table companion cardinality mismatch"));@try{std::vector<id>items(count);std::vector<NSUInteger>byte_offsets(count);for(mlsize_t i=0;i<count;i++){value option=Field(objects,i);if(Is_none(option)){items[i]=nil;if(tag==0&&Int64_val(Field(offsets,i))!=0)CAMLreturn(result_error_text("nil intersection buffer requires zero offset"));continue;}value handle=Field(option,0);if(tag==0){id<MTLBuffer>b=object_of_handle(handle,Handle_kind::Buffer);int64_t offset=Int64_val(Field(offsets,i));if(offset<0||(uint64_t)offset>b.length||(int64_t)b.device.registryID!=device)CAMLreturn(result_error_text("intersection buffer offset/device mismatch"));items[i]=b;byte_offsets[i]=offset;}else if(tag==1){if(Int64_val(Field(device_ids,i))!=device)CAMLreturn(result_error_text("intersection function handle device mismatch"));items[i]=object_of_handle(handle,Handle_kind::Function_handle);}else if(tag==2){id<MTLVisibleFunctionTable>table=object_of_handle(handle,Handle_kind::Visible_function_table);if((int64_t)table.device.registryID!=device)CAMLreturn(result_error_text("visible function table device mismatch"));items[i]=table;}else CAMLreturn(result_error_text("unknown intersection table binding lane"));}id<MTLIntersectionFunctionTable>table=object_of_handle(table_raw,Handle_kind::Intersection_function_table);NSRange range=NSMakeRange(start,length);if(tag==0)[table setBuffers:(id<MTLBuffer> const*)items.data() offsets:byte_offsets.data() withRange:range];else if(tag==1)[table setFunctions:(id<MTLFunctionHandle> const*)items.data() withRange:range];else[table setVisibleFunctionTables:(id<MTLVisibleFunctionTable> const*)items.data() withBufferRange:range];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_intersection_table_array_bytecode(value*argv,int argc){(void)argc;return caml_prismel_metal_intersection_table_array(argv[0],argv[1],argv[2],argv[3],argv[4],argv[5],argv[6],argv[7]);}
-
-extern "C" CAMLprim value caml_prismel_metal_intersection_table_signature(value table_raw,value shape_raw,value signature_raw,value range_raw,value capacity_raw){CAMLparam5(table_raw,shape_raw,signature_raw,range_raw,capacity_raw);int64_t start=Int64_val(Field(range_raw,0)),length=Int64_val(Field(range_raw,1)),capacity=Int64_val(capacity_raw);uint64_t signature=Int64_val(signature_raw);uint64_t known=MTLIntersectionFunctionSignatureInstancing|MTLIntersectionFunctionSignatureTriangleData|MTLIntersectionFunctionSignatureWorldSpaceData|MTLIntersectionFunctionSignatureInstanceMotion|MTLIntersectionFunctionSignaturePrimitiveMotion|MTLIntersectionFunctionSignatureExtendedLimits|MTLIntersectionFunctionSignatureMaxLevels|MTLIntersectionFunctionSignatureCurveData|MTLIntersectionFunctionSignatureIntersectionFunctionBuffer|MTLIntersectionFunctionSignatureUserData;if(!prismel_intersection_range(start,length,capacity)||length<=0||(signature&~known)!=0)CAMLreturn(result_error_text("invalid intersection signature/range"));@try{id<MTLIntersectionFunctionTable>table=object_of_handle(table_raw,Handle_kind::Intersection_function_table);if(Long_val(shape_raw)==0){if(length==1)[table setOpaqueTriangleIntersectionFunctionWithSignature:(MTLIntersectionFunctionSignature)signature atIndex:start];else[table setOpaqueTriangleIntersectionFunctionWithSignature:(MTLIntersectionFunctionSignature)signature withRange:NSMakeRange(start,length)];}else if(Long_val(shape_raw)==1){if(length==1)[table setOpaqueCurveIntersectionFunctionWithSignature:(MTLIntersectionFunctionSignature)signature atIndex:start];else[table setOpaqueCurveIntersectionFunctionWithSignature:(MTLIntersectionFunctionSignature)signature withRange:NSMakeRange(start,length)];}else CAMLreturn(result_error_text("unknown opaque intersection shape"));CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 
 /* M3: former metal_stage_input_output10_callable_bridge.inc */
 /* StageInputOutputDescriptor10 isolated ownership shard. Attribute replacement
@@ -9941,32 +8941,6 @@ extern "C" CAMLprim value caml_prismel_metal_blit_pass10_attachment_at(
     MTLBlitPassSampleBufferAttachmentDescriptor *attachment = array[(NSUInteger)index];
     if (attachment == nil) option = Val_none;
     else { handle = allocate_handle(attachment, Handle_kind::Blit_sample_attachment);
-      option = caml_alloc(1, 0); Store_field(option, 0, handle); }
-    result = result_ok(option); CAMLreturn(result);
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_blit_pass10_attachment_set(
-    value array_raw, value index_raw, value attachment_raw) {
-  CAMLparam3(array_raw, index_raw, attachment_raw);
-  int64_t index = Int64_val(index_raw);
-  if (index < 0) CAMLreturn(result_error_text("blit attachment index is negative"));
-  @try { MTLBlitPassSampleBufferAttachmentDescriptor *attachment =
-      Is_none(attachment_raw) ? nil : object_of_handle(Field(attachment_raw, 0),
-        Handle_kind::Blit_sample_attachment);
-    MTLBlitPassSampleBufferAttachmentDescriptorArray *array =
-      object_of_handle(array_raw, Handle_kind::Blit_sample_attachment_array);
-    array[(NSUInteger)index] = attachment; CAMLreturn(result_unit());
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_blit_pass10_sample_buffer(value raw) {
-  CAMLparam1(raw); CAMLlocal3(option, handle, result);
-  @try { MTLBlitPassSampleBufferAttachmentDescriptor *attachment =
-      object_of_handle(raw, Handle_kind::Blit_sample_attachment);
-    id<MTLCounterSampleBuffer> buffer = attachment.sampleBuffer;
-    if (buffer == nil) option = Val_none;
-    else { handle = allocate_handle(buffer, Handle_kind::Counter_sample_buffer);
       option = caml_alloc(1, 0); Store_field(option, 0, handle); }
     result = result_ok(option); CAMLreturn(result);
   } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
@@ -9996,22 +8970,6 @@ struct PrismelDrawableCallbackToken {
   std::shared_ptr<PrismelDrawableCallbackState> state;
 };
 
-static void prismel_drawable_callback_fire(
-    const std::shared_ptr<PrismelDrawableCallbackState> &state,
-    id<MTLDrawable> drawable) {
-  int expected = 0;
-  if (!state->state.compare_exchange_strong(expected, 1)) return;
-  int registered = caml_c_thread_register(); caml_acquire_runtime_system();
-  CAMLparam0(); CAMLlocal3(tuple, identifier, presented);
-  identifier = caml_copy_int64((int64_t)drawable.drawableID);
-  presented = caml_copy_double(drawable.presentedTime);
-  tuple = caml_alloc_tuple(2); Store_field(tuple, 0, identifier);
-  Store_field(tuple, 1, presented); (void)caml_callback_exn(*state->root, tuple);
-  caml_remove_generational_global_root(state->root); free(state->root);
-  state->root = nullptr; CAMLdrop; caml_release_runtime_system();
-  if (registered) caml_c_thread_unregister();
-}
-
 extern "C" CAMLprim value caml_prismel_metal_drawable10_snapshot(value raw) {
   CAMLparam1(raw); CAMLlocal4(tuple, identifier, presented, result);
   @try { id<MTLDrawable> drawable = object_of_handle(raw, Handle_kind::Metal_drawable);
@@ -10022,156 +8980,10 @@ extern "C" CAMLprim value caml_prismel_metal_drawable10_snapshot(value raw) {
   } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
 }
 
-extern "C" CAMLprim value caml_prismel_metal_drawable10_present(
-    value raw, value mode_raw, value time_raw, value unscheduled_raw) {
-  CAMLparam4(raw, mode_raw, time_raw, unscheduled_raw);
-  if (!Bool_val(unscheduled_raw))
-    CAMLreturn(result_error_text("drawable presentation is already scheduled"));
-  int mode = Long_val(mode_raw); double time = Double_val(time_raw);
-  if (mode < 0 || mode > 2 || (mode != 0 && (!std::isfinite(time) || time < 0.0)))
-    CAMLreturn(result_error_text("invalid drawable presentation schedule"));
-  @try { id<MTLDrawable> drawable = object_of_handle(raw, Handle_kind::Metal_drawable);
-    if (mode == 0) [drawable present];
-    else if (mode == 1) [drawable presentAtTime:time];
-    else [drawable presentAfterMinimumDuration:time];
-    CAMLreturn(result_unit());
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_drawable10_add_handler(
-    value raw, value callback) {
-  CAMLparam2(raw, callback); CAMLlocal2(token, result);
-  auto state = std::make_shared<PrismelDrawableCallbackState>();
-  state->root = (value *)malloc(sizeof(value));
-  if (state->root == nullptr) CAMLreturn(result_error_text("unable to root drawable handler"));
-  *state->root = callback; caml_register_generational_global_root(state->root);
-  PrismelDrawableCallbackToken *registration = nullptr;
-  try { registration = new PrismelDrawableCallbackToken{state}; }
-  catch (...) { caml_remove_generational_global_root(state->root); free(state->root);
-    state->root = nullptr; CAMLreturn(result_error_text("unable to allocate drawable handler")); }
-  @try { id<MTLDrawable> drawable = object_of_handle(raw, Handle_kind::Metal_drawable);
-    [drawable addPresentedHandler:^(id<MTLDrawable> completed) {
-      prismel_drawable_callback_fire(state, completed);
-    }]; token = caml_copy_nativeint((intnat)registration);
-    result = result_ok(token); CAMLreturn(result);
-  } @catch (NSException *exception) { int expected = 0;
-    if (state->state.compare_exchange_strong(expected, 2)) {
-      caml_remove_generational_global_root(state->root); free(state->root);
-      state->root = nullptr;
-    } delete registration; CAMLreturn(result_error(exception.reason)); }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_drawable10_handler_cancel(value raw) {
-  CAMLparam1(raw); auto *token =
-    (PrismelDrawableCallbackToken *)Nativeint_val(raw);
-  if (token != nullptr) { int expected = 0;
-    if (token->state->state.compare_exchange_strong(expected, 2)) {
-      caml_remove_generational_global_root(token->state->root);
-      free(token->state->root); token->state->root = nullptr;
-    } delete token;
-  } CAMLreturn(Val_unit);
-}
-
 /* M3: former metal_function_constant_values3_callable_bridge.inc */
 /* FunctionConstantValues3 isolated shard. Values are passed as owned OCaml
    byte snapshots. The data type determines exact element width; the complete
    payload and range are validated before the single native mutation. */
-static bool prismel_function_constant_width(MTLDataType type, size_t *width) {
-  switch (type) {
-    case MTLDataTypeFloat: *width = 4; return true;
-    case MTLDataTypeFloat2: *width = 8; return true;
-    case MTLDataTypeFloat3: *width = 12; return true;
-    case MTLDataTypeFloat4: *width = 16; return true;
-    case MTLDataTypeHalf: *width = 2; return true;
-    case MTLDataTypeHalf2: *width = 4; return true;
-    case MTLDataTypeHalf3: *width = 6; return true;
-    case MTLDataTypeHalf4: *width = 8; return true;
-    case MTLDataTypeInt: case MTLDataTypeUInt: *width = 4; return true;
-    case MTLDataTypeInt2: case MTLDataTypeUInt2: *width = 8; return true;
-    case MTLDataTypeInt3: case MTLDataTypeUInt3: *width = 12; return true;
-    case MTLDataTypeInt4: case MTLDataTypeUInt4: *width = 16; return true;
-    case MTLDataTypeShort: case MTLDataTypeUShort: *width = 2; return true;
-    case MTLDataTypeShort2: case MTLDataTypeUShort2: *width = 4; return true;
-    case MTLDataTypeShort3: case MTLDataTypeUShort3: *width = 6; return true;
-    case MTLDataTypeShort4: case MTLDataTypeUShort4: *width = 8; return true;
-    case MTLDataTypeChar: case MTLDataTypeUChar: case MTLDataTypeBool:
-      *width = 1; return true;
-    case MTLDataTypeChar2: case MTLDataTypeUChar2: case MTLDataTypeBool2:
-      *width = 2; return true;
-    case MTLDataTypeChar3: case MTLDataTypeUChar3: case MTLDataTypeBool3:
-      *width = 3; return true;
-    case MTLDataTypeChar4: case MTLDataTypeUChar4: case MTLDataTypeBool4:
-      *width = 4; return true;
-    default: return false;
-  }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_function_constants3_create(value unit) {
-  CAMLparam1(unit); CAMLlocal2(handle, result); (void)unit;
-  @try { MTLFunctionConstantValues *values = [MTLFunctionConstantValues new];
-    if (values == nil) CAMLreturn(result_error_text("Metal returned no function constants"));
-    handle = allocate_handle(values, Handle_kind::Function_constant_values);
-    result = result_ok(handle); CAMLreturn(result);
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_function_constants3_reset(value raw) {
-  CAMLparam1(raw); @try { MTLFunctionConstantValues *values = object_of_handle(
-      raw, Handle_kind::Function_constant_values);
-    [values reset]; CAMLreturn(result_unit());
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_function_constants3_set_index(
-    value raw, value data_type_raw, value index_raw, value bytes_raw) {
-  CAMLparam4(raw, data_type_raw, index_raw, bytes_raw);
-  int64_t index = Int64_val(index_raw); MTLDataType type =
-    (MTLDataType)Long_val(data_type_raw); size_t width = 0;
-  if (index < 0 || !prismel_function_constant_width(type, &width)
-      || caml_string_length(bytes_raw) != width)
-    CAMLreturn(result_error_text("function constant type/index/value size mismatch"));
-  @try { MTLFunctionConstantValues *values = object_of_handle(
-      raw, Handle_kind::Function_constant_values);
-    [values setConstantValue:String_val(bytes_raw) type:type atIndex:(NSUInteger)index];
-    CAMLreturn(result_unit());
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_function_constants3_set_range(
-    value raw, value data_type_raw, value range_raw, value bytes_raw) {
-  CAMLparam4(raw, data_type_raw, range_raw, bytes_raw);
-  int64_t start = Int64_val(Field(range_raw, 0));
-  int64_t count = Int64_val(Field(range_raw, 1));
-  MTLDataType type = (MTLDataType)Long_val(data_type_raw); size_t width = 0;
-  if (start < 0 || count <= 0 || !prismel_function_constant_width(type, &width)
-      || (uint64_t)count > SIZE_MAX / width
-      || caml_string_length(bytes_raw) != (size_t)count * width)
-    CAMLreturn(result_error_text("function constant type/range/cardinality mismatch"));
-  @try { MTLFunctionConstantValues *values = object_of_handle(
-      raw, Handle_kind::Function_constant_values);
-    [values setConstantValues:String_val(bytes_raw) type:type
-      withRange:NSMakeRange((NSUInteger)start, (NSUInteger)count)];
-    CAMLreturn(result_unit());
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_function_constants3_specialize(
-    value library_raw, value values_raw, value name_raw) {
-  CAMLparam3(library_raw, values_raw, name_raw); CAMLlocal2(handle, result);
-  @try { id<MTLLibrary> library = object_of_handle(library_raw, Handle_kind::Library);
-    MTLFunctionConstantValues *values = object_of_handle(
-      values_raw, Handle_kind::Function_constant_values);
-    NSString *name = [NSString stringWithUTF8String:String_val(name_raw)];
-    NSError *error = nil;
-    if (name.length == 0) CAMLreturn(result_error_text("function name is empty"));
-    id<MTLFunction> function = [library newFunctionWithName:name
-      constantValues:values error:&error];
-    if (function == nil) CAMLreturn(result_error(error_description(
-      error, @"Metal function specialization failed")));
-    handle = allocate_handle(function, Handle_kind::Function);
-    result = result_ok(handle); CAMLreturn(result);
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
 
 /* M3: former metal_binary_archive5_callable_bridge.inc */
 /* BinaryArchive5 isolated descriptor-addition shard. Descriptor/library device
@@ -10259,113 +9071,10 @@ extern "C" CAMLprim value caml_prismel_metal_binary_archive5_add_bytecode(
 
 /* M3: former metal_tensor_ownership_callable_bridge.inc */
 /* Handwritten Tensor ownership15 bridge; returned objects receive exact kinds. */
-static std::vector<NSInteger> prismel_tensor_int_array(value raw) {
-  const mlsize_t length = Wosize_val(raw); std::vector<NSInteger> values(length);
-  for (mlsize_t i = 0; i < length; ++i) values[i] = static_cast<NSInteger>(Int64_val(Field(raw, i)));
-  return values;
-}
-extern "C" CAMLprim value caml_prismel_metal_tensor_extents_create(value raw_values) {
-  CAMLparam1(raw_values); CAMLlocal2(raw, result); @try {
-    auto values = prismel_tensor_int_array(raw_values);
-    if (values.empty()) CAMLreturn(result_error_text("tensor extents rank must be positive"));
-    MTLTensorExtents *object = [[MTLTensorExtents alloc] initWithRank:values.size() values:values.data()];
-    raw = allocate_handle(object, Handle_kind::Tensor_extents); result = result_ok(raw); CAMLreturn(result);
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-extern "C" CAMLprim value caml_prismel_metal_tensor_descriptor_create(value unit) {
-  CAMLparam1(unit); CAMLlocal2(raw, result); @try { MTLTensorDescriptor *object = [MTLTensorDescriptor new];
-    raw = allocate_handle(object, Handle_kind::Tensor_descriptor); result = result_ok(raw); CAMLreturn(result);
-  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
-}
-extern "C" CAMLprim value caml_prismel_metal_tensor_descriptor_set_dimensions(value raw, value child) { CAMLparam2(raw, child); @try {
-  MTLTensorDescriptor *object=object_of_handle(raw,Handle_kind::Tensor_descriptor); object.dimensions=object_of_handle(child,Handle_kind::Tensor_extents); CAMLreturn(result_unit());
-} @catch(NSException *exception){CAMLreturn(result_error(exception.reason));} }
-extern "C" CAMLprim value caml_prismel_metal_tensor_descriptor_set_strides(value raw, value child) { CAMLparam2(raw, child); @try {
-  MTLTensorDescriptor *object=object_of_handle(raw,Handle_kind::Tensor_descriptor); object.strides=object_of_handle(child,Handle_kind::Tensor_extents); CAMLreturn(result_unit());
-} @catch(NSException *exception){CAMLreturn(result_error(exception.reason));} }
+
 /* M3: former metal_resource_remaining16_bridge.inc */
 /* Typed enablers for the final Resource100 ownership graphs.  This include is
    intentionally standalone until the shared bridge owner yields integration. */
-extern "C" CAMLprim value caml_prismel_metal_resource_layout_array_create(value unit) {
-  CAMLparam1(unit); CAMLlocal2(raw,result); @try {
-    MTLBufferLayoutDescriptorArray *array=[MTLBufferLayoutDescriptorArray new];
-    if(array==nil) CAMLreturn(result_error_text("buffer-layout array construction returned nil"));
-    raw=allocate_handle(array,Handle_kind::Buffer_layout_descriptor_array);
-    result=result_ok(raw); CAMLreturn(result);
-  } @catch(NSException *exception){CAMLreturn(result_error(exception.reason));}
-}
-
-extern "C" CAMLprim value caml_prismel_metal_resource_texture_view_descriptor_create(
-    value format,value type,value level_location,value level_length,
-    value slice_location,value slice_length) {
-  CAMLparam5(format,type,level_location,level_length,slice_location);
-  CAMLxparam1(slice_length); CAMLlocal2(raw,result); @try {
-    if(@available(macOS 26.0,*)) {
-      int64_t ll=Int64_val(level_length),sl=Int64_val(slice_length);
-      if(ll<=0||sl<=0) CAMLreturn(result_error_text("texture-view ranges must be nonempty"));
-      MTLTextureViewDescriptor *descriptor=[MTLTextureViewDescriptor new];
-      descriptor.pixelFormat=(MTLPixelFormat)Int64_val(format);
-      descriptor.textureType=(MTLTextureType)Int64_val(type);
-      descriptor.levelRange=NSMakeRange(Int64_val(level_location),ll);
-      descriptor.sliceRange=NSMakeRange(Int64_val(slice_location),sl);
-      raw=allocate_handle(descriptor,Handle_kind::Texture_view_descriptor);
-      result=result_ok(raw); CAMLreturn(result);
-    }
-    CAMLreturn(result_error_text("texture-view descriptors require macOS 26.0"));
-  } @catch(NSException *exception){CAMLreturn(result_error(exception.reason));}
-}
-extern "C" CAMLprim value caml_prismel_metal_resource_texture_view_descriptor_create_bytecode(
-    value *argv,int argc){(void)argc;return caml_prismel_metal_resource_texture_view_descriptor_create(argv[0],argv[1],argv[2],argv[3],argv[4],argv[5]);}
-
-extern "C" CAMLprim value caml_prismel_metal_resource_heap_acceleration_triangle(
-    value heap,value descriptor,value offset) {
-  CAMLparam3(heap,descriptor,offset); CAMLlocal2(raw,result); @try {
-    if(@available(macOS 13.0,*)) {
-      id<MTLHeap> object=object_of_handle(heap,Handle_kind::Heap);
-      MTLPrimitiveAccelerationStructureDescriptor *materialized=
-        acceleration_triangle_descriptor_of_ocaml(descriptor);
-      id<MTLAccelerationStructure> acceleration=Is_none(offset)
-        ?[object newAccelerationStructureWithDescriptor:materialized]
-        :[object newAccelerationStructureWithDescriptor:materialized
-                                               offset:Int64_val(Field(offset,0))];
-      if(acceleration==nil) CAMLreturn(result_error_text("heap acceleration allocation returned nil"));
-      raw=allocate_handle(acceleration,Handle_kind::Acceleration_structure);
-      result=result_ok(raw); CAMLreturn(result);
-    }
-    CAMLreturn(result_error_text("heap acceleration structures require macOS 13.0"));
-  } @catch(NSException *exception){CAMLreturn(result_error(exception.reason));}
-}
-
-static value prismel_resource_size_align(MTLSizeAndAlign size_and_align) {
-  CAMLparam0(); CAMLlocal1(pair); pair=caml_alloc_tuple(2);
-  Store_field(pair,0,caml_copy_int64(size_and_align.size));
-  Store_field(pair,1,caml_copy_int64(size_and_align.align)); CAMLreturn(pair);
-}
-extern "C" CAMLprim value caml_prismel_metal_resource_heap_acceleration_size_align(
-    value heap,value size) {
-  CAMLparam2(heap,size); CAMLlocal2(pair,result); @try {
-    if(@available(macOS 13.0,*)) {
-      id<MTLHeap> object=object_of_handle(heap,Handle_kind::Heap);
-      pair=prismel_resource_size_align(
-        [object.device heapAccelerationStructureSizeAndAlignWithSize:Int64_val(size)]);
-      result=result_ok(pair); CAMLreturn(result);
-    }
-    CAMLreturn(result_error_text("heap acceleration structures require macOS 13.0"));
-  } @catch(NSException *exception){CAMLreturn(result_error(exception.reason));}
-}
-extern "C" CAMLprim value caml_prismel_metal_resource_heap_acceleration_triangle_size_align(
-    value heap,value descriptor) {
-  CAMLparam2(heap,descriptor); CAMLlocal2(pair,result); @try {
-    if(@available(macOS 13.0,*)) {
-      id<MTLHeap> object=object_of_handle(heap,Handle_kind::Heap);
-      pair=prismel_resource_size_align(
-        [object.device heapAccelerationStructureSizeAndAlignWithDescriptor:
-          acceleration_triangle_descriptor_of_ocaml(descriptor)]);
-      result=result_ok(pair); CAMLreturn(result);
-    }
-    CAMLreturn(result_error_text("heap acceleration structures require macOS 13.0"));
-  } @catch(NSException *exception){CAMLreturn(result_error(exception.reason));}
-}
 
 /* M3: former metal_compute_encoder35_bindings.inc */
 template<class T> static std::vector<T> prismel_compute_handles(value a, Handle_kind kind) {
@@ -10386,20 +9095,19 @@ static std::vector<float> prismel_compute_floats(value a) {
 }
 #define COMPUTE_ENTRY(NAME) extern "C" CAMLprim value NAME
 #define COMPUTE_ENCODER(V) id<MTLComputeCommandEncoder> e = object_of_handle((V), Handle_kind::Compute_encoder)
-#define COMPUTE_CATCH } @catch (NSException *x) { CAMLreturn(result_error(x.reason)); }
 
-COMPUTE_ENTRY(caml_prismel_metal_compute35_buffer_stride)(value re,value rb,value ro,value rs,value ri){CAMLparam5(re,rb,ro,rs,ri);@try{COMPUTE_ENCODER(re);id<MTLBuffer>b=Is_none(rb)?nil:object_of_handle(Field(rb,0),Handle_kind::Buffer);[e setBuffer:b offset:Int64_val(ro) attributeStride:Int64_val(rs) atIndex:Int64_val(ri)];CAMLreturn(result_unit());COMPUTE_CATCH}
-COMPUTE_ENTRY(caml_prismel_metal_compute35_buffer_offset)(value re,value ro,value ri){CAMLparam3(re,ro,ri);@try{COMPUTE_ENCODER(re);[e setBufferOffset:Int64_val(ro) atIndex:Int64_val(ri)];CAMLreturn(result_unit());COMPUTE_CATCH}
-COMPUTE_ENTRY(caml_prismel_metal_compute35_buffer_offset_stride)(value re,value ro,value rs,value ri){CAMLparam4(re,ro,rs,ri);@try{COMPUTE_ENCODER(re);[e setBufferOffset:Int64_val(ro) attributeStride:Int64_val(rs) atIndex:Int64_val(ri)];CAMLreturn(result_unit());COMPUTE_CATCH}
-COMPUTE_ENTRY(caml_prismel_metal_compute35_buffers_bytecode)(value*argv,int argc){(void)argc;CAMLparam0();@try{COMPUTE_ENCODER(argv[0]);auto b=prismel_compute_handles<id<MTLBuffer>>(argv[1],Handle_kind::Buffer);auto o=prismel_compute_uints(argv[2]);auto s=prismel_compute_uints(argv[3]);if(b.size()!=o.size()||(!s.empty()&&s.size()!=b.size()))CAMLreturn(result_error_text("compute buffer binding cardinality mismatch"));NSRange r=NSMakeRange(Int64_val(argv[4]),b.size());if(s.empty())[e setBuffers:b.data() offsets:o.data() withRange:r];else[e setBuffers:b.data() offsets:o.data() attributeStrides:s.data() withRange:r];CAMLreturn(result_unit());COMPUTE_CATCH}
+COMPUTE_ENTRY(caml_prismel_metal_compute35_buffer_stride)(value re,value rb,value ro,value rs,value ri){CAMLparam5(re,rb,ro,rs,ri);@try{COMPUTE_ENCODER(re);id<MTLBuffer>b=Is_none(rb)?nil:object_of_handle(Field(rb,0),Handle_kind::Buffer);[e setBuffer:b offset:Int64_val(ro) attributeStride:Int64_val(rs) atIndex:Int64_val(ri)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+COMPUTE_ENTRY(caml_prismel_metal_compute35_buffer_offset)(value re,value ro,value ri){CAMLparam3(re,ro,ri);@try{COMPUTE_ENCODER(re);[e setBufferOffset:Int64_val(ro) atIndex:Int64_val(ri)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+COMPUTE_ENTRY(caml_prismel_metal_compute35_buffer_offset_stride)(value re,value ro,value rs,value ri){CAMLparam4(re,ro,rs,ri);@try{COMPUTE_ENCODER(re);[e setBufferOffset:Int64_val(ro) attributeStride:Int64_val(rs) atIndex:Int64_val(ri)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+COMPUTE_ENTRY(caml_prismel_metal_compute35_buffers_bytecode)(value*argv,int argc){(void)argc;CAMLparam0();@try{COMPUTE_ENCODER(argv[0]);auto b=prismel_compute_handles<id<MTLBuffer>>(argv[1],Handle_kind::Buffer);auto o=prismel_compute_uints(argv[2]);auto s=prismel_compute_uints(argv[3]);if(b.size()!=o.size()||(!s.empty()&&s.size()!=b.size()))CAMLreturn(result_error_text("compute buffer binding cardinality mismatch"));NSRange r=NSMakeRange(Int64_val(argv[4]),b.size());if(s.empty())[e setBuffers:b.data() offsets:o.data() withRange:r];else[e setBuffers:b.data() offsets:o.data() attributeStrides:s.data() withRange:r];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 COMPUTE_ENTRY(caml_prismel_metal_compute35_buffers)(value a,value b,value c,value d,value e){value argv[]={a,b,c,d,e};return caml_prismel_metal_compute35_buffers_bytecode(argv,5);}
-COMPUTE_ENTRY(caml_prismel_metal_compute35_bytes)(value re,value rb,value rs,value ri){CAMLparam4(re,rb,rs,ri);@try{COMPUTE_ENCODER(re);[e setBytes:Bytes_val(rb) length:caml_string_length(rb) attributeStride:Int64_val(rs) atIndex:Int64_val(ri)];CAMLreturn(result_unit());COMPUTE_CATCH}
-COMPUTE_ENTRY(caml_prismel_metal_compute35_textures)(value re,value ra,value rstart){CAMLparam3(re,ra,rstart);@try{COMPUTE_ENCODER(re);auto a=prismel_compute_handles<id<MTLTexture>>(ra,Handle_kind::Texture);[e setTextures:a.data() withRange:NSMakeRange(Int64_val(rstart),a.size())];CAMLreturn(result_unit());COMPUTE_CATCH}
-COMPUTE_ENTRY(caml_prismel_metal_compute35_sampler)(value re,value rs,value rlod,value ri){CAMLparam4(re,rs,rlod,ri);@try{COMPUTE_ENCODER(re);id<MTLSamplerState>s=Is_none(rs)?nil:object_of_handle(Field(rs,0),Handle_kind::Sampler);NSUInteger i=Int64_val(ri);if(Is_none(rlod))[e setSamplerState:s atIndex:i];else{value p=Field(rlod,0);[e setSamplerState:s lodMinClamp:Double_val(Field(p,0)) lodMaxClamp:Double_val(Field(p,1)) atIndex:i];}CAMLreturn(result_unit());COMPUTE_CATCH}
-COMPUTE_ENTRY(caml_prismel_metal_compute35_samplers)(value re,value ra,value rlo,value rhi,value rstart){CAMLparam5(re,ra,rlo,rhi,rstart);@try{COMPUTE_ENCODER(re);auto a=prismel_compute_handles<id<MTLSamplerState>>(ra,Handle_kind::Sampler);NSRange r=NSMakeRange(Int64_val(rstart),a.size());if(Is_none(rlo)&&Is_none(rhi))[e setSamplerStates:a.data() withRange:r];else if(!Is_none(rlo)&&!Is_none(rhi)){auto lo=prismel_compute_floats(Field(rlo,0));auto hi=prismel_compute_floats(Field(rhi,0));if(lo.size()!=a.size()||hi.size()!=a.size())CAMLreturn(result_error_text("compute sampler LOD cardinality mismatch"));[e setSamplerStates:a.data() lodMinClamps:lo.data() lodMaxClamps:hi.data() withRange:r];}else CAMLreturn(result_error_text("compute sampler LOD arrays must both be present"));CAMLreturn(result_unit());COMPUTE_CATCH}
-COMPUTE_ENTRY(caml_prismel_metal_compute35_acceleration)(value re,value ra,value ri){CAMLparam3(re,ra,ri);@try{COMPUTE_ENCODER(re);id<MTLAccelerationStructure>a=Is_none(ra)?nil:object_of_handle(Field(ra,0),Handle_kind::Acceleration_structure);[e setAccelerationStructure:a atBufferIndex:Int64_val(ri)];CAMLreturn(result_unit());COMPUTE_CATCH}
-#define COMPUTE_TABLE_ONE(NAME,TYPE,KIND,SELECTOR) COMPUTE_ENTRY(NAME)(value re,value rx,value ri){CAMLparam3(re,rx,ri);@try{COMPUTE_ENCODER(re);TYPE x=Is_none(rx)?nil:object_of_handle(Field(rx,0),KIND);[e SELECTOR:x atBufferIndex:Int64_val(ri)];CAMLreturn(result_unit());COMPUTE_CATCH}
-#define COMPUTE_TABLE_MANY(NAME,TYPE,KIND,SELECTOR) COMPUTE_ENTRY(NAME)(value re,value ra,value ri){CAMLparam3(re,ra,ri);@try{COMPUTE_ENCODER(re);auto a=prismel_compute_handles<TYPE>(ra,KIND);[e SELECTOR:a.data() withBufferRange:NSMakeRange(Int64_val(ri),a.size())];CAMLreturn(result_unit());COMPUTE_CATCH}
+COMPUTE_ENTRY(caml_prismel_metal_compute35_bytes)(value re,value rb,value rs,value ri){CAMLparam4(re,rb,rs,ri);@try{COMPUTE_ENCODER(re);[e setBytes:Bytes_val(rb) length:caml_string_length(rb) attributeStride:Int64_val(rs) atIndex:Int64_val(ri)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+COMPUTE_ENTRY(caml_prismel_metal_compute35_textures)(value re,value ra,value rstart){CAMLparam3(re,ra,rstart);@try{COMPUTE_ENCODER(re);auto a=prismel_compute_handles<id<MTLTexture>>(ra,Handle_kind::Texture);[e setTextures:a.data() withRange:NSMakeRange(Int64_val(rstart),a.size())];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+COMPUTE_ENTRY(caml_prismel_metal_compute35_sampler)(value re,value rs,value rlod,value ri){CAMLparam4(re,rs,rlod,ri);@try{COMPUTE_ENCODER(re);id<MTLSamplerState>s=Is_none(rs)?nil:object_of_handle(Field(rs,0),Handle_kind::Sampler);NSUInteger i=Int64_val(ri);if(Is_none(rlod))[e setSamplerState:s atIndex:i];else{value p=Field(rlod,0);[e setSamplerState:s lodMinClamp:Double_val(Field(p,0)) lodMaxClamp:Double_val(Field(p,1)) atIndex:i];}CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+COMPUTE_ENTRY(caml_prismel_metal_compute35_samplers)(value re,value ra,value rlo,value rhi,value rstart){CAMLparam5(re,ra,rlo,rhi,rstart);@try{COMPUTE_ENCODER(re);auto a=prismel_compute_handles<id<MTLSamplerState>>(ra,Handle_kind::Sampler);NSRange r=NSMakeRange(Int64_val(rstart),a.size());if(Is_none(rlo)&&Is_none(rhi))[e setSamplerStates:a.data() withRange:r];else if(!Is_none(rlo)&&!Is_none(rhi)){auto lo=prismel_compute_floats(Field(rlo,0));auto hi=prismel_compute_floats(Field(rhi,0));if(lo.size()!=a.size()||hi.size()!=a.size())CAMLreturn(result_error_text("compute sampler LOD cardinality mismatch"));[e setSamplerStates:a.data() lodMinClamps:lo.data() lodMaxClamps:hi.data() withRange:r];}else CAMLreturn(result_error_text("compute sampler LOD arrays must both be present"));CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+COMPUTE_ENTRY(caml_prismel_metal_compute35_acceleration)(value re,value ra,value ri){CAMLparam3(re,ra,ri);@try{COMPUTE_ENCODER(re);id<MTLAccelerationStructure>a=Is_none(ra)?nil:object_of_handle(Field(ra,0),Handle_kind::Acceleration_structure);[e setAccelerationStructure:a atBufferIndex:Int64_val(ri)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+#define COMPUTE_TABLE_ONE(NAME,TYPE,KIND,SELECTOR) COMPUTE_ENTRY(NAME)(value re,value rx,value ri){CAMLparam3(re,rx,ri);@try{COMPUTE_ENCODER(re);TYPE x=Is_none(rx)?nil:object_of_handle(Field(rx,0),KIND);[e SELECTOR:x atBufferIndex:Int64_val(ri)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+#define COMPUTE_TABLE_MANY(NAME,TYPE,KIND,SELECTOR) COMPUTE_ENTRY(NAME)(value re,value ra,value ri){CAMLparam3(re,ra,ri);@try{COMPUTE_ENCODER(re);auto a=prismel_compute_handles<TYPE>(ra,KIND);[e SELECTOR:a.data() withBufferRange:NSMakeRange(Int64_val(ri),a.size())];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 COMPUTE_TABLE_ONE(caml_prismel_metal_compute35_visible,id<MTLVisibleFunctionTable>,Handle_kind::Visible_function_table,setVisibleFunctionTable)
 COMPUTE_TABLE_MANY(caml_prismel_metal_compute35_visibles,id<MTLVisibleFunctionTable>,Handle_kind::Visible_function_table,setVisibleFunctionTables)
 COMPUTE_TABLE_ONE(caml_prismel_metal_compute35_intersection,id<MTLIntersectionFunctionTable>,Handle_kind::Intersection_function_table,setIntersectionFunctionTable)
@@ -10408,7 +9116,6 @@ COMPUTE_TABLE_MANY(caml_prismel_metal_compute35_intersections,id<MTLIntersection
 #undef COMPUTE_TABLE_MANY
 #undef COMPUTE_ENTRY
 #undef COMPUTE_ENCODER
-#undef COMPUTE_CATCH
 
 /* M3: former metal_compute_encoder35_commands.inc */
 static MTLSize prismel_compute35_size(value v){return MTLSizeMake(Long_val(Field(v,0)),Long_val(Field(v,1)),Long_val(Field(v,2)));}
@@ -10416,183 +9123,47 @@ static MTLRegion prismel_compute35_region(value v){return MTLRegionMake3D(Int64_
 static std::vector<id<MTLResource>> prismel_compute35_resources(value handles,value kinds){mlsize_t n=Wosize_val(handles);if(Wosize_val(kinds)!=n)@throw[NSException exceptionWithName:NSInvalidArgumentException reason:@"resource kind cardinality mismatch" userInfo:nil];std::vector<id<MTLResource>>r;r.reserve(n);for(mlsize_t i=0;i<n;i++){Handle_kind k=Bool_val(Field(kinds,i))?Handle_kind::Texture:Handle_kind::Buffer;r.push_back(object_of_handle(Field(handles,i),k));}return r;}
 #define C35_ENTRY(NAME) extern "C" CAMLprim value NAME
 #define C35_ENCODER(V) id<MTLComputeCommandEncoder> e=object_of_handle((V),Handle_kind::Compute_encoder)
-#define C35_CATCH }@catch(NSException*x){CAMLreturn(result_error(x.reason));}
-C35_ENTRY(caml_prismel_metal_compute35_dispatch_groups)(value re,value rg,value rt){CAMLparam3(re,rg,rt);@try{C35_ENCODER(re);[e dispatchThreadgroups:prismel_compute35_size(rg) threadsPerThreadgroup:prismel_compute35_size(rt)];CAMLreturn(result_unit());C35_CATCH}
-C35_ENTRY(caml_prismel_metal_compute35_dispatch_indirect)(value re,value rb,value ro,value rt){CAMLparam4(re,rb,ro,rt);@try{C35_ENCODER(re);id<MTLBuffer>b=object_of_handle(rb,Handle_kind::Buffer);[e dispatchThreadgroupsWithIndirectBuffer:b indirectBufferOffset:Int64_val(ro) threadsPerThreadgroup:prismel_compute35_size(rt)];CAMLreturn(result_unit());C35_CATCH}
-C35_ENTRY(caml_prismel_metal_compute35_dispatch_type)(value re){CAMLparam1(re);CAMLlocal2(v,r);@try{C35_ENCODER(re);v=Val_long(e.dispatchType);r=result_ok(v);CAMLreturn(r);C35_CATCH}
-C35_ENTRY(caml_prismel_metal_compute35_execute_indirect)(value re,value ri,value rb,value ro){CAMLparam4(re,ri,rb,ro);@try{C35_ENCODER(re);[e executeCommandsInBuffer:object_of_handle(ri,Handle_kind::Indirect_command_buffer) indirectBuffer:object_of_handle(rb,Handle_kind::Buffer) indirectBufferOffset:Int64_val(ro)];CAMLreturn(result_unit());C35_CATCH}
-C35_ENTRY(caml_prismel_metal_compute35_barrier_resources)(value re,value rh,value rk){CAMLparam3(re,rh,rk);@try{C35_ENCODER(re);auto r=prismel_compute35_resources(rh,rk);[e memoryBarrierWithResources:r.data() count:r.size()];CAMLreturn(result_unit());C35_CATCH}
-C35_ENTRY(caml_prismel_metal_compute35_barrier_scope)(value re,value rs){CAMLparam2(re,rs);@try{C35_ENCODER(re);[e memoryBarrierWithScope:(MTLBarrierScope)Int64_val(rs)];CAMLreturn(result_unit());C35_CATCH}
-C35_ENTRY(caml_prismel_metal_compute35_sample_counters)(value re,value rb,value ri,value barrier){CAMLparam4(re,rb,ri,barrier);@try{C35_ENCODER(re);[e sampleCountersInBuffer:object_of_handle(rb,Handle_kind::Counter_sample_buffer) atSampleIndex:Int64_val(ri) withBarrier:Bool_val(barrier)];CAMLreturn(result_unit());C35_CATCH}
-C35_ENTRY(caml_prismel_metal_compute35_supports_stage_counters)(value rd){CAMLparam1(rd);CAMLlocal2(v,r);@try{id<MTLDevice>d=object_of_handle(rd,Handle_kind::Device);v=Val_bool([d supportsCounterSampling:MTLCounterSamplingPointAtDispatchBoundary]);r=result_ok(v);CAMLreturn(r);C35_CATCH}
-C35_ENTRY(caml_prismel_metal_compute35_bytes_plain)(value re,value rb,value ri){CAMLparam3(re,rb,ri);@try{C35_ENCODER(re);[e setBytes:Bytes_val(rb) length:caml_string_length(rb) atIndex:Int64_val(ri)];CAMLreturn(result_unit());C35_CATCH}
-C35_ENTRY(caml_prismel_metal_compute35_imageblock)(value re,value rw,value rh){CAMLparam3(re,rw,rh);@try{C35_ENCODER(re);[e setImageblockWidth:Int64_val(rw) height:Int64_val(rh)];CAMLreturn(result_unit());C35_CATCH}
-C35_ENTRY(caml_prismel_metal_compute35_stage_region)(value re,value rr){CAMLparam2(re,rr);@try{C35_ENCODER(re);[e setStageInRegion:prismel_compute35_region(rr)];CAMLreturn(result_unit());C35_CATCH}
-C35_ENTRY(caml_prismel_metal_compute35_stage_indirect)(value re,value rb,value ro){CAMLparam3(re,rb,ro);@try{C35_ENCODER(re);[e setStageInRegionWithIndirectBuffer:object_of_handle(rb,Handle_kind::Buffer) indirectBufferOffset:Int64_val(ro)];CAMLreturn(result_unit());C35_CATCH}
-C35_ENTRY(caml_prismel_metal_compute35_threadgroup_memory)(value re,value rl,value ri){CAMLparam3(re,rl,ri);@try{C35_ENCODER(re);[e setThreadgroupMemoryLength:Int64_val(rl) atIndex:Int64_val(ri)];CAMLreturn(result_unit());C35_CATCH}
-#define C35_FENCE(NAME,SELECTOR) C35_ENTRY(NAME)(value re,value rf){CAMLparam2(re,rf);@try{C35_ENCODER(re);[e SELECTOR:object_of_handle(rf,Handle_kind::Fence)];CAMLreturn(result_unit());C35_CATCH}
+C35_ENTRY(caml_prismel_metal_compute35_dispatch_groups)(value re,value rg,value rt){CAMLparam3(re,rg,rt);@try{C35_ENCODER(re);[e dispatchThreadgroups:prismel_compute35_size(rg) threadsPerThreadgroup:prismel_compute35_size(rt)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+C35_ENTRY(caml_prismel_metal_compute35_dispatch_indirect)(value re,value rb,value ro,value rt){CAMLparam4(re,rb,ro,rt);@try{C35_ENCODER(re);id<MTLBuffer>b=object_of_handle(rb,Handle_kind::Buffer);[e dispatchThreadgroupsWithIndirectBuffer:b indirectBufferOffset:Int64_val(ro) threadsPerThreadgroup:prismel_compute35_size(rt)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+C35_ENTRY(caml_prismel_metal_compute35_dispatch_type)(value re){CAMLparam1(re);CAMLlocal2(v,r);@try{C35_ENCODER(re);v=Val_long(e.dispatchType);r=result_ok(v);CAMLreturn(r);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+C35_ENTRY(caml_prismel_metal_compute35_execute_indirect)(value re,value ri,value rb,value ro){CAMLparam4(re,ri,rb,ro);@try{C35_ENCODER(re);[e executeCommandsInBuffer:object_of_handle(ri,Handle_kind::Indirect_command_buffer) indirectBuffer:object_of_handle(rb,Handle_kind::Buffer) indirectBufferOffset:Int64_val(ro)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+C35_ENTRY(caml_prismel_metal_compute35_barrier_resources)(value re,value rh,value rk){CAMLparam3(re,rh,rk);@try{C35_ENCODER(re);auto r=prismel_compute35_resources(rh,rk);[e memoryBarrierWithResources:r.data() count:r.size()];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+C35_ENTRY(caml_prismel_metal_compute35_barrier_scope)(value re,value rs){CAMLparam2(re,rs);@try{C35_ENCODER(re);[e memoryBarrierWithScope:(MTLBarrierScope)Int64_val(rs)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+C35_ENTRY(caml_prismel_metal_compute35_sample_counters)(value re,value rb,value ri,value barrier){CAMLparam4(re,rb,ri,barrier);@try{C35_ENCODER(re);[e sampleCountersInBuffer:object_of_handle(rb,Handle_kind::Counter_sample_buffer) atSampleIndex:Int64_val(ri) withBarrier:Bool_val(barrier)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+C35_ENTRY(caml_prismel_metal_compute35_supports_stage_counters)(value rd){CAMLparam1(rd);CAMLlocal2(v,r);@try{id<MTLDevice>d=object_of_handle(rd,Handle_kind::Device);v=Val_bool([d supportsCounterSampling:MTLCounterSamplingPointAtDispatchBoundary]);r=result_ok(v);CAMLreturn(r);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+C35_ENTRY(caml_prismel_metal_compute35_bytes_plain)(value re,value rb,value ri){CAMLparam3(re,rb,ri);@try{C35_ENCODER(re);[e setBytes:Bytes_val(rb) length:caml_string_length(rb) atIndex:Int64_val(ri)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+C35_ENTRY(caml_prismel_metal_compute35_imageblock)(value re,value rw,value rh){CAMLparam3(re,rw,rh);@try{C35_ENCODER(re);[e setImageblockWidth:Int64_val(rw) height:Int64_val(rh)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+C35_ENTRY(caml_prismel_metal_compute35_stage_region)(value re,value rr){CAMLparam2(re,rr);@try{C35_ENCODER(re);[e setStageInRegion:prismel_compute35_region(rr)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+C35_ENTRY(caml_prismel_metal_compute35_stage_indirect)(value re,value rb,value ro){CAMLparam3(re,rb,ro);@try{C35_ENCODER(re);[e setStageInRegionWithIndirectBuffer:object_of_handle(rb,Handle_kind::Buffer) indirectBufferOffset:Int64_val(ro)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+C35_ENTRY(caml_prismel_metal_compute35_threadgroup_memory)(value re,value rl,value ri){CAMLparam3(re,rl,ri);@try{C35_ENCODER(re);[e setThreadgroupMemoryLength:Int64_val(rl) atIndex:Int64_val(ri)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+#define C35_FENCE(NAME,SELECTOR) C35_ENTRY(NAME)(value re,value rf){CAMLparam2(re,rf);@try{C35_ENCODER(re);[e SELECTOR:object_of_handle(rf,Handle_kind::Fence)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 C35_FENCE(caml_prismel_metal_compute35_update_fence,updateFence)
 C35_FENCE(caml_prismel_metal_compute35_wait_fence,waitForFence)
 #undef C35_FENCE
-C35_ENTRY(caml_prismel_metal_compute35_heaps)(value re,value ra){CAMLparam2(re,ra);@try{C35_ENCODER(re);mlsize_t n=Wosize_val(ra);std::vector<id<MTLHeap>>h;h.reserve(n);for(mlsize_t i=0;i<n;i++)h.push_back(object_of_handle(Field(ra,i),Handle_kind::Heap));if(n==1)[e useHeap:h[0]];else[e useHeaps:h.data() count:n];CAMLreturn(result_unit());C35_CATCH}
-C35_ENTRY(caml_prismel_metal_compute35_resources)(value re,value rh,value rk,value usage){CAMLparam4(re,rh,rk,usage);@try{C35_ENCODER(re);auto r=prismel_compute35_resources(rh,rk);if(r.size()==1)[e useResource:r[0] usage:(MTLResourceUsage)Int64_val(usage)];else[e useResources:r.data() count:r.size() usage:(MTLResourceUsage)Int64_val(usage)];CAMLreturn(result_unit());C35_CATCH}
+C35_ENTRY(caml_prismel_metal_compute35_heaps)(value re,value ra){CAMLparam2(re,ra);@try{C35_ENCODER(re);mlsize_t n=Wosize_val(ra);std::vector<id<MTLHeap>>h;h.reserve(n);for(mlsize_t i=0;i<n;i++)h.push_back(object_of_handle(Field(ra,i),Handle_kind::Heap));if(n==1)[e useHeap:h[0]];else[e useHeaps:h.data() count:n];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+C35_ENTRY(caml_prismel_metal_compute35_resources)(value re,value rh,value rk,value usage){CAMLparam4(re,rh,rk,usage);@try{C35_ENCODER(re);auto r=prismel_compute35_resources(rh,rk);if(r.size()==1)[e useResource:r[0] usage:(MTLResourceUsage)Int64_val(usage)];else[e useResources:r.data() count:r.size() usage:(MTLResourceUsage)Int64_val(usage)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 #undef C35_ENTRY
 #undef C35_ENCODER
-#undef C35_CATCH
 
 /* M3: former metal_device_residual_final4_bridge.inc */
 /* Final exact MTLDevice selector closure: two function handles, one immutable
    argument-descriptor array constructor, and the synchronous render pipeline
    constructor. */
-extern "C" CAMLprim value caml_prismel_metal_device_function_handle(
-    value raw_device, value raw_function, value raw_binary) {
-  CAMLparam3(raw_device, raw_function, raw_binary); CAMLlocal3(result,raw,option);
-  @try {
-    id<MTLDevice> device=object_of_handle(raw_device,Handle_kind::Device);
-    id<MTLFunctionHandle> handle = Bool_val(raw_binary)
-      ? [device functionHandleWithBinaryFunction:object_of_handle(raw_function,Handle_kind::Binary_function)]
-      : [device functionHandleWithFunction:object_of_handle(raw_function,Handle_kind::Function)];
-    if(handle==nil)CAMLreturn(result_ok(Val_none));raw=allocate_handle(handle,Handle_kind::Function_handle);option=caml_alloc(1,0);Store_field(option,0,raw);result=result_ok(option);CAMLreturn(result);
-  } @catch(NSException *exception){CAMLreturn(result_error(exception.reason));}
-}
-
-extern "C" CAMLprim value caml_prismel_metal_device_argument_encoder(
-    value raw_device, value raw_descriptors) {
-  CAMLparam2(raw_device,raw_descriptors);CAMLlocal3(handle,tuple,result);
-  mlsize_t count=Wosize_val(raw_descriptors);
-  if(count==0)CAMLreturn(result_error_text("argument descriptor list is empty"));
-  @try {
-    NSMutableArray<MTLArgumentDescriptor*>*descriptors=[NSMutableArray arrayWithCapacity:count];
-    for(mlsize_t i=0;i<count;i++){
-      value item=Field(raw_descriptors,i);int64_t data=Int64_val(Field(item,0)),index=Int64_val(Field(item,1)),length=Int64_val(Field(item,2)),access=Int64_val(Field(item,3)),texture=Int64_val(Field(item,4)),alignment=Int64_val(Field(item,5));
-      if(data<0||index<0||length<=0||access<0||access>2||texture<0||alignment<0)
-        CAMLreturn(result_error_text("argument descriptor metadata is invalid"));
-      MTLArgumentDescriptor*d=[MTLArgumentDescriptor argumentDescriptor];d.dataType=(MTLDataType)data;d.index=index;d.arrayLength=length;d.access=(MTLBindingAccess)access;d.textureType=(MTLTextureType)texture;d.constantBlockAlignment=alignment;[descriptors addObject:d];
-    }
-    id<MTLDevice>device=object_of_handle(raw_device,Handle_kind::Device);id<MTLArgumentEncoder>encoder=[device newArgumentEncoderWithArguments:descriptors];
-    if(!encoder)CAMLreturn(result_error_text("Metal returned no argument encoder"));
-    handle=allocate_handle(encoder,Handle_kind::Shader_argument_encoder);tuple=caml_alloc_tuple(4);Store_field(tuple,0,handle);Store_field(tuple,1,caml_copy_int64(encoder.encodedLength));Store_field(tuple,2,caml_copy_int64(encoder.alignment));Store_field(tuple,3,caml_copy_int64(device.registryID));result=result_ok(tuple);CAMLreturn(result);
-  } @catch(NSException *exception){CAMLreturn(result_error(exception.reason));}
-}
 
 /* M3: former metal_device_final_constructors3_bridge.inc */
 /* Exact final three MTLDevice constructors. */
-extern "C" CAMLprim value caml_prismel_metal_device_argument_encoder_binding(
-    value raw_device,value raw_function,value raw_index){
-  CAMLparam3(raw_device,raw_function,raw_index);CAMLlocal3(raw,tuple,result);
-  int64_t index=Int64_val(raw_index);
-  if(index<0)CAMLreturn(result_error_text("buffer binding index is negative"));
-  @try{
-    id<MTLDevice>device=object_of_handle(raw_device,Handle_kind::Device);
-    id<MTLFunction>function=object_of_handle(raw_function,Handle_kind::Function);
-    MTLComputePipelineReflection*reflection=nil;NSError*failure=nil;
-    id<MTLComputePipelineState>pipeline=[device
-      newComputePipelineStateWithFunction:function options:MTLPipelineOptionBindingInfo
-      reflection:&reflection error:&failure];
-    if(!pipeline)CAMLreturn(result_error(error_description(failure,@"buffer binding reflection failed")));
-    id<MTLBufferBinding>binding=nil;
-    for(id<MTLBinding>candidate in reflection.bindings)
-      if(candidate.type==MTLBindingTypeBuffer&&(int64_t)candidate.index==index){binding=(id<MTLBufferBinding>)candidate;break;}
-    if(!binding)CAMLreturn(result_error_text("no reflected buffer binding at index"));
-    id<MTLArgumentEncoder>encoder=[device newArgumentEncoderWithBufferBinding:binding];
-    if(!encoder)CAMLreturn(result_error_text("Metal returned no argument encoder"));
-    raw=allocate_handle(encoder,Handle_kind::Shader_argument_encoder);
-    tuple=caml_alloc_tuple(4);Store_field(tuple,0,raw);
-    Store_field(tuple,1,caml_copy_int64(encoder.encodedLength));
-    Store_field(tuple,2,caml_copy_int64(encoder.alignment));
-    Store_field(tuple,3,caml_copy_int64(device.registryID));
-    result=result_ok(tuple);CAMLreturn(result);
-  }@catch(NSException*exception){CAMLreturn(result_error(exception.reason));}
-}
 
 /* M3: former metal_device_capability13_bridge.inc */
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-extern "C" CAMLprim value caml_prismel_metal_device_capability_snapshot(value rh){CAMLparam1(rh);CAMLlocal2(v,r);@try{id<MTLDevice>d=object_of_handle(rh,Handle_kind::Device);MTLSize s=d.maxThreadsPerThreadgroup;v=caml_alloc_tuple(7);Store_field(v,0,Val_bool(d.areBarycentricCoordsSupported));Store_field(v,1,caml_copy_int64(s.width));Store_field(v,2,caml_copy_int64(s.height));Store_field(v,3,caml_copy_int64(s.depth));Store_field(v,4,Val_bool(d.shouldMaximizeConcurrentCompilation));Store_field(v,5,Val_bool(d.supportsBCTextureCompression));Store_field(v,6,Val_int(d.counterSets.count));r=result_ok(v);CAMLreturn(r);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
-extern "C" CAMLprim value caml_prismel_metal_device_supports_counter_sampling_exact(value rh,value rs){CAMLparam2(rh,rs);@try{id<MTLDevice>d=object_of_handle(rh,Handle_kind::Device);CAMLreturn(result_ok(Val_bool([d supportsCounterSampling:(MTLCounterSamplingPoint)Int64_val(rs)])));}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-extern "C" CAMLprim value caml_prismel_metal_device_supports_feature_set_exact(value rh,value rf){CAMLparam2(rh,rf);@try{id<MTLDevice>d=object_of_handle(rh,Handle_kind::Device);CAMLreturn(result_ok(Val_bool([d supportsFeatureSet:(MTLFeatureSet)Int64_val(rf)])));}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+
 #pragma clang diagnostic pop
 #pragma clang diagnostic pop
 
 /* M3: former metal_device_spatial_timestamp6_bridge.inc */
-static MTLRegion prismel_region_of_value(value v) {
-  return MTLRegionMake3D(Int64_val(Field(v, 0)), Int64_val(Field(v, 1)),
-                         Int64_val(Field(v, 2)), Int64_val(Field(v, 3)),
-                         Int64_val(Field(v, 4)), Int64_val(Field(v, 5)));
-}
-
-static value prismel_value_of_region(MTLRegion r) {
-  CAMLparam0();
-  CAMLlocal1(v);
-  v = caml_alloc_tuple(6);
-  Store_field(v, 0, caml_copy_int64(r.origin.x));
-  Store_field(v, 1, caml_copy_int64(r.origin.y));
-  Store_field(v, 2, caml_copy_int64(r.origin.z));
-  Store_field(v, 3, caml_copy_int64(r.size.width));
-  Store_field(v, 4, caml_copy_int64(r.size.height));
-  Store_field(v, 5, caml_copy_int64(r.size.depth));
-  CAMLreturn(v);
-}
-
-extern "C" CAMLprim value caml_prismel_metal_device_convert_sparse_regions(
-    value rh, value rpixels, value rsize, value rmode, value rreverse) {
-  CAMLparam5(rh, rpixels, rsize, rmode, rreverse);
-  CAMLlocal3(output, item, result);
-  @try {
-    id<MTLDevice> device = object_of_handle(rh, Handle_kind::Device);
-    const mlsize_t count = Wosize_val(rpixels);
-    std::vector<MTLRegion> input(count), converted(count);
-    for (mlsize_t i = 0; i < count; ++i)
-      input[i] = prismel_region_of_value(Field(rpixels, i));
-    MTLSize tile = MTLSizeMake(Int64_val(Field(rsize, 0)),
-                               Int64_val(Field(rsize, 1)),
-                               Int64_val(Field(rsize, 2)));
-    if (Bool_val(rreverse))
-      [device convertSparseTileRegions:input.data() toPixelRegions:converted.data()
-                         withTileSize:tile numRegions:count];
-    else
-      [device convertSparsePixelRegions:input.data() toTileRegions:converted.data()
-                          withTileSize:tile
-                         alignmentMode:(MTLSparseTextureRegionAlignmentMode)Int_val(rmode)
-                            numRegions:count];
-    output = caml_alloc(count, 0);
-    for (mlsize_t i = 0; i < count; ++i) {
-      item = prismel_value_of_region(converted[i]);
-      Store_field(output, i, item);
-    }
-    result = result_ok(output);
-    CAMLreturn(result);
-  } @catch (NSException *exception) {
-    CAMLreturn(result_error(exception.reason));
-  }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_device_default_sample_positions(
-    value rh, value rcount) {
-  CAMLparam2(rh, rcount);
-  CAMLlocal4(output, item, x, y);
-  int64_t requested = Int64_val(rcount);
-  if (requested < 0 || requested > 1024)
-    CAMLreturn(result_error_text("sample-position count is out of range"));
-  @try {
-    id<MTLDevice> device = object_of_handle(rh, Handle_kind::Device);
-    std::vector<MTLSamplePosition> positions((size_t)requested);
-    [device getDefaultSamplePositions:positions.data() count:(NSUInteger)requested];
-    output = caml_alloc((mlsize_t)requested, 0);
-    for (int64_t i = 0; i < requested; ++i) {
-      item = caml_alloc_tuple(2);
-      x = caml_copy_double(positions[(size_t)i].x);
-      y = caml_copy_double(positions[(size_t)i].y);
-      Store_field(item, 0, x); Store_field(item, 1, y);
-      Store_field(output, (mlsize_t)i, item);
-    }
-    CAMLreturn(result_ok(output));
-  } @catch (NSException *exception) {
-    CAMLreturn(result_error(exception.reason));
-  }
-}
 
 extern "C" CAMLprim value caml_prismel_metal_device_sample_timestamps(value rh) {
   CAMLparam1(rh); CAMLlocal2(pair, result);
@@ -10615,16 +9186,6 @@ extern "C" CAMLprim value caml_prismel_metal_device_timestamp_frequency(value rh
     } @catch(NSException*x){CAMLreturn(result_error(x.reason));}
   }
   CAMLreturn(result_error_text("queryTimestampFrequency requires macOS 26"));
-}
-
-extern "C" CAMLprim value caml_prismel_metal_device_counter_heap_entry_size(value rh) {
-  CAMLparam1(rh);
-  if (@available(macOS 26.0, *)) {
-    @try { id<MTLDevice> d=object_of_handle(rh,Handle_kind::Device);
-      CAMLreturn(result_ok(caml_copy_int64((int64_t)[d sizeOfCounterHeapEntry:MTL4CounterHeapTypeTimestamp])));
-    } @catch(NSException*x){CAMLreturn(result_error(x.reason));}
-  }
-  CAMLreturn(result_error_text("sizeOfCounterHeapEntry requires macOS 26"));
 }
 
 #pragma clang diagnostic pop
@@ -11004,21 +9565,6 @@ extern "C" CAMLprim value caml_prismel_metal_accel_instance_layout(value raw_kin
 // Plan G6: shared events on classic command buffers, host waits, and
 // compute/blit encoders created from pass descriptors (stage-boundary
 // counter sampling).
-extern "C" CAMLprim value caml_prismel_metal_command_buffer_shared_event(
-    value raw, value raw_event, value raw_number, value raw_signal) {
-  CAMLparam4(raw, raw_event, raw_number, raw_signal);
-  @try {
-    id<MTLCommandBuffer> command = object_of_handle(raw, Handle_kind::Command_buffer);
-    id<MTLSharedEvent> event = object_of_handle(raw_event, Handle_kind::Shared_event);
-    if (Bool_val(raw_signal))
-      [command encodeSignalEvent:event value:(uint64_t)Int64_val(raw_number)];
-    else
-      [command encodeWaitForEvent:event value:(uint64_t)Int64_val(raw_number)];
-    CAMLreturn(result_unit());
-  } @catch (NSException *x) {
-    CAMLreturn(result_error(x.reason));
-  }
-}
 
 extern "C" CAMLprim value caml_prismel_metal_shared_event_wait(value raw, value raw_number,
                                                               value raw_timeout) {
@@ -11042,41 +9588,6 @@ extern "C" CAMLprim value caml_prismel_metal_shared_event_wait(value raw, value 
   caml_acquire_runtime_system();
   if (failure != nil) CAMLreturn(result_error(failure));
   CAMLreturn(result_ok(Val_bool(reached)));
-}
-
-extern "C" CAMLprim value caml_prismel_metal_command_buffer_compute_encoder_with_pass(
-    value raw, value raw_pass) {
-  CAMLparam2(raw, raw_pass);
-  CAMLlocal2(handle, result);
-  @try {
-    id<MTLCommandBuffer> command = object_of_handle(raw, Handle_kind::Command_buffer);
-    MTLComputePassDescriptor *pass =
-        object_of_handle(raw_pass, Handle_kind::Compute_pass_descriptor);
-    id<MTLComputeCommandEncoder> encoder = [command computeCommandEncoderWithDescriptor:pass];
-    if (!encoder) CAMLreturn(result_error_text("compute encoder creation from pass failed"));
-    handle = allocate_handle(encoder, Handle_kind::Compute_encoder);
-    result = result_ok(handle);
-    CAMLreturn(result);
-  } @catch (NSException *x) {
-    CAMLreturn(result_error(x.reason));
-  }
-}
-
-extern "C" CAMLprim value caml_prismel_metal_command_buffer_blit_encoder_with_pass(
-    value raw, value raw_pass) {
-  CAMLparam2(raw, raw_pass);
-  CAMLlocal2(handle, result);
-  @try {
-    id<MTLCommandBuffer> command = object_of_handle(raw, Handle_kind::Command_buffer);
-    MTLBlitPassDescriptor *pass = object_of_handle(raw_pass, Handle_kind::Blit_pass_descriptor);
-    id<MTLBlitCommandEncoder> encoder = [command blitCommandEncoderWithDescriptor:pass];
-    if (!encoder) CAMLreturn(result_error_text("blit encoder creation from pass failed"));
-    handle = allocate_handle(encoder, Handle_kind::Blit_encoder);
-    result = result_ok(handle);
-    CAMLreturn(result);
-  } @catch (NSException *x) {
-    CAMLreturn(result_error(x.reason));
-  }
 }
 
 // Plan G7: classic mesh draws and tile dispatches, mesh/tile color formats,
