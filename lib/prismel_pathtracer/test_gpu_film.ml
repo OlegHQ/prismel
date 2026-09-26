@@ -22,6 +22,11 @@ let run () =
     logical_width=48;logical_height=32;drawable_width=48;drawable_height=32;
     title="GPU film test"} in
   let coordinator=execution(Prismel_execution.create config)in
+  (* A live shared lease keeps the window's device alive. *)
+  let lease=execution(Prismel_execution.acquire_gpu())in
+  assert(Prismel_execution.gpu_shared lease);
+  assert(Result.is_error(Prismel_execution.destroy coordinator));
+  Prismel_execution.release_gpu lease;
   Fun.protect ~finally:(fun()->execution(Prismel_execution.destroy coordinator))
     (fun()->
       let tracer=get(P.create ~width:48 ~height:32 scene)in

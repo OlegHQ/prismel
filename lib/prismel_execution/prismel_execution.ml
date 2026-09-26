@@ -366,12 +366,15 @@ let release_headless()=match !headless_gpu with
   |Some(device,count)->decr count;
       if !count<=0 then(headless_gpu:=None;ignore(Ogpu.Backend.destroy_device device))
   |None->()
+(* Live leases of the active window's device; the window refuses to destroy
+   that device while any remain. *)
+let shared_leases=ref 0
 let acquire_device operation=
   let shared=match !active_window with
     |Some{runtime=Window runtime;dead=false;_}->Some(Runtime.device runtime)
     |Some _|None->None in
   match shared with
-  |Some(Ok device)->Ok(device,true)
+  |Some(Ok device)->incr shared_leases;Ok(device,true)
   |Some(Error e)->backend operation e
   |None->(match !headless_gpu with
     |Some(device,count)->incr count;Ok(device,false)
@@ -379,7 +382,7 @@ let acquire_device operation=
         match Ogpu.Backend.create_device driver with
         |Error e->backend operation e
         |Ok device->headless_gpu:=Some(device,ref 1);Ok(device,false))
-let release_device shared=if not shared then release_headless()
+let release_device shared=if shared then decr shared_leases else release_headless()
 type lease_policy=Copy_image_snapshots|Retain_image_snapshots of submission
 let valid_configuration operation (configuration:configuration)=
   let positive x=x>0 in
@@ -1203,7 +1206,13 @@ let capture_into value~destination=
   |Offscreen state->Runtime.read_offscreen_into state.runtime
       ~bytes_per_row:(facts.drawable_width*4)~destination in
   match captured with Ok()->Ok()|Error e->backend"Prismel_execution.capture_into"e
-let destroy value=if value.dead then Ok()else(
+let destroy value=if value.dead then Ok()else
+  match value.runtime with
+  |Window _ when !shared_leases>0->
+      fail"Prismel_execution.destroy"Invalid_argument
+        (string_of_int !shared_leases^
+         " GPU lease(s) still share this window's device; release them first")
+  |Window _|Offscreen _->(
   List.iter close_submission value.submissions;
   match Runtime_resources.Assets.destroy value.assets with Error e->resource"Prismel_execution.destroy"e|Ok()->
     Snapshot_table.clear value.snapshots;Int_table.clear value.scene2_geometry_cache;

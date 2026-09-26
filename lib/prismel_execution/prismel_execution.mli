@@ -71,6 +71,9 @@ val capture_into : t -> destination:bytes -> (unit,error) result
     (the presenting window's when one exists). A window execution samples a
     Canvas published from it directly; readback happens only for CPU access. *)
 val offscreen_target : t -> (Ogpu.Backend.texture,error) result
+
+(** A window execution fails with [Invalid_argument], destroying nothing,
+    while GPU leases or offscreen executions still share its device. *)
 val destroy : t -> (unit,error) result
 
 (** A borrowed GPU: the active window's OGPU device (so Scene samples GPU
