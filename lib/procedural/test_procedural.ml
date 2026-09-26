@@ -901,7 +901,7 @@ let test_generators_selections_and_delete () =
       |> Sop.group ~name:"bound_faces"
            (Select.primitive_indices [|0;1;2;3|])
       |> Sop.bound ~selection:(Sop.Primitive_group "bound_faces")
-           ~shape:(Pdk.Ops.Bound_box { divisions = 2, 3, 4 })
+           ~shape:(Pdk.Bound.Bound_box { divisions = 2, 3, 4 })
            ~lower_padding:(Vec3.create 0.2 0.3 0.4)
            ~upper_padding:(Vec3.create 0.4 0.3 0.2)
            ~bounds_group:"bounds" ~center_attribute:"bound_center"
@@ -913,7 +913,7 @@ let test_generators_selections_and_delete () =
          divided_bound.geometry <> None)
     "procedural divided Bound output/metadata";
   let bound_sphere = Sop.box ~size:(Vec3.create 2. 3. 4.) ()
-      |> Sop.bound ~shape:(Pdk.Ops.Bound_sphere {
+      |> Sop.bound ~shape:(Pdk.Bound.Bound_sphere {
            segments = 16; rings = 8; minimum_radius = 0. })
       |> cook_ok evaluator current in
   check (Pdk.Geometry.point_count bound_sphere.geometry = 114
@@ -928,7 +928,7 @@ let test_generators_selections_and_delete () =
   let target_bounds = Sop.box ~size:(Vec3.create 5. 6. 7.) ()
       |> Sop.transform (Mat4.translation (Vec3.create 3. 4. 5.)) in
   let matched = Sop.box ~size:(Vec3.create 1. 2. 3.) ()
-      |> Sop.match_size ~fit:Pdk.Ops.Stretch ~target:target_bounds
+      |> Sop.match_size ~fit:Pdk.Match_size.Stretch ~target:target_bounds
       |> cook_ok evaluator current in
   let matched_bounds = Pdk.Analysis.bounds matched.geometry |> Option.get in
   check (abs_float (matched_bounds.center.x -. 3.) < 1e-12
@@ -943,7 +943,7 @@ let test_generators_selections_and_delete () =
       |> Sop.match_size ~selection:(Sop.Point_group "move")
            ~source_selection:(Sop.Point_group "source_bounds")
            ~target_selection:(Sop.Point_group "target_bounds")
-           ~fit:Pdk.Ops.Match_y ~justify:(Vec3.create 1. 0. 0.)
+           ~fit:Pdk.Match_size.Match_y ~justify:(Vec3.create 1. 0. 0.)
            ~target_justify:(Vec3.create (-1.) 0. 0.)
            ~offset:(Vec3.create 0.25 0. 0.) ~target:advanced_target
       |> cook_ok evaluator current |> fun cooked ->

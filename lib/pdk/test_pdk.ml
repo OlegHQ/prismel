@@ -4068,7 +4068,7 @@ let run () =
            fail "compact points native edge group differs by domain count"
        done
    | _ -> fail "compact points native edge-group remap");
-  let bounded = Ops.bounding_box ~padding:(Vec3.create 0.1 0.1 0.1)
+  let bounded = Bound.bounding_box_checked ~padding:(Vec3.create 0.1 0.1 0.1)
       triangle_geometry |> get_ok in
   (match Analysis.bounds bounded with
    | Some bounds when abs_float (bounds.min.x +. 0.1) < 1e-12
@@ -4079,7 +4079,7 @@ let run () =
   and match_target = Box_generator.box_checked ~size:(Vec3.create 4. 6. 8.) () |> get_ok
       |> Transform_ops.transform (Mat4.translation (Vec3.create (-3.) 5. 2.)) in
   let matched domains = Parallel.run ~domains (fun () ->
-      Ops.match_size ~grain:1 ~fit:Ops.Stretch ~target:match_target match_source
+      Match_size.run_checked ~grain:1 ~fit:Match_size.Stretch ~target:match_target match_source
       |> get_ok) in
   let matched_one = matched 1 and matched_many = matched 4 in
   let matched_bounds = Analysis.bounds matched_one |> Option.get
@@ -4090,18 +4090,18 @@ let run () =
      || abs_float (matched_bounds.max.z -. target_bounds.max.z) > 1e-12
   then fail "match size bounds/domain determinism";
   let axis_source = Line_geometry.points [|(1., 0., 0.); (2., 0., 0.)|] in
-  let aligned = Ops.match_axis ~grain:1 ~from:Vec3.unit_x ~into:Vec3.unit_y
+  let aligned = Match_size.match_axis_checked ~grain:1 ~from:Vec3.unit_x ~into:Vec3.unit_y
       axis_source |> get_ok in
   let aligned_positions = Packed.Float3.Private.view (Geometry.positions aligned) in
   if abs_float aligned_positions.x.(0) > 1e-12
      || abs_float (aligned_positions.y.(0) -. 1.) > 1e-12 then
     fail "match axis quarter turn";
-  let opposed = Ops.match_axis ~from:Vec3.unit_x ~into:(Vec3.neg Vec3.unit_x)
+  let opposed = Match_size.match_axis_checked ~from:Vec3.unit_x ~into:(Vec3.neg Vec3.unit_x)
       axis_source |> get_ok in
   let opposed_positions = Packed.Float3.Private.view (Geometry.positions opposed) in
   if abs_float (opposed_positions.x.(1) +. 2.) > 1e-12 then
     fail "match axis deterministic half turn";
-  (match Ops.match_axis ~from:Vec3.zero ~into:Vec3.unit_y axis_source with
+  (match Match_size.match_axis_checked ~from:Vec3.zero ~into:Vec3.unit_y axis_source with
    | Error error when Error.code error = "invalid_axis" -> ()
    | _ -> fail "match axis accepted a zero vector");
   let float_values name geometry =
@@ -4234,10 +4234,10 @@ let run () =
   (match Ops.compact_points ~cancel:cancelled compact_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled point compaction published geometry or wrong error");
-  (match Ops.bounding_box ~cancel:cancelled compact_source with
+  (match Bound.bounding_box_checked ~cancel:cancelled compact_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled bounding box published geometry or wrong error");
-  (match Ops.match_size ~cancel:cancelled ~target:match_target match_source with
+  (match Match_size.run_checked ~cancel:cancelled ~target:match_target match_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled match size published geometry or wrong error");
   (match Ordering.sort_checked ~cancel:cancelled ~owner:Ordering.Points ~key:Ordering.X grid with

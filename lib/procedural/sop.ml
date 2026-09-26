@@ -6492,16 +6492,16 @@ let compact_points ?label input =
       geometry) input
 
 let match_size_fit_key = function
-  | Pdk.Ops.Translate_only -> "translate_only"
-  | Pdk.Ops.Stretch -> "stretch"
-  | Pdk.Ops.Contain -> "contain"
-  | Pdk.Ops.Cover -> "cover"
-  | Pdk.Ops.Match_x -> "match_x"
-  | Pdk.Ops.Match_y -> "match_y"
-  | Pdk.Ops.Match_z -> "match_z"
-  | Pdk.Ops.Match_perimeter -> "match_perimeter"
-  | Pdk.Ops.Match_area -> "match_area"
-  | Pdk.Ops.Match_volume -> "match_volume"
+  | Pdk.Match_size.Translate_only -> "translate_only"
+  | Pdk.Match_size.Stretch -> "stretch"
+  | Pdk.Match_size.Contain -> "contain"
+  | Pdk.Match_size.Cover -> "cover"
+  | Pdk.Match_size.Match_x -> "match_x"
+  | Pdk.Match_size.Match_y -> "match_y"
+  | Pdk.Match_size.Match_z -> "match_z"
+  | Pdk.Match_size.Match_perimeter -> "match_perimeter"
+  | Pdk.Match_size.Match_area -> "match_area"
+  | Pdk.Match_size.Match_volume -> "match_volume"
 
 let match_axis ?label ~from ~into input =
   let from = vec3_copy from and into = vec3_copy into in
@@ -6509,7 +6509,7 @@ let match_axis ?label ~from ~into input =
     ~parameters:(Printf.sprintf "from=%s;into=%s" (vec3_key from) (vec3_key into))
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Pdk.Ops.match_axis ~grain:(Context.grain context) ~from ~into inputs.(0) with
+      match Pdk.Match_size.match_axis_checked ~grain:(Context.grain context) ~from ~into inputs.(0) with
       | Ok geometry -> cooked geometry
       | Error error -> structured_pdk_error error)
 
@@ -6557,7 +6557,7 @@ let sort ?label ?group ?(descending = false) ?output_indices
           | Error error -> structured_pdk_error error)
 
 let match_size ?label ?selection ?source_selection ?target_selection
-    ?(fit = Pdk.Ops.Contain) ?(translate_axes = true, true, true)
+    ?(fit = Pdk.Match_size.Contain) ?(translate_axes = true, true, true)
     ?(scale_axes = true, true, true) ?(justify = Vec3.zero) ?target_justify
     ?(offset = Vec3.zero) ?(scale = 1.) ?target_center ?target_size ?target
     input =
@@ -6623,7 +6623,7 @@ let match_size ?label ?selection ?source_selection ?target_selection
                (match target_selection_result with
                 | Error error -> Error error
                 | Ok target_selection ->
-                    match Pdk.Ops.match_size
+                    match Pdk.Match_size.run_checked
                         ~cancel:(Context.cancel_token context)
                         ~grain:(Context.grain context) ?selection
                         ?source_selection ?target_selection ~fit ~translate_axes
@@ -7011,9 +7011,9 @@ let resolve_attribute_group ~operation ~owner name geometry = match name with
               (attribute_owner_key owner) name)))
 
 let bound_shape_key = function
-  | Pdk.Ops.Bound_box { divisions = x, y, z } ->
+  | Pdk.Bound.Bound_box { divisions = x, y, z } ->
       Printf.sprintf "box:%d,%d,%d" x y z
-  | Pdk.Ops.Bound_sphere { segments; rings; minimum_radius } ->
+  | Pdk.Bound.Bound_sphere { segments; rings; minimum_radius } ->
       String.concat ":" ["sphere"; string_of_int segments; string_of_int rings;
         float_key minimum_radius]
 
@@ -7096,7 +7096,7 @@ let extract_centroid ?label ?(run_over = Pdk.Ops.Centroid_detail)
       | Error error -> structured_pdk_error error)
 
 let bound ?label ?selection
-    ?(shape = Pdk.Ops.Bound_box { divisions = 1, 1, 1 })
+    ?(shape = Pdk.Bound.Bound_box { divisions = 1, 1, 1 })
     ?(lower_padding = Vec3.zero) ?(upper_padding = Vec3.zero) ?bounds_group
     ?center_attribute ?radii_attribute input =
   Option.iter (fun selection ->
@@ -7126,7 +7126,7 @@ let bound ?label ?selection
       match resolve_element_group ~operation:"bound" selection inputs.(0) with
       | Error error -> Error error
       | Ok selection ->
-          (match Pdk.Ops.bound ~cancel:(Context.cancel_token context)
+          (match Pdk.Bound.run_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?selection ~shape ~lower_padding
               ~upper_padding ?bounds_group ?center_attribute ?radii_attribute
               inputs.(0) with

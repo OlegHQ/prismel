@@ -2389,7 +2389,7 @@ val extract_centroid :
 val bound :
   ?label:string ->
   ?selection:element_group ->
-  ?shape:Pdk.Ops.bound_shape ->
+  ?shape:Pdk.Bound.bound_shape ->
   ?lower_padding:Prismel.Vec3.t ->
   ?upper_padding:Prismel.Vec3.t ->
   ?bounds_group:string ->
@@ -2415,7 +2415,7 @@ val match_size :
   ?selection:element_group ->
   ?source_selection:element_group ->
   ?target_selection:element_group ->
-  ?fit:Pdk.Ops.match_size_fit ->
+  ?fit:Pdk.Match_size.match_size_fit ->
   ?translate_axes:(bool * bool * bool) ->
   ?scale_axes:(bool * bool * bool) ->
   ?justify:Prismel.Vec3.t ->

@@ -101,25 +101,25 @@ let equal_geometry left right =
 
 let check_numeric_targets () =
   let source = Box_generator.box_checked ~size:(Vec3.create 2. 4. 8.) () |> get_ok in
-  let unit = Ops.match_size source |> get_ok |> bounds in
+  let unit = Match_size.run_checked source |> get_ok |> bounds in
   check (near unit.center.x 0. && near unit.center.y 0. && near unit.center.z 0.
       && near unit.size.x 0.25 && near unit.size.y 0.5 && near unit.size.z 1.)
     "default unit reference contain fit";
-  let explicit = Ops.match_size ~fit:Ops.Stretch
+  let explicit = Match_size.run_checked ~fit:Match_size.Stretch
       ~target_center:(Vec3.create 10. 20. 30.)
       ~target_size:(Vec3.create 4. 8. 12.) source |> get_ok |> bounds in
   check (near explicit.center.x 10. && near explicit.center.y 20.
       && near explicit.center.z 30. && near explicit.size.x 4.
       && near explicit.size.y 8. && near explicit.size.z 12.)
     "explicit numeric stretch reference";
-  let axes = Ops.match_size ~fit:Ops.Stretch ~scale_axes:(true, false, true)
+  let axes = Match_size.run_checked ~fit:Match_size.Stretch ~scale_axes:(true, false, true)
       ~target_center:(Vec3.create 10. 20. 30.)
       ~target_size:(Vec3.create 4. 8. 12.) source |> get_ok |> bounds in
   check (near axes.size.x 4. && near axes.size.y 4. && near axes.size.z 12.
       && near axes.center.x 10. && near axes.center.y 20.
       && near axes.center.z 30.)
     "per-axis scale enable";
-  let aligned = Ops.match_size ~fit:Ops.Translate_only
+  let aligned = Match_size.run_checked ~fit:Match_size.Translate_only
       ~justify:(Vec3.create 1. 0. 0.)
       ~target_justify:(Vec3.create (-1.) 0. 0.)
       ~offset:(Vec3.create 0.5 2. 3.)
@@ -139,7 +139,7 @@ let check_selections () =
   and move = Group.init ~owner:Group.Point ~name:"move" 4
       (fun point -> point = 0) in
   let source = source |> with_group source_bounds |> with_group move in
-  let output = Ops.match_size ~fit:Ops.Translate_only
+  let output = Match_size.run_checked ~fit:Match_size.Translate_only
       ~selection:(Transform_ops.Selected_points move)
       ~source_selection:(Transform_ops.Selected_points source_bounds)
       ~justify:(Vec3.create 1. 0. 0.)
@@ -154,7 +154,7 @@ let check_selections () =
   let target_group = Group.init ~owner:Group.Point ~name:"anchor" 2
       (fun point -> point = 0) in
   let target = with_group target_group target in
-  let output = Ops.match_size ~fit:Ops.Translate_only
+  let output = Match_size.run_checked ~fit:Match_size.Translate_only
       ~source_selection:(Transform_ops.Selected_points source_bounds)
       ~target_selection:(Transform_ops.Selected_points target_group) ~target source
       |> get_ok |> bounds in
@@ -170,7 +170,7 @@ let check_selections () =
       |> Transform_ops.transform (Mat4.translation (Vec3.create 7. 8. 9.)) in
   let vertices = Group.init ~owner:Group.Vertex ~name:"all_vertices"
       (Geometry.vertex_count component_target) (fun _ -> true) in
-  let component_output = Ops.match_size ~fit:Ops.Stretch
+  let component_output = Match_size.run_checked ~fit:Match_size.Stretch
       ~selection:(Transform_ops.Selected_edges edges)
       ~source_selection:(Transform_ops.Selected_primitives primitives)
       ~target_selection:(Transform_ops.Selected_vertices vertices)
@@ -181,18 +181,18 @@ let check_selections () =
     "edge move, primitive source, and vertex target selections";
   let empty_move = Group.init ~owner:Group.Point ~name:"empty_move" 4
       (fun _ -> false) in
-  let unchanged = Ops.match_size ~selection:(Transform_ops.Selected_points empty_move)
-      ~fit:Ops.Stretch ~target source |> get_ok in
+  let unchanged = Match_size.run_checked ~selection:(Transform_ops.Selected_points empty_move)
+      ~fit:Match_size.Stretch ~target source |> get_ok in
   check (Geometry.data_id unchanged = Geometry.data_id source)
     "empty move selection is a structural identity"
 
 let check_fit_modes () =
   let source = Box_generator.box_checked ~size:(Vec3.create 1. 2. 4.) () |> get_ok
   and target = Box_generator.box_checked ~size:(Vec3.create 4. 6. 8.) () |> get_ok in
-  let size fit = Ops.match_size ~fit ~target source |> get_ok |> bounds
+  let size fit = Match_size.run_checked ~fit ~target source |> get_ok |> bounds
       |> fun bounds -> bounds.size in
-  let x = size Ops.Match_x and y = size Ops.Match_y and z = size Ops.Match_z
-  and contain = size Ops.Contain and cover = size Ops.Cover in
+  let x = size Match_size.Match_x and y = size Match_size.Match_y and z = size Match_size.Match_z
+  and contain = size Match_size.Contain and cover = size Match_size.Cover in
   check (near x.x 4. && near x.y 8. && near x.z 16.) "uniform X fit";
   check (near y.x 3. && near y.y 6. && near y.z 12.) "uniform Y fit";
   check (near z.x 2. && near z.y 4. && near z.z 8.) "uniform Z fit";
@@ -202,18 +202,18 @@ let check_fit_modes () =
     "uniform cover fit";
   let doubled = Box_generator.box_checked ~size:(Vec3.create 2. 4. 6.) () |> get_ok in
   List.iter (fun fit ->
-    let measured = Ops.match_size ~fit ~translate_axes:(false, false, false)
+    let measured = Match_size.run_checked ~fit ~translate_axes:(false, false, false)
         ~target:doubled (Box_generator.box_checked ~size:(Vec3.create 1. 2. 3.) () |> get_ok)
         |> get_ok |> bounds in
     check (near measured.size.x 2. && near measured.size.y 4.
         && near measured.size.z 6.) "metric fit linear scale")
-    [Ops.Match_perimeter; Ops.Match_area; Ops.Match_volume];
+    [Match_size.Match_perimeter; Match_size.Match_area; Match_size.Match_volume];
   let source = Box_generator.box_checked ~size:(Vec3.create 1. 2. 3.) () |> get_ok in
   let source_faces = Group.init ~owner:Group.Primitive ~name:"source_faces"
       (Geometry.primitive_count source) (fun _ -> true)
   and target_faces = Group.init ~owner:Group.Primitive ~name:"target_faces"
       (Geometry.primitive_count doubled) (fun _ -> true) in
-  let selected = Ops.match_size ~fit:Ops.Match_area
+  let selected = Match_size.run_checked ~fit:Match_size.Match_area
       ~source_selection:(Transform_ops.Selected_primitives source_faces)
       ~target_selection:(Transform_ops.Selected_primitives target_faces)
       ~target:doubled source |> get_ok |> bounds in
@@ -232,7 +232,7 @@ let check_normals () =
   let source = source |> Geometry.with_attribute (normal Attribute.Point)
       |> Result.get_ok |> Geometry.with_attribute (normal Attribute.Vertex)
       |> Result.get_ok |> with_group selected in
-  let output = Ops.match_size ~fit:Ops.Stretch
+  let output = Match_size.run_checked ~fit:Match_size.Stretch
       ~selection:(Transform_ops.Selected_points selected)
       ~translate_axes:(false, false, false)
       ~target_center:Vec3.zero ~target_size:(Vec3.create 2. 1. 1.) source
@@ -248,35 +248,35 @@ let check_normals () =
 let check_validation () =
   let source = Box_generator.box_checked ~size:(Vec3.create 1. 1. 1.) () |> get_ok
   and target = Box_generator.box_checked ~size:(Vec3.create 2. 2. 2.) () |> get_ok in
-  expect_code "invalid_geometry" (Ops.match_size ~grain:0 ~target source);
-  expect_code "invalid_geometry" (Ops.match_size
+  expect_code "invalid_geometry" (Match_size.run_checked ~grain:0 ~target source);
+  expect_code "invalid_geometry" (Match_size.run_checked
       ~justify:(Vec3.create 2. 0. 0.) ~target source);
-  expect_code "invalid_geometry" (Ops.match_size
+  expect_code "invalid_geometry" (Match_size.run_checked
       ~offset:(Vec3.create Float.nan 0. 0.) ~target source);
-  expect_code "invalid_geometry" (Ops.match_size ~scale:(-1.) ~target source);
-  expect_code "invalid_geometry" (Ops.match_size
+  expect_code "invalid_geometry" (Match_size.run_checked ~scale:(-1.) ~target source);
+  expect_code "invalid_geometry" (Match_size.run_checked
       ~target_size:(Vec3.create 1. (-1.) 1.) source);
-  expect_code "invalid_geometry" (Ops.match_size ~target
+  expect_code "invalid_geometry" (Match_size.run_checked ~target
       ~target_center:Vec3.zero source);
   let target_points = Group.init ~owner:Group.Point ~name:"target" 24
       (fun point -> point = 0) in
-  expect_code "invalid_geometry" (Ops.match_size
+  expect_code "invalid_geometry" (Match_size.run_checked
       ~target_selection:(Transform_ops.Selected_points target_points) source);
   let malformed = Group.init ~owner:Group.Point ~name:"bad" 1 (fun _ -> true) in
-  expect_code "invalid_geometry" (Ops.match_size
+  expect_code "invalid_geometry" (Match_size.run_checked
       ~selection:(Transform_ops.Selected_points malformed) ~target source);
   let empty = Group.init ~owner:Group.Point ~name:"empty" 24 (fun _ -> false) in
-  expect_code "invalid_geometry" (Ops.match_size
+  expect_code "invalid_geometry" (Match_size.run_checked
       ~source_selection:(Transform_ops.Selected_points empty) ~target source);
-  expect_code "invalid_geometry" (Ops.match_size ~fit:Ops.Match_area source);
-  expect_code "invalid_geometry" (Ops.match_size ~fit:Ops.Match_x
+  expect_code "invalid_geometry" (Match_size.run_checked ~fit:Match_size.Match_area source);
+  expect_code "invalid_geometry" (Match_size.run_checked ~fit:Match_size.Match_x
       (Line_geometry.points [|(0.,0.,0.); (0.,1.,0.)|]));
   let points = Group.init ~owner:Group.Point ~name:"points" 24 (fun _ -> true) in
-  expect_code "invalid_geometry" (Ops.match_size ~fit:Ops.Match_area
+  expect_code "invalid_geometry" (Match_size.run_checked ~fit:Match_size.Match_area
       ~source_selection:(Transform_ops.Selected_points points) ~target source);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  expect_code "cancelled" (Ops.match_size ~cancel:cancelled ~target source)
+  expect_code "cancelled" (Match_size.run_checked ~cancel:cancelled ~target source)
 
 let check_parallel_exact () =
   let source = Plane_generators.grid_checked ~columns:800 ~rows:600 ~size:30. () |> get_ok
@@ -285,7 +285,7 @@ let check_parallel_exact () =
   let target = Box_generator.box_checked ~size:(Vec3.create 8. 5. 12.) () |> get_ok
       |> Transform_ops.transform (Mat4.translation (Vec3.create 3. 7. (-2.))) in
   let run domains = Parallel.run ~domains (fun () ->
-    Ops.match_size ~grain:1024 ~fit:Ops.Stretch
+    Match_size.run_checked ~grain:1024 ~fit:Match_size.Stretch
       ~scale_axes:(true, false, true)
       ~justify:(Vec3.create (-1.) 0. 1.)
       ~target_justify:(Vec3.create 1. (-1.) 0.)
@@ -299,8 +299,8 @@ let check_parallel_exact () =
   let faces = Group.init ~owner:Group.Primitive ~name:"alternating_faces"
       (Geometry.primitive_count source) (fun primitive -> primitive mod 3 <> 0) in
   let run_selected domains = Parallel.run ~domains (fun () ->
-    Ops.match_size ~grain:1024 ~selection:(Transform_ops.Selected_primitives faces)
-      ~source_selection:(Transform_ops.Selected_primitives faces) ~fit:Ops.Contain
+    Match_size.run_checked ~grain:1024 ~selection:(Transform_ops.Selected_primitives faces)
+      ~source_selection:(Transform_ops.Selected_primitives faces) ~fit:Match_size.Contain
       ~target source |> get_ok) in
   let selected_one = run_selected 1 and selected_many = run_selected 4 in
   check (equal_geometry selected_one selected_many)

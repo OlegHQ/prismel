@@ -343,7 +343,7 @@ let graphs () =
   and bound_ovoid =
     Sop.box ~size:(Vec3.create 1.1 1.7 0.8) ()
     |> Sop.transform (Mat4.rotation ~axis:(Vec3.create 1. 2. 0.5) 0.55)
-    |> Sop.bound ~shape:(Pdk.Ops.Bound_sphere {
+    |> Sop.bound ~shape:(Pdk.Bound.Bound_sphere {
          segments = 28; rings = 14; minimum_radius = 0. })
          ~lower_padding:(Vec3.create 0.05 0.25 0.1)
          ~upper_padding:(Vec3.create 0.35 0.05 0.2)
@@ -355,7 +355,7 @@ let graphs () =
     Sop.box ~size:(Vec3.create 0.7 1.5 0.55) ()
     |> Sop.group ~name:"match_source" Select.all_points
     |> Sop.match_size ~source_selection:(Sop.Point_group "match_source")
-         ~fit:Pdk.Ops.Match_y ~justify:(Vec3.create 1. (-1.) 0.)
+         ~fit:Pdk.Match_size.Match_y ~justify:(Vec3.create 1. (-1.) 0.)
          ~target_justify:(Vec3.create (-1.) 1. 0.)
          ~offset:(Vec3.create 0.12 0.08 0.)
          ~target_center:(Vec3.create (-2.8) 4.4 0.)

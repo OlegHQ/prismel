@@ -2314,19 +2314,19 @@ let run_bound_benchmarks () =
   let selection = Group.init ~grain ~owner:Group.Point ~name:"bound_points"
       point_count (fun point -> point land 1 = 0) in
   measure ~input_points:point_count "bound_box_divided" (fun () ->
-    Ops.bound ~grain ~shape:(Ops.Bound_box { divisions = 512, 512, 512 })
+    Bound.run_checked ~grain ~shape:(Bound.Bound_box { divisions = 512, 512, 512 })
       ~lower_padding:(Vec3.create 0.25 0.5 0.75)
       ~upper_padding:(Vec3.create 0.75 0.5 0.25)
       ~bounds_group:"bounds" ~center_attribute:"bound_center"
       ~radii_attribute:"bound_radii" source |> get_ok) geometry_output;
   measure ~input_points:point_count "bound_box_half_group" (fun () ->
-    Ops.bound ~grain ~selection:(Transform_ops.Selected_points selection)
-      ~shape:(Ops.Bound_box { divisions = 256, 128, 64 })
+    Bound.run_checked ~grain ~selection:(Transform_ops.Selected_points selection)
+      ~shape:(Bound.Bound_box { divisions = 256, 128, 64 })
       ~lower_padding:(Vec3.create 0.25 0.5 0.75)
       ~upper_padding:(Vec3.create 0.75 0.5 0.25)
       ~bounds_group:"bounds" source |> get_ok) geometry_output;
   measure ~input_points:point_count "bound_sphere_512x256" (fun () ->
-    Ops.bound ~grain ~shape:(Ops.Bound_sphere {
+    Bound.run_checked ~grain ~shape:(Bound.Bound_sphere {
         segments = 512; rings = 256; minimum_radius = 0. })
       ~lower_padding:(Vec3.create 0.25 0.5 0.75)
       ~upper_padding:(Vec3.create 0.75 0.5 0.25)
@@ -2343,18 +2343,18 @@ let run_match_size_benchmarks () =
   let target = Ops.box ~size:(Vec3.create 80. 45. 120.) () |> get_ok
       |> Transform_ops.transform (Mat4.translation (Vec3.create 12. 7. (-5.))) in
   measure ~input_points:point_count "match_size_contain" (fun () ->
-    Ops.match_size ~grain ~fit:Ops.Contain ~target source |> get_ok)
+    Match_size.run_checked ~grain ~fit:Match_size.Contain ~target source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "match_size_stretch_half" (fun () ->
-    Ops.match_size ~grain ~selection:(Transform_ops.Selected_points half)
-      ~source_selection:(Transform_ops.Selected_points half) ~fit:Ops.Stretch
+    Match_size.run_checked ~grain ~selection:(Transform_ops.Selected_points half)
+      ~source_selection:(Transform_ops.Selected_points half) ~fit:Match_size.Stretch
       ~scale_axes:(true, false, true)
       ~justify:(Vec3.create (-1.) 0. 1.)
       ~target_justify:(Vec3.create 1. (-1.) 0.)
       ~offset:(Vec3.create 0.25 0.5 (-0.75)) ~target source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "match_size_area" (fun () ->
-    Ops.match_size ~grain ~fit:Ops.Match_area ~target source |> get_ok)
+    Match_size.run_checked ~grain ~fit:Match_size.Match_area ~target source |> get_ok)
     geometry_output
 
 let run_attribute_generate_benchmarks () =
@@ -5643,11 +5643,11 @@ let () =
     Ops.delete ~grain ~compact_points:true delete_left_points modeling_grid
     |> get_ok) geometry_output;
   measure "bounding_box" (fun () ->
-    Ops.bounding_box ~grain ~padding:(Vec3.create 0.1 0.1 0.1) modeling_grid
+    Bound.bounding_box_checked ~grain ~padding:(Vec3.create 0.1 0.1 0.1) modeling_grid
     |> get_ok) geometry_output;
   let match_target = Ops.box ~size:(Vec3.create 8. 4. 12.) () |> get_ok in
   measure "match_size_contain" (fun () ->
-    Ops.match_size ~grain ~fit:Ops.Contain ~target:match_target modeling_grid
+    Match_size.run_checked ~grain ~fit:Match_size.Contain ~target:match_target modeling_grid
     |> get_ok) geometry_output;
   let clip_grid = source in
   let clip_input_points = Geometry.point_count clip_grid in

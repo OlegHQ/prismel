@@ -1251,20 +1251,20 @@ end [@@sop.register]
 
 module Match_size = struct
   let fit_parameter = Parameter.choice ~equal:( = ) [
-      "Translate only", Pdk.Ops.Translate_only;
-      "Stretch", Pdk.Ops.Stretch;
-      "Contain", Pdk.Ops.Contain;
-      "Cover", Pdk.Ops.Cover;
-      "Match X", Pdk.Ops.Match_x;
-      "Match Y", Pdk.Ops.Match_y;
-      "Match Z", Pdk.Ops.Match_z;
-      "Match perimeter", Pdk.Ops.Match_perimeter;
-      "Match area", Pdk.Ops.Match_area;
-      "Match volume", Pdk.Ops.Match_volume;
+      "Translate only", Pdk.Match_size.Translate_only;
+      "Stretch", Pdk.Match_size.Stretch;
+      "Contain", Pdk.Match_size.Contain;
+      "Cover", Pdk.Match_size.Cover;
+      "Match X", Pdk.Match_size.Match_x;
+      "Match Y", Pdk.Match_size.Match_y;
+      "Match Z", Pdk.Match_size.Match_z;
+      "Match perimeter", Pdk.Match_size.Match_perimeter;
+      "Match area", Pdk.Match_size.Match_area;
+      "Match volume", Pdk.Match_size.Match_volume;
     ]
 
   type parameters = {
-    fit : Pdk.Ops.match_size_fit [@sop.default Pdk.Ops.Contain]
+    fit : Pdk.Match_size.match_size_fit [@sop.default Pdk.Match_size.Contain]
       [@sop.label "Fit"] [@sop.kind fit_parameter];
     translate_x : bool [@sop.default true] [@sop.label "Translate X"]
       [@sop.folder "Axes/Translate"];
@@ -4062,9 +4062,9 @@ module Bound = struct
     [@@deriving sop_params, sop_node]
 
   let shape parameters = match parameters.shape with
-    | Box -> Pdk.Ops.Bound_box { divisions =
+    | Box -> Pdk.Bound.Bound_box { divisions =
         parameters.divisions_x, parameters.divisions_y, parameters.divisions_z }
-    | Sphere -> Pdk.Ops.Bound_sphere { segments = parameters.segments;
+    | Sphere -> Pdk.Bound.Bound_sphere { segments = parameters.segments;
         rings = parameters.rings; minimum_radius = parameters.minimum_radius }
 
   let rec build ~label ~inputs parameters = match inputs with

@@ -557,7 +557,7 @@ let run () =
     "procedural grid snap exactness fixture dropped output group";
   let bounded = Sop.grid ~columns:500 ~rows:300 ~size:30. ()
       |> Sop.noise_displace ~seed:323 ~amplitude:2. ~frequency:0.23
-      |> Sop.bound ~shape:(Ops.Bound_box { divisions = 256, 128, 64 })
+      |> Sop.bound ~shape:(Bound.Bound_box { divisions = 256, 128, 64 })
            ~lower_padding:(Vec3.create 0.25 0.5 0.75)
            ~upper_padding:(Vec3.create 0.75 0.5 0.25)
            ~bounds_group:"bounds" ~center_attribute:"bound_center"
@@ -1204,7 +1204,7 @@ let run () =
       |> Sop.match_axis ~from:Vec3.unit_z ~into:(Vec3.create 1. 1. 0.)
       |> Sop.group ~name:"move" Select.all_points
       |> Sop.group ~name:"source_bounds" Select.all_points
-      |> Sop.match_size ~fit:Ops.Match_z
+      |> Sop.match_size ~fit:Match_size.Match_z
            ~selection:(Sop.Point_group "move")
            ~source_selection:(Sop.Point_group "source_bounds")
            ~target_selection:(Sop.Point_group "target_bounds")

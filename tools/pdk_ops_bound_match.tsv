@@ -1,0 +1,19 @@
+# Former qualified Ops path<TAB>checked family path.
+Ops.bound	Bound.run_checked
+Ops.bound_shape	Bound.bound_shape
+Ops.bounding_box	Bound.bounding_box_checked
+Ops.Bound_box	Bound.Bound_box
+Ops.Bound_sphere	Bound.Bound_sphere
+Ops.match_axis	Match_size.match_axis_checked
+Ops.match_size	Match_size.run_checked
+Ops.match_size_fit	Match_size.match_size_fit
+Ops.Translate_only	Match_size.Translate_only
+Ops.Stretch	Match_size.Stretch
+Ops.Contain	Match_size.Contain
+Ops.Cover	Match_size.Cover
+Ops.Match_x	Match_size.Match_x
+Ops.Match_y	Match_size.Match_y
+Ops.Match_z	Match_size.Match_z
+Ops.Match_perimeter	Match_size.Match_perimeter
+Ops.Match_area	Match_size.Match_area
+Ops.Match_volume	Match_size.Match_volume
