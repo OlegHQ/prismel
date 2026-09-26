@@ -1,13 +1,8 @@
 open Ogpu_core.Pipeline
 type native=Compute of Metal.Compute_pipeline.t|Render of Metal.Render_pipeline.t
 type pipeline_kind
-type t={native:native;library:Metal.Library.t;shared_library:Library.t option;mutable functions:Metal.Function.t list;linked:(string*Metal.Function.t)list;descriptor_destroy:(unit->unit)option;handle:pipeline_kind Ogpu_core.Handle.t;device:Device.t;portable:Ogpu_core.Pipeline.t;mutable dead:bool;mutable submission_uses:int;mutable destroy_requested:bool}
+type t={native:native;library:Metal.Library.t;shared_library:Library.t option;mutable functions:Metal.Function.t list;linked:(string*Metal.Function.t)list;descriptor_destroy:(unit->unit)option;handle:pipeline_kind Ogpu_core.Handle.t;device:Device.t;mutable dead:bool;mutable submission_uses:int;mutable destroy_requested:bool}
 let error op kind message=Error(Ogpu_core.Error.make op kind message)
-let key value=Ogpu_core.Pipeline.cache_key value.portable
-let label value=Ogpu_core.Pipeline.label value.portable
-let device_id value=Device.id value.device
-let generation value=Ogpu_core.Handle.generation value.handle
-let destroyed value=value.dead
 let validate device value=Ogpu_core.Handle.validate_for~operation:"Ogpu_metal.Pipeline.validate"(Device.Private.handle device)value.handle
 let finish_destroy value=let operation="Ogpu_metal.Pipeline.destroy"in let native_result=match value.native with Compute x->Metal.Compute_pipeline.destroy x|Render x->Metal.Render_pipeline.destroy x in match native_result with Error e->Error(Device.of_metal_error~operation e)|Ok()->let first=List.fold_left(fun failure function_->match failure,Metal.Function.destroy function_ with Some _,_->failure|None,Ok()->None|None,Error e->Some e)None value.functions in let first=match value.shared_library with Some shared->Library.Private.detach_pipeline shared;first|None->(match first,Metal.Library.destroy value.library with Some e,_->Some e|None,Ok()->None|None,Error e->Some e) in match first with Some e->Error(Device.of_metal_error~operation e)|None->Option.iter(fun f->f())value.descriptor_destroy;Device.Private.detach_resource value.device;Ok()
 let destroy value=if value.dead then Ok()else if value.submission_uses>0 then(Ogpu_core.Handle.destroy value.handle;value.dead<-true;value.destroy_requested<-true;Ok())else match finish_destroy value with Error _ as failure->failure|Ok()->Ogpu_core.Handle.destroy value.handle;value.dead<-true;Ok()
@@ -27,14 +22,9 @@ let metal_constants constants=List.map(fun(name,value)->
       |Uint32 value->Metal.Function.Uint32_constant
         (Int64.logand (Int64.of_int32 value) 0xffff_ffffL)
       |Float32 value->Metal.Function.Float32_constant value))constants
-let constants_key constants=String.concat";"(List.map(fun(name,value)->name^"="^(match value with
-  |Ogpu_core.Shader.Bool v->if v then"b1"else"b0"|Int32 v->"i"^Int32.to_string v
-  |Uint32 v->"u"^Int32.to_string v|Float32 v->"f"^Int32.to_string(Int32.bits_of_float v)))constants)
 let create_compute_from_library ?(linked=[]) ?(archives=[]) ?(archive_only=false) device (library:Library.t) ~entry ~constants ~interface=
   let op="Ogpu_metal.Pipeline.create_compute_from_library"in
   match Library.validate device library with Error _ as e->e|Ok()->
-  let shader=Library.shader library in
-  let key="library:"^Ogpu_core.Shader.provenance_hash shader^"/"^entry^"["^constants_key constants^"]"in
   let native=Library.Private.metal library in
   let found=if constants=[]then Metal.Function.find~library:native entry else Metal.Function.specialize~library:native entry~constants:(metal_constants constants)in
   match found with Error e->Error(Device.of_metal_error~operation:op e)|Ok function_->
@@ -51,7 +41,7 @@ let create_compute_from_library ?(linked=[]) ?(archives=[]) ?(archive_only=false
     |Error e->ignore(Metal.Compute_pipeline.destroy pipeline);cleanup_linked();ignore(Metal.Function.destroy function_);Error e
     |Ok()->
       Library.Private.attach_pipeline library;Device.Private.attach_resource device;
-      Ok{native=Compute pipeline;library=native;shared_library=Some library;functions=function_::List.map snd linked_functions;linked=linked_functions;descriptor_destroy=None;handle=Ogpu_core.Handle.create~device:(Device.Private.handle device);device;portable=Ogpu_core.Pipeline.Private.compute_of_key~label:entry key;dead=false;submission_uses=0;destroy_requested=false}
+      Ok{native=Compute pipeline;library=native;shared_library=Some library;functions=function_::List.map snd linked_functions;linked=linked_functions;descriptor_destroy=None;handle=Ogpu_core.Handle.create~device:(Device.Private.handle device);device;dead=false;submission_uses=0;destroy_requested=false}
 let attachment blend format =
   let open Metal.Render_pipeline in
   match blend with
@@ -71,16 +61,16 @@ let attachment blend format =
       ~destination_rgb:Blend_one ~rgb_operation:Blend_reverse_subtract
       ~source_alpha:Blend_one ~destination_alpha:Blend_one_minus_source_alpha format
 
-let build_render ~support_indirect_command_buffers ~primitive_topology ~blend ~op device descriptor portable=(match compile_library op device descriptor.vertex with Error _ as e->e|Ok library->let color=match descriptor.color_format with Rgba8_unorm->Metal.Texture.Rgba8_unorm|Bgra8_unorm->Metal.Texture.Bgra8_unorm in match Metal.Compiler.create(Device.Private.metal device)with Error e->ignore(Metal.Library.destroy library);Error(Device.of_metal_error~operation:op e)|Ok compiler->let fragment=Option.map(fun(_:Ogpu_core.Shader.t)->Option.get descriptor.fragment_entry)descriptor.fragment in match Metal.Compiler.create_render_pipeline?label:descriptor.label?fragment~reflection:true~raster_sample_count:descriptor.sample_count~color_attachments:[attachment blend color]~primitive_topology~support_indirect_command_buffers compiler~library~vertex:descriptor.vertex_entry with Error e->ignore(Metal.Compiler.destroy compiler);ignore(Metal.Library.destroy library);Error(Device.of_metal_error~operation:op e)|Ok pipeline->ignore(Metal.Compiler.destroy compiler);let reflection=Option.value(Metal.Render_pipeline.reflection pipeline)~default:{vertex=[];fragment=[];tile=[];object_=[];mesh=[]}in match validate_reflection op descriptor.vertex reflection.vertex with Error e->ignore(Metal.Render_pipeline.destroy pipeline);ignore(Metal.Library.destroy library);Error e|Ok()->let value={native=Render pipeline;library;shared_library=None;functions=[];linked=[];descriptor_destroy=None;handle=Ogpu_core.Handle.create~device:(Device.Private.handle device);device;portable;dead=false;submission_uses=0;destroy_requested=false}in Device.Private.attach_resource device;Ok value)
+let build_render ~support_indirect_command_buffers ~primitive_topology ~blend ~op device descriptor=(match compile_library op device descriptor.vertex with Error _ as e->e|Ok library->let color=match descriptor.color_format with Rgba8_unorm->Metal.Texture.Rgba8_unorm|Bgra8_unorm->Metal.Texture.Bgra8_unorm in match Metal.Compiler.create(Device.Private.metal device)with Error e->ignore(Metal.Library.destroy library);Error(Device.of_metal_error~operation:op e)|Ok compiler->let fragment=Option.map(fun(_:Ogpu_core.Shader.t)->Option.get descriptor.fragment_entry)descriptor.fragment in match Metal.Compiler.create_render_pipeline?label:descriptor.label?fragment~reflection:true~raster_sample_count:descriptor.sample_count~color_attachments:[attachment blend color]~primitive_topology~support_indirect_command_buffers compiler~library~vertex:descriptor.vertex_entry with Error e->ignore(Metal.Compiler.destroy compiler);ignore(Metal.Library.destroy library);Error(Device.of_metal_error~operation:op e)|Ok pipeline->ignore(Metal.Compiler.destroy compiler);let reflection=Option.value(Metal.Render_pipeline.reflection pipeline)~default:{vertex=[];fragment=[];tile=[];object_=[];mesh=[]}in match validate_reflection op descriptor.vertex reflection.vertex with Error e->ignore(Metal.Render_pipeline.destroy pipeline);ignore(Metal.Library.destroy library);Error e|Ok()->let value={native=Render pipeline;library;shared_library=None;functions=[];linked=[];descriptor_destroy=None;handle=Ogpu_core.Handle.create~device:(Device.Private.handle device);device;dead=false;submission_uses=0;destroy_requested=false}in Device.Private.attach_resource device;Ok value)
 (* Mesh and tile pipelines compiled from a shared library through the classic
    descriptors; their entry functions stay retained for binary archives. *)
 let color_format=function Ogpu_core.Pipeline.Rgba8_unorm->Metal.Texture.Rgba8_unorm|Bgra8_unorm->Metal.Texture.Bgra8_unorm
 let size3 (x,y,z)=({width=Int64.of_int x;height=Int64.of_int y;depth=Int64.of_int z}:Metal.Render_pipeline.Mesh_tile.size3)
-let finish_shared op device (library:Library.t) ~key ?label native functions=
+let finish_shared op device (library:Library.t) native functions=
   Library.Private.attach_pipeline library;Device.Private.attach_resource device;
   ignore op;
   Ok{native=Render native;library=Library.Private.metal library;shared_library=Some library;functions;linked=[];descriptor_destroy=None;
-     handle=Ogpu_core.Handle.create~device:(Device.Private.handle device);device;portable=Ogpu_core.Pipeline.Private.render_of_key ?label key;dead=false;submission_uses=0;destroy_requested=false}
+     handle=Ogpu_core.Handle.create~device:(Device.Private.handle device);device;dead=false;submission_uses=0;destroy_requested=false}
 let find_functions op (library:Library.t) names=
   let native=Library.Private.metal library in
   let rec go acc=function []->Ok(List.rev acc)|name::rest->(match Metal.Function.find~library:native name with
@@ -102,8 +92,7 @@ let create_mesh ?label ?(blend=Ogpu_core.Pipeline.Replace) ~archives ~archive_on
   else if archive_only&&archives=[]then(ignore(destroy_mesh descriptor);destroy_all();error op Ogpu_core.Error.Invalid_argument"archive_only needs an archive")
   else match compile_mesh~reflection:true descriptor with Error e->fail e|Ok native->
     ignore(destroy_mesh descriptor);
-    let key="mesh:"^Ogpu_core.Shader.provenance_hash(Library.shader library)^"/"^mesh_entry^"+"^fragment_entry^Option.fold~none:""~some:(fun o->"+"^o)object_entry in
-    finish_shared op device library~key?label native functions
+    finish_shared op device library native functions
 let create_tile ?label ~archives ~archive_only device (library:Library.t) ~tile_entry ~color ~tile_threads=
   let op="Ogpu_metal.Pipeline.create_tile"in
   match Library.validate device library with Error _ as e->e|Ok()->
@@ -119,16 +108,15 @@ let create_tile ?label ~archives ~archive_only device (library:Library.t) ~tile_
     if archive_only&&archives=[]then(ignore(destroy_tile descriptor);destroy_all();error op Ogpu_core.Error.Invalid_argument"archive_only needs an archive")
     else match compile_tile~reflection:true descriptor with Error e->fail e|Ok native->
       ignore(destroy_tile descriptor);
-      let key="tile:"^Ogpu_core.Shader.provenance_hash(Library.shader library)^"/"^tile_entry in
-      finish_shared op device library~key?label native functions
+      finish_shared op device library native functions
 (* An owned, uncached render pipeline for the portable driver. With
    [indirect], the fragment function is retained for argument encoders and
    indirect command buffers. *)
 let create_render_owned ?(indirect=false) ?(primitive_topology=Metal.Render_pipeline.Triangle) ?(blend=Ogpu_core.Pipeline.Replace) device descriptor=
   let op="Ogpu_metal.Pipeline.create_render_owned"in
   if Device.destroyed device then error op Ogpu_core.Error.Stale_handle"device is destroyed"
-  else match Ogpu_core.Pipeline.create_render~blend(Device.capabilities device)descriptor with Error _ as e->e|Ok portable->
-  match build_render ~support_indirect_command_buffers:indirect ~primitive_topology ~blend ~op device descriptor portable with Error _ as e->e|Ok value->
+  else match Ogpu_core.Pipeline.create_render~blend(Device.capabilities device)descriptor with Error _ as e->e|Ok _portable->
+  match build_render ~support_indirect_command_buffers:indirect ~primitive_topology ~blend ~op device descriptor with Error _ as e->e|Ok value->
   if not indirect then Ok value
   else match value.native,descriptor.fragment_entry with
     |Render native,Some entry->(match Metal.Render_pipeline.supports_indirect_command_buffers native with
@@ -142,8 +130,6 @@ module Private=struct
   type nonrec native=native=Compute of Metal.Compute_pipeline.t|Render of Metal.Render_pipeline.t
   let native value=value.native
   let functions value=value.functions
-  let portable value=value.portable
-  let native_identity value=Ogpu_core.Handle.id value.handle,Ogpu_core.Handle.generation value.handle
   let argument_function value=match value.native,value.functions with Render _,function_::_->Some function_|_->None
   let linked_function value name=List.assoc_opt name value.linked
   let argument_encoder value ~buffer_index=match argument_function value with None->error"Ogpu_metal.Pipeline.argument_encoder"Ogpu_core.Error.Invalid_state"fragment function was not retained"|Some function_->(match Metal.Function.argument_encoder function_~buffer_index with Error e->Error(Device.of_metal_error~operation:"Ogpu_metal.Pipeline.argument_encoder" e)|Ok encoder->Ok encoder)

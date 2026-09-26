@@ -81,8 +81,6 @@ let placement device ~memory ~format descriptor =
 
 let validate operation device value=Ogpu_core.Handle.validate_for~operation(Device.Private.handle device)value.handle
 let id value=Ogpu_core.Handle.id value.handle
-let generation value=Ogpu_core.Handle.generation value.handle
-let device_id value=Device.id value.device
 let destroyed value=Ogpu_core.Handle.destroyed value.handle
 let descriptor device value=Result.map(fun()->value.descriptor)(validate"Ogpu_metal.Texture.descriptor"device value)
 let format device value=Result.map(fun()->value.format)(validate"Ogpu_metal.Texture.format"device value)
@@ -145,7 +143,7 @@ let destroy value =
   match Metal.Texture.destroy value.metal with Error e->Error(Device.of_metal_error~operation e)|Ok()->Ogpu_core.Handle.destroy value.handle;Option.iter(fun parent->parent.live_views<-parent.live_views-1)value.parent;Device.Private.detach_resource value.device;Ok()
 
 module Private=struct
-  let metal value=value.metal let resource_handle value=value.handle
+  let metal value=value.metal 
   let retain_submission value=if destroyed value then Error(Ogpu_core.Error.make"Ogpu_metal.Texture.retain_submission"Ogpu_core.Error.Stale_handle"texture is destroyed")else(value.submission_uses<-value.submission_uses+1;Ok())
   let release_submission value=value.submission_uses<-value.submission_uses-1;if value.submission_uses=0&&value.destroy_requested then(match Metal.Texture.destroy value.metal with Ok()->Option.iter(fun parent->parent.live_views<-parent.live_views-1)value.parent;Device.Private.detach_resource value.device|Error _->())
 end

@@ -11,9 +11,7 @@ val submit_native : t -> Metal.Command_buffer.t -> retained:(unit -> unit) list 
 val gpu_duration : t -> int64 -> float option
 val wait_through : t -> int64 -> (unit,Ogpu_core.Error.t) result
 val poll_through : t -> int64 -> (bool,Ogpu_core.Error.t) result
-val in_flight : t -> int
 val completed_epoch : t -> int64
-val destroyed : t -> bool
 val destroy : t -> (unit,Ogpu_core.Error.t) result
 module Private : sig
   val metal : t -> Metal.Command_queue.t

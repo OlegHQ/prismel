@@ -10,7 +10,6 @@ val generation : t -> int64
 val device_id : t -> int64
 val descriptor : Device.t -> t -> (Ogpu_core.Types.buffer_descriptor, Ogpu_core.Error.t) result
 val memory : Device.t -> t -> (memory, Ogpu_core.Error.t) result
-val destroyed : t -> bool
 val write_bytes : Device.t -> t -> dst_offset:int64 -> bytes -> (unit,Ogpu_core.Error.t) result
 val read_bytes : Device.t -> t -> offset:int64 -> length:int -> (bytes,Ogpu_core.Error.t) result
 val destroy : t -> (unit, Ogpu_core.Error.t) result

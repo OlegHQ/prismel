@@ -14,9 +14,7 @@ val frame_generation : frame -> int64
 val frame_texture : frame -> (Metal.Texture.t,Ogpu_core.Error.t) result
 val discard : t -> frame -> (unit,Ogpu_core.Error.t) result
 val generation : t -> int64
-val outstanding : t -> int
 val in_flight_presentations : t -> int
-val destroyed : t -> bool
 val destroy : t -> unit
 
 module Private : sig

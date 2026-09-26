@@ -14,5 +14,4 @@ val begin_alias : Device.t -> allocation -> (unit, Ogpu_core.Error.t) result
 val end_alias : Device.t -> allocation -> (unit, Ogpu_core.Error.t) result
 val free : allocation -> (unit, Ogpu_core.Error.t) result
 val live_allocations : heap -> int
-val destroyed : heap -> bool
 val destroy : heap -> (unit, Ogpu_core.Error.t) result

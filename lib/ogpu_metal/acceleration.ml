@@ -153,8 +153,6 @@ let create device (descriptor : Ogpu_core.Backend.driver_accel_descriptor)
                 ~buffers:template.buffers ~structures:template.structures)
 
 let sizes value = value.sizes
-let refittable value = value.allow_refit
-let destroyed value = value.dead
 
 let validate_scratch operation device value scratch scratch_offset required =
   match validate operation device value with Error _ as failure -> failure | Ok () ->

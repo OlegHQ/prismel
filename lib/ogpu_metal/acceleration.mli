@@ -9,8 +9,6 @@ val create : Device.t -> Ogpu_core.Backend.driver_accel_descriptor ->
   resolve_buffer:(int64 -> (Buffer.t, Ogpu_core.Error.t) result) ->
   resolve_structure:(int64 -> (t, Ogpu_core.Error.t) result) -> (t, Ogpu_core.Error.t) result
 val sizes : t -> Metal.Acceleration_structure.sizes
-val refittable : t -> bool
-val destroyed : t -> bool
 val encode_build : Metal.Acceleration_encoder.t -> Device.t -> t -> scratch:Buffer.t ->
   scratch_offset:int64 -> (unit, Ogpu_core.Error.t) result
 val encode_refit : Metal.Acceleration_encoder.t -> Device.t -> t -> scratch:Buffer.t ->

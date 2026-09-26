@@ -59,8 +59,6 @@ let create ?(max_frames=3) device=
      |None->Hashtbl.add gpu_timings id{supported=false;duration_seconds=0.;sample_count=0L;queues=1});
     Device.Private.attach_resource device;
     Ok{device;metal;max_frames;next_epoch=1L;completed=0L;active=0;pending=[];durations=[];dead=false}
-let destroyed value=value.dead
-let in_flight value=value.active
 let completed_epoch value=value.completed
 (* Admits an externally encoded, uncommitted native command buffer. On any
    failure the caller still owns [native] and [retained]. *)

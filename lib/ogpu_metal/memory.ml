@@ -118,7 +118,6 @@ let free (value:allocation) =
           value.heap.allocations <- List.filter ((!=) value) value.heap.allocations; Ok ())
 
 let live_allocations (value:heap) = List.length value.allocations
-let destroyed (value:heap) = value.dead
 
 let destroy (value:heap) =
   let operation = "Ogpu_metal.Memory.destroy" in

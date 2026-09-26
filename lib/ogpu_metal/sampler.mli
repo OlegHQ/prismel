@@ -6,9 +6,6 @@ type t
 val default : descriptor
 val create : Device.t -> descriptor -> (t,Ogpu_core.Error.t) result
 val id : t -> int64
-val generation : t -> int64
-val device_id : t -> int64
 val descriptor : Device.t -> t -> (descriptor,Ogpu_core.Error.t) result
-val destroyed : t -> bool
 val destroy : t -> (unit,Ogpu_core.Error.t) result
-module Private : sig val metal:t->Metal.Sampler.t val descriptor:t->descriptor val create_argument:Device.t->descriptor->(Metal.Sampler.t,Metal.error)result val retain_submission:t->(unit,Ogpu_core.Error.t)result val release_submission:t->unit end
+module Private : sig val metal:t->Metal.Sampler.t   val retain_submission:t->(unit,Ogpu_core.Error.t)result val release_submission:t->unit end

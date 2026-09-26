@@ -1,4 +1,4 @@
-type t={metal:Metal.Library.t;device:Device.t;shader:Ogpu_core.Shader.t;handle:unit Ogpu_core.Handle.t;mutable pipelines:int;mutable dead:bool;dynamic:Metal.Dynamic_library.t list}
+type t={metal:Metal.Library.t;device:Device.t;handle:unit Ogpu_core.Handle.t;mutable pipelines:int;mutable dead:bool;dynamic:Metal.Dynamic_library.t list}
 let error op kind message=Error(Ogpu_core.Error.make op kind message)
 let compile_native ?(dynamic=[]) op device shader=
   if Ogpu_core.Shader.backend shader<>"metal"then
@@ -21,10 +21,8 @@ let create ?(dynamic=[]) device shader=
   if Device.destroyed device then error op Ogpu_core.Error.Stale_handle"device is destroyed"
   else match compile_native ~dynamic op device shader with Error _ as e->e|Ok metal->
     Device.Private.attach_resource device;
-    Ok{metal;device;shader;handle=Ogpu_core.Handle.create~device:(Device.Private.handle device);pipelines=0;dead=false;dynamic}
+    Ok{metal;device;handle=Ogpu_core.Handle.create~device:(Device.Private.handle device);pipelines=0;dead=false;dynamic}
 let validate device value=Ogpu_core.Handle.validate_for~operation:"Ogpu_metal.Library.validate"(Device.Private.handle device)value.handle
-let shader value=value.shader
-let destroyed value=value.dead
 let destroy value=
   let op="Ogpu_metal.Library.destroy"in
   if value.dead then Ok()

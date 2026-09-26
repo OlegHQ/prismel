@@ -13,7 +13,6 @@ let create_common ~readable_drawables_for_test device~layer config=let op="Ogpu_
 let create device~layer config=create_common~readable_drawables_for_test:false device~layer config
 let destroyed value=value.dead||value.destroy_pending
 let generation value=Ogpu_core.Surface.generation value.portable
-let outstanding value=List.length value.frames
 let in_flight_presentations value=value.in_flight_presentations
 let frame_id (value:frame)=Ogpu_core.Surface.frame_id value.portable
 let frame_generation (value:frame)=value.generation

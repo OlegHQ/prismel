@@ -18,8 +18,6 @@ val placement : Device.t -> memory:memory -> format:format -> Ogpu_core.Types.te
 val create_view : Device.t -> t -> format:format -> base_mip:int ->
   mip_count:int -> base_slice:int -> slice_count:int -> (t, Ogpu_core.Error.t) result
 val id : t -> int64
-val generation : t -> int64
-val device_id : t -> int64
 val descriptor : Device.t -> t -> (Ogpu_core.Types.texture_descriptor, Ogpu_core.Error.t) result
 val format : Device.t -> t -> (format, Ogpu_core.Error.t) result
 val destroyed : t -> bool
@@ -33,7 +31,6 @@ val destroy : t -> (unit, Ogpu_core.Error.t) result
 
 module Private : sig
   val metal : t -> Metal.Texture.t
-  val resource_handle : t -> unit Ogpu_core.Handle.t
   val retain_submission : t -> (unit,Ogpu_core.Error.t) result
   val release_submission : t -> unit
 end
