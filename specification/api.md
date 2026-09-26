@@ -243,7 +243,8 @@ Catmull–Rom samples, `Pdk.Iso_surface` extracts packed isosurfaces,
 `Pdk.Uv_sphere` generates packed latitude/longitude spheres, and
 `Pdk.Io` loads and saves STL, OFF, and OBJ through typed results.
 `Pdk.Group_ops`, `Pdk.Blend_shapes`, `Pdk.Attribute_composite`,
-`Pdk.Attribute_mirror`, `Pdk.Attribute_fade`, `Pdk.Fuse_reduce`, `Pdk.Normal_ops`, `Pdk.Plane_generators`,
+`Pdk.Attribute_mirror`, `Pdk.Attribute_fade`, `Pdk.Fuse_reduce`, `Pdk.Fuse_grid`,
+`Pdk.Normal_ops`, `Pdk.Plane_generators`,
 `Pdk.Box_generator`, `Pdk.Parametric_generators`, `Pdk.Spiral`, `Pdk.Point_generate`,
 `Pdk.Color_by_height`, `Pdk.Line_geometry`, `Pdk.Mesh_merge`,
 `Pdk.Edge_collapse`, `Pdk.Dissolve`, `Pdk.Ordering`, `Pdk.Instance_copy`,
@@ -511,6 +512,8 @@ those family modules.
 Packed curve modeling uses `Pdk.Curve_modeling.resample_curves_checked`,
 `carve_curves_checked`, and `sweep_circle_checked`, with carve modes and
 attribute modes in the same family.
+`Pdk.Fuse_grid.fuse_checked` and `snap_to_grid_checked` preserve the typed
+validation and cancellation boundary around the packed Fuse and grid kernels.
 `Procedural.Sop.group_rename` applies ordered owner-scoped rename rules with
 an explicit conflict policy, including the single-group case.
 `Procedural.Sop.group_promotions` uses one ordered rule list for single and

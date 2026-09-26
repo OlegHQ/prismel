@@ -76,10 +76,10 @@ val fuse_checked :
   ?position:Fuse_reduce.position ->
   ?weight_attribute:string ->
   ?attributes:Fuse_reduce.attributes ->
-  ?attribute_rules:Fuse_reduce.attribute_rule list ->
-  ?group_rules:Fuse_reduce.group_rule list ->
   ?metric:fuse_metric ->
   ?inclusive:bool ->
+  ?attribute_rules:Fuse_reduce.attribute_rule list ->
+  ?group_rules:Fuse_reduce.group_rule list ->
   ?match_attributes:bool ->
   ?radius_attribute:string ->
   ?match_attribute:string ->

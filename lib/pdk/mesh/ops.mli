@@ -786,14 +786,14 @@ val fuse_attribute_rule :
 (* One point-group name pattern and propagation policy. Later matching rules
     override earlier rules. *)
 val fuse_group_rule : pattern:string -> fuse_group_method -> fuse_group_rule
-type fuse_metric = Euclidean | Componentwise
-type fuse_using =
+type fuse_metric = Fuse_grid.fuse_metric = Euclidean | Componentwise
+type fuse_using = Fuse_grid.fuse_using =
   | Least_target_point
   | Closest_target_point
-type fuse_match_condition =
+type fuse_match_condition = Fuse_grid.fuse_match_condition =
   | Equal_attribute_values
   | Unequal_attribute_values
-type fuse_targeting =
+type fuse_targeting = Fuse_grid.fuse_targeting =
   | Near_points
   | Specified_points of string
 
@@ -1666,7 +1666,7 @@ val edge_transport_parent :
     Planning, evaluation, and normalization are O(points), with O(points)
     packed auxiliary storage and atomic output commit. *)
 
-type grid_rounding = Grid_nearest | Grid_down | Grid_up
+type grid_rounding = Fuse_grid.grid_rounding = Grid_nearest | Grid_down | Grid_up
 
 val snap_to_grid :
   ?cancel:Cancel.t ->

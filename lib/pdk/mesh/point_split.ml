@@ -682,3 +682,20 @@ let run ?cancel ?(grain = 16_384) ?selection ?(attributes = "")
           end
         end)
       end))
+
+type deform_selection = Deform.selection =
+  | Selected_points of Group.t
+  | Selected_vertices of Group.t
+  | Selected_primitives of Group.t
+  | Selected_edges of Edge_group.t
+
+let run_checked ?cancel ?grain ?selection ?attributes ?tolerance
+    ?promote_attributes geometry =
+  let selection = Option.map (function
+    | Selected_points group -> Element_selection.Selected_points group
+    | Selected_vertices group -> Element_selection.Selected_vertices group
+    | Selected_primitives group -> Element_selection.Selected_primitives group
+    | Selected_edges group -> Element_selection.Selected_edges group) selection in
+  Error.guard ~operation:"point_split" ~code:"invalid_geometry" (fun () ->
+    run ?cancel ?grain ?selection ?attributes ?tolerance
+      ?promote_attributes geometry)
