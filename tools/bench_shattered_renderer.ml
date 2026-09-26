@@ -189,7 +189,7 @@ let graph () =
   let source = Sop_catalog.Switch.create ~label:"source-switch"
       [cube; dodecahedron] in
   let cutter_grid = Sop_catalog.Grid.create ~label:"cutter-grid"
-      ~counts:Pdk.Ops.Grid_divisions ~connectivity:Pdk.Ops.Grid_triangles
+      ~counts:Pdk.Plane_generators.Grid_divisions ~connectivity:Pdk.Plane_generators.Grid_triangles
       ~columns:2 ~rows:2 ~size:4.8 ()
     |> Sop_catalog.Mountain.create ~label:"cutter-mountain" ~seed:0
          ~height:0.35 ~frequency:(Vec3.create 0.27 1. 0.27)

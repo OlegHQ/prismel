@@ -161,7 +161,7 @@ let check_selections () =
   check (near output.center.x 104.5)
     "target selection controls reference bounds";
   let component_source = Box_generator.box_checked ~size:(Vec3.create 1. 2. 3.) () |> get_ok
-      |> Ops.group_edges ~name:"all_edges" |> get_ok in
+      |> Group_mesh.group_edges_checked ~name:"all_edges" |> get_ok in
   let primitives = Group.init ~owner:Group.Primitive ~name:"all_primitives"
       (Geometry.primitive_count component_source) (fun _ -> true) in
   let edges = Geometry.find_edge_group "all_edges" component_source

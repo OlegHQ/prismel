@@ -257,7 +257,7 @@ let test_checked_boundaries () =
       [|"red"; "blue"; "red"|] in
   let direct = Group_ops.groups_from_name_checked ~owner:Attribute.Point
       ~attribute:"name" source |> get_ok
-  and compatibility = Ops.groups_from_name ~owner:Attribute.Point
+  and compatibility = Group_ops.groups_from_name_checked ~owner:Attribute.Point
       ~attribute:"name" source |> get_ok in
   check (List.for_all2 same_group (Geometry.groups direct)
       (Geometry.groups compatibility))
@@ -272,28 +272,28 @@ let test_checked_boundaries () =
   compare_errors "groups_from_name"
     (Group_ops.groups_from_name_checked ~grain:0 ~owner:Attribute.Point
        ~attribute:"name" source)
-    (Ops.groups_from_name ~grain:0 ~owner:Attribute.Point
+    (Group_ops.groups_from_name_checked ~grain:0 ~owner:Attribute.Point
        ~attribute:"name" source);
   let direct = Group_ops.name_from_groups_checked ~owner:Attribute.Point direct
       |> get_ok
-  and compatibility = Ops.name_from_groups ~owner:Attribute.Point compatibility
+  and compatibility = Group_ops.name_from_groups_checked ~owner:Attribute.Point compatibility
       |> get_ok in
   check (text_values Attribute.Point "name" direct
       = text_values Attribute.Point "name" compatibility)
     "Name from Groups checked boundary changed text payload";
   compare_errors "name_from_groups"
     (Group_ops.name_from_groups_checked ~grain:0 ~owner:Attribute.Point direct)
-    (Ops.name_from_groups ~grain:0 ~owner:Attribute.Point compatibility);
+    (Group_ops.name_from_groups_checked ~grain:0 ~owner:Attribute.Point compatibility);
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
   compare_errors "groups_from_name"
     (Group_ops.groups_from_name_checked ~cancel ~owner:Attribute.Point
        ~attribute:"name" source)
-    (Ops.groups_from_name ~cancel ~owner:Attribute.Point
+    (Group_ops.groups_from_name_checked ~cancel ~owner:Attribute.Point
        ~attribute:"name" source);
   compare_errors "name_from_groups"
     (Group_ops.name_from_groups_checked ~cancel ~owner:Attribute.Point direct)
-    (Ops.name_from_groups ~cancel ~owner:Attribute.Point compatibility)
+    (Group_ops.name_from_groups_checked ~cancel ~owner:Attribute.Point compatibility)
 
 let run () =
   test_point_names_and_policies ();

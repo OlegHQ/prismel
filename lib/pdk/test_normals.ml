@@ -28,7 +28,7 @@ let source () =
   Geometry.create ~positions ~topology
     ~groups:[selected_point; selected_vertex; single_vertex; selected_primitive] ()
     |> get_string
-  |> Ops.group_edges ~name:"all_edges" |> get_pdk
+  |> Group_mesh.group_edges_checked ~name:"all_edges" |> get_pdk
 
 let normal owner ?(name = "N") geometry =
   match Geometry.find_attribute ~owner name geometry with

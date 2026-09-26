@@ -75,39 +75,39 @@ let with_edge_group name ~a ~b geometry =
 
 let test_point_components () =
   let source = fixture () in
-  let ranged = Ops.group_range ~grain:1 ~owner:Group_ops.Group_points
+  let ranged = Group_ops.range_checked ~grain:1 ~owner:Group_ops.Group_points
       ~name:"middle" ~connectivity:(disconnected ())
       (Group_ops.Range_start_end { start = 1; end_ = 2 }) source |> get_ok in
   expect_members [1; 2; 6; 7; 10; 11]
     (group Group.Point "middle" ranged)
     "Group Range did not evaluate point ranges per disconnected component";
-  let filtered = Ops.group_range ~grain:1 ~owner:Group_ops.Group_points
+  let filtered = Group_ops.range_checked ~grain:1 ~owner:Group_ops.Group_points
       ~name:"alternating" ~connectivity:(disconnected ())
       ~filter:{ select = 1; of_ = 2; offset = 0 }
       (Group_ops.Range_start_end { start = 0; end_ = max_int }) source |> get_ok in
   expect_members [0; 2; 4; 5; 7; 9; 11]
     (group Group.Point "alternating" filtered)
     "Group Range filter phase was not reset per component";
-  let inverted = Ops.group_range ~grain:1 ~owner:Group_ops.Group_points
+  let inverted = Group_ops.range_checked ~grain:1 ~owner:Group_ops.Group_points
       ~name:"outside" ~connectivity:(disconnected ()) ~invert:true
       (Group_ops.Range_start_length { start = 1; length = 2 }) source |> get_ok in
   expect_members [0; 3; 4; 5; 8; 9]
     (group Group.Point "outside" inverted)
     "Group Range inversion escaped its per-component domain";
-  let partitioned = Ops.group_range ~grain:1 ~owner:Group_ops.Group_points
+  let partitioned = Group_ops.range_checked ~grain:1 ~owner:Group_ops.Group_points
       ~name:"first_half" ~connectivity:(disconnected ())
       (Group_ops.Range_partition { partition = 0; partitions = 2 }) source |> get_ok in
   expect_members [0; 1; 2; 5; 6; 9; 10]
     (group Group.Point "first_half" partitioned)
     "Group Range did not balance partitions independently";
   let orphans = Line_geometry.points [|(0., 0., 0.); (1., 0., 0.); (2., 0., 0.)|]
-      |> Ops.group_range ~grain:1 ~owner:Group_ops.Group_points ~name:"each_first"
+      |> Group_ops.range_checked ~grain:1 ~owner:Group_ops.Group_points ~name:"each_first"
            ~connectivity:(disconnected ())
            (Group_ops.Range_start_end { start = 0; end_ = 0 }) |> get_ok in
   expect_members [0; 1; 2] (group Group.Point "each_first" orphans)
     "Group Range did not treat orphan points as stable components";
   let empty = Line_geometry.points [||]
-      |> Ops.group_range ~grain:1 ~owner:Group_ops.Group_points ~name:"empty"
+      |> Group_ops.range_checked ~grain:1 ~owner:Group_ops.Group_points ~name:"empty"
            ~connectivity:(disconnected ())
            (Group_ops.Range_start_end { start = 0; end_ = 0 }) |> get_ok in
   check (Group.cardinality (group Group.Point "empty" empty) = 0)
@@ -115,17 +115,17 @@ let test_point_components () =
 
 let test_region_and_primitive_modes () =
   let source = fixture () in
-  let first_faces = Ops.group_range ~grain:1 ~owner:Group_ops.Group_primitives
+  let first_faces = Group_ops.range_checked ~grain:1 ~owner:Group_ops.Group_primitives
       ~name:"first_faces" ~connectivity:(disconnected ())
       (Group_ops.Range_start_end { start = 0; end_ = 0 }) source |> get_ok in
   expect_members [0; 3; 5] (group Group.Primitive "first_faces" first_faces)
     "Group Range primitive components were not stably indexed";
-  let second_region = Ops.group_range ~grain:1 ~owner:Group_ops.Group_primitives
+  let second_region = Group_ops.range_checked ~grain:1 ~owner:Group_ops.Group_primitives
       ~name:"second_region" ~connectivity:(disconnected ~region:1 ())
       (Group_ops.Range_start_end { start = 0; end_ = max_int }) source |> get_ok in
   expect_members [3; 4] (group Group.Primitive "second_region" second_region)
     "Group Range region restriction selected the wrong component";
-  let absent_region = Ops.group_range ~grain:1 ~owner:Group_ops.Group_points
+  let absent_region = Group_ops.range_checked ~grain:1 ~owner:Group_ops.Group_points
       ~name:"absent" ~connectivity:(disconnected ~region:99 ())
       (Group_ops.Range_start_end { start = 0; end_ = max_int }) source |> get_ok in
   check (Group.cardinality (group Group.Point "absent" absent_region) = 0)
@@ -137,26 +137,26 @@ let test_attribute_components () =
            (Attribute.Int [|0; 0; 1; 1|])
       |> with_attribute "weight" Attribute.Point
            (Attribute.Float [|0.; 0.05; 1.; 1.05|]) in
-  let points = Ops.group_range ~grain:1 ~owner:Group_ops.Group_points
+  let points = Group_ops.range_checked ~grain:1 ~owner:Group_ops.Group_points
       ~name:"attribute_first"
       ~connectivity:(connected ~attributes:"piece weight" ~tolerance:0.1 ())
       (Group_ops.Range_start_end { start = 0; end_ = 0 }) quad |> get_ok in
   expect_members [0; 2] (group Group.Point "attribute_first" points)
     "Group Range did not split point connectivity by multiple attributes";
-  let loose = Ops.group_range ~grain:1 ~owner:Group_ops.Group_points
+  let loose = Group_ops.range_checked ~grain:1 ~owner:Group_ops.Group_points
       ~name:"loose" ~connectivity:(connected ~attributes:"weight"
         ~tolerance:0.1 ())
       (Group_ops.Range_start_end { start = 0; end_ = 0 }) quad |> get_ok in
   expect_members [0; 2] (group Group.Point "loose" loose)
     "Group Range float connectivity tolerance did not join nearby values";
-  let strict = Ops.group_range ~grain:1 ~owner:Group_ops.Group_points
+  let strict = Group_ops.range_checked ~grain:1 ~owner:Group_ops.Group_points
       ~name:"strict" ~connectivity:(connected ~attributes:"weight"
         ~tolerance:0. ())
       (Group_ops.Range_start_end { start = 0; end_ = 0 }) quad |> get_ok in
   expect_members [0; 1; 2; 3] (group Group.Point "strict" strict)
     "Group Range exact float connectivity did not split unequal values";
   let combined_source = quad |> with_edge_group "extra_cut" ~a:0 ~b:1 in
-  let combined = Ops.group_range ~grain:1 ~owner:Group_ops.Group_points
+  let combined = Group_ops.range_checked ~grain:1 ~owner:Group_ops.Group_points
       ~name:"combined"
       ~connectivity:(connected ~attributes:"piece" ~collision:{
         Group_ops.collision_owner = Group_ops.Group_edges;
@@ -171,7 +171,7 @@ let test_attribute_components () =
     |]
       |> with_attribute "class" Attribute.Primitive
            (Attribute.Text [|"a"; "a"; "b"; "b"|]) in
-  let primitives = Ops.group_range ~grain:1 ~owner:Group_ops.Group_primitives
+  let primitives = Group_ops.range_checked ~grain:1 ~owner:Group_ops.Group_primitives
       ~name:"piece_first" ~connectivity:(connected ~attributes:"class" ())
       (Group_ops.Range_start_end { start = 0; end_ = 0 }) strip |> get_ok in
   expect_members [0; 2] (group Group.Primitive "piece_first" primitives)
@@ -186,7 +186,7 @@ let test_collision_and_region_policy () =
     collision_pattern = "cut";
     keep_boundary = true;
   } in
-  let split = Ops.group_range ~grain:1 ~owner:Group_ops.Group_primitives
+  let split = Group_ops.range_checked ~grain:1 ~owner:Group_ops.Group_primitives
       ~name:"split" ~connectivity:(connected ~collision ())
       (Group_ops.Range_start_end { start = 0; end_ = 0 }) two_faces |> get_ok in
   expect_members [0; 1] (group Group.Primitive "split" split)
@@ -197,7 +197,7 @@ let test_collision_and_region_policy () =
       collision_pattern = pattern;
       keep_boundary = true;
     } in
-    let result = Ops.group_range ~grain:1 ~owner:Group_ops.Group_primitives
+    let result = Group_ops.range_checked ~grain:1 ~owner:Group_ops.Group_primitives
         ~name:"ordinary_split" ~connectivity:(connected ~collision ())
         (Group_ops.Range_start_end { start = 0; end_ = 0 }) source |> get_ok in
     expect_members [0; 1] (group Group.Primitive "ordinary_split" result) message
@@ -216,7 +216,7 @@ let test_collision_and_region_policy () =
       (fun primitive -> primitive = 0))
     Group_ops.Group_primitives "primitive_cut"
     "Group Range primitive collision boundary did not split primitives";
-  let omitted = Ops.group_range ~grain:1 ~owner:Group_ops.Group_primitives
+  let omitted = Group_ops.range_checked ~grain:1 ~owner:Group_ops.Group_primitives
       ~name:"omitted"
       ~connectivity:(connected
         ~collision:{ collision with keep_boundary = false } ())
@@ -224,7 +224,7 @@ let test_collision_and_region_policy () =
   expect_members [] (group Group.Primitive "omitted" omitted)
     "Group Range did not disregard collision-boundary elements";
   let source = fixture () in
-  let preserve = Ops.group_range ~grain:1 ~owner:Group_ops.Group_primitives
+  let preserve = Group_ops.range_checked ~grain:1 ~owner:Group_ops.Group_primitives
       ~name:"preserve"
       ~connectivity:(connected ~region:1 ~remove_other_regions:false ())
       (Group_ops.Range_start_end { start = 0; end_ = 0 }) source |> get_ok in
@@ -233,13 +233,13 @@ let test_collision_and_region_policy () =
   let masked_source = source |> with_group Group.Primitive "mask"
       (fun primitive -> primitive = 0 || primitive = 3
         || primitive = 4 || primitive = 5) in
-  let masked = Ops.group_range ~grain:1 ~base:"mask"
+  let masked = Group_ops.range_checked ~grain:1 ~base:"mask"
       ~owner:Group_ops.Group_primitives ~name:"masked_preserve"
       ~connectivity:(connected ~region:1 ~remove_other_regions:false ())
       (Group_ops.Range_start_end { start = 0; end_ = 0 }) masked_source |> get_ok in
   expect_members [0; 3; 5] (group Group.Primitive "masked_preserve" masked)
     "Group Range preserved elements outside the base mask";
-  let remove = Ops.group_range ~grain:1 ~owner:Group_ops.Group_primitives
+  let remove = Group_ops.range_checked ~grain:1 ~owner:Group_ops.Group_primitives
       ~name:"remove"
       ~connectivity:(connected ~region:1 ~remove_other_regions:true ())
       (Group_ops.Range_start_end { start = 0; end_ = 0 }) source |> get_ok in
@@ -248,25 +248,25 @@ let test_collision_and_region_policy () =
 
 let test_validation_and_cancellation () =
   let source = fixture () in
-  (match Ops.group_range ~owner:Group_ops.Group_vertices ~name:"bad"
+  (match Group_ops.range_checked ~owner:Group_ops.Group_vertices ~name:"bad"
       ~connectivity:(disconnected ())
       (Group_ops.Range_start_end { start = 0; end_ = 1 }) source with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Range connected owner error code"
    | Ok _ -> fail "Group Range accepted vertex connectivity");
-  (match Ops.group_range ~owner:Group_ops.Group_points ~name:"bad"
+  (match Group_ops.range_checked ~owner:Group_ops.Group_points ~name:"bad"
       ~connectivity:(disconnected ~region:(-1) ())
       (Group_ops.Range_start_end { start = 0; end_ = 1 }) source with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Range negative region error code"
    | Ok _ -> fail "Group Range accepted a negative connected region");
-  (match Ops.group_range ~owner:Group_ops.Group_points ~name:"bad"
+  (match Group_ops.range_checked ~owner:Group_ops.Group_points ~name:"bad"
       ~connectivity:(connected ~tolerance:Float.nan ())
       (Group_ops.Range_start_end { start = 0; end_ = 1 }) source with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Range tolerance error code"
    | Ok _ -> fail "Group Range accepted a non-finite connectivity tolerance");
-  (match Ops.group_range ~owner:Group_ops.Group_points ~name:"bad"
+  (match Group_ops.range_checked ~owner:Group_ops.Group_points ~name:"bad"
       ~connectivity:(connected ~attributes:"missing" ())
       (Group_ops.Range_start_end { start = 0; end_ = 1 }) source with
    | Error error -> check (Error.code error = "invalid_group")
@@ -275,13 +275,13 @@ let test_validation_and_cancellation () =
   let nonfinite = with_attribute "bad" Attribute.Point
       (Attribute.Float (Array.init (Geometry.point_count source)
         (fun point -> if point = 3 then Float.nan else 0.))) source in
-  (match Ops.group_range ~owner:Group_ops.Group_points ~name:"bad"
+  (match Group_ops.range_checked ~owner:Group_ops.Group_points ~name:"bad"
       ~connectivity:(connected ~attributes:"bad" ())
       (Group_ops.Range_start_end { start = 0; end_ = 1 }) nonfinite with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Range non-finite attribute error code"
    | Ok _ -> fail "Group Range accepted a non-finite connectivity attribute");
-  (match Ops.group_range ~owner:Group_ops.Group_points ~name:"bad"
+  (match Group_ops.range_checked ~owner:Group_ops.Group_points ~name:"bad"
       ~connectivity:(connected ~collision:{
         Group_ops.collision_owner = Group_ops.Group_points;
         collision_pattern = " "; keep_boundary = true } ())
@@ -291,7 +291,7 @@ let test_validation_and_cancellation () =
    | Ok _ -> fail "Group Range accepted an empty collision pattern");
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Ops.group_range ~cancel:cancelled ~owner:Group_ops.Group_points ~name:"bad"
+  (match Group_ops.range_checked ~cancel:cancelled ~owner:Group_ops.Group_points ~name:"bad"
       ~connectivity:(disconnected ())
       (Group_ops.Range_start_end { start = 0; end_ = 1 }) source with
    | Error error -> check (Error.code error = "cancelled")
@@ -306,7 +306,7 @@ let triangle_soup count =
 let test_parallel_exactness_and_scale () =
   let triangles = 50_000 and source = triangle_soup 50_000 in
   let run domains = Parallel.run ~domains (fun () ->
-    Ops.group_range ~grain:1_009 ~owner:Group_ops.Group_points ~name:"first"
+    Group_ops.range_checked ~grain:1_009 ~owner:Group_ops.Group_points ~name:"first"
       ~connectivity:(disconnected ())
       (Group_ops.Range_start_end { start = 0; end_ = 0 }) source |> get_ok) in
   let one = group Group.Point "first" (run 1)
@@ -325,7 +325,7 @@ let test_parallel_exactness_and_scale () =
       (Attribute.Int (Array.init point_count (fun point -> point / 10_000)))
       grid in
   let run_attribute domains = Parallel.run ~domains (fun () ->
-    Ops.group_range ~grain:1_009 ~owner:Group_ops.Group_points ~name:"stripe_first"
+    Group_ops.range_checked ~grain:1_009 ~owner:Group_ops.Group_points ~name:"stripe_first"
       ~connectivity:(connected ~attributes:"stripe" ())
       (Group_ops.Range_start_end { start = 0; end_ = 0 }) attributed |> get_ok) in
   let one_geometry = run_attribute 1 and four_geometry = run_attribute 4 in
@@ -349,18 +349,18 @@ let test_multiple_ranges () =
       [|2; 3; 8; 7|]; [|3; 4; 9; 8|]
     |] in
   let rules = [
-    Ops.group_range_rule ~owner:Group_ops.Group_points ~name:"first"
+    Group_ops.range_rule ~owner:Group_ops.Group_points ~name:"first"
       (Group_ops.Range_start_end { start = 0; end_ = 4 });
-    Ops.group_range_rule ~base:"first" ~owner:Group_ops.Group_points ~name:"middle"
+    Group_ops.range_rule ~base:"first" ~owner:Group_ops.Group_points ~name:"middle"
       (Group_ops.Range_start_end { start = 2; end_ = 3 });
-    Ops.group_range_rule ~owner:Group_ops.Group_points ~name:"ends"
+    Group_ops.range_rule ~owner:Group_ops.Group_points ~name:"ends"
       (Group_ops.Range_start_end { start = 0; end_ = 1 });
-    Ops.group_range_rule ~merge:Ops.Group_union ~owner:Group_ops.Group_points
+    Group_ops.range_rule ~merge:Group_ops.Group_union ~owner:Group_ops.Group_points
       ~name:"ends" (Group_ops.Range_from_ends { start = 8; end_offset = 0 });
-    Ops.group_range_rule ~owner:Group_ops.Group_primitives ~name:"faces"
+    Group_ops.range_rule ~owner:Group_ops.Group_primitives ~name:"faces"
       (Group_ops.Range_partition { partition = 1; partitions = 2 });
   ] in
-  let result = Ops.group_ranges ~grain:1 ~rules source |> get_ok in
+  let result = Group_ops.ranges_checked ~grain:1 ~rules source |> get_ok in
   expect_members [0; 1; 2; 3; 4] (group Group.Point "first" result)
     "Group Ranges first ordered rule";
   expect_members [2; 3] (group Group.Point "middle" result)
@@ -372,16 +372,16 @@ let test_multiple_ranges () =
   check (List.map Group.name (Geometry.groups result)
       = ["first"; "middle"; "ends"; "faces"])
     "Group Ranges changed stable publication order";
-  let disabled = Ops.group_range_rule ~base:" "
+  let disabled = Group_ops.range_rule ~base:" "
       ~connectivity:(disconnected ~region:(-1) ())
       ~owner:Group_ops.Group_points ~name:" "
       (Group_ops.Range_start_end { start = 0; end_ = 0 }) in
-  let identity = Ops.group_ranges ~rules:[disabled] source |> get_ok in
+  let identity = Group_ops.ranges_checked ~rules:[disabled] source |> get_ok in
   check (identity == source) "Group Ranges disabled slot lost input identity";
-  let invalid = Ops.group_range_rule ~connectivity:(disconnected ())
+  let invalid = Group_ops.range_rule ~connectivity:(disconnected ())
       ~owner:Group_ops.Group_vertices ~name:"invalid"
       (Group_ops.Range_start_end { start = 0; end_ = 0 }) in
-  (match Ops.group_ranges ~rules:[List.hd rules; invalid] source with
+  (match Group_ops.ranges_checked ~rules:[List.hd rules; invalid] source with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Ranges atomic failure error code"
    | Ok _ -> fail "Group Ranges published a prefix before a later failure");
@@ -389,7 +389,7 @@ let test_multiple_ranges () =
     "Group Ranges failure mutated the immutable input";
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Ops.group_ranges ~cancel:cancelled ~rules source with
+  (match Group_ops.ranges_checked ~cancel:cancelled ~rules source with
    | Error error -> check (Error.code error = "cancelled")
        "Group Ranges cancellation error code"
    | Ok _ -> fail "cancelled Group Ranges published geometry")
@@ -401,18 +401,18 @@ let test_multiple_ranges_parallel_exactness () =
       (Attribute.Int (Array.init point_count (fun point -> point / 10_000)))
       source in
   let rules = [
-    Ops.group_range_rule ~filter:{ select = 3; of_ = 11; offset = 2 }
+    Group_ops.range_rule ~filter:{ select = 3; of_ = 11; offset = 2 }
       ~owner:Group_ops.Group_points ~name:"periodic"
       (Group_ops.Range_from_ends { start = 7; end_offset = 9 });
-    Ops.group_range_rule
+    Group_ops.range_rule
       ~connectivity:(connected ~attributes:"stripe" ())
       ~owner:Group_ops.Group_points ~name:"pieces"
       (Group_ops.Range_start_end { start = 0; end_ = 2 });
-    Ops.group_range_rule ~owner:Group_ops.Group_primitives ~name:"partition"
+    Group_ops.range_rule ~owner:Group_ops.Group_primitives ~name:"partition"
       (Group_ops.Range_partition { partition = 2; partitions = 7 });
   ] in
   let run domains = Parallel.run ~domains (fun () ->
-    Ops.group_ranges ~grain:1_009 ~rules source |> get_ok) in
+    Group_ops.ranges_checked ~grain:1_009 ~rules source |> get_ok) in
   let one = run 1 and four = run 4 in
   check (Topology.data_id (Geometry.topology one)
       = Topology.data_id (Geometry.topology four)

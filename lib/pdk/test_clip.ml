@@ -162,7 +162,7 @@ let check_distance () =
 let check_clipped_edge_group () =
   let source = Box_generator.box_checked ~connectivity:Box_generator.Box_quads ~consolidate_points:true
       ~size:(Vec3.create 2. 2. 2.) () |> get_ok
-      |> Ops.group_edges ~name:"plane_edges" |> get_ok in
+      |> Group_mesh.group_edges_checked ~name:"plane_edges" |> get_ok in
   let output = Plane_clip.clip_checked ~fill:true ~clipped_edge_group:"plane_edges"
       ~origin:Vec3.zero ~normal:Vec3.unit_x source |> get_ok in
   let group = Geometry.find_edge_group "plane_edges" output |> Option.get in
@@ -349,7 +349,7 @@ let check_parallel_exact () =
         ~w:(Array.init (Geometry.point_count source) float_of_int)
         |> get_string_ok)) |> get_string_ok in
   let source = Geometry.with_attribute field source |> get_string_ok
-      |> Ops.group_edges ~name:"source_edges" |> get_ok in
+      |> Group_mesh.group_edges_checked ~name:"source_edges" |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
       Plane_clip.clip_checked ~grain:2048 ~keep:Plane_clip.All ~split_connectivity:true
         ~clip_attribute:"field" ~distance:0.137

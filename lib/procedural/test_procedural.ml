@@ -2676,7 +2676,7 @@ let test_generators_selections_and_delete () =
          "procedural ordered wildcard Group Promotions"
    | _ -> fail "procedural Group Promotions dropped wildcard outputs");
   let edge_expansion = Sop.grid ~columns:2 ~rows:1 ~size:2. ()
-      |> Sop.group_edges ~name:"boundary" ~incidence:Pdk.Ops.Boundary_edge
+      |> Sop.group_edges ~name:"boundary" ~incidence:Pdk.Group_mesh.Boundary_edge
       |> Sop.group_expand ~name:"edge_ring" ~steps:1
            ~owner:Pdk.Group_ops.Group_edges ~group:"boundary"
       |> cook_ok evaluator current in
@@ -2720,7 +2720,7 @@ let test_generators_selections_and_delete () =
   let incident_edges = Sop.polyline
       [|(-1., 0., 0.); (0., 0., 0.); (0., 1., 0.)|]
       |> Sop.group_edges ~name:"right_angle"
-           ~angle_basis:Pdk.Ops.Incident_edges
+           ~angle_basis:Pdk.Group_mesh.Incident_edges
            ~min_angle:(Float.pi /. 2.) ~max_angle:(Float.pi /. 2.)
       |> cook_ok evaluator current in
   (match Pdk.Geometry.find_edge_group "right_angle" incident_edges.geometry with
@@ -2778,7 +2778,7 @@ let test_generators_selections_and_delete () =
        "procedural disconnected Group Range"
    | None -> fail "procedural disconnected Group Range dropped output");
   let collision = {
-    Pdk.Ops.collision_owner = Pdk.Group_ops.Group_points;
+    Pdk.Group_ops.collision_owner = Pdk.Group_ops.Group_points;
     collision_pattern = "cut_side";
     keep_boundary = true;
   } in
@@ -2942,7 +2942,7 @@ let test_generators_selections_and_delete () =
        "procedural Group Backface subtraction"
    | None -> fail "Group Backface dropped its procedural output");
   let copied_groups = Sop.group_copy
-      ~rules:[{ Pdk.Ops.copy_owner = Pdk.Group_ops.Group_points;
+      ~rules:[{ Pdk.Group_ops.copy_owner = Pdk.Group_ops.Group_points;
         copy_pattern = "picked"; copy_prefix = "source_";
         match_attribute = None }]
       ~source:(Sop.points [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
@@ -2955,7 +2955,7 @@ let test_generators_selections_and_delete () =
          && Pdk.Group.mem 1 group) "procedural Group Copy two-input mapping"
    | None -> fail "procedural Group Copy dropped output");
   let transferred_groups = Sop.group_transfer ~distance:0.2
-      ~rules:[{ Pdk.Ops.transfer_owner = Pdk.Group_ops.Group_points;
+      ~rules:[{ Pdk.Group_ops.transfer_owner = Pdk.Group_ops.Group_points;
         transfer_pattern = "picked"; transfer_prefix = "near_" }]
       ~source:(Sop.points [|(0.,0.,0.); (10.,0.,0.)|]
         |> Sop.group ~name:"picked" (Select.point_indices [|0|]))
@@ -3276,7 +3276,7 @@ let test_generators_selections_and_delete () =
        "UV Flatten missing-seam diagnostic"
    | Ok _ -> fail "UV Flatten accepted a missing seam group");
   let boundary_edges = Sop.grid ~columns:1 ~rows:1 ~size:1. ()
-      |> Sop.group_edges ~name:"boundary" ~incidence:Pdk.Ops.Boundary_edge
+      |> Sop.group_edges ~name:"boundary" ~incidence:Pdk.Group_mesh.Boundary_edge
       |> cook_ok evaluator current in
   (match Pdk.Geometry.find_edge_group "boundary" boundary_edges.geometry with
    | Some group -> check (Pdk.Edge_group.cardinality group = 4)
@@ -3389,14 +3389,14 @@ let test_generators_selections_and_delete () =
        "Group from Attribute Boundary missing-attribute diagnostic"
    | Ok _ -> fail "Group from Attribute Boundary accepted a missing attribute");
   let renamed_edges = Sop.grid ~columns:1 ~rows:1 ~size:1. ()
-      |> Sop.group_edges ~name:"boundary" ~incidence:Pdk.Ops.Boundary_edge
+      |> Sop.group_edges ~name:"boundary" ~incidence:Pdk.Group_mesh.Boundary_edge
       |> Sop.rename_edge_group ~from:"boundary" ~into:"rim"
       |> cook_ok evaluator current in
   check (Pdk.Geometry.find_edge_group "boundary" renamed_edges.geometry = None
       && Pdk.Geometry.find_edge_group "rim" renamed_edges.geometry <> None)
     "native edge group rename";
   let deleted_edges = Sop.grid ~columns:1 ~rows:1 ~size:1. ()
-      |> Sop.group_edges ~name:"boundary" ~incidence:Pdk.Ops.Boundary_edge
+      |> Sop.group_edges ~name:"boundary" ~incidence:Pdk.Group_mesh.Boundary_edge
       |> Sop.delete_edge_group ~name:"boundary" |> cook_ok evaluator current in
   check (Pdk.Geometry.find_edge_group "boundary" deleted_edges.geometry = None)
     "native edge group delete";
@@ -4041,7 +4041,7 @@ let test_edge_flip_contract () =
       ~columns:1 ~rows:1 ~size:2. ()
       |> Sop.set_float ~owner:Pdk.Attribute.Vertex ~name:"uv_marker" 0.5
       |> Sop.group_edges ~name:"interior"
-           ~incidence:Pdk.Ops.Manifold_edge in
+           ~incidence:Pdk.Group_mesh.Manifold_edge in
   let source_output = cook_ok evaluator current source in
   let graph = source |> Sop.edge_flip ~label:"rotate-diagonal"
       ~group:"interior" ~cycles:1 ~cycle_vertex_attributes:true in

@@ -405,28 +405,28 @@ let run () =
             ~max:(Vec3.create 5. 100. 5.))
     |> Sop.group_edge_depth ~depth:2 ~point_group:"middle"
          ~name:"middle_grown"
-    |> Sop.group_unshared ~owner:Ops.Group_points ~name:"surface_boundary"
+    |> Sop.group_unshared ~owner:Group_ops.Group_points ~name:"surface_boundary"
     |> Sop.group_boundary_components ~prefix:"boundary_loop"
     |> Sop.group ~name:"all_faces" Select.all_primitives
-    |> Sop.group_range ~owner:Ops.Group_primitives ~name:"connected_faces"
-         ~connectivity:(Ops.Range_connected {
+    |> Sop.group_range ~owner:Group_ops.Group_primitives ~name:"connected_faces"
+         ~connectivity:(Group_ops.Range_connected {
            connectivity_attributes = None;
            connectivity_tolerance = 1e-6;
            collision = Some {
-             Ops.collision_owner = Ops.Group_points;
+             Group_ops.collision_owner = Group_ops.Group_points;
              collision_pattern = "middle";
              keep_boundary = true };
            region = None;
            remove_other_regions = true })
          ~filter:{ select = 3; of_ = 11; offset = 2 }
-         (Ops.Range_start_end { start = 7; end_ = 40_000 })
+         (Group_ops.Range_start_end { start = 7; end_ = 40_000 })
     |> Sop.group_promote_boundary ~keep_original:true
          ~include_unshared_edges:true ~name:"connected_outline"
-         ~source:Ops.Group_primitives ~destination:Ops.Group_edges
+         ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_edges
          ~group:"connected_faces"
     |> Sop.group_edges ~name:"surface_edges"
-         ~angle_basis:Ops.Incident_edges ~min_angle:0.1 ~max_angle:2.9
-    |> Sop.group_unshared ~owner:Ops.Group_edges ~name:"unshared_edges"
+         ~angle_basis:Group_mesh.Incident_edges ~min_angle:0.1 ~max_angle:2.9
+    |> Sop.group_unshared ~owner:Group_ops.Group_edges ~name:"unshared_edges"
   in
   let one = cook 1 graph and many = cook 4 graph in
   check (equal_geometry one many)
@@ -514,8 +514,8 @@ let run () =
            ~high:(Color.hex_exn "#facc15")
       |> Sop.set_float ~owner:Attribute.Point ~name:"smooth_weight" 0.82
       |> Sop.group_random ~seed:317 ~probability:0.72
-           ~owner:Ops.Group_primitives ~name:"smooth_faces"
-      |> Sop.group_unshared ~owner:Ops.Group_points ~name:"smooth_locks"
+           ~owner:Group_ops.Group_primitives ~name:"smooth_faces"
+      |> Sop.group_unshared ~owner:Group_ops.Group_points ~name:"smooth_locks"
       |> Sop.smooth ~group:"smooth_faces" ~constrained_points:"smooth_locks"
            ~boundary:Ops.Smooth_group_boundary ~iterations:8
            ~method_:Attribute_ops.Edge_length
@@ -573,15 +573,15 @@ let run () =
            (Select.points_in_bounds ~min:(Vec3.create (-0.03) (-1.) (-20.))
               ~max:(Vec3.create 0.03 1. 20.))
       |> Sop.group_expand ~steps:24 ~step_attribute:"grow_step"
-           ~owner:Ops.Group_points ~group:"seed"
+           ~owner:Group_ops.Group_points ~group:"seed"
       |> Sop.group_promotions [
-           Ops.group_promote_rule ~new_name:"grown_faces" ~keep_original:true
-             ~mode:Ops.Include_shared_edge ~source:Ops.Group_points
-             ~destination:Ops.Group_primitives ~pattern:"seed" ();
-           Ops.group_promote_rule ~new_name:"grown_edges" ~keep_original:true
-             ~mode:Ops.Include_all ~source:Ops.Group_points
-             ~destination:Ops.Group_edges ~pattern:"seed" ()]
-      |> Sop.group_expand ~steps:3 ~owner:Ops.Group_edges ~group:"grown_edges" in
+           Group_ops.promotion_rule ~new_name:"grown_faces" ~keep_original:true
+             ~mode:Group_ops.Include_shared_edge ~source:Group_ops.Group_points
+             ~destination:Group_ops.Group_primitives ~pattern:"seed" ();
+           Group_ops.promotion_rule ~new_name:"grown_edges" ~keep_original:true
+             ~mode:Group_ops.Include_all ~source:Group_ops.Group_points
+             ~destination:Group_ops.Group_edges ~pattern:"seed" ()]
+      |> Sop.group_expand ~steps:3 ~owner:Group_ops.Group_edges ~group:"grown_edges" in
   let one = cook 1 expanded_groups and many = cook 4 expanded_groups in
   check (equal_geometry one many)
     "one-domain and four-domain Group Expand/Promote geometry differ";
@@ -613,18 +613,18 @@ let run () =
       |> Geometry.with_group containment |> get_ok in
   let constrained_expand = Sop.snapshot constrained_source
       |> Sop.group_expand ~flood:true ~step_attribute:"constraint_step"
-           ~primitive_connectivity:Ops.Primitive_share_edges
+           ~primitive_connectivity:Group_ops.Primitive_share_edges
            ~normal_spread:0.1
            ~normal_attribute:{ Ops.expand_normal_owner = Attribute.Primitive;
              expand_normal_name = "flow" }
            ~connectivity_attributes:[{
-             Ops.boundary_attribute_owner = Attribute.Primitive;
+             Group_ops.boundary_attribute_owner = Attribute.Primitive;
              boundary_attribute_pattern = "region" }]
-           ~collision:{ Ops.expand_collision_owner = Ops.Group_primitives;
+           ~collision:{ Ops.expand_collision_owner = Group_ops.Group_primitives;
              expand_collision_group = "containment";
              expand_collision_contain = true;
              expand_collision_allow_boundary = true }
-           ~owner:Ops.Group_primitives ~group:"seed" in
+           ~owner:Group_ops.Group_primitives ~group:"seed" in
   let one = cook 1 constrained_expand and many = cook 4 constrained_expand in
   check (equal_geometry one many)
     "one-domain and four-domain constrained Group Expand geometry differ";
@@ -1177,7 +1177,7 @@ let run () =
              max = Attribute_ops.Scalar 1.;
            })
       |> Sop.group_random ~seed:1_338 ~probability:0.73
-           ~owner:Ops.Group_primitives ~name:"scatter_surface"
+           ~owner:Group_ops.Group_primitives ~name:"scatter_surface"
       |> Sop.scatter ~seed:1_339 ~group:"scatter_surface" ~count:100_000
            ~density:(Ops.scatter_density ~owner:Attribute.Point
              "scatter_density")
@@ -1409,11 +1409,11 @@ let run () =
   let transferred = Sop.group_transfer ~distance:0.01
       ~conflict:Pdk.Group_ops.Copy_overwrite
       ~rules:[
-        { Pdk.Ops.transfer_owner = Pdk.Group_ops.Group_points;
+        { Pdk.Group_ops.transfer_owner = Pdk.Group_ops.Group_points;
           transfer_pattern = "transfer_points"; transfer_prefix = "mapped_" };
-        { Pdk.Ops.transfer_owner = Pdk.Group_ops.Group_primitives;
+        { Pdk.Group_ops.transfer_owner = Pdk.Group_ops.Group_primitives;
           transfer_pattern = "transfer_faces"; transfer_prefix = "mapped_" };
-        { Pdk.Ops.transfer_owner = Pdk.Group_ops.Group_edges;
+        { Pdk.Group_ops.transfer_owner = Pdk.Group_ops.Group_edges;
           transfer_pattern = "transfer_edges"; transfer_prefix = "mapped_" }]
       ~source:transfer_source ~target:transfer_target () in
   let one = cook 1 transferred and many = cook 4 transferred in
@@ -1426,7 +1426,7 @@ let run () =
     else ((pair * 5) * columns) + 120) in
   let paths = Sop.grid ~columns:120 ~rows:90 ~size:20. ()
       |> Sop.ordered_group ~owner:Pdk.Group.Point ~name:"waypoints" base_elements
-      |> Sop.group_find_path ~mode:Pdk.Ops.Start_end_pairs
+      |> Sop.group_find_path ~mode:Pdk.Group_mesh.Start_end_pairs
            ~avoid_self_intersection:false ~base_group:"waypoints" ~name:"paths" in
   let one = cook 1 paths and many = cook 4 paths in
   check (equal_geometry one many)
@@ -1439,7 +1439,7 @@ let run () =
       |> Sop.ordered_group ~owner:Pdk.Group.Primitive
            ~name:"face_waypoints" primitive_elements
       |> Sop.group_find_path ~owner:Pdk.Group.Primitive
-           ~mode:Pdk.Ops.Start_end_pairs ~avoid_self_intersection:false
+           ~mode:Pdk.Group_mesh.Start_end_pairs ~avoid_self_intersection:false
            ~base_group:"face_waypoints" ~name:"face_paths" in
   let one = cook 1 primitive_paths and many = cook 4 primitive_paths in
   check (equal_geometry one many)
@@ -1475,31 +1475,31 @@ let run () =
     "one-domain and four-domain Name from Groups geometry differ";
   let random_groups = Sop.grid ~columns:180 ~rows:120 ~size:20. ()
       |> Sop.group_random ~seed:917 ~probability:0.431
-           ~owner:Ops.Group_points ~name:"random_points"
+           ~owner:Group_ops.Group_points ~name:"random_points"
       |> Sop.group_random ~seed:918 ~probability:0.379
-           ~owner:Ops.Group_vertices ~name:"random_vertices"
+           ~owner:Group_ops.Group_vertices ~name:"random_vertices"
       |> Sop.group_random ~seed:919 ~probability:0.293
-           ~owner:Ops.Group_primitives ~name:"random_primitives"
+           ~owner:Group_ops.Group_primitives ~name:"random_primitives"
       |> Sop.group_random ~seed:920 ~probability:0.217
-           ~owner:Ops.Group_edges ~name:"random_edges" in
+           ~owner:Group_ops.Group_edges ~name:"random_edges" in
   let one = cook 1 random_groups and many = cook 4 random_groups in
   check (equal_geometry one many)
     "one-domain and four-domain Group Random geometry differ";
   let bounded_groups = random_groups
-      |> Sop.group_bounds ~containment:Ops.Partially_contained
-           (Ops.Bounds_sphere { center = Vec3.create 1. 0. (-2.); radius = 7.5 })
-           ~owner:Ops.Group_points ~name:"bounded_points"
-      |> Sop.group_bounds ~containment:Ops.Partially_contained
-           (Ops.Bounds_box { minimum = Vec3.create (-6.) (-1.) (-5.);
+      |> Sop.group_bounds ~containment:Group_ops.Partially_contained
+           (Group_ops.Bounds_sphere { center = Vec3.create 1. 0. (-2.); radius = 7.5 })
+           ~owner:Group_ops.Group_points ~name:"bounded_points"
+      |> Sop.group_bounds ~containment:Group_ops.Partially_contained
+           (Group_ops.Bounds_box { minimum = Vec3.create (-6.) (-1.) (-5.);
              maximum = Vec3.create 5. 1. 7. })
-           ~owner:Ops.Group_vertices ~name:"bounded_vertices"
-      |> Sop.group_bounds ~containment:Ops.Partially_contained
-           (Ops.Bounds_sphere { center = Vec3.zero; radius = 8. })
-           ~owner:Ops.Group_primitives ~name:"bounded_primitives"
-      |> Sop.group_bounds ~containment:Ops.Partially_contained
-           (Ops.Bounds_box { minimum = Vec3.create (-4.) (-1.) (-4.);
+           ~owner:Group_ops.Group_vertices ~name:"bounded_vertices"
+      |> Sop.group_bounds ~containment:Group_ops.Partially_contained
+           (Group_ops.Bounds_sphere { center = Vec3.zero; radius = 8. })
+           ~owner:Group_ops.Group_primitives ~name:"bounded_primitives"
+      |> Sop.group_bounds ~containment:Group_ops.Partially_contained
+           (Group_ops.Bounds_box { minimum = Vec3.create (-4.) (-1.) (-4.);
              maximum = Vec3.create 4. 1. 4. })
-           ~owner:Ops.Group_edges ~name:"bounded_edges" in
+           ~owner:Group_ops.Group_edges ~name:"bounded_edges" in
   let one = cook 1 bounded_groups and many = cook 4 bounded_groups in
   check (equal_geometry one many)
     "one-domain and four-domain Group Bounds geometry differ";
@@ -1508,13 +1508,13 @@ let run () =
            ~frequency:(Vec3.create 0.7 1.1 0.9) ~octaves:4
       |> Sop.group_normal ~direction:Vec3.unit_y
            ~spread_angle:(Float.pi /. 3.) ~include_opposite:true
-           ~owner:Ops.Group_points ~name:"vertical_points"
+           ~owner:Group_ops.Group_points ~name:"vertical_points"
       |> Sop.group_normal ~direction:Vec3.unit_y
            ~spread_angle:(Float.pi /. 3.) ~include_opposite:true
-           ~owner:Ops.Group_primitives ~name:"vertical_faces"
+           ~owner:Group_ops.Group_primitives ~name:"vertical_faces"
       |> Sop.group_normal ~direction:Vec3.unit_y
            ~spread_angle:(Float.pi /. 3.) ~include_opposite:true
-           ~owner:Ops.Group_edges ~name:"vertical_edges"
+           ~owner:Group_ops.Group_edges ~name:"vertical_edges"
       |> Sop.group_non_planar ~tolerance:0.001 ~name:"warped_faces"
       |> Sop.group_backface ~viewpoint:(Vec3.create 4. 3. 5.)
            ~name:"backfaces" in
@@ -1539,7 +1539,7 @@ let run () =
   let cleaned = Sop.grid ~columns:320 ~rows:240 ~size:12. ()
       |> Sop.set_float ~owner:Attribute.Point ~name:"temporary_weight" 1.
       |> Sop.group_random ~seed:77 ~probability:0.
-           ~owner:Ops.Group_points ~name:"empty_points"
+           ~owner:Group_ops.Group_points ~name:"empty_points"
       |> Sop.clean ~reverse_winding:true ~delete_unused_groups:true
            ~point_attributes:"temporary*" in
   let one = cook 1 cleaned and many = cook 4 cleaned in
@@ -1570,7 +1570,7 @@ let run () =
   let collapsed = Sop.grid ~columns:240 ~rows:180 ~size:12. ()
       |> Sop.set_int ~owner:Attribute.Point ~name:"piece" 1
       |> Sop.group_random ~seed:911 ~probability:0.045
-           ~owner:Ops.Group_edges ~name:"collapse_edges"
+           ~owner:Group_ops.Group_edges ~name:"collapse_edges"
       |> Sop.edge_collapse ~group:"collapse_edges"
            ~connectivity_attribute:"piece" in
   let one = cook 1 collapsed and many = cook 4 collapsed in
@@ -1583,7 +1583,7 @@ let run () =
       ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
       ~columns:120 ~rows:90 ~size:12. ()
       |> Sop.set_int ~owner:Attribute.Point ~name:"source_id" 17
-      |> Sop.group_edges ~name:"boundary" ~incidence:Ops.Boundary_edge
+      |> Sop.group_edges ~name:"boundary" ~incidence:Group_mesh.Boundary_edge
       |> Sop.poly_reduce ~target:(Poly_reduce.Reduce_ratio 0.37)
            ~preserve_boundary:true ~only_original_positions:false
            ~equalize_lengths:1e-8 ~max_normal_deviation:0.4
@@ -1716,7 +1716,7 @@ let run () =
     "parallel Edge Relax fixture cardinality";
   let uv_mapped = Sop.uv_sphere ~segments:192 ~rings:96 ~radius:2. ()
       |> Sop.group ~name:"uv_faces" Select.all_primitives
-      |> Sop.group_edges ~name:"boundary_edges" ~incidence:Ops.Boundary_edge
+      |> Sop.group_edges ~name:"boundary_edges" ~incidence:Group_mesh.Boundary_edge
       |> Sop.uv_project ~group:"uv_faces" ~u_range:(0.1, 0.9)
            ~v_range:(0.2, 0.8)
            (Uv_checked.Spherical { origin = Vec3.zero; axis = Vec3.unit_y;

@@ -59,7 +59,7 @@ let fixture () =
       ~name:"ordered_vertices" ~length:7 [|6;4;1|] |> get_string in
   Geometry.create ~positions ~topology ~attributes
     ~groups:[selected; curve; empty; ordered_vertices] () |> get_string
-  |> Ops.group_edges ~name:"all_edges" |> get_pdk
+  |> Group_mesh.group_edges_checked ~name:"all_edges" |> get_pdk
 
 let int_values owner name geometry =
   match Geometry.find_attribute ~owner name geometry with

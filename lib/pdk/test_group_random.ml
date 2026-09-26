@@ -228,8 +228,8 @@ let test_checked_boundary () =
   let seed = Rand.seed 29 in
   let direct = Group_ops.group_random_checked ~seed ~probability:0.5
       ~owner:Group_ops.Group_points ~name:"selected" source |> get_ok
-  and compatibility = Ops.group_random ~seed ~probability:0.5
-      ~owner:Ops.Group_points ~name:"selected" source |> get_ok in
+  and compatibility = Group_ops.group_random_checked ~seed ~probability:0.5
+      ~owner:Group_ops.Group_points ~name:"selected" source |> get_ok in
   check (same_group (group Group.Point "selected" direct)
       (group Group.Point "selected" compatibility))
     "Group Random checked boundary changed the selection";
@@ -244,14 +244,14 @@ let test_checked_boundary () =
   compare_errors
     (Group_ops.group_random_checked ~probability:(-1.)
        ~owner:Group_ops.Group_points ~name:"bad" source)
-    (Ops.group_random ~probability:(-1.) ~owner:Ops.Group_points
+    (Group_ops.group_random_checked ~probability:(-1.) ~owner:Group_ops.Group_points
        ~name:"bad" source) "invalid_group";
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
   compare_errors
     (Group_ops.group_random_checked ~cancel ~probability:0.5
        ~owner:Group_ops.Group_points ~name:"bad" source)
-    (Ops.group_random ~cancel ~probability:0.5 ~owner:Ops.Group_points
+    (Group_ops.group_random_checked ~cancel ~probability:0.5 ~owner:Group_ops.Group_points
        ~name:"bad" source) "cancelled"
 
 let run () =

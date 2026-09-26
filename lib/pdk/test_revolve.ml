@@ -198,7 +198,7 @@ let check_payload () =
            (fun vertex -> vertex = 0))
       |> with_group (Group.init ~owner:Group.Primitive ~name:"profile" 1
            (fun _ -> true))
-      |> fun geometry -> Ops.group_edges ~grain:1 ~name:"profile_edges" geometry
+      |> fun geometry -> Group_mesh.group_edges_checked ~grain:1 ~name:"profile_edges" geometry
            |> get_ok in
   let result = revolve ~caps:true ~cap_group:"caps" source in
   (match attribute_storage result Attribute.Point "id" with
@@ -239,7 +239,7 @@ let check_selection_validation_and_parallel () =
   let dense = Array.init count (fun point ->
       let y = (float_of_int point /. float_of_int (count - 1)) *. 8. -. 4. in
       1.2 +. (0.2 *. sin (y *. 3.)), y, 0.) |> Line_geometry.polyline_checked |> get_ok
-      |> fun geometry -> Ops.group_edges ~grain:257 ~name:"profile_edges" geometry
+      |> fun geometry -> Group_mesh.group_edges_checked ~grain:257 ~name:"profile_edges" geometry
            |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
       Ops.revolve ~grain:257 ~connectivity:Plane_generators.Grid_alternating_triangles

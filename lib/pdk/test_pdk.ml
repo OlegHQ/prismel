@@ -2356,7 +2356,7 @@ let run () =
      || Geometry.topology hard_seams_one != Geometry.topology shared_box
   then fail "UV Auto Seam copied unchanged geometry payload";
   let sharp_edges domains = Parallel.run ~domains (fun () ->
-    Ops.group_edges ~grain:1 ~name:"sharp" ~incidence:Ops.Manifold_edge
+    Group_mesh.group_edges_checked ~grain:1 ~name:"sharp" ~incidence:Group_mesh.Manifold_edge
       ~min_angle:(Float.pi /. 4.) shared_box |> get_ok) in
   let sharp_one = sharp_edges 1 and sharp_many = sharp_edges 4 in
   let sharp_group geometry = Geometry.find_edge_group "sharp" geometry
@@ -2370,17 +2370,17 @@ let run () =
     if Edge_group.mem edge sharp_one_group <> Edge_group.mem edge sharp_many_group
     then fail "Edge Group differs by domain count"
   done;
-  let boundary_edges = Ops.group_edges ~name:"boundary"
-      ~incidence:Ops.Boundary_edge triangle_geometry |> get_ok
+  let boundary_edges = Group_mesh.group_edges_checked ~name:"boundary"
+      ~incidence:Group_mesh.Boundary_edge triangle_geometry |> get_ok
       |> Geometry.find_edge_group "boundary" |> Option.get in
   if Edge_group.cardinality boundary_edges <> 4 then
     fail "Edge Group boundary incidence";
-  let unit_edges = Ops.group_edges ~name:"unit" ~min_length:1. ~max_length:1.
+  let unit_edges = Group_mesh.group_edges_checked ~name:"unit" ~min_length:1. ~max_length:1.
       triangle_geometry |> get_ok |> Geometry.find_edge_group "unit"
       |> Option.get in
   if Edge_group.cardinality unit_edges <> 4 then
     fail "Edge Group inclusive length range";
-  let selected_edges = Ops.group_edges ~name:"selected_edges"
+  let selected_edges = Group_mesh.group_edges_checked ~name:"selected_edges"
       ~primitives:first_face triangle_geometry |> get_ok
       |> Geometry.find_edge_group "selected_edges" |> Option.get in
   if Edge_group.cardinality selected_edges <> 3 then
@@ -2388,7 +2388,7 @@ let run () =
   (match Geometry.with_edge_group sharp_one_group triangle_geometry with
    | Error _ -> ()
    | Ok _ -> fail "Geometry accepted an edge group from another topology");
-  let quad_edges = Ops.group_edges ~name:"quad_edges" geometry |> get_ok in
+  let quad_edges = Group_mesh.group_edges_checked ~name:"quad_edges" geometry |> get_ok in
   let triangulated_edges = Ops.triangulate quad_edges |> get_ok in
   let triangulated_edge_group = Geometry.find_edge_group "quad_edges"
       triangulated_edges |> Option.get in
@@ -2436,7 +2436,7 @@ let run () =
      || Edge_group.length copied_edge_group <> 8 then
     fail "copy-to-points did not replicate native edge membership";
   let hard_box_edges = Box_generator.box_checked ~size:(Vec3.create 2. 2. 2.) () |> get_ok
-      |> Ops.group_edges ~name:"all_box_edges" |> get_ok in
+      |> Group_mesh.group_edges_checked ~name:"all_box_edges" |> get_ok in
   let fused_edge_geometry = Fuse_grid.fuse_checked ~tolerance:0.
       ~attributes:Ops.Average_numeric hard_box_edges |> get_ok in
   let fused_edge_group = Geometry.find_edge_group "all_box_edges"
@@ -2470,7 +2470,7 @@ let run () =
       sorted_edge_geometry |> Option.get in
   if Edge_group.cardinality sorted_edge_group <> 4 then
     fail "point sort did not remap native edge membership";
-  let triangle_edges = Ops.group_edges ~name:"triangle_edges" triangle_geometry
+  let triangle_edges = Group_mesh.group_edges_checked ~name:"triangle_edges" triangle_geometry
       |> get_ok in
   let sorted_primitives = Ordering.sort_checked ~descending:true ~owner:Ordering.Primitives
       ~key:Ordering.Reverse triangle_edges |> get_ok in
@@ -2542,8 +2542,8 @@ let run () =
   if Group.cardinality (seam_group nonmanifold) <> 3
      || Edge_group.cardinality (edge_seam_group nonmanifold) <> 1 then
     fail "UV Auto Seam non-manifold incidence policy";
-  let nonmanifold_edges = Ops.group_edges ~name:"nonmanifold"
-      ~incidence:Ops.Non_manifold_edge nonmanifold |> get_ok
+  let nonmanifold_edges = Group_mesh.group_edges_checked ~name:"nonmanifold"
+      ~incidence:Group_mesh.Non_manifold_edge nonmanifold |> get_ok
       |> Geometry.find_edge_group "nonmanifold" |> Option.get in
   if Edge_group.cardinality nonmanifold_edges <> 1 then
     fail "Edge Group non-manifold incidence";
@@ -2695,14 +2695,14 @@ let run () =
   (match Uv_checked.unitize ~cancel:cancelled_unitize Uv_checked.Islands strip with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "UV Unitize ignored cancellation");
-  (match Ops.group_edges ~cancel:cancelled_unitize strip with
+  (match Group_mesh.group_edges_checked ~cancel:cancelled_unitize strip with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "Edge Group ignored cancellation");
-  (match Ops.group_edges ~min_angle:0. cylinder_curve with
+  (match Group_mesh.group_edges_checked ~min_angle:0. cylinder_curve with
    | Error error when Error.code error = "invalid_edge_group" -> ()
    | _ -> fail "Edge Group accepted an angle filter on curves");
   let swept_edge_geometry = cylinder_curve
-      |> Ops.group_edges ~name:"centerline_edges" |> get_ok
+      |> Group_mesh.group_edges_checked ~name:"centerline_edges" |> get_ok
       |> Curve_modeling.sweep_circle_checked ~sides:8 ~radius:0.1 |> get_ok in
   let swept_edge_group = Geometry.find_edge_group "centerline_edges"
       swept_edge_geometry |> Option.get in
@@ -2768,7 +2768,7 @@ let run () =
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "sweep accepted a negative point scale");
   let resampled_closed = cylinder_curve
-      |> Ops.group_edges ~name:"curve_edges" |> get_ok
+      |> Group_mesh.group_edges_checked ~name:"curve_edges" |> get_ok
       |> Curve_modeling.resample_curves_checked ~segments:8 |> get_ok in
   let resampled_closed_group = Geometry.find_edge_group "curve_edges"
       resampled_closed |> Option.get in
@@ -2806,7 +2806,7 @@ let run () =
       ~topology:(Geometry.topology triangle_geometry)
       ~attributes:[line_point_id; line_corner_id; line_face_id; line_detail_id]
       ~groups:[line_points; line_corners; line_faces] () |> get_ok
-      |> Ops.group_edges ~name:"all_source_edges" |> get_ok in
+      |> Group_mesh.group_edges_checked ~name:"all_source_edges" |> get_ok in
   let line_index = Topology_index.create (Geometry.topology line_source) in
   let diagonal = Topology_index.find_edge line_index ~a:0 ~b:2 |> Option.get
   and top = Topology_index.find_edge line_index ~a:2 ~b:3 |> Option.get in
@@ -3129,7 +3129,7 @@ let run () =
       ~attributes:[mixed_point_id; mixed_vertex_id; mixed_primitive_id;
         mixed_first_u; mixed_second_u]
       ~groups:[mixed_even; carve_first] () |> get_ok
-      |> Ops.group_edges ~name:"mixed_edges" |> get_ok in
+      |> Group_mesh.group_edges_checked ~name:"mixed_edges" |> get_ok in
   let mixed_carved domains = Parallel.run ~domains (fun () ->
     Curve_modeling.carve_curves_checked ~grain:1 ~primitives:carve_first
       ~relative_arc_length:false ~first:0.25 ~last:0.75 mixed |> get_ok) in
@@ -3486,7 +3486,7 @@ let run () =
    | _ -> fail "Curve Carve cut accepted zero divisions");
   let closed_cut_source = Line_geometry.polyline_checked ~closed:true [|(0.,0.,0.); (1.,0.,0.);
       (1.,1.,0.); (0.,1.,0.)|] |> get_ok
-      |> Ops.group_edges ~name:"closed_cut_edges" |> get_ok in
+      |> Group_mesh.group_edges_checked ~name:"closed_cut_edges" |> get_ok in
   let closed_outside = Curve_modeling.carve_curves_checked ~relative_arc_length:false ~first:0.25
       ~last:0.75 ~keep:Curve_modeling.Keep_outside closed_cut_source |> get_ok in
   let closed_outside_topology = Topology.Private.view
@@ -3548,7 +3548,7 @@ let run () =
     fail "Curve Carve mixed outside payload/group/edge ancestry";
   let closed_ends_source = Line_geometry.polyline_checked ~closed:true [|(0.,0.,0.); (1.,0.,0.);
       (1.,1.,0.); (0.,1.,0.)|] |> get_ok
-      |> Ops.group_edges ~name:"closed_edges" |> get_ok in
+      |> Group_mesh.group_edges_checked ~name:"closed_edges" |> get_ok in
   let opened domains = Parallel.run ~domains (fun () ->
     Ops.curve_ends ~grain:1 Ops.Open_curve closed_ends_source |> get_ok) in
   let opened_one = opened 1 and opened_many = opened 4 in
@@ -3568,7 +3568,7 @@ let run () =
       || Edge_group.cardinality (opened_group unrolled) <> 4 then
     fail "Curve Ends unroll/remap";
   let open_ends_source = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
-      |> get_ok |> Ops.group_edges ~name:"open_edges" |> get_ok in
+      |> get_ok |> Group_mesh.group_edges_checked ~name:"open_edges" |> get_ok in
   let closed_ends = Ops.curve_ends Ops.Close_curve open_ends_source |> get_ok in
   let closed_group = Geometry.find_edge_group "open_edges" closed_ends
       |> Option.get in
@@ -3592,7 +3592,7 @@ let run () =
   let join_source = Geometry.create ~positions:join_positions
       ~topology:(Topology.Builder.freeze join_topology)
       ~attributes:[join_corner_id; join_piece] ~groups:[join_tagged] () |> get_ok
-      |> Ops.group_edges ~name:"join_edges" |> get_ok in
+      |> Group_mesh.group_edges_checked ~name:"join_edges" |> get_ok in
   let joined domains = Parallel.run ~domains (fun () ->
     Ops.join_curves ~grain:1 join_source |> get_ok) in
   let joined_one = joined 1 and joined_many = joined 4 in
@@ -3639,7 +3639,7 @@ let run () =
   let closest_source = Geometry.create ~positions:closest_positions
       ~topology:(Topology.Builder.freeze closest_topology)
       ~attributes:[closest_corner; closest_piece] () |> get_ok
-      |> Ops.group_edges ~name:"closest_edges" |> get_ok in
+      |> Group_mesh.group_edges_checked ~name:"closest_edges" |> get_ok in
   let globally_joined domains = Parallel.run ~domains (fun () ->
       Ops.join_curves ~grain:1 ~connect_closest_ends:true closest_source
       |> get_ok) in
@@ -4042,7 +4042,7 @@ let run () =
   let compact_source = Geometry.create ~positions:compact_positions
       ~topology:(Topology.Builder.freeze compact_topology)
       ~attributes:[compact_ids] ~groups:[compact_group] () |> get_ok
-      |> Ops.group_edges ~name:"compact_edges" |> get_ok in
+      |> Group_mesh.group_edges_checked ~name:"compact_edges" |> get_ok in
   let compacted domains = Parallel.run ~domains (fun () ->
       Compact_points.run_checked ~grain:1 compact_source |> get_ok) in
   let compact_one = compacted 1 and compact_many = compacted 4 in
@@ -4443,7 +4443,7 @@ let run () =
       |> Geometry.with_attribute restricted_weight |> get_ok
       |> Geometry.with_attribute restricted_id |> get_ok
       |> Geometry.with_attribute restricted_detail |> get_ok
-      |> Ops.group_edges ~name:"source_edges" |> get_ok in
+      |> Group_mesh.group_edges_checked ~name:"source_edges" |> get_ok in
   let source_second = Group.ordered ~owner:Group.Primitive ~name:"source_second"
       ~length:2 [|1|] |> get_ok in
   let restricted_source = Geometry.with_group source_second restricted_source

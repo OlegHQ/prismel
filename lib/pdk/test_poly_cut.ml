@@ -67,7 +67,7 @@ let test_edge_remove_and_cut () =
       && primitive_points removed 0 = [|1;2|]
       && primitive_points removed 1 = [|3;4|])
     "PolyCut edge removal fragments";
-  let source = source |> Ops.group_edges ~name:"source_edges" |> get_ok in
+  let source = source |> Group_mesh.group_edges_checked ~name:"source_edges" |> get_ok in
   let cut = Ops.poly_cut ~grain:1 ~element:Ops.Poly_cut_edges
       ~strategy:Ops.Poly_cut_cut
       ~detection:(Ops.Poly_cut_crossing {attribute="signal"; value=0.})
@@ -456,7 +456,7 @@ let test_dense_parallel_exactness () =
   let selected = Group.init ~owner:Group.Point ~name:"selected" point_count
       (fun point -> point mod 7 <> 0) in
   let source = Geometry.with_group selected source |> Result.get_ok
-      |> Ops.group_edges ~grain:257 ~name:"source_edges" |> get_ok in
+      |> Group_mesh.group_edges_checked ~grain:257 ~name:"source_edges" |> get_ok in
   let cook domains = Parallel.run ~domains (fun () ->
       Ops.poly_cut ~grain:257 ~element:Ops.Poly_cut_edges
         ~strategy:Ops.Poly_cut_cut

@@ -258,7 +258,7 @@ let check_parallel_exact () =
       |> with_float3 "up" ~x:(Array.make count 0.) ~y:(Array.make count 1.)
            ~z:(Array.init count (fun point ->
              0.2 *. cos (float_of_int point *. 0.013)))
-      |> Ops.group_edges ~grain:257 ~name:"spine_edges" |> get_ok in
+      |> Group_mesh.group_edges_checked ~grain:257 ~name:"spine_edges" |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
       Curve_modeling.sweep_circle_checked ~grain:257 ~sides:12 ~scale_attribute:"scale"
         ~seam_offset:(-3) ~seam_attribute:"seam" ~v_attribute:"vcoord"

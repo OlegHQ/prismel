@@ -142,7 +142,7 @@ let source () =
   ] in
   Geometry.create ~positions ~topology ~attributes
     ~groups:[selected; all_points] () |> get_string
-  |> Ops.group_edges ~name:"marked_edges" |> get_pdk
+  |> Group_mesh.group_edges_checked ~name:"marked_edges" |> get_pdk
 
 let group owner name geometry =
   match Geometry.find_group ~owner name geometry with
@@ -1049,7 +1049,7 @@ let test_second_input_creases () =
       ~vertex_points:[|0;1;2|] ~primitive_offsets:[|0;3|] |> get_string in
   let triangle = Geometry.create ~positions:triangle_positions
       ~topology:triangle_topology () |> get_string
-      |> Ops.group_edges ~name:"loop_source_edges" |> get_pdk in
+      |> Group_mesh.group_edges_checked ~name:"loop_source_edges" |> get_pdk in
   let loop = Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Loop triangle |> get_pdk in
   check (match Geometry.find_edge_group "loop_source_edges" loop with
     | Some group -> Edge_group.length group = 9
@@ -1243,7 +1243,7 @@ let test_subdivision_holes () =
         ~length:(Geometry.primitive_count geometry) [|4|] |> get_string in
     Geometry.with_group hole geometry |> get_string in
   let run domains = Parallel.run ~domains (fun () ->
-    let input = make_grid () |> add_hole |> Ops.group_edges ~name:"source_edges"
+    let input = make_grid () |> add_hole |> Group_mesh.group_edges_checked ~name:"source_edges"
         |> get_pdk in
     Subdivision_ops.subdivide_checked ~grain:1 input |> get_pdk) in
   let one = run 1 and four = run 4 in
@@ -1302,7 +1302,7 @@ let test_subdivision_holes () =
   let all_creased = Geometry.with_attribute
       (attribute Attribute.Vertex "creaseweight"
         (Attribute.Float (Array.make (Geometry.vertex_count source) 2.))) source
-      |> get_string |> Ops.group_edges ~name:"all_source_edges" |> get_pdk in
+      |> get_string |> Group_mesh.group_edges_checked ~name:"all_source_edges" |> get_pdk in
   let empty_surface = Subdivision_ops.subdivide_checked ~hole_primitives:all_holes
       ~resulting_crease_group:"hidden_creases" all_creased |> get_pdk in
   check (Geometry.primitive_count empty_surface = 0

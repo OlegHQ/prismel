@@ -229,7 +229,7 @@ let run () =
     "whole-curve Edge Collapse cleanup";
 
   let other = Box_generator.box_checked ~size:(Vec3.create 1. 1. 1.) () |> get_pdk
-      |> Ops.group_edges ~name:"other" |> get_pdk in
+      |> Group_mesh.group_edges_checked ~name:"other" |> get_pdk in
   let other_edges = Geometry.find_edge_group "other" other |> Option.get in
   expect_code "invalid_topology" (Edge_collapse.run ~edges:other_edges source);
   expect_code "invalid_topology"

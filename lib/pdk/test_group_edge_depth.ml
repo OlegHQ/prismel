@@ -43,15 +43,15 @@ let sample () =
 
 let test_depth_and_disconnected_components () =
   let source = sample () in
-  let zero = Ops.group_edge_depth ~depth:0 ~point_group:"seed" ~name:"zero"
+  let zero = Group_ops.group_edge_depth_checked ~depth:0 ~point_group:"seed" ~name:"zero"
       source |> get_ok in
   expect_members [4; 10; 12] (point_group "zero" zero)
     "Group Edge Depth includes only seeds at depth zero";
-  let two = Ops.group_edge_depth ~depth:2 ~point_group:"seed" ~name:"two"
+  let two = Group_ops.group_edge_depth_checked ~depth:2 ~point_group:"seed" ~name:"two"
       source |> get_ok in
   expect_members [2; 3; 4; 5; 6; 9; 10; 11; 12] (point_group "two" two)
     "Group Edge Depth bounded multi-source distance";
-  let flooded = Ops.group_edge_depth ~depth:max_int ~point_group:"seed"
+  let flooded = Group_ops.group_edge_depth_checked ~depth:max_int ~point_group:"seed"
       ~name:"flooded" source |> get_ok in
   expect_members (List.init 13 Fun.id) (point_group "flooded" flooded)
     "Group Edge Depth terminates after exhausting seeded components";
@@ -63,46 +63,46 @@ let test_merge_algebra () =
   let existing = Group.init ~owner:Group.Point ~name:"target" 13
       (fun point -> point = 0 || point = 3 || point = 9) in
   let source = Geometry.with_group existing source |> Result.get_ok in
-  let intersection = Ops.group_edge_depth ~merge:Ops.Group_intersection
+  let intersection = Group_ops.group_edge_depth_checked ~merge:Group_ops.Group_intersection
       ~depth:1 ~point_group:"seed" ~name:"target" source |> get_ok in
   expect_members [3; 9] (point_group "target" intersection)
     "Group Edge Depth intersection";
-  let union = Ops.group_edge_depth ~merge:Ops.Group_union ~depth:1
+  let union = Group_ops.group_edge_depth_checked ~merge:Group_ops.Group_union ~depth:1
       ~point_group:"seed" ~name:"target" source |> get_ok in
   expect_members [0; 3; 4; 5; 9; 10; 11; 12] (point_group "target" union)
     "Group Edge Depth union";
-  let subtract = Ops.group_edge_depth ~merge:Ops.Group_subtract ~depth:1
+  let subtract = Group_ops.group_edge_depth_checked ~merge:Group_ops.Group_subtract ~depth:1
       ~point_group:"seed" ~name:"target" source |> get_ok in
   expect_members [0] (point_group "target" subtract)
     "Group Edge Depth subtraction";
-  let absent_intersection = Ops.group_edge_depth
-      ~merge:Ops.Group_intersection ~depth:1 ~point_group:"seed"
+  let absent_intersection = Group_ops.group_edge_depth_checked
+      ~merge:Group_ops.Group_intersection ~depth:1 ~point_group:"seed"
       ~name:"absent_intersection" source |> get_ok in
   expect_members [] (point_group "absent_intersection" absent_intersection)
     "Group Edge Depth absent intersection identity";
-  let absent_subtract = Ops.group_edge_depth ~merge:Ops.Group_subtract
+  let absent_subtract = Group_ops.group_edge_depth_checked ~merge:Group_ops.Group_subtract
       ~depth:1 ~point_group:"seed" ~name:"absent_subtract" source |> get_ok in
   expect_members [] (point_group "absent_subtract" absent_subtract)
     "Group Edge Depth absent subtraction identity";
-  let in_place = Ops.group_edge_depth ~depth:1 ~point_group:"seed" ~name:"seed"
+  let in_place = Group_ops.group_edge_depth_checked ~depth:1 ~point_group:"seed" ~name:"seed"
       source |> get_ok in
   expect_members [3; 4; 5; 9; 10; 11; 12] (point_group "seed" in_place)
     "Group Edge Depth same-name replacement"
 
 let test_failures_and_cancellation () =
   let source = sample () in
-  expect_invalid (fun () -> Ops.group_edge_depth ~depth:(-1)
+  expect_invalid (fun () -> Group_ops.group_edge_depth_checked ~depth:(-1)
       ~point_group:"seed" ~name:"bad" source)
     "Group Edge Depth rejects negative depth";
-  expect_invalid (fun () -> Ops.group_edge_depth ~depth:1
+  expect_invalid (fun () -> Group_ops.group_edge_depth_checked ~depth:1
       ~point_group:"missing" ~name:"bad" source)
     "Group Edge Depth rejects missing seed group";
-  expect_invalid (fun () -> Ops.group_edge_depth ~depth:1
+  expect_invalid (fun () -> Group_ops.group_edge_depth_checked ~depth:1
       ~point_group:"" ~name:"bad" source)
     "Group Edge Depth rejects empty seed name";
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Ops.group_edge_depth ~cancel:cancelled ~depth:1
+  (match Group_ops.group_edge_depth_checked ~cancel:cancelled ~depth:1
       ~point_group:"seed" ~name:"bad" source with
    | Error error -> check (Error.code error = "cancelled")
        "Group Edge Depth cancellation code"
@@ -115,7 +115,7 @@ let test_parallel_exactness_and_scale () =
       (fun point -> point = (200 * width) + 300) in
   let source = Geometry.with_group seed source |> Result.get_ok in
   let run domains = Parallel.run ~domains (fun () ->
-    Ops.group_edge_depth ~grain:1_009 ~depth:64 ~point_group:"center"
+    Group_ops.group_edge_depth_checked ~grain:1_009 ~depth:64 ~point_group:"center"
       ~name:"grown" source |> get_ok) in
   let one = run 1 |> point_group "grown"
   and four = run 4 |> point_group "grown" in

@@ -651,8 +651,8 @@ let test_parallel_and_cancellation () =
       = int_attribute Attribute.Primitive "face_mask" many)
     "Group Promote attribute output one/four-domain exactness";
   let edge_run domains = Parallel.run ~domains (fun () ->
-    let boundary = Ops.group_edges ~grain:257 ~name:"boundary"
-        ~incidence:Ops.Boundary_edge base |> get_ok in
+    let boundary = Group_mesh.group_edges_checked ~grain:257 ~name:"boundary"
+        ~incidence:Group_mesh.Boundary_edge base |> get_ok in
     Group_ops.expand_checked ~grain:257 ~steps:5 ~owner:Group_ops.Group_edges
       ~group:"boundary" boundary |> get_ok) in
   check (same_edge_group (edge_group "boundary" (edge_run 1))

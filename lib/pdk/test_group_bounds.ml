@@ -270,7 +270,7 @@ let test_checked_boundary () =
       (Vec3.create 0.5 0.5 0.5) in
   let direct = Group_ops.group_bounds_checked region
       ~owner:Group_ops.Group_points ~name:"selected" source |> get_ok
-  and compatibility = Ops.group_bounds region ~owner:Ops.Group_points
+  and compatibility = Group_ops.group_bounds_checked region ~owner:Group_ops.Group_points
       ~name:"selected" source |> get_ok in
   check (same_group (group Group.Point "selected" direct)
       (group Group.Point "selected" compatibility))
@@ -287,14 +287,14 @@ let test_checked_boundary () =
   compare_errors
     (Group_ops.group_bounds_checked invalid ~owner:Group_ops.Group_points
        ~name:"bad" source)
-    (Ops.group_bounds invalid ~owner:Ops.Group_points ~name:"bad" source)
+    (Group_ops.group_bounds_checked invalid ~owner:Group_ops.Group_points ~name:"bad" source)
     "invalid_group";
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
   compare_errors
     (Group_ops.group_bounds_checked ~cancel region
        ~owner:Group_ops.Group_points ~name:"bad" source)
-    (Ops.group_bounds ~cancel region ~owner:Ops.Group_points
+    (Group_ops.group_bounds_checked ~cancel region ~owner:Group_ops.Group_points
        ~name:"bad" source) "cancelled"
 
 let run () =

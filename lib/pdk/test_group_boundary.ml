@@ -67,16 +67,16 @@ let test_primitive_boundaries_and_outputs () =
   let source = two_quads ()
       |> with_attribute Attribute.Primitive "material" (Attribute.Int [|2;7|]) in
   let attributes = [rule Attribute.Primitive "material"] in
-  let edges = Ops.group_from_attribute_boundary ~grain:1 ~attributes
+  let edges = Group_ops.group_from_attribute_boundary_checked ~grain:1 ~attributes
       ~owner:Group_ops.Group_edges ~name:"seams" source |> get_ok in
   let seams = edge_group "seams" edges in
   check (Edge_group.cardinality seams = 1 && selected_edge source seams 1 4)
     "primitive attribute discontinuity did not select the shared edge";
-  let points = Ops.group_from_attribute_boundary ~grain:1 ~attributes
+  let points = Group_ops.group_from_attribute_boundary_checked ~grain:1 ~attributes
       ~owner:Group_ops.Group_points ~name:"seam_points" source |> get_ok in
   check (members (group Group.Point "seam_points" points) = [1;4])
     "edge boundary did not convert to its endpoint points";
-  let primitives = Ops.group_from_attribute_boundary ~grain:1 ~attributes
+  let primitives = Group_ops.group_from_attribute_boundary_checked ~grain:1 ~attributes
       ~owner:Group_ops.Group_primitives ~name:"seam_faces" source |> get_ok in
   check (members (group Group.Primitive "seam_faces" primitives) = [0;1])
     "edge boundary did not convert to incident primitives"
@@ -87,12 +87,12 @@ let test_numeric_tolerance_and_patterns () =
            (Attribute.Float [|1.; 1.0005|])
       |> with_attribute Attribute.Primitive "ignored"
            (Attribute.Int [|0;1|]) in
-  let loose = Ops.group_from_attribute_boundary ~grain:1 ~tolerance:0.001
+  let loose = Group_ops.group_from_attribute_boundary_checked ~grain:1 ~tolerance:0.001
       ~attributes:[rule Attribute.Primitive "weight"]
       ~owner:Group_ops.Group_edges ~name:"loose" source |> get_ok in
   check (Edge_group.cardinality (edge_group "loose" loose) = 0)
     "float tolerance classified an equal primitive value";
-  let strict = Ops.group_from_attribute_boundary ~grain:1 ~tolerance:0.0001
+  let strict = Group_ops.group_from_attribute_boundary_checked ~grain:1 ~tolerance:0.0001
       ~attributes:[rule Attribute.Primitive "wei*"]
       ~owner:Group_ops.Group_edges ~name:"strict" source |> get_ok in
   check (Edge_group.cardinality (edge_group "strict" strict) = 1)
@@ -105,7 +105,7 @@ let test_vertex_seam () =
       ~y:(Array.make 8 0.) |> function
     | Ok value -> value | Error message -> fail message in
   let source = with_attribute Attribute.Vertex "uv" (Attribute.Float2 uv) source in
-  let output = Ops.group_from_attribute_boundary ~grain:1
+  let output = Group_ops.group_from_attribute_boundary_checked ~grain:1
       ~attributes:[rule Attribute.Vertex "uv"]
       ~owner:Group_ops.Group_edges ~name:"uv_seam" source |> get_ok in
   let seam = edge_group "uv_seam" output in
@@ -116,7 +116,7 @@ let test_storage_kinds_and_nonmanifold () =
   let text_source = two_quads ()
       |> with_attribute Attribute.Primitive "label"
            (Attribute.Text [|"left"; "right"|]) in
-  let text_output = Ops.group_from_attribute_boundary ~grain:1
+  let text_output = Group_ops.group_from_attribute_boundary_checked ~grain:1
       ~attributes:[rule Attribute.Primitive "label"]
       ~owner:Group_ops.Group_edges ~name:"text_seam" text_source |> get_ok in
   check (Edge_group.cardinality (edge_group "text_seam" text_output) = 1)
@@ -128,7 +128,7 @@ let test_storage_kinds_and_nonmanifold () =
     | Ok value -> value | Error message -> fail message in
   let tuple_source = with_attribute Attribute.Point "weights"
       (Attribute.Float4 weights) triangle in
-  let tuple_output = Ops.group_from_attribute_boundary ~grain:1 ~tolerance:0.1
+  let tuple_output = Group_ops.group_from_attribute_boundary_checked ~grain:1 ~tolerance:0.1
       ~attributes:[rule Attribute.Point "weights"]
       ~owner:Group_ops.Group_edges ~name:"tuple_seams" tuple_source |> get_ok in
   check (Edge_group.cardinality (edge_group "tuple_seams" tuple_output) = 2)
@@ -140,7 +140,7 @@ let test_storage_kinds_and_nonmanifold () =
         Topology.Builder.add_triangle topology 1 0 3;
         Topology.Builder.add_triangle topology 0 1 4)
       |> with_attribute Attribute.Primitive "piece" (Attribute.Int [|0;0;1|]) in
-  let output = Ops.group_from_attribute_boundary ~grain:1
+  let output = Group_ops.group_from_attribute_boundary_checked ~grain:1
       ~attributes:[rule Attribute.Primitive "piece"]
       ~owner:Group_ops.Group_edges ~name:"nonmanifold_seam" nonmanifold |> get_ok in
   let seam = edge_group "nonmanifold_seam" output in
@@ -150,17 +150,17 @@ let test_storage_kinds_and_nonmanifold () =
 
 let test_unshared_curve_policy () =
   let source = open_curve () in
-  let endpoints = Ops.group_from_attribute_boundary ~grain:1
+  let endpoints = Group_ops.group_from_attribute_boundary_checked ~grain:1
       ~include_unshared_edges:true ~owner:Group_ops.Group_edges ~name:"ends" source
       |> get_ok in
   check (Edge_group.cardinality (edge_group "ends" endpoints) = 2)
     "open curve endpoint policy did not select exactly first/last edges";
-  let all = Ops.group_from_attribute_boundary ~grain:1
+  let all = Group_ops.group_from_attribute_boundary_checked ~grain:1
       ~include_unshared_edges:true ~include_all_unshared_curve_edges:true
       ~owner:Group_ops.Group_edges ~name:"all" source |> get_ok in
   check (Edge_group.cardinality (edge_group "all" all) = 3)
     "all-unshared-curve policy omitted curve edges";
-  let polygon = Ops.group_from_attribute_boundary ~grain:1
+  let polygon = Group_ops.group_from_attribute_boundary_checked ~grain:1
       ~include_unshared_edges:true ~owner:Group_ops.Group_edges ~name:"boundary"
       (two_quads ()) |> get_ok in
   check (Edge_group.cardinality (edge_group "boundary" polygon) = 6)
@@ -176,11 +176,11 @@ let test_primitive_point_sharing_expansion () =
         Topology.Builder.add_triangle topology 0 4 5)
       |> with_attribute Attribute.Primitive "piece" (Attribute.Int [|0;1;0|]) in
   let attributes = [rule Attribute.Primitive "piece"] in
-  let incident = Ops.group_from_attribute_boundary ~grain:1 ~attributes
+  let incident = Group_ops.group_from_attribute_boundary_checked ~grain:1 ~attributes
       ~owner:Group_ops.Group_primitives ~name:"incident" source |> get_ok in
   check (members (group Group.Primitive "incident" incident) = [0;1])
     "default primitive conversion included a point-only neighbor";
-  let expanded = Ops.group_from_attribute_boundary ~grain:1 ~attributes
+  let expanded = Group_ops.group_from_attribute_boundary_checked ~grain:1 ~attributes
       ~include_all_primitives_sharing_boundary_points:true
       ~owner:Group_ops.Group_primitives ~name:"expanded" source |> get_ok in
   check (members (group Group.Primitive "expanded" expanded) = [0;1;2])
@@ -189,31 +189,31 @@ let test_primitive_point_sharing_expansion () =
 let test_position_and_validation () =
   let triangle = geometry [|(0.,0.,0.); (1.,0.,0.); (0.,1.,0.)|]
       (fun topology -> Topology.Builder.add_triangle topology 0 1 2) in
-  let position = Ops.group_from_attribute_boundary ~grain:1
+  let position = Group_ops.group_from_attribute_boundary_checked ~grain:1
       ~attributes:[rule Attribute.Point "P"]
       ~owner:Group_ops.Group_edges ~name:"position" triangle |> get_ok in
   check (Edge_group.cardinality (edge_group "position" position) = 3)
     "canonical P pattern was not treated as a point attribute";
-  (match Ops.group_from_attribute_boundary
+  (match Group_ops.group_from_attribute_boundary_checked
       ~attributes:[rule Attribute.Point "missing"]
       ~owner:Group_ops.Group_edges ~name:"bad" triangle with
    | Error error -> check (Error.code error = "invalid_group")
        "missing boundary attribute error code"
    | Ok _ -> fail "missing boundary attribute was accepted");
-  (match Ops.group_from_attribute_boundary
+  (match Group_ops.group_from_attribute_boundary_checked
       ~attributes:[rule Attribute.Detail "meta"]
       ~owner:Group_ops.Group_edges ~name:"bad" triangle with
    | Error _ -> () | Ok _ -> fail "detail boundary attribute was accepted");
   let nonfinite = two_quads ()
       |> with_attribute Attribute.Primitive "weight"
            (Attribute.Float [|0.; Float.nan|]) in
-  (match Ops.group_from_attribute_boundary
+  (match Group_ops.group_from_attribute_boundary_checked
       ~attributes:[rule Attribute.Primitive "weight"]
       ~owner:Group_ops.Group_edges ~name:"bad" nonfinite with
    | Error _ -> () | Ok _ -> fail "non-finite boundary attribute was accepted");
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  (match Ops.group_from_attribute_boundary ~cancel
+  (match Group_ops.group_from_attribute_boundary_checked ~cancel
       ~attributes:[rule Attribute.Point "P"]
       ~owner:Group_ops.Group_edges ~name:"bad" triangle with
    | Error error -> check (Error.code error = "cancelled")
@@ -226,7 +226,7 @@ let test_parallel_scale_exactness () =
   let source = with_attribute Attribute.Primitive "face_id"
       (Attribute.Int (Array.init primitive_count Fun.id)) source in
   let run domains = Parallel.run ~domains (fun () ->
-    Ops.group_from_attribute_boundary ~grain:257
+    Group_ops.group_from_attribute_boundary_checked ~grain:257
       ~attributes:[rule Attribute.Primitive "face_id"]
       ~owner:Group_ops.Group_edges ~name:"all_internal" source |> get_ok) in
   let one = edge_group "all_internal" (run 1)

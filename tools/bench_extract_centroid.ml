@@ -23,7 +23,7 @@ let point_cloud () = Ops.points (Array.init size (fun point ->
 
 let grid () =
   let side = max 1 (int_of_float (sqrt (float_of_int (size / 2)))) in
-  let geometry = Ops.grid ~connectivity:Ops.Grid_triangles ~columns:side
+  let geometry = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_triangles ~columns:side
       ~rows:side ~size:100. () |> get in
   let piece = Attribute.create_owned ~owner:Attribute.Primitive ~name:"piece"
       (Attribute.Int (Array.init (Geometry.primitive_count geometry)

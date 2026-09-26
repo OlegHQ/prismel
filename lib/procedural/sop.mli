@@ -1638,10 +1638,10 @@ val group_edges :
   ?label:string ->
   ?name:string ->
   ?group:string ->
-  ?incidence:Pdk.Ops.edge_incidence ->
+  ?incidence:Pdk.Group_mesh.incidence ->
   ?min_length:float ->
   ?max_length:float ->
-  ?angle_basis:Pdk.Ops.edge_angle_basis ->
+  ?angle_basis:Pdk.Group_mesh.angle_basis ->
   ?min_angle:float ->
   ?max_angle:float ->
   Node.t -> Node.t
@@ -2319,8 +2319,8 @@ val group_transfer :
 
 val group_find_path :
   ?label:string ->
-  ?mode:Pdk.Ops.group_path_mode ->
-  ?ending:Pdk.Ops.group_path_ending ->
+  ?mode:Pdk.Group_mesh.path_mode ->
+  ?ending:Pdk.Group_mesh.path_ending ->
   ?avoid_self_intersection:bool ->
   ?owner:Pdk.Group.owner ->
   ?collision_group:string ->

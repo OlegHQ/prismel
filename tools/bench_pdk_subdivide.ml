@@ -28,7 +28,7 @@ let () =
   let resolution = integer_env "PRISMEL_PDK_SUBDIVIDE_RESOLUTION" 96
   and repeats = integer_env "PRISMEL_BENCH_REPEATS" 5
   and domains = integer_env "PRISMEL_BENCH_DOMAINS" 1 in
-  let source = Ops.grid ~connectivity:Ops.Grid_triangles
+  let source = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_triangles
       ~columns:resolution ~rows:resolution ~size:10. () |> get in
   let measure name operation =
     let run () = Prismel.Parallel.run ~domains (fun () ->

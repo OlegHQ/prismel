@@ -55,7 +55,7 @@ let fixture () =
           (fun primitive -> primitive = 1);
         Group.init ~owner:Group.Primitive ~name:"copy_1" 2
           (fun primitive -> primitive = 0)] () |> Result.get_ok in
-  let geometry = Ops.group_edges ~grain:1 ~name:"all_edges" geometry |> get in
+  let geometry = Group_mesh.group_edges_checked ~grain:1 ~name:"all_edges" geometry |> get in
   let index = Topology_index.create (Geometry.topology geometry) in
   let shared = Edge_group.init ~topology:(Geometry.topology geometry) ~index
       ~name:"shared_edge" (fun edge ->
@@ -255,7 +255,7 @@ let test_parallel_exact () =
   let selected = Group.init ~owner:Group.Primitive ~name:"selected"
       primitive_count (fun primitive -> primitive land 1 = 0) in
   let source = Geometry.with_group selected source |> Result.get_ok
-      |> Ops.group_edges ~name:"all_edges" |> get in
+      |> Group_mesh.group_edges_checked ~name:"all_edges" |> get in
   let cook domains = Parallel.run ~domains (fun () ->
       Instance_copy.duplicate ~grain:4_096 ~copies:4 ~primitives:selected
         ~copy_group_prefix:"copy_"

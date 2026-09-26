@@ -56,7 +56,7 @@ let promote ?name ?keep_original ?output_attribute ?attributes ?tolerance
     ?include_unshared_edges ?include_all_unshared_curve_edges
     ?include_all_primitives_sharing_boundary_points
     ~source ~destination ~group geometry =
-  Ops.group_promote_boundary ~grain:1 ?name ?keep_original ?output_attribute
+  Group_ops.group_promote_boundary_checked ~grain:1 ?name ?keep_original ?output_attribute
     ?attributes ?tolerance ?include_unshared_edges
     ?include_all_unshared_curve_edges
     ?include_all_primitives_sharing_boundary_points
@@ -215,20 +215,20 @@ let test_validation_and_lifecycle () =
   check (Geometry.find_group ~owner:Group.Primitive "first" replaced = None
       && Geometry.find_edge_group "outline" replaced <> None)
     "Group Promote Boundary source removal/output rename";
-  (match Ops.group_promote_boundary
+  (match Group_ops.group_promote_boundary_checked
       ~include_all_primitives_sharing_boundary_points:true
       ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_points
       ~group:"first" source with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Promote Boundary invalid point-sharing owner code"
    | Ok _ -> fail "Group Promote Boundary accepted point sharing for points");
-  (match Ops.group_promote_boundary ~include_all_unshared_curve_edges:true
+  (match Group_ops.group_promote_boundary_checked ~include_all_unshared_curve_edges:true
       ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_edges
       ~group:"first" source with
    | Error error -> check (Error.code error = "invalid_group")
        "Group Promote Boundary curve-policy validation code"
    | Ok _ -> fail "Group Promote Boundary accepted curve edges without unshared");
-  (match Ops.group_promote_boundary ~tolerance:nan
+  (match Group_ops.group_promote_boundary_checked ~tolerance:nan
       ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_edges
       ~group:"first" source with
    | Error error -> check (Error.code error = "invalid_group")
@@ -236,7 +236,7 @@ let test_validation_and_lifecycle () =
    | Ok _ -> fail "Group Promote Boundary accepted a non-finite tolerance");
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Ops.group_promote_boundary ~cancel:cancelled
+  (match Group_ops.group_promote_boundary_checked ~cancel:cancelled
       ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_edges
       ~group:"first" source with
    | Error error -> check (Error.code error = "cancelled")
@@ -260,11 +260,11 @@ let test_parallel_exactness () =
       (fun primitive -> primitive mod 1_200 < 600) base in
   let run domains = Parallel.run ~domains (fun () ->
     source
-    |> Ops.group_promote_boundary ~grain:1_009 ~keep_original:true
+    |> Group_ops.group_promote_boundary_checked ~grain:1_009 ~keep_original:true
          ~include_unshared_edges:true ~name:"outline"
          ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_edges
          ~group:"left_half" |> get_ok
-    |> Ops.group_promote_boundary ~grain:1_009 ~keep_original:true
+    |> Group_ops.group_promote_boundary_checked ~grain:1_009 ~keep_original:true
          ~include_unshared_edges:true ~name:"outline_points"
          ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_points
          ~group:"left_half" |> get_ok) in

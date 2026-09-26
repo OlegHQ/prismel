@@ -84,7 +84,7 @@ let enriched_grid () =
   |> add_attribute primitive_id |> add_attribute detail
   |> Geometry.with_group point_group |> get_ok
   |> Geometry.with_group primitive_group |> get_ok
-  |> Ops.group_edges ~name:"source_edges" |> get_pdk
+  |> Group_mesh.group_edges_checked ~name:"source_edges" |> get_pdk
 
 let group_cardinality owner name geometry =
   match Geometry.find_group ~owner name geometry with
@@ -307,7 +307,7 @@ let run () =
            ~owner:Attribute.Point
            (Attribute.Int (Array.init (Geometry.point_count dense) Fun.id))
            |> get_ok) |> get_ok
-      |> Ops.group_edges ~name:"dense_edges" |> get_pdk in
+      |> Group_mesh.group_edges_checked ~name:"dense_edges" |> get_pdk in
   let run domains = Parallel.run ~domains (fun () ->
       Ops.poly_extrude ~grain:257
         ~divide:Ops.Extrude_connected_components ~divisions:4

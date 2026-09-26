@@ -1,0 +1,3 @@
+# Apply only to Group selection tests; Fuse_reduce has same constructor names.
+Ops.Group_union	Group_ops.Group_union
+Ops.Group_intersection	Group_ops.Group_intersection

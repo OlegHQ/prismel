@@ -5301,18 +5301,18 @@ end [@@sop.register]
 
 module Group_edges = struct
   let incidence_parameter = Parameter.choice ~equal:( = ) [
-      "Any", Pdk.Ops.Any_edge; "Boundary", Pdk.Ops.Boundary_edge;
-      "Manifold", Pdk.Ops.Manifold_edge;
-      "Non-manifold", Pdk.Ops.Non_manifold_edge;
+      "Any", Pdk.Group_mesh.Any_edge; "Boundary", Pdk.Group_mesh.Boundary_edge;
+      "Manifold", Pdk.Group_mesh.Manifold_edge;
+      "Non-manifold", Pdk.Group_mesh.Non_manifold_edge;
     ]
   let angle_basis_parameter = Parameter.choice ~equal:( = ) [
-      "Primitive dihedral", Pdk.Ops.Primitive_dihedral;
-      "Incident edges", Pdk.Ops.Incident_edges;
+      "Primitive dihedral", Pdk.Group_mesh.Primitive_dihedral;
+      "Incident edges", Pdk.Group_mesh.Incident_edges;
     ]
   type parameters = {
     name : string [@sop.default "edges"] [@sop.label "Group name"];
     group : string [@sop.default ""] [@sop.label "Primitive group"];
-    incidence : Pdk.Ops.edge_incidence [@sop.default Pdk.Ops.Any_edge]
+    incidence : Pdk.Group_mesh.incidence [@sop.default Pdk.Group_mesh.Any_edge]
       [@sop.label "Incidence"] [@sop.kind incidence_parameter];
     use_min_length : bool [@sop.default false] [@sop.label "Minimum length"]
       [@sop.folder "Length"];
@@ -5324,8 +5324,8 @@ module Group_edges = struct
     max_length : float [@sop.default 1.] [@sop.label "Maximum"]
       [@sop.folder "Length"] [@sop.min 0.] [@sop.max 10.]
       [@sop.hard_min 0.];
-    angle_basis : Pdk.Ops.edge_angle_basis
-      [@sop.default Pdk.Ops.Primitive_dihedral]
+    angle_basis : Pdk.Group_mesh.angle_basis
+      [@sop.default Pdk.Group_mesh.Primitive_dihedral]
       [@sop.label "Angle basis"] [@sop.folder "Angle"]
       [@sop.kind angle_basis_parameter];
     use_min_angle : bool [@sop.default false] [@sop.label "Minimum angle"]
@@ -6093,7 +6093,7 @@ module Group_copy = struct
     ]
   let decode_rule = function
     | [owner; pattern; prefix; match_attribute] ->
-        Result.map (fun copy_owner -> { Pdk.Ops.copy_owner;
+        Result.map (fun copy_owner -> { Pdk.Group_ops.copy_owner;
           copy_pattern = pattern; copy_prefix = prefix;
           match_attribute = optional_text match_attribute })
           (group_owner_of_token
@@ -6140,7 +6140,7 @@ module Group_transfer = struct
     ]
   let decode_rule = function
     | [owner; pattern; prefix] ->
-        Result.map (fun transfer_owner -> { Pdk.Ops.transfer_owner;
+        Result.map (fun transfer_owner -> { Pdk.Group_ops.transfer_owner;
           transfer_pattern = pattern; transfer_prefix = prefix })
           (group_owner_of_token
             (String.lowercase_ascii (String.trim owner)))
@@ -6406,7 +6406,7 @@ module Group_range = struct
     | Disconnected -> Some (Pdk.Group_ops.Range_disconnected { region })
     | Connected ->
         let collision = if parameters.use_collision then Some {
-            Pdk.Ops.collision_owner = parameters.collision_owner;
+            Pdk.Group_ops.collision_owner = parameters.collision_owner;
             collision_pattern = parameters.collision_pattern;
             keep_boundary = parameters.keep_boundary } else None in
         Some (Pdk.Group_ops.Range_connected {
@@ -6507,7 +6507,7 @@ module Group_ranges = struct
                let* collision_owner = group_owner_of_token
                    (String.lowercase_ascii (String.trim collision_owner)) in
                let* keep_boundary = bool_of_token keep_boundary in
-               Ok (Some { Pdk.Ops.collision_owner; collision_pattern;
+               Ok (Some { Pdk.Group_ops.collision_owner; collision_pattern;
                  keep_boundary }) in
              let* remove_other_regions = bool_of_token remove_other_regions in
              Ok (Some (Pdk.Group_ops.Range_connected {
@@ -6571,20 +6571,20 @@ end [@@sop.register]
 
 module Group_find_path = struct
   let mode_parameter = Parameter.choice ~equal:( = ) [
-      "Through each", Pdk.Ops.Through_each;
-      "Start/end pairs", Pdk.Ops.Start_end_pairs;
+      "Through each", Pdk.Group_mesh.Through_each;
+      "Start/end pairs", Pdk.Group_mesh.Start_end_pairs;
     ]
   let ending_parameter = Parameter.choice ~equal:( = ) [
-      "Stop at end", Pdk.Ops.Stop_at_end; "Close path", Pdk.Ops.Close_path;
+      "Stop at end", Pdk.Group_mesh.Stop_at_end; "Close path", Pdk.Group_mesh.Close_path;
     ]
   type parameters = {
     owner : Pdk.Group.owner [@sop.default Pdk.Group.Point]
       [@sop.label "Group type"] [@sop.kind ordinary_group_owner_parameter];
     base_group : string [@sop.default "ordered"] [@sop.label "Base group"];
     name : string [@sop.default "path"] [@sop.label "Output group"];
-    mode : Pdk.Ops.group_path_mode [@sop.default Pdk.Ops.Through_each]
+    mode : Pdk.Group_mesh.path_mode [@sop.default Pdk.Group_mesh.Through_each]
       [@sop.label "Path mode"] [@sop.kind mode_parameter];
-    ending : Pdk.Ops.group_path_ending [@sop.default Pdk.Ops.Stop_at_end]
+    ending : Pdk.Group_mesh.path_ending [@sop.default Pdk.Group_mesh.Stop_at_end]
       [@sop.label "Ending"] [@sop.kind ending_parameter];
     avoid_self_intersection : bool [@sop.default true]
       [@sop.label "Avoid self-intersection"];
