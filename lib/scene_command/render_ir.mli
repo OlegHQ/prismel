@@ -25,4 +25,3 @@ module Private : sig
 end
 (* Stable, explicitly little-endian, versioned encoding. *)
 val serialize : t -> bytes
-val hash : t -> int64

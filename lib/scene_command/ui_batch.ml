@@ -33,13 +33,6 @@ let float value ~instance ~word =
   Int32.float_of_bits
     (Bytes.get_int32_le value.bytes ((instance * instance_bytes) + (word * 4)))
 
-let color value ~instance ~word =
-  Bytes.get_int32_le value.bytes ((instance * instance_bytes) + (word * 4))
-
-let kind value instance =
-  match color value ~instance ~word:10 with
-  | 0l -> Rect | 1l -> Textured | 2l -> Wire | _ -> Grid
-
 module Builder = struct
   type batch_table = t
 
@@ -57,8 +50,6 @@ module Builder = struct
     { bytes = Bytes.create (max 1 capacity * instance_bytes); length = 0;
       batches = []; open_first = 0; open_texture = 0; clip = None;
       xform = identity }
-
-  let length builder = builder.length
 
   let close builder =
     if builder.length > builder.open_first then

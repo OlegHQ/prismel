@@ -65,7 +65,6 @@ let create_in_heap device ~memory (heap : Metal.Heap.t) ~offset descriptor =
                 Device.Private.attach_resource device;
                 Ok value
 
-let id value = Ogpu_core.Handle.id value.handle
 let generation value = Ogpu_core.Handle.generation value.handle
 let device_id value = Device.id value.device
 let destroyed value = Ogpu_core.Handle.destroyed value.handle

@@ -15,6 +15,5 @@ val messages : t -> message list
 val traces : t -> trace list
 val dropped_messages : t -> int
 val dropped_traces : t -> int
-val clear : t -> unit
 val drain_device_loss : t -> unit
 val destroy : t -> unit

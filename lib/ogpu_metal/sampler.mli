@@ -5,7 +5,6 @@ type descriptor = Ogpu_core.Types.sampler_descriptor
 type t
 val default : descriptor
 val create : Device.t -> descriptor -> (t,Ogpu_core.Error.t) result
-val id : t -> int64
 val descriptor : Device.t -> t -> (descriptor,Ogpu_core.Error.t) result
 val destroy : t -> (unit,Ogpu_core.Error.t) result
 module Private : sig val metal:t->Metal.Sampler.t   val retain_submission:t->(unit,Ogpu_core.Error.t)result val release_submission:t->unit end

@@ -17,10 +17,8 @@ val placement : Device.t -> memory:memory -> format:format -> Ogpu_core.Types.te
   (int64 * int64, Ogpu_core.Error.t) result
 val create_view : Device.t -> t -> format:format -> base_mip:int ->
   mip_count:int -> base_slice:int -> slice_count:int -> (t, Ogpu_core.Error.t) result
-val id : t -> int64
 val descriptor : Device.t -> t -> (Ogpu_core.Types.texture_descriptor, Ogpu_core.Error.t) result
 val format : Device.t -> t -> (format, Ogpu_core.Error.t) result
-val destroyed : t -> bool
 val read_bytes : Device.t -> t -> mip_level:int -> bytes_per_row:int ->
   (bytes, Ogpu_core.Error.t) result
 val read_bytes_into : Device.t -> t -> mip_level:int -> bytes_per_row:int ->

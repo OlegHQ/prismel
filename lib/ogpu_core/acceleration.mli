@@ -23,7 +23,6 @@ val copy_into : Handle.device -> source:t -> destination:t -> (unit,Error.t) res
 val compact_into : Handle.device -> source:t -> destination:t -> (unit,Error.t) result
 val compacted_size : Handle.device -> t -> (unit,Error.t) result
 val destroy : t -> unit
-val id : t -> int64
 val handle : t -> unit Handle.t
 val built : t -> bool
 val descriptor : t -> descriptor

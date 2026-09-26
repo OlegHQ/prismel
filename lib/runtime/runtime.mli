@@ -86,7 +86,6 @@ val set_text_input_area : t -> ((int * int * int * int) * int) option ->
 val show : t -> (unit, Ogpu.Error.t) result
 val hide : t -> (unit, Ogpu.Error.t) result
 val visible : t -> (bool, Ogpu.Error.t) result
-val restore : t -> (unit, Ogpu.Error.t) result
 val destroy : t -> (unit, Ogpu.Error.t) result
 module Private : sig
   val scale_draws : frame_facts -> Scene_execution.draw list -> Scene_execution.draw list

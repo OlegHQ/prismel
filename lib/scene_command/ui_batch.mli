@@ -51,7 +51,6 @@ val batches : t -> batch array
 val textures : t -> int list
 val empty : t
 
-val kind : t -> int -> kind
 val float : t -> instance:int -> word:int -> float
 
 module Builder : sig
@@ -60,7 +59,6 @@ module Builder : sig
 
   val create : ?capacity:int -> unit -> t
   val reset : t -> unit
-  val length : t -> int
 
   val set_clip : t -> clip option -> unit
   val set_xform : t -> xform -> unit

@@ -813,8 +813,6 @@ let visible value =
         (fun flags -> Int64.logand flags 0x8L = 0L)
         (sdl "Runtime.visible" (Sdl3.Window.flags window.handle)))
 
-let restore = window_call "Runtime.restore" Sdl3.Window.restore
-
 let destroy (value : t) =
   if value.dead then Ok ()
   else (

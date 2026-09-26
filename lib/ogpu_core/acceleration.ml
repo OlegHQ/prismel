@@ -53,7 +53,6 @@ let copy_into device ~source ~destination=let op="Ogpu.Acceleration.copy"in Resu
 let compact_into device ~source ~destination=let op="Ogpu.Acceleration.compact"in Result.bind(check op device source)(fun()->Result.bind(check op device destination)(fun()->match source.state,destination.state with |Built,Empty->destination.state<-Compacted;Ok()|(Empty|Compacted),_->Error(Error.make op Error.Invalid_state"compaction requires an uncompacted built source")|_,(Built|Compacted)->Error(Error.make op Error.Invalid_state"compaction destination is already filled")))
 let compacted_size device value=let op="Ogpu.Acceleration.compacted_size"in Result.bind(check op device value)(fun()->match value.state with Built->Ok()|Empty|Compacted->Error(Error.make op Error.Invalid_state"compacted size requires an uncompacted built structure"))
 let destroy value=Handle.destroy value.handle
-let id value=Handle.id value.handle
 let handle value=value.handle
 let built value=match value.state with Built|Compacted->true|Empty->false
 let descriptor value=value.descriptor
