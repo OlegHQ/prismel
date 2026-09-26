@@ -1,0 +1,26 @@
+# Graph Color, Blast, Separate Pieces, and Delete checked family paths.
+Ops.graph_color	Graph_color.run_checked
+Ops.graph_color_connectivity	Graph_color.connectivity
+Ops.graph_color_worksets	Graph_color.worksets
+Ops.Graph_primitives_by_point	Graph_color.Graph_primitives_by_point
+Ops.Graph_points_by_primitive	Graph_color.Graph_points_by_primitive
+Ops.Graph_primitives_by_edge	Graph_color.Graph_primitives_by_edge
+Ops.blast_by_attribute	Blast_by_attribute.blast_checked
+Ops.blast_attribute_owner	Blast_by_attribute.owner
+Ops.blast_attribute_mode	Blast_by_attribute.mode
+Ops.blast_attribute_output	Blast_by_attribute.output
+Ops.Blast_points	Blast_by_attribute.Blast_points
+Ops.Blast_primitives	Blast_by_attribute.Blast_primitives
+Ops.Blast_below	Blast_by_attribute.Blast_below
+Ops.Blast_range	Blast_by_attribute.Blast_range
+Ops.Blast_width	Blast_by_attribute.Blast_width
+Ops.Blast_delete	Blast_by_attribute.Blast_delete
+Ops.Blast_group	Blast_by_attribute.Blast_group
+Ops.separate_pieces	Separate_pieces.run_checked
+Ops.separate_pieces_mode	Separate_pieces.mode
+Ops.Separate_pieces_separate	Separate_pieces.Separate_pieces_separate
+Ops.Separate_pieces_move_back	Separate_pieces.Separate_pieces_move_back
+Ops.delete	Deletion.delete_checked
+Ops.delete_topology_policy	Deletion.topology_policy
+Ops.Destroy_touched_primitives	Deletion.Destroy_touched_primitives
+Ops.Heal_primitives	Deletion.Heal_primitives
