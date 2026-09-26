@@ -278,7 +278,6 @@ val complete_through : queue -> int64 -> (unit,Error.t) result
 val poll_through : queue -> int64 -> (bool,Error.t) result
 val completed_epoch : queue -> int64
 val configure : surface -> Surface.configuration -> (unit,Error.t) result
-val acquire : surface -> ([ `Acquired of frame | `Timeout | `Occluded | `Device_lost ],Error.t) result
 val acquire_sync : surface -> ([ `Acquired of frame | `Timeout | `Occluded | `Device_lost ],Error.t) result
 val discard : frame -> (unit,Error.t) result
 val destroy_buffer : buffer -> (unit,Error.t) result
@@ -402,7 +401,6 @@ val set_texture : compute_encoder -> index:int -> texture -> (unit,Error.t) resu
 val set_accel : compute_encoder -> index:int -> accel -> (unit,Error.t) result
 val set_table : compute_encoder -> index:int -> function_table -> (unit,Error.t) result
 val dispatch_threads : compute_encoder -> threads:int * int * int -> threadgroup:int * int * int -> (unit,Error.t) result
-val dispatch_threadgroups : compute_encoder -> threadgroups:int * int * int -> threadgroup:int * int * int -> (unit,Error.t) result
 val end_compute : compute_encoder -> (unit,Error.t) result
 val accel_encoder : commands -> (accel_encoder,Error.t) result
 val build_accel : accel_encoder -> accel -> scratch:buffer -> ?scratch_offset:int64 -> unit -> (unit,Error.t) result
@@ -443,14 +441,11 @@ type batch_draw =
 
 val create_sampler : device -> Types.sampler_descriptor -> (sampler,Error.t) result
 val sampler_descriptor : sampler -> Types.sampler_descriptor
-val sampler_id : sampler -> int64
 val destroy_sampler : sampler -> (unit,Error.t) result
 val create_render_pipeline : ?blend:Pipeline.blend -> ?topology:Render_pass.primitive -> ?indirect:bool -> ?archives:archive list -> ?archive_only:bool ->
   device -> Pipeline.render_descriptor -> (pipeline,Error.t) result
 val pipeline_indirect : pipeline -> bool
 val create_icb : device -> max_commands:int -> (icb,Error.t) result
-val icb_capacity : icb -> int
-val icb_reset : icb -> location:int -> length:int -> (unit,Error.t) result
 val icb_set_pipeline : icb -> index:int -> pipeline -> (unit,Error.t) result
 val icb_set_buffer : icb -> index:int -> shader_stage -> slot:int -> ?offset:int64 -> buffer -> (unit,Error.t) result
 val icb_draw : icb -> index:int -> primitive:Render_pass.primitive -> first:int -> count:int -> ?instances:int -> unit -> (unit,Error.t) result
@@ -520,7 +515,6 @@ val destroy_heap : heap -> (unit,Error.t) result
     not aliasable is rejected. *)
 val make_aliasable : heap -> [ `Buffer of buffer | `Texture of texture ] -> (unit,Error.t) result
 val compute_use_heap : compute_encoder -> heap -> (unit,Error.t) result
-val render_use_heap : render_encoder -> heap -> (unit,Error.t) result
 
 (** A residency set makes its allocations resident for every command buffer
     of the queues it is attached to (or for one [commands] value). Changes

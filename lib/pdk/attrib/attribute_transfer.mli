@@ -19,14 +19,6 @@ type surface_attribute = {
 val surface_attribute :
   ?into:string -> owner:Attribute.owner -> string -> surface_attribute
 
-val spatial :
-  ?cancel:Cancel.t -> ?grain:int -> ?names:string list -> ?pattern:string ->
-  ?mode:mode -> ?max_distance:float -> ?blend_width:float ->
-  ?falloff:falloff -> ?unmatched:unmatched ->
-  ?source_elements:Group.t -> ?target_elements:Group.t ->
-  owner:Attribute.owner -> source:Geometry.t -> target:Geometry.t -> unit ->
-  (Geometry.t, Error.t) result
-
 val transfer_points :
   ?cancel:Cancel.t ->
   ?grain:int ->

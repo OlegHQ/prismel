@@ -19,7 +19,6 @@ type t = {
 type _ kind =
   | K_float : float array kind
   | K_int : int array kind
-  | K_int_array : Packed.Int_array.t kind
   | K_float_array : Packed.Float_array.t kind
   | K_float2 : Packed.Float2.t kind
   | K_float3 : Packed.Float3.t kind
@@ -30,20 +29,18 @@ type 'a key = { key_name : string; key_owner : owner; key_kind : 'a kind }
 
 let float = K_float
 let int = K_int
-let int_array = K_int_array
 let float_array = K_float_array
 let float2 = K_float2
 let float3 = K_float3
 let float4 = K_float4
 let text = K_text
 let key ~name ~owner key_kind = { key_name = name; key_owner = owner; key_kind }
-let key_name value = value.key_name
 
 let storage_of_kind : type a. a kind -> a -> storage = fun kind value ->
   match kind with
   | K_float -> Float value
   | K_int -> Int value
-  | K_int_array -> Int_array value
+
   | K_float_array -> Float_array value
   | K_float2 -> Float2 value
   | K_float3 -> Float3 value
@@ -74,7 +71,6 @@ let get : type a. a key -> t -> a option = fun key attribute ->
   else match key.key_kind, attribute.storage with
     | K_float, Float values -> Some (Array.copy values)
     | K_int, Int values -> Some (Array.copy values)
-    | K_int_array, Int_array values -> Some values
     | K_float_array, Float_array values -> Some values
     | K_float2, Float2 values -> Some values
     | K_float3, Float3 values -> Some values
@@ -82,7 +78,6 @@ let get : type a. a key -> t -> a option = fun key attribute ->
     | K_text, Text values -> Some (Array.copy values)
     | _ -> None
 
-let position = key ~name:"P" ~owner:Point float3
 let normal ~owner = key ~name:"N" ~owner float3
 let color ~owner = key ~name:"Cd" ~owner float4
 let tex_coord ~owner = key ~name:"uv" ~owner float2

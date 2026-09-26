@@ -7,7 +7,7 @@ type t = {
   y : float array;
   triangles : int array;
   constraints : int array;
-  winding : int array;
+
   point_roots : int array;
   provenance_first : int array;
   provenance_second : int array;
@@ -21,9 +21,6 @@ let point_count value = Array.length value.points
 let new_point_count value = point_count value - value.initial_point_count
 let triangle_points value = Array.copy value.triangles
 let constraint_points value = Array.copy value.constraints
-let constraint_winding value = Array.copy value.winding
-let approximate_x value = Array.copy value.x
-let approximate_y value = Array.copy value.y
 
 let check_new value point =
   if point < value.initial_point_count || point >= point_count value then
@@ -49,10 +46,6 @@ let provenance_parent_weights value node =
   value.provenance_weight_third.(node)
 
 module Private = struct
-  let point value point =
-    if point < 0 || point >= Array.length value.points then
-      invalid_arg "Planar_refinement: point is out of range";
-    value.points.(point)
 
   let approximate_x value = value.x
   let approximate_y value = value.y
@@ -866,7 +859,7 @@ let build ?cancel ~grain ~initial_points ~initial_triangle_points
       initial_point_count = Array.length initial_points;
       points = Array.sub points 0 !point_count;
       x = Array.sub x 0 !point_count; y = Array.sub y 0 !point_count;
-      triangles = !triangles; constraints = !constraints; winding = !winding;
+      triangles = !triangles; constraints = !constraints;
       point_roots = Array.sub point_roots 0 new_count;
       provenance_first = Array.sub provenance.first 0 provenance.length;
       provenance_second = Array.sub provenance.second 0 provenance.length;

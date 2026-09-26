@@ -7,13 +7,6 @@ type 'a source = Point of 'a | Vertex of 'a
 let mesh_vec3 (view : Packed.Float3.Private.view) : Mesh.Private.vec3_view =
   { x = view.x; y = view.y; z = view.z }
 
-let triangle_soup_to_mesh positions normals =
-  let positions = Packed.Float3.Private.view positions |> mesh_vec3
-  and normals = Packed.Float3.Private.view normals |> mesh_vec3 in
-  Mesh.Private.create_packed_shared ~mode:Mesh.Triangles ~normals positions
-  |> Result.map_error
-       (Error.of_string ~operation:"prismel_mesh" ~code:"invalid_geometry")
-
 let standard geometry ~name ~point_kind ~vertex_kind =
   let read owner expected =
     match Geometry.find_attribute ~owner name geometry with

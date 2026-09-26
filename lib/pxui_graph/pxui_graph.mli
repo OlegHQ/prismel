@@ -94,10 +94,8 @@ val create_document :
 (** [flaggable] marks tiles that get a flag button (default: none); the
     graph never interprets operation names itself. *)
 
-val document : t -> Procedural.Edit_graph.t
 val with_document : Procedural.Edit_graph.t -> t -> t
 val with_graph : Procedural.Graph.t -> t -> t
-val with_catalog : catalog_entry list -> t -> t
 val with_bounds : x:int -> y:int -> width:int -> height:int -> t -> t
 val with_visible : bool -> t -> t
 val visible : t -> bool
@@ -128,13 +126,10 @@ val open_menu_at : int * int -> t -> t
 val optimize_layout : t -> t
 (** Re-run automatic layout, dropping manual tile positions, and frame all. *)
 
-val frame_all : t -> t
 val frame_viewed : t -> t
 (** Frame the displayed tile, or all tiles when it is unavailable. *)
 
 val copy_selection : t -> t
-val paste_clipboard : t -> t * change list
-val duplicate_selection : t -> t * change list
 val delete_selection : t -> t * change list
 (** Graph commands return topology requests for the host to apply. *)
 

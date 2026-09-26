@@ -191,35 +191,6 @@ let resolve_directions ?cancel ~grain ?direction_attribute geometry =
                  ~grain (Geometry.topology geometry) values)
              | None -> geometric_point_vectors ?cancel ~grain geometry))
 
-let normalize_planes ?cancel ~grain source =
-  let count = Array.length source.x in
-  let x = source.x and y = source.y and z = source.z in
-  let ranges = if count = 0 then 0 else (count + grain - 1) / grain in
-  let errors = Array.make ranges (-1) in
-  Parallel.for_ ~chunk_size:1 ~start:0 ~finish:(ranges - 1) (fun range ->
-    let first = range * grain and last = min count ((range + 1) * grain) in
-    for point = first to last - 1 do
-      if point land 4095 = 0 then Cancel.check_opt cancel;
-      let vx = x.(point) and vy = y.(point) and vz = z.(point) in
-      if not (Float.is_finite vx && Float.is_finite vy && Float.is_finite vz)
-      then errors.(range) <- point
-      else begin
-        let scale = max_abs3 vx vy vz in
-        if scale > 0. then begin
-          let sx = vx /. scale and sy = vy /. scale and sz = vz /. scale in
-          let inverse = 1. /. sqrt ((sx *. sx) +. (sy *. sy)
-              +. (sz *. sz)) in
-          x.(point) <- sx *. inverse;
-          y.(point) <- sy *. inverse;
-          z.(point) <- sz *. inverse
-        end
-      end
-    done);
-  match Array.find_opt (fun value -> value >= 0) errors with
-  | Some point -> Error (Printf.sprintf
-      "Pdk.Deform: non-finite normal at point %d" point)
-  | None -> Ok { x; y; z }
-
 let with_point_normals ?cancel ~grain ?primitives geometry =
   let selection = Option.map (fun group -> Selected_primitives group) primitives in
   Normal_ops.run ?cancel ~grain ?selection ?primitives

@@ -11,7 +11,6 @@ val pop_debug : t -> (unit,Error.t) result
 val begin_capture : t -> string -> (unit,Error.t) result
 val end_capture : t -> (unit,Error.t) result
 val timestamp : t -> label:string -> int64 -> (unit,Error.t) result
-val counter : t -> label:string -> int64 -> (unit,Error.t) result
 val messages : t -> message list
 val traces : t -> trace list
 val dropped_messages : t -> int

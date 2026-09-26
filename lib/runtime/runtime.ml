@@ -109,12 +109,6 @@ type offscreen = {
   mutable dead : bool;
 }
 
-let offscreen_device value =
-  let operation = "Runtime.offscreen_device" in
-  if value.dead then
-    Error (Ogpu.Error.make operation Ogpu.Error.Stale_handle "runtime is destroyed")
-  else Ok (Scene_execution.device value.renderer)
-
 let offscreen_target value =
   let operation = "Runtime.offscreen_target" in
   if value.dead then
@@ -799,37 +793,9 @@ let invalidate_presentation (value : t) = function
 let window_call operation call value =
   live_window operation value (fun window -> sdl operation (call window))
 
-let set_title value title =
-  invalidate_presentation value
-    (window_call "Runtime.set_title" (fun window -> Sdl3.Window.set_title window title) value)
-
-let set_position value ~x ~y =
-  invalidate_presentation value
-    (window_call "Runtime.set_position"
-       (fun window -> Sdl3.Window.set_position window ~x ~y)
-       value)
-
-let center value =
-  invalidate_presentation value (window_call "Runtime.center" Sdl3.Window.center value)
-
-let set_bordered value enabled =
-  window_call "Runtime.set_bordered"
-    (fun window -> Sdl3.Window.set_bordered window enabled)
-    value
-
 let set_resizable value enabled =
   window_call "Runtime.set_resizable"
     (fun window -> Sdl3.Window.set_resizable window enabled)
-    value
-
-let set_always_on_top value enabled =
-  window_call "Runtime.set_always_on_top"
-    (fun window -> Sdl3.Window.set_always_on_top window enabled)
-    value
-
-let set_fullscreen value enabled =
-  window_call "Runtime.set_fullscreen"
-    (fun window -> Sdl3.Window.set_fullscreen window enabled)
     value
 
 let set_relative_mouse value enabled =
@@ -889,8 +855,6 @@ let visible value =
         (fun flags -> Int64.logand flags 0x8L = 0L)
         (sdl "Runtime.visible" (Sdl3.Window.flags window)))
 
-let minimize = window_call "Runtime.minimize" Sdl3.Window.minimize
-let maximize = window_call "Runtime.maximize" Sdl3.Window.maximize
 let restore = window_call "Runtime.restore" Sdl3.Window.restore
 
 let destroy (value : t) =
@@ -973,8 +937,6 @@ let resize_offscreen value ~logical_width ~logical_height ~width ~height =
         Ok ()
 
 let offscreen_stats (value : offscreen) = renderer_stats value.renderer value.counters
-
-let offscreen_facts value = value.facts
 
 let destroy_offscreen value =
   if value.dead then Ok ()

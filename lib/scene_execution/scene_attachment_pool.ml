@@ -3,7 +3,7 @@ type entry = { kind:kind; samples:int; texture:Ogpu.Backend.texture }
 type t = {
   device:Ogpu.Backend.device;
   sample_counts:int list;
-  mutable configuration:Ogpu.Surface.configuration;
+  configuration:Ogpu.Surface.configuration;
   mutable entries:entry list;
   mutable dead:bool;
 }
@@ -54,25 +54,6 @@ let acquire_many value keys =
 
 let acquire value kind ~samples =
   Result.map List.hd(acquire_many value[kind,samples])
-
-let resize value configuration =
-  if value.dead then error "pool is destroyed"
-  else
-    let rec build made = function
-      | [] -> Ok (List.rev made)
-      | entry::rest ->
-          match allocate value configuration entry.kind entry.samples with
-          | Ok texture -> build ({entry with texture}::made) rest
-          | Error failure -> destroy_entries made; Error failure
-    in
-    match build [] value.entries with
-    | Error _ as failure -> failure
-    | Ok replacements ->
-        let old = value.entries in
-        value.entries <- replacements;
-        value.configuration <- configuration;
-        destroy_entries old;
-        Ok ()
 
 let destroy value =
   if not value.dead then begin

@@ -8,13 +8,11 @@ module Image : sig
   type t
   val create : width:int -> height:int -> rgba:bytes -> (t,error) result
   val load_file : string -> (t,error) result
-  val load_bytes : ?kind:string -> bytes -> (t,error) result
   val identity : t -> int
   val generation : t -> int
   val destroyed : t -> bool
   val size : t -> ((int*int),error) result
   val pixels : t -> (bytes,error) result
-  val snapshot : t -> ((int * int * int * bytes),error) result
   module Private : sig
     val replace_gpu : t -> Ogpu.Backend.texture -> (unit,error) result
     val gpu_snapshot : t -> (int * int * int * Ogpu.Backend.texture) option
@@ -93,8 +91,6 @@ module Font : sig
   type metrics = { height:int; ascent:int; descent:int; line_skip:int }
   val open_file : path:string -> size:float -> (t,error) result
   val open_system : size:float -> (t,error) result
-  val generation : t -> int
-  val destroyed : t -> bool
   val set_style : t -> style list -> (unit,error) result
   val set_outline : t -> int -> (unit,error) result
   val set_hinting : t -> hinting -> (unit,error) result
@@ -124,10 +120,7 @@ module Audio : sig
   val channel_playing : t -> int -> (bool,error) result
   val load_sample_bytes : t -> bytes -> (sample,error) result
   val reload_sample_bytes : sample -> bytes -> (unit,error) result
-  val sample_identity : sample -> string
   val sample_generation : sample -> int
-  val sample_destroyed : sample -> bool
-  val sample_encoded : sample -> (bytes,error) result
   val play_sample : t -> ?channel:int -> ?loops:int -> ?fade_in_ms:int ->
     ?volume:float -> sample -> (int,error) result
   val stop_channel : t -> int -> ?fade_out_ms:int -> unit -> (unit,error) result
@@ -139,8 +132,6 @@ module Audio : sig
   val stop_music : t -> ?fade_out_ms:int -> unit -> (unit,error) result
   val set_master_volume : t -> float -> (unit,error) result
   val set_music_volume : t -> float -> (unit,error) result
-  val master_volume : t -> (float,error) result
-  val music_volume : t -> (float,error) result
   val generate : t -> frames:int -> (generated,error) result
   val destroy_sample : sample -> (unit,error) result
   val destroy : t -> (unit,error) result
@@ -151,6 +142,5 @@ module Assets : sig
   val create : unit -> t
   (* Register an owner hook and return the same borrowed value. *)
   val borrow : t -> destroy:(unit -> (unit,error) result) -> 'a -> ('a,error) result
-  val count : t -> int
   val destroy : t -> (unit,error) result
 end

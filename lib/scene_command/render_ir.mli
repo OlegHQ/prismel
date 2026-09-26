@@ -14,7 +14,6 @@ type t
 type error = Non_finite | Invalid_extent | Invalid_cardinality | Invalid_index of int | Invalid_resource_id of int | Invalid_glyph_id of int | Invalid_debug_text | Unbalanced_clip | Unbalanced_transform | Complexity_limit
 val create : command array -> (t,error) result
 val commands : t -> command array
-val batches : t -> batch array
 module Private : sig
   (* Unique identity assigned to each validated immutable IR at construction. *)
   val identity : t -> int

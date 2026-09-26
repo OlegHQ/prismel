@@ -12,9 +12,5 @@ val create :
 val acquire : t -> kind -> samples:int -> (Ogpu.Backend.texture, Ogpu.Error.t) result
 val acquire_many : t -> (kind * int) list -> (Ogpu.Backend.texture list, Ogpu.Error.t) result
 
-(** Recreates only attachments which have already been acquired. Allocation is
-    transactional: on failure all old attachments and dimensions remain live. *)
-val resize : t -> Ogpu.Surface.configuration -> (unit, Ogpu.Error.t) result
-
 val destroy : t -> unit
 val allocated : t -> (kind * int * int64) list

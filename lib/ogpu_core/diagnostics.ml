@@ -18,7 +18,6 @@ let begin_capture t s=match live"Ogpu.Diagnostics.begin_capture"t with Result.Er
 let end_capture t=match live"Ogpu.Diagnostics.end_capture"t with Result.Error _ as e->e|Ok()->(match t.capture with None->err"Ogpu.Diagnostics.end_capture"Error.Invalid_state"no capture"|Some _->t.capture<-None;Ok())
 let trace t label make=let op="Ogpu.Diagnostics.trace"in match live op t with Result.Error _ as e->e|Ok()when not(text t.ml label)->err op Error.Invalid_argument"invalid label"|Ok()->let xs,d=bound t.tc(t.trs@[make(next t)])in t.trs<-xs;if d then t.dt<-t.dt+1;Ok()
 let timestamp t ~label value=trace t label(fun sequence->Timestamp{sequence;label;value})
-let counter t ~label value=trace t label(fun sequence->Counter{sequence;label;value})
 let messages t=t.msgs and traces t=t.trs and dropped_messages t=t.dm and dropped_traces t=t.dt
 let clear t=t.msgs<-[];t.trs<-[];t.groups<-[];t.capture<-None
 let drain_device_loss=clear

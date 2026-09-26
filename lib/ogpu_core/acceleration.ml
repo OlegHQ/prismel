@@ -56,7 +56,6 @@ let destroy value=Handle.destroy value.handle
 let id value=Handle.id value.handle
 let handle value=value.handle
 let built value=match value.state with Built|Compacted->true|Empty->false
-let refittable value=value.allow_refit
 let descriptor value=value.descriptor
 
 (* Instance records packed to a driver-reported layout: [size; transform;
@@ -93,6 +92,3 @@ let pack_motion_instances layout instances=
 let pack_transforms transforms=
   let bytes=Bytes.make(Array.length transforms*48)'\000'in
   Array.iteri(fun i transform->put_transform bytes(i*48)transform)transforms;bytes
-let pack_instances_64 instances=
-  pack_instances[|64;0;48;52;56;60;-1;-1;-1;-1;-1;-1;-1|]
-    (Array.map(fun(transform,mask,structure_index)->transform,mask,structure_index,0,0)instances)

@@ -19,5 +19,4 @@ let resolve device queries ~destination ~destination_size ~first ~count ~destina
 let destroy_fence(Fence value)=Handle.destroy value.handle
 let destroy_event(Event value)=Handle.destroy value.handle
 let destroy_query_set value=Handle.destroy value.handle
-let fence_value(Fence value)=value.value
 let event_value(Event value)=value.value

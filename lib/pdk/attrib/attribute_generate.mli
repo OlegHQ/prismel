@@ -59,9 +59,6 @@ type remap_input =
   | Remap_auto
 type remap_policy = Remap_clamp | Remap_cycle | Remap_extrapolate
 type storage_kind = Position | Float | Float2 | Float3 | Float4
-val value_array : numeric_value -> float array
-val finite_array : float array -> bool
-val same_dimensions : string -> float array array -> (int, string) result
 type direction_plan = {
   axis : float array;
   householder : float array;
@@ -96,116 +93,11 @@ type prepared_distribution =
   | Prepared_custom_discrete_text of { values : string array;
       cumulative : float array; total : float; last_positive : int;
     }
-val validate_knots :
-  string -> (float * float) list -> ((float * float) array, string) result
-val max_abs : float array -> float
-val prepare_direction_plan :
-  orientation:bool ->
-  bias:float -> numeric_value -> float -> (direction_plan, string) result
-val prepare_distribution :
-  direction_bias:float ->
-  random_distribution -> (prepared_distribution, string) result
-val prepared_dimension : prepared_distribution -> int
-val owner_count : Pdk_core.Geometry.t -> Pdk_core.Attribute.owner -> int
-val group_owner : Pdk_core.Attribute.owner -> Pdk_core.Group.owner option
-val validate_selection :
-  string ->
-  Pdk_core.Attribute.owner ->
-  int -> Pdk_core.Group.t option -> (unit, string) result
-val random_selection_element :
-  random_selection -> Pdk_core.Element_selection.t
-val random_selection_destination :
-  Pdk_core.Attribute.owner -> Pdk_core.Group.owner option
-val resolve_random_selection :
-  ?cancel:Pdk_core.Cancel.t ->
-  grain:int ->
-  owner:Pdk_core.Attribute.owner ->
-  count:int ->
-  geometry:Pdk_core.Geometry.t ->
-  Pdk_core.Group.t option ->
-  random_selection option -> (Pdk_core.Group.t option, string) result
 type sample_limits =
     No_limits
   | Minimum_only of float array
   | Maximum_only of float array
   | Minimum_and_maximum of float array * float array
-val prepare_limits :
-  int ->
-  numeric_value option ->
-  numeric_value option -> (sample_limits, string) result
-val limit_sample : sample_limits -> int -> Float.t -> Float.t
-val kind_dimension : storage_kind -> int
-val kind_of_dimension : int -> storage_kind
-val planes_of_storage :
-  Pdk_core.Attribute.storage ->
-  (storage_kind * float array array, string) result
-val source_planes :
-  owner:Pdk_core.Attribute.owner ->
-  name:String.t ->
-  Pdk_core.Geometry.t -> (storage_kind * float array array, string) result
-val existing_planes :
-  owner:Pdk_core.Attribute.owner ->
-  name:String.t ->
-  Pdk_core.Geometry.t -> (storage_kind * float array array) option
-val install :
-  owner:Pdk_core.Attribute.owner ->
-  name:string ->
-  storage_kind ->
-  float array array ->
-  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
-val remove_stale_normals : Pdk_core.Geometry.t -> Pdk_core.Geometry.t
-val changed : float array array -> float array array -> bool
-val seed_values :
-  Pdk_core.Attribute.owner ->
-  string option -> Pdk_core.Geometry.t -> (int array option, string) result
-val expected_fraction_dimension : prepared_distribution -> int
-val fraction_values :
-  Pdk_core.Attribute.owner ->
-  String.t option ->
-  int -> Pdk_core.Geometry.t -> (float array array option, string) result
-val sample_linear_knots : (float * float) array -> float -> float
-val normal_quantile : float -> float
-val indexed_uniform :
-  float array array option ->
-  Prismel_math.Rand.t -> int -> int -> int -> float
-val choice_uniform :
-  float array array option -> Prismel_math.Rand.t -> int -> int -> float
-val weighted_choice : float array -> float -> int -> float -> int
-val standard_normal : Prismel_math.Rand.t -> int -> int -> float
-val cauchy_radius_quantile : int -> float -> float
-val cap4_angle : float -> float -> float
-val sample_direction :
-  float array array option ->
-  Prismel_math.Rand.t ->
-  int ->
-  int ->
-  float array ->
-  float array -> float -> float -> float -> float array -> unit
-val sample_inside_sphere :
-  float array array option ->
-  Prismel_math.Rand.t -> int -> int -> int -> float array -> unit
-val sample_prepared :
-  prepared_distribution ->
-  float array array option ->
-  Prismel_math.Rand.t -> int -> int -> Float.t array -> unit
-val randomize_text :
-  ?cancel:Pdk_core.Cancel.t ->
-  grain:int ->
-  selection:Pdk_core.Group.t option ->
-  ?seed_attribute:string ->
-  ?fraction_attribute:String.t ->
-  seed:Prismel_math.Rand.t ->
-  owner:Pdk_core.Attribute.owner ->
-  name:String.t ->
-  operation:random_operation ->
-  scale:float ->
-  minimum:'a option ->
-  maximum:'b option ->
-  values:String.t array ->
-  cumulative:float array ->
-  total:float ->
-  last_positive:int ->
-  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
 val randomize :
   ?cancel:Pdk_core.Cancel.t ->
   grain:int ->
@@ -228,10 +120,6 @@ type noise_coordinates = {
   ny : float array;
   nz : float array;
 }
-val noise_coordinates :
-  owner:Pdk_core.Attribute.owner ->
-  location:noise_location ->
-  Pdk_core.Geometry.t -> (noise_coordinates, string) result
 val noise :
   ?cancel:Pdk_core.Cancel.t ->
   grain:int ->
@@ -250,9 +138,6 @@ val noise :
   lacunarity:float ->
   roughness:float ->
   Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
-val validate_ramp :
-  (float * float) list -> ((float * float) array option, string) result
-val ramp_sample : (float * float) array -> float -> float
 val remap :
   ?cancel:Pdk_core.Cancel.t ->
   grain:int ->

@@ -2,7 +2,7 @@ type queue_clock={mutable epoch:int64;mutable completed:int64;mutable deferred:(
 (* Sentinel for a recorded event wait whose value is not reached yet. *)
 let blocked_message="event value is not reached yet"
 type texture_storage={descriptor:Types.texture_descriptor;levels:bytes array}
-type control={mutable next:int64;queue_clocks:(int64,queue_clock)Hashtbl.t;memory:(int64,bytes)Hashtbl.t;texture_storage:(int64,texture_storage)Hashtbl.t;mutable lost:bool;mutable fail_submission:bool;mutable fail_completion:bool;mutable fail_texture_after:int option;mutable fail_depth_after:int option;mutable fail_configure:bool;mutable trace:string list;mutable buffers:int;mutable textures:int;mutable pipelines:int;mutable queues:int;mutable surfaces:int}
+type control={mutable next:int64;queue_clocks:(int64,queue_clock)Hashtbl.t;memory:(int64,bytes)Hashtbl.t;texture_storage:(int64,texture_storage)Hashtbl.t;lost:bool;mutable fail_submission:bool;mutable fail_completion:bool;mutable fail_texture_after:int option;mutable fail_depth_after:int option;mutable fail_configure:bool;mutable trace:string list;mutable buffers:int;mutable textures:int;mutable pipelines:int;mutable queues:int;mutable surfaces:int}
 let error op kind text=Error(Error.make op kind text)
 let add c text=c.trace<-text::c.trace
 let token c=let value=c.next in c.next<-Int64.succ value;value
@@ -382,12 +382,4 @@ let create ?(capabilities=Caps.minimum_m1)()=
     create_upscaler=(fun ~input:_ ~output:_->unsupported"create_upscaler");
     destroy_device=(fun()->Handle.destroy_device device_handle;add c"destroy-device";Ok())}in
   {Backend.create_device},c
-let inject_device_loss c=c.lost<-true
-let fail_next_submission c=c.fail_submission<-true
-let fail_texture_allocation_after c count=if count<0 then invalid_arg"negative allocation count"else c.fail_texture_after<-Some count
-let fail_depth_allocation_after c count=if count<0 then invalid_arg"negative allocation count"else c.fail_depth_after<-Some count
-let fail_next_configure c=c.fail_configure<-true
-let inject_next_completion_error c=c.fail_completion<-true
-let trace c=List.rev c.trace
-let clear_trace c=c.trace<-[]
 let live_counts c=c.buffers,c.textures,c.pipelines,c.queues,c.surfaces

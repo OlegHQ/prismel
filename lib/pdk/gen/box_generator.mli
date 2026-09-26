@@ -13,22 +13,6 @@ type box_rotation_order =
   | Box_yzx
   | Box_zxy
   | Box_zyx
-val box :
-  ?cancel:Pdk_core.Cancel.t ->
-  ?grain:int ->
-  ?connectivity:box_connectivity ->
-  ?consolidate_points:bool ->
-  ?normals:box_normals ->
-  ?center:Prismel_math.Vec3.t ->
-  ?rotation:Prismel_math.Vec3.t ->
-  ?rotation_order:box_rotation_order ->
-  ?uniform_scale:float ->
-  ?x_divisions:int ->
-  ?y_divisions:int ->
-  ?z_divisions:int ->
-  ?uv_attribute:String.t ->
-  ?face_groups:string ->
-  size:Prismel_math.Vec3.t -> unit -> (Pdk_core.Geometry.t, string) result
 
 val box_checked :
   ?cancel:Pdk_core.Cancel.t -> ?grain:int ->

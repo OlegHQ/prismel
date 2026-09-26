@@ -51,7 +51,6 @@ module Font : sig
       non-empty; otherwise platform candidates are tried in stable order. *)
   val system_path : unit -> (string, error) result
   val generation : t -> int
-  val destroyed : t -> bool
   val metrics : t -> (metrics, error) result
   val family_name : t -> (string option, error) result
   val style_name : t -> (string option, error) result
@@ -88,5 +87,3 @@ module Font : sig
 
   val destroy : t -> (unit, error) result
 end
-
-val drain_release_queue : unit -> (unit, error) result

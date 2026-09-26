@@ -23,9 +23,6 @@ val apply : selected:bool -> t -> string -> bool
     the textual pattern. Unlike {!matches}, this does not infer the initial bit
     from whether the first term is an exclusion. *)
 
-val source : t -> string
-(** Original parameter string. *)
-
 val compile_rewrite :
   pattern:string -> replacement:string -> (rewrite, string) result
 (** Compile one full-name glob and replacement. Each [*], run of [?], or run

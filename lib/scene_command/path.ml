@@ -24,7 +24,6 @@ type error =
   | Complexity_limit
 
 let of_commands commands = Array.copy commands
-let commands path = Array.copy path
 let finite p = Float.is_finite p.x && Float.is_finite p.y
 
 module Points = struct

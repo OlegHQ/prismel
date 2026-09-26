@@ -120,11 +120,6 @@ let require_main operation =
       "SDL3_ttf operation must run on the initial OCaml domain and SDL main thread"
   else Ok ()
 
-let drain_release_queue () =
-  match require_main "SDL3_ttf.drain_release_queue" with
-  | Error _ as failure -> failure
-  | Ok () -> Release_queue.drain (); Ok ()
-
 let on_main operation callback =
   match require_main operation with
   | Error _ as failure -> failure
@@ -186,7 +181,6 @@ module Font = struct
 
   let next_generation = Atomic.make 1
   let generation value = value.generation
-  let destroyed value = value.destroyed
 
   let contains_nul value =
     try ignore (String.index value '\x00'); true with Not_found -> false

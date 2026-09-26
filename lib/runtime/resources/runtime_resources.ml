@@ -34,10 +34,6 @@ module Image=struct
     |Error e->error"Image.load_file"Decode(Format.asprintf"%a"Sdl3_image.pp_error e)
     |Ok surface->Fun.protect~finally:(fun()->ignore(Sdl3.Surface.destroy surface))
       (fun()->of_surface"Image.load_file"surface))
-  let load_bytes ?kind bytes=main"Image.load_bytes"(fun()->match Sdl3_image.load_bytes ?kind (Bytes.copy bytes)with
-    |Error e->error"Image.load_bytes"Decode(Format.asprintf"%a"Sdl3_image.pp_error e)
-    |Ok surface->Fun.protect~finally:(fun()->ignore(Sdl3.Surface.destroy surface))
-      (fun()->of_surface"Image.load_bytes"surface))
   let size x=live"Image.size"x(fun()->Ok(x.width,x.height))
   let gpu_pixels operation x=match x.gpu with
     |None->Ok(Bytes.copy x.rgba)
@@ -45,8 +41,6 @@ module Image=struct
       |Ok bytes->Ok bytes
       |Error e->error operation Io(Ogpu.Error.to_string e))
   let pixels x=live"Image.pixels"x(fun()->gpu_pixels"Image.pixels"x)
-  let snapshot x=live"Image.snapshot"x(fun()->
-    Result.map(fun pixels->x.width,x.height,x.generation,pixels)(gpu_pixels"Image.snapshot"x))
   let leased x bytes=List.memq bytes(List.map fst x.leases)
   let return_canvas_storage x bytes=match List.assq_opt bytes x.canvas_returns with
     |None->false
@@ -309,7 +303,6 @@ module Font=struct
   type t={raw:Sdl3_ttf.Font.t;base_size:float;mutable generation:int;
     mutable density:int;mutable align:alignment;mutable dead:bool}
   let users=ref 0
-  let generation x=x.generation and destroyed x=x.dead
   let live op x f=main op(fun()->if x.dead then error op Destroyed"font is destroyed"else f())
   let ttf op result=match result with Ok x->Ok x|Error e->error op Decode(Format.asprintf"%a"Sdl3_ttf.pp_error e)
   let ensure_init op=match Sdl3_ttf.Init.initialized()with
@@ -366,17 +359,17 @@ end
 module Audio=struct
   type generated={mixed_bytes:int;pcm_f32:bytes}
   type t={mixer:Sdl3_mixer.Mixer.t;channels:Sdl3_mixer.Channels.t;
-    music:Sdl3_mixer.Music.t;mutable master:float;mutable music_volume:float;
+    music:Sdl3_mixer.Music.t;
     mutable dead:bool}
-  and sample={owner:t;identity:string;mutable generation:int;
-    mutable raw:Sdl3_mixer.Audio.t;mutable encoded:bytes;mutable dead:bool}
+  and sample={owner:t;mutable generation:int;
+    mutable raw:Sdl3_mixer.Audio.t;mutable dead:bool}
   let mix_error op e=error op Decode(Format.asprintf"%a"Sdl3_mixer.pp_error e)
   let result op=function Ok x->Ok x|Error e->mix_error op e
   let live op x f=main op(fun()->if x.dead then error op Destroyed"audio owner is destroyed"else f())
   let sample_live op x f=live op x.owner(fun()->if x.dead then error op Destroyed"audio sample is destroyed"else f())
   let attach op ~max_channels mixer=
     match result op(Sdl3_mixer.Channels.create mixer~count:max_channels)with Error e->ignore(Sdl3_mixer.Mixer.destroy mixer);Error e|Ok channel_bank->
-    match result op(Sdl3_mixer.Music.create mixer)with Error e->ignore(Sdl3_mixer.Channels.destroy channel_bank);ignore(Sdl3_mixer.Mixer.destroy mixer);Error e|Ok music->Ok{mixer;channels=channel_bank;music;master=1.;music_volume=1.;dead=false}
+    match result op(Sdl3_mixer.Music.create mixer)with Error e->ignore(Sdl3_mixer.Channels.destroy channel_bank);ignore(Sdl3_mixer.Mixer.destroy mixer);Error e|Ok music->Ok{mixer;channels=channel_bank;music;dead=false}
   let create op ~max_channels mixer=main op(fun()->
     match result op(Sdl3_mixer.Init.init())with Error _ as e->e|Ok()->
     match result op(mixer())with Error _ as e->e|Ok mixer->attach op~max_channels mixer)
@@ -384,10 +377,9 @@ module Audio=struct
   let create_device ~max_channels=create"Audio.create_device"~max_channels Sdl3_mixer.Mixer.create_device
   let channel_count x=Sdl3_mixer.Channels.count x.channels
   let channel_playing x channel=live"Audio.channel_playing"x(fun()->result"Audio.channel_playing"(Sdl3_mixer.Channels.playing x.channels channel))
-  let load_sample_bytes x bytes=live"Audio.load_sample_bytes"x(fun()->match result"Audio.load_sample_bytes"(Sdl3_mixer.Audio.load_bytes x.mixer(Bytes.copy bytes))with Error _ as e->e|Ok raw->Ok{owner=x;identity=Printf.sprintf"sample-%x"(fresh_identity());generation=1;raw;encoded=Bytes.copy bytes;dead=false})
-  let reload_sample_bytes x bytes=sample_live"Audio.reload_sample_bytes"x(fun()->match result"Audio.reload_sample_bytes"(Sdl3_mixer.Audio.reload_bytes x.raw(Bytes.copy bytes))with Error _ as e->e|Ok replacement->ignore(Sdl3_mixer.Audio.destroy x.raw);x.raw<-replacement;x.encoded<-Bytes.copy bytes;x.generation<-x.generation+1;Ok())
-  let sample_identity(x:sample)=x.identity and sample_generation(x:sample)=x.generation and sample_destroyed(x:sample)=x.dead
-  let sample_encoded x=sample_live"Audio.sample_encoded"x(fun()->Ok(Bytes.copy x.encoded))
+  let load_sample_bytes x bytes=live"Audio.load_sample_bytes"x(fun()->match result"Audio.load_sample_bytes"(Sdl3_mixer.Audio.load_bytes x.mixer(Bytes.copy bytes))with Error _ as e->e|Ok raw->Ok{owner=x;generation=1;raw;dead=false})
+  let reload_sample_bytes x bytes=sample_live"Audio.reload_sample_bytes"x(fun()->match result"Audio.reload_sample_bytes"(Sdl3_mixer.Audio.reload_bytes x.raw(Bytes.copy bytes))with Error _ as e->e|Ok replacement->ignore(Sdl3_mixer.Audio.destroy x.raw);x.raw<-replacement;x.generation<-x.generation+1;Ok())
+  let sample_generation(x:sample)=x.generation
   let valid_volume x=Float.is_finite x&&x>=0.&&x<=1.
   let play_sample x ?channel ?(loops=0)?(fade_in_ms=0)?(volume=1.) sample=sample_live"Audio.play_sample"sample(fun()->if not(valid_volume volume)then error"Audio.play_sample"Invalid_argument"volume must be in 0..1"else match result"Audio.play_sample"(Sdl3_mixer.Channels.play x.channels ?channel~loops~fade_in_ms sample.raw)with Error _ as e->e|Ok channel->match result"Audio.play_sample"(Sdl3_mixer.Channels.set_volume x.channels channel volume)with Error _ as e->e|Ok()->Ok channel)
   let stop_channel x channel ?(fade_out_ms=0)()=live"Audio.stop_channel"x(fun()->match result"Audio.stop_channel"(Sdl3_mixer.Channels.stop x.channels channel~fade_out_ms())with Error _ as e->e|Ok()->Ok())
@@ -397,12 +389,10 @@ module Audio=struct
   let pause_music x=live"Audio.pause_music"x(fun()->match result"Audio.pause_music"(Sdl3_mixer.Music.pause x.music)with Error _ as e->e|Ok()->Ok())
   let resume_music x=live"Audio.resume_music"x(fun()->match result"Audio.resume_music"(Sdl3_mixer.Music.resume x.music)with Error _ as e->e|Ok()->Ok())
   let stop_music x ?(fade_out_ms=0)()=live"Audio.stop_music"x(fun()->match result"Audio.stop_music"(Sdl3_mixer.Music.stop x.music~fade_out_ms())with Error _ as e->e|Ok()->Ok())
-  let set_master_volume x volume=live"Audio.set_master_volume"x(fun()->if not(valid_volume volume)then error"Audio.set_master_volume"Invalid_argument"volume must be in 0..1"else match result"Audio.set_master_volume"(Sdl3_mixer.Mixer.set_gain x.mixer volume)with Error _ as e->e|Ok()->x.master<-volume;Ok())
-  let set_music_volume x volume=live"Audio.set_music_volume"x(fun()->if not(valid_volume volume)then error"Audio.set_music_volume"Invalid_argument"volume must be in 0..1"else match result"Audio.set_music_volume"(Sdl3_mixer.Music.set_volume x.music volume)with Error _ as e->e|Ok()->x.music_volume<-volume;Ok())
-  let master_volume x=live"Audio.master_volume"x(fun()->Ok x.master)
-  let music_volume x=live"Audio.music_volume"x(fun()->Ok x.music_volume)
+  let set_master_volume x volume=live"Audio.set_master_volume"x(fun()->if not(valid_volume volume)then error"Audio.set_master_volume"Invalid_argument"volume must be in 0..1"else match result"Audio.set_master_volume"(Sdl3_mixer.Mixer.set_gain x.mixer volume)with Error _ as e->e|Ok()->Ok())
+  let set_music_volume x volume=live"Audio.set_music_volume"x(fun()->if not(valid_volume volume)then error"Audio.set_music_volume"Invalid_argument"volume must be in 0..1"else match result"Audio.set_music_volume"(Sdl3_mixer.Music.set_volume x.music volume)with Error _ as e->e|Ok()->Ok())
   let generate x ~frames=live"Audio.generate"x(fun()->match result"Audio.generate"(Sdl3_mixer.Mixer.generate x.mixer~frames)with Error _ as e->e|Ok generated->Ok{mixed_bytes=generated.mixed_bytes;pcm_f32=Bytes.copy generated.pcm_f32})
-  let destroy_sample (x:sample)=main"Audio.destroy_sample"(fun()->if x.dead then Ok()else match result"Audio.destroy_sample"(Sdl3_mixer.Audio.destroy x.raw)with Error _ as e->e|Ok()->x.dead<-true;x.encoded<-Bytes.empty;Ok())
+  let destroy_sample (x:sample)=main"Audio.destroy_sample"(fun()->if x.dead then Ok()else match result"Audio.destroy_sample"(Sdl3_mixer.Audio.destroy x.raw)with Error _ as e->e|Ok()->x.dead<-true;Ok())
   let destroy x=main"Audio.destroy"(fun()->if x.dead then Ok()else match result"Audio.destroy"(Sdl3_mixer.Music.destroy x.music)with Error _ as e->e|Ok()->match result"Audio.destroy"(Sdl3_mixer.Channels.destroy x.channels)with Error _ as e->e|Ok()->match result"Audio.destroy"(Sdl3_mixer.Mixer.destroy x.mixer)with Error _ as e->e|Ok()->x.dead<-true;ignore(Sdl3_mixer.Init.quit());Ok())
 end
 
@@ -410,6 +400,5 @@ module Assets=struct
   type t={mutable hooks:(unit->(unit,error)result)list;mutable dead:bool}
   let create()={hooks=[];dead=false}
   let borrow x ~destroy value=main"Assets.borrow"(fun()->if x.dead then error"Assets.borrow"Destroyed"assets are destroyed"else(x.hooks<-destroy::x.hooks;Ok value))
-  let count x=List.length x.hooks
   let destroy x=main"Assets.destroy"(fun()->if x.dead then Ok()else let first=ref None in List.iter(fun hook->match hook()with Ok()->()|Error e->if !first=None then first:=Some e)x.hooks;x.hooks<-[];x.dead<-true;match!first with None->Ok()|Some e->Error e)
 end

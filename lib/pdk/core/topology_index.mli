@@ -23,14 +23,10 @@ val topology_data_id : t -> int
 (* Data identity of the topology from which this index was derived. *)
 val point_count : t -> int
 val vertex_count : t -> int
-val primitive_count : t -> int
 val edge_count : t -> int
 
 val primitive_of_vertex : t -> int -> int
 val next_vertex : t -> int -> int
-val previous_vertex : t -> int -> int
-(** Primitive-local neighboring corners. Open-polyline endpoints return [-1]
-    where no neighbor exists. *)
 
 val edge_of_vertex : t -> int -> int
 (** The outgoing undirected edge of a corner, or [-1] for the last corner of

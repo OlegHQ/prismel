@@ -18,7 +18,6 @@ val create :
   (t, Error.t) result
 
 val length : t -> int
-val payload_bytes : t -> int
 
 val nearest :
   ?max_distance:float -> t -> x:float -> y:float -> z:float ->

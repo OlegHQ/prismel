@@ -533,8 +533,6 @@ let create ?x ?y ?width ?height ?theme ?selected ?catalog ?flaggable graph =
       (Edit_graph.of_graph graph) in
   { value with source_graph = Some graph }
 
-let document (value : t) = value.document
-
 let connection_exists document connection =
   match Edit_graph.inputs document ~node_id:connection.Edit_graph.consumer with
   | Some inputs when connection.input_index >= 0
@@ -587,7 +585,6 @@ let with_graph graph value = match value.source_graph with
   | Some _ | None ->
       let value = with_document (Edit_graph.of_graph graph) value in
       { value with source_graph = Some graph }
-let with_catalog catalog value = { value with catalog = catalog_array catalog }
 
 let with_bounds ~x ~y ~width ~height value =
   if width <= 0 || height <= 0 then invalid_arg
@@ -1250,7 +1247,6 @@ let visibility (value : t) =
     overflow_spatial_edges = 0 }
 
 let stats (value : t) = let _, _, stats = visibility value in stats
-
 
 (* -------------------------------------------------------------- painting *)
 

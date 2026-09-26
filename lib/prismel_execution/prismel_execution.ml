@@ -514,14 +514,12 @@ let window operation call value=match ensure operation value with Error _ as e->
   |Window runtime->Result.map_error(fun error->{operation;kind=Backend;
       message=Ogpu.Error.to_string error})(call runtime)
 let show value=window"Prismel_execution.show"Runtime.show value
-let hide value=window"Prismel_execution.hide"Runtime.hide value
 let set_relative_mouse value enabled=window"Prismel_execution.set_relative_mouse"
   (fun runtime->Runtime.set_relative_mouse runtime enabled) value
 let set_cursor value shape=window"Prismel_execution.set_cursor"
   (fun runtime->Runtime.set_cursor runtime shape)value
 let set_text_input_area value area=window"Prismel_execution.set_text_input_area"
   (fun runtime->Runtime.set_text_input_area runtime area)value
-let visible value=window"Prismel_execution.visible"Runtime.visible value
 let snapshot value ~lease_policy ~density source =
   let operation="Prismel_execution.lower_scene2"in
   if density<=0 then fail operation Invalid_argument"density must be positive"else

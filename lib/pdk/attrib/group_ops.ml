@@ -3018,8 +3018,6 @@ let combine ?cancel ?(grain = 16_384) ~owner ~name ~base ~steps geometry =
               store_commit store geometry))
   end
 
-let clamp_index count value = if value <= 0 then 0 else min count value
-
 let range_bounds count = function
   | Range_start_end { start; end_ } -> start, end_
   | Range_from_ends { start; end_offset } ->

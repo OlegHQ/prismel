@@ -1,7 +1,6 @@
 (** Immutable, ownership-free snapshots of Metal shader argument reflection. *)
 
 type limits = { max_depth : int; max_members : int }
-val default_limits : limits
 
 type reflected_type =
   | Scalar of int64

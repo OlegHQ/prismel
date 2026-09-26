@@ -34,10 +34,6 @@ module Keymap : sig
     action : 'action;
   }
 
-  val visible : ('scope, 'action) binding list -> 'scope ->
-    ('scope, 'action) binding list
-  val chord : ('scope, 'action) binding list -> 'scope ->
-    Prismel.Input.key list -> Prismel.Input.key -> 'action option
 end
 
 module Router : sig

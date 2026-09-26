@@ -9,7 +9,6 @@ type t = {
 
 type result_t = t
 
-let source_count value = value.source_count
 let unique_count value = Array.length value.unique_source
 let triangle_count value = Array.length value.triangle_points / 3
 

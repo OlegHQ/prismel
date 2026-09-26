@@ -9,10 +9,6 @@ type outputs = {
 }
 val default_outputs : outputs
 exception Curvature_error of string
-val fail : string -> 'a
-val finite : float -> bool
-val validate_outputs : outputs -> unit
-val existing_float : string -> int -> Pdk_core.Geometry.t -> float array
 val run :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->

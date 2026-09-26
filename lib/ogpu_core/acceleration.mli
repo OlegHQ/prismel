@@ -26,7 +26,6 @@ val destroy : t -> unit
 val id : t -> int64
 val handle : t -> unit Handle.t
 val built : t -> bool
-val refittable : t -> bool
 val descriptor : t -> descriptor
 
 (** Byte layout of one instance record: [size; transform; options; mask;
@@ -37,6 +36,3 @@ val pack_instances : instance_layout -> (float array * int * int * int * int) ar
 val pack_motion_instances : instance_layout ->
   ((int * int * int * int) * (int * int) * (int * int) * (float * float)) array -> bytes
 val pack_transforms : float array array -> bytes
-
-(** The 64-byte default record layout shared by Metal and the mock. *)
-val pack_instances_64 : (float array * int * int) array -> bytes

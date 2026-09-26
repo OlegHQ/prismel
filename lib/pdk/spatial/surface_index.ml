@@ -500,26 +500,6 @@ let create_validated_triangles ?cancel ~grain geometry =
 
 let triangle_count value = Array.length value.primitives
 let node_count value = value.node_count
-let payload_bytes value =
-  let word = Sys.word_size / 8 in
-  ((Array.length value.primitives + Array.length value.vertex_a
-      + Array.length value.vertex_b + Array.length value.vertex_c
-      + Array.length value.order) * word)
-  + ((Array.length value.min_x + Array.length value.min_y + Array.length value.min_z
-      + Array.length value.max_x + Array.length value.max_y
-      + Array.length value.max_z + Array.length value.triangle_min_x
-      + Array.length value.triangle_min_y + Array.length value.triangle_min_z
-      + Array.length value.triangle_max_x + Array.length value.triangle_max_y
-      + Array.length value.triangle_max_z
-      + Array.fold_left (fun count values -> count + Array.length values) 0 value.min_d
-      + Array.fold_left (fun count values -> count + Array.length values) 0 value.max_d
-      + Array.fold_left (fun count values -> count + Array.length values) 0
-          value.triangle_min_d
-      + Array.fold_left (fun count values -> count + Array.length values) 0
-          value.triangle_max_d) * 8)
-  + ((Array.length value.left + Array.length value.right + Array.length value.first
-      + Array.length value.count + Array.length value.common_a
-      + Array.length value.common_b + Array.length value.common_c) * word)
 
 let triangle_bounds_into value triangle output =
   output.(0) <- value.triangle_min_x.(triangle);
@@ -762,16 +742,6 @@ let overlapping_triangle_pairs ?cancel ~grain ~tolerance left_surface
 
 let overlapping_self_triangle_pairs ?cancel ~grain ~tolerance surface =
   overlapping_triangle_pairs_raw ?cancel ~self:true ~exact_plane_filter:false
-    ~skip_shared_points:false ~grain ~tolerance surface surface
-
-let overlapping_triangle_pairs_exact_candidates ?cancel ~grain ~tolerance
-    left_surface right_surface =
-  overlapping_triangle_pairs_raw ?cancel ~self:false ~exact_plane_filter:true
-    ~skip_shared_points:false ~grain ~tolerance left_surface right_surface
-
-let overlapping_self_triangle_pairs_exact_candidates ?cancel ~grain ~tolerance
-    surface =
-  overlapping_triangle_pairs_raw ?cancel ~self:true ~exact_plane_filter:true
     ~skip_shared_points:false ~grain ~tolerance surface surface
 
 let overlapping_self_triangle_pairs_disjoint_topology ?cancel ~grain ~tolerance
@@ -1804,10 +1774,6 @@ module Private = struct
   let[@inline] triangle_primitive value triangle = value.primitives.(triangle)
   let overlapping_triangle_pairs = overlapping_triangle_pairs
   let overlapping_self_triangle_pairs = overlapping_self_triangle_pairs
-  let overlapping_triangle_pairs_exact_candidates =
-    overlapping_triangle_pairs_exact_candidates
-  let overlapping_self_triangle_pairs_exact_candidates =
-    overlapping_self_triangle_pairs_exact_candidates
   let overlapping_self_triangle_pairs_disjoint_topology =
     overlapping_self_triangle_pairs_disjoint_topology
 end

@@ -8,5 +8,3 @@ type stencil_face = { compare:comparison; stencil_fail:stencil_operation; depth_
 type stencil_state = { front:stencil_face; back:stencil_face; front_reference:int32; back_reference:int32 }
 type primitive = Point_list | Line_list | Triangle_list | Triangle_strip
 type index_type = Uint16 | Uint32
-let default_stencil_face = { compare=Always; stencil_fail=Keep; depth_fail=Keep; pass=Keep; read_mask=0xffffffffl; write_mask=0xffffffffl }
-let default_stencil_state = { front=default_stencil_face; back=default_stencil_face; front_reference=0l; back_reference=0l }

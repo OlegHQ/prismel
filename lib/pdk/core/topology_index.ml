@@ -1,7 +1,7 @@
 type t = {
   topology_id : int;
   point_count : int;
-  primitive_count : int;
+
   primitive_of_vertex : int array;
   next_vertex : int array;
   previous_vertex : int array;
@@ -146,7 +146,7 @@ let create_from_point_index ?cancel point_index topology =
   done;
   {
     topology_id = Topology.data_id topology;
-    point_count; primitive_count; primitive_of_vertex; next_vertex;
+    point_count;  primitive_of_vertex; next_vertex;
     previous_vertex; edge_of_vertex; opposite_vertex; edge_a; edge_b;
     edge_slots = table_edges;
     edge_offsets; edge_vertices; point_offsets; point_vertices;
@@ -188,7 +188,6 @@ let create ?cancel topology =
 let point_count value = value.point_count
 let topology_data_id value = value.topology_id
 let vertex_count value = Array.length value.primitive_of_vertex
-let primitive_count value = value.primitive_count
 let edge_count value = Array.length value.edge_a
 
 let get name values index =
@@ -198,7 +197,6 @@ let get name values index =
 
 let primitive_of_vertex value index = get "primitive_of_vertex" value.primitive_of_vertex index
 let next_vertex value index = get "next_vertex" value.next_vertex index
-let previous_vertex value index = get "previous_vertex" value.previous_vertex index
 let edge_of_vertex value index = get "edge_of_vertex" value.edge_of_vertex index
 let opposite_vertex value index = get "opposite_vertex" value.opposite_vertex index
 let edge_points value edge = get "edge_points" value.edge_a edge, value.edge_b.(edge)

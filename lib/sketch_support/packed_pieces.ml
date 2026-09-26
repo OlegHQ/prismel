@@ -16,13 +16,6 @@ type t = {
 let piece_count value = Array.length value.center_x
 let vertex_count value = Array.length value.piece_of_vertex
 
-let payload_bytes value =
-  ((Array.length value.piece_of_vertex
-    + Array.length value.center_x + Array.length value.center_y
-    + Array.length value.center_z + Array.length value.offset_x
-    + Array.length value.offset_y + Array.length value.offset_z) * 8)
-  + (vertex_count value * 4)
-
 let dense_int values =
   let table = Hashtbl.create (max 16 (Array.length values / 4)) in
   let count = ref 0 in

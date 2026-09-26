@@ -34,15 +34,12 @@ module Layout : sig
   val create : config -> t
   val geometry : t -> Prismel.Frame.t -> panes
   val collapsed : t -> column -> bool
-  val with_collapsed : column -> bool -> t -> t
   val toggle : column -> t -> t
   val expand : column -> t -> t
 end
 
 module Chrome : sig
   val update : Layout.t -> Pxui.Ui.t -> Prismel.Frame.t -> Layout.t
-  val floating : Pxui.Ui.t -> ?flags:Pxui.Ui.flags -> Layout.bounds -> string ->
-    Pxui.Ui.box
   (* A pane's PXUI hit ancestor; children keep screen-space coordinates. *)
   val pane_root : Pxui.Ui.t -> Prismel.Frame.t -> bounds:Layout.bounds ->
     string -> Pxui.Ui.box

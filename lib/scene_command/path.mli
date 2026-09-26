@@ -26,8 +26,6 @@ type error =
   | Complexity_limit
 
 val of_commands : command array -> t
-val commands : t -> command array
-val flatten : tolerance:float -> t -> (point array array, error) result
 val tessellate : tolerance:float -> fill_rule:fill_rule -> t -> (mesh, error) result
 
 (** Tessellates the centerline. Degenerate segments are ignored. *)

@@ -295,15 +295,6 @@ let entries : entry list =
       ; feature = Ogpu_core.Caps.Compute_pipeline
       }
   ; Selector
-      { recv = "MTLComputePipelineState"
-      ; sel = "staticThreadgroupMemoryLength"
-      ; args = []
-      ; ret = Some Nsuint
-      ; ocaml = "compute_pipeline_static_threadgroup_memory_length"
-      ; since = Some (10, 13)
-      ; feature = Ogpu_core.Caps.Compute_pipeline
-      }
-  ; Selector
       { recv = "MTLRenderPipelineState"
       ; sel = "supportIndirectCommandBuffers"
       ; args = []

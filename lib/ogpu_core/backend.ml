@@ -243,7 +243,6 @@ let configure (surface:surface) value=
   else match surface.raw.configure value with
     |Error _ as e->e
     |Ok()->surface.configuration<-value;Ok()
-let acquire (surface:surface)=if surface.dead then error"Backend.acquire"Error.Stale_handle"surface is destroyed"else match surface.raw.acquire()with Error _ as e->e|Ok(`Acquired raw)->surface.frames<-surface.frames+1;Ok(`Acquired{raw;surface;consumed=false})|Ok`Timeout->Ok`Timeout|Ok`Occluded->Ok`Occluded|Ok`Device_lost->Ok`Device_lost
 let acquire_sync (surface:surface)=if surface.dead then error"Backend.acquire_sync"Error.Stale_handle"surface is destroyed"else match surface.raw.acquire_sync()with Error _ as e->e|Ok(`Acquired raw)->surface.frames<-surface.frames+1;Ok(`Acquired{raw;surface;consumed=false})|Ok`Timeout->Ok`Timeout|Ok`Occluded->Ok`Occluded|Ok`Device_lost->Ok`Device_lost
 let consume op action (frame:frame)=if frame.consumed then error op Error.Invalid_state"frame is already consumed"else if frame.surface.dead then error op Error.Stale_handle"surface is destroyed"else match action frame.raw with Error _ as e->e|Ok()->frame.consumed<-true;frame.surface.frames<-frame.surface.frames-1;Ok()
 let validate_present op (queue:queue) (source:texture) (frame:frame)=
@@ -591,8 +590,6 @@ let dispatch op (encoder:compute_encoder) grid threadgroup dispatch=
   else dispatch()
 let dispatch_threads encoder ~threads ~threadgroup=
   dispatch"Backend.dispatch_threads"encoder threads threadgroup(fun()->encoder.compute_raw.dispatch_threads ~threads ~threadgroup)
-let dispatch_threadgroups encoder ~threadgroups ~threadgroup=
-  dispatch"Backend.dispatch_threadgroups"encoder threadgroups threadgroup(fun()->encoder.compute_raw.dispatch_threadgroups ~threadgroups ~threadgroup)
 let end_compute (encoder:compute_encoder)=
   let op="Backend.end_compute"in
   match open_compute op encoder with Error _ as e->e|Ok()->
@@ -711,7 +708,6 @@ let create_sampler device descriptor=
   device.children<-device.children+1;
   Ok{sampler_raw=raw;sampler_device=device;sampler_descriptor=descriptor;sampler_dead=false}
 let sampler_descriptor (value:sampler)=value.sampler_descriptor
-let sampler_id (value:sampler)=value.sampler_raw.sampler_token
 let destroy_sampler (value:sampler)=
   if value.sampler_dead then Ok()
   else match value.sampler_raw.destroy_sampler()with Error _ as e->e|Ok()->
@@ -735,16 +731,10 @@ let create_icb device ~max_commands=
   else match device.raw.create_icb ~max_commands with Error _ as e->e|Ok raw->
     device.children<-device.children+1;
     Ok{icb_raw=raw;icb_device=device;icb_capacity=max_commands;icb_dead=false}
-let icb_capacity (value:icb)=value.icb_capacity
 let check_icb op (value:icb) index=
   if value.icb_dead then error op Error.Stale_handle"indirect command buffer is destroyed"
   else if index<0||index>=value.icb_capacity then error op Error.Invalid_argument"indirect command index is out of range"
   else Ok()
-let icb_reset (value:icb) ~location ~length=
-  let op="Backend.icb_reset"in
-  if value.icb_dead then error op Error.Stale_handle"indirect command buffer is destroyed"
-  else if location<0||length<=0||location>value.icb_capacity-length then error op Error.Invalid_argument"indirect command range is out of range"
-  else value.icb_raw.icb_reset ~location ~length
 let icb_set_pipeline (value:icb) ~index (pipeline:pipeline)=
   let op="Backend.icb_set_pipeline"in
   match check_icb op value index with Error _ as e->e|Ok()->
@@ -1092,10 +1082,6 @@ let compute_use_heap (encoder:compute_encoder) heap=
   let op="Backend.compute_use_heap"in
   match open_compute op encoder with Error _ as e->e|Ok()->
   match check_heap op (commands_device encoder.compute_commands) heap with Error _ as e->e|Ok()->encoder.compute_raw.compute_use_heap heap.heap_raw.heap_token
-let render_use_heap (encoder:render_encoder) heap=
-  let op="Backend.render_use_heap"in
-  match open_render op encoder with Error _ as e->e|Ok()->
-  match check_heap op (render_device encoder) heap with Error _ as e->e|Ok()->encoder.render_raw.render_use_heap heap.heap_raw.heap_token
 type residency_allocation=[ `Buffer of buffer | `Texture of texture | `Heap of heap ]
 let create_residency_set device ?(capacity=16) ?label ()=
   let op="Backend.create_residency_set"in

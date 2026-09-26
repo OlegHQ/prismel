@@ -23,13 +23,8 @@ module Settings : sig
 
   val save : sketch:string -> string -> t -> (unit, string) result
   val load : sketch:string -> string -> (t, string) result
-  val decode_legacy : string -> (t, string) result
-  (** Read-only decoder for existing [PXUI1] files. *)
 
   val bool : t -> string -> bool option
   val float : t -> string -> float option
   val int : t -> string -> int option
-  val text : t -> string -> string option
-  val choice : t -> string -> string option
-  val pair : t -> string -> (float * float) option
 end

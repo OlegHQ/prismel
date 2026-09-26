@@ -35,13 +35,9 @@ val build :
     their one-ring neighbor centroid. Constraint and hull points remain fixed;
     every simultaneous move is exact-predicate certified before CDT repair. *)
 
-val point_count : t -> int
 val new_point_count : t -> int
 val triangle_points : t -> int array
 val constraint_points : t -> int array
-val constraint_winding : t -> int array
-val approximate_x : t -> float array
-val approximate_y : t -> float array
 val point_provenance_ref : t -> int -> int
 (** Root value reference for a generated output point. References below the
     initial point count name initial points; later references name provenance
@@ -54,7 +50,6 @@ val provenance_parent_third : t -> int -> int
 val provenance_parent_weights : t -> int -> float * float * float
 
 module Private : sig
-  val point : t -> int -> Implicit_point.t
   val approximate_x : t -> float array
   val approximate_y : t -> float array
   (** Borrowed final projected-coordinate planes for audited adapters. *)

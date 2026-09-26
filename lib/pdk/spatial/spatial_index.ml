@@ -11,8 +11,6 @@ exception Group_error of string
 let finite value = Float.is_finite value
 let maximum_squared_distance = sqrt max_float
 let length value = Array.length value.order
-let payload_bytes value =
-  (Array.length value.order + Array.length value.axes) * (Sys.word_size / 8)
 
 let compare_point coordinates left right =
   let compared = Float.compare coordinates.(left) coordinates.(right) in

@@ -75,11 +75,9 @@ module Builder = struct
 
   let set_clip builder clip =
     if clip <> builder.clip then begin close builder; builder.clip <- clip end
-  let clip builder = builder.clip
 
   let set_xform builder xform =
     if xform <> builder.xform then begin close builder; builder.xform <- xform end
-  let xform builder = builder.xform
 
   (* Untextured instances never split a batch; a second texture does. *)
   let use_texture builder texture =

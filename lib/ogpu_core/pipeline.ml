@@ -10,7 +10,7 @@ type compute_descriptor =
   { backend : string; label : string option; layout : Binding.pipeline_layout
   ; shader : Shader.t; entry : string }
 type kind = Render | Compute
-type t = { kind : kind; backend : string; label : string option; key : string; description : string }
+type t = { kind : kind;   key : string; description : string }
 
 let invalid operation message = Error (Error.make operation Error.Invalid_argument message)
 let valid_text value = value <> "" && not (String.contains value '\000')
@@ -70,11 +70,11 @@ let layout_text layout =
         (String.concat "" (List.map (function Binding.Vertex -> "v" | Fragment -> "f" | Compute -> "c") value.visibility))) in
     String.concat "," values) |> String.concat ";"
 
-let finish kind backend label fields =
+let finish kind fields =
   let output = Buffer.create 192 in
   List.iter (add output) fields;
   let description = Buffer.contents output in
-  { kind; backend; label; description; key = Digest.to_hex (Digest.string description) }
+  { kind;   description; key = Digest.to_hex (Digest.string description) }
 
 let blend_text = function Replace -> "replace" | Alpha -> "alpha" | Add -> "add"
   | Multiply -> "multiply" | Screen -> "screen" | Subtract -> "subtract"
@@ -105,7 +105,7 @@ let create_render ?(blend=Replace) capabilities (descriptor : render_descriptor)
             | Ok () ->
                 let color = match descriptor.color_format with Rgba8_unorm -> "rgba8" | Bgra8_unorm -> "bgra8" in
                 let depth = match descriptor.depth_format with No_depth -> "none" | Depth32_float -> "depth32" | Stencil8 -> "stencil8" | Depth32_float_stencil8 -> "depth32-stencil8" in
-                Ok (finish Render descriptor.backend descriptor.label
+                Ok (finish Render
                   [ "render"; descriptor.backend; Option.value descriptor.label ~default:""
                   ; Shader.provenance_hash descriptor.vertex; descriptor.vertex_entry
                   ; Option.fold ~none:"" ~some:Shader.provenance_hash descriptor.fragment
@@ -125,19 +125,13 @@ let create_compute capabilities (descriptor : compute_descriptor) =
         | Error _ as error -> error
         | Ok () -> match reflection operation descriptor.layout [ descriptor.shader, Shader.Compute ] with
           | Error _ as error -> error
-          | Ok () -> Ok (finish Compute descriptor.backend descriptor.label
+          | Ok () -> Ok (finish Compute
               [ "compute"; descriptor.backend; Option.value descriptor.label ~default:""
               ; Shader.provenance_hash descriptor.shader; descriptor.entry; layout_text descriptor.layout ])
 
 let kind value = value.kind
-let backend value = value.backend
-let label value = value.label
 let cache_key value = value.key
 let description value = value.description
 
 module Private = struct
-  let compute_of_key ?label key =
-    { kind = Compute; backend = "metal"; label; key; description = "library-compute:" ^ key }
-  let render_of_key ?label key =
-    { kind = Render; backend = "metal"; label; key; description = "library-render:" ^ key }
 end

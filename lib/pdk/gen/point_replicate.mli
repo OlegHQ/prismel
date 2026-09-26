@@ -10,16 +10,6 @@ type velocity_stretch =
   | Replicate_scaled_velocity
   | Replicate_velocity_only
 val error : string -> ('a, string) result
-val finite3 : Prismel_math.Vec3.t -> bool
-val fract : float -> float
-val point_int_optional :
-  string -> Pdk_core.Geometry.t -> (int array option, string) result
-val point_float3_optional :
-  string ->
-  Pdk_core.Geometry.t ->
-  (Pdk_core.Packed.Float3.Private.view option, string) result
-val fresh_point_name : string -> Pdk_core.Geometry.t -> string
-val radical_inverse : int -> int -> float
 type sample_scratch = float array
 type quasi_data = {
   offset_u : float array;
@@ -28,24 +18,6 @@ type quasi_data = {
   sequence_v : float array;
   sequence_w : float array;
 }
-val create_sample_scratch : unit -> float array
-val sample_coordinates_into :
-  float array ->
-  quasi:quasi_data option ->
-  seed:Prismel_math.Rand.t ->
-  identity:int -> source:int -> local:int -> count:int -> unit
-val local_shape_into :
-  float array -> shape -> Pdk_core.Packed.Float3.Private.view option -> int
-val make_basis : unit -> Pdk_core.Geometry.t
-val transform_inherited_attributes :
-  ?cancel:Pdk_core.Cancel.t ->
-  grain:int ->
-  pattern:Pdk_core.Attribute_pattern.t option ->
-  prefix:int ->
-  source_map:int array ->
-  counts:int array ->
-  frame_positions:Pdk_core.Packed.Float3.Private.view ->
-  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
 val run :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->

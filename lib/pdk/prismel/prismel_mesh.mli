@@ -7,7 +7,3 @@ open Pdk_core
 
 val to_mesh : ?cancel:Cancel.t -> Geometry.t -> (Prismel.Mesh.t, Error.t) result
 val of_mesh : ?cancel:Cancel.t -> Prismel.Mesh.t -> (Geometry.t, Error.t) result
-val triangle_soup_to_mesh : Packed.Float3.t -> Packed.Float3.t ->
-  (Prismel.Mesh.t, Error.t) result
-(** Convert owned triangle-soup positions and normals without constructing a
-    disposable PDK topology. The packed arrays remain shared and immutable. *)

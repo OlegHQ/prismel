@@ -4,7 +4,6 @@ type error = Text_too_long
 
 val width : int
 val height : int
-val max_text_length : int
 
 (** [glyph_row character row] returns the most-significant-bit-first bitmap
     row for [character]. *)

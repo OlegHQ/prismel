@@ -33,7 +33,6 @@ val create :
   (t, Error.t) result
 val triangle_count : t -> int
 val node_count : t -> int
-val payload_bytes : t -> int
 
 val closest :
   ?max_distance:float -> t -> x:float -> y:float -> z:float ->
@@ -116,16 +115,6 @@ module Private : sig
   (** Return each unordered pair of bounds-overlapping internal triangles once,
       excluding pairs generated from the same source primitive. This removes
       triangulation diagonals before self-intersection narrow-phase testing. *)
-
-  val overlapping_triangle_pairs_exact_candidates :
-    ?cancel:Cancel.t -> grain:int -> tolerance:float -> t -> t ->
-    int array * int array
-  val overlapping_self_triangle_pairs_exact_candidates :
-    ?cancel:Cancel.t -> grain:int -> tolerance:float -> t ->
-    int array * int array
-  (** As above, with an additional filtered-exact triangle/plane rejection.
-      A pair is removed only when one triangle's vertices are all provably on
-      one strict side of the other's supporting plane. *)
 
   val overlapping_self_triangle_pairs_disjoint_topology :
     ?cancel:Cancel.t -> grain:int -> tolerance:float -> t ->

@@ -49,7 +49,6 @@ module Private : sig
     val create : layout -> t
     val geometry : t -> Prismel.Frame.t -> panes
     val collapsed : t -> column -> bool
-    val with_collapsed : column -> bool -> t -> t
     val toggle : column -> t -> t
     val expand : column -> t -> t
 

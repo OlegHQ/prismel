@@ -68,7 +68,6 @@ module Init : sig
 
   val init : ?release:bool -> subsystem list -> (unit, error) result
   val initialized : subsystem list -> (bool, error) result
-  val current_video_driver : unit -> (string option, error) result
   val quit_subsystems : subsystem list -> (unit, error) result
   val quit : unit -> (unit, error) result
 end
@@ -96,7 +95,6 @@ module Window : sig
   val create :
     title:string -> width:int -> height:int -> ?flags:flag list -> unit ->
     (t, error) result
-  val generation : t -> int
   val destroyed : t -> bool
   val id : t -> (int64, error) result
   val size : t -> (int * int, error) result
@@ -140,7 +138,6 @@ module Cursor : sig
   val show : unit -> (unit, error) result
   val hide : unit -> (unit, error) result
   val visible : unit -> (bool, error) result
-  val destroyed : t -> bool
   val destroy : t -> (unit, error) result
 end
 
@@ -475,7 +472,6 @@ module Surface : sig
   val of_rgba :
     width:int -> height:int -> ?stride:int -> bytes -> (t, error) result
 
-  val generation : t -> int
   val destroyed : t -> bool
   val size : t -> (int * int, error) result
   val pitch : t -> (int, error) result
@@ -491,8 +487,6 @@ module Metal_view : sig
   type layer = Native_layer_token.t
 
   val create : Window.t -> (t, error) result
-  val generation : t -> int
-  val destroyed : t -> bool
   val layer : t -> (layer, error) result
   val destroy : t -> (unit, error) result
 end

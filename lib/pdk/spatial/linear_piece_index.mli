@@ -12,15 +12,11 @@ val create :
     and segments non-zero. *)
 
 val piece_count : t -> int
-val payload_bytes : t -> int
 
 module Private : sig
   val kind : t -> int -> kind
   val primitive : t -> int -> int
   val local : t -> int -> int
-  val vertex : t -> int -> int -> int
-  (** Original source vertex number for local piece corner. Segments expose
-      corners 0 and 1; triangles expose 0, 1, and 2. *)
 
   val point : t -> int -> int -> int
   (** Original source point number for a piece corner. *)

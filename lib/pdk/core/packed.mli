@@ -5,9 +5,7 @@ module Int_array : sig
   type t
   val length : t -> int
   val value_count : t -> int
-  val data_id : t -> int
   val payload_bytes : t -> int
-  val row_range : t -> int -> int * int
   val get : t -> int -> int array
   val create_owned : offsets:int array -> values:int array -> (t, string) result
 
@@ -25,9 +23,7 @@ module Float_array : sig
   type t
   val length : t -> int
   val value_count : t -> int
-  val data_id : t -> int
   val payload_bytes : t -> int
-  val row_range : t -> int -> int * int
   val get : t -> int -> float array
   val create_owned :
     offsets:int array -> values:float array -> (t, string) result
@@ -44,7 +40,6 @@ end
 module Float2 : sig
   type t
   val length : t -> int
-  val data_id : t -> int
   val payload_bytes : t -> int
   val get : t -> int -> float * float
   val of_owned : x:float array -> y:float array -> (t, string) result
@@ -85,7 +80,6 @@ end
 module Float4 : sig
   type t
   val length : t -> int
-  val data_id : t -> int
   val payload_bytes : t -> int
   val get : t -> int -> float * float * float * float
   val of_owned :
@@ -100,8 +94,5 @@ module Float4 : sig
       w : float array;
     }
     val view : t -> view
-    val of_shared :
-      x:float array -> y:float array -> z:float array -> w:float array ->
-      (t, string) result
   end
 end

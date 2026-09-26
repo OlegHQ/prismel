@@ -17,8 +17,6 @@ val of_geometry :
   (t, string) result
 
 val piece_count : t -> int
-val vertex_count : t -> int
-val payload_bytes : t -> int
 
 val mesh :
   ?noise_amount:float ->

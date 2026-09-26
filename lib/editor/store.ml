@@ -227,7 +227,4 @@ module Settings = struct
   let bool settings name = find settings name (function Bool v -> Some v | _ -> None)
   let float settings name = find settings name (function Float v -> Some v | _ -> None)
   let int settings name = find settings name (function Int v -> Some v | _ -> None)
-  let text settings name = find settings name (function Text v -> Some v | _ -> None)
-  let choice settings name = find settings name (function Choice v -> Some v | _ -> None)
-  let pair settings name = find settings name (function Pair (x, y) -> Some (x, y) | _ -> None)
 end

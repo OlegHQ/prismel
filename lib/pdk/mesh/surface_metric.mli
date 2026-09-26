@@ -17,14 +17,6 @@ type t = {
   topology_index : Pdk_core.Topology_index.Private.view;
 }
 exception Surface_metric_error of string
-val fail : string -> 'a
-val ceiling_div : int -> int -> int
-val triangulate :
-  ?cancel:Pdk_core.Cancel.t ->
-  grain:int ->
-  positions:Pdk_core.Packed.Float3.Private.view ->
-  topology:Pdk_core.Topology.Private.view ->
-  unit -> int array * int array * int array
 val create :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int -> Pdk_core.Geometry.t -> (t, string) result

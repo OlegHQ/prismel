@@ -87,7 +87,7 @@ type mixer_mode = Device | Memory
 
 type mixer_handle = {
   raw : nativeint;
-  generation : int;
+
   mode : mixer_mode;
   sample_rate : int;
   channels : int;
@@ -151,11 +151,6 @@ let require_main operation =
       "SDL3_mixer operation must run on the initial OCaml domain and SDL main thread"
   else Ok ()
 
-let drain_release_queue () =
-  match require_main "SDL3_mixer.drain_release_queue" with
-  | Error _ as failure -> failure
-  | Ok () -> Release_queue.drain (); Ok ()
-
 let on_main operation callback =
   match require_main operation with
   | Error _ as failure -> failure
@@ -208,14 +203,12 @@ module Mixer = struct
   type format = { sample_rate : int; channels : int }
   type generated = { mixed_bytes : int; pcm_f32 : bytes }
 
-  let generation (value : t) = value.generation
-  let destroyed (value : t) = value.destroyed
   let mode (value : t) = value.mode
 
   let owned raw mode sample_rate channels =
     Atomic.incr live_mixers;
     let value : mixer_handle = {
-      raw; generation = fresh_generation (); mode; sample_rate; channels;
+      raw; mode; sample_rate; channels;
       tracks = Atomic.make 0; audios = Atomic.make 0; destroyed = false;
     } in
     Gc.finalise (fun (value : mixer_handle) ->
@@ -472,11 +465,6 @@ module Track = struct
   let paused (value : t) = live "SDL3_mixer.Track.paused" value (fun raw ->
     Ok (raw_track_paused raw))
 
-  let status (value : t) = live "SDL3_mixer.Track.status" value (fun raw ->
-    if raw_track_paused raw then Ok Paused
-    else if raw_track_playing raw then Ok Playing
-    else Ok Stopped)
-
   let destroy (value : t) = on_main "SDL3_mixer.Track.destroy" (fun () ->
     if value.destroyed then Ok ()
     else begin
@@ -620,6 +608,5 @@ module Music = struct
   let stop = Track.stop
   let playing = Track.playing
   let paused = Track.paused
-  let status = Track.status
   let destroy = Track.destroy
 end

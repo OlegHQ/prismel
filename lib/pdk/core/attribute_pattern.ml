@@ -5,7 +5,7 @@ type atom =
   | Class of { bits : bytes; negated : bool }
 
 type term = { excluded : bool; atoms : atom array }
-type t = { source : string; initially_selected : bool; terms : term array }
+type t = {  initially_selected : bool; terms : term array }
 
 type capture_kind =
   | Capture_star
@@ -26,8 +26,6 @@ type rewrite = {
   replacement_atoms : replacement_atom array;
 }
 type rewrite_set = rewrite array
-
-let source value = value.source
 
 let whitespace = function
   | ' ' | '\t' | '\n' | '\r' | '\012' -> true
@@ -159,7 +157,7 @@ let compile source =
       raw_terms;
     match !failure with
     | Some message -> Error message
-    | None -> Ok { source; initially_selected =
+    | None -> Ok {  initially_selected =
         Array.length terms = 0 || terms.(0).excluded; terms })
 
 let atom_matches atom character = match atom with

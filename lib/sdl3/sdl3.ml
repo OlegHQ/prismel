@@ -237,10 +237,6 @@ module Init = struct
       let requested = mask subsystems in
       Ok (Private_raw.was_init requested land requested = requested))
 
-  let current_video_driver () =
-    on_main "SDL3.Init.current_video_driver" (fun () ->
-      Ok (Private_raw.current_video_driver ()))
-
   let quit_subsystems subsystems =
     on_main "SDL3.Init.quit_subsystems" (fun () ->
       Private_raw.quit_subsystem (mask subsystems);
@@ -270,7 +266,6 @@ module rec Window : sig
   }
   val create : title:string -> width:int -> height:int -> ?flags:flag list -> unit ->
     (t, error) result
-  val generation : t -> int
   val destroyed : t -> bool
   val id : t -> (int64, error) result
   val size : t -> (int * int, error) result
@@ -317,7 +312,6 @@ end = struct
   }
 
   let next_generation = Atomic.make 1
-  let generation value = value.generation
   let destroyed value = value.destroyed
 
   let flag = function
@@ -513,7 +507,6 @@ module Cursor = struct
   type shape = Default | Text | Wait | Crosshair | Progress | Nwse_resize
     | Nesw_resize | Ew_resize | Ns_resize | Move | Not_allowed | Pointer
   type t = { raw : nativeint; mutable destroyed : bool }
-  let destroyed value = value.destroyed
   let code = function Default -> 0 | Text -> 1 | Wait -> 2 | Crosshair -> 3
     | Progress -> 4 | Nwse_resize -> 5 | Nesw_resize -> 6 | Ew_resize -> 7
     | Ns_resize -> 8 | Move -> 9 | Not_allowed -> 10 | Pointer -> 11
@@ -545,8 +538,6 @@ module Metal_view : sig
   type layer = Native_layer_token.t
   type t
   val create : Window.t -> (t, error) result
-  val generation : t -> int
-  val destroyed : t -> bool
   val layer : t -> (layer, error) result
   val destroy : t -> (unit, error) result
 end = struct
@@ -560,8 +551,6 @@ end = struct
   }
 
   let next_generation = Atomic.make 1
-  let generation value = value.generation
-  let destroyed value = value.destroyed
 
   let create window = on_main "SDL3.Metal_view.create" (fun () ->
     if window.Window.destroyed then
@@ -1231,7 +1220,7 @@ end
 module Surface = struct
   type t = {
     raw : nativeint;
-    generation : int;
+
     mutable destroyed : bool;
   }
 
@@ -1242,8 +1231,6 @@ module Surface = struct
     pixels : bytes;
   }
 
-  let next_generation = Atomic.make 1
-  let generation value = value.generation
   let destroyed value = value.destroyed
 
   let checked_layout operation ~width ~height ~stride ~length =
@@ -1273,7 +1260,6 @@ module Surface = struct
   let owned raw =
     let value = {
       raw;
-      generation = Atomic.fetch_and_add next_generation 1;
       destroyed = false;
     } in
     Gc.finalise (fun value ->

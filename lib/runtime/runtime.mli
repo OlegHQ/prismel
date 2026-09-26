@@ -48,13 +48,7 @@ val window_facts : t -> (window_facts, Ogpu.Error.t) result
 (** Cached presentation facts, kept in step with the drawable each frame and
     requeried after title, position, resize or show. *)
 
-val set_title : t -> string -> (unit, Ogpu.Error.t) result
-val set_position : t -> x:int -> y:int -> (unit, Ogpu.Error.t) result
-val center : t -> (unit, Ogpu.Error.t) result
-val set_bordered : t -> bool -> (unit, Ogpu.Error.t) result
 val set_resizable : t -> bool -> (unit, Ogpu.Error.t) result
-val set_always_on_top : t -> bool -> (unit, Ogpu.Error.t) result
-val set_fullscreen : t -> bool -> (unit, Ogpu.Error.t) result
 val set_relative_mouse : t -> bool -> (unit, Ogpu.Error.t) result
 val set_cursor : t -> [`Default|`Horizontal_resize|`Vertical_resize] ->
   (unit, Ogpu.Error.t) result
@@ -65,8 +59,6 @@ val set_text_input_area : t -> ((int * int * int * int) * int) option ->
 val show : t -> (unit, Ogpu.Error.t) result
 val hide : t -> (unit, Ogpu.Error.t) result
 val visible : t -> (bool, Ogpu.Error.t) result
-val minimize : t -> (unit, Ogpu.Error.t) result
-val maximize : t -> (unit, Ogpu.Error.t) result
 val restore : t -> (unit, Ogpu.Error.t) result
 val destroy : t -> (unit, Ogpu.Error.t) result
 type offscreen
@@ -90,11 +82,9 @@ val read_offscreen_into : offscreen -> bytes_per_row:int -> destination:bytes ->
 val resize_offscreen : offscreen -> logical_width:int -> logical_height:int ->
   width:int -> height:int -> (unit,Ogpu.Error.t) result
 val offscreen_stats : offscreen -> stats
-val offscreen_device : offscreen -> (Ogpu.Backend.device,Ogpu.Error.t) result
 
 (** The completed frame's texture on the offscreen device. *)
 val offscreen_target : offscreen -> (Ogpu.Backend.texture,Ogpu.Error.t) result
-val offscreen_facts : offscreen -> frame_facts
 val destroy_offscreen : offscreen -> (unit,Ogpu.Error.t) result
 module Private : sig
   val scene2_textured_direct : string

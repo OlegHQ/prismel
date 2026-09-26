@@ -19,21 +19,18 @@ type 'a key
 
 val float : float array kind
 val int : int array kind
-val int_array : Packed.Int_array.t kind
 val float_array : Packed.Float_array.t kind
 val float2 : Packed.Float2.t kind
 val float3 : Packed.Float3.t kind
 val float4 : Packed.Float4.t kind
 val text : string array kind
 val key : name:string -> owner:owner -> 'a kind -> 'a key
-val key_name : 'a key -> string
 val create_key_owned : 'a key -> 'a -> (t, string) result
 val get : 'a key -> t -> 'a option
 (** Scalar, integer, and text planes are returned as copies. Packed tuple and
     CSR array values are immutable outside their explicitly unsafe [Private]
     views. *)
 
-val position : Packed.Float3.t key
 val normal : owner:owner -> Packed.Float3.t key
 val color : owner:owner -> Packed.Float4.t key
 val tex_coord : owner:owner -> Packed.Float2.t key

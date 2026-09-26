@@ -48,23 +48,6 @@ val fuse :
   ?target:Pdk_core.Geometry.t ->
   Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
 
-val snap_to_grid :
-  ?cancel:Pdk_core.Cancel.t ->
-  ?grain:int ->
-  ?selection:Pdk_core.Group.t ->
-  ?spacing:Prismel_math.Vec3.t ->
-  ?offset:Prismel_math.Vec3.t ->
-  ?rounding:grid_rounding ->
-  ?max_distance:float ->
-  ?fuse_points:bool ->
-  ?position:Fuse_reduce.position ->
-  ?weight_attribute:string ->
-  ?attributes:Fuse_reduce.attributes ->
-  ?attribute_rules:Fuse_reduce.attribute_rule list ->
-  ?group_rules:Fuse_reduce.group_rule list ->
-  ?snapped_group:string ->
-  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
-
 val fuse_checked :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->

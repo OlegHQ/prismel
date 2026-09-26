@@ -53,13 +53,11 @@ type presentation_facts = {
 (* Read-only production-window facts for native qualification tooling. *)
 val presentation_facts : t -> (presentation_facts,error) result
 val show : t -> (unit,error) result
-val hide : t -> (unit,error) result
 val set_relative_mouse : t -> bool -> (unit,error) result
 val set_cursor : t -> [`Default|`Horizontal_resize|`Vertical_resize] ->
   (unit,error) result
 val set_text_input_area : t -> ((int * int * int * int) * int) option ->
   (unit,error) result
-val visible : t -> (bool,error) result
 val resize : t -> logical_width:int -> logical_height:int ->
   drawable_width:int -> drawable_height:int -> (unit,error) result
 val step : ?clear:(float * float * float * float) -> t -> draw list ->

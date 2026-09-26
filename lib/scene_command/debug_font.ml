@@ -2,7 +2,6 @@ type error = Text_too_long
 
 let width = 8
 let height = 8
-let max_text_length = 65_536
 
 (*
    A deliberately small diagnostic face. Printable letters use independently

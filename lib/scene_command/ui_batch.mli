@@ -27,7 +27,6 @@
 type kind = Rect | Textured | Wire | Grid
 
 type xform = { scale : float; tx : float; ty : float }
-val identity : xform
 
 type clip = { x : float; y : float; width : float; height : float }
 
@@ -54,7 +53,6 @@ val empty : t
 
 val kind : t -> int -> kind
 val float : t -> instance:int -> word:int -> float
-val color : t -> instance:int -> word:int -> int32
 
 module Builder : sig
   type batch_table = t
@@ -65,9 +63,7 @@ module Builder : sig
   val length : t -> int
 
   val set_clip : t -> clip option -> unit
-  val clip : t -> clip option
   val set_xform : t -> xform -> unit
-  val xform : t -> xform
 
   val rect :
     t -> x:float -> y:float -> width:float -> height:float ->

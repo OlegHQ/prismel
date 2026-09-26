@@ -16,7 +16,6 @@ let allocate ~device h ~size ~alignment=let op="Ogpu.Memory.allocate"in match Ha
 let coalesce xs=let xs=List.sort(fun a b->Int64.compare a.offset b.offset)xs in List.fold_left(fun acc x->match acc with p::tl when finish p=x.offset->{p with length=Int64.add p.length x.length}::tl|_->x::acc)[]xs|>List.rev
 let free (a:allocation)=let op="Ogpu.Memory.free"in match Handle.validate~operation:op a.handle with Error _ as e->e|Ok()when a.alias||List.exists(fun m->m.active&&m.allocation==a)a.heap.maps->err op Error.Invalid_state"allocation busy"|Ok()->Handle.destroy a.handle;a.heap.live<-List.filter((!=)a)a.heap.live;a.heap.free<-coalesce(a.interval::a.heap.free);Ok()
 let allocation_interval (a:allocation)=a.interval
-let validate_allocation d (a:allocation)=Handle.validate_for~operation:"Ogpu.Memory.validate_allocation"d a.handle
 let begin_alias (a:allocation)=match Handle.validate~operation:"Ogpu.Memory.begin_alias"a.handle with Error _ as e->e|Ok()when a.alias->err"Ogpu.Memory.begin_alias"Error.Invalid_state"already aliasing"|Ok()->a.alias<-true;Ok()
 let end_alias (a:allocation)=match Handle.validate~operation:"Ogpu.Memory.end_alias"a.handle with Error _ as e->e|Ok()when not a.alias->err"Ogpu.Memory.end_alias"Error.Invalid_state"not aliasing"|Ok()->a.alias<-false;Ok()
 let allowed s a=match s,a with Private,_->false|Upload,(Read|Read_write)->false|Readback,(Write|Read_write)->false|_->true
@@ -27,5 +26,4 @@ let mapped_active (m:mapped)=m.active
 let mapped_interval m=if m.active then Ok m.interval else err"Ogpu.Memory.mapped_interval"Error.Stale_handle"inactive"
 let with_mapped_range a ~access ~offset ~length f=match map_range a~access~offset~length with Error _ as e->e|Ok m->Fun.protect~finally:(fun()->if m.active then ignore(unmap m))(fun()->Ok(f m))
 let free_intervals h=h.free
-let live_intervals h=List.map(fun a->a.interval)h.live|>List.sort(fun a b->Int64.compare a.offset b.offset)
 let metadata_count h=List.length h.free+List.length h.live+List.length h.maps

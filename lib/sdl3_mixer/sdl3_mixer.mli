@@ -35,8 +35,6 @@ module Mixer : sig
 
   val create_device : unit -> (t, error) result
   val create_memory : sample_rate:int -> channels:int -> (t, error) result
-  val generation : t -> int
-  val destroyed : t -> bool
   val mode : t -> mode
   val format : t -> (format, error) result
   val set_gain : t -> float -> (unit, error) result
@@ -109,8 +107,5 @@ module Music : sig
   val stop : t -> ?fade_out_ms:int -> unit -> (unit, error) result
   val playing : t -> (bool, error) result
   val paused : t -> (bool, error) result
-  val status : t -> (status, error) result
   val destroy : t -> (unit, error) result
 end
-
-val drain_release_queue : unit -> (unit, error) result

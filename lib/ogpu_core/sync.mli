@@ -17,5 +17,4 @@ val resolve : Handle.device -> query_set -> destination:'a Handle.t -> destinati
 val destroy_fence : fence -> unit
 val destroy_event : event -> unit
 val destroy_query_set : query_set -> unit
-val fence_value : fence -> int64
 val event_value : event -> int64

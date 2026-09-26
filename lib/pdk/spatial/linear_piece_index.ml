@@ -224,21 +224,6 @@ let create ?cancel ?grain ?primitives geometry =
       ~code:"invalid_parameter" message)
 
 let piece_count value = Array.length value.primitives
-let payload_bytes value =
-  let word = Sys.word_size / 8 in
-  ((Array.length value.primitives + Array.length value.locals
-    + Array.length value.vertex_a + Array.length value.vertex_b
-    + Array.length value.vertex_c + Array.length value.order
-    + Array.length value.left + Array.length value.right
-    + Array.length value.first + Array.length value.count) * word)
-  + Bytes.length value.kinds
-  + ((Array.length value.u0 + Array.length value.u1
-    + Array.length value.piece_min_x + Array.length value.piece_min_y
-    + Array.length value.piece_min_z + Array.length value.piece_max_x
-    + Array.length value.piece_max_y + Array.length value.piece_max_z
-    + Array.length value.min_x + Array.length value.min_y
-    + Array.length value.min_z + Array.length value.max_x
-    + Array.length value.max_y + Array.length value.max_z) * 8)
 
 let[@inline always] bounds_overlap tolerance left right_index node left_piece =
   left.piece_min_x.(left_piece) <= right_index.max_x.(node) +. tolerance

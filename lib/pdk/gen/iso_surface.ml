@@ -11,31 +11,15 @@ type sample = float array
 
 module Field = struct
   type t =
-    | Constant of float
-    | Sphere of Vec3.t * float
+
     | Gyroid of float
-    | Metaballs of metaball array
     | Custom of (sample -> float)
-
-  let constant value =
-    if not (Float.is_finite value) then
-      invalid_arg "Iso3.Field.constant: value must be finite";
-    Constant value
-
-  let sphere ~center ~radius =
-    if not (Float.is_finite center.Vec3.x
-            && Float.is_finite center.y && Float.is_finite center.z) then
-      invalid_arg "Iso3.Field.sphere: center must be finite";
-    if not (Float.is_finite radius) || radius <= 0. then
-      invalid_arg "Iso3.Field.sphere: radius must be finite and positive";
-    Sphere (center, radius)
 
   let gyroid ?(scale = 1.) () =
     if not (Float.is_finite scale) || scale = 0. then
       invalid_arg "Iso3.Field.gyroid: scale must be finite and non-zero";
     Gyroid scale
 
-  let metaballs balls = Metaballs (Array.of_list balls)
   let custom field = Custom field
 end
 
@@ -47,39 +31,6 @@ let finite_vec3 point =
   Float.is_finite point.Vec3.x
   && Float.is_finite point.y
   && Float.is_finite point.z
-
-let metaball ?(strength = 1.) ~center ~radius () =
-  if not (finite_vec3 center) then
-    invalid_arg "Iso3.metaball: center must be finite";
-  if not (Float.is_finite radius) || radius <= 0. then
-    invalid_arg "Iso3.metaball: radius must be finite and positive";
-  if not (Float.is_finite strength) || strength <= 0. then
-    invalid_arg "Iso3.metaball: strength must be finite and positive";
-  { center; radius; strength }
-
-let metaballs balls point =
-  List.fold_left
-    (fun total ball ->
-      let distance_sq =
-        Vec3.length_sq (Vec3.sub point ball.center)
-        |> Float.max 1e-18
-      in
-      total
-      +. (ball.strength *. ball.radius *. ball.radius /. distance_sq))
-    0. balls
-
-let sphere ~center ~radius point =
-  if not (Float.is_finite radius) || radius <= 0. then
-    invalid_arg "Iso3.sphere: radius must be finite and positive";
-  radius -. Vec3.distance point center
-
-let gyroid ?(scale = 1.) point =
-  if not (Float.is_finite scale) || scale = 0. then
-    invalid_arg "Iso3.gyroid: scale must be finite and non-zero";
-  let x = point.Vec3.x *. scale
-  and y = point.y *. scale
-  and z = point.z *. scale in
-  (sin x *. cos y) +. (sin y *. cos z) +. (sin z *. cos x)
 
 let extract_with evaluator ?cancel ?(smooth = true)
     ~resolution:(x_cells, y_cells, z_cells) ~min ~max ~iso () =
@@ -116,21 +67,13 @@ let extract_with evaluator ?cancel ?(smooth = true)
     Cancel.check_opt cancel;
     let pz = min.z +. (float_of_int z *. z_step) in
     (match evaluator with
-     | Dense (Field.Constant value) -> Array.fill values 0 plane_stride value
      | Boxed field ->
          iter_plane (fun flat ->
            let x = flat mod x_points and y = flat / x_points in
            values.(flat) <- field (Vec3.create
              (min.x +. (float_of_int x *. x_step))
              (min.y +. (float_of_int y *. y_step)) pz))
-     | Dense (Sphere (center, radius)) ->
-         iter_plane (fun flat ->
-           let x = flat mod x_points and y = flat / x_points in
-           let dx = min.x +. (float_of_int x *. x_step) -. center.x
-           and dy = min.y +. (float_of_int y *. y_step) -. center.y
-           and dz = pz -. center.z in
-           values.(flat) <- radius
-             -. sqrt ((dx *. dx) +. (dy *. dy) +. (dz *. dz)))
+
      | Dense (Gyroid scale) ->
          iter_plane (fun flat ->
            let xi = flat mod x_points and yi = flat / x_points in
@@ -139,22 +82,6 @@ let extract_with evaluator ?cancel ?(smooth = true)
            and z = pz *. scale in
            values.(flat) <-
              (sin x *. cos y) +. (sin y *. cos z) +. (sin z *. cos x))
-     | Dense (Metaballs balls) ->
-         iter_plane (fun flat ->
-           let xi = flat mod x_points and yi = flat / x_points in
-           let px = min.x +. (float_of_int xi *. x_step)
-           and py = min.y +. (float_of_int yi *. y_step) in
-           let total = ref 0. in
-           for index = 0 to Array.length balls - 1 do
-             let ball = balls.(index) in
-             let dx = px -. ball.center.x and dy = py -. ball.center.y
-             and dz = pz -. ball.center.z in
-             let distance_sq = Float.max 1e-18
-                 ((dx *. dx) +. (dy *. dy) +. (dz *. dz)) in
-             total := !total
-               +. (ball.strength *. ball.radius *. ball.radius /. distance_sq)
-           done;
-           values.(flat) <- !total)
      | Dense (Custom field) ->
          iter_plane (fun flat ->
            let x = flat mod x_points and y = flat / x_points in
@@ -485,11 +412,5 @@ let extract_dense ?cancel ?smooth ~resolution ~min ~max ~iso ~field () =
     ~resolution ~min ~max ~iso ()
 
 module Private = struct
-  let extract_packed ?cancel ?smooth ~resolution ~min ~max ~iso ~field () =
-    protect ?cancel (Boxed field) (fun value -> Ok value) ?smooth
-      ~resolution ~min ~max ~iso ()
 
-  let extract_dense_packed ?cancel ?smooth ~resolution ~min ~max ~iso ~field () =
-    protect ?cancel (Dense field) (fun value -> Ok value) ?smooth
-      ~resolution ~min ~max ~iso ()
 end

@@ -9,5 +9,3 @@ type stencil_face = { compare:comparison; stencil_fail:stencil_operation; depth_
 type stencil_state = { front:stencil_face; back:stencil_face; front_reference:int32; back_reference:int32 }
 type primitive = Point_list | Line_list | Triangle_list | Triangle_strip
 type index_type = Uint16 | Uint32
-val default_stencil_face : stencil_face
-val default_stencil_state : stencil_state
