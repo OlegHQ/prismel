@@ -2853,3 +2853,18 @@ let carve ?cancel ?grain ?primitives ?relative_arc_length ?first ?last
     | Inside | Outside | Inside_and_outside as mode ->
         carve_cut ?cancel ?grain ?primitives ?relative_arc_length ?first ?last
           ?first_attribute ?last_attribute ?attribute_mode ~divisions mode geometry
+
+let carve_curves ?cancel ?grain ?primitives ?relative_arc_length ?first
+    ?last ?first_attribute ?last_attribute ?(attribute_mode = Replace)
+    ?(only_at_breakpoints = false) ?(cut_at_all_internal_breakpoints = false)
+    ?(keep = Inside) ?extract_points:(extract = false) ?divisions ?keep_original
+    geometry =
+  Error.guard ~operation:"carve_curves" ~code:"invalid_geometry" @@ fun () ->
+  if extract then
+    extract_points ?cancel ?grain ?primitives ?relative_arc_length ?first ?last
+      ?first_attribute ?last_attribute ~attribute_mode ~only_at_breakpoints
+      ~cut_at_all_internal_breakpoints ?divisions ?keep_original geometry
+  else
+    carve ?cancel ?grain ?primitives ?relative_arc_length ?first ?last
+      ?first_attribute ?last_attribute ~attribute_mode ~only_at_breakpoints
+      ~cut_at_all_internal_breakpoints ?divisions ~mode:keep geometry

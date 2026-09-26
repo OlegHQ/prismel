@@ -4,4 +4,4 @@ val run :
   ?segments_attribute:string -> ?even_last_segment:bool ->
   ?curve_u_attribute:string -> ?curve_number_attribute:string ->
   ?distance_attribute:string -> ?tangent_attribute:string -> Geometry.t ->
-  (Geometry.t, string) result
+  (Geometry.t, Error.t) result

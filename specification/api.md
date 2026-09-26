@@ -522,9 +522,9 @@ The checked packed operations are `Pdk.Bound.run_checked`,
 `Pdk.Bound.bounding_box_checked`, `Pdk.Match_size.run_checked`, and
 `Pdk.Match_size.match_axis_checked`; their shape and fit constructors live in
 those family modules.
-Packed curve modeling uses `Pdk.Curve_modeling.resample_curves_checked`,
-`carve_curves_checked`, and `sweep_circle_checked`, with carve modes and
-attribute modes in the same family.
+Packed curve modeling uses `Pdk.Resample_curves.run`,
+`Pdk.Curve_ops.carve_curves` (with its `cut_mode` and
+`parameter_attribute_mode`), and `Pdk.Sweep_circle.run`.
 Packed queries use `Pdk.Ray.run`, `Pdk.Point_split.run_checked`, and
 `Pdk.Intersection_analysis.run_checked`; ray options and constructors live in
 `Pdk.Ray`. These entries preserve the typed validation and cancellation

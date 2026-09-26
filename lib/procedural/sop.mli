@@ -1424,9 +1424,9 @@ val convert_line :
 val carve :
   ?label:string -> ?group:string -> ?relative_arc_length:bool -> ?first:float ->
   ?last:float -> ?first_attribute:string -> ?last_attribute:string ->
-  ?attribute_mode:Pdk.Curve_modeling.carve_attribute_mode ->
+  ?attribute_mode:Pdk.Curve_ops.parameter_attribute_mode ->
   ?only_at_breakpoints:bool -> ?cut_at_all_internal_breakpoints:bool ->
-  ?keep:Pdk.Curve_modeling.carve_keep -> ?extract_points:bool -> ?divisions:int ->
+  ?keep:Pdk.Curve_ops.cut_mode -> ?extract_points:bool -> ?divisions:int ->
   ?keep_original:bool -> Node.t -> Node.t
 val ends :
   ?label:string -> ?group:string -> Pdk.Curve_topology.ends_mode -> Node.t -> Node.t

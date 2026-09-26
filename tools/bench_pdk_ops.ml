@@ -475,7 +475,7 @@ let run_tube_reference_benchmark () =
     Line_geometry.line_checked ~grain ~kind:Line_geometry.Line_curve ~points:1_000
       ~origin:(Vec3.create 0. (-25.) 0.) ~direction:Vec3.unit_y ~length:50. ()
     |> get_ok
-    |> Curve_modeling.sweep_circle_checked ~grain ~sides:1_000 ~radius:8.
+    |> Sweep_circle.run ~grain ~sides:1_000 ~radius:8.
     |> get_ok) geometry_output
 
 let run_tube_generator_benchmarks () =
@@ -613,7 +613,7 @@ let run_polywire_benchmarks () =
       t, sin (t *. 0.19) *. 2., cos (t *. 0.13) *. 1.5)
     |> Line_geometry.polyline_checked |> get_ok in
   measure ~input_points:source_points "polywire_long_spine" (fun () ->
-    Curve_modeling.sweep_circle_checked ~grain ~sides:12 ~radius:0.08 source |> get_ok)
+    Sweep_circle.run ~grain ~sides:12 ~radius:0.08 source |> get_ok)
     geometry_output;
   let add name storage geometry = Attribute.create_owned
       ~owner:Attribute.Point ~name storage |> get_ok
@@ -630,7 +630,7 @@ let run_polywire_benchmarks () =
              ~y:(Array.make source_points 1.) ~z:(Array.init source_points
                (fun point -> 0.15 *. cos (float_of_int point *. 0.0009))))) in
   measure ~input_points:source_points "polywire_long_spine_controls" (fun () ->
-    Curve_modeling.sweep_circle_checked ~grain ~sides:12 ~scale_attribute:"wire_scale"
+    Sweep_circle.run ~grain ~sides:12 ~scale_attribute:"wire_scale"
       ~seam_offset:(-3) ~seam_attribute:"wire_seam" ~v_attribute:"wire_v"
       ~up_attribute:"wire_up" ~caps:true ~cap_group:"caps" ~radius:0.08
       controlled |> get_ok) geometry_output;
@@ -647,13 +647,13 @@ let run_polywire_benchmarks () =
          (fun point -> 0.75 +. (0.25 *. sin (float_of_int point *. 0.0021))))) in
   measure ~input_points:variable_points
     "polywire_variable_divisions_segments" (fun () ->
-      Curve_modeling.sweep_circle_checked ~grain ~sides:12 ~divisions_attribute:"wire_divisions"
+      Sweep_circle.run ~grain ~sides:12 ~divisions_attribute:"wire_divisions"
         ~segments_attribute:"wire_segments" ~scale_attribute:"wire_scale"
         ~caps:true ~cap_group:"caps" ~radius:0.08 variable |> get_ok)
     geometry_output;
   measure ~input_points:variable_points
     "polywire_variable_segment_uv_controls" (fun () ->
-      Curve_modeling.sweep_circle_checked ~grain ~sides:12 ~divisions_attribute:"wire_divisions"
+      Sweep_circle.run ~grain ~sides:12 ~divisions_attribute:"wire_divisions"
         ~segments_attribute:"wire_segments" ~segment_scales:(0.18,0.82)
         ~u_range:(-0.5,1.5) ~v_range:(2.,7.)
         ~scale_attribute:"wire_scale" ~caps:true ~cap_group:"caps"
@@ -666,7 +666,7 @@ let run_polywire_benchmarks () =
       |> get_ok in
   measure ~input_points:variable_points
     "polywire_variable_segment_seam" (fun () ->
-      Curve_modeling.sweep_circle_checked ~grain ~sides:12 ~divisions_attribute:"wire_divisions"
+      Sweep_circle.run ~grain ~sides:12 ~divisions_attribute:"wire_divisions"
         ~segments_attribute:"wire_segments" ~scale_attribute:"wire_scale"
         ~segment_seam_attribute:"segment_seam" ~caps:true ~cap_group:"caps"
         ~radius:0.08 variable_segment_seam |> get_ok) geometry_output;
@@ -679,11 +679,11 @@ let run_polywire_benchmarks () =
          (fun point -> 1.15 +. (0.35 *. float_of_int (point mod 17) /. 16.)))) in
   measure ~input_points:variable_points
     "polywire_sharp_joints_baseline" (fun () ->
-      Curve_modeling.sweep_circle_checked ~grain ~sides:12 ~segments:2 ~radius:0.025 sharp
+      Sweep_circle.run ~grain ~sides:12 ~segments:2 ~radius:0.025 sharp
       |> get_ok) geometry_output;
   measure ~input_points:variable_points
     "polywire_sharp_joints_buckling" (fun () ->
-      Curve_modeling.sweep_circle_checked ~grain ~sides:12 ~segments:2
+      Sweep_circle.run ~grain ~sides:12 ~segments:2
         ~prevent_joint_buckling:true
         ~maximum_joint_scale_attribute:"joint_limit" ~radius:0.025 sharp
       |> get_ok) geometry_output;
@@ -693,7 +693,7 @@ let run_polywire_benchmarks () =
                && point mod 257 = 0 then 0. else 1.))) in
   measure ~input_points:variable_points
     "polywire_smooth_runs" (fun () ->
-      Curve_modeling.sweep_circle_checked ~grain ~sides:12 ~segments:2
+      Sweep_circle.run ~grain ~sides:12 ~segments:2
         ~smooth_attribute:"wire_smooth" ~radius:0.025 smooth_runs |> get_ok)
     geometry_output
 
@@ -804,11 +804,11 @@ let run_resample_benchmarks () =
       (1.5 *. cos (t *. 0.13)) +. (0.08 *. sin (t *. 3.1)))
     |> Line_geometry.polyline_checked |> get_ok in
   measure ~input_points:source_points "resample_long_spine" (fun () ->
-    Curve_modeling.resample_curves_checked ~grain ~segments:1_000_000 source |> get_ok)
+    Resample_curves.run ~grain ~segments:1_000_000 source |> get_ok)
     geometry_output;
   measure ~input_points:source_points
     "resample_long_spine_length_diagnostics" (fun () ->
-      Curve_modeling.resample_curves_checked ~grain ~maximum_segment_length:0.0001
+      Resample_curves.run ~grain ~maximum_segment_length:0.0001
         ~even_last_segment:false ~curve_u_attribute:"curveu"
         ~curve_number_attribute:"curvenum" ~distance_attribute:"distance"
         ~tangent_attribute:"tangent" source |> get_ok)
@@ -5479,10 +5479,10 @@ let () =
   let many_curve_spines = Geometry.with_attribute wire_scale modeling_grid
       |> get_ok |> Curve_topology.convert_line ~grain |> get_ok in
   measure "sweep_many_curves" (fun () ->
-    Curve_modeling.sweep_circle_checked ~grain ~sides:8 ~scale_attribute:"wire_scale"
+    Sweep_circle.run ~grain ~sides:8 ~scale_attribute:"wire_scale"
       ~radius:0.025 many_curve_spines |> get_ok) geometry_output;
   measure "sweep_caps_many_curves" (fun () ->
-    Curve_modeling.sweep_circle_checked ~grain ~sides:8 ~scale_attribute:"wire_scale" ~caps:true
+    Sweep_circle.run ~grain ~sides:8 ~scale_attribute:"wire_scale" ~caps:true
       ~cap_group:"caps" ~radius:0.025 many_curve_spines |> get_ok)
     geometry_output;
   if benchmark_filter = Some "sweep_many" then exit 0;
@@ -6122,7 +6122,7 @@ let () =
     (t, sin (t *. 2.3), cos (t *. 1.7) *. 0.5))
     |> Line_geometry.polyline_checked |> get_ok in
   measure "sweep_circle" (fun () ->
-    Curve_modeling.sweep_circle_checked ~sides:12 ~radius:0.08 curve |> get_ok) geometry_output;
+    Sweep_circle.run ~sides:12 ~radius:0.08 curve |> get_ok) geometry_output;
   let dense_curve_values = Array.init curve_points (fun index ->
       let t = float_of_int index *. 0.001 in
       t, sin (t *. 0.19), cos (t *. 0.07) *. 0.5) in
@@ -6175,22 +6175,22 @@ let () =
     Subdivide.subdivide ~grain ~scheme:Subdivide.Bilinear segmented_curves |> get_ok)
     geometry_output;
   measure "curve_carve_relative" (fun () ->
-    Curve_modeling.carve_curves_checked ~grain ~first:0.137 ~last:0.863 dense_curve |> get_ok)
+    Curve_ops.carve_curves ~grain ~first:0.137 ~last:0.863 dense_curve |> get_ok)
     geometry_output;
   measure "curve_carve_divided" (fun () ->
-    Curve_modeling.carve_curves_checked ~grain ~first:0.137 ~last:0.863 ~divisions:1_024
+    Curve_ops.carve_curves ~grain ~first:0.137 ~last:0.863 ~divisions:1_024
       dense_curve |> get_ok) geometry_output;
   measure "curve_carve_extract_points" (fun () ->
-    Curve_modeling.carve_curves_checked ~grain ~first:0.137 ~last:0.863 ~extract_points:true
+    Curve_ops.carve_curves ~grain ~first:0.137 ~last:0.863 ~extract_points:true
       ~divisions:100_001 dense_curve |> get_ok) geometry_output;
   measure "curve_carve_all_pieces" (fun () ->
-    Curve_modeling.carve_curves_checked ~grain ~first:0.137 ~last:0.863
-      ~keep:Curve_modeling.Keep_inside_and_outside dense_curve |> get_ok) geometry_output;
+    Curve_ops.carve_curves ~grain ~first:0.137 ~last:0.863
+      ~keep:Curve_ops.Inside_and_outside dense_curve |> get_ok) geometry_output;
   measure "curve_carve_breakpoint_interval" (fun () ->
-    Curve_modeling.carve_curves_checked ~grain ~first:0.137 ~last:0.863
+    Curve_ops.carve_curves ~grain ~first:0.137 ~last:0.863
       ~only_at_breakpoints:true dense_curve |> get_ok) geometry_output;
   measure "curve_carve_all_breakpoints" (fun () ->
-    Curve_modeling.carve_curves_checked ~grain ~first:0. ~last:1. ~only_at_breakpoints:true
+    Curve_ops.carve_curves ~grain ~first:0. ~last:1. ~only_at_breakpoints:true
       ~cut_at_all_internal_breakpoints:true dense_curve |> get_ok)
     geometry_output;
   let carve_grid = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads ~columns:400 ~rows:400
@@ -6206,7 +6206,7 @@ let () =
       |> get_ok in
   measure ~input_points:(Geometry.point_count grouped_carve_source)
     "curve_carve_grouped" (fun () ->
-      Curve_modeling.carve_curves_checked ~grain ~primitives:grouped_carve_selection ~first:0.137
+      Curve_ops.carve_curves ~grain ~primitives:grouped_carve_selection ~first:0.137
         ~last:0.863 grouped_carve_source |> get_ok) geometry_output;
   let closed_dense_curve = Line_geometry.polyline_checked ~closed:true dense_curve_values |> get_ok
       |> Geometry.with_attribute curve_weight |> get_ok
@@ -6289,7 +6289,7 @@ let () =
       |> Geometry.with_attribute first_u |> get_ok
       |> Geometry.with_attribute second_u |> get_ok in
   measure ~input_points:join_points "curve_carve_primitive_parameters" (fun () ->
-    Curve_modeling.carve_curves_checked ~grain ~first_attribute:"first_u"
+    Curve_ops.carve_curves ~grain ~first_attribute:"first_u"
       ~last_attribute:"second_u" attributed_curves |> get_ok) geometry_output;
   measure "curve_join_ordered" (fun () ->
     Curve_topology.join_curves ~grain join_source |> get_ok) geometry_output;

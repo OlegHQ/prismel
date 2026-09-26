@@ -134,7 +134,7 @@ let check_controls () =
       |> with_int "seam" [|0; 1|]
       |> with_float "vcoord" [|2.; 5.|]
       |> with_float3 "up" ~x:[|0.; 0.|] ~y:[|1.; 1.|] ~z:[|0.; 0.|] in
-  let wire = Curve_modeling.sweep_circle_checked ~grain:1 ~sides:4 ~scale_attribute:"scale"
+  let wire = Sweep_circle.run ~grain:1 ~sides:4 ~scale_attribute:"scale"
       ~seam_attribute:"seam" ~v_attribute:"vcoord" ~up_attribute:"up"
       ~radius:1. source |> get_ok in
   let positions = Packed.Float3.Private.view (Geometry.positions wire)
@@ -151,7 +151,7 @@ let check_controls () =
   check (near uv.y.(0) 2. && near uv.y.(1) 2.
       && near uv.y.(2) 5. && near uv.y.(3) 5.)
     "V texture attribute did not override side coordinates";
-  let shifted = Curve_modeling.sweep_circle_checked ~sides:4 ~seam_offset:max_int
+  let shifted = Sweep_circle.run ~sides:4 ~seam_offset:max_int
       ~up_attribute:"up" ~radius:1. source |> get_ok in
   check (Geometry.point_count shifted = 8)
     "large snapped seam offset failed safe normalization"
@@ -185,7 +185,7 @@ let check_closed_frame () =
       radius *. cos (2. *. t), 0.45 *. sin (3. *. t),
       radius *. sin (2. *. t)) in
   let source = Line_geometry.polyline_checked ~closed:true source_values |> get_ok in
-  let wire = Curve_modeling.sweep_circle_checked ~sides:8 ~radius:0.1 source |> get_ok in
+  let wire = Sweep_circle.run ~sides:8 ~radius:0.1 source |> get_ok in
   let normals = float3_attribute ~owner:Attribute.Point wire "N" in
   let point index = let x, y, z = source_values.(index) in x, y, z in
   let x_prev, y_prev, z_prev = point (count - 2)
@@ -206,42 +206,42 @@ let check_closed_frame () =
 
 let check_validation () =
   let line = Line_geometry.polyline_checked [|(0., 0., 0.); (1., 0., 0.)|] |> get_ok in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~scale_attribute:" " ~radius:0.1 line);
-  expect_invalid (Curve_modeling.sweep_circle_checked ~seam_attribute:"missing" ~radius:0.1 line);
-  expect_invalid (Curve_modeling.sweep_circle_checked ~v_attribute:"missing" ~radius:0.1 line);
-  expect_invalid (Curve_modeling.sweep_circle_checked ~up_attribute:"missing" ~radius:0.1 line);
+  expect_invalid (Sweep_circle.run ~scale_attribute:" " ~radius:0.1 line);
+  expect_invalid (Sweep_circle.run ~seam_attribute:"missing" ~radius:0.1 line);
+  expect_invalid (Sweep_circle.run ~v_attribute:"missing" ~radius:0.1 line);
+  expect_invalid (Sweep_circle.run ~up_attribute:"missing" ~radius:0.1 line);
   let wrong_seam = with_float "seam" [|0.; 0.|] line in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~seam_attribute:"seam" ~radius:0.1 wrong_seam);
+  expect_invalid (Sweep_circle.run ~seam_attribute:"seam" ~radius:0.1 wrong_seam);
   let wrong_v = with_int "v" [|0; 1|] line in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~v_attribute:"v" ~radius:0.1 wrong_v);
+  expect_invalid (Sweep_circle.run ~v_attribute:"v" ~radius:0.1 wrong_v);
   let wrong = with_float "up" [|1.; 1.|] line in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~up_attribute:"up" ~radius:0.1 wrong);
+  expect_invalid (Sweep_circle.run ~up_attribute:"up" ~radius:0.1 wrong);
   let parallel = with_float3 "up" ~x:[|1.; 1.|] ~y:[|0.; 0.|]
       ~z:[|0.; 0.|] line in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~up_attribute:"up" ~radius:0.1 parallel);
+  expect_invalid (Sweep_circle.run ~up_attribute:"up" ~radius:0.1 parallel);
   let huge_up = with_float3 "up" ~x:[|0.; 0.|]
       ~y:[|max_float; max_float|] ~z:[|0.; 0.|] line in
-  let huge_up_wire = Curve_modeling.sweep_circle_checked ~up_attribute:"up" ~radius:0.1 huge_up
+  let huge_up_wire = Sweep_circle.run ~up_attribute:"up" ~radius:0.1 huge_up
       |> get_ok in
   let huge_normals = float3_attribute ~owner:Attribute.Point huge_up_wire "N" in
   check (near huge_normals.y.(0) 1.)
     "scale-safe joint-up normalization rejected a finite large vector";
   let invalid_v = with_float "v" [|0.; Float.nan|] line in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~v_attribute:"v" ~radius:0.1 invalid_v);
+  expect_invalid (Sweep_circle.run ~v_attribute:"v" ~radius:0.1 invalid_v);
   let extreme_seams = with_int "seam" [|min_int; max_int|] line in
-  ignore (Curve_modeling.sweep_circle_checked ~seam_offset:min_int ~seam_attribute:"seam"
+  ignore (Sweep_circle.run ~seam_offset:min_int ~seam_attribute:"seam"
       ~radius:0.1 extreme_seams |> get_ok);
   let overflowing = with_float "scale" [|2.; 2.|] line in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~scale_attribute:"scale" ~radius:max_float
+  expect_invalid (Sweep_circle.run ~scale_attribute:"scale" ~radius:max_float
       overflowing);
-  expect_invalid (Curve_modeling.sweep_circle_checked ~cap_group:"caps" ~radius:0.1 line);
-  expect_invalid (Curve_modeling.sweep_circle_checked ~caps:true ~cap_group:" " ~radius:0.1 line);
+  expect_invalid (Sweep_circle.run ~cap_group:"caps" ~radius:0.1 line);
+  expect_invalid (Sweep_circle.run ~caps:true ~cap_group:" " ~radius:0.1 line);
   let repeated = Line_geometry.polyline_checked
       [|(0., 0., 0.); (1., 0., 0.); (1., 0., 0.); (2., 0., 0.)|] |> get_ok in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~radius:0.1 repeated);
+  expect_invalid (Sweep_circle.run ~radius:0.1 repeated);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Curve_modeling.sweep_circle_checked ~cancel:cancelled ~radius:0.1 line with
+  (match Sweep_circle.run ~cancel:cancelled ~radius:0.1 line with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "PolyWire ignored cancellation")
 
@@ -260,7 +260,7 @@ let check_parallel_exact () =
              0.2 *. cos (float_of_int point *. 0.013)))
       |> Group_mesh.group_edges_checked ~grain:257 ~name:"spine_edges" |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
-      Curve_modeling.sweep_circle_checked ~grain:257 ~sides:12 ~scale_attribute:"scale"
+      Sweep_circle.run ~grain:257 ~sides:12 ~scale_attribute:"scale"
         ~seam_offset:(-3) ~seam_attribute:"seam" ~v_attribute:"vcoord"
         ~up_attribute:"up" ~caps:true ~cap_group:"caps" ~radius:0.08 source
       |> get_ok) in
@@ -331,7 +331,7 @@ let check_variable_topology_and_selection () =
   let selection = Geometry.find_group ~owner:Group.Primitive "wire" source
       |> Option.get in
   let run domains = Parallel.run ~domains (fun () ->
-    Curve_modeling.sweep_circle_checked ~grain:2 ~primitives:selection ~sides:4
+    Sweep_circle.run ~grain:2 ~primitives:selection ~sides:4
       ~divisions_attribute:"div" ~segments_attribute:"seg" ~caps:true
       ~cap_group:"caps" ~radius:0.25 source |> get_ok) in
   let one = run 1 and four = run 4 in
@@ -433,31 +433,31 @@ let check_variable_validation () =
       |> Option.get in
   let empty = Group.init ~owner:Group.Primitive ~name:"empty" 2
       (Fun.const false) in
-  let identity = Curve_modeling.sweep_circle_checked ~primitives:empty ~segments:2 ~radius:0.1 source
+  let identity = Sweep_circle.run ~primitives:empty ~segments:2 ~radius:0.1 source
       |> get_ok in
   check (identity == source) "empty PolyWire selection did not preserve identity";
-  let identity_missing = Curve_modeling.sweep_circle_checked ~primitives:empty
+  let identity_missing = Sweep_circle.run ~primitives:empty
       ~divisions_attribute:"absent" ~radius:0.1 source |> get_ok in
   check (identity_missing == source)
     "empty PolyWire selection resolved unused attributes";
   let wrong_owner = Group.init ~owner:Group.Point ~name:"wrong" 5
       (Fun.const true) in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~primitives:wrong_owner ~segments:2
+  expect_invalid (Sweep_circle.run ~primitives:wrong_owner ~segments:2
       ~radius:0.1 source);
-  expect_invalid (Curve_modeling.sweep_circle_checked ~primitives:selection
+  expect_invalid (Sweep_circle.run ~primitives:selection
       ~divisions_attribute:"missing" ~radius:0.1 source);
   let bad_div = with_int "bad_div" [|2;6;5;5;5|] source in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~primitives:selection
+  expect_invalid (Sweep_circle.run ~primitives:selection
       ~divisions_attribute:"bad_div" ~radius:0.1 bad_div);
   let ignored_div = with_int "ignored_div" [|4;6;2;5;5|] source in
-  ignore (Curve_modeling.sweep_circle_checked ~primitives:selection
+  ignore (Sweep_circle.run ~primitives:selection
       ~divisions_attribute:"ignored_div" ~radius:0.1 ignored_div |> get_ok);
   let bad_seg = with_int "bad_seg" [|0;1;1;1;1|] source in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~primitives:selection
+  expect_invalid (Sweep_circle.run ~primitives:selection
       ~segments_attribute:"bad_seg" ~radius:0.1 bad_seg);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Curve_modeling.sweep_circle_checked ~cancel:cancelled ~primitives:selection ~segments:2
+  (match Sweep_circle.run ~cancel:cancelled ~primitives:selection ~segments:2
       ~radius:0.1 source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "variable PolyWire ignored cancellation")
@@ -468,9 +468,9 @@ let check_scoped_fixed_compatibility () =
       |> get_ok |> with_float "weight" [|0.;0.3;0.7;1.|] in
   let all = Group.init ~owner:Group.Primitive ~name:"all" 1 (Fun.const true) in
   let source = Geometry.with_group all source |> get_string in
-  let legacy = Curve_modeling.sweep_circle_checked ~grain:1 ~sides:7 ~caps:true
+  let legacy = Sweep_circle.run ~grain:1 ~sides:7 ~caps:true
       ~cap_group:"caps" ~radius:0.13 source |> get_ok
-  and scoped = Curve_modeling.sweep_circle_checked ~grain:1 ~primitives:all ~sides:7 ~caps:true
+  and scoped = Sweep_circle.run ~grain:1 ~primitives:all ~sides:7 ~caps:true
       ~cap_group:"caps" ~radius:0.13 source |> get_ok in
   let lp = Packed.Float3.Private.view (Geometry.positions legacy)
   and rp = Packed.Float3.Private.view (Geometry.positions scoped)
@@ -497,7 +497,7 @@ let check_variable_closed_manifold () =
       |> with_int "div" [|4;7;5;8;6;9|]
       |> with_int "seg" [|1;2;3;1;2;3|] in
   let run domains = Parallel.run ~domains (fun () ->
-    Curve_modeling.sweep_circle_checked ~grain:2 ~divisions_attribute:"div"
+    Sweep_circle.run ~grain:2 ~divisions_attribute:"div"
       ~segments_attribute:"seg" ~radius:0.08 source |> get_ok) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four)
@@ -509,7 +509,7 @@ let check_variable_closed_manifold () =
 
 let check_segment_scales_and_uv () =
   let line = Line_geometry.polyline_checked [|(0.,0.,0.); (10.,0.,0.)|] |> get_ok in
-  let scaled = Curve_modeling.sweep_circle_checked ~grain:1 ~sides:4 ~segments:4
+  let scaled = Sweep_circle.run ~grain:1 ~sides:4 ~segments:4
       ~segment_scales:(0.2,0.8) ~u_range:(-1.,1.) ~v_range:(2.,4.)
       ~radius:0.25 line |> get_ok in
   let positions = Packed.Float3.Private.view (Geometry.positions scaled)
@@ -530,7 +530,7 @@ let check_segment_scales_and_uv () =
           (Packed.Float4.of_owned ~x:[|0.;10.;0.|] ~y:[|1.;20.;1.|]
             ~z:[|2.;30.;0.|] ~w:[|3.;40.;1.|] |> get_string)) in
   let run domains = Parallel.run ~domains (fun () ->
-    Curve_modeling.sweep_circle_checked ~grain:1 ~sides:4 ~segments:3
+    Sweep_circle.run ~grain:1 ~sides:4 ~segments:3
       ~segment_scales_attribute:"segment_scales"
       ~uv_range_attribute:"uv_ranges" ~radius:0.25 attributed |> get_ok) in
   let one = run 1 and four = run 4 in
@@ -544,21 +544,21 @@ let check_segment_scales_and_uv () =
   check (near uv.x.(48) 10. && near uv.x.(49) 12.5
       && near uv.y.(48) 30. && near uv.y.(50) 34.)
     "outgoing-corner float4 UV ranges";
-  let extremes = Curve_modeling.sweep_circle_checked ~sides:4 ~segments:3
+  let extremes = Sweep_circle.run ~sides:4 ~segments:3
       ~segment_scales:(0.,1.) ~radius:0.1 line |> get_ok in
   let extreme_positions = Packed.Float3.Private.view (Geometry.positions extremes) in
   check (Array.for_all Float.is_finite extreme_positions.x
       && Array.for_all Float.is_finite extreme_positions.y
       && Array.for_all Float.is_finite extreme_positions.z)
     "inclusive segment-scale endpoints produced non-finite geometry";
-  let no_uv = Curve_modeling.sweep_circle_checked ~sides:4 ~segments:2 ~generate_uv:false
+  let no_uv = Sweep_circle.run ~sides:4 ~segments:2 ~generate_uv:false
       ~v_attribute:"missing" ~uv_range_attribute:"missing" ~radius:0.1 line
       |> get_ok in
   check (Geometry.find_attribute ~owner:Attribute.Vertex "uv" no_uv = None)
     "disabled vertex textures still generated UV";
   let source_uv = line |> with_vertex_attribute "uv" (Attribute.Float2
       (Packed.Float2.of_owned ~x:[|0.;1.|] ~y:[|2.;4.|] |> get_string)) in
-  let preserved = Curve_modeling.sweep_circle_checked ~sides:4 ~segments:2 ~generate_uv:false
+  let preserved = Sweep_circle.run ~sides:4 ~segments:2 ~generate_uv:false
       ~radius:0.1 source_uv |> get_ok in
   let uv = float2_attribute preserved "uv" in
   check (near uv.x.(2) 0.5 && near uv.y.(2) 3.)
@@ -566,35 +566,35 @@ let check_segment_scales_and_uv () =
 
 let check_segment_texture_validation () =
   let line = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.)|] |> get_ok in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~segments:2 ~segment_scales:(-0.1,0.8)
+  expect_invalid (Sweep_circle.run ~segments:2 ~segment_scales:(-0.1,0.8)
       ~radius:0.1 line);
-  expect_invalid (Curve_modeling.sweep_circle_checked ~segments:2 ~segment_scales:(0.8,0.2)
+  expect_invalid (Sweep_circle.run ~segments:2 ~segment_scales:(0.8,0.2)
       ~radius:0.1 line);
-  expect_invalid (Curve_modeling.sweep_circle_checked ~segments:2
+  expect_invalid (Sweep_circle.run ~segments:2
       ~segment_scales_attribute:"missing" ~radius:0.1 line);
   let wrong_scale = line |> with_vertex_attribute "scales"
       (Attribute.Float [|0.;1.|]) in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~segments:2
+  expect_invalid (Sweep_circle.run ~segments:2
       ~segment_scales_attribute:"scales" ~radius:0.1 wrong_scale);
   let bad_scale = line |> with_vertex_attribute "scales" (Attribute.Float2
       (Packed.Float2.of_owned ~x:[|0.7;0.|] ~y:[|0.2;1.|] |> get_string)) in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~segments:2
+  expect_invalid (Sweep_circle.run ~segments:2
       ~segment_scales_attribute:"scales" ~radius:0.1 bad_scale);
-  expect_invalid (Curve_modeling.sweep_circle_checked ~segments:2 ~u_range:(Float.nan,1.)
+  expect_invalid (Sweep_circle.run ~segments:2 ~u_range:(Float.nan,1.)
       ~radius:0.1 line);
-  expect_invalid (Curve_modeling.sweep_circle_checked ~segments:2 ~uv_range_attribute:"missing"
+  expect_invalid (Sweep_circle.run ~segments:2 ~uv_range_attribute:"missing"
       ~radius:0.1 line);
   let bad_uv = line |> with_vertex_attribute "ranges" (Attribute.Float4
       (Packed.Float4.of_owned ~x:[|0.;0.|] ~y:[|1.;1.|]
         ~z:[|0.;0.|] ~w:[|Float.infinity;1.|] |> get_string)) in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~segments:2 ~uv_range_attribute:"ranges"
+  expect_invalid (Sweep_circle.run ~segments:2 ~uv_range_attribute:"ranges"
       ~radius:0.1 bad_uv)
 
 let check_joint_buckling () =
   let source = Line_geometry.polyline_checked
       [|(0.,0.,0.); (1.,0.,0.); (1.,1.,0.)|] |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
-    Curve_modeling.sweep_circle_checked ~grain:1 ~sides:4 ~prevent_joint_buckling:true
+    Sweep_circle.run ~grain:1 ~sides:4 ~prevent_joint_buckling:true
       ~maximum_joint_scale:10. ~radius:1. source |> get_ok) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four)
@@ -609,7 +609,7 @@ let check_joint_buckling () =
       && near positions.z.(4) (-1.))
     "joint buckling enlarged the bend-axis-independent side";
   let limited_source = source |> with_float "joint_limit" [|1.;1.1;1.|] in
-  let limited = Curve_modeling.sweep_circle_checked ~grain:1 ~sides:4
+  let limited = Sweep_circle.run ~grain:1 ~sides:4
       ~prevent_joint_buckling:true
       ~maximum_joint_scale_attribute:"joint_limit" ~radius:1. limited_source
       |> get_ok in
@@ -621,7 +621,7 @@ let check_joint_buckling () =
     "point maximum joint scale did not cap radial miter enlargement";
   let closed = Line_geometry.polyline_checked ~closed:true
       [|(0.,0.,0.); (1.,0.,0.); (1.,1.,0.); (0.,1.,0.)|] |> get_ok in
-  let closed_wire = Curve_modeling.sweep_circle_checked ~grain:1 ~sides:4
+  let closed_wire = Sweep_circle.run ~grain:1 ~sides:4
       ~prevent_joint_buckling:true ~maximum_joint_scale:2. ~radius:0.1 closed
       |> get_ok in
   let closed_positions = Packed.Float3.Private.view
@@ -633,21 +633,21 @@ let check_joint_buckling () =
 
 let check_joint_buckling_validation () =
   let line = Line_geometry.polyline_checked [|(0.,0.,0.); (1.,0.,0.); (1.,1.,0.)|] |> get_ok in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~prevent_joint_buckling:true
+  expect_invalid (Sweep_circle.run ~prevent_joint_buckling:true
       ~maximum_joint_scale:0.99 ~radius:0.1 line);
-  expect_invalid (Curve_modeling.sweep_circle_checked ~maximum_joint_scale:0.99
+  expect_invalid (Sweep_circle.run ~maximum_joint_scale:0.99
       ~radius:0.1 line);
-  expect_invalid (Curve_modeling.sweep_circle_checked ~prevent_joint_buckling:true
+  expect_invalid (Sweep_circle.run ~prevent_joint_buckling:true
       ~maximum_joint_scale:Float.nan ~radius:0.1 line);
-  expect_invalid (Curve_modeling.sweep_circle_checked ~maximum_joint_scale_attribute:"missing"
+  expect_invalid (Sweep_circle.run ~maximum_joint_scale_attribute:"missing"
       ~radius:0.1 line);
-  expect_invalid (Curve_modeling.sweep_circle_checked ~prevent_joint_buckling:true
+  expect_invalid (Sweep_circle.run ~prevent_joint_buckling:true
       ~maximum_joint_scale_attribute:"missing" ~radius:0.1 line);
   let wrong = line |> with_int "joint_limit" [|1;2;1|] in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~prevent_joint_buckling:true
+  expect_invalid (Sweep_circle.run ~prevent_joint_buckling:true
       ~maximum_joint_scale_attribute:"joint_limit" ~radius:0.1 wrong);
   let invalid = line |> with_float "joint_limit" [|1.;0.5;1.|] in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~prevent_joint_buckling:true
+  expect_invalid (Sweep_circle.run ~prevent_joint_buckling:true
       ~maximum_joint_scale_attribute:"joint_limit" ~radius:0.1 invalid)
 
 let check_smooth_disconnection () =
@@ -655,7 +655,7 @@ let check_smooth_disconnection () =
       [|(0.,0.,0.); (1.,0.,0.); (1.,1.,0.)|] |> get_ok
       |> with_float "smooth" [|1.;0.;1.|] in
   let run domains = Parallel.run ~domains (fun () ->
-    Curve_modeling.sweep_circle_checked ~grain:1 ~sides:4 ~smooth_attribute:"smooth"
+    Sweep_circle.run ~grain:1 ~sides:4 ~smooth_attribute:"smooth"
       ~radius:0.2 source |> get_ok) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four)
@@ -684,7 +684,7 @@ let check_smooth_disconnection () =
         "smooth=false left a topology edge across the disconnected joint"
     done
   done;
-  let all_disconnected = Curve_modeling.sweep_circle_checked ~grain:1 ~sides:4
+  let all_disconnected = Sweep_circle.run ~grain:1 ~sides:4
       ~smooth_point:false ~radius:0.2
       (Line_geometry.polyline_checked [|(0.,0.,0.);(1.,0.,0.);(2.,0.,0.);(3.,0.,0.)|]
        |> get_ok) |> get_ok in
@@ -697,7 +697,7 @@ let check_smooth_disconnection () =
       ~primitive_kinds:[|Topology.Open_polyline;Topology.Open_polyline|]
       |> get_string in
   let branch = Geometry.create ~positions ~topology () |> get_string in
-  let limited = Curve_modeling.sweep_circle_checked ~grain:1 ~sides:4 ~max_valence:2
+  let limited = Sweep_circle.run ~grain:1 ~sides:4 ~max_valence:2
       ~radius:0.2 branch |> get_ok in
   check (Geometry.point_count limited = 24)
     "Max Valence did not disconnect the three-edge branch point";
@@ -705,7 +705,7 @@ let check_smooth_disconnection () =
       [|(0.,0.,0.);(1.,0.,0.);(1.,1.,0.);(0.,1.,0.)|] |> get_ok
       |> with_float "smooth" [|0.;1.;1.;1.|] in
   let run_closed domains = Parallel.run ~domains (fun () ->
-    Curve_modeling.sweep_circle_checked ~grain:1 ~sides:4 ~smooth_attribute:"smooth" ~caps:true
+    Sweep_circle.run ~grain:1 ~sides:4 ~smooth_attribute:"smooth" ~caps:true
       ~cap_group:"caps" ~radius:0.1 closed |> get_ok) in
   let closed = run_closed 1 and closed_four = run_closed 4 in
   check (equal_geometry closed closed_four)
@@ -723,19 +723,19 @@ let check_smooth_disconnection () =
 
 let check_smooth_validation () =
   let line = Line_geometry.polyline_checked [|(0.,0.,0.);(1.,0.,0.);(2.,0.,0.)|] |> get_ok in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~max_valence:0 ~radius:0.1 line);
-  expect_invalid (Curve_modeling.sweep_circle_checked ~smooth_attribute:"missing" ~radius:0.1 line);
+  expect_invalid (Sweep_circle.run ~max_valence:0 ~radius:0.1 line);
+  expect_invalid (Sweep_circle.run ~smooth_attribute:"missing" ~radius:0.1 line);
   let wrong = line |> with_int "smooth" [|1;0;1|] in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~smooth_attribute:"smooth" ~radius:0.1 wrong);
+  expect_invalid (Sweep_circle.run ~smooth_attribute:"smooth" ~radius:0.1 wrong);
   let invalid = line |> with_float "smooth" [|1.;Float.nan;1.|] in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~smooth_attribute:"smooth" ~radius:0.1 invalid)
+  expect_invalid (Sweep_circle.run ~smooth_attribute:"smooth" ~radius:0.1 invalid)
 
 let check_segment_seam () =
   let source = Line_geometry.polyline_checked
       [|(0.,0.,0.);(1.,0.,0.);(2.,0.,0.)|] |> get_ok
       |> with_vertex_attribute "segment_seam" (Attribute.Int [|1;2;0|]) in
   let run domains = Parallel.run ~domains (fun () ->
-    Curve_modeling.sweep_circle_checked ~grain:1 ~sides:4 ~segments:2
+    Sweep_circle.run ~grain:1 ~sides:4 ~segments:2
       ~segment_seam_attribute:"segment_seam" ~radius:0.1 source |> get_ok) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four)
@@ -753,7 +753,7 @@ let check_segment_seam () =
   check (near uv.x.(18) 0.25 && near uv.x.(19) 0.
       && near uv.x.(32) 0.)
     "per-segment seam did not preserve logical seam-safe U coordinates";
-  let extreme = Curve_modeling.sweep_circle_checked ~grain:1 ~sides:4 ~segments:2
+  let extreme = Sweep_circle.run ~grain:1 ~sides:4 ~segments:2
       ~segment_seam_attribute:"segment_seam" ~seam_offset:max_int
       ~radius:0.1 source |> get_ok in
   check (Geometry.point_count extreme = Geometry.point_count one)
@@ -761,11 +761,11 @@ let check_segment_seam () =
 
 let check_segment_seam_validation () =
   let line = Line_geometry.polyline_checked [|(0.,0.,0.);(1.,0.,0.)|] |> get_ok in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~segment_seam_attribute:"missing"
+  expect_invalid (Sweep_circle.run ~segment_seam_attribute:"missing"
       ~radius:0.1 line);
   let wrong = line |> with_vertex_attribute "segment_seam"
       (Attribute.Float [|0.;1.|]) in
-  expect_invalid (Curve_modeling.sweep_circle_checked ~segment_seam_attribute:"segment_seam"
+  expect_invalid (Sweep_circle.run ~segment_seam_attribute:"segment_seam"
       ~radius:0.1 wrong)
 
 let run () =

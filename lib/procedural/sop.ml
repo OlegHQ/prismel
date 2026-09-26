@@ -3680,7 +3680,7 @@ let resample ?label ?group ?segments ?maximum_segment_length
       match primitives with
       | Error _ as error -> error
       | Ok primitives ->
-          match Pdk.Curve_modeling.resample_curves_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Resample_curves.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ?segments
               ?maximum_segment_length ?segment_length_attribute
               ?segments_attribute ~even_last_segment ?curve_u_attribute
@@ -3805,19 +3805,19 @@ let convert_line ?label ?group ?(connect_path = false)
           | Error error -> structured_pdk_error error)
 
 let carve_keep_key = function
-  | Pdk.Curve_modeling.Keep_inside -> "inside"
-  | Pdk.Curve_modeling.Keep_outside -> "outside"
-  | Pdk.Curve_modeling.Keep_inside_and_outside -> "inside_and_outside"
+  | Pdk.Curve_ops.Inside -> "inside"
+  | Pdk.Curve_ops.Outside -> "outside"
+  | Pdk.Curve_ops.Inside_and_outside -> "inside_and_outside"
 
 let carve_attribute_mode_key = function
-  | Pdk.Curve_modeling.Attribute_replace -> "replace"
-  | Pdk.Curve_modeling.Attribute_scale -> "scale"
+  | Pdk.Curve_ops.Replace -> "replace"
+  | Pdk.Curve_ops.Scale -> "scale"
 
 let carve ?label ?group ?(relative_arc_length = true) ?(first = 0.) ?(last = 1.)
     ?first_attribute ?last_attribute
-    ?(attribute_mode = Pdk.Curve_modeling.Attribute_replace)
+    ?(attribute_mode = Pdk.Curve_ops.Replace)
     ?(only_at_breakpoints = false) ?(cut_at_all_internal_breakpoints = false)
-    ?(keep = Pdk.Curve_modeling.Keep_inside) ?(extract_points = false)
+    ?(keep = Pdk.Curve_ops.Inside) ?(extract_points = false)
     ?(divisions = 1) ?(keep_original = false) input =
   if divisions <= 0 then invalid_arg "Sop.carve: divisions must be positive";
   Option.iter (fun name -> if String.trim name = "" then
@@ -3847,7 +3847,7 @@ let carve ?label ?group ?(relative_arc_length = true) ?(first = 0.) ?(last = 1.)
       match primitives with
       | Error _ as error -> error
       | Ok primitives ->
-          match Pdk.Curve_modeling.carve_curves_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Curve_ops.carve_curves ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ~relative_arc_length
               ~first ~last ?first_attribute ?last_attribute ~attribute_mode
               ~only_at_breakpoints ~cut_at_all_internal_breakpoints
@@ -4152,7 +4152,7 @@ let circular_wire ?label ~operation ?group ?sides ?divisions_attribute
       match primitives with
       | Error _ as error -> error
       | Ok primitives ->
-          match Pdk.Curve_modeling.sweep_circle_checked ~cancel:(Context.cancel_token context)
+          match Pdk.Sweep_circle.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ?sides
               ?divisions_attribute ~segments ?segments_attribute ?segment_scales
               ?segment_scales_attribute ~prevent_joint_buckling

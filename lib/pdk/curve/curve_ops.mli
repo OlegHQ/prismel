@@ -87,3 +87,13 @@ val extract_points :
   ?only_at_breakpoints:bool -> ?cut_at_all_internal_breakpoints:bool ->
   ?divisions:int -> ?keep_original:bool -> Geometry.t ->
   (Geometry.t, string) result
+
+val carve_curves :
+  ?cancel:Cancel.t -> ?grain:int -> ?primitives:Group.t ->
+  ?relative_arc_length:bool -> ?first:float -> ?last:float ->
+  ?first_attribute:string -> ?last_attribute:string ->
+  ?attribute_mode:parameter_attribute_mode -> ?only_at_breakpoints:bool ->
+  ?cut_at_all_internal_breakpoints:bool -> ?keep:cut_mode ->
+  ?extract_points:bool -> ?divisions:int -> ?keep_original:bool ->
+  Geometry.t -> (Geometry.t, Error.t) result
+(** Carve (or, with [extract_points], extract points from) polygon curves. *)

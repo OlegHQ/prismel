@@ -2,7 +2,7 @@ open Prismel_math
 
 let get_ok = function Ok value -> value | Error message -> invalid_arg message
 
-let run ?cancel ?(grain = 16_384) ?(sides = 12) ?scale_attribute
+let run_legacy ?cancel ?(grain = 16_384) ?(sides = 12) ?scale_attribute
     ?(seam_offset = 0) ?seam_attribute ?v_attribute ?up_attribute
     ?(caps = false) ?cap_group ~radius geometry =
   if grain <= 0 then invalid_arg "Pdk_mesh.Sweep_circle.sweep_circle: grain must be positive";
@@ -635,3 +635,42 @@ let run ?cancel ?(grain = 16_384) ?(sides = 12) ?scale_attribute
                             output_primitives
                             (fun primitive -> primitive >= side_primitives))
                           geometry)))))
+
+let run ?cancel ?grain ?primitives ?sides ?divisions_attribute
+    ?segments ?segments_attribute ?segment_scales ?segment_scales_attribute
+    ?(prevent_joint_buckling = false) ?(maximum_joint_scale = 10.)
+    ?maximum_joint_scale_attribute
+    ?(smooth_point = true) ?smooth_attribute ?max_valence
+    ?scale_attribute ?seam_offset ?seam_attribute ?segment_seam_attribute
+    ?v_attribute
+    ?(generate_uv = true) ?u_range ?v_range ?uv_range_attribute ?up_attribute
+    ?caps ?cap_group ~radius geometry =
+  Error.guard ~operation:"sweep_circle" ~code:"invalid_geometry" @@ fun () ->
+    let grain = Option.value ~default:16_384 grain
+    and sides = Option.value ~default:12 sides
+    and segments = Option.value ~default:1 segments
+    and seam_offset = Option.value ~default:0 seam_offset
+    and caps = Option.value ~default:false caps in
+    if Option.is_none primitives && Option.is_none divisions_attribute
+        && segments = 1 && Option.is_none segments_attribute
+        && Option.is_none segment_scales
+        && Option.is_none segment_scales_attribute
+        && not prevent_joint_buckling
+        && Float.is_finite maximum_joint_scale && maximum_joint_scale >= 1.
+        && Option.is_none maximum_joint_scale_attribute && generate_uv
+        && smooth_point && Option.is_none smooth_attribute
+        && Option.is_none max_valence
+        && Option.is_none segment_seam_attribute
+        && Option.is_none u_range && Option.is_none v_range
+        && Option.is_none uv_range_attribute then
+      run_legacy ?cancel ~grain ~sides ?scale_attribute ~seam_offset
+        ?seam_attribute ?v_attribute ?up_attribute ~caps ?cap_group ~radius
+        geometry
+    else Polywire.run ?cancel ~grain ~primitives ~sides ~divisions_attribute
+        ~segments ~segments_attribute ~segment_scales
+        ~segment_scales_attribute ~prevent_joint_buckling
+        ~maximum_joint_scale ~maximum_joint_scale_attribute ~scale_attribute
+        ~smooth_point ~smooth_attribute ~max_valence ~seam_offset
+        ~seam_attribute ~segment_seam_attribute ~v_attribute ~generate_uv
+        ~u_range ~v_range ~uv_range_attribute ~up_attribute ~caps ~cap_group
+        ~radius geometry

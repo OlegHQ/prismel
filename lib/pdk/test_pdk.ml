@@ -2151,7 +2151,7 @@ let run () =
   (match Attribute.storage distance_attribute with
    | Attribute.Float values when values = [|0.; 1.; 4.|] -> ()
    | _ -> fail "public attribute access leaked mutable storage");
-  let resampled = Curve_modeling.resample_curves_checked ~segments:4 bent |> get_ok in
+  let resampled = Resample_curves.run ~segments:4 bent |> get_ok in
   if Geometry.point_count resampled <> 5
      || Topology.primitive_kind (Geometry.topology resampled) 0
         <> Topology.Open_polyline
@@ -2166,7 +2166,7 @@ let run () =
         | Attribute.Float values when values = [|0.; 1.; 2.; 3.; 4.|] -> ()
         | _ -> fail "curve attribute interpolation")
    | None -> fail "curve resample dropped point attribute");
-  let swept = Curve_modeling.sweep_circle_checked ~sides:8 ~radius:0.2 resampled |> get_ok in
+  let swept = Sweep_circle.run ~sides:8 ~radius:0.2 resampled |> get_ok in
   if Geometry.point_count swept <> 40 || Geometry.primitive_count swept <> 32
      || Geometry.vertex_count swept <> 128
   then fail "circle sweep cardinality";
@@ -2720,7 +2720,7 @@ let run () =
    | _ -> fail "Edge Group accepted an angle filter on curves");
   let swept_edge_geometry = cylinder_curve
       |> Group_mesh.group_edges_checked ~name:"centerline_edges" |> get_ok
-      |> Curve_modeling.sweep_circle_checked ~sides:8 ~radius:0.1 |> get_ok in
+      |> Sweep_circle.run ~sides:8 ~radius:0.1 |> get_ok in
   let swept_edge_group = Geometry.find_edge_group "centerline_edges"
       swept_edge_geometry |> Option.get in
   if Edge_group.cardinality swept_edge_group <> 32
@@ -2731,7 +2731,7 @@ let run () =
   let wire_scale = Attribute.create_owned ~name:"wire_scale"
       ~owner:Attribute.Point (Attribute.Float [|1.; 2.; 0.5|]) |> get_ok in
   let scaled_spine = Geometry.with_attribute wire_scale scaled_spine |> get_ok in
-  let scaled_wire = Curve_modeling.sweep_circle_checked ~grain:1 ~sides:8
+  let scaled_wire = Sweep_circle.run ~grain:1 ~sides:8
       ~scale_attribute:"wire_scale" ~radius:0.25 scaled_spine |> get_ok in
   let scaled_positions = Packed.Float3.Private.view
       (Geometry.positions scaled_wire) in
@@ -2745,7 +2745,7 @@ let run () =
       || abs_float (ring_radius 1 -. 0.5) > 1e-12
       || abs_float (ring_radius 2 -. 0.125) > 1e-12 then
     fail "sweep point scale attribute";
-  let capped_wire = Curve_modeling.sweep_circle_checked ~grain:1 ~sides:8
+  let capped_wire = Sweep_circle.run ~grain:1 ~sides:8
       ~scale_attribute:"wire_scale" ~caps:true ~cap_group:"caps"
       ~radius:0.25 scaled_spine |> get_ok in
   let capped_topology = Geometry.topology capped_wire in
@@ -2770,23 +2770,23 @@ let run () =
       || Group.cardinality cap_group <> 2
       || Geometry.find_attribute ~owner:Attribute.Vertex "N" capped_wire = None
       then fail "sweep cap topology/winding/group/hard normals";
-  (match Curve_modeling.sweep_circle_checked ~cap_group:"caps" ~radius:0.1 scaled_spine with
+  (match Sweep_circle.run ~cap_group:"caps" ~radius:0.1 scaled_spine with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "sweep accepted a cap group without caps");
-  (match Curve_modeling.sweep_circle_checked ~scale_attribute:"missing" ~radius:0.1 scaled_spine with
+  (match Sweep_circle.run ~scale_attribute:"missing" ~radius:0.1 scaled_spine with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "sweep accepted a missing scale attribute");
   let invalid_wire_scale = Attribute.create_owned ~name:"wire_scale"
       ~owner:Attribute.Point (Attribute.Float [|1.; -1.; 1.|]) |> get_ok in
   let invalid_scaled_spine = Geometry.with_attribute invalid_wire_scale
       scaled_spine |> get_ok in
-  (match Curve_modeling.sweep_circle_checked ~scale_attribute:"wire_scale" ~radius:0.1
+  (match Sweep_circle.run ~scale_attribute:"wire_scale" ~radius:0.1
       invalid_scaled_spine with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "sweep accepted a negative point scale");
   let resampled_closed = cylinder_curve
       |> Group_mesh.group_edges_checked ~name:"curve_edges" |> get_ok
-      |> Curve_modeling.resample_curves_checked ~segments:8 |> get_ok in
+      |> Resample_curves.run ~segments:8 |> get_ok in
   let resampled_closed_group = Geometry.find_edge_group "curve_edges"
       resampled_closed |> Option.get in
   if Edge_group.cardinality resampled_closed_group <> 8
@@ -2799,7 +2799,7 @@ let run () =
   let middle_group = Edge_group.init ~topology:(Geometry.topology open_curve)
       ~index:open_index ~name:"middle_edge" (fun edge -> edge = middle_edge) in
   let resampled_partial = Geometry.with_edge_group middle_group open_curve |> get_ok
-      |> Curve_modeling.resample_curves_checked ~segments:6 |> get_ok in
+      |> Resample_curves.run ~segments:6 |> get_ok in
   let resampled_partial_group = Geometry.find_edge_group "middle_edge"
       resampled_partial |> Option.get in
   if Edge_group.cardinality resampled_partial_group <> 2
@@ -2996,7 +2996,7 @@ let run () =
       ~index:carve_index ~name:"middle" (fun edge -> edge = selected_middle_edge) in
   let carve_source = Geometry.with_edge_group carve_edges carve_source |> get_ok in
   let carved domains = Parallel.run ~domains (fun () ->
-    Curve_modeling.carve_curves_checked ~grain:1 ~first:0.2 ~last:0.6 carve_source |> get_ok) in
+    Curve_ops.carve_curves ~grain:1 ~first:0.2 ~last:0.6 carve_source |> get_ok) in
   let carved_one = carved 1 and carved_many = carved 4 in
   let carved_positions = Packed.Float3.Private.view (Geometry.positions carved_one)
   and carved_many_positions = Packed.Float3.Private.view
@@ -3027,14 +3027,14 @@ let run () =
   if Edge_group.length carved_edge_group <> 2
       || Edge_group.cardinality carved_edge_group <> 1 then
     fail "Curve Carve native edge-interval propagation";
-  let parameter_carved = Curve_modeling.carve_curves_checked ~relative_arc_length:false
+  let parameter_carved = Curve_ops.carve_curves ~relative_arc_length:false
       ~first:0.25 ~last:0.75 carve_source |> get_ok in
   let parameter_positions = Packed.Float3.Private.view
       (Geometry.positions parameter_carved) in
   if not (near_array [|0.75; 1.; 3.; 3.75|] parameter_positions.x) then
     fail "Curve Carve uniform-edge parameterization";
   let breakpoint_carved domains = Parallel.run ~domains (fun () ->
-    Curve_modeling.carve_curves_checked ~grain:1 ~relative_arc_length:false ~first:0.2 ~last:0.8
+    Curve_ops.carve_curves ~grain:1 ~relative_arc_length:false ~first:0.2 ~last:0.8
       ~only_at_breakpoints:true carve_source |> get_ok) in
   let breakpoint_one = breakpoint_carved 1
   and breakpoint_many = breakpoint_carved 4 in
@@ -3061,7 +3061,7 @@ let run () =
            |> Option.get) <> 1 then
     fail "Curve Carve vertex-breakpoint inside/payload/edge/domain behavior";
   let breakpoint_segments domains = Parallel.run ~domains (fun () ->
-    Curve_modeling.carve_curves_checked ~grain:1 ~relative_arc_length:false ~first:0. ~last:1.
+    Curve_ops.carve_curves ~grain:1 ~relative_arc_length:false ~first:0. ~last:1.
       ~only_at_breakpoints:true ~cut_at_all_internal_breakpoints:true
       carve_source |> get_ok) in
   let segments_one = breakpoint_segments 1
@@ -3077,10 +3077,10 @@ let run () =
       || Edge_group.cardinality (Geometry.find_edge_group "middle" segments_one
            |> Option.get) <> 1 then
     fail "Curve Carve cut-at-all polygon breakpoints/domain behavior";
-  let breakpoint_extract = Curve_modeling.carve_curves_checked ~relative_arc_length:false
+  let breakpoint_extract = Curve_ops.carve_curves ~relative_arc_length:false
       ~first:0.1 ~last:1. ~only_at_breakpoints:true ~extract_points:true
       ~divisions:99 carve_source |> get_ok
-  and all_breakpoint_extract = Curve_modeling.carve_curves_checked ~relative_arc_length:false
+  and all_breakpoint_extract = Curve_ops.carve_curves ~relative_arc_length:false
       ~first:0.1 ~last:1. ~only_at_breakpoints:true
       ~cut_at_all_internal_breakpoints:true ~extract_points:true ~divisions:99
       carve_source |> get_ok in
@@ -3092,9 +3092,9 @@ let run () =
       || not (near_array [|1.;6.|] breakpoint_extract_positions.x)
       || not (near_array [|1.;3.;6.|] all_breakpoint_extract_positions.x) then
     fail "Curve Carve breakpoint extraction outer/all behavior";
-  let breakpoint_outside = Curve_modeling.carve_curves_checked ~relative_arc_length:false
+  let breakpoint_outside = Curve_ops.carve_curves ~relative_arc_length:false
       ~first:0.2 ~last:0.8 ~only_at_breakpoints:true
-      ~keep:Curve_modeling.Keep_outside carve_source |> get_ok in
+      ~keep:Curve_ops.Outside carve_source |> get_ok in
   let breakpoint_outside_positions = Packed.Float3.Private.view
       (Geometry.positions breakpoint_outside) in
   if Geometry.primitive_count breakpoint_outside <> 2
@@ -3102,18 +3102,18 @@ let run () =
       || Edge_group.cardinality (Geometry.find_edge_group "middle"
            breakpoint_outside |> Option.get) <> 0 then
     fail "Curve Carve breakpoint outside pieces";
-  let empty_breakpoint_inside = Curve_modeling.carve_curves_checked ~relative_arc_length:false
+  let empty_breakpoint_inside = Curve_ops.carve_curves ~relative_arc_length:false
       ~first:0.34 ~last:0.6 ~only_at_breakpoints:true carve_source |> get_ok
-  and empty_breakpoint_outside = Curve_modeling.carve_curves_checked ~relative_arc_length:false
+  and empty_breakpoint_outside = Curve_ops.carve_curves ~relative_arc_length:false
       ~first:0.34 ~last:0.6 ~only_at_breakpoints:true
-      ~keep:Curve_modeling.Keep_outside carve_source |> get_ok in
+      ~keep:Curve_ops.Outside carve_source |> get_ok in
   if Geometry.point_count empty_breakpoint_inside <> 0
       || Geometry.primitive_count empty_breakpoint_inside <> 0
       || not (equal_positions empty_breakpoint_outside carve_source)
       || (Topology.Private.view (Geometry.topology empty_breakpoint_outside)).vertex_points
            <> (Topology.Private.view (Geometry.topology carve_source)).vertex_points then
     fail "Curve Carve empty breakpoint interval behavior";
-  let arc_breakpoints = Curve_modeling.carve_curves_checked ~first:0.1 ~last:0.9
+  let arc_breakpoints = Curve_ops.carve_curves ~first:0.1 ~last:0.9
       ~only_at_breakpoints:true carve_source |> get_ok in
   if not (near_array [|1.;3.|]
       (Packed.Float3.Private.view (Geometry.positions arc_breakpoints)).x) then
@@ -3148,7 +3148,7 @@ let run () =
       ~groups:[mixed_even; carve_first] () |> get_ok
       |> Group_mesh.group_edges_checked ~name:"mixed_edges" |> get_ok in
   let mixed_carved domains = Parallel.run ~domains (fun () ->
-    Curve_modeling.carve_curves_checked ~grain:1 ~primitives:carve_first
+    Curve_ops.carve_curves ~grain:1 ~primitives:carve_first
       ~relative_arc_length:false ~first:0.25 ~last:0.75 mixed |> get_ok) in
   let mixed_one = mixed_carved 1 and mixed_many = mixed_carved 4 in
   let mixed_view = Topology.Private.view (Geometry.topology mixed_one)
@@ -3192,7 +3192,7 @@ let run () =
       || Group.cardinality mixed_even_output <> 7 then
     fail "Curve Carve mixed selection group/native-edge ancestry";
   let attributed_carve domains = Parallel.run ~domains (fun () ->
-    Curve_modeling.carve_curves_checked ~grain:1 ~primitives:carve_first
+    Curve_ops.carve_curves ~grain:1 ~primitives:carve_first
       ~relative_arc_length:false ~first:0. ~last:1.
       ~first_attribute:"first_u" ~last_attribute:"second_u" mixed |> get_ok) in
   let attributed_one = attributed_carve 1
@@ -3213,10 +3213,10 @@ let run () =
       || not (near_array [|0.75;1.;1.5|]
            (Array.sub attributed_positions.x 10 3)) then
     fail "Curve Carve primitive parameter replace/domain behavior";
-  let scaled_carve = Curve_modeling.carve_curves_checked ~primitives:carve_first
+  let scaled_carve = Curve_ops.carve_curves ~primitives:carve_first
       ~relative_arc_length:false ~first:0.5 ~last:1.
       ~first_attribute:"first_u" ~last_attribute:"second_u"
-      ~attribute_mode:Curve_modeling.Attribute_scale mixed |> get_ok in
+      ~attribute_mode:Curve_ops.Scale mixed |> get_ok in
   let scaled_positions = Packed.Float3.Private.view
       (Geometry.positions scaled_carve) in
   if Geometry.point_count scaled_carve <> 13
@@ -3226,7 +3226,7 @@ let run () =
            <> [|10;11;12; 4;5;6; 7;8;9|] then
     fail "Curve Carve primitive parameter scale behavior";
   let attributed_extract domains = Parallel.run ~domains (fun () ->
-    Curve_modeling.carve_curves_checked ~grain:1 ~primitives:carve_first
+    Curve_ops.carve_curves ~grain:1 ~primitives:carve_first
       ~relative_arc_length:false ~first_attribute:"first_u"
       ~last_attribute:"second_u" ~extract_points:true ~divisions:2 mixed
       |> get_ok) in
@@ -3244,9 +3244,9 @@ let run () =
            <> (Topology.Private.view
                  (Geometry.topology attributed_extract_many)).vertex_points then
     fail "Curve Carve primitive parameter extraction/domain behavior";
-  let attributed_pieces = Curve_modeling.carve_curves_checked ~primitives:carve_first
+  let attributed_pieces = Curve_ops.carve_curves ~primitives:carve_first
       ~relative_arc_length:false ~first_attribute:"first_u"
-      ~last_attribute:"second_u" ~keep:Curve_modeling.Keep_inside_and_outside mixed
+      ~last_attribute:"second_u" ~keep:Curve_ops.Inside_and_outside mixed
       |> get_ok in
   let attributed_piece_topology = Topology.Private.view
       (Geometry.topology attributed_pieces) in
@@ -3254,27 +3254,27 @@ let run () =
       || Geometry.vertex_count attributed_pieces <> 14
       || attributed_piece_topology.primitive_offsets <> [|0;2;5;8;11;14|]
   then fail "Curve Carve primitive parameters on all cut pieces";
-  (match Curve_modeling.carve_curves_checked ~primitives:carve_first
+  (match Curve_ops.carve_curves ~primitives:carve_first
       ~first_attribute:"missing" mixed with
    | Error error when Error.code error = "invalid_geometry"
        && String.length (Error.message error) > 0 -> ()
    | _ -> fail "Curve Carve accepted a missing primitive parameter attribute");
-  (match Curve_modeling.carve_curves_checked ~primitives:carve_first
+  (match Curve_ops.carve_curves ~primitives:carve_first
       ~first_attribute:"mixed_primitive" mixed with
    | Error error when Error.code error = "invalid_geometry"
        && String.length (Error.message error) > 0 -> ()
    | _ -> fail "Curve Carve accepted a non-float primitive parameter attribute");
-  (match Curve_modeling.carve_curves_checked ~primitives:carve_first
+  (match Curve_ops.carve_curves ~primitives:carve_first
       ~first_attribute:"mixed_point" mixed with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Carve accepted a point parameter attribute");
   let carve_closed = Group.init ~owner:Group.Primitive ~name:"carve_closed" 3
       (fun primitive -> primitive = 2) in
-  (match Curve_modeling.carve_curves_checked ~primitives:carve_closed
+  (match Curve_ops.carve_curves ~primitives:carve_closed
       ~first_attribute:"first_u" ~last_attribute:"second_u" mixed with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Carve accepted a selected non-finite parameter");
-  let attributed_breakpoint = Curve_modeling.carve_curves_checked ~primitives:carve_first
+  let attributed_breakpoint = Curve_ops.carve_curves ~primitives:carve_first
       ~relative_arc_length:false ~first_attribute:"first_u"
       ~last_attribute:"second_u" ~only_at_breakpoints:true
       ~extract_points:true mixed |> get_ok in
@@ -3282,7 +3282,7 @@ let run () =
       (Array.sub (Packed.Float3.Private.view
         (Geometry.positions attributed_breakpoint)).x 10 1)) then
     fail "Curve Carve primitive attributes with breakpoint extraction";
-  let mixed_breakpoint_segments = Curve_modeling.carve_curves_checked ~grain:1
+  let mixed_breakpoint_segments = Curve_ops.carve_curves ~grain:1
       ~primitives:carve_first ~relative_arc_length:false ~first:0. ~last:1.
       ~only_at_breakpoints:true ~cut_at_all_internal_breakpoints:true mixed
       |> get_ok in
@@ -3304,40 +3304,40 @@ let run () =
     fail "Curve Carve mixed cut-at-all breakpoint payload/group/edge behavior";
   let carve_none = Group.init ~owner:Group.Primitive ~name:"carve_none" 3
       (fun _ -> false) in
-  if (Curve_modeling.carve_curves_checked ~primitives:carve_none ~first:0.2 ~last:0.8 mixed
+  if (Curve_ops.carve_curves ~primitives:carve_none ~first:0.2 ~last:0.8 mixed
       |> get_ok) != mixed then
     fail "Curve Carve empty selection did not preserve identity";
   let carve_polygon = Group.init ~owner:Group.Primitive ~name:"carve_polygon" 3
       (fun primitive -> primitive = 1) in
-  (match Curve_modeling.carve_curves_checked ~primitives:carve_polygon ~first:0.2 ~last:0.8 mixed with
+  (match Curve_ops.carve_curves ~primitives:carve_polygon ~first:0.2 ~last:0.8 mixed with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Carve accepted a selected polygon");
-  (match Curve_modeling.carve_curves_checked ~primitives:mixed_even ~first:0.2 ~last:0.8 mixed with
+  (match Curve_ops.carve_curves ~primitives:mixed_even ~first:0.2 ~last:0.8 mixed with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Carve accepted a point selection");
   let short_primitive_group = Group.init ~owner:Group.Primitive ~name:"short" 2
       (fun _ -> true) in
-  (match Curve_modeling.carve_curves_checked ~primitives:short_primitive_group ~first:0.2 ~last:0.8
+  (match Curve_ops.carve_curves ~primitives:short_primitive_group ~first:0.2 ~last:0.8
       mixed with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Carve accepted a mismatched primitive selection");
-  (match Curve_modeling.carve_curves_checked ~grain:0 ~first:0.2 ~last:0.8 carve_source with
+  (match Curve_ops.carve_curves ~grain:0 ~first:0.2 ~last:0.8 carve_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Carve accepted zero grain");
   let extreme_carve = Line_geometry.polyline_checked
       [|(-5e307,0.,0.); (5e307,0.,0.)|] |> get_ok
-      |> Curve_modeling.carve_curves_checked ~first:0.25 ~last:0.75 |> get_ok in
+      |> Curve_ops.carve_curves ~first:0.25 ~last:0.75 |> get_ok in
   let extreme_positions = Packed.Float3.Private.view
       (Geometry.positions extreme_carve) in
   if not (near_array [|(-2.5e307);2.5e307|] extreme_positions.x) then
     fail "Curve Carve did not preserve a representable extreme interpolation";
   let overflowing_carve = Line_geometry.polyline_checked
       [|(-.max_float,0.,0.); (max_float,0.,0.)|] |> get_ok in
-  (match Curve_modeling.carve_curves_checked ~first:0.25 ~last:0.75 overflowing_carve with
+  (match Curve_ops.carve_curves ~first:0.25 ~last:0.75 overflowing_carve with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Carve accepted an unrepresentable segment length");
   let extracted domains = Parallel.run ~domains (fun () ->
-    Curve_modeling.carve_curves_checked ~grain:1 ~primitives:carve_first
+    Curve_ops.carve_curves ~grain:1 ~primitives:carve_first
       ~relative_arc_length:false ~first:0.25 ~last:0.75
       ~extract_points:true ~divisions:3 mixed |> get_ok) in
   let extracted_one = extracted 1 and extracted_many = extracted 4 in
@@ -3379,7 +3379,7 @@ let run () =
   if Edge_group.length extracted_edges <> 6
       || Edge_group.cardinality extracted_edges <> 6 then
     fail "Curve Carve point extraction unselected edge ancestry";
-  let extracted_kept = Curve_modeling.carve_curves_checked ~primitives:carve_first
+  let extracted_kept = Curve_ops.carve_curves ~primitives:carve_first
       ~relative_arc_length:false ~first:0.25 ~last:0.75
       ~extract_points:true ~divisions:3 ~keep_original:true mixed |> get_ok in
   if Geometry.point_count extracted_kept <> 13
@@ -3388,7 +3388,7 @@ let run () =
       || Edge_group.cardinality (Geometry.find_edge_group "mixed_edges"
            extracted_kept |> Option.get) <> 9 then
     fail "Curve Carve point extraction keep-original behavior";
-  let extracted_only = Curve_modeling.carve_curves_checked ~relative_arc_length:false
+  let extracted_only = Curve_ops.carve_curves ~relative_arc_length:false
       ~first:0. ~last:1. ~extract_points:true ~divisions:4 carve_source
       |> get_ok in
   if Geometry.point_count extracted_only <> 4
@@ -3399,18 +3399,18 @@ let run () =
       || Edge_group.length (Geometry.find_edge_group "middle" extracted_only
            |> Option.get) <> 0 then
     fail "Curve Carve extraction-only empty topology/payload";
-  let repeated_extract = Curve_modeling.carve_curves_checked ~relative_arc_length:false
+  let repeated_extract = Curve_ops.carve_curves ~relative_arc_length:false
       ~first:0.5 ~last:0.5
       ~extract_points:true ~divisions:2 carve_source |> get_ok in
   let repeated_positions = Packed.Float3.Private.view
       (Geometry.positions repeated_extract) in
   if not (near_array [|2.;2.|] repeated_positions.x) then
     fail "Curve Carve repeated single-parameter extraction";
-  (match Curve_modeling.carve_curves_checked ~extract_points:true ~divisions:0 carve_source with
+  (match Curve_ops.carve_curves ~extract_points:true ~divisions:0 carve_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Carve extraction accepted zero divisions");
-  let outside = Curve_modeling.carve_curves_checked ~relative_arc_length:false ~first:0.25
-      ~last:0.75 ~keep:Curve_modeling.Keep_outside carve_source |> get_ok in
+  let outside = Curve_ops.carve_curves ~relative_arc_length:false ~first:0.25
+      ~last:0.75 ~keep:Curve_ops.Outside carve_source |> get_ok in
   let outside_topology = Topology.Private.view (Geometry.topology outside)
   and outside_positions = Packed.Float3.Private.view (Geometry.positions outside) in
   if Geometry.primitive_count outside <> 2
@@ -3418,8 +3418,8 @@ let run () =
       || not (near_array [|0.;0.75;3.75;6.|] outside_positions.x) then
     fail "Curve Carve keep-outside open pieces";
   let all_pieces domains = Parallel.run ~domains (fun () ->
-    Curve_modeling.carve_curves_checked ~grain:1 ~relative_arc_length:false ~first:0.25 ~last:0.75
-      ~keep:Curve_modeling.Keep_inside_and_outside carve_source |> get_ok) in
+    Curve_ops.carve_curves ~grain:1 ~relative_arc_length:false ~first:0.25 ~last:0.75
+      ~keep:Curve_ops.Inside_and_outside carve_source |> get_ok) in
   let pieces_one = all_pieces 1 and pieces_many = all_pieces 4 in
   let pieces_topology = Topology.Private.view (Geometry.topology pieces_one)
   and pieces_many_topology = Topology.Private.view (Geometry.topology pieces_many)
@@ -3435,7 +3435,7 @@ let run () =
            |> Option.get) <> 1 then
     fail "Curve Carve keep-inside-and-outside topology/edge/domain behavior";
   let divided_inside domains = Parallel.run ~domains (fun () ->
-    Curve_modeling.carve_curves_checked ~grain:1 ~relative_arc_length:false ~first:0.25 ~last:0.75
+    Curve_ops.carve_curves ~grain:1 ~relative_arc_length:false ~first:0.25 ~last:0.75
       ~divisions:3 carve_source |> get_ok) in
   let divided_one = divided_inside 1 and divided_many = divided_inside 4 in
   let divided_topology = Topology.Private.view (Geometry.topology divided_one)
@@ -3488,8 +3488,8 @@ let run () =
       || not !divided_edge_members_equal
       || Edge_group.cardinality divided_edges <> 3 then
     fail "Curve Carve divided cut topology/payload/edge/domain behavior";
-  let divided_all = Curve_modeling.carve_curves_checked ~relative_arc_length:false ~first:0.25
-      ~last:0.75 ~divisions:3 ~keep:Curve_modeling.Keep_inside_and_outside carve_source
+  let divided_all = Curve_ops.carve_curves ~relative_arc_length:false ~first:0.25
+      ~last:0.75 ~divisions:3 ~keep:Curve_ops.Inside_and_outside carve_source
       |> get_ok in
   if Geometry.primitive_count divided_all <> 5
       || (Topology.Private.view (Geometry.topology divided_all)).primitive_offsets
@@ -3498,14 +3498,14 @@ let run () =
            [|0.;0.75; 0.75;1.;1.5; 1.5;2.5; 2.5;3.;3.75; 3.75;6.|]
            (Packed.Float3.Private.view (Geometry.positions divided_all)).x) then
     fail "Curve Carve divided inside-and-outside ordering";
-  (match Curve_modeling.carve_curves_checked ~divisions:0 carve_source with
+  (match Curve_ops.carve_curves ~divisions:0 carve_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Carve cut accepted zero divisions");
   let closed_cut_source = Line_geometry.polyline_checked ~closed:true [|(0.,0.,0.); (1.,0.,0.);
       (1.,1.,0.); (0.,1.,0.)|] |> get_ok
       |> Group_mesh.group_edges_checked ~name:"closed_cut_edges" |> get_ok in
-  let closed_outside = Curve_modeling.carve_curves_checked ~relative_arc_length:false ~first:0.25
-      ~last:0.75 ~keep:Curve_modeling.Keep_outside closed_cut_source |> get_ok in
+  let closed_outside = Curve_ops.carve_curves ~relative_arc_length:false ~first:0.25
+      ~last:0.75 ~keep:Curve_ops.Outside closed_cut_source |> get_ok in
   let closed_outside_topology = Topology.Private.view
       (Geometry.topology closed_outside) in
   if Geometry.primitive_count closed_outside <> 1
@@ -3514,16 +3514,16 @@ let run () =
       || Edge_group.cardinality (Geometry.find_edge_group "closed_cut_edges"
            closed_outside |> Option.get) <> 2 then
     fail "Curve Carve closed complement seam path";
-  let closed_all = Curve_modeling.carve_curves_checked ~relative_arc_length:false ~first:0.25
-      ~last:0.75 ~keep:Curve_modeling.Keep_inside_and_outside closed_cut_source |> get_ok in
+  let closed_all = Curve_ops.carve_curves ~relative_arc_length:false ~first:0.25
+      ~last:0.75 ~keep:Curve_ops.Inside_and_outside closed_cut_source |> get_ok in
   if Geometry.primitive_count closed_all <> 2
       || Geometry.vertex_count closed_all <> 6
       || Edge_group.cardinality (Geometry.find_edge_group "closed_cut_edges"
            closed_all |> Option.get) <> 4 then
     fail "Curve Carve closed inside/complement pieces";
-  let closed_breakpoint_outside = Curve_modeling.carve_curves_checked
+  let closed_breakpoint_outside = Curve_ops.carve_curves
       ~relative_arc_length:false ~first:0.2 ~last:0.8
-      ~only_at_breakpoints:true ~keep:Curve_modeling.Keep_outside closed_cut_source
+      ~only_at_breakpoints:true ~keep:Curve_ops.Outside closed_cut_source
       |> get_ok in
   let closed_breakpoint_topology = Topology.Private.view
       (Geometry.topology closed_breakpoint_outside) in
@@ -3532,18 +3532,18 @@ let run () =
       || Edge_group.cardinality (Geometry.find_edge_group "closed_cut_edges"
            closed_breakpoint_outside |> Option.get) <> 2 then
     fail "Curve Carve closed breakpoint seam complement";
-  let closed_breakpoint_edges = Curve_modeling.carve_curves_checked
+  let closed_breakpoint_edges = Curve_ops.carve_curves
       ~relative_arc_length:false ~first:0.2 ~last:0.8
       ~only_at_breakpoints:true ~cut_at_all_internal_breakpoints:true
-      ~keep:Curve_modeling.Keep_outside closed_cut_source |> get_ok in
+      ~keep:Curve_ops.Outside closed_cut_source |> get_ok in
   if Geometry.primitive_count closed_breakpoint_edges <> 2
       || Geometry.vertex_count closed_breakpoint_edges <> 4
       || Edge_group.cardinality (Geometry.find_edge_group "closed_cut_edges"
            closed_breakpoint_edges |> Option.get) <> 2 then
     fail "Curve Carve closed cut-at-all breakpoint complement";
-  let mixed_outside = Curve_modeling.carve_curves_checked ~primitives:carve_first
+  let mixed_outside = Curve_ops.carve_curves ~primitives:carve_first
       ~relative_arc_length:false ~first:0.25 ~last:0.75
-      ~keep:Curve_modeling.Keep_outside mixed |> get_ok in
+      ~keep:Curve_ops.Outside mixed |> get_ok in
   let mixed_outside_ids = Geometry.find_attribute ~owner:Attribute.Primitive
       "mixed_primitive" mixed_outside |> Option.get
       |> Attribute.get (Attribute.key ~name:"mixed_primitive"
@@ -3888,13 +3888,13 @@ let run () =
   (match Curve_topology.join_curves ~connect_closest_ends:true invalid_join with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "global closest Curve Join accepted a non-finite endpoint");
-  (match Curve_modeling.carve_curves_checked ~first:0.5 ~last:0.5 carve_source with
+  (match Curve_ops.carve_curves ~first:0.5 ~last:0.5 carve_source with
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Carve accepted an empty interval");
   let point_only_carve = Line_geometry.points [|(2.,3.,4.)|] in
-  if (Curve_modeling.carve_curves_checked ~first:0.2 point_only_carve |> get_ok) != point_only_carve
+  if (Curve_ops.carve_curves ~first:0.2 point_only_carve |> get_ok) != point_only_carve
   then fail "Curve Carve rebuilt point-only geometry";
-  (match Curve_modeling.carve_curves_checked ~last:0.9 triangle_geometry with
+  (match Curve_ops.carve_curves ~last:0.9 triangle_geometry with
    | Ok _ -> fail "Curve Carve accepted polygon geometry"
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Carve polygon diagnostic code");
@@ -3903,7 +3903,7 @@ let run () =
    | _ -> fail "Curve Ends accepted polygon geometry");
   let cancelled_curve = Cancel.create () in
   Cancel.cancel cancelled_curve;
-  (match Curve_modeling.carve_curves_checked ~cancel:cancelled_curve ~first:0.1 carve_source with
+  (match Curve_ops.carve_curves ~cancel:cancelled_curve ~first:0.1 carve_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "Curve Carve ignored cancellation");
   (match Curve_topology.join_curves ~cancel:cancelled_curve join_source with

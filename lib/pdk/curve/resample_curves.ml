@@ -70,6 +70,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?segments
     ?maximum_segment_length ?segment_length_attribute ?segments_attribute
     ?(even_last_segment = true) ?curve_u_attribute ?curve_number_attribute
     ?distance_attribute ?tangent_attribute geometry =
+  Error.guard ~operation:"resample_curves" ~code:"invalid_geometry" @@ fun () ->
   if grain <= 0 then invalid_arg "Pdk_curve.Resample_curves.resample_curves: grain must be positive";
   let invalid = ref None in
   (match segments with
