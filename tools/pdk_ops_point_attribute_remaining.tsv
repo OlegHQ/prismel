@@ -1,4 +1,6 @@
 # Residual generator and attribute-family aliases; checked owners already exist.
+# Apply only to reviewed caller files. Owner implementation diagnostic strings
+# retain their historical Pdk.Ops operation names for exact error parity.
 Ops.point_generate	Point_generate.run_checked
 Ops.point_generate_mode	Point_generate.mode
 Ops.Generate_total	Point_generate.Generate_total
