@@ -940,7 +940,7 @@ val triangulate_2d :
   ?point_group:string ->
   ?constraint_edge_group:string ->
   ?constraint_primitive_group:string ->
-  ?projection:Pdk.Triangulation_modeling.triangulate_2d_projection ->
+  ?projection:Pdk.Triangulate2d.projection ->
   ?seed:int64 ->
   ?split_crossing_constraints:bool ->
   ?flood_from_hull_boundary:bool ->

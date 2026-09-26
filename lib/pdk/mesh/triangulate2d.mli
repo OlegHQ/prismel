@@ -39,5 +39,7 @@ val run :
   ?refinement_point_group:string ->
   ?triangle_group:string ->
   ?constraint_group:string ->
+  ?remove_unused_points:bool ->
+  ?recompute_point_normals:bool ->
   Geometry.t ->
-  (Geometry.t, string) result
+  (Geometry.t, Error.t) result

@@ -283,7 +283,7 @@ let test_output_policies () =
       ~connectivity:Box_generator.Box_quads ~consolidate_points:true () |> get in
   let cut = Boolean.run ~grain:1 ~operation:Boolean.Difference
       ~detriangulation:Boolean.All_polygons ~right:cutter host |> get in
-  ignore (Triangulation_modeling.triangulate ~grain:1 cut |> get)
+  ignore (Triangulate.run ~grain:1 cut |> get)
 
 let test_errors () =
   let left = tetra ~origin:(0.,0.,0.) 1.

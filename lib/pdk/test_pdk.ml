@@ -2406,7 +2406,7 @@ let run () =
    | Error _ -> ()
    | Ok _ -> fail "Geometry accepted an edge group from another topology");
   let quad_edges = Group_mesh.group_edges_checked ~name:"quad_edges" geometry |> get_ok in
-  let triangulated_edges = Triangulation_modeling.triangulate quad_edges |> get_ok in
+  let triangulated_edges = Triangulate.run quad_edges |> get_ok in
   let triangulated_edge_group = Geometry.find_edge_group "quad_edges"
       triangulated_edges |> Option.get in
   if Edge_group.cardinality triangulated_edge_group <> 4

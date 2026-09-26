@@ -144,7 +144,7 @@ let rec to_mesh_raw_impl ?cancel geometry =
     curve_mesh ?cancel geometry
   else if Topology.primitive_count topology <> 0 && not (Topology.all_triangles topology)
   then Result.bind
-      (Result.map_error Error.to_string (Triangulation_modeling.triangulate ?cancel geometry))
+      (Result.map_error Error.to_string (Triangulate.run ?cancel geometry))
       (to_mesh_raw_impl ?cancel)
   else
     match standard geometry ~name:"N" ~point_kind:float3 ~vertex_kind:float3,

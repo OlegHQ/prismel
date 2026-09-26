@@ -1297,7 +1297,7 @@ let test_generators_selections_and_delete () =
       && contains (Node.parameters triangulate_graph) "group=reverse_first")
     "procedural Triangulate cache identity";
   let triangulated = cook_ok evaluator current triangulate_graph in
-  let expected_triangulate = Pdk.Triangulation_modeling.triangulate ~grain:1
+  let expected_triangulate = Pdk.Triangulate.run ~grain:1
       ~primitives:(Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive
         "reverse_first" reverse_source |> Option.get) reverse_source
       |> Result.get_ok in

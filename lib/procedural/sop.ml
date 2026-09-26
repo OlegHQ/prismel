@@ -2594,23 +2594,23 @@ let triangulate ?label ?group input =
       match primitives with
       | Error error -> Error error
       | Ok primitives ->
-          match Pdk.Triangulation_modeling.triangulate ~cancel:(Context.cancel_token context)
+          match Pdk.Triangulate.run ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives geometry with
           | Ok geometry -> cooked geometry
           | Error error -> structured_pdk_error error)
 
 let triangulate_2d_projection_key = function
-  | Pdk.Triangulation_modeling.Triangulate_2d_best_fit -> "best_fit"
-  | Pdk.Triangulation_modeling.Triangulate_2d_xy -> "xy"
-  | Pdk.Triangulation_modeling.Triangulate_2d_yz -> "yz"
-  | Pdk.Triangulation_modeling.Triangulate_2d_zx -> "zx"
-  | Pdk.Triangulation_modeling.Triangulate_2d_plane { origin; normal } ->
+  | Pdk.Triangulate2d.Best_fit -> "best_fit"
+  | Pdk.Triangulate2d.Plane_xy -> "xy"
+  | Pdk.Triangulate2d.Plane_yz -> "yz"
+  | Pdk.Triangulate2d.Plane_zx -> "zx"
+  | Pdk.Triangulate2d.Plane { origin; normal } ->
       "plane:" ^ vec3_key origin ^ ":" ^ vec3_key normal
-  | Pdk.Triangulation_modeling.Triangulate_2d_point_attribute name -> "attribute:" ^ name
+  | Pdk.Triangulate2d.Point_attribute name -> "attribute:" ^ name
 
 let triangulate_2d ?label ?point_group ?constraint_edge_group
     ?constraint_primitive_group
-    ?(projection = Pdk.Triangulation_modeling.Triangulate_2d_best_fit) ?(seed = 0L)
+    ?(projection = Pdk.Triangulate2d.Best_fit) ?(seed = 0L)
     ?(split_crossing_constraints = false) ?(flood_from_hull_boundary = false)
     ?(remove_outside_constraint_polygons = false)
     ?(silhouette_constraints = false) ?(remove_outside_silhouette = false)
@@ -2635,7 +2635,7 @@ let triangulate_2d ?label ?point_group ?constraint_edge_group
      "refinement point group",refinement_point_group;
      "triangle group",triangle_group; "constraint output group",constraint_group];
   (match projection with
-   | Pdk.Triangulation_modeling.Triangulate_2d_point_attribute name when String.trim name = "" ->
+   | Pdk.Triangulate2d.Point_attribute name when String.trim name = "" ->
        invalid_arg "Sop.triangulate_2d: empty point attribute name"
    | _ -> ());
   Node.Private.make ?label ~operation:"triangulate_2d" ~version:12
@@ -2704,7 +2704,7 @@ let triangulate_2d ?label ?point_group ?constraint_edge_group
       | Error error,_,_ -> Error error
       | _,Error error,_ | _,_,Error error -> Error error
       | Ok selection,Ok constraint_edges,Ok constraint_primitives ->
-          match Pdk.Triangulation_modeling.triangulate_2d
+          match Pdk.Triangulate2d.run
               ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
               ?selection ?constraint_edges ?constraint_primitives ~projection
               ~seed ~split_crossing_constraints ~flood_from_hull_boundary
@@ -2763,7 +2763,7 @@ let remesh ?label ?(iterations = 3) ?(smoothing = 0.5) ?(project = true)
           (match resolve_optional_edge_group "remesh" hard_edge_group geometry with
            | Error error -> Error error
            | Ok hard_edges ->
-               match Pdk.Triangulation_modeling.remesh ~cancel:(Context.cancel_token context)
+               match Pdk.Remesh.run ~cancel:(Context.cancel_token context)
                    ~grain:(Context.grain context) ~iterations ~smoothing ~project
                    ~use_input_points_only ?hard_points ?hard_edges
                    ?target_size_attribute ~preserve_uv_seams ~uv_attribute

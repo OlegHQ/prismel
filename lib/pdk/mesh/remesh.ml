@@ -1,11 +1,5 @@
 open Prismel_math
 
-type kernels = {
-  triangulate : Geometry.t -> (Geometry.t, string) result;
-  collapse : Edge_group.t -> Geometry.t -> (Geometry.t, string) result;
-  flip : Edge_group.t -> Geometry.t -> (Geometry.t, string) result;
-}
-
 type projection_scratch = {
   count : int;
   primitives : int array;
@@ -1604,7 +1598,8 @@ let run ?cancel ?(grain = 16_384) ?(iterations = 3) ?(smoothing = 0.5)
     ?(project = true) ?(use_input_points_only = false) ?hard_points ?hard_edges
     ?target_size_attribute ?(preserve_uv_seams = true) ?(uv_attribute = "uv")
     ?output_hard_edges ?output_mesh_size ?output_quality
-    ?(recompute_point_normals = true) ~target_length ~kernels geometry =
+    ?(recompute_point_normals = true) ~target_length geometry =
+  Error.guard ~operation:"remesh" ~code:"invalid_remesh" @@ fun () ->
   try
     if grain <= 0 then fail "grain must be positive"
     else if iterations < 0 then fail "iterations must be non-negative"
@@ -1627,7 +1622,7 @@ let run ?cancel ?(grain = 16_384) ?(iterations = 3) ?(smoothing = 0.5)
       Result.bind (install_feature_groups ?cancel ~grain ~hard_points ~hard_edges
           ~preserve_uv_seams ~uv_attribute ~point_name ~edge_name geometry)
         (fun prepared ->
-      Result.bind (kernels.triangulate prepared) (fun initial ->
+      Result.bind (Error.unguard (Triangulate.run ?cancel ~grain prepared)) (fun initial ->
       let current = ref initial in
       let failure = ref None and iteration = ref 0 in
       let projection_scratch = ref None in

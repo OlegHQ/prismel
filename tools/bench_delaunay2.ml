@@ -182,7 +182,7 @@ let run_benchmarks () =
     let constraint_only_group = Group.init ~owner:Group.Primitive
         ~name:"constraint" 1 (fun _ -> true) in
     measure "constraint_only_adapter"
-      (fun () -> Triangulation_modeling.triangulate_2d ~projection:Triangulation_modeling.Triangulate_2d_xy
+      (fun () -> Triangulate2d.run ~projection:Triangulate2d.Plane_xy
           ~constraint_primitives:constraint_only_group
           ~ignore_non_constraint_points:true constraint_only_source
         |> function Ok value -> value
@@ -197,7 +197,7 @@ let run_benchmarks () =
         | 2 -> 1.,1.,float_of_int point
         | _ -> 0.,1.,float_of_int point)) in
     measure "duplicate_removal_adapter"
-      (fun () -> Triangulation_modeling.triangulate_2d ~projection:Triangulation_modeling.Triangulate_2d_xy
+      (fun () -> Triangulate2d.run ~projection:Triangulate2d.Plane_xy
           ~remove_duplicate_points:true duplicate_source
         |> function Ok value -> value
           | Error message -> failwith (Error.to_string message))
@@ -207,7 +207,7 @@ let run_benchmarks () =
       ~topology:(Topology.empty ~point_count:points) ()
       |> function Ok value -> value | Error message -> failwith message in
   measure "projected_positions_adapter"
-    (fun () -> Triangulation_modeling.triangulate_2d ~projection:Triangulation_modeling.Triangulate_2d_xy
+    (fun () -> Triangulate2d.run ~projection:Triangulate2d.Plane_xy
         ~restore_original_point_positions:false
         projected_positions_source
       |> function Ok value -> value
@@ -217,7 +217,7 @@ let run_benchmarks () =
       [|0.,0.,0.; 1.,0.,0.; 1.,1.,0.; 0.,1.,0.|] in
   let target_edge_length = 1.8 /. sqrt (float_of_int refinement_points) in
   measure "quality_refinement_adapter"
-    (fun () -> Triangulation_modeling.triangulate_2d ~projection:Triangulation_modeling.Triangulate_2d_xy
+    (fun () -> Triangulate2d.run ~projection:Triangulate2d.Plane_xy
         ~refine:true ~minimum_angle:1e-6 ~target_edge_length
         ~maximum_new_points:refinement_points refinement_source
       |> function Ok value -> value
@@ -225,7 +225,7 @@ let run_benchmarks () =
     Geometry.point_count hash_geometry;
   let regularization_target = 1.8 /. sqrt (float_of_int regularization_points) in
   let regularization_run steps () =
-    Triangulation_modeling.triangulate_2d ~projection:Triangulation_modeling.Triangulate_2d_xy
+    Triangulate2d.run ~projection:Triangulate2d.Plane_xy
       ~refine:true ~minimum_angle:1e-6
       ~target_edge_length:regularization_target
       ~maximum_new_points:regularization_points ~regularization_steps:steps
@@ -255,7 +255,7 @@ let run_benchmarks () =
   let constrained_group = Group.init ~owner:Group.Primitive
       ~name:"boundary" 1 (fun _ -> true) in
   measure "quality_refinement_constrained_adapter"
-    (fun () -> Triangulation_modeling.triangulate_2d ~projection:Triangulation_modeling.Triangulate_2d_xy
+    (fun () -> Triangulate2d.run ~projection:Triangulate2d.Plane_xy
         ~constraint_primitives:constrained_group
         ~remove_outside_constraint_polygons:true ~refine:true
         ~minimum_angle:1e-6
@@ -274,7 +274,7 @@ let run_benchmarks () =
       ~topology:source_topology ()
       |> function Ok value -> value | Error message -> failwith message in
   measure "projected_silhouette_adapter"
-    (fun () -> Triangulation_modeling.triangulate_2d ~projection:Triangulation_modeling.Triangulate_2d_xy
+    (fun () -> Triangulate2d.run ~projection:Triangulate2d.Plane_xy
       ~silhouette_constraints:true silhouette_source
       |> function Ok value -> value
         | Error message -> failwith (Error.to_string message))
@@ -295,7 +295,7 @@ let run_benchmarks () =
       |> Geometry.with_attribute primitive_payload
       |> function Error message -> failwith message | Ok value -> value in
   measure "keep_primitives_adapter"
-    (fun () -> Triangulation_modeling.triangulate_2d ~projection:Triangulation_modeling.Triangulate_2d_xy
+    (fun () -> Triangulate2d.run ~projection:Triangulate2d.Plane_xy
       ~keep_primitives:true keep_source
       |> function Ok value -> value
         | Error message -> failwith (Error.to_string message))

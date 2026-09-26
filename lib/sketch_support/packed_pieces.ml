@@ -83,7 +83,7 @@ let of_geometry ?cancel ?center ~piece_attribute geometry =
     if Pdk.Topology.all_triangles (Pdk.Geometry.topology geometry) then
       Ok geometry
     else Result.map_error Pdk.Error.to_string
-        (Pdk.Triangulation_modeling.triangulate ?cancel geometry)
+        (Pdk.Triangulate.run ?cancel geometry)
   in
   Result.bind triangulated (fun geometry ->
     Result.bind (primitive_pieces ~piece_attribute geometry)

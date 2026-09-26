@@ -919,7 +919,18 @@ let run ?cancel ?(grain = 16_384) ?selection ?constraint_edges
     ?(preserve_point_payload = true)
     ?(restore_original_point_positions = true) ?(keep_primitives = false)
     ?split_point_group ?refinement_point_group ?triangle_group
-    ?constraint_group geometry =
+    ?constraint_group
+    ?(remove_unused_points = false) ?(recompute_point_normals = false) geometry =
+  Error.guard ~operation:"triangulate_2d" ~code:"invalid_triangulation" @@ fun () ->
+  let finish output =
+    Result.bind (if remove_unused_points then Compact_points.run ?cancel ~grain output
+        else Ok output) (fun output ->
+      if recompute_point_normals
+          && Option.is_some (Geometry.find_attribute
+            ~owner:Attribute.Point "N" geometry) then
+        Normal_ops.run ?cancel ~grain ~owner:Attribute.Point ~attribute:"N" output
+      else Ok output) in
+  Result.bind begin
   try
     if grain <= 0 then invalid_arg (operation ^ ": grain must be positive");
     Option.iter (fun name -> if String.trim name = "" then
@@ -1170,3 +1181,4 @@ let run ?cancel ?(grain = 16_384) ?selection ?constraint_edges
   with
   | Cancel.Cancelled -> Error (operation ^ ": triangulation was cancelled")
   | Invalid_argument message -> Error message
+  end finish

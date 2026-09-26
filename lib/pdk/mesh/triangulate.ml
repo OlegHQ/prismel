@@ -2,6 +2,7 @@ open Prismel_math
 
 
 let run ?cancel ?(grain = 16_384) ?primitives geometry =
+  Error.guard ~operation:"triangulate" ~code:"invalid_topology" @@ fun () ->
   try
   if grain <= 0 then invalid_arg "Pdk_mesh.Triangulate.triangulate: grain must be positive";
   Cancel.check_opt cancel;

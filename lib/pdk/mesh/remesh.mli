@@ -13,12 +13,6 @@
     [Parallel] with [grain]; every other pass is sequential, so output is
     byte-identical between one and many domains. Cancellation is checked at
     least every 4,096 elements. *)
-type kernels = {
-  triangulate : Geometry.t -> (Geometry.t, string) result;
-  collapse : Edge_group.t -> Geometry.t -> (Geometry.t, string) result;
-  flip : Edge_group.t -> Geometry.t -> (Geometry.t, string) result;
-}
-
 val run :
   ?cancel:Cancel.t ->
   ?grain:int ->
@@ -36,6 +30,5 @@ val run :
   ?output_quality:string ->
   ?recompute_point_normals:bool ->
   target_length:float ->
-  kernels:kernels ->
   Geometry.t ->
-  (Geometry.t, string) result
+  (Geometry.t, Error.t) result

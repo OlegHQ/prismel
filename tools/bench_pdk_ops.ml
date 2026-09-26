@@ -2689,24 +2689,24 @@ let run_remesh_benchmarks () =
   let point_count = Geometry.point_count source in
   let target = 100. /. float_of_int (max remesh_columns remesh_rows) *. 1.13 in
   measure ~input_points:point_count "remesh_topology_iteration_payload" (fun () ->
-    Triangulation_modeling.remesh ~grain ~iterations:1 ~smoothing:0. ~project:false
+    Remesh.run ~grain ~iterations:1 ~smoothing:0. ~project:false
       ~recompute_point_normals:false ~target_length:target source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "remesh_topology_three_iterations" (fun () ->
-    Triangulation_modeling.remesh ~grain ~iterations:3 ~smoothing:0. ~project:false
+    Remesh.run ~grain ~iterations:3 ~smoothing:0. ~project:false
       ~recompute_point_normals:false ~target_length:target source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "remesh_uniform_full_iteration" (fun () ->
-    Triangulation_modeling.remesh ~grain ~iterations:1 ~smoothing:0.45 ~project:true
+    Remesh.run ~grain ~iterations:1 ~smoothing:0.45 ~project:true
       ~target_length:target ~output_hard_edges:"hard"
       ~output_mesh_size:"mesh_size" ~output_quality:"quality" source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "remesh_input_points_relax_project" (fun () ->
-    Triangulation_modeling.remesh ~grain ~iterations:3 ~smoothing:0.45 ~project:true
+    Remesh.run ~grain ~iterations:3 ~smoothing:0.45 ~project:true
       ~use_input_points_only:true ~target_length:target
       ~output_quality:"quality" source |> get_ok) geometry_output;
   measure ~input_points:point_count "remesh_triangulate_diagnostics" (fun () ->
-    Triangulation_modeling.remesh ~grain ~iterations:0 ~target_length:target
+    Remesh.run ~grain ~iterations:0 ~target_length:target
       ~output_hard_edges:"hard" ~output_mesh_size:"mesh_size"
       ~output_quality:"quality" source |> get_ok) geometry_output
 
@@ -5290,7 +5290,7 @@ let () =
     |> get_ok) geometry_output;
   measure "sort_points_x" (fun () ->
     Ordering.sort_checked ~grain ~owner:Ordering.Points ~key:Ordering.X source |> get_ok) geometry_output;
-  measure "triangulate_triangles" (fun () -> Triangulation_modeling.triangulate source |> get_ok)
+  measure "triangulate_triangles" (fun () -> Triangulate.run source |> get_ok)
     geometry_output;
   if benchmark_enabled "triangulate_quads"
      || benchmark_enabled "triangulate_quads_local_half"
@@ -5298,7 +5298,7 @@ let () =
     let quad_source = Plane_generators.grid_checked ~grain ~connectivity:Plane_generators.Grid_quads
         ~columns ~rows ~size:100. () |> get_ok in
     measure ~input_points:(Geometry.point_count quad_source)
-      "triangulate_quads" (fun () -> Triangulation_modeling.triangulate quad_source |> get_ok)
+      "triangulate_quads" (fun () -> Triangulate.run quad_source |> get_ok)
       geometry_output;
     let alternating = Group.init ~grain ~owner:Group.Primitive
         ~name:"triangulate_alternating"
@@ -5306,7 +5306,7 @@ let () =
         (fun primitive -> primitive land 1 = 0) in
     measure ~input_points:(Geometry.point_count quad_source)
       "triangulate_quads_local_half" (fun () ->
-        Triangulation_modeling.triangulate ~grain ~primitives:alternating quad_source |> get_ok)
+        Triangulate.run ~grain ~primitives:alternating quad_source |> get_ok)
       geometry_output;
     let vertex_ids = Attribute.create_owned ~name:"corner_id"
         ~owner:Attribute.Vertex
@@ -5319,7 +5319,7 @@ let () =
         |> Geometry.with_group marked |> get_ok in
     measure ~input_points:(Geometry.point_count payload_source)
       "triangulate_quads_payload" (fun () ->
-        Triangulation_modeling.triangulate ~grain payload_source |> get_ok) geometry_output
+        Triangulate.run ~grain payload_source |> get_ok) geometry_output
   end;
   (match benchmark_filter with
    | Some filter when String.starts_with ~prefix:"triangulate" filter -> exit 0

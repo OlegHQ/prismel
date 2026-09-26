@@ -26,7 +26,7 @@ let test_xy_payload_and_group () =
   let selected = Group.init ~owner:Group.Point ~name:"selected" 4 (fun _ -> true) in
   let input = Geometry.with_attribute id input |> Result.get_ok
       |> Geometry.with_group selected |> Result.get_ok in
-  let output = Triangulation_modeling.triangulate_2d ~projection:Triangulation_modeling.Triangulate_2d_xy
+  let output = Triangulate2d.run ~projection:Triangulate2d.Plane_xy
       ~triangle_group:"triangles" input |> get in
   check (Geometry.point_count output = 4 && Geometry.primitive_count output = 2
       && Geometry.vertex_count output = 6) "XY cardinality";
@@ -43,10 +43,10 @@ let test_xy_payload_and_group () =
 let test_best_fit_and_explicit_plane () =
   let input = Line_geometry.points [|0.,0.,0.; 1.,0.,1.; 1.,1.,3.; 0.,1.,2.; 0.5,0.5,1.5|]
       in
-  let best = Triangulation_modeling.triangulate_2d input |> get in
+  let best = Triangulate2d.run input |> get in
   check (Geometry.primitive_count best = 4) "best-fit tilted plane cardinality";
-  let explicit = Triangulation_modeling.triangulate_2d
-      ~projection:(Triangulation_modeling.Triangulate_2d_plane {
+  let explicit = Triangulate2d.run
+      ~projection:(Triangulate2d.Plane {
         origin = Vec3.zero; normal = Vec3.create (-1.) (-2.) 1. }) input |> get in
   check (Geometry.primitive_count explicit = 4)
     "explicit tilted plane cardinality"
@@ -57,9 +57,9 @@ let test_projected_output_positions () =
   let xy = Line_geometry.points
       [|0.,0.,10.;2.,0.,20.;2.,2.,30.;0.,2.,40.;9.,9.,9.|]
       |> Geometry.with_group selected |> Result.get_ok in
-  let xy = Triangulation_modeling.triangulate_2d ~grain:1
+  let xy = Triangulate2d.run ~grain:1
       ~selection:(Transform_ops.Selected_points selected)
-      ~projection:Triangulation_modeling.Triangulate_2d_xy
+      ~projection:Triangulate2d.Plane_xy
       ~restore_original_point_positions:false xy |> get in
   let x,y,z = position_signature xy in
   check (x = [|0.;2.;2.;0.;9.|] && y = [|0.;0.;2.;2.;9.|]
@@ -67,22 +67,22 @@ let test_projected_output_positions () =
     "XY projected output or unselected-point policy";
   let yz = Line_geometry.points
       [|10.,0.,0.;11.,1.,0.;12.,1.,1.;13.,0.,1.|]
-      |> Triangulation_modeling.triangulate_2d ~grain:1 ~projection:Triangulation_modeling.Triangulate_2d_yz
+      |> Triangulate2d.run ~grain:1 ~projection:Triangulate2d.Plane_yz
           ~restore_original_point_positions:false |> get in
   let x,y,z = position_signature yz in
   check (x = [|0.;0.;0.;0.|] && y = [|0.;1.;1.;0.|]
       && z = [|0.;0.;1.;1.|]) "YZ projected output";
   let zx = Line_geometry.points
       [|0.,10.,0.;0.,11.,1.;1.,12.,1.;1.,13.,0.|]
-      |> Triangulation_modeling.triangulate_2d ~grain:1 ~projection:Triangulation_modeling.Triangulate_2d_zx
+      |> Triangulate2d.run ~grain:1 ~projection:Triangulate2d.Plane_zx
           ~restore_original_point_positions:false |> get in
   let x,y,z = position_signature zx in
   check (x = [|0.;0.;1.;1.|] && y = [|0.;0.;0.;0.|]
       && z = [|0.;1.;1.;0.|]) "ZX projected output";
   let explicit_source = Line_geometry.points
       [|0.,0.,-5.;2.,0.,20.;2.,2.,-10.;0.,2.,30.|] in
-  let explicit = Triangulation_modeling.triangulate_2d ~grain:1
-      ~projection:(Triangulation_modeling.Triangulate_2d_plane {
+  let explicit = Triangulate2d.run ~grain:1
+      ~projection:(Triangulate2d.Plane {
         origin=Vec3.create 0. 0. 10.; normal=Vec3.create 0. 0. 1. })
       ~restore_original_point_positions:false explicit_source |> get in
   let x,y,z = position_signature explicit in
@@ -90,7 +90,7 @@ let test_projected_output_positions () =
       && z = [|10.;10.;10.;10.|]) "explicit-plane projected output";
   let best_source = Line_geometry.points
       [|0.,0.,3.;2.,0.,5.;2.,2.,9.;0.,2.,7.;1.,1.,6.|] in
-  let best = Triangulation_modeling.triangulate_2d ~grain:1
+  let best = Triangulate2d.run ~grain:1
       ~restore_original_point_positions:false best_source |> get in
   check (Geometry.positions best != Geometry.positions best_source)
     "best-fit projected output retained source P identity";
@@ -108,8 +108,8 @@ let test_projected_output_positions () =
       |> Result.get_ok in
   let attribute_source = Geometry.with_attribute coordinates attribute_source
       |> Result.get_ok in
-  let attribute_output = Triangulation_modeling.triangulate_2d ~grain:1
-      ~projection:(Triangulation_modeling.Triangulate_2d_point_attribute "planar3")
+  let attribute_output = Triangulate2d.run ~grain:1
+      ~projection:(Triangulate2d.Point_attribute "planar3")
       ~restore_original_point_positions:false attribute_source |> get in
   let x,y,z = position_signature attribute_output in
   check (x = [|0.;2.;2.;0.|] && y = [|0.;0.;2.;2.|]
@@ -118,7 +118,7 @@ let test_projected_output_positions () =
   let refined_source = Line_geometry.points
       [|0.,0.,10.;2.,0.,20.;2.,2.,30.;0.,2.,40.|] in
   let run domains = Parallel.run ~domains (fun () ->
-      Triangulation_modeling.triangulate_2d ~grain:1 ~projection:Triangulation_modeling.Triangulate_2d_xy
+      Triangulate2d.run ~grain:1 ~projection:Triangulate2d.Plane_xy
         ~restore_original_point_positions:false ~refine:true ~maximum_area:0.2
         ~maximum_new_points:64 ~regularization_steps:2 refined_source |> get) in
   let refined = run 1 and parallel = run 4 in
@@ -139,9 +139,9 @@ let test_attribute_and_selection () =
   let input = Geometry.with_attribute uv input |> Result.get_ok in
   let group = Group.ordered ~owner:Group.Point ~name:"four" ~length:5
       [|0;1;2;3|] |> Result.get_ok in
-  let output = Triangulation_modeling.triangulate_2d
+  let output = Triangulate2d.run
       ~selection:(Transform_ops.Selected_points group)
-      ~projection:(Triangulation_modeling.Triangulate_2d_point_attribute "planar") input |> get in
+      ~projection:(Triangulate2d.Point_attribute "planar") input |> get in
   check (Geometry.primitive_count output = 2) "attribute/selection cardinality";
   let topology = Topology.Private.view (Geometry.topology output) in
   check (Array.for_all (fun point -> point < 4) topology.vertex_points)
@@ -217,7 +217,7 @@ let test_keep_primitives_payload_groups_and_edges () =
       ~groups:[constraints;vertex_order;primitive_order;old_triangles]
       ~edge_groups:[boundary;old_recovered] () |> Result.get_ok in
   let run domains = Parallel.run ~domains (fun () ->
-      Triangulation_modeling.triangulate_2d ~grain:1 ~projection:Triangulation_modeling.Triangulate_2d_xy
+      Triangulate2d.run ~grain:1 ~projection:Triangulate2d.Plane_xy
         ~constraint_primitives:constraints ~keep_primitives:true
         ~triangle_group:"triangles" ~constraint_group:"recovered" input |> get) in
   let output = run 1 and parallel = run 4 in
@@ -332,8 +332,8 @@ let test_keep_primitives_payload_groups_and_edges () =
       |> Result.get_ok in
   let duplicate_input = Geometry.create ~positions:duplicate_positions
       ~topology:duplicate_topology () |> Result.get_ok in
-  let deduplicated = Triangulation_modeling.triangulate_2d ~grain:1
-      ~projection:Triangulation_modeling.Triangulate_2d_xy ~keep_primitives:true
+  let deduplicated = Triangulate2d.run ~grain:1
+      ~projection:Triangulate2d.Plane_xy ~keep_primitives:true
       ~remove_duplicate_points:true duplicate_input |> get in
   let deduplicated_topology = Topology.Private.view
       (Geometry.topology deduplicated) in
@@ -364,7 +364,7 @@ let check_constraint_edge geometry =
 
 let test_constraints () =
   let input,primitives = constrained_square () in
-  let output = Triangulation_modeling.triangulate_2d ~projection:Triangulation_modeling.Triangulate_2d_xy
+  let output = Triangulate2d.run ~projection:Triangulate2d.Plane_xy
       ~constraint_primitives:primitives ~constraint_group:"constraints" input
       |> get in
   check_constraint_edge output;
@@ -372,7 +372,7 @@ let test_constraints () =
   let edge = Topology_index.find_edge_index source_index ~a:1 ~b:3 in
   let edges = Edge_group.init ~topology:(Geometry.topology input)
       ~index:source_index ~name:"edge_constraint" (fun candidate -> candidate = edge) in
-  let output = Triangulation_modeling.triangulate_2d ~projection:Triangulation_modeling.Triangulate_2d_xy
+  let output = Triangulate2d.run ~projection:Triangulate2d.Plane_xy
       ~constraint_edges:edges ~constraint_group:"constraints" input |> get in
   check_constraint_edge output;
   let positions = Packed.Float3.Private.of_owned_exn
@@ -385,7 +385,7 @@ let test_constraints () =
   let primitives = Group.init ~owner:Group.Primitive ~name:"embedded" 1
       (fun _ -> true) in
   let run domains = Parallel.run ~domains (fun () ->
-      Triangulation_modeling.triangulate_2d ~grain:1 ~projection:Triangulation_modeling.Triangulate_2d_xy
+      Triangulate2d.run ~grain:1 ~projection:Triangulate2d.Plane_xy
         ~constraint_primitives:primitives ~constraint_group:"constraints"
         geometry |> get) in
   let embedded = run 1 and parallel = run 4 in
@@ -420,17 +420,17 @@ let crossing_constraints () =
 
 let test_crossing_constraints_and_payload () =
   let input,constraints = crossing_constraints () in
-  (match Triangulation_modeling.triangulate_2d ~projection:Triangulation_modeling.Triangulate_2d_xy
+  (match Triangulate2d.run ~projection:Triangulate2d.Plane_xy
       ~constraint_primitives:constraints input with
    | Error _ -> ()
    | Ok _ -> fail "crossing constraints succeeded without opt-in splitting");
-  (match Triangulation_modeling.triangulate_2d ~projection:Triangulation_modeling.Triangulate_2d_xy
+  (match Triangulate2d.run ~projection:Triangulate2d.Plane_xy
       ~constraint_primitives:constraints ~split_crossing_constraints:true
       ~refine:true ~maximum_new_points:0 input with
    | Error _ -> ()
    | Ok _ -> fail "required arrangement split escaped the refinement budget");
   let run domains = Parallel.run ~domains (fun () ->
-      Triangulation_modeling.triangulate_2d ~grain:1 ~projection:Triangulation_modeling.Triangulate_2d_xy
+      Triangulate2d.run ~grain:1 ~projection:Triangulate2d.Plane_xy
         ~constraint_primitives:constraints ~split_crossing_constraints:true
         ~split_point_group:"crossings" ~constraint_group:"constraints" input
       |> get) in
@@ -476,8 +476,8 @@ let test_crossing_constraints_and_payload () =
    | Some group -> check (Edge_group.cardinality group = 4)
        "split constraint edge cardinality"
    | None -> fail "split constraint output group is missing");
-  let projected = Triangulation_modeling.triangulate_2d ~grain:1
-      ~projection:Triangulation_modeling.Triangulate_2d_xy
+  let projected = Triangulate2d.run ~grain:1
+      ~projection:Triangulate2d.Plane_xy
       ~constraint_primitives:constraints ~split_crossing_constraints:true
       ~restore_original_point_positions:false input |> get in
   let _,_,projected_z = position_signature projected in
@@ -494,8 +494,8 @@ let test_crossing_constraints_and_payload () =
       ~topology:authored_topology () |> Result.get_ok in
   let authored_constraints = Group.init ~owner:Group.Primitive
       ~name:"authored_crossing" 2 (fun _ -> true) in
-  let authored = Triangulation_modeling.triangulate_2d ~grain:1
-      ~projection:Triangulation_modeling.Triangulate_2d_xy
+  let authored = Triangulate2d.run ~grain:1
+      ~projection:Triangulate2d.Plane_xy
       ~constraint_primitives:authored_constraints
       ~split_crossing_constraints:true ~split_point_group:"generated"
       ~constraint_group:"constraints" authored |> get in
@@ -524,7 +524,7 @@ let test_hull_boundary_flood () =
   let input = Geometry.create ~positions ~topology ~groups:[constraint_group] ()
       |> Result.get_ok in
   let run domains = Parallel.run ~domains (fun () ->
-      Triangulation_modeling.triangulate_2d ~grain:1 ~projection:Triangulation_modeling.Triangulate_2d_xy
+      Triangulate2d.run ~grain:1 ~projection:Triangulate2d.Plane_xy
         ~constraint_primitives:constraint_group ~flood_from_hull_boundary:true
         ~constraint_group:"boundary" input |> get) in
   let output = run 1 and parallel = run 4 in
@@ -539,19 +539,19 @@ let test_hull_boundary_flood () =
    | Some group -> check (Edge_group.cardinality group = 4)
        "hull flood constrained-edge cardinality"
    | None -> fail "hull flood constraint group is missing");
-  let polygon = Triangulation_modeling.triangulate_2d ~grain:1
-      ~projection:Triangulation_modeling.Triangulate_2d_xy
+  let polygon = Triangulate2d.run ~grain:1
+      ~projection:Triangulate2d.Plane_xy
       ~constraint_primitives:constraint_group
       ~remove_outside_constraint_polygons:true
       ~constraint_group:"boundary" input |> get in
   check (topology_signature polygon = topology_signature output)
     "constraint-polygon winding differs from simple hull-flood interior";
-  let empty = Triangulation_modeling.triangulate_2d ~projection:Triangulation_modeling.Triangulate_2d_xy
+  let empty = Triangulate2d.run ~projection:Triangulate2d.Plane_xy
       ~flood_from_hull_boundary:true (Line_geometry.points [|0.,0.,0.;1.,0.,0.;0.,1.,0.|])
       |> get in
   check (Geometry.primitive_count empty = 0)
     "unblocked adapter hull flood did not remove all triangles";
-  let edge_only = Triangulation_modeling.triangulate_2d ~projection:Triangulation_modeling.Triangulate_2d_xy
+  let edge_only = Triangulate2d.run ~projection:Triangulate2d.Plane_xy
       ~constraint_edges:(let index = Topology_index.create topology in
         Edge_group.init ~topology ~index ~name:"edge_only" (fun _ -> true))
       ~remove_outside_constraint_polygons:true input |> get in
@@ -573,12 +573,12 @@ let test_ignore_non_constraint_points () =
       |> Result.get_ok in
   let boundary = Group.init ~owner:Group.Primitive ~name:"boundary" 1
       (fun _ -> true) in
-  let ordinary = Triangulation_modeling.triangulate_2d ~projection:Triangulation_modeling.Triangulate_2d_xy
+  let ordinary = Triangulate2d.run ~projection:Triangulate2d.Plane_xy
       ~constraint_primitives:boundary input |> get in
   check (Geometry.primitive_count ordinary = 4)
     "ordinary triangulation did not include the interior point";
   let run domains = Parallel.run ~domains (fun () ->
-      Triangulation_modeling.triangulate_2d ~grain:1 ~projection:Triangulation_modeling.Triangulate_2d_xy
+      Triangulate2d.run ~grain:1 ~projection:Triangulate2d.Plane_xy
         ~constraint_primitives:boundary ~ignore_non_constraint_points:true
         ~constraint_group:"boundary" input |> get) in
   let ignored = run 1 and parallel = run 4 in
@@ -593,8 +593,8 @@ let test_ignore_non_constraint_points () =
    | Some group -> check (Edge_group.cardinality group = 4)
        "Ignore Non-Constraint Points lost constraint edges"
    | None -> fail "Ignore Non-Constraint Points boundary group is missing");
-  let compacted = Triangulation_modeling.triangulate_2d ~grain:1
-      ~projection:Triangulation_modeling.Triangulate_2d_xy ~constraint_primitives:boundary
+  let compacted = Triangulate2d.run ~grain:1
+      ~projection:Triangulate2d.Plane_xy ~constraint_primitives:boundary
       ~ignore_non_constraint_points:true ~remove_unused_points:true
       ~recompute_point_normals:true input |> get in
   check (Geometry.point_count compacted = 4)
@@ -610,7 +610,7 @@ let test_ignore_non_constraint_points () =
               "Triangulate 2D point normals were not recomputed"
         | _ -> fail "Triangulate 2D recomputed N changed storage")
    | None -> fail "Triangulate 2D did not recompute existing point N");
-  (match Triangulation_modeling.triangulate_2d ~projection:Triangulation_modeling.Triangulate_2d_xy
+  (match Triangulate2d.run ~projection:Triangulate2d.Plane_xy
       ~ignore_non_constraint_points:true (Line_geometry.points
         [|0.,0.,0.;1.,0.,0.;0.,1.,0.|]) with
    | Error _ -> ()
@@ -628,12 +628,12 @@ let test_remove_duplicate_points () =
   let input = Geometry.with_attribute id input |> Result.get_ok
       |> Geometry.with_group selected |> Result.get_ok
       |> Geometry.with_group markers |> Result.get_ok in
-  let ordinary = Triangulation_modeling.triangulate_2d ~projection:Triangulation_modeling.Triangulate_2d_xy
+  let ordinary = Triangulate2d.run ~projection:Triangulate2d.Plane_xy
       ~selection:(Transform_ops.Selected_points selected) input |> get in
   check (Geometry.point_count ordinary = 6)
     "projected duplicate was removed without the output policy";
   let run domains = Parallel.run ~domains (fun () ->
-      Triangulation_modeling.triangulate_2d ~grain:1 ~projection:Triangulation_modeling.Triangulate_2d_xy
+      Triangulate2d.run ~grain:1 ~projection:Triangulate2d.Plane_xy
         ~selection:(Transform_ops.Selected_points selected) ~remove_duplicate_points:true
         input |> get) in
   let output = run 1 and parallel = run 4 in
@@ -669,7 +669,7 @@ let test_quality_refinement () =
       (Attribute.Float [|0.;2.;6.;4.|]) |> Result.get_ok in
   let input = Geometry.with_attribute value input |> Result.get_ok in
   let run domains = Parallel.run ~domains (fun () ->
-      Triangulation_modeling.triangulate_2d ~grain:1 ~projection:Triangulation_modeling.Triangulate_2d_xy
+      Triangulate2d.run ~grain:1 ~projection:Triangulate2d.Plane_xy
         ~refine:true ~maximum_area:0.3 ~maximum_new_points:100
         ~refinement_point_group:"refined" input |> get) in
   let output = run 1 and parallel = run 4 in
@@ -720,7 +720,7 @@ let test_quality_refinement () =
       ~topology:constrained_topology () |> Result.get_ok in
   let constraint_primitives = Group.init ~owner:Group.Primitive
       ~name:"base" 1 (fun _ -> true) in
-  let split = Triangulation_modeling.triangulate_2d ~grain:1 ~projection:Triangulation_modeling.Triangulate_2d_xy
+  let split = Triangulate2d.run ~grain:1 ~projection:Triangulate2d.Plane_xy
       ~constraint_primitives ~refine:true ~minimum_angle:(Float.pi /. 6.)
       ~maximum_new_points:1 ~allow_constraint_splitting:true
       ~refinement_point_group:"refined" ~constraint_group:"constraints"
@@ -744,8 +744,8 @@ let test_quality_refinement () =
       ~topology:boundary_topology () |> Result.get_ok in
   let boundary_group = Group.init ~owner:Group.Primitive ~name:"boundary" 1
       (fun _ -> true) in
-  let boundary_refined = Triangulation_modeling.triangulate_2d ~grain:1
-      ~projection:Triangulation_modeling.Triangulate_2d_xy ~constraint_primitives:boundary_group
+  let boundary_refined = Triangulate2d.run ~grain:1
+      ~projection:Triangulate2d.Plane_xy ~constraint_primitives:boundary_group
       ~ignore_non_constraint_points:true
       ~remove_outside_constraint_polygons:true ~refine:true
       ~minimum_angle:1e-6 ~maximum_area:0.3 ~maximum_new_points:64
@@ -766,8 +766,8 @@ let test_quality_refinement () =
   let crossing_group = Group.init ~owner:Group.Primitive ~name:"all_constraints" 3
       (fun _ -> true) in
   Array.iter (fun maximum_new_points ->
-    let refined = Triangulation_modeling.triangulate_2d ~grain:1
-        ~projection:Triangulation_modeling.Triangulate_2d_xy
+    let refined = Triangulate2d.run ~grain:1
+        ~projection:Triangulate2d.Plane_xy
         ~constraint_primitives:crossing_group ~split_crossing_constraints:true
         ~flood_from_hull_boundary:true ~remove_outside_constraint_polygons:true
         ~silhouette_constraints:true ~remove_outside_silhouette:true
@@ -779,8 +779,8 @@ let test_quality_refinement () =
       (Printf.sprintf
         "multi-constraint refinement lost its interior at point budget %d"
         maximum_new_points)) [|1;2;4;8;16;32;64;96|];
-  let unsplit = Triangulation_modeling.triangulate_2d ~grain:1
-      ~projection:Triangulation_modeling.Triangulate_2d_xy ~constraint_primitives
+  let unsplit = Triangulate2d.run ~grain:1
+      ~projection:Triangulate2d.Plane_xy ~constraint_primitives
       ~refine:true ~minimum_angle:(Float.pi /. 6.) ~maximum_new_points:1
       ~allow_constraint_splitting:false ~constraint_group:"constraints"
       constrained |> get in
@@ -788,8 +788,8 @@ let test_quality_refinement () =
    | Some group -> check (Edge_group.cardinality group = 1)
        "disabled constraint splitting changed the protected edge"
    | None -> fail "unsplit refinement constraint group is missing");
-  let targeted = Triangulation_modeling.triangulate_2d ~grain:1
-      ~projection:Triangulation_modeling.Triangulate_2d_xy ~refine:true ~minimum_angle:1e-6
+  let targeted = Triangulate2d.run ~grain:1
+      ~projection:Triangulate2d.Plane_xy ~refine:true ~minimum_angle:1e-6
       ~target_edge_length:0.75 ~maximum_new_points:100 input |> get in
   let targeted_positions = Packed.Float3.Private.view
       (Geometry.positions targeted) in
@@ -802,11 +802,11 @@ let test_quality_refinement () =
     check (sqrt ((dx *. dx) +. (dy *. dy)) <= 0.75 +. 1e-12)
       "quality refinement target edge length"
   done;
-  let stopped = Triangulation_modeling.triangulate_2d ~projection:Triangulation_modeling.Triangulate_2d_xy
+  let stopped = Triangulate2d.run ~projection:Triangulate2d.Plane_xy
       ~refine:true ~maximum_area:0.01 ~maximum_new_points:0 input |> get in
   check (Geometry.point_count stopped = 4)
     "zero refinement point budget was not respected";
-  let edge_limited = Triangulation_modeling.triangulate_2d ~projection:Triangulation_modeling.Triangulate_2d_xy
+  let edge_limited = Triangulate2d.run ~projection:Triangulate2d.Plane_xy
       ~refine:true ~maximum_area:0.01 ~minimum_edge_length:10.
       ~maximum_new_points:100 input |> get in
   check (Geometry.point_count edge_limited = 4)
@@ -814,11 +814,11 @@ let test_quality_refinement () =
   let irregular = Line_geometry.points
       [|0.,0.,0.; 3.,0.,3.; 2.,2.,6.; 0.,1.,2.|] in
   let run_regularized domains = Parallel.run ~domains (fun () ->
-      Triangulation_modeling.triangulate_2d ~grain:1 ~projection:Triangulation_modeling.Triangulate_2d_xy
+      Triangulate2d.run ~grain:1 ~projection:Triangulate2d.Plane_xy
         ~refine:true ~minimum_angle:1e-6 ~maximum_area:0.2
         ~maximum_new_points:64 ~regularization_steps:2 irregular |> get) in
-  let unregularized = Triangulation_modeling.triangulate_2d ~grain:1
-      ~projection:Triangulation_modeling.Triangulate_2d_xy ~refine:true ~minimum_angle:1e-6
+  let unregularized = Triangulate2d.run ~grain:1
+      ~projection:Triangulate2d.Plane_xy ~refine:true ~minimum_angle:1e-6
       ~maximum_area:0.2 ~maximum_new_points:64 irregular |> get in
   let regularized = run_regularized 1 and regularized_parallel = run_regularized 4 in
   let regularized_positions = Packed.Float3.Private.view
@@ -853,7 +853,7 @@ let test_quality_refinement () =
   let movable_boundary = Group.init ~owner:Group.Primitive ~name:"boundary" 1
       (fun _ -> true) in
   let move_input domains = Parallel.run ~domains (fun () ->
-      Triangulation_modeling.triangulate_2d ~grain:1 ~projection:Triangulation_modeling.Triangulate_2d_xy
+      Triangulate2d.run ~grain:1 ~projection:Triangulate2d.Plane_xy
         ~constraint_primitives:movable_boundary
         ~remove_outside_constraint_polygons:true ~refine:true
         ~minimum_angle:1e-6 ~maximum_new_points:0 ~regularization_steps:2
@@ -877,15 +877,15 @@ let test_projected_silhouette () =
       ~vertex_points:[|4;5;6; 4;6;7|] ~primitive_offsets:[|0;3;6|]
       |> Result.get_ok in
   let input = Geometry.create ~positions ~topology () |> Result.get_ok in
-  let constrained = Triangulation_modeling.triangulate_2d ~grain:1
-      ~projection:Triangulation_modeling.Triangulate_2d_xy ~silhouette_constraints:true
+  let constrained = Triangulate2d.run ~grain:1
+      ~projection:Triangulate2d.Plane_xy ~silhouette_constraints:true
       ~constraint_group:"silhouette" input |> get in
   (match Geometry.find_edge_group "silhouette" constrained with
    | Some group -> check (Edge_group.cardinality group = 4)
        "silhouette retained an internal same-facing edge"
    | None -> fail "silhouette constraint group is missing");
   let run domains = Parallel.run ~domains (fun () ->
-      Triangulation_modeling.triangulate_2d ~grain:1 ~projection:Triangulation_modeling.Triangulate_2d_xy
+      Triangulate2d.run ~grain:1 ~projection:Triangulate2d.Plane_xy
         ~remove_outside_silhouette:true ~constraint_group:"silhouette" input
       |> get) in
   let output = run 1 and parallel = run 4 in
@@ -900,14 +900,14 @@ let test_projected_silhouette () =
       ~vertex_points:[|6;5;4; 7;6;4|] ~primitive_offsets:[|0;3;6|]
       |> Result.get_ok in
   let reversed = Geometry.create ~positions ~topology:reversed_topology ()
-      |> Result.get_ok |> Triangulation_modeling.triangulate_2d
-          ~projection:Triangulation_modeling.Triangulate_2d_xy
+      |> Result.get_ok |> Triangulate2d.run
+          ~projection:Triangulate2d.Plane_xy
           ~remove_outside_silhouette:true |> get in
   check (topology_signature reversed = topology_signature output)
     "silhouette removal depends on global face orientation";
   let partial = Group.init ~owner:Group.Point ~name:"partial" 9
       (fun point -> point = 4 || point = 5 || point = 7) in
-  (match Triangulation_modeling.triangulate_2d ~projection:Triangulation_modeling.Triangulate_2d_xy
+  (match Triangulate2d.run ~projection:Triangulate2d.Plane_xy
       ~selection:(Transform_ops.Selected_points partial) ~silhouette_constraints:true input with
    | Error _ -> ()
    | Ok _ -> fail "silhouette accepted a partially selected polygon");
@@ -918,8 +918,8 @@ let test_projected_silhouette () =
       ~vertex_points:[|0;1;2|] ~primitive_offsets:[|0;3|]
       |> Result.get_ok in
   let flat = Geometry.create ~positions:flat_positions ~topology:flat_topology ()
-      |> Result.get_ok |> Triangulation_modeling.triangulate_2d
-          ~projection:Triangulation_modeling.Triangulate_2d_xy
+      |> Result.get_ok |> Triangulate2d.run
+          ~projection:Triangulate2d.Plane_xy
           ~remove_outside_silhouette:true |> get in
   check (Geometry.primitive_count flat = 0)
     "zero-area projected silhouette invented an interior"
@@ -931,17 +931,17 @@ let test_domain_exactness () =
       let y = float_of_int ((point * 3571) mod 2011) +. (float_of_int point *. 1e-8) in
       x,y,(x *. 0.25) -. (y *. 0.125))) in
   let run domains = Parallel.run ~domains (fun () ->
-      Triangulation_modeling.triangulate_2d ~grain:31 input |> get |> topology_signature) in
+      Triangulate2d.run ~grain:31 input |> get |> topology_signature) in
   check (run 1 = run 4) "one/four-domain topology differs"
 
 let test_errors () =
   let input = Line_geometry.points [|0.,0.,0.; 1.,0.,0.; 0.,1.,0.|] in
   let expect = function Error _ -> () | Ok _ -> fail "invalid input succeeded" in
-  expect (Triangulation_modeling.triangulate_2d
-      ~projection:(Triangulation_modeling.Triangulate_2d_plane {
+  expect (Triangulate2d.run
+      ~projection:(Triangulate2d.Plane {
         origin = Vec3.zero; normal = Vec3.zero }) input);
-  expect (Triangulation_modeling.triangulate_2d
-      ~projection:(Triangulation_modeling.Triangulate_2d_point_attribute "missing") input);
+  expect (Triangulate2d.run
+      ~projection:(Triangulate2d.Point_attribute "missing") input);
   let nonfinite = Line_geometry.points [|0.,0.,0.;1.,0.,0.;0.,1.,0.|] in
   let bad_coordinates = Attribute.create_owned ~owner:Attribute.Point
       ~name:"bad_coordinates" (Attribute.Float2 (Packed.Float2.of_owned
@@ -949,19 +949,19 @@ let test_errors () =
       |> Result.get_ok in
   let nonfinite = Geometry.with_attribute bad_coordinates nonfinite
       |> Result.get_ok in
-  expect (Triangulation_modeling.triangulate_2d
-      ~projection:(Triangulation_modeling.Triangulate_2d_point_attribute "bad_coordinates")
+  expect (Triangulate2d.run
+      ~projection:(Triangulate2d.Point_attribute "bad_coordinates")
       nonfinite);
-  expect (Triangulation_modeling.triangulate_2d ~refine:true ~minimum_angle:(Float.pi /. 3.) input);
-  expect (Triangulation_modeling.triangulate_2d ~refine:true ~maximum_area:0. input);
-  expect (Triangulation_modeling.triangulate_2d ~refine:true ~target_edge_length:nan input);
-  expect (Triangulation_modeling.triangulate_2d ~refine:true ~minimum_edge_length:(-1.) input);
-  expect (Triangulation_modeling.triangulate_2d ~refine:true ~maximum_new_points:(-1) input);
-  expect (Triangulation_modeling.triangulate_2d ~refine:true ~regularization_steps:(-1) input);
-  expect (Triangulation_modeling.triangulate_2d ~refinement_point_group:" " input);
+  expect (Triangulate2d.run ~refine:true ~minimum_angle:(Float.pi /. 3.) input);
+  expect (Triangulate2d.run ~refine:true ~maximum_area:0. input);
+  expect (Triangulate2d.run ~refine:true ~target_edge_length:nan input);
+  expect (Triangulate2d.run ~refine:true ~minimum_edge_length:(-1.) input);
+  expect (Triangulate2d.run ~refine:true ~maximum_new_points:(-1) input);
+  expect (Triangulate2d.run ~refine:true ~regularization_steps:(-1) input);
+  expect (Triangulate2d.run ~refinement_point_group:" " input);
   let cancel = Cancel.create () in Cancel.cancel cancel;
-  expect (Triangulation_modeling.triangulate_2d ~cancel input);
-  expect (Triangulation_modeling.triangulate_2d ~cancel ~refine:true
+  expect (Triangulate2d.run ~cancel input);
+  expect (Triangulate2d.run ~cancel ~refine:true
       ~maximum_area:0.01 input)
 
 let run () =

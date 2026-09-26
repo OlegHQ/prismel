@@ -69,7 +69,7 @@ file-backed HDRIs.
 
 ## Pipeline
 
-1. The flat `create` path triangulates every object with `Pdk.Triangulation_modeling.triangulate`, computes
+1. The flat `create` path triangulates every object with `Pdk.Triangulate.run`, computes
    vertex normals with a 40° cusp so subdivided/rounded surfaces stay smooth
    while boxes stay hard, and flattens everything into one unindexed
    `packed_float3` position buffer, a matching normal buffer, and one material

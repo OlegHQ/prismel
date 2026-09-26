@@ -162,7 +162,7 @@ let rows = [
   "triangulate2d", (fun () ->
     Sop.points [|(-1.,-1.,0.);(1.,-1.,0.);(1.,1.,0.);(-1.,1.,0.);
       (0.,0.,0.);(0.4,0.2,0.);(-0.5,0.3,0.)|]
-    |> Sop.triangulate_2d ~projection:Pdk.Triangulation_modeling.Triangulate_2d_xy
+    |> Sop.triangulate_2d ~projection:Pdk.Triangulate2d.Plane_xy
       ~triangle_group:"triangles"), primitive_group "triangles";
 ]
 

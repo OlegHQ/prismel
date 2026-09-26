@@ -7091,17 +7091,17 @@ module Triangulate_2d = struct
     [@@sop.node_category "Topology/Triangulate"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
   let projection parameters = match parameters.projection with
-    | Best_fit -> Pdk.Triangulation_modeling.Triangulate_2d_best_fit
-    | XY -> Pdk.Triangulation_modeling.Triangulate_2d_xy
-    | YZ -> Pdk.Triangulation_modeling.Triangulate_2d_yz
-    | ZX -> Pdk.Triangulation_modeling.Triangulate_2d_zx
-    | Plane -> Pdk.Triangulation_modeling.Triangulate_2d_plane {
+    | Best_fit -> Pdk.Triangulate2d.Best_fit
+    | XY -> Pdk.Triangulate2d.Plane_xy
+    | YZ -> Pdk.Triangulate2d.Plane_yz
+    | ZX -> Pdk.Triangulate2d.Plane_zx
+    | Plane -> Pdk.Triangulate2d.Plane {
         origin = Vec3.create parameters.plane_origin_x parameters.plane_origin_y
           parameters.plane_origin_z;
         normal = Vec3.create parameters.plane_normal_x parameters.plane_normal_y
           parameters.plane_normal_z }
     | Point_attribute ->
-        Pdk.Triangulation_modeling.Triangulate_2d_point_attribute parameters.point_attribute
+        Pdk.Triangulate2d.Point_attribute parameters.point_attribute
   let build = parameters_build (fun ~label parameters input ->
     Sop.triangulate_2d ~label
         ?point_group:(optional_text parameters.point_group)
