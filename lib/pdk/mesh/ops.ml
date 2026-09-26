@@ -348,8 +348,6 @@ let dissolve = Dissolve.run_checked
 
 let snap_to_grid = Fuse_grid.snap_to_grid_checked
 
-let boolean_detect = Boolean_detect.run_checked
-
 let poly_reduce = Poly_reduce.run_checked
 let edge_flip = Edge_flip.run_checked
 

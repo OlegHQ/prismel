@@ -79,7 +79,7 @@ let test_cross_and_coplanar () =
       |> Geometry.with_attribute stale_hits |> get_string
       |> Geometry.with_group preserved |> get_string
       |> Geometry.with_group stale_intersections |> get_string in
-  let output = Ops.boolean_detect ~grain:1 ~collision
+  let output = Boolean_detect.run_checked ~grain:1 ~collision
       ~intersecting_group:(Some "intersections")
       ~intersections_attribute:"hits" ~count_attribute:"hit_count" source
       |> get in
@@ -98,7 +98,7 @@ let test_cross_and_coplanar () =
       && Group.cardinality (group "intersections" output) = 1
       && Group.mem 0 (group "intersections" output))
     "Boolean Detect cross/coplanar primitive aggregation";
-  let crossing_only = Ops.boolean_detect ~grain:1 ~collision
+  let crossing_only = Boolean_detect.run_checked ~grain:1 ~collision
       ~include_coplanar:false ~intersecting_group:None
       ~intersections_attribute:"hits" source |> get in
   let crossing_rows = int_array "hits" crossing_only in
@@ -110,41 +110,41 @@ let test_restrictions_and_errors () =
   let source = source () and collision = collision () in
   let only_coplanar = Group.init ~owner:Group.Primitive ~name:"coplanar" 2
       (fun primitive -> primitive = 1) in
-  let output = Ops.boolean_detect ~collision ~collision_primitives:only_coplanar
+  let output = Boolean_detect.run_checked ~collision ~collision_primitives:only_coplanar
       ~intersections_attribute:"hits" source |> get in
   let rows = int_array "hits" output in
   check (rows.offsets = [|0;1;1|] && rows.values = [|1|])
     "Boolean Detect collision primitive restriction";
   let only_far = Group.init ~owner:Group.Primitive ~name:"far" 2
       (fun primitive -> primitive = 1) in
-  let output = Ops.boolean_detect ~collision ~source_primitives:only_far
+  let output = Boolean_detect.run_checked ~collision ~source_primitives:only_far
       ~intersections_attribute:"hits" source |> get in
   let rows = int_array "hits" output in
   check (rows.offsets = [|0;0;0|] && rows.values = [||])
     "Boolean Detect source primitive restriction";
-  expect "invalid_parameter" (Ops.boolean_detect ~collision ~tolerance:(-1.) source);
-  expect "invalid_parameter" (Ops.boolean_detect ~collision
+  expect "invalid_parameter" (Boolean_detect.run_checked ~collision ~tolerance:(-1.) source);
+  expect "invalid_parameter" (Boolean_detect.run_checked ~collision
     ~intersecting_group:None source);
-  expect "invalid_parameter" (Ops.boolean_detect ~collision
+  expect "invalid_parameter" (Boolean_detect.run_checked ~collision
     ~intersections_attribute:"same" ~self_intersections_attribute:"same" source);
-  expect "invalid_parameter" (Ops.boolean_detect ~collision
+  expect "invalid_parameter" (Boolean_detect.run_checked ~collision
     ~intersecting_group:(Some "same") ~self_intersecting_group:"same" source);
   let wrong = Group.init ~owner:Group.Point ~name:"wrong" 6 (Fun.const true) in
-  expect "invalid_group" (Ops.boolean_detect ~collision
+  expect "invalid_group" (Boolean_detect.run_checked ~collision
     ~source_primitives:wrong source);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  expect "cancelled" (Ops.boolean_detect ~cancel:cancelled ~collision source);
+  expect "cancelled" (Boolean_detect.run_checked ~cancel:cancelled ~collision source);
   let curve = Line_geometry.line_checked ~origin:Vec3.zero ~direction:Vec3.unit_x ~length:1. ()
       |> get in
-  expect "invalid_surface" (Ops.boolean_detect ~collision curve);
+  expect "invalid_surface" (Boolean_detect.run_checked ~collision curve);
   let nonfinite_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|Float.nan;2.;0.;10.;12.;10.|]
       ~y:[|0.;0.;2.;0.;0.;2.|] ~z:(Array.make 6 0.) in
   let nonfinite = Geometry.with_positions nonfinite_positions source |> get_string in
-  expect "invalid_surface" (Ops.boolean_detect ~collision nonfinite);
+  expect "invalid_surface" (Boolean_detect.run_checked ~collision nonfinite);
   let empty = Line_geometry.points [||] in
-  let empty_output = Ops.boolean_detect ~collision ~intersections_attribute:"hits"
+  let empty_output = Boolean_detect.run_checked ~collision ~intersections_attribute:"hits"
       ~count_attribute:"hit_count" empty |> get in
   check (Geometry.primitive_count empty_output = 0
       && (int_array "hits" empty_output).offsets = [|0|]
@@ -155,20 +155,20 @@ let test_tolerance_and_translation () =
   let single_source = geometry [|0.,0.,0.; 2.,0.,0.; 0.,2.,0.|] [|0;1;2|] in
   let separated = geometry
       [|2.01,0.,0.; 2.51,0.,0.; 2.01,0.5,0.|] [|0;1;2|] in
-  let without = Ops.boolean_detect ~collision:separated
+  let without = Boolean_detect.run_checked ~collision:separated
       ~intersections_attribute:"hits" single_source |> get |> int_array "hits" in
-  let within = Ops.boolean_detect ~collision:separated ~tolerance:0.02
+  let within = Boolean_detect.run_checked ~collision:separated ~tolerance:0.02
       ~intersections_attribute:"hits" single_source |> get |> int_array "hits" in
   check (without.values = [||] && within.values = [|0|])
     "Boolean Detect world-space tolerance";
   let move = Mat4.translation (Vec3.create 1e12 (-1e12) 1e12) in
   let moved_source = Transform_ops.transform move (source ())
   and moved_collision = Transform_ops.transform move (collision ()) in
-  let origin_output = Ops.boolean_detect ~collision:(collision ())
+  let origin_output = Boolean_detect.run_checked ~collision:(collision ())
       ~intersecting_group:(Some "intersections")
       ~intersections_attribute:"hits" ~count_attribute:"hit_count" (source ())
       |> get
-  and moved_output = Ops.boolean_detect ~collision:moved_collision
+  and moved_output = Boolean_detect.run_checked ~collision:moved_collision
       ~intersecting_group:(Some "intersections")
       ~intersections_attribute:"hits" ~count_attribute:"hit_count" moved_source
       |> get in
@@ -176,7 +176,7 @@ let test_tolerance_and_translation () =
     "Boolean Detect changed under a large common translation"
 
 let self_detect geometry =
-  Ops.boolean_detect ~collision:(Line_geometry.points [||]) ~intersecting_group:None
+  Boolean_detect.run_checked ~collision:(Line_geometry.points [||]) ~intersecting_group:None
     ~self_intersecting_group:"self_intersections"
     ~self_intersections_attribute:"self_hits"
     ~self_count_attribute:"self_hit_count" geometry |> get
@@ -192,7 +192,7 @@ let test_self_intersections () =
       && ints "self_hit_count" crossing = [|1;1|]
       && Group.cardinality (group "self_intersections" crossing) = 2)
     "Boolean Detect AxA symmetric crossing output";
-  let both = Ops.boolean_detect ~collision:(collision ())
+  let both = Boolean_detect.run_checked ~collision:(collision ())
       ~intersecting_group:(Some "cross") ~intersections_attribute:"cross_hits"
       ~self_intersecting_group:"self" ~self_intersections_attribute:"self_hits"
       crossing_source |> get in
@@ -221,7 +221,7 @@ let test_self_intersections () =
       [|0;1;2; 2;1;0|] |> self_detect in
   check ((int_array "self_hits" duplicate).values = [|1;0|])
     "Boolean Detect missed duplicate overlapping primitives";
-  let duplicate_without_coplanar = Ops.boolean_detect
+  let duplicate_without_coplanar = Boolean_detect.run_checked
       ~collision:(Line_geometry.points [||]) ~intersecting_group:None
       ~include_coplanar:false ~self_intersections_attribute:"self_hits"
       (geometry [|0.,0.,0.; 2.,0.,0.; 0.,2.,0.|]
@@ -245,7 +245,7 @@ let test_parallel_exact () =
   let collision = Transform_ops.transform ~grain:31 (Mat4.rotation_x (Float.pi /. 2.))
       source in
   let run domains = Parallel.run ~domains (fun () ->
-    Ops.boolean_detect ~grain:31 ~collision
+    Boolean_detect.run_checked ~grain:31 ~collision
       ~intersecting_group:(Some "intersections")
       ~intersections_attribute:"hits" ~count_attribute:"hit_count" source
     |> get) in

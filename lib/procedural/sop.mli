@@ -1122,7 +1122,7 @@ val boolean_seam :
     controls emit symmetric AxA rows and counts. Ordinary shared-edge/vertex
     topology contacts are not self-intersections. At least one output is required.
     All controls and both graph inputs participate in immutable cache identity;
-    the packed BVH and narrow phase are owned by [Pdk.Ops.boolean_detect]. *)
+    the packed BVH and narrow phase are owned by [Pdk.Boolean_detect.run_checked]. *)
 val boolean_detect :
   ?label:string ->
   ?source_group:string ->

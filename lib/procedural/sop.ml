@@ -3051,7 +3051,7 @@ let boolean_detect ?label ?source_group ?collision_group ?(tolerance = 0.)
               collision_group collision_geometry with
            | Error error -> Error error
            | Ok collision_primitives ->
-               match Pdk.Ops.boolean_detect
+               match Pdk.Boolean_detect.run_checked
                    ~cancel:(Context.cancel_token context)
                    ~grain:(Context.grain context) ?source_primitives
                    ?collision_primitives ~tolerance ~include_coplanar

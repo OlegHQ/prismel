@@ -2730,7 +2730,7 @@ let run_boolean_detect_benchmarks () =
   let crossing = Transform_ops.transform ~grain
       (Mat4.rotation_x (Float.pi /. 2.)) source in
   measure ~input_points:(point_count * 2) "boolean_detect_crossing_grids"
-    (fun () -> Ops.boolean_detect ~grain ~collision:crossing
+    (fun () -> Boolean_detect.run_checked ~grain ~collision:crossing
       ~intersecting_group:(Some "intersections")
       ~intersections_attribute:"collision_primitives"
       ~count_attribute:"intersection_count" source |> get_ok)
@@ -2741,7 +2741,7 @@ let run_boolean_detect_benchmarks () =
     (fun () -> Surface_index.Private.overlapping_self_triangle_pairs ~grain
       ~tolerance:0. combined_index) integer_pair_arrays_output;
   measure ~input_points:(point_count * 2) "boolean_detect_self_crossing_grids"
-    (fun () -> Ops.boolean_detect ~grain ~collision:(Ops.points [||])
+    (fun () -> Boolean_detect.run_checked ~grain ~collision:(Ops.points [||])
       ~intersecting_group:None
       ~self_intersecting_group:"self_intersections"
       ~self_intersections_attribute:"self_primitives"
@@ -2759,7 +2759,7 @@ let run_boolean_detect_benchmarks () =
       ~tolerance:0. source_index coplanar_index)
     integer_pair_arrays_output;
   measure ~input_points:(point_count * 2) "boolean_detect_coplanar_shifted_grids"
-    (fun () -> Ops.boolean_detect ~grain ~collision:coplanar
+    (fun () -> Boolean_detect.run_checked ~grain ~collision:coplanar
       ~intersecting_group:(Some "intersections")
       ~intersections_attribute:"collision_primitives"
       ~count_attribute:"intersection_count" source |> get_ok)
