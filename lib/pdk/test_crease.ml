@@ -223,8 +223,8 @@ let test_subdivide_integration () =
     (incident_vertices index shared);
   let manual = attribute Attribute.Vertex "creaseweight"
       (Attribute.Float manual_values) source in
-  let actual = Subdivision_ops.subdivide_checked ~grain:1 authored |> get_ok
-  and expected = Subdivision_ops.subdivide_checked ~grain:1 manual |> get_ok in
+  let actual = Subdivide.subdivide ~grain:1 authored |> get_ok
+  and expected = Subdivide.subdivide ~grain:1 manual |> get_ok in
   check (Geometry.positions actual = Geometry.positions expected
       || let a = Packed.Float3.Private.view (Geometry.positions actual)
          and b = Packed.Float3.Private.view (Geometry.positions expected) in

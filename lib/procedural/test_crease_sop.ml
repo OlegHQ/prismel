@@ -75,7 +75,7 @@ let run () =
   check (one_color.x = four_color.x && one_color.y = four_color.y
       && one_color.z = four_color.z && one_color.w = four_color.w)
     "Crease SOP one/four-domain colors differ";
-  let subdivided = graph |> Sop.subdivide ~scheme:Subdivision_ops.Catmull_clark in
+  let subdivided = graph |> Sop.subdivide ~scheme:Subdivide.Catmull_clark in
   let one_subdivided = cook_fresh subdivided 1
   and four_subdivided = cook_fresh subdivided 4 in
   let one_mesh = Pdk_prismel.Prismel_mesh.to_mesh one_subdivided |> function

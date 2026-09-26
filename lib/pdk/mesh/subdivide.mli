@@ -10,7 +10,7 @@ type face_varying_interpolation =
   | Subdivide_fvar_corners_plus2
   | Subdivide_fvar_boundaries
   | Subdivide_fvar_all
-type triangle_subdivision =
+type triangle_policy =
     Subdivide_triangles_catmull_clark
   | Subdivide_triangles_smooth
 type creasing_method =
@@ -45,7 +45,7 @@ type plan = {
   point_representative : int array;
   edge_ancestry_attribute : string option;
   boundary_interpolation : boundary_interpolation;
-  triangle_subdivision : triangle_subdivision;
+  triangle_subdivision : triangle_policy;
   creasing_method : creasing_method;
   holes : Pdk_core.Group.t option;
   creases : crease_plan option;
@@ -166,11 +166,11 @@ val subdivide :
   ?remove_holes:bool ->
   ?boundary_interpolation:boundary_interpolation ->
   ?face_varying_interpolation:face_varying_interpolation ->
-  ?triangle_subdivision:triangle_subdivision ->
+  ?triangle_policy:triangle_policy ->
   ?creasing_method:creasing_method ->
   ?treat_curves_as_independent:bool ->
   ?recompute_point_normals:bool ->
-  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, string) result
+  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
 val edge_divide :
   ?cancel:Pdk_core.Cancel.t ->
   ?grain:int ->

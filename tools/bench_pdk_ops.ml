@@ -763,7 +763,7 @@ let run_curve_subdivide_benchmarks () =
            (Array.init (Geometry.primitive_count source) float_of_int)) in
   measure ~input_points:(Geometry.point_count source)
     "curve_subdivide_payload" (fun () ->
-      Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark
+      Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark
         ~treat_curves_as_independent:false source |> get_ok) geometry_output
 
 let run_revolve_benchmarks () =
@@ -1184,7 +1184,7 @@ let run_transfer_benchmarks filter =
     measure ~input_points "surface_index_vertex_restricted" (fun () ->
       Surface_index.create ~grain ~vertices:selected_vertices modeling_grid
       |> get_ok) surface_index_output;
-    let quads = Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Bilinear modeling_grid |> get_ok in
+    let quads = Subdivide.subdivide ~grain ~scheme:Subdivide.Bilinear modeling_grid |> get_ok in
     measure ~input_points "surface_index_quads" (fun () ->
       Surface_index.create ~grain quads |> get_ok) surface_index_output
   end else begin
@@ -4061,7 +4061,7 @@ let run_group_benchmarks () =
   end;
   if benchmark_enabled "group_non_planar_primitives" then begin
     let quad_source = source
-        |> Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Bilinear |> get_ok
+        |> Subdivide.subdivide ~grain ~scheme:Subdivide.Bilinear |> get_ok
         |> Deform_ops.mountain_checked ~grain ~seed:0x67a1 ~height:0.04
              ~frequency:(Vec3.create 0.31 0.47 0.29) ~octaves:3 |> get_ok in
     measure ~input_points:(Geometry.point_count quad_source)
@@ -5658,7 +5658,7 @@ let () =
       |> Geometry.with_attribute clip_uv |> get_ok
       |> Geometry.with_attribute clip_density |> get_ok
       |> Color_by_height.run ~grain ~low:low_rgba ~high:high_rgba |> get_ok in
-  let deletion_quads = Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Bilinear
+  let deletion_quads = Subdivide.subdivide ~grain ~scheme:Subdivide.Bilinear
       clip_attribute_grid |> get_ok in
   measure "surface_index_quads" (fun () ->
     Surface_index.create deletion_quads |> get_ok) surface_index_output;
@@ -5806,22 +5806,22 @@ let () =
   end;
   measure ~input_points:(Geometry.point_count clip_attribute_grid)
     "subdivide_loop_grid_attributes" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Loop clip_attribute_grid |> get_ok)
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Loop clip_attribute_grid |> get_ok)
     geometry_output;
   measure ~input_points:(Geometry.point_count clip_attribute_grid)
     "subdivide_catmull_grid_attributes" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark clip_attribute_grid |> get_ok)
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark clip_attribute_grid |> get_ok)
     geometry_output;
   measure ~input_points:(Geometry.point_count clip_attribute_grid)
     "subdivide_catmull_grid_boundary_edge_and_corner" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_edge_and_corner
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_edge_and_corner
       clip_attribute_grid |> get_ok)
     geometry_output;
   measure ~input_points:(Geometry.point_count clip_attribute_grid)
     "subdivide_catmull_grid_boundary_none" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_none
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_none
       clip_attribute_grid |> get_ok)
     geometry_output;
   let fvar_topology = Topology.Private.view
@@ -5840,29 +5840,29 @@ let () =
       ~owner:Attribute.Point "N" clip_attribute_grid in
   measure ~input_points:(Geometry.point_count no_point_normal_grid)
     "subdivide_catmull_normals_absent" (fun () ->
-      Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark no_point_normal_grid
+      Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark no_point_normal_grid
       |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count clip_attribute_grid)
     "subdivide_catmull_normals_interpolated" (fun () ->
-      Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark clip_attribute_grid
+      Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark clip_attribute_grid
       |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count clip_attribute_grid)
     "subdivide_catmull_normals_recomputed" (fun () ->
-      Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark
+      Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark
         ~recompute_point_normals:true clip_attribute_grid |> get_ok)
     geometry_output;
   let measure_fvar name policy =
     measure ~input_points:(Geometry.point_count continuous_fvar_grid)
       ("subdivide_catmull_fvar_" ^ name) (fun () ->
-        Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark
+        Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark
           ~face_varying_interpolation:policy continuous_fvar_grid |> get_ok)
       geometry_output in
-  measure_fvar "none" Subdivision_ops.Subdivide_fvar_none;
-  measure_fvar "corners_only" Subdivision_ops.Subdivide_fvar_corners_only;
-  measure_fvar "corners_plus1" Subdivision_ops.Subdivide_fvar_corners_plus1;
-  measure_fvar "corners_plus2" Subdivision_ops.Subdivide_fvar_corners_plus2;
-  measure_fvar "boundaries" Subdivision_ops.Subdivide_fvar_boundaries;
-  measure_fvar "all" Subdivision_ops.Subdivide_fvar_all;
+  measure_fvar "none" Subdivide.Subdivide_fvar_none;
+  measure_fvar "corners_only" Subdivide.Subdivide_fvar_corners_only;
+  measure_fvar "corners_plus1" Subdivide.Subdivide_fvar_corners_plus1;
+  measure_fvar "corners_plus2" Subdivide.Subdivide_fvar_corners_plus2;
+  measure_fvar "boundaries" Subdivide.Subdivide_fvar_boundaries;
+  measure_fvar "all" Subdivide.Subdivide_fvar_all;
   let triangle_subdivision_grid = Plane_generators.grid_checked
       ~connectivity:Plane_generators.Grid_triangles ~columns:200 ~rows:200 ~size:20. ()
       |> get_ok
@@ -5871,19 +5871,19 @@ let () =
   let measure_triangles name policy =
     measure ~input_points:(Geometry.point_count triangle_subdivision_grid)
       ("subdivide_catmull_triangles_" ^ name) (fun () ->
-        Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark ~triangle_policy:policy
-          ~face_varying_interpolation:Subdivision_ops.Subdivide_fvar_none
+        Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark ~triangle_policy:policy
+          ~face_varying_interpolation:Subdivide.Subdivide_fvar_none
           triangle_subdivision_grid |> get_ok) geometry_output in
-  measure_triangles "catmull_clark" Subdivision_ops.Subdivide_triangles_catmull_clark;
-  measure_triangles "smooth" Subdivision_ops.Subdivide_triangles_smooth;
+  measure_triangles "catmull_clark" Subdivide.Subdivide_triangles_catmull_clark;
+  measure_triangles "smooth" Subdivide.Subdivide_triangles_smooth;
   let measure_seamed_fvar name policy =
     measure ~input_points:(Geometry.point_count clip_attribute_grid)
       ("subdivide_catmull_fvar_seamed_" ^ name) (fun () ->
-        Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark
+        Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark
           ~face_varying_interpolation:policy clip_attribute_grid |> get_ok)
       geometry_output in
-  measure_seamed_fvar "none" Subdivision_ops.Subdivide_fvar_none;
-  measure_seamed_fvar "corners_plus2" Subdivision_ops.Subdivide_fvar_corners_plus2;
+  measure_seamed_fvar "none" Subdivide.Subdivide_fvar_none;
+  measure_seamed_fvar "corners_plus2" Subdivide.Subdivide_fvar_corners_plus2;
   let fvar_index = Topology_index.create (Geometry.topology clip_attribute_grid)
       |> Topology_index.Private.view in
   let mixed_uv = Attribute.create_owned ~name:"uv" ~owner:Attribute.Vertex
@@ -5901,11 +5901,11 @@ let () =
   let measure_mixed_fvar name policy =
     measure ~input_points:(Geometry.point_count mixed_fvar_grid)
       ("subdivide_catmull_fvar_mixed_" ^ name) (fun () ->
-        Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark
+        Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark
           ~face_varying_interpolation:policy mixed_fvar_grid |> get_ok)
       geometry_output in
-  measure_mixed_fvar "none" Subdivision_ops.Subdivide_fvar_none;
-  measure_mixed_fvar "corners_plus2" Subdivision_ops.Subdivide_fvar_corners_plus2;
+  measure_mixed_fvar "none" Subdivide.Subdivide_fvar_none;
+  measure_mixed_fvar "corners_plus2" Subdivide.Subdivide_fvar_corners_plus2;
   let dense_creases = Attribute.create_owned ~name:"creaseweight"
       ~owner:Attribute.Vertex
       (Attribute.Float (Array.init (Geometry.vertex_count clip_attribute_grid)
@@ -5914,7 +5914,7 @@ let () =
       |> get_ok in
   measure ~input_points:(Geometry.point_count creased_grid)
     "subdivide_catmull_grid_creases" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark creased_grid |> get_ok)
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark creased_grid |> get_ok)
     geometry_output;
   let varying_creases = Attribute.create_owned ~name:"creaseweight"
       ~owner:Attribute.Vertex
@@ -5926,11 +5926,11 @@ let () =
   let measure_creasing name method_ =
     measure ~input_points:(Geometry.point_count varying_creased_grid)
       ("subdivide_catmull_creasing_" ^ name) (fun () ->
-        Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark
+        Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark
           ~creasing_method:method_ ~resulting_crease_group:"remaining_creases"
           varying_creased_grid |> get_ok) geometry_output in
-  measure_creasing "uniform" Subdivision_ops.Subdivide_creasing_uniform;
-  measure_creasing "chaikin" Subdivision_ops.Subdivide_creasing_chaikin;
+  measure_creasing "uniform" Subdivide.Subdivide_creasing_uniform;
+  measure_creasing "chaikin" Subdivide.Subdivide_creasing_chaikin;
   let all_edge_weights = Attribute.create_owned ~name:"creaseweight"
       ~owner:Attribute.Vertex
       (Attribute.Float (Array.make
@@ -5939,12 +5939,12 @@ let () =
       clip_attribute_grid |> get_ok in
   measure ~input_points:(Geometry.point_count all_edge_attribute_grid)
     "subdivide_catmull_all_edges_attribute" (fun () ->
-      Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark
+      Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark
         ~resulting_crease_group:"remaining_creases"
         all_edge_attribute_grid |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count clip_attribute_grid)
     "subdivide_catmull_all_edges_override" (fun () ->
-      Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark ~crease_weight:3.
+      Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark ~crease_weight:3.
         ~resulting_crease_group:"remaining_creases"
         clip_attribute_grid |> get_ok) geometry_output;
   let add_detail name value geometry =
@@ -5965,30 +5965,30 @@ let () =
       |> add_detail "osd_trianglesubdiv" 0 in
   measure ~input_points:(Geometry.point_count explicit_detail_payload)
     "subdivide_catmull_explicit_controls_detail_payload" (fun () ->
-      Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark
-        ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_edge_only
-        ~face_varying_interpolation:Subdivision_ops.Subdivide_fvar_all
-        ~creasing_method:Subdivision_ops.Subdivide_creasing_chaikin
-        ~triangle_policy:Subdivision_ops.Subdivide_triangles_catmull_clark
+      Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark
+        ~boundary_interpolation:Subdivide.Subdivide_boundary_edge_only
+        ~face_varying_interpolation:Subdivide.Subdivide_fvar_all
+        ~creasing_method:Subdivide.Subdivide_creasing_chaikin
+        ~triangle_policy:Subdivide.Subdivide_triangles_catmull_clark
         ~resulting_crease_group:"remaining_creases"
         explicit_detail_payload |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count detail_overridden_grid)
     "subdivide_catmull_detail_overrides" (fun () ->
-      Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Bilinear
-        ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_none
-        ~face_varying_interpolation:Subdivision_ops.Subdivide_fvar_none
-        ~creasing_method:Subdivision_ops.Subdivide_creasing_uniform
-        ~triangle_policy:Subdivision_ops.Subdivide_triangles_smooth
+      Subdivide.subdivide ~grain ~scheme:Subdivide.Bilinear
+        ~boundary_interpolation:Subdivide.Subdivide_boundary_none
+        ~face_varying_interpolation:Subdivide.Subdivide_fvar_none
+        ~creasing_method:Subdivide.Subdivide_creasing_uniform
+        ~triangle_policy:Subdivide.Subdivide_triangles_smooth
         ~resulting_crease_group:"remaining_creases"
         detail_overridden_grid |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count clip_attribute_grid)
     "subdivide_catmull_second_input_dense_attributes" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark ~creases:creased_grid
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark ~creases:creased_grid
       clip_attribute_grid |> get_ok)
     geometry_output;
   measure ~input_points:(Geometry.point_count clip_attribute_grid)
     "subdivide_catmull_second_input_dense_group" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark ~creases:creased_grid
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark ~creases:creased_grid
       ~resulting_crease_group:"remaining_creases" clip_attribute_grid |> get_ok)
     geometry_output;
   let sparse_crease_topology = Topology.create_owned
@@ -6000,7 +6000,7 @@ let () =
       ~topology:sparse_crease_topology () |> get_ok in
   measure ~input_points:(Geometry.point_count modeling_grid)
     "subdivide_catmull_second_input_sparse_override" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark
       ~creases:sparse_crease_input ~crease_weight:2.5 modeling_grid |> get_ok)
     geometry_output;
   let hole_primitive_count = Geometry.primitive_count clip_attribute_grid in
@@ -6016,20 +6016,20 @@ let () =
       |> get_ok in
   measure ~input_points:(Geometry.point_count clip_attribute_grid)
     "subdivide_catmull_sparse_holes" (fun () ->
-      Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark sparse_hole_grid |> get_ok)
+      Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark sparse_hole_grid |> get_ok)
     geometry_output;
   measure ~input_points:(Geometry.point_count clip_attribute_grid)
     "subdivide_catmull_dense_holes" (fun () ->
-      Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark dense_hole_grid |> get_ok)
+      Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark dense_hole_grid |> get_ok)
     geometry_output;
   measure ~input_points:(Geometry.point_count clip_attribute_grid)
     "subdivide_catmull_dense_holes_retained" (fun () ->
-      Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark ~remove_holes:false
+      Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark ~remove_holes:false
         dense_hole_grid |> get_ok)
     geometry_output;
   measure ~input_points:(Geometry.point_count modeling_grid)
     "subdivide_bilinear_grid" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Bilinear modeling_grid |> get_ok)
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Bilinear modeling_grid |> get_ok)
     geometry_output;
   let subdivision_primitives = Geometry.primitive_count modeling_grid in
   let subdivision_half = Group.init ~grain ~owner:Group.Primitive
@@ -6040,61 +6040,61 @@ let () =
       (fun primitive -> primitive land 1 = 0) in
   measure ~input_points:(Geometry.point_count modeling_grid)
     "subdivide_bilinear_local_half" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Bilinear ~primitives:subdivision_half
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Bilinear ~primitives:subdivision_half
       modeling_grid |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count modeling_grid)
     "subdivide_bilinear_local_alternating" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Bilinear
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Bilinear
       ~primitives:subdivision_alternating modeling_grid |> get_ok)
     geometry_output;
   measure ~input_points:(Geometry.point_count modeling_grid)
     "subdivide_catmull_local_half" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark
       ~primitives:subdivision_half modeling_grid |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count modeling_grid)
     "subdivide_catmull_local_pull_no_edge_division" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark
-      ~cracks:Subdivision_ops.Subdivide_pull_no_edge_division
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark
+      ~cracks:Subdivide.Subdivide_pull_no_edge_division
       ~primitives:subdivision_half modeling_grid |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count modeling_grid)
     "subdivide_catmull_local_stitch_no_edge_division" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark
-      ~cracks:Subdivision_ops.Subdivide_stitch_no_edge_division
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark
+      ~cracks:Subdivide.Subdivide_stitch_no_edge_division
       ~primitives:subdivision_half modeling_grid |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count modeling_grid)
     "subdivide_catmull_local_pull_divide_edges" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark
-      ~cracks:(Subdivision_ops.Subdivide_pull_divide_edges 0.75)
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark
+      ~cracks:(Subdivide.Subdivide_pull_divide_edges 0.75)
       ~primitives:subdivision_half modeling_grid |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count modeling_grid)
     "subdivide_catmull_local_stitch_divide_edges" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark
-      ~cracks:Subdivision_ops.Subdivide_stitch_divide_edges
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark
+      ~cracks:Subdivide.Subdivide_stitch_divide_edges
       ~primitives:subdivision_half modeling_grid |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count modeling_grid)
     "subdivide_catmull_local_pull_triangulate" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark
-      ~cracks:(Subdivision_ops.Subdivide_pull_triangulate 0.75)
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark
+      ~cracks:(Subdivide.Subdivide_pull_triangulate 0.75)
       ~primitives:subdivision_half modeling_grid |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count modeling_grid)
     "subdivide_catmull_local_stitch_triangulate" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark
-      ~cracks:Subdivision_ops.Subdivide_stitch_triangulate
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark
+      ~cracks:Subdivide.Subdivide_stitch_triangulate
       ~primitives:subdivision_half modeling_grid |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count modeling_grid)
     "subdivide_catmull_local_stitch_divide_consistent" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark ~consistent_topology:true
-      ~cracks:Subdivision_ops.Subdivide_stitch_divide_edges
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark ~consistent_topology:true
+      ~cracks:Subdivide.Subdivide_stitch_divide_edges
       ~primitives:subdivision_half modeling_grid |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count modeling_grid)
     "subdivide_catmull_local_stitch_triangulate_consistent" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark ~consistent_topology:true
-      ~cracks:Subdivision_ops.Subdivide_stitch_triangulate
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark ~consistent_topology:true
+      ~cracks:Subdivide.Subdivide_stitch_triangulate
       ~primitives:subdivision_half modeling_grid |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count modeling_grid)
     "subdivide_catmull_local_pull_triangulate_consistent" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark ~consistent_topology:true
-      ~cracks:(Subdivision_ops.Subdivide_pull_triangulate 0.75)
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark ~consistent_topology:true
+      ~cracks:(Subdivide.Subdivide_pull_triangulate 0.75)
       ~primitives:subdivision_half modeling_grid |> get_ok) geometry_output;
   measure ~input_points:(Geometry.point_count modeling_grid) "mirror" (fun () ->
     Mesh_edit_ops.mirror_checked ~grain ~origin:Vec3.zero ~normal:(Vec3.create 1. 1. 0.)
@@ -6165,14 +6165,14 @@ let () =
       ~groups:[curve_points_group] () |> get_ok
       |> Group_mesh.group_edges_checked ~grain ~name:"all_curve_edges" |> get_ok in
   measure ~input_points:curve_points "subdivide_catmull_curves_shared" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark segmented_curves |> get_ok)
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark segmented_curves |> get_ok)
     geometry_output;
   measure ~input_points:curve_points "subdivide_catmull_curves_independent"
-    (fun () -> Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Catmull_clark
+    (fun () -> Subdivide.subdivide ~grain ~scheme:Subdivide.Catmull_clark
       ~treat_curves_as_independent:true segmented_curves |> get_ok)
     geometry_output;
   measure ~input_points:curve_points "subdivide_bilinear_curves_shared" (fun () ->
-    Subdivision_ops.subdivide_checked ~grain ~scheme:Subdivision_ops.Bilinear segmented_curves |> get_ok)
+    Subdivide.subdivide ~grain ~scheme:Subdivide.Bilinear segmented_curves |> get_ok)
     geometry_output;
   measure "curve_carve_relative" (fun () ->
     Curve_modeling.carve_curves_checked ~grain ~first:0.137 ~last:0.863 dense_curve |> get_ok)

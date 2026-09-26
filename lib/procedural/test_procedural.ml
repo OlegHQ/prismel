@@ -3455,7 +3455,7 @@ let test_local_subdivide_contract () =
     | Ok source -> source
     | Error error -> fail error in
   let graph = Sop.snapshot source |> Sop.subdivide ~group:"left"
-      ~scheme:Pdk.Subdivision_ops.Bilinear ~iterations:2 in
+      ~scheme:Pdk.Subdivide.Bilinear ~iterations:2 in
   check (Node.version graph = 13
       && contains (Node.parameters graph) "group=left"
       && contains (Node.parameters graph) "scheme=bilinear"
@@ -3479,12 +3479,12 @@ let test_local_subdivide_contract () =
       "procedural local Subdivide topology/group ancestry (%d/%d from %d)"
       output_primitives selected_primitives source_primitives);
   let pulled_graph = Sop.snapshot source |> Sop.subdivide ~group:"left"
-      ~cracks:Pdk.Subdivision_ops.Subdivide_pull_no_edge_division in
+      ~cracks:Pdk.Subdivide.Subdivide_pull_no_edge_division in
   check (contains (Node.parameters pulled_graph) "cracks=pull_no_edge_division")
     "procedural Pull Closed cache identity";
   let pulled = cook_ok evaluator current pulled_graph in
   let stitch_graph = Sop.snapshot source |> Sop.subdivide ~group:"left"
-      ~cracks:Pdk.Subdivision_ops.Subdivide_stitch_no_edge_division in
+      ~cracks:Pdk.Subdivide.Subdivide_stitch_no_edge_division in
   check (contains (Node.parameters stitch_graph) "cracks=stitch_no_edge_division")
     "procedural Stitch cache identity";
   let stitched = cook_ok evaluator current stitch_graph in
@@ -3492,7 +3492,7 @@ let test_local_subdivide_contract () =
       > Pdk.Geometry.primitive_count source)
     "procedural Stitch did not append bridge primitives";
   let divided_pull_graph = Sop.snapshot source |> Sop.subdivide ~group:"left"
-      ~cracks:(Pdk.Subdivision_ops.Subdivide_pull_divide_edges 0.75) in
+      ~cracks:(Pdk.Subdivide.Subdivide_pull_divide_edges 0.75) in
   check (contains (Node.parameters divided_pull_graph)
       "cracks=pull_divide_edges:")
     "procedural Pull Divide bias/cache identity";
@@ -3501,7 +3501,7 @@ let test_local_subdivide_contract () =
       > Pdk.Geometry.vertex_count pulled.geometry)
     "procedural Pull Divide did not divide a surrounding edge";
   let divided_stitch_graph = Sop.snapshot source |> Sop.subdivide ~group:"left"
-      ~cracks:Pdk.Subdivision_ops.Subdivide_stitch_divide_edges in
+      ~cracks:Pdk.Subdivide.Subdivide_stitch_divide_edges in
   check (contains (Node.parameters divided_stitch_graph)
       "cracks=stitch_divide_edges")
     "procedural Stitch Divide cache identity";
@@ -3510,7 +3510,7 @@ let test_local_subdivide_contract () =
       > Pdk.Geometry.primitive_count divided_pull.geometry)
     "procedural Stitch Divide did not append regular bridge primitives";
   let pull_tri_graph = Sop.snapshot source |> Sop.subdivide ~group:"left"
-      ~cracks:(Pdk.Subdivision_ops.Subdivide_pull_triangulate 0.75) in
+      ~cracks:(Pdk.Subdivide.Subdivide_pull_triangulate 0.75) in
   check (contains (Node.parameters pull_tri_graph) "cracks=pull_triangulate:")
     "procedural Pull Triangulate cache identity";
   let pull_tri = cook_ok evaluator current pull_tri_graph in
@@ -3518,14 +3518,14 @@ let test_local_subdivide_contract () =
       > Pdk.Geometry.primitive_count divided_pull.geometry)
     "procedural Pull Triangulate did not triangulate surrounding polygons";
   let stitch_tri_graph = Sop.snapshot source |> Sop.subdivide ~group:"left"
-      ~cracks:Pdk.Subdivision_ops.Subdivide_stitch_triangulate in
+      ~cracks:Pdk.Subdivide.Subdivide_stitch_triangulate in
   check (contains (Node.parameters stitch_tri_graph)
       "cracks=stitch_triangulate")
     "procedural Stitch Triangulate cache identity";
   ignore (cook_ok evaluator current stitch_tri_graph);
   let consistent_graph = Sop.snapshot source |> Sop.subdivide ~group:"left"
       ~consistent_topology:true
-      ~cracks:Pdk.Subdivision_ops.Subdivide_stitch_divide_edges in
+      ~cracks:Pdk.Subdivide.Subdivide_stitch_divide_edges in
   check (Node.version consistent_graph = 13
       && contains (Node.parameters consistent_graph) "consistent_topology=true"
       && Node.id consistent_graph <> Node.id divided_stitch_graph)
@@ -3603,14 +3603,14 @@ let test_local_subdivide_contract () =
   let chaikin_source = Pdk.Geometry.with_attribute chaikin_attribute chaikin_base
       |> Result.get_ok in
   let chaikin_graph = Sop.snapshot chaikin_source
-      |> Sop.subdivide ~creasing_method:Pdk.Subdivision_ops.Subdivide_creasing_chaikin
+      |> Sop.subdivide ~creasing_method:Pdk.Subdivide.Subdivide_creasing_chaikin
            ~resulting_crease_group:"chaikin_remaining" in
   check (Node.version chaikin_graph = 13
       && contains (Node.parameters chaikin_graph) "creasing_method=chaikin")
     "procedural Chaikin creasing cache identity";
   let chaikin_output = cook_ok evaluator current chaikin_graph
   and uniform_output = Sop.snapshot chaikin_source
-      |> Sop.subdivide ~creasing_method:Pdk.Subdivision_ops.Subdivide_creasing_uniform
+      |> Sop.subdivide ~creasing_method:Pdk.Subdivide.Subdivide_creasing_uniform
            ~resulting_crease_group:"chaikin_remaining"
       |> cook_ok evaluator current in
   let resulting_weights (output : Session.output) = match Pdk.Geometry.find_attribute
@@ -3656,7 +3656,7 @@ let test_local_subdivide_contract () =
       ~columns:3 ~rows:2 ~size:2. () |> Result.get_ok in
   let boundary_graph = Sop.snapshot boundary_base
       |> Sop.subdivide
-           ~boundary_interpolation:Pdk.Subdivision_ops.Subdivide_boundary_edge_and_corner in
+           ~boundary_interpolation:Pdk.Subdivide.Subdivide_boundary_edge_and_corner in
   check (Node.version boundary_graph = 13
       && contains (Node.parameters boundary_graph)
            "boundary_interpolation=edge_and_corner")
@@ -3672,7 +3672,7 @@ let test_local_subdivide_contract () =
     "procedural Edge and Corner did not pin the grid corner";
   let no_boundary_surface = Sop.snapshot boundary_base
       |> Sop.subdivide
-           ~boundary_interpolation:Pdk.Subdivision_ops.Subdivide_boundary_none
+           ~boundary_interpolation:Pdk.Subdivide.Subdivide_boundary_none
       |> cook_ok evaluator current in
   check (Pdk.Geometry.primitive_count no_boundary_surface.geometry = 0)
     "procedural None did not remove the fully boundary-incident grid";
@@ -3688,7 +3688,7 @@ let test_local_subdivide_contract () =
       |> Result.get_ok in
   let fvar_graph = Sop.snapshot fvar_source
       |> Sop.subdivide
-           ~face_varying_interpolation:Pdk.Subdivision_ops.Subdivide_fvar_none in
+           ~face_varying_interpolation:Pdk.Subdivide.Subdivide_fvar_none in
   check (Node.version fvar_graph = 13
       && contains (Node.parameters fvar_graph)
            "face_varying_interpolation=none")
@@ -3705,7 +3705,7 @@ let test_local_subdivide_contract () =
       ~columns:3 ~rows:2 ~size:3. () |> Result.get_ok in
   let triangle_graph = Sop.snapshot triangle_source
       |> Sop.subdivide
-           ~triangle_policy:Pdk.Subdivision_ops.Subdivide_triangles_smooth in
+           ~triangle_policy:Pdk.Subdivide.Subdivide_triangles_smooth in
   check (Node.version triangle_graph = 13
       && contains (Node.parameters triangle_graph) "triangle_policy=smooth")
     "procedural Smooth Triangles cache identity";
@@ -3731,22 +3731,22 @@ let test_local_subdivide_contract () =
       |> add_detail "osd_creasingmethod" (Pdk.Attribute.Int [|1|])
       |> add_detail "osd_trianglesubdiv" (Pdk.Attribute.Int [|1|]) in
   let detail_graph = Sop.snapshot detail_source |> Sop.subdivide
-      ~iterations:2 ~scheme:Pdk.Subdivision_ops.Bilinear
-      ~boundary_interpolation:Pdk.Subdivision_ops.Subdivide_boundary_none
-      ~face_varying_interpolation:Pdk.Subdivision_ops.Subdivide_fvar_all
-      ~creasing_method:Pdk.Subdivision_ops.Subdivide_creasing_uniform
-      ~triangle_policy:Pdk.Subdivision_ops.Subdivide_triangles_catmull_clark in
+      ~iterations:2 ~scheme:Pdk.Subdivide.Bilinear
+      ~boundary_interpolation:Pdk.Subdivide.Subdivide_boundary_none
+      ~face_varying_interpolation:Pdk.Subdivide.Subdivide_fvar_all
+      ~creasing_method:Pdk.Subdivide.Subdivide_creasing_uniform
+      ~triangle_policy:Pdk.Subdivide.Subdivide_triangles_catmull_clark in
   check (Node.version detail_graph = 13
       && contains (Node.parameters detail_graph) "scheme=bilinear"
       && contains (Node.parameters detail_graph) "triangle_policy=catmull_clark")
     "procedural detail-override Subdivide cache identity";
   let detail_output = cook_ok evaluator current detail_graph in
   let expected_detail = Sop.snapshot triangle_source |> Sop.subdivide
-      ~iterations:2 ~scheme:Pdk.Subdivision_ops.Catmull_clark
-      ~boundary_interpolation:Pdk.Subdivision_ops.Subdivide_boundary_edge_and_corner
-      ~face_varying_interpolation:Pdk.Subdivision_ops.Subdivide_fvar_none
-      ~creasing_method:Pdk.Subdivision_ops.Subdivide_creasing_chaikin
-      ~triangle_policy:Pdk.Subdivision_ops.Subdivide_triangles_smooth
+      ~iterations:2 ~scheme:Pdk.Subdivide.Catmull_clark
+      ~boundary_interpolation:Pdk.Subdivide.Subdivide_boundary_edge_and_corner
+      ~face_varying_interpolation:Pdk.Subdivide.Subdivide_fvar_none
+      ~creasing_method:Pdk.Subdivide.Subdivide_creasing_chaikin
+      ~triangle_policy:Pdk.Subdivide.Subdivide_triangles_smooth
       |> cook_ok evaluator current in
   check (equal_positions detail_output.geometry expected_detail.geometry)
     "procedural Subdivide did not honor input detail overrides";

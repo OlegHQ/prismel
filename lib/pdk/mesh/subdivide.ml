@@ -12,7 +12,7 @@ type face_varying_interpolation =
   | Subdivide_fvar_corners_plus2
   | Subdivide_fvar_boundaries
   | Subdivide_fvar_all
-type triangle_subdivision =
+type triangle_policy =
   | Subdivide_triangles_catmull_clark
   | Subdivide_triangles_smooth
 type creasing_method =
@@ -67,7 +67,7 @@ type plan = {
   point_representative : int array;
   edge_ancestry_attribute : string option;
   boundary_interpolation : boundary_interpolation;
-  triangle_subdivision : triangle_subdivision;
+  triangle_subdivision : triangle_policy;
   creasing_method : creasing_method;
   holes : Group.t option;
   creases : crease_plan option;
@@ -4202,10 +4202,11 @@ let subdivide ?cancel ?grain ?(scheme = Catmull_clark) ?(iterations = 1)
     ?hole_primitives ?(remove_holes = true)
     ?(boundary_interpolation = Subdivide_boundary_edge_only)
     ?(face_varying_interpolation = Subdivide_fvar_all)
-    ?(triangle_subdivision = Subdivide_triangles_catmull_clark)
+    ?triangle_policy:(triangle_subdivision = Subdivide_triangles_catmull_clark)
     ?(creasing_method = Subdivide_creasing_uniform)
     ?(treat_curves_as_independent = false)
     ?(recompute_point_normals = false) geometry =
+  Error.guard ~operation:"subdivide" ~code:"invalid_topology" @@ fun () ->
   let had_point_normals =
     Geometry.find_attribute ~owner:Attribute.Point "N" geometry <> None in
   let polygon_count, curve_count = primitive_kind_counts geometry in

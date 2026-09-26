@@ -675,7 +675,7 @@ let run () =
       |> Sop.fuse ~tolerance:0. ~attributes:Fuse_reduce.Average_numeric
       |> Sop.set_color ~owner:Attribute.Point (Color.hex_exn "#38bdf8")
       |> Sop.group_edges ~name:"subdivision_edges"
-      |> Sop.subdivide ~scheme:Subdivision_ops.Catmull_clark ~iterations:3
+      |> Sop.subdivide ~scheme:Subdivide.Catmull_clark ~iterations:3
       |> Sop.normals in
   let one = cook 1 subdivided and many = cook 4 subdivided in
   check (equal_geometry one many)
@@ -685,7 +685,7 @@ let run () =
       (Geometry.primitive_count one));
   let creased_subdivision = Sop.grid ~columns:120 ~rows:80 ~size:8. ()
       |> Sop.set_float ~owner:Attribute.Vertex ~name:"creaseweight" 1.5
-      |> Sop.subdivide ~scheme:Subdivision_ops.Catmull_clark in
+      |> Sop.subdivide ~scheme:Subdivide.Catmull_clark in
   let one = cook 1 creased_subdivision and many = cook 4 creased_subdivision in
   check (equal_geometry one many)
     "one-domain and four-domain semi-sharp subdivision differ";
@@ -697,8 +697,8 @@ let run () =
              min = Attribute_ops.Scalar 0.;
              max = Attribute_ops.Scalar 4.;
            })
-      |> Sop.subdivide ~scheme:Subdivision_ops.Catmull_clark ~iterations:2
-           ~creasing_method:Subdivision_ops.Subdivide_creasing_chaikin
+      |> Sop.subdivide ~scheme:Subdivide.Catmull_clark ~iterations:2
+           ~creasing_method:Subdivide.Subdivide_creasing_chaikin
            ~resulting_crease_group:"chaikin_creases" in
   let one = cook 1 chaikin_subdivision and many = cook 4 chaikin_subdivision in
   check (equal_geometry one many)
@@ -712,7 +712,7 @@ let run () =
       ((Topology_index.create (Geometry.topology all_edge_source)
         |> Topology_index.Private.view).edge_a) in
   let all_edge_subdivision = Sop.snapshot all_edge_source
-      |> Sop.subdivide ~scheme:Subdivision_ops.Catmull_clark ~iterations:2
+      |> Sop.subdivide ~scheme:Subdivide.Catmull_clark ~iterations:2
            ~crease_weight:3. ~resulting_crease_group:"all_edge_creases" in
   let one = cook 1 all_edge_subdivision and many = cook 4 all_edge_subdivision in
   check (equal_geometry one many)
@@ -723,7 +723,7 @@ let run () =
     "parallel all-edge crease override omitted source-edge descendants";
   let dense_curve_source = curve_chain_geometry 50_000 in
   let shared_curves = Sop.snapshot dense_curve_source
-      |> Sop.subdivide ~scheme:Subdivision_ops.Catmull_clark ~iterations:2 in
+      |> Sop.subdivide ~scheme:Subdivide.Catmull_clark ~iterations:2 in
   let one = cook 1 shared_curves and many = cook 4 shared_curves in
   check (equal_geometry one many)
     "one-domain and four-domain shared polygon-curve subdivision differ";
@@ -731,7 +731,7 @@ let run () =
       && Geometry.vertex_count one = 250_000)
     "parallel shared polygon-curve subdivision cardinality";
   let independent_curves = Sop.snapshot dense_curve_source
-      |> Sop.subdivide ~scheme:Subdivision_ops.Catmull_clark ~iterations:2
+      |> Sop.subdivide ~scheme:Subdivide.Catmull_clark ~iterations:2
            ~treat_curves_as_independent:true in
   let one = cook 1 independent_curves and many = cook 4 independent_curves in
   check (equal_geometry one many)
@@ -759,7 +759,7 @@ let run () =
       ~columns:120 ~rows:80 ~size:8. ()
       |> Sop.group ~name:"subdivision_hole"
            (Select.primitive_indices hole_indices)
-      |> Sop.subdivide ~scheme:Subdivision_ops.Catmull_clark ~iterations:2 in
+      |> Sop.subdivide ~scheme:Subdivide.Catmull_clark ~iterations:2 in
   let one = cook 1 holed_subdivision and many = cook 4 holed_subdivision in
   check (equal_geometry one many)
     "one-domain and four-domain recursive hole subdivision differ";
@@ -768,18 +768,18 @@ let run () =
   let boundary_fixture policy = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_quads
       ~columns:120 ~rows:80 ~size:8. ()
       |> Sop.set_float ~owner:Attribute.Point ~name:"boundary_sample" 2.5
-      |> Sop.subdivide ~scheme:Subdivision_ops.Catmull_clark
+      |> Sop.subdivide ~scheme:Subdivide.Catmull_clark
            ~boundary_interpolation:policy in
   List.iter (fun policy ->
     let one = cook 1 (boundary_fixture policy)
     and many = cook 4 (boundary_fixture policy) in
     check (equal_geometry one many)
       "one-domain and four-domain point-boundary subdivision differ")
-    [Subdivision_ops.Subdivide_boundary_edge_only;
-     Subdivision_ops.Subdivide_boundary_edge_and_corner;
-     Subdivision_ops.Subdivide_boundary_none];
+    [Subdivide.Subdivide_boundary_edge_only;
+     Subdivide.Subdivide_boundary_edge_and_corner;
+     Subdivide.Subdivide_boundary_none];
   let no_boundary_surface = cook 4
-      (boundary_fixture Subdivision_ops.Subdivide_boundary_none) in
+      (boundary_fixture Subdivide.Subdivide_boundary_none) in
   check (Geometry.primitive_count no_boundary_surface = (120 - 2) * (80 - 2) * 4)
     "parallel None point-boundary subdivision cardinality";
   let fvar_source = Pdk.Plane_generators.grid_checked ~connectivity:Pdk.Plane_generators.Grid_quads
@@ -797,22 +797,22 @@ let run () =
       ~name:"fvar_uv" (Attribute.Float2 fvar_values) |> get_ok in
   let fvar_source = Geometry.with_attribute fvar_attribute fvar_source |> get_ok in
   let fvar_fixture policy = Sop.snapshot fvar_source
-      |> Sop.subdivide ~scheme:Subdivision_ops.Catmull_clark
+      |> Sop.subdivide ~scheme:Subdivide.Catmull_clark
            ~face_varying_interpolation:policy in
   List.iter (fun policy ->
     let one = cook 1 (fvar_fixture policy)
     and many = cook 4 (fvar_fixture policy) in
     check (equal_geometry one many)
       "one-domain and four-domain face-varying subdivision differ")
-    [Subdivision_ops.Subdivide_fvar_none; Subdivision_ops.Subdivide_fvar_corners_only;
-     Subdivision_ops.Subdivide_fvar_corners_plus1; Subdivision_ops.Subdivide_fvar_corners_plus2;
-     Subdivision_ops.Subdivide_fvar_boundaries; Subdivision_ops.Subdivide_fvar_all];
+    [Subdivide.Subdivide_fvar_none; Subdivide.Subdivide_fvar_corners_only;
+     Subdivide.Subdivide_fvar_corners_plus1; Subdivide.Subdivide_fvar_corners_plus2;
+     Subdivide.Subdivide_fvar_boundaries; Subdivide.Subdivide_fvar_all];
   let smooth_triangles = Sop.grid ~connectivity:Pdk.Plane_generators.Grid_triangles
       ~columns:120 ~rows:80 ~size:8. ()
       |> Sop.set_float ~owner:Attribute.Vertex ~name:"fvar_sample" 2.5
-      |> Sop.subdivide ~scheme:Subdivision_ops.Catmull_clark
-           ~face_varying_interpolation:Subdivision_ops.Subdivide_fvar_none
-           ~triangle_policy:Subdivision_ops.Subdivide_triangles_smooth in
+      |> Sop.subdivide ~scheme:Subdivide.Catmull_clark
+           ~face_varying_interpolation:Subdivide.Subdivide_fvar_none
+           ~triangle_policy:Subdivide.Subdivide_triangles_smooth in
   let one = cook 1 smooth_triangles and many = cook 4 smooth_triangles in
   check (equal_geometry one many)
     "one-domain and four-domain Smooth Triangles subdivision differ";
@@ -838,11 +838,11 @@ let run () =
       |> with_detail "osd_creasingmethod" (Attribute.Int [|1|])
       |> with_detail "osd_trianglesubdiv" (Attribute.Int [|1|]) in
   let detail_overridden = Sop.snapshot detail_source
-      |> Sop.subdivide ~iterations:2 ~scheme:Subdivision_ops.Bilinear
-           ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_none
-           ~face_varying_interpolation:Subdivision_ops.Subdivide_fvar_all
-           ~creasing_method:Subdivision_ops.Subdivide_creasing_uniform
-           ~triangle_policy:Subdivision_ops.Subdivide_triangles_catmull_clark
+      |> Sop.subdivide ~iterations:2 ~scheme:Subdivide.Bilinear
+           ~boundary_interpolation:Subdivide.Subdivide_boundary_none
+           ~face_varying_interpolation:Subdivide.Subdivide_fvar_all
+           ~creasing_method:Subdivide.Subdivide_creasing_uniform
+           ~triangle_policy:Subdivide.Subdivide_triangles_catmull_clark
            ~resulting_crease_group:"detail_override_creases" in
   let one = cook 1 detail_overridden and many = cook 4 detail_overridden in
   check (equal_geometry one many)

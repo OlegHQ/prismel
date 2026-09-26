@@ -127,7 +127,7 @@ let meshes () =
       ~caps:true |> move (-1.1) 0. 0. in
   let sweep = curve_mesh () |> move 1.1 0. 0. in
   let subdivided = sphere () |> Sop.triangulate
-    |> Sop.subdivide ~scheme:Pdk.Subdivision_ops.Loop ~iterations:1
+    |> Sop.subdivide ~scheme:Pdk.Subdivide.Loop ~iterations:1
     |> move 3.3 0. 0. in
   let plain node = Sop.delete_attributes ~point_pattern:"*"
       ~vertex_pattern:"*" ~primitive_pattern:"*" ~detail_pattern:"*" node in
@@ -139,9 +139,9 @@ let subdivision () =
   let plain node = Sop.delete_attributes ~point_pattern:"*"
       ~vertex_pattern:"*" ~primitive_pattern:"*" ~detail_pattern:"*" node in
   Sop.merge (List.map plain [
-    Sop.snapshot source |> Sop.subdivide ~scheme:Pdk.Subdivision_ops.Loop
+    Sop.snapshot source |> Sop.subdivide ~scheme:Pdk.Subdivide.Loop
       ~iterations:2 |> move (-1.25) 0. 0.;
-    Sop.snapshot source |> Sop.subdivide ~scheme:Pdk.Subdivision_ops.Catmull_clark
+    Sop.snapshot source |> Sop.subdivide ~scheme:Pdk.Subdivide.Catmull_clark
       ~iterations:2 |> move 1.25 0. 0.])
 
 let curves () =

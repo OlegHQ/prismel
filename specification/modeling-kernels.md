@@ -43,7 +43,7 @@ while using index planes rather than per-element objects.
 | Weld | Attribute-compatible spatial weld | `Pdk.Fuse_grid.fuse` owns the packed implementation |
 | Topology | Triangle adjacency and immutable editing | `Pdk.Topology_index` owns the reverse index |
 | Extrusion/revolve/sweep | Cardinality-first generators | `Pdk.Poly_modeling.poly_extrude`, `revolve`, and `sweep` own topology and payload output |
-| Loop/Catmull-Clark | Surface subdivision | `Pdk.Subdivision_ops.subdivide` owns the packed kernel |
+| Loop/Catmull-Clark | Surface subdivision | `Pdk.Subdivide.subdivide` owns the packed kernel |
 | Edge subdivision | One packed owner | `Pdk.Edge_modeling_ops.edge_divide` owns the kernel; Procedural wraps it |
 | Edge collapse | No former single owner | `Pdk.Edge_collapse` owns selected-edge component planning and delegates packed reduction, rewiring, and cleanup to the single Fuse core; it is the contraction primitive for future reduce/remesh work |
 | Blend Shapes | No former single owner | `Pdk.Blend_shapes` owns target ordering, masks, point-ID matching, and packed fixed-width point-field interpolation; Procedural stores only immutable target descriptors and never caches mutable deltas inside a node |

@@ -243,7 +243,7 @@ let test_local_do_not_close () =
   let input = source () and run domains =
     Parallel.run ~domains (fun () ->
       let input = source () in
-      Subdivision_ops.subdivide_checked ~grain:1 ~primitives:(group Group.Primitive "refine" input)
+      Subdivide.subdivide ~grain:1 ~primitives:(group Group.Primitive "refine" input)
         input |> get_pdk) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four)
@@ -294,7 +294,7 @@ let test_local_do_not_close () =
   let marked = Geometry.find_edge_group "marked_edges" one |> Option.get in
   check (Edge_group.cardinality marked = 12 && Edge_group.length marked = 16)
     "local Subdivide native edge ancestry";
-  let second = Subdivision_ops.subdivide_checked ~iterations:2
+  let second = Subdivide.subdivide ~iterations:2
       ~primitives:(group Group.Primitive "refine" input) input |> get_pdk in
   check (Geometry.point_count second = 30 && Geometry.vertex_count second = 68
       && Geometry.primitive_count second = 17)
@@ -304,14 +304,14 @@ let test_identity_validation_and_cancellation () =
   let input = source () in
   let empty = Group.init ~owner:Group.Primitive ~name:"empty" 2 (fun _ -> false)
   and full = Group.init ~owner:Group.Primitive ~name:"full" 2 (fun _ -> true) in
-  check (Subdivision_ops.subdivide_checked ~primitives:empty input |> get_pdk == input)
+  check (Subdivide.subdivide ~primitives:empty input |> get_pdk == input)
     "empty local Subdivide lost object identity";
-  check (Subdivision_ops.subdivide_checked ~iterations:0
+  check (Subdivide.subdivide ~iterations:0
       ~primitives:(group Group.Primitive "refine" input) input |> get_pdk == input)
     "zero-iteration local Subdivide lost object identity";
-  let legacy = Subdivision_ops.subdivide_checked input |> get_pdk
-  and selected = Subdivision_ops.subdivide_checked ~primitives:full input |> get_pdk
-  and consistent_full = Subdivision_ops.subdivide_checked ~consistent_topology:true input |> get_pdk in
+  let legacy = Subdivide.subdivide input |> get_pdk
+  and selected = Subdivide.subdivide ~primitives:full input |> get_pdk
+  and consistent_full = Subdivide.subdivide ~consistent_topology:true input |> get_pdk in
   check (equal_geometry legacy selected)
     "full local Subdivide changed the whole-mesh compatibility path";
   check (equal_geometry legacy consistent_full)
@@ -320,13 +320,13 @@ let test_identity_validation_and_cancellation () =
   and wrong_length = Group.init ~owner:Group.Primitive ~name:"short" 1
       (fun _ -> true) in
   List.iter (fun selection ->
-    match Subdivision_ops.subdivide_checked ~primitives:selection input with
+    match Subdivide.subdivide ~primitives:selection input with
     | Error error when Error.code error = "invalid_topology" -> ()
     | _ -> fail "local Subdivide accepted an invalid selection")
     [wrong_owner; wrong_length];
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  (match Subdivision_ops.subdivide_checked ~cancel ~primitives:(group Group.Primitive "refine" input)
+  (match Subdivide.subdivide ~cancel ~primitives:(group Group.Primitive "refine" input)
       input with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled local Subdivide published geometry");
@@ -339,7 +339,7 @@ let test_identity_validation_and_cancellation () =
   let nonmanifold = Geometry.create ~positions ~topology () |> get_string in
   let one_face = Group.init ~owner:Group.Primitive ~name:"one" 3
       (fun primitive -> primitive = 0) in
-  (match Subdivision_ops.subdivide_checked ~cracks:(Subdivision_ops.Subdivide_pull_divide_edges 0.5)
+  (match Subdivide.subdivide ~cracks:(Subdivide.Subdivide_pull_divide_edges 0.5)
       ~primitives:one_face nonmanifold with
    | Error error when Error.code error = "invalid_topology" -> ()
    | _ -> fail "crack closure accepted a non-manifold source interface")
@@ -355,7 +355,7 @@ let test_selected_loop_validation_scope () =
   let geometry = Geometry.create ~positions ~topology () |> get_string in
   let triangle = Group.init ~owner:Group.Primitive ~name:"triangle" 2
       (fun primitive -> primitive = 0) in
-  let output = Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Loop ~primitives:triangle geometry
+  let output = Subdivide.subdivide ~scheme:Subdivide.Loop ~primitives:triangle geometry
       |> get_pdk in
   check (Geometry.primitive_count output = 5
       && Topology.primitive_size (Geometry.topology output) 0 = 4)
@@ -376,7 +376,7 @@ let test_disconnected_selected_fans () =
   let diagonal = Group.ordered ~owner:Group.Primitive ~name:"diagonal"
       ~length:4 [|0;3|] |> get_string in
   let run domains = Parallel.run ~domains (fun () ->
-      Subdivision_ops.subdivide_checked ~grain:1 ~primitives:diagonal geometry |> get_pdk) in
+      Subdivide.subdivide ~grain:1 ~primitives:diagonal geometry |> get_pdk) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four)
     "disconnected selected-fan splitting differs across domains";
@@ -395,8 +395,8 @@ let test_pull_no_edge_division () =
   let selection = group Group.Primitive "refine" input in
   let run domains = Parallel.run ~domains (fun () ->
       let input = source () in
-      Subdivision_ops.subdivide_checked ~grain:1
-        ~cracks:Subdivision_ops.Subdivide_pull_no_edge_division
+      Subdivide.subdivide ~grain:1
+        ~cracks:Subdivide.Subdivide_pull_no_edge_division
         ~primitives:(group Group.Primitive "refine" input) input |> get_pdk) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four)
@@ -408,7 +408,7 @@ let test_pull_no_edge_division () =
   done;
   check (!pulled = 3)
     "Pull Closed did not project the complete refined interface chain";
-  let open_result = Subdivision_ops.subdivide_checked ~primitives:selection input |> get_pdk in
+  let open_result = Subdivide.subdivide ~primitives:selection input |> get_pdk in
   let open_positions = Packed.Float3.Private.view
       (Geometry.positions open_result) in
   check (open_positions.x.(6) <> positions.x.(6))
@@ -417,8 +417,8 @@ let test_pull_no_edge_division () =
       not (String.starts_with ~prefix:"__pdk_subdivide_edge_ancestry_"
         (Attribute.name attribute))) (Array.of_list (Geometry.attributes one)))
     "Pull Closed leaked its private ancestry attribute";
-  let second = Subdivision_ops.subdivide_checked ~iterations:2
-      ~cracks:Subdivision_ops.Subdivide_pull_no_edge_division ~primitives:selection input
+  let second = Subdivide.subdivide ~iterations:2
+      ~cracks:Subdivide.Subdivide_pull_no_edge_division ~primitives:selection input
       |> get_pdk in
   let positions = Packed.Float3.Private.view (Geometry.positions second) in
   let pulled = ref 0 in
@@ -438,7 +438,7 @@ let test_pull_no_edge_division () =
       ~topology:corner_topology () |> get_string in
   let corner_selection = Group.init ~owner:Group.Primitive ~name:"corner" 4
       (fun primitive -> primitive = 0) in
-  let corner = Subdivision_ops.subdivide_checked ~cracks:Subdivision_ops.Subdivide_pull_no_edge_division
+  let corner = Subdivide.subdivide ~cracks:Subdivide.Subdivide_pull_no_edge_division
       ~primitives:corner_selection corner_source |> get_pdk in
   check (Packed.Float3.get (Geometry.positions corner) 11 = (1., 1., 0.))
     "Pull Closed did not snap a multi-edge junction to its shared endpoint";
@@ -446,7 +446,7 @@ let test_pull_no_edge_division () =
   let user_attribute = attribute Attribute.Vertex user_name
       (Attribute.Int (Array.init 8 (fun vertex -> 100 + vertex))) in
   let collision_source = Geometry.with_attribute user_attribute input |> get_string in
-  let collision = Subdivision_ops.subdivide_checked ~cracks:Subdivision_ops.Subdivide_pull_no_edge_division
+  let collision = Subdivide.subdivide ~cracks:Subdivide.Subdivide_pull_no_edge_division
       ~primitives:(group Group.Primitive "refine" collision_source)
       collision_source |> get_pdk in
   let values = int_values Attribute.Vertex user_name collision in
@@ -461,8 +461,8 @@ let test_pull_no_edge_division () =
 let test_stitch_no_edge_division () =
   let run domains = Parallel.run ~domains (fun () ->
       let input = source () in
-      Subdivision_ops.subdivide_checked ~grain:1
-        ~cracks:Subdivision_ops.Subdivide_stitch_no_edge_division
+      Subdivide.subdivide ~grain:1
+        ~cracks:Subdivide.Subdivide_stitch_no_edge_division
         ~primitives:(group Group.Primitive "refine" input) input |> get_pdk) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four)
@@ -518,8 +518,8 @@ let test_stitch_no_edge_division () =
         (Attribute.name attribute))) (Geometry.attributes one))
     "Stitch leaked its private ancestry attribute";
   let input = source () in
-  let second = Subdivision_ops.subdivide_checked ~iterations:2
-      ~cracks:Subdivision_ops.Subdivide_stitch_no_edge_division
+  let second = Subdivide.subdivide ~iterations:2
+      ~cracks:Subdivide.Subdivide_stitch_no_edge_division
       ~primitives:(group Group.Primitive "refine" input) input |> get_pdk in
   check (Geometry.point_count second = 30 && Geometry.vertex_count second = 80
       && Geometry.primitive_count second = 21)
@@ -541,7 +541,7 @@ let test_stitch_no_edge_division () =
       |> get_string in
   let center = Group.init ~owner:Group.Primitive ~name:"center" 9
       (fun primitive -> primitive = 4) in
-  let patch = Subdivision_ops.subdivide_checked ~cracks:Subdivision_ops.Subdivide_stitch_no_edge_division
+  let patch = Subdivide.subdivide ~cracks:Subdivide.Subdivide_stitch_no_edge_division
       ~primitives:center patch |> get_pdk in
   check (Geometry.point_count patch = 25 && Geometry.vertex_count patch = 72
       && Geometry.primitive_count patch = 20)
@@ -558,7 +558,7 @@ let test_stitch_no_edge_division () =
 let test_pull_divide_edges () =
   let run domains bias = Parallel.run ~domains (fun () ->
       let input = source () in
-      Subdivision_ops.subdivide_checked ~grain:1 ~cracks:(Subdivision_ops.Subdivide_pull_divide_edges bias)
+      Subdivide.subdivide ~grain:1 ~cracks:(Subdivide.Subdivide_pull_divide_edges bias)
         ~primitives:(group Group.Primitive "refine" input) input |> get_pdk) in
   let zero = run 1 0. and zero_four = run 4 0. in
   check (equal_geometry zero zero_four)
@@ -603,14 +603,14 @@ let test_pull_divide_edges () =
     "Pull Divide leaked its private ancestry attribute";
   let input = source () in
   let selection = group Group.Primitive "refine" input in
-  let second = Subdivision_ops.subdivide_checked ~iterations:2
-      ~cracks:(Subdivision_ops.Subdivide_pull_divide_edges 0.75)
+  let second = Subdivide.subdivide ~iterations:2
+      ~cracks:(Subdivide.Subdivide_pull_divide_edges 0.75)
       ~primitives:selection input |> get_pdk in
   check (Geometry.point_count second = 28 && Geometry.vertex_count second = 71
       && Geometry.primitive_count second = 17)
     "recursive Pull Divide cardinality";
   List.iter (fun bias ->
-    match Subdivision_ops.subdivide_checked ~cracks:(Subdivision_ops.Subdivide_pull_divide_edges bias)
+    match Subdivide.subdivide ~cracks:(Subdivide.Subdivide_pull_divide_edges bias)
         ~primitives:selection input with
     | exception Invalid_argument _ -> ()
     | _ -> fail "Pull Divide accepted a non-finite/out-of-range bias")
@@ -619,7 +619,7 @@ let test_pull_divide_edges () =
 let test_stitch_divide_edges () =
   let run domains = Parallel.run ~domains (fun () ->
       let input = source () in
-      Subdivision_ops.subdivide_checked ~grain:1 ~cracks:Subdivision_ops.Subdivide_stitch_divide_edges
+      Subdivide.subdivide ~grain:1 ~cracks:Subdivide.Subdivide_stitch_divide_edges
         ~primitives:(group Group.Primitive "refine" input) input |> get_pdk) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four)
@@ -671,8 +671,8 @@ let test_stitch_divide_edges () =
          "Stitch Divide ragged face-varying/primitive ancestry"
    | _ -> fail "Stitch Divide changed ragged attribute storage");
   let input = source () in
-  let second = Subdivision_ops.subdivide_checked ~iterations:2
-      ~cracks:Subdivision_ops.Subdivide_stitch_divide_edges
+  let second = Subdivide.subdivide ~iterations:2
+      ~cracks:Subdivide.Subdivide_stitch_divide_edges
       ~primitives:(group Group.Primitive "refine" input) input |> get_pdk in
   check (Geometry.point_count second = 33 && Geometry.vertex_count second = 95
       && Geometry.primitive_count second = 25)
@@ -694,7 +694,7 @@ let test_stitch_divide_edges () =
       |> get_string in
   let center = Group.init ~owner:Group.Primitive ~name:"center" 9
       (fun primitive -> primitive = 4) in
-  let patch = Subdivision_ops.subdivide_checked ~cracks:Subdivision_ops.Subdivide_stitch_divide_edges
+  let patch = Subdivide.subdivide ~cracks:Subdivide.Subdivide_stitch_divide_edges
       ~primitives:center patch |> get_pdk in
   check (Geometry.point_count patch = 25 && Geometry.vertex_count patch = 76
       && Geometry.primitive_count patch = 20)
@@ -711,7 +711,7 @@ let test_stitch_divide_edges () =
 let test_triangulated_crack_closure () =
   let run_pull domains = Parallel.run ~domains (fun () ->
       let input = source () in
-      Subdivision_ops.subdivide_checked ~grain:1 ~cracks:(Subdivision_ops.Subdivide_pull_triangulate 0.75)
+      Subdivide.subdivide ~grain:1 ~cracks:(Subdivide.Subdivide_pull_triangulate 0.75)
         ~primitives:(group Group.Primitive "refine" input) input |> get_pdk) in
   let pull = run_pull 1 and pull_four = run_pull 4 in
   check (equal_geometry pull pull_four)
@@ -728,7 +728,7 @@ let test_triangulated_crack_closure () =
     "Pull Triangulate primitive ancestry";
   let run_stitch domains = Parallel.run ~domains (fun () ->
       let input = source () in
-      Subdivision_ops.subdivide_checked ~grain:1 ~cracks:Subdivision_ops.Subdivide_stitch_triangulate
+      Subdivide.subdivide ~grain:1 ~cracks:Subdivide.Subdivide_stitch_triangulate
         ~primitives:(group Group.Primitive "refine" input) input |> get_pdk) in
   let stitch = run_stitch 1 and stitch_four = run_stitch 4 in
   check (equal_geometry stitch stitch_four)
@@ -753,11 +753,11 @@ let test_triangulated_crack_closure () =
    | _ -> fail "Stitch Triangulate changed ragged storage");
   let input = source () in
   let selection = group Group.Primitive "refine" input in
-  let pull_second = Subdivision_ops.subdivide_checked ~iterations:2
-      ~cracks:(Subdivision_ops.Subdivide_pull_triangulate 0.75)
+  let pull_second = Subdivide.subdivide ~iterations:2
+      ~cracks:(Subdivide.Subdivide_pull_triangulate 0.75)
       ~primitives:selection input |> get_pdk
-  and stitch_second = Subdivision_ops.subdivide_checked ~iterations:2
-      ~cracks:Subdivision_ops.Subdivide_stitch_triangulate
+  and stitch_second = Subdivide.subdivide ~iterations:2
+      ~cracks:Subdivide.Subdivide_stitch_triangulate
       ~primitives:selection input |> get_pdk in
   check (Geometry.point_count pull_second = 28
       && Geometry.vertex_count pull_second = 79
@@ -771,8 +771,8 @@ let test_triangulated_crack_closure () =
 let test_consistent_crack_topology () =
   let run domains = Parallel.run ~domains (fun () ->
       let input = source () in
-      Subdivision_ops.subdivide_checked ~grain:1 ~consistent_topology:true
-        ~cracks:Subdivision_ops.Subdivide_stitch_divide_edges
+      Subdivide.subdivide ~grain:1 ~consistent_topology:true
+        ~cracks:Subdivide.Subdivide_stitch_divide_edges
         ~primitives:(group Group.Primitive "refine" input) input |> get_pdk) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four)
@@ -781,7 +781,7 @@ let test_consistent_crack_topology () =
       && Geometry.primitive_count one = 9)
     "consistent Stitch Divide did not retain topology-prescribed bridge faces";
   let adaptive_input = source () in
-  let adaptive = Subdivision_ops.subdivide_checked ~cracks:Subdivision_ops.Subdivide_stitch_divide_edges
+  let adaptive = Subdivide.subdivide ~cracks:Subdivide.Subdivide_stitch_divide_edges
       ~primitives:(group Group.Primitive "refine" adaptive_input) adaptive_input
       |> get_pdk in
   check (Geometry.vertex_count adaptive < Geometry.vertex_count one
@@ -795,8 +795,8 @@ let test_consistent_crack_topology () =
         (float_of_int ((point * 17) mod 7) -. 3.) *. 0.13)) in
   let deformed = Geometry.with_positions deformed_positions adaptive_input
       |> get_string in
-  let deformed_output = Subdivision_ops.subdivide_checked ~consistent_topology:true
-      ~cracks:Subdivision_ops.Subdivide_stitch_divide_edges
+  let deformed_output = Subdivide.subdivide ~consistent_topology:true
+      ~cracks:Subdivide.Subdivide_stitch_divide_edges
       ~primitives:(group Group.Primitive "refine" deformed) deformed |> get_pdk in
   check (equal_topology one deformed_output)
     "consistent Stitch Divide topology changed under position-only deformation";
@@ -821,8 +821,8 @@ let test_consistent_crack_topology () =
   done;
   check !zero_area
     "consistent Stitch Divide unexpectedly removed its documented degenerate transition";
-  let tri = Subdivision_ops.subdivide_checked ~consistent_topology:true
-      ~cracks:Subdivision_ops.Subdivide_stitch_triangulate
+  let tri = Subdivide.subdivide ~consistent_topology:true
+      ~cracks:Subdivide.Subdivide_stitch_triangulate
       ~primitives:(group Group.Primitive "refine" adaptive_input) adaptive_input
       |> get_pdk in
   check (Geometry.point_count tri = 15 && Geometry.vertex_count tri = 37
@@ -830,17 +830,17 @@ let test_consistent_crack_topology () =
     "consistent Stitch Triangulate topology/cardinality";
   let tri_four = Parallel.run ~domains:4 (fun () ->
       let input = source () in
-      Subdivision_ops.subdivide_checked ~grain:1 ~consistent_topology:true
-        ~cracks:Subdivision_ops.Subdivide_stitch_triangulate
+      Subdivide.subdivide ~grain:1 ~consistent_topology:true
+        ~cracks:Subdivide.Subdivide_stitch_triangulate
         ~primitives:(group Group.Primitive "refine" input) input |> get_pdk) in
   check (equal_geometry tri tri_four)
     "consistent Stitch Triangulate differs between one and four domains";
-  let pull_tri = Subdivision_ops.subdivide_checked ~consistent_topology:true
-      ~cracks:(Subdivision_ops.Subdivide_pull_triangulate 0.75)
+  let pull_tri = Subdivide.subdivide ~consistent_topology:true
+      ~cracks:(Subdivide.Subdivide_pull_triangulate 0.75)
       ~primitives:(group Group.Primitive "refine" adaptive_input) adaptive_input
       |> get_pdk
-  and pull_tri_deformed = Subdivision_ops.subdivide_checked ~consistent_topology:true
-      ~cracks:(Subdivision_ops.Subdivide_pull_triangulate 0.75)
+  and pull_tri_deformed = Subdivide.subdivide ~consistent_topology:true
+      ~cracks:(Subdivide.Subdivide_pull_triangulate 0.75)
       ~primitives:(group Group.Primitive "refine" deformed) deformed |> get_pdk in
   check (equal_topology pull_tri pull_tri_deformed)
     "consistent Pull Triangulate topology changed under deformation"
@@ -848,7 +848,7 @@ let test_consistent_crack_topology () =
 let test_second_input_creases () =
   let run domains crease_input = Parallel.run ~domains (fun () ->
     let input = quad ~vertex_weights:[|5.;0.;0.;0.|] () in
-    Subdivision_ops.subdivide_checked ~grain:1 ~creases:crease_input
+    Subdivide.subdivide ~grain:1 ~creases:crease_input
       ~crease_primitives:(group Group.Primitive "crease_pick" crease_input)
       ~crease_weight:2.5 ~resulting_crease_group:"remaining" input |> get_pdk) in
   let one = run 1 (crease_paths ()) and four = run 4 (crease_paths ()) in
@@ -884,26 +884,26 @@ let test_second_input_creases () =
 
   let exact = exact_crease_input
       ~vertex_weights:[|3.;1.;0.;0.|] ~primitive_weights:[|2.|] () in
-  let attributed = Subdivision_ops.subdivide_checked ~creases:exact (quad ()) |> get_pdk in
+  let attributed = Subdivide.subdivide ~creases:exact (quad ()) |> get_pdk in
   let edge01 = Topology_index.find_edge source_index ~a:0 ~b:1 |> Option.get
   and edge12 = Topology_index.find_edge source_index ~a:1 ~b:2 |> Option.get in
   check (edge_weight attributed 0 (4 + edge01) = 2.
       && edge_weight attributed 1 (4 + edge12) = 1.)
     "second-input vertex/primitive creaseweight maximum semantics";
-  let attributed_moved = Subdivision_ops.subdivide_checked
+  let attributed_moved = Subdivide.subdivide
       ~creases:(exact_crease_input ~moved:true
         ~vertex_weights:[|3.;1.;0.;0.|] ~primitive_weights:[|2.|] ())
       (quad ()) |> get_pdk in
   check (equal_geometry attributed attributed_moved)
     "attribute-driven crease matching depended on positions";
-  let overridden = Subdivision_ops.subdivide_checked ~creases:exact ~crease_weight:0.5
+  let overridden = Subdivide.subdivide ~creases:exact ~crease_weight:0.5
       (quad ~vertex_weights:[|8.;8.;8.;8.|] ()) |> get_pdk in
   check (Geometry.find_attribute ~owner:Attribute.Vertex "creaseweight"
       overridden = None)
     "crease override did not replace source/second-input attributes";
 
   let all_edges domains = Parallel.run ~domains (fun () ->
-    Subdivision_ops.subdivide_checked ~grain:1 ~crease_weight:2.5
+    Subdivide.subdivide ~grain:1 ~crease_weight:2.5
       ~resulting_crease_group:"all_remaining" (quad ()) |> get_pdk) in
   let all_one = all_edges 1 and all_four = all_edges 4 in
   check (equal_geometry all_one all_four)
@@ -922,21 +922,21 @@ let test_second_input_creases () =
     | Some group -> Edge_group.cardinality group = 8
     | None -> false)
     "all-edge crease override did not emit every residual child edge";
-  let authored_all = Subdivision_ops.subdivide_checked ~grain:1
+  let authored_all = Subdivide.subdivide ~grain:1
       ~resulting_crease_group:"all_remaining"
       (quad ~vertex_weights:[|2.5;2.5;2.5;2.5|] ()) |> get_pdk in
   check (equal_geometry all_one authored_all)
     "all-edge scalar override diverged from an equivalent authored field";
-  let chaikin_all = Subdivision_ops.subdivide_checked ~grain:1 ~crease_weight:2.5
-      ~creasing_method:Subdivision_ops.Subdivide_creasing_chaikin
+  let chaikin_all = Subdivide.subdivide ~grain:1 ~crease_weight:2.5
+      ~creasing_method:Subdivide.Subdivide_creasing_chaikin
       ~resulting_crease_group:"all_remaining" (quad ()) |> get_pdk
-  and chaikin_authored = Subdivision_ops.subdivide_checked ~grain:1
-      ~creasing_method:Subdivision_ops.Subdivide_creasing_chaikin
+  and chaikin_authored = Subdivide.subdivide ~grain:1
+      ~creasing_method:Subdivide.Subdivide_creasing_chaikin
       ~resulting_crease_group:"all_remaining"
       (quad ~vertex_weights:[|2.5;2.5;2.5;2.5|] ()) |> get_pdk in
   check (equal_geometry chaikin_all chaikin_authored)
     "Chaikin all-edge scalar override diverged from an authored field";
-  let all_replaced = Subdivision_ops.subdivide_checked ~crease_weight:0.5
+  let all_replaced = Subdivide.subdivide ~crease_weight:0.5
       (quad ~vertex_weights:[|8.;8.;8.;8.|] ~primitive_weights:[|9.|] ())
       |> get_pdk in
   check (Geometry.find_attribute ~owner:Attribute.Vertex "creaseweight"
@@ -944,7 +944,7 @@ let test_second_input_creases () =
       && Geometry.find_attribute ~owner:Attribute.Primitive "creaseweight"
            all_replaced = None)
     "all-edge override did not replace source vertex/primitive sharpness";
-  let all_recursive = Subdivision_ops.subdivide_checked ~iterations:2 ~crease_weight:3.
+  let all_recursive = Subdivide.subdivide ~iterations:2 ~crease_weight:3.
       ~resulting_crease_group:"all_recursive" (quad ()) |> get_pdk in
   check (match Geometry.find_edge_group "all_recursive" all_recursive with
     | Some group -> Edge_group.cardinality group = 16
@@ -956,7 +956,7 @@ let test_second_input_creases () =
       && Array.fold_left (fun count value ->
            if value = 1. then count + 1 else count) 0 recursive_values = 16)
     "recursive all-edge override did not decay exactly once per level";
-  let zero = Subdivision_ops.subdivide_checked ~crease_weight:0.
+  let zero = Subdivide.subdivide ~crease_weight:0.
       ~resulting_crease_group:"zero_remaining" (quad ()) |> get_pdk in
   check (Geometry.find_attribute ~owner:Attribute.Vertex "creaseweight" zero = None
       && match Geometry.find_edge_group "zero_remaining" zero with
@@ -970,7 +970,7 @@ let test_second_input_creases () =
     let selection = Group.ordered ~owner:Group.Primitive ~name:"left"
         ~length:2 [|0|] |> get_string in
     let geometry = Geometry.with_group selection geometry |> get_string in
-    Subdivision_ops.subdivide_checked ~grain:1 ~primitives:selection ~crease_weight:3.
+    Subdivide.subdivide ~grain:1 ~primitives:selection ~crease_weight:3.
       ~resulting_crease_group:"local_all_remaining" geometry |> get_pdk) in
   let local_all_one = local_all_edges 1 and local_all_four = local_all_edges 4 in
   check (equal_geometry local_all_one local_all_four)
@@ -979,26 +979,26 @@ let test_second_input_creases () =
     | Some group -> Edge_group.cardinality group = 8
     | None -> false)
     "local all-edge override leaked onto coarse unselected edges";
-  (match Subdivision_ops.subdivide_checked ~crease_primitives:(Group.ordered
+  (match Subdivide.subdivide ~crease_primitives:(Group.ordered
       ~owner:Group.Primitive ~name:"invalid" ~length:1 [|0|] |> get_string)
       ~crease_weight:2. (quad ()) with
    | Error error when Error.code error = "invalid_topology" -> ()
    | _ -> fail "all-edge override accepted a second-input-only crease selection");
-  (match Subdivision_ops.subdivide_checked ~crease_weight:Float.nan (quad ()) with
+  (match Subdivide.subdivide ~crease_weight:Float.nan (quad ()) with
    | Error error when Error.code error = "invalid_topology" -> ()
    | _ -> fail "all-edge override accepted non-finite sharpness");
 
   let mismatch = crease_paths ~vertex_weights:[|2.;0.;2.;0.|] () in
-  (match Subdivision_ops.subdivide_checked ~creases:mismatch (quad ()) with
+  (match Subdivide.subdivide ~creases:mismatch (quad ()) with
    | Error error when Error.code error = "invalid_topology" -> ()
    | _ -> fail "attribute-driven crease input accepted non-identical topology");
   let no_weights = crease_paths () in
-  let ordinary = Subdivision_ops.subdivide_checked (quad ()) |> get_pdk
-  and ignored = Subdivision_ops.subdivide_checked ~creases:no_weights (quad ()) |> get_pdk in
+  let ordinary = Subdivide.subdivide (quad ()) |> get_pdk
+  and ignored = Subdivide.subdivide ~creases:no_weights (quad ()) |> get_pdk in
   check (equal_geometry ordinary ignored)
     "crease input without override/attributes changed subdivision";
 
-  let recursive = Subdivision_ops.subdivide_checked ~iterations:2 ~creases:(crease_paths ())
+  let recursive = Subdivide.subdivide ~iterations:2 ~creases:(crease_paths ())
       ~crease_primitives:(group Group.Primitive "crease_pick" (crease_paths ()))
       ~crease_weight:3. ~resulting_crease_group:"recursive" (quad ()) in
   let recursive = get_pdk recursive in
@@ -1010,14 +1010,14 @@ let test_second_input_creases () =
       (float_values Attribute.Vertex "creaseweight" recursive))
     "recursive second-input crease did not decay per subdivision level";
 
-  let suppressed = Subdivision_ops.subdivide_checked ~creases:exact
+  let suppressed = Subdivide.subdivide ~creases:exact
       ~generate_resulting_creases:false
       (quad ~corner_weights:[|2.;0.;0.;0.|] ()) |> get_pdk in
   check (Geometry.find_attribute ~owner:Attribute.Vertex "creaseweight" suppressed = None
       && Geometry.find_attribute ~owner:Attribute.Primitive "creaseweight" suppressed = None
       && Geometry.find_attribute ~owner:Attribute.Point "cornerweight" suppressed = None)
     "Generate Resulting Creases off retained sharpness metadata";
-  (match Subdivision_ops.subdivide_checked ~creases:exact ~generate_resulting_creases:false
+  (match Subdivide.subdivide ~creases:exact ~generate_resulting_creases:false
       ~resulting_crease_group:"invalid" (quad ()) with
    | Error error when Error.code error = "invalid_topology" -> ()
    | _ -> fail "resulting crease group accepted disabled result generation");
@@ -1033,7 +1033,7 @@ let test_second_input_creases () =
     Geometry.create ~positions ~topology () |> get_string in
   let local domains = Parallel.run ~domains (fun () ->
     let input = source () in
-    Subdivision_ops.subdivide_checked ~grain:1 ~primitives:(group Group.Primitive "refine" input)
+    Subdivide.subdivide ~grain:1 ~primitives:(group Group.Primitive "refine" input)
       ~creases:(local_crease ()) ~crease_weight:3.
       ~resulting_crease_group:"local_remaining" input |> get_pdk) in
   let local_one = local 1 and local_four = local 4 in
@@ -1050,7 +1050,7 @@ let test_second_input_creases () =
   let triangle = Geometry.create ~positions:triangle_positions
       ~topology:triangle_topology () |> get_string
       |> Group_mesh.group_edges_checked ~name:"loop_source_edges" |> get_pdk in
-  let loop = Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Loop triangle |> get_pdk in
+  let loop = Subdivide.subdivide ~scheme:Subdivide.Loop triangle |> get_pdk in
   check (match Geometry.find_edge_group "loop_source_edges" loop with
     | Some group -> Edge_group.length group = 9
         && Edge_group.cardinality group = 6
@@ -1082,14 +1082,14 @@ let test_chaikin_creasing () =
   let source_index = Topology_index.create (Geometry.topology input) in
   let edge neighbor = Topology_index.find_edge source_index ~a:4 ~b:neighbor
       |> Option.get in
-  let uniform = Subdivision_ops.subdivide_checked ~grain:1
-      ~creasing_method:Subdivision_ops.Subdivide_creasing_uniform
+  let uniform = Subdivide.subdivide ~grain:1
+      ~creasing_method:Subdivide.Subdivide_creasing_uniform
       ~resulting_crease_group:"remaining" input |> get_pdk
-  and chaikin = Subdivision_ops.subdivide_checked ~grain:1
-      ~creasing_method:Subdivision_ops.Subdivide_creasing_chaikin
+  and chaikin = Subdivide.subdivide ~grain:1
+      ~creasing_method:Subdivide.Subdivide_creasing_chaikin
       ~resulting_crease_group:"remaining" input |> get_pdk in
   check (equal_geometry uniform
-      (Subdivision_ops.subdivide_checked ~grain:1 ~resulting_crease_group:"remaining" input |> get_pdk))
+      (Subdivide.subdivide ~grain:1 ~resulting_crease_group:"remaining" input |> get_pdk))
     "uniform creasing is not the compatibility default";
   let midpoint neighbor = Geometry.point_count input + edge neighbor in
   let close left right = Float.abs (left -. right) <= 1e-12 in
@@ -1150,12 +1150,12 @@ let test_chaikin_creasing () =
         (Packed.Float3.Private.view (Geometry.positions mask_input)).z.(point))
         mask_topology.vertex_points)) in
   let mask_input = Geometry.with_attribute mask_fvar mask_input |> get_string in
-  let mask_uniform = Subdivision_ops.subdivide_checked ~grain:1
-      ~creasing_method:Subdivision_ops.Subdivide_creasing_uniform
-      ~face_varying_interpolation:Subdivision_ops.Subdivide_fvar_none mask_input |> get_pdk
-  and mask_chaikin = Subdivision_ops.subdivide_checked ~grain:1
-      ~creasing_method:Subdivision_ops.Subdivide_creasing_chaikin
-      ~face_varying_interpolation:Subdivision_ops.Subdivide_fvar_none mask_input |> get_pdk in
+  let mask_uniform = Subdivide.subdivide ~grain:1
+      ~creasing_method:Subdivide.Subdivide_creasing_uniform
+      ~face_varying_interpolation:Subdivide.Subdivide_fvar_none mask_input |> get_pdk
+  and mask_chaikin = Subdivide.subdivide ~grain:1
+      ~creasing_method:Subdivide.Subdivide_creasing_chaikin
+      ~face_varying_interpolation:Subdivide.Subdivide_fvar_none mask_input |> get_pdk in
   let source_positions = Packed.Float3.Private.view (Geometry.positions mask_input)
   and uniform_positions = Packed.Float3.Private.view
       (Geometry.positions mask_uniform)
@@ -1184,22 +1184,22 @@ let test_chaikin_creasing () =
     "Chaikin vertex rule did not follow its surviving child crease neighborhood";
 
   let exact domains = Parallel.run ~domains (fun () ->
-    Subdivision_ops.subdivide_checked ~grain:1 ~iterations:2
-      ~creasing_method:Subdivision_ops.Subdivide_creasing_chaikin
+    Subdivide.subdivide ~grain:1 ~iterations:2
+      ~creasing_method:Subdivide.Subdivide_creasing_chaikin
       ~resulting_crease_group:"remaining" (make ()) |> get_pdk) in
   let exact_one = exact 1 and exact_four = exact 4 in
   check (equal_geometry exact_one exact_four)
     "recursive Chaikin creasing differs across one and four domains";
   check (not (equal_geometry exact_one
-      (Subdivision_ops.subdivide_checked ~grain:1 ~iterations:2
-        ~creasing_method:Subdivision_ops.Subdivide_creasing_uniform
+      (Subdivide.subdivide ~grain:1 ~iterations:2
+        ~creasing_method:Subdivide.Subdivide_creasing_uniform
         ~resulting_crease_group:"remaining" (make ()) |> get_pdk)))
     "recursive Chaikin creasing collapsed to uniform decay";
 
   let clean = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads
       ~columns:2 ~rows:2 ~size:2. () |> get_pdk in
-  let second_input = Subdivision_ops.subdivide_checked ~grain:1 ~creases:input
-      ~creasing_method:Subdivision_ops.Subdivide_creasing_chaikin
+  let second_input = Subdivide.subdivide ~grain:1 ~creases:input
+      ~creasing_method:Subdivide.Subdivide_creasing_chaikin
       ~resulting_crease_group:"remaining" clean |> get_pdk in
   check (equal_geometry chaikin second_input)
     "second-input Chaikin creases differ from source-attribute creases";
@@ -1208,23 +1208,23 @@ let test_chaikin_creasing () =
       ~length:(Geometry.primitive_count input) [|0;1|] |> get_string in
   let local_input = Geometry.with_group selection input |> get_string in
   let local domains = Parallel.run ~domains (fun () ->
-    Subdivision_ops.subdivide_checked ~grain:1 ~primitives:selection
-      ~creasing_method:Subdivision_ops.Subdivide_creasing_chaikin local_input |> get_pdk) in
+    Subdivide.subdivide ~grain:1 ~primitives:selection
+      ~creasing_method:Subdivide.Subdivide_creasing_chaikin local_input |> get_pdk) in
   check (equal_geometry (local 1) (local 4))
     "local Chaikin creasing differs across one and four domains";
 
   let loop domains = Parallel.run ~domains (fun () ->
-    Subdivision_ops.subdivide_checked ~grain:1 ~scheme:Subdivision_ops.Loop
-      ~creasing_method:Subdivision_ops.Subdivide_creasing_chaikin
+    Subdivide.subdivide ~grain:1 ~scheme:Subdivide.Loop
+      ~creasing_method:Subdivide.Subdivide_creasing_chaikin
       (make ~connectivity:Plane_generators.Grid_triangles ()) |> get_pdk) in
   check (equal_geometry (loop 1) (loop 4))
     "Loop Chaikin creasing differs across one and four domains";
 
   let corner_only = quad ~corner_weights:[|2.;0.;0.;0.|] () in
-  let corner_uniform = Subdivision_ops.subdivide_checked
-      ~creasing_method:Subdivision_ops.Subdivide_creasing_uniform corner_only |> get_pdk
-  and corner_chaikin = Subdivision_ops.subdivide_checked
-      ~creasing_method:Subdivision_ops.Subdivide_creasing_chaikin corner_only |> get_pdk in
+  let corner_uniform = Subdivide.subdivide
+      ~creasing_method:Subdivide.Subdivide_creasing_uniform corner_only |> get_pdk
+  and corner_chaikin = Subdivide.subdivide
+      ~creasing_method:Subdivide.Subdivide_creasing_chaikin corner_only |> get_pdk in
   check (equal_geometry corner_uniform corner_chaikin)
     "Chaikin edge policy changed uniform corner sharpness decay"
 
@@ -1245,7 +1245,7 @@ let test_subdivision_holes () =
   let run domains = Parallel.run ~domains (fun () ->
     let input = make_grid () |> add_hole |> Group_mesh.group_edges_checked ~name:"source_edges"
         |> get_pdk in
-    Subdivision_ops.subdivide_checked ~grain:1 input |> get_pdk) in
+    Subdivide.subdivide ~grain:1 input |> get_pdk) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four)
     "hole subdivision differs between one and four domains";
@@ -1265,19 +1265,19 @@ let test_subdivision_holes () =
     "hole output produced invalid direct child-edge ordinals";
 
   let retained_input = make_grid () |> add_hole in
-  let retained = Subdivision_ops.subdivide_checked ~remove_holes:false retained_input |> get_pdk in
+  let retained = Subdivide.subdivide ~remove_holes:false retained_input |> get_pdk in
   check (Geometry.primitive_count retained = 36
       && Group.cardinality (group Group.Primitive "subdivision_hole" retained) = 4)
     "Remove Holes off did not retain/propagate hole faces";
-  let recursive = Subdivision_ops.subdivide_checked ~iterations:2 retained_input |> get_pdk in
+  let recursive = Subdivide.subdivide ~iterations:2 retained_input |> get_pdk in
   check (Geometry.primitive_count recursive = 128)
     "recursive holes were removed before contributing to the final level";
 
   let source = make_grid () in
   let hole = Group.ordered ~owner:Group.Primitive ~name:"external_holes"
       ~length:9 [|4|] |> get_string in
-  let explicit = Subdivision_ops.subdivide_checked ~hole_primitives:hole source |> get_pdk in
-  let automatic = Subdivision_ops.subdivide_checked (add_hole source) |> get_pdk in
+  let explicit = Subdivide.subdivide ~hole_primitives:hole source |> get_pdk in
+  let automatic = Subdivide.subdivide (add_hole source) |> get_pdk in
   check (equal_geometry explicit automatic
       && Geometry.primitive_count explicit = 32)
     "explicit hole group differs from automatic subdivision_hole semantics";
@@ -1289,7 +1289,7 @@ let test_subdivision_holes () =
   let deleted_index = Topology_index.create (Geometry.topology deleted) in
   let deleted_edge = Topology_index.find_edge deleted_index ~a:5 ~b:6
       |> Option.get in
-  let deleted_subdivision = Subdivision_ops.subdivide_checked deleted |> get_pdk in
+  let deleted_subdivision = Subdivide.subdivide deleted |> get_pdk in
   let hole_positions = Packed.Float3.Private.view (Geometry.positions explicit)
   and deleted_positions = Packed.Float3.Private.view
       (Geometry.positions deleted_subdivision) in
@@ -1303,7 +1303,7 @@ let test_subdivision_holes () =
       (attribute Attribute.Vertex "creaseweight"
         (Attribute.Float (Array.make (Geometry.vertex_count source) 2.))) source
       |> get_string |> Group_mesh.group_edges_checked ~name:"all_source_edges" |> get_pdk in
-  let empty_surface = Subdivision_ops.subdivide_checked ~hole_primitives:all_holes
+  let empty_surface = Subdivide.subdivide ~hole_primitives:all_holes
       ~resulting_crease_group:"hidden_creases" all_creased |> get_pdk in
   check (Geometry.primitive_count empty_surface = 0
       && Geometry.vertex_count empty_surface = 0
@@ -1328,7 +1328,7 @@ let test_subdivision_holes () =
       ~topology:triangle_topology () |> get_string in
   let triangle_hole = Group.ordered ~owner:Group.Primitive ~name:"holes"
       ~length:2 [|1|] |> get_string in
-  let loop_hole = Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Loop
+  let loop_hole = Subdivide.subdivide ~scheme:Subdivide.Loop
       ~hole_primitives:triangle_hole triangles |> get_pdk in
   check (Geometry.point_count loop_hole = 9
       && Geometry.vertex_count loop_hole = 12
@@ -1345,7 +1345,7 @@ let test_subdivision_holes () =
       |> Geometry.with_group local_selection |> get_string in
   let local domains = Parallel.run ~domains (fun () ->
     let input = local_source in
-    Subdivision_ops.subdivide_checked ~grain:1
+    Subdivide.subdivide ~grain:1
       ~primitives:(group Group.Primitive "refine" input) input |> get_pdk) in
   let local_one = local 1 and local_four = local 4 in
   check (equal_geometry local_one local_four)
@@ -1354,8 +1354,8 @@ let test_subdivision_holes () =
     "local hole subdivision retained a hole descendant";
   let local_stitch domains = Parallel.run ~domains (fun () ->
     let input = local_source in
-    Subdivision_ops.subdivide_checked ~grain:1 ~consistent_topology:true
-      ~cracks:Subdivision_ops.Subdivide_stitch_divide_edges
+    Subdivide.subdivide ~grain:1 ~consistent_topology:true
+      ~cracks:Subdivide.Subdivide_stitch_divide_edges
       ~primitives:(group Group.Primitive "refine" input) input |> get_pdk) in
   let stitch_one = local_stitch 1 and stitch_four = local_stitch 4 in
   check (equal_geometry stitch_one stitch_four
@@ -1364,7 +1364,7 @@ let test_subdivision_holes () =
 
   let wrong = Group.init ~owner:Group.Point ~name:"wrong_holes" 16
       (fun _ -> false) in
-  (match Subdivision_ops.subdivide_checked ~hole_primitives:wrong source with
+  (match Subdivide.subdivide ~hole_primitives:wrong source with
    | Error error when Error.code error = "invalid_topology" -> ()
    | _ -> fail "Subdivide accepted a non-primitive hole group")
 
@@ -1372,10 +1372,10 @@ let test_point_boundary_interpolation () =
   let input = quad () |> Geometry.with_attribute
       (attribute Attribute.Point "sample" (Attribute.Float [|0.;2.;4.;6.|]))
       |> get_string in
-  let edge_only = Subdivision_ops.subdivide_checked
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_edge_only input |> get_pdk
-  and edge_and_corner = Subdivision_ops.subdivide_checked
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_edge_and_corner input
+  let edge_only = Subdivide.subdivide
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_edge_only input |> get_pdk
+  and edge_and_corner = Subdivide.subdivide
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_edge_and_corner input
       |> get_pdk in
   let edge_positions = Packed.Float3.Private.view
       (Geometry.positions edge_only)
@@ -1390,8 +1390,8 @@ let test_point_boundary_interpolation () =
   check ((float_values Attribute.Point "sample" edge_and_corner).(0) = 0.)
     "Edge and Corner did not pin an ordinary point attribute";
 
-  let none = Subdivision_ops.subdivide_checked
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_none input |> get_pdk in
+  let none = Subdivide.subdivide
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_none input |> get_pdk in
   check (Geometry.point_count none = 9 && Geometry.vertex_count none = 0
       && Geometry.primitive_count none = 0)
     "None did not turn an open single-face boundary into a hole";
@@ -1400,8 +1400,8 @@ let test_point_boundary_interpolation () =
     | Some holes -> Group.length holes = 0 && Group.cardinality holes = 0
     | None -> false)
     "None did not preserve canonical empty output-hole membership";
-  let retained = Subdivision_ops.subdivide_checked ~remove_holes:false
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_none input |> get_pdk in
+  let retained = Subdivide.subdivide ~remove_holes:false
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_none input |> get_pdk in
   check (Geometry.primitive_count retained = 4
       && Group.cardinality
            (group Group.Primitive "subdivision_hole" retained) = 4)
@@ -1410,44 +1410,44 @@ let test_point_boundary_interpolation () =
   let grid () = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads
       ~columns:3 ~rows:3 ~size:3. () |> get_pdk in
   let run policy domains = Parallel.run ~domains (fun () ->
-    Subdivision_ops.subdivide_checked ~grain:1 ~boundary_interpolation:policy (grid ()) |> get_pdk) in
+    Subdivide.subdivide ~grain:1 ~boundary_interpolation:policy (grid ()) |> get_pdk) in
   List.iter (fun policy ->
     let one = run policy 1 and four = run policy 4 in
     check (equal_geometry one four)
       "point-boundary interpolation differs between one and four domains")
-    [Subdivision_ops.Subdivide_boundary_none; Subdivision_ops.Subdivide_boundary_edge_only;
-     Subdivision_ops.Subdivide_boundary_edge_and_corner];
-  let center_only = run Subdivision_ops.Subdivide_boundary_none 1 in
+    [Subdivide.Subdivide_boundary_none; Subdivide.Subdivide_boundary_edge_only;
+     Subdivide.Subdivide_boundary_edge_and_corner];
+  let center_only = run Subdivide.Subdivide_boundary_none 1 in
   check (Geometry.primitive_count center_only = 4)
     "None did not retain exactly the descendants of the interior grid face";
-  let recursive = Subdivision_ops.subdivide_checked ~iterations:2
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_none (grid ()) |> get_pdk in
+  let recursive = Subdivide.subdivide ~iterations:2
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_none (grid ()) |> get_pdk in
   check (Geometry.primitive_count recursive = 16)
     "recursive None removed boundary holes before the final level";
   let with_center_hole = grid () |> Geometry.with_group
       (Group.ordered ~owner:Group.Primitive ~name:"subdivision_hole"
         ~length:9 [|4|] |> get_string) |> get_string in
-  let all_holes = Subdivision_ops.subdivide_checked
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_none with_center_hole
+  let all_holes = Subdivide.subdivide
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_none with_center_hole
       |> get_pdk in
   check (Geometry.primitive_count all_holes = 0)
     "None did not union automatic boundary holes with explicit holes";
   let local_source = grid () |> Geometry.with_group
       (Group.ordered ~owner:Group.Primitive ~name:"center"
         ~length:9 [|4|] |> get_string) |> get_string in
-  let local = Subdivision_ops.subdivide_checked ~grain:1
+  let local = Subdivide.subdivide ~grain:1
       ~primitives:(group Group.Primitive "center" local_source)
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_none local_source
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_none local_source
       |> get_pdk in
   check (Geometry.primitive_count local = 4)
     "local None did not include its automatic boundary-hole partition";
 
   let strip = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads
       ~columns:2 ~rows:1 ~size:2. () |> get_pdk in
-  let strip_edge = Subdivision_ops.subdivide_checked
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_edge_only strip |> get_pdk
-  and strip_corners = Subdivision_ops.subdivide_checked
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_edge_and_corner strip
+  let strip_edge = Subdivide.subdivide
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_edge_only strip |> get_pdk
+  and strip_corners = Subdivide.subdivide
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_edge_and_corner strip
       |> get_pdk in
   let edge_positions = Packed.Float3.Private.view
       (Geometry.positions strip_edge)
@@ -1464,13 +1464,13 @@ let test_point_boundary_interpolation () =
       ~vertex_points:[|0;1;2|] ~primitive_offsets:[|0;3|] |> get_string in
   let triangle = Geometry.create ~positions:triangle_positions
       ~topology:triangle_topology () |> get_string in
-  let loop_edge = Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Loop
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_edge_only triangle |> get_pdk
-  and loop_corners = Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Loop
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_edge_and_corner triangle
+  let loop_edge = Subdivide.subdivide ~scheme:Subdivide.Loop
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_edge_only triangle |> get_pdk
+  and loop_corners = Subdivide.subdivide ~scheme:Subdivide.Loop
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_edge_and_corner triangle
       |> get_pdk
-  and loop_none = Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Loop
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_none triangle |> get_pdk in
+  and loop_none = Subdivide.subdivide ~scheme:Subdivide.Loop
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_none triangle |> get_pdk in
   let loop_edge_positions = Packed.Float3.Private.view
       (Geometry.positions loop_edge)
   and loop_corner_positions = Packed.Float3.Private.view
@@ -1486,27 +1486,27 @@ let test_point_boundary_interpolation () =
 
   let closed = Box_generator.box_checked ~connectivity:Box_generator.Box_quads ~consolidate_points:true
       ~size:(Vec3.create 2. 2. 2.) () |> get_pdk in
-  let closed_edge = Subdivision_ops.subdivide_checked
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_edge_only closed |> get_pdk
-  and closed_corner = Subdivision_ops.subdivide_checked
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_edge_and_corner closed
+  let closed_edge = Subdivide.subdivide
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_edge_only closed |> get_pdk
+  and closed_corner = Subdivide.subdivide
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_edge_and_corner closed
       |> get_pdk
-  and closed_none = Subdivision_ops.subdivide_checked
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_none closed |> get_pdk in
+  and closed_none = Subdivide.subdivide
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_none closed |> get_pdk in
   check (equal_geometry closed_edge closed_corner
       && equal_geometry closed_edge closed_none)
     "point-boundary policy changed a closed manifold";
-  let bilinear_none = Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Bilinear
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_none input |> get_pdk
-  and bilinear_edge = Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Bilinear
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_edge_only input |> get_pdk in
+  let bilinear_none = Subdivide.subdivide ~scheme:Subdivide.Bilinear
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_none input |> get_pdk
+  and bilinear_edge = Subdivide.subdivide ~scheme:Subdivide.Bilinear
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_edge_only input |> get_pdk in
   check (equal_geometry bilinear_none bilinear_edge)
     "point-boundary interpolation changed bilinear subdivision";
 
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  (match Subdivision_ops.subdivide_checked ~cancel
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_none (grid ()) with
+  (match Subdivide.subdivide ~cancel
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_none (grid ()) with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled boundary-hole classification published geometry")
 
@@ -1533,12 +1533,12 @@ let test_triangle_subdivision_policy () =
   let triangle_values = [|2.;6.;10.;14.|] in
   let triangles = make [|0;1;2; 1;0;3|] [|0;3;6|] triangle_values in
   let shared = edge_point triangles ~a:0 ~b:1 in
-  let standard = Subdivision_ops.subdivide_checked ~grain:1
-      ~face_varying_interpolation:Subdivision_ops.Subdivide_fvar_none
-      ~triangle_policy:Subdivision_ops.Subdivide_triangles_catmull_clark triangles |> get_pdk
-  and smooth = Subdivision_ops.subdivide_checked ~grain:1
-      ~face_varying_interpolation:Subdivision_ops.Subdivide_fvar_none
-      ~triangle_policy:Subdivision_ops.Subdivide_triangles_smooth triangles |> get_pdk in
+  let standard = Subdivide.subdivide ~grain:1
+      ~face_varying_interpolation:Subdivide.Subdivide_fvar_none
+      ~triangle_policy:Subdivide.Subdivide_triangles_catmull_clark triangles |> get_pdk
+  and smooth = Subdivide.subdivide ~grain:1
+      ~face_varying_interpolation:Subdivide.Subdivide_fvar_none
+      ~triangle_policy:Subdivide.Subdivide_triangles_smooth triangles |> get_pdk in
   let face0 = (2. +. 6. +. 10.) /. 3.
   and face1 = (6. +. 2. +. 14.) /. 3. in
   let expected_standard = 0.25 *. (2. +. 6. +. face0 +. face1)
@@ -1566,15 +1566,15 @@ let test_triangle_subdivision_policy () =
       && close (fvar_at_shared smooth) expected_smooth)
     "Smooth Triangles did not apply to smoothly refined face-varying data";
   check (equal_geometry standard
-      (Subdivision_ops.subdivide_checked ~grain:1
-        ~face_varying_interpolation:Subdivision_ops.Subdivide_fvar_none triangles |> get_pdk))
+      (Subdivide.subdivide ~grain:1
+        ~face_varying_interpolation:Subdivide.Subdivide_fvar_none triangles |> get_pdk))
     "Catmull-Clark triangle policy is not the compatibility default";
 
   let mixed_values = [|2.;6.;10.;14.;18.|] in
   let mixed = make [|0;1;2; 1;0;3;4|] [|0;3;7|] mixed_values in
   let mixed_shared = edge_point mixed ~a:0 ~b:1 in
-  let mixed_smooth = Subdivision_ops.subdivide_checked ~grain:1
-      ~triangle_policy:Subdivision_ops.Subdivide_triangles_smooth mixed |> get_pdk in
+  let mixed_smooth = Subdivide.subdivide ~grain:1
+      ~triangle_policy:Subdivide.Subdivide_triangles_smooth mixed |> get_pdk in
   let triangle_face = (2. +. 6. +. 10.) /. 3.
   and quad_face = (6. +. 2. +. 14. +. 18.) /. 4. in
   let expected_mixed = (0.14 *. (2. +. 6.))
@@ -1591,42 +1591,42 @@ let test_triangle_subdivision_policy () =
   let creased = Geometry.with_attribute
       (attribute Attribute.Vertex "creaseweight" (Attribute.Float creaseweights))
       triangles |> get_string in
-  let creased_standard = Subdivision_ops.subdivide_checked ~grain:1
-      ~triangle_policy:Subdivision_ops.Subdivide_triangles_catmull_clark creased |> get_pdk
-  and creased_smooth = Subdivision_ops.subdivide_checked ~grain:1
-      ~triangle_policy:Subdivision_ops.Subdivide_triangles_smooth creased |> get_pdk in
+  let creased_standard = Subdivide.subdivide ~grain:1
+      ~triangle_policy:Subdivide.Subdivide_triangles_catmull_clark creased |> get_pdk
+  and creased_smooth = Subdivide.subdivide ~grain:1
+      ~triangle_policy:Subdivide.Subdivide_triangles_smooth creased |> get_pdk in
   check (equal_geometry creased_standard creased_smooth
       && close (Packed.Float3.Private.view
         (Geometry.positions creased_smooth)).x.(shared) 4.)
     "fully sharp edge did not take precedence over Smooth Triangles";
 
   List.iter (fun scheme ->
-    let ordinary = Subdivision_ops.subdivide_checked ~grain:1 ~scheme
-        ~triangle_policy:Subdivision_ops.Subdivide_triangles_catmull_clark triangles |> get_pdk
-    and alternate = Subdivision_ops.subdivide_checked ~grain:1 ~scheme
-        ~triangle_policy:Subdivision_ops.Subdivide_triangles_smooth triangles |> get_pdk in
+    let ordinary = Subdivide.subdivide ~grain:1 ~scheme
+        ~triangle_policy:Subdivide.Subdivide_triangles_catmull_clark triangles |> get_pdk
+    and alternate = Subdivide.subdivide ~grain:1 ~scheme
+        ~triangle_policy:Subdivide.Subdivide_triangles_smooth triangles |> get_pdk in
     check (equal_geometry ordinary alternate)
       "triangle policy changed a non-Catmull-Clark scheme")
-    [Subdivision_ops.Loop; Subdivision_ops.Bilinear];
+    [Subdivide.Loop; Subdivide.Bilinear];
 
   let dense = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_triangles
       ~columns:4 ~rows:3 ~size:4. () |> get_pdk in
   let exact domains = Parallel.run ~domains (fun () ->
-    Subdivision_ops.subdivide_checked ~grain:1 ~iterations:2
-      ~triangle_policy:Subdivision_ops.Subdivide_triangles_smooth dense |> get_pdk) in
+    Subdivide.subdivide ~grain:1 ~iterations:2
+      ~triangle_policy:Subdivide.Subdivide_triangles_smooth dense |> get_pdk) in
   check (equal_geometry (exact 1) (exact 4))
     "recursive Smooth Triangles differs across one and four domains";
   let selection = Group.ordered ~owner:Group.Primitive ~name:"refine"
       ~length:(Geometry.primitive_count dense) [|0;1;2;3|] |> get_string in
   let local_input = Geometry.with_group selection dense |> get_string in
   let local domains = Parallel.run ~domains (fun () ->
-    Subdivision_ops.subdivide_checked ~grain:1 ~primitives:selection
-      ~triangle_policy:Subdivision_ops.Subdivide_triangles_smooth local_input |> get_pdk) in
+    Subdivide.subdivide ~grain:1 ~primitives:selection
+      ~triangle_policy:Subdivide.Subdivide_triangles_smooth local_input |> get_pdk) in
   let local_one = local 1 in
   check (equal_geometry local_one (local 4))
     "local Smooth Triangles differs across one and four domains";
-  let local_standard = Subdivision_ops.subdivide_checked ~grain:1 ~primitives:selection
-      ~triangle_policy:Subdivision_ops.Subdivide_triangles_catmull_clark local_input |> get_pdk in
+  let local_standard = Subdivide.subdivide ~grain:1 ~primitives:selection
+      ~triangle_policy:Subdivide.Subdivide_triangles_catmull_clark local_input |> get_pdk in
   check (not (equal_geometry local_one local_standard))
     "local Subdivide ignored its Smooth Triangles policy"
 
@@ -1653,7 +1653,7 @@ let test_face_varying_interpolation () =
     !result in
   let output_original_corner source_vertex = source_vertex * 4 in
   let run ?(iterations = 1) mode geometry =
-    Subdivision_ops.subdivide_checked ~grain:1 ~iterations
+    Subdivide.subdivide ~grain:1 ~iterations
       ~face_varying_interpolation:mode geometry |> get_pdk in
   let continuous () = Plane_generators.grid_checked ~connectivity:Plane_generators.Grid_quads
       ~columns:3 ~rows:3 ~size:3. () |> get_pdk
@@ -1667,12 +1667,12 @@ let test_face_varying_interpolation () =
   let center_output = output_original_corner center_corner
   and boundary_output = output_original_corner boundary_corner
   and outer_output = output_original_corner outer_corner in
-  let none = run Subdivision_ops.Subdivide_fvar_none input
-  and corners = run Subdivision_ops.Subdivide_fvar_corners_only input
-  and plus1 = run Subdivision_ops.Subdivide_fvar_corners_plus1 input
-  and plus2 = run Subdivision_ops.Subdivide_fvar_corners_plus2 input
-  and boundaries = run Subdivision_ops.Subdivide_fvar_boundaries input
-  and all = run Subdivision_ops.Subdivide_fvar_all input in
+  let none = run Subdivide.Subdivide_fvar_none input
+  and corners = run Subdivide.Subdivide_fvar_corners_only input
+  and plus1 = run Subdivide.Subdivide_fvar_corners_plus1 input
+  and plus2 = run Subdivide.Subdivide_fvar_corners_plus2 input
+  and boundaries = run Subdivide.Subdivide_fvar_boundaries input
+  and all = run Subdivide.Subdivide_fvar_all input in
   let values geometry = float_values Attribute.Vertex "fvar" geometry in
   check ((values all).(center_output) = 25.)
     "Linear All did not pin an interior face-varying value";
@@ -1706,7 +1706,7 @@ let test_face_varying_interpolation () =
           ~z:(Array.map (fun value -> value *. 3.) source_values)
           ~w:(Array.map (fun value -> 7. -. value) source_values)
           |> get_string))) |> get_string in
-  let tupled = run Subdivision_ops.Subdivide_fvar_none tupled in
+  let tupled = run Subdivide.Subdivide_fvar_none tupled in
   let scalar = (values tupled).(center_output) in
   let fvar2 = match Geometry.find_attribute ~owner:Attribute.Vertex
       "fvar2" tupled |> Option.get |> Attribute.storage with
@@ -1738,8 +1738,8 @@ let test_face_varying_interpolation () =
   let junction = center_fixture [|10.;10.;20.;30.|] in
   let junction_corner = source_corner junction ~primitive:0 ~point:4
       |> output_original_corner in
-  let junction_corners = run Subdivision_ops.Subdivide_fvar_corners_only junction
-  and junction_plus1 = run Subdivision_ops.Subdivide_fvar_corners_plus1 junction in
+  let junction_corners = run Subdivide.Subdivide_fvar_corners_only junction
+  and junction_plus1 = run Subdivide.Subdivide_fvar_corners_plus1 junction in
   check ((values junction_corners).(junction_corner) <> 10.
       && (values junction_plus1).(junction_corner) = 10.)
     "Corners Plus 1 did not pin a junction of three face-varying regions";
@@ -1757,7 +1757,7 @@ let test_face_varying_interpolation () =
         (Attribute.Float2 (Packed.Float2.of_owned
           ~x:(Array.make (Array.length junction_scalar) 0.)
           ~y:(Array.copy junction_scalar) |> get_string))) junction
-      |> get_string |> run Subdivision_ops.Subdivide_fvar_corners_plus1 in
+      |> get_string |> run Subdivide.Subdivide_fvar_corners_plus1 in
   let tuple_values = match Geometry.find_attribute ~owner:Attribute.Vertex
       "tuple_seam" tuple_junction |> Option.get |> Attribute.storage with
     | Attribute.Float2 values -> Packed.Float2.Private.view values
@@ -1774,8 +1774,8 @@ let test_face_varying_interpolation () =
   let concave = center_fixture [|20.;10.;10.;10.|] in
   let concave_corner = source_corner concave ~primitive:1 ~point:4
       |> output_original_corner in
-  let concave_plus1 = run Subdivision_ops.Subdivide_fvar_corners_plus1 concave
-  and concave_plus2 = run Subdivision_ops.Subdivide_fvar_corners_plus2 concave in
+  let concave_plus1 = run Subdivide.Subdivide_fvar_corners_plus1 concave
+  and concave_plus2 = run Subdivide.Subdivide_fvar_corners_plus2 concave in
   check ((values concave_plus1).(concave_corner) <> 10.
       && (values concave_plus2).(concave_corner) = 10.)
     "Corners Plus 2 did not propagate a concave one-face corner";
@@ -1790,8 +1790,8 @@ let test_face_varying_interpolation () =
           else float_of_int (point * point)) in
   let dart_corner = source_corner dart ~primitive:0 ~point:4
       |> output_original_corner in
-  let dart_plus1 = run Subdivision_ops.Subdivide_fvar_corners_plus1 dart
-  and dart_plus2 = run Subdivision_ops.Subdivide_fvar_corners_plus2 dart in
+  let dart_plus1 = run Subdivide.Subdivide_fvar_corners_plus1 dart
+  and dart_plus2 = run Subdivide.Subdivide_fvar_corners_plus2 dart in
   check ((values dart_plus1).(dart_corner) <> 10.
       && (values dart_plus2).(dart_corner) = 10.)
     "Corners Plus 2 did not pin a face-varying dart";
@@ -1801,7 +1801,7 @@ let test_face_varying_interpolation () =
       (Attribute.Float (Array.init (Geometry.point_count input) (fun point ->
         if point = center_point then 1. else 0.))) in
   let corner_input = Geometry.with_attribute corner_weight input |> get_string in
-  let corner_output = run Subdivision_ops.Subdivide_fvar_none corner_input in
+  let corner_output = run Subdivide.Subdivide_fvar_none corner_input in
   check ((values corner_output).(center_output) = 25.)
     "geometry corner sharpness did not take precedence over FVar None";
   let source_index = Topology_index.create (Geometry.topology input) in
@@ -1813,8 +1813,8 @@ let test_face_varying_interpolation () =
   let creased_input = Geometry.with_attribute
       (attribute Attribute.Vertex "creaseweight" (Attribute.Float crease_weights))
       input |> get_string in
-  let smooth_output = run Subdivision_ops.Subdivide_fvar_none input
-  and creased_output = run Subdivision_ops.Subdivide_fvar_none creased_input in
+  let smooth_output = run Subdivide.Subdivide_fvar_none input
+  and creased_output = run Subdivide.Subdivide_fvar_none creased_input in
   let directed = source_index_view.edge_vertices.
       (source_index_view.edge_offsets.(crease_edge)) in
   let edge_output = (directed * 4) + 1 in
@@ -1823,9 +1823,9 @@ let test_face_varying_interpolation () =
     "geometry edge sharpness did not take precedence over FVar None";
 
   let recursive_one = Parallel.run ~domains:1 (fun () ->
-    run ~iterations:2 Subdivision_ops.Subdivide_fvar_none (continuous ()))
+    run ~iterations:2 Subdivide.Subdivide_fvar_none (continuous ()))
   and recursive_four = Parallel.run ~domains:4 (fun () ->
-    run ~iterations:2 Subdivision_ops.Subdivide_fvar_none (continuous ())) in
+    run ~iterations:2 Subdivide.Subdivide_fvar_none (continuous ())) in
   check (equal_geometry recursive_one recursive_four)
     "recursive smooth face-varying refinement differs across domains";
   check (Geometry.vertex_count recursive_one = 9 * 16 * 4)
@@ -1837,24 +1837,24 @@ let test_face_varying_interpolation () =
         (fun ~topology:_ ~index:_ ~vertex:_ ~primitive ~point ->
           float_of_int ((point * point) + (primitive / 4))) in
   let fvar_modes = [
-    Subdivision_ops.Subdivide_fvar_none;
-    Subdivision_ops.Subdivide_fvar_corners_only;
-    Subdivision_ops.Subdivide_fvar_corners_plus1;
-    Subdivision_ops.Subdivide_fvar_corners_plus2;
-    Subdivision_ops.Subdivide_fvar_boundaries;
-    Subdivision_ops.Subdivide_fvar_all;
+    Subdivide.Subdivide_fvar_none;
+    Subdivide.Subdivide_fvar_corners_only;
+    Subdivide.Subdivide_fvar_corners_plus1;
+    Subdivide.Subdivide_fvar_corners_plus2;
+    Subdivide.Subdivide_fvar_boundaries;
+    Subdivide.Subdivide_fvar_all;
   ] in
   List.iter (fun mode ->
     let refine domains = Parallel.run ~domains (fun () ->
-      Subdivision_ops.subdivide_checked ~grain:1 ~scheme:Subdivision_ops.Loop
+      Subdivide.subdivide ~grain:1 ~scheme:Subdivide.Loop
         ~face_varying_interpolation:mode loop_input |> get_pdk) in
     check (equal_geometry (refine 1) (refine 4))
       "Loop face-varying policy differs across one and four domains")
     fvar_modes;
-  let loop_none = Subdivision_ops.subdivide_checked ~grain:1 ~scheme:Subdivision_ops.Loop
-      ~face_varying_interpolation:Subdivision_ops.Subdivide_fvar_none loop_input |> get_pdk
-  and loop_all = Subdivision_ops.subdivide_checked ~grain:1 ~scheme:Subdivision_ops.Loop
-      ~face_varying_interpolation:Subdivision_ops.Subdivide_fvar_all loop_input |> get_pdk in
+  let loop_none = Subdivide.subdivide ~grain:1 ~scheme:Subdivide.Loop
+      ~face_varying_interpolation:Subdivide.Subdivide_fvar_none loop_input |> get_pdk
+  and loop_all = Subdivide.subdivide ~grain:1 ~scheme:Subdivide.Loop
+      ~face_varying_interpolation:Subdivide.Subdivide_fvar_all loop_input |> get_pdk in
   check (float_values Attribute.Vertex "fvar" loop_none
       <> float_values Attribute.Vertex "fvar" loop_all)
     "Loop FVar None did not smooth values relative to Linear All";
@@ -1863,27 +1863,27 @@ let test_face_varying_interpolation () =
       ~length:(Geometry.primitive_count input) [|0;1;3;4|] |> get_string in
   let local_input = Geometry.with_group local_selection input |> get_string in
   let local mode domains = Parallel.run ~domains (fun () ->
-    Subdivision_ops.subdivide_checked ~grain:1 ~primitives:local_selection
+    Subdivide.subdivide ~grain:1 ~primitives:local_selection
       ~face_varying_interpolation:mode local_input |> get_pdk) in
-  let local_none_one = local Subdivision_ops.Subdivide_fvar_none 1
-  and local_none_four = local Subdivision_ops.Subdivide_fvar_none 4
-  and local_all = local Subdivision_ops.Subdivide_fvar_all 1 in
+  let local_none_one = local Subdivide.Subdivide_fvar_none 1
+  and local_none_four = local Subdivide.Subdivide_fvar_none 4
+  and local_all = local Subdivide.Subdivide_fvar_all 1 in
   check (equal_geometry local_none_one local_none_four)
     "local face-varying refinement differs across one and four domains";
   check (float_values Attribute.Vertex "fvar" local_none_one
       <> float_values Attribute.Vertex "fvar" local_all)
     "local Subdivide ignored its face-varying interpolation policy";
 
-  let bilinear_none = Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Bilinear
-      ~face_varying_interpolation:Subdivision_ops.Subdivide_fvar_none input |> get_pdk in
+  let bilinear_none = Subdivide.subdivide ~scheme:Subdivide.Bilinear
+      ~face_varying_interpolation:Subdivide.Subdivide_fvar_none input |> get_pdk in
   check (equal_geometry bilinear_none
-      (Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Bilinear
-        ~face_varying_interpolation:Subdivision_ops.Subdivide_fvar_all input |> get_pdk))
+      (Subdivide.subdivide ~scheme:Subdivide.Bilinear
+        ~face_varying_interpolation:Subdivide.Subdivide_fvar_all input |> get_pdk))
     "face-varying policy changed bilinear interpolation";
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  (match Subdivision_ops.subdivide_checked ~cancel
-      ~face_varying_interpolation:Subdivision_ops.Subdivide_fvar_none input with
+  (match Subdivide.subdivide ~cancel
+      ~face_varying_interpolation:Subdivide.Subdivide_fvar_none input with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled face-varying refinement published geometry")
 
@@ -1905,40 +1905,40 @@ let test_detail_attribute_overrides () =
     check_override ~name:"osd_scheme" ~storage ~input ~overridden ~expected label)
     [
       Attribute.Int [|0|], quads,
-        (fun geometry -> Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Bilinear geometry),
-        (fun geometry -> Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Catmull_clark geometry),
+        (fun geometry -> Subdivide.subdivide ~scheme:Subdivide.Bilinear geometry),
+        (fun geometry -> Subdivide.subdivide ~scheme:Subdivide.Catmull_clark geometry),
         "integer Catmull-Clark scheme override";
       Attribute.Int [|1|], triangles,
-        (fun geometry -> Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Bilinear geometry),
-        (fun geometry -> Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Loop geometry),
+        (fun geometry -> Subdivide.subdivide ~scheme:Subdivide.Bilinear geometry),
+        (fun geometry -> Subdivide.subdivide ~scheme:Subdivide.Loop geometry),
         "integer Loop scheme override";
       Attribute.Int [|2|], quads,
-        (fun geometry -> Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Catmull_clark geometry),
-        (fun geometry -> Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Bilinear geometry),
+        (fun geometry -> Subdivide.subdivide ~scheme:Subdivide.Catmull_clark geometry),
+        (fun geometry -> Subdivide.subdivide ~scheme:Subdivide.Bilinear geometry),
         "integer bilinear scheme override";
       Attribute.Text [|"catmull-clark"|], quads,
-        (fun geometry -> Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Bilinear geometry),
-        (fun geometry -> Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Catmull_clark geometry),
+        (fun geometry -> Subdivide.subdivide ~scheme:Subdivide.Bilinear geometry),
+        (fun geometry -> Subdivide.subdivide ~scheme:Subdivide.Catmull_clark geometry),
         "text Catmull-Clark scheme override";
       Attribute.Text [|"loop"|], triangles,
-        (fun geometry -> Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Bilinear geometry),
-        (fun geometry -> Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Loop geometry),
+        (fun geometry -> Subdivide.subdivide ~scheme:Subdivide.Bilinear geometry),
+        (fun geometry -> Subdivide.subdivide ~scheme:Subdivide.Loop geometry),
         "text Loop scheme override";
       Attribute.Text [|"bilinear"|], quads,
-        (fun geometry -> Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Catmull_clark geometry),
-        (fun geometry -> Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Bilinear geometry),
+        (fun geometry -> Subdivide.subdivide ~scheme:Subdivide.Catmull_clark geometry),
+        (fun geometry -> Subdivide.subdivide ~scheme:Subdivide.Bilinear geometry),
         "text bilinear scheme override";
     ];
   List.iter (fun (value, expected, label) ->
     check_override ~name:"osd_vtxboundaryinterpolation"
       ~storage:(Attribute.Int [|value|]) ~input:quads
-      ~overridden:(fun geometry -> Subdivision_ops.subdivide_checked
-        ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_edge_and_corner geometry)
+      ~overridden:(fun geometry -> Subdivide.subdivide
+        ~boundary_interpolation:Subdivide.Subdivide_boundary_edge_and_corner geometry)
       ~expected:(fun geometry ->
-        Subdivision_ops.subdivide_checked ~boundary_interpolation:expected geometry) label)
-    [ 0, Subdivision_ops.Subdivide_boundary_none, "None boundary override";
-      1, Subdivision_ops.Subdivide_boundary_edge_only, "Edge Only boundary override";
-      2, Subdivision_ops.Subdivide_boundary_edge_and_corner,
+        Subdivide.subdivide ~boundary_interpolation:expected geometry) label)
+    [ 0, Subdivide.Subdivide_boundary_none, "None boundary override";
+      1, Subdivide.Subdivide_boundary_edge_only, "Edge Only boundary override";
+      2, Subdivide.Subdivide_boundary_edge_and_corner,
         "Edge and Corner boundary override" ];
   let topology = Topology.Private.view (Geometry.topology quads) in
   let fvar = attribute Attribute.Vertex "fvar"
@@ -1949,36 +1949,36 @@ let test_detail_attribute_overrides () =
   List.iter (fun (value, expected, label) ->
     check_override ~name:"osd_fvarlinearinterpolation"
       ~storage:(Attribute.Int [|value|]) ~input:fvar_input
-      ~overridden:(fun geometry -> Subdivision_ops.subdivide_checked
-        ~face_varying_interpolation:Subdivision_ops.Subdivide_fvar_all geometry)
+      ~overridden:(fun geometry -> Subdivide.subdivide
+        ~face_varying_interpolation:Subdivide.Subdivide_fvar_all geometry)
       ~expected:(fun geometry ->
-        Subdivision_ops.subdivide_checked ~face_varying_interpolation:expected geometry) label)
-    [ 0, Subdivision_ops.Subdivide_fvar_none, "FVar None override";
-      1, Subdivision_ops.Subdivide_fvar_corners_only, "FVar Corners Only override";
-      2, Subdivision_ops.Subdivide_fvar_corners_plus1, "FVar Corners Plus 1 override";
-      3, Subdivision_ops.Subdivide_fvar_corners_plus2, "FVar Corners Plus 2 override";
-      4, Subdivision_ops.Subdivide_fvar_boundaries, "FVar Boundaries override";
-      5, Subdivision_ops.Subdivide_fvar_all, "FVar All override" ];
+        Subdivide.subdivide ~face_varying_interpolation:expected geometry) label)
+    [ 0, Subdivide.Subdivide_fvar_none, "FVar None override";
+      1, Subdivide.Subdivide_fvar_corners_only, "FVar Corners Only override";
+      2, Subdivide.Subdivide_fvar_corners_plus1, "FVar Corners Plus 1 override";
+      3, Subdivide.Subdivide_fvar_corners_plus2, "FVar Corners Plus 2 override";
+      4, Subdivide.Subdivide_fvar_boundaries, "FVar Boundaries override";
+      5, Subdivide.Subdivide_fvar_all, "FVar All override" ];
   List.iter (fun (value, expected, label) ->
     check_override ~name:"osd_trianglesubdiv"
       ~storage:(Attribute.Int [|value|]) ~input:triangles
-      ~overridden:(fun geometry -> Subdivision_ops.subdivide_checked
-        ~triangle_policy:Subdivision_ops.Subdivide_triangles_smooth geometry)
+      ~overridden:(fun geometry -> Subdivide.subdivide
+        ~triangle_policy:Subdivide.Subdivide_triangles_smooth geometry)
       ~expected:(fun geometry ->
-        Subdivision_ops.subdivide_checked ~triangle_policy:expected geometry) label)
-    [ 0, Subdivision_ops.Subdivide_triangles_catmull_clark,
+        Subdivide.subdivide ~triangle_policy:expected geometry) label)
+    [ 0, Subdivide.Subdivide_triangles_catmull_clark,
         "Catmull-Clark triangle override";
-      1, Subdivision_ops.Subdivide_triangles_smooth, "Smooth triangle override" ];
+      1, Subdivide.Subdivide_triangles_smooth, "Smooth triangle override" ];
   let creased = source () in
   List.iter (fun (value, expected, label) ->
     check_override ~name:"osd_creasingmethod"
       ~storage:(Attribute.Int [|value|]) ~input:creased
-      ~overridden:(fun geometry -> Subdivision_ops.subdivide_checked
-        ~creasing_method:Subdivision_ops.Subdivide_creasing_chaikin geometry)
+      ~overridden:(fun geometry -> Subdivide.subdivide
+        ~creasing_method:Subdivide.Subdivide_creasing_chaikin geometry)
       ~expected:(fun geometry ->
-        Subdivision_ops.subdivide_checked ~creasing_method:expected geometry) label)
-    [ 0, Subdivision_ops.Subdivide_creasing_uniform, "Uniform creasing override";
-      1, Subdivision_ops.Subdivide_creasing_chaikin, "Chaikin creasing override" ];
+        Subdivide.subdivide ~creasing_method:expected geometry) label)
+    [ 0, Subdivide.Subdivide_creasing_uniform, "Uniform creasing override";
+      1, Subdivide.Subdivide_creasing_chaikin, "Chaikin creasing override" ];
   let override_names = ["osd_scheme"; "osd_vtxboundaryinterpolation";
       "osd_fvarlinearinterpolation"; "osd_creasingmethod";
       "osd_trianglesubdiv"] in
@@ -1989,21 +1989,21 @@ let test_detail_attribute_overrides () =
       |> with_detail "osd_creasingmethod" (Attribute.Int [|1|])
       |> with_detail "osd_trianglesubdiv" (Attribute.Int [|1|]) in
   let refine domains = Parallel.run ~domains (fun () ->
-    Subdivision_ops.subdivide_checked ~grain:1 ~iterations:2
-      ~scheme:Subdivision_ops.Bilinear
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_none
-      ~face_varying_interpolation:Subdivision_ops.Subdivide_fvar_all
-      ~creasing_method:Subdivision_ops.Subdivide_creasing_uniform
-      ~triangle_policy:Subdivision_ops.Subdivide_triangles_catmull_clark combined |> get_pdk) in
+    Subdivide.subdivide ~grain:1 ~iterations:2
+      ~scheme:Subdivide.Bilinear
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_none
+      ~face_varying_interpolation:Subdivide.Subdivide_fvar_all
+      ~creasing_method:Subdivide.Subdivide_creasing_uniform
+      ~triangle_policy:Subdivide.Subdivide_triangles_catmull_clark combined |> get_pdk) in
   let combined_one = refine 1 and combined_four = refine 4 in
   check (equal_geometry combined_one combined_four)
     "combined detail overrides changed across one and four domains";
-  let expected = Subdivision_ops.subdivide_checked ~grain:1 ~iterations:2
-      ~scheme:Subdivision_ops.Catmull_clark
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_edge_and_corner
-      ~face_varying_interpolation:Subdivision_ops.Subdivide_fvar_none
-      ~creasing_method:Subdivision_ops.Subdivide_creasing_chaikin
-      ~triangle_policy:Subdivision_ops.Subdivide_triangles_smooth
+  let expected = Subdivide.subdivide ~grain:1 ~iterations:2
+      ~scheme:Subdivide.Catmull_clark
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_edge_and_corner
+      ~face_varying_interpolation:Subdivide.Subdivide_fvar_none
+      ~creasing_method:Subdivide.Subdivide_creasing_chaikin
+      ~triangle_policy:Subdivide.Subdivide_triangles_smooth
       (without_details override_names combined) |> get_pdk in
   check (equal_geometry (without_details override_names combined_one) expected)
     "combined recursive detail overrides diverged from direct options";
@@ -2011,21 +2011,21 @@ let test_detail_attribute_overrides () =
       |> with_detail "osd_scheme" (Attribute.Text [|"bilinear"|])
       |> with_detail "osd_vtxboundaryinterpolation" (Attribute.Int [|2|]) in
   let local_selection = group Group.Primitive "refine" local_source in
-  let local = Subdivision_ops.subdivide_checked ~grain:1 ~iterations:2 ~primitives:local_selection
-      ~scheme:Subdivision_ops.Catmull_clark
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_none local_source |> get_pdk in
+  let local = Subdivide.subdivide ~grain:1 ~iterations:2 ~primitives:local_selection
+      ~scheme:Subdivide.Catmull_clark
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_none local_source |> get_pdk in
   let local_names = ["osd_scheme"; "osd_vtxboundaryinterpolation"] in
   let local_input = without_details local_names local_source in
-  let local_expected = Subdivision_ops.subdivide_checked ~grain:1 ~iterations:2
+  let local_expected = Subdivide.subdivide ~grain:1 ~iterations:2
       ~primitives:(group Group.Primitive "refine" local_input)
-      ~scheme:Subdivision_ops.Bilinear
-      ~boundary_interpolation:Subdivision_ops.Subdivide_boundary_edge_and_corner
+      ~scheme:Subdivide.Bilinear
+      ~boundary_interpolation:Subdivide.Subdivide_boundary_edge_and_corner
       local_input |> get_pdk in
   check (equal_geometry (without_details local_names local) local_expected)
     "local recursive detail overrides diverged from direct options";
   let expect_invalid name storage fragment =
     let input = with_detail name storage quads in
-    match Subdivision_ops.subdivide_checked input with
+    match Subdivide.subdivide input with
     | Ok _ -> fail ("Subdivide accepted invalid detail override " ^ name)
     | Error error ->
         check (Error.code error = "invalid_topology"
@@ -2078,9 +2078,9 @@ let curve_network () =
 
 let test_polygon_curve_subdivision () =
   let run domains ?(independent = false) ?(iterations = 1)
-      ?(scheme = Subdivision_ops.Catmull_clark) () =
+      ?(scheme = Subdivide.Catmull_clark) () =
     Parallel.run ~domains (fun () ->
-      Subdivision_ops.subdivide_checked ~grain:1 ~iterations ~scheme
+      Subdivide.subdivide ~grain:1 ~iterations ~scheme
         ~treat_curves_as_independent:independent (curve_network ()) |> get_pdk) in
   let shared = run 1 () and shared_four = run 4 () in
   check (equal_geometry shared shared_four)
@@ -2142,14 +2142,14 @@ let test_polygon_curve_subdivision () =
   check (Geometry.point_count recursive_independent = 10
       && Geometry.vertex_count recursive_independent = 10)
     "recursive independent polygon-curve refinement";
-  let bilinear = run 1 ~scheme:Subdivision_ops.Bilinear () in
+  let bilinear = run 1 ~scheme:Subdivide.Bilinear () in
   let bilinear_positions = Packed.Float3.Private.view
       (Geometry.positions bilinear) in
   check (bilinear_positions.x.(1) = 1. && bilinear_positions.y.(1) = 2.)
     "bilinear polygon-curve refinement moved an old point";
   let overridden = curve_network ()
       |> with_detail "osd_scheme" (Attribute.Text [|"bilinear"|])
-      |> Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Catmull_clark |> get_pdk
+      |> Subdivide.subdivide ~scheme:Subdivide.Catmull_clark |> get_pdk
       |> without_details ["osd_scheme"] in
   check (equal_geometry overridden bilinear)
     "polygon-curve subdivision ignored its osd_scheme detail override";
@@ -2157,7 +2157,7 @@ let test_polygon_curve_subdivision () =
   let local_selection = Group.ordered ~owner:Group.Primitive ~name:"local_curve"
       ~length:2 [|0|] |> get_string in
   let local domains = Parallel.run ~domains (fun () ->
-    Subdivision_ops.subdivide_checked ~grain:1 ~primitives:local_selection local_source |> get_pdk) in
+    Subdivide.subdivide ~grain:1 ~primitives:local_selection local_source |> get_pdk) in
   let local_one = local 1 and local_four = local 4 in
   check (equal_geometry local_one local_four
       && Geometry.primitive_count local_one = 2
@@ -2174,7 +2174,7 @@ let test_polygon_curve_subdivision () =
   let closed_source = Geometry.create ~positions:closed_positions
       ~topology:closed_topology () |> get_string in
   let closed domains = Parallel.run ~domains (fun () ->
-    Subdivision_ops.subdivide_checked ~grain:1 closed_source |> get_pdk) in
+    Subdivide.subdivide ~grain:1 closed_source |> get_pdk) in
   let closed_one = closed 1 and closed_four = closed 4 in
   check (equal_geometry closed_one closed_four
       && Geometry.point_count closed_one = 8
@@ -2193,7 +2193,7 @@ let test_polygon_curve_subdivision () =
   let free_source = Geometry.create ~positions:free_positions
       ~topology:free_topology () |> get_string in
   List.iter (fun independent ->
-    let output = Subdivision_ops.subdivide_checked ~treat_curves_as_independent:independent
+    let output = Subdivide.subdivide ~treat_curves_as_independent:independent
         free_source |> get_pdk in
     let positions = Packed.Float3.Private.view (Geometry.positions output) in
     check (Geometry.point_count output = 4
@@ -2209,17 +2209,17 @@ let test_polygon_curve_subdivision () =
       ~positions:(Packed.Float3.Private.of_owned_exn
         ~x:[|0.;1.|] ~y:[|0.;0.|] ~z:[|0.;0.|])
       ~topology:invalid_topology () |> get_string in
-  (match Subdivision_ops.subdivide_checked invalid with
+  (match Subdivide.subdivide invalid with
    | Ok _ -> fail "Subdivide accepted a zero-length curve topology edge"
    | Error error -> check (contains (Error.message error) "zero-length")
        "Subdivide returned the wrong zero-length curve diagnostic");
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  (match Subdivision_ops.subdivide_checked ~cancel (curve_network ()) with
+  (match Subdivide.subdivide ~cancel (curve_network ()) with
    | Ok _ -> fail "polygon-curve Subdivide ignored cancellation"
    | Error error -> check (Error.code error = "cancelled")
        "polygon-curve Subdivide cancellation diagnostic");
-  (match Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Loop (curve_network ()) with
+  (match Subdivide.subdivide ~scheme:Subdivide.Loop (curve_network ()) with
    | Ok _ -> fail "Subdivide accepted polygon curves under Loop"
    | Error error ->
        check (contains (Error.message error) "cannot refine polygon curves")
@@ -2236,7 +2236,7 @@ let test_point_normal_policy () =
           ~z:(Array.map (( *. ) 4.) positions.z))) in
     Geometry.with_attribute normal geometry |> get_string in
   let interpolate domains = Parallel.run ~domains (fun () ->
-    Subdivision_ops.subdivide_checked ~grain:1 ~iterations:2 (varying_normal_source ()) |> get_pdk) in
+    Subdivide.subdivide ~grain:1 ~iterations:2 (varying_normal_source ()) |> get_pdk) in
   let interpolated = interpolate 1 and interpolated_four = interpolate 4 in
   check (equal_geometry interpolated interpolated_four)
     "interpolated Subdivide normals differ across one and four domains";
@@ -2247,7 +2247,7 @@ let test_point_normal_policy () =
       && n.z = Array.map (( *. ) 4.) p.z)
     "Subdivide did not preserve unnormalized point-stencil N values";
   let recompute domains = Parallel.run ~domains (fun () ->
-    Subdivision_ops.subdivide_checked ~grain:1 ~iterations:2 ~recompute_point_normals:true
+    Subdivide.subdivide ~grain:1 ~iterations:2 ~recompute_point_normals:true
       (source ()) |> get_pdk) in
   let recomputed = recompute 1 and recomputed_four = recompute 4 in
   check (equal_geometry recomputed recomputed_four)
@@ -2267,7 +2267,7 @@ let test_point_normal_policy () =
       (Array.init (Geometry.point_count recomputed) Fun.id))
     "Subdivide did not recompute normalized surface point normals";
   let no_input_n = quad () in
-  let no_output_n = Subdivision_ops.subdivide_checked ~grain:1 ~recompute_point_normals:true
+  let no_output_n = Subdivide.subdivide ~grain:1 ~recompute_point_normals:true
       no_input_n |> get_pdk in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" no_output_n = None)
     "Subdivide created point normals when the input had none";
@@ -2275,7 +2275,7 @@ let test_point_normal_policy () =
       (Packed.Float3.Private.of_owned_exn ~x:[|2.;2.;2.;2.|]
         ~y:[|0.;0.;0.;0.|] ~z:[|0.;0.;0.;0.|])) in
   let vertex_only = Geometry.with_attribute vertex_n no_input_n |> get_string in
-  let vertex_only_output = Subdivision_ops.subdivide_checked ~grain:1
+  let vertex_only_output = Subdivide.subdivide ~grain:1
       ~recompute_point_normals:true vertex_only |> get_pdk in
   let vertex_output_n = float3_values Attribute.Vertex "N" vertex_only_output in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" vertex_only_output = None
@@ -2287,18 +2287,18 @@ let test_point_normal_policy () =
       (Packed.Float3.Private.of_owned_exn ~x:[|0.;0.;0.;0.|]
         ~y:[|0.;0.;0.;0.|] ~z:[|3.;3.;3.;3.|])) in
   let both = Geometry.with_attribute point_n vertex_only |> get_string in
-  let recomputed_both = Subdivision_ops.subdivide_checked ~grain:1 ~recompute_point_normals:true
+  let recomputed_both = Subdivide.subdivide ~grain:1 ~recompute_point_normals:true
       both |> get_pdk in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" recomputed_both <> None
       && Geometry.find_attribute ~owner:Attribute.Vertex "N" recomputed_both = None)
     "point-normal recomputation did not replace both normal owners";
   let local domains = Parallel.run ~domains (fun () ->
     let geometry = source () in
-    Subdivision_ops.subdivide_checked ~grain:1 ~primitives:(group Group.Primitive "refine" geometry)
+    Subdivide.subdivide ~grain:1 ~primitives:(group Group.Primitive "refine" geometry)
       ~recompute_point_normals:true geometry |> get_pdk) in
   check (equal_geometry (local 1) (local 4))
     "local recomputed Subdivide normals differ across domain counts";
-  let curve_recomputed = Subdivision_ops.subdivide_checked ~grain:1 ~recompute_point_normals:true
+  let curve_recomputed = Subdivide.subdivide ~grain:1 ~recompute_point_normals:true
       (curve_network ()) |> get_pdk in
   let curve_n = float3_values Attribute.Point "N" curve_recomputed in
   check (Array.for_all (( = ) 0.) curve_n.x
@@ -2333,7 +2333,7 @@ let test_mixed_surface_curve_subdivision () =
   let run domains ?selection ?(independent = false) ?(recompute = false) () =
     Parallel.run ~domains (fun () ->
       let geometry = mixed_surface_curves () in
-      Subdivision_ops.subdivide_checked ~grain:1 ?primitives:selection
+      Subdivide.subdivide ~grain:1 ?primitives:selection
         ~treat_curves_as_independent:independent
         ~recompute_point_normals:recompute geometry |> get_pdk) in
   let one = run 1 () and four = run 4 () in
@@ -2392,7 +2392,7 @@ let test_mixed_surface_curve_subdivision () =
   done
 
 let test_checked_loop_quad_error () =
-  match Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Loop (quad ()) with
+  match Subdivide.subdivide ~scheme:Subdivide.Loop (quad ()) with
   | Error error when Error.code error = "invalid_topology" -> ()
   | _ -> fail "Loop Subdivide accepted a quad"
 

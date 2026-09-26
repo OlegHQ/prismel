@@ -1463,9 +1463,9 @@ module Subdivide = struct
     | Stitch_triangulate
 
   let scheme_parameter = Parameter.choice ~equal:( = ) [
-      "Catmull-Clark", Pdk.Subdivision_ops.Catmull_clark;
-      "Loop", Pdk.Subdivision_ops.Loop;
-      "Bilinear", Pdk.Subdivision_ops.Bilinear;
+      "Catmull-Clark", Pdk.Subdivide.Catmull_clark;
+      "Loop", Pdk.Subdivide.Loop;
+      "Bilinear", Pdk.Subdivide.Bilinear;
     ]
 
   let cracks_parameter = Parameter.choice ~equal:( = ) [
@@ -1479,34 +1479,34 @@ module Subdivide = struct
     ]
 
   let boundary_parameter = Parameter.choice ~equal:( = ) [
-      "None", Pdk.Subdivision_ops.Subdivide_boundary_none;
-      "Edge only", Pdk.Subdivision_ops.Subdivide_boundary_edge_only;
-      "Edge and corner", Pdk.Subdivision_ops.Subdivide_boundary_edge_and_corner;
+      "None", Pdk.Subdivide.Subdivide_boundary_none;
+      "Edge only", Pdk.Subdivide.Subdivide_boundary_edge_only;
+      "Edge and corner", Pdk.Subdivide.Subdivide_boundary_edge_and_corner;
     ]
 
   let fvar_parameter = Parameter.choice ~equal:( = ) [
-      "None", Pdk.Subdivision_ops.Subdivide_fvar_none;
-      "Corners only", Pdk.Subdivision_ops.Subdivide_fvar_corners_only;
-      "Corners plus 1", Pdk.Subdivision_ops.Subdivide_fvar_corners_plus1;
-      "Corners plus 2", Pdk.Subdivision_ops.Subdivide_fvar_corners_plus2;
-      "Boundaries", Pdk.Subdivision_ops.Subdivide_fvar_boundaries;
-      "All", Pdk.Subdivision_ops.Subdivide_fvar_all;
+      "None", Pdk.Subdivide.Subdivide_fvar_none;
+      "Corners only", Pdk.Subdivide.Subdivide_fvar_corners_only;
+      "Corners plus 1", Pdk.Subdivide.Subdivide_fvar_corners_plus1;
+      "Corners plus 2", Pdk.Subdivide.Subdivide_fvar_corners_plus2;
+      "Boundaries", Pdk.Subdivide.Subdivide_fvar_boundaries;
+      "All", Pdk.Subdivide.Subdivide_fvar_all;
     ]
 
   let triangle_parameter = Parameter.choice ~equal:( = ) [
-      "Catmull-Clark", Pdk.Subdivision_ops.Subdivide_triangles_catmull_clark;
-      "Smooth", Pdk.Subdivision_ops.Subdivide_triangles_smooth;
+      "Catmull-Clark", Pdk.Subdivide.Subdivide_triangles_catmull_clark;
+      "Smooth", Pdk.Subdivide.Subdivide_triangles_smooth;
     ]
 
   let creasing_parameter = Parameter.choice ~equal:( = ) [
-      "Uniform", Pdk.Subdivision_ops.Subdivide_creasing_uniform;
-      "Chaikin", Pdk.Subdivision_ops.Subdivide_creasing_chaikin;
+      "Uniform", Pdk.Subdivide.Subdivide_creasing_uniform;
+      "Chaikin", Pdk.Subdivide.Subdivide_creasing_chaikin;
     ]
 
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Primitive group"];
-    scheme : Pdk.Subdivision_ops.scheme
-      [@sop.default Pdk.Subdivision_ops.Catmull_clark]
+    scheme : Pdk.Subdivide.scheme
+      [@sop.default Pdk.Subdivide.Catmull_clark]
       [@sop.label "Scheme"] [@sop.kind scheme_parameter];
     iterations : int [@sop.default 1] [@sop.label "Depth"]
       [@sop.min 1] [@sop.max 6] [@sop.hard_min 1];
@@ -1529,21 +1529,21 @@ module Subdivide = struct
       [@sop.label "Hole group"] [@sop.folder "Holes"];
     remove_holes : bool [@sop.default false] [@sop.label "Remove holes"]
       [@sop.folder "Holes"];
-    boundary_interpolation : Pdk.Subdivision_ops.boundary_interpolation
-      [@sop.default Pdk.Subdivision_ops.Subdivide_boundary_edge_and_corner]
+    boundary_interpolation : Pdk.Subdivide.boundary_interpolation
+      [@sop.default Pdk.Subdivide.Subdivide_boundary_edge_and_corner]
       [@sop.label "Point boundaries"] [@sop.folder "Interpolation"]
       [@sop.kind boundary_parameter];
     face_varying_interpolation :
-      Pdk.Subdivision_ops.face_varying_interpolation
-      [@sop.default Pdk.Subdivision_ops.Subdivide_fvar_boundaries]
+      Pdk.Subdivide.face_varying_interpolation
+      [@sop.default Pdk.Subdivide.Subdivide_fvar_boundaries]
       [@sop.label "Vertex boundaries"] [@sop.folder "Interpolation"]
       [@sop.kind fvar_parameter];
-    triangle_policy : Pdk.Subdivision_ops.triangle_policy
-      [@sop.default Pdk.Subdivision_ops.Subdivide_triangles_catmull_clark]
+    triangle_policy : Pdk.Subdivide.triangle_policy
+      [@sop.default Pdk.Subdivide.Subdivide_triangles_catmull_clark]
       [@sop.label "Triangles"] [@sop.folder "Interpolation"]
       [@sop.kind triangle_parameter];
-    creasing_method : Pdk.Subdivision_ops.creasing_method
-      [@sop.default Pdk.Subdivision_ops.Subdivide_creasing_uniform]
+    creasing_method : Pdk.Subdivide.creasing_method
+      [@sop.default Pdk.Subdivide.Subdivide_creasing_uniform]
       [@sop.label "Creasing method"] [@sop.folder "Creases"]
       [@sop.kind creasing_parameter];
     treat_curves_as_independent : bool [@sop.default false]
@@ -1555,14 +1555,14 @@ module Subdivide = struct
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
 
   let cracks parameters = match parameters.cracks with
-    | Do_not_close -> Pdk.Subdivision_ops.Subdivide_do_not_close
-    | Pull_no_division -> Pdk.Subdivision_ops.Subdivide_pull_no_edge_division
-    | Pull_divide -> Pdk.Subdivision_ops.Subdivide_pull_divide_edges parameters.crack_bias
+    | Do_not_close -> Pdk.Subdivide.Subdivide_do_not_close
+    | Pull_no_division -> Pdk.Subdivide.Subdivide_pull_no_edge_division
+    | Pull_divide -> Pdk.Subdivide.Subdivide_pull_divide_edges parameters.crack_bias
     | Pull_triangulate ->
-        Pdk.Subdivision_ops.Subdivide_pull_triangulate parameters.crack_bias
-    | Stitch_no_division -> Pdk.Subdivision_ops.Subdivide_stitch_no_edge_division
-    | Stitch_divide -> Pdk.Subdivision_ops.Subdivide_stitch_divide_edges
-    | Stitch_triangulate -> Pdk.Subdivision_ops.Subdivide_stitch_triangulate
+        Pdk.Subdivide.Subdivide_pull_triangulate parameters.crack_bias
+    | Stitch_no_division -> Pdk.Subdivide.Subdivide_stitch_no_edge_division
+    | Stitch_divide -> Pdk.Subdivide.Subdivide_stitch_divide_edges
+    | Stitch_triangulate -> Pdk.Subdivide.Subdivide_stitch_triangulate
 
   let build = parameters_build (fun ~label parameters input creases ->
     Sop.subdivide ~label ?group:(optional_text parameters.group)
