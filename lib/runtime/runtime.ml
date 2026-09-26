@@ -376,97 +376,60 @@ let create ?(vsync = true) ?(hidden = true) ?(title = "Prismel") ~width ~height 
   if width <= 0 || height <= 0 then
     Error (Ogpu.Error.make op Invalid_argument "dimensions must be positive")
   else
-    match sdl op (Sdl3.Init.init [ Sdl3.Init.Video ]) with
-    | Error _ as error -> error
-    | Ok () -> (
-        let flags : Sdl3.Window.flag list =
-          Metal :: High_pixel_density :: (if hidden then [ Hidden ] else [])
-        in
-        match sdl op (Sdl3.Window.create ~title ~width ~height ~flags ()) with
-        | Error _ as error ->
-            ignore (Sdl3.Init.quit_subsystems [ Sdl3.Init.Video ]);
-            error
-        | Ok window -> (
-            let text_input = sdl op (Sdl3.Text_input.start window) in
-            match text_input with
-            | Error _ as error ->
-                ignore (Sdl3.Window.destroy window);
-                ignore (Sdl3.Init.quit_subsystems [ Sdl3.Init.Video ]);
-                error
-            | Ok () -> (
-                match if hidden then Ok () else sdl op (reveal window) with
-                | Error _ as error ->
-                    ignore (Sdl3.Window.destroy window);
-                    ignore (Sdl3.Init.quit_subsystems [ Sdl3.Init.Video ]);
-                    error
-                | Ok () -> (
-                    match sdl op (Sdl3.Metal_view.create window) with
-                    | Error error ->
-                        ignore (Sdl3.Window.destroy window);
-                        ignore (Sdl3.Init.quit_subsystems [ Sdl3.Init.Video ]);
-                        Error error
-                    | Ok view -> (
-                        let cleanup_sdl () =
-                          ignore (Sdl3.Metal_view.destroy view);
-                          ignore (Sdl3.Window.destroy window);
-                          ignore (Sdl3.Init.quit_subsystems [ Sdl3.Init.Video ])
-                        in
-                        match sdl op (Sdl3.Metal_view.layer view) with
-                        | Error _ as error ->
-                            cleanup_sdl ();
-                            error
-                        | Ok token -> (
-                            let driver, _live = Ogpu.Impl.create_driver () in
-                            let configuration =
-                              configuration ~layer:token ~vsync ~width ~height ()
-                            in
-                            match
-                              create_renderer ~offscreen:false ~driver ~configuration ()
-                            with
-                            | Error _ as result ->
-                                cleanup_sdl ();
-                                result
-                                    | Ok renderer -> (
-                                        match facts window with
-                                        | Error error ->
-                                            ignore (Scene_execution.destroy renderer);
-                                            cleanup_sdl ();
-                                            Error error
-                                        | Ok facts -> (
-                                            let actual =
-                                              {
-                                                configuration with
-                                                logical_width = facts.logical_width;
-                                                logical_height = facts.logical_height;
-                                                physical_width = facts.drawable_width;
-                                                physical_height = facts.drawable_height;
-                                              }
-                                            in
-                                            match Scene_execution.resize renderer actual with
-                                            | Error error ->
-                                                ignore (Scene_execution.destroy renderer);
-                                                cleanup_sdl ();
-                                                Error error
-                                            | Ok () ->
-                                                Ok
-                                                  {
-                                                    renderer;
-                                                    window =
-                                                      Some
-                                                        {
-                                                          handle = window;
-                                                          view;
-                                                          vsync;
-                                                          cursors = [];
-                                                          cursor_shape = None;
-                                                        };
-                                                    title;
-                                                    facts;
-                                                    presentation = None;
-                                                    counters = new_counters ();
-                                                    scaled = new_scaled_cache ();
-                                                    dead = false;
-                                                  }))))))))
+    (* Each acquired SDL resource pushes its release; any later failure
+       unwinds them newest first. *)
+    let undo = ref [] in
+    let unwind () =
+      List.iter (fun release -> ignore (release ())) !undo;
+      undo := []
+    in
+    let acquire result release =
+      Result.map
+        (fun value ->
+          undo := (fun () -> release value) :: !undo;
+          value)
+        (sdl op result)
+    in
+    let ( let* ) = Result.bind in
+    let created =
+      let* () = acquire (Sdl3.Init.init [ Sdl3.Init.Video ]) (fun () ->
+        Sdl3.Init.quit_subsystems [ Sdl3.Init.Video ]) in
+      let flags : Sdl3.Window.flag list =
+        Metal :: High_pixel_density :: (if hidden then [ Hidden ] else [])
+      in
+      let* window = acquire (Sdl3.Window.create ~title ~width ~height ~flags ()) Sdl3.Window.destroy in
+      let* () = acquire (Sdl3.Text_input.start window) (fun () -> Sdl3.Text_input.stop window) in
+      let* () = if hidden then Ok () else sdl op (reveal window) in
+      let* view = acquire (Sdl3.Metal_view.create window) Sdl3.Metal_view.destroy in
+      let* token = sdl op (Sdl3.Metal_view.layer view) in
+      (* Size the renderer for the actual drawable once, rather than
+         allocating a logical-size target and immediately resizing it. *)
+      let* facts = facts window in
+      let driver, _live = Ogpu.Impl.create_driver () in
+      let configuration =
+        {
+          (configuration ~layer:token ~vsync ~width:facts.logical_width
+             ~height:facts.logical_height ())
+          with
+          physical_width = facts.drawable_width;
+          physical_height = facts.drawable_height;
+        }
+      in
+      let* renderer = create_renderer ~offscreen:false ~driver ~configuration () in
+      Ok
+        {
+          renderer;
+          window = Some { handle = window; view; vsync; cursors = []; cursor_shape = None };
+          title;
+          facts;
+          presentation = None;
+          counters = new_counters ();
+          scaled = new_scaled_cache ();
+          dead = false;
+        }
+    in
+    (match created with Ok _ -> undo := [] | Error _ -> unwind ());
+    created
 
 let offscreen_facts ~logical_width ~logical_height ~width ~height =
   {
