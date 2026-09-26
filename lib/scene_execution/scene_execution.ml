@@ -26,7 +26,7 @@ type uniform_page={page_buffer:Ogpu.Backend.buffer;page_capacity:int}
 type cached_auxiliary={auxiliary_copy:bytes;auxiliary_buffer:Ogpu.Backend.buffer}
 type cached_texture={mutable texture_key:string;mutable texture_hash:string;
   texture_shape:string;texture:Ogpu.Backend.texture;texture_bytes:int;
-  mutable texture_used:int}
+  mutable texture_used:int;mutable texture_levels:texture_level array}
 type texture_upload_scratch={scratch_buffer:Ogpu.Backend.buffer;
   scratch_bytes:bytes;scratch_size:int}
 type prepared_run={prepared_version:int64;prepared_draws:sampled_draw list;prepared_bytes:int}
@@ -476,7 +476,7 @@ let prepare_texture value ~defer(source:sampled_texture)=
         error"Scene_execution.prepare_texture"Ogpu.Error.Cross_device
           "GPU image belongs to another renderer"
       else Ok{texture_key=source.key;texture_hash="";texture_shape="";
-        texture;texture_bytes=0;texture_used=value.frame}
+        texture;texture_bytes=0;texture_used=value.frame;texture_levels=[||]}
   |None->
   let levels_hash()=
     Digest.to_hex(Digest.string(Array.to_list source.levels|>List.map(fun (level:texture_level)->Printf.sprintf"%dx%d:%s"level.width level.height(Digest.to_hex(Digest.string(Bytes.unsafe_to_string level.bytes))))|>String.concat"|"))in
@@ -523,9 +523,9 @@ let prepare_texture value ~defer(source:sampled_texture)=
             item.texture_key<-source.key;
             String_table.add value.texture_cache~bytes:item.texture_bytes source.key item
           end;
-          item.texture_hash<-hash;item.texture_used<-value.frame;Ok item
+          item.texture_hash<-hash;item.texture_levels<-source.levels;item.texture_used<-value.frame;Ok item
       |_->let item={texture_key=source.key;texture_hash=hash;texture_shape=shape;
-            texture;texture_bytes=total;texture_used=value.frame}in
+            texture;texture_bytes=total;texture_used=value.frame;texture_levels=source.levels}in
           if not cacheable then begin
             defer(fun()->ignore(Ogpu.Backend.destroy_texture texture));Ok item
           end else begin
@@ -556,8 +556,11 @@ let prepare_texture value ~defer(source:sampled_texture)=
       String.starts_with~prefix:"shadow:"source.key->
       item.texture_used<-value.frame;Ok item
   |item when String.starts_with~prefix:"canvas:"source.key->upload~hash:""~reusable:(Some item)
+  (* The immutable levels this slot was uploaded from: no hashing. *)
+  |item when item.texture_levels==source.levels->item.texture_used<-value.frame;Ok item
   |item->let hash=levels_hash()in
-      if item.texture_hash=hash then(item.texture_used<-value.frame;Ok item)
+      if item.texture_hash=hash then(item.texture_levels<-source.levels;
+        item.texture_used<-value.frame;Ok item)
       else upload~hash~reusable:None
   |exception Not_found->
       upload~hash:(if image_or_canvas_key source.key then""else levels_hash())~reusable:None

@@ -161,6 +161,12 @@ let sampled_texture_bytes (texture:Scene_execution.sampled_texture)=
     let bytes=Bytes.length level.Scene_execution.bytes in
     if total>snapshot_cache_entry_byte_capacity-bytes then
       snapshot_cache_entry_byte_capacity+1 else total+bytes)0 texture.levels
+(* The last bytes one UI batch position lowered to. Unchanged content reuses
+   them, so the executor's mesh cache hits by physical identity instead of
+   hashing every instance each frame. *)
+type ui_slot={mutable ui_vertices:bytes;mutable ui_indices:bytes;
+  mutable ui_affine:bytes}
+let ui_slot_capacity=256
 type t = { runtime:runtime;
   assets:Runtime_resources.Assets.t; mutable dead:bool;
   snapshots:snapshot_cache_entry Snapshot_table.t;
@@ -177,9 +183,11 @@ type t = { runtime:runtime;
   mutable scene2_out_slots:draw array;
   mutable scene2_out_list:draw list;
   mutable last_presentation:presentation_facts option;
+  ui_slots:ui_slot Int_table.t;
 }
 and submission={owner:t;mutable submission_state:submission_state;
-  mutable image_leases:Runtime_resources.Image.Private.lease list}
+  mutable image_leases:Runtime_resources.Image.Private.lease list;
+  mutable ui_layers:int}
 and batch={batch_owner:submission;batch_draws:draw list}
 (* ponytail: one active native window; pass an explicit renderer token if sketches
    start owning multiple windows concurrently. *)
@@ -233,7 +241,7 @@ let finish_create runtime=
         ~byte_capacity:retained_scene2_segment_byte_capacity;
       retained_scene2_segment_hits=0L;retained_scene2_segment_misses=0L;
       submissions=[];last_step_draws=[];last_step_prepared=[];
-      scene2_out_slots=[||];scene2_out_list=[];last_presentation=None}
+      scene2_out_slots=[||];scene2_out_list=[];last_presentation=None;ui_slots=Int_table.create ui_slot_capacity}
 let create (configuration:configuration) =
   let operation="Prismel_execution.create" in
   match valid_configuration operation configuration with Error _ as error->error|Ok()->
@@ -282,7 +290,7 @@ let begin_submission value=
   match ensure"Prismel_execution.Private.begin_submission"value with
   |Error _ as e->e
   |Ok()->
-      let submission={owner=value;submission_state=Open;image_leases=[]}in
+      let submission={owner=value;submission_state=Open;image_leases=[];ui_layers=0}in
       value.submissions<-submission::value.submissions;
       Ok submission
 let ensure_submission operation submission=
@@ -837,6 +845,13 @@ let ui_index_bytes count=
     ui_indices:=bytes
   end;
   Bytes.sub!ui_indices 0 needed
+let same_bytes_range source offset target=
+  let length=Bytes.length target in
+  let rec loop index=index>=length||
+    (Int64.equal(Bytes.get_int64_le source(offset+index))
+       (Bytes.get_int64_le target index)&&loop(index+8))in
+  length mod 8=0&&loop 0
+let ui_affine_scratch=Bytes.make 24 '\000'
 let lower_ui submission ~density ~resource ui=
   let operation="Prismel_execution.Private.lower_ui"in
   match ensure_submission operation submission with
@@ -856,13 +871,31 @@ let lower_ui submission ~density ~resource ui=
           ~lease_policy:(Retain_image_snapshots submission)~density source with
         |Error _ as error->error
         |Ok(_,_,texture)->Ok{texture with Scene_execution.sampler=ui_sampler}in
+  let layer=submission.ui_layers in
+  submission.ui_layers<-layer+1;
+  let slots=submission.owner.ui_slots in
   let draw index (batch:Scene_command.Ui_batch.batch)=
     Result.map(fun texture->
       let xform=batch.xform in
-      let affine=Bytes.make 24 '\000'in
-      write_affine affine{Scene_command.Render_ir.xx=2.*.xform.scale/.width;
+      write_affine ui_affine_scratch{Scene_command.Render_ir.xx=2.*.xform.scale/.width;
         xy=0.;yx=0.;yy=(-2.)*.xform.scale/.height;
         tx=2.*.xform.tx/.width-.1.;ty=1.-.2.*.xform.ty/.height};
+      let first=batch.first*Scene_command.Ui_batch.instance_bytes
+      and length=batch.count*Scene_command.Ui_batch.instance_bytes in
+      let slot_key=layer*65536+index in
+      let slot=match Int_table.find slots slot_key with
+        |slot->slot
+        |exception Not_found->
+            let slot={ui_vertices=Bytes.empty;ui_indices=Bytes.empty;
+              ui_affine=Bytes.empty}in
+            Int_table.add slots slot_key slot;slot in
+      if Bytes.length slot.ui_vertices<>length||
+         not(same_bytes_range instances first slot.ui_vertices)then
+        slot.ui_vertices<-Bytes.sub instances first length;
+      if Bytes.length slot.ui_indices<>batch.count*24 then
+        slot.ui_indices<-ui_index_bytes batch.count;
+      if not(Bytes.equal slot.ui_affine ui_affine_scratch)then
+        slot.ui_affine<-Bytes.copy ui_affine_scratch;
       let scissor=match batch.clip with
         |None->framebuffer
         |Some clip->
@@ -873,15 +906,13 @@ let lower_ui submission ~density ~resource ui=
             and bottom=min facts.logical_height
                 (int_of_float(Float.ceil(clip.y+.clip.height)))in
             x,y,max 0(right-x),max 0(bottom-y)in
-      let vertices=Bytes.sub instances
-          (batch.first*Scene_command.Ui_batch.instance_bytes)
-          (batch.count*Scene_command.Ui_batch.instance_bytes)in
       {family=Ui;blend=Alpha;texture=Some texture;auxiliary=None;samples=1;
-       value={Scene_execution.mesh={key="ui:"^string_of_int index;vertices;
-         vertex_count=4*batch.count;indices=ui_index_bytes batch.count;
-         index_count=6*batch.count;primitive=Ogpu.Render_pass.Triangle_list};
+       value={Scene_execution.mesh={key="ui:"^string_of_int slot_key;
+         vertices=slot.ui_vertices;vertex_count=4*batch.count;
+         indices=slot.ui_indices;index_count=6*batch.count;
+         primitive=Ogpu.Render_pass.Triangle_list};
          state={(default_state framebuffer scissor)with
-           transform_uniforms=Some affine}}})(texture batch.texture)in
+           transform_uniforms=Some slot.ui_affine}}})(texture batch.texture)in
   let batches=Scene_command.Ui_batch.batches ui in
   let rec build index reversed=
     if index=Array.length batches then Ok(List.rev reversed) else
@@ -956,7 +987,7 @@ let destroy value=if value.dead then Ok()else
     Segment_table.clear value.retained_scene2_segments;
     value.last_step_draws<-[];
     value.last_step_prepared<-[];value.scene2_out_slots<-[||];
-    value.scene2_out_list<-[];value.last_presentation<-None;value.dead<-true;
+    value.scene2_out_list<-[];value.last_presentation<-None;Int_table.clear value.ui_slots;value.dead<-true;
     (match !active_window with Some current when current==value->active_window:=None|_->());
     let destroyed=match value.runtime with
     |Window runtime->Runtime.destroy runtime
