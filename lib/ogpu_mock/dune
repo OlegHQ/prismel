@@ -2,5 +2,6 @@
  (name ogpu_mock)
  (public_name prismel.ogpu_mock)
  (implements ogpu)
- (modules Impl)
+ (modules Impl Backend_mock)
+ (private_modules Backend_mock)
  (libraries ogpu_core))

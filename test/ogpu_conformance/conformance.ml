@@ -111,7 +111,7 @@ let run ?metallib driver =
   let compute_interface : Shader.binding list=
     [{group=0;binding=0;kind=Shader.Storage_buffer;visibility=[Shader.Compute]}] in
   let compiled bytes constants =
-    get (Library.of_metallib
+    get (Shader.of_metallib
       {backend="metal";label=Some"exact-compute-compiled";bytes;
        entry_points=[{name="exact_compute_compiled";stage=Shader.Compute}];
        bindings=compute_interface} ~constants) in

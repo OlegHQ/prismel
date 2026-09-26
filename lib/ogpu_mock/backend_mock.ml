@@ -1,3 +1,4 @@
+open Ogpu_core
 type queue_clock={mutable epoch:int64;mutable completed:int64;mutable deferred:(unit->(unit,Error.t)result)list}
 (* Sentinel for a recorded event wait whose value is not reached yet. *)
 let blocked_message="event value is not reached yet"
