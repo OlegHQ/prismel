@@ -26,4 +26,3 @@ let viewport_frame (x, y, width, height) (frame : Frame.t) =
       (int_of_float (Float.round (float_of_int width *. scale_x)),
        int_of_float (Float.round (float_of_int height *. scale_y)));
     mouse = (fst frame.mouse -. float x, snd frame.mouse -. float y) }
-
