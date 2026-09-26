@@ -37,9 +37,6 @@ let test_reduces_and_preserves_boundary () =
   let source_count = Geometry.primitive_count source in
   let output = Poly_reduce.run_checked ~grain:17 ~target:(Poly_reduce.Reduce_ratio 0.5) source
       |> get_pdk in
-  check (same_geometry output
-      (Ops.poly_reduce ~grain:17 ~target:(Ops.Reduce_ratio 0.5) source
-       |> get_pdk)) "PolyReduce family/shim output differs";
   check (Geometry.primitive_count output < source_count)
     "PolyReduce did not reduce a dense triangle grid";
   check (Geometry.primitive_count output >= (source_count / 2) - 1)
@@ -150,13 +147,6 @@ let test_noop_invalid_and_cancel () =
     "fully constrained PolyReduce lost geometry identity";
   let wrong = Group.init ~owner:Group.Point ~name:"wrong"
       (Geometry.point_count source) (fun _ -> true) in
-  (match Poly_reduce.run_checked ~primitives:wrong source,
-      Ops.poly_reduce ~primitives:wrong source with
-   | Error family, Error shim ->
-       check (Error.code family = Error.code shim
-           && Error.message family = Error.message shim)
-         "PolyReduce family/shim error differs"
-   | _ -> fail "PolyReduce family/shim error result differs");
   check (match Poly_reduce.run_checked ~primitives:wrong source with Error _ -> true
     | Ok _ -> false) "PolyReduce accepted a point-owned primitive selection";
   check (match Poly_reduce.run_checked ~equalize_lengths:(-1.) source with

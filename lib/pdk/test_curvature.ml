@@ -43,7 +43,7 @@ let values name geometry =
   | None -> fail (name ^ " is missing")
 
 let all_outputs = {
-  Ops.mean = Some "mean";
+  Analysis_ops.mean = Some "mean";
   gaussian = Some "gaussian";
   minimum = Some "minimum";
   maximum = Some "maximum";

@@ -103,18 +103,18 @@ let check_default_and_extent () =
       && near point.x.(96) 1. && near point.y.(96) 2.
       && near point.z.(96) 0.)
     "default Spiral endpoints/topology";
-  let pitch = make ~extent:(Ops.Spiral_height_pitch { height = 6.; pitch = 1.5 })
-      ~divisions:(Ops.Spiral_divisions_per_turn 8) () in
+  let pitch = make ~extent:(Spiral.Spiral_height_pitch { height = 6.; pitch = 1.5 })
+      ~divisions:(Spiral.Spiral_divisions_per_turn 8) () in
   check (Geometry.point_count pitch = 33 && near (positions pitch).y.(32) 6.)
     "height/pitch Spiral extent or divisions"
 
 let check_radius_families_ramps_and_count () =
-  let arch = make ~extent:(Ops.Spiral_turns { turns = 2.5; height = -4. })
-      ~radius:(Ops.Spiral_archimedean_end { start_radius = 1.; end_radius = 3. })
+  let arch = make ~extent:(Spiral.Spiral_turns { turns = 2.5; height = -4. })
+      ~radius:(Spiral.Spiral_archimedean_end { start_radius = 1.; end_radius = 3. })
       ~height_ramp:[0., 1.; 0.5, 0.25; 1., 1.]
       ~radius_scale:2. ~radius_ramp:[0., 1.; 1., 0.5]
-      ~direction:Ops.Spiral_clockwise ~start_angle:0.3
-      ~divisions:(Ops.Spiral_divisions_per_curve 10) ~spiral_count:3 () in
+      ~direction:Spiral.Spiral_clockwise ~start_angle:0.3
+      ~divisions:(Spiral.Spiral_divisions_per_curve 10) ~spiral_count:3 () in
   let p = positions arch in
   check (Geometry.point_count arch = 33 && Geometry.primitive_count arch = 3)
     "multi-Spiral cardinality";
@@ -127,16 +127,16 @@ let check_radius_families_ramps_and_count () =
   and phase1 = atan2 p.z.(11) p.x.(11) in
   check (near phase0 0.3 && near phase1 (0.3 +. (2. *. Float.pi /. 3.)))
     "spiral phase distribution";
-  let logarithmic = make ~extent:(Ops.Spiral_turns { turns = 3.; height = 0. })
-      ~radius:(Ops.Spiral_logarithmic_change {
+  let logarithmic = make ~extent:(Spiral.Spiral_turns { turns = 3.; height = 0. })
+      ~radius:(Spiral.Spiral_logarithmic_change {
         start_radius = 2.; scale_per_turn = 2. })
-      ~divisions:(Ops.Spiral_divisions_per_curve 6) () in
+      ~divisions:(Spiral.Spiral_divisions_per_curve 6) () in
   let p = positions logarithmic in
   check (near p.x.(0) 2. && near p.x.(6) 16.)
     "logarithmic change-per-turn radius";
   let logarithmic_end = make
-      ~radius:(Ops.Spiral_logarithmic_end { start_radius = 2.; end_radius = 8. })
-      ~divisions:(Ops.Spiral_divisions_per_curve 2) () |> positions in
+      ~radius:(Spiral.Spiral_logarithmic_end { start_radius = 2.; end_radius = 8. })
+      ~divisions:(Spiral.Spiral_divisions_per_curve 2) () |> positions in
   let middle_radius = sqrt ((logarithmic_end.x.(1) *. logarithmic_end.x.(1))
       +. (logarithmic_end.z.(1) *. logarithmic_end.z.(1))) in
   check (near middle_radius 4.) "explicit logarithmic end radius"
@@ -144,11 +144,11 @@ let check_radius_families_ramps_and_count () =
 let check_equal_arc_spacing () =
   let divisions = 400 in
   let make_spacing uniform_angle =
-    make ~extent:(Ops.Spiral_turns { turns = 2.3; height = 4. })
-      ~radius:(Ops.Spiral_archimedean_end { start_radius = 0.3; end_radius = 4. })
+    make ~extent:(Spiral.Spiral_turns { turns = 2.3; height = 4. })
+      ~radius:(Spiral.Spiral_archimedean_end { start_radius = 0.3; end_radius = 4. })
       ~height_ramp:[0., 1.; 0.347, 0.45; 1., 1.2]
       ~radius_ramp:[0., 0.8; 0.613, 1.3; 1., 0.7]
-      ~uniform_angle ~divisions:(Ops.Spiral_divisions_per_curve divisions)
+      ~uniform_angle ~divisions:(Spiral.Spiral_divisions_per_curve divisions)
       ~distance_attribute:"distance" () in
   let segment_ratio geometry =
     let distance = float_attribute geometry "distance" in
@@ -170,10 +170,10 @@ let check_equal_arc_spacing () =
     "Spiral distance output"
 
 let check_frames_and_composition () =
-  let geometry = make ~extent:(Ops.Spiral_turns { turns = 2.; height = 3. })
-      ~radius:(Ops.Spiral_archimedean_change {
+  let geometry = make ~extent:(Spiral.Spiral_turns { turns = 2.; height = 3. })
+      ~radius:(Spiral.Spiral_archimedean_change {
         start_radius = 0.5; increase_per_turn = 0.3 })
-      ~divisions:(Ops.Spiral_divisions_per_curve 64) ~spiral_count:2
+      ~divisions:(Spiral.Spiral_divisions_per_curve 64) ~spiral_count:2
       ~angle_attribute:"angle" ~x_axis_attribute:"xaxis"
       ~y_axis_attribute:"yaxis" ~tangent_attribute:"tangent"
       ~orient_attribute:"orient" ~distance_attribute:"distance" () in
@@ -220,23 +220,23 @@ let check_transform_and_validation () =
   let rotation = Vec3.create 0.3 0.5 0.7 and center = Vec3.create 3. (-2.) 5. in
   let source = Vec3.create 2. 0. 0. in
   let first order = make
-      ~radius:(Ops.Spiral_archimedean_change {
+      ~radius:(Spiral.Spiral_archimedean_change {
         start_radius = 2.; increase_per_turn = 0. })
       ~rotation ~rotation_order:order ~center
-      ~divisions:(Ops.Spiral_divisions_per_curve 2) () |> positions
+      ~divisions:(Spiral.Spiral_divisions_per_curve 2) () |> positions
       |> fun p -> Vec3.create p.x.(0) p.y.(0) p.z.(0) in
   let cases = [
-    Ops.Spiral_xyz, Mat4.mul (Mat4.rotation_z rotation.z)
+    Spiral.Spiral_xyz, Mat4.mul (Mat4.rotation_z rotation.z)
       (Mat4.mul (Mat4.rotation_y rotation.y) (Mat4.rotation_x rotation.x));
-    Ops.Spiral_xzy, Mat4.mul (Mat4.rotation_y rotation.y)
+    Spiral.Spiral_xzy, Mat4.mul (Mat4.rotation_y rotation.y)
       (Mat4.mul (Mat4.rotation_z rotation.z) (Mat4.rotation_x rotation.x));
-    Ops.Spiral_yxz, Mat4.mul (Mat4.rotation_z rotation.z)
+    Spiral.Spiral_yxz, Mat4.mul (Mat4.rotation_z rotation.z)
       (Mat4.mul (Mat4.rotation_x rotation.x) (Mat4.rotation_y rotation.y));
-    Ops.Spiral_yzx, Mat4.mul (Mat4.rotation_x rotation.x)
+    Spiral.Spiral_yzx, Mat4.mul (Mat4.rotation_x rotation.x)
       (Mat4.mul (Mat4.rotation_z rotation.z) (Mat4.rotation_y rotation.y));
-    Ops.Spiral_zxy, Mat4.mul (Mat4.rotation_y rotation.y)
+    Spiral.Spiral_zxy, Mat4.mul (Mat4.rotation_y rotation.y)
       (Mat4.mul (Mat4.rotation_x rotation.x) (Mat4.rotation_z rotation.z));
-    Ops.Spiral_zyx, Mat4.mul (Mat4.rotation_x rotation.x)
+    Spiral.Spiral_zyx, Mat4.mul (Mat4.rotation_x rotation.x)
       (Mat4.mul (Mat4.rotation_y rotation.y) (Mat4.rotation_z rotation.z));
   ] in
   List.iter (fun (order, matrix) ->
@@ -256,26 +256,26 @@ let check_transform_and_validation () =
       ?distance_attribute () in
   expect_code "invalid_parameter" (run ~grain:0 ());
   expect_code "invalid_parameter"
-    (run ~extent:(Ops.Spiral_turns { turns = 0.; height = 1. }) ());
+    (run ~extent:(Spiral.Spiral_turns { turns = 0.; height = 1. }) ());
   expect_code "invalid_parameter"
-    (run ~extent:(Ops.Spiral_height_pitch { height = 1.; pitch = -1. }) ());
+    (run ~extent:(Spiral.Spiral_height_pitch { height = 1.; pitch = -1. }) ());
   expect_code "invalid_parameter"
-    (run ~radius:(Ops.Spiral_archimedean_end {
+    (run ~radius:(Spiral.Spiral_archimedean_end {
       start_radius = -1.; end_radius = 2. }) ());
   expect_code "invalid_parameter"
-    (run ~radius:(Ops.Spiral_archimedean_change {
+    (run ~radius:(Spiral.Spiral_archimedean_change {
       start_radius = 1.; increase_per_turn = -1. }) ());
   expect_code "invalid_parameter"
-    (run ~radius:(Ops.Spiral_logarithmic_change {
+    (run ~radius:(Spiral.Spiral_logarithmic_change {
       start_radius = 1.; scale_per_turn = 0. }) ());
   expect_code "invalid_parameter" (run ~radius_scale:0. ());
   expect_code "invalid_parameter" (run ~uniform_scale:Float.infinity ());
   expect_code "invalid_parameter" (run ~start_angle:Float.nan ());
   expect_code "invalid_parameter"
-    (run ~divisions:(Ops.Spiral_divisions_per_curve 0) ());
+    (run ~divisions:(Spiral.Spiral_divisions_per_curve 0) ());
   expect_code "invalid_parameter" (run ~spiral_count:0 ());
   expect_code "invalid_parameter"
-    (run ~orientation:(Ops.Spiral_axis Vec3.zero) ());
+    (run ~orientation:(Spiral.Spiral_axis Vec3.zero) ());
   expect_code "invalid_parameter" (run ~height_ramp:[0.2, 1.; 1., 1.] ());
   expect_code "invalid_parameter" (run ~radius_ramp:[0., 1.; 0., 2.] ());
   expect_code "invalid_parameter" (run ~angle_attribute:"P" ());
@@ -284,7 +284,7 @@ let check_transform_and_validation () =
   expect_code "invalid_parameter" (run ~radius_scale:max_float
       ~center:(Vec3.create max_float 0. 0.) ());
   expect_code "invalid_parameter" (run ~uniform_angle:false
-      ~extent:(Ops.Spiral_turns { turns = 1.; height = 0. })
+      ~extent:(Spiral.Spiral_turns { turns = 1.; height = 0. })
       ~radius_ramp:[0.5, 0.] ~tangent_attribute:"tangent" ());
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
@@ -293,18 +293,18 @@ let check_transform_and_validation () =
 let check_parallel_exact () =
   let run domains = Parallel.run ~domains (fun () ->
     Spiral.run ~grain:257
-      ~extent:(Ops.Spiral_height_pitch { height = -18.; pitch = -0.37 })
-      ~radius:(Ops.Spiral_logarithmic_end {
+      ~extent:(Spiral.Spiral_height_pitch { height = -18.; pitch = -0.37 })
+      ~radius:(Spiral.Spiral_logarithmic_end {
         start_radius = 0.35; end_radius = 8. })
       ~height_ramp:[0., 0.8; 0.35, 1.2; 0.7, 0.55; 1., 1.]
       ~radius_scale:1.3 ~radius_ramp:[0., 1.; 0.4, 0.6; 1., 1.15]
-      ~direction:Ops.Spiral_clockwise ~start_angle:(-0.7)
-      ~divisions:(Ops.Spiral_divisions_per_curve 20_000)
+      ~direction:Spiral.Spiral_clockwise ~start_angle:(-0.7)
+      ~divisions:(Spiral.Spiral_divisions_per_curve 20_000)
       ~uniform_angle:false ~spiral_count:5
-      ~orientation:(Ops.Spiral_axis (Vec3.create 1. 2. 3.))
+      ~orientation:(Spiral.Spiral_axis (Vec3.create 1. 2. 3.))
       ~center:(Vec3.create 3. (-2.) 5.)
       ~rotation:(Vec3.create 0.3 0.5 0.7)
-      ~rotation_order:Ops.Spiral_yzx ~uniform_scale:1.2
+      ~rotation_order:Spiral.Spiral_yzx ~uniform_scale:1.2
       ~angle_attribute:"angle" ~x_axis_attribute:"xaxis"
       ~y_axis_attribute:"yaxis" ~tangent_attribute:"tangent"
       ~orient_attribute:"orient" ~distance_attribute:"distance" ()

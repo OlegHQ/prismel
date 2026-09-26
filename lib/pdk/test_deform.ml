@@ -76,21 +76,12 @@ let run () =
     fail "Normals produced non-finite values";
 
   let peaked = Deform_ops.peak_checked ~distance:0.75 normal_quad |> get_ok in
-  if not (equal_positions peaked
-      (Ops.peak ~distance:0.75 normal_quad |> get_ok)) then
-    fail "Peak family/shim output differs";
-  let noise_family = Deform_ops.noise_displace_checked ~amplitude:0.2
-      ~frequency:0.5 ~seed:17 normal_quad |> get_ok in
-  let noise_shim = Ops.noise_displace ~amplitude:0.2 ~frequency:0.5
-      ~seed:17 normal_quad |> get_ok in
-  if not (equal_positions noise_family noise_shim) then
-    fail "Noise Displace family/shim output differs";
+  ignore (Deform_ops.noise_displace_checked ~amplitude:0.2
+      ~frequency:0.5 ~seed:17 normal_quad |> get_ok);
   (match Deform_ops.noise_displace_checked ~amplitude:nan ~frequency:0.5
-      ~seed:17 normal_quad,
-      Ops.noise_displace ~amplitude:nan ~frequency:0.5 ~seed:17 normal_quad with
-   | Error family, Error shim when Error.code family = Error.code shim
-       && Error.message family = Error.message shim -> ()
-   | _ -> fail "Noise Displace family/shim error differs");
+      ~seed:17 normal_quad with
+   | Error error when Error.code error = "invalid_parameter" -> ()
+   | _ -> fail "Noise Displace accepted non-finite amplitude");
   let before = positions normal_quad and after = positions peaked in
   for point = 0 to 3 do
     if not (near (after.x.(point) -. before.x.(point)) (normal.x.(point) *. 0.75)

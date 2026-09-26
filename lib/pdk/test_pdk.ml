@@ -1550,8 +1550,8 @@ let run () =
       ~topology:(Topology.Builder.freeze fuse_topology)
       ~attributes:[weights] ~groups:[seam] () |> get_ok in
   let fused domains = Parallel.run ~domains (fun () ->
-      Fuse_grid.fuse_checked ~grain:1 ~tolerance:1e-6 ~position:Ops.Average_position
-        ~attributes:Ops.Average_numeric fuse_source |> get_ok) in
+      Fuse_grid.fuse_checked ~grain:1 ~tolerance:1e-6 ~position:Fuse_reduce.Average_position
+        ~attributes:Fuse_reduce.Average_numeric fuse_source |> get_ok) in
   let fused_one = fused 1 and fused_many = fused 4 in
   let fused_topology_one = Topology.Private.view (Geometry.topology fused_one)
   and fused_topology_many = Topology.Private.view (Geometry.topology fused_many) in
@@ -1597,7 +1597,7 @@ let run () =
   and reflected_nx, _, _ = Packed.Float3.get mirror_normals 4 in
   if original_nx <> 1. || reflected_nx <> -1. then fail "mirror normal reflection";
   let shared_box = Box_generator.box_checked ~size:(Vec3.create 2. 2. 2.) () |> get_ok
-      |> Fuse_grid.fuse_checked ~tolerance:0. ~attributes:Ops.Average_numeric |> get_ok in
+      |> Fuse_grid.fuse_checked ~tolerance:0. ~attributes:Fuse_reduce.Average_numeric |> get_ok in
   let shared_positions = Packed.Float3.Private.view (Geometry.positions shared_box) in
   let clip_weight = Attribute.create_owned ~name:"weight" ~owner:Attribute.Point
       (Attribute.Float (Array.copy shared_positions.x)) |> get_ok in
@@ -2438,7 +2438,7 @@ let run () =
   let hard_box_edges = Box_generator.box_checked ~size:(Vec3.create 2. 2. 2.) () |> get_ok
       |> Group_mesh.group_edges_checked ~name:"all_box_edges" |> get_ok in
   let fused_edge_geometry = Fuse_grid.fuse_checked ~tolerance:0.
-      ~attributes:Ops.Average_numeric hard_box_edges |> get_ok in
+      ~attributes:Fuse_reduce.Average_numeric hard_box_edges |> get_ok in
   let fused_edge_group = Geometry.find_edge_group "all_box_edges"
       fused_edge_geometry |> Option.get in
   if Edge_group.cardinality fused_edge_group <> 18
@@ -4527,7 +4527,7 @@ let run () =
            (Packed.Float_array.create_owned ~offsets:[|0;2;3;6;8|]
              ~values:[|0.;1.;2.;3.;4.;5.;6.;7.|] |> get_ok)) |> get_ok)
     |> get_ok in
-  let piece_rules = Ops.[{
+  let piece_rules = Instance_copy.[{
       copy_target_pattern = "piece_profile";
       copy_target_owner = Copy_target_primitives;
       copy_target_operation = Copy_target_copy;
@@ -4717,7 +4717,7 @@ let run () =
            ~name:"missing_multiply" 2 (fun point -> point = 1)) |> get_ok
       |> Geometry.with_group (Group.init ~owner:Group.Point
            ~name:"missing_subtract" 2 (fun point -> point = 1)) |> get_ok in
-  let transfer_rules = Ops.[
+  let transfer_rules = Instance_copy.[
     { copy_target_pattern = "weight"; copy_target_owner = Copy_target_primitives;
       copy_target_operation = Copy_target_multiply };
     { copy_target_pattern = "weight"; copy_target_owner = Copy_target_points;
@@ -4835,14 +4835,14 @@ let run () =
   let incompatible_source = Geometry.with_attribute
       (Attribute.create_owned ~name:"corner" ~owner:Attribute.Point
         (Attribute.Text [|"a";"b"|]) |> get_ok) transfer_source |> get_ok in
-  let incompatible_rule = Ops.{ copy_target_pattern = "corner";
+  let incompatible_rule = Instance_copy.{ copy_target_pattern = "corner";
       copy_target_owner = Copy_target_points;
       copy_target_operation = Copy_target_add } in
   (match Instance_copy.copy_to_points ~target_attributes:[incompatible_rule]
       ~source:incompatible_source ~targets:transfer_targets () with
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "copy-to-points accepted incompatible target arithmetic storage");
-  let malformed_rule = Ops.{ copy_target_pattern = "[unterminated";
+  let malformed_rule = Instance_copy.{ copy_target_pattern = "[unterminated";
       copy_target_owner = Copy_target_points;
       copy_target_operation = Copy_target_copy } in
   (match Instance_copy.copy_to_points ~target_attributes:[malformed_rule]
@@ -4855,7 +4855,7 @@ let run () =
           ~values:[|1.;2.|] |> get_ok)) |> get_ok in
   let mismatched_targets = Geometry.with_attribute mismatched_profile
       transfer_targets |> get_ok in
-  let mismatched_rule = Ops.{ copy_target_pattern = "profile";
+  let mismatched_rule = Instance_copy.{ copy_target_pattern = "profile";
       copy_target_owner = Copy_target_points;
       copy_target_operation = Copy_target_add } in
   (match Instance_copy.copy_to_points ~target_attributes:[mismatched_rule]

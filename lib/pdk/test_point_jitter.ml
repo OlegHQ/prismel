@@ -64,11 +64,6 @@ let run () =
     Deform_ops.point_jitter_checked ~grain:1 ~points:selected
       ~mask_attribute:"mask" ~id_attribute:"stable_id" ~use_point_scale:true
       ~seed ~scale:0.8 ~axis_scales input |> get_ok) in
-  check (equal_positions output
-      (Ops.point_jitter ~grain:1 ~points:selected ~mask_attribute:"mask"
-        ~id_attribute:"stable_id" ~use_point_scale:true ~seed ~scale:0.8
-        ~axis_scales input |> get_ok))
-    "Point Jitter family/shim output differs";
   let before = positions input and after = positions output in
   let identities = [|7; 7; 9; 10|]
   and amplitudes = [|1.6; 1.2; 0.4; 0.|] in

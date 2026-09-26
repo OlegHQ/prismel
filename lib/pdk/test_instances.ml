@@ -106,27 +106,10 @@ let run () =
   let source = source_geometry () in
   let matrices = transforms 17 in
   let expected = legacy_materialize matrices source in
-  let actual = Ops.materialize_instances ~grain:1 ~transforms:matrices source
+  let actual = Instance_copy.materialize_instances ~grain:1 ~transforms:matrices source
       |> get_pdk in
   check (geometry_equal expected actual)
     "packed materialization differs from transform-plus-merge semantics";
-  let family = Instance_copy.materialize_instances ~grain:1
-      ~transforms:matrices source |> get_pdk in
-  check (geometry_equal actual family)
-    "Instance_copy materialization differs from Ops compatibility path";
-  let duplicate_family = Instance_copy.duplicate ~grain:1 ~copies:2 source
-      |> get_pdk
-  and duplicate_compat = Ops.duplicate ~grain:1 ~copies:2 source
-      |> get_pdk in
-  check (geometry_equal duplicate_family duplicate_compat)
-    "Instance_copy duplicate differs from Ops compatibility path";
-  let copied_family = Instance_copy.copy_to_points ~grain:1
-      ~source ~targets:source () |> get_pdk
-  and copied_compat = Ops.copy_to_points ~grain:1
-      ~source ~targets:source () |> get_pdk in
-  check (geometry_equal copied_family copied_compat)
-    "Instance_copy copy-to-points differs from Ops compatibility path";
-
   let one = Parallel.run ~domains:1 (fun () ->
     Instance_copy.materialize_instances ~grain:7 ~transforms:matrices source |> get_pdk)
   and four = Parallel.run ~domains:4 (fun () ->

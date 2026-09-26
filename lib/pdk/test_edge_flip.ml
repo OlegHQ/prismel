@@ -156,9 +156,6 @@ let run () =
   let source = decorated_quad () in
   let flip = Geometry.find_edge_group "flip" source |> Option.get in
   let output = Edge_flip.run_checked ~grain:1 ~edges:flip source |> get_pdk in
-  check (equal_geometry output
-      (Ops.edge_flip ~grain:1 ~edges:flip source |> get_pdk))
-    "Edge Flip family/shim output differs";
   check (Geometry.point_count output = 4 && Geometry.vertex_count output = 6
       && Geometry.primitive_count output = 2) "Edge Flip cardinality";
   check (vertex_points output = [|1;2;3; 1;3;0|])
@@ -205,13 +202,6 @@ let run () =
 
   let boundary = edge_group_of_pairs (Geometry.topology source) "boundary"
       [|0,1|] in
-  (match Edge_flip.run_checked ~edges:boundary source,
-      Ops.edge_flip ~edges:boundary source with
-   | Error family, Error shim ->
-       check (Error.code family = Error.code shim
-           && Error.message family = Error.message shim)
-         "Edge Flip family/shim error differs"
-   | _ -> fail "Edge Flip family/shim error result differs");
   expect_code "invalid_topology" (Edge_flip.run_checked ~edges:boundary source);
   let reversed = geometry_owned
       [0.,0.,0.;1.,0.,0.;1.,1.,0.;0.,1.,0.]

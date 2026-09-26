@@ -1,8 +1,6 @@
 open Prismel
 open Pdk
 
-module Legacy_ops = Ops
-
 let fail message = raise (Failure message)
 let check condition message = if not condition then fail message
 let get_ok = function
@@ -218,35 +216,8 @@ let test_errors_and_parallel () =
   let one = run 1 and four = run 4 in
   check (same_geometry one four) "Transform one/four-domain exactness"
 
-let test_family_parity () =
-  let source = two_triangles () in
-  let matrix = Mat4.translation (Vec3.create 1. 2. 3.) in
-  let old_result = Legacy_ops.transform_selected matrix source |> get_ok
-  and family_result = Transform_ops.transform_selected matrix source |> get_ok in
-  check (same_geometry old_result family_result)
-    "Transform family matches Ops exactly";
-  let old_matrix = Legacy_ops.compose_transform ~translate:Vec3.unit_x () |> get_ok
-  and family_matrix = Transform_ops.compose_transform ~translate:Vec3.unit_x ()
-      |> get_ok in
-  check (Mat4.to_rows old_matrix = Mat4.to_rows family_matrix)
-    "Compose Transform family matches Ops exactly";
-  let invalid = Mat4.of_rows (Float.nan,0.,0.,0.) (0.,1.,0.,0.)
-      (0.,0.,1.,0.) (0.,0.,0.,1.) in
-  let error = function Error error -> error | Ok _ -> fail "expected error" in
-  let old_error = Legacy_ops.transform_selected invalid source |> error
-  and family_error = Transform_ops.transform_selected invalid source |> error in
-  check (old_error = family_error) "Transform family error parity";
-  let cancelled = Cancel.create () in
-  Cancel.cancel cancelled;
-  let old_cancel = Legacy_ops.transform_selected ~cancel:cancelled matrix source
-      |> error
-  and family_cancel = Transform_ops.transform_selected ~cancel:cancelled matrix
-      source |> error in
-  check (old_cancel = family_cancel) "Transform family cancellation parity"
-
 let run () =
   test_composition ();
   test_selection_and_normals ();
   test_errors_and_parallel ();
-  test_family_parity ();
   print_endline "transform tests passed"

@@ -2391,21 +2391,13 @@ let test_mixed_surface_curve_subdivision () =
         "mixed Subdivide curve normal was not zero"
   done
 
-let test_family_shim_parity () =
-  let input = quad () in
-  let family = Subdivision_ops.subdivide_checked input |> get_pdk
-  and shim = Ops.subdivide input |> get_pdk in
-  check (equal_geometry family shim) "Subdivision family/shim output differs";
-  (match Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Loop input,
-      Ops.subdivide ~scheme:Ops.Loop input with
-   | Error family, Error shim ->
-       check (Error.code family = Error.code shim
-           && Error.message family = Error.message shim)
-         "Subdivision family/shim error differs"
-   | _ -> fail "Subdivision family/shim error result differs")
+let test_checked_loop_quad_error () =
+  match Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Loop (quad ()) with
+  | Error error when Error.code error = "invalid_topology" -> ()
+  | _ -> fail "Loop Subdivide accepted a quad"
 
 let run () =
-  test_family_shim_parity ();
+  test_checked_loop_quad_error ();
   test_local_do_not_close ();
   test_identity_validation_and_cancellation ();
   test_selected_loop_validation_scope ();

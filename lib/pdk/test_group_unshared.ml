@@ -110,7 +110,7 @@ let test_boundary_components () =
   expect_invalid (fun () -> Group_ops.group_boundary_components_checked ~prefix:"rim"
       ~max_payload_bytes:0 source) "boundary component payload preflight";
   let closed = Box_generator.box_checked ~size:(Vec3.create 1. 1. 1.) () |> get_ok
-      |> Fuse_grid.fuse_checked ~tolerance:0. ~attributes:Ops.Average_numeric |> get_ok
+      |> Fuse_grid.fuse_checked ~tolerance:0. ~attributes:Fuse_reduce.Average_numeric |> get_ok
       |> Group_ops.group_boundary_components_checked ~prefix:"closed" |> get_ok in
   check (Geometry.find_group ~owner:Group.Point "closed__0" closed = None)
     "closed surface produced a boundary component"
