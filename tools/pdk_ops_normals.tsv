@@ -1,0 +1,5 @@
+Ops.normal_weighting	Normal_ops.weighting
+Ops.Vertex_angle	Normal_ops.Vertex_angle
+Ops.Each_vertex	Normal_ops.Each_vertex
+Ops.Face_area	Normal_ops.Face_area
+Ops.normals	Normal_ops.run_checked
