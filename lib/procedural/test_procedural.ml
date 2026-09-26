@@ -2531,7 +2531,7 @@ let test_generators_selections_and_delete () =
       |> Sop.group ~name:"old" Select.all_points
       |> Sop.group ~name:"old" Select.all_primitives
       |> Sop.group_rename ~rules:[{
-           Pdk.Ops.rename_owner = Some Pdk.Group_ops.Group_points;
+           Pdk.Group_ops.rename_owner = Some Pdk.Group_ops.Group_points;
            rename_pattern = "old"; rename_replacement = "new";
            rename_conflict = Pdk.Group_ops.Rename_error }]
       |> cook_ok evaluator current in
@@ -2740,17 +2740,17 @@ let test_generators_selections_and_delete () =
       |> Sop.group_range ~owner:Pdk.Group_ops.Group_points ~name:"middle"
            (Pdk.Group_ops.Range_start_end { start = 2; end_ = 7 })
       |> Sop.group_combine ~owner:Pdk.Group_ops.Group_points ~name:"selected"
-           ~base:{ Pdk.Ops.pattern = "ends"; inverted = false }
-           ~steps:[{ Pdk.Ops.operation = Pdk.Group_ops.Group_union;
+           ~base:{ Pdk.Group_ops.pattern = "ends"; inverted = false }
+           ~steps:[{ Pdk.Group_ops.operation = Pdk.Group_ops.Group_union;
              operand = { pattern = "middle"; inverted = false } }]
       |> Sop.group_invert ~owner:Pdk.Group_ops.Group_points ~pattern:"selected"
            ~new_name:"outside"
       |> Sop.group_rename ~rules:[
-           { Pdk.Ops.rename_owner = Some Pdk.Group_ops.Group_points;
+           { Pdk.Group_ops.rename_owner = Some Pdk.Group_ops.Group_points;
              rename_pattern = "outside"; rename_replacement = "kept";
              rename_conflict = Pdk.Group_ops.Rename_error }]
       |> Sop.group_delete ~rules:[
-           { Pdk.Ops.delete_owner = Some Pdk.Group_ops.Group_points;
+           { Pdk.Group_ops.delete_owner = Some Pdk.Group_ops.Group_points;
              delete_pattern = "ends middle" }]
       |> cook_ok evaluator current in
   (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point "kept"

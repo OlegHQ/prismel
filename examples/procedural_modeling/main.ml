@@ -270,26 +270,26 @@ let graphs () =
              (Select.points_in_bounds ~min:(Vec3.create (-0.12) (-1.) (-0.12))
                 ~max:(Vec3.create 0.12 1. 0.12)) in
     let copied = Sop.group_copy ~source ~target ~rules:[
-      { Pdk.Ops.copy_owner = Pdk.Group_ops.Group_points; copy_pattern = "bands";
+      { Pdk.Group_ops.copy_owner = Pdk.Group_ops.Group_points; copy_pattern = "bands";
         copy_prefix = "copied_"; match_attribute = None }] () in
     Sop.group_transfer ~distance:0.001
-      ~rules:[{ Pdk.Ops.transfer_owner = Pdk.Group_ops.Group_points;
+      ~rules:[{ Pdk.Group_ops.transfer_owner = Pdk.Group_ops.Group_points;
         transfer_pattern = "bands"; transfer_prefix = "near_" }]
       ~source ~target:copied ()
     |> Sop.group_combine ~owner:Pdk.Group_ops.Group_points ~name:"selection"
-         ~base:{ Pdk.Ops.pattern = "seed"; inverted = false }
-         ~steps:[{ Pdk.Ops.operation = Pdk.Group_ops.Group_union;
+         ~base:{ Pdk.Group_ops.pattern = "seed"; inverted = false }
+         ~steps:[{ Pdk.Group_ops.operation = Pdk.Group_ops.Group_union;
            operand = { pattern = "near_bands"; inverted = false } }]
     |> Sop.group_expand ~steps:2 ~owner:Pdk.Group_ops.Group_points ~group:"selection"
     |> Sop.group_combine ~owner:Pdk.Group_ops.Group_points ~name:"outside"
-         ~base:{ Pdk.Ops.pattern = "selection"; inverted = false } ~steps:[]
+         ~base:{ Pdk.Group_ops.pattern = "selection"; inverted = false } ~steps:[]
     |> Sop.group_invert ~owner:Pdk.Group_ops.Group_points ~pattern:"outside"
     |> Sop.group_rename ~rules:[
-         { Pdk.Ops.rename_owner = Some Pdk.Group_ops.Group_points;
+         { Pdk.Group_ops.rename_owner = Some Pdk.Group_ops.Group_points;
            rename_pattern = "outside"; rename_replacement = "discard";
            rename_conflict = Pdk.Group_ops.Rename_error }]
     |> Sop.group_delete ~rules:[
-         { Pdk.Ops.delete_owner = Some Pdk.Group_ops.Group_points;
+         { Pdk.Group_ops.delete_owner = Some Pdk.Group_ops.Group_points;
            delete_pattern = "discard copied_* near_* seed" }]
     |> Sop.group_promotions [Pdk.Group_ops.promotion_rule
          ~keep_original:true ~new_name:"grown_faces"

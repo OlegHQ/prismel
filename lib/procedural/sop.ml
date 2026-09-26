@@ -915,7 +915,7 @@ let fuse_group_method_key = function
 
 let fuse_group_rules_key rules = rules |> List.map
     (fun (rule : Pdk.Fuse_reduce.group_rule) ->
-    String.escaped rule.Pdk.Ops.group_pattern ^ ","
+    String.escaped rule.Pdk.Fuse_reduce.group_pattern ^ ","
       ^ fuse_group_method_key rule.group_method) |> String.concat "|"
 
 let fuse ?label ?group ?target_group ?(targeting = Pdk.Fuse_grid.Near_points)
@@ -6028,16 +6028,16 @@ let group_expand ?label ?name ?(steps = 1) ?(flood = false) ?step_attribute
     invalid_arg "Sop.group_expand: empty output name") name;
   Option.iter (fun name -> if String.trim name = "" then
     invalid_arg "Sop.group_expand: empty step attribute name") step_attribute;
-  Option.iter (fun value -> if String.trim value.Pdk.Ops.expand_normal_name = "" then
+  Option.iter (fun value -> if String.trim value.Pdk.Group_ops.expand_normal_name = "" then
     invalid_arg "Sop.group_expand: empty normal attribute name") normal_attribute;
   Option.iter (fun value ->
     if value.Pdk.Group_ops.expand_normal_owner = Pdk.Attribute.Detail then
       invalid_arg "Sop.group_expand: detail normal attributes are unsupported")
     normal_attribute;
-  Option.iter (fun value -> if String.trim value.Pdk.Ops.expand_collision_group = ""
+  Option.iter (fun value -> if String.trim value.Pdk.Group_ops.expand_collision_group = ""
     then invalid_arg "Sop.group_expand: empty collision group name") collision;
   Option.iter (fun value ->
-    if value.Pdk.Ops.expand_collision_contain
+    if value.Pdk.Group_ops.expand_collision_contain
         && value.expand_collision_owner = Pdk.Group_ops.Group_edges then
       invalid_arg "Sop.group_expand: edge collision groups cannot contain growth")
     collision;
@@ -6091,13 +6091,13 @@ let group_combine_step_key (step : Pdk.Group_ops.combine_step) =
 
 let group_combine ?label ~owner ~name ~base ~steps input =
   if String.trim name = "" then invalid_arg "Sop.group_combine: empty output name";
-  if String.trim base.Pdk.Ops.pattern = "" then
+  if String.trim base.Pdk.Group_ops.pattern = "" then
     invalid_arg "Sop.group_combine: empty base pattern";
   let steps = List.map (fun (step : Pdk.Group_ops.combine_step) ->
-    { Pdk.Ops.operation = step.operation;
-      operand = { Pdk.Ops.pattern = step.operand.pattern;
+    { Pdk.Group_ops.operation = step.operation;
+      operand = { Pdk.Group_ops.pattern = step.operand.pattern;
         inverted = step.operand.inverted } }) steps in
-  let base = { Pdk.Ops.pattern = base.pattern; inverted = base.inverted } in
+  let base = { Pdk.Group_ops.pattern = base.pattern; inverted = base.inverted } in
   Node.Private.make ?label ~operation:"group_combine" ~version:1
     ~parameters:(String.concat ";" [
       "owner=" ^ topology_group_owner_key owner;
@@ -6235,7 +6235,7 @@ let group_delete_rule_key (rule : Pdk.Group_ops.delete_rule) =
 
 let group_delete ?label ?(delete_unused = false) ~rules input =
   let rules = List.map (fun (rule : Pdk.Group_ops.delete_rule) ->
-    { Pdk.Ops.delete_owner = rule.delete_owner;
+    { Pdk.Group_ops.delete_owner = rule.delete_owner;
       delete_pattern = rule.delete_pattern }) rules in
   Node.Private.make ?label ~operation:"group_delete" ~version:1
     ~parameters:(Printf.sprintf "delete_unused=%b;rules=%s" delete_unused
@@ -6255,7 +6255,7 @@ let group_rename_rule_key (rule : Pdk.Group_ops.rename_rule) =
 
 let group_rename ?label ~rules input =
   let rules = List.map (fun (rule : Pdk.Group_ops.rename_rule) ->
-    { Pdk.Ops.rename_owner = rule.rename_owner;
+    { Pdk.Group_ops.rename_owner = rule.rename_owner;
       rename_pattern = rule.rename_pattern;
       rename_replacement = rule.rename_replacement;
       rename_conflict = rule.rename_conflict }) rules in

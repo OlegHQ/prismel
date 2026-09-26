@@ -615,12 +615,12 @@ let run () =
       |> Sop.group_expand ~flood:true ~step_attribute:"constraint_step"
            ~primitive_connectivity:Group_ops.Primitive_share_edges
            ~normal_spread:0.1
-           ~normal_attribute:{ Ops.expand_normal_owner = Attribute.Primitive;
+           ~normal_attribute:{ Group_ops.expand_normal_owner = Attribute.Primitive;
              expand_normal_name = "flow" }
            ~connectivity_attributes:[{
              Group_ops.boundary_attribute_owner = Attribute.Primitive;
              boundary_attribute_pattern = "region" }]
-           ~collision:{ Ops.expand_collision_owner = Group_ops.Group_primitives;
+           ~collision:{ Group_ops.expand_collision_owner = Group_ops.Group_primitives;
              expand_collision_group = "containment";
              expand_collision_contain = true;
              expand_collision_allow_boundary = true }

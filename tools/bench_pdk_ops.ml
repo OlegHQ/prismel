@@ -2252,7 +2252,7 @@ let run_fuse_benchmarks () =
         Fuse_grid.fuse_attribute_rule ~pattern:"signal" ~weight_attribute:"weight"
           Ops.Attribute_weighted_average;
         Fuse_grid.fuse_attribute_rule ~pattern:"catalog" Ops.Attribute_concatenate]
-      ~group_rules:[Fuse_grid.fuse_group_rule ~pattern:"marked" Ops.Group_union]
+      ~group_rules:[Fuse_grid.fuse_group_rule ~pattern:"marked" Fuse_reduce.Group_union]
       query_rules |> get_ok) geometry_output;
   let shifted_target = Transform_ops.transform ~grain
       (Mat4.translation (Vec3.create 0.013 (-0.017) 0.009)) target in
@@ -2299,7 +2299,7 @@ let run_fuse_benchmarks () =
         Fuse_grid.fuse_attribute_rule ~pattern:"label" ~weight_attribute:"weight"
           Ops.Attribute_concatenate_weight_order]
       ~group_rules:[Fuse_grid.fuse_group_rule ~pattern:"marked"
-        Ops.Group_most_common] ruled |> get_ok) geometry_output;
+        Fuse_reduce.Group_most_common] ruled |> get_ok) geometry_output;
   let cleanup_grid = Plane_generators.grid_checked ~columns:500 ~rows:400 ~size:30. () |> get_ok in
   measure ~input_points:(Geometry.point_count cleanup_grid)
     "fuse_cleanup_grid_pairs" (fun () ->
@@ -3899,7 +3899,7 @@ let run_group_benchmarks () =
       Group_ops.boundary_attribute_owner = Attribute.Point;
       boundary_attribute_pattern = "expand_region" }] in
   let point_collision = {
-    Ops.expand_collision_owner = Group_ops.Group_points;
+    Group_ops.expand_collision_owner = Group_ops.Group_points;
     expand_collision_group = "expand_container";
     expand_collision_contain = true;
     expand_collision_allow_boundary = true } in
@@ -3912,7 +3912,7 @@ let run_group_benchmarks () =
       Group_ops.boundary_attribute_owner = Attribute.Primitive;
       boundary_attribute_pattern = "expand_region" }] in
   let primitive_collision = {
-    Ops.expand_collision_owner = Group_ops.Group_primitives;
+    Group_ops.expand_collision_owner = Group_ops.Group_primitives;
     expand_collision_group = "expand_container";
     expand_collision_contain = true;
     expand_collision_allow_boundary = true } in
@@ -3921,7 +3921,7 @@ let run_group_benchmarks () =
       Group_ops.expand_checked ~grain ~flood:true ~step_attribute:"step"
         ~primitive_connectivity:Group_ops.Primitive_share_edges
         ~normal_spread:0.2
-        ~normal_attribute:{ Ops.expand_normal_owner = Attribute.Vertex;
+        ~normal_attribute:{ Group_ops.expand_normal_owner = Attribute.Vertex;
           expand_normal_name = "expand_flow" }
         ~connectivity_attributes ~collision:primitive_collision
         ~owner:Group_ops.Group_primitives ~group:"constrained_primitive_seed"

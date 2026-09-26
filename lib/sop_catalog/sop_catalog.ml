@@ -5873,7 +5873,7 @@ module Group_promotions = struct
                             (fun promote_include_all_primitives_sharing_boundary_points ->
                               Result.map (fun promote_boundary_attributes ->
                                 Pdk.Group_ops.Promote_boundary {
-                                  Pdk.Ops.promote_boundary_attributes;
+                                  Pdk.Group_ops.promote_boundary_attributes;
                                   promote_boundary_tolerance;
                                   promote_include_unshared_edges;
                                   promote_include_all_unshared_curve_edges;
@@ -5905,7 +5905,7 @@ module Group_promotions = struct
                 (String.lowercase_ascii (String.trim output_as_attribute)))
                 (fun promotion_output_as_attribute ->
                   Result.map (fun promotion_operation -> {
-                    Pdk.Ops.promotion_source; promotion_destination;
+                    Pdk.Group_ops.promotion_source; promotion_destination;
                     promotion_pattern = pattern;
                     promotion_new_name = optional_text new_name;
                     promotion_keep_original; promotion_output_as_attribute;
@@ -5920,7 +5920,7 @@ module Group_promotions = struct
   let rules_parameter = Parameter.encoded ~equal:( = )
       ~encode:(fun rules -> encode_table (List.map encode_rule rules)) ~decode
   let default_rules = [{
-      Pdk.Ops.promotion_source = Pdk.Group_ops.Group_points;
+      Pdk.Group_ops.promotion_source = Pdk.Group_ops.Group_points;
       promotion_destination = Pdk.Group_ops.Group_primitives;
       promotion_pattern = "*"; promotion_new_name = None;
       promotion_keep_original = false;
@@ -6000,7 +6000,7 @@ module Group_delete = struct
         let owner = if owner = "any" || owner = "*" then Ok None
           else Result.map Option.some (group_owner_of_token owner) in
         Result.map (fun delete_owner -> {
-          Pdk.Ops.delete_owner; delete_pattern = pattern }) owner
+          Pdk.Group_ops.delete_owner; delete_pattern = pattern }) owner
     | row -> Error (Printf.sprintf
         "Group Delete rule needs owner and pattern, got %d columns"
         (List.length row))
@@ -6056,7 +6056,7 @@ module Group_rename = struct
           else Result.map Option.some (group_owner_of_token owner) in
         Result.bind owner (fun rename_owner ->
           Result.map (fun rename_conflict -> {
-            Pdk.Ops.rename_owner; rename_pattern = pattern;
+            Pdk.Group_ops.rename_owner; rename_pattern = pattern;
             rename_replacement = replacement; rename_conflict })
             (conflict_of_token conflict))
     | row -> Error (Printf.sprintf
@@ -6197,7 +6197,7 @@ module Group_combine = struct
         Result.bind (group_boolean_of_token
           (String.lowercase_ascii (String.trim operation)))
           (fun operation -> Result.map (fun inverted -> {
-            Pdk.Ops.operation; operand = { pattern; inverted } })
+            Pdk.Group_ops.operation; operand = { pattern; inverted } })
             (bool_of_token
               (String.lowercase_ascii (String.trim inverted))))
     | row -> Error (Printf.sprintf
@@ -6223,7 +6223,7 @@ module Group_combine = struct
     [@@deriving sop_params, sop_node]
   let rec build ~label ~inputs parameters = match inputs with
     | [input] -> Sop.group_combine ~label ~owner:parameters.owner
-        ~name:parameters.name ~base:{ Pdk.Ops.pattern = parameters.base_pattern;
+        ~name:parameters.name ~base:{ Pdk.Group_ops.pattern = parameters.base_pattern;
           inverted = parameters.base_inverted }
         ~steps:parameters.steps input
       |> Node.parameterize ~schema:parameters_schema ~values:parameters
@@ -6397,7 +6397,7 @@ module Group_range = struct
     | Partition -> Pdk.Group_ops.Range_partition {
         partition = parameters.partition; partitions = parameters.partitions }
   let filter parameters = if parameters.use_filter then Some {
-      Pdk.Ops.select = parameters.filter_select; of_ = parameters.filter_of;
+      Pdk.Group_ops.select = parameters.filter_select; of_ = parameters.filter_of;
       offset = parameters.filter_offset } else None
   let connectivity parameters =
     let region = if parameters.use_region then Some parameters.region else None in
@@ -6457,7 +6457,7 @@ module Group_ranges = struct
         "range specification needs 3 columns, got %d" (List.length columns))
   let encode_filter = function
     | None -> ["none"; "0"; "1"; "0"]
-    | Some filter -> ["filter"; string_of_int filter.Pdk.Ops.select;
+    | Some filter -> ["filter"; string_of_int filter.Pdk.Group_ops.select;
         string_of_int filter.of_; string_of_int filter.offset]
   let decode_filter = function
     | [kind; select; of_; offset] ->
@@ -6467,7 +6467,7 @@ module Group_ranges = struct
           let* select = int_of_token select in
           let* of_ = int_of_token of_ in
           let* offset = int_of_token offset in
-          Ok (Some { Pdk.Ops.select; of_; offset })
+          Ok (Some { Pdk.Group_ops.select; of_; offset })
     | columns -> Error (Printf.sprintf
         "range filter needs 4 columns, got %d" (List.length columns))
   let encode_connectivity = function
@@ -6538,7 +6538,7 @@ module Group_ranges = struct
         let* range_filter = decode_filter [f0; f1; f2; f3] in
         let* range_connectivity = decode_connectivity
             [c0; c1; c2; c3; c4; c5; c6; c7; c8] in
-        Ok { Pdk.Ops.range_owner; range_name = name;
+        Ok { Pdk.Group_ops.range_owner; range_name = name;
           range_base = optional_text base; range_invert; range_filter;
           range_connectivity; range_merge; range_specification }
     | row -> Error (Printf.sprintf
