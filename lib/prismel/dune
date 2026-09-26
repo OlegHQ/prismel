@@ -67,13 +67,7 @@
 
 (rule
  (aliases runtest test_core_interface_preservation)
- (deps ../prismel/event.mli ../prismel/input.mli ../prismel/frame.mli
-  ../prismel/time.mli event.mli input.mli frame.mli time.mli)
- (action
-  (run %{exe:test_main.exe} test_core_interface_preservation
-   %{dep:../prismel/event.mli} %{dep:../prismel/input.mli}
-   %{dep:../prismel/frame.mli} %{dep:../prismel/time.mli}
-   %{dep:event.mli} %{dep:input.mli} %{dep:frame.mli} %{dep:time.mli})))
+ (action (run %{exe:test_main.exe} test_core_interface_preservation)))
 
 (rule
  (aliases runtest test_resource_interface_preservation)
