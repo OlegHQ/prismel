@@ -221,6 +221,37 @@ module Doc = struct
         document, graph_view, error, effects
 end
 
+(* Effect- and dependency-aware cook scheduler. It fires initially, after a
+   committed cook parameter change, after [force], and whenever the sketch
+   clock changed and any reachable node declares [Time] or [Frame]. While a
+   primary-pointer edit is held, only the latest desired cook is retained. *)
+module Schedule = struct
+  type t = {
+    initialized : bool;
+    dirty : bool;
+    graph : Graph.t option;
+    dependencies : Context.Dependencies.t;
+  }
+
+  let initial = { initialized = false; dirty = false;
+    graph = None; dependencies = Context.Dependencies.static }
+
+  let step value ~graph ~effects ~context_changed ~force ~busy ~frame =
+    let dirty = value.dirty || effects.Parameter.cook || force in
+    let dependencies = match value.graph with
+      | Some previous when previous == graph -> value.dependencies
+      | None | Some _ -> Graph.dependencies graph in
+    let dynamic = context_changed
+        && (Context.Dependencies.mem Context.Dependencies.Time dependencies
+            || Context.Dependencies.mem Context.Dependencies.Frame dependencies) in
+    let held = Frame.mouse_down Input.LeftButton frame in
+    let desired = not value.initialized || dirty || dynamic in
+    let urgent = not value.initialized || effects.Parameter.cook || force in
+    let fire = not held && desired && (not busy || urgent) in
+    { initialized = value.initialized || fire;
+      dirty = desired && not fire; graph = Some graph; dependencies }, fire
+end
+
 module Cook = struct
   type bounds = Vec3.t * Vec3.t
 
@@ -229,8 +260,11 @@ module Cook = struct
     | Framed of bounds option
 
   type 'prepared t = {
-    worker : 'prepared cooked Sketch_support.Reactive_sop.t;
-    schedule : Sketch_support.Reactive_sop.schedule;
+    worker : 'prepared cooked Async_cook.t;
+    seed : int64;
+    grain : int;
+    domains : int;
+    schedule : Schedule.t;
     prepare : Session.output -> ('prepared, string) result;
     prepared : 'prepared option;
     error : string option;
@@ -268,14 +302,22 @@ module Cook = struct
     end
 
   let create ~prepare ~seed ~grain ?domains ~max_entries ~max_payload_bytes () =
+    if grain <= 0 then invalid_arg "Sketch_ui: grain must be positive";
+    let domains = Option.value ~default:
+        (max 1 (Parallel.recommended_domains () - 1)) domains in
+    if domains <= 0 then invalid_arg "Sketch_ui: domains must be positive";
     Result.map (fun worker ->
-      { worker; prepare; schedule = Sketch_support.Reactive_sop.schedule_initial;
+      { worker; seed; grain; domains; prepare; schedule = Schedule.initial;
         prepared = None; error = None; seconds = None; displayed_bounds = None;
         framing = None; force = false; compiled = None })
-      (Sketch_support.Reactive_sop.create ~seed ~grain ?domains ~max_entries
-        ~max_payload_bytes ())
+      (Async_cook.create ~max_entries ~max_payload_bytes)
 
-  let status value = Sketch_support.Reactive_sop.status value.worker
+  let status value = Async_cook.status value.worker
+
+  let submit_cook value ~timeline ~node ~prepare =
+    Result.bind (Sketch_support.Timeline.context ~seed:value.seed ~grain:value.grain
+        ~domains:value.domains timeline) (fun context ->
+      Async_cook.submit value.worker ~context ~node ~prepare)
   let busy value = match status value with
     | Async_cook.Idle -> false | Cooking _ -> true
   let force value = { value with force = true }
@@ -298,7 +340,7 @@ module Cook = struct
       else match Edit_graph.compiled_node compiled ~node_id:displayed_id with
       | Ok graph -> graph, edit_error
       | Error message -> displayed_graph, Some message in
-    let completion = Sketch_support.Reactive_sop.poll value.worker in
+    let completion = Async_cook.poll value.worker in
     let resume = value.framing = Some true in
     let prepared, error, seconds, prepared_changed, displayed_bounds,
         framed, framing, force_next = match completion with
@@ -314,9 +356,9 @@ module Cook = struct
           value.displayed_bounds, Some None, None, resume
       | Some { result = Error error; seconds; _ } ->
           value.prepared,
-          Some (Sketch_support.Reactive_sop.error_to_string error),
+          Some (Async_cook.error_to_string error),
           Some seconds, false, value.displayed_bounds, None, None, false in
-    let schedule, submit = Sketch_support.Reactive_sop.schedule value.schedule
+    let schedule, submit = Schedule.step value.schedule
         ~graph:displayed_graph ~effects
         ~context_changed:(Sketch_support.Timeline.changed_context timeline_changes)
         ~force:(display_changed || value.force)
@@ -325,7 +367,7 @@ module Cook = struct
       Displayed (prepared, geometry_bounds output.Session.geometry))
       (value.prepare output) in
     let error, framing = if submit then match
-        Sketch_support.Reactive_sop.submit_timeline value.worker
+        submit_cook value
           ~timeline ~node:displayed_graph ~prepare:prepare_display with
       | Ok _ -> None, None
       | Error message -> Some message, None
@@ -339,7 +381,7 @@ module Cook = struct
            | Error _ -> Some None, framing
            | Ok node ->
                let was_busy = busy value && framing = None in
-               match Sketch_support.Reactive_sop.submit_timeline value.worker
+               match submit_cook value
                    ~timeline ~node ~prepare:(fun output ->
                      Ok (Framed (geometry_bounds output.Session.geometry))) with
                | Ok _ -> framed, Some (was_busy || Option.value ~default:false framing)
@@ -349,7 +391,7 @@ module Cook = struct
       displayed_graph; edit_error;
       prepared_changed; framed }
 
-  let close value = Sketch_support.Reactive_sop.close value.worker
+  let close value = Async_cook.close value.worker
 end
 
 module Core = struct
@@ -1359,4 +1401,6 @@ module Environment2 = struct
       ~draw:scene2 ?overlay ()
 end
 
-module Private = struct module Workspace = Workspace module Leader = Leader end
+module Private = struct
+  module Workspace = Workspace module Leader = Leader module Schedule = Schedule
+end

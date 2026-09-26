@@ -90,6 +90,19 @@ module Private : sig
       (default [~/.prismel/<name>]): [Space s] saves the full document under a
       typed name (prefilled with the time), [Space b] searches, loads (Enter, one
       undo entry), and deletes (Delete twice) them. See {!Preset}. *)
+
+  (** Effect- and dependency-aware cook scheduler. It fires initially, after a
+      committed cook parameter change, after [force], and whenever the sketch
+      clock changed and any reachable node declares [Time] or [Frame]. While a
+      primary-pointer edit is held, only the latest desired cook is retained. *)
+  module Schedule : sig
+    type t
+    val initial : t
+    val step :
+      t -> graph:Procedural.Graph.t -> effects:Procedural.Parameter.effects ->
+      context_changed:bool -> force:bool -> busy:bool -> frame:Prismel.Frame.t ->
+      t * bool
+  end
 end
 
 module Environment3 : sig

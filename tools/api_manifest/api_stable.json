@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 142,
+  "module_count": 141,
   "modules": [
     {
       "api_sha256": "42991257be662e316b18b78776fd2c91d5990ebf5a3b561d4d38b32d1d9db961",
@@ -1232,15 +1232,6 @@
       "source_sha256": "bf79b84d81264a518b553508aaef6f67ddf43c4aabe6673edc2ba665c5fa2b16"
     },
     {
-      "api_sha256": "a3a5d6c90f6c94236c2b84ba77d494f19713b26e05249a546829116145280fc9",
-      "excluded_legacy_symbols": [],
-      "library": "sketch_support",
-      "module": "Reactive_sop",
-      "source": "lib/sketch_support/reactive_sop.mli",
-      "source_bytes": 1366,
-      "source_sha256": "c9568360140f1994ce944ad1d85895219220015b84a3ae68eab676956467eccf"
-    },
-    {
       "api_sha256": "26b08b2a9a1ddde3cdb8051acafa0b4b45f8a79310bd32d0b383e2b177afd16d",
       "excluded_legacy_symbols": [],
       "library": "sketch_support",
@@ -1259,13 +1250,13 @@
       "source_sha256": "412d0c7639dee55ba5e35d7b650522d013ba654fe8b8d1840be824a20b7e0640"
     },
     {
-      "api_sha256": "a369812b808ce1800cfebb28945e278d33ae59daaea58eada3fffdec06f0127b",
+      "api_sha256": "a831e00024fee7533030a32c638df59fda3fe52fbed67f49c0954468d9e7c406",
       "excluded_legacy_symbols": [],
       "library": "sketch_ui",
       "module": "Sketch_ui",
       "source": "lib/sketch_ui/sketch_ui.mli",
-      "source_bytes": 10681,
-      "source_sha256": "deafca52e1b42de000efc21ed722f8421ab5dcb51282144cce8572317b8a5fbb"
+      "source_bytes": 11251,
+      "source_sha256": "f29bdb84be7a362aabd38a53d483947dd4a778028583bd34f1ad075f8830d944"
     },
     {
       "api_sha256": "d76f435c7c7a7b6b7b1f445991998e7be47af7e55540e52b4de6e42ac60e3c1c",
