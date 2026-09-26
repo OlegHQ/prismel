@@ -32,6 +32,7 @@ type 'panel frame_result = {
   grab : bool;  (* a viewport handle holds the pointer *)
   settings : Settings.t;
   touched : bool;  (* a graph intent changed layout, display, or flag *)
+  placed : int list;  (* tiles this frame placed, moved, or deleted *)
   label : string;  (* names this frame's document change in history *)
 }
 
@@ -286,9 +287,9 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     let frame_request = List.fold_left (fun request -> function
       | Pxui_graph.Frame_camera_requested id -> Some id
       | _ -> request) initial_frame_request graph_changes in
-    let document, graph_view, edit_error, editor_effects = List.fold_left
+    let document, graph_view, edit_error, editor_effects, placed = List.fold_left
         (Doc.apply value.factories)
-        (value.document, graph_view, value.edit_error, Parameter.no_effects)
+        (value.document, graph_view, value.edit_error, Parameter.no_effects, [])
         graph_changes in
     let inspector_visible = not (Workspace.collapsed workspace Workspace.Inspector) in
     let selected = Option.bind (Pxui_graph.selected graph_view)
@@ -374,7 +375,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
       effects = Parameter.union_effects editor_effects
           (Parameter.union_effects parameter_effects handle_effects);
       timeline_intents; frame_request; prompt = None; prompt_intent = None;
-      panel; grab; settings; touched;
+      panel; grab; settings; touched; placed;
       label = (match List.find_map intent_label graph_changes with
         | Some label -> label
         | None when settings != unchanged -> "Settings"
@@ -451,7 +452,7 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
         effects = Parameter.no_effects; timeline_intents = [];
         frame_request = initial_frame_request; prompt = initial_prompt;
         prompt_intent = None; panel = None; grab = false;
-        settings = value.settings; touched = false; label = "Edit" } in
+        settings = value.settings; touched = false; placed = []; label = "Edit" } in
   let timeline, timeline_changes = List.fold_left (fun (timeline, changes) intent ->
     let next, emitted = match intent with
       | Pause_toggle -> Sketch_support.Timeline.toggle_pause timeline
@@ -488,10 +489,8 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
   let document, graph_view, edit_error, settings = match loaded with
     | None -> result.document, result.graph_view, result.edit_error, result.settings
     | Some (preset : Preset.loaded) ->
-        let graph_view = List.fold_left (fun view (node_id, x, y) ->
-            Pxui_graph.place_node ~node_id ~x ~y view)
-          (Pxui_graph.with_document preset.document graph_view |> Pxui_graph.clear_selection)
-          preset.positions in
+        let graph_view = Pxui_graph.with_document preset.document graph_view
+          |> Pxui_graph.clear_selection |> Pxui_graph.place_nodes preset.positions in
         let graph_view = match preset.display with
           | Some id -> Pxui_graph.view id graph_view | None -> graph_view in
         let settings, error = match Settings.apply result.settings preset.settings with
@@ -501,18 +500,21 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
         Pxui_graph.with_flagged preset.active_camera graph_view, error, settings in
   (* Shared undo stack: every document change (graph edits, node creation,
      paste, inspector commits) becomes one history entry; Command/Ctrl-Z
-     undoes, Shift-Command/Ctrl-Z or Ctrl-Y redoes. *)
-  (* ponytail: layout is snapshot whole (O(nodes)) on frames whose graph
-     intents or edits changed the document; per-node deltas if graphs grow
-     past a few thousand tiles. *)
+     undoes, Shift-Command/Ctrl-Z or Ctrl-Y redoes. An edit frame re-reads
+     only the tiles it placed; a preset load or automatic layout moves every
+     tile and takes a whole snapshot. *)
   let present = Editor_core.History.present value.history in
-  let next = if document == present.graph && settings == present.settings
-      && not result.touched && Option.is_none loaded then present
-    else Document.of_view document graph_view settings in
+  let laid_out = List.mem Leader.Layout actions in
+  let next = if Option.is_some loaded || laid_out
+    then Document.of_view document graph_view settings
+    else if document == present.graph && settings == present.settings
+      && not result.touched then present
+    else Document.edit present document graph_view settings result.placed in
   let dragging = Frame.mouse_down Input.LeftButton frame in
   let history = if next == present then value.history
     else Editor_core.History.record
-        ~label:(if Option.is_some loaded then "Load preset" else result.label)
+        ~label:(if Option.is_some loaded then "Load preset"
+          else if laid_out then "Layout" else result.label)
         ~merge:(if dragging then Gesture 0 else Step) next value.history in
   let ended_gesture = Frame.has_event (function
     | Event.MouseReleased (Input.LeftButton, _) | Event.WindowFocusLost -> true

@@ -196,3 +196,8 @@
  (modules boolean_stress)
  (libraries prismel pdk unix))
 
+
+(executable
+ (name bench_prismel_editor)
+ (modules bench_prismel_editor)
+ (libraries prismel procedural pxui_graph prismel_editor unix))

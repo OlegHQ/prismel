@@ -21,7 +21,9 @@
   as `~flaggable`.
 - One immutable `Document` (graph, tile layout, display node, active camera,
   sketch `Settings`) is the only thing `Editor_core.History` (128 entries)
-  snapshots. Graph intents go through `Doc.apply`; each recorded entry has a
+  snapshots. Its tile layout is an int-keyed map updated per frame from the
+  ids `Doc.apply` reports placed, moved, or deleted (`Document.edit`); never
+  walk every tile on an edit frame. Graph intents go through `Doc.apply`; each recorded entry has a
   label (`intent_label`), shown as "Undo <label>". Selection, hover, and an
   unlinked viewport camera are view state; a camera node that follows the
   viewport records camera moves as one `Burst` entry. Cooking and framing

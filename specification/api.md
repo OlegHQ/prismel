@@ -658,7 +658,9 @@ One immutable document holds everything a user edits and saves: the SOP graph,
 tile positions, the display node, the active camera, and sketch `Settings`
 (a typed `Editor_core.Param` record passed as `?settings`). History (128
 entries) snapshots that document, so moving a tile or switching a renderer is
-one undo step. Settings show in the unselected inspector, are saved in
+one undo step. Tile positions are an int-keyed persistent map: an edit frame
+updates only the tiles it moved, added, or deleted, and only a preset load or
+automatic layout (itself one "Layout" step) re-reads every tile. Settings show in the unselected inspector, are saved in
 presets, and reach `prepare settings output`; `set_settings` changes them
 from code. The viewport camera enters history only while a camera node
 follows it.
