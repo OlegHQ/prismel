@@ -137,13 +137,12 @@ type renderer = Path_traced | Raster | Wireframe
 let initial_renderer = match Sys.getenv_opt "PRISMEL_VOXEL_RENDERER" with
   | Some "raster" -> Raster | Some "wireframe" -> Wireframe
   | _ -> Path_traced
-let renderer_ref = Atomic.make initial_renderer
 let switch_to = match Sys.getenv_opt "PRISMEL_VOXEL_SWITCH" with
   | Some "raster" -> Some Raster | Some "wireframe" -> Some Wireframe
   | Some "path" -> Some Path_traced | _ -> None
 
-type prepared = { traced : P.mesh option; raster : Scene3.node option; wire : Scene3.node option;
-  triangles : int; instances : int }
+type prepared = { mode : renderer; traced : P.mesh option; raster : Scene3.node option;
+  wire : Scene3.node option; triangles : int; instances : int }
 
 let wire_mesh geometry =
   let topology = Pdk.Geometry.topology geometry in
@@ -197,8 +196,7 @@ let split_packed geometry =
          | Ok prototype -> Some (prototype, transforms)
          | Error _ -> None)
 
-let prepare (output : Session.output) =
-  let mode = Atomic.get renderer_ref in
+let prepare mode (output : Session.output) =
   let packed = split_packed output.geometry in
   let geometry, instances = match packed with
     | Some (prototype, transforms) -> prototype, Array.length transforms
@@ -210,7 +208,7 @@ let prepare (output : Session.output) =
   done;
   let triangles = !triangles * max 1 instances in
   let finish ?traced ?raster ?wire () =
-    Ok { traced; raster; wire; triangles; instances } in
+    Ok { mode; traced; raster; wire; triangles; instances } in
   match mode with
   | Path_traced ->
       let geometry = match packed with
@@ -249,12 +247,11 @@ let orbit = Sys.getenv_opt "PRISMEL_PATHTRACER_ORBIT" = Some "1"
 let started = Unix.gettimeofday ()
 let image_size = (560, 800)
 
+(* [renderer] is the choice; [cook_mode] carries it to [prepare], which the
+   environment may run off the model's domain. *)
 type model =
-  { env : prepared Sketch_ui.Environment3.t; tracer : P.t; shown : prepared option; renderer : renderer }
-
-(* Shared with the environment's overlay/scene3 closures, which are created
-   before the model exists. *)
-let tracer_ref : P.t option ref = ref None
+  { env : prepared Sketch_ui.Environment3.t; tracer : P.t; shown : prepared option;
+    renderer : renderer; cook_mode : renderer Atomic.t }
 
 let raster_lights =
   [ Light.directional ~direction:(v 0.6 (-0.7) (-0.55)) ~diffuse:(Color.rgb 255 250 240)
@@ -262,23 +259,22 @@ let raster_lights =
   ; Light.directional ~direction:(v (-0.7) 0.3 (-0.6)) ~diffuse:(Color.rgb 90 95 110) ~intensity:0.4 () ]
 
 let scene3 _graph prepared =
-  match Atomic.get renderer_ref with
+  match prepared.mode with
   | Path_traced -> Scene3.create []
   | Raster -> Scene3.create ~lights:raster_lights (Option.to_list prepared.raster)
   | Wireframe -> Scene3.create (Option.to_list prepared.wire)
 
-let overlay _graph prepared (frame : Frame.t) =
+let overlay tracer _graph prepared (frame : Frame.t) =
   let status = match prepared with
     | None -> "cooking"
     | Some p -> Printf.sprintf "%s  %d triangles%s%s"
-        (match Atomic.get renderer_ref with Path_traced -> "path traced" | Raster -> "raster"
+        (match p.mode with Path_traced -> "path traced" | Raster -> "raster"
           | Wireframe -> "wireframe") p.triangles
         (if p.instances > 0 then Printf.sprintf "  %d instances" p.instances else "")
-        (match !tracer_ref with
-         | Some tracer when Atomic.get renderer_ref = Path_traced -> Printf.sprintf "  %d spp" (P.samples tracer)
-         | _ -> "") in
-  let picture = match !tracer_ref with
-    | Some tracer when Atomic.get renderer_ref = Path_traced ->
+        (if p.mode = Path_traced then Printf.sprintf "  %d spp" (P.samples tracer)
+         else "") in
+  let picture = match prepared with
+    | Some { mode = Path_traced; _ } ->
         let iw, ih = P.size tracer in
         let fit = Float.min (float frame.width /. float iw) (float frame.height /. float ih) in
         let w = int_of_float (float iw *. fit) and h = int_of_float (float ih *. fit) in
@@ -298,16 +294,17 @@ let init _frame =
           [ P.rect_light ~intensity:9. ~size:(24., 24.) ~target:(v 0. 0. 0.) (v (-34.) 40. 30.)
           ; P.rect_light ~intensity:1.2 ~size:(30., 30.) ~target:(v 0. 0. 0.) (v 30. (-10.) 26.) ] }
     with Ok tracer -> tracer | Error message -> failwith message in
-  tracer_ref := Some tracer;
+  let cook_mode = Atomic.make initial_renderer in
   let env =
     match Sketch_ui.Environment3.create ~name:"voxel_wall"
       ~camera:(Easy_camera.create ~target:(v 0. 0. 1.) ~distance:19. ~azimuth:(-0.22)
         ~elevation:0.08 ~fov_y:0.7 ~inertia:false ())
       ~background:(Color.rgb 8 8 10) ~seed:7L ~grain:2 ~max_entries:24
       ~max_payload_bytes:(256 * 1024 * 1024) ~factories:Sop_catalog.Editor.factories
-      ~graph:(graph ()) ~prepare ~scene3 ~overlay ()
+      ~graph:(graph ()) ~prepare:(fun output -> prepare (Atomic.get cook_mode) output)
+      ~scene3 ~overlay:(overlay tracer) ()
     with Ok env -> env | Error message -> failwith message in
-  { env; tracer; shown = None; renderer = initial_renderer }
+  { env; tracer; shown = None; renderer = initial_renderer; cook_mode }
 
 let update m (frame : Frame.t) =
   let renderers = [ Path_traced; Raster; Wireframe ] in
@@ -320,7 +317,7 @@ let update m (frame : Frame.t) =
     | Some target when frames > 0 && frame.count = frames / 2 -> target
     | _ -> renderer in
   let env = if renderer <> m.renderer then begin
-      Atomic.set renderer_ref renderer; Sketch_ui.Environment3.rerender env end else env in
+      Atomic.set m.cook_mode renderer; Sketch_ui.Environment3.rerender env end else env in
   let shown = match Sketch_ui.Environment3.prepared env with
     | Some prepared when (match m.shown with Some previous -> previous != prepared | None -> true) ->
         Option.iter (fun traced -> match P.queue_mesh m.tracer traced with
@@ -350,7 +347,7 @@ let update m (frame : Frame.t) =
       ((Unix.gettimeofday () -. started) *. 1000. /. float frames);
     Sketch.quit ()
   end;
-  { env; tracer = m.tracer; shown; renderer }
+  { m with env; shown; renderer }
 
 let view m (frame : Frame.t) = Sketch_ui.Environment3.scene m.env frame
 
