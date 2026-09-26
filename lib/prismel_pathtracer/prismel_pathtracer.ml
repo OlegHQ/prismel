@@ -1103,13 +1103,13 @@ let image t = t.image
 
 let pixels t =
   match Runtime_resources.Image.Private.gpu_snapshot t.resource with
-  | None -> t.pixels
+  | None -> Ok t.pixels
   | Some _ -> (
       match Runtime_resources.Image.pixels t.resource with
       | Ok pixels ->
           t.pixels <- pixels;
-          pixels
-      | Error error -> failwith (Format.asprintf "%a" Runtime_resources.pp_error error))
+          Ok pixels
+      | Error error -> Error (Format.asprintf "%a" Runtime_resources.pp_error error))
 
 (* Publishes a completed frame's pixels unless a reset made them obsolete. *)
 let publish t (pending : pending) =

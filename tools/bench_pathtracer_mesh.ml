@@ -65,7 +65,7 @@ let () =
       done;
       Printf.printf "%s  %.1f ms/frame  %d spp\n%!" name
         ((Unix.gettimeofday () -. start) *. 1000. /. 64.) (P.samples tracer);
-      Bytes.copy (P.pixels tracer) in
+      Bytes.copy (Result.get_ok (P.pixels tracer)) in
     let instanced = run "instance structure" mesh in
     let flat_objects = Array.to_list (Array.map (fun matrix ->
       Pdk.Transform_ops.transform matrix cube, material) transforms) in

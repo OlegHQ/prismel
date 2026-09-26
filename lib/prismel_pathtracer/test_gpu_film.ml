@@ -17,7 +17,7 @@ let run () =
     ~target:(Prismel.Vec3.create 0. 0. 0.) ()in
   let reference=let tracer=get(P.create ~width:48 ~height:32 scene)in
     Fun.protect ~finally:(fun()->P.destroy tracer)(fun()->
-      get(P.render tracer camera);get(P.flush tracer);Bytes.copy(P.pixels tracer))in
+      get(P.render tracer camera);get(P.flush tracer);Bytes.copy(get (P.pixels tracer)))in
   let config={Prismel_execution.default_configuration with
     logical_width=48;logical_height=32;drawable_width=48;drawable_height=32;
     title="GPU film test"} in
@@ -38,7 +38,7 @@ let run () =
           |None->failwith"traced film was published through CPU image storage"in
         let direct=match Ogpu.Backend.read_texture texture ~bytes_per_row:(48*4)with
           |Ok bytes->bytes|Error error->failwith(Ogpu.Error.to_string error)in
-        assert(Bytes.equal direct(P.pixels tracer));
+        assert(Bytes.equal direct(get (P.pixels tracer)));
         assert(Bytes.equal reference direct);
         let canvas=match Prismel.Canvas.create ~width:48 ~height:32 with
           |Ok canvas->canvas|Error error->failwith error in

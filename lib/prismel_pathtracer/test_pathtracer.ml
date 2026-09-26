@@ -38,7 +38,7 @@ let run () =
       (match P.render tracer unsupported with Error _ -> ()
        | Ok () -> failwith "orthographic path-tracer camera was accepted");
       assert (P.samples tracer = 0);
-      let run () = P.reset tracer; get (P.render tracer camera); get (P.flush tracer); get (P.render tracer camera); get (P.flush tracer); Bytes.copy (P.pixels tracer) in
+      let run () = P.reset tracer; get (P.render tracer camera); get (P.flush tracer); get (P.render tracer camera); get (P.flush tracer); Bytes.copy (get (P.pixels tracer)) in
       let first = run () and second = run () in
       if exact_m1 then
         assert (Digest.to_hex (Digest.bytes first) =
@@ -53,7 +53,7 @@ let run () =
         (Prismel.Vec3.create 0.4 2. 6.) camera in
       get (P.render tracer moved); get (P.flush tracer);
       assert (P.samples tracer = 0);
-      let preview = Bytes.copy (P.pixels tracer) in
+      let preview = Bytes.copy (get (P.pixels tracer)) in
       let varying_block = ref false in
       for y = 0 to 15 do
         for x = 0 to 23 do
@@ -68,13 +68,13 @@ let run () =
       get (P.render tracer camera); get (P.flush tracer);
       P.reset tracer;
       get (P.render tracer moved); get (P.flush tracer);
-      assert (not (Bytes.equal preview (P.pixels tracer)));
+      assert (not (Bytes.equal preview (get (P.pixels tracer))));
       let motion_run () =
         P.reset tracer;
         get (P.render tracer camera); get (P.flush tracer);
         get (P.render tracer camera); get (P.flush tracer);
         get (P.render tracer moved); get (P.flush tracer);
-        Bytes.copy (P.pixels tracer) in
+        Bytes.copy (get (P.pixels tracer)) in
       assert (Bytes.equal (motion_run ()) (motion_run ()));
       get (P.render tracer moved); get (P.flush tracer);
       assert (P.samples tracer = 2);
@@ -86,7 +86,7 @@ let run () =
       get (P.replace_mesh tracer instanced);
       get (P.render tracer camera); get (P.flush tracer);
       get (P.render tracer camera); get (P.flush tracer);
-      let instanced_pixels = Bytes.copy (P.pixels tracer) in
+      let instanced_pixels = Bytes.copy (get (P.pixels tracer)) in
       if exact_m1 then
         assert (Digest.to_hex (Digest.bytes instanced_pixels) =
           "8aaf15f3d0b2f4b16e46342612ca8328");
@@ -96,15 +96,15 @@ let run () =
       let largest_difference = ref 0 in
       Bytes.iteri (fun i value ->
         largest_difference := max !largest_difference
-          (abs (Char.code value - Char.code (Bytes.get instanced_pixels i)))) (P.pixels tracer);
+          (abs (Char.code value - Char.code (Bytes.get instanced_pixels i)))) (get (P.pixels tracer));
       assert (!largest_difference <= 2);
-      let expected = Bytes.copy (P.pixels tracer) in
+      let expected = Bytes.copy (get (P.pixels tracer)) in
       get (P.queue_mesh tracer instanced);
       get (P.queue_mesh tracer (get (P.mesh [transformed, P.material (rgb 0.7 0.5 0.3)])));
       get (P.flush tracer);
       assert (P.samples tracer = 0);
       get (P.render tracer camera); get (P.flush tracer);
-      assert (Bytes.equal expected (P.pixels tracer));
+      assert (Bytes.equal expected (get (P.pixels tracer)));
       let stable_handles = ref None in
       for index = 1 to 10 do
         let matrix = Prismel.Mat4.mul
@@ -132,7 +132,7 @@ let run () =
         for _ = 1 to 16 do get (P.render tracer camera); get (P.flush tracer) done;
         get (P.flush tracer);
         let sum = ref 0 in
-        Bytes.iteri (fun i c -> if i mod 4 = 0 then sum := !sum + Char.code c) (P.pixels tracer);
+        Bytes.iteri (fun i c -> if i mod 4 = 0 then sum := !sum + Char.code c) (get (P.pixels tracer));
         P.destroy tracer;
         float !sum /. 1024. in
       let plain = furnace [] in
@@ -154,7 +154,7 @@ let run () =
         for _ = 1 to 16 do get (P.render tracer camera); get (P.flush tracer) done;
         get (P.flush tracer);
         let sum = ref 0 in
-        Bytes.iteri (fun i c -> if i mod 4 = 0 then sum := !sum + Char.code c) (P.pixels tracer);
+        Bytes.iteri (fun i c -> if i mod 4 = 0 then sum := !sum + Char.code c) (get (P.pixels tracer));
         P.destroy tracer;
         float !sum /. 1024. in
       Printf.printf "pathtracer: sphere furnace mean %.1f (expected 224)\n" sphere_furnace;
@@ -179,7 +179,7 @@ let run () =
         P.reset tracer;
         get (P.render tracer camera); get (P.flush tracer);
         get (P.render tracer camera); get (P.flush tracer);
-        Bytes.copy (P.pixels tracer) in
+        Bytes.copy (get (P.pixels tracer)) in
       let static_mesh = get (P.mesh_instanced ~prototype:(sphere, P.material (rgb 0.5 0.5 0.5))
         ~materials:[| red; green |] [| place (-2.); place 2. |]) in
       get (P.replace_mesh tracer static_mesh);

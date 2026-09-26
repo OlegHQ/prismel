@@ -140,7 +140,8 @@ val image : t -> Prismel.Image.t
 (** Borrowed; destroyed by [destroy]. In a native Sketch, Scene samples its
     completed GPU film directly. *)
 
-val pixels : t -> bytes
-(** Last resolved RGBA8 frame, row-major. Explicit readback for GPU film. *)
+val pixels : t -> (bytes, string) result
+(** Last resolved RGBA8 frame, row-major. Explicit readback for GPU film;
+    a failed readback is an [Error]. *)
 
 val destroy : t -> unit
