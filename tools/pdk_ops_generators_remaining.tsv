@@ -1,0 +1,17 @@
+# Residual qualified Ops generator paths; parametric torus/tube/platonic entries
+# already live in pdk_ops_parametric.tsv and should be reused.
+Ops.circle_arc	Plane_generators.circle_arc
+Ops.circle_orientation	Plane_generators.circle_orientation
+Ops.Circle_*	Plane_generators.Circle_
+Ops.circle	Plane_generators.circle_checked
+Ops.box_connectivity	Box_generator.box_connectivity
+Ops.box_normals	Box_generator.box_normals
+Ops.box_rotation_order	Box_generator.box_rotation_order
+Ops.Box_*	Box_generator.Box_
+Ops.box	Box_generator.box_checked
+Ops.sphere_connectivity	Uv_sphere.sphere_connectivity
+Ops.sphere_normals	Uv_sphere.sphere_normals
+Ops.sphere_orientation	Uv_sphere.sphere_orientation
+Ops.sphere_rotation_order	Uv_sphere.sphere_rotation_order
+Ops.Sphere_*	Uv_sphere.Sphere_
+Ops.uv_sphere	Uv_sphere.run_checked
