@@ -1,0 +1,20 @@
+# Former qualified Ops path<TAB>checked family path; * means constructor prefix.
+Ops.smooth_boundary	Smooth.boundary
+Ops.Smooth_*	Smooth.Smooth_
+Ops.smooth	Smooth.run
+Ops.reverse_operation	Reverse_ops.operation
+Ops.Reverse_vertices	Reverse_ops.Reverse_vertices
+Ops.Shift_vertices	Reverse_ops.Shift_vertices
+Ops.reverse	Reverse_ops.run_checked
+Ops.edge_transport_roots	Edge_transport_ops.roots
+Ops.edge_transport_operation	Edge_transport_ops.operation
+Ops.edge_transport_root_value	Edge_transport_ops.root_value
+Ops.edge_transport_split	Edge_transport_ops.split
+Ops.edge_transport_normalization	Edge_transport_ops.normalization
+Ops.edge_transport_direction	Edge_transport_ops.direction
+Ops.edge_transport_merge	Edge_transport_ops.merge
+Ops.Transport_*	Edge_transport_ops.Transport_
+Ops.Transport	Edge_transport_ops.Transport
+Ops.edge_transport_curves	Edge_transport_ops.run_curves_checked
+Ops.edge_transport_parent	Edge_transport_ops.run_parent_checked
+Ops.edge_transport	Edge_transport_ops.run_checked
