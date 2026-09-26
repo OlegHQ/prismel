@@ -35,6 +35,10 @@
  (action (run %{exe:test_main.exe} test_prismel_editor)))
 
 (rule
+ (aliases runtest test_prismel_editor_logic)
+ (action (run %{exe:test_main.exe} test_prismel_editor_logic)))
+
+(rule
  (aliases runtest test_sop_catalog)
  (action (run %{exe:test_main.exe} test_sop_catalog)))
 

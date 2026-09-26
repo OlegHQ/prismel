@@ -22,8 +22,13 @@ let frame ?(width = 900) ?(height = 640) ?mouse ?(events = []) count : Frame.t =
 let width (_, _, width, _) = width
 let center (x, y, width, height) = x + (width / 2), y + (height / 2)
 
+(* False in the window-free [runtest] pass: the editor logic runs, and only
+   checks that stage through Metal or open a window are skipped. *)
+let native = ref true
+
 (* The packed PXUI instances of a composed scene, for exact comparisons. *)
 let ui_bytes scene =
+  if not !native then "" else
   match Scene.Private.stage_native_render ~width:900 ~height:640 scene with
   | Error message -> fail message
   | Ok staged -> String.concat "" (List.filter_map (function
@@ -125,7 +130,7 @@ let run () =
   let fps_before_deadline=status environment(at 1_030 120.)in
   let environment=Prismel_editor.Editor3.update environment(at 1_061 120.)in
   let fps_after_deadline=status environment(at 1_061 120.)in
-  check(fps_before_deadline=fps_initial&&fps_after_deadline<>fps_initial)
+  if !native then check(fps_before_deadline=fps_initial&&fps_after_deadline<>fps_initial)
     "FPS status text ignored its one-second sampling deadline";
   check (Prismel_editor.Editor3.selected_node environment = None)
     "camera/render controls should own an unselected inspector";
@@ -151,7 +156,7 @@ let run () =
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[mouse_move (10, 100)] 13) in
   let expanded_scene = ui_bytes (Prismel_editor.Editor3.scene environment (frame 13)) in
-  check (expanded_scene <> collapsed_scene)
+  if !native then check (expanded_scene <> collapsed_scene)
     "workspace camera accordion lost its armed press before the release frame";
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[mouse_press (Input.LeftButton, camera_header)] 14) in
@@ -166,7 +171,8 @@ let run () =
       (frame ~events:[mouse_release (Input.LeftButton, render_header)] 18) in
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[mouse_move (10, 100)] 19) in
-  check (ui_bytes (Prismel_editor.Editor3.scene environment (frame 19)) <> collapsed_scene)
+  if !native then
+    check (ui_bytes (Prismel_editor.Editor3.scene environment (frame 19)) <> collapsed_scene)
     "workspace render accordion lost its armed press before the release frame";
   let environment = Prismel_editor.Editor3.update environment
       (frame ~events:[Event.KeyPressed Input.Space;
@@ -265,15 +271,17 @@ let run () =
   check (Prismel_editor.Editor3.scene environment current_frame <> [])
     "sketch environment produced an empty composed scene";
   (* The whole workspace paints in batch groups, not one draw per label. *)
-  let batches = match Scene.Private.stage_native_render ~width:900 ~height:640
-      (Prismel_editor.Editor3.scene environment current_frame) with
-    | Ok staged -> List.fold_left (fun total -> function
-        | Scene.Private.Ui_layer (batch, _) ->
-            total + Array.length (Scene_command.Ui_batch.batches batch)
-        | _ -> total) 0 staged.layers
-    | Error message -> fail message in
-  Printf.printf "workspace UI batches: %d\n" batches;
-  check (batches > 0 && batches <= 16) "workspace UI draws were not batched";
+  if !native then begin
+    let batches = match Scene.Private.stage_native_render ~width:900 ~height:640
+        (Prismel_editor.Editor3.scene environment current_frame) with
+      | Ok staged -> List.fold_left (fun total -> function
+          | Scene.Private.Ui_layer (batch, _) ->
+              total + Array.length (Scene_command.Ui_batch.batches batch)
+          | _ -> total) 0 staged.layers
+      | Error message -> fail message in
+    Printf.printf "workspace UI batches: %d\n" batches;
+    check (batches > 0 && batches <= 16) "workspace UI draws were not batched"
+  end;
   let _, _, graph_width, graph_height =
     (Prismel_editor.Editor3.panes environment (frame 29)).graph in
   let graph_x, graph_y, _, _ =
@@ -739,6 +747,7 @@ let run () =
   let views = [| Prismel_editor.Editor3.scene environment;
     direct (Prismel_editor.Editor3.render_camera environment);
     direct (Easy_camera.camera (Prismel_editor.Editor3.camera environment)) |] in
+  if !native then begin
   let directory = Filename.temp_dir "sketch-ui-look" "" in
   Sketch.export_state ~directory ~prefix:"look" ~frames:3
     ~config:{ Sketch.default_config with width = 200; height = 150 }
@@ -748,7 +757,8 @@ let run () =
       (Filename.concat directory (Printf.sprintf "look-%06d.png" index))
       In_channel.input_all in
   check (png 0 = png 1 && png 0 <> png 2)
-    "look-through framebuffer differs from the render camera's";
+    "look-through framebuffer differs from the render camera's"
+  end;
   let environment = Prismel_editor.Editor3.update environment (command 'z' 90) in
   let environment = Prismel_editor.Editor3.update environment (frame 91) in
   check (not (near (eye environment) (Vec3.create 6. 2. 6.)))
@@ -757,6 +767,7 @@ let run () =
 
   (* Finite native smoke: the relative-pointer boundary toggles on a live
      window and is released when the sketch stops. *)
+  if !native then begin
   let toggled = ref [] in
   let directory = Filename.temp_dir "sketch-ui-fly" "" in
   let nested_capture = Filename.concat directory "nested/capture.png" in
@@ -779,5 +790,9 @@ let run () =
       && Sketch.set_relative_mouse true <> Ok ())
     "native relative-pointer toggle failed or outlived the sketch";
   check (Sys.file_exists nested_capture)
-    "native capture did not write its nested PNG";
-  print_endline "sketch ui tests passed"
+    "native capture did not write its nested PNG"
+  end;
+  print_endline (if !native then "sketch ui tests passed"
+    else "sketch ui logic tests passed (window-free)")
+
+let run_logic () = native := false; run ()

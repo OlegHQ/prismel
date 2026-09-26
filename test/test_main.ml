@@ -5,6 +5,7 @@ let tests = [
   "test_custom_sop", Test_custom_sop.run;
   "test_pxui_graph", Test_pxui_graph.run;
   "test_prismel_editor", Test_prismel_editor.run;
+  "test_prismel_editor_logic", Test_prismel_editor.run_logic;
   "test_sop_catalog", Test_sop_catalog.run;
   "test_sketch_support", Test_sketch_support.run;
   "test_terminal_boolean_normals", Test_terminal_boolean_normals.run;
