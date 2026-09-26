@@ -73,8 +73,7 @@ let run () =
       (Sketch_ui.Private.Workspace.toggle Sketch_ui.Private.Workspace.Inspector resized) (frame 4) in
   Pxui.Ui.destroy ui;
   let collapsed_panes = Sketch_ui.Private.Workspace.geometry collapsed (frame 5) in
-  check (width collapsed_panes.inspector
-      = Sketch_ui.default_layout.collapsed_width)
+  check (width collapsed_panes.inspector = 0)
     "inspector toggle did not collapse the third column";
 
   let source = Sop.box ~label:"Inspectable source"
@@ -441,8 +440,7 @@ let run () =
   let environment = Sketch_ui.Environment3.update environment
       (frame ~events:[key (Input.KeyChar 'g')] 18) in
   check (not (Sketch_ui.Environment3.flying environment)
-      && width (Sketch_ui.Environment3.panes environment (frame 18)).graph
-         = Sketch_ui.default_layout.collapsed_width)
+      && width (Sketch_ui.Environment3.panes environment (frame 18)).graph = 0)
     "Space did not exit fly mode into the leader";
   let environment = Sketch_ui.Environment3.update environment
       (frame ~events:[key Input.Space; key (Input.KeyChar 'g')] 18) in

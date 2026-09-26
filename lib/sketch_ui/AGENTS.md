@@ -47,7 +47,10 @@ Keep the standard sketch workspace as three independently collapsible columns:
 view, graph, and inspector, with default flexible proportions 45/35/20.
 Splitters retain ratios across window resize. An empty graph selection shows
 camera/render controls in the inspector; selecting a node shows only that
-node's generated SOP parameters. Graph tile dragging is presentation-only and
+node's generated SOP parameters. The empty-selection Viewport section toggles
+look-through, camera frustums, the axis gizmo, and translate handles on the
+selected node's position-like xyz parameters (drawn only while the UI shows);
+a collapsed graph or inspector column takes no width. Graph tile dragging is presentation-only and
 must preserve connectivity, stable IDs, caches, and cook state. Right/middle
 drag pans, wheel/trackpad motion zooms at the pointer, [Home] frames all, and
 leader `f` and graph-focused [F] frame the displayed tile; viewport-focused [F]

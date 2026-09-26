@@ -93,9 +93,17 @@ module Layout = struct
   let toggle column value = with_collapsed column (not (collapsed value column)) value
   let expand column value = with_collapsed column false value
 
+  (* Collapsed Graph and Inspector vanish (the leader keymap reopens them);
+     a collapsed View keeps a strip with its expand button. *)
+  let splitters value =
+    let s = value.config.splitter_width in
+    (if value.graph_collapsed && value.inspector_collapsed then 0 else s),
+    (if value.graph_collapsed || value.inspector_collapsed then 0 else s)
+
   let distribute value width =
     let config = value.config in
-    let available = max 3 (width - (2 * config.splitter_width)) in
+    let first, second = splitters value in
+    let available = max 3 (width - first - second) in
     let collapsed = [|value.view_collapsed; value.graph_collapsed;
       value.inspector_collapsed|] in
     let ratios = [|value.view_ratio; value.graph_ratio;
@@ -106,8 +114,9 @@ module Layout = struct
     let fixed = ref 0 and weight = ref 0. in
     for index = 0 to 2 do
       if collapsed.(index) then begin
-        widths.(index) <- config.collapsed_width;
-        fixed := !fixed + config.collapsed_width
+        let strip = if index = 0 then config.collapsed_width else 0 in
+        widths.(index) <- strip;
+        fixed := !fixed + strip
       end else weight := !weight +. ratios.(index)
     done;
     let flexible = max 3 (available - !fixed) in
@@ -148,9 +157,9 @@ module Layout = struct
      a cache during Ui.frame; thread panes through the frame if this grows. *)
   let geometry value frame =
     let widths = distribute value frame.Frame.width in
-    let splitter = value.config.splitter_width in
-    let x0 = 0 and x1 = widths.(0) + splitter
-    and x2 = widths.(0) + splitter + widths.(1) + splitter in
+    let first, second = splitters value in
+    let x0 = 0 and x1 = widths.(0) + first
+    and x2 = widths.(0) + first + widths.(1) + second in
     let header = min value.config.header_height (max 0 (frame.height - 1)) in
     let timeline = if value.timeline_collapsed then 0
       else min timeline_height (max 0 (frame.height - header - 1)) in
@@ -170,8 +179,8 @@ module Layout = struct
   let splitter_bounds value frame =
     let panes = geometry value frame in
     let vx, _, vw, _ = panes.view and gx, _, gw, _ = panes.graph in
-    (vx + vw, 0, value.config.splitter_width, frame.height),
-    (gx + gw, 0, value.config.splitter_width, frame.height)
+    let first, second = splitters value in
+    (vx + vw, 0, first, frame.height), (gx + gw, 0, second, frame.height)
 
   let button_bounds value frame column =
     let panes = geometry value frame in

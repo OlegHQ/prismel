@@ -421,6 +421,7 @@ module Core = struct
     prompt : prompt option;
     prompt_intent : prompt_intent option;
     panel : 'panel option;
+    grab : bool;  (* a viewport handle holds the pointer *)
   }
 
   type 'prepared t = {
@@ -584,8 +585,8 @@ module Core = struct
     | Graph_command _ | Frame_camera | Undo | Redo ->
         workspace, graph_view, timeline, changes
 
-  let update value ~all_ui_visible ~text_focus ~camera_panel ~render_status
-      ~view_state (frame : Frame.t) =
+  let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
+      ~render_status ~view_state (frame : Frame.t) =
     let text_focus = text_focus || value.prompt <> None in
     let focus = if all_ui_visible then
         match Pxui.Ui.last_press_within value.ui frame
@@ -694,6 +695,17 @@ module Core = struct
             ~frame:(Sketch_support.Timeline.frame timeline)
             ~time:(Sketch_support.Timeline.time timeline)
             ~max_frame:value.timeline_frames) in
+      let handle_edits, grab =
+        if Workspace.collapsed workspace Workspace.View then [], false
+        else Pxui.Ui.within ui view_root (fun () ->
+          view_handles ui ~selected ~bounds:panes.view) in
+      let document, handle_effects = match selected, handle_edits with
+        | Some node, _ :: _ ->
+            (match Edit_graph.apply_parameters document ~node_id:(Node.id node)
+                handle_edits with
+             | Ok edited -> edited
+             | Error _ -> document, Parameter.no_effects)
+        | _ -> document, Parameter.no_effects in
       Pxui.Ui.within ui view_root (fun () ->
         status_box { value with workspace; status_fps } ui frame ~render_status);
       let roots = [view, view_root; graph, graph_root;
@@ -711,9 +723,10 @@ module Core = struct
         | Inspector -> panes.inspector | Timeline -> panes.timeline in
       Pxui_shell.Chrome.focus ui ~bounds;
       { workspace; focus; pane_keys; graph_view; document; edit_error; inspector;
-        effects = Parameter.union_effects editor_effects parameter_effects;
+        effects = Parameter.union_effects editor_effects
+            (Parameter.union_effects parameter_effects handle_effects);
         timeline_intents; frame_request; prompt = None; prompt_intent = None;
-        panel } in
+        panel; grab } in
     let leader_panel = if leader = Leader.Pending then Some (fun ui ->
       Pxui_shell.Which_key.panel ui keymap ~focus
         ~focus_name:(Leader.pane_name focus)) else None in
@@ -768,7 +781,7 @@ module Core = struct
           edit_error = value.edit_error; inspector = value.inspector;
           effects = Parameter.no_effects; timeline_intents = [];
           frame_request = initial_frame_request; prompt = initial_prompt;
-          prompt_intent = None; panel = None } in
+          prompt_intent = None; panel = None; grab = false } in
     let timeline, timeline_changes = List.fold_left (fun (timeline, changes) intent ->
       let next, emitted = match intent with
         | Pause_toggle -> Sketch_support.Timeline.toggle_pause timeline
@@ -847,7 +860,13 @@ module Core = struct
       effects; prepared_changed = cooked.prepared_changed;
       framed = cooked.framed;
       loaded_view = Option.map (fun (preset : Preset.loaded) -> preset.view) loaded;
-      actions; panel = result.panel; input = frame }
+      actions; panel = result.panel;
+      input = if not result.grab then frame
+        else { frame with mouse_buttons = []; mouse_delta = 0., 0.;
+          events = List.filter (function
+            | Event.MouseMoved _ | MousePressed _ | MouseReleased _
+            | MouseScrolled _ -> false
+            | _ -> true) frame.events } }
 
   (* Environment-owned document edits (camera bookkeeping, follow viewport).
      They never affect the displayed cook: [`Reset] starts the history,
@@ -919,6 +938,14 @@ module type VIEWPORT = sig
     'p Core.t * camera * extra
   val view_camera : camera -> extra -> pending:bool -> view
   val paint : Workspace.bounds -> view -> rendered -> Scene.t
+  val guides : document:Edit_graph.t -> selected:Node.t option -> view ->
+    extra -> bounds:Workspace.bounds -> Scene.t
+  (* Editor-only lines over the view (cameras, axes, handles), screen space. *)
+
+  val handles : Pxui.Ui.t -> selected:Node.t option -> view -> extra ->
+    bounds:Workspace.bounds -> (string * Parameter.value) list * bool
+  (* The selected node's handle boxes: parameter edits, and whether a handle
+      holds the pointer (the camera then ignores it). *)
   val save : request -> (unit, string) result
   val filename : request -> string
   val close : extra -> unit
@@ -980,7 +1007,7 @@ module Environment = struct
           rendered; camera; background; view_visible; scene }
 
   let compose ~ui_visible ~background ~rendered ~camera ~paint_view ~overlay
-      ~cache core (frame : Frame.t) =
+      ~guides ~cache core (frame : Frame.t) =
     let view_visible = Core.column_visible core Workspace.View in
     let world = world ~paint_view ~camera ~rendered ~view_visible in
     if hidden_only ~ui_visible core then
@@ -991,9 +1018,10 @@ module Environment = struct
     else
       let viewport = (Core.panes core frame).view in
       let x, y, width, height = viewport in
+      let guides = if view_visible then guides viewport else [] in
       let overlay = [Scene.clip ~at:(x, y) ~w:width ~h:height
-          [Scene.translate x y (overlay (Core.graph core) (Core.prepared core)
-            (viewport_frame viewport frame))]] in
+          (Scene.translate x y (overlay (Core.graph core) (Core.prepared core)
+            (viewport_frame viewport frame)) :: guides)] in
       Scene.clear background :: world viewport @ overlay
       @ Core.machinery core ~all_ui_visible:true
 
@@ -1068,8 +1096,10 @@ module Environment = struct
       let visible = V.ui_visible value.control in
       let camera_panel () = V.panel ui ~control:value.control ~camera:value.camera
           ~extra ~inspector in
+      let view_handles ui ~selected ~bounds =
+        V.handles ui ~selected (view_camera value) extra ~bounds in
       let update = Core.update value.core ~all_ui_visible:visible
-          ~text_focus:(Pxui.Ui.text_input_focused ui) ~camera_panel
+          ~text_focus:(Pxui.Ui.text_input_focused ui) ~camera_panel ~view_handles
           ~render_status:value.render_status
           ~view_state:(function
             | Some (_, camera, _, extra, _) -> V.section camera extra
@@ -1121,6 +1151,9 @@ module Environment = struct
       compose ~ui_visible:(V.ui_visible value.control)
         ~background:value.background ~rendered:value.rendered
         ~camera:(view_camera value) ~paint_view:V.paint ~overlay:value.overlay
+        ~guides:(fun bounds -> V.guides ~document:(Core.document value.core)
+          ~selected:(Core.selected_node value.core) (view_camera value)
+          value.extra ~bounds)
         ~cache:value.hidden_scene_cache value.core frame
 
     let close value =
@@ -1187,6 +1220,8 @@ module Viewport2 = struct
   let on_view core ~previous:_ camera () ~time:_ = core, camera, ()
   let view_camera camera () ~pending:_ = camera
   let paint viewport camera rendered = Easy_camera2.scene ~viewport camera rendered
+  let guides ~document:_ ~selected:_ _ () ~bounds:_ = []
+  let handles _ ~selected:_ _ () ~bounds:_ = [], false
   let save = CC2.save
   let filename request = request.CC2.filename
   let close () = ()
@@ -1199,9 +1234,13 @@ module Viewport3 = struct
   type request = CC.render_request
   type view = Camera.t
 
-  (* Look-through, the fly speed while the pointer is captured, and the
-     active camera node's view, refreshed each update. *)
-  type extra = { look_through : bool; fly : float option; render_camera : Camera.t }
+  (* What the view draws over the render while the UI shows. *)
+  type show = { cameras : bool; axes : bool; handles : bool }
+
+  (* Look-through, the fly speed while the pointer is captured, the
+     active camera node's view, refreshed each update, and the guides. *)
+  type extra = { look_through : bool; fly : float option; render_camera : Camera.t;
+                 show : show }
 
   let keymap = Leader.keymap3
   let default_camera () = Easy_camera.create ~target:Vec3.zero ~distance:7. ()
@@ -1277,7 +1316,8 @@ module Viewport3 = struct
   let init core camera =
     let core = sync_cameras ~mode:`Reset core camera in
     core, { look_through = false; fly = None;
-            render_camera = render_camera_of core camera }
+            render_camera = render_camera_of core camera;
+            show = { cameras = true; axes = true; handles = true } }
 
   let begin_frame extra frame = match extra.fly with
     | None -> extra, frame
@@ -1287,10 +1327,16 @@ module Viewport3 = struct
         else (set_relative false; { extra with fly = None }, frame)
 
   let panel ui ~control ~camera ~extra ~inspector =
+    let extra = Option.value ~default:extra
+        (Pxui.Ui.accordion ui ~expanded:true "Viewport" (fun () ->
+          let toggle = Pxui.Ui.toggle ui in
+          let look_through = toggle "Look through render camera" extra.look_through in
+          let cameras = toggle "Cameras" extra.show.cameras in
+          let axes = toggle "Axis gizmo" extra.show.axes in
+          let handles = toggle "Selected node handles" extra.show.handles in
+          { extra with look_through; show = { cameras; axes; handles } })) in
     let control, camera, requests = CC.widgets control ui ~camera in
-    let look_through = Pxui.Ui.toggle ui "Look through render camera"
-        extra.look_through in
-    control, camera, requests, { extra with look_through }, inspector ui
+    control, camera, requests, extra, inspector ui
 
   let section camera extra =
     Editor.Store.Viewport.encode3 camera ~look_through:extra.look_through
@@ -1356,6 +1402,129 @@ module Viewport3 = struct
     else Easy_camera.camera camera
 
   let paint viewport camera rendered = [Scene.view3d ~viewport ~camera rendered]
+
+  (* ---- guides and handles, in screen points over the view. *)
+
+  let axes = [| Vec3.create 1. 0. 0.; Vec3.create 0. 1. 0.; Vec3.create 0. 0. 1. |]
+  let axis_names = [| "x"; "y"; "z" |]
+  let axis_colors = Array.map Color.hex_exn [| "#e5484d"; "#46a758"; "#3e63dd" |]
+  let guide_color = Color.hex_exn "#a1a1aa"
+  let active_color = Color.hex_exn "#f5d90a"
+
+  let project bounds camera point = Option.map (fun (screen : Vec3.t) ->
+    screen.x, screen.y) (Camera.world_to_screen ~viewport:bounds camera point)
+
+  let line ?(width = 1) color (x0, y0) (x1, y1) =
+    Scene.line ~from_:(Float.to_int x0, Float.to_int y0)
+      ~to_:(Float.to_int x1, Float.to_int y1) ~color ~width ()
+
+  let segment bounds view color a b =
+    match project bounds view a, project bounds view b with
+    | Some a, Some b -> [line color a b]
+    | _ -> []
+
+  (* A pyramid half a unit deep with the view's aspect, and its aim. *)
+  let frustum bounds view color camera =
+    let eye = Camera.position camera and target = Camera.target camera in
+    let forward = Vec3.normalize (Vec3.sub target eye) in
+    let side = Vec3.cross forward (Camera.up camera) in
+    if Vec3.length side < 1e-6 then [] else
+    let right = Vec3.normalize side in
+    let up = Vec3.cross right forward in
+    let fov_y = match Camera.projection camera with
+      | Perspective { fov_y; _ } -> fov_y | _ -> 1. in
+    let _, _, width, height = bounds in
+    let half_h = 0.5 *. Float.tan (fov_y /. 2.) in
+    let half_w = half_h *. float_of_int width /. float_of_int (max 1 height) in
+    let centre = Vec3.add eye (Vec3.scale forward 0.5) in
+    let corner sx sy = Vec3.add centre (Vec3.add (Vec3.scale right (sx *. half_w))
+        (Vec3.scale up (sy *. half_h))) in
+    let corners = [| corner (-1.) (-1.); corner 1. (-1.); corner 1. 1.; corner (-1.) 1. |] in
+    let edge = segment bounds view color in
+    List.concat (List.init 4 (fun index ->
+      edge eye corners.(index) @ edge corners.(index) corners.((index + 1) mod 4))
+      @ [edge (corner 0. 1.) (corner 0. 1.6); edge eye target])
+
+  (* ponytail: translate arrows on position-like xyz triples, found by name;
+     add rotate/scale handles or a parameter role when a SOP needs them. *)
+  let handle_prefixes = ["translate"; "center"; "origin"; "eye"; "target"]
+  let arrow_length = 60.
+
+  type arrow = { name : string; value : float; axis : int;
+                 base : float * float; tip : float * float; unit : float * float }
+
+  (* The selected node's arrows; [unit] is one world unit along the axis on
+     screen, so a drag maps back to a parameter delta. *)
+  let arrows node view bounds =
+    let values = Node.parameter_fields node in
+    let find name = List.find_map (fun (field : Parameter.field_view) ->
+      match field.current with
+      | Float_value value when field.name = name -> Some value
+      | _ -> None) values in
+    List.concat_map (fun prefix ->
+      match find (prefix ^ "_x"), find (prefix ^ "_y"), find (prefix ^ "_z") with
+      | Some x, Some y, Some z ->
+          let point = Vec3.create x y z in
+          (match project bounds view point with
+           | None -> []
+           | Some ((bx, by) as base) -> List.filter_map (fun axis ->
+               Option.bind (project bounds view (Vec3.add point axes.(axis)))
+                 (fun (ux, uy) ->
+                   let dx = ux -. bx and dy = uy -. by in
+                   let length = Float.hypot dx dy in
+                   if length < 1e-3 then None
+                   else Some { name = prefix ^ "_" ^ axis_names.(axis);
+                     value = [| x; y; z |].(axis); axis; base; unit = dx, dy;
+                     tip = bx +. dx /. length *. arrow_length,
+                           by +. dy /. length *. arrow_length }))
+               [0; 1; 2])
+      | _ -> []) handle_prefixes
+
+  let handles ui ~selected view extra ~bounds = match selected with
+    | Some node when extra.show.handles ->
+        List.fold_left (fun (edits, grab) arrow ->
+          let tx, ty = arrow.tip in
+          let box = Pxui.Ui.box ui ~flags:Pxui.Ui.clickable ~w:(Pxui.Ui.Px 14.)
+              ~h:(Pxui.Ui.Px 14.) ~at:(tx -. 7., ty -. 7.) ("handle-" ^ arrow.name) in
+          let signal = Pxui.Ui.signal ui box in
+          let mx, my = signal.drag and ux, uy = arrow.unit in
+          let delta = (mx *. ux +. my *. uy) /. (ux *. ux +. uy *. uy) in
+          (if signal.held && delta <> 0. then
+             (arrow.name, Parameter.Float_value (arrow.value +. delta)) :: edits
+           else edits),
+          grab || signal.held || signal.released)
+          ([], false) (arrows node view bounds)
+    | Some _ | None -> [], false
+
+  let gizmo (x, y, _, height) view =
+    let cx = float_of_int x +. 40. and cy = float_of_int (y + height) -. 40. in
+    let origin = Camera.world_to_camera view Vec3.zero in
+    List.concat (List.init 3 (fun axis ->
+      let d = Vec3.sub (Camera.world_to_camera view axes.(axis)) origin in
+      let tip = cx +. d.x *. 28., cy -. d.y *. 28. in
+      [line ~width:2 axis_colors.(axis) (cx, cy) tip;
+       Scene.text ~at:(Float.to_int (fst tip) + 2, Float.to_int (snd tip) - 6)
+         ~color:axis_colors.(axis) ~size:11 axis_names.(axis)]))
+
+  let guides ~document ~selected view extra ~bounds =
+    let cameras = if not extra.show.cameras then [] else
+      List.concat_map (fun node_id ->
+        match Option.bind (Edit_graph.find document ~node_id) node_camera with
+        | Some camera when not (same_view camera view) ->
+            let active = Camera.position camera = Camera.position extra.render_camera
+              && Camera.target camera = Camera.target extra.render_camera in
+            frustum bounds view (if active then active_color else guide_color) camera
+        | Some _ | None -> []) (camera_ids document) in
+    let handles = match selected with
+      | Some node when extra.show.handles ->
+          List.concat_map (fun arrow ->
+            let color = axis_colors.(arrow.axis) in
+            [line ~width:2 color arrow.base arrow.tip;
+             Scene.circle ~at:(Float.to_int (fst arrow.tip), Float.to_int (snd arrow.tip))
+               ~radius:5 ~fill:color ()]) (arrows node view bounds)
+      | Some _ | None -> [] in
+    cameras @ (if extra.show.axes then gizmo bounds view else []) @ handles
+
   let save = CC.save
   let filename request = request.CC.filename
   let close extra = if extra.fly <> None then set_relative false

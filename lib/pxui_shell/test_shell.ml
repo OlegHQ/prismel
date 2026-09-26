@@ -66,6 +66,13 @@ let () =
   let collapsed = Pxui_shell.Layout.toggle Pxui_shell.Layout.Inspector layout in
   if not (Pxui_shell.Layout.collapsed collapsed Pxui_shell.Layout.Inspector) then
     failwith "shell layout did not collapse inspector";
+  let wide = { frame with width = 1000; size = 1000, 300;
+    drawable_width = 1000; drawable_size = 1000, 300 } in
+  let _, _, inspector_width, _ = (Pxui_shell.Layout.geometry collapsed wide).inspector in
+  let hidden_both = Pxui_shell.Layout.toggle Pxui_shell.Layout.Graph collapsed in
+  let _, _, view_width, _ = (Pxui_shell.Layout.geometry hidden_both wide).view in
+  if inspector_width <> 0 || view_width <> 1000 then
+    failwith "collapsed graph and inspector did not vanish";
   if instances "view" <= instances "other" then
     failwith "focused leader bindings were not drawn";
   if status_instances 28 <= 0 || status_instances 0 <> 0 then
