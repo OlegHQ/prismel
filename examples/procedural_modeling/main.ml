@@ -311,7 +311,7 @@ let graphs () =
     |> Sop.transform (Mat4.translation (Vec3.create 2.8 3.4 1.3))
   and warped_panel =
     Sop.grid ~columns:5 ~rows:4 ~size:1.5 ()
-    |> Sop.subdivide ~scheme:Pdk.Ops.Bilinear
+    |> Sop.subdivide ~scheme:Pdk.Subdivision_ops.Bilinear
     |> Sop.mountain ~seed:731 ~height:0.08
          ~frequency:(Vec3.create 1.6 0.9 1.3) ~octaves:3
     |> Sop.group_non_planar ~tolerance:0.0005 ~name:"warped_faces"
@@ -482,7 +482,7 @@ let graphs () =
     |> Sop.group_edges ~group:"crease_face__top" ~name:"feature_edges"
     |> Sop.crease ~group:"feature_edges" ~operation:Pdk.Ops.Crease_set
          ~weight:2.5 ~add_vertex_color:true
-    |> Sop.subdivide ~iterations:2 ~scheme:Pdk.Ops.Catmull_clark
+    |> Sop.subdivide ~iterations:2 ~scheme:Pdk.Subdivision_ops.Catmull_clark
     |> Sop.normals ~owner:Pdk.Attribute.Vertex ~cusp_angle:Float.pi
     |> Sop.transform (Mat4.translation (Vec3.create 0. 3.5 1.2))
   and fading_panel =

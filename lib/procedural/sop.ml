@@ -1306,51 +1306,51 @@ let separate_pieces ?label ?(owner = Pdk.Attribute.Primitive)
       | Error error -> structured_pdk_error error)
 
 let subdivision_scheme_key = function
-  | Pdk.Ops.Catmull_clark -> "catmull_clark"
-  | Pdk.Ops.Loop -> "loop"
-  | Pdk.Ops.Bilinear -> "bilinear"
+  | Pdk.Subdivision_ops.Catmull_clark -> "catmull_clark"
+  | Pdk.Subdivision_ops.Loop -> "loop"
+  | Pdk.Subdivision_ops.Bilinear -> "bilinear"
 
 let subdivision_boundary_key = function
-  | Pdk.Ops.Subdivide_boundary_none -> "none"
-  | Pdk.Ops.Subdivide_boundary_edge_only -> "edge_only"
-  | Pdk.Ops.Subdivide_boundary_edge_and_corner -> "edge_and_corner"
+  | Pdk.Subdivision_ops.Subdivide_boundary_none -> "none"
+  | Pdk.Subdivision_ops.Subdivide_boundary_edge_only -> "edge_only"
+  | Pdk.Subdivision_ops.Subdivide_boundary_edge_and_corner -> "edge_and_corner"
 
 let subdivision_fvar_key = function
-  | Pdk.Ops.Subdivide_fvar_none -> "none"
-  | Pdk.Ops.Subdivide_fvar_corners_only -> "corners_only"
-  | Pdk.Ops.Subdivide_fvar_corners_plus1 -> "corners_plus1"
-  | Pdk.Ops.Subdivide_fvar_corners_plus2 -> "corners_plus2"
-  | Pdk.Ops.Subdivide_fvar_boundaries -> "boundaries"
-  | Pdk.Ops.Subdivide_fvar_all -> "all"
+  | Pdk.Subdivision_ops.Subdivide_fvar_none -> "none"
+  | Pdk.Subdivision_ops.Subdivide_fvar_corners_only -> "corners_only"
+  | Pdk.Subdivision_ops.Subdivide_fvar_corners_plus1 -> "corners_plus1"
+  | Pdk.Subdivision_ops.Subdivide_fvar_corners_plus2 -> "corners_plus2"
+  | Pdk.Subdivision_ops.Subdivide_fvar_boundaries -> "boundaries"
+  | Pdk.Subdivision_ops.Subdivide_fvar_all -> "all"
 
 let subdivision_triangle_key = function
-  | Pdk.Ops.Subdivide_triangles_catmull_clark -> "catmull_clark"
-  | Pdk.Ops.Subdivide_triangles_smooth -> "smooth"
+  | Pdk.Subdivision_ops.Subdivide_triangles_catmull_clark -> "catmull_clark"
+  | Pdk.Subdivision_ops.Subdivide_triangles_smooth -> "smooth"
 
 let subdivision_creasing_key = function
-  | Pdk.Ops.Subdivide_creasing_uniform -> "uniform"
-  | Pdk.Ops.Subdivide_creasing_chaikin -> "chaikin"
+  | Pdk.Subdivision_ops.Subdivide_creasing_uniform -> "uniform"
+  | Pdk.Subdivision_ops.Subdivide_creasing_chaikin -> "chaikin"
 
 let subdivision_cracks_key = function
-  | Pdk.Ops.Subdivide_do_not_close -> "do_not_close"
-  | Pdk.Ops.Subdivide_pull_no_edge_division -> "pull_no_edge_division"
-  | Pdk.Ops.Subdivide_pull_divide_edges bias ->
+  | Pdk.Subdivision_ops.Subdivide_do_not_close -> "do_not_close"
+  | Pdk.Subdivision_ops.Subdivide_pull_no_edge_division -> "pull_no_edge_division"
+  | Pdk.Subdivision_ops.Subdivide_pull_divide_edges bias ->
       "pull_divide_edges:" ^ float_key bias
-  | Pdk.Ops.Subdivide_pull_triangulate bias ->
+  | Pdk.Subdivision_ops.Subdivide_pull_triangulate bias ->
       "pull_triangulate:" ^ float_key bias
-  | Pdk.Ops.Subdivide_stitch_no_edge_division -> "stitch_no_edge_division"
-  | Pdk.Ops.Subdivide_stitch_divide_edges -> "stitch_divide_edges"
-  | Pdk.Ops.Subdivide_stitch_triangulate -> "stitch_triangulate"
+  | Pdk.Subdivision_ops.Subdivide_stitch_no_edge_division -> "stitch_no_edge_division"
+  | Pdk.Subdivision_ops.Subdivide_stitch_divide_edges -> "stitch_divide_edges"
+  | Pdk.Subdivision_ops.Subdivide_stitch_triangulate -> "stitch_triangulate"
 
-let subdivide ?label ?group ?(scheme = Pdk.Ops.Catmull_clark)
-    ?(iterations = 1) ?(cracks = Pdk.Ops.Subdivide_do_not_close)
+let subdivide ?label ?group ?(scheme = Pdk.Subdivision_ops.Catmull_clark)
+    ?(iterations = 1) ?(cracks = Pdk.Subdivision_ops.Subdivide_do_not_close)
     ?(consistent_topology = false) ?creases ?crease_group ?crease_weight
     ?(generate_resulting_creases = true) ?resulting_crease_group
     ?hole_group ?(remove_holes = true)
-    ?(boundary_interpolation = Pdk.Ops.Subdivide_boundary_edge_only)
-    ?(face_varying_interpolation = Pdk.Ops.Subdivide_fvar_all)
-    ?(triangle_policy = Pdk.Ops.Subdivide_triangles_catmull_clark)
-    ?(creasing_method = Pdk.Ops.Subdivide_creasing_uniform)
+    ?(boundary_interpolation = Pdk.Subdivision_ops.Subdivide_boundary_edge_only)
+    ?(face_varying_interpolation = Pdk.Subdivision_ops.Subdivide_fvar_all)
+    ?(triangle_policy = Pdk.Subdivision_ops.Subdivide_triangles_catmull_clark)
+    ?(creasing_method = Pdk.Subdivision_ops.Subdivide_creasing_uniform)
     ?(treat_curves_as_independent = false)
     ?(recompute_point_normals = false) input =
   Option.iter (fun name -> if String.trim name = "" then
@@ -1414,7 +1414,7 @@ let subdivide ?label ?group ?(scheme = Pdk.Ops.Catmull_clark)
       | _, Error error, _ -> Error error
       | _, _, Error error -> Error error
       | Ok primitives, Ok crease_primitives, Ok hole_primitives ->
-          match Pdk.Ops.subdivide ~cancel:(Context.cancel_token context)
+          match Pdk.Subdivision_ops.subdivide_checked ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~scheme ~iterations ?primitives
               ~cracks ~consistent_topology
               ?creases:(Option.map (fun _ -> inputs.(1)) creases)

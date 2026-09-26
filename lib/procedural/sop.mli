@@ -521,9 +521,9 @@ val separate_pieces :
 val subdivide :
   ?label:string ->
   ?group:string ->
-  ?scheme:Pdk.Ops.subdivision_scheme ->
+  ?scheme:Pdk.Subdivision_ops.scheme ->
   ?iterations:int ->
-  ?cracks:Pdk.Ops.subdivision_crack_policy ->
+  ?cracks:Pdk.Subdivision_ops.crack_policy ->
   ?consistent_topology:bool ->
   ?creases:Node.t ->
   ?crease_group:string ->
@@ -532,10 +532,10 @@ val subdivide :
   ?resulting_crease_group:string ->
   ?hole_group:string ->
   ?remove_holes:bool ->
-  ?boundary_interpolation:Pdk.Ops.subdivision_boundary_interpolation ->
-  ?face_varying_interpolation:Pdk.Ops.subdivision_face_varying_interpolation ->
-  ?triangle_policy:Pdk.Ops.subdivision_triangle_policy ->
-  ?creasing_method:Pdk.Ops.subdivision_creasing_method ->
+  ?boundary_interpolation:Pdk.Subdivision_ops.boundary_interpolation ->
+  ?face_varying_interpolation:Pdk.Subdivision_ops.face_varying_interpolation ->
+  ?triangle_policy:Pdk.Subdivision_ops.triangle_policy ->
+  ?creasing_method:Pdk.Subdivision_ops.creasing_method ->
   ?treat_curves_as_independent:bool ->
   ?recompute_point_normals:bool ->
   Node.t -> Node.t

@@ -1777,7 +1777,7 @@ let run () =
       |> Geometry.with_group all_corners |> get_ok
       |> Geometry.with_group selected_face |> get_ok in
   let catmull domains = Parallel.run ~domains (fun () ->
-      Ops.subdivide ~grain:1 ~scheme:Ops.Catmull_clark subdivision_source
+      Subdivision_ops.subdivide_checked ~grain:1 ~scheme:Subdivision_ops.Catmull_clark subdivision_source
       |> get_ok) in
   let catmull_one = catmull 1 and catmull_many = catmull 4 in
   let catmull_topology = Topology.Private.view (Geometry.topology catmull_one)
@@ -1835,7 +1835,7 @@ let run () =
   (match Geometry.find_group ~owner:Group.Primitive "selected_face" catmull_one with
    | Some group when Group.cardinality group = 4 -> ()
    | _ -> fail "subdivision primitive group propagation");
-  let bilinear = Ops.subdivide ~scheme:Ops.Bilinear ~iterations:2
+  let bilinear = Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Bilinear ~iterations:2
       subdivision_source |> get_ok in
   if Geometry.point_count bilinear <> 25
      || Geometry.primitive_count bilinear <> 16
@@ -1846,7 +1846,7 @@ let run () =
        <> Packed.Float3.get positions point then
       fail "bilinear subdivision moved a control point"
   done;
-  let loop_one = Ops.subdivide ~scheme:Ops.Loop triangle_geometry |> get_ok in
+  let loop_one = Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Loop triangle_geometry |> get_ok in
   if Geometry.point_count loop_one <> 9
      || Geometry.primitive_count loop_one <> 8
      || Geometry.vertex_count loop_one <> 24
@@ -1875,7 +1875,7 @@ let run () =
   let creased_source = Geometry.create ~positions:tetra_positions
       ~topology:tetra_topology ~attributes:[creaseweight; cornerweight] ()
       |> get_ok in
-  let creased = Ops.subdivide creased_source |> get_ok in
+  let creased = Subdivision_ops.subdivide_checked creased_source |> get_ok in
   let ex, ey, ez = Packed.Float3.get (Geometry.positions creased)
       (4 + sharp_edge) in
   if abs_float (ex -. 0.5) > 1e-12 || abs_float ey > 1e-12
@@ -1895,10 +1895,10 @@ let run () =
       |> get_ok in
   let negative_crease = Geometry.create ~positions:tetra_positions
       ~topology:tetra_topology ~attributes:[negative_crease] () |> get_ok in
-  (match Ops.subdivide negative_crease with
+  (match Subdivision_ops.subdivide_checked negative_crease with
    | Error error when Error.code error = "invalid_topology" -> ()
    | _ -> fail "subdivision accepted a negative creaseweight");
-  (match Ops.subdivide ~scheme:Ops.Loop geometry with
+  (match Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Loop geometry with
    | Error error when Error.code error = "invalid_topology" -> ()
    | _ -> fail "Loop subdivision accepted a non-triangle polygon");
   let nonmanifold_topology = Topology.Builder.create ~point_count:4 () in
@@ -1907,7 +1907,7 @@ let run () =
   Topology.Builder.add_triangle nonmanifold_topology 0 1 3;
   let nonmanifold = Geometry.create ~positions
       ~topology:(Topology.Builder.freeze nonmanifold_topology) () |> get_ok in
-  (match Ops.subdivide nonmanifold with
+  (match Subdivision_ops.subdivide_checked nonmanifold with
    | Error error when Error.code error = "invalid_topology" -> ()
    | _ -> fail "subdivision accepted a non-manifold edge");
   let bowtie_positions = Packed.Float3.Private.of_owned_exn
@@ -1920,12 +1920,12 @@ let run () =
      (0,4,5); (0,6,4); (4,6,5); (5,6,0)];
   let bowtie = Geometry.create ~positions:bowtie_positions
       ~topology:(Topology.Builder.freeze bowtie_topology) () |> get_ok in
-  (match Ops.subdivide bowtie with
+  (match Subdivision_ops.subdivide_checked bowtie with
    | Error error when Error.code error = "invalid_topology" -> ()
    | _ -> fail "subdivision accepted disconnected vertex fans");
   let subdivision_cancel = Cancel.create () in
   Cancel.cancel subdivision_cancel;
-  (match Ops.subdivide ~cancel:subdivision_cancel subdivision_source with
+  (match Subdivision_ops.subdivide_checked ~cancel:subdivision_cancel subdivision_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled subdivision published geometry or wrong error");
   let point_ids = Attribute.create_owned ~name:"point_id" ~owner:Attribute.Point
@@ -2444,7 +2444,7 @@ let run () =
   if Edge_group.cardinality fused_edge_group <> 18
      || Edge_group.length fused_edge_group <> 18 then
     fail "fuse did not union collapsed native edge membership";
-  let subdivided_edge_geometry = Ops.subdivide ~scheme:Ops.Catmull_clark
+  let subdivided_edge_geometry = Subdivision_ops.subdivide_checked ~scheme:Subdivision_ops.Catmull_clark
       ~iterations:2 quad_edges |> get_ok in
   let subdivided_edge_group = Geometry.find_edge_group "quad_edges"
       subdivided_edge_geometry |> Option.get in
