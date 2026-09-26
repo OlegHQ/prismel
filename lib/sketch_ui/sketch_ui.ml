@@ -912,26 +912,40 @@ module Environment = struct
           | Error message -> "Render failed: " ^ message)
     | _ -> None
 
+  let world ~paint_view ~camera ~rendered ~view_visible viewport =
+    match rendered with
+    | Some image when view_visible -> paint_view viewport camera image
+    | Some _ | None -> []
+
+  let hidden_only ~ui_visible core =
+    not ui_visible && core.Core.leader <> Leader.Pending
+
+  (* The fully hidden scene, reused while its inputs are physically unchanged
+     so the renderer sees the same [Scene.t]. *)
+  let hidden_entry ~background ~rendered ~camera ~paint_view ~cache core
+      (frame : Frame.t) =
+    let view_visible = Core.column_visible core Workspace.View in
+    match cache with
+    | Some cached when cached.width = frame.width
+        && cached.height = frame.height && cached.rendered == rendered
+        && cached.camera == camera && cached.background = background
+        && cached.view_visible = view_visible -> cached
+    | _ ->
+        let scene = Scene.clear background ::
+          world ~paint_view ~camera ~rendered ~view_visible
+            (0, 0, frame.width, frame.height) in
+        { width = frame.width; height = frame.height;
+          rendered; camera; background; view_visible; scene }
+
   let compose ~ui_visible ~background ~rendered ~camera ~paint_view ~overlay
       ~cache core (frame : Frame.t) =
     let view_visible = Core.column_visible core Workspace.View in
-    let world viewport = match rendered with
-      | Some image when view_visible -> paint_view viewport camera image
-      | Some _ | None -> [] in
-    if not ui_visible && core.Core.leader <> Leader.Pending then
-      match cache with
-      | Some cached when cached.width = frame.width
-          && cached.height = frame.height && cached.rendered == rendered
-          && cached.camera == camera && cached.background = background
-          && cached.view_visible = view_visible -> cached.scene, cache
-      | _ ->
-          let scene = Scene.clear background ::
-            world (0, 0, frame.width, frame.height) in
-          scene, Some { width = frame.width; height = frame.height;
-            rendered; camera; background; view_visible; scene }
+    let world = world ~paint_view ~camera ~rendered ~view_visible in
+    if hidden_only ~ui_visible core then
+      (hidden_entry ~background ~rendered ~camera ~paint_view ~cache core frame).scene
     else if not ui_visible then
       Scene.clear background :: world (0, 0, frame.width, frame.height)
-      @ Core.machinery core ~all_ui_visible:false, cache
+      @ Core.machinery core ~all_ui_visible:false
     else
       let viewport = (Core.panes core frame).view in
       let x, y, width, height = viewport in
@@ -939,7 +953,7 @@ module Environment = struct
           [Scene.translate x y (overlay (Core.graph core) (Core.prepared core)
             (viewport_frame viewport frame))]] in
       Scene.clear background :: world viewport @ overlay
-      @ Core.machinery core ~all_ui_visible:true, cache
+      @ Core.machinery core ~all_ui_visible:true
 
   (* The one environment: [Core] plus a dimensional viewport. *)
   module Make (V : VIEWPORT) = struct
@@ -957,7 +971,7 @@ module Environment = struct
       pending_render : V.request option;
       background : Color.t;
       extra : V.extra;
-      mutable hidden_scene_cache : (V.rendered, V.view) hidden_scene_cache option;
+      hidden_scene_cache : (V.rendered, V.view) hidden_scene_cache option;
     }
 
     let create ?(layout = default_layout) ?name ?presets ?timeline_frames ?factories
@@ -991,6 +1005,19 @@ module Environment = struct
       { value with core;
         rendered = Option.map (value.draw (Core.displayed_node core))
             (Core.prepared core) }
+
+    let view_camera value = V.view_camera value.camera value.extra
+        ~pending:(value.pending_render <> None)
+
+    (* The hidden-scene cache is model state: refreshed here, read by [scene]. *)
+    let refresh_hidden value frame =
+      let hidden_scene_cache =
+        if hidden_only ~ui_visible:(V.ui_visible value.control) value.core then
+          Some (hidden_entry ~background:value.background ~rendered:value.rendered
+            ~camera:(view_camera value) ~paint_view:V.paint
+            ~cache:value.hidden_scene_cache value.core frame)
+        else None in
+      { value with hidden_scene_cache }
 
     let update_with value frame ~inspector =
       let ui = value.core.Core.ui in
@@ -1036,26 +1063,23 @@ module Environment = struct
       let rendered, pending_render, render_status = finish update
           ~core ~draw:value.draw ~rendered:value.rendered ~requests
           ~status:render_status in
-      { value with core; camera; control; rendered; pending_render; render_status;
-        extra }, inspected
+      refresh_hidden { value with core; camera; control; rendered; pending_render;
+        render_status; extra } raw_frame, inspected
 
     let update value frame = fst (update_with value frame ~inspector:ignore)
 
-    let after_present value _frame =
+    let after_present value frame =
       match save_status ~save:V.save ~filename:V.filename
           value.pending_render value.rendered with
-      | Some status -> { value with render_status = Some status; pending_render = None }
+      | Some status -> refresh_hidden
+          { value with render_status = Some status; pending_render = None } frame
       | None -> value
 
     let scene value frame =
-      let scene, cache = compose ~ui_visible:(V.ui_visible value.control)
-          ~background:value.background ~rendered:value.rendered
-          ~camera:(V.view_camera value.camera value.extra
-            ~pending:(value.pending_render <> None))
-          ~paint_view:V.paint ~overlay:value.overlay ~cache:value.hidden_scene_cache
-          value.core frame in
-      value.hidden_scene_cache <- cache;
-      scene
+      compose ~ui_visible:(V.ui_visible value.control)
+        ~background:value.background ~rendered:value.rendered
+        ~camera:(view_camera value) ~paint_view:V.paint ~overlay:value.overlay
+        ~cache:value.hidden_scene_cache value.core frame
 
     let close value =
       V.close value.extra;
