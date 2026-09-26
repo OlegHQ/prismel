@@ -1,0 +1,6 @@
+# Former qualified Ops path<TAB>family path.
+Ops.noise_displace	Deform_ops.noise_displace_checked
+Ops.peak	Deform_ops.peak_checked
+Ops.bend	Deform_ops.bend_checked
+Ops.mountain	Deform_ops.mountain_checked
+Ops.point_jitter	Deform_ops.point_jitter_checked
