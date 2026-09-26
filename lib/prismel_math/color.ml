@@ -7,21 +7,21 @@ type t = { r: int; g: int; b: int; a: int }
 let clamp_byte x = max 0 (min 255 x)
 
 (* Constructors *)
-let rgb r g b = { 
-  r = clamp_byte r; 
-  g = clamp_byte g; 
-  b = clamp_byte b; 
-  a = 255 
+let rgb r g b = {
+  r = clamp_byte r;
+  g = clamp_byte g;
+  b = clamp_byte b;
+  a = 255
 }
 
-let rgba r g b a = { 
-  r = clamp_byte r; 
-  g = clamp_byte g; 
-  b = clamp_byte b; 
-  a = clamp_byte a 
+let rgba r g b a = {
+  r = clamp_byte r;
+  g = clamp_byte g;
+  b = clamp_byte b;
+  a = clamp_byte a
 }
 
-let gray x = 
+let gray x =
   let clamped = clamp_byte x in
   { r = clamped; g = clamped; b = clamped; a = 255 }
 
@@ -217,7 +217,7 @@ let to_hex c =
 
 (* Additional constructors for convenience *)
 let of_floats r g b a =
-  rgba 
+  rgba
     (int_of_float (r *. 255.0 +. 0.5))
     (int_of_float (g *. 255.0 +. 0.5))
     (int_of_float (b *. 255.0 +. 0.5))

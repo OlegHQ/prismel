@@ -1102,8 +1102,8 @@
       "library": "procedural",
       "module": "Graph",
       "source": "lib/procedural/graph.mli",
-      "source_bytes": 657,
-      "source_sha256": "202b3f7891b0315465824de06136b41b7cdec9f3eb9a29e404e14442f415697d"
+      "source_bytes": 656,
+      "source_sha256": "672c8365847b992cddfec5b903d6042811bf341406c8c4bcfad9ec1229963255"
     },
     {
       "api_sha256": "714b70b2a9644bad6d694a9862a5ff7f6399104df1a240bde98e4b59a3010890",

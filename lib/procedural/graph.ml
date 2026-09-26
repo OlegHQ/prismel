@@ -55,4 +55,3 @@ let dependencies root =
   inspect root |> List.fold_left (fun dependencies info ->
     Context.Dependencies.union dependencies info.dependencies)
     Context.Dependencies.static
-

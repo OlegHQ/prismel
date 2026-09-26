@@ -20,4 +20,3 @@ val find : t -> node_id:int -> Node.t option
 (** Union of context facts consumed anywhere in the reachable DAG. Sketch
     runtimes use this to schedule external-effect recooks. *)
 val dependencies : t -> Context.Dependencies.t
-
