@@ -1,7 +1,7 @@
 # Former qualified Ops path<TAB>checked family path; * means constructor prefix.
-Ops.smooth_boundary	Smooth.boundary
-Ops.Smooth_*	Smooth.Smooth_
-Ops.smooth	Smooth.run
+Ops.smooth_boundary	Smooth_ops.boundary
+Ops.Smooth_*	Smooth_ops.Smooth_
+Ops.smooth	Smooth_ops.run_checked
 Ops.reverse_operation	Reverse_ops.operation
 Ops.Reverse_vertices	Reverse_ops.Reverse_vertices
 Ops.Shift_vertices	Reverse_ops.Shift_vertices
