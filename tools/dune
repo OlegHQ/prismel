@@ -8,11 +8,6 @@
  (modules bench_sdl3)
  (libraries prismel.sdl3 prismel.sdl3_mixer unix yojson))
 
-(executable
- (name resource_probe)
- (modules resource_probe)
- (libraries runtime_resources unix yojson))
-
 (rule
  (targets bench_metal_ffi_bridge.o libbench_metal_ffi_stubs.a
   dllbench_metal_ffi_stubs.so)
@@ -110,11 +105,6 @@
  (libraries prismel prismel_pathtracer pdk unix))
 
 (executable
- (name bench_shattered_cube)
- (modules bench_shattered_cube)
- (libraries prismel pdk procedural sop_catalog sketch_support unix))
-
-(executable
  (name bench_shattered_renderer)
  (modules bench_shattered_renderer)
  (libraries prismel pdk procedural sop_catalog sketch_support sketch_ui unix))
@@ -140,11 +130,6 @@
  (libraries prismel procedural pxui pxui_graph scene_command unix))
 
 (executable
- (name bench_text_image)
- (modules bench_text_image)
- (libraries prismel unix))
-
-(executable
  (name bench_uniforms)
  (modules bench_uniforms)
  (libraries scene_execution scene_execution_fixtures ogpu unix))
@@ -158,11 +143,6 @@
  (name bench_pdk_ops)
  (modules bench_pdk_ops)
  (libraries prismel pdk pdk_prismel procedural unix))
-
-(executable
- (name bench_pdk_kernel)
- (modules bench_pdk_kernel)
- (libraries prismel pdk unix))
 
 (executable
  (name bench_predicates)
@@ -219,7 +199,3 @@
  (modules boolean_stress)
  (libraries prismel pdk unix))
 
-(executable
- (name bench_input)
- (modules bench_input)
- (libraries runtime_input prismel.sdl3 unix))
