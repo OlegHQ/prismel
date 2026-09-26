@@ -3,7 +3,7 @@
   "baseline_plan_sha256": "6f95e5738ae263386bbc414299f598f25ba9f604b48a8c2ef9bee84f974e2954",
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 133,
+  "module_count": 134,
   "modules": [
     {
       "api_sha256": "e50b68fb8b3efb8c3f48d288c797a83690511ce38a332e2c2285c788efd781ad",
@@ -276,13 +276,22 @@
       "source_sha256": "42613303db49fa0460ef215b59454f0c3e307a980ac7c905f9b447947afcd0d3"
     },
     {
-      "api_sha256": "9d9781a40a7df375343497fc7d31465535102d4bb567d180b200e2135454cae5",
+      "api_sha256": "b4ef35c3800b1d92561098ead0b92b09053d4565b22b33650cff1474fba342c7",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Group_mesh",
+      "source": "lib/pdk/mesh/group_mesh.mli",
+      "source_bytes": 996,
+      "source_sha256": "4c133b0a32c2300d259a8602f4b9d18e809eb3cf79b088686430ae804ee7fe77"
+    },
+    {
+      "api_sha256": "2969d3a81e2af633c1388ac18d7226ab46590b428f24bf6334fcd79af05aaa9c",
       "excluded_legacy_symbols": [],
       "library": "pdk",
       "module": "Group_ops",
       "source": "lib/pdk/attrib/group_ops.mli",
-      "source_bytes": 27772,
-      "source_sha256": "3eff06f7b3d0fa6076f1be08ea8cbb003ab2ecf49d1d05e626414a40bbc7b482"
+      "source_bytes": 31930,
+      "source_sha256": "4020e982330a5b8cd4450676fdcdb7701c34dce3bc450c9d33fbb20f57b8e32f"
     },
     {
       "api_sha256": "c7508684270c179c88ae16124508533eecf5157ebce2a9c962746020870393f0",

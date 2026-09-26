@@ -242,7 +242,7 @@ and Boolean paths while implementations live in one-way `pdk_core`, `pdk_exact`,
 Catmull–Rom samples, `Pdk.Iso_surface` extracts packed isosurfaces,
 `Pdk.Uv_sphere` generates packed latitude/longitude spheres, and
 `Pdk.Io` loads and saves STL, OFF, and OBJ through typed results.
-`Pdk.Group_ops`, `Pdk.Blend_shapes`, `Pdk.Attribute_composite`,
+`Pdk.Group_ops`, `Pdk.Group_mesh`, `Pdk.Blend_shapes`, `Pdk.Attribute_composite`,
 `Pdk.Attribute_mirror`, `Pdk.Attribute_fade`, `Pdk.Fuse_reduce`, `Pdk.Fuse_grid`,
 `Pdk.Normal_ops`, `Pdk.Plane_generators`,
 `Pdk.Box_generator`, `Pdk.Parametric_generators`, `Pdk.Spiral`, `Pdk.Point_generate`,
@@ -257,6 +257,9 @@ migration.
 `Pdk.Group_ops.groups_from_name_checked` and
 `Pdk.Group_ops.name_from_groups_checked` return the same typed validation and
 cancellation errors as their compatibility entry points.
+The remaining checked `Pdk.Group_ops` selections and `Pdk.Group_mesh` edge/path
+selections preserve the same typed errors while keeping group storage in the
+attribute core and topology paths in the mesh core.
 
 Loop and Catmull-Clark mesh subdivision use the same packed PDK core
 as `Procedural.Sop.subdivide`; `Pdk.Subdivision_extra` provides Butterfly and

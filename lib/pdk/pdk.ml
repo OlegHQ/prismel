@@ -32,6 +32,7 @@ module Analysis = Pdk_core.Analysis
 module Surface_index = Pdk_spatial.Surface_index
 module Attribute_ops = Pdk_attrib.Attribute_ops
 module Group_ops = Pdk_attrib.Group_ops
+module Group_mesh = Pdk_mesh.Group_mesh
 module Blend_shapes = Pdk_attrib.Blend_shapes
 module Attribute_composite = Pdk_attrib.Attribute_composite
 module Attribute_mirror = Pdk_attrib.Attribute_mirror

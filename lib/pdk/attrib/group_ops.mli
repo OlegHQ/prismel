@@ -799,3 +799,143 @@ val transfer :
   ?distance:float ->
   source:Pdk_core.Geometry.t ->
   target:Pdk_core.Geometry.t -> unit -> (Pdk_core.Geometry.t, string) result
+val group_from_attribute_boundary_checked :
+  ?cancel:Pdk_core.Cancel.t ->
+  ?grain:int ->
+  ?attributes:boundary_attribute list ->
+  ?tolerance:float ->
+  ?include_unshared_edges:bool ->
+  ?include_all_unshared_curve_edges:bool ->
+  ?include_all_primitives_sharing_boundary_points:bool ->
+  owner:owner ->
+  name:string -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
+
+val group_normal_checked :
+  ?cancel:Pdk_core.Cancel.t ->
+  ?grain:int ->
+  ?normal_attribute:string ->
+  ?use_existing_normal:bool ->
+  ?base:string ->
+  ?include_opposite:bool ->
+  ?merge:boolean_operation ->
+  direction:Prismel_math.Vec3.t ->
+  spread_angle:float ->
+  owner:owner ->
+  name:string -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
+
+val group_non_planar_checked :
+  ?cancel:Pdk_core.Cancel.t ->
+  ?grain:int ->
+  ?base:string ->
+  ?merge:boolean_operation ->
+  tolerance:float ->
+  name:string -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
+
+val group_backface_checked :
+  ?cancel:Pdk_core.Cancel.t ->
+  ?grain:int ->
+  ?base:string ->
+  ?merge:boolean_operation ->
+  viewpoint:Prismel_math.Vec3.t ->
+  name:string -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
+
+val group_edge_depth_checked :
+  ?cancel:Pdk_core.Cancel.t ->
+  ?grain:int ->
+  ?merge:boolean_operation ->
+  depth:int ->
+  point_group:string ->
+  name:string -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
+
+val group_unshared_checked :
+  ?cancel:Pdk_core.Cancel.t ->
+  ?grain:int ->
+  ?merge:boolean_operation ->
+  owner:owner ->
+  name:string -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
+
+val group_boundary_components_checked :
+  ?cancel:Pdk_core.Cancel.t ->
+  ?grain:int ->
+  ?prefix:string ->
+  ?conflict:name_conflict ->
+  ?max_groups:int ->
+  ?max_payload_bytes:int ->
+  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
+
+val group_promote_boundary_checked :
+  ?cancel:Pdk_core.Cancel.t ->
+  ?grain:int ->
+  ?name:string ->
+  ?keep_original:bool ->
+  ?output_attribute:string ->
+  ?attributes:boundary_attribute list ->
+  ?tolerance:float ->
+  ?include_unshared_edges:bool ->
+  ?include_all_unshared_curve_edges:bool ->
+  ?include_all_primitives_sharing_boundary_points:bool ->
+  source:owner ->
+  destination:owner ->
+  group:string -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
+
+val combine_checked :
+  ?cancel:Pdk_core.Cancel.t ->
+  ?grain:int ->
+  owner:owner ->
+  name:string ->
+  base:operand ->
+  steps:combine_step list ->
+  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
+
+val range_checked :
+  ?cancel:Pdk_core.Cancel.t ->
+  ?grain:int ->
+  ?base:string ->
+  ?invert:bool ->
+  ?filter:range_filter ->
+  ?connectivity:range_connectivity ->
+  ?merge:boolean_operation ->
+  owner:owner ->
+  name:string ->
+  range -> Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
+
+val ranges_checked :
+  ?cancel:Pdk_core.Cancel.t ->
+  ?grain:int ->
+  rules:range_rule list ->
+  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
+
+val invert_checked :
+  ?conflict:rename_conflict ->
+  ?owner:owner ->
+  pattern:string ->
+  ?new_name:string ->
+  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
+
+val delete_checked :
+  rules:delete_rule list ->
+  ?delete_unused:bool ->
+  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
+
+val rename_checked :
+  rules:rename_rule list ->
+  Pdk_core.Geometry.t -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
+
+val copy_checked :
+  ?cancel:Pdk_core.Cancel.t ->
+  ?grain:int ->
+  ?rules:copy_rule list ->
+  ?conflict:copy_conflict ->
+  ?copy_empty:bool ->
+  source:Pdk_core.Geometry.t ->
+  target:Pdk_core.Geometry.t -> unit -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
+
+val transfer_checked :
+  ?cancel:Pdk_core.Cancel.t ->
+  ?grain:int ->
+  ?rules:transfer_rule list ->
+  ?conflict:copy_conflict ->
+  ?create_empty:bool ->
+  ?distance:float ->
+  source:Pdk_core.Geometry.t ->
+  target:Pdk_core.Geometry.t -> unit -> (Pdk_core.Geometry.t, Pdk_core.Error.t) result
