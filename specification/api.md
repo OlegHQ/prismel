@@ -666,10 +666,15 @@ follows it.
 #### Sketch workspace keys
 
 `Space` (with no text field focused) opens a centered which-key panel; the
-next key runs a binding from the editor keymap, the single table that
-drives both dispatch and the panel. Command/Ctrl chords, Delete/Backspace,
-Home, and focus-dependent `F` use that same table; `pxui_graph` exports graph commands and their
-bindings without interpreting keys. Global bindings always apply; the others
+next key runs a command from the editor keymap, one list of pure-data
+`Editor_core.Command.t` entries (`id`, `label`, optional `trigger`, optional
+`scope`, `action`) that drives dispatch, the panel, and the `Space /` command
+palette. Built-ins carry `Leader.action` payloads the update pipeline handles;
+sketch `?commands` are the same entries whose action is a
+`'prepared t -> 'prepared t` function run after the frame. Command/Ctrl
+chords, Delete/Backspace, Home, and focus-dependent `F` use that same table;
+`pxui_graph` exports its graph commands as entries without interpreting keys.
+Entries without a trigger appear only in the palette. Global commands always apply; the others
 belong to the focused pane (the last one clicked, outlined in the accent
 colour). Escape, Space, an unknown key, a click, or focus loss cancel it.
 
@@ -698,7 +703,7 @@ preset saves use the returned camera state, and navigation and render scheduling
 run afterward. PNG render status is held in the environment model and updated
 by the model returned from `after_present`.
 The leader-key panel is `Pxui_shell.Which_key`; the sketch host supplies its
-bindings and focused-pane name. `Pxui_shell.Status_bar` paints the common kit
+commands and focused-pane name. `Pxui_shell.Status_bar` paints the common kit
 strip from host-provided status text, FPS, and pane bounds.
 `Pxui_shell.Layout` computes the standard 45/35/20 pane geometry, and
 `Pxui_shell.Chrome` builds its headers, splitters, and focus outline;

@@ -6,15 +6,17 @@
 ## Editor layering (plan U, shipped)
 
 - Foundations live in the pure `editor_core` library: `History` (undo with
-  explicit merge rules), `Keymap` (one binding table for dispatch and
-  which-key), `Router` (text focus, leader, chords, and the fly mode layer)
+  explicit merge rules), `Command` (one pure-data entry type, `id`, `label`,
+  optional `trigger` and `scope`, `action`, for dispatch, which-key, and the
+  palette), `Router` (text focus, leader, chords, and the fly mode layer)
   and `Store` (the one save format). Chrome lives in `pxui_shell`: layout,
   splitters, pane roots, which-key, prompts, status and timeline bars, and
   `Shell.frame`, the only `Ui.frame` caller.
 - Panes return intents; `Core.update` is the one dispatcher. Code inside
   `Ui.frame` never mutates the model or refs.
-- Keys become actions only through the data keymap (`Leader.keymap` plus
-  `Pxui_graph.bindings`); panes do not match `KeyPressed` for commands.
+- Keys become actions only through the one `Editor_core.Command.t` keymap
+  (`Leader.keymap` plus `Pxui_graph.bindings` plus sketch commands mapped to
+  `Leader.Sketch_command id`); panes do not match `KeyPressed` for commands.
   `pxui_graph` never matches operation names; the host passes predicates such
   as `~flaggable`.
 - One immutable `Document` (graph, tile layout, display node, active camera,
@@ -26,7 +28,8 @@
   live in `Cook`; `prepare` receives the settings snapshot. Camera math lives
   in `prismel` (`Easy_camera`).
 - Sketches extend the editor only through `?settings`, `?commands`
-  (`Editor_core.Command`, also listed in the `Space /` palette),
+  (`Editor_core.Command` entries whose action is the run function, listed
+  in which-key and the `Space /` palette exactly like built-ins),
   `?factories`, and `update_with`. Prismel Editor holds composition, not
   reusable logic: anything a second shell would want lives in `pxui_shell`
   or `editor_core`. See the `extend-prismel-editor` skill.

@@ -15,9 +15,11 @@ Read `lib/prismel_editor/AGENTS.md` first. Pick the lowest level that works:
 | 3 Prismel Editor | `Prismel_editor.Editor3`/`Editor2` with a SOP graph | `sketches/voxel_wall`, `sketches/shattered_cube` |
 
 1. **Command**: one `Editor_core.Command.make ~id ~label ?trigger ?scope
-   ?enabled run` entry. In Prismel Editor pass it as `?commands`; its
-   trigger joins the leader keymap and which-key, and it appears in the
-   palette (`Space /`). Change undoable state inside `run` through
+   action` entry, the same type as every built-in. In Prismel Editor pass it
+   as `?commands` with `action : 'prepared t -> 'prepared t`; its trigger
+   joins the keymap and which-key, and it appears in the palette
+   (`Space /`). A built-in is a `Leader.keymap` entry with a `Leader.action`
+   payload handled in the update pipeline. Change undoable state in the action through
    `set_settings` or document edits, never a ref. Never add a variant or a
    `match` for a sketch command.
 2. **Node**: catalog nodes use the `add-sop` skill. A sketch node is a

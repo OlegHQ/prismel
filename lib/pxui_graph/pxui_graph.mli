@@ -136,7 +136,8 @@ val delete_selection : t -> t * change list
 val stats : t -> stats
 
 type command = Copy | Cut | Paste | Duplicate | Delete | Frame_all
-val bindings : (Editor_core.Keymap.trigger * string * command) list
+val bindings : ('scope, command) Editor_core.Command.t list
+(* Global key commands; the host scopes them to its graph pane. *)
 val run_command : t -> command -> t * change list
 (** Commands are dispatched by the host's key router, not by [update]. *)
 

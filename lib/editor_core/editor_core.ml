@@ -69,40 +69,47 @@ end
 
 module Keymap = struct
   type trigger = Leader of char | Chord of Prismel.Input.key * Prismel.Input.key list
+end
 
-  type ('scope, 'action) binding = {
-    trigger : trigger;
+module Command = struct
+  type ('scope, 'action) t = {
+    id : string;
     label : string;
+    trigger : Keymap.trigger option;
     scope : 'scope option;
     action : 'action;
   }
 
-  let visible bindings focus = List.filter (fun binding ->
-    binding.scope = None || binding.scope = Some focus) bindings
+  let make ?trigger ?scope ~id ~label action = { id; label; trigger; scope; action }
+end
+
+module Router = struct
+  open Command
+  open Keymap
+  type state = Idle | Pending
+
+  let visible commands focus = List.filter (fun command ->
+    command.scope = None || command.scope = Some focus) commands
 
   let same_key a b = match a, b with
     | Prismel.Input.KeyChar a, Prismel.Input.KeyChar b ->
         Char.lowercase_ascii a = Char.lowercase_ascii b
     | _ -> a = b
 
-  let chord bindings focus keys key =
-    visible bindings focus |> List.filter_map (fun binding ->
-      match binding.trigger with
-      | Chord (bound, modifiers) when same_key bound key
+  let chord commands focus keys key =
+    visible commands focus |> List.filter_map (fun command ->
+      match command.trigger with
+      | Some (Chord (bound, modifiers)) when same_key bound key
           && List.for_all (fun modifier -> List.mem modifier keys) modifiers
           && List.for_all (fun modifier ->
                not (List.mem modifier keys) || List.mem modifier modifiers)
                [Prismel.Input.Meta; Prismel.Input.Ctrl] ->
-          Some (List.length modifiers, binding.action)
+          Some (List.length modifiers, command.action)
       | _ -> None)
     |> List.fold_left (fun best candidate -> match best with
       | Some (count, _) when count >= fst candidate -> best
       | _ -> Some candidate) None
     |> Option.map snd
-end
-
-module Router = struct
-  type state = Idle | Pending
 
   let fly (frame : Prismel.Frame.t) =
     let open Prismel in
@@ -129,17 +136,17 @@ module Router = struct
       | Idle, Event.KeyPressed Input.Space when not text_focus && not command ->
           Pending, actions, passed
       | Idle, Event.KeyPressed key when not text_focus ->
-          (match Keymap.chord keymap focus frame.keys key with
+          (match chord keymap focus frame.keys key with
            | Some action -> Idle, action :: actions, passed
            | None -> Idle, actions, event :: passed)
       | Idle, _ -> Idle, actions, event :: passed
       | Pending, Event.KeyPressed key when modifier key -> Pending, actions, passed
       | Pending, Event.KeyPressed (Input.KeyChar character) ->
           let character = Char.lowercase_ascii character in
-          let actions = match List.find_opt (fun binding ->
-              binding.Keymap.trigger = Keymap.Leader character)
-              (Keymap.visible keymap focus) with
-            | Some binding -> binding.action :: actions
+          let actions = match List.find_opt (fun command ->
+              command.trigger = Some (Leader character))
+              (visible keymap focus) with
+            | Some command -> command.action :: actions
             | None -> actions in
           Idle, actions, passed
       | Pending, (Event.TextInput _ | Event.TextEditing _) -> Pending, actions, passed
@@ -150,26 +157,4 @@ module Router = struct
     let passed = if state = Idle && actions <> [] then List.filter (function
         | Event.TextInput _ -> false | _ -> true) passed else passed in
     state, List.rev actions, { frame with events = List.rev passed }
-end
-
-module Command = struct
-  type ('model, 'scope) t = {
-    id : string;
-    label : string;
-    trigger : Keymap.trigger option;
-    scope : 'scope option;
-    enabled : 'model -> bool;
-    run : 'model -> 'model;
-  }
-
-  let make ?trigger ?scope ?(enabled = fun _ -> true) ~id ~label run =
-    { id; label; trigger; scope; enabled; run }
-
-  let bindings action commands = List.filter_map (fun command ->
-    Option.map (fun trigger -> { Keymap.trigger; label = command.label;
-      scope = command.scope; action = action command.id }) command.trigger) commands
-
-  let run commands id model = match List.find_opt (fun command -> command.id = id) commands with
-    | Some command when command.enabled model -> command.run model
-    | Some _ | None -> model
 end

@@ -104,15 +104,15 @@ routing, and atomic JSON storage. Sketch hosts use
 `Editor_core.History`, `Editor_core.Router`, and `Editor_core.Store`;
 the router filters fly-mode keyboard events before leader and chord routing,
 while passing Space through to arm the leader after fly exits.
-`pxui_graph` exports editor bindings and graph commands without handling key
+`pxui_graph` exports its graph commands as `Editor_core.Command.t` entries without handling key
 events. `editor_core` depends on `prismel` for frame and event values, never on UI
 or geometry libraries. `pxui_shell` owns editor chrome over the shared PXUI
 handle; `Layout` computes pane geometry and `Chrome` handles standard splitters,
 headers, and focus outline. Layout geometry is pure and has no mutable cache
-inside the PXUI frame. Its which-key panel reads generic editor bindings, while its
+inside the PXUI frame. Its which-key panel reads generic editor commands, while its
 timeline and prompt widgets return requests without knowing about SOPs or
 presets. `Shell.frame` owns the workspace's PXUI frame calls. `prismel_editor`
-supplies bindings, playback state, and preset data. PXUI hit ancestry reports
+supplies commands, playback state, and preset data. PXUI hit ancestry reports
 presses on child controls to their pane roots; the sketch host reads those
 signals for pane focus. When a click and scoped key share a frame, the router
 reads the same PXUI hit tree before building the frame. `prismel_editor`'s shared

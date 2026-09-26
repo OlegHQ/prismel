@@ -280,12 +280,13 @@ end
 
 module Which_key = struct
   open Editor_core.Keymap
+  open Editor_core.Command
 
   let panel ui keymap ~focus ~focus_name =
     let module Ui = Pxui.Ui in
     let theme = Ui.theme ui in
-    let row binding =
-      let key = match binding.trigger with
+    let row (trigger, label) =
+      let key = match trigger with
         | Leader key -> String.make 1 key
         | Chord (Prismel.Input.KeyChar key, modifiers) ->
             (if List.mem Prismel.Input.Meta modifiers then "⌘"
@@ -300,11 +301,13 @@ module Which_key = struct
       Ui.draw ui box (fun paint (x, y, _, h) ->
         let y = y +. Float.max 5. ((h -. float_of_int (Ui.font_size ui) -. 3.) /. 2.) in
         Ui.Paint.text paint ~at:(x +. 8., y) ~color:theme.accent key;
-        Ui.Paint.text paint ~at:(x +. 68., y) ~color:theme.foreground binding.label) in
+        Ui.Paint.text paint ~at:(x +. 68., y) ~color:theme.foreground label) in
     let section title scope =
-      match List.filter (fun binding -> binding.scope = scope) keymap with
+      match List.filter_map (fun command -> match command.trigger with
+        | Some trigger when command.scope = scope -> Some (trigger, command.label)
+        | _ -> None) keymap with
       | [] -> ()
-      | bindings -> Ui.label ui title; List.iter row bindings in
+      | rows -> Ui.label ui title; List.iter row rows in
     ignore (Ui.modal ui ~width:300. "leader" (fun () ->
       section "Leader · global" None;
       section focus_name (Some focus)))

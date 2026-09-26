@@ -38,14 +38,14 @@ let ui_bytes scene =
 
 let run () =
   let module Leader = Prismel_editor.Private.Leader in
-  List.iter (fun (trigger, _, command) ->
-    check (List.exists (fun binding ->
-      binding.Editor_core.Keymap.trigger = trigger
-      && binding.action = Leader.Graph_command command) Leader.keymap)
+  List.iter (fun (graph : _ Editor_core.Command.t) ->
+    check (List.exists (fun (command : Leader.command) ->
+      command.id = graph.id && command.trigger = graph.trigger
+      && command.action = Leader.Graph_command graph.action) Leader.keymap)
       "graph command missing from the host keymap") Pxui_graph.bindings;
-  let camera_binding key action = List.exists (fun binding ->
-    binding.Editor_core.Keymap.trigger = Editor_core.Keymap.Leader key
-    && binding.action = action) Leader.keymap in
+  let camera_binding key action = List.exists (fun (command : Leader.command) ->
+    command.trigger = Some (Editor_core.Keymap.Leader key)
+    && command.action = action) Leader.keymap in
   check (camera_binding 'h' Leader.Hide_ui
       && camera_binding 'c' Leader.Open_camera)
     "camera visibility commands missing from the host keymap";

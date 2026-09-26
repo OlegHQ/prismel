@@ -1343,13 +1343,15 @@ type command = Copy | Cut | Paste | Duplicate | Delete | Frame_all
 
 let bindings =
   let open Editor_core.Keymap in
-  let letter key command label = List.map (fun modifier ->
-    Chord (Input.KeyChar key, [modifier]), label, command) [Input.Meta; Input.Ctrl] in
+  let command id label action key modifiers = Editor_core.Command.make
+      ~id:("graph." ^ id) ~label ~trigger:(Chord (key, modifiers)) action in
+  let letter key action id = List.map (fun modifier ->
+    command id id action (Input.KeyChar key) [modifier]) [Input.Meta; Input.Ctrl] in
   letter 'c' Copy "copy" @ letter 'x' Cut "cut"
   @ letter 'v' Paste "paste" @ letter 'd' Duplicate "duplicate"
-  @ [Chord (Input.Delete, []), "delete", Delete;
-     Chord (Input.Backspace, []), "delete", Delete;
-     Chord (Input.Home, []), "frame all", Frame_all]
+  @ [command "delete" "delete" Delete Input.Delete [];
+     command "delete" "delete" Delete Input.Backspace [];
+     command "frame-all" "frame all" Frame_all Input.Home []]
 
 let run_command (value : t) = function
   | _ when value.menu <> None -> value, []

@@ -86,15 +86,15 @@ module Private : sig
       | Command_palette
       | Sketch_command of string
 
-    type binding = (Workspace.column, action) Editor_core.Keymap.binding
+    type command = (Workspace.column, action) Editor_core.Command.t
 
     type state = Editor_core.Router.state = Idle | Pending
 
-    val keymap : binding list
-    (** The single table behind dispatch and the which-key panel. *)
+    val keymap : command list
+    (** The single table behind dispatch, which-key, and the palette. *)
 
-    val keymap3 : binding list
-    (** [keymap] plus the 3D view bindings ([w] fly, [v] look through). *)
+    val keymap3 : command list
+    (** [keymap] plus the 3D view commands ([w] fly, [v] look through). *)
 
   end
 
@@ -131,7 +131,7 @@ module Editor3 : sig
     ?timeline_frames:int ->
     ?factories:Procedural.Edit_graph.factory list ->
     ?settings:Settings.t ->
-    ?commands:('prepared t, Pxui_shell.Layout.column) Editor_core.Command.t list ->
+    ?commands:(Pxui_shell.Layout.column, 'prepared t -> 'prepared t) Editor_core.Command.t list ->
     ?camera:Prismel.Easy_camera.t ->
     ?background:Prismel.Color.t ->
     ?seed:int64 ->
@@ -164,9 +164,10 @@ module Editor3 : sig
   (** Replace the sketch settings from code: one undo step and a fresh cook,
       since [prepare] receives them. Inspector edits do the same. *)
 
-  (* [?commands] (on [create]/[run]) add sketch [Editor_core.Command]s: their
-     triggers join the leader keymap and which-key, and every command is in
-     the palette ([Space /]). [run] gets this environment after the frame. *)
+  (* [?commands] (on [create]/[run]) add sketch [Editor_core.Command]s to the
+     same table as the built-ins: triggers join key routing and which-key, and
+     every command is in the palette ([Space /]). A command's [action] gets
+     this environment after the frame. *)
 
   (** The workspace keeps one [Editor_core.History] history of the editable document:
       graph edits and inspector commits are entries, continuous slider drags
@@ -215,7 +216,7 @@ module Editor3 : sig
     ?timeline_frames:int ->
     ?factories:Procedural.Edit_graph.factory list ->
     ?settings:Settings.t ->
-    ?commands:('prepared t, Pxui_shell.Layout.column) Editor_core.Command.t list ->
+    ?commands:(Pxui_shell.Layout.column, 'prepared t -> 'prepared t) Editor_core.Command.t list ->
     ?camera:Prismel.Easy_camera.t ->
     ?background:Prismel.Color.t ->
     ?seed:int64 ->
@@ -245,7 +246,7 @@ module Editor2 : sig
     ?timeline_frames:int ->
     ?factories:Procedural.Edit_graph.factory list ->
     ?settings:Settings.t ->
-    ?commands:('prepared t, Pxui_shell.Layout.column) Editor_core.Command.t list ->
+    ?commands:(Pxui_shell.Layout.column, 'prepared t -> 'prepared t) Editor_core.Command.t list ->
     ?camera:Prismel.Easy_camera2.t ->
     ?background:Prismel.Color.t ->
     ?seed:int64 ->
@@ -294,7 +295,7 @@ module Editor2 : sig
     ?timeline_frames:int ->
     ?factories:Procedural.Edit_graph.factory list ->
     ?settings:Settings.t ->
-    ?commands:('prepared t, Pxui_shell.Layout.column) Editor_core.Command.t list ->
+    ?commands:(Pxui_shell.Layout.column, 'prepared t -> 'prepared t) Editor_core.Command.t list ->
     ?camera:Prismel.Easy_camera2.t ->
     ?background:Prismel.Color.t ->
     ?seed:int64 ->

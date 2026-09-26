@@ -59,7 +59,7 @@ type 'prepared t = {
   focus : Workspace.column;
   pane_keys : (int * Workspace.column) list;
   leader : Leader.state;
-  keymap : Leader.binding list;
+  keymap : Leader.command list;
   timeline_frames : int;
   queued : Leader.action list;  (* picked in the palette, run next frame *)
 }
@@ -225,8 +225,8 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     else value.focus in
   let keymap = if all_ui_visible
       && not (Workspace.collapsed value.workspace Workspace.Graph)
-    then value.keymap else List.filter (fun binding ->
-      match binding.Editor_core.Keymap.action with
+    then value.keymap else List.filter (fun command ->
+      match command.Editor_core.Command.action with
       | Leader.Graph_command _ | Leader.Frame_camera -> false
       | _ -> true) value.keymap in
   let leader, actions, frame = Editor_core.Router.step keymap ~focus ~text_focus ~frame
@@ -421,19 +421,19 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
              Some (Delete_preset_file { name; query })
          | Some (query, _) -> Some (Browsing { query; presets }), None)
     | Some (Palette query) ->
-        (* Every keymap command by label, deduplicated (undo has two chords). *)
-        let commands = List.fold_left (fun seen (binding : Leader.binding) ->
-            if List.mem_assoc binding.label seen then seen
-            else (binding.label, binding.action) :: seen) [] keymap |> List.rev in
-        let matches query = List.filter (fun (label, _) ->
-            Ui.fuzzy_match ~query label) commands in
-        let rows query = Array.of_list (List.map (fun (label, _) -> label, "")
+        (* Every keymap command once per id (undo has several chords). *)
+        let commands = List.fold_left (fun seen (command : Leader.command) ->
+            if List.exists (fun (c : Leader.command) -> c.id = command.id) seen then seen
+            else command :: seen) [] keymap |> List.rev in
+        let matches query = List.filter (fun (c : Leader.command) ->
+            Ui.fuzzy_match ~query c.label) commands in
+        let rows query = Array.of_list (List.map (fun (c : Leader.command) -> c.label, "")
             (matches query)) in
         (match Pxui_shell.Prompt.search ui ~key:"command-palette"
             ~title:"Commands" ~label:"Search commands" ~query ~rows with
          | None | Some (_, `Cancel) -> None, None
          | Some (query, `Pick index) ->
-             None, Some (Run_action (snd (List.nth (matches query) index)))
+             None, Some (Run_action (List.nth (matches query) index).action)
          | Some (query, _) -> Some (Palette query), None) in
     (* A closed prompt must not keep keyboard focus into the next frame. *)
     if fst next = None && value.prompt <> None then Ui.unfocus ui;

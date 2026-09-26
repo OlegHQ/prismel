@@ -30,32 +30,27 @@ let () =
   assert (label h = "Move");
   let h = Option.get (undo h) in
   assert (label h = "Connect" && redo_label h = Some "Move");
-  (* Commands: bindings only for triggered ones; disabled commands never run. *)
-  let open Editor_core.Command in
-  let commands = [
-    make ~id:"inc" ~label:"Increment" ~trigger:(Editor_core.Keymap.Leader 'i') succ;
-    make ~id:"neg" ~label:"Negate" ~enabled:(fun n -> n > 0) (fun n -> -n) ] in
-  assert (List.map (fun (b : (unit, string) Editor_core.Keymap.binding) -> b.action)
-      (bindings Fun.id commands) = ["inc"]);
-  assert (run commands "inc" 1 = 2 && run commands "neg" 0 = 0
-      && run commands "neg" 3 = -3 && run commands "missing" 5 = 5);
-  print_endline "editor history: merge, seal, undo/redo, capacity, labels, commands ok"
+  print_endline "editor history: merge, seal, undo/redo, capacity, labels ok"
 
 type scope = View | Graph
 
-let bindings : (scope, [ `Toggle | `Layout | `Undo | `Redo | `Delete | `Frame ])
-    Editor_core.Keymap.binding list = [
-  { trigger = Leader 'g'; label = "toggle graph"; scope = None; action = `Toggle };
-  { trigger = Leader 'l'; label = "layout"; scope = Some Graph; action = `Layout };
-  { trigger = Chord (Prismel.Input.KeyChar 'z', [Prismel.Input.Meta]);
+let bindings : (scope, [ `Toggle | `Layout | `Undo | `Redo | `Delete | `Frame | `Palette ])
+    Editor_core.Command.t list = Editor_core.Keymap.[
+  { id = "toggle"; trigger = Some (Leader 'g'); label = "toggle graph"; scope = None;
+    action = `Toggle };
+  { id = "layout"; trigger = Some (Leader 'l'); label = "layout"; scope = Some Graph;
+    action = `Layout };
+  { id = "undo"; trigger = Some (Chord (Prismel.Input.KeyChar 'z', [Prismel.Input.Meta]));
     label = "undo"; scope = None; action = `Undo };
-  { trigger = Chord (Prismel.Input.KeyChar 'z',
-      [Prismel.Input.Meta; Prismel.Input.Shift]);
+  { id = "redo"; trigger = Some (Chord (Prismel.Input.KeyChar 'z',
+      [Prismel.Input.Meta; Prismel.Input.Shift]));
     label = "redo"; scope = None; action = `Redo };
-  { trigger = Chord (Prismel.Input.Delete, []);
+  { id = "delete"; trigger = Some (Chord (Prismel.Input.Delete, []));
     label = "delete"; scope = Some Graph; action = `Delete };
-  { trigger = Chord (Prismel.Input.KeyChar 'f', []);
+  { id = "frame"; trigger = Some (Chord (Prismel.Input.KeyChar 'f', []));
     label = "frame"; scope = Some Graph; action = `Frame };
+  (* No trigger: palette only, never routed from a key. *)
+  Editor_core.Command.make ~id:"palette" ~label:"palette only" `Palette;
 ]
 
 let frame events : Prismel.Frame.t = {

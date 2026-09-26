@@ -8,10 +8,9 @@ let frame : Frame.t = {
   mouse_delta = 0., 0.; keys = []; mouse_buttons = []; events = [];
 }
 
-let bindings : (string, string) Editor_core.Keymap.binding list = [
-  { trigger = Editor_core.Keymap.Leader 's'; label = "Save"; scope = None; action = "save" };
-  { trigger = Editor_core.Keymap.Leader 'v'; label = "View"; scope = Some "view"; action = "view" };
-]
+let bindings = Editor_core.[
+  Command.make ~id:"save" ~label:"Save" ~trigger:(Keymap.Leader 's') "save";
+  Command.make ~id:"view" ~label:"View" ~trigger:(Keymap.Leader 'v') ~scope:"view" "view";]
 
 let instances focus =
   let ui = Pxui.Ui.create () in

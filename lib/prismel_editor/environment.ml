@@ -19,7 +19,7 @@ module type VIEWPORT = sig
   type extra
   type view  (** The camera the view paints with. *)
 
-  val keymap : Leader.binding list
+  val keymap : Leader.command list
   val default_camera : unit -> camera
   val seed_document : camera -> Edit_graph.factory list -> Edit_graph.t -> Edit_graph.t
   val init : 'p Core.t -> camera -> 'p Core.t * extra
@@ -149,7 +149,7 @@ module Make (V : VIEWPORT) = struct
     background : Color.t;
     extra : V.extra;
     hidden_scene_cache : (V.rendered, V.view) hidden_scene_cache option;
-    commands : ('prepared t, Workspace.column) Editor_core.Command.t list;
+    commands : (Workspace.column, 'prepared t -> 'prepared t) Editor_core.Command.t list;
   }
 
   let create ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timeline_frames ?factories
@@ -163,8 +163,9 @@ module Make (V : VIEWPORT) = struct
         rendered = None; render_status = None; pending_render = None;
         background; extra; hidden_scene_cache = None; commands })
       (Core.create ?settings
-        ~keymap:(V.keymap @ Editor_core.Command.bindings
-          (fun id -> Leader.Sketch_command id) commands) ~seed_document:(V.seed_document camera)
+        ~keymap:(V.keymap @ List.map (fun (c : _ Editor_core.Command.t) ->
+          { c with action = Leader.Sketch_command c.id }) commands)
+        ~seed_document:(V.seed_document camera)
         ~layout ?name ?presets ?timeline_frames ?factories ?seed ?grain ?domains
         ?max_entries ?max_payload_bytes ~graph ~prepare ())
 
@@ -248,7 +249,8 @@ module Make (V : VIEWPORT) = struct
       pending_render; render_status; extra } raw_frame in
     (* Sketch commands run last, on the finished frame's model. *)
     List.fold_left (fun value -> function
-      | Leader.Sketch_command id -> Editor_core.Command.run value.commands id value
+      | Leader.Sketch_command id -> (List.find (fun (c : _ Editor_core.Command.t) ->
+          c.id = id) value.commands).action value
       | _ -> value) value update.actions, inspected
 
   let update value frame = fst (update_with value frame ~inspector:ignore)

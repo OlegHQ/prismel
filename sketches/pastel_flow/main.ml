@@ -37,10 +37,11 @@ let schema =
            ~set:(fun value (values, animate) -> Artwork.set values c.key value, animate) ())
          controls) Artwork.groups)
 
-let keys : (unit, [`Undo | `Redo]) Editor_core.Keymap.binding list = Editor_core.Keymap.[
-  { trigger = Chord (Input.KeyChar 'z', [Input.Meta]); label = "undo"; scope = None; action = `Undo };
-  { trigger = Chord (Input.KeyChar 'z', [Input.Meta; Input.Shift]); label = "redo";
-    scope = None; action = `Redo } ]
+let keys : (unit, [`Undo | `Redo]) Editor_core.Command.t list = Editor_core.[
+  Command.make ~id:"edit.undo" ~label:"undo"
+    ~trigger:(Keymap.Chord (Input.KeyChar 'z', [Input.Meta])) `Undo;
+  Command.make ~id:"edit.redo" ~label:"redo"
+    ~trigger:(Keymap.Chord (Input.KeyChar 'z', [Input.Meta; Input.Shift])) `Redo ]
 
 (* The kit panel over values held in the model. *)
 let panel ui controls (frame:Frame.t) =

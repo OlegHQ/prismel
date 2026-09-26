@@ -35,14 +35,21 @@ end
 
 module Keymap : sig
   type trigger = Leader of char | Chord of Prismel.Input.key * Prismel.Input.key list
+end
 
-  type ('scope, 'action) binding = {
-    trigger : trigger;
-    label : string;
-    scope : 'scope option;
+(** Named editor commands: the one table behind key routing, which-key, and
+    the command palette. Pure data; the host decides what [action] does. *)
+module Command : sig
+  type ('scope, 'action) t = {
+    id : string;  (** stable, e.g. ["edit.undo"]; entries sharing an id are one command *)
+    label : string;  (** shown in which-key and the palette *)
+    trigger : Keymap.trigger option;  (** [None]: palette only *)
+    scope : 'scope option;  (** [None]: global; else only while that pane has focus *)
     action : 'action;
   }
 
+  val make : ?trigger:Keymap.trigger -> ?scope:'scope -> id:string -> label:string ->
+    'action -> ('scope, 'action) t
 end
 
 module Router : sig
@@ -52,31 +59,8 @@ module Router : sig
       router after ending the mode. Escape ends fly without opening a shortcut. *)
   val fly : Prismel.Frame.t -> bool * Prismel.Frame.t
 
-  val step : ('scope, 'action) Keymap.binding list -> focus:'scope ->
+  val step : ('scope, 'action) Command.t list -> focus:'scope ->
     text_focus:bool -> frame:Prismel.Frame.t -> state ->
     state * 'action list * Prismel.Frame.t
-end
-
-(** Named editor commands: the table behind key bindings, which-key, and the
-    command palette. [run] is pure over the host's model. *)
-module Command : sig
-  type ('model, 'scope) t = {
-    id : string;  (** stable, e.g. ["voxel.cycle-renderer"] *)
-    label : string;  (** shown in which-key, the palette, and undo *)
-    trigger : Keymap.trigger option;
-    scope : 'scope option;  (** [None]: global; else only while that pane has focus *)
-    enabled : 'model -> bool;
-    run : 'model -> 'model;
-  }
-
-  val make : ?trigger:Keymap.trigger -> ?scope:'scope ->
-    ?enabled:('model -> bool) -> id:string -> label:string ->
-    ('model -> 'model) -> ('model, 'scope) t
-
-  val bindings : (string -> 'action) -> ('model, 'scope) t list ->
-    ('scope, 'action) Keymap.binding list
-  (** Key bindings for the commands that have a trigger; [action] wraps the id. *)
-
-  val run : ('model, 'scope) t list -> string -> 'model -> 'model
-  (** Run the command with this id when it exists and is enabled. *)
+  (** Commands without a trigger never match a key. *)
 end
