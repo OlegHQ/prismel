@@ -517,7 +517,7 @@ let run () =
            ~owner:Group_ops.Group_primitives ~name:"smooth_faces"
       |> Sop.group_unshared ~owner:Group_ops.Group_points ~name:"smooth_locks"
       |> Sop.smooth ~group:"smooth_faces" ~constrained_points:"smooth_locks"
-           ~boundary:Smooth_ops.Smooth_group_boundary ~iterations:8
+           ~boundary:Smooth.Smooth_group_boundary ~iterations:8
            ~method_:Attribute_ops.Edge_length
            ~mode:(Attribute_ops.Custom_steps { odd = 0.43; even = -0.45 })
            ~weight_attribute:"smooth_weight" ~attributes:"P Cd" in

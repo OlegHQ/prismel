@@ -1181,7 +1181,7 @@ val smooth :
   ?label:string ->
   ?group:string ->
   ?constrained_points:string ->
-  ?boundary:Pdk.Smooth_ops.boundary ->
+  ?boundary:Pdk.Smooth.boundary ->
   ?iterations:int ->
   ?method_:Pdk.Attribute_ops.blur_method ->
   ?mode:Pdk.Attribute_ops.blur_mode ->

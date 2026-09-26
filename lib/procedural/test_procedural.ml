@@ -1507,7 +1507,7 @@ let test_generators_selections_and_delete () =
       |> Sop.group ~name:"smooth_faces" Select.all_primitives
       |> Sop.group_unshared ~owner:Pdk.Group_ops.Group_points ~name:"smooth_locks"
       |> Sop.smooth ~group:"smooth_faces" ~constrained_points:"smooth_locks"
-           ~boundary:Pdk.Smooth_ops.Smooth_group_boundary ~iterations:4
+           ~boundary:Pdk.Smooth.Smooth_group_boundary ~iterations:4
            ~method_:Pdk.Attribute_ops.Edge_length
            ~mode:(Pdk.Attribute_ops.Custom_steps { odd = 0.42; even = -0.44 })
            ~attributes:"P"

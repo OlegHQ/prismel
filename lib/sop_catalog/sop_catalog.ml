@@ -1946,9 +1946,9 @@ module Smooth = struct
   type mode = Laplacian | Custom
 
   let boundary_parameter = Parameter.choice ~equal:( = ) [
-      "Free", Pdk.Smooth_ops.Smooth_free;
-      "Pin unshared", Pdk.Smooth_ops.Smooth_unshared;
-      "Pin group boundary", Pdk.Smooth_ops.Smooth_group_boundary;
+      "Free", Pdk.Smooth.Smooth_free;
+      "Pin unshared", Pdk.Smooth.Smooth_unshared;
+      "Pin group boundary", Pdk.Smooth.Smooth_group_boundary;
     ]
 
   let method_parameter = Parameter.choice ~equal:( = ) [
@@ -1964,7 +1964,7 @@ module Smooth = struct
     group : string [@sop.default ""] [@sop.label "Point group"];
     constrained_points : string [@sop.default ""]
       [@sop.label "Constrained points"];
-    boundary : Pdk.Smooth_ops.boundary [@sop.default Pdk.Smooth_ops.Smooth_free]
+    boundary : Pdk.Smooth.boundary [@sop.default Pdk.Smooth.Smooth_free]
       [@sop.label "Boundary"] [@sop.kind boundary_parameter];
     iterations : int [@sop.default 10] [@sop.label "Iterations"]
       [@sop.min 1] [@sop.max 200] [@sop.hard_min 1];

@@ -108,7 +108,7 @@ let run () =
   let heat = Attribute.create_owned ~name:"heat" ~owner:Attribute.Point
       (Attribute.Float [|0.; 6.; 0.; 0.; 8.; 0.|]) |> get_string_ok in
   let curves = add_attribute heat curves in
-  let smooth = Smooth_ops.run_checked ~iterations:1
+  let smooth = Smooth.run ~iterations:1
       ~mode:(Attribute_ops.Laplacian 1.) ~attributes:"P heat" curves |> get_ok in
   let p = positions smooth and heat = point_float "heat" smooth in
   check (p.y = [|3.; 0.; 3.; 4.; 0.; 4.|])
@@ -118,7 +118,7 @@ let run () =
 
   let first = Group.init ~owner:Group.Primitive ~name:"first" 2
       (fun primitive -> primitive = 0) in
-  let selected = Smooth_ops.run_checked ~primitives:first ~iterations:1
+  let selected = Smooth.run ~primitives:first ~iterations:1
       ~mode:(Attribute_ops.Laplacian 1.) ~attributes:"P" curves |> get_ok in
   let selected = positions selected and source = positions curves in
   check (selected.y.(0) = 3. && selected.y.(1) = 0. && selected.y.(2) = 3.)
@@ -132,15 +132,15 @@ let run () =
 
   let constrained = Group.init ~owner:Group.Point ~name:"locked" 6
       (fun point -> point = 1 || point = 4) in
-  let locked = Smooth_ops.run_checked ~constrained_points:constrained ~iterations:3
+  let locked = Smooth.run ~constrained_points:constrained ~iterations:3
       ~mode:(Attribute_ops.Laplacian 0.5) ~attributes:"P" curves |> get_ok in
   check ((positions locked).y.(1) = 3. && (positions locked).y.(4) = 4.)
     "constrained points moved";
 
   let grid = perturbed_grid () in
-  let free = Smooth_ops.run_checked ~iterations:1 ~mode:(Attribute_ops.Laplacian 1.)
+  let free = Smooth.run ~iterations:1 ~mode:(Attribute_ops.Laplacian 1.)
       ~attributes:"P" grid |> get_ok in
-  let pinned = Smooth_ops.run_checked ~boundary:Smooth_ops.Smooth_unshared ~iterations:1
+  let pinned = Smooth.run ~boundary:Smooth.Smooth_unshared ~iterations:1
       ~mode:(Attribute_ops.Laplacian 1.) ~attributes:"P" grid |> get_ok in
   let source = positions grid and free = positions free and pinned = positions pinned in
   check (pinned.y.(4) < source.y.(4)) "interior point was not smoothed";
@@ -168,8 +168,8 @@ let run () =
         let cell = primitive / 2 in
         let x = cell mod 4 and row = cell / 4 in
         x >= 1 && x <= 2 && row >= 1 && row <= 2) in
-  let group_locked = Smooth_ops.run_checked ~primitives:center_faces
-      ~boundary:Smooth_ops.Smooth_group_boundary ~iterations:2
+  let group_locked = Smooth.run ~primitives:center_faces
+      ~boundary:Smooth.Smooth_group_boundary ~iterations:2
       ~mode:(Attribute_ops.Laplacian 0.5) ~attributes:"P" region |> get_ok in
   let group_locked = positions group_locked in
   check (group_locked.y.(12) < region_source.y.(12))
@@ -188,11 +188,11 @@ let run () =
     [0; 1; 2; 3; 4; 5; 9; 10; 14; 15; 19; 20; 21; 22; 23; 24];
 
   let with_normals = Normal_ops.run_checked grid |> get_ok in
-  let recomputed = Smooth_ops.run_checked ~boundary:Smooth_ops.Smooth_unshared ~iterations:1
+  let recomputed = Smooth.run ~boundary:Smooth.Smooth_unshared ~iterations:1
       ~mode:(Attribute_ops.Laplacian 0.5) ~attributes:"P" with_normals |> get_ok in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" recomputed <> None)
     "Smooth did not recompute existing normals";
-  let invalidated = Smooth_ops.run_checked ~recompute_normals:false ~iterations:1
+  let invalidated = Smooth.run ~recompute_normals:false ~iterations:1
       ~mode:(Attribute_ops.Laplacian 0.5) ~attributes:"P" with_normals |> get_ok in
   check (Geometry.find_attribute ~owner:Attribute.Point "N" invalidated = None
       && Geometry.find_attribute ~owner:Attribute.Vertex "N" invalidated = None)
@@ -203,7 +203,7 @@ let run () =
   let authored_n = Attribute.create_owned ~name:"N" ~owner:Attribute.Point
       (Attribute.Float3 authored_n) |> get_string_ok in
   let smoothed_n = curves |> add_attribute authored_n
-      |> Smooth_ops.run_checked ~iterations:1 ~mode:(Attribute_ops.Laplacian 1.)
+      |> Smooth.run ~iterations:1 ~mode:(Attribute_ops.Laplacian 1.)
            ~attributes:"P N" |> get_ok in
   (match Geometry.find_attribute ~owner:Attribute.Point "N" smoothed_n with
    | Some attribute ->
@@ -217,16 +217,16 @@ let run () =
 
   let wrong_owner = Group.init ~owner:Group.Point ~name:"wrong"
       (Geometry.point_count grid) (fun _ -> true) in
-  expect_code "invalid_selection" (Smooth_ops.run_checked ~primitives:wrong_owner
+  expect_code "invalid_selection" (Smooth.run ~primitives:wrong_owner
       ~attributes:"P" grid);
   let wrong_length = Group.init ~owner:Group.Point ~name:"wrong_length" 1
       (fun _ -> true) in
-  expect_code "invalid_selection" (Smooth_ops.run_checked
+  expect_code "invalid_selection" (Smooth.run
       ~constrained_points:wrong_length ~attributes:"P" grid);
-  expect_code "invalid_parameter" (Smooth_ops.run_checked ~grain:0 ~attributes:"P" grid);
+  expect_code "invalid_parameter" (Smooth.run ~grain:0 ~attributes:"P" grid);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  expect_code "cancelled" (Smooth_ops.run_checked ~cancel:cancelled ~attributes:"P" grid);
+  expect_code "cancelled" (Smooth.run ~cancel:cancelled ~attributes:"P" grid);
 
   let scale = Plane_generators.grid_checked ~columns:400 ~rows:250 ~size:40. () |> get_ok
       |> Deform_ops.noise_displace_checked ~amplitude:0.8 ~frequency:0.41 ~seed:73 |> get_ok in
@@ -236,9 +236,9 @@ let run () =
         0.25 +. (float_of_int (point mod 257) /. 256.)))) |> get_string_ok in
   let scale = add_attribute weight scale in
   let run domains = Parallel.run ~domains (fun () ->
-    Smooth_ops.run_checked ~grain:1024 ~iterations:8 ~method_:Attribute_ops.Edge_length
+    Smooth.run ~grain:1024 ~iterations:8 ~method_:Attribute_ops.Edge_length
       ~mode:(Attribute_ops.Custom_steps { odd = 0.43; even = -0.45 })
-      ~weight_attribute:"weight" ~boundary:Smooth_ops.Smooth_unshared
+      ~weight_attribute:"weight" ~boundary:Smooth.Smooth_unshared
       ~attributes:"P weight" scale |> get_ok) in
   let one = run 1 and many = run 4 in
   check (equal_geometry one many)

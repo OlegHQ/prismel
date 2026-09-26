@@ -2134,8 +2134,8 @@ let run_smooth_benchmarks () =
   and constrained = Group.init ~grain ~owner:Group.Point ~name:"smooth_locks"
       point_count (fun point -> point mod 1009 = 0) in
   measure ~input_points:point_count "smooth_group_boundary_p_cd" (fun () ->
-    Smooth_ops.run_checked ~grain ~primitives ~constrained_points:constrained
-      ~boundary:Smooth_ops.Smooth_group_boundary ~iterations:8
+    Smooth.run ~grain ~primitives ~constrained_points:constrained
+      ~boundary:Smooth.Smooth_group_boundary ~iterations:8
       ~method_:Attribute_ops.Edge_length
       ~mode:(Attribute_ops.Custom_steps { odd = 0.42; even = -0.44 })
       ~attributes:"P Cd" source |> get_ok) geometry_output

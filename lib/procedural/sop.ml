@@ -3364,9 +3364,9 @@ let polyframe ?label ?selection ?(orthogonal = false)
           | Error error -> structured_pdk_error error)
 
 let smooth_boundary_key = function
-  | Pdk.Smooth_ops.Smooth_free -> "free"
-  | Pdk.Smooth_ops.Smooth_unshared -> "unshared"
-  | Pdk.Smooth_ops.Smooth_group_boundary -> "group_boundary"
+  | Pdk.Smooth.Smooth_free -> "free"
+  | Pdk.Smooth.Smooth_unshared -> "unshared"
+  | Pdk.Smooth.Smooth_group_boundary -> "group_boundary"
 
 let smooth_method_key = function
   | Pdk.Attribute_ops.Uniform -> "uniform"
@@ -3378,7 +3378,7 @@ let smooth_mode_key = function
       String.concat ":" ["custom"; float_key odd; float_key even]
 
 let smooth ?label ?group ?constrained_points
-    ?(boundary = Pdk.Smooth_ops.Smooth_free) ?(iterations = 1)
+    ?(boundary = Pdk.Smooth.Smooth_free) ?(iterations = 1)
     ?(method_ = Pdk.Attribute_ops.Uniform)
     ?(mode = Pdk.Attribute_ops.Laplacian 0.5) ?weight_attribute
     ?alpha_attribute ?(recompute_normals = true) ?(original_blend = 0.)
@@ -3423,7 +3423,7 @@ let smooth ?label ?group ?constrained_points
               "constrained point group" constrained_points with
            | Error error -> Error error
            | Ok constrained_points ->
-               match Pdk.Smooth_ops.run_checked ~cancel:(Context.cancel_token context)
+               match Pdk.Smooth.run ~cancel:(Context.cancel_token context)
                    ~grain:(Context.grain context) ?primitives
                    ?constrained_points ~boundary ~iterations ~method_ ~mode
                    ?weight_attribute ?alpha_attribute ~recompute_normals
