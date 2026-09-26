@@ -1714,13 +1714,13 @@ let run () =
       |> Sop.group_edges ~name:"boundary_edges" ~incidence:Group_mesh.Boundary_edge
       |> Sop.uv_project ~group:"uv_faces" ~u_range:(0.1, 0.9)
            ~v_range:(0.2, 0.8)
-           (Uv_checked.Spherical { origin = Vec3.zero; axis = Vec3.unit_y;
+           (Uv_ops.Spherical { origin = Vec3.zero; axis = Vec3.unit_y;
              seam = Vec3.unit_x })
       |> Sop.uv_transform ~scale:(Vec2.create 3. 2.)
            ~angle:0.17 ~pivot:(Vec2.create 0.5 0.5)
       |> Sop.uv_auto_seam ~angle:(Float.pi /. 3.) ~existing_uv:"uv"
            ~island_attribute:"uv_island"
-      |> Sop.uv_unitize ~seams:"uv_seams" Uv_checked.Islands in
+      |> Sop.uv_unitize ~seams:"uv_seams" Uv_ops.Islands in
   let one = cook 1 uv_mapped and many = cook 4 uv_mapped in
   check (equal_geometry one many)
     "one-domain and four-domain UV projection/transform/seam/unitize differ";

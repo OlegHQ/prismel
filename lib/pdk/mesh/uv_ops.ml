@@ -11,11 +11,13 @@ type unitize_mode = Per_face | Islands
 
 let flatten ?cancel ?grain ?name ?seams ?edge_seams ?iterations ?tolerance
     geometry =
+  Error.guard ~operation:"uv_flatten" ~code:"invalid_uv" @@ fun () ->
   Uv_parameterize.solve ?cancel ?grain ?name ?seams ?edge_seams ?iterations
     ?tolerance Uv_parameterize.Circle geometry
 
 let relax ?cancel ?grain ?name ?seams ?edge_seams ?uv_tolerance ?iterations
     ?tolerance geometry =
+  Error.guard ~operation:"uv_relax" ~code:"invalid_uv" @@ fun () ->
   Uv_parameterize.solve ?cancel ?grain ?name ?seams ?edge_seams ?uv_tolerance
     ?iterations ?tolerance Uv_parameterize.Preserve geometry
 
@@ -152,6 +154,7 @@ let validate_primitives selection primitive_count =
 let project ?cancel ?grain ?(name = "uv") ?primitives
     ?(u_range = (0., 1.)) ?(v_range = (0., 1.))
     ?(fix_seams = true) ?(fix_poles = true) projection geometry =
+  Error.guard ~operation:"uv_project" ~code:"invalid_projection" @@ fun () ->
   try
     if String.trim name = "" then fail "UV attribute name must not be empty";
     validate_range "U range" u_range;
@@ -353,6 +356,7 @@ let expected_group_owner = function
 let transform ?cancel ?grain ?(name = "uv") ?selection ~owner
     ?(translate = Vec2.zero) ?(scale = Vec2.create 1. 1.) ?(angle = 0.)
     ?(pivot = Vec2.create 0.5 0.5) geometry =
+  Error.guard ~operation:"uv_transform" ~code:"invalid_attribute" @@ fun () ->
   try
     if String.trim name = "" then fail "UV attribute name must not be empty";
     if not (finite2 translate && finite2 scale && finite angle && finite2 pivot)
@@ -537,6 +541,7 @@ let auto_seam ?cancel ?grain ?(name = "uv_seams") ?primitives
     ?(angle = Float.pi /. 3.) ?(include_boundaries = true)
     ?(include_non_manifold = true) ?partition_attribute ?existing_uv
     ?(uv_tolerance = 1e-9) ?island_attribute geometry =
+  Error.guard ~operation:"uv_auto_seam" ~code:"invalid_topology" @@ fun () ->
   try
     if String.trim name = "" then fail "UV Auto Seam group name must not be empty";
     if not (finite angle) || angle < 0. || angle > Float.pi then
@@ -700,6 +705,7 @@ let unitize_values ?cancel ~uniform ~minimum_u ~maximum_u ~minimum_v ~maximum_v
 
 let unitize ?cancel ?grain ?(name = "uv") ?primitives ?seams ?edge_seams
     ?(tolerance = 1e-9) ?(uniform = true) mode geometry =
+  Error.guard ~operation:"uv_unitize" ~code:"invalid_uv" @@ fun () ->
   try
     if String.trim name = "" then fail "UV Unitize attribute name must not be empty";
     if not (finite tolerance) || tolerance < 0. then

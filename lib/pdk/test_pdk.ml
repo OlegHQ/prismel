@@ -2176,12 +2176,12 @@ let run () =
   then fail "circle sweep attributes";
   if Mesh.index_count (Pdk_prismel.Prismel_mesh.to_mesh swept |> get_ok) <> 192
   then fail "circle sweep bridge";
-  let planar_projection = Uv_checked.Planar {
+  let planar_projection = Uv_ops.Planar {
       origin = Vec3.create 0.5 0.5 0.;
       u_axis = Vec3.unit_x;
       v_axis = Vec3.unit_y;
     } in
-  let projected_quad = Uv_checked.project ~grain:1 planar_projection geometry
+  let projected_quad = Uv_ops.project ~grain:1 planar_projection geometry
       |> get_ok in
   let projected_uv = Geometry.find_attribute ~owner:Attribute.Vertex "uv"
       projected_quad |> Option.get
@@ -2196,8 +2196,8 @@ let run () =
   if Geometry.positions projected_quad != Geometry.positions geometry
      || Geometry.topology projected_quad != Geometry.topology geometry
   then fail "UV projection copied unchanged geometry payload";
-  let skewed_quad = Uv_checked.project
-      (Uv_checked.Planar { origin = Vec3.zero; u_axis = Vec3.unit_x;
+  let skewed_quad = Uv_ops.project
+      (Uv_ops.Planar { origin = Vec3.zero; u_axis = Vec3.unit_x;
         v_axis = Vec3.create 0.5 1. 0. }) geometry |> get_ok in
   let skewed_uv = Geometry.find_attribute ~owner:Attribute.Vertex "uv"
       skewed_quad |> Option.get
@@ -2217,7 +2217,7 @@ let run () =
       |> get_ok in
   let first_face = Group.init ~owner:Group.Primitive ~name:"first_face" 2
       (fun primitive -> primitive = 0) in
-  let restricted = Uv_checked.project ~grain:1 ~primitives:first_face
+  let restricted = Uv_ops.project ~grain:1 ~primitives:first_face
       planar_projection restricted_source |> get_ok in
   let restricted_uv = Geometry.find_attribute ~owner:Attribute.Vertex "uv"
       restricted |> Option.get
@@ -2228,7 +2228,7 @@ let run () =
   then fail "primitive-restricted UV projection did not preserve other corners";
   let selected_uv = Group.init ~owner:Group.Vertex ~name:"selected_uv" 6
       (fun vertex -> vertex = 0 || vertex = 2) in
-  let transformed_uv = Uv_checked.transform ~grain:1 ~owner:Attribute.Vertex
+  let transformed_uv = Uv_ops.transform ~grain:1 ~owner:Attribute.Vertex
       ~selection:selected_uv ~pivot:Vec2.zero ~scale:(Vec2.create 2. 2.)
       ~translate:(Vec2.create 0.1 (-0.2)) restricted |> get_ok in
   let transformed_uv = Geometry.find_attribute ~owner:Attribute.Vertex "uv"
@@ -2243,7 +2243,7 @@ let run () =
       (Attribute.Float2 (Packed.Float2.of_owned
         ~x:[|0.; 1.; 1.; 0.|] ~y:[|0.; 0.; 1.; 1.|] |> get_ok)) |> get_ok in
   let point_uv_source = Geometry.with_attribute point_uv geometry |> get_ok in
-  let point_uv_output = Uv_checked.transform ~name:"point_uv"
+  let point_uv_output = Uv_ops.transform ~name:"point_uv"
       ~owner:Attribute.Point ~selection:selected
       ~scale:(Vec2.create 0.5 0.5) ~pivot:Vec2.zero point_uv_source |> get_ok in
   let point_uv_values = Geometry.find_attribute ~owner:Attribute.Point "point_uv"
@@ -2261,8 +2261,8 @@ let run () =
       (cos angle, -0.5, sin angle);
       (cos angle, 0.5, sin angle);
     |] |> get_ok in
-  let cylindrical = Uv_checked.project ~grain:1
-      (Uv_checked.Cylindrical { origin = Vec3.zero; axis = Vec3.unit_y;
+  let cylindrical = Uv_ops.project ~grain:1
+      (Uv_ops.Cylindrical { origin = Vec3.zero; axis = Vec3.unit_y;
         seam = Vec3.unit_x; height = 1. }) cylinder_curve |> get_ok in
   let cylindrical_uv = Geometry.find_attribute ~owner:Attribute.Vertex "uv"
       cylindrical |> Option.get
@@ -2273,8 +2273,8 @@ let run () =
   if cylinder_max -. cylinder_min > 0.04
      || cylindrical_uv.y <> [|1.; 0.; 0.; 1.|]
   then fail "cylindrical UV seam/height projection";
-  let huge_frame = Uv_checked.project
-      (Uv_checked.Cylindrical { origin = Vec3.zero;
+  let huge_frame = Uv_ops.project
+      (Uv_ops.Cylindrical { origin = Vec3.zero;
         axis = Vec3.create 0. max_float 0.;
         seam = Vec3.create max_float 0. 0.; height = 1. })
       cylinder_curve |> get_ok in
@@ -2286,8 +2286,8 @@ let run () =
      || Array.exists (fun value -> not (Float.is_finite value)) huge_frame_uv.y
   then fail "UV projection did not normalize an extreme finite frame safely";
   let sphere_uv = Uv_sphere.run_checked ~segments:48 ~rings:24 ~radius:1. () |> get_ok
-      |> Uv_checked.project ~grain:31
-           (Uv_checked.Spherical { origin = Vec3.zero; axis = Vec3.unit_y;
+      |> Uv_ops.project ~grain:31
+           (Uv_ops.Spherical { origin = Vec3.zero; axis = Vec3.unit_y;
              seam = Vec3.unit_x }) |> get_ok in
   let sphere_values = Geometry.find_attribute ~owner:Attribute.Vertex "uv"
       sphere_uv |> Option.get
@@ -2309,18 +2309,18 @@ let run () =
     if !maximum -. !minimum > 0.500000000001 then
       fail "spherical UV primitive crosses the wrap seam"
   done;
-  (match Uv_checked.project
-      (Uv_checked.Planar { origin = Vec3.zero; u_axis = Vec3.unit_x;
+  (match Uv_ops.project
+      (Uv_ops.Planar { origin = Vec3.zero; u_axis = Vec3.unit_x;
         v_axis = Vec3.unit_x }) geometry with
    | Error error when Error.code error = "invalid_projection" -> ()
    | _ -> fail "UV Project accepted parallel planar axes");
-  (match Uv_checked.project ~primitives:selected planar_projection geometry with
+  (match Uv_ops.project ~primitives:selected planar_projection geometry with
    | Error error when Error.code error = "invalid_projection" -> ()
    | _ -> fail "UV Project accepted a point-owned primitive selection");
   let wrong_uv = Attribute.create_owned ~name:"uv" ~owner:Attribute.Vertex
       (Attribute.Float (Array.make 4 0.)) |> get_ok in
   let wrong_uv_geometry = Geometry.with_attribute wrong_uv geometry |> get_ok in
-  (match Uv_checked.project planar_projection wrong_uv_geometry with
+  (match Uv_ops.project planar_projection wrong_uv_geometry with
    | Error error when Error.code error = "invalid_projection" -> ()
    | _ -> fail "UV Project accepted a non-float2 existing UV attribute");
   let invalid_positions = Packed.Float3.Private.of_owned_exn
@@ -2328,16 +2328,16 @@ let run () =
       ~z:[|0.; 0.; 0.; 0.|] in
   let invalid_geometry = Geometry.create ~positions:invalid_positions ~topology ()
       |> get_ok in
-  (match Uv_checked.project planar_projection invalid_geometry with
+  (match Uv_ops.project planar_projection invalid_geometry with
    | Error error when Error.code error = "invalid_projection" -> ()
    | _ -> fail "UV Project accepted a non-finite point position");
   let cancelled_uv = Cancel.create () in
   Cancel.cancel cancelled_uv;
-  (match Uv_checked.project ~cancel:cancelled_uv planar_projection geometry with
+  (match Uv_ops.project ~cancel:cancelled_uv planar_projection geometry with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "UV Project ignored cancellation");
   let hard_seams domains = Parallel.run ~domains (fun () ->
-    Uv_checked.auto_seam ~grain:1 ~angle:(Float.pi /. 4.)
+    Uv_ops.auto_seam ~grain:1 ~angle:(Float.pi /. 4.)
       ~include_boundaries:false ~island_attribute:"uv_island" shared_box
     |> get_ok) in
   let hard_seams_one = hard_seams 1 and hard_seams_many = hard_seams 4 in
@@ -2507,7 +2507,7 @@ let run () =
       ~owner:Attribute.Primitive (Attribute.Int [|0; 1|]) |> get_ok in
   let partition_source = Geometry.with_attribute partition triangle_geometry
       |> get_ok in
-  let partitioned = Uv_checked.auto_seam ~grain:1 ~angle:Float.pi
+  let partitioned = Uv_ops.auto_seam ~grain:1 ~angle:Float.pi
       ~include_boundaries:false ~partition_attribute:"partition"
       ~island_attribute:"piece" partition_source |> get_ok in
   let partition_seams = seam_group partitioned in
@@ -2526,7 +2526,7 @@ let run () =
         ~y:[|0.; 0.; 1.; 0.; 1.; 1.|] |> get_ok)) |> get_ok in
   let continuous_source = Geometry.with_attribute continuous_uv triangle_geometry
       |> get_ok in
-  let continuous = Uv_checked.auto_seam ~angle:Float.pi
+  let continuous = Uv_ops.auto_seam ~angle:Float.pi
       ~include_boundaries:false ~existing_uv:"existing_uv" continuous_source
       |> get_ok in
   if Group.cardinality (seam_group continuous) <> 0
@@ -2539,7 +2539,7 @@ let run () =
         ~y:[|0.; 0.; 1.; 0.; 1.; 1.|] |> get_ok)) |> get_ok in
   let discontinuous_source = Geometry.with_attribute discontinuous_uv
       triangle_geometry |> get_ok in
-  let discontinuous = Uv_checked.auto_seam ~angle:Float.pi
+  let discontinuous = Uv_ops.auto_seam ~angle:Float.pi
       ~include_boundaries:false ~existing_uv:"existing_uv" discontinuous_source
       |> get_ok in
   if Group.cardinality (seam_group discontinuous) <> 2
@@ -2554,7 +2554,7 @@ let run () =
   Topology.Builder.add_triangle nonmanifold_builder 0 1 4;
   let nonmanifold = Geometry.create ~positions:nonmanifold_positions
       ~topology:(Topology.Builder.freeze nonmanifold_builder) () |> get_ok in
-  let nonmanifold = Uv_checked.auto_seam ~angle:Float.pi
+  let nonmanifold = Uv_ops.auto_seam ~angle:Float.pi
       ~include_boundaries:false ~include_non_manifold:true nonmanifold |> get_ok in
   if Group.cardinality (seam_group nonmanifold) <> 3
      || Edge_group.cardinality (edge_seam_group nonmanifold) <> 1 then
@@ -2578,7 +2578,7 @@ let run () =
       ~topology:(Topology.Builder.freeze strip_builder) ~attributes:[strip_uv] ()
       |> get_ok in
   let unitized domains seams = Parallel.run ~domains (fun () ->
-    Uv_checked.unitize ~grain:1 ?seams ~uniform:false Uv_checked.Islands strip |> get_ok) in
+    Uv_ops.unitize ~grain:1 ?seams ~uniform:false Uv_ops.Islands strip |> get_ok) in
   let island_unitized_one = unitized 1 None
   and island_unitized_many = unitized 4 None in
   let uv_values geometry = Geometry.find_attribute ~owner:Attribute.Vertex "uv"
@@ -2604,26 +2604,26 @@ let run () =
   let native_forced = Edge_group.init ~topology:(Geometry.topology strip)
       ~index:strip_index ~name:"forced_native"
       (fun edge -> edge = shared_strip_edge) in
-  let native_split = Uv_checked.unitize ~grain:1 ~edge_seams:native_forced
-      ~uniform:false Uv_checked.Islands strip |> get_ok |> uv_values in
+  let native_split = Uv_ops.unitize ~grain:1 ~edge_seams:native_forced
+      ~uniform:false Uv_ops.Islands strip |> get_ok |> uv_values in
   if native_split.x <> split_unitized.x || native_split.y <> split_unitized.y then
     fail "UV Unitize native edge seam differs from compatibility corners";
-  (match Uv_checked.unitize ~edge_seams:hard_one_edges Uv_checked.Islands strip with
+  (match Uv_ops.unitize ~edge_seams:hard_one_edges Uv_ops.Islands strip with
    | Error error when Error.code error = "invalid_uv" -> ()
    | _ -> fail "UV Unitize accepted an edge group from another topology");
-  let face_unitized = Uv_checked.unitize ~uniform:false Uv_checked.Per_face strip
+  let face_unitized = Uv_ops.unitize ~uniform:false Uv_ops.Per_face strip
       |> get_ok |> uv_values in
   if face_unitized.x <> split_unitized.x
      || face_unitized.y <> split_unitized.y
   then fail "UV Unitize per-face mode";
-  let uniform_unitized = Uv_checked.unitize ~uniform:true Uv_checked.Islands strip
+  let uniform_unitized = Uv_ops.unitize ~uniform:true Uv_ops.Islands strip
       |> get_ok |> uv_values in
   if uniform_unitized.x <> [|0.; 0.5; 0.5; 0.; 0.5; 1.; 1.; 0.5|]
      || uniform_unitized.y <> [|0.25; 0.25; 0.75; 0.75; 0.25; 0.25; 0.75; 0.75|]
   then fail "UV Unitize uniform aspect preservation";
   let flatten_source = Plane_generators.grid_checked ~columns:2 ~rows:2 ~size:2. () |> get_ok in
   let flattened domains = Parallel.run ~domains (fun () ->
-    Uv_checked.flatten ~grain:1 ~iterations:500 ~tolerance:1e-12 flatten_source
+    Uv_ops.flatten ~grain:1 ~iterations:500 ~tolerance:1e-12 flatten_source
     |> get_ok) in
   let flattened_one = flattened 1 and flattened_many = flattened 4 in
   let flat_one_uv = uv_values flattened_one
@@ -2648,7 +2648,7 @@ let run () =
     else if area *. !winding <= 0. then fail "UV Flatten flipped a triangle"
   done;
   let relaxed domains = Parallel.run ~domains (fun () ->
-    Uv_checked.relax ~grain:1 ~iterations:100 ~tolerance:1e-12 flattened_one
+    Uv_ops.relax ~grain:1 ~iterations:100 ~tolerance:1e-12 flattened_one
     |> get_ok) in
   let relaxed_one = relaxed 1 |> uv_values
   and relaxed_many = relaxed 4 |> uv_values in
@@ -2660,25 +2660,25 @@ let run () =
         || relaxed_one.y.(corner) <> flat_one_uv.y.(corner)) then
       fail "UV Relax moved an island boundary"
   done;
-  let seam_cut_box = Uv_checked.auto_seam ~angle:0.1 shared_box |> get_ok in
+  let seam_cut_box = Uv_ops.auto_seam ~angle:0.1 shared_box |> get_ok in
   let box_seams = Geometry.find_edge_group "uv_seams" seam_cut_box
       |> Option.get in
-  let flattened_box = Uv_checked.flatten ~edge_seams:box_seams seam_cut_box
+  let flattened_box = Uv_ops.flatten ~edge_seams:box_seams seam_cut_box
       |> get_ok |> uv_values in
   if Array.exists (fun value -> not (Float.is_finite value)) flattened_box.x
       || Array.exists (fun value -> not (Float.is_finite value)) flattened_box.y
   then fail "UV Flatten seam-cut box produced non-finite coordinates";
-  (match Uv_checked.flatten shared_box with
+  (match Uv_ops.flatten shared_box with
    | Error error when Error.code error = "invalid_uv" -> ()
    | _ -> fail "UV Flatten accepted a closed island without seams");
-  (match Uv_checked.flatten geometry with
+  (match Uv_ops.flatten geometry with
    | Error error when Error.code error = "invalid_uv" -> ()
    | _ -> fail "UV Flatten accepted non-triangle polygons");
-  (match Uv_checked.flatten ~iterations:1 ~tolerance:1e-15
+  (match Uv_ops.flatten ~iterations:1 ~tolerance:1e-15
       (Plane_generators.grid_checked ~columns:20 ~rows:20 ~size:2. () |> get_ok) with
    | Error error when Error.code error = "invalid_uv" -> ()
    | _ -> fail "UV Flatten published a non-converged solve");
-  (match Uv_checked.flatten ~edge_seams:hard_one_edges flatten_source with
+  (match Uv_ops.flatten ~edge_seams:hard_one_edges flatten_source with
    | Error error when Error.code error = "invalid_uv" -> ()
    | _ -> fail "UV Flatten accepted seams from another topology");
   let discontinuous_u = Array.copy flat_one_uv.x
@@ -2696,20 +2696,20 @@ let run () =
         ~y:discontinuous_v |> get_ok)) |> get_ok in
   let discontinuous_flattened = Geometry.with_attribute discontinuous_attribute
       flattened_one |> get_ok in
-  (match Uv_checked.relax discontinuous_flattened with
+  (match Uv_ops.relax discontinuous_flattened with
    | Error error when Error.code error = "invalid_uv" -> ()
    | _ -> fail "UV Relax accepted an undeclared UV discontinuity");
   let cancelled_flatten = Cancel.create () in
   Cancel.cancel cancelled_flatten;
-  (match Uv_checked.flatten ~cancel:cancelled_flatten flatten_source with
+  (match Uv_ops.flatten ~cancel:cancelled_flatten flatten_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "UV Flatten ignored cancellation");
   let cancelled_unitize = Cancel.create () in
   Cancel.cancel cancelled_unitize;
-  (match Uv_checked.auto_seam ~cancel:cancelled_unitize shared_box with
+  (match Uv_ops.auto_seam ~cancel:cancelled_unitize shared_box with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "UV Auto Seam ignored cancellation");
-  (match Uv_checked.unitize ~cancel:cancelled_unitize Uv_checked.Islands strip with
+  (match Uv_ops.unitize ~cancel:cancelled_unitize Uv_ops.Islands strip with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "UV Unitize ignored cancellation");
   (match Group_mesh.group_edges_checked ~cancel:cancelled_unitize strip with
@@ -3912,22 +3912,22 @@ let run () =
   (match Curve_topology.convert_line ~cancel:cancelled_curve line_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "Convert Line ignored cancellation");
-  (match Uv_checked.unitize Uv_checked.Islands geometry with
+  (match Uv_ops.unitize Uv_ops.Islands geometry with
    | Error error when Error.code error = "invalid_uv" -> ()
    | _ -> fail "UV Unitize accepted missing UVs");
-  (match Uv_checked.auto_seam ~primitives:selected shared_box with
+  (match Uv_ops.auto_seam ~primitives:selected shared_box with
    | Error error when Error.code error = "invalid_topology" -> ()
    | _ -> fail "UV Auto Seam accepted a point-owned primitive selection");
-  (match Uv_checked.unitize ~seams:selected Uv_checked.Islands strip with
+  (match Uv_ops.unitize ~seams:selected Uv_ops.Islands strip with
    | Error error when Error.code error = "invalid_uv" -> ()
    | _ -> fail "UV Unitize accepted a point-owned seam group");
-  (match Uv_checked.auto_seam ~existing_uv:"uv" wrong_uv_geometry with
+  (match Uv_ops.auto_seam ~existing_uv:"uv" wrong_uv_geometry with
    | Error error when Error.code error = "invalid_topology" -> ()
    | _ -> fail "UV Auto Seam accepted non-float2 existing UVs");
-  (match Uv_checked.auto_seam cylinder_curve with
+  (match Uv_ops.auto_seam cylinder_curve with
    | Error error when Error.code error = "invalid_topology" -> ()
    | _ -> fail "UV Auto Seam accepted a polygon curve");
-  (match Uv_checked.unitize Uv_checked.Islands cylindrical with
+  (match Uv_ops.unitize Uv_ops.Islands cylindrical with
    | Error error when Error.code error = "invalid_uv" -> ()
    | _ -> fail "UV Unitize accepted a polygon curve");
   let extreme_uv = Attribute.create_owned ~name:"uv" ~owner:Attribute.Vertex
@@ -3935,7 +3935,7 @@ let run () =
         ~x:[|-.max_float; max_float; max_float; -.max_float|]
         ~y:[|0.; 0.; 1.; 1.|] |> get_ok)) |> get_ok in
   let extreme_uv_geometry = Geometry.with_attribute extreme_uv geometry |> get_ok in
-  (match Uv_checked.unitize Uv_checked.Per_face extreme_uv_geometry with
+  (match Uv_ops.unitize Uv_ops.Per_face extreme_uv_geometry with
    | Error error when Error.code error = "invalid_uv" -> ()
    | _ -> fail "UV Unitize accepted an overflowing finite UV extent");
   (match Analysis.bounds box with

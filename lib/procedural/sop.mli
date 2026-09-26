@@ -1541,7 +1541,7 @@ val uv_project :
   ?v_range:float * float ->
   ?fix_seams:bool ->
   ?fix_poles:bool ->
-  Pdk.Uv_checked.projection ->
+  Pdk.Uv_ops.projection ->
   Node.t -> Node.t
 (* Project seam-safe vertex UVs. [group] names an optional primitive group. *)
 val uv_transform :
@@ -1631,7 +1631,7 @@ val uv_unitize :
   ?seams:string ->
   ?tolerance:float ->
   ?uniform:bool ->
-  Pdk.Uv_checked.unitize_mode ->
+  Pdk.Uv_ops.unitize_mode ->
   Node.t -> Node.t
 (* Fit each selected face or UV island into the unit square. [seams] names
    a native edge group; outgoing-edge vertex groups remain accepted for

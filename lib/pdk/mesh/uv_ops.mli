@@ -29,7 +29,7 @@ val project :
   ?fix_poles:bool ->
   projection ->
   Geometry.t ->
-  (Geometry.t, string) result
+  (Geometry.t, Error.t) result
 
 val transform :
   ?cancel:Cancel.t ->
@@ -42,7 +42,7 @@ val transform :
   ?angle:float ->
   ?pivot:Prismel_math.Vec2.t ->
   Geometry.t ->
-  (Geometry.t, string) result
+  (Geometry.t, Error.t) result
 
 val auto_seam :
   ?cancel:Cancel.t ->
@@ -57,7 +57,7 @@ val auto_seam :
   ?uv_tolerance:float ->
   ?island_attribute:string ->
   Geometry.t ->
-  (Geometry.t, string) result
+  (Geometry.t, Error.t) result
 
 val unitize :
   ?cancel:Cancel.t ->
@@ -70,14 +70,14 @@ val unitize :
   ?uniform:bool ->
   unitize_mode ->
   Geometry.t ->
-  (Geometry.t, string) result
+  (Geometry.t, Error.t) result
 
 val flatten :
   ?cancel:Cancel.t -> ?grain:int -> ?name:string -> ?seams:Group.t ->
   ?edge_seams:Edge_group.t -> ?iterations:int -> ?tolerance:float ->
-  Geometry.t -> (Geometry.t, string) result
+  Geometry.t -> (Geometry.t, Error.t) result
 
 val relax :
   ?cancel:Cancel.t -> ?grain:int -> ?name:string -> ?seams:Group.t ->
   ?edge_seams:Edge_group.t -> ?uv_tolerance:float -> ?iterations:int ->
-  ?tolerance:float -> Geometry.t -> (Geometry.t, string) result
+  ?tolerance:float -> Geometry.t -> (Geometry.t, Error.t) result

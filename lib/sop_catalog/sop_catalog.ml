@@ -4591,16 +4591,16 @@ module Uv_project = struct
     let origin = Vec3.create parameters.origin_x parameters.origin_y
         parameters.origin_z in
     match parameters.projection with
-    | Planar -> Pdk.Uv_checked.Planar { origin;
+    | Planar -> Pdk.Uv_ops.Planar { origin;
         u_axis = Vec3.create parameters.planar_u_x parameters.planar_u_y
           parameters.planar_u_z;
         v_axis = Vec3.create parameters.planar_v_x parameters.planar_v_y
           parameters.planar_v_z }
-    | Cylindrical -> Pdk.Uv_checked.Cylindrical { origin;
+    | Cylindrical -> Pdk.Uv_ops.Cylindrical { origin;
         axis = Vec3.create parameters.axis_x parameters.axis_y parameters.axis_z;
         seam = Vec3.create parameters.seam_x parameters.seam_y parameters.seam_z;
         height = parameters.height }
-    | Spherical -> Pdk.Uv_checked.Spherical { origin;
+    | Spherical -> Pdk.Uv_ops.Spherical { origin;
         axis = Vec3.create parameters.axis_x parameters.axis_y parameters.axis_z;
         seam = Vec3.create parameters.seam_x parameters.seam_y parameters.seam_z }
   let build = parameters_build (fun ~label parameters input ->
@@ -4685,10 +4685,10 @@ end [@@sop.register]
 
 module Uv_unitize = struct
   let mode_parameter = Parameter.choice ~equal:( = ) [
-      "Per face", Pdk.Uv_checked.Per_face; "Islands", Pdk.Uv_checked.Islands;
+      "Per face", Pdk.Uv_ops.Per_face; "Islands", Pdk.Uv_ops.Islands;
     ]
   type parameters = {
-    mode : Pdk.Uv_checked.unitize_mode [@sop.default Pdk.Uv_checked.Per_face]
+    mode : Pdk.Uv_ops.unitize_mode [@sop.default Pdk.Uv_ops.Per_face]
       [@sop.label "Mode"] [@sop.kind mode_parameter];
     name : string [@sop.default "uv"] [@sop.label "UV attribute"];
     group : string [@sop.default ""] [@sop.label "Primitive group"];

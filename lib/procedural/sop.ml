@@ -4305,34 +4305,34 @@ let attribute_owner_key = function
   | Pdk.Attribute.Detail -> "detail"
 
 let uv_projection_copy = function
-  | Pdk.Uv_checked.Planar { origin; u_axis; v_axis } ->
-      Pdk.Uv_checked.Planar {
+  | Pdk.Uv_ops.Planar { origin; u_axis; v_axis } ->
+      Pdk.Uv_ops.Planar {
         origin = vec3_copy origin;
         u_axis = vec3_copy u_axis;
         v_axis = vec3_copy v_axis;
       }
-  | Pdk.Uv_checked.Cylindrical { origin; axis; seam; height } ->
-      Pdk.Uv_checked.Cylindrical {
+  | Pdk.Uv_ops.Cylindrical { origin; axis; seam; height } ->
+      Pdk.Uv_ops.Cylindrical {
         origin = vec3_copy origin;
         axis = vec3_copy axis;
         seam = vec3_copy seam;
         height;
       }
-  | Pdk.Uv_checked.Spherical { origin; axis; seam } ->
-      Pdk.Uv_checked.Spherical {
+  | Pdk.Uv_ops.Spherical { origin; axis; seam } ->
+      Pdk.Uv_ops.Spherical {
         origin = vec3_copy origin;
         axis = vec3_copy axis;
         seam = vec3_copy seam;
       }
 
 let uv_projection_key = function
-  | Pdk.Uv_checked.Planar { origin; u_axis; v_axis } ->
+  | Pdk.Uv_ops.Planar { origin; u_axis; v_axis } ->
       Printf.sprintf "planar(origin=%s,u_axis=%s,v_axis=%s)"
         (vec3_key origin) (vec3_key u_axis) (vec3_key v_axis)
-  | Pdk.Uv_checked.Cylindrical { origin; axis; seam; height } ->
+  | Pdk.Uv_ops.Cylindrical { origin; axis; seam; height } ->
       Printf.sprintf "cylindrical(origin=%s,axis=%s,seam=%s,height=%s)"
         (vec3_key origin) (vec3_key axis) (vec3_key seam) (float_key height)
-  | Pdk.Uv_checked.Spherical { origin; axis; seam } ->
+  | Pdk.Uv_ops.Spherical { origin; axis; seam } ->
       Printf.sprintf "spherical(origin=%s,axis=%s,seam=%s)"
         (vec3_key origin) (vec3_key axis) (vec3_key seam)
 
@@ -4365,7 +4365,7 @@ let uv_project ?label ?(name = "uv") ?group ?(u_range = (0., 1.))
       match primitives with
       | Error _ as error -> error
       | Ok primitives ->
-          match Pdk.Uv_checked.project ~cancel:(Context.cancel_token context)
+          match Pdk.Uv_ops.project ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~name ?primitives ~u_range ~v_range
               ~fix_seams ~fix_poles projection inputs.(0) with
           | Ok geometry -> cooked geometry
@@ -4403,7 +4403,7 @@ let uv_transform ?label ?(name = "uv") ?(owner = Pdk.Attribute.Vertex)
       match selection with
       | Error _ as error -> error
       | Ok selection ->
-          match Pdk.Uv_checked.transform ~cancel:(Context.cancel_token context)
+          match Pdk.Uv_ops.transform ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~name ?selection ~owner
               ~translate ~scale ~angle ~pivot inputs.(0) with
           | Ok geometry -> cooked geometry
@@ -4443,7 +4443,7 @@ let uv_auto_seam ?label ?(name = "uv_seams") ?group
       match primitives with
       | Error _ as error -> error
       | Ok primitives ->
-          match Pdk.Uv_checked.auto_seam ~cancel:(Context.cancel_token context)
+          match Pdk.Uv_ops.auto_seam ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~name ?primitives ~angle
               ~include_boundaries ~include_non_manifold ?partition_attribute
               ?existing_uv ~uv_tolerance ?island_attribute inputs.(0) with
@@ -4596,8 +4596,8 @@ let name_from_groups ?label ?(attribute = "name") ?(pattern = "*")
       | Error error -> structured_pdk_error error)
 
 let uv_unitize_mode_key = function
-  | Pdk.Uv_checked.Per_face -> "per_face"
-  | Pdk.Uv_checked.Islands -> "islands"
+  | Pdk.Uv_ops.Per_face -> "per_face"
+  | Pdk.Uv_ops.Islands -> "islands"
 
 let uv_unitize ?label ?(name = "uv") ?group ?seams ?(tolerance = 1e-9)
     ?(uniform = true) mode input =
@@ -4639,7 +4639,7 @@ let uv_unitize ?label ?(name = "uv") ?group ?seams ?(tolerance = 1e-9)
       match find_group Pdk.Group.Primitive "primitive" group, find_seams seams with
       | Error _ as error, _ | _, (Error _ as error) -> error
       | Ok primitives, Ok (edge_seams, seams) ->
-          match Pdk.Uv_checked.unitize ~cancel:(Context.cancel_token context)
+          match Pdk.Uv_ops.unitize ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~name ?primitives ?seams
               ?edge_seams
               ~tolerance ~uniform mode inputs.(0) with
@@ -4672,7 +4672,7 @@ let uv_flatten ?label ?(name = "uv") ?seams ?(iterations = 500)
       match uv_parameterize_seams "uv_flatten" inputs.(0) seams with
       | Error _ as error -> error
       | Ok (edge_seams, seams) ->
-          match Pdk.Uv_checked.flatten ~cancel:(Context.cancel_token context)
+          match Pdk.Uv_ops.flatten ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~name ?seams ?edge_seams
               ~iterations ~tolerance inputs.(0) with
           | Ok geometry -> cooked geometry
@@ -4693,7 +4693,7 @@ let uv_relax ?label ?(name = "uv") ?seams ?(uv_tolerance = 1e-9)
       match uv_parameterize_seams "uv_relax" inputs.(0) seams with
       | Error _ as error -> error
       | Ok (edge_seams, seams) ->
-          match Pdk.Uv_checked.relax ~cancel:(Context.cancel_token context)
+          match Pdk.Uv_ops.relax ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ~name ?seams ?edge_seams
               ~uv_tolerance ~iterations ~tolerance inputs.(0) with
           | Ok geometry -> cooked geometry
