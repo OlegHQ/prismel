@@ -34,7 +34,7 @@ let graphs () =
         let radius = if index land 1 = 0 then 0.19 else 0.08 in
         radius *. cos angle, radius *. sin angle, 0.)
       |> Sop.polyline ~closed:true in
-    Sop.sweep ~backbone ~cross_section ~tangent:Pdk.Ops.Sweep_central_difference
+    Sop.sweep ~backbone ~cross_section ~tangent:Pdk.Sweep_modeling.Sweep_central_difference
       ~twist:2.4 ~caps:true ~cap_group:"star_caps" ()
     |> Sop.set_color ~owner:Pdk.Attribute.Point (Color.hex_exn "#f59e0b")
   and tiles =

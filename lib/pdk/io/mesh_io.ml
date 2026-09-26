@@ -107,7 +107,7 @@ let load_stl ?cancel filename = guard "io.load_stl" (fun () ->
 
 let triangle_surface ?cancel value =
   if Topology.all_triangles (Geometry.topology value) then Ok value
-  else Pdk_mesh.Ops.triangulate ?cancel value
+  else Pdk_mesh.Triangulation_modeling.triangulate ?cancel value
     |> Result.map_error Error.message
 
 let face_normals ?cancel value =

@@ -94,7 +94,7 @@ let base_profile () =
 
 let revolve ?(divisions = 4) ?revolve_type ?connectivity ?start_angle
     ?end_angle ?reverse_cross_sections ?caps ?cap_group ?uv_attribute geometry =
-  Ops.revolve ~grain:1 ?revolve_type ?connectivity ?start_angle ?end_angle
+  Sweep_modeling.revolve ~grain:1 ?revolve_type ?connectivity ?start_angle ?end_angle
     ?reverse_cross_sections ?caps ?cap_group ?uv_attribute ~divisions
     ~origin:Vec3.zero ~axis:Vec3.unit_y geometry |> get_ok
 
@@ -147,7 +147,7 @@ let check_connectivity_and_arcs () =
       && (topology triangles).vertex_points <>
          (topology alternating).vertex_points)
     "Revolve triangle split variants collapsed";
-  let arc = revolve ~divisions:2 ~revolve_type:Ops.Revolve_open_arc
+  let arc = revolve ~divisions:2 ~revolve_type:Sweep_modeling.Revolve_open_arc
       ~start_angle:0. ~end_angle:Float.pi source in
   check (Geometry.point_count arc = 6 && Geometry.primitive_count arc = 2
       && Geometry.vertex_count arc = 8)
@@ -230,7 +230,7 @@ let check_selection_validation_and_parallel () =
       Line_geometry.polyline_checked [|(2., -1., 0.); (2., 1., 0.)|] |> get_ok] |> get_ok in
   let selected = Group.init ~owner:Group.Primitive ~name:"selected" 2
       (fun primitive -> primitive = 1) in
-  let result = Ops.revolve ~grain:1 ~primitives:selected ~divisions:4
+  let result = Sweep_modeling.revolve ~grain:1 ~primitives:selected ~divisions:4
       ~origin:Vec3.zero ~axis:Vec3.unit_y source |> get_ok in
   check (Geometry.point_count result = 8 && Geometry.primitive_count result = 4
       && near (positions result).x.(0) 2.)
@@ -242,7 +242,7 @@ let check_selection_validation_and_parallel () =
       |> fun geometry -> Group_mesh.group_edges_checked ~grain:257 ~name:"profile_edges" geometry
            |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
-      Ops.revolve ~grain:257 ~connectivity:Plane_generators.Grid_alternating_triangles
+      Sweep_modeling.revolve ~grain:257 ~connectivity:Plane_generators.Grid_alternating_triangles
         ~caps:true ~cap_group:"caps" ~divisions:64 ~origin:Vec3.zero
         ~axis:Vec3.unit_y dense |> get_ok) in
   let one = run 1 and many = run 4 in
@@ -255,26 +255,26 @@ let check_selection_validation_and_parallel () =
     | Error error when Error.code error = "invalid_geometry" -> ()
     | Error error -> fail ("unexpected Revolve error " ^ Error.to_string error)
     | Ok _ -> fail "expected invalid Revolve input" in
-  expect_invalid (Ops.revolve ~divisions:2 ~origin:Vec3.zero
+  expect_invalid (Sweep_modeling.revolve ~divisions:2 ~origin:Vec3.zero
     ~axis:Vec3.unit_y (base_profile ()));
-  expect_invalid (Ops.revolve ~divisions:4 ~origin:Vec3.zero
+  expect_invalid (Sweep_modeling.revolve ~divisions:4 ~origin:Vec3.zero
     ~axis:Vec3.zero (base_profile ()));
-  expect_invalid (Ops.revolve ~revolve_type:Ops.Revolve_open_arc
+  expect_invalid (Sweep_modeling.revolve ~revolve_type:Sweep_modeling.Revolve_open_arc
     ~start_angle:1. ~end_angle:1. ~divisions:4 ~origin:Vec3.zero
     ~axis:Vec3.unit_y (base_profile ()));
-  expect_invalid (Ops.revolve ~revolve_type:Ops.Revolve_open_arc
+  expect_invalid (Sweep_modeling.revolve ~revolve_type:Sweep_modeling.Revolve_open_arc
     ~divisions:max_int ~origin:Vec3.zero ~axis:Vec3.unit_y (base_profile ()));
-  expect_invalid (Ops.revolve ~revolve_type:Ops.Revolve_open_arc ~caps:true
+  expect_invalid (Sweep_modeling.revolve ~revolve_type:Sweep_modeling.Revolve_open_arc ~caps:true
     ~divisions:4 ~origin:Vec3.zero ~axis:Vec3.unit_y (base_profile ()));
   let polygon = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:1. () |> get_ok in
-  expect_invalid (Ops.revolve ~divisions:4 ~origin:Vec3.zero
+  expect_invalid (Sweep_modeling.revolve ~divisions:4 ~origin:Vec3.zero
     ~axis:Vec3.unit_y polygon);
   let repeated = Line_geometry.polyline_checked [|(1.,0.,0.); (1.,0.,0.)|] |> get_ok in
-  expect_invalid (Ops.revolve ~divisions:4 ~origin:Vec3.zero
+  expect_invalid (Sweep_modeling.revolve ~divisions:4 ~origin:Vec3.zero
     ~axis:Vec3.unit_y repeated);
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Ops.revolve ~cancel:cancelled ~divisions:4 ~origin:Vec3.zero
+  (match Sweep_modeling.revolve ~cancel:cancelled ~divisions:4 ~origin:Vec3.zero
       ~axis:Vec3.unit_y (base_profile ()) with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "Revolve ignored cancellation")

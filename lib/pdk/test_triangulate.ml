@@ -133,7 +133,7 @@ let group owner name geometry =
 let test_grouped_mixed_geometry () =
   let run domains = Parallel.run ~domains (fun () ->
     let source = fixture () in
-    Ops.triangulate ~grain:1
+    Triangulation_modeling.triangulate ~grain:1
       ~primitives:(group Group.Primitive "selected" source) source |> get_pdk) in
   let one = run 1 and four = run 4 in
   check (equal_geometry one four)
@@ -199,36 +199,36 @@ let test_grouped_mixed_geometry () =
 let test_identity_and_errors () =
   let source = fixture () in
   let empty = group Group.Primitive "empty" source in
-  let unchanged = Ops.triangulate ~primitives:empty source |> get_pdk in
+  let unchanged = Triangulation_modeling.triangulate ~primitives:empty source |> get_pdk in
   check (Geometry.data_id unchanged = Geometry.data_id source)
     "empty Triangulate selection did not preserve identity";
-  (match Ops.triangulate source with
+  (match Triangulation_modeling.triangulate source with
    | Error error -> check (Error.code error = "invalid_topology")
        "selected curve diagnostic code"
    | Ok _ -> fail "Triangulate accepted an implicitly selected curve");
-  (match Ops.triangulate ~primitives:(group Group.Primitive "curve" source) source with
+  (match Triangulation_modeling.triangulate ~primitives:(group Group.Primitive "curve" source) source with
    | Error error -> check (Error.code error = "invalid_topology")
        "explicit curve diagnostic code"
    | Ok _ -> fail "Triangulate accepted an explicitly selected curve");
   let wrong_owner = Group.init ~owner:Group.Point ~name:"wrong"
       (Geometry.point_count source) (fun _ -> false) in
-  (match Ops.triangulate ~primitives:wrong_owner source with
+  (match Triangulation_modeling.triangulate ~primitives:wrong_owner source with
    | Error error -> check (Error.code error = "invalid_topology")
        "wrong-owner diagnostic code"
    | Ok _ -> fail "Triangulate accepted a point selection");
   let wrong_length = Group.init ~owner:Group.Primitive ~name:"wrong" 1
       (fun _ -> true) in
-  (match Ops.triangulate ~primitives:wrong_length source with
+  (match Triangulation_modeling.triangulate ~primitives:wrong_length source with
    | Error error -> check (Error.code error = "invalid_topology")
        "wrong-length diagnostic code"
    | Ok _ -> fail "Triangulate accepted a wrong-length selection");
-  (match Ops.triangulate ~grain:0 source with
+  (match Triangulation_modeling.triangulate ~grain:0 source with
    | Error error -> check (Error.code error = "invalid_topology")
        "invalid-grain diagnostic code"
    | Ok _ -> fail "Triangulate accepted zero grain");
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  (match Ops.triangulate ~cancel ~primitives:empty source with
+  (match Triangulation_modeling.triangulate ~cancel ~primitives:empty source with
    | Error error -> check (Error.code error = "cancelled")
        "cancellation diagnostic code"
    | Ok _ -> fail "Triangulate ignored cancellation")
@@ -236,9 +236,9 @@ let test_identity_and_errors () =
 let test_already_triangular_identity () =
   let source = fixture () in
   let selected = group Group.Primitive "selected" source in
-  let triangulated = Ops.triangulate ~primitives:selected source |> get_pdk in
+  let triangulated = Triangulation_modeling.triangulate ~primitives:selected source |> get_pdk in
   let selected_triangles = group Group.Primitive "selected" triangulated in
-  let unchanged = Ops.triangulate ~primitives:selected_triangles triangulated
+  let unchanged = Triangulation_modeling.triangulate ~primitives:selected_triangles triangulated
       |> get_pdk in
   check (Geometry.data_id unchanged = Geometry.data_id triangulated)
     "already-triangular selection did not preserve identity"
@@ -252,7 +252,7 @@ let test_collapsed_quad_and_deterministic_failure () =
       ~topology:collapsed_topology
       ~attributes:[attribute Attribute.Vertex "corner"
         (Attribute.Int [|10;11;12;13|])] () |> get_string
-      |> Ops.triangulate |> get_pdk in
+      |> Triangulation_modeling.triangulate |> get_pdk in
   let collapsed_view = Topology.Private.view (Geometry.topology collapsed) in
   check (collapsed_view.vertex_points = [|0;1;3|]
       && int_values Attribute.Vertex "corner" collapsed = [|10;11;13|])
@@ -266,7 +266,7 @@ let test_collapsed_quad_and_deterministic_failure () =
   let degenerate = Geometry.create ~positions:degenerate_positions
       ~topology:degenerate_topology () |> get_string in
   let run domains = Parallel.run ~domains (fun () ->
-    match Ops.triangulate ~grain:1 degenerate with
+    match Triangulation_modeling.triangulate ~grain:1 degenerate with
     | Error error -> Error.message error
     | Ok _ -> fail "Triangulate accepted degenerate polygons") in
   let one = run 1 and four = run 4 in

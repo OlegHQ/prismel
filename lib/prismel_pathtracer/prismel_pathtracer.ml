@@ -283,7 +283,7 @@ let mesh ?(spheres = []) ?(strands = []) objects =
       List.fold_left
         (fun acc (geometry, material_index) ->
           let* () = acc in
-          let* triangles = pdk (Pdk.Ops.triangulate geometry) in
+          let* triangles = pdk (Pdk.Triangulation_modeling.triangulate geometry) in
           let* triangles =
             pdk
               (Pdk.Normal_ops.run_checked ~owner:Pdk.Attribute.Vertex ~cusp_angle:(Float.pi /. 4.5) triangles)

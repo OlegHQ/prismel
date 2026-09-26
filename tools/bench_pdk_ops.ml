@@ -711,7 +711,7 @@ let run_sweep_general_benchmarks () =
   and profile = Ops.polyline ~closed:true profile_values |> get_ok in
   measure ~input_points:(backbone_points + profile_points)
     "sweep_general_profile_triangles" (fun () ->
-      Ops.sweep ~grain ~connectivity:Plane_generators.Grid_alternating_triangles
+      Sweep_modeling.sweep ~grain ~connectivity:Plane_generators.Grid_alternating_triangles
         ~twist:3.7 ~backbone ~cross_section:profile () |> get_ok)
     geometry_output;
   let add owner name storage geometry = Attribute.create_owned ~owner ~name storage
@@ -740,7 +740,7 @@ let run_sweep_general_benchmarks () =
       |> Group_mesh.group_edges_checked ~grain ~name:"profile_edges" |> get_ok in
   measure ~input_points:(backbone_points + profile_points)
     "sweep_general_profile_payload" (fun () ->
-      Ops.sweep ~grain ~caps:true ~cap_group:"caps" ~twist:3.7
+      Sweep_modeling.sweep ~grain ~caps:true ~cap_group:"caps" ~twist:3.7
         ~backbone:payload_backbone ~cross_section:payload_profile () |> get_ok)
     geometry_output
 
@@ -777,7 +777,7 @@ let run_revolve_benchmarks () =
       radius, y, 0.) in
   let source = Ops.polyline values |> get_ok in
   measure ~input_points:profile_points "revolve_dense_profile_triangles" (fun () ->
-    Ops.revolve ~grain ~connectivity:Plane_generators.Grid_alternating_triangles
+    Sweep_modeling.revolve ~grain ~connectivity:Plane_generators.Grid_alternating_triangles
       ~divisions:64 ~origin:Vec3.zero ~axis:Vec3.unit_y source |> get_ok)
     geometry_output;
   let point_id = Attribute.create_owned ~owner:Attribute.Point ~name:"profile_id"
@@ -792,7 +792,7 @@ let run_revolve_benchmarks () =
       |> Geometry.with_group alternating |> get_ok
       |> Group_mesh.group_edges_checked ~grain ~name:"profile_edges" |> get_ok in
   measure ~input_points:profile_points "revolve_dense_profile_payload" (fun () ->
-    Ops.revolve ~grain ~connectivity:Plane_generators.Grid_quads ~caps:true
+    Sweep_modeling.revolve ~grain ~connectivity:Plane_generators.Grid_quads ~caps:true
       ~cap_group:"caps" ~divisions:64 ~origin:Vec3.zero ~axis:Vec3.unit_y
       payload_source |> get_ok) geometry_output
 
@@ -2699,24 +2699,24 @@ let run_remesh_benchmarks () =
   let point_count = Geometry.point_count source in
   let target = 100. /. float_of_int (max remesh_columns remesh_rows) *. 1.13 in
   measure ~input_points:point_count "remesh_topology_iteration_payload" (fun () ->
-    Ops.remesh ~grain ~iterations:1 ~smoothing:0. ~project:false
+    Triangulation_modeling.remesh ~grain ~iterations:1 ~smoothing:0. ~project:false
       ~recompute_point_normals:false ~target_length:target source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "remesh_topology_three_iterations" (fun () ->
-    Ops.remesh ~grain ~iterations:3 ~smoothing:0. ~project:false
+    Triangulation_modeling.remesh ~grain ~iterations:3 ~smoothing:0. ~project:false
       ~recompute_point_normals:false ~target_length:target source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "remesh_uniform_full_iteration" (fun () ->
-    Ops.remesh ~grain ~iterations:1 ~smoothing:0.45 ~project:true
+    Triangulation_modeling.remesh ~grain ~iterations:1 ~smoothing:0.45 ~project:true
       ~target_length:target ~output_hard_edges:"hard"
       ~output_mesh_size:"mesh_size" ~output_quality:"quality" source |> get_ok)
     geometry_output;
   measure ~input_points:point_count "remesh_input_points_relax_project" (fun () ->
-    Ops.remesh ~grain ~iterations:3 ~smoothing:0.45 ~project:true
+    Triangulation_modeling.remesh ~grain ~iterations:3 ~smoothing:0.45 ~project:true
       ~use_input_points_only:true ~target_length:target
       ~output_quality:"quality" source |> get_ok) geometry_output;
   measure ~input_points:point_count "remesh_triangulate_diagnostics" (fun () ->
-    Ops.remesh ~grain ~iterations:0 ~target_length:target
+    Triangulation_modeling.remesh ~grain ~iterations:0 ~target_length:target
       ~output_hard_edges:"hard" ~output_mesh_size:"mesh_size"
       ~output_quality:"quality" source |> get_ok) geometry_output
 
@@ -5303,7 +5303,7 @@ let () =
     |> get_ok) geometry_output;
   measure "sort_points_x" (fun () ->
     Ops.sort ~grain ~owner:Ops.Points ~key:Ops.X source |> get_ok) geometry_output;
-  measure "triangulate_triangles" (fun () -> Ops.triangulate source |> get_ok)
+  measure "triangulate_triangles" (fun () -> Triangulation_modeling.triangulate source |> get_ok)
     geometry_output;
   if benchmark_enabled "triangulate_quads"
      || benchmark_enabled "triangulate_quads_local_half"
@@ -5311,7 +5311,7 @@ let () =
     let quad_source = Plane_generators.grid_checked ~grain ~connectivity:Plane_generators.Grid_quads
         ~columns ~rows ~size:100. () |> get_ok in
     measure ~input_points:(Geometry.point_count quad_source)
-      "triangulate_quads" (fun () -> Ops.triangulate quad_source |> get_ok)
+      "triangulate_quads" (fun () -> Triangulation_modeling.triangulate quad_source |> get_ok)
       geometry_output;
     let alternating = Group.init ~grain ~owner:Group.Primitive
         ~name:"triangulate_alternating"
@@ -5319,7 +5319,7 @@ let () =
         (fun primitive -> primitive land 1 = 0) in
     measure ~input_points:(Geometry.point_count quad_source)
       "triangulate_quads_local_half" (fun () ->
-        Ops.triangulate ~grain ~primitives:alternating quad_source |> get_ok)
+        Triangulation_modeling.triangulate ~grain ~primitives:alternating quad_source |> get_ok)
       geometry_output;
     let vertex_ids = Attribute.create_owned ~name:"corner_id"
         ~owner:Attribute.Vertex
@@ -5332,7 +5332,7 @@ let () =
         |> Geometry.with_group marked |> get_ok in
     measure ~input_points:(Geometry.point_count payload_source)
       "triangulate_quads_payload" (fun () ->
-        Ops.triangulate ~grain payload_source |> get_ok) geometry_output
+        Triangulation_modeling.triangulate ~grain payload_source |> get_ok) geometry_output
   end;
   (match benchmark_filter with
    | Some filter when String.starts_with ~prefix:"triangulate" filter -> exit 0

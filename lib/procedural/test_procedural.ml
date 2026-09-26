@@ -1377,7 +1377,7 @@ let test_generators_selections_and_delete () =
       && contains (Node.parameters triangulate_graph) "group=reverse_first")
     "procedural Triangulate cache identity";
   let triangulated = cook_ok evaluator current triangulate_graph in
-  let expected_triangulate = Pdk.Ops.triangulate ~grain:1
+  let expected_triangulate = Pdk.Triangulation_modeling.triangulate ~grain:1
       ~primitives:(Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive
         "reverse_first" reverse_source |> Option.get) reverse_source
       |> Result.get_ok in
@@ -3524,7 +3524,7 @@ let test_sweep_contract () =
       [|(-1.,-1.,0.); (1.,-1.,0.); (1.,1.,0.); (-1.,1.,0.)|] in
   let make () = Sop.sweep ~label:"general-sweep"
       ~connectivity:Pdk.Plane_generators.Grid_alternating_triangles
-      ~tangent:Pdk.Ops.Sweep_central_difference ~twist:1.25 ~caps:true
+      ~tangent:Pdk.Sweep_modeling.Sweep_central_difference ~twist:1.25 ~caps:true
       ~cap_group:"caps" ~uv_attribute:(Some "st") ~backbone ~cross_section () in
   let graph = make () in
   check (Node.operation graph = "sweep"

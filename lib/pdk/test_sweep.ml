@@ -100,7 +100,7 @@ let profile () = Line_geometry.polyline_checked ~closed:true
 let sweep ?connectivity ?tangent ?continuous_closed ?transform_attributes
     ?reverse_cross_sections ?scale ?roll ?twist ?caps ?cap_group ?uv_attribute
     ?cross_section_prefix backbone cross_section =
-  Ops.sweep ~grain:1 ?connectivity ?tangent ?continuous_closed
+  Sweep_modeling.sweep ~grain:1 ?connectivity ?tangent ?continuous_closed
     ?transform_attributes ?reverse_cross_sections ?scale ?roll ?twist ?caps
     ?cap_group ?uv_attribute ?cross_section_prefix ~backbone ~cross_section ()
   |> get_ok
@@ -210,7 +210,7 @@ let check_multiple_and_selection () =
       Line_geometry.polyline_checked ~closed:true
         [|(0.2,0.,0.); (-0.1,0.17,0.); (-0.1,-0.17,0.)|] |> get_ok;
       profile ()] |> get_ok in
-  let all = Ops.sweep ~grain:1 ~backbone:backbone_source
+  let all = Sweep_modeling.sweep ~grain:1 ~backbone:backbone_source
       ~cross_section:profile_source () |> get_ok in
   check (Geometry.point_count all = 28 && Geometry.primitive_count all = 14)
     "Sweep multiple-backbone/profile Cartesian ordering/cardinality";
@@ -218,7 +218,7 @@ let check_multiple_and_selection () =
       2 (fun primitive -> primitive = 1)
   and selected_profile = Group.init ~owner:Group.Primitive ~name:"selected_p"
       2 (fun primitive -> primitive = 1) in
-  let selected = Ops.sweep ~grain:1 ~backbones:selected_backbone
+  let selected = Sweep_modeling.sweep ~grain:1 ~backbones:selected_backbone
       ~cross_sections:selected_profile ~backbone:backbone_source
       ~cross_section:profile_source () |> get_ok in
   check (Geometry.point_count selected = 8
@@ -252,9 +252,9 @@ let check_transform_attributes () =
 let check_frame_controls () =
   let corner = Line_geometry.polyline_checked
       [|(0.,0.,0.); (0.,0.,1.); (1.,0.,1.)|] |> get_ok in
-  let previous = sweep ~tangent:Ops.Sweep_previous_edge corner (profile ())
-  and next = sweep ~tangent:Ops.Sweep_next_edge corner (profile ())
-  and fixed = sweep ~tangent:Ops.Sweep_z_axis corner (profile ()) in
+  let previous = sweep ~tangent:Sweep_modeling.Sweep_previous_edge corner (profile ())
+  and next = sweep ~tangent:Sweep_modeling.Sweep_next_edge corner (profile ())
+  and fixed = sweep ~tangent:Sweep_modeling.Sweep_z_axis corner (profile ()) in
   let previous = position_view previous and next = position_view next
   and fixed = position_view fixed in
   check (near previous.x.(4) (-1.) && near previous.y.(4) (-1.)
@@ -377,7 +377,7 @@ let check_closed_continuity () =
   and profile = Line_geometry.polyline_checked ~closed:true
       [|(0.1,0.,0.); (-0.05,0.0866025403784439,0.);
         (-0.05,-0.0866025403784439,0.)|] |> get_ok in
-  let result = sweep ~tangent:Ops.Sweep_central_difference ~twist:2.3
+  let result = sweep ~tangent:Sweep_modeling.Sweep_central_difference ~twist:2.3
       backbone profile in
   let output = position_view result in
   let bx0, by0, bz0 = backbone_values.(0)
@@ -405,23 +405,23 @@ let expect_invalid = function
   | Ok _ -> fail "expected invalid Sweep input"
 
 let check_validation_and_parallel () =
-  expect_invalid (Ops.sweep ~scale:Float.nan ~backbone:(backbone ())
+  expect_invalid (Sweep_modeling.sweep ~scale:Float.nan ~backbone:(backbone ())
     ~cross_section:(profile ()) ());
-  expect_invalid (Ops.sweep ~caps:true ~connectivity:Plane_generators.Grid_rows
+  expect_invalid (Sweep_modeling.sweep ~caps:true ~connectivity:Plane_generators.Grid_rows
     ~backbone:(backbone ()) ~cross_section:(profile ()) ());
   let polygon = Plane_generators.grid_checked ~columns:1 ~rows:1 ~size:1. () |> get_ok in
-  expect_invalid (Ops.sweep ~backbone:polygon ~cross_section:(profile ()) ());
+  expect_invalid (Sweep_modeling.sweep ~backbone:polygon ~cross_section:(profile ()) ());
   let repeated = Line_geometry.polyline_checked [|(0.,0.,0.); (0.,0.,0.)|] |> get_ok in
-  expect_invalid (Ops.sweep ~backbone:repeated ~cross_section:(profile ()) ());
+  expect_invalid (Sweep_modeling.sweep ~backbone:repeated ~cross_section:(profile ()) ());
   let partly_invalid = Mesh_merge.run [backbone ();
       Line_geometry.polyline_checked [|(3.,0.,0.); (3.,0.,1.)|] |> get_ok] |> get_ok
       |> with_attribute Attribute.Point "pscale"
            (Attribute.Float [|1.;1.;Float.nan;Float.nan|]) in
   let first_curve = Group.init ~owner:Group.Primitive ~name:"first_curve" 2
       (fun primitive -> primitive = 0) in
-  ignore (Ops.sweep ~backbones:first_curve ~backbone:partly_invalid
+  ignore (Sweep_modeling.sweep ~backbones:first_curve ~backbone:partly_invalid
       ~cross_section:(profile ()) () |> get_ok);
-  expect_invalid (Ops.sweep ~cross_section_prefix:""
+  expect_invalid (Sweep_modeling.sweep ~cross_section_prefix:""
     ~backbone:(backbone ()
       |> with_attribute Attribute.Point "id" (Attribute.Int [|5;6|]))
     ~cross_section:(profile ()
@@ -429,7 +429,7 @@ let check_validation_and_parallel () =
     ());
   let cancelled = Cancel.create () in
   Cancel.cancel cancelled;
-  (match Ops.sweep ~cancel:cancelled ~backbone:(backbone ())
+  (match Sweep_modeling.sweep ~cancel:cancelled ~backbone:(backbone ())
       ~cross_section:(profile ()) () with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "Sweep ignored cancellation");
@@ -448,7 +448,7 @@ let check_validation_and_parallel () =
       |> fun geometry -> Group_mesh.group_edges_checked ~grain:257 ~name:"profile_edges" geometry
            |> get_ok in
   let run domains = Parallel.run ~domains (fun () ->
-      Ops.sweep ~grain:257 ~connectivity:Plane_generators.Grid_alternating_triangles
+      Sweep_modeling.sweep ~grain:257 ~connectivity:Plane_generators.Grid_alternating_triangles
         ~caps:true ~cap_group:"caps" ~twist:2.3 ~backbone:dense_backbone
         ~cross_section:dense_profile () |> get_ok) in
   let one = run 1 and many = run 4 in

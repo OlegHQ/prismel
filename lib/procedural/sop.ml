@@ -2631,23 +2631,23 @@ let triangulate ?label ?group input =
       match primitives with
       | Error error -> Error error
       | Ok primitives ->
-          match Pdk.Ops.triangulate ~cancel:(Context.cancel_token context)
+          match Pdk.Triangulation_modeling.triangulate ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives geometry with
           | Ok geometry -> cooked geometry
           | Error error -> structured_pdk_error error)
 
 let triangulate_2d_projection_key = function
-  | Pdk.Ops.Triangulate_2d_best_fit -> "best_fit"
-  | Pdk.Ops.Triangulate_2d_xy -> "xy"
-  | Pdk.Ops.Triangulate_2d_yz -> "yz"
-  | Pdk.Ops.Triangulate_2d_zx -> "zx"
-  | Pdk.Ops.Triangulate_2d_plane { origin; normal } ->
+  | Pdk.Triangulation_modeling.Triangulate_2d_best_fit -> "best_fit"
+  | Pdk.Triangulation_modeling.Triangulate_2d_xy -> "xy"
+  | Pdk.Triangulation_modeling.Triangulate_2d_yz -> "yz"
+  | Pdk.Triangulation_modeling.Triangulate_2d_zx -> "zx"
+  | Pdk.Triangulation_modeling.Triangulate_2d_plane { origin; normal } ->
       "plane:" ^ vec3_key origin ^ ":" ^ vec3_key normal
-  | Pdk.Ops.Triangulate_2d_point_attribute name -> "attribute:" ^ name
+  | Pdk.Triangulation_modeling.Triangulate_2d_point_attribute name -> "attribute:" ^ name
 
 let triangulate_2d ?label ?point_group ?constraint_edge_group
     ?constraint_primitive_group
-    ?(projection = Pdk.Ops.Triangulate_2d_best_fit) ?(seed = 0L)
+    ?(projection = Pdk.Triangulation_modeling.Triangulate_2d_best_fit) ?(seed = 0L)
     ?(split_crossing_constraints = false) ?(flood_from_hull_boundary = false)
     ?(remove_outside_constraint_polygons = false)
     ?(silhouette_constraints = false) ?(remove_outside_silhouette = false)
@@ -2672,7 +2672,7 @@ let triangulate_2d ?label ?point_group ?constraint_edge_group
      "refinement point group",refinement_point_group;
      "triangle group",triangle_group; "constraint output group",constraint_group];
   (match projection with
-   | Pdk.Ops.Triangulate_2d_point_attribute name when String.trim name = "" ->
+   | Pdk.Triangulation_modeling.Triangulate_2d_point_attribute name when String.trim name = "" ->
        invalid_arg "Sop.triangulate_2d: empty point attribute name"
    | _ -> ());
   Node.Private.make ?label ~operation:"triangulate_2d" ~version:12
@@ -2741,7 +2741,7 @@ let triangulate_2d ?label ?point_group ?constraint_edge_group
       | Error error,_,_ -> Error error
       | _,Error error,_ | _,_,Error error -> Error error
       | Ok selection,Ok constraint_edges,Ok constraint_primitives ->
-          match Pdk.Ops.triangulate_2d
+          match Pdk.Triangulation_modeling.triangulate_2d
               ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
               ?selection ?constraint_edges ?constraint_primitives ~projection
               ~seed ~split_crossing_constraints ~flood_from_hull_boundary
@@ -2800,7 +2800,7 @@ let remesh ?label ?(iterations = 3) ?(smoothing = 0.5) ?(project = true)
           (match resolve_optional_edge_group "remesh" hard_edge_group geometry with
            | Error error -> Error error
            | Ok hard_edges ->
-               match Pdk.Ops.remesh ~cancel:(Context.cancel_token context)
+               match Pdk.Triangulation_modeling.remesh ~cancel:(Context.cancel_token context)
                    ~grain:(Context.grain context) ~iterations ~smoothing ~project
                    ~use_input_points_only ?hard_points ?hard_edges
                    ?target_size_attribute ~preserve_uv_seams ~uv_attribute
@@ -4030,10 +4030,10 @@ let poly_path ?label ?(connect_end_points = false)
       | Error error -> structured_pdk_error error)
 
 let revolve_type_key = function
-  | Pdk.Ops.Revolve_closed -> "closed"
-  | Pdk.Ops.Revolve_open_arc -> "open_arc"
+  | Pdk.Sweep_modeling.Revolve_closed -> "closed"
+  | Pdk.Sweep_modeling.Revolve_open_arc -> "open_arc"
 
-let revolve ?label ?group ?(revolve_type = Pdk.Ops.Revolve_closed)
+let revolve ?label ?group ?(revolve_type = Pdk.Sweep_modeling.Revolve_closed)
     ?(connectivity = Pdk.Plane_generators.Grid_quads) ?(start_angle = 0.)
     ?(end_angle = 2. *. Float.pi) ?(reverse_cross_sections = false)
     ?(caps = false) ?cap_group ?(uv_attribute = Some "uv") ~divisions
@@ -4072,7 +4072,7 @@ let revolve ?label ?group ?(revolve_type = Pdk.Ops.Revolve_closed)
       match primitives with
       | Error error -> Error error
       | Ok primitives ->
-          match Pdk.Ops.revolve ~cancel:(Context.cancel_token context)
+          match Pdk.Sweep_modeling.revolve ~cancel:(Context.cancel_token context)
               ~grain:(Context.grain context) ?primitives ~revolve_type
               ~connectivity ~start_angle ~end_angle ~reverse_cross_sections
               ~caps ?cap_group ~uv_attribute ~divisions ~origin ~axis geometry with
@@ -4080,15 +4080,15 @@ let revolve ?label ?group ?(revolve_type = Pdk.Ops.Revolve_closed)
           | Error error -> structured_pdk_error error)
 
 let sweep_tangent_key = function
-  | Pdk.Ops.Sweep_average_edges -> "average_edges"
-  | Pdk.Ops.Sweep_central_difference -> "central_difference"
-  | Pdk.Ops.Sweep_previous_edge -> "previous_edge"
-  | Pdk.Ops.Sweep_next_edge -> "next_edge"
-  | Pdk.Ops.Sweep_z_axis -> "z_axis"
+  | Pdk.Sweep_modeling.Sweep_average_edges -> "average_edges"
+  | Pdk.Sweep_modeling.Sweep_central_difference -> "central_difference"
+  | Pdk.Sweep_modeling.Sweep_previous_edge -> "previous_edge"
+  | Pdk.Sweep_modeling.Sweep_next_edge -> "next_edge"
+  | Pdk.Sweep_modeling.Sweep_z_axis -> "z_axis"
 
 let sweep ?label ?backbone_group ?cross_section_group
     ?(connectivity = Pdk.Plane_generators.Grid_quads)
-    ?(tangent = Pdk.Ops.Sweep_average_edges) ?(continuous_closed = true)
+    ?(tangent = Pdk.Sweep_modeling.Sweep_average_edges) ?(continuous_closed = true)
     ?(transform_attributes = true) ?(reverse_cross_sections = false)
     ?(scale = 1.) ?(roll = 0.) ?(twist = 0.) ?(caps = false) ?cap_group
     ?(uv_attribute = Some "uv") ?(cross_section_prefix = "cross_section_")
@@ -4134,7 +4134,7 @@ let sweep ?label ?backbone_group ?cross_section_group
           (match resolve 1 "cross-section" cross_section_group with
            | Error error -> Error error
            | Ok cross_sections ->
-               match Pdk.Ops.sweep ~cancel:(Context.cancel_token context)
+               match Pdk.Sweep_modeling.sweep ~cancel:(Context.cancel_token context)
                    ~grain:(Context.grain context) ?backbones ?cross_sections
                    ~connectivity ~tangent ~continuous_closed
                    ~transform_attributes ~reverse_cross_sections ~scale ~roll

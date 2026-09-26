@@ -265,14 +265,6 @@ type grid_connectivity = Plane_generators.grid_connectivity =
   | Grid_points | Grid_rows | Grid_columns | Grid_rows_and_columns
   | Grid_quads | Grid_triangles | Grid_alternating_triangles
   | Grid_reverse_triangles
-type revolve_type = Sweep_modeling.revolve_type = Revolve_closed | Revolve_open_arc
-type sweep_tangent = Sweep_modeling.sweep_tangent =
-  | Sweep_average_edges
-  | Sweep_central_difference
-  | Sweep_previous_edge
-  | Sweep_next_edge
-  | Sweep_z_axis
-
 let points = Line_geometry.points
 
 
@@ -554,19 +546,6 @@ let poly_bridge ?cancel ?grain ~source ~destination ?pairing
       ?recompute_normals geometry)
 
 let snap_to_grid = Fuse_grid.snap_to_grid_checked
-
-let triangulate = Triangulation_modeling.triangulate
-
-type triangulate_2d_projection = Triangulation_modeling.triangulate_2d_projection =
-  | Triangulate_2d_best_fit
-  | Triangulate_2d_xy
-  | Triangulate_2d_yz
-  | Triangulate_2d_zx
-  | Triangulate_2d_plane of { origin : Vec3.t; normal : Vec3.t }
-  | Triangulate_2d_point_attribute of string
-
-let triangulate_2d = Triangulation_modeling.triangulate_2d
-let remesh = Triangulation_modeling.remesh
 
 let boolean_detect ?cancel ?(grain = 16_384) ?source_primitives
     ?collision_primitives ?(tolerance = 0.) ?(include_coplanar = true)
@@ -1094,7 +1073,5 @@ type carve_attribute_mode = Curve_modeling.carve_attribute_mode =
 
 let carve_curves = Curve_modeling.carve_curves_checked
 
-let revolve = Sweep_modeling.revolve
-let sweep = Sweep_modeling.sweep
 
 let sweep_circle = Curve_modeling.sweep_circle_checked

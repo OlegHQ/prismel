@@ -1000,7 +1000,7 @@ val triangulate_2d :
   ?point_group:string ->
   ?constraint_edge_group:string ->
   ?constraint_primitive_group:string ->
-  ?projection:Pdk.Ops.triangulate_2d_projection ->
+  ?projection:Pdk.Triangulation_modeling.triangulate_2d_projection ->
   ?seed:int64 ->
   ?split_crossing_constraints:bool ->
   ?flood_from_hull_boundary:bool ->
@@ -1521,7 +1521,7 @@ val poly_path :
 val revolve :
   ?label:string ->
   ?group:string ->
-  ?revolve_type:Pdk.Ops.revolve_type ->
+  ?revolve_type:Pdk.Sweep_modeling.revolve_type ->
   ?connectivity:Pdk.Plane_generators.grid_connectivity ->
   ?start_angle:float ->
   ?end_angle:float ->
@@ -1534,13 +1534,13 @@ val revolve :
   axis:Prismel.Vec3.t ->
   Node.t ->
   Node.t
-(* Cached polygon-curve Revolve node backed by [Pdk.Ops.revolve]. *)
+(* Cached polygon-curve Revolve node backed by [Pdk.Sweep_modeling.revolve]. *)
 val sweep :
   ?label:string ->
   ?backbone_group:string ->
   ?cross_section_group:string ->
   ?connectivity:Pdk.Plane_generators.grid_connectivity ->
-  ?tangent:Pdk.Ops.sweep_tangent ->
+  ?tangent:Pdk.Sweep_modeling.sweep_tangent ->
   ?continuous_closed:bool ->
   ?transform_attributes:bool ->
   ?reverse_cross_sections:bool ->
@@ -1555,7 +1555,7 @@ val sweep :
   cross_section:Node.t ->
   unit ->
   Node.t
-(* Cached two-input general-profile Sweep backed by [Pdk.Ops.sweep]. Both
+(* Cached two-input general-profile Sweep backed by [Pdk.Sweep_modeling.sweep]. Both
     optional group names select primitive curves on their corresponding input.
     Cross-section payload is namespaced by default so both input ancestries
     remain inspectable. *)

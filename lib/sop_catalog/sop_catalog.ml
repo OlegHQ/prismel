@@ -4791,8 +4791,8 @@ end [@@sop.register]
 
 module Revolve = struct
   let type_parameter = Parameter.choice ~equal:( = ) [
-      "Closed", Pdk.Ops.Revolve_closed;
-      "Open arc", Pdk.Ops.Revolve_open_arc;
+      "Closed", Pdk.Sweep_modeling.Revolve_closed;
+      "Open arc", Pdk.Sweep_modeling.Revolve_open_arc;
     ]
   let connectivity_parameter = Parameter.choice ~equal:( = ) [
       "Points", Pdk.Plane_generators.Grid_points;
@@ -4807,7 +4807,7 @@ module Revolve = struct
 
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Primitive group"];
-    revolve_type : Pdk.Ops.revolve_type [@sop.default Pdk.Ops.Revolve_closed]
+    revolve_type : Pdk.Sweep_modeling.revolve_type [@sop.default Pdk.Sweep_modeling.Revolve_closed]
       [@sop.label "Revolve type"] [@sop.kind type_parameter];
     connectivity : Pdk.Plane_generators.grid_connectivity [@sop.default Pdk.Plane_generators.Grid_quads]
       [@sop.label "Connectivity"] [@sop.kind connectivity_parameter];
@@ -4872,11 +4872,11 @@ module Sweep = struct
       "Reverse triangles", Pdk.Plane_generators.Grid_reverse_triangles;
     ]
   let tangent_parameter = Parameter.choice ~equal:( = ) [
-      "Average edges", Pdk.Ops.Sweep_average_edges;
-      "Central difference", Pdk.Ops.Sweep_central_difference;
-      "Previous edge", Pdk.Ops.Sweep_previous_edge;
-      "Next edge", Pdk.Ops.Sweep_next_edge;
-      "Z axis", Pdk.Ops.Sweep_z_axis;
+      "Average edges", Pdk.Sweep_modeling.Sweep_average_edges;
+      "Central difference", Pdk.Sweep_modeling.Sweep_central_difference;
+      "Previous edge", Pdk.Sweep_modeling.Sweep_previous_edge;
+      "Next edge", Pdk.Sweep_modeling.Sweep_next_edge;
+      "Z axis", Pdk.Sweep_modeling.Sweep_z_axis;
     ]
 
   type parameters = {
@@ -4886,8 +4886,8 @@ module Sweep = struct
       [@sop.label "Cross-section primitive group"];
     connectivity : Pdk.Plane_generators.grid_connectivity [@sop.default Pdk.Plane_generators.Grid_quads]
       [@sop.label "Connectivity"] [@sop.kind connectivity_parameter];
-    tangent : Pdk.Ops.sweep_tangent
-      [@sop.default Pdk.Ops.Sweep_average_edges]
+    tangent : Pdk.Sweep_modeling.sweep_tangent
+      [@sop.default Pdk.Sweep_modeling.Sweep_average_edges]
       [@sop.label "Tangent"] [@sop.kind tangent_parameter];
     continuous_closed : bool [@sop.default true]
       [@sop.label "Continuous closed backbone"];
@@ -7920,17 +7920,17 @@ module Triangulate_2d = struct
     [@@sop.node_category "Topology/Triangulate"] [@@sop.node_inputs 1]
     [@@deriving sop_params, sop_node]
   let projection parameters = match parameters.projection with
-    | Best_fit -> Pdk.Ops.Triangulate_2d_best_fit
-    | XY -> Pdk.Ops.Triangulate_2d_xy
-    | YZ -> Pdk.Ops.Triangulate_2d_yz
-    | ZX -> Pdk.Ops.Triangulate_2d_zx
-    | Plane -> Pdk.Ops.Triangulate_2d_plane {
+    | Best_fit -> Pdk.Triangulation_modeling.Triangulate_2d_best_fit
+    | XY -> Pdk.Triangulation_modeling.Triangulate_2d_xy
+    | YZ -> Pdk.Triangulation_modeling.Triangulate_2d_yz
+    | ZX -> Pdk.Triangulation_modeling.Triangulate_2d_zx
+    | Plane -> Pdk.Triangulation_modeling.Triangulate_2d_plane {
         origin = Vec3.create parameters.plane_origin_x parameters.plane_origin_y
           parameters.plane_origin_z;
         normal = Vec3.create parameters.plane_normal_x parameters.plane_normal_y
           parameters.plane_normal_z }
     | Point_attribute ->
-        Pdk.Ops.Triangulate_2d_point_attribute parameters.point_attribute
+        Pdk.Triangulation_modeling.Triangulate_2d_point_attribute parameters.point_attribute
   let rec build ~label ~inputs parameters = match inputs with
     | [input] -> Sop.triangulate_2d ~label
         ?point_group:(optional_text parameters.point_group)
