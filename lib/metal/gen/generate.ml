@@ -33,6 +33,16 @@ let calls entries =
 
 let selector_pieces sel = List.filter (( <> ) "") (String.split_on_char ':' sel)
 
+(* the SDK struct and fields of the [Record] entry named [name] *)
+let record_fields name =
+  match
+    List.find_map
+      (function Record { ocaml; sdk; fields; _ } when ocaml = name -> Some (sdk, fields) | _ -> None)
+      entries
+  with
+  | Some record -> record
+  | None -> fail "unknown registry record %s" name
+
 let validate_call ~ocaml ~native ~selectors ~check_feature call =
   if Hashtbl.mem ocaml call.name then fail "duplicate OCaml binding %s" call.name;
   Hashtbl.add ocaml call.name ();
@@ -41,6 +51,8 @@ let validate_call ~ocaml ~native ~selectors ~check_feature call =
   Hashtbl.add native symbol ();
   check_feature call.name call.feature;
   if call.recv = "" || call.objc = "" then fail "call %s needs a receiver kind and type" call.name;
+  (match call.ret with Some (Rec _) -> fail "record result of %s is unsupported" call.name | _ -> ());
+  List.iter (function Rec record -> ignore (record_fields record) | _ -> ()) call.args;
   match call.body with
   | Send (sel, error) ->
       if sel = "" then fail "empty Metal selector for %s" call.name;
@@ -67,6 +79,7 @@ let ty_ocaml = function
   | Str -> "string"
   | Obj _ -> "Types.handle"
   | Opt_obj _ -> "Types.handle option"
+  | Rec record -> "Record." ^ record ^ ".t"
 
 let external_decl call =
   let types = "Types.handle" :: List.map ty_ocaml call.args in
@@ -79,18 +92,34 @@ let external_decl call =
 
 (* ---- C side ---- *)
 
-let arg_c v = function
-  | Scalar Bool -> Printf.sprintf "static_cast<BOOL>(Bool_val(%s))" v
-  | Scalar Int -> Printf.sprintf "static_cast<int>(Long_val(%s))" v
-  | Scalar Nsuint -> Printf.sprintf "static_cast<NSUInteger>(Int64_val(%s))" v
-  | Scalar Nsint -> Printf.sprintf "static_cast<NSInteger>(Int64_val(%s))" v
-  | Scalar Float -> Printf.sprintf "static_cast<float>(Double_val(%s))" v
-  | Scalar Double -> Printf.sprintf "Double_val(%s)" v
+let scalar_c v = function
+  | Bool -> Printf.sprintf "static_cast<BOOL>(Bool_val(%s))" v
+  | Int -> Printf.sprintf "static_cast<int>(Long_val(%s))" v
+  | Nsuint -> Printf.sprintf "static_cast<NSUInteger>(Int64_val(%s))" v
+  | Nsint -> Printf.sprintf "static_cast<NSInteger>(Int64_val(%s))" v
+  | Float -> Printf.sprintf "static_cast<float>(Double_val(%s))" v
+  | Double -> Printf.sprintf "Double_val(%s)" v
+
+(* argument [i] as a native expression; a string was converted to [text<i>] *)
+let arg_c i t =
+  let v = Printf.sprintf "arg%d" i in
+  match t with
+  | Scalar s -> scalar_c v s
   | Enum_of c -> Printf.sprintf "static_cast<%s>(Int64_val(%s))" c v
-  | Str -> Printf.sprintf "string_from_ocaml(%s)" v
+  | Str -> Printf.sprintf "text%d" i
   | Obj kind -> Printf.sprintf "object_of_handle(%s, Handle_kind::%s)" v kind
   | Opt_obj kind ->
       Printf.sprintf "(Is_none(%s) ? nil : object_of_handle(Some_val(%s), Handle_kind::%s))" v v kind
+  | Rec name ->
+      let sdk, fields = record_fields name in
+      (* an all-float OCaml record is a flat float array *)
+      let flat = List.for_all (fun (_, s) -> s = Float || s = Double) fields in
+      let field index (_, scalar) =
+        if flat then
+          Printf.sprintf "static_cast<%s>(Double_field(%s, %d))"
+            (if scalar = Float then "float" else "double") v index
+        else scalar_c (Printf.sprintf "Field(%s, %d)" v index) scalar in
+      Printf.sprintf "%s{%s}" sdk (String.concat ", " (List.mapi field fields))
 
 let native_type = function
   | Scalar Bool -> "BOOL" | Scalar Int -> "int"
@@ -99,6 +128,7 @@ let native_type = function
   | Enum_of c -> c
   | Str -> "NSString *"
   | Obj _ | Opt_obj _ -> "id"
+  | Rec name -> fst (record_fields name)
 
 (* statements turning [native_result] into [copied_result] *)
 let copy_result = function
@@ -126,12 +156,26 @@ let copy_result = function
         \          handle = allocate_handle(native_result, Handle_kind::%s);\n\
         \          copied_result = caml_alloc_some(handle);\n\
         \        }\n" kind
+  | Some (Rec _) -> fail "records are arguments only"
 
 let call_body call =
-  let args = List.mapi (fun i t -> arg_c (Printf.sprintf "arg%d" i) t) call.args in
+  let texts =
+    String.concat ""
+      (List.mapi
+         (fun i -> function
+           | Str ->
+               Printf.sprintf
+                 "        NSString *text%d = string_from_ocaml(arg%d);\n\
+                 \        if (text%d == nil)\n\
+                 \          CAMLreturn(result_error_text(\"Metal string argument is not valid UTF-8\"));\n"
+                 i i i
+           | _ -> "")
+         call.args) in
+  let args = List.mapi arg_c call.args in
   let assign expr = match call.ret with
     | None -> Printf.sprintf "        %s;\n" expr
     | Some t -> Printf.sprintf "        const %s native_result = %s;\n" (native_type t) expr in
+  texts ^
   match call.body with
   | Read property -> assign ("object." ^ property) ^ "        " ^ copy_result call.ret
   | Write property ->
@@ -543,6 +587,34 @@ let self_test () =
         with Failure message ->
           if not (String.starts_with ~prefix:"selector newBufferWithLength:options: takes 2" message)
           then fail "unexpected arity error: %s" message)
+   | _ -> ());
+  (* a record passed by value and a checked UTF-8 string argument *)
+  let dispatch =
+    Method
+      { recv = "Compute_encoder"; objc = "id<MTLComputeCommandEncoder>"
+      ; sel = "dispatchThreads:threadsPerThreadgroup:"
+      ; args = [ Rec "Mtl_size"; Rec "Mtl_size" ]; ret = None; error = false
+      ; ocaml = "compute_encoder_dispatch_threads"; since = None
+      ; feature = Ogpu_core.Caps.Compute_pipeline }
+  and label =
+    Property
+      { recv = "Buffer"; objc = "id<MTLBuffer>"; name = "label"; ty = Str; access = Set
+      ; ocaml = "buffer_label"; since = None; feature = Ogpu_core.Caps.Buffer } in
+  validate [ dispatch; label ];
+  let native = emit_c [ dispatch; label ] and ml = emit_ml [ dispatch ] in
+  if not (contains_token native
+            "MTLSize{static_cast<NSUInteger>(Int64_val(Field(arg0, 0))), static_cast<NSUInteger>(Int64_val(Field(arg0, 1)))")
+     || not (contains_token ml "Types.handle -> Record.Mtl_size.t -> Record.Mtl_size.t -> (unit, string) result")
+     || not (contains_token native "NSString *text0 = string_from_ocaml(arg0)")
+     || not (contains_token native "object.label = text0")
+  then fail "generated record or string argument lost its conversion";
+  (match dispatch with
+   | Method m ->
+       (try validate [ Method { m with ret = Some (Rec "Mtl_size") } ];
+          fail "record result was accepted"
+        with Failure message ->
+          if not (String.starts_with ~prefix:"record result" message)
+          then fail "unexpected record error: %s" message)
    | _ -> ());
   let name = "device_max_threadgroup_memory_length" in
   let source =

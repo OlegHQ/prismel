@@ -2,13 +2,15 @@ type scalar = Bool | Int | Nsuint | Nsint | Float | Double
 
 (* A value crossing a generated call. [Obj kind] is a borrowed handle of the
    bridge's [Handle_kind::kind] (retained when returned); [Enum_of c] is a
-   C enum or options type carried as int64; [Str] is NSString. *)
+   C enum or options type carried as int64; [Str] is NSString (invalid UTF-8
+   is an [Error]); [Rec r] passes the [Record] entry [r] by value. *)
 type ty =
   | Scalar of scalar
   | Enum_of of string
   | Str
   | Obj of string
   | Opt_obj of string
+  | Rec of string
 
 type access = Get | Set | Get_set
 
@@ -97,6 +99,8 @@ type entry =
       ; since : (int * int) option
       ; feature : Ogpu_core.Caps.feature
       }
+
+module C = Ogpu_core.Caps
 
 let entries : entry list =
   [ Enum
@@ -256,4 +260,44 @@ let entries : entry list =
       ; since = Some (10, 14)
       ; feature = Ogpu_core.Caps.Render_pipeline
       }
+  (* MTLDevice *)
+  ; Property { recv = "Device"; objc = "id<MTLDevice>"; name = "name"; ty = Str; access = Get
+             ; ocaml = "device_name"; since = None; feature = C.Buffer }
+  ; Property { recv = "Device"; objc = "id<MTLDevice>"; name = "registryID"; ty = Scalar Nsuint; access = Get
+             ; ocaml = "device_registry_id"; since = None; feature = C.Buffer }
+  ; Property { recv = "Device"; objc = "id<MTLDevice>"; name = "lowPower"; ty = Scalar Bool; access = Get
+             ; ocaml = "device_is_low_power"; since = None; feature = C.Buffer }
+  ; Property { recv = "Device"; objc = "id<MTLDevice>"; name = "removable"; ty = Scalar Bool; access = Get
+             ; ocaml = "device_is_removable"; since = None; feature = C.Buffer }
+  ; Property { recv = "Device"; objc = "id<MTLDevice>"; name = "headless"; ty = Scalar Bool; access = Get
+             ; ocaml = "device_is_headless"; since = None; feature = C.Buffer }
+  ; Property { recv = "Device"; objc = "id<MTLDevice>"; name = "hasUnifiedMemory"; ty = Scalar Bool; access = Get
+             ; ocaml = "device_has_unified_memory"; since = None; feature = C.Memory }
+  ; Property { recv = "Device"; objc = "id<MTLDevice>"; name = "recommendedMaxWorkingSetSize"; ty = Scalar Nsuint
+             ; access = Get; ocaml = "device_recommended_max_working_set_size"; since = None; feature = C.Memory }
+  ; Property { recv = "Device"; objc = "id<MTLDevice>"; name = "currentAllocatedSize"; ty = Scalar Nsuint
+             ; access = Get; ocaml = "device_current_allocated_size"; since = None; feature = C.Memory }
+  ; Property { recv = "Device"; objc = "id<MTLDevice>"; name = "maxBufferLength"; ty = Scalar Nsuint; access = Get
+             ; ocaml = "device_max_buffer_length"; since = None; feature = C.Buffer }
+  ; Property { recv = "Device"; objc = "id<MTLDevice>"; name = "supportsRaytracing"; ty = Scalar Bool; access = Get
+             ; ocaml = "device_supports_raytracing"; since = None; feature = C.Ray_tracing }
+  ; Property { recv = "Device"; objc = "id<MTLDevice>"; name = "supportsRaytracingFromRender"; ty = Scalar Bool
+             ; access = Get; ocaml = "device_supports_raytracing_from_render"; since = None; feature = C.Ray_tracing }
+  ; Property { recv = "Device"; objc = "id<MTLDevice>"; name = "supportsDynamicLibraries"; ty = Scalar Bool
+             ; access = Get; ocaml = "device_supports_dynamic_libraries"; since = None; feature = C.Dynamic_libraries }
+  ; Property { recv = "Device"; objc = "id<MTLDevice>"; name = "supportsFunctionPointers"; ty = Scalar Bool
+             ; access = Get; ocaml = "device_supports_function_pointers"; since = None; feature = C.Function_tables }
+  ; Property { recv = "Device"; objc = "id<MTLDevice>"; name = "supportsFunctionPointersFromRender"; ty = Scalar Bool
+             ; access = Get; ocaml = "device_supports_function_pointers_from_render"; since = None
+             ; feature = C.Function_tables }
+  ; Method { recv = "Device"; objc = "id<MTLDevice>"; sel = "supportsVertexAmplificationCount:"; args = [ Scalar Nsuint ]
+           ; ret = Some (Scalar Bool); error = false; ocaml = "device_supports_vertex_amplification_count"; since = None
+           ; feature = C.Render_pipeline }
+  ; Method { recv = "Device"; objc = "id<MTLDevice>"; sel = "supportsTextureSampleCount:"; args = [ Scalar Nsuint ]
+           ; ret = Some (Scalar Bool); error = false; ocaml = "device_supports_texture_sample_count"; since = None
+           ; feature = C.Texture }
+  ; Property { recv = "Device"; objc = "id<MTLDevice>"; name = "depth24Stencil8PixelFormatSupported"; ty = Scalar Bool
+             ; access = Get; ocaml = "device_supports_depth24_stencil8"; since = None; feature = C.Texture }
+  ; Property { recv = "Device"; objc = "id<MTLDevice>"; name = "supportsBCTextureCompression"; ty = Scalar Bool
+             ; access = Get; ocaml = "device_supports_bc_texture_compression"; since = None; feature = C.Texture }
   ]

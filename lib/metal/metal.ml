@@ -18,6 +18,12 @@ let pp_error formatter error = Format.fprintf formatter "%s: %s" error.operation
 let error operation kind message = Error { operation; kind; message }
 let native_error operation message = error operation Native_error message
 
+(* Adapters for generated [Metal_raw.Registry] calls, which return
+   [(_, string) result]: [native] types the failure, [probe] reads an
+   internal capability bit whose native failure means "unsupported". *)
+let native operation = function Ok value -> Ok value | Error message -> native_error operation message
+let probe = function Ok value -> value | Error _ -> false
+
 let contains_nul value = String.contains value '\000'
 let option_exists predicate = function Some value -> predicate value | None -> false
 
@@ -1082,7 +1088,9 @@ type acceleration_encoder = {
 }
 
 let make_device raw =
-  ({ raw; lifetime = lifetime (); registry_id = Metal_raw.device_registry_id raw } : device)
+  match Metal_raw.Registry.device_registry_id raw with
+  | Ok registry_id -> Ok ({ raw; lifetime = lifetime (); registry_id } : device)
+  | Error message -> native_error "Metal.Device.system_default" message
 
 let attach_finalizer ?(on_finalize = fun () -> ()) value lifetime parent =
   Gc.finalise (fun _ -> finalize_child lifetime parent on_finalize) value
@@ -1626,7 +1634,7 @@ module Device = struct
   let system_default () =
     on_main "Metal.Device.system_default" (fun () ->
         match Metal_raw.default_device () with
-        | Ok raw -> Ok (make_device raw)
+        | Ok raw -> make_device raw
         | Error message -> native_error "Metal.Device.system_default" message)
 
   let same = same_device
@@ -1634,31 +1642,39 @@ module Device = struct
   let info (value : t) =
     let operation = "Metal.Device.info" in
     on_main operation (fun () ->
-        match ensure_live operation value.lifetime with
-        | Error _ as failure -> failure
-        | Ok () -> (
-            match Metal_raw.Registry.device_max_threadgroup_memory_length value.raw with
-            | Error message -> native_error operation message
-            | Ok max_threadgroup_memory_length ->
-                Ok
-                  {
-                    name = Metal_raw.device_name value.raw;
-                    registry_id = value.registry_id;
-                    low_power = Metal_raw.device_is_low_power value.raw;
-                    removable = Metal_raw.device_is_removable value.raw;
-                    headless = Metal_raw.device_is_headless value.raw;
-                    unified_memory = Metal_raw.device_has_unified_memory value.raw;
-                    recommended_max_working_set_size =
-                      Metal_raw.device_recommended_max_working_set_size value.raw;
-                    current_allocated_size = Metal_raw.device_current_allocated_size value.raw;
-                    max_buffer_length = Metal_raw.device_max_buffer_length value.raw;
-                    max_threadgroup_memory_length;
-                    raytracing = Metal_raw.device_supports_raytracing value.raw;
-                    raytracing_from_render =
-                      Metal_raw.device_supports_raytracing_from_render value.raw;
-                    dynamic_libraries = Metal_raw.device_supports_dynamic_libraries value.raw;
-                    function_pointers = Metal_raw.device_supports_function_pointers value.raw;
-                  }))
+        let ( let* ) value callback = Result.bind value callback in
+        let* () = ensure_live operation value.lifetime in
+        let* max_threadgroup_memory_length = native operation (Metal_raw.Registry.device_max_threadgroup_memory_length value.raw) in
+        let* name = native operation (Metal_raw.Registry.device_name value.raw) in
+        let* low_power = native operation (Metal_raw.Registry.device_is_low_power value.raw) in
+        let* removable = native operation (Metal_raw.Registry.device_is_removable value.raw) in
+        let* headless = native operation (Metal_raw.Registry.device_is_headless value.raw) in
+        let* unified_memory = native operation (Metal_raw.Registry.device_has_unified_memory value.raw) in
+        let* recommended_max_working_set_size =
+          native operation (Metal_raw.Registry.device_recommended_max_working_set_size value.raw) in
+        let* current_allocated_size = native operation (Metal_raw.Registry.device_current_allocated_size value.raw) in
+        let* max_buffer_length = native operation (Metal_raw.Registry.device_max_buffer_length value.raw) in
+        let* raytracing = native operation (Metal_raw.Registry.device_supports_raytracing value.raw) in
+        let* raytracing_from_render = native operation (Metal_raw.Registry.device_supports_raytracing_from_render value.raw) in
+        let* dynamic_libraries = native operation (Metal_raw.Registry.device_supports_dynamic_libraries value.raw) in
+        let* function_pointers = native operation (Metal_raw.Registry.device_supports_function_pointers value.raw) in
+        Ok
+          {
+            name = (if name = "" then "Unnamed Metal device" else name);
+            registry_id = value.registry_id;
+            low_power;
+            removable;
+            headless;
+            unified_memory;
+            recommended_max_working_set_size;
+            current_allocated_size;
+            max_buffer_length;
+            max_threadgroup_memory_length;
+            raytracing;
+            raytracing_from_render;
+            dynamic_libraries;
+            function_pointers;
+          })
 
   let family_code = function
     | Apple1 -> 1001
@@ -1694,7 +1710,8 @@ module Device = struct
         | Ok () when sample_count <= 0 ->
             error "Metal.Device.supports_texture_sample_count" Invalid_argument
               "texture sample count must be positive"
-        | Ok () -> Ok (Metal_raw.device_supports_texture_sample_count value.raw sample_count))
+        | Ok () -> native "Metal.Device.supports_texture_sample_count"
+              (Metal_raw.Registry.device_supports_texture_sample_count value.raw (Int64.of_int sample_count)))
 
   let supports_residency_sets (value : t) =
     on_main "Metal.Device.supports_residency_sets" (fun () ->
@@ -1761,7 +1778,7 @@ module Buffer = struct
 
   let validate_create operation (device : Device.t) ~length ~label =
     if length <= 0L then error operation Invalid_argument "buffer length must be positive"
-    else if length > Metal_raw.device_max_buffer_length device.raw then
+    else if (match Metal_raw.Registry.device_max_buffer_length device.raw with Ok limit -> length > limit | Error _ -> true) then
       error operation Invalid_argument "buffer length exceeds the device limit"
     else if option_exists contains_nul label then
       error operation Invalid_argument "label contains a NUL byte"
@@ -2603,7 +2620,7 @@ module Texture = struct
   let supports_compression_raw (device : Device.t) format =
     match Metal_format.compression_family format with
     | None -> true
-    | Some Metal_format.Bc -> Metal_raw.device_supports_bc_texture_compression device.raw
+    | Some Metal_format.Bc -> probe (Metal_raw.Registry.device_supports_bc_texture_compression device.raw)
     | Some (Metal_format.Eac_etc2 | Metal_format.Astc_ldr) ->
         supports_family_raw device Device.Apple2 || supports_family_raw device Device.Metal4
     | Some Metal_format.Astc_hdr ->
@@ -2689,7 +2706,7 @@ module Texture = struct
     then error operation Unsupported "device does not support lossy texture compression"
     else if
       descriptor.format = Depth24_unorm_stencil8
-      && not (Metal_raw.device_supports_depth24_stencil8 device.raw)
+      && not (probe (Metal_raw.Registry.device_supports_depth24_stencil8 device.raw))
     then error operation Unsupported "device does not support Depth24Unorm_Stencil8 textures"
     else if not (supports_compression_raw device descriptor.format) then
       error operation Unsupported "device does not support the selected compressed texture format"
@@ -3202,7 +3219,7 @@ module Texture = struct
               "requested texture-view format is not in a compatible format class"
         | Ok ()
           when format = X24_stencil8
-               && not (Metal_raw.device_supports_depth24_stencil8 parent.device.raw) ->
+               && not (probe (Metal_raw.Registry.device_supports_depth24_stencil8 parent.device.raw)) ->
             error "Metal.Texture.create_view" Unsupported
               "device does not support X24_Stencil8 texture views"
         | Ok ()
@@ -5350,7 +5367,7 @@ module Library = struct
     on_main operation (fun () ->
         match ensure_live operation device.lifetime with
         | Error _ as failure -> failure
-        | Ok () when not (Metal_raw.device_supports_dynamic_libraries device.raw) ->
+        | Ok () when not (probe (Metal_raw.Registry.device_supports_dynamic_libraries device.raw)) ->
             error operation Unsupported "the Metal device has no dynamic-library support"
         | Ok () ->
             compile_descriptor_raw operation ~device ?label ~library_type:1
@@ -5733,7 +5750,7 @@ module Dynamic_library = struct
   let check_support operation (device : Device.t) =
     match ensure_live operation device.lifetime with
     | Error _ as failure -> failure
-    | Ok () when not (Metal_raw.device_supports_dynamic_libraries device.raw) ->
+    | Ok () when not (probe (Metal_raw.Registry.device_supports_dynamic_libraries device.raw)) ->
         error operation Unsupported "the Metal device has no dynamic-library support"
     | Ok () -> Ok ()
 
@@ -5857,7 +5874,7 @@ module Binary_archive = struct
                     | Error _ as failure -> failure
                     | Ok ()
                       when linked_functions <> []
-                           && not (Metal_raw.device_supports_function_pointers value.device.raw) ->
+                           && not (probe (Metal_raw.Registry.device_supports_function_pointers value.device.raw)) ->
                         error operation Unsupported
                           "archived linked functions require Metal function-pointer support"
                     | Ok () -> (
@@ -5867,7 +5884,7 @@ module Binary_archive = struct
                         | Error _ as failure -> failure
                         | Ok ()
                           when preloaded_libraries <> []
-                               && not (Metal_raw.device_supports_dynamic_libraries value.device.raw)
+                               && not (probe (Metal_raw.Registry.device_supports_dynamic_libraries value.device.raw))
                           ->
                             error operation Unsupported
                               "archived preloads require Metal dynamic-library support"
@@ -6047,14 +6064,14 @@ module Compute_pipeline = struct
           else
             let* () = validate_linked_functions operation device linked_functions in
             if
-              linked_functions <> [] && not (Metal_raw.device_supports_function_pointers device.raw)
+              linked_functions <> [] && not (probe (Metal_raw.Registry.device_supports_function_pointers device.raw))
             then
               error operation Unsupported "linked functions require Metal function-pointer support"
             else
               let* () = validate_dynamic_libraries operation device preloaded_libraries in
               if
                 preloaded_libraries <> []
-                && not (Metal_raw.device_supports_dynamic_libraries device.raw)
+                && not (probe (Metal_raw.Registry.device_supports_dynamic_libraries device.raw))
               then
                 error operation Unsupported
                   "preloaded libraries require Metal dynamic-library support"
@@ -7029,7 +7046,7 @@ module Compiler = struct
             let supports_public_linking =
               match supports_public_linking with
               | Some supported -> supported
-              | None -> Metal_raw.device_supports_function_pointers device.raw
+              | None -> probe (Metal_raw.Registry.device_supports_function_pointers device.raw)
             in
             if (functions <> [] || groups <> []) && not supports_public_linking then
               error operation Unsupported
@@ -7113,7 +7130,7 @@ module Compiler = struct
               (stage ^ " binary functions require binary-linking support")
           else if
             linking.preloaded_libraries <> []
-            && not (Metal_raw.device_supports_dynamic_libraries device.raw)
+            && not (probe (Metal_raw.Registry.device_supports_dynamic_libraries device.raw))
           then
             error operation Unsupported
               (stage ^ " preloaded libraries require dynamic-library support")
@@ -7161,7 +7178,7 @@ module Compiler = struct
     then error operation Invalid_argument "render color-write masks contain duplicate channels"
     else if raster_sample_count <= 0 then
       error operation Invalid_argument "render raster sample count must be positive"
-    else if not (Metal_raw.device_supports_texture_sample_count device.raw raster_sample_count) then
+    else if not (probe (Metal_raw.Registry.device_supports_texture_sample_count device.raw (Int64.of_int raster_sample_count))) then
       error operation Unsupported "the Metal device does not support the render sample count"
     else
       Ok
@@ -7188,7 +7205,7 @@ module Compiler = struct
         let* () = validate_pipeline_entry operation library ~stage:"vertex" vertex in
         let* () = validate_optional_pipeline_entry operation library ~stage:"fragment" fragment in
         let render_function_pointers =
-          Metal_raw.device_supports_function_pointers_from_render value.device.raw
+          probe (Metal_raw.Registry.device_supports_function_pointers_from_render value.device.raw)
         in
         if option_exists contains_nul label then
           error operation Invalid_argument "render-pipeline label contains a NUL byte"
@@ -7196,8 +7213,7 @@ module Compiler = struct
           error operation Invalid_argument "maximum vertex amplification count must be positive"
         else if
           not
-            (Metal_raw.device_supports_vertex_amplification_count value.device.raw
-               max_vertex_amplification_count)
+            (probe (Metal_raw.Registry.device_supports_vertex_amplification_count value.device.raw (Int64.of_int max_vertex_amplification_count)))
         then
           error operation Unsupported
             "the Metal device does not support the vertex amplification count"

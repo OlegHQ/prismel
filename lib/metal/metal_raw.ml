@@ -385,49 +385,20 @@ external resident_bytes : unit -> int64 = "caml_prismel_metal_resident_bytes"
 external default_device : unit -> (handle, string) result =
   "caml_prismel_metal_default_device"
 
-external device_name : handle -> string = "caml_prismel_metal_device_name"
-external device_registry_id : handle -> int64 =
-  "caml_prismel_metal_device_registry_id"
-
-external device_is_low_power : handle -> bool =
-  "caml_prismel_metal_device_is_low_power"
-
-external device_is_removable : handle -> bool =
-  "caml_prismel_metal_device_is_removable"
-
-external device_is_headless : handle -> bool =
-  "caml_prismel_metal_device_is_headless"
-
-external device_has_unified_memory : handle -> bool =
-  "caml_prismel_metal_device_has_unified_memory"
-
-external device_recommended_max_working_set_size : handle -> int64 =
-  "caml_prismel_metal_device_recommended_max_working_set_size"
-
-external device_current_allocated_size : handle -> int64 =
-  "caml_prismel_metal_device_current_allocated_size"
-
-external device_max_buffer_length : handle -> int64 =
-  "caml_prismel_metal_device_max_buffer_length"
 
 
-external device_supports_raytracing : handle -> bool =
-  "caml_prismel_metal_device_supports_raytracing"
 
-external device_supports_raytracing_from_render : handle -> bool =
-  "caml_prismel_metal_device_supports_raytracing_from_render"
 
-external device_supports_dynamic_libraries : handle -> bool =
-  "caml_prismel_metal_device_supports_dynamic_libraries"
 
-external device_supports_function_pointers : handle -> bool =
-  "caml_prismel_metal_device_supports_function_pointers"
 
-external device_supports_function_pointers_from_render : handle -> bool =
-  "caml_prismel_metal_device_supports_function_pointers_from_render"
 
-external device_supports_vertex_amplification_count : handle -> int -> bool =
-  "caml_prismel_metal_device_supports_vertex_amplification_count"
+
+
+
+
+
+
+
 
 external device_supports_residency_sets : handle -> bool =
   "caml_prismel_metal_device_supports_residency_sets"
@@ -474,14 +445,8 @@ external resource_make_aliasable : handle -> (unit, string) result =
 external resource_is_aliasable : handle -> bool =
   "caml_prismel_metal_resource_is_aliasable"
 
-external device_supports_texture_sample_count : handle -> int -> bool =
-  "caml_prismel_metal_device_supports_texture_sample_count"
 
-external device_supports_depth24_stencil8 : handle -> bool =
-  "caml_prismel_metal_device_supports_depth24_stencil8"
 
-external device_supports_bc_texture_compression : handle -> bool =
-  "caml_prismel_metal_device_supports_bc_texture_compression"
 
 external heap_buffer_size_and_align : handle -> int64 -> int -> int64 * int64 =
   "caml_prismel_metal_heap_buffer_size_and_align"
