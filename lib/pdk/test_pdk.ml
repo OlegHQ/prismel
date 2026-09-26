@@ -30,7 +30,24 @@ let float_array_values ~owner ~name geometry =
        | _ -> fail ("unexpected non-float-array storage for " ^ name))
   | None -> fail ("missing float-array attribute " ^ name)
 
+let check_identity_cache () =
+  let module Cache = Pdk_core.Support.Identity_cache in
+  let cache = Cache.create ~id:(fun (key : int ref) -> !key land 1) 2 in
+  let builds = ref 0 in
+  let get key = Cache.find_or_add cache key (fun () -> incr builds; !key) in
+  let a = ref 1 and b = ref 2 and c = ref 3 and a' = ref 1 in
+  ignore (get a); ignore (get a); ignore (get a');
+  if !builds <> 2 then fail "Identity_cache must key by physical identity";
+  ignore (get b); ignore (get c);
+  if get a <> 1 || !builds <> 5 then
+    fail "Identity_cache must evict first-in first-out at capacity";
+  let keys = Pdk_core.Support.Key_map.(ints First) [| 5; 7; 5 |] |> Option.get
+  and last = Pdk_core.Support.Key_map.(strings Last) [| "x"; "y"; "x" |] |> Option.get in
+  if keys 5 <> 0 || keys 7 <> 1 || keys 9 <> -1 || last "x" <> 2 || last "z" <> -1 then
+    fail "Support.Key_map lookup"
+
 let run () =
+  check_identity_cache ();
   let pattern source = Attribute_pattern.compile source |> get_ok in
   let reference_glob glob name =
     let glob_length = String.length glob and name_length = String.length name in

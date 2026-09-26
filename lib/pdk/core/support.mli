@@ -25,6 +25,23 @@ module Key_map : sig
   (** String-keyed {!ints}. *)
 end
 
+module Identity_cache : sig
+  type ('k, 'v) t
+  (** A domain-safe cache keyed by physical identity with a fixed capacity.
+      Entries are ephemerons, so a value is retained only while its key is
+      alive; at most [capacity] entries are held, replaced first-in
+      first-out. Lookup is O(capacity) integer comparisons and never cleans
+      or rehashes the table. *)
+
+  val create : id:('k -> int) -> int -> ('k, 'v) t
+  (** [create ~id capacity]; [id] is a cheap stable identifier for a key,
+      compared before physical identity. *)
+
+  val find_or_add : ('k, 'v) t -> 'k -> (unit -> 'v) -> 'v
+  (** Return the cached value for a key, or build, insert, and return it. The
+      builder runs outside the lock; a racing insert of the same key wins. *)
+end
+
 val select : ?cancel:Cancel.t -> float array -> int array -> int -> int -> int -> unit
 (** [select keys order first last k] reorders [order.(first..last)] so that
     [order.(k)] is the element that ordering by [keys.(i)] (ties by [i]) would

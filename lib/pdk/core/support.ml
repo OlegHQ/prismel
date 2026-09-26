@@ -76,6 +76,46 @@ module Key_map = struct
         !result) (capacity (Array.length values))
 end
 
+module Identity_cache = struct
+  type ('k, 'v) slot = Empty | Entry of int * ('k, 'v) Ephemeron.K1.t
+
+  type ('k, 'v) t = {
+    id : 'k -> int;
+    slots : ('k, 'v) slot array;
+    mutable next : int;
+    mutex : Mutex.t;
+  }
+
+  let create ~id capacity =
+    if capacity <= 0 then invalid_arg "Identity_cache.create: capacity";
+    { id; slots = Array.make capacity Empty; next = 0; mutex = Mutex.create () }
+
+  let find cache id key =
+    let rec scan slot =
+      if slot = Array.length cache.slots then None
+      else match cache.slots.(slot) with
+        | Entry (entry_id, entry) when entry_id = id ->
+            (match Ephemeron.K1.query entry key with
+             | Some _ as found -> found
+             | None -> scan (slot + 1))
+        | Empty | Entry _ -> scan (slot + 1) in
+    scan 0
+
+  let find_or_add cache key build =
+    let id = cache.id key in
+    match Mutex.protect cache.mutex (fun () -> find cache id key) with
+    | Some value -> value
+    | None ->
+        let built = build () in
+        Mutex.protect cache.mutex (fun () ->
+          match find cache id key with
+          | Some existing -> existing
+          | None ->
+              cache.slots.(cache.next) <- Entry (id, Ephemeron.K1.make key built);
+              cache.next <- (cache.next + 1) mod Array.length cache.slots;
+              built)
+end
+
 let[@inline always] compare keys left right =
   let compared = Float.compare keys.(left) keys.(right) in
   if compared <> 0 then compared else Int.compare left right

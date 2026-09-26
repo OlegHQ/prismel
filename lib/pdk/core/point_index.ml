@@ -35,30 +35,14 @@ let create_uncached ?cancel topology =
   done;
   { primitive_of_vertex; point_offsets; point_vertices }
 
-module Weak_cache = Ephemeron.K1.Make (struct
-  type t = Topology.t
-  let equal left right = left == right
-  let hash value = Topology.data_id value
-end)
-
-let cache = Weak_cache.create 64
-let cache_mutex = Mutex.create ()
-
-let with_cache_lock operation =
-  Mutex.lock cache_mutex;
-  Fun.protect ~finally:(fun () -> Mutex.unlock cache_mutex) operation
+(* Bounded: at most [cache_capacity] live indices, released with their topology. *)
+let cache_capacity = 64
+let cache = Support.Identity_cache.create ~id:Topology.data_id cache_capacity
 
 let create ?cancel topology =
   Cancel.check_opt cancel;
-  match with_cache_lock (fun () -> Weak_cache.find_opt cache topology) with
-  | Some index -> index
-  | None ->
-      let built = create_uncached ?cancel topology in
-      with_cache_lock (fun () ->
-        Weak_cache.clean cache;
-        match Weak_cache.find_opt cache topology with
-        | Some existing -> existing
-        | None -> Weak_cache.replace cache topology built; built)
+  Support.Identity_cache.find_or_add cache topology (fun () ->
+    create_uncached ?cancel topology)
 
 type index = t
 

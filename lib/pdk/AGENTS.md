@@ -163,8 +163,10 @@ cleanup step.
   or triangle edge. Reuse scratch storage and precompute invariant material,
   light, transform, clipping, and texture state outside raster loops.
 - Long-running workloads must be memory-bounded. Every cache needs an explicit
-  capacity/eviction policy; temporary arenas/builders must become unreachable
-  after a job; resource destruction remains explicit at the owning boundary.
+  capacity/eviction policy; the topology caches in `Point_index` and
+  `Topology_index` use `Support.Identity_cache` (64 ephemeron entries each,
+  first-in first-out, released with their topology); temporary
+  arenas/builders must become unreachable after a job; resource destruction remains explicit at the owning boundary.
 - Prefer algorithmic wins over micro-optimization: eliminate quadratic scans,
   reduce topology passes, cull early, stream where possible, and avoid storing
   derivable duplicates before tuning arithmetic.
