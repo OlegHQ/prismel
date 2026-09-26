@@ -1,0 +1,17 @@
+Ops.sort_owner	Ordering.owner
+Ops.sort_key	Ordering.key
+Ops.Points	Ordering.Points
+Ops.Primitives	Ordering.Primitives
+Ops.X	Ordering.X
+Ops.Y	Ordering.Y
+Ops.Z	Ordering.Z
+Ops.Distance_to	Ordering.Distance_to
+Ops.Along_vector	Ordering.Along_vector
+Ops.Attribute_component	Ordering.Attribute_component
+Ops.By_vertex_order	Ordering.By_vertex_order
+Ops.By_primitive_index	Ordering.By_primitive_index
+Ops.Spatial_locality	Ordering.Spatial_locality
+Ops.Random	Ordering.Random
+Ops.Index_attribute	Ordering.Index_attribute
+Ops.Reverse	Ordering.Reverse
+Ops.Shift	Ordering.Shift
