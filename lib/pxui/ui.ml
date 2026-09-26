@@ -15,23 +15,26 @@ let hash_range seed text first last =
   let hash = !hash lxor (!hash lsr 29) in
   if hash = 0 || hash = 1 then hash + 2 else hash
 
+(* Index of [marker] in [text], or [-1]; no closure or substring per call. *)
+let rec marker_at text marker at offset =
+  offset = String.length marker
+  || (String.unsafe_get text (at + offset) = String.unsafe_get marker offset
+      && marker_at text marker at (offset + 1))
+let rec marker_from text marker index =
+  if index + String.length marker > String.length text then -1
+  else if marker_at text marker index 0 then index
+  else marker_from text marker (index + 1)
 let find_marker text marker =
-  let length = String.length text and marker_length = String.length marker in
-  let rec search index =
-    if index + marker_length > length then None
-    else if String.sub text index marker_length = marker then Some index
-    else search (index + 1) in
-  if String.contains text '#' then search 0 else None
+  if String.contains text '#' then marker_from text marker 0 else -1
 
 let key_of seed text =
-  match find_marker text "###" with
-  | Some index -> hash_range 0x5bd1e995 text (index + 3) (String.length text)
-  | None -> hash_range seed text 0 (String.length text)
+  let index = find_marker text "###" in
+  if index >= 0 then hash_range 0x5bd1e995 text (index + 3) (String.length text)
+  else hash_range seed text 0 (String.length text)
 
 let display text =
-  match find_marker text "##" with
-  | Some index -> String.sub text 0 index
-  | None -> text
+  let index = find_marker text "##" in
+  if index >= 0 then String.sub text 0 index else text
 
 (* ------------------------------------------------------ retained cache *)
 
@@ -762,16 +765,28 @@ let set_box ui index ~flags ~w ~h ~max_h ~row ~padding ~gap ~at_x ~at_y ~xform
   ui.b_hit.(index) <- hit; ui.b_painters.(index) <- [];
   ui.b_overlays.(index) <- []
 
-let box ui ?(flags = none) ?(w = Grow) ?(h = Fit) ?(max_h = Float.infinity)
+(* Integer-derived child keys: no label string per frame. *)
+let int_key seed n =
+  let hash = (seed lxor (n * 0x1e3779b97f4a7c15)) * fnv_prime in
+  let hash = hash lxor (hash lsr 29) in
+  if hash = 0 || hash = 1 then hash + 2 else hash
+
+let box_keyed ui ?(flags = none) ?(w = Grow) ?(h = Fit) ?(max_h = Float.infinity)
     ?(axis = Column) ?(padding = 0.) ?(gap = 0.) ?at ?xform ?(text = "")
-    ?(text_size = 0) ?(scroll_step = 24.) ?hit label =
+    ?(text_size = 0) ?(scroll_step = 24.) ?hit key =
   require_building ui;
-  let key = unique_key ui (key_of (current_seed ui) label) in
+  let key = unique_key ui key in
   let index = append_box ui ~key ~parent:(current_parent ui) in
   let at_x, at_y = match at with Some (x, y) -> x, y | None -> Float.nan, Float.nan in
   set_box ui index ~flags ~w ~h ~max_h ~row:(axis = Row) ~padding ~gap ~at_x ~at_y
     ~xform ~text ~text_size ~scroll_step ~hit;
   { index; box_key = key; box_slot = ui.b_slot.(index) }
+
+let box ui ?flags ?w ?h ?max_h ?axis ?padding ?gap ?at ?xform ?text ?text_size
+    ?scroll_step ?hit label =
+  require_building ui;
+  box_keyed ui ?flags ?w ?h ?max_h ?axis ?padding ?gap ?at ?xform ?text
+    ?text_size ?scroll_step ?hit (key_of (current_seed ui) label)
 
 let within ui box f =
   require_building ui;
@@ -1191,7 +1206,11 @@ let paint_all ui (frame : Frame.t) =
       paint.scale <- ui.l_scale.(index); paint.tx <- ui.l_tx.(index);
       paint.ty <- ui.l_ty.(index); paint.clip_rect <- clip_rect;
       let local = ui.l_x.(index), ui.l_y.(index), ui.l_w.(index), ui.l_h.(index) in
-      List.iter (fun painter -> painter paint local) (List.rev painters)
+      (* [draw] prepends; paint oldest first without reversing a copy. *)
+      let rec in_order = function
+        | [] -> ()
+        | painter :: earlier -> in_order earlier; painter paint local in
+      in_order painters
     end in
   let rec visit index clip_rect parent_hit =
     let screen_rect = screen ui index in
@@ -1895,7 +1914,7 @@ let picker ui ?(limit = 10) label ~query rows_of =
   let count () = Array.length !rows in
   let search = kit_row ui ~flags:(clickable lor focusable lor blocking) label in
   focus ui search;
-  let list = box ui ~w:Grow ~h:Fit ~axis:Column (label ^ "##rows") in
+  let list = box_keyed ui ~w:Grow ~h:Fit ~axis:Column (int_key search.box_key 0) in
   let search_signal = signal ui search in
   let keys = search_signal.keys in
   let clamp cursor = if count () = 0 then 0 else max 0 (min (count () - 1) cursor) in
@@ -1943,8 +1962,8 @@ let picker ui ?(limit = 10) label ~query rows_of =
   within ui list (fun () ->
     for visible = 0 to length - 1 do
       let index = start + visible in
-      let row = kit_row ui ~flags:(clickable lor blocking)
-          (Printf.sprintf "row###%d" visible) in
+      let row = box_keyed ui ~flags:(clickable lor blocking) ~w:Grow
+          ~h:(Px (float ui.kit_row_height)) (int_key list.box_key visible) in
       let row_signal = signal ui row in
       if !result = `None && row_signal.clicked then result := `Pick index;
       let current = index = !cursor and hovered = row_signal.hovered in

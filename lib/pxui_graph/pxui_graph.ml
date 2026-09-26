@@ -1485,7 +1485,8 @@ let update (value : t) ui (frame : Frame.t) =
             ~h:(Ui.Px (float_of_int bh)) ~at:(float_of_int (bx - x), float_of_int (by - y))
             "active") in
         (view, active), output) in
-      index, tile, view, output) in
+      (* One signal per tile per frame; every pass below reads it. *)
+      index, tile, Ui.signal ui tile, view, output) in
     let overlay = Ui.box ui ~w:(Ui.Px (float_of_int value.width))
         ~h:(Ui.Px (float_of_int value.height)) ~at:(0., 0.) "overlay" in
     layer, tiles, overlay) in
@@ -1493,8 +1494,7 @@ let update (value : t) ui (frame : Frame.t) =
      opens its context menu; a longer right drag only pans. *)
   let clicked_context =
     if value.menu <> None || value.context <> None then None else
-    match Array.find_map (fun (index, tile, _, _) ->
-        let signal = Ui.signal ui tile in
+    match Array.find_map (fun (index, _, signal, _, _) ->
         if Ui.context_clicked signal then
           Some { at = ints signal.release_point;
                  target = On_tile value.boxes.(index).info.Edit_graph.id }
@@ -1520,8 +1520,7 @@ let update (value : t) ui (frame : Frame.t) =
              value, List.rev emitted)
     | None, None ->
     (* Right and middle drags pan from anywhere on the canvas. *)
-    let panning = Array.exists (fun (_, tile, _, _) ->
-      let signal = Ui.signal ui tile in
+    let panning = Array.exists (fun (_, _, (signal : Ui.signal), _, _) ->
       (signal.held || signal.released)
       && signal.button <> Some Input.LeftButton && signal.button <> None) tiles
       || ((canvas_signal.held || canvas_signal.released)
@@ -1530,17 +1529,16 @@ let update (value : t) ui (frame : Frame.t) =
     let value, changes = if not panning then value, [] else begin
         let dx, dy = if canvas_signal.held || canvas_signal.released
           then canvas_signal.drag
-          else Array.fold_left (fun (dx, dy) (_, tile, _, _) ->
-            let tx, ty = (Ui.signal ui tile).drag in dx +. tx, dy +. ty) (0., 0.) tiles in
+          else Array.fold_left (fun (dx, dy) (_, _, (signal : Ui.signal), _, _) ->
+            let tx, ty = signal.drag in dx +. tx, dy +. ty) (0., 0.) tiles in
         pan value dx dy, (if dx <> 0. || dy <> 0. then [View_changed] else [])
       end in
     let scroll = snd canvas_signal.scroll in
     let value, changes = if scroll <> 0.
       then zoom_at value frame.mouse scroll, View_changed :: changes
       else value, changes in
-    Array.fold_left (fun (value, changes) (index, tile, view, output) ->
+    Array.fold_left (fun (value, changes) (index, _, (tile_signal : Ui.signal), view, output) ->
       let id = value.boxes.(index).info.Edit_graph.id in
-      let tile_signal = Ui.signal ui tile in
       let left signal = signal.Ui.button = Some Input.LeftButton in
       let view, active = view in
       let value, changes = match view with
@@ -1583,11 +1581,10 @@ let update (value : t) ui (frame : Frame.t) =
     (* Continue or finish the captured gesture. *)
     let value, changes = match value.drag with
       | Some (Move_nodes { node; indices; edge_indices; offset_x; offset_y }) ->
-          (match Array.find_opt (fun (index, _, _, _) ->
+          (match Array.find_opt (fun (index, _, _, _, _) ->
               value.boxes.(index).info.Edit_graph.id = node) tiles with
            | None -> { value with drag = None }, changes
-           | Some (_, tile, _, _) ->
-               let signal = Ui.signal ui tile in
+           | Some (_, _, signal, _, _) ->
                let dx, dy = signal.drag in
                let value, changes = if dx <> 0. || dy <> 0. then begin
                    let change = match indices with
@@ -1638,7 +1635,7 @@ let update (value : t) ui (frame : Frame.t) =
           { value with drag = None }, changes
       (* A cancelled or culled wire drag has no held output left. *)
       | Some (Connect_wire { source }) when not (Array.exists
-          (fun (index, _, _, output) ->
+          (fun (index, _, _, _, output) ->
             value.boxes.(index).info.Edit_graph.id = source
             && Option.fold ~none:false ~some:(Ui.active ui) output) tiles) ->
           { value with drag = None }, changes
@@ -1660,7 +1657,7 @@ let update (value : t) ui (frame : Frame.t) =
       else let _, edges, stats = visibility value in
         edges, stats.visible_wires in
     paint_background value paint edges count);
-  Array.iter (fun (index, tile, _, _) ->
+  Array.iter (fun (index, tile, _, _, _) ->
     let id = initial.boxes.(index).info.Edit_graph.id in
     Ui.draw ui tile (fun paint _ ->
       match Hashtbl.find_opt value.slots id with
