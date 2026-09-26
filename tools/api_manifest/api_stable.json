@@ -859,13 +859,13 @@
       "source_sha256": "aa6d5d26a78c0836ce353cedebbfa63676cf077656f85b48ad363ca650b41f51"
     },
     {
-      "api_sha256": "f658d56bff3833ebc50a3a38f3b5d1898cec367c78220a1d3f0c9e94fba0f1ca",
+      "api_sha256": "50f5033bacc9f2821d04a3f547296d3ef9c56833254ccc239213eec178a82960",
       "excluded_legacy_symbols": [],
       "library": "prismel",
       "module": "Event",
       "source": "lib/prismel/event.mli",
-      "source_bytes": 1826,
-      "source_sha256": "c5514df49d514e2bc49355fd6c2584d3d16e2197db22c835277a2cced17d0fce"
+      "source_bytes": 1096,
+      "source_sha256": "b60351cddc9814c8c3112cbe93248a8728bd9e9ffaf57d40f311a13b55ea723b"
     },
     {
       "api_sha256": "5f29f30c6553b9d996cb148e8316b1096514d14c162e8183f03d3d39f22e40aa",
@@ -908,13 +908,13 @@
       "source_sha256": "0f25a98aa96fcbb75736377eac749e37ca55f4aaf70911369955decb79925b1a"
     },
     {
-      "api_sha256": "910213df621eb555346e3d9dad1b8320ff419bdf403e88181abb03c115628d87",
+      "api_sha256": "204dbfa56f73e6d71498baad14e53e7aefad305a6d61ce9a2ffd2f2c1c8f474f",
       "excluded_legacy_symbols": [],
       "library": "prismel",
       "module": "Input",
       "source": "lib/prismel/input.mli",
-      "source_bytes": 1748,
-      "source_sha256": "faca8d62430ef59d40eef2dc9bb2baf3d2975ca2b25b6425f5c2aa8732ed319c"
+      "source_bytes": 587,
+      "source_sha256": "8316270f3c7926526e2c648acb61b041a0da5c79d0e153c2dafcc81d7ce9c848"
     },
     {
       "api_sha256": "316c0fbc9a221ddbf42340ca8c905852c5e4ba32ba7df55a577976226be75dd0",

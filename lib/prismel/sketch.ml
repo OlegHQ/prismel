@@ -17,7 +17,7 @@ let resize ~width ~height =
   match !resize_current with
   |None->invalid_arg"Sketch.resize: no sketch is running"
   |Some resize->resize~width~height
-let frame config count time dt events={Frame.width=config.width;height=config.height;size=(config.width,config.height);drawable_width=config.width;drawable_height=config.height;drawable_size=(config.width,config.height);pixel_scale=(1.,1.);time;dt;fps=(if dt > 0. then 1. /. dt else 0.);count;mouse=Input.mouse_pos();mouse_delta=Input.mouse_delta();keys=Input.keys_down();mouse_buttons=Input.mouse_buttons_down();events}
+let frame config count time dt events={Frame.width=config.width;height=config.height;size=(config.width,config.height);drawable_width=config.width;drawable_height=config.height;drawable_size=(config.width,config.height);pixel_scale=(1.,1.);time;dt;fps=(if dt > 0. then 1. /. dt else 0.);count;mouse=Input_state.mouse();mouse_delta=Input_state.mouse_delta();keys=Input_state.keys();mouse_buttons=Input_state.buttons();events}
 let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun model _->model)~init~update~view ?(on_stop=fun _->())()=
   if config.width<=0||config.height<=0 then invalid_arg"Sketch: dimensions must be positive";
   let max_frames=match max_frames,Sys.getenv_opt"PRISMEL_MAX_FRAMES"with
@@ -38,7 +38,7 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun m
   let coordinator=get(Prismel_execution.create configuration)in
   get(Prismel_execution.show coordinator);
   (match Prismel_execution.presentation_facts coordinator with
-   |Ok facts->Event.configure~logical_width:facts.logical_width
+   |Ok facts->Input_state.configure~logical_width:facts.logical_width
        ~logical_height:facts.logical_height
    |Error _->());
   let logical_width=ref config.width and logical_height=ref config.height in
@@ -59,7 +59,7 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun m
   Canvas_runtime.install~capture~save;
   relative_current:=Some(fun enabled->
     match Prismel_execution.set_relative_mouse coordinator enabled with
-    |Ok()->Event.Private.set_relative enabled;Ok()
+    |Ok()->Input_state.set_relative enabled;Ok()
     |Error error->Error(Format.asprintf"%a"Prismel_execution.pp_error error));
   cursor_current:=Some(fun shape->
     match Prismel_execution.set_cursor coordinator shape with
@@ -94,14 +94,14 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun m
       Canvas_runtime.clear();ignore(Prismel_execution.destroy coordinator))(fun()->on_stop!model)in
   Fun.protect~finally:cleanup(fun()->
     let limit=max_frames in let count=ref 0 in while not !stopped&&Option.fold~none:true~some:(fun limit-> !count<limit)limit do
-      Time.update();let events=Event.poll_events()in
+      Time.update();let events=Input_state.poll()in
       if List.exists(function Event.WindowClosed->true|_->false)events then quit();
       incr count;let dt=match config.clock with Realtime->Time.get_delta_time()|Fixed value->value in
       let base=frame config !count(match config.clock with Realtime->Time.now()|Fixed _->float !count*.dt)dt events in
       let presentation=get(Prismel_execution.presentation_facts coordinator)in
       if presentation.logical_width<> !logical_width
           ||presentation.logical_height<> !logical_height then
-        Event.configure~logical_width:presentation.logical_width
+        Input_state.configure~logical_width:presentation.logical_width
           ~logical_height:presentation.logical_height;
       logical_width:=presentation.logical_width;logical_height:=presentation.logical_height;
       let scale_x=float presentation.drawable_width/.float presentation.logical_width

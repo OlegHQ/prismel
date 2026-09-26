@@ -2,8 +2,10 @@
 
 `Event.t` is Prismel's owned, typed representation of native application
 events. Runtime polls SDL3 on the initial OCaml domain, translates every
-supported event in queue order, updates `Input`, and exposes the resulting list
-through `Frame.events`.
+supported event in queue order, folds held keys, buttons, and pointer motion
+into the frame facts (`Frame.keys`, `mouse_buttons`, `mouse`, `mouse_delta`), and
+exposes the resulting list through `Frame.events`. The polling and held-input
+state are private to `Sketch`; no public setter or global query exists.
 
 ## Public events
 
@@ -37,24 +39,20 @@ event payload.
   float aggregate delta. Wheel deltas retain sub-unit values.
 - The authoritative SDL3 pixel-size/window transition updates logical and
   drawable runtime facts coherently and emits one logical `WindowResized` fact.
-- Focus loss clears held `Input` state before user update and emits
+- Focus loss clears held keys and buttons before user update and emits
   `WindowFocusLost`.
 - A requested native window close maps to `WindowClosed`; user code may request
   the same orderly stop through `Sketch.quit`.
 - Pointer cancellation remains distinct from full focus loss.
 
 Runtime does not collapse intermediate motion events. Applications that need
-only the latest position use the `Input` snapshot; freehand drawing and gesture
+only the latest position use `Frame.mouse`; freehand drawing and gesture
 code may consume every ordered motion.
 
 ## Processing
 
-`Event.poll_events` obtains all pending events and updates Input state.
-`process_events` applies an optional handler in order. `handle_events` combines
-the two steps and returns the updated model plus the exact list.
-
-`Sketch.run_state` normally handles this plumbing and supplies the immutable
-event list in `Frame.t`. An update may fold it explicitly:
+`Sketch.run_state` polls once per frame and supplies the immutable event list in
+`Frame.t`. An update folds it explicitly:
 
 ```ocaml
 let update model (frame : Frame.t) =

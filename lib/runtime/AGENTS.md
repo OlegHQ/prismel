@@ -39,7 +39,7 @@
 ## High-DPI and coordinate contract
 
 - Treat `Sketch` configuration sizes, `Frame.width`/`height`, `Scene`
-  coordinates, `Input.mouse_pos`, mouse event positions, and PXUI layout as
+  coordinates, `Frame.mouse`, mouse event positions, and PXUI layout as
   logical points in one shared coordinate system.
 - Keep SDL3 logical size synchronized with the actual window size.
   `SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED` is authoritative.

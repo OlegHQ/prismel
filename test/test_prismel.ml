@@ -7,16 +7,6 @@ let mouse_move point = Prismel.Event.MouseMoved (pointer point)
 let run_1 () =
   if not Prismel.Sketch.default_config.resizable then
     fail "high-level sketch windows are not resizable by default";
-  Prismel.Input.reset ~mouse:(10., 10.);
-  Prismel.Input.begin_frame ();
-  Prismel.Input.update_mouse_pos 13. 14.;
-  Prismel.Input.update_mouse_pos 20. 25.;
-  if Prismel.Input.mouse_pos () <> (20., 25.)
-     || Prismel.Input.mouse_delta () <> (10., 15.)
-  then fail "mouse delta did not accumulate every event in the frame";
-  Prismel.Input.begin_frame ();
-  if Prismel.Input.mouse_delta () <> (0., 0.) then
-    fail "mouse delta remained stale on an idle frame";
   let squares = Prismel.Parallel.map ~grain:1 (fun x -> x * x) [1; 2; 3; 4] in
   if squares <> [1; 4; 9; 16] then
     fail "parallel map did not preserve order";
