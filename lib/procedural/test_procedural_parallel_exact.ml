@@ -370,18 +370,18 @@ let run () =
       && Geometry.primitive_count one = 32)
     "advanced Platonic exactness fixture cardinality";
   let generated_spiral = Sop.spiral
-      ~extent:(Ops.Spiral_height_pitch { height = -18.; pitch = -0.37 })
-      ~radius:(Ops.Spiral_logarithmic_end {
+      ~extent:(Spiral.Spiral_height_pitch { height = -18.; pitch = -0.37 })
+      ~radius:(Spiral.Spiral_logarithmic_end {
         start_radius = 0.35; end_radius = 8. })
       ~height_ramp:[0., 0.8; 0.35, 1.2; 0.7, 0.55; 1., 1.]
       ~radius_scale:1.3 ~radius_ramp:[0., 1.; 0.4, 0.6; 1., 1.15]
-      ~direction:Ops.Spiral_clockwise ~start_angle:(-0.7)
-      ~divisions:(Ops.Spiral_divisions_per_curve 20_000)
+      ~direction:Spiral.Spiral_clockwise ~start_angle:(-0.7)
+      ~divisions:(Spiral.Spiral_divisions_per_curve 20_000)
       ~uniform_angle:false ~spiral_count:5
-      ~orientation:(Ops.Spiral_axis (Vec3.create 1. 2. 3.))
+      ~orientation:(Spiral.Spiral_axis (Vec3.create 1. 2. 3.))
       ~center:(Vec3.create 3. (-2.) 5.)
       ~rotation:(Vec3.create 0.3 0.5 0.7)
-      ~rotation_order:Ops.Spiral_yzx ~uniform_scale:1.2
+      ~rotation_order:Spiral.Spiral_yzx ~uniform_scale:1.2
       ~angle_attribute:"angle" ~x_axis_attribute:"xaxis"
       ~y_axis_attribute:"yaxis" ~tangent_attribute:"tangent"
       ~orient_attribute:"orient" ~distance_attribute:"distance" () in
@@ -672,7 +672,7 @@ let run () =
        "filled keep-all clip edge count"
    | None -> fail "filled keep-all clip edge group missing");
   let subdivided = Sop.box ~size:(Vec3.create 2. 1.5 1.) ()
-      |> Sop.fuse ~tolerance:0. ~attributes:Ops.Average_numeric
+      |> Sop.fuse ~tolerance:0. ~attributes:Fuse_reduce.Average_numeric
       |> Sop.set_color ~owner:Attribute.Point (Color.hex_exn "#38bdf8")
       |> Sop.group_edges ~name:"subdivision_edges"
       |> Sop.subdivide ~scheme:Subdivision_ops.Catmull_clark ~iterations:3

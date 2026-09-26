@@ -3184,7 +3184,7 @@ let test_generators_selections_and_delete () =
       && piece_ids = [|20;20;10|])
     "procedural piece-matched Copy to Points";
   let transfer_copy_node = Sop.copy_to_points
-      ~target_attributes:Pdk.Ops.[{
+      ~target_attributes:Pdk.Instance_copy.[{
         copy_target_pattern = "weight";
         copy_target_owner = Copy_target_points;
         copy_target_operation = Copy_target_add;

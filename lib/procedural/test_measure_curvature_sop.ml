@@ -22,7 +22,7 @@ let source () =
   Pdk.Geometry.with_group selected geometry |> Result.get_ok
 
 let outputs = {
-  Pdk.Ops.mean = Some "mean";
+  Pdk.Analysis_ops.mean = Some "mean";
   gaussian = Some "gaussian";
   minimum = Some "minimum";
   maximum = Some "maximum";

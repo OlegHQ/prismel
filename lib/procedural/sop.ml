@@ -902,7 +902,7 @@ let fuse_attribute_method_key = function
 
 let fuse_attribute_rules_key rules = rules |> List.map
     (fun (rule : Pdk.Fuse_reduce.attribute_rule) ->
-    String.concat "," [String.escaped rule.Pdk.Ops.pattern;
+    String.concat "," [String.escaped rule.Pdk.Fuse_reduce.pattern;
       fuse_attribute_method_key rule.method_;
       option_string_key rule.weight_attribute]) |> String.concat "|"
 
@@ -3253,7 +3253,7 @@ let curvature_boundary_key = function
   | Pdk.Analysis_ops.Curvature_boundary_one_sided -> "one_sided"
 
 let curvature_outputs_key outputs = String.concat "," [
-  "mean=" ^ option_string_key outputs.Pdk.Ops.mean;
+  "mean=" ^ option_string_key outputs.Pdk.Analysis_ops.mean;
   "gaussian=" ^ option_string_key outputs.gaussian;
   "minimum=" ^ option_string_key outputs.minimum;
   "maximum=" ^ option_string_key outputs.maximum;

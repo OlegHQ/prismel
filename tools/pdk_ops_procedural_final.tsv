@@ -1,0 +1,11 @@
+# Final reviewed procedural/test paths after deleting Pdk.Ops.
+Ops.[	Instance_copy.[
+Ops.Average_numeric	Fuse_reduce.Average_numeric
+Ops.mean	Analysis_ops.mean
+Ops.pattern	Fuse_reduce.pattern
+Ops.Spiral_height_pitch	Spiral.Spiral_height_pitch
+Ops.Spiral_logarithmic_end	Spiral.Spiral_logarithmic_end
+Ops.Spiral_clockwise	Spiral.Spiral_clockwise
+Ops.Spiral_divisions_per_curve	Spiral.Spiral_divisions_per_curve
+Ops.Spiral_axis	Spiral.Spiral_axis
+Ops.Spiral_yzx	Spiral.Spiral_yzx
