@@ -139,7 +139,7 @@
 (executable
  (name bench_scene2_ir)
  (modules bench_scene2_ir)
- (libraries prismel_execution scene_command unix))
+ (libraries prismel_execution runtime_resources scene_command unix))
 
 (executable
  (name bench_pdk_ops)

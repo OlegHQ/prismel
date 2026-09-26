@@ -119,4 +119,29 @@ let () =
   measure_frame "frame_ui_fresh" 2048 (fun _ -> ui_frame (ui_table ()));
   let table = ui_table () in
   measure_frame "frame_ui_retained" 2048 (fun _ -> ui_frame table);
+  (* 16 retained text snapshots under a moving transform: every frame lowers
+     anew and resolves each snapshot. *)
+  let font = match Runtime_resources.Font.open_system ~size:14. with
+    | Ok font -> font | Error _ -> failwith "system font unavailable" in
+  let texts = Array.init 16 (fun index ->
+    match Runtime_resources.Font.render font ~density:1 ~color:(255, 255, 255, 255)
+        ("Label " ^ string_of_int index) with
+    | Ok (Some text) -> text | _ -> failwith "text render failed") in
+  let text_ir frame =
+    let glyphs = Array.init 16 (fun index -> Scene_command.Render_ir.Glyphs
+      { resource_id = index + 1; color = 0xffffffffl;
+        glyphs = [| { glyph_id = 0; x = 0.; y = float (index * 4) } |] }) in
+    match Scene_command.Render_ir.create (Array.concat [
+      [| Scene_command.Render_ir.Push_transform
+           { xx=1.; xy=0.; yx=0.; yy=1.; tx=float frame /. 100.; ty=0. } |];
+      glyphs; [| Scene_command.Render_ir.Pop_transform |] ]) with
+    | Ok ir -> ir | Error _ -> failwith "text benchmark IR is invalid" in
+  let text_irs = Array.init 53 text_ir in
+  let resource id = Some (Prismel_execution.Text texts.(id - 1)) in
+  measure_frame "frame_text" 16 (fun index ->
+    get (Prismel_execution.step execution
+      (get (Prismel_execution.lower_scene2 execution ~density:1 ~resource
+         text_irs.(index)))));
+  Array.iter (fun text -> ignore (Runtime_resources.Text.destroy text)) texts;
+  ignore (Runtime_resources.Font.destroy font);
   get (Prismel_execution.destroy execution)
