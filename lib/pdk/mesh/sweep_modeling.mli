@@ -5,7 +5,7 @@ type grid_connectivity = Plane_generators.grid_connectivity =
   | Grid_quads | Grid_triangles | Grid_alternating_triangles
   | Grid_reverse_triangles
 
-type revolve_type = Revolve_closed | Revolve_open_arc
+type revolve_type = Revolve.revolve_type = Revolve_closed | Revolve_open_arc
 
 type sweep_tangent =
   | Sweep_average_edges

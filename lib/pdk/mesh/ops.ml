@@ -265,8 +265,8 @@ type grid_connectivity = Plane_generators.grid_connectivity =
   | Grid_points | Grid_rows | Grid_columns | Grid_rows_and_columns
   | Grid_quads | Grid_triangles | Grid_alternating_triangles
   | Grid_reverse_triangles
-type revolve_type = Revolve.revolve_type = Revolve_closed | Revolve_open_arc
-type sweep_tangent =
+type revolve_type = Sweep_modeling.revolve_type = Revolve_closed | Revolve_open_arc
+type sweep_tangent = Sweep_modeling.sweep_tangent =
   | Sweep_average_edges
   | Sweep_central_difference
   | Sweep_previous_edge
@@ -343,11 +343,6 @@ type grid_rounding = Fuse_grid.grid_rounding = Grid_nearest | Grid_down | Grid_u
 type reverse_operation = Reverse_faces.operation =
   | Reverse_vertices
   | Shift_vertices of int
-
-let normals ?cancel ?(grain = 16_384) ?selection ?owner ?weighting ?cusp_angle
-    ?keep_original_zero ?reverse ?attribute geometry =
-  Normal_ops.run ?cancel ~grain ?selection ?owner ?weighting ?cusp_angle
-    ?keep_original_zero ?reverse ?attribute geometry
 
 let measure_curvature ?cancel ?grain ?points ?boundary ?smoothing_iterations
     ?smoothing_strength ?outputs geometry =
@@ -560,11 +555,9 @@ let poly_bridge ?cancel ?grain ~source ~destination ?pairing
 
 let snap_to_grid = Fuse_grid.snap_to_grid_checked
 
-let triangulate ?cancel ?grain ?primitives geometry =
-  protected "triangulate" "invalid_topology"
-    (fun () -> Triangulate.run ?cancel ?grain ?primitives geometry)
+let triangulate = Triangulation_modeling.triangulate
 
-type triangulate_2d_projection =
+type triangulate_2d_projection = Triangulation_modeling.triangulate_2d_projection =
   | Triangulate_2d_best_fit
   | Triangulate_2d_xy
   | Triangulate_2d_yz
@@ -572,74 +565,8 @@ type triangulate_2d_projection =
   | Triangulate_2d_plane of { origin : Vec3.t; normal : Vec3.t }
   | Triangulate_2d_point_attribute of string
 
-let triangulate_2d ?cancel ?grain ?selection ?constraint_edges
-    ?constraint_primitives
-    ?(projection = Triangulate_2d_best_fit) ?seed ?split_crossing_constraints
-    ?flood_from_hull_boundary ?remove_outside_constraint_polygons
-    ?silhouette_constraints ?remove_outside_silhouette
-    ?ignore_non_constraint_points
-    ?remove_duplicate_points
-    ?refine ?allow_constraint_splitting ?minimum_angle ?maximum_area
-    ?target_edge_length ?minimum_edge_length ?maximum_new_points
-    ?regularization_steps ?allow_movement_of_interior_input_points
-    ?preserve_point_payload ?restore_original_point_positions ?keep_primitives
-    ?(remove_unused_points = false)
-    ?(recompute_point_normals = false) ?split_point_group
-    ?refinement_point_group ?triangle_group ?constraint_group geometry =
-  let selection = Option.map (function
-    | Selected_points group -> Element_selection.Selected_points group
-    | Selected_vertices group -> Element_selection.Selected_vertices group
-    | Selected_primitives group -> Element_selection.Selected_primitives group
-    | Selected_edges group -> Element_selection.Selected_edges group) selection in
-  let projection = match projection with
-    | Triangulate_2d_best_fit -> Triangulate2d.Best_fit
-    | Triangulate_2d_xy -> Triangulate2d.Plane_xy
-    | Triangulate_2d_yz -> Triangulate2d.Plane_yz
-    | Triangulate_2d_zx -> Triangulate2d.Plane_zx
-    | Triangulate_2d_plane { origin; normal } ->
-        Triangulate2d.Plane { origin; normal }
-    | Triangulate_2d_point_attribute name ->
-        Triangulate2d.Point_attribute name in
-  protected "triangulate_2d" "invalid_triangulation" (fun () ->
-    Result.bind (Triangulate2d.run ?cancel ?grain ?selection ?constraint_edges
-      ?constraint_primitives ~projection ?seed ?split_crossing_constraints
-      ?flood_from_hull_boundary ?remove_outside_constraint_polygons
-      ?silhouette_constraints ?remove_outside_silhouette
-      ?ignore_non_constraint_points
-      ?remove_duplicate_points
-      ?refine ?allow_constraint_splitting ?minimum_angle ?maximum_area
-      ?target_edge_length ?minimum_edge_length ?maximum_new_points
-      ?regularization_steps ?allow_movement_of_interior_input_points
-      ?preserve_point_payload ?restore_original_point_positions ?keep_primitives
-      ?split_point_group ?triangle_group
-      ?refinement_point_group ?constraint_group geometry) (fun output ->
-      Result.bind (if remove_unused_points then compact_points ?cancel
-          ?grain output else Ok output) (fun output ->
-        if recompute_point_normals
-            && Option.is_some (Geometry.find_attribute
-              ~owner:Attribute.Point "N" geometry) then
-          normals ?cancel ?grain ~owner:Attribute.Point ~attribute:"N" output
-        else Ok output)))
-
-let remesh ?cancel ?(grain = 16_384) ?iterations ?smoothing ?project
-    ?use_input_points_only ?hard_points ?hard_edges ?target_size_attribute
-    ?preserve_uv_seams ?uv_attribute ?output_hard_edges ?output_mesh_size
-    ?output_quality ?recompute_point_normals ~target_length geometry =
-  protected "remesh" "invalid_remesh" (fun () ->
-    let kernels : Remesh.kernels = {
-      triangulate = (fun geometry -> Triangulate.run ?cancel ~grain geometry);
-      collapse = (fun edges geometry ->
-        Edge_collapse.raw ?cancel ~grain ~edges ~position:Average_position
-          ~remove_degenerate_primitives:true ~recompute_point_normals:false
-          geometry);
-      flip = (fun edges geometry ->
-        Edge_flip.run ?cancel ~grain ~edges ~cycles:1
-          ~cycle_vertex_attributes:true ~recompute_point_normals:false geometry);
-    } in
-    Remesh.run ?cancel ~grain ?iterations ?smoothing ?project
-      ?use_input_points_only ?hard_points ?hard_edges ?target_size_attribute
-      ?preserve_uv_seams ?uv_attribute ?output_hard_edges ?output_mesh_size
-      ?output_quality ?recompute_point_normals ~target_length ~kernels geometry)
+let triangulate_2d = Triangulation_modeling.triangulate_2d
+let remesh = Triangulation_modeling.remesh
 
 let boolean_detect ?cancel ?(grain = 16_384) ?source_primitives
     ?collision_primitives ?(tolerance = 0.) ?(include_coplanar = true)
@@ -1167,40 +1094,7 @@ type carve_attribute_mode = Curve_modeling.carve_attribute_mode =
 
 let carve_curves = Curve_modeling.carve_curves_checked
 
-let revolve_raw = Revolve.run
-let revolve ?cancel ?grain ?primitives ?revolve_type ?connectivity ?start_angle
-    ?end_angle ?reverse_cross_sections ?caps ?cap_group ?uv_attribute ~divisions
-    ~origin ~axis geometry =
-  protected "revolve" "invalid_geometry" (fun () ->
-    revolve_raw ?cancel ?grain ?primitives ?revolve_type ?connectivity
-      ?start_angle ?end_angle ?reverse_cross_sections ?caps ?cap_group
-      ?uv_attribute ~divisions ~origin ~axis geometry)
-
-let sweep ?cancel ?(grain = 16_384) ?backbones ?cross_sections
-    ?(connectivity = Grid_quads) ?(tangent = Sweep_average_edges)
-    ?(continuous_closed = true) ?(transform_attributes = true)
-    ?(reverse_cross_sections = false) ?(scale = 1.) ?(roll = 0.) ?(twist = 0.)
-    ?(caps = false) ?cap_group ?(uv_attribute = Some "uv")
-    ?(cross_section_prefix = "cross_section_") ~backbone ~cross_section () =
-  let connectivity = match connectivity with
-    | Grid_points -> Sweep.Points
-    | Grid_rows -> Sweep.Rows
-    | Grid_columns -> Sweep.Columns
-    | Grid_rows_and_columns -> Sweep.Rows_and_columns
-    | Grid_quads -> Sweep.Quads
-    | Grid_triangles -> Sweep.Triangles
-    | Grid_alternating_triangles -> Sweep.Alternating_triangles
-    | Grid_reverse_triangles -> Sweep.Reverse_triangles in
-  let tangent = match tangent with
-    | Sweep_average_edges -> Sweep.Average_edges
-    | Sweep_central_difference -> Sweep.Central_difference
-    | Sweep_previous_edge -> Sweep.Previous_edge
-    | Sweep_next_edge -> Sweep.Next_edge
-    | Sweep_z_axis -> Sweep.Z_axis in
-  protected "sweep" "invalid_geometry" (fun () ->
-    Sweep.run ?cancel ~grain ?backbones ?cross_sections ~connectivity ~tangent
-      ~continuous_closed ~transform_attributes ~reverse_cross_sections ~scale
-      ~roll ~twist ~caps ?cap_group ~uv_attribute ~cross_section_prefix
-      ~backbone ~cross_section ())
+let revolve = Sweep_modeling.revolve
+let sweep = Sweep_modeling.sweep
 
 let sweep_circle = Curve_modeling.sweep_circle_checked

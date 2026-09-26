@@ -522,6 +522,9 @@ Packed queries use `Pdk.Ray.run`, `Pdk.Point_split.run_checked`, and
 errors of their former `Pdk.Ops` wrappers.
 Packed UV projection, transform, seam marking, unitizing, flattening, and
 relaxation use the corresponding `Pdk.Uv_checked` entries and option types.
+Packed triangulation and remeshing use `Pdk.Triangulation_modeling`; revolve and
+general sweep use `Pdk.Sweep_modeling`. Both modules preserve the checked
+validation and cancellation results of their former `Pdk.Ops` entry points.
 `Pdk.Fuse_grid.fuse_checked` and `snap_to_grid_checked` preserve the typed
 validation and cancellation boundary around the packed Fuse and grid kernels.
 `Pdk.Plane_clip.clip_checked` and `clip_transform_checked` preserve the same

@@ -3,7 +3,7 @@
   "baseline_plan_sha256": "6f95e5738ae263386bbc414299f598f25ba9f604b48a8c2ef9bee84f974e2954",
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 134,
+  "module_count": 136,
   "modules": [
     {
       "api_sha256": "e50b68fb8b3efb8c3f48d288c797a83690511ce38a332e2c2285c788efd781ad",
@@ -564,6 +564,15 @@
       "source_sha256": "37fea8734433eeef3d28ee52a5b9a1ef36797bba69d75fe6612045a77b7dc183"
     },
     {
+      "api_sha256": "e5e351c0614e442ff8b69bd9f942af0de0f70930f5d82ea8e88a4ab8f0eef024",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Sweep_modeling",
+      "source": "lib/pdk/mesh/sweep_modeling.mli",
+      "source_bytes": 1430,
+      "source_sha256": "04e60c45b3d3456b13da5634bf994c574b3056a1bdb45af2e2a20097013f601a"
+    },
+    {
       "api_sha256": "283037da00b6f73314c37cbdcc133e9a326aa54fe343f649f8ccb77e97dc3645",
       "excluded_legacy_symbols": [],
       "library": "pdk",
@@ -589,6 +598,15 @@
       "source": "lib/pdk/mesh/transform_ops.mli",
       "source_bytes": 3140,
       "source_sha256": "4052ea9fd6fe2b8916c138537b7c66485ee185d59e1554c169501c81222bdc69"
+    },
+    {
+      "api_sha256": "f461005061cb10405636110deefe4ba6dab9da94d6a4c2d941a5e6481025ec7b",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Triangulation_modeling",
+      "source": "lib/pdk/mesh/triangulation_modeling.mli",
+      "source_bytes": 2246,
+      "source_sha256": "207b4f25fffc710e43feba4352ce8db58cecfebd554515cd124092df986d2b8b"
     },
     {
       "api_sha256": "a4233788f077fcce2bbd1495558315d2d66bb5375cf0a999d1217632dd794c66",
