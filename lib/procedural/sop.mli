@@ -932,13 +932,6 @@ val duplicate :
     emits one one-based primitive group per appended copy. *)
 val switch : ?label:string -> index:int -> Node.t list -> Node.t
 val null : ?label:string -> Node.t -> Node.t
-(* Standard terminal Exploded View SOP marker. Its inspectable display
-    parameters are supplied by [Sop_catalog.Exploded_view]; cooking remains a
-    geometry passthrough so a renderer with packed-piece support can update
-    rigid per-piece transforms without recooking upstream topology.
-
-    Parameters are defined by Sop_catalog.Exploded_view. *)
-val exploded_view : ?label:string -> Node.t -> Node.t
 (* Deterministically ear-clip all polygon primitives or a named primitive
    group. Unselected polygons and curves pass through with exact payload. *)
 val triangulate : ?label:string -> ?group:string -> Node.t -> Node.t
@@ -1719,37 +1712,6 @@ val swap_attributes :
   rules:Pdk.Attribute_ops.swap_rule list ->
   Node.t -> Node.t
 
-val rest_position :
-  ?label:string ->
-  ?reference:Node.t ->
-  ?rest_attribute:string ->
-  ?normals:Pdk.Motion.rest_normals ->
-  ?normal_attribute:string ->
-  ?rest_normal_attribute:string ->
-  Pdk.Motion.rest_mode ->
-  Node.t -> Node.t
-(* Store, extract, or swap rest position and optional point-normal planes.
-    The optional reference is an explicit immutable graph input. *)
-
-val point_velocity :
-  ?label:string ->
-  ?group:string ->
-  ?previous:Node.t ->
-  ?next:Node.t ->
-  ?approximation:Pdk.Motion.velocity_approximation ->
-  ?dt:float ->
-  ?initialization:Pdk.Motion.velocity_initialization ->
-  ?match_attribute:string ->
-  ?unmatched:Pdk.Motion.velocity_unmatched ->
-  ?velocity_attribute:string ->
-  ?add_velocity:Prismel_math.Vec3.t ->
-  ?compute_acceleration:bool ->
-  ?acceleration_attribute:string ->
-  Node.t -> Node.t
-(* Derive or initialize point velocity through the shared PDK kernel. Motion
-    samples are explicit graph inputs, so iterative sketches pass
-    [Sop.snapshot previous_geometry] without creating a cycle or hidden
-    retained history. *)
 val promote_attributes :
   ?label:string ->
   ?method_:Pdk.Attribute_ops.method_ ->

@@ -2567,11 +2567,6 @@ let null ?label input =
     ~cook_mode:(Node.Passthrough 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ _context inputs -> cooked inputs.(0))
 
-let exploded_view ?label input =
-  Node.Private.make ?label ~operation:"exploded_view" ~version:1 ~parameters:""
-    ~cook_mode:(Node.Passthrough 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ _context inputs -> cooked inputs.(0))
-
 let unary_result ?label ~operation cook input =
   Node.Private.make ?label ~operation ~version:1 ~parameters:""
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
@@ -5576,106 +5571,6 @@ let swap_attributes ?label ~rules input =
           ~rules inputs.(0) with
       | Ok geometry -> cooked geometry
       | Error error -> structured_pdk_error error)
-
-let rest_mode_key = function
-  | Pdk.Motion.Store_rest -> "store"
-  | Pdk.Motion.Extract_rest -> "extract"
-  | Pdk.Motion.Swap_rest -> "swap"
-
-let rest_normals_key = function
-  | Pdk.Motion.No_rest_normals -> "none"
-  | Pdk.Motion.Rest_normals_if_present -> "if_present"
-  | Pdk.Motion.Rest_normals_always -> "always"
-
-let rest_position ?label ?reference ?(rest_attribute = "rest")
-    ?(normals = Pdk.Motion.No_rest_normals) ?(normal_attribute = "N")
-    ?(rest_normal_attribute = "restN") mode input =
-  let inputs, cook_mode = match reference with
-    | None -> [|input|], Node.Duplicate_input 0
-    | Some reference -> [|input; reference|], Node.Generic in
-  Node.Private.make ?label ~operation:"rest_position" ~version:1
-    ~parameters:(String.concat ";" [
-      "mode=" ^ rest_mode_key mode;
-      "rest=" ^ String.escaped rest_attribute;
-      "normals=" ^ rest_normals_key normals;
-      "normal=" ^ String.escaped normal_attribute;
-      "rest_normal=" ^ String.escaped rest_normal_attribute;
-      "reference=" ^ string_of_bool (Option.is_some reference)])
-    ~cook_mode ~dependencies:Context.Dependencies.static ~inputs
-    (fun ~node_id:_ context inputs ->
-      let reference = if Array.length inputs = 2 then Some inputs.(1) else None in
-      match Pdk.Motion.rest_position ~cancel:(Context.cancel_token context)
-          ~grain:(Context.grain context) ?reference ~rest_attribute ~normals
-          ~normal_attribute ~rest_normal_attribute mode inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_pdk_error error)
-
-let velocity_approximation_key = function
-  | Pdk.Motion.Backward_difference -> "backward"
-  | Pdk.Motion.Central_difference -> "central"
-  | Pdk.Motion.Forward_difference -> "forward"
-
-let velocity_initialization_key = function
-  | Pdk.Motion.Compute_from_deformation -> "deformation"
-  | Pdk.Motion.Keep_incoming -> "keep"
-  | Pdk.Motion.Set_value value -> "set:" ^ vec3_key value
-  | Pdk.Motion.From_attribute { name; scale } ->
-      "attribute:" ^ String.escaped name ^ ":" ^ float_key scale
-
-let velocity_unmatched_key = function
-  | Pdk.Motion.Velocity_unmatched_error -> "error"
-  | Pdk.Motion.Velocity_unmatched_zero -> "zero"
-
-let point_velocity ?label ?group ?previous ?next
-    ?(approximation = Pdk.Motion.Backward_difference) ?(dt = 1. /. 60.)
-    ?(initialization = Pdk.Motion.Compute_from_deformation) ?match_attribute
-    ?(unmatched = Pdk.Motion.Velocity_unmatched_error)
-    ?(velocity_attribute = "v") ?(add_velocity = Vec3.zero)
-    ?(compute_acceleration = false) ?(acceleration_attribute = "accel") input =
-  let add_velocity = vec3_copy add_velocity in
-  let inputs = Array.of_list (input ::
-      (match previous with None -> [] | Some node -> [node]) @
-      (match next with None -> [] | Some node -> [node])) in
-  let cook_mode = if Array.length inputs = 1 then Node.Duplicate_input 0
-      else Node.Generic in
-  Node.Private.make ?label ~operation:"point_velocity" ~version:1
-    ~parameters:(String.concat ";" [
-      "group=" ^ option_string_key group;
-      "previous=" ^ string_of_bool (Option.is_some previous);
-      "next=" ^ string_of_bool (Option.is_some next);
-      "approximation=" ^ velocity_approximation_key approximation;
-      "dt=" ^ float_key dt;
-      "initialization=" ^ velocity_initialization_key initialization;
-      "match=" ^ option_string_key match_attribute;
-      "unmatched=" ^ velocity_unmatched_key unmatched;
-      "velocity=" ^ String.escaped velocity_attribute;
-      "add=" ^ vec3_key add_velocity;
-      "acceleration=" ^ string_of_bool compute_acceleration;
-      "acceleration_attribute=" ^ String.escaped acceleration_attribute])
-    ~cook_mode ~dependencies:Context.Dependencies.static ~inputs
-    (fun ~node_id:_ context inputs ->
-      let index = ref 1 in
-      let previous = match previous with
-        | None -> None
-        | Some _ -> let value = Some inputs.(!index) in incr index; value in
-      let next = match next with None -> None | Some _ -> Some inputs.(!index) in
-      let points = match group with
-        | None -> Ok None
-        | Some name ->
-            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name inputs.(0) with
-             | Some group -> Ok (Some group)
-             | None -> Error (Diagnostic.error ~code:"missing_group"
-                 (Printf.sprintf "point_velocity could not find point group %S" name))) in
-      match points with
-      | Error error -> Error error
-      | Ok points ->
-          match Pdk.Motion.point_velocity
-              ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
-              ?points ?previous ?next ~approximation ~dt ~initialization
-              ?match_attribute ~unmatched ~velocity_attribute ~add_velocity
-              ~compute_acceleration ~acceleration_attribute inputs.(0) with
-          | Ok geometry -> cooked geometry
-          | Error error -> structured_pdk_error error)
 
 let delete_edge_group ?label ~name input =
   if String.trim name = "" then invalid_arg "Sop.delete_edge_group: empty name";

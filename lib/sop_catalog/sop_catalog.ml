@@ -3,6 +3,21 @@ open Procedural
 
 let label fallback = function Some label -> label | None -> fallback
 
+(* A catalog-owned operator over PDK. The generated build attaches the schema,
+   whose cook key is the node's only parameter identity, so there is no
+   hand-written parameter string to keep in sync. *)
+let operator ~label ~operation ?(cook_mode = Node.Duplicate_input 0) inputs cook =
+  Node.Private.make ~label ~operation ~version:1 ~parameters:"" ~cook_mode
+    ~dependencies:Context.Dependencies.static ~inputs cook
+
+let cooked geometry = Ok Node.Private.{ geometry; diagnostics = [] }
+
+let pdk_cooked = function
+  | Ok geometry -> cooked geometry
+  | Error error -> Error (Diagnostic.error ~code:(Pdk.Error.code error)
+      ~cause:(Pdk.Error.to_string error) ~hints:(Pdk.Error.hints error)
+      (Pdk.Error.operation error ^ " could not produce valid geometry"))
+
 let optional_text value =
   let value = String.trim value in
   if value = "" then None else Some value
@@ -7628,16 +7643,35 @@ module Point_velocity = struct
     | From_attribute -> Pdk.Motion.From_attribute {
         name = parameters.source_attribute; scale = parameters.source_scale }
   let build = parameters_build (fun ~label parameters input previous next ->
-    Sop.point_velocity ~label ?group:(optional_text parameters.group)
-      ?previous ?next ~approximation:parameters.approximation
-      ~dt:parameters.dt ~initialization:(initialization parameters)
-      ?match_attribute:(optional_text parameters.match_attribute)
-      ~unmatched:parameters.unmatched
-      ~velocity_attribute:parameters.velocity_attribute
-      ~add_velocity:(Vec3.create parameters.add_x parameters.add_y
-        parameters.add_z)
-      ~compute_acceleration:parameters.compute_acceleration
-      ~acceleration_attribute:parameters.acceleration_attribute input)
+    let inputs = Array.of_list (input :: List.filter_map Fun.id [previous; next]) in
+    let cook_mode = if Array.length inputs = 1 then Node.Duplicate_input 0
+      else Node.Generic in
+    operator ~label ~operation:"point_velocity" ~cook_mode inputs
+      (fun ~node_id:_ context inputs ->
+        let slot = ref 1 in
+        let take present = if not present then None
+          else (let value = Some inputs.(!slot) in incr slot; value) in
+        let previous = take (previous <> None) in
+        let next = take (next <> None) in
+        let points = match optional_text parameters.group with
+          | None -> Ok None
+          | Some name ->
+              (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name inputs.(0) with
+               | Some group -> Ok (Some group)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf "point_velocity could not find point group %S" name))) in
+        Result.bind points (fun points ->
+          pdk_cooked (Pdk.Motion.point_velocity
+            ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
+            ?points ?previous ?next ~approximation:parameters.approximation
+            ~dt:parameters.dt ~initialization:(initialization parameters)
+            ?match_attribute:(optional_text parameters.match_attribute)
+            ~unmatched:parameters.unmatched
+            ~velocity_attribute:parameters.velocity_attribute
+            ~add_velocity:(Vec3.create parameters.add_x parameters.add_y
+              parameters.add_z)
+            ~compute_acceleration:parameters.compute_acceleration
+            ~acceleration_attribute:parameters.acceleration_attribute inputs.(0)))))
 
   let factory = parameters_factory build
 end [@@sop.register]
@@ -8372,11 +8406,18 @@ module Rest_position = struct
     [@@sop.node_category "Attribute/Motion"] [@@sop.node_inputs 2]
     [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label parameters input reference ->
-    Sop.rest_position ~label ?reference
-      ~rest_attribute:parameters.rest_attribute ~normals:parameters.normals
-      ~normal_attribute:parameters.normal_attribute
-      ~rest_normal_attribute:parameters.rest_normal_attribute
-      parameters.mode input)
+    let inputs, cook_mode = match reference with
+      | None -> [|input|], Node.Duplicate_input 0
+      | Some reference -> [|input; reference|], Node.Generic in
+    operator ~label ~operation:"rest_position" ~cook_mode inputs
+      (fun ~node_id:_ context inputs ->
+        let reference = if Array.length inputs = 2 then Some inputs.(1) else None in
+        pdk_cooked (Pdk.Motion.rest_position ~cancel:(Context.cancel_token context)
+          ~grain:(Context.grain context) ?reference
+          ~rest_attribute:parameters.rest_attribute ~normals:parameters.normals
+          ~normal_attribute:parameters.normal_attribute
+          ~rest_normal_attribute:parameters.rest_normal_attribute
+          parameters.mode inputs.(0))))
 
   let factory = parameters_factory build
 end [@@sop.register]
@@ -8592,6 +8633,9 @@ module Normal = struct
       owner; weighting; cusp_angle; keep_original_zero; reverse; attribute }
 end [@@sop.register]
 
+(* Terminal Exploded View marker: cooking is a geometry passthrough, so a
+   renderer with packed-piece support updates rigid per-piece transforms from
+   these view-only parameters without recooking upstream topology. *)
 module Exploded_view = struct
   type parameters = {
     amount : float [@sop.default 0.32] [@sop.label "Uniform scale"]
@@ -8623,7 +8667,8 @@ module Exploded_view = struct
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label _parameters input ->
-    Sop.exploded_view ~label input)
+    operator ~label ~operation:"exploded_view" ~cook_mode:(Node.Passthrough 0)
+      [|input|] (fun ~node_id:_ _context inputs -> cooked inputs.(0)))
 
   let factory = parameters_factory build
 

@@ -1151,13 +1151,13 @@
       "source_sha256": "56843fac9c3df29c046e0c707bd5a2374e4c400e0a02ae5627e27a7000bf8ee8"
     },
     {
-      "api_sha256": "bf29514c4dff8c2b93ae8270c126125db7f5d366be65efdf29db694402cc6470",
+      "api_sha256": "b3c0d6bdff48852783bf048909bb9f839323bf0a6e0d57bdf4b522752ce19d40",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Sop",
       "source": "lib/procedural/sop.mli",
-      "source_bytes": 96320,
-      "source_sha256": "7e73d9022fe91635244511324a3cd83ac4f08562e5398ee0f46df71822d2fe2a"
+      "source_bytes": 94833,
+      "source_sha256": "9a08e29cbc2c9baa382de88ddefee3dfde4fd9fc66e1a633659aff418c7cf6bd"
     },
     {
       "api_sha256": "a07dc249d7631da8b4e38fe93e9e43898cdc8cec6e30be0a7c921a086e386fba",

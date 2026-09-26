@@ -13,7 +13,49 @@ let cook session node = match Session.cook session
   | Ok output -> output.Session.geometry
   | Error error -> fail (Diagnostic.error_to_string error)
 
+let catalog_node key inputs changes =
+  let factory = List.find (fun factory -> Edit_graph.factory_key factory = key)
+      Sop_catalog.Editor.factories in
+  match Result.bind (Edit_graph.instantiate_optional factory inputs)
+      (fun node -> Node.apply_parameters node changes) with
+  | Ok (node, _) -> node
+  | Error message -> fail message
+
+let float3 name geometry =
+  match Pdk.Geometry.find_attribute ~owner:Pdk.Attribute.Point name geometry with
+  | Some attribute ->
+      (match Pdk.Attribute.Private.storage attribute with
+       | Pdk.Attribute.Float3 values -> Pdk.Packed.Float3.Private.view values
+       | _ -> fail (name ^ " has wrong storage"))
+  | None -> fail ("missing " ^ name)
+
+(* Catalog-owned motion operators: Rest Position and Point Velocity. *)
+let test_motion () =
+  let session = Session.create ~max_entries:32 ~max_payload_bytes:16_000_000
+      |> Result.get_ok in
+  let previous = Sop.points [|(0.,0.,0.); (1.,1.,1.)|]
+  and current = Sop.points [|(1.,2.,3.); (3.,5.,7.)|] in
+  let rested = catalog_node "rest_position" [Some current; None] [] in
+  let graph = catalog_node "point_velocity" [Some rested; Some previous; None]
+      Parameter.["dt", Float_value 0.5; "add_x", Float_value 1.;
+                 "add_z", Float_value (-1.)] in
+  let output = cook session graph in
+  let rest = float3 "rest" output and velocity = float3 "v" output in
+  check (rest.x = [|1.;3.|] && rest.y = [|2.;5.|] && rest.z = [|3.;7.|])
+    "Rest Position SOP output";
+  check (velocity.x = [|3.;5.|] && velocity.y = [|4.;8.|]
+      && velocity.z = [|5.;11.|]) "Point Velocity SOP output";
+  let invalid = catalog_node "point_velocity" [Some current; Some previous; None]
+      Parameter.["group", Text_value "missing"] in
+  (match Session.cook session ~context:(Context.create () |> Result.get_ok)
+      invalid with
+   | Error error -> check (error.Diagnostic.code = "missing_group")
+       ("unexpected diagnostic " ^ error.code)
+   | Ok _ -> fail "Point Velocity SOP accepted a missing group");
+  Session.close session
+
 let run () =
+  test_motion ();
   let source = Sop_catalog.Box.create ~label:"box"
       ~size:(Vec3.create 2. 2. 2.) ~connectivity:Pdk.Box_generator.Box_quads
       ~consolidate_points:true () in
