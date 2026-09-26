@@ -74,5 +74,11 @@ let run () =
    | Error error -> check (error.code = "missing_group")
        "Soft Transform missing-group diagnostic"
    | Ok _ -> fail "Soft Transform accepted missing group");
+  let invalid = Sop.snapshot (source ())
+      |> Sop.soft_transform_trs ~translate:(Vec3.create Float.nan 0. 0.) in
+  (match Session.cook session ~context:(context 1) invalid with
+   | Error error -> check (error.code = "invalid_transform")
+       "Soft Transform invalid-transform diagnostic"
+   | Ok _ -> fail "Soft Transform accepted a non-finite transform");
   Session.close session;
   print_endline "soft transform SOP tests passed"

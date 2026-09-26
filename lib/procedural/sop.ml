@@ -658,12 +658,22 @@ let transform ?label ?selection ?(preserve_normal_length = false)
         | Ok geometry -> cooked geometry
         | Error error -> structured_pdk_error error)
 
+(* An invalid composed transform becomes a node whose cook reports the PDK
+   error, so graph construction never raises. *)
+let invalid_transform ?label ~operation ~version error input =
+  Node.Private.make ?label ~operation ~version
+    ~parameters:("invalid=" ^ Pdk.Error.to_string error)
+    ~cook_mode:(Node.Duplicate_input 0)
+    ~dependencies:Context.Dependencies.static ~inputs:[|input|]
+    (fun ~node_id:_ _context _inputs -> structured_pdk_error error)
+
 let transform_trs ?label ?order ?rotation_order ?translate ?rotate ?scale
     ?shear ?uniform_scale ?pivot ?pivot_rotation ?invert ?selection
     ?preserve_normal_length ?recompute_normals input =
   match Pdk.Transform_ops.compose_transform ?order ?rotation_order ?translate ?rotate
       ?scale ?shear ?uniform_scale ?pivot ?pivot_rotation ?invert () with
-  | Error error -> invalid_arg (Pdk.Error.to_string error)
+  | Error error ->
+      invalid_transform ?label ~operation:"transform" ~version:2 error input
   | Ok matrix -> transform ?label ?selection ?preserve_normal_length
       ?recompute_normals matrix input
 
@@ -708,7 +718,8 @@ let soft_transform_trs ?label ?order ?rotation_order ?translate ?rotate ?scale
     ?falloff ?radius ?falloff_attribute ?recompute_normals input =
   match Pdk.Transform_ops.compose_transform ?order ?rotation_order ?translate ?rotate
       ?scale ?shear ?uniform_scale ?pivot ?pivot_rotation ?invert () with
-  | Error error -> invalid_arg (Pdk.Error.to_string error)
+  | Error error ->
+      invalid_transform ?label ~operation:"soft_transform" ~version:1 error input
   | Ok matrix -> soft_transform ?label ?selection ?metric ?falloff ?radius
       ?falloff_attribute ?recompute_normals matrix input
 
